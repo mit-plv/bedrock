@@ -1,0 +1,9 @@
+syntax: glob
+
+*~
+
+*.depend
+*.vo
+Makefile.coq
+*.glob
+*.v.d
