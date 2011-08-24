@@ -1,4 +1,4 @@
-MODULES    := PropX
+MODULES    := PropX PropXTac
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package
