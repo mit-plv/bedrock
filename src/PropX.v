@@ -6,50 +6,25 @@ Set Implicit Arguments.
 Section machine.
   Variables pc state : Type.
 
-  Inductive var : list Type -> Type -> Type :=
-  | VO : forall T Ts, var (T :: Ts) T
-  | VS : forall T Ts T', var Ts T -> var (T' :: Ts) T.
+  Inductive propX : list Type -> Type :=
+  | Inj : forall G, Prop -> propX G
+  | Cptr : forall G, pc -> (state -> propX G) -> propX G
+  | And : forall G, propX G -> propX G -> propX G
+  | Or : forall G, propX G -> propX G -> propX G
+  | Imply : forall G, propX G -> propX G -> propX G
+  | Forall : forall G A, (A -> propX G) -> propX G
+  | Exists : forall G A, (A -> propX G) -> propX G
 
-  Implicit Arguments VO [T Ts].
-  Implicit Arguments VS [T Ts T'].
-
-  Inductive propX (G : list Type) : Type :=
-  | Inj : Prop -> propX G
-  | Cptr : pc -> (state -> propX G) -> propX G
-  | And : propX G -> propX G -> propX G
-  | Or : propX G -> propX G -> propX G
-  | Imply : propX G -> propX G -> propX G
-  | Forall : forall A, (A -> propX G) -> propX G
-  | Exists : forall A, (A -> propX G) -> propX G
-
-  | Var : forall A, var G A -> A -> propX G
-  | ForallX : forall A, propX (A :: G) -> propX G
-  | ExistsX : forall A, propX (A :: G) -> propX G.
+  | Var0 : forall G A, A -> propX (A :: G)
+  | Lift : forall G A, propX G -> propX (A :: G)
+  | ForallX : forall G A, propX (A :: G) -> propX G
+  | ExistsX : forall G A, propX (A :: G) -> propX G.
 
   Implicit Arguments Inj [G].
+  Implicit Arguments Var0 [G A].
+  Implicit Arguments Lift [G A].
 
   Definition PropX := propX nil.
-
-  Fixpoint liftV G T (v : var G T) G' : var (G ++ G') T :=
-    match v with
-      | VO _ _ => VO
-      | VS _ _ _ v' => VS (liftV v' _)
-    end.
-
-  Fixpoint lift G (p : propX G) G' : propX (G ++ G') :=
-    match p with
-      | Inj P => Inj P
-      | Cptr i f => Cptr i (fun x => lift (f x) _)
-      | And p1 p2 => And (lift p1 _) (lift p2 _)
-      | Or p1 p2 => Or (lift p1 _) (lift p2 _)
-      | Imply p1 p2 => Imply (lift p1 _) (lift p2 _)
-      | Forall _ f => Forall (fun x => lift (f x) _)
-      | Exists _ f => Exists (fun x => lift (f x) _)
-
-      | Var _ x v => Var (liftV x _) v
-      | ForallX _ p => ForallX (lift p _)
-      | ExistsX _ p => ExistsX (lift p _)
-    end.
 
   Fixpoint last (G : list Type) : Type :=
     match G with
@@ -65,70 +40,43 @@ Section machine.
       | x :: G' => x :: eatLast G'
     end.
 
-  Definition varContra T (v : var nil T) T' : T' :=
-    match v in var G' _ return match G' with
-                                 | nil => T'
-                                 | _ :: _ => unit
-                               end with
-      | VO _ _ => tt
-      | _ => tt
-    end.
-
-  Definition substMore G T T' : var (eatLast G) T -> var (eatLast (T' :: G)) T :=
-    match G with
-      | nil => fun v => v
-      | T0 :: G' => match G' return var (eatLast (T0 :: G')) T -> var (eatLast (T' :: T0 :: G')) T with
-                      | nil => fun v => varContra v _
-                      | T1 :: G'' => fun v => VS v
-                    end
-    end.
-
-  Definition substMoreEq G T T' : var G T -> T = last G -> T = last (T' :: G) :=
-    match G with
-      | nil => fun v _ => varContra v _
-      | T0 :: G' => fun _ Heq => Heq
-    end.
-
-  Fixpoint substV G T (v : var G T) : var (eatLast G) T + {T = last G} :=
-    match v in var G T return var (eatLast G) T + {T = last G} with
-      | VO _ nil => inright _ (refl_equal _)
-      | VO _ _ => inleft _ VO
-      | VS _ G' _ v' => match substV v' with
-                          | inright Heq => inright _ (substMoreEq _ v' Heq)
-                          | inleft v'' => inleft _ (substMore _ _ v'')
-                        end
-    end.
-
-  Fixpoint subst G (p : propX G) (p' : last G -> PropX) : propX (eatLast G) :=
+  Fixpoint subst G (p : propX G) : (last G -> PropX) -> propX (eatLast G) :=
     match p with
-      | Inj P => Inj P
-      | Cptr i f => Cptr i (fun x => subst (f x) p')
-      | And p1 p2 => And (subst p1 p') (subst p2 p')
-      | Or p1 p2 => Or (subst p1 p') (subst p2 p')
-      | Imply p1 p2 => Imply (subst p1 p') (subst p2 p')
-      | Forall _ f => Forall (fun x => subst (f x) p')
-      | Exists _ f => Exists (fun x => subst (f x) p')
+      | Inj _ P => fun _ => Inj P
+      | Cptr _ i f => fun p' => Cptr i (fun x => subst (f x) p')
+      | And _ p1 p2 => fun p' => And (subst p1 p') (subst p2 p')
+      | Or _ p1 p2 => fun p' => Or (subst p1 p') (subst p2 p')
+      | Imply _ p1 p2 => fun p' => Imply (subst p1 p') (subst p2 p')
+      | Forall _ _ f => fun p' => Forall (fun x => subst (f x) p')
+      | Exists _ _ f => fun p' => Exists (fun x => subst (f x) p')
 
-      | Var _ x v => match substV x with
-                       | inleft x' => Var x' v
-                       | inright Heq => lift (p' (match Heq in _ = T return T with
-                                                    | refl_equal => v
-                                                  end)) _
-                     end
-      | ForallX A p1 => match G return propX (A :: G) -> propX (eatLast (A :: G)) -> propX (eatLast G) with
-                          | nil => fun p1 _ => ForallX p1
-                          | _ :: _ => fun _ rc => ForallX rc
-                        end p1 (subst p1 (match G return (last G -> PropX) -> last (A :: G) -> PropX with
-                                            | nil => fun _ _ => Inj True
-                                            | _ => fun p' => p'
-                                          end p'))
-      | ExistsX A p1 => match G return propX (A :: G) -> propX (eatLast (A :: G)) -> propX (eatLast G) with
-                          | nil => fun p1 _ => ExistsX p1
-                          | _ :: _ => fun _ rc => ExistsX rc
-                        end p1 (subst p1 (match G return (last G -> PropX) -> last (A :: G) -> PropX with
-                                            | nil => fun _ _ => Inj True
-                                            | _ => fun p' => p'
-                                          end p'))
+      | Var0 G A v => match G return (last (A :: G) -> PropX) -> propX (eatLast (A :: G)) with
+                        | nil => fun p' => p' v
+                        | _ :: _ => fun _ => Var0 v
+                      end
+
+      | Lift G A p1 => match G return propX G -> ((last G -> PropX) -> propX (eatLast G))
+                         -> (last (A :: G) -> PropX) -> propX (eatLast (A :: G)) with
+                         | nil => fun p1 _ _ => p1
+                         | _ :: _ => fun _ subst_p1 p' => Lift (subst_p1 p')
+                       end p1 (subst p1)
+
+      | ForallX G A p1 => fun p' =>
+        match G return propX (A :: G) -> propX (eatLast (A :: G)) -> propX (eatLast G) with
+          | nil => fun p1 _ => ForallX p1
+          | _ :: _ => fun _ rc => ForallX rc
+        end p1 (subst p1 (match G return (last G -> PropX) -> last (A :: G) -> PropX with
+                            | nil => fun _ _ => Inj True
+                            | _ => fun p' => p'
+                          end p'))
+      | ExistsX G A p1 => fun p' =>
+        match G return propX (A :: G) -> propX (eatLast (A :: G)) -> propX (eatLast G) with
+          | nil => fun p1 _ => ExistsX p1
+          | _ :: _ => fun _ rc => ExistsX rc
+        end p1 (subst p1 (match G return (last G -> PropX) -> last (A :: G) -> PropX with
+                            | nil => fun _ _ => Inj True
+                            | _ => fun p' => p'
+                          end p'))
     end.
 
   Definition Subst A (p : propX (A :: nil)) (p' : A -> PropX) : PropX := subst p p'.
@@ -712,7 +660,7 @@ Section machine.
 
     Hint Resolve Init Inj_R Cptr_R And_R Or_R1 Or_R2 Imply_R Forall_R Exists_R ForallX_R ExistsX_R.
 
-    Ltac ready con := eapply con; solve [ eauto ].
+    Ltac ready con := eapply con; solve [ instantiate; eauto ].
 
     Ltac doLeft := intros;
       ready Inj_L || ready Cptr_L || ready And_L1 || ready And_L2 || ready Or_L
@@ -830,33 +778,35 @@ Section machine.
       apply normalP_neutralP_min; eauto.
     Qed.
 
-    Hint Extern 0 (seq ?G0 ?R) =>
-      match goal with
-        | [ _ : seq (?P :: _) R, IH : forall PG Q0, _ -> forall G, incl _ (?P :: _) -> _ |- _ ] =>
-          apply IH with (P :: G0);
-            repeat match goal with
-                     | [ IH : forall PG Q0, _ -> forall G, incl _ (_ :: _) -> _ |- _ ] => clear IH
-                   end
-      end.
+    Lemma destruct_PropX' : forall G (P : propX G),
+      match G return propX G -> Prop with
+        | nil => fun P =>
+          (exists p, P = Inj p)
+          \/ (exists i, exists f, P = Cptr i f)
+          \/ (exists p1, exists p2, P = And p1 p2)
+          \/ (exists p1, exists p2, P = Or p1 p2)
+          \/ (exists p1, exists p2, P = Imply p1 p2)
+          \/ (exists A, exists p1 : A -> _, P = Forall p1)
+          \/ (exists A, exists p1 : A -> _, P = Exists p1)
+          \/ (exists A, exists p1 : propX (A :: _), P = ForallX p1)
+          \/ (exists A, exists p1 : propX (A :: _), P = ExistsX p1)
+        | _ => fun _ => True
+      end P.
+      destruct P; destruct G; eauto 11.
+    Qed.
 
-    Inductive head : Type := HInj | HCptr | HAnd | HOr | HImply
-    | HForall | HExists | HVar | HForallX | HExistsX.
-
-    Definition headOf G (p : propX G) : head :=
-      match p with
-        | Inj _ => HInj
-        | Cptr _ _ => HCptr
-        | And _ _ => HAnd
-        | Or _ _ => HOr
-        | Imply _ _ => HImply
-        | Forall _ _ => HForall
-        | Exists _ _ => HExists
-        | Var _ _ _ => HVar
-        | ForallX _ _ => HForallX
-        | ExistsX _ _ => HExistsX
-      end.
-
-    Ltac equate E E' := let H := fresh "H" in assert (H : E = E') by reflexivity; clear H.
+    Theorem destruct_PropX : forall P : PropX,
+      (exists p, P = Inj p)
+      \/ (exists i, exists f, P = Cptr i f)
+      \/ (exists p1, exists p2, P = And p1 p2)
+      \/ (exists p1, exists p2, P = Or p1 p2)
+      \/ (exists p1, exists p2, P = Imply p1 p2)
+      \/ (exists A, exists p1 : A -> _, P = Forall p1)
+      \/ (exists A, exists p1 : A -> _, P = Exists p1)
+      \/ (exists A, exists p1 : propX (A :: _), P = ForallX p1)
+      \/ (exists A, exists p1 : propX (A :: _), P = ExistsX p1).
+      intros; exact (destruct_PropX' P).
+    Qed.
 
     Ltac intuitionPlus := try tauto; repeat match goal with
                                               | [ H : ex _ |- _ ] => destruct H
@@ -865,18 +815,16 @@ Section machine.
 
     Hint Extern 1 (seq _ _) =>
       match goal with
-        | _ => match goal with
-                 | [ _ : match ?E with Inj _ => _ | Cptr _ _ => _ | And _ _ => _ | Or _ _ => _ | Imply _ _ => _
-                           | Forall _ _ => _ | Exists _ _ => _ | Var _ _ _ => _ | ForallX _ _ => _ | ExistsX _ _ => _ end |- _ ] =>
-                 destruct E; intuitionPlus
-               end
-        | [ H : _ |- _ ] => eapply H; [ match goal with
-                                          | [ _ : match ?E with Inj _ => _ | Cptr _ _ => _ | And _ _ => _ | Or _ _ => _ | Imply _ _ => _
-                                                    | Forall _ _ => _ | Exists _ _ => _ | Var _ _ _ => _ | ForallX _ _ => _ | ExistsX _ _ => _ end
-                                              |- match ?E' with Inj _ => _ | Cptr _ _ => _ | And _ _ => _ | Or _ _ => _ | Imply _ _ => _
-                                                   | Forall _ _ => _ | Exists _ _ => _ | Var _ _ _ => _ | ForallX _ _ => _ | ExistsX _ _ => _ end ] =>
-                                          equate E' E; destruct E; intuitionPlus
-                                        end | solve [ eauto ] ]
+        | [ H : _, arg : _,
+            H' : match ?P with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
+                   | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _
+                   | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end |- _ ] =>
+          solve [ (apply H with P || apply H with arg P); eauto; generalize H'; clear; generalize dependent P;
+            match goal with
+              | [ |- forall P' : propX ?NIL, _ ] => generalize NIL
+            end; destruct P; intuition; match goal with
+                                          | [ G : list Type |- _ ] => destruct G; firstorder; eauto
+                                        end ]
       end.
 
     Ltac innerPredicative := let GG := fresh "GG" in induction 1; intro GG; destruct GG; intuition;
@@ -888,10 +836,42 @@ Section machine.
                  | [ H : forall GG : list Type, _ |- _ ] => specialize (H nil); simpl in H
                end;
         doLeft || solve [ eauto ]
+          || match goal with
+               | [ _ : match ?P with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
+                         | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _
+                         | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end |- _ ] => solve [ specialize (destruct_PropX P); firstorder; subst; intuitionPlus ]
+             end
           || (try match goal with
                     | [ H : ex _ |- _ ] => destruct H
                   end;
           match goal with
+            | [ H : _, _ : incl _ (?P :: _) |- _ ] => 
+              solve [ apply H with P; eauto ]
+            | [ G0 : list PropX, _ : incl _ (Imply ?P ?Q :: _), HP : forall PG0 : list _, _, IHP : forall P' : propX _, _,
+              HQ : forall PG0 : list _, _, IHQ : forall P' : propX _, _ |- _ ] =>
+            match type of HP with
+              | context[P] =>
+                match type of IHP with
+                  | context[P] =>
+                    match type of HQ with
+                      | context[Q] =>
+                        match type of IHQ with
+                          | context[Q] => apply HQ with (Q :: G0); eauto; [
+                            apply IHQ with (Imply P Q); eauto
+                            | apply HP with (P :: G0); eauto;
+                              apply IHP with (Imply P Q); eauto ]
+                        end
+                    end
+                end
+            end
+            | [ H : _, G0 : _, P1 : propX nil, P2 : propX nil |- _ ] => 
+              apply H with (P1 :: G0); eauto;
+                match goal with
+                  | [ IH : _ |- _ ] => solve [ apply IH with (And P1 P2); eauto 6
+                    | apply IH with (And P2 P1); eauto 6
+                    | apply IH with (Or P1 P2); eauto
+                    | apply IH with (Or P2 P1); eauto ]
+                end
             | [ H : _, B : _, G0 : _, P : _ |- _ ] => 
               apply H with B (P B :: G0); eauto;
                 match goal with
@@ -902,18 +882,160 @@ Section machine.
                 end
           end).
 
-    Lemma inner_Forall : forall PG Q, seq PG Q
+    Lemma inner_Inj : forall PG Q, seq PG Q
       -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
-        match GG as GG0 return (propX GG0 -> Prop) with
+        match GG return (propX GG -> Prop) with
           | nil =>
             fun P' =>
               match P' with
-                | Forall A0 P =>
-                  (forall B : A0, seq G (P B)) /\
-                  (forall (a : A0) (PG0 : list PropX) (Q0 : PropX),
-                    seq PG0 Q0 ->
-                    forall G0 : list (propX nil),
-                      incl PG0 (P a :: G0) -> seq G0 (P a) -> seq G0 Q0)
+                | Inj GG' P => P
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_Cptr : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | Cptr GG' i P =>
+                  match GG' return (_ -> propX GG') -> Prop with
+                    | nil => fun P =>
+                      specs i = Some (fun x => P x)
+                      /\ (forall st (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P st :: G0) -> seq G0 (P st) -> seq G0 Q0)
+                    | _ => fun _ => False
+                  end P
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_And : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | And GG' P1 P2 =>
+                  match GG' return propX GG' -> propX GG' -> Prop with
+                    | nil => fun P1 P2 =>
+                      seq G P1
+                      /\ seq G P2
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+                    | _ => fun _ _ => False
+                  end P1 P2
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_Or1 : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | Or GG' P1 P2 =>
+                  match GG' return propX GG' -> propX GG' -> Prop with
+                    | nil => fun P1 P2 =>
+                      seq G P1
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                    | _ => fun _ _ => False
+                  end P1 P2
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_Or2 : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | Or GG' P1 P2 =>
+                  match GG' return propX GG' -> propX GG' -> Prop with
+                    | nil => fun P1 P2 =>
+                      seq G P2
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+                    | _ => fun _ _ => False
+                  end P1 P2
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_Imply : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | Imply GG' P1 P2 =>
+                  match GG' return propX GG' -> propX GG' -> Prop with
+                    | nil => fun P1 P2 =>
+                      seq (P1 :: G) P2
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                      /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+                    | _ => fun _ _ => False
+                  end P1 P2
+                | _ => False
+              end -> incl PG (P' :: G) -> seq G Q
+          | T :: l => fun _ : propX (T :: l) => True
+        end P'.
+      innerPredicative.
+    Qed.
+
+    Lemma inner_Forall : forall PG Q, seq PG Q
+      -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
+        match GG return (propX GG -> Prop) with
+          | nil =>
+            fun P' =>
+              match P' with
+                | Forall GG' A0 P =>
+                  match GG' return (A0 -> propX GG') -> Prop with
+                    | nil => fun P =>
+                      (forall B : A0, seq G (P B)) /\
+                      (forall (a : A0) (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P a :: G0) -> seq G0 (P a) -> seq G0 Q0)
+                    | _ => fun _ => False
+                  end P
                 | _ => False
               end -> incl PG (P' :: G) -> seq G Q
           | T :: l => fun _ : propX (T :: l) => True
@@ -927,12 +1049,16 @@ Section machine.
           | nil =>
             fun P' =>
               match P' with
-                | Exists A0 P =>
-                  (exists B, seq G (P B)) /\
-                  (forall (a : A0) (PG0 : list PropX) (Q0 : PropX),
-                    seq PG0 Q0 ->
-                    forall G0 : list (propX nil),
-                      incl PG0 (P a :: G0) -> seq G0 (P a) -> seq G0 Q0)
+                | Exists GG' A0 P =>
+                  match GG' return (A0 -> propX GG') -> Prop with
+                    | nil => fun P =>
+                      (exists B, seq G (P B)) /\
+                      (forall (a : A0) (PG0 : list PropX) (Q0 : PropX),
+                        seq PG0 Q0 ->
+                        forall G0 : list (propX nil),
+                          incl PG0 (P a :: G0) -> seq G0 (P a) -> seq G0 Q0)
+                    | _ => fun _ => False
+                  end P
                 | _ => False
               end -> incl PG (P' :: G) -> seq G Q
           | T :: l => fun _ : propX (T :: l) => True
@@ -946,8 +1072,11 @@ Section machine.
           | nil =>
             fun P' =>
               match P' with
-                | ForallX A0 P =>
-                  forall B, seq G (Subst P B)
+                | ForallX GG' A0 P =>
+                  match GG' return propX (_ :: GG') -> Prop with
+                    | nil => fun P => forall B, seq G (Subst P B)
+                    | _ => fun _ => False
+                  end P
                 | _ => False
               end -> incl PG (P' :: G) -> seq G Q
           | T :: l => fun _ : propX (T :: l) => True
@@ -961,8 +1090,11 @@ Section machine.
           | nil =>
             fun P' =>
               match P' with
-                | ExistsX A0 P =>
-                  exists B, seq G (Subst P B)
+                | ExistsX GG' A0 P =>
+                  match GG' return propX (_ :: GG') -> Prop with
+                    | nil => fun P => exists B, seq G (Subst P B)
+                    | _ => fun _ => False
+                  end P
                 | _ => False
               end -> incl PG (P' :: G) -> seq G Q
           | T :: l => fun _ : propX (T :: l) => True
@@ -973,39 +1105,227 @@ Section machine.
     Ltac outerPredicative :=
       induction 2; intuition;
         try match goal with
-              | [ |- match ?E with Inj _ => _ | Cptr _ _ => _ | And _ _ => _ | Or _ _ => _ | Imply _ _ => _
-                       | Forall _ _ => _ | Exists _ _ => _ | Var _ _ _ => _ | ForallX _ _ => _ | ExistsX _ _ => _ end ] =>
-              destruct E; intuition; doLeft
+              | [ |- match ?E with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
+                       | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _ | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end ] =>
+              specialize (destruct_PropX E); firstorder; subst; intuition; doLeft
             end;
         match goal with
-          | [ H : _, _ : incl _ (?P :: _) |- _ ] => solve [ specialize (inner_Forall H P); eauto
-            | specialize (inner_Exists H P); eauto
-            | specialize (inner_ForallX H P); eauto
-            | specialize (inner_ExistsX H P); eauto ]
+          | [ H : _, _ : incl _ (?P :: _) |- _ ] => solve [ apply (inner_Inj H P); intuition
+            | apply (inner_Cptr H P); intuition
+            | apply (inner_And H P); intuition
+            | apply (inner_Or1 H P); intuition
+            | apply (inner_Or2 H P); intuition
+            | apply (inner_Imply H P); intuition
+            | apply (inner_Forall H P); intuition
+            | apply (inner_Exists H P); intuition eauto
+            | apply (inner_ForallX H P); intuition
+            | apply (inner_ExistsX H P); intuition eauto ]
         end.
 
-    Lemma outer_Forall : forall PG Q, seq PG Q
+    Lemma outer_Inj' : forall PG Q, seq PG Q
       -> forall G P, seq G P ->
         match P with
-          | Forall A p =>
-            (forall (a : A) (PG0 : list PropX) (Q0 : PropX),
-              seq PG0 Q0 ->
-              forall G0 : list (propX nil),
-                incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0) ->
-            incl PG (P :: G) -> seq G Q
+          | Inj GG' _ => incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_Inj : forall PG Q, seq PG Q
+      -> forall G P, seq G (Inj P) -> incl PG (Inj P :: G) -> seq G Q.
+      intros; specialize (outer_Inj' H H0); eauto.
+    Qed.
+
+    Lemma outer_Cptr' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | Cptr GG' i P1 =>
+            match GG' return (_ -> propX GG') -> Prop with
+              | nil => fun P1 =>
+                forall st (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P1 st :: G0) -> seq G0 (P1 st) -> seq G0 Q0
+              | _ => fun _ => False
+            end P1 -> incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_Cptr : forall PG Q, seq PG Q
+      -> forall G i P1, seq G (Cptr i P1)
+        -> (forall st (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P1 st :: G0) -> seq G0 (P1 st) -> seq G0 Q0)
+        -> incl PG (Cptr i P1 :: G) -> seq G Q.
+      intros; specialize (outer_Cptr' H H0); eauto.
+    Qed.
+
+    Lemma outer_And' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | And GG' P1 P2 =>
+            match GG' return propX GG' -> propX GG' -> Prop with
+              | nil => fun P1 P2 =>
+                (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+              | _ => fun _ _ => False
+            end P1 P2 -> incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_And : forall PG Q, seq PG Q
+      -> forall G P1 P2, seq G (And P1 P2)
+        -> (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+        ->  (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+        -> incl PG (And P1 P2 :: G) -> seq G Q.
+      intros; specialize (outer_And' H H0); eauto.
+    Qed.
+
+    Lemma outer_Or' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | Or GG' P1 P2 =>
+            match GG' return propX GG' -> propX GG' -> Prop with
+              | nil => fun P1 P2 =>
+                (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+              | _ => fun _ _ => False
+            end P1 P2 -> incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_Or : forall PG Q, seq PG Q
+      -> forall G P1 P2, seq G (Or P1 P2)
+        -> (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+        ->  (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+        -> incl PG (Or P1 P2 :: G) -> seq G Q.
+      intros; specialize (outer_Or' H H0); eauto.
+    Qed.
+
+    Lemma outer_Imply' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | Imply GG' P1 P2 =>
+            match GG' return propX GG' -> propX GG' -> Prop with
+              | nil => fun P1 P2 =>
+                (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+                /\ (forall (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+              | _ => fun _ _ => False
+            end P1 P2 -> incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_Imply : forall PG Q, seq PG Q
+      -> forall G P1 P2, seq G (Imply P1 P2)
+        -> (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P1 :: G0) -> seq G0 P1 -> seq G0 Q0)
+        ->  (forall (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (P2 :: G0) -> seq G0 P2 -> seq G0 Q0)
+        -> incl PG (Imply P1 P2 :: G) -> seq G Q.
+      intros; specialize (outer_Imply' H H0); eauto.
+    Qed.
+
+    Lemma outer_Forall' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | Forall GG' A p =>
+            match GG' return (A -> propX GG') -> Prop with
+              | nil => fun p =>
+                forall (a : A) (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0
+              | _ => fun _ => False
+            end p -> incl PG (P :: G) -> seq G Q
+          | _ => True
+        end.
+      outerPredicative.
+    Qed.
+
+    Lemma outer_Forall : forall PG Q, seq PG Q
+      -> forall G A (p : A -> _), seq G (Forall p) ->
+        (forall (a : A) (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0)
+        -> incl PG (Forall p :: G) -> seq G Q.
+      intros; specialize (outer_Forall' H H0); eauto.
+    Qed.
+
+    Lemma outer_Exists' : forall PG Q, seq PG Q
+      -> forall G P, seq G P ->
+        match P with
+          | Exists GG' A p =>
+            match GG' return (A -> propX GG') -> Prop with
+              | nil => fun p =>
+                forall (a : A) (PG0 : list PropX) (Q0 : PropX),
+                  seq PG0 Q0 ->
+                  forall G0 : list (propX nil),
+                    incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0
+              | _ => fun _ => False
+            end p -> incl PG (P :: G) -> seq G Q
           | _ => True
         end.
       outerPredicative.
     Qed.
 
     Lemma outer_Exists : forall PG Q, seq PG Q
+      -> forall G A p, seq G (Exists p) ->
+        (forall (a : A) (PG0 : list PropX) (Q0 : PropX),
+          seq PG0 Q0 ->
+          forall G0 : list (propX nil),
+            incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0)
+        -> incl PG (Exists p :: G) -> seq G Q.
+      intros; specialize (outer_Exists' H H0); eauto.
+    Qed.
+
+    Lemma outer_ForallX' : forall PG Q, seq PG Q
       -> forall G P, seq G P ->
         match P with
-          | Exists A p =>
-            (forall (a : A) (PG0 : list PropX) (Q0 : PropX),
-              seq PG0 Q0 ->
-              forall G0 : list (propX nil),
-                incl PG0 (p a :: G0) -> seq G0 (p a) -> seq G0 Q0) ->
+          | ForallX _ A p =>
             incl PG (P :: G) -> seq G Q
           | _ => True
         end.
@@ -1013,9 +1333,15 @@ Section machine.
     Qed.
 
     Lemma outer_ForallX : forall PG Q, seq PG Q
+      -> forall G A (p : propX (A :: _)), seq G (ForallX p) ->
+        incl PG (ForallX p :: G) -> seq G Q.
+      intros; specialize (outer_ForallX' H H0); eauto.
+    Qed.
+
+    Lemma outer_ExistsX' : forall PG Q, seq PG Q
       -> forall G P, seq G P ->
         match P with
-          | ForallX A p =>
+          | ExistsX _ A p =>
             incl PG (P :: G) -> seq G Q
           | _ => True
         end.
@@ -1023,26 +1349,13 @@ Section machine.
     Qed.
 
     Lemma outer_ExistsX : forall PG Q, seq PG Q
-      -> forall G P, seq G P ->
-        match P with
-          | ExistsX A p =>
-            incl PG (P :: G) -> seq G Q
-          | _ => True
-        end.
-      outerPredicative.
+      -> forall G A (p : propX (A :: _)), seq G (ExistsX p) ->
+        incl PG (ExistsX p :: G) -> seq G Q.
+      intros; specialize (outer_ExistsX' H H0); eauto.
     Qed.
 
-    Ltac inver := try discriminate;
-      repeat match goal with
-               | [ H : _ = ?E |- _ ] => 
-                 match E with
-                   | Some _ => fail 1
-                   | _ =>
-                     injection H; clear H; intros; repeat match goal with
-                                                            | [ H : ?X = ?Y |- _ ] => subst X || subst Y
-                                                          end
-                 end
-             end.
+    Hint Immediate outer_Inj outer_Cptr outer_And outer_Or outer_Imply
+      outer_Forall outer_Exists outer_ForallX outer_ExistsX.
 
     Lemma cut_admissibility' : forall GG (P : propX GG),
       match GG return propX GG -> Prop with
@@ -1052,45 +1365,7 @@ Section machine.
           -> seq G P
           -> seq G Q
       end P.
-      induction P; destruct G; intuition;
-        match goal with
-          | [ H1 : _, H2 : _ |- _ ] => solve [ specialize (outer_Forall H1 H2); eauto
-            | specialize (outer_Exists H1 H2); eauto
-            | specialize (outer_ForallX H1 H2); eauto
-            | specialize (outer_ExistsX H1 H2); eauto ]
-          | _ =>
-            match goal with
-              | [ x : var nil _ |- _ ] => inversion x
-              | [ _ : incl ?PG (_ :: ?G) |- _ ] =>
-                match goal with
-                  | [ H : seq G ?P |- _ ] =>
-                    generalize dependent H; remember P; induction 1; intros; subst
-                end; try solve [ eapply seq_weaken; [ eassumption | eauto ] ];
-                instantiate
-            end;
-            match goal with
-              | [ _ : incl ?PG (_ :: ?G) |- _ ] =>
-                try (progress inver; repeat match goal with
-                                              | [ IH : _ = _ -> incl _ _ -> seq _ _ |- _ ] => clear IH
-                                              | [ IH : forall x, _ = _ -> incl _ _ -> seq _ _ |- _ ] => clear IH
-                                            end;
-                instantiate;
-                  match goal with
-                    | [ H : seq PG _ |- _ ] => generalize dependent G; generalize dependent H; induction 1; intros;
-                      try match goal with
-                            | [ H1 : incl _ _, H2 : In _ _ |- _ ] => generalize (H1 _ H2); simpl; intuition; subst
-                          end; inver
-                  end)
-            end; (doLeft || eauto);
-            instantiate;
-              repeat match goal with
-                       | [ H : seq (?P :: ?G) ?R |- seq ?G0 _ ] =>
-                         match G with
-                           | G0 => fail 1
-                           | _ => assert (seq (P :: G0) R); [ eauto | clear H ]
-                         end
-                     end; eauto
-        end.
+      induction P; destruct G; intuition eauto.
     Qed.
 
     Theorem cut_admissibility : forall P G Q,
@@ -1143,18 +1418,49 @@ Section machine.
 
     Hint Immediate normal_sound.
 
-    Ltac sound := intros;
-      match goal with
-        | [ H : interp ?E |- _ ] =>
-          match goal with
-            | [ x : _ |- _ ] => match x with
-                                  | E => fail 2
-                                end
-            | _ =>
-              generalize (normalization H); clear H; intro H; inversion H; clear H; subst;
-                try solve [ elimtype False; eauto ]; inver; intuition; subst; auto
-          end
-      end.
+    Lemma interp_sound : forall P, interp P
+      -> match P with
+           | Inj _ p => p
+           | Cptr G f a => match G return (_ -> propX G) -> Prop with
+                             | nil => fun a => specs f = Some (fun x => a x)
+                             | _ => fun _ => False
+                           end a
+           | And G P1 P2 => match G return propX G -> propX G -> Prop with
+                              | nil => fun P1 P2 => interp P1 /\ interp P2
+                              | _ => fun _ _ => False
+                            end P1 P2
+           | Or G P1 P2 => match G return propX G -> propX G -> Prop with
+                             | nil => fun P1 P2 => interp P1 \/ interp P2
+                             | _ => fun _ _ => False
+                           end P1 P2
+           | Imply G P1 P2 => match G return propX G -> propX G -> Prop with
+                                | nil => fun P1 P2 => interp P1 -> interp P2
+                                | _ => fun _ _ => False
+                              end P1 P2
+           | Forall G _ P1 => match G return (_ -> propX G) -> Prop with
+                                | nil => fun P1 => forall x, interp (P1 x)
+                                | _ => fun _ => False
+                              end P1
+           | Exists G _ P1 => match G return (_ -> propX G) -> Prop with
+                                | nil => fun P1 => exists x, interp (P1 x)
+                                | _ => fun _ => False
+                              end P1
+           | ForallX G _ P1 => match G return propX (_ :: G) -> Prop with
+                                | nil => fun P1 => forall x, interp (Subst P1 x)
+                                | _ => fun _ => False
+                              end P1
+           | ExistsX G _ P1 => match G return propX (_ :: G) -> Prop with
+                                 | nil => fun P1 => exists x, interp (Subst P1 x)
+                                 | _ => fun _ => False
+                               end P1
+           | _ => False
+         end.
+      intros ? H; apply normalization in H; inversion H; subst; clear H; try solve [ elimtype False; eauto ]; intuition eauto.
+    Qed.
+
+    Ltac sound := intros; match goal with
+                            | [ H : interp _ |- _ ] => solve [ apply interp_sound in H; auto ]
+                          end.
 
     Theorem Inj_sound : forall p, interp (Inj p) -> p.
       sound.
@@ -1177,70 +1483,34 @@ Section machine.
 
     Theorem Imply_sound : forall P Q, interp (Imply P Q)
       -> interp P -> interp Q.
-      intros ? ? H; generalize (normalization H); eauto.
-    Qed.
-
-    Ltac soundQ := let H := fresh "H" in intros ? H; apply normalization in H; inversion H;
-      try solve [ elimtype False; eauto ]; inver; intuition; subst; auto.
-
-    Lemma Forall_sound' : forall P, interp P
-      -> match P with
-           | Forall _ P => forall x, interp (P x)
-           | _ => True
-         end.
-      soundQ.
+      sound.
     Qed.
 
     Theorem Forall_sound : forall A (P : A -> _), interp (Forall P)
       -> forall x, interp (P x).
-      intros ? ? H; apply Forall_sound' in H; auto.
-    Qed.      
-
-    Lemma Exists_sound' : forall P, interp P
-      -> match P with
-           | Exists _ P => exists x, interp (P x)
-           | _ => True
-         end.
-      soundQ; eauto.
+      sound.
     Qed.
 
     Theorem Exists_sound : forall A (P : A -> _), interp (Exists P)
       -> exists x, interp (P x).
-      intros ? ? H; apply Exists_sound' in H; auto.
-    Qed.
-
-    Lemma ForallX_sound' : forall P, interp P
-      -> match P with
-           | ForallX _ P => forall f, interp (Subst P f)
-           | _ => True
-         end.
-      soundQ.
+      sound.
     Qed.
 
     Theorem ForallX_sound : forall A (P : propX (A :: nil)), interp (ForallX P)
       -> forall f, interp (Subst P f).
-      intros ? ? H; apply ForallX_sound' in H; auto.
-    Qed.
-
-    Lemma ExistsX_sound' : forall P, interp P
-      -> match P with
-           | ExistsX _ P => exists f, interp (Subst P f)
-           | _ => True
-         end.
-      soundQ; eauto.
+      sound.
     Qed.
 
     Theorem ExistsX_sound : forall A (P : propX (A :: nil)), interp (ExistsX P)
       -> exists f, interp (Subst P f).
-      intros ? ? H; apply ExistsX_sound' in H; auto.
+      sound.
     Qed.
   End specs.
 End machine.
 
-Implicit Arguments VO [T Ts].
-Implicit Arguments VS [T Ts T'].
-
 Implicit Arguments Inj [pc state G].
+Implicit Arguments Var0 [pc state G A].
+Implicit Arguments Lift [pc state G A].
 Notation "[< p >]" := (Inj p) : PropX_scope.
 Infix "/\" := And : PropX_scope.
 Infix "\/" := Or : PropX_scope.
@@ -1256,13 +1526,14 @@ Notation "'AlX' : A , P" := (ForallX (A := A) P) (x ident, at level 89) : PropX_
 Notation "'ExX' , P" := (ExistsX P) (x ident, at level 89) : PropX_scope.
 Notation "'ExX' : A , P" := (ExistsX (A := A) P) (x ident, at level 89) : PropX_scope.
 
-Implicit Arguments Var [pc state G A].
-Infix "@" := Var (at level 75) : PropX_scope.
+Notation "#0" := Var0 : PropX_scope.
+Notation "#1" := (fun x => Lift (Var0 x)) : PropX_scope.
+Notation "#2" := (fun x => Lift (Lift (Var0 x))) : PropX_scope.
+Notation "#3" := (fun x => Lift (Lift (Lift (Var0 x)))) : PropX_scope.
+Notation "#4" := (fun x => Lift (Lift (Lift (Lift (Var0 x))))) : PropX_scope.
 
 Delimit Scope PropX_scope with PropX.
 Bind Scope PropX_scope with PropX propX.
-
-Notation "^[ p ]" := (lift p _) : PropX_scope.
 
 Arguments Scope interp [type_scope type_scope _ PropX_scope].
 Arguments Scope valid [type_scope type_scope _ PropX_scope PropX_scope].
