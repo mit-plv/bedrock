@@ -1,4 +1,4 @@
-MODULES    := PropX PropXTac
+MODULES    := PropX PropXTac SepTheory Separation
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package
