@@ -41,32 +41,26 @@ Defined.
 Class Typ : Type :=
 { type : Type }.
 
-Global Instance FunTyp (T1 T2 : Typ) : Typ :=
-{ type := @type T1 -> @type T2 }.
-
-Inductive Mem (T : Typ) : list Typ -> Type :=
-| MHere : forall R, Mem T (T :: R)
-| MNext : forall T' R, Mem T R -> Mem T (T' :: R)
-.
-
 Section Expressions.
-  Variable Sym : Type.
-  Variable Sym_eqdec : forall (a b : Sym), {a = b} + {a <> b}.
-  Variable Sym_denote : Sym -> Typ.
+  Inductive Mem : list Typ -> Typ -> Type :=
+  | MHere : forall T R, Mem (T :: R) T
+  | MNext : forall T T' R, Mem R T -> Mem (T' :: R) T.
 
   Inductive Expr (G : list Typ) : Typ -> Type := 
-  | Var   : forall T, Mem T G -> Expr G T
+  | Var   : forall T, Mem G T -> Expr G T
   | Const : forall T, @type T -> Expr G T
-  | App   : forall T1 T2, Expr G (FunTyp T1 T2) -> Expr G T1 -> Expr G T2
-  .
-End Expressions.
+  | App   : c
+    .
+  | Pair : Expr -> Expr -> Expr
+  | Cons : Expr -> Expr -> Expr
+  | Nil  : Expr
+  | Var  : nat -> Expr
+    .
 
 Section Context.
+  Variable g : list { x : Typ & denoteTyp x }.
 
-
-  Variable g : list (@sigT Typ (fun x => @type x)).
-
-  Definition var_case (t : Typ) (n : nat) : option (@type t) :=
+  Definition var_case (t : Typ) (n : nat) : option (denoteTyp t) :=
     match nth_error g n with
       | None => None
       | Some x => match Teq_dec (projT1 x) t with
