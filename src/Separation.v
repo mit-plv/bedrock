@@ -51,61 +51,40 @@ Inductive Mem (T : Typ) : list Typ -> Type :=
 
 Section Expressions.
   Variable Sym : Type.
-  Variable Sym_eqdec : forall (a b : Sym), {a = b} + {a <> b}.
-  Variable Sym_denote : Sym -> Typ.
+  Variable Sym_type : Sym -> Typ.
 
   Inductive Expr (G : list Typ) : Typ -> Type := 
-  | Var   : forall T, Mem T G -> Expr G T
-  | Const : forall T, @type T -> Expr G T
-  | App   : forall T1 T2, Expr G (FunTyp T1 T2) -> Expr G T1 -> Expr G T2
+  | Var  : forall T, Mem T G -> Expr G T
+  | App  : forall T1 T2, Expr G (FunTyp T1 T2) -> Expr G T1 -> Expr G T2
+  | Lit  : forall S : Sym, Expr G (Sym_type S)
   .
+
+  Section Denote.
+    Variable Sym_denote : forall S : Sym, @type (Sym_type S).
+    
+    Fixpoint Env (g : list Typ) : Type :=
+      match g with
+        | nil => unit
+        | a :: b => type * Env b
+      end%type.
+    
+    Fixpoint lookup T (g : list Typ) (m : Mem T g) : Env g -> @type T :=
+      match m in Mem _ g return Env g -> @type T with
+        | MHere _ => fun x => fst x
+        | MNext _ _ r => fun x => lookup T _ r (snd x)
+      end.
+
+    Fixpoint denoteExpr G (E : Env G) (T : Typ) (e : Expr G T) : type :=
+      match e in Expr _ T return @type T with
+        | Var _ v => lookup _ G v E
+        | App _ _ f a => (denoteExpr G E _ f) (denoteExpr G E _ a)
+        | Lit s => Sym_denote s
+      end.
+  
+  End Denote.
 End Expressions.
 
-Section Context.
-
-
-  Variable g : list (@sigT Typ (fun x => @type x)).
-
-  Definition var_case (t : Typ) (n : nat) : option (@type t) :=
-    match nth_error g n with
-      | None => None
-      | Some x => match Teq_dec (projT1 x) t with
-                    | left pf => match pf with
-                                   | refl_equal => Some (projT2 x)
-                                 end
-                    | right _ => None
-                  end
-    end.
-
-  Fixpoint denoteExpr (t : Typ) (e : Expr) : option (denoteTyp t) :=
-    match t as t return option (denoteTyp t) with
-      | Nat => match e with
-                 | Var n => var_case Nat n 
-                 | NatI n => Some n
-                 | _ => None
-               end
-      | List t' => match e with
-                     | Var n => var_case (List t') n
-                     | Nil => Some nil
-                     | Cons l r => match denoteExpr t' l, denoteExpr (List t') r with
-                                     | Some a , Some b => Some (a :: b)
-                                     | _ , _ => None
-                                   end
-                     | _ => None
-                   end
-      | Prod t1 t2 => match e with
-                        | Var n => var_case (Prod t1 t2) n
-                        | Pair l r => 
-                          match denoteExpr t1 l , denoteExpr t2 r with
-                            | Some a , Some b => Some (a,b)
-                            | _ , _ => None
-                          end
-                        | _ => None
-                      end
-    end.
-End Context.
-
-Definition Expr_dec (e1 e2 : Expr) : {e1 = e2} + {e1 <> e2}.
+Definition Expr_dec T g (e1 e2 : Expr g T) : {e1 = e2} + {e1 <> e2}.
 decide equality. decide equality. decide equality.
 Defined.
 
