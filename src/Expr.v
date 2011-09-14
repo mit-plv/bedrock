@@ -34,51 +34,74 @@ Section FunType.
     end.
 End FunType.
 
+Section Member.
+  Context {T : Type}. 
+
+  Inductive Mem (V : T) : list T -> Type :=
+  | MHere : forall R, Mem V (V :: R)
+  | MNext : forall V' R, Mem V R -> Mem V (V' :: R).
+
+  Variable D : T -> Type.
+
+  Fixpoint Env (g : list T) : Type :=
+    match g with
+      | nil => unit
+      | a :: b => D a * Env b
+    end%type.
+
+  Fixpoint get {t} (s : list T) (m : Mem t s) : Env s -> D t :=
+    match m with
+      | MHere _ => fun x => fst x
+      | MNext _ _ r => fun x => get _ r (snd x)
+    end.
+
+End Member.
+
 (** Syntax of Expressions **)
 Section Typed.
   Variable Typ : Type.
-
-  Inductive Mem (T : Typ) : list Typ -> Type :=
-  | MHere : forall R, Mem T (T :: R)
-  | MNext : forall T' R, Mem T R -> Mem T (T' :: R)
-  .
-
   Variable Sym : Type.
   Variable Sym_type : Sym -> list Typ * Typ.
 
-  Inductive Expr (G : list Typ) : Typ -> Type := 
-  | Var : forall T, Mem T G -> Expr G T
-  | App : forall (S : Sym), Exprs G (fst (Sym_type S)) -> Expr G (snd (Sym_type S))
-  with Exprs (G : list Typ) : list Typ -> Type :=
-  | Enil  : Exprs G nil
-  | Econs : forall T Ts, Expr G T -> Exprs G Ts -> Exprs G (T :: Ts)
+  Variable ss : list (list Typ * Typ).
+  Variable vs : list Typ.
+
+  Inductive Expr : Typ -> Type := 
+    (** variables **)
+  | Var  : forall T, Mem T vs -> Expr T
+    (** known functions **)
+  | App  : forall (S : Sym), Exprs (fst (Sym_type S)) -> Expr (snd (Sym_type S))
+    (** "uninterpreted functions" **)
+  | UApp : forall Ts T, Mem (Ts,T) ss -> Exprs Ts -> Expr T
+  with Exprs : list Typ -> Type :=
+  | Enil  : Exprs nil
+  | Econs : forall T Ts, Expr T -> Exprs Ts -> Exprs (T :: Ts)
   .
 
   Section Denote.
-    Variable Sym_eq_dec : forall (l r : Sym), {l = r} + {l <> r}.
     Variable Typ_denote : Typ -> Type.
     Variable Sym_denote : forall (S : Sym), funtype Typ_denote (fst (Sym_type S)) (snd (Sym_type S)).
     
-    Fixpoint Env (g : list Typ) : Type :=
-      match g with
-        | nil => unit
-        | a :: b => Typ_denote a * Env b
-      end%type.
-    
-    Fixpoint lookup T (g : list Typ) (m : Mem T g) : Env g -> Typ_denote T :=
-      match m in Mem _ g return Env g -> Typ_denote T with
-        | MHere _ => fun x => fst x
-        | MNext _ _ r => fun x => lookup T _ r (snd x)
-      end.
+    Variable SE : Env (funtype' Typ_denote) ss.
+    Variable VE : Env Typ_denote vs.
 
-    Fixpoint denoteExpr G (E : Env G) (T : Typ) (e : Expr G T) : Typ_denote T :=
-      match e in Expr _ T return Typ_denote T with
-        | Var _ v => lookup _ G v E
-        | App s es =>
-          (fix denoteExprs Ts T (es : Exprs G Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
-            match es in Exprs _ Ts return funtype Typ_denote Ts T -> Typ_denote T with
+    Fixpoint denoteExpr {T : Typ} (e : Expr T) : Typ_denote T :=
+      match e in Expr T return Typ_denote T with
+        | Var _ v => 
+          get _ _ v VE
+          
+        | UApp Ts T s es =>
+          (fix denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
+            match es in Exprs Ts return funtype Typ_denote Ts T -> Typ_denote T with
               | Enil => fun r => r
-              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr G E _ x))
+              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr x))
+            end) Ts T es (get (funtype' Typ_denote) ss s SE)
+
+        | App s es =>
+          (fix denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
+            match es in Exprs Ts return funtype Typ_denote Ts T -> Typ_denote T with
+              | Enil => fun r => r
+              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr x))
             end) (fst (Sym_type s)) (snd (Sym_type s)) es (Sym_denote s)
       end.
   
