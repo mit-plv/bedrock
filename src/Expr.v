@@ -26,6 +26,12 @@ Section FunType.
       | nil => D r
       | a :: b => D a -> funtype b r
     end.
+
+  (** This is a fixed point so coq unfolds it more often. **)
+  Fixpoint funtype' (x : list T * T) {struct x} : Type :=
+    match x with
+      | (x,y) => funtype x y
+    end.
 End FunType.
 
 (** Syntax of Expressions **)
@@ -37,29 +43,21 @@ Section Typed.
   | MNext : forall T' R, Mem T R -> Mem T (T' :: R)
   .
 
-  Variable Sym : list Typ -> Typ -> Type.
+  Variable Sym : Type.
+  Variable Sym_type : Sym -> list Typ * Typ.
 
   Inductive Expr (G : list Typ) : Typ -> Type := 
-    (** TODO: This case doesn't really work b/c variables are not globally scoped.
-     ** - This means that there essentially is not a way to compare two variables to see if they
-     **   refer to the same variable.
-     **)
-  | Var  : forall T, Mem T G -> Expr G T
-  | App0 : forall r (S : Sym nil r), Expr G r
-  | App1 : forall {a1} {r} (S : Sym (a1 :: nil) r), 
-    Expr G a1 -> Expr G r
-  | App2 : forall {a1 a2} {r} (S : Sym (a1 :: a2 :: nil) r), 
-    Expr G a1 -> Expr G a2 -> Expr G r
-  | App3 : forall {a1 a2 a3} {r} (S : Sym (a1 :: a2 :: a3 :: nil) r), 
-    Expr G a1 -> Expr G a2 -> Expr G a3 -> Expr G r
-  | App4 : forall {a1 a2 a3 a4} {r} (S : Sym (a1 :: a2 :: a3 :: a4 :: nil) r), 
-    Expr G a1 -> Expr G a2 -> Expr G a3 -> Expr G a4 -> Expr G r
+  | Var : forall T, Mem T G -> Expr G T
+  | App : forall (S : Sym), Exprs G (fst (Sym_type S)) -> Expr G (snd (Sym_type S))
+  with Exprs (G : list Typ) : list Typ -> Type :=
+  | Enil  : Exprs G nil
+  | Econs : forall T Ts, Expr G T -> Exprs G Ts -> Exprs G (T :: Ts)
   .
 
   Section Denote.
-    Variable Sym_eq_dec : forall a b (l r : Sym a b), {l = r} + {l <> r}.
+    Variable Sym_eq_dec : forall (l r : Sym), {l = r} + {l <> r}.
     Variable Typ_denote : Typ -> Type.
-    Variable Sym_denote : forall a b (S : Sym a b), funtype Typ_denote a b.
+    Variable Sym_denote : forall (S : Sym), funtype Typ_denote (fst (Sym_type S)) (snd (Sym_type S)).
     
     Fixpoint Env (g : list Typ) : Type :=
       match g with
@@ -76,26 +74,50 @@ Section Typed.
     Fixpoint denoteExpr G (E : Env G) (T : Typ) (e : Expr G T) : Typ_denote T :=
       match e in Expr _ T return Typ_denote T with
         | Var _ v => lookup _ G v E
-        | App0 _ s => Sym_denote _ _ s
-        | App1 _ _ s a => (Sym_denote _ _ s) (denoteExpr G E _ a)
-        | App2 _ _ _ s a b => (Sym_denote _ _ s) (denoteExpr G E _ a) (denoteExpr G E _ b)
-        | App3 _ _ _ _ s a b c => (Sym_denote _ _ s) (denoteExpr G E _ a) (denoteExpr G E _ b) (denoteExpr G E _ c)
-        | App4 _ _ _ _ _ s a b c d => (Sym_denote _ _ s) (denoteExpr G E _ a) (denoteExpr G E _ b) (denoteExpr G E _ c) (denoteExpr G E _ d)
+        | App s es =>
+          (fix denoteExprs Ts T (es : Exprs G Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
+            match es in Exprs _ Ts return funtype Typ_denote Ts T -> Typ_denote T with
+              | Enil => fun r => r
+              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr G E _ x))
+            end) (fst (Sym_type s)) (snd (Sym_type s)) es (Sym_denote s)
       end.
   
   End Denote.
 End Typed.
 
+Section Extensible.
+  Definition Typ := nat.
 
+(*
+  Fixpoint Typ_eq_dec (a b : Typ) {struct a} : {a = b} + {a <> b}.
+  decide equality.
+  Defined.
+*)
 
-Check App2.
+  Definition Typ_denote (f : Typ) : Type :=
+    match f with
+      | 0 => nat
+      | _ => unit
+    end.
 
-Inductive Typ : Type := Nat.
-Inductive Sym_nat : list Typ -> Typ -> Type :=
-| Lit : nat -> Sym_nat nil Nat
-| Plus : Sym_nat (Nat :: Nat :: nil) Nat
-.
+  Inductive Nat_sym : Type :=
+  | Nat : nat -> Nat_sym
+  | Plus : Nat_sym.
 
+  Definition Sym_type_Nat (x : Nat_sym) : list Typ * Typ :=
+    match x with
+      | Nat _ => (nil, 0)
+      | Plus => (0 :: 0 :: nil, 0)
+    end.
+
+  Definition Sym_denote_nat (f : Nat_sym) : option (funtype' Typ_denote (Sym_type_Nat f)) :=
+    match f with
+      | Plus => Some plus
+      | Nat i => Some i 
+    end.
+
+End Extensible.
+(*
 Check App2.
 
 Ltac refl_nat e :=
@@ -111,7 +133,7 @@ Ltac refl_nat e :=
   in 
   idtac e; 
   let res := refl e in
-    idtac res;
+  idtac res;
   generalize (res).
 
 Check map.
@@ -147,4 +169,4 @@ end.
 
 
 refl_nat constr:(1).
-
+*)
