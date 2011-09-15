@@ -108,6 +108,15 @@ Section Typed.
   End Denote.
 End Typed.
 
+Check @Env.
+
+Record AutoState : Type :=
+{ Typ : Type
+; Typ_denote : Typ -> Type
+; sym_types : list (list Typ * Typ)
+; sym_vals  : Env (funtype' Typ_denote) sym_types
+}.
+
 Section Extensible.
   Definition Typ := nat.
 
