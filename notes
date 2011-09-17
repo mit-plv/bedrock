@@ -11,3 +11,10 @@
     - At this point, my world is closed wrt "d". 
     - If I see something that I haven't seen before, I can't reference it in
       a way that supports decidable equality.
+  * "Known Symbols" seem to be important because they give us a way to do 
+    computation
+    - for example, even reflecting something simple like 1 + 1 = 2 won't be
+      possible unless we have this as a specific rewrite. 
+    - To address this, we can specialize a small number of domains (probably 
+      bit-vectors) that have nice computable properties and use them to reflect
+      and do some unification.
