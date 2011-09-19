@@ -1,3 +1,5 @@
+(* An adaptation of Ni & Shao's XCAP assertion logic *)
+
 Require Import List.
 
 Set Implicit Arguments.
