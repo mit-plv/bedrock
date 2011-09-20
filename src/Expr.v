@@ -176,10 +176,10 @@ Definition Sym_type (s : Sym_nat) : list nat * nat :=
 
 About Econs.
 
-Ltac reflect_expr ext ss sv vs vv e :=
-  let rec refl_expr ss sv vs vv e :=
+Ltac reflect_expr ext e :=
+  let rec refl_expr sts stv e :=
     let gen_refl sts stv e :=
-      match constr:(sts, stv) with 
+      match constr:((sts, stv)) with 
         | ( ( ?ss , ?sv) , (?vs , ?vv ) ) =>
           match e with
             | _ => 
@@ -187,28 +187,31 @@ Ltac reflect_expr ext ss sv vs vv e :=
               constr:(Var Sym_type ss vs _ m)
             | ?F ?A ?B =>
               let m := lookup F ss sv in
-              let a := reflect_expr ext vs vv ss sv A in
+              let a := refl_expr sts stv A in
               match a with
-                | ( ?a , (_ , _) , (_ , _) ) => 
-                  let b := reflect_expr ext vs vv ss sv B in
+                | ( ?a , ?sts , ?stv ) => 
+                  let b := refl_expr sts stv B in
                   match b with
-                    | ( ?b , (_ , _) , (_ , _) ) =>
+                    | ( ?b , (?ss , ?vs) , (?sv , ?vv) ) =>
                       let args := constr:(Econs Sym_type ss vs _ _ a (Econs Sym_type ss vs _ _ b (Enil Sym_type ss vs))) in
-                      constr:(UApp Sym_type ss vs _ m args)
+                      let v := constr:(UApp Sym_type ss vs _ m args) in
+                      v
                   end
               end
           end
       end
     in 
-    let sts := constr:((ss, vs)) in
-    let stv := constr:((sv, vv)) in
-    let k := ext (* ?? *) gen_refl sts stv e in
+    let k := ext refl_expr gen_refl sts stv e in
     match k with
       | ( _ , _ , _ ) => k
-      | _ => constr:( k , ( ss , vs ) , (sv , vv ) )
+      | _ => constr:( k , sts , stv )
     end
   in
-  let r := refl_expr ss sv vs vv e in
+  let ns := constr:(@nil (list nat * nat)) in
+  let nv := constr:(@nil nat) in
+  let ss := constr:((ns, nv)) in
+  let vs := constr:((tt, tt)) in
+  let r := refl_expr ss vs e in
   match r with
     | ( ?X , (_ , _) , (_ , _) ) => X
   end.
@@ -222,10 +225,18 @@ Ltac nat_refl recur cc sts stv e :=
         | plus ?X ?Y =>
           let l := recur sts stv X in
           match l with
-            | ( ?l , ?sts , ?stv ) =>
+            | ( ?l , ?sts , ?stv ) => 
               let r := recur sts stv Y in
               match r with
                 | ( ?r , ( ?ss , ?vs ) , _ ) =>
+                  constr:(App Sym_type ss vs Plus (Econs Sym_type ss vs _ _ l (Econs Sym_type ss vs _ _ r (Enil Sym_type ss vs))))
+              end
+            | ?l =>
+              let r := recur sts stv Y in
+              match r with
+                | ( ?r , ( ?ss , ?vs ) , _ ) =>
+                  constr:(App Sym_type ss vs Plus (Econs Sym_type ss vs _ _ l (Econs Sym_type ss vs _ _ r (Enil Sym_type ss vs))))
+                | ?r =>
                   constr:(App Sym_type ss vs Plus (Econs Sym_type ss vs _ _ l (Econs Sym_type ss vs _ _ r (Enil Sym_type ss vs))))
               end
           end
@@ -240,12 +251,21 @@ Goal True.
     | [ |- _ ] =>
       let e := constr:(tt) in
       let exp := constr:(1 + 1) in
+        match exp with
+          | plus ?A ?B => idtac A B
+        end;
       let ns := constr:(@nil (list nat * nat)) in
       let nv := constr:(@nil nat) in
-      let r := nat_refl (nat_refl alwaysFail) in
-(*      let r := reflect_expr nat_refl ns e nv e exp in *)
+      let ss := constr:((ns, nv)) in
+      let vs := constr:((e, e)) in
+      let rF a b c := nat_refl ltac:(fun _ _ _ => fail) alwaysFail a b c in
+      let r := reflect_expr nat_refl exp in
+      let r := eval simpl in r in
       pose r
   end.
+
+trivial.
+Qed.
         
 
 
