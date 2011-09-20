@@ -113,7 +113,7 @@ Record settings := {
   ReadWriteEq : forall m k v, WriteWord m k v k = v;
   ReadWriteNe : forall m k v k', k' >= k ^+ $4 -> k' ^+ $4 <= k -> WriteWord m k v k' = m k';
   (* Our only assumptions about the behavior of [WriteWord] and [ReadWord] *)
-  Labels : label -> W
+  Labels : label -> option W
   (* Locations of basic blocks *)
 }.
 
@@ -181,7 +181,7 @@ Section settings.
                                   else None
                               end
         | RvImm w => Some w
-        | RvLabel l => Some (Labels stn l)
+        | RvLabel l => Labels stn l
       end.
 
     Definition evalBinop (bo : binop) : W -> W -> W :=
@@ -219,7 +219,7 @@ Section settings.
         | Uncond rv => evalRvalue rv
         | Cond rv1 ts rv2 l1 l2 =>
           match evalRvalue rv1, evalRvalue rv2 with
-            | Some w1, Some w2 => Some (Labels stn (if evalTest ts w1 w2 then l1 else l2))
+            | Some w1, Some w2 => Labels stn (if evalTest ts w1 w2 then l1 else l2)
             | _, _ => None
           end
       end.
