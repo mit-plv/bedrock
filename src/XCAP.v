@@ -2,13 +2,13 @@
 
 Require Import String.
 
-Require Import Word IL LabelMap.
+Require Import Word IL LabelMap PropX.
 
 Set Implicit Arguments.
 
 
 (* The type of basic block preconditions (assertions) *)
-Definition prop := Prop.
+Definition prop := PropX W state.
 Definition assert := state -> prop.
 
 
@@ -22,14 +22,16 @@ Record module := {
 
 (* What must be verified for an individual block? *)
 Definition blockOk (imps : LabelMap.t assert) (pre : assert) (bl : block) :=
-  forall stn st, pre st -> exists st', evalBlock stn st bl = Some st'
-    /\ exists l, Labels stn l = fst st'
-      /\ exists pre', LabelMap.MapsTo l pre' imps
-        /\ pre' (snd st').
+  forall stn specs, (forall l pre, LabelMap.MapsTo l pre imps
+    -> specs (Labels stn l) = Some pre)
+    -> forall st, interp specs (pre st) -> exists st', evalBlock stn st bl = Some st'
+      /\ exists l, Labels stn l = fst st'
+        /\ exists pre', LabelMap.MapsTo l pre' imps
+          /\ interp specs (pre' (snd st')).
 
-Require Import FMapFacts.
+Require FMapFacts.
 
-Module LabelFacts := WFacts_fun(LabelKey)(LabelMap).
+Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).
 
 Section moduleOk.
   Variable m : module.
@@ -66,7 +68,7 @@ Section moduleOk.
     apply LabelMap.elements_2 in H.
     apply (proj1 (LabelFacts.add_mapsto_iff _ _ _ _ _)) in H; intuition; subst.
     right; eexists.
-    apply InA_cons_hd; hnf; simpl; eauto.
+    apply SetoidList.InA_cons_hd; hnf; simpl; eauto.
     apply LabelMap.elements_1 in H1.
     eauto.
     eauto.
@@ -92,24 +94,77 @@ Section moduleOk.
   Variable stn : settings.
   Variable prog : program.
 
+  Hypothesis inj : forall l1 l2, Labels stn l1 = Labels stn l2
+    -> l1 = l2.
+
   Hypothesis agree : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
     -> prog (Labels stn l) = Some bl.
 
   Hypothesis ok : moduleOk.
 
+  Definition specs : codeSpec W state := fun w =>
+    LabelMap.fold (fun l p pre =>
+      match pre with
+        | Some _ => pre
+        | None => if weq w (Labels stn l)
+          then Some (fst p)
+          else pre
+      end) (Blocks m) None.
+
+  Theorem InA_weaken : forall A (P : A -> A -> Prop) (x : A) (ls : list A),
+    SetoidList.InA P x ls
+    -> forall (P' : A -> A -> Prop) x',
+      (forall y, P x y -> P' x' y)
+      -> SetoidList.InA P' x' ls.
+    induction 1; simpl; intuition.
+  Qed.
+
+  Lemma specsOk : forall l pre, LabelMap.MapsTo l pre allPreconditions
+    -> specs (Labels stn l) = Some pre.
+    unfold specs; intros.
+
+    destruct (allPreconditions_just_blocks H); clear H.
+
+    apply LabelMap.elements_1 in H0.
+    rewrite LabelMap.fold_1.
+    generalize (LabelMap.elements_3w (Blocks m)).
+    induction (LabelMap.elements (Blocks m)); simpl in *.
+    inversion H0.
+
+    destruct (weq (Labels stn l) (Labels stn (fst a))).
+    inversion H0; clear H0; subst.
+    hnf in H1; simpl in H1; intuition; subst.
+    destruct a; simpl in *; subst; simpl in *.
+    clear.
+    induction l0; simpl; intuition.
+
+    inversion 1; subst.
+    apply inj in e; subst.
+    elimtype False.
+    apply H3; clear H3.
+    eapply InA_weaken; eauto.
+    intros.
+    hnf in H0; simpl in H0; intuition.
+
+    inversion H0; clear H0; subst.
+    hnf in H1; simpl in H1; intuition.
+    subst; tauto.
+    inversion 1; auto.
+  Qed.
+
   Lemma safety' : forall st' st'', reachable stn prog st' st''
     -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> forall st, pre st
+      -> forall st, interp specs (pre st)
         -> st' = (Labels stn l, st)
         -> exists l', Labels stn l' = fst st''
           /\ exists pre', exists bl', LabelMap.MapsTo l' (pre', bl') (Blocks m)
-            /\ pre' (snd st'').
+            /\ interp specs (pre' (snd st'')).
     induction 1; simpl; intuition; subst; simpl in *.
     eauto 6.
 
     specialize (ok H1).
     red in ok.
-    specialize (@ok stn _ H2).
+    specialize (@ok stn _ specsOk _ H2).
     destruct ok; clear ok; intuition.
     destruct H5; intuition.
     destruct H6; intuition.
@@ -124,18 +179,18 @@ Section moduleOk.
 
   Theorem safety'' : forall st st', reachable stn prog st st'
     -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> fst st = Labels stn l -> pre (snd st)
+      -> fst st = Labels stn l -> interp specs (pre (snd st))
       -> step stn prog st' <> None.
     induction 1; simpl; intuition.
 
     unfold step in H2.
     rewrite H0 in H2.
     rewrite (agree H) in H2.
-    specialize (ok H stn _ H1).
+    specialize (ok H stn specsOk _ H1).
     destruct ok; intuition.
     congruence.
 
-    specialize (ok H1 stn _ H3).
+    specialize (ok H1 stn specsOk _ H3).
     destruct ok; clear ok; intuition.
     destruct H7; intuition.
     destruct H8; intuition.
@@ -151,7 +206,7 @@ Section moduleOk.
   Qed.
 
   Theorem safety : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-    -> forall st, pre st -> safe stn prog (Labels stn l, st).
+    -> forall st, interp specs (pre st) -> safe stn prog (Labels stn l, st).
     unfold safe; intros; eapply safety''; eauto.
   Qed.
 End moduleOk.
