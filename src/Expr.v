@@ -69,11 +69,13 @@ Section TypedList.
   Variable Sym_type : Sym -> list Typ * Typ.
 
   Variable ss : list (list Typ * Typ).
-  Variable vs : list Typ.
+(*  Variable vs : list Typ. *)
 
   Inductive Expr : Typ -> Type := 
+(** Variables are just uninterpreted 0 argument functions 
     (** variables **)
   | Var  : forall T, Mem T vs -> Expr T
+**)
     (** known functions **)
   | App  : forall (S : Sym), Exprs (fst (Sym_type S)) -> Expr (snd (Sym_type S))
     (** "uninterpreted functions" **)
@@ -88,11 +90,11 @@ Section TypedList.
     Variable Sym_denote : forall (S : Sym), funtype Typ_denote (fst (Sym_type S)) (snd (Sym_type S)).
     
     Variable SE : Env (funtype' Typ_denote) ss.
-    Variable VE : Env Typ_denote vs.
+(*    Variable VE : Env Typ_denote vs. *)
 
     Fixpoint denoteExpr {T : Typ} (e : Expr T) : Typ_denote T :=
       match e with
-        | Var _ v => get _ _ v VE
+(*        | Var _ v => get _ _ v VE *)
           
         | UApp Ts T s es =>
           (fix denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
@@ -114,30 +116,28 @@ End TypedList.
 Section Lifting.
   Context {Typ Sym : Type}. 
   Variable Sym_type : Sym -> list Typ * Typ.
-  Variable (ss sse : list (list Typ * Typ)). 
-  Variable (vs vse : list Typ).
+  Variable (ss sse : list (list Typ * Typ)).
 
-  Fixpoint liftExpr T (e : Expr Sym_type ss vs T) : Expr Sym_type (sse ++ ss) (vse ++ vs) T :=
+  Fixpoint liftExpr T (e : Expr Sym_type ss T) : Expr Sym_type (sse ++ ss) T :=
     match e with
-      | Var _ v => Var _ _ _ _ (lift vs vse v)
       | UApp Ts T s es =>
         let es' :=       
-          (fix liftExprs Ts (es : Exprs Sym_type ss vs Ts) : Exprs Sym_type (sse ++ ss) (vse ++ vs) Ts :=
+          (fix liftExprs Ts (es : Exprs Sym_type ss Ts) : Exprs Sym_type (sse ++ ss) Ts :=
             match es with
-              | Enil => Enil Sym_type (sse ++ ss) (vse ++ vs)
-              | Econs _ _ x y => Econs _ _ _ _ _ (liftExpr _ x) (liftExprs _ y)
+              | Enil => Enil Sym_type (sse ++ ss)
+              | Econs _ _ x y => Econs _ _ _ _ (liftExpr _ x) (liftExprs _ y)
             end) Ts es
           in
-          UApp _ _ _ Ts T (lift ss sse s) es'
+          UApp _ _ Ts T (lift ss sse s) es'
       | App s es =>
         let es' :=       
-          (fix liftExprs Ts (es : Exprs Sym_type ss vs Ts) : Exprs Sym_type (sse ++ ss) (vse ++ vs) Ts :=
+          (fix liftExprs Ts (es : Exprs Sym_type ss Ts) : Exprs Sym_type (sse ++ ss) Ts :=
             match es with
-              | Enil => Enil Sym_type (sse ++ ss) (vse ++ vs)
-              | Econs _ _ x y => Econs _ _ _ _ _ (liftExpr _ x) (liftExprs _ y)
+              | Enil => Enil Sym_type (sse ++ ss)
+              | Econs _ _ x y => Econs _ _ _ _ (liftExpr _ x) (liftExprs _ y)
             end) (fst (Sym_type s)) es
         in
-        App _ _ _ s es'
+        App _ _ s es'
     end.
 End Lifting.
 
@@ -164,6 +164,62 @@ Ltac lookup x es ev :=
       end
   end.
 
+Ltac refl_type env i T :=
+  match env with
+    | T :: _ => constr:((i, env))
+    | ?X :: ?E =>
+      let n := constr:(S i) in
+      match refl_type E n T with
+        | ( ?I , ?E ) =>
+          constr:((X :: E, I))
+      end
+    | nil => constr:((i, T :: nil))      
+  end.
+
+Ltac refl_fun_type env T :=
+  match T with
+    | ?T1 -> ?T2 => 
+      match refl_type env 0 T1 with
+        | ( ?t1 , ?env' ) =>
+          match refl_fun_type env' T2 with
+            | ( ( ?AS , ?RT ) , ?E ) => constr:(((t1 :: AS , RT), E))
+          end
+      end
+    | _ =>
+      let v := refl_type env 0 T in
+      match v with
+        | ( ?I , ?E ) => 
+          constr:(((@nil nat, I), E))
+      end
+  end.
+
+Ltac lookup_sym x esI evI es ev :=
+  match ev with
+    | nil => 
+      let T := type of x in
+      let t := refl_fun_type ltac:(fun _ => 0) T in
+      let r := constr:((@MHere esI evI, T :: esI, (x, evI), @liftExpr _ _ _ esI (T :: nil) _, @lift _ (T :: nil) _)) in
+      r
+    | ( x , _ ) => 
+      match es with
+        | ?T :: ?TS =>
+          let r := constr:(@MHere T TS) in r
+      end
+    | ( _ , ?R ) =>
+      match es with
+        | ?T :: ?TS =>
+          let r := lookup x esI evI TS R in
+          match r with
+            | ( _ , _ , _ , _ ) => r
+            | _ => constr:(@MNext T TS r)
+          end
+      end
+  end.
+
+
+Ltac lookup' x es ev :=
+  lookup_sym x es ev es ev.
+
 Inductive Sym_nat :=
 | Nat : nat -> Sym_nat
 | Plus : Sym_nat.
@@ -174,28 +230,25 @@ Definition Sym_type (s : Sym_nat) : list nat * nat :=
     | Plus => (0 :: 0 :: nil, 0)
   end.
 
-About Econs.
-
 Ltac reflect_expr ext e :=
   let rec refl_expr sts stv e :=
-    let gen_refl sts stv e :=
+    let gen_refl e :=
       match constr:((sts, stv)) with 
-        | ( ( ?ss , ?sv) , (?vs , ?vv ) ) =>
+        | ( ?ss , ?sv ) =>
           match e with
-            | _ => 
-              let m := lookup e vs vv in
-              constr:(Var Sym_type ss vs _ m)
-            | ?F ?A ?B =>
-              let m := lookup F ss sv in
-              let a := refl_expr sts stv A in
-              match a with
-                | ( ?a , ?sts , ?stv ) => 
-                  let b := refl_expr sts stv B in
-                  match b with
-                    | ( ?b , (?ss , ?vs) , (?sv , ?vv) ) =>
-                      let args := constr:(Econs Sym_type ss vs _ _ a (Econs Sym_type ss vs _ _ b (Enil Sym_type ss vs))) in
-                      let v := constr:(UApp Sym_type ss vs _ m args) in
-                      v
+            | ?F ?A => 
+              let m := lookup' F ss sv in
+              match m with
+                | ( ?m , ?ss , ?sv , ?L ) =>
+                  let sts := ss in
+                  let stv := sv in
+                  let a := refl_expr sts stv A in
+                  match a with
+                    | ( ?a , ?ss , ?sv , ?L' ) =>
+                      let args := constr:(Econs Sym_type ss _ _ a (Enil Sym_type ss)) in
+                      let v := constr:(UApp Sym_type ss _ (L' m) args) in
+                      let cc := constr:(fun x => L' (L x)) in
+                      constr:((v , ss, sv , cc))
                   end
               end
           end
@@ -203,33 +256,38 @@ Ltac reflect_expr ext e :=
     in 
     let k := ext refl_expr gen_refl sts stv e in
     match k with
-      | ( _ , _ , _ ) => k
-      | _ => constr:( k , sts , stv )
+      | ( _ , _ , _ , _ ) => k
+      | _ => constr:(( k , sts , stv , tt , fun x : Expr _ sts => x ))
     end
   in
   let ns := constr:(@nil (list nat * nat)) in
-  let nv := constr:(@nil nat) in
-  let ss := constr:((ns, nv)) in
-  let vs := constr:((tt, tt)) in
+  let ss := constr:(ns) in
+  let vs := constr:(tt) in
   let r := refl_expr ss vs e in
+    pose r.
+(*
   match r with
-    | ( ?X , (_ , _) , (_ , _) ) => X
+    | _ => idtac r ; fail
+    | ( ?X , _ , _ , _ ) => X
   end.
+*)
 
 Ltac nat_refl recur cc sts stv e :=
   match sts with
-    | ( ?ss , ?vs ) =>
+    | ?ss =>
       match e with 
-        | O => constr:(App Sym_type ss vs (Nat 0) (Enil Sym_type ss vs))
-        | S _ => constr:(App Sym_type ss vs (Nat e) (Enil Sym_type ss vs))
+        | O => constr:(App Sym_type ss (Nat 0) (Enil Sym_type ss))
+        | S _ => constr:(App Sym_type ss (Nat e) (Enil Sym_type ss))
+(*
         | plus ?X ?Y =>
           let l := recur sts stv X in
           match l with
-            | ( ?l , ?sts , ?stv ) => 
+            | ( ?l , ?sts , ?stv , ?L ) => 
               let r := recur sts stv Y in
               match r with
-                | ( ?r , ( ?ss , ?vs ) , _ ) =>
-                  constr:(App Sym_type ss vs Plus (Econs Sym_type ss vs _ _ l (Econs Sym_type ss vs _ _ r (Enil Sym_type ss vs))))
+                | ( ?r , ?ss , ?sv , ?L' ) =>
+                  let v := constr:(App Sym_type ss Plus (Econs Sym_type ss _ _ (L' l) (Econs Sym_type ss _ _ r (Enil Sym_type ss))))
+                  in constr:((v , ss , sv , L'))
               end
             | ?l =>
               let r := recur sts stv Y in
@@ -240,28 +298,84 @@ Ltac nat_refl recur cc sts stv e :=
                   constr:(App Sym_type ss vs Plus (Econs Sym_type ss vs _ _ l (Econs Sym_type ss vs _ _ r (Enil Sym_type ss vs))))
               end
           end
+*)
         | _ => cc e
       end
   end.
 
 Ltac alwaysFail x := fail.
 
-Goal True.
+
+(** lookup "x" in "Vs" (spine of Vs is given in Ts, denotation of Ts given in E) **)
+Ltac lookup_or_add E Ts Vs x :=
+  match Vs with
+    | ( x , _ ) => constr:(((Ts, Vs), E))
+    | tt => 
+      let t := type of x in
+      match refl_fun_type E t with
+        | ( ?T , ?E ) =>
+          constr:(((T :: nil, (x, tt)), E))
+      end
+    | ( ?V , ?VS ) =>
+      match Ts with
+        | ?T :: ?Ts =>
+          match lookup_or_add E Ts Vs x with
+            | ( (?Ts , ?Vs) , ?E ) => constr:(((T :: Ts, (V, Vs)), E))
+          end
+      end
+  end.
+
+Ltac lookup_or_add' st x :=
+  match st with
+    | ( ?A , ?B , ?E ) => lookup_or_add E A B x
+  end.
+
+Ltac gather_symbols ext st exp :=
+  let rec gather st e :=
+    let gen_refl e :=
+      match e with
+        | ?F ?A =>
+          let st' := lookup_or_add' st F in
+          let st'' := gather st' A in
+          st''
+      end
+    in 
+    let k := ext gather gen_refl st e in
+    k
+  in
+  let ns := constr:(@nil (list nat * nat)) in
+  let ss := constr:(ns) in
+  let st := constr:((ss, tt, @nil Type)) in
+  let r := gather st exp in
+  r.
+
+
+Ltac nat_gather recur cc env exp :=
+  match exp with
+    | 0 => env
+    | S _ => env     
+    | ?X + ?Y => 
+      let st := recur env X in recur st Y
+    | _ => cc exp
+  end.
+
+Goal (nat -> nat) -> True.
+intro H.
   match goal with
     | [ |- _ ] =>
-      let e := constr:(tt) in
-      let exp := constr:(1 + 1) in
-        match exp with
-          | plus ?A ?B => idtac A B
-        end;
-      let ns := constr:(@nil (list nat * nat)) in
-      let nv := constr:(@nil nat) in
-      let ss := constr:((ns, nv)) in
-      let vs := constr:((e, e)) in
-      let rF a b c := nat_refl ltac:(fun _ _ _ => fail) alwaysFail a b c in
+      let exp := constr:(H 1) in
+      let Ts := constr:(@nil (list nat * nat)) in
+      let Vs := constr:(tt) in
+      let T := type of H in
+      let st := constr:(((Ts, Vs), @nil Type)) in
+      let E := gather_symbols nat_gather st exp in
+      idtac E 
+(*;
       let r := reflect_expr nat_refl exp in
-      let r := eval simpl in r in
-      pose r
+      idtac "B" r ;
+      let res := eval simpl in r in
+      idtac res
+*)
   end.
 
 trivial.
