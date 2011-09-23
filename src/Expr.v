@@ -143,10 +143,24 @@ Record ReflState : Type :=
 ; Typ_denote    : nat -> Type
 ; Native        : Type 
 ; Native_type   : Native -> (list nat * nat)
-; Native_denote : forall x : Native, funtype' Typ_denote (Native_type x)
+; Native_denote : forall x : Native, funtype Typ_denote (fst (Native_type x)) (snd (Native_type x))
+  (** I think I want to be parametric over these **)
+(*
 ; sym_types     : list (list nat * nat)
 ; sym_denote    : Env (funtype' Typ_denote) sym_types
+*)
 }.
+
+Record ReflState_Correct : Type :=
+{ RS :> ReflState
+; Native_simpl  : forall T ss, Expr (Native_type RS) ss T -> Expr (Native_type RS) ss T
+; Native_simpl_correct :
+  forall ss (sv : Env (funtype' (Typ_denote RS)) ss) T (e : Expr (Native_type RS) ss T), 
+    @denoteExpr _ _ _ ss (Typ_denote RS) (Native_denote RS) sv T e = 
+    @denoteExpr _ _ _ ss (Typ_denote RS) (Native_denote RS) sv T (Native_simpl _ _ e)
+}.
+
+
 
 (** Ltac "lookup a symbol in an Env". fail if non-existant **)
 Ltac lookup x es ev :=
@@ -259,6 +273,7 @@ Ltac lookup_cc x es ev f s :=
     | tt => f x
   end.
 
+About UApp.
 
 Ltac reflect_expr Sym_fun ext Ts Ss Sv e :=
   let rec refl_expr e :=
@@ -267,9 +282,10 @@ Ltac reflect_expr Sym_fun ext Ts Ss Sv e :=
         match e with 
           | ?F ?A => 
             let m := lookup F Ss Sv in
-            let a := refl_expr A in            
+            let a := refl_expr A in 
             let args := constr:(Econs Sym_fun Ss _ _ a (Enil Sym_fun Ss)) in
-            constr:(UApp Sym_fun Ss _ _ m args)
+            let r := constr:(@UApp _ _ Sym_fun Ss _ _ m args) in
+            r
         end
       in
       let scc m := 
@@ -352,7 +368,7 @@ Ltac nat_refl Sym_fun Ss recur cc e :=
       let l := recur X in
       let r := recur Y in
       constr:(App Sym_fun Ss Plus (Econs Sym_fun Ss _ _ l (Econs Sym_fun Ss _ _ r (Enil Sym_fun Ss))))
-    | _ => idtac e ; cc e
+    | _ => cc e
   end.
 
 Fixpoint List2Fun_g (ls : list Type) (n : nat) : nat -> Type :=
@@ -371,9 +387,9 @@ Ltac reflect_state S gather_ext refl_ext exp :=
   let E := gather_symbols gather_ext Tys Ts Vs exp in
   match E with
     | ( ?Ss , ?Sv , ?Ts ) =>
-      idtac Ss Sv Ts Sym_type ;
       let r := reflect_expr Sym_type refl_ext Ts Ss Sv exp in
-        pose r
+      let r' := eval simpl in r in
+        pose r'
   end.
 
 Definition NatReflEnv : ReflState := Eval simpl in
@@ -393,12 +409,13 @@ Definition NatReflEnv : ReflState := Eval simpl in
 
 Goal (nat -> nat) -> True.
 intro H.
-Set Printing Implicit.
   match goal with
     | [ |- _ ] =>
-      let exp := constr:(1 + 0) in
+      let exp := constr:(H (H 1) + 1) in
       reflect_state NatReflEnv nat_gather nat_refl exp
   end.
+
+  
 
 trivial.
 Qed.
