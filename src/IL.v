@@ -102,7 +102,7 @@ Open Scope word_scope.
 
 Notation "$ n" := (natToWord _ n) (at level 0) : word_scope.
 
-(* Execution in parametric in settings that distinguish different platforms.
+(* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
 Record settings := {
   MemHigh : W;
