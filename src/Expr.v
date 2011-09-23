@@ -273,8 +273,6 @@ Ltac lookup_cc x es ev f s :=
     | tt => f x
   end.
 
-About UApp.
-
 Ltac reflect_expr Sym_fun ext Ts Ss Sv e :=
   let rec refl_expr e :=
     let gen_refl e :=
@@ -380,14 +378,18 @@ Fixpoint List2Fun_g (ls : list Type) (n : nat) : nat -> Type :=
   end.
 
 Ltac reflect_state S gather_ext refl_ext exp :=
-  let Ts := eval simpl in (sym_types S) in
-  let Vs := eval simpl in (sym_denote S) in
+  let Ts := constr:(@nil (list nat * nat)) in (* eval simpl in (Native_type S) in *)
+  let Vs := constr:(tt) in (* eval simpl in (Native_denote S) in *)
   let Tys := eval simpl in (Typs S) in
   let Sym_type := eval simpl in (Native_type S) in
   let E := gather_symbols gather_ext Tys Ts Vs exp in
   match E with
     | ( ?Ss , ?Sv , ?Ts ) =>
       let r := reflect_expr Sym_type refl_ext Ts Ss Sv exp in
+      let st' := constr:({| Typs := Ts ; Typ_denote := List2Fun_g Ts 0 ; 
+                            Native := Native S ; Native_type := Native_type S ;
+                            Native_denote := Native_denote S |}) in
+      pose st' ;
       let r' := eval simpl in r in
         pose r'
   end.
@@ -403,8 +405,10 @@ Definition NatReflEnv : ReflState := Eval simpl in
        | Nat n => n
        | Plus => plus
      end
+(*
  ; sym_types := nil
  ; sym_denote := tt
+*)
 |}.
 
 Goal (nat -> nat) -> True.
@@ -413,7 +417,7 @@ intro H.
     | [ |- _ ] =>
       let exp := constr:(H (H 1) + 1) in
       reflect_state NatReflEnv nat_gather nat_refl exp
-  end.
+  end. simpl in *.
 
   
 
