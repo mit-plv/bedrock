@@ -1,10 +1,11 @@
 Require Import String.
-Require Import Data List.
-Require Import SepTheory.
+Require Import (*Data*) List.
+(*Require Import SepTheory.*)
 
 Set Implicit Arugments.
 Set Strict Implicit.
 
+(*
 Fixpoint prod (ls : list Type) : Type :=
   match ls with
     | nil => unit
@@ -16,19 +17,20 @@ Fixpoint prodN (T : Type) (n : nat) : Type :=
     | 0 => unit
     | S n => T * prodN T n
   end%type.
+*)
 
 Section FunType.
-  Context {T : Type}.
+  Context {T U : Type}.
   Variable D : T -> Type.
+  Variable R : U -> Type.
 
-  Fixpoint funtype (ls : list T) (r : T) : Type :=
+  Fixpoint funtype (ls : list T) (r : U) : Type :=
     match ls with 
-      | nil => D r
+      | nil => R r
       | a :: b => D a -> funtype b r
     end.
 
-  (** This is a fixed point so coq unfolds it more often. **)
-  Fixpoint funtype' (x : list T * T) {struct x} : Type :=
+  Definition funtype' (x : list T * U) : Type :=
     match x with
       | (x,y) => funtype x y
     end.
@@ -49,6 +51,13 @@ Section Member.
       | a :: b => D a * Env b
     end%type.
 
+  Fixpoint Env_app {s s' : list T} : Env s -> Env s' -> Env (s ++ s') :=
+    match s with 
+      | nil => fun _ x => x
+      | a :: b => fun l r => 
+        (fst l, Env_app (snd l) r)
+    end.
+
   Fixpoint get {t} (s : list T) (m : Mem t s) : Env s -> D t :=
     match m with
       | MHere _ => fun x => fst x
@@ -61,107 +70,162 @@ Section Member.
       | a :: b => fun x => MNext _ _ _ (lift ls b x)
     end.
 
+  Fixpoint extend {V} ls lse (m : Mem V ls) : Mem V (ls ++ lse) :=
+    match m with 
+      | MHere x => MHere V (x ++ lse)
+      | MNext _ R m => MNext V _ (R ++ lse) (extend R lse m)
+    end.
+
 End Member.
 
 (** Syntax of Expressions **)
 Section TypedList.
-  Context {Typ Sym : Type}.
-  Variable Sym_type : Sym -> list Typ * Typ.
+  Context {Typ : Type}.
 
-  Variable ss : list (list Typ * Typ).
-(*  Variable vs : list Typ. *)
+  Variable constsOf : Typ -> Type.
+  Hypothesis dec : forall T (x y : constsOf T), {x = y} + {x <> y}.
 
-  Inductive Expr : Typ -> Type := 
-(** Variables are just uninterpreted 0 argument functions 
+  Variable ss : list (list Typ * option Typ).
+  Variable vs : list Typ.
+
+  Inductive Expr : option Typ -> Type := 
     (** variables **)
-  | Var  : forall T, Mem T vs -> Expr T
-**)
-    (** known functions **)
-  | App  : forall (S : Sym), Exprs (fst (Sym_type S)) -> Expr (snd (Sym_type S))
-    (** "uninterpreted functions" **)
-  | UApp : forall Ts T, Mem (Ts,T) ss -> Exprs Ts -> Expr T
+  | Var  : forall T, Mem T vs -> Expr (Some T)
+    (** functions **)
+  | App : forall Ts T, Mem (Ts,T) ss -> Exprs Ts -> Expr T
+    (** constants **)
+  | Const : forall T, constsOf T -> Expr (Some T)
   with Exprs : list Typ -> Type :=
   | Enil  : Exprs nil
-  | Econs : forall T Ts, Expr T -> Exprs Ts -> Exprs (T :: Ts)
+  | Econs : forall T Ts, Expr (Some T) -> Exprs Ts -> Exprs (T :: Ts)
   .
+
+  (** TODO: Equality on Expr **)
 
   Section Denote.
     Variable Typ_denote : Typ -> Type.
-    Variable Sym_denote : forall (S : Sym), funtype Typ_denote (fst (Sym_type S)) (snd (Sym_type S)).
+    Variable constIn : forall T, constsOf T -> Typ_denote T.
     
-    Variable SE : Env (funtype' Typ_denote) ss.
+    Definition Typ_denote' (o : option Typ) : Type :=
+      match o with
+        | None => Prop
+        | Some t => Typ_denote t
+      end.
 
-    Fixpoint denoteExpr {T : Typ} (e : Expr T) : Typ_denote T :=
-      match e with
-        | UApp Ts T s es =>
-          (fix denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
-            match es with
-              | Enil => fun r => r
-              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr x))
-            end) Ts T es (get (funtype' Typ_denote) ss s SE)
-        | App s es =>
-          (fix denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Ts T -> Typ_denote T :=
-            match es in Exprs Ts return funtype Typ_denote Ts T -> Typ_denote T with
-              | Enil => fun r => r
-              | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr x))
-            end) (fst (Sym_type s)) (snd (Sym_type s)) es (Sym_denote s)
+    Variable SE : Env (funtype' Typ_denote Typ_denote') ss.
+    Variable VE : Env (Typ_denote) vs.
+
+    Fixpoint denoteExprs Ts T (es : Exprs Ts) : funtype Typ_denote Typ_denote' Ts T -> Typ_denote' T :=
+      match es with 
+        | Enil => fun r => r
+        | Econs _ _ x y => fun f => denoteExprs _ _ y (f (denoteExpr _ x))
+      end
+    with denoteExpr T (e : Expr T) : Typ_denote' T :=
+      match e with 
+        | Var _ m => get _ _ m VE
+        | App Ts T s es =>
+          denoteExprs Ts T es (get (funtype' Typ_denote Typ_denote') ss s SE)
+        | Const _ x => constIn _ x 
       end.
   
   End Denote.
 End TypedList.
 
 Section Lifting.
-  Context {Typ Sym : Type}. 
-  Variable Sym_type : Sym -> list Typ * Typ.
-  Variable (ss sse : list (list Typ * Typ)).
+  Context {Typ : Type}. 
+  Variable constsOf : Typ -> Type.
+  Variable (ss sse : list (list Typ * option Typ)).
+  Variable (vs ve : list Typ).
 
-  Fixpoint liftExpr T (e : Expr Sym_type ss T) : Expr Sym_type (sse ++ ss) T :=
+  Fixpoint liftExpr T (e : Expr constsOf ss vs T) : Expr constsOf (sse ++ ss) (ve ++ vs) T :=
     match e with
-      | UApp Ts T s es =>
-        let es' :=       
-          (fix liftExprs Ts (es : Exprs Sym_type ss Ts) : Exprs Sym_type (sse ++ ss) Ts :=
-            match es with
-              | Enil => Enil Sym_type (sse ++ ss)
-              | Econs _ _ x y => Econs _ _ _ _ (liftExpr _ x) (liftExprs _ y)
-            end) Ts es
-          in
-          UApp _ _ Ts T (lift ss sse s) es'
+      | App Ts T s es =>
+        let es' := liftExprs Ts es in
+        App constsOf (sse ++ ss) (ve ++ vs) Ts T (lift ss sse s) es'
+(*
       | App s es =>
-        let es' :=       
-          (fix liftExprs Ts (es : Exprs Sym_type ss Ts) : Exprs Sym_type (sse ++ ss) Ts :=
-            match es with
-              | Enil => Enil Sym_type (sse ++ ss)
-              | Econs _ _ x y => Econs _ _ _ _ (liftExpr _ x) (liftExprs _ y)
-            end) (fst (Sym_type s)) es
-        in
+        let es' := liftExprs (fst (constsOf s)) es in
         App _ _ s es'
+*)
+      | Const a b => Const constsOf _ _ a b
+      | Var _ m => Var _ _ _ _ (lift vs ve m)  
+    end
+  with liftExprs Ts (es : Exprs constsOf ss vs Ts) : Exprs constsOf (sse ++ ss) (ve ++ vs) Ts :=
+    match es with
+      | Enil => Enil constsOf (sse ++ ss) (ve ++ vs)
+      | Econs _ _ x y => Econs constsOf _ _ _ _ (liftExpr _ x) (liftExprs _ y)
     end.
+    
 End Lifting.
 
-Record ReflState : Type :=
-{ Typs          : list Type
-; Typ_denote    : nat -> Type
-; Native        : Type 
-; Native_type   : Native -> (list nat * nat)
-; Native_denote : forall x : Native, funtype Typ_denote (fst (Native_type x)) (snd (Native_type x))
-  (** I think I want to be parametric over these **)
+Section QExpr.
+  Context {Typ : Type}.
+  Variable (constsOf : Typ -> Type).
+
+  Definition QExpr ss := 
+    { x : list Typ & Expr constsOf ss x None }.
+
+  Variable (Typ_denote : Typ -> Type). 
+
+  Fixpoint denoteQuant (ls : list Typ) : (Env Typ_denote ls -> Prop) -> Prop :=
+    match ls as ls return (Env Typ_denote ls -> Prop) -> Prop with
+      | nil => fun cc => cc tt
+      | a :: b => fun cc => 
+        forall (x : Typ_denote a), denoteQuant b (fun g => cc (x, g))
+    end.
+
+  Variable constIn : forall T, constsOf T -> Typ_denote T.    
+  Variable ss : list (list Typ * option Typ).
+  Variable SE : Env (funtype' Typ_denote (Typ_denote' Typ_denote)) ss.
+
+  Definition denoteQExpr (p : QExpr ss) : Prop :=
+    denoteQuant (projT1 p) 
+      (fun x : Env Typ_denote (projT1 p) => denoteExpr constsOf ss (projT1 p) Typ_denote constIn SE x None (projT2 p)).
+End QExpr.
+
+Record ReflState (Typ : Type) : Type :=
+{ Typs          : list (Typ * Type)
+; Typ_denote    : Typ -> Type
+; constsOf      : Typ -> Type
+; constsIn      : forall T, constsOf T -> Typ_denote T
+; Sym_type      : list (list Typ * option Typ)
+; Sym_denote    : Env (funtype' Typ_denote (Typ_denote' Typ_denote)) Sym_type
+}.
+
+Require Import Arith.
+
+Inductive empty : Type := .
+
+Definition ProverT T (RS : ReflState T) :=
+  forall SymT_ext SymD_ext
+    (Hs : list (QExpr (constsOf _ RS) (Sym_type _ RS ++ SymT_ext))),
+    Env (denoteQExpr _ _ (constsIn _ RS) (Sym_type _ RS ++ SymT_ext) (Env_app _ (Sym_denote _ RS) SymD_ext)) Hs -> 
+    forall (G : Expr (constsOf _ RS) (Sym_type _ RS ++ SymT_ext) nil None),
+      option (denoteExpr _ (Sym_type _ RS ++ SymT_ext) nil (Typ_denote _ RS) (constsIn _ RS) (Env_app _ (Sym_denote _ RS) SymD_ext) tt None G).
+
+Definition ReflState_nat : ReflState nat :=
+{| Typs       := (0, nat:Type) :: @nil (nat * Type)
+ ; Typ_denote := fun x => if eq_nat_dec x 0 then nat else unit
+ ; constsOf   := fun x => if eq_nat_dec x 0 then nat else empty
+ ; constsIn   := fun T => match T with
+                            | 0 => fun x => x
+                            | _ => fun x => match x with
+                                            end
+                          end
+ ; Sym_type   := (0 :: 0 :: nil, Some 0) :: (0 :: 0 :: nil, None) :: nil
+ ; Sym_denote := (plus, (@eq nat, tt))
+ |}.
+
+Definition nat_prover SymT_ext SymD_ext
+  (Hs : list (QExpr (constsOf _ ReflState_nat) (Sym_type _ ReflState_nat ++ SymT_ext)))
+  (Hpfs : Env (denoteQExpr _ _ (constsIn _ ReflState_nat) (Sym_type _ ReflState_nat ++ SymT_ext) (Env_app _ (Sym_denote _ ReflState_nat) SymD_ext)) Hs)
+  (G : Expr (constsOf _ ReflState_nat) (Sym_type _ ReflState_nat ++ SymT_ext) nil None) :
+  option (denoteExpr _ (Sym_type _ ReflState_nat ++ SymT_ext) nil (Typ_denote _ ReflState_nat) (constsIn _ ReflState_nat) (Env_app _ (Sym_denote _ ReflState_nat) SymD_ext) tt None G).
+Admitted.
+
+(** TODO : Reflection **)
+
 (*
-; sym_types     : list (list nat * nat)
-; sym_denote    : Env (funtype' Typ_denote) sym_types
-*)
-}.
-
-Record ReflState_Correct : Type :=
-{ RS :> ReflState
-; Native_simpl  : forall T ss, Expr (Native_type RS) ss T -> Expr (Native_type RS) ss T
-; Native_simpl_correct :
-  forall ss (sv : Env (funtype' (Typ_denote RS)) ss) T (e : Expr (Native_type RS) ss T), 
-    @denoteExpr _ _ _ ss (Typ_denote RS) (Native_denote RS) sv T e = 
-    @denoteExpr _ _ _ ss (Typ_denote RS) (Native_denote RS) sv T (Native_simpl _ _ e)
-}.
-
-
-
 (** Ltac "lookup a symbol in an Env". fail if non-existant **)
 Ltac lookup x es ev :=
   match ev with
@@ -235,7 +299,7 @@ Ltac reflect_expr ext e :=
               match a with
                 | ( ?a , ?ss , ?sv , ?L' ) =>
                   let args := constr:(Econs Sym_type ss _ _ a (Enil Sym_type ss)) in
-                  let v := constr:(UApp Sym_type ss _ (L' _ m) args) in
+                  let v := constr:(App Sym_type ss _ (L' _ m) args) in
                   let cc := constr:(fun x : Expr sts_orig _ => L' _ (L _ x)) in
                   constr:((v , ss, sv , cc))
               end
@@ -282,12 +346,12 @@ Ltac reflect_expr Sym_fun ext Ts Ss Sv e :=
             let m := lookup F Ss Sv in
             let a := refl_expr A in 
             let args := constr:(Econs Sym_fun Ss _ _ a (Enil Sym_fun Ss)) in
-            let r := constr:(@UApp _ _ Sym_fun Ss _ _ m args) in
+            let r := constr:(@App _ _ Sym_fun Ss _ _ m args) in
             r
         end
       in
       let scc m := 
-        constr:(UApp Sym_fun Ss _ _ m (Enil Sym_fun Ss))
+        constr:(App Sym_fun Ss _ _ m (Enil Sym_fun Ss))
       in
       lookup_cc e Ss Sv fcc scc
     in 
@@ -423,214 +487,4 @@ intro H.
 
 trivial.
 Qed.
-        
-
-
-(*
-
-(*
-      let Ts := constr:(@nil (list nat * nat)) in
-      let Vs := constr:(tt) in
-      let Tys := constr:(nat :: nil) in
-      let E := gather_symbols nat_gather Tys Ts Vs exp in
-      match E with
-        | ( ?Ss , ?Sv , ?Ts ) => 
-          idtac "OFO"; 
-          let r := reflect_expr Nat_type nat_refl Ts Ss Sv exp in
-          r
-      end
-*)
-
-
-(** lookup the symbol x in the environment ev (with a spine of es).
- ** - assume that evI is the start of the entire environment (with esI as the spine)
- **)
-Ltac lookup_sym x esI evI ts es ev :=
-  match ev with
-    | nil => 
-      let T := type of x in
-      let t := refl_fun_type ts T in
-      let r := constr:((@MHere esI evI, T :: esI, (x, evI), @liftExpr _ _ _ esI (T :: nil) _, @lift _ (T :: nil) _)) in
-      r
-    | ( x , _ ) => 
-      match es with
-        | ?T :: ?TS =>
-          let r := constr:(@MHere T TS) in r
-      end
-    | ( _ , ?R ) =>
-      match es with
-        | ?T :: ?TS =>
-          let r := lookup x esI evI TS R in
-          match r with
-            | ( _ , _ , _ , _ ) => r
-            | _ => constr:(@MNext T TS r)
-          end
-      end
-  end.
-
-Ltac lookup' x es ev :=
-  lookup_sym x es ev es ev.
-
-
-
-Definition StateDef := list { T : Type & T }.
-
-Notation "$ a" := (@existT Type (fun x => x) _ a) (at level 0).
-
-Theorem foo : forall a : nat, a = a.
-  intros; reflexivity.
-Qed.
-
-
-Definition MyState : ReflState.
-cut (($ foo) :: nil = nil); intros.
-  Ltac refl t :=
-    let rec refl_type T Ts nx :=
-      match Ts with
-        | T :: _ => 
-          constr:(nx , Ts)
-        | ?A :: ?R => 
-          let nx' := constr:(S nx) in
-          let r := refl_type T R nx' in
-          match r with
-            | ( ?L , ?R ) => constr:( L , A :: R )
-          end
-        | nil =>
-          constr:(nx , T :: nil)
-      end        
-    in
-    let rec refl_sym_type Typs sT :=
-      match type of sT with
-        | ?A -> ?B => 
-          match refl_type A Typs 0 with
-            | ( ?Typs , ?T ) => 
-              match refl_sym_type Typs B with
-                | ( ?Typs , (?L , ?R) ) =>
-                  constr:((Typs, (T :: L , R)))
-              end
-          end
-      end
-    in
-    let rec refl_sym Syms s :=
-      match Syms with
-        | 
-      end
-    in
-    let rec refl_term Tys Syms t :=
-      match t with
-        | forall x : ?T , @?P x => idtac P
-        | ?S ?A ?B => 
-          let ra := refl_term Tys Syms A in
-          match ra with
-            | ( ?Tys , ?Syms , ?RA ) =>
-              let rb := refl_term Tys Syms B in
-              match rb with
-                | ( ?Tys , ?Syms , ?RB ) =>
-                  constr:( Tys , Syms , 
-      end
-    in
-    let rec refl_rec t :=
-      match t with
-        | @existT ?A ?B ?T ?X :: ?R =>
-          let h := constr:(@existT A B T X) in
-          let r := refl_rec R in
-          let f := constr:(@cons (@sigT Type (fun x => x)) h r) in 
-          f
-        | nil => 
-          constr:(@nil (@sigT Type (fun x => x)))
-      end
-    in refl_rec t.
-  match goal with
-    | [ H : ?X = _ |- _ ] => 
-      let k := refl X in
-        idtac k
-  end.
-
-
-
-Section Extensible.
-  Definition Typ := nat.
-
-(*
-  Fixpoint Typ_eq_dec (a b : Typ) {struct a} : {a = b} + {a <> b}.
-  decide equality.
-  Defined.
-*)
-
-  Definition Typ_denote (f : Typ) : Type :=
-    match f with
-      | 0 => nat
-      | _ => unit
-    end.
-
-  Inductive Nat_sym : Type :=
-  | Nat : nat -> Nat_sym
-  | Plus : Nat_sym.
-
-  Definition Sym_type_Nat (x : Nat_sym) : list Typ * Typ :=
-    match x with
-      | Nat _ => (nil, 0)
-      | Plus => (0 :: 0 :: nil, 0)
-    end.
-
-  Definition Sym_denote_nat (f : Nat_sym) : option (funtype' Typ_denote (Sym_type_Nat f)) :=
-    match f with
-      | Plus => Some plus
-      | Nat i => Some i 
-    end.
-
-End Extensible.
-*)
-(*
-Check App2.
-
-Ltac refl_nat e :=
-  let rec refl e := 
-    match e with
-      | plus ?L ?R => 
-        let l := refl L in
-        let r := refl R in
-        let r' := constr:(@App2 Typ Sym_nat nil Nat Nat Nat Plus l r) in r'
-      | S _ => let r := constr:(@App0 _ _ nil Nat (Lit e)) in r
-      | O => let r := constr:(@App0 _ _ nil Nat (Lit e)) in r
-    end
-  in 
-  idtac e; 
-  let res := refl e in
-  idtac res;
-  generalize (res).
-
-Check map.
-
-Fixpoint simplify_nat g (e : Expr Typ Sym_nat g Nat) {struct e} : Expr Typ Sym_nat g Nat :=
-  match e return Expr Typ Sym_nat g Nat with
-    | App2 _ _ _ c l r =>
-      match c in Sym_nat T R return prod (@map Typ Type (Expr Typ Sym_nat g) T) -> Expr Typ Sym_nat g Nat with
-        | Plus => fun lr =>
-          let l := fst lr in
-          let r := fst (snd lr) in
-          match simplify_nat g l , simplify_nat g r return Expr Typ Sym_nat g Nat with
-            | App0 _ (Lit l) , App0 _ (Lit r) => e (*App0 _ (Lit (l + r)) *)
-            | l , r => e (*App2 _ _ _ Plus l r *)
-          end
-        | _ => fun _ => e
-      end (l,(r,tt))
-    | App0 _ (Lit _) => e 
-    | _ => e
-  end.
-
-
-Goal 1 + 0 = 1.
-
-
-
-match goal with 
-  | [ |- ?X = ?Y ] => idtac X; refl_nat X
-end.
-
-
-
-
-
-refl_nat constr:(1).
 *)

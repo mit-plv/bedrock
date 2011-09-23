@@ -1,4 +1,4 @@
-MODULES    := Word IL LabelMap XCAP PropX PropXTac Expr SepTheory Separation
+MODULES    := Word IL LabelMap XCAP PropX PropXTac Expr SepTheory
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package

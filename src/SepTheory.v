@@ -1,3 +1,4 @@
+Require Import PropX.
 
 Module Type SepLog.
   
@@ -38,6 +39,7 @@ Module Make (M : SepLog).
                     /\ (a <> x -> h a = None).
 
   (** separation logic theory **)
+  (** I need to denote this in terms of PropX **)
 End Make.
 
   
