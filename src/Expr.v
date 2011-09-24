@@ -1,6 +1,5 @@
 Require Import String.
-Require Import List.
-(*Require Import SepTheory.*)
+Require Import List Arith.
 
 Set Implicit Arugments.
 Set Strict Implicit.
@@ -65,7 +64,7 @@ Section Member.
 End Member.
 
 (** Syntax of Expressions **)
-Section TypedList.
+Section Expr.
   Context {Typ : Type}.
 
   Variable constsOf : Typ -> Type.
@@ -115,7 +114,7 @@ Section TypedList.
       end.
   
   End Denote.
-End TypedList.
+End Expr.
 
 Section Lifting.
   Context {Typ : Type}. 
@@ -128,11 +127,6 @@ Section Lifting.
       | App Ts T s es =>
         let es' := liftExprs Ts es in
         App constsOf (sse ++ ss) (ve ++ vs) Ts T (lift ss sse s) es'
-(*
-      | App s es =>
-        let es' := liftExprs (fst (constsOf s)) es in
-        App _ _ s es'
-*)
       | Const a b => Const constsOf _ _ a b
       | Var _ m => Var _ _ _ _ (lift vs ve m)  
     end
@@ -171,36 +165,48 @@ End QExpr.
 
 Inductive empty : Type := .
 
-Require Import Arith.
-
-Fixpoint List2Fun_g (ls : list Type) (n : nat) : nat -> Type :=
+Fixpoint List2Fun (ls : list Type) (n : nat) : nat -> Type :=
   match ls with
     | nil => fun _ => unit
     | a :: b => 
-      let r := List2Fun_g b (S n) in
+      let r := List2Fun b (S n) in
       fun x => if Peano_dec.eq_nat_dec x n then a else r x
   end.
 
 Record ReflState : Type :=
 { Typs        : list Type
-; Typ_denote  := List2Fun_g Typs 0
+; Typ_denote  := List2Fun Typs 0
 ; constsOf    : nat -> Type
 ; constsIn    : forall T, constsOf T -> Typ_denote T
 ; Sym_type    : list (list nat * option nat)
 ; Sym_denote  : Env (funtype' Typ_denote (Typ_denote' Typ_denote)) Sym_type
 }.
 
+(*
+Definition extendReflState (a b : ReflState) : ReflState :=
+  let atyp_count := length (Typs a) in
+  {| Typs     := Typs a ++ Typs b
+   ; constsOf := fun x => if lt_dec x atyp_count then constsOf x else 
+*)
+
+(* TODO : This type is a mess 
 Definition ProverT (RS : ReflState) :=
-  forall SymT_ext SymD_ext
+  forall Typ_ext SymT_ext 
+    (SymD_ext : Env (funtype' (List2Fun (Typs RS ++ Typ_ext) 0) (Typ_denote' (List2Fun (Typs RS ++ Typ_ext) 0))) (Sym_type RS ++ SymT_ext))
     (Hs : list (QExpr (constsOf RS) (Sym_type RS ++ SymT_ext))),
-    Env (denoteQExpr _ _ (constsIn RS) (Sym_type RS ++ SymT_ext) (Env_app _ (Sym_denote RS) SymD_ext)) Hs -> 
+    Env (denoteQExpr (constsOf RS) (List2Fun (Typs RS ++ Typ_ext) 0) (constsIn RS) (Sym_type RS ++ SymT_ext) (Env_app _ (Sym_denote RS) SymD_ext)) Hs -> 
     forall (G : Expr (constsOf RS) (Sym_type RS ++ SymT_ext) nil None),
       option (denoteExpr _ (Sym_type RS ++ SymT_ext) nil (Typ_denote RS) (constsIn RS) (Env_app _ (Sym_denote RS) SymD_ext) tt None G).
+
+
+Definition nat_prover : ProverT ReflState_nat. 
+Admitted.
+*)
 
 Definition ReflState_nat : ReflState :=
   let typs := (nat:Type) :: @nil Type in
   let constsOf := fun x : nat => if eq_nat_dec x 0 then nat else empty in
-  let Typ_denote := List2Fun_g typs 0 in
+  let Typ_denote := List2Fun typs 0 in
   {| Typs       := typs
    ; constsOf   := constsOf
    ; constsIn   := fun T => match T as T return constsOf T  -> Typ_denote T with
@@ -211,10 +217,6 @@ Definition ReflState_nat : ReflState :=
    ; Sym_type   := (0 :: 0 :: nil, Some 0) :: (*0 :: 0 :: nil, None) ::*) nil
    ; Sym_denote := (plus, tt)
    |}.
-
-Definition nat_prover : ProverT ReflState_nat. 
-Admitted.
-
 
 (**********************
  ** Reflecting Types **
@@ -301,32 +303,32 @@ Fixpoint apply_ls (ls : list Type) (T : Type) (R : T -> Type) (V : T)
     | nil => fun F => F V
     | a :: b => fun F => fun x : a => apply_ls b T R V (F x)
   end.
-About App.
+
+Ltac refl_app cc e := 
+  let aT := constr:(@nil Type) in
+  let rec refl e As :=
+    match e with
+      | ?A ?B =>
+        let As' := constr:((B, As)) in
+        refl A As' 
+      | _ => 
+        let T := type of e in
+        cc e aT T As
+    end
+  in
+  let b := constr:(tt) in
+  refl e b.
+
 
 Ltac reflect_expr refl_const constsOf Ts Ss Sv Vs Vv e :=
   let aT := constr:(@nil Type) in
   let rec refl_expr e :=
     let app_case e :=
-      match e with 
-        | ?F ?A ?B ?C => 
-          let Ft := type of F in
-          let args' := constr:((A, (B, (C, tt)))) in
-          let ra := reflect_args F aT Ft args' in
-          match ra with 
-            | ( ?args, ?F' ) =>
-              let m := lookup F' Ss Sv in
-              constr:(@App _ constsOf Ss Vs _ _ m args)
-          end
-
-        | ?F ?A => 
-          let Ft := type of F in
-          let args' := constr:((A, tt)) in
-          match reflect_args F aT Ft args' with
-            | ( ?args, ?F' ) =>
-              let m := lookup F' Ss Sv in
-              constr:(@App _ constsOf Ss Vs _ _ m args)
-          end
-      end
+      match refl_app reflect_args e with
+        | ( ?args , ?F ) =>
+          let m := lookup F Ss Sv in
+          constr:(@App _ constsOf Ss Vs _ _ m args)
+      end        
     in
     let var_case m := 
       constr:(Var constsOf Ss Vs _ m)
@@ -398,24 +400,13 @@ Ltac refl_nat_const scc fcc e :=
 
 Ltac gather_symbols refl_const Ts Ss Sv exp :=
   let rec gather st e :=
-    let fcc _ :=
-      match e with
-        | ?F ?A ?B ?C =>
-          let T := type of F in
-          let As := constr:((A, (B, (C, tt)))) in
-          let Typs := constr:(@nil Type) in
-          gather_args F Typs T As st
-        | ?F ?A => 
-          let T := type of F in
-          let As := constr:((A, tt)) in
-          let Typs := constr:(@nil Type) in
-          gather_args F Typs T As st
-
-      end
+    let fcc x :=
+      let v := gather_args st in
+      refl_app v e
     in
     let scc _ := st in
     refl_const scc fcc e
-  with gather_args F Typs Ft As st :=
+  with gather_args st F Typs Ft As :=
     match As with
       | tt => 
         let st' := set_add' st F in
@@ -425,11 +416,11 @@ Ltac gather_symbols refl_const Ts Ss Sv exp :=
           | ?T1 -> ?T2 =>
             let Typs' := constr:(Typs ++ (T1:Type) :: @nil Type) in
             let st' := gather st A in
-            gather_args F Typs' T2 As st' 
+            gather_args st' F Typs' T2 As
           | forall x : ?T1, @?T2 x =>
             let Ft' := eval simpl in (T2 A) in
             let F'' := eval simpl in (apply_ls Typs T1 T2 A F) in
-            gather_args F'' Typs Ft' As st
+            gather_args st F'' Typs Ft' As
          end
     end
   in
