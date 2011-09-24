@@ -1,3 +1,12 @@
+(** TODO List
+ ** - Expr should be over a ReflState so that we don't have so many parameters (term size)
+ ** - Merging states
+ ** - Lifting expressions to new states
+ ** - Prover for simple domain
+ ** - Unification variables?
+ ** - Expression equality
+ **)
+
 Require Import String.
 Require Import List Arith.
 
@@ -436,9 +445,10 @@ Ltac reflect_state refl_const S exp :=
   let E := gather_symbols refl_const Tys Ts Vs exp in
   match E with
     | ( ?Ts , ?Ss , ?Sv ) =>
-      idtac "Ts" Ts ;
+(*    idtac "Ts" Ts ;
       idtac "Ss" Ss ;
       idtac "Sv" Sv ;
+*)
       let Vs := constr:(@nil nat) in
       let Vv := constr:(tt) in
       let r := reflect_expr refl_const constsOf Ts Ss Sv Vs Vv exp in
