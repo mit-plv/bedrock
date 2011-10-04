@@ -306,9 +306,20 @@ Section imports.
                          | [ x : N |- _ ] => unfold x in *; clear x
                        end; intuition; unfold evalBlock; simpl; autorewrite with N).
 
-  Ltac finisher := repeat esplit; eauto 8.
+  Ltac finisher := repeat esplit; eauto 3; eauto 8.
 
   Ltac struct := preSimp; simp; finisher.
+
+  Definition Straightline (is : list instr) : cmd.
+    red; refine (fun pre => {|
+      Postcondition := (fun stn st => Ex st', [evalInstrs stn st is = st'])%PropX;
+      VerifCond := (forall stn st specs, interp specs (pre stn st) -> evalInstrs stn st is <> None);
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (is, Uncond (RvLabel (modName, Local Exit)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
 
   Definition Seq (c1 c2 : cmd) : cmd.
     red; refine (fun pre =>
