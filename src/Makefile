@@ -1,4 +1,4 @@
-MODULES    := Nomega Word IL LabelMap XCAP PropX PropXTac Structured Expr SepTheory
+MODULES    := Nomega Word IL LabelMap XCAP PropX PropXTac Structured Env Expr SepTheory
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package
