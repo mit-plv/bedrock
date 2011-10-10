@@ -4,13 +4,27 @@ Require Import Arith Omega NArith.
 
 Local Open Scope N_scope.
 
-Hint Rewrite Nplus_0_r nat_of_Nsucc nat_of_Nplus N_of_nat_of_N nat_of_P_o_P_of_succ_nat_eq_succ : N.
+Hint Rewrite Nplus_0_r nat_of_Nsucc nat_of_Nplus N_of_nat_of_N
+  nat_of_P_o_P_of_succ_nat_eq_succ nat_of_P_succ_morphism : N.
 
 Theorem nat_of_N_eq : forall n m,
   nat_of_N n = nat_of_N m
   -> n = m.
   intros ? ? H; apply (f_equal N_of_nat) in H;
     autorewrite with N in *; assumption.
+Qed.
+
+Theorem Nneq_in : forall n m,
+  nat_of_N n <> nat_of_N m
+  -> n <> m.
+  congruence.
+Qed.
+
+Theorem Nneq_out : forall n m,
+  n <> m
+  -> nat_of_N n <> nat_of_N m.
+  intuition.
+  apply nat_of_N_eq in H0; tauto.
 Qed.
 
 Theorem Nlt_out : forall n m, n < m
@@ -42,11 +56,14 @@ Theorem Nge_in : forall n m, (nat_of_N n >= nat_of_N m)%nat
 Qed.
 
 Ltac pre_nomega :=
-  try (apply nat_of_N_eq || apply Nlt_in || apply Nge_in); simpl; repeat (progress autorewrite with N; simpl);
+  try (apply nat_of_N_eq || apply Nneq_in || apply Nlt_in || apply Nge_in); simpl;
+    repeat (progress autorewrite with N; simpl);
     repeat match goal with
+             | [ H : _ <> _ |- _ ] => apply Nneq_out in H
+             | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H
              | [ H : _ |- _ ] => (apply (f_equal nat_of_N) in H
                || apply Nlt_out in H || apply Nge_out in H);
              simpl in H; repeat progress (autorewrite with N in H; simpl in H)
            end.
 
-Ltac nomega := pre_nomega; omega.
+Ltac nomega := pre_nomega; omega || (unfold nat_of_P in *; simpl in *; omega).

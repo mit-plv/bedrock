@@ -30,10 +30,6 @@ Definition blockOk (imps : LabelMap.t assert) (pre : assert) (bl : block) :=
         /\ exists pre', LabelMap.MapsTo l pre' imps
           /\ interp specs (pre' stn (snd st')).
 
-Require FMapFacts.
-
-Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).
-
 Section moduleOk.
   Variable m : module.
 
@@ -67,7 +63,7 @@ Section moduleOk.
     specialize (IHl0 _ H); clear H.
     destruct IHl0 as [ | [ ] ]; intuition.
     apply LabelMap.elements_2 in H.
-    apply (proj1 (LabelFacts.add_mapsto_iff _ _ _ _ _)) in H; intuition; subst.
+    apply (proj1 (LabelMap.add_mapsto_iff _ _ _ _ _)) in H; intuition; subst.
     right; eexists.
     apply SetoidList.InA_cons_hd; hnf; simpl; eauto.
     apply LabelMap.elements_1 in H1.
@@ -165,7 +161,6 @@ Section moduleOk.
 
     inversion H0; clear H0; subst.
     hnf in H5; simpl in H5; intuition.
-    unfold LabelMap.key in H.
     congruence.
     inversion H3; eauto.
 
@@ -174,7 +169,7 @@ Section moduleOk.
     apply SetoidList.InA_cons; left.
     hnf; simpl.
     intuition.
-    unfold LabelMap.key; simpl.
+    simpl.
     destruct (snd (A := label) a); auto.
     intuition; congruence.
   Qed.

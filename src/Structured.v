@@ -67,6 +67,7 @@ Section imports.
                end; nomega).
 
   Hint Extern 1 (_ < _) => nomega.
+  Hint Extern 1 (~(eq (A := N) _ _)) => nomega.
 
   Lemma ge_refl : forall n, n >= n.
     intros; nomega.
@@ -120,32 +121,7 @@ Section imports.
     eauto 8.
   Qed.
 
-  Hint Resolve blockOk_impl.
-
-  Lemma imps_preserve : forall k v exit post n pre bls base,
-    LabelMap.MapsTo k v (imps bls base exit post)
-    -> n < base
-    -> exit < n
-    -> LabelMap.MapsTo k v (LabelMap.add (modName, Local n) pre
-        (imps bls base exit post)).
-    induction bls; simpl; intuition.
-
-    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
-    auto.
-
-    destruct (imports_global H3).
-    auto.
-
-    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
-    auto.
-
-    specialize (IHbls _ H3).
-    assert (n < Nsucc base) by nomega; intuition.
-    apply LabelFacts.add_mapsto_iff in H5; intuition; subst.
-    auto.
-  Qed.
-
-  Hint Resolve imps_preserve.
+  Hint Extern 2 (blockOk _ _ _) => simpl in *; eapply blockOk_impl; [ | eassumption ].
 
   Lemma imps_exit : forall exit post bls base,
     exit < base
@@ -178,7 +154,7 @@ Section imports.
 
   Hint Immediate lt_succ lt_succ'.
 
-  Hint Extern 1 (List.Forall _ _) => eapply Forall_impl; [ | eassumption ].
+  Hint Extern 1 (List.Forall _ _) => eapply Forall_impl; [ | eassumption ]; cbv zeta.
 
   Theorem split_add : forall A k (v : A) m {P : _ -> _ -> Prop},
     (forall k' v', LabelMap.MapsTo k' v' (LabelMap.add k v m) -> P k' v')
@@ -187,9 +163,14 @@ Section imports.
     intuition.
   Qed.
 
-  Hint Extern 1 (interp _ _) => apply simplify_bwd; simpl.
+  Hint Extern 1 (interp _ _) => cbv zeta; simpl;
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end; apply simplify_bwd; simpl.
 
-  Hint Rewrite nat_of_N_of_nat : N.
+  Hint Extern 1 (_ = _) => congruence.
+
+  Hint Rewrite nat_of_N_of_nat Nplus_assoc : N.
 
   Lemma nth_error_app2 : forall n A (ls2 ls1 : list A),
     nth_error (ls1 ++ ls2) (length ls1 + n) = nth_error ls2 n.
@@ -197,6 +178,12 @@ Section imports.
   Qed.
 
   Hint Rewrite nth_error_app2 : N.
+
+  Lemma nth_error_app2' : forall n A (ls2 ls1 : list A) x,
+    nth_error ls2 n = x
+    -> nth_error (ls1 ++ ls2) (nat_of_N (N_of_nat (length ls1) + N_of_nat n)) = x.
+    intros; subst; autorewrite with N; reflexivity.
+  Qed.
 
   Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
     List.Forall P ls1
@@ -225,9 +212,9 @@ Section imports.
     -> LabelMap.MapsTo k v (imps (bls1 ++ bls2) base exit post).
     induction bls1; simpl; intuition.
 
-    apply LabelFacts.add_mapsto_iff in H0; intuition; subst; auto.
+    apply LabelMap.add_mapsto_iff in H0; intuition; subst; auto.
 
-    apply LabelFacts.add_mapsto_iff in H0; intuition; subst; auto.
+    apply LabelMap.add_mapsto_iff in H0; intuition; subst; auto.
   Qed.
 
   Lemma imps_app2'' : forall k v exit exit' post post' bls base,
@@ -235,7 +222,7 @@ Section imports.
     -> (k = (modName, Local exit') /\ v = post') \/ LabelMap.MapsTo k v (imps bls base exit post).
     induction bls; simpl; intuition.
 
-    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+    apply LabelMap.add_mapsto_iff in H; intuition; subst.
     right.
     apply LabelMap.add_2.
     apply imports_global in H1.
@@ -243,11 +230,32 @@ Section imports.
     destruct k; simpl in *; congruence.
     auto.
    
-    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+    apply LabelMap.add_mapsto_iff in H; intuition; subst.
     eauto.
     apply IHbls in H1.
     intuition.
   Qed.
+
+  Lemma imps_neq : forall k v exit post l bls base,
+    LabelMap.MapsTo k v (imps bls base exit post)
+    -> l < base
+    -> l <> exit
+    -> (modName, Local l) <> k.
+    induction bls; simpl; intuition.
+
+    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+    destruct (imports_global H4).
+    discriminate.
+
+    subst.
+    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+
+    injection H; intros; nomega.
+    eauto.
+  Qed.
+
+  Hint Extern 2 (_ <> _) => eapply imps_neq; [ eassumption | nomega | nomega ].
+  (*Hint Resolve imps_neq.*)
 
   Lemma imps_app2' : forall exit post bls2 k v exit' post' bls1 base,
     LabelMap.MapsTo k v (imps bls2 (base + N_of_nat (length bls1)) exit' post')
@@ -260,7 +268,8 @@ Section imports.
 
     replace (base + Npos (P_of_succ_nat (length bls1)))
       with (Nsucc base + N_of_nat (length bls1)) in H by nomega.
-    apply IHbls1 in H; clear IHbls1; intuition.
+
+    apply IHbls1 in H; clear IHbls1; intuition eauto.
   Qed.
 
   Lemma nth_error_app1 : forall A x (ls2 ls1 : list A) n,
@@ -286,29 +295,55 @@ Section imports.
 
   Hint Rewrite app_length : N.
 
+  Lemma nth_app_hyp : forall {A B} {P : N -> A -> B -> Prop} {ls1 ls2},
+    (forall n (x : A) (y : B),
+      nth_error (ls1 ++ ls2) (nat_of_N n) = Some (x, y) -> P n x y)
+    -> (forall n (x : A) (y : B),
+      nth_error ls1 (nat_of_N n) = Some (x, y) -> P n x y)
+    /\ (forall n (x : A) (y : B),
+      nth_error ls2 (nat_of_N n) = Some (x, y) -> P (N_of_nat (length ls1) + n) x y).
+    intuition.
+    eapply nth_error_app2' in H0.
+    apply H in H0.
+    autorewrite with N in *; assumption.
+  Qed.
+
   Ltac preSimp := simpl in *; intuition eauto; repeat (apply Forall_nil || apply Forall_cons); simpl.
+
+  Ltac destrOpt E := let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq); rewrite Heq in *.
+
+  Definition evalCond (rv1 : rvalue) (t : test) (rv2 : rvalue) (stn : settings) (st : state) :=
+    match evalRvalue stn st rv1, evalRvalue stn st rv2 with
+      | Some w1, Some w2 => Some (evalTest t w1 w2)
+      | _, _ => None
+    end.
 
   Ltac simp := repeat (match goal with
                          | [ x : codeGen _ _ _ _ _ |- _ ] => destruct x; simpl in *
+                         | [ H : _ /\ _ |- _ ] => destruct H
                          | [ H : ex _ |- _ ] => destruct H
                          | [ H1 : notStuck _ _, H2 : _ |- _ ] => specialize (H1 _ _ _ H2)
                          | [ H : forall k v, _ |- _ ] => destruct (split_add H); clear H
+                         | [ H : forall n x y, _ |- _ ] => destruct (nth_app_hyp H); clear H
                          | [ H : _ |- _ ] => destruct (specialize_imps H); clear H
                          | [ H : forall x, _ -> _ |- _ ] => specialize (H _ (refl_equal _))
                          | [ H : forall x y z, _ -> _ , H' : _ |- _ ] => specialize (H _ _ _ H')
                          | [ |- blockOk _ _ _ ] => red
+                         | [ _ : match ?E with Some _ => _ | None => _ end = Some _ |- _ ] => destrOpt E; [ | discriminate ]
+                         | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
+                         | [ |- context[if ?E then _ else _] ] => destrOpt E
                          | [ H : ?E = None -> False |- _ ] => case_eq E; intros; tauto || clear H
                          | [ H : _ |- _ ] => rewrite H
                          | [ H : ?P -> _ |- _ ] =>
                            match type of P with
-                             | Prop => assert P by (lomega || auto); intuition
+                             | Prop => let H' := fresh in assert (H' : P) by (lomega || auto); specialize (H H'); clear H'
                            end
                          | [ x : N |- _ ] => unfold x in *; clear x
-                       end; intuition; unfold evalBlock; simpl; autorewrite with N).
+                       end; intros; unfold evalBlock, evalCond in *; simpl; autorewrite with N in *).
 
-  Ltac finisher := repeat esplit; eauto 3; eauto 8.
+  Ltac struct := preSimp; simp; eauto 15.
 
-  Ltac struct := preSimp; simp; finisher.
+  (** *  Literal sequences of non-jump instructions *)
 
   Definition Straightline (is : list instr) : cmd.
     red; refine (fun pre => {|
@@ -320,6 +355,8 @@ Section imports.
       |}
     |}); abstract struct.
   Defined.
+
+  (** *  Sequential composition *)
 
   Definition Seq (c1 c2 : cmd) : cmd.
     red; refine (fun pre =>
@@ -337,6 +374,118 @@ Section imports.
                     Blocks := Blocks cg2 ++ Blocks cg1
                   |}
         |}); abstract struct.
+  Defined.
+
+  (** * Lemma hints, to be added to the postcondition *)
+
+  Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : cmd.
+    red; refine (fun pre => {|
+      Postcondition := (fun stn st => pre stn st /\ [lemma stn st])%PropX;
+      VerifCond := True;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
+  (** * Standard conditional *)
+
+  Lemma if_maps1 : forall k v post1 post2 exit other exit' post bls2 bls1 base,
+    LabelMap.MapsTo k v (imps bls1 base exit post1)
+    -> other < base
+    -> exit < base
+    -> other <> exit
+    -> LabelMap.MapsTo k v
+    (LabelMap.add (modName, Local exit) post1
+      (LabelMap.add (modName, Local other) post2
+        (imps (bls1 ++ bls2) base exit' post))).
+    induction bls1; simpl; intuition;
+      match goal with
+        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+      end; try match goal with
+                 | [ H : _ |- _ ] => destruct (imports_global H)
+               end.
+    eauto.
+    eauto.
+    eauto.
+
+    assert (LabelMap.MapsTo k v
+      (LabelMap.add (modName, Local base) a0
+        (LabelMap.add (modName, Local exit) post1
+          (LabelMap.add (modName, Local other) post2
+            (imps (bls1 ++ bls2) (Nsucc base) exit' post))))).
+
+    eauto.
+    repeat match goal with
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+           end; auto.
+  Qed.
+
+  Hint Resolve if_maps1.
+
+  Lemma if_maps2 : forall k v post2 exit exit' post bls2 bls1 base,
+    LabelMap.MapsTo k v (imps bls2 (base + N_of_nat (length bls1)) exit post2)
+    -> exit < base
+    -> exit' < base
+    -> LabelMap.MapsTo k v
+    (LabelMap.add (modName, Local exit) post2
+      (imps (bls1 ++ bls2) base exit' post)).
+    induction bls1; simpl; intuition.
+
+    replace (base + 0) with base in H by nomega.
+    generalize dependent base; induction bls2; simpl; intuition;
+      match goal with
+        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+      end; try match goal with
+                 | [ H : _ |- _ ] => destruct (imports_global H)
+               end.
+    eauto.
+    eauto.
+    eauto.
+
+    assert (LabelMap.MapsTo k v
+      (LabelMap.add (modName, Local base) a0
+        (LabelMap.add (modName, Local exit) post2
+          (imps bls2 (Nsucc base) exit' post)))).
+    eauto.
+    repeat match goal with
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+           end; auto.
+
+    replace (base + Npos (P_of_succ_nat (Datatypes.length bls1)))
+      with (Nsucc base + N_of_nat (Datatypes.length bls1)) in H by nomega.
+    apply IHbls1 in H; auto.
+    repeat match goal with
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+           end; eauto.
+  Qed.
+
+  Hint Resolve if_maps2.
+
+  Definition If_ (rv1 : rvalue) (t : test) (rv2 : rvalue) (Then Else : cmd) : cmd.
+    red; refine (fun pre =>
+      let cout1 := Then (fun stn st => pre stn st /\ [evalCond rv1 t rv2 stn st = Some true])%PropX in
+      let cout2 := Else (fun stn st => pre stn st /\ [evalCond rv1 t rv2 stn st = Some false])%PropX in
+      {|
+        Postcondition := (fun stn st => Postcondition cout1 stn st \/ Postcondition cout2 stn st)%PropX;
+        VerifCond := (forall stn st specs, interp specs (pre stn st) -> evalCond rv1 t rv2 stn st <> None)
+          /\ VerifCond cout1 /\ VerifCond cout2;
+        Generate := fun Base Exit =>
+          let Base' := Nsucc (Nsucc (Nsucc Base)) in
+          let cg1 := Generate cout1 Base' (Nsucc Base) in
+          let Base'' := Base' + N_of_nat (length (Blocks cg1)) in
+          let cg2 := Generate cout2 Base'' (Nsucc (Nsucc Base)) in
+          {|
+            Entry := 0;
+            Blocks := (pre, (nil, Cond rv1 t rv2
+              (modName, Local (Base' + Entry cg1))
+              (modName, Local (Base'' + Entry cg2))))
+              :: (Postcondition cout1, (nil, Uncond (RvLabel (modName, Local Exit))))
+              :: (Postcondition cout2, (nil, Uncond (RvLabel (modName, Local Exit))))
+              :: Blocks cg1 ++ Blocks cg2
+          |}
+      |}); abstract struct.
   Defined.
 
 End imports.

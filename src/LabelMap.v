@@ -2,7 +2,7 @@
 
 Require Import Ascii NArith String OrderedType FMapAVL.
 
-Require Import IL.
+Require Import Nomega IL.
 
 Local Open Scope string_scope.
 Local Open Scope N_scope.
@@ -78,72 +78,74 @@ Theorem string_lt_trans : forall s1 s2 s3, string_lt s1 s2 = true
   induction s1; simpl; intuition; destruct s2; destruct s3; simpl in *; try congruence; rewr.
 Qed.
 
-Hint Resolve string_lt_trans.
+Section hide_hints.
+  Hint Resolve string_lt_trans.
 
-Theorem string_lt_irrel : forall s, string_lt s s = false.
-  induction s; simpl; intuition rewr.
-Qed.
+  Theorem string_lt_irrel : forall s, string_lt s s = false.
+    induction s; simpl; intuition rewr.
+  Qed.
 
-Hint Rewrite string_lt_irrel : LabelMap.
+  Hint Rewrite string_lt_irrel : LabelMap.
 
-Lemma string_tail_neq : forall a1 a2 s1 s2,
-  N_of_ascii a1 = N_of_ascii a2
-  -> (String a1 s1 = String a2 s2 -> False)
-  -> (s1 = s2 -> False).
-  intros.
-  apply (f_equal ascii_of_N) in H.
-  repeat rewrite ascii_N_embedding in H.
-  congruence.
-Qed.
+  Lemma string_tail_neq : forall a1 a2 s1 s2,
+    N_of_ascii a1 = N_of_ascii a2
+    -> (String a1 s1 = String a2 s2 -> False)
+    -> (s1 = s2 -> False).
+    intros.
+    apply (f_equal ascii_of_N) in H.
+    repeat rewrite ascii_N_embedding in H.
+    congruence.
+  Qed.
 
-Hint Immediate string_tail_neq.
+  Hint Immediate string_tail_neq.
 
-Theorem string_lt_sym : forall s1 s2, s1 <> s2
-  -> string_lt s1 s2 = false
-  -> string_lt s2 s1 = true.
-  induction s1; destruct s2; simpl; intuition; rewr.
-Qed.
+  Theorem string_lt_sym : forall s1 s2, s1 <> s2
+    -> string_lt s1 s2 = false
+    -> string_lt s2 s1 = true.
+    induction s1; destruct s2; simpl; intuition; rewr.
+  Qed.
     
-Hint Resolve string_lt_sym.
+  Hint Resolve string_lt_sym.
 
-Definition label'_lt (l1 l2 : label') : bool :=
-  match l1, l2 with
-    | Global _, Local _ => true
-    | Local _, Global _ => false
-    | Global s1, Global s2 => string_lt s1 s2
-    | Local n1, Local n2 => match n1 ?= n2 with
-                              | Datatypes.Lt => true
-                              | _ => false
-                            end
-  end.
+  Definition label'_lt (l1 l2 : label') : bool :=
+    match l1, l2 with
+      | Global _, Local _ => true
+      | Local _, Global _ => false
+      | Global s1, Global s2 => string_lt s1 s2
+      | Local n1, Local n2 => match n1 ?= n2 with
+                                | Datatypes.Lt => true
+                                | _ => false
+                              end
+    end.
 
-Theorem label'_lt_trans : forall l1 l2 l3, label'_lt l1 l2 = true
-  -> label'_lt l2 l3 = true
-  -> label'_lt l1 l3 = true.
-  induction l1; simpl; intuition; destruct l2; destruct l3; simpl in *; try congruence; eauto; rewr.
-Qed.
+  Theorem label'_lt_trans : forall l1 l2 l3, label'_lt l1 l2 = true
+    -> label'_lt l2 l3 = true
+    -> label'_lt l1 l3 = true.
+    induction l1; simpl; intuition; destruct l2; destruct l3; simpl in *; try congruence; eauto; rewr.
+  Qed.
 
-Hint Immediate label'_lt_trans.
+  Hint Immediate label'_lt_trans.
 
-Theorem label'_lt_irrel : forall l, label'_lt l l = false.
-  induction l; simpl; intuition; autorewrite with LabelMap; auto; rewr.
-Qed.
+  Theorem label'_lt_irrel : forall l, label'_lt l l = false.
+    induction l; simpl; intuition; autorewrite with LabelMap; auto; rewr.
+  Qed.
 
-Hint Rewrite label'_lt_irrel : LabelMap.
+  Hint Rewrite label'_lt_irrel : LabelMap.
 
-Theorem label'_lt_sym : forall l1 l2, l1 <> l2
-  -> label'_lt l1 l2 = false
-  -> label'_lt l2 l1 = true.
-  induction l1; destruct l2; simpl; intuition.
-  eapply string_lt_sym; eauto; congruence.
-  rewr.
-Qed.
+  Theorem label'_lt_sym : forall l1 l2, l1 <> l2
+    -> label'_lt l1 l2 = false
+    -> label'_lt l2 l1 = true.
+    induction l1; destruct l2; simpl; intuition.
+    eapply string_lt_sym; eauto; congruence.
+    rewr.
+  Qed.
 
-Hint Resolve label'_lt_sym.
+  Hint Resolve label'_lt_sym.
 
-Definition label'_eq : forall x y : label', {x = y} + {x <> y}.
-  decide equality; apply string_dec || apply N_eq_dec.
-Defined.
+  Definition label'_eq : forall x y : label', {x = y} + {x <> y}.
+    decide equality; apply string_dec || apply N_eq_dec.
+  Defined.
+End hide_hints.
 
 Module LabelKey.
   Definition t := label.
@@ -164,52 +166,187 @@ Module LabelKey.
     congruence.
   Qed.
 
-  Theorem lt_trans : forall x y z : t, lt x y -> lt y z -> lt x z.
-    unfold lt; intuition (congruence || eauto).
-  Qed.
+  Section hide_hints.
+    Hint Resolve string_lt_trans.
+    Hint Rewrite string_lt_irrel : LabelMap.
+    Hint Immediate string_tail_neq.
+    Hint Resolve string_lt_sym.
+    Hint Immediate label'_lt_trans.
+    Hint Rewrite label'_lt_irrel : LabelMap.
+    Hint Resolve label'_lt_sym.
+    Hint Rewrite string_lt_irrel label'_lt_irrel : LabelMap.
 
-  Theorem lt_not_eq : forall x y : t, lt x y -> ~ eq x y.
-    unfold lt, eq; intuition; subst; autorewrite with LabelMap in *; discriminate.
-  Qed.
+    Theorem lt_trans : forall x y z : t, lt x y -> lt y z -> lt x z.
+      unfold lt; intuition (congruence || eauto).
+    Qed.
 
-  Definition compare' (x y : t) : comparison :=
-    if string_lt (fst x) (fst y)
-      then Datatypes.Lt
-      else if string_dec (fst x) (fst y)
-        then if label'_lt (snd x) (snd y)
-          then Datatypes.Lt
-          else if label'_eq (snd x) (snd y)
-            then Datatypes.Eq
-            else Gt
-        else Gt.
+    Theorem lt_not_eq : forall x y : t, lt x y -> ~ eq x y.
+      unfold lt, eq; intuition; subst; autorewrite with LabelMap in *; discriminate.
+    Qed.
 
-  Lemma label_eq : forall x y : label, fst x = fst y
-    -> snd x = snd y
-    -> x = y.
-    destruct x; destruct y; simpl; congruence.
-  Qed.
+    Definition compare' (x y : t) : comparison :=
+      if string_lt (fst x) (fst y)
+        then Datatypes.Lt
+        else if string_dec (fst x) (fst y)
+          then if label'_lt (snd x) (snd y)
+            then Datatypes.Lt
+            else if label'_eq (snd x) (snd y)
+              then Datatypes.Eq
+              else Gt
+          else Gt.
+    
+    Lemma label_eq : forall x y : label, fst x = fst y
+      -> snd x = snd y
+      -> x = y.
+      destruct x; destruct y; simpl; congruence.
+    Qed.
 
-  Hint Immediate label_eq.
+    Hint Immediate label_eq.
 
-  Definition compare (x y : t) : Compare lt eq x y.
-    refine (match compare' x y as c return c = compare' x y -> Compare lt eq x y with
-              | Datatypes.Lt => fun _ => LT _ _
-              | Datatypes.Eq => fun _ => EQ _ _
-              | Gt => fun _ => GT _ _
-            end (refl_equal _)); abstract (unfold compare', eq, lt in *;
-              repeat match goal with
-                       | [ H : context[if ?E then _ else _] |- _ ] => let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq);
-                         rewrite Heq in H; try discriminate
-                     end; intuition).
-  Defined.
+    Definition compare (x y : t) : Compare lt eq x y.
+      refine (match compare' x y as c return c = compare' x y -> Compare lt eq x y with
+                | Datatypes.Lt => fun _ => LT _ _
+                | Datatypes.Eq => fun _ => EQ _ _
+                | Gt => fun _ => GT _ _
+              end (refl_equal _)); abstract (unfold compare', eq, lt in *;
+                repeat match goal with
+                         | [ H : context[if ?E then _ else _] |- _ ] => let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq);
+                           rewrite Heq in H; try discriminate
+                       end; intuition).
+    Defined.
 
-  Definition eq_dec x y : { eq x y } + { ~ eq x y }.
-    refine (if string_dec (fst x) (fst y)
-      then if label'_eq (snd x) (snd y)
-        then left _
-        else right _
-      else right _); abstract (unfold eq in *; destruct x; destruct y; simpl in *; congruence).
-  Defined.
+    Definition eq_dec x y : { eq x y } + { ~ eq x y }.
+      refine (if string_dec (fst x) (fst y)
+        then if label'_eq (snd x) (snd y)
+          then left _
+          else right _
+        else right _); abstract (unfold eq in *; destruct x; destruct y; simpl in *; congruence).
+    Defined.
+  End hide_hints.
 End LabelKey.
 
-Module LabelMap := FMapAVL.Make(LabelKey).
+
+Set Implicit Arguments.
+
+(* A little dance to prevent an awful transitivity hint from being exported by our final [LabelMap] module *)
+Module Type LABEL_MAP.
+  Parameter t : Type -> Type.
+
+  Section Types.
+    Variable elt : Type.
+
+    Parameter empty : t elt.
+    Parameter is_empty : t elt -> bool.
+    Parameter add : label -> elt -> t elt -> t elt.
+    Parameter find : label -> t elt -> option elt.
+    Parameter remove : label -> t elt -> t elt.
+    Parameter mem : label -> t elt -> bool.
+
+    Variable elt' elt'' : Type.
+
+    Parameter map : (elt -> elt') -> t elt -> t elt'.
+    Parameter mapi : (label -> elt -> elt') -> t elt -> t elt'.
+    Parameter map2 : (option elt -> option elt' -> option elt'') -> t elt -> t elt' -> t elt''.
+    Parameter elements : t elt -> list (label * elt).
+    Parameter cardinal : t elt -> nat.
+    Parameter fold : forall A, (label -> elt -> A -> A) -> t elt -> A -> A.
+    Parameter equal : (elt -> elt -> bool) -> t elt -> t elt -> bool.
+
+    Section Spec.
+
+      Variable m m' m'' : t elt.
+      Variable x y z : label.
+      Variable e e' : elt.
+
+      Parameter MapsTo : label -> elt -> t elt -> Prop.
+
+      Definition In (k:label)(m: t elt) : Prop := exists e:elt, MapsTo k e m.
+
+      Definition Empty m := forall (a : label)(e:elt) , ~ MapsTo a e m.
+
+      Definition eq_key (p p':label*elt) := fst p = fst p'.
+
+      Definition eq_key_elt (p p' : label * elt) :=
+          fst p = fst p' /\ snd p = snd p'.
+
+      Parameter MapsTo_1 : x = y -> MapsTo x e m -> MapsTo y e m.
+
+      Parameter mem_1 : In x m -> mem x m = true.
+      Parameter mem_2 : mem x m = true -> In x m.
+
+      Parameter empty_1 : Empty empty.
+
+      Parameter is_empty_1 : Empty m -> is_empty m = true.
+      Parameter is_empty_2 : is_empty m = true -> Empty m.
+
+      Parameter add_1 : x = y -> MapsTo y e (add x e m).
+      Parameter add_2 : x <> y -> MapsTo y e m -> MapsTo y e (add x e' m).
+      Parameter add_3 : x <> y -> MapsTo y e (add x e' m) -> MapsTo y e m.
+
+      Parameter remove_1 : x = y -> ~ In y (remove x m).
+      Parameter remove_2 : x <> y -> MapsTo y e m -> MapsTo y e (remove x m).
+      Parameter remove_3 : MapsTo y e (remove x m) -> MapsTo y e m.
+
+      Parameter find_1 : MapsTo x e m -> find x m = Some e.
+      Parameter find_2 : find x m = Some e -> MapsTo x e m.
+
+      Parameter elements_1 :
+        MapsTo x e m -> SetoidList.InA eq_key_elt (x, e) (elements m).
+      Parameter elements_2 :
+        SetoidList.InA eq_key_elt (x, e) (elements m) -> MapsTo x e m.
+      Parameter elements_3w : SetoidList.NoDupA eq_key (elements m).
+
+      Parameter cardinal_1 : cardinal m = List.length (elements m).
+
+      Parameter fold_1 :
+        forall (A : Type) (i : A) (f : label -> elt -> A -> A),
+          fold f m i = List.fold_left (fun a p => f (fst p) (snd p) a) (elements m) i.
+
+    End Spec.
+   End Types.
+
+   Parameter map_1 : forall (elt elt':Type)(m: t elt)(x:label)(e:elt)(f:elt->elt'),
+     MapsTo x e m -> MapsTo x (f e) (map f m).
+   Parameter map_2 : forall (elt elt':Type)(m: t elt)(x:label)(f:elt->elt'),
+     In x (map f m) -> In x m.
+
+   Parameter mapi_1 : forall (elt elt':Type)(m: t elt)(x:label)(e:elt)
+     (f:label->elt->elt'), MapsTo x e m ->
+     exists y, y = x /\ MapsTo x (f y e) (mapi f m).
+   Parameter mapi_2 : forall (elt elt':Type)(m: t elt)(x:label)
+     (f:label->elt->elt'), In x (mapi f m) -> In x m.
+
+   Parameter map2_1 : forall (elt elt' elt'':Type)(m: t elt)(m': t elt')
+     (x:label)(f:option elt->option elt'->option elt''),
+     In x m \/ In x m' ->
+     find x (map2 f m m') = f (find x m) (find x m').
+
+   Parameter map2_2 : forall (elt elt' elt'':Type)(m: t elt)(m': t elt')
+     (x:label)(f:option elt->option elt'->option elt''),
+     In x (map2 f m m') -> In x m \/ In x m'.
+
+   Section IffSpec.
+     Variable elt elt' elt'': Type.
+     Implicit Type m: t elt.
+     Implicit Type x y z: label.
+     Implicit Type e: elt.
+
+     Parameter add_mapsto_iff : forall m x y e e',
+       MapsTo y e' (add x e m) <->
+       (x = y /\ e = e') \/
+       (x <> y /\ MapsTo y e' m).
+   End IffSpec.
+
+   Parameter MapsTo_fun : forall (elt:Type) m x (e e':elt),
+     MapsTo x e m -> MapsTo x e' m -> e=e'.
+End LABEL_MAP.
+
+Require FMapFacts.
+
+Module LabelMap : LABEL_MAP.
+  Module LM := FMapAVL.Make(LabelKey).
+  Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LM).
+
+  Include LM.
+  Include LabelFacts.
+End LabelMap.
