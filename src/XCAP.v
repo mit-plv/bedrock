@@ -1,6 +1,6 @@
 (* An adaptation of Ni & Shao's XCAP program logic *)
 
-Require Import String.
+Require Import Bool String.
 
 Require Import Word IL LabelMap PropX.
 
@@ -239,3 +239,253 @@ Section moduleOk.
     unfold safe; intros; eapply safety''; eauto.
   Qed.
 End moduleOk.
+
+
+(** * Safe linking of modules *)
+Section link.
+  Variables m1 m2 : module.
+
+  Definition union A (mp1 mp2 : LabelMap.t A) : LabelMap.t A :=
+    LabelMap.fold (@LabelMap.add _) mp1 mp2.
+
+  Definition diff A B (mp1 : LabelMap.t A) (mp2 : LabelMap.t B) : LabelMap.t A :=
+    LabelMap.fold (fun k v mp => if LabelMap.mem k mp2 then mp else LabelMap.add k v mp) mp1 (@LabelMap.empty _).
+
+  Definition link := {|
+    Imports := union (diff (Imports m1) (Blocks m2)) (diff (Imports m2) (Blocks m1));
+    Blocks := union (Blocks m1) (Blocks m2)
+  |}.
+
+  Hypothesis m1Ok : moduleOk m1.
+  Hypothesis m2Ok : moduleOk m2.
+
+  (* No label should be duplicated between the blocks of the two modules. *)
+  Hypothesis NoDups : LabelMap.fold (fun k v b => b || LabelMap.mem k (Blocks m2)) (Blocks m1) false = false.
+
+  (* Any import of one module provided by the other should have agreement on specification. *)
+  Definition importsOk (Imp : LabelMap.t assert) (Blo : LabelMap.t (assert * block)) :=
+    LabelMap.fold (fun l pre P =>
+      match LabelMap.find l Blo with
+        | None => P
+        | Some (pre', _) => pre = pre' /\ P
+      end) Imp True.
+
+  Hypothesis ImportsOk1 : importsOk (Imports m1) (Blocks m2).
+  Hypothesis ImportsOk2 : importsOk (Imports m2) (Blocks m1).
+
+  (* Finally, modules shouldn't import their own labels. *)
+  Definition noSelfImport (m : module) :=
+    LabelMap.fold (fun l _ b => b || LabelMap.mem l (Imports m)) (Blocks m) false = false.
+
+  Hypothesis NoSelfImport1 : noSelfImport m1.
+  Hypothesis NoSelfImport2 : noSelfImport m2.
+  
+  Theorem MapsTo_union : forall A k v (mp1 mp2 : LabelMap.t A),
+    LabelMap.MapsTo k v (union mp1 mp2)
+    -> LabelMap.MapsTo k v mp1 \/ LabelMap.MapsTo k v mp2.
+    unfold union; intros.
+    rewrite LabelMap.fold_1 in H.
+    generalize (@LabelMap.elements_2 _ mp1).
+    generalize dependent mp2.
+    induction (LabelMap.elements mp1); simpl in *; intuition; simpl in *.
+    apply IHl in H; clear IHl.
+    intuition.
+    apply LabelMap.add_mapsto_iff in H1; intuition; subst.
+    left; apply H0.
+    constructor.
+    red.
+    tauto.
+
+    eauto.
+  Qed.
+
+  Lemma blockOk_impl : forall imps imps' p bl,
+    (forall k v, LabelMap.MapsTo k v imps
+      -> LabelMap.MapsTo k v imps')
+    -> blockOk imps p bl
+    -> blockOk imps' p bl.
+    unfold blockOk; intuition.
+    specialize (H0 stn specs0).
+    match type of H0 with
+      | ?P -> _ => assert P by auto; intuition
+    end.
+    specialize (H4 _ H2); destruct H4; intuition.
+    destruct H5; intuition.
+    destruct H6; intuition.
+    eauto 8.
+  Qed.
+
+  Lemma fold_mono1 : forall A F ls b,
+    List.fold_left (fun (a : bool) (x : A) => a || F x) ls b = false
+    -> b = false.
+    induction ls; simpl; intuition.
+    apply IHls in H.
+    destruct b; simpl in *; congruence.
+  Qed.
+
+  Lemma fold_mono2 : forall A F ls b,
+    List.fold_left (fun (a : bool) (x : A) => a || F x) ls b = false
+    -> List.Forall (fun x => F x = false) ls.
+    induction ls; simpl; intuition.
+    specialize (fold_mono1 _ _ _ H).
+    destruct b; try discriminate.
+    eauto.
+  Qed.
+
+  Lemma link_allPreconditions : forall k v m m', LabelMap.MapsTo k v (allPreconditions m)
+    -> (forall k v, LabelMap.MapsTo k v (Blocks m) -> LabelMap.MapsTo k v (Blocks m'))
+    -> (forall k v, LabelMap.MapsTo k v (Imports m) -> LabelMap.MapsTo k v (Imports m')
+      \/ exists bl, LabelMap.MapsTo k (v, bl) (Blocks m'))
+    -> noSelfImport m'
+    -> LabelMap.MapsTo k v (allPreconditions m').
+    unfold allPreconditions, noSelfImport; intros.
+    repeat rewrite LabelMap.fold_1 in *.
+    generalize (fun k v (H : SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements (Blocks m))) => H0 k v (LabelMap.elements_2 H));
+      clear H0; intro H0.
+
+    generalize (LabelMap.elements_3w (Blocks m)).
+    induction (LabelMap.elements (Blocks m)); simpl in *; intuition.
+
+    clear H0.
+    apply fold_mono2 in H2.
+    apply H1 in H; clear H1; intuition.
+
+    generalize dependent (Imports m').
+    induction (LabelMap.elements (Blocks m')); simpl; intuition; simpl in *.
+    inversion H2; clear H2; intros; subst; simpl in *.
+    specialize (IHl _ H5 H0).
+    
+    assert (LabelMap.MapsTo k v t -> LabelMap.MapsTo k v (LabelMap.add a0 a t)).
+    intros; apply LabelMap.add_2; auto.
+    intro; subst.
+    generalize (LabelMap.mem_1 (ex_intro (fun v => LabelMap.MapsTo _ v _) _ H0)); congruence.
+    generalize dependent (LabelMap.add a0 a t).
+    clear H0 H3 H4 H5; generalize dependent t.
+    induction l; simpl in *; intuition; simpl in *.
+    eapply IHl; eauto; intros.
+    apply LabelMap.add_mapsto_iff in H0; intuition; subst.
+    apply LabelMap.add_1; auto.
+    apply LabelMap.add_2; auto.
+
+
+    destruct H0.
+    generalize (LabelMap.elements_3w (Blocks m')).
+    apply LabelMap.elements_1 in H.
+    generalize dependent (Imports m').
+    induction (LabelMap.elements (Blocks m')); simpl; intuition.
+    inversion H.
+    inversion H2; clear H2; intros; subst.
+    inversion H; clear H; intros; subst.
+    red in H2; intuition; subst; simpl in *; subst.
+    destruct a; simpl in *; subst; simpl in *.
+    inversion H0; clear H0; intros; subst.
+    generalize H2; clear.
+    assert (LabelMap.MapsTo l0 v (LabelMap.add l0 v t)).
+    apply LabelMap.add_1; auto.
+    generalize dependent (LabelMap.add l0 v t).
+    induction l; simpl; intuition.
+    simpl.
+    apply IHl; auto.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    apply H2; auto.
+    constructor.
+    red; reflexivity.
+    
+    intuition.
+    inversion H0; clear H0; intros; subst.
+    apply H in H6; clear H; auto.
+    assert (LabelMap.MapsTo k v t -> LabelMap.MapsTo k v (LabelMap.add (fst a) (fst (snd a)) t)).
+    intro.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    generalize (LabelMap.mem_1 (ex_intro (fun v => LabelMap.MapsTo _ v _) _ H)); congruence.
+    generalize dependent (LabelMap.add (fst a) (fst (snd a)) t).
+    generalize H6; clear.
+    generalize t.
+    induction l; simpl; intuition.
+    simpl in *.
+    eapply IHl in H6; eauto.
+    intro.
+    apply LabelMap.add_mapsto_iff in H0; intuition; subst.
+    apply LabelMap.add_1; auto.
+    apply LabelMap.add_2; auto.
+
+
+    inversion H3; clear H3; intros; subst.
+    assert (LabelMap.MapsTo (fst a) (snd a) (Blocks m')).
+    apply H0.
+    constructor.
+    destruct a; red; auto.
+    assert (k = fst a /\ v = fst (snd a)
+      \/ LabelMap.MapsTo k v
+      (List.fold_left
+        (fun (a : LabelMap.t assert) (p : label * (assert * block)) =>
+          LabelMap.add (fst p) (fst (snd p)) a) l (Imports m))).
+
+    generalize H; clear.
+    assert (LabelMap.MapsTo k v (LabelMap.add (fst a) (fst (snd a)) (Imports m))
+      -> (k = fst a /\ v = fst (snd a))
+      \/ LabelMap.MapsTo k v (Imports m)).
+    intro.
+    apply LabelMap.add_mapsto_iff in H; intuition.
+    generalize dependent (LabelMap.add (fst a) (fst (snd a)) (Imports m)).
+    generalize (Imports m).
+    induction l; simpl; intuition.
+    simpl in *.
+    eapply IHl; [ | eassumption ].
+    intro.
+    apply LabelMap.add_mapsto_iff in H1; intuition; subst.
+    right.
+    apply LabelMap.add_1; auto.
+    right.
+    apply LabelMap.add_2; auto.
+
+
+    intuition; subst.
+    generalize (LabelMap.elements_3w (Blocks m')).
+    apply LabelMap.elements_1 in H3.
+    generalize H3; clear.
+    destruct a; simpl.
+    generalize (Imports m').
+    induction (LabelMap.elements (Blocks m')); simpl; intuition.
+    inversion H3.
+    inversion H; clear H; intros; subst.
+    inversion H3; clear H3; intros; subst.
+    hnf in H0; intuition; subst; simpl in *; subst.
+    simpl.
+    assert (LabelMap.MapsTo a0 a (LabelMap.add a0 a t)) by (apply LabelMap.add_1; auto).
+    clear IHl0 H4.
+    generalize dependent (LabelMap.add a0 a t).
+    induction l0; simpl; intuition.
+    apply H.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    apply H2.
+    constructor.
+    red; reflexivity.
+    
+    eauto.
+  Qed.
+    
+  Theorem linkOk : moduleOk link.
+    red; intros.
+    unfold link in *; simpl in *.
+    unfold moduleOk in *.
+    apply MapsTo_union in H; destruct H.
+
+    apply m1Ok in H.
+    eapply blockOk_impl; [ | eassumption ].
+    intros; eapply link_allPreconditions; simpl; eauto.
+    admit.
+    admit.
+    admit.
+
+    apply m2Ok in H.
+    eapply blockOk_impl; [ | eassumption ].
+    intros; eapply link_allPreconditions; simpl; eauto.
+    admit.
+    admit.
+    admit.
+  Qed.
+End link.

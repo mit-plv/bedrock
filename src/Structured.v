@@ -105,22 +105,6 @@ Section imports.
 
   Hint Immediate simplify_fwd.
 
-  Lemma blockOk_impl : forall imps imps' p bl,
-    (forall k v, LabelMap.MapsTo k v imps
-      -> LabelMap.MapsTo k v imps')
-    -> blockOk imps p bl
-    -> blockOk imps' p bl.
-    unfold blockOk; intuition.
-    specialize (H0 stn specs).
-    match type of H0 with
-      | ?P -> _ => assert P by auto; intuition
-    end.
-    specialize (H4 _ H2); destruct H4; intuition.
-    destruct H5; intuition.
-    destruct H6; intuition.
-    eauto 8.
-  Qed.
-
   Hint Extern 2 (blockOk _ _ _) => simpl in *; eapply blockOk_impl; [ | eassumption ].
 
   Lemma imps_exit : forall exit post bls base,
