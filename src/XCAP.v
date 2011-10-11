@@ -33,14 +33,19 @@ Definition blockOk (imps : LabelMap.t assert) (pre : assert) (bl : block) :=
 Section moduleOk.
   Variable m : module.
 
+  Definition noSelfImport :=
+    List.Forall (fun p => ~LabelMap.In (fst p) (Imports m)) (LabelMap.elements (Blocks m)).
+
   (* Calculate preconditions of all labels that are legal to mention. *)
   Definition allPreconditions := LabelMap.fold (fun l x m =>
     LabelMap.add l (fst x) m) (Blocks m) (Imports m).
 
   (* What must be verified for a full module? *)
-  Definition moduleOk :=
-    forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> blockOk allPreconditions pre bl.
+  Record moduleOk := {
+    NoSelfImport : noSelfImport;
+    BlocksOk : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
+      -> blockOk allPreconditions pre bl
+  }.
 
   (** Safety theorem *)
 
@@ -187,7 +192,7 @@ Section moduleOk.
     induction 1; simpl; intuition; subst; simpl in *.
     eauto 6.
 
-    specialize (ok H1).
+    specialize (BlocksOk ok H1); clear ok; intro ok.
     red in ok.
     specialize (@ok stn _ specsOk _ H2).
     destruct ok; clear ok; intuition.
@@ -214,12 +219,10 @@ Section moduleOk.
     destruct (agree H); intuition.
     rewrite <- H0 in H4; injection H4; clear H4; intros; subst.
     rewrite H5 in H2.
-    specialize (ok H specsOk _ H1).
-    destruct ok; intuition.
+    specialize (BlocksOk ok H specsOk _ H1); clear ok; destruct 1; intuition.
     congruence.
 
-    specialize (ok H1 specsOk _ H3).
-    destruct ok; clear ok; intuition.
+    specialize (BlocksOk ok H1 specsOk _ H3); clear ok; destruct 1; intuition.
     destruct H7; intuition.
     destruct H8; intuition.
     apply allPreconditions_just_blocks in H8.
@@ -274,13 +277,6 @@ Section link.
 
   Hypothesis ImportsOk1 : importsOk (Imports m1) (Blocks m2).
   Hypothesis ImportsOk2 : importsOk (Imports m2) (Blocks m1).
-
-  (* Finally, modules shouldn't import their own labels. *)
-  Definition noSelfImport (m : module) :=
-    LabelMap.fold (fun l _ b => b || LabelMap.mem l (Imports m)) (Blocks m) false = false.
-
-  Hypothesis NoSelfImport1 : noSelfImport m1.
-  Hypothesis NoSelfImport2 : noSelfImport m2.
   
   Theorem MapsTo_union : forall A k v (mp1 mp2 : LabelMap.t A),
     LabelMap.MapsTo k v (union mp1 mp2)
@@ -349,7 +345,6 @@ Section link.
     induction (LabelMap.elements (Blocks m)); simpl in *; intuition.
 
     clear H0.
-    apply fold_mono2 in H2.
     apply H1 in H; clear H1; intuition.
 
     generalize dependent (Imports m').
@@ -360,7 +355,8 @@ Section link.
     assert (LabelMap.MapsTo k v t -> LabelMap.MapsTo k v (LabelMap.add a0 a t)).
     intros; apply LabelMap.add_2; auto.
     intro; subst.
-    generalize (LabelMap.mem_1 (ex_intro (fun v => LabelMap.MapsTo _ v _) _ H0)); congruence.
+    apply H4.
+    hnf; eauto.
     generalize dependent (LabelMap.add a0 a t).
     clear H0 H3 H4 H5; generalize dependent t.
     induction l; simpl in *; intuition; simpl in *.
@@ -401,7 +397,7 @@ Section link.
     intro.
     apply LabelMap.add_2; auto.
     intro; subst.
-    generalize (LabelMap.mem_1 (ex_intro (fun v => LabelMap.MapsTo _ v _) _ H)); congruence.
+    apply H5; hnf; eauto.
     generalize dependent (LabelMap.add (fst a) (fst (snd a)) t).
     generalize H6; clear.
     generalize t.
@@ -471,9 +467,13 @@ Section link.
   Qed.
     
   Theorem linkOk : moduleOk link.
-    red; intros.
+    constructor.
+
+    admit.
+
+    intros.
     unfold link in *; simpl in *.
-    unfold moduleOk in *.
+    destruct m1Ok; destruct m2Ok.
     apply MapsTo_union in H; destruct H.
 
     apply m1Ok in H.
