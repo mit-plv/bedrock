@@ -277,6 +277,13 @@ Section link.
 
   Hypothesis ImportsOk1 : importsOk (Imports m1) (Blocks m2).
   Hypothesis ImportsOk2 : importsOk (Imports m2) (Blocks m1).
+
+  (* The modules must agree on shared imports. *)
+  Hypothesis ImportsAgree : LabelMap.fold (fun l pre P =>
+    match LabelMap.find l (Imports m2) with
+      | None => P
+      | Some pre' => pre = pre' /\ P
+    end) (Imports m1) True.
   
   Theorem MapsTo_union : forall A k v (mp1 mp2 : LabelMap.t A),
     LabelMap.MapsTo k v (union mp1 mp2)
@@ -521,31 +528,26 @@ Section link.
 
   Theorem MapsTo_union2 : forall A k v (mp1 mp2 : LabelMap.t A),
     LabelMap.MapsTo k v mp2
-    -> List.Forall (fun p => ~LabelMap.In (fst p) mp2) (LabelMap.elements mp1)
+    -> (forall v', LabelMap.MapsTo k v' mp1 -> v' = v)
     -> LabelMap.MapsTo k v (union mp1 mp2).
     unfold union; intros.
     rewrite LabelMap.fold_1.
-    generalize (@LabelMap.elements_3w _ mp1).    
+    generalize (@LabelMap.elements_3w _ mp1).
     generalize dependent mp2.
+    generalize (fun v' (H : SetoidList.InA (@LabelMap.eq_key_elt _) (k, v') (LabelMap.elements mp1)) => H0 v' (LabelMap.elements_2 H)).
     clear.
     induction (LabelMap.elements mp1); simpl in *; intuition; simpl in *.
-    inversion H0; clear H0; intros; subst; simpl in *.
     inversion H1; clear H1; intros; subst; simpl in *.
     apply IHl; auto.
+    destruct (LabelKey.eq_dec k (fst a)).
+    hnf in e; subst.
+    assert (snd a = v).
+    apply H.
+    destruct a; simpl.
+    constructor; hnf; auto.
+    subst.
+    apply LabelMap.add_1; auto.
     apply LabelMap.add_2; auto.
-    intro; subst; apply H4.
-    hnf; eauto.
-
-    apply List.Forall_forall; intros.
-    destruct H1.
-    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
-    apply H3.
-    apply SetoidList.InA_alt.
-    esplit.
-    split; [ | eauto ].
-    reflexivity.
-    apply ((proj1 (List.Forall_forall _ _)) H5 _ H0).
-    hnf; eauto.
   Qed.
 
   Hint Resolve MapsTo_union1 MapsTo_union2.
@@ -667,6 +669,105 @@ Section link.
 
   Hint Resolve linkOk'.
 
+  Lemma use_importsOk' : forall (bls : LabelMap.t (assert * block)) l P,
+    List.fold_left (fun P p =>
+      match LabelMap.find (fst p) bls with
+        | None => P
+        | Some (pre', _) => snd p = pre' /\ P
+      end) l P
+    -> P.
+    induction l; simpl; intuition; simpl in *.
+    
+    destruct (LabelMap.find a0 bls).
+    destruct p.
+    apply IHl in H; tauto.
+    apply IHl in H; tauto.
+  Qed.
+
+  Lemma use_importsOk : forall k v p imp bls,
+    importsOk imp bls
+    -> LabelMap.MapsTo k v imp
+    -> LabelMap.find k bls = Some p
+    -> v = fst p.
+    clear ImportsAgree; unfold importsOk; intros.
+
+    rewrite LabelMap.fold_1 in *.
+    apply LabelMap.elements_1 in H0.
+    generalize dependent True.
+    induction (LabelMap.elements imp); simpl in *; intuition.
+    inversion H0.
+
+    inversion H0; clear H0; intuition; subst.
+    hnf in H3; simpl in *; intuition; subst.
+    unfold LabelMap.key in *.
+    rewrite H1 in H.
+    destruct p; simpl in *.
+    apply use_importsOk' in H; tauto.
+
+    eauto.
+  Qed.
+
+  Lemma MapsTo_diffr : forall A B k v (mp1 : LabelMap.t A) (mp2 : LabelMap.t B),
+    LabelMap.MapsTo k v mp1
+    -> ~LabelMap.In k mp2
+    -> SetoidList.NoDupA (@LabelMap.eq_key _) (LabelMap.elements mp1)
+    -> LabelMap.MapsTo k v (diff mp1 mp2).
+    intros; unfold diff.
+    rewrite LabelMap.fold_1.
+    apply LabelMap.elements_1 in H.
+    generalize (LabelMap.empty A).
+    induction (LabelMap.elements mp1); simpl in *; intuition.
+    inversion H.
+
+    inversion H1; clear H1; intros; subst.
+    inversion H; clear H; intros; subst.
+    hnf in H2; simpl in *; intuition; subst.
+    case_eq (LabelMap.mem (fst a) mp2); intro Heq.
+    apply LabelMap.mem_2 in Heq; tauto.
+    generalize H4; clear.
+    assert (LabelMap.MapsTo (fst a) (snd a) (LabelMap.add (fst a) (snd a) t)) by (apply LabelMap.add_1; auto).
+    generalize dependent (LabelMap.add (fst a) (snd a) t).
+    induction l; simpl; intuition; simpl.
+    destruct (LabelMap.mem a1 mp2); auto.
+    apply IHl; auto.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    apply H4.
+    constructor; hnf; auto.
+
+    auto.
+  Qed.
+
+  Lemma use_NoDups : forall k0 v,
+    LabelMap.find k0 (Blocks m2) = Some v
+    -> forall v', LabelMap.MapsTo k0 v' (Blocks m1) -> v' = v.
+    intros.
+    elimtype False.
+    apply NoDups_Forall in NoDups.
+    apply LabelMap.elements_1 in H0.
+    apply SetoidList.InA_alt in H0.
+    destruct H0; intuition.
+    hnf in H1; simpl in *; intuition; subst.
+    apply (proj1 (List.Forall_forall _ _) NoDups) in H2; auto.
+    apply LabelMap.find_2 in H.
+    hnf; eauto.
+  Qed.
+
+  Hint Resolve use_NoDups.
+
+  Lemma ImportsAgree_mono : forall (imp1 : LabelMap.t assert) ls P,
+    List.fold_left (fun P p =>
+      match LabelMap.find (fst p) imp1 with
+        | None => P
+        | Some pre' => snd p = pre' /\ P
+      end) ls P
+    -> P.
+    induction ls; simpl in *; intuition; simpl in *.
+    destruct (LabelMap.find a0 imp1).
+    apply IHls in H; tauto.
+    apply IHls in H; tauto.
+  Qed.
+  
   Theorem linkOk : moduleOk link.
     destruct m1Ok; clear m1Ok.
     destruct m2Ok; clear m2Ok.
@@ -679,11 +780,72 @@ Section link.
     apply BlocksOk0 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
-    admit.
+
+    intros.
+    case_eq (LabelMap.find k0 (Blocks m2)); intros.
+
+    specialize (use_importsOk _ ImportsOk1 H1 H2); intro; subst.
+    destruct p; simpl in *.
+    right.
+    eexists.
+    apply MapsTo_union2.
+    apply LabelMap.find_2; eauto.
+    eauto.
+    left.
+    apply MapsTo_union1.
+
+
+    apply MapsTo_diffr; auto.
+    intro.
+    destruct H3.
+    apply LabelMap.find_1 in H3; congruence.
+    apply LabelMap.elements_3w.
+
 
     apply BlocksOk1 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
-    admit.
+
+    intros.
+    eapply MapsTo_union2; eauto.
+    intros.
+    eapply use_NoDups; eauto.
+    apply LabelMap.find_1; auto.
+
+    intros.
+    case_eq (LabelMap.find k0 (Blocks m1)); intros.
+
+    specialize (use_importsOk _ ImportsOk2 H1 H2); intro; subst.
+    destruct p; simpl in *.
+    right.
+    eexists.
+    apply MapsTo_union1.
+    apply LabelMap.find_2; eauto.
+    eauto.
+    left.
+    apply MapsTo_union2.
+
+
+    apply MapsTo_diffr; auto.
+    intro.
+    destruct H3.
+    apply LabelMap.find_1 in H3; congruence.
+    apply LabelMap.elements_3w.
+
+    intros.
+    apply MapsTo_diff in H3; intuition.
+    apply LabelMap.elements_1 in H4.
+    generalize ImportsAgree H1 H4; clear.
+    rewrite LabelMap.fold_1.
+    generalize True.
+    induction (LabelMap.elements (Imports m1)); simpl; intuition.
+    inversion H4.
+    inversion H4; clear H4; intros; subst.
+    hnf in H0; simpl in *; intuition; subst.
+    apply LabelMap.find_1 in H1.
+    rewrite H1 in ImportsAgree.
+
+    apply ImportsAgree_mono in ImportsAgree; tauto.
+    eauto.
   Qed.
 End link.

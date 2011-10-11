@@ -1,6 +1,6 @@
 (** Fixed precision machine words *)
 
-Require Import Arith Div2 NArith Bool Omega Program.
+Require Import Arith Div2 NArith Bool Omega.
 
 Set Implicit Arguments.
 
@@ -139,7 +139,7 @@ Section strong.
 
   Lemma strong' : forall n m, m <= n -> P m.
     induction n; simpl; intuition; apply PH; intuition.
-(*    elimtype False; omega. *)
+    elimtype False; omega.
   Qed.
 
   Theorem strong : forall n, P n.
@@ -153,7 +153,7 @@ Theorem div2_odd : forall n,
   induction n using strong; simpl; intuition.
 
   destruct n; simpl in *; intuition.
-(*  discriminate. *)
+    discriminate.
   destruct n; simpl in *; intuition.
   do 2 f_equal.
   replace (div2 n + S (div2 n + 0)) with (S (div2 n + (div2 n + 0))); auto.
@@ -166,7 +166,7 @@ Theorem div2_even : forall n,
 
   destruct n; simpl in *; intuition.
   destruct n; simpl in *; intuition.
-(*  discriminate. *)
+    discriminate.
   f_equal.
   replace (div2 n + S (div2 n + 0)) with (S (div2 n + (div2 n + 0))); auto.
 Qed.
@@ -248,14 +248,49 @@ Theorem WS_neq : forall b1 b2 sz (w1 w2 : word sz),
   apply (f_equal (@wtl _)) in H0; tauto.
 Qed.
 
+
+(** Shattering **)
+
+Lemma shatter_word : forall n (a : word n),
+  match n return word n -> Prop with
+    | O => fun a => a = WO
+    | S _ => fun a => a = WS (whd a) (wtl a)
+  end a.
+  destruct a; eauto.
+Qed.
+
+Lemma shatter_word_S : forall n (a : word (S n)),
+  exists b, exists c, a = WS b c.
+Proof.
+  intros; repeat eexists; apply (shatter_word a).
+Qed.
+Lemma shatter_word_0 : forall a : word 0,
+  a = WO.
+Proof.
+  intros; apply (shatter_word a).
+Qed.
+
+Hint Resolve shatter_word_0.
+
+Require Import Eqdep_dec.
+
 Definition weq : forall sz (x y : word sz), {x = y} + {x <> y}.
-  refine (fix weq sz (x : word sz) : forall y, {x = y} + {x <> y} :=
-    match x return forall y, {x = y} + {x <> y} with
-      | WO => fun _ => left _
+  refine (fix weq sz (x : word sz) : forall y : word sz, {x = y} + {x <> y} :=
+    match x in word sz return forall y : word sz, {x = y} + {x <> y} with
+      | WO => fun _ => left _ _
       | WS b _ x' => fun y => if bool_dec b (whd y)
-        then if weq _ x' (wtl y) then left _ else right _
-        else right _
-    end); clear weq; abstract (dependent destruction y; reflexivity || apply WS_neq; auto).
+        then if weq _ x' (wtl y) then left _ _ else right _ _
+        else right _ _
+    end); clear weq.
+
+  abstract (symmetry; apply shatter_word_0).
+
+  abstract (subst; symmetry; apply (shatter_word y)).
+
+  abstract (rewrite (shatter_word y); simpl; intro; injection H; intros;
+    apply _H0; apply inj_pair2_eq_dec in H0; [ auto | apply eq_nat_dec ]).
+
+  abstract (rewrite (shatter_word y); simpl; intro; apply _H; injection H; auto).
 Defined.
 
 (** * Combining and splitting *)
@@ -277,6 +312,8 @@ Fixpoint split2 (sz1 sz2 : nat) : word (sz1 + sz2) -> word sz2 :=
     | O => fun w => w
     | S sz1' => fun w => split2 sz1' sz2 (wtl w)
   end.
+
+Require Import Program.
 
 Theorem combine_split : forall sz1 sz2 (w : word (sz1 + sz2)),
   combine (split1 sz1 sz2 w) (split2 sz1 sz2 w) = w.
@@ -1006,17 +1043,6 @@ Qed.
 
 Hint Resolve word_neq lt_le eq_le sub_0_eq le_neq_lt : worder.
 
-(** Shattering **)
-Lemma shatter_word_S : forall n (a : word (S n)),
-  exists b, exists c, a = WS b c.
-Proof.
-  intros. dependent destruction a. eauto.
-Qed.
-Lemma shatter_word_0 : forall a : word 0,
-  a = WO.
-Proof.
-  dependent destruction a. auto.
-Qed.
 Ltac shatter_word x :=
   match type of x with
     | word 0 => try rewrite (shatter_word_0 x) in *
