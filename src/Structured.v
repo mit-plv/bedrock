@@ -54,7 +54,7 @@ Section imports.
   (** Sequencing *)
 
   Definition notStuck (pre : assert) (is : list instr) :=
-    forall stn st specs, interp specs (pre stn st)
+    forall stn st specs, interp specs (pre (stn, st))
       -> evalInstrs stn st is <> None.
 
   Ltac lomega := (let H := fresh in intro H; injection H; clear H; intro; try subst; simpl in *; congruence || nomega)
@@ -306,14 +306,17 @@ Section imports.
                          | [ H : _ /\ _ |- _ ] => destruct H
                          | [ H : ex _ |- _ ] => destruct H
                          | [ H1 : notStuck _ _, H2 : _ |- _ ] => specialize (H1 _ _ _ H2)
+                         | [ H : LabelMap.find _ _ = Some _ |- _ ] => apply LabelMap.find_2 in H
                          | [ H : forall k v, _ |- _ ] => destruct (split_add H); clear H
                          | [ H : forall n x y, _ |- _ ] => destruct (nth_app_hyp H); clear H
                          | [ H : _ |- _ ] => destruct (specialize_imps H); clear H
                          | [ H : forall x, _ -> _ |- _ ] => specialize (H _ (refl_equal _))
                          | [ H : forall x y z, _ -> _ , H' : _ |- _ ] => specialize (H _ _ _ H')
+                         | [ H : forall x y, _ -> _ , H' : LabelMap.MapsTo _ _ _ |- _ ] => destruct (H _ _ H'); clear H; auto
                          | [ |- blockOk _ _ _ ] => red
                          | [ _ : match ?E with Some _ => _ | None => _ end = Some _ |- _ ] => destrOpt E; [ | discriminate ]
                          | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
+                         | [ _ : match ?E with Some _ => _ | None => False end |- _ ] => destrOpt E; [ | tauto ]
                          | [ |- context[if ?E then _ else _] ] => destrOpt E
                          | [ H : ?E = None -> False |- _ ] => case_eq E; intros; tauto || clear H
                          | [ H : _ |- _ ] => rewrite H
@@ -328,10 +331,10 @@ Section imports.
 
   (** *  Literal sequences of non-jump instructions *)
 
-  Definition Straightline (is : list instr) : cmd.
+  Definition Straightline_ (is : list instr) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun stn st => Ex st', [evalInstrs stn st is = st'])%PropX;
-      VerifCond := (forall stn st specs, interp specs (pre stn st) -> evalInstrs stn st is <> None);
+      Postcondition := (fun stn_st => Ex st', [evalInstrs (fst stn_st) (snd stn_st) is = st'])%PropX;
+      VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalInstrs stn st is <> None);
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (is, Uncond (RvLabel (modName, Local Exit)))) :: nil
@@ -341,7 +344,7 @@ Section imports.
 
   (** *  Sequential composition *)
 
-  Definition Seq (c1 c2 : cmd) : cmd.
+  Definition Seq_ (c1 c2 : cmd) : cmd.
     red; refine (fun pre =>
       let cout1 := c1 pre in
       let cout2 := c2 (Postcondition cout1) in
@@ -359,11 +362,50 @@ Section imports.
         |}); abstract struct.
   Defined.
 
+  (** * Cop-out infinite loops *)
+
+  Definition Diverge_ : cmd.
+    red; refine (fun pre => {|
+      Postcondition := (fun _ => [False])%PropX;
+      VerifCond := True;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Base)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
+  (** * Points we want to prove are unreachable *)
+
+  Definition Fail_ : cmd.
+    red; refine (fun pre => {|
+      Postcondition := (fun _ => [False])%PropX;
+      VerifCond := forall x specs, ~interp specs (pre x);
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
+  (** * No-op *)
+
+  Definition Skip_ : cmd.
+    red; refine (fun pre => {|
+      Postcondition := pre;
+      VerifCond := True;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
   (** * Lemma hints, to be added to the postcondition *)
 
   Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun stn st => pre stn st /\ [lemma stn st])%PropX;
+      Postcondition := (fun stn_st => pre stn_st /\ [lemma (fst stn_st) (snd stn_st)])%PropX;
       VerifCond := True;
       Generate := fun Base Exit => {|
         Entry := 0;
@@ -448,11 +490,11 @@ Section imports.
 
   Definition If_ (rv1 : rvalue) (t : test) (rv2 : rvalue) (Then Else : cmd) : cmd.
     red; refine (fun pre =>
-      let cout1 := Then (fun stn st => pre stn st /\ [evalCond rv1 t rv2 stn st = Some true])%PropX in
-      let cout2 := Else (fun stn st => pre stn st /\ [evalCond rv1 t rv2 stn st = Some false])%PropX in
+      let cout1 := Then (fun stn_st => pre stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true])%PropX in
+      let cout2 := Else (fun stn_st => pre stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false])%PropX in
       {|
-        Postcondition := (fun stn st => Postcondition cout1 stn st \/ Postcondition cout2 stn st)%PropX;
-        VerifCond := (forall stn st specs, interp specs (pre stn st) -> evalCond rv1 t rv2 stn st <> None)
+        Postcondition := (fun stn_st => Postcondition cout1 stn_st \/ Postcondition cout2 stn_st)%PropX;
+        VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
           /\ VerifCond cout1 /\ VerifCond cout2;
         Generate := fun Base Exit =>
           let Base' := Nsucc (Nsucc (Nsucc Base)) in
@@ -469,6 +511,42 @@ Section imports.
               :: Blocks cg1 ++ Blocks cg2
           |}
       |}); abstract struct.
+  Defined.
+
+  (** * Direct function call *)
+
+  Definition isGlobal (f : label) := match snd f with
+                                       | Global _ => True
+                                       | _ => False
+                                     end.
+
+  Lemma isGlobal_neq1 : forall l s1 s2, isGlobal l -> l <> (s1, Local s2).
+    unfold isGlobal; destruct l as [l1 l2]; simpl; destruct l2; congruence.
+  Qed.
+
+  Lemma isGlobal_neq2 : forall l s1 s2, isGlobal l -> (s1, Local s2) <> l.
+    unfold isGlobal; destruct l as [l1 l2]; simpl; destruct l2; congruence.
+  Qed.
+
+  Hint Resolve isGlobal_neq1 isGlobal_neq2.
+
+  Hint Extern 1 (interp _ _) => progress simpl.
+
+  Definition Call_ (f : label) (afterCall : assert) : isGlobal f -> cmd.
+    intro; red; refine (fun pre => {|
+      Postcondition := afterCall;
+      VerifCond := match LabelMap.find f imports with
+                     | None => False
+                     | Some pre' => forall stn st specs,
+                       interp specs (pre (stn, st))
+                       -> forall rp, specs rp = Some afterCall
+                         -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
+                   end;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond (RvLabel f))) :: nil
+      |}
+    |}); abstract struct.
   Defined.
 
 End imports.
