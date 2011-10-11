@@ -465,28 +465,131 @@ Section link.
     
     eauto.
   Qed.
-    
+
+  Theorem Forall_union : forall A (P : _ * A -> Prop) bls1 bls2,
+    List.Forall P (LabelMap.elements bls1)
+    -> List.Forall P (LabelMap.elements bls2)
+    -> List.Forall P (LabelMap.elements (union bls1 bls2)).
+    intros; unfold union.
+    rewrite LabelMap.fold_1.
+    generalize dependent bls2.
+    induction (LabelMap.elements bls1); simpl in *; intuition.
+
+    inversion H; clear H; intros; subst.
+    apply IHl; auto.
+    apply List.Forall_forall; intros.
+    assert (SetoidList.InA (@LabelMap.eq_key_elt _) x (LabelMap.elements (LabelMap.add (fst a) (snd a) bls2))).
+    apply SetoidList.InA_alt.
+    repeat esplit; auto.
+    destruct x.
+    apply LabelMap.elements_2 in H1.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+    destruct a; assumption.
+    eapply List.Forall_forall.
+    apply H0.
+    apply LabelMap.elements_1 in H5.
+    apply SetoidList.InA_alt in H5.
+    destruct H5; intuition.
+    hnf in H6; simpl in H6; intuition; subst.
+    destruct x; assumption.
+  Qed.
+
+  Theorem MapsTo_union1 : forall A k v (mp1 mp2 : LabelMap.t A),
+    LabelMap.MapsTo k v mp1
+    -> LabelMap.MapsTo k v (union mp1 mp2).
+    unfold union; intros.
+    rewrite LabelMap.fold_1.
+    generalize (@LabelMap.elements_1 _ mp1 _ _ H); clear H.
+    generalize (@LabelMap.elements_3w _ mp1).
+    generalize dependent mp2.
+    induction (LabelMap.elements mp1); simpl in *; intuition; simpl in *.
+    inversion H0.
+    inversion H; clear H; intros; subst.
+    inversion H0; clear H0; intros; subst.
+    hnf in H1; simpl in *; intuition; subst.
+    generalize H3; clear.
+    assert (LabelMap.MapsTo a0 b (LabelMap.add a0 b mp2)) by (apply LabelMap.add_1; auto).
+    generalize dependent (LabelMap.add a0 b mp2).
+    induction l; simpl; intuition; simpl.
+    apply IHl; auto.
+    apply LabelMap.add_2; auto.
+    intro; subst; apply H3.
+    constructor; hnf; reflexivity.
+
+    eauto.
+  Qed.
+
+  Theorem MapsTo_union2 : forall A k v (mp1 mp2 : LabelMap.t A),
+    LabelMap.MapsTo k v mp2
+    -> List.Forall (fun p => ~LabelMap.In (fst p) mp2) (LabelMap.elements mp1)
+    -> LabelMap.MapsTo k v (union mp1 mp2).
+    unfold union; intros.
+    rewrite LabelMap.fold_1.
+    generalize (@LabelMap.elements_3w _ mp1).    
+    generalize dependent mp2.
+    clear.
+    induction (LabelMap.elements mp1); simpl in *; intuition; simpl in *.
+    inversion H0; clear H0; intros; subst; simpl in *.
+    inversion H1; clear H1; intros; subst; simpl in *.
+    apply IHl; auto.
+    apply LabelMap.add_2; auto.
+    intro; subst; apply H4.
+    hnf; eauto.
+
+    apply List.Forall_forall; intros.
+    destruct H1.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+    apply H3.
+    apply SetoidList.InA_alt.
+    esplit.
+    split; [ | eauto ].
+    reflexivity.
+    apply ((proj1 (List.Forall_forall _ _)) H5 _ H0).
+    hnf; eauto.
+  Qed.
+
+  Hint Resolve MapsTo_union1 MapsTo_union2.
+
+  Theorem NoDups_Forall : forall (bls1 bls2 : LabelMap.t (assert * block)) i,
+    LabelMap.fold (fun k v b => b || LabelMap.mem k bls2) bls1 i = false
+    -> List.Forall (fun p => ~LabelMap.In (fst p) bls2) (LabelMap.elements bls1).
+    intros; rewrite LabelMap.fold_1 in *.
+    generalize dependent bls2.
+    generalize dependent i.
+    induction (LabelMap.elements bls1); simpl in *; intuition; simpl in *.
+    constructor; simpl.
+    specialize (fold_mono1 _ _ _ H); intro Hmono.
+    destruct i; try discriminate; simpl in *.
+    intro.
+    apply LabelMap.mem_1 in H0.
+    congruence.
+
+    eauto.
+  Qed.
+
+  Hint Resolve NoDups_Forall.
+
   Theorem linkOk : moduleOk link.
+    destruct m1Ok; clear m1Ok.
+    destruct m2Ok; clear m2Ok.
+
     constructor.
 
     admit.
 
     intros.
     unfold link in *; simpl in *.
-    destruct m1Ok; destruct m2Ok.
     apply MapsTo_union in H; destruct H.
 
-    apply m1Ok in H.
+    apply BlocksOk0 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
-    admit.
     admit.
     admit.
 
-    apply m2Ok in H.
+    apply BlocksOk1 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
-    admit.
     admit.
     admit.
   Qed.
