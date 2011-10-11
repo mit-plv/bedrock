@@ -1,6 +1,6 @@
 (* Finite maps for labels *)
 
-Require Import Ascii NArith String OrderedType FMapAVL.
+Require Import Ascii NArith String Structures.OrderedType FMapAVL.
 
 Require Import Nomega IL.
 
@@ -226,127 +226,7 @@ Module LabelKey.
 End LabelKey.
 
 
-Set Implicit Arguments.
-
-(* A little dance to prevent an awful transitivity hint from being exported by our final [LabelMap] module *)
-Module Type LABEL_MAP.
-  Parameter t : Type -> Type.
-
-  Section Types.
-    Variable elt : Type.
-
-    Parameter empty : t elt.
-    Parameter is_empty : t elt -> bool.
-    Parameter add : label -> elt -> t elt -> t elt.
-    Parameter find : label -> t elt -> option elt.
-    Parameter remove : label -> t elt -> t elt.
-    Parameter mem : label -> t elt -> bool.
-
-    Variable elt' elt'' : Type.
-
-    Parameter map : (elt -> elt') -> t elt -> t elt'.
-    Parameter mapi : (label -> elt -> elt') -> t elt -> t elt'.
-    Parameter map2 : (option elt -> option elt' -> option elt'') -> t elt -> t elt' -> t elt''.
-    Parameter elements : t elt -> list (label * elt).
-    Parameter cardinal : t elt -> nat.
-    Parameter fold : forall A, (label -> elt -> A -> A) -> t elt -> A -> A.
-    Parameter equal : (elt -> elt -> bool) -> t elt -> t elt -> bool.
-
-    Section Spec.
-
-      Variable m m' m'' : t elt.
-      Variable x y z : label.
-      Variable e e' : elt.
-
-      Parameter MapsTo : label -> elt -> t elt -> Prop.
-
-      Definition In (k:label)(m: t elt) : Prop := exists e:elt, MapsTo k e m.
-
-      Definition Empty m := forall (a : label)(e:elt) , ~ MapsTo a e m.
-
-      Definition eq_key (p p':label*elt) := fst p = fst p'.
-
-      Definition eq_key_elt (p p' : label * elt) :=
-          fst p = fst p' /\ snd p = snd p'.
-
-      Parameter MapsTo_1 : x = y -> MapsTo x e m -> MapsTo y e m.
-
-      Parameter mem_1 : In x m -> mem x m = true.
-      Parameter mem_2 : mem x m = true -> In x m.
-
-      Parameter empty_1 : Empty empty.
-
-      Parameter is_empty_1 : Empty m -> is_empty m = true.
-      Parameter is_empty_2 : is_empty m = true -> Empty m.
-
-      Parameter add_1 : x = y -> MapsTo y e (add x e m).
-      Parameter add_2 : x <> y -> MapsTo y e m -> MapsTo y e (add x e' m).
-      Parameter add_3 : x <> y -> MapsTo y e (add x e' m) -> MapsTo y e m.
-
-      Parameter remove_1 : x = y -> ~ In y (remove x m).
-      Parameter remove_2 : x <> y -> MapsTo y e m -> MapsTo y e (remove x m).
-      Parameter remove_3 : MapsTo y e (remove x m) -> MapsTo y e m.
-
-      Parameter find_1 : MapsTo x e m -> find x m = Some e.
-      Parameter find_2 : find x m = Some e -> MapsTo x e m.
-
-      Parameter elements_1 :
-        MapsTo x e m -> SetoidList.InA eq_key_elt (x, e) (elements m).
-      Parameter elements_2 :
-        SetoidList.InA eq_key_elt (x, e) (elements m) -> MapsTo x e m.
-      Parameter elements_3w : SetoidList.NoDupA eq_key (elements m).
-
-      Parameter cardinal_1 : cardinal m = List.length (elements m).
-
-      Parameter fold_1 :
-        forall (A : Type) (i : A) (f : label -> elt -> A -> A),
-          fold f m i = List.fold_left (fun a p => f (fst p) (snd p) a) (elements m) i.
-
-    End Spec.
-   End Types.
-
-   Parameter map_1 : forall (elt elt':Type)(m: t elt)(x:label)(e:elt)(f:elt->elt'),
-     MapsTo x e m -> MapsTo x (f e) (map f m).
-   Parameter map_2 : forall (elt elt':Type)(m: t elt)(x:label)(f:elt->elt'),
-     In x (map f m) -> In x m.
-
-   Parameter mapi_1 : forall (elt elt':Type)(m: t elt)(x:label)(e:elt)
-     (f:label->elt->elt'), MapsTo x e m ->
-     exists y, y = x /\ MapsTo x (f y e) (mapi f m).
-   Parameter mapi_2 : forall (elt elt':Type)(m: t elt)(x:label)
-     (f:label->elt->elt'), In x (mapi f m) -> In x m.
-
-   Parameter map2_1 : forall (elt elt' elt'':Type)(m: t elt)(m': t elt')
-     (x:label)(f:option elt->option elt'->option elt''),
-     In x m \/ In x m' ->
-     find x (map2 f m m') = f (find x m) (find x m').
-
-   Parameter map2_2 : forall (elt elt' elt'':Type)(m: t elt)(m': t elt')
-     (x:label)(f:option elt->option elt'->option elt''),
-     In x (map2 f m m') -> In x m \/ In x m'.
-
-   Section IffSpec.
-     Variable elt elt' elt'': Type.
-     Implicit Type m: t elt.
-     Implicit Type x y z: label.
-     Implicit Type e: elt.
-
-     Parameter add_mapsto_iff : forall m x y e e',
-       MapsTo y e' (add x e m) <->
-       (x = y /\ e = e') \/
-       (x <> y /\ MapsTo y e' m).
-   End IffSpec.
-
-   Parameter MapsTo_fun : forall (elt:Type) m x (e e':elt),
-     MapsTo x e m -> MapsTo x e' m -> e=e'.
-End LABEL_MAP.
+Module LabelMap := FMapAVL.Make(LabelKey).
 
 Require FMapFacts.
-
-Module LabelMap : LABEL_MAP.
-  Module LM := FMapAVL.Make(LabelKey).
-  Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LM).
-
-  Include LM.
-  Include LabelFacts.
-End LabelMap.
+Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).

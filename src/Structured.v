@@ -196,9 +196,9 @@ Section imports.
     -> LabelMap.MapsTo k v (imps (bls1 ++ bls2) base exit post).
     induction bls1; simpl; intuition.
 
-    apply LabelMap.add_mapsto_iff in H0; intuition; subst; auto.
+    apply LabelFacts.add_mapsto_iff in H0; intuition; subst; auto.
 
-    apply LabelMap.add_mapsto_iff in H0; intuition; subst; auto.
+    apply LabelFacts.add_mapsto_iff in H0; intuition; subst; auto.
   Qed.
 
   Lemma imps_app2'' : forall k v exit exit' post post' bls base,
@@ -206,7 +206,7 @@ Section imports.
     -> (k = (modName, Local exit') /\ v = post') \/ LabelMap.MapsTo k v (imps bls base exit post).
     induction bls; simpl; intuition.
 
-    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     right.
     apply LabelMap.add_2.
     apply imports_global in H1.
@@ -214,7 +214,7 @@ Section imports.
     destruct k; simpl in *; congruence.
     auto.
    
-    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     eauto.
     apply IHbls in H1.
     intuition.
@@ -227,19 +227,18 @@ Section imports.
     -> (modName, Local l) <> k.
     induction bls; simpl; intuition.
 
-    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     destruct (imports_global H4).
     discriminate.
 
     subst.
-    apply LabelMap.add_mapsto_iff in H; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
 
     injection H; intros; nomega.
     eauto.
   Qed.
 
   Hint Extern 2 (_ <> _) => eapply imps_neq; [ eassumption | nomega | nomega ].
-  (*Hint Resolve imps_neq.*)
 
   Lemma imps_app2' : forall exit post bls2 k v exit' post' bls1 base,
     LabelMap.MapsTo k v (imps bls2 (base + N_of_nat (length bls1)) exit' post')
@@ -386,7 +385,7 @@ Section imports.
         (imps (bls1 ++ bls2) base exit' post))).
     induction bls1; simpl; intuition;
       match goal with
-        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelFacts.add_mapsto_iff in H; intuition; subst
       end; try match goal with
                  | [ H : _ |- _ ] => destruct (imports_global H)
                end.
@@ -402,7 +401,7 @@ Section imports.
 
     eauto.
     repeat match goal with
-             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelFacts.add_mapsto_iff in H; intuition; subst
            end; auto.
   Qed.
 
@@ -420,7 +419,7 @@ Section imports.
     replace (base + 0) with base in H by nomega.
     generalize dependent base; induction bls2; simpl; intuition;
       match goal with
-        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+        | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelFacts.add_mapsto_iff in H; intuition; subst
       end; try match goal with
                  | [ H : _ |- _ ] => destruct (imports_global H)
                end.
@@ -434,14 +433,14 @@ Section imports.
           (imps bls2 (Nsucc base) exit' post)))).
     eauto.
     repeat match goal with
-             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelFacts.add_mapsto_iff in H; intuition; subst
            end; auto.
 
     replace (base + Npos (P_of_succ_nat (Datatypes.length bls1)))
       with (Nsucc base + N_of_nat (Datatypes.length bls1)) in H by nomega.
     apply IHbls1 in H; auto.
     repeat match goal with
-             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelMap.add_mapsto_iff in H; intuition; subst
+             | [ H : LabelMap.MapsTo _ _ (LabelMap.add _ _ _) |- _ ] => apply LabelFacts.add_mapsto_iff in H; intuition; subst
            end; eauto.
   Qed.
 

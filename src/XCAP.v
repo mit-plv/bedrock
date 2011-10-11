@@ -63,7 +63,7 @@ Section moduleOk.
     specialize (IHl0 _ H); clear H.
     destruct IHl0 as [ | [ ] ]; intuition.
     apply LabelMap.elements_2 in H.
-    apply (proj1 (LabelMap.add_mapsto_iff _ _ _ _ _)) in H; intuition; subst.
+    apply (proj1 (LabelFacts.add_mapsto_iff _ _ _ _ _)) in H; intuition; subst.
     right; eexists.
     apply SetoidList.InA_cons_hd; hnf; simpl; eauto.
     apply LabelMap.elements_1 in H1.
@@ -160,10 +160,12 @@ Section moduleOk.
     hnf in H0; simpl in H0; intuition.
 
     inversion H0; clear H0; subst.
-    hnf in H5; simpl in H5; intuition.
+    hnf in H5; simpl in H5; intuition; subst.
+    unfold LabelMap.key in *.
     congruence.
     inversion H3; eauto.
 
+    unfold LabelMap.key in *.
     specialize (@agree (fst a) (fst (snd a)) (snd (snd a))).
     destruct agree.
     apply SetoidList.InA_cons; left.
@@ -290,10 +292,10 @@ Section link.
     induction (LabelMap.elements mp1); simpl in *; intuition; simpl in *.
     apply IHl in H; clear IHl.
     intuition.
-    apply LabelMap.add_mapsto_iff in H1; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
     left; apply H0.
     constructor.
-    red.
+    hnf.
     tauto.
 
     eauto.
@@ -363,7 +365,7 @@ Section link.
     clear H0 H3 H4 H5; generalize dependent t.
     induction l; simpl in *; intuition; simpl in *.
     eapply IHl; eauto; intros.
-    apply LabelMap.add_mapsto_iff in H0; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H0; intuition; subst.
     apply LabelMap.add_1; auto.
     apply LabelMap.add_2; auto.
 
@@ -379,18 +381,18 @@ Section link.
     red in H2; intuition; subst; simpl in *; subst.
     destruct a; simpl in *; subst; simpl in *.
     inversion H0; clear H0; intros; subst.
-    generalize H2; clear.
-    assert (LabelMap.MapsTo l0 v (LabelMap.add l0 v t)).
+    hnf in H2; simpl in H2; intuition; subst; simpl in *.
+    assert (LabelMap.MapsTo k0 v (LabelMap.add k0 v t)).
     apply LabelMap.add_1; auto.
-    generalize dependent (LabelMap.add l0 v t).
+    generalize dependent (LabelMap.add k0 v t).
+    generalize H4; clear.
     induction l; simpl; intuition.
-    simpl.
-    apply IHl; auto.
+    apply H; auto.
     apply LabelMap.add_2; auto.
     intro; subst.
-    apply H2; auto.
+    apply H4; auto.
     constructor.
-    red; reflexivity.
+    reflexivity.
     
     intuition.
     inversion H0; clear H0; intros; subst.
@@ -407,7 +409,7 @@ Section link.
     simpl in *.
     eapply IHl in H6; eauto.
     intro.
-    apply LabelMap.add_mapsto_iff in H0; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H0; intuition; subst.
     apply LabelMap.add_1; auto.
     apply LabelMap.add_2; auto.
 
@@ -416,7 +418,7 @@ Section link.
     assert (LabelMap.MapsTo (fst a) (snd a) (Blocks m')).
     apply H0.
     constructor.
-    destruct a; red; auto.
+    destruct a; hnf; auto.
     assert (k = fst a /\ v = fst (snd a)
       \/ LabelMap.MapsTo k v
       (List.fold_left
@@ -428,14 +430,14 @@ Section link.
       -> (k = fst a /\ v = fst (snd a))
       \/ LabelMap.MapsTo k v (Imports m)).
     intro.
-    apply LabelMap.add_mapsto_iff in H; intuition.
+    apply LabelFacts.add_mapsto_iff in H; intuition.
     generalize dependent (LabelMap.add (fst a) (fst (snd a)) (Imports m)).
     generalize (Imports m).
     induction l; simpl; intuition.
     simpl in *.
     eapply IHl; [ | eassumption ].
     intro.
-    apply LabelMap.add_mapsto_iff in H1; intuition; subst.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
     right.
     apply LabelMap.add_1; auto.
     right.
@@ -455,9 +457,9 @@ Section link.
     hnf in H0; intuition; subst; simpl in *; subst.
     simpl.
     assert (LabelMap.MapsTo a0 a (LabelMap.add a0 a t)) by (apply LabelMap.add_1; auto).
-    clear IHl0 H4.
+    clear IHl H4.
     generalize dependent (LabelMap.add a0 a t).
-    induction l0; simpl; intuition.
+    induction l; simpl; intuition.
     apply H.
     apply LabelMap.add_2; auto.
     intro; subst.
