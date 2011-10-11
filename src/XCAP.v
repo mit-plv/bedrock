@@ -569,28 +569,121 @@ Section link.
 
   Hint Resolve NoDups_Forall.
 
+  Lemma MapsTo_diff' : forall A B k (v : A) (mp2 : LabelMap.t B) (mp1 mp' : LabelMap.t A),
+    LabelMap.MapsTo k v
+    (LabelMap.fold (fun k0 v0 mp => if LabelMap.mem k0 mp2 then mp else LabelMap.add k0 v0 mp)
+      mp1 mp')
+    -> (LabelMap.In k mp' -> ~LabelMap.In k mp2)
+    -> (LabelMap.MapsTo k v mp1 \/ LabelMap.MapsTo k v mp') /\ ~LabelMap.In k mp2.
+    intros; rewrite LabelMap.fold_1 in *.
+
+    assert ((SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements mp1) \/ LabelMap.MapsTo k v mp') /\
+      ~LabelMap.In k mp2); [ | generalize (@LabelMap.elements_2 _ mp1); intuition ].
+
+    generalize dependent mp'; induction (LabelMap.elements mp1); simpl; intuition.
+    unfold LabelMap.In, LabelMap.Raw.In0 in *; eauto.
+
+    simpl in *.
+    apply IHl in H; intuition.
+
+    match goal with
+      | [ _ : context[if ?E then _ else _] |- _ ] => case_eq E; intro Heq; rewrite Heq in *
+    end; intuition.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+    left; constructor; hnf; auto.
+
+    match goal with
+      | [ _ : context[if ?E then _ else _] |- _ ] => case_eq E; intro Heq; rewrite Heq in *
+    end; intuition.
+    destruct H1.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+    destruct H2.
+    generalize (LabelMap.mem_1 (ex_intro (fun v => LabelMap.MapsTo _ v _) _ H1)); congruence.
+    unfold LabelMap.In, LabelMap.Raw.In0 in *; eauto.
+
+    simpl in *.
+    apply IHl in H; intuition.
+    match goal with
+      | [ _ : context[if ?E then _ else _] |- _ ] => case_eq E; intro Heq; rewrite Heq in *
+    end; intuition.
+    destruct H2.
+    apply LabelFacts.add_mapsto_iff in H2; intuition; subst.
+    apply LabelMap.mem_1 in H3; congruence.
+    unfold LabelMap.In, LabelMap.Raw.In0 in *; eauto.    
+  Qed.
+
+  Lemma MapsTo_diff : forall A B k v (mp1 : LabelMap.t A) (mp2 : LabelMap.t B),
+    LabelMap.MapsTo k v (diff mp1 mp2)
+    -> LabelMap.MapsTo k v mp1 /\ ~LabelMap.In k mp2.
+    intros.
+    apply MapsTo_diff' in H; intuition.
+    apply LabelMap.empty_1 in H; tauto.
+    destruct H0.
+    apply LabelMap.empty_1 in H0; tauto.
+  Qed.
+
+  Lemma linkOk' : noSelfImport link.
+    destruct m1Ok; clear m1Ok.
+    destruct m2Ok; clear m2Ok.
+    red; simpl.
+    apply Forall_union; apply List.Forall_forall; intros; intro.
+
+    destruct H0.
+    apply MapsTo_union in H0; intuition.
+
+    apply MapsTo_diff in H1; intuition.
+
+    eapply (proj1 (List.Forall_forall _ _)) in NoSelfImport0.
+    apply NoSelfImport0.
+    hnf; eauto.
+    auto.
+
+    apply MapsTo_diff in H1; intuition.
+
+    apply H2.
+    exists (snd x).
+    apply LabelMap.elements_2.
+    apply SetoidList.InA_alt.
+    destruct x; simpl in *; repeat esplit; auto.
+
+
+    destruct H0.
+    apply MapsTo_union in H0; intuition.
+
+    apply MapsTo_diff in H1; intuition.
+    apply H2.
+    exists (snd x).
+    apply LabelMap.elements_2.
+    apply SetoidList.InA_alt.
+    destruct x; simpl in *; repeat esplit; auto.
+
+    apply MapsTo_diff in H1; intuition.
+
+    eapply (proj1 (List.Forall_forall _ _)) in NoSelfImport1.
+    apply NoSelfImport1.
+    hnf; eauto.
+    auto.
+  Qed.
+
+  Hint Resolve linkOk'.
+
   Theorem linkOk : moduleOk link.
     destruct m1Ok; clear m1Ok.
     destruct m2Ok; clear m2Ok.
 
-    constructor.
-
-    admit.
+    constructor; auto.
 
     intros.
-    unfold link in *; simpl in *.
-    apply MapsTo_union in H; destruct H.
+    simpl in H; apply MapsTo_union in H; destruct H.
 
     apply BlocksOk0 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
     admit.
-    admit.
 
     apply BlocksOk1 in H.
     eapply blockOk_impl; [ | eassumption ].
     intros; eapply link_allPreconditions; simpl; eauto.
-    admit.
     admit.
   Qed.
 End link.
