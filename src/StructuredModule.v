@@ -51,7 +51,7 @@ Section module.
   Definition bmodule_ : module := {|
     Imports := importsMap;
     XCAP.Blocks := LabelMap.add (modName, Local 0) ((fun _ => [False])%PropX, (nil, Uncond (RvLabel (modName, Local 0))))
-    (blocks functions 0)
+    (blocks functions 1)
   |}.
 
   Lemma Forall_MapsTo : forall A (P : _ * A -> Prop) m,
@@ -126,16 +126,30 @@ Section module.
 
   Hint Resolve importsNotThis'.
 
+  Lemma Forall_nth_error : forall A (P : A -> Prop) x ls,
+    List.Forall P ls
+    -> forall n, nth_error ls n = Some x
+      -> P x.
+    induction 1; destruct n; simpl; intuition; try discriminate.
+    injection H1; congruence.
+    eauto.
+  Qed.
+
+  Hypothesis BlocksGood : List.Forall (fun f : function => let '(_, pre, c) := f in
+    (forall stn_st specs, ~interp specs (pre stn_st))
+    /\ VerifCond (c fullImports pre)) functions.
+
   Theorem bmoduleOk : moduleOk bmodule_.
     constructor.
 
+    clear BlocksGood.
     red; simpl.
     apply Forall_MapsTo.
     intros.
     simpl.
     apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     eauto.
-    generalize dependent 0.
+    generalize dependent 1.
     induction functions; simpl; intuition.
     apply LabelMap.empty_1 in H2; tauto.
     destruct a as [ [ ] ]; simpl in *.
@@ -144,10 +158,34 @@ Section module.
     destruct H0.
     eauto.
     apply LabelFacts.add_mapsto_iff in H1; intuition; subst; congruence || eauto.
-    apply IHl in H3; auto.
-    intros; subst; eauto.
 
 
+    red; simpl; unfold allPreconditions; simpl; intros.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+    injection H3; clear H3; intros; subst; solve [ propxFo ].
+    assert (0 < 1) by nomega.
+    generalize dependent 1.
+    induction functions; simpl; intuition.
+    apply LabelMap.empty_1 in H3; tauto.
+    inversion BlocksGood; clear BlocksGood; subst.
+    destruct a as [ [  ] ]; simpl in *.
+    apply blocks_MapsTo in H3; intuition.
+    destruct H6; intuition; subst.
+
+    clear H H3 H7.
+    generalize (BlocksOk (Generate (c fullImports a) n 0)); intuition.
+    apply (Forall_nth_error H) in H8.
+    eapply H8; eauto.
+    intros.
+    apply H0.
     admit.
+
+    apply LabelFacts.add_mapsto_iff in H6; intuition; subst.
+    injection H9; clear H9; intros; subst; simpl in *.
+    elimtype False; eauto.
+    eapply H3; eauto; intros.
+    apply H0.
+    admit.
+    nomega.
   Qed.
 End module.
