@@ -513,6 +513,61 @@ Section imports.
       |}); abstract struct.
   Defined.
 
+  (** * Standard loop *)
+
+  Lemma while_maps : forall k v l1 pre1 l2 pre2 exit post exit' post' bls base, LabelMap.MapsTo k v (imps bls base exit post)
+    -> l1 < l2
+    -> l2 < exit
+    -> exit < base
+    -> LabelMap.MapsTo k v
+    (LabelMap.add (modName, Local l1) pre1
+      (LabelMap.add (modName, Local l2) pre2
+        (LabelMap.add (modName, Local exit) post
+          (imps bls base exit' post')))).
+    induction bls; simpl; intuition.
+    
+    apply LabelFacts.add_mapsto_iff in H; simpl in *; intuition; subst.
+    eauto.
+    destruct (imports_global H4).
+    eauto.
+
+    apply LabelFacts.add_mapsto_iff in H; simpl in *; intuition; subst.
+    eauto.
+    apply IHbls in H4; auto.
+    repeat match goal with
+             | [ H : _ |- _ ] => apply LabelFacts.add_mapsto_iff in H; simpl in *; intuition; subst
+           end.
+    eauto.
+    eauto.
+    eauto.
+  Qed.
+
+  Hint Resolve while_maps.
+
+  Definition While_ (inv : assert) (rv1 : rvalue) (t : test) (rv2 : rvalue) (Body : cmd) : cmd.
+    red; refine (fun pre =>
+      let cout := Body (fun stn_st => inv stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true])%PropX in
+      {|
+        Postcondition := (fun stn_st => inv stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false])%PropX;
+        VerifCond := (forall stn_st specs, interp specs (pre stn_st) -> interp specs (inv stn_st))
+          /\ (forall stn st specs, interp specs (inv (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
+          /\ (forall stn_st specs, interp specs (Postcondition cout stn_st) -> interp specs (inv stn_st))
+          /\ VerifCond cout;
+        Generate := fun Base Exit =>
+          let Base' := Nsucc (Nsucc (Nsucc Base)) in
+          let cg := Generate cout Base' (Nsucc (Nsucc Base)) in
+          {|
+            Entry := 0;
+            Blocks := (pre, (nil, Uncond (RvLabel (modName, Local (Nsucc Base)))))
+              :: (inv, (nil, Cond rv1 t rv2
+                (modName, Local (Base' + Entry cg))
+                (modName, Local Exit)))
+              :: (Postcondition cout, (nil, Uncond (RvLabel (modName, Local (Nsucc Base)))))
+              :: Blocks cg
+          |}
+      |}); abstract struct.
+  Defined.
+
   (** * Direct function call *)
 
   Definition isGlobal (f : label) := match snd f with
