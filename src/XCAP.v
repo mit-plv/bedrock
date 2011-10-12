@@ -26,9 +26,8 @@ Definition blockOk (imps : LabelMap.t assert) (pre : assert) (bl : block) :=
     -> exists w, Labels stn l = Some w
       /\ specs w = Some pre)
     -> forall st, interp specs (pre (stn, st)) -> exists st', evalBlock stn st bl = Some st'
-      /\ exists l, Labels stn l = Some (fst st')
-        /\ exists pre', LabelMap.MapsTo l pre' imps
-          /\ interp specs (pre' (stn, snd st')).
+      /\ exists pre', specs (fst st') = Some pre'
+        /\ interp specs (pre' (stn, snd st')).
 
 Section moduleOk.
   Variable m : module.
@@ -181,6 +180,52 @@ Section moduleOk.
     intuition; congruence.
   Qed.
 
+  Lemma specsOk' : forall w pre, specs w = Some pre
+    -> exists l, Labels stn l = Some w
+      /\ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m).
+    unfold specs; intros.
+    assert (exists l : label,
+      Labels stn l = Some w /\
+      (exists bl : block, SetoidList.InA (@LabelMap.eq_key_elt _) (l, (pre, bl)) (LabelMap.elements (Blocks m)))).
+    rewrite LabelMap.fold_1 in H.
+    generalize (fun l pre bl H => @agree l pre bl (LabelMap.elements_2 H)).
+    generalize H; clear.
+    induction (LabelMap.elements (Blocks m)); simpl; intuition.
+    discriminate.
+
+    assert (SetoidList.InA (@LabelMap.eq_key_elt _) (fst a, (fst (snd a), snd (snd a))) (a :: l)).
+    constructor; hnf; simpl.
+    destruct a as [ ? [ ] ]; auto.
+    apply H0 in H1.
+    destruct H1; intuition.
+    rewrite H2 in H.
+    destruct (weq w x); subst.
+    assert (Labels stn (fst a) = Some x /\ fst (snd a) = pre).
+    generalize H H2; clear.
+    induction l; simpl; intuition eauto.
+    congruence.
+    intuition.
+    destruct a as [ ? [ ] ]; simpl in *; subst.
+    repeat esplit; eauto.
+    constructor; hnf; simpl; eauto.
+    intuition.
+    match type of H1 with
+      | ?P -> _ => assert P
+    end.
+    intros.
+    eapply H0.
+    eauto.
+    intuition.
+    destruct H5; intuition.
+    destruct H6.
+    eauto.
+
+    destruct H0; intuition.
+    destruct H2.
+    repeat esplit; eauto.
+    apply LabelMap.elements_2; eauto.
+  Qed.
+
   Lemma safety' : forall st' st'', reachable stn prog st' st''
     -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
       -> forall st, interp specs (pre (stn, st))
@@ -192,21 +237,23 @@ Section moduleOk.
     induction 1; simpl; intuition; subst; simpl in *.
     eauto 6.
 
+    destruct (agree H1); intuition.
+    rewrite H3 in H5; injection H5; clear H5; intros; subst.
+    unfold step in H; simpl in H.
+    rewrite H6 in H.
     specialize (BlocksOk ok H1); clear ok; intro ok.
     red in ok.
     specialize (@ok stn _ specsOk _ H2).
     destruct ok; clear ok; intuition.
     destruct H6; intuition.
     destruct H7; intuition.
-    apply allPreconditions_just_blocks in H7; destruct H7.
-    eapply IHreachable; eauto.
-    unfold step in H; simpl in H.
-    destruct (agree H1); intuition.
-    rewrite H9 in H3; injection H3; clear H3; intros; subst.
-    rewrite H10 in H.
-    rewrite H5 in H.
-    injection H; clear H; intros; subst.
-    destruct st'; simpl in *; congruence.
+    destruct (specsOk' _ H6) as [? [? [ ] ] ].
+    eapply IHreachable.
+    apply H8.
+    eauto.
+    eauto.
+    destruct x0; simpl in *.
+    congruence.
   Qed.
 
   Theorem safety'' : forall st st', reachable stn prog st st'
@@ -222,18 +269,14 @@ Section moduleOk.
     specialize (BlocksOk ok H _ specsOk _ H1); clear ok; destruct 1; intuition.
     congruence.
 
-    specialize (BlocksOk ok H1 _ specsOk _ H3); clear ok; destruct 1; intuition.
+    destruct (BlocksOk ok H1 _ specsOk _ H3); clear ok; intuition.
     destruct H7; intuition.
-    destruct H8; intuition.
-    apply allPreconditions_just_blocks in H8.
-    destruct H8.
-
-    unfold step in H.
     destruct (agree H1); intuition.
-    rewrite <- H2 in H10; injection H10; clear H10; intros; subst.
-    rewrite H11 in H.
-    rewrite H in H6; injection H6; clear H H6; intros; subst.
-
+    unfold step in H.
+    rewrite <- H2 in H9; injection H9; clear H9; intros; subst.
+    rewrite H10 in H.
+    rewrite H in H6; injection H6; clear H6; intros; subst.
+    destruct (specsOk' _ H7) as [? [? [ ] ] ].
     eauto.
   Qed.
 
@@ -310,14 +353,6 @@ Section link.
     -> blockOk imps p bl
     -> blockOk imps' p bl.
     unfold blockOk; intuition.
-    specialize (H0 stn specs0).
-    match type of H0 with
-      | ?P -> _ => assert P by auto; intuition
-    end.
-    specialize (H4 _ H2); destruct H4; intuition.
-    destruct H5; intuition.
-    destruct H6; intuition.
-    eauto 8.
   Qed.
 
   Lemma fold_mono1 : forall A F ls b,

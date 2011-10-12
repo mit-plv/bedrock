@@ -1,4 +1,4 @@
-(* Structured programming *)
+(* Structured programming (basic command constructs) *)
 
 Require Import NArith String List.
 
@@ -318,7 +318,11 @@ Section imports.
                          | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
                          | [ _ : match ?E with Some _ => _ | None => False end |- _ ] => destrOpt E; [ | tauto ]
                          | [ |- context[if ?E then _ else _] ] => destrOpt E
-                         | [ H : ?E = None -> False |- _ ] => case_eq E; intros; tauto || clear H
+                         | [ H : ?E = None -> False |- _ ] =>
+                           match E with
+                             | Some _ => clear H
+                             | _ => case_eq E; intros; tauto || clear H
+                           end
                          | [ H : _ |- _ ] => rewrite H
                          | [ H : ?P -> _ |- _ ] =>
                            match type of P with
@@ -568,7 +572,7 @@ Section imports.
       |}); abstract struct.
   Defined.
 
-  (** * Direct function call *)
+  (** * A test for global-ness of labels, and some associated hints *)
 
   Definition isGlobal (f : label) := match snd f with
                                        | Global _ => True
@@ -587,6 +591,25 @@ Section imports.
 
   Hint Extern 1 (interp _ _) => progress simpl.
 
+  (** * Direct jump *)
+
+  Definition Goto_ (f : label) : isGlobal f -> cmd.
+    intro; red; refine (fun pre => {|
+      Postcondition := (fun _ => [False])%PropX;
+      VerifCond := match LabelMap.find f imports with
+                     | None => False
+                     | Some pre' => forall stn_st specs, interp specs (pre stn_st)
+                       -> interp specs (pre' stn_st)
+                   end;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel f))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
+  (** * Direct function call *)
+
   Definition Call_ (f : label) (afterCall : assert) : isGlobal f -> cmd.
     intro; red; refine (fun pre => {|
       Postcondition := afterCall;
@@ -600,6 +623,24 @@ Section imports.
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond (RvLabel f))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
+  (** * Indirect jump *)
+
+  Definition IGoto (rv : rvalue) : cmd.
+    red; refine (fun pre => {|
+      Postcondition := (fun _ => [False])%PropX;
+      VerifCond := (forall specs stn st, interp specs (pre (stn, st))
+        -> match evalRvalue stn st rv with
+             | None => False
+             | Some w => exists pre', specs w = Some pre'
+               /\ interp specs (pre' (stn, st))
+           end);
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond rv)) :: nil
       |}
     |}); abstract struct.
   Defined.
