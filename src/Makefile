@@ -1,6 +1,6 @@
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
-	XCAP Structured \
+	XCAP Structured StructuredModule \
 	Env Expr SepTheory
 VS         := $(MODULES:%=%.v)
 
