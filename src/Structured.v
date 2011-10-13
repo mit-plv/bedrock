@@ -9,6 +9,18 @@ Set Implicit Arguments.
 Local Open Scope N_scope.
 
 
+Lemma nth_error_bound : forall A x (ls : list A) n,
+  nth_error ls n = Some x
+  -> (n < length ls)%nat.
+  induction ls; destruct n; simpl; intuition; discriminate.
+Qed.
+
+Lemma nth_error_bound' : forall A x (ls : list A) n,
+  nth_error ls (nat_of_N n) = Some x
+  -> n < N_of_nat (length ls).
+  intros; apply nth_error_bound in H; nomega.
+Qed.
+
 Section imports.
   (* Which external code labels must be available? *)
   Variable imports : LabelMap.t assert.
@@ -31,8 +43,6 @@ Section imports.
   Record codeGen (Precondition : assert) (Base Exit : N) (Postcondition : assert) (VerifCond : Prop) := {
     Entry : N;                      (* Jump here to start *)
     Blocks : list (assert * block); (* Code blocks *)
-
-    EntryOk : Entry < N_of_nat (length Blocks);
 
     PreconditionOk : exists bl, nth_error Blocks (nat_of_N Entry) = Some (Precondition, bl);
     
@@ -291,6 +301,8 @@ Section imports.
     autorewrite with N in *; assumption.
   Qed.
 
+  Hint Resolve nth_error_bound'.
+
   Ltac preSimp := simpl in *; intuition eauto; repeat (apply Forall_nil || apply Forall_cons); simpl.
 
   Ltac destrOpt E := let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq); rewrite Heq in *.
@@ -329,6 +341,11 @@ Section imports.
                              | Prop => let H' := fresh in assert (H' : P) by (lomega || auto); specialize (H H'); clear H'
                            end
                          | [ x : N |- _ ] => unfold x in *; clear x
+                         | [ H : nth_error ?ls (nat_of_N ?n) = _ |- _ ] =>
+                           match goal with
+                             | [ _ : n < N_of_nat (length ls) |- _ ] => fail 1
+                             | _ => specialize (nth_error_bound' _ _ H)
+                           end
                        end; intros; unfold evalBlock, evalCond in *; simpl; autorewrite with N in *).
 
   Ltac struct := preSimp; simp; eauto 15.

@@ -4,7 +4,8 @@ Require Import Arith Omega NArith.
 
 Local Open Scope N_scope.
 
-Hint Rewrite Nplus_0_r nat_of_Nsucc nat_of_Nplus N_of_nat_of_N
+Hint Rewrite Nplus_0_r nat_of_Nsucc nat_of_Nplus nat_of_Nminus
+  N_of_nat_of_N nat_of_N_of_nat
   nat_of_P_o_P_of_succ_nat_eq_succ nat_of_P_succ_morphism : N.
 
 Theorem nat_of_N_eq : forall n m,
