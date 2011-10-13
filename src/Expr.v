@@ -11,7 +11,7 @@ Section env.
 
   Variable types : list type.
 
-  Definition tvar := option (fin (length types)).
+  Definition tvar := option (fin types).
   Definition tvarD x := match x with
                           | None => Prop
                           | Some x => Impl (get types x)
@@ -35,8 +35,8 @@ Section env.
   Variable funcs : functions.
   Variable vars : variables.
 
-  Definition func := fin (length funcs).
-  Definition var := fin (length vars).
+  Definition func := fin funcs.
+  Definition var := fin vars.
 
   Inductive expr : tvar -> Type :=
   | Const : forall t : tvar, tvarD t -> expr t
@@ -51,6 +51,13 @@ Section env.
         match xs in hlist _ domain return forall range, functionTypeD domain range -> tvarD range with
           | HNil => fun _ x => x
           | HCons _ _ x xs' => fun _ f => applyD xs' _ (f (exprD x))
+        end.
+
+    Fixpoint etaD domain {struct domain}
+      : forall (xs : hlist expr domain) range, functionTypeD domain range -> tvarD range :=
+        match domain return forall (xs : hlist expr domain) range, functionTypeD domain range -> tvarD range with
+          | nil => fun _ _ D => D
+          | a :: b => fun hl r D => @etaD b (hlist_tl hl) r (D (exprD (hlist_hd hl)))
         end.
   End applyD.
 
@@ -112,8 +119,8 @@ Section Qexpr.
 
   Definition Qexpr := { x : variables types & expr fs x None }.
 
-  Fixpoint denoteQuant (ls : variables types) : (hlist (tvarD types) ls -> Prop) -> Prop :=
-    match ls as ls return (hlist (tvarD types) ls -> Prop) -> Prop with
+  Fixpoint denoteQuant (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
+    match ls as ls return (hlist (@tvarD types) ls -> Prop) -> Prop with
       | nil => fun cc => cc (HNil)
       | a :: b => fun cc => 
         forall x, denoteQuant (fun g => cc (HCons x g))
@@ -125,36 +132,12 @@ End Qexpr.
 
 Section ProverT.
   Context {types : list type}.
-  Context {fs : functions types}.
+  Variable fs : functions types.
 
   Definition ProverT : Type := forall 
     (hyps : list (@Qexpr types fs))
     (goal : @expr types fs nil None), 
     hlist (@qexprD _ fs) hyps -> option (exprD HNil goal).
-
-(*
-  Definition unify (T : type) (e1 e2 : expr fs vs T) : option (expr fs )
-*)
-
-
-  Definition assumptionProver : ProverT.
-    unfold ProverT.
-    refine (fix assumptionProver hyps (goal : expr fs nil None) : hlist (@qexprD _ fs) hyps -> option (exprD HNil goal) :=
-      match hyps with
-        | nil => fun _ => None
-        | existT vs exp :: b => 
-          match vs as vs return forall exp : expr fs vs None, hlist (@qexprD _ fs) (existT (fun vs => expr fs vs None) vs exp :: b) -> _ with
-            | nil => fun exp pfHyps => if exprEq goal exp then Some _ else assumptionProver b goal (hlist_tl pfHyps)
-            | _ => fun _ pfHyps => assumptionProver b goal (hlist_tl pfHyps)
-          end exp
-      end).
-  generalize ((hlist_hd pfHyps)). unfold qexprD. simpl. rewrite _H. intro. apply H.
-
-    (** TODO :
-        - How would I implement one of these? 
-        - Termination will be problematic...
-     **)
-  Defined.
   
 End ProverT.
 
@@ -172,6 +155,9 @@ Section PartialApply.
       | a :: b => fun F => fun x : a => apply_ls b R V (F x)
     end.
 End PartialApply.
+
+(** Reflection Tactics **)
+(************************)
 
 Ltac extend_type T D types :=
   match T with
@@ -249,230 +235,164 @@ Ltac buildTypes e types :=
   in
   refl_app cc e. 
 
-(*
-Ltac buildFuncs types e funcs :=
-  let cc f Ts args :=
-    
-  refl_app cc e 
-
-Goal forall a b : nat, a + b = b + a.
-  intros. Set Printing Implicit.
-  match goal with
-    | [ |- ?G ] =>
-      let ls := constr:(@nil type) in
-      let ts := buildTypes G ls in
-      idtac ts
-  end.
-
-Ltac inList x ls :=
-  match ls with
-    | nil => false
-    | x :: _ => true
-    | _ :: ?ls' => inList x ls'
-  end.
-
-Ltac extend x ls :=
-  let b := inList x ls in
-    match b with
-      | true => ls
-      | _ => constr:(x :: ls)
-    end.
-
-
-
-
-
-Ltac buildTypes e types :=
-  match e with
-    | ?f ?a ?b ?c => match type of f with
-                       | ?D1 -> ?D2 -> ?D3 -> ?R =>
-                         let types := extend_type (defaultType D1) types in
-                         let types := extend_type (defaultType D2) types in
-                         let types := extend_type (defaultType D3) types in
-                         let types := extend_type (defaultType R) types in
-                         let types := buildTypes a types in
-                         let types := buildTypes b types in
-                           buildTypes c types
-                       | _ =>
-                         match type of (f a) with
-                           | ?D1 -> ?D2 -> ?R =>
-                             let types := extend (defaultType D1) types in
-                             let types := extend (defaultType D2) types in
-                             let types := extend (defaultType R) types in
-                             let types := buildTypes b types in
-                               buildTypes c (defaultType Empty_set) types
-                         end
-                     end
-    | ?f ?a ?b => match type of f with
-                    | ?D1 -> ?D2 -> ?R =>
-                      let types := extend (defaultType D1) types in
-                      let types := extend (defaultType D2) types in
-                      let types := extend (defaultType R) types in
-                      let types := buildTypes a types in
-                        buildTypes b types
-                    | _ =>
-                      match type of (f a) with
-                        | ?D1 -> ?R =>
-                          let types := extend (defaultType D1) types in
-                          let types := extend (defaultType R) types in
-                            buildTypes b types
-                      end
-                  end
-    | ?f ?a => match type of f with
-                 | ?D1 -> ?R =>
-                   let types := extend (defaultType D1) types in
-                   let types := extend (defaultType R) types in
-                     buildTypes a types
-               end
-    | _ => types
-  end.
-
-Ltac indexOf x ls :=
-  match ls with
-    | x :: ?ls' => constr:(FO (length ls'))
-    | _ :: ?ls' => let f := indexOf x ls' in constr:(FS f)
-  end.
-
-Definition default t (ts : list type) : signature (t :: ts) :=
-  Build_signature (types := t :: ts) (Some (FO _) :: nil) (Some (FO _)) (fun x => x).
-
-Ltac buildFuncs e types types' funcs :=
-  match e with
-    | ?f ?a ?b ?c => match type of f with
-                       | ?D1 -> ?D2 -> ?D3 -> ?R =>
-                         let D1 := indexOf D1 types' in
-                         let D2 := indexOf D2 types' in
-                         let D3 := indexOf D3 types' in
-                         let R := indexOf R types' in
-                         let funcs := extend (Build_signature (types := types) (D1 :: D2 :: D3 :: nil) R f) funcs in
-                           buildFuncs a types types' funcs
-                       | _ => match type of (f a) with
-                                | ?D1 -> ?D2 -> ?R =>
-                                  let D1 := indexOf D1 types' in
-                                  let D2 := indexOf D2 types' in
-                                  let R := indexOf R types' in
-                                  let funcs := extend (Build_signature (types := types) (D1 :: D2 :: nil) R f) funcs in
-                                    buildFuncs a types types' funcs
-                              end 
-                     end
-    | ?f ?a ?b => match type of f with
-                    | ?D1 -> ?D2 -> ?R =>
-                      let D1 := indexOf D1 types' in
-                      let D2 := indexOf D2 types' in
-                      let R := indexOf R types' in
-                      let funcs := extend (Build_signature (types := types) (D1 :: D2 :: nil) R f) funcs in
-                        buildFuncs a types types' funcs
-                    | _ => match type of (f a) with
-                             | ?D1 -> ?R =>
-                               let D1 := indexOf D1 types' in
-                               let R := indexOf R types' in
-                               let funcs := extend (Build_signature (types := types) (D1 :: nil) R f) funcs in
-                                 buildFuncs a types types' funcs
-                           end
-                  end
-    | ?f ?a => match type of f with
-                 | ?D1 -> ?R =>
-                   let D1 := indexOf D1 types' in
-                   let R := indexOf R types' in
-                   let funcs := extend (Build_signature (types := types) (D1 :: nil) R f) funcs in
-                     buildFuncs a types types' funcs
-               end
-    | _ => funcs
-  end.
-
-Ltac indexOfF x ls :=
-  match ls with
-    | Build_signature _ _ x :: ?ls' => constr:(FO (length ls'))
-    | _ :: ?ls' => let f := indexOfF x ls' in constr:(FS f)
-  end.
-
-Ltac buildVars isConst types types' funcs e vars :=
-  match e with
-    | ?f ?a =>
-      let f := indexOfF f funcs in
-        buildVars isConst types types' funcs a vars
-    | ?f ?a ?b =>
-      let f := indexOfF f funcs in
-      let vars := buildVars isConst types types' funcs a vars in
-        buildVars isConst types types' funcs b vars
-    | ?f ?a ?b =>
-      let f := indexOfF (f a) funcs in
-        buildVars isConst types types' funcs b vars
-    | ?f ?a ?b ?c =>
-      let f := indexOfF f funcs in
-      let vars := buildVars isConst types types' funcs a vars in
-      let vars := buildVars isConst types types' funcs b vars in
-        buildVars isConst types types' funcs c vars
-    | ?f ?a ?b ?c =>
-      let f := indexOfF (f a) funcs in
-      let vars := buildVars isConst types types' funcs b vars in
-        buildVars isConst types types' funcs c vars
-    | _ =>
-      match isConst e with
-        | true => vars
-        | _ =>
-          let t := type of e in
-          let t := indexOf t types' in
-          extend (Build_variable (types := types) t e) vars
+Ltac typesIndex x types types' :=
+  match types with
+    | ?T1 :: ?TS =>
+      match types' with
+        | x :: _ => constr:(@FO _ T1 TS)
+        | _ :: ?ls' => let f := typesIndex x TS ls' in constr:(@FS _ T1 TS f)
       end
   end.
 
-Ltac indexOfV x ls :=
-  match ls with
-    | Build_variable _ x :: ?ls' => constr:(FO (length ls'))
-    | _ :: ?ls' => let f := indexOfV x ls' in constr:(FS f)
+Ltac funcIndex x funcs :=
+  match funcs with
+    | ?F :: ?ls' =>
+      let F' := eval simpl in (Denotation F) in
+      match F' with
+        | x => constr:(@FO _ F ls')
+        | _ => let f := funcIndex x ls' in constr:(@FS _ F ls' f)
+      end
   end.
+
+Ltac refl_type types types' T :=
+  match T with
+    | Prop => constr:(None : tvar types)
+    | _ => 
+      let i := typesIndex T types types' in
+      constr:(Some i)
+  end.
+
+Ltac refl_signature types types' f :=
+  let rec refl T :=
+    match T with 
+      | ?A -> ?B =>
+        let Ta := refl_type types types' A in
+        match refl B with
+          | ( ?args , ?rt ) =>
+            let res := constr:(((Ta : @tvar types) :: args , rt)) in
+                res
+        end
+      | _ =>
+        let T := refl_type types types' T in
+        constr:((@nil (@tvar types), T))
+    end
+  in
+  let T := type of f in
+  (** NOTE: T should never be dependent **)
+  match refl T with
+    | ( ?args , ?rt ) =>
+      constr:(@Build_signature types args rt f)
+  end.
+
+Ltac extend_func types types' f funcs :=
+  let rec find fs :=
+    match fs with
+      | nil => false
+      | ?X :: ?Y =>
+        let X' := eval simpl in (Denotation X) in
+        match X' with
+          | f => true
+          | _ => find Y
+        end
+    end
+  in
+  match find funcs with
+    | true => funcs
+    | false => 
+      let s := refl_signature types types' f in
+      constr:(s :: funcs)
+  end.
+
+Ltac buildFuncs isConst types types' e funcs :=
+  let rec refl_args args funcs :=
+    match args with
+      | tt => funcs
+      | (?X, ?Y) => 
+        let funcs := bf X funcs in
+        refl_args Y funcs
+    end
+  with bf e funcs :=
+    match isConst e with
+      | true => funcs
+      | _ => 
+        let cc f Ts args := 
+          let funcs := extend_func types types' f funcs in
+          refl_args args funcs
+        in        
+        refl_app cc e
+    end
+  in bf e funcs.
 
 Ltac buildExpr isConst types types' funcs vars e :=
-  match e with
-    | ?f ?a =>
-      let f := indexOfF f funcs in
-      let a := buildExpr isConst types types' funcs vars a in
-        constr:(Func (types := types) (funcs := funcs) (vars := vars) f (HCons a HNil))
-    | ?f ?a ?b =>
-      let f := indexOfF f funcs in
-      let a := buildExpr isConst types types' funcs vars a in
-      let b := buildExpr isConst types types' funcs vars b in
-        constr:(Func (types := types) (funcs := funcs) (vars := vars) f (HCons a (HCons b HNil)))
-    | ?f ?a ?b =>
-      let f := indexOfF (f a) funcs in
-      let b := buildExpr isConst types types' funcs vars b in
-        constr:(Func (types := types) (funcs := funcs) (vars := vars) f (HCons b HNil))
-    | ?f ?a ?b ?c =>
-      let f := indexOfF f funcs in
-      let a := buildExpr isConst types types' funcs vars a in
-      let b := buildExpr isConst types types' funcs vars b in
-      let c := buildExpr isConst types types' funcs vars c in
-        constr:(Func (types := types) (funcs := funcs) (vars := vars) f (HCons a (HCons b (HCons c HNil))))
-    | ?f ?a ?b ?c =>
-      let f := indexOfF (f a) funcs in
-      let b := buildExpr isConst types types' funcs vars b in
-      let c := buildExpr isConst types types' funcs vars c in
-        constr:(Func (types := types) (funcs := funcs) (vars := vars) f (HCons b (HCons c HNil)))
-    | _ =>
-      match isConst e with
-        | false =>
-          let t := type of e in
-            let t := indexOfV e vars in
-              constr:(Var (types := types) funcs (vars := vars) t)
-        | true =>
-          let t := type of e in
-            let t := indexOf t types' in
-              constr:(Const (types := types) funcs vars t e)
-      end
+  let rec refl_args args :=
+    match args with
+      | tt => 
+        let res := constr:(@HNil _ (@expr types funcs vars)) in
+        res
+      | (?X, ?Y) => 
+        let x := be X in
+        let y := refl_args Y in
+            let res := constr:(HCons x y) in
+              res
+    end
+  with be e :=
+    match isConst e with
+      | false =>
+        let cc f Ts args := 
+          let f := funcIndex f funcs in
+          let args := refl_args args in
+          constr:(@Func types funcs vars f args)
+        in        
+        refl_app cc e
+      | true =>
+        let t := type of e in
+        let t := refl_type types types' t in
+        let res := constr:(@Const types funcs vars t e) in
+        res
+    end
+  in be e.
+
+Ltac extendEnv isConst types funcs vars G :=
+  match G with
+    | forall x : _ , ?G' =>
+      let types := buildTypes G types in
+      let types' := eval simpl in (map Impl types) in
+      let funcs := buildFuncs isConst types types' G funcs in
+      let funcs := eval simpl in funcs in
+      extendEnv isConst types funcs vars G'
+    | forall x : _ , @?G' x => fail (** TODO : how do I fill the hole in G'? **)
+    | _ => 
+      let types := buildTypes G types in
+      let types' := eval simpl in (map Impl types) in
+      let funcs := buildFuncs isConst types types' G funcs in
+      let funcs := eval simpl in funcs in
+      constr:((types, funcs, vars))
   end.
 
-Ltac reflect isConst := intros;
+Ltac reflect_goal isConst types funcs vars :=
   match goal with
     | [ |- ?G ] =>
       let types := buildTypes G (@nil type) in
-        let types' := eval simpl in (map Impl types) in
-          let funcs := buildFuncs G types types' (@nil (signature types)) in
-            let funcs := eval simpl in funcs in
-              let vars := buildVars isConst types types' funcs G (@nil (variable types)) in
-                let e := buildExpr isConst types types' funcs vars G in
-                  change (exprD e)
+      let types' := eval simpl in (map Impl types) in
+      let funcs := buildFuncs isConst types types' G (@nil (signature types)) in
+      let funcs := eval simpl in funcs in
+      let vars := constr:(@nil (tvar types)) in
+      let e := buildExpr isConst types types' funcs vars G in
+      change (exprD HNil e)
   end.
+
+Ltac reflect isConst :=
+  match goal with
+    | [ |- ?G ] =>
+      let types := buildTypes G (@nil type) in
+      let types' := eval simpl in (map Impl types) in
+      let funcs := buildFuncs isConst types types' G (@nil (signature types)) in
+      let funcs := eval simpl in funcs in
+      let vars := constr:(@nil (tvar types)) in
+      let e := buildExpr isConst types types' funcs vars G in
+      change (exprD HNil e)
+  end.
+
 
 Ltac consts e :=
   match e with
@@ -483,11 +403,20 @@ Ltac consts e :=
     | _ => false
   end.
 
-Theorem test1 : negb false = true.
-  reflect consts.
+(** Three simple test cases **) 
+(** These terms get pretty big since we have to store the list instead of just the length.
+ ** It would probably be beneficial to let-bind some terms unless Coq is doing its own sharing
+ **)
+Goal forall a b : nat, a + b = b + a.
+  intros; reflect consts.
 Abort.
 
-Theorem test2 : forall n m, n + m = m + 0 + n.
-  reflect consts. simpl length.
+Goal negb false = true.
+  intros; reflect consts.
 Abort.
-*)
+
+Goal forall n m, n + m = m + 0 + n.
+  intros; reflect consts.
+Abort.
+
+Require Export Env.

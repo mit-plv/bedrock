@@ -2,74 +2,90 @@ Require Import List Eqdep_dec.
 
 Set Implicit Arguments.
 
-Inductive fin : nat -> Type :=
-| FO : forall n, fin (S n)
-| FS : forall n, fin n -> fin (S n).
-
-Definition finOut n (f : fin n) : match n return fin n -> Type with
-                                    | O => fun _ => Empty_set
-                                    | S n' => fun f => {f' : _ | f = FS f'} + {f = FO _}
-                                  end f :=
-  match f with
-    | FO _ => inright _ (refl_equal _)
-    | FS _ f' => inleft _ (exist _ f' (refl_equal _))
-  end.
-
-Definition finArg n (f : fin n) : option (fin (pred n)) :=
-  match f with
-    | FO _ => None
-    | FS _ f' => Some f'
-  end.
-
-Lemma fin_inj : forall n (x y : fin n),
-  x <> y
-  -> FS x <> FS y.
-  red; intros.
-  assert (finArg (FS x) = finArg (FS y)) by congruence.
-  simpl in *; congruence.
-Qed.
-
-Hint Immediate fin_inj.
-
-Definition finEq : forall n (x y : fin n), {x = y} + {x <> y}.
-  refine (fix finEq n : forall x y : fin n, {x = y} + {x <> y} :=
-    match n return forall x y : fin n, {x = y} + {x <> y} with
-      | O => fun x _ => match finOut x with end
-      | S n' => fun x y => match finOut x, finOut y with
-                             | inleft (exist x' _), inleft (exist y' _) => if finEq _ x' y' then left _ _ else right _ _
-                             | inright _, inright _ => left _ _
-                             | _, _ => right _ _
-                           end
-    end); clear finEq; abstract (subst; auto; try congruence;
-      match goal with
-        | [ H : sig _ |- _ ] => destruct H
-      end; subst; discriminate).
-Defined.
-
-Section get.
+Section fin.
   Variable A : Type.
+  
+  Inductive fin : list A -> Type :=
+  | FO : forall x ls, fin (x :: ls)
+  | FS : forall x ls, fin ls -> fin (x :: ls).
 
-  Fixpoint get (ls : list A) : fin (length ls) -> A :=
-    match ls return fin (length ls) -> A with
+  Fixpoint lift (ls : list A) e : fin ls -> fin (e ++ ls) :=
+    match e as e return fin ls -> fin (e ++ ls) with
+      | nil => fun x => x
+      | a :: b => fun x => FS a (@lift ls b x)
+    end.
+
+  Definition finOut ls (f : fin ls) : match ls return fin ls -> Type with
+                                        | nil => fun _ => Empty_set
+                                        | _ => fun f => {f' : _ | f = FS _ f'} + {f = FO _ _}
+                                      end f :=
+  match f with
+    | FO _ _ => inright _ (refl_equal _)
+    | FS _ _ f' => inleft _ (exist _ f' (refl_equal _))
+  end.
+
+  Definition finIf t (ls : list A) (d : fin (t :: ls))
+    : forall (R : fin (t :: ls) -> Type) (h : R (@FO _ _)) (n : forall c, R (@FS _ _ c)), 
+    R d :=
+    match d as d' in fin ls' return match ls' return fin ls' -> Type with 
+                                | nil => fun _ => Empty_set
+                                | a :: b => fun d => 
+                                  forall (R : fin (a :: b) -> Type) (h : R (@FO _ _)) (n : forall c, R (@FS _ _ c)), R d
+                              end d'
+      with
+      | FO _ _ => fun _ h _ => h
+      | FS _ _ x => fun _ _ f => f x
+    end.
+
+  Definition finArg ls (f : fin ls) : option (fin (tl ls)) :=
+    match f with
+      | FO _ _ => None
+      | FS _ _ f' => Some f'
+    end.
+
+  Lemma fin_inj : forall z ls (x y : fin ls),
+    x <> y
+    -> FS z x <> FS z y.
+    red; intros.
+    assert (finArg (FS z x) = finArg (FS z y)) by congruence.
+    simpl in *; congruence.
+  Qed.
+
+  Hint Immediate fin_inj.
+
+  Definition finEq : forall ls (x y : fin ls), {x = y} + {x <> y}.
+    refine (fix finEq ls : forall x y : fin ls, {x = y} + {x <> y} :=
+      match ls return forall x y : fin ls, {x = y} + {x <> y} with
+        | nil => fun x _ => match finOut x with end
+        | _ :: _ => fun x y => match finOut x, finOut y with
+                                 | inleft (exist x' _), inleft (exist y' _) => if finEq _ x' y' then left _ _ else right _ _
+                                 | inright _, inright _ => left _ _
+                                 | _, _ => right _ _
+                               end
+      end); clear finEq; abstract (subst; auto; try congruence;
+        match goal with
+          | [ H : sig _ |- _ ] => destruct H
+        end; subst; discriminate).
+  Defined.
+
+  Fixpoint get (ls : list A) : fin ls -> A :=
+    match ls return fin ls -> A with
       | nil => fun f => match f in fin N return match N with
-                                                  | O => A
+                                                  | nil => A
                                                   | _ => unit
                                                 end with
-                          | FO _ => tt
-                          | FS _ _ => tt
+                          | FO _ _ => tt
+                          | FS _ _ _ => tt
                         end
       | x :: ls' => fun f => match f in fin N return match N with
-                                                       | O => Empty_set
-                                                       | S N' => (fin N' -> A) -> A
+                                                       | nil => Empty_set
+                                                       | _ :: ls' => (fin ls' -> A) -> A
                                                      end with
-                               | FO _ => fun _ => x
-                               | FS _ f' => fun get_ls' => get_ls' f'
-                             end (get ls')
+                               | FO _ _ => fun _ => x
+                               | FS _ _ f' => fun get_ls' => get_ls' f'
+                             end (@get ls')
     end.
-End get.
 
-Section hlist.
-  Variable A : Type.
   Variable B : A -> Type.
 
   Inductive hlist : list A -> Type :=
@@ -119,37 +135,41 @@ Section hlist.
       end); clear hlistEq; abstract congruence.
   Defined.
 
-  Definition hlist_get : forall (ls : list A) (i : fin (length ls)) (h : hlist ls), B (get ls i).
-  refine (fix hlist_get (ls : list A) : forall (i : fin (length ls)), hlist ls -> B (get ls i) :=
-    match ls as ls return forall (i : fin (length ls)), hlist ls -> B (get ls i) with
-      | nil => fun f _ => 
-        match f as _ in fin N return match N with 
-                                       | 0 => B (get nil f)
-                                       | _ => unit
-                                     end with
-          | FO _ => tt
-          | FS _ _ => tt
-        end
-      | x :: ls' => fun f : fin (length (x :: ls')) => _
-(*
-        fun z =>
-        match f as f' in fin N return match N with 
-                                            | 0 => Empty_set
-                                            | S N' => forall Heq : N = length (x :: ls'), B x -> hlist ls' -> B (get (x :: ls') match Heq in _ = T return fin T with
-                                                                                                                                  | refl_equal => f'
-                                                                                                                                end)
-                                          end with
-          | FO _ => _
-          | FS _ _ => _ 
-        end _ _ _
-*)
-    end).
-  Require Import Program.
-  dependent destruction f. inversion 1. assumption.
-  inversion 1. simpl. eapply hlist_get. assumption.
-Defined.
+  Fixpoint hlist_get (ls : list A) (i : fin ls) : hlist ls -> B (get i) :=
+    match i in fin ls return hlist ls -> B (get i) with
+      | FO _ _ => fun hl => hlist_hd hl
+      | FS _ _ f' => fun hl => hlist_get f' (hlist_tl hl)
+    end.
 
-End hlist.
+  Fixpoint absAll (ls : list A) :
+    (hlist ls -> Type) -> Type :=
+    match ls return (hlist ls -> Type) -> Type with
+      | nil => fun R => R (HNil)
+      | a :: b => fun R =>
+        forall x : B a, absAll (fun y => R (HCons x y))
+    end.
 
+  Fixpoint hlistDestruct (ls : list A) (args : hlist ls) {struct args}
+    : forall K : hlist ls -> Type, absAll K -> K args :=
+      match
+        args as args0 in hlist ls0
+          return (forall K : hlist ls0 -> Type, absAll K -> K args0)
+        with
+        | HNil =>
+          fun (K : hlist nil -> Type) (cc : absAll K) => cc
+        | HCons x0 ls0 x args =>
+          fun (K : hlist (x0 :: ls0) -> Type) (cc : absAll K) =>
+            hlistDestruct args
+            (fun y : hlist ls0 => K (HCons x y)) 
+            (cc x)
+      end.
+
+End fin.
+
+Implicit Arguments FO [A x ls].
+Implicit Arguments FS [A x ls].
+Implicit Arguments finIf [A t ls].
+
+Implicit Arguments get [A].
 Implicit Arguments HNil [A B].
 Implicit Arguments HCons [A B x ls].
