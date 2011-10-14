@@ -343,7 +343,46 @@ Section module.
 
     intros.
     apply H0.
+
+    Lemma imps_cases : forall k v ims exit post bls base,
+      LabelMap.MapsTo k v (imps ims modName bls base exit post)
+      -> (k = (modName, Local exit) /\ v = post)
+      \/ LabelMap.MapsTo k v ims
+      \/ exists n, exists bl, nth_error bls n = Some (v, bl) /\ k = (modName, Local (base + N_of_nat n)).
+      induction bls; simpl; intuition.
+
+      apply LabelFacts.add_mapsto_iff in H; intuition.
+
+      apply LabelFacts.add_mapsto_iff in H; intuition; subst.      
+
+      do 2 right; exists O; exists b; intuition.
+      do 2 f_equal; nomega.
+
+      apply IHbls in H1; intuition.
+      destruct H1 as [ ? [ ] ]; intuition.
+      do 2 right; exists (S x); exists x0; intuition.
+      rewrite H2; do 2 f_equal; nomega.
+    Qed.
+
+    apply imps_cases in H10; intuition; subst.
+
+    eapply skipImports.
+    apply LabelMap.add_2.
+    congruence.
+    apply LabelMap.add_1; eauto.
+
     admit.
+
+    destruct H10 as [? [ ] ]; intuition; subst.
+    eapply skipImports.
+    apply LabelMap.add_2.
+    congruence.
+    apply LabelMap.add_2.
+    intro Ho; injection Ho; nomega.
+    apply MapsTo_union1.
+    apply getLocal.
+    autorewrite with N; eauto.
+
 
     inversion Hfuncs; clear Hfuncs; subst.
     case_eq (LabelMap.mem (s, Local 0) t); intro Heq; rewrite Heq in *.
@@ -586,7 +625,35 @@ Section module.
     eapply IHl0; [ | eassumption ].
     nomega.
 
-    admit.
+    apply LabelFacts.add_mapsto_iff in H13; intuition; subst.
+
+    eapply importsNotThis; hnf; eauto.
+
+    apply LabelFacts.add_mapsto_iff in H15; intuition; subst.
+
+    eapply importsNotThis; hnf; eauto.
+
+    apply MapsTo_union in H16; intuition.
+
+    apply buildLocals_notImport in H14; destruct H14; intuition; subst.
+    eapply importsNotThis; hnf; eauto.
+
+    Lemma blocksMod : forall k v fs Base,
+      LabelMap.MapsTo k v (blocks fs Base)
+      -> exists l, k = (modName, l).
+      clear; induction fs as [ | [ ] ]; simpl; intuition.
+      destruct (LabelMap.empty_1 H).
+      apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+      eauto.
+      apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+      eauto.
+      apply MapsTo_union in H2; intuition.
+      apply buildLocals_notImport in H0; destruct H0; intuition; subst; eauto.
+      eauto.
+    Qed.
+
+    destruct (blocksMod _ _ H14); subst.
+    eapply importsNotThis; hnf; eauto.
   Qed.
 
 End module.
