@@ -182,23 +182,203 @@ Section module.
 
 
     red; simpl; unfold allPreconditions; simpl; intros.
-    assert (0 < 1) by nomega.
-    generalize dependent 1.
-    assert (Hfuncs : List.Forall (fun f => let '(name, _, _) := f in ~LabelMap.In (name, Local 0) (LabelMap.empty unit)) functions).
-    apply Forall_forall; intros.
-    destruct x as [ [ ] ]; intro.
-    destruct H0.
-    destruct (LabelMap.empty_1 H0).
-    generalize dependent (LabelMap.empty unit); clear NoDupFunc.
-    induction functions; simpl; intuition.
-    destruct (LabelMap.empty_1 H).
-    destruct a as [ [ ] ]; simpl in *.
-    inversion BlocksGood; clear BlocksGood; subst.
-    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
-    injection H7; clear H7; intros; subst.
-    simpl.
-    destruct (H0 (modName, Local (Nsucc n + Entry (Generate (c fullImports pre) (Nsucc n) n))) pre).
+
+    Lemma getLocal : forall v bls Base Entry,
+      nth_error bls (nat_of_N Entry) = Some v
+      -> LabelMap.MapsTo (modName, Local (Base + Entry)) v (buildLocals bls Base).
+      unfold buildLocals; intros.
+      generalize (LabelMap.empty (assert * block)).
+      generalize dependent Base.
+      generalize dependent Entry.
+      induction bls; simpl; intuition.
+      elimtype False.
+      destruct (nat_of_N Entry); discriminate.
+      destruct (N_eq_dec Entry 0); subst; simpl in *.
+      injection H; clear H; intros; subst.
+      replace (Base + 0) with Base by nomega.
+      assert (LabelMap.MapsTo (modName, Local Base) (a0, b) (LabelMap.add (modName, Local Base) (a0, b) t))
+        by (apply LabelMap.add_1; auto).
+      generalize H; clear.
+      generalize (LabelMap.add (modName, Local Base) (a0, b) t).
+      assert (Base < Nsucc Base) by nomega.
+      generalize dependent (Nsucc Base).
+      induction bls; simpl; intuition; eauto.
+      apply IHbls.
+      nomega.
+      apply LabelMap.add_2; eauto.
+      intro Ho; injection Ho; nomega.
+
+      replace (Base + Entry) with (Nsucc Base + (Entry - 1)) by nomega.
+      apply IHbls.
+      autorewrite with N; simpl.
+      assert (nat_of_N Entry <> O).
+      nomega.
+      destruct (nat_of_N Entry); simpl in *.
+      tauto.
+      replace (n0 - 0)%nat with n0 by omega; auto.
+    Qed.
+
+    Lemma ungetLocal' : forall A k v bls Base (m : LabelMap.t A),
+      LabelMap.MapsTo k v (snd (List.fold_left (fun b_m p => let '(b, m) := b_m in
+        (Nsucc b, LabelMap.add (modName, Local b) p m)) bls (Base, m)))
+      -> LabelMap.MapsTo k v m
+      \/ exists n, nth_error bls n = Some v /\ k = (modName, Local (Base + N_of_nat n)).
+      clear; induction bls; simpl; intuition.
+      apply IHbls in H; clear IHbls; intuition.
+      apply LabelFacts.add_mapsto_iff in H0; intuition; subst.
+      right; exists O; intuition.
+      do 2 f_equal; nomega.
+      destruct H0; intuition; subst.
+      right; exists (S x); intuition.
+      do 2 f_equal; nomega.
+    Qed.
+
+    Lemma ungetLocal : forall k v bls Base,
+      LabelMap.MapsTo k v (buildLocals bls Base)
+      -> exists n, nth_error bls n = Some v /\ k = (modName, Local (Base + N_of_nat n)).
+      unfold buildLocals; intros.
+      apply ungetLocal' in H; intuition.
+      destruct (LabelMap.empty_1 H0).
+    Qed.
+
+    Hint Extern 1 (_ >= _) => nomega.
     
+    Lemma MapsTo_blocks : forall k v fs Base,
+      LabelMap.MapsTo k v (blocks fs Base)
+      -> exists f, exists pre, exists c, In (f, pre, c) fs
+        /\ exists Base', Base' >= Base /\
+          let cout := c fullImports pre in
+          let cg := Generate (c fullImports pre) (Nsucc Base') Base' in
+            (forall n v', nth_error (Blocks cg) n = Some v'
+              -> LabelMap.MapsTo (modName, Local (Nsucc Base' + N_of_nat n)) v' (blocks fs Base))
+            /\ (exists bl, LabelMap.MapsTo (modName, Local Base') (Postcondition cout, bl) (blocks fs Base))
+            /\ ((k = (modName, Global f)
+              /\ v = (pre, (nil, Uncond (RvLabel (modName, Local (Nsucc Base' + Entry cg))))))
+            \/ (k = (modName, Local Base') /\ v = (Postcondition cout, (nil, Uncond (RvLabel (modName, Local Base')))))
+            \/ exists n, k = (modName, Local (Nsucc Base' + N_of_nat n)) /\ nth_error (Blocks cg) n = Some v).
+      clear; induction fs as [ | [ [ ] ] ]; simpl; intuition.
+      destruct (LabelMap.empty_1 H).
+      apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+
+      do 4 esplit.
+      eauto.
+      exists Base; intuition.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union1.
+      apply getLocal; autorewrite with N; auto.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_1; auto.
+
+      apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+
+      do 4 esplit.
+      eauto.
+      exists Base; intuition.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union1.
+      apply getLocal; autorewrite with N; auto.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_1; auto.
+
+      apply MapsTo_union in H2; intuition.
+    
+      apply ungetLocal in H0; destruct H0; intuition; subst.
+      do 4 esplit.
+      eauto.
+      exists Base; intuition.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union1.
+      apply getLocal; autorewrite with N; auto.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_1; auto.
+      eauto 10.
+
+      apply IHfs in H0; clear IHfs; intuition.
+      destruct H0 as [? [? [? [ ] ] ] ].
+      destruct H2; intuition; subst.
+
+      do 4 esplit.
+      right; eauto.
+      exists x2; intuition.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; intuition.
+      apply ungetLocal in H6; destruct H6; intuition.
+      elimtype False; injection H8; intros.
+      apply nth_error_bound in H7.
+      nomega.
+      destruct H4.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; eauto.
+      intros.
+      apply ungetLocal in H5; destruct H5; intuition.
+      elimtype False; injection H7; intros.
+      apply nth_error_bound in H6.
+      nomega.
+
+      do 4 esplit.
+      right; eauto.
+      exists x2; intuition.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; intuition.
+      apply ungetLocal in H6; destruct H6; intuition.
+      elimtype False; injection H8; intros.
+      apply nth_error_bound in H7.
+      nomega.
+      destruct H4.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; eauto.
+      intros.
+      apply ungetLocal in H5; destruct H5; intuition.
+      elimtype False; injection H7; intros.
+      apply nth_error_bound in H6.
+      nomega.
+
+
+      destruct H6; intuition; subst.
+      do 4 esplit.
+      right; eauto.
+      exists x2; intuition eauto.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; intuition.
+      apply ungetLocal in H6; destruct H6; intuition.
+      elimtype False; injection H9; intros.
+      apply nth_error_bound in H8.
+      nomega.
+      destruct H4.
+      eexists.
+      apply LabelMap.add_2; [ congruence | ].
+      apply LabelMap.add_2; [ intro Ho; injection Ho; nomega | ].
+      apply MapsTo_union2; eauto.
+      intros.
+      apply ungetLocal in H5; destruct H5; intuition.
+      apply nth_error_bound in H6.
+      elimtype False; injection H8; intros.
+      nomega.
+    Qed.
+
+    generalize (MapsTo_blocks _ _ H); intros.
+    repeat match goal with
+             | [ H : ex _ |- _ ] => destruct H; intuition; subst
+           end.
+
+    injection H8; clear H8; intros; subst; simpl.
+    destruct (PreconditionOk (Generate (x1 fullImports x0) (Nsucc x2) x2)).
+    apply H2 in H6.
+    autorewrite with N in H6.
+
     Lemma skipImports : forall m l p bls,
       LabelMap.MapsTo (modName, Local l) (p, bls) m
       -> LabelMap.MapsTo (modName, Local l) p
@@ -271,77 +451,42 @@ Section module.
       eauto.
     Qed.
 
-    destruct (PreconditionOk (Generate (c fullImports pre) (Nsucc n) n)).
+    match type of H6 with
+      | LabelMap.MapsTo ?k (?v, _) _ => destruct (H0 k v)
+    end.
+    eapply skipImports; eauto.
+    intuition.
+    rewrite H8.
+    eauto.
 
-    eapply skipImports.
-    apply LabelMap.add_2; [ congruence | ].
-    apply LabelMap.add_2; [ intro Hd; injection Hd; nomega | ].
-    apply MapsTo_union1.
 
-    Lemma getLocal : forall v bls Base Entry,
-      nth_error bls (nat_of_N Entry) = Some v
-      -> LabelMap.MapsTo (modName, Local (Base + Entry)) v (buildLocals bls Base).
-      unfold buildLocals; intros.
-      generalize (LabelMap.empty (assert * block)).
-      generalize dependent Base.
-      generalize dependent Entry.
-      induction bls; simpl; intuition.
-      elimtype False.
-      destruct (nat_of_N Entry); discriminate.
-      destruct (N_eq_dec Entry 0); subst; simpl in *.
-      injection H; clear H; intros; subst.
-      replace (Base + 0) with Base by nomega.
-      assert (LabelMap.MapsTo (modName, Local Base) (a0, b) (LabelMap.add (modName, Local Base) (a0, b) t))
-        by (apply LabelMap.add_1; auto).
-      generalize H; clear.
-      generalize (LabelMap.add (modName, Local Base) (a0, b) t).
-      assert (Base < Nsucc Base) by nomega.
-      generalize dependent (Nsucc Base).
-      induction bls; simpl; intuition; eauto.
-      apply IHbls.
-      nomega.
-      apply LabelMap.add_2; eauto.
-      intro Ho; injection Ho; nomega.
-
-      replace (Base + Entry) with (Nsucc Base + (Entry - 1)) by nomega.
-      apply IHbls.
-      autorewrite with N; simpl.
-      assert (nat_of_N Entry <> O).
-      nomega.
-      destruct (nat_of_N Entry); simpl in *.
-      tauto.
-      replace (n0 - 0)%nat with n0 by omega; auto.
-    Qed.
-
-    apply getLocal; eauto.
+    injection H8; clear H8; intros; subst; simpl.
+    match type of H5 with
+      | LabelMap.MapsTo ?k (?v, _) _ => destruct (H0 k v)
+    end.
+    eapply skipImports; eauto.
     intuition.
     rewrite H7.
     eauto.
 
 
-    apply LabelFacts.add_mapsto_iff in H7; intuition; subst.
-    injection H9; clear H9; intros; subst; simpl.
-    elimtype False; eauto.
+    generalize (BlocksOk (Generate (x1 fullImports x0) (Nsucc x2) x2)); intuition.
+    match type of H6 with
+      | ?P -> _ => assert P
+    end.
+    generalize BlocksGood H3; clear.
+    induction functions; simpl; intuition; subst.
+    inversion BlocksGood; clear BlocksGood; subst.
+    tauto.
+    inversion BlocksGood; clear BlocksGood; subst.
+    auto.
 
-    apply MapsTo_union in H9; intuition.
-
-    generalize (BlocksOk (Generate (c fullImports a) (Nsucc n) n)); intuition.
-    assert (n < Nsucc n) by nomega; intuition.
-    apply (proj1 (Forall_forall _ _) H11 (pre, bl)); clear H11; auto.
-
-    Lemma buildLocals_In : forall k (v : assert * block) bls Base bm,
-      LabelMap.MapsTo k v (snd (List.fold_left (fun b_m p => let '(b, m) := b_m in
-        (Nsucc b, LabelMap.add (modName, Local b) p m)) bls (Base, bm)))
-      -> In v bls \/ LabelMap.MapsTo k v bm.
-      induction bls; simpl; intuition.
-      apply IHbls in H; intuition.
-      apply LabelFacts.add_mapsto_iff in H0; intuition.
-    Qed.
-
-    apply buildLocals_In in H8; intuition.
-    destruct (LabelMap.empty_1 H10).
-
-    intros.
+    intuition.
+    match type of H9 with
+      | ?P -> _ => assert P by nomega
+    end; intuition.
+    apply (Forall_nth_error H10) in H8; simpl in *.
+    apply H8; intuition.
     apply H0.
 
     Lemma imps_cases : forall k v ims exit post bls base,
@@ -364,296 +509,143 @@ Section module.
       rewrite H2; do 2 f_equal; nomega.
     Qed.
 
-    apply imps_cases in H10; intuition; subst.
+    apply imps_cases in H9; intuition; subst.
 
-    eapply skipImports.
-    apply LabelMap.add_2.
-    congruence.
-    apply LabelMap.add_1; eauto.
+    eapply skipImports; eauto.
 
-    admit.
-
-    destruct H10 as [? [ ] ]; intuition; subst.
-    eapply skipImports.
-    apply LabelMap.add_2.
-    congruence.
-    apply LabelMap.add_2.
-    intro Ho; injection Ho; nomega.
-    apply MapsTo_union1.
-    apply getLocal.
-    autorewrite with N; eauto.
-
-
-    inversion Hfuncs; clear Hfuncs; subst.
-    case_eq (LabelMap.mem (s, Local 0) t); intro Heq; rewrite Heq in *.
-    elimtype False; generalize NoDupFunc; clear.
-    induction l0; simpl; intuition.
-    destruct a as [ [ ] ]; auto.
-    eapply H5; eauto; try nomega.
-    apply Forall_forall; intros.
-    destruct x as [ [ ] ]; intros.
-    destruct H10.
-    apply LabelFacts.add_mapsto_iff in H10; simpl in H10; intuition; subst.
-    injection H10; clear H10; intros; subst.
-    elimtype False; generalize H9 NoDupFunc; clear.
-    assert (LabelMap.MapsTo (s0, Local 0) tt (LabelMap.add (s0, Local 0) tt t)) by (apply LabelMap.add_1; auto).
-    generalize dependent (LabelMap.add (s0, Local 0) tt t).
-    induction l0; simpl; intuition; subst.
-    assert (LabelMap.In (s0, Local 0) t0) by (hnf; eauto).
-    apply LabelMap.mem_1 in H0.
-    rewrite H0 in *.
-    generalize NoDupFunc; clear.
-    induction l0; simpl; intuition.
-    destruct a as [ [ ] ]; intuition.
-    destruct a as [ [ ] ].
-    case_eq (LabelMap.mem (s, Local 0) t0); intro Heq; rewrite Heq in *.
-    generalize NoDupFunc; clear.
-    induction l0; simpl; intuition.
-    destruct a as [ [ ] ]; intuition.
-    eapply IHl0; try eapply NoDupFunc; eauto.
-    apply LabelMap.add_2; auto.
-    intro Ho; injection Ho; clear Ho; intros; subst.
-    assert (LabelMap.In (s0, Local 0) t0) by (hnf; eauto).
-    apply LabelMap.mem_1 in H1.
-    congruence.
-    specialize (proj1 (Forall_forall _ _) H12); clear H12; intro H12.
-    apply H12 in H9; clear H12.
-    apply H9; hnf; eauto.
-
-
-    Lemma fold_mono : forall k v bs1 bs2 im1 im2,
-      (forall v, LabelMap.MapsTo k v bs1 -> LabelMap.MapsTo k v bs2)
-      -> (forall v, LabelMap.MapsTo k v im1 -> LabelMap.MapsTo k v im2 \/ exists v', LabelMap.MapsTo k (v, v') bs2)
-      -> (forall v, LabelMap.MapsTo k v im2 -> forall v', LabelMap.MapsTo k v' bs2 -> False)
-      -> LabelMap.MapsTo k v
-      (LabelMap.fold
-        (fun (l : LabelMap.key) (x : assert * block)
-          (m : LabelMap.t assert) => LabelMap.add l (fst x) m)
-        bs1 im1)
-      -> LabelMap.MapsTo k v
-      (LabelMap.fold
-        (fun (l2 : LabelMap.key) (x : assert * block) (m : LabelMap.t assert) =>
-          LabelMap.add l2 (fst x) m)
-        bs2 im2).
-      intros; rewrite LabelMap.fold_1 in *.
-      assert (Hbs1 : forall v, SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements bs1)
-        -> SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements bs2)).
-      intros.
-      apply LabelMap.elements_1.
-      apply H.
-      apply LabelMap.elements_2.
-      assumption.
-      clear H.
-      assert (Him1 : forall v, SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements im1)
-        -> SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements im2)
-        \/ exists v', SetoidList.InA (@LabelMap.eq_key_elt _) (k, (v, v')) (LabelMap.elements bs2)).
-      intros.
-      apply LabelMap.elements_2 in H.
-      apply H0 in H; intuition.
-      left; apply LabelMap.elements_1; assumption.
-      destruct H3.
-      right; exists x; apply LabelMap.elements_1; assumption.
-      clear H0.
-      assert (Hbs2 : forall v, SetoidList.InA (@LabelMap.eq_key_elt _) (k, v) (LabelMap.elements im2)
-        -> forall v', SetoidList.InA (@LabelMap.eq_key_elt _) (k, v') (LabelMap.elements bs2)
-          -> False).
-      intros.
-      apply LabelMap.elements_2 in H.
-      apply LabelMap.elements_2 in H0.
-      eauto.
-      clear H1.
-
-      generalize dependent im1.
-      induction (LabelMap.elements bs1); simpl in *; intuition.
-      clear Hbs1.
-      apply LabelMap.elements_1 in H2.
-      apply Him1 in H2; clear Him1; intuition.
-      specialize (Hbs2 _ H).
-      generalize dependent im2.
-      induction (LabelMap.elements bs2); simpl in *; intuition.
-      
-      apply LabelMap.elements_2; auto.
-
-      apply IHl; eauto.
-      apply LabelMap.elements_1.
-      apply LabelMap.add_2.
-      intro; subst.
-      apply Hbs2 with (snd a); destruct a; constructor; hnf; auto.
-      apply LabelMap.elements_2; assumption.
-
-
-      destruct H.
-      specialize (fun v H' => Hbs2 v H' _ H).
-      generalize (LabelMap.elements_3w bs2).
-      generalize dependent im2.
-      induction (LabelMap.elements bs2); simpl in *; intuition.
-      inversion H.
-      inversion H0; clear H0; subst.
-      destruct (LabelKey.eq_dec k (fst a)).
-      hnf in e; subst.
-      inversion H; clear H; subst.
-      hnf in H1; simpl in H1; intuition; subst.
-      clear H.
-      destruct a; simpl in *; subst; simpl.
-
-      generalize H3; clear.
-      assert (LabelMap.MapsTo k v (LabelMap.add k v im2)) by (apply LabelMap.add_1; auto).
-      generalize dependent (LabelMap.add k v im2).
-      induction l; simpl; intuition; simpl.
-      apply IHl; auto.
-      apply LabelMap.add_2; auto.
-      intro; subst.
-      apply H3; constructor; hnf; auto.
-
-      apply IHl; clear IHl; auto.
-      intros.
-      apply Hbs2 with v0.
-      apply LabelMap.elements_2 in H'.
-      apply LabelFacts.add_mapsto_iff in H'; intuition; subst.
-      
-      elimtype False.
-      apply H3.
-      eapply InA_weaken; [ eassumption | ].
-      intros.
-      hnf.
-      hnf in H.
-      tauto.
-      inversion H; clear H; subst; intuition.
-      hnf in H1; simpl in H1; intuition.
-      
-      apply H; auto.
-      intros.
-      eapply Hbs2.
-      apply LabelMap.elements_2 in H'.
-      apply LabelFacts.add_mapsto_iff in H'; intuition; subst.
-      elimtype False; apply n; hnf; auto.
-      apply LabelMap.elements_1; eauto.
-
-
-      eapply IHl; clear IHl; eauto.
-      intros.
-      apply LabelMap.elements_2 in H.
-      apply LabelFacts.add_mapsto_iff in H; intuition; subst.
-      right; exists (snd (snd a)).
-      apply Hbs1.
-      destruct a as [ ? [ ] ]; simpl.
-      constructor; hnf; auto.
-      
-      apply LabelMap.elements_1 in H1.
-      intuition.
+    Lemma MapsTo_fullImports : forall k v,
+      LabelMap.MapsTo k v fullImports
+      -> LabelMap.MapsTo k v importsMap
+      \/ (exists f, k = (modName, Global f) /\ exists c, In (f, v, c) functions).
+      clear; unfold fullImports; do 2 intro; generalize importsMap.
+      induction functions as [ | [ [ ] ] ]; simpl; intuition.
+      apply IHl in H; clear IHl; intuition.
+      apply LabelFacts.add_mapsto_iff in H0; intuition; subst.
+      eauto 10.
+      destruct H0; intuition; subst.
+      destruct H1; eauto 10.
     Qed.
 
-    intros.
-    apply H0.
-    eapply fold_mono; [ | | | eassumption ]; intuition.
-    apply LabelMap.add_2.
-    intro; subst.
+    apply MapsTo_fullImports in H9; intuition.
+    assert (~LabelMap.In l (blocks functions 1)).
+    generalize NoSelfImport H11; clear.
+    generalize false at 2.
+    generalize 1.
+    induction functions as [ | [ [ ] ] ]; simpl; intuition.
+    destruct H.
+    destruct (LabelMap.empty_1 H).
+    destruct H.
+    apply LabelFacts.add_mapsto_iff in H; intuition; subst.
+    eapply importsNotThis'; eauto.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
+    eapply importsNotThis'; eauto.    
+    apply MapsTo_union in H2; intuition.
+    apply ungetLocal in H0; destruct H0; intuition; subst.
+    eapply importsNotThis'; eauto.    
+    eapply IHl0 in NoSelfImport; eauto.
+    eexists; eauto.
 
-    generalize NoDupFunc H10; clear.
-    generalize (Nsucc n + N_of_nat (Datatypes.length (Blocks (Generate (c fullImports a) (Nsucc n) n)))).
+    assert (forall v, ~SetoidList.InA (@LabelMap.eq_key_elt _) (l, v) (LabelMap.elements (blocks functions 1))).
+    generalize H9; clear.
+    intros; intro.
+    apply H9.
+    eexists.
+    apply LabelMap.elements_2; eauto.
+
+    generalize H11 H12; clear.
+    rewrite LabelMap.fold_1.
+    generalize importsMap.
+    induction (LabelMap.elements (blocks functions 1)) as [ | [ [ ] ] ]; simpl; intuition; simpl.
+    apply IHl0.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    eapply H12.
+    constructor; hnf; eauto.
+    eauto.
+
+
+    destruct H11; intuition; subst.
+    destruct H12.
+
+    assert (SetoidList.NoDupA (fun p1 p2 => fst (fst p1) = fst (fst p2)) functions).
+    generalize NoDupFunc; clear.
+    generalize dependent (LabelMap.empty unit).
+    induction functions as [ | [ [ ] ] ]; simpl; intuition.
+    case_eq (LabelMap.mem (s, Local 0) t); intro Heq; rewrite Heq in *.
+    elimtype False.
+    generalize NoDupFunc; clear.
+    induction l as [ | [ [ ] ] ]; simpl; intuition.
+    specialize (IHl _ NoDupFunc).
+    constructor; auto.
+    generalize NoDupFunc; clear.
     assert (LabelMap.MapsTo (s, Local 0) tt (LabelMap.add (s, Local 0) tt t)) by (apply LabelMap.add_1; auto).
     generalize dependent (LabelMap.add (s, Local 0) tt t).
-    induction l0; simpl; intuition.
-    destruct (LabelMap.empty_1 H10).
-    destruct a0 as [ [ ] ].
-    case_eq (LabelMap.mem (s0, Local 0) t0); intro Heq; rewrite Heq in *.
+    induction l as [ | [ [ ] ] ]; simpl; intuition.
+    inversion H0.
+    inversion H0; clear H0; simpl in *; subst.
+    assert (LabelMap.In (s0, Local 0) t0) by (hnf; eauto).
+    apply LabelMap.mem_1 in H0.
+    rewrite H0 in NoDupFunc.
+    elimtype False.
     generalize NoDupFunc; clear.
-    induction l0 as [ | [ [ ] ] ]; simpl; intuition.
-    apply LabelFacts.add_mapsto_iff in H10; intuition; subst.
-    injection H1; clear H1; intros; subst.
-    assert (LabelMap.In (s, Local 0) t0) by (hnf; eauto).
-    apply LabelMap.mem_1 in H0; congruence.
-    apply LabelFacts.add_mapsto_iff in H2; intuition; subst.
-    congruence.
-    apply MapsTo_union in H3; intuition.
-    apply buildLocals_notImport in H0; destruct H0; intuition; congruence.
-    eapply IHl0; try eapply NoDupFunc; eauto.
+    induction l as [ | [ [ ] ] ]; simpl; intuition.
+    case_eq (LabelMap.mem (s0, Local 0) t0); intro Heq; rewrite Heq in *.
+    elimtype False.
+    generalize NoDupFunc; clear.
+    induction l as [ | [ [ ] ] ]; simpl; intuition.
+    specialize (fun H => IHl _ H NoDupFunc).
+    apply IHl; auto.
     apply LabelMap.add_2; auto.
     intro Ho; injection Ho; clear Ho; intros; subst.
     assert (LabelMap.In (s, Local 0) t0) by (hnf; eauto).
-    apply LabelMap.mem_1 in H3; congruence.
+    apply LabelMap.mem_1 in H0; congruence.
 
-    apply LabelMap.add_2.
-    intro; subst.
-    generalize H10; clear.
+    assert (exists bl, LabelMap.MapsTo (modName, Global x5) (pre0, bl) (blocks functions 1)).
+    generalize H11 H9; clear.
+    generalize 1.
+    induction functions; simpl; intuition; subst.
+    eexists; apply LabelMap.add_1; eauto.
+    destruct a as [ [ ] ].
+    inversion H11; clear H11; subst.
     match goal with
-      | [ |- context[blocks _ ?N] ] => assert (n < N) by nomega; generalize dependent N
-    end.
-    induction l0 as [ | [ [ ] ] ]; simpl; intuition.
-    destruct (LabelMap.empty_1 H10).
-    apply LabelFacts.add_mapsto_iff in H10; intuition; subst.
-    congruence.
-    apply LabelFacts.add_mapsto_iff in H2; intuition; subst.
-    injection H2; nomega.
-    apply MapsTo_union in H3; intuition.
-    assert (n < Nsucc n0) by nomega.
-    generalize dependent (Blocks (Generate (c0 fullImports a0) (Nsucc n0) n0)).
-    intro.
-    generalize dependent (Nsucc n0); clear.
-    unfold buildLocals.
-    assert (forall v, ~LabelMap.MapsTo (modName, Local n) v (LabelMap.empty (assert * block))).
-    red; intros.
-    destruct (LabelMap.empty_1 H).
-    generalize dependent (LabelMap.empty (assert * block)).
-    induction l; simpl; intuition eauto.
-    eapply IHl; [ | | eassumption ]; intros.
-    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.  
-    injection H1; nomega.
-    eauto.
-    nomega.
-    eapply IHl0; [ | eassumption ].
-    nomega.
-
-    apply MapsTo_union2; auto.
+      | [ |- context[blocks _ ?n] ] => destruct (IHl n H3)
+    end; auto.
+    eexists.
+    apply LabelMap.add_2.
+    intro Ho; injection Ho; clear Ho; intros; subst.
+    apply H2.
+    generalize H; clear.
+    induction l; simpl; intuition; subst; auto.
+    apply LabelMap.add_2; [ congruence | ].
+    apply MapsTo_union2; eauto.
     intros.
-    elimtype False.
-    generalize H10 H13; clear.
-    generalize (Blocks (Generate (c fullImports a) (Nsucc n) n)).
-    intros.
-    apply buildLocals_notImport in H13; destruct H13; intuition; subst.
-    clear H.
-    generalize dependent (Nsucc n + N_of_nat (Datatypes.length l)).
-    induction l0 as [ | [ [ ] ] ]; simpl; intuition.
-    destruct (LabelMap.empty_1 H10).
-    apply LabelFacts.add_mapsto_iff in H10; intuition; subst.
-    congruence.
-    apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
-    injection H1; nomega.
-    apply MapsTo_union in H3; intuition.
-    apply buildLocals_notImport in H; destruct H; intuition.
-    injection H3; nomega.
-    eapply IHl0; [ | eassumption ].
-    nomega.
+    destruct (ungetLocal _ _ H1); intuition congruence.
 
-    apply LabelFacts.add_mapsto_iff in H13; intuition; subst.
+    rewrite LabelMap.fold_1.
+    destruct H12.
+    assert (SetoidList.InA (@LabelMap.eq_key_elt _) ((modName, Global x5), (pre0, x7)) (LabelMap.elements (blocks functions 1))).
+    apply LabelMap.elements_1; auto.
+    generalize H13; clear.
+    generalize (LabelMap.elements_3w (blocks functions 1)).
+    generalize importsMap.
+    induction (LabelMap.elements (blocks functions 1)); simpl; intuition.
+    inversion H13.
+    inversion H; clear H; subst.
+    inversion H13; clear H13; subst; simpl.
+    hnf in H0; simpl in H0; intuition; subst.
+    injection H1; clear H1; intros; subst.
+    assert (LabelMap.MapsTo (modName, Global x5) a (LabelMap.add (modName, Global x5) a t)) by (apply LabelMap.add_1; auto).
+    generalize H2 H; clear.
+    generalize (LabelMap.add (modName, Global x5) a t).
+    induction l; simpl; intuition; simpl.
+    apply IHl; auto.
+    apply LabelMap.add_2; auto.
+    intro; subst.
+    apply H2; constructor; hnf; auto.
+    auto.
 
-    eapply importsNotThis; hnf; eauto.
-
-    apply LabelFacts.add_mapsto_iff in H15; intuition; subst.
-
-    eapply importsNotThis; hnf; eauto.
-
-    apply MapsTo_union in H16; intuition.
-
-    apply buildLocals_notImport in H14; destruct H14; intuition; subst.
-    eapply importsNotThis; hnf; eauto.
-
-    Lemma blocksMod : forall k v fs Base,
-      LabelMap.MapsTo k v (blocks fs Base)
-      -> exists l, k = (modName, l).
-      clear; induction fs as [ | [ ] ]; simpl; intuition.
-      destruct (LabelMap.empty_1 H).
-      apply LabelFacts.add_mapsto_iff in H; intuition; subst.
-      eauto.
-      apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
-      eauto.
-      apply MapsTo_union in H2; intuition.
-      apply buildLocals_notImport in H0; destruct H0; intuition; subst; eauto.
-      eauto.
-    Qed.
-
-    destruct (blocksMod _ _ H14); subst.
-    eapply importsNotThis; hnf; eauto.
+    destruct H9 as [ ? [ ] ]; intuition; subst.
+    eapply skipImports; eauto.
   Qed.
 
 End module.
