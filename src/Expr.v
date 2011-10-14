@@ -1,3 +1,9 @@
+(** TODO List
+ ** - Merging states
+ ** - Lifting expressions to new states
+ ** - Prover for simple domain
+ ** - Unification variables?
+ **)
 Require Import List Eqdep_dec.
 Require Import Env.
 
