@@ -1,3 +1,4 @@
+Require Import List.
 Require Import PropX.
 
 Module Type SepLog.
@@ -5,38 +6,44 @@ Module Type SepLog.
   Parameter addr : Type.
   Parameter byte : Type.
 
-  Parameter Mem : addr -> byte.
+  Parameter addr_dec : forall a b : addr, {a = b} + {a <> b}.
+
 End SepLog.
 
 Module Make (M : SepLog).
   Import M.
 
-  Definition smem := addr -> option byte.
+  Definition smem := list (addr * byte).
 
   Definition hprop : Type := smem -> Prop.
 
-  Definition disjoint (m1 m2 : smem) : Prop :=
-    forall x, m1 x = None \/ m2 x = None.
+  Fixpoint smem_lookup (p : addr) (m : smem) : option byte :=
+    match m with
+      | nil => None
+      | a :: b => if addr_dec (fst a) p then Some (snd a) else smem_lookup p b
+    end.
 
-  Definition join (m1 m2 : smem) : smem :=
-    fun x => match m1 x with
-               | None => m2 x
-               | v => v
-             end.
+  Fixpoint disjoint (m1 m2 : smem) : Prop :=
+    match m1 with
+      | nil => True
+      | a :: b => smem_lookup (fst a) m2 = None /\ disjoint b m2
+    end.
+
+  Definition join (m1 m2 : smem) : smem := m1 ++ m2.
 
   Definition split (m ml mr : smem) : Prop :=
     disjoint ml mr /\
-    forall a, m a = join ml mr a.
+    forall a, smem_lookup a m = smem_lookup a (join ml mr).
 
   Definition semp : hprop := 
-    fun h => forall x, h x = None.
+    fun h => h = nil.
+
+  Definition ptsTo (a : addr) (b : byte) : hprop :=
+    fun h => h = (a,b) :: nil.
 
   Definition ex (T : Type) (p : T -> hprop) : hprop :=
     fun v => exists x, p x v.
 
-  Definition ptsTo (a : addr) (b : byte) : hprop :=
-    fun h => forall x, (a = x -> h a = Some b)
-                    /\ (a <> x -> h a = None).
 
   (** separation logic theory **)
   (** I need to denote this in terms of PropX **)
