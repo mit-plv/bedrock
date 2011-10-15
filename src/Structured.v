@@ -610,14 +610,15 @@ Section imports.
 
   (** * Direct jump *)
 
-  Definition Goto_ (f : label) : isGlobal f -> cmd.
-    intro; red; refine (fun pre => {|
+  Definition Goto_ (f : label) : cmd.
+    red; refine (fun pre => {|
       Postcondition := (fun _ => [False])%PropX;
-      VerifCond := match LabelMap.find f imports with
-                     | None => False
-                     | Some pre' => forall stn_st specs, interp specs (pre stn_st)
-                       -> interp specs (pre' stn_st)
-                   end;
+      VerifCond := isGlobal f
+        /\ match LabelMap.find f imports with
+             | None => False
+             | Some pre' => forall stn_st specs, interp specs (pre stn_st)
+               -> interp specs (pre' stn_st)
+           end;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel f))) :: nil
@@ -627,16 +628,17 @@ Section imports.
 
   (** * Direct function call *)
 
-  Definition Call_ (f : label) (afterCall : assert) : isGlobal f -> cmd.
-    intro; red; refine (fun pre => {|
+  Definition Call_ (f : label) (afterCall : assert) : cmd.
+    red; refine (fun pre => {|
       Postcondition := afterCall;
-      VerifCond := match LabelMap.find f imports with
-                     | None => False
-                     | Some pre' => forall stn st specs,
-                       interp specs (pre (stn, st))
-                       -> forall rp, specs rp = Some afterCall
-                         -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
-                   end;
+      VerifCond := isGlobal f
+        /\ match LabelMap.find f imports with
+             | None => False
+             | Some pre' => forall stn st specs,
+               interp specs (pre (stn, st))
+               -> forall rp, specs rp = Some afterCall
+                 -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
+           end;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond (RvLabel f))) :: nil
