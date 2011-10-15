@@ -23,16 +23,16 @@ Section env.
                           | Some x => Impl (get types x)
                         end.
 
-  Fixpoint functionTypeD (domain : list tvar) (range : tvar) : Type :=
+  Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
-      | nil => tvarD range
-      | d :: domain' => tvarD d -> functionTypeD domain' range
+      | nil => range
+      | d :: domain' => d -> functionTypeD domain' range
     end.
 
   Record signature := {
     Domain : list tvar;
     Range : tvar;
-    Denotation : functionTypeD Domain Range
+    Denotation : functionTypeD (map tvarD Domain) (tvarD Range)
   }.
 
   Definition functions := list signature.
@@ -53,15 +53,15 @@ Section env.
     Variable exprD : forall t, expr t -> tvarD t.
 
     Fixpoint applyD domain (xs : hlist expr domain)
-      : forall range, functionTypeD domain range -> tvarD range :=
-        match xs in hlist _ domain return forall range, functionTypeD domain range -> tvarD range with
+      : forall range, functionTypeD (map tvarD domain) range -> range :=
+        match xs in hlist _ domain return forall range, functionTypeD (map tvarD domain) range -> range with
           | HNil => fun _ x => x
           | HCons _ _ x xs' => fun _ f => applyD xs' _ (f (exprD x))
         end.
 
     Fixpoint etaD domain {struct domain}
-      : forall (xs : hlist expr domain) range, functionTypeD domain range -> tvarD range :=
-        match domain return forall (xs : hlist expr domain) range, functionTypeD domain range -> tvarD range with
+      : forall (xs : hlist expr domain) range, functionTypeD (map tvarD domain) (tvarD range) -> tvarD range :=
+        match domain return forall (xs : hlist expr domain) range, functionTypeD (map tvarD domain) (tvarD range) -> tvarD range with
           | nil => fun _ _ D => D
           | a :: b => fun hl r D => @etaD b (hlist_tl hl) r (D (exprD (hlist_hd hl)))
         end.
