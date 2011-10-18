@@ -25,8 +25,10 @@ Section imports.
   (* Which external code labels must be available? *)
   Variable imports : LabelMap.t assert.
 
-  Hypothesis imports_global : forall k v, LabelMap.MapsTo k v imports
+  Definition importsGlobal := forall k v, LabelMap.MapsTo k v imports
     -> exists s, snd k = Global s.
+
+  Hypothesis imports_global : importsGlobal.
 
   (* Which code module are we defining here? *)
   Variable modName : string.
@@ -303,7 +305,7 @@ Section imports.
 
   Hint Resolve nth_error_bound'.
 
-  Ltac preSimp := simpl in *; intuition eauto; repeat (apply Forall_nil || apply Forall_cons); simpl.
+  Ltac preSimp := simpl in *; intuition eauto; repeat (apply Forall_nil || apply Forall_cons); simpl; unfold importsGlobal in *.
 
   Ltac destrOpt E := let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq); rewrite Heq in *.
 
@@ -346,6 +348,7 @@ Section imports.
                              | [ _ : n < N_of_nat (length ls) |- _ ] => fail 1
                              | _ => specialize (nth_error_bound' _ _ H)
                            end
+                         | [ H : snd ?x = _ |- _ ] => destruct x; simpl in H; congruence
                        end; intros; unfold evalBlock, evalCond in *; simpl; autorewrite with N in *).
 
   Ltac struct := preSimp; simp; eauto 15.
@@ -354,7 +357,7 @@ Section imports.
 
   Definition Straightline_ (is : list instr) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun stn_st => Ex st', [evalInstrs (fst stn_st) (snd stn_st) is = st'])%PropX;
+      Postcondition := (fun stn_st => Ex st', [|evalInstrs (fst stn_st) (snd stn_st) is = st'|])%PropX;
       VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalInstrs stn st is <> None);
       Generate := fun Base Exit => {|
         Entry := 0;
@@ -387,7 +390,7 @@ Section imports.
 
   Definition Diverge_ : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun _ => [False])%PropX;
+      Postcondition := (fun _ => [|False|])%PropX;
       VerifCond := True;
       Generate := fun Base Exit => {|
         Entry := 0;
@@ -400,7 +403,7 @@ Section imports.
 
   Definition Fail_ : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun _ => [False])%PropX;
+      Postcondition := (fun _ => [|False|])%PropX;
       VerifCond := forall x specs, ~interp specs (pre x);
       Generate := fun Base Exit => {|
         Entry := 0;
@@ -426,7 +429,7 @@ Section imports.
 
   Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun stn_st => pre stn_st /\ [lemma (fst stn_st) (snd stn_st)])%PropX;
+      Postcondition := (fun stn_st => pre stn_st /\ [|lemma (fst stn_st) (snd stn_st)|])%PropX;
       VerifCond := True;
       Generate := fun Base Exit => {|
         Entry := 0;
@@ -511,8 +514,8 @@ Section imports.
 
   Definition If_ (rv1 : rvalue) (t : test) (rv2 : rvalue) (Then Else : cmd) : cmd.
     red; refine (fun pre =>
-      let cout1 := Then (fun stn_st => pre stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true])%PropX in
-      let cout2 := Else (fun stn_st => pre stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false])%PropX in
+      let cout1 := Then (fun stn_st => pre stn_st /\ [|evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true|])%PropX in
+      let cout2 := Else (fun stn_st => pre stn_st /\ [|evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false|])%PropX in
       {|
         Postcondition := (fun stn_st => Postcondition cout1 stn_st \/ Postcondition cout2 stn_st)%PropX;
         VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
@@ -567,9 +570,9 @@ Section imports.
 
   Definition While_ (inv : assert) (rv1 : rvalue) (t : test) (rv2 : rvalue) (Body : cmd) : cmd.
     red; refine (fun pre =>
-      let cout := Body (fun stn_st => inv stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true])%PropX in
+      let cout := Body (fun stn_st => inv stn_st /\ [|evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some true|])%PropX in
       {|
-        Postcondition := (fun stn_st => inv stn_st /\ [evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false])%PropX;
+        Postcondition := (fun stn_st => inv stn_st /\ [|evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false|])%PropX;
         VerifCond := (forall stn_st specs, interp specs (pre stn_st) -> interp specs (inv stn_st))
           /\ (forall stn st specs, interp specs (inv (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
           /\ (forall stn_st specs, interp specs (Postcondition cout stn_st) -> interp specs (inv stn_st))
@@ -588,37 +591,19 @@ Section imports.
           |}
       |}); abstract struct.
   Defined.
-
-  (** * A test for global-ness of labels, and some associated hints *)
-
-  Definition isGlobal (f : label) := match snd f with
-                                       | Global _ => True
-                                       | _ => False
-                                     end.
-
-  Lemma isGlobal_neq1 : forall l s1 s2, isGlobal l -> l <> (s1, Local s2).
-    unfold isGlobal; destruct l as [l1 l2]; simpl; destruct l2; congruence.
-  Qed.
-
-  Lemma isGlobal_neq2 : forall l s1 s2, isGlobal l -> (s1, Local s2) <> l.
-    unfold isGlobal; destruct l as [l1 l2]; simpl; destruct l2; congruence.
-  Qed.
-
-  Hint Resolve isGlobal_neq1 isGlobal_neq2.
-
+  
   Hint Extern 1 (interp _ _) => progress simpl.
 
   (** * Direct jump *)
 
   Definition Goto_ (f : label) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun _ => [False])%PropX;
-      VerifCond := isGlobal f
-        /\ match LabelMap.find f imports with
-             | None => False
-             | Some pre' => forall stn_st specs, interp specs (pre stn_st)
-               -> interp specs (pre' stn_st)
-           end;
+      Postcondition := (fun _ => [|False|])%PropX;
+      VerifCond := match LabelMap.find f imports with
+                     | None => False
+                     | Some pre' => forall stn_st specs, interp specs (pre stn_st)
+                       -> interp specs (pre' stn_st)
+                   end;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel f))) :: nil
@@ -631,14 +616,13 @@ Section imports.
   Definition Call_ (f : label) (afterCall : assert) : cmd.
     red; refine (fun pre => {|
       Postcondition := afterCall;
-      VerifCond := isGlobal f
-        /\ match LabelMap.find f imports with
-             | None => False
-             | Some pre' => forall stn st specs,
-               interp specs (pre (stn, st))
-               -> forall rp, specs rp = Some afterCall
-                 -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
-           end;
+      VerifCond := match LabelMap.find f imports with
+                     | None => False
+                     | Some pre' => forall stn st specs,
+                       interp specs (pre (stn, st))
+                       -> forall rp, specs rp = Some afterCall
+                         -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
+                   end;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond (RvLabel f))) :: nil
@@ -650,7 +634,7 @@ Section imports.
 
   Definition IGoto (rv : rvalue) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun _ => [False])%PropX;
+      Postcondition := (fun _ => [|False|])%PropX;
       VerifCond := (forall specs stn st, interp specs (pre (stn, st))
         -> match evalRvalue stn st rv with
              | None => False

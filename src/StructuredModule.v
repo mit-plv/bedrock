@@ -18,7 +18,7 @@ Section module.
   Variable modName : string.
   (* New module name *)
 
-  Definition function := (string * assert * forall imports, cmd imports modName)%type.
+  Definition function := (string * assert * forall imports, importsGlobal imports -> cmd imports modName)%type.
 
   Variable functions : list function.
   (* All functions in this module. *)
@@ -30,9 +30,37 @@ Section module.
     List.fold_left (fun m p => let '(mod, f, pre) := p in
       LabelMap.add (mod, Global f) pre m) imports (LabelMap.empty _).
 
+  Lemma importsMapGlobal' : forall (im : list import) m,
+    importsGlobal m
+    -> importsGlobal (List.fold_left (fun m p => let '(mod, f, pre) := p in
+      LabelMap.add (mod, Global f) pre m) im m).
+    unfold importsGlobal; induction im as [ | [ ] ]; simpl; intuition.
+    apply IHim in H0; auto.
+    intros.
+    apply LabelFacts.add_mapsto_iff in H1; intuition; subst; simpl; eauto.
+  Qed.
+
+  Theorem importsMapGlobal : importsGlobal importsMap.
+    apply importsMapGlobal'; red; intros.
+    destruct (LabelMap.empty_1 H).
+  Qed.
+
   Definition fullImports : LabelMap.t assert :=
     List.fold_left (fun m p => let '(f, pre, _) := p in
       LabelMap.add (modName, Global f) pre m) functions importsMap.
+
+  Lemma fullImportsGlobal' : forall (fs : list function) m,
+    importsGlobal m
+    -> importsGlobal (List.fold_left (fun m p => let '(f, pre, _) := p in
+      LabelMap.add (modName, Global f) pre m) fs m).
+    induction fs as [ | [ ] ]; simpl; intuition.
+    apply IHfs; red; intros.
+    apply LabelFacts.add_mapsto_iff in H0; intuition; subst; simpl; eauto.
+  Qed.    
+
+  Theorem fullImportsGlobal : importsGlobal fullImports.
+    apply fullImportsGlobal'; apply importsMapGlobal.
+  Qed.
 
   (* Now we are ready to generate a module out of the functions. *)
 
@@ -43,7 +71,7 @@ Section module.
     match fs with
       | nil => LabelMap.empty _
       | (f, pre, c) :: fs' =>
-        let cout := c fullImports pre in
+        let cout := c fullImports fullImportsGlobal pre in
         let cg := Generate cout (Nsucc Base) Base in
         LabelMap.add (modName, Global f) (pre, (nil, Uncond (RvLabel (modName, Local (Nsucc Base + Entry cg)))))
           (LabelMap.add (modName, Local Base) (Postcondition cout, (nil, Uncond (RvLabel (modName, Local Base))))
@@ -129,7 +157,7 @@ Section module.
     end.
 
   Hypothesis BlocksGood : List.Forall (fun f : function => let '(_, pre, c) := f in
-    let cout := c fullImports pre in
+    let cout := c fullImports fullImportsGlobal pre in
     (forall stn_st specs, ~interp specs (Postcondition cout stn_st))
     /\ VerifCond cout) functions.
 
@@ -247,8 +275,8 @@ Section module.
       LabelMap.MapsTo k v (blocks fs Base)
       -> exists f, exists pre, exists c, In (f, pre, c) fs
         /\ exists Base', Base' >= Base /\
-          let cout := c fullImports pre in
-          let cg := Generate (c fullImports pre) (Nsucc Base') Base' in
+          let cout := c fullImports fullImportsGlobal pre in
+          let cg := Generate (c fullImports fullImportsGlobal pre) (Nsucc Base') Base' in
             (forall n v', nth_error (Blocks cg) n = Some v'
               -> LabelMap.MapsTo (modName, Local (Nsucc Base' + N_of_nat n)) v' (blocks fs Base))
             /\ (exists bl, LabelMap.MapsTo (modName, Local Base') (Postcondition cout, bl) (blocks fs Base))
@@ -375,7 +403,7 @@ Section module.
            end.
 
     injection H8; clear H8; intros; subst; simpl.
-    destruct (PreconditionOk (Generate (x1 fullImports x0) (Nsucc x2) x2)).
+    destruct (PreconditionOk (Generate (x1 fullImports fullImportsGlobal x0) (Nsucc x2) x2)).
     apply H2 in H6.
     autorewrite with N in H6.
 
@@ -470,7 +498,7 @@ Section module.
     eauto.
 
 
-    generalize (BlocksOk (Generate (x1 fullImports x0) (Nsucc x2) x2)); intuition.
+    generalize (BlocksOk (Generate (x1 fullImports fullImportsGlobal x0) (Nsucc x2) x2)); intuition.
     match type of H6 with
       | ?P -> _ => assert P
     end.

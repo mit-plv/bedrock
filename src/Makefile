@@ -1,7 +1,8 @@
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
-	XCAP Structured StructuredModule \
-	Env Expr Provers SepTheory SepExpr
+	XCAP Structured StructuredModule Programming \
+	Env Expr Provers SepTheory SepExpr \
+	Bedrock
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package

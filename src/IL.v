@@ -33,7 +33,6 @@ Inductive lvalue :=
 | LvMem : loc -> lvalue.
 
 Coercion LvReg : reg >-> lvalue.
-Coercion LvMem : loc >-> lvalue.
 
 (* Basic block labels *)
 Inductive label' :=

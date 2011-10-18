@@ -1513,7 +1513,7 @@ End machine.
 Implicit Arguments Inj [pc state G].
 Implicit Arguments Var0 [pc state G A].
 Implicit Arguments Lift [pc state G A].
-Notation "[ p ]" := (Inj p) : PropX_scope.
+Notation "[| p |]" := (Inj p) : PropX_scope.
 Infix "/\" := And : PropX_scope.
 Infix "\/" := Or : PropX_scope.
 Infix "-->" := Imply (at level 86, right associativity) : PropX_scope.
@@ -1528,7 +1528,7 @@ Notation "'AlX' : A , P" := (ForallX (A := A) P) (x ident, at level 89) : PropX_
 Notation "'ExX' , P" := (ExistsX P) (x ident, at level 89) : PropX_scope.
 Notation "'ExX' : A , P" := (ExistsX (A := A) P) (x ident, at level 89) : PropX_scope.
 
-Notation "#0" := Var0 : PropX_scope.
+Notation "#0" := (fun x => Var0 x) : PropX_scope.
 Notation "#1" := (fun x => Lift (Var0 x)) : PropX_scope.
 Notation "#2" := (fun x => Lift (Lift (Var0 x))) : PropX_scope.
 Notation "#3" := (fun x => Lift (Lift (Lift (Var0 x)))) : PropX_scope.
