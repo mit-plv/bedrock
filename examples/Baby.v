@@ -64,10 +64,18 @@ Qed.
 Print Assumptions immedProgOk.
 
 Definition immedSettings := testSettings (NToWord _ 1024) immedProg.
+Definition immedProgram := snd (labelsOf (XCAP.Blocks immedProg)).
 
-Theorem immedProgReallyOk : exists w, Labels immedSettings ("main", Global "main") = Some w
-  /\ forall st, safe immedSettings (snd (labelsOf (XCAP.Blocks immedProg))) (w, st).
+Theorem immedProgReallyOk : { w : _ | Labels immedSettings ("main", Global "main") = Some w
+  /\ forall st, safe immedSettings immedProgram (w, st) }.
   withLabel; safety immedProgOk ("main", Global "main").
-Qed.
+Defined.
 
 Print Assumptions immedProgReallyOk.
+
+Definition final := Eval compute in exec immedSettings immedProgram 20
+  (proj1_sig immedProgReallyOk,
+    {| Regs := fun _ => wzero _;
+      Mem := fun _ => wzero _ |}).
+
+Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.

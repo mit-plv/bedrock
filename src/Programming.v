@@ -192,3 +192,20 @@ Ltac safety mok lab := eapply safety; [ exact (refl_equal 0) | exact (refl_equal
          end; reflexivity
   | reflexivity
   | propxFo ].
+
+
+(** * Executing a program *)
+
+Section exec.
+  Variable stn : settings.
+  Variable prog : program.
+
+  Fixpoint exec (n : nat) (st : state') : option state' :=
+    match n with
+      | O => Some st
+      | S n' => match step stn prog st with
+                  | None => None
+                  | Some st => exec n' st
+                end
+    end.
+End exec.
