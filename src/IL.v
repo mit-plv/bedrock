@@ -17,6 +17,7 @@ Inductive reg :=
 
 (* Our machine words *)
 Definition W := word 32.
+Definition B := word 8.
 
 (* Basic assignable locations *)
 Inductive loc :=
@@ -95,11 +96,19 @@ Qed.
 Hint Rewrite rupd_eq rupd_ne using congruence : IL.
 
 (* Memories *)
-Definition mem := W -> W.
+Definition mem := W -> B.
 
 Open Scope word_scope.
 
 Notation "$ n" := (natToWord _ n) (at level 0) : word_scope.
+
+Definition separated (a1 a2 : W) :=
+  forall n m, (n < 4)%nat -> (m < 4)%nat
+    -> (a1 ^+ $ n) <> (a2 ^+ $ m).
+
+Definition separatedB (a1 a2 : W) :=
+  forall n, (n < 4)%nat
+    -> a1 <> (a2 ^+ $ n).
 
 (* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
@@ -109,8 +118,11 @@ Record settings := {
   WriteWord : mem -> W -> W -> mem;
   ReadWord : mem -> W -> W;
   (* Word-size memory access operations, which encode the endianness *)
-  ReadWriteEq : forall m k v, WriteWord m k v k = v;
-  ReadWriteNe : forall m k v k', k' >= k ^+ $4 -> k' ^+ $4 <= k -> WriteWord m k v k' = m k';
+  ReadWriteEq : forall m k v, ReadWord (WriteWord m k v) k = v;
+  ReadWriteNe : forall m k v k', separated k' k
+    -> ReadWord (WriteWord m k v) k' = ReadWord m k';
+  ReadWriteNeB : forall m k v k', separatedB k' k
+    -> WriteWord m k v k' = m k';
   (* Our only assumptions about the behavior of [WriteWord] and [ReadWord] *)
   Labels : label -> option W
   (* Locations of basic blocks *)
@@ -119,7 +131,7 @@ Record settings := {
 Definition wring32 := wring 32.
 Add Ring wring32 : wring32 (decidable (weqb_sound 32), constants [wcst]).
 
-Theorem ReadWriteEq' : forall s m k v k', k' = k -> WriteWord s m k v k' = v.
+Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = v.
   intros; subst; apply ReadWriteEq.
 Qed.
 

@@ -539,3 +539,94 @@ Theorem labelsOf_agree : forall M l pre bl, LabelMap.MapsTo l (pre, bl) M
     /\ snd (labelsOf M) w = Some bl.
   intros; eapply labelsOf'_agree; intuition eauto; discriminate.
 Qed.
+
+
+(** * Some default word-size memory accessors *)
+
+Definition writeWord (m : mem) (a v : W) : mem :=
+  let dw1 := split1 16 16 v in
+  let dw2 := split2 16 16 v in
+  let b1 := split1 8 8 dw1 in
+  let b2 := split2 8 8 dw1 in
+  let b3 := split1 8 8 dw2 in
+  let b4 := split2 8 8 dw2 in
+    fun a' => if weq a' a then b1
+      else if weq a' (a ^+ $1) then b2
+        else if weq a' (a ^+ $2) then b3
+          else if weq a' (a ^+ $3) then b4
+            else m a'.
+
+Definition readWord (m : mem) (a : W) : W :=
+  let b1 := m a in
+  let b2 := m (a ^+ $1) in
+  let b3 := m (a ^+ $2) in
+  let b4 := m (a ^+ $3) in
+    combine (combine b1 b2) (combine b3 b4).
+
+Ltac readWrite :=
+  unfold readWord, writeWord, separated, separatedB; intuition;
+    repeat match goal with
+             | [ |- context[if ?E then _ else _] ] => destruct E; try subst; try (tauto
+               || match goal with
+                    | [ _ : ?x = ?y |- _ ] => assert (x <> y) by word_neq; tauto
+                    | [ _ : ?x <> ?y |- _ ] => assert (x = y) by word_eq; tauto
+                  end
+               || solve [ elimtype False; eauto ]);
+             repeat match goal with
+                      | [ H : ?G |- _ ] => let H' := fresh in assert (H' : G) by (clear; solve [ word_neq | word_eq ]); clear H H'
+                    end
+           end; repeat rewrite combine_split; auto.
+
+Theorem readWriteEq : forall m k v, readWord (writeWord m k v) k = v.
+  readWrite.
+Qed.
+
+Theorem wlt_not_refl : forall n (w : word n), w < w -> False.
+  unfold wlt; intros; nomega.
+Qed.
+
+Hint Immediate wlt_not_refl.
+
+Lemma use_separated : forall (k : W) q,
+  (forall n m, (n < 4)%nat -> (m < 4)%nat -> k ^+ $ q ^+ $ n = k ^+ $ m -> False)
+  -> (q < 4)%nat
+  -> False.
+  intros.
+  apply H with 0 q; auto.
+  word_eq.
+Qed.
+
+Lemma use_separated' : forall (k : W) q,
+  (forall n m, (n < 4)%nat -> (m < 4)%nat -> k ^+ $ n = k ^+ $ q ^+ $ m -> False)
+  -> (q < 4)%nat
+  -> False.
+  intros.
+  apply H with q 0; auto.
+  word_eq.
+Qed.
+
+Local Hint Extern 1 False => eapply use_separated; [ eassumption | omega ].
+Local Hint Extern 1 False => eapply use_separated'; [ eassumption | omega ].
+Local Hint Extern 1 False => match goal with
+                               | [ H : forall n m : nat, _ |- _ ] => eapply H; [ | | eassumption ]; omega
+                             end.
+
+Theorem readWriteNe : forall m k v k', separated k' k
+  -> readWord (writeWord m k v) k' = readWord m k'.
+  readWrite.
+Qed.
+
+Lemma use_separatedB : forall k : W,
+  (forall n, (n < 4)%nat -> k = k ^+ $ n -> False)
+  -> False.
+  intros.
+  apply H with 0; auto.
+  unfold W in *; word_eq.
+Qed.
+
+Local Hint Immediate use_separatedB.
+
+Theorem readWriteNeB : forall m k v k', separatedB k' k
+  -> writeWord m k v k' = m k'.
+  readWrite.
+Qed.
