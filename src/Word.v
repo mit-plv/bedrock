@@ -313,22 +313,28 @@ Fixpoint split2 (sz1 sz2 : nat) : word (sz1 + sz2) -> word sz2 :=
     | S sz1' => fun w => split2 sz1' sz2 (wtl w)
   end.
 
-Require Import Program.
+Ltac shatterer := simpl; intuition;
+  match goal with
+    | [ w : _ |- _ ] => rewrite (shatter_word w); simpl
+  end; f_equal; auto.
 
 Theorem combine_split : forall sz1 sz2 (w : word (sz1 + sz2)),
   combine (split1 sz1 sz2 w) (split2 sz1 sz2 w) = w.
-  induction sz1; dependent destruction w; simpl; intuition; f_equal; auto.
+  induction sz1; shatterer.
 Qed.
 
 Theorem split1_combine : forall sz1 sz2 (w : word sz1) (z : word sz2),
   split1 sz1 sz2 (combine w z) = w.
-  induction sz1; dependent destruction w; simpl; intuition; f_equal; auto.
+  induction sz1; shatterer.
 Qed.
 
 Theorem split2_combine : forall sz1 sz2 (w : word sz1) (z : word sz2),
   split2 sz1 sz2 (combine w z) = z.
-  induction sz1; dependent destruction w; simpl; intuition; f_equal; auto.
+  induction sz1; shatterer.
 Qed.
+
+Require Import Eqdep_dec.
+
 
 Theorem combine_assoc : forall n1 (w1 : word n1) n2 n3 (w2 : word n2) (w3 : word n3) Heq,
   combine (combine w1 w2) w3
@@ -337,7 +343,7 @@ Theorem combine_assoc : forall n1 (w1 : word n1) n2 n3 (w2 : word n2) (w3 : word
     end.
   induction w1; simpl; intuition.
 
-  rewrite (UIP_refl _ _ Heq); reflexivity.
+  rewrite (UIP_dec eq_nat_dec Heq (refl_equal _)); reflexivity.
 
   rewrite (IHw1 _ _ _ _ (plus_assoc _ _ _)); clear IHw1.
   repeat match goal with
@@ -345,8 +351,8 @@ Theorem combine_assoc : forall n1 (w1 : word n1) n2 n3 (w2 : word n2) (w3 : word
          end.  
   generalize dependent (combine w1 (combine w2 w3)).
   rewrite plus_assoc; intros.
-  rewrite (UIP_refl _ _ e).
-  rewrite (UIP_refl _ _ Heq0).
+  rewrite (UIP_dec eq_nat_dec e (refl_equal _)).
+  rewrite (UIP_dec eq_nat_dec Heq0 (refl_equal _)).
   reflexivity.
 Qed.
 
@@ -357,7 +363,7 @@ Theorem split2_iter : forall n1 n2 n3 Heq w,
                          end).
   induction n1; simpl; intuition.
 
-  rewrite (UIP_refl _ _ Heq); reflexivity.
+  rewrite (UIP_dec eq_nat_dec Heq (refl_equal _)); reflexivity.
 
   rewrite (IHn1 _ _ (plus_assoc _ _ _)).
   f_equal.
@@ -372,8 +378,8 @@ Theorem split2_iter : forall n1 n2 n3 Heq w,
   generalize Heq e.
   subst.
   intros.
-  rewrite (UIP_refl _ _ e).
-  rewrite (UIP_refl _ _ Heq0).
+  rewrite (UIP_dec eq_nat_dec e (refl_equal _)).
+  rewrite (UIP_dec eq_nat_dec Heq0 (refl_equal _)).
   reflexivity.
 Qed.
 
@@ -385,10 +391,10 @@ Theorem combine_end : forall n1 n2 n3 Heq w,
   = split2 n1 (n2 + n3) w.
   induction n1; simpl; intros.
 
-  rewrite (UIP_refl _ _ Heq).
+  rewrite (UIP_dec eq_nat_dec Heq (refl_equal _)).
   apply combine_split.
 
-  dependent destruction w.
+  rewrite (shatter_word w) in *.
   simpl.
   eapply trans_eq; [ | apply IHn1 with (Heq := plus_assoc _ _ _) ]; clear IHn1.
   repeat f_equal.
@@ -399,8 +405,8 @@ Theorem combine_end : forall n1 n2 n3 Heq w,
   generalize dependent w.
   rewrite plus_assoc.
   intros.
-  rewrite (UIP_refl _ _ e).
-  rewrite (UIP_refl _ _ Heq0).
+  rewrite (UIP_dec eq_nat_dec e (refl_equal _)).
+  rewrite (UIP_dec eq_nat_dec Heq0 (refl_equal _)).
   reflexivity.
 Qed.
 
@@ -684,10 +690,10 @@ Qed.
 Theorem wmult_unit : forall sz (x : word sz), natToWord sz 1 ^* x = x.
   intros; rewrite wmult_alt; unfold wmultN, wordBinN; intros.
   destruct sz; simpl.
-  dependent destruction x; reflexivity.
+  rewrite (shatter_word x); reflexivity.
   rewrite roundTrip_0; simpl.
   rewrite plus_0_r.
-  dependent destruction x.
+  rewrite (shatter_word x).
   f_equal.
 
   apply mod2_WS.
@@ -858,11 +864,11 @@ Theorem wor_unit : forall sz (x : word sz), wzero sz ^| x = x.
 Qed.
 
 Theorem wor_comm : forall sz (x y : word sz), x ^| y = y ^| x.
-  unfold wor; induction x; dependent destruction y; simpl; intuition; f_equal; auto with bool.
+  unfold wor; induction x; intro y; rewrite (shatter_word y); simpl; intuition; f_equal; auto with bool.
 Qed.
 
 Theorem wor_assoc : forall sz (x y z : word sz), x ^| (y ^| z) = x ^| y ^| z.
-  unfold wor; induction x; dependent destruction y; simpl; intuition; f_equal; auto with bool.
+  unfold wor; induction x; intro y; rewrite (shatter_word y); simpl; intuition; f_equal; auto with bool.
 Qed.
 
 Theorem wand_unit : forall sz (x : word sz), wones sz ^& x = x.
@@ -874,16 +880,16 @@ Theorem wand_kill : forall sz (x : word sz), wzero sz ^& x = wzero sz.
 Qed.
 
 Theorem wand_comm : forall sz (x y : word sz), x ^& y = y ^& x.
-  unfold wand; induction x; dependent destruction y; simpl; intuition; f_equal; auto with bool.
+  unfold wand; induction x; intro y; rewrite (shatter_word y); simpl; intuition; f_equal; auto with bool.
 Qed.
 
 Theorem wand_assoc : forall sz (x y z : word sz), x ^& (y ^& z) = x ^& y ^& z.
-  unfold wand; induction x; dependent destruction y; simpl; intuition; f_equal; auto with bool.
+  unfold wand; induction x; intro y; rewrite (shatter_word y); simpl; intuition; f_equal; auto with bool.
 Qed.
 
 Theorem wand_or_distr : forall sz (x y z : word sz), (x ^| y) ^& z = (x ^& z) ^| (y ^& z).
-  unfold wand, wor; induction x; dependent destruction y; dependent destruction z; simpl; intuition; f_equal; auto with bool.
-  destruct b0; destruct b1; destruct b; reflexivity.
+  unfold wand, wor; induction x; intro y; rewrite (shatter_word y); intro z; rewrite (shatter_word z); simpl; intuition; f_equal; auto with bool.
+  destruct (whd y); destruct (whd z); destruct b; reflexivity.
 Qed.
 
 Definition wbring (sz : nat) : semi_ring_theory (wzero sz) (wones sz) (@wor sz) (@wand sz) (@eq _) :=
@@ -963,17 +969,17 @@ Notation "w1 '<s=' w2" := (~(@wslt _ w2%word w1%word)) (at level 70, arguments a
 Definition wlt_dec : forall sz (l r : word sz), {l < r} + {l >= r}.
   refine (fun sz l r => 
     match Ncompare (wordToN l) (wordToN r) as k return Ncompare (wordToN l) (wordToN r) = k -> _ with
-      | Lt => fun pf => left _
-      | _ => fun pf => right _
+      | Lt => fun pf => left _ _
+      | _ => fun pf => right _ _
     end (refl_equal _));
-  abstract (congruence).
+  abstract congruence.
 Defined.
 
 Definition wslt_dec : forall sz (l r : word sz), {l <s r} + {l >s= r}.
   refine (fun sz l r => 
     match Zcompare (wordToZ l) (wordToZ r) as c return Zcompare (wordToZ l) (wordToZ r) = c -> _ with
-      | Lt => fun pf => left _ 
-      | _ => fun pf => right _
+      | Lt => fun pf => left _ _
+      | _ => fun pf => right _ _
     end (refl_equal _));
   abstract congruence.
 Defined.
@@ -992,16 +998,15 @@ Qed.
 Lemma wordToN_inj : forall sz (a b : word sz),
   wordToN a = wordToN b -> a = b.
 Proof.
-  induction a. dependent destruction b. auto.
-  dependent destruction b0. intros.
+  induction a; intro b0; rewrite (shatter_word b0); intuition.
   simpl in H.
-  destruct b; destruct b0; intros.
+  destruct b; destruct (whd b0); intros.
   f_equal. eapply IHa. eapply Nsucc_inj in H.
-  destruct (wordToN a); destruct (wordToN b2); try congruence.
-  destruct (wordToN b2); destruct (wordToN a); inversion H.
-  destruct (wordToN b2); destruct (wordToN a); inversion H.
+  destruct (wordToN a); destruct (wordToN (wtl b0)); try congruence.
+  destruct (wordToN (wtl b0)); destruct (wordToN a); inversion H.
+  destruct (wordToN (wtl b0)); destruct (wordToN a); inversion H.
   f_equal. eapply IHa. 
-  destruct (wordToN a); destruct (wordToN b2); try congruence.
+  destruct (wordToN a); destruct (wordToN (wtl b0)); try congruence.
 Qed.
 Lemma unique_inverse : forall sz (a b1 b2 : word sz),
   a ^+ b1 = wzero _ ->
@@ -1057,10 +1062,9 @@ Ltac shatter_word x :=
 (** Uniqueness of equality proofs **)
 Lemma rewrite_weq : forall sz (a b : word sz)
   (pf : a = b),  
-  weq a b = left pf.
+  weq a b = left _ pf.
 Proof.
   intros; destruct (weq a b); try solve [ elimtype False; auto ].
   f_equal. 
-  Require Import Eqdep_dec.
   eapply UIP_dec. eapply weq.
 Qed.

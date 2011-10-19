@@ -153,9 +153,9 @@ Section settings.
   Definition inBounds_dec (a : W) : {inBounds a} + {~inBounds a}.
     refine (if wlt_dec a (MemHigh stn)
       then if wlt_dec (a ^+ $3) (MemHigh stn)
-        then left _
-        else right _
-      else right _); abstract (unfold inBounds; tauto).
+        then left _ _
+        else right _ _
+      else right _ _); abstract (unfold inBounds; tauto).
   Defined.
 
   Section state.

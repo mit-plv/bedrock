@@ -2,7 +2,7 @@
 
 Require Import Bool String.
 
-Require Import PropX PropXTac IL LabelMap XCAP Structured StructuredModule.
+Require Import PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker.
 
 Set Implicit Arguments.
 
@@ -176,3 +176,19 @@ Ltac ho := autorewrite with IL in *;
         | [ H : forall x, interp _ (_ --> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
         | [ |- interp _ _ ] => propxFo
       end.
+
+Ltac withLabel := eexists; split; [
+  match goal with
+    | [ |- ?E = _ ] => let E' := eval compute in E in change E with E'
+  end; eauto | intros ].
+
+Ltac equate x y := let H := fresh in assert (H : x = y) by reflexivity; clear H.
+
+Ltac safety mok lab := eapply safety; [ exact (refl_equal 0) | exact (refl_equal Datatypes.Lt) | apply mok
+  | match goal with
+      | [ |- LabelMap.find ?l _ = _ ] => equate l lab
+    end; match goal with
+           | [ |- ?E = _ ] => let E' := eval compute in E in change E with E'
+         end; reflexivity
+  | reflexivity
+  | propxFo ].

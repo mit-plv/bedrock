@@ -62,3 +62,12 @@ Theorem immedProgOk : moduleOk immedProg.
 Qed.
 
 Print Assumptions immedProgOk.
+
+Definition immedSettings := testSettings (NToWord _ 1024) immedProg.
+
+Theorem immedProgReallyOk : exists w, Labels immedSettings ("main", Global "main") = Some w
+  /\ forall st, safe immedSettings (snd (labelsOf (XCAP.Blocks immedProg))) (w, st).
+  withLabel; safety immedProgOk ("main", Global "main").
+Qed.
+
+Print Assumptions immedProgReallyOk.

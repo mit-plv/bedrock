@@ -2,7 +2,7 @@
 
 Require Import NArith.
 
-Require Import Nomega Word IL LabelMap XCAP.
+Require Import Nomega Word IL LabelMap PropX XCAP.
 
 Set Implicit Arguments.
 
@@ -630,3 +630,35 @@ Theorem readWriteNeB : forall m k v k', separatedB k' k
   -> writeWord m k v k' = m k'.
   readWrite.
 Qed.
+
+
+(** * Finally, we can create settings for testing. *)
+
+Section testSettings.
+  Variable memHigh : W.
+  Variable m : module.
+
+  Definition testSettings := {|
+    MemHigh := memHigh;
+    WriteWord := writeWord;
+    ReadWord := readWord;
+    ReadWriteEq := readWriteEq;
+    ReadWriteNe := readWriteNe;
+    ReadWriteNeB := readWriteNeB;
+    Labels := fst (labelsOf (Blocks m))
+  |}.
+
+  Hypothesis closed : LabelMap.cardinal (Imports m) = 0.
+  Hypothesis notTooBig : (N_of_nat (LabelMap.cardinal (Blocks m)) < Npow2 32)%N.
+  Hypothesis ok : moduleOk m.
+
+  Theorem safety : forall l pre bl, LabelMap.find l (Blocks m) = Some (pre, bl)
+    -> forall w, Labels testSettings l = Some w
+      -> forall st, interp (specs m testSettings) (pre (testSettings, st))
+        -> safe testSettings (snd (labelsOf (Blocks m))) (w, st).
+    intros; eapply safety; intuition eauto.
+    apply labelsOf_inj with (Blocks m) w0; auto.
+    simpl; eapply labelsOf_agree; eauto.
+    apply LabelMap.find_2; eauto.
+  Qed.
+End testSettings.

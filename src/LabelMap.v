@@ -218,9 +218,9 @@ Module LabelKey.
     Definition eq_dec x y : { eq x y } + { ~ eq x y }.
       refine (if string_dec (fst x) (fst y)
         then if label'_eq (snd x) (snd y)
-          then left _
-          else right _
-        else right _); abstract (unfold eq in *; destruct x; destruct y; simpl in *; congruence).
+          then left _ _
+          else right _ _
+        else right _ _); abstract (unfold eq in *; destruct x; destruct y; simpl in *; congruence).
     Defined.
   End hide_hints.
 End LabelKey.
