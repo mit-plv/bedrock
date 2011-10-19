@@ -196,3 +196,346 @@ Theorem labelsOf_inj : forall M l1 l2 w, fst (labelsOf M) l1 = Some w
   -> l1 = l2.
   intros; eapply labelsOf'_inj; eauto; simpl; intuition; discriminate.
 Qed.
+
+Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre, bl) M
+  -> (forall l w'', labels l = Some w'' -> (wordToNat w'' < wordToNat w')%nat)
+  -> (wordToN w' + N_of_nat (LabelMap.cardinal M) < Npow2 32)%N
+  -> exists w, fst (labelsOf' M (w', (labels, prog))) l = Some w
+    /\ snd (labelsOf' M (w', (labels, prog))) w = Some bl.
+  unfold labelsOf'; simpl; intros.
+  rewrite LabelMap.fold_1 in *.
+  rewrite LabelMap.cardinal_1 in *.
+  apply LabelMap.elements_1 in H.
+  generalize dependent prog.
+  generalize dependent labels.
+  generalize dependent w'.
+  generalize (LabelMap.elements_3w M).
+  induction 1; simpl; intuition.
+  inversion H.
+
+  inversion H; clear H; intros; subst.
+  hnf in H5; simpl in H5; intuition; subst.
+  destruct x; simpl in *; subst.
+
+  exists w'; intuition.
+
+  Lemma labels_keep : forall k v w ls w' labels prog,
+    labels k = Some w
+    -> ~SetoidList.InA (@LabelMap.eq_key _) (k, v) ls
+    -> fst (snd (List.fold_left
+      (fun
+        (a : word 32 *
+          ((LabelKey.t -> option (word 32)) *
+            (word 32 -> option block)))
+        (p : LabelMap.key * (assert * block)) =>
+        let (_, bl0) := snd p in
+          let '(w, (labels0, prog0)) := a in
+            (WO~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~1
+              ^+ w,
+              (fun k' : LabelKey.t =>
+                if LabelFacts.eq_dec k' (fst p) then Some w else labels0 k',
+                  fun w'0 : word 32 =>
+                    if weq w'0 w then Some bl0 else prog0 w'0))) ls
+      (w', (labels, prog))))
+     k = Some w.
+    induction ls as [ | [ ? [ ] ] ]; simpl; intuition.
+    apply IHls; auto.
+    destruct (LabelFacts.eq_dec k k0).
+    elimtype False; apply H0.
+    hnf in e; subst.
+    constructor; hnf; auto.
+    auto.
+  Qed.
+
+  eapply labels_keep; eauto.
+  destruct (LabelFacts.eq_dec k k); auto.
+  elimtype False; apply n; reflexivity.
+
+  Lemma prog_keep : forall w bl ls w' labels prog,
+    prog w = Some bl
+    -> w < w'
+    -> (wordToN w' + N_of_nat (length ls) < Npow2 32)%N
+    -> snd (snd (List.fold_left
+      (fun
+        (a : word 32 *
+          ((LabelKey.t -> option (word 32)) *
+            (word 32 -> option block)))
+        (p : LabelMap.key * (assert * block)) =>
+        let (_, bl0) := snd p in
+          let '(w, (labels0, prog0)) := a in
+            (WO~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~1
+              ^+ w,
+              (fun k' : LabelKey.t =>
+                if LabelFacts.eq_dec k' (fst p) then Some w else labels0 k',
+                  fun w'0 : word 32 =>
+                    if weq w'0 w then Some bl0 else prog0 w'0))) ls
+      (w', (labels, prog))))
+     w = Some bl.
+    induction ls as [ | [ ? [ ] ] ]; simpl; intuition.
+    apply IHls; auto.
+    destruct (weq w w').
+    subst.
+    elimtype False.
+    unfold wlt in H0.
+    apply Nlt_not_eq in H0; tauto.
+    auto.
+
+    generalize H0 H1; clear; intros. 
+    change 4294967296%N with (Npow2 32) in *.
+    destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
+    rewrite <- Npow2_nat in *.
+    generalize dependent (Npow2 32); intros.
+    apply Nlt_out in H1.
+    autorewrite with N in *.
+    change (nat_of_N (Npos (P_of_succ_nat (length ls)))) with (nat_of_P (P_of_succ_nat (length ls))) in H1.
+    rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H1.
+    rewrite wordToN_nat in H1.
+    autorewrite with N in *.
+    unfold wlt in *.
+    unfold wplus, wordBin.
+    rewrite NToWord_nat.
+    repeat rewrite wordToN_nat in *.
+    autorewrite with N in *.
+    match goal with
+      | [ |- context[wordToNat ?N] ] =>
+        match N with
+          | _~1 => change (wordToNat N) with 1
+        end
+    end.
+    rewrite H2; clear H2.
+    destruct x.
+    generalize H0; clear.
+    intros; nomega.
+    elimtype False.
+    clear H0.
+
+    Lemma slow : forall x ln w' n,
+      (w' + S ln < n)%nat
+      -> (S x * n <= 1 + w')%nat
+      -> False.
+      simpl; intros.
+      generalize dependent (x * n); intros; omega.
+    Qed.
+
+    eapply slow; eassumption.
+
+    generalize H1; clear; intros.
+    change 4294967296%N with (Npow2 32) in *.  
+    destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
+    rewrite <- Npow2_nat in *.
+    generalize dependent (Npow2 32); intros.
+    unfold wplus, wordBin.
+    rewrite NToWord_nat.
+    match goal with
+      | [ |- context[wordToN ?N] ] =>
+        match N with
+          | _~1 => change (wordToN N) with 1%N
+        end
+    end.
+    rewrite nat_of_Nplus.
+    change (nat_of_N 1) with 1.
+    rewrite wordToN_nat.
+    autorewrite with N.  
+    repeat rewrite wordToN_nat in *.
+    autorewrite with N in *.
+    rewrite H0; clear H0.
+    rewrite N_of_minus.
+    rewrite N_of_plus.
+    rewrite N_of_mult.
+    change (N_of_nat 1) with 1%N.
+    apply Nlt_out in H1.
+    autorewrite with N in *.
+    change (nat_of_N (Npos (P_of_succ_nat (length ls)))) with (nat_of_P (P_of_succ_nat (length ls))) in H1.
+    rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H1.
+    destruct x.
+    change (N_of_nat 0) with 0%N.
+    apply Nlt_in.
+    autorewrite with N.
+    change (nat_of_N 1) with 1.
+    change (nat_of_N (0 * N_of_nat (pow2 32))) with 0.
+    omega.
+    elimtype False.
+    eapply contra; [ | eassumption ].
+    omega.
+  Qed.
+
+  apply prog_keep.
+  destruct (weq w' w'); tauto.
+
+  generalize H2; clear; intros.
+  change 4294967296%N with (Npow2 32) in *.
+  apply Nlt_out in H2.
+  autorewrite with N in H2.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))) in H2.
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H2.
+  unfold wlt, wplus, wordBin.
+  match goal with
+    | [ |- context[wordToN ?N] ] =>
+      match N with
+        | _~1 => change (wordToN N) with 1%N
+      end
+  end.
+  rewrite NToWord_nat in *.
+  rewrite wordToN_nat in *.
+  autorewrite with N in *.
+  rewrite wordToN_nat in *.
+  change (nat_of_N 1) with 1.
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.  
+  rewrite H0.
+  rewrite <- Npow2_nat in *.
+  generalize dependent (Npow2 32); intros.
+  apply Nlt_in.
+  autorewrite with N.
+  destruct x.
+  omega.
+  elimtype False.
+  eapply slow; eauto.
+
+  generalize H2; clear.
+  change 4294967296%N with (Npow2 32).
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
+  rewrite <- Npow2_nat in *.
+  generalize dependent (Npow2 32); intros.
+  eapply lt_trans; eauto.
+  apply nat_of_N_eq.
+  autorewrite with N.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))).
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ.
+  rewrite wordToN_nat.
+  autorewrite with N.
+  unfold wplus, wordBin.
+  rewrite NToWord_nat.
+  autorewrite with N.
+  match goal with
+    | [ |- context[wordToN ?N] ] =>
+      match N with
+        | _~1 => change (wordToN N) with 1%N
+      end
+  end.
+  change (nat_of_N 1) with 1.
+  rewrite wordToN_nat; autorewrite with N.
+  rewrite H0; clear H0.
+  apply Nlt_out in H2.
+  autorewrite with N in *.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))) in H2.
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H2.
+  destruct x.
+  omega.
+  elimtype False.
+  eapply slow; eauto.
+  rewrite wordToN_nat; autorewrite with N; eauto.
+
+
+  destruct x as [ ? [ ] ]; simpl in *.
+  apply IHNoDupA; auto.
+  generalize H2; clear.
+  change 4294967296%N with (Npow2 32) in *.
+  unfold wplus, wordBin.
+  rewrite NToWord_nat.
+  match goal with
+    | [ |- context[wordToN ?N] ] =>
+      match N with
+        | _~1 => change (wordToN N) with 1%N
+      end
+  end.
+  rewrite nat_of_Nplus.
+  change (nat_of_N 1) with 1.
+  repeat rewrite wordToN_nat.
+  autorewrite with N.  
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
+  rewrite H0; clear H0.
+  repeat rewrite <- Npow2_nat in *.
+  generalize dependent (Npow2 32); intros.
+  rewrite N_of_minus.
+  rewrite N_of_plus.
+  rewrite N_of_mult.
+  change (N_of_nat 1) with 1%N.
+  apply Nlt_out in H2.
+  autorewrite with N in H2.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))) in H2.
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H2.
+  autorewrite with N.
+  destruct x.
+  apply Nlt_in.
+  autorewrite with N.
+  change (nat_of_N 1) with 1.
+  change (nat_of_N (N_of_nat 0 * n))%N with 0.
+  omega.
+  elimtype False.
+  eapply contra; [ | eassumption ].  
+  omega.
+
+  intros.
+  repeat match goal with
+           | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
+           | [ H : LabelKey.eq _ _ |- _ ] => hnf in H; subst
+         end; auto.
+  injection H; clear H; intro; subst.
+  generalize H2; clear; intros.
+  apply Nlt_out in H2.
+  autorewrite with N in *.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))) in H2.
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H2.
+  rewrite wordToN_nat in H2.
+  autorewrite with N in *.
+  unfold wplus, wordBin.
+  match goal with
+    | [ |- context[wordToN ?N] ] =>
+      match N with
+        | _~1 => change (wordToN N) with 1%N
+      end
+  end.
+  rewrite NToWord_nat.
+  rewrite nat_of_Nplus.
+  change (nat_of_N 1) with 1.
+  rewrite wordToN_nat.
+  autorewrite with N.
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w'')); intuition.
+  rewrite H0; clear H0.
+  destruct x.
+  omega.
+  elimtype False.
+  change 4294967296%N with (Npow2 32) in *.
+  rewrite Npow2_nat in *.
+  eapply contra; [ | eassumption ].
+  omega.
+
+  apply H3 in H.
+  generalize H H2; clear; intros.
+  change 4294967296%N with (Npow2 32) in *.  
+  unfold wplus, wordBin.
+  rewrite NToWord_nat.
+  match goal with
+    | [ |- context[wordToN ?N] ] =>
+      match N with
+        | _~1 => change (wordToN N) with 1%N
+      end
+  end.
+  rewrite nat_of_Nplus.
+  change (nat_of_N 1) with 1.
+  rewrite wordToN_nat.
+  autorewrite with N.  
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
+  rewrite H1; clear H1.
+  destruct x.
+  omega.
+  elimtype False.
+  eapply contra; [ | eassumption ].
+  generalize H2; clear; intro.
+  apply Nlt_out in H2.
+  autorewrite with N in *.
+  change (nat_of_N (Npos (P_of_succ_nat (length l0)))) with (nat_of_P (P_of_succ_nat (length l0))) in H2.
+  rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H2.
+  rewrite wordToN_nat in H2.
+  autorewrite with N in *.
+  rewrite Npow2_nat in *.
+  generalize dependent (pow2 32).
+  intros; omega.
+Qed.
+
+Theorem labelsOf_agree : forall M l pre bl, LabelMap.MapsTo l (pre, bl) M
+  -> (N_of_nat (LabelMap.cardinal M) < Npow2 32)%N
+  -> exists w, fst (labelsOf M) l = Some w
+    /\ snd (labelsOf M) w = Some bl.
+  intros; eapply labelsOf'_agree; intuition eauto; discriminate.
+Qed.
