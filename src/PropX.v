@@ -1513,7 +1513,7 @@ End machine.
 Implicit Arguments Inj [pc state G].
 Implicit Arguments Var0 [pc state G A].
 Implicit Arguments Lift [pc state G A].
-Notation "[| p |]" := (Inj p) : PropX_scope.
+Notation "[| p |]" := (Inj p%type) : PropX_scope.
 Infix "/\" := And : PropX_scope.
 Infix "\/" := Or : PropX_scope.
 Infix "-->" := Imply (at level 86, right associativity) : PropX_scope.

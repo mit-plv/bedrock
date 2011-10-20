@@ -57,7 +57,7 @@ Definition fact := bmodule "fact" {{
     $[0] <- Rv;;
     $[4] <- 1;;
 
-    [st ~> [| inBounds (fst st) 0 /\ inBounds (fst st) 4 |] /\ st#Rp @@ (st' ~> [| exists r, (factR st.[0] r /\ st'#Rv = st.[4] ^* r)%type |])]
+    [st ~> [| inBounds (fst st) 0 /\ inBounds (fst st) 4 |] /\ st#Rp @@ (st' ~> [| exists r, factR st.[0] r /\ st'#Rv = st.[4] ^* r |])]
     While ($[0] <> 0) {
       $[4] <- $[0] * $[4];;
       $[0] <- $[0] - 1
