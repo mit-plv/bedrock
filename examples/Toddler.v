@@ -26,15 +26,12 @@ Qed.
 (** Factorial! *)
 
 Lemma separated_0_4 : separated 0 4.
-  apply const_separated.
-(*  W_neq.
-Qed.*)
-Admitted.
+  W_neq.
+Qed.
 
 Lemma separated_4_0 : separated 4 0.
-(*  W_neq.
-Qed.*)
-Admitted.
+  W_neq.
+Qed.
 
 Hint Resolve separated_0_4 separated_4_0.
 

@@ -281,7 +281,7 @@ Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k 
 Qed.
 
 Ltac W_eq := wprepare; word_eq.
-Ltac W_neq := wprepare; word_neq || (apply const_separated; word_neq).
+Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
 
 Hint Rewrite ReadWriteEq' using W_eq : IL.
 Hint Rewrite ReadWriteNe using solve [ auto ] : IL.
