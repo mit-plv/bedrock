@@ -90,3 +90,58 @@ Hint Extern 5 (@eq W _ _) => match goal with
 Theorem factOk : moduleOk fact.
   structured; (ho; eauto).
 Qed.
+
+Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
+  bmodule "factDriver" {{
+    bfunction "main" [st ~> [| inBounds (fst st) 0 /\ inBounds (fst st) 4 |]] {
+      Rv <- 4;;
+      Call "fact"!"fact"
+      [st ~> [| st#Rv = 24 |] ];;
+      Diverge
+    }
+  }}.
+
+Theorem factR_4 : forall r, factR 4 r -> r = 24.
+  intros; repeat match goal with
+                   | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; []
+                 end;
+  match goal with
+    | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; [ reflexivity
+      | elimtype False; match goal with
+                          | [ H : _ |- _ ] => apply H; reflexivity
+                        end ]
+  end.
+Qed.  
+
+Hint Resolve factR_4.
+
+Theorem factDriverOk : moduleOk factDriver.
+  structured; ho.
+Qed.
+
+Definition factProg := link fact factDriver.
+
+Theorem factProgOk : moduleOk factProg.
+  link factOk factDriverOk.
+Qed.
+
+Definition factSettings := testSettings (NToWord _ 1024) factProg.
+Definition factProgram := snd (labelsOf (XCAP.Blocks factProg)).
+
+Transparent natToWord.
+
+Hint Extern 5 (inBounds _ _) => split; reflexivity.
+
+Theorem factProgReallyOk : { w : _ | Labels factSettings ("factDriver", Global "main") = Some w
+  /\ forall st, safe factSettings factProgram (w, st) }.
+  withLabel; safety factProgOk ("factDriver", Global "main").
+Defined.
+
+Print Assumptions factProgReallyOk.
+
+Definition final := Eval compute in exec factSettings factProgram 20
+  (proj1_sig factProgReallyOk,
+    {| Regs := fun _ => wzero _;
+      Mem := fun _ => wzero _ |}).
+
+Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.

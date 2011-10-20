@@ -190,7 +190,7 @@ Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
          end; simpl; propxFo; conditions) ].
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
-  | exact (refl_equal false) | repeat split | repeat split | exact I ].
+  | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].
 
 Ltac ho := autorewrite with IL in *;
   repeat match goal with
@@ -203,19 +203,18 @@ Ltac ho := autorewrite with IL in *;
            | [ |- interp _ _ ] => propxFo
          end; autorewrite with IL in *.
 
-Ltac withLabel := eexists; split; [
-  match goal with
-    | [ |- ?E = _ ] => let E' := eval compute in E in change E with E'
-  end; eauto | intros ].
+Ltac withLabel := eexists; split; [ compute; eauto | intros ].
 
 Ltac equate x y := let H := fresh in assert (H : x = y) by reflexivity; clear H.
 
 Ltac safety mok lab := eapply safety; [ exact (refl_equal 0) | exact (refl_equal Datatypes.Lt) | apply mok
   | match goal with
-      | [ |- LabelMap.find ?l _ = _ ] => equate l lab
-    end; match goal with
-           | [ |- ?E = _ ] => let E' := eval compute in E in change E with E'
-         end; reflexivity
+      | [ |- LabelMap.find ?l _ = Some (?u, ?v) ] => equate l lab; simpl;
+        match goal with
+          | [ |- context[LabelMap.add lab (?u', ?v') _] ] =>
+            equate u u'; equate v v'; reflexivity
+        end
+    end
   | reflexivity
   | propxFo ].
 
