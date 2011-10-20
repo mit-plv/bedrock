@@ -1,8 +1,8 @@
 (* Final syntax for structured programming *)
 
-Require Import Bool String.
+Require Import NArith Bool String.
 
-Require Import PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker.
+Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker.
 
 Set Implicit Arguments.
 
@@ -78,8 +78,15 @@ Definition compile (m : module) : list (label * block) := List.map (fun x => let
 
 (** ** Expressions *)
 
-Notation "$[ v ]" := (LvMem v) (at level 0, n at level 0) : SP_scope.
-Notation "$[ r + w ]" := (LvMem (Indir r w)) (at level 0, r at level 0, w at level 0) : SP_scope.
+Infix "+" := Indir : loc_scope.
+Delimit Scope loc_scope with loc.
+
+Notation "$[ v ]" := (LvMem v%loc) (at level 0, n at level 0) : SP_scope.
+
+Coercion natToW: nat >-> W.
+
+Definition NToW (n : N) : W := NToWord _ n.
+Coercion NToW : N >-> W.
 
 Definition labl (mod func : string) : label := (mod, Global func).
 
@@ -96,12 +103,20 @@ Inductive rhs :=
 
 Coercion Rvalue : rvalue >-> rhs.
 
+Definition RvImm' (n : nat) := RvImm ($ n).
+
+Coercion RvImm' : nat >-> rvalue.
+
 Notation "x + y" := (Bop x Plus y) : SP_scope.
 Notation "x - y" := (Bop x Minus y) : SP_scope.
 Notation "x * y" := (Bop x Times y) : SP_scope.
 
 Notation "x = y" := {| COperand1 := x; CTest := Eq; COperand2 := y |} : SP_scope.
+Notation "x <> y" := {| COperand1 := x; CTest := Ne; COperand2 := y |} : SP_scope.
 Notation "x < y" := {| COperand1 := x; CTest := Lt; COperand2 := y |} : SP_scope.
+Notation "x <= y" := {| COperand1 := x; CTest := Le; COperand2 := y |} : SP_scope.
+Notation "x > y" := {| COperand1 := y; CTest := Lt; COperand2 := x |} : SP_scope.
+Notation "x >= y" := {| COperand1 := y; CTest := Le; COperand2 := x |} : SP_scope.
 
 Definition Assign' (lv : lvalue) (rh : rhs) :=
   Instr (match rh with
@@ -151,17 +166,28 @@ Notation "'bimport' is 'bmodule' name fs" := (bmodule_ is%SPimps name fs%SPfuncs
 
 (** ** Specs *)
 
-Notation "st ~> p" := (fun x : settings * state => let st := snd x in p%PropX%nat) (at level 100, only parsing).
+Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, only parsing).
 
-Infix "#" := Regs (no associativity, at level 0).
-Notation "st .[ a ]" := (Mem st a) (no associativity, at level 0).
+Notation "st # r" := (Regs (snd st) r) (no associativity, at level 0).
+Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, at level 0).
 
 
 
 (** * Tactics *)
 
+Ltac conditions := unfold evalCond in *; simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *; try discriminate;
+  repeat match goal with
+           | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+           | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
+           | [ _ : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate
+         end; simpl.
+
 Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
-  simpl; repeat (apply List.Forall_nil || apply List.Forall_cons); (simpl; propxFo) ].
+  simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
+    (try match goal with
+           | [ |- context[toCmd _ _ (im := ?im) ?Him _] ] => generalize Him; intro;
+             let im' := eval hnf in im in let im' := eval simpl in im' in change im with im' in *
+         end; simpl; propxFo; conditions) ].
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
   | exact (refl_equal false) | repeat split | repeat split | exact I ].
@@ -171,11 +197,11 @@ Ltac ho := autorewrite with IL in *;
            | [ |- ex _ ] => eexists
            | [ |- _ /\ _ ] => split
          end; eauto; cbv zeta; simpl; intros;
-  try match goal with
-        | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
-        | [ H : forall x, interp _ (_ --> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
-        | [ |- interp _ _ ] => propxFo
-      end.
+  repeat match goal with
+           | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
+           | [ H : forall x, interp _ (_ --> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
+           | [ |- interp _ _ ] => propxFo
+         end; autorewrite with IL in *.
 
 Ltac withLabel := eexists; split; [
   match goal with
@@ -209,3 +235,5 @@ Section exec.
                 end
     end.
 End exec.
+
+Global Opaque natToWord.

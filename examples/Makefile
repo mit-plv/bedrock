@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := Baby
+MODULES := Baby Toddler
 VS      := $(MODULES:%=%.v)
 
 .PHONY: coq clean

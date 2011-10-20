@@ -73,6 +73,8 @@ Defined.
 
 Print Assumptions immedProgReallyOk.
 
+Transparent natToWord.
+
 Definition final := Eval compute in exec immedSettings immedProgram 20
   (proj1_sig immedProgReallyOk,
     {| Regs := fun _ => wzero _;

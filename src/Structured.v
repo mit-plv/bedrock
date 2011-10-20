@@ -357,7 +357,7 @@ Section imports.
 
   Definition Straightline_ (is : list instr) : cmd.
     red; refine (fun pre => {|
-      Postcondition := (fun stn_st => Ex st', [|evalInstrs (fst stn_st) (snd stn_st) is = st'|])%PropX;
+      Postcondition := (fun stn_st => Ex st', pre (fst stn_st, st') /\ [|evalInstrs (fst stn_st) st' is = Some (snd stn_st)|])%PropX;
       VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalInstrs stn st is <> None);
       Generate := fun Base Exit => {|
         Entry := 0;

@@ -1,8 +1,43 @@
 (** Definition of a simple intermediate language *)
 
-Require Import List NArith String.
+Require Import Arith Div2 List NArith String.
 
-Require Import Word.
+Require Import Nomega Word.
+
+
+(* Our machine words *)
+Definition W := word 32.
+Definition B := word 8.
+
+(** * Setting up hidden word constants *)
+
+Fixpoint natToWord' (sz n : nat) : word sz :=
+  match sz with
+    | O => WO
+    | S sz' => WS (mod2 n) (natToWord' sz' (div2 n))
+  end.
+
+Definition natToW (n : nat) : W := natToWord _ n.
+
+Definition isConst (n : nat) := True.
+
+Theorem natToWord_expose : forall n w, isConst w -> natToWord n w = natToWord' n w.
+  reflexivity.
+Qed.
+
+Theorem natToW_expose : forall n, isConst n -> natToW n = natToWord' _ n.
+  reflexivity.
+Qed.
+
+Ltac isConst :=
+  let rec f n :=
+    match n with
+      | O => idtac
+      | S ?n' => f n'
+    end in
+    match goal with
+      [ |- isConst ?n ] => f n; constructor
+    end.
 
 
 (** * Syntax *)
@@ -14,10 +49,6 @@ Inductive reg :=
 | Sp (* Stack pointer *)
 | Rp (* Return pointer *)
 | Rv (* Return value *).
-
-(* Our machine words *)
-Definition W := word 32.
-Definition B := word 8.
 
 (* Basic assignable locations *)
 Inductive loc :=
@@ -62,7 +93,7 @@ Inductive instr :=
 | Binop : lvalue -> rvalue -> binop -> rvalue -> instr.
 
 (* Binary relational operators *)
-Inductive test := Eq | Lt.
+Inductive test := Eq | Ne | Lt | Le.
 
 (* Jumps *)
 Inductive jmp :=
@@ -110,6 +141,123 @@ Definition separatedB (a1 a2 : W) :=
   forall n, (n < 4)%nat
     -> a1 <> (a2 ^+ $ n).
 
+(** * A useful principle for separated *)
+
+Ltac wprepare := repeat match goal with
+                          | [ |- context[natToWord ?n ?m] ] => rewrite (natToWord_expose n m) by isConst
+                          | [ |- context[natToW ?n] ] => rewrite (natToW_expose n) by isConst
+                        end; unfold W in *.
+
+Definition wring32 := wring 32.
+Add Ring wring32 : wring32 (decidable (weqb_sound 32), constants [wcst]).
+
+Definition Wring : @ring_theory W _ _ _ _ _ _ _ := wring 32.
+Add Ring Wring : Wring (decidable (weqb_sound 32), constants [wcst]).
+
+Lemma cancel : forall u v k : W,
+  u ^+ k = v ^+ k
+  -> u = v.
+  intros.
+  apply (f_equal (fun x => x ^+ ^~ k)) in H.
+  replace (u ^+ k ^+ ^~ k) with u in H by (wprepare; word_eq).
+  replace (v ^+ k ^+ ^~ k) with v in H by (wprepare; word_eq).
+  auto.
+Qed.
+
+Hint Immediate cancel.
+
+Lemma cancel_contra : forall u v k : W,
+  u <> v
+  -> u ^+ k <> v ^+ k.
+  generalize cancel; firstorder.
+Qed.
+
+Hint Immediate cancel_contra.
+
+Lemma natToWordToN : forall n m, (N_of_nat m < Npow2 n)%N
+  -> wordToN (natToWord n m) = N_of_nat m.
+  intros.
+  rewrite wordToN_nat.
+  destruct (wordToNat_natToWord n m); intuition.
+  rewrite H1; clear H1.
+  destruct x.
+  nomega.
+  elimtype False.
+  simpl in *.
+  generalize dependent (x * pow2 n).
+  rewrite <- Npow2_nat in *.
+  intros.
+  nomega.
+Qed.
+
+Lemma cancel_contra_minus : forall k1 k2 (u v : W),
+  u ^+ $ k1 = v ^+ $ k2
+  -> (k1 < k2)%nat
+  -> (N_of_nat k2 < Npow2 32)%N
+  -> u = v ^+ $ (k2 - k1).
+  intros.
+  apply cancel with ($ k1).
+  rewrite H; clear H.
+  rewrite <- wplus_assoc.
+  f_equal.
+  unfold wplus, wordBin.
+  repeat rewrite natToWordToN.
+  rewrite <- N_of_plus.
+  replace (k2 - k1 + k1) with k2 by omega.
+  rewrite NToWord_nat.
+  autorewrite with N; reflexivity.
+  auto.
+  generalize dependent (Npow2 32).
+  intros.
+  nomega.
+  generalize dependent (Npow2 32).
+  intros.
+  nomega.
+Qed.
+
+Lemma cancel_contra_minus' : forall k1 k2 (u v : W),
+  u <> v ^+ $ (k2 - k1)%nat
+  -> (k1 < k2)%nat
+  -> (N_of_nat k2 < Npow2 32)%N
+  -> u ^+ $ k1 <> v ^+ $ k2.
+  intros; intro.
+  apply H.
+  eapply cancel_contra_minus; eauto.
+Qed.
+
+Lemma cancel_contra_minus'' : forall k1 k2 (u v : W),
+  v ^+ $ (k2 - k1)%nat <> u
+  -> (k1 < k2)%nat
+  -> (N_of_nat k2 < Npow2 32)%N
+  -> v ^+ $ k2 <> u ^+ $ k1.
+  intros; intro.
+  apply H.
+  symmetry.
+  eapply cancel_contra_minus; eauto.
+Qed.
+
+Local Hint Extern 1 (_ <> _) => apply cancel_contra_minus'; [ assumption | omega | reflexivity ].
+Local Hint Extern 1 (_ <> _) => apply cancel_contra_minus''; [ assumption | omega | reflexivity ].
+
+Theorem const_separated : forall u v,
+  u <> v
+  -> u <> v ^+ $ 1
+  -> u <> v ^+ $ 2
+  -> u <> v ^+ $ 3
+  -> u ^+ $ 1 <> v
+  -> u ^+ $ 2 <> v
+  -> u ^+ $ 3 <> v
+  -> separated u v.
+  red; intros.
+  repeat match goal with
+           | [ H : (_ < _)%nat |- _ ] => inversion H; clear H; subst
+           | [ H : (_ <= _)%nat |- _ ] => inversion H; clear H; subst
+         end; auto.
+Qed.
+
+
+(** * Settings *)
+
 (* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
 Record settings := {
@@ -128,15 +276,15 @@ Record settings := {
   (* Locations of basic blocks *)
 }.
 
-Definition wring32 := wring 32.
-Add Ring wring32 : wring32 (decidable (weqb_sound 32), constants [wcst]).
-
 Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = v.
   intros; subst; apply ReadWriteEq.
 Qed.
 
-Hint Rewrite ReadWriteEq' using (unfold W in *; word_eq) : IL.
-Hint Rewrite ReadWriteNe using (unfold W in *; word_neq) : IL.
+Ltac W_eq := wprepare; word_eq.
+Ltac W_neq := wprepare; word_neq || (apply const_separated; word_neq).
+
+Hint Rewrite ReadWriteEq' using W_eq : IL.
+Hint Rewrite ReadWriteNe using solve [ auto ] : IL.
 
 (* Machine states *)
 Record state := {
@@ -218,11 +366,17 @@ Section settings.
       if wlt_dec w1 w2 then true else false.
     Definition weqb (w1 w2 : W) : bool :=
       if weq w1 w2 then true else false.
+    Definition wneb (w1 w2 : W) : bool :=
+      if weq w1 w2 then false else true.
+    Definition wleb (w1 w2 : W) : bool :=
+      if weq w1 w2 then true else if wlt_dec w1 w2 then true else false.
 
     Definition evalTest (ts : test) : W -> W -> bool :=
       match ts with
         | Lt => wltb
         | Eq => weqb
+        | Ne => wneb
+        | Le => wleb
       end.
 
     Definition evalJmp (j : jmp) : option W :=
