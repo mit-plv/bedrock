@@ -1,7 +1,6 @@
 (** TODO List
  ** - Merging states
  ** - Lifting expressions to new states
- ** - Prover for simple domain
  ** - Unification variables?
  **)
 Require Import List Eqdep_dec.
@@ -413,8 +412,14 @@ Ltac consts e :=
 (** These terms get pretty big since we have to store the list instead of just the length.
  ** It would probably be beneficial to let-bind some terms unless Coq is doing its own sharing
  **)
-Goal forall a b : nat, a + b = b + a.
+Goal forall a b : nat, a + b = a + b.
   intros; reflect consts.
+(* Performance Evaluation *)
+  match goal with
+    | [ |- exprD _ (Func _ (HCons ?A (HCons ?B _))) ] => 
+      pose A ; pose B
+  end.
+  pose (exprEq e e0). hnf in o.
 Abort.
 
 Goal negb false = true.

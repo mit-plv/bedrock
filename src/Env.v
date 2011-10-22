@@ -24,7 +24,7 @@ Section fin.
     | FS _ _ f' => inleft _ (exist _ f' (refl_equal _))
   end.
 
-  Definition finIf t (ls : list A) (d : fin (t :: ls))
+  Definition finIfz t (ls : list A) (d : fin (t :: ls))
     : forall (R : fin (t :: ls) -> Type) (h : R (@FO _ _)) (n : forall c, R (@FS _ _ c)), 
     R d :=
     match d as d' in fin ls' return match ls' return fin ls' -> Type with 
@@ -62,7 +62,7 @@ Section fin.
                                  | inright _, inright _ => left _ _
                                  | _, _ => right _ _
                                end
-      end); clear finEq; abstract (subst; auto; try congruence;
+      end); clear finEq; (subst; auto; try congruence;
         match goal with
           | [ H : sig _ |- _ ] => destruct H
         end; subst; discriminate).
@@ -168,7 +168,7 @@ End fin.
 
 Implicit Arguments FO [A x ls].
 Implicit Arguments FS [A x ls].
-Implicit Arguments finIf [A t ls].
+Implicit Arguments finIfz [A t ls].
 
 Implicit Arguments get [A].
 Implicit Arguments HNil [A B].

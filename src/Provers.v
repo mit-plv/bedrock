@@ -58,7 +58,7 @@ Section BabyOmega.
                                                 | _ => fun _ => Empty_set
                                               end goal) with
         | Func f args =>
-          finIf f DMatch
+          finIfz f DMatch
             (fun args => hlistDestruct args (DMatch' _) 
               (fun x y => if exprEq x y then Some _ else None))
             (fun _ _ => None) args

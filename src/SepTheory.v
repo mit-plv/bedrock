@@ -23,6 +23,7 @@ Module Make (M : SepLog).
                 | Some x => m p = x
               end.
 
+  (** TODO: Would it be better to denote this directly in terms of PropX? **)
   Definition hprop : Type := smem -> Prop.
 
   Definition disjoint (m1 m2 : smem) : Prop :=
