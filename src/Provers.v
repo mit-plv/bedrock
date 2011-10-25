@@ -1,6 +1,31 @@
 Require Import List.
 Require Import Expr.
 
+(** TODO: This is going to be interesting...
+Section Unify.
+  Variable types : list type.
+  Variable fs : functions types.
+
+  Definition subst vars vars' :=  hlist (fun t => option (expr fs vars' t)) vars.
+
+  Fixpoint unbound vars vars' (sub : hlist (fun t => option (expr fs vars' t)) vars) : list (tvar types) :=
+    match sub with
+      | HNil => nil
+      | HCons _ _ (Some _) r => unbound _ _ r
+      | HCons x _ None r => x :: (unbound _ _ r)
+    end.
+
+
+  Fixpoint unify T vars vars' (p : expr fs (vars' ++ vars) T) (e : expr fs vars T) 
+    (sub : subst vars') :
+    (expr fs (vars' ++ vars) T * subst vars').
+    match p with
+      | Const _ _ => _
+    end.
+
+End Unify.
+**)
+
 Section Prover.
   Variable types : list type.
   Variable fs : functions types.

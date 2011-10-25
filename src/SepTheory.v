@@ -90,6 +90,27 @@ Module Make (M : SepLog).
     firstorder.
   Qed.
 
+  Lemma split_assoc : forall a b c d e, split a b c -> split c d e ->
+    split a (join d b) e.
+  Proof.
+    unfold split. intuition. unfold disjoint in *. intuition.
+    unfold join in *.
+    repeat match goal with
+             | [ H : _ |- _ ] => specialize (H p); simpl in *
+             | [ H : _ = _ |- _ ] => rewrite H in *
+             | [ H : _ \/ _ |- _ ] => destruct H
+           end; intuition.
+    rewrite H2. intro. unfold join in *; simpl in *;
+    repeat match goal with
+             | [ H : _ |- _ ] => specialize (H p); simpl in *
+             | [ H : _ = _ |- _ ] => rewrite H in *
+             | [ H : _ \/ _ |- _ ] => destruct H
+           end; intuition.
+    destruct (d p); intuition.
+    destruct (b p); intuition;
+    destruct (d p); intuition. congruence.
+  Qed.
+
   Lemma split_comm : forall m ml mr, split m ml mr -> split m mr ml.
   Proof.
     unfold split. intros. destruct H. apply disjoint_comm in H. split; auto. rewrite disjoint_join; auto.
@@ -102,13 +123,11 @@ Module Make (M : SepLog).
   Qed.
 
   Theorem star_assoc : forall P Q R, star P (star Q R) ==> star (star P Q) R.
-  Proof.
-  (*
+  Proof.  
     unfold himp, star. intros.
     do 2 destruct H. intuition. destruct H2. destruct H1. intuition.
-    do 2 eexists. split. 2: split; try eassumption. 2: do 2 eexists. 2: split. 3: split; eassumption.
-    unfold split. 
-  *)
+    do 2 eexists. split. eapply split_assoc; eassumption.
+    intuition. eexists. eexists. intuition; eauto.
   Admitted.
    
 
