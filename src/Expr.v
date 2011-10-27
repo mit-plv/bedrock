@@ -79,42 +79,63 @@ Section env.
     decide equality. eapply finEq. 
   Defined.
 
+  Definition tvarCmp (a : tvar) : forall b, dcomp a b :=
+    match a as a return forall b, dcomp a b with
+      | None => fun b => match b with
+                           | None => Env.Eq (eq_refl _)
+                           | _ => Env.Lt _ _
+                         end
+      | Some a => fun b => match b return dcomp (Some a) b with
+                             | None => Env.Gt _ _ 
+                             | Some b =>
+                               match finCmp a b with
+                                 | Env.Eq pf => Env.Eq (match pf in _ = t return Some a = Some t with 
+                                                          | refl_equal => refl_equal _
+                                                        end)
+                                 | Env.Lt => Env.Lt _ _
+                                 | Env.Gt => Env.Gt _ _
+                               end
+                           end
+    end.
+
   Definition exprEq : forall t (x y : expr t), option (x = y).
   refine (fix exprEq t (x : expr t) {struct x} : forall y : expr t, option (x = y) :=
     match x in expr t return forall y : expr t, option (x = y) with
-      | Const t c1 => fun y : expr t => match y in expr t' return forall c1 : tvarD t', option (Const t' c1 = y) with
-                                          | Const t c2 => match t return forall c2 c1 : tvarD t, option (Const t c1 = Const t c2) with
-                                                            | None => fun _ _ => None
-                                                            | Some t => fun x y => if Eq (get types t) x y then Some _ else None
-                                                          end c2
-                                          | _ => fun _ => None
-                                        end c1
+      | Const t c1 => fun y : expr t => 
+        match y in expr t' return forall c1 : tvarD t', option (Const t' c1 = y) with
+          | Const t c2 => match t return forall c2 c1 : tvarD t, option (Const t c1 = Const t c2) with
+                            | None => fun _ _ => None
+                            | Some t => fun x y => if Eq (get types t) x y then Some _ else None
+                          end c2
+          | _ => fun _ => None
+        end c1
       | Var x1 => fun y => 
         match y in expr t return forall Heq : t = get vars x1, option (Var x1 = match Heq in _ = T return expr T with
-                                                                                            | refl_equal => y
-                                                                                          end) with
-                             | Var x2 => fun Heq => if finEq x1 x2 then Some _ else None
-                             | _ => fun _ => None
-                           end (refl_equal _)
-      | Func f1 xs1 => fun y => match y in expr t return forall Heq : t = Range (get funcs f1),
-                                    (forall xs2, option (xs1 = xs2))
-                                    -> option (Func f1 xs1 = match Heq in _ = T return expr T with
-                                                               | refl_equal => y
-                                                             end) with
-                                    | Func f2 xs2 => fun Heq cmp => match finEq f1 f2 with
-                                                                      | right _ => None
-                                                                      | left Heq' =>
-                                                                        if cmp (match sym_eq Heq' in _ = F
-                                                                                  return hlist expr (Domain (get funcs F)) with
-                                                                                  | refl_equal => xs2
-                                                                                end) then Some _ else None
-                                                                    end
-                                    | _ => fun _ _ => None
-                                  end (refl_equal _) (hlistEq exprEq xs1)
-      end); clear exprEq; try abstract (subst;
-        repeat match goal with
-                 | [ Heq : _ = _ |- _ ] => rewrite (UIP_dec tvar_dec Heq (refl_equal _)) in *; clear Heq; simpl in *
-               end; congruence).
+                                                                                  | refl_equal => y
+                                                                                end) with
+          | Var x2 => fun Heq => if finEq x1 x2 then Some _ else None
+          | _ => fun _ => None
+        end (refl_equal _)
+      | Func f1 xs1 => fun y => 
+        match y in expr t return forall Heq : t = Range (get funcs f1),
+          (forall xs2, option (xs1 = xs2))
+          -> option (Func f1 xs1 = match Heq in _ = T return expr T with
+                                     | refl_equal => y
+                                   end) with
+          | Func f2 xs2 => fun Heq cmp => match finEq f1 f2 with
+                                            | right _ => None
+                                            | left Heq' =>
+                                              if cmp (match sym_eq Heq' in _ = F
+                                                        return hlist expr (Domain (get funcs F)) with
+                                                        | refl_equal => xs2
+                                                      end) then Some _ else None
+                                          end
+          | _ => fun _ _ => None
+        end (refl_equal _) (hlistEq exprEq xs1)
+    end); clear exprEq; try abstract (subst;
+      repeat match goal with
+               | [ Heq : _ = _ |- _ ] => rewrite (UIP_dec tvar_dec Heq (refl_equal _)) in *; clear Heq; simpl in *
+             end; congruence).
   Defined.
 End env.
 

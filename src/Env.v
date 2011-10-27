@@ -68,6 +68,31 @@ Section fin.
         end; subst; discriminate).
   Defined.
 
+  Inductive dcomp T (a b : T) : Type :=
+  | Lt | Gt | Eq : a = b -> dcomp a b.
+  
+  Definition dcomp_option T (a b : T) (d : dcomp a b) : option (a = b) :=
+    match d with
+      | Eq pf => Some pf
+      | _ => None
+    end.
+
+  Fixpoint finCmp ls (x : fin ls) : forall y : fin ls, dcomp x y :=
+    match x in fin ls return forall y : fin ls, dcomp x y with
+      | FO a b => fun y : fin (a :: b) =>
+        @finIfz _ _ y (dcomp (FO a b)) (Eq (refl_equal _)) (fun _ => Lt _ _)
+      | FS a ls r => fun y : fin (a :: ls) =>
+        @finIfz _ _ y (dcomp (FS a r)) (Gt _ _) 
+          (fun r' => match finCmp r r' with
+                       | Eq pf => Eq (match pf in _ = t return FS a r = FS a t with
+                                        | refl_equal => refl_equal _
+                                      end)
+                                          
+                       | Gt => Gt _ _
+                       | Lt => Lt _ _ 
+                     end)
+    end.
+
   Fixpoint get (ls : list A) : fin ls -> A :=
     match ls return fin ls -> A with
       | nil => fun f => match f in fin N return match N with
@@ -133,6 +158,41 @@ Section fin.
                                         | HCons _ _ v2 z' => fun v1 _ dec' self => if dec' v2 then if self z' then Some _ else None else None
                                       end v1 y' (dec v1) (hlistEq _ y')
       end); clear hlistEq; abstract congruence.
+  Defined.
+
+
+  Variable cmp : forall x (y z : B x), dcomp y z.
+  Definition hlistCmp : forall x (y z : hlist x), dcomp y z.
+    refine (fix hlistCmp x (y : hlist x) : forall z : hlist x, dcomp y z :=
+      match y in hlist x return forall z : hlist x, dcomp y z with
+        | HNil => fun z => match z in hlist x return match x return hlist x -> Type with
+                                                       | nil => fun z => dcomp HNil z
+                                                       | _ => fun _ => unit
+                                                     end z with
+                             | HNil => Eq _
+                             | _ => tt
+                           end
+        | HCons _ _ v1 y' => fun z => match z in hlist x return match x return hlist x -> Type with
+                                                                  | nil => fun _ => unit
+                                                                  | t :: x' => fun z => forall (v1 : B t) (y' : hlist x'),
+                                                                    (forall v2, dcomp v1 v2)
+                                                                    -> (forall z', dcomp y' z')
+                                                                    -> dcomp (HCons v1 y') z
+                                                                end z with
+                                        | HNil => tt
+                                        | HCons _ _ v2 z' => fun v1 _ cmp' self => 
+                                          match cmp' v2 with
+                                            | Eq _ => 
+                                              match self z' with
+                                                | Gt => Gt _ _ 
+                                                | Lt => Lt _ _ 
+                                                | Eq _ => Eq _
+                                              end
+                                            | Gt => Gt _ _
+                                            | Lt => Lt _ _
+                                          end
+                                      end v1 y' (cmp v1) (hlistCmp _ y')
+      end); clear hlistCmp; abstract congruence.
   Defined.
 
   Fixpoint hlist_get (ls : list A) (i : fin ls) : hlist ls -> B (get i) :=
