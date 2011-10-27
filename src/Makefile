@@ -1,7 +1,7 @@
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
 	XCAP Structured StructuredModule Linker Programming \
-	Env PMap Expr Provers Heaps SepExpr \
+	Env PMap Reflect Expr Provers Heaps SepExpr \
 	Bedrock
 VS         := $(MODULES:%=%.v)
 

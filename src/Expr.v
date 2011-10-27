@@ -137,6 +137,10 @@ Section env.
                | [ Heq : _ = _ |- _ ] => rewrite (UIP_dec tvar_dec Heq (refl_equal _)) in *; clear Heq; simpl in *
              end; congruence).
   Defined.
+
+  Definition exprCmp : forall t (x y : expr t), option (dcomp x y).
+   refine (fun _ _ _ => None).
+  Defined.
 End env.
 
 Section Qexpr.
@@ -184,6 +188,7 @@ End PartialApply.
 
 (** Reflection Tactics **)
 (************************)
+Require Import Reflect.
 
 Ltac extend_type T D types :=
   match T with
@@ -207,36 +212,6 @@ Ltac extend_type T D types :=
   end.
 
 Definition defaultType T := {| Impl := T; Eq := fun _ _ => None |}.
-
-Ltac refl_app cc e := 
-  let rec refl cc e As :=
-    match e with
-      | ?A ?B =>
-        let Ta := type of A in
-        match type of A with
-          | _ -> ?TT => 
-            let As := constr:((B, As)) in
-            let Tb := type of B in
-            let cc f Ts args := 
-              let Ts' := constr:(Ts ++ (Tb : Type) :: nil) in
-              cc f Ts' args
-            in 
-            refl cc A As
-          | forall x : ?T1, @?T2 x => 
-            let cc f Ts args := 
-              let Tb  := type of B in
-              let f'  := eval simpl in (@apply_ls Ts T1 T2 B f) in
-              cc f' Ts args
-            in
-            refl cc A As
-        end
-      | _ =>
-        let Ts := constr:(@nil Type) in
-        cc e Ts As
-    end
-  in
-  let b := constr:(tt) in
-  refl cc e b.
 
 Ltac extend_all_types Ts types :=
   match Ts with

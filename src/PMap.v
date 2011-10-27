@@ -20,7 +20,7 @@ Section FMap.
   Variable K : Type.
   Variable V : K -> Type.
 
-  Variable Kcmp : forall (a b : K), dcomp a b.
+  Variable Kcmp : forall (a b : K), option (dcomp a b).
 
   Inductive dmap : Type :=
   | DM_Empty : dmap
@@ -41,13 +41,19 @@ Section FMap.
       | DM_Empty => None
       | DM_Branch k' v' l r =>
         match Kcmp k' k with
-          | Gt => dmap_lookup l 
-          | Lt => dmap_lookup r
-          | Eq pf => 
-            (** TODO: I don't think this is going to be computable **)
-            match pf in _ = k return option (V k) with
-              | refl_equal => Some v'
-            end
+          | None => match dmap_lookup l with
+                      | None => dmap_lookup r
+                      | Some x => Some x
+                    end
+          | Some x => match x with
+                        | Gt => dmap_lookup l 
+                        | Lt => dmap_lookup r
+                        | Eq pf => 
+                          (** TODO: I don't think this is going to be computable **)
+                          match pf in _ = k return option (V k) with
+                            | refl_equal => Some v'
+                          end
+                      end
         end
     end.
 
@@ -56,7 +62,7 @@ Section FMap.
       | DM_Empty => DM_Branch k v m m 
       | DM_Branch k' v' l r =>
         match Kcmp k' k with
-          | Gt => DM_Branch k' v' l (dmap_insert v r)
+          | Some Gt => DM_Branch k' v' l (dmap_insert v r)
           | _ => DM_Branch k' v' (dmap_insert v l) r
         end
     end.
@@ -74,24 +80,34 @@ Section FMap.
       | DM_Empty => None
       | DM_Branch k' v' l r =>
         match Kcmp k' k with
-          | Gt => match dmap_remove r with
-                    | None => None
-                    | Some (res,m) => Some (res, DM_Branch k' v' l m)
-                  end
-          | Lt => match dmap_remove r with
-                    | None => None
-                    | Some (res,m) => Some (res, DM_Branch k' v' m r)
-                  end
-          | Eq pf =>
-            (** TODO: I don't think this is going to be computable **)
-            Some (match pf in _ = t return V t with
-                    | refl_equal => v' 
-                  end, 
-            match l, r with
-              | DM_Empty , _ => r 
-              | _ , DM_Empty => l
-              | _ , _ => insert_right l r
-            end) 
+          | None => match dmap_remove l with
+                      | None => match dmap_remove r with
+                                  | Some (res, r') => Some (res, DM_Branch k' v' l r')
+                                  | None => None
+                                end
+                      | Some (res, l') => Some (res, DM_Branch k' v' l' r)
+                    end
+          | Some x =>
+            match x with
+              | Gt => match dmap_remove r with
+                        | None => None
+                        | Some (res,m) => Some (res, DM_Branch k' v' l m)
+                      end
+              | Lt => match dmap_remove r with
+                        | None => None
+                        | Some (res,m) => Some (res, DM_Branch k' v' m r)
+                      end
+              | Eq pf =>
+                (** TODO: I don't think this is going to be computable **)
+                Some (match pf in _ = t return V t with
+                        | refl_equal => v' 
+                      end, 
+                match l, r with
+                  | DM_Empty , _ => r 
+                  | _ , DM_Empty => l
+                  | _ , _ => insert_right l r
+                end)
+            end
         end
     end.
 
@@ -111,26 +127,30 @@ Implicit Arguments dmap_fold [ K V T ].
 Implicit Arguments dmap_remove [ K V ].
 Implicit Arguments dmap_insert [ K V ].
 
+Section Map.
+  Variable K : Type.
+  Variable V : Type.
 
-(*
-    Parameter map : Type -> Type -> Type.
+  Variable Kcmp : forall (a b : K), option (dcomp a b).
 
-    Parameter dmap_empty : forall K V, @dmap K V.
-    Parameter dmap_fold : forall {A} {K} {V} (f : A -> forall k, V k -> A) (a : A) (m : @dmap K V), A.
-    Parameter dmap_insert : forall {K} {V} k, V k -> @dmap K V -> dmap V.
-    Parameter dmap_join : forall {K} {V}, @dmap K V -> dmap V -> dmap V.
-    Parameter dmap_remove : forall {K} {V} k, @dmap K V -> option (V k * dmap V).
-    Parameter dmap_is_empty : forall K V (m : @dmap K V), {m = dmap_empty V} + {m <> dmap_empty V}.
-    Parameter map_empty : forall K V, map K V.
-    Parameter map_fold : forall {A} {K} {V} (f : A -> K -> V -> A) (a : A) (m : map K V), A.
-    Parameter map_insert : forall {K} {V}, K -> V -> @map K V -> map K V.
-    Parameter map_join : forall {K} {V}, map K V -> @map K V -> map K V.
-    Parameter map_remove : forall {K} {V}, K -> map K V -> option (V * map K V).    
+  Definition fmap := @dmap K (fun _ => V).
 
-    Parameter dmap_fold_empty : forall A K V f (a : A), dmap_fold f a (@dmap_empty K V) = a.
-    Parameter map_fold_empty : forall A K V f (a : A), map_fold f a (@map_empty K V) = a.
-*)
+  Definition fmap_empty := @dmap_empty K (fun _ => V).
 
+  Definition fmap_lookup (k : K) (m : fmap) := @dmap_lookup _ _ Kcmp k m.
+
+  Definition fmap_insert (k : K) (v : V) (m : fmap) := @dmap_insert _ _ Kcmp k v m.
+
+  Definition fmap_remove (k : K) (m : fmap) := dmap_remove Kcmp k m.
+
+  Definition fmap_fold (T : Type) (f : T -> K -> V -> T) :=
+    @dmap_fold K (fun _ => V) T (fun a b c => f a b c).
+End Map.
+
+Implicit Arguments fmap_empty [ K V ].
+Implicit Arguments fmap_fold [ K V T ].
+Implicit Arguments fmap_remove [ K V ].
+Implicit Arguments fmap_insert [ K V ].
 
 (*
 Section MMap.
