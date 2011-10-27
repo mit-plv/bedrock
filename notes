@@ -18,3 +18,14 @@
     - To address this, we can specialize a small number of domains (probably 
       bit-vectors) that have nice computable properties and use them to reflect
       and do some unification.
+
+* TODOs
+  * Separation logic
+    * Reflect separation logic formula
+    * Prove separation logic lemmas
+    * Factor out separation logic core
+    * Solved case of cancelProver
+    * Move provers to their own file
+  * Expressions
+    * Unification variables
+    * Prover that uses lemmas
