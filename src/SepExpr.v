@@ -217,6 +217,10 @@ Module SepExpr (B : Heap).
     End Cmp.
 
     Section Himp.
+      (** TODO: Ideally we would move this to another file 
+       ** and treat it opaquely. That way this file focuses predominantly
+       ** in a reflection of that syntax.
+       **)
       Variable vars : variables types.
       Variable G : hlist (@tvarD _) vars.
       Variable cs : codeSpec (tvarD pcType) (tvarD stateType).
@@ -299,7 +303,10 @@ Module SepExpr (B : Heap).
 *)
 
       Theorem star_emp_p : forall P Q, himp P Q -> himp (Star (Emp _) P) Q.
-        (** TODO: I need to prove sexpr is parametric on the memory... this is a hard proof **)
+        (** TODO: I need to prove sexpr is parametric on the memory.
+         ** This is a hard proof with the current definition of symbolic heaps
+         ** and omitting the extensional equality axiom.
+         **)
       Proof.
       Admitted.
       Theorem star_emp_c : forall P Q, himp P Q -> himp P (Star (Emp _) Q).
@@ -310,11 +317,15 @@ Module SepExpr (B : Heap).
     Section SProver.
       Definition Himp := @himp nil HNil.
 
+      Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil) : Type :=
+      | Solved : Himp cs gl gr -> SepResult cs gl gr
+      | Remaining : forall l r, (Himp cs l r -> Himp cs gl gr) -> SepResult cs gl gr.
+
       Definition SProverT : Type := forall
-        (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (cs : codeSpec (tvarD pcType) (tvarD stateType)) 
         (hyps : list (@Qexpr types funcs)) (** Pure Premises **)
-        (gl gr : sexpr nil), 
-        (Himp cs gl gr) + ({ x : (sexpr nil * sexpr nil) & Himp cs (fst x) (snd x) -> Himp cs gl gr}).
+        (gl gr : sexpr nil),
+        SepResult cs gl gr.
     
     End SProver.
 
@@ -328,6 +339,9 @@ Module SepExpr (B : Heap).
   Implicit Arguments Func [ types funcs pcType stateType sfuncs consts vars ].
   Implicit Arguments Const [ types funcs pcType stateType sfuncs consts vars ].
 
+  Implicit Arguments Solved [ types funcs pcType stateType stateMem sfuncs consts cs gl gr ].
+  Implicit Arguments Remaining [ types funcs pcType stateType stateMem sfuncs consts cs gl gr ].
+
   Section BabySep.
     Variable types : list type.
     Variable fs : functions types.
@@ -340,10 +354,10 @@ Module SepExpr (B : Heap).
     Definition ReflSep : @SProverT types fs pcType stateType stateMem sfuncs consts.
     red. refine (fun _ _ gl gr =>
       match sexprCmp gl gr with
-        | Env.Eq _ => inl _ _
-        | _ => inr _ (@existT _ _ (gl, gr) _)
+        | Env.Eq _ => Solved _
+        | _ => Remaining gl gr _ 
       end); eauto.
-    subst. unfold Himp, himp, himp. intros. auto. 
+    subst. unfold Himp, himp, himp. auto.
     Defined.
 
     Require Import PMap.
@@ -634,7 +648,7 @@ Module SepExpr (B : Heap).
       match sepCancel gr lhs (SHeap_empty _) as k 
         return sepCancel gr lhs (SHeap_empty _) = k -> _ with
         | (lhs',rhs') => fun pf =>
-          inr _ (@existT _ _ (denote lhs', denote rhs') _)
+          Remaining (denote lhs') (denote rhs') _
       end (eq_refl _)).
       intros. etransitivity. 2: eapply sepCancel_cancels. 2: eassumption. 2: eauto.
       unfold lhs. etransitivity. eapply denote_hash_cc_p. reflexivity.
