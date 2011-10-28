@@ -1,8 +1,9 @@
 Require Import List.
 Require Import Expr.
-Require Import Heaps PropX.
+Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
+Require Import Classes.RelationClasses.
 
 Set Implicit Arguments.
 
@@ -15,7 +16,7 @@ Ltac goPropX :=
          end.
 
 Module SepExpr (B : Heap).
-  Module HT := HeapTheory B.  
+  Module ST := SepTheoryX.SepTheoryX B.  
 
   Section env.
 
@@ -26,11 +27,9 @@ Module SepExpr (B : Heap).
     Variable stateType : tvar types.
     Variable stateMem : tvarD stateType -> B.mem.
 
-    Definition hprop : Type := HT.smem -> PropX (tvarD pcType) (tvarD stateType).
-
     Record ssignature := {
       SDomain : list (tvar types) ;
-      SDenotation : functionTypeD (map (@tvarD types) SDomain) hprop
+      SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.Hprop (tvarD pcType) (tvarD stateType))
     }.
     Variable sfuncs : list ssignature.
 
@@ -56,28 +55,24 @@ Module SepExpr (B : Heap).
 
 
     Fixpoint sexprD vars (s : sexpr vars)
-      : hlist (@tvarD types) vars -> HT.smem -> PropX (tvarD pcType) (tvarD stateType) :=
+      : hlist (@tvarD types) vars -> ST.Hprop (tvarD pcType) (tvarD stateType) :=
       match s in sexpr vs
-        return hlist (@tvarD types) vs ->  HT.smem -> PropX (tvarD pcType) (tvarD stateType) 
+        return hlist (@tvarD types) vs -> ST.Hprop (tvarD pcType) (tvarD stateType) 
         with
-        | Emp v => fun g m => 
-          PropX.Inj (HT.semp m)
-        | Inj v p => fun g m => 
-          PropX.And (PropX.Inj (exprD g p)) (PropX.Inj (HT.semp m))
-        | Star _ l r => fun g m => 
-          PropX.Exists (fun ml : HT.smem => PropX.Exists (fun mr : HT.smem => 
-            PropX.And (PropX.Inj (HT.split m ml mr)) (And (sexprD l g ml) (sexprD r g mr))))
-        | Exists _ t b => fun g m => PropX.Exists (fun x : tvarD t => @sexprD _ b (HCons x g) m)
-        | Cptr _ p t => fun g m =>
-          PropX.And 
-            (PropX.Inj (HT.semp m))
-            (PropX.Cptr (exprD g p) 
-              (fun x : tvarD stateType => PropX.Exists (fun m => 
-                PropX.And (PropX.Inj (HT.satisfies m (stateMem x))) (sexprD t (HCons x g) m))))
+        | Emp v => fun g => 
+          ST.emp _ _
+        | Inj v p => fun g =>
+          ST.inj _ _ (PropX.Inj (exprD g p)) 
+        | Star _ l r => fun g => 
+          ST.star _ _ (sexprD l g) (sexprD r g)
+        | Exists _ t b => fun g => 
+          ST.ex _ _ _ (fun x : tvarD t => @sexprD _ b (HCons x g))
+        | Cptr _ p t => fun g =>
+          ST.cptr _ _ stateMem (exprD g p) (fun x : tvarD stateType => sexprD t (HCons x g))
         | Func _ f b => fun g =>
           applyD (exprD g) b _ (SDenotation (get sfuncs f))
-        | Const _ p => fun _ m =>
-          PropX.And (PropX.Inj (HT.semp m)) (get consts p)
+        | Const _ p => fun _ =>
+          ST.inj _ _ (get consts p)
       end.
 
     Section Cmp.
@@ -232,121 +227,35 @@ Module SepExpr (B : Heap).
       Defined.
     End Cmp.
 
-    Section Himp.
-      (** TODO: Ideally we would move this to another file 
-       ** and treat it opaquely. That way this file focuses predominantly
-       ** in a reflection of that syntax.
-       **)
-      Variable vars : variables types.
-      Variable G : hlist (@tvarD _) vars.
-      Variable cs : codeSpec (tvarD pcType) (tvarD stateType).
-
-      Definition himp (gl gr : sexpr vars) : Prop :=
-        forall m, valid cs nil (sexprD gl G m) -> valid cs nil (sexprD gr G m).
-      Definition heq (gl gr : sexpr vars) : Prop :=
-        forall m, valid cs nil (sexprD gl G m) <-> valid cs nil (sexprD gr G m).
-
-      Require Import RelationClasses.
-
-      Global Instance Relf_himp : Reflexive himp.
-      Proof.
-        red. unfold himp. firstorder.
-      Qed.
-      Global Instance Trans_himp : Transitive himp.
-      Proof.
-        red. unfold himp. firstorder.
-      Qed.
-
-      Ltac doIt :=
-        unfold himp; simpl; intros;
-          repeat match goal with
-                   | [ h : HT.smem , H : forall x : HT.smem , _ |- _ ] => specialize (H h)
-                   | [ H : _ -> _ |- _ ] => apply H; clear H
-                   | [ H : ?X -> _ , H' : ?X |- _ ] => apply H in H'; clear H
-                 end; goPropX;
-          repeat match goal with
-                   | [ |- exists x, _ ] => eexists
-                   | [ |- _ /\ _ ] => split
-                   | [ |- simplify _ _ _ ] => eassumption
-                 end.
-          
-      Theorem star_comm_p : forall P Q R, himp (Star P Q) R -> himp (Star Q P) R.
-      Proof.
-        doIt. eapply HT.split_comm. auto.
-      Qed.
-      Theorem star_comm_c : forall P Q R, himp R (Star P Q) -> himp R (Star Q P).
-      Proof.
-        doIt. eapply HT.split_comm. auto.
-      Qed.
-  
-      Theorem star_assoc_p : forall P Q R S,
-        himp (Star P (Star Q R)) S -> himp (Star (Star P Q) R) S.
-      Proof.
-        doIt. apply HT.split_comm. apply HT.split_comm in H. eapply HT.split_assoc; try eassumption. 
-        apply HT.split_comm. eassumption. eapply HT.disjoint_split_join.
-        apply HT.disjoint_comm. eapply HT.split_split_disjoint; eauto.
-        apply HT.split_comm in H0; eassumption.
-      Qed.
-      Theorem star_assoc_c : forall P Q R S, 
-        himp S (Star P (Star Q R)) -> himp S (Star (Star P Q) R).
-      Proof.
-        doIt. eapply HT.split_assoc; eassumption. apply HT.split_comm.
-        apply HT.disjoint_split_join. apply HT.disjoint_comm.
-        eapply HT.split_split_disjoint. apply HT.split_comm. eassumption. eassumption.
-      Qed.
-
-      Theorem star_cancel : forall P Q R, himp Q R -> himp (Star P Q) (Star P R).
-      Proof.
-        unfold himp; simpl; intros;
-          repeat match goal with
-                   | [ H : _ -> _ |- _ ] => apply H; clear H
-                   | [ H : ?X -> _ , H' : ?X |- _ ] => apply H in H'; clear H
-                 end; goPropX. specialize (H x0). 
-        doIt. eassumption. cut (valid cs nil (sexprD R G x0)). intros. doIt. apply H.
-        doIt.
-      Qed.
-
-      Theorem star_frame : forall P Q R S, himp P Q -> himp R S -> himp (Star P R) (Star Q S).
-      Proof.
-        unfold himp; simpl; intros;
-          repeat match goal with
-                   | [ H : _ -> _ |- _ ] => apply H; clear H
-                   | [ H : ?X -> _ , H' : ?X |- _ ] => apply H in H'; clear H
-                 end; goPropX.
-        apply simplify_bwd in H2. apply simplify_bwd in H3. apply H in H2. apply H0 in H3. doIt.
-        assumption.
-      Qed.
-
-(*
-      Lemma valid_smem_eq : forall vars (P : sexpr vars) G E m m',
-        valid cs E (sexprD P G m) -> HT.smem_eq m m' -> valid cs E (sexprD P G m').
-      Proof.
-        clear. induction P. simpl.
-          doIt. eapply Inj_E in H. eassumption. intros.  eapply Inj_I.
-          eapply HT.semp_mor. 2: eassumption. symmetry. auto.
-          
-          doIt.  eapply Inj_E in H. eassumption. intros.  eapply Inj_I. auto.
-          
-          doIt. admit. (* star *)
-
-          doIt. eapply Exists_E in H. eassumption. intros. eapply Exists_I.
-          econstructor.
-*)
-
-      Theorem star_emp_p : forall P Q, himp P Q -> himp (Star (Emp _) P) Q.
-        (** TODO: I need to prove sexpr is parametric on the memory.
-         ** This is a hard proof with the current definition of symbolic heaps
-         ** and omitting the extensional equality axiom.
-         **)
-      Proof.
-      Admitted.
-      Theorem star_emp_c : forall P Q, himp P Q -> himp P (Star (Emp _) Q).
-      Admitted.
-
-    End Himp.
-
     Section SProver.
+      Definition himp (vars : variables types) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (gl gr : sexpr vars) : Prop :=
+        ST.himp _ _ cs (sexprD gl G) (sexprD gr G).
       Definition Himp := @himp nil HNil.
+      Definition heq (vars : variables types) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (gl gr : sexpr vars) : Prop :=
+        ST.heq _ _ cs (sexprD gl G) (sexprD gr G).
+      Definition Heq := @heq nil HNil.
+
+      Global Instance Trans_himp v g cs : Transitive (@himp v g cs).
+      Proof.
+        red. intros. unfold himp. etransitivity; eauto.
+      Qed.
+
+      Global Instance Trans_Himp cs : Transitive (@Himp cs).
+      Proof.
+        red. intros. unfold Himp, himp. etransitivity; eauto.
+      Qed.
+
+      Global Instance Trans_heq v g cs : Transitive (@heq v g cs).
+      Proof.
+        red. intros. unfold heq. etransitivity; eauto.
+      Qed.
+
+      Global Instance Trans_Heq cs : Transitive (@Heq cs).
+      Proof.
+        red. intros. unfold Heq, heq. etransitivity; eauto.
+      Qed.
 
       Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil) : Type :=
       | Proved : Himp cs gl gr -> SepResult cs gl gr
@@ -387,8 +296,9 @@ Module SepExpr (B : Heap).
       match sexprCmp gl gr with
         | Some (Env.Eq _) => Proved _
         | _ => Remaining gl gr _ 
-      end); eauto.
-    subst. unfold Himp, himp, himp. auto.
+      end); 
+    abstract solve [ eauto
+      | subst; unfold Himp, himp; reflexivity ].
     Defined.
 
     Record SHeap vars : Type :=
@@ -472,66 +382,66 @@ Module SepExpr (B : Heap).
     Variable cs : codeSpec (tvarD pcType) (tvarD stateType).
 
     Ltac cancel_all :=
-      repeat apply star_assoc_p;
-        do 10 (repeat eapply star_assoc_c;
-          (reflexivity || simple apply star_emp_c || simple apply star_emp_p || simple apply star_cancel || simple apply star_comm_c)).
+      let s :=
+        (   reflexivity 
+         || simple apply ST.himp_star_emp_c
+         || simple apply ST.himp_star_emp_p
+         || simple apply ST.heq_star_emp
+         || (symmetry; simple apply ST.heq_star_emp; symmetry)
+         || simple apply ST.himp_star_cancel
+         || simple apply ST.heq_star_cancel
+        )
+      in
+      let perm :=
+        try ((eapply ST.himp_star_comm_p; repeat simple apply ST.himp_star_assoc_p) || 
+             (eapply ST.heq_star_comm; symmetry; repeat simple apply ST.heq_star_assoc; symmetry)); 
+        try do 10 (s || 
+          match goal with
+            | [ |- ST.heq _ _ _ _ _ ] =>
+              symmetry; simple apply ST.heq_star_comm; symmetry; repeat simple apply ST.heq_star_assoc
+            | [ |- ST.himp _ _ _ _ _ ] =>
+              repeat (simple apply ST.himp_star_assoc_c)
+          end)
+      in
+      do 10 perm.
 
     Lemma fold_star : forall K V vars G (ctor : forall k : K, V k -> sexpr fs sfuncs consts vars) (B : @dmap K V) P Q,
-      himp stateMem G cs
+      heq stateMem G cs
         (Star Q (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B))
         (Star P
           (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) Q B)
         ).
     Proof.
-      induction B; simpl; intros. cancel_all. etransitivity. eapply IHB2. etransitivity. 2: eapply IHB2.
-      etransitivity. eapply star_frame. etransitivity; [ | apply (IHB1 (Star (ctor k v) P) Emp) ]; cancel_all.
+      induction B; unfold heq in *; simpl in *; intros. cancel_all.
+      etransitivity. eapply IHB2. etransitivity. 2: eapply IHB2.
+      etransitivity. eapply ST.heq_star_frame. etransitivity; [ | apply (IHB1 (Star (ctor k v) P) Emp); simpl ]; cancel_all.
       etransitivity; [ | apply (IHB2 Q Emp) ]; cancel_all.
       etransitivity. Focus 2.
-      eapply star_frame. etransitivity; [ eapply (IHB1 Emp (Star (ctor k v) Q)) | ]; cancel_all.
-      etransitivity; [ eapply (IHB2 Emp P) | ]; cancel_all. cancel_all.
+      eapply ST.heq_star_frame. etransitivity; [ eapply (IHB1 Emp (Star (ctor k v) Q)) | ]; cancel_all.
+      etransitivity; [ eapply (IHB2 Emp P) | ]; cancel_all. simpl; cancel_all.
     Qed.
 
     Lemma fold_star' : forall K V vars G (ctor : forall k : K, V k -> sexpr fs sfuncs consts vars) (B : @dmap K V) P,
-      himp stateMem G cs
+      heq stateMem G cs
         (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B)
         (Star P
           (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) Emp B)
         ).
     Proof.
-      intros. etransitivity; [ | eapply fold_star ]. cancel_all.
+      intros. etransitivity; [ | eapply fold_star ]. unfold heq; simpl; cancel_all.
     Qed.
 
     Lemma fold_star'' : forall K V vars G (ctor : forall k : K, V k -> sexpr fs sfuncs consts vars) (B : @dmap K V) P,
-      himp stateMem G cs
+      heq stateMem G cs
         (Star P
           (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) Emp B))
         (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B).
     Proof.
-      intros. etransitivity; [ eapply fold_star | ]. cancel_all.
+      intros. etransitivity; [ eapply fold_star | ]; unfold heq; simpl; cancel_all.
     Qed.
 
-(*
-    Lemma fold_fold : forall K V vars G (ctor : forall k : K, V k -> sexpr fs sfuncs consts vars) (cmp : forall a b : K, option (dcomp a b)) (B B' : @dmap K V) P,
-      himp stateMem G cs
-        (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) 
-          (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B) B')
-        (Star
-          (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) Emp B) 
-          (dmap_fold (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B')
-        ).
-    Proof.
-      induction B; simpl; intros. cancel_all.
-      etransitivity. eapply IHB2. etransitivity. instantiate (1 := Star (dmap_fold
-           (fun (a : sexpr fs sfuncs consts vars) (k0 : K) (v0 : V k0) =>
-            Star (ctor k0 v0) a) Emp B2) (Star (dmap_fold
-         (fun (a : sexpr fs sfuncs consts vars) (k0 : K) (v0 : V k0) =>
-          Star (ctor k0 v0) a) P B') (dmap_fold
-            (fun (a : sexpr fs sfuncs consts vars) (k0 : K) (v0 : V k0) =>
-             Star (ctor k0 v0) a) (Star (ctor k v) Emp) B1))). cancel_all. etransitivity. eapply IHB1.
-*)
-
     Lemma star_insert : forall K V vars G (ctor : forall k : K, V k -> sexpr fs sfuncs consts vars) (cmp : forall a b : K, option (dcomp a b)) (B : @dmap K V) k (v : V k) P,
-      himp stateMem G cs
+      heq stateMem G cs
         (dmap_fold
           (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) =>
             Star (ctor k v) a) P (@dmap_insert _ _ cmp k v B))
@@ -539,21 +449,22 @@ Module SepExpr (B : Heap).
           (dmap_fold
             (fun (a : sexpr fs sfuncs consts vars) (k : K) (v : V k) => Star (ctor k v) a) P B) (ctor k v)).
     Proof.      
-      clear. induction B. simpl. intros. apply star_comm_p. reflexivity.
+      clear. induction B. simpl. intros. cancel_all. 
       simpl. intros. destruct (cmp k k0). destruct d; simpl in *. etransitivity; [ eapply fold_star' | ].
-      apply star_comm_c. etransitivity; [ | eapply fold_star ].
+      unfold heq in *; simpl in *.
     Admitted.
 
     Lemma denote_hash_rec : forall vars (s : sexpr fs sfuncs consts vars) P (cc : _ -> _ -> _ -> _ -> _ -> SHeap vars) G,
       (forall A B C D E, 
-        himp stateMem G cs 
+        heq stateMem G cs 
           (denote (cc D E A B C))
           (Star P (denote (Build_SHeap D E A B C)))) ->
       forall A B C D E,
-      himp stateMem G cs (denote (hash_rec s cc A B C D E)) (Star (Star (denote (Build_SHeap A B C D E)) P) s).
+      heq stateMem G cs (denote (hash_rec s cc A B C D E)) (Star (Star (denote (Build_SHeap A B C D E)) P) s).
     Proof.
-      unfold hash_cc, Himp; do 2 intro.
-      induction s; intros; simpl; instantiate;
+      unfold hash_cc, Himp; do 2 intro. unfold heq.
+      induction s; intros; simpl; instantiate.
+(*
         try solve [ cancel_all; eauto | etransitivity; [ eapply H | ]; unfold denote; simpl; do 5 cancel_all ].
         (* Star *)
         etransitivity. eapply IHs1. intros. etransitivity. eapply IHs2. intros. etransitivity. eapply H. reflexivity.
@@ -569,6 +480,7 @@ Module SepExpr (B : Heap).
         2: unfold fmap_fold; eapply fold_star''. 2: reflexivity. apply star_assoc_c. etransitivity.
         2: eapply star_frame. 2: eapply fold_star''. 2: reflexivity. cancel_all.
         (** Func **) Focus.
+*)
     Admitted.
 
     Lemma denote_hash_rec' : forall vars (s : sexpr fs sfuncs consts vars) P (cc : _ -> _ -> _ -> _ -> _ -> SHeap vars) G,
@@ -583,20 +495,15 @@ Module SepExpr (B : Heap).
 
 
     Theorem denote_hash_cc : forall (s : sexpr fs sfuncs consts nil),
-      Himp stateMem cs (denote (hash_cc s (@Build_SHeap nil))) s.
+      Heq stateMem cs (denote (hash_cc s (@Build_SHeap nil))) s.
     Proof.
       unfold Himp. intros. unfold hash_cc. etransitivity. eapply denote_hash_rec.
       instantiate (1 := Emp). intros. 
-      generalize (denote {| funcs := D; cptrs := E; pures := A; cnsts := B; other := C |}).
-      intros; cancel_all. unfold denote. simpl. 
-      repeat (apply star_emp_p || apply star_assoc_p). reflexivity.
+      generalize (denote {| funcs := D; cptrs := E; pures := A; cnsts := B; other := C |}). unfold heq; simpl.
+      intros; cancel_all. unfold denote. simpl. unfold Heq, heq; simpl.
+      do 10 (try apply ST.heq_star_comm; symmetry; repeat apply ST.heq_star_assoc; symmetry; try apply ST.heq_star_emp).
+      reflexivity.
     Qed.
-
-    Theorem denote_hash_cc_p : forall (s : sexpr fs sfuncs consts nil),
-      Himp stateMem cs s (denote (hash_cc s (@Build_SHeap nil))).
-    Proof.
-      unfold Himp. intros. unfold hash_cc. etransitivity. 
-    Admitted.
 
 
     (** Procedure:
@@ -703,6 +610,7 @@ Module SepExpr (B : Heap).
       himp stateMem G cs (denote rl) (Star (denote rr) P) ->
       himp stateMem G cs (denote h) (Star (Star e (denote r)) P).
     Proof.
+(*
       induction e; simpl; intros;
         repeat match goal with
                  | [ H : (_,_) = (_,_) |- _ ] => inversion H; clear H; subst
@@ -717,6 +625,7 @@ Module SepExpr (B : Heap).
       etransitivity. eapply IHe1. etransitivity. eapply IHe2. eassumption.
       instantiate (1 := (Star e2 P)). generalize (denote s0); intros; cancel_all.
       generalize (denote r); intros; cancel_all.
+*)
     Admitted.
 
     Theorem sepCancel_cancels : forall e h rl rr,
@@ -728,15 +637,7 @@ Module SepExpr (B : Heap).
       instantiate (1 := Emp). etransitivity. eassumption. generalize (denote rr).
       intros; cancel_all. unfold denote. simpl. 
       repeat (apply star_comm_p; repeat apply star_assoc_p; apply star_emp_p).
-      apply star_comm_p;
-        repeat (apply star_comm_p; repeat apply star_assoc_p; apply star_emp_p).
-      apply star_comm_p;
-        repeat (apply star_comm_p; repeat apply star_assoc_p; apply star_emp_p).
-      apply star_comm_p;
-        repeat (apply star_comm_p; repeat apply star_assoc_p; apply star_emp_p).
-      apply star_comm_p;
-        repeat (apply star_comm_p; repeat apply star_assoc_p; apply star_emp_p).
-      reflexivity.
+      unfold himp; simpl. cancel_all.
     Qed.
   
   End WithCS.
@@ -750,7 +651,7 @@ Module SepExpr (B : Heap).
           Remaining (denote lhs') (denote rhs') _
       end (eq_refl _)).
       intros. etransitivity. 2: eapply sepCancel_cancels. 2: eassumption. 2: eauto.
-      unfold lhs. etransitivity. eapply denote_hash_cc_p. reflexivity.
+      unfold lhs. etransitivity. eapply denote_hash_cc. unfold Himp, himp. reflexivity.
     Defined.
 
   End BabySep.
@@ -779,16 +680,15 @@ Module SepExpr (B : Heap).
     Definition consts : list (PropX (tvarD pcTypeV) (tvarD stateTypeV)) := nil.
     Definition vars : variables types := nil.
 
-    Parameter repr : nat -> hprop pcTypeV stateTypeV.
+    Parameter repr : nat -> ST.Hprop (tvarD pcTypeV) (tvarD stateTypeV).
 
     Variable stateMem : tvarD stateTypeV -> B.mem.
     Definition sfuncs : list (@ssignature types pcTypeV stateTypeV) :=
       {| SDomain := Some (FS (FS FO)) :: nil
        ; SDenotation := repr
-         : functionTypeD (map (@tvarD types) (Some (FS (FS FO)) :: nil)) (hprop pcTypeV stateTypeV)
+         : functionTypeD (map (@tvarD types) (Some (FS (FS FO)) :: nil)) (ST.Hprop (tvarD pcTypeV) (tvarD stateTypeV))
        |} :: nil.
-    
-About Func.
+
   Goal forall cs,
     Himp stateMem cs (@Func types fs pcTypeV stateTypeV sfuncs consts vars FO (HCons (Expr.Const fs vars (Some (FS (FS FO))) 1) HNil))
                      (@Func types fs pcTypeV stateTypeV sfuncs consts vars FO (HCons (Expr.Const fs vars (Some (FS (FS FO))) 1) HNil)).
@@ -802,8 +702,9 @@ About Func.
           | Proved ?PF => exact PF
           | Remaining _ _ ?PF => apply PF; unfold denote; simpl
         end
-    end. reflexivity.
+    end. unfold Himp, himp. reflexivity.
     Defined.
+  End ProverTests.
   
   Section QSexpr.
     (** Guarded separation logic expressions **)

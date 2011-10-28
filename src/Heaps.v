@@ -20,6 +20,8 @@ Module HeapTheory (B : Heap).
 
   Definition smem := addr -> option byte.
 
+  Definition smem_emp : smem := fun _ => None.
+
   Definition smem_eq (a b : smem) : Prop := forall p, a p = b p.
   Infix "===" := smem_eq (at level 50).
 
@@ -146,6 +148,17 @@ Module HeapTheory (B : Heap).
   Proof.
     unfold split, semp, join, disjoint, smem_eq. intuition.
     specialize (H2 p). rewrite H0 in H2. auto.
+  Qed.
+
+  Lemma semp_smem_emp : semp smem_emp.
+  Proof.
+    unfold semp, smem_emp; auto.
+  Qed.
+
+  Lemma split_a_semp_a : forall a, 
+    split a smem_emp a.
+  Proof.
+    unfold split, semp, join, disjoint, smem_eq; intuition.
   Qed.
 
 End HeapTheory.
