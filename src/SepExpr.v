@@ -33,18 +33,15 @@ Module SepExpr (B : Heap).
     }.
     Variable sfuncs : list ssignature.
 
-    Variable consts : list (PropX (tvarD pcType) (tvarD stateType)).
-
     Inductive sexpr : variables types -> Type :=
     | Emp : forall vars, sexpr vars
     | Inj : forall vars, expr funcs vars None -> sexpr vars
     | Star : forall vars, sexpr vars -> sexpr vars -> sexpr vars
     | Exists : forall vars t, sexpr (t :: vars) -> sexpr vars
-    | Cptr : forall vars, expr funcs vars pcType -> sexpr (stateType :: vars) -> sexpr vars
     | Func : forall vars (f : fin sfuncs), 
       hlist (expr funcs vars) (SDomain (get sfuncs f)) -> sexpr vars
       (* this Const can not mention the higher-order variables *)
-    | Const : forall vars, fin consts -> sexpr vars
+    | Const : forall vars, ST.Hprop (tvarD pcType) (tvarD stateType)(*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr vars
     (** If PtsTo is derived: we can handle different sizes easily, 
      ** If PtsTo is built-in: we can derive <> facts easily (also precision)
      **)
@@ -67,14 +64,12 @@ Module SepExpr (B : Heap).
           ST.star _ _ (sexprD l g) (sexprD r g)
         | Exists _ t b => fun g => 
           ST.ex _ _ _ (fun x : tvarD t => @sexprD _ b (HCons x g))
-        | Cptr _ p t => fun g =>
-          ST.cptr _ _ stateMem (exprD g p) (fun x : tvarD stateType => sexprD t (HCons x g))
         | Func _ f b => fun g =>
           applyD (exprD g) b _ (SDenotation (get sfuncs f))
-        | Const _ p => fun _ =>
-          ST.inj _ _ (get consts p)
+        | Const _ p => fun _ => p
       end.
 
+(*
     Section Cmp.
       Definition sexprCmp vars (a : sexpr vars) : forall b, option (dcomp a b).
         refine ((fix sexprCmp vars (a : sexpr vars) {struct a} : forall b, option (dcomp a b) :=
@@ -226,6 +221,7 @@ Module SepExpr (B : Heap).
         clear sexprCmp; try abstract (subst; reflexivity).
       Defined.
     End Cmp.
+*)
 
     Section SProver.
       Definition himp (vars : variables types) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
@@ -257,9 +253,8 @@ Module SepExpr (B : Heap).
         red. intros. unfold Heq, heq. etransitivity; eauto.
       Qed.
 
-      Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil) : Type :=
-      | Proved : Himp cs gl gr -> SepResult cs gl gr
-      | Remaining : forall l r, (Himp cs l r -> Himp cs gl gr) -> SepResult cs gl gr.
+      Definition SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil) : Type :=
+        { lr : sexpr nil * sexpr nil & (Himp cs (fst lr) (snd lr) -> Himp cs gl gr) }.
 
       Definition SProverT : Type := forall
         (cs : codeSpec (tvarD pcType) (tvarD stateType)) 
@@ -271,16 +266,40 @@ Module SepExpr (B : Heap).
 
   End env.
 
-  Implicit Arguments Emp [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Inj [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Star [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Exists [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Cptr [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Func [ types funcs pcType stateType sfuncs consts vars ].
-  Implicit Arguments Const [ types funcs pcType stateType sfuncs consts vars ].
+  Implicit Arguments Emp [ types funcs pcType stateType sfuncs vars ].
+  Implicit Arguments Inj [ types funcs pcType stateType sfuncs vars ].
+  Implicit Arguments Star [ types funcs pcType stateType sfuncs vars ].
+  Implicit Arguments Exists [ types funcs pcType stateType sfuncs vars ].
+(*  Implicit Arguments Cptr [ types funcs pcType stateType sfuncs vars ]. *)
+  Implicit Arguments Func [ types funcs pcType stateType sfuncs vars ].
+  Implicit Arguments Const [ types funcs pcType stateType sfuncs vars ].
 
-  Implicit Arguments Proved [ types funcs pcType stateType stateMem sfuncs consts cs gl gr ].
-  Implicit Arguments Remaining [ types funcs pcType stateType stateMem sfuncs consts cs gl gr ].
+  Section lift.
+    Variable types : list type.
+    Variable funcs : functions types.
+    Variable pcType : tvar types.    
+    Variable stateType : tvar types.
+    Variable stateMem : tvarD stateType -> B.mem.
+    Variable sfuncs : list (ssignature pcType stateType).
+
+    Parameter liftSExpr : forall vars vars' (s : sexpr funcs sfuncs vars), sexpr funcs sfuncs (vars' ++ vars) .
+(*
+      match s in sexpr _ _ vars return sexpr funcs sfuncs (vars' ++ vars) with
+        | Emp _ => Emp
+        | Inj _ p => Inj (liftExpr vars' p)
+        | Star v' l r => Star (liftSExpr vars' l) (liftSExpr vars' r)
+        | Exists _ t b => Exists t (liftSExprMid vars' b)
+        | 
+        | _ => todo _ 
+      end.
+*)
+  End lift.
+      
+
+(*
+  Implicit Arguments Proved [ types funcs pcType stateType stateMem sfuncs cs gl gr ].
+  Implicit Arguments Remaining [ types funcs pcType stateType stateMem sfuncs cs gl gr ].
+*)
 
   Section BabySep.
     Variable types : list type.
@@ -289,9 +308,12 @@ Module SepExpr (B : Heap).
     Variable stateType : tvar types.
     Variable stateMem : tvarD stateType -> B.mem.
     Variable sfuncs : list (ssignature pcType stateType).
+(*
     Variable consts : list (PropX (tvarD pcType) (tvarD stateType)).
+*)
 
-    Definition ReflSep : @SProverT types fs pcType stateType stateMem sfuncs consts.
+(*
+    Definition ReflSep : @SProverT types fs pcType stateType sfuncs.
     red. refine (fun _ _ gl gr =>
       match sexprCmp gl gr with
         | Some (Env.Eq _) => Proved _
@@ -300,83 +322,85 @@ Module SepExpr (B : Heap).
     abstract solve [ eauto
       | subst; unfold Himp, himp; reflexivity ].
     Defined.
+*)
 
     Record SHeap vars : Type :=
     { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-    ; cptrs  : fmap (expr fs vars pcType) (sexpr fs sfuncs consts (stateType :: vars))
+(*    ; cptrs  : fmap (expr fs vars pcType) (sexpr fs sfuncs (stateType :: vars)) *)
     ; pures  : list (expr fs vars None)
-    ; cnsts  : list (fin consts)
-    ; other  : list (sexpr fs sfuncs consts vars)
+    ; other  : list (ST.Hprop (tvarD pcType) (tvarD stateType))
     }.
   
     Definition SHeap_empty vars : SHeap vars := 
       {| funcs := dmap_empty
-       ; cptrs := fmap_empty
        ; pures := nil
-       ; cnsts := nil
        ; other := nil
        |}.
 
-    Definition denote vars (h : SHeap vars) :  sexpr fs sfuncs consts vars :=
+    Definition denote vars (h : SHeap vars) :  sexpr fs sfuncs vars :=
       let a := dmap_fold (fun a x y => fold_left (fun a y => Star (Func x y) a) y a) Emp (funcs h) in
-      let b := fmap_fold (fun a x y => Star (Cptr x y) a) Emp (cptrs h) in
+(*      let b := fmap_fold (fun a x y => Star (Cptr x y) a) Emp (cptrs h) in *)
       let c := fold_right (fun x a => Star (Inj x) a) Emp (pures h) in
-      let d := fold_right (fun x a => Star (Const x) a) Emp (cnsts h) in
-      let e := fold_right (fun x a => Star x a) Emp (other h) in
-      Star a (Star b (Star c (Star d e))).
+(*      let d := fold_right (fun x a => Star (Const x) a) Emp (cnsts h) in *)
+      let e := fold_right (fun x a => Star (Const x) a) Emp (other h) in
+      Star a (Star c e).
 
-    Fixpoint hash_rec T vars (s : sexpr fs sfuncs consts vars) 
-      :  (   @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-          -> fmap (expr fs vars pcType) (sexpr fs sfuncs consts (stateType :: vars))
-          -> list (expr fs vars None)
-          -> list (fin consts)
-          -> list (sexpr fs sfuncs consts vars) -> T)
+
+    Parameter todo : forall a , a .
+
+    
+
+    Fixpoint hash_rec vars (s : sexpr fs sfuncs vars) 
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vars) })
       -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-      -> fmap (expr fs vars pcType) (sexpr fs sfuncs consts (stateType :: vars))
       -> list (expr fs vars None)
-      -> list (fin consts)
-      -> list (sexpr fs sfuncs consts vars)
-      -> T :=
-      match s in @sexpr _ _ _ _ _ _ vs 
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars) } :=
+      match s in @sexpr _ _ _ _ _ vs 
         return 
-           (   @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
-            -> fmap (expr fs vs pcType) (sexpr fs sfuncs consts (stateType :: vs))
-            -> list (expr fs vs None)
-            -> list (fin consts)
-            -> list (sexpr fs sfuncs consts vs) -> T)
+           (forall vs', 
+               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
+            -> list (expr fs (vs' ++ vs) None)
+            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+            -> { vars' : variables types & SHeap (vars' ++ vs) })
         -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
-        -> fmap (expr fs vs pcType) (sexpr fs sfuncs consts (stateType :: vs))
         -> list (expr fs vs None)
-        -> list (fin consts)
-        -> list (sexpr fs sfuncs consts vs)
-        -> T
+        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+        -> { vars' : variables types & SHeap (vars' ++ vs) }
         with
-        | Emp _ => fun cc => cc 
-        | Inj _ p => fun cc fs cps ps cs ot =>
-          cc fs cps (p :: ps) cs ot 
-        | Star _ l r => fun cc =>
-          hash_rec l (hash_rec r cc)
-        | Func _ f args => fun cc fs cps ps cs ot =>
+        | Emp vars => fun cc => cc nil
+        | Inj _ p => fun cc fs ps ot =>
+          cc nil fs (p :: ps) ot 
+        | Star _ l r => fun cc => todo _ 
+(*          hash_rec l (fun vs => hash_rec (liftSExpr vs r) cc () () () *)
+        | Func _ f args => fun cc fs ps ot => todo _
+(*
           match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
             | None =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) cps ps cs ot
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
             | Some (v,fs') =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') cps ps cs ot
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
           end
-        | Cptr _ p s => fun cc fs cps ps cs ot =>
-          cc fs (fmap_insert (@exprCmp _ _ _ _ ) p s cps) ps cs ot 
-        | x => fun cc fs cps ps cs ot =>
-          (** TODO : Other cases are problematic... **)
-          cc fs cps ps cs (x :: ot)
+*)
+        | Exists _ t b => fun cc fs' ps ot => todo _
+(*
+          let l ls := @hlist_map _ _ (expr fs (t :: vars)) (fun t' (x : expr fs vars t') => liftExpr (t :: nil) x) ls in
+          hash_rec b cc (dmap_map l fs') (map (liftExpr (t :: nil)) ps) ot
+*)
+        | Const _ x => fun cc fs ps ot =>
+          cc nil fs ps (x :: ot)
       end.
 
-    Definition hash_cc T vars (s : sexpr fs sfuncs consts vars)
+    Definition hash_cc vars (s : sexpr fs sfuncs vars)
       (cc : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-       -> fmap (expr fs vars pcType) (sexpr fs sfuncs consts (stateType :: vars))
        -> list (expr fs vars None)
-       -> list (fin consts)
-       -> list (sexpr fs sfuncs consts vars) -> T) : T :=
-      @hash_rec T vars s cc dmap_empty fmap_empty nil nil nil.
+       -> list (sexpr fs sfuncs vars) -> { vars' : variables types & SHeap (vars' ++ vars) }) : 
+      { vars' : variables types & SHeap (vars' ++ vars) } :=
+      @hash_rec vars s cc dmap_empty nil nil.
 
     Section WithCS.
     Variable cs : codeSpec (tvarD pcType) (tvarD stateType).

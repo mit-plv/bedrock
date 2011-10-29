@@ -111,6 +111,46 @@ Section fin.
                              end (@get ls')
     end.
 
+  Fixpoint liftD (ls : list A) e : forall i : fin ls, { x : fin (e ++ ls) & get x = get i } :=
+    match e as e return forall i : fin ls, { x : fin (e ++ ls) & get x = get i } with
+      | nil => fun x => existT _ x (refl_equal _)
+      | a :: b => fun x => 
+        match @liftD ls b x with
+          | existT x pf => 
+            existT _ (FS a x) (match pf in _ = t
+                                 return get (FS a x) = t with
+                                 | refl_equal => refl_equal _
+                               end)
+        end
+    end.
+
+(*
+  Parameter todo : forall a , a.
+
+  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : { x : fin (ls' ++ e ++ ls) & get x = get i }.
+  refine ((fix liftDmid (ls ls' : list A) e : forall (i : fin (ls' ++ ls)), { x : fin (ls' ++ e ++ ls) & get x = get i } :=
+    match ls' as ls' return forall i : fin (ls' ++ ls), { x : fin (ls' ++ e ++ ls) & get x = get i } with
+      | nil => fun x => @liftD ls e x
+      | a :: b => fun x =>
+        match x as x in fin lls 
+          return a :: b ++ ls = lls -> { y : fin (a :: b ++ e ++ ls) & get y = get x }
+          with
+          | FO _ _ => fun pf => existT _ (@FO a (b ++ e ++ ls)) _
+          | FS _ _ x' => fun pf => 
+            match @liftDmid ls b e (match pf in _ = t return fin t with
+                                      | refl_equal => _
+                                    end) with
+              | existT x pf => 
+                existT _ (FS a x) (match pf in _ = t
+                                     return get (FS a x) = t with
+                                     | refl_equal => refl_equal _
+                                   end)
+            end
+        end (refl_equal _)
+    end) ls ls' e i).
+  simpl. inversion pf. reflexivity.
+*)
+
   Variable B : A -> Type.
 
   Inductive hlist : list A -> Type :=
@@ -233,3 +273,17 @@ Implicit Arguments finIfz [A t ls].
 Implicit Arguments get [A].
 Implicit Arguments HNil [A B].
 Implicit Arguments HCons [A B x ls].
+
+Section hlist_map.
+  Variable A : Type.
+  Variable F : A -> Type.
+  Variable G : A -> Type.
+  Variable ff : forall x, F x -> G x.
+
+  Fixpoint hlist_map (ls : list A) (hl : hlist F ls) {struct hl} : hlist G ls :=
+    match hl in @hlist _ _ ls return hlist G ls with
+      | HNil => HNil
+      | HCons _ _ hd tl => 
+        HCons (ff hd) (hlist_map tl)
+    end.
+End hlist_map.

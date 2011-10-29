@@ -127,6 +127,20 @@ Implicit Arguments dmap_fold [ K V T ].
 Implicit Arguments dmap_remove [ K V ].
 Implicit Arguments dmap_insert [ K V ].
 
+Section map.
+  Variable K : Type.
+  Variable V V' : K -> Type.
+  Variable f : forall k, V k -> V' k.
+
+  Fixpoint dmap_map  (m : @dmap K V) : @dmap K V' :=
+    match m with
+      | DM_Empty => DM_Empty _ _
+      | DM_Branch k v l r =>
+        DM_Branch _ _ k (f _ v) (dmap_map l) (dmap_map r)
+    end.
+End map.
+
+
 Section Map.
   Variable K : Type.
   Variable V : Type.

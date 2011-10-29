@@ -90,6 +90,11 @@ Module HeapTheory (B : Heap).
   Proof.
     unfold semp; morph. 
   Qed.
+  Add Parametric Morphism : split with 
+    signature smem_eq ==> smem_eq ==> smem_eq ==> iff as split_mor.
+  Proof.
+    unfold split; morph.
+  Qed.
 
   Lemma disjoint_join : forall a b, disjoint a b -> join a b === join b a.
   Proof.

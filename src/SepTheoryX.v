@@ -97,8 +97,14 @@ Module SepTheoryX (H : Heap).
     Theorem hstar_respects (l r : Hprop) : forall cs G m m', HT.smem_eq m m' -> 
       valid cs G ((hstar l r) m) -> valid cs G ((hstar l r) m').
     Proof.
-      intros; unfold hstar in *; goPropX. 
-    Admitted.
+      intros; unfold hstar in *. eapply Exists_E. eassumption. intros.
+      eapply Exists_I. eapply Exists_E. econstructor; eauto. left. eauto.
+      intros. eapply Exists_I. repeat eapply And_I.
+      2: eapply And_E1; eapply And_E2; econstructor; left; reflexivity.
+      2: eapply And_E2; eapply And_E2; econstructor; left; reflexivity.
+      eapply Inj_E. eapply And_E1. econstructor. left. reflexivity.
+      intros. rewrite H in H1. eapply Inj_I; auto.
+    Qed.
 
     Definition star (l r : Hprop) : Hprop := Build_Hprop _ (hstar_respects l r).
       
@@ -114,7 +120,6 @@ Module SepTheoryX (H : Heap).
     Qed.
 
     Definition inj (p : PropX pcType stateType) : Hprop := Build_Hprop _ (hinj_respects p).
-
 
     Definition hcptr (stateMem : stateType -> H.mem) (p : pcType) (t : stateType -> Hprop) : hprop :=
       fun h => 
@@ -144,6 +149,9 @@ Module SepTheoryX (H : Heap).
     Proof.
       unfold hex; intros; goPropX. eapply Exists_E in H0. eassumption. intros.
         eapply Exists_I. instantiate (1 := B). destruct (p B). simpl in *.
+        specialize (respects0 cs0 G _ _ H). generalize respects0. clear. intros.
+        
+      (** TODO : Finish this! **)
     Admitted.
 
     Definition ex (T : Type) (p : T -> Hprop) : Hprop := Build_Hprop _ (hex_respects T p).
