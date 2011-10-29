@@ -14,7 +14,8 @@ Module SepTheoryX (H : Heap).
 
     Record Hprop : Type := 
     { prop : hprop
-    ; respects : forall cs G m m', HT.smem_eq m m' -> valid cs G (prop m) -> valid cs G (prop m')
+    ; respects : forall cs G m m', HT.smem_eq m m' -> 
+      valid cs G (prop m --> prop m')
     }.
 
     Coercion prop : Hprop >-> hprop.
@@ -83,9 +84,12 @@ Module SepTheoryX (H : Heap).
     Definition hemp : hprop :=
       fun m => PropX.Inj (HT.semp m).
     
-    Theorem hemp_respects : forall cs G m m', HT.smem_eq m m' -> valid cs G (hemp m) -> valid cs G (hemp m').
-      intros; goPropX; eapply Inj_E in H0; try eassumption; intros; eapply Inj_I;
-        eapply HT.semp_mor; eauto; symmetry; auto.
+    Theorem hemp_respects : forall cs G m m', HT.smem_eq m m' -> 
+      valid cs G (hemp m --> hemp m').
+      intros; goPropX. unfold hemp. eapply Imply_I.
+      generalize (Env cs0 ([|HT.semp m|]%PropX :: G) [|HT.semp m|]%PropX ).
+      intros. eapply Inj_E. eapply H0. left. reflexivity.
+      intros. rewrite H in H1. eapply Inj_I. auto.
     Qed.
 
     Definition emp : Hprop := Build_Hprop _ hemp_respects.
@@ -95,15 +99,17 @@ Module SepTheoryX (H : Heap).
         PropX.And (PropX.Inj (HT.split m ml mr)) (And ((prop l) ml) ((prop r) mr)))).
 
     Theorem hstar_respects (l r : Hprop) : forall cs G m m', HT.smem_eq m m' -> 
-      valid cs G ((hstar l r) m) -> valid cs G ((hstar l r) m').
+      valid cs G ((hstar l r) m --> (hstar l r) m').
     Proof.
-      intros; unfold hstar in *. eapply Exists_E. eassumption. intros.
-      eapply Exists_I. eapply Exists_E. econstructor; eauto. left. eauto.
-      intros. eapply Exists_I. repeat eapply And_I.
+      intros; unfold hstar in *. eapply Imply_I. eapply Exists_E.
+      econstructor. left. reflexivity.
+      intros; eapply Exists_E. econstructor; left; reflexivity.
+      intros. eapply Exists_I. instantiate (1 := B). eapply Exists_I. instantiate (1 := B0).
+      repeat eapply And_I.
       2: eapply And_E1; eapply And_E2; econstructor; left; reflexivity.
       2: eapply And_E2; eapply And_E2; econstructor; left; reflexivity.
       eapply Inj_E. eapply And_E1. econstructor. left. reflexivity.
-      intros. rewrite H in H1. eapply Inj_I; auto.
+      intros. rewrite H in H0. eapply Inj_I; auto.
     Qed.
 
     Definition star (l r : Hprop) : Hprop := Build_Hprop _ (hstar_respects l r).
@@ -112,11 +118,13 @@ Module SepTheoryX (H : Heap).
       fun m => PropX.And p (prop emp m).
     
     Theorem hinj_respects (p : PropX pcType stateType) : forall cs G m m', 
-      HT.smem_eq m m' -> valid cs G ((hinj p) m) -> valid cs G ((hinj p) m').
+      HT.smem_eq m m' -> valid cs G ((hinj p) m --> (hinj p) m').
     Proof.
-      unfold hinj; intros. eapply And_I. eapply And_E1 in H0. auto. eapply And_E2 in H0.
-      unfold emp, hemp in *. simpl in *. eapply Inj_E in H0. eassumption. intros.
-      eapply Inj_I. eapply HT.semp_mor; eauto. symmetry; auto.
+      unfold hinj; intros. eapply Imply_I. eapply And_I.
+      eapply And_E1. econstructor; left; reflexivity.
+      unfold emp, hemp in *. simpl in *. eapply Inj_E. eapply And_E2.
+      econstructor; left; reflexivity. intros; eapply Inj_I. 
+      eapply HT.semp_mor; eauto. symmetry; eassumption. 
     Qed.
 
     Definition inj (p : PropX pcType stateType) : Hprop := Build_Hprop _ (hinj_respects p).
@@ -131,11 +139,14 @@ Module SepTheoryX (H : Heap).
 
     Theorem hcptr_respects (stateMem : stateType -> H.mem) (p : pcType) (t : stateType -> Hprop) : 
       forall cs G m m', 
-        HT.smem_eq m m' -> valid cs G ((hcptr stateMem p t) m) -> valid cs G ((hcptr stateMem p t) m').
+        HT.smem_eq m m' -> valid cs G ((hcptr stateMem p t) m --> (hcptr stateMem p t) m').
     Proof.
-      unfold hcptr; intros; goPropX. eapply And_I. eapply And_E1 in H0. eapply Inj_E in H0. eassumption. intros.
-        eapply Inj_I. eapply HT.semp_mor; eauto. symmetry; auto.
-        eapply And_E2 in H0. eassumption.
+      unfold hcptr; intros. eapply Imply_I. eapply And_I.
+      2: eapply And_E2; econstructor; left; reflexivity.
+      eapply Imply_E. 2: eapply And_E1; econstructor; left; reflexivity. eapply Imply_I.
+      generalize hemp_respects. intros. eapply H0 in H. eapply Imply_E. 2: eassumption.
+      unfold hemp in *. clear. eapply Imply_I. 
+      eapply Imply_E. econstructor; left; reflexivity. econstructor; right; left; reflexivity.
     Qed.
 
     Definition cptr (stateMem : stateType -> H.mem) (p : pcType) (t : stateType -> Hprop) : Hprop :=
@@ -145,14 +156,15 @@ Module SepTheoryX (H : Heap).
       fun h => PropX.Exists (fun t => prop (p t) h).
     
     Definition hex_respects T (p : T -> Hprop) : forall cs G m m', 
-      HT.smem_eq m m' -> valid cs G ((hex _ p) m) -> valid cs G ((hex _ p) m').
+      HT.smem_eq m m' -> valid cs G ((hex _ p) m --> (hex _ p) m').
     Proof.
-      unfold hex; intros; goPropX. eapply Exists_E in H0. eassumption. intros.
-        eapply Exists_I. instantiate (1 := B). destruct (p B). simpl in *.
+      unfold hex; intros. eapply Imply_I. eapply Exists_E. econstructor; left; reflexivity.
+      intros. eapply Exists_I. instantiate (1 := B). destruct (p B). simpl in *.
         specialize (respects0 cs0 G _ _ H). generalize respects0. clear. intros.
-        
-      (** TODO : Finish this! **)
-    Admitted.
+        eapply Imply_E. 2: econstructor; left; reflexivity.
+        eapply valid_weaken. eassumption. clear.
+        red. intros. simpl. tauto.
+    Qed.
 
     Definition ex (T : Type) (p : T -> Hprop) : Hprop := Build_Hprop _ (hex_respects T p).
 
@@ -220,7 +232,7 @@ Module SepTheoryX (H : Heap).
       unfold himp. intros. eapply H. unfold star in *. simpl in *.
       goPropX. apply simplify_bwd in H2. destruct P. simpl in *.
       eapply HT.split_semp in H1; eauto.
-      eapply respects0 in H2. goPropX. eassumption. symmetry; eauto.
+      apply simplify_fwd.  eapply Imply_E.  2: eassumption. eapply respects0. symmetry; auto.
     Qed.
 
     Theorem himp_star_emp_p' : forall P Q, himp (star emp P) Q -> himp P Q.
@@ -241,8 +253,9 @@ Module SepTheoryX (H : Heap).
     Proof.
       unfold himp. intros. eapply H in H0. unfold star in *. simpl in *.
       goPropX. apply simplify_bwd in H2. destruct Q. simpl in *.
-      eapply HT.split_semp in H1; eauto. unfold interp in H2.
-      eapply respects0 in H2. goPropX. eassumption. symmetry; eauto.
+      eapply HT.split_semp in H1; eauto.
+      apply simplify_fwd. unfold interp in *.
+      eapply Imply_E. eapply respects0. symmetry; eassumption. auto.
     Qed.
 
     Theorem heq_star_emp : forall P Q, heq P Q -> heq (star emp P) Q.
