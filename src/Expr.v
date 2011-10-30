@@ -146,21 +146,22 @@ End env.
 Section Lifting.
   Variable types : list type.
   Variable funcs : functions types.
-  Variable vars : variables types.
+  Variable vars ext vars' : variables types.
 
-  Fixpoint liftExpr (T : tvar types) (vars' : variables types) (e : expr funcs vars T) : expr funcs (vars' ++ vars) T :=
-    match e in expr _ _ T return expr funcs (vars' ++ vars) T with
+  Fixpoint liftExpr (T : tvar types) (e : expr funcs (vars' ++ vars) T) 
+    : expr funcs (vars' ++ ext ++ vars) T :=
+    match e in expr _ _ T return expr funcs (vars' ++ ext ++ vars) T with
       | Var v => 
-        match liftD vars' v with
+        match @liftDmid _ vars vars' ext v with
           | existT v pf => match pf in _ = t 
-                             return expr funcs (vars' ++ vars) t
+                             return expr funcs (vars' ++ ext ++ vars) t
                              with
                              | refl_equal => Var _ v
                            end
         end
-      | Const t x => Const funcs (vars' ++ vars) t x 
+      | Const t x => Const funcs (vars' ++ ext ++ vars) t x 
       | Func f a => 
-        Func f (@hlist_map _ _ (expr funcs (vars' ++ vars)) (fun t (x : expr funcs vars t) => liftExpr vars' x) _ a)
+        Func f (@hlist_map _ _ (expr funcs (vars' ++ ext ++ vars)) (fun t (x : expr funcs (vars' ++ vars) t) => liftExpr x) _ a)
     end.
 
 End Lifting.

@@ -274,24 +274,41 @@ Module SepExpr (B : Heap).
     Variable stateMem : tvarD stateType -> B.mem.
     Variable sfuncs : list (ssignature pcType stateType).
 
-    Parameter liftSExpr : forall vars vars' (s : sexpr funcs sfuncs vars), sexpr funcs sfuncs (vars' ++ vars) .
-(*
-      match s in sexpr _ _ vars return sexpr funcs sfuncs (vars' ++ vars) with
-        | Emp _ => Emp
-        | Inj _ p => Inj (liftExpr vars' p)
-        | Star v' l r => Star (liftSExpr vars' l) (liftSExpr vars' r)
-        | Exists _ t b => Exists t (liftSExprMid vars' b)
-        | 
-        | _ => todo _ 
-      end.
-*)
-  End lift.
-      
+    Fixpoint liftSExpr vars ext vars' (s : sexpr funcs sfuncs (vars ++ vars')) 
+      : sexpr funcs sfuncs (vars ++ ext ++ vars') :=
+      match s in sexpr _ _ vs 
+        return vs = vars ++ vars' -> sexpr funcs sfuncs (vars ++ ext ++ vars') with
+        | Emp _ => fun _ => Emp
+        | Inj _ p => fun pf => 
+          Inj (liftExpr vars' ext vars match pf in _ = t return expr funcs t None with
+                                         | refl_equal => p
+                                       end)
+        | Star v' l r => fun pf => 
+          Star 
+            (liftSExpr vars ext vars' match pf in _ = t return sexpr funcs sfuncs t with
+                                        | refl_equal => l
+                                      end) 
+            (liftSExpr vars ext vars' match pf in _ = t return sexpr funcs sfuncs t with
+                                        | refl_equal => r
+                                      end)
+        | Exists v t b => fun pf => 
+          let b := 
+            match pf in _ = v' return sexpr funcs sfuncs (t :: v') with
+              | refl_equal => b
+            end
+          in
+          Exists t (liftSExpr (t :: vars) ext vars' b)
+        | Func v f a => fun pf =>
+          let a :=
+            match pf in _ = v' return hlist (expr funcs v') (SDomain (get sfuncs f)) with
+              | refl_equal => a
+            end
+          in
+          Func f (@hlist_map (tvar types) (expr funcs (vars ++ vars')) (expr funcs (vars ++ ext ++ vars')) (fun _ e => liftExpr vars' ext vars e) _ a)
+        | Const v p => fun _ => Const p
+      end (refl_equal _).
 
-(*
-  Implicit Arguments Proved [ types funcs pcType stateType stateMem sfuncs cs gl gr ].
-  Implicit Arguments Remaining [ types funcs pcType stateType stateMem sfuncs cs gl gr ].
-*)
+  End lift.
 
   Section BabySep.
     Variable types : list type.
