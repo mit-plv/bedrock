@@ -7,14 +7,6 @@ Require Import Classes.RelationClasses.
 
 Set Implicit Arguments.
 
-Ltac goPropX := 
-  repeat match goal with
-           | [ H : valid _ _ _ |- _ ] => apply simplify_fwd in H; simpl in H
-           | [ |- valid _ _ _ ] => apply simplify_bwd; simpl
-           | [ H : exists x , _ |- _ ] => destruct H
-           | [ H : _ /\ _ |- _ ] => destruct H
-         end.
-
 Module SepExpr (B : Heap).
   Module ST := SepTheoryX.SepTheoryX B.  
 

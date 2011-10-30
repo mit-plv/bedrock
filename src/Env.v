@@ -124,32 +124,80 @@ Section fin.
         end
     end.
 
-(*
-  Parameter todo : forall a , a.
+ Parameter pf_list_simpl' : forall A b c d (a : list A), (a ++ b :: nil) ++ c ++ d = a ++ (b :: c) ++ d.
 
-  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : { x : fin (ls' ++ e ++ ls) & get x = get i }.
-  refine ((fix liftDmid (ls ls' : list A) e : forall (i : fin (ls' ++ ls)), { x : fin (ls' ++ e ++ ls) & get x = get i } :=
-    match ls' as ls' return forall i : fin (ls' ++ ls), { x : fin (ls' ++ e ++ ls) & get x = get i } with
-      | nil => fun x => @liftD ls e x
-      | a :: b => fun x =>
-        match x as x in fin lls 
-          return a :: b ++ ls = lls -> { y : fin (a :: b ++ e ++ ls) & get y = get x }
-          with
-          | FO _ _ => fun pf => existT _ (@FO a (b ++ e ++ ls)) _
-          | FS _ _ x' => fun pf => 
-            match @liftDmid ls b e (match pf in _ = t return fin t with
-                                      | refl_equal => _
-                                    end) with
-              | existT x pf => 
-                existT _ (FS a x) (match pf in _ = t
-                                     return get (FS a x) = t with
-                                     | refl_equal => refl_equal _
-                                   end)
+  Fixpoint pf_list_simpl A b c (a : list A) : (a ++ b :: nil) ++ c = a ++ b :: c :=
+    match a as a return (a ++ b :: nil) ++ c = a ++ b :: c with
+      | nil => refl_equal (nil ++ b :: nil ++ c)
+      | a' :: b' => match eq_sym (@pf_list_simpl A b c b') in _ = t return a' :: t = a' :: b' ++ b :: c 
+                      with
+                      | refl_equal => refl_equal _
+                    end
+    end.
+
+  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : 
+    { x : fin (ls' ++ e ++ ls) & get x = get i }.
+  refine ((fix liftDmid (ls'' ls ls' ls''': list A) e : forall (i : fin ls'''),
+    ls' ++ ls = ls''' ->
+    (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
+       { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
+    { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i } :=
+    match ls' as ls' return 
+      forall (i : fin ls'''),
+        ls' ++ ls = ls''' ->
+        (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
+       { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
+        { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }
+      with
+      | nil => fun (i : fin ls''') (pf : ls = ls''') =>
+        match eq_sym pf in _ = t 
+          return ({i' : fin (nil ++ e ++ t) & get i' = get i} ->
+            {x : fin (ls'' ++ nil ++ e ++ t) & get x = get i}) ->
+          {x : fin (ls'' ++ nil ++ e ++ t) & get x = get i}
+          with 
+          | refl_equal => fun cc => cc (liftD e i)
+        end
+      | a :: b => fun i =>
+        match i as i in fin ls''' return 
+          (a :: b) ++ ls = ls''' ->
+          ({i' : fin ((a :: b) ++ e ++ ls) & get i' = get i} ->
+            {x : fin (ls'' ++ (a :: b) ++ e ++ ls) & get x = get i}) ->
+          {x : fin (ls'' ++ (a :: b) ++ e ++ ls) & get x = get i}
+          with 
+          | FO x _ => fun pf cc =>
+            cc (@existT _ _ (FO _ _) match pf in _ = t return match t with
+                                                                | nil => Empty_set
+                                                                | x :: _ => a = x
+                                                              end
+                                       with
+                                       | refl_equal => refl_equal _
+                                     end)
+            
+          | FS _ LX f => fun pf cc => 
+            match pf_list_simpl a (b ++ e ++ ls) ls'' in _ = t
+              return 
+              ({i' : fin (b ++ e ++ ls) & get i' = get f} ->
+                {x : fin t & get x = get f}) ->
+              {x : fin t & get x = get f}
+              with
+              | refl_equal => 
+                @liftDmid (ls'' ++ a :: nil) ls b LX e f 
+                match pf in _ = t return
+                  match t with
+                    | nil => Empty_set 
+                    | a' :: b' => b ++ ls = b'
+                  end
+                  with
+                  | refl_equal => refl_equal _
+                end
             end
-        end (refl_equal _)
-    end) ls ls' e i).
-  simpl. inversion pf. reflexivity.
-*)
+            (fun z => match z with
+                        | existT v pf => cc (@existT _ _ (FS a v) pf)
+                      end)
+        end
+    end
+    ) nil ls ls' (ls' ++ ls) e i (refl_equal _) (fun i' => i')).
+  Defined.
 
   Variable B : A -> Type.
 
