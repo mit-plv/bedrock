@@ -124,8 +124,6 @@ Section fin.
         end
     end.
 
- Parameter pf_list_simpl' : forall A b c d (a : list A), (a ++ b :: nil) ++ c ++ d = a ++ (b :: c) ++ d.
-
   Fixpoint pf_list_simpl A b c (a : list A) : (a ++ b :: nil) ++ c = a ++ b :: c :=
     match a as a return (a ++ b :: nil) ++ c = a ++ b :: c with
       | nil => refl_equal (nil ++ b :: nil ++ c)
