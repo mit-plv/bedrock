@@ -146,7 +146,7 @@ End env.
 Section Lifting.
   Variable types : list type.
   Variable funcs : functions types.
-  Variable vars ext vars' : variables types.
+  Variable vars' ext vars : variables types.
 
   Fixpoint liftExpr (T : tvar types) (e : expr funcs (vars' ++ vars) T) 
     : expr funcs (vars' ++ ext ++ vars) T :=
