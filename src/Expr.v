@@ -39,13 +39,16 @@ Section env.
 
   Variable funcs : functions.
   Variable vars : variables.
+  Variable uvars : variables.
 
   Definition func := fin funcs.
   Definition var := fin vars.
+  Definition uvar := fin uvars.
 
   Inductive expr : tvar -> Type :=
   | Const : forall t : tvar, tvarD t -> expr t
   | Var : forall x : var, expr (get vars x)
+  | UVar : forall x : uvar, expr (get uvars x)
   | Func : forall f : func, hlist expr (Domain (get funcs f)) -> expr (Range (get funcs f)).
 
   Section applyD.
@@ -67,11 +70,13 @@ Section env.
   End applyD.
 
   Variable env : hlist tvarD vars.
+  Variable uenv : hlist tvarD uvars.
 
   Fixpoint exprD t (e : expr t) {struct e} : tvarD t :=
     match e with
       | Const _ c => c
       | Var x => hlist_get x env
+      | UVar x => hlist_get x uenv
       | Func f xs => applyD exprD xs _ (Denotation (get funcs f))
     end.
   
@@ -116,6 +121,15 @@ Section env.
           | Var x2 => fun Heq => if finEq x1 x2 then Some _ else None
           | _ => fun _ => None
         end (refl_equal _)
+      | UVar x1 => fun y => 
+        match y in expr t 
+          return forall Heq : t = get uvars x1, 
+            option (UVar x1 = match Heq in _ = T return expr T with
+                                | refl_equal => y
+                              end) with
+          | UVar x2 => fun Heq => if finEq x1 x2 then Some _ else None
+          | _ => fun _ => None
+        end (refl_equal _)
       | Func f1 xs1 => fun y => 
         match y in expr t return forall Heq : t = Range (get funcs f1),
           (forall xs2, option (xs1 = xs2))
@@ -146,22 +160,24 @@ End env.
 Section Lifting.
   Variable types : list type.
   Variable funcs : functions types.
+  Variable uvars : variables types.
   Variable vars' ext vars : variables types.
 
-  Fixpoint liftExpr (T : tvar types) (e : expr funcs (vars' ++ vars) T) 
-    : expr funcs (vars' ++ ext ++ vars) T :=
-    match e in expr _ _ T return expr funcs (vars' ++ ext ++ vars) T with
+  Fixpoint liftExpr (T : tvar types) (e : expr funcs (vars' ++ vars) uvars T) 
+    : expr funcs (vars' ++ ext ++ vars) uvars T :=
+    match e in expr _ _ _ T return expr funcs (vars' ++ ext ++ vars) uvars T with
       | Var v => 
         match @liftDmid _ vars vars' ext v with
           | existT v pf => match pf in _ = t 
-                             return expr funcs (vars' ++ ext ++ vars) t
+                             return expr funcs (vars' ++ ext ++ vars) uvars t
                              with
-                             | refl_equal => Var _ v
+                             | refl_equal => Var _ uvars v
                            end
         end
-      | Const t x => Const funcs (vars' ++ ext ++ vars) t x 
+      | UVar v => UVar _ _ v
+      | Const t x => Const funcs (vars' ++ ext ++ vars) uvars t x 
       | Func f a => 
-        Func f (@hlist_map _ _ (expr funcs (vars' ++ ext ++ vars)) (fun t (x : expr funcs (vars' ++ vars) t) => liftExpr x) _ a)
+        Func f (@hlist_map _ _ (expr funcs (vars' ++ ext ++ vars) uvars) (fun t (x : expr funcs (vars' ++ vars) uvars t) => liftExpr x) _ a)
     end.
 
 End Lifting.
@@ -170,7 +186,7 @@ Section Qexpr.
   Context {types : list type}.
   Variable fs : functions types.
 
-  Definition Qexpr := { x : variables types & expr fs x None }.
+  Definition Qexpr := { x : variables types & expr fs x nil None }.
 
   Fixpoint denoteQuant (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
     match ls as ls return (hlist (@tvarD types) ls -> Prop) -> Prop with
@@ -180,7 +196,7 @@ Section Qexpr.
     end.
 
   Definition qexprD (p : Qexpr) : Prop :=
-    @denoteQuant (projT1 p) (fun x => exprD x (projT2 p)).
+    @denoteQuant (projT1 p) (fun x => exprD x HNil (projT2 p)).
 End Qexpr.
 
 Section ProverT.
@@ -188,9 +204,10 @@ Section ProverT.
   Variable fs : functions types.
 
   Definition ProverT : Type := forall 
-    (hyps : list (@Qexpr types fs))
-    (goal : @expr types fs nil None), 
-    hlist (@qexprD _ fs) hyps -> option (exprD HNil goal).
+    (hyps : list (@expr types fs nil nil None))
+    (goal : @expr types fs nil nil None), 
+    hlist (fun e => @exprD _ fs _ _ HNil HNil None e) hyps -> 
+    option (exprD HNil HNil goal).
   
 End ProverT.
 
@@ -402,7 +419,7 @@ Ltac reflect_goal isConst types funcs vars :=
       let funcs := eval simpl in funcs in
       let vars := constr:(@nil (tvar types)) in
       let e := buildExpr isConst types types' funcs vars G in
-      change (exprD HNil e)
+      change (exprD HNil HNil e)
   end.
 
 Ltac reflect isConst :=
@@ -414,7 +431,7 @@ Ltac reflect isConst :=
       let funcs := eval simpl in funcs in
       let vars := constr:(@nil (tvar types)) in
       let e := buildExpr isConst types types' funcs vars G in
-      change (exprD HNil e)
+      change (exprD HNil HNil e)
   end.
 
 
@@ -431,6 +448,8 @@ Ltac consts e :=
 (** These terms get pretty big since we have to store the list instead of just the length.
  ** It would probably be beneficial to let-bind some terms unless Coq is doing its own sharing
  **)
+(* TODO: Fix this if unification works out well this way....
+
 Goal forall a b : nat, a + b = a + b.
   intros; reflect consts.
 (* Performance Evaluation *)
@@ -448,5 +467,6 @@ Abort.
 Goal forall n m, n + m = m + 0 + n.
   intros; reflect consts.
 Abort.
+*)
 
 Require Export Env.

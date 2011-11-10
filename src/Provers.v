@@ -32,14 +32,17 @@ Section Prover.
 
 Definition assumptionProver : ProverT fs.
   red.
-  refine (fix assumptionProver hyps (goal : expr fs nil None) : hlist (@qexprD _ fs) hyps -> option (exprD HNil goal) :=
+  refine (fix assumptionProver hyps (goal : expr fs nil nil None) : hlist (fun e => @exprD _ fs _ _ HNil HNil None e) hyps -> option (exprD HNil HNil goal) :=
     match hyps with
       | nil => fun _ => None
-      | existT vs exp :: b => 
-        match vs as vs return forall exp : expr fs vs None, hlist (@qexprD _ fs) (existT (fun vs => expr fs vs None) vs exp :: b) -> _ with
-          | nil => fun exp pfHyps => if exprEq goal exp then Some _ else assumptionProver b goal (hlist_tl pfHyps)
-          | _ => fun _ pfHyps => assumptionProver b goal (hlist_tl pfHyps)
+      | exp :: b => fun pfHyps => 
+(*        match vs as vs return forall exp : expr fs vs None, hlist (@qexprD _ fs) (existT (fun vs => expr fs vs None) vs exp :: b) -> _ with
+          | nil => fun exp pfHyps => 
+          *)
+        if exprEq goal exp then Some _ else assumptionProver b goal (hlist_tl pfHyps)
+(*          | _ => fun _ pfHyps => assumptionProver b goal (hlist_tl pfHyps)
         end exp
+*)
     end);
   clear assumptionProver;
   try abstract (subst;
@@ -67,19 +70,19 @@ Section BabyOmega.
     :: fs (_ :: nil).
 
   Definition DMatch' f args :=
-    option (match Range (get fs' f) as T return (expr fs' nil T -> Type) with
-              | Some f0 => fun _ : expr fs' nil (Some f0) => Empty_set
-              | None => fun goal0 : expr fs' nil None => exprD HNil goal0
+    option (match Range (get fs' f) as T return (expr fs' nil nil T -> Type) with
+              | Some f0 => fun _ : expr fs' nil nil (Some f0) => Empty_set
+              | None => fun goal : expr fs' nil nil None => exprD HNil HNil goal
             end (Func f args)).
 
   Definition DMatch (f : fin fs') : Type :=
-    forall args : hlist (expr fs' nil) (Domain (get fs' f)), DMatch' f args.
+    forall args : hlist (expr fs' nil nil) (Domain (get fs' f)), DMatch' f args.
 
   Definition BabyOmega : @ProverT types' fs'.
     red.
     refine (fun _ goal _ =>
-      match goal in expr _ _ T return option (match T return expr _ _ T -> Type with
-                                                | None => fun goal => exprD HNil goal
+      match goal in expr _ _ _ T return option (match T return expr _ _ _ T -> Type with
+                                                | None => fun goal => exprD HNil HNil goal
                                                 | _ => fun _ => Empty_set
                                               end goal) with
         | Func f args =>

@@ -21,44 +21,47 @@ Module SepExpr (B : Heap).
 
     Record ssignature := {
       SDomain : list (tvar types) ;
-      SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.Hprop (tvarD pcType) (tvarD stateType))
+      SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.hprop (tvarD pcType) (tvarD stateType) nil)
     }.
     Variable sfuncs : list ssignature.
 
-    Inductive sexpr : variables types -> Type :=
-    | Emp : forall vars, sexpr vars
-    | Inj : forall vars, expr funcs vars None -> sexpr vars
-    | Star : forall vars, sexpr vars -> sexpr vars -> sexpr vars
-    | Exists : forall vars t, sexpr (t :: vars) -> sexpr vars
+    Inductive sexpr (unifs : variables types) : variables types -> Type :=
+    | Emp : forall vars, sexpr unifs vars
+    | Inj : forall vars, expr funcs vars unifs None -> sexpr unifs vars
+    | Star : forall vars, sexpr unifs vars -> sexpr unifs vars -> sexpr unifs vars
+    | Exists : forall vars t, sexpr unifs (t :: vars) -> sexpr unifs vars
     | Func : forall vars (f : fin sfuncs), 
-      hlist (expr funcs vars) (SDomain (get sfuncs f)) -> sexpr vars
+      hlist (expr funcs vars unifs) (SDomain (get sfuncs f)) -> sexpr unifs vars
       (* this Const can not mention the higher-order variables *)
-    | Const : forall vars, ST.Hprop (tvarD pcType) (tvarD stateType)(*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr vars
+    | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil (*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr unifs vars
     (** If PtsTo is derived: we can handle different sizes easily, 
      ** If PtsTo is built-in: we can derive <> facts easily (also precision)
      **)
     .
+
     (** NOTE: If I want to be able to reflect arbitrary propX terms (ExistsX,ForallX), then I'm going to need
      ** another index on sexpr to express the (type -> PropX)
      **)
 
 
-    Fixpoint sexprD vars (s : sexpr vars)
-      : hlist (@tvarD types) vars -> ST.Hprop (tvarD pcType) (tvarD stateType) :=
-      match s in sexpr vs
-        return hlist (@tvarD types) vs -> ST.Hprop (tvarD pcType) (tvarD stateType) 
+    Fixpoint sexprD unifs vars (s : sexpr unifs vars)
+      : hlist (@tvarD types) unifs -> hlist (@tvarD types) vars -> 
+        ST.hprop (tvarD pcType) (tvarD stateType) nil :=
+      match s in sexpr _ vs
+        return hlist (@tvarD types) unifs -> hlist (@tvarD types) vs
+            -> ST.hprop (tvarD pcType) (tvarD stateType) nil 
         with
-        | Emp v => fun g => 
+        | Emp v => fun e g => 
           ST.emp _ _
-        | Inj v p => fun g =>
-          ST.inj _ _ (PropX.Inj (exprD g p)) 
-        | Star _ l r => fun g => 
-          ST.star _ _ (sexprD l g) (sexprD r g)
-        | Exists _ t b => fun g => 
-          ST.ex _ _ _ (fun x : tvarD t => @sexprD _ b (HCons x g))
-        | Func _ f b => fun g =>
-          applyD (exprD g) b _ (SDenotation (get sfuncs f))
-        | Const _ p => fun _ => p
+        | Inj v p => fun e g =>
+          ST.inj (PropX.Inj (exprD g e p)) 
+        | Star _ l r => fun e g => 
+          ST.star (sexprD l e g) (sexprD r e g)
+        | Exists _ t b => fun e g => 
+          ST.ex (fun x : tvarD t => @sexprD _ _ b e (HCons x g))
+        | Func _ f b => fun e g =>
+          applyD (exprD g e) b _ (SDenotation (get sfuncs f))
+        | Const _ p => fun _ _ => p
       end.
 
 (*
@@ -216,48 +219,80 @@ Module SepExpr (B : Heap).
 *)
 
     Section SProver.
-      Definition himp (vars : variables types) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
-        (gl gr : sexpr vars) : Prop :=
-        ST.himp _ _ cs (sexprD gl G) (sexprD gr G).
-      Definition Himp := @himp nil HNil.
-      Definition heq (vars : variables types) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
-        (gl gr : sexpr vars) : Prop :=
-        ST.heq _ _ cs (sexprD gl G) (sexprD gr G).
-      Definition Heq := @heq nil HNil.
+      Definition himp u1 u2 (vars : variables types) (U1 : hlist (@tvarD _) u1) (U2 : hlist (@tvarD _) u2) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (gl : sexpr u1 vars) (gr : sexpr u2 vars) : Prop :=
+        ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
+(*      Definition Himp := @himp nil nil nil HNil HNil HNil. *)
+      Definition heq u1 u2 (vars : variables types) (U1 : hlist (@tvarD _) u1) (U2 : hlist (@tvarD _) u2) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (gl : sexpr u1 vars) (gr : sexpr u2 vars) : Prop :=
+        ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
+(*      Definition Heq := @heq nil HNil. *)
 
-      Global Instance Trans_himp v g cs : Transitive (@himp v g cs).
+      Global Instance Trans_himp u v U g cs : Transitive (@himp u u v U U g cs).
       Proof.
         red. intros. unfold himp. etransitivity; eauto.
       Qed.
 
-      Global Instance Trans_Himp cs : Transitive (@Himp cs).
+(*      Global Instance Trans_Himp cs : Transitive (@Himp cs).
       Proof.
         red. intros. unfold Himp, himp. etransitivity; eauto.
       Qed.
+*)
 
-      Global Instance Trans_heq v g cs : Transitive (@heq v g cs).
+      Global Instance Trans_heq u v U g cs : Transitive (@heq u u v U U g cs).
       Proof.
         red. intros. unfold heq. etransitivity; eauto.
       Qed.
 
+(*
       Global Instance Trans_Heq cs : Transitive (@Heq cs).
       Proof.
         red. intros. unfold Heq, heq. etransitivity; eauto.
       Qed.
+*)
 
-      Definition SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil) : Type :=
-        { lr : sexpr nil * sexpr nil & (Himp cs (fst lr) (snd lr) -> Himp cs gl gr) }.
+      Section exists_subst.
+        Variable u1 : variables types.
+        Variable U1 : hlist (@tvarD _) u1.
+  
+        Fixpoint exists_subst (u : variables types)
+          (U : hlist (fun t => option (expr funcs nil u1 t)) u) :
+          (hlist (@tvarD _) u -> Prop) -> Prop :=
+          match U in hlist _ u
+            return (hlist (@tvarD _) u -> Prop) -> Prop
+            with
+            | HNil => fun cc => cc HNil
+            | HCons _ _ v r => fun cc =>
+              match v with
+                | None => exists v, exists_subst r (fun z => cc (HCons v z))
+                | Some v =>
+                  let v := exprD HNil U1 v in
+                    exists_subst r (fun z => cc (HCons v z))
+              end
+          end.
+
+      End exists_subst.
+
+      Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil nil) : Type :=
+      | Prove : forall u1 u2 (l : sexpr u1 nil) (r : sexpr u2 nil)
+        (U2 : hlist (fun t => option (expr funcs nil u1 t)) u2),
+        
+        (forall U1 : hlist (@tvarD _) u1, 
+          @exists_subst _ U1 _ U2 (fun k => 
+          ST.himp cs (sexprD l U1 HNil) (sexprD r k HNil) -> himp HNil HNil HNil cs gl gr))
+        -> SepResult cs gl gr.
 
       Definition SProverT : Type := forall
         (cs : codeSpec (tvarD pcType) (tvarD stateType)) 
-        (hyps : list (@Qexpr types funcs)) (** Pure Premises **)
-        (gl gr : sexpr nil),
+(*        (hyps : list (@Qexpr types funcs)) (** Pure Premises **) *)
+        (gl gr : sexpr nil nil),
         SepResult cs gl gr.
     
     End SProver.
 
   End env.
 
+(*
   Implicit Arguments Emp [ types funcs pcType stateType sfuncs vars ].
   Implicit Arguments Inj [ types funcs pcType stateType sfuncs vars ].
   Implicit Arguments Star [ types funcs pcType stateType sfuncs vars ].
@@ -1027,7 +1062,7 @@ Module SepExpr (B : Heap).
   Section QSexpr.
     (** Guarded separation logic expressions **)
   End QSexpr.
-
+*)
 End SepExpr.
 
 Require Export Expr.

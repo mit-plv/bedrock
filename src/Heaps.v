@@ -1,6 +1,9 @@
 Require Import Classes.RelationClasses.
 Require Import Classes.Morphisms.
 Require Import Setoid.
+Require Import Env.
+
+Require Import List.
 
 Module Type Heap.
   
@@ -13,126 +16,135 @@ Module Type Heap.
 
   Parameter addr_dec : forall a b : addr, {a = b} + {a <> b}.
 
+  Parameter all_addr : list addr.
+
+  (** TODO: I didn't need this **)
+  Parameter NoDup_all_addr : NoDup all_addr.
+
 End Heap.
 
 Module HeapTheory (B : Heap).
   Import B.
 
-  Definition smem := addr -> option byte.
+  Definition smem' dom : Type := hlist (fun _ : addr => option byte) dom.
 
-  Definition smem_emp : smem := fun _ => None.
+  Fixpoint smem_emp' (ls : list addr) : smem' ls :=
+    match ls with
+      | nil => HNil
+      | a :: b => HCons None (smem_emp' b)
+    end.
+  Fixpoint disjoint' dom : smem' dom -> smem' dom -> Prop :=
+    match dom with
+      | nil => fun _ _ => True
+      | a :: b => fun m1 m2 => 
+           (hlist_hd m1 = None \/ hlist_hd m2 = None) 
+        /\ disjoint' _ (hlist_tl m1) (hlist_tl m2)
+    end.
+  Fixpoint join' dom : smem' dom -> smem' dom -> smem' dom :=
+    match dom with
+      | nil => fun _ _ => HNil
+      | a :: b => fun m1 m2 => 
+        HCons 
+        match hlist_hd m1 with
+          | None => hlist_hd m2
+          | Some x => Some x
+        end
+        (join' _ (hlist_tl m1) (hlist_tl m2))
+    end.
+  
+  Fixpoint smem_get' dom : addr -> smem' dom -> option byte :=
+    match dom as dom return addr -> smem' dom -> option byte with 
+      | nil => fun _ _ => None
+      | a :: b => fun a' m =>
+        if addr_dec a a' then 
+          hlist_hd m
+        else
+          smem_get' b a' (hlist_tl m)
+    end.
 
+  Fixpoint satisfies' dom (m : smem' dom) (m' : B.mem) : Prop :=
+    match m with
+      | HNil => True
+      | HCons p _ a b =>
+        match a with
+          | None => True
+          | Some x => B.mem_get m' p = Some x 
+        end /\ satisfies' _ b m'
+    end.
+
+  Definition smem : Type := smem' all_addr.
+
+  Definition smem_emp : smem := smem_emp' all_addr.
+
+  Definition smem_get := @smem_get' all_addr.
+
+
+(*
   Definition smem_eq (a b : smem) : Prop := forall p, a p = b p.
   Infix "===" := smem_eq (at level 50).
+*)
 
   Definition disjoint (m1 m2 : smem) : Prop :=
-    forall p, m1 p = None \/ m2 p = None.
+    disjoint' _ m1 m2.
 
   Definition join (m1 m2 : smem) : smem := 
-    fun p => match m1 p with
-               | None => m2 p
-               | v => v
-             end.
+    join' _ m1 m2.
 
   Definition split (m ml mr : smem) : Prop :=
-    disjoint ml mr /\ m === join ml mr.
+    disjoint ml mr /\ m = join ml mr.
 
   Definition semp (m : smem) : Prop :=
-    forall p, m p = None.
+    m = smem_emp.
 
   Definition satisfies (m : smem) (m' : B.mem) : Prop :=
-    forall p, 
-      match m p with
-        | None => True
-        | Some x => B.mem_get m' p = Some x
-      end.
+    satisfies' _ m m'.
 
-  Ltac morph := 
-    unfold smem_eq, join, disjoint; intuition;
-      repeat match goal with
-               | [ H : forall p, _ , p : addr |- _ ] => specialize (H p)
-               | [ H : _ = _ |- _ ] => rewrite H in *
-             end; intuition.
-
-  Global Instance Refl_smem : Reflexive smem_eq.
-  Proof.
-    red. firstorder.
-  Qed.
-
-  Global Instance Sym_smem : Symmetric smem_eq.
-  Proof.
-    red. firstorder.
-  Qed.
+  Ltac unfold_all :=
+    unfold smem, split, join, disjoint, smem_emp, semp; 
+    unfold smem, split, join, disjoint, smem_emp, semp.
+  Ltac break :=
+    simpl; intros; try reflexivity;
+      repeat (simpl in *; match goal with
+                            | [ H : HCons _ _ = HCons _ _ |- _ ] =>
+                              inversion H; clear H
+                            | [ H : _ /\ _ |- _ ] => destruct H
+                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] => 
+                              eapply (@Eqdep_dec.inj_pair2_eq_dec _ (list_eq_dec B.addr_dec)) in H
+                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] => 
+                              eapply (@Eqdep_dec.inj_pair2_eq_dec _ B.addr_dec) in H
+                            | [ H : _ = _ |- _ ] => rewrite H in *
+                          end).
   
-  Global Instance Trans_smem : Transitive smem_eq.
+  Lemma disjoint_join : forall a b, disjoint a b -> join a b = join b a.
   Proof.
-    red. unfold smem_eq. firstorder. rewrite H. auto.
-  Qed.
-
-  Add Parametric Morphism : smem_eq with 
-    signature smem_eq ==> smem_eq ==> iff as eq_mor.
-  Proof.
-    morph.
-  Qed.
-  Add Parametric Morphism : join with 
-    signature smem_eq ==> smem_eq ==> smem_eq as join_mor.
-  Proof.
-    morph.
-  Qed.
-  Add Parametric Morphism : disjoint with 
-    signature smem_eq ==> smem_eq ==> iff as disjoint_mor.
-  Proof.
-    morph.
-  Qed.
-
-  Add Parametric Morphism : semp with 
-    signature smem_eq ==> iff as semp_mor.
-  Proof.
-    unfold semp; morph. 
-  Qed.
-  Add Parametric Morphism : split with 
-    signature smem_eq ==> smem_eq ==> smem_eq ==> iff as split_mor.
-  Proof.
-    unfold split; morph.
-  Qed.
-
-  Lemma disjoint_join : forall a b, disjoint a b -> join a b === join b a.
-  Proof.
-    intros. red. intros. unfold join, disjoint in *. specialize (H p). destruct (a p); destruct (b p); try congruence.
-    exfalso; firstorder; congruence.
+    unfold_all; induction a; break; f_equal; intuition; subst.
+      destruct (hlist_hd b0); reflexivity.
+      rewrite H1. destruct b; reflexivity.
   Qed.
     
   Lemma disjoint_comm : forall ml mr, disjoint ml mr -> disjoint mr ml.
   Proof.
-    firstorder.
+    unfold_all; induction ml; break; intuition.
   Qed.
 
   Hint Resolve disjoint_join disjoint_comm : disjoint.
 
-  Lemma split_assoc : forall a b c d e, split a b c -> split c d e ->
+  Lemma split_assoc : forall b a c d e, split a b c -> split c d e ->
     split a (join d b) e.
   Proof.
-    unfold split. intuition. unfold disjoint in *. intuition.
-    unfold join in *.
-    repeat match goal with
-             | [ H : _ |- _ ] => specialize (H p); simpl in *
-             | [ H : _ = _ |- _ ] => rewrite H in *
-             | [ H : _ \/ _ |- _ ] => destruct H
-           end; intuition.
-    rewrite H2. intro. unfold join in *; simpl in *;
-    repeat match goal with
-             | [ H : _ |- _ ] => specialize (H p); simpl in *
-             | [ H : _ = _ |- _ ] => rewrite H in *
-             | [ H : _ \/ _ |- _ ] => destruct H
-           end; intuition.
-    destruct (d p); intuition.
-    destruct (b p); intuition;
-    destruct (d p); intuition. congruence.
+    unfold_all; induction b; break; eauto.
+    edestruct IHb. split; try eassumption. reflexivity. split; try eassumption.
+    reflexivity.
+    intuition; break; auto. destruct (hlist_hd d); auto.
+    destruct (hlist_hd d); try congruence.
   Qed.
 
-  Lemma split_comm : forall m ml mr, split m ml mr -> split m mr ml.
+  Lemma split_comm : forall ml m mr, split m ml mr -> split m mr ml.
   Proof.
-    unfold split. intros. destruct H. apply disjoint_comm in H. split; auto. rewrite H0; eauto with disjoint.
+    unfold_all. induction ml; break; eauto. edestruct IHml.
+    split; try eassumption. reflexivity. 
+    intuition; subst. rewrite H3. destruct (hlist_hd mr); auto.
+    rewrite H4. rewrite H3. destruct b; auto.
   Qed.
 
   Lemma disjoint_split_join : forall a b, disjoint a b -> split (join a b) a b.
@@ -140,19 +152,53 @@ Module HeapTheory (B : Heap).
     unfold split, disjoint; intros; intuition.
   Qed.
 
-  Lemma split_split_disjoint : forall a b c d e,
+  Lemma split_split_disjoint : forall b a c d e,
     split a b c -> split b d e -> disjoint c d.
   Proof.
-    unfold split, disjoint, join, smem_eq; intros; intuition.
-    specialize (H1 p). specialize (H p); specialize (H2 p); specialize (H3 p).    
-    destruct H1; destruct H; intuition.  rewrite H0 in *. destruct (d p). congruence. auto.
+    unfold_all. induction b; break. subst. split.
+    intuition; destruct (hlist_hd c); eauto. destruct (hlist_hd d); auto.
+    eapply IHb. split; auto. split; auto. auto.
   Qed.
 
-  Lemma split_semp : forall a b c, 
-    split a b c -> semp b -> a === c.
+  Lemma hlist_destruct : forall T (F : T -> Type) a b (m : hlist F (a :: b)),
+    exists A, exists B, m = HCons A B.
   Proof.
-    unfold split, semp, join, disjoint, smem_eq. intuition.
-    specialize (H2 p). rewrite H0 in H2. auto.
+    intros.
+    refine (match m as m in hlist _ ls return
+              match ls as ls return hlist _ ls -> Type with
+                | nil => fun _ => unit
+                | a :: b => fun m => exists A : F a, exists B : hlist F b, m = HCons A B
+              end m
+              with
+              | HNil => tt
+              | HCons _ _ _ _ => _
+            end).
+    do 2 eexists; reflexivity.
+  Qed.
+  Lemma hlist_nil : forall T (F : T -> Type) (m : hlist F nil), m = HNil.
+  Proof.
+    intros. 
+    refine (match m as m in hlist _ ls return
+              match ls as ls return hlist _ ls -> Type with
+                | nil => fun m => m = HNil
+                | _ :: _ => fun _ => unit
+              end m
+              with
+              | HNil => _ 
+              | _ => tt
+            end). reflexivity.
+  Qed.
+
+  Lemma split_semp : forall b a c, 
+    split a b c -> semp b -> a = c.
+  Proof.
+    unfold_all. unfold semp, smem_emp. unfold_all.
+    induction b; simpl; intros; subst; auto.
+    rewrite hlist_nil. rewrite (hlist_nil _ _ a). reflexivity.
+    destruct (hlist_destruct _ _ _ _ a).
+    destruct (hlist_destruct _ _ _ _ c).
+    destruct H1. destruct H2. subst. specialize (IHb x2 x3).
+    rewrite IHb; break; intuition; auto.
   Qed.
 
   Lemma semp_smem_emp : semp smem_emp.
@@ -163,7 +209,7 @@ Module HeapTheory (B : Heap).
   Lemma split_a_semp_a : forall a, 
     split a smem_emp a.
   Proof.
-    unfold split, semp, join, disjoint, smem_eq; intuition.
+    unfold_all. induction a; simpl; intuition. rewrite <- H0. reflexivity.
   Qed.
 
 End HeapTheory.
