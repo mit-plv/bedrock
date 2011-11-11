@@ -25,15 +25,15 @@ Module SepExpr (B : Heap).
     }.
     Variable sfuncs : list ssignature.
 
-    Inductive sexpr (unifs : variables types) : variables types -> Type :=
-    | Emp : forall vars, sexpr unifs vars
-    | Inj : forall vars, expr funcs vars unifs None -> sexpr unifs vars
-    | Star : forall vars, sexpr unifs vars -> sexpr unifs vars -> sexpr unifs vars
-    | Exists : forall vars t, sexpr unifs (t :: vars) -> sexpr unifs vars
+    Inductive sexpr (uvars : variables types) : variables types -> Type :=
+    | Emp : forall vars, sexpr uvars vars
+    | Inj : forall vars, expr funcs vars uvars None -> sexpr uvars vars
+    | Star : forall vars, sexpr uvars vars -> sexpr uvars vars -> sexpr uvars vars
+    | Exists : forall vars t, sexpr uvars (t :: vars) -> sexpr uvars vars
     | Func : forall vars (f : fin sfuncs), 
-      hlist (expr funcs vars unifs) (SDomain (get sfuncs f)) -> sexpr unifs vars
+      hlist (expr funcs vars uvars) (SDomain (get sfuncs f)) -> sexpr uvars vars
       (* this Const can not mention the higher-order variables *)
-    | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil (*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr unifs vars
+    | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil (*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr uvars vars
     (** If PtsTo is derived: we can handle different sizes easily, 
      ** If PtsTo is built-in: we can derive <> facts easily (also precision)
      **)
@@ -44,11 +44,11 @@ Module SepExpr (B : Heap).
      **)
 
 
-    Fixpoint sexprD unifs vars (s : sexpr unifs vars)
-      : hlist (@tvarD types) unifs -> hlist (@tvarD types) vars -> 
+    Fixpoint sexprD uvars vars (s : sexpr uvars vars)
+      : hlist (@tvarD types) uvars -> hlist (@tvarD types) vars -> 
         ST.hprop (tvarD pcType) (tvarD stateType) nil :=
       match s in sexpr _ vs
-        return hlist (@tvarD types) unifs -> hlist (@tvarD types) vs
+        return hlist (@tvarD types) uvars -> hlist (@tvarD types) vs
             -> ST.hprop (tvarD pcType) (tvarD stateType) nil 
         with
         | Emp v => fun e g => 
@@ -292,15 +292,14 @@ Module SepExpr (B : Heap).
 
   End env.
 
-(*
-  Implicit Arguments Emp [ types funcs pcType stateType sfuncs vars ].
-  Implicit Arguments Inj [ types funcs pcType stateType sfuncs vars ].
-  Implicit Arguments Star [ types funcs pcType stateType sfuncs vars ].
-  Implicit Arguments Exists [ types funcs pcType stateType sfuncs vars ].
-(*  Implicit Arguments Cptr [ types funcs pcType stateType sfuncs vars ]. *)
-  Implicit Arguments Func [ types funcs pcType stateType sfuncs vars ].
-  Implicit Arguments Const [ types funcs pcType stateType sfuncs vars ].
+  Implicit Arguments Emp [ types funcs pcType stateType sfuncs uvars vars ].
+  Implicit Arguments Inj [ types funcs pcType stateType sfuncs uvars vars ].
+  Implicit Arguments Star [ types funcs pcType stateType sfuncs uvars vars ].
+  Implicit Arguments Exists [ types funcs pcType stateType sfuncs uvars vars ].
+  Implicit Arguments Func [ types funcs pcType stateType sfuncs uvars vars ].
+  Implicit Arguments Const [ types funcs pcType stateType sfuncs uvars vars ].
 
+(*
   Section lift.
     Variable types : list type.
     Variable funcs : functions types.
@@ -345,6 +344,7 @@ Module SepExpr (B : Heap).
       end (refl_equal _).
 
   End lift.
+*)
 
   Section BabySep.
     Variable types : list type.
@@ -353,36 +353,20 @@ Module SepExpr (B : Heap).
     Variable stateType : tvar types.
     Variable stateMem : tvarD stateType -> B.mem.
     Variable sfuncs : list (ssignature pcType stateType).
-(*
-    Variable consts : list (PropX (tvarD pcType) (tvarD stateType)).
-*)
 
-(*
-    Definition ReflSep : @SProverT types fs pcType stateType sfuncs.
-    red. refine (fun _ _ gl gr =>
-      match sexprCmp gl gr with
-        | Some (Env.Eq _) => Proved _
-        | _ => Remaining gl gr _ 
-      end); 
-    abstract solve [ eauto
-      | subst; unfold Himp, himp; reflexivity ].
-    Defined.
-*)
-
-    Record SHeap vars : Type :=
-    { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-(*    ; cptrs  : fmap (expr fs vars pcType) (sexpr fs sfuncs (stateType :: vars)) *)
-    ; pures  : list (expr fs vars None)
-    ; other  : list (ST.Hprop (tvarD pcType) (tvarD stateType))
+    Record SHeap uvars vars : Type :=
+    { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars uvars) (SDomain (get sfuncs f))))
+    ; pures  : list (expr fs vars uvars None)
+    ; other  : list (ST.hprop (tvarD pcType) (tvarD stateType) nil)
     }.
   
-    Definition SHeap_empty vars : SHeap vars := 
+    Definition SHeap_empty uvars vars : SHeap uvars vars := 
       {| funcs := dmap_empty
        ; pures := nil
        ; other := nil
        |}.
 
-    Definition denote vars (h : SHeap vars) :  sexpr fs sfuncs vars :=
+    Definition denote uvars vars (h : SHeap uvars vars) :  sexpr fs sfuncs uvars vars :=
       let a := dmap_fold (fun a x y => fold_left (fun a y => Star (Func x y) a) y a) Emp (funcs h) in
 (*      let b := fmap_fold (fun a x y => Star (Cptr x y) a) Emp (cptrs h) in *)
       let c := fold_right (fun x a => Star (Inj x) a) Emp (pures h) in
@@ -390,25 +374,26 @@ Module SepExpr (B : Heap).
       let e := fold_right (fun x a => Star (Const x) a) Emp (other h) in
       Star a (Star c e).
 
-    Definition liftFunctions vars' ext vars
-      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ vars)) (SDomain (get sfuncs f)))) ->
-        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ ext ++ vars)) (SDomain (get sfuncs f))))
+    Definition liftFunctions uvars vars' ext vars
+      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ vars) uvars) (SDomain (get sfuncs f)))) ->
+        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ ext ++ vars) uvars) (SDomain (get sfuncs f))))
       :=
       dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vars' ext vars) _)).
 
-    Definition liftPures vars' ext vars 
-      : list (expr fs (vars' ++ vars) None) -> list (expr fs (vars' ++ ext ++ vars) None)
+    Definition liftPures uvars vars' ext vars 
+      : list (expr fs (vars' ++ vars) uvars None) -> list (expr fs (vars' ++ ext ++ vars) uvars None)
       := map (liftExpr vars' ext vars (T := None)).
 
-    Definition liftSHeap vars ext vars' (s : SHeap (vars ++ vars')) : SHeap (vars ++ ext ++ vars') :=
+    Definition liftSHeap uvars vars ext vars' (s : SHeap uvars (vars ++ vars')) : SHeap uvars (vars ++ ext ++ vars') :=
       {| funcs := liftFunctions vars ext vars' (funcs s)
        ; pures := liftPures vars ext vars' (pures s)
        ; other := other s
        |}.
 
-    Parameter join_SHeap : forall vars, SHeap vars -> SHeap vars -> SHeap vars.
+    Parameter join_SHeap : forall uvars vars, 
+      SHeap uvars vars -> SHeap uvars vars -> SHeap uvars vars.
 
-    Fixpoint hash vars (s : sexpr fs sfuncs vars) : { vars' : variables types & SHeap (vars' ++ vars) } :=
+    Fixpoint hash uvars vars (s : sexpr fs sfuncs uvars vars) : { vars' : variables types & SHeap uvars (vars' ++ vars) } :=
       match s in sexpr _ _ vars return { vars' : variables types & SHeap (vars' ++ vars) } with
         | Emp _ => @existT _ _ nil (SHeap_empty _)
         | Inj _ p => @existT _ _ nil
