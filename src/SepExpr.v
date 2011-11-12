@@ -1,5 +1,5 @@
 Require Import List.
-Require Import Expr.
+Require Import Expr ExprUnify.
 Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
@@ -27,11 +27,11 @@ Module SepExpr (B : Heap).
 
     Inductive sexpr (uvars : variables types) : variables types -> Type :=
     | Emp : forall vars, sexpr uvars vars
-    | Inj : forall vars, expr funcs vars uvars None -> sexpr uvars vars
+    | Inj : forall vars, expr funcs uvars vars None -> sexpr uvars vars
     | Star : forall vars, sexpr uvars vars -> sexpr uvars vars -> sexpr uvars vars
     | Exists : forall vars t, sexpr uvars (t :: vars) -> sexpr uvars vars
     | Func : forall vars (f : fin sfuncs), 
-      hlist (expr funcs vars uvars) (SDomain (get sfuncs f)) -> sexpr uvars vars
+      hlist (expr funcs uvars vars) (SDomain (get sfuncs f)) -> sexpr uvars vars
       (* this Const can not mention the higher-order variables *)
     | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil (*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr uvars vars
     (** If PtsTo is derived: we can handle different sizes easily, 
@@ -54,13 +54,13 @@ Module SepExpr (B : Heap).
         | Emp v => fun e g => 
           ST.emp _ _
         | Inj v p => fun e g =>
-          ST.inj (PropX.Inj (exprD g e p)) 
+          ST.inj (PropX.Inj (exprD e g p)) 
         | Star _ l r => fun e g => 
           ST.star (sexprD l e g) (sexprD r e g)
         | Exists _ t b => fun e g => 
           ST.ex (fun x : tvarD t => @sexprD _ _ b e (HCons x g))
         | Func _ f b => fun e g =>
-          applyD (exprD g e) b _ (SDenotation (get sfuncs f))
+          applyD (exprD e g) b _ (SDenotation (get sfuncs f))
         | Const _ p => fun _ _ => p
       end.
 
@@ -222,34 +222,20 @@ Module SepExpr (B : Heap).
       Definition himp u1 u2 (vars : variables types) (U1 : hlist (@tvarD _) u1) (U2 : hlist (@tvarD _) u2) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
         (gl : sexpr u1 vars) (gr : sexpr u2 vars) : Prop :=
         ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
-(*      Definition Himp := @himp nil nil nil HNil HNil HNil. *)
+
       Definition heq u1 u2 (vars : variables types) (U1 : hlist (@tvarD _) u1) (U2 : hlist (@tvarD _) u2) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
         (gl : sexpr u1 vars) (gr : sexpr u2 vars) : Prop :=
         ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
-(*      Definition Heq := @heq nil HNil. *)
 
       Global Instance Trans_himp u v U g cs : Transitive (@himp u u v U U g cs).
       Proof.
         red. intros. unfold himp. etransitivity; eauto.
       Qed.
 
-(*      Global Instance Trans_Himp cs : Transitive (@Himp cs).
-      Proof.
-        red. intros. unfold Himp, himp. etransitivity; eauto.
-      Qed.
-*)
-
       Global Instance Trans_heq u v U g cs : Transitive (@heq u u v U U g cs).
       Proof.
         red. intros. unfold heq. etransitivity; eauto.
       Qed.
-
-(*
-      Global Instance Trans_Heq cs : Transitive (@Heq cs).
-      Proof.
-        red. intros. unfold Heq, heq. etransitivity; eauto.
-      Qed.
-*)
 
       Section exists_subst.
         Variable u1 : variables types.
@@ -274,17 +260,17 @@ Module SepExpr (B : Heap).
       End exists_subst.
 
       Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil nil) : Type :=
-      | Prove : forall u1 u2 (l : sexpr u1 nil) (r : sexpr u2 nil)
+      | Prove : forall u1 u2 (l : sexpr nil u1) (r : sexpr u2 u1)
         (U2 : hlist (fun t => option (expr funcs nil u1 t)) u2),
         
         (forall U1 : hlist (@tvarD _) u1, 
           @exists_subst _ U1 _ U2 (fun k => 
-          ST.himp cs (sexprD l U1 HNil) (sexprD r k HNil) -> himp HNil HNil HNil cs gl gr))
+          ST.himp cs (sexprD l HNil U1) (sexprD r k U1) -> himp HNil HNil HNil cs gl gr))
         -> SepResult cs gl gr.
 
       Definition SProverT : Type := forall
         (cs : codeSpec (tvarD pcType) (tvarD stateType)) 
-(*        (hyps : list (@Qexpr types funcs)) (** Pure Premises **) *)
+        (hyps : list (@expr types funcs nil nil None)) (** Pure Premises **)
         (gl gr : sexpr nil nil),
         SepResult cs gl gr.
     
@@ -355,8 +341,8 @@ Module SepExpr (B : Heap).
     Variable sfuncs : list (ssignature pcType stateType).
 
     Record SHeap uvars vars : Type :=
-    { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars uvars) (SDomain (get sfuncs f))))
-    ; pures  : list (expr fs vars uvars None)
+    { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs uvars vars) (SDomain (get sfuncs f))))
+    ; pures  : list (expr fs uvars vars None)
     ; other  : list (ST.hprop (tvarD pcType) (tvarD stateType) nil)
     }.
   
@@ -375,14 +361,24 @@ Module SepExpr (B : Heap).
       Star a (Star c e).
 
     Definition liftFunctions uvars vars' ext vars
-      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ vars) uvars) (SDomain (get sfuncs f)))) ->
-        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (vars' ++ ext ++ vars) uvars) (SDomain (get sfuncs f))))
+      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs uvars (vars' ++ vars)) (SDomain (get sfuncs f)))) ->
+        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs uvars (vars' ++ ext ++ vars)) (SDomain (get sfuncs f))))
       :=
       dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vars' ext vars) _)).
 
+    Definition liftFunctionsU uvars' ext uvars vars
+      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (uvars' ++ uvars) vars) (SDomain (get sfuncs f)))) ->
+        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr fs (uvars' ++ ext ++ uvars) vars) (SDomain (get sfuncs f))))
+      :=
+      dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExprU uvars' ext uvars (vars := vars)) _)).
+
     Definition liftPures uvars vars' ext vars 
-      : list (expr fs (vars' ++ vars) uvars None) -> list (expr fs (vars' ++ ext ++ vars) uvars None)
+      : list (expr fs uvars (vars' ++ vars) None) -> list (expr fs uvars (vars' ++ ext ++ vars) None)
       := map (liftExpr vars' ext vars (T := None)).
+
+    Definition liftPuresU uvars' ext uvars vars 
+      : list (expr fs (uvars' ++ uvars) vars None) -> list (expr fs (uvars' ++ ext ++ uvars) vars None)
+      := map (liftExprU uvars' ext uvars (vars := vars) (T := None)).
 
     Definition liftSHeap uvars vars ext vars' (s : SHeap uvars (vars ++ vars')) : SHeap uvars (vars ++ ext ++ vars') :=
       {| funcs := liftFunctions vars ext vars' (funcs s)
@@ -390,37 +386,58 @@ Module SepExpr (B : Heap).
        ; other := other s
        |}.
 
-    Parameter join_SHeap : forall uvars vars, 
-      SHeap uvars vars -> SHeap uvars vars -> SHeap uvars vars.
+    Definition liftSHeapU uvars ext uvars' vars (s : SHeap (uvars ++ uvars') vars) 
+      : SHeap (uvars ++ ext ++ uvars') vars :=
+      {| funcs := liftFunctionsU uvars ext uvars' (funcs s)
+       ; pures := liftPuresU uvars ext uvars' (pures s)
+       ; other := other s
+       |}.
 
-    Fixpoint hash uvars vars (s : sexpr fs sfuncs uvars vars) : { vars' : variables types & SHeap uvars (vars' ++ vars) } :=
-      match s in sexpr _ _ vars return { vars' : variables types & SHeap (vars' ++ vars) } with
-        | Emp _ => @existT _ _ nil (SHeap_empty _)
+    Definition join_SHeap uvars vars (l r : SHeap uvars vars) : SHeap uvars vars :=
+      let add_all acc k v :=
+        match dmap_remove (fun x y => Some (@finCmp _ sfuncs x y)) k acc with
+          | None =>
+            dmap_insert (fun x y => Some (@finCmp _ sfuncs x y)) k v acc 
+          | Some (vs, acc) =>
+            dmap_insert (fun x y => Some (@finCmp _ sfuncs x y)) k (v ++ vs) acc
+        end
+      in
+      {| funcs := dmap_fold add_all (funcs l) (funcs r)
+       ; pures := pures l ++ pures r
+       ; other := other l ++ other r
+       |}.
+
+(*
+    Fixpoint hash vars (s : sexpr fs sfuncs nil vars) :
+      { vars' : variables types & SHeap vars' vars }.
+    refine (
+      match s in sexpr _ _ _ vars return { vars' : variables types & SHeap vars' vars } with
+        | Emp _ => @existT _ _ nil (SHeap_empty _ _)
         | Inj _ p => @existT _ _ nil
           {| funcs := dmap_empty
            ; pures := p :: nil
            ; other := nil
            |}
         | Star vs l r =>
-          match hash l, hash r with
-            | existT vl hl , existT vr hr => 
-              @existT _ _ (vl ++ vr) 
-              (join_SHeap 
-                match sym_eq (app_ass vl vr vs) in _ = t return SHeap t with
-                  | refl_equal => liftSHeap vl vr vs hl
-                end 
-                match sym_eq (app_ass vl vr vs) in _ = t return SHeap t with
-                  | refl_equal => liftSHeap nil vl (vr ++ vs) hr
-                end)
+          match hash _ l, hash _ r with
+            | existT vl hl , existT vr hr =>
+              @existT _ _ (vl ++ vr)
+                (join_SHeap 
+                  match  (app_nil_r vr) in _ = t return SHeap (vl ++ t) vs with
+                    | refl_equal => 
+                      @liftSHeapU vl vr nil vs 
+                        match eq_sym (app_nil_r vl) in _ = t return SHeap t vs with
+                          | refl_equal => hl
+                        end
+                  end
+                  (@liftSHeapU nil vl vr vs hr))
           end
         | Exists vs t b =>
-          match hash b with
+          match hash _ b with
             | existT v b =>
-              @existT _ (fun x => SHeap (x ++ vs)) (v ++ t :: nil)
-                match eq_sym (pf_list_simpl t vs v) in _ = t' return SHeap t' with
-                  | refl_equal => b
-                end
+              @existT _ (fun x : list (tvar types) => SHeap x vs) (v ++ t :: nil) _
           end
+(*
         | Func v f a =>
           @existT _ _ nil
             {| funcs := dmap_insert (fun x y => Some (@finCmp _ sfuncs x y)) f (a :: nil) dmap_empty
@@ -433,269 +450,198 @@ Module SepExpr (B : Heap).
              ; pures := nil
              ; other := c :: nil
              |}
-      end.
-    
-    Fixpoint existsEach (vars vars' : variables types) 
-      : sexpr fs sfuncs (vars ++ vars') -> sexpr fs sfuncs vars' :=
-      match vars as vars return sexpr fs sfuncs (vars ++ vars') -> sexpr fs sfuncs vars'
+             *)
+        | _ => @existT _ _ nil {| funcs := dmap_empty
+                                ; pures := nil
+                                ; other := nil
+                                |}
+      end).
+
+*)
+    Parameter hash_left : forall uvars vars (s : sexpr fs sfuncs uvars vars),
+      { es : variables types & SHeap uvars (es ++ vars) }.
+    Parameter hash_right : forall uvars vars ext (s : sexpr fs sfuncs uvars vars),
+      { es : variables types & SHeap (es ++ uvars) (ext ++ vars) }.
+
+    Fixpoint existsEachU (uvars vars : variables types) 
+      : sexpr fs sfuncs uvars vars -> sexpr fs sfuncs nil vars.
+    Admitted.
+(*
+      match uvars as uvars return sexpr fs sfuncs uvars vars -> sexpr fs sfuncs nil vars
         with
         | nil => fun s => s
-        | a :: b => fun s => @existsEach b vars' (Exists a s)
+        | a :: b => fun s => @existsEach b vars (Exists a s)
       end.
-    
+*)
+    Fixpoint existsEach (uvars vars vars' : variables types) 
+      : sexpr fs sfuncs uvars (vars ++ vars') -> sexpr fs sfuncs uvars vars'.
+    Admitted.
+
+    Section WithCS.
+(*      Variable cs : codeSpec (tvarD pcType) (tvarD stateType). *)
 
 (*
-    Definition hash_rec vars'' vars (s : sexpr fs sfuncs vars) 
-      :  (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vars)) (SDomain (get sfuncs f))))
-      -> list (expr fs (vars'' ++ vars) None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vars) }.
-    refine ((fix hash_rec vars (s : sexpr fs sfuncs vars) 
-      :  forall vars'', (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vars)) (SDomain (get sfuncs f))))
-      -> list (expr fs (vars'' ++ vars) None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vars) } :=
-      match s in @sexpr _ _ _ _ _ vs 
-        return forall vars'',
-           (forall vs', 
-               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
-            -> list (expr fs (vs' ++ vs) None)
-            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
-        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vs)) (SDomain (get sfuncs f))))
-        -> list (expr fs (vars'' ++ vs) None)
-        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-        -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vs) }
-        with
-        | Emp vars => fun vars'' cc => _
-        | Inj _ p => fun cc fs ps ot =>
-          _ (*cc nil fs (p :: ps) ot  *)
-        | Star _ l r => fun cc => _
-(*          hash_rec l (fun vs => hash_rec (liftSExpr vs r) cc () () () *)
-        | Func _ f args => fun cc fs ps ot => _
-(*
-          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
-            | None =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
-            | Some (v,fs') =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
-          end
-*)
-        | Exists vv t b => fun cc fs' ps ot => _
-        | Const _ x => fun cc fs ps ot =>
-          _ (* cc nil fs ps (x :: ot) *)
-      end) vars s vars'').
-    Focus.
-    intros. eapply cc.
-    
+      Theorem denote_hash_left : forall G (s : sexpr fs sfuncs _ _) cs, 
+        heq HNil HNil G cs s 
+          (@existsEach _ (projT1 (@hash_left _ _  s)) nil (denote (projT2 (hash_left s)))).
+      Admitted.
 
-    Definition hash_rec vars (s : sexpr fs sfuncs vars) 
-      :  (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-      -> list (expr fs vars None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars) }.
-    revert s; revert vars.
-    refine (Fix hash_rec vars (s : sexpr fs sfuncs vars) {struct s}
-      :  (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-      -> list (expr fs vars None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars) } :=
-      match s in @sexpr _ _ _ _ _ vs 
-        return 
-           (forall vs', 
-               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
-            -> list (expr fs (vs' ++ vs) None)
-            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
-        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
-        -> list (expr fs vs None)
-        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-        -> { vars' : variables types & SHeap (vars' ++ vs) }
-        with
-        | Emp vars => fun cc => cc nil
-        | Inj _ p => fun cc fs ps ot =>
-          cc nil fs (p :: ps) ot 
-        | Star vv l r => fun cc =>
-          let cc' vs :=
-            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
-            (fun vs' => match app_ass _ _ _ in _ = t 
-                          return 
-                          dmap (fin sfuncs)
-                          (fun f : fin sfuncs =>
-                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
-                          list (expr fs t None) ->
-                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
-                          {vars' : variables types & SHeap (vars' ++ t)}
-                          with
-                          | refl_equal => cc (vs' ++ vs)
-                        end)
-          in
-          hash_rec _ l cc'
-        | Func _ f args => fun cc fs ps ot => _
-(*
-          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
-            | None =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
-            | Some (v,fs') =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
-          end
+      Theorem denote_hash_right : forall ext G (s : sexpr fs sfuncs _ _) cs, 
+        heq HNil HNil G cs 
+          (liftSExpr _ _ _ s)
+          (@existsEach _ (projT1 (@hash_right _ _ s)) nil (denote (projT2 (hash_right s)))).
+      Admitted.
 *)
-        | Exists vv t b => fun cc fs' ps ot => 
-          let cc := fun vs =>
-            match pf_list_simpl t vv vs in _ = t' 
-              return dmap (fin sfuncs)
-              (fun f : fin sfuncs => list (hlist (expr fs t') (SDomain (get sfuncs f)))) ->
-              list (expr fs t' None) ->
-              list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
-              {vars' : variables types & SHeap (vars' ++ t')}
-              with
-              | refl_equal => @cc (vs ++ t :: nil)
+
+      (** TODO: This can be more efficient if they are sorted b/c I can do a merge elim **)
+      (** This is the simplest cancelation procedure, it just cancels functions in which
+       ** the arguments unify pointwise
+       **)
+      Definition sepCancel_refl_func uL uR vars (f : fin sfuncs)
+        (r : hlist (expr fs uR vars) (SDomain (get sfuncs f)))
+        : list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) ->
+        ExprUnify.Subst fs uR uL vars ->
+        option (list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) * ExprUnify.Subst fs uR uL vars).
+      refine (fix find (l : list (hlist (expr fs uL vars) (SDomain (get sfuncs f)))) 
+        : ExprUnify.Subst fs uR uL vars ->
+        option (list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) * ExprUnify.Subst fs uR uL vars) := 
+        match l with
+          | nil => fun _ => None
+          | l :: lr => fun s =>
+            match exprUnifyArgs r l s with
+              | None => match find lr s with
+                          | None => None
+                          | Some (k,v) => Some (l :: k, v)
+                        end
+              | Some s => Some (lr, s)
             end
-          in
-          let fs' := dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vv (t :: nil) nil) _)) fs' in
-          let ps' := map (liftExpr vv (t :: nil) nil (T := None)) ps in
-          match hash_rec _ b cc fs' ps' ot with
-            | existT a b => @existT _ _ (a ++ t :: nil) match eq_sym (pf_list_simpl t vv a) in _ = t' return SHeap t' with
-                                                          | refl_equal => b
-                                                        end
-          end
-        | Const _ x => fun cc fs ps ot =>
-          cc nil fs ps (x :: ot)
-      end).
-
-    Definition hash_rec vars (s : sexpr fs sfuncs vars) 
-      :  (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-      -> list (expr fs vars None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars) }.
-    revert s; revert vars.
-    refine (fix hash_rec vars (s : sexpr fs sfuncs vars) {struct s}
-      :  (forall vs,
-             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
-          -> list (expr fs (vs ++ vars) None)
-          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
-      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-      -> list (expr fs vars None)
-      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-      -> { vars' : variables types & SHeap (vars' ++ vars) } :=
-      match s in @sexpr _ _ _ _ _ vs 
-        return 
-           (forall vs', 
-               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
-            -> list (expr fs (vs' ++ vs) None)
-            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
-        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
-        -> list (expr fs vs None)
-        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
-        -> { vars' : variables types & SHeap (vars' ++ vs) }
-        with
-        | Emp vars => fun cc => cc nil
-        | Inj _ p => fun cc fs ps ot =>
-          cc nil fs (p :: ps) ot 
-        | Star vv l r => fun cc =>
-          let cc' vs :=
-            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
-            (fun vs' => match app_ass _ _ _ in _ = t 
-                          return 
-                          dmap (fin sfuncs)
-                          (fun f : fin sfuncs =>
-                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
-                          list (expr fs t None) ->
-                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
-                          {vars' : variables types & SHeap (vars' ++ t)}
-                          with
-                          | refl_equal => cc (vs' ++ vs)
-                        end)
-          in
-          hash_rec _ l cc'
-        | Func _ f args => fun cc fs ps ot => _
-(*
-          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
-            | None =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
-            | Some (v,fs') =>
-              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
-          end
-*)
-        | Exists vv t b => fun cc fs' ps ot => 
-          let cc := fun vs =>
-            match pf_list_simpl t vv vs in _ = t' 
-              return dmap (fin sfuncs)
-              (fun f : fin sfuncs => list (hlist (expr fs t') (SDomain (get sfuncs f)))) ->
-              list (expr fs t' None) ->
-              list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
-              {vars' : variables types & SHeap (vars' ++ t')}
-              with
-              | refl_equal => @cc (vs ++ t :: nil)
-            end
-          in
-          let fs' := dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vv (t :: nil) nil) _)) fs' in
-          let ps' := map (liftExpr vv (t :: nil) nil (T := None)) ps in
-          match hash_rec _ b cc fs' ps' ot with
-            | existT a b => @existT _ _ (a ++ t :: nil) match eq_sym (pf_list_simpl t vv a) in _ = t' return SHeap t' with
-                                                          | refl_equal => b
-                                                        end
-          end
-        | Const _ x => fun cc fs ps ot =>
-          cc nil fs ps (x :: ot)
-      end).
-    Focus.
-    refine (
-          let cc' vs :=
-            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
-            (fun vs' => match app_ass _ _ _ in _ = t 
-                          return 
-                          dmap (fin sfuncs)
-                          (fun f : fin sfuncs =>
-                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
-                          list (expr fs t None) ->
-                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
-                          {vars' : variables types & SHeap (vars' ++ t)}
-                          with
-                          | refl_equal => cc (vs' ++ vs)
-                        end)
-          in
-          hash_rec _ l cc'
-
-).
+        end).
+    Defined.
     
+    Definition sepCancel_refl_funcs uL uR vars (f : fin sfuncs) : forall
+      (rs : list (hlist (expr fs uR vars) (SDomain (get sfuncs f))))
+      (ls : list (hlist (expr fs uL vars) (SDomain (get sfuncs f)))),
+        ExprUnify.Subst fs uR uL vars ->
+        list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) *
+        list (hlist (expr fs uR vars) (SDomain (get sfuncs f))) *
+        ExprUnify.Subst fs uR uL vars.
+    refine (fix run rs ls s : 
+      list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) *
+      list (hlist (expr fs uR vars) (SDomain (get sfuncs f))) *
+      ExprUnify.Subst fs uR uL vars :=
+      match rs with
+        | nil => (ls, rs, s)
+        | r :: rs =>
+          match sepCancel_refl_func f r ls s with
+            | None => 
+              let '(ls,rs,s) := run rs ls s in
+              (ls, r :: rs, s)
+            | Some (ls', s) =>
+              run rs ls' s
+          end
+      end).
+    Defined.
 
 
-    Definition hash_cc vars (s : sexpr fs sfuncs vars)
-      (cc : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
-       -> list (expr fs vars None)
-       -> list (sexpr fs sfuncs vars) -> { vars' : variables types & SHeap (vars' ++ vars) }) : 
-      { vars' : variables types & SHeap (vars' ++ vars) } :=
-      @hash_rec vars s cc dmap_empty nil nil.
+    Definition sepCancel uL uR vars (l : SHeap uL vars) (r : SHeap uR vars) : 
+      SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars.
+    Admitted.
+
+    End WithCS.
+
+    Definition CancelSep : @SProverT types fs pcType stateType sfuncs.
+    red. refine (fun cs _ gl gr =>
+    match hash_left gl with
+      | existT ql lhs =>
+        match @hash_right _ _ ql gr with
+          | existT qr rhs =>
+            match eq_sym (app_nil_r ql) in _ = t, eq_sym (app_nil_r qr) in _ = t' 
+              return forall (l : SHeap nil t) (r : SHeap t' t), _
+              with
+              | refl_equal , refl_equal => fun lhs rhs => 
+                let '(lhs',rhs',s') := sepCancel lhs rhs in
+                (** TODO: I need to maintain the connection between 
+                 ** hash_left, hash_right and lhs and rhs
+                 **)
+                @Prove _ fs _ _ sfuncs _ gl gr ql qr (denote lhs') (denote rhs')
+                  (env_of_Subst s' qr) _
+            end lhs rhs
+        end
+    end).
+    admit.
+    Defined.
+
+
+(*
+      Fixpoint sepCancel vars (e : sexpr fs sfuncs vars) {struct e}
+        : SHeap vars -> SHeap vars -> SHeap vars * SHeap vars.
+      match e in sexpr _ _ vars 
+        return SHeap vars -> SHeap vars -> SHeap vars * SHeap vars
+        with
+        | Emp _ => fun h rem => (h, rem)
+        | Func _ f a => fun h rem =>
+          match dmap_remove (fun x y => Some (@finCmp _ _ x y)) f (funcs h) with
+            | Some (ls, fs') => 
+              match take_out (fun x y => if hlistEq (@exprEq _ _ _ ) x y then true else false) a ls nil with
+                | None => (h,rem)
+                | Some nil => 
+                  ({| funcs := fs' 
+                    ; pures := pures h
+                    ; other := other h
+                    |}, rem)
+                | Some v =>
+                  ({| funcs := dmap_insert (fun x y => Some (@finCmp _ _ x y)) f v fs'
+                    ; pures := pures h
+                    ; other := other h
+                    |}, rem)
+              end
+            | None => (h,rem)
+          end              
+(*
+          match fmap_remove (@exprCmp _ _ _ _) p (cptrs h) with
+            | Some (s', cp') => 
+              match sexprCmp s s' with
+                | Some (Env.Eq _) => 
+                ({| funcs := funcs h 
+                  ; cptrs := cp'
+                  ; pures := pures h
+                  ; other := other h
+                  ; cnsts := cnsts h
+                  |}, rem)
+                | _ => (h,rem)
+              end
+           | None => (h,rem)
+          end
+*)
+        | Star _ l r => fun h rem =>
+          let '(h',rem') := sepCancel l h rem in
+          sepCancel r h' rem'
+        | _ => fun h rem => (h,rem)
+      end.
 *)
 
+
+
+          
+(*
+          match sepCancel gr lhs (SHeap_empty _) as k 
+            return sepCancel gr lhs (SHeap_empty _) = k -> _ with
+            | (lhs',rhs') => fun pf =>
+              @existT _ _ (denote lhs', denote rhs') _
+          end (eq_refl _)
+*)
+(*
+      end).
+      intros. etransitivity. 2: eapply sepCancel_cancels. 2: eassumption. 2: eauto.
+      unfold lhs. etransitivity. eapply denote_hash_cc. unfold Himp, himp. reflexivity.
+*)
+
+  End BabySep.
+End SepExpr.
+
+Require Export Expr.
+
+(*
     Section WithCS.
     Variable cs : codeSpec (tvarD pcType) (tvarD stateType).
 
@@ -1048,6 +994,265 @@ Module SepExpr (B : Heap).
     (** Guarded separation logic expressions **)
   End QSexpr.
 *)
-End SepExpr.
 
-Require Export Expr.
+
+
+(*
+    Definition hash_rec vars'' vars (s : sexpr fs sfuncs vars) 
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vars)) (SDomain (get sfuncs f))))
+      -> list (expr fs (vars'' ++ vars) None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vars) }.
+    refine ((fix hash_rec vars (s : sexpr fs sfuncs vars) 
+      :  forall vars'', (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vars)) (SDomain (get sfuncs f))))
+      -> list (expr fs (vars'' ++ vars) None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vars) } :=
+      match s in @sexpr _ _ _ _ _ vs 
+        return forall vars'',
+           (forall vs', 
+               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
+            -> list (expr fs (vs' ++ vs) None)
+            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
+        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vars'' ++ vs)) (SDomain (get sfuncs f))))
+        -> list (expr fs (vars'' ++ vs) None)
+        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+        -> { vars' : variables types & SHeap (vars' ++ vars'' ++ vs) }
+        with
+        | Emp vars => fun vars'' cc => _
+        | Inj _ p => fun cc fs ps ot =>
+          _ (*cc nil fs (p :: ps) ot  *)
+        | Star _ l r => fun cc => _
+(*          hash_rec l (fun vs => hash_rec (liftSExpr vs r) cc () () () *)
+        | Func _ f args => fun cc fs ps ot => _
+(*
+          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
+            | None =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
+            | Some (v,fs') =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
+          end
+*)
+        | Exists vv t b => fun cc fs' ps ot => _
+        | Const _ x => fun cc fs ps ot =>
+          _ (* cc nil fs ps (x :: ot) *)
+      end) vars s vars'').
+    Focus.
+    intros. eapply cc.
+    
+
+    Definition hash_rec vars (s : sexpr fs sfuncs vars) 
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
+      -> list (expr fs vars None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars) }.
+    revert s; revert vars.
+    refine (Fix hash_rec vars (s : sexpr fs sfuncs vars) {struct s}
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
+      -> list (expr fs vars None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars) } :=
+      match s in @sexpr _ _ _ _ _ vs 
+        return 
+           (forall vs', 
+               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
+            -> list (expr fs (vs' ++ vs) None)
+            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
+        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
+        -> list (expr fs vs None)
+        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+        -> { vars' : variables types & SHeap (vars' ++ vs) }
+        with
+        | Emp vars => fun cc => cc nil
+        | Inj _ p => fun cc fs ps ot =>
+          cc nil fs (p :: ps) ot 
+        | Star vv l r => fun cc =>
+          let cc' vs :=
+            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
+            (fun vs' => match app_ass _ _ _ in _ = t 
+                          return 
+                          dmap (fin sfuncs)
+                          (fun f : fin sfuncs =>
+                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
+                          list (expr fs t None) ->
+                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
+                          {vars' : variables types & SHeap (vars' ++ t)}
+                          with
+                          | refl_equal => cc (vs' ++ vs)
+                        end)
+          in
+          hash_rec _ l cc'
+        | Func _ f args => fun cc fs ps ot => _
+(*
+          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
+            | None =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
+            | Some (v,fs') =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
+          end
+*)
+        | Exists vv t b => fun cc fs' ps ot => 
+          let cc := fun vs =>
+            match pf_list_simpl t vv vs in _ = t' 
+              return dmap (fin sfuncs)
+              (fun f : fin sfuncs => list (hlist (expr fs t') (SDomain (get sfuncs f)))) ->
+              list (expr fs t' None) ->
+              list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
+              {vars' : variables types & SHeap (vars' ++ t')}
+              with
+              | refl_equal => @cc (vs ++ t :: nil)
+            end
+          in
+          let fs' := dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vv (t :: nil) nil) _)) fs' in
+          let ps' := map (liftExpr vv (t :: nil) nil (T := None)) ps in
+          match hash_rec _ b cc fs' ps' ot with
+            | existT a b => @existT _ _ (a ++ t :: nil) match eq_sym (pf_list_simpl t vv a) in _ = t' return SHeap t' with
+                                                          | refl_equal => b
+                                                        end
+          end
+        | Const _ x => fun cc fs ps ot =>
+          cc nil fs ps (x :: ot)
+      end).
+
+    Definition hash_rec vars (s : sexpr fs sfuncs vars) 
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
+      -> list (expr fs vars None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars) }.
+    revert s; revert vars.
+    refine (fix hash_rec vars (s : sexpr fs sfuncs vars) {struct s}
+      :  (forall vs,
+             @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs ++ vars)) (SDomain (get sfuncs f))))
+          -> list (expr fs (vs ++ vars) None)
+          -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+          -> { vars' : variables types & SHeap (vars' ++ vs ++ vars) })
+      -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
+      -> list (expr fs vars None)
+      -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+      -> { vars' : variables types & SHeap (vars' ++ vars) } :=
+      match s in @sexpr _ _ _ _ _ vs 
+        return 
+           (forall vs', 
+               @dmap (fin sfuncs) (fun f => list (hlist (expr fs (vs' ++ vs)) (SDomain (get sfuncs f))))
+            -> list (expr fs (vs' ++ vs) None)
+            -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+            -> { vars' : variables types & SHeap (vars' ++ vs' ++ vs) })
+        -> @dmap (fin sfuncs) (fun f => list (hlist (expr fs vs) (SDomain (get sfuncs f))))
+        -> list (expr fs vs None)
+        -> list (ST.Hprop (tvarD pcType) (tvarD stateType))
+        -> { vars' : variables types & SHeap (vars' ++ vs) }
+        with
+        | Emp vars => fun cc => cc nil
+        | Inj _ p => fun cc fs ps ot =>
+          cc nil fs (p :: ps) ot 
+        | Star vv l r => fun cc =>
+          let cc' vs :=
+            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
+            (fun vs' => match app_ass _ _ _ in _ = t 
+                          return 
+                          dmap (fin sfuncs)
+                          (fun f : fin sfuncs =>
+                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
+                          list (expr fs t None) ->
+                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
+                          {vars' : variables types & SHeap (vars' ++ t)}
+                          with
+                          | refl_equal => cc (vs' ++ vs)
+                        end)
+          in
+          hash_rec _ l cc'
+        | Func _ f args => fun cc fs ps ot => _
+(*
+          match dmap_remove (fun a b => Some (@finCmp _ _ a b)) f fs with
+            | None =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: nil) fs) ps ot
+            | Some (v,fs') =>
+              cc (dmap_insert (fun a b => Some (@finCmp _ _ a b)) f (args :: v) fs') ps ot
+          end
+*)
+        | Exists vv t b => fun cc fs' ps ot => 
+          let cc := fun vs =>
+            match pf_list_simpl t vv vs in _ = t' 
+              return dmap (fin sfuncs)
+              (fun f : fin sfuncs => list (hlist (expr fs t') (SDomain (get sfuncs f)))) ->
+              list (expr fs t' None) ->
+              list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
+              {vars' : variables types & SHeap (vars' ++ t')}
+              with
+              | refl_equal => @cc (vs ++ t :: nil)
+            end
+          in
+          let fs' := dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vv (t :: nil) nil) _)) fs' in
+          let ps' := map (liftExpr vv (t :: nil) nil (T := None)) ps in
+          match hash_rec _ b cc fs' ps' ot with
+            | existT a b => @existT _ _ (a ++ t :: nil) match eq_sym (pf_list_simpl t vv a) in _ = t' return SHeap t' with
+                                                          | refl_equal => b
+                                                        end
+          end
+        | Const _ x => fun cc fs ps ot =>
+          cc nil fs ps (x :: ot)
+      end).
+    Focus.
+    refine (
+          let cc' vs :=
+            hash_rec (vs ++ vv) (liftSExpr nil vs vv r)
+            (fun vs' => match app_ass _ _ _ in _ = t 
+                          return 
+                          dmap (fin sfuncs)
+                          (fun f : fin sfuncs =>
+                            list (hlist (expr fs t) (SDomain (get sfuncs f)))) ->
+                          list (expr fs t None) ->
+                          list (ST.Hprop (tvarD pcType) (tvarD stateType)) ->
+                          {vars' : variables types & SHeap (vars' ++ t)}
+                          with
+                          | refl_equal => cc (vs' ++ vs)
+                        end)
+          in
+          hash_rec _ l cc'
+
+).
+    
+
+
+    Definition hash_cc vars (s : sexpr fs sfuncs vars)
+      (cc : @dmap (fin sfuncs) (fun f => list (hlist (expr fs vars) (SDomain (get sfuncs f))))
+       -> list (expr fs vars None)
+       -> list (sexpr fs sfuncs vars) -> { vars' : variables types & SHeap (vars' ++ vars) }) : 
+      { vars' : variables types & SHeap (vars' ++ vars) } :=
+      @hash_rec vars s cc dmap_empty nil nil.
+
+    Fixpoint existsEach (vars vars' : variables types) 
+      : sexpr fs sfuncs (vars ++ vars') -> sexpr fs sfuncs vars' :=
+      match vars as vars return sexpr fs sfuncs (vars ++ vars') -> sexpr fs sfuncs vars'
+        with
+        | nil => fun s => s
+        | a :: b => fun s => @existsEach b vars' (Exists a s)
+      end.
+*)

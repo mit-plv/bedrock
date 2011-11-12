@@ -333,3 +333,18 @@ Section hlist_map.
         HCons (ff hd) (hlist_map tl)
     end.
 End hlist_map.
+
+Section hlist_fold2.
+  Variables T U V : Type. 
+  Variables F G : T -> Type. 
+  Variable f : U -> forall t : T, F t -> G t -> U.
+
+  Fixpoint hlist_fold2 ls (l : hlist F ls) {struct l} : hlist G ls -> U -> U :=
+    match l in hlist _ ls 
+      return hlist G ls -> U -> U
+      with
+      | HNil => fun _ acc => acc
+      | HCons _ _ fr hr => fun r acc =>
+        hlist_fold2 hr (hlist_tl r) (f acc fr (hlist_hd r))
+    end. 
+End hlist_fold2.

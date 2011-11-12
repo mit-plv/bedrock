@@ -38,8 +38,8 @@ Section env.
   Definition variables := list tvar.
 
   Variable funcs : functions.
-  Variable vars : variables.
   Variable uvars : variables.
+  Variable vars : variables.
 
   Definition func := fin funcs.
   Definition var := fin vars.
@@ -69,8 +69,8 @@ Section env.
         end.
   End applyD.
 
-  Variable env : hlist tvarD vars.
   Variable uenv : hlist tvarD uvars.
+  Variable env : hlist tvarD vars.
 
   Fixpoint exprD t (e : expr t) {struct e} : tvarD t :=
     match e with
@@ -160,25 +160,49 @@ End env.
 Section Lifting.
   Variable types : list type.
   Variable funcs : functions types.
-  Variable uvars : variables types.
-  Variable vars' ext vars : variables types.
+  Section Vars.
+    Variable uvars : variables types.
+    Variable vars' ext vars : variables types.
 
-  Fixpoint liftExpr (T : tvar types) (e : expr funcs (vars' ++ vars) uvars T) 
-    : expr funcs (vars' ++ ext ++ vars) uvars T :=
-    match e in expr _ _ _ T return expr funcs (vars' ++ ext ++ vars) uvars T with
-      | Var v => 
-        match @liftDmid _ vars vars' ext v with
-          | existT v pf => match pf in _ = t 
-                             return expr funcs (vars' ++ ext ++ vars) uvars t
-                             with
-                             | refl_equal => Var _ uvars v
-                           end
-        end
-      | UVar v => UVar _ _ v
-      | Const t x => Const funcs (vars' ++ ext ++ vars) uvars t x 
-      | Func f a => 
-        Func f (@hlist_map _ _ (expr funcs (vars' ++ ext ++ vars) uvars) (fun t (x : expr funcs (vars' ++ vars) uvars t) => liftExpr x) _ a)
-    end.
+    Fixpoint liftExpr (T : tvar types) (e : expr funcs uvars (vars' ++ vars) T) 
+      : expr funcs uvars (vars' ++ ext ++ vars) T :=
+      match e in expr _ _ _ T return expr funcs uvars (vars' ++ ext ++ vars) T with
+        | Var v => 
+          match @liftDmid _ vars vars' ext v with
+            | existT v pf => match pf in _ = t 
+                               return expr funcs uvars (vars' ++ ext ++ vars) t
+                               with
+                               | refl_equal => Var _ uvars v
+                             end
+          end
+        | UVar v => UVar _ _ v
+        | Const t x => Const funcs uvars (vars' ++ ext ++ vars) t x 
+        | Func f a => 
+          Func f (@hlist_map _ _ (expr funcs uvars (vars' ++ ext ++ vars)) (fun t (x : expr funcs uvars (vars' ++ vars) t) => liftExpr x) _ a)
+      end.
+  End Vars.
+
+  Section UVars.
+    Variable uvars' ext uvars : variables types.
+    Variable vars : variables types.
+
+    Fixpoint liftExprU (T : tvar types) (e : expr funcs (uvars' ++ uvars) vars T) 
+      : expr funcs (uvars' ++ ext ++ uvars) vars T :=
+      match e in expr _ _ _ T return expr funcs (uvars' ++ ext ++ uvars) vars T with
+        | UVar v => 
+          match @liftDmid _ uvars uvars' ext v with
+            | existT v pf => match pf in _ = t 
+                               return expr funcs (uvars' ++ ext ++ uvars) vars t
+                               with
+                               | refl_equal => UVar _ vars v
+                             end
+          end
+        | Var v => Var _ _ v
+        | Const t x => Const funcs (uvars' ++ ext ++ uvars) vars t x 
+        | Func f a => 
+          Func f (@hlist_map _ _ (expr funcs (uvars' ++ ext ++ uvars) vars) (fun t (x : expr funcs (uvars' ++ uvars) vars t) => liftExprU x) _ a)
+      end.
+  End UVars.
 
 End Lifting.
 
@@ -186,7 +210,7 @@ Section Qexpr.
   Context {types : list type}.
   Variable fs : functions types.
 
-  Definition Qexpr := { x : variables types & expr fs x nil None }.
+  Definition Qexpr := { x : variables types & expr fs nil x None }.
 
   Fixpoint denoteQuant (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
     match ls as ls return (hlist (@tvarD types) ls -> Prop) -> Prop with
@@ -196,7 +220,7 @@ Section Qexpr.
     end.
 
   Definition qexprD (p : Qexpr) : Prop :=
-    @denoteQuant (projT1 p) (fun x => exprD x HNil (projT2 p)).
+    @denoteQuant (projT1 p) (fun x => exprD HNil x (projT2 p)).
 End Qexpr.
 
 Section ProverT.
