@@ -288,19 +288,60 @@ Ltac extend_all_types Ts types :=
 Ltac buildTypes e types :=
   let rec bt_args args types :=
     match args with
-      | nil => types
-      | ?a :: ?b => 
+      | tt => types
+      | (?a, ?b) => 
         let types := buildTypes a types in
         bt_args b types
     end
   in
   let cc _ Ts args :=
+    let Ts := bt_args args Ts in
     let Ts := eval simpl app in Ts in
     extend_all_types Ts types
   in
-  refl_app cc e. 
+  refl_app cc e.
 
-Ltac typesIndex x types types' :=
+Ltac collectTypes_expr e types :=
+  let rec bt_args args types :=
+    match args with
+      | tt => types
+      | (?a, ?b) =>
+        let types := collectTypes_expr a types in
+        bt_args b types
+    end
+  in
+  let cc _ Ts args := 
+    let types := append_uniq Ts types in
+    let types := bt_args args types in
+    types
+  in
+  refl_app cc e.
+
+(*
+Parameter g : bool -> nat -> nat -> nat.
+
+Set Printing Implicit.
+
+Goal forall a b, g a b b = b.
+    intros.
+    match goal with
+      | [ |- ?L ] =>
+        let r := constr:(@nil Type) in
+          let t := constr:((nat : Type) :: nil) in
+        let lt := collectTypes_expr L r in
+(*        let rt := collectTypes_sexpr R lt in *)
+        idtac lt
+(*
+        let Ts := constr:(@nil type) in
+        let g := elabTypes Ts f in
+        idtac g
+*)
+    end.
+*)
+
+Ltac typesIndex x types :=
+  indexOf Impl x types.
+(*
   match types with
     | ?T1 :: ?TS =>
       match types' with
@@ -308,8 +349,11 @@ Ltac typesIndex x types types' :=
         | _ :: ?ls' => let f := typesIndex x TS ls' in constr:(@FS _ T1 TS f)
       end
   end.
+*)
 
 Ltac funcIndex x funcs :=
+  indexOf Denotation x funcs.
+(*
   match funcs with
     | ?F :: ?ls' =>
       let F' := eval simpl in (Denotation F) in
@@ -318,6 +362,7 @@ Ltac funcIndex x funcs :=
         | _ => let f := funcIndex x ls' in constr:(@FS _ F ls' f)
       end
   end.
+*)
 
 Ltac refl_type types types' T :=
   match T with

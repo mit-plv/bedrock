@@ -57,3 +57,96 @@ Ltac refl_app cc e :=
   let b := constr:(tt) in
   refl cc e b.
 
+(** Set operations **)
+Ltac contains e s :=
+  match s with
+    | nil => false
+    | e :: _ => true
+    | _ :: ?b => contains e b
+    | ?X ++ ?Y => match contains e X with
+                    | true => true
+                    | false => contains e Y 
+                  end
+  end.
+
+Ltac cons_uniq e s :=
+  match contains e s with
+    | false => constr:(e :: s)
+    | false => 
+      match type of s with
+        | list ?T => constr:((e : T) :: s)
+      end
+    | true => s
+  end.
+
+Ltac add_end_uniq e s :=
+  match contains e s with
+    | false => 
+      let z := eval simpl app in (s ++ (e :: nil)) in
+      z
+    | false => 
+      match type of s with
+        | list ?T => constr:(s ++ ((e : T) :: @nil T))
+      end
+    | true => s
+  end.
+
+Ltac prepend_uniq es s :=
+  match es with 
+    | nil => s 
+    | ?a :: ?b =>
+      let k := prepend_uniq b s in
+      cons_uniq a k
+    | ?a ++ ?b =>
+      let k := prepend_uniq b s in
+      prepend_uniq a k
+  end.
+
+Ltac append_uniq es s :=
+  let rec recur es ext :=
+    match es with
+      | nil => ext
+      | ?a :: ?b =>
+        match contains a s with
+          | true => recur b ext
+          | false => 
+            let ext' := cons_uniq a ext in
+            recur b ext'
+        end
+      | ?a ++ ?b =>
+        let k := recur a ext in
+        let z := recur b k in
+        z
+    end
+  in
+  let n := 
+    match type of es with
+      | list ?T => constr:(@nil T)
+      | ?X => idtac "append_uniq first argument must be a list! Got type: " X 
+    end
+  in
+  let ext := recur es n in
+  eval simpl app in (s ++ ext).
+
+Ltac indexOf keyF x ls :=
+  match ls with
+    | ?F :: ?ls' =>
+      let F' := eval simpl in (keyF F) in
+      match F' with
+        | x => constr:(@FO _ F ls')
+        | _ => let f := indexOf keyF x ls' in constr:(@FS _ F ls' f)
+      end
+  end.
+
+Goal forall a b c : Type, nil ++ (a :: nil) ++ nil ++ nil = nil.
+  intros.
+  match goal with
+    | [ |- ?L = ?R ] =>
+      let res := append_uniq R L in
+      idtac res ;
+      let nop := constr:(fun x : Type => x) in
+      let i := indexOf nop a res in
+      idtac i
+
+  end.
+Abort.

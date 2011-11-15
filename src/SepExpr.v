@@ -15,7 +15,7 @@ Module SepExpr (B : Heap).
     Variable types : list type.
     Variable funcs : functions types.
 
-    Variable pcType : tvar types.    
+    Variable pcType : tvar types.
     Variable stateType : tvar types.
     Variable stateMem : tvarD stateType -> B.mem.
 
@@ -33,16 +33,8 @@ Module SepExpr (B : Heap).
     | Func : forall vars (f : fin sfuncs), 
       hlist (expr funcs uvars vars) (SDomain (get sfuncs f)) -> sexpr uvars vars
       (* this Const can not mention the higher-order variables *)
-    | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil (*PropX (tvarD pcType) (tvarD stateType)*) -> sexpr uvars vars
-    (** If PtsTo is derived: we can handle different sizes easily, 
-     ** If PtsTo is built-in: we can derive <> facts easily (also precision)
-     **)
+    | Const : forall vars, ST.hprop (tvarD pcType) (tvarD stateType) nil -> sexpr uvars vars
     .
-
-    (** NOTE: If I want to be able to reflect arbitrary propX terms (ExistsX,ForallX), then I'm going to need
-     ** another index on sexpr to express the (type -> PropX)
-     **)
-
 
     Fixpoint sexprD uvars vars (s : sexpr uvars vars)
       : hlist (@tvarD types) uvars -> hlist (@tvarD types) vars -> 
@@ -63,160 +55,6 @@ Module SepExpr (B : Heap).
           applyD (exprD e g) b _ (SDenotation (get sfuncs f))
         | Const _ p => fun _ _ => p
       end.
-
-(*
-    Section Cmp.
-      Definition sexprCmp vars (a : sexpr vars) : forall b, option (dcomp a b).
-        refine ((fix sexprCmp vars (a : sexpr vars) {struct a} : forall b, option (dcomp a b) :=
-          match a in sexpr vars return forall b : sexpr vars, option (dcomp a b) with
-            | Emp _ => fun b =>
-              match b with
-                | Emp _ => Some (Env.Eq _)
-                | _ => Some (Env.Lt _ _)
-              end
-            | Inj v l => fun b =>
-              match b in sexpr v' return forall l : expr funcs v' None, option (dcomp (Inj l) b) with
-                | Inj _ r => fun l => match exprEq l r with
-                                        | Some _ => Some (Env.Eq _)
-                                        | None => None
-                                      end
-                | Emp _ => fun _ => Some (Gt _ _)
-                | _ => fun _ => Some (Lt _ _)
-              end l
-            | Star v ll lr => fun b =>
-              match b in sexpr v' 
-                return forall (Heq : v' = v), (forall (x y : sexpr v'), option (dcomp (Star ll lr) (match Heq in _ = t 
-                                                                                                      return sexpr t
-                                                                                                      with
-                                                                                                      | refl_equal => Star x y
-                                                                                                    end)))
-                -> option (dcomp (Star ll lr) (match Heq in _ = t return sexpr t with
-                                                 | refl_equal => b
-                                               end))
-                with
-                | Star _ rl rr => fun _ cc => cc rl rr
-                | Emp _ | Inj _ _ => fun _ _ => Some (Env.Gt _ _)
-                | _ => fun _ _ => Some (Env.Lt _ _)
-              end (refl_equal _)
-              (fun (x y : sexpr v) =>
-                match sexprCmp _ ll x with
-                  | Some Env.Lt => Some (Env.Lt _ _)
-                  | Some Env.Gt => Some (Env.Gt _ _)
-                  | Some (Env.Eq _) => 
-                    match sexprCmp _ lr y with
-                      | Some Env.Lt => Some (Env.Lt _ _)
-                      | Some Env.Gt => Some (Env.Gt _ _)
-                      | Some (Env.Eq _) => Some (Env.Eq _)
-                      | None => None
-                    end
-                  | None => 
-                    match sexprCmp _ lr y with
-                      | Some Env.Lt => Some (Env.Lt _ _)
-                      | Some Env.Gt => Some (Env.Gt _ _)
-                      | _ => None
-                    end                    
-                end)
-            | Exists v t body => fun b =>
-              match b in sexpr v' 
-                return forall (Heq : v' = v),
-                  (forall t' (x : sexpr (t' :: v')), t' = t -> option (dcomp (Exists body) (match Heq in _ = t 
-                                                                                              return sexpr t 
-                                                                                              with
-                                                                                              | refl_equal => Exists x
-                                                                                            end))) ->
-                  option (dcomp (Exists body) (match Heq in _ = t return sexpr t with
-                                                 | refl_equal => b
-                                               end))
-                with
-                | Exists v' t' b' => fun Heq cc =>
-                  match tvar_dec t' t with
-                    | left pf => cc _ _ _
-                    | right _ => None
-                  end
-                | Emp _ | Inj _ _ | Star _ _ _ => fun _ _ => Some (Env.Gt _ _)
-                | _ => fun _ _ => Some (Env.Lt _ _)
-              end (refl_equal _)
-              (fun t x eqq => 
-                match sexprCmp _ body match eqq in _ = t' return sexpr (t' :: v) with
-                                        | refl_equal => x
-                                      end
-                  with
-                  | Some Env.Lt => Some (Env.Lt _ _)
-                  | Some Env.Gt => Some (Env.Gt _ _)
-                  | Some (Env.Eq _) => Some (Env.Eq _)
-                  | None => None
-                end)
-            | Cptr v lp ls => fun b =>
-              match b in sexpr v' 
-                return forall (Heq : v' = v), 
-                  (forall (p : expr funcs v' pcType) (s : sexpr (stateType :: v')), 
-                    option (dcomp (Cptr lp ls) (match Heq in _ = t
-                                                  return sexpr t
-                                                  with 
-                                                  | refl_equal => Cptr p s
-                                                end))) ->
-                  option (dcomp (Cptr lp ls) (match Heq in _ = t return sexpr t with
-                                                | refl_equal => b
-                                              end))
-                with
-                | Cptr _ rp rs => fun _ cc => cc rp rs
-                | Emp _ | Inj _ _ | Star _ _ _ | Exists _ _ _ => fun _ _ => Some (Env.Gt _ _)
-                | _ => fun _ _ => Some (Env.Lt _ _)
-              end (refl_equal _)
-              (fun x y =>
-                match exprEq lp x with
-                  | Some _ => match sexprCmp _ ls y with
-                                | Some (Env.Eq _) => Some (Env.Eq _)
-                                | Some Env.Gt => Some (Env.Gt _ _)
-                                | Some Env.Lt => Some (Env.Lt _ _)
-                                | None => None
-                              end                    
-                  | _ => None
-                end)
-            | Func v f args => fun b =>
-              match b in sexpr v'
-                return forall (Heq : v' = v), 
-                  (forall args', option (args = args')) ->
-                  option (dcomp (Func f args) (match Heq in _ = t 
-                                                 return sexpr t
-                                                 with
-                                                 | refl_equal => b
-                                               end))
-                with
-                | Func v' f' args' => fun Heq cc => 
-                  match finCmp f f' with
-                    | Env.Eq pf => match cc match Heq in _ = t 
-                                            return hlist (expr funcs t) (SDomain (get sfuncs f))
-                                            with 
-                                            | refl_equal => match sym_eq pf in _ = t 
-                                                              return hlist (expr funcs v') (SDomain (get sfuncs t)) with
-                                                              | refl_equal => args'
-                                                            end
-                                          end
-                                   with
-                                   | Some _ => Some (Env.Eq _)
-                                   | None => None
-                                 end                                     
-                    | Env.Lt => Some (Env.Lt _ _)
-                    | Env.Gt => Some (Env.Gt _ _)
-                  end
-                | Emp _ | Inj _ _ | Star _ _ _ | Exists _ _ _ | Cptr _ _ _ => fun _ _ => Some (Env.Gt _ _)
-                | _ => fun _ _ => Some (Env.Lt _ _)
-              end (refl_equal _) (hlistEq (@exprEq _ _ _) args)
-            | Const _ x => fun b => 
-              match b with
-                | Const _ y => match finCmp x y with
-                                 | Env.Eq _ => Some (Env.Eq _)
-                                 | Env.Lt => Some (Env.Lt _ _)
-                                 | Env.Gt => Some (Env.Gt _ _)
-                               end
-                | _ => Some (Env.Gt _ _)
-              end
-          end) vars a);
-        clear sexprCmp; try abstract (subst; reflexivity).
-      Defined.
-    End Cmp.
-*)
 
     Section SProver.
       Definition himp u1 u2 (vars : variables types) (U1 : hlist (@tvarD _) u1) (U2 : hlist (@tvarD _) u2) (G : hlist (@tvarD _) vars) (cs : codeSpec (tvarD pcType) (tvarD stateType))
@@ -571,72 +409,63 @@ Module SepExpr (B : Heap).
     admit.
     Defined.
 
-
-(*
-      Fixpoint sepCancel vars (e : sexpr fs sfuncs vars) {struct e}
-        : SHeap vars -> SHeap vars -> SHeap vars * SHeap vars.
-      match e in sexpr _ _ vars 
-        return SHeap vars -> SHeap vars -> SHeap vars * SHeap vars
-        with
-        | Emp _ => fun h rem => (h, rem)
-        | Func _ f a => fun h rem =>
-          match dmap_remove (fun x y => Some (@finCmp _ _ x y)) f (funcs h) with
-            | Some (ls, fs') => 
-              match take_out (fun x y => if hlistEq (@exprEq _ _ _ ) x y then true else false) a ls nil with
-                | None => (h,rem)
-                | Some nil => 
-                  ({| funcs := fs' 
-                    ; pures := pures h
-                    ; other := other h
-                    |}, rem)
-                | Some v =>
-                  ({| funcs := dmap_insert (fun x y => Some (@finCmp _ _ x y)) f v fs'
-                    ; pures := pures h
-                    ; other := other h
-                    |}, rem)
-              end
-            | None => (h,rem)
-          end              
-(*
-          match fmap_remove (@exprCmp _ _ _ _) p (cptrs h) with
-            | Some (s', cp') => 
-              match sexprCmp s s' with
-                | Some (Env.Eq _) => 
-                ({| funcs := funcs h 
-                  ; cptrs := cp'
-                  ; pures := pures h
-                  ; other := other h
-                  ; cnsts := cnsts h
-                  |}, rem)
-                | _ => (h,rem)
-              end
-           | None => (h,rem)
-          end
-*)
-        | Star _ l r => fun h rem =>
-          let '(h',rem') := sepCancel l h rem in
-          sepCancel r h' rem'
-        | _ => fun h rem => (h,rem)
-      end.
-*)
-
-
-
-          
-(*
-          match sepCancel gr lhs (SHeap_empty _) as k 
-            return sepCancel gr lhs (SHeap_empty _) = k -> _ with
-            | (lhs',rhs') => fun pf =>
-              @existT _ _ (denote lhs', denote rhs') _
-          end (eq_refl _)
-*)
-(*
-      end).
-      intros. etransitivity. 2: eapply sepCancel_cancels. 2: eassumption. 2: eauto.
-      unfold lhs. etransitivity. eapply denote_hash_cc. unfold Himp, himp. reflexivity.
-*)
-
   End BabySep.
+
+
+  (** Reflection Tactics **)
+  (************************)
+  Require Import Reflect.
+
+  Ltac collectTypes_sexpr s types :=
+    match s with
+      | @ST.emp _ _ _ => types
+      | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
+        collectTypes_sexpr P types
+      | @ST.inj _ _ _ ?PX => types
+      | @ST.star _ _ _ ?L ?R =>
+        let L := collectTypes_sexpr L types in
+        let R := collectTypes_sexpr R L in
+        R
+      | @ST.ex _ _ _ ?T ?B =>
+        (** TODO: How do I peek inside B so that I can reflect the body... 
+         ** - I might need to CPS this so that I can do some fresh name generation in tactics...
+         **)
+        types
+      | ?X =>
+        let rec bt_args args types :=
+          match args with
+            | tt => types
+            | (?a,?b) => 
+              let k := Expr.collectTypes_expr a types in
+              bt_args b k
+          end
+        in
+        let cc _ Ts args := 
+          let types := append_uniq Ts types in
+          let types := bt_args args types in
+          types
+        in
+        refl_app cc X
+    end.
+
+
+  (** Just a test separation logic predicate **)
+  Section Tests.
+    Variable f : forall a b, nat -> ST.hprop a b nil.
+    Variable g : bool -> nat -> nat -> nat.
+
+    Goal forall a b c d x, @ST.himp a b c (f _ _ (g d (x + x) x)) (f _ _ x).
+      intros.
+      match goal with
+        | [ |- @ST.himp _ _ _ ?L ?R ] =>
+          let r := constr:(@nil Type) in
+          let lt := collectTypes_sexpr L r in
+          let rt := collectTypes_sexpr R lt in
+          idtac rt
+      end.
+    Abort.
+  End Tests.
+
 End SepExpr.
 
 Require Export Expr.
@@ -1255,4 +1084,68 @@ Require Export Expr.
         | nil => fun s => s
         | a :: b => fun s => @existsEach b vars' (Exists a s)
       end.
+*)
+
+(*
+      Fixpoint sepCancel vars (e : sexpr fs sfuncs vars) {struct e}
+        : SHeap vars -> SHeap vars -> SHeap vars * SHeap vars.
+      match e in sexpr _ _ vars 
+        return SHeap vars -> SHeap vars -> SHeap vars * SHeap vars
+        with
+        | Emp _ => fun h rem => (h, rem)
+        | Func _ f a => fun h rem =>
+          match dmap_remove (fun x y => Some (@finCmp _ _ x y)) f (funcs h) with
+            | Some (ls, fs') => 
+              match take_out (fun x y => if hlistEq (@exprEq _ _ _ ) x y then true else false) a ls nil with
+                | None => (h,rem)
+                | Some nil => 
+                  ({| funcs := fs' 
+                    ; pures := pures h
+                    ; other := other h
+                    |}, rem)
+                | Some v =>
+                  ({| funcs := dmap_insert (fun x y => Some (@finCmp _ _ x y)) f v fs'
+                    ; pures := pures h
+                    ; other := other h
+                    |}, rem)
+              end
+            | None => (h,rem)
+          end              
+(*
+          match fmap_remove (@exprCmp _ _ _ _) p (cptrs h) with
+            | Some (s', cp') => 
+              match sexprCmp s s' with
+                | Some (Env.Eq _) => 
+                ({| funcs := funcs h 
+                  ; cptrs := cp'
+                  ; pures := pures h
+                  ; other := other h
+                  ; cnsts := cnsts h
+                  |}, rem)
+                | _ => (h,rem)
+              end
+           | None => (h,rem)
+          end
+*)
+        | Star _ l r => fun h rem =>
+          let '(h',rem') := sepCancel l h rem in
+          sepCancel r h' rem'
+        | _ => fun h rem => (h,rem)
+      end.
+*)
+
+
+
+          
+(*
+          match sepCancel gr lhs (SHeap_empty _) as k 
+            return sepCancel gr lhs (SHeap_empty _) = k -> _ with
+            | (lhs',rhs') => fun pf =>
+              @existT _ _ (denote lhs', denote rhs') _
+          end (eq_refl _)
+*)
+(*
+      end).
+      intros. etransitivity. 2: eapply sepCancel_cancels. 2: eassumption. 2: eauto.
+      unfold lhs. etransitivity. eapply denote_hash_cc. unfold Himp, himp. reflexivity.
 *)
