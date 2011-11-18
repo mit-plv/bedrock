@@ -190,5 +190,26 @@ Module SepTheoryX (H : Heap).
       intros. eapply heq_star_frame. reflexivity. auto.
     Qed.
 
+    Theorem himp_ex_p : forall T (P : T -> _) Q, 
+      (forall v, himp (P v) Q) -> himp (ex P) Q.
+    Proof.
+      intros. unfold himp, ex in *; simpl in *; intros. propxFo. eauto.
+    Qed.
+
+    Theorem himp_ex_c : forall T (P : T -> _) Q, 
+      (exists v, himp Q (P v)) -> himp Q (ex P).
+    Proof.
+      intros. unfold himp, ex in *; simpl in *; intros. propxFo. exists x. propxFo.
+    Qed.
+
+(*
+    Theorem heq_ex_p : forall T (P : T -> _) Q, 
+      (forall v, heq (P v) Q) -> heq (ex P) Q.
+    Proof.
+      intros. unfold heq, himp, ex in *; simpl in *; intros. propxFo. specialize (H x). firstorder.      
+    Qed.
+*)
+      
+
   End env.
 End SepTheoryX.

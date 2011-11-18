@@ -51,6 +51,36 @@ Section env.
   | UVar : forall x : uvar, expr (get uvars x)
   | Func : forall f : func, hlist expr (Domain (get funcs f)) -> expr (Range (get funcs f)).
 
+  Fixpoint hlist_All T F (ls : list T) (P : forall t : T, F t -> Prop) (h : hlist F ls) {struct h} : Prop :=
+    match h with
+      | HNil => True
+      | HCons _ _ a b => P _ a /\ hlist_All P b
+    end.
+
+  Lemma expr_ind_strong : forall (P : forall t, expr t -> Prop),
+    (forall (t : tvar) (t0 : tvarD t), P t (Const t t0)) ->
+    (forall x : var, P (get vars x) (Var x)) ->
+    (forall x : uvar, P (get uvars x) (UVar x)) ->
+    (forall (f2 : func) (h : hlist expr (Domain (get funcs f2))),
+      hlist_All P h ->
+      P (Range (get funcs f2)) (Func f2 h)) ->
+    forall (t : tvar) (e : expr t), P t e.
+  Proof.
+    intros P Hconst Hvar Huvar Hfunc.
+    refine (fix expr_ind_strong t e {struct e} : P t e :=
+      match e as e in expr t return P t e with
+        | Var _ => Hvar _ 
+        | Const _ _ => Hconst _ _
+        | UVar _ => Huvar _
+        | Func _ h  => 
+          Hfunc _ _ ((fix prove_sub ls (h : hlist expr ls) : hlist_All P h :=
+            match h with
+              | HNil => I
+              | HCons _ _ e r => conj (expr_ind_strong _ e) (prove_sub _ r)
+            end) _ h)
+      end).
+  Qed.
+
   Section applyD.
     Variable exprD : forall t, expr t -> tvarD t.
 
@@ -180,7 +210,18 @@ Section Lifting.
         | Func f a => 
           Func f (@hlist_map _ _ (expr funcs uvars (vars' ++ ext ++ vars)) (fun t (x : expr funcs uvars (vars' ++ vars) t) => liftExpr x) _ a)
       end.
+
   End Vars.
+
+
+  Lemma liftExpr_nil : forall uvars vars' vars T (e : expr funcs uvars (vars' ++ vars) T),
+    liftExpr vars' nil vars e = e.
+  Proof.
+    induction e using expr_ind_strong; simpl; auto.
+    assert (liftDmid vars vars' nil x = @existT _ _ x (refl_equal _)). admit.
+    rewrite H. auto.
+    f_equal. induction h; simpl; auto. simpl in *. firstorder. f_equal; auto.
+  Qed.    
 
   Section UVars.
     Variable uvars' ext uvars : variables types.

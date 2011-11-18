@@ -196,7 +196,7 @@ Section fin.
     end
     ) nil ls ls' (ls' ++ ls) e i (refl_equal _) (fun i' => i')).
   Defined.
-
+  
   Variable B : A -> Type.
 
   Inductive hlist : list A -> Type :=
