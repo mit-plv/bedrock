@@ -28,11 +28,16 @@ Module SepTheoryX (H : Heap).
     Global Instance Refl_himp : Reflexive himp.
     Proof.
       red; unfold himp; firstorder.
-    Admitted.
+      eapply Imply_I. econstructor; firstorder.
+    Qed.
     Global Instance Trans_himp : Transitive himp.
     Proof.
       red; unfold himp; firstorder.
-    Admitted.
+      eapply Imply_E. 2: eapply (H s m). eapply Imply_E.
+      2: eapply (H0 s m). eapply Imply_I. eapply Imply_I.
+      eapply Imply_I. eapply Imply_E. econstructor. firstorder.
+      eapply Imply_E. econstructor. firstorder. econstructor; firstorder.
+    Qed.
 
     Global Instance Refl_heq : Reflexive heq.
     Proof.
@@ -44,8 +49,8 @@ Module SepTheoryX (H : Heap).
     Qed.
     Global Instance Trans_heq : Transitive heq.
     Proof.
-      red; unfold heq.
-    Admitted.    
+      red; unfold heq. intuition; etransitivity; eassumption.
+    Qed.
 
     Theorem heq_himp : forall a b, heq a b -> himp a b.
     Proof.
@@ -78,7 +83,8 @@ Module SepTheoryX (H : Heap).
 
     (** Lemmas **)
     Ltac doIt :=
-      unfold himp, heq; simpl; intros;
+      unfold himp, heq; simpl; intros.
+(*
         repeat match goal with
 (*                 | [ h : HT.smem , H : forall x : HT.smem , _ |- _ ] => specialize (H h) *)
                  | [ H : _ -> _ |- _ ] => apply H; clear H
@@ -91,14 +97,22 @@ Module SepTheoryX (H : Heap).
                  | [ |- simplify _ _ _ ] => eassumption || apply simplify_fwd
                  | [ H : interp ?X (?Y _) |- interp ?X (?Y _) ] => eapply H
                end.
+*)
 
     Hint Immediate HT.split_comm : heaps.
     Hint Resolve HT.split_assoc HT.disjoint_split_join HT.split_split_disjoint : heaps.
 
     Lemma himp_star_comm : forall P Q, himp (star P Q) (star Q P).
     Proof.
-      unfold star; doIt; eauto with heaps. 
-    Admitted.
+      unfold star; doIt; eauto with heaps.
+      eapply Imply_I. eapply Exists_E. econstructor; firstorder; simpl; intros.
+      simpl. intros; eapply Exists_E. econstructor; firstorder; simpl; intros.
+      intros. simpl. do 2 eapply Exists_I. repeat eapply And_I.
+      2: eapply And_E2; eapply And_E2; econstructor; firstorder.
+      2: eapply And_E1; eapply And_E2; econstructor; firstorder.
+      eapply Inj_E. eapply And_E1; econstructor; firstorder.
+      intros. eapply Inj_I. eauto with heaps.    
+    Qed.
 
     Theorem himp_star_comm_p : forall P Q R, himp (star P Q) R -> himp (star Q P) R.
     Proof.
@@ -136,7 +150,7 @@ Module SepTheoryX (H : Heap).
 *)
 
     Theorem heq_star_assoc : forall P Q R S, 
-      heq S (star P (star Q R)) -> heq S (star (star P Q) R).
+      heq (star P (star Q R)) S -> heq (star (star P Q) R) S.
     Proof. Admitted.
 (*
       intros. generalize (@himp_star_assoc_p P Q R S). generalize (@himp_star_assoc_c P Q R S).
