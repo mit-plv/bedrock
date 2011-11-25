@@ -4,6 +4,7 @@ Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
 Require Import Classes.RelationClasses.
+Require Import Eqdep_dec.
 
 Set Implicit Arguments.
 
@@ -183,6 +184,12 @@ Module SepExpr (B : Heap).
     Variable stateMem : tvarD stateType -> B.mem.
     Variable sfuncs : list (ssignature pcType stateType).
 
+    Lemma UIP_vars : forall (x y:variables types) (p1 p2:x = y), p1 = p2.
+    Proof.
+      eapply UIP_dec.
+      intros. eapply list_eq_dec. eapply tvar_dec.
+    Qed.
+      
     Record SHeap uvars vars : Type :=
     { funcs  : @dmap (fin sfuncs) (fun f => list (hlist (expr fs uvars vars) (SDomain (get sfuncs f))))
     ; pures  : list (expr fs uvars vars None)
@@ -197,9 +204,7 @@ Module SepExpr (B : Heap).
 
     Definition denote uvars vars (h : SHeap uvars vars) :  sexpr fs sfuncs uvars vars :=
       let a := dmap_fold (fun a x y => fold_left (fun a y => Star (Func x y) a) y a) Emp (funcs h) in
-(*      let b := fmap_fold (fun a x y => Star (Cptr x y) a) Emp (cptrs h) in *)
       let c := fold_right (fun x a => Star (Inj x) a) Emp (pures h) in
-(*      let d := fold_right (fun x a => Star (Const x) a) Emp (cnsts h) in *)
       let e := fold_right (fun x a => Star (Const x) a) Emp (other h) in
       Star a (Star c e).
 
@@ -301,6 +306,37 @@ Module SepExpr (B : Heap).
       end).
 
 *)
+      Lemma heq_subst : forall a b A B C (P Q R S : sexpr fs sfuncs a b) cs,
+        heq A A C cs S P ->
+        heq A B C cs (Star P Q) R ->
+        heq A B C cs (Star S Q) R.
+      Proof.
+        unfold heq. simpl. intros. eapply ST.heq_subst; eauto. 
+      Qed.
+
+      Global Instance Sym_heq : forall A B G G' cs,
+        Symmetric (@heq _ fs _ _ sfuncs A A B G G G' cs).
+      Proof.
+        unfold heq, Symmetric. intros. symmetry. auto.
+      Qed.
+
+      Global Instance Refl_heq : forall A B G G' cs,
+        Reflexive (@heq _ fs _ _ sfuncs A A B G G G' cs).
+      Proof.
+        unfold heq, Reflexive. intros. reflexivity.
+      Qed.
+
+      Lemma heq_star_comm : forall a b A B C (P Q R : sexpr fs sfuncs a b) cs,
+        heq A B C cs (Star P Q) R ->
+        heq A B C cs (Star Q P) R.
+      Proof.
+        unfold heq. simpl. intros. eapply ST.heq_star_comm. auto.
+      Qed.
+
+      Parameter heq_ex : forall t a b A B C (P Q : sexpr fs sfuncs a (t :: b)) cs, 
+        (forall v, heq A B (HCons v C) cs P Q) ->
+        heq A B C cs (Exists t P) (Exists t Q).
+
     Lemma list_app_assoc : forall T (a b c : list T), (a ++ b) ++ c = a ++ b ++ c.
     Proof.
       induction a; simpl; intros.
@@ -315,16 +351,46 @@ Module SepExpr (B : Heap).
         | a :: b => fun y => @existsEach uvars _ vars' (Exists _ y)
       end.
 
-    About liftSExpr.
-    Lemma lift_exists_star : forall uvars x y z A B C cs (P : sexpr fs sfuncs uvars (x ++ z))  Q,
-      himp A B C cs (Star (existsEach x z P) (existsEach y z Q))
+    Lemma existsEach_heq : forall u v v' X Y cs (P Q : sexpr fs sfuncs u (v ++ v')),
+      (forall Z, heq X X (hlist_app Z Y) cs P Q) ->
+      heq X X Y cs (existsEach v _ P) (existsEach v _ Q).
+    Proof.
+      induction v; simpl; intros.
+        eapply H. econstructor.
+        eapply IHv. intros. eapply heq_ex. intros; specialize (H (HCons v0 Z)).
+        simpl in *. auto.
+    Qed.
+
+    Lemma existsEach_peel_back : forall uvars x r t A C (P : sexpr fs sfuncs uvars (x ++ t :: r)) cs (E : x ++ t :: r = (x ++ t :: nil) ++ r),
+      heq A A C cs (existsEach (x ++ t :: nil) r
+        match E in _ = t return sexpr fs sfuncs _ t with
+          | refl_equal => P
+        end) (Exists t (existsEach x (t :: r) P)).
+    Proof.
+      induction x; simpl; intros. rewrite (UIP_vars E (refl_equal _)). reflexivity.
+      inversion E.
+      specialize (@IHx _ _ A C (Exists a P) cs H0).
+      etransitivity. 2: eapply IHx. clear. eapply existsEach_heq. intros.
+      generalize (hlist_app Z C). clear.
+      generalize P. generalize E. generalize H0. rewrite H0.
+      intros. 
+      repeat match goal with 
+        | [ H : ?X = ?X |- _ ] => rewrite (UIP_vars H (refl_equal _))
+      end. reflexivity.
+    Qed.
+
+    Lemma lift_exists_star : forall uvars x y z A C cs (P : sexpr fs sfuncs uvars (x ++ z))  Q,
+      heq A A C cs (Star (existsEach x z P) (existsEach y z Q))
                     (existsEach x _ (existsEach y _ (Star (liftSExpr nil y (x ++ z) P) (liftSExpr y x z Q)))).
     Proof.
       clear. induction x; simpl; intros.
         rewrite liftSExpr_nil; eauto. induction y. simpl. rewrite liftSExpr_nil. unfold himp. simpl in *.
-        eapply ST.himp_star_cancel.
+        reflexivity.
+        unfold himp in *; simpl in *.
+         simpl. unfold himp.
+    Admitted.
 
-
+(*
     Fixpoint hash_left' uvars vars ext (s : sexpr fs sfuncs uvars vars) {struct s} :
       { es : variables types & 
         { h : SHeap uvars (ext ++ es ++ vars) | forall A B C cs, heq A B C cs (existsEach _ es (denote h)) (liftSExpr nil ext _ s) } }.
@@ -484,7 +550,7 @@ generalize (@nil. induction s; simpl; intros; unfold denote; simpl.
         
         
       Admitted.
-
+*)
 
 
     Fixpoint hash_left uvars vars (s : sexpr fs sfuncs uvars vars) :
@@ -543,7 +609,6 @@ refine (
     instantiate (1 := v ++ t :: nil). rewrite list_app_assoc. simpl. assumption.
     Defined.
 
-
     Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
       { es : variables types & SHeap (es ++ uvars) (ext ++ vars) }.
     Admitted.
@@ -558,31 +623,145 @@ refine (
         | a :: b => fun s => @existsEach b vars (Exists a s)
       end.
 *)
-    Fixpoint existsEach (uvars vars vars' : variables types) {struct vars}
-      : sexpr fs sfuncs uvars (vars ++ vars') -> sexpr fs sfuncs uvars vars' :=
-      match vars as vars return sexpr fs sfuncs uvars (vars ++ vars') -> sexpr fs sfuncs uvars vars' with
-        | nil => fun x => x
-        | a :: b => fun y => @existsEach uvars _ vars' (Exists _ y)
-      end.
 
     Section WithCS.
 (*      Variable cs : codeSpec (tvarD pcType) (tvarD stateType). *)
+
+      Ltac notVar X :=
+        match X with
+          | _ _ => idtac
+          | _ _ _ => idtac
+          | _ _ _ _ => idtac
+          | _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ _ _ _ _ => idtac
+          | _ _ _ _ _ _ _ _ _ _ _ _ _ _ => idtac
+        end.
+
+      Ltac uip_all :=
+        repeat match goal with
+                 | [ H : _ = _ |- _ ] => rewrite H
+                 | [ |- context [ match ?X in _ = t return _ with 
+                                    | refl_equal => _ 
+                                  end ] ] => notVar X; generalize X
+                 | [ |- context [ eq_rect_r _ _ ?X ] ] => notVar X; generalize X
+               end;
+        intros;
+        repeat match goal with
+                 | [ H : ?X = ?X |- _ ] => rewrite (UIP_vars H (refl_equal _)) in *
+               end.
+
+      Lemma existsEach_app : forall u a b c X Y cs (P : sexpr fs sfuncs u (b ++ a ++ c)),
+        heq X X Y cs (existsEach a c (existsEach b (a ++ c) P))
+                     (existsEach (b ++ a) c match eq_sym (app_ass b a c) in _ = t 
+                                              return sexpr _ _ _ t with
+                                              | refl_equal => P
+                                            end).
+      Proof.
+        clear. induction a. simpl. induction b; simpl.
+          intros. uip_all. reflexivity.
+          intros. etransitivity. eapply (@IHb _ _ _ cs (Exists a P)).
+          clear. uip_all. generalize P e e0. uip_all. reflexivity.
+          simpl. intros.
+          assert (b ++ a :: a0 ++ c = (b ++ a :: nil) ++ a0 ++ c).
+            clear. rewrite app_ass. reflexivity.
+          specialize (IHa (b ++ a :: nil) c X Y cs
+            match H in _ = t return sexpr fs sfuncs u t with
+              | refl_equal => P
+            end).
+          etransitivity. etransitivity. 2: eapply IHa. clear.
+          eapply existsEach_heq; intros. symmetry. eapply existsEach_peel_back.
+          clear. generalize P H. symmetry in H. uip_all. 
+          generalize dependent P0. generalize dependent e0. generalize dependent e.
+          clear H0. cutrewrite <- ((b ++ a :: nil) ++ a0 = b ++ a :: a0). rewrite <- H.
+          repeat rewrite <- app_ass. uip_all. reflexivity.
+          repeat rewrite app_ass. reflexivity.
+      Qed.
+
+      Lemma lift_denote_lift : forall cs u a b c (s : SHeap u (a ++ c)) X Y,
+        heq X X Y cs (liftSExpr a b c (denote s)) (denote (liftSHeap a b c s)).
+      Proof. Admitted.
+
+      Lemma heq_star_frame : forall cs a b X Y (P Q R S : sexpr fs sfuncs a b),
+        heq X X Y cs P R ->
+        heq X X Y cs Q S ->
+        heq X X Y cs (Star P Q) (Star R S).
+      Proof.
+        clear. unfold heq. intros. simpl. eapply ST.heq_star_frame; eauto.
+      Qed.
+
+      Lemma denote_join : forall a b (P Q : SHeap a b) X Y cs,
+        heq X X Y cs (denote (join_SHeap P Q)) (Star (denote P) (denote Q)).
+      Proof.
+        clear. unfold join_SHeap. destruct P; destruct Q; simpl in *. 
+        unfold denote; simpl.
+      Admitted.
 
       Theorem denote_hash_left : forall G (s : sexpr fs sfuncs _ _) cs, 
         heq HNil HNil G cs s 
           (@existsEach _ (projT1 (@hash_left _ _  s)) nil (denote (projT2 (hash_left s)))).
       Proof.
-        clear. induction s; simpl; intros; unfold denote; simpl. 
-          admit. (** TRIVIAL **)
-          admit. (** TRIVIAL **)
-          unfold heq. simpl.
+        clear. induction s; 
+          try solve [ simpl; intros; unfold denote; simpl;
+            unfold heq; simpl; symmetry; do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); reflexivity ].
+          intros. eapply heq_subst. eapply IHs1. eapply heq_star_comm. eapply heq_subst.
+            eapply IHs2. clear IHs2 IHs1.
+            simpl. destruct (hash_left s1). destruct (hash_left s2). simpl.
+            etransitivity. eapply lift_exists_star. etransitivity. eapply existsEach_app. 
+            uip_all. eapply existsEach_heq. intros. generalize (hlist_app Z G). clear.
 
-          
-          admit. (** CHECK **)
-          unfold heq. simpl. admit.
-          admit. (** TRIVIAL **)
-          admit. (** TRIVIAL **)
-        
+            intros. etransitivity. 2: symmetry; eapply denote_join.
+            etransitivity. 
+            instantiate (1 := Star match e0 in _ = t return sexpr _ _ _ t with
+                                     | refl_equal => liftSExpr nil x (x0 ++ vars) (denote s0)
+                                   end
+                                   match e0 in _ = t return sexpr _ _ _ t with
+                                     | refl_equal => liftSExpr x x0 vars (denote s)
+                                   end).
+            clear. generalize (liftSExpr nil x (x0 ++ vars) (denote s0)).
+            generalize (liftSExpr x x0 vars (denote s)). generalize h e0. uip_all. reflexivity.
+
+            eapply heq_star_comm. eapply heq_star_frame.
+
+            generalize (@lift_denote_lift cs _ x x0 vars s HNil
+              match app_ass x x0 vars in _ = t return hlist _ t with
+                | refl_equal => h
+              end). generalize h e e0. generalize (liftSExpr x x0 vars (denote s)).
+            generalize (liftSHeap x x0 vars s). uip_all. unfold eq_rect_r, eq_rect. simpl. auto.
+
+            generalize (@lift_denote_lift cs _ nil x (x0 ++ vars) s0 HNil
+              match app_ass x x0 vars in _ = t return hlist _ t with
+                | refl_equal => h
+              end).
+            Opaque liftSExpr. simpl. 
+            generalize (liftSExpr nil x (x0 ++ vars) (denote s0)). 
+            generalize (liftSHeap nil x (x0 ++ vars) s0).
+            generalize h e0 e s0. simpl app in *. uip_all. unfold eq_rect_r, eq_rect. auto.
+            
+            
+            
+
+
+
+            intros. 
+
+              
+
+            generalize e e0. generalize h. clear.
+
+
+             admit.
+
+          simpl. destruct (hash_left s). simpl in *. generalize dependent x.
+          Focus.
+          induction x; simpl; intros. unfold eq_rect_r. simpl.
+            eapply heq_ex. intros. eapply IHs.
         
       Admitted.
 

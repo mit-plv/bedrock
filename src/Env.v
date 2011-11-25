@@ -221,6 +221,12 @@ Section fin.
       | HCons _ _ _ x => x 
     end.
 
+  Fixpoint hlist_app ll lr : hlist ll -> hlist lr -> hlist (ll ++ lr) :=
+    match ll with
+      | nil => fun _ x => x
+      | _ :: _ => fun l r => HCons (hlist_hd l) (hlist_app (hlist_tl l) r)
+    end.
+
   Variable dec : forall x (y z : B x), option (y = z).
 
   Definition hlistEq : forall x (y z : hlist x), option (y = z).
