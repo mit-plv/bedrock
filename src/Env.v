@@ -68,6 +68,10 @@ Section fin.
         end; subst; discriminate).
   Defined.
 
+  Require Import EquivDec.
+  Global Instance finEq_dec ls : EqDec (fin ls) (@eq (fin ls)) :=
+    @finEq ls.
+
   Inductive dcomp T (a b : T) : Type :=
   | Lt | Gt | Eq : a = b -> dcomp a b.
   
@@ -292,6 +296,29 @@ Section fin.
       | FO _ _ => fun hl => hlist_hd hl
       | FS _ _ f' => fun hl => hlist_get f' (hlist_tl hl)
     end.
+
+(*
+  Theorem hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
+    hlist_get f (hlist_app G G'') = match liftDmid ls'' ls ls' f with
+                                      | existT f' pf =>
+                                        match pf in _ = t return B t with
+                                          | refl_equal => 
+                                            hlist_get f' (hlist_app G (hlist_app G' G''))
+                                        end
+                                    end.
+  Proof.
+    induction ls. simpl. intros. unfold liftDmid; simpl.
+
+    clear. induction ls; induction ls'; simpl; intros.
+      reflexivity.
+      unfold liftDmid. simpl. remember (@nil A) as ZZ. destruct G. 2: inversion HeqZZ.
+      simpl in *. erewrite IHls'. 2: econstructor. unfold liftDmid. simpl.
+      case_eq (liftD ls' f). instantiate (1 := (hlist_tl G')).
+      simpl. intros. admit.
+      unfold liftDmid in *. simpl in *. 
+*)
+      
+
 
   Fixpoint absAll (ls : list A) :
     (hlist ls -> Type) -> Type :=

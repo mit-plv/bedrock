@@ -239,15 +239,18 @@ Module SepTheoryX (H : Heap).
          | [ H : forall v : ?T, _, x : ?T |- _ ] => specialize (H x)
        end; propxFo; eauto with heaps.
     Qed.
-      
-(*
-    Theorem heq_ex_p : forall T (P : T -> _) Q, 
-      (forall v, heq (P v) Q) -> heq (ex P) Q.
-    Admitted. 
-      intros. unfold heq, himp, ex in *; simpl in *; intros. propxFo. specialize (H x). firstorder.      
-    Qed.
-*)
-      
 
+    Theorem heq_ex_star : forall T (P : T -> _) Q,
+      heq (star (ex P) Q) (ex (fun x => star (P x) Q)).
+    Proof.
+      unfold heq, star, ex. doIt; intuition eauto. 
+    Qed.
+
+    Theorem himp_ex_star : forall T (P : T -> _) Q,
+      himp (star (ex P) Q) (ex (fun x => star (P x) Q)).
+    Proof.
+      unfold himp, star, ex. doIt; intuition eauto. 
+    Qed.
+      
   End env.
 End SepTheoryX.

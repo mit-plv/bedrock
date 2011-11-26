@@ -3,8 +3,8 @@
  ** - Lifting expressions to new states
  ** - Unification variables?
  **)
-Require Import List Eqdep_dec.
-Require Import Env.
+Require Import List Env.
+Require Import EqdepClass.
 
 Set Implicit Arguments.
 
@@ -178,7 +178,7 @@ Section env.
         end (refl_equal _) (hlistEq exprEq xs1)
     end); clear exprEq; try abstract (subst;
       repeat match goal with
-               | [ Heq : _ = _ |- _ ] => rewrite (UIP_dec tvar_dec Heq (refl_equal _)) in *; clear Heq; simpl in *
+               | [ Heq : _ = _ |- _ ] => rewrite (@UIP_refl _ _ _ Heq) in *; clear Heq; simpl in *
              end; congruence).
   Defined.
 
@@ -221,7 +221,73 @@ Section Lifting.
     assert (liftDmid vars vars' nil x = @existT _ _ x (refl_equal _)). admit.
     rewrite H. auto.
     f_equal. induction h; simpl; auto. simpl in *. firstorder. f_equal; auto.
-  Qed.    
+  Qed.
+  
+  Parameter hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
+    hlist_get f (hlist_app G G'') = match liftDmid ls'' ls ls' f with
+                                      | existT f' pf =>
+                                        match pf in _ = t return @tvarD types t with
+                                          | refl_equal => 
+                                            hlist_get f' (hlist_app G (hlist_app G' G''))
+                                        end
+                                    end.
+
+  Lemma hlist_nil_only : forall (F : tvar types -> Type) (h : hlist F nil), 
+    h = HNil.
+  Proof.
+    clear. intros.
+    change h with (match refl_equal in _ = t return hlist F t with
+                     | refl_equal => h
+                   end).
+    generalize (refl_equal (@nil (tvar types))). generalize h. clear. 
+    assert (forall k (h : hlist F k) (e : k = nil),
+      match e in (_ = t) return (hlist F t) with
+        | eq_refl => h
+      end = HNil).
+    destruct h. 
+    uip_all. reflexivity.
+    congruence.
+    eauto.
+  Qed.
+
+  Lemma hlist_eta : forall a b (F : tvar types -> Type) (h : hlist F (a :: b)),
+    h = HCons (hlist_hd h) (hlist_tl h).
+  Proof.
+    clear. intros.
+    assert (forall k (h : hlist F k) (e : k = a :: b),
+      match e in (_ = t) return (hlist F t) with
+        | eq_refl => h
+      end = HCons (hlist_hd match e in _ = t return hlist F t with
+                              | eq_refl => h
+                            end)
+                  (hlist_tl match e in _ = t return  hlist F t with
+                              | eq_refl => h
+                            end)).
+    destruct h0. congruence.
+    intros. inversion e. subst.
+    generalize e. uip_all. reflexivity.
+
+    specialize (H _ h (refl_equal _)). assumption.
+  Qed.
+
+  Lemma liftExpr_denote : forall uvars vars' vs vars T (e : expr funcs uvars (vars' ++ vars) T) U G G' G'', 
+      exprD U (hlist_app G (hlist_app G' G'')) (liftExpr vars' vs vars e) = exprD U (hlist_app G G'') e.
+  Proof.
+    induction e using expr_ind_strong; simpl; auto.
+      case_eq (liftDmid vars vars' vs x); intros. 
+      generalize (@hlist_get_lift vars' vs vars x G G' G''). intros.
+      unfold tvar in *. rewrite H0. rewrite H. clear.
+      generalize (hlist_app G (hlist_app G' G'')). generalize e.
+      rewrite <- e. intros. uip_all. reflexivity.
+
+      generalize dependent h. destruct (get funcs f2). simpl. 
+        generalize dependent Denotation0.      
+        induction Domain0; simpl; intros. clear H.
+        rewrite (@hlist_nil_only _ h). simpl. auto.
+       
+      rewrite (hlist_eta h) in *. simpl in *. rewrite IHDomain0; try tauto.
+        f_equal. destruct H. rewrite H. reflexivity.
+  Qed.
 
   Section UVars.
     Variable uvars' ext uvars : variables types.
