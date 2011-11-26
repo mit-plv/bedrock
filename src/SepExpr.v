@@ -408,6 +408,18 @@ refine (
         simpl in *. auto.
       Qed.
 
+      Lemma hlist_app_assoc : forall F (a b c : variables types) (A : hlist F a) (B : hlist F b) (C : hlist F c),
+        hlist_app (hlist_app A B) C = 
+        match app_assoc a b c in _ = t return hlist F t with
+          | refl_equal => hlist_app A (hlist_app B C)
+        end.
+      Proof.
+        induction a; simpl. auto.
+          intros; uip_all. simpl in *. generalize e; uip_all. reflexivity.
+          intros. rewrite IHa. clear. generalize (hlist_app (hlist_tl A) (hlist_app B C)).
+          generalize (hlist_hd A). uip_all. simpl in *. generalize e e0 h. uip_all. reflexivity.
+      Qed.
+
       Lemma existsEach_peel_back : forall uvars x r t A C 
         (P : sexpr fs sfuncs uvars ((x ++ t :: nil) ++ r))
         (Q : sexpr fs sfuncs uvars (x ++ t :: r)),
@@ -419,19 +431,32 @@ refine (
         clear; induction x; simpl; intros.
           eapply heq_ex. intros. specialize (H (HCons v HNil)). etransitivity. eapply H.
           clear H. generalize (HCons v C). uip_all. reflexivity.
+        etransitivity. eapply IHx. 
+        instantiate (1 := match app_ass x (t :: nil) r in _ = t
+                            return sexpr _ _ _ t with
+                            | refl_equal => Exists a P
+                          end). clear.
+        intros. generalize (hlist_app Z C). generalize P. uip_all. generalize e e0 h P0.
+        uip_all. reflexivity.
+        
+        eapply heq_ex. intros. eapply existsEach_heq. intros. uip_all.
+        assert (a :: (x ++ t :: nil) ++ r = a :: x ++ (t :: nil) ++ r).
+        f_equal; auto.
+        etransitivity.
+        instantiate (1 := Exists a match H0 in _ = t return sexpr _ _ _ t with
+                                     | refl_equal => P
+                                   end).
+        clear. generalize P e H0. simpl. rewrite e. simpl. uip_all. reflexivity.
 
-      Admitted.
-
-      Lemma lift_exists_star : forall uvars x y z A C cs (P : sexpr fs sfuncs uvars (x ++ z))  Q,
-        heq A A C cs (Star (existsEach x z P) (existsEach y z Q))
-        (existsEach x _ (existsEach y _ (Star (liftSExpr nil y (x ++ z) P) (liftSExpr y x z Q)))).
-      Proof.
-        clear. induction x; simpl; intros.
-        rewrite liftSExpr_nil; eauto. induction y. simpl. rewrite liftSExpr_nil. unfold himp. simpl in *.
-        reflexivity.
-        unfold himp in *; simpl in *.
-        simpl. unfold himp.
-      Admitted.
+        eapply heq_ex. intros. specialize (H (HCons v0 (hlist_app Z (HCons v HNil)))).
+        simpl in *. clear IHx. rewrite hlist_app_assoc in H. simpl in H.
+        generalize dependent H. simpl. uip_all. unfold tvar in *.
+        match goal with
+          | [ |- heq _ _ (HCons _ (hlist_app ?H ?H')) _ _ _ ] => 
+            generalize dependent (hlist_app H H')
+        end.
+        generalize P Q e0 H0 e1. simpl in *. uip_all. auto.
+      Qed.
 
       Lemma existsEach_app : forall u a b c X Y (P : sexpr fs sfuncs u (b ++ a ++ c)),
         heq X X Y cs (existsEach a c (existsEach b (a ++ c) P))
@@ -465,6 +490,16 @@ refine (
           rewrite app_ass. reflexivity.
       Qed.
 
+      Lemma lift_exists_star : forall uvars x y z A C cs (P : sexpr fs sfuncs uvars (x ++ z))  Q,
+        heq A A C cs (Star (existsEach x z P) (existsEach y z Q))
+        (existsEach x _ (existsEach y _ (Star (liftSExpr nil y (x ++ z) P) (liftSExpr y x z Q)))).
+      Proof.
+        clear. induction x; simpl; intros.
+        rewrite liftSExpr_nil; eauto. induction y. simpl. rewrite liftSExpr_nil. reflexivity.
+
+        simpl. etransitivity. eapply IHy. eapply existsEach_heq. intros.
+      Admitted.
+
       Lemma lift_denote_lift : forall u a b c (s : SHeap u (a ++ c)) X Y,
         heq X X Y cs (liftSExpr a b c (denote s)) (denote (liftSHeap a b c s)).
       Proof. Admitted.
@@ -483,7 +518,8 @@ refine (
       Proof.
         clear. induction s; 
           try solve [ simpl; intros; unfold denote; simpl;
-            unfold heq; simpl; symmetry; do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); reflexivity ].
+            unfold heq; simpl; symmetry; 
+              do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); reflexivity ].
           (** Star **)
           intros. eapply heq_subst. eapply IHs1. eapply heq_star_comm. eapply heq_subst.
             eapply IHs2. clear IHs2 IHs1.
@@ -597,7 +633,7 @@ refine (
       SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars.
     Admitted.
 
-    End WithCS.
+    End Reasoning.
 
     Definition CancelSep : @SProverT types fs pcType stateType sfuncs.
     red. refine (fun cs _ gl gr =>
@@ -620,6 +656,7 @@ refine (
     end).
     admit.
     Defined.
+  
 
   End BabySep.
 

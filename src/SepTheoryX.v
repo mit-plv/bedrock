@@ -20,7 +20,7 @@ Module SepTheoryX (H : Heap).
     Variable cs : codeSpec pcType stateType.
 
     Definition himp (gl gr : hprop nil) : Prop :=
-      forall s m, interp cs (gl s m --> gr s m).
+      forall s m, interp cs (gl s m) -> interp cs (gr s m).
     Definition heq (gl gr : hprop nil) : Prop :=
       himp gl gr /\ himp gr gl.
 
@@ -28,15 +28,10 @@ Module SepTheoryX (H : Heap).
     Global Instance Refl_himp : Reflexive himp.
     Proof.
       red; unfold himp; firstorder.
-      eapply Imply_I. econstructor; firstorder.
     Qed.
     Global Instance Trans_himp : Transitive himp.
     Proof.
       red; unfold himp; firstorder.
-      eapply Imply_E. 2: eapply (H s m). eapply Imply_E.
-      2: eapply (H0 s m). eapply Imply_I. eapply Imply_I.
-      eapply Imply_I. eapply Imply_E. econstructor. firstorder.
-      eapply Imply_E. econstructor. firstorder. econstructor; firstorder.
     Qed.
 
     Global Instance Refl_heq : Reflexive heq.
@@ -83,8 +78,7 @@ Module SepTheoryX (H : Heap).
 
     (** Lemmas **)
     Ltac doIt :=
-      unfold himp, heq; simpl; intros.
-(*
+      unfold himp, heq; simpl; intros;
         repeat match goal with
 (*                 | [ h : HT.smem , H : forall x : HT.smem , _ |- _ ] => specialize (H h) *)
                  | [ H : _ -> _ |- _ ] => apply H; clear H
@@ -97,7 +91,6 @@ Module SepTheoryX (H : Heap).
                  | [ |- simplify _ _ _ ] => eassumption || apply simplify_fwd
                  | [ H : interp ?X (?Y _) |- interp ?X (?Y _) ] => eapply H
                end.
-*)
 
     Hint Immediate HT.split_comm : heaps.
     Hint Resolve HT.split_assoc HT.disjoint_split_join HT.split_split_disjoint : heaps.
@@ -105,23 +98,16 @@ Module SepTheoryX (H : Heap).
     Lemma himp_star_comm : forall P Q, himp (star P Q) (star Q P).
     Proof.
       unfold star; doIt; eauto with heaps.
-      eapply Imply_I. eapply Exists_E. econstructor; firstorder; simpl; intros.
-      simpl. intros; eapply Exists_E. econstructor; firstorder; simpl; intros.
-      intros. simpl. do 2 eapply Exists_I. repeat eapply And_I.
-      2: eapply And_E2; eapply And_E2; econstructor; firstorder.
-      2: eapply And_E1; eapply And_E2; econstructor; firstorder.
-      eapply Inj_E. eapply And_E1; econstructor; firstorder.
-      intros. eapply Inj_I. eauto with heaps.    
     Qed.
 
     Theorem himp_star_comm_p : forall P Q R, himp (star P Q) R -> himp (star Q P) R.
     Proof.
       unfold star; doIt. eauto with heaps. 
-    Admitted.
+    Qed.
     Theorem himp_star_comm_c : forall P Q R, himp R (star P Q) -> himp R (star Q P).
     Proof.
       unfold star; doIt. eauto with heaps.
-    Admitted.
+    Qed.
 
     Theorem heq_star_comm : forall P Q R, heq (star P Q) R -> heq (star Q P) R.
     Proof.
@@ -135,141 +121,124 @@ Module SepTheoryX (H : Heap).
       himp (star P (star Q R)) S -> himp (star (star P Q) R) S.
     Proof.
       doIt.
-    Admitted.
-(*      eapply HT.split_comm. eapply HT.split_assoc. eapply HT.split_comm. eassumption. eapply HT.split_comm. eassumption.
+      eapply HT.split_comm. eapply HT.split_assoc. eapply HT.split_comm. eassumption. eapply HT.split_comm. eassumption.
       eapply HT.disjoint_split_join. eapply HT.disjoint_comm. eauto with heaps. 
     Qed.
-*)
+
     Theorem himp_star_assoc_c : forall P Q R S, 
       himp S (star P (star Q R)) -> himp S (star (star P Q) R).
-    Proof. Admitted.
-(*
+    Proof.
       doIt. eapply HT.split_assoc. eassumption. eassumption.
       eapply HT.split_comm. eapply HT.disjoint_split_join. eapply HT.disjoint_comm. eauto with heaps.
     Qed.
-*)
 
     Theorem heq_star_assoc : forall P Q R S, 
       heq (star P (star Q R)) S -> heq (star (star P Q) R) S.
-    Proof. Admitted.
-(*
+    Proof.
       intros. generalize (@himp_star_assoc_p P Q R S). generalize (@himp_star_assoc_c P Q R S).
       firstorder.
     Qed.
-*)
 
     Theorem himp_star_frame : forall P Q R S, 
       himp P Q -> himp R S -> himp (star P R) (star Q S).
-    Proof. Admitted. (*
+    Proof.
       doIt. 2: eapply H; eassumption. 2: eapply H0; eassumption. auto.
-    Qed.*)
+    Qed.
 
     Theorem heq_star_frame : forall P Q R S, heq P Q -> heq R S -> heq (star P R) (star Q S).
-    Proof. Admitted.
-(*
+    Proof.
       doIt. eapply himp_star_frame; eauto. eapply himp_star_frame; eauto.
     Qed.
-*)
 
     Theorem himp_subst_p : forall P Q R S,
       himp P S -> himp (star S Q) R ->
       himp (star P Q) R.
-    Proof. Admitted. (*
+    Proof. 
       doIt; eauto.
-    Qed.*)
+    Qed.
 
     Theorem himp_subst_c : forall P Q R S,
       himp S Q -> himp P (star S R) ->
       himp P (star Q R).
-    Admitted. (*
+    
       doIt; eauto.
-    Qed. *)      
+    Qed.       
 
     Theorem heq_subst : forall P Q R S,
       heq P S -> heq (star S Q) R ->
       heq (star P Q) R.
-    Admitted. (*
+    
       unfold heq; destruct 1; destruct 1; split.
       eapply himp_subst_p; eauto. eapply himp_subst_c; eauto.
-    Qed. *)
+    Qed. 
 
     Theorem himp_star_emp_p : forall P Q, himp P Q -> himp (star emp P) Q.
-    Admitted. (*
+    
       doIt. eapply HT.split_semp in H0; subst; auto.
-    Qed. *)
+    Qed. 
 
     Theorem himp_star_emp_p' : forall P Q, himp (star emp P) Q -> himp P Q.
-    Admitted. (*
+    
       doIt. eapply HT.split_a_semp_a. auto. eapply HT.semp_smem_emp.
-    Qed. *)
+    Qed. 
 
     Theorem himp_star_emp_c : forall P Q, himp P Q -> himp P (star emp Q).
-    Admitted. (*
+    
       doIt; auto. eapply HT.split_a_semp_a. eapply HT.semp_smem_emp.
-    Qed. *)
+    Qed. 
 
     Theorem himp_star_emp_c' : forall P Q, himp P (star emp Q) -> himp P Q.
-    Admitted. (*
+    
       doIt; auto. eapply HT.split_semp in H1; subst; auto.
-    Qed. *)
+    Qed. 
 
     Theorem heq_star_emp : forall P Q, heq P Q -> heq (star emp P) Q.
-    Admitted. (*
+    
       intros. unfold heq in *; intuition.
       eapply himp_star_emp_p. auto.
       eapply himp_star_emp_c. auto.
-    Qed. *)
+    Qed. 
 
     Theorem heq_star_emp' : forall P Q, heq (star emp P) Q -> heq P Q.
-    Admitted. (*
+    
       intros. unfold heq in *; intuition.
       eapply himp_star_emp_p' in H0. auto.
       eapply himp_star_emp_c' in H1. auto.
-    Qed. *)
+    Qed. 
 
     Theorem himp_star_cancel : forall P Q R, himp Q R -> himp (star P Q) (star P R).
-    Admitted. (*
+    
       intros. eapply himp_star_frame. reflexivity. auto.
-    Qed. *)
+    Qed. 
 
     Theorem heq_star_cancel : forall P Q R, heq Q R -> heq (star P Q) (star P R).
-    Admitted. (*
+    
       intros. eapply heq_star_frame. reflexivity. auto.
-    Qed. *)
+    Qed. 
 
     Theorem himp_ex_p : forall T (P : T -> _) Q, 
       (forall v, himp (P v) Q) -> himp (ex P) Q.
-    Admitted. (*
+    
       intros. unfold himp, ex in *; simpl in *; intros. propxFo. eauto.
-    Qed. *)
+    Qed. 
 
     Theorem himp_ex_c : forall T (P : T -> _) Q, 
       (exists v, himp Q (P v)) -> himp Q (ex P).
-    Admitted. (*
+    Proof.
       intros. unfold himp, ex in *; simpl in *; intros. propxFo. exists x. propxFo.
-    Qed. *)
+    Qed. 
+
+    Hint Resolve simplify_fwd : heaps.
 
     Theorem heq_ex : forall T (P Q : T -> _), 
       (forall v, heq (P v) (Q v)) ->
       heq (ex P) (ex Q).
     Proof.
-      split; unfold heq, himp, ex; simpl. intros.
-      eapply Imply_I. eapply Exists_E. econstructor. firstorder.
-      intros; simpl. eapply Exists_I. instantiate (1:= B).
-      destruct (H B). unfold himp in H0.
-      eapply Imply_E. eapply valid_weaken. eapply H0. red. simpl. 
-      intros. inversion H2.
-      econstructor. left; auto.
-
-      intros; eapply Imply_I. eapply Exists_E. econstructor. firstorder.
-      intros; simpl. eapply Exists_I. instantiate (1:= B).
-      destruct (H B). unfold himp in H1.
-      eapply Imply_E. eapply valid_weaken. eapply H1. red. simpl. 
-      intros. inversion H2.
-      econstructor. left; auto.
+      unfold heq, himp; propxFo;
+       match goal with
+         | [ H : forall v : ?T, _, x : ?T |- _ ] => specialize (H x)
+       end; propxFo; eauto with heaps.
     Qed.
-      
-
       
 (*
     Theorem heq_ex_p : forall T (P : T -> _) Q, 
