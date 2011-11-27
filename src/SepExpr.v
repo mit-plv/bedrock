@@ -388,43 +388,17 @@ refine (
           generalize (hlist_hd A). uip_all. simpl in *. generalize e e0 h. uip_all. reflexivity.
       Qed.
 
-      Lemma existsEach_peel_back : forall uvars x r t A C 
-        (P : sexpr fs sfuncs uvars ((x ++ t :: nil) ++ r))
-        (Q : sexpr fs sfuncs uvars (x ++ t :: r)),
-        (forall Z, heq A A (hlist_app Z C) cs P match eq_sym (app_ass x (t :: nil) r) in _ = t return sexpr _ _ _ t with
-                                                  | refl_equal => Q
-                                                end) ->
-        heq A A C cs (existsEach (x ++ t :: nil) r P) (Exists t (existsEach x (t :: r) Q)).
+      Lemma existsEach_peel_back : forall uvars x r t
+        (P : sexpr fs sfuncs uvars ((x ++ t :: nil) ++ r)),
+        existsEach (x ++ t :: nil) r P = 
+        Exists t (existsEach x (t :: r) match app_ass _ _ _ in _ = t return sexpr _ _ _ t with
+                                          | refl_equal => P
+                                        end).
       Proof.
-        clear; induction x; simpl; intros.
-          eapply heq_ex. intros. specialize (H (HCons v HNil)). etransitivity. eapply H.
-          clear H. generalize (HCons v C). uip_all. reflexivity.
-        etransitivity. eapply IHx. 
-        instantiate (1 := match app_ass x (t :: nil) r in _ = t
-                            return sexpr _ _ _ t with
-                            | refl_equal => Exists a P
-                          end). clear.
-        intros. generalize (hlist_app Z C). generalize P. uip_all. generalize e e0 h P0.
-        uip_all. reflexivity.
-        
-        eapply heq_ex. intros. eapply existsEach_heq. intros. uip_all.
-        assert (a :: (x ++ t :: nil) ++ r = a :: x ++ (t :: nil) ++ r).
-        f_equal; auto.
-        etransitivity.
-        instantiate (1 := Exists a match H0 in _ = t return sexpr _ _ _ t with
-                                     | refl_equal => P
-                                   end).
-        clear. generalize P e H0. simpl. rewrite e. simpl. uip_all. reflexivity.
-
-        eapply heq_ex. intros. specialize (H (HCons v0 (hlist_app Z (HCons v HNil)))).
-        simpl in *. clear IHx. rewrite hlist_app_assoc in H. simpl in H.
-        generalize dependent H. simpl. uip_all. unfold tvar in *.
-        match goal with
-          | [ |- heq _ _ (HCons _ (hlist_app ?H ?H')) _ _ _ ] => 
-            generalize dependent (hlist_app H H')
-        end.
-        generalize P Q e0 H0 e1. simpl in *. uip_all. generalize H. clear.
-        rewrite (UIP_refl e3). rewrite (UIP_refl e2). auto.
+        clear. induction x; simpl; intros.
+          uip_all. simpl in *. uip_all. reflexivity.
+          rewrite IHx. f_equal. f_equal. uip_all. simpl in *. generalize P e e0.
+          clear IHx P. unfold app in *. rewrite e0. uip_all. reflexivity.
       Qed.
 
       Lemma existsEach_app : forall u a b c X Y (P : sexpr fs sfuncs u (b ++ a ++ c)),
@@ -446,31 +420,17 @@ refine (
               | refl_equal => P
             end).
           etransitivity. etransitivity. 2: eapply IHa. clear.
-          eapply existsEach_heq; intros. symmetry. eapply existsEach_peel_back.
-          intros.
+          eapply existsEach_heq; intros. symmetry. rewrite existsEach_peel_back.
+          intros. uip_all.
           match goal with
             | [ |- heq _ _ ?H _ _ _ ] => generalize H
-          end. clear. generalize H. uip_all. simpl in *.
-          rewrite (UIP_equal H0 e). reflexivity.
+          end. clear. generalize H e. uip_all. simpl in *. uip_all. reflexivity.
 
           clear. generalize P H. uip_all. generalize e e0 Y P0.
           uip_all. clear. generalize Y0 e1 P1. clear. 
           cutrewrite ((b ++ a :: nil) ++ a0 = b ++ a :: a0). uip_all. reflexivity.
           rewrite app_ass. reflexivity.
       Qed.
-
-(*
-      Parameter heq_ex_star : forall T (P : T -> _) Q,
-        ST.heq cs (ST.star (ST.ex P) Q) (ST.ex (fun x => ST.star (P x) Q)).
-
-      Parameter himp_ex_star : forall T (P : T -> _) Q,
-        ST.heq cs (ST.star (ST.ex P) Q) (ST.ex (fun x => ST.star (P x) Q)).
-*)
-      
-(*
-      Lemma liftSExpr_denote : forall uvars vars' vs vars (e : sexpr fs sfuncs uvars (vars' ++ vars)) U G G' G'', 
-        sexprD (liftSExpr vars' vs vars e) U (hlist_app G (hlist_app G' G'')) = sexprD e U (hlist_app G G'').
-*)
 
       Lemma liftSExpr_denote : forall uvars vars' vs vars (e : sexpr fs sfuncs uvars (vars' ++ vars)) U G G' G'', 
         ST.heq cs (sexprD (liftSExpr vars' vs vars e) U (hlist_app G (hlist_app G' G''))) (sexprD e U (hlist_app G G'')).
@@ -620,7 +580,19 @@ refine (
       Proof.
         clear. intros.
           etransitivity. eapply lift_existsEach_star. eapply existsEach_heq.
-          intros. etransitivity. eapply heq_star_comm.
+          intros. unfold heq; simpl.
+          generalize Q P; clear. induction y using rev_ind. admit.
+            intros; simpl in *. repeat rewrite existsEach_peel_back. uip_all.
+            generalize IHy. clear IHy. generalize (hlist_app Z C).
+            simpl in *. intros. eapply ST.heq_star_comm. 
+            etransitivity. eapply ST.heq_ex_star. eapply ST.heq_ex. intros.
+            unfold tvar in *. generalize (HCons v h). intros.
+            eapply ST.heq_star_comm.
+            specialize (IHy 
+              
+            
+        
+          
           (** TODO: This is problematic because existsEach only generalizes the
            ** top list of variables, so we can't state a commutativity lemma
            **)
