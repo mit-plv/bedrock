@@ -210,9 +210,79 @@ Section Lifting.
         | Func f a => 
           Func f (@hlist_map _ _ (expr funcs uvars (vars' ++ ext ++ vars)) (fun t (x : expr funcs uvars (vars' ++ vars) t) => liftExpr x) _ a)
       end.
-
   End Vars.
 
+  Lemma liftExpr_liftExpr_app : forall uvars x y z a T
+    (P : expr _ uvars (x ++ z) T),
+    liftExpr x y (a ++ z) (liftExpr x a z P) =
+    match app_ass _ _ _ in _ = t return expr  _ _ (x ++ t) T with
+      | refl_equal => liftExpr x (y ++ a) z P
+    end.
+  Proof.
+    intros; uip_all.
+    assert (forall k (exp : expr _ uvars k T) (E : k = x ++ z),
+      liftExpr x y (a ++ z) (liftExpr x a z match E in _ = t return expr _ _ t _ with
+                                              | refl_equal => exp
+                                            end) =
+      match e in (_ = t) return (expr _ uvars (x ++ t) T) with
+        | eq_refl => liftExpr x (y ++ a) z match E in _ = t return expr _ _ t _ with
+                                             | refl_equal => exp
+                                           end
+      end).
+    clear. induction exp using expr_ind_strong; intros; simpl in *; subst; uip_all; simpl;
+      try solve [ generalize e; rewrite e; uip_all; reflexivity ].
+      (** vars **)
+      case_eq (liftDmid z x (y ++ a) x0).
+      intros; assert (projT1 (liftDmid z x (y ++ a) x0) = x1). rewrite H. auto.
+      generalize (liftDmid_liftDmid_app x y z a x0). clear H. intros.
+      case_eq (liftDmid z x a x0). simpl. intros.
+      assert (projT1 (liftDmid z x a x0) = x2). rewrite H1. auto. clear H1.
+      rewrite H2 in *. rewrite H0 in H. revert H. clear. uip_all.
+      generalize e e1 e0. rewrite <- e1. uip_all. simpl. revert H.
+      destruct (liftDmid (a ++ z) x y x2). simpl. intros; subst. clear.
+      generalize e6. generalize e2 e3 e5. rewrite <- e2. rewrite <- e5. uip_all.
+      generalize e7. rewrite (UIP_refl e0). uip_all. reflexivity.
+
+      (** functions **)
+      etransitivity. 
+      instantiate (1 := Func f2 
+        match e in _ = t return hlist (expr funcs uvars (x ++ t)) (Domain (get funcs f2)) with
+          | refl_equal => 
+            hlist_map (expr funcs uvars (x ++ (y ++ a) ++ z))
+            (fun (t : tvar types) (x0 : expr funcs uvars (x ++ z) t) =>
+              liftExpr x (y ++ a) z x0) h
+        end).
+        f_equal. destruct (get funcs f2); simpl in *. clear Denotation0. induction Domain0.
+        rewrite (hlist_nil_only _ h) in *. simpl in *. uip_all. reflexivity.
+        rewrite (hlist_eta _ h) in *. rewrite (hlist_eta _ h) in H. simpl in *. intuition. 
+        specialize (H0 refl_equal). simpl in *. rewrite H0. rewrite IHDomain0.
+        generalize (hlist_tl h). generalize (hlist_hd h). clear.
+        generalize e. rewrite <- e. uip_all. reflexivity. eauto.
+        clear. generalize e. rewrite <- e. uip_all. reflexivity.
+      eapply (H _ P refl_equal).
+    Qed.
+
+    Lemma liftExpr_liftExpr_apps : forall uvars x y z a ls
+      (h : hlist (expr _ uvars (x ++ z)) ls),
+      (hlist_map (expr funcs uvars (x ++ y ++ a ++ z))
+        (fun (x0 : tvar types) (e0 : expr funcs uvars (x ++ a ++ z) x0) =>
+          liftExpr x y (a ++ z) e0)
+        (hlist_map (expr funcs uvars (x ++ a ++ z))
+          (fun (x0 : tvar types) (e0 : expr funcs uvars (x ++ z) x0) =>
+            liftExpr x a z e0) h)) = 
+      match app_ass _ _ _ in _ = t return hlist (expr funcs uvars (x ++ t)) ls with
+        | refl_equal => 
+          hlist_map (expr funcs uvars (x ++ (y ++ a) ++ z))
+          (fun (x0 : tvar types) (e0 : expr funcs uvars (x ++ z) x0) =>
+            liftExpr x (y ++ a) z e0) h
+      end.
+    Proof.
+      intros. uip_all. induction ls.
+        rewrite (hlist_nil_only _ h) in *. simpl in *. uip_all. reflexivity.
+        rewrite (hlist_eta _ h) in *. specialize (IHls (hlist_tl h)).
+        simpl. rewrite liftExpr_liftExpr_app. rewrite IHls. uip_all.
+        generalize e0 e. rewrite <- e. uip_all. reflexivity.
+    Qed.
 
   Lemma liftExpr_nil : forall uvars vars' vars T (e : expr funcs uvars (vars' ++ vars) T),
     liftExpr vars' nil vars e = e.
@@ -222,7 +292,8 @@ Section Lifting.
     rewrite H. auto.
     f_equal. induction h; simpl; auto. simpl in *. firstorder. f_equal; auto.
   Qed.
-  
+
+(*
   Parameter hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
     hlist_get f (hlist_app G G'') = match liftDmid ls'' ls ls' f with
                                       | existT f' pf =>
@@ -231,51 +302,15 @@ Section Lifting.
                                             hlist_get f' (hlist_app G (hlist_app G' G''))
                                         end
                                     end.
-
-  Lemma hlist_nil_only : forall (F : tvar types -> Type) (h : hlist F nil), 
-    h = HNil.
-  Proof.
-    clear. intros.
-    change h with (match refl_equal in _ = t return hlist F t with
-                     | refl_equal => h
-                   end).
-    generalize (refl_equal (@nil (tvar types))). generalize h. clear. 
-    assert (forall k (h : hlist F k) (e : k = nil),
-      match e in (_ = t) return (hlist F t) with
-        | eq_refl => h
-      end = HNil).
-    destruct h. 
-    uip_all. reflexivity.
-    congruence.
-    eauto.
-  Qed.
-
-  Lemma hlist_eta : forall a b (F : tvar types -> Type) (h : hlist F (a :: b)),
-    h = HCons (hlist_hd h) (hlist_tl h).
-  Proof.
-    clear. intros.
-    assert (forall k (h : hlist F k) (e : k = a :: b),
-      match e in (_ = t) return (hlist F t) with
-        | eq_refl => h
-      end = HCons (hlist_hd match e in _ = t return hlist F t with
-                              | eq_refl => h
-                            end)
-                  (hlist_tl match e in _ = t return  hlist F t with
-                              | eq_refl => h
-                            end)).
-    destruct h0. congruence.
-    intros. inversion e. subst.
-    generalize e. uip_all. reflexivity.
-
-    specialize (H _ h (refl_equal _)). assumption.
-  Qed.
+*)
+  
 
   Lemma liftExpr_denote : forall uvars vars' vs vars T (e : expr funcs uvars (vars' ++ vars) T) U G G' G'', 
       exprD U (hlist_app G (hlist_app G' G'')) (liftExpr vars' vs vars e) = exprD U (hlist_app G G'') e.
   Proof.
     induction e using expr_ind_strong; simpl; auto.
       case_eq (liftDmid vars vars' vs x); intros. 
-      generalize (@hlist_get_lift vars' vs vars x G G' G''). intros.
+      generalize (@hlist_get_lift _ _ vars' vs vars x G G' G''). intros.
       unfold tvar in *. rewrite H0. rewrite H. clear.
       generalize (hlist_app G (hlist_app G' G'')). generalize e.
       rewrite <- e. intros. uip_all. reflexivity.
@@ -283,9 +318,10 @@ Section Lifting.
       generalize dependent h. destruct (get funcs f2). simpl. 
         generalize dependent Denotation0.      
         induction Domain0; simpl; intros. clear H.
-        rewrite (@hlist_nil_only _ h). simpl. auto.
+        rewrite (hlist_nil_only _ h). simpl. auto.
        
-      rewrite (hlist_eta h) in *. simpl in *. rewrite IHDomain0; try tauto.
+      rewrite (hlist_eta _ h) in H. rewrite (hlist_eta _ h).
+        simpl in *. rewrite IHDomain0; try tauto.
         f_equal. destruct H. rewrite H. reflexivity.
   Qed.
 

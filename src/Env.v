@@ -1,4 +1,4 @@
-Require Import List Eqdep_dec.
+Require Import List EqdepClass.
 
 Set Implicit Arguments.
 
@@ -137,9 +137,7 @@ Section fin.
                     end
     end.
 
-  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : 
-    { x : fin (ls' ++ e ++ ls) & get x = get i }.
-  refine ((fix liftDmid (ls'' ls ls' ls''': list A) e : forall (i : fin ls'''),
+  Fixpoint liftDmid' (ls'' ls ls' ls''': list A) e : forall (i : fin ls'''),
     ls' ++ ls = ls''' ->
     (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
        { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
@@ -183,7 +181,7 @@ Section fin.
               {x : fin t & get x = get f}
               with
               | refl_equal => 
-                @liftDmid (ls'' ++ a :: nil) ls b LX e f 
+                @liftDmid' (ls'' ++ a :: nil) ls b LX e f 
                 match pf in _ = t return
                   match t with
                     | nil => Empty_set 
@@ -197,9 +195,55 @@ Section fin.
                         | existT v pf => cc (@existT _ _ (FS a v) pf)
                       end)
         end
-    end
-    ) nil ls ls' (ls' ++ ls) e i (refl_equal _) (fun i' => i')).
-  Defined.
+    end.
+
+  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : 
+    { x : fin (ls' ++ e ++ ls) & get x = get i } :=
+    @liftDmid' nil ls ls' (ls' ++ ls) e i (refl_equal _) (fun i' => i').
+
+  Section liftD_Proofs.
+    Variable EQ : EqDec A (@eq A).
+
+    Lemma liftD_liftD_app : forall (a z y : list A) x0,
+      projT1 (liftD y (projT1 (liftD a x0))) =
+      match app_assoc_reverse y a z in (_ = t) return (fin t) with
+        | eq_refl => projT1 (liftD (y ++ a) x0)
+      end.
+    Proof.
+      induction y; simpl in *; uip_all.
+        simpl in *. uip_all. reflexivity.
+        simpl in *. case_eq (liftD y (projT1 (liftD a x0))).
+        simpl. intros. assert (projT1 (liftD y (projT1 (liftD a x0))) = x).
+        rewrite H; auto.
+        rewrite IHy in H0. subst. 
+        destruct (liftD (y ++ a) x0). simpl. uip_all.
+        generalize e e2. rewrite <- e2. uip_all. reflexivity.
+    Qed.
+
+(*
+    Lemma liftDmid'_liftDmid'_app : forall (x y z a : list A) x0,
+      projT1 (liftDmid' (a ++ z) x y (projT1 (liftDmid' z x a x0)))
+      = match app_ass _ _ _ in _ = t return fin (_ ++ t) with
+          | refl_equal => projT1 (liftDmid' z x (y ++ a) x0)
+        end.
+    Proof.
+      induction x; simpl in *.
+          intros; apply liftD_liftD_app.
+          unfold liftDmid in *. simpl in *. 
+    Qed.
+*)
+    Lemma liftDmid_liftDmid_app : forall x y z a x0,
+      projT1 (liftDmid (a ++ z) x y (projT1 (liftDmid z x a x0)))
+      = match app_ass _ _ _ in _ = t return fin (_ ++ t) with
+          | refl_equal => projT1 (liftDmid z x (y ++ a) x0)
+        end.
+    Proof.
+      induction x; simpl in *.
+        intros; apply liftD_liftD_app.
+        unfold liftDmid in *. simpl in *. 
+    Admitted.
+  End liftD_Proofs.
+
   
   Variable B : A -> Type.
 
@@ -297,19 +341,59 @@ Section fin.
       | FS _ _ f' => fun hl => hlist_get f' (hlist_tl hl)
     end.
 
-(*
-  Theorem hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
-    hlist_get f (hlist_app G G'') = match liftDmid ls'' ls ls' f with
-                                      | existT f' pf =>
-                                        match pf in _ = t return B t with
-                                          | refl_equal => 
-                                            hlist_get f' (hlist_app G (hlist_app G' G''))
-                                        end
-                                    end.
-  Proof.
-    induction ls. simpl. intros. unfold liftDmid; simpl.
+  Section hlist_Proofs.
+    Variable EQ : EqDec A (@eq A).
+    Lemma hlist_nil_only : forall (h : hlist nil), 
+      h = HNil.
+    Proof.
+      intros.
+      change h with (match refl_equal in _ = t return hlist t with
+                       | refl_equal => h
+                     end).
+      generalize (refl_equal (@nil A)). generalize h.
+      assert (forall k (h : hlist k) (e : k = nil),
+        match e in (_ = t) return (hlist t) with
+          | eq_refl => h
+        end = HNil).
+      destruct h0. 
+      uip_all. reflexivity.
+      congruence.
+      eauto.
+    Qed.
 
-    clear. induction ls; induction ls'; simpl; intros.
+    Lemma hlist_eta : forall a b (h : hlist (a :: b)),
+      h = HCons (hlist_hd h) (hlist_tl h).
+    Proof.
+      intros.
+      assert (forall k (h : hlist k) (e : k = a :: b),
+        match e in (_ = t) return (hlist t) with
+          | eq_refl => h
+        end = HCons (hlist_hd match e in _ = t return hlist t with
+                                | eq_refl => h
+                              end)
+        (hlist_tl match e in _ = t return  hlist t with
+                    | eq_refl => h
+                  end)).
+      destruct h0. congruence.
+      intros. inversion e. subst.
+      generalize e. uip_all. reflexivity.
+
+      specialize (H _ h (refl_equal _)). assumption.
+    Qed.
+
+    Theorem hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
+      hlist_get f (hlist_app G G'') = 
+      match liftDmid ls'' ls ls' f with
+        | existT f' pf =>
+          match pf in _ = t return B t with
+            | refl_equal => 
+              hlist_get f' (hlist_app G (hlist_app G' G''))
+          end
+      end.
+    Proof.
+      induction ls. simpl. intros. unfold liftDmid; simpl.
+(*
+      clear. induction ls; induction ls'; simpl; intros.
       reflexivity.
       unfold liftDmid. simpl. remember (@nil A) as ZZ. destruct G. 2: inversion HeqZZ.
       simpl in *. erewrite IHls'. 2: econstructor. unfold liftDmid. simpl.
@@ -317,8 +401,8 @@ Section fin.
       simpl. intros. admit.
       unfold liftDmid in *. simpl in *. 
 *)
-      
-
+    Admitted.
+  End hlist_Proofs.
 
   Fixpoint absAll (ls : list A) :
     (hlist ls -> Type) -> Type :=
