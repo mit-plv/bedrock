@@ -252,20 +252,61 @@ Module SepExpr (B : Heap).
        ; other := other l ++ other r
        |}.
 
-    Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
-      { es : variables types & SHeap (es ++ uvars) (ext ++ vars) }.
-    Admitted.
-
     Lemma list_app_assoc : forall T (a b c : list T), (a ++ b) ++ c = a ++ b ++ c.
     Proof.
       induction a; simpl; intros.
         reflexivity.
         rewrite IHa. reflexivity.
     Defined.
+
+    Fixpoint sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
+      SHeap (t :: uvars) (vars ++ vars').
+  Admitted.
+
+    Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
+      { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } :=
+      match s in sexpr _ _ _ vars 
+        return { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } with
+        | Emp _ => @existT _ _ nil (SHeap_empty _ _)
+        | Inj v p => @existT _ _ nil
+          {| funcs := dmap_empty
+           ; pures := liftExpr nil ext v p :: nil
+           ; other := nil
+           |}
+        | Star v l r => 
+          match hash_right ext l, hash_right ext r with
+            | existT vl hl , existT vr hr =>
+              @existT (variables types) (fun ls => SHeap (ls ++ uvars) (ext ++ v)) (vl ++ vr)
+                (match eq_sym (list_app_assoc vl vr uvars) in _ = t return SHeap t (ext ++ v) with
+                   | refl_equal => 
+                     join_SHeap (@liftSHeapU vl vr uvars _ hl)
+                                (@liftSHeapU nil vl (vr ++ uvars) _ hr)
+                 end)
+          end
+        | Exists vs t b =>
+          match hash_right ext b with
+            | existT vl hl =>
+              @existT _ _ (t :: vl) (sheapSubstEx _ _ _ hl)
+          end              
+        | Func v f a => 
+          @existT _ _ nil
+            {| funcs := dmap_insert (fun x y => Some (@finCmp _ sfuncs x y)) f
+                          (hlist_map (expr fs (nil ++ uvars) (ext ++ v))
+                             (fun (x : tvar types) (X : expr fs uvars v x) =>
+                              liftExpr nil ext v X) a :: nil) dmap_empty
+             ; pures := nil
+             ; other := nil
+             |}
+        | Const v c => 
+          @existT _ _ nil
+            {| funcs := dmap_empty
+             ; pures := nil
+             ; other := c :: nil
+             |}
+      end.
     
     Fixpoint hash_left uvars vars (s : sexpr fs sfuncs uvars vars) :
-      { es : variables types & SHeap uvars (es ++ vars) }.
-refine (
+      { es : variables types & SHeap uvars (es ++ vars) } :=
       match s in sexpr _ _ _ vars return { es : variables types & SHeap uvars (es ++ vars) } with
         | Emp _ => @existT _ _ nil (SHeap_empty _ _)
         | Inj _ p => @existT _ _ nil
@@ -274,15 +315,21 @@ refine (
            ; other := nil
            |}
         | Star vs l r =>
-          match hash_left _ _ l, hash_left _ _ r with
+          match hash_left l, hash_left r with
             | existT vl hl , existT vr hr =>
               @existT _ _ (vl ++ vr)
-                (join_SHeap _ _)
+                (match eq_sym (list_app_assoc vl vr vs) in _ = t return SHeap _ t with
+                   | refl_equal => 
+                     join_SHeap (liftSHeap _ _ _ hl) (@liftSHeap uvars nil _ _ hr)
+                 end)
           end
         | Exists vs t b =>
-          match hash_left _ _ b with
+          match hash_left b with
             | existT v b =>
-              @existT _ _ _ _ (*(fun x : list (tvar types) => SHeap x vs) (v ++ t :: nil) _*)
+              @existT _ _ (v ++ t :: nil) 
+              match eq_sym (list_app_assoc v (t :: nil) vs) in _ = t return SHeap _ t with
+                | refl_equal => b
+              end
           end
         | Func v f a =>
           @existT _ _ nil
@@ -296,17 +343,7 @@ refine (
              ; pures := nil
              ; other := c :: nil
              |}
-(*        | _ => @existT _ _ nil {| funcs := dmap_empty
-                                ; pures := nil
-                                ; other := nil
-                                |}
-*)
-      end).
-    rewrite list_app_assoc. eapply liftSHeap. assumption.
-    change (SHeap uvars (nil ++ (vl ++ vr) ++ vs)).
-    rewrite list_app_assoc. eapply liftSHeap. assumption.
-    instantiate (1 := v ++ t :: nil). rewrite list_app_assoc. simpl. assumption.
-    Defined.
+      end.
 
     Section Reasoning.
       Variable cs : codeSpec (tvarD pcType) (tvarD stateType).
@@ -548,6 +585,7 @@ refine (
           Focus.
           unfold heq; simpl. etransitivity. eapply ST.heq_ex_star.
             eapply ST.heq_ex. intros. eapply ST.heq_star_frame; try reflexivity.
+
             clear. destruct (get sfuncs f); simpl in *.
             generalize dependent SDomain0. induction SDomain0.
             intros. rewrite (hlist_nil_only _ h). simpl. eapply ST.Refl_heq.
@@ -686,6 +724,57 @@ refine (
 
       Admitted.
 
+      Lemma heq_change_dom : forall b c (E : b = c) a (A : hlist _ a) (B : hlist _ b) P Q,
+        heq A A match E in _ = t return hlist _ t with
+                  | refl_equal => B
+                end cs
+                match E in _ = t return sexpr fs sfuncs _ t with
+                  | refl_equal => P
+                end
+                match E in _ = t return sexpr _ _ _ t with
+                  | refl_equal => Q
+                end ->
+        heq A A B cs P Q.
+      Proof.
+        clear. intros. subst. auto.
+      Qed.
+
+      Lemma star_cast_cancel : forall a b c P Q (E : b = c) (E' : c = b),
+        match E in _ = t return sexpr fs sfuncs a t with
+          | refl_equal => 
+            Star match E' in _ = t return sexpr _ _ _ t with
+                   | refl_equal => P
+                 end
+            match E' in _ = t return sexpr _ _ _ t with
+              | refl_equal => Q
+            end
+        end = Star P Q.
+      Proof.
+        clear. intros. generalize E E'. rewrite E. uip_all. auto.
+      Qed.
+
+      Lemma cast_cast_cancel : forall T (F : T -> Type) (a b : T) (E : a = b) (E' : b = a) x,
+        EqDec T (@eq T) ->
+        match E in _ = t return F t with
+          | refl_equal => match E' in _ = t return F t with
+                            | refl_equal => x
+                          end
+        end = x.
+      Proof.
+        intros. generalize E E'. uip_all. reflexivity.
+      Qed.
+
+      Lemma denote_cast_cancel : forall a b c P (E : b = c) (E' : c = b),
+        match E in _ = t return sexpr fs sfuncs a t with
+          | refl_equal => 
+            denote match E' in _ = t return SHeap _ t with
+                     | refl_equal => P
+                   end
+        end = denote P.
+      Proof.
+        clear. intros. generalize E E'. rewrite E. uip_all. auto.
+      Qed.
+
       Theorem denote_hash_left : forall G (s : sexpr fs sfuncs _ _), 
         heq HNil HNil G cs s 
           (@existsEach _ (projT1 (@hash_left _ _  s)) nil (denote (projT2 (hash_left s)))).
@@ -695,38 +784,23 @@ refine (
             unfold heq; simpl; symmetry; 
               do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); reflexivity ].
           (** Star **)
+          Focus.
           intros. eapply heq_subst. eapply IHs1. eapply heq_star_comm. eapply heq_subst.
             eapply IHs2. clear IHs2 IHs1.
             simpl. destruct (hash_left s1). destruct (hash_left s2). simpl.
-            etransitivity. eapply lift_existsEach_existsEach_star. etransitivity. eapply existsEach_app. 
+            etransitivity. eapply lift_existsEach_existsEach_star. etransitivity.
+            eapply existsEach_app. 
             uip_all. eapply existsEach_heq. intros. generalize (hlist_app Z G). clear.
-            intros. etransitivity. 2: symmetry; eapply denote_join.
-            etransitivity. 
-            instantiate (1 := Star match e0 in _ = t return sexpr _ _ _ t with
-                                     | refl_equal => liftSExpr nil x (x0 ++ vars) (denote s0)
-                                   end
-                                   match e0 in _ = t return sexpr _ _ _ t with
-                                     | refl_equal => liftSExpr x x0 vars (denote s)
-                                   end).
-            clear. generalize (liftSExpr nil x (x0 ++ vars) (denote s0)).
-            generalize (liftSExpr x x0 vars (denote s)). generalize h e0. uip_all. reflexivity.
+            intros. apply (heq_change_dom (eq_sym e)).
+            rewrite cast_cast_cancel; eauto with typeclass_instances.
+            rewrite denote_cast_cancel.
 
-            eapply heq_star_comm. eapply heq_star_frame.
-
-            generalize (@lift_denote_lift _ x x0 vars s HNil
-              match app_ass x x0 vars in _ = t return hlist _ t with
-                | refl_equal => h
-              end). generalize h e e0. generalize (liftSExpr x x0 vars (denote s)).
-            generalize (liftSHeap x x0 vars s). uip_all. unfold eq_rect_r, eq_rect. simpl. auto. rewrite (UIP_refl e1) in H. auto.
-
-            generalize (@lift_denote_lift _ nil x (x0 ++ vars) s0 HNil
-              match app_ass x x0 vars in _ = t return hlist _ t with
+            etransitivity. 2: symmetry; eapply denote_join.
+            apply heq_star_comm. apply heq_star_frame; try apply lift_denote_lift.
+            apply (@lift_denote_lift _ nil x (x0 ++ vars) s0 HNil
+              match eq_sym e in _ = t return hlist _ t with
                 | refl_equal => h
               end).
-            Opaque liftSExpr. simpl. 
-            generalize (liftSExpr nil x (x0 ++ vars) (denote s0)). 
-            generalize (liftSHeap nil x (x0 ++ vars) s0).
-            generalize h e0 e s0. simpl app in *. uip_all. unfold eq_rect_r, eq_rect. rewrite (UIP_refl e1) in H. solve [ auto ].
 
           (** Exists **)
           Focus.
@@ -744,8 +818,8 @@ refine (
             reflexivity.
       Qed.
 
-(*
-      Theorem denote_hash_right : forall ext G (s : sexpr fs sfuncs _ _) cs, 
+(* TODO : Important!
+      Theorem denote_hash_right : forall ext G (s : sexpr fs sfuncs _ _), 
         heq HNil HNil G cs 
           (liftSExpr _ _ _ s)
           (@existsEach _ (projT1 (@hash_right _ _ s)) nil (denote (projT2 (hash_right s)))).
