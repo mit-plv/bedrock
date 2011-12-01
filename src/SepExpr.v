@@ -97,13 +97,22 @@ Module SepExpr (B : Heap).
 
       End exists_subst.
 
-      Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType)) (gl gr : sexpr nil nil) : Type :=
-      | Prove : forall u1 u2 (l : sexpr nil u1) (r : sexpr u2 u1)
-        (U2 : hlist (fun t => option (expr funcs nil u1 t)) u2),
-        
-        (forall U1 : hlist (@tvarD _) u1, 
-          @exists_subst _ U1 _ U2 (fun k => 
-          ST.himp cs (sexprD l HNil U1) (sexprD r k U1) -> himp HNil HNil HNil cs gl gr))
+      Fixpoint forallEach (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
+        match ls with
+          | nil => fun cc => cc HNil
+          | a :: b => fun cc =>
+            forall x : tvarD a, forallEach (fun r => cc (HCons x r))
+        end.
+
+      Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType))
+        (gl gr : sexpr nil nil) : Type :=
+
+      | Prove : forall vars u2 (l : sexpr nil vars) (r : sexpr u2 vars)
+        (SUBST : hlist (fun t => option (expr funcs nil vars t)) u2),
+        (@forallEach vars (fun VS =>
+          @exists_subst _ VS _ SUBST (fun k => 
+            himp HNil k VS cs l r))
+          -> himp HNil HNil HNil cs gl gr)
         -> SepResult cs gl gr.
 
       Definition SProverT : Type := forall
@@ -411,8 +420,10 @@ Module SepExpr (B : Heap).
           | a :: b => fun y => @existsEach uvars _ vars' (Exists _ y)
         end.
 
+(*
       Parameter existsEachU : forall (uvars vars : variables types),
         sexpr fs sfuncs uvars vars -> sexpr fs sfuncs nil vars.
+*)
 
       Lemma existsEach_heq : forall u v v' X Y (P Q : sexpr fs sfuncs u (v ++ v')),
         (forall Z, heq X X (hlist_app Z Y) cs P Q) ->
@@ -818,13 +829,17 @@ Module SepExpr (B : Heap).
             reflexivity.
       Qed.
 
-(* TODO : Important!
-      Theorem denote_hash_right : forall ext G (s : sexpr fs sfuncs _ _), 
-        heq HNil HNil G cs 
-          (liftSExpr _ _ _ s)
-          (@existsEach _ (projT1 (@hash_right _ _ s)) nil (denote (projT2 (hash_right s)))).
-      Admitted.
-*)
+      Theorem denote_hash_right : forall ext a b (Q : sexpr fs sfuncs _ _) 
+        (A : hlist _ a) (B : hlist _ b) P,        
+        (forall G : hlist _ ext, exists C : hlist _ (projT1 (hash_right ext Q)), 
+          himp A (hlist_app C A) (hlist_app G B) cs P (denote (projT2 (hash_right ext Q)))) ->
+        himp A A B cs (existsEach ext b P) Q.
+      Proof.
+        induction Q; simpl; intros.
+          Admitted.
+          
+        
+
 
       (** TODO: This can be more efficient if they are sorted b/c I can do a merge elim **)
       (** This is the simplest cancelation procedure, it just cancels functions in which
@@ -880,29 +895,105 @@ Module SepExpr (B : Heap).
       SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars.
     Admitted.
 
+
+    Lemma sepCancel_correct : forall vars exs
+      (l : SHeap nil vars) (r : SHeap exs vars)
+      (l' : SHeap nil vars) (r' : SHeap exs vars) s',
+      (l',r',s') = sepCancel l r ->
+      forall (VS : hlist (@tvarD types) vars),
+      exists_subst VS (env_of_Subst s' exs)
+        (fun k : hlist (@tvarD types) exs =>
+          himp HNil k VS cs (denote l') (denote r')) ->
+      exists_subst VS (env_of_Subst s' exs)
+        (fun k : hlist (@tvarD types) exs =>
+          himp HNil k VS cs (denote l) (denote r)).
+    Admitted.
+    
+    Lemma heq_himp : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
+      heq (funcs := fs) (sfuncs := sfuncs) A A B cs l m ->
+      himp A C B cs m r ->
+      himp A C B cs l r.
+    Proof.
+      clear.
+      unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+    Qed.
+
+    Lemma himp_heq : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
+      heq (funcs := fs) (sfuncs := sfuncs) A A B cs m r ->
+      himp C A B cs l m ->
+      himp C A B cs l r.
+    Proof.
+      clear.
+      unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+    Qed.
     End Reasoning.
+
+    Lemma forallEach_forall : forall ls (P : hlist (@tvarD types) ls -> Prop),
+      forallEach P -> forall V, P V.
+    Proof.
+      induction ls; simpl; intros. 
+        rewrite (hlist_nil_only _ V). auto.
+        rewrite (hlist_eta _ V). 
+        specialize (H (hlist_hd V)). eapply IHls in H. eassumption.
+    Qed.
+    Lemma exists_subst_exists : forall a (A : hlist _ a) 
+      b (B : hlist (fun t => option (expr fs nil a t)) b) P,
+      exists_subst A B P ->
+      exists C, P C.
+    Proof.
+      clear. induction B; simpl; intros.
+        eauto.
+        destruct b. eapply IHB in H. destruct H; eauto.
+        destruct H. eapply IHB in H. destruct H; eauto.
+    Qed.
 
     Definition CancelSep : @SProverT types fs pcType stateType sfuncs.
     red. refine (fun cs _ gl gr =>
-    match hash_left gl with
-      | existT ql lhs =>
-        match @hash_right _ _ ql gr with
-          | existT qr rhs =>
-            match eq_sym (app_nil_r ql) in _ = t, eq_sym (app_nil_r qr) in _ = t' 
+    match hash_left gl as l return hash_left gl = l -> _ with
+      | existT ql lhs => fun _ => 
+        match @hash_right _ _ ql gr as r return @hash_right _ _ ql gr = r -> _ with
+          | existT qr rhs => fun _ => 
+(*            match eq_sym (app_nil_r ql) in _ = t, eq_sym (app_nil_r qr) in _ = t' 
               return forall (l : SHeap nil t) (r : SHeap t' t), _
               with
               | refl_equal , refl_equal => fun lhs rhs => 
-                let '(lhs',rhs',s') := sepCancel lhs rhs in
-                (** TODO: I need to maintain the connection between 
-                 ** hash_left, hash_right and lhs and rhs
-                 **)
-                @Prove _ fs _ _ sfuncs _ gl gr ql qr (denote lhs') (denote rhs')
-                  (env_of_Subst s' qr) _
-            end lhs rhs
-        end
-    end).
-    admit.
-    Defined.
+*)
+                match sepCancel lhs rhs as c return c = sepCancel lhs rhs -> _ with
+                  | (lhs',rhs',s') => fun _ => 
+                    @Prove _ fs _ _ sfuncs _ gl gr (ql ++ nil) (qr ++ nil)
+                      (denote lhs') (denote rhs')
+                      (env_of_Subst s' (qr ++ nil)) _
+                end refl_equal
+(*            end lhs rhs *)
+        end refl_equal
+    end refl_equal).
+    intros.
+    generalize (denote_hash_left cs HNil gl). intros.
+    unfold tvar in *. rewrite _H in H0. simpl in *. eapply heq_himp; [ eassumption | ]. 
+    clear H0. 
+
+    generalize (forallEach_forall _ H). intros. clear H.
+    eapply denote_hash_right. intros. 
+    rewrite _H0. simpl. specialize (H0 (hlist_app G HNil)).
+    generalize (sepCancel_correct cs _H1 (hlist_app G HNil) H0). clear H0.
+    intros.
+
+    eapply exists_subst_exists in H. destruct H.
+    exists (match app_nil_r _ in _ = t return hlist _ t with
+              | refl_equal => x
+            end).
+    uip_all.
+    cutrewrite <- (hlist_app
+        match e in (_ = t) return (hlist _ t) with
+        | eq_refl => x
+        end HNil = x) in H. auto.
+    clear.
+    (** TODO : I have no idea how to prove this **)
+  Admitted. 
+
+
+    End Reasoning.
+
   
 
   End BabySep.
