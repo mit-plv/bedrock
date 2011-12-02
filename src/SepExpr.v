@@ -97,12 +97,34 @@ Module SepExpr (B : Heap).
 
       End exists_subst.
 
+      Lemma exists_subst_exists : forall a (A : hlist _ a) 
+        b (B : hlist (fun t => option (expr funcs nil a t)) b) P,
+        exists_subst A B P ->
+        exists C, P C.
+      Proof.
+        clear. induction B; simpl; intros.
+          eauto.
+          destruct b. eapply IHB in H. destruct H; eauto.
+          destruct H. eapply IHB in H. destruct H; eauto.
+      Qed.
+
+
       Fixpoint forallEach (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
         match ls with
           | nil => fun cc => cc HNil
           | a :: b => fun cc =>
             forall x : tvarD a, forallEach (fun r => cc (HCons x r))
         end.
+
+      Lemma forallEach_forall : forall ls (P : hlist (@tvarD types) ls -> Prop),
+        forallEach P -> forall V, P V.
+      Proof.
+        induction ls; simpl; intros. 
+        rewrite (hlist_nil_only _ V). auto.
+        rewrite (hlist_eta _ V). 
+        specialize (H (hlist_hd V)). eapply IHls in H. eassumption.
+      Qed.
+
 
       Inductive SepResult (cs : codeSpec (tvarD pcType) (tvarD stateType))
         (gl gr : sexpr nil nil) : Type :=
@@ -270,7 +292,7 @@ Module SepExpr (B : Heap).
 
     Fixpoint sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
       SHeap (t :: uvars) (vars ++ vars').
-  Admitted.
+    Admitted.
 
     Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
       { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } :=
@@ -413,17 +435,30 @@ Module SepExpr (B : Heap).
         unfold heq. simpl. intros. eapply ST.heq_ex. eauto.
       Qed.
 
+      Lemma heq_himp : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
+        heq (funcs := fs) (sfuncs := sfuncs) A A B cs l m ->
+        himp A C B cs m r ->
+        himp A C B cs l r.
+      Proof.
+        clear.
+        unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+      Qed.
+
+      Lemma himp_heq : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
+        heq (funcs := fs) (sfuncs := sfuncs) A A B cs m r ->
+        himp C A B cs l m ->
+        himp C A B cs l r.
+      Proof.
+        clear.
+        unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+      Qed.
+
       Fixpoint existsEach (uvars vars vars' : variables types) {struct vars}
         : sexpr fs sfuncs uvars (vars ++ vars') -> sexpr fs sfuncs uvars (vars') :=
         match vars as vars return sexpr fs sfuncs uvars (vars ++ vars') -> sexpr fs sfuncs uvars vars' with
           | nil => fun x => x
           | a :: b => fun y => @existsEach uvars _ vars' (Exists _ y)
         end.
-
-(*
-      Parameter existsEachU : forall (uvars vars : variables types),
-        sexpr fs sfuncs uvars vars -> sexpr fs sfuncs nil vars.
-*)
 
       Lemma existsEach_heq : forall u v v' X Y (P Q : sexpr fs sfuncs u (v ++ v')),
         (forall Z, heq X X (hlist_app Z Y) cs P Q) ->
@@ -908,44 +943,8 @@ Module SepExpr (B : Heap).
         (fun k : hlist (@tvarD types) exs =>
           himp HNil k VS cs (denote l) (denote r)).
     Admitted.
-    
-    Lemma heq_himp : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
-      heq (funcs := fs) (sfuncs := sfuncs) A A B cs l m ->
-      himp A C B cs m r ->
-      himp A C B cs l r.
-    Proof.
-      clear.
-      unfold heq, himp. destruct 1. intros. etransitivity; eauto.
-    Qed.
-
-    Lemma himp_heq : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
-      heq (funcs := fs) (sfuncs := sfuncs) A A B cs m r ->
-      himp C A B cs l m ->
-      himp C A B cs l r.
-    Proof.
-      clear.
-      unfold heq, himp. destruct 1. intros. etransitivity; eauto.
-    Qed.
-    End Reasoning.
-
-    Lemma forallEach_forall : forall ls (P : hlist (@tvarD types) ls -> Prop),
-      forallEach P -> forall V, P V.
-    Proof.
-      induction ls; simpl; intros. 
-        rewrite (hlist_nil_only _ V). auto.
-        rewrite (hlist_eta _ V). 
-        specialize (H (hlist_hd V)). eapply IHls in H. eassumption.
-    Qed.
-    Lemma exists_subst_exists : forall a (A : hlist _ a) 
-      b (B : hlist (fun t => option (expr fs nil a t)) b) P,
-      exists_subst A B P ->
-      exists C, P C.
-    Proof.
-      clear. induction B; simpl; intros.
-        eauto.
-        destruct b. eapply IHB in H. destruct H; eauto.
-        destruct H. eapply IHB in H. destruct H; eauto.
-    Qed.
+  
+  End Reasoning.
 
     Definition CancelSep : @SProverT types fs pcType stateType sfuncs.
     red. refine (fun cs _ gl gr =>
@@ -968,9 +967,10 @@ Module SepExpr (B : Heap).
         end refl_equal
     end refl_equal).
     intros.
-    generalize (denote_hash_left cs HNil gl). intros.
-    unfold tvar in *. rewrite _H in H0. simpl in *. eapply heq_himp; [ eassumption | ]. 
-    clear H0. 
+    generalize (denote_hash_left cs HNil gl). intros. 
+    change (option (@fin type types)) with (@tvar types) in *.
+    rewrite _H in H0. simpl in *. eapply heq_himp; [ eassumption | ]. 
+    clear H0.
 
     generalize (forallEach_forall _ H). intros. clear H.
     eapply denote_hash_right. intros. 
@@ -982,19 +982,9 @@ Module SepExpr (B : Heap).
     exists (match app_nil_r _ in _ = t return hlist _ t with
               | refl_equal => x
             end).
-    uip_all.
-    cutrewrite <- (hlist_app
-        match e in (_ = t) return (hlist _ t) with
-        | eq_refl => x
-        end HNil = x) in H. auto.
-    clear.
+    uip_all. clear. admit.
     (** TODO : I have no idea how to prove this **)
-  Admitted. 
-
-
-    End Reasoning.
-
-  
+  Qed.   
 
   End BabySep.
 
@@ -1003,27 +993,104 @@ Module SepExpr (B : Heap).
   (************************)
   Require Import Reflect.
 
-  Ltac collectTypes_sexpr s types :=
-    match s with
-      | @ST.emp _ _ _ => types
-      | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
-        collectTypes_sexpr P types
-      | @ST.inj _ _ _ ?PX => types
-      | @ST.star _ _ _ ?L ?R =>
-        let L := collectTypes_sexpr L types in
-        let R := collectTypes_sexpr R L in
-        R
-      | @ST.ex _ _ _ ?T ?B =>
-        (** TODO: How do I peek inside B so that I can reflect the body... 
-         ** - I might need to CPS this so that I can do some fresh name generation in tactics...
-         **)
+  Record Rd (l : Type) : Type := mkRd
+  { unRd : l }.
+
+  Ltac collectTypes_expr e types :=
+    match e with
+      | fun x => @unRd _ _ => types
+      | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) =>
+        let types := collectTypes_expr A types in
+        let types := collectTypes_expr B types in
+        let types := collectTypes_expr C types in
+        let types := collectTypes_expr D types in
         types
+      | fun x => ?F (@?A x) (@?B x) (@?C x) =>
+        let types := collectTypes_expr A types in
+        let types := collectTypes_expr B types in
+        let types := collectTypes_expr C types in
+        types
+      | fun x => ?F (@?A x) (@?B x) =>
+        let types := collectTypes_expr A types in
+        let types := collectTypes_expr B types in
+        types
+      | fun x => ?F (@?A x) =>
+        let types := collectTypes_expr A types in
+        types
+      | fun x => ?e => 
+        collectTypes_expr e types
+      | fun _ => _ => 
+        types
+      | ?e =>
+        let rec bt_args args types :=
+          match args with
+            | tt => types
+            | (?a, ?b) =>
+              let types := collectTypes_expr a types in
+              bt_args b types
+          end
+        in
+        let cc _ Ts args := 
+          let T := type of e in
+          let Ts :=
+            match type of T with
+              | Set => constr:((T : Type) :: Ts)
+              | Type => constr:(T :: Ts)
+            end
+          in
+          let types := append_uniq Ts types in
+          let types := bt_args args types in
+          types
+        in
+        refl_app cc e
+    end.
+
+  Ltac map_non_dep ty args f acc :=
+    match args with
+      | tt => acc
+      | (?A1, ?A2) =>
+        match ty with
+          | forall _ : ?T1, ?T2 =>
+            let acc := f T1 A1 acc in
+            map_non_dep T2 A2 f acc
+          | forall x : ?T1, @?T2 x =>
+            match A1 with
+              | fun _ => ?A => 
+                let t := eval simpl in (T2 A) in
+                map_non_dep t A2 f acc
+            end
+          | _ => acc
+        end
+    end.
+
+  Ltac collectTypes_sexpr s types k :=
+    match s with
+      | fun (x : ?T) (y : ?U) => @?E x y =>
+        collectTypes_sexpr (fun xy : (T * U)%type => E (fst xy) (snd xy)) k
+      | fun x : ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
+        collectTypes_sexpr L types ltac:(fun types =>
+          collectTypes_sexpr R types k)
+      | fun x => ?A (@?B x) (@?C x) (@?D x) =>
+        let T := type of A in
+        let v := constr:((B,(C,(D,tt)))) in
+          let ff t e a := collectTypes_expr e a in
+        let types := map_non_dep T v ff types in
+        k types
+      | @ST.emp _ _ _ => k types
+      | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
+        k ltac:(collectTypes_expr P types)
+      | @ST.inj _ _ _ ?PX => k types
+      | @ST.star _ _ _ ?L ?R =>
+        collectTypes_sexpr L types
+          ltac:(fun Ltypes => collectTypes_sexpr R Ltypes k)
+      | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
+        collectTypes_sexpr B types k
       | ?X =>
         let rec bt_args args types :=
           match args with
             | tt => types
             | (?a,?b) => 
-              let k := Expr.collectTypes_expr a types in
+              let k := collectTypes_expr a types in
               bt_args b k
           end
         in
@@ -1032,28 +1099,121 @@ Module SepExpr (B : Heap).
           let types := bt_args args types in
           types
         in
-        refl_app cc X
+        k ltac:(refl_app cc X)
     end.
 
+  Print ssignature.
+
+  Ltac reflectTypes_toList types ts :=
+    match ts with 
+      | nil => constr:(@nil (@tvar types))
+      | ?T :: ?TS =>
+        let i := typesIndex T types in
+        let rest := reflectTypes_toList types TS in
+        constr:(@cons (@tvar types) (Some i) rest)
+    end.
+
+
+  Ltac collectFunctions_expr isConst s types funcs := funcs.
+
+
+  Ltac collectFunctions_sexpr sctor isConst s types funcs sfuncs k :=
+    idtac "collectFunctions_sexpr " s ;
+    match s with
+      | fun (x : ?T) (y : ?U) => @?E x y =>
+        collectFunctions_sexpr sctor isConst (fun xy : (T * U)%type => E (fst xy) (snd xy)) types funcs sfuncs k
+
+      | fun x : ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
+        collectFunctions_sexpr sctor isConst L types funcs sfuncs ltac:(fun funcs sfuncs =>
+          collectFunctions_sexpr sctor isConst R types funcs sfuncs k)
+
+      | fun x => ?A (@?B x) (@?C x) (@?D x) =>
+        (** this does not handle dependent arguments correctly b/c all my terms are abstracted too much **)
+        let funcs := collectFunctions_expr isConst B types funcs in
+        let funcs := collectFunctions_expr isConst C types funcs in
+        let funcs := collectFunctions_expr isConst D types funcs in
+        k funcs sfuncs
+      | @ST.emp _ _ _ => k funcs sfuncs
+      | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
+        k ltac:(collectFunctions_expr isConst P types funcs sfuncs) sfuncs
+      | @ST.inj _ _ _ ?PX => k funcs sfuncs
+      | @ST.star _ _ _ ?L ?R =>
+        collectFunctions_sexpr sctor isConst L types funcs sfuncs
+          ltac:(fun funcs sfuncs => collectFunctions_sexpr sctor isConst R types funcs sfuncs k)
+      | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
+        collectFunctions_sexpr sctor isConst B types funcs sfuncs k
+      | ?X =>
+        let rec bt_args args funcs sfuncs k :=
+          match args with
+            | tt => k funcs sfuncs
+            | (?a,?b) => 
+              let funcs := collectFunctions_expr isConst a types funcs in
+              bt_args b funcs sfuncs k
+          end
+        in
+        let cc f Ts As := 
+          let Ts := eval simpl in Ts in
+          let ts := reflectTypes_toList types Ts in
+          let sfunc := sctor ts f in
+          let sfuncs := cons_uniq sfunc sfuncs in
+          bt_args As funcs sfuncs k
+        in
+        refl_app cc X
+    end.
 
   (** Just a test separation logic predicate **)
   Section Tests.
     Variable f : forall a b, nat -> ST.hprop a b nil.
     Variable g : bool -> nat -> nat -> nat.
 
-    Goal forall a b c d x, @ST.himp a b c (f _ _ (g d (x + x) x)) (f _ _ x).
-      intros.
-      match goal with
-        | [ |- @ST.himp _ _ _ ?L ?R ] =>
-          let r := constr:(@nil Type) in
-          let lt := collectTypes_sexpr L r in
-          let rt := collectTypes_sexpr R lt in
-          idtac rt
+    Ltac isConst e :=
+      match e with
+        | true => true
+        | false => true
+        | O => true
+        | S ?e => isConst e
       end.
+
+    Ltac debug_reflect :=
+      match goal with
+        | [ |- @ST.himp ?pcT ?stT _ ?L ?R ] =>
+          let ts := constr:(stT :: @nil Type) in
+          let lt := collectTypes_sexpr L ts ltac:(fun x => x) in
+          let rt := collectTypes_sexpr R lt ltac:(fun x => x) in
+          let rt := add_end_uniq pcT rt in
+          let rt := add_end_uniq stT rt in
+          idtac rt ;
+          let Ts := constr:(@nil type) in
+          let Ts := extend_all_types rt Ts in
+          let Ts := eval simpl in Ts in 
+          idtac Ts ;
+          let pcTyp := typesIndex pcT Ts in
+          let stTyp := typesIndex stT Ts in
+          let pcTyp := constr:(Some pcTyp) in
+          let stTyp := constr:(Some stTyp) in
+          let fs := constr:(@nil (@signature Ts)) in
+          let sfs := constr:(@nil (@ssignature Ts pcTyp stTyp)) in
+          idtac sfs ;
+          let build_ssig x y := constr:(@Build_ssignature Ts pcTyp stTyp x y) in
+          collectFunctions_sexpr build_ssig isConst L Ts fs sfs ltac:(fun funcs sfuncs => 
+            collectFunctions_sexpr build_ssig isConst R Ts funcs sfuncs ltac:(fun funcs sfuncs => 
+              idtac "funcs = " funcs; idtac "sfuncs = " sfuncs))
+      end.
+
+
+    Goal forall a b c d x, @ST.himp a b c (f _ _ (g d (x + x) x)) (f _ _ x).
+      intros. debug_reflect.
+    Abort.
+
+    Goal forall a b c, @ST.himp a b c (f _ _ 1) (ST.ex (fun x : nat => f _ _ (g true 1 x))).
+      intros. debug_reflect.
     Abort.
   End Tests.
 
 End SepExpr.
 
 Require Export Expr.
+
+
+
 
