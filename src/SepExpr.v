@@ -290,7 +290,11 @@ Module SepExpr (B : Heap).
         rewrite IHa. reflexivity.
     Defined.
 
-    Fixpoint sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
+    Fixpoint exprSubstEx T uvars vars vars' t (e : expr fs uvars (vars ++ t :: vars') T) : 
+      expr fs (t :: uvars) (vars ++ vars') T.
+    Admitted.
+
+    Definition sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
       SHeap (t :: uvars) (vars ++ vars').
     Admitted.
 
@@ -714,10 +718,6 @@ Module SepExpr (B : Heap).
           eapply existsEach_heq. intros. apply heq_star_comm. reflexivity.
       Qed.
 
-      Lemma lift_denote_lift : forall u a b c (s : SHeap u (a ++ c)) X Y,
-        heq X X Y cs (liftSExpr a b c (denote s)) (denote (liftSHeap a b c s)).
-      Proof. Admitted.
-
       Lemma starred_Star : forall u v T (F : T -> sexpr fs sfuncs u v) a b X Y,
         heq X X Y cs (starred F (a ++ b)) (Star (starred F a) (starred F b)).
       Proof.
@@ -725,6 +725,55 @@ Module SepExpr (B : Heap).
           intros. symmetry. apply heq_star_emp. reflexivity.
           intros. symmetry. apply heq_star_assoc. apply heq_star_frame. reflexivity.
           symmetry. eauto.
+      Qed.
+
+      Lemma starred_lift_liftPure : forall a b c u X Y s,
+        heq X X Y cs (starred (fun x : expr fs u (a ++ b ++ c) None => Inj x)
+                        (liftPures a b c s))
+                     (liftSExpr a b c (starred (fun x : expr fs u (a ++ c) None => Inj x) s)).
+      Proof.
+        clear. induction s; simpl.
+          reflexivity.
+          eapply heq_star_frame. reflexivity. eauto.
+      Qed.
+      Lemma starred_lift_liftOther : forall a b c u X Y s,
+        heq X X Y cs 
+          (starred (fun x : ST.hprop (tvarD pcType) (tvarD stateType) nil => Const x) s)
+          (liftSExpr a b c (starred
+            (fun x : ST.hprop (tvarD pcType) (tvarD stateType) nil => Const (uvars := u) x) s)).
+      Proof.
+        clear. induction s; simpl.
+          reflexivity.
+          eapply heq_star_frame; try reflexivity; eauto.
+      Qed.
+
+      Lemma fold_left_map_fusion : forall T U A (F : T -> U) (G : A -> U -> A) ls acc,
+        fold_left G (map F ls) acc = fold_left (fun x y => G x (F y)) ls acc.
+      Proof.
+        clear. induction ls; simpl; auto.
+      Qed.
+
+      Lemma lift_denote_lift : forall u a b c (s : SHeap u (a ++ c)) X Y,
+        heq X X Y cs (liftSExpr a b c (denote s)) (denote (liftSHeap a b c s)).
+      Proof. 
+        clear. intros. unfold liftSHeap. simpl. unfold denote. simpl.
+        destruct s. simpl. 
+        eapply heq_star_frame. 2: eapply heq_star_frame.
+          2: symmetry; eapply starred_lift_liftPure.
+          2: symmetry; eapply starred_lift_liftOther.
+
+        Focus. (** funcs **)
+        clear. unfold liftFunctions.
+        rewrite dmap_fold_map_fusion.
+          match goal with 
+            | [ |- heq _ _ _ _ ?X ?Y ] => assert (X = Y)
+          end. clear. unfold tvar in *. 
+          assert (Emp = liftSExpr (funcs := fs) (pcType := pcType) (stateType := stateType) (sfuncs := sfuncs) (uvars := u) a b c Emp).
+          reflexivity. unfold tvar in *. rewrite H. generalize (@Emp _ fs _ _ sfuncs u (a ++ c)).         clear. induction funcs0; simpl; intros; try reflexivity.
+          rewrite IHfuncs0_2. rewrite IHfuncs0_1. Focus. f_equal. f_equal. clear.
+          rewrite fold_left_map_fusion. generalize dependent s. induction v; simpl; auto.
+            intros. rewrite IHv. f_equal.
+          rewrite H. reflexivity.
       Qed.
 
        Ltac cancel_heq :=
@@ -766,7 +815,10 @@ Module SepExpr (B : Heap).
        Focus 2.
        repeat (reflexivity || cancel_heq). 
         apply heq_star_frame; [ | apply heq_star_frame ]; try eapply starred_Star.
-        (** TODO: this is the annoying case **)
+        (** TODO: this is the annoying case 
+         ** - should I make a multi-map structure?
+         **)
+
 
       Admitted.
 
@@ -871,7 +923,7 @@ Module SepExpr (B : Heap).
         himp A A B cs (existsEach ext b P) Q.
       Proof.
         induction Q; simpl; intros.
-          Admitted.
+      Admitted.
           
         
 
@@ -880,14 +932,14 @@ Module SepExpr (B : Heap).
       (** This is the simplest cancelation procedure, it just cancels functions in which
        ** the arguments unify pointwise
        **)
-      Definition sepCancel_refl_func uL uR vars (f : fin sfuncs)
-        (r : hlist (expr fs uR vars) (SDomain (get sfuncs f)))
-        : list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) ->
+      Definition sepCancel_refl_func uL uR vars (f : list (tvar types))
+        (r : hlist (expr fs uR vars) f)
+        : list (hlist (expr fs uL vars) f) ->
         ExprUnify.Subst fs uR uL vars ->
-        option (list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) * ExprUnify.Subst fs uR uL vars).
-      refine (fix find (l : list (hlist (expr fs uL vars) (SDomain (get sfuncs f)))) 
+        option (list (hlist (expr fs uL vars) f) * ExprUnify.Subst fs uR uL vars).
+      refine (fix find (l : list (hlist (expr fs uL vars) f))
         : ExprUnify.Subst fs uR uL vars ->
-        option (list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) * ExprUnify.Subst fs uR uL vars) := 
+        option (list (hlist (expr fs uL vars) f) * ExprUnify.Subst fs uR uL vars) := 
         match l with
           | nil => fun _ => None
           | l :: lr => fun s =>
@@ -901,21 +953,21 @@ Module SepExpr (B : Heap).
         end).
     Defined.
     
-    Definition sepCancel_refl_funcs uL uR vars (f : fin sfuncs) : forall
-      (rs : list (hlist (expr fs uR vars) (SDomain (get sfuncs f))))
-      (ls : list (hlist (expr fs uL vars) (SDomain (get sfuncs f)))),
+    Definition sepCancel_refl_funcs uL uR vars (f : list (tvar types)) : forall
+      (rs : list (hlist (expr fs uR vars) f))
+      (ls : list (hlist (expr fs uL vars) f)),
         ExprUnify.Subst fs uR uL vars ->
-        list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) *
-        list (hlist (expr fs uR vars) (SDomain (get sfuncs f))) *
+        list (hlist (expr fs uL vars) f) *
+        list (hlist (expr fs uR vars) f) *
         ExprUnify.Subst fs uR uL vars.
     refine (fix run rs ls s : 
-      list (hlist (expr fs uL vars) (SDomain (get sfuncs f))) *
-      list (hlist (expr fs uR vars) (SDomain (get sfuncs f))) *
+      list (hlist (expr fs uL vars) f) *
+      list (hlist (expr fs uR vars) f) *
       ExprUnify.Subst fs uR uL vars :=
       match rs with
         | nil => (ls, rs, s)
         | r :: rs =>
-          match sepCancel_refl_func f r ls s with
+          match sepCancel_refl_func r ls s with
             | None => 
               let '(ls,rs,s) := run rs ls s in
               (ls, r :: rs, s)
@@ -927,9 +979,21 @@ Module SepExpr (B : Heap).
 
 
     Definition sepCancel uL uR vars (l : SHeap uL vars) (r : SHeap uR vars) : 
-      SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars.
-    Admitted.
-
+      SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars :=
+      let '(lf,rf,s) := dmap_fold (fun acc k v =>
+        let '(lf,rf,s) := acc in
+        match dmap_remove (fun x y => Some (finCmp x y)) k rf with 
+          | None => (dmap_insert (fun x y => Some (finCmp x y)) _ v lf, rf, s)
+          | Some (oths, rmed) => 
+            let '(lf',rf',s') := sepCancel_refl_funcs oths v s in
+            (dmap_insert (fun x y => Some (finCmp x y)) _ lf' lf, 
+             dmap_insert (fun x y => Some (finCmp x y)) _ rf' rmed,
+             s')
+        end) (dmap_empty, funcs r, empty_Subst _ _ _ _) (funcs l)
+      in
+      ({| funcs := lf ; pures := pures l ; other := other l |},
+       {| funcs := rf ; pures := pures r ; other := other r |},
+       s).
 
     Lemma sepCancel_correct : forall vars exs
       (l : SHeap nil vars) (r : SHeap exs vars)
@@ -984,7 +1048,7 @@ Module SepExpr (B : Heap).
     generalize (forallEach_forall _ H). intros. clear H.
     eapply denote_hash_right. intros. 
     rewrite _H0. simpl. specialize (H0 (hlist_app G HNil)).
-    generalize (sepCancel_correct cs _H1 (hlist_app G HNil) H0). clear H0.
+    generalize (sepCancel_correct cs _ _ _H1 (hlist_app G HNil) H0). clear H0.
     intros.
 
     eapply exists_subst_exists in H. destruct H.
@@ -1037,8 +1101,6 @@ Module SepExpr (B : Heap).
 
   Record Rd (l : Type) : Type := mkRd
   { unRd : l }.
-
-  Parameter any : forall a, a.
 
   Ltac collectTypes_expr e types :=
     match e with

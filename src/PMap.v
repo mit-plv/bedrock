@@ -119,7 +119,7 @@ Section FMap.
       | DM_Branch k v l r =>
         dmap_fold (dmap_fold (f a k v) l) r
     end.
-  
+
 End FMap.
 
 Implicit Arguments dmap_empty [ K V ].
@@ -138,6 +138,14 @@ Section map.
       | DM_Branch k v l r =>
         DM_Branch _ _ k (f _ v) (dmap_map l) (dmap_map r)
     end.
+
+  Lemma dmap_fold_map_fusion : forall T f' m (acc : T),
+    dmap_fold f' acc (dmap_map m) = dmap_fold (fun acc k (v : V k) => f' acc k (f k v)) acc m.
+  Proof.
+    induction m; simpl. eauto.
+      simpl. intros. rewrite IHm1. rewrite IHm2. auto.
+  Qed.
+    
 End map.
 
 
