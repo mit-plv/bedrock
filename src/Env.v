@@ -17,11 +17,11 @@ Section fin.
 
   Definition finOut ls (f : fin ls) : match ls return fin ls -> Type with
                                         | nil => fun _ => Empty_set
-                                        | _ => fun f => {f' : _ | f = FS _ f'} + {f = FO _ _}
+                                        | _ => fun f => {f' : _ & f = FS _ f'} + {f = FO _ _}
                                       end f :=
   match f with
     | FO _ _ => inright _ (refl_equal _)
-    | FS _ _ f' => inleft _ (exist _ f' (refl_equal _))
+    | FS _ _ f' => inleft _ (existT _ f' (refl_equal _))
   end.
 
   Definition finIfz t (ls : list A) (d : fin (t :: ls))
@@ -58,13 +58,13 @@ Section fin.
       match ls return forall x y : fin ls, {x = y} + {x <> y} with
         | nil => fun x _ => match finOut x with end
         | _ :: _ => fun x y => match finOut x, finOut y with
-                                 | inleft (exist x' _), inleft (exist y' _) => if finEq _ x' y' then left _ _ else right _ _
+                                 | inleft (existT x' _), inleft (existT y' _) => if finEq _ x' y' then left _ _ else right _ _
                                  | inright _, inright _ => left _ _
                                  | _, _ => right _ _
                                end
       end); clear finEq; (subst; auto; try congruence;
         match goal with
-          | [ H : sig _ |- _ ] => destruct H
+          | [ H : sigT _ |- _ ] => destruct H
         end; subst; discriminate).
   Defined.
 
@@ -137,12 +137,13 @@ Section fin.
                     end
     end.
 
-  Fixpoint liftDmid' (ls'' ls ls' ls''': list A) e : forall (i : fin ls'''),
+(*
+  Fixpoint liftDmid' (ls'' ls ls' ls''': list A) e {struct ls'} : forall (i : fin ls'''),
     ls' ++ ls = ls''' ->
     (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
        { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
     { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i } :=
-    match ls' as ls' return 
+    match ls' return 
       forall (i : fin ls'''),
         ls' ++ ls = ls''' ->
         (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
@@ -158,7 +159,7 @@ Section fin.
           | refl_equal => fun cc => cc (liftD e i)
         end
       | a :: b => fun i =>
-        match i as i in fin ls''' return 
+        match i in fin ls''' return 
           (a :: b) ++ ls = ls''' ->
           ({i' : fin ((a :: b) ++ e ++ ls) & get i' = get i} ->
             {x : fin (ls'' ++ (a :: b) ++ e ++ ls) & get x = get i}) ->
@@ -196,10 +197,27 @@ Section fin.
                       end)
         end
     end.
+*)
 
-  Definition liftDmid (ls ls' : list A) e (i : fin (ls' ++ ls)) : 
-    { x : fin (ls' ++ e ++ ls) & get x = get i } :=
-    @liftDmid' nil ls ls' (ls' ++ ls) e i (refl_equal _) (fun i' => i').
+  Fixpoint liftDmid (ls ls' : list A) e : forall (i : fin (ls' ++ ls)),
+    { x : fin (ls' ++ e ++ ls) & get x = get i }.
+  refine (
+    match ls' as ls' return forall (i : fin (ls' ++ ls)),
+      { x : fin (ls' ++ e ++ ls) & get x = get i } with
+      | nil => fun i => liftD e i
+      | a :: b => fun i : fin (a :: b ++ ls) => 
+        match finOut i with 
+          | inleft (existT r pf) => 
+            match liftDmid ls b e r with
+              | existT rr pf' =>
+                @existT _ _ (FS a rr) _
+            end
+          | inright pf => @existT _ _ (FO _ _) _
+        end
+    end).
+  rewrite pf; simpl; assumption.   
+  rewrite pf; reflexivity.
+  Defined.
 
   Section liftD_Proofs.
     Variable EQ : EqDec A (@eq A).
@@ -220,28 +238,24 @@ Section fin.
         generalize e e2. rewrite <- e2. uip_all. reflexivity.
     Qed.
 
-(*
-    Lemma liftDmid'_liftDmid'_app : forall (x y z a : list A) x0,
-      projT1 (liftDmid' (a ++ z) x y (projT1 (liftDmid' z x a x0)))
-      = match app_ass _ _ _ in _ = t return fin (_ ++ t) with
-          | refl_equal => projT1 (liftDmid' z x (y ++ a) x0)
-        end.
-    Proof.
-      induction x; simpl in *.
-          intros; apply liftD_liftD_app.
-          unfold liftDmid in *. simpl in *. 
-    Qed.
-*)
     Lemma liftDmid_liftDmid_app : forall x y z a x0,
       projT1 (liftDmid (a ++ z) x y (projT1 (liftDmid z x a x0)))
       = match app_ass _ _ _ in _ = t return fin (_ ++ t) with
           | refl_equal => projT1 (liftDmid z x (y ++ a) x0)
         end.
     Proof.
-      induction x; simpl in *.
-        intros; apply liftD_liftD_app.
-        unfold liftDmid in *. simpl in *. 
-    Admitted.
+      induction x. 
+        simpl; intros; apply liftD_liftD_app.
+        intros. simpl in x0. destruct (finOut x0).
+
+        destruct s. specialize (IHx y z a0 x1). subst. simpl in *.
+        destruct (liftDmid z x a0 x1); simpl in *. destruct (liftDmid (a0 ++ z) x y x0); simpl in *.
+        subst. destruct (liftDmid z x (y ++ a0) x1). simpl. uip_all. generalize e2 x2. rewrite e2.
+        intros. rewrite (UIP_refl e3). reflexivity.
+
+        subst; simpl. uip_all. generalize e. rewrite e. uip_all. reflexivity.
+    Qed.
+
   End liftD_Proofs.
 
   
@@ -273,6 +287,12 @@ Section fin.
     match ll with
       | nil => fun _ x => x
       | _ :: _ => fun l r => HCons (hlist_hd l) (hlist_app (hlist_tl l) r)
+    end.
+
+  Fixpoint hlist_All ls (P : forall t, B t -> Prop) (h : hlist ls) {struct h} : Prop :=
+    match h with
+      | HNil => True
+      | HCons _ _ a b => P _ a /\ hlist_All P b
     end.
 
   Variable dec : forall x (y z : B x), option (y = z).

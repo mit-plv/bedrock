@@ -946,24 +946,33 @@ Module SepExpr (B : Heap).
   
   End Reasoning.
 
+    Lemma cast_cast : forall T (x y : list T) (E : x = y) (E' : y = x) F (c : F y),
+      EqDec _ (@eq T) ->
+      match E in _ = t return F t with
+        | eq_refl => 
+          match E' in _ = t return F t with
+            | eq_refl => c 
+          end
+      end = c.
+    Proof.
+      clear. intros. generalize c E E'. rewrite E. 
+      assert (EqDec (list T) eq). eapply list_eqdec. auto.      
+      intros. rewrite (UIP_refl E0). rewrite (UIP_refl E'0). auto.
+    Qed.
+
+
     Definition CancelSep : @SProverT types fs pcType stateType sfuncs.
     red. refine (fun cs _ gl gr =>
     match hash_left gl as l return hash_left gl = l -> _ with
       | existT ql lhs => fun _ => 
         match @hash_right _ _ ql gr as r return @hash_right _ _ ql gr = r -> _ with
           | existT qr rhs => fun _ => 
-(*            match eq_sym (app_nil_r ql) in _ = t, eq_sym (app_nil_r qr) in _ = t' 
-              return forall (l : SHeap nil t) (r : SHeap t' t), _
-              with
-              | refl_equal , refl_equal => fun lhs rhs => 
-*)
-                match sepCancel lhs rhs as c return c = sepCancel lhs rhs -> _ with
-                  | (lhs',rhs',s') => fun _ => 
-                    @Prove _ fs _ _ sfuncs _ gl gr (ql ++ nil) (qr ++ nil)
-                      (denote lhs') (denote rhs')
-                      (env_of_Subst s' (qr ++ nil)) _
-                end refl_equal
-(*            end lhs rhs *)
+            match sepCancel lhs rhs as c return c = sepCancel lhs rhs -> _ with
+              | (lhs',rhs',s') => fun _ => 
+                @Prove _ fs _ _ sfuncs _ gl gr (ql ++ nil) (qr ++ nil)
+                  (denote lhs') (denote rhs')
+                  (env_of_Subst s' (qr ++ nil)) _
+            end refl_equal
         end refl_equal
     end refl_equal).
     intros.
@@ -982,9 +991,42 @@ Module SepExpr (B : Heap).
     exists (match app_nil_r _ in _ = t return hlist _ t with
               | refl_equal => x
             end).
-    uip_all. clear. admit.
-    (** TODO : I have no idea how to prove this **)
-  Qed.   
+    uip_all.
+    cutrewrite (x = hlist_app match e in (_ = t) return hlist _ t with
+                                | eq_refl => x
+                              end HNil) in H. auto.
+
+    clear. generalize dependent x. generalize dependent e.
+    assert (forall Q,
+      forall (e : Q = qr) (x : hlist _ Q),
+        match eq_sym (app_nil_r _) in _ = t return hlist _ t with
+          | eq_refl => 
+            match e in _ = t return hlist (@tvarD types) t with
+              | eq_refl => x
+            end 
+        end =
+        hlist_app
+        match e in (_ = t) return (hlist _ t) with
+          | eq_refl => x
+        end HNil).
+    do 2 intro. generalize e. subst.
+    uip_all. clear e0. generalize e; induction x; simpl. uip_all. rewrite (UIP_refl e0). auto.
+    intros. inversion e0. specialize (IHx H0 H0). rewrite <- IHx.
+    
+    assert (HCons b match H0 in _ = t return hlist _ t with
+                      | eq_refl => x0
+                    end = match H0 in _ = t return hlist _ (x :: t) with
+                            | eq_refl => HCons b x0 
+                          end).
+    clear. generalize H0. rewrite <- H0. uip_all. auto.
+    unfold tvar in *. rewrite H. auto. clear. generalize e0 H0. rewrite <- H0. uip_all. auto.
+
+    intros.
+    specialize (H (qr ++ nil) e x). 
+    generalize (@cast_cast _ qr (qr ++ nil) (eq_sym (app_nil_r qr)) e (hlist (@tvarD types)) x).
+    unfold tvar in *. intros. rewrite <- H0 at 1. eapply H.
+    change (option (fin types)) with (tvar types). eauto with typeclass_instances.
+    Qed.
 
   End BabySep.
 
@@ -995,6 +1037,8 @@ Module SepExpr (B : Heap).
 
   Record Rd (l : Type) : Type := mkRd
   { unRd : l }.
+
+  Parameter any : forall a, a.
 
   Ltac collectTypes_expr e types :=
     match e with
@@ -1050,7 +1094,7 @@ Module SepExpr (B : Heap).
       | tt => acc
       | (?A1, ?A2) =>
         match ty with
-          | forall _ : ?T1, ?T2 =>
+          | ?T1 -> ?T2 =>
             let acc := f T1 A1 acc in
             map_non_dep T2 A2 f acc
           | forall x : ?T1, @?T2 x =>

@@ -51,12 +51,6 @@ Section env.
   | UVar : forall x : uvar, expr (get uvars x)
   | Func : forall f : func, hlist expr (Domain (get funcs f)) -> expr (Range (get funcs f)).
 
-  Fixpoint hlist_All T F (ls : list T) (P : forall t : T, F t -> Prop) (h : hlist F ls) {struct h} : Prop :=
-    match h with
-      | HNil => True
-      | HCons _ _ a b => P _ a /\ hlist_All P b
-    end.
-
   Lemma expr_ind_strong : forall (P : forall t, expr t -> Prop),
     (forall (t : tvar) (t0 : tvarD t), P t (Const t t0)) ->
     (forall x : var, P (get vars x) (Var x)) ->
@@ -234,7 +228,7 @@ Section Lifting.
       (** vars **)
       case_eq (liftDmid z x (y ++ a) x0).
       intros; assert (projT1 (liftDmid z x (y ++ a) x0) = x1). rewrite H. auto.
-      generalize (liftDmid_liftDmid_app x y z a x0). clear H. intros.
+      generalize (liftDmid_liftDmid_app _ x y z a x0). clear H. intros.
       case_eq (liftDmid z x a x0). simpl. intros.
       assert (projT1 (liftDmid z x a x0) = x2). rewrite H1. auto. clear H1.
       rewrite H2 in *. rewrite H0 in H. revert H. clear. uip_all.
@@ -293,17 +287,6 @@ Section Lifting.
     f_equal. induction h; simpl; auto. simpl in *. firstorder. f_equal; auto.
   Qed.
 
-(*
-  Parameter hlist_get_lift : forall ls ls' ls'' (f : fin (ls ++ ls'')) G G' G'',
-    hlist_get f (hlist_app G G'') = match liftDmid ls'' ls ls' f with
-                                      | existT f' pf =>
-                                        match pf in _ = t return @tvarD types t with
-                                          | refl_equal => 
-                                            hlist_get f' (hlist_app G (hlist_app G' G''))
-                                        end
-                                    end.
-*)
-  
 
   Lemma liftExpr_denote : forall uvars vars' vs vars T (e : expr funcs uvars (vars' ++ vars) T) U G G' G'', 
       exprD U (hlist_app G (hlist_app G' G'')) (liftExpr vars' vs vars e) = exprD U (hlist_app G G'') e.
@@ -460,52 +443,11 @@ Ltac collectTypes_expr e types :=
   in
   refl_app cc e.
 
-(*
-Parameter g : bool -> nat -> nat -> nat.
-
-Set Printing Implicit.
-
-Goal forall a b, g a b b = b.
-    intros.
-    match goal with
-      | [ |- ?L ] =>
-        let r := constr:(@nil Type) in
-          let t := constr:((nat : Type) :: nil) in
-        let lt := collectTypes_expr L r in
-(*        let rt := collectTypes_sexpr R lt in *)
-        idtac lt
-(*
-        let Ts := constr:(@nil type) in
-        let g := elabTypes Ts f in
-        idtac g
-*)
-    end.
-*)
-
 Ltac typesIndex x types :=
   indexOf Impl x types.
-(*
-  match types with
-    | ?T1 :: ?TS =>
-      match types' with
-        | x :: _ => constr:(@FO _ T1 TS)
-        | _ :: ?ls' => let f := typesIndex x TS ls' in constr:(@FS _ T1 TS f)
-      end
-  end.
-*)
 
 Ltac funcIndex x funcs :=
   indexOf Denotation x funcs.
-(*
-  match funcs with
-    | ?F :: ?ls' =>
-      let F' := eval simpl in (Denotation F) in
-      match F' with
-        | x => constr:(@FO _ F ls')
-        | _ => let f := funcIndex x ls' in constr:(@FS _ F ls' f)
-      end
-  end.
-*)
 
 Ltac refl_type types types' T :=
   match T with

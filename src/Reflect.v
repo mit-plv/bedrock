@@ -49,6 +49,27 @@ Ltac refl_app cc e :=
             in
             refl cc A As
         end
+(** TODO : extend this to handle abstracted terms
+      | fun x => (@?A x) (@?B x) =>
+        let Ta := type of A in
+        match type of A with
+          | _ -> _ -> ?TT => 
+            let As := constr:((B, As)) in
+            let Tb := type of B in
+            let cc f Ts args := 
+              let Ts' := constr:(Ts ++ (Tb : Type) :: nil) in
+              cc f Ts' args
+            in 
+            refl cc A As
+          | forall x : ?T1, @?T2 x => 
+            let cc f Ts args := 
+              let Tb  := type of B in
+              let f'  := eval simpl in (@apply_ls Ts T1 T2 B f) in
+              cc f' Ts args
+            in
+            refl cc A As
+        end
+*)
       | _ =>
         let Ts := constr:(@nil Type) in
         cc e Ts As
