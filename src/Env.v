@@ -412,16 +412,17 @@ Section fin.
       end.
     Proof.
       induction ls. simpl. intros. unfold liftDmid; simpl.
-(*
-      clear. induction ls; induction ls'; simpl; intros.
-      reflexivity.
-      unfold liftDmid. simpl. remember (@nil A) as ZZ. destruct G. 2: inversion HeqZZ.
-      simpl in *. erewrite IHls'. 2: econstructor. unfold liftDmid. simpl.
-      case_eq (liftD ls' f). instantiate (1 := (hlist_tl G')).
-      simpl. intros. admit.
-      unfold liftDmid in *. simpl in *. 
-*)
-    Admitted.
+        Focus.
+        generalize dependent ls'. induction ls'; simpl; auto.
+          intros. specialize (IHls' (hlist_tl G')). rewrite IHls'. destruct (liftD ls' f).
+          simpl. generalize (hlist_get x (hlist_app (hlist_tl G') G'')). generalize e. rewrite e. 
+          intros. rewrite (UIP_refl e0). reflexivity.
+
+        intros. simpl in f. destruct (finOut f). destruct s; subst. simpl.
+        specialize (@IHls ls' _ x (hlist_tl G) G' G''). rewrite IHls. clear IHls.
+        destruct (liftDmid ls'' ls ls' x). reflexivity.
+        subst. reflexivity.
+    Qed.
   End hlist_Proofs.
 
   Fixpoint absAll (ls : list A) :

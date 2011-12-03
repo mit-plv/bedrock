@@ -293,7 +293,7 @@ Section Lifting.
   Proof.
     induction e using expr_ind_strong; simpl; auto.
       case_eq (liftDmid vars vars' vs x); intros. 
-      generalize (@hlist_get_lift _ _ vars' vs vars x G G' G''). intros.
+      generalize (@hlist_get_lift _ _ _ vars' vs vars x G G' G''). intros.
       unfold tvar in *. rewrite H0. rewrite H. clear.
       generalize (hlist_app G (hlist_app G' G'')). generalize e.
       rewrite <- e. intros. uip_all. reflexivity.
