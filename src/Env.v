@@ -137,6 +137,61 @@ Section fin.
                     end
     end.
 
+
+  Fixpoint fin_remove (U : Type) ls t ls' : forall (f : fin (ls ++ t :: ls')),
+    (t = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U.
+  refine (
+    match ls as ls 
+      return forall f : fin (ls ++ t :: ls'), (t = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U 
+      with 
+      | nil => fun (f : fin (t :: ls')) => 
+        match f in fin z 
+          return match z with
+                   | nil => unit
+                   | a :: b => (a = get f -> U) -> (forall f' : fin b, get f' = get f -> U) -> U 
+                 end
+          with 
+          | FO _ _ => fun D _ => D refl_equal
+          | FS _ _ f => fun _ F => F _ refl_equal
+        end
+      | a :: b => fun (f : fin (a :: b ++ t :: ls')) D F =>
+        match finOut f with
+          | inleft s =>
+            @fin_remove _ _ _ _ (projT1 s) _ _ 
+          | inright l => F (FO _ _) _
+        end
+    end).
+
+
+  rewrite (projT2 s) in D. apply D.
+  destruct s; simpl in *.
+  refine (fun f' _ => F (FS _ f') _). rewrite e. assumption.
+
+  simpl. rewrite l. refine (refl_equal).
+Defined.
+
+(*
+  Fixpoint fin_remove T ls t ls' {struct ls} : fin (ls ++ t :: ls') -> T -> (fin (ls ++ ls') -> T) -> T :=
+    match ls as ls return fin (ls ++ t :: ls') -> T -> (fin (ls ++ ls') -> T) -> T with 
+      | nil => fun (f : fin (t :: ls')) => 
+        match f in fin z 
+          return match z with
+                   | nil => unit
+                   | a :: b => T -> (fin b -> T) -> T
+                 end
+          with 
+          | FO _ _ => fun D _ => D
+          | FS _ _ f => fun _ F => F f
+        end
+      | a :: b => fun (f : fin (a :: b ++ t :: ls')) D F =>
+        match finOut f with
+          | inleft s =>
+            fin_remove _ _ _ (projT1 s) D (fun x => F (FS _ x))
+          | inright l => F (FO _ _)
+        end
+    end.
+*)
+
 (*
   Fixpoint liftDmid' (ls'' ls ls' ls''': list A) e {struct ls'} : forall (i : fin ls'''),
     ls' ++ ls = ls''' ->

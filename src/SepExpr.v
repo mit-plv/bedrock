@@ -3,7 +3,7 @@ Require Import Expr ExprUnify.
 Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
-Require Import Classes.RelationClasses.
+Require Import RelationClasses.
 Require Import EqdepClass.
 
 Set Implicit Arguments.
@@ -291,12 +291,29 @@ Module SepExpr (B : Heap).
     Defined.
 
     Fixpoint exprSubstEx T uvars vars vars' t (e : expr fs uvars (vars ++ t :: vars') T) : 
-      expr fs (t :: uvars) (vars ++ vars') T.
-    Admitted.
+      expr fs (t :: uvars) (vars ++ vars') T :=
+      match e in expr _ _ _ T return expr fs (t :: uvars) (vars ++ vars') T with
+        | Expr.Const _ v => Expr.Const _ _ _ _ v
+        | Expr.UVar v => Expr.UVar _ _ (FS v)
+        | Expr.Var v =>
+          fin_remove _ _ v 
+            (fun pf => match pf in _ = T return expr fs (t :: uvars) (vars ++ vars') T with 
+                         | refl_equal => @Expr.UVar types fs (t :: uvars) (vars ++ vars') FO
+                       end)
+            (fun f' pf => match pf in _ = T return expr fs (t :: uvars) (vars ++ vars') T with
+                            | refl_equal => @Expr.Var _ _ _ _ f'
+                          end)
+        | Expr.Func f vs => Expr.Func f (hlist_map _ (fun T x => @exprSubstEx T uvars vars vars' t x) vs)
+      end.
 
     Definition sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
       SHeap (t :: uvars) (vars ++ vars').
-    Admitted.
+    refine ({| funcs := dmap_map (fin sfuncs) _ _ (fun x l => map (fun hl => hlist_map _ _ hl) l) (funcs s)
+             ; pures := map (@exprSubstEx None _ _ _ _) (pures s)
+             ; other := other s
+             |}).    
+    refine (fun T e => exprSubstEx _ _ _ e).
+    Defined.
 
     Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
       { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } :=
