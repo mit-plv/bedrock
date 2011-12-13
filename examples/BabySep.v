@@ -18,7 +18,7 @@ Definition read := bmodule "read" {{
 Theorem readOk : moduleOk read.
   structured; autorewrite with sepFormula in *; simpl in *.
 
-  admit.
+  inBounds_contra.
 
   ho.
   admit.

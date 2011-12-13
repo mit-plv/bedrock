@@ -1,4 +1,5 @@
-Require Import List Word PropX IL Env Heaps SepTheoryX.
+Require Import Eqdep_dec List.
+Require Import Word PropX PropXTac IL Env Heaps SepTheoryX.
 
 Set Implicit Arguments.
 
@@ -18,7 +19,7 @@ Fixpoint memoryInUpto (width init : nat) (memHigh : word width) (m : word width 
     | O => HNil
     | S init' =>
       let w := natToWord width init' in
-        let v := if wlt_dec w memHigh then Some (m w) else None in
+        let v := if wlt_dec w memHigh then if wlt_dec (w ^+ $3) memHigh then Some (m w) else None else None in
           HCons v (memoryInUpto (width := width) init' memHigh m)
   end.
 
@@ -189,8 +190,6 @@ End SepFormula.
 Import SepFormula.
 Export SepFormula.
 
-Check subst.
-
 Definition substH sos (p1 : hpropB sos) (p2 : last sos -> PropX W (settings * state)) : hpropB (eatLast sos) :=
   fun st m => subst (p1 st m) p2.
 
@@ -227,3 +226,200 @@ Notation "![ p ]" := (sepFormula p%Sep) : PropX_scope.
 Definition natToByte (n : nat) : B := natToWord _ n.
 
 Coercion natToByte : nat >-> B.
+
+
+(** Isolating a points-to fact within a separation assertion *)
+
+Definition findPtsto (h : hpropB nil) (a : W) (v : B) :=
+  forall specs stn m, interp specs (h stn m)
+    -> smem_get a m = Some v.
+
+Theorem findPtsto_gotIt : forall a v,
+  findPtsto (hptstoB _ a v) a v.
+  unfold findPtsto; propxFo.
+Qed.
+
+Lemma join'1 : forall a v dom (m1 m2 : smem' dom),
+  smem_get' _ a m1 = Some v
+  -> smem_get' _ a (join' _ m1 m2) = Some v.
+  induction dom; simpl; intuition;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; subst; auto.
+  rewrite H; reflexivity.
+Qed.
+
+Theorem join1 : forall m1 m2 a v,
+  smem_get a m1 = Some v
+  -> smem_get a (join m1 m2) = Some v.
+  intros; apply join'1; auto.
+Qed.
+
+Local Hint Resolve join1.
+
+Theorem findPtsto_star1 : forall p1 p2 a v,
+  findPtsto p1 a v
+  -> findPtsto (starB p1 p2) a v.
+  unfold findPtsto; propxFo.
+  apply H in H0.
+  destruct H1; subst; auto.
+Qed.
+
+Lemma join'2 : forall a v dom (m1 m2 : smem' dom),
+  smem_get' _ a m1 = None
+  -> smem_get' _ a m2 = Some v
+  -> smem_get' _ a (join' _ m1 m2) = Some v.
+  induction dom; simpl; intuition;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; subst; auto.
+  rewrite H; assumption.
+Qed.
+
+Theorem join2 : forall m1 m2 a v,
+  smem_get a m1 = None
+  -> smem_get a m2 = Some v
+  -> smem_get a (join m1 m2) = Some v.
+  intros; apply join'2; auto.
+Qed.
+
+Lemma disjoint'_correct : forall a v dom (m1 m2 : smem' dom),
+  disjoint' _ m1 m2
+  -> smem_get' _ a m2 = Some v
+  -> smem_get' _ a m1 = None.
+  induction dom; simpl; intuition;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; subst; eauto.
+  congruence.
+Qed.
+
+Lemma disjoint_correct : forall a v m1 m2,
+  disjoint m1 m2
+  -> smem_get a m2 = Some v
+  -> smem_get a m1 = None.
+  intros; eapply disjoint'_correct; eauto.
+Qed.
+
+Local Hint Resolve disjoint_correct.
+
+Theorem findPtsto_star2 : forall p1 p2 a v,
+  findPtsto p2 a v
+  -> findPtsto (starB p1 p2) a v.
+  unfold findPtsto; propxFo.
+  apply H in H3.
+  destruct H1; subst; auto.
+  apply join2; auto.
+  eauto.
+Qed.
+
+Lemma findPtsto_inBounds'1 : forall a v (memHigh : W) m init,
+  smem_get' _ a (memoryInUpto init memHigh m) = Some v
+  -> a < memHigh.
+  induction init.
+  simpl; congruence.
+  unfold allWordsUpto.
+  fold allWordsUpto.
+  unfold smem_get'; fold smem_get'.
+  destruct (BedrockHeap.addr_dec (natToWord _ init) a); subst.
+  unfold memoryInUpto; fold memoryInUpto.
+  destruct (wlt_dec (natToWord _ init) memHigh); intuition.
+  discriminate.
+  auto.
+Qed.
+
+Lemma findPtsto_inBounds'2 : forall a v (memHigh : W) m init,
+  smem_get' _ a (memoryInUpto init memHigh m) = Some v
+  -> a ^+ $3 < memHigh.
+  induction init.
+  simpl; congruence.
+  unfold allWordsUpto.
+  fold allWordsUpto.
+  unfold smem_get'; fold smem_get'.
+  destruct (BedrockHeap.addr_dec (natToWord _ init) a); subst; auto.
+  unfold memoryInUpto; fold memoryInUpto.
+  destruct (wlt_dec (natToWord _ init) memHigh); intuition.
+  destruct (wlt_dec (natToWord _ init ^+ natToWord _ 3) memHigh); intuition.
+  discriminate.
+  discriminate.
+Qed.
+
+Local Opaque pow2.
+
+Lemma smem_get_inBounds : forall stn a v m,
+  smem_get a (memoryIn (MemHigh stn) m) = Some v
+  -> inBounds stn a.
+  unfold memoryIn; rewrite AllWords.memoryIn_eq; intros ? ? ? ?.
+  unfold smem_get, BedrockHeap.all_addr.
+  match goal with
+    | [ |- context[match ?pf with refl_equal => _ end] ] => generalize pf
+  end.
+  rewrite allWords_eq; intros.
+  rewrite (UIP_dec (list_eq_dec (@weq _)) e (refl_equal _)) in H.
+  unfold memoryIn_def, allWords_def in H.
+  split.
+  apply findPtsto_inBounds'1 with v m (pow2 32); assumption.
+  apply findPtsto_inBounds'2 with v m (pow2 32); assumption.
+Qed.
+
+Theorem findPtsto_inBounds : forall specs p st,
+  interp specs (sepFormula p st)
+  -> forall a v, findPtsto p a v
+    -> ~inBounds (fst st) a
+    -> False.
+  rewrite sepFormula_eq; intros.
+  apply H0 in H.
+  apply smem_get_inBounds in H.
+  tauto.
+Qed.
+
+Lemma smem_get'_read : forall a v (memHigh : W) m init,
+  smem_get' _ a (memoryInUpto init memHigh m) = Some v
+  -> m a = v.
+  induction init.
+  simpl; congruence.
+  unfold allWordsUpto.
+  fold allWordsUpto.
+  unfold smem_get'; fold smem_get'.
+  destruct (BedrockHeap.addr_dec (natToWord _ init) a); subst.
+  unfold memoryInUpto; fold memoryInUpto.
+  destruct (wlt_dec (natToWord _ init) memHigh); intuition.
+  destruct (wlt_dec (natToWord _ init ^+ natToWord _ 3) memHigh); intuition.
+  unfold hlist_hd in H.
+  congruence.
+  discriminate.
+  discriminate.
+  auto.
+Qed.
+
+Lemma smem_get_read : forall stn a v m,
+  smem_get a (memoryIn (MemHigh stn) m) = Some v
+  -> m a = v.
+  unfold memoryIn; rewrite AllWords.memoryIn_eq; intros ? ? ? ?.
+  unfold smem_get, BedrockHeap.all_addr.
+  match goal with
+    | [ |- context[match ?pf with refl_equal => _ end] ] => generalize pf
+  end.
+  rewrite allWords_eq; intros.
+  rewrite (UIP_dec (list_eq_dec (@weq _)) e (refl_equal _)) in H.
+  unfold memoryIn_def, allWords_def in H.
+  apply smem_get'_read with (MemHigh stn) (pow2 32); assumption.
+Qed.
+
+Theorem findPtsto_read : forall specs p st,
+  interp specs (sepFormula p st)
+  -> forall a v, findPtsto p a v
+    -> Mem (snd st) a = v.
+  rewrite sepFormula_eq; intros.
+  apply H0 in H.
+  eapply smem_get_read; eauto.
+Qed.
+
+
+(** * Tactics *)
+
+Ltac findPtsTo :=
+  apply findPtsto_gotIt || (apply findPtsto_star1; findPtsTo)
+    || (apply findPtsto_star2; findPtsTo).
+
+Ltac inBounds_contra := eapply findPtsto_inBounds; [ eassumption | findPtsTo | assumption ].
