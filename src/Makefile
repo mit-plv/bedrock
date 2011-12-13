@@ -3,7 +3,7 @@ MODULES    := OrderedType FMapList FMapAVL \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass Env PMap Reflect Expr ExprUnify \
 	Heaps SepTheoryX SepExpr Provers \
-	Bedrock
+	SepIL Bedrock
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package
