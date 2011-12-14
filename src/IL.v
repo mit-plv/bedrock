@@ -266,6 +266,12 @@ Record settings := {
   WriteWord : mem -> W -> W -> mem;
   ReadWord : mem -> W -> W;
   (* Word-size memory access operations, which encode the endianness *)
+  ReadWordFootprint : forall m m' a a',
+    m a = m' a'
+    -> m (a ^+ $1) = m' (a' ^+ $1)
+    -> m (a ^+ $2) = m' (a' ^+ $2)
+    -> m (a ^+ $3) = m' (a' ^+ $3)
+    -> ReadWord m a = ReadWord m' a';
   ReadWriteEq : forall m k v, ReadWord (WriteWord m k v) k = v;
   ReadWriteNe : forall m k v k', separated k' k
     -> ReadWord (WriteWord m k v) k' = ReadWord m k';

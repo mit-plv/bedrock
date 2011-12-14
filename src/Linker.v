@@ -563,6 +563,15 @@ Definition readWord (m : mem) (a : W) : W :=
   let b4 := m (a ^+ $3) in
     combine (combine b1 b2) (combine b3 b4).
 
+Theorem readWordFootprint : forall m m' a a',
+  m a = m' a'
+  -> m (a ^+ $1) = m' (a' ^+ $1)
+  -> m (a ^+ $2) = m' (a' ^+ $2)
+  -> m (a ^+ $3) = m' (a' ^+ $3)
+  -> readWord m a = readWord m' a'.
+  unfold readWord; congruence.
+Qed.
+
 Ltac readWrite :=
   unfold readWord, writeWord, separated, separatedB; intuition;
     repeat match goal with
@@ -642,6 +651,7 @@ Section testSettings.
     MemHigh := memHigh;
     WriteWord := writeWord;
     ReadWord := readWord;
+    ReadWordFootprint := readWordFootprint;
     ReadWriteEq := readWriteEq;
     ReadWriteNe := readWriteNe;
     ReadWriteNeB := readWriteNeB;

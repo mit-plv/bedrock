@@ -142,14 +142,32 @@ Import ST.HT.
 Export ST.HT.
 
 
+(** * Define some convenient connectives, etc. for specs *)
+
 Definition memoryIn : W -> mem -> smem := memoryIn (width := 32).
 
 Definition hpropB := hprop W (settings * state).
 
-Definition hptstoB sos : W -> B -> hpropB sos :=
+Definition ptsto8 sos : W -> B -> hpropB sos :=
   hptsto W (settings * state) sos.
 
-Notation "a ==> v" := (hptstoB _ a v) (no associativity, at level 39) : Sep_scope.
+Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope.
+
+Definition implode (stn : settings) (b0 b1 b2 b3 : B) (w : W) :=
+  ReadWord stn (fun a => if weq a ($0) then b0
+    else if weq a ($1) then b1
+      else if weq a ($2) then b2
+        else b3) ($0) = w.
+
+Definition ptsto32 sos (a v : W) : hpropB sos :=
+  (fun stn sm => [| exists b0, exists b1, exists b2, exists b3,
+    smem_get a sm = Some b0
+    /\ smem_get (a ^+ $1) sm = Some b1
+    /\ smem_get (a ^+ $2) sm = Some b2
+    /\ smem_get (a ^+ $3) sm = Some b3
+    /\ implode stn b0 b1 b2 b3 v |])%PropX.
+
+Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 
 Definition starB sos : hpropB sos -> hpropB sos -> hpropB sos :=
   @star W (settings * state) sos.
@@ -169,6 +187,8 @@ Notation "#2" := (![ #2%PropX ])%Sep : Sep_scope.
 Notation "#3" := (![ #3%PropX ])%Sep : Sep_scope.
 Notation "#4" := (![ #4%PropX ])%Sep : Sep_scope.
 
+
+(** * The main injector of separation formulas into PropX *)
 
 Definition sepFormula_def sos (p : hpropB sos) (st : settings * state) : propX W (settings * state) sos :=
   p (fst st) (memoryIn (MemHigh (fst st)) (Mem (snd st))).
@@ -200,26 +220,27 @@ Qed.
 
 Hint Rewrite subst_sepFormula : sepFormula.
 
-Theorem substH_ptsto : forall sos a v p,
-  substH (hptstoB sos a v) p = hptstoB _ a v.
+Theorem substH_ptsto8 : forall sos a v p,
+  substH (ptsto8 sos a v) p = ptsto8 _ a v.
   reflexivity.
 Qed.
 
-Hint Rewrite substH_ptsto : sepFormula.
+Theorem substH_ptsto32 : forall sos a v p,
+  substH (ptsto32 sos a v) p = ptsto32 _ a v.
+  reflexivity.
+Qed.
 
 Theorem substH_star : forall sos (p1 p2 : hpropB sos) p3,
   substH (starB p1 p2) p3 = starB (substH p1 p3) (substH p2 p3).
   reflexivity.
 Qed.
 
-Hint Rewrite substH_star : sepFormula.
-
 Theorem substH_hvar : forall sos (x : smem -> propX W (settings * state) sos) p,
   substH (hvarB x) p = hvarB (fun m => subst (x m) p).
   reflexivity.
 Qed.
 
-Hint Rewrite substH_hvar : sepFormula.
+Hint Rewrite substH_ptsto8 substH_ptsto32 substH_star substH_hvar : sepFormula.
 
 Notation "![ p ]" := (sepFormula p%Sep) : PropX_scope.
 
@@ -228,15 +249,15 @@ Definition natToByte (n : nat) : B := natToWord _ n.
 Coercion natToByte : nat >-> B.
 
 
-(** Isolating a points-to fact within a separation assertion *)
+(** Isolating a byte points-to fact within a separation assertion *)
 
-Definition findPtsto (h : hpropB nil) (a : W) (v : B) :=
+Definition findPtsto8 (h : hpropB nil) (a : W) (v : B) :=
   forall specs stn m, interp specs (h stn m)
     -> smem_get a m = Some v.
 
-Theorem findPtsto_gotIt : forall a v,
-  findPtsto (hptstoB _ a v) a v.
-  unfold findPtsto; propxFo.
+Theorem findPtsto8_gotIt : forall a v,
+  findPtsto8 (ptsto8 _ a v) a v.
+  unfold findPtsto8; propxFo.
 Qed.
 
 Lemma join'1 : forall a v dom (m1 m2 : smem' dom),
@@ -257,10 +278,10 @@ Qed.
 
 Local Hint Resolve join1.
 
-Theorem findPtsto_star1 : forall p1 p2 a v,
-  findPtsto p1 a v
-  -> findPtsto (starB p1 p2) a v.
-  unfold findPtsto; propxFo.
+Theorem findPtsto8_star1 : forall p1 p2 a v,
+  findPtsto8 p1 a v
+  -> findPtsto8 (starB p1 p2) a v.
+  unfold findPtsto8; propxFo.
   apply H in H0.
   destruct H1; subst; auto.
 Qed.
@@ -303,17 +324,17 @@ Qed.
 
 Local Hint Resolve disjoint_correct.
 
-Theorem findPtsto_star2 : forall p1 p2 a v,
-  findPtsto p2 a v
-  -> findPtsto (starB p1 p2) a v.
-  unfold findPtsto; propxFo.
+Theorem findPtsto8_star2 : forall p1 p2 a v,
+  findPtsto8 p2 a v
+  -> findPtsto8 (starB p1 p2) a v.
+  unfold findPtsto8; propxFo.
   apply H in H3.
   destruct H1; subst; auto.
   apply join2; auto.
   eauto.
 Qed.
 
-Lemma findPtsto_inBounds'1 : forall a v (memHigh : W) m init,
+Lemma findPtsto8_inBounds'1 : forall a v (memHigh : W) m init,
   smem_get' _ a (memoryInUpto init memHigh m) = Some v
   -> a < memHigh.
   induction init.
@@ -328,7 +349,7 @@ Lemma findPtsto_inBounds'1 : forall a v (memHigh : W) m init,
   auto.
 Qed.
 
-Lemma findPtsto_inBounds'2 : forall a v (memHigh : W) m init,
+Lemma findPtsto8_inBounds'2 : forall a v (memHigh : W) m init,
   smem_get' _ a (memoryInUpto init memHigh m) = Some v
   -> a ^+ $3 < memHigh.
   induction init.
@@ -358,13 +379,13 @@ Lemma smem_get_inBounds : forall stn a v m,
   rewrite (UIP_dec (list_eq_dec (@weq _)) e (refl_equal _)) in H.
   unfold memoryIn_def, allWords_def in H.
   split.
-  apply findPtsto_inBounds'1 with v m (pow2 32); assumption.
-  apply findPtsto_inBounds'2 with v m (pow2 32); assumption.
+  apply findPtsto8_inBounds'1 with v m (pow2 32); assumption.
+  apply findPtsto8_inBounds'2 with v m (pow2 32); assumption.
 Qed.
 
-Theorem findPtsto_inBounds : forall specs p st,
+Theorem findPtsto8_inBounds : forall specs p st,
   interp specs (sepFormula p st)
-  -> forall a v, findPtsto p a v
+  -> forall a v, findPtsto8 p a v
     -> ~inBounds (fst st) a
     -> False.
   rewrite sepFormula_eq; intros.
@@ -406,9 +427,9 @@ Lemma smem_get_read : forall stn a v m,
   apply smem_get'_read with (MemHigh stn) (pow2 32); assumption.
 Qed.
 
-Theorem findPtsto_read : forall specs p st,
+Theorem findPtsto8_read : forall specs p st,
   interp specs (sepFormula p st)
-  -> forall a v, findPtsto p a v
+  -> forall a v, findPtsto8 p a v
     -> Mem (snd st) a = v.
   rewrite sepFormula_eq; intros.
   apply H0 in H.
@@ -416,10 +437,82 @@ Theorem findPtsto_read : forall specs p st,
 Qed.
 
 
+(** Isolating a word points-to fact within a separation assertion *)
+
+Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
+  forall specs sm, interp specs (h stn sm)
+    -> exists b0, exists b1, exists b2, exists b3,
+      smem_get a sm = Some b0
+      /\ smem_get (a ^+ $1) sm = Some b1
+      /\ smem_get (a ^+ $2) sm = Some b2
+      /\ smem_get (a ^+ $3) sm = Some b3
+      /\ implode stn b0 b1 b2 b3 v.
+
+Theorem findPtsto32_gotIt : forall stn a v,
+  findPtsto32 stn (ptsto32 _ a v) a v.
+  unfold findPtsto32; propxFo.
+Qed.
+
+Theorem findPtsto32_star1 : forall stn p1 p2 a v,
+  findPtsto32 stn p1 a v
+  -> findPtsto32 stn (starB p1 p2) a v.
+  unfold findPtsto32; propxFo.
+  apply H in H0; clear H; propxFo.
+  destruct H1; subst; eauto 13.
+Qed.
+
+Theorem findPtsto32_star2 : forall stn p1 p2 a v,
+  findPtsto32 stn p2 a v
+  -> findPtsto32 stn (starB p1 p2) a v.
+  unfold findPtsto32; propxFo.
+  apply H in H3; clear H; propxFo.
+  destruct H1; subst.
+  repeat esplit; eauto; apply join2; eauto.
+Qed.
+
+Theorem findPtsto32_inBounds : forall specs p st,
+  interp specs (sepFormula p st)
+  -> forall a v, findPtsto32 (fst st) p a v
+    -> ~inBounds (fst st) a
+    -> False.
+  rewrite sepFormula_eq; intros.
+  apply H0 in H; clear H0; propxFo.
+  apply smem_get_inBounds in H0.
+  tauto.
+Qed.
+
+Theorem findPtsto32_read : forall specs p stn st,
+  interp specs (sepFormula p (stn, st))
+  -> forall a v, findPtsto32 stn p a v
+    -> ReadWord stn (Mem st) a = v.
+  rewrite sepFormula_eq; intros.
+  apply H0 in H; clear H0; propxFo.
+  red in H4.
+  match type of H4 with
+    | ReadWord _ ?m _ = _ => pose (m' := m)
+  end.
+  rewrite ReadWordFootprint with stn (Mem st) m' a ($0); subst m'; simpl; eauto;
+    eapply smem_get_read; eauto.
+Qed.
+
+
 (** * Tactics *)
 
-Ltac findPtsTo :=
-  apply findPtsto_gotIt || (apply findPtsto_star1; findPtsTo)
-    || (apply findPtsto_star2; findPtsTo).
+Ltac findPtsTo8 :=
+  apply findPtsto8_gotIt || (apply findPtsto8_star1; findPtsTo8)
+    || (apply findPtsto8_star2; findPtsTo8).
 
-Ltac inBounds_contra := eapply findPtsto_inBounds; [ eassumption | findPtsTo | assumption ].
+Ltac findPtsTo32 :=
+  apply findPtsto32_gotIt || (apply findPtsto32_star1; findPtsTo32)
+    || (apply findPtsto32_star2; findPtsTo32).
+
+Ltac inBounds_contra8 := eapply findPtsto8_inBounds; [ eassumption | findPtsTo8 | assumption ].
+Ltac inBounds_contra32 := eapply findPtsto32_inBounds; [ eassumption | findPtsTo32 | assumption ].
+
+Ltac inBounds_contra := inBounds_contra8 || inBounds_contra32.
+
+Hint Extern 1 False => inBounds_contra.
+
+Ltac sepRead := match goal with
+                  | [ H : interp _ _ |- _ ] => erewrite (findPtsto32_read H); [ | findPtsTo32 ]
+                end.
