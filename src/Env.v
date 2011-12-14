@@ -170,90 +170,6 @@ Section fin.
   simpl. rewrite l. refine (refl_equal).
 Defined.
 
-(*
-  Fixpoint fin_remove T ls t ls' {struct ls} : fin (ls ++ t :: ls') -> T -> (fin (ls ++ ls') -> T) -> T :=
-    match ls as ls return fin (ls ++ t :: ls') -> T -> (fin (ls ++ ls') -> T) -> T with 
-      | nil => fun (f : fin (t :: ls')) => 
-        match f in fin z 
-          return match z with
-                   | nil => unit
-                   | a :: b => T -> (fin b -> T) -> T
-                 end
-          with 
-          | FO _ _ => fun D _ => D
-          | FS _ _ f => fun _ F => F f
-        end
-      | a :: b => fun (f : fin (a :: b ++ t :: ls')) D F =>
-        match finOut f with
-          | inleft s =>
-            fin_remove _ _ _ (projT1 s) D (fun x => F (FS _ x))
-          | inright l => F (FO _ _)
-        end
-    end.
-*)
-
-(*
-  Fixpoint liftDmid' (ls'' ls ls' ls''': list A) e {struct ls'} : forall (i : fin ls'''),
-    ls' ++ ls = ls''' ->
-    (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
-       { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
-    { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i } :=
-    match ls' return 
-      forall (i : fin ls'''),
-        ls' ++ ls = ls''' ->
-        (forall y : { i' : fin (ls' ++ e ++ ls) &  get i' = get i },
-       { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }) ->
-        { x : fin (ls'' ++ ls' ++ e ++ ls) & get x = get i }
-      with
-      | nil => fun (i : fin ls''') (pf : ls = ls''') =>
-        match eq_sym pf in _ = t 
-          return ({i' : fin (nil ++ e ++ t) & get i' = get i} ->
-            {x : fin (ls'' ++ nil ++ e ++ t) & get x = get i}) ->
-          {x : fin (ls'' ++ nil ++ e ++ t) & get x = get i}
-          with 
-          | refl_equal => fun cc => cc (liftD e i)
-        end
-      | a :: b => fun i =>
-        match i in fin ls''' return 
-          (a :: b) ++ ls = ls''' ->
-          ({i' : fin ((a :: b) ++ e ++ ls) & get i' = get i} ->
-            {x : fin (ls'' ++ (a :: b) ++ e ++ ls) & get x = get i}) ->
-          {x : fin (ls'' ++ (a :: b) ++ e ++ ls) & get x = get i}
-          with 
-          | FO x _ => fun pf cc =>
-            cc (@existT _ _ (FO _ _) match pf in _ = t return match t with
-                                                                | nil => Empty_set
-                                                                | x :: _ => a = x
-                                                              end
-                                       with
-                                       | refl_equal => refl_equal _
-                                     end)
-            
-          | FS _ LX f => fun pf cc => 
-            match pf_list_simpl a (b ++ e ++ ls) ls'' in _ = t
-              return 
-              ({i' : fin (b ++ e ++ ls) & get i' = get f} ->
-                {x : fin t & get x = get f}) ->
-              {x : fin t & get x = get f}
-              with
-              | refl_equal => 
-                @liftDmid' (ls'' ++ a :: nil) ls b LX e f 
-                match pf in _ = t return
-                  match t with
-                    | nil => Empty_set 
-                    | a' :: b' => b ++ ls = b'
-                  end
-                  with
-                  | refl_equal => refl_equal _
-                end
-            end
-            (fun z => match z with
-                        | existT v pf => cc (@existT _ _ (FS a v) pf)
-                      end)
-        end
-    end.
-*)
-
   Fixpoint liftDmid (ls ls' : list A) e : forall (i : fin (ls' ++ ls)),
     { x : fin (ls' ++ e ++ ls) & get x = get i }.
   refine (
@@ -292,6 +208,17 @@ Defined.
         destruct (liftD (y ++ a) x0). simpl. uip_all.
         generalize e e2. rewrite <- e2. uip_all. reflexivity.
     Qed.
+
+    Lemma liftDmid_lift_nil : forall (a b : list A) x0,
+      projT1 (liftDmid a b nil x0) = x0.
+    Proof.
+      induction b; simpl; intros; auto.
+      destruct (finOut x0). destruct s. subst.
+      specialize (IHb x). destruct (liftDmid a b nil x). simpl in *. subst; auto.
+
+      subst. simpl. reflexivity.
+    Qed.
+
 
     Lemma liftDmid_liftDmid_app : forall x y z a x0,
       projT1 (liftDmid (a ++ z) x y (projT1 (liftDmid z x a x0)))

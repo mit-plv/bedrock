@@ -282,8 +282,9 @@ Section Lifting.
     liftExpr vars' nil vars e = e.
   Proof.
     induction e using expr_ind_strong; simpl; auto.
-    assert (liftDmid vars vars' nil x = @existT _ _ x (refl_equal _)). admit.
-    rewrite H. auto.
+    generalize (liftDmid_lift_nil vars vars' x).
+    destruct (liftDmid vars vars' nil x). simpl; intros; subst.
+    simpl in *. uip_all. auto.
     f_equal. induction h; simpl; auto. simpl in *. firstorder. f_equal; auto.
   Qed.
 
@@ -329,6 +330,45 @@ Section Lifting.
           Func f (@hlist_map _ _ (expr funcs (uvars' ++ ext ++ uvars) vars) (fun t (x : expr funcs (uvars' ++ uvars) vars t) => liftExprU x) _ a)
       end.
   End UVars.
+
+  Section Usubst.
+    Fixpoint exprSubstU T a b c d (s : expr funcs a (b ++ c ++ d) T) {struct s}
+      : expr funcs (c ++ a) (b ++ d) T.
+    refine (match s in expr _ _ _ T return expr funcs (c ++ a) (b ++ d) T with
+              | Const _ t => Const _ _ _ _ t
+              | Var _ => _
+              | UVar x => @liftExprU nil c a (b ++ d) (get a x) (UVar funcs _ x)
+              | Func f args => Func f (hlist_map _ (fun T e => exprSubstU T a b c d e) args)
+            end);
+    clear exprSubstU; admit.
+    Defined.
+
+
+    Lemma exprSubstU_denote : forall T a b c d (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) 
+      (D : hlist _ d) (e : expr funcs a _ T), 
+      exprD A (hlist_app B (hlist_app C D)) e =
+      exprD (hlist_app C A) (hlist_app B D) (@exprSubstU _ a b c d e).
+    Proof.
+      induction e using expr_ind_strong; intros; auto.
+        admit.
+        simpl. generalize (@hlist_get_lift _ _ _ nil _ _ x HNil C A). simpl in *.
+          intro. rewrite H. clear. unfold tvar in *. destruct (liftD c x).
+          change (hlist_get x0 (hlist_app C A)) with
+            (exprD (hlist_app C A) (hlist_app B D) (UVar funcs (b ++ d) x0)).
+          generalize (UVar funcs (b ++ d) x0). clear.
+          generalize e. rewrite <- e. uip_all. auto.
+          
+          simpl. generalize dependent (Denotation (get funcs f2)).
+          generalize dependent (Domain (get funcs f2)).
+          induction l. intros; rewrite (hlist_nil_only _ h) in *. simpl. auto.
+          
+          intros. simpl in *. rewrite (hlist_eta _ h) in *. rewrite (hlist_eta _ h) in H. 
+          simpl in *. inversion H. intuition; rewrite IHl. rewrite H0. auto. auto.
+    Qed.
+
+  End Usubst.
+
+
 
 End Lifting.
 

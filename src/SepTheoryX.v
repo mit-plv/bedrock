@@ -220,13 +220,13 @@ Module SepTheoryX (H : Heap).
       (forall v, himp (P v) Q) -> himp (ex P) Q.
     
       intros. unfold himp, ex in *; simpl in *; intros. propxFo. eauto.
-    Qed. 
+    Qed.
 
     Theorem himp_ex_c : forall T (P : T -> _) Q, 
       (exists v, himp Q (P v)) -> himp Q (ex P).
     Proof.
       intros. unfold himp, ex in *; simpl in *; intros. propxFo. exists x. propxFo.
-    Qed. 
+    Qed.
 
     Hint Resolve simplify_fwd : heaps.
 
