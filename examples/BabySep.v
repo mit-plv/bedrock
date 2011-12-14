@@ -5,8 +5,8 @@ Set Implicit Arguments.
 
 (** * Let's read from memory! *)
 
-Definition readS : assert := st ~> ExX, ![ 0 ==> 0 * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = 0 |] /\ ![ 0 ==> 0 * #1 ] st).
+Definition readS : assert := st ~> ExX, Ex v, ![ 0 ==> v * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ 0 ==> v * #1 ] st).
 
 Definition read := bmodule "read" {{
   bfunction "read" [readS] {
