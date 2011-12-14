@@ -137,10 +137,8 @@ Section fin.
                     end
     end.
 
-
   Fixpoint fin_remove (U : Type) ls t ls' : forall (f : fin (ls ++ t :: ls')),
-    (t = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U.
-  refine (
+    (t = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U :=
     match ls as ls 
       return forall f : fin (ls ++ t :: ls'), (t = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U 
       with 
@@ -157,18 +155,65 @@ Section fin.
       | a :: b => fun (f : fin (a :: b ++ t :: ls')) D F =>
         match finOut f with
           | inleft s =>
-            @fin_remove _ _ _ _ (projT1 s) _ _ 
-          | inright l => F (FO _ _) _
+            @fin_remove _ _ _ _ (projT1 s)
+              (match eq_sym (projT2 s) in _ = t' return (t = get t' -> U) -> (t = get (projT1 s)) -> U with
+                 | refl_equal => fun x => x
+               end D) 
+              (fun x' pf => F (FS _ x')
+                match eq_sym (projT2 s) in _ = t return get (FS a x') = get t with
+                  | refl_equal => pf
+                end)
+          | inright l => F (FO _ _) match eq_sym l in _ = t return get (FO _ _) = get t with
+                                      | refl_equal => refl_equal
+                                    end
         end
-    end).
+    end.
 
+  Fixpoint fin_remove_range' (U : Type) ls'' ls' : forall (f : fin (ls'' ++ ls')),
+    (forall x' : fin ls'', get x' = get f -> U) -> (forall f' : fin (ls'), get f' = get f -> U) -> U :=
+    match ls'' as ls''
+      return forall f : fin (ls'' ++ ls'), (forall x' : fin ls'', get x' = get f -> U) -> (forall f' : fin ls', get f' = get f -> U) -> U 
+      with 
+      | nil => fun (f : fin ls') => fun _ z => z f refl_equal
+      | a :: b => fun (f : fin (a :: b ++  ls')) D F => 
+        match finOut f with
+          | inleft s =>
+            @fin_remove_range' _ b ls' (projT1 s) 
+              (fun x' pf => D (FS _ x') match eq_sym (projT2 s) in _ = t return get (FS a x') = get t with
+                                          | refl_equal => pf
+                                        end)
+              (fun x' pf => F x' match eq_sym (projT2 s) in _ = t return get x' = get t with
+                                   | refl_equal => pf
+                                 end)
+          | inright l => D (FO _ _) match eq_sym l in _ = t return get (FO a b) = get t with
+                                      | refl_equal => refl_equal
+                                    end
+        end
+    end.
 
-  rewrite (projT2 s) in D. apply D.
-  destruct s; simpl in *.
-  refine (fun f' _ => F (FS _ f') _). rewrite e. assumption.
+  Fixpoint fin_remove_range (U : Type) ls ls'' ls' : forall (f : fin (ls ++ ls'' ++ ls')),
+    (forall x' : fin ls'', get x' = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U :=
+    match ls as ls 
+      return forall f : fin (ls ++ ls'' ++ ls'), (forall x' : fin ls'', get x' = get f -> U) -> (forall f' : fin (ls ++ ls'), get f' = get f -> U) -> U 
+      with 
+      | nil => fun (f : fin (ls'' ++ ls')) => @fin_remove_range' U ls'' ls' f
+      | a :: b => fun (f : fin (a :: b ++ ls'' ++  ls')) D F =>
+        match finOut f with
+          | inleft s =>
+            @fin_remove_range _ _ _ _ (projT1 s) 
+              (fun x' pf => D x' match eq_sym (projT2 s) in _ = t return get x' = get t with
+                                   | refl_equal => pf
+                                 end)
+              (fun x' pf => F (FS _ x') match eq_sym (projT2 s) in _ = t return get (FS _ x') = get t with
+                                          | refl_equal => pf
+                                        end)
+          | inright l => F (FO _ _) 
+              match eq_sym l in _ = t return get (FO _ _) = get t with
+                | refl_equal => refl_equal
+              end
+        end
+    end.
 
-  simpl. rewrite l. refine (refl_equal).
-Defined.
 
   Fixpoint liftDmid (ls ls' : list A) e : forall (i : fin (ls' ++ ls)),
     { x : fin (ls' ++ e ++ ls) & get x = get i }.
@@ -405,6 +450,24 @@ Defined.
         destruct (liftDmid ls'' ls ls' x). reflexivity.
         subst. reflexivity.
     Qed.
+
+    Theorem hlist_get_remove_range : forall U a b c (A : hlist a) (B' : hlist b) (C : hlist c) x P (D : forall x' : fin b, get x' = get x -> U) F,
+      (forall x' (pf : get x' = get x), 
+        hlist_get x' B' = match eq_sym pf in _ = z return B z with
+                            | refl_equal => hlist_get x (hlist_app A (hlist_app B' C))
+                          end -> 
+        P (D x' pf)) ->
+      (forall x' pf, 
+        hlist_get x' (hlist_app A C) = match eq_sym pf in _ = t return B t with
+                                         | refl_equal => hlist_get x (hlist_app A (hlist_app B' C))
+                                       end -> 
+        P (F x' pf)) ->
+      P (@fin_remove_range U a b c x D F).
+    Proof.
+      Admitted.
+      
+      
+
   End hlist_Proofs.
 
   Fixpoint absAll (ls : list A) :

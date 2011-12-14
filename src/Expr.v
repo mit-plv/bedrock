@@ -333,16 +333,33 @@ Section Lifting.
 
   Section Usubst.
     Fixpoint exprSubstU T a b c d (s : expr funcs a (b ++ c ++ d) T) {struct s}
-      : expr funcs (c ++ a) (b ++ d) T.
-    refine (match s in expr _ _ _ T return expr funcs (c ++ a) (b ++ d) T with
-              | Const _ t => Const _ _ _ _ t
-              | Var _ => _
-              | UVar x => @liftExprU nil c a (b ++ d) (get a x) (UVar funcs _ x)
-              | Func f args => Func f (hlist_map _ (fun T e => exprSubstU T a b c d e) args)
-            end);
-    clear exprSubstU; admit.
-    Defined.
-
+      : expr funcs (c ++ a) (b ++ d) T :=
+      match s in expr _ _ _ T return expr funcs (c ++ a) (b ++ d) T with
+        | Const _ t => Const _ _ _ _ t
+        | Var x => 
+          fin_remove_range _ _ x 
+          (fun x' pf => 
+            match pf in _ = t return expr funcs (c ++ a) (b ++ d) t with
+              | refl_equal =>
+                match app_nil_r c in _ = t 
+                  return forall x' : fin t, expr funcs (c ++ a) (b ++ d) (get t x') with
+                  | refl_equal => fun x' => 
+                    let x' := liftDmid nil c a x' in
+                    match (projT2 x') in _ = t return expr funcs _ _ t with
+                      | refl_equal =>
+                        match eq_sym (app_nil_r a) in _ = t
+                          return forall z, expr funcs _ _ (get (c ++ t) z) with
+                          | refl_equal => UVar _ _ 
+                        end (projT1 x')
+                    end
+                end x'
+            end)
+          (fun x' pf => match pf in _ = t return expr _ _ _ t with
+                          | refl_equal => Var _ _ x'
+                        end)
+        | UVar x => @liftExprU nil c a (b ++ d) (get a x) (UVar funcs _ x)
+        | Func f args => Func f (hlist_map _ (fun T e => @exprSubstU T a b c d e) args)
+      end.
 
     Lemma exprSubstU_denote : forall T a b c d (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) 
       (D : hlist _ d) (e : expr funcs a _ T), 
@@ -350,7 +367,18 @@ Section Lifting.
       exprD (hlist_app C A) (hlist_app B D) (@exprSubstU _ a b c d e).
     Proof.
       induction e using expr_ind_strong; intros; auto.
+        Focus.
+        simpl. eapply hlist_get_remove_range.
+        instantiate (2 := C). instantiate (1 := D). instantiate (1 := B).
+        intros x' pf. uip_all. generalize dependent H. generalize pf e1 e0 e.
+        generalize x x'. simpl in *.
+        
+        Focus 2.
+        simpl. intros. generalize dependent H. uip_all.
+        generalize dependent H. generalize e pf. generalize x x'.
         admit.
+        admit.
+        
         simpl. generalize (@hlist_get_lift _ _ _ nil _ _ x HNil C A). simpl in *.
           intro. rewrite H. clear. unfold tvar in *. destruct (liftD c x).
           change (hlist_get x0 (hlist_app C A)) with
