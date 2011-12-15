@@ -147,6 +147,15 @@ Export ST.HT.
 Definition memoryIn : W -> mem -> smem := memoryIn (width := 32).
 
 Definition hpropB := hprop W (settings * state).
+Definition HProp := hpropB nil.
+
+Definition injB sos (P : Prop) : hpropB sos := inj (Inj P).
+
+Notation "[| P |]" := (injB _ P) : Sep_scope.
+
+Definition injBX sos (P : propX W (settings * state) sos) : hpropB sos := inj P.
+
+Notation "[|| P ||]" := (injBX P) : Sep_scope.
 
 Definition ptsto8 sos : W -> B -> hpropB sos :=
   hptsto W (settings * state) sos.
@@ -174,6 +183,11 @@ Definition starB sos : hpropB sos -> hpropB sos -> hpropB sos :=
 
 Infix "*" := starB : Sep_scope.
 
+Definition exB sos T (p : T -> hpropB sos) : hpropB sos := ex p.
+
+Notation "'Ex' x , p" := (exB (fun x => p)) : Sep_scope.
+Notation "'Ex' x : A , p" := (exB (fun x : A => p)) : Sep_scope.
+
 Definition hvarB sos (x : smem -> propX W (settings * state) sos) : hpropB sos :=
   fun _ => x.
 
@@ -186,6 +200,12 @@ Notation "#1" := (![ #1%PropX ])%Sep : Sep_scope.
 Notation "#2" := (![ #2%PropX ])%Sep : Sep_scope.
 Notation "#3" := (![ #3%PropX ])%Sep : Sep_scope.
 Notation "#4" := (![ #4%PropX ])%Sep : Sep_scope.
+
+Definition Himp (p1 p2 : HProp) :=
+  forall specs stn sm, interp specs (p1 stn sm)
+    -> interp specs (p2 stn sm).
+
+Notation "p1 ===> p2" := (Himp p1%Sep p2%Sep) (no associativity, at level 90).
 
 
 (** * The main injector of separation formulas into PropX *)
@@ -220,6 +240,16 @@ Qed.
 
 Hint Rewrite subst_sepFormula : sepFormula.
 
+Theorem substH_inj : forall sos P p,
+  substH (injB sos P) p = injB _ P.
+  reflexivity.
+Qed.
+
+Theorem substH_injX : forall sos P p,
+  substH (injBX (sos := sos) P) p = injBX (subst P p).
+  reflexivity.
+Qed.
+
 Theorem substH_ptsto8 : forall sos a v p,
   substH (ptsto8 sos a v) p = ptsto8 _ a v.
   reflexivity.
@@ -235,12 +265,17 @@ Theorem substH_star : forall sos (p1 p2 : hpropB sos) p3,
   reflexivity.
 Qed.
 
+Theorem substH_ex : forall sos A (p1 : A -> hpropB sos) p2,
+  substH (exB p1) p2 = exB (fun x => substH (p1 x) p2).
+  reflexivity.
+Qed.
+
 Theorem substH_hvar : forall sos (x : smem -> propX W (settings * state) sos) p,
   substH (hvarB x) p = hvarB (fun m => subst (x m) p).
   reflexivity.
 Qed.
 
-Hint Rewrite substH_ptsto8 substH_ptsto32 substH_star substH_hvar : sepFormula.
+Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar : sepFormula.
 
 Notation "![ p ]" := (sepFormula p%Sep) : PropX_scope.
 
