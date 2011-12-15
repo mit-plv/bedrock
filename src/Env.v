@@ -522,6 +522,29 @@ Section fin.
       generalize e. rewrite <- e. uip_all. auto.
     Qed.
 
+    Lemma hlist_get_remove_range' : forall U a b (A : hlist a) (B' : hlist b) x P 
+      (D : forall x' : fin a, get x' = get x -> U) F,
+      (forall x' (pf : get x' = get x), 
+        hlist_get x (hlist_app A B') = 
+          match pf in _ = z return B z with
+            | refl_equal => hlist_get x' A
+          end -> 
+        P (D x' pf)) ->
+      (forall x' pf, 
+        hlist_get x (hlist_app A B') = 
+          match pf in _ = t return B t with
+            | refl_equal => hlist_get x' B'
+          end -> 
+        P (F x' pf)) ->
+      P (@fin_remove_range' U a b x D F).
+    Proof.
+      clear dec cmp ocmp.
+      induction a; simpl; intros; eauto.
+      destruct (finOut x) as [ [ ? ? ] | ? ]; subst; simpl; eauto.
+      eapply IHa; eauto.
+    Qed.
+
+
     Theorem hlist_get_remove_range : forall U a b c (A : hlist a) (B' : hlist b) (C : hlist c) x P (D : forall x' : fin b, get x' = get x -> U) F,
       (forall x' (pf : get x' = get x), 
         hlist_get x (hlist_app A (hlist_app B' C)) = 
@@ -538,11 +561,12 @@ Section fin.
       P (@fin_remove_range U a b c x D F).
     Proof.
       clear dec cmp ocmp.
-    
-      
-    Admitted.
-      
-      
+      induction a; simpl; intros.
+      eapply hlist_get_remove_range'; eauto.
+      destruct (finOut x); subst; simpl.
+        destruct s; subst; simpl. eapply IHa; eauto.
+        eapply X0. auto.
+    Qed.      
 
   End hlist_Proofs.
 
