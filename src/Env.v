@@ -235,6 +235,16 @@ Section fin.
   rewrite pf; reflexivity.
   Defined.
 
+  Fixpoint liftDend (ls : list A) e (i : fin ls) :
+    { x : fin (ls ++ e) & get x = get i } :=
+    match i as i in fin ls return { x : fin (ls ++ e) & get x = get i } with
+      | FO _ _ => existT _ (FO _ _) refl_equal
+      | FS _ _ f =>
+        match liftDend e f with
+         | existT _ e => existT _ (FS _ _) e
+        end
+    end.
+
   Section liftD_Proofs.
     Variable EQ : EqDec A (@eq A).
 
@@ -382,6 +392,50 @@ Section fin.
       end); clear hlistCmp; abstract congruence.
   Defined.
 
+  Variable ocmp : forall x (y z : B x), option (dcomp y z).
+  Fixpoint hlistOCmp x (y : hlist x) : forall (z : hlist x), option (dcomp y z).
+    refine (
+      match y as y in hlist x return forall z : hlist x, option (dcomp y z) with
+        | HNil => fun z => 
+          match z in hlist x return match x return hlist x -> Type with
+                                      | nil => fun z => option (dcomp HNil z)
+                                      | _ => fun _ => unit
+                                    end z with
+            | HNil => Some (Eq _)
+            | _ => tt
+          end
+        | HCons _ _ v1 y' => fun z => 
+          match z in hlist x return match x return hlist x -> Type with
+                                      | nil => fun _ => unit
+                                      | t :: x' => fun z => forall (v1 : B t) (y' : hlist x'),
+                                        (forall v2, option (dcomp v1 v2))
+                                        -> (forall z', option (dcomp y' z'))
+                                        -> option (dcomp (HCons v1 y') z)
+                                    end z with
+            | HNil => tt
+            | HCons _ _ v2 z' => fun v1 _ cmp' self => 
+              match cmp' v2 with
+                | None =>
+                  match self z' with
+                    | None => None
+                    | Some Gt => Some (Gt _ _)
+                    | Some Lt => Some (Lt _ _)
+                    | Some (Eq _) => None
+                  end
+                | Some (Eq _) => 
+                  match self z' with
+                    | None => None
+                    | Some Gt => Some (Gt _ _)
+                    | Some Lt => Some (Lt _ _)
+                    | Some (Eq _) => Some (Eq _)
+                  end
+                | Some Gt => Some (Gt _ _)
+                | Some Lt => Some (Lt _ _)
+              end
+          end v1 y' (ocmp v1) (hlistOCmp _ y')
+      end); clear hlistOCmp; abstract congruence.
+  Defined.
+
   Fixpoint hlist_get (ls : list A) (i : fin ls) : hlist ls -> B (get i) :=
     match i in fin ls return hlist ls -> B (get i) with
       | FO _ _ => fun hl => hlist_hd hl
@@ -451,20 +505,42 @@ Section fin.
         subst. reflexivity.
     Qed.
 
+    Theorem hlist_get_lift_end : forall ls' G' ls (f : fin ls) G,
+      hlist_get f G = 
+      match liftDend ls' f with
+        | existT f' pf => 
+          match pf in _ = t return B t with
+            | refl_equal => 
+              hlist_get f' (hlist_app G G')
+          end
+      end.
+    Proof.
+      clear dec cmp ocmp.
+      induction f; simpl; auto.
+      destruct f; simpl in *. auto.
+      intros. rewrite IHf. clear IHf. destruct (liftDend ls' f).
+      generalize e. rewrite <- e. uip_all. auto.
+    Qed.
+
     Theorem hlist_get_remove_range : forall U a b c (A : hlist a) (B' : hlist b) (C : hlist c) x P (D : forall x' : fin b, get x' = get x -> U) F,
       (forall x' (pf : get x' = get x), 
-        hlist_get x' B' = match eq_sym pf in _ = z return B z with
-                            | refl_equal => hlist_get x (hlist_app A (hlist_app B' C))
-                          end -> 
+        hlist_get x (hlist_app A (hlist_app B' C)) = 
+          match pf in _ = z return B z with
+            | refl_equal => hlist_get x' B'
+          end -> 
         P (D x' pf)) ->
       (forall x' pf, 
-        hlist_get x' (hlist_app A C) = match eq_sym pf in _ = t return B t with
-                                         | refl_equal => hlist_get x (hlist_app A (hlist_app B' C))
-                                       end -> 
+        hlist_get x (hlist_app A (hlist_app B' C)) = 
+          match pf in _ = t return B t with
+            | refl_equal => hlist_get x' (hlist_app A C) 
+          end -> 
         P (F x' pf)) ->
       P (@fin_remove_range U a b c x D F).
     Proof.
-      Admitted.
+      clear dec cmp ocmp.
+    
+      
+    Admitted.
       
       
 

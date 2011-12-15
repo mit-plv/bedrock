@@ -325,49 +325,6 @@ Module SepExpr (B : Heap).
     refine (fun T e => exprSubstEx _ _ _ e).
     Defined.
 
-(*
-    Fixpoint hash_right uvars vars ext (s : sexpr fs sfuncs uvars vars) :
-      { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } :=
-      match s in sexpr _ _ _ vars 
-        return { es : variables types & SHeap (es ++ uvars) (ext ++ vars) } with
-        | Emp _ => @existT _ _ nil (SHeap_empty _ _)
-        | Inj v p => @existT _ _ nil
-          {| funcs := dmap_empty
-           ; pures := liftExpr nil ext v p :: nil
-           ; other := nil
-           |}
-        | Star v l r => 
-          match hash_right ext l, hash_right ext r with
-            | existT vl hl , existT vr hr =>
-              @existT (variables types) (fun ls => SHeap (ls ++ uvars) (ext ++ v)) (vl ++ vr)
-                (match eq_sym (list_app_assoc vl vr uvars) in _ = t return SHeap t (ext ++ v) with
-                   | refl_equal => 
-                     join_SHeap (@liftSHeapU vl vr uvars _ hl)
-                                (@liftSHeapU nil vl (vr ++ uvars) _ hr)
-                 end)
-          end
-        | Exists vs t b =>
-          match hash_right ext b with
-            | existT vl hl =>
-              @existT _ _ (t :: vl) (sheapSubstEx _ _ _ hl)
-          end              
-        | Func v f a => 
-          @existT _ _ nil
-            {| funcs := dmap_insert (fun x y => Some (@finCmp _ sfuncs x y)) f
-                          (hlist_map (expr fs (nil ++ uvars) (ext ++ v))
-                             (fun (x : tvar types) (X : expr fs uvars v x) =>
-                              liftExpr nil ext v X) a :: nil) dmap_empty
-             ; pures := nil
-             ; other := nil
-             |}
-        | Const v c => 
-          @existT _ _ nil
-            {| funcs := dmap_empty
-             ; pures := nil
-             ; other := c :: nil
-             |}
-      end.
-*)    
     Fixpoint hash_left uvars vars (s : sexpr fs sfuncs uvars vars) :
       { es : variables types & SHeap uvars (es ++ vars) } :=
       match s in sexpr _ _ _ vars return { es : variables types & SHeap uvars (es ++ vars) } with
@@ -1050,81 +1007,6 @@ Module SepExpr (B : Heap).
            exists (HCons (hlist_hd A) (fst x), snd x). simpl.
            rewrite hlist_eta. f_equal; auto. auto.
        Qed.
-
-(*
-      Theorem denote_hash_right : forall ext a b (Q : sexpr fs sfuncs _ _) a' P
-        (A : hlist _ a) (A' : hlist _ a') (B : hlist _ b),
-        (forall G : hlist _ ext, exists C : hlist _ (projT1 (hash_right ext Q)), 
-          himp A' (hlist_app C A) (hlist_app G B) cs P (denote (projT2 (hash_right ext Q)))) ->
-        himp A' A B cs (existsEach ext b P) Q.
-      Proof.
-        induction Q; simpl; intros; eapply himp_existsEach; intros; 
-          repeat match goal with
-                   | [ H : hlist _ ?X , H' : forall x : hlist _ ?X , _ |- _ ] =>
-                     specialize (H' H)
-                   | [ H : ex _ |- _ ] => destruct H
-                 end;
-            match goal with
-              | [ H : himp _ _ _ _ ?X _ |- himp _ _ _ _ ?X _ ] =>
-                eapply himp_trans; [ eapply H | clear H ] ; simpl in *
-            end; instantiate; simpl in *;
-            repeat match goal with
-                     | [ |- context [ hash_right ?X ?Y ] ] =>
-                       generalize dependent (hash_right X Y) ;
-                       let H := fresh in intro H; destruct H; instantiate; 
-                         simpl; intros
-                   end.
-        unfold denote; simpl; repeat cancel_himp; reflexivity.
-        unfold denote; simpl; repeat cancel_himp; reflexivity.
-        3: unfold denote; simpl; repeat cancel_himp; reflexivity.
-        3: unfold denote; simpl; repeat cancel_himp; reflexivity.
-
-        (* Star *)
-        Focus.
-        destruct (hlist_split _ _ _ x1) as [ [ ? ? ] ? ]; simpl in *; subst.
-        specialize (IHQ1 _ (denote s) A (hlist_app h A) B).
-        specialize (IHQ2 _ (denote s0) A (hlist_app h0 A) B).
-        repeat match goal with
-          | [ H : (forall x : ?T , exists y : ?U , himp _ _ _ _ ?A ?A) -> ?Z
-            , H' : ?U |- _ ] =>
-            assert Z; [ apply H; intros; exists H'; reflexivity | clear H ]
-        end.
-        uip_all.
-        cutrewrite (match e in _ = t return SHeap t (ext ++ vars) with
-                      | eq_refl => join_SHeap (liftSHeapU x x0 a s) (liftSHeapU nil x (x0 ++ a) s0)
-                    end =
-        join_SHeap match e in _ = t return SHeap t (ext ++ vars) with
-                     | eq_refl => liftSHeapU x x0 a s
-                   end
-                   match e in _ = t return SHeap t (ext ++ vars) with
-                     | eq_refl => liftSHeapU nil x (x0 ++ a) s0
-                   end).
-        2: generalize (liftSHeapU x x0 a s);
-           generalize (liftSHeapU nil x (x0 ++ a) s0); 
-           clear; generalize e; rewrite e; uip_all; auto.
-        
-        edestruct denote_join. eapply himp_trans. eapply H1. clear H1 H2.
-        eapply himp_star_frame. generalize H0; clear. intros.
-(*
-        Lemma himp_ex_fwd : forall a a' b (A' : hlist _ a') (A : hlist _ a) (B : hlist _ b) t (P : sexpr fs sfuncs _ _) Q,
-          himp A' A B cs (Exists t P) Q ->
-          exists x, himp A' A (HCons x B) cs P (liftSExpr nil (t :: nil) _ Q).
-        Proof.
-          clear. unfold himp, ST.himp. simpl. intros. 
-
-        Lemma himp_existsEach_fwd : forall ext a a' b (A' : hlist _ a') (A : hlist _ a) (B : hlist _ b) P Q,
-          himp A' A B cs (existsEach ext b P) Q ->
-          exists G, himp A' A (hlist_app G B) cs P (liftSExpr nil _ _ Q).
-        Proof.
-          clear. induction ext; simpl; intros.
-          exists HNil. rewrite liftSExpr_nil. auto.
-          eapply IHext in H. destruct H.
-          
-*)
-      Admitted.
-*)          
-        
-
 
       (** TODO: This can be more efficient if they are sorted b/c I can do a merge elim **)
       (** This is the simplest cancelation procedure, it just cancels functions in which

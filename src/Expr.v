@@ -176,8 +176,78 @@ Section env.
              end; congruence).
   Defined.
 
-  Definition exprCmp : forall t (x y : expr t), option (dcomp x y).
-   refine (fun _ _ _ => None).
+  Fixpoint exprCmp t (x : expr t) : forall y : expr t, option (dcomp x y).
+    refine (match x as x in expr t return forall y : expr t, option (dcomp x y) with
+              | Const _ v => fun y =>
+                match y as y in expr t 
+                  return forall x : tvarD t, option (dcomp (Const _ x) y) with
+                  | Const t y => fun x => 
+                    match t as t
+                      return forall x y : tvarD t, option (dcomp (Const _ x) (Const _ y)) with 
+                      | None => fun _ _ => None
+                      | Some t => fun x y => match Eq _ x y with 
+                                               | None => None
+                                               | Some pf => 
+                                                 Some (Env.Eq match pf in _ = z return Const _ x = Const _ _ with
+                                                                | refl_equal => refl_equal
+                                                              end)
+                                             end
+                    end x y
+                  | _ => fun _ => Some (Env.Lt _ _)
+                end v
+              | Var v => fun y =>
+                match y as y in expr t 
+                  return forall pf : t = get vars v, 
+                    option (dcomp (Var v) match pf in _ = t return expr t with 
+                                            | refl_equal => y
+                                          end) with 
+                  | Const _ _ => fun _ => Some (Env.Gt _ _)
+                  | Var v' => fun _ => match finCmp v v' with 
+                                         | Env.Lt => Some (Env.Lt _ _)
+                                         | Env.Gt => Some (Env.Gt _ _)
+                                         | Env.Eq _ => Some (Env.Eq _)
+                                       end
+                  | _ => fun _ => Some (Env.Lt _ _)
+                end refl_equal
+              | UVar v => fun y =>
+                match y as y in expr t 
+                  return forall pf : t = get uvars v, 
+                    option (dcomp (UVar v) match pf in _ = t return expr t with 
+                                            | refl_equal => y
+                                          end) with 
+                  | Const _ _ | Var _ => fun _ => Some (Env.Gt _ _)
+                  | UVar v' => fun _ => match finCmp v v' with 
+                                          | Env.Lt => Some (Env.Lt _ _)
+                                          | Env.Gt => Some (Env.Gt _ _)
+                                          | Env.Eq _ => Some (Env.Eq _)
+                                        end
+                  | _ => fun _ => Some (Env.Lt _ _)
+                end refl_equal
+              | Func f args => fun y =>
+                match y as y in expr t
+                  return forall pf : t = Range (get funcs f), option (dcomp (Func f args) 
+                    match pf in _ = z return expr z with
+                      | refl_equal => y
+                    end) with
+                  | Const _ _ | Var _ | UVar _ => fun _ => Some (Env.Gt _ _)
+                  | Func f' args' => fun pf =>
+                    match finCmp f f' with 
+                      | Env.Lt => Some (Env.Lt _ _)
+                      | Env.Gt => Some (Env.Gt _ _)
+                      | Env.Eq pf' =>
+                        match pf' in _ = t 
+                          return forall (args : hlist expr (Domain (get funcs f))) (args' : hlist expr (Domain (get funcs t))) (pf : Range (get funcs t) = Range (get funcs f)) ,
+                            option (dcomp (Func f args) 
+                              match pf in _ = z return expr z with
+                                | refl_equal => Func t args'
+                              end)
+                          with
+                          | refl_equal => fun args args' pf => _
+                        end args args' pf
+                    end
+                end refl_equal
+            end); try solve [ subst; uip_all; reflexivity ].
+    refine (None). (** TODO **)
   Defined.
 End env.
 
@@ -341,18 +411,10 @@ Section Lifting.
           (fun x' pf => 
             match pf in _ = t return expr funcs (c ++ a) (b ++ d) t with
               | refl_equal =>
-                match app_nil_r c in _ = t 
-                  return forall x' : fin t, expr funcs (c ++ a) (b ++ d) (get t x') with
-                  | refl_equal => fun x' => 
-                    let x' := liftDmid nil c a x' in
-                    match (projT2 x') in _ = t return expr funcs _ _ t with
-                      | refl_equal =>
-                        match eq_sym (app_nil_r a) in _ = t
-                          return forall z, expr funcs _ _ (get (c ++ t) z) with
-                          | refl_equal => UVar _ _ 
-                        end (projT1 x')
-                    end
-                end x'
+                let s := liftDend a x' in
+                match projT2 s in _ = t return expr funcs (c ++ a) (b ++ d) t with
+                  | refl_equal => UVar _ _ (projT1 s)
+                end
             end)
           (fun x' pf => match pf in _ = t return expr _ _ _ t with
                           | refl_equal => Var _ _ x'
@@ -360,6 +422,12 @@ Section Lifting.
         | UVar x => @liftExprU nil c a (b ++ d) (get a x) (UVar funcs _ x)
         | Func f args => Func f (hlist_map _ (fun T e => @exprSubstU T a b c d e) args)
       end.
+
+    Lemma existT_eta : forall T (F : T -> Type) (a : {x : T & F x}), 
+      a = existT _ (projT1 a) (projT2 a).
+    Proof.
+      intros. destruct a. simpl. reflexivity.
+    Qed.
 
     Lemma exprSubstU_denote : forall T a b c d (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) 
       (D : hlist _ d) (e : expr funcs a _ T), 
@@ -369,15 +437,14 @@ Section Lifting.
       induction e using expr_ind_strong; intros; auto.
         Focus.
         simpl. eapply hlist_get_remove_range.
-        instantiate (2 := C). instantiate (1 := D). instantiate (1 := B).
-        intros x' pf. uip_all. generalize dependent H. generalize pf e1 e0 e.
-        generalize x x'. simpl in *.
-        
-        Focus 2.
-        simpl. intros. generalize dependent H. uip_all.
-        generalize dependent H. generalize e pf. generalize x x'.
-        admit.
-        admit.
+        instantiate (1 := C). instantiate (1 := D). instantiate (1 := B).
+        intros x' pf. uip_all. generalize dependent H. intro.
+        change (option (fin types)) with (tvar types) in *.
+        rewrite H. clear H. generalize pf. rewrite <- pf. uip_all. clear.
+        rewrite (hlist_get_lift_end _ A x' C). destruct (liftDend a x'). simpl in *.
+        generalize e e0. rewrite <- e. uip_all. auto.
+        simpl. intros. change (option (fin types)) with (tvar types) in *.
+        rewrite H. clear H. generalize pf. rewrite <- pf. uip_all. simpl. auto.
         
         simpl. generalize (@hlist_get_lift _ _ _ nil _ _ x HNil C A). simpl in *.
           intro. rewrite H. clear. unfold tvar in *. destruct (liftD c x).
