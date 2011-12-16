@@ -49,10 +49,10 @@ Module Type LINKED_LIST.
     -> [| ls = nil |] ===> llist ls a.
 
   Axiom llist_cons_fwd : forall ls a, a <> $0
-    -> llist ls a ===> Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $1) ==> p * llist ls' p.
+    -> llist ls a ===> Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $4) ==> p * llist ls' p.
 
   Axiom llist_cons_bwd : forall ls a, a <> $0
-    -> (Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $1) ==> p * llist ls' p) ===> llist ls a.
+    -> (Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $4) ==> p * llist ls' p) ===> llist ls a.
 End LINKED_LIST.
 
 Module LinkedList : LINKED_LIST.
@@ -61,7 +61,7 @@ Module LinkedList : LINKED_LIST.
   Fixpoint llist (ls : list W) (a : W) : HProp :=
     match ls with
       | nil => [| a = 0 |]
-      | x :: ls' => Ex p, a ==> x * (a ^+ $1) ==> p * llist ls' p
+      | x :: ls' => Ex p, a ==> x * (a ^+ $4) ==> p * llist ls' p
     end.
 
   Theorem llist_nil_fwd : forall ls a, a = 0
@@ -73,10 +73,10 @@ Module LinkedList : LINKED_LIST.
   Admitted.
 
   Theorem llist_cons_fwd : forall ls a, a <> $0
-    -> llist ls a ===> Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $1) ==> p * llist ls' p.
+    -> llist ls a ===> Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $4) ==> p * llist ls' p.
   Admitted.
 
   Theorem llist_cons_bwd : forall ls a, a <> $0
-    -> (Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $1) ==> p * llist ls' p) ===> llist ls a.
+    -> (Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $4) ==> p * llist ls' p) ===> llist ls a.
   Admitted.
 End LinkedList.

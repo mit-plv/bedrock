@@ -174,6 +174,7 @@ Definition ptsto32 sos (a v : W) : hpropB sos :=
     /\ smem_get (a ^+ $1) sm = Some b1
     /\ smem_get (a ^+ $2) sm = Some b2
     /\ smem_get (a ^+ $3) sm = Some b3
+    /\ (forall a', a' <> a -> a' <> a ^+ $1 -> a' <> a ^+ $2 -> a' <> a ^+ $3 -> smem_get a' sm = None)
     /\ implode stn b0 b1 b2 b3 v |])%PropX.
 
 Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
@@ -485,7 +486,7 @@ Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
 
 Theorem findPtsto32_gotIt : forall stn a v,
   findPtsto32 stn (ptsto32 _ a v) a v.
-  unfold findPtsto32; propxFo.
+  unfold findPtsto32; propxFo; eauto 10.
 Qed.
 
 Theorem findPtsto32_star1 : forall stn p1 p2 a v,
