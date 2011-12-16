@@ -838,9 +838,8 @@ Module SepExpr (B : Heap).
         (** TODO: this is the annoying case 
          ** - should I make a multi-map structure?
          **)
-
-
-      Admitted.
+        admit.
+      Qed.
 
       Lemma heq_change_dom : forall b c (E : b = c) a (A : hlist _ a) (B : hlist _ b) P Q,
         heq A A match E in _ = t return hlist _ t with
@@ -1057,7 +1056,6 @@ Module SepExpr (B : Heap).
       end).
     Defined.
 
-
     Definition sepCancel uL uR vars (l : SHeap uL vars) (r : SHeap uR vars) : 
       SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars :=
       let '(lf,rf,s) := dmap_fold (fun acc k v =>
@@ -1235,35 +1233,19 @@ Module SepExpr (B : Heap).
   (************************)
   Require Import Reflect.
 
-  Record Rd (l : Type) : Type := mkRd
-  { unRd : l }.
+  Record VarType (t : Type) : Type :=
+    { open : t }.
+  Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
+    f (open vt).
 
   Ltac collectTypes_expr e types :=
     match e with
-      | fun x => @unRd _ _ => types
-      | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) =>
-        let types := collectTypes_expr A types in
-        let types := collectTypes_expr B types in
-        let types := collectTypes_expr C types in
-        let types := collectTypes_expr D types in
-        types
-      | fun x => ?F (@?A x) (@?B x) (@?C x) =>
-        let types := collectTypes_expr A types in
-        let types := collectTypes_expr B types in
-        let types := collectTypes_expr C types in
-        types
-      | fun x => ?F (@?A x) (@?B x) =>
-        let types := collectTypes_expr A types in
-        let types := collectTypes_expr B types in
-        types
-      | fun x => ?F (@?A x) =>
-        let types := collectTypes_expr A types in
-        types
-      | fun x => ?e => 
+      | fun x => (@openUp _ ?T _ x) =>
+        let v := constr:(T:Type) in
+        cons_uniq v types
+      | fun x => ?e =>
         collectTypes_expr e types
-      | fun _ => _ => 
-        types
-      | ?e =>
+      | _ =>
         let rec bt_args args types :=
           match args with
             | tt => types
@@ -1273,16 +1255,26 @@ Module SepExpr (B : Heap).
           end
         in
         let cc _ Ts args := 
-          let T := type of e in
-          let Ts :=
-            match type of T with
-              | Set => constr:((T : Type) :: Ts)
-              | Type => constr:(T :: Ts)
+          let T := 
+            match e with 
+              | fun x : VarType _ => _ => 
+                match type of e with
+                  | _ -> ?T => T
+                  | _ => idtac "ASSERT FALSE---------------------------------"
+                end
+              | _ => type of e
             end
           in
+          match T with 
+            | Type => idtac "got type from " e
+            | _ => 
+          let Ts :=
+            let v := constr:(T : Type) in
+            cons_uniq v Ts 
+          in
           let types := append_uniq Ts types in
-          let types := bt_args args types in
-          types
+          bt_args args types
+  end
         in
         refl_app cc e
     end.
@@ -1307,17 +1299,14 @@ Module SepExpr (B : Heap).
 
   Ltac collectTypes_sexpr s types k :=
     match s with
-      | fun (x : ?T) (y : ?U) => @?E x y =>
-        collectTypes_sexpr (fun xy : (T * U)%type => E (fst xy) (snd xy)) k
-      | fun x : ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
+      | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
         collectTypes_sexpr L types ltac:(fun types =>
           collectTypes_sexpr R types k)
-      | fun x => ?A (@?B x) (@?C x) (@?D x) =>
-        let T := type of A in
-        let v := constr:((B,(C,(D,tt)))) in
-          let ff t e a := collectTypes_expr e a in
-        let types := map_non_dep T v ff types in
-        k types
+      | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B x y) =>
+        let v := constr:(fun x : VarType (T * T') => 
+          B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+        let v := eval simpl in v in
+        collectTypes_sexpr v types k
       | @ST.emp _ _ _ => k types
       | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
         k ltac:(collectTypes_expr P types)
@@ -1326,11 +1315,13 @@ Module SepExpr (B : Heap).
         collectTypes_sexpr L types
           ltac:(fun Ltypes => collectTypes_sexpr R Ltypes k)
       | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
-        collectTypes_sexpr B types k
+        let v := constr:(fun x : VarType T => B (@openUp _ T (fun x => x) x)) in
+        let v := eval simpl in v in 
+        collectTypes_sexpr v types k
       | ?X =>
         let rec bt_args args types :=
           match args with
-            | tt => types
+            | tt => k types
             | (?a,?b) => 
               let k := collectTypes_expr a types in
               bt_args b k
@@ -1338,13 +1329,10 @@ Module SepExpr (B : Heap).
         in
         let cc _ Ts args := 
           let types := append_uniq Ts types in
-          let types := bt_args args types in
-          types
+          bt_args args types
         in
-        k ltac:(refl_app cc X)
+        refl_app cc X
     end.
-
-  Print ssignature.
 
   Ltac reflectTypes_toList types ts :=
     match ts with 
@@ -1355,29 +1343,93 @@ Module SepExpr (B : Heap).
         constr:(@cons (@tvar types) (Some i) rest)
     end.
 
-
-  Ltac collectFunctions_expr isConst s types funcs := funcs.
+  Ltac collectFunctions_expr isConst e types funcs :=
+    match e with
+      | fun x => (@openUp _ _ _ x) =>
+        (** this is a variable **)
+        funcs
+      | fun x => ?e =>
+        collectFunctions_expr isConst e types funcs
+      | _ =>
+        let rec bt_args args funcs :=
+          match args with
+            | tt => funcs
+            | (?a, ?b) =>
+              let funcs := collectFunctions_expr isConst a types funcs in
+              bt_args b funcs
+          end
+        in
+        let cc f Ts args :=
+          let funcs := 
+            match f with
+              | _ =>
+                match isConst f with
+                  | true => funcs
+                  | false =>
+                    let Ts := eval simpl in Ts in
+                    let dom := reflectTypes_toList types Ts in
+                    let ran := 
+                    (** TODO : Doesn't handle partial applications **)
+                      let T := 
+                        match type of e with 
+                          | VarType _ -> ?T => T
+                          | ?T => T
+                        end
+                      in
+                      let T := typesIndex T types in
+                      constr:((@Some (fin types) T))
+                    in
+                    let F := constr:(@Build_signature types dom ran f) in
+                    add_end_uniq F funcs 
+                end
+              | _ => 
+                let Ts := eval simpl app in Ts in
+                let dom := reflectTypes_toList types Ts in
+                let ran := 
+                  (** TODO : Doesn't handle partial applications **)
+                  let T := 
+                    match type of e with 
+                      | VarType _ -> ?T => T
+                      | ?T => T
+                    end
+                  in
+                  let T := typesIndex T types in
+                  constr:((@Some (fin types) T))
+                in
+                let F := constr:(@Build_signature types dom ran f) in
+                add_end_uniq F funcs 
+            end
+          in
+          bt_args args funcs
+        in
+        match e with
+          | _ => 
+            match isConst e with
+              | true => funcs
+              | false => refl_app cc e
+            end
+          | _ => refl_app cc e
+        end
+    end.
 
 
   Ltac collectFunctions_sexpr sctor isConst s types funcs sfuncs k :=
     idtac "collectFunctions_sexpr " s ;
     match s with
-      | fun (x : ?T) (y : ?U) => @?E x y =>
-        collectFunctions_sexpr sctor isConst (fun xy : (T * U)%type => E (fst xy) (snd xy)) types funcs sfuncs k
-
+      | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
+        collectFunctions_sexpr sctor isConst L types funcs sfuncs ltac:(fun types =>
+          collectFunctions_sexpr sctor isConst R types funcs sfuncs k)
+      | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B x y) =>
+        let v := constr:(fun x : VarType (T * T') => 
+          B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+        let v := eval cbv beta in v in
+        collectFunctions_sexpr sctor isConst v types funcs sfuncs k
       | fun x : ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
         collectFunctions_sexpr sctor isConst L types funcs sfuncs ltac:(fun funcs sfuncs =>
           collectFunctions_sexpr sctor isConst R types funcs sfuncs k)
-
-      | fun x => ?A (@?B x) (@?C x) (@?D x) =>
-        (** this does not handle dependent arguments correctly b/c all my terms are abstracted too much **)
-        let funcs := collectFunctions_expr isConst B types funcs in
-        let funcs := collectFunctions_expr isConst C types funcs in
-        let funcs := collectFunctions_expr isConst D types funcs in
-        k funcs sfuncs
       | @ST.emp _ _ _ => k funcs sfuncs
       | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
-        k ltac:(collectFunctions_expr isConst P types funcs sfuncs) sfuncs
+        k ltac:(collectFunctions_expr isConst P types funcs) sfuncs
       | @ST.inj _ _ _ ?PX => k funcs sfuncs
       | @ST.star _ _ _ ?L ?R =>
         collectFunctions_sexpr sctor isConst L types funcs sfuncs
@@ -1389,7 +1441,9 @@ Module SepExpr (B : Heap).
           match args with
             | tt => k funcs sfuncs
             | (?a,?b) => 
+              idtac "calling collectionFunctions on " a ;
               let funcs := collectFunctions_expr isConst a types funcs in
+              idtac "returned normally";
               bt_args b funcs sfuncs k
           end
         in
@@ -1414,14 +1468,15 @@ Module SepExpr (B : Heap).
         | false => true
         | O => true
         | S ?e => isConst e
+        | _ => false
       end.
 
     Ltac debug_reflect :=
       match goal with
         | [ |- @ST.himp ?pcT ?stT _ ?L ?R ] =>
-          let ts := constr:(stT :: @nil Type) in
-          let lt := collectTypes_sexpr L ts ltac:(fun x => x) in
-          let rt := collectTypes_sexpr R lt ltac:(fun x => x) in
+          let ts := constr:(pcT :: stT :: @nil Type) in
+          collectTypes_sexpr L ts ltac:(fun lt => 
+            collectTypes_sexpr R lt ltac:(fun rt =>
           let rt := add_end_uniq pcT rt in
           let rt := add_end_uniq stT rt in
           idtac rt ;
@@ -1439,7 +1494,7 @@ Module SepExpr (B : Heap).
           let build_ssig x y := constr:(@Build_ssignature Ts pcTyp stTyp x y) in
           collectFunctions_sexpr build_ssig isConst L Ts fs sfs ltac:(fun funcs sfuncs => 
             collectFunctions_sexpr build_ssig isConst R Ts funcs sfuncs ltac:(fun funcs sfuncs => 
-              idtac "funcs = " funcs; idtac "sfuncs = " sfuncs))
+              idtac "funcs = " funcs; idtac "sfuncs = " sfuncs))))
       end.
 
 
@@ -1447,7 +1502,9 @@ Module SepExpr (B : Heap).
       intros. debug_reflect.
     Abort.
 
-    Goal forall a b c, @ST.himp a b c (f _ _ 1) (ST.ex (fun x : nat => f _ _ (g true 1 x))).
+    Goal forall a b c, @ST.himp a b c 
+      (ST.ex (fun y : nat => ST.ex (fun x : bool => f _ _ (g x 1 2))))
+      (f _ _ 1).
       intros. debug_reflect.
     Abort.
   End Tests.

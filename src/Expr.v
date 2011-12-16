@@ -648,7 +648,7 @@ Ltac buildFuncs isConst types types' e funcs :=
         let cc f Ts args := 
           let funcs := extend_func types types' f funcs in
           refl_args args funcs
-        in        
+        in
         refl_app cc e
     end
   in bf e funcs.

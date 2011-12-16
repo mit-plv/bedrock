@@ -53,21 +53,18 @@ Ltac refl_app cc e :=
                       let As' := constr:((A, As)) in
                       cc f Ts' As'
                     in
-                    let Tb := constr:(T:Type :: Tb) in
+                    let Tb := constr:((T:Type) :: Tb) in
                     papply cc' F TT Tb T' A'
                 end
             end
           | forall x : ?T1, @?T2 x =>
             match Ts with
-              | ?T :: ?T' =>
+              | _ :: ?T' =>
                 match As with
                   | ((fun _ => ?A), ?A') =>
-                    let cc' f Ts As :=
-                      let f' := eval simpl in (@apply_ls Tb T1 T2 A f) in
-                      cc f' Ts As
-                    in
                     let TT' := eval simpl in (T2 A) in
-                    papply cc' F TT' Tb T' A'
+                    let f' := eval simpl in (@apply_ls Tb T1 T2 A F) in
+                    papply cc f' TT' Tb T' A'
                 end
             end
           | _ =>
@@ -75,8 +72,38 @@ Ltac refl_app cc e :=
         end
       in
       match e with
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) =>
+          let As := constr:((A,(B,(C,(D,(E,tt)))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) =>
+          let As := constr:((A,(B,(C,(D,tt))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) =>
+          let As := constr:((A,(B,(C,tt)))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
         | fun x => ?F (@?A x) (@?B x) =>
           let As := constr:((A,(B,tt))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) =>
+          let As := constr:((A,tt)) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F =>
+          let As := constr:(tt) in
           let Ts := getTypes As in
           let Tf := type of F in
           let Tb := constr:(@nil Type) in
@@ -116,36 +143,24 @@ Ltac refl_app cc e :=
 (*
 Goal forall f : nat -> nat -> Prop, 
   forall x, f x 2.
-
-
-Goal forall f : forall x : Type, list x -> Prop, 
-  forall x, f bool x.
-  intro f.
+*)
+(*
+Goal forall (f : forall x y , x -> y -> Prop), 
+  forall x : nat, @f nat bool 1 true.
+  intro.
   match goal with
-    | [ |- forall x, (@?e x) ] =>
+    | [ |- forall x, @?e x ] =>
       idtac e ;
-        match e with
-          | (fun x => ?A (@?B x) (@?C x)) =>
-            idtac A B C
-        end;
-
       let cc f Ts As :=
+        idtac "result" ;
         idtac f ;
           idtac Ts ;
             idtac As
       in
       refl_app cc e
   end.
-Check apply_ls.
-Eval simpl in funtype (nil)
-    (forall x : Type, (fun x0 : Type => list x0 -> Prop) x).
-Eval simpl in (@apply_ls ((list bool:Type) :: nil) Type (fun x : Type => list x -> Prop) bool (f bool)).
-
-Eval simpl in ((fun x : Type => list x -> Prop) bool).
-
 Abort.
 *)
-
 
 (** Set operations **)
 Ltac contains e s :=
