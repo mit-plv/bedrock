@@ -75,6 +75,22 @@ Module SepExpr (B : Heap).
         red. intros. unfold heq. etransitivity; eauto.
       Qed.
 
+      Theorem ST_himp_himp : forall u1 u2 g (U1 : hlist _ u1) (U2 : hlist _ u2) (G : hlist _ g)
+        cs L R,
+        himp U1 U2 G cs L R ->
+        ST.himp cs (sexprD L U1 G) (sexprD R U2 G).
+      Proof.
+        clear. auto.
+      Qed.
+
+      Theorem ST_heq_heq : forall u1 u2 g (U1 : hlist _ u1) (U2 : hlist _ u2) (G : hlist _ g)
+        cs L R,
+        heq U1 U2 G cs L R ->
+        ST.heq cs (sexprD L U1 G) (sexprD R U2 G).
+      Proof.
+        clear. auto.
+      Qed.
+
       Section exists_subst.
         Variable u1 : variables types.
         Variable U1 : hlist (@tvarD _) u1.
@@ -1543,14 +1559,11 @@ Module SepExpr (B : Heap).
       end
     in reflect e k.
 
-Print Ltac reflectType.
-
   Ltac reflect_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
     let implicits ctor uvars vars :=
       constr:(ctor types funcs pcType stateType sfuncs uvars vars)
     in
     let rec reflect s uvars vars k :=
-      idtac "reflect " s ;
       match s with
         | fun _ => ?s =>
           reflect s uvars vars k
@@ -1651,14 +1664,14 @@ Print Ltac reflectType.
 
     Ltac debug_reflect :=
       match goal with
-        | [ |- @ST.himp ?pcT ?stT _ ?L ?R ] =>
+        | [ |- @ST.himp ?pcT ?stT ?X ?L ?R ] =>
           let ts := constr:(pcT :: stT :: @nil Type) in
           let lt := collectTypes_sexpr L ts ltac:(fun lt => lt) in
           let rt := collectTypes_sexpr R lt ltac:(fun rt => rt) in
           let Ts := constr:(@nil type) in
           let Ts := extend_all_types rt Ts in
           let Ts := eval simpl in Ts in 
-          idtac "Reflected Types" ; idtac Ts ;
+(*          idtac "Reflected Types" ; idtac Ts ; *)
           let pcTyp := typesIndex pcT Ts in
           let stTyp := typesIndex stT Ts in
           let pcTyp := constr:(Some pcTyp) in
@@ -1673,17 +1686,19 @@ Print Ltac reflectType.
           in
           match fs with
             | (?funcs, ?sfuncs) =>
-          
-          idtac "Reflected Functions" ; idtac funcs; 
-          idtac "Reflected Separation Predicates" ; idtac sfuncs ;
-          (** TODO : Reflect the actual formula **)
-          let vars := constr:(@nil (tvar Ts)) in
-          let uvars := vars in (** Temporary **)
-          reflect_sexpr isConst L Ts funcs pcTyp stTyp sfuncs uvars vars ltac:(fun L =>
-          reflect_sexpr isConst R Ts funcs pcTyp stTyp sfuncs uvars vars ltac:(fun R => 
-            idtac "Left" ; idtac L ;
-            idtac "Right" ; idtac R 
-            
+(*
+              idtac "Reflected Functions" ; idtac funcs; 
+              idtac "Reflected Separation Predicates" ; idtac sfuncs ;
+*)
+              let vars := constr:(@nil (tvar Ts)) in
+              let uvars := vars in (** Temporary **)
+              reflect_sexpr isConst L Ts funcs pcTyp stTyp sfuncs uvars vars ltac:(fun L =>
+              reflect_sexpr isConst R Ts funcs pcTyp stTyp sfuncs uvars vars ltac:(fun R => 
+(*
+              idtac "Left" ; idtac L ;
+              idtac "Right" ; idtac R ;
+*)
+              eapply (@ST_himp_himp Ts funcs pcTyp stTyp sfuncs _ _ _ HNil HNil HNil X L R)
           ))
           end
       end.
