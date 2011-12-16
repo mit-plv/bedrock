@@ -1260,21 +1260,16 @@ Module SepExpr (B : Heap).
               | fun x : VarType _ => _ => 
                 match type of e with
                   | _ -> ?T => T
-                  | _ => idtac "ASSERT FALSE---------------------------------"
                 end
               | _ => type of e
             end
           in
-          match T with 
-            | Type => idtac "got type from " e
-            | _ => 
           let Ts :=
             let v := constr:(T : Type) in
             cons_uniq v Ts 
           in
           let types := append_uniq Ts types in
           bt_args args types
-  end
         in
         refl_app cc e
     end.
@@ -1414,7 +1409,6 @@ Module SepExpr (B : Heap).
 
 
   Ltac collectFunctions_sexpr sctor isConst s types funcs sfuncs k :=
-    idtac "collectFunctions_sexpr " s ;
     match s with
       | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
         collectFunctions_sexpr sctor isConst L types funcs sfuncs ltac:(fun types =>
@@ -1441,9 +1435,7 @@ Module SepExpr (B : Heap).
           match args with
             | tt => k funcs sfuncs
             | (?a,?b) => 
-              idtac "calling collectionFunctions on " a ;
               let funcs := collectFunctions_expr isConst a types funcs in
-              idtac "returned normally";
               bt_args b funcs sfuncs k
           end
         in
@@ -1476,25 +1468,26 @@ Module SepExpr (B : Heap).
         | [ |- @ST.himp ?pcT ?stT _ ?L ?R ] =>
           let ts := constr:(pcT :: stT :: @nil Type) in
           collectTypes_sexpr L ts ltac:(fun lt => 
-            collectTypes_sexpr R lt ltac:(fun rt =>
-          let rt := add_end_uniq pcT rt in
-          let rt := add_end_uniq stT rt in
-          idtac rt ;
+          collectTypes_sexpr R lt ltac:(fun rt =>
           let Ts := constr:(@nil type) in
           let Ts := extend_all_types rt Ts in
           let Ts := eval simpl in Ts in 
-          idtac Ts ;
+          idtac "Reflected Types" ; idtac Ts ;
           let pcTyp := typesIndex pcT Ts in
           let stTyp := typesIndex stT Ts in
           let pcTyp := constr:(Some pcTyp) in
           let stTyp := constr:(Some stTyp) in
           let fs := constr:(@nil (@signature Ts)) in
           let sfs := constr:(@nil (@ssignature Ts pcTyp stTyp)) in
-          idtac sfs ;
           let build_ssig x y := constr:(@Build_ssignature Ts pcTyp stTyp x y) in
           collectFunctions_sexpr build_ssig isConst L Ts fs sfs ltac:(fun funcs sfuncs => 
-            collectFunctions_sexpr build_ssig isConst R Ts funcs sfuncs ltac:(fun funcs sfuncs => 
-              idtac "funcs = " funcs; idtac "sfuncs = " sfuncs))))
+          collectFunctions_sexpr build_ssig isConst R Ts funcs sfuncs ltac:(fun funcs sfuncs => 
+          idtac "Reflected Functions" ; idtac funcs; 
+          idtac "Reflected Separation Predicates" ; idtac sfuncs ;
+
+          (** TODO : Reflect the actual formula **)
+          idtac "TODO"
+          ))))
       end.
 
 
