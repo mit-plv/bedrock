@@ -67,10 +67,9 @@ Section Unify.
         match l in expr _ _ _ T 
           return tvarD T -> Subst uR uL vs -> option (Subst uR uL vs) with
           | Const t' v' => fun v s =>
-            if get_Eq t' v v' then 
-              Some s
-              else
-                None
+            if get_Eq t' v v'
+            then Some s
+            else None
           | _ => fun _ _ => None
         end v
       | Var v => fun l s =>

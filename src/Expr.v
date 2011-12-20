@@ -538,12 +538,20 @@ Ltac extend_type T D types :=
 
 Definition defaultType T := {| Impl := T; Eq := fun _ _ => None |}.
 
-Ltac extend_all_types Ts types :=
+About seq.
+
+Ltac extend_all_types Ts types k :=
   match Ts with
-    | nil => types
-    | ?a :: ?b => 
+    | nil => k types
+    | ?a :: ?b =>
+      let T := fresh in
+      (   let TC := fresh in 
+          assert (TC : SemiDec a); 
+            [ solve [ eauto with typeclass_instances ] | 
+              pose (T := {| Impl := a ; Eq := @seq _ _ ] 
+       || pose (
       let types := extend_type a (defaultType a) types in
-      extend_all_types b types
+      extend_all_types b types k
   end.
 
 Ltac buildTypes e types :=
@@ -757,5 +765,12 @@ Goal forall n m, n + m = m + 0 + n.
   intros; reflect consts.
 Abort.
 *)
+
+Print expr.
+
+Implicit Arguments Const [ types funcs uvars vars t ].
+Implicit Arguments Var   [ types funcs uvars vars ].
+Implicit Arguments UVar  [ types funcs uvars vars ].
+Implicit Arguments Func  [ types funcs uvars vars ].
 
 Require Export Env.

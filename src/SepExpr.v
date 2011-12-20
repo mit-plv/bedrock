@@ -319,8 +319,8 @@ Module SepExpr (B : Heap).
     Fixpoint exprSubstEx T uvars vars vars' t (e : expr fs uvars (vars ++ t :: vars') T) : 
       expr fs (t :: uvars) (vars ++ vars') T :=
       match e in expr _ _ _ T return expr fs (t :: uvars) (vars ++ vars') T with
-        | Expr.Const _ v => Expr.Const _ _ _ _ v
-        | Expr.UVar v => Expr.UVar _ _ (FS v)
+        | Expr.Const _ v => Expr.Const v
+        | Expr.UVar v => Expr.UVar (FS v)
         | Expr.Var v =>
           fin_remove _ _ v 
             (fun pf => match pf in _ = T return expr fs (t :: uvars) (vars ++ vars') T with 
@@ -1027,50 +1027,40 @@ Module SepExpr (B : Heap).
       (** This is the simplest cancelation procedure, it just cancels functions in which
        ** the arguments unify pointwise
        **)
-      Definition sepCancel_refl_func uL uR vars (f : list (tvar types))
+      Fixpoint sepCancel_refl_func uL uR vars (f : list (tvar types))
         (r : hlist (expr fs uR vars) f)
-        : list (hlist (expr fs uL vars) f) ->
+        (l : list (hlist (expr fs uL vars) f)) :
         ExprUnify.Subst fs uR uL vars ->
-        option (list (hlist (expr fs uL vars) f) * ExprUnify.Subst fs uR uL vars).
-      refine (fix find (l : list (hlist (expr fs uL vars) f))
-        : ExprUnify.Subst fs uR uL vars ->
-        option (list (hlist (expr fs uL vars) f) * ExprUnify.Subst fs uR uL vars) := 
-        match l with
-          | nil => fun _ => None
-          | l :: lr => fun s =>
-            match exprUnifyArgs r l s with
-              | None => match find lr s with
-                          | None => None
-                          | Some (k,v) => Some (l :: k, v)
-                        end
-              | Some s => Some (lr, s)
-            end
-        end).
-    Defined.
+        option (list (hlist (expr fs uL vars) f) * ExprUnify.Subst fs uR uL vars) :=
+      match l with
+        | nil => fun _ => None
+        | l :: lr => fun s =>
+          match exprUnifyArgs r l s with
+            | None => match @sepCancel_refl_func uL uR vars f r lr s with
+                        | None => None
+                        | Some (k,v) => Some (l :: k, v)
+                      end
+            | Some s => Some (lr, s)
+          end
+      end.
     
-    Definition sepCancel_refl_funcs uL uR vars (f : list (tvar types)) : forall
+   Fixpoint sepCancel_refl_funcs uL uR vars (f : list (tvar types))
       (rs : list (hlist (expr fs uR vars) f))
-      (ls : list (hlist (expr fs uL vars) f)),
-        ExprUnify.Subst fs uR uL vars ->
+      (ls : list (hlist (expr fs uL vars) f)) (s : ExprUnify.Subst fs uR uL vars) :
         list (hlist (expr fs uL vars) f) *
         list (hlist (expr fs uR vars) f) *
-        ExprUnify.Subst fs uR uL vars.
-    refine (fix run rs ls s : 
-      list (hlist (expr fs uL vars) f) *
-      list (hlist (expr fs uR vars) f) *
-      ExprUnify.Subst fs uR uL vars :=
+        ExprUnify.Subst fs uR uL vars :=
       match rs with
         | nil => (ls, rs, s)
         | r :: rs =>
           match sepCancel_refl_func r ls s with
             | None => 
-              let '(ls,rs,s) := run rs ls s in
+              let '(ls,rs,s) := sepCancel_refl_funcs rs ls s in
               (ls, r :: rs, s)
             | Some (ls', s) =>
-              run rs ls' s
+              sepCancel_refl_funcs rs ls' s
           end
-      end).
-    Defined.
+      end.
 
     Definition sepCancel uL uR vars (l : SHeap uL vars) (r : SHeap uR vars) : 
       SHeap uL vars * SHeap uR vars * ExprUnify.Subst fs uR uL vars :=
@@ -1216,6 +1206,9 @@ Module SepExpr (B : Heap).
                   (denote lhs') (denote rhs')
                   (env_of_Subst s' (qr ++ nil)) _).
 
+    (** Proof **)
+    admit.
+(*
     generalize (denote_hash_left cs HNil gl). intros. 
     generalize (denote_hash_left cs HNil gr). intros. 
     change (option (@fin type types)) with (@tvar types) in *.
@@ -1238,6 +1231,22 @@ Module SepExpr (B : Heap).
       (denote (sheapSubstU qr nil rhs)) (existsEach qr nil (denote rhs))
       HNil G HNil).
     eapply sheapSubstU_correct.
+*)
+  Defined.
+  
+  Print SProverT.
+
+  Lemma ApplyCancelSep : forall cs l r,
+    match CancelSep cs nil l r with
+      | Prove vars u2 l' r' SUBST _ =>
+        forallEach
+        (fun VS : hlist (@tvarD types) vars =>
+          exists_subst VS SUBST
+          (fun k : hlist (@tvarD types) u2 => himp HNil k VS cs l' r'))
+    end ->
+    himp HNil HNil HNil cs l r.
+  Proof.
+    clear. intros. destruct (CancelSep cs nil l r). auto.
   Qed.
 
   Print Assumptions CancelSep.
@@ -1248,6 +1257,19 @@ Module SepExpr (B : Heap).
   (** Reflection Tactics **)
   (************************)
   Require Import Reflect.
+
+
+  Class SemiDec (T : Type) : Type :=
+  { seq : forall a b : T, option (a = b) }.
+  Global Instance SemiDec_eqdec (T : Type) (D : EqDec T (@eq T)) 
+    : SemiDec T :=
+  { seq := fun a b =>
+    match equiv_dec a b with
+      | left pf => Some pf
+      | right _ => None
+    end
+  }.
+
 
   Record VarType (t : Type) : Type :=
     { open : t }.
@@ -1662,13 +1684,13 @@ Module SepExpr (B : Heap).
         | _ => false
       end.
 
-    Ltac debug_reflect :=
+   Ltac reflect Ts :=
       match goal with
         | [ |- @ST.himp ?pcT ?stT ?X ?L ?R ] =>
-          let ts := constr:(pcT :: stT :: @nil Type) in
+          let ts := constr:(pcT :: stT :: @nil Type) in 
           let lt := collectTypes_sexpr L ts ltac:(fun lt => lt) in
           let rt := collectTypes_sexpr R lt ltac:(fun rt => rt) in
-          let Ts := constr:(@nil type) in
+(*          let Ts := constr:(@nil type) in *)
           let Ts := extend_all_types rt Ts in
           let Ts := eval simpl in Ts in 
 (*          idtac "Reflected Types" ; idtac Ts ; *)
@@ -1702,6 +1724,100 @@ Module SepExpr (B : Heap).
           ))
           end
       end.
+
+    Ltac canceler :=
+      match goal with 
+        | [ |- @himp ?types ?funcs ?pcTyp ?stateTyp ?sfuncs _ _ _ _ _ _ ?cs ?L ?R ] =>
+          let K := eval hnf in (@CancelSep types funcs pcTyp stateTyp sfuncs cs nil L R) in 
+          match K with 
+            | @Prove _ _ _ _ _ _ _ _ _ _ ?L' ?R' ?S ?PF =>
+              simple eapply PF
+          end
+      end.
+
+    Ltac sep Ts := 
+      reflect Ts; canceler.
+      
+    Definition nat_type : type := {| Impl := nat ; Eq := fun x y => match equiv_dec x y with
+                                                                      | left pf => Some pf
+                                                                      | _ => None 
+                                                                    end|}.
+
+    Goal forall a b c x, @ST.himp a b c (ST.star (f _ _ x) (f _ _ 1)) (ST.star (f _ _ x) (f _ _ 1)).
+      Opaque himp.
+      intros. reflect (nat_type :: nil).
+      
+      match goal with 
+        | [ |- @himp ?types ?funcs ?pcT ?stT ?sfuncs _ _ _ _ _ _ _ _ _  ] => pose funcs; pose sfuncs
+      end.
+
+
+
+      eapply ApplyCancelSep.
+      compute.
+      Set Printing All.
+      cbv beta iota zeta delta [CancelSep hash_left sepCancel].
+
+      join_SHeap denote env_of_Subst other pure funcs 
+
+(*      Time compute.
+      Eval compute in (functionTypeD (map (@tvarD types) nil) (@tvarD types (Some (FS (FS FO))))).
+
+      About Build_signature.
+*)
+      pose (types := (defaultType b :: defaultType a :: nat_type :: nil)).
+      change (himp (types := types) (pcType := Some (FS FO)) (stateType := Some FO)
+        (funcs := (Build_signature (types := types) nil (Some (FS (FS FO))) x :: (@nil (signature types))))
+        (sfuncs := Build_ssignature (types := types) (Some (FS FO)) (Some FO) (Some (FS (FS FO)) :: nil) (f a b) :: nil)
+
+        HNil HNil HNil c (Star Emp (Star Emp Emp)) (Star Emp (Star Emp Emp))).
+      Set Printing All.
+      
+
+      
+      
+      
+
+      Set Printing All
+canceler.
+      compute in H.
+      match goal with 
+        | [ |- @himp ?types ?funcs ?pcTyp ?stateTyp ?sfuncs _ _ _ _ _ _ ?cs ?L ?R ] =>
+          let R := fresh in
+            pose types ; pose funcs ;
+              pose pcTyp ; pose stateTyp ; pose sfuncs ;
+          pose (R := @CancelSep types funcs pcTyp stateTyp sfuncs cs nil L R)
+      end.
+      cbv beta iota zeta delta [CancelSep hash_left] in H.
+
+      match eval unfold H in H with
+        | ?X => idtac X
+        | match ?X as p return _ with 
+            | (_,_) => _
+          end _ => idtac X
+      end.
+
+      pose (sepCancel (SHeap_empty nil nil nil (nil ++ nil))
+              (liftSHeap nil nil nil
+                 (sheapSubstU nil nil (SHeap_empty  l0 l1 nil (nil ++ nil))))).
+      compute in p.
+
+      Set Printing All.
+
+      compute in H.
+      hnf in H.
+      simpl in H.
+          let K := eval hnf in R in 
+          match K with 
+            | @Prove _ _ _ _ _ _ _ _ _ _ ?L' ?R' ?S ?PF =>
+              simple eapply PF; unfold denote; simpl
+          end
+
+
+
+ canceler.
+    Abort.
+
 
     Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
       intros. debug_reflect.
