@@ -1,6 +1,7 @@
 Require Import Expr.
 Require Import PMap.
 Require Import List.
+Require Import EquivDec.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -19,10 +20,10 @@ Section Unify.
       dmap_empty.
 
     Definition Subst_lookup (k : fin dom) (s : Subst dom uvars vars) :=
-      dmap_lookup _ _ (fun a b => Some (finCmp a b)) k s.
+      dmap_lookup _ _ (fun a b => Some (cmp_dec a b)) k s.
 
     Definition Subst_insert (k : fin dom) (v : _) (s : Subst dom uvars vars) :=
-      dmap_insert (fun a b => Some (finCmp a b)) k v s.
+      dmap_insert (fun a b => Some (cmp_dec a b)) k v s.
 
     Variable sub : Subst dom uvars vars.
 
@@ -43,8 +44,8 @@ Section Unify.
 
   Definition get_Eq (t : tvar types) : forall x y : tvarD t, option (x = y) :=
     match t with
-      | None => fun _ _ => None
-      | Some t => Eq (get _ t)
+      | tvProp => fun _ _ => None
+      | tvTrans t => Eq (get _ t)
     end.
 
   (** TODO: Right now this just does structural equality, it would be nice to
@@ -82,7 +83,7 @@ Section Unify.
           | None => 
             Some (Subst_insert u l s)
           | Some r =>
-            if exprEq l r then Some s else None
+            if seq_dec l r then Some s else None
         end
       | Func f args => fun l s =>
         match l in expr _ _ _ T 

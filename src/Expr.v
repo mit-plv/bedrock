@@ -1,8 +1,3 @@
-(** TODO List
- ** - Merging states
- ** - Lifting expressions to new states
- ** - Unification variables?
- **)
 Require Import List Env.
 Require Import EqdepClass.
 
@@ -16,11 +11,18 @@ Section env.
 
   Variable types : list type.
 
-  Definition tvar := option (fin types).
-  Definition tvarD x := match x with
-                          | None => Prop
-                          | Some x => Impl (get types x)
-                        end.
+  Inductive tvar : Type :=
+  | tvProp 
+(** This doesn't work b/c I need decidable equality on this type in order to use UIP_refl
+  | tvOpaque : Type -> tvar
+*)
+  | tvTrans : fin types -> tvar.
+
+  Definition tvarD (x : tvar) := 
+    match x with
+      | tvProp => Prop
+      | tvTrans x => Impl (get types x)
+    end.
 
   Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
@@ -104,16 +106,19 @@ Section env.
       | Func f xs => applyD exprD xs _ (Denotation (get funcs f))
     end.
   
-  Lemma tvar_dec : forall (a b : tvar), {a = b} + {a <> b}.
+  Global Instance EqDec_tvar : EqDec _ (@eq tvar).
+   red. change (forall x y : tvar, {x = y} + {x <> y}).
     decide equality. eapply finEq. 
   Defined.
 
+(*
   Definition tvarCmp (a : tvar) : forall b, dcomp a b :=
     match a as a return forall b, dcomp a b with
-      | None => fun b => match b with
-                           | None => Env.Eq (eq_refl _)
-                           | _ => Env.Lt _ _
-                         end
+      | tvProp => fun b => match b with
+                             | None => Env.Eq (eq_refl _)
+                             | _ => Env.Lt _ _
+                           end
+      | tv
       | Some a => fun b => match b return dcomp (Some a) b with
                              | None => Env.Gt _ _ 
                              | Some b =>
@@ -126,15 +131,17 @@ Section env.
                                end
                            end
     end.
+*)
 
-  Definition exprEq : forall t (x y : expr t), option (x = y).
-  refine (fix exprEq t (x : expr t) {struct x} : forall y : expr t, option (x = y) :=
+  Global Instance SemiDec_expr t : SemiDec (expr t).
+  constructor.
+  refine ((fix exprEq t (x : expr t) {struct x} : forall y : expr t, option (x = y) :=
     match x in expr t return forall y : expr t, option (x = y) with
       | Const t c1 => fun y : expr t => 
         match y in expr t' return forall c1 : tvarD t', option (Const t' c1 = y) with
           | Const t c2 => match t return forall c2 c1 : tvarD t, option (Const t c1 = Const t c2) with
-                            | None => fun _ _ => None
-                            | Some t => fun x y => if Eq (get types t) x y then Some _ else None
+                            | tvProp => fun _ _ => None
+                            | tvTrans t => fun x y => if Eq (get types t) x y then Some _ else None
                           end c2
           | _ => fun _ => None
         end c1
@@ -170,13 +177,13 @@ Section env.
                                           end
           | _ => fun _ _ => None
         end (refl_equal _) (hlistEq exprEq xs1)
-    end); clear exprEq; try abstract (subst;
+    end) t); clear exprEq; try abstract (subst;
       repeat match goal with
                | [ Heq : _ = _ |- _ ] => rewrite (@UIP_refl _ _ _ Heq) in *; clear Heq; simpl in *
              end; congruence).
   Defined.
 
-  Fixpoint exprCmp t (x : expr t) : forall y : expr t, option (dcomp x y).
+  Fixpoint exprCmp t (x : expr t) {struct x} : forall y : expr t, option (dcomp x y).
     refine (match x as x in expr t return forall y : expr t, option (dcomp x y) with
               | Const _ v => fun y =>
                 match y as y in expr t 
@@ -184,14 +191,14 @@ Section env.
                   | Const t y => fun x => 
                     match t as t
                       return forall x y : tvarD t, option (dcomp (Const _ x) (Const _ y)) with 
-                      | None => fun _ _ => None
-                      | Some t => fun x y => match Eq _ x y with 
-                                               | None => None
-                                               | Some pf => 
-                                                 Some (Env.Eq match pf in _ = z return Const _ x = Const _ _ with
-                                                                | refl_equal => refl_equal
-                                                              end)
-                                             end
+                      | tvProp => fun _ _ => None
+                      | tvTrans t => fun x y => match Eq _ x y with 
+                                                  | None => None
+                                                  | Some pf => 
+                                                    Some (Env.Eq match pf in _ = z return Const _ x = Const _ _ with
+                                                                   | refl_equal => refl_equal
+                                                                 end)
+                                                end
                     end x y
                   | _ => fun _ => Some (Env.Lt _ _)
                 end v
@@ -202,7 +209,7 @@ Section env.
                                             | refl_equal => y
                                           end) with 
                   | Const _ _ => fun _ => Some (Env.Gt _ _)
-                  | Var v' => fun _ => match finCmp v v' with 
+                  | Var v' => fun _ => match cmp_dec v v' with 
                                          | Env.Lt => Some (Env.Lt _ _)
                                          | Env.Gt => Some (Env.Gt _ _)
                                          | Env.Eq _ => Some (Env.Eq _)
@@ -216,7 +223,7 @@ Section env.
                                             | refl_equal => y
                                           end) with 
                   | Const _ _ | Var _ => fun _ => Some (Env.Gt _ _)
-                  | UVar v' => fun _ => match finCmp v v' with 
+                  | UVar v' => fun _ => match cmp_dec v v' with 
                                           | Env.Lt => Some (Env.Lt _ _)
                                           | Env.Gt => Some (Env.Gt _ _)
                                           | Env.Eq _ => Some (Env.Eq _)
@@ -231,25 +238,35 @@ Section env.
                     end) with
                   | Const _ _ | Var _ | UVar _ => fun _ => Some (Env.Gt _ _)
                   | Func f' args' => fun pf =>
-                    match finCmp f f' with 
+                    match cmp_dec f f' with 
                       | Env.Lt => Some (Env.Lt _ _)
                       | Env.Gt => Some (Env.Gt _ _)
                       | Env.Eq pf' =>
                         match pf' in _ = t 
-                          return forall (args : hlist expr (Domain (get funcs f))) (args' : hlist expr (Domain (get funcs t))) (pf : Range (get funcs t) = Range (get funcs f)) ,
-                            option (dcomp (Func f args) 
+                          return forall (args' : hlist expr (Domain (get funcs t)))
+                            (pf : Range (get funcs t) = Range (get funcs f))
+                            (cmp : forall hl : hlist expr (Domain (get funcs f)), option (dcomp args hl)),
+                            option (dcomp (Func f args)
                               match pf in _ = z return expr z with
                                 | refl_equal => Func t args'
                               end)
                           with
-                          | refl_equal => fun args args' pf => _
-                        end args args' pf
+                          | refl_equal => fun args' pf cmp =>
+                            match cmp args' with
+                              | None => None 
+                              | Some Env.Lt => Some (Env.Lt _ _)
+                              | Some Env.Gt => Some (Env.Gt _ _)
+                              | Some (Env.Eq _) => Some (Env.Eq _)
+                            end
+                        end args' pf (hlistOCmp (exprCmp) args)
                     end
                 end refl_equal
             end); try solve [ subst; uip_all; reflexivity ].
-    refine (None). (** TODO **)
   Defined.
 End env.
+
+Implicit Arguments tvProp [ types ].
+Implicit Arguments tvTrans [ types ].
 
 Section Lifting.
   Variable types : list type.
@@ -365,7 +382,7 @@ Section Lifting.
     induction e using expr_ind_strong; simpl; auto.
       case_eq (liftDmid vars vars' vs x); intros. 
       generalize (@hlist_get_lift _ _ _ vars' vs vars x G G' G''). intros.
-      unfold tvar in *. rewrite H0. rewrite H. clear.
+      rewrite H0. rewrite H. clear.
       generalize (hlist_app G (hlist_app G' G'')). generalize e.
       rewrite <- e. intros. uip_all. reflexivity.
 
@@ -447,7 +464,7 @@ Section Lifting.
         rewrite H. clear H. generalize pf. rewrite <- pf. uip_all. simpl. auto.
         
         simpl. generalize (@hlist_get_lift _ _ _ nil _ _ x HNil C A). simpl in *.
-          intro. rewrite H. clear. unfold tvar in *. destruct (liftD c x).
+          intro. rewrite H. clear. destruct (liftD c x).
           change (hlist_get x0 (hlist_app C A)) with
             (exprD (hlist_app C A) (hlist_app B D) (UVar funcs (b ++ d) x0)).
           generalize (UVar funcs (b ++ d) x0). clear.
@@ -463,15 +480,13 @@ Section Lifting.
 
   End Usubst.
 
-
-
 End Lifting.
 
 Section Qexpr.
   Context {types : list type}.
   Variable fs : functions types.
 
-  Definition Qexpr := { x : variables types & expr fs nil x None }.
+  Definition Qexpr := { x : variables types & expr fs nil x tvProp }.
 
   Fixpoint denoteQuant (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
     match ls as ls return (hlist (@tvarD types) ls -> Prop) -> Prop with
@@ -489,9 +504,9 @@ Section ProverT.
   Variable fs : functions types.
 
   Definition ProverT : Type := forall 
-    (hyps : list (@expr types fs nil nil None))
-    (goal : @expr types fs nil nil None), 
-    hlist (fun e => @exprD _ fs _ _ HNil HNil None e) hyps -> 
+    (hyps : list (@expr types fs nil nil tvProp))
+    (goal : @expr types fs nil nil tvProp), 
+    hlist (fun e => @exprD _ fs _ _ HNil HNil tvProp e) hyps -> 
     option (exprD HNil HNil goal).
   
 End ProverT.
@@ -538,21 +553,22 @@ Ltac extend_type T D types :=
 
 Definition defaultType T := {| Impl := T; Eq := fun _ _ => None |}.
 
-About seq.
-
-Ltac extend_all_types Ts types k :=
+Ltac extend_all_types Ts types :=
   match Ts with
-    | nil => k types
-    | ?a :: ?b =>
-      let T := fresh in
-      (   let TC := fresh in 
-          assert (TC : SemiDec a); 
-            [ solve [ eauto with typeclass_instances ] | 
-              pose (T := {| Impl := a ; Eq := @seq _ _ ] 
-       || pose (
+    | nil => types
+    | ?a :: ?b => 
       let types := extend_type a (defaultType a) types in
-      extend_all_types b types k
+      extend_all_types b types
   end.
+
+Ltac typesIndex x types :=
+  indexOf Impl x types.
+
+Ltac funcIndex x funcs :=
+  indexOf Denotation x funcs.
+
+
+(*
 
 Ltac buildTypes e types :=
   let rec bt_args args types :=
@@ -586,11 +602,6 @@ Ltac collectTypes_expr e types :=
   in
   refl_app cc e.
 
-Ltac typesIndex x types :=
-  indexOf Impl x types.
-
-Ltac funcIndex x funcs :=
-  indexOf Denotation x funcs.
 
 Ltac refl_type types types' T :=
   match T with
@@ -740,37 +751,6 @@ Ltac consts e :=
     | S ?n => consts n
     | _ => false
   end.
-
-(** Three simple test cases **) 
-(** These terms get pretty big since we have to store the list instead of just the length.
- ** It would probably be beneficial to let-bind some terms unless Coq is doing its own sharing
- **)
-(* TODO: Fix this if unification works out well this way....
-
-Goal forall a b : nat, a + b = a + b.
-  intros; reflect consts.
-(* Performance Evaluation *)
-  match goal with
-    | [ |- exprD _ (Func _ (HCons ?A (HCons ?B _))) ] => 
-      pose A ; pose B
-  end.
-  pose (exprEq e e0). hnf in o.
-Abort.
-
-Goal negb false = true.
-  intros; reflect consts.
-Abort.
-
-Goal forall n m, n + m = m + 0 + n.
-  intros; reflect consts.
-Abort.
 *)
-
-Print expr.
-
-Implicit Arguments Const [ types funcs uvars vars t ].
-Implicit Arguments Var   [ types funcs uvars vars ].
-Implicit Arguments UVar  [ types funcs uvars vars ].
-Implicit Arguments Func  [ types funcs uvars vars ].
 
 Require Export Env.

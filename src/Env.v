@@ -2,6 +2,26 @@ Require Import List EqdepClass.
 
 Set Implicit Arguments.
 
+Class SemiDec (t : Type) : Type :=
+{ seq_dec : forall a b : t, option (a = b) }.
+Global Instance EquivDec_SemiDec t (EQ : EqDec t (@eq t)) : SemiDec t :=
+{ seq_dec := fun a b =>
+  match equiv_dec a b with
+    | left pf => Some pf
+    | right _ => None
+  end }.
+
+Inductive dcomp T (a b : T) : Type :=
+| Lt | Gt | Eq : a = b -> dcomp a b.
+
+Class Comparable (t : Type) : Type :=
+{ cmp_dec : forall a b : t, dcomp a b }.
+Class SemiComparable (t : Type) : Type :=
+{ scmp_dec : forall a b : t, option (dcomp a b) }.
+Global Instance Comparable_SemiComparable t (SC : Comparable t) 
+  : SemiComparable t :=
+{ scmp_dec := fun a b => Some (cmp_dec a b) }.
+
 Section fin.
   Variable A : Type.
   
@@ -53,6 +73,7 @@ Section fin.
 
   Hint Immediate fin_inj.
 
+
   Definition finEq : forall ls (x y : fin ls), {x = y} + {x <> y}.
     refine (fix finEq ls : forall x y : fin ls, {x = y} + {x <> y} :=
       match ls return forall x y : fin ls, {x = y} + {x <> y} with
@@ -68,12 +89,8 @@ Section fin.
         end; subst; discriminate).
   Defined.
 
-  Require Import EquivDec.
-  Global Instance finEq_dec ls : EqDec (fin ls) (@eq (fin ls)) :=
-    @finEq ls.
-
-  Inductive dcomp T (a b : T) : Type :=
-  | Lt | Gt | Eq : a = b -> dcomp a b.
+  Global Instance EquivDec_fin ls : EqDec (fin ls) (@eq _) :=
+  { equiv_dec := @finEq ls }.
   
   Definition dcomp_option T (a b : T) (d : dcomp a b) : option (a = b) :=
     match d with
@@ -81,13 +98,15 @@ Section fin.
       | _ => None
     end.
 
-  Fixpoint finCmp ls (x : fin ls) : forall y : fin ls, dcomp x y :=
+  Global Instance Comparable_fin ls : Comparable (fin ls).
+  constructor.
+  refine ((fix finCmp ls (x : fin ls) : forall y : fin ls, dcomp x y :=
     match x in fin ls return forall y : fin ls, dcomp x y with
       | FO a b => fun y : fin (a :: b) =>
         @finIfz _ _ y (dcomp (FO a b)) (Eq (refl_equal _)) (fun _ => Lt _ _)
       | FS a ls r => fun y : fin (a :: ls) =>
         @finIfz _ _ y (dcomp (FS a r)) (Gt _ _) 
-          (fun r' => match finCmp r r' with
+          (fun r' => match finCmp _ r r' with
                        | Eq pf => Eq (match pf in _ = t return FS a r = FS a t with
                                         | refl_equal => refl_equal _
                                       end)
@@ -95,7 +114,8 @@ Section fin.
                        | Gt => Gt _ _
                        | Lt => Lt _ _ 
                      end)
-    end.
+    end) ls).
+  Defined.
 
   Fixpoint get (ls : list A) : fin ls -> A :=
     match ls return fin ls -> A with
@@ -292,7 +312,6 @@ Section fin.
 
         subst; simpl. uip_all. generalize e. rewrite e. uip_all. reflexivity.
     Qed.
-
   End liftD_Proofs.
 
   

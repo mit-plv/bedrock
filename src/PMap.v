@@ -49,7 +49,6 @@ Section FMap.
                         | Gt => dmap_lookup l 
                         | Lt => dmap_lookup r
                         | Eq pf => 
-                          (** TODO: I don't think this is going to be computable **)
                           match pf in _ = k return option (V k) with
                             | refl_equal => Some v'
                           end
@@ -62,8 +61,9 @@ Section FMap.
       | DM_Empty => DM_Branch k v m m 
       | DM_Branch k' v' l r =>
         match Kcmp k' k with
-          | Some Gt => DM_Branch k' v' l (dmap_insert v r)
-          | _ => DM_Branch k' v' (dmap_insert v l) r
+          | Some Gt => DM_Branch k' v' (dmap_insert v l) r
+          | Some (Eq _) => DM_Branch k v l r
+          | _ => DM_Branch k' v' l (dmap_insert v r)
         end
     end.
 
