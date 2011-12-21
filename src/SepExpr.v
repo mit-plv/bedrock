@@ -1372,6 +1372,8 @@ Module SepExpr (B : Heap).
         constr:(@cons (@tvar types) (tvTrans i) rest)
     end.
 
+  About tvTrans.
+
   Ltac collectFunctions_expr isConst e types funcs :=
     match e with
       | fun x => (@openUp _ _ _ x) =>
@@ -1406,7 +1408,7 @@ Module SepExpr (B : Heap).
                         end
                       in
                       let T := typesIndex T types in
-                      constr:((@tvTrans (fin types) T))
+                      constr:((@tvTrans types T))
                     in
                     let F := constr:(@Build_signature types dom ran f) in
                     add_end_uniq F funcs 
@@ -1423,7 +1425,7 @@ Module SepExpr (B : Heap).
                     end
                   in
                   let T := typesIndex T types in
-                  constr:((@tvTrans (fin types) T))
+                  constr:((@tvTrans types T))
                 in
                 let F := constr:(@Build_signature types dom ran f) in
                 add_end_uniq F funcs 
@@ -1663,7 +1665,6 @@ Module SepExpr (B : Heap).
           let ts := constr:(pcT :: stT :: @nil Type) in 
           let lt := collectTypes_sexpr L ts ltac:(fun lt => lt) in
           let rt := collectTypes_sexpr R lt ltac:(fun rt => rt) in
-          let Ts := constr:(@nil type) in
           let Ts := extend_all_types rt Ts in
           let Ts := eval simpl in Ts in 
           let pcTyp := typesIndex pcT Ts in
@@ -1692,7 +1693,7 @@ Module SepExpr (B : Heap).
     Ltac canceler :=
       match goal with 
         | [ |- @himp ?types ?funcs ?pcTyp ?stateTyp ?sfuncs _ _ _ _ _ _ ?cs ?L ?R ] =>
-          simple eapply ApplyCancelSep
+          simple eapply ApplyCancelSep; lazy
       end.
 
     Ltac sep isConst Ts := 
@@ -1739,6 +1740,7 @@ Section Tests.
       simpl all. simpl allb.
       intros. reflect isConst (nat_type :: nil).
     Abort.
+End Tests.
 *)
 End SepExpr.
 

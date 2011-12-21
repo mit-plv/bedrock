@@ -177,7 +177,7 @@ Section env.
                                           end
           | _ => fun _ _ => None
         end (refl_equal _) (hlistEq exprEq xs1)
-    end) t); clear exprEq; try abstract (subst;
+    end) t); clear exprEq; try (subst;
       repeat match goal with
                | [ Heq : _ = _ |- _ ] => rewrite (@UIP_refl _ _ _ Heq) in *; clear Heq; simpl in *
              end; congruence).
