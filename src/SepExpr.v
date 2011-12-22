@@ -8,8 +8,7 @@ Require Import EqdepClass.
 
 Set Implicit Arguments.
 
-Module SepExpr (B : Heap).
-  Module ST := SepTheoryX.SepTheoryX B.  
+Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   Section env.
     Variable types : list type.
@@ -74,12 +73,12 @@ Module SepExpr (B : Heap).
 
       Global Instance Trans_himp u v U g cs : Transitive (@himp u u v U U g cs).
       Proof.
-        red. intros. unfold himp. etransitivity; eauto.
+        red. intros. unfold himp. eapply ST.Trans_himp; eauto.
       Qed.
 
       Global Instance Trans_heq u v U g cs : Transitive (@heq u u v U U g cs).
       Proof.
-        red. intros. unfold heq. etransitivity; eauto.
+        red. intros. unfold heq. eapply ST.Trans_heq; eauto.
       Qed.
 
       Theorem ST_himp_himp : forall u1 u2 g (U1 : hlist _ u1) (U2 : hlist _ u2) (G : hlist _ g)
@@ -377,13 +376,13 @@ Module SepExpr (B : Heap).
       Global Instance Sym_heq : forall A B G G',
         Symmetric (@heq A A B G G G' cs).
       Proof.
-        unfold heq, Symmetric. intros. symmetry. auto.
+        unfold heq, Symmetric. intros. eapply ST.Sym_heq. auto.
       Qed.
 
       Global Instance Refl_heq : forall A B G G',
         Reflexive (@heq A A B G G G' cs).
       Proof.
-        unfold heq, Reflexive. intros. reflexivity.
+        unfold heq, Reflexive. intros. eapply ST.Refl_heq.
       Qed.
 
       Lemma heq_star_assoc : forall a b A B C (P Q R S : sexpr a b),
@@ -428,7 +427,8 @@ Module SepExpr (B : Heap).
         himp A C B cs l r.
       Proof.
         clear.
-        unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+        unfold heq, himp. intros.
+        generalize (ST.heq_himp H); intros. eapply ST.Trans_himp; eauto.
       Qed.
 
       Lemma himp_heq : forall a b c (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) l r m,
@@ -437,7 +437,7 @@ Module SepExpr (B : Heap).
         himp C A B cs l r.
       Proof.
         clear.
-        unfold heq, himp. destruct 1. intros. etransitivity; eauto.
+        unfold heq, himp. intros. generalize (ST.heq_himp H). intros. eapply ST.Trans_himp; eauto.
       Qed.
 
       Fixpoint existsEach (uvars vars vars' : variables types) {struct vars}
@@ -528,10 +528,10 @@ Module SepExpr (B : Heap).
           2: apply (H _ e eq_refl).
           clear. intros k e. revert vars' G. 
           induction e; simpl; intros; 
-            try solve [ generalize E; uip_all; simpl; reflexivity ].
+            try solve [ generalize E; uip_all; simpl; eapply ST.Refl_heq ].
             Focus.
             generalize E e; uip_all. simpl. f_equal. rewrite liftExpr_denote.
-              reflexivity.
+              apply ST.Refl_heq.
             Focus.
             specialize (IHe1 _ G E). specialize (IHe2 _ G E).
               generalize IHe1 IHe2. clear IHe1 IHe2.
@@ -563,10 +563,10 @@ Module SepExpr (B : Heap).
           try solve [ reflexivity | unfold heq; simpl; apply ST.heq_ex_star ].
 
           Focus.
-          unfold heq. simpl. etransitivity. eapply ST.heq_ex_star.
-            eapply ST.heq_ex. intros. eapply ST.heq_star_frame. reflexivity.
+          unfold heq. simpl. eapply ST.Trans_heq. eapply ST.heq_ex_star.
+            eapply ST.heq_ex. intros. eapply ST.heq_star_frame. eapply ST.Refl_heq.
             generalize (@liftExpr_denote _ _ _ nil _ _ _ e A HNil (HCons v HNil) C).
-            simpl. intro. rewrite <- H. reflexivity.
+            simpl. intro. rewrite <- H. eapply ST.Refl_heq.
 
           etransitivity. etransitivity. 2: eapply heq_star_frame. 2: eapply IHQ1.
             instantiate (1 := Q2). instantiate (1 := P). 
@@ -579,45 +579,46 @@ Module SepExpr (B : Heap).
             instantiate (1 := 
               Exists t (Exists t0 (Star (liftSExpr (t0 :: nil) (t :: nil) vars P)
                 (liftSExpr nil (t0 :: nil) (t :: vars) Q)))).
-            apply heq_star_comm. unfold heq. simpl. etransitivity. apply ST.heq_ex_star.
+            apply heq_star_comm. unfold heq. simpl. eapply ST.Trans_heq. apply ST.heq_ex_star.
             eapply ST.heq_ex. intros; apply ST.heq_star_comm.
             unfold heq in IHQ. simpl in *. 
             specialize (IHQ t0 A (HCons v C) (liftSExpr (t0 :: nil) (t :: nil) vars P)).
-            etransitivity. etransitivity. 2: eapply IHQ.
+            eapply ST.Trans_heq. eapply ST.Trans_heq. 2: eapply IHQ.
             eapply ST.heq_star_frame. eapply ST.heq_ex. intro.
-            generalize (@liftSExpr_denote _ (t0 :: nil) (t :: nil) vars P A (HCons v0 HNil) (HCons v HNil) C). simpl. symmetry. auto. reflexivity. reflexivity.
+            generalize (@liftSExpr_denote _ (t0 :: nil) (t :: nil) vars P A (HCons v0 HNil) (HCons v HNil) C). simpl. 
+              eapply ST.Sym_heq. apply ST.Refl_heq. apply ST.Refl_heq.
 
-            unfold heq; simpl. clear. split.
+            unfold heq; simpl. clear. eapply ST.heq_defn. split.
               do 2 (apply ST.himp_ex_p; intros);
                 eapply ST.himp_ex_c. exists v0. eapply ST.himp_star_frame.
-                destruct (@liftSExpr_denote uvars (t0 :: nil) (t :: nil) vars P
-                  A (HCons v0 HNil) (HCons v HNil) C).
+                generalize (@liftSExpr_denote uvars (t0 :: nil) (t :: nil) vars P
+                  A (HCons v0 HNil) (HCons v HNil) C). intro. apply ST.heq_defn in H. destruct H.
                 simpl in *. auto.
                 apply ST.himp_ex_c. exists v. 
-                destruct (@liftSExpr_denote uvars nil (t0 :: nil) (t :: vars) Q 
-                  A HNil (HCons v0 HNil) (HCons v C)).
-                simpl in *. etransitivity. eapply H.
-                destruct (@liftSExpr_denote uvars (t :: nil) (t0 :: nil) vars Q 
-                  A (HCons v HNil) (HCons v0 HNil) C); simpl in *.
-                eapply H2.
+                generalize (@liftSExpr_denote uvars nil (t0 :: nil) (t :: vars) Q 
+                  A HNil (HCons v0 HNil) (HCons v C)). intro. apply ST.heq_defn in H. destruct H.
+                simpl in *. eapply ST.Trans_himp. eapply H.
+                generalize (@liftSExpr_denote uvars (t :: nil) (t0 :: nil) vars Q 
+                  A (HCons v HNil) (HCons v0 HNil) C). intro. eapply ST.heq_defn in H1. destruct H1.
+                simpl in *; auto.
 
-              apply ST.himp_ex_p; intros. etransitivity.
+              apply ST.himp_ex_p; intros. eapply ST.Trans_himp.
                 eapply ST.himp_star_comm_p. apply ST.himp_ex_star.
                 eapply ST.himp_ex_p. intros. eapply ST.himp_ex_c. exists v0.
                 eapply ST.himp_ex_c. exists v. apply ST.himp_star_comm_p.
                 apply ST.himp_star_frame.
 
-              destruct (@liftSExpr_denote uvars (t0 :: nil) (t :: nil) vars P
-                A (HCons v HNil) (HCons v0 HNil) C). auto.
-              destruct (@liftSExpr_denote uvars nil (t0 :: nil) (t :: vars) Q 
-                A HNil (HCons v HNil) (HCons v0 C)).
-              destruct (@liftSExpr_denote uvars (t :: nil) (t0 :: nil) vars Q 
-                A (HCons v0 HNil) (HCons v HNil) C); simpl in *.
-              etransitivity. eassumption. eauto.
+              generalize (@liftSExpr_denote uvars (t0 :: nil) (t :: nil) vars P
+                A (HCons v HNil) (HCons v0 HNil) C). intro X; apply ST.heq_defn in X; destruct X. auto.
+              generalize (@liftSExpr_denote uvars nil (t0 :: nil) (t :: vars) Q 
+                A HNil (HCons v HNil) (HCons v0 C)). intro X; apply ST.heq_defn in X; destruct X.
+              generalize (@liftSExpr_denote uvars (t :: nil) (t0 :: nil) vars Q 
+                A (HCons v0 HNil) (HCons v HNil) C); intro X; apply ST.heq_defn in X; destruct X; simpl in *.
+              eapply ST.Trans_himp. eassumption. eauto.
 
           Focus.
-          unfold heq; simpl. etransitivity. eapply ST.heq_ex_star.
-            eapply ST.heq_ex. intros. eapply ST.heq_star_frame; try reflexivity.
+          unfold heq; simpl. eapply ST.Trans_heq. eapply ST.heq_ex_star.
+            eapply ST.heq_ex. intros. eapply ST.heq_star_frame. eapply ST.Refl_heq.
 
             clear. destruct (get sfuncs f); simpl in *.
             generalize dependent SDomain0. induction SDomain0.
@@ -895,10 +896,10 @@ Module SepExpr (B : Heap).
         heq HNil HNil G cs s 
           (@existsEach _ (projT1 (@hash_left _ _  s)) g (denote (projT2 (hash_left s)))).
       Proof.
-        clear. induction s; 
+        clear. induction s;
           try solve [ simpl; intros; unfold denote; simpl;
-            unfold heq; simpl; symmetry; 
-              do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); reflexivity ].
+            unfold heq; simpl; eapply ST.Sym_heq;
+              do 10 (apply ST.heq_star_emp || (try apply ST.heq_star_comm)); eapply ST.Refl_heq ].
           (** Star **)
           Focus.
           intros. eapply heq_subst. eapply IHs1. eapply heq_star_comm. eapply heq_subst.
@@ -928,10 +929,10 @@ Module SepExpr (B : Heap).
 
           (** Func **)
           Focus.
-          simpl. unfold denote. simpl. unfold heq. symmetry. simpl.
+          simpl. unfold denote. simpl. unfold heq. eapply ST.Sym_heq. simpl.
             apply ST.heq_star_comm. apply ST.heq_star_assoc. 
             repeat apply ST.heq_star_emp. apply ST.heq_star_comm. apply ST.heq_star_emp.
-            reflexivity.
+            eapply ST.Refl_heq.
       Qed.
 
        Lemma himp_trans : forall a b c d (A : hlist _ a) (B : hlist _ b) (C : hlist _ c) (D : hlist _ d) P Q R,
@@ -939,25 +940,18 @@ Module SepExpr (B : Heap).
          himp B C D cs Q R ->
          himp A C D cs P R.
        Proof.
-         clear. unfold himp. intros. etransitivity; eauto.
+         clear. unfold himp. intros. eapply ST.Trans_himp; eauto.
        Qed.
-
-       Lemma himp'_ex : forall T (P : T -> _) Q,
-         (forall x, ST.himp cs (P x) Q) ->
-         ST.himp cs (ST.ex P) Q.
-       Proof.
-         clear. intros. unfold ST.himp in *. propxFo. eauto.
-       Qed.
-
 
        Lemma himp_ex : forall a a' b (A : hlist _ a) (A' : hlist _ a') (B : hlist _ b) t P Q,
          (forall x, himp A' A (HCons x B) cs P (liftSExpr nil (t :: nil) b Q)) ->
          himp A' A B cs (Exists t P) Q.
        Proof.
          clear. unfold himp. simpl. intros.
-         eapply himp'_ex. intros. specialize (H x). etransitivity.
+         eapply ST.himp'_ex. intros. specialize (H x). eapply ST.Trans_himp.
          eapply H. clear.
-         generalize (@liftSExpr_denote a nil (t :: nil) b Q A HNil (HCons x HNil) B). simpl. intros. destruct H; auto.
+         generalize (@liftSExpr_denote a nil (t :: nil) b Q A HNil (HCons x HNil) B). simpl. intros. 
+         apply ST.heq_defn in H. destruct H; auto.
        Qed.
 
        Lemma himp_existsEach : forall ext a a' b (A' : hlist _ a') (A : hlist _ a) (B : hlist _ b) P Q,
@@ -972,7 +966,7 @@ Module SepExpr (B : Heap).
          specialize (H (HCons x G)). simpl in *. eapply himp_trans. 
          eapply H.
          rewrite (@liftSExpr_liftSExpr_app a0 nil). simpl. clear. uip_all.
-         simpl in *. generalize e; uip_all. unfold himp. reflexivity.
+         simpl in *. generalize e; uip_all. unfold himp. eapply ST.Refl_himp.
        Qed.
 
        Lemma himp_frame_emp_p : forall a a' b (A : hlist _ a) (A' : hlist _ a') (B : hlist _ b) P Q,
@@ -997,7 +991,7 @@ Module SepExpr (B : Heap).
        Global Instance himp_refl a b (A : hlist _ a) (B : hlist _ b) 
          : Reflexive (himp A A B cs).
        Proof.
-         red. unfold himp. intros. reflexivity.
+         red. unfold himp. intros. eapply ST.Refl_himp.
        Qed.
        Lemma hlist_split : forall T, EqDec T (@eq T) ->
          forall (F : T -> Type) a b (A : hlist F (a ++ b)), 
@@ -1111,18 +1105,18 @@ Module SepExpr (B : Heap).
       (sexprD (existsEach c b e) A B).
     Proof.
       clear. induction c using rev_ind; simpl; intros.
-        eapply ST.himp_ex_p. intros; reflexivity.
+        eapply ST.himp_ex_p. intros; apply ST.Refl_himp. 
         eapply ST.himp_ex_p. intros.
         rewrite existsEach_peel_back. simpl.
         destruct (hlist_split _ _ _ v). destruct x0. simpl in *; subst.
         eapply ST.himp_ex_c. exists (hlist_hd h0).
-        etransitivity. 2: eapply IHc. eapply ST.himp_ex_c.
+        eapply ST.Trans_himp. 2: eapply IHc. eapply ST.himp_ex_c.
         exists h. uip_all.
         rewrite hlist_app_assoc. 
         clear.
         uip_all. rewrite (hlist_eta _ h0). simpl.
         generalize (hlist_app h (HCons (hlist_hd h0) B)). generalize e0 e1 e.
-        simpl. rewrite <- e1. simpl. uip_all. reflexivity.
+        simpl. rewrite <- e1. simpl. uip_all. apply ST.Refl_himp.
     Qed.
 
 
@@ -1133,25 +1127,25 @@ Module SepExpr (B : Heap).
     Proof.
       clear. intros; unfold sheapSubstU, denote; simpl. 
       unfold himp. simpl.
-      etransitivity.
+      eapply ST.Trans_himp.
       Focus 2. 
       eapply (@sexprD_existsEach cs _ d (b ++ c)).
       eapply ST.himp_ex_c. exists D. simpl. 
       eapply ST.himp_star_frame; [ | eapply ST.himp_star_frame ]. 
       Focus 2.
-      induction (pures s). simpl. reflexivity.
+      induction (pures s). simpl. eapply ST.Refl_himp.
       simpl. eapply ST.himp_star_frame; eauto.
       rewrite (@exprSubstU_denote _ funcs tvProp a nil d (b++c) A HNil D (hlist_app B C)).
-      simpl. reflexivity.
+      simpl. eapply ST.Refl_himp.
 
       Focus 2.
-      induction (other s); simpl; try reflexivity. eapply ST.himp_star_frame; eauto.
-      reflexivity.
+      induction (other s); simpl; try apply ST.Refl_himp. eapply ST.himp_star_frame; eauto.
+      apply ST.Refl_himp.
 
       rewrite dmap_fold_map_fusion.
       assert (ST.himp cs (sexprD Emp (hlist_app D A) (hlist_app B C))
                          (sexprD Emp A (hlist_app D (hlist_app B C)))).
-      reflexivity.
+      apply ST.Refl_himp.
       generalize dependent H.
       generalize (@Emp (d ++ a) (b ++ c)).
       generalize (@Emp a (d ++ b ++ c)).
@@ -1174,9 +1168,13 @@ Module SepExpr (B : Heap).
       himp X Y (hlist_app A (hlist_app B C)) cs (liftSExpr a b c P) (liftSExpr a b c Q).
     Proof.
       clear. unfold himp. intros.
-      destruct (@liftSExpr_denote cs x a b c P X A B C). etransitivity.
+      generalize (@liftSExpr_denote cs x a b c P X A B C).
+      intro ZZ; apply ST.heq_defn in ZZ; destruct ZZ.
+      eapply ST.Trans_himp.
       eassumption.
-      destruct (@liftSExpr_denote cs y a b c Q Y A B C). etransitivity.
+      generalize (@liftSExpr_denote cs y a b c Q Y A B C). 
+      intro ZZ; apply ST.heq_defn in ZZ; destruct ZZ.
+      eapply ST.Trans_himp.
       2: eassumption. eauto.
     Qed.
 
@@ -1371,8 +1369,6 @@ Module SepExpr (B : Heap).
         let rest := reflectTypes_toList types TS in
         constr:(@cons (@tvar types) (tvTrans i) rest)
     end.
-
-  About tvTrans.
 
   Ltac collectFunctions_expr isConst e types funcs :=
     match e with
@@ -1659,7 +1655,54 @@ Module SepExpr (B : Heap).
     in
     reflect s uvars vars k.
 
-   Ltac reflect isConst Ts :=
+  Ltac collectAllTypes isConst ts goals :=
+    match goals with
+      | nil => ts
+      | ?a :: ?b =>
+        (** TODO : I may need to reflect the pcType and stateType **)
+        let ts := collectTypes_sexpr a ts ltac:(fun ts => ts) in
+        collectAllTypes isConst ts b
+    end.
+
+  Ltac collectAllFunctions build isConst goals Ts fs sfs :=
+    match goals with
+      | nil => constr:((fs, sfs))
+      | ?a :: ?b =>
+        (** TODO : I may need to reflect the pcType and stateType **)
+        collectFunctions_sexpr build isConst a Ts fs sfs 
+          ltac:(collectAllFunctions build isConst b Ts)
+    end.
+
+  Ltac reflectAll isConst goals Ts pcTyp stateTyp fs sfs :=
+    match goals with
+      | nil => constr:(tt)
+      | ?a :: ?b =>
+        let vars := constr:(@nil (tvar Ts)) in
+        let uvars := vars in (** Temporary **)
+        reflect_sexpr isConst a Ts fs pcTyp stateTyp sfs vars uvars
+          ltac:(fun a =>
+            let res := reflectAll isConst b Ts pcTyp stateTyp fs sfs in
+            constr:((a, res)))
+    end.
+
+  Ltac reflect_all pcT stT isConst Ts goals := 
+    let rt := collectAllTypes isConst (@nil Type) goals in
+    let Ts := extend_all_types rt Ts in
+    let Ts := eval simpl in Ts in
+    let pcTyp := typesIndex pcT Ts in
+    let stTyp := typesIndex stT Ts in
+    let pcTyp := constr:(tvTrans pcTyp) in
+    let stTyp := constr:(tvTrans stTyp) in
+    let fs := constr:(@nil (@signature Ts)) in
+    let sfs := constr:(@nil (@ssignature Ts pcTyp stTyp)) in
+    let build_ssig x y := constr:(@Build_ssignature Ts pcTyp stTyp x y) in
+    match collectAllFunctions build_ssig isConst goals Ts fs sfs with
+      | (?funcs, ?sfuncs) =>
+        let goals := reflectAll isConst goals Ts pcTyp stTyp funcs sfuncs in
+        goals
+    end.
+
+   Ltac reflect_goal isConst Ts :=
      match goal with
         | [ |- @ST.himp ?pcT ?stT ?X ?L ?R ] =>
           let ts := constr:(pcT :: stT :: @nil Type) in 
@@ -1697,7 +1740,7 @@ Module SepExpr (B : Heap).
       end.
 
     Ltac sep isConst Ts := 
-      reflect isConst Ts; canceler.
+      reflect_goal isConst Ts; canceler.
 
 (*
 Section Tests.

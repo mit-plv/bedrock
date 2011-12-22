@@ -6,8 +6,8 @@ Require Import List.
 Set Implicit Arguments.
 
 Module SepExprTests (B : Heap).
-  Module Sep := SepExpr.SepExpr B.
-  Module ST := Sep.ST.
+  Module ST := SepTheoryX.SepTheoryX (B).
+  Module Sep := SepExpr.SepExpr B ST.
 
   (** Just a test separation logic predicate **)
   Section Tests.
@@ -46,7 +46,7 @@ Module SepExprTests (B : Heap).
         | S n => ST.star (f (m - S n)) (allb f n m)
       end.
 
-    Opaque Sep.himp.
+    Opaque ST.himp ST.star ST.emp ST.inj ST.ex.
 
     Goal forall a b c, @ST.himp a b c (ST.star (allb (@h a b) 0 0) (allb (@f a b) 0 0)) (ST.star (all (@f a b) 0) (all (@h a b) 0)).
       simpl all. simpl allb.

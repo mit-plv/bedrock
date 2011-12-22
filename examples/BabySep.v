@@ -30,6 +30,11 @@ Qed.
 
 Theorem ptsto_refl : forall a v,
   a ==> v ===> a ==> v.
+Proof.
+  intros.
+  About Himp.
+SEP.sep ltac:(fun x => false) (@nil type).
+
 Admitted.
 
 Theorem ptsto_comm : forall a1 v1 a2 v2,

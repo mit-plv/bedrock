@@ -8,7 +8,140 @@ Require Import RelationClasses.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module SepTheoryX (H : Heap).
+Module Type SepTheoryXType (H : Heap).
+  
+  Parameter hprop : forall (pcType stateType : Type), list Type -> Type.
+
+Section Env.  
+  Variable pcType : Type.
+  Variable stateType : Type.
+
+  Parameter himp : forall (cs : codeSpec pcType stateType), 
+    hprop pcType stateType nil -> hprop pcType stateType nil -> Prop.
+
+  Parameter heq : forall (cs : codeSpec pcType stateType), 
+    hprop pcType stateType nil -> hprop pcType stateType nil -> Prop.
+
+  Variable cs : codeSpec pcType stateType.
+
+  Parameter Refl_himp : Reflexive (@himp cs).
+  Parameter Trans_himp : Transitive (@himp cs).
+
+  Parameter Refl_heq : Reflexive (@heq cs).
+  Parameter Sym_heq : Symmetric (@heq cs).
+  Parameter Trans_heq : Transitive (@heq cs).
+
+  Notation "a ===> b" := (himp cs a b) (at level 60).
+  Notation "a <===> b" := (heq cs a b) (at level 60).
+
+  Parameter heq_defn : forall a b, (a ===> b /\ b ===> a) <-> a <===> b.
+
+  Parameter heq_himp : forall a b, a <===> b -> a ===> b.
+     
+  (* Definitions *)
+  Parameter inj : forall {sos} (p : propX pcType stateType sos), 
+    hprop pcType stateType sos.
+
+  Parameter emp : forall {sos}, hprop pcType stateType sos.
+
+  Parameter star : forall {sos} (l r : hprop pcType stateType sos),
+    hprop pcType stateType sos.
+
+  Parameter ex : forall {sos} (T : Type) (p : T -> hprop pcType stateType sos),
+    hprop pcType stateType sos.
+
+  Parameter hptsto : forall {sos} (p : H.addr) (v : H.byte),
+    hprop pcType stateType sos.
+
+  Parameter himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
+
+  Parameter himp_star_comm_p : forall P Q R, 
+    (star P Q) ===> R -> (star Q P) ===> R.
+
+  Parameter himp_star_comm_c : forall P Q R, 
+    R ===> (star P Q) -> R ===> (star Q P).
+
+  Parameter heq_star_comm : forall P Q R, 
+    (star P Q) <===> R -> (star Q P) <===> R.
+  
+  Parameter himp_star_assoc_p : forall P Q R S,
+    (star P (star Q R)) ===> S -> (star (star P Q) R) ===> S.
+
+  Parameter himp_star_assoc_c : forall P Q R S, 
+    S ===> (star P (star Q R)) -> S ===> (star (star P Q) R).
+
+  Parameter heq_star_assoc : forall P Q R S, 
+    (star P (star Q R)) <===> S -> (star (star P Q) R) <===> S.
+
+  Parameter himp_star_frame : forall P Q R S, 
+    P ===> Q -> R ===> S -> (star P R) ===> (star Q S).
+
+  Parameter heq_star_frame : forall P Q R S, 
+    P <===> Q -> R <===> S -> (star P R) <===> (star Q S).
+
+  Parameter himp_subst_p : forall P Q R S,
+    P ===> S -> (star S Q) ===> R ->
+    (star P Q) ===> R.
+
+  Parameter himp_subst_c : forall P Q R S,
+    S ===> Q -> P ===> (star S R) ->
+    P ===> (star Q R).
+
+  Parameter heq_subst : forall P Q R S,
+    P <===> S -> (star S Q) <===> R ->
+    (star P Q) <===> R.
+
+  Parameter himp_star_emp_p : forall P Q, P ===> Q -> (star emp P) ===> Q.
+
+  Parameter himp_star_emp_p' : forall P Q, (star emp P) ===> Q -> P ===> Q.
+    
+  Parameter himp_star_emp_c : forall P Q, P ===> Q -> P ===> (star emp Q).
+
+  Parameter himp_star_emp_c' : forall P Q, P ===> (star emp Q) -> P ===> Q.
+
+  Parameter heq_star_emp : forall P Q, P <===> Q -> (star emp P) <===> Q.
+
+  Parameter heq_star_emp' : forall P Q,
+    (star emp P) <===> Q -> P <===> Q.
+
+  Parameter himp_star_cancel : forall P Q R,
+    Q ===> R -> (star P Q) ===> (star P R).
+
+  Parameter heq_star_cancel : forall P Q R, 
+    Q <===> R -> (star P Q) <===> (star P R).
+
+  Parameter himp_ex_p : forall T (P : T -> _) Q, 
+    (forall v, (P v) ===> Q) -> (ex P) ===> Q.
+
+  Parameter himp_ex_c : forall T (P : T -> _) Q, 
+    (exists v, Q ===> (P v)) -> Q ===> (ex P).
+
+  Parameter heq_ex : forall T (P Q : T -> _), 
+    (forall v, P v <===> Q v) ->
+    ex P <===> ex Q.
+
+  Parameter heq_ex_star : forall T (P : T -> _) Q,
+    (star (ex P) Q) <===> (ex (fun x => star (P x) Q)).
+
+  Parameter himp_ex_star : forall T (P : T -> _) Q,
+    (star (ex P) Q) ===> (ex (fun x => star (P x) Q)).
+
+  Parameter himp'_ex : forall T (P : T -> _) Q,
+    (forall x, (P x) ===> Q) ->
+    ex P ===> Q.
+
+End Env.
+
+Existing Instance Refl_himp. 
+Existing Instance Trans_himp. 
+Existing Instance Refl_heq.
+Existing Instance Sym_heq. 
+Existing Instance Trans_heq. 
+
+End SepTheoryXType.
+
+
+Module SepTheoryX (H : Heap) <: SepTheoryXType H.
   Module HT := HeapTheory H.
 
   Section env.
@@ -52,9 +185,16 @@ Module SepTheoryX (H : Heap).
       unfold heq; firstorder.
     Qed.
 
+(*
     Theorem himp_heq : forall a b, himp a b -> himp b a -> heq a b.
     Proof.
       unfold heq; firstorder.
+    Qed.
+*)
+
+    Theorem heq_defn : forall a b, (himp a b /\ himp b a) <-> heq a b.
+    Proof.
+      unfold heq; intuition.
     Qed.
 
     (* Definitions *)
@@ -251,6 +391,14 @@ Module SepTheoryX (H : Heap).
     Proof.
       unfold himp, star, ex. doIt; intuition eauto. 
     Qed.
+
+    Lemma himp'_ex : forall T (P : T -> _) Q,
+      (forall x, himp (P x) Q) ->
+      himp (ex P) Q.
+    Proof.
+      clear. intros. unfold himp in *. propxFo. eauto.
+    Qed.
+
       
   End env.
 End SepTheoryX.

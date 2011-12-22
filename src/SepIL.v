@@ -140,7 +140,8 @@ Import ST.
 Export ST.
 Import ST.HT.
 Export ST.HT.
-
+Require SepExpr.
+Module SEP := SepExpr.SepExpr BedrockHeap ST.
 
 (** * Define some convenient connectives, etc. for specs *)
 
@@ -202,12 +203,10 @@ Notation "#2" := (![ #2%PropX ])%Sep : Sep_scope.
 Notation "#3" := (![ #3%PropX ])%Sep : Sep_scope.
 Notation "#4" := (![ #4%PropX ])%Sep : Sep_scope.
 
-Definition Himp (p1 p2 : HProp) :=
-  forall specs stn sm, interp specs (p1 stn sm)
-    -> interp specs (p2 stn sm).
+Definition Himp (p1 p2 : HProp) : Prop :=
+  forall specs, ST.himp specs p1 p2.
 
 Notation "p1 ===> p2" := (Himp p1%Sep p2%Sep) (no associativity, at level 90).
-
 
 (** * The main injector of separation formulas into PropX *)
 
