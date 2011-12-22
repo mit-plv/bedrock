@@ -56,14 +56,14 @@ Section FMap.
         end
     end.
 
-  Fixpoint dmap_insert (v : V k) (m : dmap) : dmap :=
+  Fixpoint dmap_replace (v : V k) (m : dmap) : dmap :=
     match m with
       | DM_Empty => DM_Branch k v m m 
       | DM_Branch k' v' l r =>
         match Kcmp k' k with
-          | Some Gt => DM_Branch k' v' (dmap_insert v l) r
           | Some (Eq _) => DM_Branch k v l r
-          | _ => DM_Branch k' v' l (dmap_insert v r)
+          | Some Gt => DM_Branch k' v' (dmap_replace v l) r
+          | _ => DM_Branch k' v' l (dmap_replace v r)
         end
     end.
 
@@ -125,7 +125,7 @@ End FMap.
 Implicit Arguments dmap_empty [ K V ].
 Implicit Arguments dmap_fold [ K V T ].
 Implicit Arguments dmap_remove [ K V ].
-Implicit Arguments dmap_insert [ K V ].
+Implicit Arguments dmap_replace [ K V ].
 
 Section map.
   Variable K : Type.
@@ -148,7 +148,7 @@ Section map.
     
 End map.
 
-
+(*
 Section Map.
   Variable K : Type.
   Variable V : Type.
@@ -161,7 +161,7 @@ Section Map.
 
   Definition fmap_lookup (k : K) (m : fmap) := @dmap_lookup _ _ Kcmp k m.
 
-  Definition fmap_insert (k : K) (v : V) (m : fmap) := @dmap_insert _ _ Kcmp k v m.
+  Definition fmap_insert (k : K) (v : V) (m : fmap) := @dmap_re _ _ Kcmp k v m.
 
   Definition fmap_remove (k : K) (m : fmap) := dmap_remove Kcmp k m.
 
@@ -173,6 +173,7 @@ Implicit Arguments fmap_empty [ K V ].
 Implicit Arguments fmap_fold [ K V T ].
 Implicit Arguments fmap_remove [ K V ].
 Implicit Arguments fmap_insert [ K V ].
+*)
 
 (*
 Section MMap.

@@ -22,8 +22,8 @@ Section Unify.
     Definition Subst_lookup (k : fin dom) (s : Subst dom uvars vars) :=
       dmap_lookup _ _ (fun a b => Some (cmp_dec a b)) k s.
 
-    Definition Subst_insert (k : fin dom) (v : _) (s : Subst dom uvars vars) :=
-      dmap_insert (fun a b => Some (cmp_dec a b)) k v s.
+    Definition Subst_replace (k : fin dom) (v : _) (s : Subst dom uvars vars) :=
+      dmap_replace (fun a b => Some (cmp_dec a b)) k v s.
 
     Variable sub : Subst dom uvars vars.
 
@@ -81,7 +81,7 @@ Section Unify.
       | UVar u => fun l s =>
         match Subst_lookup u s with
           | None => 
-            Some (Subst_insert u l s)
+            Some (Subst_replace u l s)
           | Some r =>
             if seq_dec l r then Some s else None
         end

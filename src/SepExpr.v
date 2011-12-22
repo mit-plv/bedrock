@@ -280,9 +280,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       let add_all acc k v :=
         match dmap_remove scmp_dec k acc with
           | None =>
-            dmap_insert scmp_dec k v acc 
+            dmap_replace scmp_dec k v acc 
           | Some (vs, acc) =>
-            dmap_insert scmp_dec k (v ++ vs) acc
+            dmap_replace scmp_dec k (v ++ vs) acc
         end
       in
       {| impures := dmap_fold add_all (impures l) (impures r)
@@ -350,7 +350,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           end
         | Func v f a =>
           @existT _ _ nil
-            {| impures := dmap_insert scmp_dec f (a :: nil) dmap_empty
+            {| impures := dmap_replace scmp_dec f (a :: nil) dmap_empty
              ; pures := nil
              ; other := nil
              |}
@@ -1048,11 +1048,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       let '(lf,rf,s) := dmap_fold (fun acc k v =>
         let '(lf,rf,s) := acc in
         match dmap_remove scmp_dec k rf with 
-          | None => (dmap_insert scmp_dec _ v lf, rf, s)
+          | None => (dmap_replace scmp_dec _ v lf, rf, s)
           | Some (oths, rmed) => 
             let '(lf',rf',s') := sepCancel_refl_funcs oths v s in
-            (dmap_insert scmp_dec _ lf' lf, 
-             dmap_insert scmp_dec _ rf' rmed,
+            (dmap_replace scmp_dec _ lf' lf, 
+             dmap_replace scmp_dec _ rf' rmed,
              s')
         end) (dmap_empty, impures r, empty_Subst _ _ _ _) (impures l)
       in
@@ -1686,7 +1686,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   Ltac reflect_all pcT stT isConst Ts goals := 
-    let rt := collectAllTypes isConst (@nil Type) goals in
+    let rt := 
+      collectAllTypes isConst ((pcT : Type) :: (stT : Type) :: @nil Type) goals
+    in
     let Ts := extend_all_types rt Ts in
     let Ts := eval simpl in Ts in
     let pcTyp := typesIndex pcT Ts in
@@ -1741,13 +1743,19 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Ltac sep isConst Ts := 
       reflect_goal isConst Ts; canceler.
-
 (*
 Section Tests.
-    Variable f : forall a b, nat -> ST.hprop a b nil.
+    Variable f : forall a b, nat -> nat -> ST.hprop a b nil.
     Variable h : forall a b, nat -> ST.hprop a b nil.
     Variable i : forall a b, nat -> ST.hprop a b nil.
     Variable g : bool -> nat -> nat -> nat.
+
+    Variable a : Type.
+    Variable b : Type.
+    
+    Definition hpropB : list Type -> Type := ST.hprop a b.
+
+    Variable p : forall {sos}, nat -> nat -> hpropB sos.
 
     Ltac isConst e :=
       match e with
@@ -1766,6 +1774,13 @@ Section Tests.
                           end
        |}.
 
+    Goal forall c x, @ST.himp a b c (p nil 1 x) (p _ 1 x).
+      intros. 
+      reflect_goal isConst (nat_type :: nil). canceler.
+      
+      
+
+
     Fixpoint all a b (f : nat -> ST.hprop a b nil) (n : nat) : ST.hprop a b nil :=
       match n with
         | 0 => f 0
@@ -1781,8 +1796,9 @@ Section Tests.
 
     Goal forall a b c, @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15)) (ST.star (all (@f a b) 15) (all (@h a b) 15)).
       simpl all. simpl allb.
-      intros. reflect isConst (nat_type :: nil).
-    Abort.
+      intros. reflect_goal isConst (nat_type :: nil).
+      canceler. reflexivity.
+    Qed.
 End Tests.
 *)
 End SepExpr.

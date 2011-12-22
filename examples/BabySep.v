@@ -2,7 +2,6 @@ Require Import Bedrock.
 
 Set Implicit Arguments.
 
-
 (** * Let's read from memory! *)
 
 Definition readS : assert := st ~> ExX, Ex v, ![ 0 ==> v * #0 ] st
@@ -27,19 +26,34 @@ Qed.
 
 
 (** * Dirt-simple test cases for implication automation *)
+Ltac isConst e :=
+  match e with
+    | true => true
+    | false => true
+    | O => true
+    | S ?e => isConst e
+    | _ => false
+  end.
+
+Opaque SEP.himp.
 
 Theorem ptsto_refl : forall a v,
   a ==> v ===> a ==> v.
 Proof.
   intros.
-  About Himp.
-SEP.sep ltac:(fun x => false) (@nil type).
-
-Admitted.
+  reflect_goal ltac:(isConst) (@nil type).
+  intro. SEP.canceler.
+  simple eapply SEP.himp_refl.
+Qed.
 
 Theorem ptsto_comm : forall a1 v1 a2 v2,
   a1 ==> v1 * a2 ==> v2 ===> a2 ==> v2 * a1 ==> v1.
-Admitted.
+Proof.
+  intros.
+  reflect_goal ltac:(isConst) (@nil type).
+  intro. SEP.canceler.
+  simple eapply SEP.himp_refl.
+Qed.
 
 
 (** * Linked list ADT *)
