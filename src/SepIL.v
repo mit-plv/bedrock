@@ -140,6 +140,7 @@ Import ST.
 Export ST.
 Import ST.HT.
 Export ST.HT.
+(*
 Require SepExpr.
 Module SEP := SepExpr.SepExpr BedrockHeap ST.
 
@@ -151,6 +152,7 @@ Definition bedrock_types : list Expr.type :=
        | left pf => Some pf 
        | _ => None 
      end |} :: Expr.defaultType (settings * state)%type :: nil.
+*)
 
 (** * Define some convenient connectives, etc. for specs *)
 
@@ -236,6 +238,7 @@ Proof.
 Qed.
 *)
 
+(*
 Lemma Himp_to_SEP_himp : forall types funcs sfuncs 
   (l r : @SEP.sexpr (bedrock_types ++ types) funcs (Expr.tvTrans FO) (Expr.tvTrans (FS FO)) sfuncs nil nil),
   (forall cs, 
@@ -260,6 +263,7 @@ Ltac reflect_goal isConst Ts :=
           eapply (@Himp_to_SEP_himp _ _ _ L R)
       end
   end.
+*)
 
 (** * The main injector of separation formulas into PropX *)
 
