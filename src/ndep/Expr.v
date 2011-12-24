@@ -11,11 +11,9 @@ Section env.
 
   Variable types : list type.
 
+  (** this type requires decidable equality **)
   Inductive tvar : Type :=
   | tvProp 
-(** This doesn't work b/c I need decidable equality on this type in order to use UIP_refl
-  | tvOpaque : Type -> tvar
-*)
   | tvTrans : nat -> tvar.
 
   Definition tvarD (x : tvar) := 
@@ -82,7 +80,7 @@ Section env.
   Section applyD.
     Variable exprD : expr -> forall t, option (tvarD t).
 
-    Fixpoint applyD domain (xs : list expr)
+    Fixpoint applyD domain (xs : list expr) {struct xs}
       : forall range, functionTypeD (map tvarD domain) range -> option range :=
         match domain as domain , xs 
           return forall range, functionTypeD (map tvarD domain) range -> option range
@@ -108,7 +106,7 @@ Section env.
           | right _ => None 
         end
       | Var x => lookupAs env t x
-      | UVar x => lookupAs env t x 
+      | UVar x => lookupAs uenv t x 
       | Func f xs =>
         match nth_error funcs f with
           | None => None
@@ -118,19 +116,7 @@ Section env.
               | left pf => 
                 match pf in _ = t return option (tvarD t) with
                   | refl_equal =>
-                    (fix applyD domain (xs : list expr) {struct xs}
-                      : forall range, functionTypeD (map tvarD domain) range -> option range :=
-                        match domain as domain , xs 
-                          return forall range, functionTypeD (map tvarD domain) range -> option range
-                          with
-                          | nil , nil => fun _ v => Some v
-                          | t :: ts , e :: es =>
-                            match exprD e t with
-                              | None => fun _ _ => None
-                              | Some v => fun r f => applyD ts es r (f v)
-                            end
-                          | _ , _ => fun _ _ => None
-                        end) _ xs _ (Denotation f)
+                    applyD (exprD) _ xs _ (Denotation f)
                 end
             end
         end
