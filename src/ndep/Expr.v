@@ -60,6 +60,8 @@ Section env.
     decide equality. eapply Peano_dec.eq_nat_dec.
   Defined.
 
+  Definition env : Type := list { t : tvar & tvarD t }.
+
   Definition lookupAs (ls : list { t : tvar & tvarD t }) (t : tvar) (i : nat)
     : option (tvarD t) :=
     match nth_error ls i with 
@@ -120,6 +122,18 @@ Section env.
                 end
             end
         end
+    end.
+
+  Fixpoint liftExpr (a b : nat) (e : expr) {struct e} : expr :=
+    match e with
+      | Const t' c => Const t' c
+      | Var x => 
+        if Compare_dec.lt_dec a x
+        then Var x
+        else Var (x + b)          
+      | UVar x => UVar x
+      | Func f xs => 
+        Func f (map (liftExpr a b) xs)
     end.
 
 End env.

@@ -8,6 +8,10 @@ Require Import EqdepClass.
 
 Set Implicit Arguments.
 
+Require Bedrock.ndep.NatMap.
+
+Module FM := Bedrock.ndep.NatMap.IntMap.    
+
 Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   Section env.
@@ -67,6 +71,234 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         end
       | Const p => Some p
     end.
+
+    Section SProver.
+      Definition himp (U1 U2 G : env types)
+        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+        (gl gr : sexpr) : Prop :=
+        match sexprD gl U1 G , sexprD gr U2 G with
+          | Some l , Some r => ST.himp cs l r
+          | _ , _ => False
+        end.
+
+      Definition heq (U1 U2 G : env types)
+        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+        (gl gr : sexpr) : Prop :=
+        match sexprD gl U1 G , sexprD gr U2 G with
+          | Some l , Some r => ST.heq cs l r
+          | _ , _ => False
+        end.
+
+      Global Instance Trans_himp U g cs : Transitive (@himp U U g cs).
+      Proof.
+        red. unfold himp. intros x y z. 
+        destruct (sexprD x U g);
+        destruct (sexprD y U g);
+        destruct (sexprD z U g); try intuition.
+        etransitivity; eauto.
+      Qed.
+
+      Global Instance Trans_heq U g cs : Transitive (@heq U U g cs).
+      Proof.
+        red. unfold heq. intros x y z. 
+        destruct (sexprD x U g);
+        destruct (sexprD y U g);
+        destruct (sexprD z U g); try intuition.
+        etransitivity; eauto.
+      Qed.
+
+      Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
+        himp U1 U2 G cs L R ->
+        match sexprD L U1 G , sexprD R U2 G with
+          | Some l , Some r => ST.himp cs l r
+          | _ , _ => False
+        end.
+      Proof.
+        clear. auto.
+      Qed.
+
+      Theorem ST_heq_heq : forall (U1 U2 G : env types) cs L R,
+        heq U1 U2 G cs L R ->
+        match sexprD L U1 G , sexprD R U2 G with
+          | Some l , Some r => ST.heq cs l r
+          | _ , _ => False
+        end.
+      Proof.
+        clear. auto.
+      Qed.
+(*
+      Section exists_subst.
+        Variable U1 : env types.
+        
+        Fixpoint exists_subst (u : variables types)
+          (U : hlist (fun t => option (expr funcs nil u1 t)) u) :
+          (hlist (@tvarD _) u -> Prop) -> Prop :=
+          match U in hlist _ u
+            return (hlist (@tvarD _) u -> Prop) -> Prop
+            with
+            | HNil => fun cc => cc HNil
+            | HCons _ _ v r => fun cc =>
+              match v with
+                | None => exists v, exists_subst r (fun z => cc (HCons v z))
+                | Some v =>
+                  let v := exprD HNil U1 v in
+                    exists_subst r (fun z => cc (HCons v z))
+              end
+          end.
+
+      End exists_subst.
+
+      Lemma exists_subst_exists : forall a (A : hlist _ a) 
+        b (B : hlist (fun t => option (expr funcs nil a t)) b) P,
+        exists_subst A B P ->
+        exists C, P C.
+      Proof.
+        clear. induction B; simpl; intros.
+          eauto.
+          destruct b. eapply IHB in H. destruct H; eauto.
+          destruct H. eapply IHB in H. destruct H; eauto.
+      Qed.
+
+
+      Fixpoint forallEach (ls : variables types) : (hlist (@tvarD types) ls -> Prop) -> Prop :=
+        match ls with
+          | nil => fun cc => cc HNil
+          | a :: b => fun cc =>
+            forall x : tvarD a, forallEach (fun r => cc (HCons x r))
+        end.
+
+      Lemma forallEach_forall : forall ls (P : hlist (@tvarD types) ls -> Prop),
+        forallEach P -> forall V, P V.
+      Proof.
+        induction ls; simpl; intros. 
+        rewrite (hlist_nil_only _ V). auto.
+        rewrite (hlist_eta _ V). 
+        specialize (H (hlist_hd V)). eapply IHls in H. eassumption.
+      Qed.
+*)
+
+      Inductive SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+        (gl gr : sexpr) : Type :=
+
+      | Prove : forall (l r : sexpr)
+        (SUBST : list (expr types)),
+        SepResult cs gl gr.
+
+      Definition SProverT : Type := forall
+        (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
+        (hyps : list (expr types)) (** Pure Premises **)
+        (gl gr : sexpr),
+        SepResult cs gl gr.
+    
+    End SProver.
+
+
+    Record SHeap : Type :=
+    { impures : FM.t (list (list (expr types)))
+    ; pures   : list (expr types)
+    ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+    }.
+  
+    Definition SHeap_empty : SHeap := 
+      {| impures := FM.empty _
+       ; pures   := nil
+       ; other   := nil
+       |}.
+
+    Fixpoint liftSExpr (a b : nat) (s : sexpr) : sexpr :=
+      match s with
+        | Emp => Emp
+        | Inj p => Inj (liftExpr a b p)
+        | Star l r => Star (liftSExpr a b l) (liftSExpr a b r)
+        | Exists t s => 
+          Exists t (liftSExpr (S a) b s)
+        | Func f xs => Func f (map (liftExpr a b) xs)
+        | Const c => Const c
+      end.
+
+    Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
+    {| impures := FM.map (map (map (liftExpr a b))) (impures s)
+     ; pures   := map (liftExpr a b) (pures s)
+     ; other   := other s
+     |}.
+
+    Parameter star_SHeap : SHeap -> SHeap -> SHeap.
+
+    Fixpoint hash (s : sexpr) : { es : variables & SHeap } :=
+      match s with
+        | Emp => @existT _ _ nil SHeap_empty
+        | Inj p => @existT _ _ nil
+          {| impures := FM.empty _
+            ; pures := p :: nil
+            ; other := nil
+          |}
+        | Star l r =>
+          match hash l, hash r with
+            | existT vl hl , existT vr hr =>
+              @existT _ _ (vl ++ vr)
+              (star_SHeap hl (liftSHeap 0 (length vl) hr))
+          end
+        | Exists t b =>
+          match hash b with
+            | existT v b =>
+              @existT _ _ (v ++ t :: nil) b
+          end
+        | Func f a =>
+          @existT _ _ nil
+          {| impures := FM.add f (a :: nil) (FM.empty _)
+            ; pures := nil
+            ; other := nil
+          |}
+        | Const c => 
+          @existT _ _ nil
+          {| impures := FM.empty _
+            ; pures := nil
+            ; other := c :: nil
+          |}
+      end.
+
+
+    Definition starred (T : Type) (F : T -> sexpr) (ls : list T)
+      : sexpr :=
+      fold_right (fun x a => Star (F x) a) Emp ls.
+
+    Definition denote (h : SHeap) :  sexpr :=
+      let a := FM.fold (fun k ls acc => 
+        Star (starred (Func k) ls) acc) (impures h) Emp in
+      let c := starred (fun x => Inj x) (pures h) in
+      let e := starred (fun x => Const x) (other h) in
+      Star a (Star c e).
+
+    Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
+      match ls with
+        | nil => fun x => x
+        | t :: ts => fun y => @existsEach ts (Exists t y)
+      end.
+
+    Theorem hash_denote : forall cs G (s : sexpr), 
+      heq nil nil G cs s 
+        (@existsEach (projT1 (hash s)) (denote (projT2 (hash s)))).
+    Proof.
+      induction s; simpl.
+        unfold denote; simpl. unfold FM.fold. simpl. admit.
+        unfold denote; simpl. unfold FM.fold. simpl. admit.
+    Admitted.
+
+(*
+    Definition liftFunctions uvars vars' ext vars
+      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs uvars (vars' ++ vars)) (SDomain (get sfuncs f)))) ->
+        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs uvars (vars' ++ ext ++ vars)) (SDomain (get sfuncs f))))
+      :=
+      
+
+      dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vars' ext vars) _)).
+
+    Definition liftFunctionsU uvars' ext uvars vars
+      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs (uvars' ++ uvars) vars) (SDomain (get sfuncs f)))) ->
+        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs (uvars' ++ ext ++ uvars) vars) (SDomain (get sfuncs f))))
+      :=
+      dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExprU uvars' ext uvars (vars := vars)) _)).
+*)
 
   End env.
 
