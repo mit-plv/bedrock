@@ -14,12 +14,12 @@ Section env.
   (** this type requires decidable equality **)
   Inductive tvar : Type :=
   | tvProp 
-  | tvTrans : nat -> tvar.
+  | tvType : nat -> tvar.
 
   Definition tvarD (x : tvar) := 
     match x with
       | tvProp => Prop
-      | tvTrans x => 
+      | tvType x => 
         match nth_error types x with
           | None => Empty_set
           | Some t => Impl t
@@ -76,8 +76,8 @@ Section env.
         end
     end.
 
-  Variable uenv : list { t : tvar & tvarD t }.
-  Variable env : list { t : tvar & tvarD t }.
+  Variable uenv : env.
+  Variable env : env.
 
   Section applyD.
     Variable exprD : expr -> forall t, option (tvarD t).
@@ -97,7 +97,7 @@ Section env.
         end.
   End applyD.
 
-  Fixpoint exprD (e : expr) (t : tvar) {struct e} : option (tvarD t) :=
+  Fixpoint exprD (e : expr) (t : tvar) : option (tvarD t) :=
     match e with
       | Const t' c =>
         match equiv_dec t' t with
@@ -124,7 +124,7 @@ Section env.
         end
     end.
 
-  Fixpoint liftExpr (a b : nat) (e : expr) {struct e} : expr :=
+  Fixpoint liftExpr (a b : nat) (e : expr) : expr :=
     match e with
       | Const t' c => Const t' c
       | Var x => 

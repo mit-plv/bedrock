@@ -35,7 +35,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     | Star : sexpr -> sexpr -> sexpr
     | Exists : tvar -> sexpr -> sexpr
     | Func : func -> list (expr types) -> sexpr
-      (* this Const can not mention the higher-order variables *)
     | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil
       -> sexpr
     .
@@ -177,12 +176,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Qed.
 *)
 
-      Inductive SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      Record SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
         (gl gr : sexpr) : Type :=
-
-      | Prove : forall (l r : sexpr)
-        (SUBST : list (expr types)),
-        SepResult cs gl gr.
+      { lhs : sexpr
+      ; rhs : sexpr
+      ; SUBST : list (expr types)
+      }.
 
       Definition SProverT : Type := forall
         (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
@@ -224,37 +223,34 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Parameter star_SHeap : SHeap -> SHeap -> SHeap.
 
-    Fixpoint hash (s : sexpr) : { es : variables & SHeap } :=
+    Fixpoint hash (s : sexpr) : ( variables * SHeap ) :=
       match s with
-        | Emp => @existT _ _ nil SHeap_empty
-        | Inj p => @existT _ _ nil
+        | Emp => (nil, SHeap_empty)
+        | Inj p => (nil,
           {| impures := FM.empty _
             ; pures := p :: nil
             ; other := nil
-          |}
+          |})
         | Star l r =>
-          match hash l, hash r with
-            | existT vl hl , existT vr hr =>
-              @existT _ _ (vl ++ vr)
-              (star_SHeap hl (liftSHeap 0 (length vl) hr))
-          end
+          let (vl, hl) := hash l in
+          let (vr, hr) := hash r in
+          (vl ++ vr,
+           star_SHeap hl (liftSHeap 0 (length vl) hr))
         | Exists t b =>
-          match hash b with
-            | existT v b =>
-              @existT _ _ (v ++ t :: nil) b
-          end
+          let (v,b) := hash b in
+          (v ++ t :: nil, b)
         | Func f a =>
-          @existT _ _ nil
-          {| impures := FM.add f (a :: nil) (FM.empty _)
+          (nil,
+           {| impures := FM.add f (a :: nil) (FM.empty _)
             ; pures := nil
             ; other := nil
-          |}
+           |})
         | Const c => 
-          @existT _ _ nil
-          {| impures := FM.empty _
+          (nil,
+           {| impures := FM.empty _
             ; pures := nil
             ; other := c :: nil
-          |}
+            |})
       end.
 
 
@@ -277,7 +273,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Theorem hash_denote : forall cs G (s : sexpr), 
       heq nil nil G cs s 
-        (@existsEach (projT1 (hash s)) (denote (projT2 (hash s)))).
+        (@existsEach (fst (hash s)) (denote (snd (hash s)))).
     Proof.
       induction s; simpl.
         unfold denote; simpl. unfold FM.fold. simpl. admit.
