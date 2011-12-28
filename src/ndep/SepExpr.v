@@ -221,7 +221,18 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
      ; other   := other s
      |}.
 
-    Parameter star_SHeap : SHeap -> SHeap -> SHeap.
+    Fixpoint multimap_join T (l r : FM.t (list T)) : FM.t (list T) :=
+      FM.fold (fun k v a =>
+        match FM.find k a with
+          | None => FM.add k v a
+          | Some v' => FM.add k (v ++ v') a
+        end) l r.
+
+    Fixpoint star_SHeap (l r : SHeap) : SHeap :=
+      {| impures := multimap_join (impures l) (impures r)
+       ; pures := pures l ++ pures r
+       ; other := other l ++ other r
+       |}.
 
     Fixpoint hash (s : sexpr) : ( variables * SHeap ) :=
       match s with
@@ -252,8 +263,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             ; other := c :: nil
             |})
       end.
-
-
+ 
     Definition starred (T : Type) (F : T -> sexpr) (ls : list T)
       : sexpr :=
       fold_right (fun x a => Star (F x) a) Emp ls.
@@ -295,6 +305,39 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       :=
       dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExprU uvars' ext uvars (vars := vars)) _)).
 *)
+    
+    Section MM.
+      Require Import Env.
+      Variable T : Type.
+      Variable T_sdec : SemiDec T.
+
+      Fixpoint in_sdec (v : T) (m : list T) : option (In v m) :=
+        match m with
+          | nil => None
+          | a :: b =>
+            match seq_dec a v with
+              | Some pf => 
+                Some (or_introl _ pf)
+              | None => match in_sdec v b with
+                          | None => None
+                          | Some pf => Some (or_intror _ pf)
+                        end
+            end
+        end.
+
+      Definition filter_all (m r : list T) : list T :=
+        filter (fun v => if in_sdec v r then true else false) m.
+        
+
+      Definition mm_remove_all (m r : FM.t (list T)) : FM.t (list T) :=
+        FM.fold (fun k v a =>
+          match FM.find k r with
+            | None => FM.add k v a
+            | Some v' => FM.add k (filter_all v v') a
+          end) m (FM.empty _).
+
+    End MM.
+
 
   End env.
 

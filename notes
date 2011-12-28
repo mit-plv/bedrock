@@ -29,3 +29,10 @@
   * Expressions
     * Unification variables
     * Prover that uses lemmas
+
+* Dependent vs. Non-dependent representation
+  * Semi-dependent styles 
+    * how much benefit does this give us?
+    * what is the computational cost?
+    - break the type record apart
+    - break the signature and ssignature records apart
