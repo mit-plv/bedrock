@@ -4,4 +4,6 @@ Require Export Nomega Word IL LabelMap PropX PropXTac XCAP Structured Structured
 
 Require Export Heaps SepTheoryX SepIL.
 
+Require Export SepTac.
+
 Open Scope string_scope.
