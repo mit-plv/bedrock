@@ -551,7 +551,8 @@ Ltac extend_type T D types :=
     end
   end.
 
-Definition defaultType T := {| Impl := T; Eq := fun _ _ => None |}.
+Definition defaultType (T : Type) : type :=
+  {| Impl := T; Eq := fun _ _ => None |}.
 
 Ltac extend_all_types Ts types :=
   match Ts with

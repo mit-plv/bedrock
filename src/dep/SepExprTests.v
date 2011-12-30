@@ -1,5 +1,6 @@
 Require Import Heaps.
-Require Import SepExpr.
+Require Bedrock.dep.SepExpr Bedrock.dep.Expr.
+Import Bedrock.dep.Expr.
 Require Import EquivDec.
 Require Import List.
 
@@ -25,9 +26,9 @@ Module SepExprTests (B : Heap).
         | _ => false
       end.
 
-    Definition nat_type : type :=
-      {| Impl := nat 
-       ; Eq := fun x y => match equiv_dec x y with
+    Definition nat_type : Expr.type :=
+      {| Expr.Impl := nat 
+       ; Expr.Eq := fun x y => match equiv_dec x y with
                             | left pf => Some pf
                             | _ => None 
                           end
@@ -48,15 +49,12 @@ Module SepExprTests (B : Heap).
 
     Opaque ST.himp ST.star ST.emp ST.inj ST.ex.
 
-    Goal forall a b c, @ST.himp a b c (ST.star (allb (@h a b) 0 0) (allb (@f a b) 0 0)) (ST.star (all (@f a b) 0) (all (@h a b) 0)).
+    Goal forall a b c, 
+      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
+                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
       simpl all. simpl allb.
-      intros. Time Sep.sep isConst (nat_type :: nil). reflexivity.
-    Qed.
-
-    Goal forall a b c, @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15)) (ST.star (all (@f a b) 15) (all (@h a b) 15)).
-      simpl all. simpl allb.
-      intros. Time Sep.sep isConst (nat_type :: nil). reflexivity.
-    Qed.
+      intros. Time Sep.sep isConst (nat_type :: nil).
+    Abort.
 
     Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
       intros. Time Sep.sep isConst (nat_type :: nil).

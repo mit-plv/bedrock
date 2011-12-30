@@ -1,5 +1,6 @@
 Require Import List.
-Require Import Expr ExprUnify.
+Require Bedrock.dep.Expr.
+Require Import Bedrock.dep.Expr Bedrock.dep.ExprUnify.
 Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
@@ -300,17 +301,17 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Fixpoint exprSubstEx T uvars vars vars' t (e : expr funcs uvars (vars ++ t :: vars') T) : 
       expr funcs (t :: uvars) (vars ++ vars') T :=
       match e in expr _ _ _ T return expr funcs (t :: uvars) (vars ++ vars') T with
-        | Expr.Const _ v => Expr.Const _ _ _ _ v
-        | Expr.UVar v => Expr.UVar _ _ (FS v)
-        | Expr.Var v =>
+        | Bedrock.dep.Expr.Const _ v => Bedrock.dep.Expr.Const _ _ _ _ v
+        | Bedrock.dep.Expr.UVar v => Bedrock.dep.Expr.UVar _ _ (FS v)
+        | Bedrock.dep.Expr.Var v =>
           fin_remove _ _ v 
             (fun pf => match pf in _ = T return expr funcs (t :: uvars) (vars ++ vars') T with 
-                         | refl_equal => @Expr.UVar types funcs (t :: uvars) (vars ++ vars') FO
+                         | refl_equal => @Bedrock.dep.Expr.UVar types funcs (t :: uvars) (vars ++ vars') FO
                        end)
             (fun f' pf => match pf in _ = T return expr funcs (t :: uvars) (vars ++ vars') T with
-                            | refl_equal => @Expr.Var _ _ _ _ f'
+                            | refl_equal => @Bedrock.dep.Expr.Var _ _ _ _ f'
                           end)
-        | Expr.Func f vs => Expr.Func f (hlist_map _ (fun T x => @exprSubstEx T uvars vars vars' t x) vs)
+        | Bedrock.dep.Expr.Func f vs => Bedrock.dep.Expr.Func f (hlist_map _ (fun T x => @exprSubstEx T uvars vars vars' t x) vs)
       end.
 
     Definition sheapSubstEx uvars vars vars' t (s : SHeap uvars (vars ++ t :: vars')) :
@@ -1522,12 +1523,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | fun _ => ?X =>
           is_evar X ; 
           (** this is a unification variable **)
-          let r := constr:(@Expr.UVar) in (** TODO **)
+          let r := constr:(@Bedrock.dep.Expr.UVar) in (** TODO **)
           k r 
         | fun x => (@openUp _ _ _ _) =>
           (** this is a variable **)
           let v := getVar e vars in
-          let r := constr:(@Expr.Var types funcs uvars vars v) in
+          let r := constr:(@Bedrock.dep.Expr.Var types funcs uvars vars v) in
           k r
         | fun x => ?e =>
           reflect e k
@@ -1547,7 +1548,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let cc f Ts args :=
             let F := indexFunction f funcs in
             bt_args args ltac:(fun args =>
-              let r := eval simpl in (@Expr.Func types funcs uvars vars F args) in 
+              let r := eval simpl in (@Bedrock.dep.Expr.Func types funcs uvars vars F args) in 
               k r)
           in
           match e with
@@ -1556,7 +1557,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 | true => 
                   let ty := type of e in
                   let ty := reflectType types ty in
-                  let r := eval simpl in (@Expr.Const types funcs uvars vars ty e) in
+                  let r := eval simpl in (@Bedrock.dep.Expr.Const types funcs uvars vars ty e) in
                   k r
                 | false => 
                   refl_app cc e
@@ -1804,7 +1805,7 @@ End Tests.
 End SepExpr.
 
 
-Require Export Expr.
+Require Export Bedrock.dep.Expr.
 
 
 

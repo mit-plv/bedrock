@@ -1,4 +1,4 @@
-Require Import Expr.
+Require Import Bedrock.dep.Expr.
 Require Import PMap.
 Require Import List.
 Require Import EquivDec.
