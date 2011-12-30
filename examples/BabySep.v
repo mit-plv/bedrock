@@ -35,26 +35,24 @@ Ltac isConst e :=
     | _ => false
   end.
 
+Opaque SEP.himp.
+
 Theorem ptsto_refl : forall a v,
   a ==> v ===> a ==> v.
 Proof.
-(*
   intros.
-  reflect_goal ltac:(isConst) (@nil type).
+  reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler.
   simple eapply SEP.himp_refl.
-*)
 Abort.
 
 Theorem ptsto_comm : forall a1 v1 a2 v2,
   a1 ==> v1 * a2 ==> v2 ===> a2 ==> v2 * a1 ==> v1.
 Proof.
-(*
   intros.
-  reflect_goal ltac:(isConst) (@nil type).
+  reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler.
   simple eapply SEP.himp_refl.
-*)
 Abort.
 
 

@@ -5,7 +5,7 @@ MODULES    := OrderedType FMapList FMapAVL \
 	Heaps SepTheoryX \
 	dep/Expr dep/ExprUnify dep/SepExpr dep/SepExprTests dep/Provers \
 	ndep/NatMap ndep/Expr ndep/ExprUnify  ndep/SepExpr \
-	SepIL Bedrock
+	SepIL SepTac Bedrock
 VS         := $(MODULES:%=%.v)
 
 .PHONY: coq clean package
