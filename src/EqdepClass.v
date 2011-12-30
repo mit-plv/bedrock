@@ -22,6 +22,32 @@ Global Instance option_eqdec T (_ : EqDec T (@eq T)) : EqDec (option T) (@eq (op
     match a, b with
       | None, None => left (refl_equal _)
       | Some a, Some b => match equiv_dec a b with
+                            | left pf => left match (pf : a = b) in _ = t return Some a = Some t with
+                                                | refl_equal => refl_equal
+                                              end
+                            | right pf => right (fun pf' => pf (*match pf' in _ = t return match t with 
+                                                                                           | Some z => Some a = Some z
+                                                                                           | None => False
+                                                                                         end with
+                                                                 | refl_equal => _
+                                                               end*) _)
+                          end
+      | None , Some _ => right _
+      | Some _ , None => right _
+    end).
+  inversion pf'; reflexivity.
+  abstract (intro; congruence).
+  abstract (intro; congruence).
+Defined.
+
+
+(*
+Global Instance list_eqdec T (_ : EqDec T (@eq T)) : EqDec (list T) (@eq (list T)).
+  red; refine (
+  fun a b =>
+    match a, b with
+      | None, None => left (refl_equal _)
+      | Some a, Some b => match equiv_dec a b with
                             | left pf => left _
                             | right pf => right _
                           end
@@ -32,6 +58,7 @@ Global Instance option_eqdec T (_ : EqDec T (@eq T)) : EqDec (option T) (@eq (op
   abstract (intro; congruence).
   abstract (intro; congruence).
 Defined.
+*)
 
 Ltac notVar X :=
   match X with

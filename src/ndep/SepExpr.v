@@ -3,8 +3,7 @@ Require Import Bedrock.ndep.Expr.
 Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
-Require Import RelationClasses.
-Require Import EqdepClass.
+Require Import RelationClasses EqdepClass.
 
 Set Implicit Arguments.
 

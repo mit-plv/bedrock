@@ -44,7 +44,7 @@ Proof.
   reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler.
   simple eapply SEP.himp_refl.
-Abort.
+Qed.
 
 Theorem ptsto_comm : forall a1 v1 a2 v2,
   a1 ==> v1 * a2 ==> v2 ===> a2 ==> v2 * a1 ==> v1.
@@ -53,7 +53,7 @@ Proof.
   reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler.
   simple eapply SEP.himp_refl.
-Abort.
+Qed.
 
 
 (** * Linked list ADT *)
