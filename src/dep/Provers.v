@@ -1,5 +1,5 @@
 Require Import List.
-Require Import Expr.
+Require Import Bedrock.dep.Expr.
 Require Import EquivDec.
 
 (** TODO: This is going to be interesting...
