@@ -26,6 +26,33 @@ Section env.
         end
     end.
 
+  Definition typeFor (t : tvar) : type :=
+    match t with
+      | tvProp => {| Impl := Prop ; Eq := fun _ _ => None |}
+      | tvType t => 
+        match nth_error types t with
+          | None => {| Impl := Empty_set ; Eq := fun x _ => match x with end |}
+          | Some v => v 
+        end
+    end.
+
+  Definition tvar_val_sdec (t : tvar) : forall (x y : tvarD t), option (x = y) :=
+    match t as t return forall (x y : tvarD t), option (x = y) with
+      | tvProp => fun _ _ => None
+      | tvType t => 
+        match nth_error types t as k return forall x y : match k with 
+                                                           | None => Empty_set
+                                                           | Some t => Impl t
+                                                         end, option (x = y) with
+          | None => fun x _ => match x with end
+          | Some t => fun x y => match Eq t x y with
+                                   | None => None
+                                   | Some pf => Some pf
+                                 end
+        end
+
+    end.
+
   Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
       | nil => range
@@ -123,6 +150,74 @@ Section env.
             end
         end
     end.
+
+  Fixpoint expr_seq_dec (a b : expr) : option (a = b) :=
+    match a as a, b as b return option (a = b) with 
+      | Const t c , Const t' c' =>
+        match t as t , t' as t' return forall (c : tvarD t) (c' : tvarD t'), option (Const t c = Const t' c') with
+          | tvType t , tvType t' =>
+            match Peano_dec.eq_nat_dec t t' with
+              | left pf => 
+                match pf in _ = t' return forall (x : tvarD (tvType t)) (y : tvarD (tvType t')), 
+                  option (Const (tvType t) x = Const (tvType t') y)
+                  with
+                  | refl_equal => fun x y =>
+                    match tvar_val_sdec _ x y with
+                      | None => None
+                      | Some pf => Some (match pf in _ = z return Const (tvType t) x = Const (tvType t) z with
+                                           | refl_equal => refl_equal
+                                         end)  
+                    end
+                end 
+              | right _ => fun _ _ => None
+            end
+          | _ , _ => fun _ _ => None
+        end c c'
+      | Var x , Var y => 
+        match Peano_dec.eq_nat_dec x y with 
+          | left pf => Some match pf in _ = t return Var x = Var t with
+                              | refl_equal => refl_equal
+                            end
+          | right _ => None
+        end
+      | UVar x , UVar y => 
+        match Peano_dec.eq_nat_dec x y with 
+          | left pf => Some match pf in _ = t return UVar x = UVar t with
+                              | refl_equal => refl_equal
+                            end
+          | right _ => None
+        end
+      | Func x xs , Func y ys =>
+        match Peano_dec.eq_nat_dec x y with
+          | left pf =>
+            match (fix seq_dec' a b : option (a = b) :=
+              match a as a, b as b return option (a = b) with
+                | nil , nil => Some (refl_equal _)
+                | x :: xs , y :: ys => 
+                  match expr_seq_dec x y with
+                    | None => None
+                    | Some pf => 
+                      match seq_dec' xs ys with
+                        | None => None
+                        | Some pf' => 
+                          match pf in _ = t , pf' in _ = t' return option (x :: xs = t :: t') with
+                            | refl_equal , refl_equal => Some (refl_equal _)
+                          end
+                      end
+                  end
+                | _ , _ => None
+              end) xs ys with
+              | None => None
+              | Some pf' => Some (match pf in _ = t, pf' in _ = t' return Func x xs = Func t t' with
+                                    | refl_equal , refl_equal => refl_equal
+                                  end)
+            end              
+          | right _ => None
+        end
+      | _ , _ => None
+    end.
+
+  Global Instance SemiDec_expr : SemiDec expr := {| seq_dec := expr_seq_dec |}.
 
   Fixpoint liftExpr (a b : nat) (e : expr) : expr :=
     match e with

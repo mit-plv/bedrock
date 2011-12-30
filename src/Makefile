@@ -4,7 +4,7 @@ MODULES    := OrderedType FMapList FMapAVL \
 	EqdepClass Env PMap Reflect \
 	Heaps SepTheoryX \
 	dep/Expr dep/ExprUnify dep/SepExpr dep/SepExprTests dep/Provers \
-	ndep/NatMap ndep/Expr ndep/ExprUnify  ndep/SepExpr \
+	ndep/NatMap ndep/Expr ndep/ExprUnify ndep/SepExpr ndep/Provers \
 	SepIL SepTac Bedrock
 VS         := $(MODULES:%=%.v)
 

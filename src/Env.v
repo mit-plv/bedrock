@@ -9,7 +9,45 @@ Global Instance EquivDec_SemiDec t (EQ : EqDec t (@eq t)) : SemiDec t :=
   match equiv_dec a b with
     | left pf => Some pf
     | right _ => None
-  end }.
+  end 
+}.
+
+Global Instance SemiDec_option T (S : SemiDec T) : SemiDec (option T) :=
+{ seq_dec := fun a b =>
+  match a as a, b as b return option (a = b) with
+    | None , None => Some (refl_equal _)
+    | Some x , Some y => 
+      match seq_dec x y with
+        | None => None
+        | Some pf => 
+          match pf in _ = t return option (Some x = Some t) with
+            | refl_equal => Some (refl_equal _)
+          end
+      end
+    | _ , _ => None
+  end
+}.
+
+Global Instance SemiDec_list T (S : SemiDec T) : SemiDec (list T) :=
+{ seq_dec := fix seq_dec' a b : option (a = b) :=
+  match a as a, b as b return option (a = b) with
+    | nil , nil => Some (refl_equal _)
+    | x :: xs , y :: ys => 
+      match seq_dec x y with
+        | None => None
+        | Some pf => 
+          match seq_dec' xs ys with
+            | None => None
+            | Some pf' => 
+              match pf in _ = t , pf' in _ = t' return option (x :: xs = t :: t') with
+                | refl_equal , refl_equal => Some (refl_equal _)
+              end
+          end
+      end
+    | _ , _ => None
+  end
+}.
+
 
 Inductive dcomp T (a b : T) : Type :=
 | Lt | Gt | Eq : a = b -> dcomp a b.
