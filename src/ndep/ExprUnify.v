@@ -11,23 +11,21 @@ Module SUBST := Bedrock.ndep.NatMap.IntMap.
 Section Unify.
   Variable types : list type.
 
-  Definition Subst (dom : variables) := 
+  Definition Subst := (*(dom : variables) := *)
     SUBST.t (expr types).
 
+  Definition empty_Subst : Subst :=
+    SUBST.empty _.
+
+  Definition Subst_lookup (k : nat) (s : Subst) :=
+    SUBST.find k s.
+
+  Definition Subst_replace (k : nat) (v : expr types) (s : Subst) :=
+  (** TODO: I need to make sure this doesn't do duplicates... **)
+    SUBST.add k v s.
+  
   Section Subst.
-    Variables dom : variables.
-    
-    Definition empty_Subst : Subst dom :=
-      SUBST.empty _.
-
-    Definition Subst_lookup (k : nat) (s : Subst dom) :=
-      SUBST.find k s.
-
-    Definition Subst_replace (k : nat) (v : expr types) (s : Subst dom) :=
-      (** TODO: I need to make sure this doesn't do duplicates... **)
-      SUBST.add k v s.
-
-    Variable sub : Subst dom.
+    Variable sub : Subst.
 
     Fixpoint env_of_Subst (ls : variables) (cur : nat)
       : list (option (expr types)) :=
@@ -71,7 +69,7 @@ Section Unify.
    ** If uL is not nil, then this procedure is not even structurally complete
    **)
 
-  Fixpoint exprUnify dom (r l : expr types) (s : Subst dom) : option (Subst dom).
+  Fixpoint exprUnify (r l : expr types) (s : Subst) : option Subst.
 (*
   refine (
     match r with
@@ -125,8 +123,8 @@ Section Unify.
   Admitted.
 
   (** I'd like to make these mutually recursive...**)
-  Fixpoint exprUnifyArgs dom (r l : list (expr types)) (s : Subst dom) 
-    : option (Subst dom).
+  Fixpoint exprUnifyArgs (r l : list (expr types)) (s : Subst) 
+    : option Subst.
 (*
     match r in hlist _ ls
       return hlist (expr funcs uL vs) ls -> Subst uR uL vs -> option (Subst uR uL vs)

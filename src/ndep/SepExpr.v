@@ -4,6 +4,7 @@ Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import PMap.
 Require Import RelationClasses EqdepClass.
+Require Import Bedrock.ndep.ExprUnify.
 
 Set Implicit Arguments.
 
@@ -179,7 +180,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         (gl gr : sexpr) : Type :=
       { lhs : sexpr
       ; rhs : sexpr
-      ; SUBST : list (expr types)
+      ; SUBST : Subst types
       }.
 
       Definition SProverT : Type := forall
@@ -214,11 +215,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | Const c => Const c
       end.
 
+    (** lift all the "real" variables in [a,...) 
+     ** to the range [a+b,...)
+     **)
     Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
-    {| impures := FM.map (map (map (liftExpr a b))) (impures s)
-     ; pures   := map (liftExpr a b) (pures s)
-     ; other   := other s
-     |}.
+      {| impures := FM.map (map (map (liftExpr a b))) (impures s)
+       ; pures   := map (liftExpr a b) (pures s)
+       ; other   := other s
+       |}.
 
     Fixpoint multimap_join T (l r : FM.t (list T)) : FM.t (list T) :=
       FM.fold (fun k v a =>
@@ -263,15 +267,21 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             |})
       end.
  
-    Definition starred (T : Type) (F : T -> sexpr) (ls : list T)
+    Definition starred (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
       : sexpr :=
-      fold_right (fun x a => Star (F x) a) Emp ls.
+      fold_right (fun x a => Star (F x) a) base ls.
 
-    Definition denote (h : SHeap) :  sexpr :=
+    Definition sheapD (h : SHeap) : sexpr :=
+      let a := FM.fold (fun k => starred (Func k)) (impures h) Emp in
+      let a := starred (fun x => Inj x) (pures h) a in
+      let a := starred (fun x => Const x) (other h) a in
+      a.
+
+    Definition sheapD' (h : SHeap) :  sexpr :=
       let a := FM.fold (fun k ls acc => 
-        Star (starred (Func k) ls) acc) (impures h) Emp in
-      let c := starred (fun x => Inj x) (pures h) in
-      let e := starred (fun x => Const x) (other h) in
+        Star (starred (Func k) ls Emp) acc) (impures h) Emp in
+      let c := starred (fun x => Inj x) (pures h) Emp in
+      let e := starred (fun x => Const x) (other h) Emp in
       Star a (Star c e).
 
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
@@ -282,29 +292,22 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Theorem hash_denote : forall cs G (s : sexpr), 
       heq nil nil G cs s 
-        (@existsEach (fst (hash s)) (denote (snd (hash s)))).
+        (@existsEach (fst (hash s)) (sheapD (snd (hash s)))).
     Proof.
       induction s; simpl.
-        unfold denote; simpl. unfold FM.fold. simpl. admit.
-        unfold denote; simpl. unfold FM.fold. simpl. admit.
+        unfold sheapD; simpl. unfold FM.fold. simpl. admit.
+        unfold sheapD; simpl. unfold FM.fold. simpl. admit.
     Admitted.
 
-(*
-    Definition liftFunctions uvars vars' ext vars
-      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs uvars (vars' ++ vars)) (SDomain (get sfuncs f)))) ->
-        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs uvars (vars' ++ ext ++ vars)) (SDomain (get sfuncs f))))
-      :=
-      
+    (** replace "real" variables [a,b) and replace them with
+     ** uvars [c,..]
+     **)
+    Definition sheapSubstU (a b c : nat) (s : SHeap) : SHeap :=
+      {| impures := FM.map (map (map (exprSubstU a b c))) (impures s)
+       ; pures := map (exprSubstU a b c) (pures s)
+       ; other := other s
+       |}.
 
-      dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExpr vars' ext vars) _)).
-
-    Definition liftFunctionsU uvars' ext uvars vars
-      : dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs (uvars' ++ uvars) vars) (SDomain (get sfuncs f)))) ->
-        dmap (fin sfuncs) (fun f : fin sfuncs => list (hlist (expr funcs (uvars' ++ ext ++ uvars) vars) (SDomain (get sfuncs f))))
-      :=
-      dmap_map _ _ _ (fun t' => @List.map _ _ (@hlist_map _ _ _ (liftExprU uvars' ext uvars (vars := vars)) _)).
-*)
-    
     Section MM.
       Require Import Env.
       Variable T : Type.
@@ -336,7 +339,34 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           end) m (FM.empty _).
 
     End MM.
+    
+    Definition sepCancel (l r : SHeap) :
+      SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types.
+(*
+      let '(lf,rf,s) := dmap_fold (fun acc k v =>
+        let '(lf,rf,s) := acc in
+        match dmap_remove scmp_dec k rf with 
+          | None => (dmap_replace scmp_dec _ v lf, rf, s)
+          | Some (oths, rmed) => 
+            let '(lf',rf',s') := sepCancel_refl_funcs oths v s in
+            (dmap_replace scmp_dec _ lf' lf, 
+             dmap_replace scmp_dec _ rf' rmed,
+             s')
+        end) (dmap_empty, impures r, empty_Subst _ _ _ _) (impures l)
+      in
+      ({| impures := lf ; pures := pures l ; other := other l |},
+       {| impures := rf ; pures := pures r ; other := other r |},
+       s).
+*)
+    Admitted.
 
+    Definition CancelSep : SProverT :=
+      fun cs _ gl gr =>
+        let (ql, lhs) := hash gl in
+        let (qr, rhs) := hash gr in
+        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
+        let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel lhs rhs' in
+        {| lhs := sheapD lhs' ; rhs := sheapD rhs' ; SUBST := rhs_subst |}.
 
   End env.
 

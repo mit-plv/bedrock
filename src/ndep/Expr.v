@@ -219,16 +219,48 @@ Section env.
 
   Global Instance SemiDec_expr : SemiDec expr := {| seq_dec := expr_seq_dec |}.
 
+  (** lift the "real" variables in the range [a,...)
+   ** to the range [a+b,...)
+   **)
   Fixpoint liftExpr (a b : nat) (e : expr) : expr :=
     match e with
       | Const t' c => Const t' c
       | Var x => 
         if Compare_dec.lt_dec a x
         then Var x
-        else Var (x + b)          
+        else Var (x + b)
       | UVar x => UVar x
       | Func f xs => 
         Func f (map (liftExpr a b) xs)
     end.
+
+  Fixpoint liftExprU (a b : nat) (e : expr (*(uvars' ++ uvars) vars*)) 
+    : expr (*(uvars' ++ ext ++ uvars) vars*) :=
+    match e with
+      | UVar x => 
+        if Compare_dec.lt_dec a x
+        then UVar x
+        else UVar (x + b)
+      | Var v => Var v
+      | Const t x => Const t x 
+      | Func f xs => 
+        Func f (map (liftExprU a b) xs)
+    end.
+
+  (** This function replaces "real" variables [a, b) with existential variables (c,...)
+   **)
+  Fixpoint exprSubstU (a b c : nat) (s : expr (*a (b ++ c ++ d)*)) {struct s}
+      : expr (* (c ++ a) (b ++ d) *) :=
+      match s with
+        | Const _ t => Const _ t
+        | Var x =>
+          if Compare_dec.lt_dec x a 
+          then Var x
+          else if Compare_dec.lt_dec x b
+               then UVar (c + x - a)
+               else Var (x + a - b)
+        | UVar x => UVar x
+        | Func f args => Func f (map (exprSubstU a b c) args)
+      end.
 
 End env.
