@@ -1246,17 +1246,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (************************)
   Require Import Reflect.
 
-  Class SemiDec (T : Type) : Type :=
-  { seq : forall a b : T, option (a = b) }.
-  Global Instance SemiDec_eqdec (T : Type) (D : EqDec T (@eq T)) 
-    : SemiDec T :=
-  { seq := fun a b =>
-    match equiv_dec a b with
-      | left pf => Some pf
-      | right _ => None
-    end
-  }.
-
   Record VarType (t : Type) : Type :=
     { open : t }.
   Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
