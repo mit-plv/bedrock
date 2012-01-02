@@ -53,7 +53,7 @@ Module SepExprTests (B : Heap).
       @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
                      (ST.star (all (@f a b) 15) (all (@h a b) 15)).
       simpl all. simpl allb.
-      intros. Time Sep.sep isConst (nat_type :: nil); reflexivity.
+      intros. Time Sep.sep isConst (nat_type :: nil). reflexivity.
     Qed.
 
     Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
