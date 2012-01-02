@@ -41,35 +41,28 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     .
 
     Fixpoint sexprD (s : sexpr) (uvs vs : list { t : tvar & tvarD types t })
-      : option (ST.hprop (tvarD types pcType) (tvarD types stateType) nil) :=
+      : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
       match s with 
-        | Emp => 
-          Some (ST.emp _ _)
+        | Emp => ST.emp _ _
         | Inj p =>
           match exprD funcs uvs vs p tvProp with
-            | None => None
-            | Some p => 
-              Some (ST.inj (PropX.Inj p))
+            | None => ST.inj (PropX.Inj False)
+            | Some p => ST.inj (PropX.Inj p)
           end
         | Star l r =>
-          match sexprD l uvs vs , sexprD r uvs vs with
-            | Some l , Some r =>
-              Some (ST.star l r)
-            | _ , _ => None
-          end                    
+          ST.star (sexprD l uvs vs) (sexprD r uvs vs)
         | Exists t b =>
-          Some (ST.ex (fun x : tvarD types t =>
-            match sexprD b uvs (@existT _ _ t x :: vs) with
-              | None => ST.inj (PropX.Inj False)
-              | Some s => s
-            end))
+          ST.ex (fun x : tvarD types t => sexprD b uvs (@existT _ _ t x :: vs))
         | Func f b =>
           match nth_error sfuncs f with
-            | None => None
+            | None => ST.inj (PropX.Inj False)
             | Some f =>
-              applyD (@exprD types funcs uvs vs) (SDomain f) b _ (SDenotation f)
+              match applyD (@exprD types funcs uvs vs) (SDomain f) b _ (SDenotation f) with
+                | None => ST.inj (PropX.Inj False)
+                | Some p => p
+              end
           end
-        | Const p => Some p
+        | Const p => p
       end.
 
     Section SProver.
@@ -77,71 +70,43 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Definition himp (U1 U2 G : env types)
         (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
         (gl gr : sexpr) : Prop :=
-        match sexprD gl U1 G , sexprD gr U2 G with
-          | Some l , Some r => ST.himp cs l r
-          | Some _ , None => False
-          | None , _ => True
-        end.
+        ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
 
       Definition heq (U1 U2 G : env types)
         (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
         (gl gr : sexpr) : Prop :=
-        match sexprD gl U1 G , sexprD gr U2 G with
-          | Some l , Some r => ST.heq cs l r
-          | Some _ , None => False
-          | None , _ => True
-        end.
+        ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
 
       Global Instance Trans_himp U g cs : Transitive (@himp U U g cs).
       Proof.
-        red. unfold himp. intros x y z. 
-        destruct (sexprD x U g);
-        destruct (sexprD y U g);
-        destruct (sexprD z U g); try intuition.
-        etransitivity; eauto.
+        red. unfold himp. intros; etransitivity; eauto.
       Qed.
 
       Global Instance Trans_heq U g cs : Transitive (@heq U U g cs).
       Proof.
-        red. unfold heq. intros x y z. 
-        destruct (sexprD x U g);
-        destruct (sexprD y U g);
-        destruct (sexprD z U g); try intuition.
-        etransitivity; eauto.
+        red. unfold heq. intros; etransitivity; eauto.
       Qed.
 
       Global Instance Refl_himp U g cs : Reflexive (@himp U U g cs).
       Proof.
-        red; unfold himp; intros. 
-        destruct (sexprD x U g); eauto.
-        reflexivity.
+        red; unfold himp; intros. reflexivity.
       Qed.
 
       Global Instance Refl_heq U g cs : Reflexive (@himp U U g cs).
       Proof.
-        red; unfold himp; intros. 
-        destruct (sexprD x U g); eauto.
-        reflexivity.
+        red; unfold himp; intros. reflexivity.
       Qed.
 
       Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
         himp U1 U2 G cs L R ->
-        match sexprD L U1 G , sexprD R U2 G with
-          | Some l , Some r => ST.himp cs l r
-          | Some _ , None => False
-          | None , _ => True
-        end.
+        ST.himp cs (sexprD L U1 G) (sexprD R U2 G).
       Proof.
         clear. auto.
       Qed.
 
       Theorem ST_heq_heq : forall (U1 U2 G : env types) cs L R,
         heq U1 U2 G cs L R ->
-        match sexprD L U1 G , sexprD R U2 G with
-          | Some l , Some r => ST.heq cs l r
-          | Some _ , None => False
-          | None , _ => True
-        end.
+        ST.heq cs (sexprD L U1 G) (sexprD R U2 G).
       Proof.
         clear. auto.
       Qed.
@@ -893,19 +858,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (cs : codeSpec (tvarD types pc) (tvarD types st))
     (L R : sexpr types pc st),
     himp funcs sfuncs nil nil nil cs L R ->
-    match 
-      @sexprD types funcs pc st sfuncs L nil nil , 
-      @sexprD types funcs pc st sfuncs R nil nil
-      with
-      | Some l , Some r => 
-        ST.himp cs l r
-      | Some _ , None => False
-      | None , _ => True
-    end.
+    ST.himp cs
+      (@sexprD types funcs pc st sfuncs L nil nil)
+      (@sexprD types funcs pc st sfuncs R nil nil).
   Proof.
-    unfold himp. intros. 
-    destruct (sexprD funcs sfuncs L nil nil);
-      destruct (sexprD funcs sfuncs R nil nil); auto.
+    unfold himp. intros. auto.
   Qed.
 
   Ltac reflect_goal isConst Ts :=
