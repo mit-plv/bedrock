@@ -1,6 +1,6 @@
 Require Import OrderedType. 
 
-Module Ordered_nat : OrderedType with Definition t := nat.
+Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition t := nat.
   Definition eq := @eq nat. 
   Definition lt := @lt.
@@ -42,4 +42,6 @@ End Ordered_nat.
 
 Require Bedrock.FMapAVL.
 
-Module IntMap := Bedrock.FMapAVL.Make Ordered_nat.
+Require ZArith.Int.
+
+Module IntMap := Bedrock.FMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat.

@@ -2,6 +2,7 @@ Require Import Bedrock.ndep.Expr.
 Require Import List.
 Require Import EquivDec.
 Require Import Bedrock.ndep.NatMap.
+Require Import Env.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -28,14 +29,14 @@ Section Unify.
     Variable sub : Subst.
 
     Fixpoint env_of_Subst (ls : variables) (cur : nat)
-      : list (option (expr types)) :=
+      : list (tvar * option (expr types)) :=
       match ls with
         | nil => nil
         | a :: b => 
-          match Subst_lookup cur sub with
-            | None => None 
-            | Some e => Some e
-          end :: env_of_Subst b (S cur)
+          (a, match Subst_lookup cur sub with
+                | None => None 
+                | Some e => Some e
+              end) :: env_of_Subst b (S cur)
       end.
   End Subst.
 
@@ -53,7 +54,7 @@ Section Unify.
             fun x _ => 
               match x with
               end
-          | Some t => Eq t 
+          | Some t => Expr.Eq t
         end 
     end.
 
@@ -69,75 +70,71 @@ Section Unify.
    ** If uL is not nil, then this procedure is not even structurally complete
    **)
 
-  Fixpoint exprUnify (r l : expr types) (s : Subst) : option Subst.
-(*
+  Section fold_left2_opt.
+    Variable T U : Type.
+    Variable F : T -> T -> U -> option U.
+
+    Fixpoint fold_left_2_opt (ls ls' : list T) (acc : U) : option U :=
+      match ls, ls' with 
+        | nil , nil => Some acc
+        | x :: xs , y :: ys => 
+          match F x y acc with
+            | None => None
+            | Some acc => fold_left_2_opt xs ys acc
+          end
+        | _ , _ => None
+      end.
+  End fold_left2_opt.
+
+
+  Fixpoint exprUnify (l r : expr types) (ls rs : Subst) : option (Subst * Subst).
   refine (
-    match r with
-      | Const t v =>
-        match l in expr _ _ _ T 
-          return tvarD T -> Subst uR uL vs -> option (Subst uR uL vs) with
-          | Const t' v' => fun v s =>
-            if get_Eq t' v v'
-            then Some s
-            else None
-          | _ => fun _ _ => None
-        end v
-      | Var v => fun l s =>
-        match l with
-          | Var v' => if finEq v v' then Some s else None
-          | _ => None
+    match l , r with
+      | Const t v , Const t' v' =>
+        match equiv_dec t t' with
+          | left pf => match pf in _ = k return tvarD _ k -> _ with
+                         | refl_equal => fun v' =>
+                           if get_Eq t v v'
+                           then Some (ls, rs)
+                           else None
+                       end v'
+          | right _ => None
         end
-      | UVar u => fun l s =>
-        match Subst_lookup u s with
+      | Var v , Var v' =>
+        if Peano_dec.eq_nat_dec v v' 
+        then Some (ls, rs)
+        else None
+      | Func f args , Func f' args' => 
+        match Peano_dec.eq_nat_dec f f' with
+          | left pf =>
+            fold_left_2_opt 
+            (fun (l r : expr types) (acc : Subst * Subst) =>
+              exprUnify l r (fst acc) (snd acc)) args args' (ls, rs)
+          | right _ => None
+        end
+      | UVar u , _ => 
+        match Subst_lookup u ls with
           | None => 
-            Some (Subst_replace u l s)
+            Some (Subst_replace u r ls, rs)
           | Some r =>
-            if seq_dec l r then Some s else None
+            if seq_dec l r then Some (ls, rs) else None
         end
-      | Func f args => fun l s =>
-        match l in expr _ _ _ T 
-          return _
-          with
-          | Func f' args' =>
-            match finEq f f' with
-              | left pf =>
-                match pf in _ = F 
-                  return hlist (expr funcs uL vs) (Domain (get funcs F)) -> option _ 
-                  with
-                  | refl_equal => fun args' => 
-                    let combine acc t (r : expr funcs uR vs t) (l : expr funcs uL vs t) :=
-                      match acc with
-                        | None => None
-                        | Some s => 
-                          exprUnify r l s 
-                      end 
-                    in
-                    hlist_fold2 combine args args' (Some s)
-                end args'
-              | right _ => None
-            end
-          | _ => None
+      | _ , UVar u =>
+        match Subst_lookup u rs with
+          | None => 
+            Some (ls, Subst_replace u r rs)
+          | Some r =>
+            if seq_dec l r then Some (ls, rs) else None
         end
-    end.
-*)
-  Admitted.
+      | _ , _ => None
+    end).
+  Defined.
 
   (** I'd like to make these mutually recursive...**)
-  Fixpoint exprUnifyArgs (r l : list (expr types)) (s : Subst) 
-    : option Subst.
-(*
-    match r in hlist _ ls
-      return hlist (expr funcs uL vs) ls -> Subst uR uL vs -> option (Subst uR uL vs)
-      with
-      | HNil => fun _ s => Some s
-      | HCons _ _ x rr => fun l s =>
-        match exprUnify x (hlist_hd l) s with
-          | None => None
-          | Some s => exprUnifyArgs rr (hlist_tl l) s
-        end
-    end.
-*)
-  Admitted.
-
+  Definition exprUnifyArgs (l r : list (expr types)) (ls rs : Subst)
+    : option (Subst * Subst) :=
+    fold_left_2_opt 
+    (fun (l r : expr types) (acc : Subst * Subst) =>
+      exprUnify l r (fst acc) (snd acc)) l r (ls, rs).
 
 End Unify.
