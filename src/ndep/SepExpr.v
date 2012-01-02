@@ -190,7 +190,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     }.
   
     Definition SHeap_empty : SHeap := 
-      {| impures := FM.empty _
+      {| impures := @FM.empty _
        ; pures   := nil
        ; other   := nil
        |}.
@@ -232,7 +232,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       match s with
         | Emp => (nil, SHeap_empty)
         | Inj p => (nil,
-          {| impures := FM.empty _
+          {| impures := FM.empty
             ; pures := p :: nil
             ; other := nil
           |})
@@ -246,13 +246,13 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           (v ++ t :: nil, b)
         | Func f a =>
           (nil,
-           {| impures := FM.add f (a :: nil) (FM.empty _)
+           {| impures := FM.add f (a :: nil) FM.empty
             ; pures := nil
             ; other := nil
            |})
         | Const c => 
           (nil,
-           {| impures := FM.empty _
+           {| impures := FM.empty
             ; pures := nil
             ; other := c :: nil
             |})
@@ -298,7 +298,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
-
+(*
     Section MM.
       Require Import Env.
       Variable T : Type.
@@ -327,9 +327,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           match FM.find k r with
             | None => FM.add k v a
             | Some v' => FM.add k (filter_all v v') a
-          end) m (FM.empty _).
+          end) m FM.empty.
 
     End MM.
+*)
 
     Fixpoint unify_remove (l : list (expr types)) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
@@ -372,10 +373,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             | None => (FM.add k v lf, rf, ls, rs)
             | Some xs =>
               let '(l,r,ls,rs) := unify_remove_all v xs ls rs in
-              (FM.add k l lf, FM.add k r (FM.remove k rf), ls, rs)
+              (FM.add k l lf, FM.add k r rf, ls, rs)
           end)
         (impures l)
-        (FM.empty _ , impures r , empty_Subst _ , empty_Subst _)
+        (FM.empty , impures r , empty_Subst _ , empty_Subst _)
       in
       ({| impures := lf ; pures := pures l ; other := other l |},
        {| impures := rf ; pures := pures r ; other := other r |},
@@ -870,15 +871,43 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | [ |- @ST.himp ?pcT ?stT ?cs ?L ?R ] =>
         match reflect_all pcT stT isConst Ts (L :: R :: nil) with
           | (?types, ?pcTyp, ?stTyp, ?funcs, ?sfuncs, ?L :: ?R :: nil) =>
-            apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R)
+            apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R)              
         end
     end.
 
+  (** This should perform all the reductions necessary to remove all of reflection calls.
+   **)
+  Ltac simplifier :=
+    cbv beta iota zeta delta [CancelSep sepCancel hash liftSHeap sheapSubstU liftExpr 
+      FM.add FM.fold FM.map FM.find FM.remove FM.empty FM.insert_at_right
+      other pures impures star_SHeap SHeap_empty
+      unify_remove unify_remove_all exprUnifyArgs exprUnify empty_Subst Subst_lookup env_of_Subst
+      Expr.Impl Expr.Eq
+      List.map List.length List.app fold_left_2_opt List.fold_right List.nth_error
+      starred sheapD exprD
+      exprSubstU defaultType 
+      Compare_dec.lt_eq_lt_dec Compare_dec.lt_dec Peano_dec.eq_nat_dec
+      nat_rec nat_rect forallEach env exists_subst multimap_join equiv_dec seq_dec
+      Domain Range
+      EqDec_tvar tvar_rec tvar_rect 
+      lookupAs sumbool_rec sumbool_rect
+      fst snd
+      eq_rec_r eq_rec eq_rect Logic.eq_sym f_equal get_Eq value 
+      nat_eq_eqdec
+    ].
+
   Ltac canceler :=
-    apply ApplyCancelSep; compute.
+    apply ApplyCancelSep; simplifier.
 
   Ltac sep isConst Ts := 
-    reflect_goal isConst Ts; canceler.
+    reflect_goal isConst Ts;
+    let rec unfold_all ls :=
+      match ls with
+        | nil => canceler
+        | ?a :: ?b => unfold a ; unfold_all b
+      end
+    in unfold_all Ts.
+
 (*
   Section Tests.
     Variable f : forall a b, nat -> ST.hprop a b nil.
@@ -910,24 +939,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                                end
        |}.
 
-    Goal forall a b c, @ST.himp a b c 
-      (*ST.ex (fun y : nat => *) (ST.ex (fun x : nat => (f _ _ x)))
-      (f _ _ 1).
-      intros. reflect_goal isConst (nat_type :: nil).
-
-    Goal forall a b c, @ST.himp a b c 
-      (*ST.ex (fun y : nat => *) (ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1)))
-      (f _ _ 1).
-      intros. reflect_goal isConst (nat_type :: nil).
-
-    Goal forall a b c x, @ST.himp a b c (f _ _ (x + x)) (f _ _ 1).
-      intros. reflect_goal isConst (nat_type :: nil).
-
-    Goal forall c x, @ST.himp a b c (p nil 1 x) (p _ 1 x).
-      intros.      
-      Time sep isConst (nat_type :: nil). reflexivity.
-    Qed.
-
     Fixpoint all a b (f : nat -> ST.hprop a b nil) (n : nat) : ST.hprop a b nil :=
       match n with
         | 0 => f 0
@@ -940,12 +951,50 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | S n => ST.star (f (m - S n)) (allb f n m)
       end.
 
+    Goal forall a b c, 
+      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
+                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
+
+    Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
+      intros. Time sep isConst (nat_type :: nil).
+    Abort.
+
     Goal forall c, @ST.himp a b c 
-      (ST.star (allb (@h a b) 5 5) (allb (@f a b) 5 5))
-      (ST.star (all (@f a b) 5) (all (@h a b) 5)).
+      (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
+      (ST.star (all (@f a b) 15) (all (@h a b) 15)).
       simpl all. simpl allb. intros.
-      Time sep isConst (nat_type :: nil). reflexivity.
+      sep isConst (nat_type :: nil). reflexivity.
     Qed.
+
+    Goal forall a b c, 
+      @ST.himp a b c (ST.star (allb (@h a b) 2 2) (allb (@f a b) 2 2))
+                     (ST.star (all (@h a b) 2) (all (@f a b) 2 )).
+      simpl all. simpl allb. intros.
+      sep isConst (nat_type :: nil); reflexivity.
+    Qed.
+
+    Goal forall a b c, @ST.himp a b c 
+      (*ST.ex (fun y : nat => *) (ST.ex (fun x : nat => (f _ _ (x + x))))
+      (f _ _ 1).
+      intros.  sep isConst (nat_type :: nil).
+    Abort.
+
+    Goal forall a b c, @ST.himp a b c 
+      (*ST.ex (fun y : nat => *) (ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1)))
+      (f _ _ 1).
+      intros. reflect_goal isConst (nat_type :: nil).
+
+    Goal forall a b c x, @ST.himp a b c (f _ _ (x + x)) (f _ _ 1).
+      intros. reflect_goal isConst (nat_type :: nil).
+    Abort.
+
+    Goal forall c x, @ST.himp a b c (p nil 1 x) (p _ 1 x).
+      intros.      
+      Time sep isConst (nat_type :: nil). 
+      unfold nat_type. simplifier. reflexivity.
+    Qed.
+
+
   End Tests.
 *)
 

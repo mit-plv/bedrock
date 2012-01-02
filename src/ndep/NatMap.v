@@ -44,4 +44,87 @@ Require Bedrock.FMapAVL.
 
 Require ZArith.Int.
 
-Module IntMap := Bedrock.FMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat.
+(*Module IntMap := Bedrock.FMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat. *)
+
+Module IntMap.
+
+  Section parametric.
+    Inductive t (T : Type) : Type := 
+    | MLeaf
+    | MBranch : t T -> nat -> T -> t T -> t T.
+
+    Context {T : Type}.
+
+    Definition empty : t T := MLeaf _.
+
+    Section add.
+      Variable s : nat.
+      Variable v : T.
+
+      Fixpoint add m : t T :=
+        match m with
+          | MLeaf => MBranch _ (MLeaf _) s v (MLeaf _)
+          | MBranch l k v' r =>
+            match Compare_dec.lt_eq_lt_dec s k with
+              | inleft (left _) => MBranch _ (add l) k v' r 
+              | inleft (right _) => MBranch _ l k v r 
+              | inright _ => MBranch _ l k v' (add r)
+            end
+        end.
+    End add.
+
+    Fixpoint find (s : nat) (m : t T) : option T :=
+      match m with
+        | MLeaf => None
+        | MBranch l k v r =>
+          match Compare_dec.lt_eq_lt_dec s k with
+            | inleft (left _) => find s l
+            | inleft (right _) => Some v
+            | inright _ => find s r
+          end
+      end.
+
+    Fixpoint insert_at_right (m i : t T) : t T :=
+      match m with
+        | MLeaf => i
+        | MBranch l k v r =>
+          MBranch _ l k v (insert_at_right r i)
+      end.
+
+    Fixpoint remove (s : nat) (m : t T) : t T :=
+      match m with
+        | MLeaf => m
+        | MBranch l k v r =>
+          match Compare_dec.lt_eq_lt_dec s k with
+            | inleft (left _) => MBranch _ (remove s l) k v r
+            | inleft (right _) => insert_at_right l r
+            | inright _ => MBranch _ l k v (remove s r)
+          end
+      end.
+  End parametric.
+    
+  Section Map.
+    Context {T U : Type}.
+    Variable f : T -> U.
+
+    Fixpoint map (m : t T) : t U :=
+      match m with
+        | MLeaf => MLeaf _
+        | MBranch l k v r =>
+          MBranch _ (map l) k (f v) (map r)
+      end.
+  End Map.
+
+  Section Fold.
+    Context {T U : Type}.
+    Variable f : nat -> T -> U -> U.
+
+    Fixpoint fold (m : @t T) (acc : U) : U :=
+      match m with
+        | MLeaf => acc
+        | MBranch l k v r =>
+          fold r (f k v (fold l acc))
+      end.
+  End Fold.
+End IntMap.
+

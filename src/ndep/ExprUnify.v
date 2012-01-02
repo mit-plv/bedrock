@@ -13,10 +13,10 @@ Section Unify.
   Variable types : list type.
 
   Definition Subst := (*(dom : variables) := *)
-    SUBST.t (expr types).
+    @SUBST.t (expr types).
 
   Definition empty_Subst : Subst :=
-    SUBST.empty _.
+    SUBST.empty.
 
   Definition Subst_lookup (k : nat) (s : Subst) :=
     SUBST.find k s.
