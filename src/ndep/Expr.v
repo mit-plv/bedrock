@@ -264,3 +264,8 @@ Section env.
       end.
 
 End env.
+
+Implicit Arguments Const [ types t ].
+Implicit Arguments Var [ types ].
+Implicit Arguments UVar [ types ].
+Implicit Arguments Func [ types ].
