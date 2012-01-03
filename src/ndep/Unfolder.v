@@ -209,13 +209,70 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           collectTypes_hints P2 types k)
       | _ =>
         let T := type of Ps in
-          collectTypes_hint (fun _ : unit => T) types k
+          collectTypes_hint (fun _ : VarType unit => T) types k
+    end.
+
+  (* Now we repeat this sequence of tactics for reflection itself. *)
+
+  Ltac reflect_hint' pcType stateType isConst P types funcs sfuncs vars k :=
+    match P with
+      | fun x => @?H x -> @?P x =>
+        reflect_expr isConst H types funcs (@nil type) vars ltac:(fun funcs H =>
+          reflect_hint' pcType stateType isConst P types funcs sfuncs vars ltac:(fun funcs sfuncs P =>
+            let lem := eval simpl in (Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
+              vars (H :: Hyps P) (Lhs P) (Rhs P)) in
+            k funcs sfuncs lem))
+      | fun x => forall cs, @ST.himp _ _ cs (@?L x) (@?R x) =>
+        reflect_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun funcs sfuncs L =>
+          reflect_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun funcs sfuncs R =>
+            let lem := constr:(Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
+              vars nil L R) in
+            k funcs sfuncs lem))
+    end.
+
+  Ltac reflect_hint pcType stateType isConst P types funcs sfuncs vars k :=
+    match P with
+      | fun xs : ?T => forall x : ?T', @?f xs x =>
+        match T' with
+          | PropX.codeSpec _ _ => fail 1
+          | _ => match type of T' with
+                   | Prop => fail 1
+                   | _ =>
+                     let P := eval simpl in (fun x : VarType (T' * T) =>
+                       f (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
+                     let T' := reflectType types T' in
+                       reflect_hint pcType stateType isConst P types funcs sfuncs (T' :: vars) k
+                   | _ => fail 3
+                 end
+          | _ => fail 2
+        end
+      | _ => reflect_hint' pcType stateType isConst P types funcs sfuncs vars k
+    end.
+
+  Ltac reflect_hints pcType stateType isConst Ps types funcs sfuncs k :=
+    match Ps with
+      | tt => k funcs sfuncs (@nil (lemma types pcType stateType)) || fail 2
+      | (?P1, ?P2) =>
+        reflect_hints pcType stateType isConst P1 types funcs sfuncs ltac:(fun funcs sfuncs P1 =>
+          reflect_hints pcType stateType isConst P2 types funcs sfuncs ltac:(fun funcs sfuncs P2 =>
+            k funcs sfuncs (P1 ++ P2)))
+        || fail 2
+      | _ =>
+        let T := type of Ps in
+          reflect_hint pcType stateType isConst (fun _ : VarType unit => T) types funcs sfuncs (@nil tvar) ltac:(fun funcs sfuncs P =>
+            k funcs sfuncs (P :: nil))
     end.
 
   (* Main entry point tactic, to generate a hint database *)
-  Ltac prepareHints Ps types :=
+  Ltac prepareHints pcType stateType isConst Ps types :=
     collectTypes_hints Ps (@nil Type) ltac:(fun rt =>
+      let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
       let types := extend_all_types rt types in
-        pose types).
+      let pcT := reflectType types pcType in
+      let stateT := reflectType types stateType in
+        pose types; pose pcT; pose stateT;
+        reflect_hints pcT stateT isConst Ps types (@nil (signature types)) (@nil (ssignature types pcT stateT)) ltac:(fun funcs sfuncs hints =>
+          pose funcs; pose sfuncs; pose hints)).
+
 
 End Make.
