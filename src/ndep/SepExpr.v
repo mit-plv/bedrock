@@ -501,7 +501,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   Ltac collectTypes_expr e types :=
     match e with
-      | fun x => (@openUp _ ?T _ x) =>
+      | fun x => (@openUp _ ?T _ _) =>
         let v := constr:(T:Type) in
         cons_uniq v types
       | fun x => ?e =>
@@ -690,7 +690,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     let rec reflect funcs e k :=
       match e with
         | fun _ => ?X =>
-          is_evar X ; 
+          is_evar X ; idtac "got EVAR, this case is not implemented" ;
           (** this is a unification variable **)
           let r := constr:(@Expr.UVar) in (** TODO **)
           k funcs r 
