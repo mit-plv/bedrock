@@ -187,10 +187,16 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac collectTypes_hint P types k :=
     match P with
       | fun xs : ?T => forall x : ?T', @?f xs x =>
-        let P := eval simpl in (fun x : VarType (T * T') =>
-          f (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
-        let types := cons_uniq T' types in
-          collectTypes_hint P types k
+        match T' with
+          | PropX.codeSpec _ _ => fail 1
+          | _ => match type of T' with
+                   | Prop => fail 1
+                   | _ => let P := eval simpl in (fun x : VarType (T * T') =>
+                     f (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+                   let types := cons_uniq T' types in
+                     collectTypes_hint P types k
+                 end
+        end
       | _ => collectTypes_hint' P types k
     end.
 
