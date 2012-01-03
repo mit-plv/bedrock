@@ -1,4 +1,5 @@
-DEP := Expr ExprUnify SepExpr SepExprTests Provers
+#DEP := Expr ExprUnify SepExpr SepExprTests Provers
+DEP  := 
 NDEP := NatMap Expr ExprUnify SepExpr SepExprTests Provers \
 	Unfolder UnfolderTests
 

@@ -99,6 +99,50 @@ Module HeapTheory (B : Heap).
   Definition satisfies (m : smem) (m' : B.mem) : Prop :=
     satisfies' _ m m'.
 
+  Global Instance EqDec_addr : EquivDec.EqDec addr (@eq addr) := addr_dec.
+
+  Theorem satisfies_get : forall m m',
+    satisfies m m' ->
+    forall p v, 
+      smem_get p m = Some v ->
+      mem_get m' p = Some v.
+  Proof.
+    unfold satisfies, smem_get, smem.
+    induction all_addr; simpl; intros.
+      congruence.
+      rewrite (hlist_eta _ m) in H. simpl in *.
+      destruct (addr_dec a p); subst; simpl in *; auto.
+      rewrite H0 in *; intuition.
+      destruct H.
+      eapply IHl; eauto.
+  Qed.
+
+  Theorem satisfies_split : forall m m',
+    satisfies m m' ->
+    forall m0 m1, 
+      split m m0 m1 ->
+      satisfies m0 m' /\ satisfies m1 m'.
+  Proof.
+    unfold satisfies, split, disjoint, join, smem.
+    induction all_addr. intros.
+    rewrite (hlist_nil_only _ m0) in *.
+    rewrite (hlist_nil_only _ m1) in *. simpl. auto.    
+    
+    intro. rewrite (hlist_eta _ m). do 4 intro.
+    rewrite (hlist_eta _ m0). rewrite (hlist_eta _ m1). simpl in *.
+    intros.
+    repeat match goal with
+             | [ H : _ /\ _ |- _ ] => destruct H
+             | [ H : HCons _ _ = HCons _ _ |- _ ] => inversion H; clear H
+           end.
+    specialize (IHl _ _ H3).
+    eapply EqdepClass.inj_pair2 in H6.
+    intros. specialize (IHl _ _ (conj H2 H6)).
+    destruct (hlist_hd m0); destruct (hlist_hd m1); eauto; 
+    intuition (try congruence);
+    rewrite H5 in *; eauto.
+  Qed.
+
   Ltac unfold_all :=
     unfold smem, split, join, disjoint, smem_emp, semp; 
     unfold smem, split, join, disjoint, smem_emp, semp.
