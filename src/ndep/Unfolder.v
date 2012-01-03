@@ -203,7 +203,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           collectTypes_hints P2 types k)
       | _ =>
         let T := type of Ps in
-          collectTypes_hint (fun _ : unit => T) types k
+          collectTypes_hint (fun _ : VarType unit => T) types k
     end.
 
   (* Main entry point tactic, to generate a hint database *)
