@@ -35,7 +35,7 @@ Module Make (B : Heap).
                                end
        |}.
 
-    Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp _ _).
+    Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
     Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
     Hypothesis Hg : forall cs, ST.himp cs (h true tt) (ST.star (h true tt) (f 13)).
 
@@ -45,19 +45,22 @@ Module Make (B : Heap).
     Hypothesis Hf1 : forall n, n <> 0 -> forall cs, ST.himp cs (f n) (ST.emp _ _).
     Hypothesis Hg1 : forall b u, b = false -> u <> tt -> forall cs, ST.himp cs (h b u) (ST.star (h b tt) (f 13)).
 
+    Ltac prepare x := U.prepareHints pc state isConst x (@nil type).
+
     Definition hints0 : list type.
-      U.prepareHints Hemp (@nil type).
-      U.prepareHints Hf (@nil type).
-      U.prepareHints (Hemp, Hf) (@nil type).
-      U.prepareHints (Hemp, Hf, Hg) (@nil type).
+      prepare tt.
+      prepare Hemp.
+      prepare Hf.
+      prepare (Hemp, Hf).
+      prepare (Hemp, Hf, Hg).
 
-      U.prepareHints Hf0 (@nil type).
-      U.prepareHints (Hemp, Hf, Hg, Hf0) (@nil type).
+      prepare Hf0.
+      prepare (Hemp, Hf, Hg, Hf0).
 
-      U.prepareHints Hg0 (@nil type).
+      prepare Hg0.
 
-      U.prepareHints Hf1 (@nil type).
-      U.prepareHints Hg1 (@nil type).
+      prepare Hf1.
+      prepare Hg1.
     Abort.
 
   End Tests.
