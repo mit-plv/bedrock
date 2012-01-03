@@ -19,7 +19,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Variable pcType : tvar.
     Variable stateType : tvar.
-    Variable stateMem : tvarD types stateType -> B.mem.
 
     Record ssignature := {
       SDomain : list tvar ;
@@ -92,9 +91,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         red; unfold himp; intros. reflexivity.
       Qed.
 
-      Global Instance Refl_heq U g cs : Reflexive (@himp U U g cs).
+      Global Instance Refl_heq U g cs : Reflexive (@heq U U g cs).
       Proof.
-        red; unfold himp; intros. reflexivity.
+        red; unfold heq; intros. reflexivity.
       Qed.
 
       Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
@@ -260,7 +259,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
  
     Definition starred (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
       : sexpr :=
-      fold_right (fun x a => Star (F x) a) base ls.
+      fold_right (fun x a => match a with 
+                               | Emp => F x
+                               | _ => Star (F x) a
+                             end) base ls.
 
     Definition sheapD (h : SHeap) : sexpr :=
       let a := FM.fold (fun k => starred (Func k)) (impures h) Emp in
@@ -268,12 +270,46 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       let a := starred (fun x => Const x) (other h) a in
       a.
 
+    Definition starred' (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
+      : sexpr :=
+      fold_right (fun x a => Star (F x) a) base ls.
+
     Definition sheapD' (h : SHeap) :  sexpr :=
       let a := FM.fold (fun k ls acc => 
-        Star (starred (Func k) ls Emp) acc) (impures h) Emp in
-      let c := starred (fun x => Inj x) (pures h) Emp in
-      let e := starred (fun x => Const x) (other h) Emp in
+        Star (starred' (Func k) ls Emp) acc) (impures h) Emp in
+      let c := starred' (fun x => Inj x) (pures h) Emp in
+      let e := starred' (fun x => Const x) (other h) Emp in
       Star a (Star c e).
+
+    Lemma starred_starred' : forall a c cs T F F' base base' ls, 
+      heq a a c cs base base' ->
+      (forall x, heq a a c cs (F x) (F' x)) ->
+      heq a a c cs (@starred T F ls base) (@starred' T F' ls base').
+    Proof.
+      induction ls; simpl; intros.
+        assumption.
+        specialize (IHls H H0).
+        etransitivity. instantiate (1 := (Star (F a0) (starred F ls base))).
+        destruct (starred F ls base); try reflexivity.
+        unfold heq. simpl. symmetry. eapply ST.heq_star_comm.
+        eapply ST.heq_star_emp. reflexivity.
+        unfold heq in *; simpl in *.
+        eapply ST.heq_star_frame; eauto.
+    Qed.
+
+    Lemma starred_base : forall a c cs T F base ls P, 
+      heq a a c cs (Star (@starred T F ls Emp) base) P ->
+      heq a a c cs (@starred T F ls base) P.
+    Proof.
+      induction ls; simpl; intros.
+    Admitted.
+
+    Theorem sheapD_sheapD' : forall a c cs h, 
+      heq a a c cs (sheapD h) (sheapD' h).
+    Proof.
+      destruct h; unfold sheapD, sheapD'; simpl.
+        eapply starred_base. 
+    Admitted.      
 
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
@@ -903,7 +939,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     reflect_goal isConst Ts;
     let rec unfold_all ls :=
       match ls with
-        | nil => canceler
+        | nil => canceler; intros; hnf; simpl in *
         | ?a :: ?b => unfold a ; unfold_all b
       end
     in unfold_all Ts.
@@ -954,9 +990,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Goal forall a b c, 
       @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
                      (ST.star (all (@f a b) 15) (all (@h a b) 15)).
-
-    Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
-      intros. Time sep isConst (nat_type :: nil).
+      intros. simpl all. simpl allb.
+      Time sep isConst (nat_type :: nil).
     Abort.
 
     Goal forall c, @ST.himp a b c 

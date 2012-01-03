@@ -16,6 +16,8 @@ Section Env.
   Variable pcType : Type.
   Variable stateType : Type.
 
+  Parameter satisfies : forall (p : hprop pcType stateType nil) (cs : codeSpec pcType stateType) (s : settings) (m : H.mem), Prop.
+
   Parameter himp : forall (cs : codeSpec pcType stateType), 
     hprop pcType stateType nil -> hprop pcType stateType nil -> Prop.
 
@@ -149,6 +151,10 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Variable stateType : Type.
 
     Definition hprop (sos : list Type) := settings -> HT.smem -> propX pcType stateType sos.
+
+    Definition satisfies (p : hprop nil) (cs : codeSpec pcType stateType) (s : settings) (m : H.mem) : Prop :=
+      forall sm, HT.satisfies sm m ->
+        interp cs (p s sm).
 
     Variable cs : codeSpec pcType stateType.
 
