@@ -1,13 +1,13 @@
-DEP := dep/Expr dep/ExprUnify dep/SepExpr dep/SepExprTests dep/Provers
-NDEP := ndep/NatMap ndep/Expr ndep/ExprUnify ndep/SepExpr ndep/SepExprTests \
-	  ndep/Provers
+DEP := Expr ExprUnify SepExpr SepExprTests Provers
+NDEP := NatMap Expr ExprUnify SepExpr SepExprTests Provers \
+	Unfolder UnfolderTests
 
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass Env PMap Reflect \
 	Heaps SepTheoryX \
-	$(DEP) $(NDEP) \
+	$(DEP:%=dep/%) $(NDEP:%=ndep/%) \
 	SepIL SepTac Bedrock
 VS         := $(MODULES:%=%.v)
 
