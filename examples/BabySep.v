@@ -43,7 +43,7 @@ Proof.
   intros.
   reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler.
-  simple eapply SEP.himp_refl.
+  reflexivity.
 Qed.
 
 Theorem ptsto_comm : forall a1 v1 a2 v2,
@@ -51,8 +51,7 @@ Theorem ptsto_comm : forall a1 v1 a2 v2,
 Proof.
   intros.
   reflect_goal ltac:(isConst) (@nil Expr.type).
-  intro. SEP.canceler.
-  simple eapply SEP.himp_refl.
+  intro. SEP.canceler. reflexivity.
 Qed.
 
 
