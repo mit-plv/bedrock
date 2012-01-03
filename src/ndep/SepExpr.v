@@ -634,18 +634,24 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         collectAllTypes isConst ts b
     end.
 
-  Ltac getVar idx vars :=
-    match vars with
-      | nil => idtac "empty variable list!" idx
-      | ?a :: ?b =>
-        match idx with
-          | fun x => @openUp _ _ (@fst _ _) _ =>
-            constr:(0)
-          | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
-            let r := getVar X vars in
-            constr:(S r)
-          | _ => idtac "couldn't find variable!" idx vars
-        end
+  Ltac getVar' idx :=
+    match idx with
+      | fun x => x =>
+        constr:(0)
+      | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
+        let r := getVar' X in
+          constr:(S r)
+      | _ => idtac "couldn't find variable! [1]" idx
+    end.
+
+  Ltac getVar idx :=
+    match idx with
+      | fun x => @openUp _ _ (@fst _ _) (@?X x) =>
+        getVar' X
+      | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
+        let r := getVar X in
+          constr:(S r)
+      | _ => idtac "couldn't find variable! [2]" idx
     end.
 
   Ltac reflect_function types f :=
@@ -696,7 +702,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           k funcs r 
         | fun x => (@openUp _ _ _ _) =>
           (** this is a variable **)
-          let v := getVar e vars in
+          let v := getVar e in
           let r := constr:(@Expr.Var types v) in
           k funcs r
         | fun x => ?e =>
