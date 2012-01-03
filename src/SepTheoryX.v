@@ -153,8 +153,7 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Definition hprop (sos : list Type) := settings -> HT.smem -> propX pcType stateType sos.
 
     Definition satisfies (p : hprop nil) (cs : codeSpec pcType stateType) (s : settings) (m : H.mem) : Prop :=
-      forall sm, HT.satisfies sm m ->
-        interp cs (p s sm).
+      exists sm, HT.satisfies sm m /\ interp cs (p s sm).
 
     Variable cs : codeSpec pcType stateType.
 

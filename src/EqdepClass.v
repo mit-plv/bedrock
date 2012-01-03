@@ -14,6 +14,13 @@ Section Classes.
     eapply UIP_dec. apply equiv_dec.
   Qed.
 
+  Lemma inj_pair2 :
+    forall (P:A -> Type) (p:A) (x y:P p),
+      existT P p x = existT P p y -> x = y.
+  Proof.
+    intros. eapply inj_pair2_eq_dec; auto.
+  Qed.    
+
 End Classes.
 
 Global Instance option_eqdec T (_ : EqDec T (@eq T)) : EqDec (option T) (@eq (option T)).
@@ -25,12 +32,7 @@ Global Instance option_eqdec T (_ : EqDec T (@eq T)) : EqDec (option T) (@eq (op
                             | left pf => left match (pf : a = b) in _ = t return Some a = Some t with
                                                 | refl_equal => refl_equal
                                               end
-                            | right pf => right (fun pf' => pf (*match pf' in _ = t return match t with 
-                                                                                           | Some z => Some a = Some z
-                                                                                           | None => False
-                                                                                         end with
-                                                                 | refl_equal => _
-                                                               end*) _)
+                            | right pf => right (fun pf' => pf _)
                           end
       | None , Some _ => right _
       | Some _ , None => right _
