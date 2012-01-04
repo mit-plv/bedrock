@@ -180,7 +180,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     (* Unify the respective function arguments. *)
                     match exprUnifyArgs args' args (empty_Subst types) (Subs s) with
                       | None => None
-                      | Some (subs, _) =>
+                      | Some (subs, subs') =>
                         (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                         let impures' := FM.add f argss (impures (Heap s)) in
                         let sh := {| impures := impures';
@@ -190,11 +190,14 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                         (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
                         let (exs, sh') := hash (Lhs h) in
 
+                        (* Newly introduced variables must be replaced with unification variables. *)
+                        let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
+
                         (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
                         Some {| Vars := Vars s;
                           UVars := UVars s ++ exs;
                           Heap := star_SHeap sh sh';
-                          Subs := subs |}
+                          Subs := subs' |}
                     end
                   else
                     None
@@ -234,13 +237,14 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            UVars := nil;
            Heap := shP;
            Subs := empty_Subst _ |} in
+         let shQ := sheapSubstU O (length exsQ) O shQ in
          let sQ := backward bound {| Vars := nil;
            UVars := exsQ;
            Heap := shQ;
            Subs := empty_Subst _ |} in
          forallEach (Vars sP) (fun alls =>
            exists_subst funcs alls (env_of_Subst (Subs sP) (UVars sP) 0) (fun exsP =>
-             exists_subst funcs alls (env_of_Subst (Subs sQ) (UVars sQ) 0) (fun exsQ =>
+             exists_subst funcs nil (env_of_Subst (Subs sQ) (UVars sQ) 0) (fun exsQ =>
                forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap sP)) exsP alls)
                  (sexprD funcs sfuncs (sheapD (Heap sQ)) exsQ nil)))))
         -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) (sexprD funcs sfuncs Q nil nil).
@@ -409,6 +413,12 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 let types := extend_all_types rt types in
                   reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
                     reflect_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
+                      pose (let (exsQ, shQ) := hash Q in
+                        let shQ := sheapSubstU O (length exsQ) O shQ in
+                          backward (Hints hs) bound {| Vars := nil;
+                            UVars := exsQ;
+                            Heap := shQ;
+                            Subs := empty_Subst _ |});
                       apply (unfolderOk (Hints hs) bound P Q)))))
       end.
 
