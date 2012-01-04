@@ -120,12 +120,12 @@ Module Make (B : Heap).
     Import SE.
 
     Ltac exec hs := cbv beta iota zeta delta [hash forallEach Vars UVars Heap Subs
-      unfolder unfoldForward fmFind Unfolder.FM.fold
+      forward backward unfoldForward unfoldBackward fmFind Unfolder.FM.fold
         impures pures other
         Unfolder.FM.add star_SHeap multimap_join liftSHeap
         SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
         app rev_append map length Compare_dec.lt_eq_lt_dec
-        findWithRest findWithRest' find Forward
+        findWithRest findWithRest' find Forward Backward
         Types Functions PcType StateType SFunctions Hints Lhs Rhs
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
         ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
@@ -193,7 +193,20 @@ Module Make (B : Heap).
       Time unfolder hints_fex.
       reflexivity.
     Qed.
+
+
+    (** Backward time! *)
+
+    Hypothesis Hb_f : forall cs, ST.himp cs (ST.emp _ _) (f 0).
   
+    Definition hints_Hb_f : U.hints.
+      prepare tt Hb_f.
+    Defined.
+
+    Theorem test_Hb_f : forall cs, ST.himp cs (ST.emp _ _) (f 0).
+      Time unfolder hints_Hb_f.
+      reflexivity.
+    Qed.
   End Tests.
 
 End Make.

@@ -128,7 +128,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Definition unfoldForward (s : unfoldingState) : option unfoldingState :=
         (* Iterate through all the entries for impure functions. *)
         fmFind (fun f =>
-          (* Iterate through all the arguments passed to the current function. *)
+          (* Iterate through all the argument lists passed to the current function. *)
           findWithRest (fun args argss =>
             (* Iterate through all hints. *)
             find (fun h =>
@@ -162,33 +162,88 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     None
                 | _ => None
               end) hs)) (impures (Heap s)).
+
+      Definition unfoldBackward (s : unfoldingState) : option unfoldingState :=
+        (* Iterate through all the entries for impure functions. *)
+        fmFind (fun f =>
+          (* Iterate through all the argument lists passed to the current function. *)
+          findWithRest (fun args argss =>
+            (* Iterate through all hints. *)
+            find (fun h =>
+              (* Check if the hint's head symbol matches the impure call we are considering. *)
+              match Rhs h with
+                | Func f' args' =>
+                  if equiv_dec f' f then
+                    (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
+                    let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
+
+                    (* Unify the respective function arguments. *)
+                    match exprUnifyArgs args' args (empty_Subst types) (Subs s) with
+                      | None => None
+                      | Some (subs, _) =>
+                        (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
+                        let impures' := FM.add f argss (impures (Heap s)) in
+                        let sh := {| impures := impures';
+                          pures := pures (Heap s);
+                          other := other (Heap s) |} in
+
+                        (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
+                        let (exs, sh') := hash (Lhs h) in
+
+                        (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
+                        Some {| Vars := Vars s;
+                          UVars := UVars s ++ exs;
+                          Heap := star_SHeap sh sh';
+                          Subs := subs |}
+                    end
+                  else
+                    None
+                | _ => None
+              end) hs)) (impures (Heap s)).
     End unfoldOne.
 
     Section unfolder.
       Variable hs : hintsPayload.
 
       (* Perform up to [bound] simplifications, based on [hs]. *)
-      Fixpoint unfolder (bound : nat) (s : unfoldingState) : unfoldingState :=
+      Fixpoint forward (bound : nat) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
             match unfoldForward (Forward hs) s with
               | None => s
-              | Some s' => unfolder bound' s'
+              | Some s' => forward bound' s'
+            end
+        end.
+
+      Fixpoint backward (bound : nat) (s : unfoldingState) : unfoldingState :=
+        match bound with
+          | O => s
+          | S bound' =>
+            match unfoldBackward (Backward hs) s with
+              | None => s
+              | Some s' => backward bound' s'
             end
         end.
 
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       Theorem unfolderOk : forall bound P Q,
-        (let (exs, sh) := hash P in
-         let s := unfolder bound {| Vars := exs;
+        (let (exsP, shP) := hash P in
+         let (exsQ, shQ) := hash Q in
+         let sP := forward bound {| Vars := exsP;
            UVars := nil;
-           Heap := sh;
+           Heap := shP;
            Subs := empty_Subst _ |} in
-         forallEach (Vars s) (fun alls =>
-           exists_subst funcs alls (env_of_Subst (Subs s) (UVars s) 0) (fun exs =>
-             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) exs alls) Q)))
-        -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) Q.
+         let sQ := backward bound {| Vars := nil;
+           UVars := exsQ;
+           Heap := shQ;
+           Subs := empty_Subst _ |} in
+         forallEach (Vars sP) (fun alls =>
+           exists_subst funcs alls (env_of_Subst (Subs sP) (UVars sP) 0) (fun exsP =>
+             exists_subst funcs alls (env_of_Subst (Subs sQ) (UVars sQ) 0) (fun exsQ =>
+               forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap sP)) exsP alls)
+                 (sexprD funcs sfuncs (sheapD (Heap sQ)) exsQ nil)))))
+        -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) (sexprD funcs sfuncs Q nil nil).
       Admitted.
     End unfolder.
   End env.
@@ -348,11 +403,13 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       let pc := eval simpl in (PcType hs) in
       let state := eval simpl in (StateType hs) in
         match goal with
-          | [ |- ST.himp _ ?P _ ] =>
+          | [ |- ST.himp _ ?P ?Q ] =>
             collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
-              let types := extend_all_types rt types in
-                reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
-                  apply (unfolderOk (Hints hs) bound P)))
+              collectTypes_sexpr Q rt ltac:(fun rt =>
+                let types := extend_all_types rt types in
+                  reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
+                    reflect_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
+                      apply (unfolderOk (Hints hs) bound P Q)))))
       end.
 
 End Make.
