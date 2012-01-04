@@ -187,7 +187,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            Subs := empty_Subst _ |} in
          forallEach (Vars s) (fun alls =>
            exists_subst funcs alls (env_of_Subst (Subs s) (UVars s) 0) (fun exs =>
-             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) alls exs) Q)))
+             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) exs alls) Q)))
         -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) Q.
       Admitted.
     End unfolder.
@@ -352,8 +352,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
               let types := extend_all_types rt types in
                 reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
-                  apply (unfolderOk (Hints hs) bound P)(*;
-                    *)))
+                  apply (unfolderOk (Hints hs) bound P)))
       end.
 
 End Make.

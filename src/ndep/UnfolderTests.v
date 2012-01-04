@@ -130,13 +130,14 @@ Module Make (B : Heap).
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
         ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
         eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
-        nth_error value Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
+        nth_error value error Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
         Impl sheapD starred fold_right applyD
         SDomain SDenotation exprD Domain Range Denotation
         ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
         Compare_dec.le_gt_dec Compare_dec.le_lt_dec
         ExprUnify.Subst_replace SemiDec_expr expr_seq_dec
+        lookupAs projT1 projT2
 
         hs
         Peano_dec.eq_nat_dec nat_eq_eqdec nat_rec nat_rect
@@ -181,6 +182,18 @@ Module Make (B : Heap).
       reflexivity.
     Qed.
 
+    Hypothesis fex : forall cs, ST.himp cs (f 0) (ST.ex (fun b => h b tt)).
+    Hypothesis hgo : forall b u cs, ST.himp cs (h b u) (ST.emp _ _).
+
+    Definition hints_fex : U.hints.
+      prepare (fex, hgo) tt.
+    Defined.
+
+    Theorem test_fex : forall cs, ST.himp cs (f 0) (ST.emp _ _).
+      Time unfolder hints_fex.
+      reflexivity.
+    Qed.
+  
   End Tests.
 
 End Make.
