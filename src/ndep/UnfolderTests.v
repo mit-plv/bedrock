@@ -128,7 +128,7 @@ Module Make (B : Heap).
         findWithRest findWithRest' find Forward Backward
         Types Functions PcType StateType SFunctions Hints Lhs Rhs
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
-        ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
+        ExprUnify.exprUnify exprSubstU sheapSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
         eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
         nth_error value error Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
@@ -207,6 +207,73 @@ Module Make (B : Heap).
       Time unfolder hints_Hb_f.
       reflexivity.
     Qed.
+
+    Theorem test_Hb_f3 : forall cs, ST.himp cs (ST.emp _ _) (ST.star (f 0) (ST.star (f 0) (f 0))).
+      Time unfolder hints_Hb_f.
+      reflexivity.
+    Qed.
+
+    Hypothesis f02 : forall cs, ST.himp cs (f 0) (f 2).
+    Hypothesis f21 : forall cs, ST.himp cs (f 2) (f 1).
+
+    Definition hints_f2 : U.hints.
+      prepare f02 f21.
+    Defined.
+
+    Theorem test_f2 : forall cs, ST.himp cs (f 0) (f 1).
+      Time unfolder hints_f2.
+      reflexivity.
+    Qed.
+
+    Theorem test_f2' : forall cs, ST.himp cs (ST.star (f 0) (ST.star (f 0) (f 0))) (ST.star (ST.star (f 1) (f 1)) (f 1)).
+      Time unfolder hints_f2.
+      reflexivity.
+    Qed.
+
+    Hypothesis Hb_f0 : forall n cs, ST.himp cs (ST.emp _ _) (f n).
+
+    Definition hints_Hb_f0 : U.hints.
+      prepare tt Hb_f0.
+    Defined.
+
+    Theorem test_Hb_f0 : forall cs, ST.himp cs (ST.emp _ _) (f 42).
+      Time unfolder hints_Hb_f0.
+      reflexivity.
+    Qed.
+
+    Theorem test_Hb_f0' : forall cs, ST.himp cs (ST.emp _ _) (ST.star (f 42) (f 19)).
+      Time unfolder hints_Hb_f0.
+      reflexivity.
+    Qed.
+
+    Hypothesis fexb : forall cs, ST.himp cs (ST.ex (fun b => ST.star (h b tt) (h b tt))) (f 0).
+    Hypothesis hgob : forall u b cs, ST.himp cs (ST.emp _ _) (h b u).
+
+    Definition hints_fexb : U.hints.
+      prepare tt (fexb, hgob).
+    Defined.
+
+    Theorem test_fexb : forall cs, ST.himp cs (ST.emp _ _) (f 0).
+      Time unfolder hints_fexb.
+      exists true; reflexivity.
+    Qed.
+
+    Theorem test_fexb' : forall cs, ST.himp cs (ST.emp _ _) (ST.star (f 0) (f 0)).
+      Time unfolder hints_fexb.
+      repeat exists true; reflexivity.
+    Qed.
+
+    Hypothesis fexb' : forall cs, ST.himp cs (ST.ex (fun u => h true u)) (f 1).
+
+    Definition hints_fexb' : U.hints.
+      prepare tt (fexb, fexb', hgob).
+    Defined.
+
+    Theorem test_fexb'' : forall cs, ST.himp cs (ST.emp _ _) (ST.star (f 0) (f 1)).
+      Time unfolder hints_fexb'.
+      exists true; exists tt; reflexivity.
+    Qed.
+
   End Tests.
 
 End Make.
