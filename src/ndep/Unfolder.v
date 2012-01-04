@@ -178,8 +178,6 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             end
         end.
 
-      About sheapD.
-
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       Theorem unfolderOk : forall bound P Q,
         (let (exs, sh) := hash P in
@@ -187,7 +185,9 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            UVars := nil;
            Heap := sh;
            Subs := empty_Subst _ |} in
-         forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) nil nil) Q)
+         forallEach (Vars s) (fun alls =>
+           exists_subst funcs alls (env_of_Subst (Subs s) (UVars s) 0) (fun exs =>
+             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) alls exs) Q)))
         -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) Q.
       Admitted.
     End unfolder.
@@ -314,6 +314,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   (* Main entry point tactic, to generate a hint database *)
   Ltac prepareHints pcType stateType isConst types fwd bwd :=
+    let types := eval hnf in types in
     collectTypes_hints fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
@@ -328,8 +329,6 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 Hints := {| Forward := fwd';
                   Backward := bwd' |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
-  About unfolderOk.
-
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
     intros;
@@ -343,7 +342,21 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
               let types := extend_all_types rt types in
                 reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
-                  apply (unfolderOk (Hints hs) bound P); simpl))
+                  apply (unfolderOk (Hints hs) bound P);
+                    cbv beta iota zeta delta [hash forallEach Vars UVars Heap Subs
+                      unfolder unfoldForward fmFind FM.fold
+                        impures pures other
+                        FM.add star_SHeap multimap_join liftSHeap
+                        SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
+                        app rev_append map length Compare_dec.lt_eq_lt_dec nat_rec nat_rect
+                        findWithRest findWithRest' find Forward hs
+                        Types Functions PcType StateType SFunctions Hints Lhs Rhs
+                        equiv_dec nat_eq_eqdec Peano_dec.eq_nat_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
+                        ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
+                        eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
+                        nth_error value Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
+                        exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
+                        Impl sheapD starred fold_right]))
       end.
 
 End Make.
