@@ -134,6 +134,9 @@ Module Make (B : Heap).
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
         Impl sheapD starred fold_right applyD
         SDomain SDenotation exprD Domain Range Denotation
+        ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
+        Compare_dec.le_gt_dec Compare_dec.le_lt_dec
+        ExprUnify.Subst_replace SemiDec_expr expr_seq_dec
 
         hs
         Peano_dec.eq_nat_dec nat_eq_eqdec nat_rec nat_rect
@@ -165,6 +168,16 @@ Module Make (B : Heap).
 
     Theorem f_and_h : forall cs, ST.himp cs (ST.star (h true tt) (f 0)) (ST.emp _ _).
       Time unfolder hints_Hf_Hh'.
+      reflexivity.
+    Qed.
+
+    Theorem f0 : forall cs, ST.himp cs (f 42) (ST.emp _ _).
+      Time unfolder hints_Hf0.
+      reflexivity.
+    Qed.
+
+    Theorem f04 : forall cs, ST.himp cs (ST.star (ST.star (f 42) (f 42)) (ST.star (f 42) (f 42))) (ST.emp _ _).
+      Time unfolder hints_Hf0.
       reflexivity.
     Qed.
 

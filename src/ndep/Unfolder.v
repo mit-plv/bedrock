@@ -140,7 +140,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
 
                     (* Unify the respective function arguments. *)
-                    match exprUnifyArgs args' args (Subs s) (empty_Subst types) with
+                    match exprUnifyArgs args' args (empty_Subst types) (Subs s) with
                       | None => None
                       | Some (subs, _) =>
                         (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
