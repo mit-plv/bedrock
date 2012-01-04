@@ -27,23 +27,41 @@ Module Make (B : Heap).
         | _ => false
       end.
 
-    Definition types0 := {|
+    Definition nat_type := {|
       Impl := nat;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
                          | _ => None 
                        end
-      |} :: nil.
+      |}.
+
+    Definition bool_type := {|
+      Impl := bool;
+      Eq := fun x y => match equiv_dec x y with
+                         | left pf => Some pf
+                         | _ => None 
+                       end
+      |}.
+
+    Definition unit_type := {|
+      Impl := unit;
+      Eq := fun x y => match equiv_dec x y with
+                         | left pf => Some pf
+                         | _ => None 
+                       end
+      |}.
+
+    Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
     Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
     Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
-    Hypothesis Hg : forall cs, ST.himp cs (h true tt) (ST.star (h true tt) (f 13)).
+    Hypothesis Hh : forall cs, ST.himp cs (h true tt) (ST.star (h true tt) (f 13)).
 
     Hypothesis Hf0 : forall n cs, ST.himp cs (f n) (ST.emp _ _).
-    Hypothesis Hg0 : forall b u cs, ST.himp cs (h b u) (ST.star (h (negb b) tt) (f 13)).
+    Hypothesis Hh0 : forall b u cs, ST.himp cs (h b u) (ST.star (h (negb b) tt) (f 13)).
 
     Hypothesis Hf1 : forall n, n <> 0 -> forall cs, ST.himp cs (f n) (ST.emp _ _).
-    Hypothesis Hg1 : forall b u, b = false -> u <> tt -> forall cs, ST.himp cs (h b u) (ST.star (h b tt) (f 13)).
+    Hypothesis Hh1 : forall b u, b = false -> u <> tt -> forall cs, ST.himp cs (h b u) (ST.star (h b tt) (f 13)).
 
 
     (** * Creating hint databases *)
@@ -65,10 +83,10 @@ Module Make (B : Heap).
     Defined.
     Print hints_Hf.
 
-    Definition hints_Hg : U.hints.
-      prepare (Hemp, Hf) (Hemp, Hf, Hg).
+    Definition hints_Hh : U.hints.
+      prepare (Hemp, Hf) (Hemp, Hf, Hh).
     Defined.
-    Print hints_Hg.
+    Print hints_Hh.
 
     Definition hints_Hf0 : U.hints.
       prepare Hf0 tt.
@@ -76,43 +94,80 @@ Module Make (B : Heap).
     Print hints_Hf0.
 
     Definition hints_glom : U.hints.
-      prepare (Hemp, Hf, Hg, Hf0) (Hemp, Hf0, tt).
+      prepare (Hemp, Hf, Hh, Hf0) (Hemp, Hf0, tt).
     Defined.
     Print hints_glom.
 
-    Definition hints_Hg0 : U.hints.
-      prepare Hg0 tt.
+    Definition hints_Hh0 : U.hints.
+      prepare Hh0 tt.
     Defined.
-    Print hints_Hg0.
+    Print hints_Hh0.
 
     Definition hints_Hf1 : U.hints.
       prepare Hf1 tt.
     Defined.
     Print hints_Hf1.
 
-    Definition hints_Hg1 : U.hints.
-      prepare Hg1 tt.
+    Definition hints_Hh1 : U.hints.
+      prepare Hh1 tt.
     Defined.
-    Print hints_Hg1.
+    Print hints_Hh1.
 
 
     (** * Simplifying some goals *)
 
+    Import U.
+    Import SE.
+
+    Ltac exec hs := cbv beta iota zeta delta [hash forallEach Vars UVars Heap Subs
+      unfolder unfoldForward fmFind Unfolder.FM.fold
+        impures pures other
+        Unfolder.FM.add star_SHeap multimap_join liftSHeap
+        SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
+        app rev_append map length Compare_dec.lt_eq_lt_dec
+        findWithRest findWithRest' find Forward
+        Types Functions PcType StateType SFunctions Hints Lhs Rhs
+        equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
+        ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
+        eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
+        nth_error value Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
+        exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
+        Impl sheapD starred fold_right applyD
+        SDomain SDenotation exprD Domain Range Denotation
+
+        hs
+        Peano_dec.eq_nat_dec nat_eq_eqdec nat_rec nat_rect
+        bool_eqdec Bool.bool_dec bool_rec bool_rect
+        unit_eqdec unit_rec unit_rect].
+
+    Ltac unfolder hs := U.unfolder isConst hs 10; exec hs.
+
     Theorem f_easy : forall cs, ST.himp cs (f 0) (ST.emp _ _).
-      Time U.unfolder isConst hints_Hf 10.
+      Time unfolder hints_Hf.
       reflexivity.
     Qed.
 
     Theorem f_easy2 : forall cs, ST.himp cs (ST.star (f 0) (f 0)) (ST.emp _ _).
-      Time U.unfolder isConst hints_Hf 10.
+      Time unfolder hints_Hf.
       reflexivity.
     Qed.
 
     Theorem f_easy3 : forall cs, ST.himp cs (ST.star (f 0) (ST.star (f 0) (f 0))) (ST.emp _ _).
-      Time U.unfolder isConst hints_Hf 10.
+      Time unfolder hints_Hf.
       reflexivity.
     Qed.
-  
+
+    Hypothesis Hh' : forall cs, ST.himp cs (h true tt) (ST.emp _ _).
+
+    Definition hints_Hf_Hh' : U.hints.
+      prepare (Hf, Hh') tt.
+    Defined.
+
+    Theorem f_and_h : forall cs, ST.himp cs (ST.star (h true tt) (f 0)) (ST.emp _ _).
+      Time unfolder hints_Hf_Hh'.
+      reflexivity.
+    Qed.
+
   End Tests.
 
 End Make.

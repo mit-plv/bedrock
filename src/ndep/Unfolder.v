@@ -312,9 +312,19 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | _ => constructor; [ exact Ps | constructor ]
     end.
 
+  (* Unfold definitions in a list of types *)
+  Ltac unfoldTypes types :=
+    match eval hnf in types with
+      | nil => types
+      | ?T :: ?types =>
+        let T := eval hnf in T in
+          let types := unfoldTypes types in
+            constr:(T :: types)
+    end.
+
   (* Main entry point tactic, to generate a hint database *)
   Ltac prepareHints pcType stateType isConst types fwd bwd :=
-    let types := eval hnf in types in
+    let types := unfoldTypes types in
     collectTypes_hints fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
@@ -332,7 +342,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
     intros;
-      let types := eval simpl in (Types hs) in
+      let types := unfoldTypes (Types hs) in
       let funcs := eval simpl in (Functions hs) in
       let sfuncs := eval simpl in (SFunctions hs) in
       let pc := eval simpl in (PcType hs) in
@@ -342,21 +352,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
               let types := extend_all_types rt types in
                 reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
-                  apply (unfolderOk (Hints hs) bound P);
-                    cbv beta iota zeta delta [hash forallEach Vars UVars Heap Subs
-                      unfolder unfoldForward fmFind FM.fold
-                        impures pures other
-                        FM.add star_SHeap multimap_join liftSHeap
-                        SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
-                        app rev_append map length Compare_dec.lt_eq_lt_dec nat_rec nat_rect
-                        findWithRest findWithRest' find Forward hs
-                        Types Functions PcType StateType SFunctions Hints Lhs Rhs
-                        equiv_dec nat_eq_eqdec Peano_dec.eq_nat_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
-                        ExprUnify.exprUnify exprSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
-                        eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
-                        nth_error value Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
-                        exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
-                        Impl sheapD starred fold_right]))
+                  apply (unfolderOk (Hints hs) bound P)(*;
+                    *)))
       end.
 
 End Make.
