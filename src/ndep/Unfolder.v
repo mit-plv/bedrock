@@ -53,8 +53,16 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     (** The meaning of a lemma statement *)
 
+    (* Redefine to use the opposite quantifier order *)
+    Fixpoint forallEachR (ls : variables) : (env types -> Prop) -> Prop :=
+      match ls with
+        | nil => fun cc => cc nil
+        | a :: b => fun cc =>
+          forallEachR b (fun r => forall x : tvarD types a, cc (existT _ a x :: r))
+      end.
+
     Definition lemmaD (lem : lemma) : Prop :=
-      forallEach (Foralls lem) (fun env =>
+      forallEachR (Foralls lem) (fun env =>
         implyEach (Hyps lem) env
         (forall specs, himp funcs sfuncs nil nil env specs (Lhs lem) (Rhs lem))).
 
@@ -65,16 +73,13 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Definition hintSideD := Forall lemmaD.
 
-    Record hints := {
+    Record hintsPayload := {
       Forward : hintSide;
       (* Apply on the lefthand side of an implication *)
       Backward : hintSide
-      (* Apply on the righthand side *)
-    }.
-
-    Record hintsD (hs : hints) : Prop := {
-      ForwardOk : hintSideD (Forward hs);
-      BackwardOk : hintSideD (Backward hs)
+      (* Apply on the righthand side *);
+      ForwardOk : hintSideD Forward;
+      BackwardOk : hintSideD Backward
     }.
 
     (** Applying up to a single hint to a hashed separation formula *)
@@ -161,16 +166,18 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   End env.
 
+  (** Package hints together with their environment/parameters. *)
+  Record hints := {
+    Types : list type;
+    Functions : functions Types;
+    PcType : tvar;
+    StateType : tvar;
+    SFunctions : sfunctions Types PcType StateType;
+    Hints : hintsPayload Functions SFunctions
+  }.
+
 
   (** * Reflecting hints *)
-
-  (** Type of a single side of a reflected hint database *)
-  Record db1 := {
-    Types1 : list type;
-    Pc1 : tvar;
-    State1 : tvar;
-    Hints1 : hintSide Types1 Pc1 State1
-  }.
 
   (* This tactic processes the part of a lemma statement after the quantifiers. *)
   Ltac collectTypes_hint' P types k :=
@@ -263,16 +270,35 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             k funcs sfuncs (P :: nil))
     end.
 
-  (* Main entry point tactic, to generate a hint database *)
-  Ltac prepareHints pcType stateType isConst Ps types :=
-    collectTypes_hints Ps (@nil Type) ltac:(fun rt =>
-      let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
-      let types := extend_all_types rt types in
-      let pcT := reflectType types pcType in
-      let stateT := reflectType types stateType in
-        pose types; pose pcT; pose stateT;
-        reflect_hints pcT stateT isConst Ps types (@nil (signature types)) (@nil (ssignature types pcT stateT)) ltac:(fun funcs sfuncs hints =>
-          pose funcs; pose sfuncs; pose hints)).
+  Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
+    Forall P ls1
+    -> Forall P ls2
+    -> Forall P (ls1 ++ ls2).
+    induction 1; simpl; intuition.
+  Qed.
 
+  (* Build proofs of combined lemma statements *)
+  Ltac prove Ps :=
+    match Ps with
+      | tt => constructor
+      | (?P1, ?P2) => apply Forall_app; [ prove P1 | prove P2 ]
+      | _ => constructor; [ exact Ps | constructor ]
+    end.
+
+  (* Main entry point tactic, to generate a hint database *)
+  Ltac prepareHints pcType stateType isConst types fwd bwd :=
+    collectTypes_hints fwd (@nil Type) ltac:(fun rt =>
+      collectTypes_hints bwd rt ltac:(fun rt =>
+        let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
+        let types := extend_all_types rt types in
+        let pcT := reflectType types pcType in
+        let stateT := reflectType types stateType in
+          reflect_hints pcT stateT isConst fwd types (@nil (signature types)) (@nil (ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
+            reflect_hints pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
+              refine {| Types := types;
+                Functions := funcs;
+                SFunctions := sfuncs;
+                Hints := {| Forward := fwd';
+                  Backward := bwd' |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
 End Make.
