@@ -27,13 +27,13 @@ Module Make (B : Heap).
         | _ => false
       end.
 
-    Definition nat_type := {|
+    Definition types0 := {|
       Impl := nat;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
                          | _ => None 
                        end
-      |}.
+      |} :: nil.
 
     Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
     Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
@@ -48,7 +48,7 @@ Module Make (B : Heap).
 
     (** * Creating hint databases *)
 
-    Ltac prepare := U.prepareHints pc state isConst (nat_type :: nil).
+    Ltac prepare := U.prepareHints pc state isConst types0.
 
     Definition hints_tt : U.hints.
       prepare tt tt.
@@ -99,9 +99,20 @@ Module Make (B : Heap).
     (** * Simplifying some goals *)
 
     Theorem f_easy : forall cs, ST.himp cs (f 0) (ST.emp _ _).
-      U.unfolder isConst hints_Hf 1.
+      Time U.unfolder isConst hints_Hf 10.
       reflexivity.
     Qed.
+
+    Theorem f_easy2 : forall cs, ST.himp cs (ST.star (f 0) (f 0)) (ST.emp _ _).
+      Time U.unfolder isConst hints_Hf 10.
+      reflexivity.
+    Qed.
+
+    Theorem f_easy3 : forall cs, ST.himp cs (ST.star (f 0) (ST.star (f 0) (f 0))) (ST.emp _ _).
+      Time U.unfolder isConst hints_Hf 10.
+      reflexivity.
+    Qed.
+  
   End Tests.
 
 End Make.
