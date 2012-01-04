@@ -45,6 +45,9 @@ Module Make (B : Heap).
     Hypothesis Hf1 : forall n, n <> 0 -> forall cs, ST.himp cs (f n) (ST.emp _ _).
     Hypothesis Hg1 : forall b u, b = false -> u <> tt -> forall cs, ST.himp cs (h b u) (ST.star (h b tt) (f 13)).
 
+
+    (** * Creating hint databases *)
+
     Ltac prepare := U.prepareHints pc state isConst (nat_type :: nil).
 
     Definition hints_tt : U.hints.
@@ -92,6 +95,13 @@ Module Make (B : Heap).
     Defined.
     Print hints_Hg1.
 
+
+    (** * Simplifying some goals *)
+
+    Theorem f_easy : forall cs, ST.himp cs (f 0) (ST.emp _ _).
+      U.unfolder isConst hints_Hf 1.
+      reflexivity.
+    Qed.
   End Tests.
 
 End Make.
