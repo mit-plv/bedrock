@@ -164,6 +164,33 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               end) hs)) (impures (Heap s)).
     End unfoldOne.
 
+    Section unfolder.
+      Variable hs : hintsPayload.
+
+      (* Perform up to [bound] simplifications, based on [hs]. *)
+      Fixpoint unfolder (bound : nat) (s : unfoldingState) : unfoldingState :=
+        match bound with
+          | O => s
+          | S bound' =>
+            match unfoldForward (Forward hs) s with
+              | None => s
+              | Some s' => unfolder bound' s'
+            end
+        end.
+
+      About sheapD.
+
+      (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
+      Theorem unfolderOk : forall bound P Q,
+        (let (exs, sh) := hash P in
+         let s := unfolder bound {| Vars := exs;
+           UVars := nil;
+           Heap := sh;
+           Subs := empty_Subst _ |} in
+         forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap s)) nil nil) Q)
+        -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) Q.
+      Admitted.
+    End unfolder.
   End env.
 
   (** Package hints together with their environment/parameters. *)
@@ -300,5 +327,23 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 SFunctions := sfuncs;
                 Hints := {| Forward := fwd';
                   Backward := bwd' |} |}; [ abstract prove fwd | abstract prove bwd ])))).
+
+  About unfolderOk.
+
+  (* Main entry point to simplify a goal *)
+  Ltac unfolder isConst hs bound :=
+    intros;
+      let types := eval simpl in (Types hs) in
+      let funcs := eval simpl in (Functions hs) in
+      let sfuncs := eval simpl in (SFunctions hs) in
+      let pc := eval simpl in (PcType hs) in
+      let state := eval simpl in (StateType hs) in
+        match goal with
+          | [ |- ST.himp _ ?P _ ] =>
+            collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
+              let types := extend_all_types rt types in
+                reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
+                  apply (unfolderOk (Hints hs) bound P); simpl))
+      end.
 
 End Make.
