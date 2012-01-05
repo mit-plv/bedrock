@@ -53,7 +53,14 @@ Module Make (B : Heap).
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
-    Definition nullProver (types : list type) (_ : list (expr types)) (_ : expr types) := false.
+    Fixpoint assumptionProver (types : list type) (Hs : list (expr types)) (P : expr types) :=
+      match Hs with
+        | nil => false
+        | H :: Hs' => match expr_seq_dec H P with
+                        | Some _ => true
+                        | None => assumptionProver Hs' P
+                      end
+      end.
 
     Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
     Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
@@ -68,7 +75,7 @@ Module Make (B : Heap).
 
     (** * Creating hint databases *)
 
-    Ltac prepare := U.prepareHints pc state isConst types0 nullProver.
+    Ltac prepare := U.prepareHints pc state isConst types0 assumptionProver.
 
     Definition hints_tt : U.hints.
       prepare tt tt.
@@ -139,14 +146,14 @@ Module Make (B : Heap).
         ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
         Compare_dec.le_gt_dec Compare_dec.le_lt_dec
         ExprUnify.Subst_replace SemiDec_expr expr_seq_dec
-        lookupAs projT1 projT2 Unfolder.allb Prover Hyps
-        substExpr substSexpr
+        lookupAs projT1 projT2 Unfolder.allb andb Prover Hyps
+        substExpr substSexpr tvar_val_sdec
 
         hs
         Peano_dec.eq_nat_dec nat_eq_eqdec nat_rec nat_rect
         bool_eqdec Bool.bool_dec bool_rec bool_rect
         unit_eqdec unit_rec unit_rect
-        nullProver].
+        assumptionProver].
 
     Ltac unfolder hs := U.unfolder isConst hs 10; exec hs.
 
@@ -276,6 +283,63 @@ Module Make (B : Heap).
     Theorem test_fexb'' : forall cs, ST.himp cs (ST.emp _ _) (ST.star (f 0) (f 1)).
       Time unfolder hints_fexb'.
       exists true; exists tt; reflexivity.
+    Qed.
+
+
+    (** * Pure conjuncts *)
+
+    Ltac easy := intros; hnf; PropXTac.propxFo.
+
+    Theorem simple : forall cs, ST.himp cs (ST.inj (PropX.Inj True)) (ST.inj (PropX.Inj (pc := pc) (state := state) (1 = 1))).
+      Time unfolder hints_tt.
+      easy.
+    Qed.
+
+    Hypothesis Hf1' : False -> forall cs, ST.himp cs (f 0) (ST.emp _ _).
+
+    Definition hints_Hf1' : U.hints.
+      prepare Hf1' tt.
+    Defined.
+
+    Theorem test_Hf1' : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj False)) (f 0)) (ST.emp _ _).
+      Time unfolder hints_Hf1'.
+      easy.
+    Qed.
+
+    Theorem test_Hf1'_bad : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj True)) (f 0)) (ST.emp _ _).
+      Time unfolder hints_Hf1'.
+    Abort.
+
+    Hypothesis Hf_eq0 : 0 = 0 -> forall cs, ST.himp cs (f 0) (ST.emp _ _).
+
+    Definition hints_Hf_eq0 : U.hints.
+      prepare Hf_eq0 tt.
+    Defined.
+
+    Theorem test_Hf_eq0 : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (0 = 0))) (f 0)) (ST.emp _ _).
+      Time unfolder hints_Hf_eq0.
+      easy.
+    Qed.
+
+    Theorem test_Hf_eq0_wrong : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (0 <> 0))) (f 0)) (ST.emp _ _).
+      Time unfolder hints_Hf_eq0.
+      easy.
+    Qed.
+
+    Hypothesis Hf_eqn : forall n, n = n -> forall cs, ST.himp cs (f n) (ST.emp _ _).
+
+    Definition hints_Hf_eqn : U.hints.
+      prepare Hf_eqn tt.
+    Defined.
+
+    Theorem test_Hf_eqn : forall n cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (n = n))) (f n)) (ST.emp _ _).
+      Time unfolder hints_Hf_eqn.
+      easy.
+    Qed.
+
+    Theorem test_Hf_eqn_wrong : forall n cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (n <> n))) (f n)) (ST.emp _ _).
+      Time unfolder hints_Hf_eqn.
+      easy.
     Qed.
 
   End Tests.
