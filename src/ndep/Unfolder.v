@@ -1,14 +1,20 @@
-Require Import EqdepClass List.
+Require Import Bool EqdepClass List.
 
 Require Import Heaps Reflect.
 Require Import Bedrock.ndep.SepExpr.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
+Require Import Bedrock.ndep.Expr Bedrock.ndep.Provers Bedrock.ndep.ExprUnify.
 
 Set Implicit Arguments.
 
 Require Bedrock.ndep.NatMap.
 
-Module FM := Bedrock.ndep.NatMap.IntMap.    
+Module FM := Bedrock.ndep.NatMap.IntMap.
+
+Fixpoint allb A (P : A -> bool) (ls : list A) : bool :=
+  match ls with
+    | nil => true
+    | x :: ls' => P x && allb P ls'
+  end.
 
 Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
@@ -24,6 +30,30 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable stateMem : tvarD types stateType -> B.mem.
 
     Variable sfuncs : sfunctions types pcType stateType.
+
+    (** * Some substitution functions *)
+
+    Fixpoint substExpr (s : Subst types) (e : expr types) : expr types :=
+      match e with
+        | Expr.Const _ k => Expr.Const k
+        | Var x => Var x
+        | UVar x => match Subst_lookup x s with
+                      | None => e
+                      | Some e' => e'
+                    end
+        | Expr.Func f es => Expr.Func f (map (substExpr s) es)
+      end.
+
+    Fixpoint substSexpr (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
+      match se with
+        | Emp => se
+        | Inj e => Inj _ _ (substExpr s e)
+        | Star se1 se2 => Star (substSexpr s se1) (substSexpr s se2)
+        | Exists t se1 => Exists t (substSexpr s se1)
+        | Func f es => Func f (map (substExpr s) es)
+        | Const _ => se
+      end.
+
 
     (** The type of one unfolding lemma *)
 
@@ -76,10 +106,12 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Record hintsPayload := {
       Forward : hintSide;
       (* Apply on the lefthand side of an implication *)
-      Backward : hintSide
-      (* Apply on the righthand side *);
+      Backward : hintSide;
+      (* Apply on the righthand side *)
       ForwardOk : hintSideD Forward;
-      BackwardOk : hintSideD Backward
+      BackwardOk : hintSideD Backward;
+      Prover : list (expr types) -> expr types -> bool
+      (* Prover for pure hypotheses of lemmas *)
     }.
 
     (** Applying up to a single hint to a hashed separation formula *)
@@ -116,12 +148,15 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Record unfoldingState := {
       Vars : variables;
       UVars : variables;
-      Heap : SHeap types pcType stateType;
-      Subs : Subst types
+      Heap : SHeap types pcType stateType
     }.
 
     Section unfoldOne.
+      Variable pr : list (@expr types) -> @expr types -> bool.
+      (* This prover must discharge all pure obligations of an unfolding lemma, if it is to be applied. *)
+
       Variable hs : hintSide.
+      (* Use these hints to unfold impure predicates. *)
 
       (* Returns [None] if no unfolding opportunities are found.
        * Otherwise, return state after one unfolding. *)
@@ -140,30 +175,33 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
 
                     (* Unify the respective function arguments. *)
-                    match exprUnifyArgs args' args (empty_Subst types) (Subs s) with
+                    match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
                       | None => None
                       | Some (subs, _) =>
-                        (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
-                        let impures' := FM.add f argss (impures (Heap s)) in
-                        let sh := {| impures := impures';
-                          pures := pures (Heap s);
-                          other := other (Heap s) |} in
+                        (* Now we must make sure all of the lemma's pure obligations are provable. *)
+                        if allb (pr (pures (Heap s))) (map (substExpr subs) (Hyps h)) then
+                          (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
+                          let impures' := FM.add f argss (impures (Heap s)) in
+                          let sh := {| impures := impures';
+                            pures := pures (Heap s);
+                            other := other (Heap s) |} in
 
-                        (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
-                        let (exs, sh') := hash (Rhs h) in
+                          (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
+                          let (exs, sh') := hash (substSexpr subs (Rhs h)) in
 
-                        (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
-                        Some {| Vars := Vars s ++ exs;
-                          UVars := UVars s;
-                          Heap := star_SHeap sh sh';
-                          Subs := subs |}
+                          (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
+                            Some {| Vars := Vars s ++ exs;
+                              UVars := UVars s;
+                              Heap := star_SHeap sh sh' |}
+                        else
+                          None
                     end
                   else
                     None
                 | _ => None
               end) hs)) (impures (Heap s)).
 
-      Definition unfoldBackward (s : unfoldingState) : option unfoldingState :=
+      Definition unfoldBackward (hyps : list (expr types)) (s : unfoldingState) : option unfoldingState :=
         (* Iterate through all the entries for impure functions. *)
         fmFind (fun f =>
           (* Iterate through all the argument lists passed to the current function. *)
@@ -178,26 +216,29 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
 
                     (* Unify the respective function arguments. *)
-                    match exprUnifyArgs args' args (empty_Subst types) (Subs s) with
+                    match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
                       | None => None
-                      | Some (subs, subs') =>
-                        (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
-                        let impures' := FM.add f argss (impures (Heap s)) in
-                        let sh := {| impures := impures';
-                          pures := pures (Heap s);
-                          other := other (Heap s) |} in
+                      | Some (subs, _) =>
+                        (* Now we must make sure all of the lemma's pure obligations are provable. *)
+                        if allb (pr hyps) (map (substExpr subs) (Hyps h)) then
+                          (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
+                          let impures' := FM.add f argss (impures (Heap s)) in
+                          let sh := {| impures := impures';
+                            pures := pures (Heap s);
+                            other := other (Heap s) |} in
 
-                        (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                        let (exs, sh') := hash (Lhs h) in
+                          (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
+                          let (exs, sh') := hash (substSexpr subs (Lhs h)) in
 
-                        (* Newly introduced variables must be replaced with unification variables. *)
-                        let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
+                          (* Newly introduced variables must be replaced with unification variables. *)
+                          let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
 
-                        (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
-                        Some {| Vars := Vars s;
-                          UVars := UVars s ++ exs;
-                          Heap := star_SHeap sh sh';
-                          Subs := subs' |}
+                          (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
+                          Some {| Vars := Vars s;
+                            UVars := UVars s ++ exs;
+                            Heap := star_SHeap sh sh' |}
+                        else
+                          None
                     end
                   else
                     None
@@ -213,19 +254,19 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         match bound with
           | O => s
           | S bound' =>
-            match unfoldForward (Forward hs) s with
+            match unfoldForward (Prover hs) (Forward hs) s with
               | None => s
               | Some s' => forward bound' s'
             end
         end.
 
-      Fixpoint backward (bound : nat) (s : unfoldingState) : unfoldingState :=
+      Fixpoint backward (hyps : list (expr types)) (bound : nat) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
-            match unfoldBackward (Backward hs) s with
+            match unfoldBackward (Prover hs) (Backward hs) hyps s with
               | None => s
-              | Some s' => backward bound' s'
+              | Some s' => backward hyps bound' s'
             end
         end.
 
@@ -235,18 +276,15 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
          let (exsQ, shQ) := hash Q in
          let sP := forward bound {| Vars := exsP;
            UVars := nil;
-           Heap := shP;
-           Subs := empty_Subst _ |} in
+           Heap := shP |} in
          let shQ := sheapSubstU O (length exsQ) O shQ in
-         let sQ := backward bound {| Vars := nil;
+         let sQ := backward (pures (Heap sP)) bound {| Vars := Vars sP;
            UVars := exsQ;
-           Heap := shQ;
-           Subs := empty_Subst _ |} in
+           Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>
-           exists_subst funcs alls (env_of_Subst (Subs sP) (UVars sP) 0) (fun exsP =>
-             exists_subst funcs nil (env_of_Subst (Subs sQ) (UVars sQ) 0) (fun exsQ =>
-               forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap sP)) exsP alls)
-                 (sexprD funcs sfuncs (sheapD (Heap sQ)) exsQ nil)))))
+           exists_subst funcs alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
+             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap sP)) nil alls)
+               (sexprD funcs sfuncs (sheapD (Heap sQ)) exsQ nil))))
         -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) (sexprD funcs sfuncs Q nil nil).
       Admitted.
     End unfolder.
@@ -382,7 +420,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   (* Main entry point tactic, to generate a hint database *)
-  Ltac prepareHints pcType stateType isConst types fwd bwd :=
+  Ltac prepareHints pcType stateType isConst types prover fwd bwd :=
     let types := unfoldTypes types in
     collectTypes_hints fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints bwd rt ltac:(fun rt =>
@@ -396,7 +434,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 Functions := funcs;
                 SFunctions := sfuncs;
                 Hints := {| Forward := fwd';
-                  Backward := bwd' |} |}; [ abstract prove fwd | abstract prove bwd ])))).
+                  Backward := bwd';
+                  Prover := prover types |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
@@ -413,12 +452,6 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 let types := extend_all_types rt types in
                   reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
                     reflect_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
-                      pose (let (exsQ, shQ) := hash Q in
-                        let shQ := sheapSubstU O (length exsQ) O shQ in
-                          backward (Hints hs) bound {| Vars := nil;
-                            UVars := exsQ;
-                            Heap := shQ;
-                            Subs := empty_Subst _ |});
                       apply (unfolderOk (Hints hs) bound P Q)))))
       end.
 
