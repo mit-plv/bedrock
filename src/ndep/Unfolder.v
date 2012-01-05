@@ -33,24 +33,25 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     (** * Some substitution functions *)
 
-    Fixpoint substExpr (s : Subst types) (e : expr types) : expr types :=
+    (* [first] gives the offset to add to a variable to determine its corresponding unification variable, for substitution purposes. *)
+    Fixpoint substExpr (offset : nat) (s : Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ k => Expr.Const k
-        | Var x => match Subst_lookup x s with
+        | Var x => match Subst_lookup (x + offset) s with
                      | None => e
                      | Some e' => e'
                    end
         | UVar _ => e
-        | Expr.Func f es => Expr.Func f (map (substExpr s) es)
+        | Expr.Func f es => Expr.Func f (map (substExpr offset s) es)
       end.
 
-    Fixpoint substSexpr (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
+    Fixpoint substSexpr (offset : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
       match se with
         | Emp => se
-        | Inj e => Inj _ _ (substExpr s e)
-        | Star se1 se2 => Star (substSexpr s se1) (substSexpr s se2)
-        | Exists t se1 => Exists t (substSexpr s se1)
-        | Func f es => Func f (map (substExpr s) es)
+        | Inj e => Inj _ _ (substExpr offset s e)
+        | Star se1 se2 => Star (substSexpr offset s se1) (substSexpr offset s se2)
+        | Exists t se1 => Exists t (substSexpr offset s se1)
+        | Func f es => Func f (map (substExpr offset s) es)
         | Const _ => se
       end.
 
@@ -171,15 +172,17 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               match Lhs h with
                 | Func f' args' =>
                   if equiv_dec f' f then
+                    let firstUvar := length (UVars s) in
+
                     (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
-                    let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
+                    let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
                     match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (pr (pures (Heap s))) (map (substExpr subs) (Hyps h)) then
+                        if allb (pr (pures (Heap s))) (map (substExpr firstUvar subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -187,7 +190,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                             other := other (Heap s) |} in
 
                           (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr subs (Rhs h)) in
+                          let (exs, sh') := hash (substSexpr firstUvar subs (Rhs h)) in
 
                           (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
                             Some {| Vars := Vars s ++ exs;
@@ -212,15 +215,17 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               match Rhs h with
                 | Func f' args' =>
                   if equiv_dec f' f then
+                    let firstUvar := length (UVars s) in
+
                     (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
-                    let args' := map (exprSubstU O (length (Foralls h)) (length (UVars s))) args' in
+                    let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
                     match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (pr hyps) (map (substExpr subs) (Hyps h)) then
+                        if allb (pr hyps) (map (substExpr firstUvar subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -228,7 +233,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                             other := other (Heap s) |} in
 
                           (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr subs (Lhs h)) in
+                          let (exs, sh') := hash (substSexpr firstUvar subs (Lhs h)) in
 
                           (* Newly introduced variables must be replaced with unification variables. *)
                           let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
