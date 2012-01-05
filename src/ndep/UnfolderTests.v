@@ -53,6 +53,8 @@ Module Make (B : Heap).
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
+    Definition nullProver (types : list type) (_ : list (expr types)) (_ : expr types) := false.
+
     Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
     Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
     Hypothesis Hh : forall cs, ST.himp cs (h true tt) (ST.star (h true tt) (f 13)).
@@ -66,7 +68,7 @@ Module Make (B : Heap).
 
     (** * Creating hint databases *)
 
-    Ltac prepare := U.prepareHints pc state isConst types0.
+    Ltac prepare := U.prepareHints pc state isConst types0 nullProver.
 
     Definition hints_tt : U.hints.
       prepare tt tt.
@@ -119,7 +121,7 @@ Module Make (B : Heap).
     Import U.
     Import SE.
 
-    Ltac exec hs := cbv beta iota zeta delta [hash forallEach Vars UVars Heap Subs
+    Ltac exec hs := cbv beta iota zeta delta [hash forallEach Vars UVars Heap
       forward backward unfoldForward unfoldBackward fmFind Unfolder.FM.fold
         impures pures other
         Unfolder.FM.add star_SHeap multimap_join liftSHeap
@@ -137,12 +139,14 @@ Module Make (B : Heap).
         ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
         Compare_dec.le_gt_dec Compare_dec.le_lt_dec
         ExprUnify.Subst_replace SemiDec_expr expr_seq_dec
-        lookupAs projT1 projT2
+        lookupAs projT1 projT2 Unfolder.allb Prover Hyps
+        substExpr substSexpr
 
         hs
         Peano_dec.eq_nat_dec nat_eq_eqdec nat_rec nat_rect
         bool_eqdec Bool.bool_dec bool_rec bool_rect
-        unit_eqdec unit_rec unit_rect].
+        unit_eqdec unit_rec unit_rect
+        nullProver].
 
     Ltac unfolder hs := U.unfolder isConst hs 10; exec hs.
 
