@@ -811,7 +811,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let r := implicits r in
           k funcs sfuncs r
 
-        | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
+        | @ST.inj _ _ _ (PropX.Inj ?P) =>
           reflect_expr isConst P types funcs uvars vars ltac:(fun funcs P =>
             let r := constr:(@Inj) in
             let r := implicits r in

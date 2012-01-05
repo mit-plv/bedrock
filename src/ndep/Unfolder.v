@@ -36,11 +36,11 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Fixpoint substExpr (s : Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ k => Expr.Const k
-        | Var x => Var x
-        | UVar x => match Subst_lookup x s with
-                      | None => e
-                      | Some e' => e'
-                    end
+        | Var x => match Subst_lookup x s with
+                     | None => e
+                     | Some e' => e'
+                   end
+        | UVar _ => e
         | Expr.Func f es => Expr.Func f (map (substExpr s) es)
       end.
 
@@ -270,6 +270,10 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             end
         end.
 
+      (* Extended function environments, based on those symbols appearing in a goal but not the hint database. *)
+      Variable funcs' : functions types.
+      Variable sfuncs' : sfunctions types pcType stateType.
+
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       Theorem unfolderOk : forall bound P Q,
         (let (exsP, shP) := hash P in
@@ -282,10 +286,10 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            UVars := exsQ;
            Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>
-           exists_subst funcs alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
-             forall cs, ST.himp cs (sexprD funcs sfuncs (sheapD (Heap sP)) nil alls)
-               (sexprD funcs sfuncs (sheapD (Heap sQ)) exsQ nil))))
-        -> forall cs, ST.himp cs (sexprD funcs sfuncs P nil nil) (sexprD funcs sfuncs Q nil nil).
+           exists_subst funcs' alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
+             forall cs, ST.himp cs (sexprD funcs' sfuncs' (sheapD (Heap sP)) nil alls)
+               (sexprD funcs' sfuncs' (sheapD (Heap sQ)) exsQ nil))))
+        -> forall cs, ST.himp cs (sexprD funcs' sfuncs' P nil nil) (sexprD funcs' sfuncs' Q nil nil).
       Admitted.
     End unfolder.
   End env.
@@ -452,7 +456,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 let types := extend_all_types rt types in
                   reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
                     reflect_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
-                      apply (unfolderOk (Hints hs) bound P Q)))))
+                      apply (unfolderOk (Hints hs) funcs sfuncs bound P Q)))))
       end.
 
 End Make.
