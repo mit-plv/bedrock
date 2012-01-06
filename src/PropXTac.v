@@ -5,7 +5,7 @@ Require Import PropX.
 Set Implicit Arguments.
 
 
-Notation "i @@ sp" := (ExX, Cptr i #0 /\ Al st, sp st --> #0 st)%PropX
+Notation "i @@ sp" := (ExX, Cptr i #0 /\ Al st, sp st ---> #0 st)%PropX
   (no associativity, at level 39) : PropX_scope.
 
 Section machine.
@@ -336,7 +336,7 @@ Section machine.
       destruct (Substs_Cptr s p p0) as [? [ Heq ] ]; rewrite Heq in *.
       eapply Cptr_E; [ constructor; eauto | eauto ].
 
-      assert (valid specs PG (Substs s p1 --> Substs s p2 --> Substs s p')%PropX).
+      assert (valid specs PG (Substs s p1 ---> Substs s p2 ---> Substs s p')%PropX).
       repeat apply Imply_I.
       apply IHp1.
       simpl; tauto.
@@ -375,7 +375,7 @@ Section machine.
       -> valid specs G (Imply (And p1 p2) p).
       intros; apply Imply_easyL''.
       apply Imply_I.
-      change (p2 --> p)%PropX with (Substs SNil (p2 --> p)%PropX).
+      change (p2 ---> p)%PropX with (Substs SNil (p2 ---> p)%PropX).
       eapply simplifyH_ok.
       simpl; tauto.
       intro.
