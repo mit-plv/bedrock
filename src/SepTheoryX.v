@@ -16,8 +16,8 @@ Section Env.
   Variable pcType : Type.
   Variable stateType : Type.
 
-  Parameter satisfies : forall (p : hprop pcType stateType nil) (cs : codeSpec pcType stateType) (s : settings) (m : H.mem), Prop.
-
+  Parameter satisfies : forall (cs : codeSpec pcType stateType) (p : hprop pcType stateType nil) (s : settings) (m : H.mem), Prop.
+  
   Parameter himp : forall (cs : codeSpec pcType stateType), 
     hprop pcType stateType nil -> hprop pcType stateType nil -> Prop.
 
@@ -55,6 +55,18 @@ Section Env.
   Parameter hptsto : forall {sos} (p : H.addr) (v : H.byte),
     hprop pcType stateType sos.
 
+  (* satisfies lemmas *)
+  Parameter satisfies_himp : forall cs P Q stn m,
+    himp cs P Q ->
+    satisfies cs P stn m ->
+    satisfies cs Q stn m.
+
+  Parameter satisfies_star : forall cs P Q stn m,
+    satisfies cs (star P Q) stn m ->
+    satisfies cs P stn m /\
+    satisfies cs Q stn m.    
+
+  (* himp/heq lemmas *)
   Parameter himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
 
   Parameter himp_star_comm_p : forall P Q R, 
@@ -152,10 +164,10 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
 
     Definition hprop (sos : list Type) := settings -> HT.smem -> propX pcType stateType sos.
 
-    Definition satisfies (p : hprop nil) (cs : codeSpec pcType stateType) (s : settings) (m : H.mem) : Prop :=
-      exists sm, HT.satisfies sm m /\ interp cs (p s sm).
-
     Variable cs : codeSpec pcType stateType.
+
+    Definition satisfies (p : hprop nil) (s : settings) (m : H.mem) : Prop :=
+      exists sm, HT.satisfies sm m /\ interp cs (p s sm).
 
     Definition himp (gl gr : hprop nil) : Prop :=
       forall s m, interp cs (gl s m) -> interp cs (gr s m).
@@ -219,7 +231,29 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
       fun s h => 
         PropX.Inj (HT.smem_get p h = Some v /\ forall p', p' <> p -> HT.smem_get p' h = None).
 
+  (* satisfies lemmas *)
+  Theorem satisfies_himp : forall P Q stn m,
+    himp P Q ->
+    satisfies P stn m ->
+    satisfies Q stn m.
+  Proof.
+    unfold himp, satisfies. intros.
+    destruct H0. exists x. intuition.
+  Qed.
 
+  Lemma satisfies_star : forall P Q stn m,
+    satisfies (star P Q) stn m ->
+    satisfies P stn m /\
+    satisfies Q stn m.
+  Proof.
+    unfold satisfies. intros.
+    destruct H as [ ? [ ? ? ] ]. unfold star in *.
+    eapply simplify_fwd in H0. simpl in H0.
+    destruct H0 as [ ? [ ? [ ? [ ? ? ] ] ] ].
+    apply simplify_bwd in H1. apply simplify_bwd in H2.
+    eapply HT.satisfies_split in H0; eauto.
+    split; [ exists x0 | exists x1 ]; intuition.
+  Qed.
 
     (** Lemmas **)
     Ltac doIt :=
