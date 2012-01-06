@@ -1516,7 +1516,7 @@ Implicit Arguments Lift [pc state G A].
 Notation "[| p |]" := (Inj p%type) : PropX_scope.
 Infix "/\" := And : PropX_scope.
 Infix "\/" := Or : PropX_scope.
-Infix "-->" := Imply (at level 86, right associativity) : PropX_scope.
+Infix "--->" := Imply (at level 86, right associativity) : PropX_scope.
 
 Notation "'Al' x , P" := (Forall (fun x => P)) (x ident, at level 89) : PropX_scope.
 Notation "'Al' x : A , P" := (Forall (fun x : A => P)) (x ident, at level 89) : PropX_scope.

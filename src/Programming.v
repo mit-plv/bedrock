@@ -199,7 +199,7 @@ Ltac ho := autorewrite with IL in *;
          end; eauto; cbv zeta; simpl; intros;
   repeat match goal with
            | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
-           | [ H : forall x, interp _ (_ --> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
+           | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
            | [ |- interp _ _ ] => propxFo
          end; autorewrite with IL in *.
 
