@@ -11,8 +11,39 @@ Require Bedrock.ndep.NatMap.
 
 Module FM := Bedrock.ndep.NatMap.IntMap.    
 
-Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+Section SepExprTypes.
+  Variable types : list type.
+  Variable rtype : Type.
 
+  Record ssignature' := SSig {
+    SDomain : list tvar ;
+    SDenotation : functionTypeD (map (@tvarD types) SDomain) rtype
+  }.
+
+  Inductive sexpr' : Type :=
+  | Emp : sexpr'
+  | Inj : expr types -> sexpr'
+  | Star : sexpr' -> sexpr' -> sexpr'
+  | Exists : tvar -> sexpr' -> sexpr'
+  | Func : func -> list (expr types) -> sexpr'
+  | Const : rtype -> sexpr'
+  .
+
+  Record SHeap' : Type :=
+  { impures : FM.t (list (list (expr types)))
+  ; pures   : list (expr types)
+  ; other   : list rtype
+  }.
+End SepExprTypes.
+
+Implicit Arguments Emp [ types rtype ].
+Implicit Arguments Star [ types rtype ].
+Implicit Arguments Exists [ types rtype ].
+Implicit Arguments Func [ types rtype ].
+Implicit Arguments Const [ types rtype ].
+Implicit Arguments Inj [ types rtype ].
+
+Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Section env.
     Variable types : list type.
     Variable funcs : functions types.
@@ -20,24 +51,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable pcType : tvar.
     Variable stateType : tvar.
 
-    Record ssignature := {
-      SDomain : list tvar ;
-      SDenotation : functionTypeD (map (@tvarD types) SDomain) 
-        (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
-    }.
+    Definition ssignature := ssignature' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
     Definition sfunctions := list ssignature.
 
     Variable sfuncs : sfunctions.
 
-    Inductive sexpr : Type :=
-    | Emp : sexpr
-    | Inj : expr types -> sexpr
-    | Star : sexpr -> sexpr -> sexpr
-    | Exists : tvar -> sexpr -> sexpr
-    | Func : func -> list (expr types) -> sexpr
-    | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil
-      -> sexpr
-    .
+    Definition sexpr := sexpr' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
 
     Fixpoint sexprD (s : sexpr) (uvs vs : list { t : tvar & tvarD types t })
       : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
@@ -158,11 +177,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end.
 
     (** A more efficient representation for sexprs. **)
-    Record SHeap : Type :=
-    { impures : FM.t (list (list (expr types)))
-    ; pures   : list (expr types)
-    ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
-    }.
+    Definition SHeap := 
+      SHeap' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
   
     Definition SHeap_empty : SHeap := 
       {| impures := @FM.empty _
@@ -227,9 +243,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             ; other := nil
            |})
         | Const c => 
-          (nil,
-           {| impures := FM.empty
-            ; pures := nil
+          (@nil tvar,
+           {| impures := @FM.empty (list (list (expr types)))
+            ; pures := @nil (expr types)
             ; other := c :: nil
             |})
       end.
@@ -467,11 +483,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Admitted.
 
   End env.
-
-  Implicit Arguments Emp [ types pcType stateType ].
-  Implicit Arguments Star [ types pcType stateType ].
-  Implicit Arguments Exists [ types pcType stateType ].
-  Implicit Arguments Func [ types pcType stateType ].
 
   (** Reflection **)
   Require Import Reflect.
@@ -715,7 +726,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | ?R =>
           let R := reflectType types R in
           let dom := eval simpl rev in (rev dom) in
-          constr:(@Build_signature types dom R f)
+          constr:(@Expr.Sig types dom R f)
       end
    in refl (@nil tvar) T.
 
@@ -811,7 +822,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           refl dom B 
         | _ =>
           let dom := eval simpl rev in (rev dom) in
-          constr:(@Build_ssignature types pcT stT dom f)
+          constr:(@SSig types (ST.hprop (@tvarD types pcT) (@tvarD types stT) nil) dom f)
       end
    in refl (@nil tvar) T.
 
@@ -847,7 +858,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    **)
   Ltac reflect_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
     let implicits ctor :=
-      constr:(ctor types pcType stateType)
+      constr:(ctor types (ST.hprop (@tvarD types pcType) (@tvarD types stateType) nil))
     in
     let rec reflect s funcs sfuncs uvars vars k :=
       match s with
@@ -991,7 +1002,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac reflect_goal isConst Ts :=
     match goal with
       | [ |- @ST.himp ?pcT ?stT ?cs ?L ?R ] =>
-        match reflect_all pcT stT isConst Ts (L :: R :: nil) with
+        let v := reflect_all pcT stT isConst Ts (L :: R :: nil) in
+        match v with
           | (?types, ?pcTyp, ?stTyp, ?funcs, ?sfuncs, ?L :: ?R :: nil) =>
             apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R)              
         end

@@ -130,7 +130,7 @@ Module Make (B : Heap).
 
     Ltac exec hs := cbv beta iota zeta delta [hash forallEach Vars UVars Heap
       forward backward unfoldForward unfoldBackward fmFind Unfolder.FM.fold
-        impures pures other
+        SepExpr.impures SepExpr.pures SepExpr.other
         Unfolder.FM.add star_SHeap multimap_join liftSHeap
         SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
         app rev_append map length Compare_dec.lt_eq_lt_dec
@@ -142,7 +142,7 @@ Module Make (B : Heap).
         nth_error value error Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
         Impl sheapD starred fold_right applyD
-        SDomain SDenotation exprD Domain Range Denotation
+        SepExpr.SDomain SepExpr.SDenotation exprD Domain Range Denotation
         ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
         Compare_dec.le_gt_dec Compare_dec.le_lt_dec
         ExprUnify.Subst_replace SemiDec_expr expr_seq_dec

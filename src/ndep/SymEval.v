@@ -357,7 +357,7 @@ End Evaluator.
     Variable types' : list type.
     
     Definition ptsto32_Predicate : ssignature (types types') pcType stateType :=
-      Build_ssignature (types types') pcType stateType (pcType :: pcType :: nil) (@ptsto32 nil).
+      @SSig (types types') _ (pcType :: pcType :: nil) (@ptsto32 nil).
     
     (** Let's see how this works with ptsto **)
     Definition ptsto32_sym_read (hyps args : list (expr (types types'))) (p : expr (types types')) : option (expr (types types')) :=
@@ -485,7 +485,7 @@ End Evaluator.
       PropX.interp specs (![ptsto32 _ p v]%PropX (stn, x)) ->
       ReadWord stn (Mem x) p = v.
     Proof.
-      intros. Check skipn.
+      intros.
       match goal with
         | [ |- context [ ReadWord ?STN ?M ?P ] ] =>
           match goal with

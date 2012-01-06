@@ -1,8 +1,8 @@
 Require Import Bool EqdepClass List.
 
 Require Import Heaps Reflect.
-Require Import Bedrock.ndep.SepExpr.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.Provers Bedrock.ndep.ExprUnify.
+Require Import Bedrock.ndep.SepExpr.
 
 Set Implicit Arguments.
 
@@ -48,7 +48,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Fixpoint substSexpr (offset : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
       match se with
         | Emp => se
-        | Inj e => Inj _ _ (substExpr offset s e)
+        | Inj e => Inj (substExpr offset s e)
         | Star se1 se2 => Star (substSexpr offset s se1) (substSexpr offset s se2)
         | Exists t se1 => Exists t (substSexpr offset s se1)
         | Func f es => Func f (map (substExpr offset s) es)
@@ -437,14 +437,16 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
         let stateT := reflectType types stateType in
-          reflect_hints pcT stateT isConst fwd types (@nil (signature types)) (@nil (ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
+          reflect_hints pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
             reflect_hints pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
               refine {| Types := types;
-                Functions := funcs;
-                SFunctions := sfuncs;
-                Hints := {| Forward := fwd';
-                  Backward := bwd';
-                  Prover := prover types |} |}; [ abstract prove fwd | abstract prove bwd ])))).
+                        PcType := pcT ; 
+                        StateType := stateT ;
+                        Functions := funcs;
+                        SFunctions := sfuncs;
+                        Hints := {| Forward := fwd';
+                          Backward := bwd';
+                          Prover := prover types |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=

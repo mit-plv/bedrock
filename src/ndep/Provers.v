@@ -48,8 +48,8 @@ Section BabyOmega.
     {| Impl := nat; Expr.Eq := fun x y : nat => match Peano_dec.eq_nat_dec x y with left Heq => Some Heq | _ => None end |} :: types.
 
   Definition fs' : functions types' :=
-    (@Build_signature types' (tvType 0 :: tvType 0 :: nil) tvProp (@eq nat)) ::
-    (@Build_signature types' (tvType 0 :: tvType 0 :: nil) (tvType 0) plus) ::
+    (@Sig types' (tvType 0 :: tvType 0 :: nil) tvProp (@eq nat)) ::
+    (@Sig types' (tvType 0 :: tvType 0 :: nil) (tvType 0) plus) ::
     fs (_ :: nil).
 
   Definition BabyOmega : @ProverT types' fs'.
