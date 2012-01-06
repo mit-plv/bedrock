@@ -73,6 +73,10 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
     Defined.
 
     Section evaluator.
+      Inductive matches : list (ssignature types pcType stateType) -> list SymEval -> Prop :=
+      | Match_nil : matches nil nil
+      | Match_cons : forall e es s ss, Predicate e = s -> matches ss es -> matches (s :: ss) (e :: es).
+(*
       Fixpoint matches (sfuncs : list (ssignature types pcType stateType)) (evals : list SymEval) : Prop :=
         match evals with
           | nil => True
@@ -82,7 +86,7 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
               | s :: ss => Predicate e = s /\ matches ss es
             end 
         end.
-
+*)
       Variable evals : list SymEval.
 
       Section fold_find.
@@ -473,23 +477,46 @@ End Evaluator.
 
   Section Tests.
 
+    Ltac isConst x :=
+      constr:(false).
+    
     Require Import PropX.
     Goal forall specs stn p v x,
       PropX.interp specs (![ptsto32 _ p v]%PropX (stn, x)) ->
       ReadWord stn (Mem x) p = v.
     Proof.
-      intros.
+      intros. Check skipn.
       match goal with
         | [ |- context [ ReadWord ?STN ?M ?P ] ] =>
           match goal with
-            | [ H : interp ?CS (![?S] (STN, ?ST)) |- _ ] =>
+            | [ H : interp ?CS (?S (STN, ?ST)) |- _ ] =>
               let m := eval simpl in (Mem ST) in 
               match M with
-                | m => idtac "found!"
+                | m => 
+                  match S with
+                    | context [ sepFormula ?X ] =>
+                      let pcT := constr:(W) in
+                      let stateT := constr:(prod settings state) in
+                      let Ts := eval unfold bedrock_types in bedrock_types in
+                      let goals := constr:(X :: nil) in
+                      let goals := eval unfold starB exB hvarB in goals in
+                      let v := SEP.reflect_all pcT stateT ltac:(isConst) Ts goals in
+                      match v with
+                        | (?Ts, ?pcType, ?stateType, ?funcs, ?sfuncs, ?X :: nil) =>
+                          SEP.reflect_expr ltac:(isConst) P Ts funcs (@nil tvar) (@nil tvar)
+                            ltac:(fun funcs' p => 
+                              let tys := eval simpl in (List.skipn (length (types nil)) Ts) in
+                              generalize (@symeval_read_correct tys (SymEval_ptsto32 tys :: nil) funcs sfuncs nil p (snd (hash X))))
+                      end
+                  end
               end
           end
       end.
-      generalize (symeval_read_correct).
+
+      simpl. unfold symeval_read. simpl. intro. specialize (H0 _ (refl_equal _) HNil).
+      simpl in H0. eapply H0. apply nil. apply nil.
+      unfold ST.satisfies. rewrite sepFormula_eq in H. unfold sepFormula_def in H.
+      simpl in *. eexists. split. 2: eassumption.
     Abort.
       
     End Tests.
