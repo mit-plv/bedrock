@@ -513,6 +513,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
     f (open vt).
 
+  (** collect the raw types from the given expression.
+   ** - e is the expression to collect types from
+   ** - types is a value of type [list Type]
+   **   (make sure it is NOT [list Set])
+   **)
   Ltac collectTypes_expr e types :=
     match e with
       | fun x => (@openUp _ ?T _ _) =>
@@ -549,6 +554,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         refl_app cc e
     end.
 
+(*  
   Ltac map_non_dep ty args f acc :=
     match args with
       | tt => acc
@@ -566,7 +572,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | _ => acc
         end
     end.
+*)
 
+  (** collect the types from an hprop expression.
+   ** - s is an expression of type hprop
+   ** - types is a list of raw types, i.e. of type [list Type]
+   ** - k is the continuation, it must be an ltac function
+   **   that takes a single argument of type [list Type]
+   **)
   Ltac collectTypes_sexpr s types k :=
     match s with
       | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
@@ -604,6 +617,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         refl_app cc X
     end.
 
+  (** find x inside (map proj xs) and return its position as a natural number.
+   ** This tactic fails if x does not occur in the list
+   ** - proj is a gallina function.
+   **)
   Ltac indexOf_nat proj x xs :=
     let rec search xs :=
       match xs with
@@ -618,9 +635,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end
     in search xs.
 
+  (** specialization of indexOf_nat to project from type **)
   Ltac typesIndex x types :=
     indexOf_nat Impl x types.
 
+  (** given the list of types (of type [list type]) and a raw type
+   ** (of type [Type]), return the [tvar] that corresponds to the
+   ** given raw type.
+   **)
   Ltac reflectType types t :=
     match t with
       | Prop => constr:(tvProp)
@@ -629,7 +651,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let r := constr:(tvType i) in
         r
     end.  
-        
+      
+  (** essentially this is [map (reflectType types) ts] **)
   Ltac reflectTypes_toList types ts :=
     match ts with 
       | nil => constr:(@nil tvar)
@@ -639,12 +662,18 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         constr:(@cons tvar (tvType i) rest)
     end.
 
-  Ltac collectAllTypes isConst ts goals :=
+  (** collect types from all of the separation logic goals given
+   ** in goals. 
+   ** - goals is a gallina list of type [list hprop]
+   ** - types is a list of raw types.
+   ** - isConst determines when an expression should be treated as a constant.
+   **)
+  Ltac collectAllTypes isConst types goals :=
     match goals with
-      | nil => ts
+      | nil => types
       | ?a :: ?b =>
         (** TODO : I may need to reflect the pcType and stateType **)
-        let ts := collectTypes_sexpr a ts ltac:(fun ts => ts) in
+        let ts := collectTypes_sexpr a types ltac:(fun ts => ts) in
         collectAllTypes isConst ts b
     end.
 
@@ -668,6 +697,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | _ => idtac "couldn't find variable! [2]" idx
     end.
 
+  (** Build a signature for the given function 
+   ** - types is a list of reflected types, i.e. type [list type]
+   ** the type of f can NOT be dependent, i.e. it must be of the
+   ** form, 
+   **   _ -> ... -> _
+   **)
   Ltac reflect_function types f :=
     let T := type of f in
     let rec refl dom T :=
@@ -684,7 +719,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end
    in refl (@nil tvar) T.
 
-
+  (** lookup a function in a list of reflected functions.
+   ** if the function does not exist in the list, the list is extended.
+   ** - k is the continutation and is passed the resulting list of functions
+   **   and the index of f in the list.
+   **   (all elements passed into funcs' are preserved in order)
+   **)
   Ltac getFunction types f funcs' k :=
     let rec lookup funcs acc :=
       match funcs with
@@ -704,7 +744,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     in lookup funcs' 0.
 
   (** reflect an expression gathering the functions at the same time.
-   ** - k funcs expr
+   ** - k is the continuation and is passed the list of reflected
+   **   functions and the reflected expression.
    **)
   Ltac reflect_expr isConst e types funcs uvars vars k :=
     let rec reflect funcs e k :=
@@ -756,6 +797,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end
     in reflect funcs e k.
 
+  (** reflect a separation logic predicate. this is analagous 
+   ** to reflect_function except that it works on separation logic functions.
+   **)
   Ltac reflect_sfunction pcT stT types f :=
     let T := type of f in
     let rec refl dom T :=
@@ -771,6 +815,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end
    in refl (@nil tvar) T.
 
+  (** get the index for a separation logic predicate. this is analagous
+   ** to getFunction.
+   ** - k is the continutation which accepts the, possibly extended,
+   **  list of separation logic predicates and the index of the desired
+   **  predicate.
+   **)
   Ltac getSFunction pcT stT types f sfuncs k :=
     let rec lookup sfuncs' acc :=
       match sfuncs' with
@@ -792,7 +842,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
 
   (** reflect sexprs. simultaneously gather the funcs and sfuncs
-   ** k funcs sfuncs sexpr
+   ** k is called with the functions, separation logic predicats and the reflected
+   ** sexpr.
    **)
   Ltac reflect_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
     let implicits ctor :=
@@ -879,6 +930,21 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     in
     reflect s funcs sfuncs uvars vars k.
 
+  (** reflect the list of goals. 
+   ** - pcT and stT are raw types that are the pc type and state
+   **   type of the goals.
+   ** - isConst tells when an expression is a constant.
+   ** - Ts is the list of reflected types that should be used as
+   **   the base of the reflected types list, i.e. this is guaranteed
+   **   to be a prefix of the resulting types list. 
+   ** the return value is a 6-tuple containing:
+   ** - the list of reflected types
+   ** - the tvar corresponding to the pc type
+   ** - the tvar corresponding to the state type
+   ** - the list of reflected functions
+   ** - the list of reflected separation logic predicates
+   ** - the list of reflected sexpr.
+   **)
   Ltac reflect_all pcT stT isConst Ts goals := 
     let rt := 
       collectAllTypes isConst ((pcT : Type) :: (stT : Type) :: @nil Type) goals
@@ -963,95 +1029,5 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | ?a :: ?b => unfold a ; unfold_all b
       end
     in unfold_all Ts.
-
-(*
-  Section Tests.
-    Variable f : forall a b, nat -> ST.hprop a b nil.
-    Variable h : forall a b, nat -> ST.hprop a b nil.
-    Variable i : forall a b, nat -> ST.hprop a b nil.
-    Variable g : bool -> nat -> nat -> nat.
-
-    Variable a : Type.
-    Variable b : Type.
-    
-    Definition hpropB : list Type -> Type := ST.hprop a b.
-
-    Variable p : forall {sos}, nat -> nat -> hpropB sos.
-
-    Ltac isConst e :=
-      match e with
-        | true => true
-        | false => true
-        | O => true
-        | S ?e => isConst e
-        | _ => false
-      end.
-
-    Definition nat_type : type :=
-      {| Impl := nat 
-       ; Expr.Eq := fun x y => match equiv_dec x y with
-                                 | left pf => Some pf
-                                 | _ => None 
-                               end
-       |}.
-
-    Fixpoint all a b (f : nat -> ST.hprop a b nil) (n : nat) : ST.hprop a b nil :=
-      match n with
-        | 0 => f 0
-        | S n => ST.star (f (S n)) (all f n)
-      end.
-
-    Fixpoint allb a b (f : nat -> ST.hprop a b nil) (n m : nat) : ST.hprop a b nil :=
-      match n with
-        | 0 => f m
-        | S n => ST.star (f (m - S n)) (allb f n m)
-      end.
-
-    Goal forall a b c, 
-      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
-                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
-      intros. simpl all. simpl allb.
-      Time sep isConst (nat_type :: nil).
-    Abort.
-
-    Goal forall c, @ST.himp a b c 
-      (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
-      (ST.star (all (@f a b) 15) (all (@h a b) 15)).
-      simpl all. simpl allb. intros.
-      sep isConst (nat_type :: nil). reflexivity.
-    Qed.
-
-    Goal forall a b c, 
-      @ST.himp a b c (ST.star (allb (@h a b) 2 2) (allb (@f a b) 2 2))
-                     (ST.star (all (@h a b) 2) (all (@f a b) 2 )).
-      simpl all. simpl allb. intros.
-      sep isConst (nat_type :: nil); reflexivity.
-    Qed.
-
-    Goal forall a b c, @ST.himp a b c 
-      (*ST.ex (fun y : nat => *) (ST.ex (fun x : nat => (f _ _ (x + x))))
-      (f _ _ 1).
-      intros.  sep isConst (nat_type :: nil).
-    Abort.
-
-    Goal forall a b c, @ST.himp a b c 
-      (*ST.ex (fun y : nat => *) (ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1)))
-      (f _ _ 1).
-      intros. reflect_goal isConst (nat_type :: nil).
-
-    Goal forall a b c x, @ST.himp a b c (f _ _ (x + x)) (f _ _ 1).
-      intros. reflect_goal isConst (nat_type :: nil).
-    Abort.
-
-    Goal forall c x, @ST.himp a b c (p nil 1 x) (p _ 1 x).
-      intros.      
-      Time sep isConst (nat_type :: nil). 
-      unfold nat_type. simplifier. reflexivity.
-    Qed.
-
-
-  End Tests.
-*)
-
 
 End SepExpr.
