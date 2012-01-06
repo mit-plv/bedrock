@@ -134,6 +134,10 @@ Section Env.
     (forall v, P v <===> Q v) ->
     ex P <===> ex Q.
 
+  Parameter himp_ex : forall T (P Q : T -> _), 
+    (forall v, P v ===> Q v) ->
+    ex P ===> ex Q.
+
   Parameter heq_ex_star : forall T (P : T -> _) Q,
     (star (ex P) Q) <===> (ex (fun x => star (P x) Q)).
 
@@ -173,7 +177,6 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
       forall s m, interp cs (gl s m) -> interp cs (gr s m).
     Definition heq (gl gr : hprop nil) : Prop :=
       himp gl gr /\ himp gr gl.
-
 
     Global Instance Refl_himp : Reflexive himp.
     Proof.
@@ -230,7 +233,7 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Definition hptsto sos (p : H.addr) (v : H.byte) : hprop sos :=
       fun s h => 
         PropX.Inj (HT.smem_get p h = Some v /\ forall p', p' <> p -> HT.smem_get p' h = None).
-
+    
   (* satisfies lemmas *)
   Theorem satisfies_himp : forall P Q stn m,
     himp P Q ->
@@ -419,6 +422,16 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
        end; propxFo; eauto with heaps.
     Qed.
 
+    Theorem himp_ex : forall T (P Q : T -> _), 
+      (forall v, himp (P v) (Q v)) ->
+      himp (ex P) (ex Q).
+    Proof.
+      unfold himp; propxFo;
+        match goal with
+          | [ H : forall v : ?T, _, x : ?T |- _ ] => specialize (H x)
+        end; propxFo; eauto with heaps.
+    Qed.
+
     Theorem heq_ex_star : forall T (P : T -> _) Q,
       heq (star (ex P) Q) (ex (fun x => star (P x) Q)).
     Proof.
@@ -437,7 +450,73 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Proof.
       clear. intros. unfold himp in *. propxFo. eauto.
     Qed.
-
-      
   End env.
 End SepTheoryX.
+
+Module SepTheoryX_Facts (H : Heap) (Import ST : SepTheoryXType H).
+  
+  Require Import Setoid Classes.Morphisms.
+  
+  Section env. 
+    Variable p s : Type.
+    Variable cs : codeSpec p s.
+
+    Add Parametric Relation : (@hprop p s nil) (@himp p s cs)
+      reflexivity proved by (Refl_himp cs)
+      transitivity proved by (@Trans_himp p s cs)
+    as himp_mor.
+
+    Add Parametric Relation : (@hprop p s nil) (@heq p s cs)
+      reflexivity proved by (Refl_heq cs)
+      symmetry proved by (@Sym_heq p s cs)
+      transitivity proved by (@Trans_heq p s cs)
+    as heq_mor.
+
+    Add Parametric Morphism : (@star p s nil) with
+      signature (himp cs ==> himp cs ==> himp cs)      
+    as star_himp_mor.
+      intros. eapply himp_star_frame; eauto.
+    Qed.
+
+    Add Parametric Morphism : (@star p s nil) with
+      signature (heq cs ==> heq cs ==> heq cs)      
+    as star_heq_mor.
+      intros. eapply heq_star_frame; eauto.
+    Qed.
+
+    Add Parametric Morphism T : (@ex p s nil T) with 
+      signature (pointwise_relation T (heq cs) ==> heq cs)
+    as ex_heq_mor.
+      intros. eapply heq_ex. eauto.
+    Qed.
+
+    Add Parametric Morphism T : (@ex p s nil T) with 
+      signature (pointwise_relation T (himp cs) ==> himp cs)
+    as ex_himp_mor.
+      intros. eapply himp_ex. auto.
+    Qed.
+
+    Add Parametric Morphism : (himp cs) with 
+      signature (heq cs ==> heq cs ==> Basics.impl)
+    as himp_heq_mor.
+      intros. intro. etransitivity.
+      symmetry in H. eapply heq_defn in H. eapply (proj1 H).
+      etransitivity. eassumption. eapply heq_defn in H0. intuition.
+    Qed.
+
+    Add Parametric Morphism : (himp cs) with 
+      signature (himp cs --> himp cs ++> Basics.impl)
+    as himp_himp_mor.
+      intros. intro. repeat (etransitivity; eauto).
+    Qed.
+
+    Lemma heq_emp : forall P, heq cs (star P (emp p s)) P.
+      intros. eapply heq_star_comm. eapply heq_star_emp.
+      reflexivity.
+    Qed.
+
+    Lemma heq_emp' : forall P, heq cs (star (emp p s) P) P.
+      intros. eapply heq_star_emp. reflexivity.
+    Qed.
+  End env.
+End SepTheoryX_Facts.

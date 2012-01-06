@@ -4,7 +4,7 @@ Require Import EqdepClass.
 Set Implicit Arguments.
 
 Section env.
-  Record type := {
+  Record type := Typ {
     Impl : Type;
     Eq : forall x y : Impl, option (x = y)
   }.
@@ -59,7 +59,7 @@ Section env.
       | d :: domain' => d -> functionTypeD domain' range
     end.
 
-  Record signature := {
+  Record signature := Sig {
     Domain : list tvar;
     Range : tvar;
     Denotation : functionTypeD (map tvarD Domain) (tvarD Range)
