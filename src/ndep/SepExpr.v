@@ -64,124 +64,100 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | Const p => p
       end.
 
-    Section SProver.
-      (** TODO : Make these opaque (use the module trick) **)
-      Definition himp (U1 U2 G : env types)
-        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-        (gl gr : sexpr) : Prop :=
-        ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
 
-      Definition heq (U1 U2 G : env types)
-        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-        (gl gr : sexpr) : Prop :=
-        ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
+    (** TODO : Make these opaque (use the module trick) **)
+    Definition himp (U1 U2 G : env types)
+      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      (gl gr : sexpr) : Prop :=
+      ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
 
-      Global Instance Trans_himp U g cs : Transitive (@himp U U g cs).
-      Proof.
-        red. unfold himp. intros; etransitivity; eauto.
-      Qed.
+    Definition heq (U1 U2 G : env types)
+      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      (gl gr : sexpr) : Prop :=
+      ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
 
-      Global Instance Trans_heq U g cs : Transitive (@heq U U g cs).
-      Proof.
-        red. unfold heq. intros; etransitivity; eauto.
-      Qed.
+    Global Instance Trans_himp U g cs : Transitive (@himp U U g cs).
+    Proof.
+      red. unfold himp. intros; etransitivity; eauto.
+    Qed.
 
-      Global Instance Refl_himp U g cs : Reflexive (@himp U U g cs).
-      Proof.
-        red; unfold himp; intros. reflexivity.
-      Qed.
+    Global Instance Trans_heq U g cs : Transitive (@heq U U g cs).
+    Proof.
+      red. unfold heq. intros; etransitivity; eauto.
+    Qed.
 
-      Global Instance Refl_heq U g cs : Reflexive (@heq U U g cs).
-      Proof.
-        red; unfold heq; intros. reflexivity.
-      Qed.
+    Global Instance Refl_himp U g cs : Reflexive (@himp U U g cs).
+    Proof.
+      red; unfold himp; intros. reflexivity.
+    Qed.
 
-      Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
-        himp U1 U2 G cs L R ->
-        ST.himp cs (sexprD L U1 G) (sexprD R U2 G).
-      Proof.
-        clear. auto.
-      Qed.
+    Global Instance Refl_heq U g cs : Reflexive (@heq U U g cs).
+    Proof.
+      red; unfold heq; intros. reflexivity.
+    Qed.
 
-      Theorem ST_heq_heq : forall (U1 U2 G : env types) cs L R,
-        heq U1 U2 G cs L R ->
-        ST.heq cs (sexprD L U1 G) (sexprD R U2 G).
-      Proof.
-        clear. auto.
-      Qed.
+    Global Instance Sym_heq U g cs : Symmetric (@heq U U g cs).
+    Proof.
+      red; unfold heq; intros. symmetry. auto.    
+    Qed.
 
-      Section exists_subst.
-        Variable U1 : env types.
-                
-        Fixpoint exists_subst (U : list (tvar * option (expr types))) 
-          : (env types -> Prop) -> Prop :=
-          match U as U with
-            | nil => fun cc => cc nil
-            | (t,v) :: r => fun cc =>
-              match v with
-                | None => 
-                  exists v : tvarD types t, exists_subst r (fun z => cc (existT _ t v :: z))
-                | Some v => 
-                  match exprD funcs nil U1 v t with
-                    | None => False
-                    | Some v =>
-                      exists_subst r (fun z => cc (existT _ t v :: z))
-                  end
-              end
-          end.
+    Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
+      himp U1 U2 G cs L R ->
+      ST.himp cs (sexprD L U1 G) (sexprD R U2 G).
+    Proof.
+      clear. auto.
+    Qed.
 
-      End exists_subst.
+    Theorem ST_heq_heq : forall (U1 U2 G : env types) cs L R,
+      heq U1 U2 G cs L R ->
+      ST.heq cs (sexprD L U1 G) (sexprD R U2 G).
+    Proof.
+      clear. auto.
+    Qed.
 
-      Lemma exists_subst_exists : forall A
-        (B : list (tvar * option (expr types))) P,
-        exists_subst A B P ->
-        exists C, P C.
-      Proof.
-        clear. induction B; simpl; intros.
-          eauto.
-          destruct a; simpl in *. destruct o.
-          destruct (exprD funcs nil A e t); try tauto.
-          eapply IHB in H; destruct H; eauto. 
-          destruct H. eapply IHB in H. destruct H; eauto.
-      Qed.
-
-      Fixpoint forallEach (ls : variables) : (env types -> Prop) -> Prop :=
-        match ls with
+    Section exists_subst.
+      Variable U1 : env types.
+      
+      Fixpoint exists_subst (U : list (tvar * option (expr types))) 
+        : (env types -> Prop) -> Prop :=
+        match U as U with
           | nil => fun cc => cc nil
-          | a :: b => fun cc =>
-            forall x : tvarD types a, forallEach b (fun r => cc (existT _ a x :: r))
+          | (t,v) :: r => fun cc =>
+            match v with
+              | None => 
+                exists v : tvarD types t, exists_subst r (fun z => cc (existT _ t v :: z))
+              | Some v => 
+                match exprD funcs nil U1 v t with
+                  | None => False
+                  | Some v =>
+                    exists_subst r (fun z => cc (existT _ t v :: z))
+                end
+            end
         end.
 
-(*
-      Lemma forallEach_forall : forall ls (P : hlist (@tvarD types) ls -> Prop),
-        forallEach P -> forall V, P V.
-      Proof.
-        induction ls; simpl; intros. 
-        rewrite (hlist_nil_only _ V). auto.
-        rewrite (hlist_eta _ V). 
-        specialize (H (hlist_hd V)). eapply IHls in H. eassumption.
-      Qed.
-*)
+    End exists_subst.
 
-      Record SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-        (gl gr : sexpr) : Type := Prove
-      { vars   : variables
-      ; lhs_ex : variables
-      ; lhs    : sexpr
-      ; rhs_ex : variables
-      ; rhs    : sexpr
-      ; SUBST  : Subst types
-      }.
+    Lemma exists_subst_exists : forall A
+      (B : list (tvar * option (expr types))) P,
+      exists_subst A B P ->
+      exists C, P C.
+    Proof.
+      clear. induction B; simpl; intros.
+      eauto.
+      destruct a; simpl in *. destruct o.
+      destruct (exprD funcs nil A e t); try tauto.
+      eapply IHB in H; destruct H; eauto. 
+      destruct H. eapply IHB in H. destruct H; eauto.
+    Qed.
 
-      Definition SProverT : Type := forall
-        (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
-        (hyps : list (expr types)) (** Pure Premises **)
-        (gl gr : sexpr),
-        SepResult cs gl gr.
-    
-    End SProver.
+    Fixpoint forallEach (ls : variables) : (env types -> Prop) -> Prop :=
+      match ls with
+        | nil => fun cc => cc nil
+        | a :: b => fun cc =>
+          forall x : tvarD types a, forallEach b (fun r => cc (existT _ a x :: r))
+      end.
 
-
+    (** A more efficient representation for sexprs. **)
     Record SHeap : Type :=
     { impures : FM.t (list (list (expr types)))
     ; pures   : list (expr types)
@@ -227,6 +203,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ; other := other l ++ other r
        |}.
 
+    (** convert the sexpr into a SHeap **)
     Fixpoint hash (s : sexpr) : ( variables * SHeap ) :=
       match s with
         | Emp => (nil, SHeap_empty)
@@ -265,9 +242,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                              end) base ls.
 
     Definition sheapD (h : SHeap) : sexpr :=
-      let a := FM.fold (fun k => starred (Func k)) (impures h) Emp in
+      let a := starred (fun x => Const x) (other h) Emp in
       let a := starred (fun x => Inj x) (pures h) a in
-      let a := starred (fun x => Const x) (other h) a in
+      let a := FM.fold (fun k => starred (Func k)) (impures h) a in
       a.
 
     Definition starred' (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
@@ -297,19 +274,38 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         eapply ST.heq_star_frame; eauto.
     Qed.
 
-    Lemma starred_base : forall a c cs T F base ls P, 
-      heq a a c cs (Star (@starred T F ls Emp) base) P ->
-      heq a a c cs (@starred T F ls base) P.
+    Lemma starred'_base : forall a c cs T F base ls P, 
+      heq a a c cs (Star (@starred' T F ls Emp) base) P ->
+      heq a a c cs (@starred' T F ls base) P.
     Proof.
+      unfold heq in *; simpl in *.
       induction ls; simpl; intros.
-    Admitted.
+        eapply ST.heq_star_emp' in H; eauto.
+        
+        etransitivity. 2: eassumption.
+        symmetry. simpl. eapply ST.heq_star_assoc.
+        eapply ST.heq_star_frame. reflexivity.
+        symmetry.
+        specialize (IHls (Star (starred' F ls Emp) base)).
+        eapply IHls. reflexivity.
+    Qed.
 
     Theorem sheapD_sheapD' : forall a c cs h, 
       heq a a c cs (sheapD h) (sheapD' h).
     Proof.
       destruct h; unfold sheapD, sheapD'; simpl.
-        eapply starred_base. 
-    Admitted.      
+      Lemma impures' : forall a c cs i b, 
+        heq a a c cs (FM.fold (fun k => starred (Func k)) i b)
+                     (Star (FM.fold (fun k => starred (Func k)) i Emp) b).
+      Proof.
+        induction i; simpl.
+        Lemma heq_star_emp : forall a b c cs P Q,
+          heq a b c cs P Q ->
+          heq a b c cs (Star Emp P) Q.
+        Admitted.
+        symmetry. apply heq_star_emp.
+      Admitted.
+    Admitted.
 
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
@@ -367,6 +363,24 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     End MM.
 *)
+    (** The actual tactic code **)
+    Record SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      (gl gr : sexpr) : Type := Prove
+      { vars   : variables
+      ; lhs_ex : variables
+      ; lhs    : sexpr
+      ; rhs_ex : variables
+      ; rhs    : sexpr
+      ; SUBST  : Subst types
+      }.
+
+    Definition SProverT : Type := forall
+      (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
+      (hyps : list (expr types)) (** Pure Premises **)
+      (gl gr : sexpr),
+      SepResult cs gl gr.
+
+
 
     Fixpoint unify_remove (l : list (expr types)) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
