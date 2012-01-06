@@ -591,7 +591,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let v := eval simpl in v in
         collectTypes_sexpr v types k
       | @ST.emp _ _ _ => k types
-      | @ST.inj _ _ _ (PropX.Inj _ _ _ ?P) =>
+      | @ST.inj _ _ _ (PropX.Inj ?P) =>
         k ltac:(collectTypes_expr P types)
       | @ST.inj _ _ _ ?PX => k types
       | @ST.star _ _ _ ?L ?R =>
