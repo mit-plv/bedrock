@@ -1,7 +1,7 @@
 Require Import Bool EqdepClass List.
 
 Require Import Heaps Reflect.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.Provers Bedrock.ndep.ExprUnify.
+Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
 Require Import Bedrock.ndep.SepExpr.
 
 Set Implicit Arguments.
