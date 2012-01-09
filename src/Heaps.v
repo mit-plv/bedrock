@@ -62,6 +62,17 @@ Module HeapTheory (B : Heap).
           smem_get' b a' (hlist_tl m)
     end.
 
+  Fixpoint smem_set' dom : addr -> byte -> smem' dom -> smem' dom :=
+    match dom as dom return addr -> byte -> smem' dom -> smem' dom with 
+      | nil => fun _ _ _ => HNil
+      | a :: b => fun p v m =>
+        if addr_dec a p then
+          HCons (Some v) (hlist_tl m)
+        else
+          HCons (hlist_hd m) (smem_set' b p v (hlist_tl m))
+    end.
+
+
   Fixpoint satisfies' dom (m : smem' dom) (m' : B.mem) : Prop :=
     match m with
       | HNil => True
@@ -78,11 +89,7 @@ Module HeapTheory (B : Heap).
 
   Definition smem_get := @smem_get' all_addr.
 
-
-(*
-  Definition smem_eq (a b : smem) : Prop := forall p, a p = b p.
-  Infix "===" := smem_eq (at level 50).
-*)
+  Definition smem_set := @smem_set' all_addr.
 
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
