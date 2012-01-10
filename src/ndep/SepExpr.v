@@ -4,6 +4,7 @@ Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
 Require Import Env.
+Require Import Setoid.
 
 Set Implicit Arguments.
 
@@ -44,6 +45,8 @@ Implicit Arguments Const [ types rtype ].
 Implicit Arguments Inj [ types rtype ].
 
 Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+
+  Module SEP_FACTS := SepTheoryX_Rewrites B ST.
   Section env.
     Variable types : list type.
     Variable funcs : functions types.
@@ -95,30 +98,115 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       (gl gr : sexpr) : Prop :=
       ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
 
-    Global Instance Trans_himp U g cs : Transitive (@himp U U g cs).
-    Proof.
-      red. unfold himp. intros; etransitivity; eauto.
+    Section Facts.
+      Variables U G : env types.
+      Variable cs : codeSpec (tvarD types pcType) (tvarD types stateType).
+
+      Global Instance Trans_himp : Transitive (@himp U U G cs).
+      Proof.
+        red. unfold himp. intros; etransitivity; eauto.
+      Qed.
+
+      Global Instance Trans_heq : Transitive (@heq U U G cs).
+      Proof.
+        red. unfold heq. intros; etransitivity; eauto.
+      Qed.
+
+      Global Instance Refl_himp : Reflexive (@himp U U G cs).
+      Proof.
+        red; unfold himp; intros. reflexivity.
+      Qed.
+
+      Global Instance Refl_heq : Reflexive (@heq U U G cs).
+      Proof.
+        red; unfold heq; intros. reflexivity.
+      Qed.
+
+      Global Instance Sym_heq : Symmetric (@heq U U G cs).
+      Proof.
+        red; unfold heq; intros. symmetry. auto.    
+      Qed.
+
+      Add Parametric Relation : sexpr (@himp U U G cs)
+        reflexivity proved by  Refl_himp
+        transitivity proved by Trans_himp
+      as himp_rel.
+
+      Add Parametric Relation : sexpr (@heq U U G cs)
+        reflexivity proved by  Refl_heq
+        symmetry proved by Sym_heq
+        transitivity proved by Trans_heq
+      as heq_rel.
+
+      Global Add Parametric Morphism U' : (@Star _ _) with
+        signature (himp U U' G cs ==> himp U U' G cs ==> himp U U' G cs)      
+        as star_himp_mor.
+        unfold himp; simpl; intros; eapply SEP_FACTS.star_himp_mor; eauto.
+      Qed.
+
+      Global Add Parametric Morphism U' : (@Star _ _) with
+        signature (heq U U' G cs ==> heq U U' G cs ==> heq U U' G cs)      
+        as star_heq_mor.
+        unfold himp; simpl; intros; eapply SEP_FACTS.star_heq_mor; eauto.
+      Qed.
+
+(* TODO: this needs some pointwise-ness
+    Global Add Parametric Morphism T : (@Exists _ _ T) with 
+      signature (heq U U G cs ==> heq U U G cs)
+    as ex_heq_mor.
+      unfold heq; simpl; intros. eapply SEP_FACTS.ex_heq_mor; eauto. intro. 
     Qed.
 
-    Global Instance Trans_heq U g cs : Transitive (@heq U U g cs).
-    Proof.
-      red. unfold heq. intros; etransitivity; eauto.
+    Global Add Parametric Morphism T : (@ex p s nil T) with 
+      signature (pointwise_relation T (himp cs) ==> himp cs)
+    as ex_himp_mor.
+      intros. eapply himp_ex. auto.
     Qed.
+*)
 
-    Global Instance Refl_himp U g cs : Reflexive (@himp U U g cs).
-    Proof.
-      red; unfold himp; intros. reflexivity.
-    Qed.
+      Global Add Parametric Morphism U' : (himp U U' G cs) with 
+        signature (heq U U G cs ==> heq U' U' G cs ==> Basics.impl)
+        as himp_heq_mor.
+        unfold heq; simpl; intros. eapply SEP_FACTS.himp_heq_mor; eauto.
+      Qed.
 
-    Global Instance Refl_heq U g cs : Reflexive (@heq U U g cs).
-    Proof.
-      red; unfold heq; intros. reflexivity.
-    Qed.
+      Global Add Parametric Morphism U' : (himp U U' G cs) with 
+        signature (himp U U G cs --> himp U' U' G cs ++> Basics.impl)
+        as himp_himp_mor.
+        unfold himp; simpl; intros. eapply SEP_FACTS.himp_himp_mor; eauto.
+      Qed.
 
-    Global Instance Sym_heq U g cs : Symmetric (@heq U U g cs).
-    Proof.
-      red; unfold heq; intros. symmetry. auto.    
-    Qed.
+      Lemma heq_star_emp_r : forall P, 
+        heq U U G cs (Star P Emp) P.
+      Proof.
+        unfold heq; simpl; intros; autorewrite with hprop; reflexivity.
+      Qed.
+
+      Lemma heq_star_emp_l : forall P, 
+        heq U U G cs (Star Emp P) P.
+      Proof.
+        unfold heq; simpl; intros; autorewrite with hprop; reflexivity.
+      Qed.
+
+      Lemma heq_star_assoc : forall P Q R, 
+        heq U U G cs (Star (Star P Q) R) (Star P (Star Q R)).
+      Proof.
+        unfold heq; simpl; intros; autorewrite with hprop. rewrite ST.heq_star_assoc. reflexivity.
+      Qed.
+
+      Lemma heq_star_frame : forall P Q R S, 
+        heq U U G cs P R ->
+        heq U U G cs Q S ->
+        heq U U G cs (Star P Q) (Star R S).
+      Proof.
+        unfold heq; simpl; intros. eapply ST.heq_star_frame; auto.
+      Qed.
+        
+    End Facts.
+
+    Existing Instance himp_rel_relation.
+    Existing Instance heq_rel_relation.
+    Hint Rewrite heq_star_emp_l heq_star_emp_r : hprop.
 
     Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
       himp U1 U2 G cs L R ->
@@ -235,7 +323,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            star_SHeap hl (liftSHeap 0 (length vl) hr))
         | Exists t b =>
           let (v,b) := hash b in
-          (v ++ t :: nil, b)
+          (t :: v, b)
         | Func f a =>
           (nil,
            {| impures := FM.add f (a :: nil) FM.empty
@@ -284,59 +372,112 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         specialize (IHls H H0).
         etransitivity. instantiate (1 := (Star (F a0) (starred F ls base))).
         destruct (starred F ls base); try reflexivity.
-        unfold heq. simpl. symmetry. eapply ST.heq_star_comm.
-        eapply ST.heq_star_emp. reflexivity.
-        unfold heq in *; simpl in *.
-        eapply ST.heq_star_frame; eauto.
+        autorewrite with hprop. reflexivity.
+        rewrite H0. rewrite IHls. reflexivity.
     Qed.
 
-    Lemma starred'_base : forall a c cs T F base ls P, 
-      heq a a c cs (Star (@starred' T F ls Emp) base) P ->
-      heq a a c cs (@starred' T F ls base) P.
+    Lemma starred'_base : forall a c cs T F base ls, 
+      heq a a c cs (Star (@starred' T F ls Emp) base) (@starred' T F ls base).
     Proof.
       unfold heq in *; simpl in *.
       induction ls; simpl; intros.
-        eapply ST.heq_star_emp' in H; eauto.
-        
-        etransitivity. 2: eassumption.
-        symmetry. simpl. eapply ST.heq_star_assoc.
-        eapply ST.heq_star_frame. reflexivity.
-        symmetry.
-        specialize (IHls (Star (starred' F ls Emp) base)).
-        eapply IHls. reflexivity.
+        autorewrite with hprop; reflexivity.
+        rewrite <- IHls. rewrite ST.heq_star_assoc. reflexivity.
+    Qed.
+
+    Lemma starred_base : forall a c cs T F base ls, 
+      heq a a c cs (Star (@starred T F ls Emp) base) (@starred T F ls base).
+    Proof.
+      unfold heq in *; simpl in *.
+      induction ls; simpl; intros.
+        autorewrite with hprop; reflexivity.
+        Opaque exprD.
+        destruct (starred F ls base); destruct (starred F ls Emp);
+          simpl in *; autorewrite with hprop in *; try rewrite ST.heq_star_assoc; try rewrite IHls;
+            autorewrite with hprop; try reflexivity.
+    Qed.
+
+    Lemma fold_starred : forall X a c cs (F : nat -> X -> sexpr) m b,
+      heq a a c cs (FM.fold (fun k ls a => Star (F k ls) a) m b)
+      (Star (FM.fold (fun k ls a => Star (F k ls) a) m Emp) b).
+    Proof.
+      induction m; simpl; intros.
+      autorewrite with hprop; reflexivity.
+
+      rewrite IHm2. rewrite IHm1. symmetry. rewrite IHm2.
+      repeat rewrite heq_star_assoc. reflexivity.
+    Qed.
+
+    Lemma impures' : forall a c cs i b, 
+      heq a a c cs (FM.fold (fun k => starred (Func k)) i b)
+      (Star (FM.fold (fun k ls a => Star (starred' (Func k) ls Emp) a) i Emp) b).
+    Proof.
+      induction i; simpl; intros.
+      autorewrite with hprop. reflexivity.
+
+      rewrite IHi2. rewrite <- starred_base. rewrite IHi1.
+      symmetry. 
+      rewrite fold_starred. repeat rewrite heq_star_assoc.
+      apply heq_star_frame. reflexivity.
+      apply heq_star_frame; try reflexivity.
+      rewrite starred_starred'; try reflexivity. 
     Qed.
 
     Theorem sheapD_sheapD' : forall a c cs h, 
       heq a a c cs (sheapD h) (sheapD' h).
     Proof.
       destruct h; unfold sheapD, sheapD'; simpl.
-      Lemma impures' : forall a c cs i b, 
-        heq a a c cs (FM.fold (fun k => starred (Func k)) i b)
-                     (Star (FM.fold (fun k => starred (Func k)) i Emp) b).
-      Proof.
-        induction i; simpl.
-        Lemma heq_star_emp : forall a b c cs P Q,
-          heq a b c cs P Q ->
-          heq a b c cs (Star Emp P) Q.
-        Admitted.
-        symmetry. apply heq_star_emp.
-      Admitted.
-    Admitted.
+      rewrite impures'. rewrite <- starred_base. 
+      rewrite <- starred_base with (ls := other0).
+      eapply heq_star_frame. reflexivity.
+      eapply heq_star_frame. eapply starred_starred'; reflexivity.
+      autorewrite with hprop.
+      eapply starred_starred'; reflexivity.
+    Qed.
 
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
         | nil => fun x => x
-        | t :: ts => fun y => @existsEach ts (Exists t y)
+        | t :: ts => fun y => Exists t (@existsEach ts y)
       end.
 
-    Theorem hash_denote : forall cs G (s : sexpr), 
+    Lemma heq_ex : forall X Y cs t P Q,
+      (forall v : tvarD types t, heq X X (existT (tvarD types) t v :: Y) cs P Q) ->
+      heq X X Y cs (Exists t P) (Exists t Q).
+    Proof.
+      unfold heq; simpl; intros; apply ST.heq_ex; auto.
+    Qed.
+
+    Lemma existsEach_heq : forall cs X v Y (P Q : sexpr),
+      (forall Z, heq X X (Z ++ Y) cs P Q) ->
+      heq X X Y cs (existsEach v P) (existsEach v Q).
+    Proof.
+      induction v; simpl; intros.
+        apply (H nil).
+        eapply heq_ex. intros.
+        eapply IHv. intros. specialize (H (Z ++ existT (tvarD types) a v0 :: nil)).
+        rewrite app_ass in *. simpl in *. eauto.
+    Qed.
+
+    Lemma existsEach_app : forall X cs b a Y (P : sexpr),
+      heq X X Y cs (existsEach a (existsEach b P)) (existsEach (a ++ b) P).
+    Proof.
+      induction a; simpl.
+        reflexivity.
+        intros. apply heq_ex. intros. eauto.
+    Qed.
+
+    Theorem hash_denote : forall cs (s : sexpr) G, 
       heq nil nil G cs s 
         (@existsEach (fst (hash s)) (sheapD (snd (hash s)))).
     Proof.
-      induction s; simpl.
-        unfold sheapD; simpl. unfold FM.fold. simpl. admit.
-        unfold sheapD; simpl. unfold FM.fold. simpl. admit.
-    Admitted.
+      induction s; simpl; try (unfold sheapD; reflexivity).
+        intros.
+        rewrite IHs1 at 1. rewrite IHs2 at 1. clear IHs1 IHs2.
+        destruct (hash s1); destruct (hash s2); simpl. clear. admit.
+        
+        destruct (hash s); simpl in *. intros. apply heq_ex. intros. eauto.          
+    Qed.
 
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
