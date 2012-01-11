@@ -521,8 +521,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     End MM.
 *)
     (** The actual tactic code **)
-    Record SepResult (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-      (gl gr : sexpr) : Type := Prove
+    Record SepResult (gl gr : sexpr) : Type := Prove
       { vars   : variables
       ; lhs_ex : variables
       ; lhs    : sexpr
@@ -532,12 +531,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       }.
 
     Definition SProverT : Type := forall
-      (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
       (hyps : list (expr types)) (** Pure Premises **)
       (gl gr : sexpr),
-      SepResult cs gl gr.
-
-
+      SepResult gl gr.
 
     Fixpoint unify_remove (l : list (expr types)) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
@@ -573,7 +569,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Definition sepCancel (l r : SHeap) :
       SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types :=
-      let '(lf, rf, ls, rs) := 
+     let '(lf, rf, ls, rs) := 
         FM.fold (fun k v a => 
           let '(lf, rf, ls, rs) := a in
           match FM.find k rf with
@@ -591,7 +587,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     (** TODO: I should reconsider this... **)
     Definition CancelSep : SProverT :=
-      fun cs _ gl gr =>
+      fun _ gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
         let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
@@ -601,26 +597,19 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            rhs := sheapD rhs' ; rhs_ex := qr ; SUBST := rhs_subst
          |}.
 
-(*
-    Definition opt_eval (ge g : env types) (e : tvar * option (expr types))
-      : {t : tvar & option (tvarD types t)} :=
-      match snd e with
-        | None => existT _ (fst e) None
-        | Some exp =>
-          existT _ (fst e) (exprD funcs ge g exp (fst e))
-      end.
-*)
-
-    Lemma ApplyCancelSep : forall cs l r,
-      match CancelSep cs nil l r with
+    Theorem ApplyCancelSep : forall cs hyps l r,
+      AllProvable funcs nil nil hyps ->
+      match CancelSep hyps l r with
         | Prove vars lhs_ex lhs rhs_ex rhs SUBST =>
           forallEach vars (fun VS : env types =>
             exists_subst VS (env_of_Subst SUBST rhs_ex 0)
-            (fun rhs_ex : env types => himp nil rhs_ex VS cs lhs rhs))
+            (fun rhs_ex : env types => 
+              himp nil rhs_ex VS cs lhs rhs))
       end ->
       himp nil nil nil cs l r.
     Proof.
-      clear. intros. destruct (CancelSep cs nil l r).
+      clear. intros. case_eq (CancelSep hyps l r); intros.
+      rewrite H1 in H0.
     Admitted.
 
   End env.
@@ -1172,7 +1161,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     ].
 
   Ltac canceler :=
-    apply ApplyCancelSep; simplifier.
+    apply ApplyCancelSep with (hyps := nil); [ simpl AllProvable; tauto | simplifier ].
 
   Ltac sep isConst Ts := 
     reflect_goal isConst Ts;
