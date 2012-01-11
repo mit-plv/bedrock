@@ -543,52 +543,6 @@ Qed.
 
 (** * Some default word-size memory accessors *)
 
-Definition writeWord (m : mem) (a v : W) : mem :=
-  let dw1 := split1 16 16 v in
-  let dw2 := split2 16 16 v in
-  let b1 := split1 8 8 dw1 in
-  let b2 := split2 8 8 dw1 in
-  let b3 := split1 8 8 dw2 in
-  let b4 := split2 8 8 dw2 in
-    fun a' => if weq a' a then b1
-      else if weq a' (a ^+ $1) then b2
-        else if weq a' (a ^+ $2) then b3
-          else if weq a' (a ^+ $3) then b4
-            else m a'.
-
-Definition readWord (m : mem) (a : W) : W :=
-  let b1 := m a in
-  let b2 := m (a ^+ $1) in
-  let b3 := m (a ^+ $2) in
-  let b4 := m (a ^+ $3) in
-    combine (combine b1 b2) (combine b3 b4).
-
-Theorem readWordFootprint : forall m m' a a',
-  m a = m' a'
-  -> m (a ^+ $1) = m' (a' ^+ $1)
-  -> m (a ^+ $2) = m' (a' ^+ $2)
-  -> m (a ^+ $3) = m' (a' ^+ $3)
-  -> readWord m a = readWord m' a'.
-  unfold readWord; congruence.
-Qed.
-
-Ltac readWrite :=
-  unfold readWord, writeWord, separated, separatedB; intuition;
-    repeat match goal with
-             | [ |- context[if ?E then _ else _] ] => destruct E; try subst; try (tauto
-               || match goal with
-                    | [ _ : ?x = ?y |- _ ] => assert (x <> y) by word_neq; tauto
-                    | [ _ : ?x <> ?y |- _ ] => assert (x = y) by word_eq; tauto
-                  end
-               || solve [ elimtype False; eauto ]);
-             repeat match goal with
-                      | [ H : ?G |- _ ] => let H' := fresh in assert (H' : G) by (clear; solve [ word_neq | word_eq ]); clear H H'
-                    end
-           end; repeat rewrite combine_split; auto.
-
-Theorem readWriteEq : forall m k v, readWord (writeWord m k v) k = v.
-  readWrite.
-Qed.
 
 Theorem wlt_not_refl : forall n (w : word n), w < w -> False.
   unfold wlt; intros; nomega.
@@ -620,41 +574,48 @@ Local Hint Extern 1 False => match goal with
                                | [ H : forall n m : nat, _ |- _ ] => eapply H; [ | | eassumption ]; omega
                              end.
 
-Theorem readWriteNe : forall m k v k', separated k' k
-  -> readWord (writeWord m k v) k' = readWord m k'.
-  readWrite.
-Qed.
-
-Lemma use_separatedB : forall k : W,
-  (forall n, (n < 4)%nat -> k = k ^+ $ n -> False)
-  -> False.
-  intros.
-  apply H with 0; auto.
-  unfold W in *; word_eq.
-Qed.
-
-Local Hint Immediate use_separatedB.
-
-Theorem readWriteNeB : forall m k v k', separatedB k' k
-  -> writeWord m k v k' = m k'.
-  readWrite.
-Qed.
-
-
 (** * Finally, we can create settings for testing. *)
 
-Section testSettings.
+Section LittleEndianSettings.
   Variable memHigh : W.
   Variable m : module.
 
-  Definition testSettings := {|
+(** NOTE: this is little endian *)
+  Definition explode_le (v : W) : B * B * B * B :=
+    let dw1 := split1 16 16 v in
+    let dw2 := split2 16 16 v in
+    let b1 := split1 8 8 dw1 in
+    let b2 := split2 8 8 dw1 in
+    let b3 := split1 8 8 dw2 in
+    let b4 := split2 8 8 dw2 in
+    (b1,b2,b3,b4).
+
+  Definition implode_le (bs : B * B * B * B) : W :=
+    let '(b1,b2,b3,b4) := bs in
+    combine (combine b1 b2) (combine b3 b4).
+
+  Theorem implode_explode_le : forall w,
+    implode_le (explode_le w) = w.
+  Proof.
+    unfold implode_le, explode_le.
+    intros. repeat rewrite combine_split. reflexivity.
+  Qed.
+
+  Theorem explode_implode_le : forall b,
+    explode_le (implode_le b) = b.
+  Proof.
+    unfold implode_le, explode_le.
+    intros. destruct b. destruct p. destruct p.
+    repeat (rewrite split1_combine || rewrite split2_combine).    
+    reflexivity.
+  Qed.
+
+  Definition leSettings := {|
     MemHigh := memHigh;
-    WriteWord := writeWord;
-    ReadWord := readWord;
-    ReadWordFootprint := readWordFootprint;
-    ReadWriteEq := readWriteEq;
-    ReadWriteNe := readWriteNe;
-    ReadWriteNeB := readWriteNeB;
+    implode := implode_le ; 
+    explode := explode_le ;
+    implode_explode := implode_explode_le ;
+    explode_implode := explode_implode_le ;
     Labels := fst (labelsOf (Blocks m))
   |}.
 
@@ -663,12 +624,12 @@ Section testSettings.
   Hypothesis ok : moduleOk m.
 
   Theorem safety : forall l pre bl, LabelMap.find l (Blocks m) = Some (pre, bl)
-    -> forall w, Labels testSettings l = Some w
-      -> forall st, interp (specs m testSettings) (pre (testSettings, st))
-        -> safe testSettings (snd (labelsOf (Blocks m))) (w, st).
+    -> forall w, Labels leSettings l = Some w
+      -> forall st, interp (specs m leSettings) (pre (leSettings, st))
+        -> safe leSettings (snd (labelsOf (Blocks m))) (w, st).
     intros; eapply safety; intuition eauto.
     apply labelsOf_inj with (Blocks m) w0; auto.
     simpl; eapply labelsOf_agree; eauto.
     apply LabelMap.find_2; eauto.
   Qed.
-End testSettings.
+End LittleEndianSettings.
