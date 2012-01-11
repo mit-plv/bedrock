@@ -18,7 +18,7 @@ Definition bedrock_types : list Expr.type :=
 
 Lemma ApplyCancelSep : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types ++ types) (Expr.tvType O) (Expr.tvType 1)),
   (forall cs,
-    match SEP.CancelSep cs nil l r with
+    match SEP.CancelSep nil l r with
       | {| SEP.vars := vars; 
            SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
            SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
@@ -35,6 +35,7 @@ Lemma ApplyCancelSep : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types
 Proof.
   unfold Himp. intros. specialize (H specs). 
   apply SEP.ApplyCancelSep in H. unfold SEP.himp in *. assumption.
+  simpl; tauto.
 Qed.
 
 
