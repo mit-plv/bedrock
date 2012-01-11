@@ -54,7 +54,7 @@ Section Env.
   Parameter ex : forall {sos} (T : Type) (p : T -> hprop pcType stateType sos),
     hprop pcType stateType sos.
 
-  Parameter hptsto : forall {sos} (p : H.addr) (v : H.byte),
+  Parameter hptsto : forall {sos} (p : H.addr) (v : B),
     hprop pcType stateType sos.
 
   (* satisfies lemmas *)
@@ -243,7 +243,7 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Definition ex sos (T : Type) (p : T -> hprop sos) : hprop sos :=
       fun s h => PropX.Exists (fun t => p t s h).
 
-    Definition hptsto sos (p : H.addr) (v : H.byte) : hprop sos :=
+    Definition hptsto sos (p : H.addr) (v : B) : hprop sos :=
       fun s h => 
         PropX.Inj (HT.smem_get p h = Some v /\ forall p', p' <> p -> HT.smem_get p' h = None).
     
