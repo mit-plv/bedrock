@@ -1,18 +1,18 @@
-Require Import Classes.RelationClasses.
-Require Import Classes.Morphisms.
 Require Import Setoid.
 Require Import Env.
+Require Import Word.
+
+Definition B := word 8.
 
 Require Import List.
 
 Module Type Heap.
   
   Parameter addr : Type.
-  Parameter byte : Type.
 
   Parameter mem : Type.
 
-  Parameter mem_get : mem -> addr -> option byte.
+  Parameter mem_get : mem -> addr -> option B.
 
   Parameter addr_dec : forall a b : addr, {a = b} + {a <> b}.
 
@@ -26,7 +26,7 @@ End Heap.
 Module HeapTheory (B : Heap).
   Import B.
 
-  Definition smem' dom : Type := hlist (fun _ : addr => option byte) dom.
+  Definition smem' dom : Type := hlist (fun _ : addr => option B) dom.
 
   Fixpoint smem_emp' (ls : list addr) : smem' ls :=
     match ls with
@@ -52,8 +52,8 @@ Module HeapTheory (B : Heap).
         (join' _ (hlist_tl m1) (hlist_tl m2))
     end.
   
-  Fixpoint smem_get' dom : addr -> smem' dom -> option byte :=
-    match dom as dom return addr -> smem' dom -> option byte with 
+  Fixpoint smem_get' dom : addr -> smem' dom -> option B :=
+    match dom as dom return addr -> smem' dom -> option B with 
       | nil => fun _ _ => None
       | a :: b => fun a' m =>
         if addr_dec a a' then 
@@ -62,8 +62,8 @@ Module HeapTheory (B : Heap).
           smem_get' b a' (hlist_tl m)
     end.
 
-  Fixpoint smem_set' dom : addr -> byte -> smem' dom -> smem' dom :=
-    match dom as dom return addr -> byte -> smem' dom -> smem' dom with 
+  Fixpoint smem_set' dom : addr -> B -> smem' dom -> smem' dom :=
+    match dom as dom return addr -> B -> smem' dom -> smem' dom with 
       | nil => fun _ _ _ => HNil
       | a :: b => fun p v m =>
         if addr_dec a p then

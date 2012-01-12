@@ -263,6 +263,20 @@ Section env.
         | Func f args => Func f (map (exprSubstU a b c) args)
       end.
 
+  Section Provable.
+    Definition Provable (e : expr) : Prop :=
+      match exprD e tvProp with
+        | None => False
+        | Some p => p
+      end.
+    
+    Fixpoint AllProvable (es : list expr) : Prop :=
+      match es with
+        | nil => True
+        | e :: es => Provable e /\ AllProvable es
+      end.
+  End Provable.
+
 End env.
 
 Implicit Arguments Const [ types t ].
