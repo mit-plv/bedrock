@@ -125,7 +125,7 @@ Theorem factProgOk : moduleOk factProg.
   link factOk factDriverOk.
 Qed.
 
-Definition factSettings := testSettings (NToWord _ 1024) factProg.
+Definition factSettings := leSettings (NToWord _ 1024) factProg.
 Definition factProgram := snd (labelsOf (XCAP.Blocks factProg)).
 
 Transparent natToWord.
