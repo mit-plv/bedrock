@@ -263,31 +263,79 @@ Qed.
 Record settings := {
   MemHigh : W;
   (* The first non-addressable RAM address *)
-  WriteWord : mem -> W -> W -> mem;
-  ReadWord : mem -> W -> W;
-  (* Word-size memory access operations, which encode the endianness *)
-  ReadWordFootprint : forall m m' a a',
-    m a = m' a'
-    -> m (a ^+ $1) = m' (a' ^+ $1)
-    -> m (a ^+ $2) = m' (a' ^+ $2)
-    -> m (a ^+ $3) = m' (a' ^+ $3)
-    -> ReadWord m a = ReadWord m' a';
-  ReadWriteEq : forall m k v, ReadWord (WriteWord m k v) k = v;
-  ReadWriteNe : forall m k v k', separated k' k
-    -> ReadWord (WriteWord m k v) k' = ReadWord m k';
-  ReadWriteNeB : forall m k v k', separatedB k' k
-    -> WriteWord m k v k' = m k';
-  (* Our only assumptions about the behavior of [WriteWord] and [ReadWord] *)
+  implode : B * B * B * B -> W ;
+  explode : W -> B * B * B * B ;
+  (* conversion for reading words *)
+
+  implode_explode : forall w,
+    implode (explode w) = w ;
+  explode_implode : forall b,
+    explode (implode b) = b ;
+
   Labels : label -> option W
   (* Locations of basic blocks *)
 }.
 
-Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = v.
-  intros; subst; apply ReadWriteEq.
-Qed.
+Definition ReadWord (s : settings) (m : mem) (a : W) : W :=
+  let v1 := m a in
+  let v2 := m (a ^+ $1) in
+  let v3 := m (a ^+ $2) in
+  let v4 := m (a ^+ $3) in
+  implode s (v1, v2, v3, v4).
+
+Definition WriteWord (s : settings) (m : mem) (p v : W) : mem :=
+  let '(v1,v2,v3,v4) := explode s v in
+  fun p' =>
+    if weq p' p then v1 
+    else if weq p' (p ^+ $1) then v2
+         else if weq p' (p ^+ $2) then v3
+              else if weq p' (p ^+ $3) then v4
+                   else m p'.
 
 Ltac W_eq := wprepare; word_eq.
 Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
+
+
+Theorem ReadWriteEq : forall stn m k v, ReadWord stn (WriteWord stn m k v) k = v.
+Proof.
+  unfold ReadWord, WriteWord. intros.
+  case_eq (explode stn v). destruct p. destruct p.
+  repeat rewrite (rewrite_weq (refl_equal _)).
+  repeat match goal with
+           | [ |- context [ weq ?X ?Y ] ] => 
+             let Z := fresh in destruct (weq X Y) as [ Z | ? ]; [ exfalso; generalize Z; W_neq | ]
+         end.
+  intros. rewrite <- H. apply implode_explode.
+Qed.
+
+Theorem ReadWriteNe : forall stn m k v k', separated k' k
+  -> ReadWord stn (WriteWord stn m k v) k' = ReadWord stn m k'.
+Proof.
+  unfold ReadWord, WriteWord; intros.
+  case_eq (explode stn v); intros. destruct p. destruct p.
+  assert (k' = k' ^+ $(0)). W_eq.
+  assert (k = k ^+ $(0)). W_eq.
+  repeat match goal with
+    | [ |- context [ weq ?X ?Y ] ] => 
+      let Z := fresh in destruct (weq X Y) as [ Z | ? ]; 
+        [ exfalso ; (apply H in Z || (rewrite H1 in Z; apply H in Z) || (rewrite H2 in Z; apply H in Z) || (rewrite H1 in Z; rewrite H2 in Z; apply H in Z)); auto; omega |  ]  
+  end.
+  reflexivity.
+Qed.  
+
+Theorem ReadWordFootprint : forall stn m m' a a',
+  m a = m' a'
+  -> m (a ^+ $1) = m' (a' ^+ $1)
+  -> m (a ^+ $2) = m' (a' ^+ $2)
+  -> m (a ^+ $3) = m' (a' ^+ $3)
+  -> ReadWord stn m a = ReadWord stn m' a'.
+Proof.
+  unfold ReadWord. intros. congruence.
+Qed. 
+
+Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = v.
+  intros; subst; apply ReadWriteEq.
+Qed.
 
 Hint Rewrite ReadWriteEq' using W_eq : IL.
 Hint Rewrite ReadWriteNe using solve [ auto ] : IL.

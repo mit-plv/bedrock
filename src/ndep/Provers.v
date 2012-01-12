@@ -9,19 +9,29 @@ Notation "[ a ,  b ,  c ]" := (a :: b :: c :: nil).
 Notation "[ a ,  b ,  c ,  d ]" := (a :: b :: c :: d :: nil).
 
 Section ProverT.
-  Context {types : list type}.
+  Variable types : list type.
   Variable fs : functions types.
 
-  Definition FalseDefault (e : expr types) : Type :=
-    match @exprD types fs nil nil e tvProp with
-      | None => False
-      | Some p => p
-    end.
-  
-  Definition ProverT : Type := list (@expr types) -> @expr types -> bool.
-  Definition ProverCorrect prover :=
-    forall (hyps : list (expr types)) (goal : expr types),
-      prover hyps goal = true -> FalseDefault goal.
+  Definition ProverT : Type := forall 
+    (hyps : list (@expr types))
+    (goal : @expr types),
+    AllProvable fs nil nil hyps ->
+    option (Provable fs nil nil goal).
+  (* It actually might be more correct for this to be 
+   * option (AllProvable fs nil nil hyps -> Provable fs nil nil goal) 
+   * but that is harder to program with
+   *)
+
+  (* the non-dependent prover should be *)
+  Record NProverT : Type :=
+  { prove : forall  (hyps : list (@expr types)) (goal : @expr types), bool
+  ; prove_correct : 
+    forall hyps goal, 
+    prove hyps goal = true ->
+    AllProvable fs nil nil hyps ->
+    Provable fs nil nil goal
+  }.
+
 End ProverT.
 
 Definition eq_dec_to_seq_dec A (d : forall x y : A, { x = y } + { ~ x = y }) x y : option (x = y)
@@ -62,15 +72,17 @@ Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
 
-  Fixpoint assumptionProver hyps (goal : expr types) : hlist (FalseDefault fs) hyps -> option (FalseDefault fs goal) :=
+  Fixpoint assumptionProver hyps (goal : expr types) 
+    : AllProvable fs nil nil hyps 
+    -> option (Provable fs nil nil goal) :=
     match hyps with
       | nil => fun _ => None
-      | exp :: b => fun pfHyps =>
+      | exp :: b => fun pfHyps : AllProvable fs nil nil (exp :: b) =>
         match seq_dec exp goal with
-          | Some pf => Some match pf in _ = t return FalseDefault fs t with
-                              | refl_equal => hlist_hd pfHyps
+          | Some pf => Some match pf in _ = t return Provable fs nil nil t with
+                              | refl_equal => proj1 pfHyps
                             end
-          | None => assumptionProver b goal (hlist_tl pfHyps)
+          | None => assumptionProver b goal (proj2 pfHyps)
         end
     end.
 End AssumptionProver.
