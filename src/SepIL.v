@@ -160,12 +160,7 @@ Definition ptsto8 sos : W -> B -> hpropB sos :=
 
 Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope.
 
-Definition implode (stn : settings) (b0 b1 b2 b3 : B) (w : W) :=
-  ReadWord stn (fun a => if weq a ($0) then b0
-    else if weq a ($1) then b1
-      else if weq a ($2) then b2
-        else b3) ($0) = w.
-
+(* This breaks the hprop abstraction because it needs access to 'settings' *)
 Definition ptsto32 sos (a v : W) : hpropB sos :=
   (fun stn sm => [| exists b0, exists b1, exists b2, exists b3,
     smem_get a sm = Some b0
@@ -173,7 +168,7 @@ Definition ptsto32 sos (a v : W) : hpropB sos :=
     /\ smem_get (a ^+ $2) sm = Some b2
     /\ smem_get (a ^+ $3) sm = Some b3
     /\ (forall a', a' <> a -> a' <> a ^+ $1 -> a' <> a ^+ $2 -> a' <> a ^+ $3 -> smem_get a' sm = None)
-    /\ implode stn b0 b1 b2 b3 v |])%PropX.
+    /\ implode stn (b0, b1, b2, b3) = v |])%PropX.
 
 Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 
@@ -478,7 +473,7 @@ Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
       /\ smem_get (a ^+ $1) sm = Some b1
       /\ smem_get (a ^+ $2) sm = Some b2
       /\ smem_get (a ^+ $3) sm = Some b3
-      /\ implode stn b0 b1 b2 b3 v.
+      /\ implode stn (b0, b1, b2, b3) = v.
 
 Theorem findPtsto32_gotIt : forall stn a v,
   findPtsto32 stn (ptsto32 _ a v) a v.
@@ -519,12 +514,11 @@ Theorem findPtsto32_read : forall specs p stn st,
     -> ReadWord stn (Mem st) a = v.
   rewrite sepFormula_eq; intros.
   apply H0 in H; clear H0; propxFo.
-  red in H4.
-  match type of H4 with
-    | ReadWord _ ?m _ = _ => pose (m' := m)
-  end.
-  rewrite ReadWordFootprint with stn (Mem st) m' a ($0); subst m'; simpl; eauto;
-    eapply smem_get_read; eauto.
+  unfold ReadWord. simpl in *.
+  repeat match goal with
+           | [ H : _ |- _ ] => apply smem_get_read in H; rewrite H
+         end.
+  auto.
 Qed.
 
 

@@ -10,6 +10,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (*
+
+(*
 Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTheoryXType B).
   
   Module Import SEP := SepExpr B ST.
@@ -33,7 +35,7 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
         option (list (expr types))
     ; sym_read_correct : forall funcs args uvars vars P cs hyps pe ve m s,
       sym_read hyps args pe = Some ve ->
-      hlist (FalseDefault funcs) hyps ->
+      AllProvable funcs nil nil hyps ->
       match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate) with
         | None => False
         | Some p => ST.satisfies cs (ST.star p P) s m
@@ -45,7 +47,7 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
       end
     ; sym_write_correct : forall funcs args uvars vars P cs hyps pe ve v m s args',
       sym_write hyps args pe ve = Some args' ->
-      hlist (FalseDefault funcs) hyps ->
+      AllProvable funcs nil nil hyps ->
       exprD funcs uvars vars ve pcType = Some v ->
       match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate) with
         | None => False
@@ -685,5 +687,7 @@ End Evaluator.
       |}.
 
   End  ptsto32_sym_eval.
+
+*)
 
 *)
