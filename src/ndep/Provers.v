@@ -3,27 +3,62 @@ Require Import Bedrock.ndep.Expr.
 Require Import EquivDec.
 Require Import Env.
 
+Notation "[ a ]" := (a :: nil).
+Notation "[ a ,  b ]" := (a :: b :: nil).
+Notation "[ a ,  b ,  c ]" := (a :: b :: c :: nil).
+Notation "[ a ,  b ,  c ,  d ]" := (a :: b :: c :: d :: nil).
+
 Section ProverT.
   Context {types : list type}.
   Variable fs : functions types.
-
 
   Definition FalseDefault (e : expr types) : Type :=
     match @exprD types fs nil nil e tvProp with
       | None => False
       | Some p => p
     end.
-
-  Definition ProverT : Type := forall 
-    (hyps : list (@expr types))
-    (goal : @expr types),
-    hlist FalseDefault hyps ->
-    option (FalseDefault goal).
   
+  Definition ProverT : Type := list (@expr types) -> @expr types -> bool.
+  Definition ProverCorrect prover :=
+    forall (hyps : list (expr types)) (goal : expr types),
+      prover hyps goal = true -> FalseDefault goal.
 End ProverT.
 
+Definition eq_dec_to_seq_dec A (d : forall x y : A, { x = y } + { ~ x = y }) x y : option (x = y)
+  := match (d x y) with
+       | left pf => Some pf
+       | right _ => None
+     end.
+Implicit Arguments eq_dec_to_seq_dec [A].
 
-Section Prover.
+Require Import Arith Bool.
+Definition type_nat := {| Expr.Eq := eq_dec_to_seq_dec eq_nat_dec |}.
+Definition type_bool := {| Expr.Eq := eq_dec_to_seq_dec bool_dec |}.
+Definition type_list_bool := {| Expr.Eq := eq_dec_to_seq_dec (list_eq_dec bool_dec) |}.
+Definition test_types := [type_nat, type_bool, type_list_bool].
+(* 0 => nat, 1 => bool, 2 => list bool *)
+Definition tvar_nat := tvType 0.
+Definition tvar_bool := tvType 1.
+Definition tvar_list_bool := tvType 2.
+Definition tvar_empty := tvType 3.
+Check Build_signature.
+Definition test_eq_sig := Build_signature test_types [tvar_nat, tvar_nat] tvar_bool beq_nat.
+Definition test_plus_sig := Build_signature test_types [tvar_nat, tvar_nat] tvar_nat plus.
+Fixpoint bin_to_nat (ls : list bool) : nat :=
+  match ls with
+    | nil => 0
+    | false :: ls' => 2 * (bin_to_nat ls')
+    | true :: ls' => S (2 * (bin_to_nat ls'))
+  end.
+Definition test_bin_to_nat_sig := Build_signature test_types [tvar_list_bool] tvar_nat bin_to_nat.
+Definition test_constant_false_sig := Build_signature test_types [tvar_empty] tvar_bool (fun _ => false).
+Definition test_functions := [test_eq_sig, test_plus_sig, test_bin_to_nat_sig, test_constant_false_sig].
+(* 0 => eq, 1 => plus, 2 => bin_to_nat, 3 => fun _ => false *)
+Eval compute in (Denotation test_eq_sig).
+Eval compute in (functionTypeD (map (tvarD test_types) (Domain test_eq_sig))
+         (tvarD test_types (Range test_eq_sig))).
+
+Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
 
@@ -38,7 +73,37 @@ Section Prover.
           | None => assumptionProver b goal (hlist_tl pfHyps)
         end
     end.
-End Prover.
+End AssumptionProver.
+
+Section ReflexivityProver.
+  Context {types : list type}.
+  Variable fs : functions types.
+  Variable eqFun : func.
+  
+  Definition reflexivityProver : (@ProverT types) := fun hyps goal => 
+    match goal with
+      | Func f [x, y] => if equiv_dec f eqFun
+                           then if expr_seq_dec x y then true else false
+                           else false
+      | _ => false
+    end.
+
+  Check (nth_error test_functions 0).
+
+  Ltac caseDestruct t := destruct t; try discriminate.
+  Theorem reflexivityProverOk : ProverCorrect fs reflexivityProver.
+    unfold ProverCorrect.
+    intros.
+    unfold FalseDefault.
+    unfold reflexivityProver in H.
+    caseDestruct goal.
+    repeat caseDestruct l.
+    caseDestruct (equiv_dec f eqFun).
+    unfold equiv in *.
+    caseDestruct (expr_seq_dec e e0).
+  Qed.
+  
+End ReflexivityProver.
 
 Section BabyOmega.
   Context {types : list type}.
