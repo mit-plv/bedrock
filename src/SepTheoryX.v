@@ -553,8 +553,6 @@ Module SepTheoryX_Rewrites (H : Heap) (Import ST : SepTheoryXType H).
       intros. intro. repeat (etransitivity; eauto).
     Qed.
 
-    About satisfies.
-
     Global Add Parametric Morphism : (satisfies cs) with
       signature (heq cs ==> @eq _ ==> @eq _ ==> Basics.impl)
     as heq_satsifies_mor.

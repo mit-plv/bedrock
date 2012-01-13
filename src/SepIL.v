@@ -120,11 +120,30 @@ Qed.
 
 Module BedrockHeap.
   Definition addr := W.
-  Definition byte := B.
 
   Definition mem := mem.
 
   Definition mem_get (m : mem) (a : addr) := Some (m a).
+
+  Definition mem_set (m : mem) (p : addr) (v : B) := 
+    fun p' => if weq p p' then v else m p'.
+
+  Theorem mem_get_set_eq : forall m p v v', 
+    mem_get m p = Some v ->
+    mem_get (mem_set m p v') p = Some v'.
+  Proof.
+    unfold mem_set, mem_get. inversion 1; auto.
+    destruct (weq p p); auto. congruence.
+  Qed.
+    
+  Theorem mem_get_set_neq : forall m p p' v v', 
+    p <> p' ->
+    mem_get m p = Some v ->
+    mem_get (mem_set m p' v') p = Some v.
+  Proof.
+    unfold mem_set, mem_get; inversion 2; auto.
+    destruct (weq p' p); auto. congruence.
+  Qed.
 
   Definition addr_dec := @weq 32.
 
