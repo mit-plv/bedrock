@@ -145,6 +145,17 @@ Module BedrockHeap.
     destruct (weq p' p); auto. congruence.
   Qed.
 
+  Definition footprint_w (p : addr) : addr * addr * addr * addr :=
+    (p , p ^+ $1 , p ^+ $2 , p ^+ $3).
+
+  Theorem footprint_disjoint : forall p a b c d,
+    footprint_w p = (a,b,c,d) ->
+    a <> b /\ a <> c /\ a <> d /\ b <> c /\ b <> d /\ c <> d.
+  Proof.
+    unfold footprint_w. inversion 1. clear.
+    repeat split; W_neq.
+  Qed.
+
   Definition addr_dec := @weq 32.
 
   Definition all_addr := allWords 32.

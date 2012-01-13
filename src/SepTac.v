@@ -31,9 +31,9 @@ Lemma ApplyCancelSep : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types
                 (fun rhs_ex0 : Expr.env (bedrock_types ++ types) =>
                  SEP.himp funcs sfuncs nil rhs_ex0 VS cs lhs rhs))
     end) ->
-  (@SEP.sexprD _ funcs _ _ sfuncs l nil nil)
+  (@SEP.sexprD _ funcs _ _ sfuncs nil nil l)
   ===>
-  (@SEP.sexprD _ funcs _ _ sfuncs r nil nil).
+  (@SEP.sexprD _ funcs _ _ sfuncs nil nil r).
 Proof.
   unfold Himp. intros. specialize (H specs). 
   apply SEP.ApplyCancelSep in H. unfold SEP.himp in *. assumption.
@@ -44,9 +44,9 @@ Qed.
 Lemma Himp_to_SEP_himp : forall types funcs sfuncs 
   (l r : @SEP.sexpr (bedrock_types ++ types) (Expr.tvType 0) (Expr.tvType 1)),
   (forall cs, SEP.himp funcs sfuncs nil nil nil cs l r) ->
-  (@SEP.sexprD _ funcs _ _ sfuncs l nil nil)
+  (@SEP.sexprD _ funcs _ _ sfuncs nil nil l)
   ===>
-  (@SEP.sexprD _ funcs _ _ sfuncs r nil nil).
+  (@SEP.sexprD _ funcs _ _ sfuncs nil nil r).
 Proof.
   unfold Himp, SEP.himp. intuition.
 Qed.

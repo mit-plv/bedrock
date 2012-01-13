@@ -3,6 +3,7 @@ Require Import DepList.
 Require Import Word.
 
 Definition B := word 8.
+Definition W := word 32.
 
 Require Import List.
 
@@ -23,6 +24,12 @@ Module Type Heap.
     p <> p' ->
     mem_get m p = Some v ->
     mem_get (mem_set m p' v') p = Some v.
+
+  Parameter footprint_w : addr -> addr * addr * addr * addr.
+  
+  Parameter footprint_disjoint : forall p a b c d,
+    footprint_w p = (a,b,c,d) ->
+    a <> b /\ a <> c /\ a <> d /\ b <> c /\ b <> d /\ c <> d.
 
   Parameter addr_dec : forall a b : addr, {a = b} + {a <> b}.
 
@@ -101,55 +108,35 @@ Module HeapTheory (B : Heap).
 
   Definition smem_set := @smem_set' all_addr.
 
-(*
-  Section MultiByte.
-    Fixpoint tuple (T : Type) (n : nat) : Type :=
-      match n with
-        | 0 => unit
-        | S n => T * tuple T n
-      end%type.
+  Definition smem_get_word (implode : B * B * B * B -> W) (p : addr) (m : smem)
+    : option W :=
+    let '(a,b,c,d) := footprint_w p in
+    match smem_get a m , smem_get b m , smem_get c m , smem_get d m with
+      | Some a , Some b , Some c , Some d =>
+        Some (implode (a,b,c,d))
+      | _ , _ , _ , _ => None
+    end.
 
-    Record MultiByte (T : Type) :=
-    { size  : nat
-    ; footprint : addr -> tuple addr size
-    ; implode : tuple B size -> T
-    ; explode : T -> tuple B size
-    }.
+  Definition smem_set_word (explode : W -> B * B * B * B) (p : addr) (v : W)
+    (m : smem) : smem :=
+    let '(a,b,c,d) := footprint_w p in
+    let '(av,bv,cv,dv) := explode v in
+    smem_set a av (smem_set b bv (smem_set c cv (smem_set d dv m))).
 
-    Fixpoint getAll (m : smem) (n : nat) {struct n} : tuple addr n -> option (tuple B n) :=
-      match n with
-        | 0 => fun _ => Some tt
-        | S n => fun (p : addr * tuple addr n) =>
-          match smem_get (fst p) m with
-            | None => None
-            | Some v =>
-              match getAll m n (snd p) with
-                | Some v' => Some (v,v')
-                | _ => None
-              end
-          end
-      end.
+  Definition mem_get_word (implode : B * B * B * B -> W) (p : addr) (m : mem)
+    : option W :=
+    let '(a,b,c,d) := footprint_w p in
+    match mem_get m a , mem_get m b , mem_get m c , mem_get m d with
+      | Some a , Some b , Some c , Some d =>
+        Some (implode (a,b,c,d))
+      | _ , _ , _ , _ => None
+    end.
 
-    Fixpoint setAll (m : smem) (n : nat) {struct n} : tuple addr n -> tuple B n -> smem :=
-      match n as n return tuple addr n -> tuple B n -> smem with
-        | 0 => fun _ _ => m
-        | S n => fun (p : addr * tuple addr n) (v : B * tuple B n) =>
-          let m := smem_set (fst p) (fst v) m in
-          setAll m n (snd p) (snd v)
-      end.
-
-    Definition smem_get_mb T (mb : MultiByte T) (p : addr) (m : smem)
-      : option T :=
-      match @getAll m (size _ mb) (footprint _ mb p) with
-        | None => None
-        | Some v => Some (implode _ mb v)
-      end.
-
-    Definition smem_set_mb T (mb : MultiByte T) (p : addr) (v : T) (m : smem)
-      : smem :=
-      setAll m (size _ mb) (footprint _ mb p) (explode _ mb v).
-  End MultiByte.
-*)
+  Definition mem_set_word (explode : W -> B * B * B * B) (p : addr) (v : W)
+    (m : mem) : mem :=
+    let '(a,b,c,d) := footprint_w p in
+    let '(av,bv,cv,dv) := explode v in
+    mem_set (mem_set (mem_set (mem_set m d dv) c cv) b bv) a av.
 
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
@@ -184,18 +171,95 @@ Module HeapTheory (B : Heap).
       eapply IHl; eauto.
   Qed.
 
+  Lemma satisfies_set_not_in : forall l m sm p v,
+    satisfies' l sm m ->
+    ~In p l ->
+    satisfies' l sm (mem_set m p v).
+  Proof.
+    induction l; simpl; intros.
+    rewrite (hlist_nil_only _ sm). simpl. auto.
+
+    rewrite (hlist_eta _ sm).
+    rewrite (hlist_eta _ sm) in H.
+    simpl in *. split.
+    destruct (hlist_hd sm); eauto. erewrite mem_get_set_neq; eauto.
+    tauto.
+
+    eapply IHl; eauto. tauto.
+  Qed.
+
   Theorem satisfies_set : forall m m',
     satisfies m m' ->
-    forall p v,
+    forall p v v',
+      smem_get p m = Some v' ->
       satisfies (smem_set p v m) (mem_set m' p v).
   Proof.
-    unfold satisfies, smem_set, smem.
+    unfold satisfies, smem_set, smem_get, smem.
+    generalize NoDup_all_addr.
     induction all_addr; simpl; intros.
       auto.
-      destruct (addr_dec a p).
-      rewrite (hlist_eta _ m) in H.
+      rewrite (hlist_eta _ m) in H0. inversion H; subst.
       subst; simpl in *.
-  Admitted. (** TODO : need to think more about this **)
+      destruct (addr_dec a p); subst.
+      rewrite H1 in *. simpl. intuition.
+      erewrite mem_get_set_eq; eauto.
+      eapply satisfies_set_not_in; eauto.
+
+      (** **)
+      simpl in *. destruct (hlist_hd m); intuition (eauto 10).
+      erewrite mem_get_set_neq; eauto.
+  Qed.
+
+  Theorem satisfies_get_word : forall i m m',
+    satisfies m m' ->
+    forall p v, 
+      smem_get_word i p m = Some v ->
+      mem_get_word i p m' = Some v.
+  Proof.
+    unfold mem_get_word, smem_get_word; intros.
+    destruct (footprint_w p). destruct p0. destruct p0.
+    intros. generalize dependent H0.
+    repeat match goal with
+             | [ H' : satisfies _ _ |- context [ smem_get ?B ?C ] ] =>
+               case_eq (smem_get B C); [ intro; let H := fresh in 
+                 intro H; rewrite (@satisfies_get _ _ H' _ _ H) | congruence ]
+           end; auto.
+  Qed.
+
+  Theorem satisfies_set_word : forall m m',
+    satisfies m m' ->
+    forall i e p v v',
+      smem_get_word i p m = Some v' ->
+      satisfies (smem_set_word e p v m) (mem_set_word e p v m').
+  Proof.
+    unfold smem_set_word, mem_set_word, smem_get_word; intros.
+    generalize (footprint_disjoint p). 
+    destruct (footprint_w p). destruct p0. destruct p0.
+    destruct (e v). destruct p0. destruct p0.
+    intros. specialize (H1 _ _ _ _ (refl_equal _)). intuition.  
+    generalize dependent H0.    
+    repeat match goal with
+             | [ H' : satisfies _ _ |- context [ smem_get ?B ?C ] ] =>
+               case_eq (smem_get B C); [ do 2 intro | congruence ]
+           end; auto.
+    intro X; clear X.
+    Lemma smem_set_get_neq : forall p m v a b,
+      a <> p ->
+      smem_get p m = Some v ->
+      smem_get p (smem_set a b m) = Some v.
+    Proof.
+      unfold smem, smem_get, smem_set.
+      induction all_addr; simpl; intros; try congruence.
+      destruct (addr_dec a p); destruct (addr_dec a a0); subst; simpl; eauto.
+      exfalso; auto.
+    Qed.
+    repeat match goal with
+      | [ |- satisfies (smem_set ?A ?B ?M) (mem_set ?M' ?A ?B) ] =>
+      eapply satisfies_set; [ |
+        repeat (erewrite smem_set_get_neq; [ reflexivity | eauto | try eassumption ])
+      ]
+    end; eauto.
+  Qed.
 
   Theorem satisfies_split : forall m m',
     satisfies m m' ->
