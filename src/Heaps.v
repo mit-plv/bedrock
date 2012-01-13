@@ -13,6 +13,16 @@ Module Type Heap.
   Parameter mem : Type.
 
   Parameter mem_get : mem -> addr -> option B.
+  Parameter mem_set : mem -> addr -> B -> mem.
+
+  Parameter mem_get_set_eq : forall m p v v', 
+    mem_get m p = Some v ->
+    mem_get (mem_set m p v') p = Some v'.
+
+  Parameter mem_get_set_neq : forall m p p' v v', 
+    p <> p' ->
+    mem_get m p = Some v ->
+    mem_get (mem_set m p' v') p = Some v.
 
   Parameter addr_dec : forall a b : addr, {a = b} + {a <> b}.
 
@@ -173,6 +183,19 @@ Module HeapTheory (B : Heap).
       destruct H.
       eapply IHl; eauto.
   Qed.
+
+  Theorem satisfies_set : forall m m',
+    satisfies m m' ->
+    forall p v,
+      satisfies (smem_set p v m) (mem_set m' p v).
+  Proof.
+    unfold satisfies, smem_set, smem.
+    induction all_addr; simpl; intros.
+      auto.
+      destruct (addr_dec a p).
+      rewrite (hlist_eta _ m) in H.
+      subst; simpl in *.
+  Admitted. (** TODO : need to think more about this **)
 
   Theorem satisfies_split : forall m m',
     satisfies m m' ->

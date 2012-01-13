@@ -157,13 +157,14 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable sfuncs : list (ssignature types (tvType pcIndex) (tvType stateIndex)).
 
     Section search_read.
-      Variable F : forall T, SymEval_byte T -> list (expr types) -> option (expr types).
+      Variable T : Type.
+      Variable F : forall s, SymEval_byte s -> list (expr types) -> option T.
 
       Section arg.
-        Variable T : ssignature types (tvType pcIndex) (tvType stateIndex).
-        Variable se : SymEval_byte T.
+        Variable ss : ssignature types (tvType pcIndex) (tvType stateIndex).
+        Variable se : SymEval_byte ss.
         
-        Fixpoint fold_args (es : list (list (expr types))) : option (expr types) :=
+        Fixpoint fold_args (es : list (list (expr types))) : option T :=
           match es with 
             | nil => None
             | a :: b => 
@@ -193,13 +194,13 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                                 | None => Empty_set 
                                 | Some ss => SymEval_byte ss
                               end) k
-        -> option (expr types) :=
+        -> option T :=
         match k as k 
           return hlist (fun n : nat => match nth_error sfuncs n with
                                          | None => Empty_set 
                                          | Some ss => SymEval_byte ss
                                        end) k
-                 -> option (expr types)
+                 -> option T
           with
           | nil => fun _ => None
           | a :: b => fun ss =>
@@ -210,7 +211,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                   return match ss with
                            | None => Empty_set 
                            | Some ss => SymEval_byte ss
-                         end -> option (expr types)
+                         end -> option T
                   with
                   | Some _ => fun se =>
                     match fold_args se argss with
@@ -323,6 +324,146 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       eapply ST.satisfies_star in H. do 2 destruct H. intuition.
       eapply ST.satisfies_pure in H0. PropXTac.propxFo.
     Qed.
+
+    Section search_write.
+      Variable T : Type.
+      Variable F : forall s, SymEval_byte s -> T -> option T.
+
+      Section arg.
+        Variable ss : ssignature types (tvType pcIndex) (tvType stateIndex).
+        Variable se : SymEval_byte ss.
+        
+        Fixpoint fold_args_update (es : list T) : option (list T) :=
+          match es with 
+            | nil => None
+            | a :: b => 
+              match F se a with
+                | None => match fold_args_update b with
+                            | None => None
+                            | Some b => Some (a :: b)
+                          end
+                | Some r => Some (r :: b)
+              end
+          end.
+        
+        Theorem fold_args_update_correct : forall es es',
+          fold_args_update es = Some es' ->
+          exists pre, exists post, exists k, exists k',
+            es = pre ++ k :: post /\
+            F se k = Some k' /\
+            es' = pre ++ k' :: post.
+        Proof.
+          clear. induction es.
+          simpl; congruence.
+          simpl. case_eq (F se a); intros.
+          inversion H0. subst. do 4 eexists; intuition eauto.
+          instantiate (2 := nil). reflexivity. reflexivity.
+
+          generalize dependent H0.
+          case_eq (fold_args_update es); intros.
+          inversion H1; subst. eapply IHes in H0.
+          do 4 destruct H0. exists (a :: x). exists x0.
+          eexists; eexists; intuition; subst; eauto. reflexivity.
+
+          congruence.
+        Qed.          
+      End arg.
+
+      Variable impures : FM.t (list T).
+
+      Fixpoint fold_known_update (k : list nat) :
+        hlist (fun n : nat => match nth_error sfuncs n with
+                                | None => Empty_set 
+                                | Some ss => SymEval_byte ss
+                              end) k
+        -> option (FM.t (list T)) :=
+        match k as k 
+          return hlist (fun n : nat => match nth_error sfuncs n with
+                                         | None => Empty_set 
+                                         | Some ss => SymEval_byte ss
+                                       end) k
+                 -> option (FM.t (list T))
+          with
+          | nil => fun _ => None
+          | a :: b => fun ss =>
+            match FM.find a impures with
+              | None => fold_known_update (hlist_tl ss)
+              | Some argss =>
+                match nth_error sfuncs a as ss
+                  return match ss with
+                           | None => Empty_set 
+                           | Some ss => SymEval_byte ss
+                         end -> option (FM.t (list T))
+                  with
+                  | Some _ => fun se =>
+                    match fold_args_update se argss with
+                      | None => fold_known_update (hlist_tl ss)
+                      | Some r => Some (FM.add a r impures) (* this is a replace *)
+                    end
+                  | None => fun err => match err with end
+                end (hlist_hd ss)
+            end
+        end.
+      
+      Theorem fold_known_update_correct : forall k
+        (h : hlist (fun n : nat => match nth_error sfuncs n with
+                                     | None => Empty_set 
+                                     | Some ss => SymEval_byte ss
+                                   end) k) i',
+        @fold_known_update k h = Some i' ->
+        exists n, exists ss,
+          exists se : SymEval_byte ss, exists ls, exists ls',
+               nth_error sfuncs n = Some ss 
+            /\ FM.find n impures = Some ls 
+            /\ fold_args_update se ls = Some ls'
+            /\ i' = FM.add n ls' impures.
+      Proof.
+        induction k; simpl.
+          congruence.
+          intros h v. specialize (IHk (hlist_tl h) v).
+          rewrite (hlist_eta _ h) in *.
+          generalize dependent (hlist_hd h). simpl.
+          case_eq (FM.find a impures); intros; eauto 10.
+
+          assert (exists k, nth_error sfuncs a = Some k).
+          generalize y. clear.
+          destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
+          destruct H1.
+          generalize dependent y.
+          rewrite H1. intro.
+          case_eq (fold_args_update y l); intros; eauto 10.
+          inversion H2; subst.
+          eauto 10.
+      Qed.
+    End search_write.
+
+    Definition symeval_write_byte (hyps : list (expr types)) (p v : expr types) 
+      (s : SHeap types (tvType pcIndex) (tvType stateIndex))
+      : option (SHeap types (tvType pcIndex) (tvType stateIndex)) :=
+      let hyps := hyps ++ pures s in
+      let writer _ seb args := 
+        sym_write_byte seb hyps args p v
+      in
+      match fold_known_update writer (impures s) evals with
+        | None => None
+        | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
+      end.
+
+    Theorem symeval_write_byte_correct : forall cs stn hyps funcs pe ve s s' uvars vars (m : B.mem),
+      symeval_write_byte hyps pe ve s = Some s' ->
+      AllProvable funcs uvars vars hyps ->
+      (exists sm, 
+           ST.satisfies cs (sexprD funcs sfuncs (sheapD s) uvars vars) stn sm
+        /\ ST.HT.satisfies sm m) ->
+      match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
+        | Some p , Some v =>
+          exists sm, 
+             ST.satisfies cs (sexprD funcs sfuncs (sheapD s') uvars vars) stn sm
+          /\ ST.HT.satisfies sm (B.mem_set m p v)
+        | _ , _ => False
+      end.
+    Proof.
+    Admitted.
 
   End typed.
 End Evaluator.
