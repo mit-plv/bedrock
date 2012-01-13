@@ -61,7 +61,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Definition sexpr := sexpr' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
 
-    Fixpoint sexprD (s : sexpr) (uvs vs : list { t : tvar & tvarD types t })
+    Fixpoint sexprD (uvs vs : list { t : tvar & tvarD types t }) (s : sexpr)
       : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
       match s with 
         | Emp => ST.emp _ _
@@ -71,9 +71,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             | Some p => ST.inj (PropX.Inj p)
           end
         | Star l r =>
-          ST.star (sexprD l uvs vs) (sexprD r uvs vs)
+          ST.star (sexprD uvs vs l) (sexprD uvs vs r)
         | Exists t b =>
-          ST.ex (fun x : tvarD types t => sexprD b uvs (@existT _ _ t x :: vs))
+          ST.ex (fun x : tvarD types t => sexprD uvs (@existT _ _ t x :: vs) b)
         | Func f b =>
           match nth_error sfuncs f with
             | None => ST.inj (PropX.Inj False)
@@ -91,12 +91,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Definition himp (U1 U2 G : env types)
       (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
       (gl gr : sexpr) : Prop :=
-      ST.himp cs (sexprD gl U1 G) (sexprD gr U2 G).
+      ST.himp cs (sexprD U1 G gl) (sexprD U2 G gr).
 
     Definition heq (U1 U2 G : env types)
       (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
       (gl gr : sexpr) : Prop :=
-      ST.heq cs (sexprD gl U1 G) (sexprD gr U2 G).
+      ST.heq cs (sexprD U1 G gl) (sexprD U2 G gr).
 
     Section Facts.
       Variables U G : env types.
@@ -176,6 +176,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         unfold himp; simpl; intros. eapply SEP_FACTS.himp_himp_mor; eauto.
       Qed.
 
+      Global Add Parametric Morphism : (sexprD U G) with 
+        signature (heq U U G cs ==> ST.heq cs)
+        as heq_ST_heq_mor.
+        unfold heq; simpl; auto.
+      Qed.
+
       Lemma heq_star_emp_r : forall P, 
         heq U U G cs (Star P Emp) P.
       Proof.
@@ -224,14 +230,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Theorem ST_himp_himp : forall (U1 U2 G : env types) cs L R,
       himp U1 U2 G cs L R ->
-      ST.himp cs (sexprD L U1 G) (sexprD R U2 G).
+      ST.himp cs (sexprD U1 G L) (sexprD U2 G R).
     Proof.
       clear. auto.
     Qed.
 
     Theorem ST_heq_heq : forall (U1 U2 G : env types) cs L R,
       heq U1 U2 G cs L R ->
-      ST.heq cs (sexprD L U1 G) (sexprD R U2 G).
+      ST.heq cs (sexprD U1 G L) (sexprD U2 G R).
     Proof.
       clear. auto.
     Qed.
@@ -469,11 +475,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Qed.
 
     Lemma sheapD_pures : forall stn sm cs uvars vars h,
-      ST.satisfies cs (sexprD (sheapD h) uvars vars) stn sm ->
+      ST.satisfies cs (sexprD uvars vars (sheapD h)) stn sm ->
       AllProvable funcs uvars vars (pures h).
     Proof.
       intros. eapply ST.satisfies_himp in H.
-      Focus 2. instantiate (1 := (sexprD (sheapD' h) uvars vars)). 
+      Focus 2. instantiate (1 := (sexprD uvars vars (sheapD' h))). 
       match goal with
         | [ |- ?G ] => 
           change G with (himp uvars uvars vars cs (sheapD h) (sheapD' h))
@@ -483,7 +489,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       destruct h. unfold sheapD' in *.
       eapply ST.satisfies_himp in H.
       Focus 2.
-      instantiate (1 := sexprD
+      instantiate (1 := sexprD uvars vars
            (Star
               (starred' (fun x : expr types => Inj x)
                  (pures
@@ -511,10 +517,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     {|
                     impures := impures0;
                     pures := pures0;
-                    other := other0 |}) Emp))) uvars vars).
+                    other := other0 |}) Emp)))).
       match goal with
-        | [ |- ST.himp ?C (sexprD ?L ?U1 ?V) (sexprD ?R ?U2 ?V) ] =>
-          change (ST.himp C (sexprD L U1 V) (sexprD R U2 V)) with
+        | [ |- ST.himp ?C (sexprD ?U1 ?V ?L) (sexprD ?U2 ?V ?R) ] =>
+          change (ST.himp C (sexprD U1 V L) (sexprD U2 V R)) with
             (himp U1 U2 V C L R)
       end.
 
@@ -523,7 +529,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       reflexivity.
       
       match goal with
-        | [ H : ST.satisfies _ (sexprD (Star _ ?X) _ _) _ _ |- _ ] =>
+        | [ H : ST.satisfies _ (sexprD _ _ (Star _ ?X)) _ _ |- _ ] =>
           generalize dependent X
       end.
       simpl. clear.
@@ -1316,8 +1322,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (L R : sexpr types pc st),
     himp funcs sfuncs nil nil nil cs L R ->
     ST.himp cs
-      (@sexprD types funcs pc st sfuncs L nil nil)
-      (@sexprD types funcs pc st sfuncs R nil nil).
+      (@sexprD types funcs pc st sfuncs nil nil L)
+      (@sexprD types funcs pc st sfuncs nil nil R).
   Proof.
     unfold himp. intros. auto.
   Qed.
