@@ -65,8 +65,12 @@ Section Env.
 
   Parameter satisfies_star : forall cs P Q stn m,
     satisfies cs (star P Q) stn m ->
-    satisfies cs P stn m /\
-    satisfies cs Q stn m.    
+    exists ml, exists mr, 
+      satisfies cs P stn ml  /\ satisfies cs Q stn mr.
+
+  Parameter satisfies_pure : forall cs p stn m,
+    satisfies cs (inj p) stn m ->
+    interp cs p.
 
   (* himp/heq lemmas *)
   Parameter himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
@@ -258,12 +262,19 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
 
     Lemma satisfies_star : forall P Q stn m,
       satisfies (star P Q) stn m ->
-      satisfies P stn m /\
-      satisfies Q stn m.
+      exists ml, exists mr, 
+        satisfies P stn ml /\ satisfies Q stn mr.
     Proof.
-      unfold satisfies. intros.
-    Admitted.
+      unfold satisfies. intros. propxFo. eauto 10.
+    Qed.
 
+    Lemma satisfies_pure : forall p stn m,
+      satisfies (inj p) stn m ->
+      interp cs p.
+    Proof.
+      unfold satisfies, inj; simpl; intros; propxFo.
+    Qed.
+ 
     (** Lemmas **)
     Ltac doIt :=
       unfold himp, heq; simpl; intros;
@@ -540,6 +551,15 @@ Module SepTheoryX_Rewrites (H : Heap) (Import ST : SepTheoryXType H).
       signature (himp cs --> himp cs ++> Basics.impl)
     as himp_himp_mor.
       intros. intro. repeat (etransitivity; eauto).
+    Qed.
+
+    About satisfies.
+
+    Global Add Parametric Morphism : (satisfies cs) with
+      signature (heq cs ==> @eq _ ==> @eq _ ==> Basics.impl)
+    as heq_satsifies_mor.
+      intros. intro. eapply satisfies_himp; eauto. eapply heq_defn in H.
+      tauto.
     Qed.
 
   End env.

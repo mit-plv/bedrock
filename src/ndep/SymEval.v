@@ -1,95 +1,415 @@
-Require Import List.
+Require Import List Env Word.
 Require Import Heaps SepTheoryX.
-Require Import IL.
-Require Import Env.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.Provers.
-
-Require Import SepIL SepTac.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(*
+Definition W := word 32.
 
-(*
-Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTheoryXType B).
-  
+Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SEP := SepExpr B ST.
-*)
-  Module Import SEP := SepTac.SEP.
 
   Section typed.
-
     Variable types' : list type.
-    Definition pcType : tvar := tvType 0.
-    Definition stateType : tvar := tvType 1.
 
-    Definition types := bedrock_types ++ types'.
+    Variable stateIndex : nat.
+    Variable pcIndex : nat.
+    Variable ptrIndex : nat.
+    Definition ptrType : type :=
+      {| Impl := B.addr
+       ; Eq := fun x y => match B.addr_dec x y with
+                           | left pf => Some pf
+                           | _ => None
+                         end
+       |}.
+(*
+    Variable wordIndex : nat.
+    Definition wordType : type :=
+      {| Impl := W
+       ; Eq := fun x y => match weq x y with
+                           | left pf => Some pf
+                           | _ => None
+                         end
+       |}.
+*)
+    Variable byteIndex : nat.
+    Definition byteType : type :=
+      {| Impl := B
+       ; Eq := fun x y => match weq x y with
+                            | left pf => Some pf
+                            | _ => None
+                          end
+       |}.
 
-    Record SymEval : Type :=
-    { Predicate : ssignature types pcType stateType
-    ; sym_read  : 
+    Fixpoint updatePosition {T} (n : nat) (v : T) (ls : list T) : list T :=
+      match n , ls with
+        | 0 , nil => v :: nil
+        | 0 , _ :: b => v :: b 
+        | S n , nil => v :: updatePosition n v nil
+        | S n , a :: b => a :: updatePosition n v b
+      end.
+
+    Lemma updatePosition_tvarD_eq : forall n types' t,
+      tvarD (updatePosition n t types') (tvType n) = Impl t.
+    Proof.
+      clear. unfold tvarD.
+      induction n; simpl; destruct types'; eauto.
+    Defined.
+
+(*
+    Lemma updatePosition_tvarD_neq : forall t n types' m,
+      n <> m ->
+      tvarD (updatePosition m t types') (tvType n) = tvarD types' (tvType n).
+    Proof.
+      clear.
+      induction n; destruct types'; destruct m; simpl; intros; try solve [ exfalso; omega ]; auto.
+      unfold tvarD in *. rewrite IHn; eauto. omega.      
+    Defined.
+*)
+
+
+    Definition types := 
+(*      updatePosition stateIndex stateType (updatePosition pcIndex pcType (
+        *)
+      updatePosition ptrIndex ptrType (updatePosition byteIndex byteType types').
+
+    Lemma ptrType_get : tvarD types (tvType ptrIndex) = B.addr.
+      unfold types. apply updatePosition_tvarD_eq.
+    Qed.
+
+
+    Definition exprD_ptr (funcs : functions types) (uvars vars : env types) (e : expr types) : 
+      option B.addr :=
+      match ptrType_get in _ = t return option t with
+        | refl_equal => 
+          @exprD types funcs uvars vars e (tvType ptrIndex)
+      end.
+
+    Lemma byteType_get : tvarD types (tvType byteIndex) = B.
+      unfold types. 
+    Admitted.
+
+
+    Definition exprD_byte (funcs : functions types) (uvars vars : env types) (e : expr types) : 
+      option B :=
+      match byteType_get in _ = t return option t with
+        | refl_equal =>
+          @exprD types funcs uvars vars e (tvType byteIndex)
+      end.
+
+    Record SymEval_byte (Predicate : ssignature types (tvType pcIndex) (tvType stateIndex))
+      : Type :=
+    { sym_read_byte  : 
       forall (hyps args : list (expr types)) (p : expr types), option (expr types)
-    ; sym_write : 
+    ; sym_write_byte : 
       forall (hyps args : list (expr types)) (p v : expr types),
         option (list (expr types))
-    ; sym_read_correct : forall funcs args uvars vars P cs hyps pe ve m s,
-      sym_read hyps args pe = Some ve ->
-      AllProvable funcs nil nil hyps ->
-      match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate) with
+    ; sym_read_byte_correct : forall funcs args uvars vars cs hyps pe ve m stn P,
+      sym_read_byte hyps args pe = Some ve ->
+      AllProvable funcs uvars vars hyps ->
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
         | None => False
-        | Some p => ST.satisfies cs (ST.star p P) s m
+        | Some p => ST.satisfies cs (ST.star p P) stn m
       end ->
-      match exprD funcs uvars vars pe pcType , exprD funcs uvars vars ve pcType with
+      match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
         | Some p , Some v =>
-          ReadWord s m p = v 
+          ST.HT.smem_get p m = Some v
         | _ , _ => False
       end
-    ; sym_write_correct : forall funcs args uvars vars P cs hyps pe ve v m s args',
-      sym_write hyps args pe ve = Some args' ->
-      AllProvable funcs nil nil hyps ->
-      exprD funcs uvars vars ve pcType = Some v ->
-      match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate) with
+    ; sym_write_byte_correct : forall funcs args uvars vars P cs hyps pe ve v m stn args',
+      sym_write_byte hyps args pe ve = Some args' ->
+      AllProvable funcs uvars vars hyps ->
+      exprD_byte funcs uvars vars ve = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
         | None => False
-        | Some p => ST.satisfies cs (ST.star p P) s m
+        | Some p => ST.satisfies cs (ST.star p P) stn m
       end ->
-      match exprD funcs uvars vars pe pcType with
+      match exprD_ptr funcs uvars vars pe with
         | Some p =>
-          match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate) with
+          match 
+            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+            with
             | None => False
-            | Some pr => ST.satisfies cs (ST.star pr P) s (WriteWord s m p v)
+            | Some pr => 
+              ST.satisfies cs (ST.star pr P) stn (ST.HT.smem_set p v m)
           end
         | _ => False
       end
     }.
 
+    Definition defaultSymEval_byte (P : ssignature types (tvType pcIndex) (tvType stateIndex))
+      : SymEval_byte P.
+    refine (
+      {| sym_read_byte          := fun _ _ _ => None
+       ; sym_write_byte         := fun _ _ _ _ => None
+       ; sym_read_byte_correct  := _
+       ; sym_write_byte_correct := _
+       |}); 
+    abstract (simpl; intros; congruence).
+    Defined.
+
+    (** The full tactic **)
+    Variable sfuncs : list (ssignature types (tvType pcIndex) (tvType stateIndex)).
+
+    Section search_read.
+      Variable F : forall T, SymEval_byte T -> list (expr types) -> option (expr types).
+
+      Section arg.
+        Variable T : ssignature types (tvType pcIndex) (tvType stateIndex).
+        Variable se : SymEval_byte T.
+        
+        Fixpoint fold_args (es : list (list (expr types))) : option (expr types) :=
+          match es with 
+            | nil => None
+            | a :: b => 
+              match F se a with
+                | None => fold_args b
+                | Some r => Some r
+              end
+          end.
+        
+        Theorem fold_args_correct : forall es v,
+          fold_args es = Some v ->
+          exists k, In k es /\ F se k = Some v.
+        Proof.
+          clear. induction es.
+          simpl; congruence.
+          simpl. case_eq (F se a); intros.
+          inversion H0. subst. eauto.
+          eapply IHes in H0. destruct H0.
+          exists x. tauto.
+        Qed.          
+      End arg.
+
+      Variable impures : FM.t (list (list (expr types))).
+
+      Fixpoint fold_known (k : list nat) :
+        hlist (fun n : nat => match nth_error sfuncs n with
+                                | None => Empty_set 
+                                | Some ss => SymEval_byte ss
+                              end) k
+        -> option (expr types) :=
+        match k as k 
+          return hlist (fun n : nat => match nth_error sfuncs n with
+                                         | None => Empty_set 
+                                         | Some ss => SymEval_byte ss
+                                       end) k
+                 -> option (expr types)
+          with
+          | nil => fun _ => None
+          | a :: b => fun ss =>
+            match FM.find a impures with
+              | None => fold_known (hlist_tl ss)
+              | Some argss =>
+                match nth_error sfuncs a as ss
+                  return match ss with
+                           | None => Empty_set 
+                           | Some ss => SymEval_byte ss
+                         end -> option (expr types)
+                  with
+                  | Some _ => fun se =>
+                    match fold_args se argss with
+                      | None => fold_known (hlist_tl ss)
+                      | Some r => Some r
+                    end
+                  | None => fun err => match err with end
+                end (hlist_hd ss)
+            end
+        end.
+      
+      Theorem fold_known_correct : forall k
+        (h : hlist (fun n : nat => match nth_error sfuncs n with
+                                     | None => Empty_set 
+                                     | Some ss => SymEval_byte ss
+                                   end) k) v,
+        @fold_known k h = Some v ->
+        exists n, exists ss,
+          exists se :  SymEval_byte ss, exists ls, exists args, 
+               nth_error sfuncs n = Some ss 
+            /\ FM.find n impures = Some ls 
+            /\ In args ls 
+            /\ F se args = Some v.
+      Proof.
+        induction k; simpl.
+          congruence.
+          intros h v. specialize (IHk (hlist_tl h) v).
+          rewrite (hlist_eta _ h) in *.
+          generalize dependent (hlist_hd h). simpl.
+          case_eq (FM.find a impures); intros; eauto 10.
+
+          assert (exists k, nth_error sfuncs a = Some k).
+          generalize y. clear.
+          destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
+          destruct H1.
+          generalize dependent y.
+          rewrite H1. intro.
+          case_eq (fold_args y l); intros; eauto 10.
+          inversion H2; subst.
+          eapply fold_args_correct in H0. destruct H0; eauto 10.
+      Qed.
+    End search_read.
+
+    Variable known : list nat. 
+    Variable evals : hlist (fun n : nat => match nth_error sfuncs n with
+                                             | None => Empty_set 
+                                             | Some ss => SymEval_byte ss
+                                           end) known.
+
+    Definition symeval_read_byte (hyps : list (expr types)) (p : expr types) 
+      (s : SHeap types (tvType pcIndex) (tvType stateIndex))
+      : option (expr types) :=
+      let hyps := hyps ++ pures s in
+      let reader _ seb args := 
+        sym_read_byte seb hyps args p
+      in
+      fold_known reader (impures s) evals.
+
+    Theorem symeval_read_byte_correct : forall cs stn hyps funcs pe ve s uvars vars (m : B.mem),
+      symeval_read_byte hyps pe s = Some ve ->
+      AllProvable funcs uvars vars hyps ->
+      (exists sm, 
+           ST.satisfies cs (sexprD funcs sfuncs (sheapD s) uvars vars) stn sm
+        /\ ST.HT.satisfies sm m) ->
+      match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
+        | Some p , Some v => 
+          B.mem_get m p = Some v
+        | _ , _ => False
+      end.
+    Proof.
+      unfold symeval_read_byte. intros.
+      eapply fold_known_correct in H.
+      do 5 destruct H. destruct H1.
+      intuition.
+
+      generalize (sheapD_pures _ _ _ _ _ H); intros.
+
+      eapply sheapD_pull_impure 
+        with (funcs := funcs) (sfuncs := sfuncs) (a := uvars) (c := vars0) (cs := cs)
+        in H1.
+      eapply starred_In in H3.
+      destruct H3. rewrite H3 in H1.
+
+      eapply sym_read_byte_correct 
+        with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x4)
+        in H6.
+      3: instantiate (1 := sexprD funcs sfuncs (Star
+            (sheapD
+               {|
+               impures := FM.remove x (impures s);
+               pures := pures s;
+               other := other s |})
+            (starred (Func x) x5 Emp)) uvars vars0).
+      destruct (exprD_ptr funcs uvars vars0 pe); auto.
+      destruct (exprD_byte funcs uvars vars0 ve); auto.
+      erewrite ST.HT.satisfies_get; eauto.
+
+      eapply AllProvable_app; auto.
+
+      unfold heq in *.
+      rewrite H1 in H. simpl in *. rewrite ST.heq_star_comm in H.
+      rewrite H2 in *. rewrite ST.heq_star_assoc in H.
+      rewrite ST.heq_star_comm in H. rewrite ST.heq_star_assoc in H.
+      generalize H. clear.
+      match goal with 
+        | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+          destruct (applyD A B C D E)
+      end; auto.
+      clear. intros.
+      eapply ST.satisfies_star in H. do 2 destruct H. intuition.
+      eapply ST.satisfies_pure in H0. PropXTac.propxFo.
+    Qed.
+
+  End typed.
+End Evaluator.
+
+
+(*
+    Lemma wordType_get : tvarD types (tvType wordIndex) = W.
+      unfold types. 
+    Admitted.
+
+    Definition exprD_word (funcs : functions types) (uvars vars : env types) (e : expr types) : 
+      option W :=
+      match wordType_get in _ = t return option t with
+        | refl_equal =>
+          @exprD types funcs uvars vars e (tvType wordIndex)
+      end.
+
+
+
+
+    Record SymEval (Predicate : ssignature types (tvType pcIndex) (tvType stateIndex)) : Type :=
+    { sym_read_word  : 
+      forall (hyps args : list (expr types)) (p : expr types), option (expr types)
+    ; sym_write_word : 
+      forall (hyps args : list (expr types)) (p v : expr types),
+        option (list (expr types))
+    ; sym_read_word_correct : forall funcs args uvars vars cs hyps pe ve m s,
+      sym_read_word hyps args pe = Some ve ->
+      AllProvable funcs nil nil  hyps ->
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p s m
+      end ->
+      match exprD_ptr uvars vars pe , exprD_word uvars vars ve with
+        | Some p , Some v =>
+          smem_get p m = Some v
+        | _ , _ => False
+      end
+(*
+    ; sym_write_correct : forall funcs args uvars vars P cs hyps pe ve v m s args',
+      sym_write hyps args pe ve = Some args' ->
+      hlist (FalseDefault funcs) hyps ->
+      exprD funcs uvars vars ve pcType = Some v ->
+      match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate) with
+        | None => False
+        | Some p => ST.satisfies (ST.star p P) cs s m
+      end ->
+      match exprD funcs uvars vars pe pcType with
+        | Some p =>
+          match applyD (@exprD types funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate) with
+            | None => False
+            | Some pr => ST.satisfies (ST.star pr P) cs s (WriteWord s m p v)
+          end
+        | _ => False
+      end
+*)
+    }.
+
     Definition defaultSymEval (P : ssignature types pcType stateType) : SymEval.
     refine (
-      {| Predicate    := P
-       ; sym_read     := fun _ _ _ => None
-       ; sym_write    := fun _ _ _ _ => None
-       ; sym_read_correct := _
-       ; sym_write_correct := _
+      {| Predicate             := P
+       ; sym_read_word         := fun _ _ _ => None
+       ; sym_write_word        := fun _ _ _ _ => None
+       ; sym_read_word_correct := _
+(*       ; sym_write_correct := _ *)
        |}); 
     abstract (simpl; intros; congruence).
     Defined.
 
     Section evaluator.
-      Inductive matches : list (ssignature types pcType stateType) -> list SymEval -> Prop :=
-      | Match_nil : matches nil nil
-      | Match_cons : forall e es s ss, Predicate e = s -> matches ss es -> matches (s :: ss) (e :: es).
-(*
-      Fixpoint matches (sfuncs : list (ssignature types pcType stateType)) (evals : list SymEval) : Prop :=
+      Fixpoint matches (sfuncs : list (ssignature types pcType stateType)) (evals : list (option SymEval)) : Prop :=
         match evals with
           | nil => True
           | e :: es =>
             match sfuncs with
               | nil => False
-              | s :: ss => Predicate e = s /\ matches ss es
-            end 
+              | s :: ss =>
+                match e with
+                  | None => True
+                  | Some e => Predicate e = s 
+                end /\ matches ss es
+            end
         end.
-*)
-      Variable evals : list SymEval.
+
+      Variable evals : list (option SymEval).
 
       Section fold_find.
         Variable T U : Type.
@@ -108,7 +428,31 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
                   end
               end
           end.
+
+        Variable D : nat -> T -> sexpr types pcType stateType.
+        Variable P : nat -> T -> tvarD types stateType -> Prop.
+        Variable funcs : functions types.
+        Variable sfuncs : list (ssignature types pcType stateType).
+
+        Hypothesis imp : forall cs uv vs k v m,
+             ST.satisfies (sexprD funcs sfuncs (D k v) uv vs) cs (fst m) (Mem (snd m)) 
+          -> P k v m.
+        Hypothesis ext : forall cs uv vs k v m,
+             ST.satisfies (sexprD funcs sfuncs (D k v) uv vs) cs (fst m) (Mem (snd m)) 
+          -> forall p m',
+               ST.satisfies (ST.star (sexprD funcs sfuncs (D k v) uv vs) p) cs (fst m') (Mem (snd m'))
+               -> P k v m'.
+        Hypothesis FD : forall k v u m,
+          F k v = Some u -> P k v m.
+
+(*
+        Theorem fold_find_ind : forall m, 
+          fold_find 
+*)
       End fold_find.
+
+      
+
 
       Definition symeval_read (hyps : list (expr types)) (p : expr types) (s : SHeap types pcType stateType) 
         : option (expr types) :=
@@ -116,7 +460,7 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
         let res := 
           fold_find (fun k v => 
             match nth_error evals k with
-              | Some ev =>
+              | Some (Some ev) =>
                 let reader := sym_read ev hyps in
                   List.fold_left (fun acc args =>
                     match acc with
@@ -135,53 +479,23 @@ Module Evaluator (B : Heap with Definition mem := W -> B) (ST : SepTheoryX.SepTh
       Variable sfuncs : list (ssignature types pcType stateType).
       Hypothesis evals_matches : matches sfuncs evals.
 
-      Theorem symeval_read_correct : forall hyps pe s ve,
+      Definition symeval_read_correct : forall hyps pe s ve,
         symeval_read hyps pe s = Some ve ->
         hlist (FalseDefault funcs) hyps ->
         forall uvars vars cs stn m,
-        ST.satisfies cs (@sexprD types funcs pcType stateType sfuncs (SEP.sheapD s) uvars vars) stn m -> 
+        ST.satisfies (@sexprD types funcs pcType stateType sfuncs (SEP.sheapD s) uvars vars) cs stn m -> 
         match exprD funcs uvars vars ve pcType , exprD funcs uvars vars pe pcType with
           | Some v , Some p => ReadWord stn m p = v 
           | _ , _ => False
         end.
       Proof.
-(*
         Opaque tvarD.
         unfold symeval_read. destruct s; simpl.
         induction impures0; simpl in *.
           intros; congruence.
 
-          intros. 
-          Lemma satisfies_lemma : forall cs stn funcs sfuncs uvars vars0 m mp k v other0 pures0,
-            ST.satisfies cs
-            (sexprD funcs sfuncs
-              (sheapD
-                {| impures := mp ;
-                   pures := pures0;
-                   other := other0 |}) uvars vars0) stn m ->
-            FM.find k mp = Some v ->
-            ST.satisfies cs 
-            (sexprD funcs sfuncs (starred (Func k) v (@Emp types pcType stateType)) uvars vars0) stn m.
-          Proof.
-            clear. induction mp; simpl; intros.
-              congruence.
-
-              eapply ST.satisfies_himp in H.
-              2: eapply ST.heq_himp; eapply sheapD_sheapD'.
-              unfold sheapD' in H. simpl in H.
-          generalize H0. unfold sheapD in H0. simpl in H0.
-
-              destruct (Compare_dec.lt_eq_lt_dec k n). destruct s.
-              eapply IHmp1 in H0; eauto.
-              Focus 2.
-
-eapply ST.satisfies_himp in H0.
-          2: eapply ST.heq_himp; eapply sheapD_sheapD'.
-          unfold sheapD' in H0. simpl in H0.
-          generalize H0. unfold sheapD in H0. simpl in H0.
-          
-
-          assert (ST.satisfies cs (sexprD funcs sfuncs (sheapD {| impures := impures0_1 ; pures := pures0 ; other := other0 |}) uvars vars0) stn m).
+          intros.
+          cut (ST.satisfies (sexprD funcs sfuncs (sheapD {| impures := impures0_1 ; pures := pures0 ; other := other0 |}) uvars vars0) cs stn m).
           cut (ST.satisfies (sexprD funcs sfuncs (sheapD {| impures := impures0_2 ; pures := pures0 ; other := other0 |}) uvars vars0) cs stn m).
           Focus.
 
@@ -283,248 +597,13 @@ eapply ST.satisfies_himp in H0.
                 destruct sfuncs; intuition. 
 
               simpl in *. dest
-*)
-      Admitted.
-
-      Fixpoint map_maybe_map (T : Type) (F : nat -> T -> option T) (m : FM.t T) 
-        : option (FM.t T) :=
-        match m with
-          | FM.MLeaf => None
-          | FM.MBranch l k v r =>
-            match F k v with
-              | Some v' => Some (FM.MBranch _ l k v' r)
-              | None => 
-                match map_maybe_map F l with
-                  | Some l' => Some (FM.MBranch _ l' k v r)
-                  | None => 
-                    match map_maybe_map F r with
-                      | Some r' => Some (FM.MBranch _ l k v r')
-                      | None => None
-                    end
-                end
-            end
-        end.
-        
-      Fixpoint list_maybe_map (T : Type) (F : T -> option T) (m : list T) 
-        : option (list T) :=
-        match m with
-          | nil => None
-          | a :: b => 
-            match F a with
-              | None => match list_maybe_map F b with
-                          | None => None
-                          | Some b' => Some (a :: b')
-                        end
-              | Some a' => Some (a' :: b)
-            end
-        end.
-
-      Definition symeval_write (hyps : list (expr types)) (p v : expr types) 
-        (s : SHeap types pcType stateType) : option (SHeap types pcType stateType) :=
-        let hyps := hyps ++ pures s in
-        let res := 
-          map_maybe_map (fun k =>
-            match nth_error evals k with 
-              | None => fun _ => None
-              | Some ev =>
-                let writer := sym_write ev hyps in
-                list_maybe_map (fun args =>
-                  writer args p v)
-            end) (impures s)
-        in
-        match res with
-          | None => None
-          | Some i => Some {| impures := i ; pures := pures s ; other := other s |}
-        end.
-
-      Theorem symeval_write_correct : forall hyps pe s s' ve,
-        symeval_write hyps pe ve s = Some s' ->
-        hlist (FalseDefault funcs) hyps ->
-        forall uvars vars cs stn m,
-        ST.satisfies cs (@sexprD types funcs pcType stateType sfuncs (SEP.sheapD s) uvars vars) stn m -> 
-        match exprD funcs uvars vars ve pcType , exprD funcs uvars vars pe pcType with
-          | Some v , Some p => 
-            ST.satisfies cs (@sexprD types funcs pcType stateType sfuncs (SEP.sheapD s) uvars vars) stn (WriteWord stn m p v)
-          | _ , _ => False
-        end.
-      Proof.
-      Admitted.
+              
   (*
 End Evaluator.
 *)
-    End evaluator.
-  End typed.
-
-  Section ptsto32_sym_eval.
-    Variable types' : list type.
-    
-    Definition ptsto32_Predicate : ssignature (types types') pcType stateType :=
-      @SSig (types types') _ (pcType :: pcType :: nil) (@ptsto32 nil).
-    
-    (** Let's see how this works with ptsto **)
-    Definition ptsto32_sym_read (hyps args : list (expr (types types'))) (p : expr (types types')) : option (expr (types types')) :=
-      match args with
-        | p' :: v :: nil =>
-          if seq_dec p p' then Some v else None
-        | _ => None
-      end.
-    
-    Definition ptsto32_sym_write (hyps : list (expr (types types'))) (args : list (expr (types types'))) (p v : expr (types types')) : option (list (expr (types types'))) :=
-      match args with
-        | p' :: _ :: nil =>
-          if seq_dec p p' then Some (p' :: v :: nil) else None
-        | _ => None
-      end.
-
-    Require Import PropXTac.
-
-    Theorem ptsto32_sym_read_correct : forall (funcs : functions (types types'))
-      (args : list (expr (types types'))) (uvars vars0 : env (types types'))
-      (P : hprop (tvarD (types types') pcType)
-        (tvarD (types types') stateType) nil)
-      (cs : PropX.codeSpec (tvarD (types types') pcType)
-        (tvarD (types types') stateType))
-      (hyps : list (expr (types types'))) (pe ve : expr (types types'))
-      (m : BedrockHeap.mem) (s : settings),
-      ptsto32_sym_read hyps args pe = Some ve ->
-      hlist (FalseDefault funcs) hyps ->
-      match
-        applyD (exprD funcs uvars vars0) (SDomain ptsto32_Predicate) args
-        (hprop (tvarD (types types') pcType) (tvarD (types types') stateType)
-          nil) (SDenotation ptsto32_Predicate)
-        with
-        | Some p => ST.satisfies cs (star p P) s m
-        | None => False
-      end ->
-      match exprD funcs uvars vars0 pe pcType with
-        | Some p =>
-          match exprD funcs uvars vars0 ve pcType with
-            | Some v => ReadWord s m p = v
-            | None => False
-          end
-        | None => False
-      end.
-    Proof.
-      unfold ptsto32_Predicate; simpl in *; intros.
-      destruct args; simpl in *; try congruence.
-      destruct args; simpl in *; try congruence.
-      destruct args; simpl in *; try congruence.
-      destruct (expr_seq_dec pe e); try congruence.
-      inversion H; clear H; subst.
-      destruct (exprD funcs uvars vars0 e pcType); auto.
-      destruct (exprD funcs uvars vars0 ve pcType); auto.
-      eapply ST.satisfies_star in H0. destruct H0. clear H0.
-      destruct H as [ ? [ ? ? ] ]. (** Breaks abstraction **)
-      propxFo. unfold implode in H6. subst.
-      repeat match goal with 
-               | [ H : smem_get _ _ = _ |- _ ] =>
-                 eapply satisfies_get in H; [ | eassumption ]; unfold BedrockHeap.mem_get in H; inversion H; subst
-             end;
-      eapply ReadWordFootprint; simpl; auto.
-    Qed.
-
-    Theorem ptsto32_sym_write_correct : forall (funcs : functions (types types'))
-      (args : list (expr (types types'))) (uvars vars0 : env (types types'))
-      (P : hprop (tvarD (types types') pcType)
-        (tvarD (types types') stateType) nil)
-      (cs : PropX.codeSpec (tvarD (types types') pcType)
-        (tvarD (types types') stateType))
-      (hyps : list (expr (types types'))) (pe ve : expr (types types'))
-      (v : tvarD (types types') pcType) (m : BedrockHeap.mem) 
-      (s : settings) (args' : list (expr (types types'))),
-      ptsto32_sym_write hyps args pe ve = Some args' ->
-      hlist (FalseDefault funcs) hyps ->
-      exprD funcs uvars vars0 ve pcType = Some v ->
-      match
-        applyD (exprD funcs uvars vars0) (SDomain ptsto32_Predicate) args
-        (hprop (tvarD (types types') pcType) (tvarD (types types') stateType)
-          nil) (SDenotation ptsto32_Predicate)
-        with
-        | Some p => ST.satisfies cs (star p P) s m
-        | None => False
-      end ->
-      match exprD funcs uvars vars0 pe pcType with
-        | Some p =>
-          match
-            applyD (exprD funcs uvars vars0) (SDomain ptsto32_Predicate) args'
-            (hprop (tvarD (types types') pcType)
-              (tvarD (types types') stateType) nil)
-            (SDenotation ptsto32_Predicate)
-            with
-            | Some pr => ST.satisfies cs (star pr P) s (WriteWord s m p v)
-            | None => False
-          end
-        | None => False
-      end.
-    Proof.
-      unfold ptsto32_Predicate; simpl in *; intros.
-      destruct args; simpl in *; try congruence.
-      destruct args; simpl in *; try congruence.
-      destruct args; simpl in *; try congruence.
-      destruct (expr_seq_dec pe e); try congruence.
-      inversion H; clear H; subst. simpl.
-      destruct (exprD funcs uvars vars0 e pcType); auto.
-      destruct (exprD funcs uvars vars0 e0 pcType); try tauto.
-      rewrite H0. clear H0.
-    Admitted.
-      
-    Definition SymEval_ptsto32 : SymEval types' :=
-      {| Predicate := ptsto32_Predicate 
-       ; sym_read  := ptsto32_sym_read
-       ; sym_write := ptsto32_sym_write
-       ; sym_read_correct := ptsto32_sym_read_correct
-       ; sym_write_correct := ptsto32_sym_write_correct
-       |}.
-  End ptsto32_sym_eval.
-
-  Section Tests.
-
-    Ltac isConst x :=
-      constr:(false).
-    
-    Require Import PropX.
-    Goal forall specs stn p v x,
-      PropX.interp specs (![ptsto32 _ p v]%PropX (stn, x)) ->
-      ReadWord stn (Mem x) p = v.
-    Proof.
-      intros.
-      match goal with
-        | [ |- context [ ReadWord ?STN ?M ?P ] ] =>
-          match goal with
-            | [ H : interp ?CS (?S (STN, ?ST)) |- _ ] =>
-              let m := eval simpl in (Mem ST) in 
-              match M with
-                | m => 
-                  match S with
-                    | context [ sepFormula ?X ] =>
-                      let pcT := constr:(W) in
-                      let stateT := constr:(prod settings state) in
-                      let Ts := eval unfold bedrock_types in bedrock_types in
-                      let goals := constr:(X :: nil) in
-                      let goals := eval unfold starB exB hvarB in goals in
-                      let v := SEP.reflect_all pcT stateT ltac:(isConst) Ts goals in
-                      match v with
-                        | (?Ts, ?pcType, ?stateType, ?funcs, ?sfuncs, ?X :: nil) =>
-                          SEP.reflect_expr ltac:(isConst) P Ts funcs (@nil tvar) (@nil tvar)
-                            ltac:(fun funcs' p => 
-                              let tys := eval simpl in (List.skipn (length (types nil)) Ts) in
-                              generalize (@symeval_read_correct tys (SymEval_ptsto32 tys :: nil) funcs sfuncs nil p (snd (hash X))))
-                      end
-                  end
-              end
-          end
-      end.
-
-      simpl. unfold symeval_read. simpl. intro. specialize (H0 _ (refl_equal _) HNil).
-      simpl in H0. eapply H0. apply nil. apply nil.
-      unfold ST.satisfies. rewrite sepFormula_eq in H. unfold sepFormula_def in H.
-      simpl in *. eexists. split. 2: eassumption.
-    Abort.
-      
-    End Tests.
 
 
-(* This is the instantiation of the old evaluator.
+
   Section ptsto32_sym_eval.
     Definition denotesTo (sfuncs : list (ssignature types pcType stateType)) (f : nat) 
       (Predicate : ssignature types pcType stateType) : Prop :=
@@ -687,7 +766,4 @@ End Evaluator.
       |}.
 
   End  ptsto32_sym_eval.
-
-*)
-
 *)
