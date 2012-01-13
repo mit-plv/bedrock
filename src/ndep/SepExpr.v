@@ -3,7 +3,7 @@ Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
-Require Import Env.
+Require Import DepList.
 Require Import Setoid.
 
 Set Implicit Arguments.

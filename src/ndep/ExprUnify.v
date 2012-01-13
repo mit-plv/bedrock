@@ -2,7 +2,7 @@ Require Import Bedrock.ndep.Expr.
 Require Import List.
 Require Import EquivDec.
 Require Import Bedrock.ndep.NatMap.
-Require Import Env.
+Require Import DepList.
 
 Set Implicit Arguments.
 Set Strict Implicit.
