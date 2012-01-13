@@ -194,12 +194,26 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         unfold heq; simpl; intros; autorewrite with hprop. rewrite ST.heq_star_assoc. reflexivity.
       Qed.
 
+      Lemma heq_star_comm : forall P Q, 
+        heq U U G cs (Star P Q) (Star Q P).
+      Proof.
+        unfold heq; simpl; intros; apply ST.heq_star_comm.
+      Qed.
+
       Lemma heq_star_frame : forall P Q R S, 
         heq U U G cs P R ->
         heq U U G cs Q S ->
         heq U U G cs (Star P Q) (Star R S).
       Proof.
         unfold heq; simpl; intros. eapply ST.heq_star_frame; auto.
+      Qed.
+      
+      Lemma himp_star_frame : forall a b c cs P Q R S,
+        himp a b c cs P R ->
+        himp a b c cs Q S ->
+        himp a b c cs (Star P Q) (Star R S).
+      Proof.
+        unfold himp; simpl; intros. rewrite H; rewrite H0; reflexivity.
       Qed.
         
     End Facts.
@@ -435,6 +449,185 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       eapply starred_starred'; reflexivity.
     Qed.
 
+    Lemma starred_In : forall T (F : T -> sexpr) a c cs x ls b,
+      In x ls ->
+      exists ls', 
+      heq a a c cs (starred F ls b) (Star (starred F ls' b) (F x)).
+    Proof.
+      induction ls; intros.
+        intuition.
+        destruct H. subst.
+        clear IHls.
+        exists ls. symmetry.
+        rewrite heq_star_comm. simpl.
+        destruct (starred F ls b); autorewrite with hprop; reflexivity.
+        eapply IHls with (b := b) in H.
+        destruct H.
+        exists (a0 :: x0). repeat rewrite starred_starred' in * by reflexivity.
+        simpl. rewrite H. rewrite heq_star_assoc.
+        reflexivity.
+    Qed.
+
+    Lemma sheapD_pures : forall stn sm cs uvars vars h,
+      ST.satisfies cs (sexprD (sheapD h) uvars vars) stn sm ->
+      AllProvable funcs uvars vars (pures h).
+    Proof.
+      intros. eapply ST.satisfies_himp in H.
+      Focus 2. instantiate (1 := (sexprD (sheapD' h) uvars vars)). 
+      match goal with
+        | [ |- ?G ] => 
+          change G with (himp uvars uvars vars cs (sheapD h) (sheapD' h))
+      end.
+      rewrite sheapD_sheapD'. reflexivity.
+      
+      destruct h. unfold sheapD' in *.
+      eapply ST.satisfies_himp in H.
+      Focus 2.
+      instantiate (1 := sexprD
+           (Star
+              (starred' (fun x : expr types => Inj x)
+                 (pures
+                    {|
+                    impures := impures0;
+                    pures := pures0;
+                    other := other0 |}) Emp)
+
+        (Star
+           (FM.fold
+              (fun (k : nat) (ls : list (list (expr types)))
+                 (acc : sexpr' types
+                          (ST.hprop (tvarD types pcType)
+                             (tvarD types stateType) nil)) =>
+               Star (starred' (Func k) ls Emp) acc)
+              (impures
+                 {| impures := impures0; pures := pures0; other := other0 |})
+              Emp)
+              (starred'
+                 (fun
+                    x : ST.hprop (tvarD types pcType) 
+                          (tvarD types stateType) nil => 
+                  Const x)
+                 (other
+                    {|
+                    impures := impures0;
+                    pures := pures0;
+                    other := other0 |}) Emp))) uvars vars).
+      match goal with
+        | [ |- ST.himp ?C (sexprD ?L ?U1 ?V) (sexprD ?R ?U2 ?V) ] =>
+          change (ST.himp C (sexprD L U1 V) (sexprD R U2 V)) with
+            (himp U1 U2 V C L R)
+      end.
+
+      simpl. rewrite heq_star_comm. rewrite heq_star_assoc.
+      apply himp_star_frame; try reflexivity. rewrite heq_star_comm.
+      reflexivity.
+      
+      match goal with
+        | [ H : ST.satisfies _ (sexprD (Star _ ?X) _ _) _ _ |- _ ] =>
+          generalize dependent X
+      end.
+      simpl. clear.
+      
+      generalize sm. clear.
+      induction pures0; simpl; intros; auto.
+        rewrite ST.heq_star_assoc in H.
+        apply ST.satisfies_star in H. do 2 destruct H.
+        intuition eauto.
+        unfold Provable. destruct (exprD funcs uvars vars a tvProp);
+        apply ST.satisfies_pure in H0; propxFo.
+    Qed.
+
+
+    Lemma sheapD_pull_impure : forall a c cs h f argss,
+      FM.find f (impures h) = Some argss ->
+      heq a a c cs (sheapD h)
+                   (Star (sheapD {| impures := FM.remove f (impures h)
+                                  ; pures   := pures h
+                                  ; other   := other h |})
+                         (starred (Func f) argss Emp)).
+    Proof.
+      intros. 
+      repeat rewrite sheapD_sheapD'.
+      unfold sheapD'; destruct h; simpl.
+      etransitivity.
+      eapply heq_star_frame. 2: reflexivity.      
+      instantiate (1 := (Star
+         (FM.fold
+            (fun (k : nat) (ls : list (list (expr types)))
+               (acc : sexpr' types
+                        (ST.hprop (tvarD types pcType)
+                           (tvarD types stateType) nil)) =>
+             Star (starred' (Func k) ls Emp) acc) (FM.remove f impures0) Emp)
+         (starred (Func f) argss Emp))).
+      Focus 2.
+      rewrite heq_star_assoc. rewrite heq_star_comm. rewrite heq_star_assoc.
+      rewrite heq_star_comm. rewrite heq_star_assoc.
+      symmetry. rewrite heq_star_assoc. rewrite heq_star_comm.
+      rewrite heq_star_assoc. apply heq_star_frame. reflexivity.
+      rewrite heq_star_comm. reflexivity.
+
+      (** **)
+      simpl in *.
+      generalize dependent H. clear.
+      induction impures0; simpl; try congruence.
+      destruct (Compare_dec.lt_eq_lt_dec f n); [ destruct s | ]; simpl.
+      intros. specialize (IHimpures0_1 H).
+      rewrite fold_starred. symmetry. rewrite fold_starred.
+      rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
+      rewrite IHimpures0_1. rewrite heq_star_assoc. reflexivity.
+      inversion 1; subst. clear.
+      rewrite starred_starred'. 2: reflexivity. 2: reflexivity.
+
+      Lemma insert_at_right_star : forall a c cs i1 i2 b, 
+        heq a a c cs (FM.fold
+           (fun (k : nat) (ls : list (list (expr types)))
+              (acc : sexpr' types
+                       (ST.hprop (tvarD types pcType) 
+                          (tvarD types stateType) nil)) =>
+            Star (starred' (Func k) ls Emp) acc)
+           (FM.insert_at_right i1 i2) b)
+        (Star (FM.fold
+           (fun (k : nat) (ls : list (list (expr types)))
+              (acc : sexpr' types
+                       (ST.hprop (tvarD types pcType) 
+                          (tvarD types stateType) nil)) =>
+            Star (starred' (Func k) ls Emp) acc)
+           i1 Emp)
+              (FM.fold
+           (fun (k : nat) (ls : list (list (expr types)))
+              (acc : sexpr' types
+                       (ST.hprop (tvarD types pcType) 
+                          (tvarD types stateType) nil)) =>
+            Star (starred' (Func k) ls Emp) acc)
+           i2 b)).
+      Proof.
+        induction i1; simpl; intros.
+          autorewrite with hprop. reflexivity.
+
+          clear IHi1_1. rewrite IHi1_2. rewrite fold_starred.
+          rewrite heq_star_assoc.
+          symmetry. rewrite fold_starred. rewrite heq_star_assoc.
+          apply heq_star_frame. reflexivity.
+          rewrite heq_star_comm. rewrite fold_starred. 
+          symmetry. rewrite fold_starred. autorewrite with hprop.
+          repeat rewrite heq_star_assoc. apply heq_star_frame.
+          reflexivity. rewrite fold_starred. symmetry; rewrite heq_star_comm.
+          rewrite heq_star_assoc. reflexivity.
+      Qed.
+      rewrite insert_at_right_star.
+      rewrite fold_starred.
+      symmetry. rewrite heq_star_comm. rewrite <- heq_star_assoc.
+      rewrite heq_star_comm. reflexivity.
+
+      intros.
+      rewrite fold_starred. rewrite IHimpures0_2 by assumption.
+      symmetry. rewrite fold_starred. 
+      rewrite starred_starred'; [ | reflexivity | reflexivity ].
+      repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
+      symmetry. rewrite heq_star_comm. rewrite heq_star_assoc.
+      reflexivity.
+    Qed.
+
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
         | nil => fun x => x
@@ -634,7 +827,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         in
         match find types with
           | true => types
-          | _ => constr:(D :: types)
+          | _ => eval simpl app in (types ++ (D :: @nil type))
         end
     end.
 

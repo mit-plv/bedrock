@@ -275,6 +275,15 @@ Section env.
         | nil => True
         | e :: es => Provable e /\ AllProvable es
       end.
+
+    Lemma AllProvable_app : forall a b, 
+      AllProvable a -> 
+      AllProvable b ->
+      AllProvable (a ++ b).
+    Proof.
+      induction a; simpl; intuition auto.
+    Qed.
+      
   End Provable.
 
 End env.

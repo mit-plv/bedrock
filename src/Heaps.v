@@ -91,6 +91,56 @@ Module HeapTheory (B : Heap).
 
   Definition smem_set := @smem_set' all_addr.
 
+(*
+  Section MultiByte.
+    Fixpoint tuple (T : Type) (n : nat) : Type :=
+      match n with
+        | 0 => unit
+        | S n => T * tuple T n
+      end%type.
+
+    Record MultiByte (T : Type) :=
+    { size  : nat
+    ; footprint : addr -> tuple addr size
+    ; implode : tuple B size -> T
+    ; explode : T -> tuple B size
+    }.
+
+    Fixpoint getAll (m : smem) (n : nat) {struct n} : tuple addr n -> option (tuple B n) :=
+      match n with
+        | 0 => fun _ => Some tt
+        | S n => fun (p : addr * tuple addr n) =>
+          match smem_get (fst p) m with
+            | None => None
+            | Some v =>
+              match getAll m n (snd p) with
+                | Some v' => Some (v,v')
+                | _ => None
+              end
+          end
+      end.
+
+    Fixpoint setAll (m : smem) (n : nat) {struct n} : tuple addr n -> tuple B n -> smem :=
+      match n as n return tuple addr n -> tuple B n -> smem with
+        | 0 => fun _ _ => m
+        | S n => fun (p : addr * tuple addr n) (v : B * tuple B n) =>
+          let m := smem_set (fst p) (fst v) m in
+          setAll m n (snd p) (snd v)
+      end.
+
+    Definition smem_get_mb T (mb : MultiByte T) (p : addr) (m : smem)
+      : option T :=
+      match @getAll m (size _ mb) (footprint _ mb p) with
+        | None => None
+        | Some v => Some (implode _ mb v)
+      end.
+
+    Definition smem_set_mb T (mb : MultiByte T) (p : addr) (v : T) (m : smem)
+      : smem :=
+      setAll m (size _ mb) (footprint _ mb p) (explode _ mb v).
+  End MultiByte.
+*)
+
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
 
