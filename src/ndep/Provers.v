@@ -1,7 +1,7 @@
 Require Import List.
 Require Import Bedrock.ndep.Expr.
 Require Import EquivDec.
-Require Import Env.
+Require Import DepList.
 
 Section ProverT.
   Variable types : list type.

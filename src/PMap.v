@@ -6,7 +6,7 @@
  ** terms and values that depend on contexts which we can not pre-compute.
  **)
 Require Import List.
-Require Import Env.
+Require Import DepList.
 
 Section FSet.
   Variable T : Type.

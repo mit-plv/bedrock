@@ -1,6 +1,6 @@
 Require Import Heaps.
 Require Import PropX PropXTac.
-Require Import Env.
+(*Require Import DepList. *)
 Require Import IL.
 
 Require Import RelationClasses.

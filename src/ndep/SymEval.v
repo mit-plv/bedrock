@@ -1,4 +1,4 @@
-Require Import List Env Word.
+Require Import List DepList Word.
 Require Import Heaps SepTheoryX.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.Provers.
 

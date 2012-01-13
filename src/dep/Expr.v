@@ -1,4 +1,4 @@
-Require Import List Env.
+Require Import List DepList.
 Require Import EqdepClass.
 
 Set Implicit Arguments.
@@ -754,4 +754,4 @@ Ltac consts e :=
   end.
 *)
 
-Require Export Env.
+Require Export DepList.

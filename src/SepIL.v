@@ -1,5 +1,5 @@
 Require Import Eqdep_dec List.
-Require Import Word PropX PropXTac IL Env Heaps SepTheoryX.
+Require Import Word PropX PropXTac IL DepList Heaps SepTheoryX.
 
 Set Implicit Arguments.
 
