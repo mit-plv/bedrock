@@ -111,7 +111,7 @@ Theorem factR_4 : forall r, factR 4 r -> r = 24.
                           | [ H : _ |- _ ] => apply H; reflexivity
                         end ]
   end.
-Qed.  
+Qed.
 
 Hint Resolve factR_4.
 
@@ -139,9 +139,13 @@ Defined.
 
 Print Assumptions factProgReallyOk.
 
-Definition final := Eval compute in exec factSettings factProgram 20
-  (proj1_sig factProgReallyOk,
-    {| Regs := fun _ => wzero _;
-      Mem := fun _ => wzero _ |}).
+Section final.
+  Transparent evalInstrs.
 
-Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.
+  Definition final := Eval compute in exec factSettings factProgram 20
+    (proj1_sig factProgReallyOk,
+      {| Regs := fun _ => wzero _;
+        Mem := fun _ => wzero _ |}).
+
+  Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.
+End final.
