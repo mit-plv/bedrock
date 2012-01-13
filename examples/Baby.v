@@ -75,9 +75,87 @@ Print Assumptions immedProgReallyOk.
 
 Transparent natToWord.
 
-Definition final := Eval compute in exec immedSettings immedProgram 20
-  (proj1_sig immedProgReallyOk,
-    {| Regs := fun _ => wzero _;
-      Mem := fun _ => wzero _ |}).
+Section final.
+  Transparent evalInstrs.
 
-Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.
+  Definition final := Eval compute in exec immedSettings immedProgram 20
+    (proj1_sig immedProgReallyOk,
+      {| Regs := fun _ => wzero _;
+        Mem := fun _ => wzero _ |}).
+
+  Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.
+End final.
+
+
+(** Stress testing [structured] performance *)
+
+Definition stress := bmodule "stress" {{
+  bfunction "stress" [st ~> [| True |] ] {
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Rp <- Rp;;
+    Diverge
+  }
+}}.
+
+Theorem stressOk : moduleOk stress.
+  structured.
+Qed.

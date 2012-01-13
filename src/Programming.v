@@ -1,6 +1,6 @@
 (* Final syntax for structured programming *)
 
-Require Import NArith Bool String.
+Require Import List NArith Bool String.
 
 Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker.
 
@@ -175,19 +175,35 @@ Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, 
 
 (** * Tactics *)
 
-Ltac conditions := unfold evalCond in *; simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *; try discriminate;
-  repeat match goal with
-           | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
-           | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
-           | [ _ : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate
-         end; simpl.
+Theorem evalInstrs_nil : forall stn st, evalInstrs stn st nil = Some st.
+  reflexivity.
+Qed.
+
+Theorem evalInstrs_cons : forall stn st i is, evalInstrs stn st (i :: is)
+  = match evalInstr stn st i with
+      | None => None
+      | Some st' => evalInstrs stn st' is
+    end.
+  reflexivity.
+Qed.
+
+Global Opaque evalInstrs.
+
+Ltac conditions :=
+  unfold evalCond in *; simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *;
+    repeat match goal with
+             | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+             | [ H : Some _ = None |- _ ] => discriminate H
+             | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
+             | [ H : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate H
+             | [ H : evalInstrs _ _ _ = _ |- _ ] =>
+               repeat (rewrite evalInstrs_cons in H; simpl in H; autorewrite with IL in H);
+                 try rewrite evalInstrs_nil in H
+           end; simpl.
 
 Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
   simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
-    (try match goal with
-           | [ |- context[toCmd _ _ (im := ?im) ?Him _] ] => generalize Him; intro;
-             let im' := eval hnf in im in let im' := eval simpl in im' in change im with im' in *
-         end; simpl; propxFo; conditions) ].
+    (simpl; propxFo; conditions) ].
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
   | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].
