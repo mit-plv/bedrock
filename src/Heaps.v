@@ -16,14 +16,12 @@ Module Type Heap.
   Parameter mem_get : mem -> addr -> option B.
   Parameter mem_set : mem -> addr -> B -> mem.
 
-  Parameter mem_get_set_eq : forall m p v v', 
-    mem_get m p = Some v ->
+  Parameter mem_get_set_eq : forall m p v', 
     mem_get (mem_set m p v') p = Some v'.
 
-  Parameter mem_get_set_neq : forall m p p' v v', 
+  Parameter mem_get_set_neq : forall m p p' v', 
     p <> p' ->
-    mem_get m p = Some v ->
-    mem_get (mem_set m p' v') p = Some v.
+    mem_get (mem_set m p' v') p = mem_get m p.
 
   Parameter footprint_w : addr -> addr * addr * addr * addr.
   
@@ -190,8 +188,7 @@ Module HeapTheory (B : Heap).
 
   Theorem satisfies_set : forall m m',
     satisfies m m' ->
-    forall p v v',
-      smem_get p m = Some v' ->
+    forall p v,
       satisfies (smem_set p v m) (mem_set m' p v).
   Proof.
     unfold satisfies, smem_set, smem_get, smem.
@@ -201,8 +198,8 @@ Module HeapTheory (B : Heap).
       rewrite (hlist_eta _ m) in H0. inversion H; subst.
       subst; simpl in *.
       destruct (addr_dec a p); subst.
-      rewrite H1 in *. simpl. intuition.
-      erewrite mem_get_set_eq; eauto.
+      simpl. 
+      erewrite mem_get_set_eq; eauto. intuition.
       eapply satisfies_set_not_in; eauto.
 
       (** **)
@@ -226,39 +223,30 @@ Module HeapTheory (B : Heap).
            end; auto.
   Qed.
 
+  Lemma smem_set_get_neq : forall p m a b,
+    a <> p ->
+    smem_get p (smem_set a b m) = smem_get p m.
+  Proof.
+    unfold smem, smem_get, smem_set.
+    induction all_addr; simpl; intros; try congruence.
+    destruct (addr_dec a p); destruct (addr_dec a a0); subst; simpl; eauto.
+    exfalso; auto.
+  Qed.
+
   Theorem satisfies_set_word : forall m m',
     satisfies m m' ->
-    forall i e p v v',
-      smem_get_word i p m = Some v' ->
+    forall e p v,
       satisfies (smem_set_word e p v m) (mem_set_word e p v m').
   Proof.
     unfold smem_set_word, mem_set_word, smem_get_word; intros.
     generalize (footprint_disjoint p). 
     destruct (footprint_w p). destruct p0. destruct p0.
     destruct (e v). destruct p0. destruct p0.
-    intros. specialize (H1 _ _ _ _ (refl_equal _)). intuition.  
-    generalize dependent H0.    
+    intros. specialize (H0 _ _ _ _ (refl_equal _)). intuition.
     repeat match goal with
-             | [ H' : satisfies _ _ |- context [ smem_get ?B ?C ] ] =>
-               case_eq (smem_get B C); [ do 2 intro | congruence ]
-           end; auto.
-    intro X; clear X.
-    Lemma smem_set_get_neq : forall p m v a b,
-      a <> p ->
-      smem_get p m = Some v ->
-      smem_get p (smem_set a b m) = Some v.
-    Proof.
-      unfold smem, smem_get, smem_set.
-      induction all_addr; simpl; intros; try congruence.
-      destruct (addr_dec a p); destruct (addr_dec a a0); subst; simpl; eauto.
-      exfalso; auto.
-    Qed.
-    repeat match goal with
-      | [ |- satisfies (smem_set ?A ?B ?M) (mem_set ?M' ?A ?B) ] =>
-      eapply satisfies_set; [ |
-        repeat (erewrite smem_set_get_neq; [ reflexivity | eauto | try eassumption ])
-      ]
-    end; eauto.
+             | [ |- satisfies (smem_set ?A ?B ?M) (mem_set ?M' ?A ?B) ] =>
+               eapply satisfies_set 
+           end; eauto.
   Qed.
 
   Theorem satisfies_split : forall m m',

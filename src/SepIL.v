@@ -128,20 +128,18 @@ Module BedrockHeap.
   Definition mem_set (m : mem) (p : addr) (v : B) := 
     fun p' => if weq p p' then v else m p'.
 
-  Theorem mem_get_set_eq : forall m p v v', 
-    mem_get m p = Some v ->
+  Theorem mem_get_set_eq : forall m p v', 
     mem_get (mem_set m p v') p = Some v'.
   Proof.
-    unfold mem_set, mem_get. inversion 1; auto.
+    unfold mem_set, mem_get. intros.
     destruct (weq p p); auto. congruence.
   Qed.
     
-  Theorem mem_get_set_neq : forall m p p' v v', 
+  Theorem mem_get_set_neq : forall m p p' v', 
     p <> p' ->
-    mem_get m p = Some v ->
-    mem_get (mem_set m p' v') p = Some v.
+    mem_get (mem_set m p' v') p = mem_get m p.
   Proof.
-    unfold mem_set, mem_get; inversion 2; auto.
+    unfold mem_set, mem_get; intros.
     destruct (weq p' p); auto. congruence.
   Qed.
 
