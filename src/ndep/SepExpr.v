@@ -455,23 +455,18 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       eapply starred_starred'; reflexivity.
     Qed.
 
-    Lemma starred_In : forall T (F : T -> sexpr) a c cs x ls b,
-      In x ls ->
-      exists ls', 
-      heq a a c cs (starred F ls b) (Star (starred F ls' b) (F x)).
+    Lemma starred_In : forall T (F : T -> sexpr) a c cs x ls' b ls,
+      heq a a c cs (starred F (ls ++ x :: ls') b) (Star (starred F (ls ++ ls') b) (F x)).
     Proof.
       induction ls; intros.
-        intuition.
-        destruct H. subst.
-        clear IHls.
-        exists ls. symmetry.
-        rewrite heq_star_comm. simpl.
-        destruct (starred F ls b); autorewrite with hprop; reflexivity.
-        eapply IHls with (b := b) in H.
-        destruct H.
-        exists (a0 :: x0). repeat rewrite starred_starred' in * by reflexivity.
-        simpl. rewrite H. rewrite heq_star_assoc.
+        symmetry; rewrite heq_star_comm.
+        repeat rewrite starred_starred' by reflexivity.
         reflexivity.
+
+        generalize dependent IHls.
+        repeat rewrite starred_starred' by reflexivity.
+        intro IHls. simpl. rewrite heq_star_assoc.
+        rewrite IHls. reflexivity.
     Qed.
 
     Lemma sheapD_pures : forall stn sm cs uvars vars h,
@@ -639,7 +634,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | nil => fun x => x
         | t :: ts => fun y => Exists t (@existsEach ts y)
       end.
-
+    
     Lemma heq_ex : forall X Y cs t P Q,
       (forall v : tvarD types t, heq X X (existT (tvarD types) t v :: Y) cs P Q) ->
       heq X X Y cs (Exists t P) (Exists t Q).
