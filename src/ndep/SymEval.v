@@ -531,7 +531,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       Lemma ptrType_get_w : tvarD wtypes (tvType ptrIndex) = B.addr.
         unfold wtypes, tvarD. rewrite updatePosition_eq. reflexivity.
-      Qed.
+      Defined.
 
       Definition exprD_ptr_w (funcs : functions wtypes) (uvars vars : env wtypes)
         (e : expr wtypes) : option B.addr :=
@@ -542,7 +542,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Lemma wordType_get_w : tvarD wtypes (tvType wordIndex) = W.
         unfold wtypes, tvarD. rewrite updatePosition_neq; auto;
         rewrite updatePosition_eq; auto. congruence.
-      Qed.
+      Defined.
 
       Definition exprD_word (funcs : functions wtypes) (uvars vars : env wtypes)
         (e : expr wtypes) : option W :=
@@ -768,3 +768,128 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     End WordAccess.
   End typed.
 End Evaluator.
+
+Require Import SepIL SepTac.
+
+Module BedrockEvaluator.
+  Module E := Evaluator BedrockHeap ST.
+  Module Import SEP := E.SEP.
+
+  Definition pcIndex : nat := 0.
+  Definition stateIndex : nat := 1.
+  
+  Definition addr_type :=
+    {| Impl := W
+     ; Eq := seq_dec 
+     |}.
+
+  Definition word_type :=
+    {| Impl := W
+     ; Eq := seq_dec 
+     |}.
+
+  Definition wtypes := bedrock_types ++ addr_type :: word_type :: nil.
+
+  Definition ptsto32_ssig : ssignature wtypes (tvType pcIndex) (tvType stateIndex).
+  refine (
+  {| SepExpr.SDomain := tvType 2 :: tvType 3 :: nil
+   ; SepExpr.SDenotation := _
+   |}).
+  refine (ptsto32 _).
+  Defined.
+
+  Definition wordIndex := 3.
+  Definition ptrIndex := 2.
+  Lemma wordIndex_ptrIndex : wordIndex <> ptrIndex.
+    intro. inversion H.
+  Qed.
+
+  Definition sym_read_word_ptsto32 (hyps args : list (expr wtypes)) (p : expr wtypes) : option (expr wtypes) :=
+    match args with
+      | p' :: v' :: nil => 
+        if seq_dec p p' then Some v' else None
+      | _ => None
+    end.
+  Definition sym_write_word_ptsto32 (hyps args : list (expr wtypes)) (p v : expr wtypes) : option (list (expr wtypes)) :=
+    match args with
+      | p' :: v' :: nil =>
+        if seq_dec p p' then Some (p' :: v :: nil) else None
+      | _ => None
+    end.
+
+  Ltac expose :=
+    repeat match goal with 
+             | [ H : match applyD _ _ ?A _ _ with
+                       | Some _ => _ 
+                       | None => False 
+                     end |- _ ] =>
+             destruct A; simpl in H; try (exfalso; assumption)
+             | [ H : match 
+                       match exprD ?A ?B ?C ?D ?E with
+                         | None => _
+                         | Some _ => _
+                       end _ _ 
+                       with 
+                       | None => _
+                       | Some _ => _
+                     end |- _ ] =>
+             generalize dependent H; case_eq (exprD A B C D E); simpl; intros; 
+               try (exfalso; assumption)
+           end; simpl in *.
+
+  Lemma sym_read_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve m stn P,
+    sym_read_word_ptsto32 hyps args pe = Some ve ->
+    AllProvable funcs uvars vars hyps ->
+    match 
+      applyD (exprD funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs (ST.star p P) stn m
+    end ->
+    match exprD funcs uvars vars pe (tvType ptrIndex) , exprD funcs uvars vars ve (tvType wordIndex) with
+      | Some p , Some v =>
+        ST.HT.smem_get_word (IL.implode stn) p m = Some v
+      | _ , _ => False
+    end.
+  Proof.
+    simpl; intros; expose.
+    destruct (expr_seq_dec pe e); try congruence.
+    inversion H; subst.
+    unfold ptrIndex, wordIndex.
+    rewrite H1. rewrite H2.
+    apply ST.satisfies_star in H3. destruct H3. destruct H3.
+  Admitted.
+
+  Lemma sym_write_word_ptsto32_correct : forall funcs args uvars vars P cs hyps pe ve v m stn args',
+    sym_write_word_ptsto32 hyps args pe ve = Some args' ->
+    AllProvable funcs uvars vars hyps ->
+    exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
+    match
+      applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs (ST.star p P) stn m
+    end ->
+    match exprD funcs uvars vars pe (tvType ptrIndex)with
+      | Some p =>
+        match 
+          applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args' _ (SDenotation ptsto32_ssig)
+          with
+          | None => False
+          | Some pr => 
+            ST.satisfies cs (ST.star pr P) stn (ST.HT.smem_set_word (IL.explode stn) p v m)
+        end
+      | _ => False
+    end.
+  Admitted.
+
+
+  Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex ptsto32_ssig :=
+    {| E.sym_read_word := sym_read_word_ptsto32 : 
+      list (expr (E.wtypes wtypes ptrIndex wordIndex)) -> _
+     ; E.sym_write_word := sym_write_word_ptsto32 
+     ; E.sym_read_word_correct := sym_read_word_ptsto32_correct
+     ; E.sym_write_word_correct := sym_write_word_ptsto32_correct
+     |}.
+
+End BedrockEvaluator.
