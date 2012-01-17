@@ -190,13 +190,7 @@ Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope
 
 (* This breaks the hprop abstraction because it needs access to 'settings' *)
 Definition ptsto32 sos (a v : W) : hpropB sos :=
-  (fun stn sm => [| exists b0, exists b1, exists b2, exists b3,
-    smem_get a sm = Some b0
-    /\ smem_get (a ^+ $1) sm = Some b1
-    /\ smem_get (a ^+ $2) sm = Some b2
-    /\ smem_get (a ^+ $3) sm = Some b3
-    /\ (forall a', a' <> a -> a' <> a ^+ $1 -> a' <> a ^+ $2 -> a' <> a ^+ $3 -> smem_get a' sm = None)
-    /\ implode stn (b0, b1, b2, b3) = v |])%PropX.
+  (fun stn sm => [| ST.HT.smem_get_word (implode stn) a sm = Some v |])%PropX.
 
 Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 
@@ -506,6 +500,15 @@ Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
 Theorem findPtsto32_gotIt : forall stn a v,
   findPtsto32 stn (ptsto32 _ a v) a v.
   unfold findPtsto32; propxFo; eauto 10.
+  unfold smem_get_word in *. simpl in *.
+  repeat match goal with
+           | [ H : match ?X with 
+                     | Some _ => _
+                     | None => _
+                   end = Some _ |- _ ] =>
+           destruct X; [ | congruence ]
+         end.
+  inversion H; eauto 10.
 Qed.
 
 Theorem findPtsto32_star1 : forall stn p1 p2 a v,

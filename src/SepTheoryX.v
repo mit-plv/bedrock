@@ -66,6 +66,7 @@ Section Env.
   Parameter satisfies_star : forall cs P Q stn m,
     satisfies cs (star P Q) stn m ->
     exists ml, exists mr, 
+      HT.split m ml mr /\
       satisfies cs P stn ml  /\ satisfies cs Q stn mr.
 
   Parameter satisfies_pure : forall cs p stn m,
@@ -263,6 +264,7 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
     Lemma satisfies_star : forall P Q stn m,
       satisfies (star P Q) stn m ->
       exists ml, exists mr, 
+        HT.split m ml mr /\
         satisfies P stn ml /\ satisfies Q stn mr.
     Proof.
       unfold satisfies. intros. propxFo. eauto 10.

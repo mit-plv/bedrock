@@ -535,9 +535,45 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         apply ST.satisfies_star in H. do 2 destruct H.
         intuition eauto.
         unfold Provable. destruct (exprD funcs uvars vars a tvProp);
-        apply ST.satisfies_pure in H0; propxFo.
+        apply ST.satisfies_pure in H; propxFo.
     Qed.
 
+    Lemma insert_at_right_star : forall a c cs i1 i2 b, 
+      heq a a c cs (FM.fold
+        (fun (k : nat) (ls : list (list (expr types)))
+          (acc : sexpr' types
+            (ST.hprop (tvarD types pcType) 
+              (tvarD types stateType) nil)) =>
+          Star (starred' (Func k) ls Emp) acc)
+        (FM.insert_at_right i1 i2) b)
+      (Star (FM.fold
+        (fun (k : nat) (ls : list (list (expr types)))
+          (acc : sexpr' types
+            (ST.hprop (tvarD types pcType) 
+              (tvarD types stateType) nil)) =>
+          Star (starred' (Func k) ls Emp) acc)
+        i1 Emp)
+      (FM.fold
+        (fun (k : nat) (ls : list (list (expr types)))
+          (acc : sexpr' types
+            (ST.hprop (tvarD types pcType) 
+              (tvarD types stateType) nil)) =>
+          Star (starred' (Func k) ls Emp) acc)
+        i2 b)).
+    Proof.
+      induction i1; simpl; intros.
+      autorewrite with hprop. reflexivity.
+
+      clear IHi1_1. rewrite IHi1_2. rewrite fold_starred.
+      rewrite heq_star_assoc.
+      symmetry. rewrite fold_starred. rewrite heq_star_assoc.
+      apply heq_star_frame. reflexivity.
+      rewrite heq_star_comm. rewrite fold_starred. 
+      symmetry. rewrite fold_starred. autorewrite with hprop.
+      repeat rewrite heq_star_assoc. apply heq_star_frame.
+      reflexivity. rewrite fold_starred. symmetry; rewrite heq_star_comm.
+      rewrite heq_star_assoc. reflexivity.
+    Qed.
 
     Lemma sheapD_pull_impure : forall a c cs h f argss,
       FM.find f (impures h) = Some argss ->
@@ -579,42 +615,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       inversion 1; subst. clear.
       rewrite starred_starred'. 2: reflexivity. 2: reflexivity.
 
-      Lemma insert_at_right_star : forall a c cs i1 i2 b, 
-        heq a a c cs (FM.fold
-           (fun (k : nat) (ls : list (list (expr types)))
-              (acc : sexpr' types
-                       (ST.hprop (tvarD types pcType) 
-                          (tvarD types stateType) nil)) =>
-            Star (starred' (Func k) ls Emp) acc)
-           (FM.insert_at_right i1 i2) b)
-        (Star (FM.fold
-           (fun (k : nat) (ls : list (list (expr types)))
-              (acc : sexpr' types
-                       (ST.hprop (tvarD types pcType) 
-                          (tvarD types stateType) nil)) =>
-            Star (starred' (Func k) ls Emp) acc)
-           i1 Emp)
-              (FM.fold
-           (fun (k : nat) (ls : list (list (expr types)))
-              (acc : sexpr' types
-                       (ST.hprop (tvarD types pcType) 
-                          (tvarD types stateType) nil)) =>
-            Star (starred' (Func k) ls Emp) acc)
-           i2 b)).
-      Proof.
-        induction i1; simpl; intros.
-          autorewrite with hprop. reflexivity.
-
-          clear IHi1_1. rewrite IHi1_2. rewrite fold_starred.
-          rewrite heq_star_assoc.
-          symmetry. rewrite fold_starred. rewrite heq_star_assoc.
-          apply heq_star_frame. reflexivity.
-          rewrite heq_star_comm. rewrite fold_starred. 
-          symmetry. rewrite fold_starred. autorewrite with hprop.
-          repeat rewrite heq_star_assoc. apply heq_star_frame.
-          reflexivity. rewrite fold_starred. symmetry; rewrite heq_star_comm.
-          rewrite heq_star_assoc. reflexivity.
-      Qed.
       rewrite insert_at_right_star.
       rewrite fold_starred.
       symmetry. rewrite heq_star_comm. rewrite <- heq_star_assoc.
@@ -681,39 +681,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
-(*
-    Section MM.
-      Require Import Env.
-      Variable T : Type.
-      Variable T_sdec : SemiDec T.
 
-      Fixpoint in_sdec (v : T) (m : list T) : option (In v m) :=
-        match m with
-          | nil => None
-          | a :: b =>
-            match seq_dec a v with
-              | Some pf => 
-                Some (or_introl _ pf)
-              | None => match in_sdec v b with
-                          | None => None
-                          | Some pf => Some (or_intror _ pf)
-                        end
-            end
-        end.
-
-      Definition filter_all (m r : list T) : list T :=
-        filter (fun v => if in_sdec v r then true else false) m.
-        
-
-      Definition mm_remove_all (m r : FM.t (list T)) : FM.t (list T) :=
-        FM.fold (fun k v a =>
-          match FM.find k r with
-            | None => FM.add k v a
-            | Some v' => FM.add k (filter_all v v') a
-          end) m FM.empty.
-
-    End MM.
-*)
     (** The actual tactic code **)
     Record SepResult (gl gr : sexpr) : Type := Prove
       { vars   : variables
