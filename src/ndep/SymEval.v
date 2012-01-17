@@ -296,51 +296,49 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | refl_equal => exprD funcs uvars vars e (tvType byteIndex)
         end.
 
-
-
       Record SymEval_byte (Predicate : ssignature btypes (tvType pcIndex) (tvType stateIndex))
         : Type :=
-        { sym_read_byte  : 
-          forall (hyps args : list (expr btypes)) (p : expr btypes), option (expr btypes)
-            ; sym_write_byte : 
-            forall (hyps args : list (expr btypes)) (p v : expr btypes),
-              option (list (expr btypes))
-              ; sym_read_byte_correct : forall funcs args uvars vars cs hyps pe ve m stn P,
-                sym_read_byte hyps args pe = Some ve ->
-                AllProvable funcs uvars vars hyps ->
-                match 
-                  applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-                  with
-                  | None => False
-                  | Some p => ST.satisfies cs (ST.star p P) stn m
-                end ->
-                match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
-                  | Some p , Some v =>
-                    ST.HT.smem_get p m = Some v
-                  | _ , _ => False
-                end
-                ; sym_write_byte_correct : forall funcs args uvars vars P cs hyps pe ve v m stn args',
-                  sym_write_byte hyps args pe ve = Some args' ->
-                  AllProvable funcs uvars vars hyps ->
-                  exprD_byte funcs uvars vars ve = Some v ->
-                  match
-                    applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-                    with
-                    | None => False
-                    | Some p => ST.satisfies cs (ST.star p P) stn m
-                  end ->
-                  match exprD_ptr funcs uvars vars pe with
-                    | Some p =>
-                      match 
-                        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-                        with
-                        | None => False
-                        | Some pr => 
-                          ST.satisfies cs (ST.star pr P) stn (ST.HT.smem_set p v m)
-                      end
-                    | _ => False
-                  end
-        }.
+      { sym_read_byte  : 
+        forall (hyps args : list (expr btypes)) (p : expr btypes), option (expr btypes)
+      ; sym_write_byte : 
+        forall (hyps args : list (expr btypes)) (p v : expr btypes),
+        option (list (expr btypes))
+      ; sym_read_byte_correct : forall funcs args uvars vars cs hyps pe ve m stn,
+        sym_read_byte hyps args pe = Some ve ->
+        AllProvable funcs uvars vars hyps ->
+        match 
+          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn m
+        end ->
+        match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
+          | Some p , Some v =>
+            ST.HT.smem_get p m = Some v
+          | _ , _ => False
+        end
+      ; sym_write_byte_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
+        sym_write_byte hyps args pe ve = Some args' ->
+        AllProvable funcs uvars vars hyps ->
+        exprD_byte funcs uvars vars ve = Some v ->
+        match
+          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn m
+        end ->
+        match exprD_ptr funcs uvars vars pe with
+          | Some p =>
+            match 
+              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+              with
+              | None => False
+              | Some pr => 
+                ST.satisfies cs pr stn (ST.HT.smem_set p v m)
+            end
+          | _ => False
+        end
+      }.
 
       Definition defaultSymEval_byte (P : ssignature btypes (tvType pcIndex) (tvType stateIndex))
         : SymEval_byte P.
@@ -395,21 +393,43 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         apply In_split in H3. destruct H3. destruct H3.
         subst. rewrite starred_In in H1.
 
+        rewrite <- heq_star_assoc in H1. rewrite heq_star_comm in H1.
+        rewrite H1 in H.
+        simpl in H.
+        eapply ST.satisfies_star in H. destruct H. destruct H. intuition.
+        rewrite H2 in *.
+ 
         eapply sym_read_byte_correct 
-          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x4)
-            (P := sexprD funcs sfuncs uvars vars0 (Star
-          (sheapD
-            {|
-              impures := FM.remove x (impures s);
-              pures := pures s;
-              other := other s |})
-          (starred (Func x) (x5 ++ x6) Emp)))
-            in H6.
+          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
+          in H6.
+        2: eapply AllProvable_app; auto.
         destruct (exprD_ptr funcs uvars vars0 pe); auto.
         destruct (exprD_byte funcs uvars vars0 ve); auto.
-        erewrite ST.HT.satisfies_get; eauto.
+        eapply ST.HT.satisfies_get. eauto.
 
-        eapply AllProvable_app; auto.
+        Lemma split_smem_get : forall a b c p v,
+          ST.HT.split a b c ->
+            (ST.HT.smem_get p b = Some v \/ ST.HT.smem_get p c = Some v) ->
+            ST.HT.smem_get p a = Some v.
+        Admitted.
+
+        Lemma split_smem_get_word : forall i a b c p v,
+          ST.HT.split a b c ->
+            (ST.HT.smem_get_word i p b = Some v \/ ST.HT.smem_get_word i p c = Some v) ->
+            ST.HT.smem_get_word i p a = Some v.
+        Proof.
+        Admitted.
+          
+(*
+        SearchAbout ST.HT.split.
+
+        simpl in H. rewrite H2 in *.
+        unfold tvarD. generalize dependent H.
+        match goal with 
+          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+            destruct (applyD A B C D E)
+        end.
+
 
         unfold heq in *.
         rewrite H1 in H. simpl in *. rewrite ST.heq_star_comm in H.
@@ -422,8 +442,9 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         end; auto.
         clear. intros.
         eapply ST.satisfies_star in H. do 2 destruct H. intuition.
-        eapply ST.satisfies_pure in H0. PropXTac.propxFo.
-      Qed.
+        eapply ST.satisfies_pure in H. PropXTac.propxFo.
+*)
+      Admitted.
 
       Definition symeval_write_byte (hyps : list (expr btypes)) (p v : expr btypes) 
         (s : SHeap btypes (tvType pcIndex) (tvType stateIndex))
@@ -474,17 +495,9 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         simpl in *. rewrite H2 in *.
         intros.
 
-        eapply sym_write_byte_correct 
-          with (P := ST.star
-            (sexprD funcs sfuncs uvars vars0
-              (sheapD
-                {|
-                  impures := FM.remove x (impures s);
-                  pures := pures s;
-                  other := other s |}))
-            (sexprD funcs sfuncs uvars vars0 (starred (Func x) (x5 ++ x6) Emp)))
-            (stn := stn) (cs := cs) (m := x4)
+        eapply sym_write_byte_correct with (stn := stn) (cs := cs) (m := x4)
           in H3; eauto.
+(*      
         2: apply AllProvable_app; eauto.
         destruct (exprD_ptr funcs uvars vars0 pe); eauto.
         unfold tvarD in H3.
@@ -509,8 +522,9 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         end. intros. auto.
         intros. eapply ST.satisfies_star in H7.
         do 2 destruct H7. intuition.
-        apply ST.satisfies_pure in H8. PropXTac.propxFo.
-      Qed.
+        apply ST.satisfies_pure in H4. PropXTac.propxFo.
+*)
+      Admitted.
     End ByteAccess.
 
     (** * Words *)
@@ -552,46 +566,46 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       Record SymEval_word (Predicate : ssignature wtypes (tvType pcIndex) (tvType stateIndex))
         : Type :=
-        { sym_read_word  : 
-          forall (hyps args : list (expr wtypes)) (p : expr wtypes), option (expr wtypes)
-        ; sym_write_word : 
-          forall (hyps args : list (expr wtypes)) (p v : expr wtypes),
-            option (list (expr wtypes))
-         ; sym_read_word_correct : forall funcs args uvars vars cs hyps pe ve m stn P,
-           sym_read_word hyps args pe = Some ve ->
-           AllProvable funcs uvars vars hyps ->
-           match 
-             applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-             with
-             | None => False
-             | Some p => ST.satisfies cs (ST.star p P) stn m
-           end ->
-           match exprD_ptr_w funcs uvars vars pe , exprD_word funcs uvars vars ve with
-             | Some p , Some v =>
-               ST.HT.smem_get_word (IL.implode stn) p m = Some v
-             | _ , _ => False
-           end
-         ; sym_write_word_correct : forall funcs args uvars vars P cs hyps pe ve v m stn args',
-           sym_write_word hyps args pe ve = Some args' ->
-           AllProvable funcs uvars vars hyps ->
-           exprD_word funcs uvars vars ve = Some v ->
-           match
-             applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-             with
-             | None => False
-             | Some p => ST.satisfies cs (ST.star p P) stn m
-           end ->
-           match exprD_ptr_w funcs uvars vars pe with
-             | Some p =>
-               match 
-                 applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-                 with
-                 | None => False
-                 | Some pr => 
-                   ST.satisfies cs (ST.star pr P) stn (ST.HT.smem_set_word (IL.explode stn) p v m)
-               end
-             | _ => False
-           end
+      { sym_read_word  : 
+        forall (hyps args : list (expr wtypes)) (p : expr wtypes), option (expr wtypes)
+      ; sym_write_word : 
+        forall (hyps args : list (expr wtypes)) (p v : expr wtypes),
+        option (list (expr wtypes))
+      ; sym_read_word_correct : forall funcs args uvars vars cs hyps pe ve m stn,
+        sym_read_word hyps args pe = Some ve ->
+        AllProvable funcs uvars vars hyps ->
+        match 
+          applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn m
+        end ->
+        match exprD_ptr_w funcs uvars vars pe , exprD_word funcs uvars vars ve with
+          | Some p , Some v =>
+            ST.HT.smem_get_word (IL.implode stn) p m = Some v
+          | _ , _ => False
+        end
+      ; sym_write_word_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
+        sym_write_word hyps args pe ve = Some args' ->
+        AllProvable funcs uvars vars hyps ->
+        exprD_word funcs uvars vars ve = Some v ->
+        match
+          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn m
+        end ->
+        match exprD_ptr_w funcs uvars vars pe with
+          | Some p =>
+            match 
+              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+              with
+              | None => False
+              | Some pr => 
+                ST.satisfies cs pr stn (ST.HT.smem_set_word (IL.explode stn) p v m)
+            end
+          | _ => False
+        end
       }.
 
       Definition defaultSymEval_word (P : ssignature wtypes (tvType pcIndex) (tvType stateIndex))
@@ -650,18 +664,11 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
         eapply sym_read_word_correct 
           with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x4)
-            (P := sexprD funcs sfuncs uvars vars0 (Star
-          (sheapD
-            {|
-              impures := FM.remove x (impures s);
-              pures := pures s;
-              other := other s |})
-          (starred (Func x) (x5 ++ x6) Emp)))
-            in H6.
+          in H6.
         destruct (exprD_ptr_w funcs uvars vars0 pe); auto.
         destruct (exprD_word funcs uvars vars0 ve); auto.
         erewrite ST.HT.satisfies_get_word; eauto.
-
+(*
         eapply AllProvable_app; auto.
 
         unfold heq in *.
@@ -676,7 +683,8 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         clear. intros.
         eapply ST.satisfies_star in H. do 2 destruct H. intuition.
         eapply ST.satisfies_pure in H0. PropXTac.propxFo.
-      Qed.
+*)
+      Admitted.
 
       Definition symeval_write_word (hyps : list (expr wtypes)) (p v : expr wtypes) 
         (s : SHeap wtypes (tvType pcIndex) (tvType stateIndex))
@@ -723,7 +731,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite sheapD_pull_impure in H4 by eauto.
         rewrite starred_In in H4.
         rewrite <- heq_star_assoc in H4. rewrite heq_star_comm in H4.
-        
+(*
         simpl in *. rewrite H2 in *.
         intros.
 
@@ -763,13 +771,14 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         intros. eapply ST.satisfies_star in H7.
         do 2 destruct H7. intuition.
         apply ST.satisfies_pure in H8. PropXTac.propxFo.
-      Qed.
+*)
+      Admitted.
 
     End WordAccess.
   End typed.
 End Evaluator.
 
-Require Import SepIL SepTac.
+Require Import SepIL Bedrock.SepTac.
 
 Module BedrockEvaluator.
   Module E := Evaluator BedrockHeap ST.
@@ -813,7 +822,7 @@ Module BedrockEvaluator.
   Definition sym_write_word_ptsto32 (hyps args : list (expr wtypes)) (p v : expr wtypes) : option (list (expr wtypes)) :=
     match args with
       | p' :: v' :: nil =>
-        if seq_dec p p' then Some (p' :: v :: nil) else None
+        if seq_dec p p' then Some (p :: v :: nil) else None
       | _ => None
     end.
 
@@ -837,14 +846,14 @@ Module BedrockEvaluator.
                try (exfalso; assumption)
            end; simpl in *.
 
-  Lemma sym_read_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve m stn P,
+  Lemma sym_read_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve m stn,
     sym_read_word_ptsto32 hyps args pe = Some ve ->
     AllProvable funcs uvars vars hyps ->
     match 
       applyD (exprD funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
       with
       | None => False
-      | Some p => ST.satisfies cs (ST.star p P) stn m
+      | Some p => ST.satisfies cs p stn m
     end ->
     match exprD funcs uvars vars pe (tvType ptrIndex) , exprD funcs uvars vars ve (tvType wordIndex) with
       | Some p , Some v =>
@@ -857,10 +866,12 @@ Module BedrockEvaluator.
     inversion H; subst.
     unfold ptrIndex, wordIndex.
     rewrite H1. rewrite H2.
-    apply ST.satisfies_star in H3. destruct H3. destruct H3.
-  Admitted.
+    
+    unfold ptsto32 in *. Opaque natToWord.
+    unfold ST.satisfies in H3. PropXTac.propxFo.
+  Qed.
 
-  Lemma sym_write_word_ptsto32_correct : forall funcs args uvars vars P cs hyps pe ve v m stn args',
+  Lemma sym_write_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
     sym_write_word_ptsto32 hyps args pe ve = Some args' ->
     AllProvable funcs uvars vars hyps ->
     exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
@@ -868,7 +879,7 @@ Module BedrockEvaluator.
       applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
       with
       | None => False
-      | Some p => ST.satisfies cs (ST.star p P) stn m
+      | Some p => ST.satisfies cs p stn m
     end ->
     match exprD funcs uvars vars pe (tvType ptrIndex)with
       | Some p =>
@@ -877,12 +888,21 @@ Module BedrockEvaluator.
           with
           | None => False
           | Some pr => 
-            ST.satisfies cs (ST.star pr P) stn (ST.HT.smem_set_word (IL.explode stn) p v m)
+            ST.satisfies cs pr stn (ST.HT.smem_set_word (IL.explode stn) p v m)
         end
       | _ => False
     end.
-  Admitted.
+  Proof.
+    simpl; intros; expose.
+    destruct (expr_seq_dec pe e); try congruence.
+    inversion H; subst; simpl.
+    unfold ptrIndex, wordIndex in *.
+    rewrite H2. rewrite H1.
 
+    unfold ST.satisfies in *.
+    PropXTac.propxFo. erewrite smem_set_get_word_eq; eauto.
+    eapply IL.implode_explode.
+  Qed.
 
   Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex ptsto32_ssig :=
     {| E.sym_read_word := sym_read_word_ptsto32 : 

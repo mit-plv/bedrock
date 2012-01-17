@@ -87,7 +87,6 @@ Module HeapTheory (B : Heap).
           HCons (hlist_hd m) (smem_set' b p v (hlist_tl m))
     end.
 
-
   Fixpoint satisfies' dom (m : smem' dom) (m' : B.mem) : Prop :=
     match m with
       | HNil => True
@@ -231,6 +230,37 @@ Module HeapTheory (B : Heap).
     induction all_addr; simpl; intros; try congruence.
     destruct (addr_dec a p); destruct (addr_dec a a0); subst; simpl; eauto.
     exfalso; auto.
+  Qed.
+
+  Lemma smem_set_get_eq : forall m a b c,
+    smem_get a m = Some c ->
+    smem_get a (smem_set a b m) = Some b.
+  Proof.
+    unfold smem, smem_get, smem_set.
+    induction all_addr; simpl; intros; try congruence.
+    destruct (addr_dec a a0); subst; simpl in *; eauto 10.
+  Qed.
+
+  Lemma smem_set_get_word_eq : forall i e m a b c,
+    (forall x, i (e x) = x) ->
+    smem_get_word i a m = Some c ->
+    smem_get_word i a (smem_set_word e a b m) = Some b.
+  Proof.
+    unfold smem_get_word, smem_set_word; intros.
+    generalize (footprint_disjoint a).
+    destruct (footprint_w a). destruct p. destruct p.
+    generalize dependent H0.
+    case_eq (smem_get a2 m); [ | intros; congruence ].
+    case_eq (smem_get a3 m); [ | intros; congruence ].
+    case_eq (smem_get a1 m); [ | intros; congruence ].
+    case_eq (smem_get a0 m); [ | intros; congruence ].
+    intros. specialize (H5 _ _ _ _ (refl_equal _)).
+    inversion H4; clear H4; subst. intuition.
+    specialize (H b).
+    destruct (e b); destruct p; destruct p; subst.
+    
+    repeat ((erewrite smem_set_get_eq; [ | repeat rewrite smem_set_get_neq by auto; eassumption ])
+      || (erewrite smem_set_get_neq by eauto)). auto.
   Qed.
 
   Theorem satisfies_set_word : forall m m',
