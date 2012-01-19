@@ -327,8 +327,12 @@ Module HeapTheory (B : Heap).
     smem_set_word e p v m <> None.
   Proof.
     unfold smem_get_word, smem_set_word.
-    intros; destruct (e v); simp intuition.
-  Admitted.
+    intros. generalize (footprint_disjoint p).
+    intros; destruct (e v); simp intuition;
+    specialize (H0 _ _ _ _ (refl_equal _)); simp intuition;
+    (eapply smem_set_get_valid; [ | eauto ];
+      repeat (erewrite smem_set_get_neq; [ | solve [ eauto ] | solve [ eauto ] ]); eauto).
+  Qed.
 
   Lemma split_set : forall a b,
     disjoint a b ->
