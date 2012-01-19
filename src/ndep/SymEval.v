@@ -654,32 +654,31 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         eapply sheapD_pull_impure 
           with (funcs := funcs) (sfuncs := sfuncs) (a := uvars) (c := vars0) (cs := cs)
             in H1.
-        destruct (In_split _ _ H3). destruct H7. subst.
-        rewrite starred_In in H1.
+        apply In_split in H3. destruct H3. destruct H3.
+        subst. rewrite starred_In in H1.
 
+        rewrite <- heq_star_assoc in H1. rewrite heq_star_comm in H1.
+        rewrite H1 in H.
+        simpl in H.
+        eapply ST.satisfies_star in H. destruct H. destruct H. intuition.
+        rewrite H2 in *.
+ 
         eapply sym_read_word_correct 
-          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x4)
+          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
           in H6.
+        2: eapply AllProvable_app; auto.
         destruct (exprD_ptr_w funcs uvars vars0 pe); auto.
         destruct (exprD_word funcs uvars vars0 ve); auto.
-        erewrite ST.HT.satisfies_get_word; eauto.
-(*
-        eapply AllProvable_app; auto.
+        eapply ST.HT.satisfies_get_word. eauto.
 
-        unfold heq in *.
-        rewrite H1 in H. simpl in *. rewrite ST.heq_star_comm in H.
-        rewrite H2 in *. rewrite ST.heq_star_assoc in H.
-        rewrite ST.heq_star_comm in H. rewrite ST.heq_star_assoc in H.
-        generalize H. clear.
+        eapply ST.HT.split_smem_get_word; eauto.
+        unfold tvarD.
         match goal with 
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
             destruct (applyD A B C D E)
         end; auto.
-        clear. intros.
-        eapply ST.satisfies_star in H. do 2 destruct H. intuition.
-        eapply ST.satisfies_pure in H0. PropXTac.propxFo.
-*)
-      Admitted.
+        eapply ST.satisfies_pure in H. PropXTac.propxFo.
+      Qed.
 
       Definition symeval_write_word (hyps : list (expr wtypes)) (p v : expr wtypes) 
         (s : SHeap wtypes (tvType pcIndex) (tvType stateIndex))
@@ -727,48 +726,57 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite sheapD_pull_impure in H4 by eauto.
         rewrite starred_In in H4.
         rewrite <- heq_star_assoc in H4. rewrite heq_star_comm in H4.
-(*
+        
         simpl in *. rewrite H2 in *.
         intros.
 
-        eapply sym_write_word_correct 
-          with (P := ST.star
-            (sexprD funcs sfuncs uvars vars0
-              (sheapD
-                {|
-                  impures := FM.remove x (impures s);
-                  pures := pures s;
-                  other := other s |}))
-            (sexprD funcs sfuncs uvars vars0 (starred (Func x) (x5 ++ x6) Emp)))
-            (stn := stn) (cs := cs) (m := x4)
+        eapply ST.satisfies_star in H4. do 2 destruct H4. intuition.
+
+        eapply sym_write_word_correct with (stn := stn) (cs := cs) (m := x2)
           in H3; eauto.
+
         2: apply AllProvable_app; eauto.
+
         destruct (exprD_ptr_w funcs uvars vars0 pe); eauto.
         unfold tvarD in H3.
-        exists (ST.HT.smem_set_word (IL.explode stn) a v x4). split.
-        2: eapply ST.HT.satisfies_set_word; eauto.
-        rewrite sheapD_pull_impure.
-        2: eapply FM.find_add.
+
+        generalize dependent H3.
+        case_eq (ST.HT.smem_set_word (IL.explode stn) a v x2); [ intros |
+          match goal with 
+            | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+              destruct (applyD A B C D E); intros; exfalso; assumption
+          end ].
+        
+        exists (ST.HT.join s0 x3).
+        rewrite sheapD_pull_impure by eapply FM.find_add.
+        simpl. rewrite FM.remove_add.
         rewrite starred_In.
-        simpl. rewrite H2. generalize dependent H3. 
+        simpl. rewrite H2. generalize dependent H8. 
+        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
         match goal with
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            case_eq (applyD A B C D E)
-        end. intros.
-        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
-        rewrite FM.remove_add. eapply H7.
-        intros; exfalso; auto.
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. 
+        generalize dependent H9.
+        match goal with
+          | [ |- ST.satisfies _ ?Y _ _ -> _ -> ST.satisfies _ (ST.star _ ?X) _ _ /\ _ ] => 
+            change X with Y; generalize dependent Y
+        end.
+        intros.
+
+        generalize (ST.HT.split_set_word _ _ (proj1 H7) _ _ _ _ H3).
+        split.
+        eapply ST.satisfies_star. do 2 eexists. split; eauto. eapply ST.HT.disjoint_split_join; eauto. tauto.
+
+        eapply ST.HT.satisfies_set_word. eauto. destruct H7; subst. tauto.
 
         unfold tvarD. generalize dependent H4.
         match goal with
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            case_eq (applyD A B C D E)
-        end. intros. auto.
-        intros. eapply ST.satisfies_star in H7.
-        do 2 destruct H7. intuition.
-        apply ST.satisfies_pure in H8. PropXTac.propxFo.
-*)
-      Admitted.
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. intros.
+        eapply ST.satisfies_pure in H4. PropXTac.propxFo.
+      Qed.
 
     End WordAccess.
   End typed.
@@ -863,7 +871,7 @@ Module BedrockEvaluator.
     unfold ptrIndex, wordIndex.
     rewrite H1. rewrite H2.
     
-    unfold ptsto32 in *. Opaque natToWord.
+    unfold ptsto32 in *.
     unfold ST.satisfies in H3. PropXTac.propxFo.
   Qed.
 
@@ -908,8 +916,7 @@ Module BedrockEvaluator.
   Qed.
 
   Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex ptsto32_ssig :=
-    {| E.sym_read_word := sym_read_word_ptsto32 : 
-      list (expr (E.wtypes wtypes ptrIndex wordIndex)) -> _
+    {| E.sym_read_word := sym_read_word_ptsto32 : list (expr (E.wtypes wtypes ptrIndex wordIndex)) -> _
      ; E.sym_write_word := sym_write_word_ptsto32 
      ; E.sym_read_word_correct := sym_read_word_ptsto32_correct
      ; E.sym_write_word_correct := sym_write_word_ptsto32_correct
