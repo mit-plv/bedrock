@@ -1,7 +1,10 @@
 #DEP := Expr ExprUnify SepExpr SepExprTests Provers
 DEP  := 
-NDEP := NatMap Expr ExprUnify SepExpr SepExprTests Provers \
-	Unfolder UnfolderTests SymEval
+NDEP := NatMap Expr ExprUnify \
+	SepExpr SepExprTests \
+	Provers \
+	Unfolder UnfolderTests \
+	SymEval SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
