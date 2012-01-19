@@ -334,7 +334,11 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               with
               | None => False
               | Some pr => 
-                ST.satisfies cs pr stn (ST.HT.smem_set p v m)
+                match ST.HT.smem_set p v m with
+                  | None => False
+                  | Some sm' =>
+                    ST.satisfies cs pr stn sm'
+                end
             end
           | _ => False
         end
@@ -344,10 +348,10 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         : SymEval_byte P.
       refine (
         {| sym_read_byte          := fun _ _ _ => None
-          ; sym_write_byte         := fun _ _ _ _ => None
-            ; sym_read_byte_correct  := _
-            ; sym_write_byte_correct := _
-        |}); 
+         ; sym_write_byte         := fun _ _ _ _ => None
+         ; sym_read_byte_correct  := _
+         ; sym_write_byte_correct := _
+         |}); 
       abstract (simpl; intros; congruence).
       Defined.
 
@@ -407,44 +411,14 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         destruct (exprD_byte funcs uvars vars0 ve); auto.
         eapply ST.HT.satisfies_get. eauto.
 
-        Lemma split_smem_get : forall a b c p v,
-          ST.HT.split a b c ->
-            (ST.HT.smem_get p b = Some v \/ ST.HT.smem_get p c = Some v) ->
-            ST.HT.smem_get p a = Some v.
-        Admitted.
-
-        Lemma split_smem_get_word : forall i a b c p v,
-          ST.HT.split a b c ->
-            (ST.HT.smem_get_word i p b = Some v \/ ST.HT.smem_get_word i p c = Some v) ->
-            ST.HT.smem_get_word i p a = Some v.
-        Proof.
-        Admitted.
-          
-(*
-        SearchAbout ST.HT.split.
-
-        simpl in H. rewrite H2 in *.
-        unfold tvarD. generalize dependent H.
-        match goal with 
-          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            destruct (applyD A B C D E)
-        end.
-
-
-        unfold heq in *.
-        rewrite H1 in H. simpl in *. rewrite ST.heq_star_comm in H.
-        rewrite H2 in *. rewrite ST.heq_star_assoc in H.
-        rewrite ST.heq_star_comm in H. rewrite ST.heq_star_assoc in H.
-        generalize H. clear.
+        eapply ST.HT.split_smem_get; eauto.
+        unfold tvarD.
         match goal with 
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
             destruct (applyD A B C D E)
         end; auto.
-        clear. intros.
-        eapply ST.satisfies_star in H. do 2 destruct H. intuition.
         eapply ST.satisfies_pure in H. PropXTac.propxFo.
-*)
-      Admitted.
+      Qed.
 
       Definition symeval_write_byte (hyps : list (expr btypes)) (p v : expr btypes) 
         (s : SHeap btypes (tvType pcIndex) (tvType stateIndex))
@@ -495,36 +469,53 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         simpl in *. rewrite H2 in *.
         intros.
 
-        eapply sym_write_byte_correct with (stn := stn) (cs := cs) (m := x4)
+        eapply ST.satisfies_star in H4. do 2 destruct H4. intuition.
+
+        eapply sym_write_byte_correct with (stn := stn) (cs := cs) (m := x2)
           in H3; eauto.
-(*      
+
         2: apply AllProvable_app; eauto.
+
         destruct (exprD_ptr funcs uvars vars0 pe); eauto.
         unfold tvarD in H3.
-        exists (ST.HT.smem_set a v x4). split.
-        2: eapply ST.HT.satisfies_set; eauto.
-        rewrite sheapD_pull_impure.
-        2: eapply FM.find_add.
+
+        generalize dependent H3.
+        case_eq (ST.HT.smem_set a v x2); [ intros |
+          match goal with 
+            | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+              destruct (applyD A B C D E); intros; exfalso; assumption
+          end ].
+        
+        exists (ST.HT.join s0 x3).
+        rewrite sheapD_pull_impure by eapply FM.find_add.
+        simpl. rewrite FM.remove_add.
         rewrite starred_In.
-        simpl. rewrite H2. generalize dependent H3. 
+        simpl. rewrite H2. generalize dependent H8. 
+        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
         match goal with
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            case_eq (applyD A B C D E)
-        end. intros.
-        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
-        rewrite FM.remove_add. eapply H7.
-        intros; exfalso; auto.
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. 
+        generalize dependent H9.
+        match goal with
+          | [ |- ST.satisfies _ ?Y _ _ -> _ -> ST.satisfies _ (ST.star _ ?X) _ _ /\ _ ] => 
+            change X with Y; generalize dependent Y
+        end.
+        intros.
+
+        generalize (ST.HT.split_set _ _ (proj1 H7) _ _ _ H3).
+        split.
+        eapply ST.satisfies_star. do 2 eexists. split; eauto. eapply ST.HT.disjoint_split_join; eauto. tauto.
+
+        eapply ST.HT.satisfies_set. eauto. destruct H7; subst. tauto.
 
         unfold tvarD. generalize dependent H4.
         match goal with
           | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            case_eq (applyD A B C D E)
-        end. intros. auto.
-        intros. eapply ST.satisfies_star in H7.
-        do 2 destruct H7. intuition.
-        apply ST.satisfies_pure in H4. PropXTac.propxFo.
-*)
-      Admitted.
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. intros.
+        eapply ST.satisfies_pure in H4. PropXTac.propxFo.
+      Qed.
     End ByteAccess.
 
     (** * Words *)
@@ -602,7 +593,10 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               with
               | None => False
               | Some pr => 
-                ST.satisfies cs pr stn (ST.HT.smem_set_word (IL.explode stn) p v m)
+                match ST.HT.smem_set_word (IL.explode stn) p v m with
+                  | None => False
+                  | Some sm' => ST.satisfies cs pr stn sm'
+                end
             end
           | _ => False
         end
@@ -637,8 +631,9 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         in
         fold_known _ _ reader (impures s) evals.
 
-      Theorem symeval_read_word_correct : forall cs stn hyps funcs pe ve s uvars vars m,
+      Theorem symeval_read_word_correct : forall hyps pe s ve, 
         symeval_read_word hyps pe s = Some ve ->
+        forall cs stn funcs uvars vars m,
         AllProvable funcs uvars vars hyps ->
         (exists sm, 
              ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
@@ -698,8 +693,9 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
         end.
 
-      Theorem symeval_write_word_correct : forall cs stn hyps funcs pe ve s s' uvars vars m v,
+      Theorem symeval_write_word_correct : forall hyps pe ve s s',
         symeval_write_word hyps pe ve s = Some s' ->
+        forall cs stn funcs uvars vars m v,
         AllProvable funcs uvars vars hyps ->
         exprD_word funcs uvars vars ve = Some v ->
         (exists sm, 
@@ -888,7 +884,10 @@ Module BedrockEvaluator.
           with
           | None => False
           | Some pr => 
-            ST.satisfies cs pr stn (ST.HT.smem_set_word (IL.explode stn) p v m)
+            match ST.HT.smem_set_word (IL.explode stn) p v m with
+              | None => False
+              | Some sm' => ST.satisfies cs pr stn sm'
+            end
         end
       | _ => False
     end.
@@ -900,8 +899,12 @@ Module BedrockEvaluator.
     rewrite H2. rewrite H1.
 
     unfold ST.satisfies in *.
-    PropXTac.propxFo. erewrite smem_set_get_word_eq; eauto.
+    PropXTac.propxFo. 
+    case_eq (smem_set_word (IL.explode stn) t v m).
+    intros. unfold ptsto32. PropXTac.propxFo.
+    eapply smem_set_get_word_eq; eauto.
     eapply IL.implode_explode.
+    eapply smem_set_get_valid_word; eauto.
   Qed.
 
   Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex ptsto32_ssig :=

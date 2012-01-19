@@ -1,4 +1,5 @@
 Require Import List EqdepClass.
+Require Export EquivDec.
 
 Set Implicit Arguments.
 

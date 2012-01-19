@@ -41,8 +41,9 @@ Theorem ptsto_refl : forall a v,
   a ==> v ===> a ==> v.
 Proof.
   intros.
+  Print Ltac reflect_goal.
   reflect_goal ltac:(isConst) (@nil Expr.type).
-  intro. SEP.canceler.
+  intro. SEP.canceler tt.
   reflexivity.
 Qed.
 
@@ -51,7 +52,7 @@ Theorem ptsto_comm : forall a1 v1 a2 v2,
 Proof.
   intros.
   reflect_goal ltac:(isConst) (@nil Expr.type).
-  intro. SEP.canceler. reflexivity.
+  intro. SEP.canceler tt. reflexivity.
 Qed.
 
 

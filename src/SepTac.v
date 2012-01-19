@@ -56,10 +56,10 @@ Ltac reflect_goal isConst Ts :=
     | [ |- Himp ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-      let Ts := eval unfold bedrock_types in bedrock_types in
+      let types := eval unfold bedrock_types in bedrock_types in
       let goals := constr:(L :: R :: nil) in
       let goals := eval unfold starB exB hvarB in goals in
-      let v := SEP.reflect_all pcT stateT ltac:(isConst) Ts goals in
+      let v := SEP.reflect_sexprs pcT stateT ltac:(isConst) types tt tt goals in
       match v with
         | (?types, ?pcT, ?stT, ?funcs, ?sfuncs, ?L :: ?R :: nil) => 
           apply (@Himp_to_SEP_himp _ funcs sfuncs L R)
