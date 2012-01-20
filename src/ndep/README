@@ -1,0 +1,15 @@
+Non-dependent expression representation
+---------------------------------------
+
+Expr
+    Simple non-dependent expression language (this is new: the representation
+    in 'dep' had types which dependently encoded the free variables
+    of an expression.)  Forms the basis for SepExpr. (XXX but what is it really??)
+ExprUnify
+NatMap
+    Non-dependent unbalanced binary trees with natural numbers as keys
+    (no values stored in leaves)
+Provers
+SepExpr/SepExprTests
+SymEval
+Unfolder/UnfolderTests
