@@ -58,7 +58,11 @@ Definition write := bmodule "write" {{
   }
 }}.
 Theorem writeOk : moduleOk write.
-  structured; ho. specialize (H3 (stn, x)). autorewrite with sepFormula in *; eauto. info propxFo.
+  structured; ho. specialize (H3 (stn, x)). autorewrite with sepFormula in *; eauto.
+  rewrite sepFormula_eq in *.
+  generalize dependent H0.
+  propxFo. unfold WriteWord. 
+ info propxFo.
 Abort.
 
 (** Unknown memory *)
@@ -126,7 +130,6 @@ Theorem ptsto_refl : forall a v,
   a ==> v ===> a ==> v.
 Proof.
   intros.
-  Print Ltac reflect_goal.
   reflect_goal ltac:(isConst) (@nil Expr.type).
   intro. SEP.canceler tt.
   reflexivity.
