@@ -25,6 +25,91 @@ Theorem readOk : moduleOk read.
 Qed.
 
 
+(** Identity function, using a simple calling convention *)
+
+Definition identityS : assert := st ~> Ex a, ![ st#Sp ==> a ] st /\ st#Rp @@ (st' ~> [| st'#Rv = a /\ st'#Sp = st#Sp |]).
+Definition identity := bmodule "identity" {{
+  bfunction "identity" [identityS] {
+    Rv <- $[Sp];;
+    Goto Rp
+  }
+}}.
+Theorem identityOk : moduleOk identity.
+  structured; ho. sepRead; reflexivity.
+Qed.
+
+(** One-word memory preservation *)
+Definition preserveS : assert := st ~> ![ $0 ==> $0 ] st /\ st#Rp @@ (st' ~> ![ $0 ==> $0 ] st').
+Definition preserve := bmodule "preserve" {{
+  bfunction "preserve" [preserveS] {
+    Goto Rp
+  }
+}}.
+Theorem preserveOk : moduleOk preserve.
+  structured. ho. autorewrite with sepFormula. assumption.
+Qed.
+
+(** Write *)
+Definition writeS : assert := st ~> Ex v, ![ $0 ==> v ] st /\ st#Rp @@ (st' ~> ![ $0 ==> $0 ] st').
+Definition write := bmodule "write" {{
+  bfunction "write" [writeS] {
+    $[0] <- 0;;
+    Goto Rp
+  }
+}}.
+Theorem writeOk : moduleOk write.
+  structured; ho. specialize (H3 (stn, x)). autorewrite with sepFormula in *; eauto. info propxFo.
+Abort.
+
+(** Unknown memory *)
+Definition unknownS : assert := st ~> Ex g0, ![ st#Sp ==> g0 ] st /\ st#Rp @@ (st' ~> Ex g1, ![ st'#Sp ==> g1 ] st' /\ [| st#Sp = st'#Sp |]).
+Definition unknown := bmodule "unknown" {{
+  bfunction "unknown" [unknownS] {
+    Goto Rp
+  }
+}}.
+Theorem unknownOk : moduleOk unknown.
+  structured. ho. exists x. autorewrite with sepFormula in *. ho. propxFo. (* simplify_fwd *)
+Qed.
+
+
+(** Constant memory swap function *)
+Definition swapS : assert := st ~> Ex pa, Ex pb, Ex a, Ex b, Ex g0, Ex g1, Ex g2, Ex g3,
+  ![ st#Sp ==> pa * (st#Sp^+$4) ==> pb * (st#Sp^-$4) ==> g0 * (st#Sp^-$8) ==> g1 * pa ==> a * pb ==> b ] st /\
+  st#Rp @@ (st' ~> ![ st#Sp ==> pa * (st#Sp^+$4) ==> pb * (st#Sp^-$4) ==> g2 * (st#Sp^-$8) ==> g3 * pa ==> a * pa ==> b ] st').
+Definition swap := bmodule "swap" {{
+  bfunction "swap" [swapS] {
+    Goto Rp
+  }
+}}.
+Theorem swapOk : moduleOk swap.
+Abort.
+
+(** Swap function *)
+
+(* stack grows down, top argument is on bottom. This is mostly forced
+by the fact that Indir only takes positive offsets. *)
+Definition swapS' : assert := st ~> Ex pa, Ex pb, Ex a, Ex b,
+  ![ st#Sp ==> pa * (st#Sp^+$4) ==> pb * pa ==> a * pb ==> b ] st /\
+  st#Rp @@ (st' ~> ![ pa ==> b * pb ==> a ] st' ).
+Definition swap' := bmodule "swap'" {{
+  bfunction "swap'" [swapS'] {
+    (* due to huge resource constraints, we need to keep Rv available to load pointer locations *)
+    Sp <- Sp - 8;;
+    Rv <- $[Sp+$8];;
+    $[Sp] <- $[Rv];;
+    Rv <- $[Sp+$12];;
+    $[Sp+$4] <- $[Rv];;
+    $[Rv] <- $[Sp];;
+    Rv <- $[Sp+$8];;
+    $[Rv] <- $[Sp+$4];;
+    Sp <- Sp + 8;;
+    Goto Rp
+  }
+}}.
+Theorem swapOk : moduleOk swap.
+Abort.
+
 (** * Dirt-simple test cases for implication automation *)
 Ltac isConst e :=
   match e with
