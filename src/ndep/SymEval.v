@@ -41,7 +41,6 @@ Section search_read_write.
   Variable types : list type.
   Variable sfuncs : list A.
 
-
   Variable T : Type.
   Variable F : forall s, B s -> list (expr types) -> option T.
   Variable F_upd : forall s, B s -> list (expr types) -> option (list (expr types)).
@@ -264,22 +263,24 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable byteIndex : nat.
       Definition byteType : type :=
         {| Impl := B
-          ; Eq := fun x y => match weq x y with
-                               | left pf => Some pf
-                               | _ => None
-                             end
-        |}.
+         ; Eq := fun x y => match weq x y with
+                              | left pf => Some pf
+                              | _ => None
+                            end
+         |}.
 
       Hypothesis byte_ptr : byteIndex <> ptrIndex.
 
       Definition btypes := 
         updatePosition ptrIndex ptrType (updatePosition byteIndex byteType types').
 
+      Variable funcs : functions btypes.
+
       Lemma ptrType_get : tvarD btypes (tvType ptrIndex) = B.addr.
         unfold btypes, tvarD. rewrite updatePosition_eq. reflexivity.
       Qed.
 
-      Definition exprD_ptr (funcs : functions btypes) (uvars vars : env btypes)
+      Definition exprD_ptr (uvars vars : env btypes)
         (e : expr btypes) : option B.addr :=
         match ptrType_get in _ = t return option t with
           | refl_equal => exprD funcs uvars vars e (tvType ptrIndex)
@@ -290,7 +291,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite updatePosition_eq; auto. congruence.
       Qed.
 
-      Definition exprD_byte (funcs : functions btypes) (uvars vars : env btypes)
+      Definition exprD_byte (uvars vars : env btypes)
         (e : expr btypes) : option B :=
         match byteType_get in _ = t return option t with
           | refl_equal => exprD funcs uvars vars e (tvType byteIndex)
@@ -303,7 +304,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       ; sym_write_byte : 
         forall (hyps args : list (expr btypes)) (p v : expr btypes),
         option (list (expr btypes))
-      ; sym_read_byte_correct : forall funcs args uvars vars cs hyps pe ve m stn,
+      ; sym_read_byte_correct : forall args uvars vars cs hyps pe ve m stn,
         sym_read_byte hyps args pe = Some ve ->
         AllProvable funcs uvars vars hyps ->
         match 
@@ -312,22 +313,22 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | None => False
           | Some p => ST.satisfies cs p stn m
         end ->
-        match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
+        match exprD_ptr uvars vars pe , exprD_byte uvars vars ve with
           | Some p , Some v =>
             ST.HT.smem_get p m = Some v
           | _ , _ => False
         end
-      ; sym_write_byte_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
+      ; sym_write_byte_correct : forall args uvars vars cs hyps pe ve v m stn args',
         sym_write_byte hyps args pe ve = Some args' ->
         AllProvable funcs uvars vars hyps ->
-        exprD_byte funcs uvars vars ve = Some v ->
+        exprD_byte uvars vars ve = Some v ->
         match
           applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
           with
           | None => False
           | Some p => ST.satisfies cs p stn m
         end ->
-        match exprD_ptr funcs uvars vars pe with
+        match exprD_ptr uvars vars pe with
           | Some p =>
             match 
               applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
@@ -372,13 +373,13 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         in
         fold_known _ _  reader (impures s) evals.
 
-      Theorem symeval_read_byte_correct : forall cs stn hyps funcs pe ve s uvars vars (m : B.mem),
+      Theorem symeval_read_byte_correct : forall cs stn hyps pe ve s uvars vars (m : B.mem),
         symeval_read_byte hyps pe s = Some ve ->
         AllProvable funcs uvars vars hyps ->
         (exists sm, 
           ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
           /\ ST.HT.satisfies sm m) ->
-        match exprD_ptr funcs uvars vars pe , exprD_byte funcs uvars vars ve with
+        match exprD_ptr uvars vars pe , exprD_byte uvars vars ve with
           | Some p , Some v => 
             B.mem_get m p = Some v
           | _ , _ => False
@@ -404,11 +405,11 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite H2 in *.
  
         eapply sym_read_byte_correct 
-          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
+          with (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
           in H6.
         2: eapply AllProvable_app; auto.
-        destruct (exprD_ptr funcs uvars vars0 pe); auto.
-        destruct (exprD_byte funcs uvars vars0 ve); auto.
+        destruct (exprD_ptr uvars vars0 pe); auto.
+        destruct (exprD_byte uvars vars0 ve); auto.
         eapply ST.HT.satisfies_get. eauto.
 
         eapply ST.HT.split_smem_get; eauto.
@@ -432,14 +433,14 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
         end.
 
-      Theorem symeval_write_byte_correct : forall cs stn hyps funcs pe ve v s s' uvars vars (m : B.mem),
+      Theorem symeval_write_byte_correct : forall cs stn hyps pe ve v s s' uvars vars (m : B.mem),
         symeval_write_byte hyps pe ve s = Some s' ->
         AllProvable funcs uvars vars hyps ->
-        exprD_byte funcs uvars vars ve = Some v ->
+        exprD_byte uvars vars ve = Some v ->
         (exists sm, 
-          ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
+             ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
           /\ ST.HT.satisfies sm m) ->
-        match exprD_ptr funcs uvars vars pe with
+        match exprD_ptr uvars vars pe with
           | Some p =>
             exists sm, 
               ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s')) stn sm
@@ -476,7 +477,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
         2: apply AllProvable_app; eauto.
 
-        destruct (exprD_ptr funcs uvars vars0 pe); eauto.
+        destruct (exprD_ptr uvars vars0 pe); eauto.
         unfold tvarD in H3.
 
         generalize dependent H3.
@@ -534,11 +535,13 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Definition wtypes := 
         updatePosition ptrIndex ptrType (updatePosition wordIndex wordType types').
 
+      Variable funcs : functions wtypes.
+
       Lemma ptrType_get_w : tvarD wtypes (tvType ptrIndex) = B.addr.
         unfold wtypes, tvarD. rewrite updatePosition_eq. reflexivity.
       Defined.
 
-      Definition exprD_ptr_w (funcs : functions wtypes) (uvars vars : env wtypes)
+      Definition exprD_ptr_w (uvars vars : env wtypes)
         (e : expr wtypes) : option B.addr :=
         match ptrType_get_w in _ = t return option t with
           | refl_equal => exprD funcs uvars vars e (tvType ptrIndex)
@@ -549,7 +552,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite updatePosition_eq; auto. congruence.
       Defined.
 
-      Definition exprD_word (funcs : functions wtypes) (uvars vars : env wtypes)
+      Definition exprD_word (uvars vars : env wtypes)
         (e : expr wtypes) : option W :=
         match wordType_get_w in _ = t return option t with
           | refl_equal => exprD funcs uvars vars e (tvType wordIndex)
@@ -562,7 +565,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       ; sym_write_word : 
         forall (hyps args : list (expr wtypes)) (p v : expr wtypes),
         option (list (expr wtypes))
-      ; sym_read_word_correct : forall funcs args uvars vars cs hyps pe ve m stn,
+      ; sym_read_word_correct : forall args uvars vars cs hyps pe ve m stn,
         sym_read_word hyps args pe = Some ve ->
         AllProvable funcs uvars vars hyps ->
         match 
@@ -571,22 +574,22 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | None => False
           | Some p => ST.satisfies cs p stn m
         end ->
-        match exprD_ptr_w funcs uvars vars pe , exprD_word funcs uvars vars ve with
+        match exprD_ptr_w uvars vars pe , exprD_word uvars vars ve with
           | Some p , Some v =>
             ST.HT.smem_get_word (IL.implode stn) p m = Some v
           | _ , _ => False
         end
-      ; sym_write_word_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
+      ; sym_write_word_correct : forall args uvars vars cs hyps pe ve v m stn args',
         sym_write_word hyps args pe ve = Some args' ->
         AllProvable funcs uvars vars hyps ->
-        exprD_word funcs uvars vars ve = Some v ->
+        exprD_word uvars vars ve = Some v ->
         match
           applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
           with
           | None => False
           | Some p => ST.satisfies cs p stn m
         end ->
-        match exprD_ptr_w funcs uvars vars pe with
+        match exprD_ptr_w uvars vars pe with
           | Some p =>
             match 
               applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
@@ -633,12 +636,12 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       Theorem symeval_read_word_correct : forall hyps pe s ve, 
         symeval_read_word hyps pe s = Some ve ->
-        forall cs stn funcs uvars vars m,
+        forall cs stn uvars vars m,
         AllProvable funcs uvars vars hyps ->
         (exists sm, 
              ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
           /\ ST.HT.satisfies sm m) ->
-        match exprD_ptr_w funcs uvars vars pe , exprD_word funcs uvars vars ve with
+        match exprD_ptr_w uvars vars pe , exprD_word uvars vars ve with
           | Some p , Some v => 
             ST.HT.mem_get_word (IL.implode stn) p m = Some v
           | _ , _ => False
@@ -652,7 +655,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         generalize (sheapD_pures _ _ _ _ _ H); intros.
 
         eapply sheapD_pull_impure 
-          with (funcs := funcs) (sfuncs := sfuncs) (a := uvars) (c := vars0) (cs := cs)
+          with (sfuncs := sfuncs) (a := uvars) (c := vars0) (cs := cs)
             in H1.
         apply In_split in H3. destruct H3. destruct H3.
         subst. rewrite starred_In in H1.
@@ -664,11 +667,11 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite H2 in *.
  
         eapply sym_read_word_correct 
-          with (funcs := funcs) (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
+          with (uvars := uvars) (vars := vars0) (cs := cs) (stn := stn) (m := x2)
           in H6.
         2: eapply AllProvable_app; auto.
-        destruct (exprD_ptr_w funcs uvars vars0 pe); auto.
-        destruct (exprD_word funcs uvars vars0 ve); auto.
+        destruct (exprD_ptr_w uvars vars0 pe); auto.
+        destruct (exprD_word uvars vars0 ve); auto.
         eapply ST.HT.satisfies_get_word. eauto.
 
         eapply ST.HT.split_smem_get_word; eauto.
@@ -694,13 +697,13 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       Theorem symeval_write_word_correct : forall hyps pe ve s s',
         symeval_write_word hyps pe ve s = Some s' ->
-        forall cs stn funcs uvars vars m v,
+        forall cs stn uvars vars m v,
         AllProvable funcs uvars vars hyps ->
-        exprD_word funcs uvars vars ve = Some v ->
+        exprD_word uvars vars ve = Some v ->
         (exists sm, 
              ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s)) stn sm
           /\ ST.HT.satisfies sm m) ->
-        match exprD_ptr_w funcs uvars vars pe with
+        match exprD_ptr_w uvars vars pe with
           | Some p =>
             exists sm, 
                  ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s')) stn sm
@@ -737,7 +740,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
         2: apply AllProvable_app; eauto.
 
-        destruct (exprD_ptr_w funcs uvars vars0 pe); eauto.
+        destruct (exprD_ptr_w uvars vars0 pe); eauto.
         unfold tvarD in H3.
 
         generalize dependent H3.
@@ -817,40 +820,70 @@ Module BedrockEvaluator.
     intro. inversion H.
   Qed.
 
-  Definition sym_read_word_ptsto32 (hyps args : list (expr wtypes)) (p : expr wtypes) : option (expr wtypes) :=
+  Variable funcs : functions wtypes.
+
+  (** TODO: maybe this should be like unification? 
+   ** - in that case the substitution is an effect and needs to be
+   **   threaded through the computation (monadically?)
+   **)
+  Variable expr_equal : forall (hyps : list (expr wtypes)) (tv : tvar) (a b : expr wtypes), bool.
+
+  Definition sym_read_word_ptsto32 (hyps args : list (expr wtypes)) (p : expr wtypes) 
+    : option (expr wtypes) :=
     match args with
       | p' :: v' :: nil => 
-        if seq_dec p p' then Some v' else None
+        if expr_equal hyps (tvType ptrIndex) p p' then Some v' else None
       | _ => None
     end.
-  Definition sym_write_word_ptsto32 (hyps args : list (expr wtypes)) (p v : expr wtypes) : option (list (expr wtypes)) :=
+  Definition sym_write_word_ptsto32 (hyps args : list (expr wtypes)) (p v : expr wtypes)
+    : option (list (expr wtypes)) :=
     match args with
       | p' :: v' :: nil =>
-        if seq_dec p p' then Some (p :: v :: nil) else None
+        if expr_equal hyps (tvType ptrIndex) p p' then Some (p :: v :: nil) else None
       | _ => None
     end.
 
-  Ltac expose :=
-    repeat match goal with 
-             | [ H : match applyD _ _ ?A _ _ with
-                       | Some _ => _ 
-                       | None => False 
-                     end |- _ ] =>
-             destruct A; simpl in H; try (exfalso; assumption)
-             | [ H : match 
-                       match exprD ?A ?B ?C ?D ?E with
-                         | None => _
-                         | Some _ => _
-                       end _ _ 
-                       with 
-                       | None => _
-                       | Some _ => _
-                     end |- _ ] =>
-             generalize dependent H; case_eq (exprD A B C D E); simpl; intros; 
-               try (exfalso; assumption)
-           end; simpl in *.
+  Variable expr_equal_correct : forall T hyps a b,
+    expr_equal hyps T a b = true ->
+    forall uvars vars,
+    AllProvable funcs uvars vars hyps ->
+    exprD funcs uvars vars a T = exprD funcs uvars vars b T.
 
-  Lemma sym_read_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve m stn,
+  Ltac expose :=
+    repeat (unfold wordIndex, ptrIndex in *; 
+            match goal with 
+              | [ H : match applyD _ _ ?A _ _ with
+                        | Some _ => _ 
+                        | None => False 
+                      end |- _ ] =>
+              destruct A; simpl in H; try (exfalso; assumption)
+              | [ H : match 
+                        match exprD ?A ?B ?C ?D ?E with
+                          | None => _
+                          | Some _ => _
+                        end _ _ 
+                        with 
+                        | None => _
+                        | Some _ => _
+                      end |- _ ] =>
+              generalize dependent H; case_eq (exprD A B C D E); simpl; intros; 
+                try (exfalso; assumption)
+              | [ H : context [ match expr_equal ?A ?B ?C ?D with
+                                  | true => _
+                                  | false => _
+                                end ] |- _ ] =>
+                generalize dependent H; case_eq (expr_equal A B C D); intros; 
+                  try (exfalso; congruence)
+              | [ H : expr_equal ?A ?B ?C ?D = true 
+                , H' : AllProvable _ _ _ ?A |- _ ] =>
+                generalize (@expr_equal_correct _ _ _ _ H _ _ H'); clear H; intros
+              | [ H : Some _ = Some _ |- _ ] =>
+                inversion H; clear H; subst
+              | [ H : exprD _ _ _ _ _ = Some _ |- _ ] =>
+                rewrite H in *
+            end; simpl in *).
+
+  Lemma sym_read_word_ptsto32_correct : forall args uvars vars cs hyps pe ve m stn,
     sym_read_word_ptsto32 hyps args pe = Some ve ->
     AllProvable funcs uvars vars hyps ->
     match 
@@ -866,16 +899,10 @@ Module BedrockEvaluator.
     end.
   Proof.
     simpl; intros; expose.
-    destruct (expr_seq_dec pe e); try congruence.
-    inversion H; subst.
-    unfold ptrIndex, wordIndex.
-    rewrite H1. rewrite H2.
-    
-    unfold ptsto32 in *.
     unfold ST.satisfies in H3. PropXTac.propxFo.
   Qed.
 
-  Lemma sym_write_word_ptsto32_correct : forall funcs args uvars vars cs hyps pe ve v m stn args',
+  Lemma sym_write_word_ptsto32_correct : forall args uvars vars cs hyps pe ve v m stn args',
     sym_write_word_ptsto32 hyps args pe ve = Some args' ->
     AllProvable funcs uvars vars hyps ->
     exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
@@ -901,13 +928,8 @@ Module BedrockEvaluator.
     end.
   Proof.
     simpl; intros; expose.
-    destruct (expr_seq_dec pe e); try congruence.
-    inversion H; subst; simpl.
-    unfold ptrIndex, wordIndex in *.
-    rewrite H2. rewrite H1.
 
-    unfold ST.satisfies in *.
-    PropXTac.propxFo. 
+    unfold ST.satisfies in *. PropXTac.propxFo. 
     case_eq (smem_set_word (IL.explode stn) t v m).
     intros. unfold ptsto32. PropXTac.propxFo.
     eapply smem_set_get_word_eq; eauto.
@@ -915,7 +937,7 @@ Module BedrockEvaluator.
     eapply smem_set_get_valid_word; eauto.
   Qed.
 
-  Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex ptsto32_ssig :=
+  Definition SymEval_ptsto32 : E.SymEval_word wtypes wordIndex_ptrIndex funcs ptsto32_ssig :=
     {| E.sym_read_word := sym_read_word_ptsto32 : list (expr (E.wtypes wtypes ptrIndex wordIndex)) -> _
      ; E.sym_write_word := sym_write_word_ptsto32 
      ; E.sym_read_word_correct := sym_read_word_ptsto32_correct
