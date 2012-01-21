@@ -1,5 +1,5 @@
 Require Import Setoid.
-Require Import DepList.
+Require Import Bedrock.DepList.
 Require Import Word.
 
 Definition B := word 8.
@@ -37,6 +37,21 @@ Module Type Heap.
   Parameter NoDup_all_addr : NoDup all_addr.
 
 End Heap.
+
+Definition mem_get_word addr mem footprint_w (mem_get : mem -> addr -> option B) (implode : B * B * B * B -> W) (p : addr) (m : mem)
+    : option W :=
+    let '(a,b,c,d) := footprint_w p in
+    match mem_get m a , mem_get m b , mem_get m c , mem_get m d with
+      | Some a , Some b , Some c , Some d =>
+        Some (implode (a,b,c,d))
+      | _ , _ , _ , _ => None
+    end.
+
+Definition mem_set_word addr mem footprint_w (mem_set : mem -> addr -> B -> mem) (explode : W -> B * B * B * B) (p : addr) (v : W)
+    (m : mem) : mem :=
+    let '(a,b,c,d) := footprint_w p in
+    let '(av,bv,cv,dv) := explode v in
+    mem_set (mem_set (mem_set (mem_set m d dv) c cv) b bv) a av.
 
 Module HeapTheory (B : Heap).
   Import B.
@@ -135,6 +150,7 @@ Module HeapTheory (B : Heap).
                   end
     end.
 
+(*
   Definition mem_get_word (implode : B * B * B * B -> W) (p : addr) (m : mem)
     : option W :=
     let '(a,b,c,d) := footprint_w p in
@@ -149,6 +165,7 @@ Module HeapTheory (B : Heap).
     let '(a,b,c,d) := footprint_w p in
     let '(av,bv,cv,dv) := explode v in
     mem_set (mem_set (mem_set (mem_set m d dv) c cv) b bv) a av.
+*)
 
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
@@ -249,7 +266,7 @@ Module HeapTheory (B : Heap).
     satisfies m m' ->
     forall p v, 
       smem_get_word i p m = Some v ->
-      mem_get_word i p m' = Some v.
+      mem_get_word addr mem footprint_w mem_get i p m' = Some v.
   Proof.
     unfold mem_get_word, smem_get_word; simp intuition.
     repeat erewrite satisfies_get by eauto. auto.
@@ -307,7 +324,7 @@ Module HeapTheory (B : Heap).
     satisfies m m' ->
     forall e p v sm',
       smem_set_word e p v m = Some sm' ->
-      satisfies sm' (mem_set_word e p v m').
+      satisfies sm' (mem_set_word addr mem footprint_w mem_set e p v m').
   Proof.
     unfold smem_set_word, mem_set_word, smem_get_word; intros.
     simp intuition. destruct (e v); simp intuition.
