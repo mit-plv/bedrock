@@ -1,4 +1,4 @@
-Require Import List DepList.
+Require Import List Bedrock.DepList.
 Require Import Heaps.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.SymEval.
 
@@ -101,12 +101,12 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 (*
     Goal forall p1 p2 p3 v1 v2 v3 cs stn m,
       Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v2) (ptsto32 p3 v3))) m
-      -> ST.HT.mem_get_word (IL.implode stn) p1 m = Some v1.
+      -> mem_get_word B.addr B.mem B.footprint_w B.mem_get (IL.implode stn) p1 m = Some v1.
     Proof.
       intros.
       match goal with
         | [ H : Satisfies ?CS ?STN ?P ?M
-          |- context [ ST.HT.mem_get_word (IL.implode stn) ?PTR ?M ] ] =>
+          |- context [ mem_get_word B.addr B.mem B.footprint_w B.mem_get (IL.implode stn) ?PTR ?M ] ] =>
         let Ts := constr:(@nil Type) in
         let Ts := SEP.collectAllTypes_sexpr ltac:(isConst) Ts (P :: nil) in
         let Ts := SEP.collectAllTypes_expr ltac:(isConst) Ts (PTR, tt) in
@@ -134,12 +134,12 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Goal forall p1 p2 p3 v1 v2 v3 cs stn m,
       Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v2) (ptsto32 p3 v3))) m
       -> Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v3) (ptsto32 p3 v3))) 
-           (ST.HT.mem_set_word (IL.explode stn) p2 v3 m).
+           (mem_set_word B.addr B.mem B.footprint_w B.mem_set (IL.explode stn) p2 v3 m).
     Proof.
       intros.
       match goal with
         | [ H : Satisfies ?CS ?STN ?P ?M
-          |- context [ ST.HT.mem_set_word (IL.explode stn) ?PTR ?VAL ?M ] ] =>
+          |- context [ mem_set_word B.addr B.mem B.footprint_w B.mem_set (IL.explode stn) ?PTR ?VAL ?M ] ] =>
         let Ts := constr:(@nil Type) in
         let Ts := SEP.collectAllTypes_sexpr ltac:(isConst) Ts (P :: nil) in
         let Ts := SEP.collectAllTypes_expr ltac:(isConst) Ts (PTR, (VAL, tt)) in
