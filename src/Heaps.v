@@ -33,7 +33,6 @@ Module Type Heap.
 
   Parameter all_addr : list addr.
 
-  (** TODO: I didn't need this **)
   Parameter NoDup_all_addr : NoDup all_addr.
 
 End Heap.

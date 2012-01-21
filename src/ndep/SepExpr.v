@@ -820,6 +820,35 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
     f (open vt).
 
+  Print ssignature.
+
+  Ltac lift_ssignature s nt rtype :=
+    let d := eval simpl SDomain in (SDomain s) in
+    let f := eval simpl SDenotation in (SDenotation s) in
+    let res := constr:(@SSig nt rtype d f) in 
+    eval simpl in res.
+
+  Ltac lift_ssignatures fs nt :=
+    match type of fs with
+      | list (ssignature' _ (ST.hprop (tvarD _ ?pc) (tvarD _ ?st) ?ls)) =>
+        let rtype := constr:(ST.hprop (tvarD nt pc) (tvarD nt st) nil) in
+        let f sig := 
+          lift_ssignature sig nt rtype
+        in
+        map_tac (ssignature nt pc st) f fs
+      | list (ssignature' _ ?rtype) =>
+        let f sig := 
+          lift_ssignature sig nt rtype
+        in
+        map_tac (ssignature nt rtype) f fs
+      | list (ssignature _ ?pc ?st) =>
+        let rtype := constr:(ST.hprop (tvarD nt pc) (tvarD nt st) nil) in
+        let f sig := 
+          lift_ssignature sig nt rtype
+        in
+        map_tac (ssignature nt pc st) f fs
+    end.
+
   (** collect the raw types from the given expression.
    ** - e is the expression to collect types from
    ** - types is a value of type [list Type]
@@ -1281,10 +1310,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         reflect_all goals funcs sfuncs ltac:(fun funcs sfuncs es =>
           constr:((types, pcTyp, stTyp, funcs, sfuncs, es)))
       | ?X =>
-        idtac "YIKES" ;
-          idtac types ;
-            idtac X ;
-        fail "types was extended, need to rebuild funcs and sfuncs"
+        let funcs := lift_signatures funcs types in
+        let sfuncs := lift_ssignatures sfuncs types in
+        reflect_all goals funcs sfuncs ltac:(fun funcs sfuncs es =>
+          constr:((types, pcTyp, stTyp, funcs, sfuncs, es)))
     end.
 
   (** NOTE: if types is extended at all then funcs needs to be lifted **)
@@ -1319,10 +1348,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         reflect_all exprs funcs ltac:(fun funcs es =>
           constr:((types, funcs, es)))
       | list (signature ?X) =>
-        idtac "YIKES" ;
-          idtac types ;
-            idtac X ;
-        fail "types was extended"
+        let funcs := lift_signatures funcs types in
+        reflect_all exprs funcs ltac:(fun funcs es =>
+          constr:((types, funcs, es)))
     end.
 
   Lemma change_ST_himp_himp : forall (types : list type)

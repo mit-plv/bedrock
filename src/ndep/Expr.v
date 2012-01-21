@@ -292,3 +292,81 @@ Implicit Arguments Const [ types t ].
 Implicit Arguments Var [ types ].
 Implicit Arguments UVar [ types ].
 Implicit Arguments Func [ types ].
+
+Ltac lift_signature s nt :=
+  let d := eval simpl Domain in (Domain s) in
+  let r := eval simpl Range in (Range s) in
+  let f := eval simpl Denotation in (Denotation s) in
+  let res := constr:(@Sig nt d r f) in 
+  eval simpl in res.
+
+Require Import Reflect.
+
+Ltac lift_signatures fs nt :=
+  let f sig := 
+    lift_signature sig nt 
+  in
+  map_tac (signature nt) f fs.
+
+(*
+Definition types : list type := {| Impl := nat ; Eq := fun _ _ => None |} :: nil.
+Definition test_func : functions types :=
+  (@Sig types (tvType 0 :: tvType 0 :: nil) (tvType 0) plus) :: nil.
+
+Goal True.
+  match goal with
+    | [ |- _ ] =>
+      let v := lift_signatures test_func (types ++ types) in
+      pose v
+  end.
+*)
+
+
+(** It isn't too bad to write this in gallina, but it
+ ** is probably more computationally expensive than it is
+ ** in ltac.
+ **)
+(*
+Fixpoint lift_functionType D R a b :
+  functionTypeD (map (tvarD a) D) (tvarD a R) ->
+  functionTypeD (map (tvarD (a ++ b)) D) (tvarD (a ++ b) R).
+refine (
+  match D as D 
+    return  
+    functionTypeD (map (tvarD a) D) (tvarD a R) ->
+    functionTypeD (map (tvarD (a ++ b)) D) (tvarD (a ++ b) R) 
+    with
+    | nil => _ 
+    | l :: ls => _
+  end).
+Focus 2.
+simpl. intros.
+
+Definition lift_value a b l : tvarD a l -> tvarD (a ++ b) l.
+refine (
+  match l as l return tvarD a l -> tvarD (a ++ b) l with
+    | tvProp => fun x => x
+    | tvType t => match nth_error a t as k return 
+                    match k with
+                      | None => Empty_set 
+                      | Some t => Impl t
+                    end ->  _
+                    
+                    with
+                    | None => fun x => match x with 
+                                       end
+                    | Some v => _
+                  end
+  end).
+
+destru
+
+
+Definition lift_signature a b (f : signature a) : signature (a ++ b).
+refine (
+  {| Domain := Domain f
+   ; Range  := Range f
+   ; Denotation := _
+   |}).
+eapply Denotation.
+*)

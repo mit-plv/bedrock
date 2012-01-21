@@ -1,4 +1,4 @@
-#DEP := Expr ExprUnify SepExpr SepExprTests Provers
+#DEP := PMap Expr ExprUnify SepExpr SepExprTests Provers
 DEP  := 
 NDEP := NatMap Expr ExprUnify \
 	SepExpr SepExprTests \
@@ -9,7 +9,7 @@ NDEP := NatMap Expr ExprUnify \
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
 	XCAP Structured StructuredModule Linker Programming \
-	EqdepClass DepList PMap Reflect \
+	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
 	$(DEP:%=dep/%) $(NDEP:%=ndep/%) \
 	SepIL SepTac Bedrock
