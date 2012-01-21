@@ -1,4 +1,4 @@
-Require Import List DepList Word.
+Require Import List Bedrock.DepList Word.
 Require Import Heaps SepTheoryX.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.Provers.
 
@@ -643,7 +643,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           /\ ST.HT.satisfies sm m) ->
         match exprD_ptr_w uvars vars pe , exprD_word uvars vars ve with
           | Some p , Some v => 
-            ST.HT.mem_get_word (IL.implode stn) p m = Some v
+            mem_get_word B.addr B.mem B.footprint_w B.mem_get (IL.implode stn) p m = Some v
           | _ , _ => False
         end.
       Proof.
@@ -707,7 +707,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           | Some p =>
             exists sm, 
                  ST.satisfies cs (sexprD funcs sfuncs uvars vars (sheapD s')) stn sm
-              /\ ST.HT.satisfies sm (ST.HT.mem_set_word (IL.explode stn) p v m)
+              /\ ST.HT.satisfies sm (mem_set_word B.addr B.mem B.footprint_w B.mem_set (IL.explode stn) p v m)
           | _ => False
         end.
       Proof.
