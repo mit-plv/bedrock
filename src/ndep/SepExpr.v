@@ -820,8 +820,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
     f (open vt).
 
-  Print ssignature.
-
   Ltac lift_ssignature s nt rtype :=
     let d := eval simpl SDomain in (SDomain s) in
     let f := eval simpl SDenotation in (SDenotation s) in

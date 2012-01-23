@@ -3,8 +3,9 @@ DEP  :=
 NDEP := NatMap Expr ExprUnify \
 	SepExpr SepExprTests \
 	Provers \
-	Unfolder UnfolderTests \
-	SymEval SymEvalTests
+	Unfolder UnfolderTests
+# Temporary b/c I need to push this since I don't have my laptop
+# \	SymEval SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
