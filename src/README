@@ -1,0 +1,82 @@
+Bedrock
+-------
+
+FMapAVL, FMapList, OrderedType
+    Copies of implementations from the standard library,
+    but without hints that degrade eauto performance.
+
+Bedrock
+    Exports the user visible functionality of Bedrock.
+EqdepClass
+    Extra instances and theorems about EqDec values (values with decidable equality),
+    including an instance for 'option' and uniqueness of identity proofs
+    in those cases without extra axioms.
+Env
+    A potpourri of useful, general purpose dependently typed data structures.
+        - Semidecidable equality typeclass (SemiDec)
+        - Decidable/semidecidable comparison
+        - Dependent position of elements in lists (fin) with comparison
+        - Heterogenous lists (hlist) with comparison
+Heap
+    Defines the notion of a heap (Heap: something which you can have
+    dereferencable addresses into), and then defines an abstract
+    representation of the contents of this heap (smem in HeapTheory,
+    related to the concrete heap by satisfies), which either specifies
+    the contents of a value at some address, or leaves the value
+    undefined.  This representation supports joining, splitting and
+    checking for disjointness, as well as the usual get/set operations.
+IL
+    Simple intermediate language, which is what we will be proving things about.
+    This file includes syntax and semantics for registers and memories,
+    as well a definition of settings which an architecture can be
+    parametrized over.  It defines the $0 notation which casts natural
+    numbers (reminiscent of Intel assembler) to words.
+LabelMap
+    Defines an ordering on labels (from IL) and then defines LabelMap which
+    is an AVL tree of labels to values.
+Linker
+Nomega
+    Omega (solver of quantifier-free problems in Presburger arithmetic)
+    for natural numbers.
+PMap
+Programming
+PropX
+    Adaptation of the Ni-Shao XCAP assertion logic.  The main type
+    defined by this module is 'propX', parametrized over two types (pc,
+    the type of pointers, and and state, the type of heap descriptions),
+    which is a simple higher order logic with the ability to inject
+    propositions from our metalogic Coq (Inj) and, most importantly, the
+    'Cptr p f' predicate, which states that value p is a valid pointer
+    with precondition f.  We define substitution (Sub), validity rules
+    (valid), normal deduction validity rules (normal and normalP),
+    sequent deduction validity rules (seq and seqP).  The P versions of
+    the validity rules support coercions from the standard validity rule
+    using the Coer constructors.  Interpretation into the higher order
+    logic is done with 'interp'.
+
+    Notationally, PropX defines the PropX_scope, with [| p |] for
+    injection, /\, \/, --->, Al, Ex, for the usual logical connectives,
+    and AlX, ExX for quantification over local variables (#0, #1, etc.)
+PropXTac
+    Tactics for handling PropX assertions.  XXX but I'm not really sure
+    what this is doing.
+Reflect
+SepIL
+SepTac
+SepTheoryX
+Structured
+StructuredModule
+Word
+    Fixed precision arithmetic words (word).  Includes strong induction principle,
+    modular arithmetic, comparisons, decidable equality, splitting/combining,
+    sign extension, bitwise operators and uniqueness of equality proofs.
+
+    Notationally, Word defines word_scope, with ~ 1, ~ 0 for appending a bit,
+    ^ prefixing overloaded arithmetic operations and s denoting signed comparisons
+    (>s >s= <s <s=).
+XCAP
+    Defines prop and assert, which are specialized versions XCAP for our IL,
+    as well as the representation of programs 'module' (which imports preconditions
+    and specifies a map of labels to preconditions and basic blocks.)  Defines
+    verification condition for blocks (blockOk), modules (moduleOk) and linking
+    (importsOk).

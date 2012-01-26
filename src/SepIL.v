@@ -1,5 +1,5 @@
 Require Import Eqdep_dec List.
-Require Import Word PropX PropXTac IL Env Heaps SepTheoryX.
+Require Import Word PropX PropXTac IL DepList Heaps SepTheoryX.
 
 Set Implicit Arguments.
 
@@ -120,11 +120,39 @@ Qed.
 
 Module BedrockHeap.
   Definition addr := W.
-  Definition byte := B.
 
   Definition mem := mem.
 
   Definition mem_get (m : mem) (a : addr) := Some (m a).
+
+  Definition mem_set (m : mem) (p : addr) (v : B) := 
+    fun p' => if weq p p' then v else m p'.
+
+  Theorem mem_get_set_eq : forall m p v', 
+    mem_get (mem_set m p v') p = Some v'.
+  Proof.
+    unfold mem_set, mem_get. intros.
+    destruct (weq p p); auto. congruence.
+  Qed.
+    
+  Theorem mem_get_set_neq : forall m p p' v', 
+    p <> p' ->
+    mem_get (mem_set m p' v') p = mem_get m p.
+  Proof.
+    unfold mem_set, mem_get; intros.
+    destruct (weq p' p); auto. congruence.
+  Qed.
+
+  Definition footprint_w (p : addr) : addr * addr * addr * addr :=
+    (p , p ^+ $1 , p ^+ $2 , p ^+ $3).
+
+  Theorem footprint_disjoint : forall p a b c d,
+    footprint_w p = (a,b,c,d) ->
+    a <> b /\ a <> c /\ a <> d /\ b <> c /\ b <> d /\ c <> d.
+  Proof.
+    unfold footprint_w. inversion 1. clear.
+    repeat split; W_neq.
+  Qed.
 
   Definition addr_dec := @weq 32.
 
@@ -160,20 +188,9 @@ Definition ptsto8 sos : W -> B -> hpropB sos :=
 
 Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope.
 
-Definition implode (stn : settings) (b0 b1 b2 b3 : B) (w : W) :=
-  ReadWord stn (fun a => if weq a ($0) then b0
-    else if weq a ($1) then b1
-      else if weq a ($2) then b2
-        else b3) ($0) = w.
-
+(* This breaks the hprop abstraction because it needs access to 'settings' *)
 Definition ptsto32 sos (a v : W) : hpropB sos :=
-  (fun stn sm => [| exists b0, exists b1, exists b2, exists b3,
-    smem_get a sm = Some b0
-    /\ smem_get (a ^+ $1) sm = Some b1
-    /\ smem_get (a ^+ $2) sm = Some b2
-    /\ smem_get (a ^+ $3) sm = Some b3
-    /\ (forall a', a' <> a -> a' <> a ^+ $1 -> a' <> a ^+ $2 -> a' <> a ^+ $3 -> smem_get a' sm = None)
-    /\ implode stn b0 b1 b2 b3 v |])%PropX.
+  (fun stn sm => [| ST.HT.smem_get_word (implode stn) a sm = Some v |])%PropX.
 
 Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 
@@ -478,11 +495,20 @@ Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
       /\ smem_get (a ^+ $1) sm = Some b1
       /\ smem_get (a ^+ $2) sm = Some b2
       /\ smem_get (a ^+ $3) sm = Some b3
-      /\ implode stn b0 b1 b2 b3 v.
+      /\ implode stn (b0, b1, b2, b3) = v.
 
 Theorem findPtsto32_gotIt : forall stn a v,
   findPtsto32 stn (ptsto32 _ a v) a v.
   unfold findPtsto32; propxFo; eauto 10.
+  unfold smem_get_word in *. simpl in *.
+  repeat match goal with
+           | [ H : match ?X with 
+                     | Some _ => _
+                     | None => _
+                   end = Some _ |- _ ] =>
+           destruct X; [ | congruence ]
+         end.
+  inversion H; eauto 10.
 Qed.
 
 Theorem findPtsto32_star1 : forall stn p1 p2 a v,
@@ -519,12 +545,11 @@ Theorem findPtsto32_read : forall specs p stn st,
     -> ReadWord stn (Mem st) a = v.
   rewrite sepFormula_eq; intros.
   apply H0 in H; clear H0; propxFo.
-  red in H4.
-  match type of H4 with
-    | ReadWord _ ?m _ = _ => pose (m' := m)
-  end.
-  rewrite ReadWordFootprint with stn (Mem st) m' a ($0); subst m'; simpl; eauto;
-    eapply smem_get_read; eauto.
+  unfold ReadWord. simpl in *.
+  repeat match goal with
+           | [ H : _ |- _ ] => apply smem_get_read in H; rewrite H
+         end.
+  auto.
 Qed.
 
 

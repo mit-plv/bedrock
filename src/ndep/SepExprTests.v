@@ -50,34 +50,32 @@ Module SepExprTests (B : Heap).
     Opaque ST.himp ST.star ST.emp ST.inj ST.ex.
 
     Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil). 
+      intros. Time Sep.sep isConst (nat_type :: nil) tt. 
     Abort.
 
     Goal forall a b c, 
       @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
                      (ST.star (all (@f a b) 15) (all (@h a b) 15)).
       simpl all. simpl allb.
-      intros. Time Sep.sep isConst (nat_type :: nil). reflexivity.
+      intros. Time Sep.sep isConst (nat_type :: nil) tt. reflexivity.
     Qed.
-
-
 
     Goal forall a b c, @ST.himp a b c 
       (ST.star (f _ _ 2) (f _ _ 1))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil).
+      intros. Time Sep.sep isConst (nat_type :: nil) tt.
     Abort.
 
     Goal forall a b c, @ST.himp a b c 
       (ST.ex (fun y : nat => ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1) )))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil).
+      intros. Time Sep.sep isConst (nat_type :: nil) tt.
     Abort.
 
     Goal forall a b c, @ST.himp a b c 
       (ST.ex (fun y : nat => f _ _ y))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil).
+      intros. Time Sep.sep isConst (nat_type :: nil) tt.
     Abort.
 
   End Tests.

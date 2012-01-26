@@ -1,4 +1,5 @@
 Require Import List EqdepClass.
+Require Export EquivDec.
 
 Set Implicit Arguments.
 
@@ -649,6 +650,18 @@ Section fin.
             (fun y : hlist ls0 => K (HCons x y)) 
             (cc x)
       end.
+
+  Variable a : A.
+  Variable b : B a.
+  Fixpoint hlistIn (ls : list A) : hlist ls -> Prop :=
+    match ls as ls return hlist ls -> Prop with
+      | nil => fun _ => False
+      | hd :: tl => fun hl =>
+        (exists pf : a = hd, hlist_hd hl = match pf in _ = t return B t with
+                                             | refl_equal => b
+                                           end)
+        \/ hlistIn (hlist_tl hl)
+    end.
 
 End fin.
 

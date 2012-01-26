@@ -1,12 +1,16 @@
-#DEP := Expr ExprUnify SepExpr SepExprTests Provers
+#DEP := PMap Expr ExprUnify SepExpr SepExprTests Provers
 DEP  := 
-NDEP := NatMap Expr ExprUnify SepExpr SepExprTests Provers \
-	Unfolder UnfolderTests SymEval
+NDEP := NatMap Expr ExprUnify \
+	SepExpr SepExprTests \
+	Provers \
+	Unfolder UnfolderTests
+# Temporary b/c I need to push this since I don't have my laptop
+# \	SymEval SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac \
 	XCAP Structured StructuredModule Linker Programming \
-	EqdepClass Env PMap Reflect \
+	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
 	$(DEP:%=dep/%) $(NDEP:%=ndep/%) \
 	SepIL SepTac Bedrock

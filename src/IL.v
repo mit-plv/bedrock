@@ -276,12 +276,18 @@ Record settings := {
   (* Locations of basic blocks *)
 }.
 
+Definition ReadByte (_ : settings) (m : mem) (a : W) : B :=
+  m a.
+
 Definition ReadWord (s : settings) (m : mem) (a : W) : W :=
   let v1 := m a in
   let v2 := m (a ^+ $1) in
   let v3 := m (a ^+ $2) in
   let v4 := m (a ^+ $3) in
   implode s (v1, v2, v3, v4).
+
+Definition WriteByte (_ : settings) (m : mem) (p : W) (v : B) : mem :=
+  fun p' => if weq p' p then v else m p'.
 
 Definition WriteWord (s : settings) (m : mem) (p v : W) : mem :=
   let '(v1,v2,v3,v4) := explode s v in
@@ -294,7 +300,6 @@ Definition WriteWord (s : settings) (m : mem) (p v : W) : mem :=
 
 Ltac W_eq := wprepare; word_eq.
 Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
-
 
 Theorem ReadWriteEq : forall stn m k v, ReadWord stn (WriteWord stn m k v) k = v.
 Proof.
