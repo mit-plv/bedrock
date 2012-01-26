@@ -139,7 +139,7 @@ Module Make (B : Heap).
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
         ExprUnify.exprUnify exprSubstU sheapSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
         eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq defaultType
-        nth_error value error Eq liftExpr Env.seq_dec ExprUnify.Subst_lookup SHeap_empty
+        nth_error value error Eq liftExpr DepList.seq_dec ExprUnify.Subst_lookup SHeap_empty
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
         Impl sheapD starred fold_right applyD
         SepExpr.SDomain SepExpr.SDenotation exprD Domain Range Denotation

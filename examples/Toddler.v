@@ -39,7 +39,7 @@ Inductive factR : W -> W -> Prop :=
 | FR0 : factR 0 1
 | FRS : forall w r : W, w <> 0 -> factR (w ^- $1) r -> factR w (w ^* r).
 
-Lemma FR0' : forall w : W, w = 0 -> factR w 1.
+Lemma FR0' : forall w : W, w = 0 -> factR w $1.
   intros; subst; apply FR0.
 Qed.
 
@@ -73,7 +73,7 @@ Eval compute in compile fact.
 Lemma times_1 : forall (n m x : W), factR n x
   -> m = $1 ^* x
   -> factR n m.
-  intros; subst; replace ($1 ^* x) with x by W_eq; auto.
+  intros; subst. replace ($1 ^* x) with x by W_eq. auto.
 Qed.
 
 Hint Resolve times_1.
@@ -111,7 +111,7 @@ Theorem factR_4 : forall r, factR 4 r -> r = 24.
                           | [ H : _ |- _ ] => apply H; reflexivity
                         end ]
   end.
-Qed.  
+Qed.
 
 Hint Resolve factR_4.
 
@@ -125,7 +125,7 @@ Theorem factProgOk : moduleOk factProg.
   link factOk factDriverOk.
 Qed.
 
-Definition factSettings := testSettings (NToWord _ 1024) factProg.
+Definition factSettings := leSettings (NToWord _ 1024) factProg.
 Definition factProgram := snd (labelsOf (XCAP.Blocks factProg)).
 
 Transparent natToWord.
@@ -139,9 +139,13 @@ Defined.
 
 Print Assumptions factProgReallyOk.
 
-Definition final := Eval compute in exec factSettings factProgram 20
-  (proj1_sig factProgReallyOk,
-    {| Regs := fun _ => wzero _;
-      Mem := fun _ => wzero _ |}).
+Section final.
+  Transparent evalInstrs.
 
-Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.
+  Definition final := Eval compute in exec factSettings factProgram 20
+    (proj1_sig factProgReallyOk,
+      {| Regs := fun _ => wzero _;
+        Mem := fun _ => wzero _ |}).
+
+  Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.
+End final.

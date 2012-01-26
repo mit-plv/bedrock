@@ -101,6 +101,29 @@ Module IntMap.
             | inright _ => MBranch _ l k v (remove s r)
           end
       end.
+
+    Lemma remove_add : forall m x v,
+      remove x (add x v m) = remove x m.
+    Proof.
+      clear. induction m; simpl; intros.
+      destruct (Compare_dec.lt_eq_lt_dec x x) as [ [ ? | ? ] | ? ]; auto; exfalso; omega.
+      case_eq (Compare_dec.lt_eq_lt_dec x n); simpl. intro. case_eq s; simpl; intros; subst.
+      rewrite H0. rewrite IHm1. auto.
+      rewrite H0. auto.
+      intros. rewrite H. rewrite IHm2. auto.
+    Qed.
+
+    Lemma find_add : forall m x v,
+      find x (add x v m) = Some v.
+    Proof.
+      clear. induction m; simpl; intros.
+      destruct (Compare_dec.lt_eq_lt_dec x x) as [ [ ? | ? ] | ? ]; auto; exfalso; omega.
+      case_eq (Compare_dec.lt_eq_lt_dec x n); simpl. intro. case_eq s; simpl; intros; subst.
+      rewrite H0. auto.
+      rewrite H0. auto.
+      intros. rewrite H. auto.
+    Qed.
+
   End parametric.
     
   Section Map.
@@ -126,5 +149,6 @@ Module IntMap.
           fold r (f k v (fold l acc))
       end.
   End Fold.
+  
 End IntMap.
 

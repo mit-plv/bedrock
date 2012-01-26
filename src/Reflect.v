@@ -3,7 +3,7 @@
  ** - list lookup
  ** - 
  **)
-Require Import List Env.
+Require Import List DepList.
 
 Set Implicit Arguments.
 
@@ -242,6 +242,29 @@ Ltac indexOf keyF x ls :=
         | _ => let f := indexOf keyF x ls' in constr:(@FS _ F ls' f)
       end
   end.
+
+Ltac map_tac T tac fs :=
+  let rec map_tac fs :=
+    match fs with
+      | nil => constr:(@nil T)
+      | ?f :: ?fs =>
+        let f := tac f in
+        let fs := map_tac fs in
+        constr:(f :: fs)
+      | ?fs ++ ?fs' =>
+        let fs := map_tac fs in
+        let fs' := map_tac fs' in
+        constr:(fs ++ fs')
+      | _ => 
+        let fs' := eval unfold fs in fs in 
+        match fs with
+          | fs' => fs
+          | _ => map_tac fs'
+        end
+    end
+  in
+  map_tac fs.
+  
 
 Goal forall a b c : Type, nil ++ (a :: nil) ++ nil ++ nil = nil.
   intros.

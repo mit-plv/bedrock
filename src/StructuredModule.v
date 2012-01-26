@@ -156,10 +156,23 @@ Section module.
       | Some _ => True
     end.
 
-  Hypothesis BlocksGood : List.Forall (fun f : function => let '(_, pre, c) := f in
+  Hypothesis BlocksGood : List.Forall (fun p =>
+    (forall stn_st specs, ~interp specs (fst p stn_st))
+    /\ snd p) (map (fun f : function =>
+      let '(_, pre, c) := f in
+        let cout := c fullImports fullImportsGlobal pre in
+          (Postcondition cout, VerifCond cout)) functions).
+
+  Lemma BlocksGood' : List.Forall (fun f : function => let '(_, pre, c) := f in
     let cout := c fullImports fullImportsGlobal pre in
     (forall stn_st specs, ~interp specs (Postcondition cout stn_st))
     /\ VerifCond cout) functions.
+    generalize BlocksGood; clear.
+    induction functions; simpl; intuition.
+    inversion BlocksGood; subst; intuition.
+    constructor; intuition.
+    destruct a as [ [ ] ]; intuition.
+  Qed.
 
   Theorem bmoduleOk : moduleOk bmodule_.
     constructor.
@@ -502,11 +515,11 @@ Section module.
     match type of H6 with
       | ?P -> _ => assert P
     end.
-    generalize BlocksGood H3; clear.
+    generalize BlocksGood' H3; clear.
     induction functions; simpl; intuition; subst.
-    inversion BlocksGood; clear BlocksGood; subst.
+    inversion H; clear H; subst.
     tauto.
-    inversion BlocksGood; clear BlocksGood; subst.
+    inversion H; clear H; subst.
     auto.
 
     intuition.
