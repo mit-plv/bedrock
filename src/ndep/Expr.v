@@ -82,6 +82,38 @@ Section env.
   | UVar : forall x : uvar, expr
   | Func : forall f : func, list expr -> expr.
 
+  Section All.
+    Variable T : Type.
+    Variable P : T -> Prop.
+
+    Fixpoint all (ls : list T) : Prop :=
+      match ls with
+        | nil => True
+        | l :: ls => P l /\ all ls 
+      end.
+  End All.    
+
+  Theorem expr_ind' : forall P : expr -> Prop,
+    (forall (t : tvar) (t0 : tvarD t), P (Const t t0)) ->
+    (forall x : var, P (Var x)) ->
+    (forall x : uvar, P (UVar x)) ->
+    (forall (f2 : func) (l : list expr), all P l -> P (Func f2 l)) ->
+    forall e : expr, P e.
+  Proof.
+    clear. intros P HC HV HU HF.
+    refine (fix recur e : P e :=
+      match e with
+        | Const t v => @HC t v 
+        | Var x => HV x
+        | UVar x => HU x
+        | Func f xs => @HF f xs ((fix prove ls : all P ls :=
+          match ls with
+            | nil => I
+            | l :: ls => conj (recur l) (prove ls)
+          end) xs)
+      end).
+  Qed.
+
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
    red. change (forall x y : tvar, {x = y} + {x <> y}).
     decide equality. eapply Peano_dec.eq_nat_dec.
@@ -150,6 +182,59 @@ Section env.
             end
         end
     end.
+
+  Section All2.
+    Variable X Y : Type.
+    Variable F : X -> Y -> bool.
+
+    Fixpoint all2 (xs : list X) (ys : list Y) : bool :=
+      match xs , ys with
+        | nil , nil => true
+        | x :: xs, y :: ys => if F x y then all2 xs ys else false
+        | _ , _ => false
+      end.
+  End All2.
+          
+  Fixpoint well_typed (e : expr) (t : tvar) {struct e} : bool :=
+    match e with 
+      | Const t' _ => 
+        if equiv_dec t' t then true else false
+      | Var x => if lookupAs env t x then true else false 
+      | UVar x => if lookupAs uenv t x then true else false 
+      | Func f xs => 
+        match nth_error funcs f with
+          | None => false
+          | Some f =>
+            if equiv_dec t (Range f) then 
+              all2 well_typed xs (Domain f)
+            else false
+        end
+    end.
+
+  Theorem well_typed_correct : forall e t, 
+    well_typed e t = true ->
+    exists v, exprD e t = Some v.
+  Proof.
+    clear. induction e using expr_ind'; simpl; intros; 
+    repeat match goal with
+             | [ H : context [ equiv_dec ?X ?Y ] |- _ ] => 
+               destruct (equiv_dec X Y)
+             | [ |- context [ equiv_dec ?X ?Y ] ] => 
+               destruct (equiv_dec X Y)
+             | [ H : context [ lookupAs ?X ?Y ?Z ] |- _ ] => 
+               destruct (lookupAs X Y Z)
+             | [ H : context [ nth_error ?X ?Y ] |- _ ] => destruct (nth_error X Y)
+        end; eauto; try congruence.
+    generalize e0. rewrite <- e0. unfold "===". uip_all.
+    generalize dependent (Denotation s). generalize dependent (Domain s).
+    generalize (Range s). generalize dependent l. clear. 
+    induction l; simpl; intros.
+      destruct l; eauto; congruence.
+      destruct l0; try congruence.
+      generalize dependent H0. destruct H. specialize (H t0). generalize dependent H.
+      case_eq (well_typed a t0); intros; try congruence.
+      destruct H1; auto. rewrite H1. eauto.
+  Qed.
 
   Fixpoint expr_seq_dec (a b : expr) : option (a = b) :=
     match a as a, b as b return option (a = b) with 
