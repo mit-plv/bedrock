@@ -82,6 +82,44 @@ Section env.
   | UVar : forall x : uvar, expr
   | Func : forall f : func, list expr -> expr.
 
+  (* our induction principle for expr isn't good enough, so we prove a better one *)
+  (* code mostly from Coq'Art 2004 (Bertot + Casteran) *)
+  Section expr_rect2.
+    Variable (P : expr -> Type).
+    Variable (Q : list expr -> Type).
+
+    Hypotheses
+      (Hc : forall (t : tvar) (t0 : tvarD t), P (Const t t0))
+      (Hv : forall x : var, P (Var x))
+      (Hu : forall x : uvar, P (UVar x))
+      (Hf : forall (f : func) (l : list expr), Q l -> P (Func f l))
+      (Hqn : Q nil)
+      (Hqc : forall e : expr, P e -> forall l : list expr, Q l -> Q (e :: l)).
+
+    Fixpoint expr_rect2 (e : expr) : P e :=
+      match e as e return P e with
+        | Const t t0 => Hc t t0
+        | Var x => Hv x
+        | UVar x => Hu x
+        | Func f l => Hf f (((fix l_ind (l' : list expr) : Q l' :=
+                                  match l' as l' return Q l' with
+                                    | nil => Hqn
+                                    | e' :: l1 => Hqc (expr_rect2 e') (l_ind l1)
+                                  end)) l)
+      end.
+  End expr_rect2.
+  Hint Constructors Forall.
+  Theorem expr_ind2 :
+    forall P : expr -> Prop,
+      (forall (t : tvar) (t0 : tvarD t), P (Const t t0)) ->
+      (forall x : var, P (Var x)) ->
+      (forall x : uvar, P (UVar x)) ->
+      (forall (f2 : func) (l : list expr), Forall P l -> P (Func f2 l)) ->
+      forall e : expr, P e.
+    intros.
+    eapply expr_rect2; intuition eauto.
+  Qed.
+  
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
    red. change (forall x y : tvar, {x = y} + {x <> y}).
     decide equality. eapply Peano_dec.eq_nat_dec.
