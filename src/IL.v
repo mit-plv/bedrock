@@ -2,7 +2,7 @@
 
 Require Import Arith Div2 List NArith String.
 
-Require Import Nomega Word.
+Require Import Nomega Word Memory.
 
 
 (* Our machine words *)

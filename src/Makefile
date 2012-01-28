@@ -8,7 +8,7 @@ NDEP := NatMap Expr ExprUnify \
 # \	SymEval SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
-	Nomega Word IL LabelMap PropX PropXTac \
+	Nomega Word IL LabelMap PropX PropXTac Memory \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
