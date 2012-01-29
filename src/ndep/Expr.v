@@ -76,43 +76,40 @@ Section env.
   Definition var := nat.
   Definition uvar := nat.
 
+  Unset Elimination Schemes.
+
   Inductive expr : Type :=
   | Const : forall t : tvar, tvarD t -> expr
   | Var : forall x : var, expr
   | UVar : forall x : uvar, expr
   | Func : forall f : func, list expr -> expr.
 
-  Section All.
-    Variable T : Type.
-    Variable P : T -> Prop.
+  Set Elimination Schemes.
 
-    Fixpoint all (ls : list T) : Prop :=
-      match ls with
-        | nil => True
-        | l :: ls => P l /\ all ls 
-      end.
-  End All.    
+  Section expr_ind.
+    Variable P : expr -> Prop.
 
-  Theorem expr_ind' : forall P : expr -> Prop,
-    (forall (t : tvar) (t0 : tvarD t), P (Const t t0)) ->
-    (forall x : var, P (Var x)) ->
-    (forall x : uvar, P (UVar x)) ->
-    (forall (f2 : func) (l : list expr), all P l -> P (Func f2 l)) ->
-    forall e : expr, P e.
-  Proof.
-    clear. intros P HC HV HU HF.
-    refine (fix recur e : P e :=
-      match e with
-        | Const t v => @HC t v 
-        | Var x => HV x
-        | UVar x => HU x
-        | Func f xs => @HF f xs ((fix prove ls : all P ls :=
-          match ls with
-            | nil => I
-            | l :: ls => conj (recur l) (prove ls)
-          end) xs)
-      end).
-  Qed.
+    Hypotheses
+      (Hc : forall (t : tvar) (t0 : tvarD t), P (Const t t0))
+      (Hv : forall x : var, P (Var x))
+      (Hu : forall x : uvar, P (UVar x))
+      (Hf : forall (f : func) (l : list expr), Forall P l -> P (Func f l)).
+
+    Theorem expr_ind : forall e : expr, P e.
+    Proof.
+      refine (fix recur e : P e :=
+        match e as e return P e with
+          | Const t v => @Hc t v 
+          | Var x => Hv x
+          | UVar x => Hu x
+          | Func f xs => @Hf f xs ((fix prove ls : Forall P ls :=
+            match ls as ls return Forall P ls with
+              | nil => Forall_nil _
+              | l :: ls => Forall_cons _ (recur l) (prove ls)
+            end) xs)
+        end).
+    Qed.
+  End expr_ind.
 
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
    red. change (forall x y : tvar, {x = y} + {x <> y}).
@@ -215,7 +212,7 @@ Section env.
     well_typed e t = true ->
     exists v, exprD e t = Some v.
   Proof.
-    clear. induction e using expr_ind'; simpl; intros; 
+    clear. induction e; simpl; intros; 
     repeat match goal with
              | [ H : context [ equiv_dec ?X ?Y ] |- _ ] => 
                destruct (equiv_dec X Y)
@@ -231,9 +228,9 @@ Section env.
     induction l; simpl; intros.
       destruct l; eauto; congruence.
       destruct l0; try congruence.
-      generalize dependent H0. destruct H. specialize (H t0). generalize dependent H.
+      generalize dependent H0. inversion H; clear H; subst. specialize (H2 t0). generalize dependent H2.
       case_eq (well_typed a t0); intros; try congruence.
-      destruct H1; auto. rewrite H1. eauto.
+      destruct H2; auto. rewrite H1. eauto.
   Qed.
 
   Fixpoint expr_seq_dec (a b : expr) : option (a = b) :=
