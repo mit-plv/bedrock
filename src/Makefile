@@ -4,7 +4,7 @@ NDEP := NatMap Expr ExprUnify \
 	SepExpr SepExprTests \
 	Provers \
 	Unfolder UnfolderTests \
-	SymEval 
+	Env SymEval 
 #SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
