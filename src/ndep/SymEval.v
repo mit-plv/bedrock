@@ -449,65 +449,7 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         end),
       @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate.
       
-
-
-
-      
-
-(*    
-      Record SymEval
-        (Predicate : ssignature types tvPc tvState)
-        : Type :=
-      { sym_read  : 
-        forall (hyps args : list (expr types)) (p : expr types),
-        option (expr types)
-      ; sym_write : 
-        forall (hyps args : list (expr types)) (p v : expr types),
-        option (list (expr types))
-      ; sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
-        sym_read hyps args pe = Some ve ->
-        AllProvable funcs uvars vars hyps ->
-        match 
-          applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match 
-          exprD funcs uvars vars pe tvPtr, 
-          exprD funcs uvars vars ve tvVal
-          with
-          | Some p , Some v =>
-            smem_get_value stn p m = Some v
-          | _ , _ => False
-        end
-      ; sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
-        sym_write hyps args pe ve = Some args' ->
-        AllProvable funcs uvars vars hyps ->
-        exprD funcs uvars vars ve tvVal = Some v ->
-        match
-          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match exprD funcs uvars vars pe tvPtr with
-          | Some p =>
-            match 
-              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-            with
-              | None => False
-              | Some pr => 
-                match smem_set_value stn p v m with
-                  | None => False
-                  | Some sm' => ST.satisfies cs pr stn sm'
-                end
-            end
-          | _ => False
-        end
-    }.
-*)
-End typed.
+  End typed.
 
 End EvaluatorPluginType.
 
@@ -529,65 +471,288 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
     
     Variable funcs : functions types.
 
-      Record SymEval'
-        (Predicate : ssignature types tvPc tvState)
-        : Type :=
-      { sym_read  : 
-        forall (hyps args : list (expr types)) (p : expr types),
-        option (expr types)
-      ; sym_write : 
-        forall (hyps args : list (expr types)) (p v : expr types),
-        option (list (expr types))
-      ; sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
-        sym_read hyps args pe = Some ve ->
-        AllProvable funcs uvars vars hyps ->
-        match 
-          applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match 
-          exprD funcs uvars vars pe tvPtr, 
-          exprD funcs uvars vars ve tvVal
-          with
-          | Some p , Some v =>
-            smem_get_value stn p m = Some v
-          | _ , _ => False
-        end
-      ; sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
-        sym_write hyps args pe ve = Some args' ->
-        AllProvable funcs uvars vars hyps ->
-        exprD funcs uvars vars ve tvVal = Some v ->
-        match
-          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match exprD funcs uvars vars pe tvPtr with
-          | Some p =>
-            match 
-              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+    Record SymEval' (Predicate : ssignature types tvPc tvState) : Type :=
+    { sym_read  : 
+      forall (hyps args : list (expr types)) (p : expr types),
+      option (expr types)
+    ; sym_write : 
+      forall (hyps args : list (expr types)) (p v : expr types),
+      option (list (expr types))
+    ; sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
+      sym_read hyps args pe = Some ve ->
+      AllProvable funcs uvars vars hyps ->
+      match 
+        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match 
+        exprD funcs uvars vars pe tvPtr, 
+        exprD funcs uvars vars ve tvVal
+        with
+        | Some p , Some v =>
+          smem_get_value stn p m = Some v
+        | _ , _ => False
+      end
+    ; sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
+      sym_write hyps args pe ve = Some args' ->
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve tvVal = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match exprD funcs uvars vars pe tvPtr with
+        | Some p =>
+          match 
+            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
             with
-              | None => False
-              | Some pr => 
-                match smem_set_value stn p v m with
-                  | None => False
-                  | Some sm' => ST.satisfies cs pr stn sm'
-                end
-            end
-          | _ => False
-        end
+            | None => False
+            | Some pr => 
+              match smem_set_value stn p v m with
+                | None => False
+                | Some sm' => ST.satisfies cs pr stn sm'
+              end
+          end
+        | _ => False
+      end
     }.
 
     Definition SymEval := SymEval'.
 
     Definition Build_SymEval := Build_SymEval'.
 
-End typed.
+  End typed.
 
 End EvaluatorPlugin.
+
+(*
+Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+  Module Import SEP := SepExpr B ST.
+  Require Import IL.
+
+  Variable types : list type.
+  Variables pcT stT : tvar.
+
+  (** These the reflected version of the IL, it essentially 
+   ** replaces all uses of W with expr types so that the value
+   ** can be inspected.
+   ** TODO: Is it better to parameterize the initial definition in
+   **       IL.v by the type of values?
+   ** The problem comes (once again) from casts...
+   **)
+  Inductive sym_loc :=
+  | SymReg : reg -> sym_loc
+  | SymImm : expr types -> sym_loc
+  | SymIndir : reg -> expr types -> sym_loc.
+
+  (* Valid targets of assignments *)
+  Inductive sym_lvalue :=
+  | SymLvReg : reg -> sym_lvalue
+  | SymLvMem : sym_loc -> sym_lvalue.
+  
+  (* Operands *)
+  Inductive sym_rvalue :=
+  | SymRvLval : sym_lvalue -> sym_rvalue
+  | SymRvImm : expr types -> sym_rvalue
+  | SymRvLabel : label -> sym_rvalue.
+
+  (* Non-control-flow instructions *)
+  Inductive sym_instr :=
+  | SymAssign : sym_lvalue -> sym_rvalue -> sym_instr
+  | SymBinop : sym_lvalue -> sym_rvalue -> binop -> sym_rvalue -> sym_instr.
+
+  
+  (** Symbolic registers **)
+  Definition SymRegType : Type :=
+    (expr types * expr types * expr types)%type.
+
+  Definition sym_getReg (r : reg) (sr : SymRegType) : expr types :=
+    match r with
+      | Sp => fst (fst sr)
+      | Rp => snd (fst sr)
+      | Rv => snd sr
+    end.
+
+  Definition sym_setReg (r : reg) (v : expr types) (sr : SymRegType) : SymRegType :=
+    match r with
+      | Sp => (v, snd (fst sr), snd sr)
+      | Rp => (fst (fst sr), v, snd sr)
+      | Rv => (fst sr, v)
+    end.
+
+  (** Symbolic State **)
+  Record SymState : Type :=
+  { SymMem  : SEP.SHeap types pcT stT
+  ; SymRegs : SymRegType
+  }.
+
+  Variable tvWord : tvar.
+
+  Definition sym_evalRval (rv : sym_rvalue) (ss : SymState) : option (expr types) :=
+    match rv with
+      | SymRvLval (SymLvReg r) =>
+        Some (sym_getReg r (SymRegs ss))
+      | SymRvLval (SymLvMem l) => 
+        (** TODO: this should be a sym_eval_read **)
+        None (* match evalLoc l with
+                     | None => None
+                     | Some a =>
+                       if inBounds_dec a
+                       then Some (ReadWord stn (Mem st) a)
+                       else None
+                   end *)
+      | SymRvImm w => Some w 
+      | SymRvLabel l => None (* Labels stn l *)
+    end.
+
+  Definition sym_evalLval (lv : sym_lvalue) (val : expr types) (ss : SymState) : option SymState :=
+    match lv with
+        | SymLvReg r =>
+          Some {| SymMem := SymMem ss ; SymRegs := sym_setReg r val (SymRegs ss) |}
+        | SymLvMem l => None 
+          (** TODO: this should be a sym_eval_write **)
+(* match evalLoc l with
+                       | None => None
+                       | Some a =>
+                         if inBounds_dec a
+                         then Some {| Regs := Regs st;
+                           Mem := WriteWord stn (Mem st) a v |}
+                         else None
+                     end
+*)
+      end.
+
+  Variable fPlus fMinus fTimes : expr types -> expr types -> expr types.
+
+  Definition sym_evalInstr (i : sym_instr) (ss : SymState) : option SymState :=
+    match i with 
+      | SymAssign lv rv =>
+        match sym_evalRval rv ss with
+          | None => None
+          | Some rv => sym_evalLval lv rv ss
+        end
+      | SymBinop lv l o r =>
+        match sym_evalRval l ss , sym_evalRval r ss with
+          | Some l , Some r => 
+            let v :=
+              match o with
+                | Plus  => fPlus
+                | Minus => fMinus
+                | Times => fTimes                  
+              end l r
+            in
+            sym_evalLval lv v ss
+          | _ , _ => None
+        end
+    end.
+
+  Variable funcs : functions types.
+
+(*
+  Hypothesis fPlus_correct : forall l r uvars vars, 
+    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+      | Some lv , Some rv =>
+        exprD funcs uvars vars (fPlus l r) tvWord = Some (wplus lv rv)
+      | _ , _ => False
+    end.
+*)
+
+  Variable sfuncs : sfunctions types pcT stT.
+
+  (* Denotation functions *)
+  Section sym_denote.
+    Variable uvars vars : env types.
+
+    Definition sym_regsD (rs : SymRegType) : option regs :=
+      match rs with
+        | (sp, rp, rv) =>
+          match 
+            exprD funcs uvars vars sp tvWord ,
+            exprD funcs uvars vars rp tvWord ,
+            exprD funcs uvars vars rv tvWord 
+            with
+            | Some sp , Some rp , Some rv =>
+                Some (fun r => 
+                  match r with
+                    | Sp => sp
+                    | Rp => rp
+                    | Rv => rv
+                  end)
+            | _ , _ , _ => None
+          end
+      end.
+
+    Definition sym_stateD (ss : SymState) : option state.
+    
+
+    Print state.
+    
+
+    Definition sym_locD (s : sym_loc) : option loc :=
+      match s with
+        | SymReg r => Some (Reg r)
+        | SymImm e =>
+          match exprD funcs uvars vars e tvWord with
+            | Some e => Some (Imm e)
+            | None => None
+          end
+        | SymIndir r o =>
+          match exprD funcs uvars vars o tvWord with
+            | Some o => Some (Indir r o)
+            | None => None
+          end
+      end.
+
+    Definition sym_lvalueD (s : sym_lvalue) : option lvalue :=
+      match s with
+        | SymLvReg r => Some (LvReg r)
+        | SymLvMem l => match sym_locD l with
+                          | Some l => Some (SymLvMem l)
+                          | None => None
+                        end
+      end.
+
+    Definition sym_rvalueD (r : sym_rvalue) : option rvalue :=
+      match r with
+        | SymRvLval l => match sym_lvalueD l with
+                           | Some l => Some (RvLval l)
+                           | None => None
+                         end
+        | SymRvImm e => match exprD funcs uvars vars e tvWord with
+                          | Some l =>
+                          | None => None
+                        end
+        | SymRvLabel l => Some (RvLabel l)
+      end.
+
+    Definition sym_instrD (i : sym_instr) : option instr :=
+      match i with
+        | SymAssign l r =>
+          match sym_lvalueD l , sym_rvalueD r with
+            | Some l , Some r => Assign l r
+            | _ , _ => None
+          end
+        | SymBinop lhs l o r =>
+          match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
+            | Some lhs , Some l , Some r => Binop lhs l o r
+            | _ , _ , _ => None
+          end
+      end.
+
+  End sym_denote.
+
+  Theorem sym_evalIntr_sound : forall i i', 
+    sym_instrD i = Some i' ->
+    forall ss ss',
+    sym_evalInstr i ss = Some ss' ->
+    evalInstr i' ss = Some ss'.
+*)
+
+
 
 (*
 Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).

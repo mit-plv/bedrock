@@ -382,7 +382,8 @@ Section settings.
           Mem := Mem st |}
         | LvMem l => match evalLoc l with
                        | None => None
-                       | Some a => if inBounds_dec a
+                       | Some a =>
+                         if inBounds_dec a
                          then Some {| Regs := Regs st;
                            Mem := WriteWord stn (Mem st) a v |}
                          else None
@@ -393,11 +394,12 @@ Section settings.
       match rv with
         | LvReg r => Some (Regs st r)
         | LvMem l => match evalLoc l with
-                                | None => None
-                                | Some a => if inBounds_dec a
-                                  then Some (ReadWord stn (Mem st) a)
-                                  else None
-                              end
+                       | None => None
+                       | Some a =>
+                         if inBounds_dec a
+                         then Some (ReadWord stn (Mem st) a)
+                         else None
+                     end
         | RvImm w => Some w
         | RvLabel l => Labels stn l
       end.
