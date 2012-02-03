@@ -38,6 +38,7 @@ Section ProverT.
   Variable types : list type.
   Variable fs : functions types.
 
+(*
   Definition ProverT : Type := forall 
     (hyps : list (@expr types))
     (goal : @expr types),
@@ -47,6 +48,7 @@ Section ProverT.
    * option (AllProvable fs nil nil hyps -> Provable fs nil nil goal) 
    * but that is harder to program with
    *)
+*)
 
   Definition ValidProp (e : expr types) := exists pf, exprD fs nil nil e tvProp = Some pf.
 

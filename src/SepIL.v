@@ -211,6 +211,12 @@ Notation "![ x ]" := (hvarB x) : Sep_scope.
 
 Delimit Scope Sep_scope with Sep.
 
+Fixpoint arrayOf sos (p : W) (c : list W) : hpropB sos :=
+  match c with 
+    | nil => [| True |]
+    | a :: b => p ==> a * arrayOf sos (p ^+ $4) b
+  end%Sep.
+
 Notation "#0" := (![ #0%PropX ])%Sep : Sep_scope.
 Notation "#1" := (![ #1%PropX ])%Sep : Sep_scope.
 Notation "#2" := (![ #2%PropX ])%Sep : Sep_scope.
