@@ -535,7 +535,7 @@ Module BedrockEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Require Import IL.
 
   (** TODO : This is specialized to bedrock **)
-  Require Import SepTac.
+  Require Import Bedrock.SepTac.
 
   Variable types' : list type.
   Definition types := bedrock_types ++ types'.
