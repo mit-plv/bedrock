@@ -3,12 +3,12 @@ DEP  :=
 NDEP := NatMap Expr ExprUnify \
 	SepExpr SepExprTests \
 	Provers \
-	Unfolder UnfolderTests
-# Temporary b/c I need to push this since I don't have my laptop
-# \	SymEval SymEvalTests
+	Unfolder UnfolderTests \
+	Env SymEval 
+#SymEvalTests
 
 MODULES    := OrderedType FMapList FMapAVL \
-	Nomega Word IL LabelMap PropX PropXTac \
+	Nomega Word IL LabelMap PropX PropXTac Memory \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
