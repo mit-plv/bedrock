@@ -84,7 +84,7 @@ Section env.
 
   (* our induction principle for expr isn't good enough, so we prove a better one *)
   (* code mostly from Coq'Art 2004 (Bertot + Casteran) *)
-  Section expr_rect2.
+  Section expr_rect2'.
     Variable (P : expr -> Type).
     Variable (Q : list expr -> Type).
 
@@ -96,7 +96,7 @@ Section env.
       (Hqn : Q nil)
       (Hqc : forall e : expr, P e -> forall l : list expr, Q l -> Q (e :: l)).
 
-    Fixpoint expr_rect2 (e : expr) : P e :=
+    Fixpoint expr_rect2' (e : expr) : P e :=
       match e as e return P e with
         | Const t t0 => Hc t t0
         | Var x => Hv x
@@ -104,10 +104,25 @@ Section env.
         | Func f l => Hf f (((fix l_ind (l' : list expr) : Q l' :=
                                   match l' as l' return Q l' with
                                     | nil => Hqn
-                                    | e' :: l1 => Hqc (expr_rect2 e') (l_ind l1)
+                                    | e' :: l1 => Hqc (expr_rect2' e') (l_ind l1)
                                   end)) l)
       end.
-  End expr_rect2.
+  End expr_rect2'.
+
+  Inductive ForallT (T : Type) (P : T -> Type) : list T -> Type :=
+    | ForallT_nil : ForallT P nil
+    | ForallT_cons : forall x l, P x -> ForallT P l -> ForallT P (x :: l).
+  Hint Constructors ForallT.
+  Theorem expr_rect2 :
+    forall P : expr -> Type,
+      (forall (t : tvar) (t0 : tvarD t), P (Const t t0)) ->
+      (forall x : var, P (Var x)) ->
+      (forall x : uvar, P (UVar x)) ->
+      (forall (f2 : func) (l : list expr), ForallT P l -> P (Func f2 l)) ->
+      forall e : expr, P e.
+    intros.
+    eapply expr_rect2'; intuition eauto.
+  Qed.
   Hint Constructors Forall.
   Theorem expr_ind2 :
     forall P : expr -> Prop,
@@ -117,7 +132,7 @@ Section env.
       (forall (f2 : func) (l : list expr), Forall P l -> P (Func f2 l)) ->
       forall e : expr, P e.
     intros.
-    eapply expr_rect2; intuition eauto.
+    eapply expr_rect2'; intuition eauto.
   Qed.
   
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
