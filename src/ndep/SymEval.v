@@ -529,13 +529,18 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
 
 End EvaluatorPlugin.
 
-(*
-Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+
+Module BedrockEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SEP := SepExpr B ST.
   Require Import IL.
 
-  Variable types : list type.
-  Variables pcT stT : tvar.
+  (** TODO : This is specialized to bedrock **)
+  Require Import SepTac.
+
+  Variable types' : list type.
+  Definition types := bedrock_types ++ types'.
+  Definition pcT := tvType 0.
+  Definition stT := tvType 1.
 
   (** These the reflected version of the IL, it essentially 
    ** replaces all uses of W with expr types so that the value
@@ -590,7 +595,8 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   ; SymRegs : SymRegType
   }.
 
-  Variable tvWord : tvar.
+  (** This has to be connected to the type of the intermediate representation **)
+  Definition tvWord := tvType 0.
 
   Definition sym_evalRval (rv : sym_rvalue) (ss : SymState) : option (expr types) :=
     match rv with
@@ -661,7 +667,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 *)
 
-  Variable sfuncs : sfunctions types pcT stT.
+  Variable sfuncs : SEP.sfunctions types pcT stT.
 
   (* Denotation functions *)
   Section sym_denote.
@@ -684,13 +690,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                   end)
             | _ , _ , _ => None
           end
-      end.
-
-    Definition sym_stateD (ss : SymState) : option state.
-    
-
-    Print state.
-    
+      end.    
 
     Definition sym_locD (s : sym_loc) : option loc :=
       match s with
@@ -711,7 +711,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       match s with
         | SymLvReg r => Some (LvReg r)
         | SymLvMem l => match sym_locD l with
-                          | Some l => Some (SymLvMem l)
+                          | Some l => Some (LvMem l)
                           | None => None
                         end
       end.
@@ -723,7 +723,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                            | None => None
                          end
         | SymRvImm e => match exprD funcs uvars vars e tvWord with
-                          | Some l =>
+                          | Some l => Some (RvImm l)
                           | None => None
                         end
         | SymRvLabel l => Some (RvLabel l)
@@ -733,25 +733,106 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       match i with
         | SymAssign l r =>
           match sym_lvalueD l , sym_rvalueD r with
-            | Some l , Some r => Assign l r
+            | Some l , Some r => Some (Assign l r)
             | _ , _ => None
           end
         | SymBinop lhs l o r =>
           match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
-            | Some lhs , Some l , Some r => Binop lhs l o r
+            | Some lhs , Some l , Some r => Some (Binop lhs l o r)
             | _ , _ , _ => None
           end
       end.
 
+    Fixpoint sym_instrsD (is : list sym_instr) : option (list instr) :=
+      match is with
+        | nil => Some nil
+        | i :: is => 
+          match sym_instrD i , sym_instrsD is with
+            | Some i , Some is => Some (i :: is)
+            | _ , _ => None
+          end
+      end.
+
+    Definition regsD (r : regs) (sr : SymRegType) : Prop :=
+      let '(sp, rp, rv) := sr in
+         exprD funcs uvars vars sp tvWord = Some (r Sp)
+      /\ exprD funcs uvars vars rp tvWord = Some (r Rp)
+      /\ exprD funcs uvars vars rv tvWord = Some (r Rv).
+
+    Require Import PropX.
+
+    Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState) : Prop :=
+      PropX.interp cs ([| regsD (Regs s) (SymRegs ss) |] /\ 
+                       SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD (SymMem ss))) (stn, s))%PropX.
+
   End sym_denote.
 
-  Theorem sym_evalIntr_sound : forall i i', 
-    sym_instrD i = Some i' ->
-    forall ss ss',
-    sym_evalInstr i ss = Some ss' ->
-    evalInstr i' ss = Some ss'.
+(*
+  Lemma sym_evalRvalueD_sound : forall r rD,
+    sym_evalRvalueD uvars vars r = Some rD ->
+    forall s ss,
+      stateD cs stn s ss ->
+      evalRvalueD rD = Some rD.
+
 *)
 
+  Theorem sym_evalIntr_sound : forall i iD uvars vars, 
+    sym_instrD uvars vars i = Some iD ->
+    forall stn ss ss',
+    sym_evalInstr i ss = Some ss' ->
+    forall specs s,
+    stateD uvars vars specs stn s ss ->
+    exists s',
+    evalInstr stn s iD = Some s' /\ stateD uvars vars specs stn s' ss'.
+  Proof.
+    destruct i; simpl; intros iD uvars vars0.
+      
+      case_eq (sym_lvalueD uvars vars0 s); try congruence.
+      case_eq (sym_rvalueD uvars vars0 s0); try congruence.
+      intros. inversion H1; clear H1; subst.
+        simpl.
+        Lemma sym_rvalue_sound : forall uvars vars0 r rD,
+          sym_rvalueD uvars vars0 r = Some rD ->
+          forall specs stn s ss, 
+          stateD uvars vars0 specs stn s ss ->
+          forall rv,
+          sym_evalRval r ss = Some rv ->
+          exists rvD ,
+          exprD funcs uvars vars0 rv tvWord = Some rvD /\
+          evalRvalue stn s rD = Some rvD.
+        Proof.          
+        Admitted.
+        Check sym_evalLval.
+        Lemma sym_lvalue_sound : forall uvars vars0 l lD,
+          sym_lvalueD uvars vars0 l = Some lD ->
+          forall specs stn s ss, 
+          stateD uvars vars0 specs stn s ss ->
+          forall a aD ss',
+          exprD funcs uvars vars0 a tvWord = Some aD ->
+          sym_evalLval l a ss = Some ss' ->
+          exists s' , 
+               evalLvalue stn s lD aD = Some s'
+            /\ stateD uvars vars0 specs stn s' ss'.
+        Proof.
+          destruct l; simpl; intros.
+            inversion H; clear H; subst.
+            inversion H2; clear H2; subst.
+            simpl; eexists; split; [ reflexivity | ].
+            Focus.
+            unfold stateD, regsD in *. PropXTac.propxFo.
+              destruct (SymRegs ss). destruct p.
+              destruct r; simpl in *; intuition.
+
+          
+        Admitted.
+        generalize dependent H2. case_eq (sym_evalRval s0 ss); try congruence.
+        intros. eapply sym_rvalue_sound in H1; eauto. destruct H1. destruct H1.
+        eapply sym_lvalue_sound in H2; eauto. do 2 destruct H2.
+        rewrite H4. eauto.
+
+  Admitted.
+
+End BedrockEvaluator.
 
 
 (*
