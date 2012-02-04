@@ -5,10 +5,8 @@ Require Import DepList.
 
 Set Implicit Arguments.
 
-Notation "[ a ]" := (a :: nil).
-Notation "[ a ,  b ]" := (a :: b :: nil).
-Notation "[ a ,  b ,  c ]" := (a :: b :: c :: nil).
-Notation "[ a ,  b ,  c ,  d ]" := (a :: b :: c :: d :: nil).
+(* Coq supports recursive patterns *)
+Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 (* Some tactics for automation of later proofs *)
 Ltac caseDestruct t := destruct t; try solve [ simpl in *; discriminate ].

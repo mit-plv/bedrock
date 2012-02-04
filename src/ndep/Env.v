@@ -3,20 +3,20 @@ Require Import List.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Section UpdatePosition.
+Section UpdateAt.
   Variable A : Type.
   
   Variable new : A.
 
-  Fixpoint updatePosition (ls : list A) (n : nat) : list A :=
+  Fixpoint updateAt (ls : list A) (n : nat) : list A :=
     match ls with
       | nil => match n with
                  | 0 => new :: nil
-                 | S n' => new :: updatePosition nil n'
+                 | S n' => new :: updateAt nil n'
                end
       | a :: ls' => match n with
                       | 0 => new :: ls'
-                      | S n' => a :: updatePosition ls' n'
+                      | S n' => a :: updateAt ls' n'
                     end
     end.
 
@@ -31,30 +31,30 @@ Section UpdatePosition.
     end.
 
   Require Import Omega.
-  Lemma nth_error_updatePosition_nil : forall n,
-    nth_error (updatePosition nil n) n = value new.
+  Lemma nth_error_updateAt_nil : forall n,
+    nth_error (updateAt nil n) n = value new.
     intros.
     induction n; auto.
   Qed.
-  Lemma nth_error_updatePosition : forall ls n, nth_error (updatePosition ls n) n = value new.
+  Lemma nth_error_updateAt : forall ls n, nth_error (updateAt ls n) n = value new.
     double induction ls n; auto.
     intros.
     specialize (H0 H).
     simpl.
-    destruct l0; auto. apply nth_error_updatePosition_nil; auto.
+    destruct l0; auto. apply nth_error_updateAt_nil; auto.
   Defined.
   
-  Lemma nth_error_updatePosition_not : forall old n' ls n,
+  Lemma nth_error_updateAt_not : forall old n' ls n,
     n <> n' ->
     nth_error ls n = Some old ->
-    nth_error (updatePosition ls n') n = Some old.
+    nth_error (updateAt ls n') n = Some old.
   Proof.
     induction n'; destruct ls; destruct n; simpl; intros; try solve [ discriminate | exfalso; auto | auto ].
   Qed.
 
-  Lemma nth_error_updatePosition_gt : forall n n' ls,
+  Lemma nth_error_updateAt_gt : forall n n' ls,
     n < n' ->
-    nth_error (updatePosition ls n) n' = nth_error ls n'.
+    nth_error (updateAt ls n) n' = nth_error ls n'.
   Proof.
     induction n; simpl; intros.
       destruct n'; destruct ls; simpl; intros; try solve [ auto | exfalso; omega | destruct n'; reflexivity ].
@@ -64,9 +64,9 @@ Section UpdatePosition.
         apply IHn. omega.
   Defined.
 
-  Lemma nth_error_updatePosition_lt : forall n' n ls,
+  Lemma nth_error_updateAt_lt : forall n' n ls,
     n' < n ->
-    nth_error (updatePosition ls n) n' = 
+    nth_error (updateAt ls n) n' = 
       match nth_error ls n' with
         | None => Some new
         | Some v => Some v
@@ -78,17 +78,38 @@ Section UpdatePosition.
       auto.
   Defined. 
 
-  Theorem nth_error_updatePosition_eq : forall n ls n',
-    nth_error (updatePosition ls n) n' = defaulted ls n n'.
+  Theorem nth_error_updateAt_eq : forall n ls n',
+    nth_error (updateAt ls n) n' = defaulted ls n n'.
   Proof.
     unfold defaulted; intros.
       destruct (lt_eq_lt_dec n n'). destruct s.
-      eapply nth_error_updatePosition_gt; auto.
-      subst; eapply nth_error_updatePosition; auto.
-      eapply nth_error_updatePosition_lt; auto.
+      eapply nth_error_updateAt_gt; auto.
+      subst; eapply nth_error_updateAt; auto.
+      eapply nth_error_updateAt_lt; auto.
   Defined.
 
-End UpdatePosition.
+  (** **)
+  Fixpoint cast (P : option A -> Type) ls idx
+    : P (nth_error (updateAt ls idx) idx) -> P (Some new) :=
+    match idx with
+      | O => match ls
+             return P (nth_error (updateAt ls O) O) -> _ with
+               | nil => fun x => x
+               | _ => fun x => x
+             end
+      | S idx => 
+        match ls return P (nth_error (updateAt ls (S idx)) (S idx)) -> _ with
+          | nil => cast P nil idx
+          | _ => cast P _ idx
+        end
+    end.
+
+  Theorem cast_inj : forall P idx ls x y, cast P ls idx x = cast P ls idx y -> x = y.
+  Proof.
+    induction idx; destruct ls; simpl; intros; auto.
+  Qed.
+
+End UpdateAt.
 
 Section MapRepr.
   Variable T : Type.
@@ -97,7 +118,7 @@ Section MapRepr.
     match ls with 
       | nil => fun x => x
       | (n, v) :: ls =>
-        fun x => updatePosition v (repr ls x) n
+        fun x => updateAt v (repr ls x) n
     end.
 
   Section get.
@@ -120,9 +141,9 @@ Section MapRepr.
     induction r; simpl.
       congruence.
     intros. destruct a. destruct (Peano_dec.eq_nat_dec n n0).
-    inversion H; clear H; subst. eapply nth_error_updatePosition.
+    inversion H; clear H; subst. eapply nth_error_updateAt.
     
-    erewrite nth_error_updatePosition_not; auto.
+    erewrite nth_error_updateAt_not; auto.
   Defined.
 *)
 
@@ -150,7 +171,7 @@ Section MapRepr.
       destruct (nth_error ls n); reflexivity.
 
       destruct a.
-        rewrite nth_error_updatePosition_eq. unfold defaulted.
+        rewrite nth_error_updateAt_eq. unfold defaulted.
         destruct (lt_eq_lt_dec n0 n). destruct s.
           destruct (eq_nat_dec n n0); [ exfalso; omega | ].
           rewrite IHr. destruct (get n r); auto. destruct (nth_error ls n); auto.
@@ -171,56 +192,140 @@ Section MapRepr.
      intros. simpl. trivial.
    Qed.
 
-End MapRepr.
+   (** cast **)
+   Section CastRepr.
+     Variable P : option T -> Type.
 
-(*
-  Variable dT : nat -> Type.
-  Variable F : nat -> forall x, option (dT x).
+     Fixpoint cast_repr d ls idx {struct d}
+       : P (nth_error (repr d ls) idx) -> P (match get idx d with
+                                               | Some v => Some v
+                                               | None => match nth_error ls idx with
+                                                           | Some v => Some v 
+                                                           | None => defaulted_repr d idx
+                                                         end
+                                             end).
+     rewrite repr_get_eq. auto. 
 
-  Definition ls := ((bool : Type) :: (nat : Type) :: (unit : Type) :: nil).
+(* This does reduce, but it might be better to code manually... 
+     refine (match d as d
+               return 
+               P (nth_error (repr d ls) idx) -> P (match get idx d with
+                                                     | Some v => Some v
+                                                     | None => match nth_error ls idx with
+                                                                 | Some v => Some v 
+                                                                 | None => defaulted_repr d idx
+                                                               end
+                                                   end)
+               with
+               | nil => match nth_error (repr nil ls) idx as k return P k -> P match k with 
+                                                                                 | Some v => Some v
+                                                                                 | None => None
+                                                                               end
+                          with
+                            | None => fun x => x
+                            | _ => fun x => x 
+                        end
+               | (i,v) :: ds => _
+             end).
+     simpl.
+     refine (match eq_nat_dec idx i as k return 
+               P (nth_error (updateAt v (repr ds ls) i) idx) ->
+               P match (if k then Some v else get idx ds) with
+                   | Some v0 => Some v0
+                   | None =>
+                     match nth_error ls idx with
+                       | Some v0 => Some v0
+                       | None =>
+                         match defaulted_repr ds idx with
+                           | Some v0 => if k then Some v else Some v0
+                           | None => if le_lt_dec idx i then Some v else None
+                         end
+                     end
+                 end
+               with
+               | left pf => match pf in _ = k return P (nth_error (updateAt v (repr ds ls) k) idx) -> P (Some v) with 
+                              | refl_equal => cast _ _ _ _
+                            end
+               | right _ => _ 
+             end).
+     specialize (cast_repr ds idx (repr ds ls)).
+     refine (match get idx ds as k return 
+               P (nth_error (updateAt v (repr ds ls) i) idx) ->
+               P match k with
+                   | Some v0 => Some v0
+                   | None =>
+                     match nth_error ls idx with
+                       | Some v0 => Some v0
+                       | None =>
+                         match defaulted_repr ds idx with
+                           | Some v0 => Some v0
+                           | None => if le_lt_dec idx i then Some v else None
+                         end
+                     end
+                 end
+               with
+               | Some v0 => _
+               | None => _ 
+             end).
 
-  Eval simpl in nth_error (repr ((0, nat:Type) :: nil) ls) 0.
-
-  Definition F_nat (n : nat) : option nat :=
-    match @repr_get _ ((0,nat : Type) :: nil) ls 0 nat (refl_equal _) in _ = k return match k with 
-                                                                                        | Some T => option T
-                                                                                        | None => unit 
-                                                                                      end with
-      | refl_equal => F n 0
-    end.
-
-End MapRepr.
-  Parameter dT : nat -> Type.
-
-  Parameter denote : nat -> forall x, option (dT x).
-
-  Hypothesis PF : dT 0 = nat.
-
-  Definition denote_nat (x : nat) : option nat :=
-    match repr_get _ _ _ _ _  in _ = k return option k with
-      | refl_equal => denote x 0
-    end.
+     ).
 
 
+     refine (match d as d return 
 
-  Goal True. 
-    pose (match match PF in _ = k return option k with | refl_equal => denote 0 0 end 
-            with
-              | None => False
-            | Some x => x = 0
-          end).
-    Set Printing All.
-    Print PF.
-
-
-  Print eq_refl.
-
-  @repr_get a b c d pf = refl_equal .
-
-  Lemma repr_get_pf_refl_equal : forall (T : option T -> Type) (F : forall x, T x -> U) a b c d pf,
-    ...
-    match @repr_get a b c d pf in _ = k return T k with
-      | refl_equal => ...
-    end
-    ...
+   rewrite repr_get_eq. trivial.
+     match idx with
+       | O => match ls
+                return P (nth_error (updateAt ls O) O) -> _ with
+                | nil => fun x => x
+                | _ => fun x => x
+              end
+       | S idx => 
+         match ls return P (nth_error (updateAt ls (S idx)) (S idx)) -> _ with
+           | nil => cast P idx nil
+           | _ => cast P idx _
+         end
+     end.
 *)
+     Defined.
+     
+     Theorem cast_repr_inj : forall d idx ls x y, cast_repr d ls idx x = cast_repr d ls idx y -> x = y.
+     Proof.
+     Admitted.
+   End CastRepr.
+
+End MapRepr.
+
+(** Specializations for tvarD **)
+Section UpdateAt_tvar.
+  Require Import Bedrock.ndep.Expr.
+
+  Check cast.
+
+  Definition cast_tvar new ls idx
+    : tvarD (updateAt new ls idx) (tvType idx) -> Impl new :=
+    @cast _ new (fun x => match x with 
+                          | Some t => Impl t
+                          | None => Empty_set
+                        end) _ _.
+
+  Definition cast_repr_tvar d ls idx
+    : tvarD (repr d ls) (tvType idx) -> match get idx d with
+                                          | Some v => Impl v
+                                          | None => match nth_error ls idx with
+                                                      | Some v => Impl v 
+                                                      | None => match defaulted_repr d idx with
+                                                                  | None => Empty_set
+                                                                  | Some v => Impl v 
+                                                                end
+                                                    end
+                                        end.
+  Check cast_repr.
+  intro.
+  pose (@cast_repr _ (fun x => match x with 
+                          | Some t => Impl t
+                          | None => Empty_set
+                        end) d ls idx X). simpl in *.
+  Admitted.
+
+End UpdateAt_tvar.
