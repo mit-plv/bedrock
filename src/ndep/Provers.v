@@ -5,10 +5,8 @@ Require Import DepList.
 
 Set Implicit Arguments.
 
-Notation "[ a ]" := (a :: nil).
-Notation "[ a ,  b ]" := (a :: b :: nil).
-Notation "[ a ,  b ,  c ]" := (a :: b :: c :: nil).
-Notation "[ a ,  b ,  c ,  d ]" := (a :: b :: c :: d :: nil).
+(* Coq supports recursive patterns *)
+Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 Section ProverT.
   Variable types : list type.
@@ -125,7 +123,7 @@ Section ReflexivityProver.
   Variable eqFunTvar : tvar.
 
   Let eqFunSig := {| Domain := [eqFunTvar, eqFunTvar]; Range := tvProp; Denotation := (@eq (tvarD types eqFunTvar)) |}.
-  Let fs' := updatePosition eqFunSig fs eqFunIdx.
+  Let fs' := updateAt eqFunSig fs eqFunIdx.
 
   Definition reflexivityProver (hyps : list (expr types)) (goal : expr types) := 
     match goal with
@@ -135,7 +133,7 @@ Section ReflexivityProver.
       | _ => false
     end.
 
-  Hint Rewrite nth_error_updatePosition : provers.
+  Hint Rewrite nth_error_updateAt : provers.
   Theorem reflexivityProverCorrect : ProverCorrect fs' reflexivityProver.
     unfold ProverCorrect; intros.
     caseDestruct goal.
@@ -147,11 +145,11 @@ Section ReflexivityProver.
     subst.
     unfold fs', exprD, Provable.
     simpl.
-    rewrite nth_error_updatePosition.
+    rewrite nth_error_updateAt.
     simpl.
     unfold ValidProp in *.
     unfold fs' in *.
-    case_eq (exprD (updatePosition eqFunSig fs eqFunIdx) nil nil e0 eqFunTvar); provers.
+    case_eq (exprD (updateAt eqFunSig fs eqFunIdx) nil nil e0 eqFunTvar); provers.
   Qed.
 
   Definition reflexivityProverRec := {| prove := reflexivityProver; prove_correct := reflexivityProverCorrect |}.
@@ -559,7 +557,7 @@ Section EqGrouper.
   Variable types : list type.
   Variable natIdx : nat.
   Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updatePosition natType types natIdx.
+  Let types' := updateAt natType types natIdx.
   Let natTvar := tvType natIdx.
   
   Definition optionDefault T t (o : option T) :=
@@ -574,16 +572,16 @@ Section EqGrouper.
       | None => Empty_set
     end.
 
-  Hint Rewrite nth_error_updatePosition : provers.
+  Hint Rewrite nth_error_updateAt : provers.
   Lemma nth_error_types'_natIdx : nth_error types' natIdx = value {| Expr.Eq := eq_dec_to_seq_dec eq_nat_dec |}.
     provers.
   Qed.
   Hint Rewrite nth_error_types'_natIdx : provers.
 
-  Definition natTvarCoerceR (n : tvarD types' natTvar) : nat := cast natType natIdx types Empty_setDefault n.
+  Definition natTvarCoerceR (n : tvarD types' natTvar) : nat := cast natType Empty_setDefault types natIdx n.
 
   Lemma natTvarCoerceR_inj : forall m n, natTvarCoerceR m = natTvarCoerceR n -> m = n.
-    apply cast_inj with (ls := types) (n := natIdx) (new := natType) (P := Empty_setDefault).
+    apply cast_inj with (ls := types) (idx := natIdx) (new := natType) (P := Empty_setDefault).
   Qed.
 
   Let natTvar_nat : tvarD types' natTvar = nat.
@@ -666,19 +664,19 @@ Section EqGrouper.
 End EqGrouper.
 
 Section TransitivityProver.
-  Hint Rewrite nth_error_updatePosition : provers.
+  Hint Rewrite nth_error_updateAt : provers.
   
   Variable types : list type.
   Variable natIdx : nat.
   Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updatePosition natType types natIdx.
+  Let types' := updateAt natType types natIdx.
   Let natTvar := tvType natIdx.
 
   Variable fs : functions types'.
   Variable eqFunIdx : func.
   
   Let eqFunSig := {| Domain := [natTvar, natTvar]; Range := tvProp; Denotation := (@eq (tvarD types' natTvar)) |}.
-  Let fs' := updatePosition eqFunSig fs eqFunIdx.
+  Let fs' := updateAt eqFunSig fs eqFunIdx.
 
   Let nth_error_fs'_eqFunIdx : nth_error fs' eqFunIdx = Some eqFunSig.
     provers.
@@ -729,13 +727,13 @@ Section TransitivityProver.
   Variable notFunIdx : nat.
   Hypothesis eqFun_notFun : eqFunIdx <> notFunIdx.
   Let notFunSig : signature types' := {| Domain := [tvProp]; Range := tvProp; Denotation := not |}.
-  Let fs'' := updatePosition notFunSig fs' notFunIdx.
+  Let fs'' := updateAt notFunSig fs' notFunIdx.
 
   Let nth_error_fs''_notFunIdx : nth_error fs'' notFunIdx = Some notFunSig.
     provers.
   Qed.
 
-  Hint Rewrite nth_error_updatePosition_2 : provers.
+  Hint Rewrite nth_error_updateAt_2 : provers.
   Let nth_error_fs''_eqFunIdx : nth_error fs'' eqFunIdx = Some eqFunSig.
     provers.
   Qed.
