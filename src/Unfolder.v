@@ -1,14 +1,14 @@
 Require Import Bool EqdepClass List.
 
 Require Import Heaps Reflect.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
-Require Import Bedrock.ndep.SepExpr.
+Require Import Expr ExprUnify.
+Require Import SepExpr.
 
 Set Implicit Arguments.
 
-Require Bedrock.ndep.NatMap.
+Require NatMap.
 
-Module FM := Bedrock.ndep.NatMap.IntMap.
+Module FM := NatMap.IntMap.
 
 Fixpoint allb A (P : A -> bool) (ls : list A) : bool :=
   match ls with

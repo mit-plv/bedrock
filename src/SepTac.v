@@ -5,8 +5,7 @@ Require Import DepList.
 
 (** TODO: merge this into SepIL? *)
 
-(** Non-dependent **)
-Require Bedrock.ndep.Expr Bedrock.ndep.SepExpr.
+Require Expr SepExpr.
 Module SEP := SepExpr.SepExpr BedrockHeap ST.
 
 Definition bedrock_types : list Expr.type :=

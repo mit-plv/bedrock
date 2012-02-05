@@ -1,6 +1,6 @@
 (* Finite maps for labels *)
 
-Require Import Ascii NArith String Structures.OrderedType FMapAVL.
+Require Import Ascii NArith String Structures.OrderedType HintlessFMapAVL.
 
 Require Import Nomega IL.
 
@@ -226,7 +226,7 @@ Module LabelKey.
 End LabelKey.
 
 
-Module LabelMap := FMapAVL.Make(LabelKey).
+Module LabelMap := HintlessFMapAVL.Make(LabelKey).
 
 Require FMapFacts.
 Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).

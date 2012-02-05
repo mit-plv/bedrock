@@ -1,18 +1,15 @@
-#DEP := PMap Expr ExprUnify SepExpr SepExprTests Provers
-DEP  := 
-NDEP := NatMap Expr ExprUnify \
-	SepExpr SepExprTests \
-	Provers \
-	Unfolder UnfolderTests \
-	Env SymEval 
 #SymEvalTests
 
-MODULES    := OrderedType FMapList FMapAVL \
+MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	Nomega Word IL LabelMap PropX PropXTac Memory \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
-	$(DEP:%=dep/%) $(NDEP:%=ndep/%) \
+	NatMap Expr ExprUnify \
+	SepExpr SepExprTests \
+	Provers \
+	Unfolder UnfolderTests \
+	Env SymEval \
 	SepIL SepTac Bedrock
 VS         := $(MODULES:%=%.v)
 

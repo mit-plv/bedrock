@@ -1,5 +1,5 @@
 Require Import Eqdep_dec List.
-Require Import Word Memory PropX PropXTac IL Bedrock.DepList Heaps SepTheoryX.
+Require Import Word Memory PropX PropXTac IL DepList Heaps SepTheoryX.
 
 Set Implicit Arguments.
 

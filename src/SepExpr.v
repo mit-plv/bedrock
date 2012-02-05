@@ -2,15 +2,15 @@ Require Import List.
 Require Import Heaps SepTheoryX PropX.
 Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.ExprUnify.
+Require Import Expr ExprUnify.
 Require Import DepList.
 Require Import Setoid.
 
 Set Implicit Arguments.
 
-Require Bedrock.ndep.NatMap.
+Require NatMap.
 
-Module FM := Bedrock.ndep.NatMap.IntMap.    
+Module FM := NatMap.IntMap.
 
 Section SepExprTypes.
   Variable types : list type.

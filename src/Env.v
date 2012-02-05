@@ -331,7 +331,7 @@ End MapRepr.
 
 (** Specializations for tvarD **)
 Section UpdateAt_tvar.
-  Require Import Bedrock.ndep.Expr.
+  Require Import Expr.
 
   Check cast.
 

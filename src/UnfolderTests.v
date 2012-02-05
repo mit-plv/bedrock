@@ -1,6 +1,6 @@
 Require Import Heaps Reflect.
-Require Bedrock.ndep.SepExpr Bedrock.ndep.Expr Bedrock.ndep.Unfolder.
-Import Bedrock.ndep.Expr.
+Require SepExpr Expr Unfolder.
+Import Expr.
 Require Import EquivDec.
 Require Import List.
 

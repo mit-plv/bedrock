@@ -1,6 +1,6 @@
 Require Import DepList List.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.SymEval.
-Require Import SepIL Bedrock.SepTac.
+Require Import Expr SepExpr SymEval.
+Require Import SepIL SepTac.
 
 Module BedrockEvaluator.
   Module E := EvaluatorPlugin (BedrockHeap) (ST).
