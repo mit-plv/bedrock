@@ -3,6 +3,30 @@ Require Import List.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(* Some tactics for automation of later proofs *)
+Ltac caseDestruct t := destruct t; try solve [ simpl in *; discriminate ].
+
+Ltac dintuition := repeat (intuition;
+  match goal with
+    | [ H : exists _, _ |- _ ] => destruct H
+  end).
+
+Ltac unlet := repeat match goal with
+                       | [ x := ?y |- _ ] => subst x
+                     end.
+
+Ltac hypRewriter := repeat match goal with
+                              | [ H : ?x = _ |- context [ ?x ] ] => rewrite H
+                              | [ H1 : ?x = _, H2 : context [ ?x ] |- _ ] => rewrite H1 in H2
+                            end.
+
+Ltac loop := repeat (repeat (hypRewriter; autorewrite with provers in *); simpl in *; subst; dintuition).
+
+Ltac provers := intuition; loop; unlet; loop; try congruence; firstorder.
+
+(* null hint to initialize db *)
+Hint Rewrite app_nil_l : provers.
+
 Section UpdatePosition.
   Variable A : Type.
   
@@ -88,7 +112,43 @@ Section UpdatePosition.
       eapply nth_error_updatePosition_lt; auto.
   Defined.
 
+  Fixpoint cast' (P : option A -> Type) n ls : P (nth_error (updatePosition ls n) n) -> P (Some new) :=
+  match n with
+    | O => match ls
+             return P (nth_error (updatePosition ls O) O) -> _ with
+             | nil => fun x => x
+             | _ => fun x => x
+           end
+    | S n' => match ls
+                     return P (nth_error (updatePosition ls (S n'))
+                       (S n')) -> _ with
+                     | nil => cast' P n' nil
+                     | _ => cast' P n' _
+                   end
+  end.
+
+  Definition cast n ls (P : option A -> Type) (x : P (nth_error (updatePosition ls n) n)) : P (Some new) := cast' P _ _ x.
+
+  Theorem cast_inj : forall n ls P x y, cast n ls P x = cast n ls P y -> x = y.
+    unfold cast.
+    unlet.
+    induction n;
+    intros;
+    simpl in *.
+    destruct ls; auto.
+    destruct ls;
+    eapply IHn; try left; intuition.
+  Qed.
 End UpdatePosition.
+
+Section UpdatePosition2.
+  Variable A : Type.
+
+  Hint Rewrite nth_error_updatePosition : provers.
+  Lemma nth_error_updatePosition_2 : forall A (ls : list A) a b m n, m <> n -> nth_error (updatePosition a (updatePosition b ls n) m) n = value b.
+    induction ls; induction m; induction n; provers.
+  Qed.
+End UpdatePosition2.
 
 Section MapRepr.
   Variable T : Type.

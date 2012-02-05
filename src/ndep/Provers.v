@@ -1,5 +1,5 @@
 Require Import List Arith Bool.
-Require Import Bedrock.ndep.Expr.
+Require Import Bedrock.ndep.Expr Bedrock.ndep.Env.
 Require Import EquivDec.
 Require Import DepList.
 
@@ -9,30 +9,6 @@ Notation "[ a ]" := (a :: nil).
 Notation "[ a ,  b ]" := (a :: b :: nil).
 Notation "[ a ,  b ,  c ]" := (a :: b :: c :: nil).
 Notation "[ a ,  b ,  c ,  d ]" := (a :: b :: c :: d :: nil).
-
-(* Some tactics for automation of later proofs *)
-Ltac caseDestruct t := destruct t; try solve [ simpl in *; discriminate ].
-
-Ltac dintuition := repeat (intuition;
-  match goal with
-    | [ H : exists _, _ |- _ ] => destruct H
-  end).
-
-Ltac unlet := repeat match goal with
-                       | [ x := ?y |- _ ] => subst x
-                     end.
-
-Ltac hypRewriter := repeat match goal with
-                              | [ H : ?x = _ |- context [ ?x ] ] => rewrite H
-                              | [ H1 : ?x = _, H2 : context [ ?x ] |- _ ] => rewrite H1 in H2
-                            end.
-
-Ltac loop := repeat (repeat (hypRewriter; autorewrite with provers in *); simpl in *; subst; dintuition).
-
-Ltac provers := intuition; loop; unlet; loop; try congruence; firstorder.
-
-(* null hint to initialize db *)
-Hint Rewrite plus_assoc : provers.
 
 Section ProverT.
   Variable types : list type.
@@ -142,31 +118,6 @@ Section AssumptionProver.
   Definition assumptionProverRec := {| prove := assumptionProver; prove_correct := assumptionProverCorrect |}.
 End AssumptionProver.
 
-Section UpdatePosition.
-  Variable A : Type.
-
-  Fixpoint updatePosition (ls : list A) (n : nat) (new : A) : list A :=
-    match ls with
-      | nil => match n with
-                 | 0 => [new]
-                 | S n' => new :: updatePosition nil n' new
-               end
-      | a :: ls' => match n with
-                      | 0 => new :: ls'
-                      | S n' => a :: updatePosition ls' n' new
-                    end
-    end.
- 
-  Lemma nth_error_updatePosition : forall (new : A) ls n, nth_error (updatePosition ls n new) n = value new.
-    induction ls; induction n; provers.
-  Qed.
-
-  Hint Rewrite nth_error_updatePosition : provers.
-  Lemma nth_error_updatePosition_2 : forall ls a b m n, m <> n -> nth_error (updatePosition (updatePosition ls n b) m a) n = value b.
-    induction ls; induction m; induction n; provers.
-  Qed.
-End UpdatePosition.
-
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
@@ -174,7 +125,7 @@ Section ReflexivityProver.
   Variable eqFunTvar : tvar.
 
   Let eqFunSig := {| Domain := [eqFunTvar, eqFunTvar]; Range := tvProp; Denotation := (@eq (tvarD types eqFunTvar)) |}.
-  Let fs' := updatePosition fs eqFunIdx eqFunSig.
+  Let fs' := updatePosition eqFunSig fs eqFunIdx.
 
   Definition reflexivityProver (hyps : list (expr types)) (goal : expr types) := 
     match goal with
@@ -200,7 +151,7 @@ Section ReflexivityProver.
     simpl.
     unfold ValidProp in *.
     unfold fs' in *.
-    case_eq (exprD (updatePosition fs eqFunIdx eqFunSig) nil nil e0 eqFunTvar); provers.
+    case_eq (exprD (updatePosition eqFunSig fs eqFunIdx) nil nil e0 eqFunTvar); provers.
   Qed.
 
   Definition reflexivityProverRec := {| prove := reflexivityProver; prove_correct := reflexivityProverCorrect |}.
@@ -608,37 +559,8 @@ Section EqGrouper.
   Variable types : list type.
   Variable natIdx : nat.
   Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updatePosition types natIdx natType.
+  Let types' := updatePosition natType types natIdx.
   Let natTvar := tvType natIdx.
-
-  Fixpoint cast' (P : option type -> Type) natIdx types' : P (nth_error (updatePosition types' natIdx natType) natIdx) -> P (Some natType) :=
-  match natIdx with
-    | O => match types'
-             return P (nth_error (updatePosition types' O natType) O) -> _ with
-             | nil => fun x => x
-             | _ => fun x => x
-           end
-    | S natIdx' => match types'
-                     return P (nth_error (updatePosition types' (S natIdx') natType)
-                       (S natIdx')) -> _ with
-                     | nil => cast' P natIdx' nil
-                     | _ => cast' P natIdx' _
-                   end
-  end.
-
-  Definition cast (P : option type -> Type) (x : P (nth_error types' natIdx)) : P (Some natType) := cast' P _ _ x.
-
-  Theorem cast_inj : forall P x y, cast P x = cast P y -> x = y.
-    unfold cast.
-    unlet.
-    generalize types.
-    induction natIdx;
-    intros;
-    simpl in *.
-    destruct types0; auto.
-    destruct types0;
-    eapply IHn; try left; intuition.
-  Qed.
   
   Definition optionDefault T t (o : option T) :=
     match o with
@@ -658,10 +580,10 @@ Section EqGrouper.
   Qed.
   Hint Rewrite nth_error_types'_natIdx : provers.
 
-  Definition natTvarCoerceR (n : tvarD types' natTvar) : nat := cast Empty_setDefault n.
+  Definition natTvarCoerceR (n : tvarD types' natTvar) : nat := cast natType natIdx types Empty_setDefault n.
 
   Lemma natTvarCoerceR_inj : forall m n, natTvarCoerceR m = natTvarCoerceR n -> m = n.
-    apply cast_inj with (P := Empty_setDefault).
+    apply cast_inj with (ls := types) (n := natIdx) (new := natType) (P := Empty_setDefault).
   Qed.
 
   Let natTvar_nat : tvarD types' natTvar = nat.
@@ -749,14 +671,14 @@ Section TransitivityProver.
   Variable types : list type.
   Variable natIdx : nat.
   Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updatePosition types natIdx natType.
+  Let types' := updatePosition natType types natIdx.
   Let natTvar := tvType natIdx.
 
   Variable fs : functions types'.
   Variable eqFunIdx : func.
   
   Let eqFunSig := {| Domain := [natTvar, natTvar]; Range := tvProp; Denotation := (@eq (tvarD types' natTvar)) |}.
-  Let fs' := updatePosition fs eqFunIdx eqFunSig.
+  Let fs' := updatePosition eqFunSig fs eqFunIdx.
 
   Let nth_error_fs'_eqFunIdx : nth_error fs' eqFunIdx = Some eqFunSig.
     provers.
@@ -807,7 +729,7 @@ Section TransitivityProver.
   Variable notFunIdx : nat.
   Hypothesis eqFun_notFun : eqFunIdx <> notFunIdx.
   Let notFunSig : signature types' := {| Domain := [tvProp]; Range := tvProp; Denotation := not |}.
-  Let fs'' := updatePosition fs' notFunIdx notFunSig.
+  Let fs'' := updatePosition notFunSig fs' notFunIdx.
 
   Let nth_error_fs''_notFunIdx : nth_error fs'' notFunIdx = Some notFunSig.
     provers.
