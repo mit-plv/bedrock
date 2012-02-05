@@ -2,7 +2,7 @@
 
 Require Import NArith.
 
-Require Import Nomega Word IL LabelMap PropX XCAP.
+Require Import Nomega Word IL LabelMap PropX XCAP Memory.
 
 Set Implicit Arguments.
 

@@ -4,11 +4,6 @@ Require Import Arith Div2 List NArith String.
 
 Require Import Nomega Word Memory.
 
-
-(* Our machine words *)
-Definition W := word 32.
-Definition B := word 8.
-
 (** * Setting up hidden word constants *)
 
 Fixpoint natToWord' (sz n : nat) : word sz :=
@@ -127,7 +122,7 @@ Qed.
 Hint Rewrite rupd_eq rupd_ne using congruence : IL.
 
 (* Memories *)
-Definition mem := W -> B.
+Definition mem := W -> option B.
 
 Open Scope word_scope.
 
@@ -261,6 +256,7 @@ Qed.
 (* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
 Record settings := {
+  (* ezyang: Do we need this now that memories are partial? *)
   MemHigh : W;
   (* The first non-addressable RAM address *)
   implode : B * B * B * B -> W ;
@@ -276,47 +272,39 @@ Record settings := {
   (* Locations of basic blocks *)
 }.
 
-Definition ReadByte (_ : settings) (m : mem) (a : W) : B :=
+Definition ReadByte (_ : settings) (m : mem) (a : W) : option B :=
   m a.
 
-Definition ReadWord (s : settings) (m : mem) (a : W) : W :=
-  let v1 := m a in
-  let v2 := m (a ^+ $1) in
-  let v3 := m (a ^+ $2) in
-  let v4 := m (a ^+ $3) in
-  implode s (v1, v2, v3, v4).
+Definition footprint_w (a : W) := (a, a ^+ $1, a ^+ $2, a ^+ $3).
+
+Definition ReadWord (s : settings) (m : mem) (a : W) : option W :=
+  mem_get_word W mem footprint_w (ReadByte s) (implode s) a m.
 
 Definition WriteByte (_ : settings) (m : mem) (p : W) (v : B) : mem :=
-  fun p' => if weq p' p then v else m p'.
+  fun p' => if weq p' p then Some v else m p'.
 
 Definition WriteWord (s : settings) (m : mem) (p v : W) : mem :=
-  let '(v1,v2,v3,v4) := explode s v in
-  fun p' =>
-    if weq p' p then v1 
-    else if weq p' (p ^+ $1) then v2
-         else if weq p' (p ^+ $2) then v3
-              else if weq p' (p ^+ $3) then v4
-                   else m p'.
+  mem_set_word W mem footprint_w (WriteByte s) (explode s) p v m.
 
 Ltac W_eq := wprepare; word_eq.
 Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
 
-Theorem ReadWriteEq : forall stn m k v, ReadWord stn (WriteWord stn m k v) k = v.
+Theorem ReadWriteEq : forall stn m k v, ReadWord stn (WriteWord stn m k v) k = Some v.
 Proof.
-  unfold ReadWord, WriteWord. intros.
+  unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte. intros.
   case_eq (explode stn v). destruct p. destruct p.
   repeat rewrite (rewrite_weq (refl_equal _)).
   repeat match goal with
            | [ |- context [ weq ?X ?Y ] ] => 
              let Z := fresh in destruct (weq X Y) as [ Z | ? ]; [ exfalso; generalize Z; W_neq | ]
          end.
-  intros. rewrite <- H. apply implode_explode.
+  intros. rewrite <- H. rewrite implode_explode. reflexivity.
 Qed.
 
 Theorem ReadWriteNe : forall stn m k v k', separated k' k
   -> ReadWord stn (WriteWord stn m k v) k' = ReadWord stn m k'.
 Proof.
-  unfold ReadWord, WriteWord; intros.
+  unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte; intros.
   case_eq (explode stn v); intros. destruct p. destruct p.
   assert (k' = k' ^+ $(0)). W_eq.
   assert (k = k ^+ $(0)). W_eq.
@@ -335,10 +323,11 @@ Theorem ReadWordFootprint : forall stn m m' a a',
   -> m (a ^+ $3) = m' (a' ^+ $3)
   -> ReadWord stn m a = ReadWord stn m' a'.
 Proof.
-  unfold ReadWord. intros. congruence.
+  unfold ReadWord, mem_get_word, ReadByte, footprint_w. intros.
+  rewrite H; rewrite H0; rewrite H1; rewrite H2; reflexivity. (* congruence doesn't work... *)
 Qed. 
 
-Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = v.
+Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = Some v.
   intros; subst; apply ReadWriteEq.
 Qed.
 
@@ -395,9 +384,9 @@ Section settings.
         | LvReg r => Some (Regs st r)
         | LvMem l => match evalLoc l with
                        | None => None
-                       | Some a =>
+                       | Some a => (* ezyang: inBounds should be baked in... *)
                          if inBounds_dec a
-                         then Some (ReadWord stn (Mem st) a)
+                         then ReadWord stn (Mem st) a
                          else None
                      end
         | RvImm w => Some w
