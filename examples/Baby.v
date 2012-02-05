@@ -17,6 +17,18 @@ Qed.
 
 Print Assumptions divergerOk.
 
+(** Asserts *)
+
+Definition asserter := bmodule "asserter" {{
+  bfunction "asserter" [st ~> [|True|] ] {
+    Assert [ st ~> [|False|] ];;
+    Diverge
+  }
+}}.
+
+Theorem asserterOk : moduleOk asserter.
+  structured.
+Abort.
 
 (** Immediate return *)
 

@@ -425,6 +425,19 @@ Section imports.
     |}); abstract struct.
   Defined.
 
+  (** * Assertions *)
+
+  Definition Assert_ (post : assert) : cmd.
+    red; refine (fun pre => {|
+      Postcondition := post;
+      VerifCond := forall stn_st specs, interp specs (pre stn_st) -> interp specs (post stn_st);
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
+      |}
+    |}); abstract struct.
+  Defined.
+
   (** * Lemma hints, to be added to the postcondition *)
 
   Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : cmd.
