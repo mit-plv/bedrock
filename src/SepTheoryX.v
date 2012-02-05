@@ -1,4 +1,4 @@
-Require Import Heaps.
+Require Import Heaps Memory.
 Require Import PropX PropXTac.
 (*Require Import DepList. *)
 Require Import IL.

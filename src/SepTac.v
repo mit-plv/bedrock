@@ -1,5 +1,5 @@
 Require Import IL SepIL.
-Require Import Word.
+Require Import Word Memory.
 Import List.
 Require Import DepList.
 

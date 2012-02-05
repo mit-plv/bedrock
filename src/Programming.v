@@ -2,7 +2,7 @@
 
 Require Import List NArith Bool String.
 
-Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker.
+Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker Memory.
 
 Set Implicit Arguments.
 

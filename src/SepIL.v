@@ -1,5 +1,5 @@
 Require Import Eqdep_dec List.
-Require Import Word PropX PropXTac IL DepList Heaps SepTheoryX.
+Require Import Word Memory PropX PropXTac IL Bedrock.DepList Heaps SepTheoryX.
 
 Set Implicit Arguments.
 
@@ -13,13 +13,13 @@ Fixpoint allWordsUpto (width init : nat) : list (word width) :=
 Definition allWords_def (width : nat) :=
   allWordsUpto width (pow2 width).
 
-Fixpoint memoryInUpto (width init : nat) (memHigh : word width) (m : word width -> B)
+Fixpoint memoryInUpto (width init : nat) (memHigh : word width) (m : word width -> option B)
   : hlist (fun _ => option B) (allWordsUpto width init) :=
   match init with
     | O => HNil
     | S init' =>
       let w := natToWord width init' in
-        let v := if wlt_dec w memHigh then if wlt_dec (w ^+ $3) memHigh then Some (m w) else None else None in
+        let v := if wlt_dec w memHigh then if wlt_dec (w ^+ $3) memHigh then m w else None else None in
           HCons v (memoryInUpto (width := width) init' memHigh m)
   end.
 
@@ -37,7 +37,7 @@ Module Type ALL_WORDS.
 
   Axiom allWords_eq : allWords = allWords_def.
 
-  Parameter memoryIn : forall width, word width -> (word width -> B) -> hlist (fun _ => option B) (allWords width).
+  Parameter memoryIn : forall width, word width -> (word width -> option B) -> hlist (fun _ : word width => option B) (allWords width).
 
   Axiom memoryIn_eq : forall width,
     memoryIn (width := width)
@@ -123,10 +123,10 @@ Module BedrockHeap.
 
   Definition mem := mem.
 
-  Definition mem_get (m : mem) (a : addr) := Some (m a).
+  Definition mem_get (m : mem) (a : addr) := m a.
 
   Definition mem_set (m : mem) (p : addr) (v : B) := 
-    fun p' => if weq p p' then v else m p'.
+    fun p' => if weq p p' then Some v else m p'.
 
   Theorem mem_get_set_eq : forall m p v', 
     mem_get (mem_set m p v') p = Some v'.
@@ -170,6 +170,7 @@ Import ST.HT.
 Export ST.HT.
 
 (** * Define some convenient connectives, etc. for specs *)
+
 Definition memoryIn : W -> mem -> smem := memoryIn (width := 32).
 
 Definition hpropB := hprop W (settings * state).
@@ -451,7 +452,7 @@ Qed.
 
 Lemma smem_get'_read : forall a v (memHigh : W) m init,
   smem_get' _ a (memoryInUpto init memHigh m) = Some v
-  -> m a = v.
+  -> m a = Some v.
   induction init.
   simpl; congruence.
   unfold allWordsUpto.
@@ -464,13 +465,12 @@ Lemma smem_get'_read : forall a v (memHigh : W) m init,
   unfold hlist_hd in H.
   congruence.
   discriminate.
-  discriminate.
-  auto.
+  destruct (m a); auto.
 Qed.
 
 Lemma smem_get_read : forall stn a v m,
   smem_get a (memoryIn (MemHigh stn) m) = Some v
-  -> m a = v.
+  -> m a = Some v.
   unfold memoryIn; rewrite AllWords.memoryIn_eq; intros ? ? ? ?.
   unfold smem_get, BedrockHeap.all_addr.
   match goal with
@@ -485,7 +485,7 @@ Qed.
 Theorem findPtsto8_read : forall specs p st,
   interp specs (sepFormula p st)
   -> forall a v, findPtsto8 p a v
-    -> Mem (snd st) a = v.
+    -> Mem (snd st) a = Some v.
   rewrite sepFormula_eq; intros.
   apply H0 in H.
   eapply smem_get_read; eauto.
@@ -548,14 +548,14 @@ Qed.
 Theorem findPtsto32_read : forall specs p stn st,
   interp specs (sepFormula p (stn, st))
   -> forall a v, findPtsto32 stn p a v
-    -> ReadWord stn (Mem st) a = v.
+    -> ReadWord stn (Mem st) a = Some v.
   rewrite sepFormula_eq; intros.
   apply H0 in H; clear H0; propxFo.
-  unfold ReadWord. simpl in *.
+  unfold ReadWord, mem_get_word, footprint_w, ReadByte. simpl in *.
   repeat match goal with
            | [ H : _ |- _ ] => apply smem_get_read in H; rewrite H
          end.
-  auto.
+  congruence.
 Qed.
 
 

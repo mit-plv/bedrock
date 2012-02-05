@@ -2,9 +2,6 @@ Require Import Setoid.
 Require Import Bedrock.DepList Bedrock.Memory.
 Require Import Word.
 
-Definition B := word 8.
-Definition W := word 32.
-
 Require Import List.
 
 Module Type Heap.
