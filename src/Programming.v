@@ -43,6 +43,9 @@ Definition Skip : chunk :=
 Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : chunk :=
   Structured nil (fun im mn _ => Use_ im mn lemma pf).
 
+Definition Assert_ (post : assert) : chunk :=
+  Structured nil (fun im mn _ => Assert_ im mn post).
+
 Record condition := {
   COperand1 : rvalue;
   CTest : test;
@@ -130,6 +133,8 @@ Infix "<-" := Assign' (no associativity, at level 90) : SP_scope.
 (** ** Commands *)
 
 Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
+
+Notation "'Assert' [ p ]" := (Assert_ p) (no associativity, at level 95) : SP_scope.
 
 Notation "'Use' [ pf ]" := (Use_ _ (fun _ _ => pf%nat)) (no associativity, at level 95) : SP_scope.
 Notation "'Use' st [ pf ]" := (Use_ _ (fun _ st => pf%nat)) (no associativity, at level 95) : SP_scope.
