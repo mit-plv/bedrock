@@ -190,8 +190,8 @@ Section MapRepr.
         end
     end.
 
-  Theorem repr_get_eq : forall r ls n,
-    nth_error (repr r ls) n = 
+  Definition nth_error_repr (r : list (nat * T)) (ls : list T) (n : nat) 
+    : option T :=
     match get n r with
       | Some v => Some v
       | None => match nth_error ls n with
@@ -199,7 +199,11 @@ Section MapRepr.
                   | None => defaulted_repr r n 
                 end
     end.
+
+  Theorem repr_get_eq : forall r ls n,
+    nth_error (repr r ls) n = nth_error_repr r ls n.
   Proof.
+    unfold nth_error_repr.
     induction r; simpl; intros.
       destruct (nth_error ls n); reflexivity.
 
@@ -332,8 +336,6 @@ End MapRepr.
 (** Specializations for tvarD **)
 Section UpdateAt_tvar.
   Require Import Bedrock.ndep.Expr.
-
-  Check cast.
 
   Definition cast_tvar new ls idx
     : tvarD (updateAt new ls idx) (tvType idx) -> Impl new :=

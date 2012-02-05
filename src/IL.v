@@ -484,3 +484,5 @@ Section settings.
   Definition safe (st : state') := forall st', reachable st st'
     -> step st' <> None.
 End settings.
+
+Export Memory.
