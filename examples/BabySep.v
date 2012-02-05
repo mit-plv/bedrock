@@ -2,6 +2,9 @@ Require Import Bedrock.
 
 Set Implicit Arguments.
 
+(** ezyang: Stopped working with new partial memory representation.
+    I think this is because the 'ho' tactic stopped working.  *)
+
 (** * Let's read from memory! *)
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 ==> v * #0 ] st
@@ -17,13 +20,13 @@ Definition read := bmodule "read" {{
 Theorem readOk : moduleOk read.
   structured; autorewrite with sepFormula in *; simpl in *.
 
+  unfold ReadWord, mem_get_word, footprint_w, ReadByte in *; auto.
   auto.
 
   ho.
   sepRead.
   reflexivity.
 Qed.
-
 
 (** Identity function, using a simple calling convention *)
 

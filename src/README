@@ -35,6 +35,11 @@ LabelMap
     Defines an ordering on labels (from IL) and then defines LabelMap which
     is an AVL tree of labels to values.
 Linker
+Memory
+    Wrapper around Word, which defines more semantics for words and bytes
+    which are normally seen in computer memories.  (ezyang: Right now the
+    intent of this file is a little incoherent, hopefully this will
+    get ironed out.)
 Nomega
     Omega (solver of quantifier-free problems in Presburger arithmetic)
     for natural numbers.

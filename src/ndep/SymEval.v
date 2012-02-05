@@ -1,11 +1,9 @@
-Require Import List Bedrock.DepList Word.
+Require Import List Bedrock.DepList Word Memory.
 Require Import Heaps SepTheoryX.
 Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.Provers.
 
 Set Implicit Arguments.
 Set Strict Implicit.
-
-Definition W := word 32.
 
 Section UpdatePosition.
   Variable T : Type.
