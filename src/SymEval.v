@@ -1,6 +1,6 @@
-Require Import List Bedrock.DepList Word Memory.
+Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.Provers.
+Require Import Expr SepExpr Provers.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -533,7 +533,7 @@ Module BedrockEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Require Import IL.
 
   (** TODO : This is specialized to bedrock **)
-  Require Import Bedrock.SepTac.
+  Require Import SepTac.
 
   Variable types' : list type.
   Definition types := bedrock_types ++ types'.
@@ -1385,7 +1385,7 @@ Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 End Evaluator.
 *)
 (*
-Require Import SepIL Bedrock.SepTac.
+Require Import SepIL SepTac.
 
 Module BedrockEvaluator_ptsto.
   Module E := EvaluatorPlugin (BedrockHeap) (ST).

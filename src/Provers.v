@@ -1,5 +1,5 @@
 Require Import List Arith Bool.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.Env.
+Require Import Expr Env.
 Require Import EquivDec.
 Require Import DepList.
 

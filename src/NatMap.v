@@ -1,4 +1,4 @@
-Require Import OrderedType. 
+Require Import HintlessOrderedType.
 
 Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition t := nat.
@@ -40,11 +40,11 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
 End Ordered_nat.
 
-Require Bedrock.FMapAVL.
+Require HintlessFMapAVL.
 
 Require ZArith.Int.
 
-(*Module IntMap := Bedrock.FMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat. *)
+(*Module IntMap := HintlessFMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat. *)
 
 Module IntMap.
 

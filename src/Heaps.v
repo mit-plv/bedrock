@@ -1,5 +1,5 @@
 Require Import Setoid.
-Require Import Bedrock.DepList Bedrock.Memory.
+Require Import DepList Memory.
 Require Import Word.
 
 Require Import List.

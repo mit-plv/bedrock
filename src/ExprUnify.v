@@ -1,13 +1,13 @@
-Require Import Bedrock.ndep.Expr.
+Require Import Expr.
 Require Import List.
 Require Import EquivDec.
-Require Import Bedrock.ndep.NatMap.
+Require Import NatMap.
 Require Import DepList.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module SUBST := Bedrock.ndep.NatMap.IntMap.
+Module SUBST := NatMap.IntMap.
 
 Section Unify.
   Variable types : list type.

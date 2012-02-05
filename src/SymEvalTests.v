@@ -1,6 +1,6 @@
-Require Import List Bedrock.DepList.
+Require Import List DepList.
 Require Import Heaps.
-Require Import Bedrock.ndep.Expr Bedrock.ndep.SepExpr Bedrock.ndep.SymEval.
+Require Import Expr SepExpr SymEval.
 
 Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SE := Evaluator B ST.

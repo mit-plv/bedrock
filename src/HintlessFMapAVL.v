@@ -20,7 +20,7 @@
     See the comments at the beginning of FSetAVL for more details.
 *)
 
-Require Import FMapInterface FMapList ZArith Int OrderedType.
+Require Import FMapInterface HintlessFMapList ZArith Int OrderedType.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -471,7 +471,7 @@ End Invariants.
 Module Proofs.
  Module MX := OrderedTypeFacts X.
  Module PX := KeyOrderedType X.
- Module L := FMapList.Raw X.
+ Module L := HintlessFMapList.Raw X.
 
 Functional Scheme mem_ind := Induction for mem Sort Prop.
 Functional Scheme find_ind := Induction for find Sort Prop.
@@ -2031,7 +2031,7 @@ Module IntMake_ord (I:Int)(X: OrderedType)(D : OrderedType) <:
 
   Module Data := D.
   Module Import MapS := IntMake(I)(X).
-  Module LO := FMapList.Make_ord(X)(D).
+  Module LO := HintlessFMapList.Make_ord(X)(D).
   Module R := Raw.
   Module P := Raw.Proofs.
 
