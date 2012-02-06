@@ -16,7 +16,7 @@
  [FMapInterface.S] using lists of pairs ordered (increasing) with respect to
  left projection. *)
 
-Require Import FMapInterface OrderedType.
+Require Import FMapInterface HintlessOrderedType.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
