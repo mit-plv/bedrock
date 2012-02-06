@@ -5,33 +5,6 @@ Require Import Expr SepExpr Provers.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Section UpdatePosition.
-  Variable T : Type.
-
-  Fixpoint updatePosition (n : nat) (v : T) (ls : list T) : list T :=
-    match n , ls with
-      | 0 , nil => v :: nil
-      | 0 , _ :: b => v :: b 
-      | S n , nil => v :: updatePosition n v nil
-      | S n , a :: b => a :: updatePosition n v b
-    end.
-
-  Lemma updatePosition_eq : forall n types' t,
-    nth_error (updatePosition n t types') n = Some t.
-  Proof.
-    induction n; simpl; destruct types'; eauto.
-  Defined.
-
-  Lemma updatePosition_neq : forall t n types' m,
-    n <> m ->
-    nth_error types' n <> None ->
-    nth_error (updatePosition m t types') n = nth_error types' n.
-  Proof.
-    clear.
-    induction n; destruct types'; destruct m; simpl; intros; try solve [ exfalso; auto; omega ]; auto.
-  Defined.
-End UpdatePosition.
-
 (** * These are generic search functions *)
 Section search_read_write.
   Variable A : Type.
