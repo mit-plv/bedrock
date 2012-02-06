@@ -113,7 +113,6 @@ Proof.
  elim (In_inv belong1);auto.
  intro abs.
  absurd (X.eq x k');auto.
- apply gt_not_eq; auto.
 Qed.
 
 Hint Resolve PX.eqke_refl.
