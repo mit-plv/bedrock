@@ -333,10 +333,38 @@ Section MapRepr.
 
 End MapRepr.
 
-(** Specializations for tvarD **)
-Section UpdateAt_tvar.
+(** Specializations for exprD **)
+Section UpdateAt_exprD.
   Require Import Expr.
+  
+  Variable types' : list type.
+  Variable deltaT : list (nat * type).
+  Definition types := repr deltaT types'.
+  Variable funcs : functions types.
 
+  Variable uvars vars : env types.
+
+(*
+  Definition exprD_repr (e : expr types) idx
+    : option match match get idx deltaT with
+                     | Some v => Some v
+                     | None => match nth_error types' idx with
+                                 | Some v => Some v 
+                                 | None => defaulted_repr deltaT idx 
+                               end
+                   end
+               with
+               | None => Empty_set
+               | Some v => Impl v
+             end :=
+    let res := exprD funcs uvars vars e (tvType idx) in
+    @cast_repr _ (fun x => option match x with
+                                    | Some t => Impl t 
+                                    | None => Empty_set
+                                  end) deltaT types' idx res.
+*)
+
+(*
   Definition cast_tvar new ls idx
     : tvarD (updateAt new ls idx) (tvType idx) -> Impl new :=
     @cast _ new (fun x => match x with 
@@ -362,5 +390,6 @@ Section UpdateAt_tvar.
                           | None => Empty_set
                         end) d ls idx X). simpl in *.
   Admitted.
+*)
 
-End UpdateAt_tvar.
+End UpdateAt_exprD.

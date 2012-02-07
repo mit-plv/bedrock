@@ -27,3 +27,8 @@ clean:: Makefile.coq
 
 package:
 	hg archive -t tgz /tmp/bedrock.tgz
+
+admit:
+	@ echo Admitted lemmas --------------------------
+	@ grep admit *.v
+	@ grep Admitted *.v
