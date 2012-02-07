@@ -1,6 +1,6 @@
 (* Finite maps for labels *)
 
-Require Import Ascii NArith String Structures.OrderedType HintlessFMapAVL.
+Require Import Ascii NArith String HintlessOrderedType HintlessFMapAVL.
 
 Require Import Nomega IL.
 
@@ -203,11 +203,11 @@ Module LabelKey.
 
     Hint Immediate label_eq.
 
-    Definition compare (x y : t) : Compare lt eq x y.
-      refine (match compare' x y as c return c = compare' x y -> Compare lt eq x y with
-                | Datatypes.Lt => fun _ => LT _ _
-                | Datatypes.Eq => fun _ => EQ _ _
-                | Gt => fun _ => GT _ _
+    Definition compare (x y : t) : Structures.OrderedType.Compare lt eq x y.
+      refine (match compare' x y as c return c = compare' x y -> Structures.OrderedType.Compare lt eq x y with
+                | Datatypes.Lt => fun _ => Structures.OrderedType.LT _ _
+                | Datatypes.Eq => fun _ => Structures.OrderedType.EQ _ _
+                | Gt => fun _ => Structures.OrderedType.GT _ _
               end (refl_equal _)); abstract (unfold compare', eq, lt in *;
                 repeat match goal with
                          | [ H : context[if ?E then _ else _] |- _ ] => let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq);
