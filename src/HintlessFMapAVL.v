@@ -20,7 +20,7 @@
     See the comments at the beginning of FSetAVL for more details.
 *)
 
-Require Import FMapInterface HintlessFMapList ZArith Int OrderedType.
+Require Import FMapInterface HintlessFMapList ZArith Int HintlessOrderedType.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
