@@ -72,7 +72,7 @@ def read_graph(file):
             parts = [last, parts[0], parts[1]]
         else:
             assert False
-
+            
         st = parts[0]
         en = parts[2]
         gr.edge(st, en, parts[1])
