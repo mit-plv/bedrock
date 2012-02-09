@@ -144,6 +144,7 @@ Section UpdatePosition2.
   Qed.
 End UpdatePosition2.
 
+(*
 Section MapRepr.
   Variable T : Type.
 
@@ -332,64 +333,66 @@ Section MapRepr.
    End CastRepr.
 
 End MapRepr.
+*)
 
 (** Specializations for exprD **)
 Section UpdateAt_exprD.
   Require Import Expr.
   
   Variable types' : list type.
-  Variable deltaT : list (nat * type).
-  Definition types := repr deltaT types'.
-  Variable funcs : functions types.
-
-  Variable uvars vars : env types.
 
 (*
-  Definition exprD_repr (e : expr types) idx
-    : option match match get idx deltaT with
-                     | Some v => Some v
-                     | None => match nth_error types' idx with
-                                 | Some v => Some v 
-                                 | None => defaulted_repr deltaT idx 
-                               end
-                   end
-               with
-               | None => Empty_set
-               | Some v => Impl v
-             end :=
-    let res := exprD funcs uvars vars e (tvType idx) in
-    @cast_repr _ (fun x => option match x with
-                                    | Some t => Impl t 
-                                    | None => Empty_set
-                                  end) deltaT types' idx res.
+   TODO: This produces a universe inconsistency...
+  Section repr.
+    Variable deltaT : list (nat * type).
+    Variable funcs : functions (repr deltaT types').
+    Variable uvars vars : env (repr deltaT types').
+
+    Definition exprD_repr (e : expr (repr deltaT types')) idx
+      : option match match get idx deltaT with
+                       | Some v => Some v
+                       | None => match nth_error types' idx with
+                                   | Some v => Some v 
+                                   | None => defaulted_repr deltaT idx 
+                                 end
+                     end
+                 with
+                 | None => Empty_set
+                 | Some v => Impl v
+               end :=
+      let res := exprD funcs uvars vars e (tvType idx) in
+      match res with
+        | None => None
+        | Some res =>
+          Some (@cast_repr _ (fun x => match x with
+                                         | Some t => Impl t 
+                                         | None => Empty_set
+                                       end) deltaT types' idx res)
+      end.
+  End repr.
 *)
 
-(*
-  Definition cast_tvar new ls idx
-    : tvarD (updateAt new ls idx) (tvType idx) -> Impl new :=
-    @cast _ new (fun x => match x with 
-                          | Some t => Impl t
-                          | None => Empty_set
-                        end) _ _.
+  Section updateAt.
+    Variable idx : nat.
+    Variable t : type.
+    Variable funcs : functions (updateAt t types' idx).
+    Variable uvars vars : env (updateAt t types' idx).
 
-  Definition cast_repr_tvar d ls idx
-    : tvarD (repr d ls) (tvType idx) -> match get idx d with
-                                          | Some v => Impl v
-                                          | None => match nth_error ls idx with
-                                                      | Some v => Impl v 
-                                                      | None => match defaulted_repr d idx with
-                                                                  | None => Empty_set
-                                                                  | Some v => Impl v 
-                                                                end
-                                                    end
-                                        end.
-  Check cast_repr.
-  intro.
-  pose (@cast_repr _ (fun x => match x with 
-                          | Some t => Impl t
-                          | None => Empty_set
-                        end) d ls idx X). simpl in *.
-  Admitted.
-*)
+    Definition exprD_update (e : expr (updateAt t types' idx))
+      : option (Impl t) :=
+      let res := exprD funcs uvars vars e (tvType idx) in
+      match res with
+        | None => None
+        | Some res => Some (@cast type t (fun x => match x with
+                                                     | Some t => Impl t
+                                                     | None => Empty_set
+                                                   end) types' idx res)
+      end.
+  End updateAt.
 
 End UpdateAt_exprD.
+
+(*
+Set Printing Universes.
+Print Universes.
+*)
