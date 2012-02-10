@@ -13,18 +13,18 @@ Fixpoint allWordsUpto (width init : nat) : list (word width) :=
 Definition allWords_def (width : nat) :=
   allWordsUpto width (pow2 width).
 
-Fixpoint memoryInUpto (width init : nat) (memHigh : word width) (m : word width -> option B)
+Fixpoint memoryInUpto (width init : nat) (m : word width -> option B)
   : hlist (fun _ => option B) (allWordsUpto width init) :=
   match init with
     | O => HNil
     | S init' =>
       let w := natToWord width init' in
-        let v := if wlt_dec w memHigh then if wlt_dec (w ^+ $3) memHigh then m w else None else None in
-          HCons v (memoryInUpto (width := width) init' memHigh m)
+      let v := m w in
+      HCons v (memoryInUpto (width := width) init' m)
   end.
 
-Definition memoryIn_def (width : nat) (memHigh : word width) :=
-  memoryInUpto (width := width) (pow2 width) memHigh.
+Definition memoryIn_def (width : nat) :=
+  memoryInUpto (width := width) (pow2 width).
 
 Theorem fcong : forall A (B : A -> Type) (f g : forall x, B x) x,
   f = g
@@ -37,11 +37,11 @@ Module Type ALL_WORDS.
 
   Axiom allWords_eq : allWords = allWords_def.
 
-  Parameter memoryIn : forall width, word width -> (word width -> option B) -> hlist (fun _ : word width => option B) (allWords width).
+  Parameter memoryIn : forall width, (word width -> option B) -> hlist (fun _ : word width => option B) (allWords width).
 
   Axiom memoryIn_eq : forall width,
     memoryIn (width := width)
-    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> _ -> hlist _ L with
+    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> hlist _ L with
         | refl_equal => memoryIn_def (width := width)
       end.
 End ALL_WORDS.
@@ -57,7 +57,7 @@ Module AllWords : ALL_WORDS.
 
   Theorem memoryIn_eq : forall width,
     memoryIn (width := width)
-    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> _ -> hlist _ L with
+    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> hlist _ L with
         | refl_equal => memoryIn_def (width := width)
       end.
     reflexivity.
@@ -125,21 +125,31 @@ Module BedrockHeap.
 
   Definition mem_get (m : mem) (a : addr) := m a.
 
-  Definition mem_set (m : mem) (p : addr) (v : B) := 
-    fun p' => if weq p p' then Some v else m p'.
+  Definition mem_set (m : mem) (p : addr) (v : B) : option mem := 
+    match m p with
+      | None => None
+      | Some _ =>
+        Some (fun p' => if weq p p' then Some v else m p')
+    end.
 
-  Theorem mem_get_set_eq : forall m p v', 
-    mem_get (mem_set m p v') p = Some v'.
+  Theorem mem_get_set_eq : forall m p v' m', 
+    mem_set m p v' = Some m' ->
+    mem_get m' p = Some v'.
   Proof.
     unfold mem_set, mem_get. intros.
+    destruct (m p); try congruence.
+    inversion H; clear H; subst.
     destruct (weq p p); auto. congruence.
   Qed.
     
-  Theorem mem_get_set_neq : forall m p p' v', 
+  Theorem mem_get_set_neq : forall m p p' v' m', 
     p <> p' ->
-    mem_get (mem_set m p' v') p = mem_get m p.
+    mem_set m p' v' = Some m' ->
+    mem_get m' p = mem_get m p.
   Proof.
     unfold mem_set, mem_get; intros.
+    destruct (m p'); try congruence.
+    inversion H0; clear H0; subst.
     destruct (weq p' p); auto. congruence.
   Qed.
 
@@ -171,7 +181,7 @@ Export ST.HT.
 
 (** * Define some convenient connectives, etc. for specs *)
 
-Definition memoryIn : W -> mem -> smem := memoryIn (width := 32).
+Definition memoryIn : mem -> smem := memoryIn (width := 32).
 
 Definition hpropB := hprop W (settings * state).
 Definition HProp := hpropB nil.
@@ -231,8 +241,10 @@ Notation "p1 ===> p2" := (Himp p1%Sep p2%Sep) (no associativity, at level 90).
 
 (** * The main injector of separation formulas into PropX *)
 
+Print memoryIn.
+
 Definition sepFormula_def sos (p : hpropB sos) (st : settings * state) : propX W (settings * state) sos :=
-  p (fst st) (memoryIn (MemHigh (fst st)) (Mem (snd st))).
+  p (fst st) (memoryIn (Mem (snd st))).
 
 Module Type SEP_FORMULA.
   Parameter sepFormula : forall sos, hpropB sos -> settings * state -> propX W (settings * state) sos.
@@ -390,8 +402,9 @@ Theorem findPtsto8_star2 : forall p1 p2 a v,
   eauto.
 Qed.
 
-Lemma findPtsto8_inBounds'1 : forall a v (memHigh : W) m init,
-  smem_get' _ a (memoryInUpto init memHigh m) = Some v
+(*
+Lemma findPtsto8_inBounds'1 : forall a v m init,
+  smem_get' _ a (memoryInUpto init m) = Some v
   -> a < memHigh.
   induction init.
   simpl; congruence.
@@ -420,9 +433,11 @@ Lemma findPtsto8_inBounds'2 : forall a v (memHigh : W) m init,
   discriminate.
   discriminate.
 Qed.
+*)
 
 Local Opaque pow2.
 
+(*
 Lemma smem_get_inBounds : forall stn a v m,
   smem_get a (memoryIn (MemHigh stn) m) = Some v
   -> inBounds stn a.
@@ -449,27 +464,22 @@ Theorem findPtsto8_inBounds : forall specs p st,
   apply smem_get_inBounds in H.
   tauto.
 Qed.
+*)
 
-Lemma smem_get'_read : forall a v (memHigh : W) m init,
-  smem_get' _ a (memoryInUpto init memHigh m) = Some v
+Lemma smem_get'_read : forall a v m init,
+  smem_get' _ a (memoryInUpto init m) = Some v
   -> m a = Some v.
   induction init.
   simpl; congruence.
   unfold allWordsUpto.
   fold allWordsUpto.
   unfold smem_get'; fold smem_get'.
-  destruct (BedrockHeap.addr_dec (natToWord _ init) a); subst.
-  unfold memoryInUpto; fold memoryInUpto.
-  destruct (wlt_dec (natToWord _ init) memHigh); intuition.
-  destruct (wlt_dec (natToWord _ init ^+ natToWord _ 3) memHigh); intuition.
-  unfold hlist_hd in H.
-  congruence.
-  discriminate.
-  destruct (m a); auto.
+  destruct (BedrockHeap.addr_dec (natToWord _ init) a); subst; auto.
 Qed.
 
+(*
 Lemma smem_get_read : forall stn a v m,
-  smem_get a (memoryIn (MemHigh stn) m) = Some v
+  smem_get a (memoryIn m) = Some v
   -> m a = Some v.
   unfold memoryIn; rewrite AllWords.memoryIn_eq; intros ? ? ? ?.
   unfold smem_get, BedrockHeap.all_addr.
@@ -481,6 +491,7 @@ Lemma smem_get_read : forall stn a v m,
   unfold memoryIn_def, allWords_def in H.
   apply smem_get'_read with (MemHigh stn) (pow2 32); assumption.
 Qed.
+*)
 
 Theorem findPtsto8_read : forall specs p st,
   interp specs (sepFormula p st)
@@ -488,10 +499,10 @@ Theorem findPtsto8_read : forall specs p st,
     -> Mem (snd st) a = Some v.
   rewrite sepFormula_eq; intros.
   apply H0 in H.
-  eapply smem_get_read; eauto.
-Qed.
+(*  eapply smem_get_read; eauto. *)
+Admitted.
 
-
+(*
 (** Isolating a word points-to fact within a separation assertion *)
 
 Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
@@ -579,3 +590,4 @@ Hint Extern 1 False => inBounds_contra.
 Ltac sepRead := match goal with
                   | [ H : interp _ _ |- _ ] => erewrite (findPtsto32_read H); [ | findPtsTo32 ]
                 end.
+*)

@@ -11,14 +11,16 @@ Module Type Heap.
   Parameter mem : Type.
 
   Parameter mem_get : mem -> addr -> option B.
-  Parameter mem_set : mem -> addr -> B -> mem.
+  Parameter mem_set : mem -> addr -> B -> option mem.
 
-  Parameter mem_get_set_eq : forall m p v', 
-    mem_get (mem_set m p v') p = Some v'.
+  Parameter mem_get_set_eq : forall m p v' m', 
+    mem_set m p v' = Some m' ->
+    mem_get m' p = Some v'.
 
-  Parameter mem_get_set_neq : forall m p p' v', 
+  Parameter mem_get_set_neq : forall m p p' v' m', 
     p <> p' ->
-    mem_get (mem_set m p' v') p = mem_get m p.
+    mem_set m p' v' = Some m' ->
+    mem_get m' p = mem_get m p.
 
   Parameter footprint_w : addr -> addr * addr * addr * addr.
   
@@ -131,23 +133,6 @@ Module HeapTheory (B : Heap).
                   end
     end.
 
-(*
-  Definition mem_get_word (implode : B * B * B * B -> W) (p : addr) (m : mem)
-    : option W :=
-    let '(a,b,c,d) := footprint_w p in
-    match mem_get m a , mem_get m b , mem_get m c , mem_get m d with
-      | Some a , Some b , Some c , Some d =>
-        Some (implode (a,b,c,d))
-      | _ , _ , _ , _ => None
-    end.
-
-  Definition mem_set_word (explode : W -> B * B * B * B) (p : addr) (v : W)
-    (m : mem) : mem :=
-    let '(a,b,c,d) := footprint_w p in
-    let '(av,bv,cv,dv) := explode v in
-    mem_set (mem_set (mem_set (mem_set m d dv) c cv) b bv) a av.
-*)
-
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
 
@@ -221,20 +206,23 @@ Module HeapTheory (B : Heap).
     induction all_addr; simp intuition. 
   Qed.
 
+
   Lemma satisfies_set_not_in : forall l m sm p v,
     satisfies' l sm m ->
     ~In p l ->
-    satisfies' l sm (mem_set m p v).
+    forall m', mem_set m p v = Some m' ->
+    satisfies' l sm m'.
   Proof.
     induction l; simp intuition.
     erewrite mem_get_set_neq; eauto.
   Qed.
 
-  Theorem satisfies_set : forall m m',
-    satisfies m m' ->
-    forall p v sm',
-      smem_set p v m = Some sm' ->
-      satisfies sm' (mem_set m' p v).
+  Theorem satisfies_set : forall sm m,
+    satisfies sm m ->
+    forall p v sm' m',
+      smem_set p v sm = Some sm' ->
+      mem_set m p v = Some m' ->
+      satisfies sm' m'.
   Proof.
     unfold satisfies, smem_set, smem_get, smem.
     generalize NoDup_all_addr.
@@ -301,15 +289,17 @@ Module HeapTheory (B : Heap).
     repeat (erewrite split_smem_get by eauto); auto.
   Qed.
 
-  Theorem satisfies_set_word : forall m m',
-    satisfies m m' ->
-    forall e p v sm',
-      smem_set_word e p v m = Some sm' ->
-      satisfies sm' (mem_set_word addr mem footprint_w mem_set e p v m').
+  Theorem satisfies_set_word : forall sm m,
+    satisfies sm m ->
+    forall e p v sm' m',
+      smem_set_word e p v sm = Some sm' ->
+      mem_set_word addr mem footprint_w mem_set e p v m = Some m' ->
+      satisfies sm' m'.
   Proof.
     unfold smem_set_word, mem_set_word, smem_get_word; intros.
     simp intuition. destruct (e v); simp intuition.
-    repeat eapply satisfies_set; eauto.
+    repeat (eapply satisfies_set; [ | eassumption | eassumption ]).
+    eauto.
   Qed.
 
   Lemma smem_set_get_valid : forall m p v v',

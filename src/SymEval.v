@@ -215,213 +215,192 @@ End search_read_write.
 Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SEP := SepExpr B ST.
 
-  Section typed.
-    Variable types : list type.
+  Parameter SymEval : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+      
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+      
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState), Type.
 
-    Variable tvState : tvar.
-    Variable tvPc : tvar.
-    Variable tvPtr : tvar.
-    Variable tvVal : tvar.
-
-    Variable smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal).
-    Variable smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem.
+  Parameter sym_read : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
     
-    Variable funcs : functions types.
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState), 
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate -> 
+    forall (hyps args : list (expr types)) (p : expr types),
+      option (expr types).
 
-    (** TODO: This can't be a record, it needs to be a dependent tuple,
-     ** i.e. we don't want to create a new inductive type b/c then
-     ** we'll be generative and we want to be applicative.
-     **)
-    Parameter SymEval : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
+  Parameter sym_read_correct : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
       
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState), Type.
-
-    Parameter sym_read : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
-      
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState), 
-      @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate -> 
-      forall (hyps args : list (expr types)) (p : expr types),
-        option (expr types).
-
-    Parameter sym_read_correct : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
-      
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState)
-      (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate), 
-      forall args uvars vars cs hyps pe ve m stn,
-        sym_read se hyps args pe = Some ve ->
-        AllProvable funcs uvars vars hyps ->
-        match 
-          applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match 
-          exprD funcs uvars vars pe tvPtr, 
-          exprD funcs uvars vars ve tvVal
-          with
-          | Some p , Some v =>
-            smem_get_value stn p m = Some v
-          | _ , _ => False
-        end.
-
-    Parameter sym_write : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
-      
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState), 
-      @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate ->
-      forall (hyps args : list (expr types)) (p v : expr types),
-        option (list (expr types)).
-
-    Parameter sym_write_correct : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
-      
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState)
-      (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate),
-      forall args uvars vars cs hyps pe ve v m stn args',
-        sym_write se hyps args pe ve = Some args' ->
-        AllProvable funcs uvars vars hyps ->
-        exprD funcs uvars vars ve tvVal = Some v ->
-        match
-          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match exprD funcs uvars vars pe tvPtr with
-          | Some p =>
-            match 
-              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState)
+    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate), 
+    forall args uvars vars cs hyps pe ve m stn,
+      sym_read se hyps args pe = Some ve ->
+      AllProvable funcs uvars vars hyps ->
+      match 
+        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match 
+        exprD funcs uvars vars pe tvPtr, 
+        exprD funcs uvars vars ve tvVal
+        with
+        | Some p , Some v =>
+          smem_get_value stn p m = Some v
+        | _ , _ => False
+      end.
+  
+  Parameter sym_write : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+    
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState), 
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate ->
+    forall (hyps args : list (expr types)) (p v : expr types),
+      option (list (expr types)).
+  
+  Parameter sym_write_correct : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+    
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState)
+    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate),
+    forall args uvars vars cs hyps pe ve v m stn args',
+      sym_write se hyps args pe ve = Some args' ->
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve tvVal = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match exprD funcs uvars vars pe tvPtr with
+        | Some p =>
+          match 
+            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
             with
-              | None => False
-              | Some pr => 
-                match smem_set_value stn p v m with
-                  | None => False
-                  | Some sm' => ST.satisfies cs pr stn sm'
-                end
-            end
-          | _ => False
-        end.
+            | None => False
+            | Some pr => 
+              match smem_set_value stn p v m with
+                | None => False
+                | Some sm' => ST.satisfies cs pr stn sm'
+              end
+          end
+        | _ => False
+      end.
 
-    Parameter Build_SymEval : forall
-      (types : list type)
-      (tvState : tvar)
-      (tvPc : tvar)
-      (tvPtr : tvar)
-      (tvVal : tvar)
-      
-      (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-        option (tvarD types tvVal))
-      (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-        -> ST.HT.smem -> option ST.HT.smem)
-      
-      (funcs : functions types)
-      (Predicate : ssignature types tvPc tvState)
-
-      (sym_read : forall (hyps args : list (expr types)) (p : expr types),
-        option (expr types))
-      (sym_write : forall (hyps args : list (expr types)) (p v : expr types),
-        option (list (expr types)))
-      (sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
-        sym_read hyps args pe = Some ve ->
-        AllProvable funcs uvars vars hyps ->
-        match 
-          applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match 
-          exprD funcs uvars vars pe tvPtr, 
-          exprD funcs uvars vars ve tvVal
-          with
-          | Some p , Some v =>
-            smem_get_value stn p m = Some v
-          | _ , _ => False
-        end)
-      (sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
-        sym_write hyps args pe ve = Some args' ->
-        AllProvable funcs uvars vars hyps ->
-        exprD funcs uvars vars ve tvVal = Some v ->
-        match
-          applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-          with
-          | None => False
-          | Some p => ST.satisfies cs p stn m
-        end ->
-        match exprD funcs uvars vars pe tvPtr with
-          | Some p =>
-            match 
-              applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+  Parameter Build_SymEval : forall
+    (types : list type)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+    
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (funcs : functions types)
+    (Predicate : ssignature types tvPc tvState)
+    
+    (sym_read : forall (hyps args : list (expr types)) (p : expr types),
+      option (expr types))
+    (sym_write : forall (hyps args : list (expr types)) (p v : expr types),
+      option (list (expr types)))
+    (sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
+      sym_read hyps args pe = Some ve ->
+      AllProvable funcs uvars vars hyps ->
+      match 
+        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match 
+        exprD funcs uvars vars pe tvPtr, 
+        exprD funcs uvars vars ve tvVal
+        with
+        | Some p , Some v =>
+          smem_get_value stn p m = Some v
+        | _ , _ => False
+      end)
+    (sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
+      sym_write hyps args pe ve = Some args' ->
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve tvVal = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match exprD funcs uvars vars pe tvPtr with
+        | Some p =>
+          match 
+            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
             with
-              | None => False
-              | Some pr => 
-                match smem_set_value stn p v m with
-                  | None => False
-                  | Some sm' => ST.satisfies cs pr stn sm'
-                end
-            end
-          | _ => False
-        end),
-      @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate.
-      
-  End typed.
-
+            | None => False
+            | Some pr => 
+              match smem_set_value stn p v m with
+                | None => False
+                | Some sm' => ST.satisfies cs pr stn sm'
+              end
+          end
+        | _ => False
+      end),
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate.
+     
 End EvaluatorPluginType.
 
 Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : EvaluatorPluginType B ST.
@@ -500,11 +479,208 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
 
 End EvaluatorPlugin.
 
+(*
+Module Type PluginFacts (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+  Parameter Val : Type.
 
+  Parameter  smem_get_value : IL.settings -> B.addr -> ST.HT.smem -> 
+    option Val.
+  Parameter mem_get_value : IL.settings -> B.addr -> B.mem -> 
+    option Val.
+
+  Parameter smem_set_value : IL.settings -> B.addr -> Val
+    -> ST.HT.smem -> option ST.HT.smem.
+  Parameter mem_set_value : IL.settings -> B.addr -> Val
+    -> B.mem -> option B.mem.
+
+  Parameter smem_mem_get : forall stn p sm m v,
+    ST.HT.satisfies sm m ->
+    smem_get_value stn p sm = Some v ->
+    mem_get_value stn p m = Some v.
+
+  Parameter smem_mem_set : forall stn p v sm sm' m,
+    ST.HT.satisfies sm m ->
+    smem_set_value stn p v sm = Some sm' ->
+    exists m', 
+      mem_set_value stn p v m = Some m' /\
+      ST.HT.satisfies sm' m'.
+End PluginFacts.
+
+Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts B ST) (PLUGIN : EvaluatorPluginType B ST).
+  Module Import SEP := PLUGIN.SEP.
+
+  Section typed.
+    Variable types : list type.
+
+    Variable tvState : tvar.
+    Variable tvPc : tvar.
+    Variable tvPtr : tvar.
+    Variable tvVal : tvar.
+    
+    Variable funcs : functions types.
+    Variable sfuncs : sfunctions types tvPc tvState.
+
+    Variable known : list nat.
+    Definition evals_type := 
+      hlist (fun n : nat => match nth_error sfuncs n with
+                              | None => Empty_set 
+                              | Some ss => @PLUGIN.SymEval types tvState tvPc tvPtr tvVal
+                                F.smem_get_value F.smem_set_value funcs ss
+                            end) known.
+
+    Variable evals : evals_type.
+
+    Definition symeval_read (hyps : list (expr types)) (p : expr types) 
+      (s : SEP.SHeap types tvPc tvState)
+      : option (expr types) :=
+      let hyps := hyps ++ pures s in
+      let reader ss seb args :=
+        PLUGIN.sym_read seb hyps args p
+      in
+      fold_known _ _ reader (impures s) evals.
+
+    Definition symeval_write (hyps : list (expr types)) (p v : expr types) 
+      (s : SEP.SHeap types tvPc tvState)
+      : option (SEP.SHeap types tvPc tvState) :=
+      let hyps := hyps ++ pures s in
+      let writer _ seb args := 
+        PLUGIN.sym_write seb hyps args p v
+      in
+      match fold_known_update _ _ writer (impures s) evals with
+        | None => None
+        | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
+      end.
+
+  Lemma symeval_write_correct' : forall hyps pe ve s s',
+    symeval_write hyps pe ve s = Some s' ->
+    forall cs stn uvars vars m v,
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve tvPc = Some v ->
+      (exists sm, 
+           ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) stn sm
+        /\ ST.HT.satisfies sm m) ->
+      match exprD funcs uvars vars pe tvPtr with
+        | Some p =>
+          exists m', 
+                F.mem_set_value types _ _ stn p v m = Some m'
+            /\ exists sm,
+               ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) stn sm
+            /\ ST.HT.satisfies sm m'
+        | _ => False
+      end.
+  Proof.
+    unfold symeval_write. intros.
+    generalize dependent H.
+    match goal with
+      | [ |- context [ fold_known_update ?A ?B ?C ?D ?E ] ] =>
+        case_eq (fold_known_update A B C D E); intros; try congruence
+    end.
+    eapply fold_known_update_correct in H.
+    do 5 destruct H. destruct H2.
+    intuition. inversion H3; clear H3; subst. 
+        
+    eapply fold_args_update_correct in H6.
+    repeat match goal with
+             | [ H : exists x, _ |- _ ] => destruct H
+           end. intuition; subst.
+    generalize (SEP.sheapD_pures _ _ _ _ _ H4).
+    rewrite SEP.sheapD_pull_impure in H4 by eauto.
+    rewrite SEP.starred_In in H4.
+    rewrite <- SEP.heq_star_assoc in H4. rewrite SEP.heq_star_comm in H4.
+        
+    simpl in *. rewrite H2 in *.
+    intros.
+
+    eapply ST.satisfies_star in H4. do 2 destruct H4. intuition.
+
+    eapply PLUGIN.sym_write_correct with (stn := stn) (cs := cs) (m := x2)
+      in H3; eauto.
+
+    2: apply AllProvable_app; eauto.
+(*    
+    2: simpl in *;
+    match goal with
+      | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+        destruct (applyD A B C D E); try solve [ intros; intuition | eapply ST.satisfies_pure in H4; PropXTac.propxFo ]
+    end.
+
+    destruct (exprD funcs uvars vars pe pcT); eauto.
+
+    repeat match goal with
+             | [ H : context [ match applyD ?A ?B ?C ?D ?E with
+                                 | Some _ => _
+                                 | None => _ 
+                               end ] |- _ ] =>
+               generalize dependent H; case_eq (applyD A B C D E); intros; intuition
+             | [ H : SepIL.ST.satisfies _ (SepIL.ST.inj _) _ _ |- _ ] =>
+               eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
+           end.
+    generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
+
+    SearchAbouthAbout mem_set_word.
+    Check SepIL.ST.HT.satisfies_set_word.
+    
+    exists (SepIL.ST.HT.join s0 x3).
+    intuition.
+
+    rewrite SEP.sheapD_pull_impure by eapply FM.find_add.
+    simpl. rewrite FM.remove_add.
+    eapply SepIL.ST.satisfies_star. do 2 eexists. split.
+
+    unfold tvarD in H4.
+
+    generalize dependent H3.
+    case_eq (SepIL.ST.HT.smem_set_word (IL.explode stn) a v x2); [ intros |
+      match goal with 
+        | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+          destruct (applyD A B C D E); intros; exfalso; assumption
+      end ].
+        
+        exists (ST.HT.join s0 x3).
+        rewrite sheapD_pull_impure by eapply FM.find_add.
+        simpl. rewrite FM.remove_add.
+        rewrite starred_In.
+        simpl. rewrite H2. generalize dependent H8. 
+        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
+        match goal with
+          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. 
+        generalize dependent H9.
+        match goal with
+          | [ |- ST.satisfies _ ?Y _ _ -> _ -> ST.satisfies _ (ST.star _ ?X) _ _ /\ _ ] => 
+            change X with Y; generalize dependent Y
+        end.
+        intros.
+
+        generalize (ST.HT.split_set_word _ _ (proj1 H7) _ _ _ _ H3).
+        split.
+        eapply ST.satisfies_star. do 2 eexists. split; eauto. eapply ST.HT.disjoint_split_join; eauto. tauto.
+
+        eapply ST.HT.satisfies_set_word. eauto. destruct H7; subst. tauto.
+
+        unfold tvarD. generalize dependent H4.
+        match goal with
+          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+            destruct (applyD A B C D E); try solve [ intros; intuition ]
+        end. intros.
+        eapply ST.satisfies_pure in H4. PropXTac.propxFo.
+      Qed.
+*)
+  Admitted.
+  End typed.
+End PluginWrap.
+
+Module PluginFacts_Word <: PluginFacts SepIL.BedrockHeap SepIL.ST.
+  Definition smem_get_value :=
+  
+End PluginFacts_Word.
+*)
+
+(** This is specialized to bedrock **)
 Require SepIL.
 
 Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST).
-  (** This is specialized to bedrock **)
   Require Import IL SepTac.
 
   Module SEP := PLUGIN.SEP.
@@ -607,9 +783,11 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
         /\ SepIL.ST.HT.satisfies sm m) ->
       match exprD funcs uvars vars pe pcT with
         | Some p =>
-          exists sm, 
+          exists m', 
+                mem_set_word _ _  footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v m = Some m'
+            /\ exists sm,
                SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) stn sm
-            /\ SepIL.ST.HT.satisfies sm (mem_set_word _ _  footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v m)
+            /\ SepIL.ST.HT.satisfies sm m'
         | _ => False
       end.
   Proof.
@@ -659,6 +837,7 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
                eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
            end.
     generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
+
 (*
     exists (SepIL.ST.HT.join s0 x3).
     intuition.
@@ -709,6 +888,23 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
 *)
   Admitted.
 
+  Lemma satisfies_defn : forall cs se stn st,
+    PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) <->
+    (exists sm, 
+         SepIL.ST.satisfies cs se stn sm
+      /\ SepIL.ST.HT.satisfies sm (Mem st)).
+  Proof.
+    rewrite SepIL.SepFormula.sepFormula_eq in *. unfold SepIL.sepFormula_def.
+    intros. destruct st; simpl. clear.
+    split; intros.
+    eexists; split; eauto.
+      admit.
+
+    destruct H. intuition.
+      unfold SepIL.ST.satisfies in *.
+      admit.
+  Qed.
+
   Theorem symeval_write_word_correct : forall hyps pe ve s s',
     symeval_write_word hyps pe ve s = Some s' ->
     forall cs stn uvars vars st v,
@@ -717,18 +913,22 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
       PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) (stn, st)) ->
       match exprD funcs uvars vars pe pcT with
         | Some p =>
-          let m' := mem_set_word _ _ footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v (Mem st) in
-          PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) (stn, {| Regs := Regs st ; Mem := m' |}))
+          match mem_set_word _ _ footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v (Mem st) with
+            | Some m' => 
+              PropX.interp cs 
+                (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) 
+                (stn, {| Regs := Regs st ; Mem := m' |}))
+            | None => False
+          end
         | _ => False
       end.
   Proof.
     intros. eapply symeval_write_word_correct' with (cs := cs) (stn := stn) (m := Mem st) in H; eauto.
-    destruct (exprD funcs uvars vars pe pcT); intuition. simpl.
-    destruct H. rewrite SepIL.SepFormula.sepFormula_eq.
-    unfold SepIL.sepFormula_def. simpl.
-    
-
-  Admitted.
+    2: eapply satisfies_defn; eauto.
+    destruct (exprD funcs uvars vars pe pcT); intuition. destruct H.
+    intuition. rewrite H3.
+    eapply satisfies_defn; eauto.
+  Qed.
 
   (** Symbolic State **)
   Record SymState : Type :=
