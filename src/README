@@ -1,23 +1,39 @@
 Bedrock
--------
+=======
+
+Ordered by dependency.
+
+----
 
 HintlessFMapAVL, HintlessFMapList, HintlessOrderedType
     Copies of implementations from the standard library,
     but without hints that degrade eauto performance.
-
-Bedrock
-    Exports the user visible functionality of Bedrock.
 EqdepClass
     Extra instances and theorems about EqDec values (values with decidable equality),
     including an instance for 'option' and uniqueness of identity proofs
     in those cases without extra axioms.
-Env
-    A potpourri of useful, general purpose dependently typed data structures.
-        - Semidecidable equality typeclass (SemiDec)
-        - Decidable/semidecidable comparison
-        - Dependent position of elements in lists (fin) with comparison
-        - Heterogenous lists (hlist) with comparison
-Heap
+Nomega
+    Omega (solver of quantifier-free problems in Presburger arithmetic)
+    for natural numbers.
+Word
+    Fixed precision arithmetic words (word).  Includes strong induction principle,
+    modular arithmetic, comparisons, decidable equality, splitting/combining,
+    sign extension, bitwise operators and uniqueness of equality proofs.
+
+    Notationally, Word defines word_scope, with ~ 1, ~ 0 for appending a bit,
+    ^ prefixing overloaded arithmetic operations and s denoting signed comparisons
+    (>s >s= <s <s=).
+NatMap
+    Non-dependent unbalanced binary trees with natural numbers as keys
+    (no values stored in leaves)
+DepList
+    Dependently typed lists.
+Memory
+    Wrapper around Word, which defines more semantics for words and bytes
+    which are normally seen in computer memories.  (ezyang: Right now the
+    intent of this file is a little incoherent, hopefully this will
+    get ironed out.)
+Heaps
     Defines the notion of a heap (Heap: something which you can have
     dereferencable addresses into), and then defines an abstract
     representation of the contents of this heap (smem in HeapTheory,
@@ -25,6 +41,9 @@ Heap
     the contents of a value at some address, or leaves the value
     undefined.  This representation supports joining, splitting and
     checking for disjointness, as well as the usual get/set operations.
+
+----
+
 IL
     Simple intermediate language, which is what we will be proving things about.
     This file includes syntax and semantics for registers and memories,
@@ -34,17 +53,9 @@ IL
 LabelMap
     Defines an ordering on labels (from IL) and then defines LabelMap which
     is an AVL tree of labels to values.
-Linker
-Memory
-    Wrapper around Word, which defines more semantics for words and bytes
-    which are normally seen in computer memories.  (ezyang: Right now the
-    intent of this file is a little incoherent, hopefully this will
-    get ironed out.)
-Nomega
-    Omega (solver of quantifier-free problems in Presburger arithmetic)
-    for natural numbers.
-PMap
-Programming
+
+----
+
 PropX
     Adaptation of the Ni-Shao XCAP assertion logic.  The main type
     defined by this module is 'propX', parametrized over two types (pc,
@@ -65,39 +76,47 @@ PropX
 PropXTac
     Tactics for handling PropX assertions.  XXX but I'm not really sure
     what this is doing.
-Reflect
-SepIL
-SepTac
-SepTheoryX
-Structured
-StructuredModule
-Word
-    Fixed precision arithmetic words (word).  Includes strong induction principle,
-    modular arithmetic, comparisons, decidable equality, splitting/combining,
-    sign extension, bitwise operators and uniqueness of equality proofs.
-
-    Notationally, Word defines word_scope, with ~ 1, ~ 0 for appending a bit,
-    ^ prefixing overloaded arithmetic operations and s denoting signed comparisons
-    (>s >s= <s <s=).
 XCAP
-    Defines prop and assert, which are specialized versions XCAP for our IL,
+    Defines prop and assert, which are specialized versions PropX for our IL,
     as well as the representation of programs 'module' (which imports preconditions
     and specifies a map of labels to preconditions and basic blocks.)  Defines
     verification condition for blocks (blockOk), modules (moduleOk) and linking
     (importsOk).
 
-The non-dependent stuff
------------------------
+----
 
+Structured
+StructuredModule
+Linker
+    Responsible for linking multiple modules together into a full program.
+Programming
+    Defines a nice syntax and tactic environment for programming in the
+    structured programming language.
+
+----
+
+SepTheoryX
+Reflect
 Expr
     Simple non-dependent expression language (this is new: the representation
     in 'dep' had types which dependently encoded the free variables
     of an expression.)  Forms the basis for SepExpr. (XXX but what is it really??)
 ExprUnify
-NatMap
-    Non-dependent unbalanced binary trees with natural numbers as keys
-    (no values stored in leaves)
+SepExpr, SepExprTests
+Unfolder, UnfolderTests
+
+Env
+    A potpourri of useful, general purpose dependently typed data structures.
+        - Semidecidable equality typeclass (SemiDec)
+        - Decidable/semidecidable comparison
+        - Dependent position of elements in lists (fin) with comparison
+        - Heterogenous lists (hlist) with comparison
 Provers
-SepExpr/SepExprTests
-SymEval
-Unfolder/UnfolderTests
+SepIL
+SepTac
+SymEval, SymEvalTests
+
+----
+
+Bedrock
+    Exports the user visible functionality of Bedrock.
