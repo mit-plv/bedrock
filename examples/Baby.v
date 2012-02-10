@@ -75,7 +75,7 @@ Qed.
 
 Print Assumptions immedProgOk.
 
-Definition immedSettings := leSettings (NToWord _ 1024) immedProg.
+Definition immedSettings := leSettings immedProg.
 Definition immedProgram := snd (labelsOf (XCAP.Blocks immedProg)).
 
 Theorem immedProgReallyOk : { w : _ | Labels immedSettings ("main", Global "main") = Some w
