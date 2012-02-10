@@ -200,7 +200,7 @@ Ltac conditions :=
              | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
              | [ H : Some _ = None |- _ ] => discriminate H
              | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
-             | [ H : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate H
+(*             | [ H : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate H *)
              | [ H : evalInstrs _ _ _ = _ |- _ ] =>
                repeat (rewrite evalInstrs_cons in H; simpl in H; autorewrite with IL in H);
                  try rewrite evalInstrs_nil in H

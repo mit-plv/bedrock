@@ -256,8 +256,12 @@ Qed.
 (* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
 Record settings := {
-  (* ezyang: Do we need this now that memories are partial? *)
+(*
+  (* ezyang: Do we need this now that memories are partial? 
+   * gmm: we shouldn't
+   *)
   MemHigh : W;
+*)
   (* The first non-addressable RAM address *)
   implode : B * B * B * B -> W ;
   explode : W -> B * B * B * B ;
@@ -280,20 +284,48 @@ Definition footprint_w (a : W) := (a, a ^+ $1, a ^+ $2, a ^+ $3).
 Definition ReadWord (s : settings) (m : mem) (a : W) : option W :=
   mem_get_word W mem footprint_w (ReadByte s) (implode s) a m.
 
-Definition WriteByte (_ : settings) (m : mem) (p : W) (v : B) : mem :=
-  fun p' => if weq p' p then Some v else m p'.
+Definition WriteByte (_ : settings) (m : mem) (p : W) (v : B) : option mem :=
+  match m p with
+    | None => None
+    | Some _ => Some (fun p' => if weq p' p then Some v else m p')
+  end.
 
-Definition WriteWord (s : settings) (m : mem) (p v : W) : mem :=
+Definition WriteWord (s : settings) (m : mem) (p v : W) : option mem :=
   mem_set_word W mem footprint_w (WriteByte s) (explode s) p v m.
 
 Ltac W_eq := wprepare; word_eq.
 Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
 
-Theorem ReadWriteEq : forall stn m k v, ReadWord stn (WriteWord stn m k v) k = Some v.
+Theorem ReadWriteEq : forall stn m m' k v,
+  WriteWord stn m k v = Some m' ->
+  ReadWord stn m' k = Some v.
 Proof.
-  unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte. intros.
-  case_eq (explode stn v). destruct p. destruct p.
-  repeat rewrite (rewrite_weq (refl_equal _)).
+  unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte. intros stn m m' k v.
+  case_eq (explode stn v). destruct p. destruct p. intros.
+  repeat match goal with
+           | [ H : match match ?X with
+                           | Some _ => _
+                           | None => _
+                         end
+                     with
+                     | Some _ => _
+                     | None => _
+                   end = _ |- _ ] =>
+             generalize dependent H; case_eq X; try congruence; intros
+         end.
+  generalize dependent H3.
+  case_eq ((if weq k (k ^+ $ (1))
+      then Some b1
+      else
+       if weq k (k ^+ $ (2))
+       then Some b
+       else if weq k (k ^+ $ (3)) then Some b2 else m k)); try congruence.
+  intros.
+  Opaque natToWord.
+  inversion H4; clear H4.
+  generalize dependent H1; generalize dependent H6; generalize dependent H3; generalize dependent H2.
+
+  repeat rewrite (rewrite_weq (refl_equal _)) in *.
   repeat match goal with
            | [ |- context [ weq ?X ?Y ] ] => 
              let Z := fresh in destruct (weq X Y) as [ Z | ? ]; [ exfalso; generalize Z; W_neq | ]
@@ -301,21 +333,45 @@ Proof.
   intros. rewrite <- H. rewrite implode_explode. reflexivity.
 Qed.
 
-Theorem ReadWriteNe : forall stn m k v k', separated k' k
-  -> ReadWord stn (WriteWord stn m k v) k' = ReadWord stn m k'.
+Theorem ReadWriteNe : forall stn m m' k v k', 
+  separated k' k ->
+  WriteWord stn m k v = Some m' ->
+  ReadWord stn m' k' = ReadWord stn m k'.
 Proof.
   unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte; intros.
+  revert H0.
   case_eq (explode stn v); intros. destruct p. destruct p.
   assert (k' = k' ^+ $(0)). W_eq.
   assert (k = k ^+ $(0)). W_eq.
   repeat match goal with
+           | [ H : match match ?X with
+                           | Some _ => _
+                           | None => _
+                         end
+                     with
+                     | Some _ => _
+                     | None => _
+                   end = _ |- _ ] =>
+             generalize dependent H; case_eq X; try congruence; intros
+         end.
+  generalize dependent H6.
+  case_eq ((if weq k (k ^+ $ (1))
+      then Some b2
+      else
+       if weq k (k ^+ $ (2))
+       then Some b0
+       else if weq k (k ^+ $ (3)) then Some b else m k)); try congruence.
+  intro. intros. inversion H7; clear H7. 
+  revert H4; revert H5; revert H1; revert H9.
+  repeat match goal with
     | [ |- context [ weq ?X ?Y ] ] => 
       let Z := fresh in destruct (weq X Y) as [ Z | ? ]; 
-        [ exfalso ; (apply H in Z || (rewrite H1 in Z; apply H in Z) || (rewrite H2 in Z; apply H in Z) || (rewrite H1 in Z; rewrite H2 in Z; apply H in Z)); auto; omega |  ]  
+        [ exfalso ; (apply H in Z || (rewrite H2 in Z; apply H in Z) || (rewrite H3 in Z; apply H in Z) || (rewrite H2 in Z; rewrite H3 in Z; apply H in Z)); auto; omega |  ]  
   end.
   reflexivity.
 Qed.  
 
+(*
 Theorem ReadWordFootprint : forall stn m m' a a',
   m a = m' a'
   -> m (a ^+ $1) = m' (a' ^+ $1)
@@ -331,8 +387,10 @@ Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k 
   intros; subst; apply ReadWriteEq.
 Qed.
 
+
 Hint Rewrite ReadWriteEq' using W_eq : IL.
 Hint Rewrite ReadWriteNe using solve [ auto ] : IL.
+*)
 
 (* Machine states *)
 Record state := {
@@ -343,6 +401,7 @@ Record state := {
 Section settings.
   Variable stn : settings.
 
+(*
   (* Is a word-sized memory chunk in bounds, within addressable RAM? *)
   Definition inBounds (a : W) := a < MemHigh stn /\ a ^+ $3 < MemHigh stn.
 
@@ -353,42 +412,36 @@ Section settings.
         else right _ _
       else right _ _); abstract (unfold inBounds; tauto).
   Defined.
+*)
 
   Section state.
     Variable st : state.
 
-    Definition evalLoc (l : loc) : option W :=
+    Definition evalLoc (l : loc) : W :=
       match l with
-        | Reg r => Some (Regs st r)
-        | Imm w => Some w
-        | Indir r w => let a := Regs st r ^+ w in
-          if inBounds_dec a then Some a else None
+        | Reg r => Regs st r
+        | Imm w => w
+        | Indir r w => let a := Regs st r ^+ w in a
       end.
 
     Definition evalLvalue (lv : lvalue) (v : W) : option state :=
       match lv with
         | LvReg r => Some {| Regs := rupd (Regs st) r v;
           Mem := Mem st |}
-        | LvMem l => match evalLoc l with
-                       | None => None
-                       | Some a =>
-                         if inBounds_dec a
-                         then Some {| Regs := Regs st;
-                           Mem := WriteWord stn (Mem st) a v |}
-                         else None
-                     end
+        | LvMem l => 
+          let a := evalLoc l in
+          match WriteWord stn (Mem st) a v with
+            | None => None
+            | Some m' => Some {| Regs := Regs st ; Mem := m' |}
+          end
       end.
 
     Definition evalRvalue (rv : rvalue) : option W :=
       match rv with
         | LvReg r => Some (Regs st r)
-        | LvMem l => match evalLoc l with
-                       | None => None
-                       | Some a => (* ezyang: inBounds should be baked in... *)
-                         if inBounds_dec a
-                         then ReadWord stn (Mem st) a
-                         else None
-                     end
+        | LvMem l =>
+          let a := evalLoc l in
+          ReadWord stn (Mem st) a
         | RvImm w => Some w
         | RvLabel l => Labels stn l
       end.

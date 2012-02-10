@@ -611,7 +611,7 @@ Section LittleEndianSettings.
   Qed.
 
   Definition leSettings := {|
-    MemHigh := memHigh;
+(*    MemHigh := memHigh; *)
     implode := implode_le ; 
     explode := explode_le ;
     implode_explode := implode_explode_le ;
