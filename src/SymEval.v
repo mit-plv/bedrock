@@ -478,7 +478,6 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
   End typed.
 
 End EvaluatorPlugin.
-
 (*
 Module Type PluginFacts (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Parameter Val : Type.
@@ -837,6 +836,10 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
                eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
            end.
     generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
+
+    unfold smem_write in H8.
+    eapply SepIL.ST.HT.satisfies_set_word in H8; eauto.
+
 
 (*
     exists (SepIL.ST.HT.join s0 x3).

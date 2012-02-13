@@ -132,6 +132,23 @@ Module BedrockHeap.
         Some (fun p' => if weq p p' then Some v else m p')
     end.
 
+  Definition mem_acc (m : mem) (a : addr) :=
+    exists v, m a = Some v.
+
+  Theorem mem_get_acc : forall m p,
+    mem_acc m p ->
+    exists v, mem_get m p = Some v.
+  Proof.
+    eauto.
+  Qed.
+    
+  Theorem mem_set_acc : forall m p,
+    mem_acc m p ->
+    forall v, exists m', mem_set m p v = Some m'.
+  Proof.
+    destruct 1; unfold mem_set. rewrite H. eauto.
+  Qed.
+    
   Theorem mem_get_set_eq : forall m p v' m', 
     mem_set m p v' = Some m' ->
     mem_get m' p = Some v'.
@@ -151,6 +168,22 @@ Module BedrockHeap.
     destruct (m p'); try congruence.
     inversion H0; clear H0; subst.
     destruct (weq p' p); auto. congruence.
+  Qed.
+
+  (** mem writes don't modify permissions **)
+  Theorem mem_set_perm : forall m p v m',
+    mem_set m p v = Some m' ->
+    (forall p, mem_acc m p -> mem_acc m' p).
+  Proof.
+    unfold mem_set, mem_acc; intros.
+    generalize dependent H.
+    case_eq (weq p p0); intros; subst.
+    destruct (m p0); try congruence.
+    inversion H1; subst; auto.
+    rewrite H. eauto.
+
+    destruct (m p); try congruence.
+    inversion H1; subst. rewrite H. eauto.
   Qed.
 
   Definition footprint_w (p : addr) : addr * addr * addr * addr :=
