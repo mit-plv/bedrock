@@ -478,7 +478,779 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
   End typed.
 
 End EvaluatorPlugin.
+
+(** This is specialized to bedrock **)
+Require SepIL.
+
+Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST).
+  Require Import IL SepTac.
+
+  Module SEP := PLUGIN.SEP.
+
+  Variable types' : list type.
+  Definition types := bedrock_types ++ types'.
+  Definition pcT := tvType 0.
+  Definition stT := tvType 1.
+
+  (** These the reflected version of the IL, it essentially 
+   ** replaces all uses of W with expr types so that the value
+   ** can be inspected.
+   ** TODO: Is it better to parameterize the initial definition in
+   **       IL.v by the type of values?
+   **)
+  Inductive sym_loc :=
+  | SymReg : reg -> sym_loc
+  | SymImm : expr types -> sym_loc
+  | SymIndir : reg -> expr types -> sym_loc.
+
+  (* Valid targets of assignments *)
+  Inductive sym_lvalue :=
+  | SymLvReg : reg -> sym_lvalue
+  | SymLvMem : sym_loc -> sym_lvalue.
+  
+  (* Operands *)
+  Inductive sym_rvalue :=
+  | SymRvLval : sym_lvalue -> sym_rvalue
+  | SymRvImm : expr types -> sym_rvalue
+  | SymRvLabel : label -> sym_rvalue.
+
+  (* Non-control-flow instructions *)
+  Inductive sym_instr :=
+  | SymAssign : sym_lvalue -> sym_rvalue -> sym_instr
+  | SymBinop : sym_lvalue -> sym_rvalue -> binop -> sym_rvalue -> sym_instr.
+
+  Inductive sym_jmp :=
+    SymUncond : sym_rvalue -> sym_jmp
+  | SymCond : sym_rvalue -> test -> sym_rvalue -> label -> label -> sym_jmp.
+  
+  (** Symbolic registers **)
+  Definition SymRegType : Type :=
+    (expr types * expr types * expr types)%type.
+
+  Definition sym_getReg (r : reg) (sr : SymRegType) : expr types :=
+    match r with
+      | Sp => fst (fst sr)
+      | Rp => snd (fst sr)
+      | Rv => snd sr
+    end.
+
+  Definition sym_setReg (r : reg) (v : expr types) (sr : SymRegType) : SymRegType :=
+    match r with
+      | Sp => (v, snd (fst sr), snd sr)
+      | Rp => (fst (fst sr), v, snd sr)
+      | Rv => (fst sr, v)
+    end.
+
+  Variable funcs : functions types.
+  Variable fPlus fMinus fTimes : expr types -> expr types -> expr types.
+  Variable sfuncs : list (SEP.ssignature types pcT stT).
+
+  Variable known : list nat.
+  Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
+  Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
+
+  Variable word_evals : hlist (fun n : nat => match nth_error sfuncs n with
+                                                | None => Empty_set 
+                                                | Some ss => @PLUGIN.SymEval types stT pcT pcT pcT smem_read smem_write funcs ss
+                                              end) known.
+
+  Definition symeval_read_word (hyps : list (expr types)) (p : expr types) 
+    (s : SEP.SHeap types pcT stT)
+    : option (expr types) :=
+    let hyps := hyps ++ pures s in
+    let reader ss seb args :=
+      PLUGIN.sym_read seb hyps args p
+    in
+    fold_known _ _ reader (impures s) word_evals.
+
+  Definition symeval_write_word (hyps : list (expr types)) (p v : expr types) 
+    (s : SEP.SHeap types pcT stT)
+    : option (SEP.SHeap types pcT stT) :=
+    let hyps := hyps ++ pures s in
+    let writer _ seb args := 
+      PLUGIN.sym_write seb hyps args p v
+    in
+    match fold_known_update _ _ writer (impures s) word_evals with
+      | None => None
+      | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
+    end.
+
+  Lemma symeval_write_word_correct' : forall hyps pe ve s s',
+    symeval_write_word hyps pe ve s = Some s' ->
+    forall cs stn uvars vars m v,
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve pcT = Some v ->
+      (exists sm, 
+           SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) stn sm
+        /\ SepIL.ST.HT.satisfies sm m) ->
+      match exprD funcs uvars vars pe pcT with
+        | Some p =>
+          exists m', 
+                mem_set_word _ _  footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v m = Some m'
+            /\ exists sm,
+               SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) stn sm
+            /\ SepIL.ST.HT.satisfies sm m'
+        | _ => False
+      end.
+  Proof.
+    unfold symeval_write_word. intros.
+    generalize dependent H.
+    match goal with
+      | [ |- context [ fold_known_update ?A ?B ?C ?D ?E ] ] =>
+        case_eq (fold_known_update A B C D E); intros; try congruence
+    end.
+    eapply fold_known_update_correct in H.
+    do 5 destruct H. destruct H2.
+    intuition. inversion H3; clear H3; subst. 
+        
+    eapply fold_args_update_correct in H6.
+    repeat match goal with
+             | [ H : exists x, _ |- _ ] => destruct H
+           end. intuition; subst.
+    generalize (SEP.sheapD_pures _ _ _ _ _ H4).
+    rewrite SEP.sheapD_pull_impure in H4 by eauto.
+    rewrite SEP.starred_In in H4.
+    rewrite <- SEP.heq_star_assoc in H4. rewrite SEP.heq_star_comm in H4.
+        
+    simpl in *. rewrite H2 in *.
+    intros.
+
+    eapply SepIL.ST.satisfies_star in H4. do 2 destruct H4. intuition.
+
+    eapply PLUGIN.sym_write_correct with (stn := stn) (cs := cs) (m := x2)
+      in H3; eauto.
+
+    2: apply AllProvable_app; eauto.
+    2: simpl in *;
+    match goal with
+      | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+        destruct (applyD A B C D E); try solve [ intros; intuition | eapply SepIL.ST.satisfies_pure in H4; PropXTac.propxFo ]
+    end.
+
+    destruct (exprD funcs uvars vars pe pcT); eauto.
+
+    repeat match goal with
+             | [ H : context [ match applyD ?A ?B ?C ?D ?E with
+                                 | Some _ => _
+                                 | None => _ 
+                               end ] |- _ ] =>
+               generalize dependent H; case_eq (applyD A B C D E); intros; intuition
+             | [ H : SepIL.ST.satisfies _ (SepIL.ST.inj _) _ _ |- _ ] =>
+               eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
+           end.
+    generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
+
+    unfold smem_write in H8.
+    pose (SepIL.ST.HT.join s0 x3).
+
+    destruct (@SepIL.ST.HT.satisfies_set_word x4 m H5 (explode stn) t v (SepIL.ST.HT.join s0 x3)).
+      destruct H7; subst.
+      eapply SepIL.ST.HT.split_set_word in H8; eauto.
+      intuition eauto.
+
+       
+    destruct H12. eexists; split; eauto.
+    eexists; split; [ | eauto ].
+
+    rewrite SEP.sheapD_pull_impure by eapply FM.find_add.
+    rewrite SEP.starred_In. rewrite <- SEP.heq_star_assoc.
+    rewrite SEP.heq_star_comm.
+
+    simpl.
+    eapply SepIL.ST.satisfies_star.
+
+    rewrite H2. simpl in H3. rewrite H3. exists s0.
+    exists x3. rewrite FM.remove_add. intuition.
+
+    eapply SepIL.ST.HT.disjoint_split_join.
+
+    eapply SepIL.ST.HT.split_set_word in H8.
+    2: destruct H7; eauto.
+    intuition eauto.
+  Qed.
+
+  Lemma symeval_read_word_correct' : forall hyps pe ve s,
+    symeval_read_word hyps pe s = Some ve ->
+    forall cs stn uvars vars m,
+      AllProvable funcs uvars vars hyps ->
+      (exists sm, 
+        SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) stn sm
+        /\ SepIL.ST.HT.satisfies sm m) ->
+      match exprD funcs uvars vars pe pcT, exprD funcs uvars vars ve pcT with
+        | Some p , Some v =>
+          mem_get_word _ _  footprint_w SepIL.BedrockHeap.mem_get (IL.implode stn) p m = Some v
+        | _ , _ => False
+      end.
+  Proof.
+    unfold symeval_read_word. intros.
+    eapply fold_known_correct in H.
+    do 5 destruct H. destruct H1.
+    intuition. 
+
+    generalize (SEP.sheapD_pures _ _ _ _ _ H); intros.
+
+    eapply SEP.sheapD_pull_impure 
+      with (funcs := funcs) (sfuncs := sfuncs) (a := uvars) (c := vars) (cs := cs)
+        in H1.
+    apply In_split in H3. destruct H3. destruct H3.
+    subst. 
+    rewrite SEP.starred_In with (x := x3) (ls := x5) (ls' := x6) in H1.
+
+    rewrite <- SEP.heq_star_assoc in H1. rewrite SEP.heq_star_comm in H1.
+    rewrite H1 in H.
+    simpl in H.
+    rewrite H2 in *.
+    eapply SepIL.ST.satisfies_star in H. destruct H. destruct H. intuition.
+    
+    eapply PLUGIN.sym_read_correct 
+      with (uvars := uvars) (vars := vars) (cs := cs) (stn := stn) (m := x2)
+        in H6.
+    2: eapply AllProvable_app; auto.
+    destruct (exprD funcs uvars vars pe pcT); auto.
+    destruct (exprD funcs uvars vars ve pcT); auto.
+
+    eapply SepIL.ST.HT.satisfies_get_word; eauto.
+    eapply SepIL.ST.HT.split_smem_get_word; eauto.
+
+    unfold tvarD. simpl.
+    match goal with 
+      | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+        destruct (applyD A B C D E)
+    end; auto.
+    eapply SepIL.ST.satisfies_pure in H. PropXTac.propxFo.
+  Qed.
+
+  Lemma satisfies_defn : forall cs se stn st,
+    PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) <->
+    (exists sm, 
+         SepIL.ST.satisfies cs se stn sm
+      /\ SepIL.ST.HT.satisfies sm (Mem st)).
+  Proof.
 (*
+    rewrite SepIL.SepFormula.sepFormula_eq in *. unfold SepIL.sepFormula_def.
+    intros. destruct st; simpl. clear.
+    split; intros.
+    eexists; split; eauto.
+      Focus.
+      clear.
+      unfold SepIL.ST.HT.satisfies, SepIL.memoryIn.
+      rewrite SepIL.AllWords.memoryIn_eq.
+      generalize (SepIL.fcong (fun width : nat => list (word width)) 32
+          (Logic.eq_sym SepIL.AllWords.allWords_eq)).
+      unfold SepIL.memoryIn_def.
+
+      unfold SepIL.fcong, f_equal, eq_trans, Logic.eq_sym.
+      unfold SepIL.BedrockHeap.all_addr.
+      unfold mem, W, SepIL.allWords_def in *.
+      generalize dependent Mem.
+      generalize dependent (SepIL.AllWords.allWords 32).
+      intros. generalize e. subst.
+      Require Import EqdepClass. uip_all.
+      clear. induction (pow2 32).
+        compute. trivial.
+        split.
+        unfold SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc.
+        destruct (Mem $ n); eauto.
+
+        eauto.
+
+    Focus.
+
+    destruct H. intuition.
+      unfold SepIL.ST.satisfies in *.
+      revert H0. revert H1.
+      unfold SepIL.ST.HT.satisfies, SepIL.memoryIn.
+      rewrite SepIL.AllWords.memoryIn_eq.
+      generalize (SepIL.fcong (fun width : nat => list (word width)) 32
+        (Logic.eq_sym SepIL.AllWords.allWords_eq)).
+      unfold SepIL.hpropB, SepIL.ST.hprop in *.
+      unfold mem, W, SepIL.ST.HT.smem in *.
+      unfold SepIL.BedrockHeap.all_addr in *.
+      revert Mem. revert x. revert se.
+      generalize dependent (SepIL.AllWords.allWords 32).
+      intros. revert H1. generalize dependent x.
+      revert se. rewrite <- e.
+      unfold SepIL.allWords_def.
+      unfold SepIL.memoryIn_def. clear.
+      generalize (pow2 32).
+      unfold SepIL.memoryInUpto, SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc in *.
+      admit.
+*)
+  Admitted.
+
+  Lemma symeval_read_word_correct : forall hyps pe ve s,
+    symeval_read_word hyps pe s = Some ve ->
+    forall cs stn uvars vars st,
+      AllProvable funcs uvars vars hyps ->
+      PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) (stn, st)) ->
+      match exprD funcs uvars vars pe pcT , exprD funcs uvars vars ve pcT with
+        | Some p , Some v =>
+          mem_get_word _ _  footprint_w SepIL.BedrockHeap.mem_get (IL.implode stn) p (Mem st) = Some v
+        | _ , _ => False
+      end.
+  Proof.
+    intros. eapply symeval_read_word_correct' with (cs := cs) (stn := stn) (m := Mem st) in H; eauto.
+    eapply satisfies_defn; auto.
+  Qed.
+     
+  Theorem symeval_write_word_correct : forall hyps pe ve s s',
+    symeval_write_word hyps pe ve s = Some s' ->
+    forall cs stn uvars vars st v,
+      AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars ve pcT = Some v ->
+      PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) (stn, st)) ->
+      match exprD funcs uvars vars pe pcT with
+        | Some p =>
+          match mem_set_word _ _ footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v (Mem st) with
+            | Some m' => 
+              PropX.interp cs 
+                (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) 
+                (stn, {| Regs := Regs st ; Mem := m' |}))
+            | None => False
+          end
+        | _ => False
+      end.
+  Proof.
+    intros. eapply symeval_write_word_correct' with (cs := cs) (stn := stn) (m := Mem st) in H; eauto.
+    2: eapply satisfies_defn; eauto.
+    destruct (exprD funcs uvars vars pe pcT); intuition. destruct H.
+    intuition. rewrite H3.
+    eapply satisfies_defn; eauto.
+  Qed.
+
+  (** Symbolic State **)
+  Record SymState : Type :=
+  { SymMem  : SEP.SHeap types pcT stT
+  ; SymRegs : SymRegType
+  }.
+
+  (** This has to be connected to the type of the intermediate representation **)
+  Definition tvWord := tvType 0.
+
+  Definition sym_evalLoc (lv : sym_loc) (ss : SymState) : expr types :=
+    match lv with
+      | SymReg r => sym_getReg r (SymRegs ss)
+      | SymImm l => l
+      | SymIndir r w => fPlus (sym_getReg r (SymRegs ss)) w
+    end.
+
+  Definition sym_evalLval (lv : sym_lvalue) (val : expr types) (ss : SymState) : option SymState :=
+    match lv with
+        | SymLvReg r =>
+          Some {| SymMem := SymMem ss ; SymRegs := sym_setReg r val (SymRegs ss) |}
+        | SymLvMem l => 
+          let l := sym_evalLoc l ss in
+          match symeval_write_word (pures (SymMem ss)) l val (SymMem ss) with
+            | Some m =>
+              Some {| SymMem := m ; SymRegs := SymRegs ss |}
+            | None => None
+          end
+    end.
+
+  Definition sym_evalRval (rv : sym_rvalue) (ss : SymState) : option (expr types) :=
+    match rv with
+      | SymRvLval (SymLvReg r) =>
+        Some (sym_getReg r (SymRegs ss))
+      | SymRvLval (SymLvMem l) =>
+        let l := sym_evalLoc l ss in
+        symeval_read_word (pures (SymMem ss)) l (SymMem ss)
+      | SymRvImm w => Some w 
+      | SymRvLabel l => None (* Labels stn l *)
+    end.
+
+  Definition sym_evalInstr (i : sym_instr) (ss : SymState) : option SymState :=
+    match i with 
+      | SymAssign lv rv =>
+        match sym_evalRval rv ss with
+          | None => None
+          | Some rv => sym_evalLval lv rv ss
+        end
+      | SymBinop lv l o r =>
+        match sym_evalRval l ss , sym_evalRval r ss with
+          | Some l , Some r => 
+            let v :=
+              match o with
+                | Plus  => fPlus
+                | Minus => fMinus
+                | Times => fTimes                  
+              end l r
+            in
+            sym_evalLval lv v ss
+          | _ , _ => None
+        end
+    end.
+
+  Fixpoint sym_evalInstrs (is : list sym_instr) (ss : SymState) : option SymState :=
+    match is with
+      | nil => Some ss
+      | i :: is => match sym_evalInstr i ss with
+                     | None => None
+                     | Some ss => sym_evalInstrs is ss
+                   end
+    end.
+
+  Variable resolveCond : forall (hyps : list (expr types)) (l : expr types) (tst : test) (r : expr types), option bool.
+
+  Fixpoint sym_evalJmp (j : sym_jmp) (ss : SymState) : option (SymState * list (list (expr types) * expr types)) :=
+    match j with
+      | SymUncond rv => match sym_evalRval rv ss with
+                          | None => None
+                          | Some v => Some (ss, (nil, v) :: nil)
+                        end
+      | SymCond rvl tst rvr l1 l2 =>
+        match sym_evalRval rvl ss , sym_evalRval rvr ss with
+          | Some l, Some r =>
+            match resolveCond (pures (SymMem ss)) l tst r with
+              | Some true => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
+              | Some false => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
+              | None => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
+            end
+          | _ , _ => None
+        end
+    end.
+
+  Hypothesis fPlus_correct : forall l r uvars vars, 
+    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+      | Some lv , Some rv =>
+        exprD funcs uvars vars (fPlus l r) tvWord = Some (wplus lv rv)
+      | _ , _ => False
+    end.
+  Hypothesis fMinus_correct : forall l r uvars vars, 
+    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+      | Some lv , Some rv =>
+        exprD funcs uvars vars (fMinus l r) tvWord = Some (wminus lv rv)
+      | _ , _ => False
+    end.
+  Hypothesis fTimes_correct : forall l r uvars vars, 
+    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+      | Some lv , Some rv =>
+        exprD funcs uvars vars (fTimes l r) tvWord = Some (wmult lv rv)
+      | _ , _ => False
+    end.
+
+  (* Denotation functions *)
+  Section sym_denote.
+    Variable uvars vars : env types.
+
+    Definition sym_regsD (rs : SymRegType) : option regs :=
+      match rs with
+        | (sp, rp, rv) =>
+          match 
+            exprD funcs uvars vars sp tvWord ,
+            exprD funcs uvars vars rp tvWord ,
+            exprD funcs uvars vars rv tvWord 
+            with
+            | Some sp , Some rp , Some rv =>
+                Some (fun r => 
+                  match r with
+                    | Sp => sp
+                    | Rp => rp
+                    | Rv => rv
+                  end)
+            | _ , _ , _ => None
+          end
+      end.    
+
+    Definition sym_locD (s : sym_loc) : option loc :=
+      match s with
+        | SymReg r => Some (Reg r)
+        | SymImm e =>
+          match exprD funcs uvars vars e tvWord with
+            | Some e => Some (Imm e)
+            | None => None
+          end
+        | SymIndir r o =>
+          match exprD funcs uvars vars o tvWord with
+            | Some o => Some (Indir r o)
+            | None => None
+          end
+      end.
+
+    Definition sym_lvalueD (s : sym_lvalue) : option lvalue :=
+      match s with
+        | SymLvReg r => Some (LvReg r)
+        | SymLvMem l => match sym_locD l with
+                          | Some l => Some (LvMem l)
+                          | None => None
+                        end
+      end.
+
+    Definition sym_rvalueD (r : sym_rvalue) : option rvalue :=
+      match r with
+        | SymRvLval l => match sym_lvalueD l with
+                           | Some l => Some (RvLval l)
+                           | None => None
+                         end
+        | SymRvImm e => match exprD funcs uvars vars e tvWord with
+                          | Some l => Some (RvImm l)
+                          | None => None
+                        end
+        | SymRvLabel l => Some (RvLabel l)
+      end.
+
+    Definition sym_instrD (i : sym_instr) : option instr :=
+      match i with
+        | SymAssign l r =>
+          match sym_lvalueD l , sym_rvalueD r with
+            | Some l , Some r => Some (Assign l r)
+            | _ , _ => None
+          end
+        | SymBinop lhs l o r =>
+          match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
+            | Some lhs , Some l , Some r => Some (Binop lhs l o r)
+            | _ , _ , _ => None
+          end
+      end.
+
+    Fixpoint sym_instrsD (is : list sym_instr) : option (list instr) :=
+      match is with
+        | nil => Some nil
+        | i :: is => 
+          match sym_instrD i , sym_instrsD is with
+            | Some i , Some is => Some (i :: is)
+            | _ , _ => None
+          end
+      end.
+
+    Definition regsD (r : regs) (sr : SymRegType) : Prop :=
+      let '(sp, rp, rv) := sr in
+         exprD funcs uvars vars sp tvWord = Some (r Sp)
+      /\ exprD funcs uvars vars rp tvWord = Some (r Rp)
+      /\ exprD funcs uvars vars rv tvWord = Some (r Rv).
+
+    Require Import PropX.
+
+    Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState) : Prop :=
+      PropX.interp cs 
+        ([| regsD (Regs s) (SymRegs ss) |] /\ 
+         SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD (SymMem ss))) (stn, s))%PropX.
+
+  End sym_denote.
+
+  Ltac sound_simp :=
+    repeat match goal with 
+             | [ H : match ?X with
+                       | (_, _) => _
+                     end |- _ ] =>
+             destruct X
+             | [ H : match ?X with
+                       | Some _ => _
+                       | None => _
+                     end |- _ ] =>
+             generalize dependent H; case_eq X; intros; try congruence; simpl in *
+             | [ H : match ?X with
+                       | Some _ => _
+                       | None => _
+                     end = _ |- _ ] =>
+             generalize dependent H; case_eq X; intros; try congruence; simpl in *
+             | [ H : match ?X with
+                       | SymLvReg _ => _
+                       | SymLvMem _ => _
+                     end = _ |- _ ] =>
+             generalize dependent H; case_eq X; intros; try congruence; simpl in *
+             | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst; simpl in *
+             | [ |- exists x, _ /\ Some _ = Some x ] =>
+               eexists; split; [ | reflexivity ]
+           end; simpl.
+
+  Lemma sym_getReg_sound : forall stn specs uvars vars r ss s,
+    stateD uvars vars specs stn s ss ->
+    exprD funcs uvars vars (sym_getReg r (SymRegs ss)) tvWord = Some (Regs s r).
+  Proof.
+    destruct ss; simpl in *; intros.
+    unfold stateD, regsD in *.
+    PropXTac.propxFo.
+    sound_simp. intuition. destruct r; simpl.
+    rewrite H; auto.
+    rewrite H0; auto.
+    rewrite H3; auto.
+  Qed.
+
+  Lemma sym_loc_sound : forall uvars vars l lD,
+    sym_locD uvars vars l = Some lD ->
+    forall specs stn s ss, 
+      stateD uvars vars specs stn s ss ->
+      forall a,
+        sym_evalLoc l ss = a ->
+        exprD funcs uvars vars a tvWord = Some (evalLoc s lD).
+  Proof.
+    destruct l; intros; subst; simpl in *; sound_simp; eauto.
+    erewrite sym_getReg_sound by eauto. reflexivity.
+    generalize (fPlus_correct (sym_getReg r (SymRegs ss)) e uvars vars).
+    rewrite H.
+    erewrite sym_getReg_sound by eauto. auto.
+  Qed.    
+
+  Lemma pures_implied : forall uvars vars0 specs stn s0 ss,
+    PropX.interp specs
+    (SepIL.SepFormula.sepFormula
+      (SEP.sexprD funcs sfuncs uvars vars0 (SEP.sheapD (SymMem ss)))
+      (stn, s0)) ->
+    AllProvable funcs uvars vars0 (pures (SymMem ss)).
+  Proof.
+    intros.
+    rewrite SepIL.SepFormula.sepFormula_eq in *.
+    unfold SepIL.sepFormula_def in *. simpl in *.
+    generalize SEP.sheapD_pures.
+    unfold SepIL.ST.satisfies.
+    intro. eapply (@H0 _ funcs _ _ sfuncs stn (SepIL.memoryIn (Mem s0)) specs
+    uvars vars0).
+    PropXTac.propxFo.
+  Qed.
+  
+  Local Hint Resolve pures_implied.
+     
+  Lemma stateD_pures : forall uvars vars0 specs stn s0 ss,
+    stateD uvars vars0 specs stn s0 ss ->
+    AllProvable funcs uvars vars0 (pures (SymMem ss)).
+  Proof.
+    intros. unfold stateD in *.
+    PropXTac.propxFo. eauto.
+  Qed.
+
+  Local Hint Resolve stateD_pures.
+
+  Lemma sym_lvalue_sound : forall uvars vars0 l lD,
+    sym_lvalueD uvars vars0 l = Some lD ->
+    forall specs stn s ss, 
+      stateD uvars vars0 specs stn s ss ->
+      forall a aD ss',
+        exprD funcs uvars vars0 a tvWord = Some aD ->
+        sym_evalLval l a ss = Some ss' ->
+        exists s' , 
+          evalLvalue stn s lD aD = Some s'
+          /\ stateD uvars vars0 specs stn s' ss'.
+  Proof.
+    destruct l; simpl; intros; try congruence.
+    inversion H; clear H; subst.
+    inversion H2; clear H2; subst.
+    simpl; eexists; split; [ reflexivity | ].
+    unfold stateD, regsD in *. PropXTac.propxFo.
+    destruct (SymRegs ss). destruct p.
+    destruct r; simpl in *; intuition.
+    rewrite SepIL.SepFormula.sepFormula_eq in *.
+    unfold SepIL.sepFormula_def in *. simpl in *. auto.
+    
+    repeat match goal with
+             | [ H : match ?X with 
+                       | Some _ => _
+                       | None => _
+                     end = Some _ |- _ ] => 
+               revert H; case_eq X; intros; try congruence
+             | [ H : Some _ = Some _ |- _ ] => 
+               inversion H; clear H; subst
+           end.
+    eapply sym_loc_sound in H; eauto.    
+    unfold stateD in H0. PropXTac.propxFo.
+    eapply symeval_write_word_correct in H2; eauto;
+      unfold stateD in *; PropXTac.propxFo.
+
+    Focus.
+    unfold pcT, tvWord in *. rewrite H in H2.
+    sound_simp. unfold WriteWord, SepIL.BedrockHeap.mem_set in *.
+    rewrite H0. eexists; split; eauto.
+    unfold stateD. 
+    rewrite SepIL.SepFormula.sepFormula_eq in *. simpl in *.
+    PropXTac.propxFo. intuition.
+  Qed.
+
+  Lemma sym_rvalue_sound : forall uvars vars0 r rD,
+    sym_rvalueD uvars vars0 r = Some rD ->
+    forall specs stn s ss, 
+      stateD uvars vars0 specs stn s ss ->
+      forall rv,
+        sym_evalRval r ss = Some rv ->
+        exists rvD ,
+          exprD funcs uvars vars0 rv tvWord = Some rvD /\
+          evalRvalue stn s rD = Some rvD.
+  Proof.
+    destruct r; simpl; intros.
+      sound_simp. erewrite sym_getReg_sound; eauto.
+      
+      Focus.
+      eapply symeval_read_word_correct with (vars := vars0) (uvars := uvars) 
+        (cs := specs) (stn := stn) (st := s0) in H3; eauto.
+        erewrite sym_loc_sound in H3 by eauto.
+        unfold ReadWord, SepIL.BedrockHeap.mem_get in *.
+        unfold pcT, tvWord in *.
+        destruct (exprD funcs uvars vars0 rv (tvType 0)); intuition.
+        eexists; intuition eauto.
+        unfold stateD in *. PropXTac.propxFo.
+
+      Focus.
+      sound_simp; auto.
+
+      Focus.
+      congruence.
+  Qed.
+
+  Lemma sym_binops : forall uvars vars0 b e e0 x x0,
+    exprD funcs uvars vars0 e tvWord = Some x ->
+    exprD funcs uvars vars0 e0 tvWord = Some x0 ->
+    exprD funcs uvars vars0
+    (match b with
+       | Plus => fPlus
+       | Minus => fMinus
+       | Times => fTimes
+     end e e0) tvWord = Some (evalBinop b x x0).
+  Proof.
+    destruct b; simpl; intros.
+      generalize (fPlus_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
+      generalize (fMinus_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
+      generalize (fTimes_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
+  Qed.
+    
+  Theorem sym_evalInstr_sound : forall i iD uvars vars, 
+    sym_instrD uvars vars i = Some iD ->
+    forall stn ss ss',
+    sym_evalInstr i ss = Some ss' ->
+    forall specs s,
+    stateD uvars vars specs stn s ss ->
+    exists s',
+    evalInstr stn s iD = Some s' /\ stateD uvars vars specs stn s' ss'.
+  Proof.
+    destruct i; simpl; intros iD uvars vars0.
+
+      intros; sound_simp; try congruence.
+      eapply sym_rvalue_sound in H3; eauto.
+      destruct H3. intuition.
+      eapply sym_lvalue_sound in H2; eauto.
+      destruct H2; intuition.
+      rewrite H5. eauto.
+
+      intros; sound_simp; try congruence.
+      eapply sym_rvalue_sound in H0; eauto.
+      eapply sym_rvalue_sound in H2; eauto.
+      destruct H0; destruct H2; intuition.
+      rewrite H7. rewrite H8.
+      
+      eapply sym_lvalue_sound in H3; eauto.
+      eapply sym_binops; eauto.
+  Qed.
+
+  Theorem sym_evalInstrs_sound : forall i iD uvars vars, 
+    sym_instrsD uvars vars i = Some iD ->
+    forall stn ss ss',
+    sym_evalInstrs i ss = Some ss' ->
+    forall specs s,
+    stateD uvars vars specs stn s ss ->
+    exists s',
+    evalInstrs stn s iD = Some s' /\ stateD uvars vars specs stn s' ss'.
+  Proof.
+    induction i; simpl; intros.
+      inversion H0; clear H0; inversion H; clear H; subst; simpl. eauto.
+
+      sound_simp.
+      eapply sym_evalInstr_sound in H; eauto.
+      destruct H; intuition.
+      rewrite H4.
+      eauto.
+  Qed.
+
+End BedrockEvaluator.
+
+(*
+(* TODO: I want this to be a modularization of the plugin proofs *)
 Module Type PluginFacts (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Parameter Val : Type.
 
@@ -675,602 +1447,6 @@ Module PluginFacts_Word <: PluginFacts SepIL.BedrockHeap SepIL.ST.
   
 End PluginFacts_Word.
 *)
-
-(** This is specialized to bedrock **)
-Require SepIL.
-
-Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST).
-  Require Import IL SepTac.
-
-  Module SEP := PLUGIN.SEP.
-
-  Variable types' : list type.
-  Definition types := bedrock_types ++ types'.
-  Definition pcT := tvType 0.
-  Definition stT := tvType 1.
-
-  (** These the reflected version of the IL, it essentially 
-   ** replaces all uses of W with expr types so that the value
-   ** can be inspected.
-   ** TODO: Is it better to parameterize the initial definition in
-   **       IL.v by the type of values?
-   **)
-  Inductive sym_loc :=
-  | SymReg : reg -> sym_loc
-  | SymImm : expr types -> sym_loc
-  | SymIndir : reg -> expr types -> sym_loc.
-
-  (* Valid targets of assignments *)
-  Inductive sym_lvalue :=
-  | SymLvReg : reg -> sym_lvalue
-  | SymLvMem : sym_loc -> sym_lvalue.
-  
-  (* Operands *)
-  Inductive sym_rvalue :=
-  | SymRvLval : sym_lvalue -> sym_rvalue
-  | SymRvImm : expr types -> sym_rvalue
-  | SymRvLabel : label -> sym_rvalue.
-
-  (* Non-control-flow instructions *)
-  Inductive sym_instr :=
-  | SymAssign : sym_lvalue -> sym_rvalue -> sym_instr
-  | SymBinop : sym_lvalue -> sym_rvalue -> binop -> sym_rvalue -> sym_instr.
-
-  Inductive sym_jmp :=
-    SymUncond : sym_rvalue -> sym_jmp
-  | SymCond : sym_rvalue -> test -> sym_rvalue -> label -> label -> sym_jmp.
-  
-  (** Symbolic registers **)
-  Definition SymRegType : Type :=
-    (expr types * expr types * expr types)%type.
-
-  Definition sym_getReg (r : reg) (sr : SymRegType) : expr types :=
-    match r with
-      | Sp => fst (fst sr)
-      | Rp => snd (fst sr)
-      | Rv => snd sr
-    end.
-
-  Definition sym_setReg (r : reg) (v : expr types) (sr : SymRegType) : SymRegType :=
-    match r with
-      | Sp => (v, snd (fst sr), snd sr)
-      | Rp => (fst (fst sr), v, snd sr)
-      | Rv => (fst sr, v)
-    end.
-
-  Variable funcs : functions types.
-  Variable fPlus fMinus fTimes : expr types -> expr types -> expr types.
-  Variable sfuncs : list (SEP.ssignature types pcT stT).
-
-  Variable known : list nat.
-  Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
-  Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
-
-  Variable word_evals : hlist (fun n : nat => match nth_error sfuncs n with
-                                                | None => Empty_set 
-                                                | Some ss => @PLUGIN.SymEval types stT pcT pcT pcT smem_read smem_write funcs ss
-                                              end) known.
-
-  Definition symeval_read_word (hyps : list (expr types)) (p : expr types) 
-    (s : SEP.SHeap types pcT stT)
-    : option (expr types) :=
-    let hyps := hyps ++ pures s in
-    let reader ss seb args :=
-      PLUGIN.sym_read seb hyps args p
-    in
-    fold_known _ _ reader (impures s) word_evals.
-
-  Definition symeval_write_word (hyps : list (expr types)) (p v : expr types) 
-    (s : SEP.SHeap types pcT stT)
-    : option (SEP.SHeap types pcT stT) :=
-    let hyps := hyps ++ pures s in
-    let writer _ seb args := 
-      PLUGIN.sym_write seb hyps args p v
-    in
-    match fold_known_update _ _ writer (impures s) word_evals with
-      | None => None
-      | Some i' => Some {| impures := i' ; pures := pures s ; other := other s |}
-    end.
-
-  Lemma symeval_write_word_correct' : forall hyps pe ve s s',
-    symeval_write_word hyps pe ve s = Some s' ->
-    forall cs stn uvars vars m v,
-      AllProvable funcs uvars vars hyps ->
-      exprD funcs uvars vars ve pcT = Some v ->
-      (exists sm, 
-           SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) stn sm
-        /\ SepIL.ST.HT.satisfies sm m) ->
-      match exprD funcs uvars vars pe pcT with
-        | Some p =>
-          exists m', 
-                mem_set_word _ _  footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v m = Some m'
-            /\ exists sm,
-               SepIL.ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) stn sm
-            /\ SepIL.ST.HT.satisfies sm m'
-        | _ => False
-      end.
-  Proof.
-    unfold symeval_write_word. intros.
-    generalize dependent H.
-    match goal with
-      | [ |- context [ fold_known_update ?A ?B ?C ?D ?E ] ] =>
-        case_eq (fold_known_update A B C D E); intros; try congruence
-    end.
-    eapply fold_known_update_correct in H.
-    do 5 destruct H. destruct H2.
-    intuition. inversion H3; clear H3; subst. 
-        
-    eapply fold_args_update_correct in H6.
-    repeat match goal with
-             | [ H : exists x, _ |- _ ] => destruct H
-           end. intuition; subst.
-    generalize (SEP.sheapD_pures _ _ _ _ _ H4).
-    rewrite SEP.sheapD_pull_impure in H4 by eauto.
-    rewrite SEP.starred_In in H4.
-    rewrite <- SEP.heq_star_assoc in H4. rewrite SEP.heq_star_comm in H4.
-        
-    simpl in *. rewrite H2 in *.
-    intros.
-
-    eapply SepIL.ST.satisfies_star in H4. do 2 destruct H4. intuition.
-
-    eapply PLUGIN.sym_write_correct with (stn := stn) (cs := cs) (m := x2)
-      in H3; eauto.
-
-    2: apply AllProvable_app; eauto.
-    2: simpl in *;
-    match goal with
-      | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-        destruct (applyD A B C D E); try solve [ intros; intuition | eapply SepIL.ST.satisfies_pure in H4; PropXTac.propxFo ]
-    end.
-
-    destruct (exprD funcs uvars vars pe pcT); eauto.
-
-    repeat match goal with
-             | [ H : context [ match applyD ?A ?B ?C ?D ?E with
-                                 | Some _ => _
-                                 | None => _ 
-                               end ] |- _ ] =>
-               generalize dependent H; case_eq (applyD A B C D E); intros; intuition
-             | [ H : SepIL.ST.satisfies _ (SepIL.ST.inj _) _ _ |- _ ] =>
-               eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
-           end.
-    generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
-
-    unfold smem_write in H8.
-    eapply SepIL.ST.HT.satisfies_set_word in H8; eauto.
-
-
-(*
-    exists (SepIL.ST.HT.join s0 x3).
-    intuition.
-
-    rewrite SEP.sheapD_pull_impure by eapply FM.find_add.
-    simpl. rewrite FM.remove_add.
-    eapply SepIL.ST.satisfies_star. do 2 eexists. split.
-
-    unfold tvarD in H4.
-
-    generalize dependent H3.
-    case_eq (SepIL.ST.HT.smem_set_word (IL.explode stn) a v x2); [ intros |
-      match goal with 
-        | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-          destruct (applyD A B C D E); intros; exfalso; assumption
-      end ].
-        
-        exists (ST.HT.join s0 x3).
-        rewrite sheapD_pull_impure by eapply FM.find_add.
-        simpl. rewrite FM.remove_add.
-        rewrite starred_In.
-        simpl. rewrite H2. generalize dependent H8. 
-        rewrite <- ST.heq_star_assoc. rewrite ST.heq_star_comm. 
-        match goal with
-          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            destruct (applyD A B C D E); try solve [ intros; intuition ]
-        end. 
-        generalize dependent H9.
-        match goal with
-          | [ |- ST.satisfies _ ?Y _ _ -> _ -> ST.satisfies _ (ST.star _ ?X) _ _ /\ _ ] => 
-            change X with Y; generalize dependent Y
-        end.
-        intros.
-
-        generalize (ST.HT.split_set_word _ _ (proj1 H7) _ _ _ _ H3).
-        split.
-        eapply ST.satisfies_star. do 2 eexists. split; eauto. eapply ST.HT.disjoint_split_join; eauto. tauto.
-
-        eapply ST.HT.satisfies_set_word. eauto. destruct H7; subst. tauto.
-
-        unfold tvarD. generalize dependent H4.
-        match goal with
-          | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
-            destruct (applyD A B C D E); try solve [ intros; intuition ]
-        end. intros.
-        eapply ST.satisfies_pure in H4. PropXTac.propxFo.
-      Qed.
-*)
-  Admitted.
-
-  Lemma satisfies_defn : forall cs se stn st,
-    PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) <->
-    (exists sm, 
-         SepIL.ST.satisfies cs se stn sm
-      /\ SepIL.ST.HT.satisfies sm (Mem st)).
-  Proof.
-    rewrite SepIL.SepFormula.sepFormula_eq in *. unfold SepIL.sepFormula_def.
-    intros. destruct st; simpl. clear.
-    split; intros.
-    eexists; split; eauto.
-      admit.
-
-    destruct H. intuition.
-      unfold SepIL.ST.satisfies in *.
-      admit.
-  Qed.
-
-  Theorem symeval_write_word_correct : forall hyps pe ve s s',
-    symeval_write_word hyps pe ve s = Some s' ->
-    forall cs stn uvars vars st v,
-      AllProvable funcs uvars vars hyps ->
-      exprD funcs uvars vars ve pcT = Some v ->
-      PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) (stn, st)) ->
-      match exprD funcs uvars vars pe pcT with
-        | Some p =>
-          match mem_set_word _ _ footprint_w SepIL.BedrockHeap.mem_set (IL.explode stn) p v (Mem st) with
-            | Some m' => 
-              PropX.interp cs 
-                (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) 
-                (stn, {| Regs := Regs st ; Mem := m' |}))
-            | None => False
-          end
-        | _ => False
-      end.
-  Proof.
-    intros. eapply symeval_write_word_correct' with (cs := cs) (stn := stn) (m := Mem st) in H; eauto.
-    2: eapply satisfies_defn; eauto.
-    destruct (exprD funcs uvars vars pe pcT); intuition. destruct H.
-    intuition. rewrite H3.
-    eapply satisfies_defn; eauto.
-  Qed.
-
-  (** Symbolic State **)
-  Record SymState : Type :=
-  { SymFacts : list (expr types)
-  ; SymMem  : SEP.SHeap types pcT stT
-  ; SymRegs : SymRegType
-  }.
-
-  (** This has to be connected to the type of the intermediate representation **)
-  Definition tvWord := tvType 0.
-
-  Definition sym_evalLoc (lv : sym_loc) (ss : SymState) : expr types :=
-    match lv with
-      | SymReg r => sym_getReg r (SymRegs ss)
-      | SymImm l => l
-      | SymIndir r w => fPlus (sym_getReg r (SymRegs ss)) w
-    end.
-
-  Definition sym_evalLval (lv : sym_lvalue) (val : expr types) (ss : SymState) : option SymState :=
-    match lv with
-        | SymLvReg r =>
-          Some {| SymFacts := SymFacts ss ; SymMem := SymMem ss ; SymRegs := sym_setReg r val (SymRegs ss) |}
-        | SymLvMem l => 
-          let l := sym_evalLoc l ss in
-          match symeval_write_word (SymFacts ss) l val (SymMem ss) with
-            | Some m =>
-              Some {| SymFacts := SymFacts ss ; SymMem := m ; SymRegs := SymRegs ss |}
-            | None => None
-          end
-    end.
-
-  Definition sym_evalRval (rv : sym_rvalue) (ss : SymState) : option (expr types) :=
-    match rv with
-      | SymRvLval (SymLvReg r) =>
-        Some (sym_getReg r (SymRegs ss))
-      | SymRvLval (SymLvMem l) =>
-        let l := sym_evalLoc l ss in
-        symeval_read_word (SymFacts ss) l (SymMem ss)
-      | SymRvImm w => Some w 
-      | SymRvLabel l => None (* Labels stn l *)
-    end.
-
-  Definition sym_evalInstr (i : sym_instr) (ss : SymState) : option SymState :=
-    match i with 
-      | SymAssign lv rv =>
-        match sym_evalRval rv ss with
-          | None => None
-          | Some rv => sym_evalLval lv rv ss
-        end
-      | SymBinop lv l o r =>
-        match sym_evalRval l ss , sym_evalRval r ss with
-          | Some l , Some r => 
-            let v :=
-              match o with
-                | Plus  => fPlus
-                | Minus => fMinus
-                | Times => fTimes                  
-              end l r
-            in
-            sym_evalLval lv v ss
-          | _ , _ => None
-        end
-    end.
-
-  Fixpoint sym_evalInstrs (is : list sym_instr) (ss : SymState) : option SymState :=
-    match is with
-      | nil => Some ss
-      | i :: is => match sym_evalInstr i ss with
-                     | None => None
-                     | Some ss => sym_evalInstrs is ss
-                   end
-    end.
-
-  Variable resolveCond : forall (hyps : list (expr types)) (l : expr types) (tst : test) (r : expr types), option bool.
-
-  Fixpoint sym_evalJmp (j : sym_jmp) (ss : SymState) : option (SymState * list (list (expr types) * expr types)) :=
-    match j with
-      | SymUncond rv => match sym_evalRval rv ss with
-                          | None => None
-                          | Some v => Some (ss, (nil, v) :: nil)
-                        end
-      | SymCond rvl tst rvr l1 l2 =>
-        match sym_evalRval rvl ss , sym_evalRval rvr ss with
-          | Some l, Some r =>
-            match resolveCond (SymFacts ss) l tst r with
-              | Some true => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
-              | Some false => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
-              | None => None (* Some (ss, (nil, @Expr.Const types pcT l1)) *)
-            end
-          | _ , _ => None
-        end
-    end.
-
-  Hypothesis fPlus_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fPlus l r) tvWord = Some (wplus lv rv)
-      | _ , _ => False
-    end.
-  Hypothesis fMinus_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fMinus l r) tvWord = Some (wminus lv rv)
-      | _ , _ => False
-    end.
-  Hypothesis fTimes_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fTimes l r) tvWord = Some (wmult lv rv)
-      | _ , _ => False
-    end.
-
-  (* Denotation functions *)
-  Section sym_denote.
-    Variable uvars vars : env types.
-
-    Definition sym_regsD (rs : SymRegType) : option regs :=
-      match rs with
-        | (sp, rp, rv) =>
-          match 
-            exprD funcs uvars vars sp tvWord ,
-            exprD funcs uvars vars rp tvWord ,
-            exprD funcs uvars vars rv tvWord 
-            with
-            | Some sp , Some rp , Some rv =>
-                Some (fun r => 
-                  match r with
-                    | Sp => sp
-                    | Rp => rp
-                    | Rv => rv
-                  end)
-            | _ , _ , _ => None
-          end
-      end.    
-
-    Definition sym_locD (s : sym_loc) : option loc :=
-      match s with
-        | SymReg r => Some (Reg r)
-        | SymImm e =>
-          match exprD funcs uvars vars e tvWord with
-            | Some e => Some (Imm e)
-            | None => None
-          end
-        | SymIndir r o =>
-          match exprD funcs uvars vars o tvWord with
-            | Some o => Some (Indir r o)
-            | None => None
-          end
-      end.
-
-    Definition sym_lvalueD (s : sym_lvalue) : option lvalue :=
-      match s with
-        | SymLvReg r => Some (LvReg r)
-        | SymLvMem l => match sym_locD l with
-                          | Some l => Some (LvMem l)
-                          | None => None
-                        end
-      end.
-
-    Definition sym_rvalueD (r : sym_rvalue) : option rvalue :=
-      match r with
-        | SymRvLval l => match sym_lvalueD l with
-                           | Some l => Some (RvLval l)
-                           | None => None
-                         end
-        | SymRvImm e => match exprD funcs uvars vars e tvWord with
-                          | Some l => Some (RvImm l)
-                          | None => None
-                        end
-        | SymRvLabel l => Some (RvLabel l)
-      end.
-
-    Definition sym_instrD (i : sym_instr) : option instr :=
-      match i with
-        | SymAssign l r =>
-          match sym_lvalueD l , sym_rvalueD r with
-            | Some l , Some r => Some (Assign l r)
-            | _ , _ => None
-          end
-        | SymBinop lhs l o r =>
-          match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
-            | Some lhs , Some l , Some r => Some (Binop lhs l o r)
-            | _ , _ , _ => None
-          end
-      end.
-
-    Fixpoint sym_instrsD (is : list sym_instr) : option (list instr) :=
-      match is with
-        | nil => Some nil
-        | i :: is => 
-          match sym_instrD i , sym_instrsD is with
-            | Some i , Some is => Some (i :: is)
-            | _ , _ => None
-          end
-      end.
-
-    Definition regsD (r : regs) (sr : SymRegType) : Prop :=
-      let '(sp, rp, rv) := sr in
-         exprD funcs uvars vars sp tvWord = Some (r Sp)
-      /\ exprD funcs uvars vars rp tvWord = Some (r Rp)
-      /\ exprD funcs uvars vars rv tvWord = Some (r Rv).
-
-    Require Import PropX.
-
-    Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState) : Prop :=
-      PropX.interp cs ([| regsD (Regs s) (SymRegs ss) |] /\ 
-                       SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD (SymMem ss))) (stn, s))%PropX.
-
-  End sym_denote.
-
-  Ltac sound_simp :=
-    repeat match goal with 
-             | [ H : match ?X with
-                       | (_, _) => _
-                     end |- _ ] =>
-             destruct X
-             | [ H : match ?X with
-                       | Some _ => _
-                       | None => _
-                     end = _ |- _ ] =>
-             generalize dependent H; case_eq X; intros; try congruence; simpl in *
-             | [ H : match ?X with
-                       | SymLvReg _ => _
-                       | SymLvMem _ => _
-                     end = _ |- _ ] =>
-             generalize dependent H; case_eq X; intros; try congruence; simpl in *
-             | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst; simpl in *
-             | [ |- exists x, _ /\ Some _ = Some x ] =>
-               eexists; split; [ | reflexivity ]
-           end; simpl.
-
-  Lemma sym_lvalue_sound : forall uvars vars0 l lD,
-    sym_lvalueD uvars vars0 l = Some lD ->
-    forall specs stn s ss, 
-      stateD uvars vars0 specs stn s ss ->
-      forall a aD ss',
-        exprD funcs uvars vars0 a tvWord = Some aD ->
-        sym_evalLval l a ss = Some ss' ->
-        exists s' , 
-          evalLvalue stn s lD aD = Some s'
-          /\ stateD uvars vars0 specs stn s' ss'.
-  Proof.
-    destruct l; simpl; intros; try congruence.
-    inversion H; clear H; subst.
-    inversion H2; clear H2; subst.
-    simpl; eexists; split; [ reflexivity | ].
-    unfold stateD, regsD in *. PropXTac.propxFo.
-    destruct (SymRegs ss). destruct p.
-    destruct r; simpl in *; intuition.
-    rewrite SepIL.SepFormula.sepFormula_eq in *.
-    unfold SepIL.sepFormula_def in *. simpl in *. auto.
-  Admitted.
-
-
-  Lemma sym_rvalue_sound : forall uvars vars0 r rD,
-    sym_rvalueD uvars vars0 r = Some rD ->
-    forall specs stn s ss, 
-      stateD uvars vars0 specs stn s ss ->
-      forall rv,
-        sym_evalRval r ss = Some rv ->
-        exists rvD ,
-          exprD funcs uvars vars0 rv tvWord = Some rvD /\
-          evalRvalue stn s rD = Some rvD.
-  Proof.
-    destruct r; simpl; intros;
-      unfold stateD, regsD in *; PropXTac.propxFo; sound_simp; try congruence.
-      
-      sound_simp.
-      destruct r; intuition eauto.
-
-      sound_simp.
-      eauto.
-  Admitted.
-
-  Lemma sym_binops : forall uvars vars0 b e e0 x x0,
-    exprD funcs uvars vars0 e tvWord = Some x ->
-    exprD funcs uvars vars0 e0 tvWord = Some x0 ->
-    exprD funcs uvars vars0
-    (match b with
-       | Plus => fPlus
-       | Minus => fMinus
-       | Times => fTimes
-     end e e0) tvWord = Some (evalBinop b x x0).
-  Proof.
-    destruct b; simpl; intros.
-      generalize (fPlus_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
-      generalize (fMinus_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
-      generalize (fTimes_correct e e0 uvars vars0); rewrite H; rewrite H0; auto.
-  Qed.
-    
-  Theorem sym_evalInstr_sound : forall i iD uvars vars, 
-    sym_instrD uvars vars i = Some iD ->
-    forall stn ss ss',
-    sym_evalInstr i ss = Some ss' ->
-    forall specs s,
-    stateD uvars vars specs stn s ss ->
-    exists s',
-    evalInstr stn s iD = Some s' /\ stateD uvars vars specs stn s' ss'.
-  Proof.
-    destruct i; simpl; intros iD uvars vars0.
-
-      intros; sound_simp; try congruence.
-      eapply sym_rvalue_sound in H3; eauto.
-      destruct H3. intuition.
-      eapply sym_lvalue_sound in H2; eauto.
-      destruct H2; intuition.
-      rewrite H5. eauto.
-
-      intros; sound_simp; try congruence.
-      eapply sym_rvalue_sound in H0; eauto.
-      eapply sym_rvalue_sound in H2; eauto.
-      destruct H0; destruct H2; intuition.
-      rewrite H7. rewrite H8.
-      
-      eapply sym_lvalue_sound in H3; eauto.
-      eapply sym_binops; eauto.
-  Qed.
-
-  Theorem sym_evalInstrs_sound : forall i iD uvars vars, 
-    sym_instrsD uvars vars i = Some iD ->
-    forall stn ss ss',
-    sym_evalInstrs i ss = Some ss' ->
-    forall specs s,
-    stateD uvars vars specs stn s ss ->
-    exists s',
-    evalInstrs stn s iD = Some s' /\ stateD uvars vars specs stn s' ss'.
-  Proof.
-    induction i; simpl; intros.
-      inversion H0; clear H0; inversion H; clear H; subst; simpl. eauto.
-
-      sound_simp.
-      eapply sym_evalInstr_sound in H; eauto.
-      destruct H; intuition.
-      rewrite H4.
-      eauto.
-  Qed.
-
-End BedrockEvaluator.
-
 
 (*
 Module Evaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).

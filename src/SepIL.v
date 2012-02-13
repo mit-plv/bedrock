@@ -123,14 +123,9 @@ Module BedrockHeap.
 
   Definition mem := mem.
 
-  Definition mem_get (m : mem) (a : addr) := m a.
+  Definition mem_get := ReadByte.
 
-  Definition mem_set (m : mem) (p : addr) (v : B) : option mem := 
-    match m p with
-      | None => None
-      | Some _ =>
-        Some (fun p' => if weq p p' then Some v else m p')
-    end.
+  Definition mem_set := WriteByte.
 
   Definition mem_acc (m : mem) (a : addr) :=
     exists v, m a = Some v.
@@ -146,14 +141,14 @@ Module BedrockHeap.
     mem_acc m p ->
     forall v, exists m', mem_set m p v = Some m'.
   Proof.
-    destruct 1; unfold mem_set. rewrite H. eauto.
+    destruct 1; unfold mem_set. unfold WriteByte. rewrite H. eauto.
   Qed.
     
   Theorem mem_get_set_eq : forall m p v' m', 
     mem_set m p v' = Some m' ->
     mem_get m' p = Some v'.
   Proof.
-    unfold mem_set, mem_get. intros.
+    unfold mem_set, mem_get, ReadByte, WriteByte. intros.
     destruct (m p); try congruence.
     inversion H; clear H; subst.
     destruct (weq p p); auto. congruence.
@@ -164,10 +159,10 @@ Module BedrockHeap.
     mem_set m p' v' = Some m' ->
     mem_get m' p = mem_get m p.
   Proof.
-    unfold mem_set, mem_get; intros.
+    unfold mem_set, mem_get, ReadByte, WriteByte; intros.
     destruct (m p'); try congruence.
     inversion H0; clear H0; subst.
-    destruct (weq p' p); auto. congruence.
+    destruct (weq p p'); auto. congruence.
   Qed.
 
   (** mem writes don't modify permissions **)
@@ -175,7 +170,7 @@ Module BedrockHeap.
     mem_set m p v = Some m' ->
     (forall p, mem_acc m p -> mem_acc m' p).
   Proof.
-    unfold mem_set, mem_acc; intros.
+    unfold mem_set, mem_acc, ReadByte, WriteByte; intros.
     generalize dependent H.
     case_eq (weq p p0); intros; subst.
     destruct (m p0); try congruence.
@@ -183,7 +178,8 @@ Module BedrockHeap.
     rewrite H. eauto.
 
     destruct (m p); try congruence.
-    inversion H1; subst. rewrite H. eauto.
+    inversion H1; subst. 
+    destruct (weq p0 p); eauto.
   Qed.
 
   Definition footprint_w (p : addr) : addr * addr * addr * addr :=

@@ -276,22 +276,22 @@ Record settings := {
   (* Locations of basic blocks *)
 }.
 
-Definition ReadByte (_ : settings) (m : mem) (a : W) : option B :=
+Definition ReadByte (m : mem) (a : W) : option B :=
   m a.
 
 Definition footprint_w (a : W) := (a, a ^+ $1, a ^+ $2, a ^+ $3).
 
 Definition ReadWord (s : settings) (m : mem) (a : W) : option W :=
-  mem_get_word W mem footprint_w (ReadByte s) (implode s) a m.
+  mem_get_word W mem footprint_w ReadByte (implode s) a m.
 
-Definition WriteByte (_ : settings) (m : mem) (p : W) (v : B) : option mem :=
+Definition WriteByte (m : mem) (p : W) (v : B) : option mem :=
   match m p with
     | None => None
     | Some _ => Some (fun p' => if weq p' p then Some v else m p')
   end.
 
 Definition WriteWord (s : settings) (m : mem) (p v : W) : option mem :=
-  mem_set_word W mem footprint_w (WriteByte s) (explode s) p v m.
+  mem_set_word W mem footprint_w WriteByte (explode s) p v m.
 
 Ltac W_eq := wprepare; word_eq.
 Ltac W_neq := (apply const_separated; word_neq) || (wprepare; word_neq).
