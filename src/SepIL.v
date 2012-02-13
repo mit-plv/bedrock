@@ -526,8 +526,11 @@ Theorem findPtsto8_read : forall specs p st,
   interp specs (sepFormula p st)
   -> forall a v, findPtsto8 p a v
     -> Mem (snd st) a = Some v.
+Proof.
   rewrite sepFormula_eq; intros.
   apply H0 in H.
+  eapply satisfies_get in H; eauto.
+  destruct st; destruct s0; simpl in *.
 (*  eapply smem_get_read; eauto. *)
 Admitted.
 

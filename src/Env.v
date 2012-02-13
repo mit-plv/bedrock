@@ -144,6 +144,69 @@ Section UpdatePosition2.
   Qed.
 End UpdatePosition2.
 
+(** Specializations for exprD **)
+Section UpdateAt_exprD.
+  Require Import Expr.
+  
+  Variable types' : list type.
+
+(*
+   TODO: This produces a universe inconsistency...
+  Section repr.
+    Variable deltaT : list (nat * type).
+    Variable funcs : functions (repr deltaT types').
+    Variable uvars vars : env (repr deltaT types').
+
+    Definition exprD_repr (e : expr (repr deltaT types')) idx
+      : option match match get idx deltaT with
+                       | Some v => Some v
+                       | None => match nth_error types' idx with
+                                   | Some v => Some v 
+                                   | None => defaulted_repr deltaT idx 
+                                 end
+                     end
+                 with
+                 | None => Empty_set
+                 | Some v => Impl v
+               end :=
+      let res := exprD funcs uvars vars e (tvType idx) in
+      match res with
+        | None => None
+        | Some res =>
+          Some (@cast_repr _ (fun x => match x with
+                                         | Some t => Impl t 
+                                         | None => Empty_set
+                                       end) deltaT types' idx res)
+      end.
+  End repr.
+*)
+
+  Section updateAt.
+    Variable idx : nat.
+    Variable t : type.
+    Variable funcs : functions (updateAt t types' idx).
+    Variable uvars vars : env (updateAt t types' idx).
+
+    Definition exprD_update (e : expr (updateAt t types' idx))
+      : option (Impl t) :=
+      let res := exprD funcs uvars vars e (tvType idx) in
+      match res with
+        | None => None
+        | Some res => Some (@cast type t (fun x => match x with
+                                                     | Some t => Impl t
+                                                     | None => Empty_set
+                                                   end) types' idx res)
+      end.
+  End updateAt.
+
+End UpdateAt_exprD.
+
+(*
+Set Printing Universes.
+Print Universes.
+*)
+
+
 (*
 Section MapRepr.
   Variable T : Type.
@@ -335,64 +398,3 @@ Section MapRepr.
 End MapRepr.
 *)
 
-(** Specializations for exprD **)
-Section UpdateAt_exprD.
-  Require Import Expr.
-  
-  Variable types' : list type.
-
-(*
-   TODO: This produces a universe inconsistency...
-  Section repr.
-    Variable deltaT : list (nat * type).
-    Variable funcs : functions (repr deltaT types').
-    Variable uvars vars : env (repr deltaT types').
-
-    Definition exprD_repr (e : expr (repr deltaT types')) idx
-      : option match match get idx deltaT with
-                       | Some v => Some v
-                       | None => match nth_error types' idx with
-                                   | Some v => Some v 
-                                   | None => defaulted_repr deltaT idx 
-                                 end
-                     end
-                 with
-                 | None => Empty_set
-                 | Some v => Impl v
-               end :=
-      let res := exprD funcs uvars vars e (tvType idx) in
-      match res with
-        | None => None
-        | Some res =>
-          Some (@cast_repr _ (fun x => match x with
-                                         | Some t => Impl t 
-                                         | None => Empty_set
-                                       end) deltaT types' idx res)
-      end.
-  End repr.
-*)
-
-  Section updateAt.
-    Variable idx : nat.
-    Variable t : type.
-    Variable funcs : functions (updateAt t types' idx).
-    Variable uvars vars : env (updateAt t types' idx).
-
-    Definition exprD_update (e : expr (updateAt t types' idx))
-      : option (Impl t) :=
-      let res := exprD funcs uvars vars e (tvType idx) in
-      match res with
-        | None => None
-        | Some res => Some (@cast type t (fun x => match x with
-                                                     | Some t => Impl t
-                                                     | None => Empty_set
-                                                   end) types' idx res)
-      end.
-  End updateAt.
-
-End UpdateAt_exprD.
-
-(*
-Set Printing Universes.
-Print Universes.
-*)
