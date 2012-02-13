@@ -720,42 +720,38 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
     eapply SepIL.ST.satisfies_pure in H. PropXTac.propxFo.
   Qed.
 
+  Require Import EqdepClass. 
+
   Lemma satisfies_defn : forall cs se stn st,
     PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) <->
     (exists sm, 
          SepIL.ST.satisfies cs se stn sm
       /\ SepIL.ST.HT.satisfies sm (Mem st)).
   Proof.
-(*
     rewrite SepIL.SepFormula.sepFormula_eq in *. unfold SepIL.sepFormula_def.
     intros. destruct st; simpl. clear.
     split; intros.
+    Focus.
     eexists; split; eauto.
-      Focus.
-      clear.
       unfold SepIL.ST.HT.satisfies, SepIL.memoryIn.
       rewrite SepIL.AllWords.memoryIn_eq.
       generalize (SepIL.fcong (fun width : nat => list (word width)) 32
           (Logic.eq_sym SepIL.AllWords.allWords_eq)).
-      unfold SepIL.memoryIn_def.
-
-      unfold SepIL.fcong, f_equal, eq_trans, Logic.eq_sym.
-      unfold SepIL.BedrockHeap.all_addr.
-      unfold mem, W, SepIL.allWords_def in *.
-      generalize dependent Mem.
+      unfold SepIL.memoryIn_def, SepIL.BedrockHeap.all_addr, mem, W, SepIL.allWords_def in *.
       generalize dependent (SepIL.AllWords.allWords 32).
-      intros. generalize e. subst.
-      Require Import EqdepClass. uip_all.
+      intros. generalize e. rewrite <- e; clear e.
+      uip_all.
       clear. induction (pow2 32).
-        compute. trivial.
-        split.
-        unfold SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc.
-        destruct (Mem $ n); eauto.
+        compute; trivial.
 
-        eauto.
+        split;
+          unfold SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc, ReadByte.
+          destruct (Mem $ n); split; try eexists; reflexivity.
+
+          eassumption.
 
     Focus.
-
+(*
     destruct H. intuition.
       unfold SepIL.ST.satisfies in *.
       revert H0. revert H1.
@@ -774,9 +770,12 @@ Module BedrockEvaluator (PLUGIN : EvaluatorPluginType SepIL.BedrockHeap SepIL.ST
       unfold SepIL.memoryIn_def. clear.
       generalize (pow2 32).
       unfold SepIL.memoryInUpto, SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc in *.
-      admit.
+      (** TODO: how do I prove this? **)
 *)
-  Admitted.
+   (* the only way to prove this seems to be by parametricity..., this is problematic *)
+    admit.
+
+  Qed.
 
   Lemma symeval_read_word_correct : forall hyps pe ve s,
     symeval_read_word hyps pe s = Some ve ->
