@@ -339,12 +339,13 @@ Module HeapTheory (B : Heap).
   Proof.
     unfold smem_set_word, mem_set_word, smem_get_word; intros.
     simp intuition. destruct (e v); simp intuition.
-  (*    
-
-    repeat (eapply satisfies_set; [ | eassumption | eassumption ]).
+    repeat match goal with
+             | [ H : satisfies _ _ |- _ ] => 
+               eapply satisfies_set in H; eauto; destruct H as [ ? [ ? ? ] ]
+             | [ H : _ = _ |- _ ] => rewrite H
+           end.
     eauto.
-*)
-  Admitted.
+  Qed.
 
   Lemma smem_set_get_valid : forall m p v v',
     smem_get p m = Some v' ->
@@ -401,32 +402,6 @@ Module HeapTheory (B : Heap).
         eapply split_set in H; [ rewrite (proj2 H) | eauto ]
     end; tauto.
   Qed.
-
-  Theorem satisfies_split : forall m m',
-    satisfies m m' ->
-    forall m0 m1, 
-      split m m0 m1 ->
-      satisfies m0 m' /\ satisfies m1 m'.
-  Proof.
-    unfold satisfies, split, disjoint, join, smem.
-    induction all_addr. intros.
-    rewrite (hlist_nil_only _ m0) in *.
-    rewrite (hlist_nil_only _ m1) in *. simpl. auto.    
-    
-    intro. rewrite (hlist_eta _ m). do 4 intro.
-    rewrite (hlist_eta _ m0). rewrite (hlist_eta _ m1). simpl in *.
-    intros.
-    repeat match goal with
-             | [ H : _ /\ _ |- _ ] => destruct H
-             | [ H : HCons _ _ = HCons _ _ |- _ ] => inversion H; clear H
-           end.
-    specialize (IHl _ _ H3).
-    eapply EqdepClass.inj_pair2 in H6.
-    intros. specialize (IHl _ _ (conj H2 H6)).
-    destruct (hlist_hd m0); destruct (hlist_hd m1); eauto; 
-    intuition (try congruence);
-    rewrite H5 in *; eauto.
-  Admitted.
 
   Ltac unfold_all :=
     unfold smem, split, join, disjoint, smem_emp, semp; 

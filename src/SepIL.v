@@ -269,9 +269,6 @@ Definition Himp (p1 p2 : HProp) : Prop :=
 Notation "p1 ===> p2" := (Himp p1%Sep p2%Sep) (no associativity, at level 90).
 
 (** * The main injector of separation formulas into PropX *)
-
-Print memoryIn.
-
 Definition sepFormula_def sos (p : hpropB sos) (st : settings * state) : propX W (settings * state) sos :=
   p (fst st) (memoryIn (Mem (snd st))).
 
@@ -520,7 +517,7 @@ Lemma smem_get_read : forall stn a v m,
   unfold memoryIn_def, allWords_def in H.
   apply smem_get'_read with (MemHigh stn) (pow2 32); assumption.
 Qed.
-*)
+
 
 Theorem findPtsto8_read : forall specs p st,
   interp specs (sepFormula p st)
@@ -532,9 +529,9 @@ Proof.
   eapply satisfies_get in H; eauto.
   destruct st; destruct s0; simpl in *.
 (*  eapply smem_get_read; eauto. *)
-Admitted.
+Qed.
 
-(*
+
 (** Isolating a word points-to fact within a separation assertion *)
 
 Definition findPtsto32 (stn : settings) (h : hpropB nil) (a v : W) :=
