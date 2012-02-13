@@ -9,7 +9,8 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	SepExpr SepExprTests \
 	Provers \
 	Unfolder UnfolderTests \
-	Env SymEval \
+	Env \
+	SymEval sep/PtsTo sep/Array \
 	SepIL SepTac Bedrock
 VS         := $(MODULES:%=%.v)
 

@@ -1,10 +1,9 @@
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
-Require Import SepIL SepTac.
+Require Import Memory SepIL SepTac.
 
-Module BedrockEvaluator.
-  Module E := EvaluatorPlugin (BedrockHeap) (ST).
-  Module Import SEP := E.SEP.
+Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
+  Module Import SEP := P.SEP.
 
   Definition pcIndex : nat := 0.
   Definition stateIndex : nat := 1.
@@ -148,27 +147,16 @@ Module BedrockEvaluator.
     eapply smem_set_get_word_eq; eauto.
     eapply IL.implode_explode.
     eapply smem_set_get_valid_word; eauto.
-  Qed.
+  Qed.  
 
-  Print E.SymEval.
-  
-  
-
-  Definition SymEval_ptsto32 : @E.SymEval wtypes (tvType stateIndex) (tvType pcIndex) 
+  Definition SymEval_ptsto32 : @P.SymEval wtypes (tvType stateIndex) (tvType pcIndex) 
     (tvType ptrIndex) (tvType wordIndex)
     (fun stn => ST.HT.smem_get_word (IL.implode stn))
     (fun stn => ST.HT.smem_set_word (IL.explode stn))
     funcs ptsto32_ssig.
-  eapply E.Build_SymEval.
+  eapply P.Build_SymEval.
   eapply sym_read_ptsto32_correct.
   eapply sym_write_word_ptsto32_correct.
   Defined.  
 
-(*    {| E.sym_read_word := sym_read_word_ptsto32 : list (expr (E.wtypes wtypes ptrIndex wordIndex)) -> _
-     ; E.sym_write_word := sym_write_word_ptsto32 
-     ; E.sym_read_word_correct := sym_read_word_ptsto32_correct
-     ; E.sym_write_word_correct := sym_write_word_ptsto32_correct
-     |}.
-*)
-
-End BedrockEvaluator.
+End BedrockPtsToEvaluator.
