@@ -826,7 +826,12 @@ Section TransitivityProver.
     provers.
     provers.
   Qed.
-  
+
+  Lemma optionDefault_inj : forall A (a : A) x y, x <> None -> y <> None -> optionDefault a x = optionDefault a y -> x = y.
+    intros.
+    destruct x, y; simpl in *; hypRewriter; intuition.
+  Qed.
+
   Ltac caseTac term tac := destruct term; try solve [ tac ].
   Ltac dism := simpl in *; match goal with [ H : context [ ?g ] |- ?g ] => apply H end; assumption.
   Ltac caseDismiss term := caseTac term dism.
@@ -855,22 +860,33 @@ Section TransitivityProver.
     repeat caseDismiss l.
     caseDismiss (eq_nat_dec f0 eqFunIdx).
     subst.
-    autorewrite with provers in *.
+    autorewrite with provers in *; eauto.
     case_eq (inSameGroup nat_seq_dec
             (addEquality nat_seq_dec (eqGrouper'' hyps)
                (enD types natIdx fs'' e) (enD types natIdx fs'' e1))
-            (enD'' e0) (enD'' e3)); intros; rewrite H5 in *.
+            (enD'' e0) (enD'' e3)); intros; rewrite H5 in *; eauto.
     intro.
-    eapply Provable_Func_neq.
-    apply H2.
-    eapply groupsEqual_spec.
-    eapply groupsEqual_addEquality.
-    eapply eqGrouper_groupsEqual.
+    edestruct inSameGroup_spec.
+    clear H8.
+    specialize (H7 H5).
+    repeat destruct H7.
+    eapply Provable_Func_neq; eauto.
     eauto.
+    unfold enD'', enD in x.
     eauto.
+    dintuition.
+    eapply Provable_Func_neq; eauto.
+    eapply groupsEqual_spec; eauto.
+    eapply groupsEqual_addEquality; eauto.
+    eapply eqGrouper_groupsEqual; eauto.
     unfold types', natType, natTvar, eqFunSig, fs', fs'' in H6.
-    erewrite eqFunIdx_eq in H6.
+    erewrite eqFunIdx_eq in H6; eauto.
     simpl in H6.
     apply ValidProp_notFunIdx_ValidProp in H0.
-  Admitted.
+    unfold enD.
+    f_equal.
+    eauto.
+  Qed.
+
+  Definition notTransitivityProverRec := {| prove := notTransitivityProver; prove_correct := notTransitivityProverCorrect |}.
 End TransitivityProver.
