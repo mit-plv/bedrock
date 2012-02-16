@@ -33,3 +33,7 @@ admit:
 	@ echo Admitted lemmas --------------------------
 	@ grep admit *.v
 	@ grep Admitted *.v
+
+depgraph: Makefile.coq
+	@ echo Generating dependency graph to ../deps.pdf
+	@ ./../tools/deps.py $(MODULES:%=%.v.d) | dot -Tpdf -o ../deps.pdf

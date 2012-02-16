@@ -813,7 +813,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | ?a :: ?b => 
         let types := extend_type a (defaultType a) types in
         extend_all_types b types
-    end.  
+    end.
 
   Record VarType (t : Type) : Type :=
     { open : t }.

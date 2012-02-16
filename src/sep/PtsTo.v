@@ -18,21 +18,18 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
      ; Eq := seq_dec 
      |}.
 
-  Definition wtypes := bedrock_types ++ addr_type :: word_type :: nil.
+  Definition wtypes := bedrock_types.
+
+  Definition wordIndex := 0.
+  Definition ptrIndex := 0.
 
   Definition ptsto32_ssig : ssignature wtypes (tvType pcIndex) (tvType stateIndex).
   refine (
-  {| SepExpr.SDomain := tvType 2 :: tvType 3 :: nil
+  {| SepExpr.SDomain := tvType ptrIndex :: tvType wordIndex :: nil
    ; SepExpr.SDenotation := _
    |}).
   refine (ptsto32 _).
   Defined.
-
-  Definition wordIndex := 3.
-  Definition ptrIndex := 2.
-  Lemma wordIndex_ptrIndex : wordIndex <> ptrIndex.
-    intro. inversion H.
-  Qed.
 
   Variable funcs : functions wtypes.
 
