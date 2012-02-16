@@ -261,8 +261,12 @@ Record settings := {
    * gmm: we shouldn't
    *)
   MemHigh : W;
-*)
   (* The first non-addressable RAM address *)
+*)
+
+  (* gmm: we can push this into the heap model since it already has
+   *      the functionality footprint_w
+   *)
   implode : B * B * B * B -> W ;
   explode : W -> B * B * B * B ;
   (* conversion for reading words *)

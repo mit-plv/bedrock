@@ -25,7 +25,7 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
   Definition wbuffer_ssig : ssignature types (tvType pcIndex) (tvType stateIndex).
   refine (
-  {| SepExpr.SDomain := tvType 0 :: tvType 2 :: nil
+  {| SepExpr.SDomain := tvType 0 :: tvType 3 :: nil
    ; SepExpr.SDenotation := _
    |}).
   refine (wbuffer).
@@ -51,8 +51,8 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
   Definition cons_sig : signature types.
     refine (
-  {| Expr.Domain := tvType wordIndex :: tvType 2 :: nil
-   ; Expr.Range := tvType 2
+  {| Expr.Domain := tvType wordIndex :: tvType 3 :: nil
+   ; Expr.Range := tvType 3
    ; Expr.Denotation := _
    |}); simpl.
     eapply cons.
@@ -75,7 +75,7 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     end.
 
   Lemma get_nth_correct : forall uvars vars e eD n x,
-    exprD funcs uvars vars e (tvType 2) = Some eD ->
+    exprD funcs uvars vars e (tvType 3) = Some eD ->
     get_nth e n = Some x ->
     match exprD funcs uvars vars x (tvType wordIndex) with
       | Some y => nth_error eD n = Some y

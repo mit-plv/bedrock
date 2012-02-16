@@ -3,7 +3,6 @@ Require Import Word Memory PropX PropXTac IL DepList Heaps SepTheoryX.
 
 Set Implicit Arguments.
 
-
 Fixpoint allWordsUpto (width init : nat) : list (word width) :=
   match init with
     | O => nil
@@ -343,6 +342,7 @@ Definition natToByte (n : nat) : B := natToWord _ n.
 Coercion natToByte : nat >-> B.
 
 
+(*
 (** Isolating a byte points-to fact within a separation assertion *)
 
 Definition findPtsto8 (h : hpropB nil) (a : W) (v : B) :=
@@ -619,4 +619,5 @@ Hint Extern 1 False => inBounds_contra.
 Ltac sepRead := match goal with
                   | [ H : interp _ _ |- _ ] => erewrite (findPtsto32_read H); [ | findPtsTo32 ]
                 end.
+*)
 *)
