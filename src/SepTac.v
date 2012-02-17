@@ -845,12 +845,6 @@ Module BedrockEvaluator.
       eauto.
   Qed.
 
-  (** TODO: This isn't done **)
-  Definition reflect_regs sp rv rp : SymRegType :=
-    (@Expr.Const types (tvType 0) sp,
-     @Expr.Const types (tvType 0) rv,
-     @Expr.Const types (tvType 0) rp).
-
   Require Import PropX.
 
   Fixpoint existsAll (ls : variables) (F : env types -> Prop) : Prop := 
@@ -935,11 +929,8 @@ Module BedrockEvaluator.
         reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
           let l := constr:(@SymRvLval types l) in k funcs l)
       | RvImm ?i =>
-        (** TODO: something is wrong with this call! **)
-        idtac "found imm" i types funcs ;
         SEP.reflect_expr isConst i types funcs uvars vars ltac:(fun funcs i =>
-          idtac "got back ";
-          let l := constr:(@SymRvImm types r i) in k funcs l)
+          let l := constr:(@SymRvImm types i) in k funcs l)
       | RvLabel ?l => 
         let r := constr:(@SymRvLabel types l) in k funcs r
     end.
@@ -957,11 +948,8 @@ Module BedrockEvaluator.
   Ltac reflect_instr isConst i types funcs uvars vars k :=
     match i with
       | Assign ?l ?r =>
-        idtac "1" ;
         reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
-          idtac "2";
         reflect_rvalue isConst r types funcs uvars vars ltac:(fun funcs r =>
-          idtac "3";
           let res := constr:(@SymAssign types l r) in k funcs res))
       | Binop ?l ?r1 ?o ?r2 =>
         reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
@@ -980,12 +968,9 @@ Module BedrockEvaluator.
   Ltac reflect_instrs isConst is types funcs uvars vars k :=
     match is with
       | nil => 
-        idtac "got to here" ;
         let is := constr:(@nil (sym_instr types)) in k funcs is
       | ?i :: ?is =>
-        idtac "here";
         reflect_instr isConst i types funcs uvars vars ltac:(fun funcs i =>
-          idtac "kk" ;
         reflect_instrs isConst is types funcs uvars vars ltac:(fun funcs is =>
           let res := constr:(i :: is) in k funcs res))
     end.
@@ -1076,7 +1061,7 @@ Module BedrockEvaluator.
 
   Goal forall cs stn st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) ->
-    evalInstrs stn st (Assign Rp Sp (*(RvImm (natToW 0)) *) :: nil) = Some st' ->
+    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
     True.
   Proof.
     intros.
@@ -1096,21 +1081,22 @@ Module BedrockEvaluator.
         let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
         let types := eval unfold bedrock_types in bedrock_types in
         let types := SEP.extend_all_types Ts types in
-        let funcs := constr:(@nil (@signature types)) in
-        let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
-        let uvars := eval simpl in (@nil _ : env types) in
-        let vars := eval simpl in (@nil _ : env types) in
-        reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
-        SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
-        SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
-        SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
-        SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-          match types with
-            | _ :: _ :: _ :: ?X =>
-              generalize (@sym_evalInstrs_apply X (bedrock_funcs X) (fPlus _) (fMinus _) (fMult _) sfuncs nil HNil
-                (fPlus_correct _ _) (fMinus_correct _ _) (fMult_correct _ _) uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
-                sp_pf rv_pf rp_pf _ (refl_equal _) sis _ (refl_equal _) (refl_equal _))
-          end)))))
+        match types with
+          | _ :: _ :: _ :: ?types_ext =>
+            let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
+            let funcs := eval simpl in funcs in
+            let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
+            let uvars := eval simpl in (@nil _ : env types) in
+            let vars := eval simpl in (@nil _ : env types) in
+            reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
+            SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
+            SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
+            SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
+            SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
+            generalize (@sym_evalInstrs_apply types_ext funcs (fPlus _) (fMinus _) (fMult _) sfuncs nil HNil
+              (fPlus_correct _ _) (fMinus_correct _ _) (fMult_correct _ _) uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
+              sp_pf rv_pf rp_pf _ (refl_equal _) sis _ (refl_equal _) (refl_equal _)))))))
+        end
                 end
             end
         end
