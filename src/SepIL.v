@@ -231,7 +231,7 @@ Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope
 Definition ptsto32 sos (a v : W) : hpropB sos :=
   (fun stn sm => [| ST.HT.smem_get_word (implode stn) a sm = Some v |])%PropX.
 
-Notation "a ==> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
+Notation "a =*> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 
 Definition starB sos : hpropB sos -> hpropB sos -> hpropB sos :=
   @star W (settings * state) sos.
@@ -253,7 +253,7 @@ Delimit Scope Sep_scope with Sep.
 Fixpoint arrayOf sos (p : W) (c : list W) : hpropB sos :=
   match c with 
     | nil => [| True |]
-    | a :: b => p ==> a * arrayOf sos (p ^+ $4) b
+    | a :: b => p =*> a * arrayOf sos (p ^+ $4) b
   end%Sep.
 
 Notation "#0" := (![ #0%PropX ])%Sep : Sep_scope.

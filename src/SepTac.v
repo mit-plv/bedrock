@@ -3,8 +3,6 @@ Require Import Word Memory.
 Import List.
 Require Import DepList.
 
-(** TODO: merge this into SepIL? *)
-
 Require Expr SepExpr.
 Module SEP := SepExpr.SepExpr BedrockHeap ST.
 
@@ -346,7 +344,8 @@ Module BedrockEvaluator.
           eassumption.
 
     Focus.
-(*
+(* TODO: This is NOT true! this probably means that i need to modify the definition of "correct" for
+   the plugin...
     destruct H. intuition.
       unfold SepIL.ST.satisfies in *.
       revert H0. revert H1.
@@ -367,9 +366,7 @@ Module BedrockEvaluator.
       unfold SepIL.memoryInUpto, SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc in *.
       (** TODO: how do I prove this? **)
 *)
-   (* the only way to prove this seems to be by parametricity..., this is problematic *)
-    admit.
-
+    admit. (** TODO: NOT TRUE **)
   Qed.
 
   Lemma symeval_read_word_correct : forall hyps pe ve s,
@@ -449,7 +446,8 @@ Module BedrockEvaluator.
         let l := sym_evalLoc l ss in
         symeval_read_word (pures (SymMem ss)) l (SymMem ss)
       | SymRvImm w => Some w 
-      | SymRvLabel l => None (* Labels stn l *)
+      | SymRvLabel l => None (* TODO: can we use labels, it seems like we need to reflect these as something else *)
+        (*Some (Expr.Const (types := types) (t := tvType 2) l) *)
     end.
 
   Definition sym_evalInstr (i : sym_instr types) (ss : SymState) : option SymState :=
@@ -606,23 +604,25 @@ Module BedrockEvaluator.
           end
       end.
 
-    Definition regsD (r : regs) (sr : SymRegType) : Prop :=
-      let '(sp, rp, rv) := sr in
-         exprD funcs uvars vars sp tvWord = Some (r Sp)
-      /\ exprD funcs uvars vars rp tvWord = Some (r Rp)
-      /\ exprD funcs uvars vars rv tvWord = Some (r Rv).
-
     Require Import PropX.
 
     Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState) : Prop :=
-      PropX.interp cs 
-        ([| regsD (Regs s) (SymRegs ss) |] /\ 
-         SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD (SymMem ss))) (stn, s))%PropX.
+      match ss with
+        | {| SymMem := m ; SymRegs := (sp, rp, rv) |} =>
+             exprD funcs uvars vars sp tvWord = Some (Regs s Sp)
+          /\ exprD funcs uvars vars rp tvWord = Some (Regs s Rp)
+          /\ exprD funcs uvars vars rv tvWord = Some (Regs s Rv)
+          /\ PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD m)) (stn, s))%PropX
+      end.
 
   End sym_denote.
 
   Ltac sound_simp :=
     repeat match goal with 
+             | [ H : match ?X with
+                       | {| SymMem := _ ; SymRegs := _ |} => _
+                     end |- _ ] =>
+             destruct X
              | [ H : match ?X with
                        | (_, _) => _
                      end |- _ ] =>
@@ -652,12 +652,9 @@ Module BedrockEvaluator.
     exprD funcs uvars vars (sym_getReg r (SymRegs ss)) tvWord = Some (Regs s r).
   Proof.
     destruct ss; simpl in *; intros.
-    unfold stateD, regsD in *.
+    unfold stateD in *.
     PropXTac.propxFo.
-    sound_simp. intuition. destruct r; simpl.
-    rewrite H; auto.
-    rewrite H0; auto.
-    rewrite H3; auto.
+    sound_simp. intuition. destruct r; simpl; auto.
   Qed.
 
   Lemma sym_loc_sound : forall uvars vars l lD,
@@ -672,7 +669,7 @@ Module BedrockEvaluator.
     erewrite sym_getReg_sound by eauto. reflexivity.
     generalize (fPlus_correct (sym_getReg r (SymRegs ss)) e uvars vars).
     rewrite H.
-    erewrite sym_getReg_sound by eauto. auto.
+    erewrite sym_getReg_sound by eauto; auto.
   Qed.    
 
   Lemma pures_implied : forall uvars vars0 specs stn s0 ss,
@@ -693,12 +690,13 @@ Module BedrockEvaluator.
   Qed.
   
   Local Hint Resolve pures_implied.
-     
+
   Lemma stateD_pures : forall uvars vars0 specs stn s0 ss,
     stateD uvars vars0 specs stn s0 ss ->
     AllProvable funcs uvars vars0 (pures (SymMem ss)).
   Proof.
     intros. unfold stateD in *.
+    destruct ss. destruct SymRegs0; destruct p; intuition;
     PropXTac.propxFo. eauto.
   Qed.
 
@@ -715,16 +713,15 @@ Module BedrockEvaluator.
           evalLvalue stn s lD aD = Some s'
           /\ stateD uvars vars0 specs stn s' ss'.
   Proof.
-(*
     destruct l; simpl; intros; try congruence.
     inversion H; clear H; subst.
     inversion H2; clear H2; subst.
     simpl; eexists; split; [ reflexivity | ].
-    unfold stateD, regsD in *. PropXTac.propxFo.
-    destruct (SymRegs ss). destruct p.
-    destruct r; simpl in *; intuition.
+    destruct ss; destruct SymRegs0; destruct p.
+    simpl in H0. intuition.
     rewrite SepIL.SepFormula.sepFormula_eq in *.
-    unfold SepIL.sepFormula_def in *. simpl in *. auto.
+    unfold SepIL.sepFormula_def in *. simpl in *.
+    destruct r; unfold rupd; simpl; intuition.
     
     repeat match goal with
              | [ H : match ?X with 
@@ -735,20 +732,24 @@ Module BedrockEvaluator.
              | [ H : Some _ = Some _ |- _ ] => 
                inversion H; clear H; subst
            end.
-    eapply sym_loc_sound in H; eauto.    
-    unfold stateD in H0. PropXTac.propxFo.
+    eapply sym_loc_sound in H; eauto.
     eapply symeval_write_word_correct in H2; eauto;
       unfold stateD in *; PropXTac.propxFo.
+    Focus 2.
+    rewrite SepIL.SepFormula.sepFormula_eq in *.
+    unfold SepIL.sepFormula_def in *. simpl in *.
+    destruct ss; destruct SymRegs0; destruct p; intuition.
+    simpl. eauto.
 
-    Focus.
-    unfold pcT, tvWord in *. rewrite H in H2.
-    sound_simp. unfold WriteWord, SepIL.BedrockHeap.mem_set in *.
-    rewrite H0. eexists; split; eauto.
-    unfold stateD. 
-    rewrite SepIL.SepFormula.sepFormula_eq in *. simpl in *.
-    PropXTac.propxFo. intuition.
-*)
-  Admitted.
+    destruct ss; destruct SymRegs0; destruct p; intuition.
+    unfold tvWord, pcT in *. rewrite H in H2.
+    simpl. unfold WriteWord. unfold BedrockHeap.mem_set in H2.
+    destruct (mem_set_word W mem footprint_w WriteByte (explode stn)
+           (evalLoc s0 l) aD (Mem s0)); try congruence.
+    eexists; intuition.
+    
+    intuition.
+  Qed.
 
   Lemma sym_rvalue_sound : forall uvars vars0 r rD,
     sym_rvalueD uvars vars0 r = Some rD ->
@@ -761,17 +762,18 @@ Module BedrockEvaluator.
           evalRvalue stn s rD = Some rvD.
   Proof.
     destruct r; simpl; intros.
-      sound_simp. erewrite sym_getReg_sound; eauto.
-      
-      Focus.
-      eapply symeval_read_word_correct with (vars := vars0) (uvars := uvars) 
-        (cs := specs) (stn := stn) (st := s0) in H3; eauto.
-        erewrite sym_loc_sound in H3 by eauto.
+      destruct s; sound_simp. 
+        erewrite sym_getReg_sound; eauto.
+
+        Focus.
+        eapply symeval_read_word_correct with (vars := vars0) (uvars := uvars) 
+          (cs := specs) (stn := stn) (st := s0) in H1; eauto.
+        erewrite sym_loc_sound in H1 by eauto.
         unfold ReadWord, SepIL.BedrockHeap.mem_get in *.
         unfold pcT, tvWord in *.
         destruct (exprD funcs uvars vars0 rv (tvType 0)); intuition.
         eexists; intuition eauto.
-        unfold stateD in *. PropXTac.propxFo.
+        unfold stateD in *. sound_simp. intuition.
 
       Focus.
       sound_simp; auto.
@@ -851,6 +853,13 @@ Module BedrockEvaluator.
 
   Require Import PropX.
 
+  Fixpoint existsAll (ls : variables) (F : env types -> Prop) : Prop := 
+    match ls with 
+      | nil => F nil
+      | l :: ls => 
+        existsAll ls (fun g => exists x, F (x :: g))
+    end.
+
   Theorem sym_evalInstrs_apply : forall uvars vars cs instrs stn st st', 
     evalInstrs stn st instrs = Some st' ->
     forall sp rv rp sh,
@@ -858,21 +867,27 @@ Module BedrockEvaluator.
       exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
       exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
       exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-    forall vars' hashed,
-      SEP.hash sh = (vars' , hashed) ->
+    forall hashed,
+      (** TODO: is this a bad restriction? **)
+      SEP.hash sh = (nil , hashed) ->
       forall sym_instrs ss',
       sym_evalInstrs sym_instrs 
         {| SymRegs := (sp, rp, rv) ;
            SymMem  := hashed |} = Some ss' ->
-      sym_instrsD uvars vars sym_instrs = Some instrs -> (** TODO: what do I do with vars'? **)
-      stateD uvars vars cs stn st' ss'.
+        sym_instrsD uvars vars sym_instrs = Some instrs ->
+        stateD uvars vars cs stn st' ss'.
   Proof.
-    intros. eapply sym_evalInstrs_sound with (specs := cs) (uvars := uvars) (vars := vars) (stn := stn) (s := st) in H5; eauto.
-    Focus 2.
-      unfold stateD in *; simpl in *.
-      PropXTac.propxFo. admit.
-    
+    intros.
+    eapply sym_evalInstrs_sound with (specs := cs) (uvars := uvars) (vars := vars) (stn := stn) (s := st) in H5; eauto.
       destruct H5. intuition. rewrite H in H7. inversion H7; clear H7; subst; auto.
+
+      unfold stateD in *; simpl in *.
+      PropXTac.propxFo.
+      generalize (SEP.hash_denote funcs sfuncs cs sh uvars vars).
+      rewrite H4. simpl. intro.
+      rewrite SepFormula.sepFormula_eq in *. unfold sepFormula_def in *. simpl.
+      unfold SEP.heq, heq, himp in *. intuition.
+      eapply Imply_E. eapply H8. eauto.
   Qed.
 
   End typed_ext.
@@ -1094,7 +1109,7 @@ Module BedrockEvaluator.
             | _ :: _ :: _ :: ?X =>
               generalize (@sym_evalInstrs_apply X (bedrock_funcs X) (fPlus _) (fMinus _) (fMult _) sfuncs nil HNil
                 (fPlus_correct _ _) (fMinus_correct _ _) (fMult_correct _ _) uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
-                sp_pf rv_pf rp_pf _ _ (refl_equal _) sis _ (refl_equal _) (refl_equal _))
+                sp_pf rv_pf rp_pf _ (refl_equal _) sis _ (refl_equal _) (refl_equal _))
           end)))))
                 end
             end

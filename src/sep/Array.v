@@ -20,7 +20,7 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     match ls with
       | nil => emp _ _ 
       | l :: ls =>
-        st ==> l * wbuffer (st ^+ $ 4)  ls
+        st =*> l * wbuffer (st ^+ $ 4)  ls
     end%Sep.
 
   Definition wbuffer_ssig : ssignature types (tvType pcIndex) (tvType stateIndex).
