@@ -661,8 +661,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         intros. apply heq_ex. intros. eauto.
     Qed.
 
-    Theorem hash_denote : forall cs (s : sexpr) G, 
-      heq nil nil G cs s 
+    Theorem hash_denote : forall cs (s : sexpr) EG G, 
+      heq EG EG G cs s 
         (@existsEach (fst (hash s)) (sheapD (snd (hash s)))).
     Proof.
       induction s; simpl; try (unfold sheapD; reflexivity).
@@ -670,7 +670,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         rewrite IHs1 at 1. rewrite IHs2 at 1. clear IHs1 IHs2.
         destruct (hash s1); destruct (hash s2); simpl. clear. admit.
         
-        destruct (hash s); simpl in *. intros. apply heq_ex. intros. eauto.          
+        destruct (hash s); simpl in *. intros. apply heq_ex. intros. eauto.
     Qed.
 
     (** replace "real" variables [a,b) and replace them with

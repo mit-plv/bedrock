@@ -1,7 +1,9 @@
 #SymEvalTests
 
 MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
-	Nomega Word IL LabelMap PropX PropXTac Memory \
+	Nomega Word IL LabelMap \
+	PropX PropXRel PropXTac \
+	Memory \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \

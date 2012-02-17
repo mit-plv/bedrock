@@ -144,14 +144,108 @@ Section UpdatePosition2.
   Qed.
 End UpdatePosition2.
 
+Section MapRepr.
+  Variable T : Type.
+
+  Fixpoint repr (ls : list (nat * T)) : list T -> list T :=
+    match ls with 
+      | nil => fun x => x
+      | (n, v) :: ls =>
+        fun x => updateAt v (repr ls x) n
+    end.
+
+  Section get.
+    Variable n : nat.
+    
+    Fixpoint get (ls : list (nat * T)) : option T :=
+      match ls with
+        | nil => None
+        | (n',v) :: ls => 
+          if Peano_dec.eq_nat_dec n n' then Some v else get ls
+      end.
+  End get.
+
+  (** This is probably not necessary **)
+  Theorem repr_get : forall r ls n v,
+    get n r = Some v ->
+    nth_error (repr r ls) n = Some v.
+  Proof.
+    induction r; simpl.
+      congruence.
+    intros. destruct a. destruct (Peano_dec.eq_nat_dec n n0).
+    inversion H; clear H; subst. eapply nth_error_updateAt.
+    
+    erewrite nth_error_updateAt_not; auto.
+  Defined.
+
+  Fixpoint defaulted_repr (r : list (nat * T)) (n : nat) : option T :=
+    match r with
+      | nil => None
+      | (a,b) :: r =>
+        match defaulted_repr r n with
+          | None => if le_lt_dec n a then Some b else None
+          | Some v => if eq_nat_dec n a then Some b else Some v 
+        end
+    end.
+
+  Definition nth_error_repr (r : list (nat * T)) (ls : list T) (n : nat) 
+    : option T :=
+    match get n r with
+      | Some v => Some v
+      | None => nth_error (repr r ls) n
+    end.
+
+  Theorem repr_get_eq : forall r ls n,
+    nth_error (repr r ls) n = nth_error_repr r ls n.
+  Proof.
+    unfold nth_error_repr.
+    induction r; simpl; intros.
+      reflexivity.
+
+      destruct a.
+        rewrite nth_error_updateAt_eq. unfold defaulted.
+        destruct (lt_eq_lt_dec n0 n). destruct s.
+          destruct (eq_nat_dec n n0); [ exfalso; omega | ]. eauto.
+          destruct (eq_nat_dec n n0); auto; congruence.
+        destruct (eq_nat_dec n n0); [ exfalso; omega | ]; auto.
+        rewrite IHr. destruct (get n r); auto.
+   Defined.
+
+   (** And all of this simplifies... **)
+   Goal forall t u : T, 
+     match repr_get_eq ((0, u) :: nil) (t :: nil) 0 return Prop with
+       | refl_equal => True 
+     end.
+     intros. simpl. trivial.
+   Qed.
+
+   (** cast **)
+   Section CastRepr.
+     Variable P : option T -> Type.
+
+     Fixpoint cast_repr d ls idx {struct d}
+       : P (nth_error (repr d ls) idx) -> P (match get idx d with
+                                               | Some v => Some v
+                                               | None => nth_error (repr d ls) idx
+                                             end).
+     intro. rewrite repr_get_eq in X. auto.
+     Defined.
+     
+     Theorem cast_repr_inj : forall d idx ls x y, cast_repr d ls idx x = cast_repr d ls idx y -> x = y.
+     Proof.
+       induction d; simpl.
+         auto.
+     Admitted.
+   End CastRepr.
+
+End MapRepr.
+
 (** Specializations for exprD **)
 Section UpdateAt_exprD.
   Require Import Expr.
   
   Variable types' : list type.
 
-(*
-   TODO: This produces a universe inconsistency...
   Section repr.
     Variable deltaT : list (nat * type).
     Variable funcs : functions (repr deltaT types').
@@ -160,12 +254,10 @@ Section UpdateAt_exprD.
     Definition exprD_repr (e : expr (repr deltaT types')) idx
       : option match match get idx deltaT with
                        | Some v => Some v
-                       | None => match nth_error types' idx with
-                                   | Some v => Some v 
-                                   | None => defaulted_repr deltaT idx 
-                                 end
+                       | None => nth_error (repr deltaT types') idx
                      end
-                 with
+    (** NOTE: This [return Type] is NOT optional, it is necessary to make universes work out **)
+                 return Type with 
                  | None => Empty_set
                  | Some v => Impl v
                end :=
@@ -179,7 +271,6 @@ Section UpdateAt_exprD.
                                        end) deltaT types' idx res)
       end.
   End repr.
-*)
 
   Section updateAt.
     Variable idx : nat.
@@ -203,198 +294,5 @@ End UpdateAt_exprD.
 
 (*
 Set Printing Universes.
-Print Universes.
+Print Universes "../dump.universes".
 *)
-
-
-(*
-Section MapRepr.
-  Variable T : Type.
-
-  Fixpoint repr (ls : list (nat * T)) : list T -> list T :=
-    match ls with 
-      | nil => fun x => x
-      | (n, v) :: ls =>
-        fun x => updateAt v (repr ls x) n
-    end.
-
-  Section get.
-    Variable n : nat.
-    
-    Fixpoint get (ls : list (nat * T)) : option T :=
-      match ls with
-        | nil => None
-        | (n',v) :: ls => 
-          if Peano_dec.eq_nat_dec n n' then Some v else get ls
-      end.
-  End get.
-
-  (** This is probably not necessary **)
-(*
-  Theorem repr_get : forall r ls n v,
-    get n r = Some v ->
-    nth_error (repr r ls) n = Some v.
-  Proof.
-    induction r; simpl.
-      congruence.
-    intros. destruct a. destruct (Peano_dec.eq_nat_dec n n0).
-    inversion H; clear H; subst. eapply nth_error_updateAt.
-    
-    erewrite nth_error_updateAt_not; auto.
-  Defined.
-*)
-
-  Fixpoint defaulted_repr (r : list (nat * T)) (n : nat) : option T :=
-    match r with
-      | nil => None
-      | (a,b) :: r =>
-        match defaulted_repr r n with
-          | None => if le_lt_dec n a then Some b else None
-          | Some v => if eq_nat_dec n a then Some b else Some v 
-        end
-    end.
-
-  Definition nth_error_repr (r : list (nat * T)) (ls : list T) (n : nat) 
-    : option T :=
-    match get n r with
-      | Some v => Some v
-      | None => match nth_error ls n with
-                  | Some v => Some v 
-                  | None => defaulted_repr r n 
-                end
-    end.
-
-  Theorem repr_get_eq : forall r ls n,
-    nth_error (repr r ls) n = nth_error_repr r ls n.
-  Proof.
-    unfold nth_error_repr.
-    induction r; simpl; intros.
-      destruct (nth_error ls n); reflexivity.
-
-      destruct a.
-        rewrite nth_error_updateAt_eq. unfold defaulted.
-        destruct (lt_eq_lt_dec n0 n). destruct s.
-          destruct (eq_nat_dec n n0); [ exfalso; omega | ].
-          rewrite IHr. destruct (get n r); auto. destruct (nth_error ls n); auto.
-          destruct (defaulted_repr r n); auto. destruct (le_lt_dec n n0); try solve [ exfalso; omega ]; auto.
-
-        destruct (eq_nat_dec n n0); [ | exfalso; omega ]; auto.
-
-        destruct (eq_nat_dec n n0); [ exfalso; omega | ].
-          rewrite IHr. destruct (get n r); auto. destruct (nth_error ls n); auto.
-          destruct (defaulted_repr r n); auto. destruct (le_lt_dec n n0); auto. exfalso; omega.
-   Defined.
-
-   (** And all of this simplifies... **)
-   Goal forall t u : T, 
-     match repr_get_eq ((0, u) :: nil) (t :: nil) 0 return Prop with
-       | refl_equal => True 
-     end.
-     intros. simpl. trivial.
-   Qed.
-
-   (** cast **)
-   Section CastRepr.
-     Variable P : option T -> Type.
-
-     Fixpoint cast_repr d ls idx {struct d}
-       : P (nth_error (repr d ls) idx) -> P (match get idx d with
-                                               | Some v => Some v
-                                               | None => match nth_error ls idx with
-                                                           | Some v => Some v 
-                                                           | None => defaulted_repr d idx
-                                                         end
-                                             end).
-     rewrite repr_get_eq. auto. 
-
-(* This does reduce, but it might be better to code manually... 
-     refine (match d as d
-               return 
-               P (nth_error (repr d ls) idx) -> P (match get idx d with
-                                                     | Some v => Some v
-                                                     | None => match nth_error ls idx with
-                                                                 | Some v => Some v 
-                                                                 | None => defaulted_repr d idx
-                                                               end
-                                                   end)
-               with
-               | nil => match nth_error (repr nil ls) idx as k return P k -> P match k with 
-                                                                                 | Some v => Some v
-                                                                                 | None => None
-                                                                               end
-                          with
-                            | None => fun x => x
-                            | _ => fun x => x 
-                        end
-               | (i,v) :: ds => _
-             end).
-     simpl.
-     refine (match eq_nat_dec idx i as k return 
-               P (nth_error (updateAt v (repr ds ls) i) idx) ->
-               P match (if k then Some v else get idx ds) with
-                   | Some v0 => Some v0
-                   | None =>
-                     match nth_error ls idx with
-                       | Some v0 => Some v0
-                       | None =>
-                         match defaulted_repr ds idx with
-                           | Some v0 => if k then Some v else Some v0
-                           | None => if le_lt_dec idx i then Some v else None
-                         end
-                     end
-                 end
-               with
-               | left pf => match pf in _ = k return P (nth_error (updateAt v (repr ds ls) k) idx) -> P (Some v) with 
-                              | refl_equal => cast _ _ _ _
-                            end
-               | right _ => _ 
-             end).
-     specialize (cast_repr ds idx (repr ds ls)).
-     refine (match get idx ds as k return 
-               P (nth_error (updateAt v (repr ds ls) i) idx) ->
-               P match k with
-                   | Some v0 => Some v0
-                   | None =>
-                     match nth_error ls idx with
-                       | Some v0 => Some v0
-                       | None =>
-                         match defaulted_repr ds idx with
-                           | Some v0 => Some v0
-                           | None => if le_lt_dec idx i then Some v else None
-                         end
-                     end
-                 end
-               with
-               | Some v0 => _
-               | None => _ 
-             end).
-
-     ).
-
-
-     refine (match d as d return 
-
-   rewrite repr_get_eq. trivial.
-     match idx with
-       | O => match ls
-                return P (nth_error (updateAt ls O) O) -> _ with
-                | nil => fun x => x
-                | _ => fun x => x
-              end
-       | S idx => 
-         match ls return P (nth_error (updateAt ls (S idx)) (S idx)) -> _ with
-           | nil => cast P idx nil
-           | _ => cast P idx _
-         end
-     end.
-*)
-     Defined.
-     
-     Theorem cast_repr_inj : forall d idx ls x y, cast_repr d ls idx x = cast_repr d ls idx y -> x = y.
-     Proof.
-     Admitted.
-   End CastRepr.
-
-End MapRepr.
-*)
-
