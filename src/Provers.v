@@ -1,6 +1,6 @@
 Require Import List Arith Bool.
 Require Import Expr Env.
-Require Import EquivDec.
+Require Import EquivDec EqdepClass.
 Require Import DepList.
 
 Set Implicit Arguments.
@@ -93,13 +93,73 @@ Definition test_bin_to_nat_sig := Sig test_types [tvar_list_bool] tvar_nat bin_t
 Definition test_constant_false_sig := Sig test_types [tvar_empty] tvar_bool (fun _ => false).
 Definition test_functions := [test_eq_sig, test_plus_sig, test_bin_to_nat_sig, test_constant_false_sig].
 
+Ltac caser H E := case_eq E; intros;
+  try match goal with
+        | [ H' : _ = _ |- _ ] => rewrite H' in H
+      end.
+
 (* Everything looks like a nail?  Try this hammer. *)
-Ltac t := repeat match goal with
-                   | [ H : ex _ |- _ ] => destruct H
-                   | [ H : _ = Some _ |- _ ] => rewrite H in *
-                   | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
-                   | _ => progress (hnf in *; simpl in *; intuition; subst)
-                 end.
+Ltac t1 := match goal with
+             | _ => discriminate
+             | _ => progress (hnf in *; simpl in *; intuition; subst)
+             | [ x := _ : _ |- _ ] => subst x || (progress (unfold x in * ))
+             | [ H : ex _ |- _ ] => destruct H
+             | [ H : context[nth_error (updateAt ?new ?ls ?n) ?n] |- _ ] =>
+               rewrite (nth_error_updateAt new ls n) in H
+                 || rewrite nth_error_updateAt in H
+             | [ s : signature _ |- _ ] => destruct s
+             | [ H : Some _ = Some _ |- _ ] => injection H; clear H
+             | [ H : _ = Some _ |- _ ] => rewrite H in *
+             | [ H : _ === _ |- _ ] => rewrite H in *
+
+             | [ |- context[match ?E with
+                              | Const _ _ => _
+                              | Var _ => _
+                              | UVar _ => _
+                              | Func _ _ => _
+                            end] ] => destruct E
+             | [ |- context[match ?E with
+                              | None => _
+                              | Some _ => _
+                            end] ] => destruct E
+             | [ |- context[if ?E then _ else _] ] => destruct E
+             | [ |- context[match ?E with
+                              | nil => _
+                              | _ :: _ => _
+                            end] ] => destruct E
+
+             | [ _ : context[match ?E with
+                               | Const _ _ => _
+                               | Var _ => _
+                               | UVar _ => _
+                               | Func _ _ => _
+                             end] |- _ ] => destruct E
+             | [ _ : context[match ?E with
+                               | nil => _
+                               | _ :: _ => _
+                             end] |- _ ] => destruct E
+             | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
+             | [ _ : context[match ?E with
+                               | left _ => _
+                               | right _ => _
+                             end] |- _ ] => destruct E
+             | [ _ : context[match ?E with
+                               | tvProp => _
+                               | tvType _ => _
+                             end] |- _ ] => destruct E
+             | [ _ : context[match ?E with
+                               | None => _
+                               | Some _ => _
+                             end] |- _ ] => match E with
+                                              | context[match ?E with
+                                                          | None => _
+                                                          | Some _ => _
+                                                  end] => fail 1
+                                              | _ => destruct E
+                                            end
+           end.
+
+Ltac t := repeat t1; eauto.
 
 Section AssumptionProver.
   Variable types : list type.
@@ -130,10 +190,14 @@ Section ReflexivityProver.
   Variable eqFunIdx : func.
   Variable eqFunTvar : tvar.
 
-  Let eqFunSig := {| Domain := [eqFunTvar, eqFunTvar]; Range := tvProp; Denotation := (@eq (tvarD types eqFunTvar)) |}.
+  Let eqFunSig := {|
+    Domain := [eqFunTvar, eqFunTvar];
+    Range := tvProp;
+    Denotation := @eq (tvarD types eqFunTvar)
+  |}.
   Let fs' := updateAt eqFunSig fs eqFunIdx.
 
-  Definition reflexivityProver (hyps : list (expr types)) (goal : expr types) := 
+  Definition reflexivityProver (_ : list (expr types)) (goal : expr types) := 
     match goal with
       | Func f [x, y] => if equiv_dec f eqFunIdx
                            then if expr_seq_dec x y then true else false
@@ -141,57 +205,58 @@ Section ReflexivityProver.
       | _ => false
     end.
 
-  Hint Rewrite nth_error_updateAt : provers.
   Theorem reflexivityProverCorrect : ProverCorrect fs' reflexivityProver.
-    unfold ProverCorrect; intros.
-    caseDestruct goal.
-    repeat caseDestruct l.
-    simpl in *.
-    caseDestruct (equiv_dec f eqFunIdx).
-    unfold equiv in *.
-    caseDestruct (expr_seq_dec e e0).
-    subst.
-    unfold fs', exprD, Provable.
-    simpl.
-    rewrite nth_error_updateAt.
-    simpl.
-    unfold ValidProp in *.
-    unfold fs' in *.
-    case_eq (exprD (updateAt eqFunSig fs eqFunIdx) nil nil e0 eqFunTvar); provers.
+    unfold reflexivityProver; t.
   Qed.
 
-  Definition reflexivityProverRec := {| prove := reflexivityProver; prove_correct := reflexivityProverCorrect |}.
+  Definition reflexivityProverRec := {|
+    prove := reflexivityProver;
+    prove_correct := reflexivityProverCorrect
+  |}.
 End ReflexivityProver.
 
 (* Algorithm for grouping expressions by equalities. Terribly inefficient... *)
 Section Grouper.
   Variable A : Type.
-  Variable A_seq_dec : forall (x y : A), option (x = y).
-  
-  Definition in_seq_dec (ls : list A) (a : A) : option (In a ls).
-    induction ls.
-    right.
-    simpl.
-    destruct IHls.
-    left.
-    tauto.
-    destruct (A_seq_dec a0 a).
-    left.
-    tauto.
-    right.
-  Defined.
+  Variable R : A -> A -> Prop.
+  (* An arbitrary equivalence relation
+   * (though maybe we can get away without all the usual axioms) *)
+
+  Hypothesis Rsym : forall x y, R x y -> R y x.
+  Hypothesis Rtrans : forall x y z, R x y -> R y z -> R x z.
+
+  Variable A_seq_dec : forall (x y : A), option (R x y).
+
+  Fixpoint InR (x : A) (ls : list A) : Prop :=
+    match ls with
+      | nil => False
+      | y :: ls' => R y x \/ InR x ls'
+    end.
+
+  Fixpoint in_seq_dec (ls : list A) (a : A) : option (InR a ls) :=
+    match ls with
+      | nil => None
+      | x :: ls' =>
+        match A_seq_dec x a with
+          | None => match in_seq_dec ls' a with
+                      | None => None
+                      | Some pf => Some (or_intror _ pf)
+                    end
+          | Some pf => Some (or_introl _ pf)
+        end
+    end.
 
   Fixpoint groupWith (grps : list (list A)) (g : list A) (a : A) :=
     match grps with
       | nil => [g]
       | g' :: grps' => if in_seq_dec g' a
-                         then groupWith grps' (g' ++ g) a
+                         then (g' ++ g) :: grps'
                          else g' :: groupWith grps' g a
     end.
 
   Fixpoint addEquality (ls : list (list A)) (a : A) (b : A) : list (list A) :=
     match ls with
-      | nil => [[a]] (* matched nothing *)
+      | nil => [[a, b]] (* matched nothing *)
       | grp :: ls' => if in_seq_dec grp a
                         then groupWith ls' grp b
                         else if in_seq_dec grp b
@@ -200,536 +265,189 @@ Section Grouper.
     end.
 
   Fixpoint inSameGroup (grps : list (list A)) (a : A) (b : A) :=
-    if A_seq_dec a b
-      then true
-      else
-        match grps with
-          | nil => false
-          | g :: grps' => if in_seq_dec g a
-                            then
-                              if in_seq_dec g b
-                                then true
-                                else inSameGroup grps' a b
-                            else inSameGroup grps' a b
-        end.    
-
-  Fixpoint groupEqualTo (g : list A) a :=
-    match g with
-      | nil => True
-      | a' :: g' => a = a' /\ groupEqualTo g' a
+    match grps with
+      | nil => false
+      | g :: grps' => if in_seq_dec g a
+        then
+          if in_seq_dec g b
+            then true
+            else inSameGroup grps' a b
+        else inSameGroup grps' a b
     end.
 
-  Lemma groupEqualTo_spec : forall (g : list A) a, groupEqualTo g a <-> (forall x, In x g -> a = x).
-    intros; split; induction g; simpl in *; intuition; try congruence.
-  Qed.
-    
+  Definition groupEqualTo (a : A) := Forall (R a).
+
   Definition groupEqual (g : list A) :=
     match g with
       | nil => True
-      | a' :: g' => groupEqualTo g' a'
+      | a' :: g' => groupEqualTo a' g'
     end.
 
-  Lemma groupEqualTo_groupEqual : forall (g : list A) a, groupEqualTo g a -> groupEqual g.
-    induction g; simpl in *; intuition; subst; intuition.
+  Definition groupsEqual := Forall groupEqual.
+
+  Hint Extern 1 (groupEqual _) => hnf.
+
+  Hint Resolve Rsym Rtrans.
+
+  Lemma Rweaken : forall x y l,
+    Forall (R x) l
+    -> R x y
+    -> Forall (R y) l.
+    induction 1; t.
+  Qed.
+
+  Hint Resolve Rweaken.
+
+  Lemma groupEqualTo_groupEqual : forall x xs,
+    Forall (R x) xs
+    -> groupEqual xs.
+    induction 1; t.
   Qed.
 
   Hint Resolve groupEqualTo_groupEqual.
-  Lemma groupEqual_spec : forall (g : list A), groupEqual g <-> forall x y, In x g -> In y g -> x = y.
-    intros; split; intros.
-    induction g.
-    provers.
-    intuition; simpl in *.
-    destruct (groupEqualTo_spec g a).
-    intuition.
-    congruence.
-    erewrite <- H1; eauto.
-    erewrite <- H1 with (x := x); eauto.
-    pose groupEqualTo_groupEqual.
-    firstorder.
-    induction g.
-    provers.
-    provers.
-    simpl in *; intuition.
-    apply groupEqualTo_spec.
-    intuition.
+
+  Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
+    Forall P ls1
+    -> Forall P ls2
+    -> Forall P (ls1 ++ ls2).
+    induction 1; t.
   Qed.
 
-  Lemma groupEqual_app : forall g1 g2, groupEqual g1 -> groupEqual g2 -> (exists a, In a g1 /\ In a g2) -> groupEqual (g1 ++ g2).
-    intros ? ? Hg1 Hg2 Hex.
-    apply groupEqual_spec.
-    destruct Hex.
-    intuition.
-    destruct (groupEqual_spec g1), (groupEqual_spec g2).
-    repeat match goal with
-      | [ H : In _ (_ ++ _) |- _ ] => destruct (in_app_or _ _ _ H); clear H
-    end; intuition;
-    repeat match goal with
-      | [ H1 : In ?x ?g, H2 : In ?y ?g, H3 : groupEqual ?g |- _ ] =>
-          match goal with
-            | [ H : x = y |- _ ] => fail 1
-            | [ H : y = x |- _ ] => fail 1
-            | _ => assert (x = y) by intuition
-          end
-    end; congruence.
+  Hint Resolve Forall_app.
+
+  Lemma groupEqualTo_In : forall x y g,
+    InR y g
+    -> Forall (R x) g
+    -> R x y.
+    induction 2; t.
   Qed.
 
-  Fixpoint groupsEqual (grps : list (list A)) :=
-    match grps with
-      | nil => True
-      | g :: grps' => groupEqual g /\ groupsEqual grps'
-    end.
+  Hint Immediate groupEqualTo_In.
 
-  Ltac solve_spec := repeat (simpl in *; subst; intuition); try congruence; firstorder.
-  
-  Lemma groupsEqual_spec : forall (grps : list (list A)), groupsEqual grps <-> forall g, In g grps -> forall x y, In x g -> In y g -> x = y.
-    induction grps; pose groupEqual_spec; solve_spec.
-  Qed.
+  Hint Extern 1 (Forall _ _) => progress hnf.
 
-  Lemma groupsEqual_groupWith : forall grps, groupsEqual grps -> forall g, groupEqual g -> forall a, In a g -> groupsEqual (groupWith grps g a).
-    induction grps; simpl in *; intuition.
-    destruct (in_seq_dec a a0).
-    apply H.
-    apply groupEqual_app; firstorder.
-    Hint Resolve in_or_app.
-    eauto.
-    simpl in *; intuition.
+  Lemma groupWith_sound : forall x xs grps,
+    Forall groupEqual grps
+    -> Forall (R x) xs
+    -> Forall groupEqual (groupWith grps xs x).
+    induction 1; t; eauto 6.
   Qed.
 
-  Lemma groupsEqual_addEquality : forall grps, groupsEqual grps -> forall x y, x = y -> groupsEqual (addEquality grps x y).
-    induction grps; solve_spec.
-    case_eq (in_seq_dec a y); intros.
-    apply groupsEqual_groupWith; solve_spec.
-    solve_spec.
+  Hint Resolve groupWith_sound.
+
+  Theorem addEquality_sound : forall x y grps,
+    groupsEqual grps
+    -> R x y
+    -> groupsEqual (addEquality grps x y).
+    induction 1; t; eauto 7.
   Qed.
 
-  Lemma inSameGroup_spec : forall x y grps, inSameGroup grps x y = true <-> (exists pf, A_seq_dec x y = Some pf) \/ exists g, In g grps /\ (exists pfx, in_seq_dec g x = Some pfx) /\ (exists pfy, in_seq_dec g y = Some pfy).
-    solve_spec.
-    case_eq (A_seq_dec x y); intros.
-    left.
-    exists e; reflexivity.
-    right.
-    induction grps.
-    simpl in *.
-    rewrite H0 in H.
-    intuition.
-    simpl in *.
-    rewrite H0 in H.
-    case_eq (in_seq_dec a x); intros; rewrite H1 in H.
-    case_eq (in_seq_dec a y); intros; rewrite H2 in H.
-    firstorder.
-    firstorder.
-    firstorder.
-    destruct grps; simpl in *; rewrite H; intuition.
-    induction grps; simpl in *; intuition;
-    case_eq (A_seq_dec x y); intuition; subst.
-    rewrite H0, H1; intuition.
-    destruct (in_seq_dec a x); destruct (in_seq_dec a y); intuition.
-  Qed.
-
-  Lemma inSameGroup_addEquality : forall x y grps, A_seq_dec x y <> None -> inSameGroup (addEquality grps x y) x y = true.
-    intros.
-    case_eq (A_seq_dec x y); intuition.
-    subst.
-    induction grps.
-    simpl; intuition.
-    repeat rewrite H0; intuition.
-    destruct (addEquality (a :: grps) y y); simpl; rewrite H0; intuition.
-  Qed.
-
-  Lemma in_seq_dec_spec : forall x g, (exists pf, in_seq_dec g x = Some pf) <-> In x g /\ exists pf, A_seq_dec x x = Some pf.
-    dintuition.
-    induction g; intuition.
-    simpl in *; intuition.
-    destruct x0; intuition.
-    subst.
-    destruct (in_seq_dec g x); intuition.
-    apply (IHg i); intuition.
-    destruct (A_seq_dec x x); intuition.
-    exists e; intuition.
-    discriminate.
-    destruct (in_seq_dec g x).
-    apply (IHg i0); intuition.
-    case_eq (A_seq_dec a x); intros.
-    subst.
-    rewrite H0.
-    exists eq_refl.
-    reflexivity.
-    rewrite H0 in H.
-    discriminate.
-    induction g.
-    intuition.
-    simpl in *; intuition.
-    destruct (in_seq_dec g x).
-    exists (or_intror (a = x) i); reflexivity.
-    subst.
-    exists (or_introl (In x g) x0).
-    rewrite H; reflexivity.
-    dintuition.
-    rewrite H0.
-    exists (or_intror (a = x) x1).
-    reflexivity.
-  Qed.
-    
-  Lemma in_seq_dec_app : forall x g g', (exists pfl, in_seq_dec g x = Some pfl) -> exists pfr, in_seq_dec (g' ++ g) x = Some pfr.
-    dintuition.
-    induction g'.
-    simpl in *; firstorder.
-    simpl in *.
-    destruct IHg'.
-    rewrite H0.
-    exists (or_intror (a = x) x1); intuition.
-  Qed.
-
-  Lemma in_seq_dec_app_r : forall x g g', (exists pfl, in_seq_dec g x = Some pfl) -> exists pfr, in_seq_dec (g ++ g') x = Some pfr.
-    intros.
-    apply in_seq_dec_app with (g' := g') in H.
-    pose in_seq_dec_spec.
-    destruct (i x (g' ++ g)).
-    apply in_seq_dec_spec.
-    intuition.
-    apply in_or_app.
-    apply in_app_or in H0.
-    intuition.
-  Qed.
-
-  Lemma in_impl_in_seq_dec_impl : forall g g', (forall y, In y g -> In y g') -> forall y, (exists pf, in_seq_dec g y = Some pf) -> exists pf', in_seq_dec g' y = Some pf'.
-    intros.
-    apply in_seq_dec_spec.
-    destruct (in_seq_dec_spec y g).
-    solve_spec.
-  Qed.
-
-  Lemma groupWith_spec1 : forall grps g, In g grps -> forall x, in_seq_dec g x = None -> forall g', In g (groupWith grps g' x).
-    induction grps; solve_spec.
-    rewrite H; solve_spec.
-    destruct (in_seq_dec a x); solve_spec.
-  Qed.
-
-  Lemma groupWith_last : forall grps g x y, In y g -> In y (last (groupWith grps g x) nil).
-    induction grps; solve_spec.
-    destruct (in_seq_dec a x).
-    intuition.
-    simpl.
-    specialize (IHgrps g x y).
-    destruct (groupWith grps g x); simpl in *; intuition.
-  Qed.
-
-  Lemma groupWith_last_in_seq_dec : forall grps g x y, (exists pf, in_seq_dec g y = Some pf) -> exists pf, in_seq_dec (last (groupWith grps g x) nil) y = Some pf.
-    induction grps; solve_spec.
-    destruct (IHgrps g x y (ex_intro _ _ H)).
-    apply in_seq_dec_spec; intuition.
-    destruct (in_seq_dec a x).
-    apply groupWith_last.
-    solve_spec.
-    solve_spec.
-    destruct (groupWith grps g x); solve_spec.
-    destruct (in_seq_dec_spec y g).
-    solve_spec.
-  Qed.
-
-  Lemma groupWith_nil : forall grps g x, groupWith grps g x <> nil.
-    induction grps; solve_spec.
-    destruct (in_seq_dec a x); solve_spec.
-  Qed.
-
-  Lemma last_in : forall B (l : list B) b, l <> nil -> In (last l b) l.
-    induction l; solve_spec.
-    destruct l.
-    solve_spec.
-    right.
-    apply IHl.
-    solve_spec.
-  Qed.
-
-  Lemma groupWith_spec2 : forall grps g, In g grps -> forall x, (exists pf, in_seq_dec g x = Some pf) -> forall g1, exists g', In g' (groupWith grps g1 x) /\  forall y, In y g -> In y g'.
-    intros.
-    exists (last (groupWith grps g1 x) nil).
-    solve_spec.
-    case_eq (groupWith grps g1 x); intros.
-    apply groupWith_nil in H1; intuition.
-    apply last_in; solve_spec.
-    revert grps g H x g1 y H1 x0 H0.
-    induction grps.
-    solve_spec.
-    intros.
-    simpl in *; intuition.
-    subst.
-    rewrite H0.
-    apply groupWith_last; solve_spec.
-    destruct (in_seq_dec a x).
-    eapply IHgrps; eauto.
-    simpl.
-    case_eq (groupWith grps g1 x); intros.
-    apply groupWith_nil in H; intuition.
-    rewrite <- H.
-    eapply IHgrps; eauto.
-  Qed.
-
-  Lemma groupWith_groups : forall grps g, In g grps -> forall g1 x, exists g2, In g2 (groupWith grps g1 x) /\ (forall y, In y g -> In y g2).
-    intros.
-    case_eq (in_seq_dec g x); intros.
-    apply groupWith_spec2; solve_spec.
-    exists g; split.
-    apply groupWith_spec1; solve_spec.
-    solve_spec.
-  Qed.
-
-  Hint Resolve last_in groupWith_nil groupWith_last.
-  Lemma groupWith_arg : forall grps g x, exists g', In g' (groupWith grps g x) /\ forall y, In y g -> In y g'.
-    intros.
-    exists (last (groupWith grps g x) nil); intuition eauto.
-  Qed.
-
-  Hint Rewrite plus_assoc : null.
-  Lemma inSameGroup_refl : forall grps x, (exists pf, A_seq_dec x x = Some pf) -> inSameGroup grps x x = true.
-    induction grps; solve_spec; rewrite H; reflexivity.
-  Qed.
-    
-  Hint Resolve groupWith_last_in_seq_dec in_seq_dec_app_r.
-  Lemma inSameGroup_groupWith : forall grps x y, inSameGroup grps x y = true -> forall g z, inSameGroup (groupWith grps g z) x y = true.
-    intros.
-    apply inSameGroup_spec.
-    case_eq (A_seq_dec x y); intros; [ left | right ].
-    exists e; solve_spec.
-    revert grps x y H g z H0.
-    induction grps; intuition;
-    simpl in *;
-    rewrite H0 in H; intuition.
-    case_eq (in_seq_dec a z); intros.
-    case_eq (in_seq_dec a x); intros;
-    rewrite H2 in *.
-    case_eq (in_seq_dec a y); intros;
-    rewrite H3 in *.
-    exists (last (groupWith grps (a ++ g) z) nil); intuition;
-    apply (groupWith_last_in_seq_dec);
-    apply in_seq_dec_app_r; firstorder.
-    intuition eauto.
-    intuition eauto.
-    case_eq (in_seq_dec a x); intros.
-    case_eq (in_seq_dec a y); intros.
-    exists a.
-    solve_spec.
-    rewrite H2, H3 in *.
-    destruct (IHgrps x y H g z); try assumption.
-    solve_spec.
-    rewrite H2 in *.
-    destruct (IHgrps x y H g z); try assumption.
-    solve_spec.
-  Qed.
-
-  Hint Resolve inSameGroup_groupWith in_impl_in_seq_dec_impl.
-  Theorem inSameGroup_addEquality_preserved : forall x y grps, inSameGroup grps x y = true -> forall w z, inSameGroup (addEquality grps w z) x y = true.
-    induction grps; solve_spec.
-    destruct (A_seq_dec x y); solve_spec.
-    case_eq (A_seq_dec x y); intros.
-    match goal with
-      | [ |- inSameGroup ?l _ _ = true ] => destruct l
-    end; solve_spec; rewrite H0 in *; intuition.
-    rewrite H0 in *.
-    case_eq (in_seq_dec a x); intros;
-    rewrite H1 in *.
-    case_eq (in_seq_dec a y); intros;
-    rewrite H2 in *.
-    case_eq (in_seq_dec a w); intros.
-    apply inSameGroup_spec.
-    right.
-    destruct (groupWith_arg grps a z).
-    exists x0.
-    intuition eauto.
-    destruct (in_seq_dec a z).
-    apply inSameGroup_spec.
-    right.
-    destruct (groupWith_arg grps a w).
-    exists x0.
-    intuition eauto.
-    simpl.
-    rewrite H0, H1, H2; reflexivity.
-    destruct (in_seq_dec a w).
-    eauto.
-    destruct (in_seq_dec a z).
-    eauto.
-    simpl.
-    rewrite H0, H1, H2.
-    eauto.
-    destruct (in_seq_dec a w).
-    eauto.
-    destruct (in_seq_dec a z).
-    eauto.
-    simpl.
-    rewrite H0, H1.
-    eauto.
+  Theorem inSameGroup_sound : forall grps, groupsEqual grps
+    -> forall x y, inSameGroup grps x y = true
+      -> R x y.
+    induction 1; t.
   Qed.
 End Grouper.
 
-Section EqGrouper.
-  Variable types : list type.
-  Variable natIdx : nat.
-  Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updateAt natType types natIdx.
-  Let natTvar := tvType natIdx.
-  
-  Definition optionDefault T t (o : option T) :=
-    match o with
-      | Some pf => pf
-      | None => t
-    end.
-
-  Definition Empty_setDefault t :=
-    match t with
-      | Some t => Impl t
-      | None => Empty_set
-    end.
-
-  Hint Rewrite nth_error_updateAt : provers.
-  Lemma nth_error_types'_natIdx : nth_error types' natIdx = value {| Expr.Eq := eq_dec_to_seq_dec eq_nat_dec |}.
-    provers.
-  Qed.
-  Hint Rewrite nth_error_types'_natIdx : provers.
-
-  Definition natTvarCoerceR (n : tvarD types' natTvar) : nat := cast natType Empty_setDefault types natIdx n.
-
-  Lemma natTvarCoerceR_inj : forall m n, natTvarCoerceR m = natTvarCoerceR n -> m = n.
-    apply cast_inj with (ls := types) (idx := natIdx) (new := natType) (P := Empty_setDefault).
-  Qed.
-
-  Let natTvar_nat : tvarD types' natTvar = nat.
-    provers.
-  Qed.
-  Hint Rewrite natTvar_nat : provers.
-  
-  Definition natTvarCoerce (n : nat) : tvarD types' natTvar.
-    rewrite natTvar_nat.
-    exact n.
-  Qed.
-
-  Variable fs : functions types'.
-  Variable eqFunIdx : func.
-
-  Let eqFunSig := {| Domain := [natTvar, natTvar]; Range := tvProp; Denotation := (@eq (tvarD types' natTvar)) |}.
-  Hypothesis nth_error_fs_eqFunIdx : nth_error fs eqFunIdx = Some eqFunSig.
-
-  Definition enD (e : expr types') := natTvarCoerceR (optionDefault (natTvarCoerce O) (exprD fs nil nil e natTvar)).
-
-  Fixpoint eqGrouper (hyps : list (expr types')) :=
-      match hyps with
-        | nil => nil
-        | hyp :: hyps' => match hyp with
-                            | Func f [x, y] => if eq_nat_dec f eqFunIdx
-                                                 then addEquality (@nat_seq_dec) (eqGrouper hyps') (enD x) (enD y)
-                                                 else eqGrouper hyps'
-                            | _ => eqGrouper hyps'
-                          end
-      end.
-
-  Lemma eqGrouper_spec : forall hyps x y, (exists pf, expr_seq_dec x y = Some pf) -> In (Func eqFunIdx [x, y]) hyps -> inSameGroup nat_seq_dec (eqGrouper hyps) (enD x) (enD y) = true.
-    intros.
-    induction hyps; intuition.
-    simpl in *.
-    destruct H, H0.
-    subst.
-    rewrite eq_nat_dec_correct.
-    apply inSameGroup_addEquality.
-    provers.
-    destruct a; intuition.
-    repeat (destruct l; intuition).
-    destruct (eq_nat_dec f eqFunIdx); intuition.
-    apply inSameGroup_addEquality_preserved.
-    assumption.
-  Qed.
-
-  Lemma eqFunIdx_eq : forall e e', ValidProp fs (Func eqFunIdx [e, e']) -> exprD fs nil nil (Func eqFunIdx [e,  e']) tvProp = Some (optionDefault (natTvarCoerce 0) (exprD fs nil nil e natTvar) = optionDefault (natTvarCoerce 0) (exprD fs nil nil e' natTvar)).
-    unfold ValidProp.
-    intros.
-    case_eq (exprD fs nil nil e natTvar); case_eq (exprD fs nil nil e' natTvar); provers.
-  Qed.
-
-  Lemma Provable_Func_eq : forall e e', Provable fs nil nil (Func eqFunIdx [e, e']) -> exprD fs nil nil e natTvar = exprD fs nil nil e' natTvar.
-    intros.
-    unfold Provable in H.
-    case_eq (exprD fs nil nil e natTvar);
-    case_eq (exprD fs nil nil e' natTvar);
-      provers.
-  Qed.
-
-  Hint Resolve groupsEqual_addEquality Provable_Func_eq.
-  Lemma eqGrouper_groupsEqual : forall hyps, AllProvable fs nil nil hyps -> groupsEqual (eqGrouper hyps).
-    intros.
-    induction hyps; intuition.
-    simpl.
-    destruct a; simpl in *; intuition.
-    repeat (destruct l; simpl in *; intuition).
-    unfold eqGrouper; simpl.
-    destruct (eq_nat_dec f eqFunIdx).
-    pose (Provable_ValidProp _ _ H0).
-    subst.
-    pose (eqFunIdx_eq v).
-    apply groupsEqual_addEquality.
-    eauto.
-    unfold enD.
-    erewrite Provable_Func_eq; intuition eauto.
-    assumption.
-  Qed.
-End EqGrouper.
-
 Section TransitivityProver.
-  Hint Rewrite nth_error_updateAt : provers.
-  
   Variable types : list type.
-  Variable natIdx : nat.
-  Let natType := {| Expr.Eq := nat_seq_dec |}.
-  Let types' := updateAt natType types natIdx.
-  Let natTvar := tvType natIdx.
+  Variable t : type.
+  Variable tIdx : nat.
+
+  Definition types' := updateAt t types tIdx.
+  Let tTvar := tvType tIdx.
 
   Variable fs : functions types'.
   Variable eqFunIdx : func.
   
-  Let eqFunSig := {| Domain := [natTvar, natTvar]; Range := tvProp; Denotation := (@eq (tvarD types' natTvar)) |}.
+  Definition eqFunSig := {|
+    Domain := [tTvar, tTvar];
+    Range := tvProp;
+    Denotation := @eq (tvarD types' tTvar)
+  |}.
   Let fs' := updateAt eqFunSig fs eqFunIdx.
 
-  Let nth_error_fs'_eqFunIdx : nth_error fs' eqFunIdx = Some eqFunSig.
-    provers.
+  Definition eqD (e1 e2 : expr types') :=
+    match exprD fs' nil nil e1 tTvar, exprD fs' nil nil e2 tTvar with
+      | Some v1, Some v2 => v1 = v2
+      | _, _ => False
+    end.
+
+  Theorem eqD_refl : forall e1 e2, e1 = e2
+    -> forall v, exprD fs' nil nil e1 tTvar = Some v
+      -> eqD e1 e2.
+    t.
   Qed.
 
-  Let eqGrouper' := eqGrouper types natIdx fs' eqFunIdx.
-  Let enD' := enD types natIdx fs'.
+  Definition eqD_seq (e1 e2 : expr types') :=
+    match expr_seq_dec e1 e2 with
+      | Some pf =>
+        match exprD fs' nil nil e1 tTvar as v return (_ = v -> _) with
+          | Some _ => fun pf' => Some (eqD_refl pf pf')
+          | _ => fun _ => None
+        end (refl_equal _)
+      | None => None
+    end.
 
-  Definition transitivityProver (hyps : list (expr types')) (goal : expr types') :=
+  Fixpoint groupsOf (hyps : list (expr types')) : list (list (expr types')) :=
+    match hyps with
+      | nil => nil
+      | h :: hyps' =>
+        let grps := groupsOf hyps' in
+          match h with
+            | Func f [x, y] => if equiv_dec f eqFunIdx
+              then addEquality eqD eqD_seq grps x y
+              else grps
+            | _ => grps
+          end
+    end.
+
+  Definition transitivityProver (hyps : list (expr types'))
+    (goal : expr types') :=
     match goal with
       | Func f [x, y] => if equiv_dec f eqFunIdx
-                           then inSameGroup nat_seq_dec (eqGrouper' hyps) (enD' x) (enD' y)
-                           else false
+        then inSameGroup eqD eqD_seq (groupsOf hyps) x y
+        else false
       | _ => false
     end.
 
-  Hint Rewrite eqFunIdx_eq : provers.
-  Theorem transitivityProverCorrect : ProverCorrect fs' transitivityProver.
-    unfold ProverCorrect; intros.
-    unfold Provable, transitivityProver in *.
-    caseDestruct goal.
-    repeat caseDestruct l.
-    caseDestruct (equiv_dec f eqFunIdx).
-    unfold equiv in e1.
-    subst.
-    unfold natTvar, natType, types', fs', eqFunSig.
-    erewrite eqFunIdx_eq; eauto.
-    fold eqFunSig.
-    edestruct inSameGroup_spec; clear H3.
-    specialize (H2 H).
-    eapply eqGrouper_groupsEqual in H1.
-    edestruct groupsEqual_spec; clear H4.
-    unfold ValidProp in *.
-    simpl in *.
-    rewrite nth_error_fs'_eqFunIdx in H0.
-    simpl in *.
-    unfold enD', enD, eqGrouper' in *.
-    destruct (exprD fs' nil nil e natTvar);
-    destruct (exprD fs' nil nil e0 natTvar);
-    dintuition;
-    apply natTvarCoerceR_inj; eauto.
-    eauto.
-  Qed.
-  Definition transitivityProverRec := {| prove := transitivityProver; prove_correct := transitivityProverCorrect |}.
+  Hint Resolve addEquality_sound.
 
+  Theorem groupsOf_sound : forall hyps,
+    AllProvable fs' nil nil hyps
+    -> groupsEqual eqD (groupsOf hyps).
+    induction hyps; repeat (apply addEquality_sound || t1).
+  Qed.
+
+  Theorem eqD_sym : forall x y, eqD x y -> eqD y x.
+    t.
+  Qed.
+
+  Theorem eqD_trans : forall x y z, eqD x y -> eqD y z -> eqD x z.
+    t.
+  Qed.
+
+  Theorem transitivityProverCorrect : ProverCorrect fs' transitivityProver.
+    unfold transitivityProver; hnf; intros;
+      match goal with
+        | [ H : _ |- _ ] =>
+          generalize (inSameGroup_sound eqD_sym eqD_trans eqD_seq
+            (groupsOf_sound _ H)); intro Hsame
+      end;
+      repeat (unfold types' in *;
+        match goal with
+          | [ H : _ |- _ ] => apply Hsame in H
+          | _ => t1
+        end).
+  Qed.
+
+  Definition transitivityProverRec := {|
+    prove := transitivityProver;
+    prove_correct := transitivityProverCorrect
+  |}.
+
+  (* Didn't get to updating this stuff yet! *)
+(*
   (* now let's use our infrastructure to prove things aren't equal *)
 
   Variable notFunIdx : nat.
@@ -897,4 +615,5 @@ Section TransitivityProver.
   Qed.
 
   Definition notTransitivityProverRec := {| prove := notTransitivityProver; prove_correct := notTransitivityProverCorrect |}.
+*)
 End TransitivityProver.
