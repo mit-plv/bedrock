@@ -51,14 +51,7 @@ Section ProverT.
 
 End ProverT.
 
-Definition eq_dec_to_seq_dec A (d : forall x y : A, { x = y } + { ~ x = y })
-  x y : option (x = y)
-  := match d x y with
-       | left pf => Some pf
-       | right _ => None
-     end.
-
-Definition nat_seq_dec := eq_dec_to_seq_dec eq_nat_dec.
+Definition nat_seq_dec : forall a b : nat, option (a = b) := seq_dec. 
 
 Lemma eq_nat_dec_correct : forall n, eq_nat_dec n n = left eq_refl.
   induction n; provers.
@@ -66,15 +59,14 @@ Qed.
 Hint Rewrite eq_nat_dec_correct : provers.
 
 Lemma nat_seq_dec_correct : forall n, nat_seq_dec n n = Some eq_refl.
-  unfold nat_seq_dec, eq_dec_to_seq_dec in *.
-  provers.
+  unfold nat_seq_dec, seq_dec. provers.
 Qed.
 Hint Rewrite nat_seq_dec_correct : provers.
 
 (* Some test cases for later, might remove *)
-Definition type_nat := {| Expr.Eq := eq_dec_to_seq_dec eq_nat_dec |}.
-Definition type_bool := {| Expr.Eq := eq_dec_to_seq_dec bool_dec |}.
-Definition type_list_bool := {| Expr.Eq := eq_dec_to_seq_dec (list_eq_dec bool_dec) |}.
+Definition type_nat := {| Expr.Impl := nat ; Expr.Eq := seq_dec |}.
+Definition type_bool := {| Expr.Impl := bool ; Expr.Eq := seq_dec |}.
+Definition type_list_bool := {| Expr.Impl := list bool ; Expr.Eq := seq_dec |}.
 Definition test_types := [type_nat, type_bool, type_list_bool].
 (* 0 => nat, 1 => bool, 2 => list bool *)
 Definition tvar_nat := tvType 0.
