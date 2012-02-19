@@ -26,15 +26,17 @@ Section ProverT.
 
   Definition ValidProp (e : expr types) := exists pf, exprD fs nil nil e tvProp = Some pf.
 
-  Lemma Provable_ValidProp : forall goal, Provable fs nil nil goal -> ValidProp goal.
-    intros.
-    unfold Provable, ValidProp in *.
-    destruct (exprD fs nil nil goal tvProp); intuition.
-    exists t.
-    reflexivity.
+  Lemma Provable_ValidProp : forall goal, Provable fs nil nil goal
+    -> ValidProp goal.
+    unfold Provable, ValidProp in *; intros;
+      repeat match goal with
+               | [ _ : match ?E with None => _ | Some _ => _ end |- _ ] =>
+                 destruct E
+             end; intuition eauto.
   Qed.
 
-  Definition ProverCorrect (prover : list (@expr types) -> @expr types -> bool) :=
+  Definition ProverCorrect
+    (prover : list (@expr types) -> @expr types -> bool) :=
     forall hyps goal, prover hyps goal = true ->
       ValidProp goal ->
       AllProvable fs nil nil hyps ->
@@ -49,8 +51,9 @@ Section ProverT.
 
 End ProverT.
 
-Definition eq_dec_to_seq_dec A (d : forall x y : A, { x = y } + { ~ x = y }) x y : option (x = y)
-  := match (d x y) with
+Definition eq_dec_to_seq_dec A (d : forall x y : A, { x = y } + { ~ x = y })
+  x y : option (x = y)
+  := match d x y with
        | left pf => Some pf
        | right _ => None
      end.
@@ -83,37 +86,42 @@ Definition test_plus_sig := Sig test_types [tvar_nat, tvar_nat] tvar_nat plus.
 Fixpoint bin_to_nat (ls : list bool) : nat :=
   match ls with
     | nil => 0
-    | false :: ls' => 2 * (bin_to_nat ls')
-    | true :: ls' => S (2 * (bin_to_nat ls'))
+    | false :: ls' => 2 * bin_to_nat ls'
+    | true :: ls' => S (2 * bin_to_nat ls')
   end.
 Definition test_bin_to_nat_sig := Sig test_types [tvar_list_bool] tvar_nat bin_to_nat.
 Definition test_constant_false_sig := Sig test_types [tvar_empty] tvar_bool (fun _ => false).
 Definition test_functions := [test_eq_sig, test_plus_sig, test_bin_to_nat_sig, test_constant_false_sig].
 
+(* Everything looks like a nail?  Try this hammer. *)
+Ltac t := repeat match goal with
+                   | [ H : ex _ |- _ ] => destruct H
+                   | [ H : _ = Some _ |- _ ] => rewrite H in *
+                   | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
+                   | _ => progress (hnf in *; simpl in *; intuition; subst)
+                 end.
+
 Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
 
-  Fixpoint assumptionProver (hyps : list (expr types)) (goal : expr types) : bool :=
+  Fixpoint assumptionProver (hyps : list (expr types))
+    (goal : expr types) : bool :=
     match hyps with
       | nil => false
-      | exp :: b => if expr_seq_dec exp goal then true else false
+      | exp :: b => if expr_seq_dec exp goal
+        then true
+        else assumptionProver b goal
     end.
 
   Theorem assumptionProverCorrect : ProverCorrect fs assumptionProver.
-    unfold ProverCorrect, ValidProp, Provable.
-    intros.
-    induction hyps; try solve [ provers ].
-    simpl in *.
-    intuition.
-    unfold Provable in H2.
-    destruct (expr_seq_dec a goal).
-    subst.
-    destruct (exprD fs nil nil goal tvProp); provers.
-    provers.
+    t; induction hyps; t.
   Qed.
 
-  Definition assumptionProverRec := {| prove := assumptionProver; prove_correct := assumptionProverCorrect |}.
+  Definition assumptionProverRec := {|
+    prove := assumptionProver;
+    prove_correct := assumptionProverCorrect
+  |}.
 End AssumptionProver.
 
 Section ReflexivityProver.
