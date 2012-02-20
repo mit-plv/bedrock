@@ -31,6 +31,7 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   refine (ptsto32 _).
   Defined.
 
+  Section with_functions.
   Variable funcs : functions wtypes.
 
   (** TODO: maybe this should be like unification? 
@@ -155,5 +156,6 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   eapply sym_read_ptsto32_correct.
   eapply sym_write_word_ptsto32_correct.
   Defined.  
+  End with_functions.
 
 End BedrockPtsToEvaluator.

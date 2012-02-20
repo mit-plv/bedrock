@@ -140,34 +140,39 @@ Ltac refl_app cc e :=
         refl cc e b
   end.
 
-(*
-Goal forall f : nat -> nat -> Prop, 
-  forall x, f x 2.
-*)
-(*
-Goal forall (f : forall x y , x -> y -> Prop), 
-  forall x : nat, @f nat bool 1 true.
-  intro.
-  match goal with
-    | [ |- forall x, @?e x ] =>
-      idtac e ;
-      let cc f Ts As :=
-        idtac "result" ;
-        idtac f ;
-          idtac Ts ;
-            idtac As
-      in
-      refl_app cc e
+(** Test whether two terms are unifiable *)
+Ltac unifies a b :=
+  match a with
+    | b => true
+    | _ =>
+      let a := eval cbv in a in
+      let b := eval cbv in b in
+      match a with
+        | b => true
+        | _ => false
+      end
   end.
-Abort.
-*)
+
+Ltac guard_unifies a b :=
+  unify a b.
+
+(** Unification test **)
+Definition foo := nat.
+
+Goal True.
+  guard_unifies foo nat.
+  (guard_unifies unit nat || trivial).
+Qed.
 
 (** Set operations **)
 Ltac contains e s :=
   match s with
     | nil => false
-    | e :: _ => true
-    | _ :: ?b => contains e b
+    | ?e' :: ?b => 
+      match unifies e e' with
+        | true => true
+        | false => contains e b 
+      end
     | ?X ++ ?Y => match contains e X with
                     | true => true
                     | false => contains e Y 
@@ -236,10 +241,10 @@ Ltac append_uniq es s :=
 Ltac indexOf keyF x ls :=
   match ls with
     | ?F :: ?ls' =>
-      let F' := eval simpl in (keyF F) in
-      match F' with
-        | x => constr:(@FO _ F ls')
-        | _ => let f := indexOf keyF x ls' in constr:(@FS _ F ls' f)
+      let F' := eval simpl keyF in (keyF F) in
+      match unifies F' x with
+        | true => constr:(@FO _ F ls')
+        | false => let f := indexOf keyF x ls' in constr:(@FS _ F ls' f)
       end
   end.
 
@@ -264,17 +269,16 @@ Ltac map_tac T tac fs :=
     end
   in
   map_tac fs.
-  
 
-Goal forall a b c : Type, nil ++ (a :: nil) ++ nil ++ nil = nil.
+Goal (unit :: nil) ++ (foo :: nil) ++ (bool :: nil) ++ nil = unit :: foo :: bool :: nil.
   intros.
   match goal with
     | [ |- ?L = ?R ] =>
       let res := append_uniq R L in
       idtac res ;
       let nop := constr:(fun x : Type => x) in
-      let i := indexOf nop a res in
+      let i := indexOf nop nat res in
       idtac i
-
   end.
+  reflexivity.
 Abort.
