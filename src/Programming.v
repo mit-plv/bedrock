@@ -200,7 +200,6 @@ Ltac conditions :=
              | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
              | [ H : Some _ = None |- _ ] => discriminate H
              | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
-(*             | [ H : context[inBounds_dec ?X ?Y] |- _ ] => destruct (inBounds_dec X Y); [ | try tauto ]; try discriminate H *)
              | [ H : evalInstrs _ _ _ = _ |- _ ] =>
                repeat (rewrite evalInstrs_cons in H; simpl in H; autorewrite with IL in H);
                  try rewrite evalInstrs_nil in H
@@ -209,6 +208,26 @@ Ltac conditions :=
 Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
   simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
     (simpl; propxFo; conditions) ].
+
+
+(** BEGIN Automation Version **)
+(** NOTE: This version is temporary, it just allows testing of symbolic
+ ** evaluation without having to remember to commend and uncomment the
+ ** [evalInstrs] line
+ **)
+Ltac conditions_auto :=
+  unfold evalCond in *; simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *;
+    repeat match goal with
+             | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+             | [ H : Some _ = None |- _ ] => discriminate H
+             | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
+           end; simpl.
+
+Ltac structured_auto := apply bmoduleOk; [ exact (refl_equal false) | exact I |
+  simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
+    (simpl; propxFo; conditions_auto) ].
+(** END Automation Version **)
+
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
   | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].

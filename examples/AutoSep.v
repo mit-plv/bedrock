@@ -2,13 +2,14 @@ Require Import Bedrock.
 
 Set Implicit Arguments.
 
-(** ezyang: Stopped working with new partial memory representation.
-    I think this is because the 'ho' tactic stopped working.  *)
-
 (** * Let's read from memory! *)
 
-
 Import SepTac.BedrockEvaluator.
+Require Import Bedrock.sep.PtsTo.
+
+Module PLUGIN_PTSTO := BedrockPtsToEvaluator SepTac.PLUGIN.
+
+About PLUGIN_PTSTO.SymEval_ptsto32.
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st).
@@ -21,12 +22,18 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  structured; autorewrite with sepFormula in *; simpl in *.
+  structured_auto.  ; autorewrite with sepFormula in *; simpl in *.
 
   unfold ReadWord, mem_get_word, footprint_w, ReadByte in *; auto.
   auto.
 
-  ho. admit.
+  ho. admit. (** TODO: Safety proof **)
+
+  About sym_evalInstrs.
+  Implicit Arguments sym_evalInstrs [ types' funcs fPlus fMinus fTimes sfuncs ].
+
+  Definition knowns := 0 :: nil.
+  About sym_evalInstrs_apply.
 
   unfold starB in *.
     match goal with

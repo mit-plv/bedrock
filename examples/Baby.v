@@ -168,39 +168,6 @@ Definition stress := bmodule "stress" {{
   }
 }}.
 
-(*
 Theorem stressOk : moduleOk stress.
   structured.
-Require Import Bedrock.SymEval.
-
-Set Printing All.
-
-Print LvReg.
-Print loc.
-
-Module PLUGIN := SymEval.EvaluatorPlugin SepIL.BedrockHeap SepIL.ST.
-Module EVAL := SymEval.BedrockEvaluator PLUGIN.
-
-Print EVAL.sym_loc.
-
-Ltac reflect_loc loc :=
-  match loc with
-    | Reg ?r => constr:(EVAL.SymReg r)
-    | Imm ?i => 
-      
-
-    | Indir ?r ?i => 
-  end.
-
-Ltac reflect_lval lv :=
-  match lv with
-    | LvReg ?r => 
-    | LvMem ?l =>
-
-Ltac reflect_instr i :=
-  match i with
-    | Assign (LvReg ?r) >
-
-
 Qed.
-*)
