@@ -4,64 +4,62 @@ Require Import Setoid Classes.Morphisms.
 Section machine.
   Variable pc st : Type.
 
-  Definition PropX_imply (l r : PropX pc st) : Prop :=
-    forall cs, interp cs (Imply l r).
+  Definition PropX_imply cs (l r : PropX pc st) : Prop :=
+    interp cs (Imply l r).
   
-  Definition PropX_eq (l r : PropX pc st) : Prop :=
-    PropX_imply l r /\ PropX_imply r l.
+  Definition PropX_eq cs (l r : PropX pc st) : Prop :=
+    PropX_imply cs l r /\ PropX_imply cs r l.
 
-  Theorem PropX_imply_refl : Reflexive PropX_imply.
+  Theorem PropX_imply_refl cs : Reflexive (PropX_imply cs).
   Proof.
     unfold Reflexive, PropX_imply. intros.
       eapply Imply_I. econstructor. left; auto.
   Qed.
 
-  Theorem PropX_imply_trans : Transitive PropX_imply.
+  Theorem PropX_imply_trans cs : Transitive (PropX_imply cs).
   Proof.
     unfold Transitive, PropX_imply. intros.
-      specialize (H cs). specialize (H0 cs).
       eapply Imply_I. eapply Imply_E.
       eapply valid_weaken. eassumption. compute; intros; auto.
       eapply Imply_E. eapply valid_weaken. eassumption. compute; intros; auto.
       propxFo.
   Qed.
 
-  Theorem PropX_eq_refl : Reflexive PropX_eq.
+  Theorem PropX_eq_refl cs : Reflexive (PropX_eq cs).
   Proof.
-    unfold Reflexive, PropX_eq. generalize PropX_imply_refl. eauto.
+    unfold Reflexive, PropX_eq. generalize (PropX_imply_refl cs). intuition eauto.
   Qed.
   
-  Theorem PropX_eq_sym : Symmetric PropX_eq.
+  Theorem PropX_eq_sym cs : Symmetric (PropX_eq cs).
   Proof.
     unfold Symmetric, PropX_eq. intuition.
   Qed.
 
-  Theorem PropX_eq_trans : Transitive PropX_eq.
+  Theorem PropX_eq_trans cs : Transitive (PropX_eq cs).
   Proof.
     unfold Transitive, PropX_eq. generalize PropX_imply_trans.
       intuition;  eapply H; eauto.
   Qed.
 
-  Add Parametric Relation : (@PropX pc st) (@PropX_imply)
-    reflexivity proved by PropX_imply_refl
-    transitivity proved by PropX_imply_trans
+  Add Parametric Relation cs : (@PropX pc st) (@PropX_imply cs)
+    reflexivity proved by (PropX_imply_refl cs)
+    transitivity proved by (PropX_imply_trans cs)
   as imply_rel.
 
-  Add Parametric Relation : (@PropX pc st) (@PropX_eq)
-    reflexivity proved by PropX_eq_refl
-    symmetry proved by PropX_eq_sym
-    transitivity proved by PropX_eq_trans
+  Add Parametric Relation cs : (@PropX pc st) (@PropX_eq cs)
+    reflexivity proved by (PropX_eq_refl cs)
+    symmetry proved by (PropX_eq_sym cs)
+    transitivity proved by (PropX_eq_trans cs)
   as eq_rel.
 
   Global Add Parametric Morphism cs : (interp cs) with
-    signature (PropX_imply ==> Basics.impl)
+    signature (PropX_imply cs ==> Basics.impl)
   as interp_imply.
-    intros. intro. specialize (H cs). 
-    eapply Imply_E; eauto.
+    intros. intro. eapply Imply_E; eauto.
   Qed.
 
   Global Add Parametric Morphism cs : (interp cs) with
-    signature (PropX_eq ==> iff)
+    signature (PropX_eq cs ==> iff)
   as interp_eq.
     unfold PropX_eq.
     intros. generalize (interp_imply cs). unfold Basics.impl. intuition;
@@ -147,6 +145,8 @@ Ltac propxIntuition :=
                              | context [ (_ /\ _)%PropX ] => 
                                eapply valid_perm; simpl
                              | context [ (Ex x : _ , _)%PropX ] => 
+                               eapply valid_perm; simpl
+                             | context [ ([| _ |])%PropX ] => 
                                eapply valid_perm; simpl
                            end
                          | [ |- valid _ _ (_ /\ _)%PropX ] =>
