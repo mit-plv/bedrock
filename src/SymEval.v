@@ -212,7 +212,10 @@ Section search_read_write.
 
 End search_read_write.
 
-(** This depends on [IL.settings] **)
+(** This depends on [IL.settings] 
+ ** - this suggests that a better abstraction is to put the relevant settings into the
+ **   memory model...
+ **)
 Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SEP := SepExpr B ST.
 
@@ -264,22 +267,20 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (funcs : functions types)
     (Predicate : ssignature types tvPc tvState)
     (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate), 
-    forall args uvars vars cs hyps pe ve m stn,
+    forall args uvars vars cs hyps pe p ve m stn,
       sym_read se hyps args pe = Some ve ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
         with
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match 
-        exprD funcs uvars vars pe tvPtr, 
-        exprD funcs uvars vars ve tvVal
-        with
-        | Some p , Some v =>
+      match exprD funcs uvars vars ve tvVal with
+        | Some v =>
           smem_get_value stn p m = Some v
-        | _ , _ => False
+        | _ => False
       end.
   
   Parameter sym_write : forall
@@ -315,9 +316,10 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (funcs : functions types)
     (Predicate : ssignature types tvPc tvState)
     (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate),
-    forall args uvars vars cs hyps pe ve v m stn args',
+    forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write se hyps args pe ve = Some args' ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
         applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -325,19 +327,15 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match exprD funcs uvars vars pe tvPtr with
-        | Some p =>
-          match 
-            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-            with
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some pr => 
+          match smem_set_value stn p v m with
             | None => False
-            | Some pr => 
-              match smem_set_value stn p v m with
-                | None => False
-                | Some sm' => ST.satisfies cs pr stn sm'
-              end
+            | Some sm' => ST.satisfies cs pr stn sm'
           end
-        | _ => False
       end.
 
   Parameter Build_SymEval : forall
@@ -359,26 +357,25 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       option (expr types))
     (sym_write : forall (hyps args : list (expr types)) (p v : expr types),
       option (list (expr types)))
-    (sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
+    (sym_read_correct : forall args uvars vars cs hyps pe p ve m stn,
       sym_read hyps args pe = Some ve ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
         with
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match 
-        exprD funcs uvars vars pe tvPtr, 
-        exprD funcs uvars vars ve tvVal
-        with
-        | Some p , Some v =>
+      match exprD funcs uvars vars ve tvVal with
+        | Some v =>
           smem_get_value stn p m = Some v
-        | _ , _ => False
+        | _ => False
       end)
-    (sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
+    (sym_write_correct : forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write hyps args pe ve = Some args' ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
         applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -386,25 +383,21 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match exprD funcs uvars vars pe tvPtr with
-        | Some p =>
-          match 
-            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-            with
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some pr => 
+          match smem_set_value stn p v m with
             | None => False
-            | Some pr => 
-              match smem_set_value stn p v m with
-                | None => False
-                | Some sm' => ST.satisfies cs pr stn sm'
-              end
+            | Some sm' => ST.satisfies cs pr stn sm'
           end
-        | _ => False
       end),
     @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate.
-     
+
 End EvaluatorPluginType.
 
-Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : EvaluatorPluginType B ST.
+Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) <: EvaluatorPluginType B ST.
   Module Import SEP := SepExpr B ST.
 
   Section typed.
@@ -422,33 +415,32 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
     
     Variable funcs : functions types.
 
-    Record SymEval' (Predicate : ssignature types tvPc tvState) : Type :=
+    Class SymEval' (Predicate : ssignature types tvPc tvState) : Type :=
     { sym_read  : 
       forall (hyps args : list (expr types)) (p : expr types),
       option (expr types)
     ; sym_write : 
       forall (hyps args : list (expr types)) (p v : expr types),
       option (list (expr types))
-    ; sym_read_correct : forall args uvars vars cs hyps pe ve m stn,
+    ; sym_read_correct : forall args uvars vars cs hyps pe p ve m stn,
       sym_read hyps args pe = Some ve ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
         with
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match 
-        exprD funcs uvars vars pe tvPtr, 
-        exprD funcs uvars vars ve tvVal
-        with
-        | Some p , Some v =>
+      match exprD funcs uvars vars ve tvVal with
+        | Some v =>
           smem_get_value stn p m = Some v
-        | _ , _ => False
+        | _ => False
       end
-    ; sym_write_correct : forall args uvars vars cs hyps pe ve v m stn args',
+    ; sym_write_correct : forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write hyps args pe ve = Some args' ->
       AllProvable funcs uvars vars hyps ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
         applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -456,19 +448,15 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) : Evaluator
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
-      match exprD funcs uvars vars pe tvPtr with
-        | Some p =>
-          match 
-            applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-            with
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some pr => 
+          match smem_set_value stn p v m with
             | None => False
-            | Some pr => 
-              match smem_set_value stn p v m with
-                | None => False
-                | Some sm' => ST.satisfies cs pr stn sm'
-              end
+            | Some sm' => ST.satisfies cs pr stn sm'
           end
-        | _ => False
       end
     }.
 

@@ -49,7 +49,7 @@ Qed.
 
 Hint Resolve FR0' FRS'.
 
-Definition factS : assert := st ~> ExX, Ex n0, Ex n4, ![ $0 ==> n0 * $4 ==> n4 * #0 ] st
+Definition factS : assert := st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #0 ] st
   /\ st#Rp @@ (st' ~> [| factR st#Rv st'#Rv |]).
 
 Definition fact := bmodule "fact" {{
@@ -57,7 +57,7 @@ Definition fact := bmodule "fact" {{
     $[0] <- Rv;;
     $[4] <- 1;;
 
-    [st ~> ExX, Ex n0', Ex n4', ![ $0 ==> n0' * $4 ==> n4' * #0 ] st /\ st#Rp @@ (st' ~> Ex n0, Ex n4, Ex r, ![ $0 ==> n0 * $4 ==> n4 * #1 ] st' /\ [| factR n0 r /\ st'#Rv = n4 ^* r |])]
+    [st ~> ExX, Ex n0', Ex n4', ![ $0 =*> n0' * $4 =*> n4' * #0 ] st /\ st#Rp @@ (st' ~> Ex n0, Ex n4, Ex r, ![ $0 =*> n0 * $4 =*> n4 * #1 ] st' /\ [| factR n0 r /\ st'#Rv = n4 ^* r |])]
     While ($[0] <> 0) {
       $[4] <- $[0] * $[4];;
       $[0] <- $[0] - 1
@@ -97,7 +97,7 @@ Admitted.
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
   bmodule "factDriver" {{
     (* ezyang: Similarly, pre-condition probably not strong enough *)
-    bfunction "main" [st ~> ExX, Ex n0, Ex n4, ![ $0 ==> n0 * $4 ==> n4 * #0 ] st] {
+    bfunction "main" [st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #0 ] st] {
       Rv <- 4;;
       Call "fact"!"fact"
       [st ~> [| st#Rv = 24 |] ];;

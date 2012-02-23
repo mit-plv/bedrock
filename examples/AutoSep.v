@@ -22,70 +22,31 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  structured_auto.  ; autorewrite with sepFormula in *; simpl in *.
+  structured_auto; autorewrite with sepFormula in *; simpl in *.
+  Focus 2.
+(*
+  sym_eval.
+
+  ho.
 
   unfold ReadWord, mem_get_word, footprint_w, ReadByte in *; auto.
   auto.
 
   ho. admit. (** TODO: Safety proof **)
+*)
+  Existing Instance PLUGIN_PTSTO.SymEval_ptsto32.
+  unfold starB, hpropB in *. fold hprop in *.
+  sym_eval.
+  intuition.
+  eexists. rewrite H4. split. eassumption.
+  propxFo. eapply Imply_E. eapply valid_weaken. eapply H3. firstorder.
+  propxFo. (** A proof using sym_eval **)
 
-  About sym_evalInstrs.
-  Implicit Arguments sym_evalInstrs [ types' funcs fPlus fMinus fTimes sfuncs ].
+  
+  admit.
+Admitted. (** Universe inconsistency? **)
 
-  Definition knowns := 0 :: nil.
-  About sym_evalInstrs_apply.
-
-  unfold starB in *.
-    match goal with
-      | [ H : evalInstrs ?stn ?st ?is = _ 
-        , H' : PropX.interp ?cs (SepIL.SepFormula.sepFormula ?SF (?stn, ?st)) |- _ ] =>
-        match find_reg st Rp with
-          | (?rp_v, ?rp_pf) =>
-            match find_reg st Sp with
-              | (?sp_v, ?sp_pf) =>
-                match find_reg st Rv with
-                  | (?rv_v, ?rv_pf) => 
-        let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
-        let Ts := constr:(@nil Type) in
-        let Ts := collectTypes_instrs is Ts in
-        let Ts := SEP.collectAllTypes_expr isConst Ts regs in
-        let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
-        let types := eval unfold bedrock_types in bedrock_types in
-        let types := SEP.extend_all_types Ts types in
-        match types with
-          | _ :: _ :: _ :: ?types_ext =>
-            let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
-            let funcs := eval simpl in funcs in
-            let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
-            let uvars := eval simpl in (@nil _ : Expr.env types) in
-            let vars := eval simpl in (@nil _ : Expr.env types) in
-            reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
-            SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
-            SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
-            SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
-            SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-              idtac "here" H' ;
-            generalize (@sym_evalInstrs_apply types_ext funcs (fPlus _) (fMinus _) (fMult _) sfuncs nil DepList.HNil
-              (fPlus_correct _ _) (fMinus_correct _ _) (fMult_correct _ _) uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
-              sp_pf rv_pf rp_pf _ (refl_equal _) sis) (* _ (refl_equal _) (refl_equal _)); simpl stateD; intro *) )))))
-        end
-                end
-            end
-        end
-    end.
-    simpl.
-    Set Printing Implicit.
-    unfold types.
-
-    simpl SEP.sexprD.
-
-
-
-
-  sepRead.
-  reflexivity.
-Qed.
-
+(*
 (** Identity function, using a simple calling convention *)
 
 Definition identityS : assert := st ~> Ex a, ![ st#Sp ==> a ] st /\ st#Rp @@ (st' ~> [| st'#Rv = a /\ st'#Sp = st#Sp |]).
@@ -248,3 +209,5 @@ Module LinkedList : LINKED_LIST.
     -> (Ex x, Ex ls', Ex p, [| ls = x :: ls' |] * a ==> x * (a ^+ $4) ==> p * llist ls' p) ===> llist ls a.
   Admitted.
 End LinkedList.
+
+*)
