@@ -9,42 +9,79 @@ Require Import Bedrock.sep.PtsTo.
 
 Module PLUGIN_PTSTO := BedrockPtsToEvaluator SepTac.PLUGIN.
 
-About PLUGIN_PTSTO.SymEval_ptsto32.
-
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st).
 
 Definition read := bmodule "read" {{
   bfunction "read" [readS] {
     Rv <- $[0];;
+    $[0] <- Rv;;
+    Rv <- $[0];;
     Goto Rp
   }
 }}.
 
+Implicit Arguments sym_evalInstrs [ types' funcs' sfuncs known word_evals ].
+Implicit Arguments SepExpr.FM.MBranch [ T ].
+Implicit Arguments SepExpr.FM.MLeaf [ T ].
+Implicit Arguments stateD [ types' funcs' sfuncs ].
+Implicit Arguments sym_instrsD [ types' funcs' ].
+
+
+Existing Instance PLUGIN_PTSTO.SymEval_ptsto32.
+Ltac simplifier H := 
+  cbv beta iota zeta delta
+    [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc
+      symeval_read_word symeval_write_word 
+      SymEval.fold_known SymEval.fold_args
+      SymEval.fold_known_update SymEval.fold_args_update
+      sym_setReg sym_getReg
+      PLUGIN.sym_read PLUGIN.sym_write PLUGIN.Build_SymEval
+      SepExpr.pures SepExpr.impures SepExpr.other
+      SymMem SymRegs 
+      SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
+      Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
+      app map nth_error value error fold_right
+      DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
+      SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
+      Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
+      EquivDec.equiv_dec EquivDec.nat_eq_eqdec
+      f_equal 
+      bedrock_funcs bedrock_types pcT stT tvWord
+      fst snd
+      SepTac.SEP.defaultType
+
+      (** second stage **)
+      stateD 
+      Expr.exprD SEP.sexprD
+      EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
+      eq_rec_r eq_rec eq_rect eq_sym
+      funcs
+      Expr.Range Expr.Domain Expr.Denotation Expr.tvarD Expr.applyD
+      SEP.sheapD SEP.starred
+      SepExpr.pures SepExpr.impures SepExpr.other
+      Expr.Impl
+      SepExpr.SDenotation SepExpr.SDomain
+
+      (** plugin **)
+      PLUGIN_PTSTO.SymEval_ptsto32 PLUGIN_PTSTO.sym_read_word_ptsto32 PLUGIN_PTSTO.sym_write_word_ptsto32
+      PLUGIN_PTSTO.expr_equal PLUGIN_PTSTO.types
+    ] in H.
+
 Theorem readOk : moduleOk read.
-  structured_auto; autorewrite with sepFormula in *; simpl in *.
-  Focus 2.
-(*
-  sym_eval.
+  structured_auto; autorewrite with sepFormula in *; simpl in *;
+    unfold starB, hpropB in *; fold hprop in *.
+  sym_eval simplifier.
+  sym_eval simplifier.
 
-  ho.
-
-  unfold ReadWord, mem_get_word, footprint_w, ReadByte in *; auto.
-  auto.
-
-  ho. admit. (** TODO: Safety proof **)
-*)
-  Existing Instance PLUGIN_PTSTO.SymEval_ptsto32.
-  unfold starB, hpropB in *. fold hprop in *.
-  sym_eval.
   intuition.
-  eexists. rewrite H4. split. eassumption.
-  propxFo. eapply Imply_E. eapply valid_weaken. eapply H3. firstorder.
-  propxFo. (** A proof using sym_eval **)
+  eexists. rewrite H4. ho. 
 
-  
-  admit.
-Admitted. (** Universe inconsistency? **)
+  Set Printing Universes.
+  Print Universes "../uni".
+
+Admitted. (** Universe inconsistency **)
+
 
 (*
 (** Identity function, using a simple calling convention *)
