@@ -779,7 +779,19 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (** Reflection **)
   Require Import Reflect.
 
-  Ltac extend_type T D types :=
+  Definition defaultType (T : Type) : type :=
+    {| Impl := T; Expr.Eq := fun _ _ => None |}.
+
+  Ltac build_default_type T := 
+    match goal with
+      | [ |- _ ] =>
+        let D := constr:(@Typ T (@seq_dec T _)) in
+        D
+      | [ |- _ ] =>
+        constr:(defaultType T)
+    end.
+
+  Ltac extend_type T types :=
     match T with
       | Prop => types
       | _ => 
@@ -787,21 +799,19 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         match types with
           | nil => constr:(false)
           | ?a :: ?b =>
-            let T' := eval simpl Impl in (Impl a) in
-            match T' with
-              | T => constr:(true)
-              | _ => find b
+            match unifies (Impl a) T with
+              | true => constr:(true)
+              | false => find b
             end
         end
         in
         match find types with
           | true => types
-          | _ => eval simpl app in (types ++ (D :: @nil type))
+          | _ =>
+            let D := build_default_type T in
+            eval simpl app in (types ++ (D :: @nil type))
         end
     end.
-
-  Definition defaultType (T : Type) : type :=
-    {| Impl := T; Expr.Eq := fun _ _ => None |}.
 
   (* extend a reflected type list with new raw types
    * - Ts is a list of raw types
@@ -810,8 +820,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac extend_all_types Ts types :=
     match Ts with
       | nil => types
-      | ?a :: ?b => 
-        let types := extend_type a (defaultType a) types in
+      | ?a :: ?b =>
+        let types := extend_type a types in
         extend_all_types b types
     end.
 
@@ -939,10 +949,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     let rec search xs :=
       match xs with
         | ?X :: ?XS =>
-          let X' := eval simpl in (proj X) in
-          match X' with
-            | x => constr:(0)
-            | _ => 
+          match unifies (proj X) x with
+            | true => constr:(0)
+            | false => 
               let r := search XS in
               constr:(S r)
           end
@@ -1055,10 +1064,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
           k funcs acc
         | ?F :: ?FS =>
-          let F' := eval simpl Denotation in (Denotation F) in
-          match F' with
-            | f => k funcs' acc
-            | _ => 
+          match unifies (Denotation F) f with
+            | true => k funcs' acc
+            | false =>
               let acc := constr:(S acc) in
               lookup FS acc
           end
@@ -1151,11 +1159,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let sfuncs := eval simpl app in (sfuncs ++ (F :: nil)) in
           k sfuncs acc
         | ?F :: ?FS =>
-          let F' := eval simpl SDenotation in (SDenotation F) in
-          match F' with
-            | f => 
-              k sfuncs acc 
-            | _ => 
+          match unifies (SDenotation F) f with
+            | true => k sfuncs acc 
+            | false => 
               let acc := constr:(S acc) in
               lookup FS acc
           end

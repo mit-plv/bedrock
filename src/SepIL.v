@@ -286,6 +286,29 @@ Module SepFormula : SEP_FORMULA.
 End SepFormula.
 
 Import SepFormula.
+
+Require Import RelationClasses Setoid.
+
+Global Add Parametric Morphism cs : (@sepFormula nil) with
+  signature (@himp W (settings * state) cs ==> @eq (settings * state) ==> @PropXRel.PropX_imply _ _ cs)
+as sepFormula_himp_imply.
+  unfold himp. rewrite sepFormula_eq.
+  unfold sepFormula_def.
+  unfold PropXRel.PropX_imply.
+  intros. unfold interp.
+  eapply PropX.Imply_I. 
+
+  specialize (H (fst y0) (memoryIn (Mem (snd y0)))). eapply PropX.Imply_E.
+  eapply PropXTac.valid_weaken. eapply H. firstorder.
+  PropXRel.propxIntuition.
+Qed.
+Global Add Parametric Morphism cs : (@sepFormula nil) with
+  signature (@heq W (settings * state) cs ==> @eq (settings * state) ==> @PropXRel.PropX_eq _ _ cs)
+as sepFormula_himp_eq.
+  rewrite sepFormula_eq. unfold heq, himp, sepFormula_def, PropXRel.PropX_eq, PropXRel.PropX_imply.
+  intros. unfold interp in *. intuition; PropXRel.propxIntuition; eauto.
+Qed.
+
 Export SepFormula.
 
 Definition substH sos (p1 : hpropB sos) (p2 : last sos -> PropX W (settings * state)) : hpropB (eatLast sos) :=
