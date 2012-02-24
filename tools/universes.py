@@ -1,15 +1,86 @@
 #!/usr/bin/python
 import sys
 
+class CycleFound (Exception):
+    def __init__(self, path, labels):
+        self.path = path
+        self.labels = labels
+
+    def __str__(self):
+        l = len(self.labels)
+        result = ""
+        for i in range(0, l):
+            result = "%s%s %s " % (result, self.path[i], self.labels[i])
+        return "%s%s" % (result, self.path[l])
+
+def consistent(lbls, recur=False):
+    if len(lbls) == 0:
+        return True
+    if len(lbls) == 1:
+        assert False
+    return not (reduce(combine, lbls[1:], lbls[0]) in ['<', '>'])
+        
+    # if len(lbls) == 2:
+    #     return (lbls[0] == '<>') or (combine(lbls[0], symmetric(lbls[1])) <> '<>')
+    # else:
+    #     return consistent([combine(lbls[0], lbls[1])] + lbls[2:])
+    
+
+def combine(old, new, loop=False):
+    if old == '<>' or new == '<>':
+        return '<>'
+    if old == new:
+        return old
+    if old == '=':
+        if new.find('=') <> -1:
+            return '='
+        return '<>'
+    if old == '<':
+        if new == '<=' or new == '<':
+            return '<'
+        return '<>'
+    if old == '>':
+        if new == '>' or new == '>=':
+            return '>'
+        return '<>'
+    if old == '<=':
+        if new.find('=') <> -1:
+            return '='
+    if old == '>=':
+        if new.find('=') <> -1:
+            return '='
+    
+    if loop:
+        print old, new
+        assert False
+    else:
+        return combine(new, old, True)
+
+def symmetric(lbl):
+    return { '<' : '>'
+           , '<=' : '>='
+           , '>=' : '<='
+           , '>' : '<'
+           , '=' : '='
+           , '<>' : '<>' }[lbl]
+
 class Graph:
     def __init__(self):
         self._edges = {}
     
-    def edge(self, st, en, lbl):
+    def edge(self, st, en, lbl, loop=False):
         if not self._edges.has_key(st):
             self._edges[st] = {}
+        if self._edges[st].has_key(en):
+            try:
+                x = combine(self._edges[st][en], lbl)
+                self._edges[st][en] = x
+            except Exception,e:
+                raise CycleFound([st, en, st], [lbl, self._edges[st][en]])
         self._edges[st][en] = lbl
-
+        if not loop:
+            self.edge(en, st, symmetric(lbl), True)
+        
     def edges(self, st):
         if self._edges.has_key(st):
             return self._edges[st]
@@ -18,10 +89,8 @@ class Graph:
     def nodes(self):
         return self._edges.keys()
 
-class CycleFound (Exception):
-    def __init__(self, path, labels):
-        self.path = path
-        self.labels = labels
+    def __str__(self):
+        return "%s" % self._edges
 
 def find_cycle(gr):
     visited = set([])
@@ -36,7 +105,7 @@ def find_cycle(gr):
         def find_strict_cycle(st):
             if st in path:
                 f = path.index(st)
-                if '<' in labels[f:]:
+                if not consistent(labels[f:]):
                     raise CycleFound(path[f:] + [st], labels[f:])
             if st in visited:
                 return None
@@ -51,11 +120,8 @@ def find_cycle(gr):
                 
             return None
 
-        try:
-            find_strict_cycle(root)
-        except CycleFound, e:
-            return (e.path, e.labels)
-        
+        find_strict_cycle(root)
+                
     return None
 
 def read_graph(file):
@@ -73,21 +139,27 @@ def read_graph(file):
         else:
             assert False
             
-        st = parts[0]
-        en = parts[2]
-        gr.edge(st, en, parts[1])
+        st = parts[0].strip()
+        en = parts[2].strip()
+        gr.edge(st, en, parts[1].strip())
 
     return gr
 
+def test_combine():
+    lbls = ['<', '>', '<=', '>=', '=']
+    for x in lbls:
+        for y in lbls:
+            combine(x,y)
+
+def test_consistent():
+    assert not consistent(['>=', '>=', '>'])
+    assert consistent(['<', '>'])
+
 if __name__ == '__main__':
-    gr = read_graph(sys.stdin)
-    res = find_cycle(gr)
-    if res is None:
+    try:
+        gr = read_graph(sys.stdin)
+        res = find_cycle(gr)
         print "No cycle found"
-    else:
+    except CycleFound,e:
         print "Cycle found!"
-        (nodes, labels) = res
-        l = len(labels)
-        for i in range(0, l):
-            print "%s %s " % (nodes[i], labels[i]) ,
-        print nodes[l]
+        print e
