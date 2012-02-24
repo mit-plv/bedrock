@@ -92,6 +92,22 @@ class Graph:
     def __str__(self):
         return "%s" % self._edges
 
+    def dump_smt(self, out=sys.stdout):
+        def name_of(n):
+            return n.replace('.', '_')
+        for n in self._edges.keys():
+            out.write("(define %s::int)\n" % name_of(n))
+        out.write("\n")
+        visited = set()
+        for (x,es) in self._edges.items():
+            for (y, op) in es.items():
+                if y in visited:
+                    continue
+                out.write("(assert (%s %s %s))\n" % (op, name_of(x), name_of(y)))
+            visited.add(x)
+        out.write("(exit)\n")
+
+
 def find_cycle(gr):
     visited = set([])
     remaining = set(gr.nodes())   
