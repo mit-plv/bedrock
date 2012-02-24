@@ -71,14 +71,12 @@ Ltac simplifier H :=
 Theorem readOk : moduleOk read.
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hpropB in *; fold hprop in *.
+
   sym_eval simplifier.
   sym_eval simplifier.
 
   intuition.
   eexists. rewrite H4. ho. 
-
-  Set Printing Universes.
-  Print Universes "../uni".
 
 Admitted. (** Universe inconsistency **)
 
