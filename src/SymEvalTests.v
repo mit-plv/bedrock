@@ -115,9 +115,6 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           end
       end.
 
-    Check Build_SymEval_word.
-    About DepList.HCons.
-
     Ltac lift_evaluators_w es nt nf ns :=
       let rec lift es :=
         match es with

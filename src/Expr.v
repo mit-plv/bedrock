@@ -17,10 +17,10 @@ Section env.
   | tvType : nat -> tvar.
 
   Definition tvarD (x : tvar) := 
-    match x with
+    match x return Type with
       | tvProp => Prop
       | tvType x => 
-        match nth_error types x with
+        match nth_error types x return Type with
           | None => Empty_set
           | Some t => Impl t
         end
