@@ -14,7 +14,16 @@ Definition bedrock_types : list Expr.type :=
        | _ => None 
      end |}
   :: SEP.defaultType (settings * state)%type
+  :: nil.
+(*
   :: SEP.defaultType label :: nil.
+*)
+
+Definition bedrock_ext (ls : list Expr.type) : list Expr.type :=
+  match ls with
+    | _ :: _ :: r => r
+    | _ => nil
+  end.
 
 Lemma ApplyCancelSep : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types ++ types) (Expr.tvType O) (Expr.tvType 1)),
   (forall cs,
@@ -401,63 +410,42 @@ Module BedrockEvaluator.
     end; auto.
     eapply SepIL.ST.satisfies_pure in H. PropXTac.propxFo.
   Qed.
+*)
+  Lemma memoryIn_satisfies : forall m, 
+    SepIL.ST.HT.satisfies (memoryIn m) m.
+  Proof.
+    clear.
+    unfold satisfies, memoryIn. rewrite SepIL.AllWords.memoryIn_eq.
+    unfold SepIL.memoryIn_def, mem, smem, W, SepIL.allWords_def, SepIL.BedrockHeap.all_addr in *.
+    intros.
+    match goal with
+      | [ |- context [ match ?X with 
+                         | refl_equal => _
+                       end ] ] => generalize X
+    end.
+    intro. generalize e. rewrite <- e.
+    uip_all.
+    clear.
+    induction (pow2 32).
+      compute; trivial.
+
+      split;
+        unfold SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc, ReadByte.
+      destruct (m $ n); split; try eexists; reflexivity.
+      eauto.
+  Qed.
 
   Lemma satisfies_defn : forall cs se stn st,
-    PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) <->
-    (exists sm, 
-         SepIL.ST.satisfies cs se stn sm
-      /\ SepIL.ST.HT.satisfies sm (Mem st)).
+    PropX.interp cs (SepIL.SepFormula.sepFormula se (stn, st)) ->
+    (   SepIL.ST.satisfies cs se stn (memoryIn (Mem st))
+     /\ SepIL.ST.HT.satisfies (memoryIn (Mem st)) (Mem st)).
   Proof.
     rewrite SepIL.SepFormula.sepFormula_eq in *. unfold SepIL.sepFormula_def.
-    intros. destruct st; simpl. clear.
-    split; intros.
-    Focus.
-    eexists; split; eauto.
-      unfold SepIL.ST.HT.satisfies, SepIL.memoryIn.
-      rewrite SepIL.AllWords.memoryIn_eq.
-      generalize (SepIL.fcong (fun width : nat => list (word width)) 32
-          (Logic.eq_sym SepIL.AllWords.allWords_eq)).
-      unfold SepIL.memoryIn_def, SepIL.BedrockHeap.all_addr, mem, W, SepIL.allWords_def in *.
-      generalize dependent (SepIL.AllWords.allWords 32).
-      intros. generalize e. rewrite <- e; clear e.
-      uip_all.
-      clear. induction (pow2 32).
-        compute; trivial.
-
-        split;
-          unfold SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc, ReadByte.
-          destruct (Mem $ n); split; try eexists; reflexivity.
-
-          eassumption.
-
-    Focus.
-    unfold hpropB in *. unfold hprop in se.
-    
-(* TODO: This is NOT true! this probably means that i need to modify the definition of "correct" for
-   the plugin... The problem is that [se] could technically require an address to not be mapped...
-    destruct H. intuition.
-      unfold SepIL.ST.satisfies in *.
-      revert H0. revert H1.
-      unfold SepIL.ST.HT.satisfies, SepIL.memoryIn.
-      rewrite SepIL.AllWords.memoryIn_eq.
-      generalize (SepIL.fcong (fun width : nat => list (word width)) 32
-        (Logic.eq_sym SepIL.AllWords.allWords_eq)).
-      unfold SepIL.hpropB, SepIL.ST.hprop in *.
-      unfold mem, W, SepIL.ST.HT.smem in *.
-      unfold SepIL.BedrockHeap.all_addr in *.
-      revert Mem. revert x. revert se.
-      generalize dependent (SepIL.AllWords.allWords 32).
-      intros. revert H1. generalize dependent x.
-      revert se. rewrite <- e.
-      unfold SepIL.allWords_def.
-      unfold SepIL.memoryIn_def. clear.
-      generalize (pow2 32).
-      unfold SepIL.memoryInUpto, SepIL.BedrockHeap.mem_get, SepIL.BedrockHeap.mem_acc in *.
-      (** TODO: how do I prove this? **)
-*)
-    admit. (** TODO: NOT TRUE **)
+    intros. destruct st; simpl in *. 
+      unfold SepIL.ST.HT.satisfies, SepIL.memoryIn, memoryIn, ST.satisfies in *.
+      intuition.
+      eapply memoryIn_satisfies.
   Qed.
-*)
 
   Lemma symeval_read_word_correct : forall hyps pe ve s,
     symeval_read_word hyps pe s = Some ve ->
@@ -470,6 +458,49 @@ Module BedrockEvaluator.
         | _ , _ => False
       end.
   Proof.
+    unfold symeval_read_word. intros.
+    eapply fold_known_correct in H.
+    do 5 destruct H. intuition.
+
+    eapply SEP.sheapD_pull_impure 
+      with (funcs := funcs) (sfuncs := sfuncs) (a := uvars) (c := vars) (cs := cs)
+        in H.
+    rewrite H in H1.
+    apply In_split in H3. destruct H3. destruct H3. subst.
+    rewrite SEP.starred_In with (x := x3) (ls := x4) (ls' := x5) in H1.
+    
+    simpl in H1. rewrite H2 in *. clear H.
+
+    
+(*
+
+
+      with (uvars := uvars) (vars := vars) (cs := cs) (stn := stn) (m := x2)
+        in H6.
+
+
+    rewrite <- SEP.heq_star_assoc in H1. rewrite SEP.heq_star_comm in H1.
+    rewrite H1 in H.
+    simpl in H.
+    rewrite H2 in *.
+    eapply SepIL.ST.satisfies_star in H. destruct H. destruct H. intuition.
+    
+
+    2: eapply AllProvable_app; auto.
+    destruct (exprD funcs uvars vars pe pcT); auto.
+    destruct (exprD funcs uvars vars ve pcT); auto.
+
+    eapply SepIL.ST.HT.satisfies_get_word; eauto.
+    eapply SepIL.ST.HT.split_smem_get_word; eauto.
+
+    unfold tvarD. simpl.
+    match goal with 
+      | [ |- context [ applyD ?A ?B ?C ?D ?E ] ] =>
+        destruct (applyD A B C D E)
+    end; auto.
+    eapply SepIL.ST.satisfies_pure in H. PropXTac.propxFo.
+    
+*)
   Admitted.
 
   Theorem symeval_write_word_correct : forall hyps pe ve s s',
@@ -528,6 +559,9 @@ Module BedrockEvaluator.
         symeval_read_word (pures (SymMem ss)) l (SymMem ss)
       | SymRvImm w => Some w 
       | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
+        (* an alternative would be to reflect these as a function call that does the positioning...
+         * - it isn't clear that this can be done since the environment would need to depend on the settings.
+         *)
         (*Some (Expr.Const (types := types) (t := tvType 2) l) *)
     end.
 
@@ -1236,26 +1270,24 @@ Module BedrockEvaluator.
                     let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
                     let types := eval unfold bedrock_types in bedrock_types in
                     let types := SEP.extend_all_types Ts types in
-                    match types with
-                      | _ :: _ :: _ :: ?types_ext =>
-                        let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
-                        let funcs := eval simpl in funcs in
-                        let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
-                        let uvars := eval simpl in (@nil _ : env types) in
-                        let vars := eval simpl in (@nil _ : env types) in
-                        reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
-                        SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
-                        SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
-                        SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
-                        SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-                        match funcs with
-                          | _ :: _ :: _ :: ?funcs_ext =>
-                            build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
-                              generalize (@sym_evalInstrs_safe_apply types_ext funcs_ext sfuncs knowns evals
-                                uvars vars cs is stn st H sp_v rv_v rp_v SF H'
-                                sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _)))
-                        end)))))
-                    end
+                    let types_ext := eval simpl in (bedrock_ext types) in 
+                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
+                    let funcs := eval simpl in funcs in
+                    let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
+                    let uvars := eval simpl in (@nil _ : env types) in
+                    let vars := eval simpl in (@nil _ : env types) in
+                    reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
+                    SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
+                    SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
+                    SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
+                    SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
+                    match funcs with
+                      | _ :: _ :: _ :: ?funcs_ext =>
+                        build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
+                          generalize (@sym_evalInstrs_safe_apply types_ext funcs_ext sfuncs knowns evals
+                            uvars vars cs is stn st H sp_v rv_v rp_v SF H'
+                            sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _)))
+                    end)))))
                 end
             end
         end;
@@ -1279,27 +1311,24 @@ Module BedrockEvaluator.
                     let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
                     let types := eval unfold bedrock_types in bedrock_types in
                     let types := SEP.extend_all_types Ts types in
-                    match types with
-                      | _ :: _ :: _ :: ?types_ext =>
-                        let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
-                        let funcs := eval simpl in funcs in
-                        let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
-                        let uvars := eval simpl in (@nil _ : env types) in
-                        let vars := eval simpl in (@nil _ : env types) in
-                        reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
-                        SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
-                        SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
-                        SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
-                        SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-                        match funcs with
-                          | _ :: _ :: _ :: ?funcs_ext =>
-                            build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
-                              idtac "using " evals ;
-                              generalize (@sym_evalInstrs_sound_apply types_ext funcs_ext sfuncs knowns evals
-                                uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
-                                sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _)))
-                        end)))))
-                    end
+                    let types_ext := eval simpl in (bedrock_ext types) in
+                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
+                    let funcs := eval simpl in funcs in
+                    let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
+                    let uvars := eval simpl in (@nil _ : env types) in
+                    let vars := eval simpl in (@nil _ : env types) in
+                    reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
+                    SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
+                    SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
+                    SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
+                    SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
+                    match funcs with
+                      | _ :: _ :: _ :: ?funcs_ext =>
+                        build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
+                        generalize (@sym_evalInstrs_sound_apply types_ext funcs_ext sfuncs knowns evals
+                          uvars vars cs is stn st _ H sp_v rv_v rp_v SF H'
+                          sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _)))
+                    end)))))
                 end
             end
         end;
