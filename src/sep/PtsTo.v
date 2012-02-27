@@ -10,18 +10,6 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   Definition pcT := tvType pcIndex.
   Definition stT := tvType stateIndex.
   
-(*
-  Definition addr_type :=
-    {| Impl := W
-     ; Eq := seq_dec 
-     |}.
-
-  Definition word_type :=
-    {| Impl := W
-     ; Eq := seq_dec 
-     |}.
-*)
-
   Definition wordIndex := 0.
   Definition ptrIndex := 0.
 
