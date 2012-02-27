@@ -81,13 +81,13 @@ Section search_read_write.
   Variable impures : FM.t (list (list (expr types))).
 
   Fixpoint fold_known (k : list nat) :
-    hlist (fun n : nat => match nth_error sfuncs n with
+    hlist (fun n : nat => match nth_error sfuncs n return Type with
                             | None => Empty_set 
                             | Some ss => B ss
                           end) k
     -> option T :=
     match k as k 
-      return hlist (fun n : nat => match nth_error sfuncs n with
+      return hlist (fun n : nat => match nth_error sfuncs n return Type with
                                      | None => Empty_set 
                                      | Some ss => B ss
                                    end) k
@@ -99,7 +99,7 @@ Section search_read_write.
           | None => fold_known (hlist_tl ss)
           | Some argss =>
             match nth_error sfuncs a as ss
-              return match ss with
+              return match ss return Type with
                        | None => Empty_set 
                        | Some ss => B ss
                      end -> option T
@@ -115,7 +115,7 @@ Section search_read_write.
     end.
   
   Theorem fold_known_correct : forall k
-    (h : hlist (fun n : nat => match nth_error sfuncs n with
+    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
                                  | None => Empty_set 
                                  | Some ss => B ss
                                end) k) v,
@@ -152,7 +152,7 @@ Section search_read_write.
                           end) k
     -> option (FM.t (list (list (expr types)))) :=
     match k as k 
-      return hlist (fun n : nat => match nth_error sfuncs n with
+      return hlist (fun n : nat => match nth_error sfuncs n return Type with
                                      | None => Empty_set 
                                      | Some ss => B ss
                                    end) k
@@ -164,7 +164,7 @@ Section search_read_write.
           | None => fold_known_update (hlist_tl ss)
           | Some argss =>
             match nth_error sfuncs a as ss
-              return match ss with
+              return match ss return Type with
                        | None => Empty_set 
                        | Some ss => B ss
                      end -> option (FM.t (list (list (expr types))))
@@ -180,7 +180,7 @@ Section search_read_write.
     end.
   
   Theorem fold_known_update_correct : forall k
-    (h : hlist (fun n : nat => match nth_error sfuncs n with
+    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
                                  | None => Empty_set 
                                  | Some ss => B ss
                                end) k) i',
@@ -606,9 +606,6 @@ Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts
                eapply SepIL.ST.satisfies_pure in H; PropXTac.propxFo; instantiate; intuition
            end.
     generalize dependent H8. case_eq (smem_write stn t v x2); intros; intuition.
-
-    SearchAbouthAbout mem_set_word.
-    Check SepIL.ST.HT.satisfies_set_word.
     
     exists (SepIL.ST.HT.join s0 x3).
     intuition.

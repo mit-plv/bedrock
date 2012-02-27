@@ -2,85 +2,103 @@ Require Import DepList List.
 Require Import Expr SepExpr SymEval.
 Require Import Word Memory IL SepIL SepTac.
 Require Import EqdepClass.
+Require Import Env.
 
 Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   Module Import SEP := P.SEP.
 
   Definition pcIndex : nat := 0.
   Definition stateIndex : nat := 1.
-  
+
   Definition content_type :=
     {| Expr.Impl := list W
      ; Expr.Eq := seq_dec 
      |}.
 
-  Definition types := bedrock_types ++ content_type :: nil.
+  Section parametric.
+    Variable contentIndex : nat.
+    Variable types' : list type.
+    
+    Definition types := updateAt content_type (bedrock_types ++ types') (S (S contentIndex)).
 
-  Fixpoint wbuffer (st : W) (ls : list W) : hprop (tvarD types (tvType pcIndex)) (tvarD types (tvType stateIndex)) nil :=
-    match ls with
-      | nil => emp _ _ 
-      | l :: ls =>
-        st =*> l * wbuffer (st ^+ $ 4)  ls
-    end%Sep.
+    Fixpoint wbuffer (st : W) (ls : list W) 
+      : hprop (tvarD types (tvType pcIndex)) 
+              (tvarD types (tvType stateIndex)) nil :=
+      match ls with
+        | nil => emp _ _ 
+        | l :: ls =>
+          st =*> l * wbuffer (st ^+ $ 4)  ls
+      end%Sep.
 
-  Definition wbuffer_ssig : ssignature types (tvType pcIndex) (tvType stateIndex).
-  refine (
-  {| SepExpr.SDomain := tvType 0 :: tvType 3 :: nil
-   ; SepExpr.SDenotation := _
-   |}).
-  refine (wbuffer).
-  Defined.
-
-  Definition wordIndex := 0.
-  Definition ptrIndex := 0.
-
-  Variable funcs' : functions types.
-
-  Variable plusIdx : nat.
-  Variable consIdx : nat.
-  Hypothesis plusIdx_consIdx : plusIdx <> consIdx.
-
-  Definition plus_sig : signature types.
+    Definition wbuffer_ssig : ssignature types (tvType pcIndex) (tvType stateIndex).
     refine (
-  {| Expr.Domain := tvType wordIndex :: tvType wordIndex :: nil
-   ; Expr.Range := tvType wordIndex
-   ; Expr.Denotation := _
-   |}); simpl.
-    eapply wplus.
-  Defined.
+      {| SepExpr.SDomain := tvType 0 :: tvType (S (S contentIndex)) :: nil
+       ; SepExpr.SDenotation := _
+       |}).
+    simpl. 
+    rewrite nth_error_updateAt.
+    refine (wbuffer).
+    Defined.
 
-  Definition cons_sig : signature types.
-    refine (
-  {| Expr.Domain := tvType wordIndex :: tvType 3 :: nil
-   ; Expr.Range := tvType 3
-   ; Expr.Denotation := _
-   |}); simpl.
-    eapply cons.
-  Defined.
+    Definition wordIndex := 0.
+    Definition ptrIndex := 0.
 
-  Definition funcs : functions types :=
-    Env.updateAt plus_sig (Env.updateAt cons_sig funcs' consIdx) plusIdx.
+    Variable funcs' : functions types.
 
-  Fixpoint get_nth (e : expr types) (n : nat) : option (expr types) :=
-    match e with 
-      | Expr.Func i (hd :: tl :: nil) =>
-        if equiv_dec i consIdx then 
-          (* this is a cons cell *)
-          match n with
-            | 0 => Some hd
-            | S n => get_nth tl n
-          end
-        else None
-      | _ => None
-    end.
+    Variable plusIdx : nat.
+    Variable consIdx : nat.
+    Hypothesis plusIdx_consIdx : plusIdx <> consIdx.
 
-  Lemma get_nth_correct : forall uvars vars e eD n x,
-    exprD funcs uvars vars e (tvType 3) = Some eD ->
-    get_nth e n = Some x ->
-    match exprD funcs uvars vars x (tvType wordIndex) with
-      | Some y => nth_error eD n = Some y
-      | None => False
-    end.
+    Definition plus_sig : signature types.
+      refine (
+        {| Expr.Domain := tvType wordIndex :: tvType wordIndex :: nil
+         ; Expr.Range := tvType wordIndex
+         ; Expr.Denotation := _
+         |}); simpl.
+      eapply wplus.
+    Defined.
+
+    Definition cons_sig : signature types.
+      refine (
+        {| Expr.Domain := tvType wordIndex :: tvType (S (S contentIndex)) :: nil
+         ; Expr.Range := tvType (S (S contentIndex))
+         ; Expr.Denotation := _
+         |}); simpl.
+      rewrite nth_error_updateAt. simpl.
+      eapply cons.
+    Defined.
+
+    Definition funcs : functions types :=
+      Env.repr ((consIdx, cons_sig) :: (plusIdx, plus_sig) :: nil) funcs'.
+
+    Fixpoint get_nth (e : expr types) (n : nat) : option (expr types) :=
+      match e with 
+        | Expr.Func i (hd :: tl :: nil) =>
+          if equiv_dec i consIdx then 
+            (* this is a cons cell *)
+            match n with
+              | 0 => Some hd
+              | S n => get_nth tl n
+            end
+          else None
+        | _ => None
+      end.
+
+    Check cast.
+
+    Lemma get_nth_correct : forall uvars vars e eD n x,
+      exprD funcs uvars vars e (tvType (S (S contentIndex))) = Some eD ->
+      get_nth e n = Some x ->
+      match exprD funcs uvars vars x (tvType wordIndex) with
+        | Some y => nth_error (@cast _ content_type (fun t => match t with
+                                                                | None => Empty_set
+                                                                | Some t => Impl t 
+                                                              end) types' contentIndex eD)
+(* contentIndex  match nth_error_updateAt content_type types' contentIndex in _ = t return 
+                                | refl_equal => eD
+                              end *) n = Some y
+        | None => False
+      end.
   Proof.
     simpl. induction e; simpl; try congruence.
     intros. 
@@ -94,25 +112,22 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
                destruct (equiv_dec X Y); try congruence
            end.
     unfold funcs in H0.
-    erewrite Env.nth_error_updateAt_not in H0.
-    2: rewrite e1; generalize plusIdx_consIdx; eauto.
-    2: rewrite e1; eapply Env.nth_error_updateAt.
-    simpl in H0.
-    fold funcs in *.
-    destruct n;
+    rewrite e1 in *.
+    unfold funcs, repr in *. rewrite Env.nth_error_updateAt with (n := consIdx) in H0.
+    simpl in H0. rewrite EquivDec_refl_left in *.
     repeat match goal with
-             | [ H : context [ match ?X with
-                                 | None => _ 
-                                 | Some _ => _
-                               end ] |- _ ] =>
-               revert H; case_eq X; intros; try congruence
-             | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-           end.
-    rewrite H0; auto.
-    simpl.
-    inversion H; clear H. inversion H6; clear H6. subst. clear H9.
-    eapply H8; eauto.
-  Qed.
+      | [ H0 : context [ match ?X with
+                           | Some _ => _ 
+                           | None => _
+                         end ] |- _ ] =>
+        revert H0; case_eq X; [ intros | intros; exfalso; congruence ]
+             | [ H : Some _ = Some _ |- _ ] =>
+               inversion H; clear H; subst
+    end.
+    destruct n.
+      inversion H1; clear H1; subst.
+      rewrite H0.
+  Admitted.
 
   (** TODO: maybe this should be like unification? 
    ** - in that case the substitution is an effect and needs to be
@@ -227,6 +242,7 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
     simpl in H2.
     unfold funcs in H2.
+(*
     rewrite Env.nth_error_updateAt in H2. simpl in H2.
     fold funcs in H2.
     eapply expr_equal_correct in H; eauto.
@@ -237,7 +253,10 @@ Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     case_eq (exprD funcs uvars vars0 e0 (tvType 0)); intros; try congruence.
     inversion H2; clear H2; subst.
     eapply divBy4_correct in H3; eauto. subst; eauto.
-  Qed.
+*)
+  Admitted.
+
+  End parametric.
 
 (*
   Definition sym_read_word_wbuffer (hyps args : list (expr types)) (p : expr types) 

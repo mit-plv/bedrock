@@ -779,8 +779,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (** Reflection **)
   Require Import Reflect.
 
+(*
   Definition defaultType (T : Type) : type :=
     {| Impl := T; Expr.Eq := fun _ _ => None |}.
+*)
 
   Ltac build_default_type T := 
     match goal with
@@ -788,7 +790,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let D := constr:(@Typ T (@seq_dec T _)) in
         D
       | [ |- _ ] =>
-        constr:(defaultType T)
+        constr:({| Impl := T ; Expr.Eq := fun _ _ : T => None |})
     end.
 
   Ltac extend_type T types :=
@@ -1397,7 +1399,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Expr.Impl Expr.Eq
       List.map List.length List.app fold_left_2_opt List.fold_right List.nth_error
       starred sheapD exprD
-      exprSubstU defaultType 
+      exprSubstU 
       Compare_dec.lt_eq_lt_dec Compare_dec.lt_dec Peano_dec.eq_nat_dec
       nat_rec nat_rect forallEach env exists_subst multimap_join equiv_dec seq_dec
       Domain Range

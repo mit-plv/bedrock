@@ -13,7 +13,9 @@ Definition bedrock_types : list Expr.type :=
        | left pf => Some pf 
        | _ => None 
      end |}
-  :: SEP.defaultType (settings * state)%type
+  :: {| Expr.Impl := (settings * state)%type
+      ; Expr.Eq := fun _ _ => None
+      |}
   :: nil.
 (*
   :: SEP.defaultType label :: nil.
@@ -1357,7 +1359,6 @@ Module BedrockEvaluator.
       f_equal 
       bedrock_funcs bedrock_types pcT stT tvWord
       fst snd
-      SEP.defaultType
 
       (** second stage **)
       stateD 
