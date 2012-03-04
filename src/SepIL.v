@@ -209,7 +209,7 @@ Export ST.HT.
 
 (** * Define some convenient connectives, etc. for specs *)
 
-Definition memoryIn : mem -> smem := memoryIn (width := 32).
+Definition memoryIn : mem -> smem := memoryIn.
 
 Definition hpropB := hprop W (settings * state).
 Definition HProp := hpropB nil.

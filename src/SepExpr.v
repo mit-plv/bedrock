@@ -864,23 +864,23 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    ** - types is a value of type [list Type]
    **   (make sure it is NOT [list Set])
    **)
-  Ltac collectTypes_expr e types :=
+  Ltac collectTypes_expr isConst e Ts :=
     match e with
       | fun x => (@openUp _ ?T _ _) =>
         let v := constr:(T:Type) in
-        cons_uniq v types
+        cons_uniq v Ts
       | fun x => ?e =>
-        collectTypes_expr e types
+        collectTypes_expr isConst e Ts
       | _ =>
-        let rec bt_args args types :=
+        let rec bt_args args Ts :=
           match args with
-            | tt => types
+            | tt => Ts
             | (?a, ?b) =>
-              let types := collectTypes_expr a types in
-              bt_args b types
+              let Ts := collectTypes_expr isConst a Ts in
+              bt_args b Ts
           end
         in
-        let cc _ Ts args := 
+        let cc _ Ts' args := 
           let T := 
             match e with 
               | fun x : VarType _ => _ => 
@@ -890,12 +890,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               | _ => type of e
             end
           in
-          let Ts :=
+          let Ts' :=
             let v := constr:(T : Type) in
-            cons_uniq v Ts 
+            cons_uniq v Ts'
           in
-          let types := append_uniq Ts types in
-          bt_args args types
+          let Ts := append_uniq Ts' Ts in
+          bt_args args Ts
         in
         refl_app cc e
     end.
@@ -906,33 +906,33 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    ** - k is the continuation, it must be an ltac function
    **   that takes a single argument of type [list Type]
    **)
-  Ltac collectTypes_sexpr s types k :=
+  Ltac collectTypes_sexpr isConst s types k :=
     match s with
       | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
-        collectTypes_sexpr L types ltac:(fun types =>
-          collectTypes_sexpr R types k)
+        collectTypes_sexpr isConst L types ltac:(fun types =>
+          collectTypes_sexpr isConst R types k)
       | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B x y) =>
         let v := constr:(fun x : VarType (T * T') => 
           B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
         let v := eval simpl in v in
-        collectTypes_sexpr v types k
+        collectTypes_sexpr isConst v types k
       | @ST.emp _ _ _ => k types
       | @ST.inj _ _ _ (PropX.Inj ?P) =>
-        k ltac:(collectTypes_expr P types)
+        k ltac:(collectTypes_expr isConst P types)
       | @ST.inj _ _ _ ?PX => k types
       | @ST.star _ _ _ ?L ?R =>
-        collectTypes_sexpr L types
-          ltac:(fun Ltypes => collectTypes_sexpr R Ltypes k)
+        collectTypes_sexpr isConst L types
+          ltac:(fun Ltypes => collectTypes_sexpr isConst R Ltypes k)
       | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
         let v := constr:(fun x : VarType T => B (@openUp _ T (fun x => x) x)) in
         let v := eval simpl in v in 
-        collectTypes_sexpr v types k
+        collectTypes_sexpr isConst v types k
       | ?X =>
         let rec bt_args args types :=
           match args with
             | tt => k types
             | (?a,?b) => 
-              let k := collectTypes_expr a types in
+              let k := collectTypes_expr isConst a types in
               bt_args b k
           end
         in
@@ -998,16 +998,62 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | nil => types
       | ?a :: ?b =>
         (** TODO : I may need to reflect the pcType and stateType **)
-        collectTypes_sexpr a types ltac:(fun ts => 
+        collectTypes_sexpr isConst a types ltac:(fun ts => 
           collectAllTypes_sexpr isConst ts b)
     end.
 
-  Ltac collectAllTypes_expr isConst types goals :=
+  Ltac collectAllTypes_expr isConst Ts goals :=
     match goals with
-      | tt => types
+      | tt => Ts
       | (?a, ?b) =>
-        let ts := collectTypes_expr a types in
+        let ts := collectTypes_expr isConst a Ts in
         collectAllTypes_expr isConst ts b
+    end.
+
+  Ltac collectAllTypes_func Ts T :=
+    match T with
+      | ?t -> ?T =>
+        let t := constr:(t : Type) in
+        let Ts := cons_uniq t Ts in
+        collectAllTypes_func Ts T
+      | forall x , _ => 
+        (** Can't reflect types for dependent function **)
+        fail 100 "can't reflect types for dependent function!"
+      | ?t =>
+        let t := constr:(t : Type) in
+        cons_uniq t Ts
+    end.
+
+  Ltac collectAllTypes_funcs Ts Fs :=
+    match Fs with
+      | tt => Ts
+      | (?Fl, ?Fr) =>
+        let Ts := collectAllTypes_funcs Ts Fl in
+        collectAllTypes_funcs Ts Fr
+      | ?F =>
+        collectAllTypes_func Ts F
+    end.
+
+  Ltac collectAllTypes_sfunc Ts T :=
+    match T with
+      | ?t -> ?T =>
+        let t := constr:(t : Type) in
+        let Ts := cons_uniq t Ts in
+        collectAllTypes_func Ts T
+      | forall x , _ => 
+        (** Can't reflect types for dependent function **)
+        fail 100 "can't reflect types for dependent function!"
+      | ST.hprop _ _ => Ts
+    end.
+
+  Ltac collectAllTypes_sfuncs Ts Fs :=
+    match Fs with
+      | tt => Ts
+      | (?Fl, ?Fr) =>
+        let Ts := collectAllTypes_sfuncs Ts Fl in
+        collectAllTypes_sfuncs Ts Fr
+      | ?F =>
+        collectAllTypes_sfunc Ts F
     end.
 
   Ltac getVar' idx :=
@@ -1074,6 +1120,16 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           end
       end
     in lookup funcs' 0.
+
+  Ltac getAllFunctions types funcs' fs :=
+    match fs with
+      | tt => funcs'
+      | ?F =>
+        getFunction types F funcs' ltac:(fun funcs _ => funcs)
+      | ( ?fl , ?fr ) =>
+        getAllFunctions types funcs' fl ltac:(fun funcs _ => 
+          getAllFunctions types funcs fr ltac:(fun funcs _ => funcs))
+    end.
 
   (** reflect an expression gathering the functions at the same time.
    ** - k is the continuation and is passed the list of reflected
@@ -1170,6 +1226,15 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end
     in lookup sfuncs 0.
 
+  Ltac getAllSFunctions pcT stT types sfuncs' fs :=
+    match fs with
+      | tt => sfuncs'
+      | ?F =>
+        getSFunction types F sfuncs' ltac:(fun sfuncs _ => sfuncs)
+      | ( ?fl , ?fr ) =>
+        getAllSFunctions pcT stT types sfuncs' fl ltac:(fun sfuncs _ => 
+          getAllSFunctions pcT stT types sfuncs fr ltac:(fun sfuncs _ => sfuncs))
+    end.
 
   (** reflect sexprs. simultaneously gather the funcs and sfuncs
    ** k is called with the functions, separation logic predicats and the reflected
