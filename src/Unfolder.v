@@ -313,18 +313,18 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (** * Reflecting hints *)
 
   (* This tactic processes the part of a lemma statement after the quantifiers. *)
-  Ltac collectTypes_hint' P types k :=
+  Ltac collectTypes_hint' isConst P types k :=
     match P with
       | fun x => @?H x -> @?P x =>
-        let types := collectTypes_expr H types in
-          collectTypes_hint' P types k
+        let types := collectTypes_expr ltac:(isConst) H types in
+          collectTypes_hint' ltac:(isConst) P types k
       | fun x => forall cs, @ST.himp ?pcT ?stT cs (@?L x) (@?R x) =>
-        collectTypes_sexpr L types ltac:(fun types =>
-          collectTypes_sexpr R types k)
+        collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
+          collectTypes_sexpr ltac:(isConst) R types k)
     end.
 
   (* This tactic adds quantifier processing. *)
-  Ltac collectTypes_hint P types k :=
+  Ltac collectTypes_hint isConst P types k :=
     match P with
       | fun xs : ?T => forall x : ?T', @?f xs x =>
         match T' with
@@ -334,22 +334,22 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                    | _ => let P := eval simpl in (fun x : VarType (T * T') =>
                      f (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
                    let types := cons_uniq T' types in
-                     collectTypes_hint P types k
+                     collectTypes_hint ltac:(isConst) P types k
                  end
         end
-      | _ => collectTypes_hint' P types k
+      | _ => collectTypes_hint' ltac:(isConst) P types k
     end.
 
   (* Finally, this tactic adds a loop over all hints. *)
-  Ltac collectTypes_hints Ps types k :=
+  Ltac collectTypes_hints isConst Ps types k :=
     match Ps with
       | tt => k types
       | (?P1, ?P2) =>
-        collectTypes_hints P1 types ltac:(fun types =>
-          collectTypes_hints P2 types k)
+        collectTypes_hints ltac:(isConst) P1 types ltac:(fun types =>
+          collectTypes_hints ltac:(isConst) P2 types k)
       | _ =>
         let T := type of Ps in
-          collectTypes_hint (fun _ : VarType unit => T) types k
+          collectTypes_hint ltac:(isConst) (fun _ : VarType unit => T) types k
     end.
 
   (* Now we repeat this sequence of tactics for reflection itself. *)
@@ -431,8 +431,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   (* Main entry point tactic, to generate a hint database *)
   Ltac prepareHints pcType stateType isConst types prover fwd bwd :=
     let types := unfoldTypes types in
-    collectTypes_hints fwd (@nil Type) ltac:(fun rt =>
-      collectTypes_hints bwd rt ltac:(fun rt =>
+    collectTypes_hints isConst fwd (@nil Type) ltac:(fun rt =>
+      collectTypes_hints isConst bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
@@ -458,8 +458,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       let state := eval simpl in (StateType hs) in
         match goal with
           | [ |- ST.himp _ ?P ?Q ] =>
-            collectTypes_sexpr P (@nil Type) ltac:(fun rt =>
-              collectTypes_sexpr Q rt ltac:(fun rt =>
+            collectTypes_sexpr isConst P (@nil Type) ltac:(fun rt =>
+              collectTypes_sexpr isConst Q rt ltac:(fun rt =>
                 let types := extend_all_types rt types in
                   reflect_sexpr isConst P types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs P =>
                     reflect_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>

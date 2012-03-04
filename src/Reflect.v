@@ -264,6 +264,14 @@ Ltac map_tac T tac fs :=
   in
   map_tac fs.
 
+(** hset operations **)
+Ltac hcontains x ls :=
+  match ls with
+    | ( x , _ ) => true
+    | ( _ , ?ls ) => hcontains x ls
+    | tt => false
+  end.
+
 Goal (unit :: nil) ++ (foo :: nil) ++ (bool :: nil) ++ nil = unit :: foo :: bool :: nil.
   intros.
   match goal with

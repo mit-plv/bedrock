@@ -81,6 +81,16 @@ Module HeapTheory (B : Heap).
         end
         (join' _ (hlist_tl m1) (hlist_tl m2))
     end.
+
+  Fixpoint relevant' (ls : list addr) : smem' ls -> list addr :=
+    match ls with
+      | nil => fun _ => nil
+      | a :: b => fun x => 
+        match hlist_hd x with
+          | None => relevant' _ (hlist_tl x)
+          | Some _ => a :: relevant' _ (hlist_tl x)
+        end
+    end.
   
   Fixpoint smem_get' dom : addr -> smem' dom -> option B :=
     match dom as dom return addr -> smem' dom -> option B with 
@@ -165,6 +175,8 @@ Module HeapTheory (B : Heap).
 
   Definition satisfies (m : smem) (m' : B.mem) : Prop :=
     satisfies' _ m m'.
+
+  Definition relevant (sm : smem) := relevant' _ sm.
 
   Global Instance EqDec_addr : EquivDec.EqDec addr (@eq addr) := addr_dec.
 
@@ -515,5 +527,155 @@ Module HeapTheory (B : Heap).
   Proof.
     unfold_all. induction a; simpl; intuition. rewrite <- H0. reflexivity.
   Qed.
+     
+  Lemma cons_not_in : forall T (a : T) b ls,
+    a :: b = ls ->
+    ~ In a ls ->
+    forall P, P.
+  Proof.
+    intros; subst. exfalso; eapply H0. firstorder.
+  Qed.
+  
+  Lemma relevant_in : forall a l b,
+    In a (relevant' l b) ->
+    In a l.
+  Proof.
+    induction l; auto; intros.
+      rewrite (hlist_eta _ b) in H. simpl in H.
+      destruct (hlist_hd b). destruct H. subst. firstorder.
+      simpl in *. right. eapply IHl; eauto.
+      right. eapply IHl; eauto.
+  Qed.
+
+  Lemma relevant_not_in : forall a l b,
+    ~In a l ->
+    ~In a (relevant' l b).
+  Proof.
+    intros. intro. eapply H. eapply relevant_in; eauto.
+  Qed.
+
+  Lemma relevant_eq : forall a b c,
+    relevant a = relevant b ->
+    satisfies a c ->
+    satisfies b c ->
+    a = b.
+  Proof.
+    unfold relevant, satisfies, smem. generalize NoDup_all_addr.
+    induction all_addr; simpl; intros.
+      rewrite (hlist_nil_only _ a). rewrite (hlist_nil_only _ b); auto.
+
+      rewrite (hlist_eta _ a0) in *. rewrite (hlist_eta _ a0) in H1.
+      rewrite (hlist_eta _ b) in *. rewrite (hlist_eta _ b) in H2.
+      simpl in *.
+      destruct (hlist_hd a0); destruct (hlist_hd b); intuition.
+        rewrite H2 in H3. inversion H3; subst. inversion H0;  f_equal. eapply IHl; eauto.
+          inversion H; auto.
+
+        eapply cons_not_in. eassumption.
+        eapply relevant_not_in. inversion H; auto.
+
+        eapply cons_not_in. symmetry. eassumption.
+        eapply relevant_not_in. inversion H; auto.
+        
+        f_equal; eauto. inversion H. eapply IHl; eauto.
+  Qed.
+
+  (** memoryIn **)
+  Section memoryIn.
+    Variable m : mem.
+
+    Fixpoint memoryIn' (ls : list addr) : smem' ls :=
+      match ls with 
+        | nil => HNil
+        | l :: ls => HCons (mem_get m l) (memoryIn' ls)
+      end. 
+
+    Definition memoryIn : smem := memoryIn' all_addr.
+  End memoryIn.
+
+  Theorem smem_set_relevant : forall p v sm sm',
+    smem_set p v sm = Some sm' ->
+    relevant sm = relevant sm'.
+  Proof.
+    unfold relevant, smem_set.
+    induction all_addr; simpl; intros; auto.
+      destruct (addr_dec a p); subst; auto.
+      destruct (hlist_hd sm); try congruence.
+      inversion H; clear H; subst. simpl. reflexivity.
+
+      revert H. case_eq (smem_set' l p v (hlist_tl sm)); intros; try congruence.
+      inversion H0; clear H0; subst; simpl in *.
+      destruct (hlist_hd sm); eauto. f_equal; eauto.
+  Qed.
+
+  Theorem smem_set_word_relevant : forall ex p v sm sm',
+    smem_set_word ex p v sm = Some sm' ->
+    relevant sm = relevant sm'.
+  Proof.
+    unfold smem_set_word; intros.
+    destruct (footprint_w p) as [ [ [ ? ? ] ? ] ? ].
+    destruct (ex v) as [ [ [ ? ? ] ? ] ? ].
+    repeat match goal with
+             | [ H : match ?X with 
+                       | Some _ => _
+                       | None => _ 
+                     end = Some _ |- _ ] => revert H; case_eq X; intros; try congruence
+             | [ H : smem_set _ _ _ = Some _ |- _ ] => 
+               eapply smem_set_relevant in H
+           end.
+    congruence.
+  Qed.
+(*
+Fixpoint memoryInUpto (width init : nat) (m : word width -> option B)
+  : hlist (fun _ => option B) (allWordsUpto width init) :=
+  match init with
+    | O => HNil
+    | S init' =>
+      let w := natToWord width init' in
+      let v := m w in
+      HCons v (memoryInUpto (width := width) init' m)
+  end.
+
+Definition memoryIn_def (width : nat) :=
+  memoryInUpto (width := width) (pow2 width).
+
+Theorem fcong : forall A (B : A -> Type) (f g : forall x, B x) x,
+  f = g
+  -> f x = g x.
+  congruence.
+Defined.
+
+Module Type ALL_WORDS.
+  Parameter allWords : forall width : nat, list (word width).
+
+  Axiom allWords_eq : allWords = allWords_def.
+
+  Parameter memoryIn : forall width, (word width -> option B) -> hlist (fun _ : word width => option B) (allWords width).
+
+  Axiom memoryIn_eq : forall width,
+    memoryIn (width := width)
+    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> hlist _ L with
+        | refl_equal => memoryIn_def (width := width)
+      end.
+End ALL_WORDS.
+
+Module AllWords : ALL_WORDS.
+  Definition allWords := allWords_def.
+
+  Theorem allWords_eq : allWords = allWords_def.
+    reflexivity.
+  Defined.
+
+  Definition memoryIn := memoryIn_def.
+
+  Theorem memoryIn_eq : forall width,
+    memoryIn (width := width)
+    = match fcong (fun width => list (word width)) width (sym_eq allWords_eq) in _ = L return _ -> hlist _ L with
+        | refl_equal => memoryIn_def (width := width)
+      end.
+    reflexivity.
+  Qed.
+End AllWords.
+*)
 
 End HeapTheory.
