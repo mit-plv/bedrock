@@ -108,46 +108,76 @@ Theorem readOk : moduleOk read.
   Qed.
 
   (** NOTE: This has two continuation for success and failure.
-   ** success :: rp_v rp_pf sp_v sp_pf rv_v rv_pf sep_proof st -> ...
+   ** success :: rp_v rp_pf sp_v sp_pf rv_v rv_pf SF sep_proof st -> ...
    ** failure :: st -> ...
    **)
+Ltac denote_evaluator H :=
+     cbv beta iota zeta delta
+      [ stateD 
+        Expr.exprD SEP.sexprD
+        EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
+        eq_rec_r eq_rec eq_rect eq_sym Logic.eq_sym
+        funcs
+        Expr.Range Expr.Domain Expr.Denotation Expr.tvarD Expr.applyD
+        SEP.sheapD SEP.starred
+        SepExpr.pures SepExpr.impures SepExpr.other
+        Expr.Impl
+        SepExpr.SDenotation SepExpr.SDomain
+        tvWord pcT stT bedrock_types bedrock_funcs
+        sumbool_rect sumbool_rec
+        Peano_dec.eq_nat_dec
+        nat_rec nat_rect
+        nth_error types value error app fold_right
+        SepExpr.FM.fold
+        f_equal
+      ] in H.
+
+  
+
   Ltac symeval simplifier types_ext funcs_ext sfuncs knowns evals uvars vars rp_v rp_pf sp_v sp_pf rv_v rv_pf st sis is SF evalInstrs_pf sepFormula_pf success failure :=
     let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
     apply (@sym_evalInstrs_sound_apply' types_ext funcs_ext sfuncs knowns evals
       uvars vars _ is _ st sp_v rv_v rp_v SF sepFormula_pf
       sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _)) in evalInstrs_pf;
     ((simplifier evalInstrs_pf ; sym_evaluator evalInstrs_pf) || fail 100 "simplification failed") ; 
-    match type of evalInstrs_pf with 
-      | @stateD _ _ _ _ _ _ _ _ _ (@Build_SymState _ ?M (?ssp, ?srp, ?srv))_ =>
+    let k := type of evalInstrs_pf in 
+      idtac "k = " k ;
+    match k with 
+      | @stateD _ _ _ _ _ _ _ _ (@Build_SymState _ ?M (?ssp, ?srp, ?srv)) =>
+        (** it finished! **)
+        idtac "found stateD" ;
         denote_evaluator evalInstrs_pf ;
+        let k :=  type of evalInstrs_pf in 
+          idtac "k2 = " k ;
         match type of evalInstrs_pf with
-          | (_ = ?sp /\ (_ = ?rp /\ _ = ?rv)) /\ interp _ (SepIL.SepFormula.sepFormula ?SF (_, ?st')) =>
-            (** it finished! **)
-        match goal with
-          | [ H'' : evalInstrs _ st' ?is = Some ?st'' |- _ ] =>
-          (** more evaluations to go **)
-            clear sepFormula_pf ;
-            let new_sepFormula_pf := fresh in
-            let stateD_pf := fresh in
-            let interp_pf := fresh in
-            destruct evalInstrs_pf as [ regs_pf new_sepFormula_pf ] ;
-            symeval simplifier types_ext funcs_ext sfuncs knowns evals uvars vars 
-              rp (Some_inj (proj1 (proj2 stateD_pf)))
-              sp (Some_inj (proj1 stateD_pf))
-              rv (Some_inj (proj2 (proj2 stateD_pf)))
-              st' is SF H'' new_sepFormula_pf 
-              ltac:(fun rp_v rp_pf sp_v sp_pf rv_v rv_pf i st =>
-                clear H'' ; success rp_v rp_pf sp_v sp_pf rv_v rv_pf i st)
-              ltac:(fun z => clear H'' ; failure z)
-          | [ |- _ ] =>
-            (** no more evaluations, but we succeeded **)
-            let a := fresh in
-            let b := fresh in
-            let c := fresh in
-            let i := fresh in
-            destruct evalInstrs_pf as [ [ a [ b c ] ] i ];
-            success rp (Some_inj b) sp (Some_inj a) rv (Some_inj c) i st'
-        end            
+          | (_ = ?sp /\ (_ = ?rp /\ _ = ?rv)) /\ 
+            interp _ (SepIL.SepFormula.sepFormula ?SF (_, ?st')) =>
+            match goal with
+              | [ H'' : evalInstrs _ st' ?is = Some ?st'' |- _ ] =>
+                (** more evaluations to go **)
+                clear sepFormula_pf ;
+                let new_sepFormula_pf := fresh in
+                let stateD_pf := fresh in
+                let interp_pf := fresh in
+                destruct evalInstrs_pf as [ regs_pf new_sepFormula_pf ] ;
+                symeval simplifier types_ext funcs_ext sfuncs knowns evals uvars vars 
+                  srp (Some_inj (proj1 (proj2 stateD_pf)))
+                  ssp (Some_inj (proj1 stateD_pf))
+                  srv (Some_inj (proj2 (proj2 stateD_pf)))
+                  st' is SF H'' new_sepFormula_pf 
+                  ltac:(fun rp_v rp_pf sp_v sp_pf rv_v rv_pf SF i st =>
+                    clear H'' ; success rp_v rp_pf sp_v sp_pf rv_v rv_pf SF i st)
+                  ltac:(fun z => clear H'' ; failure z)
+              | [ |- _ ] =>
+                (** no more evaluations, but we succeeded **)
+                let a := fresh in
+                let b := fresh in
+                let c := fresh in
+                let i := fresh in
+                destruct evalInstrs_pf as [ [ a [ b c ] ] i ];
+                success srp (Some_inj b) ssp (Some_inj a) srv (Some_inj c) M i st'
+            end
+        end
       | exists st'', _ /\ _ =>
         (** failed to symbolically evaluate **)
         let a := fresh in
@@ -218,6 +248,48 @@ Theorem readOk : moduleOk read.
   (** TODO: this should take the evaluators, this makes more sense now that there are sfuncs **)
   admit.
 
+  Theorem sym_evalInstrs_safe_apply'
+     : forall (types' : list Expr.type)
+         (funcs' : Expr.functions (types types'))
+         (sfuncs : list (SEP.ssignature (types types') pcT stT))
+         (known : list nat)
+         (word_evals : evaluators types' funcs' sfuncs known)
+         (uvars vars : list {t : Expr.tvar & Expr.tvarD (types types') t})
+         (cs : codeSpec W (settings * state)) (instrs : list instr)
+         (stn : settings) (st : state),
+       forall (sp rv rp : Expr.expr (types types'))
+         (hashed : SEP.SHeap (types types') pcT stT),
+       @interp W (settings * state) cs
+         (![@SEP.sexprD (types types') (funcs types' funcs') pcT stT sfuncs
+              uvars vars (SEP.sheapD hashed)] (stn, st)) ->
+       @Expr.exprD (types types') (funcs types' funcs') uvars vars sp tvWord =
+       @Some W (Regs st Sp) ->
+       @Expr.exprD (types types') (funcs types' funcs') uvars vars rv tvWord =
+       @Some W (Regs st Rv) ->
+       @Expr.exprD (types types') (funcs types' funcs') uvars vars rp tvWord =
+       @Some W (Regs st Rp) ->
+       forall sym_instrs : list (sym_instr (types types')),
+       @sym_instrsD types' funcs' uvars vars sym_instrs =
+       @Some (list instr) instrs ->
+       evalInstrs stn st instrs = @None state ->
+       match
+         @sym_evalInstrs types' funcs' sfuncs known word_evals sym_instrs
+           {| SymMem := hashed; SymRegs := (sp, rp, rv) |}
+       with
+       | inl _ => False
+       | inr (ss'', is') =>
+           exists st'' : state,
+             match @sym_instrsD types' funcs' uvars vars is' with
+             | Some instrs' =>
+                 evalInstrs stn st'' instrs' = @None state /\
+                 @stateD types' funcs' sfuncs uvars vars cs stn st'' ss''
+             | None => False
+             end
+       end.
+  Proof.
+    intros. eapply sym_evalInstrs_safe_apply with (hashed := hashed); eauto.
+  Admitted.
+
   Ltac sym_eval Ts Fs SFs simplifier :=
     match goal with
       | [ H : evalInstrs ?stn ?st ?is = ?R
@@ -267,16 +339,17 @@ Theorem readOk : moduleOk read.
                               idtac "found st' = " st' ;
                               symeval simplifier types_ext funcs_ext sfuncs knowns evals uvars vars 
                                 rp_v rp_pf sp_v sp_pf rv_v rv_pf st sis is SF H H'
-                                ltac:(fun rp_v rp_pf sp_v sp_pf rv_v rv_pf sep_proof st => 
+                                ltac:(fun rp_v rp_pf sp_v sp_pf rv_v rv_pf SH sep_proof st => 
                                   idtac "success";
                                   match goal with
                                     | [ H : evalInstrs ?stn ?st ?is = None 
-                                      , H' : PropX.interp cs (SepIL.SepFormula.sepFormula ?SF (?stn, ?st))
+(*                                      , H' : PropX.interp cs (SepIL.SepFormula.sepFormula ?SF (?stn, ?st)) *)
                                       |- False ] =>
-                                      idtac "safety" sp_v ;
-                                      generalize (@sym_evalInstrs_safe_apply types_ext funcs_ext sfuncs knowns evals
-                                        uvars vars cs is stn st H sp_v (*rv_v rp_v SF H' 
-                                        sp_pf rv_pf rp_pf _ (refl_equal _) sis (refl_equal _) *))
+                                      idtac "safety" sp_v SH sep_proof ;
+                                        
+                                      generalize (@sym_evalInstrs_safe_apply' types_ext funcs_ext sfuncs knowns evals
+                                        uvars vars cs is stn st sp_v rv_v rp_v SH sep_proof
+                                        sp_pf rv_pf rp_pf (* _ (refl_equal _) sis (refl_equal _)*) )
                                   | [ |- _ ] =>
                                     idtac "correctness"
                                   end)
@@ -289,6 +362,7 @@ Theorem readOk : moduleOk read.
     end.
 
   sym_eval (@nil Type) tt tt simplifier.
+  simpl.
   sym_eval (@nil Type) tt tt simplifier.
 
 simplifier types_ext funcs_ext sfuncs uvars vars rp_v rp_pf sp_v sp_pf rv_v rv_pf st sis is SF evalInstrs_pf sepFormula_pf :=
