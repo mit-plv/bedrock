@@ -1188,6 +1188,46 @@ Module BedrockEvaluator.
     sound_simp. intuition; eauto.
   Qed.
 
+  Fixpoint stagesD (ss : list (list (sym_instr types) * option (Expr.expr types))
+    (st : state) : Prop :=
+    match s with
+      | nil => True
+      | (sis, fs) :: ss =>
+        match sym_instrsD uvars vars sis with
+          | None => False
+          | Some is => evalInstrs stn st is = match fs with
+                                                | None => None
+                                                | Some st' =>  _
+                                              end
+        end
+    end
+(*
+            
+        match fs with
+          | None 
+        match s with
+          | Block sis ::=>
+            match st , sym_instrsD uvars vars sis with
+              | None , _ => False
+              | _ , None => False
+              | Some st , Some is => 
+                stagesD ss (evalInstrs stn st is)
+            end
+          | Assert st' => 
+            match st with
+              | None => True
+              | Some _ => False
+            end
+          | Assert (Some st') =>
+            match st with
+              | None => False
+              | Some st => (** replace all occurances of st with st' and continue **)
+                let 
+                stagesD ss (
+            end
+        end
+    end.
+*)
   End typed_ext.
 
   (* Reflect the instructions *)
@@ -1332,6 +1372,13 @@ Module BedrockEvaluator.
         SepExpr.pures SepExpr.impures SepExpr.other
         Expr.Impl
         SepExpr.SDenotation SepExpr.SDomain
+        tvWord pcT stT bedrock_types bedrock_funcs
+        sumbool_rect sumbool_rec
+        Peano_dec.eq_nat_dec
+        nat_rec nat_rect
+        nth_error types value error app fold_right
+        SepExpr.FM.fold
+        f_equal
       ] in H.
 
   Ltac build_evals sigs types' funcs' k :=
