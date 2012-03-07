@@ -1509,7 +1509,13 @@ Module BedrockEvaluator.
     let shouldReflect P :=
       match P with
         | evalInstrs _ _ _ = _ => false
-        | PropX.interp _ _ => false
+        | @PropX.interp _ _ _ _ => false
+        | @PropX.valid _ _ _ _ _ => false
+        | @eq ?X _ _ => 
+          match X with
+            | context [ PropX.PropX ] => false
+            | context [ PropX.spec ] => false
+          end
         | forall x, _ => false
         | exists x, _ => false
         | _ => true
@@ -1539,6 +1545,16 @@ Module BedrockEvaluator.
                     let Ts := SEP.collectAllTypes_funcs Ts Fs in
                     let Ts := SEP.collectAllTypes_sfuncs Ts SFs in
                     let Ts := SEP.collectAllTypes_props shouldReflect isConst Ts in
+                    (** check for potential universe problems **)
+                    match Ts with
+                      | context [ PropX.PropX ] => 
+                        fail 1000 "found PropX in types list"
+                          "(this causes universe inconsistencies)"
+                      | context [ PropX.spec ] => 
+                        fail 1000 "found PropX in types list"
+                          "(this causes universe inconsistencies)"
+                      | _ => idtac
+                    end;
                     (** elaborate the types **)
                     let types := eval unfold bedrock_types in bedrock_types in
                     let types := SEP.extend_all_types Ts types in
