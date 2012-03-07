@@ -1056,6 +1056,26 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         collectAllTypes_sfunc Ts F
     end.
 
+  Ltac collectAllTypes_props shouldReflect isConst Ts :=
+    let rec collect Ts skip :=
+      match goal with
+        | [ H : ?X |- _ ] => 
+          match type of X with
+            | Prop =>
+              match shouldReflect X with
+                | true =>
+                  match hcontains H skip with
+                    | false => 
+                      let Ts := collectTypes_expr isConst X Ts in
+                      let skip := constr:((H, skip)) in
+                      collect Ts skip
+                  end
+              end
+          end
+        | _ => Ts
+      end
+    in collect Ts tt.
+
   Ltac getVar' idx :=
     match idx with
       | fun x => x =>
@@ -1386,6 +1406,32 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         reflect_all goals funcs sfuncs ltac:(fun funcs sfuncs es =>
           constr:((types, pcTyp, stTyp, funcs, sfuncs, es)))
     end.
+
+  Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
+    let rec collect skip funcs acc proofs :=
+      match goal with
+        | [ H : ?X |- _ ] => 
+          match type of X with
+            | Prop => 
+              match shouldReflect X with
+                | true =>
+                  match hcontains H skip with
+                    | false =>
+                      reflect_expr isConst X types funcs uvars vars 
+                        ltac:(fun funcs e =>
+                          let skip := constr:((H, skip)) in
+                          let res := constr:(e :: acc) in
+                          let proofs := constr:((H, proofs)) in
+                          collect skip funcs res proofs)
+                  end
+              end
+          end
+        | _ => k funcs acc proofs
+      end
+    in
+    let acc := constr:(@nil (Expr.expr types)) in
+    let proofs := tt in
+    collect tt funcs acc proofs.
 
   (** NOTE: if types is extended at all then funcs needs to be lifted **)
   Ltac reflect_exprs isConst types funcs exprs :=
