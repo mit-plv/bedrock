@@ -39,11 +39,6 @@ Ltac simplifier H :=
     PLUGIN_PTSTO.expr_equal PLUGIN_PTSTO.types
   ] in H.
 
-Lemma Some_inj : forall T (a b : T), a = b -> Some b = Some a.
-Proof.
-  intros; subst; reflexivity.
-Qed.
-
 Theorem readOk : moduleOk read.
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
@@ -75,9 +70,7 @@ Theorem readOk : moduleOk read.
   rewrite H5. eexists. split; try reflexivity.
   eapply Imply_E. eapply H6.
   admit.
-  
-  Set Printing Universes.
-Admitted. (** Universe inconsistency **)
+Qed.
 
 
 (*
