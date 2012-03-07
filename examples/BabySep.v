@@ -11,7 +11,7 @@ Set Implicit Arguments.
 Import SepTac.BedrockEvaluator.
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st).
+  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
 
 Definition read := bmodule "read" {{
   bfunction "read" [readS] {
