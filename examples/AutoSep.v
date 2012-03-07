@@ -10,7 +10,7 @@ Require Import Bedrock.sep.PtsTo.
 Module PLUGIN_PTSTO := BedrockPtsToEvaluator SepTac.PLUGIN.
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st).
+  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
 
 Definition read := bmodule "read" {{
   bfunction "read" [readS] {
@@ -52,11 +52,12 @@ Theorem readOk : moduleOk read.
            | [ H : _ /\ _ /\ _ |- _ ] =>
              destruct H as [ ? [ ? ? ] ]
            | [ H : Regs _ _ = _ |- _ ] =>
-             ( try rewrite H ) ; ( try rewrite H in * |- )
+             rewrite H
+           | [ H : Regs _ _ = _ |- _ ] =>
+             rewrite H in * |- 
+           | [ H : ?X = ?X |- _ ] => clear H
          end.
-  rewrite H9.
-  rewrite H5. eexists. split; try reflexivity.
-  eapply Imply_E. eapply H6.
+  ho. autorewrite with sepFormula. unfold substH. simpl.
   admit. (** TODO: I need to find a way to invoke the canceler **)
 
   sym_eval ltac:(isConst) tt tt tt simplifier. (** 21 s **)
@@ -64,12 +65,13 @@ Theorem readOk : moduleOk read.
            | [ H : _ /\ _ /\ _ |- _ ] =>
              destruct H as [ ? [ ? ? ] ]
            | [ H : Regs _ _ = _ |- _ ] =>
-             ( try rewrite H ) ; ( try rewrite H in * |- )
+             rewrite H
+           | [ H : Regs _ _ = _ |- _ ] =>
+             rewrite H in * |- 
+           | [ H : ?X = ?X |- _ ] => clear H
          end.
-  rewrite H9.
-  rewrite H5. eexists. split; try reflexivity.
-  eapply Imply_E. eapply H6.
-  admit.
+  ho. autorewrite with sepFormula. unfold substH. simpl.
+  admit. (** TODO: I need to find a way to invoke the canceler **)
 Qed.
 
 
