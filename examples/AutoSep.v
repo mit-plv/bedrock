@@ -41,37 +41,31 @@ Ltac simplifier H :=
 
 Theorem readOk : moduleOk read.
   structured_auto; autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *.
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 6s **)
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 11s **)
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 13s **)
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 18s **)
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 20s **)
-  sym_eval ltac:(isConst) tt tt tt simplifier.
+    unfold starB, hvarB, hpropB in *; fold hprop in *;
+  sym_eval ltac:(isConst) tt tt tt simplifier. (** 56s **)
   repeat match goal with
-           | [ H : _ /\ _ /\ _ |- _ ] =>
-             destruct H as [ ? [ ? ? ] ]
-           | [ H : Regs _ _ = _ |- _ ] =>
-             rewrite H
-           | [ H : Regs _ _ = _ |- _ ] =>
-             rewrite H in * |- 
-           | [ H : ?X = ?X |- _ ] => clear H
-         end.
-  ho. autorewrite with sepFormula. unfold substH. simpl.
-  admit. (** TODO: I need to find a way to invoke the canceler **)
+            | [ H : _ /\ (_ /\ _) |- _ ] =>
+              progress (
+                (try rewrite <- (proj1 H) in * ) ;
+                (try rewrite <- (proj2 (proj2 H)) in * ) ;
+                (try rewrite <- (proj1 (proj2 H)) in * )
+              ) ; try clear H
+          end.
+  ho. specialize (H6 (stn, st)). autorewrite with sepFormula in *. unfold substH in *. simpl in *.
+  unfold starB.
+  rewrite heq_star_comm. auto.
 
-  sym_eval ltac:(isConst) tt tt tt simplifier. (** 21 s **)
   repeat match goal with
-           | [ H : _ /\ _ /\ _ |- _ ] =>
-             destruct H as [ ? [ ? ? ] ]
-           | [ H : Regs _ _ = _ |- _ ] =>
-             rewrite H
-           | [ H : Regs _ _ = _ |- _ ] =>
-             rewrite H in * |- 
-           | [ H : ?X = ?X |- _ ] => clear H
-         end.
-  ho. autorewrite with sepFormula. unfold substH. simpl.
-  admit. (** TODO: I need to find a way to invoke the canceler **)
+            | [ H : _ /\ (_ /\ _) |- _ ] =>
+              progress (
+                (try rewrite <- (proj1 H) in * ) ;
+                (try rewrite <- (proj2 (proj2 H)) in * ) ;
+                (try rewrite <- (proj1 (proj2 H)) in * )
+              ) ; try clear H
+          end.
+  ho. specialize (H6 (stn, st)). autorewrite with sepFormula in *. unfold substH in *. simpl in *.
+  unfold starB.
+  rewrite heq_star_comm. auto.
 Qed.
 
 
