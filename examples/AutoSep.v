@@ -226,29 +226,28 @@ Ltac denote_evaluator H :=
                                           match rws with
                                             | tt => 
                                               denote_evaluator H' ; apply proj1 in H' ;
-                                                (try rewrite <- (proj1 H') in * ) ;
-                                                (try rewrite <- (proj2 (proj2 H')) in * ) ;
-                                                (try rewrite <- (proj1 (proj2 H')) in * ) 
+                                                (try rewrite (proj1 H') in * ) ;
+                                                (try rewrite (proj2 (proj2 H')) in * ) ;
+                                                (try rewrite (proj1 (proj2 H')) in * ) 
                                             | (?H, ?rws) =>
                                               rewrite_regs rws ;
                                               denote_evaluator H ; apply proj1 in H ;
-                                                (try rewrite <- (proj1 H) in * ) ;
-                                                (try rewrite <- (proj2 (proj2 H)) in * ) ;
-                                                (try rewrite <- (proj1 (proj2 H)) in * ) ; 
+                                                (try rewrite (proj1 H) in * ) ;
+                                                (try rewrite (proj2 (proj2 H)) in * ) ;
+                                                (try rewrite (proj1 (proj2 H)) in * ) ; 
                                                 clear H
                                           end
                                           in
-                                          idtac rws
-                                          (*
-                                          idtac "begin rewriting!" rws stateD_pf H' ;
-                                          rewrite_regs rws ;
-                                          idtac "end rewriting!";
                                           repeat match goal with
                                                    | [ H : forall x : settings * state, _ |- _ ] =>
                                                      specialize (H (stn, st)); 
                                                      autorewrite with sepFormula in H; unfold substH, starB in H; simpl in H
                                                  end;
-                                          try (eexists; split; [ eassumption | instantiate; eapply Imply_E; [ eassumption | propxFo ] ]);
+                                          idtac "begin rewriting!" rws zz H';
+                                          rewrite_regs rws ;
+                                          idtac "end rewriting!" (*;
+
+                                          try (eexists; split; [ eassumption | instantiate; eapply Imply_E; [ eassumption | propxFo ] ]) ;
                                             match goal with
                                               | [ H : interp cs (SepIL.SepFormula.sepFormula ?SF ?X)
                                                 |- interp cs (SepIL.SepFormula.sepFormula ?SF' ?X) ] =>
@@ -272,6 +271,31 @@ Theorem readOk : moduleOk read.
 
   sym_eval ltac:(isConst) tt tt tt simplifier.
   simpl stateD in *.
+  try (eexists; split; [ eassumption | instantiate; eapply Imply_E; [ eassumption | propxFo ] ]).
+  
+  
+  About himp.
+  Lemma interp_canceler : forall types' funcs sfuncs cs stn_st uvars vars (sh : SEP.SHeap (types types') pcT stT) sf hashed,
+    interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD (funcs := funcs) (sfuncs := sfuncs) uvars vars (SEP.sheapD sh)) stn_st) ->
+    SEP.hash sf = (nil, hashed) ->
+    match SEP.sepCancel sh hashed with
+      | (gl, gr, _, _) =>
+        himp cs (SEP.sexprD (funcs := funcs) (sfuncs := sfuncs) uvars vars (SEP.sheapD gl)) 
+                (SEP.sexprD (funcs := funcs) (sfuncs := sfuncs) uvars vars (SEP.sheapD gr))
+    end ->
+    interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD (funcs := funcs) (sfuncs := sfuncs) uvars vars sf) stn_st).
+  Proof.
+  Admitted.
+  eapply interp_canceler in H1.
+
+
+
+  match goal with
+    | [ H : interp _ (SepIL.SepFormula.sepFormula (SEP.sexprD _ _ (SEP.sheapD ?SH)) ?X)
+      |- interp _ (SepIL.SepFormula.sepFormula ?SF ?X) ] =>
+    idtac "found it!" SH SF
+    | [ |- _ ] => idtac "didn't find it!"
+  end .
   eexists. split.
   eassumption.
   specialize (H6 (stn, st)). autorewrite with sepFormula in *; unfold substH, starB in *; simpl in *.
