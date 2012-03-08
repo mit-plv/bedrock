@@ -16,9 +16,9 @@ Definition read := bmodule "read" {{
   bfunction "read" [readS] {
     Rv <- $[0];;
     If (Rv = 0) {
-      $[0] <- Rv 
+      $[0] <- 1
     } else {
-      $[0] <- Rv
+      $[0] <- 2
     } ;;
     Rv <- $[0];;
     Goto Rp
@@ -61,6 +61,12 @@ Ltac denote_evaluator H :=
       ] in H.
 
   Ltac sym_eval isConst Ts Fs SFs simplifier :=
+    (* Join together some instruction evaluation sequences *)
+    repeat match goal with
+             | [ H1 : evalInstrs _ _ _ = Some ?st, H2 : evalInstrs _ ?st _ = _ |- _ ] =>
+               generalize (evalInstrs_app _ _ _ _ H1 H2); clear H1 H2; simpl; intro H1
+           end;
+
     (** NOTE: This has two continuation for success and failure.
      ** success :: stateD_pf rws -> ...
      ** failure :: st stateD_pf rem_pf rws -> ...
@@ -68,14 +74,14 @@ Ltac denote_evaluator H :=
     let rec symeval types_ext funcs_ext sfuncs knowns evals uvars vars 
       sis stateD_pf success failure :=
       let rec continue sis stateD_pf rws :=
-        idtac "continue" ;
+        (*idtac "continue" ;*)
         match sis with
           | tt => success stateD_pf rws
           | ((?is, ?sis, ?evalInstrs_pf), ?rem) =>
-            idtac "apply";
+            (*idtac "apply";*)
             apply (@sym_evalInstrs_any_apply' types_ext funcs_ext sfuncs knowns evals
               uvars vars (* cs *) _ (* stn *) _ _ _ stateD_pf sis) in evalInstrs_pf ;
-            idtac "done apply" ;
+            (*idtac "done apply" ;*)
             ((simplifier evalInstrs_pf ; sym_evaluator evalInstrs_pf) || fail 100 "simplification failed") ;
             let k := type of evalInstrs_pf in
             match k with
@@ -256,11 +262,11 @@ Ltac denote_evaluator H :=
     end.
 
 Theorem readOk : moduleOk read.
-  structured_auto; autorewrite with sepFormula in *; simpl in *;
+  Time structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *;
-
-  sym_eval ltac:(isConst) tt tt tt simplifier.
-  admit. admit.
+      sym_eval ltac:(isConst) tt tt tt simplifier.
+  admit.
+  admit.
 Qed.
 
 (*

@@ -308,9 +308,7 @@ Module Make (B : Heap).
 
     Theorem test_Hf1'_bad : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj True)) (f 0)) (ST.emp _ _).
       Time unfolder hints_Hf1'.
-      easy.
-      admit.  (** TODO: this broke? **)
-    Qed.
+    Abort.
 
     Hypothesis Hf_eq0 : 0 = 0 -> forall cs, ST.himp cs (f 0) (ST.emp _ _).
 
@@ -325,9 +323,8 @@ Module Make (B : Heap).
 
     Theorem test_Hf_eq0_wrong : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (0 <> 0))) (f 0)) (ST.emp _ _).
       Time unfolder hints_Hf_eq0.
-      easy.
-      admit.  (** TODO: this broke? **)
-    Qed.
+      (** Broken by switch of [himp] to use PropX implication instead of normal Coq implication *)
+    Abort.
 
     Hypothesis Hf_eqn : forall n, n = n -> forall cs, ST.himp cs (f n) (ST.emp _ _).
 
@@ -342,8 +339,21 @@ Module Make (B : Heap).
 
     Theorem test_Hf_eqn_wrong : forall n cs, ST.himp cs (ST.star (ST.inj (PropX.Inj (n <> n))) (f n)) (ST.emp _ _).
       Time unfolder hints_Hf_eqn.
+      (* Also broken by change to [himp] *)
+    Abort.
+
+    (** Reflection performance testing *)
+
+    Fixpoint many_f n :=
+      match n with
+        | O => f 0
+        | S n' => ST.star (f 0) (many_f n')
+      end.
+
+    Theorem test_many : forall cs, ST.himp cs (many_f 9) (ST.emp _ _).
+      simpl.
+      Time unfolder hints_Hf.
       easy.
-      admit. (** TODO: this broke too? **)
     Qed.
 
   End Tests.
