@@ -1201,11 +1201,10 @@ Module BedrockEvaluator.
       @sym_instrsD uvars vars sym_instrs = @Some (list instr) instrs ->
     forall some_or_none,
       evalInstrs stn st instrs = some_or_none ->
+      let res := @sym_evalInstrs sym_instrs {| SymMem := hashed; SymRegs := (sp, rp, rv) |} in
       match some_or_none with
         | None =>
-          match
-            @sym_evalInstrs sym_instrs {| SymMem := hashed; SymRegs := (sp, rp, rv) |}
-            with
+          match res with
             | inl _ => False
             | inr (ss'', is') =>
               exists st'' : state,
@@ -1217,9 +1216,7 @@ Module BedrockEvaluator.
                 end
           end
         | Some st' =>
-          match
-            @sym_evalInstrs sym_instrs {| SymMem := hashed; SymRegs := (sp, rp, rv) |}
-            with
+          match res with
             | inl ss' => @stateD uvars vars cs stn st' ss'
             | inr (ss'', is') =>
               exists st'' : state,
@@ -1237,6 +1234,95 @@ Module BedrockEvaluator.
       eapply sym_evalInstrs_safe_apply with (hashed := hashed); eauto. admit.
   Qed.
 
+Theorem sym_evalInstrs_any_apply' : forall 
+  (uvars vars : list {t : Expr.tvar & Expr.tvarD types t})
+  (cs : codeSpec W (settings * state)) (stn : settings)
+  (ss : SymState) (st : state),
+  stateD uvars vars cs stn st ss ->
+    forall (sym_instrs : list (sym_instr types)),
+      match sym_instrsD uvars vars sym_instrs with 
+        | None => True
+        | Some instrs => 
+    forall some_or_none,
+      evalInstrs stn st instrs = some_or_none ->
+      let res := @sym_evalInstrs sym_instrs ss in
+      match some_or_none with
+        | None =>
+          match res with
+            | inl _ => False
+            | inr (ss'', is') =>
+              exists st'' : state,
+                match @sym_instrsD uvars vars is' with
+                  | Some instrs' =>
+                    evalInstrs stn st'' instrs' = @None state /\
+                    @stateD uvars vars cs stn st'' ss''
+                  | None => False
+                end
+          end
+        | Some st' =>
+          match res with
+            | inl ss' => @stateD uvars vars cs stn st' ss'
+            | inr (ss'', is') =>
+              exists st'' : state,
+                match @sym_instrsD uvars vars is' with
+                  | Some instrs' =>
+                    evalInstrs stn st'' instrs' = @Some state st' /\
+                    @stateD uvars vars cs stn st'' ss''
+                  | None => False
+                end
+          end
+      end
+      end.
+  Proof.
+    intros. case_eq (sym_instrsD uvars vars sym_instrs); trivial. intros. 
+    unfold res. destruct ss. destruct SymRegs0. destruct p.
+      simpl in H. destruct H.
+      repeat match goal with
+               | [ H : match ?X with 
+                         | Some _ => _
+                         | None => False 
+                       end |- _ ] => revert H; case_eq X; intros; try (exfalso; assumption)
+               | [ H : _ /\ _ |- _ ] => destruct H
+             end.
+      subst.
+      eapply sym_evalInstrs_any_apply; eauto.
+  Qed.
+
+  Lemma stateD_proof : forall 
+    (uvars vars : list {t : Expr.tvar & Expr.tvarD types t})
+    (st : state)
+    (sp rv rp : Expr.expr types),
+    Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+    Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+    Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+    forall (hashed : SEP.SHeap types pcT stT)
+      (cs : codeSpec W (settings * state)) (stn : settings) sh,
+      SEP.hash sh = (nil , hashed) ->
+      interp cs (![@SEP.sexprD types funcs pcT stT sfuncs uvars vars sh] (stn, st)) ->
+    stateD uvars vars cs stn st {| SymMem := hashed; SymRegs := (sp, rp, rv) |}.
+  Proof.
+    clear. intros. simpl. rewrite H. rewrite H0. rewrite H1.
+    intuition. eapply hash_interp; eauto.
+  Qed.
+    
+  Lemma stateD_regs : forall 
+    (uvars vars : list {t : Expr.tvar & Expr.tvarD types t})
+    (st : state) M
+    (sp rv rp : Expr.expr types) stn cs,
+    stateD uvars vars cs stn st {| SymMem := M; SymRegs := (sp, rp, rv) |} ->
+    match
+      Expr.exprD funcs uvars vars sp tvWord , 
+      Expr.exprD funcs uvars vars rp tvWord ,
+      Expr.exprD funcs uvars vars rv tvWord
+      with
+      | Some sp , Some rp , Some rv =>
+        Regs st Sp = sp /\ Regs st Rp = rp /\ Regs st Rv = rv
+      | _ , _ , _ => False
+    end.
+  Proof.
+    clear. destruct 1. auto.
+  Qed.    
+    
   End typed_ext.
 
   (* Reflect the instructions *)
