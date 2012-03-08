@@ -192,6 +192,14 @@ Theorem evalInstrs_cons : forall stn st i is, evalInstrs stn st (i :: is)
   reflexivity.
 Qed.
 
+Theorem evalInstrs_app : forall stn st2 st3 is2 is1 st1, evalInstrs stn st1 is1 = Some st2
+  -> evalInstrs stn st2 is2 = st3
+  -> evalInstrs stn st1 (is1 ++ is2) = st3.
+  induction is1; simpl; intuition.
+  congruence.
+  destruct (evalInstr stn st1 a); auto; congruence.
+Qed.
+
 Global Opaque evalInstrs.
 
 Ltac conditions :=
