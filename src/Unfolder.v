@@ -109,10 +109,13 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       (* Apply on the lefthand side of an implication *)
       Backward : hintSide;
       (* Apply on the righthand side *)
-      ForwardOk : hintSideD Forward;
-      BackwardOk : hintSideD Backward;
       Prover : list (expr types) -> expr types -> bool
       (* Prover for pure hypotheses of lemmas *)
+    }.
+
+    Record hintsSoundness (Payload : hintsPayload) := {
+      ForwardOk : hintSideD (Forward Payload);
+      BackwardOk : hintSideD (Backward Payload)
     }.
 
     (** Applying up to a single hint to a hashed separation formula *)
@@ -279,6 +282,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable funcs' : functions types.
       Variable sfuncs' : sfunctions types pcType stateType.
 
+      Hypothesis hsOk : hintsSoundness hs.
+
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       Theorem unfolderOk : forall bound P Q,
         (let (exsP, shP) := hash P in
@@ -306,7 +311,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     PcType : tvar;
     StateType : tvar;
     SFunctions : sfunctions Types PcType StateType;
-    Hints : hintsPayload Functions SFunctions
+    Hints : hintsPayload Types PcType StateType;
+    HintsOk : hintsSoundness Functions SFunctions Hints
   }.
 
 
@@ -446,7 +452,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                         SFunctions := sfuncs;
                         Hints := {| Forward := fwd';
                           Backward := bwd';
-                          Prover := prover types |} |}; [ abstract prove fwd | abstract prove bwd ])))).
+                          Prover := prover types |};
+                        HintsOk := {| ForwardOk := _ |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
