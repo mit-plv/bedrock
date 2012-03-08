@@ -62,7 +62,7 @@ Ltac denote_evaluator H :=
 
   Ltac sym_eval isConst Ts Fs SFs simplifier :=
     (** NOTE: This has two continuation for success and failure.
-     ** success :: stateD_pf rws -> ...
+     ** success :: rws -> ...
      ** failure :: st stateD_pf rem_pf rws -> ...
      **)
     let rec symeval types_ext funcs_ext sfuncs knowns evals uvars vars 
@@ -70,7 +70,7 @@ Ltac denote_evaluator H :=
       let rec continue sis stateD_pf rws :=
         idtac "continue" ;
         match sis with
-          | tt => success stateD_pf rws
+          | tt => success rws
           | ((?is, ?sis, ?evalInstrs_pf), ?rem) =>
             idtac "apply";
             apply (@sym_evalInstrs_any_apply' types_ext funcs_ext sfuncs knowns evals
@@ -211,43 +211,53 @@ Ltac denote_evaluator H :=
                           sheap_simplifier H' ;
                           build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
                             symeval types_ext funcs_ext sfuncs knowns evals uvars vars sis H'
-                              ltac:(fun stateD_pf rws => 
-                                idtac "success" ;
-                                simple apply stateD_regs in H' ;
-                                denote_evaluator H' ;
-                                (try rewrite <- (proj1 H') in * ) ;
-                                (try rewrite <- (proj2 (proj2 H')) in * ) ;
-                                (try rewrite <- (proj1 (proj2 H')) in * ) ; 
-                                let rec rewrite_regs rws :=
-                                  match rws with
-                                    | tt => idtac
-                                    | (?H, tt) => 
-                                      denote_evaluator H; destruct H
-                                    | (?H, ?rws) =>
-                                      rewrite_regs rws ;
-                                      denote_evaluator H ; apply proj1 in H ;
-                                      (try rewrite <- (proj1 H) in * ) ;
-                                      (try rewrite <- (proj2 (proj2 H)) in * ) ;
-                                      (try rewrite <- (proj1 (proj2 H)) in * ) ; 
-                                      clear H
-                                  end
-                                in
-                                idtac "begin rewriting!" ;
-                                rewrite_regs rws; 
-                                idtac "end rewriting!";
-                                repeat match goal with
-                                         | [ H : forall x : settings * state, _ |- _ ] =>
-                                           specialize (H (stn, st)); 
-                                             autorewrite with sepFormula in H; unfold substH, starB in H; simpl in H
-                                       end;
-                                try (eexists; split; [ eassumption | instantiate; eapply Imply_E; try eassumption; propxFo ]);
-                                match goal with
-                                  | [ H : interp cs (SepIL.SepFormula.sepFormula ?SF ?X)
-                                    |- interp cs (SepIL.SepFormula.sepFormula ?SF' ?X) ] =>
-                                  idtac "found it!"
-                                  | [ |- _ ] => idtac "didn't find it!"
-                                end ;
-                                idtac "done rewriting")
+                              ltac:(fun rws =>
+                                match rws with
+                                  | (?stateD_pf, ?rws) =>
+                                    match type of stateD_pf with
+                                      | @stateD _ _ _ _ _ _ _ ?st _ =>
+                                        idtac "success" st ;
+                                        let zz := fresh in
+                                        denote_evaluator stateD_pf ; destruct stateD_pf as [ zz ? ];
+                                          (try rewrite <- (proj1 zz) in * ) ;
+                                          (try rewrite <- (proj2 (proj2 zz)) in * ) ;
+                                          (try rewrite <- (proj1 (proj2 zz)) in * ) ;
+                                        let rec rewrite_regs rws :=
+                                          match rws with
+                                            | tt => 
+                                              denote_evaluator H' ; apply proj1 in H' ;
+                                                (try rewrite <- (proj1 H') in * ) ;
+                                                (try rewrite <- (proj2 (proj2 H')) in * ) ;
+                                                (try rewrite <- (proj1 (proj2 H')) in * ) 
+                                            | (?H, ?rws) =>
+                                              rewrite_regs rws ;
+                                              denote_evaluator H ; apply proj1 in H ;
+                                                (try rewrite <- (proj1 H) in * ) ;
+                                                (try rewrite <- (proj2 (proj2 H)) in * ) ;
+                                                (try rewrite <- (proj1 (proj2 H)) in * ) ; 
+                                                clear H
+                                          end
+                                          in
+                                          idtac rws
+                                          (*
+                                          idtac "begin rewriting!" rws stateD_pf H' ;
+                                          rewrite_regs rws ;
+                                          idtac "end rewriting!";
+                                          repeat match goal with
+                                                   | [ H : forall x : settings * state, _ |- _ ] =>
+                                                     specialize (H (stn, st)); 
+                                                     autorewrite with sepFormula in H; unfold substH, starB in H; simpl in H
+                                                 end;
+                                          try (eexists; split; [ eassumption | instantiate; eapply Imply_E; [ eassumption | propxFo ] ]);
+                                            match goal with
+                                              | [ H : interp cs (SepIL.SepFormula.sepFormula ?SF ?X)
+                                                |- interp cs (SepIL.SepFormula.sepFormula ?SF' ?X) ] =>
+                                              idtac "found it!"
+                                              | [ |- _ ] => idtac "didn't find it!"
+                                            end 
+*)
+                                    end
+                                end)
                               ltac:(fun st stateD_pf rem rws => idtac "failure"))
                       end))))))
                 end
@@ -257,10 +267,27 @@ Ltac denote_evaluator H :=
 
 Theorem readOk : moduleOk read.
   structured_auto; autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *;
+    unfold starB, hvarB, hpropB in *; fold hprop in *.
+  admit. admit. admit. admit. admit.
 
   sym_eval ltac:(isConst) tt tt tt simplifier.
-  admit. admit.
+  simpl stateD in *.
+  eexists. split.
+  eassumption.
+  specialize (H6 (stn, st)). autorewrite with sepFormula in *; unfold substH, starB in *; simpl in *.
+  eapply Imply_E.
+  eassumption.
+  propxFo. rewrite heq_star_comm. auto.
+  
+
+  sym_eval ltac:(isConst) tt tt tt simplifier.
+  simpl stateD in *.
+  eexists. split.
+  eassumption.
+  specialize (H6 (stn, st)). autorewrite with sepFormula in *; unfold substH, starB in *; simpl in *.
+  eapply Imply_E.
+  eassumption.
+  propxFo. rewrite heq_star_comm. auto.
 Qed.
 
 (*
