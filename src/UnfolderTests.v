@@ -10,7 +10,7 @@ Module Make (B : Heap).
   Module ST := SepTheoryX.SepTheoryX (B).
   Module U := Unfolder.Make B ST.
 
-  (** Just a test separation logic predicate **)
+  (** Just some test separation logic predicates **)
   Section Tests.
     Variables pc state : Type.
 
@@ -80,47 +80,47 @@ Module Make (B : Heap).
     Definition hints_tt : U.hints.
       prepare tt tt.
     Defined.
-(*    Print hints_tt. *)
+    (*Print hints_tt.*)
 
     Definition hints_emp : U.hints.
       prepare Hemp Hemp.
     Defined.
-(*    Print hints_emp. *)
+    (*Print hints_emp.*)
 
     Definition hints_Hf : U.hints.
       prepare Hf Hemp.
     Defined.
-(*    Print hints_Hf. *)
+    (* Print hints_Hf. *)
 
     Definition hints_Hh : U.hints.
       prepare (Hemp, Hf) (Hemp, Hf, Hh).
     Defined.
-(*    Print hints_Hh. *)
+    (* Print hints_Hh. *)
 
     Definition hints_Hf0 : U.hints.
       prepare Hf0 tt.
     Defined.
-(*    Print hints_Hf0. *)
+    (* Print hints_Hf0. *)
 
     Definition hints_glom : U.hints.
       prepare (Hemp, Hf, Hh, Hf0) (Hemp, Hf0, tt).
     Defined.
-(*    Print hints_glom. *)
+    (* Print hints_glom. *)
 
     Definition hints_Hh0 : U.hints.
       prepare Hh0 tt.
     Defined.
-(*    Print hints_Hh0. *)
+    (* Print hints_Hh0. *)
 
     Definition hints_Hf1 : U.hints.
       prepare Hf1 tt.
     Defined.
-(*    Print hints_Hf1. *)
+    (* Print hints_Hf1. *)
 
     Definition hints_Hh1 : U.hints.
       prepare Hh1 tt.
     Defined.
-(*    Print hints_Hh1. *)
+    (* Print hints_Hh1. *)
 
 
     (** * Simplifying some goals *)
@@ -135,7 +135,7 @@ Module Make (B : Heap).
         SepExpr.FM.empty SepExpr.FM.map SepExpr.FM.find ExprUnify.empty_Subst
         app rev_append map length Compare_dec.lt_eq_lt_dec
         findWithRest findWithRest' find Forward Backward
-        Types Functions PcType StateType SFunctions Hints Lhs Rhs
+        Types PcType StateType Hints Lhs Rhs
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
         ExprUnify.exprUnify exprSubstU sheapSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
         eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq 
@@ -155,7 +155,8 @@ Module Make (B : Heap).
         unit_eqdec unit_rec unit_rect
         assumptionProver].
 
-    Ltac unfolder hs := U.unfolder isConst hs 10; exec hs.
+    Ltac unfolder' hs n := U.unfolder isConst hs n; exec hs.
+    Ltac unfolder hs := unfolder' hs 10.
 
     Theorem f_easy : forall cs, ST.himp cs (f 0) (ST.emp _ _).
       Time unfolder hints_Hf.
@@ -350,9 +351,9 @@ Module Make (B : Heap).
         | S n' => ST.star (f 0) (many_f n')
       end.
 
-    Theorem test_many : forall cs, ST.himp cs (many_f 9) (ST.emp _ _).
+    Theorem test_many : forall cs, ST.himp cs (many_f 19) (ST.emp _ _).
       simpl.
-      Time unfolder hints_Hf.
+      Time unfolder' hints_Hf 20.
       easy.
     Qed.
 
