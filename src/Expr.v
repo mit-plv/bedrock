@@ -1,5 +1,6 @@
 Require Import List DepList.
 Require Import EqdepClass.
+Require Import IL Word.
 
 Set Implicit Arguments.
 
@@ -534,7 +535,7 @@ Ltac collectAllTypes_props shouldReflect isConst Ts :=
  **)
 Ltac indexOf_nat proj x xs :=
   let rec search xs :=
-    match xs with
+    match eval hnf in xs with
       | ?X :: ?XS =>
         match unifies (proj X) x with
           | true => constr:(0)
@@ -566,7 +567,7 @@ Ltac reflectType types t :=
       
 (** essentially this is [map (reflectType types) ts] **)
 Ltac reflectTypes_toList types ts :=
-  match ts with 
+  match eval hnf in ts with 
     | nil => constr:(@nil tvar)
     | ?T :: ?TS =>
       let i := typesIndex T types in
@@ -609,11 +610,18 @@ Ltac getFunction types f funcs' k :=
         let F := reflect_function types f in
         let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
         k funcs acc
-      | ?F :: ?FS =>
-        match unifies (Denotation F) f with
-          | true => k funcs' acc
-          | false =>
-            let z := constr:(Denotation F) in
+      | Sig _ _ _ ?F :: ?FS =>
+        match F with
+          | f => k funcs' acc
+          | natToW =>
+            match f with
+              | natToWord 32 => k funcs' acc
+            end
+          | natToWord 32 =>
+            match f with
+              | natToW => k funcs' acc
+            end
+          | _ =>
             let acc := constr:(S acc) in
             lookup FS acc
         end
