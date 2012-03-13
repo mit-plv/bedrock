@@ -1048,14 +1048,14 @@ Module BedrockEvaluator.
                               reflect_rvalue ltac:(isConst) l types funcs uvars vars ltac:(fun funcs' l =>
                               reflect_rvalue ltac:(isConst) r types funcs' uvars vars ltac:(fun funcs' r =>
                                 let funcs_ext := extension funcs funcs' in
-                                eapply (@evalPath_cond_app types_ext funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
+                                apply (@evalPath_cond_app types_ext funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
                                 cbv iota in H ;
                                 clear last ; 
                                 build_path is H funcs' k))
                             | evalInstrs _ ?st _ = _ =>
                               reflect_instrs ltac:(isConst) i types funcs uvars vars ltac:(fun funcs' sis =>
                                 let funcs_ext := extension funcs funcs' in
-                                eapply (@evalPath_instrs_app types_ext funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
+                                apply (@evalPath_instrs_app types_ext funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
                                 clear last ;
                                 build_path is H funcs' k)
                           end
@@ -1075,7 +1075,7 @@ Module BedrockEvaluator.
                         | _ :: _ :: _ :: _ :: _ :: ?funcs_ext =>
                           apply (@stateD_proof types_ext funcs uvars vars sfuncs _ sp_v rv_v rp_v 
                             sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
-                          eapply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
+                          apply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
                           clear path ; 
                           unfolder H' ;
                           cbv beta iota zeta delta
@@ -1096,8 +1096,8 @@ Module BedrockEvaluator.
                               fst snd
                               FuncImage PredImage TypeImage
                               Env.repr Env.updateAt
-                            ] in H' ; 
-                          denote_evaluator H'
+                            ] in H'
+
                       end))))))
                 end
             end
@@ -1134,6 +1134,7 @@ Module BedrockEvaluator.
   Proof.
     intros.
     sym_eval ltac:(isConst) default_unfolder Correctness_default tt tt tt simplifier.
+    simpl in *.
     intuition.
   Qed.
 
