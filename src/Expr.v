@@ -560,6 +560,8 @@ Ltac reflectType types t :=
       let i := typesIndex t types in
       let r := constr:(tvType i) in
       r
+    | _ =>
+      fail 10000 "couldn't find " t " inside types"
   end.  
       
 (** essentially this is [map (reflectType types) ts] **)
@@ -611,6 +613,7 @@ Ltac getFunction types f funcs' k :=
         match unifies (Denotation F) f with
           | true => k funcs' acc
           | false =>
+            let z := constr:(Denotation F) in
             let acc := constr:(S acc) in
             lookup FS acc
         end
