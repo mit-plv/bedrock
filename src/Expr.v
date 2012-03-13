@@ -1,5 +1,6 @@
 Require Import List DepList.
 Require Import EqdepClass.
+Require Import IL Word.
 
 Set Implicit Arguments.
 
@@ -607,10 +608,18 @@ Ltac getFunction types f funcs' k :=
         let F := reflect_function types f in
         let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
         k funcs acc
-      | ?F :: ?FS =>
-        match unifies (Denotation F) f with
-          | true => k funcs' acc
-          | false =>
+      | Sig _ _ _ ?F :: ?FS =>
+        match F with
+          | f => k funcs' acc
+          | natToW =>
+            match f with
+              | natToWord 32 => k funcs' acc
+            end
+          | natToWord 32 =>
+            match f with
+              | natToW => k funcs' acc
+            end
+          | _ =>
             let acc := constr:(S acc) in
             lookup FS acc
         end
