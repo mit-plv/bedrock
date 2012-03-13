@@ -148,11 +148,13 @@ Print ptsto_evaluator.
                     let typesV := fresh "types" in
                     pose (typesV := types);
                     let types_ext := eval simpl in (SymIL.bedrock_ext types) in
+                    let types_extV := fresh "types_ext" in
+                    pose (types_extV := types_ext);
                     (** build the variables **)
                     let uvars := eval simpl in (@nil _ : Expr.env typesV) in
                     let vars := eval simpl in (@nil _ : Expr.env typesV) in
                     (** build the base functions **)
-                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
+                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_extV) in
                     let funcs := Expr.getAllFunctions typesV funcs Fs in
                     let funcs := eval simpl in funcs in
                     (** build the base sfunctions **)
@@ -168,14 +170,14 @@ Print ptsto_evaluator.
                               reflect_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun funcs' l =>
                               reflect_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun funcs' r =>
                                 let funcs_ext := extension funcs funcs' in
-                                eapply (@evalPath_cond_app types_ext funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
+                                eapply (@evalPath_cond_app types_extV funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
                                 cbv iota in H ;
                                 clear last ; 
                                 build_path is H funcs' k))
                             | evalInstrs _ ?st _ = _ =>
                               reflect_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun funcs' sis =>
                                 let funcs_ext := extension funcs funcs' in
-                                eapply (@evalPath_instrs_app types_ext funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
+                                eapply (@evalPath_instrs_app types_extV funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
                                 clear last ;
                                 build_path is H funcs' k)
                           end
@@ -186,17 +188,17 @@ Print ptsto_evaluator.
                     Expr.reflect_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun funcs sp_v =>
                     Expr.reflect_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun funcs rv_v =>
                     SEP.reflect_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-                      generalize (@evalPath_nil types_ext funcs uvars vars stn st) ;
+                      generalize (@evalPath_nil types_extV funcs uvars vars stn st) ;
                       let starter := fresh in
                       intro starter ;
                       let funcs := eval simpl app in funcs in
                     build_path all_instrs starter funcs ltac:(fun funcs path =>
                       match funcs with
                         | _ :: _ :: _ :: _ :: _ :: ?funcs_ext =>
-                          apply (@stateD_proof types_ext funcs uvars vars sfuncs _ sp_v rv_v rp_v 
+                          apply (@stateD_proof types_extV funcs uvars vars sfuncs _ sp_v rv_v rp_v 
                             sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
-                          eapply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
-                          subst typesV; clear path ; 
+                          eapply (@sym_eval_any _ _ C types_extV funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
+                          subst types_extV; subst typesV; clear path ; 
                           unfolder H' ;
                           cbv beta iota zeta delta
                             [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
