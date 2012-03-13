@@ -535,7 +535,7 @@ Ltac collectAllTypes_props shouldReflect isConst Ts :=
  **)
 Ltac indexOf_nat proj x xs :=
   let rec search xs :=
-    match xs with
+    match eval hnf in xs with
       | ?X :: ?XS =>
         match unifies (proj X) x with
           | true => constr:(0)
@@ -565,7 +565,7 @@ Ltac reflectType types t :=
       
 (** essentially this is [map (reflectType types) ts] **)
 Ltac reflectTypes_toList types ts :=
-  match ts with 
+  match eval hnf in ts with 
     | nil => constr:(@nil tvar)
     | ?T :: ?TS =>
       let i := typesIndex T types in
