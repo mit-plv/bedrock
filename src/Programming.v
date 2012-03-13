@@ -224,7 +224,7 @@ Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
  ** [evalInstrs] line
  **)
 Ltac conditions_auto :=
-  unfold evalCond in *; simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *;
+  simpl in *; unfold weqb, wneb, wltb, wleb in *; simpl in *;
     repeat match goal with
              | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
              | [ H : Some _ = None |- _ ] => discriminate H

@@ -4,10 +4,10 @@ Set Implicit Arguments.
 
 (** * Let's read from memory! *)
 
-Import SepTac.BedrockEvaluator.
-Require Import Bedrock.sep.PtsTo.
+Import SymIL.BedrockEvaluator.
+Require Import Bedrock.sep.PtsTo2.
 
-Module PLUGIN_PTSTO := BedrockPtsToEvaluator SepTac.PLUGIN.
+(*Module PLUGIN_PTSTO := BedrockPtsToEvaluator SepTac.PLUGIN. *)
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
@@ -25,246 +25,44 @@ Definition read := bmodule "read" {{
   }
 }}.
 
+(*
 Implicit Arguments sym_evalInstrs [ types' funcs' sfuncs known word_evals ].
 Implicit Arguments SepExpr.FM.MBranch [ T ].
 Implicit Arguments SepExpr.FM.MLeaf [ T ].
 Implicit Arguments stateD [ types' funcs' sfuncs ].
 Implicit Arguments sym_instrsD [ types' funcs' ].
 Implicit Arguments SEP.sexprD [ types funcs pcType stateType sfuncs ].
+*)
 
+(*
 Existing Instance PLUGIN_PTSTO.SymEval_ptsto32.
+
 Ltac simplifier H := 
   cbv beta delta [
     PLUGIN_PTSTO.SymEval_ptsto32 PLUGIN_PTSTO.sym_read_word_ptsto32 PLUGIN_PTSTO.sym_write_word_ptsto32
     PLUGIN_PTSTO.expr_equal PLUGIN_PTSTO.types
   ] in H.
+*)
 
-Ltac denote_evaluator H :=
-     cbv beta iota zeta delta
-      [ stateD 
-        Expr.exprD
-        EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-        eq_rec_r eq_rec eq_rect eq_sym Logic.eq_sym
-        funcs
-        Expr.Range Expr.Domain Expr.Denotation Expr.tvarD Expr.applyD
-        SEP.starred
-        SepExpr.pures SepExpr.impures SepExpr.other
-        Expr.Impl
-        SepExpr.SDenotation SepExpr.SDomain
-        tvWord pcT stT bedrock_types bedrock_funcs
-        sumbool_rect sumbool_rec
-        Peano_dec.eq_nat_dec
-        nat_rec nat_rect
-        nth_error types value error app fold_right
-        SepExpr.FM.fold
-        f_equal
-      ] in H.
+Ltac unfolder H :=
+  idtac "unfolding" ;
+  cbv delta [ 
+    ptsto_evaluator CORRECTNESS READER WRITER DEMO.expr_equal DEMO.types
+    DEMO.ptsto32_ssig DEMO.ptrIndex DEMO.wordIndex
+    SymEval.fold_args SymEval.fold_args_update
+  ] in H.
 
-  Ltac sym_eval isConst Ts Fs SFs simplifier :=
-    (* Join together some instruction evaluation sequences *)
-    repeat match goal with
-             | [ H1 : evalInstrs _ _ _ = Some ?st, H2 : evalInstrs _ ?st _ = _ |- _ ] =>
-               generalize (evalInstrs_app _ _ _ _ H1 H2); clear H1 H2; simpl; intro H1
-           end;
-
-    (** NOTE: This has two continuation for success and failure.
-     ** success :: stateD_pf rws -> ...
-     ** failure :: st stateD_pf rem_pf rws -> ...
-     **)
-    let rec symeval types_ext funcs_ext sfuncs knowns evals uvars vars 
-      sis stateD_pf success failure :=
-      let rec continue sis stateD_pf rws :=
-        (*idtac "continue" ;*)
-        match sis with
-          | tt => success stateD_pf rws
-          | ((?is, ?sis, ?evalInstrs_pf), ?rem) =>
-            (*idtac "apply";*)
-            apply (@sym_evalInstrs_any_apply' types_ext funcs_ext sfuncs knowns evals
-              uvars vars (* cs *) _ (* stn *) _ _ _ stateD_pf sis) in evalInstrs_pf ;
-            (*idtac "done apply" ;*)
-            ((simplifier evalInstrs_pf ; sym_evaluator evalInstrs_pf) || fail 100 "simplification failed") ;
-            let k := type of evalInstrs_pf in
-            match k with
-              | False => exfalso; exact evalInstrs_pf
-              | @stateD _ _ _ _ _ _ _ _ _ (*(@Build_SymState _ ?M (?ssp, ?srp, ?srv))*) =>
-                let rws := constr:((evalInstrs_pf, rws)) in
-                continue rem evalInstrs_pf rws
-              | exists st'', _ =>
-                let a := fresh in
-                let b := fresh in
-                let c := fresh in 
-                destruct evalInstrs_pf as [ a [ b c ] ] ;
-                failure a b c rws
-            end
-        end
-      in
-      continue sis stateD_pf tt
-    in
-    let rec get_instrs st :=
-      match goal with
-        | [ H : evalInstrs _ st ?is = Some ?X |- _ ] =>
-          let v := get_instrs X in
-          constr:(((is, H), v))
-        | [ H : evalInstrs _ st ?is = None |- _ ] =>
-          constr:(((is, H), tt))
-        | [ |- _ ] => tt
-      end
-    in
-    let rec collectAllTypes_instrs is Ts :=
-      match is with
-        | tt => Ts
-        | ((?i, _), ?is) =>
-          let Ts := collectTypes_instrs ltac:(isConst) i Ts in
-          collectAllTypes_instrs is Ts
-      end
-    in
-    let rec reflect_all_instrs ais types funcs uvars vars k :=
-      match ais with
-        | tt => k funcs tt
-        | ((?is, ?H), ?ais) =>
-          reflect_instrs ltac:(isConst) is types funcs uvars vars ltac:(fun funcs sis =>
-            let res := constr:((is, sis, H)) in
-            reflect_all_instrs ais types funcs uvars vars ltac:(fun funcs sis => 
-              let res := constr:((res, sis)) in
-              k funcs res))
-      end
-    in
-    let shouldReflect P :=
-      match P with
-        | evalInstrs _ _ _ = _ => false
-        | @PropX.interp _ _ _ _ => false
-        | @PropX.valid _ _ _ _ _ => false
-        | @eq ?X _ _ => 
-          match X with
-            | context [ PropX.PropX ] => false
-            | context [ PropX.spec ] => false
-          end
-        | forall x, _ => false
-        | exists x, _ => false
-        | _ => true
-      end
-    in
-    let sheap_simplifier H := 
-      cbv iota zeta beta delta 
-        [ SEP.star_SHeap SepExpr.FM.add SepExpr.FM.empty SEP.liftSHeap 
-          SEP.multimap_join
-          SepExpr.other SepExpr.pures SepExpr.impures SepExpr.FM.find
-          SepExpr.FM.fold SepExpr.FM.map
-          Compare_dec.lt_eq_lt_dec nat_rec nat_rect
-          app map
-        ] in H
-    in
-    let Ts :=
-      match Ts with
-        | tt => constr:(@nil Type)
-        | _ => Ts
-      end
-    in
-    match goal with
-      | [ H : evalInstrs ?stn ?st ?is = ?R
-        , H' : PropX.interp ?cs (SepIL.SepFormula.sepFormula ?SF (?stn, ?st)) |- _ ] =>
-        match find_reg st Rp with
-          | (?rp_v, ?rp_pf) =>
-            match find_reg st Sp with
-              | (?sp_v, ?sp_pf) =>
-                match find_reg st Rv with
-                  | (?rv_v, ?rv_pf) => 
-                    let all_instrs := get_instrs st in
-                    let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
-                    (** collect the raw types **)
-                    let Ts := collectAllTypes_instrs all_instrs Ts in
-                    let Ts := SEP.collectAllTypes_expr ltac:(isConst) Ts regs in
-                    let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
-                    let Ts := SEP.collectAllTypes_funcs Ts Fs in
-                    let Ts := SEP.collectAllTypes_sfuncs Ts SFs in
-                    let Ts := SEP.collectAllTypes_props shouldReflect isConst Ts in
-                    (** check for potential universe problems **)
-                    match Ts with
-                      | context [ PropX.PropX ] => 
-                        fail 1000 "found PropX in types list" Ts
-                          "(this causes universe inconsistencies)"
-                      | context [ PropX.spec ] => 
-                        fail 1000 "found PropX in types list" Ts
-                          "(this causes universe inconsistencies)"
-                      | context [ PropX.spec ] => 
-                        fail 1000 "found PropX in types list" Ts
-                          "(this causes universe inconsistencies)"
-                      | _ => idtac
-                    end;
-                    (** elaborate the types **)
-                    let types := eval unfold bedrock_types in bedrock_types in
-                    let types := SEP.extend_all_types Ts types in
-                    let types_ext := eval simpl in (bedrock_ext types) in 
-                    (** build the base functions **)
-                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_ext) in
-                    let funcs := SEP.getAllFunctions types funcs Fs in
-                    let funcs := eval simpl in funcs in
-                    (** build the base sfunctions **)
-                    let sfuncs := constr:(@nil (@SEP.ssignature types pcT stT)) in
-                    let sfuncs := SEP.getAllSFunctions pcT stT types sfuncs SFs in
-                    let uvars := eval simpl in (@nil _ : Expr.env types) in
-                    let vars := eval simpl in (@nil _ : Expr.env types) in
-                    reflect_all_instrs all_instrs types funcs uvars vars ltac:(fun funcs sis =>
-                    SEP.reflect_props shouldReflect ltac:(isConst) types funcs uvars vars ltac:(fun funcs pures proofs =>
-                    SEP.reflect_expr ltac:(isConst) rp_v types funcs uvars vars ltac:(fun funcs rp_v =>
-                    SEP.reflect_expr ltac:(isConst) sp_v types funcs uvars vars ltac:(fun funcs sp_v =>
-                    SEP.reflect_expr ltac:(isConst) rv_v types funcs uvars vars ltac:(fun funcs rv_v =>
-                    SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
-                      match funcs with 
-                        | _ :: _ :: _ :: ?funcs_ext =>
-                          apply (@stateD_proof types_ext funcs_ext sfuncs uvars vars _ 
-                            sp_v rv_v rp_v sp_pf rv_pf rp_pf _ cs stn SF (refl_equal _)) in H' ;
-                          sheap_simplifier H' ;
-                          build_evals sfuncs types_ext funcs_ext ltac:(fun knowns evals =>
-                            symeval types_ext funcs_ext sfuncs knowns evals uvars vars sis H'
-                              ltac:(fun stateD_pf rws => 
-                                idtac "success" ;
-                                simple apply stateD_regs in H' ;
-                                denote_evaluator H' ;
-                                (try rewrite <- (proj1 H') in * ) ;
-                                (try rewrite <- (proj2 (proj2 H')) in * ) ;
-                                (try rewrite <- (proj1 (proj2 H')) in * ) ; 
-                                let rec rewrite_regs rws :=
-                                  match rws with
-                                    | tt => idtac
-                                    | (?H, tt) => 
-                                      denote_evaluator H; destruct H
-                                    | (?H, ?rws) =>
-                                      rewrite_regs rws ;
-                                      denote_evaluator H ; apply proj1 in H ;
-                                      (try rewrite <- (proj1 H) in * ) ;
-                                      (try rewrite <- (proj2 (proj2 H)) in * ) ;
-                                      (try rewrite <- (proj1 (proj2 H)) in * ) ; 
-                                      clear H
-                                  end
-                                in
-                                idtac "begin rewriting!" ;
-                                rewrite_regs rws; 
-                                idtac "end rewriting!";
-                                repeat match goal with
-                                         | [ H : forall x : settings * state, _ |- _ ] =>
-                                           specialize (H (stn, st)); 
-                                             autorewrite with sepFormula in H; unfold substH, starB in H; simpl in H
-                                       end;
-                                try (eexists; split; [ eassumption | instantiate; eapply Imply_E; try eassumption; propxFo ]);
-                                match goal with
-                                  | [ H : interp cs (SepIL.SepFormula.sepFormula ?SF ?X)
-                                    |- interp cs (SepIL.SepFormula.sepFormula ?SF' ?X) ] =>
-                                  idtac "found it!"
-                                  | [ |- _ ] => idtac "didn't find it!"
-                                end ;
-                                idtac "done rewriting")
-                              ltac:(fun st stateD_pf rem rws => idtac "failure"))
-                      end))))))
-                end
-            end
-        end
-    end.
+Print ptsto_evaluator.
 
 Theorem readOk : moduleOk read.
-  Time structured_auto; autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *;
-      sym_eval ltac:(isConst) tt tt tt simplifier.
+  structured_auto; autorewrite with sepFormula in *; simpl in *;
+    unfold starB, hvarB, hpropB in *; fold hprop in *.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
+  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier; auto.
   admit.
   admit.
 Qed.

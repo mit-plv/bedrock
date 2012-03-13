@@ -375,14 +375,14 @@ Implicit Arguments Var [ types ].
 Implicit Arguments UVar [ types ].
 Implicit Arguments Func [ types ].
 
+(** Tactics **)
+Require Import Reflect.
+
 Ltac lift_signature s nt :=
   let d := eval simpl Domain in (Domain s) in
   let r := eval simpl Range in (Range s) in
-  let f := eval simpl Denotation in (Denotation s) in
-  let res := constr:(@Sig nt d r f) in 
-  eval simpl in res.
-
-Require Import Reflect.
+  let den := eval simpl Denotation in (Denotation s) in
+  constr:(@Sig nt d r den).
 
 Ltac lift_signatures fs nt :=
   let f sig := 
@@ -390,65 +390,374 @@ Ltac lift_signatures fs nt :=
   in
   map_tac (signature nt) f fs.
 
-(*
-Definition types : list type := {| Impl := nat ; Eq := fun _ _ => None |} :: nil.
-Definition test_func : functions types :=
-  (@Sig types (tvType 0 :: tvType 0 :: nil) (tvType 0) plus) :: nil.
-
-Goal True.
+Ltac build_default_type T := 
   match goal with
-    | [ |- _ ] =>
-      let v := lift_signatures test_func (types ++ types) in
-      pose v
+    | [ |- _ ] => constr:(@Typ T (@seq_dec T _))
+    | [ |- _ ] => constr:({| Impl := T ; Eq := fun _ _ : T => None |})
   end.
-*)
 
+Ltac extend_type T types :=
+  match T with
+    | Prop => types
+    | _ => 
+      let rec find types :=
+        match types with
+          | nil => constr:(false)
+          | ?a :: ?b =>
+            match unifies (Impl a) T with
+              | true => constr:(true)
+              | false => find b
+            end
+        end
+      in
+      match find types with
+        | true => types
+        | _ =>
+          let D := build_default_type T in
+          eval simpl app in (types ++ (D :: @nil type))
+      end
+  end.
 
-(** It isn't too bad to write this in gallina, but it
- ** is probably more computationally expensive than it is
- ** in ltac.
+(* extend a reflected type list with new raw types
+ * - Ts is a list of raw types
+ * - types is a list of reflected types
+ *)
+Ltac extend_all_types Ts types :=
+  match Ts with
+    | nil => types
+    | ?a :: ?b =>
+      let types := extend_type a types in
+        extend_all_types b types
+  end.
+
+Record VarType (t : Type) : Type :=
+  { open : t }.
+Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
+  f (open vt).
+
+(** collect the raw types from the given expression.
+ ** - e is the expression to collect types from
+ ** - types is a value of type [list Type]
+ **   (make sure it is NOT [list Set])
  **)
-(*
-Fixpoint lift_functionType D R a b :
-  functionTypeD (map (tvarD a) D) (tvarD a R) ->
-  functionTypeD (map (tvarD (a ++ b)) D) (tvarD (a ++ b) R).
-refine (
-  match D as D 
-    return  
-    functionTypeD (map (tvarD a) D) (tvarD a R) ->
-    functionTypeD (map (tvarD (a ++ b)) D) (tvarD (a ++ b) R) 
-    with
-    | nil => _ 
-    | l :: ls => _
-  end).
-Focus 2.
-simpl. intros.
+Ltac collectTypes_expr isConst e Ts :=
+  match e with
+    | fun x => (@openUp _ ?T _ _) =>
+      let v := constr:(T:Type) in
+        cons_uniq v Ts
+    | fun x => ?e =>
+      collectTypes_expr isConst e Ts
+    | _ =>
+      let rec bt_args args Ts :=
+        match args with
+          | tt => Ts
+          | (?a, ?b) =>
+            let Ts := collectTypes_expr isConst a Ts in
+              bt_args b Ts
+        end
+      in
+      let cc _ Ts' args := 
+        let T := 
+          match e with 
+            | fun x : VarType _ => _ => 
+              match type of e with
+                | _ -> ?T => T
+              end
+            | _ => type of e
+          end
+        in
+        let Ts' :=
+          let v := constr:(T : Type) in
+          cons_uniq v Ts'
+        in
+        let Ts := append_uniq Ts' Ts in
+        bt_args args Ts
+      in
+      refl_app cc e
+  end.
 
-Definition lift_value a b l : tvarD a l -> tvarD (a ++ b) l.
-refine (
-  match l as l return tvarD a l -> tvarD (a ++ b) l with
-    | tvProp => fun x => x
-    | tvType t => match nth_error a t as k return 
-                    match k with
-                      | None => Empty_set 
-                      | Some t => Impl t
-                    end ->  _
-                    
-                    with
-                    | None => fun x => match x with 
-                                       end
-                    | Some v => _
-                  end
-  end).
+Ltac collectAllTypes_expr isConst Ts goals :=
+  match goals with
+    | tt => Ts
+    | (?a, ?b) =>
+      let ts := collectTypes_expr isConst a Ts in
+        collectAllTypes_expr isConst ts b
+  end.
 
-destru
+Ltac collectAllTypes_func Ts T :=
+  match T with
+    | ?t -> ?T =>
+      let t := constr:(t : Type) in
+      let Ts := cons_uniq t Ts in
+      collectAllTypes_func Ts T
+    | forall x , _ => 
+        (** Can't reflect types for dependent function **)
+      fail 100 "can't reflect types for dependent function!"
+    | ?t =>
+      let t := constr:(t : Type) in
+      cons_uniq t Ts
+  end.
 
+Ltac collectAllTypes_funcs Ts Fs :=
+  match Fs with
+    | tt => Ts
+    | (?Fl, ?Fr) =>
+      let Ts := collectAllTypes_funcs Ts Fl in
+      collectAllTypes_funcs Ts Fr
+    | ?F =>
+      collectAllTypes_func Ts F
+  end.
 
-Definition lift_signature a b (f : signature a) : signature (a ++ b).
-refine (
-  {| Domain := Domain f
-   ; Range  := Range f
-   ; Denotation := _
-   |}).
-eapply Denotation.
-*)
+Ltac collectAllTypes_props shouldReflect isConst Ts :=
+  let rec collect Ts skip :=
+    match goal with
+      | [ H : ?X |- _ ] => 
+        match type of X with
+          | Prop =>
+            match shouldReflect X with
+              | true =>
+                match hcontains H skip with
+                  | false => 
+                    let Ts := collectTypes_expr isConst X Ts in
+                    let skip := constr:((H, skip)) in
+                    collect Ts skip
+                end
+            end
+        end
+      | _ => Ts
+    end
+  in collect Ts tt.
+
+(** find x inside (map proj xs) and return its position as a natural number.
+ ** This tactic fails if x does not occur in the list
+ ** - proj is a gallina function.
+ **)
+Ltac indexOf_nat proj x xs :=
+  let rec search xs :=
+    match xs with
+      | ?X :: ?XS =>
+        match unifies (proj X) x with
+          | true => constr:(0)
+          | false => 
+            let r := search XS in
+              constr:(S r)
+        end
+    end
+    in search xs.
+
+(** specialization of indexOf_nat to project from type **)
+Ltac typesIndex x types :=
+  indexOf_nat Impl x types.
+
+(** given the list of types (of type [list type]) and a raw type
+ ** (of type [Type]), return the [tvar] that corresponds to the
+ ** given raw type.
+ **)
+Ltac reflectType types t :=
+  match t with
+    | Prop => constr:(tvProp)
+    | _ =>
+      let i := typesIndex t types in
+      let r := constr:(tvType i) in
+      r
+  end.  
+      
+(** essentially this is [map (reflectType types) ts] **)
+Ltac reflectTypes_toList types ts :=
+  match ts with 
+    | nil => constr:(@nil tvar)
+    | ?T :: ?TS =>
+      let i := typesIndex T types in
+      let rest := reflectTypes_toList types TS in
+      constr:(@cons tvar (tvType i) rest)
+  end.
+
+(** Build a signature for the given function 
+ ** - types is a list of reflected types, i.e. type [list type]
+ ** the type of f can NOT be dependent, i.e. it must be of the
+ ** form, 
+ **   _ -> ... -> _
+ **)
+Ltac reflect_function types f :=
+  let T := type of f in
+  let rec refl dom T :=
+    match T with
+        (* no dependent types *)
+      | ?A -> ?B =>
+        let A := reflectType types A in
+        let dom := constr:(A :: dom) in
+        refl dom B 
+      | ?R =>
+        let R := reflectType types R in
+        let dom := eval simpl rev in (rev dom) in
+        constr:(@Sig types dom R f)
+    end
+  in refl (@nil tvar) T.
+
+(** lookup a function in a list of reflected functions.
+ ** if the function does not exist in the list, the list is extended.
+ ** - k is the continutation and is passed the resulting list of functions
+ **   and the index of f in the list.
+ **   (all elements passed into funcs' are preserved in order)
+ **)
+Ltac getFunction types f funcs' k :=
+  let rec lookup funcs acc :=
+    match funcs with
+      | nil =>
+        let F := reflect_function types f in
+        let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
+        k funcs acc
+      | ?F :: ?FS =>
+        match unifies (Denotation F) f with
+          | true => k funcs' acc
+          | false =>
+            let acc := constr:(S acc) in
+            lookup FS acc
+        end
+    end
+  in lookup funcs' 0.
+
+Ltac getAllFunctions types funcs' fs :=
+  match fs with
+    | tt => funcs'
+    | ?F =>
+      getFunction types F funcs' ltac:(fun funcs _ => funcs)
+    | ( ?fl , ?fr ) =>
+      getAllFunctions types funcs' fl ltac:(fun funcs _ => 
+        getAllFunctions types funcs fr ltac:(fun funcs _ => funcs))
+  end.
+
+Ltac getVar' idx :=
+  match idx with
+    | fun x => x => constr:(0)
+    | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
+      let r := getVar' X in
+      constr:(S r)
+    | _ => idtac "couldn't find variable! [1]" idx
+  end.
+
+Ltac getVar idx :=
+  match idx with
+    | fun x => @openUp _ _ (@fst _ _) (@?X x) =>
+      getVar' X
+    | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
+      let r := getVar X in
+      constr:(S r)
+    | _ => idtac "couldn't find variable! [2]" idx
+  end.
+
+(** reflect an expression gathering the functions at the same time.
+ ** - k is the continuation and is passed the list of reflected
+ **   functions and the reflected expression.
+ **)
+Ltac reflect_expr isConst e types funcs uvars vars k :=
+  let rec reflect funcs e k :=
+    match e with
+      | fun _ => ?X =>
+        is_evar X ; idtac "got EVAR, this case is not implemented" ;
+        (** this is a unification variable **)
+        let r := constr:(@UVar) in (** TODO **)
+        k funcs r 
+      | fun x => (@openUp _ _ _ _) =>
+        (** this is a variable **)
+        let v := getVar e in
+        let r := constr:(@Var types v) in
+        k funcs r
+      | fun x => ?e =>
+        reflect funcs e k
+      | _ =>
+        let rec bt_args funcs args k :=
+          match args with
+            | tt => 
+              let v := constr:(@nil (@expr types)) in
+              k funcs v
+            | (?a, ?b) =>
+              reflect funcs a ltac:(fun funcs a =>
+                bt_args funcs b ltac:(fun funcs b =>
+                  let r := constr:(@cons (@expr types) a b) in
+                  k funcs r))
+          end
+        in
+        let cc f Ts args :=
+          getFunction types f funcs ltac:(fun funcs F =>
+            bt_args funcs args ltac:(fun funcs args =>
+              let r := constr:(@Func types F args) in 
+              k funcs r))
+        in
+        match e with
+          | _ => 
+            match isConst e with
+              | true => 
+                let ty := type of e in
+                let ty := reflectType types ty in
+                let r := constr:(@Const types ty e) in
+                k funcs r
+              | false => refl_app cc e
+            end
+          | _ => refl_app cc e
+        end
+    end
+  in reflect funcs e k.
+
+Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
+  let rec collect skip funcs acc proofs :=
+    match goal with
+      | [ H : ?X |- _ ] => 
+        match type of X with
+          | Prop => 
+            match shouldReflect X with
+              | true =>
+                match hcontains H skip with
+                  | false =>
+                    reflect_expr isConst X types funcs uvars vars 
+                    ltac:(fun funcs e =>
+                      let skip := constr:((H, skip)) in
+                      let res := constr:(e :: acc) in
+                      let proofs := constr:(conj H proofs) in
+                      collect skip funcs res proofs)
+                end
+            end
+        end
+      | _ => k funcs acc proofs
+    end
+  in
+  let acc := constr:(@nil (expr types)) in
+  let proofs := constr:(I) in
+  collect tt funcs acc proofs.
+
+(** NOTE: if types is extended at all then funcs needs to be lifted **)
+Ltac reflect_exprs isConst types funcs exprs :=
+  let rt := 
+    collectAllTypes_expr isConst (@nil Type) exprs
+  in
+  let types := extend_all_types rt types in
+  let types := eval simpl in types in
+  let funcs := 
+    match funcs with
+      | tt => constr:(@nil (@signature types))
+      | _ => funcs 
+    end
+  in
+  let rec reflect_all ls funcs k :=
+    match ls with
+      | tt => 
+        let r := constr:(@nil (@expr types)) in
+        k funcs r
+      | (?e, ?es) =>
+        let vs := constr:(@nil tvar) in
+        let us := constr:(@nil tvar) in
+        reflect_expr isConst e types funcs us vs ltac:(fun funcs e =>
+          reflect_all es funcs ltac:(fun funcs es =>
+            let es := constr:(e :: es) in
+            k funcs es))
+    end
+  in
+  match type of funcs with
+    | list (signature types) =>
+      reflect_all exprs funcs ltac:(fun funcs es =>
+        constr:((types, funcs, es)))
+    | list (signature ?X) =>
+      let funcs := lift_signatures funcs types in
+        reflect_all exprs funcs ltac:(fun funcs es =>
+          constr:((types, funcs, es)))
+  end.
