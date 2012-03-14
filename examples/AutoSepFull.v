@@ -8,7 +8,9 @@ Import SymIL.BedrockEvaluator.
 Require Import Bedrock.sep.PtsTo2.
 
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> ![ $0 =*> v * #1 ] st' /\ [| st'#Rv = v |]).
+  /\ st#Sp @@ (st' ~> ![ $0 =*> $3 * #1 ] st' /\ [| st'#Rv = $1 |])
+  /\ st#Rp @@ (st' ~> ![ $0 =*> v * #1 ] st' /\ [| st'#Rv = v |])
+.
 
 Definition read := bmodule "read" {{
   bfunction "read" [readS] {
@@ -81,6 +83,19 @@ Theorem sym_eval_correct_raw : forall
          match res with
            | inl (Some ss') => 
              forall CPTR',
+               (Expr.AllProvable funcs uvars vars (SymPures ss' ++ SepExpr.pures (SymMem ss')) ->
+                 match 
+                   Expr.exprD funcs uvars vars (sym_getReg Sp (SymRegs ss')) tvWord ,
+                   Expr.exprD funcs uvars vars (sym_getReg Rp (SymRegs ss')) tvWord ,
+                   Expr.exprD funcs uvars vars (sym_getReg Rv (SymRegs ss')) tvWord 
+                   with
+                   | Some sp , Some rp , Some rv =>
+                     Regs st' Sp = sp ->
+                     Regs st' Rp = rp ->
+                     Regs st' Rv = rv ->
+                     CPTR = CPTR'
+                   | _ , _ , _ => True
+                 end) ->
              (Expr.AllProvable funcs uvars vars (SymPures ss' ++ SepExpr.pures (SymMem ss')) ->
               match 
                 Expr.exprD funcs uvars vars (sym_getReg Sp (SymRegs ss')) tvWord ,
@@ -91,12 +106,11 @@ Theorem sym_eval_correct_raw : forall
                     Regs st' Sp = sp ->
                     Regs st' Rp = rp ->
                     Regs st' Rv = rv ->
-                    (CPTR = CPTR' /\
-                      match SEP.sepCancel (SymMem ss') hashed' with
-                        | (L, R, subst_l, subst_r) => 
-                          himp cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD L)) (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD R))
-                      end /\ PropX.interp cs PURES)
-                | _ , _ , _ => False
+                    match SEP.sepCancel (SymMem ss') hashed' with
+                      | (L, R, subst_l, subst_r) => 
+                        himp cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD L)) (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD R))
+                    end /\ PropX.interp cs PURES
+                | _ , _ , _ => True
               end) ->
              exists pre' : spec W (settings * state),
                cs CPTR' = Some pre' /\ interp cs (pre' (stn, st'))
@@ -109,7 +123,58 @@ Proof.
   intros. 
 Admitted.
 
+Theorem sym_eval_safe_raw : forall
+  (symeval_read_word : forall typs : list Expr.type,
+    list (Expr.expr (SymIL.bedrock_types ++ typs)) ->
+    Expr.expr (SymIL.bedrock_types ++ typs) ->
+    SEP.SHeap (SymIL.bedrock_types ++ typs) pcT stT ->
+    option (Expr.expr (SymIL.bedrock_types ++ typs)))
+  (symeval_write_word : forall typs : list Expr.type,
+    list (Expr.expr (SymIL.bedrock_types ++ typs)) ->
+    Expr.expr (SymIL.bedrock_types ++ typs) ->
+    Expr.expr (SymIL.bedrock_types ++ typs) ->
+    SEP.SHeap (SymIL.bedrock_types ++ typs) pcT stT ->
+    option (SEP.SHeap (SymIL.bedrock_types ++ typs) pcT stT))
+  (C : Correctness symeval_read_word symeval_write_word)
+  (types_ext : list Expr.type),
+  let types' := Env.repr (TypeImage C) types_ext in
+  let types := (SymIL.bedrock_types ++ types')%list in
+  forall (funcs_ext : Expr.functions types)
+    (sfuncs_ext : SEP.sfunctions types pcT stT),
+    let funcs :=(bedrock_funcs types' ++ Env.repr (FuncImage C types_ext) funcs_ext)%list in
+    let sfuncs := Env.repr (PredImage C types_ext) sfuncs_ext in
+    forall (uvars vars : Expr.env types)
+      (stn : settings) (st : state)
+      (p : list (sym_instr types + sym_assert types)),
+      evalPath funcs uvars vars stn p st None ->
+      forall sp rv rp : Expr.expr types,
+        Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+        Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+        Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+        forall pures : list (Expr.expr types),
+          Expr.AllProvable funcs uvars vars pures ->
+          forall (sh : SEP.sexpr (SymIL.bedrock_types ++ types') pcT stT)
+            (hashed : SEP.SHeap (SymIL.bedrock_types ++ types') pcT stT),
+            SEP.hash sh = (nil, hashed) ->
+            forall cs : codeSpec W (settings * state),
+              interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+              let ss := {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures |} in
+              let res :=
+                sym_evalStream
+                  (symeval_read_word (Env.repr (TypeImage C) types_ext))
+                  (symeval_write_word (Env.repr (TypeImage C) types_ext)) p ss in
+         match res with
+           | inl (Some ss') => False 
+           | inl None => True (** This wasn't safe **)
+           | inr (_, _) => True (** didn't finish symbolic evaluation, there is more to do ... **)
+         end.
+Proof.
+  intros. subst types'; subst types0; subst sfuncs; subst funcs0.
+  destruct res; simpl; auto. destruct o; auto. 2: destruct p0; auto.
+  intros. 
+Admitted.
 
+Check sym_eval_correct_raw.
 
 Ltac sym_eval isConst unfolder C Ts Fs SFs simplifier :=
     let rec find_exact H Hs :=
@@ -252,58 +317,75 @@ Ltac sym_eval isConst unfolder C Ts Fs SFs simplifier :=
                       match funcs with
                         | _ :: _ :: _ :: _ :: _ :: ?funcs_ext =>
                           match goal with
-                            | [ H_spec : cs _ = Some (fun x : settings * state => _)
-                              , H_imply : interp cs ((![ ?SF' ] _ /\ ?PURES) ---> _)%PropX
+                            | [ |- False ] => 
+                              let pf := constr:(@sym_eval_safe_raw _ _ C types_extV funcs_ext sfuncs uvars vars stn
+                                _ _ path
+                                sp_v rv_v rp_v sp_pf rv_pf rp_pf
+                                pures proofs
+                                SF _ (refl_equal _)
+                                cs H')
+                              in
+                              apply pf
+                            | [ H_spec : cs ?CPTR = Some (fun x : settings * state => ?Q _)
+                              , H_imply : interp cs ((![ ?SF' ] _ /\ ?PURES) ---> ?Q _)%PropX
                               |- _ ] =>
-                            SEP.reflect_sexpr ltac:(isConst) SF' typesV funcs pcT stT sfuncs uvars vars 
-                              ltac:(fun funcs sfuncs SF' =>
-                          idtac "HERE" ;
-                          let pf := constr:(@sym_eval_correct_raw _ _ C types_extV funcs_ext sfuncs uvars vars stn
-                           _ _ _ path
-                           sp_v rv_v rp_v sp_pf rv_pf rp_pf
-                           pures proofs
-                           SF _ (refl_equal _)
-                           cs H'
-                           SF' PURES _ _ H_imply H_spec _ (refl_equal _)) in 
-                              generalize pf; 
-                           let v := fresh in intro v ; unfolder v ; 
-cbv beta iota zeta delta
-      [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
-        sym_setReg sym_getReg
-        SepExpr.pures SepExpr.impures SepExpr.other
-        SymMem SymRegs SymPures
-        SEP.sheapD
-        SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
-        Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
-        List.app map nth_error value error fold_right
-        DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
-        SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
-        Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
-        EquivDec.equiv_dec EquivDec.nat_eq_eqdec
-        f_equal Logic.eq_sym eq_sym eq_rec_r eq_rect eq_rec
-        SymIL.BedrockEvaluator.bedrock_funcs SymIL.bedrock_types
-        fst snd 
-        SymIL.BedrockEvaluator.types pcT SymIL.BedrockEvaluator.stT SymIL.BedrockEvaluator.tvWord SymIL.BedrockEvaluator.tvTest
-        READER WRITER CORRECTNESS FuncImage PredImage TypeImage
-        Env.repr Env.updateAt  typesV types_extV
-        Expr.AllProvable Expr.exprD SEP.sexprD Expr.Provable
-        Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-        Expr.Range Expr.Domain Expr.Denotation
-        Expr.applyD
-        comparator Expr.tvarD
+                            idtac "selected " CPTR ;
+                            let vv := SEP.reflect_sexpr ltac:(isConst) SF' typesV funcs pcT stT sfuncs uvars vars 
+                              ltac:(fun funcs sfuncs SF' => constr:((funcs, sfuncs, SF'))) in
+                              match vv with
+                                | (?funcs, ?sfuncs, ?SF') =>
+                                  let pf := constr:(@sym_eval_correct_raw _ _ C types_extV funcs_ext sfuncs uvars vars stn
+                                    _ _ _ path
+                                    sp_v rv_v rp_v sp_pf rv_pf rp_pf
+                                    pures proofs
+                                    SF _ (refl_equal _)
+                                    cs H'
+                                    SF' PURES _ _ H_imply H_spec _ (refl_equal _)) in 
+                                  generalize pf; 
+                                  let v := fresh in
+                                  intro v ;
+                                  unfolder v ; 
+                                  cbv beta iota zeta delta
+                                    [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc 
+                                      sym_evalStream sym_assertTest
+                                      
+                                      sym_setReg sym_getReg
+                                      SepExpr.pures SepExpr.impures SepExpr.other
+                                      SymMem SymRegs SymPures
+                                      SEP.sheapD
+                                      SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
+                                      Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
+                                      List.app map nth_error value error fold_right
+                                      DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
+                                      SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty
+                                      SepExpr.FM.fold
+                                        
+                                      Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
+                                      EquivDec.equiv_dec EquivDec.nat_eq_eqdec
+                                      f_equal Logic.eq_sym eq_sym eq_rec_r eq_rect eq_rec
+                                      SymIL.BedrockEvaluator.bedrock_funcs SymIL.bedrock_types
+                                      fst snd 
+                                      SymIL.BedrockEvaluator.types pcT SymIL.BedrockEvaluator.stT 
+                                      SymIL.BedrockEvaluator.tvWord SymIL.BedrockEvaluator.tvTest
 
-        Expr.Impl SEP.starred
-        SepExpr.SDomain SepExpr.SDenotation
+                                      READER WRITER CORRECTNESS FuncImage PredImage TypeImage
+                                      Env.repr Env.updateAt  typesV types_extV
+                                      Expr.AllProvable Expr.exprD SEP.sexprD Expr.Provable
+                                      Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
+                                      Expr.Range Expr.Domain Expr.Denotation
+                                      Expr.applyD
+                                      comparator Expr.tvarD
 
-        SEP.sepCancel SEP.unify_remove_all SEP.unify_remove ExprUnify.empty_Subst
-        ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt ExprUnify.exprUnify
-        ExprUnify.get_Eq
-      ] in v ; apply v ; clear
-
-
-
-)
-                                | [ |- _ ] => fail 100000 "didn't match!"
+                                      Expr.Impl SEP.starred
+                                      SepExpr.SDomain SepExpr.SDenotation
+                                      
+                                      SEP.sepCancel SEP.unify_remove_all SEP.unify_remove ExprUnify.empty_Subst
+                                      ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt ExprUnify.exprUnify
+                                      ExprUnify.get_Eq
+                                    ] in v ; apply v ; clear v typesV types_extV path;
+                                    [ (intuition; subst; congruence) | ]
+                              end
+                            | [ |- _ ] => fail 100000 "didn't match!"
                           end
                       end))))))
                 end
@@ -320,33 +402,26 @@ Ltac unfolder H :=
 
 Theorem readOk : moduleOk read.
   structured_auto;
-    (repeat match goal with
-              | [ H : forall x : settings * state, interp _ _ 
-                |- exists pre' : spec W (settings * state), _ /\ interp _ (_ ?X) ] =>
-                generalize (H X) ; revert H
-              | [ H : forall x : settings * state, interp _ _ 
-                |- False] => clear H
-            end); intros; autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *.
-  admit. admit. admit. admit. admit. admit.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier;
+  match goal with
+    | [ |- exists pre' : spec W (settings * state), _ /\ interp _ (_ ?X) ] =>
+      repeat match goal with
+               | [ H : forall x : settings * state, interp _ _ |- _ ] =>
+                 generalize (H X) ; revert H
+             end; 
+      intros
+    | [ |- False ] =>
+      repeat match goal with
+               | [ H : forall x : settings * state, interp _ _ |- _ ] =>
+                 clear H
+             end;
+      intros
+  end; autorewrite with sepFormula in *; simpl in *;
+    unfold starB, hvarB, hpropB in *; fold hprop in *;
+  try abstract (
+    sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier;
+    intros; intuition subst; try solve [ reflexivity | propxFo ]).
   intros; intuition subst; try solve [ reflexivity | propxFo ].
-  
-
-
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-    clear H1. simpl; intuition congruence.
-    subst. sep_canceler ltac:(isConst) tt. reflexivity.
-
-  Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-    simpl; intuition congruence.
-    subst. sep_canceler ltac:(isConst) tt. reflexivity.
-Time Qed.
+Qed.
 
 (*symeval types_ext funcs_ext sfuncs knowns evals uvars vars 
       sis stateD_pf success failure :=
