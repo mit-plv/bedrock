@@ -420,7 +420,6 @@ Theorem readOk : moduleOk read.
   try abstract (
     sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier;
     intros; intuition subst; try solve [ reflexivity | propxFo ]).
-  intros; intuition subst; try solve [ reflexivity | propxFo ].
 Qed.
 
 (*symeval types_ext funcs_ext sfuncs knowns evals uvars vars 
