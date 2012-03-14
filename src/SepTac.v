@@ -64,6 +64,36 @@ Ltac sep_canceler isConst Ts :=
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
       let types := eval unfold SymIL.bedrock_types in SymIL.bedrock_types in
+      let types :=
+        match Ts with
+          | tt => types
+          | _ => constr:(types ++ Ts)
+        end
+      in
+      let goals := constr:(L :: R :: nil) in
+      let goals := eval unfold starB exB hvarB in goals in
+      let v := SEP.reflect_sexprs pcT stateT ltac:(isConst) types tt tt goals in 
+      match v with
+        | (?types, ?pcT, ?stT, ?funcs, ?sfuncs, ?L :: ?R :: nil) => 
+          match types with 
+            | _ :: _ :: _ :: _ :: _ :: ?types_ext =>
+            apply (@ApplyCancelSep' types_ext funcs sfuncs L R cs) ; 
+              unfold SEP.himp; simpl
+          end
+      end
+  end.
+
+(*  match goal with 
+    | [ |- himp ?cs ?L ?R ] =>
+      let pcT := constr:(W) in
+      let stateT := constr:(prod settings state) in
+      let types := eval unfold SymIL.bedrock_types in SymIL.bedrock_types in
+      let types :=
+        match Ts with
+          | tt => Ts
+          | _ => Expr.extend_all_types Ts types
+        end
+      in
       let goals := constr:(L :: R :: nil) in
       let goals := eval unfold starB exB hvarB in goals in
       let v := SEP.reflect_sexprs pcT stateT ltac:(isConst) types tt tt goals in
@@ -76,6 +106,6 @@ Ltac sep_canceler isConst Ts :=
           end
       end
   end.
-
+*)
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
