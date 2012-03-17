@@ -43,6 +43,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                    end
         | UVar _ => e
         | Expr.Func f es => Expr.Func f (map (substExpr offset s) es)
+        | Equal t e1 e2 => Equal t (substExpr offset s e1) (substExpr offset s e2)
       end.
 
     Fixpoint substSexpr (offset : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=

@@ -5,6 +5,7 @@ Require Import RelationClasses EqdepClass.
 Require Import Expr ExprUnify.
 Require Import DepList.
 Require Import Setoid.
+Require Import Provers.
 
 Set Implicit Arguments.
 
@@ -268,14 +269,15 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       (B : list (tvar * option (expr types))) P,
       exists_subst A B P ->
       exists C, P C.
-    Proof.
+    Admitted.
+    (*Proof.
       clear. induction B; simpl; intros.
       eauto.
       destruct a; simpl in *. destruct o.
       destruct (exprD funcs nil A e t); try tauto.
       eapply IHB in H; destruct H; eauto. 
       destruct H. eapply IHB in H. destruct H; eauto.
-    Qed.
+    Qed.*)
 
     Fixpoint forallEach (ls : variables) : (env types -> Prop) -> Prop :=
       match ls with
@@ -327,8 +329,22 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ; other := other l ++ other r
        |}.
 
+    Fixpoint substV types (vs : list nat) (e : expr types) : expr types :=
+      match e with
+        | Expr.Const _ c => Expr.Const c
+        | Var x => 
+          Var (match nth_error vs x with
+                 | None => x
+                 | Some y => y
+               end)
+        | UVar x => UVar x
+        | Expr.Func f xs => 
+          Expr.Func f (map (substV vs) xs)
+        | Equal t e1 e2 => Equal t (substV vs e1) (substV vs e2)
+      end.
+
     (** convert the sexpr into a SHeap **)
-    Fixpoint hash (s : sexpr) : ( variables * SHeap ) :=
+    Fixpoint hash' (nextVar : nat) (vs : list nat) (s : sexpr) : ( variables * SHeap ) :=
       match s with
         | Emp => (nil, SHeap_empty)
         | Inj p => (nil,
@@ -337,16 +353,16 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             ; other := nil
           |})
         | Star l r =>
-          let (vl, hl) := hash l in
-          let (vr, hr) := hash r in
+          let (vl, hl) := hash' nextVar vs l in
+          let (vr, hr) := hash' (nextVar + length vl) vs r in
           (vl ++ vr,
-           star_SHeap hl (liftSHeap 0 (length vl) hr))
+            star_SHeap hl hr)
         | Exists t b =>
-          let (v,b) := hash b in
+          let (v, b) := hash' (S nextVar) (nextVar :: vs) b in
           (t :: v, b)
         | Func f a =>
           (nil,
-           {| impures := FM.add f (a :: nil) FM.empty
+           {| impures := FM.add f (map (substV vs) a :: nil) FM.empty
             ; pures := nil
             ; other := nil
            |})
@@ -357,6 +373,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             ; other := c :: nil
             |})
       end.
+
+    Definition hash := hash' O nil.
  
     Definition starred (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
       : sexpr :=
@@ -664,14 +682,15 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Theorem hash_denote : forall cs (s : sexpr) EG G, 
       heq EG EG G cs s 
         (@existsEach (fst (hash s)) (sheapD (snd (hash s)))).
-    Proof.
+    (*Proof.
       induction s; simpl; try (unfold sheapD; reflexivity).
         intros.
         rewrite IHs1 at 1. rewrite IHs2 at 1. clear IHs1 IHs2.
         destruct (hash s1); destruct (hash s2); simpl. clear. admit.
         
         destruct (hash s); simpl in *. intros. apply heq_ex. intros. eauto.
-    Qed.
+    Qed.*)
+    Admitted.
 
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
@@ -697,15 +716,26 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       (gl gr : sexpr),
       SepResult gl gr.
 
-    Fixpoint unify_remove (l : list (expr types)) (r : list (list (expr types)))
+    Variable prover : EqProverT funcs.
+
+    Definition unifyArgs (summ : eq_summary prover) (l r : list (expr types)) (ls rs : Subst types)
+    : option (Subst types * Subst types) :=
+    fold_left_2_opt 
+    (fun (l r : expr types) (acc : Subst types * Subst types) =>
+      match exprUnify l r (fst acc) (snd acc) with
+        | None => if eq_prove prover summ l r then Some acc else None
+        | x => x
+      end) l r (ls, rs).
+
+    Fixpoint unify_remove (summ : eq_summary prover) (l : list (expr types)) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
       : option (list (list (expr types)) * ExprUnify.Subst types * ExprUnify.Subst types) :=
         match r with 
           | nil => None
           | a :: b => 
-            match exprUnifyArgs l a ls rs with
+            match unifyArgs summ l a ls rs with
               | None => 
-                match unify_remove l b ls rs with
+                match unify_remove summ l b ls rs with
                   | None => None
                   | Some (x,y,z) => Some (a :: x, y, z)
                 end
@@ -713,31 +743,32 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             end
         end.
 
-    Fixpoint unify_remove_all (l r : list (list (expr types)))
+    Fixpoint unify_remove_all (summ : eq_summary prover) (l r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
       : list (list (expr types)) * list (list (expr types)) * 
         ExprUnify.Subst types * ExprUnify.Subst types :=
         match l with
           | nil => (l, r, ls, rs)
           | a :: b => 
-            match unify_remove a r ls rs with
+            match unify_remove summ a r ls rs with
               | None => 
-                let '(l,r,ls,rs) := unify_remove_all b r ls rs in
+                let '(l,r,ls,rs) := unify_remove_all summ b r ls rs in
                 (a :: l, r, ls, rs)
               | Some (r, ls, rs) =>
-                unify_remove_all b r ls rs
+                unify_remove_all summ b r ls rs
             end
         end.
 
-    Definition sepCancel (l r : SHeap) :
+    Definition sepCancel hyps (l r : SHeap) :
       SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types :=
+     let summ := eq_summarize prover hyps in
      let '(lf, rf, ls, rs) := 
         FM.fold (fun k v a => 
           let '(lf, rf, ls, rs) := a in
           match FM.find k rf with
             | None => (FM.add k v lf, rf, ls, rs)
             | Some xs =>
-              let '(l,r,ls,rs) := unify_remove_all v xs ls rs in
+              let '(l,r,ls,rs) := unify_remove_all summ v xs ls rs in
               (FM.add k l lf, FM.add k r rf, ls, rs)
           end)
         (impures l)
@@ -749,11 +780,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     (** TODO: I should reconsider this... **)
     Definition CancelSep : SProverT :=
-      fun _ gl gr =>
+      fun hyps gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
         let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
-        let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel lhs rhs' in
+        let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel hyps lhs rhs' in
         {| vars := ql ; 
            lhs := sheapD lhs' ; lhs_ex := nil ; 
            rhs := sheapD rhs' ; rhs_ex := qr ; SUBST := rhs_subst
@@ -1046,9 +1077,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    ** - the list of reflected sexpr.
    **)
   Ltac reflect_sexprs pcT stT isConst types' funcs sfuncs goals k :=
-    let rt := collectAllTypes_sexpr ltac:(isConst)
-      ((pcT : Type) :: (stT : Type) :: @nil Type) goals
-    in
+    let Ts := collectAllTypes_props ltac:(fun _ => true) isConst ((pcT : Type) :: (stT : Type) :: @nil Type) in
+    let rt := collectAllTypes_sexpr ltac:(isConst) Ts goals in
     let types := extend_all_types rt types' in
     let types := eval simpl in types in
     let pcTyp := typesIndex pcT types in
@@ -1071,26 +1101,29 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     in
     let vs := constr:(@nil tvar) in
     let us := constr:(@nil tvar) in
-    let rec reflect_all ls funcs sfuncs k :=
-      match ls with
-        | nil => 
-          let r := constr:(@nil (@sexpr types pcTyp stTyp)) in
-          k types pcTyp stTyp funcs sfuncs r
-        | ?e :: ?es =>
-          reflect_sexpr isConst e typesV funcs pcTyp stTyp sfuncs us vs ltac:(fun funcs sfuncs e =>
-            reflect_all es funcs sfuncs ltac:(fun types pcType stTyp funcs sfuncs es =>
-              let es := constr:(e :: es) in
-              k types pcType stTyp funcs sfuncs es)) 
-      end
-    in
-    match type of funcs with
-      | list (signature types) =>
-        reflect_all goals funcs sfuncs k
-      | ?X =>
-        let funcs := lift_signatures funcs types in
-        let sfuncs := lift_ssignatures sfuncs types in
-        reflect_all goals funcs sfuncs k
-    end.
+    reflect_props ltac:(fun _ => true) isConst types funcs us vs ltac:(fun funcs props proofs =>
+      let rec reflect_all ls funcs sfuncs k :=
+        match ls with
+          | nil => 
+            let r := constr:(@nil (@sexpr types pcTyp stTyp)) in
+              k types pcTyp stTyp funcs sfuncs r
+          | ?e :: ?es =>
+            reflect_sexpr isConst e typesV funcs pcTyp stTyp sfuncs us vs ltac:(fun funcs sfuncs e =>
+              reflect_all es funcs sfuncs ltac:(fun types pcType stTyp funcs sfuncs es =>
+                let es := constr:(e :: es) in
+                  k types pcType stTyp funcs sfuncs es)) 
+        end
+        in
+
+      let k' := k props proofs in
+      match type of funcs with
+        | list (signature types) =>
+          reflect_all goals funcs sfuncs k'
+        | ?X =>
+          let funcs := lift_signatures funcs types in
+            let sfuncs := lift_ssignatures sfuncs types in
+              reflect_all goals funcs sfuncs k'
+      end).
 
 
   Lemma change_ST_himp_himp : forall (types : list type)
@@ -1107,7 +1140,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     unfold himp. intros. auto.
   Qed.
 
-  Ltac reflect_goal isConst types :=
+  Ltac reflect_goal isConst types k :=
     let types :=
       match types with
         | tt => constr:(@nil type)
@@ -1117,15 +1150,15 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     match goal with
       | [ |- @ST.himp ?pcT ?stT ?cs ?L ?R ] =>
         reflect_sexprs pcT stT isConst types tt tt (L :: R :: nil)
-          ltac:(fun types pcTyp stTyp funcs sfuncs Ps =>
+          ltac:(fun props proofs types pcTyp stTyp funcs sfuncs Ps =>
             match Ps with
               | ?L :: ?R :: nil =>
-                apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R)
+                apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R);
+                    k props proofs
             end)
     end.
   
-  (** This should perform all the reductions necessary to remove all of reflection calls.
-   **)
+  (** Base simplifier.  For now, copy all this and add your own extra entries to cover prover reductions. *)
   Ltac simplifier :=
     cbv beta iota zeta delta [CancelSep sepCancel hash liftSHeap sheapSubstU liftExpr 
       FM.add FM.fold FM.map FM.find FM.remove FM.empty FM.insert_at_right
@@ -1143,23 +1176,13 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       fst snd
       eq_rec_r eq_rec eq_rect Logic.eq_sym f_equal get_Eq value 
       nat_eq_eqdec
-    ].
+      eq_summary eq_summarize eq_prove
+   ].
 
-  Ltac canceler hyps' :=
-    match hyps' with
-      | tt => 
-        apply ApplyCancelSep with (hyps := nil)
-      | _ =>
-        apply ApplyCancelSep with (hyps := hyps')
-    end; [ simpl AllProvable; tauto | simplifier ].
-
-  Ltac sep isConst types hyps := 
-    reflect_goal isConst types;
-    let rec unfold_all ls :=
-      match ls with
-        | ?a :: ?b => unfold a ; unfold_all b
-        | _ => canceler hyps; intros; hnf; simpl in *
-      end
-    in unfold_all types.
+  Ltac sep isConst proverR simplifier types := 
+    reflect_goal isConst types ltac:(fun props proofs =>
+      apply ApplyCancelSep with (hyps := props) (prover := proverR _ _);
+        [ exact proofs
+          | simplifier; intros; hnf; simpl in * ]).
 
 End SepExpr.
