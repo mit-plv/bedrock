@@ -5,26 +5,14 @@ Require Import DepList.
 
 Set Implicit Arguments.
 
-(* Coq supports recursive patterns *)
 Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 Section ProverT.
   Variable types : list type.
   Variable fs : functions types.
 
-(*
-  Definition ProverT : Type := forall 
-    (hyps : list (@expr types))
-    (goal : @expr types),
-    AllProvable fs nil nil hyps ->
-    option (Provable fs nil nil goal).
-  (* It actually might be more correct for this to be 
-   * option (AllProvable fs nil nil hyps -> Provable fs nil nil goal) 
-   * but that is harder to program with
-   *)
-*)
-
-  Definition ValidProp (e : expr types) := exists pf, exprD fs nil nil e tvProp = Some pf.
+  Definition ValidProp (e : expr types) := exists v, exprD fs nil nil e tvProp = Some v.
+  Definition ValidExp (e : expr types) := exists t, exists v, exprD fs nil nil e t = Some v.
 
   Lemma Provable_ValidProp : forall goal, Provable fs nil nil goal
     -> ValidProp goal.
@@ -35,18 +23,46 @@ Section ProverT.
              end; intuition eauto.
   Qed.
 
-  Definition ProverCorrect
-    (prover : list (@expr types) -> @expr types -> bool) :=
-    forall hyps goal, prover hyps goal = true ->
+  (** Provers that establish [expr]-encoded facts *)
+
+  Definition ProverCorrect (summary : Type)
+    (** Some prover work only needs to be done once per set of hypotheses,
+       so we do it once and save the outcome in a summary of this type. *)
+    (summarize : list (expr types) -> summary)
+    (prover : summary -> expr types -> bool) :=
+    forall hyps goal, prover (summarize hyps) goal = true ->
       ValidProp goal ->
       AllProvable fs nil nil hyps ->
       Provable fs nil nil goal.
 
-  (* the non-dependent prover should be *)
-  Record NProverT : Type :=
+  Record ProverT : Type :=
   {
-    prove : forall (hyps : list (@expr types)) (goal : @expr types), bool;
-    prove_correct : ProverCorrect prove
+    summary : Type;
+    summarize : list (expr types) -> summary;
+    prove : forall (hyps : summary) (goal : expr types), bool;
+    prove_correct : ProverCorrect summarize prove
+  }.
+
+  (** Provers that establish equalities between [expr]-encoded terms *)
+
+  Definition EqProverCorrect (summary : Type)
+    (summarize : list (expr types) -> summary)
+    (prover : summary -> expr types -> expr types -> bool) :=
+    forall hyps e1 e2, prover (summarize hyps) e1 e2 = true ->
+      ValidExp e1 ->
+      ValidExp e2 ->
+      AllProvable fs nil nil hyps ->
+      exists t, match exprD fs nil nil e1 t, exprD fs nil nil e2 t with
+                  | Some v1, Some v2 => v1 = v2
+                  | _, _ => False
+                end.
+
+  Record EqProverT : Type :=
+  {
+    eq_summary : Type;
+    eq_summarize : list (expr types) -> eq_summary;
+    eq_prove : forall (hyps : eq_summary) (e1 e2 : expr types), bool;
+    eq_prove_correct : EqProverCorrect eq_summarize eq_prove
   }.
 
 End ProverT.
@@ -63,32 +79,6 @@ Lemma nat_seq_dec_correct : forall n, nat_seq_dec n n = Some eq_refl.
 Qed.
 Hint Rewrite nat_seq_dec_correct : provers.
 
-(* Some test cases for later, might remove *)
-Definition type_nat := {| Expr.Impl := nat ; Expr.Eq := seq_dec |}.
-Definition type_bool := {| Expr.Impl := bool ; Expr.Eq := seq_dec |}.
-Definition type_list_bool := {| Expr.Impl := list bool ; Expr.Eq := seq_dec |}.
-Definition test_types := [type_nat, type_bool, type_list_bool].
-(* 0 => nat, 1 => bool, 2 => list bool *)
-Definition tvar_nat := tvType 0.
-Definition tvar_bool := tvType 1.
-Definition tvar_list_bool := tvType 2.
-Definition tvar_empty := tvType 3.
-Definition test_eq_sig := Sig test_types [tvar_nat, tvar_nat] tvar_bool beq_nat.
-Definition test_plus_sig := Sig test_types [tvar_nat, tvar_nat] tvar_nat plus.
-Fixpoint bin_to_nat (ls : list bool) : nat :=
-  match ls with
-    | nil => 0
-    | false :: ls' => 2 * bin_to_nat ls'
-    | true :: ls' => S (2 * bin_to_nat ls')
-  end.
-Definition test_bin_to_nat_sig := Sig test_types [tvar_list_bool] tvar_nat bin_to_nat.
-Definition test_constant_false_sig := Sig test_types [tvar_empty] tvar_bool (fun _ => false).
-Definition test_functions := [test_eq_sig, test_plus_sig, test_bin_to_nat_sig, test_constant_false_sig].
-
-Ltac caser H E := case_eq E; intros;
-  try match goal with
-        | [ H' : _ = _ |- _ ] => rewrite H' in H
-      end.
 
 (* Everything looks like a nail?  Try this hammer. *)
 Ltac t1 := match goal with
@@ -109,6 +99,7 @@ Ltac t1 := match goal with
                               | Var _ => _
                               | UVar _ => _
                               | Func _ _ => _
+                              | Equal _ _ _ => _
                             end] ] => destruct E
              | [ |- context[match ?E with
                               | None => _
@@ -125,6 +116,7 @@ Ltac t1 := match goal with
                                | Var _ => _
                                | UVar _ => _
                                | Func _ _ => _
+                               | Equal _ _ _ => _
                              end] |- _ ] => destruct E
              | [ _ : context[match ?E with
                                | nil => _
@@ -149,6 +141,8 @@ Ltac t1 := match goal with
                                                   end] => fail 1
                                               | _ => destruct E
                                             end
+
+             | [ _ : context[match ?E with (_, _) => _ end] |- _ ] => destruct E
            end.
 
 Ltac t := repeat t1; eauto.
@@ -156,6 +150,8 @@ Ltac t := repeat t1; eauto.
 Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
+
+  Definition assumptionSummarize (hyps : list (expr types)) := hyps.
 
   Fixpoint assumptionProver (hyps : list (expr types))
     (goal : expr types) : bool :=
@@ -166,11 +162,12 @@ Section AssumptionProver.
         else assumptionProver b goal
     end.
 
-  Theorem assumptionProverCorrect : ProverCorrect fs assumptionProver.
+  Theorem assumptionProverCorrect : ProverCorrect fs assumptionSummarize assumptionProver.
     t; induction hyps; t.
   Qed.
 
   Definition assumptionProverRec := {|
+    summarize := assumptionSummarize;
     prove := assumptionProver;
     prove_correct := assumptionProverCorrect
   |}.
@@ -179,29 +176,21 @@ End AssumptionProver.
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
-  Variable eqFunIdx : func.
-  Variable eqFunTvar : tvar.
 
-  Let eqFunSig := {|
-    Domain := [eqFunTvar, eqFunTvar];
-    Range := tvProp;
-    Denotation := @eq (tvarD types eqFunTvar)
-  |}.
-  Let fs' := updateAt eqFunSig fs eqFunIdx.
+  Definition reflexivitySummarize (_ : list (expr types)) := tt.
 
-  Definition reflexivityProver (_ : list (expr types)) (goal : expr types) := 
+  Definition reflexivityProver (_ : unit) (goal : expr types) := 
     match goal with
-      | Func f [x, y] => if equiv_dec f eqFunIdx
-                           then if expr_seq_dec x y then true else false
-                           else false
+      | Equal _ x y => if expr_seq_dec x y then true else false
       | _ => false
     end.
 
-  Theorem reflexivityProverCorrect : ProverCorrect fs' reflexivityProver.
+  Theorem reflexivityProverCorrect : ProverCorrect fs reflexivitySummarize reflexivityProver.
     unfold reflexivityProver; t.
   Qed.
 
   Definition reflexivityProverRec := {|
+    summarize := reflexivitySummarize;
     prove := reflexivityProver;
     prove_correct := reflexivityProverCorrect
   |}.
@@ -211,8 +200,7 @@ End ReflexivityProver.
 Section Grouper.
   Variable A : Type.
   Variable R : A -> A -> Prop.
-  (* An arbitrary equivalence relation
-   * (though maybe we can get away without all the usual axioms) *)
+  (* An arbitrary partial equivalence relation *)
 
   Hypothesis Rsym : forall x y, R x y -> R y x.
   Hypothesis Rtrans : forall x y z, R x y -> R y z -> R x z.
@@ -240,9 +228,9 @@ Section Grouper.
 
   Fixpoint groupWith (grps : list (list A)) (g : list A) (a : A) :=
     match grps with
-      | nil => [g]
+      | nil => [a :: g]
       | g' :: grps' => if in_seq_dec g' a
-                         then (g' ++ g) :: grps'
+                         then (g' ++ a :: g) :: grps'
                          else g' :: groupWith grps' g a
     end.
 
@@ -322,7 +310,7 @@ Section Grouper.
     Forall groupEqual grps
     -> Forall (R x) xs
     -> Forall groupEqual (groupWith grps xs x).
-    induction 1; t; eauto 6.
+    induction 1; t; eauto 7.
   Qed.
 
   Hint Resolve groupWith_sound.
@@ -343,94 +331,147 @@ End Grouper.
 
 Section TransitivityProver.
   Variable types : list type.
-  Variable t : type.
-  Variable tIdx : nat.
+  Variable fs : functions types.
 
-  Definition types' := updateAt t types tIdx.
-  Let tTvar := tvType tIdx.
-
-  Variable fs : functions types'.
-  Variable eqFunIdx : func.
-  
-  Definition eqFunSig := {|
-    Domain := [tTvar, tTvar];
-    Range := tvProp;
-    Denotation := @eq (tvarD types' tTvar)
-  |}.
-  Let fs' := updateAt eqFunSig fs eqFunIdx.
-
-  Definition eqD (e1 e2 : expr types') :=
-    match exprD fs' nil nil e1 tTvar, exprD fs' nil nil e2 tTvar with
-      | Some v1, Some v2 => v1 = v2
-      | _, _ => False
+  Definition eqD (e1 e2 : expr types) :=
+    match typeof fs nil nil e1 with
+      | None => False
+      | Some t =>
+        match exprD fs nil nil e1 t, exprD fs nil nil e2 t with
+          | Some v1, Some v2 => v1 = v2
+          | _, _ => False
+        end
     end.
 
   Theorem eqD_refl : forall e1 e2, e1 = e2
-    -> forall v, exprD fs' nil nil e1 tTvar = Some v
-      -> eqD e1 e2.
+    -> forall t, typeof fs nil nil e1 = Some t
+      -> forall v, exprD fs nil nil e1 t = Some v
+        -> eqD e1 e2.
     t.
   Qed.
 
-  Definition eqD_seq (e1 e2 : expr types') :=
-    match expr_seq_dec e1 e2 with
-      | Some pf =>
-        match exprD fs' nil nil e1 tTvar as v return (_ = v -> _) with
-          | Some _ => fun pf' => Some (eqD_refl pf pf')
-          | _ => fun _ => None
-        end (refl_equal _)
-      | None => None
-    end.
+  Definition eqD_seq (e1 e2 : expr types) :=
+    match typeof fs nil nil e1 as E return (_ = E -> _) with
+      | None => fun _ => None
+      | Some t => fun pf1 =>
+        match expr_seq_dec e1 e2 with
+          | Some pf2 =>
+            match exprD fs nil nil e1 t as v return (_ = v -> _) with
+              | Some _ => fun pf3 => Some (eqD_refl pf2 pf1 pf3)
+              | _ => fun _ => None
+            end (refl_equal _)
+          | None => None
+        end
+    end (refl_equal _).
 
-  Fixpoint groupsOf (hyps : list (expr types')) : list (list (expr types')) :=
+  Fixpoint groupsOf (hyps : list (expr types)) : list (list (expr types)) :=
     match hyps with
       | nil => nil
       | h :: hyps' =>
         let grps := groupsOf hyps' in
           match h with
-            | Func f [x, y] => if equiv_dec f eqFunIdx
-              then addEquality eqD eqD_seq grps x y
-              else grps
+            | Equal t x y => addEquality eqD eqD_seq grps x y
             | _ => grps
           end
     end.
 
-  Definition transitivityProver (hyps : list (expr types'))
-    (goal : expr types') :=
+  Definition transitivityEqProver (groups : list (list (expr types)))
+    (x y : expr types) := inSameGroup eqD eqD_seq groups x y.
+
+  Definition transitivityProver (groups : list (list (expr types)))
+    (goal : expr types) :=
     match goal with
-      | Func f [x, y] => if equiv_dec f eqFunIdx
-        then inSameGroup eqD eqD_seq (groupsOf hyps) x y
-        else false
+      | Equal _ x y => inSameGroup eqD eqD_seq groups x y
       | _ => false
     end.
 
   Hint Resolve addEquality_sound.
 
+  Theorem exprD_principal : forall u v e t, exprD fs u v e t <> None
+    -> match typeof fs u v e with
+         | None => False
+         | Some t' => exprD fs u v e t' <> None
+       end.
+    induction e; simpl; unfold lookupAs;
+      repeat match goal with
+               | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
+               | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl e) in H
+               | _ => t1
+             end.
+  Qed.
+
+  Lemma lookupAs_det : forall v x t1 t2,
+    lookupAs types v t1 x <> None
+    -> lookupAs types v t2 x <> None
+    -> t1 = t2.
+    unfold lookupAs; t; congruence.
+  Qed.
+
+  Hint Immediate lookupAs_det.
+
+  Theorem exprD_det : forall u v e t1 t2, exprD fs u v e t1 <> None
+    -> exprD fs u v e t2 <> None
+    -> t1 = t2.
+    induction e; t.
+  Qed.
+
+  Ltac foundTypeof E := generalize (exprD_principal nil nil E); destruct (typeof fs nil nil E); intuition.
+
+  Ltac foundDup E T1 T2 := match T1 with
+                             | T2 => fail 1
+                             | _ =>
+                               assert (T1 = T2) by (apply (exprD_det nil nil E);
+                                 try match goal with
+                                       | [ H : _ |- _ ] => solve [ intro; apply H with T1; t ]
+                                     end); subst
+                           end.
+
+  Ltac eqD1 :=
+    match goal with
+      | [ _ : context[typeof fs nil nil ?E] |- _ ] => foundTypeof E
+      | [ |- context[typeof fs nil nil ?E] ] => foundTypeof E
+      | [ _ : context[exprD fs nil nil ?E ?T1] |- context[exprD fs nil nil ?E ?T2] ] => foundDup E T1 T2
+      | [ _ : context[exprD fs nil nil ?E ?T1], _ : context[exprD fs nil nil ?E ?T2] |- _ ] => foundDup E T1 T2
+      | [ x : tvar, H1 : forall y : tvar, _ |- False ] => apply H1 with x; t
+    end.
+
+  Ltac eqD := unfold eqD; intros; repeat eqD1; t.
+  
+  Theorem eqD_sym : forall x y : expr types, eqD x y -> eqD y x.
+    eqD.
+  Qed.
+
+  Theorem eqD_trans : forall x y z : expr types, eqD x y -> eqD y z -> eqD x z.
+    eqD.
+  Qed.
+
+  Hint Immediate eqD_sym eqD_trans.
+
   Theorem groupsOf_sound : forall hyps,
-    AllProvable fs' nil nil hyps
+    AllProvable fs nil nil hyps
     -> groupsEqual eqD (groupsOf hyps).
-    induction hyps; repeat (apply addEquality_sound || t1).
+    induction hyps; repeat ((apply addEquality_sound; eauto; simpl in *; eqD) || t1).
   Qed.
 
-  Theorem eqD_sym : forall x y, eqD x y -> eqD y x.
-    t.
-  Qed.
-
-  Theorem eqD_trans : forall x y z, eqD x y -> eqD y z -> eqD x z.
-    t.
-  Qed.
-
-  Theorem transitivityProverCorrect : ProverCorrect fs' transitivityProver.
-    unfold transitivityProver; hnf; intros;
+  Theorem transitivityEqProverCorrect : EqProverCorrect fs groupsOf transitivityEqProver.
+    unfold transitivityEqProver; hnf; simpl in *; intros;
       match goal with
-        | [ H : _ |- _ ] =>
-          generalize (inSameGroup_sound eqD_sym eqD_trans eqD_seq
-            (groupsOf_sound _ H)); intro Hsame
-      end;
-      repeat (unfold types' in *;
+        | [ H1 : _, H2 : _ |- _ ] =>
+          apply (inSameGroup_sound eqD_sym eqD_trans eqD_seq
+            (groupsOf_sound _ H1)) in H2
+      end; hnf in *; simpl in *;
+      generalize (exprD_principal nil nil e1); destruct (typeof fs nil nil e1);
+        eauto; contradiction.
+  Qed.
+
+  Theorem transitivityProverCorrect : ProverCorrect fs groupsOf transitivityProver.
+    unfold transitivityProver; hnf; intros;
+      destruct goal; try discriminate;
         match goal with
-          | [ H : _ |- _ ] => apply Hsame in H
-          | _ => t1
-        end).
+          | [ H1 : _, H2 : _ |- _ ] =>
+            apply (inSameGroup_sound eqD_sym eqD_trans eqD_seq
+              (groupsOf_sound _ H1)) in H2
+        end; hnf in *; simpl in *; eqD.
   Qed.
 
   Definition transitivityProverRec := {|
@@ -438,174 +479,8 @@ Section TransitivityProver.
     prove_correct := transitivityProverCorrect
   |}.
 
-  (* Didn't get to updating this stuff yet! *)
-(*
-  (* now let's use our infrastructure to prove things aren't equal *)
-
-  Variable notFunIdx : nat.
-  Hypothesis eqFun_notFun : eqFunIdx <> notFunIdx.
-  Let notFunSig : signature types' := {| Domain := [tvProp]; Range := tvProp; Denotation := not |}.
-  Let fs'' := updateAt notFunSig fs' notFunIdx.
-
-  Let nth_error_fs''_notFunIdx : nth_error fs'' notFunIdx = Some notFunSig.
-    provers.
-  Qed.
-
-  Hint Rewrite nth_error_updateAt_2 : provers.
-  Let nth_error_fs''_eqFunIdx : nth_error fs'' eqFunIdx = Some eqFunSig.
-    provers.
-  Qed.
-
-  Let eqGrouper'' := eqGrouper types natIdx fs'' eqFunIdx.
-  Let enD'' := enD types natIdx fs''.
-
-  (* tells you whether an expression is of the form "a <> b" *)
-  (* makes code a lot more compact... *)
-  Definition optionNeq (e : expr types') :=
-    match e with
-      | Func f [e'] =>
-        if eq_nat_dec f notFunIdx
-          then
-            match e' with
-              | Func g [x, y] =>
-                if eq_nat_dec g eqFunIdx
-                  then Some (x, y)
-                  else None
-              | _ => None
-            end
-          else None
-      | _ => None
-    end.
-
-  Fixpoint notTransitivityProver (hyps : list (expr types')) (goal : expr types') :=
-    match optionNeq goal with
-      | Some (x, y) => let hyps' := Func eqFunIdx [x, y] :: hyps in
-                       let grouped := eqGrouper'' hyps' in
-                         match hyps with
-                           | nil => false
-                           | h :: hyps' =>
-                             match optionNeq h with
-                               | Some (x, y) =>
-                                 if inSameGroup nat_seq_dec grouped (enD'' x) (enD'' y)
-                                   then true
-                                   else notTransitivityProver hyps' goal
-                               | None => notTransitivityProver hyps' goal
-                             end
-                         end
-      | None => false
-    end.
-
-  Lemma notTransitivityProver_nil : forall goal, notTransitivityProver nil goal = false.
-    simpl.
-    intros.
-    destruct (optionNeq goal);
-    [ destruct p | ];
-    reflexivity.
-  Qed.
-
-  Lemma ValidProp_notFunIdx_ValidProp : forall e, ValidProp fs'' (Func notFunIdx [e]) -> ValidProp fs'' e.
-    intros.
-    destruct H.
-    simpl in *.
-    rewrite nth_error_fs''_notFunIdx in H.
-    simpl in *.
-    unfold ValidProp.
-    destruct (exprD fs'' nil nil e tvProp).
-    exists t.
-    provers.
-    discriminate.
-  Qed.
-
-  Hint Resolve ValidProp_notFunIdx_ValidProp.
-  Lemma notFunIdx_not : forall e, ValidProp fs'' (Func notFunIdx [e]) -> exprD fs'' nil nil (Func notFunIdx [e]) tvProp = Some (~ optionDefault False (exprD fs'' nil nil e tvProp)).
-    intros.
-    destruct (ValidProp_notFunIdx_ValidProp H).
-    provers.
-  Qed.
-
-  Hint Rewrite notFunIdx_not : provers.
-  Lemma notFunIdx_eqFunIdx_neq : forall e e', ValidProp fs'' (Func notFunIdx [Func eqFunIdx [e, e']]) -> exprD fs'' nil nil (Func notFunIdx [Func eqFunIdx [e,  e']]) tvProp = Some (~ optionDefault (natTvarCoerce types natIdx 0) (exprD fs'' nil nil e natTvar) = optionDefault (natTvarCoerce types natIdx 0) (exprD fs'' nil nil e' natTvar)).
-    intros.
-    rewrite notFunIdx_not.
-    unfold natType, types', natTvar, eqFunSig.
-    provers.
-    assumption.
-  Qed.
-
-  Lemma Provable_Func_neq : forall e e', Provable fs'' nil nil (Func notFunIdx [Func eqFunIdx [e, e']]) -> natTvarCoerceR types natIdx (optionDefault (natTvarCoerce types natIdx 0) (exprD fs'' nil nil e natTvar)) <> natTvarCoerceR types natIdx (optionDefault (natTvarCoerce types natIdx 0) (exprD fs'' nil nil e' natTvar)).
-    unfold Provable.
-    intros.
-    case_eq (exprD fs'' nil nil e natTvar); case_eq (exprD fs'' nil nil e' natTvar); intros; simpl in *; hypRewriter; simpl in *.
-    intro.
-    apply natTvarCoerceR_inj in H2.
-    rewrite H0, H1 in *.
-    provers.
-    provers.
-    provers.
-    provers.
-  Qed.
-
-  Lemma optionDefault_inj : forall A (a : A) x y, x <> None -> y <> None -> optionDefault a x = optionDefault a y -> x = y.
-    intros.
-    destruct x, y; simpl in *; hypRewriter; intuition.
-  Qed.
-
-  Ltac caseTac term tac := destruct term; try solve [ tac ].
-  Ltac dism := simpl in *; match goal with [ H : context [ ?g ] |- ?g ] => apply H end; assumption.
-  Ltac caseDismiss term := caseTac term dism.
-  Hint Rewrite notTransitivityProver_nil : provers.
-  Theorem notTransitivityProverCorrect : ProverCorrect fs'' notTransitivityProver.
-    unfold ProverCorrect, Provable; intros.
-    induction hyps.
-    provers.
-    unfold notTransitivityProver in H; simpl;
-    fold notTransitivityProver in H.
-    caseDestruct goal.
-    simpl in H.
-    repeat caseDestruct l.
-    caseDestruct (eq_nat_dec f notFunIdx).
-    caseDestruct e.
-    repeat caseDestruct l.
-    caseDestruct (eq_nat_dec f0 eqFunIdx).
-    subst.
-    simpl in H1.
-    intuition.
-    caseDismiss a.
-    repeat caseDismiss l.
-    simpl in H.
-    caseDismiss (eq_nat_dec f notFunIdx).
-    caseDismiss e0.
-    repeat caseDismiss l.
-    caseDismiss (eq_nat_dec f0 eqFunIdx).
-    subst.
-    autorewrite with provers in *; eauto.
-    case_eq (inSameGroup nat_seq_dec
-            (addEquality nat_seq_dec (eqGrouper'' hyps)
-               (enD types natIdx fs'' e) (enD types natIdx fs'' e1))
-            (enD'' e0) (enD'' e3)); intros; rewrite H5 in *; eauto.
-    intro.
-    edestruct inSameGroup_spec.
-    clear H8.
-    specialize (H7 H5).
-    repeat destruct H7.
-    eapply Provable_Func_neq; eauto.
-    eauto.
-    unfold enD'', enD in x.
-    eauto.
-    dintuition.
-    eapply Provable_Func_neq; eauto.
-    eapply groupsEqual_spec; eauto.
-    eapply groupsEqual_addEquality; eauto.
-    eapply eqGrouper_groupsEqual; eauto.
-    unfold types', natType, natTvar, eqFunSig, fs', fs'' in H6.
-    erewrite eqFunIdx_eq in H6; eauto.
-    simpl in H6.
-    apply ValidProp_notFunIdx_ValidProp in H0.
-    unfold enD.
-    f_equal.
-    eauto.
-  Qed.
-
-  Definition notTransitivityProverRec := {| prove := notTransitivityProver; prove_correct := notTransitivityProverCorrect |}.
-*)
+  Definition transitivityEqProverRec := {|
+    eq_prove := transitivityEqProver;
+    eq_prove_correct := transitivityEqProverCorrect
+  |}.
 End TransitivityProver.

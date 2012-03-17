@@ -112,6 +112,14 @@ Section Unify.
               exprUnify l r (fst acc) (snd acc)) args args' (ls, rs)
           | right _ => None
         end
+      | Equal t1 e1 f1 , Equal t2 e2 f2 =>
+        if equiv_dec t1 t1 then
+          match exprUnify e1 e2 ls rs with
+            | None => None
+            | Some (ls, rs) => exprUnify f1 f2 ls rs
+          end
+          else
+            None
       | UVar u , _ => 
         match Subst_lookup u ls with
           | None => 
@@ -122,7 +130,7 @@ Section Unify.
       | _ , UVar u =>
         match Subst_lookup u rs with
           | None => 
-            Some (ls, Subst_replace u r rs)
+            Some (ls, Subst_replace u l rs)
           | Some r =>
             if seq_dec l r then Some (ls, rs) else None
         end

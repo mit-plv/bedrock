@@ -8,8 +8,8 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	EqdepClass DepList Reflect \
 	Heaps SepTheoryX \
 	NatMap Expr ExprUnify \
-	SepExpr SepExprTests \
 	Provers \
+	SepExpr SepExprTests \
 	Unfolder UnfolderTests \
 	Env \
 	SymEval sep/PtsTo2 \

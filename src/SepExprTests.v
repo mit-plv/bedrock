@@ -1,5 +1,6 @@
 Require Import Heaps.
 Require SepExpr Expr.
+Require Import Provers.
 Require Import EquivDec.
 Require Import List.
 
@@ -48,34 +49,121 @@ Module SepExprTests (B : Heap).
 
     Opaque ST.himp ST.star ST.emp ST.inj ST.ex.
 
+    Import SepExpr Sep Expr ExprUnify DepList.
+
+    Ltac simplifier := cbv beta iota zeta delta [CancelSep sepCancel hash hash' liftSHeap sheapSubstU liftExpr 
+      SepExpr.FM.add SepExpr.FM.fold SepExpr.FM.map SepExpr.FM.find SepExpr.FM.remove
+        SepExpr.FM.empty SepExpr.FM.insert_at_right
+        other pures impures star_SHeap SHeap_empty
+        unify_remove unify_remove_all exprUnifyArgs exprUnify empty_Subst Subst_lookup env_of_Subst
+        Expr.Impl Expr.Eq
+        List.map List.length List.app fold_left_2_opt List.fold_right List.nth_error
+        starred sheapD exprD
+        exprSubstU 
+        Compare_dec.lt_eq_lt_dec Compare_dec.lt_dec Peano_dec.eq_nat_dec
+        nat_rec nat_rect forallEach env exists_subst multimap_join equiv_dec seq_dec
+        Domain Range
+        EqDec_tvar tvar_rec tvar_rect 
+        lookupAs sumbool_rec sumbool_rect
+        fst snd
+        eq_rec_r eq_rec eq_rect Logic.eq_sym f_equal get_Eq value 
+        nat_eq_eqdec
+        eq_summary eq_summarize eq_prove
+        sexprD Compare_dec.le_dec Compare_dec.le_gt_dec Compare_dec.le_lt_dec
+        Subst_replace plus minus substV
+
+        transitivityEqProverRec groupsOf transitivityEqProver addEquality expr_seq_dec
+        applyD
+        in_seq_dec eqD_seq groupWith Expr.typeof unifyArgs inSameGroup fold_right
+        bool_eqdec Bool.bool_dec bool_rec bool_rect
+
+        nat_type
+    ]; fold plus; fold minus.
+
+    Ltac sep := simpl; intros;
+      Sep.sep isConst transitivityEqProverRec simplifier (nat_type :: nil); try reflexivity.
+
     Goal forall a b c x y, @ST.himp a b c (f _ _ (g y (x + x) 1)) (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil) tt. 
+      sep.
     Abort.
 
-    Goal forall a b c, 
-      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
-                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
-      simpl all. simpl allb.
-      intros. Time Sep.sep isConst (nat_type :: nil) tt. reflexivity.
+    Theorem t1 : forall a b c, @ST.himp a b c (f _ _ 0) (f _ _ 0).
+      sep.
     Qed.
 
-    Goal forall a b c, @ST.himp a b c 
+    Theorem t2 : forall a b c, 
+      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
+                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
+      sep.
+    Qed.
+
+    Theorem t3 : forall a b c, @ST.himp a b c 
       (ST.star (f _ _ 2) (f _ _ 1))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil) tt.
+      sep.
     Abort.
 
-    Goal forall a b c, @ST.himp a b c 
+    Theorem t4 : forall a b c, @ST.himp a b c 
       (ST.ex (fun y : nat => ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1) )))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil) tt.
+      sep.
     Abort.
 
-    Goal forall a b c, @ST.himp a b c 
+    Theorem t5 : forall a b c, @ST.himp a b c 
       (ST.ex (fun y : nat => f _ _ y))
       (f _ _ 1).
-      intros. Time Sep.sep isConst (nat_type :: nil) tt.
+      sep.
     Abort.
+
+    Theorem t6 : forall a b c, @ST.himp a b c 
+      (f _ _ 1)
+      (ST.ex (fun y : nat => f _ _ y)).
+      sep.
+    Qed.
+
+    Theorem t7 : forall a b c, @ST.himp a b c 
+      (ST.star (f _ _ (g true 0 1)) (f _ _ (g true 1 2)))
+      (ST.ex (fun y : nat => ST.star (f _ _ (g true 0 y)) (ST.ex (fun z : nat => f _ _ (g true 1 z))))).
+      sep.
+    Qed.
+
+    Theorem t8 : forall a b c, @ST.himp a b c 
+      (ST.star (f _ _ (g true 0 1)) (f _ _ (g true 1 2)))
+      (ST.ex (fun y : nat => ST.star (f _ _ (g true 1 y)) (ST.ex (fun z : nat => f _ _ (g true 0 z))))).
+      sep.
+    Qed.
+
+
+    (** ** Test use of transitivity prover in cancellation *)
+
+    Theorem t9 : forall a b c x y, x = y
+      -> @ST.himp a b c  (f _ _ x) (f _ _ y).
+      sep.
+    Qed.
+
+    Theorem t10 : forall a b c x y, x = y
+      -> @ST.himp a b c  (f _ _ y) (f _ _ x).
+      sep.
+    Qed.
+
+    Theorem t11 : forall a b c x y z, x = y
+      -> x = z
+      -> @ST.himp a b c  (f _ _ x) (f _ _ y).
+      sep.
+    Qed.
+
+    Theorem t12 : forall a b c x y u v, x = y
+      -> u = v
+      -> @ST.himp a b c  (ST.star (f _ _ x) (f _ _ v)) (ST.star (f _ _ y) (f _ _ u)).
+      sep.
+    Qed.
+
+    Theorem t13 : forall a b c x y z u v, x = y
+      -> z = y
+      -> u = v
+      -> @ST.himp a b c  (ST.star (f _ _ x) (f _ _ v)) (ST.star (f _ _ z) (f _ _ u)).
+      sep.
+    Qed.
 
   End Tests.
 
