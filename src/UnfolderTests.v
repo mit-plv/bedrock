@@ -158,6 +158,7 @@ Module Make (B : Heap).
     Ltac unfolder' hs n := U.unfolder isConst hs n; exec hs.
     Ltac unfolder hs := unfolder' hs 10.
 
+(*
     Theorem f_easy : forall cs, ST.himp cs (f 0) (ST.emp _ _).
       Time unfolder hints_Hf.
       reflexivity.
@@ -356,6 +357,7 @@ Module Make (B : Heap).
       Time unfolder' hints_Hf 20.
       easy.
     Qed.
+*)
 
   End Tests.
 
