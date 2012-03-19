@@ -8,7 +8,7 @@ Module SEP := SepExpr.SepExpr BedrockHeap ST.
 
 Lemma ApplyCancelSep : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types ++ types) (Expr.tvType O) (Expr.tvType 1)),
   (forall cs,
-    match SEP.CancelSep nil l r with
+    match SEP.CancelSep (Provers.transitivityEqProverRec funcs) nil l r with
       | {| SEP.vars := vars; 
            SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
            SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
@@ -29,7 +29,7 @@ Proof.
 Qed.
 
 Lemma ApplyCancelSep' : forall types funcs sfuncs (l r : SEP.sexpr (bedrock_types ++ types) (Expr.tvType O) (Expr.tvType 1)) cs,
-  match SEP.CancelSep nil l r with
+  match SEP.CancelSep (Provers.transitivityEqProverRec funcs) nil l r with
     | {| SEP.vars := vars; 
          SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
          SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
@@ -82,6 +82,12 @@ Ltac sep_canceler isConst Ts :=
           end
       end
   end.
+
+Require Unfolder.
+Print Unfolder.
+Module U := Unfolder.Make BedrockHeap ST.
+
+Check U.unfoldForward.
 
 (*  match goal with 
     | [ |- himp ?cs ?L ?R ] =>
