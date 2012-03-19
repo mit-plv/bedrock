@@ -1077,9 +1077,9 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    ** - the list of reflected sexpr.
    **)
   Ltac reflect_sexprs pcT stT isConst types' funcs sfuncs goals k :=
-    let Ts := collectAllTypes_props ltac:(fun _ => true) isConst ((pcT : Type) :: (stT : Type) :: @nil Type) in
-    let rt := collectAllTypes_sexpr ltac:(isConst) Ts goals in
-    let types := extend_all_types rt types' in
+    let Ts := collectAllTypes_props ltac:(fun _ => true) isConst (@nil Type) in
+    let Ts := collectAllTypes_sexpr ltac:(isConst) Ts goals in
+    let types := extend_all_types Ts types' in
     let types := eval simpl in types in
     let pcTyp := typesIndex pcT types in
     let stTyp := typesIndex stT types in
@@ -1113,8 +1113,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 let es := constr:(e :: es) in
                   k types pcType stTyp funcs sfuncs es)) 
         end
-        in
-
+      in
       let k' := k props proofs in
       match type of funcs with
         | list (signature types) =>

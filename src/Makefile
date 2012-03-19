@@ -9,13 +9,15 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	Heaps SepTheoryX \
 	NatMap Expr ExprUnify \
 	Provers \
-	SepExpr SepExprTests \
+	SepExpr \
 	Unfolder UnfolderTests \
 	Env \
 	SymEval sep/PtsTo2 \
 	SepIL SymIL SepTac \
 	Bedrock
 VS         := $(MODULES:%=%.v)
+
+#SepExprTests 
 
 .PHONY: coq clean package
 
