@@ -40,8 +40,12 @@ Theorem readOk : moduleOk read.
   Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
   Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
   Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-    admit.
+    pick_continuation ltac:(congruence).
+    congruence.
+    subst. sep_canceler ltac:(isConst) tt.
 
   Time sym_eval ltac:(isConst) unfolder (CORRECTNESS ptsto_evaluator) tt tt tt simplifier.
-    admit.
+    pick_continuation ltac:(congruence).
+    congruence.
+    subst. sep_canceler ltac:(isConst) tt.
 Time Qed.

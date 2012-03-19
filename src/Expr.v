@@ -492,6 +492,20 @@ Record VarType (t : Type) : Type :=
 Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
   f (open vt).
 
+Require PropX.
+
+Ltac reflectable shouldReflect P :=
+  match P with
+    | @PropX.interp _ _ _ _ => false
+    | @PropX.valid _ _ _ _ _ => false
+    | forall x, _ => false
+    | context [ PropX.PropX _ _ ] => false
+    | context [ PropX.spec _ _ ] => false
+    | _ => match type of P with
+             | Prop => shouldReflect P
+           end
+  end.
+
 (** collect the raw types from the given expression.
  ** - e is the expression to collect types from
  ** - types is a value of type [list Type]
@@ -569,16 +583,13 @@ Ltac collectAllTypes_props shouldReflect isConst Ts :=
   let rec collect Ts skip :=
     match goal with
       | [ H : ?X |- _ ] => 
-        match type of X with
-          | Prop =>
-            match shouldReflect X with
-              | true =>
-                match hcontains H skip with
-                  | false => 
-                    let Ts := collectTypes_expr isConst X Ts in
-                    let skip := constr:((H, skip)) in
-                    collect Ts skip
-                end
+        match reflectable shouldReflect X with
+          | true =>
+            match hcontains H skip with
+              | false => 
+                let Ts := collectTypes_expr isConst X Ts in
+                let skip := constr:((H, skip)) in
+                collect Ts skip
             end
         end
       | _ => Ts
@@ -779,20 +790,17 @@ Ltac reflect_expr isConst e types funcs uvars vars k :=
 Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
   let rec collect skip funcs acc proofs :=
     match goal with
-      | [ H : ?X |- _ ] => 
-        match type of X with
-          | Prop => 
-            match shouldReflect X with
-              | true =>
-                match hcontains H skip with
-                  | false =>
-                    reflect_expr isConst X types funcs uvars vars 
-                    ltac:(fun funcs e =>
-                      let skip := constr:((H, skip)) in
-                      let res := constr:(e :: acc) in
-                      let proofs := constr:(conj H proofs) in
-                      collect skip funcs res proofs)
-                end
+      | [ H : ?X |- _ ] =>
+        match reflectable shouldReflect X with
+          | true =>
+            match hcontains H skip with
+              | false =>
+                reflect_expr isConst X types funcs uvars vars 
+                ltac:(fun funcs e =>
+                  let skip := constr:((H, skip)) in
+                  let res := constr:(e :: acc) in
+                  let proofs := constr:(conj H proofs) in
+                  collect skip funcs res proofs)
             end
         end
       | _ => k funcs acc proofs
