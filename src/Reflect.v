@@ -242,6 +242,21 @@ Ltac indexOf keyF x ls :=
       end
   end.
 
+(* remove ls from the front of ls' *)
+Ltac extension ls ls' := 
+  match ls with
+    | nil => ls'
+    | _ :: ?ls =>
+      match ls' with
+        | nil => ls'
+        | _ :: ?ls' => extension ls ls'
+      end
+    | ?ls ++ ?lss =>
+      let v := extension ls ls' in
+      extension lss v
+  end.
+
+
 Ltac map_tac T tac fs :=
   let rec map_tac fs :=
     match fs with

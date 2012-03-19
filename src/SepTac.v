@@ -84,10 +84,7 @@ Ltac sep_canceler isConst Ts :=
   end.
 
 Require Unfolder.
-Print Unfolder.
 Module U := Unfolder.Make BedrockHeap ST.
-
-Check U.unfoldForward.
 
 (*  match goal with 
     | [ |- himp ?cs ?L ?R ] =>

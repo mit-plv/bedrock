@@ -988,80 +988,18 @@ Qed.
         Peano_dec.eq_nat_dec nat_rec nat_rect eq_rec_r eq_rec eq_rect eq_sym
         nth_error map value
         tvWord
-        f_equal Logic.eq_sym
+        f_equal
+
         Expr.AllProvable Expr.Provable Expr.tvarD tvTest types comparator
       ] in H0; 
-    let a := fresh in 
-    let b := fresh in
-    let zz := fresh in destruct H0 as [ a [ b zz ] ] ;
-    destruct a as [ ? [ ? ? ] ];
-    repeat match type of zz with
-             | True => clear zz
-             | _ /\ _ => let v := fresh in destruct zz as [ v zz ]
-           end.
-
-  Ltac sym_evaluator H := 
-    cbv beta iota zeta delta
-      [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_assertTest
-        sym_setReg sym_getReg
-        PLUGIN.sym_read PLUGIN.sym_write PLUGIN.Build_SymEval
-        SepExpr.pures SepExpr.impures SepExpr.other
-        SymMem SymRegs 
-        SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
-        Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
-        app map nth_error value error fold_right
-        DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
-        SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
-        Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
-        EquivDec.equiv_dec EquivDec.nat_eq_eqdec
-        f_equal Logic.eq_sym eq_sym
-        bedrock_funcs bedrock_types pcT stT tvWord
-        fst snd
-        types
-      ] in H.
-
-   Ltac denote_evaluator H :=
-     cbv beta iota zeta delta
-      [ stateD 
-        Expr.exprD SEP.sexprD
-        EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-        eq_rec_r eq_rec eq_rect eq_sym Logic.eq_sym
-        funcs
-        Expr.Range Expr.Domain Expr.Denotation Expr.tvarD Expr.applyD
-        SEP.sheapD SEP.starred
-        SepExpr.pures SepExpr.impures SepExpr.other
-        Expr.Impl
-        SepExpr.SDenotation SepExpr.SDomain
-        tvWord pcT stT bedrock_types bedrock_funcs
-        sumbool_rect sumbool_rec
-        Peano_dec.eq_nat_dec
-        nat_rec nat_rect
-        nth_error types value error app fold_right
-        SepExpr.FM.fold
-        f_equal eq_sym Logic.eq_sym
-        AllProvable Provable tvTest
-      ] in H.
-
-  Lemma Some_inj : forall T (a b : T), a = b -> Some b = Some a.
-  Proof.
-    intros; subst; reflexivity.
-  Qed.
-
-  Ltac simplifier H := idtac.
-
-  Ltac extension ls ls' := 
-    match ls with
-      | nil => ls'
-      | _ :: ?ls =>
-        match ls' with
-          | nil => ls'
-          | _ :: ?ls' => extension ls ls'
-        end
-      | ?ls ++ ?lss =>
-        let v := extension ls ls' in
-        extension lss v
-    end.
-
+      let a := fresh in 
+      let b := fresh in
+      let zz := fresh in destruct H0 as [ a [ b zz ] ] ;
+      destruct a as [ ? [ ? ? ] ];
+      repeat match type of zz with
+               | True => clear zz
+               | _ /\ _ => let v := fresh in destruct zz as [ v zz ]
+             end.
   (** TODO:
    ** - To avoid reflecting for each basic block, I need to gather all the
    **   hypotheses and information that will go into the term at the beginning
@@ -1168,11 +1106,11 @@ Qed.
                       | _ => idtac
                     end;
                     (** elaborate the types **)
-                    let types := eval unfold bedrock_types in bedrock_types in
-                    let types := Expr.extend_all_types Ts types in
+                    let types_ := eval unfold bedrock_types in bedrock_types in
+                    let types_ := Expr.extend_all_types Ts types_ in
                     let typesV := fresh "types" in
-                    pose (typesV := types);
-                    let types_ext := eval simpl in (bedrock_ext types) in
+                    pose (typesV := types_);
+                    let types_ext := eval simpl in (bedrock_ext types_) in
                     let types_extV := fresh "types_ext" in
                     pose (types_extV := types_ext);
                     (** build the variables **)
@@ -1194,15 +1132,15 @@ Qed.
                             | Structured.evalCond ?l ?t ?r _ ?st = _ =>
                               reflect_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun funcs' l =>
                               reflect_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun funcs' r =>
-                                let funcs_ext := extension funcs funcs' in
-                                apply (@evalPath_cond_app types_extV funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
+                                let funcs_ext := Reflect.extension funcs funcs' in
+                                eapply (@evalPath_cond_app types_extV funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
                                 cbv iota in H ;
                                 clear last ; 
                                 build_path is H funcs' k))
                             | evalInstrs _ ?st _ = _ =>
                               reflect_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun funcs' sis =>
-                                let funcs_ext := extension funcs funcs' in
-                                apply (@evalPath_instrs_app types_extV funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
+                                let funcs_ext := Reflect.extension funcs funcs' in
+                                eapply (@evalPath_instrs_app types_extV funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
                                 clear last ;
                                 build_path is H funcs' k)
                           end
@@ -1220,18 +1158,10 @@ Qed.
                     build_path all_instrs starter funcs ltac:(fun funcs path =>
                       match funcs with
                         | _ :: _ :: _ :: _ :: _ :: ?funcs_ext => idtac ;
-                          apply (@sym_eval_any_raw _ _ C types_extV funcs_ext sfuncs uvars vars _ stn _ _ path
-                            sp_v rv_v rp_v sp_pf rv_pf rp_pf
-                            pures proofs
-                            SF _ (refl_equal _)) in H' ;
-                          let uvars := eval unfold types_extV typesV in uvars in
-                          let vars := eval unfold types_extV typesV in vars in
-                          let sfuncs := eval unfold types_extV typesV in sfuncs in
-                          let funcs := eval unfold types_extV typesV in funcs in
-(*
-                          subst types_extV; subst typesV; 
-*)
-                          clear path ; 
+                          apply (@stateD_proof types_ext funcs uvars vars sfuncs _ sp_v rv_v rp_v 
+                            sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
+                          apply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
+                          clear path ;
                           (unfolder H' || fail 1000000 "unfolder failed!") ;
                           cbv beta iota zeta delta
                             [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
@@ -1245,83 +1175,56 @@ Qed.
                               SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
                               Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
                               EquivDec.equiv_dec EquivDec.nat_eq_eqdec
-                              f_equal eq_sym Logic.eq_sym
-                              bedrock_funcs bedrock_types pcT stT tvWord 
+                              f_equal 
+                              bedrock_funcs bedrock_types pcT stT tvWord
                               fst snd
                               FuncImage PredImage TypeImage
-                              Env.repr Env.updateAt
-                              types_extV typesV
+                              Env.repr Env.updateAt SEP.substV
+
+                              (* remove [stateD] *)
+                              stateD Expr.exprD 
+                              Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
+                              SEP.sheapD SEP.starred SEP.sexprD
+                              Expr.AllProvable
+                              Expr.Provable
+                              EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
+                              Logic.eq_sym eq_sym f_equal
+                              eq_rec_r eq_rect eq_rec
+                              nat_rec nat_rect
+                              sumbool_rec sumbool_rect
+                              Expr.tvarD types
+
+                              SEP.himp SEP.sexprD Expr.Impl 
+                              Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation 
+                              Expr.lookupAs
+                              tvTest
+                              SepExpr.SDenotation SepExpr.SDomain
+                              EquivDec.nat_eq_eqdec  
+                              tvWord SEP.sheapD SEP.sepCancel
+                              SepExpr.impures SepExpr.pures SepExpr.other
+                              SEP.star_SHeap SEP.unify_remove_all 
+                              SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
+                              Expr.tvarD Expr.Eq
+
+                              SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
+                              bedrock_types 
+                                
+                              Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
+                              SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
+                              ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
+                              fold_right value error map nth_error app                                       
+                              pcT stT 
+                              EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
+                              ExprUnify.get_Eq
+                              types
+                              Provers.transitivityProverRec Provers.transitivityEqProver Provers.inSameGroup
+                              Provers.in_seq_dec
+                              Provers.eqD Provers.eqD_seq
+                              Expr.typeof comparator
                             ] in H' ; 
-                          match goal with
-                            | [ |- False ] => try assumption
-                            | [ H_spec : ?specs ?X = Some _ 
-                              , H_cond : forall x, interp ?specs _ 
-                              |- exists pre' : spec W (settings * state), ( ?specs ?Z = Some pre' /\ interp ?specs (pre' ?Y)) ] =>
-                              open_stateD H' ;
-                              let eq_pf := fresh in
-                              assert (eq_pf : X = Z) by congruence ;
-                              apply (@goto_proof specs X Z _ H_spec eq_pf Y _ (H_cond Y)) ;
-                              autorewrite with sepFormula; cbv beta iota zeta delta [ substH subst eatLast ];
-                              (* I don't want to mess up my [interp] lemma, otherwise I would call [propxFo] or [ho] *) 
-                              repeat (apply And_I || apply Inj_I) ;
-                              (try match goal with
-                                    | [ |- valid ?specs nil ?S ] => change (valid specs nil S) with (interp specs S)
-                                  end ; unfold starB, hvarB, hpropB) ;
-                              match goal with
-                                | [ H_interp : interp _ (![ @SEP.sexprD _ _ _ _ _ _ _ (SEP.sheapD ?L) ] ?stn_st)
-                                  |- interp _ (![ ?SF ] ?stn_st) ] =>
-                                  SEP.reflect_sexpr ltac:(isConst) SF types funcs pcT stT sfuncs uvars vars 
-                                    ltac:(fun funcs' sfuncs' SF =>
-                                      let funcs_ext := extension funcs funcs' in
-                                      let sfuncs_ext := extension sfuncs sfuncs' in
-                                      (apply (@interp_interp_cancel _ funcs sfuncs 
-                                        (Provers.transitivityEqProverRec types funcs) 
-                                        uvars vars L stn_st cs
-                                        H_interp 
-                                        pures proofs 
-                                        SF _ (refl_equal _) funcs_ext sfuncs_ext)
-                                       || fail 1000000 "couldn't apply") ;
-                                      clear H_interp ;
-                                      cbv beta iota zeta delta
-                                        [ SEP.sheapD SEP.sepCancel
-                                          SepExpr.impures SepExpr.pures SepExpr.other
-                                          SEP.star_SHeap SEP.unify_remove_all 
-                                          SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
-                                          Expr.tvarD Expr.Eq
-                                          SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
-                                          bedrock_types 
-                                          Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
-                                          nat_rec nat_rect
-                                          sumbool_rec sumbool_rect
-                                          eq_rec_r eq_rect eq_rec
-                                          SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-                                          ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
-                                          fold_right value error map nth_error app                                       
-                                          pcT stT 
-                                          EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
-                                          eq_sym f_equal
-                                          ExprUnify.get_Eq
-                                          SEP.himp SEP.sexprD Expr.Impl 
-                                          Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation 
-                                          tvTest
-                                          SepExpr.SDenotation SepExpr.SDomain
-                                          EquivDec.nat_eq_eqdec  
-                                          tvWord
-                                        ])
-                                | [ |- _ ] => 
-                                  repeat match goal with
-                                           | [ H : Expr.AllProvable _ _ _ _ |- _ ] =>
-                                             unfold Expr.AllProvable, Expr.Provable in H; simpl in H
-                                         end
-                              end
-                            | [ |- ?G ] => 
-                              idtac "got something weird!" G ;
-                              open_stateD H' ;
-                              repeat match goal with
-                                       | [ H : Expr.AllProvable _ _ _ _ |- _ ] =>
-                                         unfold Expr.AllProvable, Expr.Provable in H; simpl in H
-                                     end
-                          end
+                          subst typesV; subst types_extV ;
+                          (try assumption ||
+                           destruct H' as [ [ ? [ ? ? ] ] [ ? ? ] ])
                       end))))))
                 end
             end
