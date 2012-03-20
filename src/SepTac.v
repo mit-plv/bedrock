@@ -101,51 +101,7 @@ Ltac sep_canceler isConst prover simplifier types' :=
         match v with
           | ?L :: ?R :: nil =>
             apply (@ApplyCancelSep (SymIL.bedrock_ext types) props funcs (Provers.transitivityEqProverRec funcs) sfuncs L R proofs)
-        end ; simplifier (* ; 
-        cbv beta iota zeta delta
-          [ SEP.CancelSep
-
-            Provers.transitivityEqProverRec Provers.transitivityEqProver Provers.inSameGroup Provers.eqD
-            Provers.eq_prove Provers.eq_summary Provers.eq_summarize Provers.groupsOf
-
-            SEP.star_SHeap SEP.liftSHeap SEP.multimap_join
-            SEP.hash SEP.hash' SEP.sepCancel SEP.exists_subst
-            SEP.exists_subst SEP.forallEach 
-            SEP.unifyArgs SEP.himp SEP.sexprD SEP.sheapD SEP.starred SEP.sheapSubstU 
-            SEP.unify_remove_all SEP.unify_remove
-            SEP.substV
-            
-            SepExpr.impures SepExpr.pures SepExpr.other
-            SepExpr.SDenotation SepExpr.SDomain
-
-            SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
-
-            app map nth_error value error fold_right length
-
-            Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.Impl
-            Expr.liftExpr Expr.exprSubstU Expr.tvarD Expr.lookupAs 
-            Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect Expr.Eq
-            
-
-            ExprUnify.Subst_lookup ExprUnify.fold_left_2_opt
-            ExprUnify.exprUnify ExprUnify.empty_Subst ExprUnify.get_Eq
-            ExprUnify.env_of_Subst 
-
-            SymIL.bedrock_ext SymIL.bedrock_types SymIL.BedrockEvaluator.types
-
-            EquivDec.equiv_dec
-            Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec EquivDec.nat_eq_eqdec
-            
-            Logic.eq_sym eq_sym f_equal
-            eq_rec_r eq_rect eq_rec
-            nat_rec nat_rect
-            sumbool_rec sumbool_rect
-
-
-            
-            projT1 fst snd
-          ]; 
-        try reflexivity*))
+        end ; simplifier ;  try reflexivity)
   end.
 
 Ltac cancel_simplifier :=
