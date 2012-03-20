@@ -240,6 +240,20 @@ Ltac structured_auto := apply bmoduleOk; [ exact (refl_equal false) | exact I |
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
   | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].
 
+Lemma specs_cong : forall (specs : codeSpec W (settings * state)) x p,
+  specs x = p
+  -> forall y, x = y
+    -> specs y = p.
+  congruence.
+Qed.
+
+Implicit Arguments specs_cong [specs x p y].
+
+Hint Extern 1 (?specs _ = Some _) =>
+  match goal with
+    | [ H : specs _ = Some _ |- _ ] => apply (specs_cong H); congruence
+  end.
+
 Ltac ho := autorewrite with IL in *;
   repeat match goal with
            | [ |- ex _ ] => eexists
