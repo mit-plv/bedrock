@@ -1017,7 +1017,7 @@ Qed.
    ** - [Fs] is a tuple of functions, [tt] is interpreted as a unit
    ** - [SFs] is a tuple of separation logic predicates, [tt] is interpreted as a unit
    **)
-  Ltac sym_eval isConst unfolder C Ts Fs SFs simplifier :=
+  Ltac sym_eval isConst prover simplifier C Ts Fs SFs :=
     let rec find_exact H Hs :=
       match Hs with
         | tt => false
@@ -1162,6 +1162,8 @@ Qed.
                             sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
                           apply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
                           clear path ;
+                          (simplifier H' || fail 1000000 "simplifier failed!") ;
+(*
                           (unfolder H' || fail 1000000 "unfolder failed!") ;
                           cbv beta iota zeta delta
                             [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
@@ -1222,6 +1224,7 @@ Qed.
                               Provers.eqD Provers.eqD_seq
                               Expr.typeof comparator
                             ] in H' ; 
+*)
                           subst typesV; subst types_extV ;
                           (try assumption ||
                            destruct H' as [ [ ? [ ? ? ] ] [ ? ? ] ])
@@ -1231,6 +1234,67 @@ Qed.
         end
     end.
   
+  Ltac sym_evaluator H := 
+    cbv beta iota zeta delta
+      [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
+        sym_setReg sym_getReg
+        SepExpr.pures SepExpr.impures SepExpr.other
+        SymMem SymRegs SymPures
+        SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
+        Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
+        app map nth_error value error fold_right
+        DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
+        SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
+        Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
+        EquivDec.equiv_dec EquivDec.nat_eq_eqdec
+        f_equal 
+        bedrock_funcs bedrock_types pcT stT tvWord
+        fst snd
+        FuncImage PredImage TypeImage
+        Env.repr Env.updateAt SEP.substV
+
+        (* remove [stateD] *)
+        stateD Expr.exprD 
+        Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
+        SEP.sheapD SEP.starred SEP.sexprD
+        Expr.AllProvable
+        Expr.Provable
+        EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
+        Logic.eq_sym eq_sym f_equal
+        eq_rec_r eq_rect eq_rec
+        nat_rec nat_rect
+        sumbool_rec sumbool_rect
+        Expr.tvarD types
+        
+        SEP.himp SEP.sexprD Expr.Impl 
+        Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation 
+        Expr.lookupAs
+        tvTest
+        SepExpr.SDenotation SepExpr.SDomain
+        EquivDec.nat_eq_eqdec  
+        tvWord SEP.sheapD SEP.sepCancel
+        SepExpr.impures SepExpr.pures SepExpr.other
+        SEP.star_SHeap SEP.unify_remove_all 
+        SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
+        Expr.tvarD Expr.Eq
+        
+        SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
+        bedrock_types 
+                
+        Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
+        SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
+        ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
+        fold_right value error map nth_error app                                       
+        pcT stT 
+        EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
+        ExprUnify.get_Eq
+        types
+        Provers.transitivityProverRec Provers.transitivityEqProver Provers.inSameGroup
+        Provers.in_seq_dec
+        Provers.eqD Provers.eqD_seq
+        Expr.typeof comparator
+      ] in H.
+
   Implicit Arguments evalPath [ types' ].
 
   Definition symeval_read_word_default types' (_ : list (expr (bedrock_types ++ types'))) (_ : expr (bedrock_types ++ types'))
@@ -1251,7 +1315,7 @@ Qed.
   abstract (unfold symeval_read_word_default, symeval_write_word_default; intros; try congruence).
   Defined.
   
-  Ltac default_unfolder H := cbv delta [ Correctness_default ] in H.
+  Ltac default_unfolder H := cbv delta [ Correctness_default ] in H; sym_evaluator H.
 
   Goal forall cs stn st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) ->
@@ -1260,7 +1324,7 @@ Qed.
     Regs st' Rp = natToW 0.
   Proof.
     intros.
-    sym_eval ltac:(isConst) default_unfolder Correctness_default tt tt tt simplifier.
+    sym_eval ltac:(isConst) idtac default_unfolder Correctness_default tt tt tt.
     congruence.
   Qed.
 

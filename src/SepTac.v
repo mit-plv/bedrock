@@ -148,6 +148,67 @@ Ltac sep_canceler isConst prover simplifier types' :=
         try reflexivity*))
   end.
 
+Ltac cancel_simplifier :=
+  cbv beta iota zeta delta 
+      [ SEP.CancelSep
+        SEP.hash SEP.hash' SEP.sepCancel
+
+        SepExpr.FM.fold
+
+        Provers.eq_summary Provers.eq_summarize Provers.eq_prove 
+        Provers.transitivityEqProverRec
+
+        ExprUnify.Subst
+
+        SymIL.bedrock_types SymIL.bedrock_ext
+        app map fold_right nth_error value error
+
+        fst snd
+
+        SepExpr.impures SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
+        SEP.sheapSubstU ExprUnify.empty_Subst
+
+        SepExpr.pures SepExpr.impures SepExpr.other
+
+        SEP.exists_subst ExprUnify.env_of_Subst
+
+        SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
+
+        SEP.unify_remove_all SEP.unify_remove
+
+        SEP.unifyArgs
+        ExprUnify.fold_left_2_opt
+        Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
+
+        ExprUnify.exprUnify SEP.substV length
+        Expr.liftExpr Expr.exprSubstU
+        Peano_dec.eq_nat_dec EquivDec.equiv_dec 
+        Expr.EqDec_tvar
+        Expr.tvar_rec Expr.tvar_rect
+        sumbool_rec sumbool_rect
+        eq_rec_r eq_rect eq_rec f_equal eq_sym
+        ExprUnify.get_Eq
+        Expr.Eq
+        EquivDec.nat_eq_eqdec
+        Provers.inSameGroup Provers.eqD Provers.eqD_seq Provers.transitivityEqProver
+        Provers.groupsOf
+        Provers.addEquality
+        Provers.in_seq_dec
+        Expr.typeof 
+        Expr.expr_seq_dec
+        Expr.tvarD
+        Expr.tvar_val_sdec 
+        Provers.groupWith
+        Expr.Range Expr.Domain Expr.Denotation
+        Expr.well_typed 
+        Expr.all2
+
+        SEP.forallEach
+        SEP.sheapD SEP.sexprD
+        SEP.starred SEP.himp
+        Expr.Impl Expr.is_well_typed
+      ].
+
 (*
 Require Unfolder.
 Module U := Unfolder.Make BedrockHeap ST.

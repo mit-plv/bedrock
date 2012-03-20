@@ -333,7 +333,7 @@ Section TransitivityProver.
   Variable types : list type.
   Variable fs : functions types.
 
-  Definition eqD (e1 e2 : expr types) :=
+  Definition eqD (e1 e2 : expr types) : Prop :=
     match typeof fs nil nil e1 with
       | None => False
       | Some t =>
@@ -350,16 +350,42 @@ Section TransitivityProver.
     t.
   Qed.
 
-  Definition eqD_seq (e1 e2 : expr types) :=
-    match typeof fs nil nil e1 as E return (_ = E -> _) with
+    Lemma nth_error_nil : forall T n,
+      nth_error (@nil T) n = None.
+    Proof.
+      destruct n; simpl; auto.
+    Qed.
+
+  Theorem eqD_refl_wt : forall e1 e2, e1 = e2 ->
+    match well_typed fs nil nil e1 return Type with
+      | None => True 
+      | Some t => eqD e1 e2
+    end.
+  Proof.
+    intros; subst.
+    case_eq (well_typed fs nil nil e2); intros; auto.
+    generalize is_well_typed_typeof.
+    generalize well_typed_is_well_typed. intros.
+    generalize H. apply H0 in H.
+    generalize H.
+    apply is_well_typed_correct in H.
+    intros.
+    apply H1 in H2. destruct H.
+    eapply eqD_refl; eauto.
+  Qed.
+
+  Definition eqD_seq (e1 e2 : expr types) : option (eqD e1 e2) :=
+    match well_typed fs nil nil e1 as v return (_ = v -> _) with
       | None => fun _ => None
-      | Some t => fun pf1 =>
+      | Some _ => fun pff => 
         match expr_seq_dec e1 e2 with
-          | Some pf2 =>
-            match exprD fs nil nil e1 t as v return (_ = v -> _) with
-              | Some _ => fun pf3 => Some (eqD_refl pf2 pf1 pf3)
-              | _ => fun _ => None
-            end (refl_equal _)
+          | Some pf2 => Some 
+            match pff in _ = v return match v with
+                                        | None => True
+                                        | Some t => eqD e1 e2
+                                      end with
+              | refl_equal => @eqD_refl_wt e1 e2 pf2
+            end            
           | None => None
         end
     end (refl_equal _).

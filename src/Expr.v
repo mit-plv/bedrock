@@ -221,10 +221,10 @@ Section env.
         | _ , _ => false
       end.
   End All2.
-          
+
   Require Import Bool.
 
-  Fixpoint well_typed (e : expr) (t : tvar) {struct e} : bool :=
+  Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
     match e with 
       | Const t' _ => 
         if equiv_dec t' t then true else false
@@ -235,17 +235,87 @@ Section env.
           | None => false
           | Some f =>
             if equiv_dec t (Range f) then 
-              all2 well_typed xs (Domain f)
+              all2 is_well_typed xs (Domain f)
             else false
         end
-      | Equal t' e1 e2 => match t with
-                            | tvProp => well_typed e1 t' && well_typed e2 t'
-                            | _ => false
-                          end
+      | Equal t' e1 e2 => 
+        match t with
+          | tvProp => is_well_typed e1 t' && is_well_typed e2 t'
+          | _ => false
+        end
     end.
 
-  Theorem well_typed_correct : forall e t, 
-    well_typed e t = true ->
+  Definition well_typed (e : expr) : option tvar :=
+    match e with 
+      | Const t' _ => Some t'
+      | Var x => 
+        match nth_error env x with
+          | None => None
+          | Some z => Some (projT1 z)
+        end
+      | UVar x => 
+        match nth_error uenv x with
+          | None => None
+          | Some z => Some (projT1 z)
+        end
+      | Func f xs => 
+        match nth_error funcs f with
+          | None => None
+          | Some f =>
+            if (all2 is_well_typed xs (Domain f))
+            then Some (Range f) else None
+        end
+      | Equal t' e1 e2 => 
+        if is_well_typed e1 t' && is_well_typed e2 t'
+        then Some tvProp else None
+    end.
+
+  Theorem well_typed_is_well_typed : forall e t, 
+    well_typed e = Some t <-> is_well_typed e t = true.
+  Proof.
+    clear. induction e; simpl; intros; 
+    try solve [ split; intros; unfold lookupAs in * ;
+      repeat match goal with
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
+               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
+               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
+               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
+             end; try congruence; auto ].
+    
+    Focus.
+    split; intros; unfold lookupAs in * ;
+      repeat match goal with
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
+               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
+               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
+               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
+             end; try congruence; auto.
+    destruct (all2 is_well_typed l (Domain s)). inversion H0; subst.
+      rewrite EquivDec_refl_left; auto.
+      congruence.
+      rewrite H0.
+      congruence.
+
+    split; intros; unfold lookupAs in * ;
+      repeat match goal with
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
+               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
+               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
+               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
+             end; try congruence; auto.
+    revert H. case_eq (is_well_typed e1 t); simpl.
+    case_eq (is_well_typed e2 t); simpl; intros. inversion H1; auto. congruence.
+    intros; congruence.
+    destruct t0; try congruence.
+    apply andb_true_iff in H. intuition.
+    rewrite H0. rewrite H1. auto.
+  Qed.
+
+  Theorem is_well_typed_correct : forall e t, 
+    is_well_typed e t = true ->
     exists v, exprD e t = Some v.
   Proof.
     clear. induction e; simpl; intros; 
@@ -265,7 +335,7 @@ Section env.
       destruct l; eauto; congruence.
       destruct l0; try congruence.
       generalize dependent H0. inversion H; clear H; subst. specialize (H2 t0). generalize dependent H2.
-      case_eq (well_typed a t0); intros; try congruence.
+      case_eq (is_well_typed a t0); intros; try congruence.
       destruct H2; auto. rewrite H1. eauto.
     destruct t0; try discriminate.
       apply andb_true_iff in H; intuition.
@@ -274,6 +344,20 @@ Section env.
       eauto.
   Qed.
 
+  Theorem is_well_typed_typeof : forall e t, 
+    is_well_typed e t = true -> typeof e = Some t.
+  Proof.
+    induction e; simpl; intros.
+      destruct (equiv_dec t t1); try congruence.
+      unfold lookupAs in *. destruct (nth_error env x); try congruence.
+        destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
+      unfold lookupAs in *. destruct (nth_error uenv x); try congruence.
+        destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
+      destruct (nth_error funcs f); try congruence.
+        destruct (equiv_dec t (Range s)); congruence.
+      destruct t0; congruence.
+  Qed.
+ 
   Lemma expr_seq_dec_Equal : forall t1 t2 e1 f1 e2 f2,
     t1 = t2
     -> e1 = e2
