@@ -1,6 +1,5 @@
 Require Import Bedrock.
 
-
 (** The simplest function *)
 
 Definition diverger := bmodule "diverger" {{
@@ -97,6 +96,27 @@ Section final.
 
   Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.
 End final.
+
+(** Always-0, in a convoluted way *)
+
+Definition always0S : assert := st ~> st#Rp @@ (st' ~> [| st'#Rv = $0 |]).
+
+Definition always0 := bmodule "always0" {{
+  bfunction "always0" [always0S] {
+    If (Rv = 0) {
+      Skip
+    } else {
+      Rv <- 0
+    };;
+    Goto Rp
+  }
+}}.
+
+Eval compute in compile always0.
+
+Theorem always0Ok : moduleOk always0.
+  structured; ho.
+Qed.
 
 
 (** Stress testing [structured] performance *)
