@@ -1,28 +1,5 @@
 Require Import Bedrock.
 
-
-(** Always-0, in a convoluted way *)
-
-Definition always0S : assert := st ~> st#Rp @@ (st' ~> [| st'#Rv = $0 |]).
-
-Definition always0 := bmodule "always0" {{
-  bfunction "always0" [always0S] {
-    If (Rv = 0) {
-      Skip
-    } else {
-      Rv <- 0
-    };;
-    Goto Rp
-  }
-}}.
-
-Eval compute in compile always0.
-
-Theorem always0Ok : moduleOk always0.
-  structured; ho.
-Qed.
-
-
 (** Factorial! *)
 
 Lemma separated_0_4 : separated 0 4.
