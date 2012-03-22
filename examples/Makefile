@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := Baby Factorial AutoSep TrivialMem
+MODULES := Baby Factorial AutoSep TrivialMem Indir
 VS      := $(MODULES:%=%.v)
 
 .PHONY: coq clean
