@@ -12,4 +12,4 @@ Definition indir := bmodule "indir" {{
 }}.
 Theorem indirOk : moduleOk indir.
   vcgen; try sep.
-Abort.
+Qed.

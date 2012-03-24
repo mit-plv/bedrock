@@ -16,6 +16,7 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	SepIL SymIL SepTac \
 	Bedrock
 VS         := $(MODULES:%=%.v)
+ARGS :=-R . Bedrock
 
 #SepExprTests UnfolderTests 
 
@@ -25,7 +26,7 @@ coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile -R . Bedrock $(VS) -o Makefile.coq
+	coq_makefile $(ARGS) $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
@@ -42,3 +43,6 @@ admit:
 depgraph: Makefile.coq
 	@ echo Generating dependency graph to ../deps.pdf
 	@ ./../tools/deps.py $(MODULES:%=%.v.d) | dot -Tpdf -o ../deps.pdf
+
+toplevel: coq
+	coqtop.opt $(ARGS)
