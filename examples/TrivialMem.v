@@ -19,17 +19,5 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  vcgen. 
-  Focus 7.
-  sep.
-  Print Ltac SEP.reflect_sexpr.
-  sep_canceler ltac:(isConst) (@Provers.transitivityEqProverRec) the_cancel_simplifier tt.
-  Print Ltac sep_canceler.
-  chan
-  sep_canceler.
-  Print Ltac ho.
-  ho.
-
-  sep.
-  
+  vcgen; sep.  
 Qed.

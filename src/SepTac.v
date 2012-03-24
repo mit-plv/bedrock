@@ -136,6 +136,7 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       SEP.reflect_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
         apply (@ApplyCancelSep (SymIL.bedrock_ext typesV) pures funcs 
           (prover _ funcs) sfuncs L R proofs) ;
+        unfold typesV, types_extV ;        
         simplifier ;  try reflexivity )))))
   end.
 
