@@ -1,6 +1,10 @@
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
 Require Import Memory SepIL SymIL SepTac.
+Require Import Provers.
+
+Set Implicit Arguments.
+Set Strict Implicit.
 
 Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   Module Import SEP := P.SEP.
@@ -27,20 +31,19 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
     Variable funcs : functions types.
 
-    (** TODO: maybe this should be like unification? 
-     ** - in that case the substitution is an effect and needs to be
-     **   threaded through the computation (monadically?)
-     **)
-    Definition expr_equal (hyps : list (expr types)) (tv : tvar) (a b : expr types) : bool :=
+    Variable EqProver : EqProverT funcs.
+
+    Definition expr_equal (summary : eq_summary EqProver) (tv : tvar) (a b : expr types) : bool :=
       match seq_dec a b with
         | Some _ => true
-        | None => false
+        | None => eq_prove _ summary a b 
       end.
+    
     Theorem expr_equal_correct : 
-      forall (hyps : list (expr types)) (tv : tvar) (a b : expr types),
-        expr_equal hyps tv a b = true ->
+      forall (sum : eq_summary EqProver) (tv : tvar) (a b : expr types),
+        expr_equal sum tv a b = true ->
         forall uvars vars,
-          AllProvable funcs uvars vars hyps ->
+          eq_valid EqProver uvars vars sum ->
           match exprD funcs uvars vars a tv , exprD funcs uvars vars b tv with 
             | Some l , Some r => l = r
             | _ , _ => True
@@ -48,17 +51,30 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     Proof.
       unfold expr_equal. intros. destruct (seq_dec a b); subst.
       destruct (exprD funcs uvars vars0 b tv); auto.
-      congruence.
-    Qed.
+      generalize (eq_prove_correct (uvars := uvars) (vars := vars0) EqProver sum H0). intro.
+      case_eq (exprD funcs uvars vars0 a tv); auto.
+      case_eq (exprD funcs uvars vars0 b tv); auto. intros.
+      unfold ValidExp in *. apply H1 in H; eauto. clear H1.
+      destruct H.
+      cutrewrite (x = tv) in H.
+      rewrite H2 in *. rewrite H3 in *. auto.
 
-  Definition sym_read_word_ptsto32 (hyps args : list (expr types)) (p : expr types) 
+      revert H0.
+      case_eq (exprD funcs uvars vars0 a x); intros; try contradiction.
+      assert (exprD funcs uvars vars0 a x <> None) by congruence.
+      assert (exprD funcs uvars vars0 a tv <> None) by congruence.
+      eapply exprD_det; eauto.
+      rewrite H0 in *. contradiction.
+    Qed.      
+
+  Definition sym_read_word_ptsto32 (hyps : eq_summary EqProver) (args : list (expr types)) (p : expr types) 
     : option (expr types) :=
     match args with
       | p' :: v' :: nil => 
         if expr_equal hyps (tvType ptrIndex) p p' then Some v' else None
       | _ => None
     end.
-  Definition sym_write_word_ptsto32 (hyps args : list (expr types)) (p v : expr types)
+  Definition sym_write_word_ptsto32 (hyps : eq_summary EqProver) (args : list (expr types)) (p v : expr types)
     : option (list (expr types)) :=
     match args with
       | p' :: v' :: nil =>
@@ -97,7 +113,7 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
   Lemma sym_read_ptsto32_correct : forall args uvars vars cs hyps pe p ve m stn,
     sym_read_word_ptsto32 hyps args pe = Some ve ->
-    AllProvable funcs uvars vars hyps ->
+    eq_valid EqProver uvars vars hyps ->
     exprD funcs uvars vars pe (tvType ptrIndex) = Some p ->
     match 
       applyD (exprD funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
@@ -126,7 +142,7 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
 
   Lemma sym_write_word_ptsto32_correct : forall args uvars vars cs hyps pe p ve v m stn args',
     sym_write_word_ptsto32 hyps args pe ve = Some args' ->
-    AllProvable funcs uvars vars hyps ->
+    eq_valid EqProver uvars vars hyps ->
     exprD funcs uvars vars pe (tvType ptrIndex) = Some p ->
     exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
     match
@@ -146,13 +162,15 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
         end
     end.
   Proof.
-    simpl; intros; expose; try congruence.
+    simpl; intros; expose.
 
     unfold ST.satisfies in *. PropXTac.propxFo. 
-    case_eq (smem_set_word (IL.explode stn) t v m).
+    case_eq (smem_set_word (IL.explode stn) p v m).
     intros. unfold ptsto32. PropXTac.propxFo.
     eapply smem_set_get_word_eq; eauto.
     eapply IL.implode_explode.
+    eapply expr_equal_correct in H; eauto.
+    rewrite H1 in H. rewrite H3 in H. subst.
     eapply smem_set_get_valid_word; eauto.
   Qed.  
 
@@ -160,7 +178,7 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     (tvType ptrIndex) (tvType wordIndex)
     SepTac.smem_read
     SepTac.smem_write
-    funcs ptsto32_ssig.
+    funcs (eq_summary EqProver) (eq_valid EqProver) ptsto32_ssig.
   eapply P.Build_SymEval.
   eapply sym_read_ptsto32_correct.
   eapply sym_write_word_ptsto32_correct.

@@ -5,7 +5,7 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	PropX PropXRel PropXTac \
 	Memory \
 	XCAP Structured StructuredModule Linker Programming \
-	EqdepClass DepList Reflect \
+	EqdepClass Decidables DepList Reflect \
 	Heaps SepTheoryX \
 	NatMap Expr ExprUnify \
 	Provers \

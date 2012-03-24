@@ -71,10 +71,10 @@ Section Unify.
    **)
 
   Section fold_left2_opt.
-    Variable T U : Type.
-    Variable F : T -> T -> U -> option U.
+    Variable T U V : Type.
+    Variable F : T -> V -> U -> option U.
 
-    Fixpoint fold_left_2_opt (ls ls' : list T) (acc : U) : option U :=
+    Fixpoint fold_left_2_opt (ls : list T) (ls' : list V) (acc : U) : option U :=
       match ls, ls' with 
         | nil , nil => Some acc
         | x :: xs , y :: ys => 

@@ -8,74 +8,87 @@ Set Implicit Arguments.
 Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 Section ProverT.
+  (** TODO: This should probably go in Expr **)
   Variable types : list type.
   Variable fs : functions types.
 
-  Definition ValidProp (e : expr types) := exists v, exprD fs nil nil e tvProp = Some v.
-  Definition ValidExp (e : expr types) := exists t, exists v, exprD fs nil nil e t = Some v.
+  Definition ValidProp uvars vars (e : expr types) := exists v, exprD fs uvars vars e tvProp = Some v.
+  Definition ValidExp uvars vars (e : expr types) := exists t, exists v, exprD fs uvars vars e t = Some v.
 
-  Lemma Provable_ValidProp : forall goal, Provable fs nil nil goal
-    -> ValidProp goal.
+  Lemma Provable_ValidProp : forall uvars vars goal, Provable fs uvars vars goal
+    -> ValidProp uvars vars goal.
     unfold Provable, ValidProp in *; intros;
       repeat match goal with
                | [ _ : match ?E with None => _ | Some _ => _ end |- _ ] =>
                  destruct E
              end; intuition eauto.
   Qed.
+End ProverT.
 
   (** Provers that establish [expr]-encoded facts *)
 
-  Definition ProverCorrect (summary : Type)
+Definition ProverCorrect types fs (summary : Type)
     (** Some prover work only needs to be done once per set of hypotheses,
        so we do it once and save the outcome in a summary of this type. *)
-    (summarize : list (expr types) -> summary)
-    (prover : summary -> expr types -> bool) :=
-    forall hyps goal, prover (summarize hyps) goal = true ->
-      ValidProp goal ->
-      AllProvable fs nil nil hyps ->
-      Provable fs nil nil goal.
+  (valid : env types -> env types -> summary -> Prop)
+  (prover : summary -> expr types -> bool) :=
+  forall vars uvars sum,
+    valid uvars vars sum ->
+    forall goal, 
+      prover sum goal = true ->
+      ValidProp fs uvars vars goal ->
+      Provable fs uvars vars goal.
 
-  Record ProverT : Type :=
-  {
-    summary : Type;
-    summarize : list (expr types) -> summary;
-    prove : forall (hyps : summary) (goal : expr types), bool;
-    prove_correct : ProverCorrect summarize prove
-  }.
+Record ProverT : Type :=
+{ known_types : list (nat * type) ;
+  known_funcs : forall typs, list (nat * signature (Env.repr known_types typs)) ;
 
-  (** Provers that establish equalities between [expr]-encoded terms *)
+  summary : list type -> Type ;
+  valid : forall typs (fs : functions (Env.repr known_types typs)),
+    env (Env.repr known_types typs) -> env (Env.repr known_types typs) -> summary typs -> Prop ;
+  summarize : forall typs, list (expr (Env.repr known_types typs)) -> summary typs ;
+  learn : forall typs, summary typs -> list (expr (Env.repr known_types typs)) -> summary typs ;
+  prove : forall typs (hyps : summary typs) (goal : expr (Env.repr known_types typs)), bool ;
+  summarize_correct : forall typs fs uvars vars hyps,
+    AllProvable fs uvars vars hyps ->
+    valid fs uvars vars (summarize typs hyps) ;
+  learn_correct : forall typs fs uvars vars sum,
+    valid fs uvars vars sum -> forall hyps,
+    AllProvable (Env.repr (known_funcs typs) fs) uvars vars hyps ->
+    valid fs uvars vars (learn sum hyps) ;
+  prove_correct : forall typs fs, ProverCorrect (Env.repr (known_funcs typs) fs) (valid fs) (@prove typs)
+}.
 
-  Definition EqProverCorrect (summary : Type)
-    (summarize : list (expr types) -> summary)
-    (prover : summary -> expr types -> expr types -> bool) :=
-    forall hyps e1 e2, prover (summarize hyps) e1 e2 = true ->
-      ValidExp e1 ->
-      ValidExp e2 ->
-      AllProvable fs nil nil hyps ->
-      exists t, match exprD fs nil nil e1 t, exprD fs nil nil e2 t with
-                  | Some v1, Some v2 => v1 = v2
-                  | _, _ => False
-                end.
+Definition proverTypes (p : ProverT) : list type -> list type :=
+  Env.repr (known_types p).
+Definition proverFuncs (p : ProverT) (typs : list type) : functions (proverTypes p typs) -> functions (proverTypes p typs) :=
+  Env.repr (known_funcs p typs).
 
-  Record EqProverT : Type :=
-  {
-    eq_summary : Type;
-    eq_summarize : list (expr types) -> eq_summary;
-    eq_prove : forall (hyps : eq_summary) (e1 e2 : expr types), bool;
-    eq_prove_correct : EqProverCorrect eq_summarize eq_prove
-  }.
+(** TODO : this should go in Env.v **)
+Fixpoint repr_compatible T (l r : list (nat * T)) : Prop :=
+  match l with 
+    | nil => True
+    | (n, v) :: l =>
+      v = match Env.get n r with
+            | None => v 
+            | Some v' => v'
+          end
+      /\ repr_compatible l r
+  end.
 
-End ProverT.
+Definition compatibleProverT (l r : ProverT) : Prop :=
+  exists compat : repr_compatible (known_types l) (known_types r), True.
+(* TODO: I need to justify this using the compatibility proof    
+  /\ (forall typs, repr_compatible (known_funcs l typs) (known_funcs r typs)).
+*)
 
-Definition nat_seq_dec : forall a b : nat, option (a = b) := seq_dec. 
-
-Lemma eq_nat_dec_correct : forall n, eq_nat_dec n n = left eq_refl.
+Lemma eq_nat_dec_correct : forall (n : nat), eq_nat_dec n n = left eq_refl.
   induction n; provers.
 Qed.
 Hint Rewrite eq_nat_dec_correct : provers.
 
-Lemma nat_seq_dec_correct : forall n, nat_seq_dec n n = Some eq_refl.
-  unfold nat_seq_dec, seq_dec. provers.
+Lemma nat_seq_dec_correct : forall (n : nat), seq_dec n n = Some eq_refl.
+  unfold seq_dec. provers.
 Qed.
 Hint Rewrite nat_seq_dec_correct : provers.
 
@@ -105,12 +118,13 @@ Ltac t1 := match goal with
                               | None => _
                               | Some _ => _
                             end] ] => destruct E
-             | [ |- context[if ?E then _ else _] ] => destruct E
+             | [ |- context[if ?E then _ else _] ] => 
+               case_eq E; intro
              | [ |- context[match ?E with
                               | nil => _
                               | _ :: _ => _
                             end] ] => destruct E
-
+             | [ H : _ || _ = true |- _ ] => apply orb_true_iff in H; destruct H
              | [ _ : context[match ?E with
                                | Const _ _ => _
                                | Var _ => _
@@ -122,7 +136,8 @@ Ltac t1 := match goal with
                                | nil => _
                                | _ :: _ => _
                              end] |- _ ] => destruct E
-             | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
+             | [ H : context[if ?E then _ else _] |- _ ] => 
+               revert H; case_eq E; do 2 intro
              | [ _ : context[match ?E with
                                | left _ => _
                                | right _ => _
@@ -151,9 +166,11 @@ Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
 
-  Definition assumptionSummarize (hyps : list (expr types)) := hyps.
+  Definition assumption_summary : Type := list (expr types).
 
-  Fixpoint assumptionProver (hyps : list (expr types))
+  Definition assumptionSummarize (hyps : list (expr types)) : assumption_summary := hyps.
+
+  Fixpoint assumptionProver (hyps : assumption_summary)
     (goal : expr types) : bool :=
     match hyps with
       | nil => false
@@ -162,20 +179,51 @@ Section AssumptionProver.
         else assumptionProver b goal
     end.
 
-  Theorem assumptionProverCorrect : ProverCorrect fs assumptionSummarize assumptionProver.
-    t; induction hyps; t.
+  Definition assumptionLearn (sum : assumption_summary) (hyps : list (expr types)) : assumption_summary :=
+    sum ++ hyps.
+
+  Definition assumptionValid (uvars vars : env types) (sum : assumption_summary) : Prop :=
+    AllProvable fs uvars vars sum.
+
+  Lemma assumptionSummarizeCorrect : forall uvars vars hyps,
+    AllProvable fs uvars vars hyps ->
+    assumptionValid uvars vars (assumptionSummarize hyps).
+  Proof.
+    auto.
   Qed.
 
-  Definition assumptionProverRec := {|
-    summarize := assumptionSummarize;
-    prove := assumptionProver;
-    prove_correct := assumptionProverCorrect
-  |}.
+  Lemma assumptionLearnCorrect : forall uvars vars sum,
+    assumptionValid uvars vars sum -> forall hyps, 
+    AllProvable fs uvars vars hyps ->
+    assumptionValid uvars vars (assumptionLearn sum hyps).
+  Proof.
+    unfold assumptionLearn, assumptionValid. intuition.
+    apply AllProvable_app; auto.
+  Qed.
+
+  Theorem assumptionProverCorrect : ProverCorrect fs assumptionValid assumptionProver.
+    t; induction sum; t.
+  Qed.
 End AssumptionProver.
+
+Definition assumptionProverRec := 
+{| known_types := nil 
+ ; known_funcs := fun _ => nil
+ ; summary := fun typs => assumption_summary typs
+ ; valid := assumptionValid
+ ; summarize := assumptionSummarize
+ ; learn := assumptionLearn
+ ; prove := assumptionProver
+ ; summarize_correct := assumptionSummarizeCorrect
+ ; learn_correct := assumptionLearnCorrect
+ ; prove_correct := assumptionProverCorrect
+ |}.
 
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
+  
+  Definition reflexivityValid (fs : functions types) (_ _ : env types) (_ : unit) := True.
 
   Definition reflexivitySummarize (_ : list (expr types)) := tt.
 
@@ -185,20 +233,48 @@ Section ReflexivityProver.
       | _ => false
     end.
 
-  Theorem reflexivityProverCorrect : ProverCorrect fs reflexivitySummarize reflexivityProver.
-    unfold reflexivityProver; t.
+  Definition reflexivityLearn (sum : unit) (hyps : list (expr types)) := sum.
+
+  Lemma reflexivitySummarizeCorrect : forall uvars vars hyps,
+    AllProvable fs uvars vars hyps ->
+    reflexivityValid fs uvars vars (reflexivitySummarize hyps).
+  Proof.
+    unfold reflexivityValid; auto.
   Qed.
 
-  Definition reflexivityProverRec := {|
-    summarize := reflexivitySummarize;
-    prove := reflexivityProver;
-    prove_correct := reflexivityProverCorrect
-  |}.
-End ReflexivityProver.
+  Lemma reflexivityLearnCorrect : forall uvars vars sum,
+    reflexivityValid fs uvars vars sum -> forall hyps, 
+    AllProvable fs uvars vars hyps ->
+    reflexivityValid fs uvars vars (reflexivityLearn sum hyps).
+  Proof.
+    unfold reflexivityValid; auto.
+  Qed.
+
+  Theorem reflexivityProverCorrect : ProverCorrect fs (reflexivityValid fs) reflexivityProver.
+    unfold reflexivityProver; t.
+  Qed.
+End ReflexivityProver. 
+
+Definition reflexivityProverRec :=
+{| known_types := nil
+ ; known_funcs := fun _ => nil 
+ ; valid := @reflexivityValid
+ ; summarize := fun _ _ => tt
+ ; learn := fun _ sum _ => sum
+ ; prove := fun typs => @reflexivityProver _
+ ; summarize_correct := @reflexivitySummarizeCorrect
+ ; learn_correct := @reflexivityLearnCorrect
+ ; prove_correct := @reflexivityProverCorrect
+ |}.
+
+
+
 
 (* Algorithm for grouping expressions by equalities. Terribly inefficient... *)
 Section Grouper.
   Variable A : Type.
+  Variable A_seq : A -> A -> bool.
+(*
   Variable R : A -> A -> Prop.
   (* An arbitrary partial equivalence relation *)
 
@@ -207,29 +283,24 @@ Section Grouper.
 
   Variable A_seq_dec : forall (x y : A), option (R x y).
 
+
   Fixpoint InR (x : A) (ls : list A) : Prop :=
     match ls with
       | nil => False
       | y :: ls' => R y x \/ InR x ls'
     end.
+*)
 
-  Fixpoint in_seq_dec (ls : list A) (a : A) : option (InR a ls) :=
+  Fixpoint in_seq (ls : list A) (a : A) : bool :=
     match ls with
-      | nil => None
-      | x :: ls' =>
-        match A_seq_dec x a with
-          | None => match in_seq_dec ls' a with
-                      | None => None
-                      | Some pf => Some (or_intror _ pf)
-                    end
-          | Some pf => Some (or_introl _ pf)
-        end
+      | nil => false
+      | x :: ls' => A_seq x a || in_seq ls' a
     end.
 
   Fixpoint groupWith (grps : list (list A)) (g : list A) (a : A) :=
     match grps with
       | nil => [a :: g]
-      | g' :: grps' => if in_seq_dec g' a
+      | g' :: grps' => if in_seq g' a
                          then (g' ++ a :: g) :: grps'
                          else g' :: groupWith grps' g a
     end.
@@ -237,9 +308,9 @@ Section Grouper.
   Fixpoint addEquality (ls : list (list A)) (a : A) (b : A) : list (list A) :=
     match ls with
       | nil => [[a, b]] (* matched nothing *)
-      | grp :: ls' => if in_seq_dec grp a
+      | grp :: ls' => if in_seq grp a
                         then groupWith ls' grp b
-                        else if in_seq_dec grp b
+                        else if in_seq grp b
                                then groupWith ls' grp a
                                else grp :: addEquality ls' a b
     end.
@@ -247,12 +318,25 @@ Section Grouper.
   Fixpoint inSameGroup (grps : list (list A)) (a : A) (b : A) :=
     match grps with
       | nil => false
-      | g :: grps' => if in_seq_dec g a
-        then
-          if in_seq_dec g b
+      | g :: grps' => 
+        if in_seq g a then
+          if in_seq g b
             then true
             else inSameGroup grps' a b
         else inSameGroup grps' a b
+    end.
+
+  Variable R : A -> A -> Prop.
+  (* An arbitrary partial equivalence relation *)
+
+  Hypothesis Rsym : forall x y, R x y -> R y x.
+  Hypothesis Rtrans : forall x y z, R x y -> R y z -> R x z.
+  Hypothesis A_seq_correct : forall x y, A_seq x y = true -> R x y.
+
+  Fixpoint InR (x : A) (ls : list A) : Prop :=
+    match ls with
+      | nil => False
+      | y :: ls' => R y x \/ InR x ls'
     end.
 
   Definition groupEqualTo (a : A) := Forall (R a).
@@ -306,11 +390,20 @@ Section Grouper.
 
   Hint Extern 1 (Forall _ _) => progress hnf.
 
+  Lemma in_seq_correct : forall (a : A) (ls : list A),
+    in_seq ls a = true -> InR a ls.
+  Proof.
+    induction ls; t.
+  Qed.
+
+  Hint Resolve in_seq_correct A_seq_correct.
+
   Lemma groupWith_sound : forall x xs grps,
     Forall groupEqual grps
     -> Forall (R x) xs
     -> Forall groupEqual (groupWith grps xs x).
-    induction 1; t; eauto 7.
+    induction 1; t. eauto 10. 
+      apply in_seq_correct in H3. eauto 7.
   Qed.
 
   Hint Resolve groupWith_sound.
@@ -319,51 +412,61 @@ Section Grouper.
     groupsEqual grps
     -> R x y
     -> groupsEqual (addEquality grps x y).
-    induction 1; t; eauto 7.
+    induction 1; t; 
+      match goal with
+        | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
+      end; eauto 7. 
   Qed.
 
   Theorem inSameGroup_sound : forall grps, groupsEqual grps
     -> forall x y, inSameGroup grps x y = true
       -> R x y.
-    induction 1; t.
+    induction 1; t;
+      repeat match goal with
+        | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
+      end; eauto 7. 
   Qed.
 End Grouper.
 
 Section TransitivityProver.
   Variable types : list type.
   Variable fs : functions types.
+  Section with_vars.
+  Variables uvars vars : env types.
+
+  Definition transitivity_summary : Type := list (list (expr types)).
 
   Definition eqD (e1 e2 : expr types) : Prop :=
-    match typeof fs nil nil e1 with
+    match typeof fs uvars vars e1 with
       | None => False
       | Some t =>
-        match exprD fs nil nil e1 t, exprD fs nil nil e2 t with
+        match exprD fs uvars vars e1 t, exprD fs uvars vars e2 t with
           | Some v1, Some v2 => v1 = v2
           | _, _ => False
         end
     end.
 
   Theorem eqD_refl : forall e1 e2, e1 = e2
-    -> forall t, typeof fs nil nil e1 = Some t
-      -> forall v, exprD fs nil nil e1 t = Some v
+    -> forall t, typeof fs uvars vars e1 = Some t
+      -> forall v, exprD fs uvars vars e1 t = Some v
         -> eqD e1 e2.
     t.
   Qed.
 
-    Lemma nth_error_nil : forall T n,
-      nth_error (@nil T) n = None.
-    Proof.
-      destruct n; simpl; auto.
-    Qed.
+  Lemma nth_error_nil : forall T n,
+    nth_error (@nil T) n = None.
+  Proof.
+    destruct n; simpl; auto.
+  Qed.
 
   Theorem eqD_refl_wt : forall e1 e2, e1 = e2 ->
-    match well_typed fs nil nil e1 return Type with
+    match well_typed fs uvars vars e1 return Type with
       | None => True 
       | Some t => eqD e1 e2
     end.
   Proof.
     intros; subst.
-    case_eq (well_typed fs nil nil e2); intros; auto.
+    case_eq (well_typed fs uvars vars e2); intros; auto.
     generalize is_well_typed_typeof.
     generalize well_typed_is_well_typed. intros.
     generalize H. apply H0 in H.
@@ -374,8 +477,15 @@ Section TransitivityProver.
     eapply eqD_refl; eauto.
   Qed.
 
+  Definition eqD_seq (e1 e2 : expr types) : bool :=
+    match expr_seq_dec e1 e2 with
+      | Some pf2 => true
+      | None => false
+    end.
+
+(*
   Definition eqD_seq (e1 e2 : expr types) : option (eqD e1 e2) :=
-    match well_typed fs nil nil e1 as v return (_ = v -> _) with
+    match well_typed fs uvars vars e1 as v return (_ = v -> _) with
       | None => fun _ => None
       | Some _ => fun pff => 
         match expr_seq_dec e1 e2 with
@@ -389,6 +499,7 @@ Section TransitivityProver.
           | None => None
         end
     end (refl_equal _).
+*)
 
   Fixpoint groupsOf (hyps : list (expr types)) : list (list (expr types)) :=
     match hyps with
@@ -396,18 +507,18 @@ Section TransitivityProver.
       | h :: hyps' =>
         let grps := groupsOf hyps' in
           match h with
-            | Equal t x y => addEquality eqD eqD_seq grps x y
+            | Equal t x y => addEquality eqD_seq grps x y
             | _ => grps
           end
     end.
 
-  Definition transitivityEqProver (groups : list (list (expr types)))
-    (x y : expr types) := inSameGroup eqD eqD_seq groups x y.
+  Definition transitivityEqProver (groups : transitivity_summary)
+    (x y : expr types) := inSameGroup eqD_seq groups x y.
 
-  Definition transitivityProver (groups : list (list (expr types)))
+  Definition transitivityProver (groups : transitivity_summary)
     (goal : expr types) :=
     match goal with
-      | Equal _ x y => inSameGroup eqD eqD_seq groups x y
+      | Equal _ x y => inSameGroup eqD_seq groups x y
       | _ => false
     end.
 
@@ -441,12 +552,12 @@ Section TransitivityProver.
     induction e; t.
   Qed.
 
-  Ltac foundTypeof E := generalize (exprD_principal nil nil E); destruct (typeof fs nil nil E); intuition.
+  Ltac foundTypeof E := generalize (exprD_principal uvars vars E); destruct (typeof fs uvars vars E); intuition.
 
   Ltac foundDup E T1 T2 := match T1 with
                              | T2 => fail 1
                              | _ =>
-                               assert (T1 = T2) by (apply (exprD_det nil nil E);
+                               assert (T1 = T2) by (apply (exprD_det uvars vars E);
                                  try match goal with
                                        | [ H : _ |- _ ] => solve [ intro; apply H with T1; t ]
                                      end); subst
@@ -454,10 +565,10 @@ Section TransitivityProver.
 
   Ltac eqD1 :=
     match goal with
-      | [ _ : context[typeof fs nil nil ?E] |- _ ] => foundTypeof E
-      | [ |- context[typeof fs nil nil ?E] ] => foundTypeof E
-      | [ _ : context[exprD fs nil nil ?E ?T1] |- context[exprD fs nil nil ?E ?T2] ] => foundDup E T1 T2
-      | [ _ : context[exprD fs nil nil ?E ?T1], _ : context[exprD fs nil nil ?E ?T2] |- _ ] => foundDup E T1 T2
+      | [ _ : context[typeof fs uvars vars ?E] |- _ ] => foundTypeof E
+      | [ |- context[typeof fs uvars vars ?E] ] => foundTypeof E
+      | [ _ : context[exprD fs uvars vars ?E ?T1] |- context[exprD fs uvars vars ?E ?T2] ] => foundDup E T1 T2
+      | [ _ : context[exprD fs uvars vars ?E ?T1], _ : context[exprD fs uvars vars ?E ?T2] |- _ ] => foundDup E T1 T2
       | [ x : tvar, H1 : forall y : tvar, _ |- False ] => apply H1 with x; t
     end.
 
@@ -474,23 +585,65 @@ Section TransitivityProver.
   Hint Immediate eqD_sym eqD_trans.
 
   Theorem groupsOf_sound : forall hyps,
-    AllProvable fs nil nil hyps
+    AllProvable fs uvars vars hyps
     -> groupsEqual eqD (groupsOf hyps).
-    induction hyps; repeat ((apply addEquality_sound; eauto; simpl in *; eqD) || t1).
+    induction hyps. intuition. simpl in *. constructor.
+
+    intro. simpl in H. destruct H.
+    specialize (IHhyps H0).
+
+    t1.
+    destruct a; auto.
+    revert H; case_eq (exprD fs uvars vars (Equal t a1 a2) tvProp); intros; try contradiction.
+    simpl in *. apply addEquality_sound; eauto.
+    
+    Focus 2.
+    Lemma exprD_typeof : forall a1 t D,
+      exprD fs uvars vars a1 t = Some D ->
+      typeof fs uvars vars a1 = Some t.
+    Proof.
+      intros.
+      assert (exprD fs uvars vars a1 t <> None); try congruence.
+      apply exprD_principal in H0.
+      destruct (typeof fs uvars vars a1); try contradiction.
+      f_equal.
+      eapply exprD_det in H0. symmetry; eassumption. congruence.
+    Qed.
+    revert H.
+    unfold eqD.
+    case_eq (exprD fs uvars vars a1 t); try congruence; intros.
+    rewrite (exprD_typeof _ _ H). rewrite H. destruct (exprD fs uvars vars a2 t); try congruence.
+    inversion H2. subst; auto.
+    admit. (** TODO : this isn't true in general, but the fact that everything is provable makes it true **)
+  Qed.
+  End with_vars.
+
+  Definition transitivityValid (uvars vars : env types) (sum : transitivity_summary) : Prop :=
+    (forall ls, In ls sum -> forall e, In e ls -> ValidExp fs uvars vars e) ->
+    groupsEqual (eqD uvars vars) sum.
+
+  Definition transitivitySummarize := groupsOf.
+
+  (** TODO: fix this **)
+  Definition transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) := sum.
+
+  Theorem transitivitySummarizeCorrect : forall uvars vars hyps,
+    AllProvable fs uvars vars hyps ->
+    transitivityValid uvars vars (transitivitySummarize hyps).
+  Proof.
+  Admitted.
+
+  Theorem transitivityLearnCorrect : forall uvars vars sum,
+    transitivityValid uvars vars sum -> forall hyps,
+    AllProvable fs uvars vars hyps ->
+    transitivityValid uvars vars (transitivityLearn sum hyps).
+  Proof.
+    intuition.
   Qed.
 
-  Theorem transitivityEqProverCorrect : EqProverCorrect fs groupsOf transitivityEqProver.
-    unfold transitivityEqProver; hnf; simpl in *; intros;
-      match goal with
-        | [ H1 : _, H2 : _ |- _ ] =>
-          apply (inSameGroup_sound eqD_sym eqD_trans eqD_seq
-            (groupsOf_sound _ H1)) in H2
-      end; hnf in *; simpl in *;
-      generalize (exprD_principal nil nil e1); destruct (typeof fs nil nil e1);
-        eauto; contradiction.
-  Qed.
-
-  Theorem transitivityProverCorrect : ProverCorrect fs groupsOf transitivityProver.
+  Theorem transitivityProverCorrect : ProverCorrect fs transitivityValid transitivityProver.
+    admit. 
+(*
     unfold transitivityProver; hnf; intros;
       destruct goal; try discriminate;
         match goal with
@@ -498,15 +651,20 @@ Section TransitivityProver.
             apply (inSameGroup_sound eqD_sym eqD_trans eqD_seq
               (groupsOf_sound _ H1)) in H2
         end; hnf in *; simpl in *; eqD.
+*)
   Qed.
-
-  Definition transitivityProverRec := {|
-    prove := transitivityProver;
-    prove_correct := transitivityProverCorrect
-  |}.
-
-  Definition transitivityEqProverRec := {|
-    eq_prove := transitivityEqProver;
-    eq_prove_correct := transitivityEqProverCorrect
-  |}.
 End TransitivityProver.
+
+Definition transitivityProverRec :=
+{| known_types := nil 
+ ; known_funcs := fun _ => nil
+ ; summary := fun typs => transitivity_summary typs
+ ; valid := transitivityValid
+ ; summarize := transitivitySummarize
+ ; learn := transitivityLearn
+ ; prove := transitivityProver
+ ; summarize_correct := transitivitySummarizeCorrect
+ ; learn_correct := transitivityLearnCorrect
+ ; prove_correct := transitivityProverCorrect
+ |}.
+

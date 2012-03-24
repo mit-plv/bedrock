@@ -232,6 +232,8 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
       
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState), Type.
 
   Parameter sym_read : forall
@@ -247,9 +249,11 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
     
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState), 
-    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate -> 
-    forall (hyps args : list (expr types)) (p : expr types),
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Facts Valid Predicate -> 
+    forall (hyps : Facts) (args : list (expr types)) (p : expr types),
       option (expr types).
 
   Parameter sym_read_correct : forall
@@ -265,11 +269,13 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
     
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState)
-    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate), 
+    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Facts Valid Predicate), 
     forall args uvars vars cs hyps pe p ve m stn,
       sym_read se hyps args pe = Some ve ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -296,9 +302,11 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
     
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState), 
-    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate ->
-    forall (hyps args : list (expr types)) (p v : expr types),
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Facts Valid Predicate ->
+    forall (hyps : Facts) (args : list (expr types)) (p v : expr types),
       option (list (expr types)).
   
   Parameter sym_write_correct : forall
@@ -314,11 +322,13 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
     
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState)
-    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate),
+    (se : @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Facts Valid Predicate),
     forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write se hyps args pe ve = Some args' ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
@@ -351,15 +361,17 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       -> ST.HT.smem -> option ST.HT.smem)
     
     (funcs : functions types)
+    (Facts : Type)
+    (Valid : env types -> env types -> Facts -> Prop)
     (Predicate : ssignature types tvPc tvState)
     
-    (sym_read : forall (hyps args : list (expr types)) (p : expr types),
+    (sym_read : forall (hyps : Facts) (args : list (expr types)) (p : expr types),
       option (expr types))
-    (sym_write : forall (hyps args : list (expr types)) (p v : expr types),
+    (sym_write : forall (hyps : Facts) (args : list (expr types)) (p v : expr types),
       option (list (expr types)))
     (sym_read_correct : forall args uvars vars cs hyps pe p ve m stn,
       sym_read hyps args pe = Some ve ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -374,7 +386,7 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end)
     (sym_write_correct : forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write hyps args pe ve = Some args' ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
@@ -393,7 +405,7 @@ Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             | Some sm' => ST.satisfies cs pr stn sm'
           end
       end),
-    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Predicate.
+    @SymEval types tvState tvPc tvPtr tvVal smem_get_value smem_set_value funcs Facts Valid Predicate.
 
 End EvaluatorPluginType.
 
@@ -414,17 +426,19 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) <: Evaluato
       -> ST.HT.smem -> option ST.HT.smem.
     
     Variable funcs : functions types.
+    Variable Facts : Type.
+    Variable Valid : env types -> env types -> Facts -> Prop.
 
     Class SymEval' (Predicate : ssignature types tvPc tvState) : Type :=
     { sym_read  : 
-      forall (hyps args : list (expr types)) (p : expr types),
+      forall (hyps : Facts) (args : list (expr types)) (p : expr types),
       option (expr types)
     ; sym_write : 
-      forall (hyps args : list (expr types)) (p v : expr types),
+      forall (hyps : Facts) (args : list (expr types)) (p v : expr types),
       option (list (expr types))
     ; sym_read_correct : forall args uvars vars cs hyps pe p ve m stn,
       sym_read hyps args pe = Some ve ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       match 
         applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
@@ -439,7 +453,7 @@ Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) <: Evaluato
       end
     ; sym_write_correct : forall args uvars vars cs hyps pe p ve v m stn args',
       sym_write hyps args pe ve = Some args' ->
-      AllProvable funcs uvars vars hyps ->
+      Valid uvars vars hyps ->
       exprD funcs uvars vars pe tvPtr = Some p ->
       exprD funcs uvars vars ve tvVal = Some v ->
       match
