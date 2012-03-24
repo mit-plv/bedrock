@@ -217,16 +217,20 @@ Module BedrockEvaluator.
              end; auto.
     Qed.
 
+    Variable Facts : Type.
+    Variable learnFacts : Facts -> list (expr types) -> Facts.
+
     (** Symbolic State **)
     Record SymState : Type :=
     { SymMem   : SEP.SHeap types pcT stT
     ; SymRegs  : SymRegType
     ; SymPures : list (expr types)
+    ; SymFacts : Facts
     }.
 
-    Variable symeval_read_word : list (expr types) -> expr types -> SEP.SHeap types pcT stT 
+    Variable symeval_read_word : Facts -> expr types -> SEP.SHeap types pcT stT 
       -> option (expr types).
-    Variable symeval_write_word : list (expr types) -> expr types -> expr types -> SEP.SHeap types pcT stT 
+    Variable symeval_write_word : Facts -> expr types -> expr types -> SEP.SHeap types pcT stT 
       -> option (SEP.SHeap types pcT stT).
     
     (** This has to be connected to the type of the intermediate representation **)
@@ -240,12 +244,15 @@ Module BedrockEvaluator.
     Definition sym_evalLval (lv : sym_lvalue types) (val : expr types) (ss : SymState) : option SymState :=
       match lv with
         | SymLvReg r =>
-          Some {| SymMem := SymMem ss ; SymRegs := sym_setReg r val (SymRegs ss) ; SymPures := SymPures ss |}
+          Some {| SymMem := SymMem ss 
+                ; SymRegs := sym_setReg r val (SymRegs ss)
+                ; SymPures := SymPures ss
+                ; SymFacts := SymFacts ss |}
         | SymLvMem l => 
           let l := sym_evalLoc l ss in
-            match symeval_write_word (pures (SymMem ss)) l val (SymMem ss) with
+            match symeval_write_word (SymFacts ss) l val (SymMem ss) with
               | Some m =>
-                Some {| SymMem := m ; SymRegs := SymRegs ss ; SymPures := SymPures ss |}
+                Some {| SymMem := m ; SymRegs := SymRegs ss ; SymPures := SymPures ss ; SymFacts := SymFacts ss |}
               | None => None
             end
       end.
@@ -256,7 +263,7 @@ Module BedrockEvaluator.
           Some (sym_getReg r (SymRegs ss))
         | SymRvLval (SymLvMem l) =>
           let l := sym_evalLoc l ss in
-            symeval_read_word (pures (SymMem ss)) l (SymMem ss)
+          symeval_read_word (SymFacts ss) l (SymMem ss)
         | SymRvImm w => Some w 
         | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
         (* an alternative would be to reflect these as a function call that does the positioning...
@@ -321,7 +328,14 @@ Module BedrockEvaluator.
             | SymAssertCond l t r (Some res) =>
               match sym_assertTest l t r ss res with
                 | Some sp => 
-                  sym_evalStream is {| SymRegs := SymRegs ss ; SymMem := SymMem ss ; SymPures := sp :: SymPures ss |}
+                  let ss' :=
+                    {| SymRegs := SymRegs ss 
+                     ; SymMem := SymMem ss
+                     ; SymPures := sp :: SymPures ss
+                     ; SymFacts := learnFacts (SymFacts ss) (sp :: nil)
+                     |}
+                  in
+                  sym_evalStream is ss'
                 | None => inr (ss, inr asrt :: is)
               end
             | SymAssertCond l t r None =>
@@ -614,15 +628,21 @@ Module BedrockEvaluator.
 
   Section correctness.
     Record Correctness
-      (symeval_read_word : forall typs, list (expr (bedrock_types ++ typs)) -> expr (bedrock_types ++ typs) ->
+      (Facts : Type)
+      (Learn : forall typs, Facts -> list (expr (bedrock_types ++ typs)) -> Facts)
+      (symeval_read_word : forall typs, Facts -> expr (bedrock_types ++ typs) ->
         SEP.SHeap (bedrock_types ++ typs) pcT stT -> option (expr (bedrock_types ++ typs))) 
-      (symeval_write_word : forall typs, list (expr (bedrock_types ++ typs)) -> expr (bedrock_types ++ typs) -> expr (bedrock_types ++ typs) ->
+      (symeval_write_word : forall typs, Facts -> expr (bedrock_types ++ typs) -> expr (bedrock_types ++ typs) ->
         SEP.SHeap (bedrock_types ++ typs) pcT stT -> 
         option (SEP.SHeap (bedrock_types ++ typs) pcT stT))
       : Type :=
     { TypeImage : list (nat * type)
     ; FuncImage : forall typs, list (nat * signature (bedrock_types ++ Env.repr TypeImage typs))
-    ; PredImage : forall typs, list (nat * SEP.ssignature (bedrock_types ++ Env.repr TypeImage typs) pcT stT) 
+    ; PredImage : forall typs, list (nat * SEP.ssignature (bedrock_types ++ Env.repr TypeImage typs) pcT stT)
+    ; Valid : forall types_ext, 
+      env (bedrock_types ++ Env.repr TypeImage types_ext) ->
+      env (bedrock_types ++ Env.repr TypeImage types_ext) ->
+      Facts -> Prop
     ; ReadCorrect :
       forall types_ext,
         let types_ext' := Env.repr TypeImage types_ext in
@@ -633,7 +653,7 @@ Module BedrockEvaluator.
           forall hyps pe ve SH,
             symeval_read_word types_ext' hyps pe SH = Some ve ->
             forall uvars vars cs p m stn,
-            AllProvable funcs uvars vars hyps ->
+            Valid _ uvars vars hyps ->
             exprD funcs uvars vars pe tvWord = Some p ->
             PropX.interp cs (![ SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD SH) ] (stn, m)) ->
             match exprD funcs uvars vars ve tvWord with
@@ -650,7 +670,7 @@ Module BedrockEvaluator.
           let sfuncs := Env.repr (PredImage types_ext) sfuncs_ext in
           forall uvars vars cs hyps pe ve m stn SH SH',
             symeval_write_word types_ext' hyps pe ve SH = Some SH' ->
-            AllProvable funcs uvars vars hyps ->
+            Valid _ uvars vars hyps ->
             forall p v,
             exprD funcs uvars vars pe tvWord = Some p ->
             exprD funcs uvars vars ve tvWord = Some v ->
@@ -662,8 +682,8 @@ Module BedrockEvaluator.
             end
     }.
 
-    Theorem sym_eval_any symeval_read_word symeval_write_word 
-      (C : Correctness symeval_read_word symeval_write_word) :
+    Theorem sym_eval_any F L symeval_read_word symeval_write_word 
+      (C : @Correctness F L symeval_read_word symeval_write_word) :
       forall types_ext,
         let types' := Env.repr (TypeImage C) types_ext in
         let types := bedrock_types ++ types' in
@@ -674,7 +694,7 @@ Module BedrockEvaluator.
         evalPath funcs uvars vars stn p st sound_or_safe ->
         forall cs ss,
         stateD funcs uvars vars sfuncs cs stn st ss ->
-        let res := sym_evalStream (symeval_read_word _) (symeval_write_word _) p ss in
+        let res := @sym_evalStream _ F (L _) (symeval_read_word _) (symeval_write_word _) p ss in
         match sound_or_safe with
           | None =>
             (** safe **)
@@ -775,24 +795,28 @@ Proof.
   generalize (@SEP.hash_denote _ funcs0 pcT stT sfuncs cs SF uvars vars).
 Admitted.
 
-Theorem stateD_proof
-     : forall (types' : list Expr.type)
-         (funcs : Expr.functions (types types'))
-         (uvars vars : Expr.env (types types'))
-         (sfuncs : SEP.sfunctions (types types') pcT stT) 
-         (st : state) (sp rv rp : Expr.expr (types types')),
-       Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-       Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-       Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-       forall pures : list (Expr.expr (types types')),
-       Expr.AllProvable funcs uvars vars pures ->
-       forall (sh : SEP.sexpr (types types') pcT stT)
-         (hashed : SEP.SHeap (types types') pcT stT),
-       SEP.hash sh = (nil, hashed) ->
-       forall (cs : codeSpec W (settings * state)) (stn : settings),
-       interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-       stateD funcs uvars vars sfuncs cs stn st
-         {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures |}.
+Require Import Provers.
+
+Theorem stateD_proof : forall (types' : list Expr.type)
+  (funcs : Expr.functions (types types'))
+  (P : EqProverT funcs)
+  (uvars vars : Expr.env (types types'))
+  (sfuncs : SEP.sfunctions (types types') pcT stT) 
+  (st : state) (sp rv rp : Expr.expr (types types')),
+  Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+  Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+  Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+  forall pures : list (Expr.expr (types types')),
+    Expr.AllProvable funcs uvars vars pures ->
+    forall (sh : SEP.sexpr (types types') pcT stT)
+      (hashed : SEP.SHeap (types types') pcT stT),
+      SEP.hash sh = (nil, hashed) ->
+      forall (cs : codeSpec W (settings * state)) (stn : settings),
+        interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+        stateD funcs uvars vars sfuncs cs stn st
+        {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures
+         ; SymFacts := eq_summarize P pures
+         |}.
 Proof.
   unfold stateD. intros.
   rewrite H. rewrite H1. rewrite H0.
@@ -800,8 +824,7 @@ Proof.
   eapply hash_interp; eauto.
 Qed.
 
-
-Theorem sym_eval_any_raw : forall
+Theorem sym_eval_any_raw : forall F L
   (symeval_read_word : forall typs : list Expr.type,
     list (Expr.expr (bedrock_types ++ typs)) ->
     Expr.expr (bedrock_types ++ typs) ->
@@ -817,7 +840,7 @@ Theorem sym_eval_any_raw : forall
     option
     (SEP.SHeap (bedrock_types ++ typs) pcT
       stT))
-  (C : Correctness symeval_read_word symeval_write_word)
+  (C : Correctness F L symeval_read_word symeval_write_word)
   (types_ext : list Expr.type),
   let types' := Env.repr (TypeImage C) types_ext in
     let types := (bedrock_types ++ types')%list in
@@ -827,7 +850,7 @@ Theorem sym_eval_any_raw : forall
           (bedrock_funcs types' ++
             Env.repr (FuncImage C types_ext) funcs_ext)%list in
           let sfuncs := Env.repr (PredImage C types_ext) sfuncs_ext in
-            forall (uvars vars : Expr.env types)
+            forall (P : EqProverT funcs) (uvars vars : Expr.env types)
               (sound_or_safe : option state) (stn : settings) (st : state)
               (p : list (sym_instr types + sym_assert types)),
               evalPath funcs uvars vars stn p st sound_or_safe ->
@@ -1163,68 +1186,6 @@ Qed.
                           apply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
                           clear path ;
                           (simplifier H' || fail 1000000 "simplifier failed!") ;
-(*
-                          (unfolder H' || fail 1000000 "unfolder failed!") ;
-                          cbv beta iota zeta delta
-                            [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
-                              sym_setReg sym_getReg
-                              SepExpr.pures SepExpr.impures SepExpr.other
-                              SymMem SymRegs SymPures
-                              SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
-                              Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
-                              app map nth_error value error fold_right
-                              DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
-                              SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
-                              Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
-                              EquivDec.equiv_dec EquivDec.nat_eq_eqdec
-                              f_equal 
-                              bedrock_funcs bedrock_types pcT stT tvWord
-                              fst snd
-                              FuncImage PredImage TypeImage
-                              Env.repr Env.updateAt SEP.substV
-
-                              (* remove [stateD] *)
-                              stateD Expr.exprD 
-                              Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
-                              SEP.sheapD SEP.starred SEP.sexprD
-                              Expr.AllProvable
-                              Expr.Provable
-                              EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
-                              Logic.eq_sym eq_sym f_equal
-                              eq_rec_r eq_rect eq_rec
-                              nat_rec nat_rect
-                              sumbool_rec sumbool_rect
-                              Expr.tvarD types
-
-                              SEP.himp SEP.sexprD Expr.Impl 
-                              Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation 
-                              Expr.lookupAs
-                              tvTest
-                              SepExpr.SDenotation SepExpr.SDomain
-                              EquivDec.nat_eq_eqdec  
-                              tvWord SEP.sheapD SEP.sepCancel
-                              SepExpr.impures SepExpr.pures SepExpr.other
-                              SEP.star_SHeap SEP.unify_remove_all 
-                              SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
-                              Expr.tvarD Expr.Eq
-
-                              SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
-                              bedrock_types 
-                                
-                              Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
-                              SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-                              ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
-                              fold_right value error map nth_error app                                       
-                              pcT stT 
-                              EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
-                              ExprUnify.get_Eq
-                              types
-                              Provers.transitivityProverRec Provers.transitivityEqProver Provers.inSameGroup
-                              Provers.in_seq_dec
-                              Provers.eqD Provers.eqD_seq
-                              Expr.typeof comparator
-                            ] in H' ; 
-*)
                           subst typesV; subst types_extV ;
                           (try assumption ||
                            destruct H' as [ [ ? [ ? ? ] ] [ ? ? ] ])
@@ -1243,7 +1204,8 @@ Qed.
         SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
         Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
         app map nth_error value error fold_right
-        DepList.hlist_hd DepList.hlist_tl DepList.seq_dec 
+        Decidables.seq_dec 
+        DepList.hlist_hd DepList.hlist_tl 
         SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
         Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
         EquivDec.equiv_dec EquivDec.nat_eq_eqdec
@@ -1290,8 +1252,8 @@ Qed.
         ExprUnify.get_Eq
         types
         Provers.transitivityProverRec Provers.transitivityEqProver Provers.inSameGroup
-        Provers.in_seq_dec
-        Provers.eqD Provers.eqD_seq
+        Provers.in_seq orb
+        (*Provers.eqD*) Provers.eqD_seq
         Expr.typeof comparator
       ] in H.
 

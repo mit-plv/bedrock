@@ -165,6 +165,20 @@ Section MapRepr.
       end.
   End get.
 
+  Fixpoint repr_compatible (l r : list (nat * T)) : Prop :=
+    match l with 
+      | nil => True
+      | (n, v) :: l =>
+        v = match get n r with
+              | None => v 
+              | Some v' => v'
+            end
+        /\ repr_compatible l r
+    end.
+
+  Fixpoint repr_combine (l r : list (nat * T)) : list (nat * T) :=
+    l ++ r.
+
   (** This is probably not necessary **)
   Theorem repr_get : forall r ls n v,
     get n r = Some v ->

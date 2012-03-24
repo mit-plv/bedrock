@@ -149,14 +149,14 @@ Ltac cancel_simplifier :=
         Provers.inSameGroup Provers.eqD Provers.eqD_seq Provers.transitivityEqProver
         Provers.groupsOf
         Provers.addEquality
-        Provers.in_seq_dec
+        Provers.in_seq orb
         Expr.typeof 
         Expr.expr_seq_dec
         Expr.tvarD
         Expr.tvar_val_sdec 
         Provers.groupWith
         Expr.Range Expr.Domain Expr.Denotation
-        Expr.well_typed 
+(*      Expr.well_typed  *)
         Expr.all2
 
         SEP.forallEach

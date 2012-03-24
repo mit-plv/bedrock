@@ -56,7 +56,7 @@ Ltac the_cancel_simplifier :=
       ExprUnify.get_Eq
       Expr.Eq
       EquivDec.nat_eq_eqdec
-      Provers.inSameGroup Provers.eqD Provers.eqD_seq Provers.transitivityEqProver
+      Provers.inSameGroup Provers.eqD_seq Provers.transitivityEqProver
       Provers.groupsOf
       Provers.addEquality
       Provers.in_seq_dec
