@@ -82,26 +82,61 @@ Ltac change_to_himp :=
     eapply (@interp_interp_himp _ _ _ _ H)
   end.
 
-Ltac sep_canceler isConst prover simplifier types' :=
+Ltac sep_canceler isConst prover simplifier Ts :=
   (try change_to_himp) ;
   match goal with 
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-      let types := eval unfold SymIL.bedrock_types in SymIL.bedrock_types in
-      let types :=
-        match types' with
-          | tt => types
-          | _ => constr:(types ++ types')
+      let all_props := Expr.collect_props ltac:(fun _ => true) in
+      let pures := Expr.props_types all_props in
+      let L := eval unfold starB exB hvarB in L in
+      let R := eval unfold starB exB hvarB in R in
+      (** collect types **)
+      let Ts := 
+        match Ts with
+          | tt => constr:(@nil Type) 
+          | _ => Ts
         end
       in
-      let goals := constr:(L :: R :: nil) in
-      let goals := eval unfold starB exB hvarB in goals in
-      SEP.reflect_sexprs pcT stateT ltac:(isConst) types tt tt goals ltac:(fun props proofs types pcT stT funcs sfuncs v =>
-        match v with
-          | ?L :: ?R :: nil =>
-            apply (@ApplyCancelSep (SymIL.bedrock_ext types) props funcs (Provers.transitivityEqProverRec funcs) sfuncs L R proofs)
-        end ; simplifier ;  try reflexivity)
+      let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
+      SEP.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
+      SEP.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
+      (** check for potential universe inconsistencies **)
+      match Ts with
+        | context [ PropX.PropX ] => 
+          fail 1000 "found PropX in types list"
+            "(this causes universe inconsistencies)"
+        | context [ PropX.spec ] => 
+          fail 1000 "found PropX in types list"
+            "(this causes universe inconsistencies)"
+        | _ => idtac
+      end ;
+      (** elaborate the types **)
+      let types_ := eval unfold bedrock_types in bedrock_types in
+      let types_ := Expr.extend_all_types Ts types_ in
+      let typesV := fresh "types" in
+      pose (typesV := types_);
+      let types_ext := eval simpl in (bedrock_ext types_) in
+      let types_extV := fresh "types_ext" in
+      pose (types_extV := types_ext);
+      (** build the variables **)
+      let uvars := eval simpl in (@nil _ : Expr.env typesV) in
+      let vars := eval simpl in (@nil _ : Expr.env typesV) in
+      (** build the funcs **)
+      let funcs := eval unfold SymIL.BedrockEvaluator.bedrock_funcs in (SymIL.BedrockEvaluator.bedrock_funcs types_extV) in
+      let funcs := eval simpl in funcs in
+      let pcT := constr:(SymIL.BedrockEvaluator.pcT) in
+      let stT := constr:(SymIL.BedrockEvaluator.stT) in
+      (** build the base sfunctions **)
+      let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
+      Expr.reflect_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+        let proofs := Expr.props_proof all_props in
+      SEP.reflect_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
+      SEP.reflect_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
+        apply (@ApplyCancelSep (SymIL.bedrock_ext typesV) pures funcs 
+          (prover _ funcs) sfuncs L R proofs) ;
+        simplifier ;  try reflexivity )))))
   end.
 
 Ltac cancel_simplifier :=

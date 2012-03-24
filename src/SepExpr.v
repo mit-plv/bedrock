@@ -972,8 +972,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           getAllSFunctions pcT stT types sfuncs fr ltac:(fun sfuncs _ => sfuncs))
     end.
 
-  (** reflect sexprs. simultaneously gather the funcs and sfuncs
-   ** k is called with the functions, separation logic predicats and the reflected
+  (** reflect sexprs. simultaneously gather the unification variables, funcs and sfuncs
+   ** k is called with the unification variables, functions, separation logic predicats and the reflected
    ** sexpr.
    **)
   Ltac reflect_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
@@ -985,82 +985,88 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | fun _ => ?s =>
           reflect s funcs sfuncs uvars vars k
         | fun x : VarType ?T => @ST.star _ _ _ (@?L x) (@?R x) =>
-          reflect L funcs sfuncs uvars vars ltac:(fun funcs sfuncs L =>
-            reflect R funcs sfuncs uvars vars ltac:(fun funcs sfuncs R => 
+          reflect L funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
+            reflect R funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs R => 
               let r := constr:(@Star) in
               let r := implicits r in
               let r := constr:(r L R) in
-              k funcs sfuncs r))
+              k uvars funcs sfuncs r))
         | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B y x) =>
           let v := constr:(fun x : VarType (T' * T) => 
             B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T' in
           let vars' := constr:(nv :: vars) in
-          reflect v funcs sfuncs uvars vars' ltac:(fun funcs sfuncs B =>
+          reflect v funcs sfuncs uvars vars' ltac:(fun uvars funcs sfuncs B =>
             let r := constr:(@Exists) in
             let r := implicits r in
             let r := constr:(@r nv B) in
-            k funcs sfuncs r)
+            k uvars funcs sfuncs r)
         | @ST.emp _ _ _ => 
           let r := constr:(@Emp) in
           let r := implicits r in
-          k funcs sfuncs r
+          k uvars funcs sfuncs r
 
         | @ST.inj _ _ _ (PropX.Inj ?P) =>
-          reflect_expr isConst P types funcs uvars vars ltac:(fun funcs P =>
+          reflect_expr isConst P types funcs uvars vars ltac:(fun uvars funcs P =>
             let r := constr:(@Inj) in
             let r := implicits r in
             let r := constr:(r P) in
-            k funcs sfuncs r)
+            k uvars funcs sfuncs r)
         | @ST.inj _ _ _ ?PX =>
           let r := constr:(@Const) in
           let r := implicits r in
           let r := constr:(r PX) in
-          k funcs sfuncs r
+          k uvars funcs sfuncs r
         | @ST.star _ _ _ ?L ?R =>
-          reflect L funcs sfuncs uvars vars ltac:(fun funcs sfuncs L => 
-            reflect R funcs sfuncs uvars vars ltac:(fun funcs sfuncs R => 
+          reflect L funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs L => 
+            reflect R funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs R => 
               let r := constr:(@Star) in
               let r := implicits r in
               let r := constr:(r L R) in
-              k funcs sfuncs r))
+              k uvars funcs sfuncs r))
         | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
           let v := constr:(fun x : VarType (T * unit) => B (@openUp _ T (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T in
           let vars' := constr:(nv :: vars) in
-          reflect v funcs sfuncs uvars vars' ltac:(fun funcs sfuncs B =>
+          reflect v funcs sfuncs uvars vars' ltac:(fun uvars funcs sfuncs B =>
             let r := constr:(@Exists) in
             let r := implicits r in
             let r := constr:(@r nv B) in
-            k funcs sfuncs r)
+            k uvars funcs sfuncs r)
         | ?X =>
-          let rec bt_args args funcs k :=
+          let rec bt_args args uvars funcs k :=
             match args with
               | tt => 
                 let v := constr:(@nil (@expr types)) in
-                k funcs v
+                k uvars funcs v
               | (?a,?b) =>
-                reflect_expr isConst a types funcs uvars vars ltac:(fun funcs a =>
-                  bt_args b funcs ltac:(fun funcs b => 
+                reflect_expr isConst a types funcs uvars vars ltac:(fun uvars funcs a =>
+                  bt_args b uvars funcs ltac:(fun uvars funcs b => 
                   let v := constr:(@cons (@expr types) a b) in
-                  k funcs v))
+                  k uvars funcs v))
             end
           in
           let cc f Ts As :=
             getSFunction pcType stateType types f sfuncs ltac:(fun sfuncs F =>
-            bt_args As funcs ltac:(fun funcs args =>
+            bt_args As uvars funcs ltac:(fun uvars funcs args =>
             let r := constr:(@Func) in
             let r := implicits r in
             let r := constr:(@r F args) in
-            k funcs sfuncs r))
+            k uvars funcs sfuncs r))
           in
           refl_app cc X
       end
     in
     reflect s funcs sfuncs uvars vars k.
 
+(*
+Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
+*)
+
+
+(*
   (** reflect the list of goals. 
    ** - pcT and stT are raw types that are the pc type and state
    **   type of the goals.
@@ -1072,6 +1078,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    ** - the list of reflected types
    ** - the tvar corresponding to the pc type
    ** - the tvar corresponding to the state type
+   ** - the environment of coq existentials
    ** - the list of reflected functions
    ** - the list of reflected separation logic predicates
    ** - the list of reflected sexpr.
@@ -1099,30 +1106,31 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | _ => sfuncs
       end
     in
-    let vs := constr:(@nil tvar) in
-    let us := constr:(@nil tvar) in
-    reflect_props ltac:(fun _ => true) isConst types funcs us vs ltac:(fun funcs props proofs =>
-      let rec reflect_all ls funcs sfuncs k :=
+    let vars := constr:(@nil tvar) in
+    let uvars := constr:(@nil tvar) in
+    reflect_props ltac:(fun _ => true) isConst types funcs uvars vars ltac:(fun uvars funcs props proofs =>
+      let rec reflect_all ls uvars funcs sfuncs k :=
         match ls with
           | nil => 
             let r := constr:(@nil (@sexpr types pcTyp stTyp)) in
-              k types pcTyp stTyp funcs sfuncs r
+              k types pcTyp stTyp uvars funcs sfuncs r
           | ?e :: ?es =>
-            reflect_sexpr isConst e typesV funcs pcTyp stTyp sfuncs us vs ltac:(fun funcs sfuncs e =>
-              reflect_all es funcs sfuncs ltac:(fun types pcType stTyp funcs sfuncs es =>
+            reflect_sexpr isConst e typesV funcs pcTyp stTyp sfuncs uvars vars ltac:(fun uvars funcs sfuncs e =>
+              reflect_all es uvars funcs sfuncs ltac:(fun types pcType stTyp uvars funcs sfuncs es =>
                 let es := constr:(e :: es) in
-                  k types pcType stTyp funcs sfuncs es)) 
+                  k types pcType stTyp uvars funcs sfuncs es)) 
         end
       in
       let k' := k props proofs in
       match type of funcs with
         | list (signature types) =>
-          reflect_all goals funcs sfuncs k'
+          reflect_all goals uvars funcs sfuncs k'
         | ?X =>
           let funcs := lift_signatures funcs types in
             let sfuncs := lift_ssignatures sfuncs types in
-              reflect_all goals funcs sfuncs k'
+              reflect_all goals uvars funcs sfuncs k'
       end).
+*)
 
 
   Lemma change_ST_himp_himp : forall (types : list type)
@@ -1139,6 +1147,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     unfold himp. intros. auto.
   Qed.
 
+(*
   Ltac reflect_goal isConst types k :=
     let types :=
       match types with
@@ -1156,6 +1165,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     k props proofs
             end)
     end.
+*)
   
   (** Base simplifier.  For now, copy all this and add your own extra entries to cover prover reductions. *)
   Ltac simplifier :=
@@ -1177,11 +1187,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       nat_eq_eqdec
       eq_summary eq_summarize eq_prove
    ].
-
+(*
   Ltac sep isConst proverR simplifier types := 
     reflect_goal isConst types ltac:(fun props proofs =>
       apply ApplyCancelSep with (hyps := props) (prover := proverR _ _);
         [ exact proofs
           | simplifier; intros; hnf; simpl in * ]).
+*)
 
 End SepExpr.
