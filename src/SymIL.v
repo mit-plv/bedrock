@@ -267,6 +267,14 @@ Module BedrockEvaluator.
 
     Definition sym_assertTest (r : sym_rvalue types) (t : test) (l : sym_rvalue types) (ss : SymState) (res : bool) 
       : option (expr types) :=
+      let '(l, t, r) := if res
+        then (l, t, r)
+        else match t with
+               | IL.Eq => (l, IL.Ne, r)
+               | IL.Ne => (l, IL.Eq, r)
+               | IL.Lt => (r, IL.Le, l)
+               | IL.Le => (r, IL.Lt, l)
+             end in
       match sym_evalRval l ss , sym_evalRval r ss with
         | Some l , Some r =>
           Some (Expr.Func 3 (Expr.Const (types := types) (t := tvTest) t :: l :: r :: nil))
@@ -1238,6 +1246,8 @@ Qed.
         Provers.in_seq_dec
         Provers.eqD Provers.eqD_seq
         Expr.typeof comparator
+
+        fPlus fMinus fMult
       ] in H.
 
   Implicit Arguments evalPath [ types' ].

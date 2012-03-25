@@ -297,7 +297,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            UVars := exsQ;
            Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>
-           exists_subst funcs' alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
+           exists_subst funcs' nil alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
              forall cs, ST.himp cs (sexprD funcs' sfuncs' nil alls (sheapD (Heap sP)))
                (sexprD funcs' sfuncs' exsQ nil (sheapD (Heap sQ))))))
         -> forall cs, ST.himp cs (sexprD funcs' sfuncs' nil nil P) (sexprD funcs' sfuncs' nil nil Q).

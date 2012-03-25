@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := Baby Factorial AutoSep TrivialMem Indir
+MODULES := AutoSep Baby TrivialMem Indir Factorial
 
 VS      := $(MODULES:%=%.v)
 

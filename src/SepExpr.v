@@ -246,28 +246,39 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Section exists_subst.
       Variable U1 : env types.
       
-      Fixpoint exists_subst (U : list (tvar * option (expr types))) 
+      Fixpoint exists_subst (CU : env types) (* Unification variables corresponding to genuine Coq existentials *)
+        (U : list (tvar * option (expr types)))
         : (env types -> Prop) -> Prop :=
         match U as U with
           | nil => fun cc => cc nil
           | (t,v) :: r => fun cc =>
             match v with
               | None => 
-                exists v : tvarD types t, exists_subst r (fun z => cc (existT _ t v :: z))
+                exists v : tvarD types t, exists_subst (match CU with
+                                                          | nil => nil
+                                                          | _ :: CU' => CU'
+                                                        end) r (fun z => cc (existT _ t v :: z))
               | Some v => 
-                match exprD funcs nil U1 v t with
+                match exprD funcs CU U1 v t with
                   | None => False
-                  | Some v =>
-                    exists_subst r (fun z => cc (existT _ t v :: z))
+                  | Some v1 =>
+                    match CU with
+                      | nil => exists_subst nil r (fun z => cc (existT _ t v1 :: z))
+                      | existT t' v' :: CU' =>
+                        match exprD funcs CU U1 v t' with
+                          | None => False
+                          | Some v'' => v' = v'' /\ exists_subst CU' r (fun z => cc (existT _ t v1 :: z))
+                        end
+                    end
                 end
             end
         end.
 
     End exists_subst.
 
-    Lemma exists_subst_exists : forall A
+    Lemma exists_subst_exists : forall A CU
       (B : list (tvar * option (expr types))) P,
-      exists_subst A B P ->
+      exists_subst A CU B P ->
       exists C, P C.
     Admitted.
     (*Proof.
@@ -779,29 +790,29 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ls, rs).
 
     (** TODO: I should reconsider this... **)
-    Definition CancelSep : SProverT :=
+    Definition CancelSep types (uvars : env types) : SProverT :=
       fun hyps gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
-        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
+        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) (length uvars) rhs) in
         let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel hyps lhs rhs' in
         {| vars := ql ; 
            lhs := sheapD lhs' ; lhs_ex := nil ; 
-           rhs := sheapD rhs' ; rhs_ex := qr ; SUBST := rhs_subst
+           rhs := sheapD rhs' ; rhs_ex := map (@projT1 _ _) uvars ++ qr ; SUBST := rhs_subst
          |}.
 
-    Theorem ApplyCancelSep : forall cs hyps l r,
-      AllProvable funcs nil nil hyps ->
-      match CancelSep hyps l r with
+    Theorem ApplyCancelSep : forall cs uvars hyps l r,
+      AllProvable funcs uvars nil hyps ->
+      match CancelSep uvars hyps l r with
         | Prove vars lhs_ex lhs rhs_ex rhs SUBST =>
           forallEach vars (fun VS : env types =>
-            exists_subst VS (env_of_Subst SUBST rhs_ex 0)
+            exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
             (fun rhs_ex : env types => 
               himp nil rhs_ex VS cs lhs rhs))
       end ->
-      himp nil nil nil cs l r.
+      himp nil uvars nil cs l r.
     Proof.
-      clear. intros. case_eq (CancelSep hyps l r); intros.
+      clear. intros. case_eq (CancelSep uvars hyps l r); intros.
       rewrite H1 in H0.
     Admitted.
 
@@ -952,10 +963,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let F := reflect_sfunction pcT stT types f in
           let sfuncs := eval simpl app in (sfuncs ++ (F :: nil)) in
           k sfuncs acc
-        | ?F :: ?FS =>
-          match unifies (SDenotation F) f with
-            | true => k sfuncs acc 
-            | false => 
+        | SSig _ _ _ ?F :: ?FS =>
+          match F with
+            | f => k sfuncs acc 
+            | _ => 
               let acc := constr:(S acc) in
               lookup FS acc
           end

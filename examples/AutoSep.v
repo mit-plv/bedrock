@@ -16,7 +16,7 @@ Ltac unfolder H :=
 
 Ltac the_cancel_simplifier :=
   cbv beta iota zeta delta 
-    [ SepTac.SEP.CancelSep
+    [ SepTac.SEP.CancelSep projT1
       SepTac.SEP.hash SepTac.SEP.hash' SepTac.SEP.sepCancel
 
       SepExpr.FM.fold
@@ -39,6 +39,7 @@ Ltac the_cancel_simplifier :=
       SepTac.SEP.exists_subst ExprUnify.env_of_Subst
 
       SepTac.SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
+      SepExpr.SDomain SepExpr.SDenotation
 
       SepTac.SEP.unify_remove_all SepTac.SEP.unify_remove
 
@@ -46,9 +47,9 @@ Ltac the_cancel_simplifier :=
       ExprUnify.fold_left_2_opt
       Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
 
-      ExprUnify.exprUnify SepTac.SEP.substV length
+      ExprUnify.exprUnify SepTac.SEP.substV length ExprUnify.Subst_lookup ExprUnify.Subst_replace
       Expr.liftExpr Expr.exprSubstU
-      Peano_dec.eq_nat_dec EquivDec.equiv_dec 
+      Peano_dec.eq_nat_dec EquivDec.equiv_dec
       Expr.EqDec_tvar
       Expr.tvar_rec Expr.tvar_rect
       sumbool_rec sumbool_rect
@@ -75,18 +76,28 @@ Ltac the_cancel_simplifier :=
       SepTac.SEP.starred SepTac.SEP.himp
       Expr.Impl
 
-      Expr.is_well_typed 
+      Expr.is_well_typed Expr.exprD Expr.applyD
+
+      tvWord
     ].
 
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
-Ltac sep := 
-  sym_eval ltac:isConst idtac unfolder (CORRECTNESS ptsto_evaluator) tt tt tt;
-  repeat (ho;
-    match goal with
-      | [ |- interp _ (![ _ ] _) ] =>
-        sep_canceler ltac:(isConst) (@Provers.transitivityEqProverRec) the_cancel_simplifier tt
-      | _ => autorewrite with sepFormula; unfold substH; simpl; try congruence
-    end).
+Ltac evaluate := sym_eval ltac:isConst idtac unfolder (CORRECTNESS ptsto_evaluator) tt tt tt.
+
+Ltac cancel := sep_canceler ltac:(isConst) (@Provers.transitivityEqProverRec) the_cancel_simplifier tt.
+
+Ltac unf := unfold substH.
+Ltac reduce := Programming.reduce unf.
+Ltac ho := Programming.ho unf; reduce.
+Ltac step := match goal with
+               | [ |- _ _ = Some _ ] => solve [ eauto ]
+               | [ |- interp _ (![ _ ] _) ] => cancel
+               | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel
+               | _ => ho
+             end.
+Ltac descend := Programming.descend; reduce.
+
+Ltac sep := evaluate; descend; repeat (step; descend).
