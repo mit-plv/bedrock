@@ -274,6 +274,14 @@ Module BedrockEvaluator.
 
     Definition sym_assertTest (r : sym_rvalue types) (t : test) (l : sym_rvalue types) (ss : SymState) (res : bool) 
       : option (expr types) :=
+      let '(l, t, r) := if res
+        then (l, t, r)
+        else match t with
+               | IL.Eq => (l, IL.Ne, r)
+               | IL.Ne => (l, IL.Eq, r)
+               | IL.Lt => (r, IL.Le, l)
+               | IL.Le => (r, IL.Lt, l)
+             end in
       match sym_evalRval l ss , sym_evalRval r ss with
         | Some l , Some r =>
           Some (Expr.Func 3 (Expr.Const (types := types) (t := tvTest) t :: l :: r :: nil))
@@ -903,13 +911,15 @@ Qed.
     end.
   Ltac reflect_loc isConst l types funcs uvars vars k :=
     match l with
-      | Reg ?r => constr:(@SymReg types r)
+      | Reg ?r => 
+        let res := constr:(@SymReg types r) in
+        k uvars funcs res
       | Imm ?i =>
-        reflect_expr isConst i types funcs uvars vars ltac:(fun funcs i =>
-          let l := constr:(@SymImm types i) in k funcs l)
+        reflect_expr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>
+          let l := constr:(@SymImm types i) in k uvars funcs l)
       | Indir ?r ?i =>
-        reflect_expr isConst i types funcs uvars vars ltac:(fun funcs i =>
-          let l := constr:(@SymIndir types r i) in k funcs l)
+        reflect_expr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>
+          let l := constr:(@SymIndir types r i) in k uvars funcs l)
     end.
 
   Ltac collectTypes_lvalue isConst l Ts :=
@@ -919,10 +929,10 @@ Qed.
     end.
   Ltac reflect_lvalue isConst l types funcs uvars vars k :=
     match l with
-      | LvReg ?r => let l := constr:(@SymLvReg types r) in k funcs l 
+      | LvReg ?r => let l := constr:(@SymLvReg types r) in k uvars funcs l 
       | LvMem ?l => 
-        reflect_loc isConst l types funcs uvars vars ltac:(fun funcs l =>
-          let l := constr:(@SymLvMem types l) in k funcs l)
+        reflect_loc isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
+          let l := constr:(@SymLvMem types l) in k uvars funcs l)
     end.
 
   Ltac collectTypes_rvalue isConst r Ts :=
@@ -935,13 +945,13 @@ Qed.
   Ltac reflect_rvalue isConst r types funcs uvars vars k :=
     match r with
       | RvLval ?l =>
-        reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
-          let l := constr:(@SymRvLval types l) in k funcs l)
+        reflect_lvalue isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
+          let l := constr:(@SymRvLval types l) in k uvars funcs l)
       | RvImm ?i =>
-        reflect_expr isConst i types funcs uvars vars ltac:(fun funcs i =>
-          let l := constr:(@SymRvImm types i) in k funcs l)
+        reflect_expr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>
+          let l := constr:(@SymRvImm types i) in k uvars funcs l)
       | RvLabel ?l => 
-        let r := constr:(@SymRvLabel types l) in k funcs r
+        let r := constr:(@SymRvLabel types l) in k uvars funcs r
     end.
 
   Ltac collectTypes_instr isConst i Ts :=
@@ -957,14 +967,14 @@ Qed.
   Ltac reflect_instr isConst i types funcs uvars vars k :=
     match i with
       | Assign ?l ?r =>
-        reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
-        reflect_rvalue isConst r types funcs uvars vars ltac:(fun funcs r =>
-          let res := constr:(@SymAssign types l r) in k funcs res))
+        reflect_lvalue isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
+        reflect_rvalue isConst r types funcs uvars vars ltac:(fun uvars funcs r =>
+          let res := constr:(@SymAssign types l r) in k uvars funcs res))
       | Binop ?l ?r1 ?o ?r2 =>
-        reflect_lvalue isConst l types funcs uvars vars ltac:(fun funcs l =>
-        reflect_rvalue isConst r1 types funcs uvars vars ltac:(fun funcs r1 =>
-        reflect_rvalue isConst r2 types funcs uvars vars ltac:(fun funcs r2 =>
-          let res := constr:(@SymBinop types l r1 o r2) in k funcs res)))
+        reflect_lvalue isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
+        reflect_rvalue isConst r1 types funcs uvars vars ltac:(fun uvars funcs r1 =>
+        reflect_rvalue isConst r2 types funcs uvars vars ltac:(fun uvars funcs r2 =>
+          let res := constr:(@SymBinop types l r1 o r2) in k uvars funcs res)))
     end.
 
   Ltac collectTypes_instrs isConst is Ts :=
@@ -977,11 +987,11 @@ Qed.
   Ltac reflect_instrs isConst is types funcs uvars vars k :=
     match is with
       | nil => 
-        let is := constr:(@nil (sym_instr types)) in k funcs is
+        let is := constr:(@nil (sym_instr types)) in k uvars funcs is
       | ?i :: ?is =>
-        reflect_instr isConst i types funcs uvars vars ltac:(fun funcs i =>
-        reflect_instrs isConst is types funcs uvars vars ltac:(fun funcs is =>
-          let res := constr:(i :: is) in k funcs res))
+        reflect_instr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>
+        reflect_instrs isConst is types funcs uvars vars ltac:(fun uvars funcs is =>
+          let res := constr:(i :: is) in k uvars funcs res))
     end.
 
   Ltac isConst e :=
@@ -1110,14 +1120,18 @@ Qed.
                 match find_reg st Rv with
                   | (?rv_v, ?rv_pf) =>
                     let all_instrs := get_instrs st tt in
+                    let all_props := Expr.collect_props shouldReflect in
+                    let pures := Expr.props_types all_props in
+
                     let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
                     (** collect the raw types **)
                     let Ts := collectAllTypes_instrs all_instrs Ts in
-                    let Ts := Expr.collectAllTypes_expr ltac:(isConst) Ts regs in
+                    let Ts := Expr.collectTypes_exprs ltac:(isConst) regs Ts in
+                    let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
                     let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
                     let Ts := Expr.collectAllTypes_funcs Ts Fs in
                     let Ts := SEP.collectAllTypes_sfuncs Ts SFs in
-                    let Ts := Expr.collectAllTypes_props shouldReflect isConst Ts in
+(*                    let Ts := Expr.collectAllTypes_props shouldReflect isConst Ts in *)
                     (** check for potential universe problems **)
                     match Ts with
                       | context [ PropX.PropX ] => 
@@ -1147,38 +1161,39 @@ Qed.
                     let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
                     let sfuncs := SEP.getAllSFunctions pcT stT typesV sfuncs SFs in
                     (** reflect the expressions **)
-                    let rec build_path instrs last funcs k :=
+                    let rec build_path instrs last uvars funcs k :=
                       match instrs with
-                        | tt => k funcs last
+                        | tt => k uvars funcs last
                         | ((?i, ?H), ?is) =>
                           match type of H with
                             | Structured.evalCond ?l ?t ?r _ ?st = _ =>
-                              reflect_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun funcs' l =>
-                              reflect_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun funcs' r =>
+                              reflect_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun uvars funcs' l =>
+                              reflect_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun uvars funcs' r =>
                                 let funcs_ext := Reflect.extension funcs funcs' in
                                 eapply (@evalPath_cond_app types_extV funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
                                 cbv iota in H ;
                                 clear last ; 
-                                build_path is H funcs' k))
+                                build_path is H uvars funcs' k))
                             | evalInstrs _ ?st _ = _ =>
-                              reflect_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun funcs' sis =>
+                              reflect_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun uvars funcs' sis =>
                                 let funcs_ext := Reflect.extension funcs funcs' in
                                 eapply (@evalPath_instrs_app types_extV funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
                                 clear last ;
-                                build_path is H funcs' k)
+                                build_path is H uvars funcs' k)
                           end
                       end
                     in
-                    Expr.reflect_props shouldReflect ltac:(isConst) typesV funcs uvars vars ltac:(fun funcs pures proofs =>
-                    Expr.reflect_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun funcs rp_v =>
-                    Expr.reflect_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun funcs sp_v =>
-                    Expr.reflect_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun funcs rv_v =>
-                    SEP.reflect_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars ltac:(fun funcs sfuncs SF =>
+                    Expr.reflect_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+                    let proofs := Expr.props_proof all_props in
+                    Expr.reflect_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
+                    Expr.reflect_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
+                    Expr.reflect_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
+                    SEP.reflect_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs SF =>
                     generalize (@evalPath_nil types_extV funcs uvars vars stn st) ;
                     let starter := fresh in
                     intro starter ;
                     let funcs := eval simpl app in funcs in
-                    build_path all_instrs starter funcs ltac:(fun funcs path =>
+                    build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
                       match funcs with
                         | _ :: _ :: _ :: _ :: _ :: ?funcs_ext => idtac ;
                           apply (@stateD_proof types_ext funcs uvars vars sfuncs _ sp_v rv_v rp_v 
@@ -1255,6 +1270,8 @@ Qed.
         Provers.in_seq orb
         (*Provers.eqD*) Provers.eqD_seq
         Expr.typeof comparator
+
+        fPlus fMinus fMult
       ] in H.
 
   Implicit Arguments evalPath [ types' ].

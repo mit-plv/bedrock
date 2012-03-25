@@ -11,7 +11,7 @@ Definition read := bmodule "read" {{
     If (Rv = 0) {
       $[0] <- 0
     } else {
-      $[0] <- 0
+      $[0] <- $[0]
     } ;;
     Rv <- $[0];;
     Goto Rp
@@ -19,5 +19,5 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  vcgen; sep.
+  vcgen; sep.  
 Qed.
