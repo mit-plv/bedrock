@@ -168,7 +168,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                   funcs
                   (pcIndex := 0) (stateIndex := 1) ss
               end) nil)
-
+(*
     Goal forall p1 p2 p3 v1 v2 v3 cs stn m,
       Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v2) (ptsto32 p3 v3))) m
       -> mem_get_word B.addr B.mem B.footprint_w B.mem_get (IL.implode stn) p1 m = Some v1.
