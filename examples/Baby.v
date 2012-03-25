@@ -1,4 +1,4 @@
-Require Import Bedrock.
+Require Import AutoSep.
 
 (** The simplest function *)
 
@@ -11,7 +11,7 @@ Definition diverger := bmodule "diverger" {{
 Eval compute in compile diverger.
 
 Theorem divergerOk : moduleOk diverger.
-  structured.
+  vcgen.
 Qed.
 
 Print Assumptions divergerOk.
@@ -26,7 +26,7 @@ Definition asserter := bmodule "asserter" {{
 }}.
 
 Theorem asserterOk : moduleOk asserter.
-  structured.
+  vcgen.
 Abort.
 
 (** Immediate return *)
@@ -42,7 +42,7 @@ Definition immed := bmodule "immed" {{
 Eval compute in compile immed.
 
 Theorem immedOk : moduleOk immed.
-  structured; ho.
+  vcgen; descend; repeat step.
 Qed.
 
 Print Assumptions immedOk.
@@ -59,7 +59,7 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
 Eval compute in compile immedTest.
 
 Theorem immedTestOk : moduleOk immedTest.
-  structured; ho.
+  vcgen; descend; repeat step.
 Qed.
 
 Print Assumptions immedTestOk.
@@ -115,8 +115,10 @@ Definition always0 := bmodule "always0" {{
 Eval compute in compile always0.
 
 Theorem always0Ok : moduleOk always0.
-  structured; ho.
-Qed.
+(*  vcgen; sep.
+Qed.*)
+(* Missing [sep] support for no instructions *)
+Admitted.
 
 
 (** Stress testing [structured] performance *)
@@ -189,5 +191,8 @@ Definition stress := bmodule "stress" {{
 }}.
 
 Theorem stressOk : moduleOk stress.
-  structured.
-Qed.
+  vcgen.
+  (*sep.*)
+  (*Doesn't work*)
+(*Qed.*)
+Admitted.

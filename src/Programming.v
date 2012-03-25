@@ -254,16 +254,151 @@ Hint Extern 1 (?specs _ = Some _) =>
     | [ H : specs _ = Some _ |- _ ] => apply (specs_cong H); congruence
   end.
 
-Ltac ho := autorewrite with IL in *;
+Section PropX.
+  Variables pc state : Type.
+  Variable P : PropX pc state.
+  Variable specs : codeSpec pc state.
+
+  Open Scope PropX_scope.
+
+  Theorem injL : forall (p : Prop),
+    (p -> interp specs P)
+    -> interp specs ([| p |] ---> P).
+    intros.
+    apply Imply_I.
+    eapply Inj_E.
+    eauto.
+    auto.
+  Qed.
+
+  Theorem cptrL : forall i a,
+    (specs i = Some (fun x => a x) -> interp specs P)
+    -> interp specs (Cptr i a ---> P).
+    intros.
+    apply Imply_I.
+    eapply Cptr_E.
+    eauto.
+    eauto.
+  Qed.
+
+  Theorem andL : forall Q R,
+    interp specs (Q ---> (R ---> P))
+    -> interp specs (Q /\ R ---> P).
+    intros.
+    apply Imply_I.
+    eapply Imply_E.
+    eapply Imply_E.
+    eauto.
+    eapply And_E1.
+    eauto.
+    eapply And_E2.
+    eauto.
+  Qed.
+
+  Ltac hyp := eapply Env; simpl; eauto.
+  
+  Theorem existsL : forall A (p : A -> _),
+    (forall x, interp specs (p x ---> P))
+    -> interp specs ((Exists p) ---> P).
+    intros.
+    apply Imply_I.
+    eapply Exists_E.
+    eauto.
+    intros.
+    eapply Imply_E.
+    eauto.
+    hyp.
+  Qed.
+
+  Theorem injR : forall (p : Prop),
+    p
+    -> interp specs (P ---> [| p |]).
+    intros.
+    apply Imply_I.
+    eapply Inj_I.
+    auto.
+  Qed.
+
+  Theorem cptrR : forall i a,
+    specs i = Some (fun x => a x)
+    -> interp specs (P ---> Cptr i a).
+    intros.
+    apply Imply_I.
+    apply Cptr_I.
+    auto.
+  Qed.
+
+  Theorem andR : forall Q R,
+    interp specs (P ---> Q)
+    -> interp specs (P ---> R)
+    -> interp specs (P ---> Q /\ R).
+    intros.
+    apply Imply_I.
+    apply And_I.
+    eapply Imply_E.
+    eauto.
+    eauto.
+    eapply Imply_E.
+    eauto.
+    eauto.
+  Qed.
+
+  Theorem existsR : forall A (p : A -> _) x,
+    interp specs (P ---> p x)
+    -> interp specs (P ---> (Exists p)).
+    intros.
+    apply Imply_I.
+    apply Exists_I with x.
+    eapply Imply_E.
+    eauto.
+    eauto.
+  Qed.
+
+  Theorem swap : forall Q R,
+    interp specs (R ---> Q ---> P)
+    -> interp specs (Q ---> R ---> P).
+    intros.
+    do 2 apply Imply_I.
+    eapply Imply_E.
+    eapply Imply_E.
+    eauto.
+    eauto.
+    hyp.
+  Qed.
+End PropX.
+
+Ltac imply_simp' := match goal with
+                      | [ H : ex _ |- _ ] => destruct H
+                      | [ H : _ /\ _ |- _ ] => destruct H
+                      | [ |- interp _ (Inj _ ---> _) ] => apply injL; intro
+                      | [ |- interp _ (Cptr _ _ ---> _) ] => apply cptrL; intro
+                      | [ |- interp _ (And _ _ ---> _) ] => apply andL
+                      | [ |- interp _ (Exists _ ---> _) ] => apply existsL; intro
+                      | [ |- interp _ (_ ---> Inj _) ] => apply injR
+                      | [ |- interp _ (_ ---> Cptr _ _) ] => apply cptrR
+                      | [ |- interp _ (_ ---> And _ _) ] => apply andR
+                      | [ |- interp _ (_ ---> Exists _) ] => eapply existsR
+                    end.
+
+Ltac reduce unf := try (apply simplify_fwd'; simpl); autorewrite with sepFormula; unf; simpl; try congruence.
+
+Ltac imply_simp unf := (imply_simp' || (apply swap; imply_simp')); reduce unf.
+
+Ltac descend := autorewrite with IL in *;
   repeat match goal with
            | [ |- ex _ ] => eexists
            | [ |- _ /\ _ ] => split
-         end; eauto; cbv zeta; simpl; intros;
-  repeat match goal with
-           | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
-           | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
-           | [ |- interp _ _ ] => propxFo
-         end; autorewrite with IL in *.
+           | [ |- specs _ = _ ] => eassumption
+         end; cbv zeta; simpl; intros.
+
+Ltac ho unf :=
+  match goal with
+    | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
+    | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
+    | [ H : forall x, interp _ (_ ---> _ x) |- interp _ (_ ---> _ _) ] => intros; eapply Imply_trans; [ | apply H ]
+    | [ |- interp _ _ ] => progress propxFo
+    | [ |- interp _ (_ ---> _) ] => imply_simp unf; repeat imply_simp unf
+  end; autorewrite with IL in *.
 
 Ltac withLabel := eexists; split; [ compute; eauto | intros ].
 

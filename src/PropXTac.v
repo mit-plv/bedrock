@@ -438,8 +438,8 @@ Ltac propx :=
   repeat match goal with
            | [ H : interp _ _ |- _ ] => apply simplify_fwd in H; progress simpl in H
          end;
-  try (apply simplify_bwd; simpl;
-    repeat (apply simplify_Imply; simpl; intro)).
+  try (apply simplify_bwd; simpl(*;
+    repeat (apply simplify_Imply; simpl; intro)*)).
 
 Ltac propxFo' := intuition auto.
 

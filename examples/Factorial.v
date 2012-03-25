@@ -1,16 +1,6 @@
-Require Import Bedrock.
+Require Import AutoSep.
 
-(** Factorial! *)
-
-Lemma separated_0_4 : separated 0 4.
-  W_neq.
-Qed.
-
-Lemma separated_4_0 : separated 4 0.
-  W_neq.
-Qed.
-
-Hint Resolve separated_0_4 separated_4_0.
+(** Factorial is mandatory, isn't it? *)
 
 Inductive factR : W -> W -> Prop :=
 | FR0 : factR 0 1
@@ -27,14 +17,15 @@ Qed.
 Hint Resolve FR0' FRS'.
 
 Definition factS : assert := st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #0 ] st
-  /\ st#Rp @@ (st' ~> [| factR st#Rv st'#Rv |]).
+  /\ st#Rp @@ (st' ~> [| factR st#Rv st'#Rv |] /\ Ex n0', Ex n4', ![ $0 =*> n0' * $4 =*> n4' * #1 ] st').
 
 Definition fact := bmodule "fact" {{
   bfunction "fact" [factS] {
     $[0] <- Rv;;
     $[4] <- 1;;
 
-    [st ~> ExX, Ex n0', Ex n4', ![ $0 =*> n0' * $4 =*> n4' * #0 ] st /\ st#Rp @@ (st' ~> Ex n0, Ex n4, Ex r, ![ $0 =*> n0 * $4 =*> n4 * #1 ] st' /\ [| factR n0 r /\ st'#Rv = n4 ^* r |])]
+    [st ~> ExX, Ex inp, Ex acc, ![ $0 =*> inp * $4 =*> acc * #0 ] st
+      /\ st#Rp @@ (st' ~> Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #1 ] st' /\ [| exists r, factR inp r /\ st'#Rv = acc ^* r |])]
     While ($[0] <> 0) {
       $[4] <- $[0] * $[4];;
       $[0] <- $[0] - 1
@@ -44,8 +35,6 @@ Definition fact := bmodule "fact" {{
     Goto Rp
   }
 }}.
-
-Eval compute in compile fact.
 
 Lemma times_1 : forall (n m x : W), factR n x
   -> m = $1 ^* x
@@ -65,15 +54,14 @@ Hint Extern 5 (@eq W _ _) => match goal with
                              end.
 
 Theorem factOk : moduleOk fact.
-  structured; (ho; eauto).
-(* ezyang: This stopped working when we switched to partial memories. I assume this
-is because the delicate tactics being used to prove the original can't carry through
-the reasoning with options/partial memories. I will try to rewrite this so it works. *)
-Admitted.
+  vcgen; try (sep; eauto).
+
+  (* One last case, where symbolic evaluation fails to handle instruction streams consisting only of single tests *)
+  admit.
+Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
   bmodule "factDriver" {{
-    (* ezyang: Similarly, pre-condition probably not strong enough *)
     bfunction "main" [st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #0 ] st] {
       Rv <- 4;;
       Call "fact"!"fact"
@@ -82,53 +70,27 @@ Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
     }
   }}.
 
-Theorem factR_4 : forall r, factR 4 r -> r = 24.
-  intros; repeat match goal with
-                   | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; []
-                 end;
-  match goal with
-    | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; [ reflexivity
-      | elimtype False; match goal with
-                          | [ H : _ |- _ ] => apply H; reflexivity
-                        end ]
-  end.
+Theorem factR_4 : forall inp r, factR inp r -> inp = 4 -> r = 24.
+  intros; subst;
+    repeat match goal with
+             | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; []
+           end;
+    match goal with
+      | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; [ reflexivity
+        | elimtype False; match goal with
+                            | [ H : _ |- _ ] => apply H; reflexivity
+                          end ]
+    end.
 Qed.
 
 Hint Resolve factR_4.
 
 Theorem factDriverOk : moduleOk factDriver.
-  (* ezyang: ... which is why this theorem fails *)
-  structured; ho.
-Admitted.
+  vcgen; (sep; eauto).
+Qed.
 
 Definition factProg := link fact factDriver.
 
 Theorem factProgOk : moduleOk factProg.
   link factOk factDriverOk.
 Qed.
-
-Definition factSettings := leSettings factProg.
-Definition factProgram := snd (labelsOf (XCAP.Blocks factProg)).
-
-Transparent natToWord.
-
-Theorem factProgReallyOk : { w : _ | Labels factSettings ("factDriver", Global "main") = Some w
-  /\ forall st, safe factSettings factProgram (w, st) }.
-  (* withLabel; safety factProgOk ("factDriver", Global "main"). *)
-  (* This started failing after we removed all of the inBounds statements *)
-Admitted.
-
-Print Assumptions factProgReallyOk.
-
-Section final.
-  Transparent evalInstrs.
-
-(* ezyang: Started infinite looping after we removed inBounds checks
-  Definition final := Eval compute in exec factSettings factProgram 20
-    (proj1_sig factProgReallyOk,
-      {| Regs := fun _ => wzero _;
-        Mem := fun _ => Some (wzero _) |}).
-
-  Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rv end.
-*)
-End final.
