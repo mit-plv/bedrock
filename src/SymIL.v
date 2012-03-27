@@ -6,6 +6,7 @@ Require Import Word Memory.
 Require Import DepList EqdepClass.
 Require Import PropX.
 Require Expr SepExpr.
+Require Import Env.
 Import List.
 
 Require Structured SymEval.
@@ -13,44 +14,49 @@ Require Structured SymEval.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Definition bedrock_types : list Expr.type :=
-  {| Expr.Impl := W 
-   ; Expr.Eq := fun x y => 
-     match weq x y with
-       | left pf => Some pf 
-       | _ => None 
-     end |}
-  :: {| Expr.Impl := (settings * state)%type
-      ; Expr.Eq := fun _ _ => None
-      |}
-  :: {| Expr.Impl := state 
-      ; Expr.Eq := fun _ _ => None
-      |}
-  :: {| Expr.Impl := IL.test
-      ; Expr.Eq := fun l r => 
-        match l as l , r as r with
-          | IL.Eq , IL.Eq => Some (refl_equal _)
-          | IL.Ne , IL.Ne => Some (refl_equal _)
-          | IL.Le , IL.Le => Some (refl_equal _)
-          | IL.Lt , IL.Lt => Some (refl_equal _)
-          | _ , _ => None
-        end
-      |}
-  :: {| Expr.Impl := IL.reg
-      ; Expr.Eq := fun l r =>
-        match l as l , r as r with
-          | IL.Sp , IL.Sp => Some (refl_equal _)
-          | IL.Rp , IL.Rp => Some (refl_equal _)
-          | IL.Rv , IL.Rv => Some (refl_equal _)
-          | _ , _ => None
-        end |}
-  :: nil.
+Definition bedrock_types_r : Repr Expr.type :=
+{| footprint := (
+   (0, {| Expr.Impl := W 
+        ; Expr.Eq := fun x y => 
+          match weq x y with
+            | left pf => Some pf 
+            | _ => None 
+          end
+        |}) ::
+   (1, {| Expr.Impl := settings * state
+        ; Expr.Eq := fun _ _ => None
+        |}) ::
+   (2, {| Expr.Impl := state
+        ; Expr.Eq := fun _ _ => None
+        |}) ::
+   (3, {| Expr.Impl := IL.test
+        ; Expr.Eq := fun l r => 
+          match l as l , r as r with
+            | IL.Eq , IL.Eq => Some (refl_equal _)
+            | IL.Ne , IL.Ne => Some (refl_equal _)
+            | IL.Le , IL.Le => Some (refl_equal _)
+            | IL.Lt , IL.Lt => Some (refl_equal _)
+            | _ , _ => None
+          end
+        |}) ::
+   (4, {| Expr.Impl := IL.reg
+        ; Expr.Eq := fun l r =>
+          match l as l , r as r with
+            | IL.Sp , IL.Sp => Some (refl_equal _)
+            | IL.Rp , IL.Rp => Some (refl_equal _)
+            | IL.Rv , IL.Rv => Some (refl_equal _)
+            | _ , _ => None
+          end
+        |}) :: nil) :: nil
+ ; default := Expr.EmptySet_type
+ |}.
 
-Definition bedrock_ext (ls : list Expr.type) : list Expr.type :=
-  match ls with
-    | _ :: _ :: _ :: _ :: _ :: r => r
-    | _ => nil
-  end.
+Definition bedrock_types : list Expr.type :=
+  Eval cbv beta iota zeta delta 
+    [ repr repr' fold_right default footprint bedrock_types_r updateAt
+      hd hd_error value error tl
+    ]
+    in repr bedrock_types_r nil.
 
 (** Symbolic Evaluation **)
 Module PLUGIN := SymEval.EvaluatorPlugin BedrockHeap ST.
@@ -115,33 +121,43 @@ Module BedrockEvaluator.
   Definition tvTest := tvType 3.
   Definition tvReg := tvType 4.
 
-  Definition bedrock_funcs typs : list (signature (bedrock_types ++ typs)).
-  refine ({| Domain := tvWord :: tvWord :: nil
-           ; Range := tvWord
-           ; Denotation := _ |} ::
-          {| Domain := tvWord :: tvWord :: nil
-           ; Range := tvWord
-           ; Denotation := _ |} ::
-          {| Domain := tvWord :: tvWord :: nil
-           ; Range := tvWord
-           ; Denotation := _ |} ::
-          {| Domain := tvTest :: tvWord :: tvWord :: nil
-           ; Range := tvProp
-           ; Denotation := _ |} :: 
-          {| Domain := tvState :: tvReg :: nil
-           ; Range := tvWord
-           ; Denotation := _ |} :: nil).
-  refine (@wplus 32).
-  refine (@wminus 32).
-  refine (@wmult 32).
-  refine comparator.
-  refine Regs.
-  Defined.
-
   Section typed_ext.
     Variable types' : list type.
-    Definition types := bedrock_types ++ types'.
+    Definition types := repr bedrock_types_r types'.
 
+    Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')).
+    refine (
+      {| default := Default_signature _
+        ; footprint := (
+          (0, {| Domain := tvWord :: tvWord :: nil
+            ; Range := tvWord
+            ; Denotation := _ |}) ::
+          (1, {| Domain := tvWord :: tvWord :: nil
+            ; Range := tvWord
+            ; Denotation := _ |}) ::
+          (2, {| Domain := tvWord :: tvWord :: nil
+            ; Range := tvWord
+            ; Denotation := _ |}) ::
+          (3, {| Domain := tvTest :: tvWord :: tvWord :: nil
+            ; Range := tvProp
+            ; Denotation := _ |}) :: 
+          (4, {| Domain := tvState :: tvReg :: nil
+            ; Range := tvWord
+            ; Denotation := _ |}) :: nil) :: nil
+      |});
+    cbv beta iota zeta delta [ functionTypeD map tvTest tvWord tvReg tvState ]; (repeat rewrite tvarD_repr_repr_get); simpl.
+    refine (@wplus 32).
+    refine (@wminus 32).
+    refine (@wmult 32).
+    refine comparator.
+    refine Regs.
+    Defined.
+
+    Definition bedrock_funcs : functions (repr bedrock_types_r types') :=
+      Eval cbv beta iota zeta delta 
+        [ repr repr' default footprint fold_right bedrock_funcs_r updateAt hd_error error value
+          bedrock_types_r Default_signature tl hd ]
+        in repr bedrock_funcs_r nil.
   
     (** Symbolic registers **)
     Definition SymRegType : Type :=
@@ -162,7 +178,7 @@ Module BedrockEvaluator.
       end.
 
     Variable funcs' : functions types.
-    Definition funcs := bedrock_funcs types' ++ funcs'.
+    Definition funcs := repr bedrock_funcs_r funcs'.
 
     Definition fPlus (l r : expr types) : expr types :=
       Expr.Func 0 (l :: r :: nil).
@@ -172,20 +188,20 @@ Module BedrockEvaluator.
       Expr.Func 2 (l :: r :: nil).
 
     Theorem fPlus_correct : forall l r uvars vars, 
-      match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+      match exprD funcs uvars vars l (tvType 0) , exprD funcs uvars vars r (tvType 0) with
         | Some lv , Some rv =>
-          exprD funcs uvars vars (fPlus l r) tvWord = Some (wplus lv rv)
+          exprD funcs uvars vars (fPlus l r) (tvType 0) = Some (wplus lv rv)
         | _ , _ => True
       end.
     Proof.
-      intros. simpl.
+      intros; simpl; unfold eq_ind_r, tvWord; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
                         | None => _
                       end ] => destruct X
              end; auto.
-    Qed.
+   Qed.
     Theorem fMinus_correct : forall l r uvars vars, 
       match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
         | Some lv , Some rv =>
@@ -193,7 +209,7 @@ Module BedrockEvaluator.
         | _ , _ => True
       end.
     Proof.
-      intros. simpl.
+      intros; simpl; unfold eq_ind_r, tvWord; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
@@ -208,7 +224,7 @@ Module BedrockEvaluator.
         | _ , _ => True
       end.
     Proof.
-      intros. simpl.
+      intros; simpl; unfold eq_ind_r, tvWord; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
@@ -469,23 +485,7 @@ Module BedrockEvaluator.
         rewrite H. simpl. intros.
         rewrite <- H1. eauto.
       Qed.
-(*
-      Lemma stateD_proof : forall (st : state) (sp rv rp : Expr.expr types),
-        Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-        Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-        Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-        forall (pures : list (expr types)), 
-          AllProvable funcs uvars vars pures ->
-        forall sh (hashed : SEP.SHeap types pcT stT),
-          SEP.hash sh = (nil , hashed) ->
-          forall (cs : codeSpec W (settings * state)) (stn : settings),
-          interp cs (![@SEP.sexprD types funcs pcT stT sfuncs uvars vars sh] (stn, st)) ->
-          stateD cs stn st {| SymMem := hashed; SymRegs := (sp, rp, rv) ; SymPures := nil |}.
-      Proof.
-        clear. intros. simpl. rewrite H. rewrite H0. rewrite H1.
-        intuition. eapply hash_interp; eauto.
-      Qed.
-*)
+
       Fixpoint evalPath (stn : settings) (is : list (sym_instr types + sym_assert types))
         (st : state) (st' : option state) : Prop :=
         match is with 
@@ -637,31 +637,31 @@ Module BedrockEvaluator.
   Section correctness.
     Record Correctness
       (Facts : Type)
-      (Learn : forall typs, Facts -> list (expr (bedrock_types ++ typs)) -> Facts)
-      (symeval_read_word : forall typs, Facts -> expr (bedrock_types ++ typs) ->
-        SEP.SHeap (bedrock_types ++ typs) pcT stT -> option (expr (bedrock_types ++ typs))) 
-      (symeval_write_word : forall typs, Facts -> expr (bedrock_types ++ typs) -> expr (bedrock_types ++ typs) ->
-        SEP.SHeap (bedrock_types ++ typs) pcT stT -> 
-        option (SEP.SHeap (bedrock_types ++ typs) pcT stT))
+      (symeval_read_word : forall typs, Facts -> expr (Env.repr bedrock_types_r typs) ->
+        SEP.SHeap (Env.repr bedrock_types_r typs) pcT stT -> option (expr (Env.repr bedrock_types_r typs))) 
+      (symeval_write_word : forall typs, 
+        Facts -> expr (Env.repr bedrock_types_r typs) -> expr (Env.repr bedrock_types_r typs) ->
+        SEP.SHeap (Env.repr bedrock_types_r typs) pcT stT -> 
+        option (SEP.SHeap (Env.repr bedrock_types_r typs) pcT stT))
       : Type :=
-    { TypeImage : list (nat * type)
-    ; FuncImage : forall typs, list (nat * signature (bedrock_types ++ Env.repr TypeImage typs))
-    ; PredImage : forall typs, list (nat * SEP.ssignature (bedrock_types ++ Env.repr TypeImage typs) pcT stT)
-    ; Valid : forall types_ext, 
-      env (bedrock_types ++ Env.repr TypeImage types_ext) ->
-      env (bedrock_types ++ Env.repr TypeImage types_ext) ->
+    { TypeImage : Env.Repr type
+    ; FuncImage : forall typs, Env.Repr (signature (Env.repr (repr_combine bedrock_types_r TypeImage) typs))
+    ; PredImage : forall typs, Env.Repr (SEP.ssignature (Env.repr (repr_combine bedrock_types_r TypeImage) typs) pcT stT)
+    ; Valid : forall typs, 
+      env (Env.repr (repr_combine bedrock_types_r TypeImage) typs) ->
+      env (Env.repr (repr_combine bedrock_types_r TypeImage) typs) ->
       Facts -> Prop
+    ; Learn : forall typs, Facts -> list (expr (Env.repr bedrock_types_r typs)) -> Facts
     ; ReadCorrect :
-      forall types_ext,
-        let types_ext' := Env.repr TypeImage types_ext in
-        let types := bedrock_types ++ types_ext' in
-        forall (funcs_ext : functions types) (sfuncs_ext : SEP.sfunctions types pcT stT),
-          let funcs := bedrock_funcs (Env.repr TypeImage types_ext) ++ Env.repr (FuncImage types_ext) funcs_ext in
-          let sfuncs := Env.repr (PredImage types_ext) sfuncs_ext in
-          forall hyps pe ve SH,
-            symeval_read_word types_ext' hyps pe SH = Some ve ->
+      forall types',
+        let types := Env.repr (repr_combine bedrock_types_r TypeImage) types' in
+        forall (funcs' : functions types) (sfuncs_ext : SEP.sfunctions types pcT stT),
+          let funcs := Env.repr (repr_combine (bedrock_funcs_r _) (FuncImage _)) funcs' in
+          let sfuncs := Env.repr (PredImage types') sfuncs_ext in
+          forall hyps (pe ve : expr types) SH,
+            symeval_read_word _ hyps pe SH = Some ve ->
             forall uvars vars cs p m stn,
-            Valid _ uvars vars hyps ->
+            Valid uvars vars hyps ->
             exprD funcs uvars vars pe tvWord = Some p ->
             PropX.interp cs (![ SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD SH) ] (stn, m)) ->
             match exprD funcs uvars vars ve tvWord with
@@ -670,15 +670,14 @@ Module BedrockEvaluator.
               | _ => False
             end
     ; WriteCorrect :
-      forall types_ext,
-        let types_ext' := Env.repr TypeImage types_ext in
-        let types := bedrock_types ++ types_ext' in
-        forall (funcs_ext : functions types) (sfuncs_ext : SEP.sfunctions types pcT stT),
-          let funcs := bedrock_funcs (Env.repr TypeImage types_ext) ++ Env.repr (FuncImage types_ext) funcs_ext in
-          let sfuncs := Env.repr (PredImage types_ext) sfuncs_ext in
+      forall types',
+        let types := Env.repr (repr_combine bedrock_types_r TypeImage) types' in
+        forall (funcs' : functions types) (sfuncs_ext : SEP.sfunctions types pcT stT),
+          let funcs := Env.repr (repr_combine (bedrock_funcs_r _) (FuncImage _)) funcs' in
+          let sfuncs := Env.repr (PredImage types') sfuncs_ext in
           forall uvars vars cs hyps pe ve m stn SH SH',
-            symeval_write_word types_ext' hyps pe ve SH = Some SH' ->
-            Valid _ uvars vars hyps ->
+            symeval_write_word _ hyps pe ve SH = Some SH' ->
+            Valid uvars vars hyps ->
             forall p v,
             exprD funcs uvars vars pe tvWord = Some p ->
             exprD funcs uvars vars ve tvWord = Some v ->
@@ -690,19 +689,18 @@ Module BedrockEvaluator.
             end
     }.
 
-    Theorem sym_eval_any F L symeval_read_word symeval_write_word 
-      (C : @Correctness F L symeval_read_word symeval_write_word) :
-      forall types_ext,
-        let types' := Env.repr (TypeImage C) types_ext in
-        let types := bedrock_types ++ types' in
-        forall (funcs_ext : functions types) (sfuncs_ext : SEP.sfunctions types pcT stT),
-          let funcs := bedrock_funcs (Env.repr (TypeImage C) types_ext) ++ Env.repr (FuncImage C types_ext) funcs_ext in
-          let sfuncs := Env.repr (PredImage C types_ext) sfuncs_ext in
+    Theorem sym_eval_any F symeval_read_word symeval_write_word 
+      (C : @Correctness F symeval_read_word symeval_write_word) :
+      forall types',
+        let types := Env.repr (repr_combine bedrock_types_r (TypeImage C)) types' in
+        forall (funcs' : functions types) (sfuncs' : SEP.sfunctions types pcT stT),
+          let funcs := Env.repr (repr_combine (bedrock_funcs_r _) (FuncImage C _)) funcs' in
+          let sfuncs := Env.repr (PredImage C types') sfuncs' in
       forall stn uvars vars sound_or_safe st p,
         evalPath funcs uvars vars stn p st sound_or_safe ->
         forall cs ss,
         stateD funcs uvars vars sfuncs cs stn st ss ->
-        let res := @sym_evalStream _ F (L _) (symeval_read_word _) (symeval_write_word _) p ss in
+        let res := @sym_evalStream _ F (@Learn _ _ _ C _) (symeval_read_word _) (symeval_write_word _) p ss in
         match sound_or_safe with
           | None =>
             (** safe **)
@@ -736,7 +734,6 @@ Module BedrockEvaluator.
             end
         end.
     Proof.
-
 (*
         repeat match goal with
                  | [ H : match ?X with
@@ -784,121 +781,44 @@ Proof.
   eexists. split. eassumption. eapply Imply_E. eapply H1. auto.
 Qed.
 
-Lemma interp_interp_cancel : forall types',
-  let types := app bedrock_types types' in
-    forall funcs sfuncs (eq_prover : Provers.EqProverT funcs) uvars vars L stn_st cs,
-      interp cs (![ (@SEP.sexprD types funcs pcT stT sfuncs uvars vars (SEP.sheapD L))] stn_st) ->
-      forall hyps, AllProvable funcs uvars vars hyps ->
-      forall SF R,
-        SEP.hash SF = (nil, R) ->
-        forall funcs' sfuncs',
-          match SEP.sepCancel eq_prover hyps L R with
-            | (L , R , subst_L , subst_R) =>
-              SEP.himp funcs sfuncs uvars uvars vars cs (SEP.sheapD L) (SEP.sheapD R)
-          end    
-          -> interp cs (![ @SEP.sexprD types (app funcs funcs') pcT stT (app sfuncs sfuncs') uvars vars SF ] stn_st).
-Proof.
-  clear. intros.
-  unfold himp in *. 
-  generalize (@SEP.hash_denote _ funcs0 pcT stT sfuncs cs SF uvars vars).
-Admitted.
-
 Require Import Provers.
 
-Theorem stateD_proof : forall (types' : list Expr.type)
-  (funcs : Expr.functions (types types'))
-  (P : EqProverT funcs)
-  (uvars vars : Expr.env (types types'))
-  (sfuncs : SEP.sfunctions (types types') pcT stT) 
-  (st : state) (sp rv rp : Expr.expr (types types')),
-  Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-  Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-  Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-  forall pures : list (Expr.expr (types types')),
+Theorem stateD_proof (P : ProverT) : forall (types' : list Expr.type),
+  forall (CAST : forall F, F (repr bedrock_types_r (repr (known_types P) types')) ->
+                           F (repr (known_types P) (repr bedrock_types_r types'))),
+  (forall funcs uvars vars pures,
     Expr.AllProvable funcs uvars vars pures ->
-    forall (sh : SEP.sexpr (types types') pcT stT)
-      (hashed : SEP.SHeap (types types') pcT stT),
+    Expr.AllProvable (CAST functions funcs) 
+                     (CAST env uvars)
+                     (CAST env vars)
+                     (CAST (fun ts => list (expr ts)) pures)) ->
+  let types := repr bedrock_types_r (repr (known_types P) types') in
+  forall (funcs : Expr.functions types)
+  (uvars vars : Expr.env types)
+  (sfuncs : SEP.sfunctions types pcT stT) 
+  (st : state) (sp rv rp : Expr.expr types),
+  exprD (types := repr bedrock_types_r (repr (known_types P) types')) funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+  exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+  exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+  forall pures : list (Expr.expr types),
+    Expr.AllProvable funcs uvars vars pures ->
+    forall (sh : SEP.sexpr types pcT stT)
+      (hashed : SEP.SHeap types pcT stT),
       SEP.hash sh = (nil, hashed) ->
       forall (cs : codeSpec W (settings * state)) (stn : settings),
         interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
         stateD funcs uvars vars sfuncs cs stn st
-        {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures
-         ; SymFacts := eq_summarize P pures
+        {| SymMem := hashed
+         ; SymRegs := (sp, rp, rv)
+         ; SymPures := pures
+         ; SymFacts := summarize P _ (CAST (fun ts => list (expr ts)) pures)
          |}.
 Proof.
   unfold stateD. intros.
-  rewrite H. rewrite H1. rewrite H0.
+  unfold types. rewrite H0. rewrite H1. rewrite H2. 
   intuition auto.
   eapply hash_interp; eauto.
 Qed.
-
-Theorem sym_eval_any_raw : forall F L
-  (symeval_read_word : forall typs : list Expr.type,
-    list (Expr.expr (bedrock_types ++ typs)) ->
-    Expr.expr (bedrock_types ++ typs) ->
-    SEP.SHeap (bedrock_types ++ typs) pcT stT ->
-    option
-    (Expr.expr (bedrock_types ++ typs)))
-  (symeval_write_word : forall typs : list Expr.type,
-    list (Expr.expr (bedrock_types ++ typs)) ->
-    Expr.expr (bedrock_types ++ typs) ->
-    Expr.expr (bedrock_types ++ typs) ->
-    SEP.SHeap (bedrock_types ++ typs) pcT
-    stT ->
-    option
-    (SEP.SHeap (bedrock_types ++ typs) pcT
-      stT))
-  (C : Correctness F L symeval_read_word symeval_write_word)
-  (types_ext : list Expr.type),
-  let types' := Env.repr (TypeImage C) types_ext in
-    let types := (bedrock_types ++ types')%list in
-      forall (funcs_ext : Expr.functions types)
-        (sfuncs_ext : SEP.sfunctions types pcT stT),
-        let funcs :=
-          (bedrock_funcs types' ++
-            Env.repr (FuncImage C types_ext) funcs_ext)%list in
-          let sfuncs := Env.repr (PredImage C types_ext) sfuncs_ext in
-            forall (P : EqProverT funcs) (uvars vars : Expr.env types)
-              (sound_or_safe : option state) (stn : settings) (st : state)
-              (p : list (sym_instr types + sym_assert types)),
-              evalPath funcs uvars vars stn p st sound_or_safe ->
-              forall (sp rv rp : Expr.expr types),
-                Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-                Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-                Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-                forall pures : list (Expr.expr types),
-                  Expr.AllProvable funcs uvars vars pures ->
-                  forall sh hashed,
-                    SEP.hash sh = (nil, hashed) ->
-                    forall (cs : codeSpec W (settings * state)),
-                      interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-                      let ss := {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures |} in
-                        let res :=
-                          sym_evalStream
-                          (symeval_read_word (Env.repr (TypeImage C) types_ext))
-                          (symeval_write_word (Env.repr (TypeImage C) types_ext)) p ss in
-                          match sound_or_safe with
-                            | Some st' =>
-                              match res with
-                                | inl (Some ss') => stateD funcs uvars vars sfuncs cs stn st' ss'
-                                | inl None => False
-                                | inr (_, _) => True
-                              end
-                            | None =>
-                              match res with
-                                | inl (Some _) => False
-                                | inl None => True
-                                | inr (_, _) => True
-                              end
-                          end.
-Proof.
-  intros. eapply sym_eval_any with (C := C) (st := st); eauto.
-  unfold ss in *.
-  eapply stateD_proof; eauto.
-Qed.
-
-
-
 
   (** Reflection **)
 
@@ -1131,7 +1051,6 @@ Qed.
                     let Ts := SEP.collectAllTypes_sexpr isConst Ts (SF :: nil) in
                     let Ts := Expr.collectAllTypes_funcs Ts Fs in
                     let Ts := SEP.collectAllTypes_sfuncs Ts SFs in
-(*                    let Ts := Expr.collectAllTypes_props shouldReflect isConst Ts in *)
                     (** check for potential universe problems **)
                     match Ts with
                       | context [ PropX.PropX ] => 
@@ -1147,14 +1066,14 @@ Qed.
                     let types_ := Expr.extend_all_types Ts types_ in
                     let typesV := fresh "types" in
                     pose (typesV := types_);
-                    let types_ext := eval simpl in (bedrock_ext types_) in
+                    let types_ext := eval simpl in (@skipn _ (length bedrock_types) types_) in
                     let types_extV := fresh "types_ext" in
                     pose (types_extV := types_ext);
                     (** build the variables **)
                     let uvars := eval simpl in (@nil _ : Expr.env typesV) in
                     let vars := eval simpl in (@nil _ : Expr.env typesV) in
                     (** build the base functions **)
-                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_extV) in
+                    let funcs := eval unfold bedrock_funcs in (bedrock_funcs types_) in
                     let funcs := Expr.getAllFunctions typesV funcs Fs in
                     let funcs := eval simpl in funcs in
                     (** build the base sfunctions **)
@@ -1170,14 +1089,14 @@ Qed.
                               reflect_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun uvars funcs' l =>
                               reflect_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun uvars funcs' r =>
                                 let funcs_ext := Reflect.extension funcs funcs' in
-                                eapply (@evalPath_cond_app types_extV funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
+                                eapply (@evalPath_cond_app types_ funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
                                 cbv iota in H ;
                                 clear last ; 
                                 build_path is H uvars funcs' k))
                             | evalInstrs _ ?st _ = _ =>
                               reflect_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun uvars funcs' sis =>
                                 let funcs_ext := Reflect.extension funcs funcs' in
-                                eapply (@evalPath_instrs_app types_extV funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
+                                eapply (@evalPath_instrs_app types_ funcs funcs_ext uvars vars sis _ _ _ _ last) in H ; 
                                 clear last ;
                                 build_path is H uvars funcs' k)
                           end
@@ -1189,22 +1108,23 @@ Qed.
                     Expr.reflect_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
                     Expr.reflect_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
                     SEP.reflect_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs SF =>
-                    generalize (@evalPath_nil types_extV funcs uvars vars stn st) ;
-                    let starter := fresh in
-                    intro starter ;
-                    let funcs := eval simpl app in funcs in
-                    build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
-                      match funcs with
-                        | _ :: _ :: _ :: _ :: _ :: ?funcs_ext => idtac ;
-                          apply (@stateD_proof types_ext funcs uvars vars sfuncs _ sp_v rv_v rp_v 
-                            sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
-                          apply (@sym_eval_any _ _ C types_ext funcs_ext sfuncs stn uvars vars _ _ _ path) in H' ;
-                          clear path ;
-                          (simplifier H' || fail 1000000 "simplifier failed!") ;
-                          subst typesV; subst types_extV ;
-                          (try assumption ||
-                           destruct H' as [ [ ? [ ? ? ] ] [ ? ? ] ])
-                      end))))))
+                      generalize (@evalPath_nil types_ funcs uvars vars stn st) ;
+                      let starter := fresh in
+                      intro starter ;
+                      let funcs := eval simpl app in funcs in
+                      build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
+                        match funcs with
+                          | _ :: _ :: _ :: _ :: _ :: ?funcs_ext => 
+                            apply (@stateD_proof prover types_ (fun _ x => x) (fun _ _ _ _ pf => pf) 
+                              funcs uvars vars sfuncs _ sp_v rv_v rp_v 
+                              sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H' ;
+                            apply (@sym_eval_any _ _ _ C types_ funcs sfuncs stn uvars vars _ _ _ path) in H' ;
+                            clear path ;
+                            subst typesV; subst types_extV ;
+                            (simplifier H' || fail 1000000 "simplifier failed!") ;
+                            (try assumption ||
+                              destruct H' as [ [ ? [ ? ? ] ] [ ? ? ] ])
+                        end))))))
                 end
             end
         end
@@ -1225,7 +1145,7 @@ Qed.
         Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
         EquivDec.equiv_dec EquivDec.nat_eq_eqdec
         f_equal 
-        bedrock_funcs bedrock_types pcT stT tvWord
+        bedrock_funcs_r bedrock_types pcT stT tvWord
         fst snd
         FuncImage PredImage TypeImage
         Env.repr Env.updateAt SEP.substV
@@ -1272,39 +1192,133 @@ Qed.
         Expr.typeof comparator
 
         fPlus fMinus fMult
+
+        repr_combine default footprint repr' updateAt Default_signature nil_Repr EmptySet_type SEP.Default_ssignature
+        bedrock_funcs_r bedrock_types_r
+
+        summarize 
+        hd hd_error value error tl
       ] in H.
 
   Implicit Arguments evalPath [ types' ].
 
-  Definition symeval_read_word_default types' (_ : list (expr (bedrock_types ++ types'))) (_ : expr (bedrock_types ++ types'))
-    (_ : SEP.SHeap (bedrock_types ++ types') pcT stT) : option (expr (bedrock_types ++ types')) :=
-    None.
+  Module DEMO.
+    Definition Facts : Type := unit.
 
-  Definition symeval_write_word_default types' (_ : list (expr (bedrock_types ++ types')))
-    (_ : expr (bedrock_types ++ types')) (_ : expr (bedrock_types ++ types')) (_ : SEP.SHeap (bedrock_types ++ types') pcT stT)
-    : option (SEP.SHeap (bedrock_types ++ types') pcT stT) :=
-    None.
+    (** TODO: not needed? **)
+    Definition Learn_ (typs : list type) (f : Facts) (hyps : list (expr (repr bedrock_types_r typs))) : Facts :=
+      f.
 
-  Definition Correctness_default : Correctness symeval_read_word_default symeval_write_word_default.
-  refine (
-    {| TypeImage := nil
-     ; FuncImage := fun _ => nil
-     ; PredImage := fun _ => nil
-     |}); 
-  abstract (unfold symeval_read_word_default, symeval_write_word_default; intros; try congruence).
-  Defined.
+    Definition Valid_ : forall typs : list type,
+      env (repr (repr_combine bedrock_types_r (nil_Repr EmptySet_type)) typs) ->
+      env (repr (repr_combine bedrock_types_r (nil_Repr EmptySet_type)) typs) ->
+      Facts -> Prop :=
+      fun _ _ _ _ => True.
+
+    Definition symeval_read_word_default types' (_ : Facts) (_ : expr (repr bedrock_types_r types'))
+      (_ : SEP.SHeap (repr bedrock_types_r types') pcT stT) : option (expr (repr bedrock_types_r types')) :=
+      None.
+
+    Definition symeval_write_word_default types' (_ : Facts)
+      (_ : expr (repr bedrock_types_r types')) (_ : expr (repr bedrock_types_r types')) (_ : SEP.SHeap (repr bedrock_types_r types') pcT stT)
+      : option (SEP.SHeap (repr bedrock_types_r types') pcT stT) :=
+      None.
+
+    Definition Correctness_default : Correctness (@symeval_read_word_default) (@symeval_write_word_default).
+    refine (
+      {| TypeImage := nil_Repr EmptySet_type
+       ; FuncImage := fun _ => nil_Repr (Expr.Default_signature _)
+       ; PredImage := fun _ => nil_Repr (SEP.Default_ssignature _ _ _)
+       ; Learn := Learn_
+       ; Valid := Valid_
+      |});
+    abstract (unfold symeval_read_word_default, symeval_write_word_default; intros; try congruence).
+    Defined.
   
-  Ltac default_unfolder H := cbv delta [ Correctness_default ] in H; sym_evaluator H.
+    Ltac default_unfolder H := 
+      cbv delta [ 
+        Correctness_default symeval_read_word_default symeval_write_word_default 
+        reflexivityProverRec reflexivityValid reflexivityProver Learn
+      ] in H; sym_evaluator H.
 
-  Goal forall cs stn st st' SF,
-    PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) ->
-    Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
-    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
-    Regs st' Rp = natToW 0.
-  Proof.
-    intros.
-    sym_eval ltac:(isConst) idtac default_unfolder Correctness_default tt tt tt.
-    congruence.
-  Qed.
+    Goal forall cs stn st st' SF,
+      PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) ->
+      Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true -> 
+      evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
+      Regs st' Rp = natToW 0.
+    Proof.
+      intros.
+      sym_eval ltac:(isConst) reflexivityProverRec default_unfolder Correctness_default tt tt tt.
+      congruence.
+    Qed.
+  End DEMO.
 
 End BedrockEvaluator.
+
+
+(*
+Theorem sym_eval_any_raw : forall F L
+  (symeval_read_word : forall typs : list Expr.type,
+    list (Expr.expr (bedrock_types ++ typs)) ->
+    Expr.expr (bedrock_types ++ typs) ->
+    SEP.SHeap (bedrock_types ++ typs) pcT stT ->
+    option
+    (Expr.expr (bedrock_types ++ typs)))
+  (symeval_write_word : forall typs : list Expr.type,
+    list (Expr.expr (bedrock_types ++ typs)) ->
+    Expr.expr (bedrock_types ++ typs) ->
+    Expr.expr (bedrock_types ++ typs) ->
+    SEP.SHeap (bedrock_types ++ typs) pcT
+    stT ->
+    option
+    (SEP.SHeap (bedrock_types ++ typs) pcT
+      stT))
+  (C : Correctness F L symeval_read_word symeval_write_word)
+  (types_ext : list Expr.type),
+  let types' := Env.repr (TypeImage C) types_ext in
+    let types := (bedrock_types ++ types')%list in
+      forall (funcs_ext : Expr.functions types)
+        (sfuncs_ext : SEP.sfunctions types pcT stT),
+        let funcs :=
+          (bedrock_funcs_r types' ++
+            Env.repr (FuncImage C types_ext) funcs_ext)%list in
+          let sfuncs := Env.repr (PredImage C types_ext) sfuncs_ext in
+            forall (P : EqProverT funcs) (uvars vars : Expr.env types)
+              (sound_or_safe : option state) (stn : settings) (st : state)
+              (p : list (sym_instr types + sym_assert types)),
+              evalPath funcs uvars vars stn p st sound_or_safe ->
+              forall (sp rv rp : Expr.expr types),
+                Expr.exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+                Expr.exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+                Expr.exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+                forall pures : list (Expr.expr types),
+                  Expr.AllProvable funcs uvars vars pures ->
+                  forall sh hashed,
+                    SEP.hash sh = (nil, hashed) ->
+                    forall (cs : codeSpec W (settings * state)),
+                      interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+                      let ss := {| SymMem := hashed; SymRegs := (sp, rp, rv); SymPures := pures |} in
+                        let res :=
+                          sym_evalStream
+                          (symeval_read_word (Env.repr (TypeImage C) types_ext))
+                          (symeval_write_word (Env.repr (TypeImage C) types_ext)) p ss in
+                          match sound_or_safe with
+                            | Some st' =>
+                              match res with
+                                | inl (Some ss') => stateD funcs uvars vars sfuncs cs stn st' ss'
+                                | inl None => False
+                                | inr (_, _) => True
+                              end
+                            | None =>
+                              match res with
+                                | inl (Some _) => False
+                                | inl None => True
+                                | inr (_, _) => True
+                              end
+                          end.
+Proof.
+  intros. eapply sym_eval_any with (C := C) (st := st); eauto.
+  unfold ss in *.
+  eapply stateD_proof; eauto.
+Qed.
+*)

@@ -4,20 +4,24 @@ Import List.
 Require Import DepList EqdepClass.
 
 Require Expr SepExpr.
+Require Import Provers.
 Module SEP := SymIL.BedrockEvaluator.SEP.
-(* (Provers.transitivityEqProverRec funcs) *)
-Lemma ApplyCancelSep : forall types uvars hyps funcs eq_prover sfuncs (l r : SEP.sexpr (bedrock_types ++ types) (Expr.tvType O) (Expr.tvType 1)),
+
+Lemma ApplyCancelSep : forall types' (prover : ProverT),
+  let types := Env.repr (known_types prover) types' in
+  forall pcT stT uvars (hyps : list (Expr.expr types)) funcs sfuncs
+  (l r : SEP.sexpr types pcT stT),
   Expr.AllProvable funcs uvars nil hyps ->
   forall cs, 
-  match SEP.CancelSep (funcs := funcs) eq_prover uvars hyps l r with
+  match SEP.CancelSep sfuncs (prove prover _) (summarize prover _) hyps l r with
     | {| SEP.vars := vars; 
          SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
          SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
       SEP.forallEach vars
-        (fun VS : Expr.env (bedrock_types ++ types) =>
+        (fun VS : Expr.env types =>
           SEP.exists_subst funcs VS uvars
           (ExprUnify.env_of_Subst SUBST rhs_ex 0)
-          (fun rhs_ex0 : Expr.env (bedrock_types ++ types) =>
+          (fun rhs_ex0 : Expr.env types =>
             SEP.himp funcs sfuncs nil rhs_ex0 VS cs lhs rhs))
   end ->
   himp cs (@SEP.sexprD _ funcs _ _ sfuncs nil nil l)
@@ -62,6 +66,8 @@ Ltac change_to_himp := try apply ignore_regs;
     | _ => apply change_Imply_himp
   end.
 
+Check SymIL.BedrockEvaluator.bedrock_funcs.
+
 Ltac sep_canceler isConst prover simplifier Ts :=
   (try change_to_himp) ;
   match goal with 
@@ -97,14 +103,18 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let types_ := Expr.extend_all_types Ts types_ in
       let typesV := fresh "types" in
       pose (typesV := types_);
+(*
       let types_ext := eval simpl in (bedrock_ext types_) in
       let types_extV := fresh "types_ext" in
       pose (types_extV := types_ext);
+*)
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
       let vars := eval simpl in (@nil _ : Expr.env typesV) in
       (** build the funcs **)
-      let funcs := eval unfold SymIL.BedrockEvaluator.bedrock_funcs in (SymIL.BedrockEvaluator.bedrock_funcs types_extV) in
+      let funcs := 
+        eval unfold SymIL.BedrockEvaluator.bedrock_funcs in (SymIL.BedrockEvaluator.bedrock_funcs typesV)
+      in
       let funcs := eval simpl in funcs in
       let pcT := constr:(SymIL.BedrockEvaluator.pcT) in
       let stT := constr:(SymIL.BedrockEvaluator.stT) in
@@ -114,9 +124,9 @@ Ltac sep_canceler isConst prover simplifier Ts :=
         let proofs := Expr.props_proof all_props in
       SEP.reflect_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
       SEP.reflect_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
-        apply (@ApplyCancelSep (SymIL.bedrock_ext typesV) uvars pures funcs 
+        apply (@ApplyCancelSep typesV uvars pures funcs 
           (prover _ funcs) sfuncs L R proofs) ;
-        unfold typesV, types_extV ;
+        unfold typesV ;
         simplifier ;
         repeat match goal with
                  | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
@@ -131,12 +141,13 @@ Ltac cancel_simplifier :=
 
         SepExpr.FM.fold
 
-        Provers.eq_summary Provers.eq_summarize Provers.eq_prove 
-        Provers.transitivityEqProverRec
+        Provers.summary Provers.summarize Provers.prove Provers.learn
+        Provers.transitivityProverRec
 
         ExprUnify.Subst
 
-        SymIL.bedrock_types SymIL.bedrock_ext
+        SymIL.bedrock_types SymIL.bedrock_types_r
+        SymIL.BedrockEvaluator.bedrock_funcs SymIL.BedrockEvaluator.bedrock_funcs_r
         app map fold_right nth_error value error
 
         fst snd
@@ -183,6 +194,10 @@ Ltac cancel_simplifier :=
         SEP.sheapD SEP.sexprD
         SEP.starred SEP.himp
         Expr.Impl Expr.is_well_typed
+
+        hd hd_error value error tl
+        Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
+        Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_ssignature
       ].
 
 (*
