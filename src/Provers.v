@@ -25,7 +25,7 @@ Section ProverT.
   Qed.
 End ProverT.
 
-  (** Provers that establish [expr]-encoded facts *)
+(** Provers that establish [expr]-encoded facts *)
 
 Definition ProverCorrect types fs (summary : Type)
     (** Some prover work only needs to be done once per set of hypotheses,
@@ -40,8 +40,8 @@ Definition ProverCorrect types fs (summary : Type)
       Provable fs uvars vars goal.
 
 Record ProverT : Type :=
-{ known_types : list (nat * type) ;
-  known_funcs : forall typs, list (nat * signature (Env.repr known_types typs)) ;
+{ known_types : Repr type ;
+  known_funcs : forall typs, Repr (signature (Env.repr known_types typs)) ;
 
   summary : list type -> Type ;
   valid : forall typs (fs : functions (Env.repr known_types typs)),
@@ -64,21 +64,10 @@ Definition proverTypes (p : ProverT) : list type -> list type :=
 Definition proverFuncs (p : ProverT) (typs : list type) : functions (proverTypes p typs) -> functions (proverTypes p typs) :=
   Env.repr (known_funcs p typs).
 
-(** TODO : this should go in Env.v **)
-Fixpoint repr_compatible T (l r : list (nat * T)) : Prop :=
-  match l with 
-    | nil => True
-    | (n, v) :: l =>
-      v = match Env.get n r with
-            | None => v 
-            | Some v' => v'
-          end
-      /\ repr_compatible l r
-  end.
-
+(* TODO: this is prover composition....
 Definition compatibleProverT (l r : ProverT) : Prop :=
   exists compat : repr_compatible (known_types l) (known_types r), True.
-(* TODO: I need to justify this using the compatibility proof    
+ TODO: I need to justify this using the compatibility proof    
   /\ (forall typs, repr_compatible (known_funcs l typs) (known_funcs r typs)).
 *)
 
@@ -207,8 +196,8 @@ Section AssumptionProver.
 End AssumptionProver.
 
 Definition assumptionProverRec := 
-{| known_types := nil 
- ; known_funcs := fun _ => nil
+{| known_types := nil_Repr EmptySet_type
+ ; known_funcs := fun _ => nil_Repr (Default_signature _)
  ; summary := fun typs => assumption_summary typs
  ; valid := assumptionValid
  ; summarize := assumptionSummarize
@@ -256,8 +245,8 @@ Section ReflexivityProver.
 End ReflexivityProver. 
 
 Definition reflexivityProverRec :=
-{| known_types := nil
- ; known_funcs := fun _ => nil 
+{| known_types := nil_Repr EmptySet_type
+ ; known_funcs := fun _ => nil_Repr (Default_signature _)
  ; valid := @reflexivityValid
  ; summarize := fun _ _ => tt
  ; learn := fun _ sum _ => sum
@@ -266,7 +255,6 @@ Definition reflexivityProverRec :=
  ; learn_correct := @reflexivityLearnCorrect
  ; prove_correct := @reflexivityProverCorrect
  |}.
-
 
 
 
@@ -656,8 +644,8 @@ Section TransitivityProver.
 End TransitivityProver.
 
 Definition transitivityProverRec :=
-{| known_types := nil 
- ; known_funcs := fun _ => nil
+{| known_types := nil_Repr EmptySet_type
+ ; known_funcs := fun _ => nil_Repr (Default_signature _)
  ; summary := fun typs => transitivity_summary typs
  ; valid := transitivityValid
  ; summarize := transitivitySummarize
@@ -667,4 +655,3 @@ Definition transitivityProverRec :=
  ; learn_correct := transitivityLearnCorrect
  ; prove_correct := transitivityProverCorrect
  |}.
-

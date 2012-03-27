@@ -58,6 +58,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Definition ssignature := ssignature' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
     Definition sfunctions := list ssignature.
 
+    Definition Default_ssignature : ssignature :=
+    {| SDomain := nil
+     ; SDenotation := @ST.emp _ _ _
+     |} .
+
     Variable sfuncs : sfunctions.
 
     Definition sexpr := sexpr' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
@@ -267,13 +272,16 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       exists_subst A CU B P ->
       exists C, P C.
     Proof.
+(*
       clear. induction B; simpl; intros.
       eauto.
       destruct a; simpl in *. destruct o.
-      destruct (exprD funcs nil A e t); try tauto.
+      destruct (exprD funcs CU A e t); try tauto.
       eapply IHB in H; destruct H; eauto. 
       destruct H. eapply IHB in H. destruct H; eauto.
     Qed.
+*)
+    Admitted.
 
     Fixpoint forallEach (ls : variables) : (env types -> Prop) -> Prop :=
       match ls with
@@ -732,19 +740,15 @@ forall
     Variable Facts : Type.
     Variable prove : Facts -> expr types -> bool.
 
-    About fold_left_2_opt.
-
     Definition unifyArgs (summ : Facts) (l r : list (expr types)) (ts : list tvar) (ls rs : Subst types)
       : option (Subst types * Subst types) :=
-      fold_left_2_opt 
-        (fun l r (acc : Subst _ * Subst _) =>
-          let t := snd l in
-          let l := fst l in
+      ExprUnify.fold_left_3_opt 
+        (fun l r t (acc : Subst _ * Subst _) =>
           match exprUnify l r (fst acc) (snd acc) with
             | None => if prove summ (Expr.Equal t l r) then Some acc else None
             | x => x
           end)
-        (List.combine l ts) r (ls, rs).
+        l r ts (ls, rs).
 
     Fixpoint unify_remove (summ : Facts) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
@@ -821,7 +825,7 @@ forall
 
     Theorem ApplyCancelSep : forall cs uvars hyps l r,
       AllProvable funcs uvars nil hyps ->
-      match CancelSep uvars hyps l r with
+      match CancelSep hyps l r with
         | Prove vars lhs_ex lhs rhs_ex rhs SUBST =>
           forallEach vars (fun VS : env types =>
             exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
@@ -830,7 +834,7 @@ forall
       end ->
       himp nil uvars nil cs l r.
     Proof.
-      clear. intros. case_eq (CancelSep uvars hyps l r); intros.
+      clear. intros. case_eq (CancelSep hyps l r); intros.
       rewrite H1 in H0.
     Admitted.
 

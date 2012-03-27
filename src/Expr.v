@@ -10,6 +10,12 @@ Section env.
     Eq : forall x y : Impl, option (x = y)
   }.
 
+  Definition Impl_ (o : option type) : Type :=
+    match o return Type with
+      | None => Empty_set
+      | Some t => Impl t
+    end.
+
   Variable types : list type.
 
   (** this type requires decidable equality **)
@@ -20,19 +26,21 @@ Section env.
   Definition tvarD (x : tvar) := 
     match x return Type with
       | tvProp => Prop
-      | tvType x => 
-        match nth_error types x return Type with
-          | None => Empty_set
-          | Some t => Impl t
-        end
+      | tvType x =>
+        Impl_ (nth_error types x)
     end.
+
+  Definition EmptySet_type : type :=
+  {| Impl := Empty_set 
+   ; Eq := fun x _ => match x with end
+   |}.
 
   Definition typeFor (t : tvar) : type :=
     match t with
       | tvProp => {| Impl := Prop ; Eq := fun _ _ => None |}
       | tvType t => 
         match nth_error types t with
-          | None => {| Impl := Empty_set ; Eq := fun x _ => match x with end |}
+          | None => EmptySet_type
           | Some v => v 
         end
     end.
@@ -65,6 +73,12 @@ Section env.
     Range : tvar;
     Denotation : functionTypeD (map tvarD Domain) (tvarD Range)
   }.
+
+  Definition Default_signature : signature :=
+  {| Domain := nil
+   ; Range := tvProp
+   ; Denotation := True
+   |}.
 
   Definition functions := list signature.
   Definition variables := list tvar.

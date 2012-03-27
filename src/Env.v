@@ -30,18 +30,15 @@ Hint Rewrite app_nil_l : provers.
 Section UpdateAt.
   Variable A : Type.
   
-  Variable new : A.
+  Variable new default : A.
 
   Fixpoint updateAt (ls : list A) (n : nat) : list A :=
-    match ls with
-      | nil => match n with
-                 | 0 => new :: nil
-                 | S n' => new :: updateAt nil n'
-               end
-      | a :: ls' => match n with
-                      | 0 => new :: ls'
-                      | S n' => a :: updateAt ls' n'
-                    end
+    match n with
+      | 0 => new :: tail ls
+      | S n => match head ls with
+                 | None => default
+                 | Some v => v 
+               end :: updateAt (tail ls) n
     end.
 
   Definition defaulted (ls : list A) (n : nat) (n' : nat) : option A :=
@@ -49,23 +46,15 @@ Section UpdateAt.
       | inleft (left _) => nth_error ls n'
       | inleft (right _) => Some new
       | inright _ => match nth_error ls n' with
-                       | None => Some new
+                       | None => Some default
                        | Some v => Some v 
                      end
     end.
 
   Require Import Omega.
-  Lemma nth_error_updateAt_nil : forall n,
-    nth_error (updateAt nil n) n = value new.
-    intros.
-    induction n; auto.
-  Qed.
-  Lemma nth_error_updateAt : forall ls n, nth_error (updateAt ls n) n = value new.
-    double induction ls n; auto.
-    intros.
-    specialize (H0 H).
-    simpl.
-    destruct l0; auto. apply nth_error_updateAt_nil; auto.
+  Lemma nth_error_updateAt : forall n l,
+    nth_error (updateAt l n) n = value new.
+    induction n; destruct l; simpl; (reflexivity || apply IHn).
   Defined.
   
   Lemma nth_error_updateAt_not : forall old n' ls n,
@@ -92,7 +81,7 @@ Section UpdateAt.
     n' < n ->
     nth_error (updateAt ls n) n' = 
       match nth_error ls n' with
-        | None => Some new
+        | None => Some default
         | Some v => Some v
       end.
   Proof.
@@ -139,19 +128,30 @@ Section UpdatePosition2.
   Variable A : Type.
 
   Hint Rewrite nth_error_updateAt : provers.
-  Lemma nth_error_updateAt_2 : forall A (ls : list A) a b m n, m <> n -> nth_error (updateAt a (updateAt b ls n) m) n = value b.
+  Lemma nth_error_updateAt_2 : forall A (ls : list A) d d' a b m n, 
+    m <> n ->
+    nth_error (updateAt a d (updateAt b d' ls n) m) n = value b.
     induction ls; induction m; induction n; provers.
   Qed.
 End UpdatePosition2.
 
 Section MapRepr.
   Variable T : Type.
+  Record Repr : Type :=
+  { footprint : list (list (nat * T))
+  ; default : T 
+  }.
 
-  Fixpoint repr (ls : list (nat * T)) : list T -> list T :=
+  Definition nil_Repr (d : T) : Repr :=
+  {| footprint := nil
+   ; default := d
+   |}.
+
+  Fixpoint repr' (d : T) (ls : list (nat * T)) : list T -> list T :=
     match ls with 
       | nil => fun x => x
       | (n, v) :: ls =>
-        fun x => updateAt v (repr ls x) n
+        fun x => updateAt v d (repr' d ls x) n
     end.
 
   Section get.
@@ -164,8 +164,8 @@ Section MapRepr.
           if Peano_dec.eq_nat_dec n n' then Some v else get ls
       end.
   End get.
-
-  Fixpoint repr_compatible (l r : list (nat * T)) : Prop :=
+(*
+  Fixpoint repr_compatible' (l r : list (nat * T)) : Prop :=
     match l with 
       | nil => True
       | (n, v) :: l =>
@@ -173,16 +173,67 @@ Section MapRepr.
               | None => v 
               | Some v' => v'
             end
-        /\ repr_compatible l r
+        /\ repr_compatible' l r
     end.
 
-  Fixpoint repr_combine (l r : list (nat * T)) : list (nat * T) :=
-    l ++ r.
+  Definition repr_compatible (l r : Repr) : Prop :=
+    repr_compatible' 
+      (fold_right (@app _) nil (footprint l))
+      (fold_right (@app _) nil (footprint r))
+    /\ default l = default r.
 
+  Fixpoint repr_combine' (l r : list (nat * T)) : list (nat * T) :=
+    {| footprint := footprint l ++ footprint r
+     ; default := default l
+l ++ 
+    let l_img := List.map (@fst _ _) l in
+    List.filter (fun i => if In_dec (Peano_dec.eq_nat_dec) (fst i) l_img then true else false) r.
+
+  Fixpoint merge (l r : list (nat * T)) :=
+    match l with
+      | nil => r 
+      | (n, v) :: l =>
+        match get n r with
+          | None => (n, v) :: merge l r
+          | Some _ => merge l r 
+        end
+    end.
+*)
+
+  Definition repr (l : Repr) : list T -> list T :=
+    fun v => fold_right (repr' (default l)) v (footprint l).
+
+  Definition repr_combine (l r : Repr) : Repr :=
+    {| footprint := footprint l ++ footprint r
+     ; default := default l
+     |}.
+(*
+  Lemma compatible_perm : forall (l r : Repr) x,
+    repr_compatible l r ->
+    repr (repr_combine l r) x = repr (repr_combine r l) x.
+  Proof.
+    destruct l; destruct r; unfold repr_compatible, repr_combine, repr; simpl.
+    induction footprint0. simpl. rewrite app_nil_r. intuition; subst; auto.
+    
+    simpl. intros.
+    destruct H.
+  Admitted.
+*)
+
+  Definition repr_get (l : Repr) (n : nat) : option T :=
+    (fix find xs :=
+      match xs with
+        | nil => None
+        | x :: xs => match get n x with 
+                       | None => find xs
+                       | x => x
+                     end
+      end) (footprint l).
+(*
   (** This is probably not necessary **)
-  Theorem repr_get : forall r ls n v,
+  Theorem repr_get_rw : forall r ls d n v,
     get n r = Some v ->
-    nth_error (repr r ls) n = Some v.
+    nth_error (repr' d r ls) n = Some v.
   Proof.
     induction r; simpl.
       congruence.
@@ -191,7 +242,24 @@ Section MapRepr.
     
     erewrite nth_error_updateAt_not; auto.
   Defined.
+*)
 
+(*
+  Definition cast_pf : forall r n ls,
+    match repr_get r n with 
+      | Some v =>
+        nth_error (repr r ls) n = Some v
+      | _ => True
+    end.
+  Proof.
+    unfold repr_get. intros.
+    destruct r. unfold repr. simpl in *.
+    induction (footprint r); trivial.
+    case_eq (get n a).
+    intros. unfold repr. eapply repr_get_rw in H. assumption.
+  Defined.
+*)
+(**
   Fixpoint defaulted_repr (r : list (nat * T)) (n : nat) : option T :=
     match r with
       | nil => None
@@ -251,14 +319,102 @@ Section MapRepr.
          auto.
      Admitted.
    End CastRepr.
+**)
 
 End MapRepr.
 
+(*
+Section Repr_exprD.
+  Require Import Expr.
+
+  Variable types' : list type.
+
+  Section repr.
+    Variable knowledge : Repr type.
+    Variable funcs : functions (repr knowledge types').
+    Variable uvars vars : env (repr knowledge types').    
+ 
+(*   
+    Lemma tvarD_repr_repr_get : forall idx,
+      tvarD (repr knowledge types') (tvType idx) =
+      match
+        match repr_get knowledge idx with
+          | Some v => Some v
+          | None => nth_error (repr knowledge types') idx
+        end
+        with
+        | Some v => Impl v
+        | None => Empty_set
+      end.
+    Proof.
+      clear. unfold repr. destruct knowledge. clear. unfold repr_get. simpl in *. induction footprint0; simpl in *; auto.
+      destruct a. intros.
+
+      destruct (eq_nat_dec idx n).
+      subst. rewrite nth_error_updateAt. reflexivity.
+        case_eq (get idx footprint0); intros; auto.
+        erewrite nth_error_updateAt_not. 2: eassumption.
+        reflexivity.
+        
+        erewrite repr_get_rw; [ reflexivity | eassumption ].
+    Defined.
+
+    Definition exprD_repr (e : expr (repr knowledge types')) (idx : nat)
+      : option match match repr_get knowledge idx with
+                       | Some v => Some v
+                       | None => nth_error (repr knowledge types') idx
+                     end
+    (** NOTE: This [return Type] is NOT optional, it is necessary to make universes work out **)
+                 return Type with 
+                 | None => Empty_set
+                 | Some v => Impl v
+               end :=
+      match tvarD_repr_repr_get idx in _ = T return option T with
+        | refl_equal => exprD funcs uvars vars e (tvType idx)
+      end.
+  End repr.
+
+  Definition k : Repr type :=
+    {| footprint := (0, {| Impl := nat ; Eq := fun _ _ => None |}) :: nil
+     ; default := {| Impl := Empty_set ; Eq := fun _ _ => None |} |}.
+
+  Goal forall fs u v e,
+    exprD (types := repr k types') fs u v e (tvType 0) = Some 0 ->
+    match exprD_repr k fs u v e 0 with 
+      | Some n => n = 0
+      | None => False
+    end.
+    unfold exprD_repr. simpl. unfold eq_ind_r. unfold eq_ind. unfold eq_rect. simpl.
+    intros. rewrite H. destruct types'; reflexivity.
+  Qed.
+*)
+  End repr.
+End Repr_exprD.
+*)
+(*
+  Section updateAt.
+    Variable idx : nat.
+    Variable t d : type.
+    Variable funcs : functions (updateAt t d types' idx).
+    Variable uvars vars : env (updateAt t d types' idx).
+
+    Definition exprD_update (e : expr (updateAt t d types' idx))
+      : option (Impl t) :=
+      let res := exprD funcs uvars vars e (tvType idx) in
+      match res with
+        | None => None
+        | Some res => Some (@cast type t d  (fun x => match x with
+                                                        | Some t => Impl t
+                                                        | None => Empty_set
+                                                      end) types' idx res)
+      end.
+  End updateAt.
+*)
+
+(*
 (** Specializations for exprD **)
 Section UpdateAt_exprD.
   Require Import Expr.
-  
-  Variable types' : list type.
 
   Section repr.
     Variable deltaT : list (nat * type).
@@ -305,6 +461,7 @@ Section UpdateAt_exprD.
   End updateAt.
 
 End UpdateAt_exprD.
+*)
 
 (*
 Set Printing Universes.
