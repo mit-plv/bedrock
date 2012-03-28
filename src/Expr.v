@@ -100,6 +100,8 @@ Section env.
   | Func : forall f : func, list expr -> expr
   | Equal : tvar -> expr -> expr -> expr.
 
+  Definition exprs : Type := list expr.
+
   Set Elimination Schemes.
 
   Section expr_ind.
@@ -781,7 +783,7 @@ Ltac reflectTypes_toList types ts :=
  ** form, 
  **   _ -> ... -> _
  **)
-Ltac reflect_function types f :=
+Ltac reify_function types f :=
   let T := type of f in
   let rec refl dom T :=
     match T with
@@ -807,7 +809,7 @@ Ltac getFunction types f funcs' k :=
   let rec lookup funcs acc :=
     match funcs with
       | nil =>
-        let F := reflect_function types f in
+        let F := reify_function types f in
         let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
         k funcs acc
       | Sig _ _ _ ?F :: ?FS =>
@@ -875,7 +877,7 @@ Ltac get_or_extend_var types all t v k :=
  ** - k is the continuation and is passed the list of reflected
  **   uvars, functions, and the reflected expression.
  **)
-Ltac reflect_expr isConst e types funcs uvars vars k :=
+Ltac reify_expr isConst e types funcs uvars vars k :=
   let rec reflect e funcs uvars k :=
     match e with
       | ?X => is_evar X ;
@@ -964,18 +966,18 @@ Ltac collectTypes_exprs isConst es Ts :=
  ** - k :: env types -> functions types -> list (expr types)
  ** NOTE: this function accepts either a tuple or a list for es
  **) 
-Ltac reflect_exprs isConst es types funcs uvars vars k :=
+Ltac reify_exprs isConst es types funcs uvars vars k :=
   match es with
     | tt => k uvars funcs (@nil (expr types))
     | nil => k uvars funcs (@nil (expr types))
     | (?e, ?es) =>
-      reflect_expr ltac:(isConst) e types funcs uvars vars ltac:(fun uvars funcs e =>
-        reflect_exprs ltac:(isConst) es types funcs uvars vars ltac:(fun uvars funcs es =>
+      reify_expr ltac:(isConst) e types funcs uvars vars ltac:(fun uvars funcs e =>
+        reify_exprs ltac:(isConst) es types funcs uvars vars ltac:(fun uvars funcs es =>
           let res := constr:(e :: es) in
           k uvars funcs res))
     | ?e :: ?es =>
-      reflect_expr ltac:(isConst) e types funcs uvars vars ltac:(fun uvars funcs e =>
-        reflect_exprs ltac:(isConst) es types funcs uvars vars ltac:(fun uvars funcs es =>
+      reify_expr ltac:(isConst) e types funcs uvars vars ltac:(fun uvars funcs e =>
+        reify_exprs ltac:(isConst) es types funcs uvars vars ltac:(fun uvars funcs es =>
           let res := constr:(e :: es) in
           k uvars funcs res))
   end.
@@ -987,7 +989,7 @@ Ltac reflect_exprs isConst es types funcs uvars vars k :=
  **   (uvars : env types) (funcs : functions types)
  **   (pures : list (expr types)) (proofs : AllProvable pures)
  **)
-Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
+Ltac reify_props shouldReflect isConst types funcs uvars vars k :=
   let rec collect skip uvars funcs acc proofs :=
     match goal with
       | [ H : ?X |- _ ] =>
@@ -995,7 +997,7 @@ Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
           | true =>
             match hcontains H skip with
               | false =>
-                reflect_expr isConst X types funcs uvars vars 
+                reify_expr isConst X types funcs uvars vars 
                 ltac:(fun uvars funcs e =>
                   let skip := constr:((H, skip)) in
                   let res := constr:(e :: acc) in
@@ -1012,7 +1014,7 @@ Ltac reflect_props shouldReflect isConst types funcs uvars vars k :=
 *)
 
 (* DO NOT USE THIS FUNCTION!
-Ltac reflect_exprs isConst types funcs exprs :=
+Ltac reify_exprs isConst types funcs exprs :=
   let rt := 
     collectAllTypes_expr isConst (@nil Type) exprs
   in
@@ -1024,7 +1026,7 @@ Ltac reflect_exprs isConst types funcs exprs :=
       | _ => funcs 
     end
   in
-  let rec reflect_all ls funcs k :=
+  let rec reify_all ls funcs k :=
     match ls with
       | tt => 
         let r := constr:(@nil (@expr types)) in
@@ -1032,19 +1034,19 @@ Ltac reflect_exprs isConst types funcs exprs :=
       | (?e, ?es) =>
         let vs := constr:(@nil tvar) in
         let us := constr:(@nil tvar) in
-        reflect_expr isConst e types funcs us vs ltac:(fun funcs e =>
-          reflect_all es funcs ltac:(fun funcs es =>
+        reify_expr isConst e types funcs us vs ltac:(fun funcs e =>
+          reify_all es funcs ltac:(fun funcs es =>
             let es := constr:(e :: es) in
             k funcs es))
     end
   in
   match type of funcs with
     | list (signature types) =>
-      reflect_all exprs funcs ltac:(fun funcs es =>
+      reify_all exprs funcs ltac:(fun funcs es =>
         constr:((types, funcs, es)))
     | list (signature ?X) =>
       let funcs := lift_signatures funcs types in
-        reflect_all exprs funcs ltac:(fun funcs es =>
+        reify_all exprs funcs ltac:(fun funcs es =>
           constr:((types, funcs, es)))
   end.
 *)
@@ -1067,7 +1069,7 @@ Goal exists x : nat, exists y : nat,  x + 1 = 1 + y.
       let funcs := constr:(@nil (signature types)) in
       let uvars := constr:(@nil _ : env types) in
       let vars := constr:(@nil _ : env types) in
-      reflect_expr isConst G types funcs uvars vars ltac:(fun uvars funcs G =>
+      reify_expr isConst G types funcs uvars vars ltac:(fun uvars funcs G =>
         pose (exprD funcs uvars nil G tvProp))
   end.
 *)

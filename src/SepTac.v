@@ -7,13 +7,13 @@ Require Expr SepExpr.
 Require Import Provers.
 Module SEP := SymIL.BedrockEvaluator.SEP.
 
-Lemma ApplyCancelSep : forall types' (prover : ProverT),
-  let types := Env.repr (known_types prover) types' in
-  forall pcT stT uvars (hyps : list (Expr.expr types)) funcs sfuncs
+Lemma ApplyCancelSep : forall types funcs,
+  forall (prover : ProverT types), ProverT_correct prover funcs ->
+    forall pcT stT uvars (hyps : list (Expr.expr types)) sfuncs
   (l r : SEP.sexpr types pcT stT),
   Expr.AllProvable funcs uvars nil hyps ->
   forall cs, 
-  match SEP.CancelSep sfuncs (prove prover _) (summarize prover _) hyps l r with
+  match SEP.CancelSep sfuncs prover hyps l r with
     | {| SEP.vars := vars; 
          SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
          SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
@@ -66,8 +66,12 @@ Ltac change_to_himp := try apply ignore_regs;
     | _ => apply change_Imply_himp
   end.
 
-Check SymIL.BedrockEvaluator.bedrock_funcs.
-
+(** The parameters are the following.
+ ** - [isConst] is an ltac [* -> bool]
+ ** - [prover] is a value of type [forall ts (fs : functions ts), ProverT_correct ts P fs]
+ ** - [simplifier] is an ltac that simplifies the goal after the cancelation
+ ** - [Ts] is a value of type [list Type] or [tt]
+ **)
 Ltac sep_canceler isConst prover simplifier Ts :=
   (try change_to_himp) ;
   match goal with 
@@ -76,7 +80,7 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let stateT := constr:(prod settings state) in
       let all_props := Expr.collect_props ltac:(fun _ => true) in
       let pures := Expr.props_types all_props in
-      let L := eval unfold starB exB hvarB in L in
+       let L := eval unfold starB exB hvarB in L in
       let R := eval unfold starB exB hvarB in R in
       (** collect types **)
       let Ts := 
@@ -120,18 +124,23 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let stT := constr:(SymIL.BedrockEvaluator.stT) in
       (** build the base sfunctions **)
       let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
-      Expr.reflect_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+      Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
         let proofs := Expr.props_proof all_props in
-      SEP.reflect_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
-      SEP.reflect_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
-        apply (@ApplyCancelSep typesV uvars pures funcs 
-          (prover _ funcs) sfuncs L R proofs) ;
-        unfold typesV ;
-        simplifier ;
-        repeat match goal with
-                 | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
-                 | _ => reflexivity
-               end )))))
+      SEP.reify_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
+      SEP.reify_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
+        let proverC := prover typesV funcs in
+        (apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs) ;
+         unfold typesV ;
+         simplifier ;
+         repeat match goal with
+                  | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
+                  | _ => reflexivity
+                end)
+        || (idtac "failed to apply, generalizing instead!" ; 
+            generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs)
+        ))))))
+    | [ |- ?G ] => 
+      idtac "no match" G 
   end.
 
 Ltac cancel_simplifier :=
@@ -141,8 +150,7 @@ Ltac cancel_simplifier :=
 
         SepExpr.FM.fold
 
-        Provers.summary Provers.summarize Provers.prove Provers.learn
-        Provers.transitivityProverRec
+        Provers.Facts Provers.Summarize Provers.Prove Provers.Learn
 
         ExprUnify.Subst
 
@@ -164,7 +172,7 @@ Ltac cancel_simplifier :=
         SEP.unify_remove_all SEP.unify_remove
 
         SEP.unifyArgs
-        ExprUnify.fold_left_2_opt
+        ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
         Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
 
         ExprUnify.exprUnify SEP.substV length
@@ -193,11 +201,13 @@ Ltac cancel_simplifier :=
         SEP.forallEach
         SEP.sheapD SEP.sexprD
         SEP.starred SEP.himp
-        Expr.Impl Expr.is_well_typed
+        Expr.Impl Expr.Impl_ Expr.is_well_typed
 
         hd hd_error value error tl
         Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
         Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_ssignature
+
+        orb SymIL.BedrockEvaluator.pcT SymIL.BedrockEvaluator.stT
       ].
 
 (*

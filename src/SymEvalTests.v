@@ -183,9 +183,9 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let types := eval unfold pre_types in pre_types in
         let types := SEP.extend_all_types Ts types in
         let sexprs := constr:(P :: nil) in
-        match SEP.reflect_sexprs a b ltac:(isConst) types tt tt sexprs with
+        match SEP.reify_sexprs a b ltac:(isConst) types tt tt sexprs with
           | (?types, ?pcType, ?stateType, ?funcs, ?sfuncs, ?P :: nil) =>
-            match SEP.reflect_exprs ltac:(isConst) types funcs (PTR, tt) with
+            match SEP.reify_exprs ltac:(isConst) types funcs (PTR, tt) with
               | (?types, ?funcs, ?PTR :: nil) => 
                 let hyps := constr:(@nil (expr types)) in
                 let s := eval simpl in (SEP.hash P) in
@@ -223,9 +223,9 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let types := eval unfold pre_types in pre_types in
         let types := SEP.extend_all_types Ts types in
         let sexprs := constr:(P :: nil) in
-        match SEP.reflect_sexprs a b ltac:(isConst) types tt tt sexprs with
+        match SEP.reify_sexprs a b ltac:(isConst) types tt tt sexprs with
           | (?types, ?pcType, ?stateType, ?funcs, ?sfuncs, ?P :: nil) =>
-             match SEP.reflect_exprs ltac:(isConst) types funcs (PTR, (VAL, tt)) with
+             match SEP.reify_exprs ltac:(isConst) types funcs (PTR, (VAL, tt)) with
               | (?types, ?funcs, ?PTR :: ?VAL :: nil) => 
                  let hyps := constr:(@nil (expr pre_types)) in
                 let s := eval simpl in (SEP.hash P) in
