@@ -4,6 +4,7 @@ Require Import EquivDec EqdepClass.
 Require Import DepList.
 
 Set Implicit Arguments.
+Set Strict Implicit.
 
 Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
@@ -27,11 +28,11 @@ End ProverT.
 
 (** Provers that establish [expr]-encoded facts *)
 
-Definition ProverCorrect types fs (summary : Type)
+Definition ProverCorrect types (fs : functions types) (summary : Type)
     (** Some prover work only needs to be done once per set of hypotheses,
        so we do it once and save the outcome in a summary of this type. *)
   (valid : env types -> env types -> summary -> Prop)
-  (prover : summary -> expr types -> bool) :=
+  (prover : summary -> expr types -> bool) : Prop :=
   forall vars uvars sum,
     valid uvars vars sum ->
     forall goal, 
@@ -39,37 +40,24 @@ Definition ProverCorrect types fs (summary : Type)
       ValidProp fs uvars vars goal ->
       Provable fs uvars vars goal.
 
-Record ProverT : Type :=
-{ known_types : Repr type ;
-  known_funcs : forall typs, Repr (signature (Env.repr known_types typs)) ;
-
-  summary : list type -> Type ;
-  valid : forall typs (fs : functions (Env.repr known_types typs)),
-    env (Env.repr known_types typs) -> env (Env.repr known_types typs) -> summary typs -> Prop ;
-  summarize : forall typs, list (expr (Env.repr known_types typs)) -> summary typs ;
-  learn : forall typs, summary typs -> list (expr (Env.repr known_types typs)) -> summary typs ;
-  prove : forall typs (hyps : summary typs) (goal : expr (Env.repr known_types typs)), bool ;
-  summarize_correct : forall typs fs uvars vars hyps,
-    AllProvable fs uvars vars hyps ->
-    valid fs uvars vars (summarize typs hyps) ;
-  learn_correct : forall typs fs uvars vars sum,
-    valid fs uvars vars sum -> forall hyps,
-    AllProvable (Env.repr (known_funcs typs) fs) uvars vars hyps ->
-    valid fs uvars vars (learn sum hyps) ;
-  prove_correct : forall typs fs, ProverCorrect (Env.repr (known_funcs typs) fs) (valid fs) (@prove typs)
+Record ProverT (types : list type) : Type :=
+{ Facts : Type
+; Summarize : exprs types -> Facts
+; Learn : Facts -> exprs types -> Facts
+; Prove : Facts -> expr types -> bool
 }.
 
-Definition proverTypes (p : ProverT) : list type -> list type :=
-  Env.repr (known_types p).
-Definition proverFuncs (p : ProverT) (typs : list type) : functions (proverTypes p typs) -> functions (proverTypes p typs) :=
-  Env.repr (known_funcs p typs).
-
-(* TODO: this is prover composition....
-Definition compatibleProverT (l r : ProverT) : Prop :=
-  exists compat : repr_compatible (known_types l) (known_types r), True.
- TODO: I need to justify this using the compatibility proof    
-  /\ (forall typs, repr_compatible (known_funcs l typs) (known_funcs r typs)).
-*)
+Record ProverT_correct (types : list type) (P : ProverT types) (funcs : functions types) : Type :=
+{ Valid : env types -> env types -> Facts P -> Prop
+; Summarize_correct : forall uvars vars hyps, 
+  AllProvable funcs uvars vars hyps ->
+  Valid uvars vars (Summarize P hyps)
+; Learn_correct : forall uvars vars facts,
+  Valid uvars vars facts -> forall hyps,
+  AllProvable funcs uvars vars hyps ->
+  Valid uvars vars (Learn P facts hyps)
+; Prove_correct : ProverCorrect funcs Valid (Prove P)
+}.
 
 Lemma eq_nat_dec_correct : forall (n : nat), eq_nat_dec n n = left eq_refl.
   induction n; provers.
@@ -159,13 +147,13 @@ Section AssumptionProver.
 
   Definition assumptionSummarize (hyps : list (expr types)) : assumption_summary := hyps.
 
-  Fixpoint assumptionProver (hyps : assumption_summary)
+  Fixpoint assumptionProve (hyps : assumption_summary)
     (goal : expr types) : bool :=
     match hyps with
       | nil => false
       | exp :: b => if expr_seq_dec exp goal
         then true
-        else assumptionProver b goal
+        else assumptionProve b goal
     end.
 
   Definition assumptionLearn (sum : assumption_summary) (hyps : list (expr types)) : assumption_summary :=
@@ -190,33 +178,35 @@ Section AssumptionProver.
     apply AllProvable_app; auto.
   Qed.
 
-  Theorem assumptionProverCorrect : ProverCorrect fs assumptionValid assumptionProver.
+  Theorem assumptionProverCorrect : ProverCorrect fs assumptionValid assumptionProve.
     t; induction sum; t.
   Qed.
-End AssumptionProver.
 
-Definition assumptionProverRec := 
-{| known_types := nil_Repr EmptySet_type
- ; known_funcs := fun _ => nil_Repr (Default_signature _)
- ; summary := fun typs => assumption_summary typs
- ; valid := assumptionValid
- ; summarize := assumptionSummarize
- ; learn := assumptionLearn
- ; prove := assumptionProver
- ; summarize_correct := assumptionSummarizeCorrect
- ; learn_correct := assumptionLearnCorrect
- ; prove_correct := assumptionProverCorrect
- |}.
+  Definition assumptionProver : ProverT types :=
+  {| Facts := assumption_summary
+   ; Summarize := assumptionSummarize
+   ; Learn := assumptionLearn
+   ; Prove := assumptionProve
+   |}.
+  Definition assumptionProver_correct : ProverT_correct (types := types) assumptionProver fs.
+  econstructor.
+  instantiate (1 := assumptionValid).
+  apply assumptionSummarizeCorrect.
+  apply assumptionLearnCorrect.
+  apply assumptionProverCorrect.
+  Qed.
+
+End AssumptionProver.
 
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
   
-  Definition reflexivityValid (fs : functions types) (_ _ : env types) (_ : unit) := True.
+  Definition reflexivityValid (_ _ : env types) (_ : unit) := True.
 
   Definition reflexivitySummarize (_ : list (expr types)) := tt.
 
-  Definition reflexivityProver (_ : unit) (goal : expr types) := 
+  Definition reflexivityProve (_ : unit) (goal : expr types) := 
     match goal with
       | Equal _ x y => if expr_seq_dec x y then true else false
       | _ => false
@@ -226,37 +216,37 @@ Section ReflexivityProver.
 
   Lemma reflexivitySummarizeCorrect : forall uvars vars hyps,
     AllProvable fs uvars vars hyps ->
-    reflexivityValid fs uvars vars (reflexivitySummarize hyps).
+    reflexivityValid uvars vars (reflexivitySummarize hyps).
   Proof.
     unfold reflexivityValid; auto.
   Qed.
 
   Lemma reflexivityLearnCorrect : forall uvars vars sum,
-    reflexivityValid fs uvars vars sum -> forall hyps, 
+    reflexivityValid uvars vars sum -> forall hyps, 
     AllProvable fs uvars vars hyps ->
-    reflexivityValid fs uvars vars (reflexivityLearn sum hyps).
+    reflexivityValid uvars vars (reflexivityLearn sum hyps).
   Proof.
     unfold reflexivityValid; auto.
   Qed.
 
-  Theorem reflexivityProverCorrect : ProverCorrect fs (reflexivityValid fs) reflexivityProver.
-    unfold reflexivityProver; t.
+  Theorem reflexivityProverCorrect : ProverCorrect fs reflexivityValid reflexivityProve.
+    unfold reflexivityProve; t.
+  Qed.
+
+  Definition reflexivityProver : ProverT types :=
+  {| Facts := unit
+   ; Summarize := fun _ => tt
+   ; Learn := fun x _ => x
+   ; Prove := reflexivityProve
+   |}.
+  Definition reflexivityProver_correct : ProverT_correct reflexivityProver fs.
+  econstructor.
+  instantiate (1 := reflexivityValid).
+  apply reflexivitySummarizeCorrect.
+  apply reflexivityLearnCorrect.
+  apply reflexivityProverCorrect.
   Qed.
 End ReflexivityProver. 
-
-Definition reflexivityProverRec :=
-{| known_types := nil_Repr EmptySet_type
- ; known_funcs := fun _ => nil_Repr (Default_signature _)
- ; valid := @reflexivityValid
- ; summarize := fun _ _ => tt
- ; learn := fun _ sum _ => sum
- ; prove := fun typs => @reflexivityProver _
- ; summarize_correct := @reflexivitySummarizeCorrect
- ; learn_correct := @reflexivityLearnCorrect
- ; prove_correct := @reflexivityProverCorrect
- |}.
-
-
 
 (* Algorithm for grouping expressions by equalities. Terribly inefficient... *)
 Section Grouper.
@@ -503,7 +493,7 @@ Section TransitivityProver.
   Definition transitivityEqProver (groups : transitivity_summary)
     (x y : expr types) := inSameGroup eqD_seq groups x y.
 
-  Definition transitivityProver (groups : transitivity_summary)
+  Definition transitivityProve (groups : transitivity_summary)
     (goal : expr types) :=
     match goal with
       | Equal _ x y => inSameGroup eqD_seq groups x y
@@ -629,7 +619,7 @@ Section TransitivityProver.
     intuition.
   Qed.
 
-  Theorem transitivityProverCorrect : ProverCorrect fs transitivityValid transitivityProver.
+  Theorem transitivityProverCorrect : ProverCorrect fs transitivityValid transitivityProve.
     admit. 
 (*
     unfold transitivityProver; hnf; intros;
@@ -641,17 +631,20 @@ Section TransitivityProver.
         end; hnf in *; simpl in *; eqD.
 *)
   Qed.
+
+  Definition transitivityProver : ProverT types :=
+  {| Facts := transitivity_summary
+   ; Summarize := transitivitySummarize
+   ; Learn := transitivityLearn
+   ; Prove := transitivityProve
+   |}.
+  Definition transitivityProver_correct : ProverT_correct transitivityProver fs.
+  econstructor.
+  instantiate (1 := transitivityValid).
+  apply transitivitySummarizeCorrect.
+  apply transitivityLearnCorrect.
+  apply transitivityProverCorrect.
+  Qed.
+
 End TransitivityProver.
 
-Definition transitivityProverRec :=
-{| known_types := nil_Repr EmptySet_type
- ; known_funcs := fun _ => nil_Repr (Default_signature _)
- ; summary := fun typs => transitivity_summary typs
- ; valid := transitivityValid
- ; summarize := transitivitySummarize
- ; learn := transitivityLearn
- ; prove := transitivityProver
- ; summarize_correct := transitivitySummarizeCorrect
- ; learn_correct := transitivityLearnCorrect
- ; prove_correct := transitivityProverCorrect
- |}.

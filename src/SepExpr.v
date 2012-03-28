@@ -706,7 +706,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        |}.
 
     (** The actual tactic code **)
-    Record SepResult (gl gr : sexpr) : Type := Prove
+    Record SepResult (gl gr : sexpr) : Type :=
       { vars   : variables
       ; lhs_ex : variables
       ; lhs    : sexpr
@@ -715,42 +715,20 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       ; SUBST  : Subst types
       }.
 
+    Variable Prover : ProverT types.
+    Variable Prover_correct : ProverT_correct Prover funcs.
 
-(*
-    (** TODO: I want to move this to the bottom, outside of the sections! **)
-    Record SProverT : Type := 
-    { pure_prover : ProverT
-    ; s_known_types : list (nat * type)
-      (** this guarantees that the updates are commutative! **)
-    ; s_compatible : Env.repr_compatible (known_types pure_prover) s_known_types
-    ; sprove : forall typs, summary pure_prover (Env.repr s_known_types typs) -> forall (gl gr : sexpr (Env.repr (Env.repr_combine (known_types pure_prover) s_known_types) typs)), SepResult gl gr
-    ; sprove_correct : True
-    }.
-forall
-      (hyps : list (expr types)) (** Pure Premises **)
-      (gl gr : sexpr),
-      SepResult gl gr.
-
-    Variable prover : ProverT.
-
-    Check Expr.Eq.
-    Check exprUnify.
-*)
-
-    Variable Facts : Type.
-    Variable prove : Facts -> expr types -> bool.
-
-    Definition unifyArgs (summ : Facts) (l r : list (expr types)) (ts : list tvar) (ls rs : Subst types)
+    Definition unifyArgs (summ : Facts Prover) (l r : list (expr types)) (ts : list tvar) (ls rs : Subst types)
       : option (Subst types * Subst types) :=
       ExprUnify.fold_left_3_opt 
         (fun l r t (acc : Subst _ * Subst _) =>
           match exprUnify l r (fst acc) (snd acc) with
-            | None => if prove summ (Expr.Equal t l r) then Some acc else None
+            | None => if Prove Prover summ (Expr.Equal t l r) then Some acc else None
             | x => x
           end)
         l r ts (ls, rs).
 
-    Fixpoint unify_remove (summ : Facts) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
+    Fixpoint unify_remove (summ : Facts Prover) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
       (ls rs : ExprUnify.Subst types)
       : option (list (list (expr types)) * ExprUnify.Subst types * ExprUnify.Subst types) :=
         match r with 
@@ -766,7 +744,7 @@ forall
             end
         end.
 
-    Fixpoint unify_remove_all (summ : Facts) (l r : list (list (expr types))) (ts : list tvar)
+    Fixpoint unify_remove_all (summ : Facts Prover) (l r : list (list (expr types))) (ts : list tvar)
       (ls rs : ExprUnify.Subst types)
       : list (list (expr types)) * list (list (expr types)) * 
         ExprUnify.Subst types * ExprUnify.Subst types :=
@@ -782,7 +760,7 @@ forall
             end
         end.
 
-    Definition sepCancel (summ : Facts) (l r : SHeap) :
+    Definition sepCancel (summ : Facts Prover) (l r : SHeap) :
       SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types :=
       let '(lf, rf, ls, rs) := 
         FM.fold (fun k v a => 
@@ -806,8 +784,6 @@ forall
        {| impures := rf ; pures := pures r ; other := other r |},
        ls, rs).
 
-    Variable summarize : list (expr types) -> Facts.
-
     (** TODO: I should reconsider this... 
      ** - I think the correct interface here is to spit out two sexprs
      **)
@@ -815,7 +791,7 @@ forall
       fun hyps gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
-        let summ := summarize (hyps ++ pures lhs) in
+        let summ := Summarize Prover (hyps ++ pures lhs) in
         let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
         let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel summ lhs rhs' in
         {| vars := ql 
@@ -823,10 +799,15 @@ forall
          ; rhs := sheapD rhs' ; rhs_ex := qr ; SUBST := rhs_subst
          |}.
 
+
+
     Theorem ApplyCancelSep : forall cs uvars hyps l r,
       AllProvable funcs uvars nil hyps ->
       match CancelSep hyps l r with
-        | Prove vars lhs_ex lhs rhs_ex rhs SUBST =>
+        | {| vars := vars 
+           ; lhs_ex := lhs_ex ; lhs := lhs
+           ; rhs_ex := rhs_ex ; rhs := rhs 
+           ; SUBST := SUBST |} =>
           forallEach vars (fun VS : env types =>
             exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
             (fun rhs_ex : env types => 
@@ -834,9 +815,10 @@ forall
       end ->
       himp nil uvars nil cs l r.
     Proof.
-      clear. intros. case_eq (CancelSep hyps l r); intros.
-      rewrite H1 in H0.
-    Admitted.
+      intros. case_eq (CancelSep hyps l r); intros.
+      rewrite H1 in H0. revert Prover_correct.
+      admit.
+    Qed.
 
   End env.
 
@@ -955,9 +937,9 @@ forall
     end.
 
   (** reflect a separation logic predicate. this is analagous 
-   ** to reflect_function except that it works on separation logic functions.
+   ** to reify_function except that it works on separation logic functions.
    **)
-  Ltac reflect_sfunction pcT stT types f :=
+  Ltac reify_sfunction pcT stT types f :=
     let T := type of f in
     let rec refl dom T :=
       match T with
@@ -982,7 +964,7 @@ forall
     let rec lookup sfuncs' acc :=
       match sfuncs' with
         | nil =>
-          let F := reflect_sfunction pcT stT types f in
+          let F := reify_sfunction pcT stT types f in
           let sfuncs := eval simpl app in (sfuncs ++ (F :: nil)) in
           k sfuncs acc
         | SSig _ _ _ ?F :: ?FS =>
@@ -1009,7 +991,7 @@ forall
    ** k is called with the unification variables, functions, separation logic predicats and the reflected
    ** sexpr.
    **)
-  Ltac reflect_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
+  Ltac reify_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
     let implicits ctor :=
       constr:(ctor types (ST.hprop (@tvarD types pcType) (@tvarD types stateType) nil))
     in
@@ -1041,7 +1023,7 @@ forall
           k uvars funcs sfuncs r
 
         | @ST.inj _ _ _ (PropX.Inj ?P) =>
-          reflect_expr isConst P types funcs uvars vars ltac:(fun uvars funcs P =>
+          reify_expr isConst P types funcs uvars vars ltac:(fun uvars funcs P =>
             let r := constr:(@Inj) in
             let r := implicits r in
             let r := constr:(r P) in
@@ -1075,7 +1057,7 @@ forall
                 let v := constr:(@nil (@expr types)) in
                 k uvars funcs v
               | (?a,?b) =>
-                reflect_expr isConst a types funcs uvars vars ltac:(fun uvars funcs a =>
+                reify_expr isConst a types funcs uvars vars ltac:(fun uvars funcs a =>
                   bt_args b uvars funcs ltac:(fun uvars funcs b => 
                   let v := constr:(@cons (@expr types) a b) in
                   k uvars funcs v))
@@ -1095,7 +1077,7 @@ forall
     reflect s funcs sfuncs uvars vars k.
 
 (*
-Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
+Ltac reify_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
 *)
 
 
@@ -1116,7 +1098,7 @@ Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :
    ** - the list of reflected separation logic predicates
    ** - the list of reflected sexpr.
    **)
-  Ltac reflect_sexprs pcT stT isConst types' funcs sfuncs goals k :=
+  Ltac reify_sexprs pcT stT isConst types' funcs sfuncs goals k :=
     let Ts := collectAllTypes_props ltac:(fun _ => true) isConst (@nil Type) in
     let Ts := collectAllTypes_sexpr ltac:(isConst) Ts goals in
     let types := extend_all_types Ts types' in
@@ -1141,15 +1123,15 @@ Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :
     in
     let vars := constr:(@nil tvar) in
     let uvars := constr:(@nil tvar) in
-    reflect_props ltac:(fun _ => true) isConst types funcs uvars vars ltac:(fun uvars funcs props proofs =>
-      let rec reflect_all ls uvars funcs sfuncs k :=
+    reify_props ltac:(fun _ => true) isConst types funcs uvars vars ltac:(fun uvars funcs props proofs =>
+      let rec reify_all ls uvars funcs sfuncs k :=
         match ls with
           | nil => 
             let r := constr:(@nil (@sexpr types pcTyp stTyp)) in
               k types pcTyp stTyp uvars funcs sfuncs r
           | ?e :: ?es =>
-            reflect_sexpr isConst e typesV funcs pcTyp stTyp sfuncs uvars vars ltac:(fun uvars funcs sfuncs e =>
-              reflect_all es uvars funcs sfuncs ltac:(fun types pcType stTyp uvars funcs sfuncs es =>
+            reify_sexpr isConst e typesV funcs pcTyp stTyp sfuncs uvars vars ltac:(fun uvars funcs sfuncs e =>
+              reify_all es uvars funcs sfuncs ltac:(fun types pcType stTyp uvars funcs sfuncs es =>
                 let es := constr:(e :: es) in
                   k types pcType stTyp uvars funcs sfuncs es)) 
         end
@@ -1157,11 +1139,11 @@ Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :
       let k' := k props proofs in
       match type of funcs with
         | list (signature types) =>
-          reflect_all goals uvars funcs sfuncs k'
+          reify_all goals uvars funcs sfuncs k'
         | ?X =>
           let funcs := lift_signatures funcs types in
             let sfuncs := lift_ssignatures sfuncs types in
-              reflect_all goals uvars funcs sfuncs k'
+              reify_all goals uvars funcs sfuncs k'
       end).
 *)
 
@@ -1180,26 +1162,6 @@ Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :
     unfold himp. intros. auto.
   Qed.
 
-(*
-  Ltac reflect_goal isConst types k :=
-    let types :=
-      match types with
-        | tt => constr:(@nil type)
-        | _ => types
-      end
-    in
-    match goal with
-      | [ |- @ST.himp ?pcT ?stT ?cs ?L ?R ] =>
-        reflect_sexprs pcT stT isConst types tt tt (L :: R :: nil)
-          ltac:(fun props proofs types pcTyp stTyp funcs sfuncs Ps =>
-            match Ps with
-              | ?L :: ?R :: nil =>
-                apply (@change_ST_himp_himp types funcs pcTyp stTyp sfuncs cs L R);
-                    k props proofs
-            end)
-    end.
-*)
-  
   (** Base simplifier.  For now, copy all this and add your own extra entries to cover prover reductions. *)
   Ltac simplifier :=
     cbv beta iota zeta delta [CancelSep sepCancel hash liftSHeap sheapSubstU liftExpr 
@@ -1222,7 +1184,7 @@ Ltac reflect_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :
    ].
 (*
   Ltac sep isConst proverR simplifier types := 
-    reflect_goal isConst types ltac:(fun props proofs =>
+    reify_goal isConst types ltac:(fun props proofs =>
       apply ApplyCancelSep with (hyps := props) (prover := proverR _ _);
         [ exact proofs
           | simplifier; intros; hnf; simpl in * ]).

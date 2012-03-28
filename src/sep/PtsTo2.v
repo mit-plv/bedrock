@@ -29,12 +29,45 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
   Definition ptrIndex := 0.
 
   Section parametric.
-    Variable Prover : ProverT.
+    Variable types : list type.
+    Variable Prover : ProverT types.
 
+
+    Definition psummary := Facts Prover.
+
+    Definition expr_equal (sum : psummary) (tv : tvar) (a b : expr types) : bool :=
+      match seq_dec a b with
+        | Some _ => true
+        | None => 
+          Provers.Prove Prover sum (Equal tv a b)
+      end.
+    
+    Definition sym_read_word_ptsto32 (summ : psummary) (args : list (expr types)) (p : expr types) 
+      : option (expr types) :=
+      match args with
+        | p' :: v' :: nil => 
+          if expr_equal summ (tvType ptrIndex) p p' then Some v' else None
+        | _ => None
+      end.
+    Definition sym_write_word_ptsto32 (summ : psummary) (args : list (expr types)) (p v : expr types)
+      : option (list (expr types)) :=
+      match args with
+        | p' :: v' :: nil =>
+          if expr_equal summ (tvType ptrIndex) p p' then Some (p :: v :: nil) else None
+        | _ => None
+      end.
+  End parametric.
+
+  Definition MemEval_ptsto32 types : @P.MemEval types.
+  eapply P.Build_MemEval.
+  eapply sym_read_word_ptsto32.
+  eapply sym_write_word_ptsto32.
+  Defined.
+
+  Section correctness.
     Variable types' : list type.
+    Definition types := Env.repr ptsto32_types_r types'.
 
-    Definition types := Env.repr (Env.repr_combine ptsto32_types_r (known_types Prover)) types'.
-  
     Definition ptsto32_ssig : ssignature types pcT stT.
     refine (
       {| SepExpr.SDomain := tvType ptrIndex :: tvType wordIndex :: nil
@@ -42,24 +75,15 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
        |}).
     refine (ptsto32 _).
     Defined.
-
-    Definition psummary := summary Prover (Env.repr ptsto32_types_r types').
-
+(*
     Variable funcs : functions types.
-    Variable CAST : forall F, F types -> F (Env.repr (known_types Prover) (Env.repr ptsto32_types_r types')).
+    Variable Prover_correct : ProverT_correct Prover funcs.
 
-    Definition expr_equal (sum : psummary) (tv : tvar) (a b : expr types) : bool :=
-      match seq_dec a b with
-        | Some _ => true
-        | None => 
-          prove Prover (Env.repr ptsto32_types_r types') sum (Equal tv (CAST expr a) (CAST expr b))
-      end.
-    
     Theorem expr_equal_correct : 
       forall (sum : psummary) (tv : tvar) (a b : expr types),
         expr_equal sum tv a b = true ->
         forall uvars vars,
-          valid Prover _ (CAST functions funcs) (CAST env uvars) (CAST env vars) sum ->
+          Provers.Valid Prover_correct uvars vars sum ->
           match exprD funcs uvars vars a tv , exprD funcs uvars vars b tv with 
             | Some l , Some r => l = r
             | _ , _ => True
@@ -67,7 +91,7 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     Proof.
       unfold expr_equal. intros. destruct (seq_dec a b); subst.
       destruct (exprD funcs uvars vars0 b tv); auto.
-      generalize (prove_correct Prover). intro XX; apply XX in H0; clear XX.
+      generalize (Prove_correct Prover_correct). intro XX; apply XX in H0; clear XX.
       eapply H0 in H. unfold Provable in H. simpl in H. (*
       case_eq (exprD funcs uvars vars0 a tv); auto.
       case_eq (exprD funcs uvars vars0 b tv); auto. intros.
@@ -85,20 +109,6 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
     Qed.*)
     Admitted.
 
-  Definition sym_read_word_ptsto32 (summ : psummary) (args : list (expr types)) (p : expr types) 
-    : option (expr types) :=
-    match args with
-      | p' :: v' :: nil => 
-        if expr_equal summ (tvType ptrIndex) p p' then Some v' else None
-      | _ => None
-    end.
-  Definition sym_write_word_ptsto32 (summ : psummary) (args : list (expr types)) (p v : expr types)
-    : option (list (expr types)) :=
-    match args with
-      | p' :: v' :: nil =>
-        if expr_equal summ (tvType ptrIndex) p p' then Some (p :: v :: nil) else None
-      | _ => None
-    end.
 
   Ltac expose :=
     repeat (unfold wordIndex, ptrIndex in *; 
@@ -129,11 +139,9 @@ Module BedrockPtsToEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
                 rewrite H in *
             end; simpl in * ).
 
-About valid.
-
   Lemma sym_read_ptsto32_correct : forall args uvars vars cs summ pe p ve m stn,
     sym_read_word_ptsto32 summ args pe = Some ve ->
-    valid Prover _ (CAST functions funcs) (CAST env uvars) (CAST env vars) summ ->
+    Provers.Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe (tvType ptrIndex) = Some p ->
     match 
       applyD (exprD funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
@@ -162,7 +170,7 @@ About valid.
 
   Lemma sym_write_word_ptsto32_correct : forall args uvars vars cs summ pe p ve v m stn args',
     sym_write_word_ptsto32 summ args pe ve = Some args' ->
-    valid Prover _ (CAST functions funcs) (CAST env uvars) (CAST env vars) summ ->
+    Provers.Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe (tvType ptrIndex) = Some p ->
     exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
     match
@@ -194,23 +202,27 @@ About valid.
     eapply smem_set_get_valid_word; eauto.
   Qed.  
 
-  Definition SymEval_ptsto32 : @P.SymEval types stT pcT
-    (tvType ptrIndex) (tvType wordIndex)
-    SepTac.smem_read
-    SepTac.smem_write
-    funcs (summary Prover _) (valid Prover) ptsto32_ssig.
-  eapply P.Build_SymEval.
-  eapply sym_read_ptsto32_correct.
-  eapply sym_write_word_ptsto32_correct.
-  Defined.  
+*)
+  End correctness.
 
-  End parametric.
+  Definition MemEval_ptsto32_correct types' funcs
+    : @P.MemEval_correct _ (MemEval_ptsto32 (Env.repr ptsto32_types_r types')) (tvType 1) (tvType 0) (tvType 0) (tvType 0)
+    SepTac.smem_read SepTac.smem_write (ptsto32_ssig types') funcs.
+(*
+  eapply P.Build_MemEval_correct;
+    simpl; unfold MemEval_ptsto32; try (rewrite P.proj_sym_read || rewrite P.proj_sym_write);
+  simpl in *; intros; (eapply (@sym_read_ptsto32_correct types') || eapply (@sym_write_word_ptsto32_correct types')); eauto.
+  Qed.
+*)
+  Admitted.
 
 End BedrockPtsToEvaluator.
 
+(*
 Module DEMO := BedrockPtsToEvaluator SymIL.PLUGIN.
 
 Import BedrockEvaluator.
+
 
 Record mem_evaluator : Type :=
 { READER : _ 
@@ -265,3 +277,4 @@ refine (
 admit.
 admit.
 Defined.
+*)
