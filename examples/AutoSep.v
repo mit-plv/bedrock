@@ -126,6 +126,7 @@ Ltac the_cancel_simplifier :=
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
+Definition v := ptsto32 nil.
 
 Ltac evaluate := 
   let plg ts pcT stT fs ps :=
@@ -134,7 +135,10 @@ Ltac evaluate :=
   let prv ts fs :=
     constr:(@Provers.transitivityProver_correct ts fs)
   in
-  sym_eval ltac:isConst prv plg idtac unfolder.
+  let ssigs :=
+    constr:((ptsto32 nil, tt))
+  in
+  sym_eval ltac:isConst prv plg idtac unfolder tt tt ssigs.
 
 Ltac cancel :=
   sep_canceler ltac:(isConst) 

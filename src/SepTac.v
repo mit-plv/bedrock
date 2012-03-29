@@ -7,6 +7,7 @@ Require Expr SepExpr.
 Require Import Provers.
 Module SEP := SymIL.BedrockEvaluator.SEP.
 
+(** TODO : this isn't true **)
 Lemma ApplyCancelSep : forall types funcs,
   forall (prover : ProverT types), ProverT_correct prover funcs ->
     forall pcT stT uvars (hyps : list (Expr.expr types)) sfuncs
@@ -14,9 +15,9 @@ Lemma ApplyCancelSep : forall types funcs,
   Expr.AllProvable funcs uvars nil hyps ->
   forall cs, 
   match SEP.CancelSep sfuncs prover hyps l r with
-    | {| SEP.vars := vars; 
-         SEP.lhs := lhs; SEP.rhs_ex := rhs_ex; 
-         SEP.rhs := rhs; SEP.SUBST := SUBST |} =>
+    | {| SepExpr.r_vars := vars; 
+         SepExpr.r_lhs := lhs; SepExpr.r_rhs_ex := rhs_ex; 
+         SepExpr.r_rhs := rhs; SepExpr.r_SUBST := SUBST |} =>
       SEP.forallEach vars
         (fun VS : Expr.env types =>
           SEP.exists_subst funcs VS uvars
@@ -129,16 +130,25 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       SEP.reify_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
       SEP.reify_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
         let proverC := prover typesV funcs in
-        (apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs) ;
-         unfold typesV ;
+        (idtac "trying to apply" ;
+          (** TODO: for some reason the partial application to proofs doesn't always work... **)
+         apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs);
+         subst typesV ;
+         idtac "goign to simplify" ;
          simplifier ;
+         idtac "done simplify" ;
          repeat match goal with
                   | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
                   | _ => reflexivity
                 end)
         || (idtac "failed to apply, generalizing instead!" ; 
-            generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs)
-        ))))))
+            first [ generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs)
+              | generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R); generalize proofs
+              | generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs)
+              | generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures)
+              | generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars)
+              | generalize (@ApplyCancelSep typesV funcs _ proverC pcT stT) ])
+        )))))
     | [ |- ?G ] => 
       idtac "no match" G 
   end.
