@@ -42,7 +42,7 @@ Definition immed := bmodule "immed" {{
 Eval compute in compile immed.
 
 Theorem immedOk : moduleOk immed.
-  vcgen; descend; repeat step.
+  vcgen; sep.
 Qed.
 
 Print Assumptions immedOk.
@@ -59,7 +59,7 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
 Eval compute in compile immedTest.
 
 Theorem immedTestOk : moduleOk immedTest.
-  vcgen; descend; repeat step.
+  vcgen; sep.
 Qed.
 
 Print Assumptions immedTestOk.

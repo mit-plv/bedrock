@@ -310,7 +310,10 @@ Module BedrockEvaluator.
              end in
       match sym_evalRval l ss , sym_evalRval r ss with
         | Some l , Some r =>
-          Some (Expr.Func 3 (Expr.Const (types := types) (t := tvTest) t :: l :: r :: nil))
+          match t with
+            | IL.Eq => Some (Expr.Equal tvWord l r)
+            | _ => Some (Expr.Func 3 (Expr.Const (types := types) (t := tvTest) t :: l :: r :: nil))
+          end
         | _ , _ => None
       end.
 

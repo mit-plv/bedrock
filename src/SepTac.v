@@ -14,7 +14,7 @@ Lemma ApplyCancelSep : forall types funcs,
   (l r : SEP.sexpr types pcT stT),
   Expr.AllProvable funcs uvars nil hyps ->
   forall cs, 
-  match SEP.CancelSep sfuncs prover hyps l r with
+  match SEP.CancelSep sfuncs prover uvars hyps l r with
     | {| SepExpr.r_vars := vars; 
          SepExpr.r_lhs := lhs; SepExpr.r_rhs_ex := rhs_ex; 
          SepExpr.r_rhs := rhs; SepExpr.r_SUBST := SUBST |} =>
@@ -132,9 +132,9 @@ Ltac sep_canceler isConst prover simplifier Ts :=
         let proverC := prover typesV funcs in
         (idtac "trying to apply" ;
           (** TODO: for some reason the partial application to proofs doesn't always work... **)
-         apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R proofs);
+         apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R); [ apply proofs | ];
          subst typesV ;
-         idtac "goign to simplify" ;
+         idtac "going to simplify" ;
          simplifier ;
          idtac "done simplify" ;
          repeat match goal with
