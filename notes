@@ -4,8 +4,8 @@
       - We need to extend the context with "f".
       - If we want to keep track of the variables that occur inside the
         expression, then we need to abstract "f" with respect to each of the
-	variables this means that Uninterpreted Functions are simply a
-	representation choice for uninterpreted bases.
+        variables this means that Uninterpreted Functions are simply a
+        representation choice for uninterpreted bases.
   * The real problem seems to be about extending the context.
     - I have a reflected term indexed by a denotation function "d".
     - At this point, my world is closed wrt "d". 
