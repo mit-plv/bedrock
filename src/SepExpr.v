@@ -36,6 +36,17 @@ Section SepExprTypes.
   ; pures   : list (expr types)
   ; other   : list rtype
   }.
+
+  (** result of cancelation **)
+  Record SepResult (gl gr : sexpr') : Type :=
+  { r_vars   : variables
+  ; r_lhs_ex : variables
+  ; r_lhs    : sexpr'
+  ; r_rhs_ex : variables
+  ; r_rhs    : sexpr'
+  ; r_SUBST  : Subst types
+  }.
+
 End SepExprTypes.
 
 Implicit Arguments Emp [ types rtype ].
@@ -496,7 +507,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       AllProvable funcs uvars vars (pures h).
     Proof.
       intros. eapply ST.satisfies_himp in H.
-      Focus 2. instantiate (1 := (sexprD uvars vars (sheapD' h))). 
+      Focus 2. instantiate (1 := sexprD uvars vars (sheapD' h)). 
       match goal with
         | [ |- ?G ] => 
           change G with (himp uvars uvars vars cs (sheapD h) (sheapD' h))
@@ -706,15 +717,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        |}.
 
     (** The actual tactic code **)
-    Record SepResult (gl gr : sexpr) : Type :=
-      { vars   : variables
-      ; lhs_ex : variables
-      ; lhs    : sexpr
-      ; rhs_ex : variables
-      ; rhs    : sexpr
-      ; SUBST  : Subst types
-      }.
-
     Variable Prover : ProverT types.
     Variable Prover_correct : ProverT_correct Prover funcs.
 
@@ -794,20 +796,19 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let summ := Summarize Prover (hyps ++ pures lhs) in
         let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
         let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel summ lhs rhs' in
-        {| vars := ql 
-         ; lhs := sheapD lhs' ; lhs_ex := nil
-         ; rhs := sheapD rhs' ; rhs_ex := qr ; SUBST := rhs_subst
+        {| r_vars := ql 
+         ; r_lhs := sheapD lhs' ; r_lhs_ex := nil
+         ; r_rhs := sheapD rhs' ; r_rhs_ex := qr ; r_SUBST := rhs_subst
          |}.
 
-
-
+    (** TODO: this isn't true **)
     Theorem ApplyCancelSep : forall cs uvars hyps l r,
       AllProvable funcs uvars nil hyps ->
       match CancelSep hyps l r with
-        | {| vars := vars 
-           ; lhs_ex := lhs_ex ; lhs := lhs
-           ; rhs_ex := rhs_ex ; rhs := rhs 
-           ; SUBST := SUBST |} =>
+        | {| r_vars := vars 
+           ; r_lhs_ex := lhs_ex ; r_lhs := lhs
+           ; r_rhs_ex := rhs_ex ; r_rhs := rhs 
+           ; r_SUBST := SUBST |} =>
           forallEach vars (fun VS : env types =>
             exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
             (fun rhs_ex : env types => 
@@ -919,11 +920,12 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | ?t -> ?T =>
         let t := constr:(t : Type) in
         let Ts := cons_uniq t Ts in
-        collectAllTypes_func Ts T
+        collectAllTypes_sfunc Ts T
       | forall x , _ => 
         (** Can't reflect types for dependent function **)
         fail 100 "can't reflect types for dependent function!"
-      | ST.hprop _ _ => Ts
+          "type is " T 
+      | _ => Ts (** assume we are at the end **)
     end.
 
   Ltac collectAllTypes_sfuncs Ts Fs :=
@@ -933,7 +935,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let Ts := collectAllTypes_sfuncs Ts Fl in
         collectAllTypes_sfuncs Ts Fr
       | ?F =>
-        collectAllTypes_sfunc Ts F
+        let T := type of F in
+        collectAllTypes_sfunc Ts T
     end.
 
   (** reflect a separation logic predicate. this is analagous 
@@ -980,11 +983,11 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac getAllSFunctions pcT stT types sfuncs' fs :=
     match fs with
       | tt => sfuncs'
-      | ?F =>
-        getSFunction types F sfuncs' ltac:(fun sfuncs _ => sfuncs)
       | ( ?fl , ?fr ) =>
-        getAllSFunctions pcT stT types sfuncs' fl ltac:(fun sfuncs _ => 
-          getAllSFunctions pcT stT types sfuncs fr ltac:(fun sfuncs _ => sfuncs))
+        let sfuncs := getAllSFunctions pcT stT types sfuncs' fl in
+        getAllSFunctions pcT stT types sfuncs fr
+      | ?F =>
+        getSFunction pcT stT types F sfuncs' ltac:(fun sfuncs _ => sfuncs)
     end.
 
   (** reflect sexprs. simultaneously gather the unification variables, funcs and sfuncs

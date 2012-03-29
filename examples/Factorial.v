@@ -54,10 +54,14 @@ Hint Extern 5 (@eq W _ _) => match goal with
                              end.
 
 Theorem factOk : moduleOk fact.
-  vcgen; try (sep; eauto).
-
-  (* One last case, where symbolic evaluation fails to handle instruction streams consisting only of single tests *)
-  admit.
+  vcgen.
+  solve [ sep; eauto ].
+  admit. (** eauto doesn't solve this... **)
+  solve [ sep; eauto ].
+  admit. (** eauto doesn't solve this... **)
+  sep.
+  sep.
+  admit. (** eauto doesn't solve this... leaves unification variables **)
 Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]

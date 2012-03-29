@@ -676,7 +676,8 @@ Ltac collectAllTypes_funcs Ts Fs :=
       let Ts := collectAllTypes_funcs Ts Fl in
       collectAllTypes_funcs Ts Fr
     | ?F =>
-      collectAllTypes_func Ts F
+      let T := type of F in
+      collectAllTypes_func Ts T
   end.
 
 Ltac collect_props shouldReflect :=
@@ -836,8 +837,8 @@ Ltac getAllFunctions types funcs' fs :=
     | ?F =>
       getFunction types F funcs' ltac:(fun funcs _ => funcs)
     | ( ?fl , ?fr ) =>
-      getAllFunctions types funcs' fl ltac:(fun funcs _ => 
-        getAllFunctions types funcs fr ltac:(fun funcs _ => funcs))
+      let funcs := getAllFunctions types funcs' fl in
+      getAllFunctions types funcs fr
   end.
 
 Ltac getVar' idx :=
