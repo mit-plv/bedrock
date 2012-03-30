@@ -32,5 +32,5 @@ Definition swap := bmodule "swap" {{
 }}.
 
 Theorem swapOk : moduleOk swap.
-  vcgen; sep.
+  vcgen; abstract sep.
 Qed.
