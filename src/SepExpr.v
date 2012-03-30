@@ -789,22 +789,23 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (** TODO: I should reconsider this... 
      ** - I think the correct interface here is to spit out two sexprs
      **)
-    Definition CancelSep : list (expr types) -> forall (gl gr : sexpr), SepResult gl gr :=
+    Definition CancelSep (uvars : env types)
+      : list (expr types) -> forall (gl gr : sexpr), SepResult gl gr :=
       fun hyps gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
         let summ := Summarize Prover (hyps ++ pures lhs) in
-        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) 0 rhs) in
+        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) (length uvars) rhs) in
         let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel summ lhs rhs' in
         {| r_vars := ql 
          ; r_lhs := sheapD lhs' ; r_lhs_ex := nil
-         ; r_rhs := sheapD rhs' ; r_rhs_ex := qr ; r_SUBST := rhs_subst
+         ; r_rhs := sheapD rhs' ; r_rhs_ex := map (@projT1 _ _) uvars ++ qr ; r_SUBST := rhs_subst
          |}.
 
     (** TODO: this isn't true **)
     Theorem ApplyCancelSep : forall cs uvars hyps l r,
       AllProvable funcs uvars nil hyps ->
-      match CancelSep hyps l r with
+      match CancelSep uvars hyps l r with
         | {| r_vars := vars 
            ; r_lhs_ex := lhs_ex ; r_lhs := lhs
            ; r_rhs_ex := rhs_ex ; r_rhs := rhs 
@@ -816,7 +817,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end ->
       himp nil uvars nil cs l r.
     Proof.
-      intros. case_eq (CancelSep hyps l r); intros.
+      intros. case_eq (CancelSep uvars hyps l r); intros.
       rewrite H1 in H0. revert Prover_correct.
       admit.
     Qed.

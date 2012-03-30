@@ -45,7 +45,10 @@ Qed.
 Hint Resolve times_1.
 
 Hint Extern 5 (@eq W ?X _) => match goal with
-                                | [ H : X = _ |- _ ] => rewrite H; clear H; W_eq
+                                | [ H : X = _ |- _ ] =>
+                                  let T := type of H in
+                                    (has_evar T; fail 1)
+                                    || (rewrite H; clear H; W_eq)
                               end.
 
 Hint Extern 5 (@eq W _ _) => match goal with
@@ -54,14 +57,7 @@ Hint Extern 5 (@eq W _ _) => match goal with
                              end.
 
 Theorem factOk : moduleOk fact.
-  vcgen.
-  solve [ sep; eauto ].
-  admit. (** eauto doesn't solve this... **)
-  solve [ sep; eauto ].
-  admit. (** eauto doesn't solve this... **)
-  sep.
-  sep.
-  admit. (** eauto doesn't solve this... leaves unification variables **)
+  vcgen; abstract (sep; eauto).
 Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]

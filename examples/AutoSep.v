@@ -121,6 +121,7 @@ Ltac the_cancel_simplifier :=
 
       orb
       SymIL.BedrockEvaluator.pcT SymIL.BedrockEvaluator.stT
+      Expr.Provable Expr.lookupAs
     ].
 
 Ltac vcgen :=
