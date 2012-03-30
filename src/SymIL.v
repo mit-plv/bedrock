@@ -373,7 +373,7 @@ Module BedrockEvaluator.
 
     End with_facts.
 
-    Definition istream : Type := list (sym_instr types + sym_assert types).
+    Definition istream : Type := list ((list (sym_instr types) * option state) + sym_assert types).
 
     (** TODO: I need variables here in order to call the unfolder **)
     Variable learnHook : forall P : ProverT types, SymState types pcT stT -> Facts P -> SymState types pcT stT.
@@ -382,10 +382,10 @@ Module BedrockEvaluator.
       : option (SymState types pcT stT) + (SymState types pcT stT * istream) :=
       match is with
         | nil => inl (Some ss)
-        | inl i :: is =>
-          match sym_evalInstr F i ss with
-            | None => inr (ss, inl i :: is)
-            | Some ss => sym_evalStream is F ss
+        | inl (ins, st) :: is =>
+          match sym_evalInstrs F ins ss with
+            | inr (ss,rm) => inr (ss, inl (rm, st) :: is)
+            | inl ss => sym_evalStream is F ss
           end
         | inr asrt :: is =>
           match asrt with
@@ -513,6 +513,34 @@ Module BedrockEvaluator.
             end
         end.
 
+    Fixpoint istreamD (is : istream) (stn : settings) (st : state) (res : option state) : Prop :=
+      match is with
+        | nil => Some st = res
+        | inl (ins, st') :: is => 
+          match sym_instrsD ins with
+            | None => False
+            | Some ins => 
+              match st' with
+                | None => evalInstrs stn st ins = None
+                | Some st' => evalInstrs stn st ins = Some st' /\ istreamD is stn st' res
+              end
+          end
+        | inr asrt :: is =>
+          match asrt with
+            | SymAssertCond l t r t' => 
+              match sym_rvalueD l , sym_rvalueD r with
+                | Some l , Some r =>
+                  match t' with
+                    | None => 
+                      Structured.evalCond l t r stn st = None
+                    | Some t' =>
+                      Structured.evalCond l t r stn st = Some t' /\ istreamD is stn st res
+                  end
+                | _ , _ => False
+              end
+          end
+      end.
+
       Variable sfuncs : SEP.sfunctions types pcT stT.
 
       Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState types pcT stT) : Prop :=
@@ -546,153 +574,7 @@ Module BedrockEvaluator.
         rewrite H. simpl. intros.
         rewrite <- H1. eauto.
       Qed.
-
-      Fixpoint evalPath (stn : settings) (is : list (sym_instr types + sym_assert types))
-        (st : state) (st' : option state) : Prop :=
-        match is with 
-          | nil => Some st = st'
-          | inl i :: is =>
-            match sym_instrD i with
-              | None => False
-              | Some i => 
-                match evalInstr stn st i with
-                  | None => st' = None
-                  | Some st'' => evalPath stn is st'' st'
-                end
-            end
-          | inr a :: is =>
-            match a with
-              | SymAssertCond l t r None => 
-                st' = None
-              | SymAssertCond l t r (Some res) => 
-                match sym_rvalueD l , sym_rvalueD r with
-                  | Some l , Some r =>
-                    Structured.evalCond l t r stn st <> None /\
-                    evalPath stn is st st'
-                  | _ , _ => False
-                end
-            end
-        end.
-
-      Theorem evalPath_instrs : forall (stn : settings) (sis : list (sym_instr types)),
-        match sym_instrsD sis with
-          | None => True
-          | Some is =>
-            forall st res, 
-            evalInstrs stn st is = res ->
-            evalPath stn (map (@inl _ _) sis) st res
-        end.
-      Proof.
-        clear. induction sis; simpl; auto.
-        case_eq (sym_instrD a); intros; auto.
-        revert IHsis. case_eq (sym_instrsD sis); auto.
-        simpl. intros. 
-        destruct (evalInstr stn st i); intros; auto.
-      Qed.
-
-      Theorem evalPath_cond : forall stn (l' r' : sym_rvalue types) (t : test) ,
-        match sym_rvalueD l' , sym_rvalueD r' with
-          | Some l , Some r =>
-            forall st b,
-              Structured.evalCond l t r stn st = b ->
-              match b with
-                | None => 
-                  evalPath stn (inr (SymAssertCond l' t r' b) :: nil) st None
-                | Some b' =>
-                  evalPath stn (inr (SymAssertCond l' t r' (Some b')) :: nil) st (Some st)
-              end
-          | _ , _ => True
-        end.
-      Proof.
-        clear. intros. 
-        case_eq (sym_rvalueD l'); auto.
-        case_eq (sym_rvalueD r'); auto. intros.
-        simpl. unfold Structured.evalCond in *.
-        destruct b; auto; simpl.
-        rewrite H. rewrite H0.
-        repeat match goal with
-                 | [ H : match ?X with 
-                           | Some _ => _
-                           | None => _
-                         end = _ |- _ ] => destruct X; auto
-               end; try congruence.
-        intuition; congruence.
-      Qed.        
-
-      Theorem evalPath_app : forall stn a st st' b r, 
-        evalPath stn a st (Some st') ->
-        evalPath stn b st' r ->
-        evalPath stn (a ++ b) st r.
-      Proof.
-        clear. induction a; simpl; intros; auto.
-          inversion H; auto.
-          
-          destruct a.
-          repeat match goal with
-                   | [ H : match ?X with 
-                             | Some _ => _ 
-                             | None => _
-                           end |- _ ] => destruct X ; try congruence
-                 end; eauto.
-          destruct s; destruct o; try congruence.
-          destruct (sym_rvalueD s); auto.
-          destruct (sym_rvalueD s0); auto. intuition eauto.
-      Qed.        
-      
-      Theorem evalPath_nil : forall stn st,
-        evalPath stn nil st (Some st).
-      Proof.
-        clear; simpl; auto.
-      Qed.
     End sym_denote.
-
-    Theorem evalPath_ext : forall fs fs' uvars vars stn a st st',
-      evalPath fs uvars vars stn a st st' ->
-      evalPath (fs ++ fs') uvars vars stn a st st'.
-    Proof.
-      clear. induction a; simpl; intros; auto.
-    Admitted.
-
-    Theorem evalPath_instrs_app : forall fs fs' uvars vars sis stn a st st',
-      evalPath fs uvars vars stn a st (Some st') ->
-      match sym_instrsD (fs ++ fs') uvars vars sis with
-        | None => True
-        | Some is =>
-          forall some_or_none, 
-            evalInstrs stn st' is = some_or_none ->
-            evalPath (fs ++ fs') uvars vars stn (a ++ map (@inl _ _) sis) st some_or_none
-      end.
-    Proof.
-      clear. intros.
-      generalize (evalPath_instrs (fs ++ fs') uvars vars stn sis).
-      destruct (sym_instrsD (fs ++ fs') uvars vars sis); intros; auto.
-      eapply evalPath_app; eauto.
-      eapply evalPath_ext; auto.
-    Qed.
-
-    Theorem evalPath_cond_app : forall fs fs' uvars vars l t r stn a st st',
-      evalPath fs uvars vars stn a st (Some st') ->
-      match sym_rvalueD (fs ++ fs') uvars vars l , sym_rvalueD (fs ++ fs') uvars vars r with
-        | Some l' , Some r' =>
-          forall some_or_none, 
-            Structured.evalCond l' t r' stn st' = some_or_none ->
-            match some_or_none with
-              | None => 
-                evalPath (fs ++ fs') uvars vars stn (a ++ inr (SymAssertCond l t r some_or_none) :: nil) st None
-              | _ => 
-                evalPath (fs ++ fs') uvars vars stn (a ++ inr (SymAssertCond l t r some_or_none) :: nil) st (Some st')
-            end
-        | _ , _ => True
-      end.
-    Proof.
-      clear. intros.
-      generalize (evalPath_cond (fs ++ fs') uvars vars stn l r t).
-      destruct (sym_rvalueD (fs ++ fs') uvars vars l); auto;
-      destruct (sym_rvalueD (fs ++ fs') uvars vars r); auto.
-      intros. eapply H0 in H1. destruct some_or_none;
-      eapply evalPath_app; try solve [ eauto | eapply evalPath_ext; eauto ]. 
-    Qed.      
-
   End typed_ext.
 
   Section evaluator.
@@ -762,7 +644,7 @@ Module BedrockEvaluator.
       forall P, Provers.ProverT_correct P funcs ->
       forall L, @LearnHook_correct _ L funcs sfuncs ->
       forall stn uvars vars sound_or_safe st p,
-        evalPath funcs uvars vars stn p st sound_or_safe ->
+        istreamD funcs uvars vars p stn st sound_or_safe ->
         forall cs ss,
         stateD funcs uvars vars sfuncs cs stn st ss ->
         let facts := Summarize P (match SymMem ss with
@@ -1043,6 +925,101 @@ Module BedrockEvaluator.
                | _ /\ _ => let v := fresh in destruct zz as [ v zz ]
              end.
 
+  Ltac get_instrs st :=
+    let rec find_exact H Hs :=
+      match Hs with
+        | tt => false
+        | H :: _ => true
+        | _ :: ?Hs => find_exact H Hs
+      end
+    in
+    let rec get_instrs st ignore :=
+      match goal with
+        | [ H : Structured.evalCond ?l _ ?r _ st = Some _ |- _ ] =>
+          match find_exact H ignore with
+            | false =>
+              let v := get_instrs st (H, ignore) in
+              constr:((((l,r), H), v))
+          end
+        | [ H : Structured.evalCond ?l _ ?r _ st = None |- _ ] =>
+          constr:((((l,r), H), tt))
+        | [ H : evalInstrs _ st ?is = Some ?X |- _ ] =>
+          let v := get_instrs X tt in
+            constr:(((is, H), v))
+        | [ H : evalInstrs _ st ?is = None |- _ ] =>
+          constr:(((is, H), tt))
+        | [ |- _ ] => tt
+      end
+    in get_instrs st tt.
+  Ltac collectAllTypes_instrs is Ts :=
+    match is with
+      | tt => Ts
+      | (((?l,?r), _), ?is) =>
+        let Ts := collectTypes_rvalue ltac:(isConst) l Ts in
+        let Ts := collectTypes_rvalue ltac:(isConst) r Ts in
+        collectAllTypes_instrs is Ts
+      | ((?i, _), ?is) =>
+        let Ts := collectTypes_instrs ltac:(isConst) i Ts in
+        collectAllTypes_instrs is Ts
+    end.
+
+  Ltac build_path types instrs st uvars vars funcs k :=
+    match instrs with
+      | tt => 
+        let is := constr:(nil : @istream types) in
+        let pf := constr:(refl_equal (Some st)) in
+        k uvars funcs is (Some st) pf
+      | ((?i, ?H), ?is) =>
+        match type of H with
+          | Structured.evalCond ?l ?t ?r _ ?st = ?st' =>
+            reify_rvalue ltac:(isConst) l types funcs uvars vars ltac:(fun uvars funcs l =>
+              reify_rvalue ltac:(isConst) r types funcs uvars vars ltac:(fun uvars funcs r =>
+                match st' with
+                  | None => 
+                    let i := constr:(inr (@SymAssertCond types l t r st') :: (nil : @istream types)) in
+                    k uvars funcs i (@None state) H
+                  | Some ?st'' => 
+                    build_path types is st uvars vars funcs ltac:(fun uvars funcs is sf pf =>
+                      let i := constr:(inr (@SymAssertCond types l t r st') :: is) in
+                      let pf := constr:(@conj _ _ H pf) in
+                      k uvars funcs i sf pf)
+                end))
+          | evalInstrs _ ?st _ = ?st' =>
+            reify_instrs ltac:(isConst) i types funcs uvars vars ltac:(fun uvars funcs sis =>
+              match st' with
+                | None => 
+                  let i := constr:(inl (sis, None) :: (nil : @istream types)) in
+                  k uvars funcs i (@None state) H
+                | Some ?st'' =>
+                  build_path types is st'' uvars vars funcs ltac:(fun uvars funcs is sf pf =>
+                    let i := constr:(inl (sis, st') :: is) in
+                    let pf := constr:(@conj _ _ H pf) in
+                    k uvars funcs i sf pf)
+              end)
+        end
+    end.              
+
+  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
+      Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
+      evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
+      True.
+    intros.
+    match goal with
+      | [ |- _ ] => 
+        let i := get_instrs st in
+        let Ts := constr:(@nil Type) in
+        let Ts := collectAllTypes_instrs i Ts in
+        let types_ := eval unfold bedrock_types in bedrock_types in
+        let types_ := Expr.extend_all_types Ts types_ in
+        let typesV := fresh "types" in
+        pose (typesV := types_) ;
+        let v := constr:(nil : env typesV) in
+        let f := constr:(nil : functions typesV) in
+        build_path typesV i st v v f ltac:(fun uvars funcs is sf pf =>
+          assert (@istreamD typesV funcs uvars v is stn st sf) by (exact pf))
+    end.
+  Abort.
+
   (** TODO:
    ** - To avoid reflecting for each basic block, I need to gather all the
    **   hypotheses and information that will go into the term at the beginning
@@ -1071,49 +1048,12 @@ Module BedrockEvaluator.
    **     (values that are [tt] may be overriden)
    **)
   Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
-    let rec find_exact H Hs :=
-      match Hs with
-        | tt => false
-        | H :: _ => true
-        | _ :: ?Hs => find_exact H Hs
-      end
-    in
     let rec init_from st :=
       match goal with
         | [ H : evalInstrs _ ?st' _ = Some st |- _ ] => init_from st'
         | [ |- _ ] => st
       end
     in          
-    let rec get_instrs st ignore :=
-      match goal with
-        | [ H : Structured.evalCond ?l _ ?r _ st = Some _ |- _ ] =>
-          match find_exact H ignore with
-            | false =>
-              let v := get_instrs st (H, ignore) in
-              constr:((((l,r), H), v))
-          end
-        | [ H : Structured.evalCond ?l _ ?r _ st = None |- _ ] =>
-          constr:((((l,r), H), tt))
-        | [ H : evalInstrs _ st ?is = Some ?X |- _ ] =>
-          let v := get_instrs X tt in
-            constr:(((is, H), v))
-        | [ H : evalInstrs _ st ?is = None |- _ ] =>
-          constr:(((is, H), tt))
-        | [ |- _ ] => tt
-      end
-    in
-    let rec collectAllTypes_instrs is Ts :=
-      match is with
-        | tt => Ts
-        | (((?l,?r), _), ?is) =>
-          let Ts := collectTypes_rvalue ltac:(isConst) l Ts in
-          let Ts := collectTypes_rvalue ltac:(isConst) r Ts in
-          collectAllTypes_instrs is Ts
-        | ((?i, _), ?is) =>
-          let Ts := collectTypes_instrs ltac:(isConst) i Ts in
-          collectAllTypes_instrs is Ts
-      end
-    in
     let shouldReflect P :=
       match P with
         | evalInstrs _ _ _ = _ => false
@@ -1176,7 +1116,7 @@ Module BedrockEvaluator.
               | (?sp_v, ?sp_pf) =>
                 match find_reg st Rv with
                   | (?rv_v, ?rv_pf) =>
-                    let all_instrs := get_instrs st tt in
+                    let all_instrs := get_instrs st in
                     let all_props := Expr.collect_props shouldReflect in
                     let pures := Expr.props_types all_props in
 
@@ -1213,7 +1153,7 @@ Module BedrockEvaluator.
                     let stT := constr:(tvType 1) in
                     (** build the variables **)
                     let uvars := eval simpl in (@nil _ : Expr.env typesV) in
-                    let vars := eval simpl in (@nil _ : Expr.env typesV) in
+                    let vars := uvars in
                     (** build the base functions **)
                     let funcs := eval unfold bedrock_funcs in (@bedrock_funcs typesV) in
                     let funcs := Expr.getAllFunctions typesV funcs Fs in
@@ -1222,28 +1162,6 @@ Module BedrockEvaluator.
                     let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
                     let sfuncs := SEP.getAllSFunctions pcT stT typesV sfuncs SFs in
                     (** reflect the expressions **)
-                    let rec build_path instrs last uvars funcs k :=
-                      match instrs with
-                        | tt => k uvars funcs last
-                        | ((?i, ?H), ?is) =>
-                          match type of H with
-                            | Structured.evalCond ?l ?t ?r _ ?st = _ =>
-                              reify_rvalue ltac:(isConst) l typesV funcs uvars vars ltac:(fun uvars funcs' l =>
-                              reify_rvalue ltac:(isConst) r typesV funcs' uvars vars ltac:(fun uvars funcs' r =>
-                                let funcs_ext := Reflect.extension funcs funcs' in
-                                eapply (@evalPath_cond_app types_ funcs funcs_ext uvars vars l t r _ _ _ _ last) in H;
-                                cbv iota in H ;
-                                clear last ; 
-                                build_path is H uvars funcs' k))
-                            | evalInstrs _ ?st _ = _ =>
-                              reify_instrs ltac:(isConst) i typesV funcs uvars vars ltac:(fun uvars funcs' sis =>
-                                let funcs_ext := Reflect.extension funcs funcs' in
-                                eapply (@evalPath_instrs_app types_ funcs funcs_ext uvars vars sis _ _ _ _ last) in H ;
-                                clear last ;
-                                build_path is H uvars funcs' k)
-                          end
-                      end
-                    in
                     Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
                     let proofs := Expr.props_proof all_props in
                     Expr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
@@ -1261,89 +1179,71 @@ Module BedrockEvaluator.
                         first [ simplifier H | fail 100000 "simplifier failed!" ] ;
                         (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ])
                       in
-                      match SF with
-                        | tt =>
-                          generalize (@evalPath_nil types_ funcs uvars vars stn st) ;
-                            let starter := fresh "eval_path" in
-                            intro starter ;
-                            build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
-                              let funcsV := fresh "funcs" in
-                              pose (funcsV := funcs) ;
-                              let sfuncsV := fresh "sfuncs" in
-                              pose (sfuncsV := sfuncs) ;
-                              let proverCV := fresh "proverC" in
-                              let proverC := prover typesV funcsV in
-                              pose (proverCV := proverC) ;
-                              let pluginCV := fresh "plugin" in
-                              let pluginC := plugin typesV pcT stT funcsV sfuncsV in
-                              pose (pluginCV := pluginC) ;
-                              let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
-                              let unfolderCV := fresh "unfolder" in
-                              pose (unfolderCV := unfolderC) ;
-                              generalize (@stateD_proof_no_heap typesV funcsV _ proverCV
-                                uvars vars sfuncsV st sp_v rv_v rp_v 
-                                sp_pf rv_pf rp_pf pures proofs cs stn) ;
-                              let H_stateD := fresh in
-                              intro H_stateD ;
-                              (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
-                                stn uvars vars _ _ _ path) in H_stateD ;
-                              clear path ;
-                              let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
-                              finish H_stateD syms) ||
-                              first [
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars vars _ _ _ path) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars vars) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV) |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV) |
-                                generalize (@sym_eval_any typesV funcsV) |
-                                generalize (@sym_eval_any typesV)
-                              ])
-
+                      build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
+                        match SF with
+                          | tt =>
+                            let funcsV := fresh "funcs" in
+                            pose (funcsV := funcs) ;
+                            let sfuncsV := fresh "sfuncs" in
+                            pose (sfuncsV := sfuncs) ;
+                            let proverCV := fresh "proverC" in
+                            let proverC := prover typesV funcsV in
+                            pose (proverCV := proverC) ;
+                            let pluginCV := fresh "plugin" in
+                            let pluginC := plugin typesV pcT stT funcsV sfuncsV in
+                            pose (pluginCV := pluginC) ;
+                            let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
+                            let unfolderCV := fresh "unfolder" in
+                            pose (unfolderCV := unfolderC) ;
+                            generalize (@stateD_proof_no_heap typesV funcsV _ proverCV
+                              uvars vars sfuncsV st sp_v rv_v rp_v 
+                              sp_pf rv_pf rp_pf pures proofs cs stn) ;
+                            let H_stateD := fresh in
+                            intro H_stateD ;
+                            (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                stn uvars vars fin_state st is is_pf) in H_stateD ;
+                             let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
+                             finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (SF case)"
+(*
+                             first [
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars vars _ _ _ path) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars vars) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV) |
+                               generalize (@sym_eval_any typesV funcsV sfuncsV) |
+                               generalize (@sym_eval_any typesV funcsV) |
+                               generalize (@sym_eval_any typesV)
+                             ] *)
                         | (?SF, ?H_interp) =>
                           SEP.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars 
                           ltac:(fun uvars funcs sfuncs SF => 
-                            idtac "0" ;
-                            generalize (@evalPath_nil types_ funcs uvars vars stn st) ;
-                            let starter := fresh "eval_path" in
-                            intro starter ;
-                            build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
-                              idtac "1" ;
-                              let funcsV := fresh "funcs" in
-                              pose (funcsV := funcs) ;
-                              idtac "2" ;
-                              let sfuncsV := fresh "sfuncs" in
-                              pose (sfuncsV := sfuncs) ;
-                              idtac "3" ;
-                              let proverC := prover typesV funcsV in
-                              let proverCV := fresh "proverC" in
-                              pose (proverCV := proverC) ;
-                              idtac "4" ;
-                              let pluginC := plugin typesV pcT stT funcsV sfuncsV in
-                              let pluginCV := fresh "plugin" in
-                              pose (pluginCV := pluginC) ;
-                              idtac "5" ;
-                              let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
-                              let unfolderCV := fresh "unfolder" in
-                              pose (unfolderCV := unfolderC) ;
-                              idtac "6" ;
-                              apply (@stateD_proof typesV funcsV _ proverCV
-                                uvars vars sfuncsV _ sp_v rv_v rp_v 
-                                sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
-                              idtac "7" ;
-                              (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
-                                stn uvars vars _ _ _ path) in H_interp ;
-                               idtac "8" ;
-                               clear path ;
-                               let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
-                               finish H_interp syms) || 
-                              first [ 
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
-                                  stn uvars vars _ _ _ path) ; idtac "A" |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
-                                  stn uvars vars) ; idtac "B" |
+                            let funcsV := fresh "funcs" in
+                            pose (funcsV := funcs) ;
+                            let sfuncsV := fresh "sfuncs" in
+                            pose (sfuncsV := sfuncs) ;
+                            let proverC := prover typesV funcsV in
+                            let proverCV := fresh "proverC" in
+                            pose (proverCV := proverC) ;
+                            let pluginC := plugin typesV pcT stT funcsV sfuncsV in
+                            let pluginCV := fresh "plugin" in
+                            pose (pluginCV := pluginC) ;
+                            let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
+                            let unfolderCV := fresh "unfolder" in
+                            pose (unfolderCV := unfolderC) ;
+                            apply (@stateD_proof typesV funcsV _ proverCV
+                              uvars vars sfuncsV _ sp_v rv_v rp_v 
+                              sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
+                            (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                              stn uvars vars fin_state st is is_pf) in H_interp ;
+                             let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
+                             finish H_interp syms) || fail 100000 "couldn't apply sym_eval_any! (SF case)" (* ||
+                            first [ 
+                              generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                stn uvars vars fin_state st is is_pf) ; idtac "A" |
+                              pose is_pf ; generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                stn uvars vars fin_state st is) ; idtac "B" (*|
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                                   stn uvars) ; idtac "C" |
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
@@ -1351,9 +1251,9 @@ Module BedrockEvaluator.
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV) ; idtac "E" |
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV) ; idtac "F" |
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV) ; idtac "G" |
-                                generalize (@sym_eval_any typesV funcsV sfuncsV) ; idtac "H" ]
-                            ))
-                      end))))
+                                generalize (@sym_eval_any typesV funcsV sfuncsV) ; idtac "H" *) ] *)
+                            )
+                      end)))))
                 end
             end
         end
@@ -1424,7 +1324,7 @@ Module BedrockEvaluator.
         symeval_read_word symeval_write_word 
       ] in H.
 
-  Implicit Arguments evalPath [ types' ].
+  Implicit Arguments istreamD [ types' ].
 
   Module DefaultEvaluator.
     Section with_prover.
@@ -1456,20 +1356,6 @@ Module BedrockEvaluator.
       simpl; unfold symeval_read_word_default, symeval_write_word_default; simpl; congruence.
     Qed.
 
-(*
-Definition LearnHook types : Type := 
-      forall P : Provers.ProverT types, SymState types pcT stT -> Provers.Facts P -> SymState types pcT stT.
-
-    Record LearnHook_correct types' (L : LearnHook (types types')) funcs preds : Prop :=
-    { hook_sound : forall P (PC : ProverT_correct P funcs),
-      forall uvars vars cs stn st ss ss' pp,
-      @stateD _ funcs uvars vars preds cs stn st ss ->
-      Valid PC uvars vars pp ->
-      L P ss pp = ss' ->
-      @stateD _ funcs uvars vars preds cs stn st ss'
-    }.
-*)
-
     Definition defaultLearnHook types : LearnHook types :=
       fun _ x _ => x.
 
@@ -1495,7 +1381,7 @@ Definition LearnHook types : Type :=
       Regs st' Rp = natToW 0.
     Proof.
       intros.
-      sym_eval ltac:(isConst) 
+      Time sym_eval ltac:(isConst) 
         ltac:(fun ts fs => constr:(@reflexivityProver_correct ts fs)) (* prover *)
         ltac:(fun ts pc st fs ps => constr:(@SymEvaluator_correct_default ts pc st fs ps)) (* memory plugin *)
         ltac:(fun ts pc st fs ps => constr:(@defaultLearnHook_correct ts fs ps)) (* unfolder *)

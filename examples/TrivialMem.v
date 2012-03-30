@@ -19,5 +19,5 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  vcgen; sep.
+  Time vcgen; sep.
 Qed.
