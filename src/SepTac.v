@@ -121,8 +121,8 @@ Ltac sep_canceler isConst prover simplifier Ts :=
         eval unfold SymIL.BedrockEvaluator.bedrock_funcs in (SymIL.BedrockEvaluator.bedrock_funcs typesV)
       in
       let funcs := eval simpl in funcs in
-      let pcT := constr:(SymIL.BedrockEvaluator.pcT) in
-      let stT := constr:(SymIL.BedrockEvaluator.stT) in
+      let pcT := constr:(Expr.tvType 0) in
+      let stT := constr:(Expr.tvType 1) in
       (** build the base sfunctions **)
       let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
       Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
@@ -217,7 +217,7 @@ Ltac cancel_simplifier :=
         Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
         Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_ssignature
 
-        orb SymIL.BedrockEvaluator.pcT SymIL.BedrockEvaluator.stT
+        orb
       ].
 
 (*

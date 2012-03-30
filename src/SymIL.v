@@ -6,6 +6,7 @@ Require Import Word Memory.
 Require Import DepList EqdepClass.
 Require Import PropX.
 Require Expr SepExpr.
+Require Import Provers.
 Require Import Env.
 Import List.
 
@@ -67,6 +68,40 @@ Module BedrockEvaluator.
 
   Module SEP := PLUGIN.SEP.
 
+
+  Section SymState.
+    Variable types : list type.
+    Variables pcT stT : tvar.
+
+    (** Symbolic registers **)
+    Definition SymRegType : Type :=
+      (expr types * expr types * expr types)%type.
+
+    (** Symbolic State **)
+    Record SymState : Type :=
+    { SymVars  : variables
+    ; SymUVars : variables
+    ; SymMem   : option (SEP.SHeap types pcT stT)
+    ; SymRegs  : SymRegType
+    ; SymPures : list (expr types)
+    }.
+
+    (** Register accessor functions **)
+    Definition sym_getReg (r : reg) (sr : SymRegType) : expr types :=
+      match r with
+        | Sp => fst (fst sr)
+        | Rp => snd (fst sr)
+        | Rv => snd sr
+      end.
+
+    Definition sym_setReg (r : reg) (v : expr types) (sr : SymRegType) : SymRegType :=
+      match r with
+        | Sp => (v, snd (fst sr), snd sr)
+        | Rp => (fst (fst sr), v, snd sr)
+        | Rv => (fst sr, v)
+      end.
+  End SymState.
+
   Section typed.
     Context {types : list type}.
    
@@ -97,6 +132,9 @@ Module BedrockEvaluator.
 
     Inductive sym_assert :=
     | SymAssertCond : sym_rvalue -> test -> sym_rvalue -> option bool -> sym_assert.
+    (** NOTE : I can use something like this to generate intermediate states
+    | SymCheckPoint : expr types -> sym_assert.
+    **)
 
   End typed.
 
@@ -114,16 +152,16 @@ Module BedrockEvaluator.
       | IL.Le => wlt l r \/ l = r
     end.
 
-  Definition pcT := tvType 0.
-  Definition tvWord := tvType 0.
-  Definition stT := tvType 1.
-  Definition tvState := tvType 2.
-  Definition tvTest := tvType 3.
-  Definition tvReg := tvType 4.
-
   Section typed_ext.
     Variable types' : list type.
     Definition types := repr bedrock_types_r types'.
+
+    Local Notation "'pcT'" := (tvType 0).
+    Local Notation "'tvWord'" := (tvType 0).
+    Local Notation "'stT'" := (tvType 1).
+    Local Notation "'tvState'" := (tvType 2).
+    Local Notation "'tvTest'" := (tvType 3).
+    Local Notation "'tvReg'" := (tvType 4).
 
     Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')).
     refine (
@@ -145,7 +183,7 @@ Module BedrockEvaluator.
             ; Range := tvWord
             ; Denotation := _ |}) :: nil) :: nil
       |});
-    cbv beta iota zeta delta [ functionTypeD map tvTest tvWord tvReg tvState ]; (repeat rewrite tvarD_repr_repr_get); simpl.
+    cbv beta iota zeta delta [ functionTypeD map ]; (repeat rewrite tvarD_repr_repr_get); simpl.
     refine (@wplus 32).
     refine (@wminus 32).
     refine (@wmult 32).
@@ -158,24 +196,6 @@ Module BedrockEvaluator.
         [ repr repr' default footprint fold_right bedrock_funcs_r updateAt hd_error error value
           bedrock_types_r Default_signature tl hd ]
         in repr bedrock_funcs_r nil.
-  
-    (** Symbolic registers **)
-    Definition SymRegType : Type :=
-      (expr types * expr types * expr types)%type.
-
-    Definition sym_getReg (r : reg) (sr : SymRegType) : expr types :=
-      match r with
-        | Sp => fst (fst sr)
-        | Rp => snd (fst sr)
-        | Rv => snd sr
-      end.
-
-    Definition sym_setReg (r : reg) (v : expr types) (sr : SymRegType) : SymRegType :=
-      match r with
-        | Sp => (v, snd (fst sr), snd sr)
-        | Rp => (fst (fst sr), v, snd sr)
-        | Rv => (fst sr, v)
-      end.
 
     Variable funcs' : functions types.
     Definition funcs := repr bedrock_funcs_r funcs'.
@@ -194,7 +214,7 @@ Module BedrockEvaluator.
         | _ , _ => True
       end.
     Proof.
-      intros; simpl; unfold eq_ind_r, tvWord; simpl;
+      intros; simpl; unfold eq_ind_r; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
@@ -209,7 +229,7 @@ Module BedrockEvaluator.
         | _ , _ => True
       end.
     Proof.
-      intros; simpl; unfold eq_ind_r, tvWord; simpl;
+      intros; simpl; unfold eq_ind_r; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
@@ -224,7 +244,7 @@ Module BedrockEvaluator.
         | _ , _ => True
       end.
     Proof.
-      intros; simpl; unfold eq_ind_r, tvWord; simpl;
+      intros; simpl; unfold eq_ind_r; simpl;
       repeat match goal with
                | [ |- match ?X with
                         | Some _ => _
@@ -233,17 +253,7 @@ Module BedrockEvaluator.
              end; auto.
     Qed.
 
-    Require Import Provers.
-
     Variable Prover : ProverT types.
-
-    (** Symbolic State **)
-    Record SymState : Type :=
-    { SymMem   : option (SEP.SHeap types pcT stT)
-    ; SymRegs  : SymRegType
-    ; SymPures : list (expr types)
-    ; SymFacts : Facts Prover
-    }.
 
     (** these are the plugin functions **)
     Variable symeval_read_word : Facts Prover -> expr types -> SEP.SHeap types pcT stT 
@@ -252,34 +262,45 @@ Module BedrockEvaluator.
       -> option (SEP.SHeap types pcT stT).
     
     (** This has to be connected to the type of the intermediate representation **)
-    Definition sym_evalLoc (lv : sym_loc types) (ss : SymState) : expr types :=
+    Definition sym_evalLoc (lv : sym_loc types) (ss : SymState types pcT stT) : expr types :=
       match lv with
         | SymReg r => sym_getReg r (SymRegs ss)
         | SymImm l => l
         | SymIndir r w => fPlus (sym_getReg r (SymRegs ss)) w
       end.
 
-    Definition sym_evalLval (lv : sym_lvalue types) (val : expr types) (ss : SymState) : option SymState :=
+    Section with_facts.
+    Variable Facts : Facts Prover.
+
+    Definition sym_evalLval (lv : sym_lvalue types) (val : expr types) (ss : SymState types pcT stT)
+      : option (SymState types pcT stT) :=
       match lv with
         | SymLvReg r =>
-          Some {| SymMem := SymMem ss 
+          Some {| SymVars := SymVars ss
+                ; SymUVars := SymUVars ss
+                ; SymMem := SymMem ss 
                 ; SymRegs := sym_setReg r val (SymRegs ss)
                 ; SymPures := SymPures ss
-                ; SymFacts := SymFacts ss |}
+                |}
         | SymLvMem l => 
           let l := sym_evalLoc l ss in
           match SymMem ss with
             | None => None
             | Some m =>
-              match symeval_write_word (SymFacts ss) l val m with
+              match symeval_write_word Facts l val m with
                 | Some m =>
-                  Some {| SymMem := Some m ; SymRegs := SymRegs ss ; SymPures := SymPures ss ; SymFacts := SymFacts ss |}
+                  Some {| SymVars := SymVars ss
+                        ; SymUVars := SymUVars ss
+                        ; SymMem := Some m
+                        ; SymRegs := SymRegs ss
+                        ; SymPures := SymPures ss
+                        |}
                 | None => None
               end
           end
       end.
 
-    Definition sym_evalRval (rv : sym_rvalue types) (ss : SymState) : option (expr types) :=
+    Definition sym_evalRval (rv : sym_rvalue types) (ss : SymState types pcT stT) : option (expr types) :=
       match rv with
         | SymRvLval (SymLvReg r) =>
           Some (sym_getReg r (SymRegs ss))
@@ -288,7 +309,7 @@ Module BedrockEvaluator.
           match SymMem ss with
             | None => None
             | Some m => 
-              symeval_read_word (SymFacts ss) l m
+              symeval_read_word Facts l m
           end
         | SymRvImm w => Some w 
         | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
@@ -298,7 +319,7 @@ Module BedrockEvaluator.
         (*Some (Expr.Const (types := types) (t := tvType 2) l) *)
       end.
 
-    Definition sym_assertTest (r : sym_rvalue types) (t : test) (l : sym_rvalue types) (ss : SymState) (res : bool) 
+    Definition sym_assertTest (r : sym_rvalue types) (t : test) (l : sym_rvalue types) (ss : SymState types pcT stT) (res : bool) 
       : option (expr types) :=
       let '(l, t, r) := if res
         then (l, t, r)
@@ -317,7 +338,7 @@ Module BedrockEvaluator.
         | _ , _ => None
       end.
 
-    Definition sym_evalInstr (i : sym_instr types) (ss : SymState) : option SymState :=
+    Definition sym_evalInstr (i : sym_instr types) (ss : SymState types pcT stT) : option (SymState types pcT stT) :=
       match i with 
         | SymAssign lv rv =>
           match sym_evalRval rv ss with
@@ -339,8 +360,8 @@ Module BedrockEvaluator.
           end
       end.
 
-    Fixpoint sym_evalInstrs (is : list (sym_instr types)) (ss : SymState) 
-      : SymState + (SymState * list (sym_instr types)) :=
+    Fixpoint sym_evalInstrs (is : list (sym_instr types)) (ss : SymState types pcT stT) 
+      : SymState types pcT stT + (SymState types pcT stT * list (sym_instr types)) :=
       match is with
         | nil => inl ss
         | i :: is =>
@@ -350,39 +371,59 @@ Module BedrockEvaluator.
           end
       end.
 
+    End with_facts.
+
     Definition istream : Type := list (sym_instr types + sym_assert types).
 
-    Fixpoint sym_evalStream (is : istream) (ss : SymState) : option SymState + (SymState * istream) :=
+    (** TODO: I need variables here in order to call the unfolder **)
+    Variable learnHook : forall P : ProverT types, SymState types pcT stT -> Facts P -> SymState types pcT stT.
+
+    Fixpoint sym_evalStream (is : istream) (F : Facts Prover) (ss : SymState types pcT stT) 
+      : option (SymState types pcT stT) + (SymState types pcT stT * istream) :=
       match is with
         | nil => inl (Some ss)
         | inl i :: is =>
-          match sym_evalInstr i ss with
+          match sym_evalInstr F i ss with
             | None => inr (ss, inl i :: is)
-            | Some ss => sym_evalStream is ss
+            | Some ss => sym_evalStream is F ss
           end
         | inr asrt :: is =>
           match asrt with
             | SymAssertCond l t r (Some res) =>
-              match sym_assertTest l t r ss res with
-                | Some sp => 
+              match sym_assertTest F l t r ss res with
+                | Some sp =>
+                  let F' := Learn Prover F (sp :: nil) in 
+                  let ss' := 
+                    {| SymVars := SymVars ss
+                     ; SymUVars := SymUVars ss
+                     ; SymRegs := SymRegs ss 
+                     ; SymMem := SymMem ss
+                     ; SymPures := sp :: SymPures ss
+                     |}
+                  in
+                  let ss' := learnHook Prover ss' F' in
+(*
                   let facts' := Learn Prover (SymFacts ss) (sp :: nil) in
                   (** TODO: perform unfolding here **)
+                  match learnHook 
                   let mem' := SymMem ss in
+                  
                   let ss' :=
-                    {| SymRegs := SymRegs ss 
+                    {| SumSymRegs := SymRegs ss 
                      ; SymMem := mem' 
                      ; SymPures := sp :: SymPures ss
                      ; SymFacts := facts' 
                      |}
                   in
-                  sym_evalStream is ss'
+*)
+                  sym_evalStream is F' ss'
                 | None => inr (ss, inr asrt :: is)
               end
             | SymAssertCond l t r None =>
-              match sym_evalRval l ss , sym_evalRval r ss with
+              match sym_evalRval F l ss , sym_evalRval F r ss with
                 | None , _ => inl None
                 | _ , None => inl None
-                | _ , _ => sym_evalStream is ss 
+                | _ , _ => sym_evalStream is F ss 
               end
           end
       end.
@@ -392,7 +433,7 @@ Module BedrockEvaluator.
       Variable funcs : functions types.
       Variable uvars vars : env types.
 
-      Definition sym_regsD (rs : SymRegType) : option regs :=
+      Definition sym_regsD (rs : SymRegType types) : option regs :=
         match rs with
           | (sp, rp, rv) =>
             match 
@@ -474,7 +515,7 @@ Module BedrockEvaluator.
 
       Variable sfuncs : SEP.sfunctions types pcT stT.
 
-      Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState) : Prop :=
+      Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState types pcT stT) : Prop :=
         match ss with
           | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
             match 
@@ -662,6 +703,13 @@ Module BedrockEvaluator.
       expr types -> expr types -> SEP.SHeap types pcT stT -> option (SEP.SHeap types pcT stT)
     }.
 
+    Local Notation "'pcT'" := (tvType 0).
+    Local Notation "'tvWord'" := (tvType 0).
+    Local Notation "'stT'" := (tvType 1).
+    Local Notation "'tvState'" := (tvType 2).
+    Local Notation "'tvTest'" := (tvType 3).
+    Local Notation "'tvReg'" := (tvType 4).
+
     Record SymEvaluator_correct types'
       (funcs : functions (repr bedrock_types_r types')) (preds : SEP.sfunctions (repr bedrock_types_r types') pcT stT) 
       (Evaluator : SymEvaluator (repr bedrock_types_r types') (tvType 0) (tvType 1))
@@ -695,16 +743,33 @@ Module BedrockEvaluator.
             end
     }.
 
+    Definition LearnHook types : Type := 
+      forall P : Provers.ProverT types, SymState types pcT stT -> Provers.Facts P -> SymState types pcT stT.
+
+    Record LearnHook_correct types' (L : LearnHook (types types')) funcs preds : Prop :=
+    { hook_sound : forall P (PC : ProverT_correct P funcs),
+      forall uvars vars cs stn st ss ss' pp,
+      @stateD _ funcs uvars vars preds cs stn st ss ->
+      Valid PC uvars vars pp ->
+      L P ss pp = ss' ->
+      @stateD _ funcs uvars vars preds cs stn st ss'
+    }.
+
     Theorem sym_eval_any : forall types',
       let types := repr bedrock_types_r types' in
       forall (funcs : functions types) (sfuncs : SEP.sfunctions types _ _),
       forall E,  @SymEvaluator_correct types' funcs sfuncs E ->
       forall P, Provers.ProverT_correct P funcs ->
+      forall L, @LearnHook_correct _ L funcs sfuncs ->
       forall stn uvars vars sound_or_safe st p,
         evalPath funcs uvars vars stn p st sound_or_safe ->
         forall cs ss,
         stateD funcs uvars vars sfuncs cs stn st ss ->
-        let res := @sym_evalStream _ P (symeval_read_word E P) (symeval_write_word E P) p ss in
+        let facts := Summarize P (match SymMem ss with
+                                    | None => SymPures ss
+                                    | Some m => pures m
+                                  end) in
+        let res := @sym_evalStream _ P (symeval_read_word E P) (symeval_write_word E P) L p facts ss in
         match sound_or_safe with
           | None =>
             (** safe **)
@@ -769,83 +834,83 @@ Module BedrockEvaluator.
                end; auto.
 *)
     Admitted.
+
+    Lemma goto_proof : forall (specs : codeSpec W (settings * state)) CPTR CPTR' x4,
+      specs CPTR = Some (fun x : settings * state => x4 x) ->
+      CPTR = CPTR' ->
+      forall (stn_st : settings * state) Z,
+        interp specs (Z ---> x4 stn_st) ->
+        interp specs Z ->
+        exists pre' : spec W (settings * state),
+          specs CPTR' = Some pre' /\ interp specs (pre' stn_st).
+    Proof.
+      clear; intros; subst.
+      eexists. split. eassumption. eapply Imply_E. eapply H1. auto.
+    Qed.
+
+    Theorem stateD_proof_no_heap types' : 
+      let types :=  repr bedrock_types_r types' in
+        forall (funcs : Expr.functions types) (P : ProverT types)
+          (PC : ProverT_correct P funcs),
+          forall (uvars vars : Expr.env types)
+            (sfuncs : SEP.sfunctions types pcT stT) 
+            (st : state) (sp rv rp : Expr.expr types),
+            exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+            exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+            exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+            forall pures : list (Expr.expr types),
+              Expr.AllProvable funcs uvars vars pures ->
+              forall (cs : codeSpec W (settings * state)) (stn : settings),
+                stateD funcs uvars vars sfuncs cs stn st
+                {| SymVars := map (@projT1 _ _) vars
+                  ; SymUVars := map (@projT1 _ _) uvars
+                  ; SymMem := None
+                  ; SymRegs := (sp, rp, rv)
+                  ; SymPures := pures
+                |}.
+    Proof.
+      unfold stateD. intros.
+      unfold types.
+      repeat match goal with
+               | [ H : _ = _ |- _ ] => rewrite H
+             end.
+      intuition auto. 
+    Qed.
+
+    Theorem stateD_proof types' : 
+      let types :=  repr bedrock_types_r types' in
+        forall (funcs : Expr.functions types) (P : ProverT types)
+          (PC : ProverT_correct P funcs),
+          forall (uvars vars : Expr.env types)
+            (sfuncs : SEP.sfunctions types pcT stT) 
+            (st : state) (sp rv rp : Expr.expr types),
+            exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+            exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+            exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+            forall pures : list (Expr.expr types),
+              Expr.AllProvable funcs uvars vars pures ->
+              forall (sh : SEP.sexpr types pcT stT)
+                (hashed : SEP.SHeap types pcT stT),
+                SEP.hash sh = (nil, hashed) ->
+                forall (cs : codeSpec W (settings * state)) (stn : settings),
+                  interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+                  stateD funcs uvars vars sfuncs cs stn st
+                  {| SymVars := map (@projT1 _ _) vars
+                   ; SymUVars := map (@projT1 _ _) uvars
+                   ; SymMem := Some hashed
+                   ; SymRegs := (sp, rp, rv)
+                   ; SymPures := pures
+                   |}.
+    Proof.
+      unfold stateD. intros.
+      unfold types.
+      repeat match goal with
+               | [ H : _ = _ |- _ ] => rewrite H
+             end.
+      intuition auto.
+      eapply hash_interp; eauto.
+    Qed.
   End evaluator.
-
-Lemma goto_proof : forall (specs : codeSpec W (settings * state)) CPTR CPTR' x4,
-  specs CPTR = Some (fun x : settings * state => x4 x) ->
-  CPTR = CPTR' ->
-  forall (stn_st : settings * state) Z,
-    interp specs (Z ---> x4 stn_st) ->
-    interp specs Z ->
-    exists pre' : spec W (settings * state),
-      specs CPTR' = Some pre' /\ interp specs (pre' stn_st).
-Proof.
-  clear; intros; subst.
-  eexists. split. eassumption. eapply Imply_E. eapply H1. auto.
-Qed.
-
-Require Import Provers.
-
-Theorem stateD_proof_no_heap types' : 
-  let types :=  repr bedrock_types_r types' in
-  forall (funcs : Expr.functions types) (P : ProverT types),
-    ProverT_correct P funcs ->
-  forall (uvars vars : Expr.env types)
-  (sfuncs : SEP.sfunctions types pcT stT) 
-  (st : state) (sp rv rp : Expr.expr types),
-  exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-  exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-  exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-  forall pures : list (Expr.expr types),
-    Expr.AllProvable funcs uvars vars pures ->
-    forall (cs : codeSpec W (settings * state)) (stn : settings),
-      stateD funcs uvars vars sfuncs cs stn st
-        {| SymMem := None
-         ; SymRegs := (sp, rp, rv)
-         ; SymPures := pures
-         ; SymFacts := Summarize P pures
-         |}.
-Proof.
-  unfold stateD. intros.
-  unfold types.
-  repeat match goal with
-           | [ H : _ = _ |- _ ] => rewrite H
-         end.
-  intuition auto.
-Qed.
-
-Theorem stateD_proof types' : 
-  let types :=  repr bedrock_types_r types' in
-  forall (funcs : Expr.functions types) (P : ProverT types),
-    ProverT_correct P funcs ->
-  forall (uvars vars : Expr.env types)
-  (sfuncs : SEP.sfunctions types pcT stT) 
-  (st : state) (sp rv rp : Expr.expr types),
-  exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-  exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-  exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-  forall pures : list (Expr.expr types),
-    Expr.AllProvable funcs uvars vars pures ->
-    forall (sh : SEP.sexpr types pcT stT)
-      (hashed : SEP.SHeap types pcT stT),
-      SEP.hash sh = (nil, hashed) ->
-      forall (cs : codeSpec W (settings * state)) (stn : settings),
-        interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-        stateD funcs uvars vars sfuncs cs stn st
-        {| SymMem := Some hashed
-         ; SymRegs := (sp, rp, rv)
-         ; SymPures := pures
-         ; SymFacts := Summarize P pures
-         |}.
-Proof.
-  unfold stateD. intros.
-  unfold types.
-  repeat match goal with
-           | [ H : _ = _ |- _ ] => rewrite H
-         end.
-  intuition auto.
-  eapply hash_interp; eauto.
-Qed.
 
   (** Reflection **)
 
@@ -965,10 +1030,9 @@ Qed.
         sumbool_rec sumbool_rect
         Peano_dec.eq_nat_dec nat_rec nat_rect eq_rec_r eq_rec eq_rect eq_sym
         nth_error map value
-        tvWord
         f_equal
 
-        Expr.AllProvable Expr.Provable Expr.tvarD tvTest types comparator
+        Expr.AllProvable Expr.Provable Expr.tvarD types comparator
       ] in H0; 
       let a := fresh in 
       let b := fresh in
@@ -991,16 +1055,19 @@ Qed.
    ** - steps 2-4 are repeated for each basic block that we evaluate
    ** NOTE:
    ** - [isConst] is an ltac function of type [* -> bool]
-   ** - [prover] is a value of type [forall ts (fs : functions ts), ProverT_correct ts P fs]
-   ** - [plugin] is a value of type
-   **     [forall ts pcT stT (fs : functions ts) (ps : sfunctions ts pcT stT), SymEvaluator_correct ts fs ps]
-   ** - [unfolder] is <not used>
+   ** - [prover] is an ltac with "type" (assuming [PR] is the prover to use)
+   **     [forall ts (fs : functions ts), ProverT_correct ts PR fs]. 
+   ** - [plugin] is an ltac with "type" (assuming [PL] is the plugin to use)
+   **     [forall ts pcT stT (fs : functions ts) (ps : sfunctions ts pcT stT), SymEvaluator_correct ts fs ps PL]
+   ** - [unfolder] is an ltac with "type" (assuming [U] is the unfolder to use)
+   **     [forall ts pcT stT (fs : functions ts) (ps : sfunctions ts pcT stT), LearnHook_correct ts (Facts PR) U fs ps]
    ** - [simplifier] is an ltac that takes a hypothesis names and simplifies it
-   **     (this should be implmented using [cbv beta iota zeta delta [ ... ] in H]
+   **     (this should be implmented using [cbv beta iota zeta delta [ ... ] in H])
+   **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
    ** - [Ts] is the list of seed types, [list type]
-   ** - [Fs] is an ltac that produces the list of seed functions, [tuple-of (_ -> _)]
+   ** - [Fs] is an ltac that produces the list of seed functions, [tuple-of (_ -> ... -> _)]
    **     (values that are [tt] may be overridden)
-   ** - [SFs] is an ltac that produces the list of seed predicates, [tuple-of (_ -> hprop _)]
+   ** - [SFs] is an ltac that produces the list of seed predicates, [tuple-of (_ -> ... -> _ -> hprop _)]
    **     (values that are [tt] may be overriden)
    **)
   Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
@@ -1102,7 +1169,7 @@ Qed.
     match stn_st_SF with
       | tt =>
         idtac "couldn't find anything to symbolically evaluate!" 
-      | ((?stn, ?st), ?SF) (* [ H' : PropX.interp ?cs (SepIL.SepFormula.sepFormula ?SF (?stn, ?st)) |- _ ] => *) =>
+      | ((?stn, ?st), ?SF) =>
         match find_reg st Rp with
           | (?rp_v, ?rp_pf) =>
             match find_reg st Sp with
@@ -1141,6 +1208,9 @@ Qed.
                     let types_ := Expr.extend_all_types Ts types_ in
                     let typesV := fresh "types" in
                     pose (typesV := types_);
+                    (** **)
+                    let pcT := constr:(tvType 0) in
+                    let stT := constr:(tvType 1) in
                     (** build the variables **)
                     let uvars := eval simpl in (@nil _ : Expr.env typesV) in
                     let vars := eval simpl in (@nil _ : Expr.env typesV) in
@@ -1207,15 +1277,18 @@ Qed.
                               let pluginCV := fresh "plugin" in
                               let pluginC := plugin typesV pcT stT funcsV sfuncsV in
                               pose (pluginCV := pluginC) ;
+                              let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
+                              let unfolderCV := fresh "unfolder" in
+                              pose (unfolderCV := unfolderC) ;
                               generalize (@stateD_proof_no_heap typesV funcsV _ proverCV
                                 uvars vars sfuncsV st sp_v rv_v rp_v 
                                 sp_pf rv_pf rp_pf pures proofs cs stn) ;
                               let H_stateD := fresh in
                               intro H_stateD ;
-                              (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV
+                              (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                                 stn uvars vars _ _ _ path) in H_stateD ;
                               clear path ;
-                              let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, pluginCV))))) in
+                              let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
                               finish H_stateD syms) ||
                               first [
                                 generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV stn uvars vars _ _ _ path) |
@@ -1232,28 +1305,53 @@ Qed.
                         | (?SF, ?H_interp) =>
                           SEP.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars 
                           ltac:(fun uvars funcs sfuncs SF => 
+                            idtac "0" ;
                             generalize (@evalPath_nil types_ funcs uvars vars stn st) ;
                             let starter := fresh "eval_path" in
                             intro starter ;
                             build_path all_instrs starter uvars funcs ltac:(fun uvars funcs path =>
+                              idtac "1" ;
                               let funcsV := fresh "funcs" in
                               pose (funcsV := funcs) ;
+                              idtac "2" ;
                               let sfuncsV := fresh "sfuncs" in
                               pose (sfuncsV := sfuncs) ;
-                              let proverCV := fresh "proverC" in
+                              idtac "3" ;
                               let proverC := prover typesV funcsV in
+                              let proverCV := fresh "proverC" in
                               pose (proverCV := proverC) ;
-                              let pluginCV := fresh "plugin" in
+                              idtac "4" ;
                               let pluginC := plugin typesV pcT stT funcsV sfuncsV in
+                              let pluginCV := fresh "plugin" in
                               pose (pluginCV := pluginC) ;
+                              idtac "5" ;
+                              let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
+                              let unfolderCV := fresh "unfolder" in
+                              pose (unfolderCV := unfolderC) ;
+                              idtac "6" ;
                               apply (@stateD_proof typesV funcsV _ proverCV
                                 uvars vars sfuncsV _ sp_v rv_v rp_v 
                                 sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
-                              apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV
+                              idtac "7" ;
+                              (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                                 stn uvars vars _ _ _ path) in H_interp ;
-                              clear path ;
-                              let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, pluginCV))))) in
-                            finish H_interp syms
+                               idtac "8" ;
+                               clear path ;
+                               let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
+                               finish H_interp syms) || 
+                              first [ 
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                  stn uvars vars _ _ _ path) ; idtac "A" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                  stn uvars vars) ; idtac "B" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                  stn uvars) ; idtac "C" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                                  stn) ; idtac "D" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV) ; idtac "E" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV) ; idtac "F" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV _ pluginCV) ; idtac "G" |
+                                generalize (@sym_eval_any typesV funcsV sfuncsV) ; idtac "H" ]
                             ))
                       end))))
                 end
@@ -1266,7 +1364,7 @@ Qed.
       [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
         sym_setReg sym_getReg
         SepExpr.pures SepExpr.impures SepExpr.other
-        SymMem SymRegs SymPures SymFacts
+        SymMem SymRegs SymPures SymVars SymUVars
         SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
         Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
         app map nth_error value error fold_right hd hd_error tl tail rev
@@ -1276,7 +1374,7 @@ Qed.
         Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
         EquivDec.equiv_dec EquivDec.nat_eq_eqdec
         f_equal 
-        bedrock_funcs_r bedrock_types pcT stT tvWord
+        bedrock_funcs_r bedrock_types
         fst snd
         Env.repr Env.updateAt SEP.substV
 
@@ -1294,10 +1392,9 @@ Qed.
         SEP.himp SEP.sexprD Expr.Impl 
         Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation 
         Expr.lookupAs
-        tvTest
         SepExpr.SDenotation SepExpr.SDomain
         EquivDec.nat_eq_eqdec  
-        tvWord SEP.sheapD SEP.sepCancel
+        SEP.sheapD SEP.sepCancel
         SepExpr.impures SepExpr.pures SepExpr.other
         SEP.star_SHeap SEP.unify_remove_all 
         SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
@@ -1309,7 +1406,6 @@ Qed.
         Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
         SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
         ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
-        pcT stT 
         EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
         ExprUnify.get_Eq
         types
@@ -1329,6 +1425,85 @@ Qed.
       ] in H.
 
   Implicit Arguments evalPath [ types' ].
+
+  Module DefaultEvaluator.
+    Section with_prover.
+      Variable types : list type.
+      Variables pcT stT : tvar.
+      Variable prover : ProverT types.
+      
+      Definition symeval_read_word_default (_ : Facts prover) (_ : expr types)
+        (_ : SEP.SHeap types pcT stT) : option (expr types) :=
+        None.
+
+      Definition symeval_write_word_default (_ : Facts prover)
+        (_ : expr types) (_ : expr types) (_ : SEP.SHeap types pcT stT)
+        : option (SEP.SHeap types pcT stT) :=
+        None.
+    End with_prover.
+
+    Definition SymEvaluator_default types pcT stT : SymEvaluator types pcT stT.
+    constructor.
+    eapply symeval_read_word_default.
+    eapply symeval_write_word_default.
+    Defined.
+    
+    Definition SymEvaluator_correct_default types' (_ _ : tvar) funcs preds :     
+      @SymEvaluator_correct (repr bedrock_types_r types') funcs preds
+      (SymEvaluator_default (repr bedrock_types_r types') (tvType 0) (tvType 1)).
+    econstructor.
+      simpl; unfold symeval_read_word_default, symeval_write_word_default; simpl; congruence.
+      simpl; unfold symeval_read_word_default, symeval_write_word_default; simpl; congruence.
+    Qed.
+
+(*
+Definition LearnHook types : Type := 
+      forall P : Provers.ProverT types, SymState types pcT stT -> Provers.Facts P -> SymState types pcT stT.
+
+    Record LearnHook_correct types' (L : LearnHook (types types')) funcs preds : Prop :=
+    { hook_sound : forall P (PC : ProverT_correct P funcs),
+      forall uvars vars cs stn st ss ss' pp,
+      @stateD _ funcs uvars vars preds cs stn st ss ->
+      Valid PC uvars vars pp ->
+      L P ss pp = ss' ->
+      @stateD _ funcs uvars vars preds cs stn st ss'
+    }.
+*)
+
+    Definition defaultLearnHook types : LearnHook types :=
+      fun _ x _ => x.
+
+    Theorem defaultLearnHook_correct types' funcs preds 
+      : @LearnHook_correct types' (@defaultLearnHook (types types')) funcs preds.
+    Proof.
+      econstructor. unfold defaultLearnHook. intros; subst; auto.
+    Qed.
+
+    Ltac simplifier H := 
+      cbv delta [ 
+        SymEvaluator_default
+        symeval_read_word_default symeval_write_word_default
+        
+        defaultLearnHook
+        reflexivityProver
+      ] in H; sym_evaluator H.
+
+    Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
+      PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
+      Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
+      evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
+      Regs st' Rp = natToW 0.
+    Proof.
+      intros.
+      sym_eval ltac:(isConst) 
+        ltac:(fun ts fs => constr:(@reflexivityProver_correct ts fs)) (* prover *)
+        ltac:(fun ts pc st fs ps => constr:(@SymEvaluator_correct_default ts pc st fs ps)) (* memory plugin *)
+        ltac:(fun ts pc st fs ps => constr:(@defaultLearnHook_correct ts fs ps)) (* unfolder *)
+        simplifier tt tt tt.
+      congruence.
+    Qed. 
+  End DefaultEvaluator.
+
 
   Module PluginEvaluator.
 
@@ -1453,58 +1628,5 @@ Qed.
     
   End PluginEvaluator.
 
-  Module DefaultEvaluator.
-    Section with_prover.
-      Variable types : list type.
-      Variables pcT stT : tvar.
-      Variable prover : ProverT types.
-      
-      Definition symeval_read_word_default (_ : Facts prover) (_ : expr types)
-        (_ : SEP.SHeap types pcT stT) : option (expr types) :=
-        None.
-
-      Definition symeval_write_word_default (_ : Facts prover)
-        (_ : expr types) (_ : expr types) (_ : SEP.SHeap types pcT stT)
-        : option (SEP.SHeap types pcT stT) :=
-        None.
-    End with_prover.
-
-    Definition SymEvaluator_default types pcT stT : SymEvaluator types pcT stT.
-    constructor.
-    eapply symeval_read_word_default.
-    eapply symeval_write_word_default.
-    Defined.
-    
-    Definition SymEvaluator_correct_default types' (_ _ : tvar) funcs preds :     
-      @SymEvaluator_correct (repr bedrock_types_r types') funcs preds
-      (SymEvaluator_default (repr bedrock_types_r types') (tvType 0) (tvType 1)).
-    econstructor.
-      simpl; unfold symeval_read_word_default, symeval_write_word_default; simpl; congruence.
-      simpl; unfold symeval_read_word_default, symeval_write_word_default; simpl; congruence.
-    Qed.
-
-    Ltac unfolder H := 
-      cbv delta [ 
-        SymEvaluator_default
-        symeval_read_word_default symeval_write_word_default
-        
-        reflexivityProver
-      ] in H; sym_evaluator H.
-
-    Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
-      PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
-      Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
-      evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
-      Regs st' Rp = natToW 0.
-    Proof.
-      intros.
-      sym_eval ltac:(isConst) 
-        ltac:(fun ts fs => constr:(@reflexivityProver_correct ts fs)) (* prover *)
-        ltac:(fun ts pc st fs ps => constr:(@SymEvaluator_correct_default ts pc st fs ps)) (* memory plugin *)
-        idtac 
-        unfolder tt tt tt.
-      congruence.
-    Qed. 
-  End DefaultEvaluator.
 
 End BedrockEvaluator.
