@@ -45,7 +45,7 @@ Ltac prover_unfolder H :=
       ] in H
   end.
 
-Ltac unfolder H :=
+Ltac sym_eval_simplifier H :=
   prover_unfolder H ;
   cbv delta [
     master_plugin PluginEvaluator.Plugin_SymEvaluator
@@ -53,6 +53,7 @@ Ltac unfolder H :=
     Plugin_PtsTo.sym_read_word_ptsto32
     Plugin_PtsTo.sym_write_word_ptsto32
     Plugin_PtsTo.expr_equal
+    SymIL.BedrockEvaluator.DefaultEvaluator.defaultLearnHook
   ] in H;
   PluginEvaluator.unfolder H.
 
@@ -117,17 +118,13 @@ Ltac the_cancel_simplifier :=
 
       Expr.is_well_typed Expr.exprD Expr.applyD
 
-      tvWord
-
       orb
-      SymIL.BedrockEvaluator.pcT SymIL.BedrockEvaluator.stT
       Expr.Provable Expr.lookupAs
     ].
 
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
-Definition v := ptsto32 nil.
 
 Ltac evaluate := 
   let plg ts pcT stT fs ps :=
@@ -136,10 +133,14 @@ Ltac evaluate :=
   let prv ts fs :=
     constr:(@Provers.transitivityProver_correct ts fs)
   in
+  let unfolder ts pcT stT fs ps :=
+    constr:(@SymIL.BedrockEvaluator.DefaultEvaluator.defaultLearnHook_correct
+      ts fs ps)
+  in
   let ssigs :=
     constr:((ptsto32 nil, tt))
   in
-  sym_eval ltac:isConst prv plg idtac unfolder tt tt ssigs.
+  sym_eval ltac:isConst prv plg unfolder sym_eval_simplifier tt tt ssigs.
 
 Ltac cancel :=
   sep_canceler ltac:(isConst) 
