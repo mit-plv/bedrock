@@ -130,13 +130,10 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       SEP.reify_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
       SEP.reify_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
         let proverC := prover typesV funcs in
-        (idtac "trying to apply" ;
-          (** TODO: for some reason the partial application to proofs doesn't always work... **)
+        ((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R); [ apply proofs | ];
          subst typesV ;
-         idtac "going to simplify" ;
          simplifier ;
-         idtac "done simplify" ;
          repeat match goal with
                   | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
                   | _ => reflexivity
