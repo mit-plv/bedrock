@@ -479,16 +479,17 @@ Section TransitivityProver.
     end (refl_equal _).
 *)
 
-  Fixpoint groupsOf (hyps : list (expr types)) : list (list (expr types)) :=
+  Fixpoint transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) : transitivity_summary :=
     match hyps with
-      | nil => nil
+      | nil => sum
       | h :: hyps' =>
-        let grps := groupsOf hyps' in
+        let grps := transitivityLearn sum hyps' in
           match h with
             | Equal t x y => addEquality eqD_seq grps x y
             | _ => grps
           end
     end.
+  Definition groupsOf := transitivityLearn nil.
 
   Definition transitivityEqProver (groups : transitivity_summary)
     (x y : expr types) := inSameGroup eqD_seq groups x y.
@@ -602,9 +603,6 @@ Section TransitivityProver.
 
   Definition transitivitySummarize := groupsOf.
 
-  (** TODO: fix this **)
-  Definition transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) := sum.
-
   Theorem transitivitySummarizeCorrect : forall uvars vars hyps,
     AllProvable fs uvars vars hyps ->
     transitivityValid uvars vars (transitivitySummarize hyps).
@@ -616,8 +614,7 @@ Section TransitivityProver.
     AllProvable fs uvars vars hyps ->
     transitivityValid uvars vars (transitivityLearn sum hyps).
   Proof.
-    intuition.
-  Qed.
+  Admitted.
 
   Theorem transitivityProverCorrect : ProverCorrect fs transitivityValid transitivityProve.
     admit. 
