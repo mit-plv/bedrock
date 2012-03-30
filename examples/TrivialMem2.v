@@ -17,13 +17,5 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  vcgen.
-
-  (* Admitted cases below are because symbolic evaluation doesn't seem to use the known equality. *)
-
-  sep.
-  admit.
-  sep.
-  admit.
-  sep.
+  vcgen; abstract sep.
 Qed.

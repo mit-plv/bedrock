@@ -86,7 +86,7 @@ Qed.
 Hint Resolve factR_4.
 
 Theorem factDriverOk : moduleOk factDriver.
-  vcgen; (sep; eauto).
+  vcgen; abstract (sep; eauto).
 Qed.
 
 Definition factProg := link fact factDriver.
