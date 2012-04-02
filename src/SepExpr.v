@@ -5,7 +5,7 @@ Require Import RelationClasses EqdepClass.
 Require Import Expr ExprUnify.
 Require Import DepList.
 Require Import Setoid.
-Require Import Provers.
+Require Import Prover.
 
 Set Implicit Arguments.
 
