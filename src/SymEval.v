@@ -1,531 +1,332 @@
 Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
-Require Import Expr SepExpr Provers.
+Require Import Expr SepExpr Prover.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(** * These are generic search functions *)
-Section search_read_write.
-  Variable A : Type.
-  Variable B : A -> Type.
-  Variable types : list type.
-  Variable sfuncs : list A.
+Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+  Module SEP := SepExpr B ST.
 
-  Variable T : Type.
-  Variable F : forall s, B s -> list (expr types) -> option T.
-  Variable F_upd : forall s, B s -> list (expr types) -> option (list (expr types)).
+  Section parametric.
+    Variable types : list type.
+    Variables pcT stT : tvar.
 
-  Section arg.
-    Variable ss : A.
-    Variable se : B ss.
+    Record MemEvaluator : Type :=
+    { smemeval_read_word : forall (P : ProverT types), Facts P -> 
+      expr types -> SEP.SHeap types pcT stT -> option (expr types)
+    ; smemeval_write_word : forall (P : ProverT types), Facts P ->
+      expr types -> expr types -> SEP.SHeap types pcT stT -> option (SEP.SHeap types pcT stT)
+    }.
+
+    Variable eval : MemEvaluator.
+
+    Variable funcs : functions types.
+    Variable preds : SEP.sfunctions types pcT stT.
+
+    Variable stn_st : Type.
     
-    Fixpoint fold_args (es : list (list (expr types))) : option T :=
-      match es with 
-        | nil => None
-        | a :: b => 
-          match F se a with
-            | None => fold_args b
-            | Some r => Some r
-          end
-      end.
-    
-    Theorem fold_args_correct : forall es v,
-      fold_args es = Some v ->
-      exists k, In k es /\ F se k = Some v.
-    Proof.
-      clear. induction es.
-      simpl; congruence.
-      simpl. case_eq (F se a); intros.
-      inversion H0. subst. eauto.
-      eapply IHes in H0. destruct H0.
-      exists x. tauto.
+    Variables ptrT valT : tvar.
+
+    Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
+    Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
+    Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
+
+    Record MemEvaluator_correct : Type :=
+    { ReadCorrect :
+      forall (P : ProverT types) (PE : ProverT_correct P funcs),
+        forall facts pe ve SH,
+          smemeval_read_word eval P facts pe SH = Some ve ->
+          forall uvars vars cs p stn_m,
+            Valid PE uvars vars facts ->
+            exprD funcs uvars vars pe ptrT = Some p ->
+            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH)) stn_m ->
+            match exprD funcs uvars vars ve valT with
+              | Some v =>
+                ReadWord stn_m p = Some v
+              | _ => False
+            end
+    ; WriteCorrect :
+      forall (P : ProverT types) (PE : ProverT_correct P funcs),
+        forall uvars vars cs facts pe ve SH SH',
+          smemeval_write_word eval P facts pe ve SH = Some SH' ->
+          Valid PE uvars vars facts ->
+          forall p v,
+            exprD funcs uvars vars pe ptrT = Some p ->
+            exprD funcs uvars vars ve valT = Some v ->
+            forall stn_m,
+            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH)) stn_m ->
+            match WriteWord stn_m p v with
+              | None => False
+              | Some stn_m' =>
+                mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH')) stn_m'
+            end
+    }.
+  End parametric.
+
+  Module Default.
+    Section with_prover.
+      Variable types : list type.
+      Variables pcT stT : tvar.
+      Variable prover : ProverT types.
+      
+      Definition smemeval_read_word_default (_ : Facts prover) (_ : expr types)
+        (_ : SEP.SHeap types pcT stT) : option (expr types) :=
+        None.
+
+      Definition smemeval_write_word_default (_ : Facts prover)
+        (_ : expr types) (_ : expr types) (_ : SEP.SHeap types pcT stT)
+        : option (SEP.SHeap types pcT stT) :=
+        None.
+    End with_prover.
+
+    Definition MemEvaluator_default types pcT stT : MemEvaluator types pcT stT.
+    constructor.
+    eapply smemeval_read_word_default.
+    eapply smemeval_write_word_default.
+    Defined.
+
+    Definition MemEvaluator_default_correct types' (pcT stT : tvar) funcs preds X Y Z A B C :
+      @MemEvaluator_correct types' pcT stT (MemEvaluator_default types' pcT stT) funcs preds X Y Z A B C.
+    econstructor.
+      simpl; unfold smemeval_read_word_default, smemeval_write_word_default; simpl; congruence.
+      simpl; unfold smemeval_read_word_default, smemeval_write_word_default; simpl; congruence.
     Qed.
 
-    Fixpoint fold_args_update (es : list (list (expr types))) : option (list (list (expr types))) :=
-      match es with 
-        | nil => None
-        | a :: b => 
-          match F_upd se a with
-            | None => match fold_args_update b with
-                        | None => None
-                        | Some b => Some (a :: b)
-                      end
-            | Some r => Some (r :: b)
-          end
-      end.
-    
-    Theorem fold_args_update_correct : forall es es',
-      fold_args_update es = Some es' ->
-      exists pre, exists post, exists k, exists k',
-        es = pre ++ k :: post /\
-        F_upd se k = Some k' /\
-        es' = pre ++ k' :: post.
-    Proof.
-      clear. induction es.
-      simpl; congruence.
-      simpl. case_eq (F_upd se a); intros.
-      inversion H0. subst. do 4 eexists; intuition eauto.
-      instantiate (2 := nil). reflexivity. reflexivity.
+    Ltac unfolder H :=
+      cbv delta 
+        [ smemeval_read_word_default
+          smemeval_write_word_default
+          MemEvaluator_default
+        ] in H.
 
-      generalize dependent H0.
-      case_eq (fold_args_update es); intros.
-      inversion H1; subst. eapply IHes in H0.
-      do 4 destruct H0. exists (a :: x). exists x0.
-      eexists; eexists; intuition; subst; eauto. reflexivity.
+  End Default.
 
-      congruence.
-    Qed.
-  End arg.
+  (** Plugins are symbolic evaluators that handle single predicates **)
+  Module Plugin.
+    Module SEP := SEP.
+    Section typed.
+      Variable types : list type.
 
-  Variable impures : FM.t (list (list (expr types))).
+      Record MemEvalPred : Type :=
+      { smem_read  : 
+        forall (P : ProverT types) (facts : Facts P) (args : exprs types) (p : expr types),
+          option (expr types)
+      ; smem_write : 
+        forall (P : ProverT types) (facts : Facts P) (args : exprs types) (p v : expr types),
+          option (exprs types)
+      }.
 
-  Fixpoint fold_known (k : list nat) :
-    hlist (fun n : nat => match nth_error sfuncs n return Type with
-                            | None => Empty_set 
-                            | Some ss => B ss
-                          end) k
-    -> option T :=
-    match k as k 
-      return hlist (fun n : nat => match nth_error sfuncs n return Type with
-                                     | None => Empty_set 
-                                     | Some ss => B ss
-                                   end) k
-      -> option T
-      with
-      | nil => fun _ => None
-      | a :: b => fun ss =>
-        match FM.find a impures with
-          | None => fold_known (hlist_tl ss)
-          | Some argss =>
-            match nth_error sfuncs a as ss
-              return match ss return Type with
-                       | None => Empty_set 
-                       | Some ss => B ss
-                     end -> option T
-              with
-              | Some _ => fun se =>
-                match fold_args se argss with
-                  | None => fold_known (hlist_tl ss)
-                  | Some r => Some r
-                end
-              | None => fun err => match err with end
-            end (hlist_hd ss)
-        end
-    end.
-  
-  Theorem fold_known_correct : forall k
-    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
-                                 | None => Empty_set 
-                                 | Some ss => B ss
-                               end) k) v,
-    @fold_known k h = Some v ->
-    exists n, exists ss,
-      exists se :  B ss, exists ls, exists args, 
-        nth_error sfuncs n = Some ss 
-        /\ FM.find n impures = Some ls 
-        /\ In args ls 
-        /\ F se args = Some v.
-  Proof.
-    clear. induction k; simpl.
-    congruence.
-    intros h v. specialize (IHk (hlist_tl h) v).
-    rewrite (hlist_eta _ h) in *.
-    generalize dependent (hlist_hd h). simpl.
-    case_eq (FM.find a impures); intros; eauto 10.
-
-    assert (exists k, nth_error sfuncs a = Some k).
-    generalize y. clear.
-    destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
-    destruct H1.
-    generalize dependent y.
-    rewrite H1. intro.
-    case_eq (fold_args y l); intros; eauto 10.
-    inversion H2; subst.
-    eapply fold_args_correct in H0. destruct H0; eauto 10.
-  Qed.
-
-  Fixpoint fold_known_update (k : list nat) :
-    hlist (fun n : nat => match nth_error sfuncs n with
-                            | None => Empty_set 
-                            | Some ss => B ss
-                          end) k
-    -> option (FM.t (list (list (expr types)))) :=
-    match k as k 
-      return hlist (fun n : nat => match nth_error sfuncs n return Type with
-                                     | None => Empty_set 
-                                     | Some ss => B ss
-                                   end) k
-      -> option (FM.t (list (list (expr types))))
-      with
-      | nil => fun _ => None
-      | a :: b => fun ss =>
-        match FM.find a impures with
-          | None => fold_known_update (hlist_tl ss)
-          | Some argss =>
-            match nth_error sfuncs a as ss
-              return match ss return Type with
-                       | None => Empty_set 
-                       | Some ss => B ss
-                     end -> option (FM.t (list (list (expr types))))
-              with
-              | Some _ => fun se =>
-                match fold_args_update se argss with
-                  | None => fold_known_update (hlist_tl ss)
-                  | Some r => Some (FM.add a r impures) (* this is a replace *)
-                end
-              | None => fun err => match err with end
-            end (hlist_hd ss)
-        end
-    end.
-  
-  Theorem fold_known_update_correct : forall k
-    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
-                                 | None => Empty_set 
-                                 | Some ss => B ss
-                               end) k) i',
-    @fold_known_update k h = Some i' ->
-    exists n, exists ss,
-      exists se : B ss, exists ls, exists ls',
-        nth_error sfuncs n = Some ss 
-        /\ FM.find n impures = Some ls 
-        /\ fold_args_update se ls = Some ls'
-        /\ i' = FM.add n ls' impures.
-  Proof.
-    clear. induction k; simpl.
-    congruence.
-    intros h v. specialize (IHk (hlist_tl h) v).
-    rewrite (hlist_eta _ h) in *.
-    generalize dependent (hlist_hd h). simpl.
-    case_eq (FM.find a impures); intros; eauto 10.
-
-    assert (exists k, nth_error sfuncs a = Some k).
-    generalize y. clear.
-    destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
-    destruct H1.
-    generalize dependent y.
-    rewrite H1. intro.
-    case_eq (fold_args_update y l); intros; eauto 10.
-    inversion H2; subst.
-    eauto 10.
-  Qed.
-
-End search_read_write.
-
-(** This depends on [IL.settings] 
- ** - this suggests that a better abstraction is to put the relevant settings into the
- **   memory model...
- **)
-Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
-  Module Import SEP := SepExpr B ST.
-
-  Parameter MemEval : list type -> Type.
-
-  Parameter sym_read : forall (types : list type),
-    @MemEval types ->
-    forall (P : ProverT types),
-      Facts P -> exprs types -> expr types -> option (expr types).
-
-  Parameter sym_write : forall (types : list type),
-    @MemEval types ->
-    forall (P : ProverT types), 
-      Facts P -> exprs types -> expr types -> expr types -> option (exprs types).
-
-  Parameter Build_MemEval : forall (types : list type)
-    (sym_read : forall (P : ProverT types) (facts : Facts P) (args : list (expr types)) (p : expr types),
-      option (expr types))
-    (sym_write : forall (P : ProverT types) (facts : Facts P) (args : list (expr types)) (p v : expr types),
-      option (exprs types)),
-    @MemEval types.
-
-  Parameter proj_sym_read : forall ts a b,
-    sym_read (types := ts) (Build_MemEval a b) = a.
-
-  Parameter proj_sym_write : forall ts a b,
-    sym_write (types := ts) (Build_MemEval a b) = b.
-
-  Parameter MemEval_correct : forall
-    (types : list type) 
-    (me : MemEval types)
- 
-    (tvState : tvar)
-    (tvPc : tvar)
-    (tvPtr : tvar)
-    (tvVal : tvar)
+      Theorem proj_sym_read : forall a b,
+        smem_read (Build_MemEvalPred a b) = a.
+      Proof. reflexivity. Qed.
       
-    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal))
-    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem)
+      Theorem proj_sym_write : forall a b,
+        smem_write (Build_MemEvalPred a b) = b.
+      Proof. reflexivity. Qed.
 
-    (Predicate : ssignature types tvPc tvState),   
-    functions types -> Type.
+      Variable me : MemEvalPred.
 
-  Parameter sym_read_correct : forall
-    (types : list type)
-    (me : MemEval types)
-    (tvState : tvar)
-    (tvPc : tvar)
-    (tvPtr : tvar)
-    (tvVal : tvar)
-      
-    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal))
-    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem)
-    
-    (Predicate : ssignature types tvPc tvState)
-    (funcs : functions types),
-    @MemEval_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs ->
-    forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve m stn,
-      sym_read me P facts args pe = Some ve ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      match 
-        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match exprD funcs uvars vars ve tvVal with
-        | Some v =>
-          smem_get_value stn p m = Some v
-        | _ => False
-      end.
-  
-  Parameter sym_write_correct : forall
-    (types : list type)
-    (me : MemEval types)
-    (tvState : tvar)
-    (tvPc : tvar)
-    (tvPtr : tvar)
-    (tvVal : tvar)
-    
-    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal))
-    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem)
-    
-    (Predicate : ssignature types tvPc tvState)
-    (funcs : functions types),
-    @MemEval_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs ->
-    forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve v m stn args',
-      sym_write me P facts args pe ve = Some args' ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      exprD funcs uvars vars ve tvVal = Some v ->
-      match
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match 
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some pr => 
-          match smem_set_value stn p v m with
+
+      Variables pcT stT : tvar.
+
+      Variable stn_st : Type.
+      Variables ptrT valT : tvar.
+
+      Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
+      Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
+      Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
+
+      (** TODO: funcs should be removed from this? **)
+      Class MemEvalPred_correct (Predicate : SEP.ssignature types pcT stT)
+        (funcs : functions types) : Prop :=
+      { sym_read_correct : forall P (PE : ProverT_correct P funcs),
+        forall args uvars vars cs facts pe p ve stn_st Q,
+          smem_read me P facts args pe = Some ve ->
+          Valid PE uvars vars facts ->
+          exprD funcs uvars vars pe ptrT = Some p ->
+          match 
+            applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+            with
             | None => False
-            | Some sm' => ST.satisfies cs pr stn sm'
-          end
-      end.
-
-  Parameter Build_MemEval_correct : forall
-    (types : list type)
-    (me : MemEval types)
-    (tvState : tvar)
-    (tvPc : tvar)
-    (tvPtr : tvar)
-    (tvVal : tvar)
-    
-    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal))
-    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem)
-    
-    (Predicate : ssignature types tvPc tvState)
-    (funcs : functions types)
-        
-    (sym_read_correct : forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve m stn,
-      sym_read me P facts args pe = Some ve ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      match 
-        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match exprD funcs uvars vars ve tvVal with
-        | Some v =>
-          smem_get_value stn p m = Some v
-        | _ => False
-      end)
-    (sym_write_correct : forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve v m stn args',
-      sym_write me P facts args pe ve = Some args' ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      exprD funcs uvars vars ve tvVal = Some v ->
-      match
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match 
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some pr => 
-          match smem_set_value stn p v m with
-            | None => False
-            | Some sm' => ST.satisfies cs pr stn sm'
-          end
-      end),
-    @MemEval_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs.
-
-End EvaluatorPluginType.
-
-(*
-Module BedrockMemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (PLUGIN : EvaluatorPluginType B ST).
-  Module SEP := PLUGIN.SEP.
-
-  Record SymEvaluator types (pcT stT : tvar) : Type :=
-  { symeval_read_word : forall (P : Provers.ProverT types), Provers.Facts P -> 
-    expr types -> SEP.SHeap types pcT stT -> option (expr types)
-  ; symeval_write_word : forall (P : Provers.ProverT types), Provers.Facts P ->
-    expr types -> expr types -> SEP.SHeap types pcT stT -> option (SEP.SHeap types pcT stT)
-  }.
-
-  Record SymEvaluator_correct types'
-    (funcs : functions (repr bedrock_types_r types')) (preds : SEP.sfunctions (repr bedrock_types_r types') pcT stT) 
-    : Type :=
-  { Evaluator : SymEvaluator (repr bedrock_types_r types') (tvType 0) (tvType 1)
-  ; ReadCorrect :
-    forall (P : Provers.ProverT (repr bedrock_types_r types')) (PE : Provers.ProverT_correct P funcs),
-      forall facts (pe ve : expr (repr bedrock_types_r types')) SH,
-        symeval_read_word Evaluator P facts pe SH = Some ve ->
-        forall uvars vars cs p m stn,
-          Provers.Valid PE uvars vars facts ->
-          exprD funcs uvars vars pe tvWord = Some p ->
-          PropX.interp cs (![ SEP.sexprD funcs preds uvars vars (SEP.sheapD SH) ] (stn, m)) ->
-          match exprD funcs uvars vars ve tvWord with
+            | Some p => mem_satisfies cs (ST.star p Q) stn_st
+          end ->
+          match exprD funcs uvars vars ve valT with
             | Some v =>
-              ReadWord stn (Mem m) p = Some v
+              ReadWord stn_st p = Some v
             | _ => False
           end
-  ; WriteCorrect :
-    forall (P : Provers.ProverT (repr bedrock_types_r types')) (PE : Provers.ProverT_correct P funcs),
-      forall uvars vars cs facts pe ve m stn SH SH',
-        symeval_write_word Evaluator P facts pe ve SH = Some SH' ->
-        Provers.Valid PE uvars vars facts ->
-        forall p v,
-          exprD funcs uvars vars pe tvWord = Some p ->
-          exprD funcs uvars vars ve tvWord = Some v ->
-          PropX.interp cs (![ SEP.sexprD funcs preds uvars vars (SEP.sheapD SH) ] (stn, m)) ->
-          match mem_set_word _ _ (footprint_w) (BedrockHeap.mem_set) (explode stn) p v (Mem m) with
-            | None => False
-            | Some m' =>
-              PropX.interp cs (![ SEP.sexprD funcs preds uvars vars (SEP.sheapD SH') ] (stn, {| Regs := Regs m ; Mem := m' |}))
-          end
-  }.
-*)
+       ; sym_write_correct : forall P (PE : ProverT_correct P funcs),
+         forall args uvars vars cs facts pe p ve v stn_st args' Q,
+           smem_write me P facts args pe ve = Some args' ->
+           Valid PE uvars vars facts ->
+           exprD funcs uvars vars pe ptrT = Some p ->
+           exprD funcs uvars vars ve valT = Some v ->
+           match
+             applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+             with
+             | None => False
+             | Some p => mem_satisfies cs (ST.star p Q) stn_st
+           end ->
+           match 
+             applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+             with
+             | None => False
+             | Some pr => 
+               match WriteWord stn_st p v with
+                 | None => False
+                 | Some sm' => mem_satisfies cs (ST.star pr Q) stn_st
+               end
+           end
+      }.
+    End typed.
 
+    Section composite.
+      Variable types : list type.
+      Variable pcT stT : tvar.
+      Variable evals : list (nat * MemEvalPred types). 
 
-Module EvaluatorPlugin (B : Heap) (ST : SepTheoryX.SepTheoryXType B) <: EvaluatorPluginType B ST.
-  Module Import SEP := SepExpr B ST.
+      Section with_prover.
+        Variable Prover : ProverT types.
 
-  Section typed.
-    Variable types : list type.
+        Section fold_first.
+          Variables T V : Type.
+          Variable F : T -> option V.
 
-    Record MemEval' : Type :=
-    { sym_read  : 
-      forall (P : ProverT types) (facts : Facts P) (args : exprs types) (p : expr types),
-      option (expr types)
-    ; sym_write : 
-      forall (P : ProverT types) (facts : Facts P) (args : exprs types) (p v : expr types),
-      option (exprs types)
-    }.
+          Fixpoint fold_first (ls : list T) : option V :=
+            match ls with
+              | nil => None
+              | t :: ls =>
+                match F t with
+                  | None => fold_first ls
+                  | x => x
+                end
+            end.
+        End fold_first.
 
-    Definition MemEval := MemEval'.
+        Section fold_first_update.
+          Variable T : Type.
+          Variable F : T -> option T.
 
-    Definition Build_MemEval := Build_MemEval'.
+          Fixpoint fold_first_update (ls : list T) (acc : list T) : option (list T) :=
+            match ls with
+              | nil => None
+              | t :: ls =>
+                match F t with
+                  | None => fold_first_update ls (t :: acc)
+                  | Some v => Some (rev acc ++ v :: ls)
+                end
+            end.
+        End fold_first_update.
 
-    Theorem proj_sym_read : forall a b,
-      sym_read (Build_MemEval a b) = a.
-    Proof. reflexivity. Qed.
-    
-    Theorem proj_sym_write : forall a b,
-      sym_write (Build_MemEval a b) = b.
-    Proof. reflexivity. Qed.
+        Definition plugin_symeval_read_word (facts : Facts Prover) (p : expr types) 
+          (s : SEP.SHeap types pcT stT) : option (expr types) :=
+          let impures := SepExpr.impures s in
+          let reader i_me :=
+            let '(i,me) := i_me in
+            match FM.find i impures with
+              | Some argss =>
+                fold_first (fun args => smem_read me Prover facts args p) argss
+              | None => None
+            end
+          in
+          fold_first reader evals.
 
-    Variable me : MemEval'.
+        Definition plugin_symeval_write_word (facts : Facts Prover) (p v : expr types)
+          (s : SEP.SHeap types pcT stT) : option (SEP.SHeap types pcT stT) :=
+          let impures := SepExpr.impures s in
+          let writer i_me :=
+          let '(i,me) := i_me in
+            match FM.find i impures with
+              | Some argss =>
+                match fold_first_update (fun args => smem_write me Prover facts args p v) argss nil with
+                  | None => None
+                  | Some argss => Some (FM.add i argss impures) (** NOTE : add = replace **)
+                end
+              | None => None
+            end
+          in
+          match fold_first writer evals with
+            | None => None
+            | Some impures => Some {| impures := impures ; pures := SepExpr.pures s ; other := SepExpr.other s |}
+          end.
+      End with_prover.
 
-    Variable tvState : tvar.
-    Variable tvPc : tvar.
-    Variable tvPtr : tvar.
-    Variable tvVal : tvar.
+      Definition MemEvaluator_composite : MemEvaluator types pcT stT : Type :=
+      {| smemeval_read_word := plugin_symeval_read_word
+       ; smemeval_write_word := plugin_symeval_write_word
+       |}.
+    End composite.
 
-    Variable smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
-      option (tvarD types tvVal).
-    Variable smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
-      -> ST.HT.smem -> option ST.HT.smem.
+    Section composite_correct.
+      Variable types : list type.
+      Variables pcT stT : tvar.      
+      Variable evals : list (nat * MemEvalPred types).
 
-    
-    Class MemEval_correct' (Predicate : ssignature types tvPc tvState)
-      (funcs : functions types) : Type :=
-    { sym_read_correct : forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve m stn,
-      sym_read me P facts args pe = Some ve ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      match 
-        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match exprD funcs uvars vars ve tvVal with
-        | Some v =>
-          smem_get_value stn p m = Some v
-        | _ => False
-      end
-    ; sym_write_correct : forall P (PE : ProverT_correct P funcs),
-      forall args uvars vars cs facts pe p ve v m stn args',
-      sym_write me P facts args pe ve = Some args' ->
-      Valid PE uvars vars facts ->
-      exprD funcs uvars vars pe tvPtr = Some p ->
-      exprD funcs uvars vars ve tvVal = Some v ->
-      match
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some p => ST.satisfies cs p stn m
-      end ->
-      match 
-        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
-        with
-        | None => False
-        | Some pr => 
-          match smem_set_value stn p v m with
-            | None => False
-            | Some sm' => ST.satisfies cs pr stn sm'
-          end
-      end
-    }.
+      Variable funcs : functions types.
+      Variable sfuncs : SEP.sfunctions types pcT stT .
 
-    Definition MemEval_correct := MemEval_correct'.
+      Variable stn_st : Type.
+      Variables ptrT valT : tvar.
 
-    Definition Build_MemEval_correct := Build_MemEval_correct'.
+      Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
+      Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
+      Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
 
-  End typed.
+      Fixpoint all T (P : T -> Prop) (ls : list T) : Prop :=
+        match ls with
+          | nil => True
+          | l :: ls => P l /\ all P ls
+        end.
 
-End EvaluatorPlugin.
+      Definition ConsistentCondition : Prop := 
+        all (fun (i_me : nat * MemEvalPred types) => 
+          let (i,me) := i_me in
+            match nth_error sfuncs i with
+              | None => False
+              | Some s => @MemEvalPred_correct _ me pcT stT _ ptrT valT mem_satisfies ReadWord WriteWord s funcs
+            end) evals.
+        
+      Hypothesis sfuncs_evals : ConsistentCondition.
+
+      Definition CompositeMemEvaluator_correct : 
+        @MemEvaluator_correct types _ _ (MemEvaluator_composite pcT stT evals) funcs sfuncs _ _ _ mem_satisfies ReadWord WriteWord.
+      Proof.
+        constructor; unfold ConsistentCondition in *; simpl.
+          (** read **)
+          unfold plugin_symeval_read_word. generalize dependent evals. clear.
+          induction evals; simpl; intros.
+            congruence.
+            destruct a.
+            revert H. case_eq (FM.find n (impures SH)); simpl; intros.
+            Focus 2. destruct sfuncs_evals; eapply IHl; eauto. 
+            
+            revert H3.
+            case_eq (fold_first (fun args => smem_read m P facts args pe) l0); intros.
+              inversion H4; clear H4; subst.
+              Focus 2. destruct sfuncs_evals; eapply IHl; eauto. 
+              
+              admit.
+
+          (** write **)
+          revert sfuncs_evals. admit.
+      Qed.
+    End composite_correct.
+
+    Ltac unfolder H :=
+      cbv delta 
+        [ fold_first fold_first_update 
+          FM.find FM.add 
+          plugin_symeval_read_word
+          plugin_symeval_write_word
+          MemEvaluator_composite
+          smem_read smem_write 
+        ] in H.
+
+  End Plugin.
+
+End MemoryEvaluator.
+
 
 (*
 (* TODO: I want this to be a modularization of the plugin proofs *)
@@ -1440,4 +1241,395 @@ Module BedrockEvaluator.
      |}.
 
 End BedrockEvaluator.
+*)
+
+
+(** * These are generic search functions *)
+(*
+Section search_read_write.
+  Variable A : Type.
+  Variable B : A -> Type.
+  Variable types : list type.
+  Variable sfuncs : list A.
+
+  Variable T : Type.
+  Variable F : forall s, B s -> list (expr types) -> option T.
+  Variable F_upd : forall s, B s -> list (expr types) -> option (list (expr types)).
+
+  Section arg.
+    Variable ss : A.
+    Variable se : B ss.
+    
+    Fixpoint fold_args (es : list (list (expr types))) : option T :=
+      match es with 
+        | nil => None
+        | a :: b => 
+          match F se a with
+            | None => fold_args b
+            | Some r => Some r
+          end
+      end.
+    
+    Theorem fold_args_correct : forall es v,
+      fold_args es = Some v ->
+      exists k, In k es /\ F se k = Some v.
+    Proof.
+      clear. induction es.
+      simpl; congruence.
+      simpl. case_eq (F se a); intros.
+      inversion H0. subst. eauto.
+      eapply IHes in H0. destruct H0.
+      exists x. tauto.
+    Qed.
+
+    Fixpoint fold_args_update (es : list (list (expr types))) : option (list (list (expr types))) :=
+      match es with 
+        | nil => None
+        | a :: b => 
+          match F_upd se a with
+            | None => match fold_args_update b with
+                        | None => None
+                        | Some b => Some (a :: b)
+                      end
+            | Some r => Some (r :: b)
+          end
+      end.
+    
+    Theorem fold_args_update_correct : forall es es',
+      fold_args_update es = Some es' ->
+      exists pre, exists post, exists k, exists k',
+        es = pre ++ k :: post /\
+        F_upd se k = Some k' /\
+        es' = pre ++ k' :: post.
+    Proof.
+      clear. induction es.
+      simpl; congruence.
+      simpl. case_eq (F_upd se a); intros.
+      inversion H0. subst. do 4 eexists; intuition eauto.
+      instantiate (2 := nil). reflexivity. reflexivity.
+
+      generalize dependent H0.
+      case_eq (fold_args_update es); intros.
+      inversion H1; subst. eapply IHes in H0.
+      do 4 destruct H0. exists (a :: x). exists x0.
+      eexists; eexists; intuition; subst; eauto. reflexivity.
+
+      congruence.
+    Qed.
+  End arg.
+
+  Variable impures : FM.t (list (list (expr types))).
+
+  Fixpoint fold_known (k : list nat) :
+    hlist (fun n : nat => match nth_error sfuncs n return Type with
+                            | None => Empty_set 
+                            | Some ss => B ss
+                          end) k
+    -> option T :=
+    match k as k 
+      return hlist (fun n : nat => match nth_error sfuncs n return Type with
+                                     | None => Empty_set 
+                                     | Some ss => B ss
+                                   end) k
+      -> option T
+      with
+      | nil => fun _ => None
+      | a :: b => fun ss =>
+        match FM.find a impures with
+          | None => fold_known (hlist_tl ss)
+          | Some argss =>
+            match nth_error sfuncs a as ss
+              return match ss return Type with
+                       | None => Empty_set 
+                       | Some ss => B ss
+                     end -> option T
+              with
+              | Some _ => fun se =>
+                match fold_args se argss with
+                  | None => fold_known (hlist_tl ss)
+                  | Some r => Some r
+                end
+              | None => fun err => match err with end
+            end (hlist_hd ss)
+        end
+    end.
+  
+  Theorem fold_known_correct : forall k
+    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
+                                 | None => Empty_set 
+                                 | Some ss => B ss
+                               end) k) v,
+    @fold_known k h = Some v ->
+    exists n, exists ss,
+      exists se :  B ss, exists ls, exists args, 
+        nth_error sfuncs n = Some ss 
+        /\ FM.find n impures = Some ls 
+        /\ In args ls 
+        /\ F se args = Some v.
+  Proof.
+    clear. induction k; simpl.
+    congruence.
+    intros h v. specialize (IHk (hlist_tl h) v).
+    rewrite (hlist_eta _ h) in *.
+    generalize dependent (hlist_hd h). simpl.
+    case_eq (FM.find a impures); intros; eauto 10.
+
+    assert (exists k, nth_error sfuncs a = Some k).
+    generalize y. clear.
+    destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
+    destruct H1.
+    generalize dependent y.
+    rewrite H1. intro.
+    case_eq (fold_args y l); intros; eauto 10.
+    inversion H2; subst.
+    eapply fold_args_correct in H0. destruct H0; eauto 10.
+  Qed.
+
+  Fixpoint fold_known_update (k : list nat) :
+    hlist (fun n : nat => match nth_error sfuncs n with
+                            | None => Empty_set 
+                            | Some ss => B ss
+                          end) k
+    -> option (FM.t (list (list (expr types)))) :=
+    match k as k 
+      return hlist (fun n : nat => match nth_error sfuncs n return Type with
+                                     | None => Empty_set 
+                                     | Some ss => B ss
+                                   end) k
+      -> option (FM.t (list (list (expr types))))
+      with
+      | nil => fun _ => None
+      | a :: b => fun ss =>
+        match FM.find a impures with
+          | None => fold_known_update (hlist_tl ss)
+          | Some argss =>
+            match nth_error sfuncs a as ss
+              return match ss return Type with
+                       | None => Empty_set 
+                       | Some ss => B ss
+                     end -> option (FM.t (list (list (expr types))))
+              with
+              | Some _ => fun se =>
+                match fold_args_update se argss with
+                  | None => fold_known_update (hlist_tl ss)
+                  | Some r => Some (FM.add a r impures) (* this is a replace *)
+                end
+              | None => fun err => match err with end
+            end (hlist_hd ss)
+        end
+    end.
+  
+  Theorem fold_known_update_correct : forall k
+    (h : hlist (fun n : nat => match nth_error sfuncs n return Type with
+                                 | None => Empty_set 
+                                 | Some ss => B ss
+                               end) k) i',
+    @fold_known_update k h = Some i' ->
+    exists n, exists ss,
+      exists se : B ss, exists ls, exists ls',
+        nth_error sfuncs n = Some ss 
+        /\ FM.find n impures = Some ls 
+        /\ fold_args_update se ls = Some ls'
+        /\ i' = FM.add n ls' impures.
+  Proof.
+    clear. induction k; simpl.
+    congruence.
+    intros h v. specialize (IHk (hlist_tl h) v).
+    rewrite (hlist_eta _ h) in *.
+    generalize dependent (hlist_hd h). simpl.
+    case_eq (FM.find a impures); intros; eauto 10.
+
+    assert (exists k, nth_error sfuncs a = Some k).
+    generalize y. clear.
+    destruct (nth_error sfuncs a); [ eauto | destruct 1 ]. 
+    destruct H1.
+    generalize dependent y.
+    rewrite H1. intro.
+    case_eq (fold_args_update y l); intros; eauto 10.
+    inversion H2; subst.
+    eauto 10.
+  Qed.
+
+End search_read_write.
+*)
+
+(*
+(** This depends on [IL.settings] 
+ ** - this suggests that a better abstraction is to put the relevant settings into the
+ **   memory model...
+ **)
+Module Type EvaluatorPluginType (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
+  Module SEP := SepExpr B ST.
+
+  Parameter MemEvalPred : list type -> Type.
+
+  Parameter smem_read : forall (types : list type),
+    @MemEvalPred types ->
+    forall (P : ProverT types),
+      Facts P -> exprs types -> expr types -> option (expr types).
+
+  Parameter smem_write : forall (types : list type),
+    @MemEvalPred types ->
+    forall (P : ProverT types), 
+      Facts P -> exprs types -> expr types -> expr types -> option (exprs types).
+
+  Parameter Build_MemEvalPred : forall (types : list type)
+    (sym_read : forall (P : ProverT types) (facts : Facts P) (args : list (expr types)) (p : expr types),
+      option (expr types))
+    (sym_write : forall (P : ProverT types) (facts : Facts P) (args : list (expr types)) (p v : expr types),
+      option (exprs types)),
+    @MemEvalPred types.
+
+  Parameter proj_sym_read : forall ts a b,
+    smem_read (types := ts) (Build_MemEvalPred a b) = a.
+
+  Parameter proj_sym_write : forall ts a b,
+    smem_write (types := ts) (Build_MemEvalPred a b) = b.
+
+  Parameter MemEvalPred_correct : forall
+    (types : list type) 
+    (me : MemEvalPred types)
+ 
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+      
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+
+    (Predicate : SEP.ssignature types tvPc tvState),   
+    functions types -> Type.
+
+  Parameter sym_read_correct : forall
+    (types : list type)
+    (me : MemEvalPred types)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+      
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (Predicate : SEP.ssignature types tvPc tvState)
+    (funcs : functions types),
+    @MemEvalPred_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs ->
+    forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve m stn,
+      smem_read me P facts args pe = Some ve ->
+      Valid PE uvars vars facts ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
+      match 
+        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match exprD funcs uvars vars ve tvVal with
+        | Some v =>
+          smem_get_value stn p m = Some v
+        | _ => False
+      end.
+  
+  Parameter sym_write_correct : forall
+    (types : list type)
+    (me : MemEvalPred types)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+    
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (Predicate : SEP.ssignature types tvPc tvState)
+    (funcs : functions types),
+    @MemEvalPred_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs ->
+    forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve v m stn args',
+      smem_write me P facts args pe ve = Some args' ->
+      Valid PE uvars vars facts ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
+      exprD funcs uvars vars ve tvVal = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some pr => 
+          match smem_set_value stn p v m with
+            | None => False
+            | Some sm' => ST.satisfies cs pr stn sm'
+          end
+      end.
+
+  Parameter Build_MemEvalPred_correct : forall
+    (types : list type)
+    (me : MemEvalPred types)
+    (tvState : tvar)
+    (tvPc : tvar)
+    (tvPtr : tvar)
+    (tvVal : tvar)
+    
+    (smem_get_value : IL.settings -> tvarD types tvPtr -> ST.HT.smem -> 
+      option (tvarD types tvVal))
+    (smem_set_value : IL.settings -> tvarD types tvPtr -> tvarD types tvVal
+      -> ST.HT.smem -> option ST.HT.smem)
+    
+    (Predicate : SEP.ssignature types tvPc tvState)
+    (funcs : functions types)
+        
+    (sym_read_correct : forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve m stn,
+      smem_read me P facts args pe = Some ve ->
+      Valid PE uvars vars facts ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
+      match 
+        applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match exprD funcs uvars vars ve tvVal with
+        | Some v =>
+          smem_get_value stn p m = Some v
+        | _ => False
+      end)
+    (sym_write_correct : forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve v m stn args',
+      smem_write me P facts args pe ve = Some args' ->
+      Valid PE uvars vars facts ->
+      exprD funcs uvars vars pe tvPtr = Some p ->
+      exprD funcs uvars vars ve tvVal = Some v ->
+      match
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some p => ST.satisfies cs p stn m
+      end ->
+      match 
+        applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+        with
+        | None => False
+        | Some pr => 
+          match smem_set_value stn p v m with
+            | None => False
+            | Some sm' => ST.satisfies cs pr stn sm'
+          end
+      end),
+    @MemEvalPred_correct types me tvState tvPc tvPtr tvVal smem_get_value smem_set_value Predicate funcs.
+
+End EvaluatorPluginType.
 *)

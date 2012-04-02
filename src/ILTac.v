@@ -2,10 +2,11 @@ Require Import IL SepIL SymIL.
 Require Import Word Memory.
 Import List.
 Require Import DepList EqdepClass.
-
+Require Import PropX.
 Require Expr SepExpr.
-Require Import Provers.
-Module SEP := SymIL.BedrockEvaluator.SEP.
+Require Import Prover.
+
+Module SEP := SymIL.SEP.
 
 (** TODO : this isn't true **)
 Lemma ApplyCancelSep : forall types funcs,
@@ -30,8 +31,6 @@ Lemma ApplyCancelSep : forall types funcs,
 Proof.
   intros; eapply SEP.ApplyCancelSep; eauto.
 Qed.
-
-Require Import PropX.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
   interp cs (![ P ] stn_st) ->
@@ -81,7 +80,7 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let stateT := constr:(prod settings state) in
       let all_props := Expr.collect_props ltac:(fun _ => true) in
       let pures := Expr.props_types all_props in
-       let L := eval unfold starB exB hvarB in L in
+      let L := eval unfold starB exB hvarB in L in
       let R := eval unfold starB exB hvarB in R in
       (** collect types **)
       let Ts := 
@@ -108,17 +107,12 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let types_ := Expr.extend_all_types Ts types_ in
       let typesV := fresh "types" in
       pose (typesV := types_);
-(*
-      let types_ext := eval simpl in (bedrock_ext types_) in
-      let types_extV := fresh "types_ext" in
-      pose (types_extV := types_ext);
-*)
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
       let vars := eval simpl in (@nil _ : Expr.env typesV) in
       (** build the funcs **)
       let funcs := 
-        eval unfold SymIL.BedrockEvaluator.bedrock_funcs in (SymIL.BedrockEvaluator.bedrock_funcs typesV)
+        eval unfold SymIL.bedrock_funcs in (SymIL.bedrock_funcs typesV)
       in
       let funcs := eval simpl in funcs in
       let pcT := constr:(Expr.tvType 0) in
@@ -157,13 +151,13 @@ Ltac cancel_simplifier :=
 
         SepExpr.FM.fold
 
-        Provers.Facts Provers.Summarize Provers.Prove Provers.Learn
+        Facts Summarize Prove Learn
 
         ExprUnify.Subst
 
         SymIL.bedrock_types SymIL.bedrock_types_r
-        SymIL.BedrockEvaluator.bedrock_funcs SymIL.BedrockEvaluator.bedrock_funcs_r
-        app map fold_right nth_error value error
+        SymIL.bedrock_funcs SymIL.bedrock_funcs_r
+        app map fold_right nth_error value error hd hd_error tl
 
         fst snd
 
@@ -192,35 +186,24 @@ Ltac cancel_simplifier :=
         ExprUnify.get_Eq
         Expr.Eq
         EquivDec.nat_eq_eqdec
-        Provers.inSameGroup Provers.eqD Provers.eqD_seq Provers.transitivityEqProver
-        Provers.groupsOf
-        Provers.addEquality
-        Provers.in_seq orb
         Expr.typeof 
         Expr.expr_seq_dec
         Expr.tvarD
         Expr.tvar_val_sdec 
         Provers.groupWith
         Expr.Range Expr.Domain Expr.Denotation
-(*      Expr.well_typed  *)
         Expr.all2
 
         SEP.forallEach
         SEP.sheapD SEP.sexprD
         SEP.starred SEP.himp
         Expr.Impl Expr.Impl_ Expr.is_well_typed
-
-        hd hd_error value error tl
+        
         Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
         Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_ssignature
 
         orb
       ].
-
-(*
-Require Unfolder.
-Module U := Unfolder.Make BedrockHeap ST.
-*)
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).

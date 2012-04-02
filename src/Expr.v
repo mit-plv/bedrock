@@ -1,6 +1,8 @@
 Require Import List DepList.
 Require Import EqdepClass.
 Require Import IL Word.
+Require Import Bool.
+Require PropX.
 
 Set Implicit Arguments.
 
@@ -152,6 +154,17 @@ Section env.
         end
     end.
 
+  Lemma lookupAs_det : forall v x t1 t2,
+    lookupAs v t1 x <> None
+    -> lookupAs v t2 x <> None
+    -> t1 = t2.
+    unfold lookupAs. clear.
+    induction v; destruct x; simpl; intros; try congruence.
+      destruct a; simpl in *.
+      destruct (equiv_dec x t1); destruct (equiv_dec x t2); try congruence.
+      eauto.
+  Qed.
+
   Variable uenv : env.
   Variable env : env.
 
@@ -226,6 +239,28 @@ Section env.
         end
     end.
 
+  Theorem exprD_det : forall e t1 t2, exprD e t1 <> None
+    -> exprD e t2 <> None
+    -> t1 = t2.
+(*    induction e; t. *)
+  Admitted.
+
+
+  Theorem exprD_principal : forall e t, exprD e t <> None
+    -> match typeof e with
+         | None => False
+         | Some t' => exprD e t' <> None
+       end.
+(*
+    induction e; simpl; unfold lookupAs;
+      repeat match goal with
+               | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
+               | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl e) in H
+               | _ => t1
+             end.
+*)
+  Admitted.
+
   Section All2.
     Variable X Y : Type.
     Variable F : X -> Y -> bool.
@@ -238,7 +273,17 @@ Section env.
       end.
   End All2.
 
-  Require Import Bool.
+  Lemma exprD_typeof : forall a1 t D,
+    exprD a1 t = Some D ->
+    typeof a1 = Some t.
+  Proof.
+    intros.
+    assert (exprD a1 t <> None); try congruence.
+    apply exprD_principal in H0.
+    destruct (typeof a1); try contradiction.
+    f_equal.
+    eapply exprD_det in H0. symmetry; eassumption. congruence.
+  Qed.
 
   Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
     match e with 
@@ -329,6 +374,11 @@ Section env.
     apply andb_true_iff in H. intuition.
     rewrite H0. rewrite H1. auto.
   Qed.
+
+  Definition ValidProp (e : expr) := 
+    exists v, exprD e tvProp = Some v.
+  Definition ValidExp (e : expr) := 
+    exists t, exists v, exprD e t = Some v.
 
   Theorem is_well_typed_correct : forall e t, 
     is_well_typed e t = true ->
@@ -522,7 +572,15 @@ Section env.
     Proof.
       induction a; simpl; intuition auto.
     Qed.
-      
+    
+    Lemma Provable_ValidProp : forall goal, Provable goal -> ValidProp goal.
+      unfold Provable, ValidProp in *; intros;
+        repeat match goal with
+                 | [ _ : match ?E with None => _ | Some _ => _ end |- _ ] =>
+                   destruct E
+               end; intuition eauto.
+    Qed.
+
   End Provable.
 
 End env.
@@ -591,8 +649,6 @@ Record VarType (t : Type) : Type :=
   { open : t }.
 Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
   f (open vt).
-
-Require PropX.
 
 Ltac reflectable shouldReflect P :=
   match P with
@@ -982,95 +1038,3 @@ Ltac reify_exprs isConst es types funcs uvars vars k :=
           let res := constr:(e :: es) in
           k uvars funcs res))
   end.
-
-
-(*
-(** reflect all the hypotheses in the current goal.
- ** - call the continuation with
- **   (uvars : env types) (funcs : functions types)
- **   (pures : list (expr types)) (proofs : AllProvable pures)
- **)
-Ltac reify_props shouldReflect isConst types funcs uvars vars k :=
-  let rec collect skip uvars funcs acc proofs :=
-    match goal with
-      | [ H : ?X |- _ ] =>
-        match reflectable shouldReflect X with
-          | true =>
-            match hcontains H skip with
-              | false =>
-                reify_expr isConst X types funcs uvars vars 
-                ltac:(fun uvars funcs e =>
-                  let skip := constr:((H, skip)) in
-                  let res := constr:(e :: acc) in
-                  let proofs := constr:(conj H proofs) in
-                  collect skip uvars funcs res proofs)
-            end
-        end
-      | _ => k uvars funcs acc proofs
-    end
-  in
-  let acc := constr:(@nil (expr types)) in
-  let proofs := constr:(I) in
-  collect tt uvars funcs acc proofs.
-*)
-
-(* DO NOT USE THIS FUNCTION!
-Ltac reify_exprs isConst types funcs exprs :=
-  let rt := 
-    collectAllTypes_expr isConst (@nil Type) exprs
-  in
-  let types := extend_all_types rt types in
-  let types := eval simpl in types in
-  let funcs := 
-    match funcs with
-      | tt => constr:(@nil (@signature types))
-      | _ => funcs 
-    end
-  in
-  let rec reify_all ls funcs k :=
-    match ls with
-      | tt => 
-        let r := constr:(@nil (@expr types)) in
-        k funcs r
-      | (?e, ?es) =>
-        let vs := constr:(@nil tvar) in
-        let us := constr:(@nil tvar) in
-        reify_expr isConst e types funcs us vs ltac:(fun funcs e =>
-          reify_all es funcs ltac:(fun funcs es =>
-            let es := constr:(e :: es) in
-            k funcs es))
-    end
-  in
-  match type of funcs with
-    | list (signature types) =>
-      reify_all exprs funcs ltac:(fun funcs es =>
-        constr:((types, funcs, es)))
-    | list (signature ?X) =>
-      let funcs := lift_signatures funcs types in
-        reify_all exprs funcs ltac:(fun funcs es =>
-          constr:((types, funcs, es)))
-  end.
-*)
-(*
-Goal exists x : nat, exists y : nat,  x + 1 = 1 + y.
-  do 2 eexists.
-  match goal with
-    | [ |- ?G ] =>
-      let rec isConst x :=
-        match x with 
-          | 0 => true
-          | S ?n => isConst n
-          | _ => false
-        end
-      in
-      let Ts := constr:(@nil Type) in
-      let Ts := collectTypes_expr ltac:(isConst) G Ts in
-      let types := constr:(@nil type) in
-      let types := extend_all_types Ts types in
-      let funcs := constr:(@nil (signature types)) in
-      let uvars := constr:(@nil _ : env types) in
-      let vars := constr:(@nil _ : env types) in
-      reify_expr isConst G types funcs uvars vars ltac:(fun uvars funcs G =>
-        pose (exprD funcs uvars nil G tvProp))
-  end.
-*)

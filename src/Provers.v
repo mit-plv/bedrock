@@ -2,143 +2,14 @@ Require Import List Arith Bool.
 Require Import Expr Env.
 Require Import EquivDec EqdepClass.
 Require Import DepList.
+Require Import Prover.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
+Local Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
-Section ProverT.
-  (** TODO: This should probably go in Expr **)
-  Variable types : list type.
-  Variable fs : functions types.
-
-  Definition ValidProp uvars vars (e : expr types) := exists v, exprD fs uvars vars e tvProp = Some v.
-  Definition ValidExp uvars vars (e : expr types) := exists t, exists v, exprD fs uvars vars e t = Some v.
-
-  Lemma Provable_ValidProp : forall uvars vars goal, Provable fs uvars vars goal
-    -> ValidProp uvars vars goal.
-    unfold Provable, ValidProp in *; intros;
-      repeat match goal with
-               | [ _ : match ?E with None => _ | Some _ => _ end |- _ ] =>
-                 destruct E
-             end; intuition eauto.
-  Qed.
-End ProverT.
-
-(** Provers that establish [expr]-encoded facts *)
-
-Definition ProverCorrect types (fs : functions types) (summary : Type)
-    (** Some prover work only needs to be done once per set of hypotheses,
-       so we do it once and save the outcome in a summary of this type. *)
-  (valid : env types -> env types -> summary -> Prop)
-  (prover : summary -> expr types -> bool) : Prop :=
-  forall vars uvars sum,
-    valid uvars vars sum ->
-    forall goal, 
-      prover sum goal = true ->
-      ValidProp fs uvars vars goal ->
-      Provable fs uvars vars goal.
-
-Record ProverT (types : list type) : Type :=
-{ Facts : Type
-; Summarize : exprs types -> Facts
-; Learn : Facts -> exprs types -> Facts
-; Prove : Facts -> expr types -> bool
-}.
-
-Record ProverT_correct (types : list type) (P : ProverT types) (funcs : functions types) : Type :=
-{ Valid : env types -> env types -> Facts P -> Prop
-; Summarize_correct : forall uvars vars hyps, 
-  AllProvable funcs uvars vars hyps ->
-  Valid uvars vars (Summarize P hyps)
-; Learn_correct : forall uvars vars facts,
-  Valid uvars vars facts -> forall hyps,
-  AllProvable funcs uvars vars hyps ->
-  Valid uvars vars (Learn P facts hyps)
-; Prove_correct : ProverCorrect funcs Valid (Prove P)
-}.
-
-Lemma eq_nat_dec_correct : forall (n : nat), eq_nat_dec n n = left eq_refl.
-  induction n; provers.
-Qed.
-Hint Rewrite eq_nat_dec_correct : provers.
-
-Lemma nat_seq_dec_correct : forall (n : nat), seq_dec n n = Some eq_refl.
-  unfold seq_dec. provers.
-Qed.
-Hint Rewrite nat_seq_dec_correct : provers.
-
-
-(* Everything looks like a nail?  Try this hammer. *)
-Ltac t1 := match goal with
-             | _ => discriminate
-             | _ => progress (hnf in *; simpl in *; intuition; subst)
-             | [ x := _ : _ |- _ ] => subst x || (progress (unfold x in * ))
-             | [ H : ex _ |- _ ] => destruct H
-             | [ H : context[nth_error (updateAt ?new ?ls ?n) ?n] |- _ ] =>
-               rewrite (nth_error_updateAt new ls n) in H
-                 || rewrite nth_error_updateAt in H
-             | [ s : signature _ |- _ ] => destruct s
-             | [ H : Some _ = Some _ |- _ ] => injection H; clear H
-             | [ H : _ = Some _ |- _ ] => rewrite H in *
-             | [ H : _ === _ |- _ ] => rewrite H in *
-
-             | [ |- context[match ?E with
-                              | Const _ _ => _
-                              | Var _ => _
-                              | UVar _ => _
-                              | Func _ _ => _
-                              | Equal _ _ _ => _
-                            end] ] => destruct E
-             | [ |- context[match ?E with
-                              | None => _
-                              | Some _ => _
-                            end] ] => destruct E
-             | [ |- context[if ?E then _ else _] ] => 
-               case_eq E; intro
-             | [ |- context[match ?E with
-                              | nil => _
-                              | _ :: _ => _
-                            end] ] => destruct E
-             | [ H : _ || _ = true |- _ ] => apply orb_true_iff in H; destruct H
-             | [ _ : context[match ?E with
-                               | Const _ _ => _
-                               | Var _ => _
-                               | UVar _ => _
-                               | Func _ _ => _
-                               | Equal _ _ _ => _
-                             end] |- _ ] => destruct E
-             | [ _ : context[match ?E with
-                               | nil => _
-                               | _ :: _ => _
-                             end] |- _ ] => destruct E
-             | [ H : context[if ?E then _ else _] |- _ ] => 
-               revert H; case_eq E; do 2 intro
-             | [ _ : context[match ?E with
-                               | left _ => _
-                               | right _ => _
-                             end] |- _ ] => destruct E
-             | [ _ : context[match ?E with
-                               | tvProp => _
-                               | tvType _ => _
-                             end] |- _ ] => destruct E
-             | [ _ : context[match ?E with
-                               | None => _
-                               | Some _ => _
-                             end] |- _ ] => match E with
-                                              | context[match ?E with
-                                                          | None => _
-                                                          | Some _ => _
-                                                  end] => fail 1
-                                              | _ => destruct E
-                                            end
-
-             | [ _ : context[match ?E with (_, _) => _ end] |- _ ] => destruct E
-           end.
-
-Ltac t := repeat t1; eauto.
-
+(** The Assumption Prover **)
 Section AssumptionProver.
   Variable types : list type.
   Variable fs : functions types.
@@ -198,6 +69,23 @@ Section AssumptionProver.
 
 End AssumptionProver.
 
+Ltac unfold_assumptionProver H :=
+  match H with
+    | tt =>
+      cbv delta [
+        assumptionProver
+        assumptionSummarize assumptionLearn assumptionProve
+        expr_seq_dec 
+      ]
+    | _ =>
+      cbv delta [
+        assumptionProver
+        assumptionSummarize assumptionLearn assumptionProve
+        expr_seq_dec 
+      ] in H        
+  end.
+
+(** The Reflexivity Prover **)
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
@@ -246,28 +134,31 @@ Section ReflexivityProver.
   apply reflexivityLearnCorrect.
   apply reflexivityProverCorrect.
   Qed.
+
 End ReflexivityProver. 
+
+Ltac unfold_reflexivityProver H :=
+  match H with
+    | tt =>
+      cbv delta [
+        reflexivityProver
+        reflexivitySummarize reflexivityLearn reflexivityProve
+        expr_seq_dec 
+      ]
+    | _ =>
+      cbv delta [
+        reflexivityProver
+        reflexivitySummarize reflexivityLearn reflexivityProve
+        expr_seq_dec 
+      ] in H        
+  end.
+
+(** The Transitivity Prover **)
 
 (* Algorithm for grouping expressions by equalities. Terribly inefficient... *)
 Section Grouper.
   Variable A : Type.
   Variable A_seq : A -> A -> bool.
-(*
-  Variable R : A -> A -> Prop.
-  (* An arbitrary partial equivalence relation *)
-
-  Hypothesis Rsym : forall x y, R x y -> R y x.
-  Hypothesis Rtrans : forall x y z, R x y -> R y z -> R x z.
-
-  Variable A_seq_dec : forall (x y : A), option (R x y).
-
-
-  Fixpoint InR (x : A) (ls : list A) : Prop :=
-    match ls with
-      | nil => False
-      | y :: ls' => R y x \/ InR x ls'
-    end.
-*)
 
   Fixpoint in_seq (ls : list A) (a : A) : bool :=
     match ls with
@@ -461,24 +352,6 @@ Section TransitivityProver.
       | None => false
     end.
 
-(*
-  Definition eqD_seq (e1 e2 : expr types) : option (eqD e1 e2) :=
-    match well_typed fs uvars vars e1 as v return (_ = v -> _) with
-      | None => fun _ => None
-      | Some _ => fun pff => 
-        match expr_seq_dec e1 e2 with
-          | Some pf2 => Some 
-            match pff in _ = v return match v with
-                                        | None => True
-                                        | Some t => eqD e1 e2
-                                      end with
-              | refl_equal => @eqD_refl_wt e1 e2 pf2
-            end            
-          | None => None
-        end
-    end (refl_equal _).
-*)
-
   Fixpoint transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) : transitivity_summary :=
     match hyps with
       | nil => sum
@@ -502,41 +375,14 @@ Section TransitivityProver.
     end.
 
   Hint Resolve addEquality_sound.
-
-  Theorem exprD_principal : forall u v e t, exprD fs u v e t <> None
-    -> match typeof fs u v e with
-         | None => False
-         | Some t' => exprD fs u v e t' <> None
-       end.
-    induction e; simpl; unfold lookupAs;
-      repeat match goal with
-               | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
-               | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl e) in H
-               | _ => t1
-             end.
-  Qed.
-
-  Lemma lookupAs_det : forall v x t1 t2,
-    lookupAs types v t1 x <> None
-    -> lookupAs types v t2 x <> None
-    -> t1 = t2.
-    unfold lookupAs; t; congruence.
-  Qed.
-
   Hint Immediate lookupAs_det.
 
-  Theorem exprD_det : forall u v e t1 t2, exprD fs u v e t1 <> None
-    -> exprD fs u v e t2 <> None
-    -> t1 = t2.
-    induction e; t.
-  Qed.
-
-  Ltac foundTypeof E := generalize (exprD_principal uvars vars E); destruct (typeof fs uvars vars E); intuition.
+  Ltac foundTypeof E := generalize (exprD_principal fs uvars vars E); destruct (typeof fs uvars vars E); intuition.
 
   Ltac foundDup E T1 T2 := match T1 with
                              | T2 => fail 1
                              | _ =>
-                               assert (T1 = T2) by (apply (exprD_det uvars vars E);
+                               assert (T1 = T2) by (apply (exprD_det fs uvars vars E);
                                  try match goal with
                                        | [ H : _ |- _ ] => solve [ intro; apply H with T1; t ]
                                      end); subst
@@ -577,21 +423,11 @@ Section TransitivityProver.
     simpl in *. apply addEquality_sound; eauto.
     
     Focus 2.
-    Lemma exprD_typeof : forall a1 t D,
-      exprD fs uvars vars a1 t = Some D ->
-      typeof fs uvars vars a1 = Some t.
-    Proof.
-      intros.
-      assert (exprD fs uvars vars a1 t <> None); try congruence.
-      apply exprD_principal in H0.
-      destruct (typeof fs uvars vars a1); try contradiction.
-      f_equal.
-      eapply exprD_det in H0. symmetry; eassumption. congruence.
-    Qed.
+
     revert H.
     unfold eqD.
     case_eq (exprD fs uvars vars a1 t); try congruence; intros.
-    rewrite (exprD_typeof _ _ H). rewrite H. destruct (exprD fs uvars vars a2 t); try congruence.
+    rewrite (exprD_typeof _ _ _ _ _ H). rewrite H. destruct (exprD fs uvars vars a2 t); try congruence.
     inversion H2. subst; auto.
     admit. (** TODO : this isn't true in general, but the fact that everything is provable makes it true **)
   Qed.
@@ -635,6 +471,7 @@ Section TransitivityProver.
    ; Learn := transitivityLearn
    ; Prove := transitivityProve
    |}.
+
   Definition transitivityProver_correct : ProverT_correct transitivityProver fs.
   econstructor.
   instantiate (1 := transitivityValid).
@@ -645,3 +482,32 @@ Section TransitivityProver.
 
 End TransitivityProver.
 
+Ltac unfold_transitivityProver H :=
+  match H with
+    | tt =>
+      cbv delta [ 
+        transitivityProver
+        transitivitySummarize transitivityLearn transitivityProve
+
+        groupsOf addEquality
+        transitivityLearn 
+        inSameGroup
+        expr_seq_dec
+        eqD_seq
+        in_seq
+        groupWith
+      ]
+    | _ => 
+      cbv delta [ 
+        transitivityProver
+        transitivitySummarize transitivityLearn transitivityProve
+
+        groupsOf addEquality
+        transitivityLearn 
+        inSameGroup
+        expr_seq_dec
+        eqD_seq
+        in_seq
+        groupWith
+      ] in H
+  end.

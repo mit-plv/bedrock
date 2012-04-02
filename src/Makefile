@@ -8,12 +8,12 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	EqdepClass Decidables DepList Reflect \
 	Heaps SepTheoryX \
 	NatMap Expr ExprUnify \
-	Provers \
+	Prover Provers \
 	SepExpr \
 	Unfolder \
 	Env \
 	SymEval sep/PtsTo2 \
-	SepIL SymIL SepTac \
+	SepIL SymIL ILTac \
 	Bedrock
 VS         := $(MODULES:%=%.v)
 ARGS :=-R . Bedrock
