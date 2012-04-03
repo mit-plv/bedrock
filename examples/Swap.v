@@ -2,11 +2,8 @@ Require Import AutoSep.
 
 (** Swapping two pointers *)
 
-(* We'd like to be able to define this, but the current automation
-doesn't know how to do simple automation
 Definition getArg (n : nat) :=
   $[Sp + $(4 * n)]%SP.
-*)
 
 (* "Uh, argument conventions"
     - Grows up
@@ -24,13 +21,13 @@ Definition swapS : assert := st ~> ExX, Ex v, Ex v', ![ args (v :: nil) v' 0 st 
 
 Definition swap := bmodule "swap" {{
   bfunction "swap" [swapS] {
-    Rv <- $[Sp+$4];;
-    $[Sp+$4] <- $[Sp+$0];;
-    $[Sp+$0] <- Rv;;
+    Rv <- getArg 1;;
+    getArg 1 <- getArg 0;;
+    getArg 0 <- Rv;;
     Goto Rp
   }
 }}.
 
 Theorem swapOk : moduleOk swap.
-  vcgen; abstract sep.
+  vcgen; repeat cbv beta iota zeta delta [ getArg ] in *; simpl in *; abstract sep.
 Qed.
