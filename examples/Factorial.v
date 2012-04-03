@@ -57,7 +57,7 @@ Hint Extern 5 (@eq W _ _) => match goal with
                              end.
 
 Theorem factOk : moduleOk fact.
-  vcgen; abstract (sep; eauto).
+  vcgen; abstract (sep tt; eauto).
 Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
@@ -86,7 +86,7 @@ Qed.
 Hint Resolve factR_4.
 
 Theorem factDriverOk : moduleOk factDriver.
-  vcgen; abstract (sep; eauto).
+  vcgen; abstract (sep tt; eauto).
 Qed.
 
 Definition factProg := link fact factDriver.

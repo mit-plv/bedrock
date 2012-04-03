@@ -96,7 +96,9 @@ Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
-Ltac evaluate := 
+Print SymIL.UnfolderLearnHook.UNF.hintsSoundness.
+
+Ltac evaluate hints := 
   let plg := 
     SymIL.PluginEvaluator.composite_eval (Plugin_PtsTo.MemEval_ptsto32_correct, tt) 
   in
@@ -104,7 +106,17 @@ Ltac evaluate :=
     constr:(@Provers.transitivityProver_correct ts fs)
   in
   let unfolder :=
-    SymIL.UnfolderLearnHook.unfolder_for (@SymIL.UnfolderLearnHook.UNF.hintsSoundness_default)
+    match hints with
+      | tt => 
+        SymIL.UnfolderLearnHook.unfolder_for (@SymIL.UnfolderLearnHook.UNF.hintsSoundness_default)
+      | _ => 
+        match type of hints with 
+          | forall ts pc st fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ _ _ => 
+            SymIL.UnfolderLearnHook.unfolder_for hints
+          | ?T => 
+            fail 1000000 "bad hints passed to evaluate" hints "with type" T
+        end
+    end
   in
   let ssigs :=
     constr:((ptsto32 nil, tt))
@@ -127,4 +139,4 @@ Ltac step := match goal with
              end.
 Ltac descend := Programming.descend; reduce.
 
-Ltac sep := evaluate; descend; repeat (step; descend).
+Ltac sep hints := evaluate hints; descend; repeat (step; descend).
