@@ -59,7 +59,6 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
 
     (** The type of one unfolding lemma *)
-
     Record lemma := {
       Foralls : variables;
       (* The lemma statement begins with this sequence of [forall] quantifiers over these types. *)
@@ -109,16 +108,28 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Record hintsPayload := {
       Forward : hintSide;
       (* Apply on the lefthand side of an implication *)
-      Backward : hintSide;
+      Backward : hintSide 
       (* Apply on the righthand side *)
+(*
       Prover : ProverT types
       (* Prover for pure hypotheses of lemmas *)
+*)
     }.
 
-    Record hintsSoundness (Payload : hintsPayload) := {
+    Definition default_hintsPayload : hintsPayload := 
+    {| Forward := nil
+     ; Backward := nil
+     |}.
+
+    Record hintsSoundness (Payload : hintsPayload) : Prop := {
       ForwardOk : hintSideD (Forward Payload);
       BackwardOk : hintSideD (Backward Payload)
     }.
+    
+    Theorem hintsSoundness_default : hintsSoundness default_hintsPayload.
+    Proof.
+      econstructor; constructor.
+    Qed.
 
     (** Applying up to a single hint to a hashed separation formula *)
 
@@ -259,23 +270,24 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Section unfolder.
       Variable hs : hintsPayload.
+      Variable prover : ProverT types.
 
       (* Perform up to [bound] simplifications, based on [hs]. *)
-      Fixpoint forward (bound : nat) (facts : Facts (Prover hs)) (s : unfoldingState) : unfoldingState :=
+      Fixpoint forward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
-            match unfoldForward (Prover hs) facts (Forward hs) s with
+            match unfoldForward prover facts (Forward hs) s with
               | None => s
               | Some s' => forward bound' facts s'
             end
         end.
 
-      Fixpoint backward (bound : nat) (facts : Facts (Prover hs)) (s : unfoldingState) : unfoldingState :=
+      Fixpoint backward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
-            match unfoldBackward (Prover hs) facts (Backward hs) s with
+            match unfoldBackward prover facts(Backward hs) s with
               | None => s
               | Some s' => backward bound' facts s'
             end
@@ -288,14 +300,15 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Hypothesis hsOk : hintsSoundness hs.
 
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
-      Theorem unfolderOk : forall bound P Q,
+      Theorem unfolderOk : forall bound P Q (PC : ProverT_correct prover funcs'),
         (let (exsP, shP) := hash P in
          let (exsQ, shQ) := hash Q in
-         let sP := forward bound (Summarize (Prover hs) (pures shP)) {| Vars := exsP;
+         let summ := Summarize prover (pures shP) in
+         let sP := forward bound summ {| Vars := exsP;
            UVars := nil;
            Heap := shP |} in
          let shQ := sheapSubstU O (length exsQ) O shQ in
-         let sQ := backward bound (Summarize (Prover hs) (pures shP)) {| Vars := Vars sP;
+         let sQ := backward bound summ {| Vars := Vars sP;
            UVars := exsQ;
            Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>
@@ -438,7 +451,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   (* Main entry point tactic, to generate a hint database *)
-  Ltac prepareHints pcType stateType isConst types prover fwd bwd :=
+  Ltac prepareHints pcType stateType isConst types fwd bwd :=
     let types := unfoldTypes types in
     collectTypes_hints isConst fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints isConst bwd rt ltac:(fun rt =>
@@ -454,8 +467,8 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                         Functions := funcs;
                         SFunctions := sfuncs;
                         Hints := {| Forward := fwd';
-                          Backward := bwd';
-                          Prover := prover types |};
+                          Backward := bwd' (*;
+                          Prover := prover types *) |};
                         HintsOk := {| ForwardOk := _ |} |}; [ abstract prove fwd | abstract prove bwd ])))).
 
   (* Main entry point to simplify a goal *)
