@@ -3,6 +3,7 @@ Require Import Bool EqdepClass List.
 Require Import Heaps Reflect.
 Require Import Expr ExprUnify.
 Require Import SepExpr.
+Require Import Prover.
 
 Set Implicit Arguments.
 
@@ -110,7 +111,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       (* Apply on the lefthand side of an implication *)
       Backward : hintSide;
       (* Apply on the righthand side *)
-      Prover : list (expr types) -> expr types -> bool
+      Prover : ProverT types
       (* Prover for pure hypotheses of lemmas *)
     }.
 
@@ -157,8 +158,9 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     }.
 
     Section unfoldOne.
-      Variable pr : list (@expr types) -> @expr types -> bool.
+      Variable prover : ProverT types.
       (* This prover must discharge all pure obligations of an unfolding lemma, if it is to be applied. *)
+      Variable facts : Facts prover.
 
       Variable hs : hintSide.
       (* Use these hints to unfold impure predicates. *)
@@ -186,7 +188,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (pr (pures (Heap s))) (map (substExpr firstUvar subs) (Hyps h)) then
+                        if allb (Prove prover facts) (map (substExpr firstUvar subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -208,7 +210,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                 | _ => None
               end) hs)) (impures (Heap s)).
 
-      Definition unfoldBackward (hyps : list (expr types)) (s : unfoldingState) : option unfoldingState :=
+      Definition unfoldBackward (s : unfoldingState) : option unfoldingState :=
         (* Iterate through all the entries for impure functions. *)
         fmFind (fun f =>
           (* Iterate through all the argument lists passed to the current function. *)
@@ -229,7 +231,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (pr hyps) (map (substExpr firstUvar subs) (Hyps h)) then
+                        if allb (Prove prover facts) (map (substExpr firstUvar subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -259,23 +261,23 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable hs : hintsPayload.
 
       (* Perform up to [bound] simplifications, based on [hs]. *)
-      Fixpoint forward (bound : nat) (s : unfoldingState) : unfoldingState :=
+      Fixpoint forward (bound : nat) (facts : Facts (Prover hs)) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
-            match unfoldForward (Prover hs) (Forward hs) s with
+            match unfoldForward (Prover hs) facts (Forward hs) s with
               | None => s
-              | Some s' => forward bound' s'
+              | Some s' => forward bound' facts s'
             end
         end.
 
-      Fixpoint backward (hyps : list (expr types)) (bound : nat) (s : unfoldingState) : unfoldingState :=
+      Fixpoint backward (bound : nat) (facts : Facts (Prover hs)) (s : unfoldingState) : unfoldingState :=
         match bound with
           | O => s
           | S bound' =>
-            match unfoldBackward (Prover hs) (Backward hs) hyps s with
+            match unfoldBackward (Prover hs) facts (Backward hs) s with
               | None => s
-              | Some s' => backward hyps bound' s'
+              | Some s' => backward bound' facts s'
             end
         end.
 
@@ -289,11 +291,11 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Theorem unfolderOk : forall bound P Q,
         (let (exsP, shP) := hash P in
          let (exsQ, shQ) := hash Q in
-         let sP := forward bound {| Vars := exsP;
+         let sP := forward bound (Summarize (Prover hs) (pures shP)) {| Vars := exsP;
            UVars := nil;
            Heap := shP |} in
          let shQ := sheapSubstU O (length exsQ) O shQ in
-         let sQ := backward (pures (Heap sP)) bound {| Vars := Vars sP;
+         let sQ := backward bound (Summarize (Prover hs) (pures shP)) {| Vars := Vars sP;
            UVars := exsQ;
            Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>

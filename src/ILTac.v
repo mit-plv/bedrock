@@ -4,7 +4,7 @@ Import List.
 Require Import DepList EqdepClass.
 Require Import PropX.
 Require Expr SepExpr.
-Require Import Prover.
+Require Import Prover ILEnv.
 
 Module SEP := SymIL.SEP.
 
@@ -112,7 +112,7 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let vars := eval simpl in (@nil _ : Expr.env typesV) in
       (** build the funcs **)
       let funcs := 
-        eval unfold SymIL.bedrock_funcs in (SymIL.bedrock_funcs typesV)
+        eval unfold ILEnv.bedrock_funcs in (ILEnv.bedrock_funcs typesV)
       in
       let funcs := eval simpl in funcs in
       let pcT := constr:(Expr.tvType 0) in
@@ -155,8 +155,8 @@ Ltac cancel_simplifier :=
 
         ExprUnify.Subst
 
-        SymIL.bedrock_types SymIL.bedrock_types_r
-        SymIL.bedrock_funcs SymIL.bedrock_funcs_r
+        ILEnv.bedrock_types ILEnv.bedrock_types_r
+        ILEnv.bedrock_funcs ILEnv.bedrock_funcs_r
         app map fold_right nth_error value error hd hd_error tl
 
         fst snd

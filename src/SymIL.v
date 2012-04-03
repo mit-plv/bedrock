@@ -8,57 +8,13 @@ Require Import PropX.
 Require Import SepExpr SymEval.
 Require Import Expr.
 Require Import Prover.
-Require Import Env.
+Require Import Env ILEnv.
 Import List.
 
 Require Structured SymEval.
 
 Set Implicit Arguments.
 Set Strict Implicit.
-
-Definition bedrock_types_r : Repr Expr.type :=
-{| footprint := (
-   (0, {| Expr.Impl := W 
-        ; Expr.Eq := fun x y => 
-          match weq x y with
-            | left pf => Some pf 
-            | _ => None 
-          end
-        |}) ::
-   (1, {| Expr.Impl := settings * state
-        ; Expr.Eq := fun _ _ => None
-        |}) ::
-   (2, {| Expr.Impl := state
-        ; Expr.Eq := fun _ _ => None
-        |}) ::
-   (3, {| Expr.Impl := IL.test
-        ; Expr.Eq := fun l r => 
-          match l as l , r as r with
-            | IL.Eq , IL.Eq => Some (refl_equal _)
-            | IL.Ne , IL.Ne => Some (refl_equal _)
-            | IL.Le , IL.Le => Some (refl_equal _)
-            | IL.Lt , IL.Lt => Some (refl_equal _)
-            | _ , _ => None
-          end
-        |}) ::
-   (4, {| Expr.Impl := IL.reg
-        ; Expr.Eq := fun l r =>
-          match l as l , r as r with
-            | IL.Sp , IL.Sp => Some (refl_equal _)
-            | IL.Rp , IL.Rp => Some (refl_equal _)
-            | IL.Rv , IL.Rv => Some (refl_equal _)
-            | _ , _ => None
-          end
-        |}) :: nil) :: nil
- ; default := Expr.EmptySet_type
- |}.
-
-Definition bedrock_types : list Expr.type :=
-  Eval cbv beta iota zeta delta 
-    [ repr repr' fold_right default footprint bedrock_types_r updateAt
-      hd hd_error value error tl
-    ]
-    in repr bedrock_types_r nil.
 
 (** Symbolic Evaluation **)
 Module MEVAL := SymEval.MemoryEvaluator BedrockHeap ST.
@@ -98,29 +54,29 @@ Section SymState.
 End SymState.
 
 Section typed.
-  Context {types : list type}.
+  Variable types : list type.
   
-    (** These the reflected version of the IL, it essentially 
-     ** replaces all uses of W with expr types so that the value
-     ** can be inspected.
-     **)
+  (** These the reflected version of the IL, it essentially 
+   ** replaces all uses of W with expr types so that the value
+   ** can be inspected.
+   **)
   Inductive sym_loc :=
   | SymReg : reg -> sym_loc
   | SymImm : expr types -> sym_loc
   | SymIndir : reg -> expr types -> sym_loc.
 
-    (* Valid targets of assignments *)
+  (* Valid targets of assignments *)
   Inductive sym_lvalue :=
   | SymLvReg : reg -> sym_lvalue
   | SymLvMem : sym_loc -> sym_lvalue.
   
-    (* Operands *)
+  (* Operands *)
   Inductive sym_rvalue :=
   | SymRvLval : sym_lvalue -> sym_rvalue
   | SymRvImm : expr types -> sym_rvalue
   | SymRvLabel : label -> sym_rvalue.
 
-    (* Non-control-flow instructions *)
+  (* Non-control-flow instructions *)
   Inductive sym_instr :=
   | SymAssign : sym_lvalue -> sym_rvalue -> sym_instr
   | SymBinop : sym_lvalue -> sym_rvalue -> binop -> sym_rvalue -> sym_instr.
@@ -154,97 +110,10 @@ Section typed_ext.
   Local Notation "'tvState'" := (tvType 2).
   Local Notation "'tvTest'" := (tvType 3).
   Local Notation "'tvReg'" := (tvType 4).
-
-  Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')).
-  refine (
-    {| default := Default_signature _
-      ; footprint := (
-        (0, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (1, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (2, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (3, {| Domain := tvTest :: tvWord :: tvWord :: nil
-          ; Range := tvProp
-          ; Denotation := _ |}) :: 
-        (4, {| Domain := tvState :: tvReg :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) :: nil) :: nil
-    |});
-  cbv beta iota zeta delta [ functionTypeD map ]; (repeat rewrite tvarD_repr_repr_get); simpl.
-  refine (@wplus 32).
-  refine (@wminus 32).
-  refine (@wmult 32).
-  refine comparator.
-  refine Regs.
-  Defined.
-
-  Definition bedrock_funcs : functions (repr bedrock_types_r types') :=
-    Eval cbv beta iota zeta delta 
-      [ repr repr' default footprint fold_right bedrock_funcs_r updateAt hd_error error value
-        bedrock_types_r Default_signature tl hd ]
-      in repr bedrock_funcs_r nil.
   
   Variable funcs' : functions TYPES.
-  Definition funcs := repr bedrock_funcs_r funcs'.
+  Definition funcs := repr (bedrock_funcs_r types') funcs'.
   
-  Definition fPlus (l r : expr TYPES) : expr TYPES :=
-    Expr.Func 0 (l :: r :: nil).
-  Definition fMinus (l r : expr TYPES) : expr TYPES :=
-    Expr.Func 1 (l :: r :: nil).
-  Definition fMult (l r : expr TYPES) : expr TYPES :=
-    Expr.Func 2 (l :: r :: nil).
-
-  Theorem fPlus_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l (tvType 0) , exprD funcs uvars vars r (tvType 0) with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fPlus l r) (tvType 0) = Some (wplus lv rv)
-      | _ , _ => True
-    end.
-  Proof.
-    intros; simpl; unfold eq_ind_r; simpl;
-      repeat match goal with
-               | [ |- match ?X with
-                        | Some _ => _
-                        | None => _
-                      end ] => destruct X
-             end; auto.
-  Qed.
-  Theorem fMinus_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fMinus l r) tvWord = Some (wminus lv rv)
-      | _ , _ => True
-    end.
-  Proof.
-    intros; simpl; unfold eq_ind_r; simpl;
-      repeat match goal with
-               | [ |- match ?X with
-                        | Some _ => _
-                        | None => _
-                      end ] => destruct X
-             end; auto.
-  Qed.
-  Theorem fMult_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
-      | Some lv , Some rv =>
-        exprD funcs uvars vars (fMult l r) tvWord = Some (wmult lv rv)
-      | _ , _ => True
-    end.
-  Proof.
-    intros; simpl; unfold eq_ind_r; simpl;
-      repeat match goal with
-               | [ |- match ?X with
-                        | Some _ => _
-                        | None => _
-                      end ] => destruct X
-             end; auto.
-  Qed.
-
   Variable Prover : ProverT TYPES.
 
   (** these are the plugin functions **)
@@ -347,7 +216,7 @@ Section with_facts.
                   | Plus  => fPlus
                   | Minus => fMinus
                   | Times => fMult
-                end l r
+                end _ l r
                 in
                 sym_evalLval lv v ss
             | _ , _ => None
@@ -369,10 +238,8 @@ Section with_facts.
 
   Definition istream : Type := list ((list (sym_instr TYPES) * option state) + sym_assert TYPES).
 
-  Definition LearnHook (types_ : list type) (pcT_ stT_ : tvar) : Type := 
-    forall P : ProverT types_, SymState types_ pcT_ stT_ -> Facts P -> SymState types_ pcT_ stT_.
 
-  Variable learnHook : LearnHook TYPES pcT stT.
+  Variable learnHook : MEVAL.LearnHook TYPES (SymState TYPES pcT stT).
 
   Fixpoint sym_evalStream (is : istream) (F : Facts Prover) (ss : SymState TYPES pcT stT) 
     : option (SymState TYPES pcT stT) + (SymState TYPES pcT stT * istream) :=
@@ -413,6 +280,7 @@ Section with_facts.
   (* Denotation functions *)
   Section sym_denote.
     Variable funcs : functions TYPES.
+    Variable sfuncs : SEP.sfunctions TYPES pcT stT.
     Variable uvars vars : env TYPES.
     
     Definition sym_regsD (rs : SymRegType TYPES) : option regs :=
@@ -523,9 +391,8 @@ Section with_facts.
           end
       end.
 
-    Variable sfuncs : SEP.sfunctions TYPES pcT stT.
-
-    Definition stateD cs (stn : IL.settings) (s : state) (ss : SymState TYPES pcT stT) : Prop :=
+    Definition stateD cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
+      let (stn,s) := stn_st in
       match ss with
         | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
              match 
@@ -558,16 +425,6 @@ Section with_facts.
     Qed.
   End sym_denote.
 End typed_ext.
-
-(** TODO: this needs to be abstracted to not talk about bedrock **)
-Record LearnHook_correct types' (L : LearnHook (repr bedrock_types_r types') (tvType 0) (tvType 1)) funcs preds : Prop :=
-{ hook_sound : forall P (PC : ProverT_correct P funcs),
-  forall uvars vars cs stn st ss ss' pp,
-    @stateD _ funcs uvars vars preds cs stn st ss ->
-    Valid PC uvars vars pp ->
-    L P ss pp = ss' ->
-    @stateD _ funcs uvars vars preds cs stn st ss'
-}.
 
 Section evaluator.
   Variable types' : list type.
@@ -603,11 +460,11 @@ Section evaluator.
     forall (funcs : functions TYPES) (sfuncs : SEP.sfunctions TYPES _ _),
     forall E, @MEVAL.MemEvaluator_correct TYPES _ _ E funcs sfuncs _ _ _ IL_mem_satisfies IL_ReadWord IL_WriteWord ->
     forall P, ProverT_correct P funcs ->
-    forall L, @LearnHook_correct _ L funcs sfuncs ->
+    forall L, @MEVAL.LearnHook_correct TYPES pcT stT (SymState TYPES pcT stT) L (@stateD types' funcs sfuncs) funcs sfuncs ->
     forall stn uvars vars sound_or_safe st p,
       istreamD funcs uvars vars p stn st sound_or_safe ->
       forall cs ss,
-      stateD funcs uvars vars sfuncs cs stn st ss ->
+      stateD funcs sfuncs uvars vars cs (stn, st) ss ->
       let facts := Summarize P (match SymMem ss with
                                   | None => SymPures ss
                                   | Some m => pures m
@@ -622,17 +479,17 @@ Section evaluator.
               | inr (ss'', is') => 
                 exists st'' : state, 
                   istreamD funcs uvars vars is' stn st'' None
-                  /\ stateD funcs uvars vars sfuncs cs stn st'' ss''
+                  /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
             end
           | Some st' =>
             (** correct **)
             match res with
               | inl None => False                
-              | inl (Some ss') => stateD funcs uvars vars sfuncs cs stn st' ss'
+              | inl (Some ss') => stateD funcs sfuncs uvars vars cs (stn, st') ss'
               | inr (ss'', is') => 
                 exists st'' : state, 
                   istreamD funcs uvars vars is' stn st'' (Some st')
-                  /\ stateD funcs uvars vars sfuncs cs stn st'' ss''
+                  /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
             end
         end.
     Proof.
@@ -693,7 +550,7 @@ Section evaluator.
             forall pures : list (Expr.expr TYPES),
               Expr.AllProvable funcs uvars vars pures ->
               forall (cs : codeSpec W (settings * state)) (stn : settings),
-                stateD funcs uvars vars sfuncs cs stn st
+                stateD funcs sfuncs uvars vars cs (stn, st)
                 {| SymVars := map (@projT1 _ _) vars
                   ; SymUVars := map (@projT1 _ _) uvars
                   ; SymMem := None
@@ -724,7 +581,7 @@ Section evaluator.
               SEP.hash sh = (nil, hashed) ->
               forall (cs : codeSpec W (settings * state)) (stn : settings),
                 interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-                stateD funcs uvars vars sfuncs cs stn st
+                stateD funcs sfuncs uvars vars cs (stn, st)
                 {| SymVars := map (@projT1 _ _) vars
                  ; SymUVars := map (@projT1 _ _) uvars
                  ; SymMem := Some hashed
@@ -1277,11 +1134,13 @@ Implicit Arguments istreamD [ types' ].
 Module Demo.
   Require Provers.
 
-  Definition defaultLearnHook types : LearnHook types (tvType 0) (tvType 1) :=
+  Definition defaultLearnHook types : MEVAL.LearnHook (repr bedrock_types_r types) 
+    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
     fun _ x _ => x.
 
   Theorem defaultLearnHook_correct types funcs preds 
-    : @LearnHook_correct (repr bedrock_types_r types) (@defaultLearnHook _) funcs preds.
+    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@defaultLearnHook _) 
+      (@stateD _ funcs preds) funcs preds.
   Proof.
     econstructor. unfold defaultLearnHook. intros; subst; auto.
   Qed.
@@ -1311,10 +1170,27 @@ Module Demo.
       ltac:(fun ts pc st fs ps k => let res := constr:(@demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
       ltac:(fun ts pc st fs ps => constr:(@defaultLearnHook_correct ts fs ps)) (* unfolder *)
       simplifier tt tt tt.
-    intuition; 
     congruence.
   Qed.
 End Demo.
+
+Module UnfolderLearnHook.
+  Require Unfolder.
+
+  Module UNF := Unfolder.Make BedrockHeap ST.
+(*
+  Definition unfolder_LearnHook types : MEVAL.LearnHook (repr bedrock_types_r types) 
+    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)).
+    fun _ x _ => x.
+
+  Theorem defaultLearnHook_correct types funcs preds 
+    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@defaultLearnHook _) 
+      (@stateD _ funcs preds) funcs preds.
+  Proof.
+    econstructor. unfold defaultLearnHook. intros; subst; auto.
+  Qed.
+*)
+End UnfolderLearnHook.  
 
 Module PluginEvaluator.
   
@@ -1355,9 +1231,7 @@ Module PluginEvaluator.
             match type of L with
               | forall ts,  forall fs, @MEVAL.Plugin.MemEvalPred_correct _ _ _ _ _ _ _ _ _ _ (@?s ts) _ =>
                 let p := eval simpl SDenotation in (SDenotation (s ts)) in
-                (** TODO: find [p] in [ps] **)
                 let idx := find_in p psVal 0 in                  
-
                 build_pf known ltac:(fun res pf =>
                   let ZZZ := constr:(@L ts fs) in
                   let E :=
@@ -1377,7 +1251,7 @@ Module PluginEvaluator.
         let consistentV := fresh "consistent" in
         let res := constr:(@plugin_evaluator ts fs ps evalsV consistent_pf) in
         k evalsV res).
-  
+
  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
     Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
@@ -1390,7 +1264,7 @@ Module PluginEvaluator.
       ltac:(composite_eval tt) (* memory evaluator *)
       ltac:(fun ts pc st fs ps => constr:(@Demo.defaultLearnHook_correct ts fs ps)) (* unfolder *)
       Demo.simplifier tt tt tt.
-    intuition congruence.
+    congruence.
   Qed.
 
 End PluginEvaluator.

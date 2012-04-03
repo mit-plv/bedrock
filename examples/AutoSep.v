@@ -4,10 +4,10 @@ Export Bedrock.
 (** * Specialize the library proof automation to some parameters useful for basic examples. *)
 
 Import SymIL.
-Require Bedrock.sep.PtsTo2.
+Require Bedrock.sep.PtsTo.
 
 (** Build our memory plugin **)
-Module Plugin_PtsTo := Bedrock.sep.PtsTo2.BedrockPtsToEvaluator.
+Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
 Ltac sym_eval_simplifier H :=
   Provers.unfold_transitivityProver H ;
@@ -36,7 +36,7 @@ Ltac the_cancel_simplifier :=
 
       ExprUnify.Subst
 
-      SymIL.bedrock_types_r SymIL.bedrock_types
+      ILEnv.bedrock_types_r ILEnv.bedrock_types
       app map fold_right nth_error value error
 
       fst snd
@@ -130,25 +130,3 @@ Ltac step := match goal with
 Ltac descend := Programming.descend; reduce.
 
 Ltac sep := evaluate; descend; repeat (step; descend).
-
-(*
-Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
-
-Definition read := bmodule "read" {{
-  bfunction "read" [readS] {
-    Rv <- $[0];;
-    If (Rv = 0) {
-      $[0] <- 0
-    } else {
-      $[0] <- $[0]
-    } ;;
-    Rv <- $[0];;
-    Goto Rp
-  }
-}}.
-
-Theorem readOk : moduleOk read.
-  vcgen; abstract sep.
-Qed.
-*)
