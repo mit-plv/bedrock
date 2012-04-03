@@ -3,7 +3,7 @@ Require Import Word Memory.
 Import List.
 Require Import DepList EqdepClass.
 Require Import PropX.
-Require Expr SepExpr.
+Require Import Expr SepExpr.
 Require Import Prover ILEnv.
 
 Module SEP := SymIL.SEP.
@@ -16,21 +16,29 @@ Lemma ApplyCancelSep : forall types funcs,
   Expr.AllProvable funcs uvars nil hyps ->
   forall cs, 
   match SEP.CancelSep sfuncs prover uvars hyps l r with
-    | {| SepExpr.r_vars := vars; 
-         SepExpr.r_lhs := lhs; SepExpr.r_rhs_ex := rhs_ex; 
-         SepExpr.r_rhs := rhs; SepExpr.r_SUBST := SUBST |} =>
+    | {| r_vars := vars; 
+         r_lhs := lhs; r_rhs_ex := rhs_ex; 
+         r_rhs := rhs; r_SUBST := SUBST |} =>
       SEP.forallEach vars
         (fun VS : Expr.env types =>
           SEP.exists_subst funcs VS uvars
           (ExprUnify.env_of_Subst SUBST rhs_ex 0)
           (fun rhs_ex0 : Expr.env types =>
-            SEP.himp funcs sfuncs nil rhs_ex0 VS cs lhs rhs))
+            Expr.AllProvable_impl funcs uvars VS 
+            (Expr.AllProvable_and funcs uvars VS 
+             (SEP.himp funcs sfuncs nil rhs_ex0 VS cs
+               (SEP.sheapD {| impures := impures lhs
+                            ; pures := nil 
+                            ; other := other lhs |})
+               (SEP.sheapD {| impures := impures rhs
+                            ; pures := nil
+                            ; other := other rhs |})) (pures rhs)) (pures lhs)))
   end ->
   himp cs (@SEP.sexprD _ funcs _ _ sfuncs nil nil l)
           (@SEP.sexprD _ funcs _ _ sfuncs uvars nil r).
 Proof.
   intros; eapply SEP.ApplyCancelSep; eauto.
-Qed.
+Admitted.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
   interp cs (![ P ] stn_st) ->
@@ -129,7 +137,8 @@ Ltac sep_canceler isConst prover simplifier Ts :=
          subst typesV ;
          simplifier ;
          repeat match goal with
-                  | [ |- _ = _ /\ _ ] => split; [ reflexivity | ]
+                  | [ H : _ /\ _ |- _ ] => destruct H
+                  | [ |- _ /\ _ ] => split
                   | _ => reflexivity
                 end)
         || (idtac "failed to apply, generalizing instead!" ; 
