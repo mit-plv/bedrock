@@ -127,7 +127,6 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       Variable me : MemEvalPred.
 
-
       Variables pcT stT : tvar.
 
       Variable stn_st : Type.
@@ -269,7 +268,8 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable stn_st : Type.
       Variables ptrT valT : tvar.
 
-      Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
+      Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> 
+        ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
       Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
       Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
 
@@ -295,18 +295,34 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         constructor; unfold ConsistentCondition in *; simpl.
           (** read **)
           unfold plugin_symeval_read_word. generalize dependent evals. clear.
-          induction evals; simpl; intros.
-            congruence.
-            destruct a.
-            revert H. case_eq (FM.find n (impures SH)); simpl; intros.
-            Focus 2. destruct sfuncs_evals; eapply IHl; eauto. 
-            
-            revert H3.
-            case_eq (fold_first (fun args => smem_read m P facts args pe) l0); intros.
-              inversion H4; clear H4; subst.
-              Focus 2. destruct sfuncs_evals; eapply IHl; eauto. 
-              
-              admit.
+          induction evals; simpl; intros; try congruence ;
+            repeat match goal with
+                     | [ H : False |- _ ] => contradiction
+                     | [ H : prod _ _ |- _ ] => destruct H
+                     | [ H : context [ match FM.find ?A ?B with
+                                         | None => _ 
+                                         | Some _ => _ 
+                                       end ] |- _ ] => 
+                       revert H; case_eq (FM.find A B); intros
+                     | [ H : context [ match fold_first ?A ?B with
+                                         | None => _ 
+                                         | Some _ => _ 
+                                       end ] |- _ ] =>
+                     revert H; case_eq (fold_first A B); intros
+                     | [ H : context [ match nth_error ?A ?B with
+                                         | None => _ 
+                                         | Some _ => _ 
+                                       end ] |- _ ] =>
+                     revert H; case_eq (nth_error A B); intros
+                     | [ H : _ /\ _ |- _ ] => destruct H; clear H
+                     | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                     | [ H : ?X , H' : ?X -> ?Y |- _ ] => 
+                       specialize (H' H)
+                   end.
+          admit.
+          admit.
+          admit.
+
 
           (** write **)
           revert sfuncs_evals. admit.
