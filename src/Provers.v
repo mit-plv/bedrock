@@ -347,9 +347,17 @@ Section TransitivityProver.
   Qed.
 
   Definition eqD_seq (e1 e2 : expr types) : bool :=
-    match expr_seq_dec e1 e2 with
-      | Some pf2 => true
+    match typeof fs uvars vars e1 with
       | None => false
+      | Some _ =>
+        match typeof fs uvars vars e2 with
+          | None => false
+          | Some _ =>
+            match expr_seq_dec e1 e2 with
+              | Some pf2 => true
+              | None => false
+            end
+        end
     end.
 
   Fixpoint transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) : transitivity_summary :=
@@ -421,6 +429,8 @@ Section TransitivityProver.
     destruct a; auto.
     revert H; case_eq (exprD fs uvars vars (Equal t a1 a2) tvProp); intros; try contradiction.
     simpl in *. apply addEquality_sound; eauto.
+    unfold eqD_seq.
+    intros.
     
     Focus 2.
 
