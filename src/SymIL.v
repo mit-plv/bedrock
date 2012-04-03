@@ -718,7 +718,7 @@ Ltac open_stateD H0 :=
       nth_error map value
       f_equal
 
-      Expr.AllProvable Expr.Provable Expr.tvarD comparator
+      Expr.AllProvable Expr.AllProvable_gen Expr.Provable Expr.tvarD comparator
     ] in H0; 
     let a := fresh in 
     let b := fresh in
@@ -911,8 +911,7 @@ Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
     end
   in
   match stn_st_SF with
-    | tt =>
-      idtac "couldn't find anything to symbolically evaluate!" 
+    | tt => idtac
     | ((?stn, ?st), ?SF) =>
       match find_reg st Rp with
         | (?rp_v, ?rp_pf) =>
@@ -1084,7 +1083,7 @@ Ltac sym_evaluator H :=
 
       stateD Expr.exprD 
       Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
-      Expr.AllProvable Expr.Provable Expr.tvarD
+      Expr.AllProvable Expr.AllProvable_gen Expr.Provable Expr.tvarD
       SEP.sheapD SEP.starred SEP.sexprD
       EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
       Logic.eq_sym eq_sym f_equal

@@ -558,12 +558,21 @@ Section env.
         | None => False
         | Some p => p
       end.
-    
-    Fixpoint AllProvable (es : list expr) : Prop :=
-      match es with
-        | nil => True
-        | e :: es => Provable e /\ AllProvable es
-      end.
+
+    Section all_provable.
+      Variable ctor : Prop -> Prop -> Prop.
+      Variable base : Prop.
+
+      Fixpoint AllProvable_gen (es : list expr) : Prop :=
+        match es with
+          | nil => base
+          | e :: es => ctor (Provable e) (AllProvable_gen es)
+        end.
+    End all_provable.
+
+    Definition AllProvable := AllProvable_gen and True.
+    Definition AllProvable_impl := AllProvable_gen Basics.impl.
+    Definition AllProvable_and := AllProvable_gen and.
 
     Lemma AllProvable_app : forall a b, 
       AllProvable a -> 

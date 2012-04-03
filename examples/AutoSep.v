@@ -84,7 +84,7 @@ Ltac the_cancel_simplifier :=
       Expr.is_well_typed Expr.exprD Expr.applyD
 
       orb
-      Expr.Provable Expr.lookupAs
+      Expr.AllProvable Expr.AllProvable_impl Expr.AllProvable_and Expr.AllProvable_gen Expr.Provable Expr.lookupAs
 
       EquivDec_nat Peano_dec.eq_nat_dec
 
@@ -95,8 +95,6 @@ Ltac the_cancel_simplifier :=
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
-
-Print SymIL.UnfolderLearnHook.UNF.hintsSoundness.
 
 Ltac evaluate hints := 
   let plg := 

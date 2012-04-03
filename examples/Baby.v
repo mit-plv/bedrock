@@ -8,13 +8,13 @@ Definition diverger := bmodule "diverger" {{
   }
 }}.
 
-Eval compute in compile diverger.
+(* Eval compute in compile diverger. *)
 
 Theorem divergerOk : moduleOk diverger.
   vcgen.
 Qed.
 
-Print Assumptions divergerOk.
+(* Print Assumptions divergerOk. *)
 
 (** Asserts *)
 
@@ -39,13 +39,13 @@ Definition immed := bmodule "immed" {{
   }
 }}.
 
-Eval compute in compile immed.
+(* Eval compute in compile immed. *)
 
 Theorem immedOk : moduleOk immed.
   vcgen; (sep tt).
 Qed.
 
-Print Assumptions immedOk.
+(* Print Assumptions immedOk. *)
 
 Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
   bmodule "main" {{
@@ -56,23 +56,23 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
     }
   }}.
 
-Eval compute in compile immedTest.
+(* Eval compute in compile immedTest. *)
 
 Theorem immedTestOk : moduleOk immedTest.
   vcgen; (sep tt).
 Qed.
 
-Print Assumptions immedTestOk.
+(* Print Assumptions immedTestOk. *)
 
 Definition immedProg := link immed immedTest.
 
-Eval compute in compile immedProg.
+(* Eval compute in compile immedProg. *)
 
 Theorem immedProgOk : moduleOk immedProg.
   link immedOk immedTestOk.
 Qed.
 
-Print Assumptions immedProgOk.
+(* Print Assumptions immedProgOk. *)
 
 Definition immedSettings := leSettings immedProg.
 Definition immedProgram := snd (labelsOf (XCAP.Blocks immedProg)).
@@ -82,7 +82,7 @@ Theorem immedProgReallyOk : { w : _ | Labels immedSettings ("main", Global "main
   withLabel; safety immedProgOk ("main", Global "main").
 Defined.
 
-Print Assumptions immedProgReallyOk.
+(* Print Assumptions immedProgReallyOk. *)
 
 Transparent natToWord.
 
@@ -94,7 +94,8 @@ Section final.
       {| Regs := fun _ => wzero _;
         Mem := fun _ => Some (wzero _) |}).
 
-  Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.
+(*   Eval compute in match final with None => wzero _ | Some (_, final') => Regs final' Rp end.
+*)
 End final.
 
 (** Always-0, in a convoluted way *)
@@ -112,7 +113,7 @@ Definition always0 := bmodule "always0" {{
   }
 }}.
 
-Eval compute in compile always0.
+(* Eval compute in compile always0. *)
 
 Theorem always0Ok : moduleOk always0.
   vcgen; (sep tt).

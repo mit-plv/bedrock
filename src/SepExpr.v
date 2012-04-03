@@ -41,9 +41,9 @@ Section SepExprTypes.
   Record SepResult (gl gr : sexpr') : Type :=
   { r_vars   : variables
   ; r_lhs_ex : variables
-  ; r_lhs    : sexpr'
+  ; r_lhs    : SHeap'
   ; r_rhs_ex : variables
-  ; r_rhs    : sexpr'
+  ; r_rhs    : SHeap'
   ; r_SUBST  : Subst types
   }.
 
@@ -103,8 +103,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         | Const p => p
       end.
 
-
-    (** TODO : Make these opaque (use the module trick) **)
     Definition himp (U1 U2 G : env types)
       (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
       (gl gr : sexpr) : Prop :=
@@ -798,8 +796,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) (length uvars) rhs) in
         let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel summ lhs rhs' in
         {| r_vars := ql 
-         ; r_lhs := sheapD lhs' ; r_lhs_ex := nil
-         ; r_rhs := sheapD rhs' ; r_rhs_ex := map (@projT1 _ _) uvars ++ qr ; r_SUBST := rhs_subst
+         ; r_lhs := lhs' ; r_lhs_ex := nil
+         ; r_rhs := rhs' ; r_rhs_ex := map (@projT1 _ _) uvars ++ qr ; r_SUBST := rhs_subst
          |}.
 
     (** TODO: this isn't true **)
@@ -813,7 +811,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           forallEach vars (fun VS : env types =>
             exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
             (fun rhs_ex : env types => 
-              himp nil rhs_ex VS cs lhs rhs))
+              himp nil rhs_ex VS cs (sheapD lhs) (sheapD rhs)))
       end ->
       himp nil uvars nil cs l r.
     Proof.
