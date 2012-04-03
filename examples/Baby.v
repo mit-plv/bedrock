@@ -42,7 +42,7 @@ Definition immed := bmodule "immed" {{
 Eval compute in compile immed.
 
 Theorem immedOk : moduleOk immed.
-  vcgen; sep.
+  vcgen; (sep tt).
 Qed.
 
 Print Assumptions immedOk.
@@ -59,7 +59,7 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
 Eval compute in compile immedTest.
 
 Theorem immedTestOk : moduleOk immedTest.
-  vcgen; sep.
+  vcgen; (sep tt).
 Qed.
 
 Print Assumptions immedTestOk.
@@ -115,7 +115,7 @@ Definition always0 := bmodule "always0" {{
 Eval compute in compile always0.
 
 Theorem always0Ok : moduleOk always0.
-  vcgen; sep.
+  vcgen; (sep tt).
 Qed.
 
 (** Stress testing [structured] performance *)
@@ -188,5 +188,5 @@ Definition stress := bmodule "stress" {{
 }}.
 
 Theorem stressOk : moduleOk stress.
-  vcgen; sep.
+  vcgen; (sep tt).
 Qed.

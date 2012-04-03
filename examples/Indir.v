@@ -11,7 +11,7 @@ Definition indir := bmodule "indir" {{
   }
 }}.
 Theorem indirOk : moduleOk indir.
-  vcgen; sep.
+  vcgen; abstract (sep tt).
 Qed.
 
 Definition doubleIndirS : assert := st ~> ExX, Ex p, Ex v, ![ st#Sp =*> p * p =*> v * #0 ] st
@@ -26,5 +26,5 @@ Definition doubleIndir := bmodule "doubleIndir" {{
 }}.
 
 Theorem doubleIndirOk : moduleOk doubleIndir.
-  vcgen; abstract sep.
+  vcgen; abstract (sep tt).
 Qed.
