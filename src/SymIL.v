@@ -1280,6 +1280,13 @@ Module UnfolderLearnHook.
           UNF.findWithRest'
         ] in H
     end.
+
+  (** This ltac builds an unfolder given a hint database.
+   ** [hints] is a gallina term of type [forall ts fs pcT stT ps, UNF.hintsSoundness ts fs pcT stT ps H]
+   **   if [H] is the hints to use in unfolding
+   **)
+  Ltac unfolder_for hints :=
+    fun ts pc st fs ps => constr:(@unfolderLearnHook_correct ts _ fs ps (hints ts fs (tvType 0) (tvType 1) ps)).
       
   Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
@@ -1291,7 +1298,7 @@ Module UnfolderLearnHook.
     Time sym_eval ltac:(isConst) 
       ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
       ltac:(fun ts pc st fs ps k => let res := constr:(@Demo.demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
-      ltac:(fun ts pc st fs ps => constr:(@unfolderLearnHook_correct ts _ fs ps (@UNF.hintsSoundness_default ts fs (tvType 0) (tvType 1) ps))) (* unfolder *)
+      ltac:(unfolder_for (@UNF.hintsSoundness_default)) (* unfolder *)
       ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; unfolder_simplifier H ; sym_evaluator H)
       tt tt tt.
     congruence.
@@ -1370,8 +1377,8 @@ Module PluginEvaluator.
     Time sym_eval ltac:(isConst) 
       ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
       ltac:(composite_eval tt) (* memory evaluator *)
-      ltac:(fun ts pc st fs ps => constr:(@Demo.defaultLearnHook_correct ts fs ps)) (* unfolder *)
-      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; Demo.default_unfolder H ; sym_evaluator H)
+      ltac:(UnfolderLearnHook.unfolder_for (@UnfolderLearnHook.UNF.hintsSoundness_default)) (* unfolder *)
+      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; UnfolderLearnHook.unfolder_simplifier H ; sym_evaluator H)
       tt tt tt.
     congruence.
   Qed.

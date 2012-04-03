@@ -12,6 +12,7 @@ Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 Ltac sym_eval_simplifier H :=
   Provers.unfold_transitivityProver H ;
   SymIL.MEVAL.Plugin.unfolder H ;
+  SymIL.UnfolderLearnHook.unfolder_simplifier H ;
   cbv delta [ 
     Plugin_PtsTo.MemEval_ptsto32 Plugin_PtsTo.ptsto32_ssig 
     IL_mem_satisfies IL_ReadWord IL_WriteWord
@@ -19,8 +20,6 @@ Ltac sym_eval_simplifier H :=
 
     Plugin_PtsTo.expr_equal
     Plugin_PtsTo.sym_read_word_ptsto32 Plugin_PtsTo.sym_write_word_ptsto32
-
-    Demo.defaultLearnHook
 
     Plugin_PtsTo.ptsto32_types_r
   ] in H ;
@@ -104,9 +103,8 @@ Ltac evaluate :=
   let prv ts fs :=
     constr:(@Provers.transitivityProver_correct ts fs)
   in
-  let unfolder ts pcT stT fs ps :=
-    constr:(@Demo.defaultLearnHook_correct
-      ts fs ps)
+  let unfolder :=
+    SymIL.UnfolderLearnHook.unfolder_for (@SymIL.UnfolderLearnHook.UNF.hintsSoundness_default)
   in
   let ssigs :=
     constr:((ptsto32 nil, tt))
