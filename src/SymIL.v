@@ -1145,12 +1145,13 @@ Module Demo.
     econstructor. unfold defaultLearnHook. intros; subst; auto.
   Qed.
 
-  Ltac simplifier H :=
-    Provers.unfold_reflexivityProver H ;
-    MEVAL.Default.unfolder H ;
-    cbv delta [ 
-      defaultLearnHook
-    ] in H; sym_evaluator H.
+  Ltac default_unfolder H :=
+    match H with
+      | tt => 
+        cbv delta [ defaultLearnHook ]
+      | _ => 
+        cbv delta [ defaultLearnHook ] in H
+    end.
   
   Definition demo_evaluator ts (fs : functions (repr bedrock_types_r ts)) ps := 
     @MEVAL.Default.MemEvaluator_default_correct _ (tvType 0) (tvType 1) fs ps (settings * state) (tvType 0) (tvType 0) 
@@ -1169,7 +1170,8 @@ Module Demo.
       ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
       ltac:(fun ts pc st fs ps k => let res := constr:(@demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
       ltac:(fun ts pc st fs ps => constr:(@defaultLearnHook_correct ts fs ps)) (* unfolder *)
-      simplifier tt tt tt.
+      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; default_unfolder H ; sym_evaluator H)
+      tt tt tt.
     congruence.
   Qed.
 End Demo.
@@ -1178,18 +1180,124 @@ Module UnfolderLearnHook.
   Require Unfolder.
 
   Module UNF := Unfolder.Make BedrockHeap ST.
-(*
-  Definition unfolder_LearnHook types : MEVAL.LearnHook (repr bedrock_types_r types) 
-    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)).
-    fun _ x _ => x.
 
-  Theorem defaultLearnHook_correct types funcs preds 
-    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@defaultLearnHook _) 
-      (@stateD _ funcs preds) funcs preds.
+  Section typed.
+    Variable types : list type.
+    Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
+
+    Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
+      (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
+      fun prover st facts => 
+        match SymMem st with
+          | Some m =>
+            match UNF.forward hints prover 10 facts
+              {| UNF.Vars := SymVars st 
+                ; UNF.UVars := SymUVars st
+                ; UNF.Heap := m
+              |}
+              with
+              | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
+                {| SymVars := vs
+                 ; SymUVars := us
+                 ; SymMem := Some m
+                 ; SymRegs := SymRegs st
+                 ; SymPures := SymPures st
+                |}
+            end
+          | None => st
+        end.
+
+    Variable funcs : functions (repr bedrock_types_r types).
+    Variable preds : SEP.sfunctions (repr bedrock_types_r types) (tvType 0) (tvType 1).
+    Hypothesis hints_correct : UNF.hintsSoundness funcs preds hints.
+
+    Opaque UNF.forward.
+
+    Theorem unfolderLearnHook_correct 
+      : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@unfolder_LearnHook) 
+        (@stateD _ funcs preds) funcs preds.
+    Proof.
+      unfold unfolder_LearnHook. econstructor.
+
+      destruct ss; simpl.
+      destruct SymMem0; simpl; intros; subst; eauto.
+      generalize hints_correct.
+      admit.
+    Qed.
+    Transparent UNF.forward.
+  End typed.
+
+  Ltac unfolder_simplifier H := 
+    match H with
+      | tt => 
+        cbv delta [ 
+          UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
+          UNF.Forward
+          UNF.forward
+          UNF.unfoldForward
+          UNF.findWithRest UNF.find 
+          equiv_dec
+          UNF.substExpr
+          Unfolder.FM.add
+
+          impures pures other
+          
+          Unfolder.allb 
+
+          length map app
+          exprSubstU
+          
+          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
+
+          unfolder_LearnHook
+          UNF.default_hintsPayload
+          UNF.fmFind
+          UNF.findWithRest'
+        ]
+      | _ => 
+        cbv delta [ 
+          UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
+          UNF.Forward
+          UNF.forward
+          UNF.unfoldForward
+          UNF.findWithRest UNF.find 
+          equiv_dec
+          UNF.substExpr
+          Unfolder.FM.add
+
+          impures pures other
+          
+          Unfolder.allb 
+
+          length map app
+          exprSubstU
+
+          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
+
+          unfolder_LearnHook
+          UNF.default_hintsPayload
+          UNF.fmFind
+          UNF.findWithRest'
+        ] in H
+    end.
+      
+  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
+    PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
+    Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
+    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
+    Regs st' Rp = natToW 0.
   Proof.
-    econstructor. unfold defaultLearnHook. intros; subst; auto.
+    intros.
+    Time sym_eval ltac:(isConst) 
+      ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
+      ltac:(fun ts pc st fs ps k => let res := constr:(@Demo.demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
+      ltac:(fun ts pc st fs ps => constr:(@unfolderLearnHook_correct ts _ fs ps (@UNF.hintsSoundness_default ts fs (tvType 0) (tvType 1) ps))) (* unfolder *)
+      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; unfolder_simplifier H ; sym_evaluator H)
+      tt tt tt.
+    congruence.
   Qed.
-*)
+
+
 End UnfolderLearnHook.  
 
 Module PluginEvaluator.
@@ -1263,7 +1371,8 @@ Module PluginEvaluator.
       ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
       ltac:(composite_eval tt) (* memory evaluator *)
       ltac:(fun ts pc st fs ps => constr:(@Demo.defaultLearnHook_correct ts fs ps)) (* unfolder *)
-      Demo.simplifier tt tt tt.
+      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; Demo.default_unfolder H ; sym_evaluator H)
+      tt tt tt.
     congruence.
   Qed.
 

@@ -118,3 +118,37 @@ Ltac t1 := match goal with
            end.
 
 Ltac t := repeat t1; eauto.
+
+(** Composite Prover **)
+Section composite.
+  Variable types : list type.
+  Variables pl pr : ProverT types.
+
+  Definition composite_ProverT : ProverT types :=
+  {| Facts := Facts pl * Facts pr
+   ; Summarize := fun hyps =>
+     (Summarize pl hyps, Summarize pr hyps)
+   ; Learn := fun facts hyps =>
+     let (fl,fr) := facts in
+     (Learn pl fl hyps, Learn pr fr hyps)
+   ; Prove := fun facts goal =>
+     let (fl,fr) := facts in
+     (Prove pl fl goal) || (Prove pl fl goal)
+   |}.
+
+  Variable funcs : functions types.
+  Variable pl_correct : ProverT_correct pl funcs.
+  Variable pr_correct : ProverT_correct pr funcs.
+
+  Theorem composite_ProverT_correct : ProverT_correct composite_ProverT funcs.
+    
+    refine (
+      {| Valid := fun uvars vars (facts : Facts composite_ProverT) =>
+        let (fl,fr) := facts in
+          Valid pl_correct uvars vars fl /\ Valid pr_correct uvars vars fr
+      |}); destruct pl_correct; destruct pr_correct; simpl; try destruct facts; intuition eauto.
+    unfold ProverCorrect. destruct sum; intuition.
+    apply orb_true_iff in H.
+    destruct H; eauto.
+  Qed.
+End composite.
