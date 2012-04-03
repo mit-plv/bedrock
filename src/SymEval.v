@@ -1,12 +1,30 @@
 Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
 Require Import Expr SepExpr Prover.
+Require Import PropX.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module SEP := SepExpr B ST.
+
+  (** Learn hook **)
+  Definition LearnHook (types_ : list type) (State : Type) : Type := 
+    forall P : ProverT types_, State -> Facts P -> State.
+
+  Record LearnHook_correct types pcT stT State (L : LearnHook types State) 
+    (stateD : env types -> env types -> 
+      codeSpec (tvarD types pcT) (tvarD types stT) -> tvarD types stT -> State -> Prop)
+    (funcs : functions types) 
+    (preds : SEP.sfunctions types pcT stT) : Prop :=
+  { hook_sound : forall P (PC : ProverT_correct P funcs),
+    forall uvars vars cs stn_st ss ss' pp,
+      stateD uvars vars cs stn_st ss ->
+      Valid PC uvars vars pp ->
+      L P ss pp = ss' ->
+      stateD uvars vars cs stn_st ss'
+  }.
 
   Section parametric.
     Variable types : list type.

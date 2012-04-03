@@ -12,8 +12,8 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	SepExpr \
 	Unfolder \
 	Env \
-	SymEval sep/PtsTo2 \
-	SepIL SymIL ILTac \
+	SymEval sep/PtsTo \
+	ILEnv SepIL SymIL ILTac \
 	Bedrock
 VS         := $(MODULES:%=%.v)
 ARGS :=-R . Bedrock
