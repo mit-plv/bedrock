@@ -292,13 +292,6 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 *)
     Admitted.
 
-    Fixpoint forallEach (ls : variables) : (env types -> Prop) -> Prop :=
-      match ls with
-        | nil => fun cc => cc nil
-        | a :: b => fun cc =>
-          forall x : tvarD types a, forallEach b (fun r => cc (existT _ a x :: r))
-      end.
-
     (** A more efficient representation for sexprs. **)
     Definition SHeap := 
       SHeap' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).

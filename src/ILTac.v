@@ -19,7 +19,7 @@ Lemma ApplyCancelSep : forall types funcs,
     | {| r_vars := vars; 
          r_lhs := lhs; r_rhs_ex := rhs_ex; 
          r_rhs := rhs; r_SUBST := SUBST |} =>
-      SEP.forallEach vars
+      Expr.forallEach vars
         (fun VS : Expr.env types =>
           SEP.exists_subst funcs VS uvars
           (ExprUnify.env_of_Subst SUBST rhs_ex 0)
@@ -203,7 +203,7 @@ Ltac cancel_simplifier :=
         Expr.Range Expr.Domain Expr.Denotation
         Expr.all2
 
-        SEP.forallEach
+        Expr.forallEach
         SEP.sheapD SEP.sexprD
         SEP.starred SEP.himp
         Expr.Impl Expr.Impl_ Expr.is_well_typed

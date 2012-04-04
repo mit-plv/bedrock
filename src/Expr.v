@@ -552,6 +552,20 @@ Section env.
         | Equal t e1 e2 => Equal t (exprSubstU a b c e1) (exprSubstU a b c e2)
       end.
 
+  Fixpoint forallEach (ls : variables) : (env.env -> Prop) -> Prop :=
+    match ls with
+      | nil => fun cc => cc nil
+      | a :: b => fun cc =>
+        forall x : tvarD a, forallEach b (fun r => cc (existT _ a x :: r))
+    end.
+
+  Fixpoint existsEach (ls : variables) : (env.env -> Prop) -> Prop :=
+    match ls with
+      | nil => fun cc => cc nil
+      | a :: b => fun cc =>
+        exists x : tvarD a, existsEach b (fun r => cc (existT _ a x :: r))
+    end.
+
   Section Provable.
     Definition Provable (e : expr) : Prop :=
       match exprD e tvProp with

@@ -26,6 +26,16 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       stateD uvars vars cs stn_st ss'
   }.
 
+  Definition LearnHook_default (types : list type) (State : Type) : 
+    LearnHook types State :=
+    fun _ x _ => x.
+
+  Definition LearnHook_default_correct types pcT stT State stateD funcs preds :
+    @LearnHook_correct types pcT stT State (@LearnHook_default _ _) stateD funcs preds.
+  Proof.
+    unfold LearnHook_default; econstructor; intros; subst; auto.
+  Qed.
+
   Section parametric.
     Variable types : list type.
     Variables pcT stT : tvar.
