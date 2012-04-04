@@ -317,7 +317,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
      ** to the range [a+b,...)
      **)
     Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
-      {| impures := FM.map (map (map (liftExpr a b))) (impures s)
+      {| impures := FM.map (fun _ => map (map (liftExpr a b))) (impures s)
        ; pures   := map (liftExpr a b) (pures s)
        ; other   := other s
        |}.
@@ -702,7 +702,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
      ** uvars [c,..]
      **)
     Definition sheapSubstU (a b c : nat) (s : SHeap) : SHeap :=
-      {| impures := FM.map (map (map (exprSubstU a b c))) (impures s)
+      {| impures := FM.map (fun _ => map (map (exprSubstU a b c))) (impures s)
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
