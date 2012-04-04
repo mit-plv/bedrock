@@ -262,6 +262,17 @@ Notation "#2" := (![ #2%PropX ])%Sep : Sep_scope.
 Notation "#3" := (![ #3%PropX ])%Sep : Sep_scope.
 Notation "#4" := (![ #4%PropX ])%Sep : Sep_scope.
 
+Definition lift1 t sos (p : hpropB sos) : hpropB (t :: sos) :=
+  fun a b => Lift (p a b).
+
+Fixpoint lift sos (p : HProp) : hpropB sos :=
+  match sos with
+    | nil => p
+    | _ :: sos' => lift1 _ (lift sos' p)
+  end.
+
+Notation "^[ p ]" := (lift _ p) : Sep_scope.
+
 Definition Himp (p1 p2 : HProp) : Prop :=
   forall specs, ST.himp specs p1 p2.
 
@@ -356,7 +367,35 @@ Theorem substH_hvar : forall sos (x : smem -> propX W (settings * state) sos) p,
   reflexivity.
 Qed.
 
-Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar : sepFormula.
+Definition HProp_extensional (p : HProp) :=
+  p = fun st sm => p st sm.
+
+Theorem substH_lift1 : forall p' t p,
+  HProp_extensional p'
+  -> substH (lift (t :: nil) p') p = p'.
+  intros; rewrite H; reflexivity.
+Qed.
+
+Theorem substH_lift2 : forall p' t1 t2 p,
+  substH (lift (t1 :: t2 :: nil) p') p = lift (t1 :: nil) p'.
+  reflexivity.
+Qed.
+
+Theorem substH_lift3 : forall p' t1 t2 t3 p,
+  substH (lift (t1 :: t2 :: t3 :: nil) p') p = lift (t1 :: t2 :: nil) p'.
+  reflexivity.
+Qed.
+
+Theorem substH_lift4 : forall p' t1 t2 t3 t4 p,
+  substH (lift (t1 :: t2 :: t3 :: t4 :: nil) p') p = lift (t1 :: t2 :: t3 :: nil) p'.
+  reflexivity.
+Qed.
+
+Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar
+  substH_lift1 substH_lift2 substH_lift3 substH_lift4
+  using solve [ auto ] : sepFormula.
+
+Global Opaque lift.
 
 Notation "![ p ]" := (sepFormula p%Sep) : PropX_scope.
 

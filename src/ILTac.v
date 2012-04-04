@@ -70,7 +70,8 @@ Ltac change_to_himp := try apply ignore_regs;
   match goal with
     | [ H : interp ?specs (![ _ ] ?X)
       |- interp ?specs (![ _ ] ?X) ] =>
-    eapply (@interp_interp_himp _ _ _ _ H)
+      eapply (@interp_interp_himp _ _ _ _ H)
+    | [ |- _ ===> _ ] => hnf; intro
     | _ => apply change_Imply_himp
   end.
 

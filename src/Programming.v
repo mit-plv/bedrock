@@ -148,6 +148,9 @@ Notation "[ p ] 'While' c { b }" := (While_ p c b)
 Notation "'Call' f [ p ]" := (Call_ f p)
   (no associativity, at level 95) : SP_scope.
 
+Notation "'Return' e" := (Rv <- e;; Goto Rp)%SP
+  (no associativity, at level 95) : SP_scope.
+
 
 (** ** Modules *)
 
