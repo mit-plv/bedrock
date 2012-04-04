@@ -343,6 +343,10 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | fun x => forall cs, @ST.himp ?pcT ?stT cs (@?L x) (@?R x) =>
         collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
           collectTypes_sexpr ltac:(isConst) R types k)
+      | fun x => _ (@?L x) (@?R x) =>
+        collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
+            collectTypes_sexpr ltac:(isConst) R types ltac:(fun types =>
+                k types))
     end.
 
   (* This tactic adds quantifier processing. *)
@@ -363,14 +367,15 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   (* Finally, this tactic adds a loop over all hints. *)
-  Ltac collectTypes_hints isConst Ps types k :=
+  Ltac collectTypes_hints unfoldTac isConst Ps types k :=
     match Ps with
       | tt => k types
       | (?P1, ?P2) =>
-        collectTypes_hints ltac:(isConst) P1 types ltac:(fun types =>
-          collectTypes_hints ltac:(isConst) P2 types k)
+        collectTypes_hints unfoldTac ltac:(isConst) P1 types ltac:(fun types =>
+          collectTypes_hints unfoldTac ltac:(isConst) P2 types k)
       | _ =>
         let T := type of Ps in
+        let T := unfoldTac T in
           collectTypes_hint ltac:(isConst) (fun _ : VarType unit => T) types k
     end.
 
@@ -385,8 +390,14 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
               vars (H :: Hyps P) (Lhs P) (Rhs P)) in
             k funcs sfuncs lem))
       | fun x => forall cs, @ST.himp _ _ cs (@?L x) (@?R x) =>
-        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun funcs sfuncs L =>
-          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun funcs sfuncs R =>
+        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs L =>
+          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs R =>
+            let lem := constr:(Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
+              vars nil L R) in
+            k funcs sfuncs lem))
+      | fun x => _ (@?L x) (@?R x) =>
+        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs L =>
+          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs R =>
             let lem := constr:(Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
               vars nil L R) in
             k funcs sfuncs lem))
@@ -411,16 +422,17 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       | _ => reify_hint' pcType stateType isConst P types funcs sfuncs vars k
     end.
 
-  Ltac reify_hints pcType stateType isConst Ps types funcs sfuncs k :=
+  Ltac reify_hints unfoldTac pcType stateType isConst Ps types funcs sfuncs k :=
     match Ps with
       | tt => k funcs sfuncs (@nil (lemma types pcType stateType)) || fail 2
       | (?P1, ?P2) =>
-        reify_hints pcType stateType isConst P1 types funcs sfuncs ltac:(fun funcs sfuncs P1 =>
-          reify_hints pcType stateType isConst P2 types funcs sfuncs ltac:(fun funcs sfuncs P2 =>
+        reify_hints unfoldTac pcType stateType isConst P1 types funcs sfuncs ltac:(fun funcs sfuncs P1 =>
+          reify_hints unfoldTac pcType stateType isConst P2 types funcs sfuncs ltac:(fun funcs sfuncs P2 =>
             k funcs sfuncs (P1 ++ P2)))
         || fail 2
       | _ =>
         let T := type of Ps in
+        let T := unfoldTac T in
           reify_hint pcType stateType isConst (fun _ : VarType unit => T) types funcs sfuncs (@nil tvar) ltac:(fun funcs sfuncs P =>
             k funcs sfuncs (P :: nil))
     end.
@@ -451,16 +463,16 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   (* Main entry point tactic, to generate a hint database *)
-  Ltac prepareHints pcType stateType isConst types fwd bwd :=
+  Ltac prepareHints unfoldTac pcType stateType isConst types fwd bwd :=
     let types := unfoldTypes types in
-    collectTypes_hints isConst fwd (@nil Type) ltac:(fun rt =>
-      collectTypes_hints isConst bwd rt ltac:(fun rt =>
+    collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
+      collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
         let stateT := reflectType types stateType in
-          reify_hints pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
-            reify_hints pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
+          reify_hints unfoldTac pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
+            reify_hints unfoldTac pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
               refine {| Types := types;
                         PcType := pcT ; 
                         StateType := stateT ;

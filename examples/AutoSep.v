@@ -5,6 +5,7 @@ Export Bedrock.
 
 Import SymIL.
 Require Bedrock.sep.PtsTo.
+Export UnfolderLearnHook.UNF.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
@@ -138,3 +139,8 @@ Ltac step := match goal with
 Ltac descend := Programming.descend; reduce.
 
 Ltac sep hints := evaluate hints; descend; repeat (step; descend).
+
+Ltac sepLemma := intros; cancel.
+
+Ltac prepare := UnfolderLearnHook.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
+  W (settings * state)%type isConst ILEnv.bedrock_types.
