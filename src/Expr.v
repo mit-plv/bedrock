@@ -559,12 +559,41 @@ Section env.
         forall x : tvarD a, forallEach b (fun r => cc (existT _ a x :: r))
     end.
 
+  Theorem forallEach_sem : forall ls P,
+    forallEach ls P <-> (forall env, map (@projT1 _ _) env = ls -> P env).
+  Proof.
+    induction ls; simpl; split; intros.
+      destruct env0; auto. simpl in *; congruence.
+      eapply H; reflexivity.
+
+      destruct env0; simpl in *; try congruence.
+      inversion H0; clear H0; subst. specialize (H (projT2 s)).
+      eapply IHls in H; eauto. destruct s; simpl in *; auto.
+
+      eapply IHls. intros. subst. eapply H. auto.
+  Qed.
+
   Fixpoint existsEach (ls : variables) : (env.env -> Prop) -> Prop :=
     match ls with
       | nil => fun cc => cc nil
       | a :: b => fun cc =>
         exists x : tvarD a, existsEach b (fun r => cc (existT _ a x :: r))
     end.
+
+  Theorem existsEach_sem : forall ls P,
+    existsEach ls P <-> (exists env, map (@projT1 _ _) env = ls /\ P env).
+  Proof.
+    induction ls; simpl; split; intros.
+      exists nil; auto.
+      destruct H. destruct x; intuition (simpl in *; eauto; congruence).
+
+      destruct H. eapply IHls in H. destruct H.
+      intuition; subst. eexists; eauto. split; eauto. reflexivity.
+
+      destruct H. intuition; subst. destruct x; simpl in *; try congruence.
+      destruct s. simpl in *. inversion H0; clear H0; subst.
+      exists t. eapply IHls. eauto.
+  Qed.
 
   Section Provable.
     Definition Provable (e : expr) : Prop :=
