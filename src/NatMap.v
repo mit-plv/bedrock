@@ -57,7 +57,7 @@ Module IntMap.
 
     Definition empty : t T := MLeaf _.
 
-    Section add.
+    Section add. (** replace **)
       Variable s : nat.
       Variable v : T.
 
@@ -128,13 +128,13 @@ Module IntMap.
     
   Section Map.
     Context {T U : Type}.
-    Variable f : T -> U.
+    Variable f : nat -> T -> U.
 
     Fixpoint map (m : t T) : t U :=
       match m with
         | MLeaf => MLeaf _
         | MBranch l k v r =>
-          MBranch _ (map l) k (f v) (map r)
+          MBranch _ (map l) k (f k v) (map r)
       end.
   End Map.
 
