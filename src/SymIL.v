@@ -8,18 +8,20 @@ Require Import PropX.
 Require Import SepExpr SymEval.
 Require Import Expr.
 Require Import Prover.
-Require Import Env ILEnv.
+Require Import Env.
 Import List.
 
 Require Structured SymEval.
+Require Import ILEnv.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(** Symbolic Evaluation **)
+(** The Symbolic Evaluation Interfaces *)
 Module MEVAL := SymEval.MemoryEvaluator BedrockHeap ST.
 Module SEP := MEVAL.SEP.
 
+(** Symbolic State *)
 Section SymState.
   Variable types : list type.
   Variables pcT stT : tvar.
@@ -84,6 +86,8 @@ Section typed.
   Inductive sym_assert :=
   | SymAssertCond : sym_rvalue -> test -> sym_rvalue -> option bool -> sym_assert.
 
+  Definition istream : Type := list ((list sym_instr * option state) + sym_assert).
+
 End typed.
 
 Implicit Arguments sym_loc [ ].
@@ -92,15 +96,7 @@ Implicit Arguments sym_rvalue [ ].
 Implicit Arguments sym_instr [ ].
 Implicit Arguments sym_assert [ ].
 
-Definition comparator (t : IL.test) (l r : W) : Prop :=
-  match t with
-    | IL.Eq => l = r
-    | IL.Ne => l = r -> False
-    | IL.Lt => wlt l r
-    | IL.Le => wlt l r \/ l = r
-  end.
-
-Section typed_ext.
+Section Denotations.
   Variable types' : list type.
   Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
@@ -110,58 +106,184 @@ Section typed_ext.
   Local Notation "'tvState'" := (tvType 2).
   Local Notation "'tvTest'" := (tvType 3).
   Local Notation "'tvReg'" := (tvType 4).
-  
+
+
+  (** Denotation/reflection functions give the meaning of the reflected syntax *)
   Variable funcs' : functions TYPES.
-  Definition funcs := repr (bedrock_funcs_r types') funcs'.
+  Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
+  Variable sfuncs : SEP.sfunctions TYPES pcT stT.
+  Variable uvars vars : env TYPES.
   
-  Variable Prover : ProverT TYPES.
-
-  (** these are the plugin functions **)
-  Variable symeval_read_word :
-    Facts Prover -> expr TYPES -> SEP.SHeap TYPES pcT stT 
-    -> option (expr TYPES).
-  Variable symeval_write_word :
-    Facts Prover -> expr TYPES -> expr TYPES -> SEP.SHeap TYPES pcT stT 
-    -> option (SEP.SHeap TYPES pcT stT).
-
-  (** This has to be connected to the type of the intermediate representation **)
-  Definition sym_evalLoc (lv : sym_loc TYPES) (ss : SymState TYPES pcT stT) : expr TYPES :=
-    match lv with
-      | SymReg r => sym_getReg r (SymRegs ss)
-      | SymImm l => l
-      | SymIndir r w => fPlus (sym_getReg r (SymRegs ss)) w
+  Definition sym_regsD (rs : SymRegType TYPES) : option regs :=
+    match rs with
+      | (sp, rp, rv) =>
+        match 
+          exprD funcs uvars vars sp tvWord ,
+          exprD funcs uvars vars rp tvWord ,
+          exprD funcs uvars vars rv tvWord 
+          with
+          | Some sp , Some rp , Some rv =>
+            Some (fun r => 
+              match r with
+                | Sp => sp
+                | Rp => rp
+                | Rv => rv
+              end)
+          | _ , _ , _ => None
+        end
     end.
 
-Section with_facts.
-  Variable Facts : Facts Prover.
+  Definition sym_locD (s : sym_loc TYPES) : option loc :=
+    match s with
+      | SymReg r => Some (Reg r)
+      | SymImm e =>
+        match exprD funcs uvars vars e tvWord with
+          | Some e => Some (Imm e)
+          | None => None
+        end
+      | SymIndir r o =>
+        match exprD funcs uvars vars o tvWord with
+          | Some o => Some (Indir r o)
+          | None => None
+        end
+    end.
 
-  Definition sym_evalLval (lv : sym_lvalue TYPES) (val : expr TYPES) (ss : SymState TYPES pcT stT)
-    : option (SymState TYPES pcT stT) :=
-    match lv with
-      | SymLvReg r =>
-        Some {| SymVars := SymVars ss
-              ; SymUVars := SymUVars ss
-              ; SymMem := SymMem ss 
-              ; SymRegs := sym_setReg r val (SymRegs ss)
-              ; SymPures := SymPures ss
-              |}
-      | SymLvMem l => 
-        let l := sym_evalLoc l ss in
-          match SymMem ss with
-            | None => None
-            | Some m =>
-              match symeval_write_word Facts l val m with
-                | Some m =>
-                  Some {| SymVars := SymVars ss
-                        ; SymUVars := SymUVars ss
-                        ; SymMem := Some m
-                        ; SymRegs := SymRegs ss
-                        ; SymPures := SymPures ss
-                        |}
-                | None => None
-              end
+  Definition sym_lvalueD (s : sym_lvalue TYPES) : option lvalue :=
+    match s with
+      | SymLvReg r => Some (LvReg r)
+      | SymLvMem l => match sym_locD l with
+                        | Some l => Some (LvMem l)
+                        | None => None
+                      end
+    end.
+
+  Definition sym_rvalueD (r : sym_rvalue TYPES) : option rvalue :=
+    match r with
+      | SymRvLval l => match sym_lvalueD l with
+                         | Some l => Some (RvLval l)
+                         | None => None
+                       end
+      | SymRvImm e => match exprD funcs uvars vars e tvWord with
+                        | Some l => Some (RvImm l)
+                        | None => None
+                      end
+      | SymRvLabel l => Some (RvLabel l)
+    end.
+
+  Definition sym_instrD (i : sym_instr TYPES) : option instr :=
+    match i with
+      | SymAssign l r =>
+        match sym_lvalueD l , sym_rvalueD r with
+          | Some l , Some r => Some (Assign l r)
+          | _ , _ => None
+        end
+      | SymBinop lhs l o r =>
+        match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
+          | Some lhs , Some l , Some r => Some (Binop lhs l o r)
+          | _ , _ , _ => None
+        end
+    end.
+
+  Fixpoint sym_instrsD (is : list (sym_instr TYPES)) : option (list instr) :=
+    match is with
+      | nil => Some nil
+      | i :: is => 
+        match sym_instrD i , sym_instrsD is with
+          | Some i , Some is => Some (i :: is)
+          | _ , _ => None
+        end
+    end.
+
+  Fixpoint istreamD (is : istream TYPES) (stn : settings) (st : state) (res : option state) : Prop :=
+    match is with
+      | nil => Some st = res
+      | inl (ins, st') :: is => 
+        match sym_instrsD ins with
+          | None => False
+          | Some ins => 
+            match st' with
+              | None => evalInstrs stn st ins = None
+              | Some st' => evalInstrs stn st ins = Some st' /\ istreamD is stn st' res
+            end
+        end
+      | inr asrt :: is =>
+        match asrt with
+          | SymAssertCond l t r t' => 
+            match sym_rvalueD l , sym_rvalueD r with
+              | Some l , Some r =>
+                match t' with
+                  | None => 
+                    Structured.evalCond l t r stn st = None
+                  | Some t' =>
+                    Structured.evalCond l t r stn st = Some t' /\ istreamD is stn st res
+                end
+              | _ , _ => False
+            end
+        end
+    end.
+
+  Definition stateD cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
+    let (stn,st) := stn_st in
+      match ss with
+        | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
+          match 
+            exprD funcs uvars vars sp tvWord ,
+            exprD funcs uvars vars rp tvWord ,
+            exprD funcs uvars vars rv tvWord
+            with
+            | Some sp , Some rp , Some rv =>
+              Regs st Sp = sp /\ Regs st Rp = rp /\ Regs st Rv = rv
+            | _ , _ , _ => False
           end
-    end.
+          /\ match m with 
+               | None => True
+               | Some m => 
+                 PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD m)) stn_st)%PropX
+             end
+          /\ AllProvable funcs uvars vars pures 
+      end.
+
+  Section SymEvaluation.
+    Variable Prover : ProverT TYPES.
+    Variable meval : MEVAL.MemEvaluator TYPES pcT stT.
+
+    Section with_facts.
+    Variable Facts : Facts Prover.
+
+    Definition sym_evalLoc (lv : sym_loc TYPES) (ss : SymState TYPES pcT stT) : expr TYPES :=
+      match lv with
+        | SymReg r => sym_getReg r (SymRegs ss)
+        | SymImm l => l
+        | SymIndir r w => fPlus (sym_getReg r (SymRegs ss)) w
+      end.
+
+    Definition sym_evalLval (lv : sym_lvalue TYPES) (val : expr TYPES) (ss : SymState TYPES pcT stT)
+      : option (SymState TYPES pcT stT) :=
+      match lv with
+        | SymLvReg r =>
+          Some {| SymVars := SymVars ss
+            ; SymUVars := SymUVars ss
+            ; SymMem := SymMem ss 
+            ; SymRegs := sym_setReg r val (SymRegs ss)
+            ; SymPures := SymPures ss
+          |}
+        | SymLvMem l => 
+          let l := sym_evalLoc l ss in
+            match SymMem ss with
+              | None => None
+              | Some m =>
+                match MEVAL.smemeval_write_word meval _ Facts l val m with
+                  | Some m =>
+                    Some {| SymVars := SymVars ss
+                      ; SymUVars := SymUVars ss
+                      ; SymMem := Some m
+                      ; SymRegs := SymRegs ss
+                      ; SymPures := SymPures ss
+                    |}
+                  | None => None
+                end
+            end
+      end.
 
     Definition sym_evalRval (rv : sym_rvalue TYPES) (ss : SymState TYPES pcT stT) : option (expr TYPES) :=
       match rv with
@@ -169,11 +291,11 @@ Section with_facts.
           Some (sym_getReg r (SymRegs ss))
         | SymRvLval (SymLvMem l) =>
           let l := sym_evalLoc l ss in
-          match SymMem ss with
-            | None => None
-            | Some m => 
-              symeval_read_word Facts l m
-          end
+            match SymMem ss with
+              | None => None
+              | Some m => 
+                MEVAL.smemeval_read_word meval _ Facts l m
+            end
         | SymRvImm w => Some w 
         | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
         (* an alternative would be to reflect these as a function call that does the positioning...
@@ -184,22 +306,23 @@ Section with_facts.
 
     Definition sym_assertTest (r : sym_rvalue TYPES) (t : test) (l : sym_rvalue TYPES) (ss : SymState TYPES pcT stT) (res : bool) 
       : option (expr TYPES) :=
-      let '(l, t, r) := if res
-        then (l, t, r)
-        else match t with
-               | IL.Eq => (l, IL.Ne, r)
-               | IL.Ne => (l, IL.Eq, r)
-               | IL.Lt => (r, IL.Le, l)
-               | IL.Le => (r, IL.Lt, l)
-             end in
-      match sym_evalRval l ss , sym_evalRval r ss with
-        | Some l , Some r =>
-          match t with
-            | IL.Eq => Some (Expr.Equal tvWord l r)
-            | _ => Some (Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil))
-          end
-        | _ , _ => None
-      end.
+      let '(l, t, r) := 
+        if res then (l, t, r)
+          else match t with
+                 | IL.Eq => (l, IL.Ne, r)
+                 | IL.Ne => (l, IL.Eq, r)
+                 | IL.Lt => (r, IL.Le, l)
+                 | IL.Le => (r, IL.Lt, l)
+               end
+          in
+          match sym_evalRval l ss , sym_evalRval r ss with
+            | Some l , Some r =>
+              match t with
+                | IL.Eq => Some (Expr.Equal tvWord l r)
+                | _ => Some (Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil))
+              end
+            | _ , _ => None
+          end.
 
     Definition sym_evalInstr (i : sym_instr TYPES) (ss : SymState TYPES pcT stT) : option (SymState TYPES pcT stT) :=
       match i with 
@@ -233,201 +356,289 @@ Section with_facts.
             | Some ss => sym_evalInstrs is ss
           end
       end.
-
-  End with_facts.
-
-  Definition istream : Type := list ((list (sym_instr TYPES) * option state) + sym_assert TYPES).
-
-
-  Variable learnHook : MEVAL.LearnHook TYPES (SymState TYPES pcT stT).
-
-  Fixpoint sym_evalStream (is : istream) (F : Facts Prover) (ss : SymState TYPES pcT stT) 
-    : option (SymState TYPES pcT stT) + (SymState TYPES pcT stT * istream) :=
-    match is with
-      | nil => inl (Some ss)
-      | inl (ins, st) :: is =>
-        match sym_evalInstrs F ins ss with
-          | inr (ss,rm) => inr (ss, inl (rm, st) :: is)
-          | inl ss => sym_evalStream is F ss
-        end
-      | inr asrt :: is =>
-        match asrt with
-          | SymAssertCond l t r (Some res) =>
-            match sym_assertTest F l t r ss res with
-              | Some sp =>
-                let F' := Learn Prover F (sp :: nil) in 
-                  let ss' := 
-                    {| SymVars := SymVars ss
-                      ; SymUVars := SymUVars ss
-                      ; SymRegs := SymRegs ss 
-                      ; SymMem := SymMem ss
-                      ; SymPures := sp :: SymPures ss
-                    |}
-                    in
-                    let ss' := learnHook Prover ss' F' in
-                    sym_evalStream is F' ss'
-              | None => inr (ss, inr asrt :: is)
-            end
-          | SymAssertCond l t r None =>
-            match sym_evalRval F l ss , sym_evalRval F r ss with
-              | None , _ => inl None
-              | _ , None => inl None
-              | _ , _ => sym_evalStream is F ss 
-            end
-        end
-    end.
-
-  (* Denotation functions *)
-  Section sym_denote.
-    Variable funcs : functions TYPES.
-    Variable sfuncs : SEP.sfunctions TYPES pcT stT.
-    Variable uvars vars : env TYPES.
+    End with_facts.
     
-    Definition sym_regsD (rs : SymRegType TYPES) : option regs :=
-      match rs with
-        | (sp, rp, rv) =>
-          match 
-            exprD funcs uvars vars sp tvWord ,
-            exprD funcs uvars vars rp tvWord ,
-            exprD funcs uvars vars rv tvWord 
-            with
-            | Some sp , Some rp , Some rv =>
-              Some (fun r => 
-                match r with
-                  | Sp => sp
-                  | Rp => rp
-                  | Rv => rv
-                end)
-            | _ , _ , _ => None
-          end
-      end.
+    Variable learnHook : MEVAL.LearnHook TYPES (SymState TYPES pcT stT).
 
-    Definition sym_locD (s : sym_loc TYPES) : option loc :=
-      match s with
-        | SymReg r => Some (Reg r)
-        | SymImm e =>
-          match exprD funcs uvars vars e tvWord with
-            | Some e => Some (Imm e)
-            | None => None
-          end
-        | SymIndir r o =>
-          match exprD funcs uvars vars o tvWord with
-            | Some o => Some (Indir r o)
-            | None => None
-          end
-      end.
-
-    Definition sym_lvalueD (s : sym_lvalue TYPES) : option lvalue :=
-      match s with
-        | SymLvReg r => Some (LvReg r)
-        | SymLvMem l => match sym_locD l with
-                          | Some l => Some (LvMem l)
-                          | None => None
-                        end
-      end.
-
-    Definition sym_rvalueD (r : sym_rvalue TYPES) : option rvalue :=
-      match r with
-        | SymRvLval l => match sym_lvalueD l with
-                           | Some l => Some (RvLval l)
-                           | None => None
-                         end
-        | SymRvImm e => match exprD funcs uvars vars e tvWord with
-                          | Some l => Some (RvImm l)
-                          | None => None
-                        end
-        | SymRvLabel l => Some (RvLabel l)
-      end.
-
-    Definition sym_instrD (i : sym_instr TYPES) : option instr :=
-      match i with
-        | SymAssign l r =>
-          match sym_lvalueD l , sym_rvalueD r with
-            | Some l , Some r => Some (Assign l r)
-            | _ , _ => None
-          end
-        | SymBinop lhs l o r =>
-          match sym_lvalueD lhs , sym_rvalueD l , sym_rvalueD r with
-            | Some lhs , Some l , Some r => Some (Binop lhs l o r)
-            | _ , _ , _ => None
-          end
-      end.
-
-    Fixpoint sym_instrsD (is : list (sym_instr TYPES)) : option (list instr) :=
+    Fixpoint sym_evalStream (facts : Facts Prover) (is : istream TYPES) (ss : SymState TYPES pcT stT) 
+      : option (SymState TYPES pcT stT) + (SymState TYPES pcT stT * istream TYPES) :=
       match is with
-        | nil => Some nil
-        | i :: is => 
-          match sym_instrD i , sym_instrsD is with
-            | Some i , Some is => Some (i :: is)
-            | _ , _ => None
-          end
-      end.
-
-    Fixpoint istreamD (is : istream) (stn : settings) (st : state) (res : option state) : Prop :=
-      match is with
-        | nil => Some st = res
-        | inl (ins, st') :: is => 
-          match sym_instrsD ins with
-            | None => False
-            | Some ins => 
-              match st' with
-                | None => evalInstrs stn st ins = None
-                | Some st' => evalInstrs stn st ins = Some st' /\ istreamD is stn st' res
-              end
+        | nil => inl (Some ss)
+        | inl (ins, st) :: is =>
+          match sym_evalInstrs facts ins ss with
+            | inr (ss,rm) => inr (ss, inl (rm, st) :: is)
+            | inl ss => sym_evalStream facts is ss
           end
         | inr asrt :: is =>
           match asrt with
-            | SymAssertCond l t r t' => 
-              match sym_rvalueD l , sym_rvalueD r with
-                | Some l , Some r =>
-                  match t' with
-                    | None => 
-                      Structured.evalCond l t r stn st = None
-                    | Some t' =>
-                      Structured.evalCond l t r stn st = Some t' /\ istreamD is stn st res
-                  end
-                | _ , _ => False
+            | SymAssertCond l t r (Some res) =>
+              match sym_assertTest facts l t r ss res with
+                | Some sp =>
+                  let facts' := Learn Prover facts (sp :: nil) in 
+                  let ss' := 
+                    {| SymVars := SymVars ss
+                     ; SymUVars := SymUVars ss
+                     ; SymRegs := SymRegs ss 
+                     ; SymMem := SymMem ss
+                     ; SymPures := sp :: SymPures ss
+                     |}
+                  in
+                  let ss' := learnHook Prover ss' facts' in
+                  sym_evalStream facts' is ss'
+                | None => inr (ss, inr asrt :: is)
+              end
+            | SymAssertCond l t r None =>
+              match sym_evalRval facts l ss , sym_evalRval facts r ss with
+                | None , _ => inl None
+                | _ , None => inl None
+                | _ , _ => sym_evalStream facts is ss 
               end
           end
       end.
+    
+    Section Correctness.
+      Definition IL_stn_st : Type := (IL.settings * IL.state)%type.
 
-    Definition stateD cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
-      let (stn,s) := stn_st in
-      match ss with
-        | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
-             match 
-               exprD funcs uvars vars sp tvWord ,
-               exprD funcs uvars vars rp tvWord ,
-               exprD funcs uvars vars rv tvWord
-               with
-               | Some sp , Some rp , Some rv =>
-                 Regs s Sp = sp /\ Regs s Rp = rp /\ Regs s Rv = rv
-               | _ , _ , _ => False
-             end
-          /\ match m with 
-               | None => True
-               | Some m => 
-                 PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD m)) (stn, s))%PropX
-             end
-          /\ AllProvable funcs uvars vars pures 
-      end.
+      Definition IL_mem_satisfies (cs : PropX.codeSpec (tvarD TYPES pcT) (tvarD TYPES stT)) 
+        (P : ST.hprop (tvarD TYPES pcT) (tvarD TYPES stT) nil) (stn_st : IL_stn_st) : Prop :=
+        PropX.interp cs (SepIL.SepFormula.sepFormula P stn_st).
+      
+      Definition IL_ReadWord : IL_stn_st -> tvarD TYPES tvWord -> option (tvarD TYPES tvWord) :=
+        (fun stn_st => IL.ReadWord (fst stn_st) (Mem (snd stn_st))).
+      Definition IL_WriteWord : IL_stn_st -> tvarD TYPES tvWord -> tvarD TYPES tvWord -> option IL_stn_st :=
+        (fun stn_st p v => 
+          let (stn,st) := stn_st in
+            match IL.WriteWord stn (Mem st) p v with
+              | None => None
+              | Some m => Some (stn, {| Regs := Regs st ; Mem := m |})
+            end).
 
-    Lemma hash_interp : forall sfuncs se sh,
-      SEP.hash se = (nil, sh) ->
-      forall uvars vars st stn cs,
-        PropX.interp cs (![ @SEP.sexprD TYPES funcs pcT stT sfuncs uvars vars se ] (stn, st)) ->
-        PropX.interp cs (![ @SEP.sexprD TYPES funcs pcT stT sfuncs uvars vars (SEP.sheapD sh) ] (stn, st)).
-    Proof.
-      clear. intros.
-      generalize (SEP.hash_denote funcs sfuncs cs se uvars vars).
-      rewrite H. simpl. intros.
-      rewrite <- H1. eauto.
-    Qed.
-  End sym_denote.
-End typed_ext.
+      Ltac t_correct := 
+        simpl; intros;
+          unfold IL_stn_st, IL_mem_satisfies, IL_ReadWord, IL_WriteWord in *;
+            repeat (simpl in *; 
+              match goal with
+                | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                | [ H : prod _ _ |- _ ] => destruct H
+                | [ H : match ?X with 
+                          | Some _ => _
+                          | None => _ 
+                        end |- _ ] =>
+                revert H; case_eq X; intros; try contradiction
+                | [ H : match ?X with 
+                          | Some _ => _
+                          | None => _ 
+                        end = _ |- _ ] =>
+                revert H; case_eq X; intros; try congruence
+                | [ H : _ = _ |- _ ] => rewrite H
+                | [ H : reg |- _ ] => destruct H
+              end; intuition); subst.
 
-Section evaluator.
+      Lemma sym_evalLoc_correct : forall loc ss res res' stn_st locD cs,
+        stateD cs stn_st ss ->
+        sym_locD loc = Some locD ->
+        evalLoc (snd stn_st) locD = res' ->
+        sym_evalLoc loc ss = res -> 
+        exprD funcs uvars vars res tvWord = Some res'.
+      Proof.
+        destruct loc; unfold stateD; destruct ss; destruct SymRegs0; destruct p; t_correct.
+      Qed.
+
+      Variable PC : ProverT_correct Prover funcs.
+      Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs sfuncs tvWord tvWord 
+        IL_mem_satisfies IL_ReadWord IL_WriteWord.
+
+      Section with_facts.
+        Variable facts : Facts Prover.
+        Hypothesis Valid_facts : Valid PC uvars vars facts.
+
+        Lemma sym_evalRval_correct : forall rv ss res stn_st rvD cs,
+          stateD cs stn_st ss ->
+          sym_rvalueD rv = Some rvD ->
+          sym_evalRval facts rv ss = Some res ->
+          exists val,
+            evalRvalue (fst stn_st) (snd stn_st) rvD = Some val /\
+            exprD funcs uvars vars res tvWord = Some val.
+        Proof.
+          destruct rv; unfold stateD; t_correct; try congruence;
+            try solve [
+              destruct ss; destruct SymRegs0; destruct p; intuition; t_correct; eauto ].
+
+            destruct s; t_correct; destruct ss; destruct SymRegs0; destruct p; intuition; t_correct; eauto.
+            t_correct;
+            match goal with
+              | [ H : MEVAL.smemeval_read_word _ _ _ _ _ = _ |- _ ] => 
+                eapply (MEVAL.ReadCorrect meval_correct) in H; eauto; t_correct
+            end; eauto.
+            eapply sym_evalLoc_correct with (cs := cs); eauto. instantiate (1 := (s0, s1)). t_correct.
+            reflexivity.
+            congruence.
+        Qed.
+          
+        Lemma sym_evalLval_correct : forall lv stn_st lvD cs val ss ss' valD,
+          stateD cs stn_st ss ->
+          sym_lvalueD lv = Some lvD ->
+          sym_evalLval facts lv val ss = Some ss' ->
+          exprD funcs uvars vars val tvWord = Some valD ->
+          exists st', 
+            evalLvalue (fst stn_st) (snd stn_st) lvD valD = Some st' /\
+            stateD cs (fst stn_st, st') ss'.
+        Proof.
+          destruct lv.
+            destruct ss; destruct SymRegs0; destruct p;
+            t_correct; eexists; repeat (split; try reflexivity; eauto);
+            try solve [ repeat rewrite sepFormula_eq in *; unfold sepFormula_def in *; simpl in *; auto ].
+
+            t_correct.
+            eapply sym_evalLoc_correct with (stn_st := (s0, s1)) in H0; simpl in *; eauto.
+            match goal with
+              | [ H : MEVAL.smemeval_write_word _ _ _ _ _ _ = _ |- _ ] => 
+                eapply (MEVAL.WriteCorrect meval_correct) with (cs := cs) (stn_m := (s0,s1)) in H; eauto
+            end.
+            Focus 2. destruct ss; simpl in *; t_correct. destruct SymRegs0; destruct p; intuition.
+
+            destruct (WriteWord s0 (Mem s1) (evalLoc s1 l) valD); intuition; try contradiction.
+            eexists; split ; [ reflexivity | ].
+            destruct ss; destruct SymRegs0; destruct p; simpl in *. intuition eauto.
+        Qed.
+
+        Lemma sym_evalInstr_correct : forall instr stn_st instrD cs ss ss',
+          stateD cs stn_st ss ->
+          sym_instrD instr = Some instrD ->
+          sym_evalInstr facts instr ss = Some ss' ->
+          exists st',
+            evalInstr (fst stn_st) (snd stn_st) instrD = Some st' /\
+            stateD cs (fst stn_st, st') ss'.
+        Proof.
+          Opaque stateD.
+          destruct instr; t_correct; simpl.
+          eapply sym_evalRval_correct in H1; eauto; simpl in *.
+          destruct H1. intuition.
+          eapply sym_evalLval_correct in H2; eauto; simpl in *.
+          destruct H2. intuition. t_correct; eauto.
+
+          repeat match goal with
+                   | [ H : exists x, _ |- _ ] => destruct H
+                   | [ H : _ /\ _ |- _ ] => destruct H
+                   | [ H : sym_rvalueD _ = _ |- _ ] =>
+                     eapply sym_evalRval_correct in H; eauto
+                 end.
+          
+          destruct b; eapply sym_evalLval_correct in H3; eauto; t_correct; eauto.
+        Qed.
+
+        Lemma sym_evalInstrs_correct : forall is stn_st isD cs ss,
+          stateD cs stn_st ss ->
+          sym_instrsD is = Some isD ->
+          match evalInstrs (fst stn_st) (snd stn_st) isD with
+            | Some st' => 
+              match sym_evalInstrs facts is ss with
+                | inl ss' => stateD cs (fst stn_st, st') ss'
+                | inr (ss', is') => 
+                  match sym_instrsD is' with
+                    | None => False
+                    | Some is'D => 
+                      exists st'', stateD cs (fst stn_st, st'') ss' /\
+                        evalInstrs (fst stn_st) st'' is'D = Some st'
+                  end
+              end
+            | None => 
+              match sym_evalInstrs facts is ss with
+                | inl ss' => False
+                | inr (ss', is') => 
+                  match sym_instrsD is' with
+                    | None => False
+                    | Some is'D => 
+                      exists st'', stateD cs (fst stn_st, st'') ss' /\
+                        evalInstrs (fst stn_st) st'' is'D = None
+                  end
+              end
+          end.
+        Proof.
+          induction is; simpl; intros;
+            repeat match goal with
+                     | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                   end; simpl.
+          destruct stn_st; simpl in *; eauto.
+
+          Opaque stateD.
+          t_correct.
+          simpl in *.
+          case_eq (evalInstr s s0 i); intros.
+          Focus 2.
+          case_eq (sym_evalInstr facts a ss); intros.
+          exfalso. eapply sym_evalInstr_correct in H3; eauto.
+          destruct H3; simpl in *; intuition congruence.
+          simpl; t_correct.
+          exists s0. simpl. rewrite H2. intuition.
+
+          case_eq (sym_evalInstr facts a ss); intros.
+          eapply sym_evalInstr_correct in H3; eauto. simpl in *.
+          destruct H3. intuition. clear H.
+          
+          rewrite H2 in H4; inversion H4; clear H4; subst.
+
+          eapply IHis in H1; eauto; simpl in *; eauto.
+
+
+          simpl; t_correct. case_eq (evalInstrs s s1 l); intros.
+          eexists s0. t_correct; intuition.
+          eexists s0. t_correct; intuition.
+          Transparent stateD.
+        Qed.
+
+        Lemma sym_assertTest_correct : forall cs r rD t l lD ss stn_st,
+          stateD cs stn_st ss ->
+          sym_rvalueD r = Some rD ->
+          sym_rvalueD l = Some lD ->
+          forall res, 
+          match Structured.evalCond rD t lD (fst stn_st) (snd stn_st) with
+            | None =>
+              match sym_assertTest facts r t l ss res with
+                | Some _ => False
+                | None => True
+              end
+            | Some res' =>
+              match sym_assertTest facts r t l ss res with
+                | Some b => 
+                  Provable funcs uvars vars b
+                | None => True
+              end
+          end.
+        Proof.
+          destruct res.
+          unfold sym_assertTest; intros;
+            repeat match goal with
+                     | [ |- context [ sym_evalRval ?F ?X ?Y ] ] =>
+                       case_eq (sym_evalRval F X Y); intros
+                     | [ |- match ?X with 
+                              | None => True
+                              | Some _ => True
+                            end ] => destruct X; trivial
+                   end.
+(*
+          | 
+          intros. 
+           match goal with
+                           | [ H : exists x, _ |- _ ] => destruct H
+                           | [ H : _ /\ _ |- _ ] => destruct H
+                           | [ H : sym_rvalueD _ = _ |- _ ] =>
+                             eapply sym_evalRval_correct in H; eauto
+                         end.
+                         *)
+        Admitted.
+      End with_facts.
+    End Correctness.
+  End SymEvaluation.
+End Denotations.
+
+
+(** Unfortunately, most things can change while evaluating a stream,
+ ** so we have to move it outside the sections
+ **)
+Section stream_correctness.
   Variable types' : list type.
+  Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
   Local Notation "'pcT'" := (tvType 0).
   Local Notation "'tvWord'" := (tvType 0).
@@ -436,40 +647,117 @@ Section evaluator.
   Local Notation "'tvTest'" := (tvType 3).
   Local Notation "'tvReg'" := (tvType 4).
 
-  Local Notation "'TYPES'" := (Env.repr bedrock_types_r types').
+  Variable funcs' : functions TYPES.
+  Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
+  Variable sfuncs : SEP.sfunctions TYPES pcT stT.
 
-  Variable mem_eval : MEVAL.MemEvaluator TYPES pcT stT.
+  Variable meval : MEVAL.MemEvaluator TYPES pcT stT.
+  Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs sfuncs tvWord tvWord 
+    (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types').
 
-  Definition IL_stn_st : Type := (IL.settings * IL.state)%type.
+  Variable Prover : ProverT TYPES.
+  Variable PC : ProverT_correct Prover funcs.
 
-  Definition IL_mem_satisfies (cs : PropX.codeSpec (tvarD TYPES pcT) (tvarD TYPES stT)) 
-    (P : ST.hprop (tvarD TYPES pcT) (tvarD TYPES stT) nil) (stn_st : IL_stn_st) : Prop :=
-    PropX.interp cs (SepIL.SepFormula.sepFormula P stn_st).
-      
-  Definition IL_ReadWord : IL_stn_st -> tvarD TYPES tvWord -> option (tvarD TYPES tvWord) :=
-    (fun stn_st => IL.ReadWord (fst stn_st) (Mem (snd stn_st))).
-  Definition IL_WriteWord : IL_stn_st -> tvarD TYPES tvWord -> tvarD TYPES tvWord -> option IL_stn_st :=
-    (fun stn_st p v => 
-      let (stn,st) := stn_st in
-      match IL.WriteWord stn (Mem st) p v with
-        | None => None
-        | Some m => Some (stn, {| Regs := Regs st ; Mem := m |})
-      end).
+  Variable learnHook : MEVAL.LearnHook TYPES (SymState TYPES pcT stT).
+  Variable learn_correct : @MEVAL.LearnHook_correct _ pcT stT _ learnHook (@stateD _ funcs sfuncs) funcs sfuncs.
 
-  Theorem sym_eval_any :     
-    forall (funcs : functions TYPES) (sfuncs : SEP.sfunctions TYPES _ _),
-    forall E, @MEVAL.MemEvaluator_correct TYPES _ _ E funcs sfuncs _ _ _ IL_mem_satisfies IL_ReadWord IL_WriteWord ->
-    forall P, ProverT_correct P funcs ->
-    forall L, @MEVAL.LearnHook_correct TYPES pcT stT (SymState TYPES pcT stT) L (@stateD types' funcs sfuncs) funcs sfuncs ->
-    forall stn uvars vars sound_or_safe st p,
-      istreamD funcs uvars vars p stn st sound_or_safe ->
+(*
+  Ltac t_correct := 
+    simpl; intros;
+      unfold IL_stn_st, IL_mem_satisfies, IL_ReadWord, IL_WriteWord in *;
+        repeat (simpl in *; 
+          match goal with
+            | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+            | [ H : prod _ _ |- _ ] => destruct H
+            | [ H : match ?X with 
+                      | Some _ => _
+                      | None => _ 
+                    end |- _ ] =>
+            revert H; case_eq X; intros; try contradiction
+            | [ H : match ?X with 
+                      | Some _ => _
+                      | None => _ 
+                    end = _ |- _ ] =>
+            revert H; case_eq X; intros; try congruence
+            | [ H : _ = _ |- _ ] => rewrite H
+            | [ H : reg |- _ ] => destruct H
+          end; intuition); subst.
+
+
+  Lemma sym_evalStream_correct : forall sound_or_safe path stn uvars vars st,
+    istreamD funcs uvars vars path stn st sound_or_safe ->
+    forall cs ss,
+      stateD funcs sfuncs uvars vars cs (stn,st) ss ->
+      forall facts, 
+        Valid PC uvars vars facts ->
+        let res := sym_evalStream Prover meval learnHook facts path ss in
+          match sound_or_safe with
+            | None =>
+                  (** safe **)
+              match res with
+                | inl None => True
+                | inl (Some _) => False
+                | inr (ss'', is') => 
+                  exists st'' : state, 
+                    SEP.forallEach (SymVars ss'') (fun vars =>
+                      SEP.existsEach 
+                    istreamD funcs (SymUVars ss'') vars is' stn st'' None
+                    /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
+              end
+            | Some st' =>
+                  (** correct **)
+              match res with
+                | inl None => False                
+                | inl (Some ss') => stateD funcs sfuncs uvars vars cs (stn, st') ss'
+                | inr (ss'', is') => 
+                  exists st'' : state, 
+                    istreamD funcs uvars vars is' stn st'' (Some st')
+                    /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
+              end
+          end.
+  Proof.
+    Opaque stateD.
+    induction path; simpl; intros;
+      repeat match goal with
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+             end; subst; eauto.
+    t_correct. destruct a; t_correct.
+        Focus.
+          eapply sym_evalInstrs_correct in H; eauto. simpl in *.
+          rewrite H4 in *.
+          revert H; case_eq (sym_evalInstrs Prover meval facts l ss); intros.
+          specialize (IHpath _ _ H5 _ _ H2 _ H1); eauto.
+          destruct p. simpl. destruct (sym_instrsD l1); try congruence.
+          destruct H2. destruct sound_or_safe; intuition eauto. contradiction.
+
+        Focus.
+          eapply sym_evalInstrs_correct in H; eauto; simpl in *.
+          rewrite H3 in *.
+          destruct (sym_evalInstrs facts l ss); try contradiction.
+          destruct p. simpl. destruct (sym_instrsD l1); try contradiction.
+          destruct H; intuition; destruct sound_or_safe; eauto.
+
+        Focus.
+          destruct s. revert H.
+          case_eq (sym_rvalueD s); case_eq (sym_rvalueD s0); intros; try contradiction.
+          destruct o.
+          generalize (sym_assertTest_correct facts _ _ t _ _ _ H0 H2 H b).
+          simpl. destruct H3. rewrite H3.
+          case_eq (sym_assertTest facts s t s0 ss b); intros.
+          eapply IHpath; eauto.
+          
+          destruct 
+      Admitted.
+*)
+
+  Lemma sym_eval_any :     
+    forall uvars vars sound_or_safe path stn st,
+      istreamD funcs uvars vars path stn st sound_or_safe ->
       forall cs ss,
-      stateD funcs sfuncs uvars vars cs (stn, st) ss ->
-      let facts := Summarize P (match SymMem ss with
-                                  | None => SymPures ss
-                                  | Some m => pures m
-                                end) in
-      let res := @sym_evalStream _ P (MEVAL.smemeval_read_word E P) (MEVAL.smemeval_write_word E P) L p facts ss in
+      stateD funcs sfuncs uvars vars cs (stn,st) ss ->
+      forall facts, 
+        Valid PC uvars vars facts ->
+      let res := @sym_evalStream _ Prover meval learnHook facts path ss in
       match sound_or_safe with
         | None =>
             (** safe **)
@@ -492,111 +780,146 @@ Section evaluator.
                   /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
             end
         end.
-    Proof.
+  Proof.
+    revert learn_correct; revert PC; revert meval_correct. (* NOTE: I have to do this to prevent coq from removing them *)
+      admit.
 (*
-        repeat match goal with
-                 | [ H : match ?X with
-                           | inl _ => _
-                           | inr _ => _
-                         end |- _ ] => revert H; case_eq X; intros; subst
-                 | [ H : match ?X with
-                           | Some _ => _
-                           | None => _
-                         end |- _ ] => revert H; case_eq X; intros; subst
-                 | [ |- match match ?X with 
-                                | Some _ => _ 
-                                | None => _ 
-                              end with
-                          | inl _ => _
-                          | inr _ => _
-                        end ] => destruct X
-                 | [ |- match ?X with
-                          | Some _ => _
-                          | None => _
-                        end ] => destruct X
-                 | [ |- match ?X with
-                          | inl _ => _
-                          | inr _ => _
-                        end ] => destruct X
-                 | [ |- match ?X with 
-                          | (_,_) => _
-                        end ] => destruct X
-               end; auto.
+      induction path; simpl; intros;
+        repeat (congruence || 
+          match goal with
+            | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+            | [ H : prod _ _ |- _ ] => destruct H
+            | [ H : SymRegType _ |- _ ] => destruct H
+            | [ H : match ?S with
+                      | {| SymMem := _ |} => _
+                    end |- _ ] => destruct S
+
+            | [ H : match ?X with
+                      | inl _ => _
+                      | inr _ => _
+                    end |- _ ] => revert H; case_eq X; intros; subst
+            | [ H : match ?X with
+                      | Some _ => _
+                      | None => _
+                    end |- _ ] => revert H; case_eq X; intros; subst
+          end || intuition).
+      
+      revert PC; revert learn_correct.
+      Focus 9.
 *)
-    Admitted.
+  Qed.
 
-    Lemma goto_proof : forall (specs : codeSpec W (settings * state)) CPTR CPTR' x4,
-      specs CPTR = Some (fun x : settings * state => x4 x) ->
-      CPTR = CPTR' ->
-      forall (stn_st : settings * state) Z,
-        interp specs (Z ---> x4 stn_st) ->
-        interp specs Z ->
-        exists pre' : spec W (settings * state),
-          specs CPTR' = Some pre' /\ interp specs (pre' stn_st).
-    Proof.
-      clear; intros; subst.
-      eexists. split. eassumption. eapply Imply_E. eapply H1. auto.
-    Qed.
+  Theorem Apply_sym_eval : forall stn uvars vars sound_or_safe st path,
+    istreamD funcs uvars vars path stn st sound_or_safe ->
+    forall cs ss,
+      stateD funcs sfuncs uvars vars cs (stn,st) ss ->
+      let facts := Summarize Prover (match SymMem ss with
+                                       | None => SymPures ss
+                                       | Some m => pures m ++ SymPures ss
+                                     end) in
+      let res := @sym_evalStream _ Prover meval learnHook facts path ss in
+      match sound_or_safe with
+        | None =>
+            (** safe **)
+            match res with
+              | inl None => True
+              | inl (Some _) => False
+              | inr (ss'', is') => 
+                exists st'' : state, 
+                  istreamD funcs uvars vars is' stn st'' None
+                  /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
+            end
+          | Some st' =>
+            (** correct **)
+            match res with
+              | inl None => False                
+              | inl (Some ss') => stateD funcs sfuncs uvars vars cs (stn, st') ss'
+              | inr (ss'', is') => 
+                exists st'' : state, 
+                  istreamD funcs uvars vars is' stn st'' (Some st')
+                  /\ stateD funcs sfuncs uvars vars cs (stn, st'') ss''
+            end
+        end.
+  Proof.
+    intros; eapply sym_eval_any; eauto.
+    unfold facts. destruct PC. simpl. eapply Summarize_correct.
+    revert H0; clear.
+    destruct ss; destruct SymRegs0; destruct p; simpl; clear; intuition.
+    destruct SymMem0; auto.
+    eapply AllProvable_app; eauto.
+    
+    generalize SEP.sheapD_pures. unfold ST.satisfies.
+    intro XX.
+    rewrite sepFormula_eq in H0. unfold sepFormula_def in *.
+    simpl in *.
+    specialize (XX _ (repr (bedrock_funcs_r types') funcs) (tvType 0) (tvType 1)); eauto. 
+  Qed.
 
-    Theorem stateD_proof_no_heap :
-        forall (funcs : Expr.functions TYPES) (P : ProverT TYPES)
-          (PC : ProverT_correct P funcs),
-          forall (uvars vars : Expr.env TYPES)
-            (sfuncs : SEP.sfunctions TYPES pcT stT) 
-            (st : state) (sp rv rp : Expr.expr TYPES),
-            exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-            exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-            exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-            forall pures : list (Expr.expr TYPES),
-              Expr.AllProvable funcs uvars vars pures ->
-              forall (cs : codeSpec W (settings * state)) (stn : settings),
-                stateD funcs sfuncs uvars vars cs (stn, st)
-                {| SymVars := map (@projT1 _ _) vars
-                  ; SymUVars := map (@projT1 _ _) uvars
-                  ; SymMem := None
-                  ; SymRegs := (sp, rp, rv)
-                  ; SymPures := pures
-                |}.
-    Proof.
-      unfold stateD. intros.
-      repeat match goal with
-               | [ H : _ = _ |- _ ] => rewrite H
-             end.
-      intuition auto. 
-    Qed.
+  Lemma goto_proof : forall (specs : codeSpec W (settings * state)) CPTR CPTR' x4,
+    specs CPTR = Some (fun x : settings * state => x4 x) ->
+    CPTR = CPTR' ->
+    forall (stn_st : settings * state) Z,
+      interp specs (Z ---> x4 stn_st) ->
+      interp specs Z ->
+      exists pre' : spec W (settings * state),
+        specs CPTR' = Some pre' /\ interp specs (pre' stn_st).
+  Proof.
+    clear; intros; subst.
+    eexists. split. eassumption. eapply Imply_E. eapply H1. auto.
+  Qed.
 
-    Theorem stateD_proof :
-      forall (funcs : Expr.functions TYPES) (P : ProverT TYPES)
-        (PC : ProverT_correct P funcs),
-        forall (uvars vars : Expr.env TYPES)
-          (sfuncs : SEP.sfunctions TYPES pcT stT) 
-          (st : state) (sp rv rp : Expr.expr TYPES),
-          exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-          exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-          exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-          forall pures : list (Expr.expr TYPES),
-            Expr.AllProvable funcs uvars vars pures ->
-            forall (sh : SEP.sexpr TYPES pcT stT)
-              (hashed : SEP.SHeap TYPES pcT stT),
-              SEP.hash sh = (nil, hashed) ->
-              forall (cs : codeSpec W (settings * state)) (stn : settings),
-                interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-                stateD funcs sfuncs uvars vars cs (stn, st)
-                {| SymVars := map (@projT1 _ _) vars
-                 ; SymUVars := map (@projT1 _ _) uvars
-                 ; SymMem := Some hashed
-                 ; SymRegs := (sp, rp, rv)
-                 ; SymPures := pures
-                 |}.
-    Proof.
-      unfold stateD. intros.
-      repeat match goal with
-               | [ H : _ = _ |- _ ] => rewrite H
-             end.
-      intuition auto.
-      eapply hash_interp; eauto.
-    Qed.
-  End evaluator.
+  Theorem stateD_proof_no_heap :
+    forall (uvars vars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
+      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+      forall pures : list (Expr.expr TYPES),
+        Expr.AllProvable funcs uvars vars pures ->
+        forall (cs : codeSpec W (settings * state)) (stn : settings),
+          stateD funcs' sfuncs uvars vars cs (stn, st)
+          {| SymVars := map (@projT1 _ _) vars
+            ; SymUVars := map (@projT1 _ _) uvars
+            ; SymMem := None
+            ; SymRegs := (sp, rp, rv)
+            ; SymPures := pures
+          |}.
+  Proof.
+    unfold stateD. intros.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end.
+    intuition auto.
+  Qed.
+
+  Theorem stateD_proof :
+    forall (uvars vars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
+      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+      forall pures : list (Expr.expr TYPES),
+        Expr.AllProvable funcs uvars vars pures ->
+        forall (sh : SEP.sexpr TYPES pcT stT)
+          (hashed : SEP.SHeap TYPES pcT stT),
+          SEP.hash sh = (nil, hashed) ->
+          forall (cs : codeSpec W (settings * state)) (stn : settings),
+            interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+            stateD funcs' sfuncs uvars vars cs (stn, st)
+            {| SymVars := map (@projT1 _ _) vars
+              ; SymUVars := map (@projT1 _ _) uvars
+              ; SymMem := Some hashed
+              ; SymRegs := (sp, rp, rv)
+              ; SymPures := pures
+            |}.
+  Proof.
+    unfold stateD. intros.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end.
+    intuition auto.
+    generalize (SEP.hash_denote funcs sfuncs cs sh). rewrite H3. simpl in *.
+    intro XX. rewrite <- XX. eauto.
+  Qed.
+End stream_correctness.
 
 (** Reflection **)
 
@@ -718,7 +1041,7 @@ Ltac open_stateD H0 :=
       nth_error map value
       f_equal
 
-      Expr.AllProvable Expr.AllProvable_gen Expr.Provable Expr.tvarD comparator
+      Expr.AllProvable Expr.Provable Expr.tvarD comparator
     ] in H0; 
     let a := fresh in 
     let b := fresh in
@@ -818,23 +1141,14 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
       let typesV := fresh "types" in
       pose (typesV := types_) ;
       let v := constr:(nil : env typesV) in
-      let f := constr:(nil : functions typesV) in
+      let f := eval unfold ILEnv.bedrock_funcs in (ILEnv.bedrock_funcs typesV) in
       build_path typesV i st v v f ltac:(fun uvars funcs is sf pf =>
-        assert (@istreamD typesV funcs uvars v is stn st sf) by (exact pf))
+        assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf))
   end.
+  solve [ trivial ].
 Abort.
 
-(** TODO:
- ** - To avoid reflecting for each basic block, I need to gather all the
- **   hypotheses and information that will go into the term at the beginning
- ** - The "algorithm" is:
- **   1) reflect everything!
- **   2) forward unfolding
- **   3) symbolic evaluation
- **   4) backward unfolding
- **   5) cancelation
- ** - steps 2-4 are repeated for each basic block that we evaluate
- ** NOTE:
+(** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]
  ** - [prover] is an ltac with "type" (assuming [PR] is the prover to use)
  **     [forall ts (fs : functions ts), ProverT_correct ts PR fs]. 
@@ -911,7 +1225,7 @@ Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
     end
   in
   match stn_st_SF with
-    | tt => idtac
+    | tt => idtac (* nothing to symbolically evluate *)
     | ((?stn, ?st), ?SF) =>
       match find_reg st Rp with
         | (?rp_v, ?rp_pf) =>
@@ -998,12 +1312,12 @@ Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
                           let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
                           let unfolderCV := fresh "unfolder" in
                           pose (unfolderCV := unfolderC) ;
-                          generalize (@stateD_proof_no_heap typesV funcsV _ proverCV
-                            uvars vars sfuncsV st sp_v rv_v rp_v 
+                          generalize (@stateD_proof_no_heap typesV funcsV sfuncsV
+                            uvars vars st sp_v rv_v rp_v 
                             sp_pf rv_pf rp_pf pures proofs cs stn) ;
                           let H_stateD := fresh in
                           intro H_stateD ;
-                          (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                          (apply (@Apply_sym_eval typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                               stn uvars vars fin_state st is is_pf) in H_stateD ;
                            let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
                            finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
@@ -1035,10 +1349,10 @@ Ltac sym_eval isConst prover plugin unfolder simplifier Ts Fs SFs :=
                             let unfolderC := unfolder typesV pcT stT funcsV sfuncsV in
                             let unfolderCV := fresh "unfolder" in
                             pose (unfolderCV := unfolderC) ;
-                            apply (@stateD_proof typesV funcsV _ proverCV
-                              uvars vars sfuncsV _ sp_v rv_v rp_v 
+                            apply (@stateD_proof typesV funcsV sfuncsV (* _ proverCV *)
+                              uvars vars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
-                            (apply (@sym_eval_any typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
+                            (apply (@Apply_sym_eval typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                               stn uvars vars fin_state st is is_pf) in H_interp ;
                              let syms := constr:((plugin_syms, (typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV))))))) in
                              finish H_interp syms) || (*fail 100000 "couldn't apply sym_eval_any! (SF case)" || *)
@@ -1133,24 +1447,12 @@ Implicit Arguments istreamD [ types' ].
 Module Demo.
   Require Provers.
 
-  Definition defaultLearnHook types : MEVAL.LearnHook (repr bedrock_types_r types) 
-    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
-    fun _ x _ => x.
-
-  Theorem defaultLearnHook_correct types funcs preds 
-    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@defaultLearnHook _) 
-      (@stateD _ funcs preds) funcs preds.
-  Proof.
-    econstructor. unfold defaultLearnHook. intros; subst; auto.
-  Qed.
-
-  Ltac default_unfolder H :=
-    match H with
-      | tt => 
-        cbv delta [ defaultLearnHook ]
-      | _ => 
-        cbv delta [ defaultLearnHook ] in H
-    end.
+  Ltac simplifier H :=
+    Provers.unfold_reflexivityProver H ;
+    MEVAL.Default.unfolder H ;
+    cbv delta [ 
+      MEVAL.LearnHook_default
+    ] in H; sym_evaluator H.
   
   Definition demo_evaluator ts (fs : functions (repr bedrock_types_r ts)) ps := 
     @MEVAL.Default.MemEvaluator_default_correct _ (tvType 0) (tvType 1) fs ps (settings * state) (tvType 0) (tvType 0) 
@@ -1168,9 +1470,8 @@ Module Demo.
     Time sym_eval ltac:(isConst) 
       ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
       ltac:(fun ts pc st fs ps k => let res := constr:(@demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
-      ltac:(fun ts pc st fs ps => constr:(@defaultLearnHook_correct ts fs ps)) (* unfolder *)
-      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; default_unfolder H ; sym_evaluator H)
-      tt tt tt.
+      ltac:(fun ts pc st fs ps => constr:(@MEVAL.LearnHook_default_correct ts pc st (@SymState ts pc st) (@stateD ts fs ps) fs ps)) (* unfolder *)
+      simplifier tt tt tt.
     congruence.
   Qed.
 End Demo.
@@ -1303,8 +1604,7 @@ Module UnfolderLearnHook.
     congruence.
   Qed.
 
-
-End UnfolderLearnHook.  
+End UnfolderLearnHook.
 
 Module PluginEvaluator.
   

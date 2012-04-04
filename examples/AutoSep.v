@@ -76,7 +76,7 @@ Ltac the_cancel_simplifier :=
       Expr.well_typed 
       Expr.all2
 
-      ILTac.SEP.forallEach
+      Expr.forallEach
       ILTac.SEP.sheapD ILTac.SEP.sexprD
       ILTac.SEP.starred ILTac.SEP.himp
       Expr.Impl Expr.Impl_
