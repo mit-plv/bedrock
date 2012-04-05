@@ -4,6 +4,7 @@ Require Import Heaps Reflect.
 Require Import Expr ExprUnify.
 Require Import SepExpr.
 Require Import Prover.
+Require Import Env.
 
 Set Implicit Arguments.
 
@@ -322,15 +323,14 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
   (** Package hints together with their environment/parameters. *)
   Record hints := {
-    Types : list type;
-    Functions : functions Types;
+    Types : Repr type;
+    Functions : forall ts, Repr (signature (repr Types ts));
     PcType : tvar;
     StateType : tvar;
-    SFunctions : sfunctions Types PcType StateType;
-    Hints : hintsPayload Types PcType StateType;
-    HintsOk : hintsSoundness Functions SFunctions Hints
+    SFunctions : forall ts, Repr (ssignature (repr Types ts) PcType StateType);
+    Hints : forall ts, hintsPayload (repr Types ts) PcType StateType;
+    HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (SFunctions ts) ps) (Hints ts)
   }.
-
 
   (** * Reflecting hints *)
 
@@ -384,20 +384,20 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac reify_hint' pcType stateType isConst P types funcs sfuncs vars k :=
     match P with
       | fun x => @?H x -> @?P x =>
-        reify_expr isConst H types funcs (@nil type) vars ltac:(fun funcs H =>
+        reify_expr isConst H types funcs (@nil tvar) vars ltac:(fun _ funcs H =>
           reify_hint' pcType stateType isConst P types funcs sfuncs vars ltac:(fun funcs sfuncs P =>
             let lem := eval simpl in (Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
               vars (H :: Hyps P) (Lhs P) (Rhs P)) in
             k funcs sfuncs lem))
       | fun x => forall cs, @ST.himp _ _ cs (@?L x) (@?R x) =>
-        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs L =>
-          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs R =>
+        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil tvar) vars ltac:(fun _uvars funcs sfuncs L =>
+          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil tvar) vars ltac:(fun _uvars funcs sfuncs R =>
             let lem := constr:(Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
               vars nil L R) in
             k funcs sfuncs lem))
       | fun x => _ (@?L x) (@?R x) =>
-        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs L =>
-          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil type) vars ltac:(fun uvars funcs sfuncs R =>
+        reify_sexpr isConst L types funcs pcType stateType sfuncs (@nil tvar) vars ltac:(fun _ funcs sfuncs L =>
+          reify_sexpr isConst R types funcs pcType stateType sfuncs (@nil tvar) vars ltac:(fun _ funcs sfuncs R =>
             let lem := constr:(Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
               vars nil L R) in
             k funcs sfuncs lem))
@@ -414,7 +414,7 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                      let P := eval simpl in (fun x : VarType (T' * T) =>
                        f (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
                      let T' := reflectType types T' in
-                       reify_hint pcType stateType isConst P types funcs sfuncs (T' :: vars) k
+                     reify_hint pcType stateType isConst P types funcs sfuncs (T' :: vars) k
                    | _ => fail 3
                  end
           | _ => fail 2
@@ -448,9 +448,12 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Ltac prove Ps :=
     match Ps with
       | tt => constructor
-      | (?P1, ?P2) => apply Forall_app; [ prove P1 | prove P2 ]
+      | (?P1, ?P2) => 
+           (apply Forall_app; [ prove P1 | prove P2 ])
+        || (constructor; [ exact P1 | prove P2 ])
       | _ => constructor; [ exact Ps | constructor ]
     end.
+
 
   (* Unfold definitions in a list of types *)
   Ltac unfoldTypes types :=
@@ -463,6 +466,106 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     end.
 
   (* Main entry point tactic, to generate a hint database *)
+Ltac lift_signature_over_repr s rp :=
+  let d := eval simpl Domain in (Domain s) in
+  let r := eval simpl Range in (Range s) in
+  let den := eval simpl Denotation in (Denotation s) in
+  constr:(fun ts' => @Sig (repr rp ts') d r den).
+
+Ltac lift_signatures_over_repr fs rp :=
+  match eval hnf in fs with
+    | nil => constr:(fun ts' => @nil (signature (repr rp ts')))
+    | ?f :: ?fs => 
+      let f := lift_signature_over_repr f rp in
+      let fs := lift_signatures_over_repr fs rp in
+      constr:(fun ts' => (f ts') :: (fs ts'))
+  end.
+
+Ltac lift_ssignature_over_repr s rp pc st :=
+  let d := eval simpl SDomain in (SDomain s) in
+  let den := eval simpl SDenotation in (SDenotation s) in
+  constr:(fun ts' => @SSig (repr rp ts') pc st d den).
+
+Ltac lift_ssignatures_over_repr fs rp pc st :=
+  match eval hnf in fs with
+    | nil => constr:(fun ts' => @nil (ssignature (repr rp ts') pc st))
+    | ?f :: ?fs => 
+      let f := lift_ssignature_over_repr f rp pc st in
+      let fs := lift_ssignatures_over_repr fs rp pc st in
+      constr:(fun ts' => (f ts') :: (fs ts'))
+  end.
+
+Ltac lift_expr_over_repr e rp :=
+  match eval hnf in e with
+    | @Expr.Const _ ?t ?v => constr:(fun ts => @Expr.Const (repr rp ts) t v)
+    | Expr.Var ?v => constr:(fun ts => @Expr.Var (repr rp ts) v)
+    | Expr.UVar ?v => constr:(fun ts => @Expr.UVar (repr rp ts) v)
+    | Expr.Func ?f ?args =>
+      let args := lift_exprs_over_repr args rp in
+      constr:(fun ts => @Expr.Func (repr rp ts) f (args ts))
+    | Expr.Equal ?t ?l ?r =>
+      let l := lift_expr_over_repr l rp in
+      let r := lift_expr_over_repr r rp in
+      constr:(fun ts => @Expr.Equal (repr rp ts) t (l ts) (r ts))
+  end
+with lift_exprs_over_repr es rp :=
+  match eval hnf in es with
+    | nil => constr:(fun ts => @nil (expr (repr rp ts)))
+    | ?e :: ?es =>
+      let e := lift_expr_over_repr e rp in
+      let es := lift_exprs_over_repr es rp in
+      constr:(fun ts => e ts :: es ts)
+  end.
+
+Ltac lift_sexpr_over_repr e rp pc st :=
+  match eval hnf in e with
+    | Emp => constr:(fun ts => @MkEmp (repr rp ts) pc st)
+    | Inj ?e => 
+      let e := lift_expr_over_repr e rp in
+      constr:(fun ts => @MkInj (repr rp ts) pc st (e ts))
+    | Star ?l ?r =>
+      let l := lift_sexpr_over_repr l rp pc st in
+      let r := lift_sexpr_over_repr r rp pc st in
+      constr:(fun ts => @MkStar (repr rp ts) pc st (l ts) (r ts))
+    | Exists ?t ?e =>
+      let e := lift_sexpr_over_repr e rp pc st in
+      constr:(fun ts => @MkExists (repr rp ts) pc st t (e ts))
+    | Func ?f ?args => 
+      let args := lift_exprs_over_repr args rp in
+      constr:(fun ts => @MkFunc (repr rp ts) pc st f (args ts))
+    | Const ?b => constr:(fun ts => @MkConst (repr rp ts) pc st b)
+  end.
+
+Ltac lift_lemma_over_repr lm rp pc st :=
+  match eval hnf in lm with
+    | {| Foralls := ?f
+       ; Hyps := ?h
+       ; Lhs := ?l
+       ; Rhs := ?r
+       |} => 
+    let h := lift_exprs_over_repr h rp in
+    let l := lift_sexpr_over_repr l rp pc st in
+    let r := lift_sexpr_over_repr r rp pc st in
+    constr:(fun ts => {| Foralls := f
+                       ; Hyps := h ts
+                       ; Lhs := l ts
+                       ; Rhs := r ts
+                       |})
+  end.
+Ltac lift_lemmas_over_repr lms rp pc st :=
+  match lms with
+    | nil => constr:(fun ts => @nil (lemma (repr rp ts) pc st))
+    | ?lml ++ ?lmr =>
+      let lml := lift_lemmas_over_repr lml rp pc st in
+      let lmr := lift_lemmas_over_repr lmr rp pc st in
+      constr:(fun ts => lml ts ++ lmr ts)
+    | ?lm :: ?lms =>
+      let lm := lift_lemma_over_repr lm rp pc st in
+      let lms := lift_lemmas_over_repr lms rp pc st in
+      constr:(fun ts => lm ts :: lms ts)
+  end.
+
+  
   Ltac prepareHints unfoldTac pcType stateType isConst types fwd bwd :=
     let types := unfoldTypes types in
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
@@ -471,17 +574,29 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
         let stateT := reflectType types stateType in
-          reify_hints unfoldTac pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
+          (reify_hints unfoldTac pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
             reify_hints unfoldTac pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
-              refine {| Types := types;
-                        PcType := pcT ; 
-                        StateType := stateT ;
-                        Functions := funcs;
-                        SFunctions := sfuncs;
-                        Hints := {| Forward := fwd';
-                          Backward := bwd' (*;
-                          Prover := prover types *) |};
-                        HintsOk := {| ForwardOk := _ |} |}; [ abstract prove fwd | abstract prove bwd ])))).
+            let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
+            let types_rV := fresh "types" in
+              (pose (types_rV := types_r) || fail 1000);
+            let funcs_r := lift_signatures_over_repr funcs types_rV in 
+            let funcs_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (funcs_r ts) (Default_signature (repr types_rV ts))) in
+            let funcs_rV := fresh "funcs" in
+            pose (funcs_rV := funcs_r) ;
+            let preds_r := lift_ssignatures_over_repr sfuncs types_rV pcT stateT in
+            let preds_rV := fresh "preds" in
+            let preds_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (preds_r ts) (Default_ssignature (repr types_rV ts) pcT stateT)) in
+            pose (preds_rV := preds_r) ;
+            let fwd' := lift_lemmas_over_repr fwd' types_rV pcT stateT in
+            let bwd' := lift_lemmas_over_repr bwd' types_rV pcT stateT in
+            refine ({| Types      := types_rV
+                     ; PcType     := pcT
+                     ; StateType  := stateT
+                     ; Functions  := funcs_rV
+                     ; SFunctions := preds_rV
+                     ; Hints      := fun ts => {| Forward := fwd' ts ; Backward := bwd' ts |}
+                     ; HintsOk    := fun ts fs ps => {| ForwardOk := _ ; BackwardOk := _ |}
+                     |}); [ abstract prove fwd | abstract prove bwd ]))))).
 
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
@@ -500,5 +615,83 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                     reify_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
                       apply (unfolderOk (Hints hs) funcs sfuncs bound P Q)))))
       end.
+(*
+  Module TESTS.
+    Section Tests.
+    Variables pc state : Type.
+
+    Variable f : nat -> ST.hprop pc state nil.
+    Variable h : bool -> unit -> ST.hprop pc state nil.
+    Variable g : bool -> nat -> nat -> nat.
+
+    Ltac isConst e :=
+      match e with
+        | true => true
+        | false => true
+        | O => true
+        | S ?e => isConst e
+        | _ => false
+      end.
+
+    Definition nat_type := {|
+      Impl := nat;
+      Eq := fun x y => match equiv_dec x y with
+                         | left pf => Some pf
+                         | _ => None 
+                       end
+      |}.
+
+    Definition bool_type := {|
+      Impl := bool;
+      Eq := fun x y => match equiv_dec x y with
+                         | left pf => Some pf
+                         | _ => None 
+                       end
+      |}.
+
+    Definition unit_type := {|
+      Impl := unit;
+      Eq := fun x y => match equiv_dec x y with
+                         | left pf => Some pf
+                         | _ => None 
+                       end
+      |}.
+
+    Definition types0 := nat_type :: bool_type :: unit_type :: nil.
+
+    Fixpoint assumptionProver (types : list type) (Hs : list (expr types)) (P : expr types) :=
+      match Hs with
+        | nil => false
+        | H :: Hs' => match expr_seq_dec H P with
+                        | Some _ => true
+                        | None => assumptionProver Hs' P
+                      end
+      end.
+
+    Hypothesis Hemp : forall cs, ST.himp cs (ST.emp pc state) (ST.emp pc state).
+    Hypothesis Hf : forall cs, ST.himp cs (f 0) (ST.emp _ _).
+    Hypothesis Hh : forall cs, ST.himp cs (h true tt) (ST.star (h true tt) (f 13)).
+
+    Hypothesis Hf0 : forall n cs, ST.himp cs (f n) (ST.emp _ _).
+    Hypothesis Hh0 : forall b u cs, ST.himp cs (h b u) (ST.star (h (negb b) tt) (f 13)).
+
+    Hypothesis Hf1 : forall n, n <> 0 -> forall cs, ST.himp cs (f n) (ST.emp _ _).
+    Hypothesis Hh1 : forall b u, b = false -> u <> tt -> forall cs, ST.himp cs (h b u) (ST.star (h b tt) (f 13)).
+
+
+    (** * Creating hint databases *)
+
+    Ltac prepare := prepareHints ltac:(fun x => x) pc state isConst types0.
+
+    Definition hints_emp : hints.
+      prepare (Hemp, Hf) (Hemp, Hf, Hh).
+    Defined.
+
+    Definition hints_tt : hints.
+      prepare tt tt.
+    Defined.
+    End Tests.
+  End TESTS.
+*)
 
 End Make.

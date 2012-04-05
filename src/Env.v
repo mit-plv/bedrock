@@ -147,6 +147,27 @@ Section MapRepr.
    ; default := d
    |}.
 
+  Definition listToRepr (ls : list T) (d : T) : Repr :=
+    {| footprint := 
+      ((fix listToRepr ls cur : list (nat * T) :=
+        match ls with
+          | nil => nil
+          | l :: ls => (cur, l) :: listToRepr ls (S cur)
+        end) ls 0) :: nil
+     ; default := d
+     |}.
+
+  Definition listOptToRepr (ls : list (option T)) (d : T) : Repr :=
+    {| footprint := 
+      ((fix listToRepr ls cur : list (nat * T) :=
+        match ls with
+          | nil => nil
+          | Some l :: ls => (cur, l) :: listToRepr ls (S cur)
+          | None :: ls => listToRepr ls (S cur)
+        end) ls 0) :: nil
+     ; default := d
+     |}.
+
   Fixpoint repr' (d : T) (ls : list (nat * T)) : list T -> list T :=
     match ls with 
       | nil => fun x => x
@@ -164,7 +185,7 @@ Section MapRepr.
           if Peano_dec.eq_nat_dec n n' then Some v else get ls
       end.
   End get.
-(*
+
   Fixpoint repr_compatible' (l r : list (nat * T)) : Prop :=
     match l with 
       | nil => True
@@ -181,7 +202,7 @@ Section MapRepr.
       (fold_right (@app _) nil (footprint l))
       (fold_right (@app _) nil (footprint r))
     /\ default l = default r.
-
+(*
   Fixpoint repr_combine' (l r : list (nat * T)) : list (nat * T) :=
     {| footprint := footprint l ++ footprint r
      ; default := default l

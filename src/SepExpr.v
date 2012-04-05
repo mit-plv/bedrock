@@ -17,7 +17,7 @@ Section SepExprTypes.
   Variable types : list type.
   Variable rtype : Type.
 
-  Record ssignature' := SSig {
+  Record ssignature' := SSig' {
     SDomain : list tvar ;
     SDenotation : functionTypeD (map (@tvarD types) SDomain) rtype
   }.
@@ -66,7 +66,10 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable pcType : tvar.
     Variable stateType : tvar.
 
-    Definition ssignature := ssignature' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+    Definition ssignature :=
+      ssignature' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+    Definition SSig := @SSig' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+
     Definition sfunctions := list ssignature.
 
     Definition Default_ssignature : ssignature :=
@@ -77,6 +80,13 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable sfuncs : sfunctions.
 
     Definition sexpr := sexpr' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+
+    Definition MkEmp : sexpr := Emp.
+    Definition MkInj i : sexpr := Inj i.
+    Definition MkStar l r : sexpr := Star l r.
+    Definition MkExists a b : sexpr := Exists a b.
+    Definition MkFunc a b : sexpr := Func a b.
+    Definition MkConst a : sexpr := Const a.
 
     Fixpoint sexprD (uvs vs : list { t : tvar & tvarD types t }) (s : sexpr)
       : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
@@ -945,7 +955,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           refl dom B 
         | _ =>
           let dom := eval simpl rev in (rev dom) in
-          constr:(@SSig types (ST.hprop (@tvarD types pcT) (@tvarD types stT) nil) dom f)
+          constr:(@SSig types pcT stT dom f)
       end
    in refl (@nil tvar) T.
 
@@ -962,12 +972,22 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           let F := reify_sfunction pcT stT types f in
           let sfuncs := eval simpl app in (sfuncs ++ (F :: nil)) in
           k sfuncs acc
-        | SSig _ _ _ ?F :: ?FS =>
-          match F with
-            | f => k sfuncs acc 
-            | _ => 
-              let acc := constr:(S acc) in
-              lookup FS acc
+        | ?F (*SSig _ _ _ ?F *) :: ?FS =>
+          match F with 
+            | @SSig _ _ _ _ ?F =>
+              match F with
+                | f => k sfuncs acc 
+                | _ => 
+                  let acc := constr:(S acc) in
+                  lookup FS acc
+              end
+            | @SSig' _ _ _ ?F =>
+              match F with
+                | f => k sfuncs acc 
+                | _ => 
+                  let acc := constr:(S acc) in
+                  lookup FS acc
+              end
           end
       end
     in lookup sfuncs 0.

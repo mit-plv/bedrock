@@ -140,6 +140,8 @@ Section env.
 
   Definition env : Type := list { t : tvar & tvarD t }.
 
+  Definition env_empty : env := nil.
+
   Definition lookupAs (ls : list { t : tvar & tvarD t }) (t : tvar) (i : nat)
     : option (tvarD t) :=
     match nth_error ls i with 
@@ -657,6 +659,29 @@ Ltac lift_signatures fs nt :=
   in
   map_tac (signature nt) f fs.
 
+
+
+
+Goal True.
+  refine (
+    let ts := {| Impl := nat ; Eq := fun _ _ => None |} :: nil in
+    let ts' := {| Impl := nat ; Eq := fun _ _ => None |} ::
+      {| Impl := bool ; Eq := fun _ _ => None |} :: nil in
+    let fs :=
+      {| Domain := tvType 0 :: tvType 0 :: nil
+       ; Range  := tvType 0
+       ; Denotation := plus : functionTypeD (map (tvarD ts) (tvType 0 :: tvType 0 :: nil))
+     (tvarD ts (tvType 0))
+      |} :: (@nil (signature ts)) in
+    _).
+  match goal with
+    | [ |- _ ] => 
+      let fs := eval unfold fs in fs in
+      let r := lift_signatures fs ts' in
+      pose (fs' := r)
+  end.
+Abort.      
+ 
 Ltac build_default_type T := 
   match goal with
     | [ |- _ ] => constr:(@Typ T (@seq_dec T _))

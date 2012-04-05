@@ -76,7 +76,7 @@ Module Make (B : Heap).
 
     (** * Creating hint databases *)
 
-    Ltac prepare := U.prepareHints pc state isConst types0 assumptionProver.
+    Ltac prepare := U.prepareHints ltac:(fun x => x) pc state isConst types0.
 
     Definition hints_tt : U.hints.
       prepare tt tt.
@@ -147,7 +147,7 @@ Module Make (B : Heap).
         ExprUnify.Subst Compare_dec.lt_dec Compare_dec.le_dec Foralls plus minus
         Compare_dec.le_gt_dec Compare_dec.le_lt_dec
         ExprUnify.Subst_replace SemiDec_expr expr_seq_dec
-        lookupAs projT1 projT2 Unfolder.allb andb Prover Hyps
+        lookupAs projT1 projT2 Unfolder.allb andb Hyps
         substExpr substSexpr tvar_val_sdec
 
         hs
