@@ -11,8 +11,6 @@ Module SUBST := NatMap.IntMap.
 Section typed.
   Variable types : list type.
 
-  Check fold_right.
-
   Fixpoint uvars_of (e : expr types) : list nat :=
     match e with
       | Const _ _ 

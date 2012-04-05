@@ -23,6 +23,23 @@ Global Instance EquivDec_SemiDec t (EQ : EqDec t (@eq t)) : SemiDec t :=
   end 
 }.
 
+Theorem SemiDec_EquivDec_refl_left : forall T (equ : EqDec T (@eq T)),
+  forall x, @seq_dec T (@EquivDec_SemiDec _ equ) x x = Some refl_equal.
+Proof.
+  intros; unfold seq_dec, EquivDec_SemiDec. rewrite EquivDec_refl_left. reflexivity.
+Qed.
+
+Global Instance EquivDec_bool : EqDec bool (@eq bool).
+red.
+refine (
+  fun a b =>
+    match a as a , b as b return {a === b} + {a =/= b} with
+      | true , true => left (refl_equal true)
+      | false , false => left (refl_equal false)
+      | _ , _ => right _
+    end); abstract congruence.
+Defined.
+
 Global Instance EquivDec_nat : EqDec nat (@eq nat) :=
   Peano_dec.eq_nat_dec.  
 

@@ -39,16 +39,7 @@ Record ProverT_correct (types : list type) (P : ProverT types) (funcs : function
 
 (** Generic lemmas/tactis to prove things about provers **)
 
-Lemma eq_nat_dec_correct : forall (n : nat), eq_nat_dec n n = left eq_refl.
-  induction n; provers.
-Qed.
-Hint Rewrite eq_nat_dec_correct : provers.
-
-Lemma nat_seq_dec_correct : forall (n : nat), seq_dec n n = Some eq_refl.
-  unfold seq_dec. provers.
-Qed.
-Hint Rewrite nat_seq_dec_correct : provers.
-
+Hint Rewrite EquivDec_refl_left SemiDec_EquivDec_refl_left : provers.
 
 (* Everything looks like a nail?  Try this hammer. *)
 Ltac t1 := match goal with
