@@ -110,7 +110,7 @@ Ltac evaluate hints :=
         SymIL.UnfolderLearnHook.unfolder_for (@SymIL.UnfolderLearnHook.UNF.hintsSoundness_default)
       | _ => 
         match type of hints with 
-          | forall ts pc st fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ _ _ => 
+          | forall ts (pc : Expr.tvar) (st : Expr.tvar) fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ => 
             SymIL.UnfolderLearnHook.unfolder_for hints
           | ?T => 
             fail 1000000 "bad hints passed to evaluate" hints "with type" T

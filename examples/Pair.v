@@ -51,10 +51,16 @@ Definition hints_pair : hints.
   prepare pair_fwd pair_bwd.
 Defined.
 
-Print hints_pair.
-
 Theorem pairOk : moduleOk pair.
   vcgen.
+  let v := eval simpl HintsOk in (fun ts (_ _ : Expr.tvar) fs ps => @HintsOk hints_pair ts fs ps) in
+(*    match type of v with
+      | forall ts (pc : Expr.tvar) (st : Expr.tvar) fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ => idtac "SUCCESS" 
+      | ?T => idtac T
+    end.
+*)  
+  sep v.
+  
 
   (* Stuck here: need to create a hint database in the fancy new form expected by [sep]. *)
   admit.
