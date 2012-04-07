@@ -203,7 +203,7 @@ Section MapRepr.
     end.
 
   Definition repr_combine (l r : Repr) : Repr :=
-    {| footprint := footprint l ++ footprint r
+    {| footprint := repr_optimize (footprint l ++ footprint r)
      ; default := default l
      |}.
   (** NOTE: that we don't have any lemmas for combination because we are

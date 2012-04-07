@@ -122,6 +122,11 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
      ; Backward := nil
      |}.
 
+    Definition composite_hintsPayload (l r : hintsPayload) : hintsPayload :=
+      {| Forward := Forward l ++ Forward r
+       ; Backward := Backward l ++ Backward r
+       |}.
+
     Record hintsSoundness (Payload : hintsPayload) : Prop := {
       ForwardOk : hintSideD (Forward Payload);
       BackwardOk : hintSideD (Backward Payload)
@@ -130,6 +135,13 @@ Module Make (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Theorem hintsSoundness_default : hintsSoundness default_hintsPayload.
     Proof.
       econstructor; constructor.
+    Qed.
+    
+    Require Provers. 
+    Theorem hintsSoundness_composite l r (L : hintsSoundness l) (R : hintsSoundness r) 
+      : hintsSoundness (composite_hintsPayload l r).
+    Proof.
+      econstructor; simpl; eapply Provers.Forall_app; solve [ eapply ForwardOk; auto | eapply BackwardOk; auto ].
     Qed.
 
     (** Applying up to a single hint to a hashed separation formula *)
