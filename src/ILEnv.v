@@ -9,49 +9,49 @@ Require Import Memory IL.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Definition bedrock_types_r : Repr Expr.type :=
-{| footprint := (
-   (0, {| Expr.Impl := W 
-        ; Expr.Eq := fun x y => 
-          match weq x y with
-            | left pf => Some pf 
-            | _ => None 
-          end
-        |}) ::
-   (1, {| Expr.Impl := settings * state
-        ; Expr.Eq := fun _ _ => None
-        |}) ::
-   (2, {| Expr.Impl := state
-        ; Expr.Eq := fun _ _ => None
-        |}) ::
-   (3, {| Expr.Impl := IL.test
-        ; Expr.Eq := fun l r => 
-          match l as l , r as r with
-            | IL.Eq , IL.Eq => Some (refl_equal _)
-            | IL.Ne , IL.Ne => Some (refl_equal _)
-            | IL.Le , IL.Le => Some (refl_equal _)
-            | IL.Lt , IL.Lt => Some (refl_equal _)
-            | _ , _ => None
-          end
-        |}) ::
-   (4, {| Expr.Impl := IL.reg
-        ; Expr.Eq := fun l r =>
-          match l as l , r as r with
-            | IL.Sp , IL.Sp => Some (refl_equal _)
-            | IL.Rp , IL.Rp => Some (refl_equal _)
-            | IL.Rv , IL.Rv => Some (refl_equal _)
-            | _ , _ => None
-          end
-        |}) :: nil) :: nil
- ; default := Expr.EmptySet_type
- |}.
+Definition test_seq l r : option (l = r) :=
+  match l as l , r as r with
+    | IL.Eq , IL.Eq => Some (refl_equal _)
+    | IL.Ne , IL.Ne => Some (refl_equal _)
+    | IL.Le , IL.Le => Some (refl_equal _)
+    | IL.Lt , IL.Lt => Some (refl_equal _)
+    | _ , _ => None
+  end.
+
+Definition reg_seq l r : option (l = r) :=
+  match l as l , r as r with
+    | IL.Sp , IL.Sp => Some (refl_equal _)
+    | IL.Rp , IL.Rp => Some (refl_equal _)
+    | IL.Rv , IL.Rv => Some (refl_equal _)
+    | _ , _ => None
+  end.
+
+Definition W_seq (l r : W) : option (l = r) :=
+  match weq l r with
+    | left pf => Some pf 
+    | _ => None 
+  end.
 
 Definition bedrock_types : list Expr.type :=
-  Eval cbv beta iota zeta delta 
-    [ repr repr' fold_right default footprint bedrock_types_r updateAt
-      hd hd_error value error tl
-    ]
-    in repr bedrock_types_r nil.
+  {| Expr.Impl := W 
+   ; Expr.Eq := W_seq
+   |} ::
+  {| Expr.Impl := settings * state
+   ; Expr.Eq := fun _ _ => None
+   |} ::
+  {| Expr.Impl := state
+   ; Expr.Eq := fun _ _ => None
+   |} ::
+  {| Expr.Impl := IL.test
+   ; Expr.Eq := test_seq
+   |} ::
+  {| Expr.Impl := IL.reg
+   ; Expr.Eq := reg_seq
+   |} :: nil.
+
+Definition bedrock_types_r : Repr Expr.type :=
+  Eval cbv beta iota zeta delta [ listToRepr bedrock_types ]
+    in (listToRepr bedrock_types Expr.EmptySet_type).
 
 Definition comparator (t : IL.test) (l r : W) : Prop :=
   match t with
@@ -72,27 +72,23 @@ Section typed_ext.
   Local Notation "'tvTest'" := (tvType 3).
   Local Notation "'tvReg'" := (tvType 4).
 
-  Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')).
+  Definition bedrock_funcs : functions (repr bedrock_types_r types').
   refine (
-    {| default := Default_signature _
-      ; footprint := (
-        (0, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (1, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (2, {| Domain := tvWord :: tvWord :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) ::
-        (3, {| Domain := tvTest :: tvWord :: tvWord :: nil
-          ; Range := tvProp
-          ; Denotation := _ |}) :: 
-        (4, {| Domain := tvState :: tvReg :: nil
-          ; Range := tvWord
-          ; Denotation := _ |}) :: nil) :: nil
-    |});
-  cbv beta iota zeta delta [ functionTypeD map ]; (repeat rewrite tvarD_repr_repr_get); simpl.
+    {| Domain := tvWord :: tvWord :: nil
+     ; Range := tvWord
+     ; Denotation := _ |} ::
+    {| Domain := tvWord :: tvWord :: nil
+     ; Range := tvWord
+     ; Denotation := _ |} ::
+    {| Domain := tvWord :: tvWord :: nil
+     ; Range := tvWord
+     ; Denotation := _ |} ::
+    {| Domain := tvTest :: tvWord :: tvWord :: nil
+     ; Range := tvProp
+     ; Denotation := _ |} :: 
+    {| Domain := tvState :: tvReg :: nil
+     ; Range := tvWord
+     ; Denotation := _ |} :: nil).
   refine (@wplus 32).
   refine (@wminus 32).
   refine (@wmult 32).
@@ -100,11 +96,9 @@ Section typed_ext.
   refine Regs.
   Defined.
 
-  Definition bedrock_funcs : functions (repr bedrock_types_r types') :=
-    Eval cbv beta iota zeta delta 
-      [ repr repr' default footprint fold_right bedrock_funcs_r updateAt hd_error error value
-        bedrock_types_r Default_signature tl hd ]
-      in repr bedrock_funcs_r nil.
+  Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')) :=
+    Eval cbv beta iota zeta delta [ listToRepr bedrock_funcs ]
+      in (listToRepr bedrock_funcs (Default_signature _)).
   
   Variable funcs' : functions TYPES.
   Definition funcs := repr bedrock_funcs_r funcs'.

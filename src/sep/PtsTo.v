@@ -16,14 +16,16 @@ Module BedrockPtsToEvaluator.
     Local Notation "'ptrT'" := (tvType 0).
 
     Definition ptsto32_types_r : Env.Repr Expr.type :=
-    {| Env.footprint := 
-       ((0, {| Impl := W 
-             ; Eq := seq_dec |}) ::
-        (1, {| Impl := IL.settings * IL.state
-             ; Eq := fun _ _ => None
-             |}) :: nil) :: nil
-     ; Env.default := EmptySet_type 
-     |}.
+      Eval cbv beta iota zeta delta [ Env.listToRepr ] 
+      in 
+      let lst := 
+        {| Impl := W 
+         ; Eq := seq_dec |} ::
+        {| Impl := IL.settings * IL.state
+         ; Eq := fun _ _ => None
+         |} :: nil
+      in
+      Env.listToRepr lst EmptySet_type.
 
     Section parametric.
       Variable types : list type.

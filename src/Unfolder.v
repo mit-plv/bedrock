@@ -584,6 +584,7 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
             let funcs_rV := fresh "funcs" in
             pose (funcs_rV := funcs_r) ;
             let preds_r := lift_ssignatures_over_repr sfuncs types_rV pcT stateT in
+            let preds_r := eval cbv beta delta [ SE.SSig ] in preds_r in
             let preds_rV := fresh "preds" in
             let preds_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (preds_r ts) (Default_ssignature (repr types_rV ts) pcT stateT)) in
             pose (preds_rV := preds_r) ;

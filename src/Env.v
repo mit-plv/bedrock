@@ -1,4 +1,5 @@
 Require Import List.
+Require Import Decidables.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -138,7 +139,7 @@ End UpdatePosition2.
 Section MapRepr.
   Variable T : Type.
   Record Repr : Type :=
-  { footprint : list (list (nat * T))
+  { footprint : list (nat * T)
   ; default : T 
   }.
 
@@ -153,7 +154,7 @@ Section MapRepr.
         match ls with
           | nil => nil
           | l :: ls => (cur, l) :: listToRepr ls (S cur)
-        end) ls 0) :: nil
+        end) ls 0)
      ; default := d
      |}.
 
@@ -164,7 +165,7 @@ Section MapRepr.
           | nil => nil
           | Some l :: ls => (cur, l) :: listToRepr ls (S cur)
           | None :: ls => listToRepr ls (S cur)
-        end) ls 0) :: nil
+        end) ls 0)
      ; default := d
      |}.
 
@@ -186,305 +187,30 @@ Section MapRepr.
       end.
   End get.
 
-  Fixpoint repr_compatible' (l r : list (nat * T)) : Prop :=
-    match l with 
-      | nil => True
-      | (n, v) :: l =>
-        v = match get n r with
-              | None => v 
-              | Some v' => v'
-            end
-        /\ repr_compatible' l r
-    end.
-
-  Definition repr_compatible (l r : Repr) : Prop :=
-    repr_compatible' 
-      (fold_right (@app _) nil (footprint l))
-      (fold_right (@app _) nil (footprint r))
-    /\ default l = default r.
-(*
-  Fixpoint repr_combine' (l r : list (nat * T)) : list (nat * T) :=
-    {| footprint := footprint l ++ footprint r
-     ; default := default l
-l ++ 
-    let l_img := List.map (@fst _ _) l in
-    List.filter (fun i => if In_dec (Peano_dec.eq_nat_dec) (fst i) l_img then true else false) r.
-
-  Fixpoint merge (l r : list (nat * T)) :=
-    match l with
-      | nil => r 
-      | (n, v) :: l =>
-        match get n r with
-          | None => (n, v) :: merge l r
-          | Some _ => merge l r 
-        end
-    end.
-*)
-
   Definition repr (l : Repr) : list T -> list T :=
-    fun v => fold_right (repr' (default l)) v (footprint l).
+    fun v => repr' (default l) (footprint l) v.
+
+
+
+  Fixpoint repr_optimize (l : list (nat * T)) : list (nat * T) :=
+    match l with
+      | nil => nil
+      | (n,t) :: b => 
+        if List.In_dec (equiv_dec) n (map fst b) then
+          repr_optimize b
+        else 
+          (n,t) :: repr_optimize b
+    end.
 
   Definition repr_combine (l r : Repr) : Repr :=
     {| footprint := footprint l ++ footprint r
      ; default := default l
      |}.
-(*
-  Lemma compatible_perm : forall (l r : Repr) x,
-    repr_compatible l r ->
-    repr (repr_combine l r) x = repr (repr_combine r l) x.
-  Proof.
-    destruct l; destruct r; unfold repr_compatible, repr_combine, repr; simpl.
-    induction footprint0. simpl. rewrite app_nil_r. intuition; subst; auto.
-    
-    simpl. intros.
-    destruct H.
-  Admitted.
-*)
+  (** NOTE: that we don't have any lemmas for combination because we are
+   ** relying on Ltac's dynamic types to do combinations
+   **)
 
   Definition repr_get (l : Repr) (n : nat) : option T :=
-    (fix find xs :=
-      match xs with
-        | nil => None
-        | x :: xs => match get n x with 
-                       | None => find xs
-                       | x => x
-                     end
-      end) (footprint l).
-(*
-  (** This is probably not necessary **)
-  Theorem repr_get_rw : forall r ls d n v,
-    get n r = Some v ->
-    nth_error (repr' d r ls) n = Some v.
-  Proof.
-    induction r; simpl.
-      congruence.
-    intros. destruct a. destruct (Peano_dec.eq_nat_dec n n0).
-    inversion H; clear H; subst. eapply nth_error_updateAt.
-    
-    erewrite nth_error_updateAt_not; auto.
-  Defined.
-*)
-
-(*
-  Definition cast_pf : forall r n ls,
-    match repr_get r n with 
-      | Some v =>
-        nth_error (repr r ls) n = Some v
-      | _ => True
-    end.
-  Proof.
-    unfold repr_get. intros.
-    destruct r. unfold repr. simpl in *.
-    induction (footprint r); trivial.
-    case_eq (get n a).
-    intros. unfold repr. eapply repr_get_rw in H. assumption.
-  Defined.
-*)
-(**
-  Fixpoint defaulted_repr (r : list (nat * T)) (n : nat) : option T :=
-    match r with
-      | nil => None
-      | (a,b) :: r =>
-        match defaulted_repr r n with
-          | None => if le_lt_dec n a then Some b else None
-          | Some v => if eq_nat_dec n a then Some b else Some v 
-        end
-    end.
-
-  Definition nth_error_repr (r : list (nat * T)) (ls : list T) (n : nat) 
-    : option T :=
-    match get n r with
-      | Some v => Some v
-      | None => nth_error (repr r ls) n
-    end.
-
-  Theorem repr_get_eq : forall r ls n,
-    nth_error (repr r ls) n = nth_error_repr r ls n.
-  Proof.
-    unfold nth_error_repr.
-    induction r; simpl; intros.
-      reflexivity.
-
-      destruct a.
-        rewrite nth_error_updateAt_eq. unfold defaulted.
-        destruct (lt_eq_lt_dec n0 n). destruct s.
-          destruct (eq_nat_dec n n0); [ exfalso; omega | ]. eauto.
-          destruct (eq_nat_dec n n0); auto; congruence.
-        destruct (eq_nat_dec n n0); [ exfalso; omega | ]; auto.
-        rewrite IHr. destruct (get n r); auto.
-   Defined.
-
-   (** And all of this simplifies... **)
-   Goal forall t u : T, 
-     match repr_get_eq ((0, u) :: nil) (t :: nil) 0 return Prop with
-       | refl_equal => True 
-     end.
-     intros. simpl. trivial.
-   Qed.
-
-   (** cast **)
-   Section CastRepr.
-     Variable P : option T -> Type.
-
-     Fixpoint cast_repr d ls idx {struct d}
-       : P (nth_error (repr d ls) idx) -> P (match get idx d with
-                                               | Some v => Some v
-                                               | None => nth_error (repr d ls) idx
-                                             end).
-     intro. rewrite repr_get_eq in X. auto.
-     Defined.
-     
-     Theorem cast_repr_inj : forall d idx ls x y, cast_repr d ls idx x = cast_repr d ls idx y -> x = y.
-     Proof.
-       induction d; simpl.
-         auto.
-     Admitted.
-   End CastRepr.
-**)
+    get n (footprint l).
 
 End MapRepr.
-
-(*
-Section Repr_exprD.
-  Require Import Expr.
-
-  Variable types' : list type.
-
-  Section repr.
-    Variable knowledge : Repr type.
-    Variable funcs : functions (repr knowledge types').
-    Variable uvars vars : env (repr knowledge types').    
- 
-(*   
-    Lemma tvarD_repr_repr_get : forall idx,
-      tvarD (repr knowledge types') (tvType idx) =
-      match
-        match repr_get knowledge idx with
-          | Some v => Some v
-          | None => nth_error (repr knowledge types') idx
-        end
-        with
-        | Some v => Impl v
-        | None => Empty_set
-      end.
-    Proof.
-      clear. unfold repr. destruct knowledge. clear. unfold repr_get. simpl in *. induction footprint0; simpl in *; auto.
-      destruct a. intros.
-
-      destruct (eq_nat_dec idx n).
-      subst. rewrite nth_error_updateAt. reflexivity.
-        case_eq (get idx footprint0); intros; auto.
-        erewrite nth_error_updateAt_not. 2: eassumption.
-        reflexivity.
-        
-        erewrite repr_get_rw; [ reflexivity | eassumption ].
-    Defined.
-
-    Definition exprD_repr (e : expr (repr knowledge types')) (idx : nat)
-      : option match match repr_get knowledge idx with
-                       | Some v => Some v
-                       | None => nth_error (repr knowledge types') idx
-                     end
-    (** NOTE: This [return Type] is NOT optional, it is necessary to make universes work out **)
-                 return Type with 
-                 | None => Empty_set
-                 | Some v => Impl v
-               end :=
-      match tvarD_repr_repr_get idx in _ = T return option T with
-        | refl_equal => exprD funcs uvars vars e (tvType idx)
-      end.
-  End repr.
-
-  Definition k : Repr type :=
-    {| footprint := (0, {| Impl := nat ; Eq := fun _ _ => None |}) :: nil
-     ; default := {| Impl := Empty_set ; Eq := fun _ _ => None |} |}.
-
-  Goal forall fs u v e,
-    exprD (types := repr k types') fs u v e (tvType 0) = Some 0 ->
-    match exprD_repr k fs u v e 0 with 
-      | Some n => n = 0
-      | None => False
-    end.
-    unfold exprD_repr. simpl. unfold eq_ind_r. unfold eq_ind. unfold eq_rect. simpl.
-    intros. rewrite H. destruct types'; reflexivity.
-  Qed.
-*)
-  End repr.
-End Repr_exprD.
-*)
-(*
-  Section updateAt.
-    Variable idx : nat.
-    Variable t d : type.
-    Variable funcs : functions (updateAt t d types' idx).
-    Variable uvars vars : env (updateAt t d types' idx).
-
-    Definition exprD_update (e : expr (updateAt t d types' idx))
-      : option (Impl t) :=
-      let res := exprD funcs uvars vars e (tvType idx) in
-      match res with
-        | None => None
-        | Some res => Some (@cast type t d  (fun x => match x with
-                                                        | Some t => Impl t
-                                                        | None => Empty_set
-                                                      end) types' idx res)
-      end.
-  End updateAt.
-*)
-
-(*
-(** Specializations for exprD **)
-Section UpdateAt_exprD.
-  Require Import Expr.
-
-  Section repr.
-    Variable deltaT : list (nat * type).
-    Variable funcs : functions (repr deltaT types').
-    Variable uvars vars : env (repr deltaT types').
-
-    Definition exprD_repr (e : expr (repr deltaT types')) idx
-      : option match match get idx deltaT with
-                       | Some v => Some v
-                       | None => nth_error (repr deltaT types') idx
-                     end
-    (** NOTE: This [return Type] is NOT optional, it is necessary to make universes work out **)
-                 return Type with 
-                 | None => Empty_set
-                 | Some v => Impl v
-               end :=
-      let res := exprD funcs uvars vars e (tvType idx) in
-      match res with
-        | None => None
-        | Some res =>
-          Some (@cast_repr _ (fun x => match x with
-                                         | Some t => Impl t 
-                                         | None => Empty_set
-                                       end) deltaT types' idx res)
-      end.
-  End repr.
-
-  Section updateAt.
-    Variable idx : nat.
-    Variable t : type.
-    Variable funcs : functions (updateAt t types' idx).
-    Variable uvars vars : env (updateAt t types' idx).
-
-    Definition exprD_update (e : expr (updateAt t types' idx))
-      : option (Impl t) :=
-      let res := exprD funcs uvars vars e (tvType idx) in
-      match res with
-        | None => None
-        | Some res => Some (@cast type t (fun x => match x with
-                                                     | Some t => Impl t
-                                                     | None => Empty_set
-                                                   end) types' idx res)
-      end.
-  End updateAt.
-
-End UpdateAt_exprD.
-*)
-
-(*
-Set Printing Universes.
-Print Universes "../dump.universes".
-*)
