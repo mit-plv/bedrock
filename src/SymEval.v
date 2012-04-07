@@ -208,7 +208,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       }.
     End typed.
 
-    Section composite.
+    Section plugin.
       Variable types : list type.
       Variable pcT stT : tvar.
       Variable evals : list (nat * MemEvalPred types). 
@@ -279,13 +279,13 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           end.
       End with_prover.
 
-      Definition MemEvaluator_composite : MemEvaluator types pcT stT : Type :=
+      Definition MemEvaluator_plugin : MemEvaluator types pcT stT : Type :=
       {| smemeval_read_word := plugin_symeval_read_word
        ; smemeval_write_word := plugin_symeval_write_word
        |}.
-    End composite.
+    End plugin.
 
-    Section composite_correct.
+    Section plugin_correct.
       Variable types : list type.
       Variables pcT stT : tvar.      
       Variable evals : list (nat * MemEvalPred types).
@@ -317,8 +317,8 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         
       Hypothesis sfuncs_evals : ConsistentCondition.
 
-      Definition CompositeMemEvaluator_correct : 
-        @MemEvaluator_correct types _ _ (MemEvaluator_composite pcT stT evals) funcs sfuncs _ _ _ mem_satisfies ReadWord WriteWord.
+      Definition PluginMemEvaluator_correct : 
+        @MemEvaluator_correct types _ _ (MemEvaluator_plugin pcT stT evals) funcs sfuncs _ _ _ mem_satisfies ReadWord WriteWord.
       Proof.
         constructor; unfold ConsistentCondition in *; simpl.
           (** read **)
@@ -355,7 +355,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           (** write **)
           revert sfuncs_evals. admit.
       Qed.
-    End composite_correct.
+    End plugin_correct.
 
     Ltac unfolder H :=
       cbv delta 
@@ -363,11 +363,61 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           FM.find FM.add 
           plugin_symeval_read_word
           plugin_symeval_write_word
-          MemEvaluator_composite
+          MemEvaluator_plugin
           smem_read smem_write 
         ] in H.
 
   End Plugin.
+
+  Module Composite.
+    Section typed.
+      Variable types : list type.
+      Variable pcT stT : tvar.
+
+      Definition MemEvaluator_composite (l r : MemEvaluator types pcT stT) : MemEvaluator types pcT stT :=
+        {| smemeval_read_word := fun P f e h => 
+           match smemeval_read_word l P f e h with
+             | None => smemeval_read_word r P f e h
+             | Some v => Some v
+           end
+         ; smemeval_write_word := fun P f p v h => 
+           match smemeval_write_word l P f p v h with
+             | None => smemeval_write_word r P f p v h
+             | Some v => Some v
+           end
+         |}.
+
+      Variables evalL evalR : MemEvaluator types pcT stT.
+
+      Variable funcs : functions types.
+      Variable preds : SEP.sfunctions types pcT stT.
+
+      Variable stn_st : Type.
+    
+      Variables ptrT valT : tvar.
+
+      Hypothesis mem_satisfies : PropX.codeSpec (tvarD types pcT) (tvarD types stT) -> ST.hprop (tvarD types pcT) (tvarD types stT) nil -> stn_st -> Prop.
+      Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
+      Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
+
+      Hypothesis Lcorr : MemEvaluator_correct evalL funcs preds ptrT valT mem_satisfies ReadWord WriteWord.
+      Hypothesis Rcorr : MemEvaluator_correct evalR funcs preds ptrT valT mem_satisfies ReadWord WriteWord.
+
+      Theorem MemEvaluator_correct_composite : @MemEvaluator_correct types pcT stT (MemEvaluator_composite evalL evalR)
+        funcs preds stn_st ptrT valT mem_satisfies ReadWord WriteWord.
+      Proof.
+        unfold MemEvaluator_composite. econstructor; intros; simpl in *;
+        repeat match goal with 
+                 | [ H : match ?X with None => _ | Some _ => _ end = Some _ |- _ ] => revert H; case_eq X; intros
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ |- _ ] => 
+                   eapply ReadCorrect; [ | eassumption | | | ]; eauto
+                 | [ |- _ ] => 
+                   eapply WriteCorrect; [ | eassumption | | | | ]; eauto
+               end.
+      Qed.
+    End typed.
+  End Composite.
 
 End MemoryEvaluator.
 

@@ -1221,6 +1221,7 @@ Section unfolder_learnhook.
   Qed.
   Transparent UNF.forward.
 End unfolder_learnhook.
+
   Ltac unfolder_simplifier H := 
     match H with
       | tt => 
@@ -1379,7 +1380,6 @@ Ltac sym_eval isConst ext simplifier :=
                   let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
                   let sfuncs := reduce_repr (repr (Preds Ext) sfuncs) in
                   (** reflect the expressions **)
-                    idtac "beginning reification" ;
                   Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
                   let proofs := Expr.props_proof all_props in
                   Expr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
@@ -1572,6 +1572,102 @@ Module EmptyAlgorithm.
   Abort.
 
 End EmptyAlgorithm.
+
+Ltac glue_pack l r k :=
+  let reduce_repr e :=
+    let e := eval simpl Types in e in
+    let e := eval simpl Funcs in e in
+    let e := eval simpl Preds in e in
+    eval cbv beta iota zeta delta [ 
+      repr_optimize nil_Repr repr_combine footprint default bedrock_types_r
+      in_dec equiv_dec Peano_dec.eq_nat_dec EquivDec_nat
+      list_rec list_rect nat_rec nat_rect List.app map fst snd sumbool_rec sumbool_rect
+    ] in e
+  in
+  let opaque v k := 
+    match type of v with
+      | ?T => let H := fresh in assert (H : T) by (exact v) ; k H
+    end
+  in    
+  (* the types *)
+  let ntypes := reduce_repr (repr_combine (Types l) (Types r)) in
+  let ntypesV := fresh "types"  in
+  pose (ntypesV := ntypes) ;
+  (* the functions *)
+  let nfuncs := reduce_repr (fun ts => repr_combine (Funcs (Algo l (repr ntypesV ts))) (Funcs (Algo r (repr ntypesV ts)))) in
+  let nfuncsV := fresh "funcs" in
+  pose (nfuncsV := nfuncs) ;
+  (* the predicates *)
+  let npreds := reduce_repr (fun ts => repr_combine (Preds (Algo l (repr ntypesV ts))) (Preds (Algo r (repr ntypesV ts)))) in
+  let npredsV := fresh "preds" in
+  pose (npredsV := npreds) ;
+  (* the prover *)
+  let proverC := 
+    let proverL := constr:(fun ts => Prover (Algo l (repr ntypesV ts))) in
+    let proverR := constr:(fun ts => Prover (Algo r (repr ntypesV ts))) in
+    match proverL with 
+      | proverR => 
+        (** if they are the same, just use one **)
+        constr:(fun ts (fs : functions (repr ntypesV ts)) => Prover_correct (Algo l (repr ntypesV ts)) (repr (nfuncsV ts) fs))
+      | _ => 
+        (** otherwise, we can use the composite_ProverT to combine them **)
+        constr:(fun ts (fs : functions (repr ntypesV ts)) => 
+          @composite_ProverT_correct _ _ _ _ 
+            (Prover_correct (Algo l (repr ntypesV ts)) (repr (nfuncsV ts) fs))
+            (Prover_correct (Algo r (repr ntypesV ts)) (repr (nfuncsV ts) fs)))
+    end
+  in
+  (* the hints *)
+  let hintsC :=
+    let v := constr:(fun ts (fs : functions (repr ntypesV ts)) (ps : SEP.sfunctions (repr ntypesV ts) (tvType 0) (tvType 1)) => 
+      @UNF.hintsSoundness_composite _ (repr (nfuncsV ts) fs) (tvType 0) (tvType 1) (repr (npredsV ts) ps) _ _ 
+        (Hints_correct (Algo l (repr ntypesV ts)) (repr (nfuncsV ts) fs) (repr (npredsV ts) ps))
+        (Hints_correct (Algo r (repr ntypesV ts)) (repr (nfuncsV ts) fs) (repr (npredsV ts) ps)))
+    in v
+  in
+  (* the memory evaluator *)
+  let memevalC :=
+    let v :=
+      constr:(fun ts (fs : functions (repr ntypesV ts)) (ps : SEP.sfunctions (repr ntypesV ts) (tvType 0) (tvType 1)) => 
+        @MEVAL.Composite.MemEvaluator_correct_composite _ _ _ 
+          _ 
+          _
+          _ _ _ _ _ _ _ _ 
+          (MemEval_correct (Algo l (repr ntypesV ts)) (repr (nfuncsV ts) fs) (repr (npredsV ts) ps))
+          (MemEval_correct (Algo r (repr ntypesV ts)) (repr (nfuncsV ts) fs) (repr (npredsV ts) ps)))
+    in v
+  in
+  opaque proverC ltac:(fun proverC =>
+  opaque hintsC ltac:(fun hintsC =>
+  opaque memevalC ltac:(fun memevalC =>
+  let res :=
+    constr:({| Types := ntypesV
+             ; Algo  := fun ts => {| Funcs := nfuncsV ts
+                                   ; Preds := npredsV ts
+                                   ; Prover_correct := proverC ts 
+                                   ; Hints_correct := hintsC ts
+                                   ; MemEval_correct := memevalC ts
+                                   |} |})
+  in
+  (** do a little bit of simplification before sending it out *)
+  let res := eval cbv beta iota zeta delta [ UNF.composite_hintsPayload MEVAL.Composite.MemEvaluator_composite ] in res in
+  k res))).
+Ltac glue_packs packs k :=
+  match type of packs with
+    | TypedPackage => k packs
+    | _ =>
+      match packs with
+        | tt => k EmptyAlgorithm.empty_package
+        | (?L, ?R) =>
+          glue_packs L ltac:(fun L => 
+          glue_packs R ltac:(fun R => 
+            glue_pack L R k))
+      end
+  end.
+
+Goal TypedPackage.
+  Time glue_packs (EmptyAlgorithm.empty_package,EmptyAlgorithm.empty_package,EmptyAlgorithm.empty_package) ltac:(fun v => let v := eval simpl in v in refine v).
+Abort.
 
 (**
 Module UnfolderLearnHook.
