@@ -433,7 +433,7 @@ Section Denotations.
                 | [ H : _ = _ |- _ ] => rewrite H
                 | [ H : reg |- _ ] => destruct H
               end; intuition); subst.
-
+(*
       Lemma sym_evalLoc_correct : forall loc ss res res' stn_st locD cs,
         stateD cs stn_st ss ->
         sym_locD loc = Some locD ->
@@ -628,6 +628,7 @@ Section Denotations.
                          *)
         Admitted.
       End with_facts.
+*)
     End Correctness.
   End SymEvaluation.
 End Denotations.
@@ -911,6 +912,7 @@ Section stream_correctness.
               ; SymPures := pures
             |}.
   Proof.
+    Opaque repr.
     unfold stateD. intros.
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
@@ -918,6 +920,7 @@ Section stream_correctness.
     intuition auto.
     generalize (SEP.hash_denote funcs sfuncs cs sh). rewrite H3. simpl in *.
     intro XX. rewrite <- XX. eauto.
+    Transparent repr.
   Qed.
 End stream_correctness.
 
@@ -1326,10 +1329,11 @@ Ltac sym_eval isConst ext simplifier :=
   in
   let reduce_repr ls :=
     let t := 
-      eval cbv [ fold_right Types repr repr' footprint ] in ls
+      eval cbv [ Funcs Preds updateAt Types repr repr' footprint ] in ls
     in
     eval simpl in t  
   in
+  idtac "0" ;
   match stn_st_SF with
     | tt => idtac (* nothing to symbolically evluate *)
     | ((?stn, ?st), ?SF) =>
@@ -1393,13 +1397,17 @@ Ltac sym_eval isConst ext simplifier :=
                           | ?X => subst X
                         end
                       in
+                      idtac "7" ;
                       unfold_all syms ; 
-                      first [ simplifier H | fail 100000 "simplifier failed!" ] 
-(*                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]) *)
+                      idtac "8" ;
+                      first [ simplifier H | fail 100000 "simplifier failed!" ] (*;
+                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ] *) 
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
+                      idtac "1" ;
                       match SF with
                         | tt => 
+                          idtac "2" ;
                           let funcsV := fresh "funcs" in
                           pose (funcsV := funcs) ;
                           let sfuncsV := fresh "sfuncs" in
@@ -1425,8 +1433,11 @@ Ltac sym_eval isConst ext simplifier :=
                            let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
                            finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
                         | (?SF, ?H_interp) =>
+                          idtac "3" funcs sfuncs ;
                           SEP.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT sfuncs uvars vars 
                           ltac:(fun uvars funcs sfuncs SF =>
+                          idtac "4" ;
+
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let sfuncsV := fresh "sfuncs" in
@@ -1445,9 +1456,11 @@ Ltac sym_eval isConst ext simplifier :=
                             apply (@stateD_proof typesV funcsV sfuncsV (* _ proverCV *)
                               uvars vars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
+                            idtac "5" ;
                             (apply (@Apply_sym_eval typesV funcsV sfuncsV _ pluginCV _ proverCV _ unfolderCV
                               stn uvars vars fin_state st is is_pf) in H_interp ;
                              let syms := constr:((typesV, (funcsV, (sfuncsV, (proverCV, (pluginCV, unfolderCV)))))) in
+                             idtac "6" ;
                              finish H_interp syms) || fail 100000 "couldn't apply sym_eval_any! (SF case)"
                             )
                       end)))))
@@ -1568,11 +1581,123 @@ Module EmptyAlgorithm.
   Proof.
    intros.
    sym_eval ltac:(isConst) empty_package simplifier.
-   
+   intuition congruence.
   Abort.
 
 End EmptyAlgorithm.
 
+Module Package.
+
+Module Packages.
+Record MemEvaluatorPackage (tr : Repr type) (pc st : tvar) stn sat read write : Type :=
+{ MemEvalFuncs : forall ts, Repr (signature (repr tr ts))
+; MemEvalPreds : forall ts, Repr (SEP.ssignature (repr tr ts) pc st)
+; MemEval : forall ts, MEVAL.MemEvaluator (repr tr ts) pc st
+; MemEval_correct : forall ts fs ps, 
+  @MEVAL.MemEvaluator_correct (repr tr ts) pc st (MemEval ts)
+    (repr (MemEvalFuncs ts) fs) (repr (MemEvalPreds ts) ps)
+    stn (tvType 0) (tvType 0) (sat ts) (read ts) (write ts)
+}.
+End Packages.
+
+Ltac build_prover_pack prover ret :=
+  let res := constr:(
+    {| Types := Prover.ProverTypes prover
+     ; Algo  := fun ts =>
+       let types := repr bedrock_types_r (repr (Prover.ProverTypes prover) ts) in
+       {| Funcs := ProverFuncs prover types
+        ; Preds := nil_Repr (SEP.Default_ssignature types (tvType 0) (tvType 1))
+        ; Prover := Prover.Prover prover types
+        ; Prover_correct := @Prover.Prover_correct prover types
+        ; Hints := @UNF.default_hintsPayload types (tvType 0) (tvType 1)
+        ; Hints_correct := fun fs ps => @UNF.hintsSoundness_default _ _ _ _ _ 
+        ; MemEval := @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
+        ; MemEval_correct := fun fs ps =>
+          @MEVAL.Default.MemEvaluator_default_correct _ (tvType 0) (tvType 1)
+          _ _ IL_stn_st
+          (tvType 0) (tvType 0)
+          (@IL_mem_satisfies _) (@IL_ReadWord ts) (@IL_WriteWord ts)
+       |}
+     |}) in
+  let res := eval simpl in res in
+  ret res.
+
+Goal TypedPackage.
+  build_prover_pack Provers.TransitivityProver ltac:(fun x => refine x).
+Defined.
+
+Ltac build_mem_pack mem ret :=
+  match type of mem with
+    | @Packages.MemEvaluatorPackage ?tr ?pc ?st IL_stn_st IL_mem_satisfies IL_ReadWord IL_WriteWord =>
+      let res := constr:(
+        {| Types := repr_combine bedrock_types_r tr
+         ; Algo := fun ts =>
+           let types := repr bedrock_types_r (repr tr ts) in
+           {| Funcs := Packages.MemEvalFuncs mem types
+            ; Preds := Packages.MemEvalPreds mem types
+            ; Prover := @Provers.reflexivityProver types
+            ; Prover_correct := fun fs => @Provers.reflexivityProver_correct types _
+            ; Hints := @UNF.default_hintsPayload types (tvType 0) (tvType 1)
+            ; Hints_correct := fun _ _ => UNF.hintsSoundness_default _ _
+            ; MemEval_correct := fun fs ps => Packages.MemEval_correct mem types fs ps
+            |}
+         |}) in
+      let res := eval simpl in res in
+      ret res
+    | ?T => 
+      fail 10000 "got bad type" T "expected value of type Packages.MemEvaluatorPackage"
+  end.
+
+Goal TypedPackage.
+  assert (mem : @Packages.MemEvaluatorPackage bedrock_types_r (tvType 0) (tvType 1) IL_stn_st IL_mem_satisfies IL_ReadWord IL_WriteWord).
+  refine ({| Packages.MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
+           ; Packages.MemEvalPreds := fun ts => nil_Repr (SEP.Default_ssignature _ _ _)
+           ; Packages.MemEval := fun ts => @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
+           ; Packages.MemEval_correct := fun ts fs ps =>
+             @MEVAL.Default.MemEvaluator_default_correct (repr bedrock_types_r ts)
+              (tvType O) (tvType 1) fs ps IL_stn_st
+              (tvType O) (tvType O) (@IL_mem_satisfies ts) 
+              (@IL_ReadWord ts) (@IL_WriteWord ts)
+           |}).
+  build_mem_pack X ltac:(fun x => refine x).
+Defined.
+
+
+(** builds a [TypedPackage] from the arguments
+ ** - [hints] is a list of separation logic hints
+ ** - [prover] is instance of [ProverT_correct]
+ ** - [mem] is a tuple of [forall ts fs ps, MemEvaluator_correct ts fs ps] plugin correct instances
+ **)
+Ltac build_hints_pack hints ret :=
+  let res := constr:(
+    {| Types := UNF.Types hints
+     ; Algo  := fun ts =>
+       let types := repr bedrock_types_r (repr (UNF.Types hints) ts) in
+       {| Funcs := UNF.Functions hints types
+        ; Preds := UNF.SFunctions hints types
+        ; Prover_correct := fun fs => @Provers.reflexivityProver_correct types _
+        ; Hints_correct := UNF.HintsOk hints _
+        ; MemEval := @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
+        ; MemEval_correct := fun fs ps =>
+          @MEVAL.Default.MemEvaluator_default_correct _ (tvType 0) (tvType 1)
+          _ _ IL_stn_st
+          (tvType 0) (tvType 0)
+          (@IL_mem_satisfies _) (@IL_ReadWord ts) (@IL_WriteWord ts)
+       |}
+     |}) in
+  let res := eval simpl in res in
+  ret res.
+
+Goal TypedPackage.
+  UNF.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) (@nil type) tt tt ltac:(fun v => 
+    build_hints_pack v ltac:(fun x => refine x)).
+Defined.
+
+
+(** given to [TypedPackage]s, combines them and passes the combined [TypedPackage]
+ ** to [k].
+ ** This tactic will fail if any of the environments are not compatible.
+ **)
 Ltac glue_pack l r k :=
   let reduce_repr e :=
     let e := eval simpl Types in e in
@@ -1652,12 +1777,19 @@ Ltac glue_pack l r k :=
   (** do a little bit of simplification before sending it out *)
   let res := eval cbv beta iota zeta delta [ UNF.composite_hintsPayload MEVAL.Composite.MemEvaluator_composite ] in res in
   k res))).
+
+(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with 
+ ** the result.
+ **)
 Ltac glue_packs packs k :=
   match type of packs with
     | TypedPackage => k packs
     | _ =>
       match packs with
         | tt => k EmptyAlgorithm.empty_package
+        | nil => k EmptyAlgorithm.empty_package
+        | ?L :: ?R =>
+          glue_packs R ltac:(fun R => glue_pack L)
         | (?L, ?R) =>
           glue_packs L ltac:(fun L => 
           glue_packs R ltac:(fun R => 
@@ -1665,9 +1797,13 @@ Ltac glue_packs packs k :=
       end
   end.
 
+(*
 Goal TypedPackage.
   Time glue_packs (EmptyAlgorithm.empty_package,EmptyAlgorithm.empty_package,EmptyAlgorithm.empty_package) ltac:(fun v => let v := eval simpl in v in refine v).
 Abort.
+*)
+
+End Package.
 
 (**
 Module UnfolderLearnHook.
@@ -1799,11 +1935,13 @@ Module UnfolderLearnHook.
   Qed.
 
 End UnfolderLearnHook.
+**)
 
+(**
 Module PluginEvaluator.
   
   Definition plugin_evaluator ts (fs : functions (repr bedrock_types_r ts)) ps evals consistent_pf := 
-    @MEVAL.Plugin.CompositeMemEvaluator_correct _ (tvType 0) (tvType 1) evals fs ps (settings * state) (tvType 0) (tvType 0)
+    @MEVAL.Plugin.PluginMemEvaluator_correct _ (tvType 0) (tvType 1) evals fs ps (settings * state) (tvType 0) (tvType 0)
     (@IL_mem_satisfies ts)
     (@IL_ReadWord ts)
     (@IL_WriteWord ts)
@@ -1814,7 +1952,7 @@ Module PluginEvaluator.
    ** Arguments:
    ** - [known] is a tuple of [forall ts fs, @MemEvalPred_correct ts ? (tvType 0) (tvType 1) ? (tvType 0) (tvType 0) ... ]
    **)
-  Ltac composite_eval known :=
+  Ltac plugin_eval known :=
     let rec find_in p ls acc :=
       match ls with
         | nil => fail 100000 " didn't find " p
@@ -1827,11 +1965,11 @@ Module PluginEvaluator.
       end
     in
     fun ts _pc _st fs ps k =>
-      let psVal := eval unfold ps in ps in
+      let psVal := eval hnf in ps in
       let rec build_pf known k :=
         match known with
           | tt => 
-            let r := constr:(@nil (nat * MEVAL.Plugin.MemEvalPred ts)) in
+            let r := constr:(@nil (nat * MEVAL.Plugin.MemEvalPred (repr bedrock_types_r ts))) in
             let pf := constr:(I) in
             k r pf
           | (?L, ?known) =>
@@ -1857,10 +1995,22 @@ Module PluginEvaluator.
         let evalsV := fresh "evals" in
         pose (evalsV := evals) ;
         let consistentV := fresh "consistent" in
-        let res := constr:(@plugin_evaluator ts fs ps evalsV consistent_pf) in
+          idtac "a" evals consistent_pf ;
+        let res := constr:(@plugin_evaluator ts fs ps evals consistent_pf) in
+          idtac "B" res;
+            pose res ;
         k evalsV res).
 
- Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
+  Goal forall ts fs ps, 
+    { evals : _ & MEVAL.MemEvaluator_correct
+        (MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) evals) fs ps
+        (tvType 0) (tvType 0) (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts) }.
+  Proof.
+    intros.
+    plugin_eval tt ts (tvType 0) (tvType 1) fs ps ltac:(fun evals pf => econstructor; apply pf).
+
+
+forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
     Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
     evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 

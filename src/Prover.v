@@ -37,6 +37,15 @@ Record ProverT_correct (types : list type) (P : ProverT types) (funcs : function
 ; Prove_correct : ProverCorrect funcs Valid (Prove P)
 }.
 
+Record ProverPackage : Type :=
+{ ProverTypes : Repr type
+; ProverFuncs : forall ts, Repr (signature (repr ProverTypes ts))
+; Prover : forall ts, ProverT (repr ProverTypes ts)
+; Prover_correct : forall ts fs, 
+  ProverT_correct (Prover ts) (repr (ProverFuncs ts) fs)
+}.
+
+
 (** Generic lemmas/tactis to prove things about provers **)
 
 Hint Rewrite EquivDec_refl_left SemiDec_EquivDec_refl_left : provers.

@@ -7,7 +7,6 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Module BedrockPtsToEvaluator.
-  Module Import SEP := SymIL.MEVAL.SEP.
 
   Section hide_notation.
     Local Notation "'pcT'" := (tvType 0).
@@ -70,7 +69,7 @@ Module BedrockPtsToEvaluator.
     Local Notation "'wordT'" := (tvType 0).
     Local Notation "'ptrT'" := (tvType 0).
 
-    Definition ptsto32_ssig : ssignature types pcT stT.
+    Definition ptsto32_ssig : SEP.ssignature types pcT stT.
     refine (
       {| SepExpr.SDomain := ptrT :: wordT :: nil
        ; SepExpr.SDenotation := _
@@ -210,5 +209,17 @@ Module BedrockPtsToEvaluator.
     (** TODO: the interface is wrong, it needs to be over the symbolic memory **)
   Admitted.
   End hide_notation.
+
+  Definition ptsto32_pack : Package.Packages.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
+  refine ({| Package.Packages.MemEvalFuncs := fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts))
+           ; Package.Packages.MemEvalPreds := fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
+             (SymIL.SEP.Default_ssignature (Env.repr ptsto32_types_r ts)
+               (tvType 0) (tvType 1))
+           ; Package.Packages.MemEval := fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil)
+           ; Package.Packages.MemEval_correct := fun ts fs ps =>
+             MEVAL.Plugin.PluginMemEvaluator_correct _ _ _ _ _ _ _ _ _
+    |}).
+  abstract (split; simpl; eapply MemEval_ptsto32_correct with (types' := ts) || exact I).
+  Defined.
 
 End BedrockPtsToEvaluator.

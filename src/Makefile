@@ -12,7 +12,6 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	SepExpr \
 	Unfolder \
 	Env \
-	TacPack \
 	SymEval sep/PtsTo \
 	ILEnv SepIL SymIL ILTac \
 	Bedrock
