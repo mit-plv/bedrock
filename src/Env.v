@@ -188,22 +188,23 @@ Section MapRepr.
   End get.
 
   Definition repr (l : Repr) : list T -> list T :=
-    fun v => repr' (default l) (footprint l) v.
+    match l with 
+      | {| footprint := f ; default := d |} =>
+        repr' d f
+    end.
 
-
-
-  Fixpoint repr_optimize (l : list (nat * T)) : list (nat * T) :=
+  Fixpoint repr_optimize (l : list (nat * T)) (ignore : list nat) : list (nat * T) :=
     match l with
       | nil => nil
       | (n,t) :: b => 
-        if List.In_dec (equiv_dec) n (map fst b) then
-          repr_optimize b
+        if List.In_dec (equiv_dec) n ignore then 
+          repr_optimize b ignore
         else 
-          (n,t) :: repr_optimize b
+          (n,t) :: repr_optimize b (n :: ignore)
     end.
 
   Definition repr_combine (l r : Repr) : Repr :=
-    {| footprint := repr_optimize (footprint l ++ footprint r)
+    {| footprint := repr_optimize (footprint l ++ footprint r) nil
      ; default := default l
      |}.
   (** NOTE: that we don't have any lemmas for combination because we are
@@ -214,3 +215,4 @@ Section MapRepr.
     get n (footprint l).
 
 End MapRepr.
+

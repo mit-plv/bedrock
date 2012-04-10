@@ -5,15 +5,31 @@ Export Bedrock.
 
 Import SymIL.
 Require Bedrock.sep.PtsTo.
-Export UnfolderLearnHook.UNF.
+Export UNF.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
+Definition auto_ext' : TypedPackage.
+  SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a => 
+  SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
+  SymIL.Package.glue_pack a b ltac:(fun res => refine res))).
+Defined.
+
+Definition auto_ext : TypedPackage.
+  let v := eval unfold auto_ext' in auto_ext' in
+  let v := eval cbv delta [ 
+    Plugin_PtsTo.ptsto32_ssig MEVAL.Composite.MemEvaluator_composite 
+    MEVAL.Default.MemEvaluator_default Prover.composite_ProverT Env.nil_Repr ] in v in
+  let v := eval simpl in v in
+  exact v.
+Show Proof.
+Defined.
+
 Ltac sym_eval_simplifier H :=
   Provers.unfold_transitivityProver H ;
   SymIL.MEVAL.Plugin.unfolder H ;
-  SymIL.UnfolderLearnHook.unfolder_simplifier H ;
+  SymIL.unfolder_simplifier H ;
   cbv delta [ 
     Plugin_PtsTo.MemEval_ptsto32 Plugin_PtsTo.ptsto32_ssig 
     IL_mem_satisfies IL_ReadWord IL_WriteWord
@@ -23,6 +39,11 @@ Ltac sym_eval_simplifier H :=
     Plugin_PtsTo.sym_read_word_ptsto32 Plugin_PtsTo.sym_write_word_ptsto32
 
     Plugin_PtsTo.ptsto32_types_r
+
+    MEVAL.Composite.MemEvaluator_composite
+    MEVAL.Default.smemeval_read_word_default
+    MEVAL.Default.smemeval_write_word_default
+    Plugin_PtsTo.types Prover.composite_ProverT
   ] in H ;
   sym_evaluator H.
   
@@ -97,30 +118,8 @@ Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
-Ltac evaluate hints := 
-  let plg := 
-    SymIL.PluginEvaluator.composite_eval (Plugin_PtsTo.MemEval_ptsto32_correct, tt) 
-  in
-  let prv ts fs :=
-    constr:(@Provers.transitivityProver_correct ts fs)
-  in
-  let unfolder :=
-    match hints with
-      | tt => 
-        SymIL.UnfolderLearnHook.unfolder_for (@SymIL.UnfolderLearnHook.UNF.hintsSoundness_default)
-      | _ => 
-        match type of hints with 
-          | forall ts (pc : Expr.tvar) (st : Expr.tvar) fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ => 
-            SymIL.UnfolderLearnHook.unfolder_for hints
-          | ?T => 
-            fail 1000000 "bad hints passed to evaluate" hints "with type" T
-        end
-    end
-  in
-  let ssigs :=
-    constr:((ptsto32 nil, tt))
-  in
-  sym_eval ltac:isConst prv plg unfolder sym_eval_simplifier tt tt ssigs.
+Ltac evaluate  := 
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier.
 
 Ltac cancel :=
   sep_canceler ltac:(isConst) 
@@ -142,5 +141,41 @@ Ltac sep hints := evaluate hints; descend; repeat (step; descend).
 
 Ltac sepLemma := intros; cancel.
 
-Ltac prepare := UnfolderLearnHook.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
+Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
   W (settings * state)%type isConst ILEnv.bedrock_types.
+
+(*
+Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
+
+Definition read := bmodule "read" {{
+  bfunction "read" [readS] {
+    Rv <- $[0];;
+    If (Rv = 0) {
+      $[0] <- 0
+    } else {
+      $[0] <- $[0]
+    } ;;
+    Rv <- $[0];;
+    Goto Rp
+  }
+}}.
+
+Theorem readOk : moduleOk read.
+  vcgen.
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+  sym_eval ltac:(isConst) auto_ext ltac:(fun x => idtac). 
+  sym_eval_simplifier H1.
+
+
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
+
+
+Print MEVAL.smemeval_read_word.
+
+Prover.composite_ProverT
+*)

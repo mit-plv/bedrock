@@ -69,6 +69,13 @@ Section AssumptionProver.
 
 End AssumptionProver.
 
+Definition AssumptionProver : ProverPackage :=
+{| ProverTypes := nil_Repr EmptySet_type
+ ; ProverFuncs := fun ts => nil_Repr (Default_signature ts)
+ ; Prover_correct := fun ts fs => assumptionProver_correct fs
+|}.
+
+
 Ltac unfold_assumptionProver H :=
   match H with
     | tt =>
@@ -135,7 +142,13 @@ Section ReflexivityProver.
   apply reflexivityProverCorrect.
   Qed.
 
-End ReflexivityProver. 
+End ReflexivityProver.
+
+Definition ReflexivityProver : ProverPackage :=
+{| ProverTypes := nil_Repr EmptySet_type
+ ; ProverFuncs := fun ts => nil_Repr (Default_signature ts)
+ ; Prover_correct := fun ts fs => reflexivityProver_correct fs
+|}.
 
 Ltac unfold_reflexivityProver H :=
   match H with
@@ -481,6 +494,12 @@ Section TransitivityProver.
   Qed.
 
 End TransitivityProver.
+
+Definition TransitivityProver : ProverPackage :=
+{| ProverTypes := nil_Repr EmptySet_type
+ ; ProverFuncs := fun ts => nil_Repr (Default_signature ts)
+ ; Prover_correct := fun ts fs => transitivityProver_correct fs
+|}.
 
 Ltac unfold_transitivityProver H :=
   match H with

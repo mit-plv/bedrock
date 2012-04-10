@@ -79,47 +79,47 @@ Module Make (B : Heap).
     Ltac prepare := U.prepareHints ltac:(fun x => x) pc state isConst types0.
 
     Definition hints_tt : U.hints.
-      prepare tt tt.
+      prepare tt tt ltac:(fun x => refine x).
     Defined.
     (*Print hints_tt.*)
 
     Definition hints_emp : U.hints.
-      prepare Hemp Hemp.
+      prepare Hemp Hemp ltac:(fun x => refine x).
     Defined.
     (*Print hints_emp.*)
 
     Definition hints_Hf : U.hints.
-      prepare Hf Hemp.
+      prepare Hf Hemp ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hf. *)
 
     Definition hints_Hh : U.hints.
-      prepare (Hemp, Hf) (Hemp, Hf, Hh).
+      prepare (Hemp, Hf) (Hemp, Hf, Hh) ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hh. *)
 
     Definition hints_Hf0 : U.hints.
-      prepare Hf0 tt.
+      prepare Hf0 tt ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hf0. *)
 
     Definition hints_glom : U.hints.
-      prepare (Hemp, Hf, Hh, Hf0) (Hemp, Hf0, tt).
+      prepare (Hemp, Hf, Hh, Hf0) (Hemp, Hf0, tt) ltac:(fun x => refine x).
     Defined.
     (* Print hints_glom. *)
 
     Definition hints_Hh0 : U.hints.
-      prepare Hh0 tt.
+      prepare Hh0 tt ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hh0. *)
 
     Definition hints_Hf1 : U.hints.
-      prepare Hf1 tt.
+      prepare Hf1 tt ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hf1. *)
 
     Definition hints_Hh1 : U.hints.
-      prepare Hh1 tt.
+      prepare Hh1 tt ltac:(fun x => refine x).
     Defined.
     (* Print hints_Hh1. *)
 

@@ -578,7 +578,7 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
   end.
 
   
-  Ltac prepareHints unfoldTac pcType stateType isConst types fwd bwd :=
+  Ltac prepareHints unfoldTac pcType stateType isConst types fwd bwd ret :=
     let types := unfoldTypes types in
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
@@ -602,14 +602,18 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
             pose (preds_rV := preds_r) ;
             let fwd' := lift_lemmas_over_repr fwd' types_rV pcT stateT in
             let bwd' := lift_lemmas_over_repr bwd' types_rV pcT stateT in
-            refine ({| Types      := types_rV
-                     ; PcType     := pcT
-                     ; StateType  := stateT
-                     ; Functions  := funcs_rV
-                     ; SFunctions := preds_rV
-                     ; Hints      := fun ts => {| Forward := fwd' ts ; Backward := bwd' ts |}
-                     ; HintsOk    := fun ts fs ps => {| ForwardOk := _ ; BackwardOk := _ |}
-                     |}); [ abstract prove fwd | abstract prove bwd ]))))).
+            let pf := fresh "fwd_pf" in
+            assert (pf : forall ts fs ps, hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| Forward := fwd' ts ; Backward := bwd' ts |})) by 
+              (constructor; [ prove fwd | prove bwd ]) ;
+            let res := constr:(
+              {| Types      := types_rV
+               ; PcType     := pcT
+               ; StateType  := stateT
+               ; Functions  := funcs_rV
+               ; SFunctions := preds_rV
+               ; Hints      := fun ts => {| Forward := fwd' ts ; Backward := bwd' ts |}
+               ; HintsOk    := pf
+               |}) in ret res))))).
 
   (* Main entry point to simplify a goal *)
   Ltac unfolder isConst hs bound :=
@@ -697,11 +701,11 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
     Ltac prepare := prepareHints ltac:(fun x => x) pc state isConst types0.
 
     Definition hints_emp : hints.
-      prepare (Hemp, Hf) (Hemp, Hf, Hh).
+      prepare (Hemp, Hf) (Hemp, Hf, Hh) ltac:(fun x => refine x).
     Defined.
 
     Definition hints_tt : hints.
-      prepare tt tt.
+      prepare tt tt ltac:(fun x => refine x).
     Defined.
     End Tests.
   End TESTS.
