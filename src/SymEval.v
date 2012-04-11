@@ -2,6 +2,7 @@ Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
 Require Import Expr SepExpr Prover.
 Require Import PropX.
+Require Import Env.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -26,15 +27,24 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       stateD uvars vars cs stn_st ss'
   }.
 
-  Definition LearnHook_default (types : list type) (State : Type) : 
-    LearnHook types State :=
-    fun _ x _ => x.
+  Module LearnHookDefault.
 
-  Definition LearnHook_default_correct types pcT stT State stateD funcs preds :
-    @LearnHook_correct types pcT stT State (@LearnHook_default _ _) stateD funcs preds.
-  Proof.
-    unfold LearnHook_default; econstructor; intros; subst; auto.
-  Qed.
+    Definition LearnHook_default (types : list type) (State : Type) : 
+      LearnHook types State :=
+      fun _ x _ => x.
+    
+    Definition LearnHook_default_correct types pcT stT State stateD funcs preds :
+      @LearnHook_correct types pcT stT State (@LearnHook_default _ _) stateD funcs preds.
+    Proof.
+      unfold LearnHook_default; econstructor; intros; subst; auto.
+    Qed.
+
+    Ltac unfolder H :=
+      match H with 
+        | tt => cbv delta [ LearnHook_default ]
+        | _ => cbv delta [ LearnHook_default ] in H
+      end.
+  End LearnHookDefault.
 
   Section parametric.
     Variable types : list type.
@@ -92,6 +102,23 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     }.
   End parametric.
 
+  Record MemEvaluatorPackage (tr : Repr type) (pc st ptr val : tvar) 
+    (sat : forall ts, codeSpec (tvarD (repr tr ts) pc) (tvarD (repr tr ts) st) -> 
+      ST.hprop (tvarD (repr tr ts) pc) (tvarD (repr tr ts) st) nil -> tvarD (repr tr ts) st -> Prop) 
+    (read  : forall ts, tvarD (repr tr ts) st -> tvarD (repr tr ts) ptr -> option (tvarD (repr tr ts) val))
+    (write : forall ts, tvarD (repr tr ts) st -> tvarD (repr tr ts) ptr -> tvarD (repr tr ts) val -> option (tvarD (repr tr ts) st))
+    : Type :=
+  { MemEvalTypes : Repr type
+  ; MemEvalFuncs : forall ts, Repr (signature (repr tr (repr MemEvalTypes ts)))
+  ; MemEvalPreds : forall ts, Repr (SEP.ssignature (repr tr (repr MemEvalTypes ts)) pc st)
+  ; MemEval : forall ts, MemEvaluator (repr tr (repr MemEvalTypes ts)) pc st
+  ; MemEval_correct : forall ts fs ps, 
+    @MemEvaluator_correct (repr tr (repr MemEvalTypes ts)) pc st (MemEval ts)
+      (repr (MemEvalFuncs ts) fs) (repr (MemEvalPreds ts) ps)
+      (tvarD (repr tr (repr MemEvalTypes ts)) st) ptr val
+      (sat (repr MemEvalTypes ts)) (read (repr MemEvalTypes ts)) (write (repr MemEvalTypes ts))
+  }.
+
   Module Default.
     Section with_prover.
       Variable types : list type.
@@ -127,6 +154,14 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           smemeval_write_word_default
           MemEvaluator_default
         ] in H.
+
+    Definition package tr pcT stT ptr val X Y Z : @MemEvaluatorPackage tr pcT stT ptr val X Y Z :=
+      {| MemEvalTypes := nil_Repr EmptySet_type
+       ; MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
+       ; MemEvalPreds := fun ts => nil_Repr (SEP.Default_ssignature _ pcT stT)
+       ; MemEval := fun ts => MemEvaluator_default _ _ _
+       ; MemEval_correct := fun ts fs ps => MemEvaluator_default_correct _ _ _ _ _ _ _ 
+       |}.
 
   End Default.
 
@@ -355,7 +390,32 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           (** write **)
           revert sfuncs_evals. admit.
       Qed.
+
     End plugin_correct.
+
+(* TODO: it isn't clear how to write this one yet...
+    Section Package.
+      Variable types : Repr type.
+      Variables pcT stT : tvar.      
+      Variable evals : forall ts, list (nat * MemEvalPred (repr types ts)).
+
+      Variable funcs : forall ts, Repr (signature (repr types ts)).
+      Variable sfuncs : forall ts, Repr (SEP.sfunctions (repr types ts) pcT stT).
+
+      Variables ptrT valT : tvar.
+
+      Hypothesis mem_satisfies : forall ts, PropX.codeSpec (tvarD (repr types ts) pcT) (tvarD (repr types ts) stT) -> 
+        ST.hprop (tvarD (repr types ts) pcT) (tvarD (repr types ts) stT) nil -> tvarD (repr types ts) stT -> Prop.
+      Hypothesis ReadWord : forall ts, tvarD (repr types ts) stT -> tvarD (repr types ts) ptrT -> option (tvarD (repr types ts) valT).
+      Hypothesis WriteWord : forall ts, tvarD (repr types ts) stT -> tvarD (repr types ts) ptrT -> tvarD (repr types ts) valT -> option (tvarD (repr types ts) stT).
+
+      Hypothesis sfuncs_evals : ConsistentCondition evals funcs sfuncs.
+
+      Definition package : @MemEvaluatorPackage types pcT stT ptrT valT mem_satisfies ReadWord WriteWord.
+      refine ({| MemEvalTypes := nil_Repr types
+               ; MemEvalFuncs := funcs
+               ; MemEvalPreds := 
+*)
 
     Ltac unfolder H :=
       cbv delta 
@@ -418,6 +478,8 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Qed.
     End typed.
   End Composite.
+
+
 
 End MemoryEvaluator.
 
