@@ -10,25 +10,25 @@ Export UNF.
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
-Definition auto_ext' : TypedPackage.
-  SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a => 
+Definition auto_ext' : @TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1) SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
+  SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a =>
   SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
-  SymIL.Package.glue_pack a b ltac:(fun res => refine res))).
+    SymIL.Package.glue_pack a b ltac:(fun res => refine res) || fail 1000 "compose")).
 Defined.
 
-Definition auto_ext : TypedPackage.
+Definition auto_ext : TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1) SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
   let v := eval unfold auto_ext' in auto_ext' in
   let v := eval cbv delta [ 
     Plugin_PtsTo.ptsto32_ssig MEVAL.Composite.MemEvaluator_composite 
     MEVAL.Default.MemEvaluator_default Prover.composite_ProverT Env.nil_Repr ] in v in
   let v := eval simpl in v in
   exact v.
-Show Proof.
 Defined.
 
 Ltac sym_eval_simplifier H :=
   Provers.unfold_transitivityProver H ;
   SymIL.MEVAL.Plugin.unfolder H ;
+  SymIL.MEVAL.LearnHookDefault.unfolder H ;
   SymIL.unfolder_simplifier H ;
   cbv delta [ 
     Plugin_PtsTo.MemEval_ptsto32 Plugin_PtsTo.ptsto32_ssig 
@@ -112,14 +112,18 @@ Ltac the_cancel_simplifier :=
 
       Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
       Provers.in_seq Provers.groupWith
+      ILTac.SEP.SSig
     ].
 
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
-Ltac evaluate  := 
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier.
+Ltac evaluate ext := 
+  sym_eval ltac:(isConst) ext ltac:(fun H => match H with
+                                               | tt => try unfold ext
+                                               | _ => try unfold ext in H
+                                             end; sym_eval_simplifier H).
 
 Ltac cancel :=
   sep_canceler ltac:(isConst) 
@@ -144,6 +148,8 @@ Ltac sepLemma := intros; cancel.
 Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
   W (settings * state)%type isConst ILEnv.bedrock_types.
 
+Ltac sep_auto := sep auto_ext.
+
 (*
 Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
@@ -163,19 +169,15 @@ Definition read := bmodule "read" {{
 
 Theorem readOk : moduleOk read.
   vcgen.
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-  sym_eval ltac:(isConst) auto_ext ltac:(fun x => idtac). 
-  sym_eval_simplifier H1.
+  sep auto_ext.
+  sep auto_ext.
+  sep auto_ext.
+  sep auto_ext.
+  sep auto_ext.
+  sep auto_ext.
+  evaluate auto_ext. 
+  descend. step. descend. step. descend. step.
 
-
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-  sym_eval ltac:(isConst) auto_ext sym_eval_simplifier. assumption.
-
-
-Print MEVAL.smemeval_read_word.
-
-Prover.composite_ProverT
+  sep auto_ext.
+Qed.
 *)

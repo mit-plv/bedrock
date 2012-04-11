@@ -47,8 +47,8 @@ Definition pair := bmodule "pair" {{
   }
 }}.
 
-Definition hints_pair : hints.
-  prepare pair_fwd pair_bwd.
+Definition hints_pair : TypedPackage hints.
+  prepare pair_fwd pair_bwd ltac:(fun .
 Defined.
 
 Theorem pairOk : moduleOk pair.
