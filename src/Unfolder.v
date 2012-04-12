@@ -577,16 +577,25 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
       constr:(fun ts => lm ts :: lms ts)
   end.
 
+Require TypedPackage.
+  Module PACK := TypedPackage.Make B ST.
   
-  Ltac prepareHints unfoldTac pcType stateType isConst types fwd bwd ret :=
-    let types := unfoldTypes types in
+  Ltac prepareHints unfoldTac pcType stateType isConst env fwd bwd ret :=
+    let types := 
+      match type of env with
+        | PACK.TypeEnv ?ct _ _ => 
+          eval simpl in (repr ct (repr (PACK.Types env) nil))
+      end
+    in
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
         let stateT := reflectType types stateType in
-          (reify_hints unfoldTac pcT stateT isConst fwd types (@nil (signature types)) (@nil (@ssignature types pcT stateT)) ltac:(fun funcs sfuncs fwd' =>
+        let funcs := eval simpl in (repr (PACK.Funcs env types) nil) in
+        let preds := eval simpl in (repr (PACK.Preds env types) nil) in
+          (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs sfuncs fwd' =>
             reify_hints unfoldTac pcT stateT isConst bwd types funcs sfuncs ltac:(fun funcs sfuncs bwd' =>
             let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
             let types_rV := fresh "types" in
@@ -632,6 +641,7 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
                     reify_sexpr isConst Q types funcs pc state sfuncs (@nil type) (@nil type) ltac:(fun funcs sfuncs Q =>
                       apply (unfolderOk (Hints hs) funcs sfuncs bound P Q)))))
       end.
+
 (*
   Module TESTS.
     Section Tests.
@@ -676,6 +686,12 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
+    Definition env0 : PACK.TypeEnv (listToRepr ({| Impl := pc ; Eq := fun _ _ => None |} :: {| Impl := state ; Eq := fun _ _ => None |} :: nil) EmptySet_type) (tvType 0) (tvType 1) :=
+      {| PACK.Types := nil_Repr EmptySet_type
+       ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
+       ; PACK.Preds := fun ts => nil_Repr (SE.Default_ssignature _ _ _)
+      |}.
+
     Fixpoint assumptionProver (types : list type) (Hs : list (expr types)) (P : expr types) :=
       match Hs with
         | nil => false
@@ -698,7 +714,7 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
 
     (** * Creating hint databases *)
 
-    Ltac prepare := prepareHints ltac:(fun x => x) pc state isConst types0.
+    Ltac prepare := prepareHints ltac:(fun x => x) pc state isConst env0.
 
     Definition hints_emp : hints.
       prepare (Hemp, Hf) (Hemp, Hf, Hh) ltac:(fun x => refine x).

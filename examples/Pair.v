@@ -47,20 +47,28 @@ Definition pair := bmodule "pair" {{
   }
 }}.
 
-Definition hints_pair : TypedPackage hints.
-  prepare pair_fwd pair_bwd ltac:(fun .
+Definition hints_pair' : TacPackage.
+  let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
+  prepare env pair_fwd pair_bwd ltac:(fun x =>
+    SymIL.Package.build_hints_pack x ltac:(fun x => 
+      SymIL.Package.glue_pack x auto_ext ltac:(fun x => refine x))).
+Defined.
+
+Definition hints_pair : TacPackage.
+  let v := eval unfold hints_pair' in hints_pair' in
+  let v := eval simpl in v in
+  refine v.
 Defined.
 
 Theorem pairOk : moduleOk pair.
   vcgen.
-  let v := eval simpl HintsOk in (fun ts (_ _ : Expr.tvar) fs ps => @HintsOk hints_pair ts fs ps) in
-(*    match type of v with
-      | forall ts (pc : Expr.tvar) (st : Expr.tvar) fs ps, SymIL.UnfolderLearnHook.UNF.hintsSoundness _ _ _ => idtac "SUCCESS" 
-      | ?T => idtac T
-    end.
-*)  
-  sep v.
-  
+  SymIL.sym_eval ltac:SymIL.isConst hints_pair ltac:(fun H => idtac).
+  cbv beta zeta iota delta [ 
+  hints_pair
+        SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
+        SymIL.Prover SymIL.Hints ] in H1.
+  sym_eval_simplifier H1.
+
 
   (* Stuck here: need to create a hint database in the fancy new form expected by [sep]. *)
   admit.
