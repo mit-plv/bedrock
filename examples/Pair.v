@@ -67,6 +67,7 @@ Theorem pairOk : moduleOk pair.
   hints_pair
         SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
         SymIL.Prover SymIL.Hints ] in H1.
+  Set Printing Depth 60.
   sym_eval_simplifier H1.
 
 

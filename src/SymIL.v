@@ -1693,17 +1693,24 @@ Ltac sym_evaluator H :=
 
       (** unfolder should be unnecessary... **)
       UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs UNF.Forward
-             UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
-             equiv_dec UNF.substExpr Unfolder.FM.add impures pures other
-             Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
-             ExprUnify.empty_Subst unfolder_LearnHook
-             UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
-             UNF.findWithRest
-           
+      UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
+      equiv_dec UNF.substExpr Unfolder.FM.add impures pures other
+      Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
+      ExprUnify.empty_Subst unfolder_LearnHook
+      UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
+      UNF.findWithRest
+
+      UNF.SE.star_SHeap
+      UNF.SE.star_SHeap UNF.SE.liftSHeap UNF.SE.multimap_join  UNF.SE.substV
+      UNF.SE.sheapD UNF.SE.starred UNF.SE.sexprD
+      UNF.SE.sheapD UNF.SE.sepCancel
+      UNF.SE.star_SHeap UNF.SE.unify_remove_all 
+      UNF.SE.multimap_join UNF.SE.liftSHeap UNF.SE.unify_remove UNF.SE.starred 
+      UNF.SE.SSig
 
       Unfolder.FM.fold Unfolder.FM.add
 
-Unfolder.FM.empty
+      Unfolder.FM.empty
       Unfolder.FM.find
       Unfolder.FM.add
       Unfolder.FM.insert_at_right
@@ -1712,6 +1719,8 @@ Unfolder.FM.empty
       Unfolder.FM.find_add
       Unfolder.FM.fold
       Unfolder.FM.map
+
+      plus minus
 
     ] in H.
 
