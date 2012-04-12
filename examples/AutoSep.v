@@ -10,13 +10,17 @@ Export UNF.
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
-Definition auto_ext' : @TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1) SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
+Definition TacPackage : Type := 
+  @TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1)
+    SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
+
+Definition auto_ext' : TacPackage.  
   SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a =>
   SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
     SymIL.Package.glue_pack a b ltac:(fun res => refine res) || fail 1000 "compose")).
 Defined.
 
-Definition auto_ext : TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1) SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
+Definition auto_ext : TacPackage.
   let v := eval unfold auto_ext' in auto_ext' in
   let v := eval cbv delta [ 
     Plugin_PtsTo.ptsto32_ssig MEVAL.Composite.MemEvaluator_composite 
@@ -120,10 +124,19 @@ Ltac vcgen :=
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
 Ltac evaluate ext := 
-  sym_eval ltac:(isConst) ext ltac:(fun H => match H with
-                                               | tt => try unfold ext
-                                               | _ => try unfold ext in H
-                                             end; sym_eval_simplifier H).
+  let simp H :=
+    match H with
+      | tt => try cbv beta zeta iota delta [ 
+        ext
+        SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
+        SymIL.Prover SymIL.Hints ]
+      | _ => try cbv beta zeta iota delta [ 
+        ext
+        SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
+        SymIL.Prover SymIL.Hints ] in H
+    end; sym_eval_simplifier H
+  in
+  sym_eval ltac:(isConst) ext simp.
 
 Ltac cancel :=
   sep_canceler ltac:(isConst) 
@@ -145,8 +158,9 @@ Ltac sep hints := evaluate hints; descend; repeat (step; descend).
 
 Ltac sepLemma := intros; cancel.
 
+(** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
-  W (settings * state)%type isConst ILEnv.bedrock_types.
+  W (settings * state)%type isConst.
 
 Ltac sep_auto := sep auto_ext.
 

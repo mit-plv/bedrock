@@ -8,7 +8,7 @@ Require Import PropX.
 Require Import SepExpr SymEval.
 Require Import Expr.
 Require Import Prover.
-Require Import Env.
+Require Import Env TypedPackage.
 Import List.
 
 Require Structured SymEval.
@@ -878,9 +878,9 @@ Section stream_correctness.
   Qed.
 End stream_correctness.
 
-(** Reflection **)
+(** Reification **)
 
-(* Reflect the instructions *)
+(* Reify the instructions *)
 Ltac collectTypes_loc isConst l Ts :=
   match l with
     | Reg _ => Ts
@@ -1108,6 +1108,7 @@ Abort.
 Require Unfolder.
 Require Provers.
 Module UNF := Unfolder.Make BedrockHeap ST.
+Module PACK := UNF.PACK.
 
 Record AllAlgos (types : list type) (pcType stateType : tvar) : Type :=
 { Prover : option (ProverT types)
@@ -1177,6 +1178,13 @@ Record TypedPackage (ct : Repr type) (pc st : tvar)
 ; Algos_correct : forall ts fs ps, @AllAlgos_correct _ pc st (Algos ts)
     (repr (Funcs ts) fs) (repr (Preds ts) ps) (@sat (repr Types ts)) (@read (repr Types ts)) (@write (repr Types ts))
 }.
+
+Definition EnvOf ct pc st a b c : TypedPackage ct pc st a b c -> PACK.TypeEnv ct pc st :=
+  fun x => 
+    {| PACK.Types := Types x
+     ; PACK.Funcs := Funcs x
+     ; PACK.Preds := Preds x
+     |}.
 
 Section unfolder_learnhook.
   Variable types : list type.
@@ -1317,6 +1325,8 @@ Section apply_stream_correctness.
                                        | None => SymPures ss
                                        | Some m => pures m ++ SymPures ss
                                      end) in
+      (** initial unfolding **)
+      let ss := unfolder prover ss facts in
       let res := @sym_evalStream _ prover meval unfolder facts path ss in
       match sound_or_safe with
         | None =>
@@ -1361,6 +1371,15 @@ Section apply_stream_correctness.
   Qed.
 
 End apply_stream_correctness.
+
+Ltac eval_spine ls :=
+  let ls := eval hnf in ls in
+  match eval hnf in ls with
+    | nil => ls 
+    | ?a :: ?b => 
+      let b := eval_spine b in
+      constr:(a :: b)
+  end.
 
 
 (** NOTE:
@@ -1410,16 +1429,30 @@ Ltac sym_eval isConst ext simplifier :=
       | [ H : codeSpec _ _ |- _ ] => H
     end
   in
-  let reduce_repr ls :=
-    let ls := eval hnf in ls in
+  let reduce_repr sym ls :=
+    eval_spine ls 
+(*
     let ls := 
-      eval cbv beta iota zeta delta [ 
-        Funcs Preds updateAt Types repr repr' default footprint bedrock_funcs_r bedrock_types_r
-        nil_Repr
-        equiv_dec EquivDec_nat Peano_dec.eq_nat_dec nat_rec nat_rect sumbool_rec sumbool_rect
-        hd_error tl value error ] in ls
+      match sym with 
+        | tt =>
+          eval cbv beta iota zeta delta [ 
+            Funcs Preds Types
+            updateAt repr repr' default footprint bedrock_funcs_r bedrock_types_r
+            nil_Repr
+            equiv_dec EquivDec_nat Peano_dec.eq_nat_dec nat_rec nat_rect sumbool_rec sumbool_rect
+            hd_error tl value error ] in ls
+        | _ =>  
+          eval cbv beta iota zeta delta [ 
+            Funcs Preds Types
+            updateAt repr repr' default footprint bedrock_funcs_r bedrock_types_r
+            nil_Repr
+            equiv_dec EquivDec_nat Peano_dec.eq_nat_dec nat_rec nat_rect sumbool_rec sumbool_rect
+            hd_error tl value error 
+            sym ] in ls
+      end
     in
     ls
+*)
   in
   let ext' := 
     match ext with
@@ -1427,6 +1460,7 @@ Ltac sym_eval isConst ext simplifier :=
       | _ => ext
     end
   in
+  idtac "A" ;
   match stn_st_SF with
     | tt => idtac (* nothing to symbolically evluate *)
     | ((?stn, ?st), ?SF) =>
@@ -1436,6 +1470,7 @@ Ltac sym_eval isConst ext simplifier :=
             | (?sp_v, ?sp_pf) =>
               match find_reg st Rv with
                 | (?rv_v, ?rv_pf) =>
+                  idtac "B" ;
                   let all_instrs := get_instrs st in
                   let all_props := Expr.collect_props shouldReflect in
                   let pures := Expr.props_types all_props in
@@ -1458,28 +1493,43 @@ Ltac sym_eval isConst ext simplifier :=
                   end;
                   (** elaborate the types **)
                   let types_ := constr:(repr bedrock_types_r (repr (Types ext') nil)) in
-                  let types_ := reduce_repr types_ in
+                    idtac ">" ;
+                  let types_ := reduce_repr tt types_ in
+                    idtac "<" types_ ;
                   let types_ := Expr.extend_all_types Ts types_ in
+                    idtac "-" ;
                   let typesV := fresh "types" in
                   pose (typesV := types_);
                   (** Check the types **)
                   let pcT := constr:(tvType 0) in
                   let stT := constr:(tvType 1) in
                   (** build the variables **)
-                  let uvars := eval simpl in (@nil _ : Expr.env typesV) in
+                  idtac "XXX" ;
+                  let uvars := eval simpl in (@nil (@sigT Expr.tvar (fun t : Expr.tvar => Expr.tvarD typesV t))) in
+                  idtac "YYY" ;
                   let vars := uvars in
                   (** build the base functions **)
-                  let funcs := constr:(repr (bedrock_funcs_r _) (repr (Funcs ext' typesV) nil)) in
-                  let funcs := reduce_repr funcs in
+                  idtac "aaa" ;
+                  let funcs := constr:(repr (bedrock_funcs_r typesV) (repr (Funcs ext' typesV) nil)) in
+                  idtac "bbb" ;
+                  let funcs := reduce_repr typesV funcs in
+                    idtac "<" funcs;
                    (** build the base sfunctions **)
                   let preds := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
-                  let preds := reduce_repr (repr (Preds ext typesV) preds) in
+                    idtac ">" ;
+                  let preds := reduce_repr typesV (repr (Preds ext typesV) preds) in
+                    idtac "<" preds ;
+                    idtac "pures = " pures ;
                   (** reflect the expressions **)
                   Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+                    idtac "C" ;
                   let proofs := Expr.props_proof all_props in
                   Expr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
+                    idtac "D" ;
                   Expr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
+                    idtac "E" ;
                   Expr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
+                    idtac "F" ;
                     let finish H syms :=
                       let rec unfold_all syms :=
                         match syms with
@@ -1488,11 +1538,14 @@ Ltac sym_eval isConst ext simplifier :=
                           | ?X => subst X
                         end
                       in
+                      idtac "5" ;
                       unfold_all syms ; 
-                      first [ simplifier H | fail 100000 "simplifier failed!" ] ;
-                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ])
+                      idtac "6" ;
+                      first [ simplifier H | fail 100000 "simplifier failed!" ] (* ;
+                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]) *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
+                      idtac "0" ;
                       match SF with
                         | tt => 
                           let funcsV := fresh "funcs" in
@@ -1510,8 +1563,10 @@ Ltac sym_eval isConst ext simplifier :=
                            let syms := constr:((typesV, (funcsV, predsV))) in
                            finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
                         | (?SF, ?H_interp) =>
+                          idtac "1" funcs preds ;
                           SEP.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
+                            idtac "2" ;
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let predsV := fresh "preds" in
@@ -1520,9 +1575,11 @@ Ltac sym_eval isConst ext simplifier :=
                             apply (@stateD_proof typesV funcsV predsV
                               uvars vars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
+                            idtac "3" ;
                             (apply (@Apply_sym_eval typesV funcsV predsV _ ExtC
                               stn uvars vars fin_state st is is_pf) in H_interp ;
                              let syms := constr:((typesV, (funcsV, predsV))) in
+                             idtac "4" ;
                              finish H_interp syms) || fail 100000 "couldn't apply sym_eval_any! (SF case)" 
                             )
                       end)))))
@@ -1530,6 +1587,8 @@ Ltac sym_eval isConst ext simplifier :=
           end
       end
   end.
+
+Print Ltac unfolder_simplifier.
 
 
 Ltac sym_evaluator H := 
@@ -1551,6 +1610,9 @@ Ltac sym_evaluator H :=
       bedrock_funcs_r bedrock_types
       fst snd
       Env.repr Env.updateAt SEP.substV
+
+      SEP.MkFunc SEP.MkEmp SEP.MkInj SEP.MkStar SEP.MkExists SEP.MkConst
+      UNF.SE.MkFunc UNF.SE.MkEmp UNF.SE.MkInj UNF.SE.MkStar UNF.SE.MkExists UNF.SE.MkConst
 
       stateD Expr.exprD 
       Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
@@ -1600,6 +1662,57 @@ Ltac sym_evaluator H :=
       SEP.SSig
 
       Hints Prover MemEval Funcs Types Preds Algos
+
+      (** expression unification **)
+      Compare_dec.lt_dec
+      Compare_dec.le_dec
+      Compare_dec.le_gt_dec
+      Compare_dec.le_lt_dec
+      Compare_dec.lt_eq_lt_dec
+
+      ExprUnify.Subst_lookup ExprUnify.Subst_replace ExprUnify.env_of_Subst
+      ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
+      ExprUnify.empty_Subst
+
+      ExprUnify.SUBST.empty
+      ExprUnify.SUBST.find
+      ExprUnify.SUBST.add
+      ExprUnify.SUBST.insert_at_right
+      ExprUnify.SUBST.remove
+      ExprUnify.SUBST.remove_add
+      ExprUnify.SUBST.find_add
+      ExprUnify.SUBST.fold
+      ExprUnify.SUBST.map
+
+      NatMap.Ordered_nat.compare
+      NatMap.Ordered_nat.eq_dec
+      Peano_dec.eq_nat_dec
+
+      ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
+      sumor_rec sumor_rect
+
+      (** unfolder should be unnecessary... **)
+      UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs UNF.Forward
+             UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
+             equiv_dec UNF.substExpr Unfolder.FM.add impures pures other
+             Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
+             ExprUnify.empty_Subst unfolder_LearnHook
+             UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
+             UNF.findWithRest
+           
+
+      Unfolder.FM.fold Unfolder.FM.add
+
+Unfolder.FM.empty
+      Unfolder.FM.find
+      Unfolder.FM.add
+      Unfolder.FM.insert_at_right
+      Unfolder.FM.remove
+      Unfolder.FM.remove_add
+      Unfolder.FM.find_add
+      Unfolder.FM.fold
+      Unfolder.FM.map
+
     ] in H.
 
 Module EmptyAlgorithm.
@@ -1615,7 +1728,6 @@ Module EmptyAlgorithm.
   Defined.
   
   Ltac simplifier H :=
-    
     match H with
       | tt => 
         cbv delta [
@@ -1638,9 +1750,7 @@ Module EmptyAlgorithm.
     Regs st' Rp = natToW 0.
   Proof.
    intros.
-   sym_eval ltac:(isConst) empty_package ltac:(fun x => idtac). 
-   simplifier H.
-
+   sym_eval ltac:(isConst) empty_package simplifier.
    intuition congruence.
   Abort.
 
@@ -1707,36 +1817,7 @@ Ltac build_mem_pack mem ret :=
       fail 10000 "got bad type" T "expected value of type Packages.MemEvaluatorPackage"
   end.
 
-(*
-  match type of mem with
-    | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st IL_mem_satisfies IL_ReadWord IL_WriteWord =>
-      (let res := constr:(
-        let TR := repr_combine (MEVAL.MemEvalTypes mem) tr in
-        {| Types := TR
-         ; Funcs := fun ts => MEVAL.MemEvalFuncs mem (repr TR ts)
-         ; Preds := fun ts => MEVAL.MemEvalPreds mem (repr TR ts)
-         ; Algos := fun ts =>
-           {| Prover  := None
-            ; Hints   := None
-            ; MemEval := Some (MEVAL.MemEval mem ts)
-            |}
-         ; Algos_correct := fun ts fs ps =>
-           let types := repr bedrock_types_r (repr tr ts) in
-           @Build_AllAlgos_correct types pc st
-             ({| Prover := None
-               ; Hints := None
-               ; MemEval := Some (MEVAL.MemEval mem ts)
-               |})
-             fs ps (@IL_mem_satisfies _) (@IL_ReadWord _) (@IL_WriteWord _)
-             I I
-             (MEVAL.MemEval_correct mem types fs ps)
-         |}) in
-      let res := eval simpl in res in
-      ret res) || fail 10000 "couldn't construct mem_package"
-    | ?T => 
-      fail 10000 "got bad type" T "expected value of type MEVAL.MemEvaluatorPackage"
-  end.
-*)
+
 Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
   pose (mem := {| MEVAL.MemEvalTypes := nil_Repr EmptySet_type
            ; MEVAL.MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
@@ -1754,33 +1835,39 @@ Defined.
  ** - [mem] is a tuple of [forall ts fs ps, MemEvaluator_correct ts fs ps] plugin correct instances
  **)
 Ltac build_hints_pack hints ret :=
-  let res := constr:(
-    {| Types := UNF.Types hints
-     ; Funcs := fun ts => UNF.Functions hints (repr bedrock_types_r ts) : Repr (signature (repr bedrock_types_r (repr (UNF.Types hints) ts)))
-     ; Preds := fun ts => UNF.SFunctions hints (repr bedrock_types_r ts)
-     ; Algos  := fun ts =>
+  let res := 
+    constr:(@Build_TypedPackage
+     bedrock_types_r (tvType 0) (tvType 1) 
+     IL_mem_satisfies IL_ReadWord IL_WriteWord
+     (UNF.Types hints)
+     (fun ts => UNF.Functions hints (repr bedrock_types_r ts))
+     (fun ts => UNF.SFunctions hints (repr bedrock_types_r ts))
+     (fun ts =>
        {| Prover := None
-        ; Hints  := Some (UNF.Hints hints _)
-        ; MemEval := None 
-        |}
-     ; Algos_correct := fun ts fs ps =>
+        ; Hints := Some (UNF.Hints hints ts)
+        ; MemEval := None |})
+     (fun ts fs ps => 
        let types := repr bedrock_types_r (repr (UNF.Types hints) ts) in
-       @Build_AllAlgos_correct types (tvType 0) (tvType 1)
-         ({| Prover := None
-           ; Hints := Some (UNF.Hints hints _)
-               ; MemEval := None
-               |})
-             fs ps (@IL_mem_satisfies _) (@IL_ReadWord _) (@IL_WriteWord _)
-             I (UNF.HintsOk hints _ _ _) I
-     |}) in
+       @Build_AllAlgos_correct _ (tvType O) (tvType 1)
+        {| Prover := None
+         ; Hints := Some (UNF.Hints hints _)
+         ; MemEval := None |}
+         _ _ (@IL_mem_satisfies _) (@IL_ReadWord _) (@IL_WriteWord _)
+         I (UNF.HintsOk hints ts fs ps) I))
+  in
   let res := eval simpl in res in
   ret res.
 
+Definition bedrock_env : PACK.TypeEnv ILEnv.bedrock_types_r (tvType 0) (tvType 1) :=
+  {| PACK.Types := nil_Repr EmptySet_type
+   ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
+   ; PACK.Preds := fun ts => nil_Repr (SEP.Default_ssignature _ _ _)
+  |}.
+
 Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-  UNF.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) (@nil type) tt tt ltac:(fun v => 
+  UNF.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) bedrock_env tt tt ltac:(fun v => 
     build_hints_pack v ltac:(fun x => refine x)).
 Defined.
-
 
 (** given to [TypedPackage]s, combines them and passes the combined [TypedPackage]
  ** to [k].
