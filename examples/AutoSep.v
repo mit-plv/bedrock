@@ -50,12 +50,12 @@ Ltac sym_eval_simplifier H :=
     Plugin_PtsTo.types Prover.composite_ProverT
   ] in H ;
   sym_evaluator H.
-  
+
 Ltac the_cancel_simplifier :=
   Provers.unfold_transitivityProver tt ;
   cbv beta iota zeta delta 
-    [ ILTac.SEP.CancelSep projT1
-      ILTac.SEP.hash ILTac.SEP.hash' ILTac.SEP.sepCancel
+    [ SEP.sepCancel projT1
+      SEP.hash SEP.hash' SEP.sepCancel
 
       SepExpr.FM.fold
 
@@ -66,23 +66,23 @@ Ltac the_cancel_simplifier :=
 
       fst snd
 
-      SepExpr.impures ILTac.SEP.star_SHeap SepExpr.FM.empty ILTac.SEP.liftSHeap
-      ILTac.SEP.sheapSubstU ExprUnify.empty_Subst
+      SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
+      SEP.sheapSubstU ExprUnify.empty_Subst
 
-      SepExpr.pures SepExpr.impures SepExpr.other
+      SEP.pures SEP.impures SEP.other
 
-      ILTac.SEP.exists_subst ExprUnify.env_of_Subst
+      Expr.exists_subst ExprUnify.env_of_Subst
 
-      ILTac.SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
-      SepExpr.SDomain SepExpr.SDenotation
+      SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
+      SEP.SDomain SEP.SDenotation
 
-      ILTac.SEP.unify_remove_all ILTac.SEP.unify_remove
+      SEP.unify_remove_all SEP.unify_remove
 
-      ILTac.SEP.unifyArgs
+      SEP.unifyArgs
       ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
       Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
 
-      ExprUnify.exprUnify ILTac.SEP.substV length ExprUnify.Subst_lookup ExprUnify.Subst_replace
+      ExprUnify.exprUnify SEP.substV length ExprUnify.Subst_lookup ExprUnify.Subst_replace
       Expr.liftExpr Expr.exprSubstU
       Peano_dec.eq_nat_dec EquivDec.equiv_dec
       Expr.EqDec_tvar
@@ -103,8 +103,8 @@ Ltac the_cancel_simplifier :=
       Expr.all2
 
       Expr.forallEach
-      ILTac.SEP.sheapD ILTac.SEP.sexprD
-      ILTac.SEP.starred ILTac.SEP.himp
+      SEP.sheapD SEP.sexprD
+      SEP.starred SEP.himp
       Expr.Impl Expr.Impl_
 
       Expr.is_well_typed Expr.exprD Expr.applyD
@@ -116,7 +116,6 @@ Ltac the_cancel_simplifier :=
 
       Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
       Provers.in_seq Provers.groupWith
-      ILTac.SEP.SSig
     ].
 
 Ltac vcgen :=

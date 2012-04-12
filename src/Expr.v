@@ -639,6 +639,62 @@ Section env.
 
 End env.
 
+Section exists_subst.
+  Variable types : list type.
+  Variable funcs : functions types.
+  Variable U1 : env types.
+  
+  (* Unification variables corresponding to genuine Coq existentials *)
+  Fixpoint exists_subst (CU : env types)
+    (U : list (tvar * option (expr types)))
+    : (env types -> Prop) -> Prop :=
+    match U as U with
+      | nil => fun cc => cc nil
+      | (t,v) :: r => fun cc =>
+        match v with
+          | None => 
+            exists v : tvarD types t, exists_subst (match CU with
+                                                      | nil => nil
+                                                      | _ :: CU' => CU'
+                                                    end) r (fun z => cc (existT _ t v :: z))
+          | Some v => 
+            match exprD funcs CU U1 v t with
+              | None => False
+              | Some v1 =>
+                match CU with
+                  | nil => exists_subst nil r (fun z => cc (existT _ t v1 :: z))
+                  | existT t' v' :: CU' =>
+                    match exprD funcs CU U1 v t' with
+                      | None => False
+                      | Some v'' => v' = v'' /\ exists_subst CU' r (fun z => cc (existT _ t v1 :: z))
+                    end
+                end
+            end
+        end
+    end.
+
+Lemma exists_subst_exists : forall CU
+  (B : list (tvar * option (expr types))) P,
+  exists_subst CU B P ->
+  exists C, P C.
+Proof.
+(*
+      clear. induction B; simpl; intros.
+      eauto.
+      destruct a; simpl in *. destruct o.
+      destruct (exprD funcs CU A e t); try tauto.
+      eapply IHB in H; destruct H; eauto. 
+      destruct H. eapply IHB in H. destruct H; eauto.
+    Qed.
+*)
+Admitted.
+
+End exists_subst.
+
+
+
+
+
 Implicit Arguments Const [ types t ].
 Implicit Arguments Var [ types ].
 Implicit Arguments UVar [ types ].

@@ -6,38 +6,35 @@ Require Import PropX.
 Require Import Expr SepExpr.
 Require Import Prover ILEnv.
 
-Module SEP := SymIL.SEP.
-
 (** TODO : this isn't true **)
-Lemma ApplyCancelSep : forall types funcs,
+Lemma ApplyCancelSep : forall types funcs pcT stT preds, 
   forall (prover : ProverT types), ProverT_correct prover funcs ->
-    forall pcT stT uvars (hyps : list (Expr.expr types)) sfuncs
+    forall uvars (hyps : list (Expr.expr types))
   (l r : SEP.sexpr types pcT stT),
   Expr.AllProvable funcs uvars nil hyps ->
-  forall cs, 
-  match SEP.CancelSep sfuncs prover uvars hyps l r with
-    | {| r_vars := vars; 
-         r_lhs := lhs; r_rhs_ex := rhs_ex; 
-         r_rhs := rhs; r_SUBST := SUBST |} =>
-      Expr.forallEach vars
-        (fun VS : Expr.env types =>
-          SEP.exists_subst funcs VS uvars
-          (ExprUnify.env_of_Subst SUBST rhs_ex 0)
-          (fun rhs_ex0 : Expr.env types =>
+  let (ql, lhs) := SEP.hash l in
+  let (qr, rhs) := SEP.hash r in
+  let summ := Summarize prover (hyps ++ SEP.pures lhs) in
+  let rhs' := SEP.liftSHeap 0 (length ql) (SEP.sheapSubstU 0 (length qr) (length uvars) rhs) in
+  forall cs,
+  match SEP.sepCancel preds prover summ lhs rhs' with
+    | (lhs', rhs', lhs_subst, rhs_subst) => (*SEP.Build_SepResult vars lhs_ex lhs rhs_ex rhs SUBST => *)
+      Expr.forallEach ql
+        (fun VS : Expr.env types => 
+          exists_subst funcs VS uvars
+          (ExprUnify.env_of_Subst rhs_subst (map (@projT1 _ _) uvars ++ qr) 0) (** NOTE : we should combine lhs_subst and rhs_subst **)
+          (fun rhs_ex0 : Expr.env types => 
             Expr.AllProvable_impl funcs uvars VS 
             (Expr.AllProvable_and funcs uvars VS 
-             (SEP.himp funcs sfuncs nil rhs_ex0 VS cs
-               (SEP.sheapD {| impures := impures lhs
-                            ; pures := nil 
-                            ; other := other lhs |})
-               (SEP.sheapD {| impures := impures rhs
-                            ; pures := nil
-                            ; other := other rhs |})) (pures rhs)) (pures lhs)))
+             (SEP.himp funcs preds nil rhs_ex0 VS cs
+               (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs')))
+               (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs')))
+             ) (SEP.pures rhs)) (SEP.pures lhs)))
   end ->
-  himp cs (@SEP.sexprD _ funcs _ _ sfuncs nil nil l)
-          (@SEP.sexprD _ funcs _ _ sfuncs uvars nil r).
+  himp cs (@SEP.sexprD _ _ _ funcs preds nil nil l)
+          (@SEP.sexprD _ _ _ funcs preds uvars nil r).
 Proof.
-  intros; eapply SEP.ApplyCancelSep; eauto.
+  simpl.
 Admitted.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
@@ -75,6 +72,8 @@ Ltac change_to_himp := try apply ignore_regs;
     | _ => apply change_Imply_himp
   end.
 
+Module SEP_REIFY := ReifySepExpr SEP.
+
 (** The parameters are the following.
  ** - [isConst] is an ltac [* -> bool]
  ** - [prover] is a value of type [forall ts (fs : functions ts), ProverT_correct ts P fs]
@@ -99,8 +98,8 @@ Ltac sep_canceler isConst prover simplifier Ts :=
         end
       in
       let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
-      SEP.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
-      SEP.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
+      SEP_REIFY.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
+      SEP_REIFY.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
       (** check for potential universe inconsistencies **)
       match Ts with
         | context [ PropX.PropX ] => 
@@ -130,11 +129,11 @@ Ltac sep_canceler isConst prover simplifier Ts :=
       let sfuncs := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
       Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
         let proofs := Expr.props_proof all_props in
-      SEP.reify_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
-      SEP.reify_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
+      SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs L =>
+      SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT sfuncs uvars vars ltac:(fun uvars funcs sfuncs R =>
         let proverC := prover typesV funcs in
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
-         apply (@ApplyCancelSep typesV funcs _ proverC pcT stT uvars pures sfuncs L R); [ apply proofs | ];
+         apply (@ApplyCancelSep typesV funcs pcT stT sfuncs _ proverC  uvars pures L R); [ apply proofs | ];
          subst typesV ;
          simplifier ;
          repeat match goal with
@@ -156,7 +155,7 @@ Ltac sep_canceler isConst prover simplifier Ts :=
 
 Ltac cancel_simplifier :=
   cbv beta iota zeta delta 
-      [ SEP.CancelSep
+      [ SEP.sepCancel
         SEP.hash SEP.hash' SEP.sepCancel
 
         SepExpr.FM.fold
@@ -171,12 +170,12 @@ Ltac cancel_simplifier :=
 
         fst snd
 
-        SepExpr.impures SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
+        SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
         SEP.sheapSubstU ExprUnify.empty_Subst
 
-        SepExpr.pures SepExpr.impures SepExpr.other
+        SEP.pures SEP.impures SEP.other
 
-        SEP.exists_subst ExprUnify.env_of_Subst
+        exists_subst ExprUnify.env_of_Subst
 
         SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
 
@@ -210,7 +209,7 @@ Ltac cancel_simplifier :=
         Expr.Impl Expr.Impl_ Expr.is_well_typed
         
         Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
-        Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_ssignature
+        Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_predicate
 
         orb
       ].

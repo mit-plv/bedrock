@@ -19,5 +19,5 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
-  vcgen; abstract (sep_auto).
+  vcgen; abstract sep_auto.
 Qed.

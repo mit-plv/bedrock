@@ -70,10 +70,7 @@ Module BedrockPtsToEvaluator.
     Local Notation "'ptrT'" := (tvType 0).
 
     Definition ptsto32_ssig : SEP.ssignature types pcT stT.
-    refine (
-      {| SepExpr.SDomain := ptrT :: wordT :: nil
-       ; SepExpr.SDenotation := _
-       |}).
+    refine (SEP.SSig _ _ _ (ptrT :: wordT :: nil) _).
     refine (ptsto32 _).
     Defined.
 
@@ -136,7 +133,7 @@ Module BedrockPtsToEvaluator.
       Valid Prover_correct uvars vars summ ->
       exprD funcs uvars vars pe ptrT = Some p ->
       match 
-        applyD (exprD funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
+        applyD (exprD funcs uvars vars) (SEP.SDomain ptsto32_ssig) args _ (SEP.SDenotation ptsto32_ssig)
         with
         | None => False
         | Some p => ST.satisfies cs p stn m
@@ -166,13 +163,13 @@ Module BedrockPtsToEvaluator.
       exprD funcs uvars vars pe ptrT = Some p ->
       exprD funcs uvars vars ve wordT = Some v ->
       match
-        applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
+        applyD (@exprD _ funcs uvars vars) (SEP.SDomain ptsto32_ssig) args _ (SEP.SDenotation ptsto32_ssig)
         with
         | None => False
         | Some p => ST.satisfies cs p stn m
       end ->
       match 
-        applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args' _ (SDenotation ptsto32_ssig)
+        applyD (@exprD _ funcs uvars vars) (SEP.SDomain ptsto32_ssig) args' _ (SEP.SDenotation ptsto32_ssig)
         with
         | None => False
         | Some pr => 
@@ -214,7 +211,7 @@ Module BedrockPtsToEvaluator.
   refine ({| MEVAL.MemEvalTypes := Env.nil_Repr EmptySet_type
            ; MEVAL.MemEvalFuncs := fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts))
            ; MEVAL.MemEvalPreds := fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
-             (SymIL.SEP.Default_ssignature (Env.repr ptsto32_types_r ts)
+             (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
                (tvType 0) (tvType 1))
            ; MEVAL.MemEval := fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil)
            ; MEVAL.MemEval_correct := fun ts fs ps =>
