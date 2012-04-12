@@ -7,8 +7,8 @@ Require Import Env.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
-  Module SEP := SepExpr B ST.
+Module MemoryEvaluator (SEP : SepExprType).
+  Module ST := SEP.ST.
 
   (** Learn hook **)
   Definition LearnHook (types_ : list type) (State : Type) : Type := 
@@ -18,7 +18,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     (stateD : env types -> env types -> 
       codeSpec (tvarD types pcT) (tvarD types stT) -> tvarD types stT -> State -> Prop)
     (funcs : functions types) 
-    (preds : SEP.sfunctions types pcT stT) : Prop :=
+    (preds : SEP.predicates types pcT stT) : Prop :=
   { hook_sound : forall P (PC : ProverT_correct P funcs),
     forall uvars vars cs stn_st ss ss' pp,
       stateD uvars vars cs stn_st ss ->
@@ -60,7 +60,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Variable eval : MemEvaluator.
 
     Variable funcs : functions types.
-    Variable preds : SEP.sfunctions types pcT stT.
+    Variable preds : SEP.predicates types pcT stT.
 
     Variable stn_st : Type.
     
@@ -158,7 +158,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Definition package tr pcT stT ptr val X Y Z : @MemEvaluatorPackage tr pcT stT ptr val X Y Z :=
       {| MemEvalTypes := nil_Repr EmptySet_type
        ; MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
-       ; MemEvalPreds := fun ts => nil_Repr (SEP.Default_ssignature _ pcT stT)
+       ; MemEvalPreds := fun ts => nil_Repr (SEP.Default_predicate _ pcT stT)
        ; MemEval := fun ts => MemEvaluator_default _ _ _
        ; MemEval_correct := fun ts fs ps => MemEvaluator_default_correct _ _ _ _ _ _ _ 
        |}.
@@ -208,7 +208,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           Valid PE uvars vars facts ->
           exprD funcs uvars vars pe ptrT = Some p ->
           match 
-            applyD (exprD funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+            applyD (exprD funcs uvars vars) (SEP.SDomain Predicate) args _ (SEP.SDenotation Predicate)
             with
             | None => False
             | Some p => mem_satisfies cs (ST.star p Q) stn_st
@@ -225,13 +225,13 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            exprD funcs uvars vars pe ptrT = Some p ->
            exprD funcs uvars vars ve valT = Some v ->
            match
-             applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args _ (SDenotation Predicate)
+             applyD (@exprD _ funcs uvars vars) (SEP.SDomain Predicate) args _ (SEP.SDenotation Predicate)
              with
              | None => False
              | Some p => mem_satisfies cs (ST.star p Q) stn_st
            end ->
            match 
-             applyD (@exprD _ funcs uvars vars) (SDomain Predicate) args' _ (SDenotation Predicate)
+             applyD (@exprD _ funcs uvars vars) (SEP.SDomain Predicate) args' _ (SEP.SDenotation Predicate)
              with
              | None => False
              | Some pr => 
@@ -283,7 +283,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
         Definition plugin_symeval_read_word (facts : Facts Prover) (p : expr types) 
           (s : SEP.SHeap types pcT stT) : option (expr types) :=
-          let impures := SepExpr.impures s in
+          let impures := SEP.impures s in
           let reader i_me :=
             let '(i,me) := i_me in
             match FM.find i impures with
@@ -294,9 +294,11 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           in
           fold_first reader evals.
 
+        Print SEP.SHeap.
+
         Definition plugin_symeval_write_word (facts : Facts Prover) (p v : expr types)
           (s : SEP.SHeap types pcT stT) : option (SEP.SHeap types pcT stT) :=
-          let impures := SepExpr.impures s in
+          let impures := SEP.impures s in
           let writer i_me :=
           let '(i,me) := i_me in
             match FM.find i impures with
@@ -310,7 +312,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
           in
           match fold_first writer evals with
             | None => None
-            | Some impures => Some {| impures := impures ; pures := SepExpr.pures s ; other := SepExpr.other s |}
+            | Some impures => Some (SEP.Build_SHeap _ _ impures (SEP.pures s) (SEP.other s))
           end.
       End with_prover.
 
@@ -326,7 +328,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable evals : list (nat * MemEvalPred types).
 
       Variable funcs : functions types.
-      Variable sfuncs : SEP.sfunctions types pcT stT .
+      Variable sfuncs : SEP.predicates types pcT stT .
 
       Variable stn_st : Type.
       Variables ptrT valT : tvar.
@@ -400,7 +402,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variable evals : forall ts, list (nat * MemEvalPred (repr types ts)).
 
       Variable funcs : forall ts, Repr (signature (repr types ts)).
-      Variable sfuncs : forall ts, Repr (SEP.sfunctions (repr types ts) pcT stT).
+      Variable sfuncs : forall ts, Repr (SEP.predicates (repr types ts) pcT stT).
 
       Variables ptrT valT : tvar.
 
@@ -450,7 +452,7 @@ Module MemoryEvaluator (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       Variables evalL evalR : MemEvaluator types pcT stT.
 
       Variable funcs : functions types.
-      Variable preds : SEP.sfunctions types pcT stT.
+      Variable preds : SEP.predicates types pcT stT.
 
       Variable stn_st : Type.
     
@@ -524,7 +526,7 @@ Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts
     Variable tvVal : tvar.
     
     Variable funcs : functions types.
-    Variable sfuncs : sfunctions types tvPc tvState.
+    Variable sfuncs : predicates types tvPc tvState.
 
     Variable known : list nat.
     Definition evals_type := 

@@ -9,8 +9,7 @@ Set Strict Implicit.
 
 Require Import Heaps SepTheoryX.
 
-Module Make (B : Heap) (ST : SepTheoryXType B).
-  Module SEP := SepExpr B ST.
+Module Make (SEP : SepExprType).
 
   Record TypeEnv (core : Repr type) (pc st : tvar) : Type :=
   { Types : Repr type

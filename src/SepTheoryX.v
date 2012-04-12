@@ -7,7 +7,8 @@ Require Import RelationClasses.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module Type SepTheoryXType (H : Heap).
+Module Type SepTheoryXType.
+  Declare Module H : Heap.
   
   Parameter hprop : forall (pcType stateType : Type), list Type -> Type.
 
@@ -146,7 +147,8 @@ Existing Instance Trans_heq.
 
 End SepTheoryXType.
 
-Module SepTheoryX (H : Heap) <: SepTheoryXType H.
+Module Make (H' : Heap) <: SepTheoryXType with Module H := H'.
+  Module H := H'.
   Module HT := HeapTheory H.
 
   Section env.
@@ -511,9 +513,9 @@ Module SepTheoryX (H : Heap) <: SepTheoryXType H.
       eapply Imply_E. eapply valid_weaken; eauto. firstorder. eauto.
     Qed.
   End env.
-End SepTheoryX.
+End Make.
 
-Module SepTheoryX_Rewrites (H : Heap) (Import ST : SepTheoryXType H).
+Module SepTheoryX_Rewrites (Import ST : SepTheoryXType).
   
   Require Import Setoid Classes.Morphisms.
   

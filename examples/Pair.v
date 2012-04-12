@@ -64,11 +64,13 @@ Theorem pairOk : moduleOk pair.
   vcgen.
   SymIL.sym_eval ltac:SymIL.isConst hints_pair ltac:(fun H => idtac).
   cbv beta zeta iota delta [ 
-  hints_pair
-        SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
-        SymIL.Prover SymIL.Hints ] in H1.
-  Set Printing Depth 60.
+    hints_pair
+    SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
+    SymIL.Prover SymIL.Hints ] in H1.
+  Set Printing Depth 80.
+  sep hints_pair.
   sym_eval_simplifier H1.
+
 
 
   (* Stuck here: need to create a hint database in the fancy new form expected by [sep]. *)

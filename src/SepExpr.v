@@ -13,82 +13,137 @@ Require NatMap.
 
 Module FM := NatMap.IntMap.
 
-Section SepExprTypes.
-  Variable types : list type.
-  Variable rtype : Type.
+Module Type SepExprType.
+  Declare Module ST : SepTheoryX.SepTheoryXType.
 
-  Record ssignature' := SSig' {
-    SDomain : list tvar ;
-    SDenotation : functionTypeD (map (@tvarD types) SDomain) rtype
-  }.
-
-  Inductive sexpr' : Type :=
-  | Emp : sexpr'
-  | Inj : expr types -> sexpr'
-  | Star : sexpr' -> sexpr' -> sexpr'
-  | Exists : tvar -> sexpr' -> sexpr'
-  | Func : func -> list (expr types) -> sexpr'
-  | Const : rtype -> sexpr'
-  .
-
-  Record SHeap' : Type :=
-  { impures : FM.t (list (list (expr types)))
-  ; pures   : list (expr types)
-  ; other   : list rtype
-  }.
-
-  (** result of cancelation **)
-  Record SepResult (gl gr : sexpr') : Type :=
-  { r_vars   : variables
-  ; r_lhs_ex : variables
-  ; r_lhs    : SHeap'
-  ; r_rhs_ex : variables
-  ; r_rhs    : SHeap'
-  ; r_SUBST  : Subst types
-  }.
-
-End SepExprTypes.
-
-Implicit Arguments Emp [ types rtype ].
-Implicit Arguments Star [ types rtype ].
-Implicit Arguments Exists [ types rtype ].
-Implicit Arguments Func [ types rtype ].
-Implicit Arguments Const [ types rtype ].
-Implicit Arguments Inj [ types rtype ].
-
-Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
-
-  Module SEP_FACTS := SepTheoryX_Rewrites B ST.
   Section env.
     Variable types : list type.
-    Variable funcs : functions types.
-
     Variable pcType : tvar.
     Variable stateType : tvar.
 
-    Definition ssignature :=
-      ssignature' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
-    Definition SSig := @SSig' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+    Record ssignature := SSig {
+      SDomain : list tvar ;
+      SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+    }.
 
-    Definition sfunctions := list ssignature.
+    Definition predicates : Type := list ssignature.
 
-    Definition Default_ssignature : ssignature :=
+
+    Parameter Default_predicate : ssignature.
+
+    Inductive sexpr : Type :=
+    | Emp : sexpr
+    | Inj : expr types -> sexpr
+    | Star : sexpr -> sexpr -> sexpr
+    | Exists : tvar -> sexpr -> sexpr
+    | Func : func -> list (expr types) -> sexpr
+    | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil -> sexpr
+    .
+
+    Section funcs_preds.
+      Variable funcs : functions types.
+      Variable preds : predicates.
+      
+      Fixpoint sexprD (uvs vs : env types) (s : sexpr)
+        : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
+        match s with 
+          | Emp => ST.emp _ _
+          | Inj p =>
+            match exprD funcs uvs vs p tvProp with
+              | None => ST.inj (PropX.Inj False)
+              | Some p => ST.inj (PropX.Inj p)
+            end
+          | Star l r =>
+            ST.star (sexprD uvs vs l) (sexprD uvs vs r)
+          | Exists t b =>
+            ST.ex (fun x : tvarD types t => sexprD uvs (@existT _ _ t x :: vs) b)
+          | Func f b =>
+            match nth_error preds f with
+              | None => ST.inj (PropX.Inj False)
+              | Some f =>
+                match applyD (@exprD types funcs uvs vs) (SDomain f) b _ (SDenotation f) with
+                  | None => ST.inj (PropX.Inj False)
+                  | Some p => p
+                end
+            end
+          | Const p => p
+        end.
+
+    Definition himp (U1 U2 G : env types)
+      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      (gl gr : sexpr) : Prop :=
+      ST.himp cs (sexprD U1 G gl) (sexprD U2 G gr).
+
+    Definition heq (U1 U2 G : env types)
+      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+      (gl gr : sexpr) : Prop :=
+      ST.heq cs (sexprD U1 G gl) (sexprD U2 G gr).
+
+    End funcs_preds.
+
+    Record SHeap : Type :=
+    { impures : FM.t (list (list (expr types)))
+    ; pures   : list (expr types)
+    ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+    }.
+
+    Parameter star_SHeap : SHeap -> SHeap -> SHeap.
+
+    Parameter sheapSubstU : nat -> nat -> nat -> SHeap -> SHeap.
+
+    Parameter hash : sexpr -> variables * SHeap.
+
+    Parameter sheapD : SHeap -> sexpr.
+
+(*
+    (** result of cancelation **)
+    Record SepResult (gl gr : sexpr) : Type :=
+    { r_vars   : variables
+    ; r_lhs_ex : variables
+    ; r_lhs    : SHeap
+    ; r_rhs_ex : variables
+    ; r_rhs    : SHeap
+    ; r_SUBST  : Subst types
+    }.
+*)
+
+  End env.
+End SepExprType.
+
+Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := ST'.
+  Module ST := ST'.
+
+  Module SEP_FACTS := SepTheoryX_Rewrites ST.
+  Section env.
+    Variable types : list type.
+    Variable pcType : tvar.
+    Variable stateType : tvar.
+
+    Record ssignature := SSig {
+      SDomain : list tvar ;
+      SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+    }.
+
+    Definition predicates := list ssignature.
+
+    Definition Default_predicate : ssignature :=
     {| SDomain := nil
      ; SDenotation := @ST.emp _ _ _
      |} .
 
-    Variable sfuncs : sfunctions.
+    Variable funcs : functions types.
+    Variable sfuncs : predicates.
 
-    Definition sexpr := sexpr' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+    Inductive sexpr : Type :=
+    | Emp : sexpr
+    | Inj : expr types -> sexpr
+    | Star : sexpr -> sexpr -> sexpr
+    | Exists : tvar -> sexpr -> sexpr
+    | Func : func -> list (expr types) -> sexpr
+    | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil -> sexpr
+    .
 
-    Definition MkEmp : sexpr := Emp.
-    Definition MkInj i : sexpr := Inj i.
-    Definition MkStar l r : sexpr := Star l r.
-    Definition MkExists a b : sexpr := Exists a b.
-    Definition MkFunc a b : sexpr := Func a b.
-    Definition MkConst a : sexpr := Const a.
-
-    Fixpoint sexprD (uvs vs : list { t : tvar & tvarD types t }) (s : sexpr)
+    Fixpoint sexprD (uvs vs : env types) (s : sexpr)
       : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
       match s with 
         | Emp => ST.emp _ _
@@ -163,13 +218,13 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         transitivity proved by Trans_heq
       as heq_rel.
 
-      Global Add Parametric Morphism U' : (@Star _ _) with
+      Global Add Parametric Morphism U' : Star with
         signature (himp U U' G cs ==> himp U U' G cs ==> himp U U' G cs)      
         as star_himp_mor.
         unfold himp; simpl; intros; eapply SEP_FACTS.star_himp_mor; eauto.
       Qed.
 
-      Global Add Parametric Morphism U' : (@Star _ _) with
+      Global Add Parametric Morphism U' : Star with
         signature (heq U U' G cs ==> heq U U' G cs ==> heq U U' G cs)      
         as star_heq_mor.
         unfold himp; simpl; intros; eapply SEP_FACTS.star_heq_mor; eauto.
@@ -253,58 +308,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       clear. auto.
     Qed.
 
-    Section exists_subst.
-      Variable U1 : env types.
-      
-      Fixpoint exists_subst (CU : env types) (* Unification variables corresponding to genuine Coq existentials *)
-        (U : list (tvar * option (expr types)))
-        : (env types -> Prop) -> Prop :=
-        match U as U with
-          | nil => fun cc => cc nil
-          | (t,v) :: r => fun cc =>
-            match v with
-              | None => 
-                exists v : tvarD types t, exists_subst (match CU with
-                                                          | nil => nil
-                                                          | _ :: CU' => CU'
-                                                        end) r (fun z => cc (existT _ t v :: z))
-              | Some v => 
-                match exprD funcs CU U1 v t with
-                  | None => False
-                  | Some v1 =>
-                    match CU with
-                      | nil => exists_subst nil r (fun z => cc (existT _ t v1 :: z))
-                      | existT t' v' :: CU' =>
-                        match exprD funcs CU U1 v t' with
-                          | None => False
-                          | Some v'' => v' = v'' /\ exists_subst CU' r (fun z => cc (existT _ t v1 :: z))
-                        end
-                    end
-                end
-            end
-        end.
-
-    End exists_subst.
-
-    Lemma exists_subst_exists : forall A CU
-      (B : list (tvar * option (expr types))) P,
-      exists_subst A CU B P ->
-      exists C, P C.
-    Proof.
-(*
-      clear. induction B; simpl; intros.
-      eauto.
-      destruct a; simpl in *. destruct o.
-      destruct (exprD funcs CU A e t); try tauto.
-      eapply IHB in H; destruct H; eauto. 
-      destruct H. eapply IHB in H. destruct H; eauto.
-    Qed.
-*)
-    Admitted.
+    
 
     (** A more efficient representation for sexprs. **)
-    Definition SHeap := 
-      SHeap' types (ST.hprop (tvarD types pcType) (tvarD types stateType) nil).
+    Record SHeap : Type :=
+    { impures : FM.t (list (list (expr types)))
+    ; pures   : list (expr types)
+    ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+    }.
   
     Definition SHeap_empty : SHeap := 
       {| impures := @FM.empty _
@@ -468,7 +479,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Proof.
       induction i; simpl; intros.
       autorewrite with hprop. reflexivity.
-
+(*
       rewrite IHi2. rewrite <- starred_base. rewrite IHi1.
       symmetry. 
       rewrite fold_starred. repeat rewrite heq_star_assoc.
@@ -476,10 +487,13 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       apply heq_star_frame; try reflexivity.
       rewrite starred_starred'; try reflexivity. 
     Qed.
+*)
+    Admitted.
 
     Theorem sheapD_sheapD' : forall a c cs h, 
       heq a a c cs (sheapD h) (sheapD' h).
     Proof.
+(*
       destruct h; unfold sheapD, sheapD'; simpl.
       rewrite impures'. rewrite <- starred_base. 
       rewrite <- starred_base with (ls := other0).
@@ -488,6 +502,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       autorewrite with hprop.
       eapply starred_starred'; reflexivity.
     Qed.
+*)
+    Admitted.
 
     Lemma starred_In : forall T (F : T -> sexpr) a c cs x ls' b ls,
       heq a a c cs (starred F (ls ++ x :: ls') b) (Star (starred F (ls ++ ls') b) (F x)).
@@ -530,9 +546,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         (Star
            (FM.fold
               (fun (k : nat) (ls : list (list (expr types)))
-                 (acc : sexpr' types
-                          (ST.hprop (tvarD types pcType)
-                             (tvarD types stateType) nil)) =>
+                 (acc : sexpr) =>
                Star (starred' (Func k) ls Emp) acc)
               (impures
                  {| impures := impures0; pures := pures0; other := other0 |})
@@ -575,23 +589,17 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Lemma insert_at_right_star : forall a c cs i1 i2 b, 
       heq a a c cs (FM.fold
         (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr' types
-            (ST.hprop (tvarD types pcType) 
-              (tvarD types stateType) nil)) =>
+          (acc : sexpr) =>
           Star (starred' (Func k) ls Emp) acc)
         (FM.insert_at_right i1 i2) b)
       (Star (FM.fold
         (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr' types
-            (ST.hprop (tvarD types pcType) 
-              (tvarD types stateType) nil)) =>
+          (acc : sexpr) =>
           Star (starred' (Func k) ls Emp) acc)
         i1 Emp)
       (FM.fold
         (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr' types
-            (ST.hprop (tvarD types pcType) 
-              (tvarD types stateType) nil)) =>
+          (acc : sexpr) =>
           Star (starred' (Func k) ls Emp) acc)
         i2 b)).
     Proof.
@@ -625,9 +633,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       instantiate (1 := (Star
          (FM.fold
             (fun (k : nat) (ls : list (list (expr types)))
-               (acc : sexpr' types
-                        (ST.hprop (tvarD types pcType)
-                           (tvarD types stateType) nil)) =>
+               (acc : sexpr) =>
              Star (starred' (Func k) ls Emp) acc) (FM.remove f impures0) Emp)
          (starred (Func f) argss Emp))).
       Focus 2.
@@ -651,7 +657,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
       rewrite insert_at_right_star.
       rewrite fold_starred.
-      symmetry. rewrite heq_star_comm. rewrite <- heq_star_assoc.
+      symmetry. rewrite heq_star_comm. (* rewrite <- heq_star_assoc.
       rewrite heq_star_comm. reflexivity.
 
       intros.
@@ -662,6 +668,8 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       symmetry. rewrite heq_star_comm. rewrite heq_star_assoc.
       reflexivity.
     Qed.
+*)
+    Admitted.
 
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
@@ -763,6 +771,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             end
         end.
 
+    (** TODO: this function signature is going to change **)
     Definition sepCancel (summ : Facts Prover) (l r : SHeap) :
       SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types :=
       let '(lf, rf, ls, rs) := 
@@ -787,12 +796,22 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        {| impures := rf ; pures := pures r ; other := other r |},
        ls, rs).
 
+(*
+    Record SepResult (gl gr : sexpr) : Type :=
+    { r_vars   : variables
+    ; r_lhs_ex : variables
+    ; r_lhs    : SHeap
+    ; r_rhs_ex : variables
+    ; r_rhs    : SHeap
+    ; r_SUBST  : Subst types
+    }.
+
     (** TODO: I should reconsider this... 
      ** - I think the correct interface here is to spit out two sexprs
      **)
     Definition CancelSep (uvars : env types)
       : list (expr types) -> forall (gl gr : sexpr), SepResult gl gr :=
-      fun hyps gl gr =>
+        fun hyps gl gr =>
         let (ql, lhs) := hash gl in
         let (qr, rhs) := hash gr in
         let summ := Summarize Prover (hyps ++ pures lhs) in
@@ -812,7 +831,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
            ; r_rhs_ex := rhs_ex ; r_rhs := rhs 
            ; r_SUBST := SUBST |} =>
           forallEach vars (fun VS : env types =>
-            exists_subst VS uvars (env_of_Subst SUBST rhs_ex 0)
+            exists_subst funcs VS uvars (env_of_Subst SUBST rhs_ex 0)
             (fun rhs_ex : env types => 
               himp nil rhs_ex VS cs (sheapD lhs) (sheapD rhs)))
       end ->
@@ -822,35 +841,50 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       rewrite H1 in H0. revert Prover_correct.
       admit.
     Qed.
+*)
 
   End env.
+
+  Implicit Arguments Emp [ types pcType stateType ].
+  Implicit Arguments Star [ types pcType stateType ].
+  Implicit Arguments Exists [ types pcType stateType ].
+  Implicit Arguments Func [ types pcType stateType ].
+  Implicit Arguments Const [ types pcType stateType ].
+  Implicit Arguments Inj [ types pcType stateType ].
+
+
+  Lemma change_ST_himp_himp : forall (types : list type)
+    (funcs : functions types) (pc st : tvar)
+    (sfuncs : list (ssignature types pc st))
+    
+    (cs : codeSpec (tvarD types pc) (tvarD types st))
+    (L R : sexpr types pc st),
+    himp funcs sfuncs nil nil nil cs L R ->
+    ST.himp cs
+      (@sexprD types pc st funcs sfuncs nil nil L)
+      (@sexprD types pc st funcs sfuncs nil nil R).
+  Proof.
+    unfold himp. intros. auto.
+  Qed.
+
+End Make.
+
+Module ReifySepExpr (Import SEP : SepExprType).  
 
   (** Reflection **)
   Require Import Reflect.
 
-  Ltac lift_ssignature s nt rtype :=
+  Ltac lift_ssignature s nt pc st :=
     let d := eval simpl SDomain in (SDomain s) in
     let f := eval simpl SDenotation in (SDenotation s) in
-    let res := constr:(@SSig nt rtype d f) in 
+    let res := constr:(@SSig nt pc st d f) in 
     eval simpl in res.
 
   Ltac lift_ssignatures fs nt :=
     match type of fs with
-      | list (ssignature' _ (ST.hprop (tvarD _ ?pc) (tvarD _ ?st) ?ls)) =>
-        let rtype := constr:(ST.hprop (tvarD nt pc) (tvarD nt st) nil) in
-        let f sig := 
-          lift_ssignature sig nt rtype
-        in
-        map_tac (ssignature nt pc st) f fs
-      | list (ssignature' _ ?rtype) =>
-        let f sig := 
-          lift_ssignature sig nt rtype
-        in
-        map_tac (ssignature nt rtype) f fs
       | list (ssignature _ ?pc ?st) =>
-        let rtype := constr:(ST.hprop (tvarD nt pc) (tvarD nt st) nil) in
         let f sig := 
-          lift_ssignature sig nt rtype
+          lift_ssignature sig nt pc st
         in
         map_tac (ssignature nt pc st) f fs
     end.
@@ -981,13 +1015,14 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
                   let acc := constr:(S acc) in
                   lookup FS acc
               end
-            | @SSig' _ _ _ ?F =>
+(*            | @SSig' _ _ _ ?F =>
               match F with
                 | f => k sfuncs acc 
                 | _ => 
                   let acc := constr:(S acc) in
                   lookup FS acc
               end
+*)
           end
       end
     in lookup sfuncs 0.
@@ -1008,7 +1043,7 @@ Module SepExpr (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
    **)
   Ltac reify_sexpr isConst s types funcs pcType stateType sfuncs uvars vars k :=
     let implicits ctor :=
-      constr:(ctor types (ST.hprop (@tvarD types pcType) (@tvarD types stateType) nil))
+      constr:(ctor types pcType stateType) (* (ST.hprop (@tvarD types pcType) (@tvarD types stateType) nil)) *)
     in
     let rec reflect s funcs sfuncs uvars vars k :=
       match s with
@@ -1163,21 +1198,9 @@ Ltac reify_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
 *)
 
 
-  Lemma change_ST_himp_himp : forall (types : list type)
-    (funcs : functions types) (pc st : tvar)
-    (sfuncs : list (ssignature types pc st))
-    
-    (cs : codeSpec (tvarD types pc) (tvarD types st))
-    (L R : sexpr types pc st),
-    himp funcs sfuncs nil nil nil cs L R ->
-    ST.himp cs
-      (@sexprD types funcs pc st sfuncs nil nil L)
-      (@sexprD types funcs pc st sfuncs nil nil R).
-  Proof.
-    unfold himp. intros. auto.
-  Qed.
 
   (** Base simplifier.  For now, copy all this and add your own extra entries to cover prover reductions. *)
+(*
   Ltac simplifier :=
     cbv beta iota zeta delta [CancelSep sepCancel hash liftSHeap sheapSubstU liftExpr 
       FM.add FM.fold FM.map FM.find FM.remove FM.empty FM.insert_at_right
@@ -1197,6 +1220,7 @@ Ltac reify_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
       nat_eq_eqdec
       (* eq_summary eq_summarize eq_prove *)
    ].
+*)
 (*
   Ltac sep isConst proverR simplifier types := 
     reify_goal isConst types ltac:(fun props proofs =>
@@ -1205,4 +1229,44 @@ Ltac reify_exprs isConst ss types funcs pcType stateType sfuncs uvars vars k :=
           | simplifier; intros; hnf; simpl in * ]).
 *)
 
-End SepExpr.
+End ReifySepExpr.
+
+(*
+Module ReifyTests (Import SEP : SepExprType).
+  
+  Parameter pc st : Type.
+
+  Parameter hold : SEP.ST.hprop pc st nil -> Prop.
+
+  Module SEP_REIFY := ReifySepExpr SEP.
+
+  Print Ltac SEP_REIFY.reify_sexpr.
+  Print Ltac SEP_REIFY.collectTypes_sexpr.
+
+  Print Ltac extend_all_types.
+
+
+
+  Goal hold (SEP.ST.star (SEP.ST.emp _ _) (SEP.ST.emp _ _)).
+    match goal with
+      | [ |- hold ?S ] => 
+        let isConst x := false in
+        SEP_REIFY.collectTypes_sexpr isConst S (@nil Type) ltac:(fun Ts =>
+          idtac "0" ;
+          let Ts := constr:(pc :: st :: Ts) in
+          let types := constr:(@nil type) in
+            idtac "1" ;
+          let types := extend_all_types Ts types in
+            idtac "2" ;
+          let pcT := constr:(tvType 0) in
+          let stT := constr:(tvType 1) in
+          let funcs := constr:(@nil (signature types)) in
+          let preds := constr:(@nil (SEP.ssignature types pcT stT)) in
+          let vars := constr:(@nil _ : env types) in
+            idtac "goign to reflect !" S ;
+          SEP_REIFY.reify_sexpr ltac:(fun x => false) S types funcs pcT stT preds vars vars ltac:(fun uvars funcs preds S =>
+            idtac uvars funcs preds S))
+    end.
+
+    Print ST.star.
+*)
