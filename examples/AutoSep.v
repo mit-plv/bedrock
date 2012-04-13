@@ -267,7 +267,7 @@ Ltac evaluate ext :=
   sym_eval ltac:(isConst) ext simp.
 
 Ltac cancel ext :=
-  sep_canceler ltac:(isConst) auto_ext the_cancel_simplifier.
+  sep_canceler ltac:(isConst) ext the_cancel_simplifier.
 (*
     ltac:(fun ts fs => constr:(@Provers.transitivityProver_correct ts fs))
     the_cancel_simplifier tt.
