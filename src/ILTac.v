@@ -38,9 +38,6 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
       let new_uvars := skipn (length uvars) uvars' in
       match SEP.sepCancel preds prover facts lhs rhs with
         | (lhs', rhs', lhs_subst, rhs_subst) =>
-          SEP.himp funcs preds nil nil nil cs
-                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs) nil (SEP.other rhs)))
-                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))) /\
           Expr.forallEach vars (fun VS : Expr.env types => 
             Expr.existsEach new_uvars (fun US : Expr.env types =>
               exists_subst funcs VS (uvars ++ US) 
@@ -354,15 +351,3 @@ Ltac cancel_simplifier :=
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
-
-
-(** TODO: write a test case!
-Check SEP.himp.
-
-Goal forall (cs : codeSpec W (settings * state)),
-  himp cs (ST.emp _ _) (ST.emp _ _).
-Proof.
-  intros.
-  sep_canceler ltac:(isConst) tt idtac.
-  simpl in y.
-**)
