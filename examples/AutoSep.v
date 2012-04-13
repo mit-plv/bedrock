@@ -53,8 +53,136 @@ Ltac sym_eval_simplifier H :=
 
 Ltac the_cancel_simplifier :=
   Provers.unfold_transitivityProver tt ;
+  ILTac.cancel_simplifier.
+(*
   cbv beta iota zeta delta 
-    [ SEP.sepCancel projT1
+    [ SEP.sepCancel
+    SEP.hash SEP.hash' SEP.sepCancel
+
+    SepExpr.FM.fold
+
+    Facts Summarize Prove Learn
+
+    ExprUnify.Subst
+    
+    ILEnv.bedrock_types ILEnv.bedrock_types_r
+    ILEnv.bedrock_funcs ILEnv.bedrock_funcs_r
+    app map fold_right nth_error value error hd hd_error tl
+    
+    fst snd
+
+    SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
+    SEP.sheapSubstU ExprUnify.empty_Subst
+
+    SEP.pures SEP.impures SEP.other
+
+    exists_subst ExprUnify.env_of_Subst
+
+    SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
+
+    SEP.unify_remove_all SEP.unify_remove
+
+    SEP.unifyArgs
+    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
+    Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
+
+    ExprUnify.exprUnify SEP.substV length
+    Expr.liftExpr Expr.exprSubstU
+    Peano_dec.eq_nat_dec EquivDec.equiv_dec 
+    Expr.EqDec_tvar
+    Expr.tvar_rec Expr.tvar_rect
+    sumbool_rec sumbool_rect
+    eq_rec_r eq_rect eq_rec f_equal eq_sym
+    ExprUnify.get_Eq
+    Expr.Eq
+    EquivDec.nat_eq_eqdec
+    Expr.typeof 
+    Expr.expr_seq_dec
+    Expr.tvarD
+    Expr.tvar_val_sdec 
+    Provers.groupWith
+    Expr.Range Expr.Domain Expr.Denotation
+    Expr.all2
+
+    Expr.forallEach
+    SEP.sheapD SEP.sexprD
+    SEP.starred SEP.himp
+    Expr.Impl Expr.Impl_ Expr.is_well_typed
+    
+    Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
+    Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_predicate
+
+    orb
+
+    SEP.liftSHeap SEP.hash SEP.hash'
+
+    UNF.Forward UNF.Backward 
+    UNF.backward
+
+    SymIL.Hints SymIL.Prover
+    Expr.existsEach Expr.forallEach
+    firstn skipn
+    AllProvable_gen
+
+    (** Extra Stuff **)
+    Compare_dec.lt_dec
+    Compare_dec.le_dec
+    Compare_dec.le_gt_dec
+    Compare_dec.le_lt_dec
+    Compare_dec.lt_eq_lt_dec
+
+    ExprUnify.Subst_lookup ExprUnify.Subst_replace ExprUnify.env_of_Subst
+    ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
+    ExprUnify.empty_Subst
+
+    ExprUnify.SUBST.empty
+    ExprUnify.SUBST.find
+    ExprUnify.SUBST.add
+    ExprUnify.SUBST.insert_at_right
+    ExprUnify.SUBST.remove
+    ExprUnify.SUBST.remove_add
+    ExprUnify.SUBST.find_add
+    ExprUnify.SUBST.fold
+    ExprUnify.SUBST.map
+
+    NatMap.Ordered_nat.compare
+    NatMap.Ordered_nat.eq_dec
+    Peano_dec.eq_nat_dec
+    
+    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
+    sumor_rec sumor_rect
+ 
+   
+    UNF.Vars UNF.UVars UNF.Heap 
+    UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs 
+    UNF.Forward UNF.Backward 
+    UNF.backward UNF.unfoldBackward
+    UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
+    equiv_dec UNF.substExpr Unfolder.FM.add 
+    Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
+    ExprUnify.empty_Subst unfolder_LearnHook
+    UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
+    UNF.findWithRest
+        
+    SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr SEP.hash' UNF.substSexpr
+    rev_append
+    
+    Unfolder.FM.fold Unfolder.FM.add
+      
+    Unfolder.FM.empty
+    Unfolder.FM.find
+    Unfolder.FM.add
+    Unfolder.FM.insert_at_right
+    Unfolder.FM.remove
+    Unfolder.FM.remove_add
+    Unfolder.FM.find_add
+    Unfolder.FM.fold
+    Unfolder.FM.map
+
+    plus minus
+
+    (* *)
+SEP.sepCancel projT1
       SEP.hash SEP.hash' SEP.sepCancel
 
       SepExpr.FM.fold
@@ -117,6 +245,7 @@ Ltac the_cancel_simplifier :=
       Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
       Provers.in_seq Provers.groupWith
     ].
+*)
 
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
@@ -137,25 +266,28 @@ Ltac evaluate ext :=
   in
   sym_eval ltac:(isConst) ext simp.
 
-Ltac cancel :=
-  sep_canceler ltac:(isConst) 
+Ltac cancel ext :=
+  sep_canceler ltac:(isConst) auto_ext the_cancel_simplifier.
+(*
     ltac:(fun ts fs => constr:(@Provers.transitivityProver_correct ts fs))
     the_cancel_simplifier tt.
+*)
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
 Ltac ho := Programming.ho unf; reduce.
-Ltac step := match goal with
-               | [ |- _ _ = Some _ ] => solve [ eauto ]
-               | [ |- interp _ (![ _ ] _) ] => cancel
-               | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel
-               | _ => ho
-             end.
+Ltac step ext := 
+  match goal with
+    | [ |- _ _ = Some _ ] => solve [ eauto ]
+    | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
+    | _ => ho
+  end.
 Ltac descend := Programming.descend; reduce.
 
-Ltac sep hints := evaluate hints; descend; repeat (step; descend).
+Ltac sep ext := evaluate ext; descend; repeat (step ext; descend).
 
-Ltac sepLemma := intros; cancel.
+Ltac sepLemma := intros; cancel auto_ext.
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)

@@ -299,7 +299,7 @@ Module Make (Import SE : SepExprType).
         match bound with
           | O => s
           | S bound' =>
-            match unfoldBackward prover facts(Backward hs) s with
+            match unfoldBackward prover facts (Backward hs) s with
               | None => s
               | Some s' => backward bound' facts s'
             end
@@ -342,6 +342,18 @@ Module Make (Import SE : SepExprType).
     Hints : forall ts, hintsPayload (repr Types ts) PcType StateType;
     HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
   }.
+
+(*
+  Ltac unfold_unfolder H :=
+    match H with
+      | tt => 
+        cbv beta iota zeta delta [ 
+          Hints Foralls Hints Hyps Lhs Rhs 
+          Forward Backward 
+          forward backward 
+          unfoldForward unfoldBackward
+*)
+
 
   (** * Reflecting hints *)
   Module SEP_REIFY := SepExpr.ReifySepExpr SE.
@@ -528,8 +540,6 @@ with lift_exprs_over_repr es rp :=
       let es := lift_exprs_over_repr es rp in
       constr:(fun ts => e ts :: es ts)
   end.
-
-Print SE.Emp.
 
 Ltac lift_sexpr_over_repr e rp pc st :=
   match eval hnf in e with

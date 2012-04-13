@@ -62,15 +62,32 @@ Defined.
 
 Theorem pairOk : moduleOk pair.
   vcgen.
+  sep hints_pair.
+  evaluate hints_pair.
+  repeat match goal with
+           | [ H : _ /\ _ |- _ ] => destruct H
+         end.
+  Print Ltac sep.
+  descend. step hints_pair. step hints_pair. descend. step hints_pair. descend.
+  cancel hints_pair.
+
+  cbv beta iota zeta delta [
+    eq_sym SEP.SDenotation ].
+Print hints_pair.  
+             
   SymIL.sym_eval ltac:SymIL.isConst hints_pair ltac:(fun H => idtac).
+  
   cbv beta zeta iota delta [ 
     hints_pair
     SymIL.Algos SymIL.Types SymIL.Preds SymIL.MemEval
     SymIL.Prover SymIL.Hints ] in H1.
   Set Printing Depth 80.
-  sep hints_pair.
   sym_eval_simplifier H1.
-
+  cbv beta iota zeta delta [ rev_append ] in H1.
+  About substSexpr.
+  cbv beta iota zeta delta [ SEP.hash substSexpr ] in H1.
+  SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map substExpr SEP.hash'
+  
 
 
   (* Stuck here: need to create a hint database in the fancy new form expected by [sep]. *)

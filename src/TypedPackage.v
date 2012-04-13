@@ -7,8 +7,6 @@ Require Import Env.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Require Import Heaps SepTheoryX.
-
 Module Make (SEP : SepExprType).
 
   Record TypeEnv (core : Repr type) (pc st : tvar) : Type :=

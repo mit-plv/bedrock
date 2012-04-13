@@ -1457,7 +1457,7 @@ Ltac sym_eval isConst ext simplifier :=
       | _ => ext
     end
   in
-  idtac "A" ;
+(*  idtac "A" ; *)
   match stn_st_SF with
     | tt => idtac (* nothing to symbolically evluate *)
     | ((?stn, ?st), ?SF) =>
@@ -1467,7 +1467,7 @@ Ltac sym_eval isConst ext simplifier :=
             | (?sp_v, ?sp_pf) =>
               match find_reg st Rv with
                 | (?rv_v, ?rv_pf) =>
-                  idtac "B" ;
+(*                  idtac "B" ; *)
                   let all_instrs := get_instrs st in
                   let all_props := Expr.collect_props shouldReflect in
                   let pures := Expr.props_types all_props in
@@ -1490,43 +1490,43 @@ Ltac sym_eval isConst ext simplifier :=
                   end;
                   (** elaborate the types **)
                   let types_ := constr:(repr bedrock_types_r (repr (Types ext') nil)) in
-                    idtac ">" ;
+(*                    idtac ">" ; *)
                   let types_ := reduce_repr tt types_ in
-                    idtac "<" types_ ;
+(*                    idtac "<" types_ ; *)
                   let types_ := Expr.extend_all_types Ts types_ in
-                    idtac "-" ;
+(*                    idtac "-" ; *)
                   let typesV := fresh "types" in
                   pose (typesV := types_);
                   (** Check the types **)
                   let pcT := constr:(tvType 0) in
                   let stT := constr:(tvType 1) in
                   (** build the variables **)
-                  idtac "XXX" ;
+(*                  idtac "XXX" ; *)
                   let uvars := constr:(@nil (@sigT Expr.tvar (fun t : Expr.tvar => Expr.tvarD typesV t))) in
-                  idtac "YYY" ;
+(*                  idtac "YYY" ; *)
                   let vars := uvars in
                   (** build the base functions **)
-                  idtac "aaa" ;
+(*                  idtac "aaa" ; *)
                   let funcs := constr:(repr (bedrock_funcs_r typesV) (repr (Funcs ext' typesV) nil)) in
-                  idtac "bbb" ;
+(*                  idtac "bbb" ; *)
                   let funcs := reduce_repr typesV funcs in
-                    idtac "<" funcs;
+(*                    idtac "<" funcs; *)
                    (** build the base sfunctions **)
                   let preds := constr:(@nil (@SEP.ssignature typesV pcT stT)) in
-                    idtac ">" ;
+(*                    idtac ">" ; *)
                   let preds := reduce_repr typesV (repr (Preds ext typesV) preds) in
-                    idtac "<" preds ;
-                    idtac "pures = " pures ;
+(*                    idtac "<" preds ;
+                    idtac "pures = " pures ; *)
                   (** reflect the expressions **)
                   Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
-                    idtac "C" ;
+(*                    idtac "C" ; *)
                   let proofs := Expr.props_proof all_props in
                   Expr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
-                    idtac "D" ;
+(*                    idtac "D" ; *)
                   Expr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
-                    idtac "E" ;
+(*                    idtac "E" ; *)
                   Expr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
-                    idtac "F" ;
+(*                    idtac "F" ; *)
                     let finish H syms :=
                       let rec unfold_all syms :=
                         match syms with
@@ -1535,14 +1535,14 @@ Ltac sym_eval isConst ext simplifier :=
                           | ?X => subst X
                         end
                       in
-                      idtac "5" ;
+(*                      idtac "5" ; *)
                       unfold_all syms ; 
-                      idtac "6" ;
+(*                      idtac "6" ; *)
                       first [ simplifier H | fail 100000 "simplifier failed!" ] ;
-                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]) 
+                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ])
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
-                      idtac "0" ;
+(*                      idtac "0" ; *)
                       match SF with
                         | tt => 
                           let funcsV := fresh "funcs" in
@@ -1560,10 +1560,10 @@ Ltac sym_eval isConst ext simplifier :=
                            let syms := constr:((typesV, (funcsV, predsV))) in
                            finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
                         | (?SF, ?H_interp) =>
-                          idtac "1" funcs preds ;
+(*                          idtac "1" funcs preds ; *)
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
-                            idtac "2" ;
+(*                            idtac "2" ; *)
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let predsV := fresh "preds" in
@@ -1572,11 +1572,11 @@ Ltac sym_eval isConst ext simplifier :=
                             apply (@stateD_proof typesV funcsV predsV
                               uvars vars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
-                            idtac "3" ;
+(*                            idtac "3" ; *)
                             (apply (@Apply_sym_eval typesV funcsV predsV _ ExtC
                               stn uvars vars fin_state st is is_pf) in H_interp ;
                              let syms := constr:((typesV, (funcsV, predsV))) in
-                             idtac "4" ;
+(*                             idtac "4" ; *)
                              finish H_interp syms) || fail 100000 "couldn't apply sym_eval_any! (SF case)" 
                             )
                       end)))))
@@ -1684,13 +1684,18 @@ Ltac sym_evaluator H :=
       sumor_rec sumor_rect
 
       (** unfolder should be unnecessary... **)
-      UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs UNF.Forward
+      UNF.Vars UNF.UVars UNF.Heap 
+      UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs 
+      UNF.Forward UNF.Backward 
       UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
       equiv_dec UNF.substExpr Unfolder.FM.add 
       Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
       ExprUnify.empty_Subst unfolder_LearnHook
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
+
+      SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr SEP.hash' UNF.substSexpr
+      rev_append
 
       Unfolder.FM.fold Unfolder.FM.add
 
