@@ -15,7 +15,9 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	SymEval sep/PtsTo \
 	ILEnv SepIL SymIL ILTac \
 	Bedrock
+TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
+TVS        := $(TESTS:%=%.v)
 ARGS :=-R . Bedrock
 
 #SepExprTests UnfolderTests 
@@ -27,6 +29,12 @@ coq: Makefile.coq
 
 Makefile.coq: Makefile $(VS)
 	coq_makefile $(ARGS) $(VS) -o Makefile.coq
+
+Makefile.test.coq: Makefile $(TVS)
+	coq_makefile $(ARGS) $(TVS) -o Makefile.test.coq
+
+test: coq Makefile.test.coq
+	$(MAKE) -f Makefile.test.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean

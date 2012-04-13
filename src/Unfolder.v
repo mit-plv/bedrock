@@ -305,14 +305,11 @@ Module Make (Import SE : SepExprType).
             end
         end.
 
-      (* Extended function environments, based on those symbols appearing in a goal but not the hint database. *)
-      Variable funcs' : functions types.
-      Variable preds' : predicates types pcType stateType.
-
       Hypothesis hsOk : hintsSoundness hs.
+      Hypothesis PC : ProverT_correct prover funcs.
 
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
-      Theorem unfolderOk : forall bound P Q (PC : ProverT_correct prover funcs'),
+      Theorem unfolderOk : forall bound P Q,
         (let (exsP, shP) := hash P in
          let (exsQ, shQ) := hash Q in
          let summ := Summarize prover (pures shP) in
@@ -324,11 +321,13 @@ Module Make (Import SE : SepExprType).
            UVars := exsQ;
            Heap := shQ |} in
          forallEach (Vars sP) (fun alls =>
-           exists_subst funcs' nil alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
-             forall cs, ST.himp cs (sexprD funcs' preds' nil alls (sheapD (Heap sP)))
-               (sexprD funcs' preds' exsQ nil (sheapD (Heap sQ))))))
-        -> forall cs, ST.himp cs (sexprD funcs' preds' nil nil P) (sexprD funcs' preds' nil nil Q).
-      Admitted.
+           exists_subst funcs nil alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
+             forall cs, ST.himp cs (sexprD funcs preds nil alls (sheapD (Heap sP)))
+               (sexprD funcs preds exsQ nil (sheapD (Heap sQ))))))
+        -> forall cs, ST.himp cs (sexprD funcs preds nil nil P) (sexprD funcs preds nil nil Q).
+      Proof.
+        generalize hsOk. generalize PC. admit.
+      Qed.
     End unfolder.
   End env.
 
@@ -636,21 +635,24 @@ Require TypedPackage.
                |}) in ret res))))).
 
   (* Main entry point to simplify a goal *)
+  About unfolderOk.
+  Check @Provers.reflexivityProver_correct.
   Ltac unfolder isConst hs bound :=
     intros;
-      let types := unfoldTypes (Types hs) in
-      let funcs := eval simpl in (Functions hs) in
-      let preds := eval simpl in (Predicates hs) in
-      let pc := eval simpl in (PcType hs) in
-      let state := eval simpl in (StateType hs) in
-        match goal with
-          | [ |- ST.himp _ ?P ?Q ] =>
-            SEP_REIFY.collectTypes_sexpr isConst P (@nil Type) ltac:(fun rt =>
-              SEP_REIFY.collectTypes_sexpr isConst Q rt ltac:(fun rt =>
-                let types := extend_all_types rt types in
-                  SEP_REIFY.reify_sexpr isConst P types funcs pc state preds (@nil type) (@nil type) ltac:(fun funcs preds P =>
-                    SEP_REIFY.reify_sexpr isConst Q types funcs pc state preds (@nil type) (@nil type) ltac:(fun funcs preds Q =>
-                      apply (unfolderOk (Hints hs) funcs preds bound P Q)))))
+      let types := eval simpl in (repr (Types hs) nil) in
+      match goal with
+        | [ |- ST.himp _ ?P ?Q ] =>
+          SEP_REIFY.collectTypes_sexpr isConst P (@nil Type) ltac:(fun rt =>
+          SEP_REIFY.collectTypes_sexpr isConst Q rt ltac:(fun rt =>
+            let types := extend_all_types rt types in
+            let funcs := eval simpl in (repr (Functions hs types) nil) in
+            let preds := eval simpl in (repr (Predicates hs types) nil) in
+            let pc := eval simpl in (PcType hs) in
+            let state := eval simpl in (StateType hs) in
+            SEP_REIFY.reify_sexpr isConst P types funcs pc state preds (@nil type) (@nil type) ltac:(fun uvars funcs preds P =>
+            SEP_REIFY.reify_sexpr isConst Q types funcs pc state preds (@nil type) (@nil type) ltac:(fun uvars funcs preds Q =>
+            let proverC := constr:(@Provers.reflexivityProver_correct types funcs) in
+            apply (@unfolderOk types funcs pc state preds (Hints hs types) _ (HintsOk hs types funcs preds) proverC bound P Q)))))
       end.
 
 (*

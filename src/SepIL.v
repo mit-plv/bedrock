@@ -392,8 +392,17 @@ Theorem substH_lift4 : forall p' t1 t2 t3 t4 p,
   reflexivity.
 Qed.
 
+Theorem substH_lift1_eatLast : forall T U P p,
+  HProp_extensional P ->
+  substH (sos := eatLast (T :: U :: nil)) (^[P])%Sep p = P.
+Proof.
+  intros. simpl eatLast. rewrite substH_lift1; auto.
+Qed.
+
+
 Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar
   substH_lift1 substH_lift2 substH_lift3 substH_lift4
+  substH_lift1_eatLast
   using solve [ auto ] : sepFormula.
 
 Global Opaque lift.

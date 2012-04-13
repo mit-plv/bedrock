@@ -162,3 +162,16 @@ Ltac propxIntuition :=
                          | [ |- valid _ _ ([| _ |])%PropX ] => 
                            eapply Inj_I
                        end).
+
+Section more.
+  Variables pc st : Type.
+
+  Global Add Parametric Morphism cs : (@And pc st nil) with
+    signature (PropX_eq pc st cs ==> PropX_eq pc st cs ==> PropX_eq pc st cs)
+  as And_mor.
+    unfold PropX_eq, PropX_imply;
+    intuition; unfold interp in *; propxIntuition;
+    (eapply Imply_E; [ eapply valid_weaken; eauto; firstorder | econstructor; firstorder ]). 
+  Qed.
+End more.
+    
