@@ -23,7 +23,7 @@ Definition fact := bmodule "fact" {{
   bfunction "fact" [factS] {
     $[0] <- Rv;;
     $[4] <- 1;;
-
+    
     [st ~> ExX, Ex inp, Ex acc, ![ $0 =*> inp * $4 =*> acc * #0 ] st
       /\ st#Rp @@ (st' ~> Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #1 ] st' /\ [| exists r, factR inp r /\ st'#Rv = acc ^* r |])]
     While ($[0] <> 0) {

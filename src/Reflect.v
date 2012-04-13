@@ -299,3 +299,12 @@ Goal (unit :: nil) ++ (foo :: nil) ++ (bool :: nil) ++ nil = unit :: foo :: bool
   end.
   reflexivity.
 Abort.
+
+Ltac eval_spine_list ls :=
+  let ls := eval hnf in ls in
+  match ls with
+    | nil => ls 
+    | ?a :: ?b => 
+      let b := eval_spine_list b in
+      constr:(a :: b)
+  end.

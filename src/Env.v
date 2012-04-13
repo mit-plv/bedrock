@@ -216,3 +216,6 @@ Section MapRepr.
 
 End MapRepr.
 
+Require Reflect.
+Ltac reduce_repr_list ls :=
+  Reflect.eval_spine_list ls.
