@@ -38,6 +38,9 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
       let new_uvars := skipn (length uvars) uvars' in
       match SEP.sepCancel preds prover facts lhs rhs with
         | (lhs', rhs', lhs_subst, rhs_subst) =>
+          SEP.himp funcs preds nil nil nil cs
+                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs) nil (SEP.other rhs)))
+                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))) /\
           Expr.forallEach vars (fun VS : Expr.env types => 
             Expr.existsEach new_uvars (fun US : Expr.env types =>
               exists_subst funcs VS (uvars ++ US) 
@@ -49,7 +52,7 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
                   (SEP.himp funcs preds nil rhs_ex0 VS cs
                     (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs')))
                     (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs')))
-                  ) (SEP.pures rhs)) (SEP.pures lhs))))
+                  ) (SEP.pures rhs')) (SEP.pures lhs'))))
       end
   end ->
   himp cs (@SEP.sexprD _ _ _ funcs preds nil nil l)
