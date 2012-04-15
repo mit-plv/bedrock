@@ -116,8 +116,8 @@ Ltac sep_canceler isConst ext simplifier :=
       let stateT := constr:(prod settings state) in
       let all_props := Expr.collect_props ltac:(fun _ => true) in
       let pures := Expr.props_types all_props in
-      let L := eval unfold starB exB hvarB in L in
-      let R := eval unfold starB exB hvarB in R in
+      let L := eval unfold empB injB injBX starB exB hvarB in L in
+      let R := eval unfold empB injB injBX starB exB hvarB in R in
       (** collect types **)
       let Ts := constr:(@nil Type) in
 (*      idtac "0" ; *)
@@ -192,8 +192,9 @@ Ltac sep_canceler isConst ext simplifier :=
 (*         idtac "17" ; *)
          repeat match goal with
                   | [ H : _ /\ _ |- _ ] => destruct H
-                  | [ |- exists x, _ ] => eexists
+                  | [ |- ex _ ] => eexists
                   | [ |- _ /\ _ ] => (*idtac "splitting";*) split
+                  | [ |- _ -> ?P ] => intro
                   | _ => reflexivity
                 end)
         || (idtac "failed to apply, generalizing instead!" ; 
@@ -347,6 +348,9 @@ Ltac cancel_simplifier :=
     eq_sym Logic.eq_sym
     projT1
 
+    Basics.impl Expr.Provable
+
+    SEP.SHeap_empty
   ].
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).

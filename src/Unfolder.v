@@ -368,8 +368,7 @@ Module Make (Import SE : SepExprType).
           SEP_REIFY.collectTypes_sexpr ltac:(isConst) R types k)
       | fun x => _ (@?L x) (@?R x) =>
         SEP_REIFY.collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
-            SEP_REIFY.collectTypes_sexpr ltac:(isConst) R types ltac:(fun types =>
-                k types))
+          SEP_REIFY.collectTypes_sexpr ltac:(isConst) R types k)
     end.
 
   (* This tactic adds quantifier processing. *)
