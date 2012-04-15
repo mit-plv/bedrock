@@ -1122,9 +1122,9 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
               k uvars funcs r))
         in
         match e with
-          | _ => 
+          | _ =>
             match isConst e with
-              | true => 
+              | true =>
                 let ty := type of e in
                 let ty := reflectType types ty in
                 let r := constr:(@Const types ty e) in

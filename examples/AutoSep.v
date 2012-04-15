@@ -287,7 +287,7 @@ Ltac descend := Programming.descend; reduce.
 
 Ltac sep ext := evaluate ext; descend; repeat (step ext; descend).
 
-Ltac sepLemma := intros; cancel auto_ext.
+Ltac sepLemma := simpl; intros; cancel auto_ext; try (tauto || congruence).
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)

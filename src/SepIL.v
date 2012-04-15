@@ -215,6 +215,9 @@ Definition memoryIn : mem -> smem := memoryIn.
 Definition hpropB := hprop W (settings * state).
 Definition HProp := hpropB nil.
 
+Definition empB sos : hpropB sos := emp _ _.
+Notation "'Emp'" := (empB _) : Sep_scope.
+
 Definition injB sos (P : Prop) : hpropB sos := inj (Inj P).
 
 Notation "[| P |]" := (injB _ P) : Sep_scope.
@@ -239,6 +242,17 @@ Definition starB sos : hpropB sos -> hpropB sos -> hpropB sos :=
 
 Infix "*" := starB : Sep_scope.
 
+Delimit Scope Sep_scope with Sep.
+
+Fixpoint ptsto32m sos (a : W) (vs : list W) : hpropB sos :=
+  match vs with
+    | nil => Emp
+    | v :: nil => a =*> v
+    | v :: vs' => a =*> v * ptsto32m sos (a ^+ $1) vs'
+  end%Sep.
+
+Notation "a ==*> v1 , .. , vn" := (ptsto32m _ a (cons v1 .. (cons vn nil) ..)) (no associativity, at level 39) : Sep_scope.
+
 Definition exB sos T (p : T -> hpropB sos) : hpropB sos := ex p.
 
 Notation "'Ex' x , p" := (exB (fun x => p)) : Sep_scope.
@@ -248,8 +262,6 @@ Definition hvarB sos (x : smem -> propX W (settings * state) sos) : hpropB sos :
   fun _ => x.
 
 Notation "![ x ]" := (hvarB x) : Sep_scope.
-
-Delimit Scope Sep_scope with Sep.
 
 Fixpoint arrayOf sos (p : W) (c : list W) : hpropB sos :=
   match c with 

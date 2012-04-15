@@ -14,24 +14,24 @@ Fixpoint natToWord' (sz n : nat) : word sz :=
 
 Definition natToW (n : nat) : W := natToWord _ n.
 
-Definition isConst (n : nat) := True.
+Definition isConstNat (n : nat) := True.
 
-Theorem natToWord_expose : forall n w, isConst w -> natToWord n w = natToWord' n w.
+Theorem natToWord_expose : forall n w, isConstNat w -> natToWord n w = natToWord' n w.
   reflexivity.
 Qed.
 
-Theorem natToW_expose : forall n, isConst n -> natToW n = natToWord' _ n.
+Theorem natToW_expose : forall n, isConstNat n -> natToW n = natToWord' _ n.
   reflexivity.
 Qed.
 
-Ltac isConst :=
+Ltac isConstNat :=
   let rec f n :=
     match n with
       | O => idtac
       | S ?n' => f n'
     end in
     match goal with
-      [ |- isConst ?n ] => f n; constructor
+      [ |- isConstNat ?n ] => f n; constructor
     end.
 
 
@@ -139,8 +139,8 @@ Definition separatedB (a1 a2 : W) :=
 (** * A useful principle for separated *)
 
 Ltac wprepare := repeat match goal with
-                          | [ |- context[natToWord ?n ?m] ] => rewrite (natToWord_expose n m) by isConst
-                          | [ |- context[natToW ?n] ] => rewrite (natToW_expose n) by isConst
+                          | [ |- context[natToWord ?n ?m] ] => rewrite (natToWord_expose n m) by isConstNat
+                          | [ |- context[natToW ?n] ] => rewrite (natToW_expose n) by isConstNat
                         end; unfold W in *.
 
 Definition wring32 := wring 32.
