@@ -193,20 +193,35 @@ Section MapRepr.
         repr' d f
     end.
 
+  Fixpoint nat_eq_bool (a b : nat) : bool :=
+    match a , b with
+      | 0 , 0 => true
+      | S a , S b => nat_eq_bool a b 
+      | _ , _ => false
+    end.
+
+  Fixpoint nat_in (l : list nat) (n : nat) : bool :=
+    match l with
+      | nil => false
+      | a :: b => if nat_eq_bool a n then true else nat_in b n
+    end.
+
   Fixpoint repr_optimize (l : list (nat * T)) (ignore : list nat) : list (nat * T) :=
     match l with
       | nil => nil
       | (n,t) :: b => 
-        if List.In_dec (equiv_dec) n ignore then 
+        if nat_in ignore n then 
           repr_optimize b ignore
         else 
           (n,t) :: repr_optimize b (n :: ignore)
     end.
 
   Definition repr_combine (l r : Repr) : Repr :=
-    {| footprint := repr_optimize (footprint l ++ footprint r) nil
-     ; default := default l
-     |}.
+    match l , r with
+      | {| footprint := lf ; default := ld |} ,
+        {| footprint := rf ; default := rd |} =>
+        {| footprint := repr_optimize (lf ++ rf) nil ; default := ld |}
+    end.
   (** NOTE: that we don't have any lemmas for combination because we are
    ** relying on Ltac's dynamic types to do combinations
    **)
@@ -219,3 +234,72 @@ End MapRepr.
 Require Reflect.
 Ltac reduce_repr_list ls :=
   Reflect.eval_spine_list ls.
+
+(** This is an alternative representation 
+ ** 1) it avoids nats (including comparison)
+ ** 2) it is canonical
+ ** 3) it optimizes the common case of prefixes
+ **)
+Module Repr2.
+  Section parametric.
+    Variable T : Type.
+    Record Repr : Type :=
+    { footprint : list (option T)
+    ; default : T 
+    }.
+
+    Definition nil_Repr (d : T) : Repr :=
+      {| footprint := nil
+       ; default := d
+      |}.
+
+    Definition listToRepr (ls : list T) (d : T) : Repr :=
+      {| footprint := map (@Some _) ls
+       ; default := d
+      |}.
+
+    Definition listOptToRepr (ls : list (option T)) (d : T) : Repr :=
+      {| footprint := ls
+       ; default := d
+      |}.
+
+    Fixpoint repr' (d : T) (ls : list (option T)) : list T -> list T :=
+      match ls with 
+        | nil => fun x => x
+        | None :: ls => fun x =>
+          match x with
+            | nil => d
+            | a :: _ => a
+          end :: repr' d ls (tl x)
+        | Some v :: ls => fun x =>
+          v :: repr' d ls (tl x)
+      end.
+
+    Definition repr (l : Repr) : list T -> list T :=
+      Eval cbv delta [ repr' ] in 
+        match l with 
+          | {| footprint := f ; default := d |} =>
+            repr' d f
+        end.
+
+    Fixpoint join (ls rs : list (option T)) : list (option T) :=
+      match ls , rs with
+        | nil , rs => rs
+        | ls , nil => ls
+        | l :: ls , r :: rs =>
+          match l with
+            | Some _ => l
+            | None => r
+          end :: join ls rs
+      end.       
+
+    Definition repr_combine (l r : Repr) : Repr :=
+      Eval cbv delta [ join ] in 
+        match l , r with
+          | {| footprint := lf ; default := ld |} ,
+            {| footprint := rf ; default := rd |} =>
+            {| footprint := join lf rf ; default := ld |}
+        end.
+
+  End parametric.
+End Repr2.
