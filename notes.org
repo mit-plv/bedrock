@@ -18,11 +18,11 @@
     - how much of a win would this actually give us since terms are only indexed on types?      
 
 * Repr
-  - could be (list (option T)) * T
-    - canonical, no need for compression
-    - not sure whether the types would actually work out
-      - we could probably make it work the same way
-  - Implemented in Env.v
+*** Use [list (option T) * T] 
+    (implemented [[src:Env.v]] rev. 330)
+    - Benefits
+      - canonical, no need for compression
 
-
-  
+#+LINK: src:../src/%s
+#+LINK: example:../examples/%s
+#+STARTUP: showall
