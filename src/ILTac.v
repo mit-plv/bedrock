@@ -10,7 +10,7 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (** TODO : this isn't true **)
-(** TODO: I just need to fix the interface, so that it works out, i.e. use TypedPackage. **)
+(** TODO : should we apply forward unfolding as well? **)
 Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C, 
   forall (algos : AllAlgos types pcT stT), AllAlgos_correct algos funcs preds A B C ->
   let prover := 
@@ -46,9 +46,11 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
               (fun rhs_ex0 : Expr.env types => 
                 Expr.AllProvable_impl funcs uvars VS 
                 (Expr.AllProvable_and funcs uvars VS 
-                  (SEP.himp funcs preds nil rhs_ex0 VS cs
-                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs')))
-                    (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs')))
+                  (himp cs 
+                    (SEP.sexprD funcs preds nil VS
+                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
+                    (SEP.sexprD funcs preds rhs_ex0 VS
+                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
                   ) (SEP.pures rhs')) (SEP.pures lhs'))))
       end
   end ->
@@ -103,106 +105,144 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **)
 Ltac sep_canceler isConst ext simplifier :=
   (try change_to_himp) ;
-  let ext := 
+(*  idtac "-4" ; *)
+  let ext' := 
     match ext with
-      | tt => EmptyAlgorithm.empty_package
+      | tt => eval cbv delta [ BedrockPackage.bedrock_package ] in BedrockPackage.bedrock_package
       | _ => eval cbv delta [ ext ] in ext
       | _ => ext
+    end
+  in
+(*  idtac "-3" ; *)
+  let shouldReflect P :=
+    match P with
+      | evalInstrs _ _ _ = _ => false
+      | Structured.evalCond _ _ _ _ _ = _ => false
+      | @PropX.interp _ _ _ _ => false
+      | @PropX.valid _ _ _ _ _ => false
+      | @eq ?X _ _ => 
+        match X with
+          | context [ PropX.PropX ] => false
+          | context [ PropX.spec ] => false
+        end
+      | forall x, _ => false
+      | exists x, _ => false
+      | _ => true
+    end
+  in
+  let reduce_repr ls :=
+    match ls with
+      | _ => 
+        eval cbv beta iota zeta delta [
+          ext
+          Types Funcs Preds
+          Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
+          tl map
+          bedrock_types_r bedrock_funcs_r
+        ] in ls
+      | _ => 
+        eval cbv beta iota zeta delta [
+          Types Funcs Preds
+          Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
+          tl map
+          bedrock_types_r bedrock_funcs_r
+        ] in ls
+    end
+  in
+  let core_types :=
+    match type of ext' with
+      | TypedPackage ?ct _ _ _ _ _ => ct
+      | ?T => fail 1000 "bad type " T 
     end
   in
   match goal with 
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-      let all_props := Expr.collect_props ltac:(fun _ => true) in
+(*      idtac "-2.5" ; *)
+      let all_props := Expr.collect_props shouldReflect in
+(*      idtac "-2" ; *)
       let pures := Expr.props_types all_props in
+(*      idtac "-1: pures = " pures ; *)
       let L := eval unfold empB injB injBX starB exB hvarB in L in
       let R := eval unfold empB injB injBX starB exB hvarB in R in
       (** collect types **)
       let Ts := constr:(@nil Type) in
-(*      idtac "0" ; *)
+(*      idtac "0" ;  *)
       let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
-(*      idtac "1" ; *)
+(*      idtac "1" ;  *)
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
-(*      idtac "2" ; *)
+(*      idtac "2" ;  *)
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
-(*      idtac "3" ; *)
+(*      idtac "3" ;  *)
       (** check for potential universe inconsistencies **)
       match Ts with
         | context [ PropX.PropX ] => 
           fail 1000 "found PropX in types list"
-            "(this causes universe inconsistencies)"
+            "(this causes universe inconsistencies)" Ts
         | context [ PropX.spec ] => 
           fail 1000 "found PropX in types list"
-            "(this causes universe inconsistencies)"
-        | _ => idtac
+            "(this causes universe inconsistencies)" Ts
+        | _ => idtac 
       end ;
-(*      idtac "4" ; *)
+(*      idtac "4" ;  *)
       (** elaborate the types **)
-      match type of ext with
-        | TypedPackage ?ct _ _ _ _ _ => idtac
-        | ?T => fail 1000 "bad type " T 
-      end ;
-      let types_ :=       
-        match type of ext with
-          | TypedPackage ?ct _ _ _ _ _ =>
-            Env.reduce_repr_list (Env.repr ct (Env.repr (Types ext) nil))
-        end
+      let types_ := 
+        reduce_repr (Env.repr core_types (Env.repr (Types ext) nil))
       in
-(*      idtac "5" ; *)
+(*      idtac "5" types_ ;  *)
       let types_ := Expr.extend_all_types Ts types_ in
-(*      idtac "6" ; *)
+(*      idtac "6" ;  *)
       let typesV := fresh "types" in
       pose (typesV := types_);
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
       let vars := eval simpl in (@nil _ : Expr.env typesV) in
-(*      idtac "7" ; *)
+(*      idtac "7" ;  *)
       (** build the funcs **)
-      let funcs := Env.reduce_repr_list (Env.repr (Funcs ext typesV) nil) in
+      let funcs := reduce_repr (Env.repr (Funcs ext typesV) nil) in
       let pcT := constr:(Expr.tvType 0) in
       let stT := constr:(Expr.tvType 1) in
-(*      idtac "8" ; *)
+(*      idtac "8" ;  *)
       (** build the base sfunctions **)
-      let preds := Env.reduce_repr_list (Env.repr (Preds ext typesV) nil) in
-(*      idtac "9" ; *)
+      let preds := reduce_repr (Env.repr (Preds ext typesV) nil) in
+(*      idtac "9" ;  *)
       Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
-(*      idtac "10" ; *)
+(*      idtac "10" ;  *)
         let proofs := Expr.props_proof all_props in
-(*      idtac "11" ; *)
+(*      idtac "11" ;  *)
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
-(*        idtac "built terms" ; *)
+(*        idtac "built terms" ;  *)
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
 (*          idtac "12" ; *)
-        let algosC := 
-          eval cbv beta iota zeta delta [ Algos_correct Algos ] in
-          (Algos_correct ext typesV funcsV predsV)
-        in
 (*        idtac "14" ; *)
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
-         apply (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC uvars pures L R); [ apply proofs | ];
+         apply (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ (SymIL.Algos ext typesV) (Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ];
 (*         idtac "15" ; *)
-         subst typesV ; subst predsV ; subst funcsV ;
+         (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
 (*         idtac "16" ; *)
          simplifier ;
-(*         idtac "17" ; *)
+(*         idtac "17" ;  *)
          repeat match goal with
                   | [ H : _ /\ _ |- _ ] => destruct H
                   | [ |- ex _ ] => eexists
                   | [ |- _ /\ _ ] => (*idtac "splitting";*) split
                   | [ |- _ -> ?P ] => intro
-                  | _ => reflexivity
+                  | [ |- _ = _ ] => reflexivity
+                  | [ |- himp _ _ _ ] => try reflexivity
                 end)
-        || (idtac "failed to apply, generalizing instead!" ; 
-            first [ generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC uvars pures L R) ; idtac "p"
-                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC uvars pures L)  ; idtac "o" 
-                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC uvars pures) ; idtac "i"
-                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC uvars) ; idtac "u"
-                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ _ algosC) ; pose (uvars) ; idtac "y" 
+        || (idtac "failed to apply, generalizing instead!" ;
+            let algos := constr:(SymIL.Algos ext typesV) in
+            let algosC := constr:(Algos_correct ext typesV funcsV predsV) in 
+            first [ generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ algos algosC uvars pures L R) ; idtac "p"
+                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ algos algosC uvars pures L)  ; idtac "o" 
+                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ algos algosC uvars pures) ; idtac "i"
+                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ algos algosC uvars) ; idtac "u"
+                  | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ algos algosC) ; pose (uvars) ; idtac "y" 
                   | generalize (@ApplyCancelSep typesV funcsV pcT stT predsV); pose (algosC) ; idtac "r" 
                   | generalize (@ApplyCancelSep typesV funcsV pcT stT) ; idtac "e" 
                   | generalize (@ApplyCancelSep typesV funcsV pcT) ; idtac "w" 
@@ -215,143 +255,105 @@ Ltac sep_canceler isConst ext simplifier :=
 
 Ltac cancel_simplifier :=
   cbv beta iota zeta delta [
-    SEP.sepCancel
-    SEP.hash SEP.hash' SEP.sepCancel
-
-    SepExpr.FM.fold
-
-    Facts Summarize Prove Learn
-
-    ExprUnify.Subst
-    
-    ILEnv.bedrock_types ILEnv.bedrock_types_r
-    ILEnv.bedrock_funcs ILEnv.bedrock_funcs_r
-    app map fold_right nth_error value error hd hd_error tl
-    
-    fst snd
-
-    SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
-    SEP.sheapSubstU ExprUnify.empty_Subst
-
-    SEP.pures SEP.impures SEP.other
-
-    exists_subst ExprUnify.env_of_Subst
-
-    SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
-
-    SEP.unify_remove_all SEP.unify_remove
-
-    SEP.unifyArgs
-    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
-    Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
-
-    ExprUnify.exprUnify SEP.substV length
-    Expr.liftExpr Expr.exprSubstU
-    Peano_dec.eq_nat_dec EquivDec.equiv_dec 
-    EquivDec_nat
-    Expr.EqDec_tvar
-    Expr.tvar_rec Expr.tvar_rect
-    sumbool_rec sumbool_rect
-    eq_rec_r eq_rect eq_rec f_equal eq_sym
-    ExprUnify.get_Eq
-    Expr.Eq
-    EquivDec.nat_eq_eqdec
-    Expr.typeof 
-    Expr.expr_seq_dec
-    Expr.tvarD
-    Expr.tvar_val_sdec 
-    Provers.groupWith
-    Expr.Range Expr.Domain Expr.Denotation
-    Expr.all2
-
-    Expr.forallEach
-    SEP.sheapD SEP.sexprD
-    SEP.starred SEP.himp
-    Expr.Impl Expr.Impl_ Expr.is_well_typed
-    
-    Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
-    Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_predicate
-
-    orb
-
-    SEP.liftSHeap SEP.hash SEP.hash'
-
-    UNF.Forward UNF.Backward 
-    UNF.backward
-
+    (** Interface **)
+    SymIL.Types SymIL.Preds SymIL.Funcs
+    SymIL.Algos 
     SymIL.Hints SymIL.Prover
-    Expr.existsEach Expr.forallEach
-    firstn skipn
-    AllProvable_gen
 
-    (** Extra Stuff **)
+    (** Env **)
+    Env.repr_combine
+    Env.footprint Env.default
+    Env.repr
+
+    (** Expr **)
+    Expr.Range Expr.Domain Expr.Denotation Expr.Impl
+    Expr.exists_subst
+    Expr.forallEach Expr.existsEach
+    Expr.AllProvable_and Expr.AllProvable_impl Expr.AllProvable_gen
+    Expr.tvarD Expr.exprD Expr.applyD Expr.Impl_
+    Expr.EqDec_tvar 
+    Expr.tvar_rec Expr.tvar_rect
+    Expr.liftExpr Expr.lookupAs
+    Expr.Eq
+    Expr.Provable Expr.tvar_val_sdec
+
+    (** Prover **)
+    Prover.Prove Prover.Summarize Prover.Learn
+
+    (** ExprUnify **)
+    ExprUnify.exprUnify
+    ExprUnify.env_of_Subst ExprUnify.fold_left_2_opt
+    ExprUnify.Subst_lookup ExprUnify.Subst_replace
+    ExprUnify.get_Eq ExprUnify.exprUnifyArgs
+
+    (** SepExpr **)
+    SEP.impures SEP.pures SEP.other
+    SEP.SDomain SEP.SDenotation
+
+    SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
+    SEP.substV 
+
+    SEP.sepCancel SEP.unify_remove_all SEP.unify_remove SEP.unifyArgs
+    ExprUnify.fold_left_3_opt
+
+    SEP.sheapD SEP.starred
+    SEP.himp
+    SEP.sexprD 
+
+    SEP.hash SEP.hash'
+
+    (** Unfolder **)
+    UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
+    UNF.Forward UNF.forward UNF.unfoldForward
+    UNF.Backward UNF.backward UNF.unfoldBackward
+    UNF.findWithRest UNF.find 
+    UNF.substExpr UNF.substSexpr
+    Unfolder.FM.add
+    
+    Unfolder.allb 
+    exprSubstU
+    
+    ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
+
+    unfolder_LearnHook
+    UNF.default_hintsPayload
+    UNF.fmFind
+    UNF.findWithRest'
+
+    UNF.default_hintsPayload
+
+    (** List **)
+    value error tl hd_error nth_error map length app fold_right firstn skipn
+
+    (** IntMap **)
     Compare_dec.lt_dec
     Compare_dec.le_dec
     Compare_dec.le_gt_dec
     Compare_dec.le_lt_dec
     Compare_dec.lt_eq_lt_dec
 
-    ExprUnify.Subst_lookup ExprUnify.Subst_replace ExprUnify.env_of_Subst
-    ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
-    ExprUnify.empty_Subst
+    NatMap.IntMap.add
+    NatMap.IntMap.empty
+    NatMap.IntMap.find
+    NatMap.IntMap.insert_at_right
+    NatMap.IntMap.remove
+    NatMap.IntMap.map
+    NatMap.IntMap.fold
 
-    ExprUnify.SUBST.empty
-    ExprUnify.SUBST.find
-    ExprUnify.SUBST.add
-    ExprUnify.SUBST.insert_at_right
-    ExprUnify.SUBST.remove
-    ExprUnify.SUBST.remove_add
-    ExprUnify.SUBST.find_add
-    ExprUnify.SUBST.fold
-    ExprUnify.SUBST.map
-
-    NatMap.Ordered_nat.compare
-    NatMap.Ordered_nat.eq_dec
-    Peano_dec.eq_nat_dec
-    
-    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
-    sumor_rec sumor_rect
-   
-    UNF.Vars UNF.UVars UNF.Heap 
-    UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs 
-    UNF.Forward UNF.Backward 
-    UNF.backward UNF.unfoldBackward
-    UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
-    equiv_dec UNF.substExpr Unfolder.FM.add 
-    Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
-    ExprUnify.empty_Subst unfolder_LearnHook
-    UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
-    UNF.findWithRest
-        
-    SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr SEP.hash' UNF.substSexpr
-    rev_append
-    
-    Unfolder.FM.fold Unfolder.FM.add
       
-    Unfolder.FM.empty
-    Unfolder.FM.find
-    Unfolder.FM.add
-    Unfolder.FM.insert_at_right
-    Unfolder.FM.remove
-    Unfolder.FM.remove_add
-    Unfolder.FM.find_add
-    Unfolder.FM.fold
-    Unfolder.FM.map
+    (** EquivDec **)
+    EquivDec_nat
+    sumbool_rec sumbool_rect sumor_rec sumor_rect nat_rec nat_rect
+    eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal DepList.eq_sym
+    Peano_dec.eq_nat_dec equiv_dec
+    seq_dec EquivDec_SemiDec SemiDec_expr 
 
-    plus minus
-
-    Expr.AllProvable_impl Expr.AllProvable_and
-    Expr.AllProvable_impl Expr.AllProvable_and Expr.applyD 
-    SEP.SDomain SEP.SDenotation
-    Expr.exprD eq_sym eq_rec eq_rect
-
-    eq_sym Logic.eq_sym
-    projT1
-
-    Basics.impl Expr.Provable
-
-    SEP.SHeap_empty
+    (** Other **)
+    fst snd plus minus
+    rev_append orb andb
+    projT1 projT2
   ].
+
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).

@@ -136,6 +136,7 @@ Section UpdatePosition2.
   Qed.
 End UpdatePosition2.
 
+(*
 Section MapRepr.
   Variable T : Type.
   Record Repr : Type :=
@@ -230,17 +231,14 @@ Section MapRepr.
     get n (footprint l).
 
 End MapRepr.
-
-Require Reflect.
-Ltac reduce_repr_list ls :=
-  Reflect.eval_spine_list ls.
+*)
 
 (** This is an alternative representation 
  ** 1) it avoids nats (including comparison)
  ** 2) it is canonical
  ** 3) it optimizes the common case of prefixes
  **)
-Module Repr2.
+Section Repr2.
   Section parametric.
     Variable T : Type.
     Record Repr : Type :=
@@ -303,3 +301,9 @@ Module Repr2.
 
   End parametric.
 End Repr2.
+
+Ltac reduce_repr_list ls :=
+  eval cbv beta zeta delta [ 
+    repr_combine repr listOptToRepr listToRepr nil_Repr
+    map 
+  ] in ls.

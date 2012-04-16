@@ -8,29 +8,29 @@ Module Type PAIR.
   Axiom pair_extensional : forall a b p, HProp_extensional (pair a b p).
 
   Axiom pair_fwd : forall a b p,
-    pair a b p ===> p =*> a * p =*> b.
+    pair a b p ===> p =*> a * (p ^+ $4) =*> b.
 
   Axiom pair_bwd : forall a b p,
-    p =*> a * p =*> b ===> pair a b p.
+    p =*> a * (p ^+ $4) =*> b ===> pair a b p.
 End PAIR.
 
 Module Pair : PAIR.
   Open Scope Sep_scope.
 
   Definition pair (a b p : W) : HProp :=
-    p =*> a * p =*> b.
+    p =*> a * (p ^+ $4) =*> b.
 
   Theorem pair_extensional : forall a b p, HProp_extensional (pair a b p).
     reflexivity.
   Qed.
 
   Theorem pair_fwd : forall a b p,
-    pair a b p ===> p =*> a * p =*> b.
-    sepLemma.
+    pair a b p ===> p =*> a * (p ^+ $4) =*> b.
+    sepLemma. 
   Qed.
 
   Theorem pair_bwd : forall a b p,
-    p =*> a * p =*> b ===> pair a b p.
+    p =*> a * (p ^+ $4) =*> b ===> pair a b p.
     sepLemma.
   Qed.
 End Pair.
@@ -51,13 +51,21 @@ Definition hints_pair' : TacPackage.
   let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
   prepare env pair_fwd pair_bwd ltac:(fun x =>
     SymIL.Package.build_hints_pack x ltac:(fun x => 
-      SymIL.Package.glue_pack x auto_ext ltac:(fun x => refine x))).
+      SymIL.Package.refine_glue_pack x auto_ext)).
 Defined.
 
 Definition hints_pair : TacPackage.
-  let v := eval unfold hints_pair' in hints_pair' in
-  let v := eval simpl in v in
-  refine v.
+  let v := eval cbv beta iota zeta delta [ 
+    auto_ext hints_pair'
+    SymIL.AllAlgos_composite SymIL.oplus
+    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
+    SymIL.Algos 
+    
+    Env.repr_combine 
+    Env.listToRepr
+    app map 
+  ] in hints_pair' in
+  exact v.
 Defined.
 
 Theorem pairOk : moduleOk pair.
