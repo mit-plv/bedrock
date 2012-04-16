@@ -17,15 +17,25 @@ Definition TacPackage : Type :=
 Definition auto_ext' : TacPackage.  
   SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a =>
   SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
-    SymIL.Package.glue_pack a b ltac:(fun res => refine res) || fail 1000 "compose")).
+    SymIL.Package.glue_packs (BedrockPackage.bedrock_package, a, b) ltac:(fun res => refine res) || fail 1000 "compose")).
 Defined.
 
 Definition auto_ext : TacPackage.
-  let v := eval unfold auto_ext' in auto_ext' in
-  let v := eval cbv delta [ 
+  let v := eval cbv beta iota zeta delta [ 
+    auto_ext' BedrockPackage.bedrock_package
     Plugin_PtsTo.ptsto32_ssig MEVAL.Composite.MemEvaluator_composite 
-    MEVAL.Default.MemEvaluator_default Prover.composite_ProverT Env.nil_Repr ] in v in
-  let v := eval simpl in v in
+    MEVAL.Default.MemEvaluator_default Prover.composite_ProverT Env.nil_Repr
+    SymIL.AllAlgos_composite
+    SymIL.oplus
+    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Algos SymIL.Algos_correct
+
+    ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r
+
+    Env.repr_combine
+(*    Env.nat_in Env.nat_eq_bool *)
+    Env.listToRepr
+    app
+  ] in auto_ext' in
   exact v.
 Defined.
 
@@ -48,204 +58,13 @@ Ltac sym_eval_simplifier H :=
     MEVAL.Default.smemeval_read_word_default
     MEVAL.Default.smemeval_write_word_default
     Plugin_PtsTo.types Prover.composite_ProverT
+    
   ] in H ;
   sym_evaluator H.
 
 Ltac the_cancel_simplifier :=
   Provers.unfold_transitivityProver tt ;
   ILTac.cancel_simplifier.
-(*
-  cbv beta iota zeta delta 
-    [ SEP.sepCancel
-    SEP.hash SEP.hash' SEP.sepCancel
-
-    SepExpr.FM.fold
-
-    Facts Summarize Prove Learn
-
-    ExprUnify.Subst
-    
-    ILEnv.bedrock_types ILEnv.bedrock_types_r
-    ILEnv.bedrock_funcs ILEnv.bedrock_funcs_r
-    app map fold_right nth_error value error hd hd_error tl
-    
-    fst snd
-
-    SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
-    SEP.sheapSubstU ExprUnify.empty_Subst
-
-    SEP.pures SEP.impures SEP.other
-
-    exists_subst ExprUnify.env_of_Subst
-
-    SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
-
-    SEP.unify_remove_all SEP.unify_remove
-
-    SEP.unifyArgs
-    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
-    Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
-
-    ExprUnify.exprUnify SEP.substV length
-    Expr.liftExpr Expr.exprSubstU
-    Peano_dec.eq_nat_dec EquivDec.equiv_dec 
-    Expr.EqDec_tvar
-    Expr.tvar_rec Expr.tvar_rect
-    sumbool_rec sumbool_rect
-    eq_rec_r eq_rect eq_rec f_equal eq_sym
-    ExprUnify.get_Eq
-    Expr.Eq
-    EquivDec.nat_eq_eqdec
-    Expr.typeof 
-    Expr.expr_seq_dec
-    Expr.tvarD
-    Expr.tvar_val_sdec 
-    Provers.groupWith
-    Expr.Range Expr.Domain Expr.Denotation
-    Expr.all2
-
-    Expr.forallEach
-    SEP.sheapD SEP.sexprD
-    SEP.starred SEP.himp
-    Expr.Impl Expr.Impl_ Expr.is_well_typed
-    
-    Env.repr_combine Env.default Env.footprint Env.repr' Env.updateAt 
-    Expr.Default_signature Env.nil_Repr Expr.EmptySet_type SEP.Default_predicate
-
-    orb
-
-    SEP.liftSHeap SEP.hash SEP.hash'
-
-    UNF.Forward UNF.Backward 
-    UNF.backward
-
-    SymIL.Hints SymIL.Prover
-    Expr.existsEach Expr.forallEach
-    firstn skipn
-    AllProvable_gen
-
-    (** Extra Stuff **)
-    Compare_dec.lt_dec
-    Compare_dec.le_dec
-    Compare_dec.le_gt_dec
-    Compare_dec.le_lt_dec
-    Compare_dec.lt_eq_lt_dec
-
-    ExprUnify.Subst_lookup ExprUnify.Subst_replace ExprUnify.env_of_Subst
-    ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
-    ExprUnify.empty_Subst
-
-    ExprUnify.SUBST.empty
-    ExprUnify.SUBST.find
-    ExprUnify.SUBST.add
-    ExprUnify.SUBST.insert_at_right
-    ExprUnify.SUBST.remove
-    ExprUnify.SUBST.remove_add
-    ExprUnify.SUBST.find_add
-    ExprUnify.SUBST.fold
-    ExprUnify.SUBST.map
-
-    NatMap.Ordered_nat.compare
-    NatMap.Ordered_nat.eq_dec
-    Peano_dec.eq_nat_dec
-    
-    ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
-    sumor_rec sumor_rect
- 
-   
-    UNF.Vars UNF.UVars UNF.Heap 
-    UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs 
-    UNF.Forward UNF.Backward 
-    UNF.backward UNF.unfoldBackward
-    UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
-    equiv_dec UNF.substExpr Unfolder.FM.add 
-    Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
-    ExprUnify.empty_Subst unfolder_LearnHook
-    UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
-    UNF.findWithRest
-        
-    SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr SEP.hash' UNF.substSexpr
-    rev_append
-    
-    Unfolder.FM.fold Unfolder.FM.add
-      
-    Unfolder.FM.empty
-    Unfolder.FM.find
-    Unfolder.FM.add
-    Unfolder.FM.insert_at_right
-    Unfolder.FM.remove
-    Unfolder.FM.remove_add
-    Unfolder.FM.find_add
-    Unfolder.FM.fold
-    Unfolder.FM.map
-
-    plus minus
-
-    (* *)
-SEP.sepCancel projT1
-      SEP.hash SEP.hash' SEP.sepCancel
-
-      SepExpr.FM.fold
-
-      ExprUnify.Subst
-
-      ILEnv.bedrock_types_r ILEnv.bedrock_types
-      app map fold_right nth_error value error
-
-      fst snd
-
-      SEP.star_SHeap SepExpr.FM.empty SEP.liftSHeap
-      SEP.sheapSubstU ExprUnify.empty_Subst
-
-      SEP.pures SEP.impures SEP.other
-
-      Expr.exists_subst ExprUnify.env_of_Subst
-
-      SEP.multimap_join SepExpr.FM.add SepExpr.FM.find SepExpr.FM.map
-      SEP.SDomain SEP.SDenotation
-
-      SEP.unify_remove_all SEP.unify_remove
-
-      SEP.unifyArgs
-      ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
-      Compare_dec.lt_eq_lt_dec nat_rec nat_rect 
-
-      ExprUnify.exprUnify SEP.substV length ExprUnify.Subst_lookup ExprUnify.Subst_replace
-      Expr.liftExpr Expr.exprSubstU
-      Peano_dec.eq_nat_dec EquivDec.equiv_dec
-      Expr.EqDec_tvar
-      Expr.tvar_rec Expr.tvar_rect
-      sumbool_rec sumbool_rect
-      eq_rec_r eq_rect eq_rec f_equal eq_sym
-      ExprUnify.get_Eq
-      Expr.Eq
-      EquivDec.nat_eq_eqdec
-
-(*      Provers.in_seq_dec *)
-      Expr.typeof 
-      Expr.expr_seq_dec
-      Expr.tvarD
-      Expr.tvar_val_sdec 
-      Expr.Range Expr.Domain Expr.Denotation
-      Expr.well_typed 
-      Expr.all2
-
-      Expr.forallEach
-      SEP.sheapD SEP.sexprD
-      SEP.starred SEP.himp
-      Expr.Impl Expr.Impl_
-
-      Expr.is_well_typed Expr.exprD Expr.applyD
-
-      orb
-      Expr.AllProvable Expr.AllProvable_impl Expr.AllProvable_and Expr.AllProvable_gen Expr.Provable Expr.lookupAs
-
-      EquivDec_nat Peano_dec.eq_nat_dec
-
-      Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
-      Provers.in_seq Provers.groupWith
-    ].
-*)
 
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;

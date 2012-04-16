@@ -622,7 +622,7 @@ Require TypedPackage.
             let bwd' := lift_lemmas_over_repr bwd' types_rV pcT stateT in
             let pf := fresh "fwd_pf" in
             assert (pf : forall ts fs ps, hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| Forward := fwd' ts ; Backward := bwd' ts |})) by 
-              (constructor; [ prove fwd | prove bwd ]) ;
+              (abstract (constructor; [ prove fwd | prove bwd ])) ;
             let res := constr:(
               {| Types      := types_rV
                ; PcType     := pcT
