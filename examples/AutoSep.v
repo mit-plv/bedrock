@@ -109,8 +109,11 @@ Ltac sep ext := evaluate ext; descend; repeat (step ext; descend).
 Ltac sepLemma := simpl; intros; cancel auto_ext; try (tauto || congruence).
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
-Ltac prepare := SymIL.UNF.prepareHints ltac:(fun x => eval unfold starB exB hvarB in x)
-  W (settings * state)%type isConst.
+Ltac prepare := 
+  let the_unfold_tac x := 
+    eval unfold empB injB injBX starB exB hvarB in x
+  in
+  SymIL.UNF.prepareHints the_unfold_tac W (settings * state)%type isConst.
 
 Ltac sep_auto := sep auto_ext.
 

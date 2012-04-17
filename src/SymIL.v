@@ -234,7 +234,10 @@ Section Denotations.
                | Some m => 
                  PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD m)) stn_st)%PropX
              end
-          /\ AllProvable funcs uvars vars pures 
+          /\ AllProvable funcs uvars vars (match m with 
+                                             | None => pures
+                                             | Some m => pures ++ SEP.pures m
+                                           end)
       end.
 
   Section SymEvaluation.
@@ -1219,17 +1222,17 @@ Section unfolder_learnhook.
         | Some m =>
           match UNF.forward hints prover 10 facts
             {| UNF.Vars := SymVars st 
-              ; UNF.UVars := SymUVars st
-              ; UNF.Heap := m
+             ; UNF.UVars := SymUVars st
+             ; UNF.Heap := m
             |}
             with
             | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
               {| SymVars := vs
-                ; SymUVars := us
-                ; SymMem := Some m
-                ; SymRegs := SymRegs st
-                ; SymPures := SymPures st
-              |}
+               ; SymUVars := us
+               ; SymMem := Some m
+               ; SymRegs := SymRegs st
+               ; SymPures := SymPures st ++ SEP.pures m
+               |}
           end
         | None => st
       end.
@@ -1258,17 +1261,17 @@ End unfolder_learnhook.
     match H with
       | tt => 
         cbv delta [ 
-          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
+          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
           UNF.Forward UNF.forward UNF.unfoldForward
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr
+          UNF.substExpr UNF.substSexpr
           Unfolder.FM.add
 
           SEP.impures SEP.pures SEP.other
           
-          Unfolder.allb 
+          Unfolder.allb andb
 
           length map app
           exprSubstU
@@ -1282,17 +1285,17 @@ End unfolder_learnhook.
         ]
       | _ => 
         cbv delta [
-          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
+          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
           UNF.Forward UNF.forward UNF.unfoldForward
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr
+          UNF.substExpr UNF.substSexpr
           Unfolder.FM.add
 
           SEP.impures SEP.pures SEP.other
           
-          Unfolder.allb 
+          Unfolder.allb andb
 
           length map app
           exprSubstU
@@ -1436,7 +1439,9 @@ Ltac sym_eval isConst ext simplifier :=
   in
   let stn_st_SF :=
     match goal with
-      | [ H : interp _ (![ ?SF ] ?X) |- _ ] => constr:((X, (SF, H)))
+      | [ H : interp _ (![ ?SF ] ?X) |- _ ] => 
+        let SF := eval unfold empB injB injBX starB exB hvarB in SF in
+        constr:((X, (SF, H)))
       | [ H : Structured.evalCond _ _ _ ?stn ?st = _ |- _ ] => 
         let st := init_from st in
         constr:(((stn, st), tt))
@@ -1494,6 +1499,13 @@ Ltac sym_eval isConst ext simplifier :=
                   let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
                   (** collect the raw types **)
                   let Ts := constr:(@nil Type) in
+                  let Ts := 
+                    match SF with
+                      | tt => Ts
+                      | (?SF,_) => (** TODO: a little sketchy since it is in CPS **)
+                        SEP_REIFY.collectTypes_sexpr ltac:(isConst) SF Ts ltac:(fun Ts => Ts)
+                    end
+                  in
                   let Ts := collectAllTypes_instrs all_instrs Ts in
 (*                    idtac Ts ; *)
                   let Ts := Expr.collectTypes_exprs ltac:(isConst) regs Ts in
@@ -1504,10 +1516,10 @@ Ltac sym_eval isConst ext simplifier :=
                   match Ts with
                     | context [ PropX.PropX ] => 
                       fail 1000 "found PropX in types list"
-                        "(this causes universe inconsistencies)"
+                        "(this causes universe inconsistencies)" Ts
                     | context [ PropX.spec ] => 
-                      fail 1000 "found PropX in types list"
-                        "(this causes universe inconsistencies)"
+                      fail 1000 "found PropX.spec in types list"
+                        "(this causes universe inconsistencies)" Ts
                     | _ => idtac
                   end;
                   (** elaborate the types **)
@@ -1723,7 +1735,7 @@ Ltac sym_evaluator H :=
       UNF.Forward UNF.Backward 
       UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
       equiv_dec UNF.substExpr Unfolder.FM.add 
-      Unfolder.allb length map app exprSubstU ExprUnify.exprUnifyArgs
+      Unfolder.allb andb length map app exprSubstU ExprUnify.exprUnifyArgs
       ExprUnify.empty_Subst unfolder_LearnHook
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
