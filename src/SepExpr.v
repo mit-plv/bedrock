@@ -1,5 +1,5 @@
 Require Import List.
-Require Import Heaps SepTheoryX PropX.
+Require Import SepTheoryX PropX.
 Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Expr ExprUnify.

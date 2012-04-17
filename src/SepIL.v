@@ -1,5 +1,5 @@
 Require Import Eqdep_dec List.
-Require Import Word Memory PropX PropXTac IL DepList Heaps SepTheoryX.
+Require Import Word Memory PropX PropXTac IL DepList Heaps SepTheoryXIL.
 
 Set Implicit Arguments.
 
@@ -201,7 +201,7 @@ Module BedrockHeap.
   Qed.
 End BedrockHeap.
 
-Module ST := SepTheoryX.Make (BedrockHeap).
+Module ST := SepTheoryXIL.Make (BedrockHeap).
 Import ST.
 Export ST.
 Import ST.HT.
