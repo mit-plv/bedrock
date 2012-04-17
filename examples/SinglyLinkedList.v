@@ -70,44 +70,15 @@ Definition sllM := bmodule "sll" {{
 }}.
 
 Definition hints_sll' : TacPackage.
-  let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
-  prepare env nil_fwd nil_bwd ltac:(fun x => 
-    SymIL.Package.build_hints_pack x ltac:(fun x =>
-      SymIL.Package.refine_glue_pack x auto_ext)).
+  prepare1 nil_fwd nil_bwd.
 Defined.
 
 Definition hints_sll : TacPackage.
-  let v := eval cbv beta iota zeta delta [ 
-    auto_ext hints_sll'
-    SymIL.AllAlgos_composite SymIL.oplus
-    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
-    SymIL.Algos 
-    
-    Env.repr_combine 
-    Env.listToRepr
-    app map 
-  ] in hints_sll' in
-  exact v.
+  prepare2 hints_sll'.
 Defined.
 
-Lemma null_nil : forall T (x1 : list T) (v : W),
-  x1 = nil ->
-  v = 1 ->
-  v = null x1.
-Proof.
-  intros; subst; simpl; reflexivity.
-Qed.
-Lemma null_not_nil : forall T (x1 : list T) (v : W),
-  x1 <> nil ->
-  v = 0 ->
-  v = null x1.
-Proof.
-  destruct x1; simpl; try congruence.
-Qed.
-Local Hint Resolve null_nil null_not_nil : sll.
-
-
 Theorem sllMOk : moduleOk sllM.
-  vcgen; (sep hints_sll; eauto with sll).
-  admit. (** We can't solve this until we get the prover reasoning about inequality facts **)
+  vcgen; (sep hints_sll; (subst; simpl; try congruence)).
+
+  admit. (** This case is known to be false.  Fix coming soon. **)
 Qed.
