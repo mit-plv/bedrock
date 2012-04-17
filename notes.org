@@ -1,4 +1,20 @@
+* TODOs
+*** Gregory
+    - Single uvars environment
+    - Expression unification
+    - Array plugin
+    - hash proofs
+    - symbolic evaluation proofs
+    - clean up TypedPackage tactics
+*** Other
+    - tactic performance
+
 * Reification
+*** Two-stage Approach
+    - current implementation
+    - collectTypes_Xxx ltac to collect a list of types
+    - reify_Xxx to build the term indexed by the type list
+*** Single Pass Approach
   - restructure reification to recur over the term exactly once
     - collect the types (as a list)
     - functions and predicates as tuples
@@ -16,8 +32,13 @@
     here, DEFAULT_TERM can be any term, it will never be used. we then reflect the constants and build the environments
     and construct the list of constants. beta reduction on the term applied to the arguments will produce the correct result
     - how much of a win would this actually give us since terms are only indexed on types?      
+  - CONS:
+    - the type of the pair is quadratic in the term!
+      - an alternative would be to build a list of dyn, i.e. list {| T : Type ; V : T |}.
+*** Plugin-based reification
+    - Like to avoid this if possible, but it might be necessary to make things really fast.
 
-* Repr
+* Repr (environments for types, functions and predicates)
 *** Use [list (option T) * T] 
     (implemented [[src:Env.v]] rev. 330)
     - Benefits
