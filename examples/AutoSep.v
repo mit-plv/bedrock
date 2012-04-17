@@ -117,34 +117,21 @@ Ltac prepare :=
 
 Ltac sep_auto := sep auto_ext.
 
-(*
-Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
+Ltac prepare1 fwd bwd :=
+  let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
+    prepare env fwd bwd ltac:(fun x => 
+      SymIL.Package.build_hints_pack x ltac:(fun x =>
+        SymIL.Package.refine_glue_pack x auto_ext)).
 
-Definition read := bmodule "read" {{
-  bfunction "read" [readS] {
-    Rv <- $[0];;
-    If (Rv = 0) {
-      $[0] <- 0
-    } else {
-      $[0] <- $[0]
-    } ;;
-    Rv <- $[0];;
-    Goto Rp
-  }
-}}.
-
-Theorem readOk : moduleOk read.
-  vcgen.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  evaluate auto_ext. 
-  descend. step. descend. step. descend. step.
-
-  sep auto_ext.
-Qed.
-*)
+Ltac prepare2 old :=
+  let v := eval cbv beta iota zeta delta [ 
+    auto_ext old
+    SymIL.AllAlgos_composite SymIL.oplus
+    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
+    SymIL.Algos 
+    
+    Env.repr_combine 
+    Env.listToRepr
+    app map 
+  ] in old in
+  exact v.
