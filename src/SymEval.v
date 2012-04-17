@@ -294,8 +294,6 @@ Module MemoryEvaluator (SEP : SepExprType).
           in
           fold_first reader evals.
 
-        Print SEP.SHeap.
-
         Definition plugin_symeval_write_word (facts : Facts Prover) (p v : expr types)
           (s : SEP.SHeap types pcT stT) : option (SEP.SHeap types pcT stT) :=
           let impures := SEP.impures s in

@@ -350,8 +350,9 @@ Ltac cancel_simplifier :=
 
     (** Other **)
     fst snd plus minus
-    rev_append orb andb
+    rev_append orb andb Unfolder.allb
     projT1 projT2
+    Basics.impl
   ].
 
 

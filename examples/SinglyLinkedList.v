@@ -37,10 +37,8 @@ Module SinglyLinkedList : SINGLY_LINKED_LIST.
 
   Theorem nil_bwd : forall ls (p : W), p = 0
     -> [| ls = nil |] ===> sll ls p.
-(*
     destruct ls; sepLemma.
-*)
-  Admitted.
+  Qed.
 
 End SinglyLinkedList.
 
@@ -63,49 +61,53 @@ Definition nullS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
 
 Definition sllM := bmodule "sll" {{
   bfunction "null" [nullS] {
-    If ($[Rv] = 0) {
-      Return 0
-    } else {
+    If (Rv = 0) {
       Return 1
+    } else {
+      Return 0
     }
   }
 }}.
 
 Definition hints_sll' : TacPackage.
   let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
-  prepare env nil_fwd nil_bwd ltac:(fun x =>
-    SymIL.Package.build_hints_pack x ltac:(fun x => 
-      SymIL.Package.glue_pack x auto_ext ltac:(fun x => exact x))).
+  prepare env nil_fwd nil_bwd ltac:(fun x => 
+    SymIL.Package.build_hints_pack x ltac:(fun x =>
+      SymIL.Package.refine_glue_pack x auto_ext)).
 Defined.
 
 Definition hints_sll : TacPackage.
-  let v := eval cbv beta iota zeta delta [
-    hints_sll' auto_ext
-    SymIL.Types SymIL.Funcs SymIL.Preds
-    SymIL.Algos SymIL.Hints SymIL.MemEval SymIL.Prover
-    SymIL.AllAlgos_composite 
+  let v := eval cbv beta iota zeta delta [ 
+    auto_ext hints_sll'
+    SymIL.AllAlgos_composite SymIL.oplus
+    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
+    SymIL.Algos 
+    
     Env.repr_combine 
-    in_dec equiv_dec EquivDec_nat Env.repr_optimize Env.footprint Env.default
-    Peano_dec.eq_nat_dec nat_rec nat_rect
-    list_rec list_rect app  
-    SymIL.oplus Forward Backward
-    sumbool_rec sumbool_rect
-  ] in hints_sll'
-  in
+    Env.listToRepr
+    app map 
+  ] in hints_sll' in
   exact v.
 Defined.
 
+Lemma null_nil : forall T (x1 : list T) (v : W),
+  x1 = nil ->
+  v = 1 ->
+  v = null x1.
+Proof.
+  intros; subst; simpl; reflexivity.
+Qed.
+Lemma null_not_nil : forall T (x1 : list T) (v : W),
+  x1 <> nil ->
+  v = 0 ->
+  v = null x1.
+Proof.
+  destruct x1; simpl; try congruence.
+Qed.
+Local Hint Resolve null_nil null_not_nil : sll.
 
 
 Theorem sllMOk : moduleOk sllM.
-  vcgen.
-
-  (* This fails with: couldn't apply sym_eval_any! (SF case)
-  sep hints_sll. *)
-
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
+  vcgen; (sep hints_sll; eauto with sll).
+  admit. (** We can't solve this until we get the prover reasoning about inequality facts **)
 Qed.

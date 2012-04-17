@@ -907,6 +907,9 @@ Module ReifySepExpr (Import SEP : SepExprType).
           B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
         let v := eval simpl in v in
         collectTypes_sexpr isConst v types k
+      | fun x : ?T => @ST.inj _ _ _ (PropX.Inj (@?P x)) =>
+        k ltac:(collectTypes_expr isConst P types)
+      | fun x : ?T => @ST.emp _ _ _ => k types
       | @ST.emp _ _ _ => k types
       | @ST.inj _ _ _ (PropX.Inj ?P) =>
         k ltac:(collectTypes_expr isConst P types)
@@ -1067,6 +1070,18 @@ Module ReifySepExpr (Import SEP : SepExprType).
             let r := implicits r in
             let r := constr:(@r nv B) in
             k uvars funcs sfuncs r)
+        | fun x : ?T => @ST.emp _ _ _ => 
+          let r := constr:(@Emp) in
+          let r := implicits r in
+          k uvars funcs sfuncs r
+
+        | fun x : ?T => @ST.inj _ _ _ (PropX.Inj (@?P x)) =>
+          reify_expr isConst P types funcs uvars vars ltac:(fun uvars funcs P =>
+            let r := constr:(@Inj) in
+            let r := implicits r in
+            let r := constr:(r P) in
+            k uvars funcs sfuncs r)
+
         | @ST.emp _ _ _ => 
           let r := constr:(@Emp) in
           let r := implicits r in
@@ -1240,13 +1255,6 @@ Module ReifyTests (Import SEP : SepExprType).
 
   Module SEP_REIFY := ReifySepExpr SEP.
 
-  Print Ltac SEP_REIFY.reify_sexpr.
-  Print Ltac SEP_REIFY.collectTypes_sexpr.
-
-  Print Ltac extend_all_types.
-
-
-
   Goal hold (SEP.ST.star (SEP.ST.emp _ _) (SEP.ST.emp _ _)).
     match goal with
       | [ |- hold ?S ] => 
@@ -1267,6 +1275,4 @@ Module ReifyTests (Import SEP : SepExprType).
           SEP_REIFY.reify_sexpr ltac:(fun x => false) S types funcs pcT stT preds vars vars ltac:(fun uvars funcs preds S =>
             idtac uvars funcs preds S))
     end.
-
-    Print ST.star.
 *)

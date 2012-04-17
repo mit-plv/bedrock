@@ -1,5 +1,6 @@
 ROOT    := ..
-MODULES := AutoSep Baby TrivialMem TrivialMem2 Indir Factorial Swap Pair
+MODULES := AutoSep Baby TrivialMem TrivialMem2 Indir Factorial Swap Pair \
+           SinglyLinkedList
 
 VS      := $(MODULES:%=%.v)
 

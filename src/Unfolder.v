@@ -634,8 +634,6 @@ Require TypedPackage.
                |}) in ret res))))).
 
   (* Main entry point to simplify a goal *)
-  About unfolderOk.
-  Check @Provers.reflexivityProver_correct.
   Ltac unfolder isConst hs bound :=
     intros;
       let types := eval simpl in (repr (Types hs) nil) in
