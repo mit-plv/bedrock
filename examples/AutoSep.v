@@ -85,8 +85,23 @@ Ltac evaluate ext :=
   in
   sym_eval ltac:(isConst) ext simp.
 
+Hint Extern 1 => tauto : contradiction.
+Hint Extern 1 => congruence : contradiction.
+
+Ltac sep_easy := auto with contradiction.
+
+Ltac sep_firstorder := sep_easy;
+  repeat match goal with
+           | [ H : _ /\ _ |- _ ] => destruct H
+           | [ |- Logic.ex _ ] => sep_easy; eexists
+           | [ |- _ /\ _ ] => split
+           | [ |- forall x, _ ] => intro
+           | [ |- _ = _ ] => reflexivity
+           | [ |- himp _ _ _ ] => reflexivity
+         end; sep_easy.
+
 Ltac cancel ext :=
-  sep_canceler ltac:(isConst) ext the_cancel_simplifier.
+  sep_canceler ltac:(isConst) ext the_cancel_simplifier; sep_firstorder.
 (*
     ltac:(fun ts fs => constr:(@Provers.transitivityProver_correct ts fs))
     the_cancel_simplifier tt.
@@ -95,6 +110,7 @@ Ltac cancel ext :=
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
 Ltac ho := Programming.ho unf; reduce.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
@@ -106,7 +122,7 @@ Ltac descend := Programming.descend; reduce.
 
 Ltac sep ext := evaluate ext; descend; repeat (step ext; descend).
 
-Ltac sepLemma := simpl; intros; cancel auto_ext; try (tauto || congruence).
+Ltac sepLemma := simpl; intros; cancel auto_ext.
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 

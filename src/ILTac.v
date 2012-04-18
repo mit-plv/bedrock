@@ -38,20 +38,19 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
       let new_uvars := skipn (length uvars) uvars' in
       match SEP.sepCancel preds prover facts lhs rhs with
         | (lhs', rhs', lhs_subst, rhs_subst) =>
-          Expr.forallEach vars (fun VS : Expr.env types => 
-            Expr.existsEach new_uvars (fun US : Expr.env types =>
-              exists_subst funcs VS (uvars ++ US) 
-              (ExprUnify.env_of_Subst rhs_subst (map (@projT1 _ _) uvars ++ qr) 0)
+          Expr.forallEach vars (fun VS : Expr.env types =>
+            Expr.AllProvable_impl funcs uvars VS
+              (exists_subst funcs VS uvars
+                (ExprUnify.env_of_Subst rhs_subst (map (@projT1 _ _) uvars ++ qr) 0)
  (** NOTE : we should combine lhs_subst and rhs_subst **)
-              (fun rhs_ex0 : Expr.env types => 
-                Expr.AllProvable_impl funcs uvars VS 
-                (Expr.AllProvable_and funcs uvars VS 
-                  (himp cs 
-                    (SEP.sexprD funcs preds nil VS
-                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
-                    (SEP.sexprD funcs preds rhs_ex0 VS
-                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
-                  ) (SEP.pures rhs')) (SEP.pures lhs'))))
+                (fun rhs_ex0 : Expr.env types =>
+                  (Expr.AllProvable_and funcs rhs_ex0 VS 
+                    (himp cs 
+                      (SEP.sexprD funcs preds nil VS
+                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
+                      (SEP.sexprD funcs preds rhs_ex0 VS
+                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
+                    ) (SEP.pures rhs')))) (SEP.pures lhs'))
       end
   end ->
   himp cs (@SEP.sexprD _ _ _ funcs preds nil nil l)
@@ -197,7 +196,7 @@ Ltac sep_canceler isConst ext simplifier :=
       pose (typesV := types_);
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
-      let vars := eval simpl in (@nil _ : Expr.env typesV) in
+      let vars := eval simpl in (@nil Expr.tvar) in
 (*      idtac "7" ;  *)
       (** build the funcs **)
       let funcs := reduce_repr (Env.repr (Funcs ext typesV) nil) in
@@ -225,16 +224,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*         idtac "15" ; *)
          (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
 (*         idtac "16" ; *)
-         simplifier ;
-(*         idtac "17" ;  *)
-         repeat match goal with
-                  | [ H : _ /\ _ |- _ ] => destruct H
-                  | [ |- ex _ ] => eexists
-                  | [ |- _ /\ _ ] => (*idtac "splitting";*) split
-                  | [ |- _ -> ?P ] => intro
-                  | [ |- _ = _ ] => reflexivity
-                  | [ |- himp _ _ _ ] => try reflexivity
-                end)
+         simplifier)
         || (idtac "failed to apply, generalizing instead!" ;
             let algos := constr:(SymIL.Algos ext typesV) in
             let algosC := constr:(Algos_correct ext typesV funcsV predsV) in 
@@ -291,7 +281,7 @@ Ltac cancel_simplifier :=
     SEP.SDomain SEP.SDenotation
 
     SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
-    SEP.substV 
+    SEP.substV SEP.SHeap_empty
 
     SEP.sepCancel SEP.unify_remove_all SEP.unify_remove SEP.unifyArgs
     ExprUnify.fold_left_3_opt
@@ -347,13 +337,22 @@ Ltac cancel_simplifier :=
     eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal DepList.eq_sym
     Peano_dec.eq_nat_dec equiv_dec
     seq_dec EquivDec_SemiDec SemiDec_expr 
+    Expr.expr_seq_dec
 
     (** Other **)
     fst snd plus minus
     rev_append orb andb Unfolder.allb
     projT1 projT2
     Basics.impl
-  ].
+  ]; fold plus; fold minus; fold length; fold app;
+  repeat match goal with
+           | [ |- context[list ?A] ] =>
+             progress change (fix length (l : list A) : nat :=
+               match l with
+                 | nil => 0
+                 | _ :: l' => S (length l')
+               end) with (@length A)
+         end.
 
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).

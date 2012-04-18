@@ -376,7 +376,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         | Emp => (nil, SHeap_empty)
         | Inj p => (nil,
           {| impures := FM.empty
-            ; pures := p :: nil
+            ; pures := substV vs p :: nil
             ; other := nil
           |})
         | Star l r =>
@@ -1059,9 +1059,9 @@ Module ReifySepExpr (Import SEP : SepExprType).
               let r := implicits r in
               let r := constr:(r L R) in
               k uvars funcs sfuncs r))
-        | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B y x) =>
+        | fun x : ?T => @ST.ex _ _ _ ?T' (fun y => @?B x y) =>
           let v := constr:(fun x : VarType (T' * T) => 
-            B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+            B (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T' in
           let vars' := constr:(nv :: vars) in
@@ -1105,7 +1105,7 @@ Module ReifySepExpr (Import SEP : SepExprType).
               let r := implicits r in
               let r := constr:(r L R) in
               k uvars funcs sfuncs r))
-        | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
+        | @ST.ex _ _ _ ?T (fun x => @?B x) =>
           let v := constr:(fun x : VarType (T * unit) => B (@openUp _ T (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T in
