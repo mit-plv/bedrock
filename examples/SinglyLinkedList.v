@@ -15,6 +15,12 @@ Module Type SINGLY_LINKED_LIST.
 
   Axiom nil_bwd : forall ls (p : W), p = 0
     -> [| ls = nil |] ===> sll ls p.
+
+  Axiom cons_fwd : forall ls (p : W), p <> 0
+    -> sll ls p ===> Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
+
+  Axiom cons_bwd : forall ls (p : W), p <> 0
+    -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
 End SINGLY_LINKED_LIST.
 
 Module SinglyLinkedList : SINGLY_LINKED_LIST.
@@ -40,6 +46,18 @@ Module SinglyLinkedList : SINGLY_LINKED_LIST.
     destruct ls; sepLemma.
   Qed.
 
+  Theorem cons_fwd : forall ls (p : W), p <> 0
+    -> sll ls p ===> Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
+    destruct ls; sepLemma.
+  Qed.
+
+  Theorem cons_bwd : forall ls (p : W), p <> 0
+    -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
+    destruct ls; sepLemma;
+      match goal with
+        | [ H : _ :: _ = _ :: _ |- _ ] => inversion H; intros; subst; reflexivity
+      end.
+  Qed.
 End SinglyLinkedList.
 
 Import SinglyLinkedList.
@@ -80,5 +98,6 @@ Defined.
 Theorem sllMOk : moduleOk sllM.
   vcgen; (sep hints_sll; (subst; simpl; try congruence)).
 
-  admit. (** This case is known to be false.  Fix coming soon. **)
+  (* This last subgoal needs a hint that isn't added to the DB yet. *)
+  admit.
 Qed.

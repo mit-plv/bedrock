@@ -248,7 +248,7 @@ Fixpoint ptsto32m sos (a : W) (vs : list W) : hpropB sos :=
   match vs with
     | nil => Emp
     | v :: nil => a =*> v
-    | v :: vs' => a =*> v * ptsto32m sos (a ^+ $1) vs'
+    | v :: vs' => a =*> v * ptsto32m sos (a ^+ $4) vs'
   end%Sep.
 
 Notation "a ==*> v1 , .. , vn" := (ptsto32m _ a (cons v1 .. (cons vn nil) ..)) (no associativity, at level 39) : Sep_scope.
