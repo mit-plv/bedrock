@@ -88,7 +88,7 @@ Definition sllM := bmodule "sll" {{
 }}.
 
 Definition hints_sll' : TacPackage.
-  prepare1 nil_fwd nil_bwd.
+  prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
 Defined.
 
 Definition hints_sll : TacPackage.
@@ -96,8 +96,5 @@ Definition hints_sll : TacPackage.
 Defined.
 
 Theorem sllMOk : moduleOk sllM.
-  vcgen; (sep hints_sll; (subst; simpl; try congruence)).
-
-  (* This last subgoal needs a hint that isn't added to the DB yet. *)
-  admit.
+  vcgen; abstract sep hints_sll.
 Qed.

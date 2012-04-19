@@ -15,7 +15,7 @@ Definition TacPackage : Type :=
     SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
 
 Definition auto_ext' : TacPackage.  
-  SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a =>
+  SymIL.Package.build_prover_pack Provers.ComboProver ltac:(fun a =>
   SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
     SymIL.Package.glue_packs (BedrockPackage.bedrock_package, a, b) ltac:(fun res => refine res) || fail 1000 "compose")).
 Defined.
@@ -40,7 +40,7 @@ Definition auto_ext : TacPackage.
 Defined.
 
 Ltac sym_eval_simplifier H :=
-  Provers.unfold_transitivityProver H ;
+  Provers.unfold_comboProver H ;
   SymIL.MEVAL.Plugin.unfolder H ;
   SymIL.MEVAL.LearnHookDefault.unfolder H ;
   SymIL.unfolder_simplifier H ;
@@ -63,7 +63,7 @@ Ltac sym_eval_simplifier H :=
   sym_evaluator H.
 
 Ltac the_cancel_simplifier :=
-  Provers.unfold_transitivityProver tt ;
+  Provers.unfold_comboProver tt ;
   ILTac.cancel_simplifier.
 
 Ltac vcgen :=
@@ -103,7 +103,7 @@ Ltac sep_firstorder := sep_easy;
 Ltac cancel ext :=
   sep_canceler ltac:(isConst) ext the_cancel_simplifier; sep_firstorder.
 (*
-    ltac:(fun ts fs => constr:(@Provers.transitivityProver_correct ts fs))
+    ltac:(fun ts fs => constr:(@Provers.comboProver_correct ts fs))
     the_cancel_simplifier tt.
 *)
 

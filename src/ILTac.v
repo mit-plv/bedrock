@@ -41,7 +41,7 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
           Expr.forallEach vars (fun VS : Expr.env types =>
             Expr.AllProvable_impl funcs uvars VS
               (exists_subst funcs VS uvars
-                (ExprUnify.env_of_Subst rhs_subst (map (@projT1 _ _) uvars ++ qr) 0)
+                (ExprUnify.env_of_Subst rhs_subst uvars' 0)
  (** NOTE : we should combine lhs_subst and rhs_subst **)
                 (fun rhs_ex0 : Expr.env types =>
                   (Expr.AllProvable_and funcs rhs_ex0 VS 

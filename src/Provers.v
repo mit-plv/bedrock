@@ -530,3 +530,14 @@ Ltac unfold_transitivityProver H :=
         groupWith
       ] in H
   end.
+
+
+Definition ComboProver : ProverPackage :=
+{| ProverTypes := nil_Repr EmptySet_type
+ ; ProverFuncs := fun ts => nil_Repr (Default_signature ts)
+ ; Prover_correct := fun ts fs => composite_ProverT_correct (assumptionProver_correct _)
+   (transitivityProver_correct _)
+|}.
+
+Ltac unfold_comboProver H :=
+  unfold_assumptionProver H; unfold_transitivityProver H.
