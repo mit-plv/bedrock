@@ -167,8 +167,9 @@ Section env.
       eauto.
   Qed.
 
-  Variable uenv : env.
-  Variable env : env.
+  Variable meta_env : env.
+  Variable var_env : env.
+
 
   Section applyD.
     Variable exprD : expr -> forall t, option (tvarD t).
@@ -188,24 +189,6 @@ Section env.
         end.
   End applyD.
 
-  Fixpoint typeof (e : expr) : option tvar :=
-    match e with
-      | Const t _ => Some t
-      | Var x => match nth_error env x with
-                   | None => None
-                   | Some (existT t _) => Some t
-                 end
-      | UVar x => match nth_error uenv x with
-                    | None => None
-                    | Some (existT t _) => Some t
-                  end
-      | Func f _ => match nth_error funcs f with
-                      | None => None
-                      | Some r => Some (Range r)
-                    end
-      | Equal _ _ _ => Some tvProp
-    end.
-
   Fixpoint exprD (e : expr) (t : tvar) : option (tvarD t) :=
     match e with
       | Const t' c =>
@@ -216,8 +199,8 @@ Section env.
                  end
           | right _ => None 
         end
-      | Var x => lookupAs env t x
-      | UVar x => lookupAs uenv t x 
+      | Var x => lookupAs var_env t x
+      | UVar x => lookupAs meta_env t x 
       | Func f xs =>
         match nth_error funcs f with
           | None => None
@@ -244,15 +227,44 @@ Section env.
   Theorem exprD_det : forall e t1 t2, exprD e t1 <> None
     -> exprD e t2 <> None
     -> t1 = t2.
-(*    induction e; t. *)
-  Admitted.
+  Proof.
+    induction e; simpl; intros; try solve [ eapply lookupAs_det; eauto ];
+      repeat match goal with
+               | [ H : context [ match ?Y with 
+                                   | left _ => _ | right _ => _ 
+                                 end ] |- _ ] => destruct Y; try congruence
+               | [ H : context [ match nth_error ?A ?B with 
+                                   | Some _ => _ | None => _ 
+                                 end ] |- _ ] => destruct (nth_error A B); try congruence
+             end;
+    destruct t1; destruct t2; auto.
+  Qed.
 
+  Fixpoint typeof (e : expr) : option tvar :=
+    match e with
+      | Const t _ => Some t
+      | Var x => match nth_error var_env x with
+                   | None => None
+                   | Some (existT t _) => Some t
+                 end
+      | UVar x => match nth_error meta_env x with
+                    | None => None
+                    | Some (existT t _) => Some t
+                  end
+      | Func f _ => match nth_error funcs f with
+                      | None => None
+                      | Some r => Some (Range r)
+                    end
+      | Equal _ _ _ => Some tvProp
+    end.
 
   Theorem exprD_principal : forall e t, exprD e t <> None
     -> match typeof e with
          | None => False
          | Some t' => exprD e t' <> None
        end.
+  Proof.
+    
 (*
     induction e; simpl; unfold lookupAs;
       repeat match goal with
@@ -291,8 +303,8 @@ Section env.
     match e with 
       | Const t' _ => 
         if equiv_dec t' t then true else false
-      | Var x => if lookupAs env t x then true else false 
-      | UVar x => if lookupAs uenv t x then true else false 
+      | Var x => if lookupAs var_env t x then true else false 
+      | UVar x => if lookupAs meta_env t x then true else false 
       | Func f xs => 
         match nth_error funcs f with
           | None => false
@@ -312,12 +324,12 @@ Section env.
     match e with 
       | Const t' _ => Some t'
       | Var x => 
-        match nth_error env x with
+        match nth_error var_env x with
           | None => None
           | Some z => Some (projT1 z)
         end
       | UVar x => 
-        match nth_error uenv x with
+        match nth_error meta_env x with
           | None => None
           | Some z => Some (projT1 z)
         end
@@ -417,9 +429,9 @@ Section env.
   Proof.
     induction e; simpl; intros.
       destruct (equiv_dec t t1); try congruence.
-      unfold lookupAs in *. destruct (nth_error env x); try congruence.
+      unfold lookupAs in *. destruct (nth_error var_env x); try congruence.
         destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
-      unfold lookupAs in *. destruct (nth_error uenv x); try congruence.
+      unfold lookupAs in *. destruct (nth_error meta_env x); try congruence.
         destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
       destruct (nth_error funcs f); try congruence.
         destruct (equiv_dec t (Range s)); congruence.
@@ -505,7 +517,10 @@ Section env.
       | _ , _ => None
     end.
 
-  Global Instance SemiDec_expr : SemiDec expr := {| seq_dec := expr_seq_dec |}.
+  Global Instance SemiDec_expr : SemiDec expr.
+    let v := eval cbv delta [ expr_seq_dec ] in expr_seq_dec in
+    constructor; exact v.
+  Defined.
 
   (** lift the "real" variables in the range [a,...)
    ** to the range [a+b,...)
@@ -522,6 +537,7 @@ Section env.
         Func f (map (liftExpr a b) xs)
       | Equal t e1 e2 => Equal t (liftExpr a b e1) (liftExpr a b e2)
     end.
+
 
   Fixpoint liftExprU (a b : nat) (e : expr (*(uvars' ++ uvars) vars*)) 
     : expr (*(uvars' ++ ext ++ uvars) vars*) :=
@@ -554,7 +570,38 @@ Section env.
         | Equal t e1 e2 => Equal t (exprSubstU a b c e1) (exprSubstU a b c e2)
       end.
 
-  Fixpoint forallEach (ls : variables) : (env.env -> Prop) -> Prop :=
+  Lemma nth_error_length : forall T (ls ls' : list T) n,
+    nth_error (ls ++ ls') (n + length ls) = nth_error ls' n.
+  Proof.
+    induction ls; simpl; intros.
+    rewrite Plus.plus_0_r. auto.
+    cutrewrite (n + S (length ls) = S n + length ls); [ | omega ]. simpl. auto.
+  Qed.
+
+  Lemma liftExpr_0 : forall a (b : expr), liftExpr a 0 b = b.
+  Proof.
+    induction b; simpl; intros; auto.
+    destruct (Compare_dec.lt_dec x a); f_equal; omega.
+    f_equal. generalize dependent H. clear. induction 1. auto.
+    simpl; f_equal; auto.
+    rewrite IHb1; rewrite IHb2. reflexivity.
+  Qed.
+
+  Lemma liftExpr_combine : forall (e : expr) a b c,
+    liftExpr a b (liftExpr a c e) = liftExpr a (c + b) e.
+  Proof.
+    induction e; intros; simpl; repeat match goal with
+                                         | [ H : _ |- _ ] => rewrite H
+                                       end; try reflexivity. 
+    destruct (Compare_dec.lt_dec x a); simpl.
+    destruct (Compare_dec.lt_dec x a); auto. exfalso; auto.
+    destruct (Compare_dec.lt_dec (x + c) a). exfalso; omega. f_equal; omega.
+    
+    f_equal. rewrite map_map. induction H; simpl; auto.
+    rewrite H. f_equal; auto.
+  Qed.            
+
+  Fixpoint forallEach (ls : variables) : (env -> Prop) -> Prop :=
     match ls with
       | nil => fun cc => cc nil
       | a :: b => fun cc =>
@@ -638,6 +685,38 @@ Section env.
   End Provable.
 
 End env.
+
+Lemma liftExpr_ext : forall types (funcs : functions types) EG G G' G'' e t,
+  exprD funcs EG (G'' ++ G) e t = exprD funcs EG (G'' ++ G' ++ G) (liftExpr (length G'') (length G') e) t.
+Proof.
+  clear. induction e; simpl; intros; try reflexivity.
+  destruct (Compare_dec.lt_dec x (length G'')).
+  simpl. unfold lookupAs. 
+  revert G; revert G'. generalize dependent x. generalize dependent G''.
+  induction G''; simpl; intros.
+  exfalso; omega.
+  destruct x. reflexivity. simpl. erewrite <- IHG''. reflexivity. omega.
+  simpl. unfold lookupAs. 
+
+  cutrewrite (x = (x - length G'') + length G''). 
+  cutrewrite ((x - length G'') + length G'' + length G' = (x - length G'') + length G' + length G''). 2: omega.
+  repeat rewrite nth_error_length. reflexivity.
+  rewrite Plus.plus_comm. rewrite <- Minus.le_plus_minus; auto. omega.
+
+  destruct (nth_error funcs f); auto. destruct (equiv_dec (Range s) t); auto.
+  unfold Equivalence.equiv in e. subst. destruct s; simpl in *.
+  generalize dependent Domain0. induction H; intros; auto.
+  simpl. destruct Domain0; auto. rewrite H.
+  match goal with
+    | [ |- match ?X with
+             | Some _ => _ | None => _ 
+           end _ _ = _ ] => destruct X
+  end. eauto.
+
+  auto.
+
+  destruct t0; auto. rewrite IHe1. rewrite IHe2. auto.
+Qed.
 
 Section exists_subst.
   Variable types : list type.

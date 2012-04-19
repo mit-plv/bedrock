@@ -2,24 +2,28 @@ Require Import Expr.
 Require Import NatMap.
 Require Import EquivDec.
 Require Import List Bool.
+Require Import GenRec.
 
 Set Implicit Arguments.
 Set Strict Implicit.
+
+Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
+| R_EqualL : forall t l r, R_expr l (Equal t l r)
+| R_EqualR : forall t l r, R_expr r (Equal t l r)
+| R_Func   : forall f args arg,
+  In arg args -> R_expr arg (Func f args).
+
+Theorem wf_R_expr ts : well_founded (@R_expr ts).
+Proof.  
+  red; induction a; constructor; inversion 1; try assumption.
+  eapply Forall_forall in H; eauto.
+Defined.  
 
 Module SUBST := NatMap.IntMap.
 
 Section typed.
   Variable types : list type.
 
-  Fixpoint uvars_of (e : expr types) : list nat :=
-    match e with
-      | Const _ _ 
-      | Var _ => nil
-      | UVar n => n :: nil
-      | Func _ args => fold_right (fun x a => a ++ uvars_of x) nil args
-      | Equal _ l r => uvars_of l ++ uvars_of r
-    end.
-  
   Definition Subst : Type :=
     SUBST.t (expr types).
 
@@ -66,31 +70,44 @@ Section typed.
   Definition empty_Subst : Subst :=
     SUBST.empty.
 
-  Fixpoint allb T (F : T -> bool) (ls : list T) : bool :=
+  Fixpoint anyb T (F : T -> bool) (ls : list T) : bool :=
     match ls with
-      | nil => true
-      | l :: ls => F l && allb F ls
+      | nil => false
+      | l :: ls => F l || anyb F ls 
     end.
 
-  Definition consistentb (k : nat) (e : expr types) : bool :=
-    if In_dec equiv_dec k (uvars_of e) then false else true.
+  Section Mentions.
+    Variable uv : nat.
+
+    Fixpoint mentionsU (e : expr types) : bool :=
+      match e with
+        | Const _ _ 
+        | Var _ => false
+        | UVar n => if equiv_dec uv n then true else false
+        | Func _ args =>
+          (fix anyb ls : bool := 
+            match ls with
+              | nil => false
+              | l :: ls => mentionsU l || anyb ls
+            end) args
+        | Equal _ l r => mentionsU l || mentionsU r
+      end.
+  End Mentions.
 
   Definition Subst_replace (k : nat) (v : expr types) (s : Subst) : option Subst :=
     let v' := exprInstantiate s v in
-    if In_dec equiv_dec k (uvars_of v') then
+    if mentionsU k v' then
       None
     else
       let s := SUBST.add k v' s in
       let s := SUBST.map (fun _ => exprInstantiate s) s in
-      SUBST.fold (fun k e acc => match acc with
-                                   | None => None
-                                   | Some acc => 
-                                     let e := exprInstantiate s e in
-                                     if consistentb k e then
-                                       Some (SUBST.add k e acc)
-                                     else None
-                                 end) s (Some s).
-
+      SUBST.fold (fun k e acc => 
+        match acc with
+          | None => None
+          | _ => 
+            if mentionsU k e then None else acc
+        end) s (Some s).
+  
   Definition get_Eq (t : tvar) : forall x y : tvarD types t, option (x = y) :=
     match t as t return forall x y : tvarD types t, option (x = y) with
       | tvProp => fun _ _ => None
@@ -109,11 +126,273 @@ Section typed.
         end 
     end.
 
+  Section fold_in.
+    Variable LS : list (expr types).
+    Variable F : forall (l r : expr types), Subst -> In l LS -> option Subst.
+
+    Fixpoint dep_in (ls rs : list (expr types)) (sub : Subst) : (forall l, In l ls -> In l LS) -> option Subst.
+    refine (
+      match ls , rs with
+        | nil , nil => fun _ => Some sub
+        | l :: ls , r :: rs => fun pf_trans =>
+          match F l r sub _ with
+            | None => None
+            | Some sub => dep_in ls rs sub (fun ls pf => pf_trans _ _)
+          end
+        | _ , _ => fun _ => None
+      end).
+    Focus 2.
+    refine (or_intror _ pf).
+    refine (pf_trans _ (or_introl _ (refl_equal _))).
+    Defined.
+
+    Variable F' : forall (l r : expr types), Subst -> option Subst.
+
+    Fixpoint fold2_option (ls rs : list (expr types)) (sub : Subst) : option Subst :=
+      match ls , rs with
+        | nil , nil => Some sub
+        | l :: ls , r :: rs =>
+          match F' l r sub with
+            | None => None
+            | Some sub => fold2_option ls rs sub
+          end
+        | _ , _ => None
+      end.
+
+  End fold_in.
+
   (** index by a bound, since the termination argument is not trivial
    ** it is guaranteed to not make more recursions than the number of
    ** uvars.
    **)
-  Fixpoint exprUnify (l r : expr types) (sub : Subst) : option Subst.
+  Definition exprUnify (bound : nat) (l : expr types) : expr types -> Subst -> option Subst.
+  refine (
+    (@Fix _ _ (GenRec.wf_R_pair GenRec.wf_R_nat (@wf_R_expr types)) 
+      (fun _ => expr types -> Subst -> option Subst)
+      (fun bound_l recur r sub =>
+        match bound_l as bound_l
+          return (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b bound_l -> expr types -> Subst -> option Subst)
+          -> option Subst
+          with
+          | (bound,l) =>
+            match l as l , r as r 
+              return (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound, l) -> expr types -> Subst -> option Subst)
+              -> option Subst
+              with
+              | Const t v , Const t' v' => fun _ =>
+                match equiv_dec t t' with
+                  | left pf => match pf in _ = k return tvarD _ k -> _ with
+                                 | refl_equal => fun v' =>
+                                   if get_Eq t v v'
+                                     then Some sub
+                                     else None
+                               end v'
+                  | right _ => None
+                end
+              | Var v , Var v' => fun _ => 
+                if Peano_dec.eq_nat_dec v v' 
+                  then Some sub
+                  else None
+              | Func f1 args1 , Func f2 args2 => fun recur =>
+                match equiv_dec f1 f2 with
+                  | left _ => 
+                    @dep_in args1 (fun l r s pf => recur (bound, l) _ r s) args1 args2 sub (fun _ pf => pf)
+                  | right _ => None
+                end
+              | Equal t1 e1 f1 , Equal t2 e2 f2 => fun recur =>
+                if equiv_dec t1 t2 then
+                  match recur (bound, e1) _ e2 sub with
+                    | None => None
+                    | Some sub => recur (bound, f1) _ f2 sub
+                  end
+                  else
+                    None
+              | UVar u , _ =>
+                match Subst_lookup u sub with
+                  | None => fun recur =>
+                    Subst_replace u r sub
+                  | Some l' =>
+                    match bound as bound return 
+                      (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,UVar u) -> expr types -> Subst -> option Subst)
+                      -> option Subst with
+                      | 0 => fun _ => None
+                      | S bound => fun recur => recur (bound, l') _ r sub
+                    end
+                end
+              | l , UVar u =>
+                match Subst_lookup u sub with
+                  | None => fun recur =>
+                    Subst_replace u l sub
+                  | Some r' =>
+                    match bound as bound return 
+                      (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,l) -> expr types -> Subst -> option Subst)
+                      -> option Subst with
+                      | 0 => fun _ => None
+                      | S bound => fun recur => recur (bound, l) _ r sub
+                    end
+                end
+              | _ , _ => fun _ => None
+            end 
+        end recur
+      )) (bound,l)); try solve [ apply GenRec.L ; constructor | apply GenRec.R ; constructor; assumption ].
+  Defined.
+
+  Theorem exprUnify_unroll : forall bound l r sub,
+    exprUnify bound l r sub = 
+    match l , r with
+      | Const t v , Const t' v' =>
+        match equiv_dec t t' with
+          | left pf => match pf in _ = k return tvarD _ k -> _ with
+                         | refl_equal => fun v' =>
+                           if get_Eq t v v'
+                             then Some sub
+                             else None
+                       end v'
+          | right _ => None
+        end
+      | Var v , Var v' => 
+        if Peano_dec.eq_nat_dec v v' 
+          then Some sub
+          else None
+      | Func f1 args1 , Func f2 args2 => 
+        fold2_option (@exprUnify bound) args1 args2 sub
+      | Equal t1 e1 f1 , Equal t2 e2 f2 =>
+        if equiv_dec t1 t2 then
+          match exprUnify bound e1 e2 sub with
+            | None => None
+            | Some sub => exprUnify bound f1 f2 sub
+          end
+          else
+            None
+      | UVar u , _ =>
+        match Subst_lookup u sub with
+          | None => Subst_replace u r sub
+          | Some l' =>
+            match bound with
+              | 0 => None
+              | S bound => exprUnify bound l r sub
+            end
+        end
+      | l , UVar u =>
+        match Subst_lookup u sub with
+          | None => Subst_replace u l sub
+          | Some r' =>
+            match bound with
+              | 0 => None
+              | S bound => exprUnify bound l r sub
+            end
+        end
+      | _ , _ => None
+    end.
+  Proof.
+    intros. unfold exprUnify at 1. rewrite Fix_eq.
+    induction l; destruct r; simpl; auto.
+  Admitted.
+
+
+
+  (** Syntactic Unification **)
+  Section Unifies.
+    Variable funcs : functions types.
+    Variable vars : env types.
+    
+    (** NOTE: the meaning of Prop isn't quite perfect. We currently reflect Props
+     ** but we actually mean proofs, i.e. using the Provable predicate.
+     **)
+    Definition unifies uenv env (t : tvar) (l r : expr types) : Prop :=
+      match exprD funcs uenv env l t , exprD funcs uenv env r t with
+        | Some l , Some r => match t as t return tvarD types t -> tvarD types t -> Prop with
+                               | tvProp => fun l r => l <-> r (** we'll weaken things a bit more **)
+                               | tvType _ => fun l r => l = r
+                             end l r
+        | _ , _ => False
+      end.
+  End Unifies.
+
+
+  Section Correctness.
+    Variable funcs : functions types.
+    Variable vars : env types.
+
+    Theorem exprUnify_correct : forall env uvars l r t sub sub' n,
+      exprUnify n l r sub = Some sub' ->
+      existsEach uvars (fun uenv =>
+        Subst_equations funcs env sub uenv 0 uenv /\  
+        is_well_typed funcs uenv env l t = true /\ 
+        is_well_typed funcs uenv env r t = true) ->
+      existsEach uvars (fun uenv =>
+        Subst_equations funcs env sub' uenv 0 uenv /\  
+        unifies funcs uenv env t l r).
+    Proof.
+(*
+      induction l; destruct r; intuition; simpl in *; try congruence;
+        repeat (match goal with 
+                  | [ H : existsEach _ _ |- _ ] => 
+                    apply existsEach_sem in H
+                  | [ H : exists x, _ |- _ ] => destruct H
+                  | [ H : match ?X with 
+                            | left _ => _
+                            | right _ => _ 
+                          end = _ |- _ ] => destruct X; try congruence
+                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                  | [ H : match ?X with 
+                            | None => _
+                            | Some _ => _ 
+                          end = _ |- _ ] => revert H; case_eq X; intros; try congruence
+                end; intuition; unfold equiv in *; subst); 
+        eapply existsEach_sem.
+      Focus. (** const **)
+        exists x; intuition. unfold unifies; simpl. repeat rewrite EquivDec_refl_left.
+        destruct t3; intuition auto.
+      
+      Focus. (** var **)
+        exists x1; intuition eauto.
+        unfold unifies; simpl. rewrite H. destruct t; intuition eauto.
+
+      Focus. (** equal **)
+        destruct t1; try congruence.
+        apply andb_true_iff in H4. apply andb_true_iff in H2.
+        intuition.
+        eapply IHl1 with (t := t0) in H; [ | apply existsEach_sem; exists x; intuition ].
+        apply existsEach_sem in H. destruct H; intuition.
+        eapply IHl2 with (t := t0) in H1; [ | apply existsEach_sem; exists x0; intuition ].
+
+        Focus.
+        apply existsEach_sem in H1. destruct H1; intuition.
+        exists x1; intuition eauto. unfold unifies; simpl.
+*)
+    Admitted.
+  End Correctness.
+
+End typed.
+
+Module TEST.
+  Definition types := ({| Impl := nat ; Eq := fun _ _ => None |} :: nil).
+  
+  Definition vars_env : env types := nil.
+  Definition uvars := tvType 0 :: tvType 0 :: tvType 0 :: nil.
+  Definition subst := 
+    let s := empty_Subst types in
+    Subst_replace 1 (UVar 0) s.
+  Definition funcs : functions types := nil.
+
+  Goal 
+    existsEach uvars (fun uenv =>
+      match subst with 
+        | None => False
+        | Some subst => 
+          Subst_equations funcs vars_env subst uenv 0 uenv 
+      end /\  
+      AllProvable funcs uenv vars_env 
+        ((Equal (tvType 0) (UVar 0) (UVar 2)) :: 
+         (Equal (tvType 0) (UVar 0) (@Const types (tvType 0) 3)) :: nil)).
+    compute.
+  Abort.
+End TEST.
+
+(*
+
+
   refine (
     match l , r with
       | Const t v , Const t' v' =>
@@ -169,100 +448,4 @@ Section typed.
       | _ , _ => None
     end).
   Defined.
-
-  (** Syntactic Unification **)
-  Section Unifies.
-    Variable funcs : functions types.
-    Variable vars : env types.
-    
-    (** NOTE: the meaning of Prop isn't quite perfect. We currently reflect Props
-     ** but we actually mean proofs, i.e. using the Provable predicate.
-     **)
-    Definition unifies uenv env (t : tvar) (l r : expr types) : Prop :=
-      match exprD funcs uenv env l t , exprD funcs uenv env r t with
-        | Some l , Some r => match t as t return tvarD types t -> tvarD types t -> Prop with
-                               | tvProp => fun l r => l <-> r (** we'll weaken things a bit more **)
-                               | tvType _ => fun l r => l = r
-                             end l r
-        | _ , _ => False
-      end.
-  End Unifies.
-
-
-  Section Correctness.
-    Variable funcs : functions types.
-    Variable vars : env types.
-
-    Theorem exprUnify_correct : forall env uvars l r t sub sub',
-      exprUnify l r sub = Some sub' ->
-      existsEach uvars (fun uenv =>
-        Subst_equations funcs env sub uenv 0 uenv /\  
-        is_well_typed funcs uenv env l t = true /\ 
-        is_well_typed funcs uenv env r t = true) ->
-      existsEach uvars (fun uenv =>
-        Subst_equations funcs env sub' uenv 0 uenv /\  
-        unifies funcs uenv env t l r).
-    Proof.
-      induction l; destruct r; intuition; simpl in *; try congruence;
-        repeat (match goal with 
-                  | [ H : existsEach _ _ |- _ ] => 
-                    apply existsEach_sem in H
-                  | [ H : exists x, _ |- _ ] => destruct H
-                  | [ H : match ?X with 
-                            | left _ => _
-                            | right _ => _ 
-                          end = _ |- _ ] => destruct X; try congruence
-                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-                  | [ H : match ?X with 
-                            | None => _
-                            | Some _ => _ 
-                          end = _ |- _ ] => revert H; case_eq X; intros; try congruence
-                end; intuition; unfold equiv in *; subst); 
-        eapply existsEach_sem.
-      Focus. (** const **)
-        exists x; intuition. unfold unifies; simpl. repeat rewrite EquivDec_refl_left.
-        destruct t3; intuition auto.
-      
-      Focus. (** var **)
-        exists x1; intuition eauto.
-        unfold unifies; simpl. rewrite H. destruct t; intuition eauto.
-
-      Focus. (** equal **)
-        destruct t1; try congruence.
-        apply andb_true_iff in H4. apply andb_true_iff in H2.
-        intuition.
-        eapply IHl1 with (t := t0) in H; [ | apply existsEach_sem; exists x; intuition ].
-        apply existsEach_sem in H. destruct H; intuition.
-        eapply IHl2 with (t := t0) in H1; [ | apply existsEach_sem; exists x0; intuition ].
-
-        Focus.
-        apply existsEach_sem in H1. destruct H1; intuition.
-        exists x1; intuition eauto. unfold unifies; simpl.
-    Admitted.
-  End Correctness.
-
-End typed.
-
-Module TEST.
-  Definition types := ({| Impl := nat ; Eq := fun _ _ => None |} :: nil).
-  
-  Definition vars_env : env types := nil.
-  Definition uvars := tvType 0 :: tvType 0 :: tvType 0 :: nil.
-  Definition subst := 
-    let s := empty_Subst types in
-    Subst_replace 1 (UVar 0) s.
-  Definition funcs : functions types := nil.
-
-  Goal 
-    existsEach uvars (fun uenv =>
-      match subst with 
-        | None => False
-        | Some subst => 
-          Subst_equations funcs vars_env subst uenv 0 uenv 
-      end /\  
-      AllProvable funcs uenv vars_env 
-        ((Equal (tvType 0) (UVar 0) (UVar 2)) :: 
-         (Equal (tvType 0) (UVar 0) (@Const types (tvType 0) 3)) :: nil)).
-    compute.
-  Abort.
-End TEST.
+*)
