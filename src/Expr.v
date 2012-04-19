@@ -138,11 +138,11 @@ Section env.
     decide equality. eapply Peano_dec.eq_nat_dec.
   Defined.
 
-  Definition env : Type := list { t : tvar & tvarD t }.
+  Definition env : Type := list (sigT tvarD).
 
   Definition env_empty : env := nil.
 
-  Definition lookupAs (ls : list { t : tvar & tvarD t }) (t : tvar) (i : nat)
+  Definition lookupAs (ls : env) (t : tvar) (i : nat)
     : option (tvarD t) :=
     match nth_error ls i with 
       | None => None
@@ -264,16 +264,24 @@ Section env.
          | Some t' => exprD e t' <> None
        end.
   Proof.
-    
-(*
-    induction e; simpl; unfold lookupAs;
-      repeat match goal with
-               | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
-               | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl e) in H
-               | _ => t1
-             end.
-*)
-  Admitted.
+    induction e; simpl; unfold lookupAs; intros;
+      repeat (simpl in *; try congruence; 
+        match goal with
+          | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
+          | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
+          | [ H : match ?X with
+                    | Some _ => _ | None => _ 
+                  end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+          | [ H : context [ match ?X with
+                              | left _ => _ | right _ => _ 
+                            end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+          | [ H : context [ match ?X with
+                              | tvProp => _ | tvType _ => _ 
+                            end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+          | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
+        end).
+    unfold equiv in *. subst. auto.
+  Qed.
 
   Section All2.
     Variable X Y : Type.
@@ -727,46 +735,40 @@ Section exists_subst.
   Fixpoint exists_subst (CU : env types)
     (U : list (tvar * option (expr types)))
     : (env types -> Prop) -> Prop :=
-    match U as U with
-      | nil => fun cc => cc nil
-      | (t,v) :: r => fun cc =>
+    match U , CU with
+      | nil , nil => fun cc => cc nil
+      | (t,v) :: U' , existT t' v' :: CU'  => fun cc =>
         match v with
           | None => 
             exists v : tvarD types t, exists_subst (match CU with
                                                       | nil => nil
                                                       | _ :: CU' => CU'
-                                                    end) r (fun z => cc (existT _ t v :: z))
+                                                    end) U' (fun z => cc (existT _ t v :: z))
           | Some v => 
-            match exprD funcs CU U1 v t with
+            match exprD funcs CU U1 v t' with
               | None => False
-              | Some v1 =>
-                match CU with
-                  | nil => exists_subst nil r (fun z => cc (existT _ t v1 :: z))
-                  | existT t' v' :: CU' =>
-                    match exprD funcs CU U1 v t' with
-                      | None => False
-                      | Some v'' => v' = v'' /\ exists_subst CU' r (fun z => cc (existT _ t v1 :: z))
-                    end
-                end
+              | Some v1 => v' = v1 /\ exists_subst CU' U' (fun z => cc (existT _ t' v1 :: z))
             end
         end
+      | _ , _ => fun _ => False
     end.
 
-Lemma exists_subst_exists : forall CU
-  (B : list (tvar * option (expr types))) P,
+Lemma exists_subst_exists : forall (B : list (tvar * option (expr types))) CU P,
   exists_subst CU B P ->
   exists C, P C.
 Proof.
-(*
-      clear. induction B; simpl; intros.
-      eauto.
-      destruct a; simpl in *. destruct o.
-      destruct (exprD funcs CU A e t); try tauto.
-      eapply IHB in H; destruct H; eauto. 
-      destruct H. eapply IHB in H. destruct H; eauto.
-    Qed.
-*)
-Admitted.
+  clear. induction B; simpl; intros.
+    destruct CU. eauto.
+    contradiction.
+   
+    destruct a; destruct CU; simpl in *; try contradiction.
+    destruct s; destruct o. 
+    match goal with
+      | [ H : match ?X with | None => _ | Some _ => _ end |- _ ] => destruct X
+    end; intuition; subst; auto.
+    apply IHB in H1. destruct H1. eauto.
+    destruct H. eapply IHB in H. destruct H; eauto.
+Qed.
 
 End exists_subst.
 
