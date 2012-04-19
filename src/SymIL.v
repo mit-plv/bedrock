@@ -868,11 +868,13 @@ Section stream_correctness.
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
            end.
-    intuition auto.
-    generalize (SEP.hash_denote funcs sfuncs cs sh). rewrite H3. simpl in *.
-    intro XX. (* rewrite <- XX. eauto.*)
-    Transparent repr.
-  Admitted.
+    generalize (SEP.hash_denote funcs sfuncs uvars cs sh vars). rewrite H3. simpl in *.
+    intro XX. rewrite <- XX. intuition eauto.
+    apply AllProvable_app; auto. rewrite XX in H4.
+    rewrite sepFormula_eq in H4. unfold sepFormula_def in H4.
+    eapply SEP.sheapD_pures.  
+    unfold SEP.ST.satisfies. simpl in *. eauto.
+  Qed.
 End stream_correctness.
 
 (** Reification **)
@@ -1634,6 +1636,8 @@ Ltac sym_eval isConst ext simplifier :=
       end
   end.
 
+
+
 Ltac sym_evaluator H := 
   unfolder_simplifier H ;
   cbv beta iota zeta delta
@@ -1643,6 +1647,8 @@ Ltac sym_evaluator H :=
       SymMem SymRegs SymPures SymVars SymUVars
       SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
       Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
+
+      SEP.sheap_liftVars
       app map nth_error value error fold_right hd hd_error tl tail rev
       Decidables.seq_dec 
       DepList.hlist_hd DepList.hlist_tl 
@@ -1652,7 +1658,7 @@ Ltac sym_evaluator H :=
       f_equal 
       bedrock_funcs_r bedrock_types
       fst snd
-      Env.repr Env.updateAt SEP.substV
+      Env.repr Env.updateAt 
 
       stateD Expr.exprD 
       Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
@@ -1740,7 +1746,7 @@ Ltac sym_evaluator H :=
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
 
-      SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr SEP.hash' UNF.substSexpr
+      SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr UNF.substSexpr
       rev_append
 
       Unfolder.FM.fold Unfolder.FM.add

@@ -96,7 +96,7 @@ Module Make (Import SE : SepExprType).
     Definition lemmaD (lem : lemma) : Prop :=
       forallEachR (Foralls lem) (fun env =>
         implyEach (Hyps lem) env
-        (forall specs, himp funcs preds nil nil env specs (Lhs lem) (Rhs lem))).
+        (forall specs, himp funcs preds nil env specs (Lhs lem) (Rhs lem))).
 
     (** Preprocessed databases of hints *)
 

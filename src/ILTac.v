@@ -291,7 +291,6 @@ Ltac cancel_simplifier :=
     SEP.SDomain SEP.SDenotation
 
     SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
-    SEP.substV 
 
     SEP.sepCancel SEP.unify_remove_all SEP.unify_remove SEP.unifyArgs
     ExprUnify.fold_left_3_opt
@@ -300,7 +299,7 @@ Ltac cancel_simplifier :=
     SEP.himp
     SEP.sexprD 
 
-    SEP.hash SEP.hash'
+    SEP.hash SEP.sheap_liftVars
 
     (** Unfolder **)
     UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
