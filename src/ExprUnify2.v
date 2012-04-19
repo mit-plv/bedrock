@@ -18,6 +18,7 @@ Section typed.
       | UVar n => n :: nil
       | Func _ args => fold_right (fun x a => a ++ uvars_of x) nil args
       | Equal _ l r => uvars_of l ++ uvars_of r
+      | Not e1 => uvars_of e1
     end.
   
   Definition Subst : Type :=
@@ -39,6 +40,7 @@ Section typed.
                     end
         | Func f args => Func f (map exprInstantiate args)
         | Equal t l r => Equal t (exprInstantiate l) (exprInstantiate r)
+        | Not e1 => Not (exprInstantiate e1)
       end.
   End Instantiate.
 
@@ -148,6 +150,7 @@ Section typed.
           end
         else
           None
+      | Not e1 , Not e2 => exprUnify e1 e2 sub
       | UVar u , _ => None
 (*
         match Subst_lookup u sub with

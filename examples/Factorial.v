@@ -51,10 +51,10 @@ Hint Extern 5 (@eq W ?X _) => match goal with
                                     || (rewrite H; clear H; W_eq)
                               end.
 
-Hint Extern 5 (@eq W _ _) => match goal with
-                               | [ |- ?G ] => has_evar G; fail 1
-                               | _ => W_eq
-                             end.
+Hint Extern 5 (@eq W _ _) => cbv zeta; match goal with
+                                         | [ |- ?G ] => has_evar G; fail 1
+                                         | _ => W_eq
+                                       end.
 
 Theorem factOk : moduleOk fact.
   vcgen; abstract (sep_auto; eauto).

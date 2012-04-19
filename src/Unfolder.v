@@ -1,4 +1,4 @@
-Require Import Bool EqdepClass List.
+Require Import Arith Bool EqdepClass List.
 
 Require Import Heaps Reflect.
 Require Import Expr ExprUnify.
@@ -35,25 +35,28 @@ Module Make (Import SE : SepExprType).
     (** * Some substitution functions *)
 
     (* [first] gives the offset to add to a variable to determine its corresponding unification variable, for substitution purposes. *)
-    Fixpoint substExpr (offset : nat) (s : Subst types) (e : expr types) : expr types :=
+    Fixpoint substExpr (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ k => Expr.Const k
-        | Var x => match Subst_lookup (x + offset) s with
-                     | None => e
-                     | Some e' => e'
-                   end
+        | Var x => if lt_dec x firstFree
+          then e
+          else match Subst_lookup (x - firstFree + offset) s with
+                 | None => e
+                 | Some e' => e'
+               end
         | UVar _ => e
-        | Expr.Func f es => Expr.Func f (map (substExpr offset s) es)
-        | Equal t e1 e2 => Equal t (substExpr offset s e1) (substExpr offset s e2)
+        | Expr.Func f es => Expr.Func f (map (substExpr offset firstFree s) es)
+        | Equal t e1 e2 => Equal t (substExpr offset firstFree s e1) (substExpr offset firstFree s e2)
+        | Not e1 => Not (substExpr offset firstFree s e1)
       end.
 
-    Fixpoint substSexpr (offset : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
+    Fixpoint substSexpr (offset firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
       match se with
         | Emp => se
-        | Inj e => Inj _ _ (substExpr offset s e)
-        | Star se1 se2 => Star (substSexpr offset s se1) (substSexpr offset s se2)
-        | Exists t se1 => Exists t (substSexpr offset s se1)
-        | Func f es => Func _ _ f (map (substExpr offset s) es)
+        | Inj e => Inj _ _ (substExpr offset firstFree s e)
+        | Star se1 se2 => Star (substSexpr offset firstFree s se1) (substSexpr offset firstFree s se2)
+        | Exists t se1 => Exists t (substSexpr offset (S firstFree) s se1)
+        | Func f es => Func _ _ f (map (substExpr offset firstFree s) es)
         | Const _ => se
       end.
 
@@ -211,7 +214,7 @@ Module Make (Import SE : SepExprType).
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (Prove prover facts) (map (substExpr firstUvar subs) (Hyps h)) then
+                        if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -219,7 +222,7 @@ Module Make (Import SE : SepExprType).
                             other := other (Heap s) |} in
 
                           (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr firstUvar subs (Rhs h)) in
+                          let (exs, sh') := hash (substSexpr firstUvar O subs (Rhs h)) in
 
                           (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
                             Some {| Vars := Vars s ++ exs;
@@ -254,7 +257,7 @@ Module Make (Import SE : SepExprType).
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (Prove prover facts) (map (substExpr firstUvar subs) (Hyps h)) then
+                        if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
@@ -262,7 +265,7 @@ Module Make (Import SE : SepExprType).
                             other := other (Heap s) |} in
 
                           (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr firstUvar subs (Lhs h)) in
+                          let (exs, sh') := hash (substSexpr firstUvar O subs (Lhs h)) in
 
                           (* Newly introduced variables must be replaced with unification variables. *)
                           let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
@@ -397,6 +400,7 @@ Module Make (Import SE : SepExprType).
           collectTypes_hints unfoldTac ltac:(isConst) P2 types k)
       | _ =>
         let T := type of Ps in
+        let T := eval simpl in T in
         let T := unfoldTac T in
           collectTypes_hint ltac:(isConst) (fun _ : VarType unit => T) types k
     end.
@@ -454,6 +458,7 @@ Module Make (Import SE : SepExprType).
         || fail 2
       | _ =>
         let T := type of Ps in
+        let T := eval simpl in T in
         let T := unfoldTac T in
           reify_hint pcType stateType isConst (fun _ : VarType unit => T) types funcs preds (@nil tvar) ltac:(fun funcs preds P =>
             k funcs preds (P :: nil))
@@ -529,6 +534,9 @@ Ltac lift_expr_over_repr e rp :=
       let l := lift_expr_over_repr l rp in
       let r := lift_expr_over_repr r rp in
       constr:(fun ts => @Expr.Equal (repr rp ts) t (l ts) (r ts))
+    | Expr.Not ?e1 =>
+      let e1 := lift_expr_over_repr e1 rp in
+      constr:(fun ts => @Expr.Not (repr rp ts) (e1 ts))
   end
 with lift_exprs_over_repr es rp :=
   match eval hnf in es with
