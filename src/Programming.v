@@ -394,12 +394,16 @@ Ltac descend := autorewrite with IL in *;
            | [ |- specs _ = _ ] => eassumption
          end; cbv zeta; simpl; intros.
 
+Ltac propxFo' := propxFo; repeat match goal with
+                                   | [ H : ?P -> False |- _ ] => change (not P) in H
+                                 end.
+
 Ltac ho unf :=
   match goal with
     | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
-    | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo
-    | [ H : forall x, interp _ (_ ---> _ x) |- interp _ (_ ---> _ _) ] => intros; eapply Imply_trans; [ | apply H ]
-    | [ |- interp _ _ ] => progress propxFo
+    | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo'
+    | [ H : forall x, interp _ (_ ---> _ x) |- interp _ (_ ---> _ _) ] => eapply Imply_trans; [ | apply H ]
+    | [ |- interp _ _ ] => progress propxFo'
     | [ |- interp _ (_ ---> _) ] => imply_simp unf; repeat imply_simp unf
   end; autorewrite with IL in *.
 

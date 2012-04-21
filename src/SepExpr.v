@@ -2,7 +2,7 @@ Require Import List.
 Require Import SepTheoryX PropX.
 Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
-Require Import Expr ExprUnify.
+Require Import Expr ExprUnify2.
 Require Import DepList.
 Require Import Setoid.
 Require Import Prover.
@@ -342,14 +342,17 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         | Const c => Const c
       end.
 
+    (** lift all the "real" variables in [a,...) 
+     ** to the range [a+b,...)
+     **)
     Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
       {| impures := FM.map (fun _ => map (map (liftExpr a b))) (impures s)
        ; pures   := map (liftExpr a b) (pures s)
        ; other   := other s
        |}.
 
-    Definition multimap_join := 
-      FM.fold (fun (k : nat) (v : list (list (expr types))) a =>
+    Definition multimap_join T : FM.t (list T) -> FM.t (list T) -> FM.t (list T) :=
+      FM.fold (fun k v a =>
         match FM.find k a with
           | None => FM.add k v a
           | Some v' => FM.add k (v ++ v') a
@@ -366,6 +369,22 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; pures := map (liftExpr from delta) (pures h)
        ; other := other h
        |}.
+
+    (** CURRENTLY NOT USED **)
+    Fixpoint substV types (vs : list nat) (e : expr types) : expr types :=
+      match e with
+        | Expr.Const _ c => Expr.Const c
+        | Var x => 
+          Var (match nth_error vs x with
+                 | None => x
+                 | Some y => y
+               end)
+        | UVar x => UVar x
+        | Expr.Func f xs => 
+          Expr.Func f (map (substV vs) xs)
+        | Equal t e1 e2 => Equal t (substV vs e1) (substV vs e2)
+        | Not e1 => Not (substV vs e1)
+      end.
 
     Fixpoint hash (s : sexpr) : ( variables * SHeap ) :=
       match s with
@@ -661,12 +680,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       reflexivity.
     Qed.
 
-    Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
-      match ls with
-        | nil => fun x => x
-        | t :: ts => fun y => Exists t (@existsEach ts y)
-      end.
-    
     Lemma heq_ex : forall X Y cs t P Q,
       (forall v : tvarD types t, heq X (existT (tvarD types) t v :: Y) cs P Q) ->
       heq X Y cs (Exists t P) (Exists t Q).
@@ -674,7 +687,15 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       unfold heq; simpl; intros; apply ST.heq_ex; auto.
     Qed.
 
-    Lemma existsEach_heq : forall cs X v Y (P Q : sexpr),
+    (** The first variable in the list is the first one quantified!
+     **)
+    Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
+      match ls with
+        | nil => fun x => x
+        | t :: ts => fun y => Exists t (@existsEach ts y)
+      end.
+    
+    Lemma heq_existsEach : forall cs X v Y (P Q : sexpr),
       (forall Z, map (@projT1 _ _) Z = rev v -> heq X (Z ++ Y) cs P Q) ->
       heq X Y cs (existsEach v P) (existsEach v Q).
     Proof.
@@ -857,11 +878,11 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
         intros. rewrite IHs1 at 1. destruct (hash s1); destruct (hash s2); simpl in *.
         rewrite IHs2.
         rewrite <- (@existsEach_app EG cs) with (Y := G).
-        rewrite star_pull_existsEach. apply existsEach_heq. intros.
+        rewrite star_pull_existsEach. apply heq_existsEach. intros.
         rewrite heq_star_comm.
 
         rewrite liftSExpr_existsEach.
-        rewrite star_pull_existsEach. eapply existsEach_heq; intros.
+        rewrite star_pull_existsEach. eapply heq_existsEach; intros.
         rewrite sheapD'_star. simpl plus.
         repeat rewrite sheapD'_sexprD_liftVars. rewrite heq_star_comm. reflexivity.
     Qed.
@@ -870,7 +891,7 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
       heq EG G cs s (@existsEach (fst (hash s)) (sheapD (snd (hash s)))).
     Proof.
       intros. specialize (@hash_denote' EG cs s G). etransitivity.
-      eassumption. apply existsEach_heq. intros. rewrite sheapD_sheapD'. reflexivity.
+      eassumption. apply heq_existsEach. intros. rewrite sheapD_sheapD'. reflexivity.
     Qed.
 (*
             Lemma fold_star_acc : forall T EG G cs (F : nat -> T -> sexpr -> sexpr) i a a',
@@ -895,72 +916,87 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
     Variable Prover : ProverT types.
     Variable Prover_correct : ProverT_correct Prover funcs.
 
-    Definition unifyArgs (summ : Facts Prover) (l r : list (expr types)) (ts : list tvar) (ls rs : Subst types)
-      : option (Subst types * Subst types) :=
-      ExprUnify.fold_left_3_opt 
-        (fun l r t (acc : Subst _ * Subst _) =>
-          match exprUnify l r (fst acc) (snd acc) with
-            | None => if Prove Prover summ (Expr.Equal t l r) then Some acc else None
-            | x => x
-          end)
-        l r ts (ls, rs).
+    Section fold_left3_opt.
+      Variable T U V A : Type.
+      Variable F : T -> U -> V -> A -> option A.
 
-    Fixpoint unify_remove (summ : Facts Prover) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
-      (ls rs : ExprUnify.Subst types)
-      : option (list (list (expr types)) * ExprUnify.Subst types * ExprUnify.Subst types) :=
+      Fixpoint fold_left_3_opt (ls : list T) (ls' : list U) (ls'' : list V) 
+        (acc : A) : option A :=
+        match ls, ls', ls'' with 
+          | nil , nil , nil => Some acc
+          | x :: xs , y :: ys , z :: zs => 
+            match F x y z acc with
+              | None => None
+              | Some acc => fold_left_3_opt xs ys zs acc
+            end
+          | _ , _ , _ => None
+        end.
+    End fold_left3_opt.
+
+    Definition unifyArgs (bound : nat) (summ : Facts Prover) (l r : list (expr types)) (ts : list tvar) (sub : Subst types)
+      : option (Subst types) :=
+      fold_left_3_opt 
+        (fun l r t (acc : Subst _) =>
+          if Prove Prover summ (Expr.Equal t l r)
+            then Some acc
+            else exprUnify bound l r acc)
+        l r ts sub.
+
+    Fixpoint unify_remove (bound : nat) (summ : Facts Prover) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
+      (sub : Subst types)
+      : option (list (list (expr types)) * Subst types) :=
         match r with 
           | nil => None
           | a :: b => 
-            match unifyArgs summ l a ts ls rs with
+            match unifyArgs bound summ l a ts sub with
               | None => 
-                match unify_remove summ l ts b ls rs with
+                match unify_remove bound summ l ts b sub with
                   | None => None
-                  | Some (x,y,z) => Some (a :: x, y, z)
+                  | Some (x,sub) => Some (a :: x, sub)
                 end
-              | Some (ls,rs) => Some (b, ls, rs)
+              | Some sub => Some (b, sub)
             end
         end.
 
-    Fixpoint unify_remove_all (summ : Facts Prover) (l r : list (list (expr types))) (ts : list tvar)
-      (ls rs : ExprUnify.Subst types)
-      : list (list (expr types)) * list (list (expr types)) * 
-        ExprUnify.Subst types * ExprUnify.Subst types :=
+    Fixpoint unify_remove_all (bound : nat) (summ : Facts Prover) (l r : list (list (expr types))) (ts : list tvar)
+      (sub : Subst types)
+      : list (list (expr types)) * list (list (expr types)) * Subst types :=
         match l with
-          | nil => (l, r, ls, rs)
+          | nil => (l, r, sub)
           | a :: b => 
-            match unify_remove summ a ts r ls rs with
+            match unify_remove bound summ a ts r sub with
               | None => 
-                let '(l,r,ls,rs) := unify_remove_all summ b r ts ls rs in
-                (a :: l, r, ls, rs)
-              | Some (r, ls, rs) =>
-                unify_remove_all summ b r ts ls rs
+                let '(l,r,sub) := unify_remove_all bound summ b r ts sub in
+                (a :: l, r, sub)
+              | Some (r, sub) =>
+                unify_remove_all bound summ b r ts sub
             end
         end.
 
     (** TODO: this function signature is going to change **)
-    Definition sepCancel (summ : Facts Prover) (l r : SHeap) :
-      SHeap * SHeap * ExprUnify.Subst types * ExprUnify.Subst types :=
-      let '(lf, rf, ls, rs) := 
+    Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SHeap) :
+      SHeap * SHeap * Subst types :=
+      let '(lf, rf, sub) := 
         FM.fold (fun k v a => 
-          let '(lf, rf, ls, rs) := a in
+          let '(lf, rf, sub) := a in
           match FM.find k rf with
-            | None => (FM.add k v lf, rf, ls, rs)
+            | None => (FM.add k v lf, rf, sub)
             | Some xs =>
               match nth_error sfuncs k with
                 | None => (* should never happen *)
-                  (FM.add k v lf, rf, ls, rs)
+                  (FM.add k v lf, rf, sub)
                 | Some sf =>
                   let ts  := SDomain sf in
-                  let '(l,r,ls,rs) := unify_remove_all summ v xs ts ls rs in
-                  (FM.add k l lf, FM.add k r rf, ls, rs)
+                  let '(l,r,sub) := unify_remove_all bound summ v xs ts sub in
+                  (FM.add k l lf, FM.add k r rf, sub)
               end
           end)
         (impures l)
-        (FM.empty , impures r , empty_Subst _ , empty_Subst _)
+        (FM.empty , impures r , empty_Subst _)
       in
       ({| impures := lf ; pures := pures l ; other := other l |},
        {| impures := rf ; pures := pures r ; other := other r |},
-       ls, rs).
+       sub).
 
 (*
     Record SepResult (gl gr : sexpr) : Type :=
@@ -1225,9 +1261,9 @@ Module ReifySepExpr (Import SEP : SepExprType).
               let r := implicits r in
               let r := constr:(r L R) in
               k uvars funcs sfuncs r))
-        | fun x : ?T => @ST.ex _ _ _ ?T' (fun y : ?T' => @?B y x) =>
+        | fun x : ?T => @ST.ex _ _ _ ?T' (fun y => @?B x y) =>
           let v := constr:(fun x : VarType (T' * T) => 
-            B (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+            B (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T' in
           let vars' := constr:(nv :: vars) in
@@ -1271,7 +1307,7 @@ Module ReifySepExpr (Import SEP : SepExprType).
               let r := implicits r in
               let r := constr:(r L R) in
               k uvars funcs sfuncs r))
-        | @ST.ex _ _ _ ?T (fun x : ?T => @?B x) =>
+        | @ST.ex _ _ _ ?T (fun x => @?B x) =>
           let v := constr:(fun x : VarType (T * unit) => B (@openUp _ T (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T in

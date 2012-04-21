@@ -9,6 +9,42 @@ Require Import Prover ILEnv.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
+Add ML Path "/usr/local/lib/coq/user-contrib/". 
+Declare ML Module "Timing_plugin".
+
+Parameter Dyn : forall T, T -> Prop.
+
+Section existsSubst.
+  Variable types : list type.
+  Variable denote : expr types -> forall t : tvar, option (tvarD types t).
+  Variable sub : ExprUnify2.Subst types.
+  
+  Fixpoint existsSubst (from : nat) (vals : list { t : tvar & option (tvarD types t) }) (ret : env types -> Prop) : Prop :=
+    match vals with
+      | nil => ret nil
+      | existT t None :: vals =>
+        match ExprUnify2.Subst_lookup from sub with
+          | None => exists v : tvarD types t, existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
+          | Some v =>
+            match denote v t with
+              | None => False
+              | Some v => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
+            end
+        end
+      | existT t (Some v) :: vals =>
+        match ExprUnify2.Subst_lookup from sub with
+          | None => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
+          | Some v' =>
+            match denote v' t with
+              | None => False
+              | Some v' => 
+                existsSubst (S from) vals (fun env => v = v' /\ ret (existT (tvarD types) t v' :: env))
+            end
+        end
+    end.
+End existsSubst.
+
 (** TODO : this isn't true **)
 (** TODO : should we apply forward unfolding as well? **)
 Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C, 
@@ -25,39 +61,77 @@ Lemma ApplyCancelSep : forall types funcs pcT stT preds A B C,
       | Some h => h
     end
   in
-  forall uvars (hyps : list (Expr.expr types))
+  forall (uvars : env types) (hyps : list (Expr.expr types))
   (l r : SEP.sexpr types pcT stT),
   Expr.AllProvable funcs uvars nil hyps ->
   let (ql, lhs) := SEP.hash l in
   let (qr, rhs) := SEP.hash r in
-  let facts := Summarize prover (hyps ++ SEP.pures lhs) in
+  let facts := Summarize prover (map (liftExpr 0 (length ql)) hyps ++ SEP.pures lhs) in
   let rhs := SEP.liftSHeap 0 (length ql) (SEP.sheapSubstU 0 (length qr) (length uvars) rhs) in
   forall cs,
-  match UNF.backward hints prover 10 facts {| UNF.Vars := ql ; UNF.UVars := map (@projT1 _ _) uvars ++ qr ; UNF.Heap := rhs |} with
-    | {| UNF.Vars := vars ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
+  let initial := {| UNF.Vars := ql 
+                  ; UNF.UVars := map (@projT1 _ _) uvars ++ qr
+                  ; UNF.Heap := rhs
+                  |} in
+  match UNF.backward hints prover 10 facts initial with
+    | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
+      (** NOTE: we're taking the first of them! **)
+      let new_vars  := vars' in
       let new_uvars := skipn (length uvars) uvars' in
-      match SEP.sepCancel preds prover facts lhs rhs with
-        | (lhs', rhs', lhs_subst, rhs_subst) =>
-          Expr.forallEach vars (fun VS : Expr.env types => 
-            Expr.existsEach new_uvars (fun US : Expr.env types =>
-              exists_subst funcs VS (uvars ++ US) 
-              (ExprUnify.env_of_Subst rhs_subst (map (@projT1 _ _) uvars ++ qr) 0)
- (** NOTE : we should combine lhs_subst and rhs_subst **)
-              (fun rhs_ex0 : Expr.env types => 
-                Expr.AllProvable_impl funcs uvars VS 
-                (Expr.AllProvable_and funcs uvars VS 
+      let bound := length uvars' in
+      match SEP.sepCancel preds prover bound facts lhs rhs with
+        | (lhs', rhs', subst) =>
+          Expr.forallEach new_vars (fun nvs : Expr.env types =>
+            let var_env := nvs in
+            Expr.AllProvable_impl funcs uvars var_env
+            (** NOTE: I need to reverse this because 
+             **)
+            (existsSubst (exprD funcs uvars var_env) subst 0 
+                (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) uvars ++
+                 map (fun x => existT (fun t => option (tvarD types t)) x None) (rev new_uvars))
+              (fun meta_env : Expr.env types =>
+(*                Dyn (map (fun e => exprD funcs meta_env var_env e tvProp) (SEP.pures rhs') , meta_env, uvars, new_uvars) *)
+
+                (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
-                    (SEP.sexprD funcs preds nil VS
+                    (SEP.sexprD funcs preds meta_env var_env
                       (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
-                    (SEP.sexprD funcs preds rhs_ex0 VS
-                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
-                  ) (SEP.pures rhs')) (SEP.pures lhs'))))
+                    (SEP.sexprD funcs preds meta_env var_env
+                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs')))))
+                  (SEP.pures rhs')) ))
+                (SEP.pures lhs'))
+(*          Dyn (SEP.pures rhs', 
+               map (fun e => exprD funcs meta_env var_env e tvProp) (SEP.pures rhs'), 
+               uvars, 
+               uvars',
+               meta_env)
+
+
+*) 
+(*
+            exists_subst funcs VS uvars
+              (ExprUnify.env_of_Subst subst uvars' 0)
+ (** NOTE : we should combine lhs_subst and rhs_subst **)
+              (fun uenv : Expr.env types =>
+                let uvars := uenv ++ in
+            Expr.AllProvable_impl funcs uvars (vars ++ VS)
+                  (Expr.AllProvable_and funcs rhs_ex0 VS 
+                    (himp cs 
+                      (SEP.sexprD funcs preds rhs_ex0 VS
+                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
+                      (SEP.sexprD funcs preds rhs_ex0 VS
+                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
+                    ) (SEP.pures rhs')))) (SEP.pures lhs'))
+*)
+          
       end
   end ->
-  himp cs (@SEP.sexprD _ _ _ funcs preds nil nil l)
+  himp cs (@SEP.sexprD _ _ _ funcs preds uvars nil l)
           (@SEP.sexprD _ _ _ funcs preds uvars nil r).
 Proof.
+  Opaque UNF.backward SEP.sepCancel.
   simpl.
+  Transparent SEP.sepCancel UNF.backward.
 Admitted.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
@@ -104,7 +178,10 @@ Module SEP_REIFY := ReifySepExpr SEP.
  ** - [Ts] is a value of type [list Type] or [tt]
  **)
 Ltac sep_canceler isConst ext simplifier :=
+  run_timer 10 ;
   (try change_to_himp) ;
+  stop_timer 10 ;
+  run_timer 11 ;
 (*  idtac "-4" ; *)
   let ext' := 
     match ext with
@@ -159,13 +236,19 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
+      stop_timer 11;
 (*      idtac "-2.5" ; *)
+      run_timer 12 ;
       let all_props := Expr.collect_props shouldReflect in
 (*      idtac "-2" ; *)
       let pures := Expr.props_types all_props in
+      stop_timer 12 ;
 (*      idtac "-1: pures = " pures ; *)
+      run_timer 13 ;
       let L := eval unfold empB injB injBX starB exB hvarB in L in
       let R := eval unfold empB injB injBX starB exB hvarB in R in
+      stop_timer 13 ;
+      run_timer 14 ;
       (** collect types **)
       let Ts := constr:(@nil Type) in
 (*      idtac "0" ;  *)
@@ -197,7 +280,8 @@ Ltac sep_canceler isConst ext simplifier :=
       pose (typesV := types_);
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
-      let vars := eval simpl in (@nil _ : Expr.env typesV) in
+      let gvars := uvars in
+      let vars := eval simpl in (@nil Expr.tvar) in
 (*      idtac "7" ;  *)
       (** build the funcs **)
       let funcs := reduce_repr (Env.repr (Funcs ext typesV) nil) in
@@ -213,28 +297,26 @@ Ltac sep_canceler isConst ext simplifier :=
 (*      idtac "11" ;  *)
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
+        stop_timer 14 ;
+        run_timer 15 ;
 (*        idtac "built terms" ;  *)
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
+          stop_timer 15 ;
+          run_timer 16 ;
 (*          idtac "12" ; *)
 (*        idtac "14" ; *)
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ (SymIL.Algos ext typesV) (Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ];
 (*         idtac "15" ; *)
+         stop_timer 16 ;
+         run_timer 17 ;
          (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
+         stop_timer 17 ;
 (*         idtac "16" ; *)
-         simplifier ;
-(*         idtac "17" ;  *)
-         repeat match goal with
-                  | [ H : _ /\ _ |- _ ] => destruct H
-                  | [ |- ex _ ] => eexists
-                  | [ |- _ /\ _ ] => (*idtac "splitting";*) split
-                  | [ |- _ -> ?P ] => intro
-                  | [ |- _ = _ ] => reflexivity
-                  | [ |- himp _ _ _ ] => try reflexivity
-                end)
+         run_timer 18 ; simplifier ; stop_timer 18 )
         || (idtac "failed to apply, generalizing instead!" ;
             let algos := constr:(SymIL.Algos ext typesV) in
             let algosC := constr:(Algos_correct ext typesV funcsV predsV) in 
@@ -259,6 +341,8 @@ Ltac cancel_simplifier :=
     SymIL.Types SymIL.Preds SymIL.Funcs
     SymIL.Algos 
     SymIL.Hints SymIL.Prover
+
+    existsSubst
 
     (** Env **)
     Env.repr_combine
@@ -286,20 +370,43 @@ Ltac cancel_simplifier :=
     ExprUnify.Subst_lookup ExprUnify.Subst_replace
     ExprUnify.get_Eq ExprUnify.exprUnifyArgs
 
+    (** ExprUnify2 **)
+    ExprUnify2.exprUnify
+    ExprUnify2.exprInstantiate ExprUnify2.Subst_lookup 
+    ExprUnify2.Subst_equations ExprUnify2.empty_Subst
+    ExprUnify2.anyb ExprUnify2.mentionsU
+    ExprUnify2.get_Eq
+    ExprUnify2.dep_in ExprUnify2.fold2_option
+    ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
+    list_ind list_rec list_rect
+    (** * General recursion **)
+    Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat ExprUnify2.wf_R_expr 
+    well_founded_ind nat_ind 
+    well_founded_induction_type nat_rect eq_ind eq_rec eq_rect
+    Acc_rect Expr.expr_ind Acc_inv
+
     (** SepExpr **)
     SEP.impures SEP.pures SEP.other
     SEP.SDomain SEP.SDenotation
 
     SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
+    SEP.SHeap_empty
 
     SEP.sepCancel SEP.unify_remove_all SEP.unify_remove SEP.unifyArgs
-    ExprUnify.fold_left_3_opt
+    SEP.fold_left_3_opt
 
     SEP.sheapD SEP.starred
     SEP.himp
     SEP.sexprD 
 
     SEP.hash SEP.sheap_liftVars
+
+(*
+    SepExpr.FM.find_add 
+    SepExpr.FM.fold SepExpr.FM.find
+      
+    SepExpr.FM.add SepExpr.FM.insert_at_right SepExpr.FM.remove 
+*)
 
     (** Unfolder **)
     UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
@@ -346,14 +453,38 @@ Ltac cancel_simplifier :=
     eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal DepList.eq_sym
     Peano_dec.eq_nat_dec equiv_dec
     seq_dec EquivDec_SemiDec SemiDec_expr 
+    Expr.expr_seq_dec
 
     (** Other **)
     fst snd plus minus
-    rev_append orb andb Unfolder.allb
+    rev_append rev orb andb Unfolder.allb
     projT1 projT2
     Basics.impl
-  ].
 
+    (** wf_R_expr **)
+    GenRec.guard
+  ];
+  (** TODO: Would it be better to make equivalent versions of these that the computational part of the
+   ** tactics use?
+   **)
+  fold plus; fold minus; fold length; fold app;
+  repeat match goal with
+           | [ |- context[list ?A] ] =>
+             progress change (fix length (l : list A) : nat :=
+               match l with
+                 | nil => 0
+                 | _ :: l' => S (length l')
+               end) with (@length A)
+         end.
+
+Implicit Arguments existT [ A P ].
+
+Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
+  destruct ls. Focus 2.
+  sep_canceler ltac:(SymIL.isConst) SymIL.BedrockPackage.bedrock_package idtac.
+  cbv delta [ SymIL.BedrockPackage.bedrock_package ]; cancel_simplifier.
+  intros. solve [ do 2 eexists; intuition ].
+Abort.
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).

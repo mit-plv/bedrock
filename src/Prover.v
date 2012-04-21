@@ -70,6 +70,7 @@ Ltac t1 := match goal with
                               | UVar _ => _
                               | Func _ _ => _
                               | Equal _ _ _ => _
+                              | Not _ => _
                             end] ] => destruct E
              | [ |- context[match ?E with
                               | None => _
@@ -88,6 +89,7 @@ Ltac t1 := match goal with
                                | UVar _ => _
                                | Func _ _ => _
                                | Equal _ _ _ => _
+                               | Not _ => _
                              end] |- _ ] => destruct E
              | [ _ : context[match ?E with
                                | nil => _
@@ -133,7 +135,7 @@ Section composite.
      (Learn pl fl hyps, Learn pr fr hyps)
    ; Prove := fun facts goal =>
      let (fl,fr) := facts in
-     (Prove pl fl goal) || (Prove pl fl goal)
+     (Prove pl fl goal) || (Prove pr fr goal)
    |}.
 
   Variable funcs : functions types.
