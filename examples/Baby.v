@@ -116,7 +116,7 @@ Definition always0 := bmodule "always0" {{
 (* Eval compute in compile always0. *)
 
 Theorem always0Ok : moduleOk always0.
-  vcgen; sep_auto.
+  vcgen; abstract sep_auto.
 Qed.
 
 (** Stress testing [structured] performance *)
@@ -189,5 +189,5 @@ Definition stress := bmodule "stress" {{
 }}.
 
 Theorem stressOk : moduleOk stress.
-  vcgen; (sep_auto).
+  vcgen; abstract (sep_auto).
 Qed.

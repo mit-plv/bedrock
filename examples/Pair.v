@@ -48,24 +48,11 @@ Definition pair := bmodule "pair" {{
 }}.
 
 Definition hints_pair' : TacPackage.
-  let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
-  prepare env pair_fwd pair_bwd ltac:(fun x =>
-    SymIL.Package.build_hints_pack x ltac:(fun x => 
-      SymIL.Package.refine_glue_pack x auto_ext)).
+  prepare1 pair_fwd pair_bwd.
 Defined.
 
 Definition hints_pair : TacPackage.
-  let v := eval cbv beta iota zeta delta [ 
-    auto_ext hints_pair'
-    SymIL.AllAlgos_composite SymIL.oplus
-    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
-    SymIL.Algos 
-    
-    Env.repr_combine 
-    Env.listToRepr
-    app map 
-  ] in hints_pair' in
-  exact v.
+  prepare2 hints_pair'.
 Defined.
 
 Theorem pairOk : moduleOk pair.

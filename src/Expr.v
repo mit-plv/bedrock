@@ -100,7 +100,8 @@ Section env.
   | Var : forall x : var, expr
   | UVar : forall x : uvar, expr
   | Func : forall f : func, list expr -> expr
-  | Equal : tvar -> expr -> expr -> expr.
+  | Equal : tvar -> expr -> expr -> expr
+  | Not : expr -> expr.
 
   Definition exprs : Type := list expr.
 
@@ -114,7 +115,8 @@ Section env.
       (Hv : forall x : var, P (Var x))
       (Hu : forall x : uvar, P (UVar x))
       (Hf : forall (f : func) (l : list expr), Forall P l -> P (Func f l))
-      (He : forall t e1 e2, P e1 -> P e2 -> P (Equal t e1 e2)).
+      (He : forall t e1 e2, P e1 -> P e2 -> P (Equal t e1 e2))
+      (Hn : forall e, P e -> P (Not e)).
 
     Theorem expr_ind : forall e : expr, P e.
     Proof.
@@ -129,8 +131,9 @@ Section env.
               | l :: ls => Forall_cons _ (recur l) (prove ls)
             end) xs)
           | Equal tv e1 e2 => He tv (recur e1) (recur e2)
+          | Not e => Hn (recur e)
         end).
-    Qed.
+    Defined.
   End expr_ind.
 
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
@@ -222,6 +225,14 @@ Section env.
                       end
           | _ => None
         end
+      | Not e1 => match t with
+                    | tvProp =>
+                      match exprD e1 tvProp with
+                        | None => None
+                        | Some p => Some (not p)
+                      end
+                    | _ => None
+                  end
     end.
 
   Theorem exprD_det : forall e t1 t2, exprD e t1 <> None
@@ -255,7 +266,8 @@ Section env.
                       | None => None
                       | Some r => Some (Range r)
                     end
-      | Equal _ _ _ => Some tvProp
+      | Equal _ _ _
+      | Not _ => Some tvProp
     end.
 
   Theorem exprD_principal : forall e t, exprD e t <> None
@@ -326,6 +338,10 @@ Section env.
           | tvProp => is_well_typed e1 t' && is_well_typed e2 t'
           | _ => false
         end
+      | Not e1 => match t with
+                    | tvProp => is_well_typed e1 tvProp
+                    | _ => false
+                  end
     end.
 
   Definition well_typed (e : expr) : option tvar :=
@@ -351,6 +367,7 @@ Section env.
       | Equal t' e1 e2 => 
         if is_well_typed e1 t' && is_well_typed e2 t'
         then Some tvProp else None
+      | Not e1 => if is_well_typed e1 tvProp then Some tvProp else None
     end.
 
   Theorem well_typed_is_well_typed : forall e t, 
@@ -395,6 +412,12 @@ Section env.
     destruct t0; try congruence.
     apply andb_true_iff in H. intuition.
     rewrite H0. rewrite H1. auto.
+
+    specialize (IHe tvProp).
+    destruct (is_well_typed e tvProp); intuition; try discriminate.
+    injection H; intro; subst; reflexivity.
+    destruct t; congruence.
+    destruct t; congruence.
   Qed.
 
   Definition ValidProp (e : expr) := 
@@ -430,6 +453,9 @@ Section env.
       destruct (IHe1 _ H0) as [ ? Heq ]; rewrite Heq.
       destruct (IHe2 _ H1) as [ ? Heq' ]; rewrite Heq'.
       eauto.
+    specialize (IHe tvProp).
+      destruct t; intuition.
+      destruct H0; rewrite H0; eauto.
   Qed.
 
   Theorem is_well_typed_typeof : forall e t, 
@@ -444,6 +470,7 @@ Section env.
       destruct (nth_error funcs f); try congruence.
         destruct (equiv_dec t (Range s)); congruence.
       destruct t0; congruence.
+      destruct t; congruence.
   Qed.
  
   Lemma expr_seq_dec_Equal : forall t1 t2 e1 f1 e2 f2,
@@ -451,6 +478,12 @@ Section env.
     -> e1 = e2
     -> f1 = f2
     -> Equal t1 e1 f1 = Equal t2 e2 f2.
+    congruence.
+  Qed.
+
+  Lemma expr_seq_dec_Not : forall e1 e2,
+    e1 = e2
+    -> Not e1 = Not e2.
     congruence.
   Qed.
 
@@ -522,6 +555,11 @@ Section env.
           | left pf1, Some pf2, Some pf3 => Some (expr_seq_dec_Equal pf1 pf2 pf3)
           | _, _, _ => None
         end
+      | Not e1 , Not e2 =>
+        match expr_seq_dec e1 e2 with
+          | Some pf => Some (expr_seq_dec_Not pf)
+          | _ => None
+        end
       | _ , _ => None
     end.
 
@@ -544,6 +582,7 @@ Section env.
       | Func f xs => 
         Func f (map (liftExpr a b) xs)
       | Equal t e1 e2 => Equal t (liftExpr a b e1) (liftExpr a b e2)
+      | Not e1 => Not (liftExpr a b e1)
     end.
 
 
@@ -559,9 +598,11 @@ Section env.
       | Func f xs => 
         Func f (map (liftExprU a b) xs)
       | Equal t e1 e2 => Equal t (liftExprU a b e1) (liftExprU a b e2)
+      | Not e1 => Not (liftExprU a b e1)
     end.
 
   (** This function replaces "real" variables [a, b) with existential variables (c,...)
+   ** TODO: the "b" parameter isn't really used!
    **)
   Fixpoint exprSubstU (a b c : nat) (s : expr (*a (b ++ c ++ d)*)) {struct s}
       : expr (* (c ++ a) (b ++ d) *) :=
@@ -576,6 +617,7 @@ Section env.
         | UVar x => UVar x
         | Func f args => Func f (map (exprSubstU a b c) args)
         | Equal t e1 e2 => Equal t (exprSubstU a b c e1) (exprSubstU a b c e2)
+        | Not e1 => Not (exprSubstU a b c e1)
       end.
 
   Lemma nth_error_length : forall T (ls ls' : list T) n,
@@ -593,6 +635,7 @@ Section env.
     f_equal. generalize dependent H. clear. induction 1. auto.
     simpl; f_equal; auto.
     rewrite IHb1; rewrite IHb2. reflexivity.
+    f_equal. auto.
   Qed.
 
   Lemma liftExpr_combine : forall (e : expr) a b c,
@@ -609,6 +652,8 @@ Section env.
     rewrite H. f_equal; auto.
   Qed.            
 
+  (** first variable in the list is the first one quantified
+   **)
   Fixpoint forallEach (ls : variables) : (env -> Prop) -> Prop :=
     match ls with
       | nil => fun cc => cc nil
@@ -630,6 +675,8 @@ Section env.
       eapply IHls. intros. subst. eapply H. auto.
   Qed.
 
+  (** first variable in the list is the first one quantified
+   **)
   Fixpoint existsEach (ls : variables) : (env.env -> Prop) -> Prop :=
     match ls with
       | nil => fun cc => cc nil
@@ -724,6 +771,8 @@ Proof.
   auto.
 
   destruct t0; auto. rewrite IHe1. rewrite IHe2. auto.
+
+  destruct t; auto. rewrite IHe. reflexivity.
 Qed.
 
 Section exists_subst.
@@ -1121,6 +1170,7 @@ Ltac getVar' idx :=
   end.
 
 Ltac getVar idx :=
+  (** NOTE: reification as indicies **)
   match idx with
     | fun x => @openUp _ _ (@fst _ _) (@?X x) =>
       getVar' X
@@ -1134,9 +1184,10 @@ Ltac get_or_extend_var types all t v k :=
   let rec doIt rem acc :=
     match rem with
       | nil => 
+        (** NOTE: reification as levels **)
         let all := eval simpl app in (all ++ (@existT tvar (tvarD types) t v) :: nil) in
         k all acc
-      | existT _ v :: _ => k all acc
+      | @existT _ _ _ v :: _ => k all acc
       | _ :: ?rem =>
         let acc := constr:(S acc) in
         doIt rem acc
@@ -1171,6 +1222,7 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
         let v := getVar e in
         let r := constr:(@Var types v) in
         k uvars funcs r
+
       | @eq ?T ?e1 ?e2 =>
         let T := reflectType types T in
           reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
@@ -1181,6 +1233,19 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
           reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
             reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
               k uvars funcs (Equal T e1 e2)))
+
+      | not ?e1 =>
+        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
+          k uvars funcs (Not e1))
+      | ?e1 -> False =>
+        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
+          k uvars funcs (Not e1))
+      | fun x => not (@?e1 x) =>
+        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
+          k uvars funcs (Not e1))
+      | fun x => @?e1 x -> False =>
+        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
+          k uvars funcs (Not e1))
       | fun x => ?e =>
         reflect e funcs uvars k
       | _ =>

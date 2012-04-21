@@ -15,7 +15,7 @@ Definition TacPackage : Type :=
     SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
 
 Definition auto_ext' : TacPackage.  
-  SymIL.Package.build_prover_pack Provers.TransitivityProver ltac:(fun a =>
+  SymIL.Package.build_prover_pack Provers.ComboProver ltac:(fun a =>
   SymIL.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b => 
     SymIL.Package.glue_packs (BedrockPackage.bedrock_package, a, b) ltac:(fun res => refine res) || fail 1000 "compose")).
 Defined.
@@ -38,9 +38,9 @@ Definition auto_ext : TacPackage.
   ] in auto_ext' in
   exact v.
 Defined.
-
+    
 Ltac sym_eval_simplifier H :=
-  Provers.unfold_transitivityProver H ;
+  Provers.unfold_comboProver H ;
   SymIL.MEVAL.Plugin.unfolder H ;
   SymIL.MEVAL.LearnHookDefault.unfolder H ;
   SymIL.unfolder_simplifier H ;
@@ -63,7 +63,7 @@ Ltac sym_eval_simplifier H :=
   sym_evaluator H.
 
 Ltac the_cancel_simplifier :=
-  Provers.unfold_transitivityProver tt ;
+  Provers.unfold_comboProver tt ;
   ILTac.cancel_simplifier.
 
 Ltac vcgen :=
@@ -85,16 +85,28 @@ Ltac evaluate ext :=
   in
   sym_eval ltac:(isConst) ext simp.
 
+Hint Extern 1 => tauto : contradiction.
+Hint Extern 1 => congruence : contradiction.
+
+Ltac sep_easy := auto with contradiction.
+
+Ltac sep_firstorder := sep_easy;
+  repeat match goal with
+           | [ H : _ /\ _ |- _ ] => destruct H
+           | [ |- Logic.ex _ ] => sep_easy; eexists
+           | [ |- _ /\ _ ] => split
+           | [ |- forall x, _ ] => intro
+           | [ |- _ = _ ] => reflexivity
+           | [ |- himp _ _ _ ] => reflexivity
+         end; sep_easy.
+
 Ltac cancel ext :=
-  sep_canceler ltac:(isConst) ext the_cancel_simplifier.
-(*
-    ltac:(fun ts fs => constr:(@Provers.transitivityProver_correct ts fs))
-    the_cancel_simplifier tt.
-*)
+  sep_canceler ltac:(isConst) ext the_cancel_simplifier; sep_firstorder.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
 Ltac ho := Programming.ho unf; reduce.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
@@ -106,7 +118,7 @@ Ltac descend := Programming.descend; reduce.
 
 Ltac sep ext := evaluate ext; descend; repeat (step ext; descend).
 
-Ltac sepLemma := simpl; intros; cancel auto_ext; try (tauto || congruence).
+Ltac sepLemma := simpl; intros; cancel auto_ext.
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 
@@ -117,34 +129,21 @@ Ltac prepare :=
 
 Ltac sep_auto := sep auto_ext.
 
-(*
-Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
+Ltac prepare1 fwd bwd :=
+  let env := eval simpl SymIL.EnvOf in (SymIL.EnvOf auto_ext) in
+    prepare env fwd bwd ltac:(fun x => 
+      SymIL.Package.build_hints_pack x ltac:(fun x =>
+        SymIL.Package.refine_glue_pack x auto_ext)).
 
-Definition read := bmodule "read" {{
-  bfunction "read" [readS] {
-    Rv <- $[0];;
-    If (Rv = 0) {
-      $[0] <- 0
-    } else {
-      $[0] <- $[0]
-    } ;;
-    Rv <- $[0];;
-    Goto Rp
-  }
-}}.
-
-Theorem readOk : moduleOk read.
-  vcgen.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  sep auto_ext.
-  evaluate auto_ext. 
-  descend. step. descend. step. descend. step.
-
-  sep auto_ext.
-Qed.
-*)
+Ltac prepare2 old :=
+  let v := eval cbv beta iota zeta delta [ 
+    auto_ext old
+    SymIL.AllAlgos_composite SymIL.oplus
+    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Hints SymIL.Prover SymIL.MemEval
+    SymIL.Algos 
+    
+    Env.repr_combine 
+    Env.listToRepr
+    app map 
+  ] in old in
+  exact v.

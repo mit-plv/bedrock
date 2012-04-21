@@ -10,14 +10,33 @@ Set Strict Implicit.
 Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
 | R_EqualL : forall t l r, R_expr l (Equal t l r)
 | R_EqualR : forall t l r, R_expr r (Equal t l r)
+| R_Not    : forall e, R_expr e (Not e)
 | R_Func   : forall f args arg,
   In arg args -> R_expr arg (Func f args).
 
-Theorem wf_R_expr ts : well_founded (@R_expr ts).
+(*
+Check Forall_forall.
+
+Lemma Forall_forall_comp : forall (A : Type) (P : A -> Prop) (l : list A),
+  Forall P l -> (forall x : A, In x l -> P x).
+Proof.
+*)
+  
+Lemma wf_R_expr' ts : well_founded (@R_expr ts).
 Proof.  
   red; induction a; constructor; inversion 1; try assumption.
-  eapply Forall_forall in H; eauto.
-Defined.  
+
+  subst. clear H0. generalize dependent y. generalize dependent l. clear.
+  induction l; intros; simpl. inversion H3.
+  inversion H3. inversion H. rewrite H0 in H4; assumption.
+  inversion H; apply IHl; auto.
+Defined.
+
+Lemma wf_R_expr ts : well_founded (@R_expr ts).
+Proof.
+  let v := eval cbv beta iota zeta delta [ wf_R_expr' list_ind list_rec list_rect eq_ind eq_ind_r eq_rect eq_sym expr_ind ] in (@wf_R_expr' ts) in
+  exact  v.
+Defined.
 
 Module SUBST := NatMap.IntMap.
 
@@ -43,6 +62,7 @@ Section typed.
                     end
         | Func f args => Func f (map exprInstantiate args)
         | Equal t l r => Equal t (exprInstantiate l) (exprInstantiate r)
+        | Not e => Not (exprInstantiate e)
       end.
   End Instantiate.
 
@@ -91,6 +111,7 @@ Section typed.
               | l :: ls => mentionsU l || anyb ls
             end) args
         | Equal _ l r => mentionsU l || mentionsU r
+        | Not e => mentionsU e
       end.
   End Mentions.
 
@@ -167,7 +188,7 @@ Section typed.
    **)
   Definition exprUnify (bound : nat) (l : expr types) : expr types -> Subst -> option Subst.
   refine (
-    (@Fix _ _ (GenRec.wf_R_pair GenRec.wf_R_nat (@wf_R_expr types)) 
+    (@Fix _ _ (guard 4 (GenRec.wf_R_pair GenRec.wf_R_nat (@wf_R_expr types)))
       (fun _ => expr types -> Subst -> option Subst)
       (fun bound_l recur r sub =>
         match bound_l as bound_l
@@ -207,6 +228,8 @@ Section typed.
                   end
                   else
                     None
+              | Not e1 , Not e2 => fun recur =>
+                recur (bound,e1) _ e2 sub
               | UVar u , _ =>
                 match Subst_lookup u sub with
                   | None => fun recur =>
@@ -264,6 +287,8 @@ Section typed.
           end
           else
             None
+      | Not e1, Not e2 =>
+        exprUnify bound e1 e2 sub
       | UVar u , _ =>
         match Subst_lookup u sub with
           | None => Subst_replace u r sub
@@ -288,8 +313,6 @@ Section typed.
     intros. unfold exprUnify at 1. rewrite Fix_eq.
     induction l; destruct r; simpl; auto.
   Admitted.
-
-
 
   (** Syntactic Unification **)
   Section Unifies.

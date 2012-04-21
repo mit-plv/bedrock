@@ -17,5 +17,7 @@ Definition read := bmodule "read" {{
 }}.
 
 Theorem readOk : moduleOk read.
+(*  Clear Timing Profile. *)
   vcgen; abstract (sep_auto).
+(*  Print Timing Profile. *)
 Qed.

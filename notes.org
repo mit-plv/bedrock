@@ -34,9 +34,27 @@
     - how much of a win would this actually give us since terms are only indexed on types?      
   - CONS:
     - the type of the pair is quadratic in the term!
-      - an alternative would be to build a list of dyn, i.e. list {| T : Type ; V : T |}.
+      - an alternative would be to build a list of dyn, 
+	i.e. list {| T : Type ; V : T |}.
 *** Plugin-based reification
-    - Like to avoid this if possible, but it might be necessary to make things really fast.
+    - Like to avoid this if possible, but it might be necessary to make
+      things really fast.
+
+* Expr & SepExpr
+*** Variables & environments
+    - there are two environments
+      - meta_env carries meta variables, i.e. Coq ? variables
+        - the numbers are treated as global identifiers
+      - vars_env carries quantified variables
+        - the numbers are debrujin *indices*
+	- this makes some operations awkward, but it is make reifying terms
+	  in Ltac easy.
+	- NOTE: regardless of whether we use levels or indicies it is important
+	  that the reified vars environment is *always* nil
+          - reification uses 0 argument functions to represent variables 
+	    that are not quantified in the goal, i.e. they are already in
+	    the context
+    - NOTE: it seems like it might be more useful to do debrujin *levels*
 
 * Repr (environments for types, functions and predicates)
 *** Use [list (option T) * T] 
