@@ -17,9 +17,11 @@ Require Import ILEnv.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(*
 Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
 Declare ML Module "Timing_plugin".
+*)
 
 (** The Symbolic Evaluation Interfaces *)
 Module MEVAL := SymEval.MemoryEvaluator SEP.
@@ -1448,7 +1450,7 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
  **)
 Ltac sym_eval isConst ext simplifier :=
-  run_timer 100 ;
+(*  run_timer 100 ; *)
   let rec init_from st :=
     match goal with
       | [ H : evalInstrs _ ?st' _ = Some st |- _ ] => init_from st'
@@ -1526,16 +1528,16 @@ Ltac sym_eval isConst ext simplifier :=
             | (?sp_v, ?sp_pf) =>
               match find_reg st Rv with
                 | (?rv_v, ?rv_pf) =>
-                  stop_timer 100 ;
-                  run_timer 101 ;
+(*                  stop_timer 100 ; *)
+(*                  run_timer 101 ; *)
                   let all_instrs := get_instrs st in
                   let all_props := Expr.collect_props shouldReflect in
                   let pures := Expr.props_types all_props in
 (*                    idtac "pures = " pures ; *)
                   let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
-                  stop_timer 101 ;
+(*                  stop_timer 101 ; *)
                   (** collect the raw types **)
-                  run_timer 102 ;
+(*                  run_timer 102 ; *)
                   let Ts := constr:(@nil Type) in
                   let Ts := 
                     match SF with
@@ -1603,33 +1605,40 @@ Ltac sym_eval isConst ext simplifier :=
                           | ?X => subst X
                         end
                       in
-                      stop_timer 106 ;
+(*                      stop_timer 106 ; *)
 (*                      idtac "5" ;  *)
-                      run_timer 107 ;
+(*                      run_timer 107 ; *)
                       unfold_all syms ;
-                      stop_timer 107 ;
+(*                      stop_timer 107 ; *)
 (*                      idtac "6" ; *)
-                      run_timer 108 ;
+(*                      run_timer 108 ; *)
                       first [ simplifier H | fail 100000 "simplifier failed!" ]  ;
-                      stop_timer 108 ;
-                      run_timer 109 ;
+(*                      stop_timer 108 ; *)
+(*                      run_timer 109 ;
                       repeat match goal with
-                               | _ => progress subst
                                | [ H : Logic.ex _ |- _ ] => destruct H
                                | [ H : _ /\ _ |- _ ] => destruct H
                                | [ H : True |- _ ] => clear H
                                | [ H : ?E = ?E |- _ ] => clear H
+                               | _ => progress subst
                              end;
-                      stop_timer 109 ;
-                      run_timer 110 ;
-                      (try assumption || destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]) ;
-                      stop_timer 110
+(*                      stop_timer 109 ; *)
+*)
+(*                      run_timer 110 ; *)
+                      ((try exact H) ||
+                       (let rec destruct_exs H :=
+                         match type of H with
+                           | Logic.ex _ => destruct H as [ ? H ] ; destruct_exs H
+                           | _ => destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
+                         end
+                        in destruct_exs H)) 
+(*                      stop_timer 110 *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
 (*                      idtac "0" ; *)
                       match SF with
                         | tt => 
-                          stop_timer 102 ;
+(*                          stop_timer 102 ; *)
                           let funcsV := fresh "funcs" in
                           pose (funcsV := funcs) ;
                           let predsV := fresh "preds" in
@@ -1649,27 +1658,27 @@ Ltac sym_eval isConst ext simplifier :=
 (*                          idtac "1" funcs preds ; *)
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
-                            stop_timer 102 ;
-                            run_timer 103 ;
+(*                            stop_timer 102 ; *)
+(*                            run_timer 103 ; *)
 (*                            idtac "2" ;  *)
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let predsV := fresh "preds" in
                             pose (predsV := preds) ;
 (*                            let ExtC := constr:(@Algos_correct _ _ _ _ _ _ ext typesV funcsV predsV) in *)
-                            stop_timer 103 ;
-                            run_timer 104 ;
+(*                            stop_timer 103 ; *)
+(*                            run_timer 104 ; *)
                             apply (@stateD_proof typesV funcsV predsV
                               uvars vars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
 (*                            idtac "3" ;  *)
-                            stop_timer 104 ;
-                            run_timer 105 ;
+(*                            stop_timer 104 ; *)
+(*                            run_timer 105 ; *)
                             (apply (@Apply_sym_eval typesV funcsV predsV
                               (@Algos _ _ _ _ _ _ ext typesV) (@Algos_correct _ _ _ _ _ _ ext typesV funcsV predsV)
                               stn uvars vars fin_state st is is_pf) in H_interp ;
-                             stop_timer 105 ;
-                             run_timer 106 ;
+(*                             stop_timer 105 ; *)
+(*                             run_timer 106 ; *)
                              let syms := constr:((typesV, (funcsV, predsV))) in
 (*                             idtac "4" ;  *)
                              finish H_interp syms) || 
