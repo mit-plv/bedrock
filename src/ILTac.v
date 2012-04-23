@@ -9,9 +9,11 @@ Require Import Prover ILEnv.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(*
 Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
 Declare ML Module "Timing_plugin".
+*)
 
 Parameter Dyn : forall T, T -> Prop.
 
@@ -174,14 +176,15 @@ Module SEP_REIFY := ReifySepExpr SEP.
 (** The parameters are the following.
  ** - [isConst] is an ltac [* -> bool]
  ** - [ext] is a [TypedPackage .. .. .. .. ..]
- ** - [simplifier] is an ltac that simplifies the goal after the cancelation
+ ** - [simplifier] is an ltac that simplifies the goal after the cancelation, it is passed
+ **   constr:(tt).
  ** - [Ts] is a value of type [list Type] or [tt]
  **)
 Ltac sep_canceler isConst ext simplifier :=
-  run_timer 10 ;
+(*TIME  run_timer 10 ; *)
   (try change_to_himp) ;
-  stop_timer 10 ;
-  run_timer 11 ;
+(*TIME  stop_timer 10 ; *)
+(*TIME  run_timer 11 ; *)
 (*  idtac "-4" ; *)
   let ext' := 
     match ext with
@@ -236,19 +239,19 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-      stop_timer 11;
+(*TIME      stop_timer 11; *)
 (*      idtac "-2.5" ; *)
-      run_timer 12 ;
+(*TIME      run_timer 12 ; *)
       let all_props := Expr.collect_props shouldReflect in
 (*      idtac "-2" ; *)
       let pures := Expr.props_types all_props in
-      stop_timer 12 ;
+(*TIME      stop_timer 12 ; *)
 (*      idtac "-1: pures = " pures ; *)
-      run_timer 13 ;
+(*TIME      run_timer 13 ; *)
       let L := eval unfold empB injB injBX starB exB hvarB in L in
       let R := eval unfold empB injB injBX starB exB hvarB in R in
-      stop_timer 13 ;
-      run_timer 14 ;
+(*TIME      stop_timer 13 ; *)
+(*TIME      run_timer 14 ; *)
       (** collect types **)
       let Ts := constr:(@nil Type) in
 (*      idtac "0" ;  *)
@@ -297,26 +300,29 @@ Ltac sep_canceler isConst ext simplifier :=
 (*      idtac "11" ;  *)
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
-        stop_timer 14 ;
-        run_timer 15 ;
+(*TIME        stop_timer 14 ; *)
+(*TIME        run_timer 15 ; *)
 (*        idtac "built terms" ;  *)
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
-          stop_timer 15 ;
-          run_timer 16 ;
+(*TIME          stop_timer 15 ; *)
+(*TIME          run_timer 16 ; *)
 (*          idtac "12" ; *)
 (*        idtac "14" ; *)
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV pcT stT predsV _ _ _ (SymIL.Algos ext typesV) (Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ];
 (*         idtac "15" ; *)
-         stop_timer 16 ;
-         run_timer 17 ;
+(*TIME         stop_timer 16 ; *)
+(*TIME         run_timer 17 ; *)
          (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
-         stop_timer 17 ;
+(*TIME         stop_timer 17 ; *)
 (*         idtac "16" ; *)
-         run_timer 18 ; simplifier ; stop_timer 18 )
+(*TIME         run_timer 18 ; *)
+           simplifier tt 
+(*TIME         stop_timer 18  *)
+ )
         || (idtac "failed to apply, generalizing instead!" ;
             let algos := constr:(SymIL.Algos ext typesV) in
             let algosC := constr:(Algos_correct ext typesV funcsV predsV) in 
@@ -481,7 +487,7 @@ Implicit Arguments existT [ A P ].
 
 Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
   destruct ls. Focus 2.
-  sep_canceler ltac:(SymIL.isConst) SymIL.BedrockPackage.bedrock_package idtac.
+  sep_canceler ltac:(SymIL.isConst) SymIL.BedrockPackage.bedrock_package ltac:(fun _ => idtac).
   cbv delta [ SymIL.BedrockPackage.bedrock_package ]; cancel_simplifier.
   intros. solve [ do 2 eexists; intuition ].
 Abort.
