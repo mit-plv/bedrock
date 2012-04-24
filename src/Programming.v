@@ -180,7 +180,6 @@ Notation "st # r" := (Regs (snd st) r) (no associativity, at level 0).
 Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, at level 0).
 
 
-
 (** * Tactics *)
 
 Theorem evalInstrs_nil : forall stn st, evalInstrs stn st nil = Some st.

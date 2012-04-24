@@ -44,13 +44,17 @@ Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
 
-Ltac evaluate ext simp := 
-  sym_eval ltac:(isConst) ext simp.
-
 Hint Extern 1 => tauto : contradiction.
 Hint Extern 1 => congruence : contradiction.
 
 Ltac sep_easy := auto with contradiction.
+
+Lemma frame_reflexivity : forall pcT stateT p q specs,
+  q = (fun pr => p (fst pr) (snd pr))
+  -> himp (pcType := pcT) (stateType := stateT) specs p (fun st m => q (st, m)).
+  intros; hnf; simpl; intros; subst.
+  apply Imply_I; eauto.
+Qed.
 
 Ltac sep_firstorder := sep_easy;
   repeat match goal with
@@ -59,24 +63,8 @@ Ltac sep_firstorder := sep_easy;
            | [ |- _ /\ _ ] => split
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
-           | [ |- himp _ _ _ ] => reflexivity
+           | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
          end; sep_easy.
-
-Ltac cancel ext simp :=
-  sep_canceler ltac:(isConst) ext simp; sep_firstorder.
-
-Ltac unf := unfold substH.
-Ltac reduce := Programming.reduce unf.
-Ltac ho := Programming.ho unf; reduce.
-
-Ltac step ext simp := 
-  match goal with
-    | [ |- _ _ = Some _ ] => solve [ eauto ]
-    | [ |- interp _ (![ _ ] _) ] => cancel ext simp
-    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext simp
-    | _ => ho
-  end.
-Ltac descend := Programming.descend; reduce.
 
 Ltac hints_ext_simplifier hints :=
 fun H =>
@@ -359,11 +347,29 @@ fun H =>
              GenRec.guard] in H
   end.
 
-Ltac sep ext := 
-  evaluate ext ltac:(hints_ext_simplifier ext); descend;
-  repeat (step ext ltac:(hints_ext_simplifier ext); descend).
+Ltac evaluate ext := 
+  sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
 
-Ltac sepLemma := simpl; intros; cancel auto_ext ltac:(hints_ext_simplifier auto_ext).
+Ltac cancel ext :=
+  sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
+
+Ltac unf := unfold substH.
+Ltac reduce := Programming.reduce unf.
+Ltac ho := Programming.ho unf; reduce.
+
+Ltac step ext := 
+  match goal with
+    | [ |- _ _ = Some _ ] => solve [ eauto ]
+    | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
+    | _ => ho
+  end.
+Ltac descend := Programming.descend; reduce.
+
+Ltac sep ext := 
+  evaluate ext; descend; repeat (step ext; descend).
+
+Ltac sepLemma := simpl; intros; cancel auto_ext.
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 
