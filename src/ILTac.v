@@ -317,6 +317,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME         stop_timer 16 ; *)
 (*TIME         run_timer 17 ; *)
          (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
+         clear typesV predsV funcsV;
 (*TIME         stop_timer 17 ; *)
 (*         idtac "16" ; *)
 (*TIME         run_timer 18 ; *)

@@ -77,6 +77,9 @@ Coercion B2N : bool >-> nat.
 Definition nullS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = null ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
 
+Definition lengthS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Rv = length ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
+
 Definition sllM := bmodule "sll" {{
   bfunction "null" [nullS] {
     If (Rv = 0) {
@@ -84,6 +87,15 @@ Definition sllM := bmodule "sll" {{
     } else {
       Return 0
     }
+  } with bfunction "length" [lengthS] {
+    Sp <- 0;;
+    [st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Rv = st#Sp ^+ (length ls : W) |] /\ ![ ^[sll ls st#Rv] * #1 ] st')]
+    While (Rv <> 0) {
+      Sp <- Sp + 1;;
+      Rv <- $[Rv + 4]
+    };;
+    Return Sp
   }
 }}.
 
@@ -95,7 +107,33 @@ Definition hints_sll : TacPackage.
   prepare2 hints_sll'.
 Defined.
 
-Ltac finish := subst; simpl; congruence.
+Lemma natToW_S : forall n, natToW (S n) = $1 ^+ natToW n.
+  unfold natToW.
+  intros.
+  rewrite wplus_alt.
+  unfold wplusN, wordBinN.
+  simpl.
+  rewrite roundTrip_1.
+  destruct (wordToNat_natToWord 32 n); intuition.
+  rewrite H0.
+  replace (1 + (n - x * pow2 32)) with (1 + n - x * pow2 32) by omega.
+  rewrite drop_sub; auto; omega.
+Qed.
+
+Ltac notConst x :=
+  match x with
+    | O => fail 1
+    | S ?x' => notConst x'
+    | _ => idtac
+  end.
+
+Ltac finish := repeat match goal with
+                        | [ H : _ = _ |- _ ] => rewrite H
+                      end; simpl;
+               repeat match goal with
+                        | [ |- context[natToW (S ?x)] ] =>
+                          notConst x; rewrite (natToW_S x)
+                      end; congruence || W_eq || reflexivity || eauto.
 
 Theorem sllMOk : moduleOk sllM.
 (*  Clear Timing Profile. *)
