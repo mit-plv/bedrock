@@ -482,6 +482,17 @@ Ltac cancel_simplifier :=
                  | nil => 0
                  | _ :: l' => S (length l')
                end) with (@length A)
+           | [ _ : list ?A |- _ ] =>
+             progress change (fix app (l0 m : list A) : list A :=
+               match l0 with
+                 | nil => m
+                 | a1 :: l1 => a1 :: app l1 m
+               end) with (@app A)
+             || (progress change (fix rev (l : list W) : list W :=
+               match l with
+                 | nil => nil
+                 | x8 :: l' => (rev l' ++ x8 :: nil)%list
+               end) with (@rev A))
          end.
 
 Implicit Arguments existT [ A P ].
