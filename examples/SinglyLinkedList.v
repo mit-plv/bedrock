@@ -80,6 +80,9 @@ Definition nullS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
 Definition lengthS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = length ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
 
+Definition revS : assert := st ~> ExX, Ex a, Ex b, Ex ls, ![ (st#Sp ==*> a, b) * ^[sll ls st#Rv] * #0 ] st
+  /\ st#Rp @@ (st' ~> Ex a', Ex b', ![ (st#Sp ==*> a', b') * ^[sll (rev ls) st'#Rv] * #1 ] st').
+
 Definition sllM := bmodule "sll" {{
   bfunction "null" [nullS] {
     If (Rv = 0) {
@@ -96,6 +99,18 @@ Definition sllM := bmodule "sll" {{
       Rv <- $[Rv + 4]
     };;
     Return Sp
+  } with bfunction "rev" [revS] {
+    $[Sp] <- 0;;
+    [st ~> ExX, Ex p, Ex b, Ex ls, Ex acc, ![ (st#Sp ==*> p, b) * ^[sll ls st#Rv] * ^[sll acc p] * #0 ] st
+      /\ st#Rp @@ (st' ~> Ex a, Ex b', Ex ls', [| ls' = rev_append ls acc |]
+        /\ ![ (st#Sp ==*> a, b') * ^[sll ls' st'#Rv] * #1 ] st')]
+    While (Rv <> 0) {
+      $[Sp+4] <- $[Rv+4];;
+      $[Rv + 4] <- $[Sp];;
+      $[Sp] <- Rv;;
+      Rv <- $[Sp+4]
+    };;
+    Return $[Sp]
   }
 }}.
 
@@ -133,10 +148,20 @@ Ltac finish := repeat match goal with
                repeat match goal with
                         | [ |- context[natToW (S ?x)] ] =>
                           notConst x; rewrite (natToW_S x)
-                      end; congruence || W_eq || reflexivity || eauto.
+                      end; try rewrite <- rev_alt;
+               congruence || W_eq || reflexivity || eauto.
 
 Theorem sllMOk : moduleOk sllM.
-(*  Clear Timing Profile. *)
-  vcgen; abstract (sep hints_sll; finish).
-(*  Print Timing Profile. *)
+  vcgen; try solve [ sep hints_sll; finish ].
+
+  (* This case needs manual work, because cancellation makes the wrong unification choices by default. *)
+
+  evaluate hints_sll.
+  descend.
+  instantiate (2 := Regs x Rv).
+  instantiate (4 := x6).
+  repeat step hints_sll.
+  repeat step hints_sll.
+  repeat step hints_sll.
+  finish.
 Qed.

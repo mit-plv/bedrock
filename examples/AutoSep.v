@@ -76,6 +76,7 @@ fun H =>
              Expr.expr_seq_dec Provers.transitivityProver
              Provers.transitivitySummarize Provers.transitivityLearn
              Provers.transitivityProve Provers.groupsOf Provers.addEquality
+             Provers.proveEqual
              Provers.transitivityLearn Provers.inSameGroup Expr.expr_seq_dec
              Provers.eqD_seq Provers.in_seq Provers.groupWith
              SymIL.MEVAL.Plugin.fold_first
@@ -214,6 +215,7 @@ fun H =>
              Expr.expr_seq_dec Provers.transitivityProver
              Provers.transitivitySummarize Provers.transitivityLearn
              Provers.transitivityProve Provers.groupsOf Provers.addEquality
+             Provers.proveEqual
              Provers.transitivityLearn Provers.inSameGroup Expr.expr_seq_dec
              Provers.eqD_seq Provers.in_seq Provers.groupWith
              SymIL.MEVAL.Plugin.fold_first
@@ -345,7 +347,32 @@ fun H =>
              Expr.SemiDec_expr Expr.expr_seq_dec fst snd plus minus
              rev_append rev orb andb Unfolder.allb projT1 projT2 Basics.impl
              GenRec.guard] in H
-  end.
+  end;
+  fold plus; fold minus;
+    repeat match goal with
+             | [ |- context[list ?A] ] =>
+               progress change (fix length (l : list A) : nat :=
+                 match l with
+                   | nil => 0
+                   | _ :: l' => S (length l')
+                 end) with (@length A)
+             | [ _ : list ?A |- _ ] =>
+               progress change (fix app (l0 m : list A) : list A :=
+                 match l0 with
+                   | nil => m
+                   | a1 :: l1 => a1 :: app l1 m
+                 end) with (@app A)
+               || (progress change (fix rev (l : list W) : list W :=
+                 match l with
+                   | nil => nil
+                   | x8 :: l' => (rev l' ++ x8 :: nil)%list
+                 end) with (@rev A))
+               || (progress change (fix rev_append (l l' : list A) : list A :=
+                 match l with
+                   | nil => l'
+                   | a1 :: l0 => rev_append l0 (a1 :: l')
+                 end) with (@rev_append A))
+           end.
 
 Ltac evaluate ext := 
   sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
@@ -362,6 +389,7 @@ Ltac step ext :=
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
+    | [ |- himp _ _ _ ] => progress cancel ext
     | _ => ho
   end.
 Ltac descend := Programming.descend; reduce.
