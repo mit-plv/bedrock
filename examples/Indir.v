@@ -26,5 +26,5 @@ Definition doubleIndir := bmodule "doubleIndir" {{
 }}.
 
 Theorem doubleIndirOk : moduleOk doubleIndir.
-  vcgen; abstract (sep_auto).
+  vcgen; abstract sep_auto.
 Qed.
