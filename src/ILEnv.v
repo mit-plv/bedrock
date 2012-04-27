@@ -5,6 +5,7 @@ Require Import Word.
 Require Import Expr.
 Require Import Env.
 Require Import Memory IL.
+Require Import TypedPackage.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -58,7 +59,7 @@ Definition comparator (t : IL.test) (l r : W) : Prop :=
     | IL.Eq => l = r
     | IL.Ne => l = r -> False
     | IL.Lt => wlt l r
-    | IL.Le => wlt l r \/ l = r
+    | IL.Le => not (wlt r l)
   end.
 
 Section typed_ext.
@@ -158,3 +159,12 @@ Section typed_ext.
 End typed_ext.
 
 
+Module BedrockCoreEnv <: CoreEnv.
+  Definition core := 
+    Eval unfold bedrock_types_r in bedrock_types_r.
+  
+  Definition pc := tvType 0.
+  Definition st := tvType 1.
+End BedrockCoreEnv.
+
+Require SepIL.

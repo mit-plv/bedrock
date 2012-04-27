@@ -11,21 +11,28 @@ Module MemoryEvaluator (SEP : SepExprType).
   Module ST := SEP.ST.
 
   (** Learn hook **)
-  Definition LearnHook (types_ : list type) (State : Type) : Type := 
-    forall P : ProverT types_, State -> Facts P -> State.
+  Section LearnHook.
+    Variable types_ : list type.
+    Variable SymState : Type.
 
-  Record LearnHook_correct types pcT stT State (L : LearnHook types State) 
-    (stateD : env types -> env types -> 
-      codeSpec (tvarD types pcT) (tvarD types stT) -> tvarD types stT -> State -> Prop)
-    (funcs : functions types) 
-    (preds : SEP.predicates types pcT stT) : Prop :=
-  { hook_sound : forall P (PC : ProverT_correct P funcs),
-    forall uvars vars cs stn_st ss ss' pp,
-      stateD uvars vars cs stn_st ss ->
-      Valid PC uvars vars pp ->
-      L P ss pp = ss' ->
-      stateD uvars vars cs stn_st ss'
-  }.
+    Definition LearnHook : Type := 
+      forall P : ProverT types_, SymState -> Facts P -> SymState.
+
+    Variables pcT stT : tvar.
+
+    Record LearnHook_correct (L : LearnHook) 
+      (stateD : env types_ -> env types_ -> 
+        codeSpec (tvarD types_ pcT) (tvarD types_ stT) -> tvarD types_ stT -> SymState -> Prop)
+      (funcs : functions types_) 
+      (preds : SEP.predicates types_ pcT stT) : Prop :=
+    { hook_sound : forall P (PC : ProverT_correct P funcs),
+      forall uvars vars cs stn_st ss ss' pp,
+        stateD uvars vars cs stn_st ss ->
+        Valid PC uvars vars pp ->
+        L P ss pp = ss' ->
+        stateD uvars vars cs stn_st ss'
+    }.
+  End LearnHook.
 
   Module LearnHookDefault.
 
@@ -46,7 +53,7 @@ Module MemoryEvaluator (SEP : SepExprType).
       end.
   End LearnHookDefault.
 
-  Section parametric.
+  Section MemEvaluator.
     Variable types : list type.
     Variables pcT stT : tvar.
 
@@ -100,7 +107,7 @@ Module MemoryEvaluator (SEP : SepExprType).
                 mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH')) stn_m'
             end
     }.
-  End parametric.
+  End MemEvaluator.
 
   Record MemEvaluatorPackage (tr : Repr type) (pc st ptr val : tvar) 
     (sat : forall ts, codeSpec (tvarD (repr tr ts) pc) (tvarD (repr tr ts) st) -> 
@@ -393,30 +400,6 @@ Module MemoryEvaluator (SEP : SepExprType).
 
     End plugin_correct.
 
-(* TODO: it isn't clear how to write this one yet...
-    Section Package.
-      Variable types : Repr type.
-      Variables pcT stT : tvar.      
-      Variable evals : forall ts, list (nat * MemEvalPred (repr types ts)).
-
-      Variable funcs : forall ts, Repr (signature (repr types ts)).
-      Variable sfuncs : forall ts, Repr (SEP.predicates (repr types ts) pcT stT).
-
-      Variables ptrT valT : tvar.
-
-      Hypothesis mem_satisfies : forall ts, PropX.codeSpec (tvarD (repr types ts) pcT) (tvarD (repr types ts) stT) -> 
-        ST.hprop (tvarD (repr types ts) pcT) (tvarD (repr types ts) stT) nil -> tvarD (repr types ts) stT -> Prop.
-      Hypothesis ReadWord : forall ts, tvarD (repr types ts) stT -> tvarD (repr types ts) ptrT -> option (tvarD (repr types ts) valT).
-      Hypothesis WriteWord : forall ts, tvarD (repr types ts) stT -> tvarD (repr types ts) ptrT -> tvarD (repr types ts) valT -> option (tvarD (repr types ts) stT).
-
-      Hypothesis sfuncs_evals : ConsistentCondition evals funcs sfuncs.
-
-      Definition package : @MemEvaluatorPackage types pcT stT ptrT valT mem_satisfies ReadWord WriteWord.
-      refine ({| MemEvalTypes := nil_Repr types
-               ; MemEvalFuncs := funcs
-               ; MemEvalPreds := 
-*)
-
     Ltac unfolder H :=
       cbv delta 
         [ fold_first fold_first_update 
@@ -478,8 +461,6 @@ Module MemoryEvaluator (SEP : SepExprType).
       Qed.
     End typed.
   End Composite.
-
-
 
 End MemoryEvaluator.
 

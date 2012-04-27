@@ -14,7 +14,9 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	Unfolder \
 	Env TypedPackage \
 	SymEval sep/PtsTo \
-	ILEnv SepIL SymIL ILTac \
+	ILEnv SepIL \
+	SymIL SymILProofs SymILTac \
+	ILTac \
 	Bedrock
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
@@ -51,6 +53,7 @@ admit:
 
 depgraph: Makefile.coq
 	@ echo Generating dependency graph to ../deps.pdf
+	@ ./../tools/deps.py $(MODULES:%=%.v.d) > ../deps.dot
 	@ ./../tools/deps.py $(MODULES:%=%.v.d) | dot -Tpdf -o ../deps.pdf
 
 toplevel: coq
