@@ -35,16 +35,16 @@ Module SepExprTests (B : Heap).
        |}.
 
 
-    Fixpoint all a b (f : nat -> ST.hprop a b nil) (n : nat) : ST.hprop a b nil :=
+    Fixpoint star_all a b (f : nat -> ST.hprop a b nil) (n : nat) : ST.hprop a b nil :=
       match n with
         | 0 => f 0
-        | S n => ST.star (f (S n)) (all f n)
+        | S n => ST.star (f (S n)) (star_all f n)
       end.
 
-    Fixpoint allb a b (f : nat -> ST.hprop a b nil) (n m : nat) : ST.hprop a b nil :=
+    Fixpoint star_all_back a b (f : nat -> ST.hprop a b nil) (n m : nat) : ST.hprop a b nil :=
       match n with
         | 0 => f m
-        | S n => ST.star (f (m - S n)) (allb f n m)
+        | S n => ST.star (f (m - S n)) (star_all_back f n m)
       end.
 
     Opaque ST.himp ST.star ST.emp ST.inj ST.ex.
@@ -92,8 +92,8 @@ Module SepExprTests (B : Heap).
     Qed.
 
     Theorem t2 : forall a b c, 
-      @ST.himp a b c (ST.star (allb (@h a b) 15 15) (allb (@f a b) 15 15))
-                     (ST.star (all (@f a b) 15) (all (@h a b) 15)).
+      @ST.himp a b c (ST.star (star_all_back (@h a b) 15 15) (star_all_back (@f a b) 15 15))
+                     (ST.star (star_all (@f a b) 15) (star_all (@h a b) 15)).
       sep.
     Qed.
 

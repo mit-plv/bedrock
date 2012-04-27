@@ -208,53 +208,23 @@ Module BedrockPtsToEvaluator.
   End hide_notation.
 
   Definition ptsto32_pack : MEVAL.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-  refine ({| MEVAL.MemEvalTypes := Env.nil_Repr EmptySet_type
-           ; MEVAL.MemEvalFuncs := fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts))
-           ; MEVAL.MemEvalPreds := fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
-             (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
-               (tvType 0) (tvType 1))
-           ; MEVAL.MemEval := fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil)
-           ; MEVAL.MemEval_correct := fun ts fs ps =>
-             MEVAL.Plugin.PluginMemEvaluator_correct _ _ _ _ _ _ _ _ _
-    |}).
-  abstract (split; simpl; eapply MemEval_ptsto32_correct with (types' := ts) || exact I).
-  Defined.
-(*
-About Build_TypedPackage.
 
-Ltac build_mem_pack mem ret :=
-  match type of mem with
-    | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st IL_mem_satisfies IL_ReadWord IL_WriteWord =>
-      (let res := constr:(
-        let TR := Env.repr_combine (MEVAL.MemEvalTypes mem) tr in
-        @Build_TypedPackage ILEnv.bedrock_types_r (tvType 0) (tvType 1) 
-          SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord
-          TR
-          (fun ts => MEVAL.MemEvalFuncs mem (Env.repr TR (Env.repr ILEnv.bedrock_types_r ts)))
-          (fun ts => MEVAL.MemEvalPreds mem (Env.repr TR (Env.repr ILEnv.bedrock_types_r ts)))
-          (fun ts =>
-            {| SymIL.Prover  := None
-             ; SymIL.Hints   := None
-             ; SymIL.MemEval := Some (MEVAL.MemEval mem (Env.repr ILEnv.bedrock_types_r ts))
-            |})
-          (fun ts fs ps =>
-           let types := Env.repr ILEnv.bedrock_types_r (Env.repr tr ts) in
-           @Build_AllAlgos_correct types pc st
-             ({| SymIL.Prover := None
-               ; SymIL.Hints := None
-               ; SymIL.MemEval := Some (MEVAL.MemEval mem (Env.repr ILEnv.bedrock_types_r ts))
-               |})
-             _ _ (@IL_mem_satisfies _) (@IL_ReadWord _) (@IL_WriteWord _)
-             I I
-             (MEVAL.MemEval_correct mem (Env.repr ILEnv.bedrock_types_r ts) fs ps))) in
-      let res := eval simpl in res in
-      ret res) || fail 10000 "couldn't construct mem_package"
-    | ?T => 
-      fail 10000 "got bad type" T "expected value of type Packages.MemEvaluatorPackage"
-  end.
-*)
-Goal SymIL.TypedPackage ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1) SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord.
-  SymIL.Package.build_mem_pack ptsto32_pack ltac:(fun x => refine x).
-Abort.
+  refine (@MEVAL.Build_MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord
+            (Env.nil_Repr EmptySet_type)
+            (fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts)))
+            (fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
+             (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
+               (tvType 0) (tvType 1)))
+            (fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil))
+            _).
+  abstract (
+    refine (fun ts fs ps =>
+      MEVAL.Plugin.PluginMemEvaluator_correct _ _ _ _ _ _ _ _ _);
+    split; simpl; (eapply MemEval_ptsto32_correct with (types' := ts) || exact I)).
+  Defined.
+
+  Goal SymILTac.ILAlgoTypes.TypedPackage.
+    SymILTac.ILAlgoTypes.Package.build_mem_pack ptsto32_pack ltac:(fun x => refine x).
+  Abort.
 End BedrockPtsToEvaluator.
 

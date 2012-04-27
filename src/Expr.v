@@ -728,6 +728,13 @@ Section env.
     Proof.
       induction a; simpl; intuition auto.
     Qed.
+
+    Lemma AllProvable_app' : forall b a, 
+      AllProvable (a ++ b) ->
+      AllProvable a /\ AllProvable b.
+    Proof.
+      induction a; simpl; try solve [ intuition auto ]; intros.
+    Qed.
     
     Lemma Provable_ValidProp : forall goal, Provable goal -> ValidProp goal.
       unfold Provable, ValidProp in *; intros;
@@ -821,9 +828,14 @@ Qed.
 
 End exists_subst.
 
+(** Use this function to get an environment extension
+ ** - n is the length of the old environment
+ **)
+Definition env_ext (T : Type) n (ls : list T) : list T :=
+  firstn (length ls - n) ls.
 
-
-
+(** TODO: There probably need to be some facts about this... **)
+  
 
 Implicit Arguments Const [ types t ].
 Implicit Arguments Var [ types ].

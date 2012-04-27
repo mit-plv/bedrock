@@ -100,6 +100,13 @@ Module Type SepExprType.
      **)
     Parameter sheapD : SHeap -> sexpr.
 
+    Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
+      match ls with
+        | nil => fun x => x
+        | t :: ts => fun y => Exists t (@existsEach ts y)
+      end.
+
+
 (*
     (** result of cancelation **)
     Record SepResult (gl gr : sexpr) : Type :=
@@ -893,15 +900,6 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
       intros. specialize (@hash_denote' EG cs s G). etransitivity.
       eassumption. apply heq_existsEach. intros. rewrite sheapD_sheapD'. reflexivity.
     Qed.
-(*
-            Lemma fold_star_acc : forall T EG G cs (F : nat -> T -> sexpr -> sexpr) i a a',
-              heq EG G cs a a' ->
-              (forall n a b b', heq EG G cs b b' -> heq EG G cs (F n a b) (F n a b')) ->
-              heq EG G cs (FM.fold F i a) (FM.fold F i a').
-            Proof.
-              induction i; simpl; eauto.
-            Qed.
-*)
 
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
@@ -998,52 +996,17 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
        {| impures := rf ; pures := pures r ; other := other r |},
        sub).
 
-(*
-    Record SepResult (gl gr : sexpr) : Type :=
-    { r_vars   : variables
-    ; r_lhs_ex : variables
-    ; r_lhs    : SHeap
-    ; r_rhs_ex : variables
-    ; r_rhs    : SHeap
-    ; r_SUBST  : Subst types
-    }.
-
-    (** TODO: I should reconsider this... 
-     ** - I think the correct interface here is to spit out two sexprs
-     **)
-    Definition CancelSep (uvars : env types)
-      : list (expr types) -> forall (gl gr : sexpr), SepResult gl gr :=
-        fun hyps gl gr =>
-        let (ql, lhs) := hash gl in
-        let (qr, rhs) := hash gr in
-        let summ := Summarize Prover (hyps ++ pures lhs) in
-        let rhs' := liftSHeap 0 (length ql) (sheapSubstU 0 (length qr) (length uvars) rhs) in
-        let '(lhs',rhs',lhs_subst,rhs_subst) := sepCancel summ lhs rhs' in
-        {| r_vars := ql 
-         ; r_lhs := lhs' ; r_lhs_ex := nil
-         ; r_rhs := rhs' ; r_rhs_ex := map (@projT1 _ _) uvars ++ qr ; r_SUBST := rhs_subst
-         |}.
-
-    (** TODO: this isn't true **)
-    Theorem ApplyCancelSep : forall cs uvars hyps l r,
-      AllProvable funcs uvars nil hyps ->
-      match CancelSep uvars hyps l r with
-        | {| r_vars := vars 
-           ; r_lhs_ex := lhs_ex ; r_lhs := lhs
-           ; r_rhs_ex := rhs_ex ; r_rhs := rhs 
-           ; r_SUBST := SUBST |} =>
-          forallEach vars (fun VS : env types =>
-            exists_subst funcs VS uvars (env_of_Subst SUBST rhs_ex 0)
-            (fun rhs_ex : env types => 
-              himp nil rhs_ex VS cs (sheapD lhs) (sheapD rhs)))
-      end ->
-      himp nil uvars nil cs l r.
+    Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub ,
+      Valid Prover_correct U G summ ->
+      sepCancel bound summ l r = (l', r', sub) ->
+      himp U G cs (sheapD l) (sheapD r) ->
+      himp U G cs (sheapD l') (sheapD r').
     Proof.
-      intros. case_eq (CancelSep uvars hyps l r); intros.
-      rewrite H1 in H0. revert Prover_correct.
-      admit.
-    Qed.
-*)
+      clear. destruct l; destruct r. unfold sepCancel. simpl.
+      intros. repeat rewrite sheapD_sheapD'. repeat rewrite sheapD_sheapD' in H1.
+      destruct l'; destruct r'. unfold sheapD' in *. simpl in *.
+    Admitted.
+
 
   End env.
 

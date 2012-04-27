@@ -1,13 +1,11 @@
 * TODOs
 *** Gregory
-    - Single uvars environment
-    - Expression unification
+    - expression unification proofs
     - Array plugin
     - hash proofs
     - symbolic evaluation proofs
     - clean up TypedPackage tactics
-*** Other
-    - tactic performance
+    - factor out IL
 
 * Reification
 *** Two-stage Approach
@@ -55,6 +53,9 @@
 	    that are not quantified in the goal, i.e. they are already in
 	    the context
     - NOTE: it seems like it might be more useful to do debrujin *levels*
+      - these act exactly like global variables in the SHeap representation
+    - reification is not modular in extending the vars environment
+      so whenever we reify it is essentially that vars is nil!
 
 * Repr (environments for types, functions and predicates)
 *** Use [list (option T) * T] 

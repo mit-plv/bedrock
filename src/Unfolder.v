@@ -313,6 +313,97 @@ Module Make (Import SE : SepExprType).
       Hypothesis hsOk : hintsSoundness hs.
       Hypothesis PC : ProverT_correct prover funcs.
 
+      Lemma app_len_2 : forall T (a b c d : list T),
+        a ++ b = c ++ d ->
+        length b = length d ->
+        a = c /\ b = d.
+      Proof.
+        clear. induction a; destruct c; simpl; intuition; subst; auto;
+        simpl in *; try rewrite app_length in H0; 
+          try solve [ try generalize dependent (length d); intros; exfalso; omega ].
+        inversion H. subst. f_equal. eapply IHa in H3; eauto. intuition.
+        inversion H. eapply IHa in H3; intuition.
+      Qed.
+
+      Lemma FOO : forall cs meta_env vs H P,
+        (exists e : env types, vs = map (@projT1 _ _) (rev e) /\ 
+          ST.himp cs P (sexprD funcs preds meta_env e H)) ->
+        ST.himp cs P (sexprD funcs preds meta_env nil (existsEach vs H)).
+      Proof.
+        clear. induction vs using rev_ind; simpl; intros.
+          destruct H0. assert (x = nil). destruct x using rev_ind; auto. rewrite rev_unit in H0. simpl in *; intuition.
+          congruence. subst; intuition.
+        
+        destruct H0. intuition. destruct x0. simpl in *. destruct vs; simpl in *; congruence.
+        simpl in *. rewrite map_app in H1. simpl in H1.
+        cutrewrite (existsEach (vs ++ x :: nil) H = existsEach vs (existsEach (x :: nil) H)).
+        simpl. eapply IHvs. exists x0.
+
+        apply app_len_2 in H1; [ | reflexivity ].
+        intuition.
+        simpl; apply ST.himp_ex_c. inversion H3; subst.
+        exists (projT2 s).
+        rewrite H2. destruct s; simpl. reflexivity.
+        admit.
+      Qed.
+
+      Theorem forwardOk : forall cs bound facts P Q meta_env vars_env,
+        forward bound facts P = Q ->
+        map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
+        map (@projT1 _ _) vars_env = rev P.(Vars) ->
+        Valid PC meta_env vars_env facts ->
+        ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
+                   (sexprD funcs preds meta_env nil (existsEach Q.(Vars) (sheapD (Heap Q)))).
+      Proof.
+        induction bound; simpl; intros.
+          Focus.
+          subst; repeat split; try reflexivity.
+          intros. 
+
+          eapply FOO. eexists; split. symmetry. instantiate (1 := vars_env). rewrite map_rev. 
+          rewrite <- rev_involutive. f_equal. assumption. reflexivity.
+
+          Focus.
+          revert H. case_eq (unfoldForward prover facts (Forward hs) P); intros. 2: admit.
+      Admitted.
+
+      Lemma BAR : forall cs meta_env vs H P,
+        (forall e : env types, vs = map (@projT1 _ _) (rev e) ->
+          ST.himp cs (sexprD funcs preds meta_env e H) P) ->
+        ST.himp cs (sexprD funcs preds meta_env nil (existsEach vs H)) P.
+      Proof.
+        clear. induction vs using rev_ind; simpl; intros.
+          specialize (H0 nil (refl_equal _)). assumption.
+
+          cutrewrite (existsEach (vs ++ x :: nil) H = existsEach vs (existsEach (x :: nil) H)).
+          simpl. eapply IHvs. intros. simpl. eapply ST.himp_ex_p. intros.
+          eapply H0. simpl. rewrite map_app. rewrite <- H1. f_equal.
+          admit.
+      Qed.
+(*
+      Theorem backwardOk : forall cs bound facts P Q meta_env,
+        backward bound facts P = Q ->
+        map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
+        exists vars_env , map (@projT1 _ _) vars_env = rev P.(Vars) /\
+        (Valid PC meta_env vars_env facts ->
+         ST.himp cs (sexprD funcs preds meta_env nil (existsEach Q.(Vars) (sheapD (Heap Q))))
+                    (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))).
+      Proof.
+        induction bound; simpl; intros.
+          Focus.
+          subst. eexists. split.
+
+
+
+         eapply FOO. eexists; split. symmetry. instantiate (1 := vars_env). rewrite map_rev. 
+          rewrite <- rev_involutive. f_equal. assumption. reflexivity.
+
+          Focus.
+          revert H. case_eq (unfoldForward prover facts (Forward hs) P); intros. 2: admit.
+      Admitted.
+*)
+
+
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       (** TODO: Break this into two lemmas, one for forward and one for backward **)
       Theorem unfolderOk : forall bound P Q,
@@ -336,17 +427,6 @@ Module Make (Import SE : SepExprType).
       Qed.
     End unfolder.
   End env.
-
-  (** Package hints together with their environment/parameters. *)
-  Record hints := {
-    Types : Repr type;
-    Functions : forall ts, Repr (signature (repr Types ts));
-    PcType : tvar;
-    StateType : tvar;
-    Predicates : forall ts, Repr (ssignature (repr Types ts) PcType StateType);
-    Hints : forall ts, hintsPayload (repr Types ts) PcType StateType;
-    HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
-  }.
 
 (*
   Ltac unfold_unfolder H :=
@@ -599,13 +679,27 @@ Ltac lift_lemmas_over_repr lms rp pc st :=
   end.
 
 Require TypedPackage.
-  Module PACK := TypedPackage.Make SE.
+Module Packaged (CE : TypedPackage.CoreEnv).
+
+  (** Package hints together with their environment/parameters. *)
+  Record hints := {
+    Types : Repr type;
+    Functions : forall ts, Repr (signature (repr Types ts));
+    PcType : tvar;
+    StateType : tvar;
+    Predicates : forall ts, Repr (ssignature (repr Types ts) PcType StateType);
+    Hints : forall ts, hintsPayload (repr Types ts) PcType StateType;
+    HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
+  }.
+  
+  Module PACK := TypedPackage.Make SE CE.
   
   Ltac prepareHints unfoldTac pcType stateType isConst env fwd bwd ret :=
     let types := 
       match type of env with
-        | PACK.TypeEnv ?ct _ _ => 
-          eval simpl in (repr ct (repr (PACK.Types env) nil))
+        | PACK.TypeEnv => 
+          let ts := eval cbv beta iota zeta delta [ env PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
+          eval simpl in ts
       end
     in
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
@@ -613,12 +707,12 @@ Require TypedPackage.
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
-        let stateT := reflectType types stateType in
-        let funcs := eval simpl in (repr (PACK.Funcs env types) nil) in
-        let preds := eval simpl in (repr (PACK.Preds env types) nil) in
-          (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
-            reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
-            let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
+         let stateT := reflectType types stateType in
+         let funcs := eval simpl in (PACK.applyFuncs env types nil) in
+         let preds := eval simpl in (PACK.applyPreds env types nil) in
+           (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
+             reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
+             let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
             let types_rV := fresh "types" in
             (pose (types_rV := types_r) || fail 1000);
             let funcs_r := lift_signatures_over_repr funcs types_rV in 
@@ -707,8 +801,12 @@ Require TypedPackage.
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
-    Definition env0 : PACK.TypeEnv (listToRepr ({| Impl := pc ; Eq := fun _ _ => None |} :: {| Impl := state ; Eq := fun _ _ => None |} :: nil) EmptySet_type) (tvType 0) (tvType 1) :=
-      {| PACK.Types := nil_Repr EmptySet_type
+Print PACK.TypeEnv.
+
+    Definition env0 : PACK.TypeEnv  :=
+      {| PACK.Types := listToRepr 
+           ({| Impl := pc ; Eq := fun _ _ => None |} :: 
+            {| Impl := state ; Eq := fun _ _ => None |} :: nil) EmptySet_type
        ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
        ; PACK.Preds := fun ts => nil_Repr (SE.Default_predicate _ _ _)
       |}.
@@ -747,5 +845,6 @@ Require TypedPackage.
     End Tests.
   End TESTS.
 *)
+End Packaged.
 
 End Make.
