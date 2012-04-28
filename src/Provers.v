@@ -380,10 +380,28 @@ Section TransitivityProver.
   Definition transitivityEqProver (groups : transitivity_summary)
     (x y : expr types) := inSameGroup eqD_seq groups x y.
 
+  Fixpoint proveEqual (groups : transitivity_summary) (e1 e2 : expr types) {struct e1} :=
+    match expr_seq_dec e1 e2 with
+      | Some _ => true
+      | None => inSameGroup eqD_seq groups e1 e2
+        || match e1, e2 with
+             | Func f1 args1, Func f2 args2 =>
+               if eq_nat_dec f1 f2
+                 then (fix proveEquals (es1 es2 : list (expr types)) :=
+                   match es1, es2 with
+                     | nil, nil => true
+                     | e1 :: es1', e2 :: es2' => proveEqual groups e1 e2 && proveEquals es1' es2'
+                     | _, _ => false
+                   end) args1 args2
+                 else false
+             | _, _ => false
+           end
+    end.
+
   Definition transitivityProve (groups : transitivity_summary)
     (goal : expr types) :=
     match goal with
-      | Equal _ x y => inSameGroup eqD_seq groups x y
+      | Equal _ x y => proveEqual groups x y
       | _ => false
     end.
 
@@ -505,7 +523,7 @@ Ltac unfold_transitivityProver H :=
   match H with
     | tt =>
       cbv delta [ 
-        transitivityProver
+        transitivityProver proveEqual
         transitivitySummarize transitivityLearn transitivityProve
 
         groupsOf addEquality
@@ -518,7 +536,7 @@ Ltac unfold_transitivityProver H :=
       ]
     | _ => 
       cbv delta [ 
-        transitivityProver
+        transitivityProver proveEqual
         transitivitySummarize transitivityLearn transitivityProve
 
         groupsOf addEquality

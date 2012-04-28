@@ -20,7 +20,7 @@ Theorem t2 : forall P : nat -> Prop, (Ex x, [| P x |]) ===> Ex x, [| P x |].
 Qed.
 
 Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
-  destruct ls; sepLemma.  
+  destruct ls; sepLemma.
 Qed.
 
 Theorem t4 : forall A (R : A -> A -> Prop),

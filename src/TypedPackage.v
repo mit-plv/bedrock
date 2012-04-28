@@ -35,6 +35,24 @@ Module Type Package.
       repr (Preds TE ts) ls.
   End Apps.
 
+  
+  (** These are reducible by [simpl] **)
+  Definition applyTypes_red TE (ls : list type) : list type :=
+    match TE with
+      | {| Types := ts |} =>
+        repr CE.core (repr ts ls)
+    end.
+  Definition applyFuncs_red TE ts : functions (applyTypes TE ts) -> functions (applyTypes TE ts) :=
+    match TE with
+      | {| Types := ts' ; Funcs := fs |} => fun ls =>
+        repr (fs ts) ls
+    end.
+  Definition applyPreds_red TE ts : SEP.predicates (applyTypes TE ts) CE.pc CE.st -> SEP.predicates (applyTypes TE ts) CE.pc CE.st :=
+    match TE with
+      | {| Types := ts' ; Preds := ps |} => fun ls =>
+        repr (ps ts) ls
+    end.
+
   Ltac glue_env l r ret :=
     let res := constr:(
       let types := Env.repr_combine (Types l) (Types r) in
@@ -76,6 +94,22 @@ Module Make (SEP' : SepExprType) (CE' : CoreEnv) <: Package with Module SEP := S
       repr (Preds TE ts) ls.
 
   End TypeEnv.
+
+  Definition applyTypes_red TE (ls : list type) : list type :=
+    match TE with
+      | {| Types := ts |} =>
+        repr CE.core (repr ts ls)
+    end.
+  Definition applyFuncs_red TE ts : functions (applyTypes TE ts) -> functions (applyTypes TE ts) :=
+    match TE with
+      | {| Types := ts' ; Funcs := fs |} => fun ls =>
+        repr (fs ts) ls
+    end.
+  Definition applyPreds_red TE ts : SEP.predicates (applyTypes TE ts) CE.pc CE.st -> SEP.predicates (applyTypes TE ts) CE.pc CE.st :=
+    match TE with
+      | {| Types := ts' ; Preds := ps |} => fun ls =>
+        repr (ps ts) ls
+    end.
     
 End Make.
 

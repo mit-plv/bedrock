@@ -29,6 +29,6 @@ Definition swap := bmodule "swap" {{
 }}.
 
 Theorem swapOk : moduleOk swap.
-  vcgen; repeat cbv beta iota zeta delta [ getArg ] in *; simpl in *; 
-    abstract (sep_auto).
+  vcgen; repeat cbv beta iota zeta delta [ getArg ] in *; simpl in *;
+    abstract sep_auto.
 Qed.
