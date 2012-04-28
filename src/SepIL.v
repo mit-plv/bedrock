@@ -258,8 +258,8 @@ Definition exB sos T (p : T -> hpropB sos) : hpropB sos := ex p.
 Notation "'Ex' x , p" := (exB (fun x => p)) : Sep_scope.
 Notation "'Ex' x : A , p" := (exB (fun x : A => p)) : Sep_scope.
 
-Definition hvarB sos (x : smem -> propX W (settings * state) sos) : hpropB sos :=
-  fun _ => x.
+Definition hvarB sos (x : settings * smem -> propX W (settings * state) sos) : hpropB sos :=
+  fun stn sm => x (stn, sm).
 
 Notation "![ x ]" := (hvarB x) : Sep_scope.
 
@@ -375,7 +375,7 @@ Theorem substH_ex : forall sos A (p1 : A -> hpropB sos) p2,
   reflexivity.
 Qed.
 
-Theorem substH_hvar : forall sos (x : smem -> propX W (settings * state) sos) p,
+Theorem substH_hvar : forall sos (x : settings * smem -> propX W (settings * state) sos) p,
   substH (hvarB x) p = hvarB (fun m => subst (x m) p).
   reflexivity.
 Qed.
@@ -411,10 +411,20 @@ Proof.
   intros. simpl eatLast. rewrite substH_lift1; auto.
 Qed.
 
+Theorem star_eta1 : forall sos (p1 p2 : hpropB sos),
+  starB (fun st m => p1 st m) p2 = starB p1 p2.
+  reflexivity.
+Qed.
+
+Theorem star_eta2 : forall sos (p1 p2 : hpropB sos),
+  starB p1 (fun st m => p2 st m) = starB p1 p2.
+  reflexivity.
+Qed.
+
 
 Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar
   substH_lift1 substH_lift2 substH_lift3 substH_lift4
-  substH_lift1_eatLast
+  substH_lift1_eatLast star_eta1 star_eta2
   using solve [ auto ] : sepFormula.
 
 Global Opaque lift.

@@ -700,6 +700,9 @@ Module Packaged (CE : TypedPackage.CoreEnv).
         | PACK.TypeEnv => 
           let ts := eval cbv beta iota zeta delta [ env PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
           eval simpl in ts
+        | PACK.TypeEnv => 
+          let ts := eval cbv beta iota zeta delta [ PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
+          eval simpl in ts
       end
     in
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
@@ -707,12 +710,12 @@ Module Packaged (CE : TypedPackage.CoreEnv).
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
         let types := extend_all_types rt types in
         let pcT := reflectType types pcType in
-         let stateT := reflectType types stateType in
-         let funcs := eval simpl in (PACK.applyFuncs env types nil) in
-         let preds := eval simpl in (PACK.applyPreds env types nil) in
-           (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
-             reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
-             let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
+        let stateT := reflectType types stateType in
+        let funcs := eval simpl in (PACK.applyFuncs_red env types nil) in
+        let preds := eval simpl in (PACK.applyPreds_red env types nil) in
+        (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
+          reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
+            let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
             let types_rV := fresh "types" in
             (pose (types_rV := types_r) || fail 1000);
             let funcs_r := lift_signatures_over_repr funcs types_rV in 

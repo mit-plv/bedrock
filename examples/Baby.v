@@ -189,5 +189,5 @@ Definition stress := bmodule "stress" {{
 }}.
 
 Theorem stressOk : moduleOk stress.
-  vcgen; abstract (sep_auto).
+  vcgen; abstract sep_auto.
 Qed.

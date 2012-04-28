@@ -702,7 +702,6 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **     (this should be implmented using [cbv beta iota zeta delta [ ... ] in H])
  **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
  **)
-Check Algos_correct.
 Ltac sym_eval isConst ext simplifier :=
 (*  run_timer 100 ; *)
   let rec init_from st :=
@@ -868,7 +867,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*                      stop_timer 107 ; *)
 (*                      idtac "6" ; *)
 (*                      run_timer 108 ; *)
-                      first [ simplifier H | fail 100000 "simplifier failed!" ]  ;
+                      first [ simplifier H | fail 100000 "simplifier failed!" ] ;
 (*                      stop_timer 108 ; *)
 (*                      run_timer 109 ;
                       repeat match goal with
@@ -884,10 +883,12 @@ Ltac sym_eval isConst ext simplifier :=
                       ((try exact H) ||
                        (let rec destruct_exs H :=
                          match type of H with
-                           | Logic.ex _ => destruct H as [ ? H ] ; destruct_exs H
-                           | _ => destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
+                           | Logic.ex _ =>
+                             destruct H as [ ? H ] ; destruct_exs H
+                           | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
+                             destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
                          end
-                        in destruct_exs H)) 
+                        in destruct_exs H))
 (*                      stop_timer 110 *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
@@ -1127,7 +1128,7 @@ Module EmptyPackage.
   Proof.
    intros.
    sym_eval ltac:(isConst) empty_package simplifier.
-   intuition congruence. 
+   try intuition congruence. 
   Abort.
 
 End EmptyPackage.
@@ -1195,8 +1196,6 @@ Ltac build_prover_pack prover ret :=
 Goal TypedPackage.
   build_prover_pack Provers.TransitivityProver ltac:(fun x => refine x).
 Defined.
-
-Check Build_AllAlgos_correct.
 
 Ltac build_mem_pack mem ret :=
   match type of mem with
@@ -1358,7 +1357,7 @@ Ltac hlist_from_tuple tpl acc :=
  **)
 Ltac glue_packs packs k :=
   match type of packs with
-    | TypedPackage _ _ _ _ _ _ => k packs
+    | TypedPackage => k packs
     | _ =>
       match packs with
         | tt => k BedrockPackage.bedrock_package

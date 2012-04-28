@@ -47,8 +47,6 @@ End existsSubst.
 
 (** TODO : this isn't true **)
 (** TODO : should we apply forward unfolding as well? **)
-
-
 Lemma ApplyCancelSep : forall ts,
   let types := Env.repr BedrockCoreEnv.core ts in
   forall (funcs : functions types) (preds : SEP.predicates types BedrockCoreEnv.pc BedrockCoreEnv.st), 
@@ -184,6 +182,8 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **)
 Check ApplyCancelSep.
 
+Print Ltac SEP_REIFY.reify_sexpr.
+
 Ltac sep_canceler isConst ext simplifier :=
 (*TIME  run_timer 10 ; *)
   (try change_to_himp) ;
@@ -307,20 +307,20 @@ Ltac sep_canceler isConst ext simplifier :=
       Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
       idtac "10" ;
         let proofs := Expr.props_proof all_props in
-      idtac "11" ;
+      idtac "11" L typesV funcs pcT stT preds uvars vars ;
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
+        idtac "12" ;
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
 (*TIME        stop_timer 14 ; *)
 (*TIME        run_timer 15 ; *)
-(*        idtac "built terms" ;  *)
+        idtac "built terms" ;  
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
 (*TIME          stop_timer 15 ; *)
 (*TIME          run_timer 16 ; *)
-(*          idtac "12" ; *)
-(*        idtac "14" ; *)
+        idtac "14" ; 
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (SymILTac.ILAlgoTypes.Algos ext typesV)
@@ -329,10 +329,11 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME         stop_timer 16 ; *)
 (*TIME         run_timer 17 ; *)
          (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
+         clear typesV predsV funcsV ;
 (*TIME         stop_timer 17 ; *)
 (*         idtac "16" ; *)
 (*TIME         run_timer 18 ; *)
-           simplifier tt 
+           simplifier tt  
 (*TIME         stop_timer 18  *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
@@ -352,8 +353,6 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- ?G ] => 
       idtac "no match" G 
   end.
-
-Check ApplyCancelSep.
 
 Ltac cancel_simplifier :=
   cbv beta iota zeta delta [
@@ -499,6 +498,17 @@ Ltac cancel_simplifier :=
                  | nil => 0
                  | _ :: l' => S (length l')
                end) with (@length A)
+           | [ _ : list ?A |- _ ] =>
+             progress change (fix app (l0 m : list A) : list A :=
+               match l0 with
+                 | nil => m
+                 | a1 :: l1 => a1 :: app l1 m
+               end) with (@app A)
+             || (progress change (fix rev (l : list W) : list W :=
+               match l with
+                 | nil => nil
+                 | x8 :: l' => (rev l' ++ x8 :: nil)%list
+               end) with (@rev A))
          end.
 
 Implicit Arguments existT [ A P ].
