@@ -80,7 +80,6 @@ Section machine.
         eapply And_E2; [ eauto ].
         eapply Or_E; [ eauto | auto | auto ].
         eapply Imply_E; [ eauto | auto ].
-        eapply Forall_E; [ eauto ].
         eapply Exists_I; eauto.
         eapply Exists_E; eauto.
         eapply ExistsX_I; eauto.
@@ -121,14 +120,12 @@ Section machine.
       interp specs (Substs s (Cptr f a))
       -> interp specs (Cptr f (fun x => Substs s (a x))).
       induction s; simpl; intuition.
-      apply Cptr_sound in H; apply Cptr_I; assumption.
     Qed.
 
     Lemma Substs_Cptr_bwd : forall G (s : subs G) f a,
       interp specs (Cptr f (fun x => Substs s (a x)))
       -> interp specs (Substs s (Cptr f a)).
       induction s; simpl; intuition.
-      apply Cptr_sound in H; apply Cptr_I; assumption.
     Qed.
     
     Lemma Substs_And : forall G (s : subs G) p1 p2,
@@ -150,30 +147,24 @@ Section machine.
       interp specs (Substs s (Forall p1))
       -> interp specs (Forall (fun x => Substs s (p1 x))).
       induction s; simpl; intuition.
-      apply Forall_I; apply (Forall_sound H).
     Qed.
 
     Lemma Substs_Forall_bwd : forall G (s : subs G) A (p1 : A -> _),
       interp specs (Forall (fun x => Substs s (p1 x)))
       -> interp specs (Substs s (Forall p1)).
       induction s; simpl; intuition.
-      apply Forall_I; apply (Forall_sound H).
     Qed.
 
     Lemma Substs_Exists_fwd : forall G (s : subs G) A (p1 : A -> _),
       interp specs (Substs s (Exists p1))
       -> interp specs (Exists (fun x => Substs s (p1 x))).
       induction s; simpl; intuition.
-      specialize (Exists_sound H); firstorder.
-      eapply Exists_I; eauto.
     Qed.
 
     Lemma Substs_Exists_bwd : forall G (s : subs G) A (p1 : A -> _),
       interp specs (Exists (fun x => Substs s (p1 x)))
       -> interp specs (Substs s (Exists p1)).
       induction s; simpl; intuition.
-      specialize (Exists_sound H); firstorder.
-      eapply Exists_I; eauto.
     Qed.
 
     Lemma subs_nil' : forall G (s : subs G) p,

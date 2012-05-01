@@ -444,7 +444,7 @@ Ltac cancel_simplifier :=
     (** EquivDec **)
     EquivDec_nat
     sumbool_rec sumbool_rect sumor_rec sumor_rect nat_rec nat_rect
-    eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal DepList.eq_sym
+    eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal eq_sym
     Peano_dec.eq_nat_dec equiv_dec
     seq_dec EquivDec_SemiDec SemiDec_expr 
     Expr.expr_seq_dec

@@ -30,9 +30,9 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
   Definition compare (x y : t) : OrderedType.Compare lt eq x y :=
     match Compare_dec.lt_eq_lt_dec x y with 
-      | inleft (left pf) => OrderedType.LT _ pf
-      | inleft (right pf) => OrderedType.EQ _ pf
-      | inright pf => OrderedType.GT _ pf
+      | inleft (left pf) => OrderedType.LT pf
+      | inleft (right pf) => OrderedType.EQ pf
+      | inright pf => OrderedType.GT pf
     end.
 
   Definition eq_dec : forall x y : nat, {x = y} + {x <> y} := 
@@ -151,4 +151,3 @@ Module IntMap.
   End Fold.
   
 End IntMap.
-
