@@ -29,3 +29,28 @@ Theorem t4 : forall A (R : A -> A -> Prop),
   apply H.
   eassumption.
 Qed.
+
+(** Unification **)
+Theorem t5 : forall p1 P2 V, exists p2, exists v, 
+  (p1 =*> P2 * P2 =*> V) ===> (p1 =*> p2 * p2 =*> v).
+  intros. do 2 eexists.
+  sepLemma.
+Qed.
+
+Theorem t6 : forall p1 P2 V, exists p2, exists v,
+  (P2 =*> V * p1 =*> P2) ===> (p1 =*> p2 * p2 =*> v).
+  intros. do 2 eexists.
+  sepLemma.
+Qed.
+
+Theorem t7 : forall p1 P2 V, exists p2, exists v, 
+  (p1 =*> P2 * P2 =*> V) ===> (p2 =*> v * p1 =*> p2).
+  intros. do 2 eexists.
+  sepLemma.
+Qed.
+
+Theorem t8 : forall p1 P2 V, exists p2, exists v,
+  (P2 =*> V * p1 =*> P2) ===> (p2 =*> v * p1 =*> p2).
+  intros. do 2 eexists.
+  sepLemma.
+Qed.

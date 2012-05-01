@@ -53,16 +53,13 @@ fun fwd bwd =>
   let env :=
    eval simpl SymILTac.ILAlgoTypes.EnvOf in
    (SymILTac.ILAlgoTypes.EnvOf auto_ext) in
-   idtac env ;
   let t := type of env in 
-    idtac t ;
-   
   prepare env fwd bwd
-   ltac:(fun x => idtac "--" ;
+   ltac:(fun x => 
            SymILTac.ILAlgoTypes.Package.build_hints_pack x
-            ltac:(fun x => idtac "---" ;
+            ltac:(fun x =>
                     SymILTac.ILAlgoTypes.Package.glue_pack x auto_ext
-                     ltac:(fun X => idtac "----" ; refine X))). 
+                     ltac:(fun X => refine X))). 
   prepare1 pair_fwd pair_bwd.
 Defined.
 

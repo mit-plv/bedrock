@@ -180,16 +180,11 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **   constr:(tt).
  ** - [Ts] is a value of type [list Type] or [tt]
  **)
-Check ApplyCancelSep.
-
-Print Ltac SEP_REIFY.reify_sexpr.
-
 Ltac sep_canceler isConst ext simplifier :=
 (*TIME  run_timer 10 ; *)
   (try change_to_himp) ;
 (*TIME  stop_timer 10 ; *)
 (*TIME  run_timer 11 ; *)
-  idtac "-4" ; 
   let ext' := 
     match ext with
       | tt => eval cbv delta [ SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package ] in SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package
@@ -197,7 +192,6 @@ Ltac sep_canceler isConst ext simplifier :=
       | _ => ext
     end
   in
-  idtac "-3" ; 
   let shouldReflect P :=
     match P with
       | evalInstrs _ _ _ = _ => false
@@ -237,26 +231,15 @@ Ltac sep_canceler isConst ext simplifier :=
         ] in ls
     end
   in
-(*
-  let core_types :=
-    match type of ext' with
-      | SymILTac.ILAlgoTypes.TypedPackage => ct
-      | ?T => fail 1000 "bad type " T 
-    end
-  in
-*)
   match goal with 
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
 (*TIME      stop_timer 11; *)
-      idtac "-2.5" ; 
 (*TIME      run_timer 12 ; *)
       let all_props := Expr.collect_props shouldReflect in
-      idtac "-2" ; 
       let pures := Expr.props_types all_props in
 (*TIME      stop_timer 12 ; *)
-      idtac "-1: pures = " pures ; 
 (*TIME      run_timer 13 ; *)
       let L := eval unfold empB injB injBX starB exB hvarB in L in
       let R := eval unfold empB injB injBX starB exB hvarB in R in
@@ -264,13 +247,9 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME      run_timer 14 ; *)
       (** collect types **)
       let Ts := constr:(@nil Type) in
-      idtac "0" ;
       let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
-      idtac "1" ;
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
-      idtac "2" ;
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
-      idtac "3" ;
       (** check for potential universe inconsistencies **)
       match Ts with
         | context [ PropX.PropX ] => 
@@ -281,46 +260,35 @@ Ltac sep_canceler isConst ext simplifier :=
             "(this causes universe inconsistencies)" Ts
         | _ => idtac 
       end ;
-      idtac "4" ;
       (** elaborate the types **)
       let types_ := 
         reduce_repr (PACK.applyTypes (ILAlgoTypes.Env ext) nil)
       in
-      idtac "5" types_ ;
       let types_ := Expr.extend_all_types Ts types_ in
-      idtac "6" ;
       let typesV := fresh "types" in
       pose (typesV := types_);
       (** build the variables **)
       let uvars := eval simpl in (@nil _ : Expr.env typesV) in
       let gvars := uvars in
       let vars := eval simpl in (@nil Expr.tvar) in
-      idtac "7" ;
       (** build the funcs **)
       let funcs := reduce_repr (PACK.applyFuncs (ILAlgoTypes.Env ext) typesV nil) in
       let pcT := constr:(Expr.tvType 0) in
       let stT := constr:(Expr.tvType 1) in
-      idtac "8" ;
       (** build the base sfunctions **)
       let preds := reduce_repr (PACK.applyPreds (ILAlgoTypes.Env ext) typesV nil) in
-      idtac "9" ;
       Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
-      idtac "10" ;
-        let proofs := Expr.props_proof all_props in
-      idtac "11" L typesV funcs pcT stT preds uvars vars ;
+      let proofs := Expr.props_proof all_props in
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
-        idtac "12" ;
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
 (*TIME        stop_timer 14 ; *)
 (*TIME        run_timer 15 ; *)
-        idtac "built terms" ;  
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
 (*TIME          stop_timer 15 ; *)
 (*TIME          run_timer 16 ; *)
-        idtac "14" ; 
         ((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (SymILTac.ILAlgoTypes.Algos ext typesV)
@@ -415,8 +383,11 @@ Ltac cancel_simplifier :=
     SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
     SEP.SHeap_empty
 
-    SEP.sepCancel SEP.unify_remove_all SEP.unify_remove SEP.unifyArgs
-    SEP.fold_left_3_opt
+    SEP.sepCancel SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt
+    (*SEP.unify_remove_all*) 
+    SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
+    SEP.order_impures Ordering.sort Ordering.insert_in_order
+    SEP.cancel_in_order
 
     SEP.sheapD SEP.starred
     SEP.himp

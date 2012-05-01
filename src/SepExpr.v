@@ -358,8 +358,14 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; other   := other s
        |}.
 
+    Definition multimap_add T (k : nat) (v : T) (m : FM.t (list T)) : FM.t (list T) :=
+      match FM.find k m with
+        | None => FM.add k (v :: nil) m
+        | Some v' => FM.add k (v :: v') m
+      end.
+
     Definition multimap_join T : FM.t (list T) -> FM.t (list T) -> FM.t (list T) :=
-      FM.fold (fun k v a =>
+      FM.fold (fun k v a => 
         match FM.find k a with
           | None => FM.add k v a
           | Some v' => FM.add k (v ++ v') a
@@ -940,7 +946,7 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
             else exprUnify bound l r acc)
         l r ts sub.
 
-    Fixpoint unify_remove (bound : nat) (summ : Facts Prover) (l : list (expr types)) (ts : list tvar) (r : list (list (expr types)))
+    Fixpoint unify_remove (bound : nat) (summ : Facts Prover) (l : exprs types) (ts : list tvar) (r : list (exprs types))
       (sub : Subst types)
       : option (list (list (expr types)) * Subst types) :=
         match r with 
@@ -955,7 +961,7 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
               | Some sub => Some (b, sub)
             end
         end.
-
+(*
     Fixpoint unify_remove_all (bound : nat) (summ : Facts Prover) (l r : list (list (expr types))) (ts : list tvar)
       (sub : Subst types)
       : list (list (expr types)) * list (list (expr types)) * Subst types :=
@@ -970,27 +976,71 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
                 unify_remove_all bound summ b r ts sub
             end
         end.
+*)
+
+    Require Ordering.
+
+    Definition cancel_list : Type := 
+      list (exprs types * nat).
+
+    (** This function determines whether an expression [l] is more "defined"
+     ** than an expression [r]. An expression is more defined if it "uses UVars later".
+     ** NOTE: This is a "fuzzy property" but correctness doesn't depend on it.
+     **)
+    Fixpoint expr_count_meta (e : expr types) : nat :=
+      match e with
+        | Expr.Const _ _
+        | Var _ => 0
+        | UVar _ => 1
+        | Not l => expr_count_meta l
+        | Equal _ l r => expr_count_meta l + expr_count_meta r
+        | Expr.Func _ args =>
+          fold_left plus (map expr_count_meta args) 0
+      end.
+
+    Definition meta_order_args (l r : exprs types) : Datatypes.comparison :=
+      let cmp l r := Compare_dec.nat_compare (expr_count_meta l) (expr_count_meta r) in
+      Ordering.list_lex_cmp _ cmp l r.
+
+
+    Definition meta_order_funcs (l r : exprs types * nat) : Datatypes.comparison :=
+      match meta_order_args (fst l) (fst r) with
+        | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
+        | x => x
+      end.
+
+    Definition order_impures (imps : FM.t (list (exprs types))) : cancel_list :=
+      FM.fold (fun k => fold_left (fun (acc : cancel_list) (args : exprs types) => 
+        Ordering.insert_in_order _ meta_order_funcs (args, k) acc)) imps nil.
+    
+    Fixpoint cancel_in_order (bound : nat) (summ : Facts Prover) 
+      (ls : cancel_list) (acc rem : FM.t (list (exprs types))) (sub : Subst types) 
+      : FM.t (list (exprs types)) * FM.t (list (exprs types)) * Subst types :=
+      match ls with
+        | nil => (acc, rem, sub)
+        | (args,f) :: ls => 
+          match FM.find f rem with
+            | None => cancel_in_order bound summ ls (multimap_add f args acc) rem sub
+            | Some argss =>
+              match nth_error sfuncs f with
+                | None => cancel_in_order bound summ ls (multimap_add f args acc) rem sub (** Unused! **)
+                | Some ts => 
+                  match unify_remove bound summ args (SDomain ts) argss sub with
+                    | None => cancel_in_order bound summ ls (multimap_add f args acc) rem sub
+                    | Some (rem', sub) =>
+                      cancel_in_order bound summ ls acc (FM.add f rem' rem) sub
+                  end
+              end                      
+          end
+      end.
 
     (** TODO: this function signature is going to change **)
     Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SHeap) :
       SHeap * SHeap * Subst types :=
+      let ordered_l := order_impures (impures l) in
+      let sorted_r := FM.map (fun _ v => Ordering.sort _ meta_order_args v) (impures r) in 
       let '(lf, rf, sub) := 
-        FM.fold (fun k v a => 
-          let '(lf, rf, sub) := a in
-          match FM.find k rf with
-            | None => (FM.add k v lf, rf, sub)
-            | Some xs =>
-              match nth_error sfuncs k with
-                | None => (* should never happen *)
-                  (FM.add k v lf, rf, sub)
-                | Some sf =>
-                  let ts  := SDomain sf in
-                  let '(l,r,sub) := unify_remove_all bound summ v xs ts sub in
-                  (FM.add k l lf, FM.add k r rf, sub)
-              end
-          end)
-        (impures l)
-        (FM.empty , impures r , empty_Subst _)
+        cancel_in_order bound summ ordered_l FM.empty sorted_r (empty_Subst _)
       in
       ({| impures := lf ; pures := pures l ; other := other l |},
        {| impures := rf ; pures := pures r ; other := other r |},
@@ -1006,7 +1056,6 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
       intros. repeat rewrite sheapD_sheapD'. repeat rewrite sheapD_sheapD' in H1.
       destruct l'; destruct r'. unfold sheapD' in *. simpl in *.
     Admitted.
-
 
   End env.
 

@@ -1,7 +1,7 @@
 #SymEvalTests
 
 MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
-	GenRec \
+	GenRec Ordering \
 	Nomega Word IL LabelMap \
 	PropX PropXRel PropXTac \
 	Memory \
