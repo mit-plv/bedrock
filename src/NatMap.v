@@ -5,8 +5,6 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition eq := @eq nat. 
   Definition lt := @lt.
 
-  About OrderedType.OrderedType.
-
   Theorem eq_refl : forall x, eq x x.
     reflexivity.
   Qed.
@@ -29,11 +27,13 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
   Qed.
 
   Definition compare (x y : t) : OrderedType.Compare lt eq x y :=
-    match Compare_dec.lt_eq_lt_dec x y with 
-      | inleft (left pf) => OrderedType.LT pf
-      | inleft (right pf) => OrderedType.EQ pf
-      | inright pf => OrderedType.GT pf
-    end.
+    match Compare_dec.nat_compare x y as r return
+      Compare_dec.nat_compare x y = r -> OrderedType.Compare lt eq x y
+      with 
+      | Lt => fun pf => OrderedType.LT _ (nat_compare_Lt_lt _ _ pf)
+      | Eq => fun pf => OrderedType.EQ _ (Compare_dec.nat_compare_eq _ _ pf)
+      | Gt => fun pf => OrderedType.GT (lt:=lt) _ (nat_compare_Gt_gt _ _ pf)
+    end (refl_equal _).
 
   Definition eq_dec : forall x y : nat, {x = y} + {x <> y} := 
     Peano_dec.eq_nat_dec.
