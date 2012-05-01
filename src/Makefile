@@ -2,7 +2,7 @@
 
 MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	GenRec Ordering \
-	Nomega Word IL LabelMap \
+	Nomega Word Labels LabelMap \
 	PropX PropXRel PropXTac \
 	Memory \
 	XCAP Structured StructuredModule Linker Programming \
@@ -14,6 +14,7 @@ MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
 	Unfolder \
 	Env TypedPackage \
 	SymEval sep/PtsTo \
+	IL \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \
 	ILTac \

@@ -842,16 +842,6 @@ Ltac sym_eval isConst ext simplifier :=
 (*                      run_timer 108 ; *)
                       first [ simplifier H | fail 100000 "simplifier failed!" ] ;
 (*                      stop_timer 108 ; *)
-(*                      run_timer 109 ;
-                      repeat match goal with
-                               | [ H : Logic.ex _ |- _ ] => destruct H
-                               | [ H : _ /\ _ |- _ ] => destruct H
-                               | [ H : True |- _ ] => clear H
-                               | [ H : ?E = ?E |- _ ] => clear H
-                               | _ => progress subst
-                             end;
-(*                      stop_timer 109 ; *)
-*)
 (*                      run_timer 110 ; *)
                       ((try exact H) ||
                        (let rec destruct_exs H :=
