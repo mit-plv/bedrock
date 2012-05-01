@@ -116,7 +116,7 @@ Section hide_hints'.
 
   Lemma elim_compare_eq :
    forall x y : t,
-   eq x y -> exists H : eq x y, compare x y = EQ _ H.
+   eq x y -> exists H : eq x y, compare x y = EQ H.
   Proof.
    intros; case (compare x y); intros H'; try (exfalso; order).
    exists H'; auto.
@@ -124,7 +124,7 @@ Section hide_hints'.
 
   Lemma elim_compare_lt :
    forall x y : t,
-   lt x y -> exists H : lt x y, compare x y = LT _ H.
+   lt x y -> exists H : lt x y, compare x y = LT H.
   Proof.
    intros; case (compare x y); intros H'; try (exfalso; order).
    exists H'; auto.
@@ -132,7 +132,7 @@ Section hide_hints'.
 
   Lemma elim_compare_gt :
    forall x y : t,
-   lt y x -> exists H : lt y x, compare x y = GT _ H.
+   lt y x -> exists H : lt y x, compare x y = GT H.
   Proof.
    intros; case (compare x y); intros H'; try (exfalso; order).
    exists H'; auto.
