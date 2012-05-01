@@ -98,10 +98,10 @@ Section env.
   Inductive expr : Type :=
   | Const : forall t : tvar, tvarD t -> expr
   | Var : forall x : var, expr
-  | UVar : forall x : uvar, expr
   | Func : forall f : func, list expr -> expr
   | Equal : tvar -> expr -> expr -> expr
-  | Not : expr -> expr.
+  | Not : expr -> expr
+  | UVar : forall x : uvar, expr.
 
   Definition exprs : Type := list expr.
 

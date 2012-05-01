@@ -242,15 +242,16 @@ Ltac hints_ext_simplifier hints := fun H =>
          Peano_dec.eq_nat_dec
          nat_eq_eqdec
          EquivDec_SemiDec
+         Compare_dec.nat_compare
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
          SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
-         SEP.SHeap_empty SEP.sepCancel SEP.unify_remove_all
+         SEP.SHeap_empty SEP.sepCancel 
          SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
          SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
          SEP.SDenotation SEP.SDomain nat_eq_eqdec
-         SEP.sheapD SEP.sepCancel SEP.star_SHeap SEP.unify_remove_all
+         SEP.sheapD SEP.sepCancel SEP.star_SHeap 
          SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred
          SEP.himp SEP.sexprD SEP.pures SEP.impures
          SEP.other SEP.star_SHeap SEP.liftSHeap
@@ -266,6 +267,12 @@ Ltac hints_ext_simplifier hints := fun H =>
          SepExpr.FM.fold SepExpr.FM.find
          SepExpr.FM.add SepExpr.FM.empty
          SEP.impures SEP.pures SEP.other
+         (* SEP.unify_remove_all *)
+         SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
+         SEP.order_impures 
+         SEP.cancel_in_order
+         Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
+         SEP.multimap_add
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 
@@ -280,9 +287,9 @@ Ltac hints_ext_simplifier hints := fun H =>
          well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
 
          (** List Functions **)
-         tl hd_error app nth_error value error fold_right hd
-         nth_error map Datatypes.length fold_right firstn skipn rev
-         rev_append Datatypes.length map app rev_append map app
+         tl hd_error value error hd
+         nth_error Datatypes.length fold_right firstn skipn rev
+         rev_append map app fold_left
 
          (** Aux Functions **)
          fst snd projT1 projT2 Basics.impl value error 
@@ -470,15 +477,16 @@ cbv beta iota zeta
          Peano_dec.eq_nat_dec
          nat_eq_eqdec
          EquivDec_SemiDec
+         Compare_dec.nat_compare
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
          SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
-         SEP.SHeap_empty SEP.sepCancel SEP.unify_remove_all
+         SEP.SHeap_empty SEP.sepCancel 
          SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
          SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
          SEP.SDenotation SEP.SDomain nat_eq_eqdec
-         SEP.sheapD SEP.sepCancel SEP.star_SHeap SEP.unify_remove_all
+         SEP.sheapD SEP.sepCancel SEP.star_SHeap 
          SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred
          SEP.himp SEP.sexprD SEP.pures SEP.impures
          SEP.other SEP.star_SHeap SEP.liftSHeap
@@ -494,6 +502,12 @@ cbv beta iota zeta
          SepExpr.FM.fold SepExpr.FM.find
          SepExpr.FM.add SepExpr.FM.empty
          SEP.impures SEP.pures SEP.other
+         (* SEP.unify_remove_all *)
+         SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
+         SEP.order_impures 
+         SEP.cancel_in_order
+         Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
+         SEP.multimap_add
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 
@@ -508,9 +522,9 @@ cbv beta iota zeta
          well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
 
          (** List Functions **)
-         tl hd_error app nth_error value error fold_right hd
-         nth_error map Datatypes.length fold_right firstn skipn rev
-         rev_append Datatypes.length map app rev_append map app
+         tl hd_error value error hd
+         nth_error Datatypes.length fold_right firstn skipn rev
+         rev_append map app fold_left
 
          (** Aux Functions **)
          fst snd projT1 projT2 Basics.impl value error 
