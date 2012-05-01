@@ -30,9 +30,9 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
     match Compare_dec.nat_compare x y as r return
       Compare_dec.nat_compare x y = r -> OrderedType.Compare lt eq x y
       with 
-      | Lt => fun pf => OrderedType.LT _ (nat_compare_Lt_lt _ _ pf)
-      | Eq => fun pf => OrderedType.EQ _ (Compare_dec.nat_compare_eq _ _ pf)
-      | Gt => fun pf => OrderedType.GT (lt:=lt) _ (nat_compare_Gt_gt _ _ pf)
+      | Lt => fun pf => OrderedType.LT (lt:=lt) (nat_compare_Lt_lt _ _ pf)
+      | Eq => fun pf => OrderedType.EQ (lt:=lt) (Compare_dec.nat_compare_eq _ _ pf)
+      | Gt => fun pf => OrderedType.GT (lt:=lt) (nat_compare_Gt_gt _ _ pf)
     end (refl_equal _).
 
   Definition eq_dec : forall x y : nat, {x = y} + {x <> y} := 
