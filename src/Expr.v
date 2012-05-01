@@ -1199,7 +1199,9 @@ Ltac get_or_extend_var types all t v k :=
     match rem with
       | nil => 
         (** NOTE: reification as levels **)
-        let all := eval simpl app in (all ++ (@existT tvar (tvarD types) t v) :: nil) in
+        let all := 
+          eval simpl app in (all ++ (@existT tvar (tvarD types) t v) :: nil)
+        in
         k all acc
       | @existT _ _ _ ?v' :: _ => evar_match v v' ; k all acc
       | _ :: ?rem =>

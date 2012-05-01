@@ -68,15 +68,15 @@ Module Type SepExprType.
           | Const p => p
         end.
 
-    Definition himp (meta_env var_env : env types)
-      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-      (gl gr : sexpr) : Prop :=
-      ST.himp cs (sexprD meta_env var_env gl) (sexprD meta_env var_env gr).
+      Definition himp (meta_env var_env : env types)
+        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+        (gl gr : sexpr) : Prop :=
+        ST.himp cs (sexprD meta_env var_env gl) (sexprD meta_env var_env gr).
 
-    Definition heq (meta_env var_env : env types)
-      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-      (gl gr : sexpr) : Prop :=
-      ST.heq cs (sexprD meta_env var_env gl) (sexprD meta_env var_env gr).
+      Definition heq (meta_env var_env : env types)
+        (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+        (gl gr : sexpr) : Prop :=
+        ST.heq cs (sexprD meta_env var_env gl) (sexprD meta_env var_env gr).
 
     End funcs_preds.
 
@@ -610,6 +610,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         apply ST.satisfies_pure in H; propxFo.
     Qed.
 
+(*
     Lemma insert_at_right_star : forall a c cs i1 i2 b, 
       heq a c cs (FM.fold
         (fun (k : nat) (ls : list (list (expr types)))
@@ -640,14 +641,15 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       reflexivity. rewrite fold_starred. symmetry; rewrite heq_star_comm.
       rewrite heq_star_assoc. reflexivity.
     Qed.
+*)
 
     Lemma sheapD_pull_impure : forall a c cs h f argss,
       FM.find f (impures h) = Some argss ->
       heq a c cs (sheapD h)
-                   (Star (sheapD {| impures := FM.remove f (impures h)
-                                  ; pures   := pures h
-                                  ; other   := other h |})
-                         (starred (Func f) argss Emp)).
+                 (Star (sheapD {| impures := FM.remove f (impures h)
+                                ; pures   := pures h
+                                ; other   := other h |})
+                       (starred (Func f) argss Emp)).
     Proof.
       intros. 
       repeat rewrite sheapD_sheapD'.
@@ -668,9 +670,11 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite heq_star_comm. reflexivity.
 
       (** **)
+(*
       simpl in *.
-      generalize dependent H. clear.
-      induction impures0; simpl; try congruence.
+      repeat rewrite FM.Proofs.fold_1.      
+
+
       destruct (Compare_dec.lt_eq_lt_dec f n); [ destruct s | ]; simpl.
       intros. specialize (IHimpures0_1 H).
       rewrite fold_starred. symmetry. rewrite fold_starred.
@@ -691,7 +695,8 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
       symmetry. rewrite heq_star_comm. rewrite heq_star_assoc.
       reflexivity.
-    Qed.
+*)
+    Admitted.
 
     Lemma heq_ex : forall X Y cs t P Q,
       (forall v : tvarD types t, heq X (existT (tvarD types) t v :: Y) cs P Q) ->
