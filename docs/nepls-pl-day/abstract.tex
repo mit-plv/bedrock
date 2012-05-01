@@ -1,0 +1,30 @@
+\documentclass{article}
+
+\usepackage{hyperref}
+
+\begin{document}
+
+\noindent \textbf{Title}:
+
+\noindent A Framework for Verifying Low-level Programs
+\vspace{1em}
+
+\noindent \textbf{Authors}:
+
+\noindent Gregory Malecha\footnote{Corresponding author: \texttt{gmalecha@cs.harvard.edu}} (Harvard University) 
+
+\noindent Thomas Braibant, Adam Chlipala, Patrick Hulin, and Edward Yang (MIT)
+
+\vspace{1em} 
+
+\noindent \textbf{Abstract}:
+
+High level languages provide abstractions that assist programmers; however these abstractions are not always sufficient and, in some cases, they get in the way of writing efficient or functioning correct code. In this work we develop Bedrock2, a Coq framework for foundational reasoning about low-level programs using a program logic based on Ni and Shao's XCAP~\cite{ni2007xcap}. Bedrock2 is an extension and rewrite of Chlipala's Bedrock language~\cite{chlipala2011bedrock}.
+
+Bedrock2 allows programmers to define both control and data abstractions and integrate them into the system in a first-class way. Control abstractions, e.g. conditionals and function calls, are defined by providing a denotation into the core language and derived inference rules are verified in a foundational way with respect to the core language semantics. These inference rules are used by the verification condition generator simplify the proof obligations provided to the programmer. Verification conditions are expressed as pre- and post-conditions on execution traces allowing the bulk of the work to be done by symbolic evaluation. Unlike Bedrock, the Bedrock2 symbolic evaluator incorporates user-defined abstract predicates to enable efficient manipulation of arrays, structures, stack frames, and other data abstractions. Final verification conditions are discharged using a cancellation-based separation logic prover. Proofs are generated using computational reflection to enable good performance that, experiences suggest, will scale to larger programs than previous work. Bedrock2 embraces a more realistic machine model that exposes machine word sizes, byte ordering, and finite memory. We are working to extend the language to more interesting abstractions, real assembly languages, and concurrency.
+
+\bibliography{bib.bib}
+\bibliographystyle{plain}
+
+
+\end{document}
