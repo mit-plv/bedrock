@@ -225,7 +225,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          eq_sym f_equal 
          nat_rect eq_ind eq_rec eq_rect
          eq_sym
-         DepList.eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
+         eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
          sumbool_rec sumbool_rect
          sumbool_rec sumbool_rect
          sumor_rec sumor_rect
@@ -299,7 +299,7 @@ Ltac hints_ext_simplifier hints := fun H =>
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
-         DepList.eq_sym
+         eq_sym
 
 (*
              find 
@@ -460,7 +460,7 @@ cbv beta iota zeta
          eq_sym f_equal 
          nat_rect eq_ind eq_rec eq_rect
          eq_sym
-         DepList.eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
+         eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
          sumbool_rec sumbool_rect
          sumbool_rec sumbool_rect
          sumor_rec sumor_rect
@@ -534,7 +534,7 @@ cbv beta iota zeta
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
-         DepList.eq_sym
+         eq_sym
 
 (*
              find 

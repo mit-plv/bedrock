@@ -1196,19 +1196,24 @@ Module ReifySepExpr (Import SEP : SepExprType).
    ** to reify_function except that it works on separation logic functions.
    **)
   Ltac reify_sfunction pcT stT types f :=
-    let T := type of f in
-    let rec refl dom T :=
-      match T with
+    match f with
+      | fun _ => _ =>
+        constr:(@SSig types pcT stT (@nil tvar) f)
+      | _ =>
+        let T := type of f in
+          let rec refl dom T :=
+            match T with
         (* no dependent types *)
-        | ?A -> ?B =>
-          let A := reflectType types A in
-          let dom := constr:(A :: dom) in
-          refl dom B 
-        | _ =>
-          let dom := eval simpl rev in (rev dom) in
-          constr:(@SSig types pcT stT dom f)
-      end
-   in refl (@nil tvar) T.
+              | ?A -> ?B =>
+                let A := reflectType types A in
+                  let dom := constr:(A :: dom) in
+                    refl dom B 
+              | _ =>
+                let dom := eval simpl rev in (rev dom) in
+                  constr:(@SSig types pcT stT dom f)
+            end
+            in refl (@nil tvar) T
+    end.
 
   (** get the index for a separation logic predicate. this is analagous
    ** to getFunction.

@@ -91,7 +91,7 @@ Coercion natToW: nat >-> W.
 Definition NToW (n : N) : W := NToWord _ n.
 Coercion NToW : N >-> W.
 
-Definition labl (mod func : string) : label := (mod, Global func).
+Definition labl (modl func : string) : label := (modl, Global func).
 
 Infix "!" := labl (at level 0, only parsing) : SP_scope.
 

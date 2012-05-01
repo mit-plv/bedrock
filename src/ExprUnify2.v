@@ -153,7 +153,7 @@ Section typed.
 
     Fixpoint dep_in (ls rs : list (expr types)) (sub : Subst) : (forall l, In l ls -> In l LS) -> option Subst.
     refine (
-      match ls , rs with
+      match ls as ls , rs as rs return (forall l, In l ls -> In l LS) -> option Subst with
         | nil , nil => fun _ => Some sub
         | l :: ls , r :: rs => fun pf_trans =>
           match F l r sub _ with

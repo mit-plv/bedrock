@@ -205,9 +205,9 @@ Module LabelKey.
 
     Definition compare (x y : t) : Structures.OrderedType.Compare lt eq x y.
       refine (match compare' x y as c return c = compare' x y -> Structures.OrderedType.Compare lt eq x y with
-                | Datatypes.Lt => fun _ => Structures.OrderedType.LT _ _
-                | Datatypes.Eq => fun _ => Structures.OrderedType.EQ _ _
-                | Gt => fun _ => Structures.OrderedType.GT _ _
+                | Datatypes.Lt => fun _ => Structures.OrderedType.LT _
+                | Datatypes.Eq => fun _ => Structures.OrderedType.EQ _
+                | Gt => fun _ => Structures.OrderedType.GT _
               end (refl_equal _)); abstract (unfold compare', eq, lt in *;
                 repeat match goal with
                          | [ H : context[if ?E then _ else _] |- _ ] => let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq);

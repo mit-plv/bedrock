@@ -69,8 +69,9 @@ Section imports.
     forall stn st specs, interp specs (pre (stn, st))
       -> evalInstrs stn st is <> None.
 
-  Ltac lomega := (let H := fresh in intro H; injection H; clear H; intro; try subst; simpl in *; congruence || nomega)
-    || (repeat match goal with
+  Ltac lomega := (let H := fresh in intro H; discriminate
+    || injection H; clear H; intro; try subst; simpl in *; congruence || nomega)
+  || (repeat match goal with
                  | [ |- eq (A := ?A) _ _ ] =>
                    match A with
                      | N => fail 1
@@ -190,6 +191,11 @@ Section imports.
 
   Hint Resolve Forall_app.
 
+  Hint Extern 1 (LabelMap.MapsTo ?k _ _) =>
+    match goal with
+      | [ H : snd k = _ |- _ ] => destruct k; simpl in *; subst
+    end.
+
   Lemma imps_imports : forall exit post k v bls base,
     LabelMap.MapsTo k v imports
     -> LabelMap.MapsTo k v (imps bls base exit post).
@@ -197,6 +203,7 @@ Section imports.
     destruct (imports_global H).
     auto.
     destruct (imports_global H).
+    destruct k; simpl in *; subst.
     auto.
   Qed.
 
@@ -566,7 +573,7 @@ Section imports.
     apply LabelFacts.add_mapsto_iff in H; simpl in *; intuition; subst.
     eauto.
     destruct (imports_global H4).
-    eauto.
+    eauto 6.
 
     apply LabelFacts.add_mapsto_iff in H; simpl in *; intuition; subst.
     eauto.

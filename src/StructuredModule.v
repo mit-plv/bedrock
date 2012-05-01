@@ -27,13 +27,13 @@ Section module.
    * First, we build a version for only the external functions. *)
 
   Definition importsMap : LabelMap.t assert :=
-    List.fold_left (fun m p => let '(mod, f, pre) := p in
-      LabelMap.add (mod, Global f) pre m) imports (LabelMap.empty _).
+    List.fold_left (fun m p => let '(modl, f, pre) := p in
+      LabelMap.add (modl, Global f) pre m) imports (LabelMap.empty _).
 
   Lemma importsMapGlobal' : forall (im : list import) m,
     importsGlobal m
-    -> importsGlobal (List.fold_left (fun m p => let '(mod, f, pre) := p in
-      LabelMap.add (mod, Global f) pre m) im m).
+    -> importsGlobal (List.fold_left (fun m p => let '(modl, f, pre) := p in
+      LabelMap.add (modl, Global f) pre m) im m).
     unfold importsGlobal; induction im as [ | [ ] ]; simpl; intuition.
     apply IHim in H0; auto.
     intros.
@@ -145,10 +145,10 @@ Section module.
   Qed.
 
   Hypothesis NoDupFunc :
-    match (List.fold_left (fun mOpt p => let '(mod, _, _) := p in
+    match (List.fold_left (fun mOpt p => let '(modl, _, _) := p in
       match mOpt with
         | None => None
-        | Some m => let k := (mod, Local 0) in
+        | Some m => let k := (modl, Local 0) in
           if LabelMap.mem k m then None
           else Some (LabelMap.add k tt m)
       end) functions (Some (LabelMap.empty unit))) with
