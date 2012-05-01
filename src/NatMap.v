@@ -40,12 +40,6 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
 End Ordered_nat.
 
-Require HintlessFMapAVL.
-
-Require ZArith.Int.
-
-(*Module IntMap := HintlessFMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat. *)
-
 Module IntMap.
 
   Section parametric.
