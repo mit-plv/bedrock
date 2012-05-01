@@ -1137,7 +1137,7 @@ Lemma join_bst : forall l x d r, bst l -> bst r ->
  lt_tree x l -> gt_tree x r -> bst (join l x d r).
 Proof.
  join_tac; auto; try (simpl; auto; fail); inv bst; apply bal_bst; auto;
- clear Hrl Hlr z; intro; intros; rewrite join_in in *.
+ clear Hrl Hlr; intro; intros; rewrite join_in in *.
  intuition; [ apply MX.lt_eq with x | ]; eauto.
  intuition; [ apply MX.eq_lt with x | ]; eauto.
 Qed.

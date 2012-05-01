@@ -662,7 +662,7 @@ Section machine.
 
     Hint Resolve Init Inj_R Cptr_R And_R Or_R1 Or_R2 Imply_R Forall_R Exists_R ForallX_R ExistsX_R.
 
-    Ltac ready con := eapply con; solve [ instantiate; eauto ].
+    Ltac ready con := eapply con; solve [ instantiate; eauto 7 ].
 
     Ltac doLeft := intros;
       ready Inj_L || ready Cptr_L || ready And_L1 || ready And_L2 || ready Or_L
@@ -810,79 +810,48 @@ Section machine.
       intros; exact (destruct_PropX' P).
     Qed.
 
-    Ltac intuitionPlus := try tauto; repeat match goal with
-                                              | [ H : ex _ |- _ ] => destruct H
-                                              | [ H : _ /\ _ |- _ ] => destruct H
-                                            end; solve [ eauto ].
-
-    Hint Extern 1 (seq _ _) =>
-      match goal with
-        | [ H : _, arg : _,
-            H' : match ?P with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
-                   | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _
-                   | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end |- _ ] =>
-          solve [ (apply H with P || apply H with arg P); eauto; generalize H'; clear; generalize dependent P;
-            match goal with
-              | [ |- forall P' : propX ?NIL, _ ] => generalize NIL
-            end; destruct P; intuition; match goal with
-                                          | [ G : list Type |- _ ] => destruct G; firstorder; eauto
-                                        end ]
-      end.
-
     Ltac innerPredicative := let GG := fresh "GG" in induction 1; intro GG; destruct GG; intuition;
+      try match goal with
+            | [ H1 : incl _ _, H2 : In _ _ |- _ ] => generalize (H1 _ H2); simpl; intuition; subst; intuition
+          end;
+      repeat match goal with
+               | [ H : _ -> forall GG : list Type, _ |- _ ] => specialize (fun pf => H pf nil); simpl in H
+               | [ H : forall GG : list Type, _ |- _ ] => specialize (H nil); simpl in H
+             end;
+      doLeft || solve [ eauto ]
+        || (try match goal with
+                  | [ _ : match ?P with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
+                            | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _
+                            | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end |- _ ] => specialize (destruct_PropX P); intro;
+                  repeat match goal with
+                           | [ H : _ \/ _ |- _ ] => destruct H
+                           | [ H : ex _ |- _ ] => destruct H
+                         end; subst; intuition
+                end;
         try match goal with
-              | [ H1 : incl _ _, H2 : In _ _ |- _ ] => generalize (H1 _ H2); simpl; intuition; subst; intuition
+              | [ H : ex _ |- _ ] => destruct H
             end;
         repeat match goal with
-                 | [ H : _ -> forall GG : list Type, _ |- _ ] => specialize (fun pf => H pf nil); simpl in H
-                 | [ H : forall GG : list Type, _ |- _ ] => specialize (H nil); simpl in H
+                 | [ _ : incl _ (?P :: _), H : forall P' : propX nil, _ |- _ ] =>
+                   specialize (H P); simpl in H
+                 | [ _ : incl _ (?P :: _), H : forall pf (P' : propX nil), _ |- _ ] =>
+                   eapply Exists_L; [ solve [ eauto ] | intro witness;
+                     specialize (H witness P); simpl in H ]
+                 | [ _ : incl _ (?P :: _), x : _, H : forall pf (P' : propX nil), _ |- _ ] =>
+                   specialize (H x P); simpl in H 
                end;
-        doLeft || solve [ eauto ]
-          || match goal with
-               | [ _ : match ?P with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
-                         | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _
-                         | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end |- _ ] => solve [ specialize (destruct_PropX P); firstorder; subst; intuitionPlus ]
-             end
-          || (try match goal with
-                    | [ H : ex _ |- _ ] => destruct H
-                  end;
-          match goal with
-            | [ H : _, _ : incl _ (?P :: _) |- _ ] => 
-              solve [ apply H with P; eauto ]
-            | [ G0 : list PropX, _ : incl _ (Imply ?P ?Q :: _), HP : forall PG0 : list _, _, IHP : forall P' : propX _, _,
-              HQ : forall PG0 : list _, _, IHQ : forall P' : propX _, _ |- _ ] =>
-            match type of HP with
-              | context[P] =>
-                match type of IHP with
-                  | context[P] =>
-                    match type of HQ with
-                      | context[Q] =>
-                        match type of IHQ with
-                          | context[Q] => apply HQ with (Q :: G0); eauto; [
-                            apply IHQ with (Imply P Q); eauto
-                            | apply HP with (P :: G0); eauto;
-                              apply IHP with (Imply P Q); eauto ]
-                        end
-                    end
-                end
+        match goal with
+          | [ H : _, G0 : _, P1 : propX nil |- _ ] => 
+            solve [ apply H with (P1 :: G0); auto ]
+          | [ H : _, G0 : _, P1 : _ -> propX nil, A : Type |- _ ] => 
+            match goal with
+            | [ B : A |- _ ] => solve [ apply H with B (P1 B :: G0); eauto ]
             end
-            | [ H : _, G0 : _, P1 : propX nil, P2 : propX nil |- _ ] => 
-              apply H with (P1 :: G0); eauto;
-                match goal with
-                  | [ IH : _ |- _ ] => solve [ apply IH with (And P1 P2); eauto 6
-                    | apply IH with (And P2 P1); eauto 6
-                    | apply IH with (Or P1 P2); eauto
-                    | apply IH with (Or P2 P1); eauto ]
-                end
-            | [ H : _, B : _, G0 : _, P : _ |- _ ] => 
-              apply H with B (P B :: G0); eauto;
-                match goal with
-                  | [ IH : _ |- _ ] => solve [ apply IH with (Forall P); eauto
-                    | apply IH with B (Exists P); eauto
-                    | apply IH with (ForallX P); eauto
-                    | apply IH with B (ExistsX P); eauto ]
-                end
-          end).
+          | _ => solve [ eauto | doLeft ]
+          | [ H : _, G0 : _, P1 : propX nil |- _ ] => 
+            solve [ apply H with (P1 :: G0); eauto ]
+          | _ => solve [ eauto 8 ]
+        end).
 
     Lemma inner_Inj : forall PG Q, seq PG Q
       -> forall (GG : list Type) (P' : propX GG) (G : list PropX),
@@ -1109,7 +1078,11 @@ Section machine.
         try match goal with
               | [ |- match ?E with Inj _ _ => _ | Cptr _ _ _ => _ | And _ _ _ => _ | Or _ _ _ => _ | Imply _ _ _ => _
                        | Forall _ _ _ => _ | Exists _ _ _ => _ | Var0 _ _ _ => _ | Lift _ _ _ => _ | ForallX _ _ _ => _ | ExistsX _ _ _ => _ end ] =>
-              specialize (destruct_PropX E); firstorder; subst; intuition; doLeft
+              specialize (destruct_PropX E); intro;
+                repeat match goal with
+                         | [ H : _ \/ _ |- _ ] => destruct H
+                         | [ H : ex _ |- _ ] => destruct H
+                       end; subst; intuition; doLeft
             end;
         match goal with
           | [ H : _, _ : incl _ (?P :: _) |- _ ] => solve [ apply (inner_Inj H P); intuition
