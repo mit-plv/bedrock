@@ -2,11 +2,10 @@
 
 Require Import Ascii NArith String HintlessOrderedType HintlessFMapAVL.
 
-Require Import Nomega IL.
+Require Import Nomega Labels.
 
 Local Open Scope string_scope.
 Local Open Scope N_scope.
-
 
 Definition ascii_lt (a1 a2 : ascii) := N_of_ascii a1 < N_of_ascii a2.
 
@@ -106,6 +105,8 @@ Section hide_hints.
   Qed.
     
   Hint Resolve string_lt_sym.
+
+  
 
   Definition label'_lt (l1 l2 : label') : bool :=
     match l1, l2 with

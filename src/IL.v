@@ -1,6 +1,7 @@
 (** Definition of a simple intermediate language *)
 
-Require Import Arith Div2 List NArith String.
+Require Import Arith Div2 List NArith.
+Require Export Labels.
 
 Require Import Nomega Word Memory.
 
@@ -60,14 +61,6 @@ Inductive lvalue :=
 | LvMem : loc -> lvalue.
 
 Coercion LvReg : reg >-> lvalue.
-
-(* Basic block labels *)
-Inductive label' :=
-| Global : string -> label'
-| Local : N -> label'.
-
-(* An overall label is a pair of a module name and a sub-label. *)
-Definition label := prod string label'.
 
 (* Operands *)
 Inductive rvalue :=

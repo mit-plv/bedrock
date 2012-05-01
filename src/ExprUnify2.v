@@ -13,14 +13,6 @@ Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
 | R_Not    : forall e, R_expr e (Not e)
 | R_Func   : forall f args arg,
   In arg args -> R_expr arg (Func f args).
-
-(*
-Check Forall_forall.
-
-Lemma Forall_forall_comp : forall (A : Type) (P : A -> Prop) (l : list A),
-  Forall P l -> (forall x : A, In x l -> P x).
-Proof.
-*)
   
 Lemma wf_R_expr' ts : well_founded (@R_expr ts).
 Proof.  
@@ -412,63 +404,3 @@ Module TEST.
     compute.
   Abort.
 End TEST.
-
-(*
-
-
-  refine (
-    match l , r with
-      | Const t v , Const t' v' =>
-        match equiv_dec t t' with
-          | left pf => match pf in _ = k return tvarD _ k -> _ with
-                         | refl_equal => fun v' =>
-                           if get_Eq t v v'
-                           then Some sub
-                           else None
-                       end v'
-          | right _ => None
-        end
-      | Var v , Var v' =>
-        if Peano_dec.eq_nat_dec v v' 
-        then Some sub
-        else None
-      | Func f args , Func f' args' => None
-(*
-        match Peano_dec.eq_nat_dec f f' with
-          | left pf => None
-            fold_left_2_opt 
-            (fun (l r : expr types) (acc : Subst * Subst) =>
-              exprUnify l r (fst acc) (snd acc)) args args' (ls, rs)
-          | right _ => None
-        end
-*)
-      | Equal t1 e1 f1 , Equal t2 e2 f2 =>
-        if equiv_dec t1 t2 then
-          match exprUnify e1 e2 sub with
-            | None => None
-            | Some sub => exprUnify f1 f2 sub
-          end
-        else
-          None
-      | UVar u , _ => None
-(*
-        match Subst_lookup u sub with
-          | None => 
-            Some (Subst_replace u r ls, rs)
-          | Some r =>
-            if seq_dec l r then Some (ls, rs) else None
-        end
-*)
-      | _ , UVar u => None 
-(*
-        match Subst_lookup u rs with
-          | None => 
-            Some (ls, Subst_replace u l rs)
-          | Some r =>
-            if seq_dec l r then Some (ls, rs) else None
-        end
-*)
-      | _ , _ => None
-    end).
-  Defined.
-*)
