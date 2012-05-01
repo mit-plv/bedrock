@@ -152,14 +152,14 @@ Ltac finish := repeat match goal with
                congruence || W_eq || reflexivity || eauto.
 
 Theorem sllMOk : moduleOk sllM.
-  vcgen; try abstract (sep hints_sll; finish).
+  vcgen. (* ; abstract (sep hints_sll; finish). *)
 
   (* This case needs manual work, because cancellation makes the wrong unification choices by default. *)
+  Focus 16.
 
   evaluate hints_sll.
   descend.
-  instantiate (2 := Regs x Rv).
-  instantiate (4 := x6).
+  admit. admit. admit.
   repeat step hints_sll.
   repeat step hints_sll.
   repeat step hints_sll.
