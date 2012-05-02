@@ -100,24 +100,15 @@ Module Type SepExprType.
      **)
     Parameter sheapD : SHeap -> sexpr.
 
+    Parameter sheap_valid : SHeap -> Prop.
+
+    Parameter hash_valid : forall s, sheap_valid (snd (hash s)).
+
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
         | nil => fun x => x
         | t :: ts => fun y => Exists t (@existsEach ts y)
       end.
-
-
-(*
-    (** result of cancelation **)
-    Record SepResult (gl gr : sexpr) : Type :=
-    { r_vars   : variables
-    ; r_lhs_ex : variables
-    ; r_lhs    : SHeap
-    ; r_rhs_ex : variables
-    ; r_rhs    : SHeap
-    ; r_SUBST  : Subst types
-    }.
-*)
 
   End env.
 End SepExprType.
@@ -320,8 +311,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       clear. auto.
     Qed.
 
-    
-
     (** A more efficient representation for sexprs. **)
     Record SHeap : Type :=
     { impures : FM.t (list (list (expr types)))
@@ -329,11 +318,23 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
     ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
     }.
   
+    Definition sheap_valid (s : SHeap) : Prop :=
+      FM.bst (impures s).
+
     Definition SHeap_empty : SHeap := 
       {| impures := @FM.empty _
        ; pures   := nil
        ; other   := nil
        |}.
+
+    Hint Resolve FM.Proofs.map_bst FM.Proofs.add_bst FM.Proofs.remove_bst : bst_valid.
+
+    Theorem empty_valid : sheap_valid SHeap_empty.
+    Proof.
+      unfold sheap_valid; simpl; auto with bst_valid.
+    Qed.
+
+    Hint Resolve empty_valid : bst_valid.
 
     (** lift all the "real" variables in [a,...) 
      ** to the range [a+b,...)
@@ -353,10 +354,16 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
      ** to the range [a+b,...)
      **)
     Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
-      {| impures := FM.map (fun _ => map (map (liftExpr a b))) (impures s)
+      {| impures := FM.map (map (map (liftExpr a b))) (impures s)
        ; pures   := map (liftExpr a b) (pures s)
        ; other   := other s
        |}.
+
+    Lemma liftSExpr_valid : forall a b s, 
+      sheap_valid s -> sheap_valid (liftSHeap a b s).
+    Proof.
+      unfold sheap_valid; simpl; intros; auto with bst_valid.
+    Qed.
 
     Definition multimap_add T (k : nat) (v : T) (m : FM.t (list T)) : FM.t (list T) :=
       match FM.find k m with
@@ -364,12 +371,31 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         | Some v' => FM.add k (v :: v') m
       end.
 
+    Lemma multimap_add_valid : forall T k (v : T) m, 
+      FM.bst m ->
+      FM.bst (multimap_add k v m).
+    Proof.
+      unfold multimap_add; intros. destruct (FM.find k m); auto with bst_valid.
+    Qed.
+
     Definition multimap_join T : FM.t (list T) -> FM.t (list T) -> FM.t (list T) :=
       FM.fold (fun k v a => 
         match FM.find k a with
           | None => FM.add k v a
           | Some v' => FM.add k (v ++ v') a
         end).
+    
+    Lemma multimap_join_valid : forall T a b, 
+      FM.bst a -> FM.bst b -> FM.bst (@multimap_join T a b).
+    Proof.
+      unfold multimap_join; clear; intros.
+      rewrite FM.Proofs.fold_1; auto.
+      generalize dependent b.
+      induction (FM.elements a); simpl; intros; auto.
+      destruct (FM.find (fst a0) b); eapply IHl; auto with bst_valid.
+    Qed.
+
+    Hint Resolve multimap_add_valid multimap_join_valid : bst_valid.
 
     Fixpoint star_SHeap (l r : SHeap) : SHeap :=
       {| impures := multimap_join (impures l) (impures r)
@@ -377,11 +403,25 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; other := other l ++ other r
        |}.
 
+    Theorem star_SHeap_valid : forall a b, 
+      sheap_valid a -> sheap_valid b -> sheap_valid (star_SHeap a b).
+    Proof.
+      destruct a; destruct b; unfold sheap_valid; clear; simpl. auto with bst_valid.
+    Qed.
+
     Definition sheap_liftVars (from : nat) (delta : nat) (h : SHeap) : SHeap :=
-      {| impures := FM.map (fun _ => map (map (liftExpr from delta))) (impures h)
+      {| impures := FM.map (map (map (liftExpr from delta))) (impures h)
        ; pures := map (liftExpr from delta) (pures h)
        ; other := other h
        |}.
+
+    Lemma sheap_liftVars_valid : forall a b h, 
+      sheap_valid h -> sheap_valid (sheap_liftVars a b h).
+    Proof.
+      clear; destruct h; unfold sheap_valid; simpl; apply FM.Proofs.map_bst; auto.
+    Qed.
+
+    Hint Resolve sheap_liftVars_valid : bst_valid.
 
     (** CURRENTLY NOT USED **)
     Fixpoint substV types (vs : list nat) (e : expr types) : expr types :=
@@ -403,7 +443,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       match s with
         | Emp => (nil, SHeap_empty)
         | Inj p => (nil,
-          {| impures := FM.empty
+          {| impures := FM.empty _
            ; pures := p :: nil
            ; other := nil
            |})
@@ -418,7 +458,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
           (t :: v, b)
         | Func f a =>
           (nil,
-           {| impures := FM.add f (a :: nil) FM.empty
+           {| impures := NatMap.singleton f (a :: nil)
             ; pures := nil
             ; other := nil
            |})
@@ -429,6 +469,22 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
             ; other := c :: nil
             |})
       end.
+
+    Lemma bst_singleton : forall T k (v : T), FM.bst (NatMap.singleton k v).
+    Proof.
+      unfold NatMap.singleton. intros. eauto with bst_valid.
+    Qed.
+
+    Hint Resolve bst_singleton : bst_valid.
+
+    Theorem hash_valid : forall s, sheap_valid (snd (hash s)).
+    Proof.
+      clear.
+      Opaque FM.add.
+      induction s; simpl in *; repeat match goal with
+                                        | [ |- context [ hash ?S ] ] => destruct (hash S)
+                                      end; unfold sheap_valid; simpl in *; eauto with bst_valid.
+    Qed.
  
     Definition starred (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
       : sexpr :=
@@ -610,40 +666,19 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         apply ST.satisfies_pure in H; propxFo.
     Qed.
 
-(*
-    Lemma insert_at_right_star : forall a c cs i1 i2 b, 
-      heq a c cs (FM.fold
-        (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr) =>
-          Star (starred' (Func k) ls Emp) acc)
-        (FM.insert_at_right i1 i2) b)
-      (Star (FM.fold
-        (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr) =>
-          Star (starred' (Func k) ls Emp) acc)
-        i1 Emp)
-      (FM.fold
-        (fun (k : nat) (ls : list (list (expr types)))
-          (acc : sexpr) =>
-          Star (starred' (Func k) ls Emp) acc)
-        i2 b)).
+    Lemma fold_left_star : forall T a c cs F (ls : list T)  base,
+      heq a c cs (fold_left (fun acc x => Star (F x) acc) ls base)
+      (Star (fold_left (fun acc x => Star (F x) acc) ls Emp) base).
     Proof.
-      induction i1; simpl; intros.
-      autorewrite with hprop. reflexivity.
-
-      clear IHi1_1. rewrite IHi1_2. rewrite fold_starred.
-      rewrite heq_star_assoc.
-      symmetry. rewrite fold_starred. rewrite heq_star_assoc.
-      apply heq_star_frame. reflexivity.
-      rewrite heq_star_comm. rewrite fold_starred. 
-      symmetry. rewrite fold_starred. autorewrite with hprop.
-      repeat rewrite heq_star_assoc. apply heq_star_frame.
-      reflexivity. rewrite fold_starred. symmetry; rewrite heq_star_comm.
-      rewrite heq_star_assoc. reflexivity.
+      induction ls; simpl; intros.
+      rewrite heq_star_emp_l. reflexivity.
+      rewrite IHls. symmetry. rewrite IHls.
+      repeat rewrite heq_star_assoc. rewrite heq_star_emp_l. reflexivity.
     Qed.
-*)
+
 
     Lemma sheapD_pull_impure : forall a c cs h f argss,
+      sheap_valid h ->
       FM.find f (impures h) = Some argss ->
       heq a c cs (sheapD h)
                  (Star (sheapD {| impures := FM.remove f (impures h)
@@ -670,33 +705,18 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite heq_star_comm. reflexivity.
 
       (** **)
-(*
       simpl in *.
-      repeat rewrite FM.Proofs.fold_1.      
+      repeat rewrite FM.Proofs.fold_1; eauto with bst_valid.
 
-
-      destruct (Compare_dec.lt_eq_lt_dec f n); [ destruct s | ]; simpl.
-      intros. specialize (IHimpures0_1 H).
-      rewrite fold_starred. symmetry. rewrite fold_starred.
-      rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
-      rewrite IHimpures0_1. rewrite heq_star_assoc. reflexivity.
-      inversion 1; subst. clear.
-      rewrite starred_starred'. 2: reflexivity. 2: reflexivity.
-
-      rewrite insert_at_right_star.
-      rewrite fold_starred.
-      symmetry. rewrite heq_star_comm. rewrite <- (@heq_star_assoc a c cs).
-      rewrite heq_star_comm. reflexivity.
-
-      intros.
-      rewrite fold_starred. rewrite IHimpures0_2 by assumption.
-      symmetry. rewrite fold_starred. 
-      rewrite starred_starred'; [ | reflexivity | reflexivity ].
+      generalize (NatMap.find_elements_split _ _ _ _ H0); destruct 1. destruct H1.
+      rewrite H1.
+      unfold sheap_valid in *. simpl in H.
+      rewrite (NatMap.find_elements_remove _ _ _ _ _ _ H H1).
+      repeat rewrite fold_left_app. simpl.
+      rewrite fold_left_star. etransitivity. rewrite fold_left_star. reflexivity.
       repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
-      symmetry. rewrite heq_star_comm. rewrite heq_star_assoc.
-      reflexivity.
-*)
-    Admitted.
+      rewrite heq_star_comm. rewrite starred_starred' by reflexivity. reflexivity.
+    Qed.
 
     Lemma heq_ex : forall X Y cs t P Q,
       (forall v : tvarD types t, heq X (existT (tvarD types) t v :: Y) cs P Q) ->
@@ -793,41 +813,9 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite liftSExpr_combine. reflexivity.
     Qed.
 
-    Lemma FM_fold_fold_right : forall T U (F : nat -> T -> U -> U) m base,
-      exists l, (forall k, In k l <-> FM.find (fst k) m = Some (snd k)) /\
-        FM.fold F m base = fold_right (fun x => F (fst x) (snd x)) base l.
-    Proof.
-      induction m; intros.
-        exists nil. simpl. intuition. congruence.
-        simpl. edestruct IHm1. intuition.
-        rewrite H1. edestruct IHm2. destruct H. erewrite H2.
-        exists (x0 ++ (n,t) :: x); split; [ | rewrite fold_right_app; reflexivity ].
-          split. intros. apply in_app_or in H3.
-    Admitted.
-
-(*
-    Lemma multimap_join_ext : forall m1 m2 k,
-      FM.fold F (multimap_join m1 m2) = 
-        FM.
-        match FM.find k m1 , FM.find k m2 with
-          | None , None => None
-          | Some l , Some r => Some (l ++ r)
-          | None , r => r
-          | l , None => l
-        end.
-    Proof.
-      clear. induction m1; simpl; intros.
-      destruct (FM.find k m2); reflexivity.
-      rewrite IHm1_2. rewrite IHm1_1.
-
-case_eq (multimap_join m1_1 m2); intros; simpl.
-      destruct (FM.find k m1_2); destruct (Compare_dec.lt_eq_lt_dec k n); auto.
-        destruct s; auto.
-      P (multimap_join 
-*)
-
-
     Lemma sheapD'_star : forall EG G cs s1 s2,
+      sheap_valid s1 -> 
+      sheap_valid s2 ->
       heq EG G cs (sheapD' (star_SHeap s1 s2)) (Star (sheapD' s1) (sheapD' s2)).
     Proof.
       destruct s1; destruct s2; intros; simpl; unfold sheapD', star_SHeap; simpl.
@@ -837,8 +825,10 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
       end.
       repeat apply heq_star_frame.
       Focus.
-      clear. unfold multimap_join. admit.
+      unfold sheap_valid in *; simpl in *.
+      unfold multimap_join. admit. (** TODO: really no idea how to prove this... **)
 
+      (** **)
       clear; induction pures0; simpl.
         rewrite heq_star_emp_l. reflexivity.
         rewrite heq_star_assoc. rewrite IHpures0. reflexivity.
@@ -851,21 +841,44 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
       (repeat rewrite heq_star_assoc; repeat (eapply heq_star_frame; [ reflexivity | ])). reflexivity.
     Qed.
 
+    Lemma fold_left_Star : forall T EG G cs (F : T -> _) ls base base',
+      heq EG G cs base base' ->
+      heq EG G cs (fold_left (fun acc x => Star (F x) acc) ls base)
+      (fold_left (fun acc x => Star (F x) acc) ls base').
+    Proof.
+      induction ls; simpl; intros; auto.
+      rewrite IHls. reflexivity. apply heq_star_frame; auto; reflexivity.
+    Qed.
+
+    Lemma starred'_liftSExpr : forall EG G cs F a b (ls : list (expr types)) base,
+      (forall a0, heq EG G cs (liftSExpr a b (F a0)) (F (liftExpr a b a0))) ->
+      heq EG G cs
+      (liftSExpr a b (starred' F ls base))
+      (starred' F (map (liftExpr a b) ls) (liftSExpr a b base)).
+    Proof.
+      induction ls; simpl; intros; try reflexivity.
+      rewrite IHls. rewrite H. reflexivity. eauto.
+    Qed.
+
+
     Lemma sheapD'_sexprD_liftVars : forall EG G cs a b s,
+      sheap_valid s ->
       heq EG G cs (liftSExpr a b (sheapD' s)) (sheapD' (sheap_liftVars a b s)).
     Proof.
-      destruct s; unfold sheap_liftVars, sheapD'; simpl; repeat apply heq_star_frame.
-        change Emp with (liftSExpr a b Emp) at 4; generalize Emp at 2 4.
-        induction impures0; simpl; try reflexivity; intros.
-        rewrite IHimpures0_2. rewrite fold_starred. symmetry. rewrite fold_starred. symmetry.
-        apply heq_star_frame; try reflexivity. simpl.
-        rewrite IHimpures0_1. apply heq_star_frame; try reflexivity. clear.
-        change Emp with (liftSExpr a b Emp) at 2. generalize Emp; induction t; simpl; try reflexivity.
-          intros; rewrite IHt; reflexivity.
+      destruct s; unfold sheap_liftVars, sheapD'; simpl; repeat apply heq_star_frame; intros.
+         repeat rewrite FM.Proofs.fold_1 by eauto with bst_valid.
+         repeat apply heq_star_frame.        
+         rewrite NatMap.elements_map; eauto with bst_valid. clear.
+         change Emp with (liftSExpr a b Emp) at 4; generalize Emp at 2 4.
+         induction (FM.elements impures0); intros; simpl; try reflexivity.
+         rewrite IHl. simpl. 
+         eapply fold_left_Star. apply heq_star_frame; try reflexivity.
+         destruct a0; simpl. change Emp with (liftSExpr a b Emp) at 2. generalize Emp. 
+         clear; induction l0; simpl; intros; try reflexivity.
+         rewrite IHl0. reflexivity.
 
-        clear; change Emp with (liftSExpr a b Emp) at 2. generalize Emp; induction pures0; simpl; try reflexivity.
-          intros; rewrite IHpures0; reflexivity.
-          
+         rewrite starred'_liftSExpr; reflexivity.
+                   
         clear; change Emp with (liftSExpr a b Emp) at 2. generalize Emp; induction other0; try reflexivity; intros.
           simpl; rewrite IHother0. reflexivity.
     Qed.
@@ -893,7 +906,8 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
 
         (** Star **)
         Focus.
-        intros. rewrite IHs1 at 1. destruct (hash s1); destruct (hash s2); simpl in *.
+        intros. rewrite IHs1 at 1. generalize (hash_valid s1). generalize (hash_valid s2). intros.
+        destruct (hash s1); destruct (hash s2); simpl in *.
         rewrite IHs2.
         rewrite <- (@existsEach_app EG cs) with (Y := G).
         rewrite star_pull_existsEach. apply heq_existsEach. intros.
@@ -901,8 +915,15 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
 
         rewrite liftSExpr_existsEach.
         rewrite star_pull_existsEach. eapply heq_existsEach; intros.
-        rewrite sheapD'_star. simpl plus.
-        repeat rewrite sheapD'_sexprD_liftVars. rewrite heq_star_comm. reflexivity.
+        rewrite sheapD'_star; eauto with bst_valid. simpl plus.
+        repeat rewrite sheapD'_sexprD_liftVars; auto. rewrite heq_star_comm. reflexivity.
+
+        (** Func **)
+        Focus.
+        intros. unfold sheapD'. simpl. rewrite FM.Proofs.fold_1. 2: eauto with bst_valid.
+        
+        rewrite NatMap.elements_singleton. simpl.
+        repeat rewrite heq_star_emp_r. reflexivity.
     Qed.
     
     Theorem hash_denote : forall EG cs (s : sexpr) G, 
@@ -916,7 +937,7 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
      ** uvars [c,..]
      **)
     Definition sheapSubstU (a b c : nat) (s : SHeap) : SHeap :=
-      {| impures := FM.map (fun _ => map (map (exprSubstU a b c))) (impures s)
+      {| impures := FM.map (map (map (exprSubstU a b c))) (impures s)
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
@@ -1039,13 +1060,12 @@ case_eq (multimap_join m1_1 m2); intros; simpl.
           end
       end.
 
-    (** TODO: this function signature is going to change **)
     Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SHeap) :
       SHeap * SHeap * Subst types :=
-      let ordered_l := order_impures (impures l) in
-      let sorted_r := FM.map (fun _ v => Ordering.sort _ meta_order_args v) (impures r) in 
-      let '(lf, rf, sub) := 
-        cancel_in_order bound summ ordered_l FM.empty sorted_r (empty_Subst _)
+      let ordered_r := order_impures (impures r) in
+      let sorted_l := FM.map (fun v => Ordering.sort _ meta_order_args v) (impures l) in 
+      let '(rf, lf, sub) := 
+        cancel_in_order bound summ ordered_r (FM.empty _) sorted_l (empty_Subst _)
       in
       ({| impures := lf ; pures := pures l ; other := other l |},
        {| impures := rf ; pures := pures r ; other := other r |},
@@ -1168,7 +1188,6 @@ Module ReifySepExpr (Import SEP : SepExprType).
     match goals with
       | nil => types
       | ?a :: ?b =>
-        (** TODO : I may need to reflect the pcType and stateType **)
         collectTypes_sexpr isConst a types ltac:(fun ts => 
           collectAllTypes_sexpr isConst ts b)
     end.
