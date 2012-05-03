@@ -813,6 +813,72 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite liftSExpr_combine. reflexivity.
     Qed.
 
+    Ltac heq_fold_left_opener :=
+      match goal with
+        | [ |- context [ fold_left _ _ ?B ] ] =>
+          match B with
+            | Emp => fail 1 
+            | _ => rewrite fold_left_star with (base := B)
+          end
+      end.
+    Ltac heq_canceler :=
+      repeat (repeat rewrite heq_star_assoc; first [ apply heq_star_frame; [ reflexivity | try reflexivity ] | 
+        rewrite heq_star_comm; symmetry ]).
+
+    Lemma starred'_app : forall EG G cs T (F : T -> _) a b B,
+      heq EG G cs (starred' F (a ++ b) B) (starred' F a (starred' F b B)).
+    Proof.
+      induction a; simpl; intros; try reflexivity.     
+      rewrite IHa. reflexivity.
+    Qed.
+
+    Lemma multimap_join_star : forall (EG G : env types)
+     (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+     (impures0 impures1 : SUBST.t (list (list (expr types)))) B,
+     FM.bst impures0 ->
+     FM.bst impures1 ->
+     heq EG G cs
+       (FM.fold
+         (fun (k : FM.key) (ls : list (list (expr types))) (acc : sexpr) =>
+           Star (starred' (Func k) ls Emp) acc)
+         (multimap_join impures0 impures1) B)
+       (FM.fold
+         (fun (k : FM.key) (ls : list (list (expr types))) (acc : sexpr) =>
+           Star (starred' (Func k) ls Emp) acc) impures0 
+         (FM.fold
+           (fun (k : FM.key) (ls : list (list (expr types))) (acc : sexpr) =>
+             Star (starred' (Func k) ls Emp) acc) impures1 B)).
+    Proof.
+      intros.
+      repeat rewrite FM.Proofs.fold_1; auto with bst_valid. 
+      unfold multimap_join. repeat rewrite FM.Proofs.fold_1; auto with bst_valid. 
+      generalize dependent (FM.elements impures0). clear H. intros. clear impures0.
+      revert B; revert H0; revert impures1.
+      induction l; simpl; intros; try reflexivity.
+
+        rewrite IHl. 2: destruct (FM.find (fst a) impures1); auto with bst_valid.
+        case_eq (FM.find (fst a) impures1); intros.
+
+        rewrite fold_left_star. symmetry. rewrite fold_left_star.
+        apply heq_star_frame; try reflexivity.
+        
+        apply NatMap.elements_find in H. do 2 destruct H. rewrite H.
+        eapply NatMap.elements_add_over in H. rewrite H.
+        repeat rewrite fold_left_app. simpl.
+        rewrite fold_left_star.
+
+        rewrite starred'_app.
+        rewrite <- starred'_base with (base := (starred' (Func (fst a)) l0 Emp)).
+        repeat heq_fold_left_opener.
+
+        heq_canceler.
+        
+        eapply NatMap.elements_add_new in H. do 2 destruct H. intuition. rewrite H2. rewrite H1.
+        repeat rewrite fold_left_app; simpl.
+        do 2 heq_fold_left_opener. symmetry. do 2 heq_fold_left_opener.
+        heq_canceler.
+    Qed.
+
     Lemma sheapD'_star : forall EG G cs s1 s2,
       sheap_valid s1 -> 
       sheap_valid s2 ->
@@ -825,8 +891,9 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       end.
       repeat apply heq_star_frame.
       Focus.
-      unfold sheap_valid in *; simpl in *.
-      unfold multimap_join. admit. (** TODO: really no idea how to prove this... **)
+      rewrite multimap_join_star; auto. 
+      repeat rewrite FM.Proofs.fold_1; auto.
+      rewrite fold_left_star. reflexivity.
 
       (** **)
       clear; induction pures0; simpl.
@@ -893,7 +960,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         apply heq_ex; intros. rewrite IHv0. cutrewrite (S n + length v0 = n + S (length v0)); try reflexivity; omega.
     Qed.
 
-    Theorem hash_denote' : forall EG cs (s : sexpr) G, 
+    Lemma hash_denote' : forall EG cs (s : sexpr) G, 
       heq EG G cs s (@existsEach (fst (hash s)) (sheapD' (snd (hash s)))).
     Proof.
       Opaque star_SHeap.
@@ -1128,8 +1195,6 @@ Module ReifySepExpr (Import SEP : SepExprType).
         map_tac (ssignature nt pc st) f fs
     end.
 
-  
-
   (** collect the types from an hprop expression.
    ** - s is an expression of type hprop
    ** - types is a list of raw types, i.e. of type [list Type]
@@ -1175,8 +1240,6 @@ Module ReifySepExpr (Import SEP : SepExprType).
         in
         refl_app cc X
     end.
-
-  
 
   (** collect types from all of the separation logic goals given
    ** in goals. 

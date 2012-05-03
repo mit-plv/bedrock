@@ -109,6 +109,52 @@ Proof.
   intros. *)
 Admitted.
 
+Lemma elements_find : forall T k (v : T) m,
+  IntMap.find k m = Some v ->
+  exists x y, IntMap.elements m = x ++ (k,v) :: y.
+Proof.
+  clear. induction m; intros.
+  compute in H; congruence.
+  simpl in H. generalize (IntMap.Proofs.elements_node m1 m2 k0 e i nil).
+  repeat rewrite app_nil_r. intros. rewrite <- H0. clear H0.
+
+  destruct (Ordered_nat.compare k k0).
+  eapply IHm1 in H. do 2 destruct H. rewrite H.
+  exists x. exists (x0 ++ (k0,e) :: IntMap.elements m2). repeat rewrite app_ass; simpl. reflexivity.
+
+  inversion e0; inversion H; subst; do 2 eexists; reflexivity.
+  
+  apply IHm2 in H. do 2 destruct H. rewrite H.
+  exists (IntMap.elements m1 ++ (k0,e) :: x). eexists. repeat rewrite app_ass; simpl. reflexivity.
+Qed.
+
+Lemma elements_add_over : forall T k (v v' : T) m x y,
+  IntMap.elements m = x ++ (k,v) :: y ->
+  IntMap.elements (IntMap.add k v' m) = x ++ (k,v') :: y.
+Proof.
+  clear; induction m; intros.
+  destruct x; compute in H; congruence.          
+Admitted.
+
+(* TODO: how do i instantiate the FMapFacts module?
+Require FSets.FMapFacts.
+Module IntMap_WS <:  FSets.FMapInterface.WS.
+  Module E := Ordered_nat.
+  Include IntMap.
+End IntMap_WS.
+
+Module Ordered_nat_Props := FSets.FMapFacts.OrdProperties IntMap.
+*)
+
+Lemma elements_add_new : forall T k (v : T) m,
+  IntMap.find k m = None ->
+  exists x y, IntMap.elements m = x ++ y /\ IntMap.elements (IntMap.add k v m) = x ++ (k,v) :: y.
+Proof.
+  intros.
+Admitted.
+
+
+(*
 Ltac reduce_nat_map :=
   cbv beta iota zeta delta 
     [ singleton
@@ -155,3 +201,4 @@ Goal
   m = m.
 reduce_nat_map.
 Abort.
+*)
