@@ -1243,8 +1243,10 @@ Defined.
  ** to [k].
  ** This tactic will fail if any of the environments are not compatible.
  **)
-Ltac glue_pack l r ret :=
+Ltac glue_pack left_pack right_pack ret :=
   let res := constr:(
+    let l := left_pack in
+    let r := right_pack in
     let ntypesV := Env.repr_combine (PACK.Types (Env l)) (PACK.Types (Env r)) in
     let nfuncsV ts := 
       Env.repr_combine (PACK.Funcs (Env l) (Env.repr ntypesV ts)) 
