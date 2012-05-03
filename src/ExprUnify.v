@@ -49,7 +49,7 @@ Section Unify.
     @SUBST.t (expr types).
 
   Definition empty_Subst : Subst :=
-    SUBST.empty.
+    SUBST.empty _.
 
   Definition Subst_lookup (k : nat) (s : Subst) :=
     SUBST.find k s.
