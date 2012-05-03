@@ -1,4 +1,9 @@
 Require Import HintlessOrderedType.
+Require Import HintlessFMapAVL.
+Require Import List.
+
+Set Implict Arguments.
+Set Strict Implicit.
 
 Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition t := nat.
@@ -40,114 +45,113 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
 End Ordered_nat.
 
-Require HintlessFMapAVL.
+Module IntMap := HintlessFMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat.
 
-Require ZArith.Int.
+Definition singleton {T} (k : nat) (v : T) : IntMap.t T :=
+  IntMap.add k v (IntMap.empty _).
 
-(*Module IntMap := HintlessFMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat. *)
+(** Other Lemmas **)
+(* these currently break the FMap abstraction, but they could be proved
+ * using only the FMap abstraction
+ *)
 
-Module IntMap.
 
-  Section parametric.
-    Inductive t (T : Type) : Type := 
-    | MLeaf
-    | MBranch : t T -> nat -> T -> t T -> t T.
+Theorem elements_map : forall T U (F : T -> U) m,
+  IntMap.bst m ->
+  IntMap.elements (IntMap.map F m) = List.map (fun x => (fst x, F (snd x))) (IntMap.elements m).
+Proof.
+  clear. unfold IntMap.elements. do 4 intro. 
+  change (@nil (IntMap.key * U)) with (List.map (fun x => (fst x, F (snd x))) (@nil (IntMap.key * T))).
+  generalize (@nil (IntMap.key * T)).
+  induction m; simpl; intros; try reflexivity.
+  inversion H; subst; auto.
+  rewrite IHm2; eauto.
+  change (((k, F e) :: map (fun x : IntMap.key * T => (fst x, F (snd x))) (IntMap.elements_aux l m2)))
+    with (map (fun x : IntMap.key * T => (fst x, F (snd x))) ((k,e) :: (IntMap.elements_aux l m2))).
+  rewrite IHm1; eauto.
+Qed.
 
-    Context {T : Type}.
+Lemma elements_singleton : forall T k (v : T), 
+  IntMap.elements (singleton k v) = (k,v) :: nil.
+Proof.
+  unfold IntMap.empty. intros. reflexivity.
+Qed.
 
-    Definition empty : t T := MLeaf _.
 
-    Section add. (** replace **)
-      Variable s : nat.
-      Variable v : T.
+Lemma find_elements_split : forall T k (v : T) m,
+  IntMap.find k m = Some v ->
+  exists ls, exists rs, IntMap.elements m = ls ++ (k,v) :: rs.
+Proof.
+  intros. apply IntMap.Proofs.find_2 in H.
+  eapply IntMap.Proofs.elements_mapsto in H.
+  eapply SetoidList.InA_split in H.
+  do 3 destruct H. destruct x0. intuition. 
+  destruct H0; simpl in *; subst. eauto.
+Qed.
 
-      Fixpoint add m : t T :=
-        match m with
-          | MLeaf => MBranch _ (MLeaf _) s v (MLeaf _)
-          | MBranch l k v' r =>
-            match Compare_dec.lt_eq_lt_dec s k with
-              | inleft (left _) => MBranch _ (add l) k v' r 
-              | inleft (right _) => MBranch _ l k v r 
-              | inright _ => MBranch _ l k v' (add r)
-            end
-        end.
-    End add.
+(*
+SearchAbout IntMap.elements.
 
-    Fixpoint find (s : nat) (m : t T) : option T :=
-      match m with
-        | MLeaf => None
-        | MBranch l k v r =>
-          match Compare_dec.lt_eq_lt_dec s k with
-            | inleft (left _) => find s l
-            | inleft (right _) => Some v
-            | inright _ => find s r
-          end
-      end.
+Lemma prove_elements : forall T (m : IntMap.t T) ls,
+  IntMap.bst m ->
+  (Sorted.Sorted (IntMap.Proofs.PX.ltk (elt:=T)) ls /\
+    (forall k v, IntMap.MapsTo k v m <-> SetoidList.InA  (IntMap.Proofs.PX.eqke (elt:=T))  (k, v) ls)) <->
+  IntMap.elements m = ls.
+Admitted.
+*)
 
-    Fixpoint insert_at_right (m i : t T) : t T :=
-      match m with
-        | MLeaf => i
-        | MBranch l k v r =>
-          MBranch _ l k v (insert_at_right r i)
-      end.
+Lemma find_elements_remove : forall T k (v : T) m ls rs,
+  IntMap.bst m ->
+  IntMap.elements m = ls ++ (k,v) :: rs ->
+  IntMap.elements (IntMap.remove k m) = ls ++ rs.
+Proof.
+  intros. (*apply prove_elements in H0; auto. apply prove_elements.
+  intros. *)
+Admitted.
 
-    Fixpoint remove (s : nat) (m : t T) : t T :=
-      match m with
-        | MLeaf => m
-        | MBranch l k v r =>
-          match Compare_dec.lt_eq_lt_dec s k with
-            | inleft (left _) => MBranch _ (remove s l) k v r
-            | inleft (right _) => insert_at_right l r
-            | inright _ => MBranch _ l k v (remove s r)
-          end
-      end.
+Ltac reduce_nat_map :=
+  cbv beta iota zeta delta 
+    [ singleton
+      IntMap.height IntMap.cardinal IntMap.empty IntMap.is_empty
+      IntMap.mem IntMap.find IntMap.assert_false IntMap.create IntMap.bal
+      IntMap.add IntMap.remove_min IntMap.merge IntMap.remove IntMap.join
+      IntMap.t_left IntMap.t_opt IntMap.t_right
 
-    Lemma remove_add : forall m x v,
-      remove x (add x v m) = remove x m.
-    Proof.
-      clear. induction m; simpl; intros.
-      destruct (Compare_dec.lt_eq_lt_dec x x) as [ [ ? | ? ] | ? ]; auto; exfalso; omega.
-      case_eq (Compare_dec.lt_eq_lt_dec x n); simpl. intro. case_eq s; simpl; intros; subst.
-      rewrite H0. rewrite IHm1. auto.
-      rewrite H0. auto.
-      intros. rewrite H. rewrite IHm2. auto.
-    Qed.
+      Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
+      Int.Z_as_Int.plus Int.Z_as_Int.max
+      Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
 
-    Lemma find_add : forall m x v,
-      find x (add x v m) = Some v.
-    Proof.
-      clear. induction m; simpl; intros.
-      destruct (Compare_dec.lt_eq_lt_dec x x) as [ [ ? | ? ] | ? ]; auto; exfalso; omega.
-      case_eq (Compare_dec.lt_eq_lt_dec x n); simpl. intro. case_eq s; simpl; intros; subst.
-      rewrite H0. auto.
-      rewrite H0. auto.
-      intros. rewrite H. auto.
-    Qed.
+      ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
+      ZArith_dec.Z_gt_dec 
+      ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
 
-  End parametric.
-    
-  Section Map.
-    Context {T U : Type}.
-    Variable f : nat -> T -> U.
+      BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
+      BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
+      
+      BinInt.Z.compare
 
-    Fixpoint map (m : t T) : t U :=
-      match m with
-        | MLeaf => MLeaf _
-        | MBranch l k v r =>
-          MBranch _ (map l) k (f k v) (map r)
-      end.
-  End Map.
+      BinPos.Pos.add BinPos.Pos.compare 
+      BinPos.Pos.succ BinPos.Pos.compare_cont
 
-  Section Fold.
-    Context {T U : Type}.
-    Variable f : nat -> T -> U -> U.
+      Compare_dec.nat_compare CompOpp 
 
-    Fixpoint fold (m : @t T) (acc : U) : U :=
-      match m with
-        | MLeaf => acc
-        | MBranch l k v r =>
-          fold r (f k v (fold l acc))
-      end.
-  End Fold.
-  
-End IntMap.
+      Ordered_nat.compare
+
+      sumor_rec sumor_rect
+      sumbool_rec sumbool_rect
+      eq_ind_r 
+
+    ].
+
+
+Goal 
+  let m := singleton 10 10 in
+  let m := IntMap.add 1 1 m in
+  let m := IntMap.add 5 5 m in
+  let m := IntMap.add 3 3 m in
+  let m := IntMap.add 2 2 m in
+    let m := IntMap.remove 3 m in
+  Some 5 = IntMap.find 5 m /\
+  m = m.
+reduce_nat_map.
+Abort.

@@ -80,7 +80,7 @@ Section typed.
   End SubstDenote.
 
   Definition empty_Subst : Subst :=
-    SUBST.empty.
+    SUBST.empty _.
 
   Fixpoint anyb T (F : T -> bool) (ls : list T) : bool :=
     match ls with
@@ -113,7 +113,7 @@ Section typed.
       None
     else
       let s := SUBST.add k v' s in
-      let s := SUBST.map (fun _ => exprInstantiate s) s in
+      let s := SUBST.map (exprInstantiate s) s in
       SUBST.fold (fun k e acc => 
         match acc with
           | None => None

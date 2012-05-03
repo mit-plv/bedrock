@@ -401,6 +401,7 @@ Ltac cancel_simplifier :=
       
     SepExpr.FM.add SepExpr.FM.insert_at_right SepExpr.FM.remove 
 *)
+    SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.map
 
     (** Unfolder **)
     UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
@@ -421,6 +422,7 @@ Ltac cancel_simplifier :=
     UNF.findWithRest'
 
     UNF.default_hintsPayload
+    Unfolder.FM.add Unfolder.FM.remove Unfolder.FM.fold Unfolder.FM.find Unfolder.FM.map
 
     (** List **)
     value error tl hd_error nth_error map length app fold_right firstn skipn
@@ -431,7 +433,7 @@ Ltac cancel_simplifier :=
     Compare_dec.le_gt_dec
     Compare_dec.le_lt_dec
     Compare_dec.lt_eq_lt_dec
-
+(*
     NatMap.IntMap.add
     NatMap.IntMap.empty
     NatMap.IntMap.find
@@ -439,6 +441,36 @@ Ltac cancel_simplifier :=
     NatMap.IntMap.remove
     NatMap.IntMap.map
     NatMap.IntMap.fold
+*)
+    NatMap.singleton
+    NatMap.IntMap.height NatMap.IntMap.cardinal NatMap.IntMap.empty NatMap.IntMap.is_empty
+    NatMap.IntMap.mem NatMap.IntMap.find NatMap.IntMap.assert_false NatMap.IntMap.create NatMap.IntMap.bal
+    NatMap.IntMap.add NatMap.IntMap.remove_min NatMap.IntMap.merge NatMap.IntMap.remove NatMap.IntMap.join
+    NatMap.IntMap.t_left NatMap.IntMap.t_opt NatMap.IntMap.t_right
+
+    Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
+    Int.Z_as_Int.plus Int.Z_as_Int.max
+    Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
+
+    ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
+    ZArith_dec.Z_gt_dec 
+    ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
+
+    BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
+    BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
+    
+    BinInt.Z.compare
+
+    BinPos.Pos.add BinPos.Pos.compare 
+    BinPos.Pos.succ BinPos.Pos.compare_cont
+
+    Compare_dec.nat_compare CompOpp 
+
+    NatMap.Ordered_nat.compare
+
+    sumor_rec sumor_rect
+    sumbool_rec sumbool_rect
+    eq_ind_r 
 
       
     (** EquivDec **)

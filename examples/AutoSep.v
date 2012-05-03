@@ -156,8 +156,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          ExprUnify.env_of_Subst ExprUnify.get_Eq ExprUnify.exprUnifyArgs
          ExprUnify.exprUnify ExprUnify.empty_Subst ExprUnify.SUBST.empty
          ExprUnify.SUBST.find ExprUnify.SUBST.add
-         ExprUnify.SUBST.insert_at_right ExprUnify.SUBST.remove
-         ExprUnify.SUBST.remove_add ExprUnify.SUBST.find_add
+         ExprUnify.SUBST.remove
          ExprUnify.SUBST.fold ExprUnify.SUBST.map
          ExprUnify.fold_left_2_opt ExprUnify.Subst_lookup
          ExprUnify.Subst_replace ExprUnify.get_Eq ExprUnify.exprUnifyArgs
@@ -182,8 +181,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
-         Unfolder.FM.find Unfolder.FM.insert_at_right
-         Unfolder.FM.remove_add Unfolder.FM.find_add
+         Unfolder.FM.find 
          UNF.Foralls UNF.Vars
          UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
@@ -194,10 +192,35 @@ Ltac hints_ext_simplifier hints := fun H =>
          UNF.find UNF.default_hintsPayload
 
          (** NatMap **)
-         NatMap.IntMap.empty NatMap.IntMap.find
-         NatMap.IntMap.insert_at_right NatMap.IntMap.remove
-         NatMap.IntMap.map NatMap.IntMap.fold
-         NatMap.Ordered_nat.compare NatMap.Ordered_nat.eq_dec
+         NatMap.singleton
+         NatMap.IntMap.height NatMap.IntMap.cardinal NatMap.IntMap.empty NatMap.IntMap.is_empty
+         NatMap.IntMap.mem NatMap.IntMap.find NatMap.IntMap.assert_false NatMap.IntMap.create NatMap.IntMap.bal
+         NatMap.IntMap.add NatMap.IntMap.remove_min NatMap.IntMap.merge NatMap.IntMap.remove NatMap.IntMap.join
+         NatMap.IntMap.t_left NatMap.IntMap.t_opt NatMap.IntMap.t_right
+         
+         Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
+         Int.Z_as_Int.plus Int.Z_as_Int.max
+         Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
+         
+         ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
+         ZArith_dec.Z_gt_dec 
+         ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
+         
+         BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
+         BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
+    
+         BinInt.Z.compare
+
+         BinPos.Pos.add BinPos.Pos.compare 
+         BinPos.Pos.succ BinPos.Pos.compare_cont
+
+         Compare_dec.nat_compare CompOpp 
+         
+         NatMap.Ordered_nat.compare
+
+         sumor_rec sumor_rect
+         sumbool_rec sumbool_rect
+         eq_ind_r
 
          (** Prover **)
          Prover.Prove Prover.Summarize Prover.Learn
@@ -391,8 +414,7 @@ cbv beta iota zeta
          ExprUnify.env_of_Subst ExprUnify.get_Eq ExprUnify.exprUnifyArgs
          ExprUnify.exprUnify ExprUnify.empty_Subst ExprUnify.SUBST.empty
          ExprUnify.SUBST.find ExprUnify.SUBST.add
-         ExprUnify.SUBST.insert_at_right ExprUnify.SUBST.remove
-         ExprUnify.SUBST.remove_add ExprUnify.SUBST.find_add
+         ExprUnify.SUBST.remove
          ExprUnify.SUBST.fold ExprUnify.SUBST.map
          ExprUnify.fold_left_2_opt ExprUnify.Subst_lookup
          ExprUnify.Subst_replace ExprUnify.get_Eq ExprUnify.exprUnifyArgs
@@ -417,8 +439,7 @@ cbv beta iota zeta
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
-         Unfolder.FM.find Unfolder.FM.insert_at_right
-         Unfolder.FM.remove_add Unfolder.FM.find_add
+         Unfolder.FM.find
          UNF.Foralls UNF.Vars
          UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
@@ -429,10 +450,41 @@ cbv beta iota zeta
          UNF.find UNF.default_hintsPayload
 
          (** NatMap **)
+         NatMap.singleton
+         NatMap.IntMap.height NatMap.IntMap.cardinal NatMap.IntMap.empty NatMap.IntMap.is_empty
+         NatMap.IntMap.mem NatMap.IntMap.find NatMap.IntMap.assert_false NatMap.IntMap.create NatMap.IntMap.bal
+         NatMap.IntMap.add NatMap.IntMap.remove_min NatMap.IntMap.merge NatMap.IntMap.remove NatMap.IntMap.join
+         NatMap.IntMap.t_left NatMap.IntMap.t_opt NatMap.IntMap.t_right
+         
+         Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
+         Int.Z_as_Int.plus Int.Z_as_Int.max
+         Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
+         
+         ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
+         ZArith_dec.Z_gt_dec 
+         ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
+         
+         BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
+         BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
+    
+         BinInt.Z.compare
+
+         BinPos.Pos.add BinPos.Pos.compare 
+         BinPos.Pos.succ BinPos.Pos.compare_cont
+
+         Compare_dec.nat_compare CompOpp 
+         
+         NatMap.Ordered_nat.compare
+
+         sumor_rec sumor_rect
+         sumbool_rec sumbool_rect
+         eq_ind_r 
+(*
          NatMap.IntMap.empty NatMap.IntMap.find
          NatMap.IntMap.insert_at_right NatMap.IntMap.remove
          NatMap.IntMap.map NatMap.IntMap.fold
          NatMap.Ordered_nat.compare NatMap.Ordered_nat.eq_dec
+*)
 
          (** Prover **)
          Prover.Prove Prover.Summarize Prover.Learn
