@@ -38,6 +38,42 @@
     - Like to avoid this if possible, but it might be necessary to make
       things really fast.
 
+* Unfolding
+*** Forward Unfolding
+    (Note that we are looking for matches between two structures, 
+     it is equivalent to iterate the predicates first, rather than the lemmas)
+    - For each lemma
+      1) hash the LHS of the lemma and find the head function name [f]
+	 (alternatively, we could demand that the LHS is an exact application
+	  of the [Func] constructor, in which case hashing is essentially a
+	  no-op)
+      2) look for [f] in the heap
+         - if not found, continue
+	 - if found,
+	   3) iterate the applications to find one that unifies
+	   4) solve the pure premises of the lemma using the prover
+	   5) hash the RHS of the lemma
+	   6) prepend the existentials of the RHS to Vars
+	   7) add the pure facts to pures list
+	   8) remove the matched application from the heap
+	   9) star the heap with the hashed RHS
+*** Backward Unfolding
+    - For each lemma
+      1) hash the RHS of the lemma and find the head function name [f]
+	 (alternatively, we could demand that the RHS is an exact application
+	  of the [Func] constructor, in which case hashing is essentially a
+	  no-op)
+      2) look for [f] in the heap
+         - if not found, continue
+	 - if found,
+	   3) iterate the applications to find one that unifies
+	   4) solve the pure premises of the lemma using the prover
+	   5) hash the LHS of the lemma
+	   6) prepend the existentials of the LHS to UVars
+	   7) add the pure facts to pures list
+	   8) remove the matched application from the heap
+	   9) star the heap with the hashed LHS
+
 * Expr & SepExpr
 *** Variables & environments
     - there are two environments
