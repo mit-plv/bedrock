@@ -851,7 +851,9 @@ Ltac sym_eval isConst ext simplifier :=
                            | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
                              destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
                          end
-                        in destruct_exs H))
+                        in let fresh Hcopy := fresh "Hcopy" in
+                          let T := type of H in
+                            assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
 (*                      stop_timer 110 *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
@@ -896,7 +898,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*                             stop_timer 105 ; *)
 (*                             run_timer 106 ; *)
                              let syms := constr:((typesV, (funcsV, predsV))) in
-                             finish H_interp syms) || 
+                             finish H_interp syms) ||
                             (idtac"couldn't apply sym_eval_any! (SF case)"; 
                              first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
