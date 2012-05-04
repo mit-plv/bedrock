@@ -4,8 +4,6 @@ Require Import IL Word.
 Require Import Bool.
 Require PropX.
 
-Require Isfix.
-
 Set Implicit Arguments.
 
 Section env.
@@ -1203,7 +1201,7 @@ Ltac get_or_extend_var types all t v k :=
           eval simpl app in (all ++ (@existT tvar (tvarD types) t v) :: nil)
         in
         k all acc
-      | @existT _ _ _ ?v' :: _ => evar_match v v' ; k all acc
+      | @existT _ _ _ ?v' :: _ => constr_eq v v' ; k all acc
       | _ :: ?rem =>
         let acc := constr:(S acc) in
         doIt rem acc
