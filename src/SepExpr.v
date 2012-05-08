@@ -13,6 +13,10 @@ Require NatMap.
 
 Module FM := NatMap.IntMap.
 
+Definition BadInj types (e : expr types) := False.
+Definition BadPred (f : func) := False.
+Definition BadPredApply types (f : func) (es : list (expr types)) := False.
+
 Module Type SepExprType.
   Declare Module ST : SepTheoryX.SepTheoryXType.
 
@@ -49,7 +53,7 @@ Module Type SepExprType.
           | Emp => ST.emp _ _
           | Inj p =>
             match exprD funcs meta_env var_env p tvProp with
-              | None => ST.inj (PropX.Inj False)
+              | None => ST.inj (PropX.Inj (BadInj p))
               | Some p => ST.inj (PropX.Inj p)
             end
           | Star l r =>
@@ -58,10 +62,10 @@ Module Type SepExprType.
             ST.ex (fun x : tvarD types t => sexprD meta_env (@existT _ _ t x :: var_env) b)
           | Func f b =>
             match nth_error preds f with
-              | None => ST.inj (PropX.Inj False)
-              | Some f =>
-                match applyD (@exprD types funcs meta_env var_env) (SDomain f) b _ (SDenotation f) with
-                  | None => ST.inj (PropX.Inj False)
+              | None => ST.inj (PropX.Inj (BadPred f))
+              | Some f' =>
+                match applyD (@exprD types funcs meta_env var_env) (SDomain f') b _ (SDenotation f') with
+                  | None => ST.inj (PropX.Inj (BadPredApply f b))
                   | Some p => p
                 end
             end
@@ -152,7 +156,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         | Emp => ST.emp _ _
         | Inj p =>
           match exprD funcs meta_env var_env p tvProp with
-            | None => ST.inj (PropX.Inj False)
+            | None => ST.inj (PropX.Inj (BadInj p))
             | Some p => ST.inj (PropX.Inj p)
           end
         | Star l r =>
@@ -161,10 +165,10 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
           ST.ex (fun x : tvarD types t => sexprD meta_env (@existT _ _ t x :: var_env) b)
         | Func f b =>
           match nth_error sfuncs f with
-            | None => ST.inj (PropX.Inj False)
-            | Some f =>
-              match applyD (@exprD types funcs meta_env var_env) (SDomain f) b _ (SDenotation f) with
-                | None => ST.inj (PropX.Inj False)
+            | None => ST.inj (PropX.Inj (BadPred f))
+            | Some f' =>
+              match applyD (@exprD types funcs meta_env var_env) (SDomain f') b _ (SDenotation f') with
+                | None => ST.inj (PropX.Inj (BadPredApply f b))
                 | Some p => p
               end
           end

@@ -19,7 +19,10 @@ Section existsSubst.
   Variable types : list type.
   Variable denote : expr types -> forall t : tvar, option (tvarD types t).
   Variable sub : ExprUnify2.Subst types.
-  
+ 
+  Definition ExistsSubstNone (_ : list { t : tvar & option (tvarD types t) }) (_ : tvar) (_ : expr types) := False.
+  Definition ExistsSubstSome (_ : list { t : tvar & option (tvarD types t) }) (_ : expr types) := False. 
+
   Fixpoint existsSubst (from : nat) (vals : list { t : tvar & option (tvarD types t) }) (ret : env types -> Prop) : Prop :=
     match vals with
       | nil => ret nil
@@ -28,7 +31,7 @@ Section existsSubst.
           | None => exists v : tvarD types t, existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v =>
             match denote v t with
-              | None => False
+              | None => ExistsSubstNone vals t v
               | Some v => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
             end
         end
@@ -37,7 +40,7 @@ Section existsSubst.
           | None => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v' =>
             match denote v' t with
-              | None => False
+              | None => ExistsSubstSome vals v'
               | Some v' => 
                 existsSubst (S from) vals (fun env => v = v' /\ ret (existT (tvarD types) t v' :: env))
             end
@@ -83,11 +86,11 @@ Lemma ApplyCancelSep : forall ts,
       let bound := length uvars' in
       match SEP.sepCancel preds prover bound facts lhs rhs with
         | (lhs', rhs', subst) =>
-          Expr.forallEach new_vars (fun nvs : Expr.env types =>
+          Expr.forallEach (rev new_vars) (fun nvs : Expr.env types =>
             let var_env := nvs in
             Expr.AllProvable_impl funcs meta_env var_env
             (** NOTE: I need to reverse this because 
-             **)
+             **) 
             (existsSubst (exprD funcs meta_env var_env) subst 0 
                 (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
                  map (fun x => existT (fun t => option (tvarD types t)) x None) (rev new_uvars))
@@ -301,7 +304,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME         stop_timer 17 ; *)
 (*         idtac "16" ; *)
 (*TIME         run_timer 18 ; *)
-           simplifier tt  
+           simplifier tt
 (*TIME         stop_timer 18  *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
@@ -516,12 +519,12 @@ Ltac cancel_simplifier :=
 
 Implicit Arguments existT [ A P ].
 
-Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
+(*Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
   destruct ls. Focus 2.
   sep_canceler ltac:(SymILTac.isConst) ILAlgoTypes.BedrockPackage.bedrock_package ltac:(fun _ => idtac).
   cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ]; cancel_simplifier.
   intros. solve [ do 2 eexists; intuition ].
-Abort.
+Abort.*)
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
