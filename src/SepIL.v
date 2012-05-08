@@ -244,14 +244,20 @@ Infix "*" := starB : Sep_scope.
 
 Delimit Scope Sep_scope with Sep.
 
-Fixpoint ptsto32m sos (a : W) (vs : list W) : hpropB sos :=
+Fixpoint ptsto32m sos (a : W) (offset : nat) (vs : list W) : hpropB sos :=
   match vs with
     | nil => Emp
-    | v :: nil => a =*> v
-    | v :: vs' => a =*> v * ptsto32m sos (a ^+ $4) vs'
+    | v :: nil => (match offset with
+                     | O => a
+                     | _ => a ^+ $(offset)
+                   end) =*> v
+    | v :: vs' => (match offset with
+                     | O => a
+                     | _ => a ^+ $(offset)
+                   end) =*> v * ptsto32m sos a (4 + offset) vs'
   end%Sep.
 
-Notation "a ==*> v1 , .. , vn" := (ptsto32m _ a (cons v1 .. (cons vn nil) ..)) (no associativity, at level 39) : Sep_scope.
+Notation "a ==*> v1 , .. , vn" := (ptsto32m _ a O (cons v1 .. (cons vn nil) ..)) (no associativity, at level 39) : Sep_scope.
 
 Definition exB sos T (p : T -> hpropB sos) : hpropB sos := ex p.
 
@@ -438,3 +444,7 @@ Coercion natToByte : nat >-> B.
 (* *)
 Require SepExpr.
 Module SEP := SepExpr.Make ST.
+
+Lemma natToW_S : forall n, natToW (S n) = $1 ^+ natToW n.
+  apply natToWord_S.
+Qed.

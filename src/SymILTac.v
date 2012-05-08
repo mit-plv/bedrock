@@ -260,7 +260,7 @@ Qed.
 
 Ltac find_reg st r :=
   match goal with
-    | [ H : Regs st r = ?x |- _ ] => constr:((x, Some_cong H))
+    | [ H : Regs st r = ?x |- _ ] => constr:((x, Some_cong (eq_sym H)))
     | _ => constr:((Regs st r, @refl_equal (option W) (Some (Regs st r))))
   end.
 
@@ -682,7 +682,6 @@ Section apply_stream_correctness.
 End apply_stream_correctness.
 
 Module SEP_REIFY := ReifySepExpr SEP.
-
 
 (** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]

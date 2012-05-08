@@ -1,4 +1,5 @@
 Require Import AutoSep.
+Require Import List.
 
 Set Implicit Arguments.
 
@@ -63,16 +64,19 @@ End SinglyLinkedList.
 Import SinglyLinkedList.
 Hint Immediate sll_extensional.
 
+Definition hints_sll' : TacPackage.
+  prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
+Defined.
+
+Definition hints_sll : TacPackage.
+  prepare2 hints_sll'.
+Defined.
+
 Definition null A (ls : list A) : bool :=
   match ls with
     | nil => true
     | _ => false
   end.
-
-Definition B2N (b : bool) : nat :=
-  if b then 1 else 0.
-
-Coercion B2N : bool >-> nat.
 
 Definition nullS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = null ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
@@ -82,6 +86,10 @@ Definition lengthS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
 
 Definition revS : assert := st ~> ExX, Ex a, Ex b, Ex ls, ![ (st#Sp ==*> a, b) * ^[sll ls st#Rv] * #0 ] st
   /\ st#Rp @@ (st' ~> Ex a', Ex b', ![ (st#Sp ==*> a', b') * ^[sll (rev ls) st'#Rv] * #1 ] st').
+
+Definition appendS : assert := st ~> ExX, Ex p1, Ex p2, Ex c, Ex ls1, Ex ls2,
+  ![ (st#Sp ==*> p1, p2, c) * ^[sll ls1 p1] * ^[sll ls2 p2] * #0 ] st
+  /\ st#Rp @@ (st' ~> Ex a, Ex b, Ex c', ![ (st#Sp ==*> a, b, c') * ^[sll (ls1 ++ ls2) st'#Rv] * #1 ] st').
 
 Definition sllM := bmodule "sll" {{
   bfunction "null" [nullS] {
@@ -111,29 +119,28 @@ Definition sllM := bmodule "sll" {{
       Rv <- $[Sp+4]
     };;
     Return $[Sp]
+  } with bfunction "append" [appendS] {
+    If ($[Sp] = 0) {
+      Return $[Sp+4]
+    } else {
+      $[Sp+8] <- $[Sp];;
+      Rv <- $[Sp] + 4;;
+      [st ~> ExX, Ex p1, Ex p1', Ex p2, Ex r, Ex x, Ex ls1, Ex ls2, [| p1 <> $0 /\ st#Rv = p1 ^+ $4 |]
+        /\ ![ (st#Sp ==*> p1, p2, r) * p1 =*> x * (p1 ^+ $4) =*> p1' * ^[sll ls1 p1']
+          * ^[sll ls2 p2] * #0 ] st
+        /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv = r |]
+          /\ Ex a, Ex b, Ex c', Ex ls, [| ls = x :: ls1 ++ ls2 |]
+          /\ ![ (st'#Sp ==*> a, b, c') * ^[sll ls p1] * #1 ] st')]
+      While ($[Rv] <> 0) {
+        $[Sp] <- $[Rv];;
+        Rv <- $[Sp] + 4
+      };;
+
+      $[Rv] <- $[Sp+4];;
+      Return $[Sp+8]
+    }
   }
 }}.
-
-Definition hints_sll' : TacPackage.
-  prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
-Defined.
-
-Definition hints_sll : TacPackage.
-  prepare2 hints_sll'.
-Defined.
-
-Lemma natToW_S : forall n, natToW (S n) = $1 ^+ natToW n.
-  unfold natToW.
-  intros.
-  rewrite wplus_alt.
-  unfold wplusN, wordBinN.
-  simpl.
-  rewrite roundTrip_1.
-  destruct (wordToNat_natToWord 32 n); intuition.
-  rewrite H0.
-  replace (1 + (n - x * pow2 32)) with (1 + n - x * pow2 32) by omega.
-  rewrite drop_sub; auto; omega.
-Qed.
 
 Ltac notConst x :=
   match x with
@@ -149,7 +156,7 @@ Ltac finish := repeat match goal with
                         | [ |- context[natToW (S ?x)] ] =>
                           notConst x; rewrite (natToW_S x)
                       end; try rewrite <- rev_alt;
-               congruence || W_eq || reflexivity || eauto.
+               congruence || W_eq || reflexivity || tauto || eauto.
 
 Theorem sllMOk : moduleOk sllM.
   vcgen; abstract (sep hints_sll; finish).
