@@ -6,16 +6,22 @@ Set Implicit Arguments.
 
 (** * Allocated memory regions with unknown contents *)
 
-Fixpoint allocated' (base : W) (offset len : nat) : HProp :=
+Fixpoint allocated (base : W) (offset len : nat) : HProp :=
   match len with
     | O => Emp
     | S len' => (Ex v, (match offset with
                           | O => base
                           | _ => base ^+ $(offset)
-                        end) =*> v) * allocated' base (4+offset) len'
+                        end) =*> v) * allocated base (4+offset) len'
   end%Sep.
 
-Definition allocated (base : W) (len : nat) := allocated' base O len.
+Notation "p =?> len" := (allocated p O len) (at level 39) : Sep_scope.
+
+Theorem allocated_extensional : forall base offset len, HProp_extensional (allocated base offset len).
+  destruct len; reflexivity.
+Qed.
+
+Hint Immediate allocated_extensional.
 
 
 (** * A free-list heap managed by the malloc library *)
@@ -37,7 +43,7 @@ Module FreeList : FREE_LIST.
   Fixpoint freeList (n : nat) (p : W) : HProp :=
     match n with
       | O => [| p = 0 |]
-      | S n' => Ex sz, Ex p', (p ==*> $(sz), p') * allocated (p ^+ $8) sz * freeList n' p'
+      | S n' => [| p <> 0 |] * Ex sz, Ex p', (p ==*> $(sz), p') * (p ^+ $8) =?> sz * freeList n' p'
     end.
 
   Definition mallocHeap := Ex n, Ex p, 0 =*> p * freeList n p.
@@ -58,3 +64,36 @@ Module FreeList : FREE_LIST.
     unfold mallocHeap; sepLemma.
   Qed.
 End FreeList.
+
+Import FreeList.
+Export FreeList.
+Hint Immediate freeList_extensional mallocHeap_extensional.
+
+(*Definition hints' : TacPackage.
+  prepare1 mallocHeap_fwd mallocHeap_bwd.
+Defined.
+
+Definition hints : TacPackage.
+  prepare2 hints'.
+Defined.*)
+
+Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) |] /\ ![ ^[0 =?> S (S n)] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[mallocHeap] * #1 ] st').
+
+Definition mallocM := bmodule "malloc" {{
+  bfunction "init" [initS] {
+    $[0] <- Rv;;
+    $[4] <- 0;;
+    Return 0
+  }
+}}.
+
+Theorem mallocMOk : moduleOk mallocM.
+  vcgen; change (natToW 0 ^+ $4) with (natToW 4) in *.
+
+  (* Symbolic evaluation gets stuck here, because of existentials in the state hypothesis.
+     Do we need to define a special "points to something" predicate and give it a plugin?
+     Perhaps build this into the points-to plugin? *)
+  admit.
+  admit.
+Qed.

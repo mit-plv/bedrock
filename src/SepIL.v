@@ -389,6 +389,8 @@ Qed.
 Definition HProp_extensional (p : HProp) :=
   p = fun st sm => p st sm.
 
+Hint Extern 1 (HProp_extensional _ ) => reflexivity.
+
 Theorem substH_lift1 : forall p' t p,
   HProp_extensional p'
   -> substH (lift (t :: nil) p') p = p'.
