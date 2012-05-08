@@ -439,3 +439,11 @@ Section exec.
 End exec.
 
 Global Opaque natToWord.
+
+
+(** * Some more notational conveniences *)
+
+Definition B2N (b : bool) : nat :=
+  if b then 1 else 0.
+
+Coercion B2N : bool >-> nat.
