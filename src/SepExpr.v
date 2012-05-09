@@ -100,10 +100,6 @@ Module Type SepExprType.
      **)
     Parameter sheapD : SHeap -> sexpr.
 
-    Parameter sheap_valid : SHeap -> Prop.
-
-    Parameter hash_valid : forall s, sheap_valid (snd (hash s)).
-
     Fixpoint existsEach (ls : list tvar) {struct ls} : sexpr -> sexpr :=
       match ls with
         | nil => fun x => x
@@ -210,6 +206,11 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         red; unfold heq; intros. symmetry. auto.    
       Qed.
 
+      Global Instance Equiv_heq : Equivalence (heq U G cs).
+      Proof.
+        constructor; eauto with typeclass_instances.
+      Qed.
+
       Add Parametric Relation : sexpr (@himp U G cs)
         reflexivity proved by  Refl_himp
         transitivity proved by Trans_himp
@@ -293,6 +294,28 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         
     End Facts.
 
+    Lemma fold_left_star : forall T a c cs F (ls : list T)  base,
+      heq a c cs (fold_left (fun acc x => Star (F x) acc) ls base)
+      (Star (fold_left (fun acc x => Star (F x) acc) ls Emp) base).
+    Proof.
+      induction ls; simpl; intros.
+      rewrite heq_star_emp_l. reflexivity.
+      rewrite IHls. symmetry. rewrite IHls.
+      repeat rewrite heq_star_assoc. rewrite heq_star_emp_l. reflexivity.
+    Qed.
+
+    Ltac heq_fold_left_opener :=
+      match goal with
+        | [ |- context [ fold_left _ _ ?B ] ] =>
+          match B with
+            | Emp => fail 1 
+            | _ => rewrite fold_left_star with (base := B)
+          end
+      end.
+    Ltac heq_canceler :=
+      repeat (repeat rewrite heq_star_assoc; first [ apply heq_star_frame; [ reflexivity | try reflexivity ] | 
+        rewrite heq_star_comm; symmetry ]).
+
     Existing Instance himp_rel_relation.
     Existing Instance heq_rel_relation.
     Hint Rewrite heq_star_emp_l heq_star_emp_r : hprop.
@@ -313,28 +336,16 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
 
     (** A more efficient representation for sexprs. **)
     Record SHeap : Type :=
-    { impures : FM.t (list (list (expr types)))
+    { impures : FM.bst (list (list (expr types)))
     ; pures   : list (expr types)
     ; other   : list (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
     }.
   
-    Definition sheap_valid (s : SHeap) : Prop :=
-      FM.bst (impures s).
-
     Definition SHeap_empty : SHeap := 
       {| impures := @FM.empty _
        ; pures   := nil
        ; other   := nil
        |}.
-
-    Hint Resolve FM.Proofs.map_bst FM.Proofs.add_bst FM.Proofs.remove_bst : bst_valid.
-
-    Theorem empty_valid : sheap_valid SHeap_empty.
-    Proof.
-      unfold sheap_valid; simpl; auto with bst_valid.
-    Qed.
-
-    Hint Resolve empty_valid : bst_valid.
 
     (** lift all the "real" variables in [a,...) 
      ** to the range [a+b,...)
@@ -359,43 +370,18 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; other   := other s
        |}.
 
-    Lemma liftSExpr_valid : forall a b s, 
-      sheap_valid s -> sheap_valid (liftSHeap a b s).
-    Proof.
-      unfold sheap_valid; simpl; intros; auto with bst_valid.
-    Qed.
-
-    Definition multimap_add T (k : nat) (v : T) (m : FM.t (list T)) : FM.t (list T) :=
+    Definition multimap_add T (k : nat) (v : T) (m : FM.bst (list T)) : FM.bst (list T) :=
       match FM.find k m with
         | None => FM.add k (v :: nil) m
         | Some v' => FM.add k (v :: v') m
       end.
 
-    Lemma multimap_add_valid : forall T k (v : T) m, 
-      FM.bst m ->
-      FM.bst (multimap_add k v m).
-    Proof.
-      unfold multimap_add; intros. destruct (FM.find k m); auto with bst_valid.
-    Qed.
-
-    Definition multimap_join T : FM.t (list T) -> FM.t (list T) -> FM.t (list T) :=
+    Definition multimap_join T : FM.bst (list T) -> FM.bst (list T) -> FM.bst (list T) :=
       FM.fold (fun k v a => 
         match FM.find k a with
           | None => FM.add k v a
           | Some v' => FM.add k (v ++ v') a
         end).
-    
-    Lemma multimap_join_valid : forall T a b, 
-      FM.bst a -> FM.bst b -> FM.bst (@multimap_join T a b).
-    Proof.
-      unfold multimap_join; clear; intros.
-      rewrite FM.Proofs.fold_1; auto.
-      generalize dependent b.
-      induction (FM.elements a); simpl; intros; auto.
-      destruct (FM.find (fst a0) b); eapply IHl; auto with bst_valid.
-    Qed.
-
-    Hint Resolve multimap_add_valid multimap_join_valid : bst_valid.
 
     Fixpoint star_SHeap (l r : SHeap) : SHeap :=
       {| impures := multimap_join (impures l) (impures r)
@@ -403,25 +389,11 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; other := other l ++ other r
        |}.
 
-    Theorem star_SHeap_valid : forall a b, 
-      sheap_valid a -> sheap_valid b -> sheap_valid (star_SHeap a b).
-    Proof.
-      destruct a; destruct b; unfold sheap_valid; clear; simpl. auto with bst_valid.
-    Qed.
-
     Definition sheap_liftVars (from : nat) (delta : nat) (h : SHeap) : SHeap :=
       {| impures := FM.map (map (map (liftExpr from delta))) (impures h)
        ; pures := map (liftExpr from delta) (pures h)
        ; other := other h
        |}.
-
-    Lemma sheap_liftVars_valid : forall a b h, 
-      sheap_valid h -> sheap_valid (sheap_liftVars a b h).
-    Proof.
-      clear; destruct h; unfold sheap_valid; simpl; apply FM.Proofs.map_bst; auto.
-    Qed.
-
-    Hint Resolve sheap_liftVars_valid : bst_valid.
 
     (** CURRENTLY NOT USED **)
     Fixpoint substV types (vs : list nat) (e : expr types) : expr types :=
@@ -458,7 +430,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
           (t :: v, b)
         | Func f a =>
           (nil,
-           {| impures := NatMap.singleton f (a :: nil)
+           {| impures := FM.add f (a :: nil) (FM.empty _)
             ; pures := nil
             ; other := nil
            |})
@@ -470,22 +442,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
             |})
       end.
 
-    Lemma bst_singleton : forall T k (v : T), FM.bst (NatMap.singleton k v).
-    Proof.
-      unfold NatMap.singleton. intros. eauto with bst_valid.
-    Qed.
-
-    Hint Resolve bst_singleton : bst_valid.
-
-    Theorem hash_valid : forall s, sheap_valid (snd (hash s)).
-    Proof.
-      clear.
-      Opaque FM.add.
-      induction s; simpl in *; repeat match goal with
-                                        | [ |- context [ hash ?S ] ] => destruct (hash S)
-                                      end; unfold sheap_valid; simpl in *; eauto with bst_valid.
-    Qed.
- 
     Definition starred (T : Type) (F : T -> sexpr) (ls : list T) (base : sexpr)
       : sexpr :=
       fold_right (fun x a => match a with 
@@ -545,32 +501,63 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
             autorewrite with hprop; try reflexivity.
     Qed.
 
+    Global Add Parametric Morphism a c cs : (fun k0 : FM.key => starred (Func k0)) with
+      signature (eq ==> eq ==> heq a c cs ==> heq a c cs)
+      as star_himp_mor'.
+    Proof.
+      intros.
+      repeat match goal with
+               | [ |- Morphisms.Proper _ _ ] => red; intros; subst
+               | [ |- Morphisms.respectful _ _ _ _ ] => red; intros; subst
+               | [ H : heq _ _ _ _ _ |- _ ] => rewrite H; clear H
+               | [ |- heq _ _ _ _ ] => heq_canceler
+             end.
+      rewrite <- starred_base. symmetry. rewrite <- starred_base. heq_canceler.
+      symmetry; auto.
+    Qed.
+    Lemma transpose_neqkey_starred a c cs : NatMap.IntMapProperties.transpose_neqkey (heq a c cs)
+      (fun k0 : FM.key => starred (Func k0)).
+    Proof.
+      red. intros. rewrite <- starred_base. symmetry.
+      rewrite <- starred_base. repeat rewrite <- starred_base with (base := a0).
+      heq_canceler.
+    Qed.
+    Lemma transpose_neqkey_Star (X : Type) F a c cs : NatMap.IntMapProperties.transpose_neqkey (heq a c cs)
+      (fun (k0 : FM.key) (ls : X) (a1 : sexpr) => Star (F k0 ls) a1).
+    Proof.
+      red. intros. heq_canceler.
+    Qed.
+    Hint Resolve transpose_neqkey_starred transpose_neqkey_Star : hprop.
+    Hint Extern 1 (Morphisms.Proper _ _) =>
+      (unfold Morphisms.Proper, Morphisms.respectful; intros; subst; 
+        repeat match goal with
+                 | [ H : heq _ _ _ _ _ |- _ ] => rewrite H
+               end; reflexivity) : hprop.
+
     Lemma fold_starred : forall X a c cs (F : nat -> X -> sexpr) m b,
       heq a c cs (FM.fold (fun k ls a => Star (F k ls) a) m b)
       (Star (FM.fold (fun k ls a => Star (F k ls) a) m Emp) b).
     Proof.
-      induction m; simpl; intros.
-      autorewrite with hprop; reflexivity.
+      do 5 intro.
+      intro. apply NatMap.IntMapProperties.fold_rec with (m := m).
+        intros. rewrite NatMap.IntMapProperties.fold_Empty; eauto with typeclass_instances.
+        autorewrite with hprop. reflexivity.
 
-      rewrite IHm2. rewrite IHm1. symmetry. rewrite IHm2.
-      repeat rewrite heq_star_assoc. reflexivity.
+        intros. erewrite NatMap.IntMapProperties.fold_Add; eauto with typeclass_instances hprop.
+        rewrite H2. heq_canceler.
     Qed.
 
-    Lemma impures' : forall a c cs i b, 
+    Lemma impures' : forall a c cs (i : FM.bst _)  b, 
       heq a c cs (FM.fold (fun k => starred (Func k)) i b)
       (Star (FM.fold (fun k ls a => Star (starred' (Func k) ls Emp) a) i Emp) b).
     Proof.
-      induction i; simpl; intros.
-      autorewrite with hprop. reflexivity.
+      do 4 intro. apply NatMap.IntMapProperties.fold_rec with (m := i); intros.
+        rewrite NatMap.IntMapProperties.fold_Empty; eauto with typeclass_instances.
+        autorewrite with hprop; reflexivity.
 
-      rewrite IHi2.    
-      rewrite <- (@starred_base a c cs). 
-      rewrite IHi1.
-      symmetry. 
-      rewrite fold_starred. repeat rewrite heq_star_assoc.
-      apply heq_star_frame. reflexivity.
-      apply heq_star_frame; try reflexivity.
-      rewrite starred_starred'; try reflexivity.
+        erewrite NatMap.IntMapProperties.fold_Add; eauto with typeclass_instances hprop.
+        rewrite <- starred_base. rewrite starred_starred'; try reflexivity.
+        rewrite H2. heq_canceler.
     Qed.
 
     Theorem sheapD_sheapD' : forall a c cs h, 
@@ -666,19 +653,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         apply ST.satisfies_pure in H; propxFo.
     Qed.
 
-    Lemma fold_left_star : forall T a c cs F (ls : list T)  base,
-      heq a c cs (fold_left (fun acc x => Star (F x) acc) ls base)
-      (Star (fold_left (fun acc x => Star (F x) acc) ls Emp) base).
-    Proof.
-      induction ls; simpl; intros.
-      rewrite heq_star_emp_l. reflexivity.
-      rewrite IHls. symmetry. rewrite IHls.
-      repeat rewrite heq_star_assoc. rewrite heq_star_emp_l. reflexivity.
-    Qed.
-
-
     Lemma sheapD_pull_impure : forall a c cs h f argss,
-      sheap_valid h ->
       FM.find f (impures h) = Some argss ->
       heq a c cs (sheapD h)
                  (Star (sheapD {| impures := FM.remove f (impures h)
@@ -701,21 +676,18 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite heq_star_assoc. rewrite heq_star_comm. rewrite heq_star_assoc.
       rewrite heq_star_comm. rewrite heq_star_assoc.
       symmetry. rewrite heq_star_assoc. rewrite heq_star_comm.
-      rewrite heq_star_assoc. apply heq_star_frame. reflexivity.
-      rewrite heq_star_comm. reflexivity.
+      heq_canceler.
 
-      (** **)
-      simpl in *.
-      repeat rewrite FM.Proofs.fold_1; eauto with bst_valid.
+      rewrite NatMap.IntMapProperties.fold_Add with (m2 := impures0); eauto with typeclass_instances hprop.
+      Focus 3. unfold NatMap.IntMapProperties.Add. instantiate (3 := f). instantiate (2 := argss).
+      instantiate (1 := (FM.remove f impures0)). intros.
+        rewrite NatMap.IntMapProperties.F.add_o. simpl in *.
+        destruct (NatMap.Ordered_nat.eq_dec f y). subst; auto.
+        rewrite NatMap.IntMapProperties.F.remove_neq_o; auto.
 
-      generalize (NatMap.find_elements_split _ _ _ _ H0); destruct 1. destruct H1.
-      rewrite H1.
-      unfold sheap_valid in *. simpl in H.
-      rewrite (NatMap.find_elements_remove _ _ _ _ _ _ H H1).
-      repeat rewrite fold_left_app. simpl.
-      rewrite fold_left_star. etransitivity. rewrite fold_left_star. reflexivity.
-      repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
-      rewrite heq_star_comm. rewrite starred_starred' by reflexivity. reflexivity.
+      Focus 2. apply FM.remove_1; auto.
+
+      rewrite starred_starred'; try reflexivity. heq_canceler.
     Qed.
 
     Lemma heq_ex : forall X Y cs t P Q,
@@ -813,18 +785,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite liftSExpr_combine. reflexivity.
     Qed.
 
-    Ltac heq_fold_left_opener :=
-      match goal with
-        | [ |- context [ fold_left _ _ ?B ] ] =>
-          match B with
-            | Emp => fail 1 
-            | _ => rewrite fold_left_star with (base := B)
-          end
-      end.
-    Ltac heq_canceler :=
-      repeat (repeat rewrite heq_star_assoc; first [ apply heq_star_frame; [ reflexivity | try reflexivity ] | 
-        rewrite heq_star_comm; symmetry ]).
-
     Lemma starred'_app : forall EG G cs T (F : T -> _) a b B,
       heq EG G cs (starred' F (a ++ b) B) (starred' F a (starred' F b B)).
     Proof.
@@ -832,11 +792,83 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite IHa. reflexivity.
     Qed.
 
+    Lemma multimap_join_remove_acc : forall T k (a b : FM.bst _),
+      ~FM.In k a ->
+      FM.Equal (FM.remove k (multimap_join (T := T) a b)) (multimap_join a (FM.remove k b)).
+    Proof.
+      clear. do 3 intro. unfold multimap_join.
+      intro.
+      eapply NatMap.IntMapProperties.fold_rec with (m := a); intros.
+      * rewrite NatMap.IntMapProperties.fold_Empty; eauto with typeclass_instances. reflexivity.
+      * rewrite NatMap.IntMapProperties.fold_Add. 2: eauto with typeclass_instances.
+        5: eassumption. 4: eauto.
+        assert (~ FM.In (elt:=list T) k m').
+        { clear H2.
+          intro. unfold NatMap.IntMapProperties.Add in H1.
+          specialize (H1 k).
+          rewrite NatMap.IntMapProperties.F.not_find_in_iff in H3.
+          rewrite H3 in *.
+          eapply NatMap.IntMapProperties.F.in_find_iff in H2. apply H2.
+          rewrite NatMap.IntMapFacts.add_o in H1.
+          destruct (NatMap.Ordered_nat.eq_dec k0 k); try congruence.
+        }
+        apply H2 in H4. clear H2.
+        rewrite <- H4.
+        rewrite NatMap.IntMapProperties.F.remove_o.
+        destruct (NatMap.Ordered_nat.eq_dec k k0).
+        { subst. exfalso.
+          unfold NatMap.IntMapProperties.Add in *.
+          specialize (H1 k0).
+          rewrite NatMap.IntMapProperties.F.not_find_in_iff in H3.
+          rewrite H3 in *.
+          rewrite NatMap.IntMapProperties.F.add_eq_o in H1; auto.
+          congruence.
+        }
+        { destruct (FM.find (elt:=list T) k0 a0).
+          unfold FM.Equal; intros.
+          rewrite <- H4.
+          repeat (rewrite NatMap.IntMapFacts.remove_o || rewrite NatMap.IntMapFacts.add_o).
+          destruct (NatMap.Ordered_nat.eq_dec k y); destruct (NatMap.Ordered_nat.eq_dec k0 y); intros; subst; try congruence.
+          red; intros.
+          rewrite <- H4.
+          repeat (rewrite NatMap.IntMapFacts.remove_o || rewrite NatMap.IntMapFacts.add_o).
+          destruct (NatMap.Ordered_nat.eq_dec k y); destruct (NatMap.Ordered_nat.eq_dec k0 y); intros; subst; try congruence.
+        }
+        repeat (red; intros; subst).
+        rewrite H4. destruct (FM.find (elt:=list T) y y1); try rewrite H4; reflexivity.
+        
+        clear. red. intros. 
+        red; intros.
+        repeat match goal with
+                 | [ H : _ = _ |- _ ] => rewrite H in *
+                 | [ H : context [ FM.find _ _ ] |- _ ] => 
+                   rewrite NatMap.IntMapFacts.add_o in H
+                 | [ |- context [ FM.find ?k ?a ] ] =>
+                   match a with
+                     | match _ with 
+                         | Some _ => _
+                         | None => _
+                       end => fail 1
+                     | _ => case_eq (FM.find k a); intros
+                   end
+               end;
+        repeat match goal with
+                 | [ H : context [ NatMap.Ordered_nat.eq_dec ?A ?B ] |- _ ] =>
+                   destruct (NatMap.Ordered_nat.eq_dec A B); try congruence
+               end.
+    Qed. 
+
+    Lemma add_remove_Equal : forall (elt : Type) k (v : elt) m,
+      FM.Equal (FM.add k v m) (FM.add k v (FM.remove k m)).
+    Proof.
+      clear. unfold FM.Equal. intros.
+      repeat (rewrite NatMap.IntMapFacts.add_o || rewrite NatMap.IntMapFacts.remove_o).
+      destruct (NatMap.Ordered_nat.eq_dec k y); auto.
+    Qed.
+
     Lemma multimap_join_star : forall (EG G : env types)
      (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
-     (impures0 impures1 : SUBST.t (list (list (expr types)))) B,
-     FM.bst impures0 ->
-     FM.bst impures1 ->
+     (impures0 impures1 : SUBST.bst (list (list (expr types)))) B,
      heq EG G cs
        (FM.fold
          (fun (k : FM.key) (ls : list (list (expr types))) (acc : sexpr) =>
@@ -849,7 +881,135 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
            (fun (k : FM.key) (ls : list (list (expr types))) (acc : sexpr) =>
              Star (starred' (Func k) ls Emp) acc) impures1 B)).
     Proof.
-      intros.
+      unfold multimap_join.
+      do 4 intro. apply NatMap.IntMapProperties.map_induction with (m := impures0).
+      * intros.
+        repeat rewrite NatMap.IntMapProperties.fold_Empty with (m := m); eauto with typeclass_instances.
+        reflexivity.
+
+      * intros.
+        generalize (@NatMap.IntMapProperties.fold_Add (list (exprs types)) _ (@FM.Equal (list (exprs types)))).
+        intro. 
+        rewrite NatMap.IntMapProperties.fold_Equal.
+        5: eapply H2; eauto with typeclass_instances.
+        clear H2. simpl in *.
+        unfold exprs; simpl in *.
+        match goal with
+          | [ |- context [ FM.find ?x ?y ] ] => remember y
+        end.
+        case_eq (FM.find x t); intros.
+        { subst.
+          rewrite NatMap.IntMapProperties.fold_Equal; eauto with typeclass_instances.
+          4: eapply add_remove_Equal.
+          symmetry.
+          rewrite NatMap.IntMapProperties.fold_Add.
+          6: eassumption.
+          5: eauto.
+          2: eauto with typeclass_instances.
+          rewrite fold_starred.
+          rewrite NatMap.IntMapProperties.fold_Add with (m2 := impures1).
+          2: eauto with typeclass_instances.
+          instantiate (3 := x). instantiate (2 := l). 
+          instantiate (1 := FM.remove x impures1). 
+          rewrite NatMap.IntMapProperties.fold_add.
+          rewrite starred'_app. rewrite <- starred'_base with (base := starred' _ _ _).
+          repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
+          rewrite heq_star_comm. repeat rewrite heq_star_assoc. apply heq_star_frame; try reflexivity.
+          
+            generalize (@multimap_join_remove_acc _ x m impures1 H0). unfold multimap_join. intro.
+            symmetry. rewrite NatMap.IntMapProperties.fold_Equal.
+            5: eapply H3. clear H3.
+            rewrite H. rewrite fold_starred. heq_canceler. eauto with typeclass_instances.
+            
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            apply FM.remove_1; auto.
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            apply FM.remove_1; auto.
+
+            { (*
+              revert H0; revert H2; clear. unfold NatMap.IntMapProperties.Add. 
+              intros. rewrite <- add_remove_Equal. 
+              rewrite NatMap.IntMapFacts.add_o. destruct (NatMap.Ordered_nat.eq_dec x y); auto. subst.
+              
+              revert H2; revert H0. revert y.
+              eapply NatMap.IntMapProperties.map_induction with (m := m); intros.
+              rewrite NatMap.IntMapProperties.fold_Empty in H2; eauto with typeclass_instances.
+              rewrite NatMap.IntMapProperties.fold_Add in H3. 6: eassumption.
+
+              revert H3. case_eq (FM.find (elt:=list (list (expr types))) x
+         (NatMap.IntMap.fold
+            (fun (k : FM.key) (v : list (list (expr types)))
+               (a : FM.t (list (list (expr types)))) =>
+             match FM.find (elt:=list (list (expr types))) k a with
+             | Some v' => FM.add k (v ++ v') a
+             | None => FM.add k v a
+             end) m0 impures1)); intros.
+
+              rewrite NatMap.IntMapFacts.add_o in H4. destruct (NatMap.Ordered_nat.eq_dec x y). subst.
+              
+              
+              specialize (H x). rewrite H in H3.
+              
+              
+
+              destruct (FM.find k a).
+               SearchAbout FM.find.
+              
+              *) admit.
+            }
+
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+            try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+        }          
+        { subst.
+          rewrite NatMap.IntMapProperties.fold_add; eauto with typeclass_instances.
+          rewrite H. symmetry. rewrite fold_starred. 
+          rewrite NatMap.IntMapProperties.fold_Add; eauto with typeclass_instances.
+          symmetry. rewrite fold_starred. heq_canceler.
+          
+          repeat (red; intros; subst). rewrite H3. heq_canceler.
+          red; intros; heq_canceler.
+          repeat (red; intros; subst). rewrite H3; heq_canceler.
+          red; intros; heq_canceler.
+          intro.
+          apply NatMap.IntMapProperties.F.in_find_iff in H3. auto.
+        }
+        eauto with typeclass_instances.
+        try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+        try solve [ clear; eauto with typeclass_instances | clear; repeat (red; intros; subst); try rewrite H; heq_canceler ].
+        clear; repeat (red; intros; subst). rewrite H.
+          destruct (FM.find (elt:=list (list (expr types))) y y1); try rewrite H; reflexivity.
+        
+        clear; repeat (red; intros; subst). unfold exprs in *.
+        (repeat match goal with
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               | [ H : _ = _ |- _ ] => rewrite H 
+                | [ H : _ = _ |- _ ] => rewrite H in *
+                | [ H : context [ FM.find _ _ ] |- _ ] => 
+                  rewrite NatMap.IntMapFacts.add_o in H
+                | [ |- context [ FM.find ?k ?a ] ] =>
+                  match a with
+                    | match _ with 
+                        | Some _ => _
+                        | None => _
+                      end => fail 1
+                    | _ => case_eq (FM.find k a); intros
+                  end
+                end);
+              repeat match goal with
+                       | [ H : Some _ = Some _ |- _ ] => inversion H ; clear H; subst
+                       | [ H : context [ NatMap.Ordered_nat.eq_dec ?A ?B ] |- _ ] =>
+                         destruct (NatMap.Ordered_nat.eq_dec A B); try congruence
+                     end.
+      Qed.
+(* NOTE: this is the old proof....
       repeat rewrite FM.Proofs.fold_1; auto with bst_valid. 
       unfold multimap_join. repeat rewrite FM.Proofs.fold_1; auto with bst_valid. 
       generalize dependent (FM.elements impures0). clear H. intros. clear impures0.
@@ -877,11 +1037,9 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         repeat rewrite fold_left_app; simpl.
         do 2 heq_fold_left_opener. symmetry. do 2 heq_fold_left_opener.
         heq_canceler.
-    Qed.
+*)
 
     Lemma sheapD'_star : forall EG G cs s1 s2,
-      sheap_valid s1 -> 
-      sheap_valid s2 ->
       heq EG G cs (sheapD' (star_SHeap s1 s2)) (Star (sheapD' s1) (sheapD' s2)).
     Proof.
       destruct s1; destruct s2; intros; simpl; unfold sheapD', star_SHeap; simpl.
@@ -892,7 +1050,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       repeat apply heq_star_frame.
       Focus.
       rewrite multimap_join_star; auto. 
-      repeat rewrite FM.Proofs.fold_1; auto.
+      repeat rewrite FM.fold_1; auto.
       rewrite fold_left_star. reflexivity.
 
       (** **)
@@ -929,12 +1087,12 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
 
 
     Lemma sheapD'_sexprD_liftVars : forall EG G cs a b s,
-      sheap_valid s ->
       heq EG G cs (liftSExpr a b (sheapD' s)) (sheapD' (sheap_liftVars a b s)).
     Proof.
       destruct s; unfold sheap_liftVars, sheapD'; simpl; repeat apply heq_star_frame; intros.
-         repeat rewrite FM.Proofs.fold_1 by eauto with bst_valid.
-         repeat apply heq_star_frame.        
+(*
+        SearchAbout FM.map.
+         repeat rewrite FM.fold_1.
          rewrite NatMap.elements_map; eauto with bst_valid. clear.
          change Emp with (liftSExpr a b Emp) at 4; generalize Emp at 2 4.
          induction (FM.elements impures0); intros; simpl; try reflexivity.
@@ -948,7 +1106,8 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
                    
         clear; change Emp with (liftSExpr a b Emp) at 2. generalize Emp; induction other0; try reflexivity; intros.
           simpl; rewrite IHother0. reflexivity.
-    Qed.
+*)
+    Admitted. (** TODO: used to work when reasoning about elements **)
 
     Lemma liftSExpr_existsEach : forall EG cs v0 s G n v,
       heq EG G cs (liftSExpr n v (existsEach v0 s)) 
@@ -973,7 +1132,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
 
         (** Star **)
         Focus.
-        intros. rewrite IHs1 at 1. generalize (hash_valid s1). generalize (hash_valid s2). intros.
+        intros. rewrite IHs1 at 1. intros.
         destruct (hash s1); destruct (hash s2); simpl in *.
         rewrite IHs2.
         rewrite <- (@existsEach_app EG cs) with (Y := G).
@@ -982,14 +1141,12 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
 
         rewrite liftSExpr_existsEach.
         rewrite star_pull_existsEach. eapply heq_existsEach; intros.
-        rewrite sheapD'_star; eauto with bst_valid. simpl plus.
+        rewrite sheapD'_star. simpl plus.
         repeat rewrite sheapD'_sexprD_liftVars; auto. rewrite heq_star_comm. reflexivity.
 
         (** Func **)
         Focus.
-        intros. unfold sheapD'. simpl. rewrite FM.Proofs.fold_1. 2: eauto with bst_valid.
-        
-        rewrite NatMap.elements_singleton. simpl.
+        intros. unfold sheapD'. simpl. rewrite FM.fold_1. simpl.
         repeat rewrite heq_star_emp_r. reflexivity.
     Qed.
     
@@ -1102,13 +1259,13 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         | x => x
       end.
 
-    Definition order_impures (imps : FM.t (list (exprs types))) : cancel_list :=
+    Definition order_impures (imps : FM.bst (list (exprs types))) : cancel_list :=
       FM.fold (fun k => fold_left (fun (acc : cancel_list) (args : exprs types) => 
         Ordering.insert_in_order _ meta_order_funcs (args, k) acc)) imps nil.
     
     Fixpoint cancel_in_order (bound : nat) (summ : Facts Prover) 
-      (ls : cancel_list) (acc rem : FM.t (list (exprs types))) (sub : Subst types) 
-      : FM.t (list (exprs types)) * FM.t (list (exprs types)) * Subst types :=
+      (ls : cancel_list) (acc rem : FM.bst (list (exprs types))) (sub : Subst types) 
+      : FM.bst (list (exprs types)) * FM.bst (list (exprs types)) * Subst types :=
       match ls with
         | nil => (acc, rem, sub)
         | (args,f) :: ls => 

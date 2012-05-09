@@ -1,6 +1,7 @@
 #SymEvalTests
 
-MODULES    := HintlessOrderedType HintlessFMapList HintlessFMapAVL \
+MODULES    := HintlessOrderedType HintlessFMapInterface \
+	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
 	GenRec Ordering \
 	Nomega Word Labels LabelMap \
 	PropX PropXRel PropXTac \

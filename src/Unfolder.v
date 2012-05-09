@@ -325,6 +325,7 @@ Module Make (Import SE : SepExprType).
         inversion H. eapply IHa in H3; intuition.
       Qed.
 
+(*
       Lemma FOO : forall cs meta_env vs H P,
         (exists e : env types, vs = map (@projT1 _ _) (rev e) /\ 
           ST.himp cs P (sexprD funcs preds meta_env e H)) ->
@@ -346,6 +347,16 @@ Module Make (Import SE : SepExprType).
         rewrite H2. destruct s; simpl. reflexivity.
         admit.
       Qed.
+*)
+
+      Fixpoint ST_exs_env (ls : list tvar) 
+        (k : list { t : tvar & tvarD types t } -> ST.hprop (tvarD types pcType) (tvarD types stateType) nil) {struct ls} : 
+        ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
+        match ls with
+          | nil => k nil
+          | l :: ls =>
+            ST.ex (fun x : tvarD types l => ST_exs_env ls (fun env => k (@existT _ _ l x :: env)))
+        end.
 
       Theorem forwardOk : forall cs bound facts P Q meta_env vars_env,
         forward bound facts P = Q ->
@@ -353,56 +364,38 @@ Module Make (Import SE : SepExprType).
         map (@projT1 _ _) vars_env = rev P.(Vars) ->
         Valid PC meta_env vars_env facts ->
         ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
-                   (sexprD funcs preds meta_env nil (existsEach Q.(Vars) (sheapD (Heap Q)))).
+                   (ST_exs_env (skipn (length vars_env) Q.(Vars)) (fun vars_ext : list { t : tvar & tvarD types t } =>
+                     (sexprD funcs preds meta_env (vars_env ++ vars_ext) (sheapD (Heap Q))))).
       Proof.
         induction bound; simpl; intros.
-          Focus.
-          subst; repeat split; try reflexivity.
-          intros. 
-
-          eapply FOO. eexists; split. symmetry. instantiate (1 := vars_env). rewrite map_rev. 
-          rewrite <- rev_involutive. f_equal. assumption. reflexivity.
-
-          Focus.
-          revert H. case_eq (unfoldForward prover facts (Forward hs) P); intros. 2: admit.
-      Admitted.
-
-      Lemma BAR : forall cs meta_env vs H P,
-        (forall e : env types, vs = map (@projT1 _ _) (rev e) ->
-          ST.himp cs (sexprD funcs preds meta_env e H) P) ->
-        ST.himp cs (sexprD funcs preds meta_env nil (existsEach vs H)) P.
-      Proof.
-        clear. induction vs using rev_ind; simpl; intros.
-          specialize (H0 nil (refl_equal _)). assumption.
-
-          cutrewrite (existsEach (vs ++ x :: nil) H = existsEach vs (existsEach (x :: nil) H)).
-          simpl. eapply IHvs. intros. simpl. eapply ST.himp_ex_p. intros.
-          eapply H0. simpl. rewrite map_app. rewrite <- H1. f_equal.
+        { subst; repeat split; try reflexivity.
+          cutrewrite (skipn (length vars_env) (Vars Q) = nil). simpl. rewrite app_nil_r. reflexivity.
           admit.
+        }
+        { revert H; case_eq (unfoldForward prover facts (Forward hs) P); intros.
+          { admit. }
+          { cutrewrite (skipn (length vars_env) (Vars Q) = nil). subst. simpl. rewrite app_nil_r. reflexivity.
+            subst. admit.
+          }
+        }
       Qed.
-(*
-      Theorem backwardOk : forall cs bound facts P Q meta_env,
+
+      Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,
         backward bound facts P = Q ->
         map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
-        exists vars_env , map (@projT1 _ _) vars_env = rev P.(Vars) /\
-        (Valid PC meta_env vars_env facts ->
-         ST.himp cs (sexprD funcs preds meta_env nil (existsEach Q.(Vars) (sheapD (Heap Q))))
-                    (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))).
+        map (@projT1 _ _) vars_env = rev P.(Vars) ->
+        Valid PC meta_env vars_env facts ->
+        ST.himp cs (ST_exs_env (skipn (length meta_env) Q.(UVars)) (fun meta_ext : list { t : tvar & tvarD types t } => 
+                      (sexprD funcs preds (meta_env ++ meta_ext) vars_env (sheapD (Heap Q)))))
+                   (sexprD funcs preds meta_env vars_env (sheapD (Heap P))).
       Proof.
         induction bound; simpl; intros.
-          Focus.
-          subst. eexists. split.
-
-
-
-         eapply FOO. eexists; split. symmetry. instantiate (1 := vars_env). rewrite map_rev. 
-          rewrite <- rev_involutive. f_equal. assumption. reflexivity.
-
-          Focus.
-          revert H. case_eq (unfoldForward prover facts (Forward hs) P); intros. 2: admit.
-      Admitted.
-*)
-
+        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). simpl. rewrite app_nil_r. reflexivity.
+          erewrite <- map_length. instantiate (1 := @projT1 _ _). rewrite H0. admit.
+        }
+        { revert H. admit.
+        }
+      Qed.
 
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       (** TODO: Break this into two lemmas, one for forward and one for backward **)

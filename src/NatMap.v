@@ -1,5 +1,4 @@
-Require Import HintlessOrderedType.
-Require Import HintlessFMapAVL.
+Require Import HintlessOrderedType HintlessFMapAVL.
 Require Import List.
 
 Set Implict Arguments.
@@ -45,10 +44,17 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
 End Ordered_nat.
 
-Module IntMap := HintlessFMapAVL.Raw ZArith.Int.Z_as_Int Ordered_nat.
+Module IntMap := HintlessFMapAVL.Make Ordered_nat.
+
+Require HintlessFMapFacts.
+Module IntMapFacts := HintlessFMapFacts.WFacts_fun(Ordered_nat)(IntMap).
+
+Module IntMapProperties := HintlessFMapFacts.WProperties_fun(Ordered_nat)(IntMap).
 
 Definition singleton {T} (k : nat) (v : T) : IntMap.t T :=
   IntMap.add k v (IntMap.empty _).
+
+(*
 
 (** Other Lemmas **)
 (* these currently break the FMap abstraction, but they could be proved
@@ -201,4 +207,5 @@ Goal
   m = m.
 reduce_nat_map.
 Abort.
+*)
 *)

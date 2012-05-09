@@ -428,25 +428,28 @@ Ltac cancel_simplifier :=
     value error tl hd_error nth_error map length app fold_right firstn skipn
 
     (** IntMap **)
+    NatMap.singleton
+    NatMap.IntMap.Raw.height NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.assert_false NatMap.IntMap.Raw.create
+    NatMap.IntMap.Raw.bal NatMap.IntMap.Raw.remove_min NatMap.IntMap.Raw.merge NatMap.IntMap.Raw.join
+    NatMap.IntMap.Raw.t_left NatMap.IntMap.Raw.t_opt NatMap.IntMap.Raw.t_right
+    NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.empty NatMap.IntMap.Raw.is_empty
+    NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find   
+    NatMap.IntMap.Raw.add  NatMap.IntMap.Raw.remove
+    NatMap.IntMap.Raw.fold NatMap.IntMap.Raw.map NatMap.IntMap.Raw.mapi NatMap.IntMap.Raw.map2
+
+    NatMap.IntMap.this NatMap.IntMap.is_bst
+    NatMap.IntMap.empty NatMap.IntMap.is_empty
+    NatMap.IntMap.add NatMap.IntMap.remove
+    NatMap.IntMap.mem NatMap.IntMap.find
+    NatMap.IntMap.map NatMap.IntMap.mapi NatMap.IntMap.map2
+    NatMap.IntMap.elements NatMap.IntMap.cardinal NatMap.IntMap.fold
+    NatMap.IntMap.equal
+
     Compare_dec.lt_dec
     Compare_dec.le_dec
     Compare_dec.le_gt_dec
     Compare_dec.le_lt_dec
     Compare_dec.lt_eq_lt_dec
-(*
-    NatMap.IntMap.add
-    NatMap.IntMap.empty
-    NatMap.IntMap.find
-    NatMap.IntMap.insert_at_right
-    NatMap.IntMap.remove
-    NatMap.IntMap.map
-    NatMap.IntMap.fold
-*)
-    NatMap.singleton
-    NatMap.IntMap.height NatMap.IntMap.cardinal NatMap.IntMap.empty NatMap.IntMap.is_empty
-    NatMap.IntMap.mem NatMap.IntMap.find NatMap.IntMap.assert_false NatMap.IntMap.create NatMap.IntMap.bal
-    NatMap.IntMap.add NatMap.IntMap.remove_min NatMap.IntMap.merge NatMap.IntMap.remove NatMap.IntMap.join
-    NatMap.IntMap.t_left NatMap.IntMap.t_opt NatMap.IntMap.t_right
 
     Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
     Int.Z_as_Int.plus Int.Z_as_Int.max
