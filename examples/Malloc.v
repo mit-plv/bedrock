@@ -69,13 +69,13 @@ Import FreeList.
 Export FreeList.
 Hint Immediate freeList_extensional mallocHeap_extensional.
 
-(*Definition hints' : TacPackage.
+Definition hints' : TacPackage.
   prepare1 mallocHeap_fwd mallocHeap_bwd.
 Defined.
 
 Definition hints : TacPackage.
   prepare2 hints'.
-Defined.*)
+Defined.
 
 Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) |] /\ ![ ^[0 =?> S (S n)] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[mallocHeap] * #1 ] st').
@@ -90,6 +90,8 @@ Definition mallocM := bmodule "malloc" {{
 
 Theorem mallocMOk : moduleOk mallocM.
   vcgen; change (natToW 0 ^+ $4) with (natToW 4) in *.
-  sep auto_ext.
+  sep hints.
+  sep hints.
+  instantiate (1 := 1). (** TODO: not sure if this is the right choice, needs a hint anyways **)
   admit.
 Qed.

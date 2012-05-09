@@ -20,8 +20,10 @@ Section existsSubst.
   Variable denote : expr types -> forall t : tvar, option (tvarD types t).
   Variable sub : ExprUnify2.Subst types.
  
-  Definition ExistsSubstNone (_ : list { t : tvar & option (tvarD types t) }) (_ : tvar) (_ : expr types) := False.
-  Definition ExistsSubstSome (_ : list { t : tvar & option (tvarD types t) }) (_ : expr types) := False. 
+  Definition ExistsSubstNone (_ : list { t : tvar & option (tvarD types t) }) (_ : tvar) (_ : expr types) := 
+    denote = denote /\ sub = sub /\ False.
+  Definition ExistsSubstSome (_ : list { t : tvar & option (tvarD types t) }) (_ : expr types) := 
+    denote = denote /\ sub = sub /\ False. 
 
   Fixpoint existsSubst (from : nat) (vals : list { t : tvar & option (tvarD types t) }) (ret : env types -> Prop) : Prop :=
     match vals with
