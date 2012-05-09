@@ -44,6 +44,120 @@ Section stream_correctness.
   Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
   Variable sfuncs : SEP.predicates TYPES pcT stT.
 
+  Lemma skipn_length : forall T (ls : list T) n,
+    length ls = n ->
+    skipn n ls = nil.
+  Proof.
+    clear. intros; subst; induction ls; simpl; auto.
+  Qed.
+
+  Lemma skipn_app_first : forall T (ls ls' : list T) n,
+    length ls = n ->
+    skipn n (ls ++ ls') = ls'.
+  Proof.
+    clear; intros; subst; induction ls; auto.
+  Qed.
+
+  Lemma interp_ex : forall cs T (P : T -> hprop _ _ _) stn_st,
+    interp cs (![SEP.ST.ex P] stn_st) ->
+    exists v, interp cs (![P v] stn_st).
+  Proof.
+    clear. intros.
+    rewrite sepFormula_eq in *. destruct stn_st. unfold sepFormula_def in *. simpl in *.
+    unfold SEP.ST.ex in H. apply interp_sound in H. auto.
+  Qed.
+
+  Lemma interp_pull_existsEach : forall cs P stn_st uvars vars' vars,
+    interp cs (![SEP.sexprD funcs sfuncs uvars vars (SEP.existsEach vars' P)] stn_st) ->
+    exists env', map (@projT1 _ _) env' = vars' /\
+      interp cs (![SEP.sexprD funcs sfuncs uvars (rev env' ++ vars) P] stn_st).
+  Proof.
+    clear. 
+    induction vars'; simpl; intros.
+    exists nil; simpl; eauto.
+    
+    apply interp_ex in H.
+    destruct H. eapply IHvars' in H. destruct H. intuition. exists (existT (tvarD TYPES) a x :: x0).
+    simpl in *. rewrite H0. intuition eauto. rewrite app_ass. simpl. auto.
+  Qed.
+  
+  Theorem stateD_proof_no_heap :
+    forall (uvars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
+      let vars := nil in
+      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+      forall pures : list (Expr.expr TYPES),
+        Expr.AllProvable funcs uvars vars pures ->
+        forall (cs : codeSpec W (settings * state)) (stn : settings),
+          stateD funcs' sfuncs uvars vars cs (stn, st)
+          {| SymVars := map (@projT1 _ _) vars
+           ; SymUVars := map (@projT1 _ _) uvars
+           ; SymMem := None
+           ; SymRegs := (sp, rp, rv)
+           ; SymPures := pures
+          |}.
+  Proof.
+    unfold stateD. intros.
+    rewrite skipn_length; eauto using map_length; simpl in *.
+    repeat rewrite app_nil_r in *.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end.
+    intuition auto. 
+  Qed.
+
+  Theorem stateD_proof : (* vars = nil *)
+    forall (uvars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
+      let vars := nil in
+      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
+      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
+      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
+      forall pures : list (Expr.expr TYPES),
+        Expr.AllProvable funcs uvars vars pures ->
+        forall (sh : SEP.sexpr TYPES pcT stT)
+          (hashed : SEP.SHeap TYPES pcT stT) vars',
+          SEP.hash sh = (vars', hashed) ->
+          forall (cs : codeSpec W (settings * state)) (stn : settings),
+            interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
+            stateD funcs' sfuncs uvars vars cs (stn, st)
+            {| SymVars := map (@projT1 _ _) vars ++ rev vars'
+             ; SymUVars := map (@projT1 _ _) uvars
+             ; SymMem := Some hashed
+             ; SymRegs := (sp, rp, rv)
+             ; SymPures := pures
+            |}.
+  Proof.
+    Opaque repr.
+    clear.
+    unfold stateD. intros. simpl length. simpl.
+    generalize (SEP.hash_denote funcs sfuncs uvars cs sh nil). rewrite H3. simpl in *.
+    intro XX. rewrite XX in H4. 
+
+    apply interp_pull_existsEach in H4. destruct H4. intuition.
+    rewrite <- H5. rewrite <- map_rev. apply existsEach_projT1_env. rewrite app_nil_r in *.
+    change (rev x) with (nil ++ rev x).
+
+    repeat (erewrite exprD_weaken by eassumption).
+    intuition eauto.
+
+    apply AllProvable_app; auto.
+    { revert H2. clear.
+      match goal with
+        | [ |- context [ @nil ?X ] ] => generalize (@nil X)
+      end.
+      induction pures. auto.
+      simpl. unfold Provable in *. intro.
+      case_eq (exprD funcs uvars l a tvProp); intros. intuition.
+      erewrite exprD_weaken by eassumption; auto.
+      exfalso; intuition. 
+    }
+    { rewrite sepFormula_eq in H6. unfold sepFormula_def in H6. simpl in H6.
+      eapply SEP.sheapD_pures. 
+      unfold SEP.ST.satisfies. simpl in *. eauto.
+    }
+  Qed.
+
   Variable meval : MEVAL.MemEvaluator TYPES pcT stT.
   Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs sfuncs tvWord tvWord 
     (@SymIL.IL_mem_satisfies types') (@SymIL.IL_ReadWord types') (@SymIL.IL_WriteWord types').
@@ -92,61 +206,6 @@ Section stream_correctness.
      **)
   Admitted.
 
-  Theorem stateD_proof_no_heap :
-    forall (uvars vars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
-      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-      forall pures : list (Expr.expr TYPES),
-        Expr.AllProvable funcs uvars vars pures ->
-        forall (cs : codeSpec W (settings * state)) (stn : settings),
-          stateD funcs' sfuncs uvars vars cs (stn, st)
-          {| SymVars := map (@projT1 _ _) vars
-           ; SymUVars := map (@projT1 _ _) uvars
-           ; SymMem := None
-           ; SymRegs := (sp, rp, rv)
-           ; SymPures := pures
-          |}.
-  Proof.
-    unfold stateD. intros.
-    repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-           end.
-    intuition auto.
-  Qed.
-
-  Theorem stateD_proof :
-    forall (uvars vars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
-      exprD funcs uvars vars sp tvWord = Some (Regs st Sp) ->
-      exprD funcs uvars vars rv tvWord = Some (Regs st Rv) ->
-      exprD funcs uvars vars rp tvWord = Some (Regs st Rp) ->
-      forall pures : list (Expr.expr TYPES),
-        Expr.AllProvable funcs uvars vars pures ->
-        forall (sh : SEP.sexpr TYPES pcT stT)
-          (hashed : SEP.SHeap TYPES pcT stT),
-          SEP.hash sh = (nil, hashed) ->
-          forall (cs : codeSpec W (settings * state)) (stn : settings),
-            interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
-            stateD funcs' sfuncs uvars vars cs (stn, st)
-            {| SymVars := map (@projT1 _ _) vars
-             ; SymUVars := map (@projT1 _ _) uvars
-             ; SymMem := Some hashed
-             ; SymRegs := (sp, rp, rv)
-             ; SymPures := pures
-            |}.
-  Proof.
-    Opaque repr.
-    unfold stateD. intros.
-    repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-           end.
-    generalize (SEP.hash_denote funcs sfuncs uvars cs sh vars). rewrite H3. simpl in *.
-    intro XX. rewrite <- XX. intuition eauto.
-    apply AllProvable_app; auto. rewrite XX in H4.
-    rewrite sepFormula_eq in H4. unfold sepFormula_def in H4.
-    eapply SEP.sheapD_pures.  
-    unfold SEP.ST.satisfies. simpl in *. eauto.
-  Qed.
 End stream_correctness.
 
 (** Reification **)
@@ -865,7 +924,7 @@ Ltac sym_eval isConst ext simplifier :=
                           pose (predsV := preds) ;
 (*                          let ExtC := constr:(@Algos_correct _ _ _ _ _ _ ext typesV funcsV predsV) in *)
                           generalize (@stateD_proof_no_heap typesV funcsV predsV
-                            uvars vars st sp_v rv_v rp_v 
+                            uvars st sp_v rv_v rp_v 
                             sp_pf rv_pf rp_pf pures proofs cs stn) ;
                           let H_stateD := fresh in
                           intro H_stateD ;
@@ -887,8 +946,8 @@ Ltac sym_eval isConst ext simplifier :=
 (*                            stop_timer 103 ; *)
 (*                            run_timer 104 ; *)
                             apply (@stateD_proof typesV funcsV predsV
-                              uvars vars _ sp_v rv_v rp_v 
-                              sp_pf rv_pf rp_pf pures proofs SF _ (refl_equal _)) in H_interp ;
+                              uvars _ sp_v rv_v rp_v 
+                              sp_pf rv_pf rp_pf pures proofs SF _ _ (refl_equal _)) in H_interp ;
 (*                            stop_timer 104 ; *)
 (*                            run_timer 105 ; *)
                             (apply (@Apply_sym_eval typesV funcsV predsV
@@ -898,7 +957,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*                             run_timer 106 ; *)
                              let syms := constr:((typesV, (funcsV, predsV))) in
                              finish H_interp syms) ||
-                            (idtac"couldn't apply sym_eval_any! (SF case)"; 
+                            (idtac "couldn't apply sym_eval_any! (SF case)"; 
                              first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
@@ -944,7 +1003,7 @@ Ltac sym_evaluator H :=
       fst snd
       Env.repr Env.updateAt 
 
-      stateD Expr.exprD 
+      stateD existsEach Expr.exprD 
       Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
       Expr.AllProvable Expr.AllProvable_gen Expr.Provable Expr.tvarD
       SEP.sheapD SEP.starred SEP.sexprD

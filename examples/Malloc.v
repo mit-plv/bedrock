@@ -90,10 +90,6 @@ Definition mallocM := bmodule "malloc" {{
 
 Theorem mallocMOk : moduleOk mallocM.
   vcgen; change (natToW 0 ^+ $4) with (natToW 4) in *.
-
-  (* Symbolic evaluation gets stuck here, because of existentials in the state hypothesis.
-     Do we need to define a special "points to something" predicate and give it a plugin?
-     Perhaps build this into the points-to plugin? *)
-  admit.
+  sep auto_ext.
   admit.
 Qed.

@@ -107,7 +107,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
          SymIL.SymVars SymIL.SymUVars
-         SymIL.stateD
+         SymIL.stateD 
          ILAlgoTypes.quantifyNewVars
          ILAlgoTypes.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -355,7 +355,7 @@ Ltac hints_ext_simplifier hints := fun H =>
 *)
              ]
   | _ =>
-cbv beta iota zeta
+    cbv beta iota zeta
        delta [hints 
          (** Symbolic Evaluation **)
          SymIL.MEVAL.Plugin.fold_first
@@ -376,7 +376,7 @@ cbv beta iota zeta
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
          SymIL.SymVars SymIL.SymUVars
-         SymIL.stateD
+         SymIL.stateD 
          ILAlgoTypes.quantifyNewVars
          ILAlgoTypes.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover

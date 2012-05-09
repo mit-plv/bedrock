@@ -215,8 +215,10 @@ Section Denotations.
 
   Definition stateD cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
     let (stn,st) := stn_st in
-      match ss with
-        | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
+    match ss with
+      | {| SymVars := vs ; SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
+        existsEach (skipn (length vars) vs) (fun vars_ext =>
+          let vars := vars ++ vars_ext in
           match 
             exprD funcs uvars vars sp tvWord ,
             exprD funcs uvars vars rp tvWord ,
@@ -234,8 +236,8 @@ Section Denotations.
           /\ AllProvable funcs uvars vars (match m with 
                                              | None => pures
                                              | Some m => pures ++ SEP.pures m
-                                           end)
-      end.
+                                           end))
+    end.
 
   Section SymEvaluation.
     Variable Prover : ProverT TYPES.

@@ -699,6 +699,47 @@ Section env.
       exists t. eapply IHls. eauto.
   Qed.
 
+  Lemma existsEach_ext : forall vs (F G : env.env -> Prop), 
+    (forall ls, F ls -> G ls) ->
+    existsEach vs F -> existsEach vs G.
+  Proof.
+    clear. induction vs; simpl; intros; auto.
+    destruct H0. exists x. eapply IHvs. 2: eassumption.
+    intros. simpl in *. auto.
+  Qed.
+
+  Lemma existsEach_projT1_env' : forall (F : env.env -> Prop) vars r, 
+    F (r ++ vars) ->
+    existsEach (map (@projT1 _ _) vars) (fun x => F (r ++ x)).
+  Proof.
+    clear. induction vars; simpl; intros; auto.
+    exists (projT2 a). specialize (IHl (r ++ a :: nil)). destruct a; simpl in *.
+    repeat rewrite app_ass in *. simpl in *.
+    apply IHl in H.
+    eapply existsEach_ext. 2: eapply H. intros; simpl in *.      
+    rewrite app_ass in *; simpl in *; auto.
+  Qed.
+
+  Lemma existsEach_projT1_env : forall (F : env.env -> Prop) vars,
+    F vars ->
+    existsEach (map (@projT1 _ _) vars) F.
+  Proof.
+    clear. intros. generalize (existsEach_projT1_env' F vars nil H). intros.
+    eapply existsEach_ext; try eassumption. simpl. auto.
+  Qed.
+
+  Lemma existsEach_app : forall (P : env.env -> Prop) ls' ls,
+    existsEach (ls ++ ls') P <->
+    existsEach ls (fun e => existsEach ls' (fun e' => P (e ++ e'))).
+  Proof.
+    clear. split; generalize dependent P; generalize dependent ls; induction ls; simpl; intros;
+      try solve [ eapply existsEach_ext; eauto ].
+
+      destruct H.
+      exists x. eapply IHls in H. eauto.
+      destruct H; exists x. eapply IHls. eauto.
+  Qed.
+
   Section Provable.
     Definition Provable (e : expr) : Prop :=
       match exprD e tvProp with
@@ -747,6 +788,56 @@ Section env.
   End Provable.
 
 End env.
+
+Lemma nth_error_app_success : forall T ls' (ls : list T) n v,
+  nth_error ls n = Some v ->
+  nth_error (ls ++ ls') n = Some v.
+Proof.
+  clear. induction ls; destruct n; simpl; intros; unfold value, error in *; try congruence; auto.
+Qed.
+
+Lemma exprD_weaken : forall types (fs : functions types) uvars vars vars' e t v,
+  exprD fs uvars vars e t = Some v ->
+  exprD fs uvars (vars ++ vars') e t = Some v.
+Proof.
+  clear. induction e; simpl; intros; auto;
+  repeat match goal with
+           | [ H : match ?X with
+                     | _ => _
+                   end = _ |- _ ] => revert H; case_eq X; intros; try congruence
+           | [ H : _ |- _ ] => rewrite H
+         end; auto.
+  Focus 2.
+  unfold Equivalence.equiv in *. subst.
+  destruct s; simpl in *.
+  clear H0. generalize dependent Denotation. generalize dependent Domain0.
+  generalize dependent l. clear. induction l; simpl; intros; destruct Domain0; auto.
+  inversion H; clear H; subst.
+  revert H2. case_eq (exprD fs uvars vars a t); intros.
+  erewrite H3 by eassumption. eauto. congruence.
+
+  Focus 2.
+  generalize dependent t0. destruct t0; intros; try congruence.
+  repeat match goal with
+           | [ H : match ?X with
+                     | _ => _
+                   end = _ |- _ ] => revert H; case_eq X; intros; try congruence
+           | [ H : _ |- _ ] => rewrite H
+         end; auto.
+  erewrite IHe1; try eauto.
+  erewrite IHe2; try eauto. 
+
+  unfold lookupAs in *.
+  cutrewrite (nth_error (vars ++ vars') x = nth_error vars x); auto.
+  
+  revert H; case_eq (nth_error vars x); intros.
+  eapply nth_error_app_success; auto.
+  congruence.
+  destruct t; try congruence. 
+  revert H; case_eq (exprD fs uvars vars e tvProp); intros; try congruence.
+  erewrite IHe; eauto.
+Qed.
+
 
 Lemma liftExpr_ext : forall types (funcs : functions types) EG G G' G'' e t,
   exprD funcs EG (G'' ++ G) e t = exprD funcs EG (G'' ++ G' ++ G) (liftExpr (length G'') (length G') e) t.
