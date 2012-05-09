@@ -273,7 +273,7 @@ Module Make (Import SE : SepExprType).
 
                           (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
                           Some {| Vars := Vars s
-                                ; UVars := UVars s ++ rev exs
+                                ; UVars := UVars s ++ exs
                                 ; Heap := star_SHeap sh sh'
                                 |}
                         else
