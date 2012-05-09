@@ -1068,3 +1068,17 @@ Proof.
   f_equal. 
   eapply UIP_dec. eapply weq.
 Qed.
+
+
+(** * Some more useful derived facts *)
+
+Lemma natToWord_S : forall sz n, natToWord sz (S n) = natToWord _ 1 ^+ natToWord _ n.
+  destruct sz; intuition.
+  rewrite wplus_alt.
+  unfold wplusN, wordBinN.
+  rewrite roundTrip_1.
+  destruct (wordToNat_natToWord (S sz) n); intuition.
+  rewrite H0.
+  replace (1 + (n - x * pow2 (S sz))) with (1 + n - x * pow2 (S sz)) by omega.
+  rewrite drop_sub; auto; omega.
+Qed.

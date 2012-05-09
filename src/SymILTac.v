@@ -260,7 +260,7 @@ Qed.
 
 Ltac find_reg st r :=
   match goal with
-    | [ H : Regs st r = ?x |- _ ] => constr:((x, Some_cong H))
+    | [ H : Regs st r = ?x |- _ ] => constr:((x, Some_cong (eq_sym H)))
     | _ => constr:((Regs st r, @refl_equal (option W) (Some (Regs st r))))
   end.
 
@@ -683,7 +683,6 @@ End apply_stream_correctness.
 
 Module SEP_REIFY := ReifySepExpr SEP.
 
-
 (** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]
  ** - [ext] is the extension. it is a value of type [TypedPackage]
@@ -851,7 +850,9 @@ Ltac sym_eval isConst ext simplifier :=
                            | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
                              destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
                          end
-                        in destruct_exs H))
+                        in let fresh Hcopy := fresh "Hcopy" in
+                          let T := type of H in
+                            assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
 (*                      stop_timer 110 *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
@@ -896,7 +897,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*                             stop_timer 105 ; *)
 (*                             run_timer 106 ; *)
                              let syms := constr:((typesV, (funcsV, predsV))) in
-                             finish H_interp syms) || 
+                             finish H_interp syms) ||
                             (idtac"couldn't apply sym_eval_any! (SF case)"; 
                              first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
