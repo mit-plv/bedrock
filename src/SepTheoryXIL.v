@@ -221,6 +221,19 @@ Module Make (H' : Heap) <:
       unfold heq; generalize himp_star_frame. intuition.
     Qed.
 
+    Theorem himp_star_pure_p : forall P Q F,
+      himp (star (inj F) P) Q -> (interp cs F -> himp P Q).
+    Proof.
+      unfold himp, star, inj; intros.
+      specialize (H s m).
+      unfold interp in *. propxIntuition.
+      eapply Imply_E. eapply valid_weaken. eapply H. firstorder.
+      eapply Exists_I. instantiate (1 := HT.smem_emp).
+      eapply Exists_I. instantiate (1 := m). propxIntuition.
+      eapply HT.split_a_semp_a.
+      eapply valid_weaken. eassumption. firstorder. eapply HT.semp_smem_emp.
+    Qed.      
+
     Theorem himp_subst_p : forall P Q R S,
       himp P S -> himp (star S Q) R ->
       himp (star P Q) R.
