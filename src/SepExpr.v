@@ -1507,6 +1507,8 @@ Module ReifySepExpr (Import SEP : SepExprType).
         getSFunction pcT stT types F sfuncs' ltac:(fun sfuncs _ => sfuncs)
     end.
 
+  About ST.ex.
+
   (** reflect sexprs. simultaneously gather the unification variables, funcs and sfuncs
    ** k is called with the unification variables, functions, separation logic predicats and the reflected
    ** sexpr.
@@ -1529,8 +1531,7 @@ Module ReifySepExpr (Import SEP : SepExprType).
             B (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T' in
-          let vars' := constr:(nv :: vars) in
-          reflect v funcs sfuncs uvars vars' ltac:(fun uvars funcs sfuncs B =>
+          reflect v funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs B =>
             let r := constr:(@Exists types pcType stateType nv B) in
             k uvars funcs sfuncs r)
         | fun x : ?T => @ST.emp _ _ _ => 
@@ -1562,8 +1563,7 @@ Module ReifySepExpr (Import SEP : SepExprType).
           let v := constr:(fun x : VarType (T * unit) => B (@openUp _ T (@fst _ _) x)) in
           let v := eval simpl in v in
           let nv := reflectType types T in
-          let vars' := constr:(nv :: vars) in
-          reflect v funcs sfuncs uvars vars' ltac:(fun uvars funcs sfuncs B =>
+          reflect v funcs sfuncs uvars vars ltac:(fun uvars funcs sfuncs B =>
             let r := constr:(@Exists types pcType stateType nv B) in
             k uvars funcs sfuncs r)
         | ?X =>
