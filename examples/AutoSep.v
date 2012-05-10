@@ -280,17 +280,17 @@ Ltac hints_ext_simplifier hints := fun H =>
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
-         SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
+         SEP.star_SHeap SepExpr.FM.empty
          SEP.SHeap_empty SEP.sepCancel 
          SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
          SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
          SEP.SDenotation SEP.SDomain nat_eq_eqdec
          SEP.sheapD SEP.sepCancel SEP.star_SHeap 
-         SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred
+         SEP.liftSHeap SEP.unify_remove SEP.starred
          SEP.himp SEP.sexprD SEP.pures SEP.impures
          SEP.other SEP.star_SHeap SEP.liftSHeap
-         SEP.multimap_join SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
-         SEP.multimap_join SEP.hash SEP.Default_predicate
+         SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
+         SEP.hash SEP.Default_predicate
          SEP.impures SEP.pures SEP.other
          SepExpr.FM.map
          SepExpr.FM.find
@@ -306,7 +306,11 @@ Ltac hints_ext_simplifier hints := fun H =>
          SEP.order_impures 
          SEP.cancel_in_order
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
-         SEP.multimap_add
+         
+         (** Multimaps **)
+         SepExpr.MM.mmap_add SepExpr.MM.mmap_extend SepExpr.MM.mmap_join
+         SepExpr.MM.mmap_mapi SepExpr.MM.mmap_map
+         SepExpr.MM.empty
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 
@@ -334,26 +338,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym
-
-(*
-             find 
-             
-              Plugin_PtsTo.MemEval_ptsto32
-             SymIL.IL_mem_satisfies
-              find Unfolder.FM.add
-             
-              fmFind
-                substSexpr 
-              SymIL.drop
-                find 
-             substSexpr Unfolder.FM.add  
-            
-              NatMap.IntMap.add
-              
-
-               
-*)
-             ]
+       ]
   | _ =>
     cbv beta iota zeta
        delta [hints 
@@ -555,17 +540,17 @@ Ltac hints_ext_simplifier hints := fun H =>
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
-         SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
+         SEP.star_SHeap SepExpr.FM.empty 
          SEP.SHeap_empty SEP.sepCancel 
          SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
          SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
          SEP.SDenotation SEP.SDomain nat_eq_eqdec
          SEP.sheapD SEP.sepCancel SEP.star_SHeap 
-         SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred
+         SEP.liftSHeap SEP.unify_remove SEP.starred
          SEP.himp SEP.sexprD SEP.pures SEP.impures
          SEP.other SEP.star_SHeap SEP.liftSHeap
-         SEP.multimap_join SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
-         SEP.multimap_join SEP.hash SEP.Default_predicate
+         SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
+         SEP.hash SEP.Default_predicate
          SEP.impures SEP.pures SEP.other
          SepExpr.FM.map
          SepExpr.FM.find
@@ -581,7 +566,11 @@ Ltac hints_ext_simplifier hints := fun H =>
          SEP.order_impures 
          SEP.cancel_in_order
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
-         SEP.multimap_add
+
+         (** Multimaps **)
+         SepExpr.MM.mmap_add SepExpr.MM.mmap_extend SepExpr.MM.mmap_join
+         SepExpr.MM.mmap_mapi SepExpr.MM.mmap_map
+         SepExpr.MM.empty
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 
@@ -609,26 +598,7 @@ Ltac hints_ext_simplifier hints := fun H =>
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym
-
-(*
-             find 
-             
-              Plugin_PtsTo.MemEval_ptsto32
-             SymIL.IL_mem_satisfies
-              find Unfolder.FM.add
-             
-              fmFind
-                substSexpr 
-              SymIL.drop
-                find 
-             substSexpr Unfolder.FM.add  
-            
-              NatMap.IntMap.add
-              
-
-               
-*)
-             ] in H
+       ] in H
   end;
   fold plus; fold minus;
     repeat match goal with
