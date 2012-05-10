@@ -988,7 +988,8 @@ Ltac sym_evaluator H :=
       sym_setReg sym_getReg
       SEP.pures SEP.impures SEP.other
       SymMem SymRegs SymPures SymVars SymUVars
-      SEP.star_SHeap SEP.liftSHeap SEP.multimap_join 
+      SEP.star_SHeap SEP.liftSHeap MM.mmap_join 
+      MM.mmap_mapi MM.mmap_map
       Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
 
       SEP.sheap_liftVars
@@ -1022,7 +1023,7 @@ Ltac sym_evaluator H :=
       SEP.star_SHeap (*SEP.unify_remove_all*)
       SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
       SEP.order_impures SEP.cancel_in_order
-      SEP.multimap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
+      MM.mmap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
       Expr.tvarD Expr.Eq
       
       SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
@@ -1093,7 +1094,7 @@ Ltac sym_evaluator H :=
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
 
-      SEP.hash SEP.star_SHeap SEP.liftSHeap SEP.multimap_join map UNF.substExpr UNF.substSexpr
+      SEP.hash SEP.star_SHeap SEP.liftSHeap MM.mmap_join map UNF.substExpr UNF.substSexpr
       rev_append
 
       Unfolder.FM.fold Unfolder.FM.add

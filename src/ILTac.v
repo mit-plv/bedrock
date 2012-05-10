@@ -385,7 +385,7 @@ Ltac cancel_simplifier :=
     SEP.impures SEP.pures SEP.other
     SEP.SDomain SEP.SDenotation
 
-    SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty SEP.multimap_join
+    SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty
     SEP.SHeap_empty
 
     SEP.sepCancel SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt
@@ -407,6 +407,10 @@ Ltac cancel_simplifier :=
     SepExpr.FM.add SepExpr.FM.insert_at_right SepExpr.FM.remove 
 *)
     SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.map
+
+    (** Multimaps **)
+    MM.mmap_add MM.mmap_extend MM.mmap_join
+    MM.mmap_mapi MM.mmap_map
 
     (** Unfolder **)
     UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
