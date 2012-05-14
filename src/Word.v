@@ -1072,13 +1072,18 @@ Qed.
 
 (** * Some more useful derived facts *)
 
-Lemma natToWord_S : forall sz n, natToWord sz (S n) = natToWord _ 1 ^+ natToWord _ n.
+Lemma natToWord_plus : forall sz n m, natToWord sz (n + m) = natToWord _ n ^+ natToWord _ m.
   destruct sz; intuition.
   rewrite wplus_alt.
   unfold wplusN, wordBinN.
-  rewrite roundTrip_1.
   destruct (wordToNat_natToWord (S sz) n); intuition.
-  rewrite H0.
-  replace (1 + (n - x * pow2 (S sz))) with (1 + n - x * pow2 (S sz)) by omega.
-  rewrite drop_sub; auto; omega.
+  destruct (wordToNat_natToWord (S sz) m); intuition.
+  rewrite H0; rewrite H2; clear H0 H2.
+  replace (n - x * pow2 (S sz) + (m - x0 * pow2 (S sz))) with (n + m - x * pow2 (S sz) - x0 * pow2 (S sz))
+    by omega.
+  repeat rewrite drop_sub; auto; omega.
+Qed.
+
+Lemma natToWord_S : forall sz n, natToWord sz (S n) = natToWord _ 1 ^+ natToWord _ n.
+  intros; change (S n) with (1 + n); apply natToWord_plus.
 Qed.

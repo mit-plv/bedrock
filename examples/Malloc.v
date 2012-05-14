@@ -23,6 +23,41 @@ Qed.
 
 Hint Immediate allocated_extensional.
 
+Theorem allocated_shift_base : forall base base' len offset offset',
+  base + offset = base' + offset'
+  -> allocated base offset len ===> allocated base' offset' len.
+  induction len; sepLemma.
+
+  match goal with
+    | [ |- context[(?X =*> _)%Sep] ] =>
+      assert (X = $(base) ^+ natToW offset)
+  end.
+  destruct offset; auto.
+  rewrite <- natToW_plus.
+  replace (base + 0) with base by omega.
+  auto.
+  rewrite H0; clear H0.
+
+  match goal with
+    | [ |- context[(?X =*> ?Y)%Sep] ] =>
+      is_evar Y;
+      assert (X = $(base') ^+ natToW offset')
+  end.
+  destruct offset'; auto.
+  rewrite <- natToW_plus.
+  replace (base' + 0) with base' by omega.
+  auto.
+  rewrite H0; clear H0.
+
+  repeat rewrite <- natToW_plus.
+  rewrite H.
+  sepLemma.
+  apply IHlen.
+  omega.
+Qed.
+
+Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
+
 
 (** * A free-list heap managed by the malloc library *)
 
@@ -35,6 +70,11 @@ Module Type FREE_LIST.
 
   Axiom mallocHeap_fwd : mallocHeap ===> Ex n, Ex p, 0 =*> p * freeList n p.
   Axiom mallocHeap_bwd : (Ex n, Ex p, 0 =*> p * freeList n p) ===> mallocHeap.
+
+  Axiom nil_bwd : forall n p, p = 0 -> [| n = 0 |] ===> freeList n p.
+  Axiom cons_bwd : forall n (p : W), p <> 0
+    -> (Ex n', Ex sz, Ex p', [| n = S n' |] * (p ==*> $(sz), p') * (p ^+ $8) =?> sz * freeList n' p')
+    ===> freeList n p.
 End FREE_LIST.
 
 Module FreeList : FREE_LIST.
@@ -63,6 +103,18 @@ Module FreeList : FREE_LIST.
   Theorem mallocHeap_bwd : (Ex n, Ex p, 0 =*> p * freeList n p) ===> mallocHeap.
     unfold mallocHeap; sepLemma.
   Qed.
+
+  Theorem nil_bwd : forall n p, p = 0 -> [| n = 0 |] ===> freeList n p.
+    destruct n; sepLemma.
+  Qed.
+
+  Theorem cons_bwd : forall n (p : W), p <> 0
+    -> (Ex n', Ex sz, Ex p', [| n = S n' |] * (p ==*> $(sz), p') * (p ^+ $8) =?> sz * freeList n' p')
+    ===> freeList n p.
+    destruct n; sepLemma; match goal with
+                            | [ H : S _ = S _ |- _ ] => injection H
+                          end; sepLemma.
+  Qed.
 End FreeList.
 
 Import FreeList.
@@ -70,28 +122,29 @@ Export FreeList.
 Hint Immediate freeList_extensional mallocHeap_extensional.
 
 Definition hints' : TacPackage.
-  prepare1 mallocHeap_fwd mallocHeap_bwd.
+  prepare1 mallocHeap_fwd (mallocHeap_bwd, nil_bwd, cons_bwd).
 Defined.
 
 Definition hints : TacPackage.
   prepare2 hints'.
 Defined.
 
-Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) |] /\ ![ ^[0 =?> S (S n)] * #0 ] st
+Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) |] /\ ![ ^[0 =?> (3 + n)] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[mallocHeap] * #1 ] st').
 
 Definition mallocM := bmodule "malloc" {{
   bfunction "init" [initS] {
-    $[0] <- Rv;;
-    $[4] <- 0;;
+    $[0] <- 4;;
+    $[4] <- Rv;;
+    $[8] <- 0;;
     Return 0
   }
 }}.
 
+Lemma four_neq_zero : natToW 4 <> natToW 0.
+  discriminate.
+Qed.
+
 Theorem mallocMOk : moduleOk mallocM.
-  vcgen; change (natToW 0 ^+ $4) with (natToW 4) in *.
-  sep hints.
-  sep hints.
-  instantiate (1 := 1). (** TODO: not sure if this is the right choice, needs a hint anyways **)
-  admit.
+  vcgen; abstract (pose four_neq_zero; sep hints).
 Qed.
