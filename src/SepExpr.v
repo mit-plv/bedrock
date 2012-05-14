@@ -14,6 +14,7 @@ Require NatMap Multimap.
 
 Module FM := NatMap.IntMap.
 Module MM := Multimap.Make FM.
+Module MF := NatMap.MoreFMapFacts FM.
 
 Definition BadInj types (e : expr types) := False.
 Definition BadPred (f : func) := False.
@@ -376,21 +377,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
        ; other   := other s
        |}.
 
-(*
-    Definition multimap_add T (k : nat) (v : T) (m : FM.bst (list T)) : FM.bst (list T) :=
-      match FM.find k m with
-        | None => FM.add k (v :: nil) m
-        | Some v' => FM.add k (v :: v') m
-      end.
-
-    Definition multimap_join T : FM.bst (list T) -> FM.bst (list T) -> FM.bst (list T) :=
-      FM.fold (fun k v a => 
-        match FM.find k a with
-          | None => FM.add k v a
-          | Some v' => FM.add k (v ++ v') a
-        end).
-*)
-
     Fixpoint star_SHeap (l r : SHeap) : SHeap :=
       {| impures := MM.mmap_join (impures l) (impures r)
        ; pures := pures l ++ pures r
@@ -545,6 +531,13 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
         repeat match goal with
                  | [ H : heq _ _ _ _ _ |- _ ] => rewrite H
                end; reflexivity) : hprop.
+    Hint Extern 1 (MM.PROPS.transpose_neqkey _ _) => 
+      (clear; repeat (red; intros; subst); repeat rewrite MM.FACTS.add_o;
+        repeat match goal with 
+                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+                   destruct (FM.E.eq_dec X Y)
+                 | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
+               end; solve [ auto | exfalso; auto | heq_canceler ]) : hprop.
 
     Lemma fold_starred : forall X a c cs (F : nat -> X -> sexpr) m b,
       heq a c cs (MM.FM.fold (fun k ls a => Star (F k ls) a) m b)
@@ -746,7 +739,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite IHb. auto.
       f_equal. clear. induction l; simpl; auto. rewrite liftExpr_0. f_equal; auto.
     Qed.
-
+    
     Lemma sexpr_lift_ext : forall EG cs G G' s G'',
       ST.heq cs (sexprD EG (G'' ++ G) s) (sexprD EG (G'' ++ G' ++ G) (liftSExpr (length G'') (length G') s)).
     Proof.
@@ -913,7 +906,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
           destruct (MM.FM.find (elt:=list (list (expr types))) y y1); try rewrite H; reflexivity.
 
         eapply MM.transpose_neqkey_mmap_extend.
-      Qed.
+    Qed.
 
 
     Lemma sheapD'_star : forall EG G cs s1 s2,
@@ -962,68 +955,6 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       rewrite IHls. rewrite H. reflexivity. eauto.
     Qed.
 
-
-    Lemma sheapD'_sexprD_liftVars : forall EG G cs a b s,
-      heq EG G cs (liftSExpr a b (sheapD' s)) (sheapD' (sheap_liftVars a b s)).
-    Proof.
-      destruct s; unfold sheap_liftVars, sheapD'; simpl; repeat apply heq_star_frame; intros;
-        try solve [ clear; induction pures0; simpl; try rewrite IHpures0; reflexivity
-                  | clear; induction other0; simpl; try rewrite IHother0; try reflexivity ].
-
-      clear. change Emp with (liftSExpr a b Emp) at 3 4. generalize Emp at 2 4.
-        unfold MM.mmap_map. intro. 
-(*
-        rewrite NatMap.map_fold.
-assert (NatMap.IntMap.map (map (map (liftExpr a b))) impures0 = ??). 
-        apply NatMap.IntMapProperties.map_induction with (m := impures0); intros.
-
-        rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances.
-        rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances. reflexivity.
-
-        unfold MM.mmap_map. apply NatMap.map_Empty. auto.
-        unfold MM
-
-        Global Add Parametric Morphism cs U G : liftSExpr with
-          signature (eq ==> eq ==> heq U G cs ==> heq U G cs)
-          as liftSExpr_heq_mor.
-        Proof.
-          induction x; destruct y1; simpl; intros.
-        Admitted.
-        rewrite MM.PROPS.fold_Add; eauto with typeclass_instances.
-        simpl.
-
-        SearchAbout NatMap.IntMap.Empty.
-
-      Focus 3.
-
-
-
-      
-          reflexivity.
-          rewrite IHpures0. reflexivity.
-      }
-
-      SearchAbout FM.map.
-*)
-(*
-        SearchAbout FM.map.
-         repeat rewrite FM.fold_1.
-         rewrite NatMap.elements_map; eauto with bst_valid. clear.
-         change Emp with (liftSExpr a b Emp) at 4; generalize Emp at 2 4.
-         induction (FM.elements impures0); intros; simpl; try reflexivity.
-         rewrite IHl. simpl. 
-         eapply fold_left_Star. apply heq_star_frame; try reflexivity.
-         destruct a0; simpl. change Emp with (liftSExpr a b Emp) at 2. generalize Emp. 
-         clear; induction l0; simpl; intros; try reflexivity.
-         rewrite IHl0. reflexivity.
-
-         rewrite starred'_liftSExpr; reflexivity.
-                   
-        clear; change Emp with (liftSExpr a b Emp) at 2. generalize Emp; induction other0; try reflexivity; intros.
-          simpl; rewrite IHother0. reflexivity.
-*)
-    Admitted. (** TODO: used to work when reasoning about elements **)
-
     Lemma liftSExpr_existsEach : forall EG cs v0 s G n v,
       heq EG G cs (liftSExpr n v (existsEach v0 s)) 
                   (existsEach v0 (liftSExpr (n + length v0) v s)).
@@ -1032,6 +963,75 @@ assert (NatMap.IntMap.map (map (map (liftExpr a b))) impures0 = ??).
         intros. rewrite Plus.plus_0_r. reflexivity.
       
         apply heq_ex; intros. rewrite IHv0. cutrewrite (S n + length v0 = n + S (length v0)); try reflexivity; omega.
+    Qed.
+
+    Lemma skipn_skipn : forall T a (ls : list T) b,
+      skipn b (skipn a ls) = skipn (b + a) ls.
+    Proof.
+      clear; induction a; simpl; intros.
+        rewrite Plus.plus_0_r. auto.
+        rewrite Plus.plus_comm. simpl. destruct ls; auto. destruct b; auto.
+        rewrite IHa. rewrite Plus.plus_comm. auto.
+    Qed.
+
+    Lemma heq_liftSExpr : forall cs EG G G' G'' P Q,
+      heq EG (G ++ G'') cs P Q ->
+      heq EG (G ++ G' ++ G'') cs (liftSExpr (length G) (length G') P) (liftSExpr (length G) (length G') Q).
+    Proof.
+      unfold heq; intros.
+      repeat rewrite <- sexpr_lift_ext. auto.
+    Qed.
+
+    Lemma sheapD'_sexprD_liftVars : forall EG cs s G G' G'',
+      heq EG (G ++ G' ++ G'') cs (liftSExpr (length G) (length G') (sheapD' s))
+                                 (sheapD' (sheap_liftVars (length G) (length G') s)).
+    Proof.
+      destruct s; unfold sheap_liftVars, sheapD'; simpl; intros; repeat apply heq_star_frame; intros;
+        try solve [ clear; induction pures0; simpl; try rewrite IHpures0; reflexivity
+                  | clear; induction other0; simpl; try rewrite IHother0; try reflexivity ].
+
+      clear. change Emp with (liftSExpr (length G) (length G') Emp) at 3 4. generalize Emp at 2 4.
+        unfold MM.mmap_map. intros. rewrite MF.fold_map_fusion; eauto with typeclass_instances hprop.
+
+        Focus. 
+        apply NatMap.IntMapProperties.map_induction with (m := impures0); intros.
+        repeat (rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances). reflexivity.
+
+        symmetry. rewrite MM.PROPS.fold_Add. 6: eauto. 5: eauto. 2: eauto with typeclass_instances.
+        rewrite <- H.
+        assert (forall base, heq EG (G ++ G' ++ G'') cs 
+          (starred' (Func x) (map (map (liftExpr (length G) (length G'))) e) (liftSExpr (length G) (length G') base))
+          (liftSExpr (length G) (length G') (starred' (Func x) e base))). clear.
+          induction e; simpl; intros; try reflexivity.
+            rewrite IHe; reflexivity.
+        rewrite H2.
+        change (Star (liftSExpr (length G) (length G') (starred' (Func x) e Emp))
+        (liftSExpr (length G) (length G')
+           (MM.FM.fold
+              (fun (k : MM.FM.key) (ls : list (list (expr types)))
+                 (acc : sexpr) => Star (starred' (Func k) ls Emp) acc) m s)))
+        with (liftSExpr (length G) (length G')
+          (Star (starred' (Func x) e Emp)
+            (MM.FM.fold
+              (fun (k : MM.FM.key) (ls : list (list (expr types)))
+                (acc : sexpr) => Star (starred' (Func k) ls Emp) acc) m s))).
+
+        eapply heq_liftSExpr.
+        
+        symmetry.
+        rewrite MM.PROPS.fold_Add. 6: eauto. reflexivity.
+        eauto with typeclass_instances hprop.
+        eauto with typeclass_instances hprop.
+        eauto with typeclass_instances hprop.
+        eauto with typeclass_instances hprop.
+        eauto with typeclass_instances hprop.
+        eauto with typeclass_instances hprop.
+        clear; repeat (red; intros; subst); repeat rewrite MM.FACTS.add_o;
+          repeat match goal with 
+                   | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+                     destruct (FM.E.eq_dec X Y)
+                   | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
+                 end; auto. heq_canceler.
     Qed.
 
     Lemma hash_denote' : forall EG cs (s : sexpr) G, 
@@ -1057,7 +1057,12 @@ assert (NatMap.IntMap.map (map (map (liftExpr a b))) impures0 = ??).
         rewrite liftSExpr_existsEach.
         rewrite star_pull_existsEach. eapply heq_existsEach; intros.
         rewrite sheapD'_star. simpl plus.
-        repeat rewrite sheapD'_sexprD_liftVars; auto. rewrite heq_star_comm. reflexivity.
+        cutrewrite (length v0 = length Z0).
+        cutrewrite (length v = length Z).
+        rewrite sheapD'_sexprD_liftVars.
+        rewrite sheapD'_sexprD_liftVars with (G := nil). heq_canceler.
+        rewrite <- rev_length; rewrite <- H; apply map_length.
+        rewrite <- rev_length; rewrite <- H0; apply map_length.
 
         (** Func **)
         Focus.

@@ -135,4 +135,76 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.S).
   Proof.
     intros. etransitivity. symmetry; apply union_empty. apply map_fold'. 
   Qed.
+
+  Section fusion.
+    Variable T U V : Type.
+    Variable F : T -> U.
+    Variable G : FM.key -> U -> V -> V.
+    Hypothesis equ : V -> V -> Prop.
+    Hypothesis equ_Equiv : RelationClasses.Equivalence equ.
+    Hypothesis G_trans: PROPS.transpose_neqkey equ G.
+    Hypothesis G_respect: Morphisms.Proper
+      (Morphisms.respectful FM.E.eq
+        (Morphisms.respectful eq (Morphisms.respectful equ equ))) G.
+    
+    Local Hint Resolve G_trans G_respect equ_Equiv.
+    Local Hint Extern 1 (Morphisms.Proper _ _) => 
+      clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
+        repeat match goal with 
+                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+                   destruct (FM.E.eq_dec X Y)
+                 | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
+               end; auto; exfalso; auto.
+    Local Hint Extern 1 (PROPS.transpose_neqkey _ _) => 
+      clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
+        repeat match goal with 
+                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+                   destruct (FM.E.eq_dec X Y)
+                 | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
+               end; auto; exfalso; auto.
+    Local Hint Resolve FACTS.EqualSetoid.
+
+    Lemma fold_map_fusion : forall m a,
+      equ (FM.fold G (FM.map F m) a)
+      (FM.fold (fun k x acc => G k (F x) acc) m a).
+    Proof.
+      intro. eapply PROPS.map_induction with (m := m); intros.
+        rewrite PROPS.fold_Empty; eauto with typeclass_instances.
+        rewrite PROPS.fold_Empty; eauto with typeclass_instances. eapply equ_Equiv.
+        apply map_Empty. auto.
+
+        symmetry. rewrite PROPS.fold_Add; eauto with typeclass_instances.
+        2: repeat (red; intros; subst); eapply G_respect; auto.
+        2: repeat (red; intros; subst); eapply G_trans; auto.
+
+        symmetry. rewrite PROPS.fold_Equal. 5: eapply map_fold. 2: eapply equ_Equiv. 3: eapply G_trans.
+        2: eapply G_respect.
+        rewrite PROPS.fold_Equal. 5: rewrite PROPS.fold_Add; eauto. 
+        5: reflexivity. rewrite PROPS.fold_add; eauto.
+        eapply G_respect; eauto. erewrite <- H. 
+        symmetry. rewrite PROPS.fold_Equal. 5: apply map_fold. reflexivity. eauto. eauto. eauto.
+        
+        { revert H0. clear. revert x. eapply PROPS.map_induction with (m := m0); intros.
+          rewrite PROPS.fold_Empty; eauto. intro. eapply FACTS.empty_in_iff; eauto with typeclass_instances.
+
+          rewrite PROPS.fold_Add. 6: eauto. 5: eauto. 2: eauto. 2: eauto. 2: eauto.
+          intro. apply FACTS.add_in_iff in H3. destruct H3. 
+            rewrite <- H3 in *. apply H2. specialize (H1 x). rewrite FACTS.add_o in *.
+            destruct (FM.E.eq_dec x x); try solve [ exfalso; auto ]. apply FACTS.in_find_iff. congruence.
+
+            eapply H. 2: eauto. intro. clear H3. specialize (H1 x0).
+            rewrite FACTS.add_o in H1.
+            repeat match goal with
+                     | [ H : ~ FM.In _ _ |- _ ] => apply FACTS.not_find_in_iff in H
+                     | [ H : FM.In _ _ |- _ ] => apply FACTS.in_find_iff in H
+                   end.
+            destruct (FM.E.eq_dec x x0); congruence. 
+        }
+
+        eauto.
+        eauto.
+        eauto.
+    Qed.
+  End fusion.
+
 End MoreFMapFacts.
