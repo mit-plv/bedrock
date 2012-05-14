@@ -447,6 +447,12 @@ Coercion natToByte : nat >-> B.
 Require SepExpr.
 Module SEP := SepExpr.Make ST.
 
+Theorem natToW_plus : forall n m, natToW (n + m) = natToW n ^+ natToW m.
+  apply natToWord_plus.
+Qed.
+
 Lemma natToW_S : forall n, natToW (S n) = $1 ^+ natToW n.
   apply natToWord_S.
 Qed.
+
+Hint Rewrite <- natToW_plus : sepFormula.
