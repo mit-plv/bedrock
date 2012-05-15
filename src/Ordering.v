@@ -43,3 +43,15 @@ Section Sorting.
     end.
 
 End Sorting.
+
+Lemma insert_in_order_inserts : forall T C x l,
+  exists h t, insert_in_order T C x l = h ++ x :: t /\ l = h ++ t.
+Proof.
+  clear. induction l; simpl; intros.
+  exists nil; exists nil; eauto.
+  destruct (C x a). 
+  exists nil; simpl. eauto.
+  exists nil; simpl. eauto.
+  destruct IHl. destruct H. intuition. subst.
+  rewrite H0. exists (a :: x0). exists x1. simpl; eauto.
+Qed.

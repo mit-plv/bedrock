@@ -7,6 +7,69 @@ Require Import GenRec.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(** TODO:
+ ** this seems like a more difficult interface, but it seems realistic given 
+ ** that you can't actually conclude more information after a substitution occurs
+ ** you can only ensure that the substitution is consistent with the equation
+ **)
+Module Type Unifier.
+  (** An environment that maintains a mapping from variables to their meaning **)
+  Parameter Subst : list type -> Type.
+
+  Section typed.
+    Variable types : list type.
+    
+    Parameter Subst_empty : Subst types.
+
+    (** The invariant that the substitution implies.
+     **)
+    Parameter SubstInv : forall (funcs : functions types) (meta_env var_env : env types), Subst types -> list (tvar * expr types * expr types) -> Prop.
+
+    (** The actual unification algorithm **)
+    Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
+    
+    (** Substitute meta variables **)
+    Parameter exprInstantiate : Subst types -> expr types -> expr types.
+
+    Variable funcs : functions types.
+    Variable vars : env types.
+    
+    (** NOTE: the meaning of Prop isn't quite perfect. We currently reflect Props
+     ** but we actually mean proofs, i.e. using the Provable predicate.
+     **)
+    Definition unifies uenv env (t : tvar) (l r : expr types) : Prop :=
+      match exprD funcs uenv env l t , exprD funcs uenv env r t with
+        | Some l , Some r => match t as t return tvarD types t -> tvarD types t -> Prop with
+                               | tvProp => fun l r => l <-> r (** we'll weaken things a bit more **)
+                               | tvType _ => fun l r => l = r
+                             end l r
+        | _ , _ => False
+      end.
+
+    Axiom SubstInv_empty : forall uenv env sub,
+      SubstInv funcs uenv env sub nil.
+
+    Axiom SubstInvD : forall uenv env sub ctx,
+      SubstInv funcs uenv env sub ctx ->
+      Forall (fun t_l_r => 
+        let '(t,l,r) := t_l_r in
+        unifies uenv env t l r) ctx.
+
+    (** This is the soundness statement.
+     ** TODO: Is this correct?
+     **)
+    Axiom exprUnify_sound : forall env uenv l r t sub sub' n ctx,
+      exprUnify n l r sub = Some sub' ->
+      SubstInv funcs uenv env sub ctx ->
+      is_well_typed funcs uenv env l t = true ->
+      is_well_typed funcs uenv env r t = true ->
+      SubstInv funcs uenv env sub' ((t,l,r) :: ctx).
+
+  End typed.
+
+End Unifier.
+
+
 Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
 | R_EqualL : forall t l r, R_expr l (Equal t l r)
 | R_EqualR : forall t l r, R_expr r (Equal t l r)

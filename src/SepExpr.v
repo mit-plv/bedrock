@@ -1189,7 +1189,17 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
                            (FM.fold (fun f argss acc => 
                              map (fun args => (args, f)) argss ++ acc) imps nil) Emp).
     Proof.
-    Admitted.
+      unfold impuresD'. clear. intros. generalize Emp at 2 3.
+      eapply MM.PROPS.fold_rec; intros.
+        eapply MM.PROPS.fold_Empty; eauto with typeclass_instances.
+
+        rewrite MM.PROPS.fold_Add; eauto with typeclass_instances hprop.
+        rewrite starred'_app. symmetry. rewrite <- starred'_base.
+        rewrite H2.
+        eapply heq_star_frame; try reflexivity. clear.
+        induction e; simpl; intros; try reflexivity.
+        rewrite IHe. reflexivity.
+    Qed.
 
     Lemma starred'_perm : forall T L R,
       Permutation.Permutation L R ->
@@ -1218,19 +1228,8 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       eapply @MM.PROPS.fold_rel; simpl; intros; auto.
         revert H1; clear. revert a; revert b; induction e; simpl; intros; auto.
         rewrite <- IHe; eauto.
-        (** TODO: Move the ordering **)
-        Lemma insert_in_order_inserts : forall T C x l,
-          exists h t, Ordering.insert_in_order T C x l = h ++ x :: t /\ l = h ++ t.
-        Proof.
-          clear. induction l; simpl; intros.
-            exists nil; exists nil; eauto.
-            destruct (C x a). 
-              exists nil; simpl. eauto.
-              exists nil; simpl. eauto.
-              destruct IHl. destruct H. intuition. subst.
-              rewrite H0. exists (a :: x0). exists x1. simpl; eauto.
-        Qed.
-        destruct (@insert_in_order_inserts (exprs types * nat) meta_order_funcs (a,k) b) as [ ? [ ? [ ? ? ] ] ].
+        
+        destruct (@Ordering.insert_in_order_inserts (exprs types * nat) meta_order_funcs (a,k) b) as [ ? [ ? [ ? ? ] ] ].
         subst. rewrite H.
         rewrite <- app_ass.
         eapply Permutation.Permutation_cons_app.
