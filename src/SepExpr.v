@@ -1183,16 +1183,67 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       MM.FM.fold (fun k => fold_left (fun (acc : cancel_list) (args : exprs types) => 
         Ordering.insert_in_order _ meta_order_funcs (args, k) acc)) imps nil.
 
+    Lemma impuresD'_flatten : forall U G cs imps,
+      heq U G cs (impuresD' imps)
+                 (starred' (fun v => Func (snd v) (fst v)) 
+                           (FM.fold (fun f argss acc => 
+                             map (fun args => (args, f)) argss ++ acc) imps nil) Emp).
+    Proof.
+    Admitted.
+
+    Lemma starred'_perm : forall T L R,
+      Permutation.Permutation L R ->
+      forall (F : T -> _) U G cs base,
+      heq U G cs (starred' F L base) (starred' F R base).
+    Proof.
+      clear. induction 1; simpl; intros;
+      repeat match goal with
+               | [ H : _ |- _ ] => rewrite H
+             end; try reflexivity; heq_canceler.
+    Qed.
+
+    Lemma fold_Permutation : forall imps L R,
+      Permutation.Permutation L R ->
+      Permutation.Permutation
+      (FM.fold (fun (f : FM.key) (argss : list (exprs types)) (acc : list (exprs types * FM.key)) =>
+        map (fun args : exprs types => (args, f)) argss ++ acc) imps L)
+      (MM.FM.fold
+        (fun k : MM.FM.key =>
+         fold_left
+           (fun (acc : cancel_list) (args : exprs types) =>
+            Ordering.insert_in_order (exprs types * nat) meta_order_funcs
+              (args, k) acc)) imps R).
+    Proof.
+      clear. intros.
+      eapply @MM.PROPS.fold_rel; simpl; intros; auto.
+        revert H1; clear. revert a; revert b; induction e; simpl; intros; auto.
+        rewrite <- IHe; eauto.
+        (** TODO: Move the ordering **)
+        Lemma insert_in_order_inserts : forall T C x l,
+          exists h t, Ordering.insert_in_order T C x l = h ++ x :: t /\ l = h ++ t.
+        Proof.
+          clear. induction l; simpl; intros.
+            exists nil; exists nil; eauto.
+            destruct (C x a). 
+              exists nil; simpl. eauto.
+              exists nil; simpl. eauto.
+              destruct IHl. destruct H. intuition. subst.
+              rewrite H0. exists (a :: x0). exists x1. simpl; eauto.
+        Qed.
+        destruct (@insert_in_order_inserts (exprs types * nat) meta_order_funcs (a,k) b) as [ ? [ ? [ ? ? ] ] ].
+        subst. rewrite H.
+        rewrite <- app_ass.
+        eapply Permutation.Permutation_cons_app.
+        rewrite app_ass. eapply Permutation.Permutation_app; eauto.
+    Qed.
+
     Lemma order_impures_D : forall U G cs imps,
       heq U G cs (impuresD' imps)
                  (starred' (fun v => (Func (snd v) (fst v))) (order_impures imps) Emp).
     Proof.
-      clear. intros. unfold order_impures, impuresD'.   
-      apply MM.PROPS.fold_rec with (m := imps); intros.
-        rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances. reflexivity.
-
-        rewrite MM.PROPS.fold_Add; eauto with typeclass_instances.
-    Admitted.
+      clear. intros. rewrite impuresD'_flatten. unfold order_impures.
+      eapply starred'_perm. eapply fold_Permutation. reflexivity.
+    Qed.
     
     (** NOTE : l and r are reversed here **)
     Fixpoint cancel_in_order (bound : nat) (summ : Facts Prover) 
@@ -1217,11 +1268,12 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
       end.
 
     Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
-      
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
       himp U G cs (impuresD' R) (impuresD' L) ->
       himp U G cs (impuresD' acc) (Star (starred' (fun v => (Func (snd v) (fst v))) ls Emp)
                                         (impuresD' acc)).
+    Proof.
+      
     Admitted.
 
 
