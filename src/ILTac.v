@@ -367,12 +367,11 @@ Ltac cancel_simplifier :=
     ExprUnify.get_Eq ExprUnify.exprUnifyArgs
 
     (** ExprUnify2 **)
-    ExprUnify2.exprUnify
-    ExprUnify2.exprInstantiate ExprUnify2.Subst_lookup 
-    ExprUnify2.Subst_equations ExprUnify2.empty_Subst
-    ExprUnify2.anyb ExprUnify2.mentionsU
-    ExprUnify2.get_Eq
-    ExprUnify2.dep_in ExprUnify2.fold2_option
+    ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
+    ExprUnify2.exprInstantiate
+    ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
+    ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
+    ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
     ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
     list_ind list_rec list_rect
     (** * General recursion **)
