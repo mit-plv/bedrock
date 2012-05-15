@@ -24,40 +24,48 @@ Qed.
 Hint Immediate allocated_extensional.
 
 Theorem allocated_shift_base : forall base base' len offset offset',
-  base + offset = base' + offset'
+  base ^+ $(offset) = base' ^+ $(offset')
   -> allocated base offset len ===> allocated base' offset' len.
   induction len; sepLemma.
 
   match goal with
     | [ |- context[(?X =*> _)%Sep] ] =>
-      assert (X = $(base) ^+ natToW offset)
+      assert (X = base ^+ natToW offset)
   end.
   destruct offset; auto.
-  rewrite <- natToW_plus.
-  replace (base + 0) with base by omega.
-  auto.
+  W_eq.
   rewrite H0; clear H0.
 
   match goal with
     | [ |- context[(?X =*> ?Y)%Sep] ] =>
       is_evar Y;
-      assert (X = $(base') ^+ natToW offset')
+      assert (X = base' ^+ natToW offset')
   end.
   destruct offset'; auto.
-  rewrite <- natToW_plus.
-  replace (base' + 0) with base' by omega.
-  auto.
+  W_eq.
   rewrite H0; clear H0.
 
-  repeat rewrite <- natToW_plus.
-  rewrite H.
+  match goal with
+    | [ H : ?X = _ |- context[(?Y =*> _)%Sep] ] => change Y with X; rewrite H
+  end.
   sepLemma.
   apply IHlen.
-  omega.
+  repeat match goal with
+           | [ |- context[S (S (S (S ?N)))] ] =>
+             match N with
+               | O => fail 1
+               | _ => change (S (S (S (S N)))) with (4 + N)
+             end
+         end.
+  repeat rewrite natToW_plus.
+  transitivity ($4 ^+ (base ^+ $(offset))).
+  simpl; unfold natToW; W_eq.
+  transitivity ($4 ^+ (base' ^+ $(offset'))).
+  congruence.
+  simpl; unfold natToW; W_eq.
 Qed.
 
 Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
-
 
 (** * A free-list heap managed by the malloc library *)
 
@@ -132,11 +140,21 @@ Defined.
 Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) |] /\ ![ ^[0 =?> (3 + n)] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[mallocHeap] * #1 ] st').
 
+Definition freeS : assert := st ~> ExX, Ex p : W, Ex n, [| p <> 0 |]
+  /\ ![ (st#Sp ==*> p, $(n)) * ^[p =?> (2 + n)] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ (st#Sp ==*> p, $(n)) * ^[mallocHeap] * #1 ] st').
+
 Definition mallocM := bmodule "malloc" {{
   bfunction "init" [initS] {
     $[0] <- 4;;
     $[4] <- Rv;;
     $[8] <- 0;;
+    Return 0
+  } with bfunction "free" [freeS] {
+    Rv <- $[Sp];;
+    $[Rv] <- $[Sp+4];;
+    $[Rv+4] <- $[0];;
+    $[0] <- Rv;;
     Return 0
   }
 }}.
@@ -144,6 +162,8 @@ Definition mallocM := bmodule "malloc" {{
 Lemma four_neq_zero : natToW 4 <> natToW 0.
   discriminate.
 Qed.
+
+Hint Extern 2 (@eq (word _) _ _) => W_eq.
 
 Theorem mallocMOk : moduleOk mallocM.
   vcgen; abstract (pose four_neq_zero; sep hints).
