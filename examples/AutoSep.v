@@ -190,8 +190,9 @@ Ltac hints_ext_simplifier hints := fun H =>
          UNF.backward UNF.unfoldBackward UNF.findWithRest find equiv_dec 
          UNF.substExpr UNF.substSexpr
          UNF.fmFind UNF.findWithRest' 
-         UNF.substSexpr Unfolder.allb UNF.substExpr
+         UNF.substSexpr Unfolder.allb UNF.substExpr UNF.substSheap
          UNF.find UNF.default_hintsPayload
+         UNF.substExprBw UNF.substSexprBw
 
          (** NatMap **)
          NatMap.singleton
@@ -446,8 +447,9 @@ Ltac hints_ext_simplifier hints := fun H =>
          UNF.backward UNF.unfoldBackward UNF.findWithRest find equiv_dec 
          UNF.substExpr UNF.substSexpr
          UNF.fmFind UNF.findWithRest' 
-         UNF.substSexpr Unfolder.allb UNF.substExpr
+         UNF.substSexpr Unfolder.allb UNF.substExpr UNF.substSheap
          UNF.find UNF.default_hintsPayload
+         UNF.substExprBw UNF.substSexprBw
 
          (** NatMap **)
          NatMap.singleton

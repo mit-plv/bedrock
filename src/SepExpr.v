@@ -18,7 +18,7 @@ Module MF := NatMap.MoreFMapFacts FM.
 
 Definition BadInj types (e : expr types) := False.
 Definition BadPred (f : func) := False.
-Definition BadPredApply types (f : func) (es : list (expr types)) := False.
+Definition BadPredApply types (f : func) (es : list (expr types)) (_ : env types) := False.
 
 Module Type SepExprType.
   Declare Module ST : SepTheoryX.SepTheoryXType.
@@ -68,7 +68,7 @@ Module Type SepExprType.
               | None => ST.inj (PropX.Inj (BadPred f))
               | Some f' =>
                 match applyD (@exprD types funcs meta_env var_env) (SDomain f') b _ (SDenotation f') with
-                  | None => ST.inj (PropX.Inj (BadPredApply f b))
+                  | None => ST.inj (PropX.Inj (BadPredApply f b var_env))
                   | Some p => p
                 end
             end
@@ -112,6 +112,8 @@ Module Type SepExprType.
         | nil => fun x => x
         | t :: ts => fun y => Exists t (@existsEach ts y)
       end.
+
+    Parameter sheap_liftVars : nat -> nat -> SHeap -> SHeap.
 
   End env.
 End SepExprType.
@@ -167,7 +169,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExprType with Module ST := S
             | None => ST.inj (PropX.Inj (BadPred f))
             | Some f' =>
               match applyD (@exprD types funcs meta_env var_env) (SDomain f') b _ (SDenotation f') with
-                | None => ST.inj (PropX.Inj (BadPredApply f b))
+                | None => ST.inj (PropX.Inj (BadPredApply f b var_env))
                 | Some p => p
               end
           end

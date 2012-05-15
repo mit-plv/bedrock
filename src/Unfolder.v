@@ -34,8 +34,41 @@ Module Make (Import SE : SepExprType).
 
     (** * Some substitution functions *)
 
-    (* [first] gives the offset to add to a variable to determine its corresponding unification variable, for substitution purposes. *)
-    Fixpoint substExpr (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+    (* [firstVar]: Add this to all indices of variables appearing within [e].
+     * [firstFree] tells us which is the first regular variable to be treated as a unification variable. *)
+    Fixpoint substExpr (firstVar firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+      match e with
+        | Expr.Const _ _ => e
+        | Var x => if lt_dec x firstFree
+          then Var (x + firstVar)
+          else match Subst_lookup (x - firstFree) s with
+                 | None => e
+                 | Some e' => e'
+               end
+        | UVar _ => e
+        | Expr.Func f es => Expr.Func f (map (substExpr firstVar firstFree s) es)
+        | Equal t e1 e2 => Equal t (substExpr firstVar firstFree s e1) (substExpr firstVar firstFree s e2)
+        | Not e1 => Not (substExpr firstVar firstFree s e1)
+      end.
+
+    Fixpoint substSexpr (firstVar firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
+      match se with
+        | Emp => se
+        | Inj e => Inj _ _ (substExpr firstVar firstFree s e)
+        | Star se1 se2 => Star (substSexpr firstVar firstFree s se1) (substSexpr firstVar firstFree s se2)
+        | Exists t se1 => Exists t (substSexpr firstVar (S firstFree) s se1)
+        | Func f es => Func _ _ f (map (substExpr firstVar firstFree s) es)
+        | Const _ => se
+      end.
+
+    Definition substSheap (firstVar firstFree : nat) (s : Subst types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
+      {| impures := MM.mmap_map (map (substExpr firstVar firstFree s)) (impures sh)
+       ; pures := map (substExpr firstVar firstFree s) (pures sh)
+       ; other := other sh
+       |}.
+
+
+    Fixpoint substExprBw (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ k => Expr.Const k
         | Var x => if lt_dec x firstFree
@@ -45,18 +78,18 @@ Module Make (Import SE : SepExprType).
                  | Some e' => e'
                end
         | UVar _ => e
-        | Expr.Func f es => Expr.Func f (map (substExpr offset firstFree s) es)
-        | Equal t e1 e2 => Equal t (substExpr offset firstFree s e1) (substExpr offset firstFree s e2)
-        | Not e1 => Not (substExpr offset firstFree s e1)
+        | Expr.Func f es => Expr.Func f (map (substExprBw offset firstFree s) es)
+        | Equal t e1 e2 => Equal t (substExprBw offset firstFree s e1) (substExprBw offset firstFree s e2)
+        | Not e1 => Not (substExprBw offset firstFree s e1)
       end.
 
-    Fixpoint substSexpr (offset firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
+    Fixpoint substSexprBw (offset firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
       match se with
         | Emp => se
-        | Inj e => Inj _ _ (substExpr offset firstFree s e)
-        | Star se1 se2 => Star (substSexpr offset firstFree s se1) (substSexpr offset firstFree s se2)
-        | Exists t se1 => Exists t (substSexpr offset (S firstFree) s se1)
-        | Func f es => Func _ _ f (map (substExpr offset firstFree s) es)
+        | Inj e => Inj _ _ (substExprBw offset firstFree s e)
+        | Star se1 se2 => Star (substSexprBw offset firstFree s se1) (substSexprBw offset firstFree s se2)
+        | Exists t se1 => Exists t (substSexprBw offset (S firstFree) s se1)
+        | Func f es => Func _ _ f (map (substExprBw offset firstFree s) es)
         | Const _ => se
       end.
 
@@ -204,10 +237,12 @@ Module Make (Import SE : SepExprType).
               match Lhs h with
                 | Func f' args' =>
                   if equiv_dec f' f then
+                    let numForalls := length (Foralls h) in
                     let firstUvar := length (UVars s) in
+                    let firstVar := length (Vars s) in
 
                     (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
-                    let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
+                    let args' := map (exprSubstU O numForalls firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
                     match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
@@ -222,10 +257,13 @@ Module Make (Import SE : SepExprType).
                             other := other (Heap s) |} in
 
                           (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr firstUvar O subs (Rhs h)) in
+                          let (exs, sh') := hash (Rhs h) in
+
+                          (* Apply the substitution that unification gave us. *)
+                          let sh' := substSheap firstVar (length exs) subs sh' in
 
                           (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
-                          Some {| Vars := Vars s ++ exs
+                          Some {| Vars := Vars s ++ rev exs
                                 ; UVars := UVars s
                                 ; Heap := star_SHeap sh sh'
                                 |}
@@ -258,7 +296,7 @@ Module Make (Import SE : SepExprType).
                       | None => None
                       | Some (subs, _) =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
+                        if allb (Prove prover facts) (map (substExprBw firstUvar O subs) (Hyps h)) then
                           (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures'
@@ -266,7 +304,7 @@ Module Make (Import SE : SepExprType).
                                      ; other := other (Heap s) |} in
 
                           (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexpr firstUvar O subs (Lhs h)) in
+                          let (exs, sh') := hash (substSexprBw firstUvar O subs (Lhs h)) in
 
                           (* Newly introduced variables must be replaced with unification variables. *)
                           let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
