@@ -174,15 +174,10 @@ Section typed.
 
   End fold_in.
 
-  (** index by a bound, since the termination argument is not trivial
-   ** it is guaranteed to not make more recursions than the number of
-   ** uvars.
-   **)
-  Definition exprUnify (bound : nat) (l : expr types) : expr types -> Subst -> option Subst.
+  Definition exprUnify_recursor bound_l 
+    (recur : forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b bound_l -> expr types -> Subst -> option Subst)
+    (r : expr types) (sub : Subst) : option Subst.
   refine (
-    (@Fix _ _ (guard 4 (GenRec.wf_R_pair GenRec.wf_R_nat (@wf_R_expr types)))
-      (fun _ => expr types -> Subst -> option Subst)
-      (fun bound_l recur r sub =>
         match bound_l as bound_l
           return (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b bound_l -> expr types -> Subst -> option Subst)
           -> option Subst
@@ -243,14 +238,107 @@ Section typed.
                       (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,l) -> expr types -> Subst -> option Subst)
                       -> option Subst with
                       | 0 => fun _ => None
-                      | S bound => fun recur => recur (bound, l) _ r sub
+                      | S bound => fun recur => recur (bound, l) _ r' sub
                     end
                 end
               | _ , _ => fun _ => None
             end 
         end recur
-      )) (bound,l)); try solve [ apply GenRec.L ; constructor | apply GenRec.R ; constructor; assumption ].
+      ); try solve [ apply GenRec.L ; constructor | apply GenRec.R ; constructor; assumption ].
   Defined.
+
+  (** index by a bound, since the termination argument is not trivial
+   ** it is guaranteed to not make more recursions than the number of
+   ** uvars.
+   **)
+  Definition exprUnify (bound : nat) (l : expr types) : expr types -> Subst -> option Subst :=
+    (@Fix _ _ (guard 4 (GenRec.wf_R_pair GenRec.wf_R_nat (@wf_R_expr types)))
+      (fun _ => expr types -> Subst -> option Subst) exprUnify_recursor) (bound,l).
+
+  Section equiv.
+    Variable A : Type.
+    Variable R : A -> A -> Prop.
+    Hypothesis Rwf : well_founded R.
+    Variable P : A -> Type.
+    
+    Variable equ : forall x, P x -> P x -> Prop.
+    Hypothesis equ_Equiv : forall x, RelationClasses.Equivalence (@equ x).
+
+    Variable F : forall x : A, (forall y : A, R y x -> P y) -> P x.
+
+    Lemma Fix_F_equ : forall (x : A) (r : Acc R x),
+      equ (@F x (fun (y : A) (p : R y x) => Fix_F P F (Acc_inv r p)))
+          (Fix_F P F r).
+    Proof.
+      eapply Acc_inv_dep; intros.
+      simpl in *. reflexivity.
+    Qed.
+
+    Lemma Fix_F_inv_equ : 
+       (forall (x : A) (f g : forall y : A, R y x -> P y),
+        (forall (y : A) (p : R y x), equ (@f y p) (g y p)) -> equ (@F x f) (@F x g)) ->
+       forall (x : A) (r s : Acc R x), equ (Fix_F P F r) (Fix_F P F s).
+    Proof.
+      intro. intro. induction (Rwf x). intros.
+      erewrite <- Fix_F_equ. symmetry. erewrite <- Fix_F_equ. symmetry.
+      eapply H. intros. eauto.
+    Qed.
+
+  End equiv.
+
+  Lemma Equiv_equiv : Equivalence
+    (fun f g : expr types -> Subst -> option Subst =>
+      forall (a : expr types) (b : Subst), f a b = g a b).
+  Proof.
+    constructor; eauto.
+    red. intros. rewrite H; eauto.
+  Qed.
+
+
+
+  Lemma exprUnify_recursor_inv : forall (bound : nat)
+    e1 e2 (sub : Subst) (A B : Acc _ (bound,e1))
+    (w : well_founded (R_pair R_nat (R_expr (ts:=types)))),
+    Fix_F (fun _ : nat * expr types => expr types -> Subst -> option Subst)
+    exprUnify_recursor A e2 sub =
+    Fix_F (fun _ : nat * expr types => expr types -> Subst -> option Subst)
+    exprUnify_recursor B e2 sub.
+  Proof.
+    intros.
+    eapply (@Fix_F_inv_equ (nat * expr types) (R_pair R_nat (R_expr (ts:=types)))
+      w
+      (fun _ : nat * expr types => expr types -> Subst -> option Subst)
+      (fun x f g => forall a b, f a b = g a b)
+      (fun _ => Equiv_equiv)
+      exprUnify_recursor).
+    clear. intros.
+      unfold exprUnify_recursor. destruct x. destruct e; destruct a; auto;
+      repeat match goal with 
+               | _ => reflexivity
+               | [ H : _ |- _ ] => rewrite H
+               | [ |- context [ match ?X with 
+                                  | _ => _
+                                end ] ] => destruct X
+             end.
+      generalize (fun (l1 : expr types) (pf : In l1 l) => pf).
+      assert (
+        forall l' l0 b, forall i : forall l1 : expr types, In l1 l' -> In l1 l,
+          dep_in l
+          (fun (l1 r0 : expr types) (s : Subst) (pf : In l1 l) =>
+            f (n, l1)
+            (R R_nat (R_expr (ts:=types)) n l1 (Func f0 l) (R_Func f0 l l1 pf))
+            r0 s) l' l0 b i =
+          dep_in l
+          (fun (l1 r0 : expr types) (s : Subst) (pf : In l1 l) =>
+            g (n, l1)
+            (R R_nat (R_expr (ts:=types)) n l1 (Func f0 l) (R_Func f0 l l1 pf))
+            r0 s) l' l0 b i).
+      induction l'; simpl in *; intros; auto.
+      destruct l1; auto. 
+      rewrite H. destruct (g (n, a)); auto.
+      eapply H0.
+  Qed.
+
 
   Theorem exprUnify_unroll : forall bound l r sub,
     exprUnify bound l r sub = 
@@ -269,16 +357,20 @@ Section typed.
         if Peano_dec.eq_nat_dec v v' 
           then Some sub
           else None
-      | Func f1 args1 , Func f2 args2 => 
-        fold2_option (@exprUnify bound) args1 args2 sub
+      | Func f1 args1 , Func f2 args2 =>
+        match equiv_dec f1 f2 with
+          | left _ =>
+            fold2_option (@exprUnify bound) args1 args2 sub
+          | right _ => None
+        end
       | Equal t1 e1 f1 , Equal t2 e2 f2 =>
         if equiv_dec t1 t2 then
           match exprUnify bound e1 e2 sub with
             | None => None
             | Some sub => exprUnify bound f1 f2 sub
           end
-          else
-            None
+        else
+          None
       | Not e1, Not e2 =>
         exprUnify bound e1 e2 sub
       | UVar u , _ =>
@@ -287,7 +379,7 @@ Section typed.
           | Some l' =>
             match bound with
               | 0 => None
-              | S bound => exprUnify bound l r sub
+              | S bound => exprUnify bound l' r sub
             end
         end
       | l , UVar u =>
@@ -296,15 +388,79 @@ Section typed.
           | Some r' =>
             match bound with
               | 0 => None
-              | S bound => exprUnify bound l r sub
+              | S bound => exprUnify bound l r' sub
             end
         end
       | _ , _ => None
     end.
   Proof.
-    intros. unfold exprUnify at 1. rewrite Fix_eq.
-    induction l; destruct r; simpl; auto.
-  Admitted.
+    intros. unfold exprUnify at 1.
+    match goal with
+      | [ |- context [ guard ?X ?Y ] ] =>
+        generalize (guard X Y)
+    end.
+    intros.    
+
+
+    unfold Fix.
+    rewrite <- (@Fix_F_equ (nat * expr types) (R_pair R_nat (R_expr (ts:=types)))
+      (fun _ : nat * expr types => expr types -> Subst -> option Subst)
+      (fun x f g => forall a b, f a b = g a b)
+      (fun _ => Equiv_equiv)
+      exprUnify_recursor
+      (bound,l)
+      (w (bound,l))
+      r sub).
+    destruct l; destruct r; simpl; intros; auto;
+      try solve [
+        repeat match goal with
+                 | [ |- context [ match ?X with 
+                                    | _ => _ 
+                                  end ] ] => destruct X
+               end; try solve [ auto | 
+                 unfold exprUnify, Fix ;
+                   eapply exprUnify_recursor_inv; eauto ] ].
+    Focus 2.
+    destruct (equiv_dec t t0); auto.
+    unfold exprUnify, Fix.
+    erewrite exprUnify_recursor_inv; eauto.
+    instantiate (1 := (guard 4 (wf_R_pair wf_R_nat (wf_R_expr (ts:=types))) (bound, l1))).
+    match goal with 
+      | [ |- match ?X with 
+               | _ => _ 
+             end = _ ] => destruct X
+    end; auto.
+    erewrite exprUnify_recursor_inv; eauto.
+
+    match goal with
+      | [ |- match ?X with
+               | _ => _
+             end = _ ] => destruct X; auto
+    end.
+    generalize (fun (l1 : expr types) (pf : In l1 l) => pf).
+    assert (forall l' l0 sub,
+      forall i : (forall l1 : expr types, In l1 l' -> In l1 l),
+      dep_in l
+      (fun (l1 r0 : expr types) (s : Subst) (pf : In l1 l) =>
+        @Fix_F _ _ (fun _ : nat * expr types => expr types -> Subst -> option Subst)
+        exprUnify_recursor (bound, l1) (@Acc_inv (nat * expr types)
+           (@R_pair nat (expr types) R_nat (@R_expr types))
+           (bound, @Func types f l) (w (bound, @Func types f l)) 
+           (bound, l1)
+           (@R nat (expr types) R_nat (@R_expr types) bound l1
+              (@Func types f l) (@R_Func types f l l1 pf))) r0 s) l' l0 sub i =
+      fold2_option (exprUnify bound) l' l0 sub).
+    induction l'; simpl; intros; destruct l1; auto.
+    erewrite exprUnify_recursor_inv; eauto.
+    instantiate (1 := (guard 4 (wf_R_pair wf_R_nat (wf_R_expr (ts:=types))) (bound, a))).
+    unfold exprUnify, Fix.
+    match goal with
+      | [ |- match ?X with
+               | _ => _
+             end = _ ] => destruct X; auto
+    end.
+    eapply H.
+  Qed.
 
   (** Syntactic Unification **)
   Section Unifies.
