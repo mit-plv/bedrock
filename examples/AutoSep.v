@@ -172,11 +172,13 @@ Ltac hints_ext_simplifier hints := fun H =>
          Expr.SemiDec_expr Expr.expr_seq_dec
 
          (** ExprUnify2 **)
-         ExprUnify2.exprUnify ExprUnify2.exprInstantiate
+         ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
+         ExprUnify2.exprInstantiate
          ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
          ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
          ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
          ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
+         ExprUnify2.exprUnify_recursor
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
@@ -426,11 +428,13 @@ Ltac hints_ext_simplifier hints := fun H =>
          Expr.SemiDec_expr Expr.expr_seq_dec
 
          (** ExprUnify2 **)
-         ExprUnify2.exprUnify ExprUnify2.exprInstantiate
+         ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
+         ExprUnify2.exprInstantiate
          ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
          ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
          ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
          ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
+         ExprUnify2.exprUnify_recursor
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
