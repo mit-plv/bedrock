@@ -35,28 +35,6 @@ Definition auto_ext : TacPackage.
         ILAlgoTypes.Package.opaque_pack res) || fail 1000 "compose")).
 Defined.
 
-(*
-Definition auto_ext : TacPackage.
-  let v := eval cbv beta iota zeta delta [ 
-    auto_ext' BedrockPackage.bedrock_package
-    Plugin_PtsTo.ptsto32_ssig MEVAL.Composite.MemEvaluator_composite 
-    MEVAL.Default.MemEvaluator_default Prover.composite_ProverT Env.nil_Repr
-    SymIL.AllAlgos_composite
-    SymIL.oplus
-    SymIL.Types SymIL.Funcs SymIL.Preds SymIL.Algos SymIL.Algos_correct
-
-    ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r
-
-    Env.repr_combine
-    Env.listToRepr
-    app map
-    Provers.transitivityProver Provers.assumptionProver
-    Prover.Summarize Prover.Facts Prover.Prove Prover.Learn
-  ] in auto_ext' in
-  SymIL.Package.opaque_pack v.
-Defined.
-*)
-
 Ltac vcgen :=
   structured_auto; autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *.
@@ -83,11 +61,11 @@ Ltac sep_firstorder := sep_easy;
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
          end; sep_easy.
 
-Ltac hints_ext_simplifier hints := fun H =>
+Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
   | tt =>
       cbv beta iota zeta
-       delta [hints 
+       delta [s1 s2 s3 hints 
          (** Symbolic Evaluation **)
          SymIL.MEVAL.Plugin.fold_first
          SymIL.MEVAL.Plugin.fold_first_update  SymIL.MEVAL.Plugin.plugin_symeval_read_word
@@ -344,7 +322,7 @@ Ltac hints_ext_simplifier hints := fun H =>
        ]
   | _ =>
     cbv beta iota zeta
-       delta [hints 
+       delta [s1 s2 s3 hints 
          (** Symbolic Evaluation **)
          SymIL.MEVAL.Plugin.fold_first
          SymIL.MEVAL.Plugin.fold_first_update  SymIL.MEVAL.Plugin.plugin_symeval_read_word
