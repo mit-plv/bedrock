@@ -1087,3 +1087,28 @@ Qed.
 Lemma natToWord_S : forall sz n, natToWord sz (S n) = natToWord _ 1 ^+ natToWord _ n.
   intros; change (S n) with (1 + n); apply natToWord_plus.
 Qed.
+
+Theorem natToWord_inj : forall sz n m, natToWord sz n = natToWord sz m
+  -> (n < pow2 sz)%nat
+  -> (m < pow2 sz)%nat
+  -> n = m.
+  intros.
+  apply (f_equal (@wordToNat _)) in H.
+  destruct (wordToNat_natToWord sz n).
+  destruct (wordToNat_natToWord sz m).
+  intuition.
+  rewrite H4 in H; rewrite H2 in H; clear H4 H2.
+  assert (x = 0).
+  destruct x; auto.
+  simpl in *.
+  generalize dependent (x * pow2 sz).
+  intros.
+  omega.
+  assert (x0 = 0).
+  destruct x0; auto.
+  simpl in *.
+  generalize dependent (x0 * pow2 sz).
+  intros.
+  omega.
+  subst; simpl in *; omega.
+Qed.
