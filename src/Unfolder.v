@@ -51,16 +51,6 @@ Module Make (Import SE : SepExprType).
         | Not e1 => Not (substExpr firstVar firstFree s e1)
       end.
 
-    Fixpoint substSexpr (firstVar firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
-      match se with
-        | Emp => se
-        | Inj e => Inj _ _ (substExpr firstVar firstFree s e)
-        | Star se1 se2 => Star (substSexpr firstVar firstFree s se1) (substSexpr firstVar firstFree s se2)
-        | Exists t se1 => Exists t (substSexpr firstVar (S firstFree) s se1)
-        | Func f es => Func _ _ f (map (substExpr firstVar firstFree s) es)
-        | Const _ => se
-      end.
-
     Definition substSheap (firstVar firstFree : nat) (s : Subst types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
       {| impures := MM.mmap_map (map (substExpr firstVar firstFree s)) (impures sh)
        ; pures := map (substExpr firstVar firstFree s) (pures sh)
@@ -70,7 +60,7 @@ Module Make (Import SE : SepExprType).
 
     Fixpoint substExprBw (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
       match e with
-        | Expr.Const _ k => Expr.Const k
+        | Expr.Const _ _ => e
         | Var x => if lt_dec x firstFree
           then e
           else match Subst_lookup (x - firstFree + offset) s with
@@ -83,15 +73,26 @@ Module Make (Import SE : SepExprType).
         | Not e1 => Not (substExprBw offset firstFree s e1)
       end.
 
-    Fixpoint substSexprBw (offset firstFree : nat) (s : Subst types) (se : sexpr types pcType stateType) : sexpr types pcType stateType :=
-      match se with
-        | Emp => se
-        | Inj e => Inj _ _ (substExprBw offset firstFree s e)
-        | Star se1 se2 => Star (substSexprBw offset firstFree s se1) (substSexprBw offset firstFree s se2)
-        | Exists t se1 => Exists t (substSexprBw offset (S firstFree) s se1)
-        | Func f es => Func _ _ f (map (substExprBw offset firstFree s) es)
-        | Const _ => se
+    Fixpoint substExprBw' (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+      match e with
+        | Expr.Const _ _ => e
+        | Var x => if lt_dec x firstFree
+          then UVar (x + offset)
+          else match Subst_lookup (x - firstFree + offset) s with
+                 | None => e
+                 | Some e' => e'
+               end
+        | UVar _ => e
+        | Expr.Func f es => Expr.Func f (map (substExprBw' offset firstFree s) es)
+        | Equal t e1 e2 => Equal t (substExprBw' offset firstFree s e1) (substExprBw' offset firstFree s e2)
+        | Not e1 => Not (substExprBw' offset firstFree s e1)
       end.
+
+    Definition substSheapBw (offset firstFree : nat) (s : Subst types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
+      {| impures := MM.mmap_map (map (substExprBw' offset firstFree s)) (impures sh)
+       ; pures := map (substExprBw' offset firstFree s) (pures sh)
+       ; other := other sh
+       |}.
 
 
     (** The type of one unfolding lemma *)
@@ -304,14 +305,14 @@ Module Make (Import SE : SepExprType).
                                      ; other := other (Heap s) |} in
 
                           (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (substSexprBw firstUvar O subs (Lhs h)) in
+                          let (exs, sh') := hash (Lhs h) in
 
-                          (* Newly introduced variables must be replaced with unification variables. *)
-                          let sh' := sheapSubstU O (length exs) (length (UVars s)) sh' in
+                          (* Newly introduced variables must be replaced with unification variables, and universally quantified variables must be substituted for. *)
+                          let sh' := substSheapBw firstUvar (length exs) subs sh' in
 
                           (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
                           Some {| Vars := Vars s
-                                ; UVars := UVars s ++ exs
+                                ; UVars := UVars s ++ rev exs
                                 ; Heap := star_SHeap sh sh'
                                 |}
                         else

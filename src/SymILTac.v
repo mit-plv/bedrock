@@ -601,7 +601,7 @@ End unfolder_learnhook.
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr UNF.substSexpr
+          UNF.substExpr
           Unfolder.FM.add
 
           SEP.impures SEP.pures SEP.other
@@ -625,7 +625,7 @@ End unfolder_learnhook.
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr UNF.substSexpr
+          UNF.substExpr
           Unfolder.FM.add
 
           SEP.impures SEP.pures SEP.other
@@ -1094,7 +1094,7 @@ Ltac sym_evaluator H :=
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
 
-      SEP.hash SEP.star_SHeap SEP.liftSHeap MM.mmap_join map UNF.substExpr UNF.substSexpr
+      SEP.hash SEP.star_SHeap SEP.liftSHeap MM.mmap_join map UNF.substExpr
       rev_append
 
       Unfolder.FM.fold Unfolder.FM.add

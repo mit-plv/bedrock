@@ -144,6 +144,10 @@ Definition freeS : assert := st ~> ExX, Ex p : W, Ex n, [| p <> 0 |]
   /\ ![ (st#Sp ==*> p, $(n)) * ^[p =?> (2 + n)] * ^[mallocHeap] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ (st#Sp ==*> p, $(n)) * ^[mallocHeap] * #1 ] st').
 
+Definition mallocS : assert := st ~> ExX, Ex sz, Ex v, ![ (st#Sp ==*> $(sz), v) * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+    /\ Ex a, Ex b, ![ (st#Sp ==*> a, b) * ^[st'#Rv =?> (2 + sz)] * ^[mallocHeap] * #1 ] st').
+
 Definition mallocM := bmodule "malloc" {{
   bfunction "init" [initS] {
     $[0] <- 4;;
@@ -156,6 +160,20 @@ Definition mallocM := bmodule "malloc" {{
     $[Rv+4] <- $[0];;
     $[0] <- Rv;;
     Return 0
+  } with bfunction "malloc" [mallocS] {
+    Rv <- $[0];;
+    $[Sp+4] <- 0;;
+
+    [st ~> ExX, Ex sz, Ex prev, Ex n,
+      ![ (st#Sp ==*> $(sz), prev) * prev =*> st#Rv * ^[freeList n st#Rv] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+        /\ Ex a, Ex b, Ex n', Ex p,
+        ![ (st#Sp ==*> a, b) * ^[st'#Rv =?> (2 + sz)] * prev =*> p * ^[freeList n' p] * #1 ] st')]
+    While (Rv <> 0) {
+      Skip
+    };;
+
+    Diverge (* out of memory! *)
   }
 }}.
 

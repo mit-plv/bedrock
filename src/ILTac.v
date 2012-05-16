@@ -77,7 +77,7 @@ Lemma ApplyCancelSep : forall ts,
   let rhs := SEP.liftSHeap 0 (length ql) (SEP.sheapSubstU 0 (length qr) (length meta_env) rhs) in
   forall cs,
   let initial := {| UNF.Vars := ql 
-                  ; UNF.UVars := map (@projT1 _ _) meta_env ++ qr
+                  ; UNF.UVars := map (@projT1 _ _) meta_env ++ rev qr
                   ; UNF.Heap := rhs
                   |} in
   match UNF.backward hints prover 10 facts initial with
@@ -95,7 +95,7 @@ Lemma ApplyCancelSep : forall ts,
              **) 
             (existsSubst (exprD funcs meta_env var_env) subst 0 
                 (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-                 map (fun x => existT (fun t => option (tvarD types t)) x None) (rev new_uvars))
+                 map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
               (fun meta_env : Expr.env types =>
 (*                Dyn (map (fun e => exprD funcs meta_env var_env e tvProp) (SEP.pures rhs') , meta_env, uvars, new_uvars) *)
 
@@ -416,7 +416,7 @@ Ltac cancel_simplifier :=
     UNF.Forward UNF.forward UNF.unfoldForward
     UNF.Backward UNF.backward UNF.unfoldBackward
     UNF.findWithRest UNF.find 
-    UNF.substExpr UNF.substSexpr
+    UNF.substExpr
     Unfolder.FM.add
     
     Unfolder.allb 
