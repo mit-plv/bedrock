@@ -294,19 +294,16 @@ Ltac sep_canceler isConst ext simplifier :=
         pose (predsV := preds) ;
 (*TIME          stop_timer 15 ; *)
 (*TIME          run_timer 16 ; *)
-        ((** TODO: for some reason the partial application to proofs doesn't always work... **)
+        (((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (SymILTac.ILAlgoTypes.Algos ext typesV)
-                   (@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ];
+                   (@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ]
 (*         idtac "15" ; *)
 (*TIME         stop_timer 16 ; *)
 (*TIME         run_timer 17 ; *)
-         (cbv delta [ ext typesV predsV funcsV ] || cbv delta [ typesV predsV funcsV ]) ;
-         clear typesV predsV funcsV ;
 (*TIME         stop_timer 17 ; *)
 (*         idtac "16" ; *)
 (*TIME         run_timer 18 ; *)
-           simplifier tt
 (*TIME         stop_timer 18  *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
@@ -321,14 +318,16 @@ Ltac sep_canceler isConst ext simplifier :=
                   | generalize (@ApplyCancelSep typesV funcsV predsV algos algosC) ; pose (uvars) ; idtac "y" 
                   | generalize (@ApplyCancelSep typesV funcsV predsV); pose (algosC) ; idtac "r" 
                   | generalize (@ApplyCancelSep typesV funcsV) ; idtac "q"
-                  ])
+                  ])) ;
+           first [ simplifier typesV funcsV predsV tt | fail 100000 "canceler: simplifier failed" ] ;
+           try clear typesV funcsV predsV
         )))))
     | [ |- ?G ] => 
       idtac "no match" G 
   end.
 
-Ltac cancel_simplifier :=
-  cbv beta iota zeta delta [
+Ltac cancel_simplifier s1 s2 s3 H :=
+  cbv beta iota zeta delta [ s1 s2 s3
     (** Interface **)
     PACK.Types PACK.Preds PACK.Funcs
     PACK.applyTypes PACK.applyPreds PACK.applyFuncs
@@ -529,8 +528,8 @@ Implicit Arguments existT [ A P ].
 
 (*Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
   destruct ls. Focus 2.
-  sep_canceler ltac:(SymILTac.isConst) ILAlgoTypes.BedrockPackage.bedrock_package ltac:(fun _ => idtac).
-  cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ]; cancel_simplifier.
+  sep_canceler ltac:(SymILTac.isConst) ILAlgoTypes.BedrockPackage.bedrock_package ltac:(fun _ _ _ _ => idtac).
+  cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ]; cancel_simplifier types funcs preds tt.
   intros. solve [ do 2 eexists; intuition ].
 Abort.*)
 

@@ -592,10 +592,10 @@ Section unfolder_learnhook.
   Transparent UNF.forward.
 End unfolder_learnhook.
 
-  Ltac unfolder_simplifier H := 
+  Ltac unfolder_simplifier s1 s2 s3 H := 
     match H with
       | tt => 
-        cbv delta [ 
+        cbv delta [ s1 s2 s3
           UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
           UNF.Forward UNF.forward UNF.unfoldForward
           UNF.Backward UNF.backward UNF.unfoldBackward
@@ -619,7 +619,7 @@ End unfolder_learnhook.
           UNF.findWithRest'
         ]
       | _ => 
-        cbv delta [
+        cbv delta [ s1 s2 s3
           UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
           UNF.Forward UNF.forward UNF.unfoldForward
           UNF.Backward UNF.backward UNF.unfoldBackward
@@ -883,23 +883,7 @@ Ltac sym_eval isConst ext simplifier :=
                   Expr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
                   Expr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
                   Expr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
-                    let finish H syms :=
-                      let rec unfold_all syms :=
-                        match syms with
-                          | tt => idtac
-                          | (?X, ?Y) => unfold_all X ; unfold_all Y
-                          | ?X => subst X
-                        end
-                      in
-(*                      stop_timer 106 ; *)
-(*                      idtac "5" ;  *)
-(*                      run_timer 107 ; *)
-                      unfold_all syms ;
-(*                      stop_timer 107 ; *)
-(*                      idtac "6" ; *)
-(*                      run_timer 108 ; *)
-                      first [ simplifier H | fail 100000 "simplifier failed!" ] ;
-(*                      stop_timer 108 ; *)
+                    let finish H  :=
 (*                      run_timer 110 ; *)
                       ((try exact H) ||
                        (let rec destruct_exs H :=
@@ -931,8 +915,9 @@ Ltac sym_eval isConst ext simplifier :=
                           (apply (@Apply_sym_eval typesV funcsV predsV
                             (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
                             stn uvars vars fin_state st is is_pf) in H_stateD ;
-                           let syms := constr:((typesV, (funcsV, predsV))) in
-                           finish H_stateD syms) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
+                            first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed!" ] ;
+                            try clear typesV funcsV predsV ;
+                           finish H_stateD) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
@@ -955,9 +940,10 @@ Ltac sym_eval isConst ext simplifier :=
                               stn uvars vars fin_state st is is_pf) in H_interp ;
 (*                             stop_timer 105 ; *)
 (*                             run_timer 106 ; *)
-                             let syms := constr:((typesV, (funcsV, predsV))) in
-                             finish H_interp syms) ||
-                            (idtac "couldn't apply sym_eval_any! (SF case)"; 
+                            first [ simplifier typesV funcsV predsV H_interp | fail 100000 "simplifier failed!" ] ;
+                            try clear typesV funcsV predsV ;
+                             finish H_interp) ||
+                            (idtac"couldn't apply sym_eval_any! (SF case)"; 
                              first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
@@ -981,8 +967,9 @@ Ltac sym_eval isConst ext simplifier :=
       end
   end.
 
-Ltac sym_evaluator H := 
-  unfolder_simplifier H ;
+
+Ltac sym_evaluator sym1 sym2 sym3 H := 
+  unfolder_simplifier sym1 sym2 sym3 H ;
   cbv beta iota zeta delta
     [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
       sym_setReg sym_getReg
@@ -1171,21 +1158,21 @@ Module EmptyPackage.
   Defined.
   
 
-  Ltac simplifier H :=
+  Ltac simplifier s1 s2 s3 H :=
     match H with
       | tt => 
-        cbv delta [
+        cbv delta [ s1 s2 s3
           empty_package UNF.default_hintsPayload
         ]
       | _ => 
-        cbv delta [
+        cbv delta [ s1 s2 s3
           empty_package UNF.default_hintsPayload
         ] in H
     end ;
     MEVAL.LearnHookDefault.unfolder H ;
     Provers.unfold_reflexivityProver H ;
     MEVAL.Default.unfolder H ;
-    sym_evaluator H.
+    sym_evaluator s1 s2 s3 H.
 
   Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
