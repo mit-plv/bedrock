@@ -55,7 +55,7 @@ Definition singleton {T} (k : nat) (v : T) : IntMap.t T :=
   IntMap.add k v (IntMap.empty _).
 
 (** Neither Properties nor Facts contains anything useful about 'map' **)
-Module MoreFMapFacts (FM : HintlessFMapInterface.S).
+Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
   
   Module PROPS := HintlessFMapFacts.WProperties_fun(FM.E) FM.
   Module FACTS := HintlessFMapFacts.WFacts_fun FM.E FM.    
@@ -206,5 +206,11 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.S).
         eauto.
     Qed.
   End fusion.
+
+  Lemma MapsTo_def : forall T k m,
+    FM.In k m <-> exists (v : T), FM.MapsTo k v m.
+  Proof.
+    unfold FM.In; split; auto.
+  Qed.
 
 End MoreFMapFacts.
