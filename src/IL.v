@@ -36,6 +36,27 @@ Ltac isConstNat :=
     end.
 
 
+(** * Ensuring that natural number sizes are representable in words *)
+
+Definition goodSize (n : nat) := (N_of_nat n < Npow2 32)%N.
+
+Theorem goodSize_danger : forall n, goodSize n
+  -> (n < pow2 32)%nat (* Don't evaluate this! :-) *).
+  unfold goodSize; intros.
+  apply Nlt_out in H.
+  rewrite Nat2N.id in H.
+  rewrite Npow2_nat in H.
+  assumption.
+Qed.
+
+Theorem natToW_inj : forall n m, natToW n = natToW m
+  -> goodSize n
+  -> goodSize m
+  -> n = m.
+  intros; eapply natToWord_inj; eauto; apply goodSize_danger; auto.
+Qed.
+
+
 (** * Syntax *)
 
 (* Machine registers 
