@@ -1,7 +1,7 @@
 Require Import Arith Bool EqdepClass List.
 
 Require Import Heaps Reflect.
-Require Import Expr ExprUnify.
+Require Import Expr ExprUnify2 Folds.
 Require Import SepExpr SepHeap.
 Require Import Prover.
 Require Import Env.
@@ -18,7 +18,7 @@ Fixpoint allb A (P : A -> bool) (ls : list A) : bool :=
     | x :: ls' => P x && allb P ls'
   end.
 
-Module Make (SH : SepHeap).
+Module Make (SH : SepHeap) (U : SynUnifier).
   Module Import SE := SH.SE.
   Import SH.
   
@@ -38,12 +38,12 @@ Module Make (SH : SepHeap).
 
     (* [firstVar]: Add this to all indices of variables appearing within [e].
      * [firstFree] tells us which is the first regular variable to be treated as a unification variable. *)
-    Fixpoint substExpr (firstVar firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+    Fixpoint substExpr (firstVar firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
         | Var x => if lt_dec x firstFree
           then Var (x + firstVar)
-          else match Subst_lookup (x - firstFree) s with
+          else match U.Subst_lookup (x - firstFree) s with
                  | None => e
                  | Some e' => e'
                end
@@ -53,19 +53,20 @@ Module Make (SH : SepHeap).
         | Not e1 => Not (substExpr firstVar firstFree s e1)
       end.
 
-    Definition substSheap (firstVar firstFree : nat) (s : Subst types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
+    Definition substSheap (firstVar firstFree : nat) (s : U.Subst types) (sh : SHeap types pcType stateType)
+      : SHeap types pcType stateType :=
       {| impures := MM.mmap_map (map (substExpr firstVar firstFree s)) (impures sh)
        ; pures := map (substExpr firstVar firstFree s) (pures sh)
        ; other := other sh
        |}.
 
 
-    Fixpoint substExprBw (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+    Fixpoint substExprBw (offset firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
         | Var x => if lt_dec x firstFree
           then e
-          else match Subst_lookup (x - firstFree + offset) s with
+          else match U.Subst_lookup (x - firstFree + offset) s with
                  | None => e
                  | Some e' => e'
                end
@@ -75,12 +76,12 @@ Module Make (SH : SepHeap).
         | Not e1 => Not (substExprBw offset firstFree s e1)
       end.
 
-    Fixpoint substExprBw' (offset firstFree : nat) (s : Subst types) (e : expr types) : expr types :=
+    Fixpoint substExprBw' (offset firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
         | Var x => if lt_dec x firstFree
           then UVar (x + offset)
-          else match Subst_lookup (x - firstFree + offset) s with
+          else match U.Subst_lookup (x - firstFree + offset) s with
                  | None => e
                  | Some e' => e'
                end
@@ -90,7 +91,8 @@ Module Make (SH : SepHeap).
         | Not e1 => Not (substExprBw' offset firstFree s e1)
       end.
 
-    Definition substSheapBw (offset firstFree : nat) (s : Subst types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
+    Definition substSheapBw (offset firstFree : nat) (s : U.Subst types) (sh : SHeap types pcType stateType) 
+      : SHeap types pcType stateType :=
       {| impures := MM.mmap_map (map (substExprBw' offset firstFree s)) (impures sh)
        ; pures := map (substExprBw' offset firstFree s) (pures sh)
        ; other := other sh
@@ -184,13 +186,6 @@ Module Make (SH : SepHeap).
 
     (** Applying up to a single hint to a hashed separation formula *)
 
-    Definition fmFind A B (f : nat -> A -> option B) (m : FM.t A) : option B :=
-      FM.fold (fun k v res =>
-        match res with
-          | Some _ => res
-          | None => f k v
-        end) m None.
-
     Fixpoint find A B (f : A -> option B) (ls : list A) : option B :=
       match ls with
         | nil => None
@@ -230,30 +225,29 @@ Module Make (SH : SepHeap).
       (* Returns [None] if no unfolding opportunities are found.
        * Otherwise, return state after one unfolding. *)
       Definition unfoldForward (s : unfoldingState) : option unfoldingState :=
-        (* Iterate through all the entries for impure functions. *)
-        fmFind (fun f =>
-          (* Iterate through all the argument lists passed to the current function. *)
-          findWithRest (fun args argss =>
-            (* Iterate through all hints. *)
-            find (fun h =>
-              (* Check if the hint's head symbol matches the impure call we are considering. *)
-              match Lhs h with
-                | Func f' args' =>
-                  if equiv_dec f' f then
-                    let numForalls := length (Foralls h) in
-                    let firstUvar := length (UVars s) in
-                    let firstVar := length (Vars s) in
-
-                    (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
+        let imps := SH.impures (Heap s) in
+        let firstUvar  := length (UVars s) in
+        let firstVar   := length (Vars s) in
+        find (fun h =>
+          match Lhs h with
+            | Func f args' => 
+              match FM.find f imps with
+                | None => None
+                | Some argss =>
+                  let numForalls := length (Foralls h) in
+                  findWithRest (fun args argss =>
+                    (* We must tweak the arguments by substituting unification variables for 
+                     * [forall]-quantified variables from the lemma statement. *)
                     let args' := map (exprSubstU O numForalls firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
-                    match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
+                    match fold_left_2_opt (U.exprUnify 5) args' args (U.Subst_empty _) with
                       | None => None
-                      | Some (subs, _) =>
+                      | Some subs =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
                         if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
-                          (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
+                          (* Remove the current call from the state, as we are about to replace
+                           * it with a simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures';
                             pures := pures (Heap s);
@@ -272,35 +266,32 @@ Module Make (SH : SepHeap).
                                 |}
                         else
                           None
-                    end
-                  else
-                    None
-                | _ => None
-              end) hs)) (impures (Heap s)).
-
+                    end                    
+                  ) argss
+              end
+            | _ => None
+          end) hs.
+     
       Definition unfoldBackward (s : unfoldingState) : option unfoldingState :=
-        (* Iterate through all the entries for impure functions. *)
-        fmFind (fun f =>
-          (* Iterate through all the argument lists passed to the current function. *)
-          findWithRest (fun args argss =>
-            (* Iterate through all hints. *)
-            find (fun h =>
-              (* Check if the hint's head symbol matches the impure call we are considering. *)
-              match Rhs h with
-                | Func f' args' =>
-                  if equiv_dec f' f then
-                    let firstUvar := length (UVars s) in
-
-                    (* We must tweak the arguments by substituting unification variables for [forall]-quantified variables from the lemma statement. *)
+        let imps := SH.impures (Heap s) in
+        let firstUvar := length (UVars s) in
+        find (fun h =>
+          match Rhs h with
+            | Func f args' =>
+              match FM.find f imps with
+                | None => None
+                | Some argss => 
+                  findWithRest (fun args argss =>
                     let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
-                    match exprUnifyArgs args' args (empty_Subst _) (empty_Subst _) with
+                    match fold_left_2_opt (U.exprUnify 5) args' args (U.Subst_empty _) with
                       | None => None
-                      | Some (subs, _) =>
+                      | Some subs =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
                         if allb (Prove prover facts) (map (substExprBw firstUvar O subs) (Hyps h)) then
-                          (* Remove the current call from the state, as we are about to replace it with a simplified set of pieces. *)
+                          (* Remove the current call from the state, as we are about to replace it with a 
+                           * simplified set of pieces. *)
                           let impures' := FM.add f argss (impures (Heap s)) in
                           let sh := {| impures := impures'
                                      ; pures := pures (Heap s)
@@ -309,7 +300,8 @@ Module Make (SH : SepHeap).
                           (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
                           let (exs, sh') := hash (Lhs h) in
 
-                          (* Newly introduced variables must be replaced with unification variables, and universally quantified variables must be substituted for. *)
+                          (* Newly introduced variables must be replaced with unification variables, and 
+                           * universally quantified variables must be substituted for. *)
                           let sh' := substSheapBw firstUvar (length exs) subs sh' in
 
                           (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
@@ -320,10 +312,11 @@ Module Make (SH : SepHeap).
                         else
                           None
                     end
-                  else
-                    None
-                | _ => None
-              end) hs)) (impures (Heap s)).
+                  ) argss
+              end
+            | _ => None
+          end) hs.
+
     End unfoldOne.
 
     Section unfolder.
@@ -438,6 +431,7 @@ Module Make (SH : SepHeap).
         }
       Qed.
 
+(*
       (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
       (** TODO: Break this into two lemmas, one for forward and one for backward **)
       Theorem unfolderOk : forall bound P Q,
@@ -459,6 +453,7 @@ Module Make (SH : SepHeap).
       Proof.
         generalize hsOk. generalize PC. admit.
       Qed.
+*)
     End unfolder.
   End env.
 
@@ -776,6 +771,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
                |}) in ret res))))).
 
   (* Main entry point to simplify a goal *)
+(*
   Ltac unfolder isConst hs bound :=
     intros;
       let types := eval simpl in (repr (Types hs) nil) in
@@ -793,6 +789,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
             let proverC := constr:(@Provers.reflexivityProver_correct types funcs) in
             apply (@unfolderOk types funcs pc state preds (Hints hs types) _ (HintsOk hs types funcs preds) proverC bound P Q)))))
       end.
+*)
 
 (*
   Module TESTS.

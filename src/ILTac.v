@@ -17,7 +17,7 @@ Declare ML Module "Timing_plugin".
 
 Require ExprUnify2.
 
-Module U := ExprUnify2.Unifier NatMap.Ordered_nat.
+Module U := ExprUnify2.UNIFIER.
 Module CANCEL := SepCancel.Make U SepIL.SH.
 
 Section existsSubst.

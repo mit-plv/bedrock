@@ -3,6 +3,7 @@ Require Import NatMap.
 Require Import EquivDec.
 Require Import List Bool.
 Require Import GenRec.
+Require Folds.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -48,12 +49,14 @@ Module Type SynUnifier.
     Parameter Subst_equations : 
       forall (funcs : functions types) (U G : env types), Subst types -> Prop.
 
+(*
     Axiom Subst_equations_Le : forall funcs U G sub sub',
       Subst_Le sub' sub ->
       Subst_equations funcs U G sub -> 
       Subst_equations funcs U G sub'.
     
     (** TODO: Probably going to be more axioms here! **)
+*)
 
   End typed.
 End SynUnifier.
@@ -403,24 +406,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         | None => fun _ => None
         | Some s' => fun pf => Some (@existT _ _ s' (@subst_set_wf _ _ _ _ (projT2 s) pf))
       end refl_equal.
-    
-    Definition get_Eq (t : tvar) : forall x y : tvarD types t, option (x = y) :=
-      match t as t return forall x y : tvarD types t, option (x = y) with
-        | tvProp => fun _ _ => None
-        | tvType t => 
-          match nth_error types t as k 
-            return forall x y : match k with
-                                  | Some t => Impl t
-                                  | None => Empty_set
-                                end, option (x = y)
-            with
-            | None =>
-              fun x _ => 
-                match x with
-                end
-            | Some t => Expr.Eq t
-          end 
-      end.
 
     Section fold_in.
       Variable LS : list (expr types).
@@ -441,19 +426,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         refine (or_intror _ pf).
         refine (pf_trans _ (or_introl _ (refl_equal _))).
       Defined.
- 
-      Variable F' : forall (l r : expr types), Subst -> option Subst.
-
-      Fixpoint fold2_option (ls rs : list (expr types)) (sub : Subst) : option Subst :=
-        match ls , rs with
-          | nil , nil => Some sub
-          | l :: ls , r :: rs =>
-            match F' l r sub with
-              | None => None
-              | Some sub => fold2_option ls rs sub
-            end
-          | _ , _ => None
-        end.
 
     End fold_in.
 
@@ -474,7 +446,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
               match equiv_dec t t' with
                 | left pf => match pf in _ = k return tvarD _ k -> _ with
                                | refl_equal => fun v' =>
-                                 if get_Eq t v v'
+                                 if get_Eq types t v v'
                                    then Some sub
                                    else None
                              end v'
@@ -628,7 +600,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
           match equiv_dec t t' with
             | left pf => match pf in _ = k return tvarD _ k -> _ with
                            | refl_equal => fun v' =>
-                             if get_Eq t v v'
+                             if get_Eq types t v v'
                                then Some sub
                                else None
                          end v'
@@ -641,7 +613,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         | Func f1 args1 , Func f2 args2 =>
           match equiv_dec f1 f2 with
             | left _ =>
-              fold2_option (@exprUnify bound) args1 args2 sub
+              Folds.fold_left_2_opt (@exprUnify bound) args1 args2 sub
             | right _ => None
           end
         | Equal t1 e1 f1 , Equal t2 e2 f2 =>
@@ -727,7 +699,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
               (bound, l1)
               (@R nat (expr types) R_nat (@R_expr types) bound l1
                 (@Func types f l) (@R_Func types f l l1 pf))) r0 s) l' l0 sub i =
-          fold2_option (exprUnify bound) l' l0 sub).
+          Folds.fold_left_2_opt (exprUnify bound) l' l0 sub).
       induction l'; simpl; intros; destruct l1; auto.
       erewrite exprUnify_recursor_inv; eauto.
       instantiate (1 := (guard 4 (wf_R_pair wf_R_nat (wf_R_expr (ts:=types))) (bound, a))).
@@ -812,8 +784,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
           eapply adf; eauto.
     Qed.
 
-    Lemma fold2_option_exprUnify_Le' : forall b l l0 sub sub',
-      fold2_option (exprUnify b) l l0 sub = Some sub' ->
+    Lemma fold_left_2_opt_exprUnify_Le' : forall b l l0 sub sub',
+      Folds.fold_left_2_opt (exprUnify b) l l0 sub = Some sub' ->
       Forall
       (fun l : expr types =>
         forall (r : expr types) (sub sub' : Subst),
@@ -839,7 +811,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
               solve [ eapply Subst_set_Le; eauto |
                       eapply Trans_Subst_Le; eauto |
                       apply Refl_Subst_Le |
-                  eapply fold2_option_exprUnify_Le'; eauto ] ||
+                  eapply fold_left_2_opt_exprUnify_Le'; eauto ] ||
               match goal with
                 | [ H : Equivalence.equiv _ _ |- _ ] => 
                   unfold Equivalence.equiv in H; subst
@@ -850,8 +822,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
               end) ].
     Qed.
 
-    Lemma fold2_option_exprUnify_Extends : forall b l l0 sub sub',
-      fold2_option (exprUnify b) l l0 sub = Some sub' ->
+    Lemma fold_left_2_opt_exprUnify_Extends : forall b l l0 sub sub',
+      Folds.fold_left_2_opt (exprUnify b) l l0 sub = Some sub' ->
       Subst_Le sub' sub.
     Proof.
       induction l; destruct l0; simpl in *; try congruence; intros.
@@ -908,10 +880,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       induction H; destruct l0; simpl; intros; auto; try solve [ inversion H4 ].
       inversion H4. erewrite IHForall; eauto.
       erewrite H; eauto.
-    Qed. (** TODO: this takes a long time! **)
+    Qed. (** NOTE: this takes a long time! **)
 
-    Lemma fold2_option_map_sound' : forall (n : nat) (l l0 : list (expr types)) (sub sub' : Subst),
-      fold2_option (exprUnify n) l l0 sub = Some sub' ->
+    Lemma fold_left_2_opt_map_sound' : forall (n : nat) (l l0 : list (expr types)) (sub sub' : Subst),
+      Folds.fold_left_2_opt (exprUnify n) l l0 sub = Some sub' ->
       Forall
       (fun l1 : expr types =>
         forall (r : expr types) (sub0 sub'0 : Subst),
@@ -923,7 +895,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       generalize dependent l0. revert sub; revert sub'. 
       induction H0; simpl in *; intros; destruct l0; simpl in *; try congruence; auto.
       revert H1. case_eq (exprUnify n x e sub); intros; try congruence.
-      f_equal; eauto using exprInstantiate_extends, exprUnify_Le, fold2_option_exprUnify_Extends.
+      f_equal; eauto using exprInstantiate_extends, exprUnify_Le, fold_left_2_opt_exprUnify_Extends.
     Qed.
 
     Lemma Subst_set_exprInstantiate : forall x e sub sub',
@@ -1002,7 +974,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
           repeat (congruence || 
                   solve [ eauto |
                           eapply exprInstantiate_extends; eauto using exprUnify_Le |
-                          eapply fold2_option_map_sound'; eauto ] ||
+                          eapply fold_left_2_opt_map_sound'; eauto ] ||
               match goal with
                 | [ H : Equivalence.equiv _ _ |- _ ] => 
                   unfold Equivalence.equiv in H; subst
@@ -1022,11 +994,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
                 | [ |- Func _ _ = Func _ _ ] => f_equal
                 | [ |- _ ] => 
                   rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
-                    rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
-                    rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
+                  rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
+                  rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
     Qed.
 
+(*
     Theorem Subst_equations_Le : forall funcs U G sub sub',
       Subst_Le sub' sub ->
       Subst_equations funcs U G sub -> 
@@ -1034,10 +1007,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
     Proof.
       
     Admitted.
+*)
 
 
   End typed.
 End Unifier.
+
+Module UNIFIER := Unifier NatMap.Ordered_nat.
+
 
 (*
 Module TEST.

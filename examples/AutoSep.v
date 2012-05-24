@@ -92,7 +92,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.MEVAL.smemeval_read_word SymIL.MEVAL.smemeval_write_word
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          ILAlgoTypes.unfolder_LearnHook
-         (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
    
          (** ILEnv **)
@@ -108,46 +107,22 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Env.repr_combine Env.footprint Env.default Env.repr
 
          (** Expr **)
-         Expr.Range Expr.Domain Expr.Denotation Expr.Impl
+         Expr.Range Expr.Domain Expr.Denotation Expr.Impl Expr.Eq
          Expr.exists_subst Expr.forallEach Expr.existsEach
-         Expr.AllProvable_and Expr.AllProvable_impl Expr.AllProvable_gen
+         Expr.AllProvable Expr.AllProvable_gen
+         Expr.AllProvable_and Expr.AllProvable_impl
          Expr.tvarD Expr.exprD Expr.applyD Expr.Impl_ Expr.EqDec_tvar
-         Expr.tvar_rec Expr.tvar_rect Expr.liftExpr Expr.lookupAs Expr.Eq
+         Expr.liftExpr Expr.lookupAs
          Expr.Provable Expr.tvar_val_sdec
-         Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation
-         Expr.lookupAs Expr.AllProvable Expr.AllProvable_gen
          Expr.Provable Expr.tvarD
-         Expr.expr_seq_dec
-         Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation
-         Expr.lookupAs 
-         Expr.tvarD Expr.Eq
-         Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-         Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect ExprUnify.get_Eq
-         Expr.expr_seq_dec Expr.SemiDec_expr Expr.expr_seq_dec
+         Expr.tvar_rec Expr.tvar_rect
+         Expr.Default_signature Expr.EmptySet_type
+         Expr.expr_seq_dec Expr.SemiDec_expr
          Expr.tvar_val_sdec Expr.Eq Expr.liftExpr Expr.exprSubstU
          Expr.typeof
-         Expr.Impl_ Expr.exprD
          Expr.expr_ind
-
-         (** ExprUnify **)
-         ExprUnify.Subst_lookup ExprUnify.Subst_replace
-         ExprUnify.env_of_Subst ExprUnify.get_Eq ExprUnify.exprUnifyArgs
-         ExprUnify.exprUnify ExprUnify.empty_Subst ExprUnify.SUBST.empty
-         ExprUnify.SUBST.find ExprUnify.SUBST.add
-         ExprUnify.SUBST.remove
-         ExprUnify.SUBST.fold ExprUnify.SUBST.map
-         ExprUnify.fold_left_2_opt ExprUnify.Subst_lookup
-         ExprUnify.Subst_replace ExprUnify.get_Eq ExprUnify.exprUnifyArgs
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnify ExprUnify.fold_left_2_opt
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.fold_left_3_opt
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnify ExprUnify.env_of_Subst
-         Peano_dec.eq_nat_dec
-         ExprUnify.fold_left_2_opt
-         Expr.SemiDec_expr Expr.expr_seq_dec
+         Expr.SemiDec_expr 
+         Expr.get_Eq
 
          (** ExprUnify2 **)
          U.exprUnify U.exprUnify_recursor
@@ -157,7 +132,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          U.Subst_set U.subst_set
          U.Subst_equations
          U.mentionsU
-         U.get_Eq U.dep_in U.fold2_option
+         U.dep_in
          U.exprUnify_recursor
 
          U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
@@ -175,17 +150,19 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          U.FM.map U.FM.mapi U.FM.map2
          U.FM.elements U.FM.cardinal U.FM.fold
          U.FM.equal
+         U.FM.E.eq_dec
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
          Unfolder.FM.find 
-         UNF.Foralls UNF.Vars
-         UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
-         UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
-         UNF.backward UNF.unfoldBackward UNF.findWithRest find equiv_dec 
+         UNF.Vars UNF.UVars UNF.Heap
+         UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs
+         UNF.Forward UNF.forward UNF.unfoldForward
+         UNF.Backward UNF.backward UNF.unfoldBackward
+         UNF.findWithRest UNF.find equiv_dec 
          UNF.substExpr
-         UNF.fmFind UNF.findWithRest' 
+         UNF.findWithRest' 
          Unfolder.allb UNF.substExpr UNF.substSheap
          UNF.find UNF.default_hintsPayload
          UNF.substExprBw UNF.substExprBw' UNF.substSheapBw
@@ -252,27 +229,22 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Induction **)
          list_ind list_rec list_rect 
          sumbool_rect sumbool_rec
-         sumor_rec sumor_rect 
-         nat_rec nat_rect nat_ind
-         eq_rect_r eq_rec_r eq_rec eq_rect
-         eq_sym f_equal 
-         nat_rect eq_ind eq_rec eq_rect
-         eq_sym
-         eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
+         nat_rect nat_ind
+         eq_rect_r eq_rec_r eq_rec eq_rect eq_ind
+         eq_sym f_equal
          sumbool_rec sumbool_rect
          sumbool_rec sumbool_rect
          sumor_rec sumor_rect
          nat_rec nat_rect
 
-         (** Ordering **)
+         (** Comparisons **)
          Compare_dec.lt_dec Compare_dec.le_dec Compare_dec.le_gt_dec
          Compare_dec.le_lt_dec Compare_dec.lt_eq_lt_dec
          Compare_dec.lt_dec Compare_dec.le_dec Compare_dec.le_gt_dec
          Compare_dec.le_lt_dec Compare_dec.lt_eq_lt_dec
          Compare_dec.lt_eq_lt_dec
          Peano_dec.eq_nat_dec
-         EquivDec_nat Peano_dec.eq_nat_dec equiv_dec seq_dec
-         Peano_dec.eq_nat_dec
+         EquivDec_nat equiv_dec seq_dec
          nat_eq_eqdec
          EquivDec_SemiDec
          Compare_dec.nat_compare
@@ -282,7 +254,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SEP.Default_predicate
          SEP.himp SEP.sexprD
          SEP.heq
-         nat_eq_eqdec
 
          (** SepHeap **)
          SH.impures SH.pures SH.other
@@ -326,6 +297,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
          GenRec.guard Acc_rect well_founded_ind 
          well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
+
+         (** Folds **)
+         Folds.fold_left_2_opt Folds.fold_left_3_opt
 
          (** List Functions **)
          tl hd_error value error hd
@@ -401,32 +375,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.lookupAs 
          Expr.tvarD Expr.Eq
          Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-         Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect ExprUnify.get_Eq
+         Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
          Expr.expr_seq_dec Expr.SemiDec_expr Expr.expr_seq_dec
          Expr.tvar_val_sdec Expr.Eq Expr.liftExpr Expr.exprSubstU
          Expr.typeof
          Expr.Impl_ Expr.exprD
          Expr.expr_ind
-
-         (** ExprUnify **)
-         ExprUnify.Subst_lookup ExprUnify.Subst_replace
-         ExprUnify.env_of_Subst ExprUnify.get_Eq ExprUnify.exprUnifyArgs
-         ExprUnify.exprUnify ExprUnify.empty_Subst ExprUnify.SUBST.empty
-         ExprUnify.SUBST.find ExprUnify.SUBST.add
-         ExprUnify.SUBST.remove
-         ExprUnify.SUBST.fold ExprUnify.SUBST.map
-         ExprUnify.fold_left_2_opt ExprUnify.Subst_lookup
-         ExprUnify.Subst_replace ExprUnify.get_Eq ExprUnify.exprUnifyArgs
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnify ExprUnify.fold_left_2_opt
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.fold_left_3_opt
-         ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-         ExprUnify.exprUnify ExprUnify.env_of_Subst
-         Peano_dec.eq_nat_dec
-         ExprUnify.fold_left_2_opt
          Expr.SemiDec_expr Expr.expr_seq_dec
+         Expr.get_Eq
 
          (** ExprUnify2 **)
          U.exprUnify U.exprUnify_recursor
@@ -436,7 +392,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          U.Subst_set U.subst_set
          U.Subst_equations
          U.mentionsU
-         U.get_Eq U.dep_in U.fold2_option
+         U.dep_in
          U.exprUnify_recursor
 
          U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
@@ -454,6 +410,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          U.FM.map U.FM.mapi U.FM.map2
          U.FM.elements U.FM.cardinal U.FM.fold
          U.FM.equal
+         U.FM.E.eq_dec
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
@@ -462,9 +419,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.Foralls UNF.Vars
          UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
-         UNF.backward UNF.unfoldBackward UNF.findWithRest find equiv_dec 
+         UNF.backward UNF.unfoldBackward  equiv_dec 
          UNF.substExpr
-         UNF.fmFind UNF.findWithRest' 
+         UNF.find UNF.findWithRest UNF.findWithRest' 
          Unfolder.allb UNF.substExpr UNF.substSheap
          UNF.find UNF.default_hintsPayload
          UNF.substExprBw UNF.substExprBw' UNF.substSheapBw
@@ -536,22 +493,20 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_rect_r eq_rec_r eq_rec eq_rect
          eq_sym f_equal 
          nat_rect eq_ind eq_rec eq_rect
-         eq_sym
-         eq_sym f_equal eq_rec_r eq_rect eq_rec nat_rec nat_rect
+         eq_rec_r eq_rect eq_rec nat_rec nat_rect
          sumbool_rec sumbool_rect
          sumbool_rec sumbool_rect
          sumor_rec sumor_rect
          nat_rec nat_rect
 
-         (** Ordering **)
+         (** Comparisons **)
          Compare_dec.lt_dec Compare_dec.le_dec Compare_dec.le_gt_dec
          Compare_dec.le_lt_dec Compare_dec.lt_eq_lt_dec
          Compare_dec.lt_dec Compare_dec.le_dec Compare_dec.le_gt_dec
          Compare_dec.le_lt_dec Compare_dec.lt_eq_lt_dec
          Compare_dec.lt_eq_lt_dec
          Peano_dec.eq_nat_dec
-         EquivDec_nat Peano_dec.eq_nat_dec equiv_dec seq_dec
-         Peano_dec.eq_nat_dec
+         EquivDec_nat  equiv_dec seq_dec
          nat_eq_eqdec
          EquivDec_SemiDec
          Compare_dec.nat_compare
@@ -606,10 +561,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          GenRec.guard Acc_rect well_founded_ind 
          well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
 
+         (** Folds **)
+         Folds.fold_left_2_opt Folds.fold_left_3_opt
+
          (** List Functions **)
          tl hd_error value error hd
          nth_error Datatypes.length fold_right firstn skipn rev
-         rev_append map app fold_left
+         rev_append List.map app fold_left
 
          (** Aux Functions **)
          fst snd projT1 projT2 Basics.impl value error 
