@@ -10,6 +10,7 @@ Require Import Expr.
 Require Import Prover.
 Require Import Env TypedPackage.
 Import List.
+Require Folds.
 
 Require Structured SymEval.
 Require Import ILEnv.
@@ -443,7 +444,8 @@ Abort.
 
 Require Unfolder.
 Require Provers.
-Module UNF := Unfolder.Make SH.
+Module U := ExprUnify2.UNIFIER.
+Module UNF := Unfolder.Make SH U.  
 Module PACKAGED := UNF.Packaged BedrockCoreEnv.
 Module PACK := PACKAGED.PACK.
 
@@ -611,11 +613,10 @@ End unfolder_learnhook.
           length map app
           exprSubstU
           
-          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
+          Folds.fold_left_2_opt U.Subst_empty
 
           unfolder_LearnHook
           UNF.default_hintsPayload
-          UNF.fmFind
           UNF.findWithRest'
         ]
       | _ => 
@@ -635,11 +636,10 @@ End unfolder_learnhook.
           length map app
           exprSubstU
 
-          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
+          Folds.fold_left_2_opt U.Subst_empty
 
           unfolder_LearnHook
           UNF.default_hintsPayload
-          UNF.fmFind
           UNF.findWithRest'
         ] in H
     end.
@@ -1016,10 +1016,10 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       bedrock_types 
         
       Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
-      SepHeap.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
-      ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
+      SepHeap.FM.map Folds.fold_left_2_opt U.Subst_empty
+      U.exprUnify
       EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
-      ExprUnify.get_Eq
+      Expr.get_Eq
       orb
         
       Expr.typeof comparator
@@ -1040,19 +1040,49 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       Hints Prover MemEval Env PACK.Funcs PACK.Types PACK.Preds Algos
 
       (** expression unification **)
+      U.exprUnify U.exprUnify_recursor
+      U.subst_exprInstantiate
+      U.Subst_lookup U.subst_lookup
+      U.Subst_empty U.subst_empty
+      U.Subst_set U.subst_set
+      U.Subst_equations
+      U.mentionsU
+      U.dep_in 
+      U.exprUnify_recursor
+      
+      U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
+      U.FM.Raw.bal U.FM.Raw.remove_min U.FM.Raw.merge U.FM.Raw.join
+      U.FM.Raw.t_left U.FM.Raw.t_opt U.FM.Raw.t_right
+      U.FM.Raw.cardinal U.FM.Raw.empty U.FM.Raw.is_empty
+      U.FM.Raw.mem U.FM.Raw.find   
+      U.FM.Raw.add  U.FM.Raw.remove
+      U.FM.Raw.fold U.FM.Raw.map U.FM.Raw.mapi U.FM.Raw.map2
+        
+      U.FM.this U.FM.is_bst
+      U.FM.empty U.FM.is_empty
+      U.FM.add U.FM.remove
+      U.FM.mem U.FM.find
+      U.FM.map U.FM.mapi U.FM.map2
+      U.FM.elements U.FM.cardinal U.FM.fold
+      U.FM.equal
+
       Compare_dec.lt_dec
       Compare_dec.le_dec
       Compare_dec.le_gt_dec
       Compare_dec.le_lt_dec
       Compare_dec.lt_eq_lt_dec
 
-      ExprUnify.Subst_lookup ExprUnify.Subst_replace ExprUnify.env_of_Subst
+      U.Subst_lookup U.subst_lookup
+      U.exprInstantiate U.subst_exprInstantiate
+
+      (*ExprUnify.Subst_replace ExprUnify.env_of_Subst
       ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
       ExprUnify.empty_Subst
+      *)
 
-SepHeap.MM.mmap_add SepHeap.MM.empty SepHeap.FM.find
-     SepHeap.FM.Raw.find
-     SepHeap.FM.this SepHeap.FM.empty SepHeap.FM.Raw.empty
+      SepHeap.MM.mmap_add SepHeap.MM.empty SepHeap.FM.find
+      SepHeap.FM.Raw.find
+      SepHeap.FM.this SepHeap.FM.empty SepHeap.FM.Raw.empty
 
 (*
       ExprUnify.SUBST.empty
@@ -1070,7 +1100,7 @@ SepHeap.MM.mmap_add SepHeap.MM.empty SepHeap.FM.find
       NatMap.Ordered_nat.eq_dec
       Peano_dec.eq_nat_dec
 
-      ExprUnify.fold_left_2_opt ExprUnify.fold_left_3_opt
+      Folds.fold_left_3_opt
       sumor_rec sumor_rect
 
       (** unfolder should be unnecessary... **)
@@ -1079,9 +1109,9 @@ SepHeap.MM.mmap_add SepHeap.MM.empty SepHeap.FM.find
       UNF.Forward UNF.Backward 
       UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
       equiv_dec UNF.substExpr Unfolder.FM.add 
-      Unfolder.allb andb length map app exprSubstU ExprUnify.exprUnifyArgs
-      ExprUnify.empty_Subst unfolder_LearnHook
-      UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
+      Unfolder.allb andb length map app exprSubstU
+      unfolder_LearnHook
+      UNF.default_hintsPayload UNF.findWithRest'
       UNF.findWithRest
 
       SH.hash SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join map UNF.substExpr

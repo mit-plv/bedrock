@@ -487,12 +487,27 @@ Section env.
     congruence.
   Qed.
 
+  Definition get_Eq (t : tvar) : forall x y : tvarD t, option (x = y) :=
+    match t as t return forall x y : tvarD t, option (x = y) with
+      | tvProp => fun _ _ => None
+      | tvType t => 
+        match nth_error types t as k 
+          return forall x y : match k with
+                                | Some t => Impl t
+                                | None => Empty_set
+                              end, option (x = y)
+          with
+          | None => fun x _ => match x with end
+          | Some t => Eq t
+        end 
+    end.
+
   Fixpoint expr_seq_dec (a b : expr) : option (a = b) :=
     match a as a, b as b return option (a = b) with 
       | Const t c , Const t' c' =>
         match t as t , t' as t' return forall (c : tvarD t) (c' : tvarD t'), option (Const t c = Const t' c') with
           | tvType t , tvType t' =>
-            match Peano_dec.eq_nat_dec t t' with
+            match equiv_dec t t' with
               | left pf => 
                 match pf in _ = t' return forall (x : tvarD (tvType t)) (y : tvarD (tvType t')), 
                   option (Const (tvType t) x = Const (tvType t') y)
