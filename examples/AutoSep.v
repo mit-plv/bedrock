@@ -124,7 +124,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.SemiDec_expr 
          Expr.get_Eq
 
-         (** ExprUnify2 **)
+         (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
          U.subst_exprInstantiate
          U.Subst_lookup U.subst_lookup
@@ -296,7 +296,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
          GenRec.guard Acc_rect well_founded_ind 
-         well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
+         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr  
 
          (** Folds **)
          Folds.fold_left_2_opt Folds.fold_left_3_opt
@@ -384,7 +384,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.SemiDec_expr Expr.expr_seq_dec
          Expr.get_Eq
 
-         (** ExprUnify2 **)
+         (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
          U.subst_exprInstantiate
          U.Subst_lookup U.subst_lookup
@@ -559,7 +559,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
          GenRec.guard Acc_rect well_founded_ind 
-         well_founded_induction_type Acc_inv ExprUnify2.wf_R_expr  
+         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr  
 
          (** Folds **)
          Folds.fold_left_2_opt Folds.fold_left_3_opt

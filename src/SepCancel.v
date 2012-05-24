@@ -2,7 +2,7 @@ Require Import List.
 Require Import SepTheoryX PropX.
 Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
-Require Import Expr ExprUnify2.
+Require Import Expr ExprUnify.
 Require Import SepExpr SepHeap.
 Require Import Setoid.
 Require Import Prover.

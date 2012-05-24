@@ -15,9 +15,9 @@ Add ML Path "/usr/local/lib/coq/user-contrib/".
 Declare ML Module "Timing_plugin".
 *)
 
-Require ExprUnify2.
+Require ExprUnify.
 
-Module U := ExprUnify2.UNIFIER.
+Module U := ExprUnify.UNIFIER.
 Module CANCEL := SepCancel.Make U SepIL.SH.
 
 Section existsSubst.
