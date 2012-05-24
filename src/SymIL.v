@@ -15,7 +15,7 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (** The Symbolic Evaluation Interfaces *)
-Module MEVAL := SymEval.MemoryEvaluator SEP.
+Module MEVAL := SymEval.MemoryEvaluator SH.
 
 Section typed.
   Variable types : list type.
@@ -29,7 +29,7 @@ Section typed.
   Record SymState : Type :=
   { SymVars  : variables
   ; SymUVars : variables
-  ; SymMem   : option (SEP.SHeap types pcT stT)
+  ; SymMem   : option (SH.SHeap types pcT stT)
   ; SymRegs  : SymRegType
   ; SymPures : list (expr types)
   }.
@@ -231,11 +231,11 @@ Section Denotations.
           /\ match m with 
                | None => True
                | Some m => 
-                 PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD m)) stn_st)%PropX
+                 PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SH.sheapD m)) stn_st)%PropX
              end
           /\ AllProvable funcs uvars vars (match m with 
                                              | None => pures
-                                             | Some m => pures ++ SEP.pures m
+                                             | Some m => pures ++ SH.pures m
                                            end))
     end.
 

@@ -14,7 +14,7 @@ Module Type CoreEnv.
 End CoreEnv.
 
 Module Type Package.
-  Declare Module SEP : SepExprType.
+  Declare Module SEP : SepExpr.
   Declare Module CE : CoreEnv.
 
   Record TypeEnv : Type :=
@@ -65,7 +65,7 @@ Module Type Package.
     
 End Package.
 
-Module Type AlgoTypes (SEP : SepExprType) (CE : CoreEnv).
+Module Type AlgoTypes (SEP : SepExpr) (CE : CoreEnv).
   Parameter AlgoImpl  : list type -> Type.
   Parameter AlgoProof : forall ts : list type, 
     functions (repr CE.core ts) -> 
@@ -73,7 +73,7 @@ Module Type AlgoTypes (SEP : SepExprType) (CE : CoreEnv).
     AlgoImpl ts -> Type.
 End AlgoTypes.
 
-Module Make (SEP' : SepExprType) (CE' : CoreEnv) <: Package with Module SEP := SEP' with Module CE := CE'.
+Module Make (SEP' : SepExpr) (CE' : CoreEnv) <: Package with Module SEP := SEP' with Module CE := CE'.
   Module SEP := SEP'.
   Module CE := CE'.
 

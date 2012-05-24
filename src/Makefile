@@ -11,7 +11,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	Heaps SepTheoryX SepTheoryXIL \
 	NatMap Expr ExprUnify ExprUnify2 \
 	Prover Provers \
-	SepExpr SepCancel \
+	SepExpr SepHeap SepCancel \
 	Unfolder \
 	Env TypedPackage \
 	SymEval sep/PtsTo \

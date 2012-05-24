@@ -63,6 +63,14 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
   Definition union T :=
     FM.fold (fun k (v : T) a => FM.add k v a).
 
+  Lemma add_remove_Equal : forall (elt : Type) k (v : elt) m,
+    FM.Equal (FM.add k v m) (FM.add k v (FM.remove k m)).
+  Proof.
+    clear. unfold FM.Equal. intros.
+    repeat (rewrite FACTS.add_o || rewrite FACTS.remove_o).
+    destruct (FM.E.eq_dec k y); auto.
+  Qed.
+
   Lemma map_Empty : forall T U (F : T -> U) m,
     FM.Empty m ->
     FM.Empty (FM.map F m).
