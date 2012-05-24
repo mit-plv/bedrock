@@ -444,7 +444,7 @@ Abort.
 
 Require Unfolder.
 Require Provers.
-Module U := ExprUnify2.UNIFIER.
+Module U := ExprUnify.UNIFIER.
 Module UNF := Unfolder.Make SH U.  
 Module PACKAGED := UNF.Packaged BedrockCoreEnv.
 Module PACK := PACKAGED.PACK.

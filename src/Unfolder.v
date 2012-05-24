@@ -1,7 +1,7 @@
 Require Import Arith Bool EqdepClass List.
 
 Require Import Heaps Reflect.
-Require Import Expr ExprUnify2 Folds.
+Require Import Expr ExprUnify Folds.
 Require Import SepExpr SepHeap.
 Require Import Prover.
 Require Import Env.
