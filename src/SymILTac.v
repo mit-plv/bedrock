@@ -776,7 +776,7 @@ Ltac sym_eval isConst ext simplifier :=
   let stn_st_SF :=
     match goal with
       | [ H : interp _ (![ ?SF ] ?X) |- _ ] => 
-        let SF := eval unfold empB injB injBX starB exB hvarB in SF in
+        let SF := eval unfold empB, injB, injBX, starB, exB, hvarB in SF in
         constr:((X, (SF, H)))
       | [ H : Structured.evalCond _ _ _ ?stn ?st = _ |- _ ] => 
         let st := init_from st in

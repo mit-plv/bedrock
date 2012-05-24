@@ -634,7 +634,7 @@ Ltac sepLemma := simpl; intros; cancel auto_ext.
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 
   let the_unfold_tac x := 
-    eval unfold empB injB injBX starB exB hvarB in x
+    eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   SymILTac.PACKAGED.prepareHints the_unfold_tac W (settings * state)%type isConst.
 
