@@ -7,3 +7,12 @@ syntax: glob
 Makefile.coq
 *.glob
 *.v.d
+deps.dot
+deps.pdf
+
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+docs/nepls-pl-day/*.pdf
