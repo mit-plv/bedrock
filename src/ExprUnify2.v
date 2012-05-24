@@ -240,7 +240,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
           case_eq (FM.find x0 (projT1 x)); intros; simpl; unfold subst_lookup; rewrite H1; auto. }
       { f_equal. induction H0; simpl; auto.
         f_equal; auto. }
-    Qed.        
+    Qed.
 
     Lemma normalized_Lt : forall s s' w w' v,
       normalized s' v = true -> 
@@ -287,6 +287,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       red; unfold Subst_Le; intros.
         eapply H0 in H1. eapply H in H1.
         erewrite WellFormed_subst in H1; auto.
+    Qed.
+
+    Lemma subst_exprInstantiate_idem : forall s e,
+      WellFormed s ->
+      subst_exprInstantiate s (subst_exprInstantiate s e) = subst_exprInstantiate s e.
+    Proof.
+      intros. change (subst_exprInstantiate s) with (exprInstantiate (@existT _ _ _ H)). apply WellFormed_subst.
+      reflexivity.
     Qed.
 
     (** Unification **) 
@@ -375,10 +383,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       red. intros. eapply MFACTS.FACTS.map_mapsto_iff in H1. destruct H1. intuition. subst.
       apply MFACTS.PROPS.F.add_mapsto_iff in H3; destruct H3; intuition; subst.
       { clear H2; clear k0. rewrite subst_exprInstantiate_add_not_mentions by auto.
-        change (subst_exprInstantiate s (subst_exprInstantiate s v)) with
-          (exprInstantiate (@existT _ _ s H) (exprInstantiate (@existT _ _ s H) v)).
-        rewrite WellFormed_subst; try reflexivity.
-        unfold exprInstantiate. simpl.
+        rewrite subst_exprInstantiate_idem by auto.
         rewrite normalized_map. rewrite normalized_add; eauto. eapply wf_instantiate_normalized; auto.
       }
       { rewrite normalized_map.
@@ -752,8 +757,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         think. rewrite FACTS.map_o. unfold FACTS.option_map. rewrite FACTS.add_o.
           destruct (FM.E.eq_dec k k); try solve [ exfalso; eauto ].
           f_equal. clear e. rewrite subst_exprInstantiate_add_not_mentions; auto.
-          generalize (@WellFormed_subst (@existT _ _ x w0) (@existT _ _ x w0)); unfold exprInstantiate; simpl.
-          intro H'; apply H'. reflexivity.
+          rewrite subst_exprInstantiate_idem; auto.
     Qed.
 
     Lemma adf : forall (k : nat) (v : expr types) (x : FM.t (expr types)) 
@@ -771,9 +775,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
             { repeat rewrite FACTS.map_o. repeat rewrite FACTS.add_o.
               destruct (FM.E.eq_dec k x0); simpl. 
               rewrite subst_exprInstantiate_add_not_mentions; eauto.
-              generalize (@WellFormed_subst (@existT _ _ _ H2) (@existT _ _ _ H2)). unfold exprInstantiate. simpl.
-              intro. rewrite H3; auto. reflexivity.
-              
+              rewrite subst_exprInstantiate_idem; auto.
+
               revert H1.
               case_eq (FM.find (elt:=expr types) x0 x); simpl; auto; intros. congruence.
             }
@@ -802,7 +805,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         revert e. case_eq (mentionsU k (subst_exprInstantiate x v)); intros; try congruence.
         think. apply FACTS.map_mapsto_iff. case_eq (FM.E.eq_dec k k0); intros.
           rewrite e in H0. exfalso. eapply FACTS.not_find_in_iff in H0. eapply H0. eexists. eapply H2.
-
 
           exists v0. split. 
           2: eapply FACTS.add_mapsto_iff; right; split; eauto.
@@ -858,7 +860,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       eapply Trans_Subst_Le; eauto using exprUnify_Le.
     Qed.
 
-
     Lemma Subst_lookup_Extends : forall sub sub' k v,
       Subst_lookup k sub = Some v ->
       Subst_Le sub' sub ->
@@ -870,21 +871,11 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       eapply FACTS.find_mapsto_iff in H. eapply H0 in H. eapply FACTS.find_mapsto_iff in H. auto.
     Qed.
 
-(*    Lemma subst_lookup_mapsto : forall a b c,
-      subst_lookup a b = Some c ->
-      FM.MapsTo a c b.
-    Proof.
-      unfold subst_lookup. intros.
-      eapply FACTS.find_mapsto_iff in H; auto.
-    Qed.
-*)
-
     Lemma exprInstantiate_extends : forall sub sub' l r,
       exprInstantiate sub l = exprInstantiate sub r ->
       Subst_Le sub' sub -> 
       exprInstantiate sub' l = exprInstantiate sub' r.
     Proof.
-(*
       induction l; destruct r; think;
         intros; unfold exprInstantiate in *; destruct sub; destruct sub'; simpl in *;
           try congruence; auto;
@@ -917,9 +908,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       induction H; destruct l0; simpl; intros; auto; try solve [ inversion H4 ].
       inversion H4. erewrite IHForall; eauto.
       erewrite H; eauto.
-*)
-    Admitted. (** TODO: this takes a long time! **)
-
+    Qed. (** TODO: this takes a long time! **)
 
     Lemma fold2_option_map_sound' : forall (n : nat) (l l0 : list (expr types)) (sub sub' : Subst),
       fold2_option (exprUnify n) l l0 sub = Some sub' ->
@@ -939,9 +928,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
 
     Lemma Subst_set_exprInstantiate : forall x e sub sub',
       Subst_set x e sub = Some sub' ->
+      Subst_lookup x sub = None -> 
       exprInstantiate sub' (UVar x) = exprInstantiate sub' e.
     Proof.
-      unfold Subst_set, exprInstantiate; simpl; intros;
+      unfold Subst_set, Subst_lookup, exprInstantiate; simpl; intros;
         destruct sub; destruct sub'; simpl in *; auto.
       revert H.
       match goal with
@@ -950,78 +940,32 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       end.
       generalize (subst_set x e x0) at 2 3.
       intro. destruct o; intros; try congruence.
-      inversion H; clear H; subst. unfold subst_lookup, subst_set in *.
+      think. unfold subst_lookup, subst_set in *.
       revert e0. case_eq (mentionsU x (subst_exprInstantiate x0 e)); intros; try congruence.
-      inversion e0; clear e0; subst.
-      rewrite FACTS.map_o. unfold FACTS.option_map. rewrite FACTS.add_o.
+      think.
+      rewrite FACTS.map_o. rewrite FACTS.add_o.
       destruct (FM.E.eq_dec x x); try solve [ exfalso; eauto ].
-      clear e0.
+      clear e0. simpl.
 
-      repeat rewrite subst_exprInstantiate_add_not_mentions by eauto.
-(*
       revert H; revert w0.
-      assert (forall e', mentionsU x (subst_exprInstantiate x0 e') = false ->
-        WellFormed (FM.map
-            (subst_exprInstantiate (FM.add x (subst_exprInstantiate x0 e') x0))
-            (FM.add x (subst_exprInstantiate x0 e') x0))).
-      { intros. red. intros.
-        apply FACTS.map_mapsto_iff in H0. destruct H0. intuition; subst.
-        apply FACTS.add_mapsto_iff in H2; intuition.
-          rewrite H2 in *.
-          rewrite subst_exprInstantiate_add_not_mentions by eauto.
-          rewrite normalized_map. subst.
-          Lemma subst_exprInstantiate_idem : forall s e,
-            WellFormed s ->
-            subst_exprInstantiate s (subst_exprInstantiate s e) = subst_exprInstantiate s e.
-          Admitted.
-          rewrite subst_exprInstantiate_idem by auto.
-          rewrite normalized_add; auto.
-          apply wf_instantiate_normalized; auto.
+      generalize (subst_exprInstantiate x0 e) at 1 2 4 6 7.
+      induction e; simpl; intros; think; auto.
+      { rewrite FACTS.map_o. rewrite FACTS.add_o.
+        case_eq (FM.E.eq_dec x x1); simpl; intros.
+        rewrite e0 in H0. rewrite H0 in H. simpl in *.
+        rewrite H1 in H. congruence.
 
-          rewrite normalized_map.
-          apply wf_instantiate_normalized.
-          red; intros. apply FACTS.add_mapsto_iff in H0; destruct H0; intuition.
-            subst. rewrite normalized_add; auto.
-            apply wf_instantiate_normalized; auto.
-
-            
-
-          SearchAbout normalized.
-          SearchAbout normalized.
-
-
-
-      induction e; simpl in *; intros; think; auto.
-      { repeat rewrite FACTS.map_o in *; repeat rewrite FACTS.add_o in *.
-        revert w; revert H; case_eq (FM.find x1 x0); intros.
-        destruct (FM.E.eq_dec x x1); simpl; rewrite subst_exprInstantiate_add_not_mentions by eauto; auto.
-        simpl in *. destruct (FM.E.eq_dec x x1); simpl in *; try congruence.
-        unfold subst_lookup. rewrite H. auto.
+        revert H. case_eq (FM.find x1 x0); simpl; intros; auto.
+        unfold subst_lookup. rewrite FACTS.add_o.
+        destruct (FM.E.eq_dec x x1); [ exfalso; auto | ].
+        rewrite H. auto.
       }
-      Focus 3.
-      f_equal. rewrite IHe; auto.
-      Focus 2.
-
-      { f_equal. 
-        change (Func f (map (subst_exprInstantiate x0) l)) with 
-               (subst_exprInstantiate x0 (Func f l)).
-        assert (
-
-        
-      revert H. induction e; simpl in *; think; auto.
-        { repeat rewrite FACTS.map_o. unfold FACTS.option_map. repeat rewrite FACTS.add_o.
-          case_eq (FM.find x1 x0); intros; rewrite H in *. destruct (FM.E.eq_dec x x1).
-          rewrite subst_exprInstantiate_add_not_mentions; eauto.
-          rewrite subst_exprInstantiate_add_not_mentions; eauto.
-          simpl in *. unfold subst_lookup in *. destruct (FM.E.eq_dec x x1); try congruence. 
-          rewrite FACTS.add_o. destruct (FM.E.eq_dec x x1); auto. rewrite H; auto.
-
-}
-        { intros. f_equal. revert H0. revert w0.
-          induction H; simpl; auto; intros.
-            think. rewrite H; auto. rewrite IHForall.
-*)  
-      admit.
+      { f_equal.
+        induction H; simpl; intros; think; auto.
+        f_equal. rewrite H; auto.
+        simpl in *; think; auto.
+        eapply IHForall. simpl in *; think; auto.
+      }
     Qed.
 
     Lemma exprInstantiate_Func : forall a b c,
