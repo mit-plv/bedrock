@@ -444,8 +444,9 @@ Definition natToByte (n : nat) : B := natToWord _ n.
 Coercion natToByte : nat >-> B.
 
 (* *)
-Require SepExpr.
+Require SepExpr SepHeap.
 Module SEP := SepExpr.Make ST.
+Module SH := SepHeap.Make SEP.
 
 Theorem natToW_plus : forall n m, natToW (n + m) = natToW n ^+ natToW m.
   apply natToWord_plus.

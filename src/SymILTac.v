@@ -116,8 +116,8 @@ Section stream_correctness.
       forall pures : list (Expr.expr TYPES),
         Expr.AllProvable funcs uvars vars pures ->
         forall (sh : SEP.sexpr TYPES pcT stT)
-          (hashed : SEP.SHeap TYPES pcT stT) vars',
-          SEP.hash sh = (vars', hashed) ->
+          (hashed : SH.SHeap TYPES pcT stT) vars',
+          SH.hash sh = (vars', hashed) ->
           forall (cs : codeSpec W (settings * state)) (stn : settings),
             interp cs (![SEP.sexprD funcs sfuncs uvars vars sh] (stn, st)) ->
             stateD funcs' sfuncs uvars vars cs (stn, st)
@@ -131,7 +131,7 @@ Section stream_correctness.
     Opaque repr.
     clear.
     unfold stateD. intros. simpl length. simpl.
-    generalize (SEP.hash_denote funcs sfuncs uvars cs sh nil). rewrite H3. simpl in *.
+    generalize (SH.hash_denote funcs sfuncs uvars nil cs sh). rewrite H3. simpl in *.
     intro XX. rewrite XX in H4. 
 
     apply interp_pull_existsEach in H4. destruct H4. intuition.
@@ -153,7 +153,7 @@ Section stream_correctness.
       exfalso; intuition. 
     }
     { rewrite sepFormula_eq in H6. unfold sepFormula_def in H6. simpl in H6.
-      eapply SEP.sheapD_pures. 
+      eapply SH.sheapD_pures. 
       unfold SEP.ST.satisfies. simpl in *. eauto.
     }
   Qed.
@@ -443,7 +443,7 @@ Abort.
 
 Require Unfolder.
 Require Provers.
-Module UNF := Unfolder.Make SEP.
+Module UNF := Unfolder.Make SH.
 Module PACKAGED := UNF.Packaged BedrockCoreEnv.
 Module PACK := PACKAGED.PACK.
 
@@ -568,7 +568,7 @@ Section unfolder_learnhook.
                ; SymUVars := us
                ; SymMem := Some m
                ; SymRegs := SymRegs st
-               ; SymPures := SymPures st ++ SEP.pures m
+               ; SymPures := SymPures st ++ SH.pures m
                |}
           end
         | None => st
@@ -604,7 +604,7 @@ End unfolder_learnhook.
           UNF.substExpr
           Unfolder.FM.add
 
-          SEP.impures SEP.pures SEP.other
+          SH.impures SH.pures SH.other
           
           Unfolder.allb andb
 
@@ -628,7 +628,7 @@ End unfolder_learnhook.
           UNF.substExpr
           Unfolder.FM.add
 
-          SEP.impures SEP.pures SEP.other
+          SH.impures SH.pures SH.other
           
           Unfolder.allb andb
 
@@ -687,7 +687,7 @@ Section apply_stream_correctness.
       stateD funcs preds uvars vars cs (stn,st) ss ->
       let facts := Summarize prover (match SymMem ss with
                                        | None => SymPures ss
-                                       | Some m => SEP.pures m ++ SymPures ss
+                                       | Some m => SH.pures m ++ SymPures ss
                                      end) in
       (** initial unfolding **)
       let ss := unfolder prover ss facts in
@@ -892,6 +892,8 @@ Ltac sym_eval isConst ext simplifier :=
                              destruct H as [ ? H ] ; destruct_exs H
                            | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
                              destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
+                           | ?G =>
+                             fail 100000 "bad result goal" G 
                          end
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
@@ -912,12 +914,13 @@ Ltac sym_eval isConst ext simplifier :=
                             sp_pf rv_pf rp_pf pures proofs cs stn) ;
                           let H_stateD := fresh in
                           intro H_stateD ;
-                          (apply (@Apply_sym_eval typesV funcsV predsV
+                          ((apply (@Apply_sym_eval typesV funcsV predsV
                             (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
-                            stn uvars vars fin_state st is is_pf) in H_stateD ;
-                            first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed!" ] ;
-                            try clear typesV funcsV predsV ;
-                           finish H_stateD) || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"
+                            stn uvars vars fin_state st is is_pf) in H_stateD)
+                          || fail 100000 "couldn't apply sym_eval_any! (non-SF case)") ;
+                          first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
+                          try clear typesV funcsV predsV ;
+                          first [ finish H_stateD | fail 100000 "finisher failed! (non-SF)" ]
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
@@ -935,16 +938,11 @@ Ltac sym_eval isConst ext simplifier :=
                               sp_pf rv_pf rp_pf pures proofs SF _ _ (refl_equal _)) in H_interp ;
 (*                            stop_timer 104 ; *)
 (*                            run_timer 105 ; *)
-                            (apply (@Apply_sym_eval typesV funcsV predsV
+                            ((apply (@Apply_sym_eval typesV funcsV predsV
                               (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
-                              stn uvars vars fin_state st is is_pf) in H_interp ;
-(*                             stop_timer 105 ; *)
-(*                             run_timer 106 ; *)
-                            first [ simplifier typesV funcsV predsV H_interp | fail 100000 "simplifier failed!" ] ;
-                            try clear typesV funcsV predsV ;
-                             finish H_interp) ||
-                            (idtac"couldn't apply sym_eval_any! (SF case)"; 
-                             first [ 
+                              stn uvars vars fin_state st is is_pf) in H_interp) ||
+                             (idtac "couldn't apply sym_eval_any! (SF case)"; 
+                               first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
                                    stn uvars vars fin_state st is is_pf) ; idtac "6" 
@@ -959,31 +957,34 @@ Ltac sym_eval isConst ext simplifier :=
                                | generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@Algos ext typesV)) ; generalize (@Algos_correct ext typesV funcsV predsV) ; idtac "2" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV) ; idtac "1"  
-                             ])
-                            )
+                               ])) ;
+(*                             stop_timer 105 ; *)
+(*                             run_timer 106 ; *)
+                            first [ simplifier typesV funcsV predsV H_interp | fail 100000 "simplifier failed! (SF)" ] ;
+                            try clear typesV funcsV predsV ;
+                            first [ finish H_interp | fail 100000 "finisher failed! (SF)" ])
                       end)))))
               end
           end
       end
   end.
 
-
 Ltac sym_evaluator sym1 sym2 sym3 H := 
   unfolder_simplifier sym1 sym2 sym3 H ;
   cbv beta iota zeta delta
     [ sym_evalInstrs sym_evalInstr sym_evalLval sym_evalRval sym_evalLoc sym_evalStream sym_assertTest
       sym_setReg sym_getReg
-      SEP.pures SEP.impures SEP.other
+      SH.pures SH.impures SH.other
       SymMem SymRegs SymPures SymVars SymUVars
-      SEP.star_SHeap SEP.liftSHeap MM.mmap_join 
-      MM.mmap_mapi MM.mmap_map
+      SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join 
+      SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
       Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
 
-      SEP.sheap_liftVars
+      SH.sheap_liftVars
       app map nth_error value error fold_right hd hd_error tl tail rev
       Decidables.seq_dec 
       DepList.hlist_hd DepList.hlist_tl 
-      SepExpr.FM.find SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty SepExpr.FM.fold
+      SepHeap.FM.find SepHeap.FM.add SepHeap.FM.remove SepHeap.FM.map SepHeap.FM.empty SepHeap.FM.fold
       Compare_dec.lt_eq_lt_dec nat_rec nat_rect Peano_dec.eq_nat_dec sumbool_rec sumbool_rect
       EquivDec.equiv_dec EquivDec.nat_eq_eqdec
       f_equal 
@@ -994,7 +995,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       stateD existsEach Expr.exprD 
       Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation Expr.lookupAs
       Expr.AllProvable Expr.AllProvable_gen Expr.Provable Expr.tvarD
-      SEP.sheapD SEP.starred SEP.sexprD
+      SH.sheapD SH.starred SEP.sexprD
       EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
       Logic.eq_sym eq_sym f_equal
       eq_rec_r eq_rect eq_rec
@@ -1006,18 +1007,16 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       Expr.lookupAs
       SEP.SDenotation SEP.SDomain
       EquivDec.nat_eq_eqdec  
-      SEP.sheapD SEP.sepCancel
-      SEP.star_SHeap (*SEP.unify_remove_all*)
-      SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
-      SEP.order_impures SEP.cancel_in_order
-      MM.mmap_join SEP.liftSHeap SEP.unify_remove SEP.starred 
+      SH.sheapD (* SEP.sepCancel *) (* symbolic evaluation doesn't need cancelation **)
+      SH.star_SHeap (*SEP.unify_remove_all*)
+      SepHeap.MM.mmap_join SH.liftSHeap SH.starred 
       Expr.tvarD Expr.Eq
       
-      SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.add SepExpr.FM.empty 
+      SepHeap.FM.fold SepHeap.FM.find SepHeap.FM.add SepHeap.FM.empty 
       bedrock_types 
         
       Compare_dec.lt_eq_lt_dec Peano_dec.eq_nat_dec
-      SepExpr.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
+      SepHeap.FM.map ExprUnify.exprUnifyArgs ExprUnify.empty_Subst
       ExprUnify.exprUnify ExprUnify.fold_left_2_opt 
       EquivDec.equiv_dec Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
       ExprUnify.get_Eq
@@ -1051,6 +1050,10 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       ExprUnify.get_Eq ExprUnify.exprUnifyArgs ExprUnify.exprUnify
       ExprUnify.empty_Subst
 
+SepHeap.MM.mmap_add SepHeap.MM.empty SepHeap.FM.find
+     SepHeap.FM.Raw.find
+     SepHeap.FM.this SepHeap.FM.empty SepHeap.FM.Raw.empty
+
 (*
       ExprUnify.SUBST.empty
       ExprUnify.SUBST.find
@@ -1081,7 +1084,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       UNF.default_hintsPayload UNF.fmFind UNF.findWithRest'
       UNF.findWithRest
 
-      SEP.hash SEP.star_SHeap SEP.liftSHeap MM.mmap_join map UNF.substExpr
+      SH.hash SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join map UNF.substExpr
       rev_append
 
       Unfolder.FM.fold Unfolder.FM.add
@@ -1182,7 +1185,7 @@ Module EmptyPackage.
   Proof.
    intros.
    sym_eval ltac:(isConst) empty_package simplifier.
-   try intuition congruence. 
+   intuition congruence. 
   Abort.
 
 End EmptyPackage.

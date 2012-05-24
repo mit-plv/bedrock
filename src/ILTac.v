@@ -3,7 +3,7 @@ Require Import Word Memory.
 Import List.
 Require Import DepList EqdepClass.
 Require Import PropX.
-Require Import Expr SepExpr.
+Require Import Expr SepExpr SepCancel.
 Require Import Prover ILEnv.
 
 Set Implicit Arguments.
@@ -15,21 +15,26 @@ Add ML Path "/usr/local/lib/coq/user-contrib/".
 Declare ML Module "Timing_plugin".
 *)
 
+Require ExprUnify2.
+
+Module U := ExprUnify2.Unifier NatMap.Ordered_nat.
+Module CANCEL := SepCancel.Make U SepIL.SH.
+
 Section existsSubst.
   Variable types : list type.
   Variable denote : expr types -> forall t : tvar, option (tvarD types t).
-  Variable sub : ExprUnify2.Subst types.
+  Variable sub : U.Subst types.
  
   Definition ExistsSubstNone (_ : list { t : tvar & option (tvarD types t) }) (_ : tvar) (_ : expr types) := 
-    denote = denote /\ sub = sub /\ False.
+    False.
   Definition ExistsSubstSome (_ : list { t : tvar & option (tvarD types t) }) (_ : expr types) := 
-    denote = denote /\ sub = sub /\ False. 
+    False. 
 
   Fixpoint existsSubst (from : nat) (vals : list { t : tvar & option (tvarD types t) }) (ret : env types -> Prop) : Prop :=
     match vals with
       | nil => ret nil
       | existT t None :: vals =>
-        match ExprUnify2.Subst_lookup from sub with
+        match U.Subst_lookup from sub with
           | None => exists v : tvarD types t, existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v =>
             match denote v t with
@@ -38,7 +43,7 @@ Section existsSubst.
             end
         end
       | existT t (Some v) :: vals =>
-        match ExprUnify2.Subst_lookup from sub with
+        match U.Subst_lookup from sub with
           | None => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v' =>
             match denote v' t with
@@ -71,10 +76,10 @@ Lemma ApplyCancelSep : forall ts,
   forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_))
   (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
   Expr.AllProvable funcs meta_env nil hyps ->
-  let (ql, lhs) := SEP.hash l in
-  let (qr, rhs) := SEP.hash r in
-  let facts := Summarize prover (map (liftExpr 0 (length ql)) hyps ++ SEP.pures lhs) in
-  let rhs := SEP.liftSHeap 0 (length ql) (SEP.sheapSubstU 0 (length qr) (length meta_env) rhs) in
+  let (ql, lhs) := SH.hash l in
+  let (qr, rhs) := SH.hash r in
+  let facts := Summarize prover (map (liftExpr 0 (length ql)) hyps ++ SH.pures lhs) in
+  let rhs := SH.liftSHeap 0 (length ql) (SH.sheapSubstU 0 (length qr) (length meta_env) rhs) in
   forall cs,
   let initial := {| UNF.Vars := ql 
                   ; UNF.UVars := map (@projT1 _ _) meta_env ++ rev qr
@@ -82,63 +87,34 @@ Lemma ApplyCancelSep : forall ts,
                   |} in
   match UNF.backward hints prover 10 facts initial with
     | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
-      (** NOTE: we're taking the first of them! **)
       let new_vars  := vars' in
       let new_uvars := skipn (length meta_env) uvars' in
       let bound := length uvars' in
-      match SEP.sepCancel preds prover bound facts lhs rhs with
+      match CANCEL.sepCancel preds prover bound facts lhs rhs with
         | (lhs', rhs', subst) =>
           Expr.forallEach (rev new_vars) (fun nvs : Expr.env types =>
             let var_env := nvs in
             Expr.AllProvable_impl funcs meta_env var_env
-            (** NOTE: I need to reverse this because 
-             **) 
             (existsSubst (exprD funcs meta_env var_env) subst 0 
                 (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
                  map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
               (fun meta_env : Expr.env types =>
-(*                Dyn (map (fun e => exprD funcs meta_env var_env e tvProp) (SEP.pures rhs') , meta_env, uvars, new_uvars) *)
-
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
-                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
+                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
-                      (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs')))))
-                  (SEP.pures rhs')) ))
-                (SEP.pures lhs'))
-(*          Dyn (SEP.pures rhs', 
-               map (fun e => exprD funcs meta_env var_env e tvProp) (SEP.pures rhs'), 
-               uvars, 
-               uvars',
-               meta_env)
-
-
-*) 
-(*
-            exists_subst funcs VS uvars
-              (ExprUnify.env_of_Subst subst uvars' 0)
- (** NOTE : we should combine lhs_subst and rhs_subst **)
-              (fun uenv : Expr.env types =>
-                let uvars := uenv ++ in
-            Expr.AllProvable_impl funcs uvars (vars ++ VS)
-                  (Expr.AllProvable_and funcs rhs_ex0 VS 
-                    (himp cs 
-                      (SEP.sexprD funcs preds rhs_ex0 VS
-                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures lhs') nil (SEP.other lhs'))))
-                      (SEP.sexprD funcs preds rhs_ex0 VS
-                        (SEP.sheapD (SEP.Build_SHeap _ _ (SEP.impures rhs') nil (SEP.other rhs'))))
-                    ) (SEP.pures rhs')))) (SEP.pures lhs'))
-*)
-          
+                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
+                  (SH.pures rhs')) ))
+                (SH.pures lhs'))
       end
   end ->
   himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
           (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
 Proof.
-  Opaque UNF.backward SEP.sepCancel.
+  Opaque UNF.backward.
   simpl.
-  Transparent SEP.sepCancel UNF.backward.
+  Transparent UNF.backward.
 Admitted.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
@@ -183,7 +159,6 @@ Module SEP_REIFY := ReifySepExpr SEP.
  ** - [ext] is a [TypedPackage .. .. .. .. ..]
  ** - [simplifier] is an ltac that simplifies the goal after the cancelation, it is passed
  **   constr:(tt).
- ** - [Ts] is a value of type [list Type] or [tt]
  **)
 Ltac sep_canceler isConst ext simplifier :=
 (*TIME  run_timer 10 ; *)
@@ -325,213 +300,6 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- ?G ] => 
       idtac "no match" G 
   end.
-
-Ltac cancel_simplifier s1 s2 s3 H :=
-  cbv beta iota zeta delta [ s1 s2 s3
-    (** Interface **)
-    PACK.Types PACK.Preds PACK.Funcs
-    PACK.applyTypes PACK.applyPreds PACK.applyFuncs
-    ILAlgoTypes.Algos
-    ILAlgoTypes.Hints ILAlgoTypes.Prover
-
-    existsSubst
-    
-    (** TypeEnv **)
-    BedrockCoreEnv.core BedrockCoreEnv.pc BedrockCoreEnv.st
-
-    (** Env **)
-    Env.repr_combine
-    Env.footprint Env.default
-    Env.repr
-
-    (** Expr **)
-    Expr.Range Expr.Domain Expr.Denotation Expr.Impl
-    Expr.exists_subst
-    Expr.forallEach Expr.existsEach
-    Expr.AllProvable_and Expr.AllProvable_impl Expr.AllProvable_gen
-    Expr.tvarD Expr.exprD Expr.applyD Expr.Impl_
-    Expr.EqDec_tvar 
-    Expr.tvar_rec Expr.tvar_rect
-    Expr.liftExpr Expr.lookupAs
-    Expr.Eq
-    Expr.Provable Expr.tvar_val_sdec
-
-    (** Prover **)
-    Prover.Prove Prover.Summarize Prover.Learn
-
-    (** ExprUnify **)
-    ExprUnify.exprUnify
-    ExprUnify.env_of_Subst ExprUnify.fold_left_2_opt
-    ExprUnify.Subst_lookup ExprUnify.Subst_replace
-    ExprUnify.get_Eq ExprUnify.exprUnifyArgs
-
-    (** ExprUnify2 **)
-    ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
-    ExprUnify2.exprInstantiate
-    ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
-    ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
-    ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
-    ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
-    list_ind list_rec list_rect
-    (** * General recursion **)
-    Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat ExprUnify2.wf_R_expr 
-    well_founded_ind nat_ind 
-    well_founded_induction_type nat_rect eq_ind eq_rec eq_rect
-    Acc_rect Expr.expr_ind Acc_inv
-
-    (** SepExpr **)
-    SEP.impures SEP.pures SEP.other
-    SEP.SDomain SEP.SDenotation
-
-    SEP.liftSHeap SEP.sheapSubstU SEP.star_SHeap SepExpr.FM.empty
-    SEP.SHeap_empty
-
-    SEP.sepCancel SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt
-    (*SEP.unify_remove_all*) 
-    SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
-    SEP.order_impures Ordering.sort Ordering.insert_in_order
-    SEP.cancel_in_order
-
-    SEP.sheapD SEP.starred
-    SEP.himp
-    SEP.sexprD 
-
-    SEP.hash SEP.sheap_liftVars
-
-(*
-    SepExpr.FM.find_add 
-    SepExpr.FM.fold SepExpr.FM.find
-      
-    SepExpr.FM.add SepExpr.FM.insert_at_right SepExpr.FM.remove 
-*)
-    SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.fold SepExpr.FM.find SepExpr.FM.map
-
-    (** Multimaps **)
-    MM.mmap_add MM.mmap_extend MM.mmap_join
-    MM.mmap_mapi MM.mmap_map
-
-    (** Unfolder **)
-    UNF.Vars UNF.Foralls UNF.Hyps UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
-    UNF.Forward UNF.forward UNF.unfoldForward
-    UNF.Backward UNF.backward UNF.unfoldBackward
-    UNF.findWithRest UNF.find 
-    UNF.substExpr
-    Unfolder.FM.add
-    
-    Unfolder.allb 
-    exprSubstU
-    
-    ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
-
-    ILAlgoTypes.unfolder_LearnHook
-    UNF.default_hintsPayload
-    UNF.fmFind
-    UNF.findWithRest'
-
-    UNF.default_hintsPayload
-    Unfolder.FM.add Unfolder.FM.remove Unfolder.FM.fold Unfolder.FM.find Unfolder.FM.map
-
-    (** List **)
-    value error tl hd_error nth_error map length app fold_right firstn skipn
-
-    (** IntMap **)
-    NatMap.singleton
-    NatMap.IntMap.Raw.height NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.assert_false NatMap.IntMap.Raw.create
-    NatMap.IntMap.Raw.bal NatMap.IntMap.Raw.remove_min NatMap.IntMap.Raw.merge NatMap.IntMap.Raw.join
-    NatMap.IntMap.Raw.t_left NatMap.IntMap.Raw.t_opt NatMap.IntMap.Raw.t_right
-    NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.empty NatMap.IntMap.Raw.is_empty
-    NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find   
-    NatMap.IntMap.Raw.add  NatMap.IntMap.Raw.remove
-    NatMap.IntMap.Raw.fold NatMap.IntMap.Raw.map NatMap.IntMap.Raw.mapi NatMap.IntMap.Raw.map2
-
-    NatMap.IntMap.this NatMap.IntMap.is_bst
-    NatMap.IntMap.empty NatMap.IntMap.is_empty
-    NatMap.IntMap.add NatMap.IntMap.remove
-    NatMap.IntMap.mem NatMap.IntMap.find
-    NatMap.IntMap.map NatMap.IntMap.mapi NatMap.IntMap.map2
-    NatMap.IntMap.elements NatMap.IntMap.cardinal NatMap.IntMap.fold
-    NatMap.IntMap.equal
-
-    Compare_dec.lt_dec
-    Compare_dec.le_dec
-    Compare_dec.le_gt_dec
-    Compare_dec.le_lt_dec
-    Compare_dec.lt_eq_lt_dec
-
-    Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
-    Int.Z_as_Int.plus Int.Z_as_Int.max
-    Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
-
-    ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
-    ZArith_dec.Z_gt_dec 
-    ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
-
-    BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
-    BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
-    
-    BinInt.Z.compare
-
-    BinPos.Pos.add BinPos.Pos.compare 
-    BinPos.Pos.succ BinPos.Pos.compare_cont
-
-    Compare_dec.nat_compare CompOpp 
-
-    NatMap.Ordered_nat.compare
-
-    sumor_rec sumor_rect
-    sumbool_rec sumbool_rect
-    eq_ind_r 
-
-      
-    (** EquivDec **)
-    EquivDec_nat
-    sumbool_rec sumbool_rect sumor_rec sumor_rect nat_rec nat_rect
-    eq_rect_r eq_rec_r eq_rec eq_rect Logic.eq_sym Logic.f_equal eq_sym
-    Peano_dec.eq_nat_dec equiv_dec
-    seq_dec EquivDec_SemiDec SemiDec_expr 
-    Expr.expr_seq_dec
-
-    (** Other **)
-    fst snd plus minus
-    rev_append rev orb andb Unfolder.allb
-    projT1 projT2
-    Basics.impl
-
-    (** wf_R_expr **)
-    GenRec.guard
-  ];
-  (** TODO: Would it be better to make equivalent versions of these that the computational part of the
-   ** tactics use?
-   **)
-  fold plus; fold minus; fold length; fold app;
-  repeat match goal with
-           | [ |- context[list ?A] ] =>
-             progress change (fix length (l : list A) : nat :=
-               match l with
-                 | nil => 0
-                 | _ :: l' => S (length l')
-               end) with (@length A)
-           | [ _ : list ?A |- _ ] =>
-             progress change (fix app (l0 m : list A) : list A :=
-               match l0 with
-                 | nil => m
-                 | a1 :: l1 => a1 :: app l1 m
-               end) with (@app A)
-             || (progress change (fix rev (l : list W) : list W :=
-               match l with
-                 | nil => nil
-                 | x8 :: l' => (rev l' ++ x8 :: nil)%list
-               end) with (@rev A))
-         end.
-
-Implicit Arguments existT [ A P ].
-
-(*Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
-  destruct ls. Focus 2.
-  sep_canceler ltac:(SymILTac.isConst) ILAlgoTypes.BedrockPackage.bedrock_package ltac:(fun _ _ _ _ => idtac).
-  cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ]; cancel_simplifier types funcs preds tt.
-  intros. solve [ do 2 eexists; intuition ].
-Abort.*)
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
 Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).

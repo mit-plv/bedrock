@@ -2,7 +2,7 @@ Require Import Arith Bool EqdepClass List.
 
 Require Import Heaps Reflect.
 Require Import Expr ExprUnify.
-Require Import SepExpr.
+Require Import SepExpr SepHeap.
 Require Import Prover.
 Require Import Env.
 
@@ -18,7 +18,9 @@ Fixpoint allb A (P : A -> bool) (ls : list A) : bool :=
     | x :: ls' => P x && allb P ls'
   end.
 
-Module Make (Import SE : SepExprType).
+Module Make (SH : SepHeap).
+  Module Import SE := SH.SE.
+  Import SH.
   
   Module B := SE.ST.H.
 
@@ -214,7 +216,7 @@ Module Make (Import SE : SepExprType).
     Record unfoldingState := {
       Vars : variables;
       UVars : variables;
-      Heap : SE.SHeap types pcType stateType
+      Heap : SH.SHeap types pcType stateType
     }.
 
     Section unfoldOne.

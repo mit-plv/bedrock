@@ -150,13 +150,31 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.SemiDec_expr Expr.expr_seq_dec
 
          (** ExprUnify2 **)
-         ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
-         ExprUnify2.exprInstantiate
-         ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
-         ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
-         ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
-         ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
-         ExprUnify2.exprUnify_recursor
+         U.exprUnify U.exprUnify_recursor
+         U.subst_exprInstantiate
+         U.Subst_lookup U.subst_lookup
+         U.Subst_empty U.subst_empty
+         U.Subst_set U.subst_set
+         U.Subst_equations
+         U.mentionsU
+         U.get_Eq U.dep_in U.fold2_option
+         U.exprUnify_recursor
+
+         U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
+         U.FM.Raw.bal U.FM.Raw.remove_min U.FM.Raw.merge U.FM.Raw.join
+         U.FM.Raw.t_left U.FM.Raw.t_opt U.FM.Raw.t_right
+         U.FM.Raw.cardinal U.FM.Raw.empty U.FM.Raw.is_empty
+         U.FM.Raw.mem U.FM.Raw.find   
+         U.FM.Raw.add  U.FM.Raw.remove
+         U.FM.Raw.fold U.FM.Raw.map U.FM.Raw.mapi U.FM.Raw.map2
+
+         U.FM.this U.FM.is_bst
+         U.FM.empty U.FM.is_empty
+         U.FM.add U.FM.remove
+         U.FM.mem U.FM.find
+         U.FM.map U.FM.mapi U.FM.map2
+         U.FM.elements U.FM.cardinal U.FM.fold
+         U.FM.equal
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
@@ -260,38 +278,42 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Compare_dec.nat_compare
 
          (** SepExpr **)
-         SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
-         SEP.star_SHeap SepExpr.FM.empty
-         SEP.SHeap_empty SEP.sepCancel 
-         SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
-         SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
-         SEP.SDenotation SEP.SDomain nat_eq_eqdec
-         SEP.sheapD SEP.sepCancel SEP.star_SHeap 
-         SEP.liftSHeap SEP.unify_remove SEP.starred
-         SEP.himp SEP.sexprD SEP.pures SEP.impures
-         SEP.other SEP.star_SHeap SEP.liftSHeap
-         SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
-         SEP.hash SEP.Default_predicate
-         SEP.impures SEP.pures SEP.other
-         SepExpr.FM.map
-         SepExpr.FM.find
-         SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty
-         SepExpr.FM.fold SepExpr.FM.find
-         SepExpr.FM.add
-         SEP.sheapD SEP.starred SEP.sexprD
-         SepExpr.FM.fold SepExpr.FM.find
-         SepExpr.FM.add SepExpr.FM.empty
-         SEP.impures SEP.pures SEP.other
-         (* SEP.unify_remove_all *)
-         SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
-         SEP.order_impures 
-         SEP.cancel_in_order
+         SEP.SDomain SEP.SDenotation 
+         SEP.Default_predicate
+         SEP.himp SEP.sexprD
+         SEP.heq
+         nat_eq_eqdec
+
+         (** SepHeap **)
+         SH.impures SH.pures SH.other
+         SH.liftSHeap SH.sheapSubstU
+         SH.sheap_liftVars
+         SH.starred SH.hash 
+         SH.star_SHeap 
+         SH.SHeap_empty 
+         SH.sheapD
+
+         SepHeap.FM.empty
+         SepHeap.FM.map
+         SepHeap.FM.find
+         SepHeap.FM.add 
+         SepHeap.FM.remove 
+         SepHeap.FM.fold
+
+         (** SepCancel **)
+         CANCEL.sepCancel 
+         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.order_impures 
+         CANCEL.cancel_in_order
+         CANCEL.unify_remove CANCEL.unifyArgs CANCEL.fold_left_3_opt 
+         
+         (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
          
          (** Multimaps **)
-         SepExpr.MM.mmap_add SepExpr.MM.mmap_extend SepExpr.MM.mmap_join
-         SepExpr.MM.mmap_mapi SepExpr.MM.mmap_map
-         SepExpr.MM.empty
+         SepHeap.MM.mmap_add SepHeap.MM.mmap_extend SepHeap.MM.mmap_join
+         SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
+         SepHeap.MM.empty
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 
@@ -407,18 +429,36 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.SemiDec_expr Expr.expr_seq_dec
 
          (** ExprUnify2 **)
-         ExprUnify2.exprUnify ExprUnify2.exprUnify_recursor
-         ExprUnify2.exprInstantiate
-         ExprUnify2.Subst_lookup ExprUnify2.Subst_equations
-         ExprUnify2.empty_Subst ExprUnify2.anyb ExprUnify2.mentionsU
-         ExprUnify2.get_Eq ExprUnify2.dep_in ExprUnify2.fold2_option
-         ExprUnify2.SUBST.find ExprUnify2.Subst_replace 
-         ExprUnify2.exprUnify_recursor
+         U.exprUnify U.exprUnify_recursor
+         U.subst_exprInstantiate
+         U.Subst_lookup U.subst_lookup
+         U.Subst_empty U.subst_empty
+         U.Subst_set U.subst_set
+         U.Subst_equations
+         U.mentionsU
+         U.get_Eq U.dep_in U.fold2_option
+         U.exprUnify_recursor
+
+         U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
+         U.FM.Raw.bal U.FM.Raw.remove_min U.FM.Raw.merge U.FM.Raw.join
+         U.FM.Raw.t_left U.FM.Raw.t_opt U.FM.Raw.t_right
+         U.FM.Raw.cardinal U.FM.Raw.empty U.FM.Raw.is_empty
+         U.FM.Raw.mem U.FM.Raw.find   
+         U.FM.Raw.add  U.FM.Raw.remove
+         U.FM.Raw.fold U.FM.Raw.map U.FM.Raw.mapi U.FM.Raw.map2
+
+         U.FM.this U.FM.is_bst
+         U.FM.empty U.FM.is_empty
+         U.FM.add U.FM.remove
+         U.FM.mem U.FM.find
+         U.FM.map U.FM.mapi U.FM.map2
+         U.FM.elements U.FM.cardinal U.FM.fold
+         U.FM.equal
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
-         Unfolder.FM.find
+         Unfolder.FM.find 
          UNF.Foralls UNF.Vars
          UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
@@ -446,7 +486,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NatMap.IntMap.map NatMap.IntMap.mapi NatMap.IntMap.map2
          NatMap.IntMap.elements NatMap.IntMap.cardinal NatMap.IntMap.fold
          NatMap.IntMap.equal
-         
+        
          Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
          Int.Z_as_Int.plus Int.Z_as_Int.max
          Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
@@ -469,13 +509,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          sumor_rec sumor_rect
          sumbool_rec sumbool_rect
-         eq_ind_r 
-(*
-         NatMap.IntMap.empty NatMap.IntMap.find
-         NatMap.IntMap.insert_at_right NatMap.IntMap.remove
-         NatMap.IntMap.map NatMap.IntMap.fold
-         NatMap.Ordered_nat.compare NatMap.Ordered_nat.eq_dec
-*)
+         eq_ind_r
 
          (** Prover **)
          Prover.Prove Prover.Summarize Prover.Learn
@@ -523,38 +557,42 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Compare_dec.nat_compare
 
          (** SepExpr **)
-         SEP.SDomain SEP.SDenotation SEP.liftSHeap SEP.sheapSubstU
-         SEP.star_SHeap SepExpr.FM.empty 
-         SEP.SHeap_empty SEP.sepCancel 
-         SEP.unify_remove SEP.unifyArgs SEP.fold_left_3_opt SEP.sheapD
-         SEP.starred SEP.himp SEP.sexprD SEP.hash SEP.sheap_liftVars
-         SEP.SDenotation SEP.SDomain nat_eq_eqdec
-         SEP.sheapD SEP.sepCancel SEP.star_SHeap 
-         SEP.liftSHeap SEP.unify_remove SEP.starred
-         SEP.himp SEP.sexprD SEP.pures SEP.impures
-         SEP.other SEP.star_SHeap SEP.liftSHeap
-         SEP.sheap_liftVars SEP.star_SHeap SEP.liftSHeap
-         SEP.hash SEP.Default_predicate
-         SEP.impures SEP.pures SEP.other
-         SepExpr.FM.map
-         SepExpr.FM.find
-         SepExpr.FM.add SepExpr.FM.remove SepExpr.FM.map SepExpr.FM.empty
-         SepExpr.FM.fold SepExpr.FM.find
-         SepExpr.FM.add
-         SEP.sheapD SEP.starred SEP.sexprD
-         SepExpr.FM.fold SepExpr.FM.find
-         SepExpr.FM.add SepExpr.FM.empty
-         SEP.impures SEP.pures SEP.other
-         (* SEP.unify_remove_all *)
-         SEP.expr_count_meta SEP.meta_order_funcs SEP.meta_order_args
-         SEP.order_impures 
-         SEP.cancel_in_order
-         Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
+         SEP.SDomain SEP.SDenotation 
+         SEP.Default_predicate
+         SEP.himp SEP.sexprD
+         SEP.heq
+         nat_eq_eqdec
 
+         (** SepHeap **)
+         SH.impures SH.pures SH.other
+         SH.liftSHeap SH.sheapSubstU
+         SH.sheap_liftVars
+         SH.starred SH.hash 
+         SH.star_SHeap 
+         SH.SHeap_empty 
+         SH.sheapD
+
+         SepHeap.FM.empty
+         SepHeap.FM.map
+         SepHeap.FM.find
+         SepHeap.FM.add 
+         SepHeap.FM.remove 
+         SepHeap.FM.fold
+
+         (** SepCancel **)
+         CANCEL.sepCancel 
+         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.order_impures 
+         CANCEL.cancel_in_order
+         CANCEL.unify_remove CANCEL.unifyArgs CANCEL.fold_left_3_opt 
+         
+         (** Ordering **)
+         Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
+         
          (** Multimaps **)
-         SepExpr.MM.mmap_add SepExpr.MM.mmap_extend SepExpr.MM.mmap_join
-         SepExpr.MM.mmap_mapi SepExpr.MM.mmap_map
-         SepExpr.MM.empty
+         SepHeap.MM.mmap_add SepHeap.MM.mmap_extend SepHeap.MM.mmap_join
+         SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
+         SepHeap.MM.empty
 
          (** PtsTo Plugin **)
          Plugin_PtsTo.ptsto32_ssig 

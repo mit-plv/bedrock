@@ -1,13 +1,15 @@
 Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
-Require Import Expr SepExpr Prover.
+Require Import Expr SepHeap.
+Require Import Prover.
 Require Import PropX.
 Require Import Env.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module MemoryEvaluator (SEP : SepExprType).
+Module MemoryEvaluator (SH : SepHeap).
+  Module SEP := SH.SE.
   Module ST := SEP.ST.
 
   (** Learn hook **)
@@ -59,9 +61,9 @@ Module MemoryEvaluator (SEP : SepExprType).
 
     Record MemEvaluator : Type :=
     { smemeval_read_word : forall (P : ProverT types), Facts P -> 
-      expr types -> SEP.SHeap types pcT stT -> option (expr types)
+      expr types -> SH.SHeap types pcT stT -> option (expr types)
     ; smemeval_write_word : forall (P : ProverT types), Facts P ->
-      expr types -> expr types -> SEP.SHeap types pcT stT -> option (SEP.SHeap types pcT stT)
+      expr types -> expr types -> SH.SHeap types pcT stT -> option (SH.SHeap types pcT stT)
     }.
 
     Variable eval : MemEvaluator.
@@ -85,7 +87,7 @@ Module MemoryEvaluator (SEP : SepExprType).
           forall uvars vars cs p stn_m,
             Valid PE uvars vars facts ->
             exprD funcs uvars vars pe ptrT = Some p ->
-            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH)) stn_m ->
+            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SH.sheapD SH)) stn_m ->
             match exprD funcs uvars vars ve valT with
               | Some v =>
                 ReadWord stn_m p = Some v
@@ -100,11 +102,11 @@ Module MemoryEvaluator (SEP : SepExprType).
             exprD funcs uvars vars pe ptrT = Some p ->
             exprD funcs uvars vars ve valT = Some v ->
             forall stn_m,
-            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH)) stn_m ->
+            mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SH.sheapD SH)) stn_m ->
             match WriteWord stn_m p v with
               | None => False
               | Some stn_m' =>
-                mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SEP.sheapD SH')) stn_m'
+                mem_satisfies cs (SEP.sexprD funcs preds uvars vars (SH.sheapD SH')) stn_m'
             end
     }.
   End MemEvaluator.
@@ -133,12 +135,12 @@ Module MemoryEvaluator (SEP : SepExprType).
       Variable prover : ProverT types.
       
       Definition smemeval_read_word_default (_ : Facts prover) (_ : expr types)
-        (_ : SEP.SHeap types pcT stT) : option (expr types) :=
+        (_ : SH.SHeap types pcT stT) : option (expr types) :=
         None.
 
       Definition smemeval_write_word_default (_ : Facts prover)
-        (_ : expr types) (_ : expr types) (_ : SEP.SHeap types pcT stT)
-        : option (SEP.SHeap types pcT stT) :=
+        (_ : expr types) (_ : expr types) (_ : SH.SHeap types pcT stT)
+        : option (SH.SHeap types pcT stT) :=
         None.
     End with_prover.
 
@@ -289,8 +291,8 @@ Module MemoryEvaluator (SEP : SepExprType).
         End fold_first_update.
 
         Definition plugin_symeval_read_word (facts : Facts Prover) (p : expr types) 
-          (s : SEP.SHeap types pcT stT) : option (expr types) :=
-          let impures := SEP.impures s in
+          (s : SH.SHeap types pcT stT) : option (expr types) :=
+          let impures := SH.impures s in
           let reader i_me :=
             let '(i,me) := i_me in
             match FM.find i impures with
@@ -302,8 +304,8 @@ Module MemoryEvaluator (SEP : SepExprType).
           fold_first reader evals.
 
         Definition plugin_symeval_write_word (facts : Facts Prover) (p v : expr types)
-          (s : SEP.SHeap types pcT stT) : option (SEP.SHeap types pcT stT) :=
-          let impures := SEP.impures s in
+          (s : SH.SHeap types pcT stT) : option (SH.SHeap types pcT stT) :=
+          let impures := SH.impures s in
           let writer i_me :=
           let '(i,me) := i_me in
             match FM.find i impures with
@@ -317,7 +319,7 @@ Module MemoryEvaluator (SEP : SepExprType).
           in
           match fold_first writer evals with
             | None => None
-            | Some impures => Some (SEP.Build_SHeap _ _ impures (SEP.pures s) (SEP.other s))
+            | Some impures => Some (SH.Build_SHeap _ _ impures (SH.pures s) (SH.other s))
           end.
       End with_prover.
 
@@ -544,14 +546,14 @@ Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts
       AllProvable funcs uvars vars hyps ->
       exprD funcs uvars vars ve tvPc = Some v ->
       (exists sm, 
-           ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s)) stn sm
+           ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SH.sheapD s)) stn sm
         /\ ST.HT.satisfies sm m) ->
       match exprD funcs uvars vars pe tvPtr with
         | Some p =>
           exists m', 
                 F.mem_set_value types _ _ stn p v m = Some m'
             /\ exists sm,
-               ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SEP.sheapD s')) stn sm
+               ST.satisfies cs (SEP.sexprD funcs sfuncs uvars vars (SH.sheapD s')) stn sm
             /\ ST.HT.satisfies sm m'
         | _ => False
       end.
@@ -570,8 +572,8 @@ Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts
     repeat match goal with
              | [ H : exists x, _ |- _ ] => destruct H
            end. intuition; subst.
-    generalize (SEP.sheapD_pures _ _ _ _ _ H4).
-    rewrite SEP.sheapD_pull_impure in H4 by eauto.
+    generalize (SH.sheapD_pures _ _ _ _ _ H4).
+    rewrite SH.sheapD_pull_impure in H4 by eauto.
     rewrite SEP.starred_In in H4.
     rewrite <- SEP.heq_star_assoc in H4. rewrite SEP.heq_star_comm in H4.
         
@@ -607,7 +609,7 @@ Module PluginWrap (B : Heap) (ST : SepTheoryX.SepTheoryXType B) (F : PluginFacts
     exists (SepIL.ST.HT.join s0 x3).
     intuition.
 
-    rewrite SEP.sheapD_pull_impure by eapply FM.find_add.
+    rewrite SH.sheapD_pull_impure by eapply FM.find_add.
     simpl. rewrite FM.remove_add.
     eapply SepIL.ST.satisfies_star. do 2 eexists. split.
 
