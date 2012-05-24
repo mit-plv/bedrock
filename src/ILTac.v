@@ -221,8 +221,8 @@ Ltac sep_canceler isConst ext simplifier :=
       let pures := Expr.props_types all_props in
 (*TIME      stop_timer 12 ; *)
 (*TIME      run_timer 13 ; *)
-      let L := eval unfold empB injB injBX starB exB hvarB in L in
-      let R := eval unfold empB injB injBX starB exB hvarB in R in
+      let L := eval unfold empB, injB, injBX, starB, exB, hvarB in L in
+      let R := eval unfold empB, injB, injBX, starB, exB, hvarB in R in
 (*TIME      stop_timer 13 ; *)
 (*TIME      run_timer 14 ; *)
       (** collect types **)
