@@ -1,0 +1,121 @@
+\documentclass{beamer}
+\usetheme{CambridgeUS}
+\usecolortheme{lily}
+\useoutertheme{infolines}
+
+\definecolor{crimson}{rgb}{0.70,0,0}
+\definecolor{lgray}{rgb}{0.95,0.95,0.95}
+\setbeamercolor{alerted text}{fg=crimson}
+\setbeamertemplate{alerted text begin}{\bf}
+\setbeamercolor{block body}{parent=structure,bg=lgray}
+\setbeamercolor{block title}{parent=structure,bg=crimson,fg=white}
+\setbeamercolor{titlelike}{bg=crimson}
+\setbeamercolor{title}{fg=white,bg=crimson}
+\usecolortheme[named=crimson]{structure}
+
+\setbeamertemplate{navigation symbols}{} 
+
+\DeclareFontShape{OT1}{cmtt}{bx}{n}{
+  <5><6><7><8><9><10><10.95><12><14.4><17.28><20.74><24.88>cmttb10}{}
+
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{bussproofs}
+\usepackage{graphicx}
+\usepackage{colortbl}
+\usepackage{color}
+\usepackage[absolute,overlay]{textpos}
+\usepackage{tikz}
+
+\setlength{\TPHorizModule}{30mm}
+\setlength{\TPVertModule}{30mm}
+\textblockorigin{1in}{1in}
+
+\graphicspath{figs/}
+
+\newcommand{\hide}[1]{}
+\newcommand{\todo}[1]{\textcolor{red}{#1}}
+
+\title[Bedrock]{Bedrock: A Framework for Verifying Low-level Programs}
+\author[Gregory Malecha]{Gregory Malecha\\gmalecha@cs.harvard.edu}
+\institute{Harvard University SEAS}
+
+
+%\AtBeginSection[]
+%{
+%   \begin{frame}
+%       \frametitle{Outline}
+%       \tableofcontents[currentsection]
+%   \end{frame}
+%}
+
+\lstset{language=java,basicstyle=\footnotesize}
+
+\newcommand{\bnfor}{\ensuremath{\,|\,}}
+
+\begin{document}
+
+\begin{frame}
+\maketitle
+\end{frame}
+
+* Motivation
+  - verification of low-level code
+    - runtime systems
+    - operating systems
+    - drivers
+  - want to be able to use high-level abstractions most of the time
+    while retaining the ability to break abstractions in certain instances
+    - garbage collection
+    - schedulers
+    - device interaction
+  - Further:
+    - program logic rather than types
+      - types are a proof technique for properties like safety, but sometimes
+        we know an operation is safe even though it breaks the abstraction of
+        the system
+        - optimization of a function
+        - eliminate array bounds checks
+        - eliminate object meta-data
+    - program logics are more expressive
+    - can augment types
+
+  - define high-level language features by giving a denotation to
+    a low-level language
+    - define the compiler
+    - verify the reasoning property
+
+* Control Abstraction
+  - conditionals
+  - loops
+  - function calls
+
+* Data Abstraction
+  - tuples
+  - structs
+  - arrays
+  - unions
+
+* Automation
+  - reflective proofs
+  - reflected provers (for pure statements)
+  - symbolic evaluation
+    - memory evaluators deal with data abstraction
+    - control abstraction handled by VG generation
+    - unfolding
+  - separation logic prover
+    - expression unification
+    - unfolding
+
+** This stuff is kind of boring, it's a lot of work, but it isn't really 
+   exciting.
+   - want to focus on what we can do with the system (application driven)
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Backup Slides %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}
