@@ -834,7 +834,9 @@ Ltac sym_eval isConst ext simplifier :=
 (*                  stop_timer 100 ; *)
 (*                  run_timer 101 ; *)
                   let all_instrs := get_instrs st in
-                  let all_props := Expr.collect_props shouldReflect in
+                  let all_props := 
+                    Expr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
+                  in
                   let pures := Expr.props_types all_props in
                   let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
 (*                  stop_timer 101 ; *)

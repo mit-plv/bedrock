@@ -276,7 +276,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
-         CANCEL.unify_remove CANCEL.unifyArgs CANCEL.fold_left_3_opt 
+         CANCEL.unify_remove CANCEL.unifyArgs
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -539,7 +539,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
-         CANCEL.unify_remove CANCEL.unifyArgs CANCEL.fold_left_3_opt 
+         CANCEL.unify_remove CANCEL.unifyArgs
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
