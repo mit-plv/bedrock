@@ -221,4 +221,13 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
     unfold FM.In; split; auto.
   Qed.
 
+  Lemma find_Empty : forall T k (m : FM.t T),
+    FM.Empty m ->
+    FM.find k m = None.
+  Proof.
+    unfold FM.Empty. intros.
+    case_eq (FM.find k m); auto; intros.
+    exfalso. eapply FACTS.find_mapsto_iff in H0. eapply H; eauto.
+  Qed.
+
 End MoreFMapFacts.

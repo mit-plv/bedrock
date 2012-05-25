@@ -7,6 +7,7 @@ Require Import SepExpr SepHeap.
 Require Import Setoid.
 Require Import Prover.
 Require Import SepExpr.
+Require Folds.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -27,27 +28,10 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Variable Prover : ProverT types.
     Variable Prover_correct : ProverT_correct Prover funcs.
 
-    Section fold_left3_opt.
-      Variable T U V A : Type.
-      Variable F : T -> U -> V -> A -> option A.
-
-      Fixpoint fold_left_3_opt (ls : list T) (ls' : list U) (ls'' : list V) 
-        (acc : A) : option A :=
-        match ls, ls', ls'' with 
-          | nil , nil , nil => Some acc
-          | x :: xs , y :: ys , z :: zs => 
-            match F x y z acc with
-              | None => None
-              | Some acc => fold_left_3_opt xs ys zs acc
-            end
-          | _ , _ , _ => None
-        end.
-    End fold_left3_opt.
-
 
     Definition unifyArgs (bound : nat) (summ : Facts Prover) (l r : list (expr types)) (ts : list tvar) (sub : U.Subst types)
       : option (U.Subst types) :=
-      fold_left_3_opt 
+      Folds.fold_left_3_opt 
         (fun l r t (acc : U.Subst _) =>
           if Prove Prover summ (Expr.Equal t l r)
             then Some acc
@@ -191,6 +175,9 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           end
       end.
 
+    (** TODO: This isn't quite correct b/c it doesn't understand the fact
+     ** that unification could pin down certain values in U
+     **)
     Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
       himp funcs preds U G cs (SH.impuresD _ _ R) (SH.impuresD _ _ L) ->
@@ -199,7 +186,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         (Star (SH.starred (fun v => (Func (snd v) (fst v))) ls Emp)
               (SH.impuresD _ _ acc)).
     Proof.
-      
     Admitted.
 
 

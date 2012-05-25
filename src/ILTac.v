@@ -217,7 +217,9 @@ Ltac sep_canceler isConst ext simplifier :=
       let stateT := constr:(prod settings state) in
 (*TIME      stop_timer 11; *)
 (*TIME      run_timer 12 ; *)
-      let all_props := Expr.collect_props shouldReflect in
+      let all_props := 
+        Expr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
+      in
       let pures := Expr.props_types all_props in
 (*TIME      stop_timer 12 ; *)
 (*TIME      run_timer 13 ; *)

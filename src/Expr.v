@@ -2,7 +2,6 @@ Require Import List DepList.
 Require Import EqdepClass.
 Require Import IL Word.
 Require Import Bool.
-Require PropX.
 
 Set Implicit Arguments.
 
@@ -97,11 +96,11 @@ Section env.
 
   Inductive expr : Type :=
   | Const : forall t : tvar, tvarD t -> expr
-  | Var : forall x : var, expr
+  | Var : var -> expr
   | Func : forall f : func, list expr -> expr
   | Equal : tvar -> expr -> expr -> expr
   | Not : expr -> expr
-  | UVar : forall x : uvar, expr.
+  | UVar : uvar -> expr.
 
   Definition exprs : Type := list expr.
 
@@ -963,9 +962,6 @@ Ltac lift_signatures fs nt :=
   in
   map_tac (signature nt) f fs.
 
-
-
-
 Goal True.
   refine (
     let ts := {| Impl := nat ; Eq := fun _ _ => None |} :: nil in
@@ -1030,18 +1026,6 @@ Record VarType (t : Type) : Type :=
   { open : t }.
 Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
   f (open vt).
-
-Ltac reflectable shouldReflect P :=
-  match P with
-    | @PropX.interp _ _ _ _ => false
-    | @PropX.valid _ _ _ _ _ => false
-    | forall x, _ => false
-    | context [ PropX.PropX _ _ ] => false
-    | context [ PropX.spec _ _ ] => false
-    | _ => match type of P with
-             | Prop => shouldReflect P
-           end
-  end.
 
 (** collect the raw types from the given expression.
  ** - e is the expression to collect types from
@@ -1121,7 +1105,7 @@ Ltac collect_props shouldReflect :=
   let rec collect skip :=
     match goal with
       | [ H : ?X |- _ ] => 
-        match reflectable shouldReflect X with
+        match shouldReflect X with
           | true =>
             match hcontains H skip with
               | false =>
