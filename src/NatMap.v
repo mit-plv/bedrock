@@ -1,5 +1,6 @@
 Require Import HintlessOrderedType HintlessFMapAVL.
 Require Import List.
+Require Import Setoid RelationClasses.
 
 Set Implict Arguments.
 Set Strict Implicit.
@@ -69,6 +70,16 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
     clear. unfold FM.Equal. intros.
     repeat (rewrite FACTS.add_o || rewrite FACTS.remove_o).
     destruct (FM.E.eq_dec k y); auto.
+  Qed.
+
+  Lemma MapsTo_add_remove_Equal : forall (elt : Type) k (v : elt) m,
+    FM.MapsTo k v m ->
+    FM.Equal m (FM.add k v (FM.remove k m)).
+  Proof.
+    clear. unfold FM.Equal. intros.
+    repeat (rewrite FACTS.add_o || rewrite FACTS.remove_o).
+    destruct (FM.E.eq_dec k y); auto.
+    rewrite <- e. apply FACTS.find_mapsto_iff; auto.
   Qed.
 
   Lemma map_Empty : forall T U (F : T -> U) m,
@@ -142,7 +153,8 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
              (FM.fold (fun k v a => FM.add k (F v) a) m (FM.empty _)).
   Proof.
     intros. etransitivity. symmetry; apply union_empty. apply map_fold'. 
-  Qed.
+  Qed.   
+
 
   Section fusion.
     Variable T U V : Type.
@@ -213,6 +225,25 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
         eauto.
         eauto.
     Qed.
+
+    Lemma map_add : forall k v m,
+      FM.Equal (FM.map F (FM.add k v m))
+               (FM.add k (F v) (FM.map F m)).
+    Proof.
+      clear. intros. repeat rewrite map_fold.
+      generalize (FM.empty U).
+      eapply PROPS.map_induction with (m := m); intros.
+      { symmetry. rewrite PROPS.fold_Empty; eauto with typeclass_instances.
+        rewrite PROPS.fold_Add.
+        6: intro; reflexivity.
+        rewrite PROPS.fold_Empty; eauto with typeclass_instances.
+        reflexivity. eauto with typeclass_instances.
+        eauto with typeclass_instances. 
+        eauto with typeclass_instances.
+        intro. destruct H0; eapply H; eauto. }
+      { admit. }
+    Qed.
+
   End fusion.
 
   Lemma MapsTo_def : forall T k m,
@@ -221,13 +252,96 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
     unfold FM.In; split; auto.
   Qed.
 
-  Lemma find_Empty : forall T k (m : FM.t T),
-    FM.Empty m ->
-    FM.find k m = None.
+  Lemma find_empty_iff : forall T (m : FM.t T),
+    FM.Empty m <-> forall k, FM.find k m = None.
   Proof.
-    unfold FM.Empty. intros.
-    case_eq (FM.find k m); auto; intros.
-    exfalso. eapply FACTS.find_mapsto_iff in H0. eapply H; eauto.
+    unfold FM.Empty. intros. split.
+    { intros; case_eq (FM.find k m); auto; intros.
+      exfalso. eapply FACTS.find_mapsto_iff in H0. eapply H; eauto. }
+    { intros. intro. apply FACTS.find_mapsto_iff in H0. 
+      specialize (H a). congruence. }
   Qed.
 
+  Lemma find_Empty : forall T k (m : FM.t T),
+    FM.Empty m -> FM.find k m = None.
+  Proof.
+    intros. apply find_empty_iff; auto.
+  Qed.
+
+  Global Add Parametric Morphism (elt : Type) F : (@FM.Equiv elt F) with
+    signature (FM.Equal ==> FM.Equal ==> iff)
+    as equiv_eq_mor.
+  Proof.
+    intros. unfold FM.Equiv. split; intros.
+      intuition; rewrite <- H in *; rewrite <- H0 in *; firstorder.
+      intuition; rewrite H in *; rewrite H0 in *; firstorder.
+  Qed.
+
+  Section Equiv.
+    Variable T : Type.
+    Variable R : T -> T -> Prop.
+    Hypothesis refl : Reflexive R.
+
+    Global Instance Refl_Equiv : Reflexive (FM.Equiv R).
+    Proof.
+      revert refl; clear.
+      red. unfold FM.Equiv. firstorder. 
+      apply FACTS.find_mapsto_iff in H.
+      apply FACTS.find_mapsto_iff in H0.
+      rewrite H in H0. inversion H0; apply refl.
+    Qed.
+
+    Lemma Equiv_Add : forall k v m m' n',
+      FM.Equiv R m' n' ->
+      ~FM.In k m ->
+      PROPS.Add k v m m' ->
+      exists n v',
+        PROPS.Add k v' n n' /\
+        ~FM.In k n /\
+        FM.Equiv R m n /\
+        R v v'.
+    Proof.
+      intros. unfold PROPS.Add in *. 
+      destruct H. generalize (H1 k). intros.
+      rewrite FACTS.add_o in *. destruct (FM.E.eq_dec k k); try solve [ exfalso; auto ].
+      case_eq (FM.find k n'); intros. exists (FM.remove k n'). exists t.
+      { intuition.
+        rewrite FACTS.add_o. rewrite FACTS.remove_o. destruct (FM.E.eq_dec k y); auto.
+        rewrite <- e0; eauto.
+        
+        destruct H5. apply FACTS.find_mapsto_iff in H5. rewrite FACTS.remove_o in H5.
+        destruct (FM.E.eq_dec k k); congruence.
+
+        split. intros. destruct (FM.E.eq_dec k k0); try rewrite <- e0 in *.
+        split; intro; try solve [ exfalso ; auto ]. destruct H5. apply FACTS.find_mapsto_iff in H5. 
+        rewrite FACTS.remove_o in H5; destruct (FM.E.eq_dec k k); congruence.
+        split; intro. apply FACTS.remove_in_iff; split; auto.
+        
+        admit.  admit. admit.
+
+        eapply H2; eapply FACTS.find_mapsto_iff; eauto.
+      }
+      { exfalso. apply FACTS.not_find_in_iff in H4. apply H4. apply H. apply FACTS.find_mapsto_iff in H3; eexists; eauto. }
+    Qed.
+
+    Hypothesis sym : Symmetric R.
+    Global Instance Sym_Equiv : Symmetric (FM.Equiv R).
+    Proof.
+      clear refl. red. unfold FM.Equiv. intros.
+      intuition; eauto; firstorder.
+    Qed.
+
+    Hypothesis trans : Transitive R.
+    Global Instance Trans_Equiv : Transitive (FM.Equiv R).
+    Proof.
+      clear refl sym. red. unfold FM.Equiv. intros.
+      intuition.
+      eapply H. eapply H1. auto.
+      eapply H1; eapply H; auto.
+      cut (FM.In k y); intros.
+      destruct H5. etransitivity. eapply H2; eauto. eapply H3; eauto.
+      eapply H1. eexists; eauto.
+    Qed.
+      
+  End Equiv.
 End MoreFMapFacts.

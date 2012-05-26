@@ -126,7 +126,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
-         U.subst_exprInstantiate
+         U.exprInstantiate U.subst_exprInstantiate
          U.Subst_lookup U.subst_lookup
          U.Subst_empty U.subst_empty
          U.Subst_set U.subst_set
@@ -386,7 +386,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
-         U.subst_exprInstantiate
+         U.exprInstantiate U.subst_exprInstantiate
          U.Subst_lookup U.subst_lookup
          U.Subst_empty U.subst_empty
          U.Subst_set U.subst_set
