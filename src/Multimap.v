@@ -1,13 +1,14 @@
 Require Import HintlessFMapInterface HintlessFMapFacts.
 Require Import List.
+Require Import NatMap.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module Make (FM : S).
-  Module FM := FM.
+Module Make (FM : WS).
   Module FACTS := HintlessFMapFacts.WFacts_fun FM.E FM.
   Module PROPS := HintlessFMapFacts.WProperties_fun FM.E FM.
+  Module MFACTS := NatMap.MoreFMapFacts FM.
   
   Lemma find_Empty : forall T (m : FM.t T) x,
     FM.Empty m -> FM.find x m = None.
@@ -23,6 +24,14 @@ Module Make (FM : S).
   
     Definition mmap := FM.t (list T).
 
+    Definition mmap_Equiv : mmap -> mmap -> Prop :=
+      FM.Equiv (@Permutation.Permutation _).
+
+    Global Instance Equivalence_mmap_Equiv : RelationClasses.Equivalence mmap_Equiv.
+    Proof.
+      unfold mmap_Equiv. econstructor; eauto with typeclass_instances.
+    Qed.
+
     Definition empty : mmap := FM.empty _.
 
     Definition mmap_add (k : FM.key) (v : T) (m : mmap) : mmap :=
@@ -31,11 +40,121 @@ Module Make (FM : S).
         | Some v' => FM.add k (v :: v') m
       end.
 
+    Hint Constructors Permutation.Permutation : perms.
+    Ltac think :=         
+      repeat (rewrite FACTS.add_o in * ||
+        match goal with
+          | [ H : FM.MapsTo _ _ _ |- _ ] => apply FACTS.find_mapsto_iff in H
+          | [ H : context [ FM.E.eq_dec ?X ?Y ] |- _ ] => destruct (FM.E.eq_dec X Y)
+          | [ H : FM.E.eq _ _ |- _ ] => rewrite H in *
+          | [ H : ?X = Some _ , H' : ?X = Some _ |- _ ] =>
+            rewrite H in H'; inversion H'; clear H'; subst
+          | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+        end); eauto with perms.
+
+
+    Global Add Parametric Morphism : mmap_add with 
+      signature (FM.E.eq ==> @eq _ ==> mmap_Equiv ==> mmap_Equiv)
+      as mmap_add_mor.
+    Proof.
+      unfold mmap_Equiv, mmap_add, FM.Equiv. intros. destruct H0.
+      case_eq (FM.find x x0); case_eq (FM.find y y1); intros; 
+        rewrite H in * ;
+        repeat match goal with
+                 | [ H : FM.find _ _ = _ |- _ ] =>
+                   apply FACTS.find_mapsto_iff in H ||
+                   apply FACTS.not_find_in_iff in H
+                 | [ |- _ ] =>
+                   rewrite H in *
+               end.
+      { generalize (@H1 _ _ _ H3 H2).
+        intuition (try rewrite H in *).
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H5.
+        destruct H5; auto. right. eapply H0. auto.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H5.
+        destruct H5; auto. right. eapply H0. auto.
+        think; eauto.
+        eapply H1. eapply FACTS.find_mapsto_iff; eauto.  eapply FACTS.find_mapsto_iff; eauto. }
+      { exfalso. apply H2. eapply H0. eexists; eauto. }
+      { exfalso. apply H3. eapply H0. eexists; eauto. }
+      { intuition; try rewrite H in *.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H4.
+        destruct H4; auto. right. eapply H0; eauto.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H4.
+        destruct H4; auto. right. eapply H0; eauto.
+        think. eauto.
+        eapply H1; eapply FACTS.find_mapsto_iff; eauto. }
+    Qed.
+
+    Lemma mmap_add_comm : forall k1 v1 k2 v2 m,
+      mmap_Equiv (mmap_add k1 v1 (mmap_add k2 v2 m)) (mmap_add k2 v2 (mmap_add k1 v1 m)).
+    Proof.
+      unfold mmap_Equiv, mmap_add; intros.
+      repeat match goal with 
+               | [ |- _ ] => rewrite FACTS.add_o in *
+               | [ H : _ = _ |- _ ] => rewrite H in *
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               | [ H : FM.E.eq _ _ |- _ ] => rewrite H in *; clear H
+               | [ |- context [ FM.find ?X ?Y ] ] =>
+                 match Y with
+                   | match _ with | _ => _ end => fail 1
+                   | _ => case_eq (FM.find X Y)
+                 end; intros
+             end; try solve [ exfalso; auto ];
+      repeat match goal with
+               | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
+                 destruct (FM.E.eq_dec X Y)
+             end; try solve [ exfalso; auto ]; unfold FM.Equiv;
+      intuition;
+        try solve [ repeat match goal with
+                             | [ |- FM.In _ _ ] => apply FACTS.add_in_iff
+                             | [ H : FM.In _ _ |- _ ] => 
+                               apply FACTS.add_in_iff in H; destruct H
+                             | [ H : FM.E.eq _ _ |- _ ] => rewrite H in *
+                             | [ |- _ \/ _ ] => solve [ left; auto ] || right; auto
+                           end ];
+        think; try solve [ congruence | exfalso; auto ].
+    Qed.
+
     Definition mmap_extend (k : FM.key) (v : list T) (m : mmap) : mmap :=
       match FM.find k m with
         | None => FM.add k v m
         | Some v' => FM.add k (v ++ v') m
       end.
+
+    Global Add Parametric Morphism : mmap_extend with 
+      signature (FM.E.eq ==> (@Permutation.Permutation _) ==> mmap_Equiv ==> mmap_Equiv)
+      as mmap_extend_mor.
+    Proof.
+      unfold mmap_Equiv, mmap_extend, FM.Equiv. intros. destruct H1.
+      case_eq (FM.find x x1); case_eq (FM.find y y1); intros; 
+        rewrite H in * ;
+        repeat match goal with
+                 | [ H : FM.find _ _ = _ |- _ ] =>
+                   apply FACTS.find_mapsto_iff in H ||
+                   apply FACTS.not_find_in_iff in H
+                 | [ |- _ ] =>
+                   rewrite H in *
+               end.
+      { generalize (@H2 _ _ _ H4 H3).
+        intuition (try rewrite H in *).
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H6.
+        destruct H6; auto. right. eapply H1. auto.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H6.
+        destruct H6; auto. right. eapply H1. auto.
+        think; eauto.
+        eapply Permutation.Permutation_app; eauto.
+        eapply H2. eapply FACTS.find_mapsto_iff; eauto.  eapply FACTS.find_mapsto_iff; eauto. }
+      { exfalso. apply H3. eapply H1. eexists; eauto. }
+      { exfalso. apply H4. eapply H1. eexists; eauto. }
+      { intuition; try rewrite H in *.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H5.
+        destruct H5; auto. right. eapply H1; eauto.
+        apply FACTS.add_in_iff; apply FACTS.add_in_iff in H5.
+        destruct H5; auto. right. eapply H1; eauto.
+        think; eauto.
+        eapply H2; eapply FACTS.find_mapsto_iff; eauto. }
+    Qed.
 
     Lemma Proper_mmap_extend : Proper (FM.E.eq ==> eq ==> FM.Equal ==> FM.Equal) mmap_extend.
     Proof.

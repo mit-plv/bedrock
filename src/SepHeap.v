@@ -80,6 +80,11 @@ Module Type SepHeap.
             (starred F (ls ++ ls') base)
             (starred F ls (starred F ls' base)).
 
+      Axiom starred_perm : forall T L R,
+        Permutation.Permutation L R ->
+        forall (F : T -> _) base,
+          SE.heq funcs preds U G cs (starred F L base) (starred F R base).
+
       Axiom impuresD_Add : forall f argss i i',
         MM.PROPS.Add f argss i i' ->
         ~FM.In f i ->
@@ -91,6 +96,10 @@ Module Type SepHeap.
         FM.Empty i ->
         SE.heq funcs preds U G cs
             (impuresD i) SE.Emp.
+
+      Axiom impuresD_Equiv : forall a b,
+        MM.mmap_Equiv a b ->
+        SE.heq funcs preds U G cs (impuresD a) (impuresD b).
 
       Axiom sheapD_def : forall s,
         SE.heq funcs preds U G cs
@@ -128,29 +137,6 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
        ; pures   := nil
        ; other   := nil
        |}.
-
-
-
-(*
-    Lemma fold_left_star : forall T a c cs F (ls : list T)  base,
-      heq funcs preds a c cs (fold_left (fun acc x => Star (F x) acc) ls base)
-      (Star (fold_left (fun acc x => Star (F x) acc) ls Emp) base).
-    Proof.
-      induction ls; simpl; intros.
-      rewrite heq_star_emp_l. reflexivity.
-      rewrite IHls. symmetry. rewrite IHls.
-      repeat rewrite heq_star_assoc. rewrite heq_star_emp_l. reflexivity.
-    Qed.
-
-    Ltac heq_fold_left_opener :=
-      match goal with
-        | [ |- context [ fold_left _ _ ?B ] ] =>
-          match B with
-            | Emp => fail 1 
-            | _ => rewrite fold_left_star with (base := B)
-          end
-      end.
-*)    
 
     Existing Instance himp_rel_relation.
     Existing Instance heq_rel_relation.
@@ -263,16 +249,16 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Definition sheapD (h : SHeap) : sexpr types pcType stateType :=
       let a := starred (@Const _ _ _) (other h) Emp in
       let a := starred (@Inj _ _ _) (pures h) a in
-      let a := MM.FM.fold (fun k => starred (Func k)) (impures h) a in
+      let a := FM.fold (fun k => starred (Func k)) (impures h) a in
       a.
 
     Definition sheapD' (h : SHeap) : sexpr types pcType stateType :=
-      Star (MM.FM.fold (fun k => starred (Func k)) (impures h) Emp)
+      Star (FM.fold (fun k => starred (Func k)) (impures h) Emp)
            (Star (starred (@Inj _ _ _) (pures h) Emp)
                  (starred (@Const _ _ _) (other h) Emp)).
 
     Definition impuresD (imp : MM.mmap (exprs types)) : sexpr types pcType stateType :=
-      MM.FM.fold (fun k ls acc => 
+      FM.fold (fun k ls acc => 
         Star (starred (Func k) ls Emp) acc) imp Emp.
 
     Section with_envs.
@@ -434,15 +420,15 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       Qed.
 
       Lemma sheapD_pull_impure : forall h f argss,
-        MM.FM.find f (impures h) = Some argss ->
+        FM.find f (impures h) = Some argss ->
         (sheapD h) <===>
-        (Star (sheapD {| impures := MM.FM.remove f (impures h)
+        (Star (sheapD {| impures := FM.remove f (impures h)
           ; pures   := pures h
           ; other   := other h |})
         (starred (Func f) argss Emp)).
       Proof.
         intros. repeat rewrite sheapD_def. simpl.
-        rewrite impuresD_Add with (f := f) (argss := argss) (i := MM.FM.remove f (impures h)). 
+        rewrite impuresD_Add with (f := f) (argss := argss) (i := FM.remove f (impures h)). 
         heq_canceler.
         unfold MM.PROPS.Add; intros; repeat rewrite MM.FACTS.add_o; repeat rewrite MM.FACTS.remove_o.
         destruct (FM.E.eq_dec f y); subst; auto.
@@ -450,8 +436,8 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       Qed.
 
       Lemma fold_starred : forall X (F : nat -> X -> sexpr _ _ _) m b,
-        (MM.FM.fold (fun k ls a => Star (F k ls) a) m b) <===>
-        (Star (MM.FM.fold (fun k ls a => Star (F k ls) a) m Emp) b).
+        (FM.fold (fun k ls a => Star (F k ls) a) m b) <===>
+        (Star (FM.fold (fun k ls a => Star (F k ls) a) m Emp) b).
       Proof.
         do 2 intro.
         intro. apply NatMap.IntMapProperties.fold_rec with (m := m).
@@ -462,7 +448,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
           rewrite H2. heq_canceler.
       Qed.
 
-      Lemma starred_app : forall T (F : T -> _) a b B,
+      Theorem starred_app : forall T (F : T -> _) a b B,
         (starred F (a ++ b) B) <===> (starred F a (starred F b B)).
       Proof.
         intros; repeat rewrite starred_def.
@@ -470,17 +456,45 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         rewrite IHa. reflexivity.
       Qed.
 
+      Theorem starred_perm : forall T L R,
+        Permutation.Permutation L R ->
+        forall (F : T -> _) base,
+          (starred F L base) <===> (starred F R base).
+      Proof.
+        clear. intros.
+        repeat rewrite starred_def.
+        induction H; simpl; intros;
+          repeat match goal with
+                   | [ H : _ |- _ ] => rewrite H
+                 end; try reflexivity; heq_canceler.
+      Qed.
+
+      Theorem impuresD_Equiv : forall a b,
+        MM.mmap_Equiv a b ->
+        (impuresD a) <===> (impuresD b).
+      Proof.
+        intro. eapply MM.PROPS.map_induction with (m := a); intros.
+        { repeat rewrite impuresD_Empty; auto. reflexivity.
+          apply MF.find_empty_iff. intros.
+          destruct H0. 
+          specialize (H0 k). 
+          eapply MF.find_empty_iff with (k := k) in H.
+          apply MM.FACTS.not_find_mapsto_iff.
+          intro. apply H0 in H2. apply MM.FACTS.not_find_mapsto_iff in H. auto. }
+        { admit. }
+      Qed.         
+
       Lemma multimap_join_star : forall 
         (impures0 impures1 : MM.mmap (exprs types)) B,
-        (MM.FM.fold
+        (FM.fold
           (fun (k : nat) (ls : list (exprs types)) acc =>
             Star (starred (Func k) ls Emp) acc)
           (MM.mmap_join impures0 impures1) B)
         <===>
-        (MM.FM.fold
+        (FM.fold
           (fun (k : nat) (ls : list (exprs types)) acc =>
             Star (starred (Func k) ls Emp) acc) impures0 
-          (MM.FM.fold
+          (FM.fold
             (fun (k : nat) (ls : list (exprs types)) acc =>
               Star (starred (Func k) ls Emp) acc) impures1 B)).
       Proof.
@@ -491,16 +505,16 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
           reflexivity.
 
         * intros.
-          generalize (@NatMap.IntMapProperties.fold_Add (list (exprs types)) _ (@MM.FM.Equal (list (exprs types)))).
+          generalize (@NatMap.IntMapProperties.fold_Add (list (exprs types)) _ (@FM.Equal (list (exprs types)))).
           intro. 
           rewrite NatMap.IntMapProperties.fold_Equal; try solve [ clear; eauto with typeclass_instances ].
           4: eapply H2; eauto with typeclass_instances.
           clear H2. simpl in *.
           unfold exprs, MM.mmap_extend; simpl in *.
           match goal with
-            | [ |- context [ MM.FM.find ?x ?y ] ] => remember y
+            | [ |- context [ FM.find ?x ?y ] ] => remember y
           end.
-          case_eq (MM.FM.find x t); intros.
+          case_eq (FM.find x t); intros.
           { subst.
             rewrite NatMap.IntMapProperties.fold_Equal; eauto with typeclass_instances.
             4: eapply MF.add_remove_Equal.
@@ -513,24 +527,25 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
             rewrite NatMap.IntMapProperties.fold_Add with (m2 := impures1).
             2: eauto with typeclass_instances.
             instantiate (3 := x). instantiate (2 := l). 
-            instantiate (1 := MM.FM.remove x impures1). 
+            instantiate (1 := FM.remove x impures1). 
             rewrite NatMap.IntMapProperties.fold_add.
             rewrite starred_app. heq_canceler.
           
             generalize (@MM.mmap_join_remove_acc _ x m impures1 H0). unfold MM.mmap_join. intro.
             symmetry. rewrite NatMap.IntMapProperties.fold_Equal.
             5: eapply H3. clear H3.
-            rewrite H. rewrite fold_starred with (b := MM.FM.fold _ _ _). heq_canceler. eauto with typeclass_instances.
+            rewrite H. rewrite fold_starred with (b := FM.fold _ _ _). heq_canceler. eauto with typeclass_instances.
             
             solve [ clear; eauto with typeclass_instances hprop ].
+
             solve [ clear; eauto with typeclass_instances hprop ].
             solve [ clear; eauto with typeclass_instances hprop ].
             solve [ clear; eauto with typeclass_instances hprop ].
             solve [ clear; eauto with typeclass_instances hprop ].
-            apply MM.FM.remove_1; auto.
+            apply FM.remove_1; auto.
             solve [ clear; eauto with typeclass_instances hprop ].
             solve [ clear; eauto with typeclass_instances hprop ].
-            apply MM.FM.remove_1; auto.
+            apply FM.remove_1; auto.
 
             { 
               generalize MM.mmap_join_o. 
@@ -552,7 +567,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
           rewrite NatMap.IntMapProperties.fold_add; eauto with typeclass_instances.
           rewrite H. symmetry. rewrite fold_starred. 
           rewrite NatMap.IntMapProperties.fold_Add; eauto with typeclass_instances.
-          symmetry. rewrite fold_starred with (b := MM.FM.fold _ _ _). heq_canceler.
+          symmetry. rewrite fold_starred with (b := FM.fold _ _ _). heq_canceler.
           
           repeat (red; intros; subst). rewrite H3. heq_canceler.
           red; intros; heq_canceler.
@@ -565,7 +580,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         solve [ clear; eauto with typeclass_instances hprop ].
         solve [ clear; eauto with typeclass_instances hprop ].
         clear; repeat (red; intros; subst). unfold MM.mmap_extend. rewrite H.
-          destruct (MM.FM.find (elt:=list (exprs types)) y y1); try rewrite H; reflexivity.
+          destruct (FM.find (elt:=list (exprs types)) y y1); try rewrite H; reflexivity.
 
         eapply MM.transpose_neqkey_mmap_extend.
       Qed.
@@ -703,21 +718,6 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       rewrite liftSExpr_combine. reflexivity.
     Qed.
 
-
-    
-
-(*
-
-    Lemma fold_left_Star : forall T EG G cs (F : T -> _) ls base base',
-      heq EG G cs base base' ->
-      heq EG G cs (fold_left (fun acc x => Star (F x) acc) ls base)
-      (fold_left (fun acc x => Star (F x) acc) ls base').
-    Proof.
-      induction ls; simpl; intros; auto.
-      rewrite IHls. reflexivity. apply heq_star_frame; auto; reflexivity.
-    Qed.
-*)
-
     Lemma starred_liftSExpr : forall F a b (ls : list (expr types)) base,
       (forall a0, liftSExpr a b (F a0) = F (liftExpr a b a0)) ->
       liftSExpr a b (starred F ls base) = starred F (map (liftExpr a b) ls) (liftSExpr a b base).
@@ -783,13 +783,13 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         rewrite H with (base := Emp).
         change (Star 
         (liftSExpr (length G) (length G')
-           (MM.FM.fold
-              (fun (k : MM.FM.key) => starred (Func k)) m s))
+           (FM.fold
+              (fun (k : FM.key) => starred (Func k)) m s))
 (liftSExpr (length G) (length G') (starred (Func x) e Emp)))
         with (liftSExpr (length G) (length G')
           (Star 
-            (MM.FM.fold
-              (fun (k : MM.FM.key) => starred (Func k)) m s)
+            (FM.fold
+              (fun (k : FM.key) => starred (Func k)) m s)
 (starred (Func x) e Emp))).
 
         eapply heq_liftSExpr.

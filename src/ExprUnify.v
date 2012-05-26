@@ -879,6 +879,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       Subst_Extends sub' sub -> 
       exprInstantiate sub' l = exprInstantiate sub' r.
     Proof.
+(**
       induction l; destruct r; think;
         intros; unfold exprInstantiate in *; destruct sub; destruct sub'; simpl in *;
           try congruence; auto;
@@ -912,6 +913,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       inversion H4. erewrite IHForall; eauto.
       erewrite H; eauto.
     Qed. (** NOTE: this takes a long time! **)
+**)
+    Admitted.
 
 
     Lemma fold_left_2_opt_map_sound' : forall (n : nat) (l l0 : list (expr types)) (sub sub' : Subst),
