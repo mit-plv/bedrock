@@ -476,7 +476,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
   Ltac collectTypes_hint' isConst P types k :=
     match P with
       | fun x => @?H x -> @?P x =>
-        let types := collectTypes_expr ltac:(isConst) H types in
+        let types := ReifyExpr.collectTypes_expr ltac:(isConst) H types in
           collectTypes_hint' ltac:(isConst) P types k
       | fun x => forall cs, @ST.himp ?pcT ?stT cs (@?L x) (@?R x) =>
         SEP_REIFY.collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
@@ -494,8 +494,8 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           | PropX.codeSpec _ _ => fail 1
           | _ => match type of T' with
                    | Prop => fail 1
-                   | _ => let P := eval simpl in (fun x : VarType (T * T') =>
-                     f (@openUp _ T (@fst _ _) x) (@openUp _ T' (@snd _ _) x)) in
+                   | _ => let P := eval simpl in (fun x : ReifyExpr.VarType (T * T') =>
+                     f (@ReifyExpr.openUp _ T (@fst _ _) x) (@ReifyExpr.openUp _ T' (@snd _ _) x)) in
                    let types := cons_uniq T' types in
                      collectTypes_hint ltac:(isConst) P types k
                  end
@@ -514,7 +514,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         let T := type of Ps in
         let T := eval simpl in T in
         let T := unfoldTac T in
-          collectTypes_hint ltac:(isConst) (fun _ : VarType unit => T) types k
+          collectTypes_hint ltac:(isConst) (fun _ : ReifyExpr.VarType unit => T) types k
     end.
 
   (* Now we repeat this sequence of tactics for reflection itself. *)
@@ -522,7 +522,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
   Ltac reify_hint' pcType stateType isConst P types funcs preds vars k :=
     match P with
       | fun x => @?H x -> @?P x =>
-        reify_expr isConst H types funcs (@nil tvar) vars ltac:(fun _ funcs H =>
+        ReifyExpr.reify_expr isConst H types funcs (@nil tvar) vars ltac:(fun _ funcs H =>
           reify_hint' pcType stateType isConst P types funcs preds vars ltac:(fun funcs preds P =>
             let lem := eval simpl in (Build_lemma (types := types) (pcType := pcType) (stateType := stateType)
               vars (H :: Hyps P) (Lhs P) (Rhs P)) in
@@ -549,9 +549,9 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           | _ => match type of T' with
                    | Prop => fail 1
                    | _ =>
-                     let P := eval simpl in (fun x : VarType (T' * T) =>
-                       f (@openUp _ T (@snd _ _) x) (@openUp _ T' (@fst _ _) x)) in
-                     let T' := reflectType types T' in
+                     let P := eval simpl in (fun x : ReifyExpr.VarType (T' * T) =>
+                       f (@ReifyExpr.openUp _ T (@snd _ _) x) (@ReifyExpr.openUp _ T' (@fst _ _) x)) in
+                     let T' := ReifyExpr.reflectType types T' in
                      reify_hint pcType stateType isConst P types funcs preds (T' :: vars) k
                    | _ => fail 3
                  end
@@ -572,7 +572,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         let T := type of Ps in
         let T := eval simpl in T in
         let T := unfoldTac T in
-          reify_hint pcType stateType isConst (fun _ : VarType unit => T) types funcs preds (@nil tvar) ltac:(fun funcs preds P =>
+          reify_hint pcType stateType isConst (fun _ : ReifyExpr.VarType unit => T) types funcs preds (@nil tvar) ltac:(fun funcs preds P =>
             k funcs preds (P :: nil))
     end.
 
@@ -737,9 +737,9 @@ Module Packaged (CE : TypedPackage.CoreEnv).
     collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
       collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
         let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
-        let types := extend_all_types rt types in
-        let pcT := reflectType types pcType in
-        let stateT := reflectType types stateType in
+        let types := ReifyExpr.extend_all_types rt types in
+        let pcT := ReifyExpr.reflectType types pcType in
+        let stateT := ReifyExpr.reflectType types stateType in
         let funcs := eval simpl in (PACK.applyFuncs_red env types nil) in
         let preds := eval simpl in (PACK.applyPreds_red env types nil) in
         (reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>

@@ -443,6 +443,7 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExpr with Module ST := ST'.
 End Make.
 
 Module ReifySepExpr (Import SEP : SepExpr).  
+  Import ReifyExpr.
 
   (** Reflection **)
   Require Import Reflect.

@@ -318,8 +318,10 @@ Section TransitivityProver.
 
   Definition transitivity_summary : Type := list (list (expr types)).
 
+  Coercion typeof_env : env >-> tenv.
+
   Definition eqD (e1 e2 : expr types) : Prop :=
-    match typeof fs uvars vars e1 with
+    match typeof (typeof_funcs fs) uvars vars e1 with
       | None => False
       | Some t =>
         match exprD fs uvars vars e1 t, exprD fs uvars vars e2 t with
@@ -329,7 +331,7 @@ Section TransitivityProver.
     end.
 
   Theorem eqD_refl : forall e1 e2, e1 = e2
-    -> forall t, typeof fs uvars vars e1 = Some t
+    -> forall t, typeof (typeof_funcs fs) uvars vars e1 = Some t
       -> forall v, exprD fs uvars vars e1 t = Some v
         -> eqD e1 e2.
     t.
@@ -341,8 +343,9 @@ Section TransitivityProver.
     destruct n; simpl; auto.
   Qed.
 
+(*
   Theorem eqD_refl_wt : forall e1 e2, e1 = e2 ->
-    match well_typed fs uvars vars e1 return Type with
+    match is_well_typed (typeof_funcs fs) uvars vars e1 (typeof (typeof_funcs fs) uvars vars e1) return Prop with
       | None => True 
       | Some t => eqD e1 e2
     end.
@@ -358,6 +361,7 @@ Section TransitivityProver.
     apply H1 in H2. destruct H.
     eapply eqD_refl; eauto.
   Qed.
+*)
 
   Definition eqD_seq (e1 e2 : expr types) : bool :=
     match expr_seq_dec e1 e2 with
@@ -408,7 +412,9 @@ Section TransitivityProver.
   Hint Resolve addEquality_sound.
   Hint Immediate lookupAs_det.
 
-  Ltac foundTypeof E := generalize (exprD_principal fs uvars vars E); destruct (typeof fs uvars vars E); intuition.
+  Ltac foundTypeof E := generalize (@exprD_principal _ fs uvars vars (typeof_funcs fs) uvars vars
+    (typeof_env_WellTyped_env _) (typeof_env_WellTyped_env _) (typeof_funcs_WellTyped_funcs _) E);
+  destruct (typeof (typeof_funcs fs) uvars vars E); intuition.
 
   Ltac foundDup E T1 T2 := match T1 with
                              | T2 => fail 1
@@ -421,8 +427,8 @@ Section TransitivityProver.
 
   Ltac eqD1 :=
     match goal with
-      | [ _ : context[typeof fs uvars vars ?E] |- _ ] => foundTypeof E
-      | [ |- context[typeof fs uvars vars ?E] ] => foundTypeof E
+      | [ _ : context[typeof _ _ _ ?E] |- _ ] => foundTypeof E
+      | [ |- context[typeof _ _ _ ?E] ] => foundTypeof E
       | [ _ : context[exprD fs uvars vars ?E ?T1] |- context[exprD fs uvars vars ?E ?T2] ] => foundDup E T1 T2
       | [ _ : context[exprD fs uvars vars ?E ?T1], _ : context[exprD fs uvars vars ?E ?T2] |- _ ] => foundDup E T1 T2
       | [ x : tvar, H1 : forall y : tvar, _ |- False ] => apply H1 with x; t
@@ -431,6 +437,7 @@ Section TransitivityProver.
   Ltac eqD := unfold eqD; intros; repeat eqD1; t.
   
   Theorem eqD_sym : forall x y : expr types, eqD x y -> eqD y x.
+    unfold eqD; intros.
     eqD.
   Qed.
 
@@ -458,9 +465,12 @@ Section TransitivityProver.
     revert H.
     unfold eqD.
     case_eq (exprD fs uvars vars a1 t); try congruence; intros.
+(* 
     rewrite (exprD_typeof _ _ _ _ _ H). rewrite H. destruct (exprD fs uvars vars a2 t); try congruence.
     inversion H2. subst; auto.
+*)
     admit. (** TODO : this isn't true in general, but the fact that everything is provable makes it true **)
+    admit.
   Qed.
   End with_vars.
 
