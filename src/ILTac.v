@@ -218,9 +218,9 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME      stop_timer 11; *)
 (*TIME      run_timer 12 ; *)
       let all_props := 
-        Expr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
+        ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
       in
-      let pures := Expr.props_types all_props in
+      let pures := ReifyExpr.props_types all_props in
 (*TIME      stop_timer 12 ; *)
 (*TIME      run_timer 13 ; *)
       let L := eval unfold empB injB injBX starB exB hvarB in L in
@@ -229,7 +229,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME      run_timer 14 ; *)
       (** collect types **)
       let Ts := constr:(@nil Type) in
-      let Ts := Expr.collectTypes_exprs ltac:(isConst) pures Ts in
+      let Ts := ReifyExpr.collectTypes_exprs ltac:(isConst) pures Ts in
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>
       (** check for potential universe inconsistencies **)
@@ -246,7 +246,7 @@ Ltac sep_canceler isConst ext simplifier :=
       let types_ := 
         reduce_repr (PACK.applyTypes (ILAlgoTypes.Env ext) nil)
       in
-      let types_ := Expr.extend_all_types Ts types_ in
+      let types_ := ReifyExpr.extend_all_types Ts types_ in
       let typesV := fresh "types" in
       pose (typesV := types_);
       (** build the variables **)
@@ -259,8 +259,8 @@ Ltac sep_canceler isConst ext simplifier :=
       let stT := constr:(Expr.tvType 1) in
       (** build the base sfunctions **)
       let preds := reduce_repr (PACK.applyPreds (ILAlgoTypes.Env ext) typesV nil) in
-      Expr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
-      let proofs := Expr.props_proof all_props in
+      ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+      let proofs := ReifyExpr.props_proof all_props in
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
 (*TIME        stop_timer 14 ; *)

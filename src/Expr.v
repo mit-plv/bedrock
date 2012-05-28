@@ -1,11 +1,12 @@
 Require Import List DepList.
 Require Import EqdepClass.
 Require Import IL Word.
-Require Import Bool.
+Require Import Bool Folds.
 
 Set Implicit Arguments.
 
 Section env.
+  (** Syntax **)
   Record type := Typ {
     Impl : Type;
     Eq : forall x y : Impl, option (x = y)
@@ -250,61 +251,231 @@ Section env.
     destruct t1; destruct t2; auto.
   Qed.
 
-  Fixpoint typeof (e : expr) : option tvar :=
-    match e with
-      | Const t _ => Some t
-      | Var x => match nth_error var_env x with
-                   | None => None
-                   | Some (existT t _) => Some t
-                 end
-      | UVar x => match nth_error meta_env x with
-                    | None => None
-                    | Some (existT t _) => Some t
-                  end
-      | Func f _ => match nth_error funcs f with
-                      | None => None
-                      | Some r => Some (Range r)
-                    end
-      | Equal _ _ _
-      | Not _ => Some tvProp
-    end.
+  Section type_system.
+    Definition tenv : Type := list tvar.
+    Record tsignature : Type := SigT {
+      TDomain : list tvar ;
+      TRange  : tvar
+    }.
+    
+    Definition tfunctions : Type := list tsignature.
 
-  Theorem exprD_principal : forall e t, exprD e t <> None
-    -> match typeof e with
-         | None => False
-         | Some t' => exprD e t' <> None
-       end.
-  Proof.
-    induction e; simpl; unfold lookupAs; intros;
-      repeat (simpl in *; try congruence; 
-        match goal with
-          | [ |- context[nth_error ?E ?F] ] => destruct (nth_error E F) as [ [ ] | ]
-          | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
-          | [ H : match ?X with
-                    | Some _ => _ | None => _ 
-                  end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
-          | [ H : context [ match ?X with
-                              | left _ => _ | right _ => _ 
-                            end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
-          | [ H : context [ match ?X with
-                              | tvProp => _ | tvType _ => _ 
-                            end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
-          | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
-        end).
-    unfold equiv in *. subst. auto.
-  Qed.
+    Variable tfuncs : tfunctions.
+    Variable tmeta_env : tenv.
+    Variable tvar_env : tenv.
 
-  Section All2.
-    Variable X Y : Type.
-    Variable F : X -> Y -> bool.
+    Definition WellTyped_env (t : tenv) (g : env) : Prop :=
+      t = map (@projT1 _ _) g.
+    Definition WellTyped_sig (t : tsignature) (g : signature) : Prop :=
+      TDomain t = Domain g /\ TRange t = Range g.
+    
+    Definition WellTyped_funcs (t : tfunctions) (g : functions) : Prop :=
+      Forall2 WellTyped_sig t g.
 
-    Fixpoint all2 (xs : list X) (ys : list Y) : bool :=
-      match xs , ys with
-        | nil , nil => true
-        | x :: xs, y :: ys => if F x y then all2 xs ys else false
-        | _ , _ => false
+    Fixpoint typeof (e : expr) : option tvar :=
+      match e with
+        | Const t _ => Some t
+        | Var x => nth_error tvar_env x
+        | UVar x => nth_error tmeta_env x
+        | Func f _ => match nth_error tfuncs f with
+                        | None => None
+                        | Some r => Some (TRange r)
+                      end
+        | Equal _ _ _
+        | Not _ => Some tvProp
       end.
-  End All2.
+
+    Definition typeof_env : env -> tenv :=
+      map (@projT1 _ _).
+    Definition typeof_sig (s : signature) : tsignature :=
+      {| TDomain := Domain s
+       ; TRange  := Range s
+       |}.
+    Definition typeof_funcs : functions -> tfunctions :=
+      map typeof_sig.
+
+    Theorem typeof_env_WellTyped_env : forall g,
+      WellTyped_env (typeof_env g) g.
+    Proof.
+      clear. intros. reflexivity.
+    Qed.
+    Theorem typeof_sig_WellTyped_sig : forall f,
+      WellTyped_sig (typeof_sig f) f.
+    Proof.
+      clear. unfold WellTyped_sig; intuition.
+    Qed.
+    Theorem typeof_funcs_WellTyped_funcs : forall f,
+      WellTyped_funcs (typeof_funcs f) f.
+    Proof.
+      clear; induction f; simpl; intros; econstructor; auto using typeof_sig_WellTyped_sig.
+    Qed.
+
+
+    Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
+      match e with 
+        | Const t' _ => 
+          if equiv_dec t' t then true else false
+        | Var x => match nth_error tvar_env x with
+                     | None => false
+                     | Some t' => if equiv_dec t t' then true else false
+                   end
+        | UVar x => match nth_error tmeta_env x with
+                      | None => false
+                      | Some t' => if equiv_dec t t' then true else false
+                    end
+        | Func f xs => 
+          match nth_error tfuncs f with
+            | None => false
+            | Some f =>
+              if equiv_dec t (TRange f) then 
+                all2 is_well_typed xs (TDomain f)
+                else false
+          end
+        | Equal t' e1 e2 => 
+          match t with
+            | tvProp => is_well_typed e1 t' && is_well_typed e2 t'
+            | _ => false
+          end
+        | Not e1 => match t with
+                      | tvProp => is_well_typed e1 tvProp
+                      | _ => false
+                    end
+      end.
+(*
+    Definition well_typed (e : expr) : option tvar :=
+      match e with 
+        | Const t' _ => Some t'
+        | Var x => nth_error tvar_env x
+        | UVar x => 
+          match nth_error meta_env x with
+            | None => None
+            | Some z => Some (projT1 z)
+          end
+        | Func f xs => 
+          match nth_error funcs f with
+            | None => None
+            | Some f =>
+              if (all2 is_well_typed xs (Domain f))
+                then Some (Range f) else None
+          end
+        | Equal t' e1 e2 => 
+          if is_well_typed e1 t' && is_well_typed e2 t'
+            then Some tvProp else None
+        | Not e1 => if is_well_typed e1 tvProp then Some tvProp else None
+      end.
+*)
+
+    Hypothesis WT_meta : WellTyped_env tmeta_env meta_env.
+    Hypothesis WT_vars : WellTyped_env tvar_env var_env.
+    Hypothesis WT_funcs : WellTyped_funcs tfuncs funcs.
+
+      Lemma WellTyped_env_nth_error_Some : forall g t n T,
+        WellTyped_env t g ->
+        nth_error t n = Some T ->
+        exists v, nth_error g n = Some (@existT _ _ T v).
+      Proof.
+        clear. induction g; destruct t; destruct n; simpl; unfold WellTyped_env, error, value in *; simpl; intros; try congruence.
+        inversion H0; clear H0; subst. inversion H; subst.
+        exists (projT2 a). destruct a; auto.
+        inversion H. eapply IHg; eauto.
+      Qed.
+
+      Lemma WellTyped_env_nth_error_None : forall g t n,
+        WellTyped_env t g ->
+        nth_error t n = None ->
+        nth_error g n = None.
+      Proof.
+        clear. induction g; destruct t; destruct n; simpl; unfold WellTyped_env, error, value in *; simpl; intros; try congruence.
+        inversion H. eapply IHg; eauto.
+      Qed.
+
+    
+    Theorem exprD_principal : forall e t, exprD e t <> None
+      -> match typeof e with
+           | None => False
+           | Some t' => exprD e t' <> None
+         end.
+    Proof.
+      induction e; simpl; unfold lookupAs; intros;
+        try solve [ repeat (simpl in *; try congruence; 
+          match goal with
+            | [ |- context[nth_error ?E ?F] ] => case_eq (nth_error E F); intros
+            | [ H : nth_error _ _ = _ |- _ ] =>
+              (eapply WellTyped_env_nth_error_Some in H; [ | eassumption ]) ||
+              (eapply WellTyped_env_nth_error_None in H; [ | eassumption ])
+            | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
+            | [ H : match ?X with
+                      | Some _ => _ | None => _ 
+                    end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : context [ match ?X with
+                                | left _ => _ | right _ => _ 
+                              end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : context [ match ?X with
+                                | tvProp => _ | tvType _ => _ 
+                              end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
+            | [ H : exists x, _ |- _ ] => destruct H
+            | [ H : _ = _ |- _ ] => rewrite H in *
+            | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+          end) ].
+repeat (simpl in *; try congruence; 
+          match goal with
+            | [ |- context[nth_error ?E ?F] ] => case_eq (nth_error E F); intros
+            | [ H : nth_error _ _ = _ |- _ ] =>
+              (eapply WellTyped_env_nth_error_Some in H; [ | eassumption ]) ||
+              (eapply WellTyped_env_nth_error_None in H; [ | eassumption ])
+            | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
+            | [ H : match ?X with
+                      | Some _ => _ | None => _ 
+                    end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : context [ match ?X with
+                                | left _ => _ | right _ => _ 
+                              end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : context [ match ?X with
+                                | tvProp => _ | tvType _ => _ 
+                              end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
+            | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
+            | [ H : exists x, _ |- _ ] => destruct H
+            | [ H : _ = _ |- _ ] => rewrite H in *
+            | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+          end).
+Lemma Forall2_nth_error_both_Some : forall T U (P : T -> U -> Prop) l r,
+  Forall2 P l r ->
+  forall n L R,
+  nth_error l n = Some L ->
+  nth_error r n = Some R ->
+  P L R.
+Proof.
+  clear; induction 1; destruct n; simpl; unfold value, error; intros; try congruence; eauto.
+Qed.
+eapply Forall2_nth_error_both_Some in WT_funcs; eauto. destruct WT_funcs. destruct (equiv_dec (Range s) (TRange t0)); try congruence.
+unfold equiv in *. subst. destruct s; simpl in *. subst. revert H. rewrite (UIP_refl e0). 
+induction 1; simpl; destruct TDomain; auto; try congruence.
+
+Lemma Forall2_nth_error_L_None : forall T U (P : T -> U -> Prop) l r,
+  Forall2 P l r ->
+  forall n,
+  nth_error l n = None ->
+  nth_error r n = None.
+Proof.
+  clear; induction 1; destruct n; simpl; unfold value, error; intros; try congruence; eauto.
+Qed.
+
+Lemma Forall2_nth_error_L : forall T U (P : T -> U -> Prop) l r,
+  Forall2 P l r ->
+  forall n L,
+  nth_error l n = Some L ->
+  exists R,
+    nth_error r n = Some R /\ P L R.
+Proof.
+  clear; induction 1; destruct n; simpl; unfold value, error; intros; try congruence; eauto.
+  inversion H1; subst; eauto.
+Qed.
+eapply Forall2_nth_error_L_None in WT_funcs; try eassumption.
+rewrite WT_funcs in *. congruence.
+Qed.
+
+  
 
   Lemma exprD_typeof : forall a1 t D,
     exprD a1 t = Some D ->
@@ -318,57 +489,8 @@ Section env.
     eapply exprD_det in H0. symmetry; eassumption. congruence.
   Qed.
 
-  Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
-    match e with 
-      | Const t' _ => 
-        if equiv_dec t' t then true else false
-      | Var x => if lookupAs var_env t x then true else false 
-      | UVar x => if lookupAs meta_env t x then true else false 
-      | Func f xs => 
-        match nth_error funcs f with
-          | None => false
-          | Some f =>
-            if equiv_dec t (Range f) then 
-              all2 is_well_typed xs (Domain f)
-            else false
-        end
-      | Equal t' e1 e2 => 
-        match t with
-          | tvProp => is_well_typed e1 t' && is_well_typed e2 t'
-          | _ => false
-        end
-      | Not e1 => match t with
-                    | tvProp => is_well_typed e1 tvProp
-                    | _ => false
-                  end
-    end.
 
-  Definition well_typed (e : expr) : option tvar :=
-    match e with 
-      | Const t' _ => Some t'
-      | Var x => 
-        match nth_error var_env x with
-          | None => None
-          | Some z => Some (projT1 z)
-        end
-      | UVar x => 
-        match nth_error meta_env x with
-          | None => None
-          | Some z => Some (projT1 z)
-        end
-      | Func f xs => 
-        match nth_error funcs f with
-          | None => None
-          | Some f =>
-            if (all2 is_well_typed xs (Domain f))
-            then Some (Range f) else None
-        end
-      | Equal t' e1 e2 => 
-        if is_well_typed e1 t' && is_well_typed e2 t'
-        then Some tvProp else None
-      | Not e1 => if is_well_typed e1 tvProp then Some tvProp else None
-    end.
-
+(*
   Theorem well_typed_is_well_typed : forall e t, 
     well_typed e = Some t <-> is_well_typed e t = true.
   Proof.
@@ -418,6 +540,7 @@ Section env.
     destruct t; congruence.
     destruct t; congruence.
   Qed.
+*)
 
   Definition ValidProp (e : expr) := 
     exists v, exprD e tvProp = Some v.
@@ -428,49 +551,54 @@ Section env.
     is_well_typed e t = true ->
     exists v, exprD e t = Some v.
   Proof.
-    clear. induction e; simpl; intros; 
+    induction e; simpl; intros; 
     repeat match goal with
              | [ H : context [ equiv_dec ?X ?Y ] |- _ ] => 
                destruct (equiv_dec X Y)
              | [ |- context [ equiv_dec ?X ?Y ] ] => 
                destruct (equiv_dec X Y)
-             | [ H : context [ lookupAs ?X ?Y ?Z ] |- _ ] => 
-               destruct (lookupAs X Y Z)
-             | [ H : context [ nth_error ?X ?Y ] |- _ ] => destruct (nth_error X Y)
+             | [ H : context [ match nth_error ?X ?Y with | _ => _ end ] |- _ ] => 
+               revert H; case_eq (nth_error X Y); intros
+             | [ H : nth_error _ _ = _ , H' : WellTyped_env _ _ |- _ ] =>
+               rewrite (@WellTyped_env_nth_error_Some H' H)
+             | [ H : nth_error _ _ = _ |- _ ] =>
+              (eapply WellTyped_env_nth_error_Some in H; [ destruct H | eassumption ]) ||
+              (eapply WellTyped_env_nth_error_None in H; [ | eassumption ])
+             | [ H : _ = _ |- _ ] => rewrite H
+             | [ H : match ?X with 
+                       | _ => _ 
+                     end = true |- _ ] => destruct X; try congruence
+             | [ |- _ ] => unfold lookupAs in *; simpl in *
         end; eauto; try congruence.
-    generalize e0. rewrite <- e0. unfold "===". uip_all.
-    generalize dependent (Denotation s). generalize dependent (Domain s).
-    generalize (Range s). generalize dependent l. clear. 
-    induction l; simpl; intros.
-      destruct l; eauto; congruence.
-      destruct l0; try congruence.
-      generalize dependent H0. inversion H; clear H; subst. specialize (H2 t0). generalize dependent H2.
-      case_eq (is_well_typed a t0); intros; try congruence.
-      destruct H2; auto. rewrite H1. eauto.
-    destruct t0; try discriminate.
-      apply andb_true_iff in H; intuition.
-      destruct (IHe1 _ H0) as [ ? Heq ]; rewrite Heq.
-      destruct (IHe2 _ H1) as [ ? Heq' ]; rewrite Heq'.
-      eauto.
-    specialize (IHe tvProp).
-      destruct t; intuition.
-      destruct H0; rewrite H0; eauto.
-  Qed.
+    { unfold equiv in *; subst.
+      eapply Forall2_nth_error_L in WT_funcs; eauto. destruct WT_funcs. intuition. rewrite H3.
+      destruct H4. rewrite H4 in *; rewrite H2 in *. rewrite EquivDec_refl_left. 
+      revert H1. destruct x; simpl in *. generalize Denotation0. generalize Domain0. revert H. clear.
+      induction 1; simpl; intros.
+      destruct Domain0; eauto. congruence.
+      destruct Domain0; try congruence.
+      revert H1. case_eq (is_well_typed x t); intros; try congruence.
+      apply H in H1. destruct H1. rewrite H1. eapply IHForall; auto. }
+    { apply andb_true_iff in H. intuition. apply IHe1 in H0. apply IHe2 in H1.
+      destruct H0. destruct H1. rewrite H. rewrite H0. eauto. }
+    { apply IHe in H. destruct H; rewrite H; eauto. }
+  Qed.    
 
   Theorem is_well_typed_typeof : forall e t, 
     is_well_typed e t = true -> typeof e = Some t.
   Proof.
-    induction e; simpl; intros.
-      destruct (equiv_dec t t1); try congruence.
-      unfold lookupAs in *. destruct (nth_error var_env x); try congruence.
-        destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
-      unfold lookupAs in *. destruct (nth_error meta_env x); try congruence.
-        destruct s; simpl in *. destruct (equiv_dec x0 t); congruence.
-      destruct (nth_error funcs f); try congruence.
-        destruct (equiv_dec t (Range s)); congruence.
-      destruct t0; congruence.
-      destruct t; congruence.
+    induction e; simpl; intros;
+      repeat (progress (unfold equiv in *; subst) ||
+        match goal with
+          | [ H : context [ equiv_dec ?X ?Y ] |- _ ] => destruct (equiv_dec X Y); try congruence
+          | [ H : context [ match nth_error ?X ?Y with | _ => _ end ] |- _ ] => 
+            revert H; case_eq (nth_error X Y); intros; try congruence
+          | [ H : match ?X with
+                    | _ => _
+                  end = true |- _ ] => destruct X; try congruence
+        end); auto.
   Qed.
+  End type_system.
  
   Lemma expr_seq_dec_Equal : forall t1 t2 e1 f1 e2 f2,
     t1 = t2
@@ -947,6 +1075,8 @@ Implicit Arguments Var [ types ].
 Implicit Arguments UVar [ types ].
 Implicit Arguments Func [ types ].
 
+
+Module ReifyExpr.
 (** Tactics **)
 Require Import Reflect.
 
@@ -1421,3 +1551,4 @@ Ltac reify_exprs isConst es types funcs uvars vars k :=
           let res := constr:(e :: es) in
           k uvars funcs res))
   end.
+End ReifyExpr.

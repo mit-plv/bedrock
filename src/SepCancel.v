@@ -7,7 +7,7 @@ Require Import SepExpr SepHeap.
 Require Import Setoid.
 Require Import Prover.
 Require Import SepExpr.
-Require Folds.
+Require Import Folds.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -38,46 +38,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
             else U.exprUnify bound l r acc)
         l r ts sub.
 
-    Parameter WellTyped_exprInstantiate : forall U G e t S,
-      is_well_typed funcs U G e t = true <-> is_well_typed funcs U G (U.exprInstantiate S e) t = true.
-
-    Lemma unifyArgsOk : forall U G bound summ l r ts R f S S',
-      Valid Prover_correct U G summ ->
-      all2 (@is_well_typed _ funcs U G) l ts = true ->
-      all2 (@is_well_typed _ funcs U G) r ts = true ->
-      unifyArgs bound summ l r ts S = Some S' ->
-      @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') l) R f =
-      @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') r) R f /\
-      U.Subst_Extends S' S.
-    Proof.
-      unfold unifyArgs; induction l; destruct r; destruct ts; simpl; intros; try congruence.
-      { inversion H2. split; reflexivity. }
-      { repeat match goal with
-                 | [ H : (if ?X then _ else _) = true |- _ ] =>
-                   revert H; case_eq X; intros; [ | congruence ]
-                 | [ |- context [ exprD ?A ?B ?C ?D ?E ] ] =>
-                   case_eq (exprD A B C D E); intros
-               end; simpl in *;
-        try solve [ 
-          match goal with
-            | [ H : is_well_typed _ _ _ ?e _ = true , H' : exprD _ _ _ (U.exprInstantiate ?S' ?e) _ = None |- _ ] =>
-              exfalso; revert H; revert H'; clear; intros H' H;
-              eapply WellTyped_exprInstantiate with (S := S') in H;
-              eapply is_well_typed_correct in H;
-              rewrite H' in H ; destruct H; congruence
-          end ].
-        revert H2. case_eq (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))); intros.
-        { eapply Prove_correct in H2; eauto.
-          assert (Provable funcs U G (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))). eapply H2.
-          unfold ValidProp. simpl. admit. (** TODO: still wrong **)
-          unfold Provable in H8. simpl in H8.
-          admit. }
-        { clear H2. revert H7.
-          case_eq (U.exprUnify bound a e S); intros; try congruence.
-          admit.
-        } }
-    Qed.
-
     Fixpoint unify_remove (bound : nat) (summ : Facts Prover) (l : exprs types) (ts : list tvar) (r : list (exprs types))
       (sub : U.Subst types)
       : option (list (list (expr types)) * U.Subst types) :=
@@ -93,15 +53,75 @@ Module Make (U : SynUnifier) (SH : SepHeap).
               | Some sub => Some (b, sub)
             end
         end.
+    
+    Section with_typing.
+      Variable tfuncs : tfunctions.
+      Variables tU tG : tenv.
+      Variables U G : env types.
 
-    Lemma unify_removeOk : forall U G cs bound summ f l ts r r' S S' P,
-      unify_remove bound summ l ts r S = Some (r', S') ->
-      SE.heq funcs preds U G cs
-        (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) ->
-      SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) /\
-      U.Subst_Extends S' S.
-    Proof.
-    Admitted.      
+      Hypothesis WT_funcs : WellTyped_funcs tfuncs funcs.
+      Hypothesis WT_env_U : WellTyped_env tU U.
+      Hypothesis WT_env_G : WellTyped_env tG G.
+
+      Lemma unifyArgsOk : forall bound summ R l r ts f S S',
+        U.Subst_WellTyped tfuncs tU tG S ->
+        Valid Prover_correct U G summ ->
+        all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
+        unifyArgs bound summ l r ts S = Some S' ->
+        @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') l) R f =
+        @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') r) R f /\
+        U.Subst_Extends S' S /\
+        U.Subst_WellTyped tfuncs tU tG S'.
+      Proof.
+        unfold unifyArgs; induction l; destruct r; destruct ts; simpl; intros; try congruence.
+        { inversion H2. inversion H3; subst; intuition; auto. }
+        { repeat match goal with
+          | [ H : (if ?X then _ else _) = true |- _ ] =>
+            revert H; case_eq X; intros; [ | congruence ]
+                   | [ |- context [ exprD ?A ?B ?C ?D ?E ] ] =>
+                     case_eq (exprD A B C D E); intros
+                 end; simpl in *;
+        try solve [ 
+          match goal with
+            | [ H : is_well_typed _ _ _ ?e _ = true , H' : exprD _ _ _ (U.exprInstantiate ?S' ?e) _ = None |- _ ] =>
+              exfalso; revert H; revert H'; clear; intros H' H;
+                eapply WellTyped_exprInstantiate with (S := S') in H;
+                  eapply is_well_typed_correct in H;
+                    rewrite H' in H ; destruct H; congruence
+          end ].
+          revert H3. case_eq (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))); intros.
+          { eapply Prove_correct in H3; eauto.
+            erewrite U.exprInstantiate_WellTyped in H2 by eauto.
+            erewrite U.exprInstantiate_WellTyped in H1 by eauto.
+            eapply is_well_typed_correct in H2; eauto.
+            eapply is_well_typed_correct in H1; eauto.
+            destruct H2; destruct H1.
+            unfold ValidProp, Provable in *. simpl in *.
+            repeat match goal with 
+                     | [ H : _ = _ |- _ ] => rewrite H in *
+                     | [ H : ?X -> ?Y |- _ ] => 
+                       let H' := fresh in assert (H':X) by eauto; specialize (H H')
+                   end.
+            subst.
+            admit. (** TODO: still need more semantic information from ExprUnify **)
+
+          }
+          admit.
+          admit.
+          admit.
+          admit. }
+      Qed.
+
+      Lemma unify_removeOk : forall U G cs bound summ f l ts r r' S S' P,
+        unify_remove bound summ l ts r S = Some (r', S') ->
+        SE.heq funcs preds U G cs
+          (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) ->
+        SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) /\
+        U.Subst_Extends S' S.
+      Proof.
+      Admitted.
+    End with_typing.
 
     Require Ordering.
 

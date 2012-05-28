@@ -15,9 +15,8 @@ Module Type SynUnifier.
   Section typed.
     Variable types : list type.
     
-    Parameter Subst_empty : Subst types.
-
-    Parameter Subst_lookup : uvar -> Subst types -> option (expr types).
+    (** Predicates **)
+    Parameter Subst_WellTyped : tfunctions -> tenv -> tenv -> Subst types -> Prop.
 
     (** Relations **)
     Parameter Subst_Equal : Subst types -> Subst types -> Prop.
@@ -29,11 +28,24 @@ Module Type SynUnifier.
     Parameter Antisym_Subst_Extends : @RelationClasses.Antisymmetric _ _ Equiv_Subst_Equal Subst_Extends.
     Parameter Trans_Subst_Extends : RelationClasses.Transitive Subst_Extends.
 
+    (** Operations **)
+    Parameter Subst_empty : Subst types.
+
+    Axiom Subst_empty_WellTyped : forall funcs U G,
+      Subst_WellTyped funcs U G Subst_empty.
+
+    Parameter Subst_lookup : uvar -> Subst types -> option (expr types).
+
     (** The actual unification algorithm **)
     Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
     
     (** Substitute meta variables **)
     Parameter exprInstantiate : Subst types -> expr types -> expr types.
+
+    Axiom exprInstantiate_WellTyped : forall funcs U G sub,
+      Subst_WellTyped funcs U G sub ->
+      forall e t, 
+        is_well_typed funcs U G e t = is_well_typed funcs U G (exprInstantiate sub e) t.
 
     (** This is the soundness statement.
      **)
@@ -44,6 +56,14 @@ Module Type SynUnifier.
     Axiom exprUnify_Extends : forall n l r sub sub',
       exprUnify n l r sub = Some sub' ->
       Subst_Extends sub' sub.
+
+    Axiom exprUnify_WellTyped : forall n l r sub sub',
+      exprUnify n l r sub = Some sub' ->
+      forall funcs U G t,
+        is_well_typed funcs U G l t = true ->
+        is_well_typed funcs U G r t = true ->
+        Subst_WellTyped funcs U G sub ->
+        Subst_WellTyped funcs U G sub'.      
 
     (** Semantics interpretation of substitutions **)
     Parameter Subst_equations : 
@@ -82,7 +102,8 @@ Proof.
   exact  v.
 Defined.
 
-Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUnifier.
+(** TODO: Really what I want to do is abstract over the functor that creates the map, but I don't know how to do that **)
+Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Definition eq := @eq uvar) <: SynUnifier.
   Module FM := HintlessFMapAVL.Make E.
   Module FACTS := HintlessFMapFacts.Facts FM.
   Module MFACTS := NatMap.MoreFMapFacts FM.
@@ -135,6 +156,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
     Definition Subst : Type :=
       { this : FM.t (expr types) & WellFormed this }.
 
+    Definition Subst_WellTyped (funcs : tfunctions) (U G : tenv) (s : Subst) : Prop :=
+      forall k v, FM.MapsTo k v (projT1 s) -> 
+        exists t, nth_error U k = Some t /\ is_well_typed funcs U G v t = true.
+
     Definition subst_empty : FM.t (expr types) := FM.empty _. 
 
     Theorem WF_subst_empty : WellFormed subst_empty.
@@ -143,6 +168,13 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
 
     Definition Subst_empty : Subst :=
       @existT _ _ subst_empty WF_subst_empty.
+
+    Theorem Subst_empty_WellTyped : forall funcs U G,
+      Subst_WellTyped funcs U G Subst_empty.
+    Proof.
+      unfold Subst_WellTyped, Subst_empty, subst_empty; simpl; intros.
+      exfalso. apply FACTS.empty_mapsto_iff in H; auto.
+    Qed.
 
     Definition subst_lookup (k : nat) (s : FM.t (expr types)) : option (expr types) :=
       FM.find k s.
@@ -314,7 +346,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
 
       red. intros. eapply MFACTS.FACTS.map_mapsto_iff in H1. destruct H1. intuition. subst.
       apply MFACTS.PROPS.F.add_mapsto_iff in H3; destruct H3; intuition; subst.
-      { clear H2; clear k0. rewrite subst_exprInstantiate_add_not_mentions by auto.
+      { rewrite subst_exprInstantiate_add_not_mentions by auto.
         rewrite subst_exprInstantiate_idem by auto.
         rewrite normalized_map. rewrite normalized_add; eauto. eapply wf_instantiate_normalized; auto.
       }
@@ -334,6 +366,28 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
         | None => fun _ => None
         | Some s' => fun pf => Some (@existT _ _ s' (@subst_set_wf _ _ _ _ (projT2 s) pf))
       end refl_equal.
+
+    Lemma Subst_set_unroll : forall u E sub sub',
+      Subst_set u E sub = Some sub' ->
+      mentionsU u (exprInstantiate sub E) = false /\
+      projT1 sub' = 
+        (FM.map
+          (subst_exprInstantiate
+            (FM.add u (exprInstantiate sub E) (projT1 sub)))
+          (FM.add u (exprInstantiate sub E) (projT1 sub))).
+    Proof.
+      unfold Subst_set. do 4 intro.
+      match goal with
+        | [ |- context [ eq_refl ?X ] ] => generalize (eq_refl X)
+      end.
+      simpl in *.
+      generalize (subst_set u E (projT1 sub)) at 2 3. destruct o; intros; try congruence.
+      unfold subst_set in *. 
+      inversion H; clear H; subst. simpl in *.
+      unfold exprInstantiate.
+      destruct (mentionsU u (subst_exprInstantiate (projT1 sub) E)); try congruence.
+      inversion e; auto.
+    Qed.
 
 (*
     (** s has more mappings **)
@@ -439,8 +493,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
 
 
     (** Unification **) 
-
-
     Section fold_in.
       Variable LS : list (expr types).
       Variable F : forall (l r : expr types), Subst -> In l LS -> option Subst.
@@ -750,20 +802,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
       Subst_set k v sub = Some sub' ->
       Subst_lookup k sub' = Some (exprInstantiate sub v).
     Proof.
-      unfold Subst_set, Subst_lookup; intros.
-      revert H. 
-      match goal with
-        | [ |- context [ eq_refl ?X ] ] => generalize (eq_refl X)
-      end.
-      generalize (subst_set k v (projT1 sub)) at 2 3. intro. 
-      destruct o; intros; try congruence. think; intros.
-        generalize (subst_set_wf k v (projT2 sub) e); simpl; intros.
-        unfold exprInstantiate in *. destruct sub; simpl in *.
-        revert e. unfold subst_set. case_eq (mentionsU k (subst_exprInstantiate x v)); intros; try congruence.
-        think. 
-          destruct (FM.E.eq_dec k k); try solve [ exfalso; eauto ]. simpl.
-          f_equal. clear e. rewrite subst_exprInstantiate_add_not_mentions; auto.
-          rewrite subst_exprInstantiate_idem; auto.
+      intros. unfold Subst_lookup; apply Subst_set_unroll in H; intuition; think.
+      destruct (FM.E.eq_dec k k); try congruence. simpl.
+      f_equal. clear e. rewrite subst_exprInstantiate_add_not_mentions; auto.
+      unfold exprInstantiate. rewrite subst_exprInstantiate_idem; auto. destruct sub; auto.
     Qed.
 
     Lemma adf : forall (k : nat) (v : expr types) (x : FM.t (expr types)) 
@@ -991,7 +1033,61 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
     Lemma exprInstantiate_Const : forall a t v, 
       exprInstantiate a (@Const types t v) = (@Const types t v).
     Proof. reflexivity. Qed.
- 
+
+      Lemma is_well_typed_only : forall funcs U G t t' (e : expr types),
+        is_well_typed funcs U G e t = true ->
+        t <> t' ->
+        is_well_typed funcs U G e t' = false.
+      Proof.
+        induction e; simpl; intros;
+          repeat (congruence || 
+            match goal with
+              | [ H : context [ nth_error ?X ?Y ] |- _ ] =>
+                destruct (nth_error X Y)
+              | [ H : context [ equiv_dec ?X ?Y ] |- _ ] =>
+                destruct (equiv_dec X Y)
+              | [ |- context [ equiv_dec ?X ?Y ] ] =>
+                destruct (equiv_dec X Y)
+              | [ H : match ?X with _ => _ end = _ |- _ ] =>
+                (destruct X; try congruence); [ ]
+              | [ |- context [ match ?X with | _ => _ end ] ] =>
+                solve [ destruct X; try congruence ] || ((destruct X; try congruence); [ ])
+            end); auto.
+      Qed.
+
+
+    Theorem exprInstantiate_WellTyped : forall funcs U G sub,
+      Subst_WellTyped funcs U G sub ->
+      forall e t, 
+        is_well_typed funcs U G e t = is_well_typed funcs U G (exprInstantiate sub e) t.
+    Proof.
+      unfold exprInstantiate, Subst_WellTyped; induction e; simpl; intros; eauto;
+      repeat (match goal with
+                | [ |- context [ FM.find ?X ?Y ] ] => 
+                  case_eq (FM.find X Y); intros
+                | [ |- context [ nth_error ?X ?Y ] ] =>
+                  case_eq (nth_error X Y); intros
+                | [ |- context [ equiv_dec ?X ?Y ] ] =>
+                  destruct (equiv_dec X Y); intros; unfold equiv in *; try subst
+                | [ |- _ ] => progress (unfold subst_lookup || simpl in *)
+                | [ H : FM.find _ _ = _ |- _ ] => 
+                  eapply FACTS.find_mapsto_iff in H
+                | [ H : ?X = _ , H' : ?X = _ |- _ ] =>
+                  rewrite H in H'
+                | [ H : exists x, _ |- _ ] => destruct H
+                | [ H : _ /\ _ |- _ ] => destruct H
+                | [ |- context [ match ?X with | _ => _ end ] ] =>
+                  solve [ destruct X; try congruence ] || ((destruct X; try congruence; auto); [ ])
+                | [ H : forall k v, FM.MapsTo k v _ -> _ , H' : FM.MapsTo _ _ _ |- _ ] => apply H in H'
+                | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+              end); try solve [ auto | congruence | symmetry; eapply H; eauto using FACTS.find_mapsto_iff ].
+      symmetry. eapply is_well_typed_only; eauto.
+      
+      generalize dependent (TDomain t0). clear H1. clear t0.
+      induction H0; simpl. reflexivity.
+      destruct l0; auto; simpl in *.
+      rewrite <- IHForall. rewrite <- H0. reflexivity.
+    Qed. 
 
     Opaque Subst_lookup Subst_set exprInstantiate.
 
@@ -1028,6 +1124,175 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar) <: SynUni
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
     Qed.
+
+    Transparent Subst_set.
+          
+    Lemma Subst_set_WellTyped : forall funcs U G u E t sub sub',
+      Subst_set u E sub = Some sub' ->
+      nth_error U u = Some t ->
+      is_well_typed funcs U G E t = true ->
+      Subst_WellTyped funcs U G sub ->
+      Subst_WellTyped funcs U G sub'.
+    Proof.
+      intros. apply Subst_set_unroll in H; intuition.
+      unfold Subst_WellTyped in *. rewrite H4. clear H4. clear sub'.
+      destruct sub; simpl in *. intros. eapply FACTS.map_mapsto_iff in H. destruct H. intuition; subst.
+      eapply FACTS.add_mapsto_iff in H5. destruct H5.
+      { intuition. subst. eexists; split; eauto. admit. }
+      { intuition. eapply H2 in H5. destruct H5; intuition. eexists. split; eauto.
+        revert H1. revert H0. generalize dependent x0. clear H3.
+        change (subst_exprInstantiate x E) with (exprInstantiate (@existT _ _ _ w) E).
+        admit.
+(*
+            Opaque exprInstantiate.
+            induction x0; simpl; intros; unfold subst_lookup in *;
+              repeat (congruence ||
+                      (progress subst) ||
+                match goal with
+                  | [ H : context [ FM.E.eq_dec ?X ?Y ] |- _ ] =>
+                    destruct (FM.E.eq_dec X Y)
+                  | [ H : context [ equiv_dec ?X ?Y ] |- _ ] =>
+                    destruct (equiv_dec X Y)
+                  | [ H : equiv _ _ |- _ ] =>
+                    unfold equiv in *
+                  | [ H : _ = _ |- _ ] => rewrite H in *
+                  | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
+                    destruct (FM.E.eq_dec X Y)
+                  | [ |- _ ] => progress rewrite FACTS.add_o in *
+                  | [ |- _ ] => rewrite <- exprInstantiate_WellTyped
+                end); eauto.
+            case_eq (FM.find x0 x); intros. eapply FACTS.find_mapsto_iff in H. apply H2 in H. destruct H.
+            intuition.
+
+
+            rewrite FACTS.add_o. destruct (FM.E.eq_dec u x0); subst; auto.
+
+            rewrite H0 in *. destruct (equiv_dec x1 t); try congruence.
+
+
+          SearchAbout FM.MapsTo.
+              
+
+          unfold Subst_set, Subst_WellTyped; intros.
+
+
+        unfold Subst_WellTyped in *.
+*)
+      }
+    Qed.
+    Lemma Subst_lookup_WellTyped : forall funcs U G e u sub t,
+      Subst_lookup u sub = Some e ->
+      Subst_WellTyped funcs U G sub ->
+      nth_error U u = Some t ->
+      is_well_typed funcs U G e t = true.
+    Proof.
+      Transparent Subst_lookup.
+      unfold Subst_WellTyped, Subst_lookup, subst_lookup. intros.
+      apply FACTS.find_mapsto_iff in H. eapply H0 in H. destruct H. rewrite H1 in *. intuition.
+      inversion H2; auto.
+    Qed.
+    Opaque Subst_lookup.
+(*
+        Lemma is_well_typed_const : forall funcs U G t (v : tvarD types t),
+          is_well_typed funcs U G (Const v) t = true.
+        Proof.
+          simpl. intros; rewrite EquivDec_refl_left. auto.
+        Qed.
+        Lemma is_well_typed_var : forall funcs U G t v,
+          nth_error G v = Some t ->
+          is_well_typed funcs U G (@Var types v) t = true.
+        Proof.
+          simpl. intros; rewrite H; rewrite EquivDec_refl_left. auto.
+        Qed.
+        Lemma is_well_typed_uvar : forall funcs U G t v,
+          nth_error U v = Some t ->
+          is_well_typed funcs U G (@UVar types v) t = true.
+        Proof.
+          simpl. intros; rewrite H; rewrite EquivDec_refl_left. auto.
+        Qed.
+*)
+    Hint Extern 1 (is_well_typed _ _ _ _ _ = _) =>
+      simpl;
+        repeat match goal with 
+                 | [ H : _ = _ |- _ ] => rewrite H
+                 | [ |- _ ] => rewrite EquivDec_refl_left
+               end; reflexivity : exprs.
+(*    Hint Resolve is_well_typed_const is_well_typed_var is_well_typed_uvar : exprs. *)
+    
+    Lemma exprUnify_WellTyped_Forall : forall n (l : list (expr types)),
+      Forall
+      (fun l0 : expr types =>
+        forall (r : expr types) (sub sub' : Subst),
+          exprUnify n l0 r sub = Some sub' ->
+          forall (funcs : tfunctions) (U G : tenv) (t : tvar),
+            is_well_typed funcs U G l0 t = true ->
+            is_well_typed funcs U G r t = true ->
+            Subst_WellTyped funcs U G sub -> Subst_WellTyped funcs U G sub') l ->
+      forall (funcs : tfunctions) (U G : tenv) (sub' : Subst) 
+        (l0 : list tvar) (sub : Subst),
+        Subst_WellTyped funcs U G sub ->
+        forall l1 : list (expr types),
+          Folds.fold_left_2_opt (exprUnify n) l l1 sub = Some sub' ->
+          Folds.all2 (is_well_typed funcs U G) l1 l0 = true ->
+          Folds.all2 (is_well_typed funcs U G) l l0 = true ->
+          Subst_WellTyped funcs U G sub'.
+    Proof.
+      induction 1; simpl; intros.
+      { destruct l0; destruct l1; simpl in *; auto; try congruence. inversion H0; subst; auto. }
+      { destruct l1; destruct l0; try congruence. simpl in *.
+        repeat match goal with
+                 | [ H : context [ match ?X with 
+                                     | _ => _ 
+                                   end ] |- _ ] =>
+                 revert H; case_eq X; try congruence; intros
+               end. eauto. }
+    Qed.        
+
+    Theorem exprUnify_WellTyped : forall n l r sub sub',
+      exprUnify n l r sub = Some sub' ->
+      forall funcs U G t,
+        is_well_typed funcs U G l t = true ->
+        is_well_typed funcs U G r t = true ->
+        Subst_WellTyped funcs U G sub ->
+        Subst_WellTyped funcs U G sub'.
+    Proof.
+      induction n; induction l; intros; rewrite exprUnify_unroll in *; unfold get_Eq in *; destruct r; simpl in *;
+        try congruence ;
+        repeat match goal with
+                 | [ H : context [ @equiv_dec ?A ?B ?C ?E ?X ?Y ] |- _ ] =>
+                   destruct (@equiv_dec A B C E X Y); unfold equiv in *; subst; try congruence
+                 | [ H : context [ match ?T with
+                                     | tvProp => _
+                                     | tvType _ => _
+                                   end ] |- _ ] => (destruct T; try congruence); [ ] 
+                 | [ H : context [ match nth_error ?X ?Y with
+                                     | _ => _ 
+                                   end ] |- _ ] => 
+                 revert H; case_eq (nth_error X Y); intros; try congruence
+                 | [ H : context [ match Subst_lookup ?X ?Y with
+                                     | _ => _ 
+                                   end ] |- _ ] => 
+                 revert H; case_eq (Subst_lookup X Y); intros; try congruence
+                 | [ H : (if ?X then _ else _) = _ |- _ ] =>
+                   revert H; case_eq X; intros; try congruence
+                 | [ H : ?X = _ , H' : ?X = _ |- _ ] => rewrite H in H'
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : context [ match exprUnify ?A ?B ?C ?D with _ => _ end ] |- _ ] => 
+                   revert H; case_eq (exprUnify A B C D); intros; try congruence
+                 | [ H : _ && _ = true |- _ ] => eapply andb_true_iff in H; destruct H
+                 | [ H : forall a b c d, exprUnify ?n a b c = Some d -> _ , H' : exprUnify ?n _ _ _ = Some _ |- _ ] =>
+                   (eapply H in H'; (eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs)); 
+                   instantiate; eauto with exprs
+               end; 
+        try solve [ eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs
+              | (eapply Subst_set_WellTyped; eauto); simpl;
+                repeat match goal with
+                         | [ H : _ = _ |- _ ] => rewrite H
+                         | [ |- _ ] => rewrite EquivDec_refl_left
+                       end; auto 
+          | eauto using exprUnify_WellTyped_Forall].
+    Qed.
+
 
 (*
     Theorem Subst_equations_Extends : forall funcs utypes G sub sub',
