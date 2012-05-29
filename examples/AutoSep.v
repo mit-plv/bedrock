@@ -229,7 +229,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Provers.transitivityProve Provers.groupsOf Provers.addEquality
          Provers.proveEqual
          Provers.transitivityLearn Provers.inSameGroup 
-         Provers.eqD_seq Provers.in_seq Provers.groupWith
+         Provers.in_seq Provers.groupWith
          Provers.assumptionProver Provers.assumptionSummarize
          Provers.assumptionLearn Provers.assumptionProve
          Provers.transitivityProver
@@ -494,7 +494,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Provers.transitivityProve Provers.groupsOf Provers.addEquality
          Provers.proveEqual
          Provers.transitivityLearn Provers.inSameGroup 
-         Provers.eqD_seq Provers.in_seq Provers.groupWith
+         Provers.in_seq Provers.groupWith
          Provers.assumptionProver Provers.assumptionSummarize
          Provers.assumptionLearn Provers.assumptionProve
          Provers.transitivityProver

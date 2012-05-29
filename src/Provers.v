@@ -363,27 +363,24 @@ Section TransitivityProver.
   Qed.
 *)
 
-  Definition eqD_seq (e1 e2 : expr types) : bool :=
-     expr_seq_dec e1 e2.
-
   Fixpoint transitivityLearn (sum : transitivity_summary) (hyps : list (expr types)) : transitivity_summary :=
     match hyps with
       | nil => sum
       | h :: hyps' =>
         let grps := transitivityLearn sum hyps' in
           match h with
-            | Equal t x y => addEquality eqD_seq grps x y
+            | Equal t x y => addEquality (@expr_seq_dec  _) grps x y
             | _ => grps
           end
     end.
   Definition groupsOf := transitivityLearn nil.
 
   Definition transitivityEqProver (groups : transitivity_summary)
-    (x y : expr types) := inSameGroup eqD_seq groups x y.
+    (x y : expr types) := inSameGroup (@expr_seq_dec _) groups x y.
 
   Fixpoint proveEqual (groups : transitivity_summary) (e1 e2 : expr types) {struct e1} :=
     expr_seq_dec e1 e2 || 
-      (inSameGroup eqD_seq groups e1 e2
+      (inSameGroup (@expr_seq_dec _) groups e1 e2
         || match e1, e2 with
              | Func f1 args1, Func f2 args2 =>
                if eq_nat_dec f1 f2
@@ -496,7 +493,7 @@ Section TransitivityProver.
       destruct goal; try discriminate;
         match goal with
           | [ H1 : _, H2 : _ |- _ ] =>
-            apply (inSameGroup_sound eqD_sym eqD_trans eqD_seq
+            apply (inSameGroup_sound eqD_sym eqD_trans expr_seq_dec
               (groupsOf_sound _ H1)) in H2
         end; hnf in *; simpl in *; eqD.
 *)
@@ -536,7 +533,6 @@ Ltac unfold_transitivityProver H :=
         transitivityLearn 
         inSameGroup
         expr_seq_dec
-        eqD_seq
         in_seq
         groupWith
       ]
@@ -549,7 +545,6 @@ Ltac unfold_transitivityProver H :=
         transitivityLearn 
         inSameGroup
         expr_seq_dec
-        eqD_seq
         in_seq
         groupWith
       ] in H
