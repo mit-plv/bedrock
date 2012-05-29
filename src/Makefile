@@ -2,6 +2,7 @@
 
 MODULES    := HintlessOrderedType HintlessFMapInterface \
 	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
+	Reflection \
 	GenRec Ordering Multimap Folds \
 	Nomega Word Labels LabelMap \
 	PropX PropXRel PropXTac \
