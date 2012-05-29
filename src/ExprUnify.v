@@ -46,6 +46,10 @@ Module Type SynUnifier.
       Subst_WellTyped funcs U G sub ->
       forall e t, 
         is_well_typed funcs U G e t = is_well_typed funcs U G (exprInstantiate sub e) t.
+    
+    Axiom exprInstantiate_Extends : forall x y,
+      Subst_Extends x y ->
+      forall t, exprInstantiate x (exprInstantiate y t) = exprInstantiate x t.
 
     (** This is the soundness statement.
      **)
@@ -432,7 +436,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { apply andb_true_iff. apply andb_true_iff in H. intuition. }
     Qed.
     
-    Lemma WellFormed_subst : forall x y,
+    Lemma exprInstantiate_Extends : forall x y,
       Subst_Extends x y ->
       forall t, exprInstantiate x (exprInstantiate y t) = exprInstantiate x t.
     Proof.
@@ -492,7 +496,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Proof.
       red; unfold Subst_Extends; intros.
         eapply H0 in H1. eapply H in H1.
-        erewrite WellFormed_subst in H1; auto.
+        erewrite exprInstantiate_Extends in H1; auto.
     Qed.
 
 
@@ -926,43 +930,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_Extends sub' sub -> 
       exprInstantiate sub' l = exprInstantiate sub' r.
     Proof.
-(**
-      induction l; destruct r; think;
-        intros; unfold exprInstantiate in *; destruct sub; destruct sub'; simpl in *;
-          try congruence; auto;
-      repeat (
-        (simpl in *; try subst;
-          match goal with
-            | [ H : Const _ = Const _ |- _ ] => inversion H; clear H; subst
-            | [ H : UVar _ = UVar _ |- _ ] => inversion H; clear H; subst
-            | [ H : Var _ = Var _ |- _ ] => inversion H; clear H; subst
-            | [ H : Equal _ _ _ = Equal _ _ _ |- _ ] => inversion H; clear H; subst
-            | [ H : Not _ = Not _ |- _ ] => inversion H; clear H; subst
-            | [ H : Func _ _ = Func _ _ |- _ ] => inversion H; clear H; subst
-            | [ |- Func _ _ = Func _ _ ] => f_equal
-            | [ |- Not _ = Not _ ] => f_equal
-            | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
-            | [ H : _ |- _ ] => rewrite H by eauto
-            | [ H : context [ match subst_lookup ?X ?Y with _ => _ end ] |- _ ] => 
-              revert H; case_eq (subst_lookup X Y); intros
-            | [ H : Subst_Extends _ _ , H' : subst_lookup _ _ = Some _ |- _ ] =>
-              eapply FACTS.find_mapsto_iff in H' ; apply H in H' ; apply FACTS.find_mapsto_iff in H'; simpl in H'
-            | [ H : FM.find ?X ?Y = _ |- context [ subst_lookup ?X ?Y ] ] =>
-              change (subst_lookup X Y) with (FM.find X Y) ; rewrite H
-            | [ H : WellFormed ?X |- context [ subst_exprInstantiate ?X ?Y ] ] =>
-              change (subst_exprInstantiate X Y) with (exprInstantiate (@existT _ _ X H) Y)
-            | [ |- _ ] =>
-              rewrite WellFormed_subst; eauto
-            | _ => rewrite map_map; eapply map_ext; intros
-          end)); try congruence; eauto.
-      generalize dependent l0.
-      induction H; destruct l0; simpl; intros; auto; try solve [ inversion H4 ].
-      inversion H4. erewrite IHForall; eauto.
-      erewrite H; eauto.
-    Qed. (** NOTE: this takes a long time! **)
-**)
-    Admitted.
-
+      intros.
+      cut (exprInstantiate sub' (exprInstantiate sub l) = exprInstantiate sub' (exprInstantiate sub r)); intros.
+      repeat (rewrite exprInstantiate_Extends in H1; eauto). rewrite H; reflexivity.
+    Qed.
 
     Lemma fold_left_2_opt_map_sound' : forall (n : nat) (l l0 : list (expr types)) (sub sub' : Subst),
       Folds.fold_left_2_opt (exprUnify n) l l0 sub = Some sub' ->

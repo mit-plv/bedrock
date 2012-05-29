@@ -33,7 +33,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       : option (U.Subst types) :=
       Folds.fold_left_3_opt 
         (fun l r t (acc : U.Subst _) =>
-          if Prove Prover summ (Expr.Equal t (U.exprInstantiate sub l) (U.exprInstantiate sub r))
+          if Prove Prover summ (Expr.Equal t (U.exprInstantiate acc l) (U.exprInstantiate acc r))
             then Some acc
             else U.exprUnify bound l r acc)
         l r ts sub.
@@ -63,12 +63,44 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       Hypothesis WT_env_U : WellTyped_env tU U.
       Hypothesis WT_env_G : WellTyped_env tG G.
 
+      Lemma unifyArgs_Extends_WellTyped : forall bound summ l r ts S S',
+        U.Subst_WellTyped tfuncs tU tG S ->
+        Valid Prover_correct U G summ ->
+        all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
+        unifyArgs bound summ l r ts S = Some S' ->
+        U.Subst_Extends S' S /\
+        U.Subst_WellTyped tfuncs tU tG S'.
+      Proof.
+        unfold unifyArgs; induction l; destruct r; destruct ts; simpl; intros; try congruence.
+        { inversion H2. inversion H3; subst; intuition; auto. }
+        { repeat match goal with
+          | [ H : (if ?X then _ else _) = true |- _ ] =>
+            revert H; case_eq X; intros; [ | congruence ]
+                   | [ |- context [ exprD ?A ?B ?C ?D ?E ] ] =>
+                     case_eq (exprD A B C D E); intros
+                 end; simpl in *;
+        try solve [ 
+          match goal with
+            | [ H : is_well_typed _ _ _ ?e _ = true , H' : exprD _ _ _ (U.exprInstantiate ?S' ?e) _ = None |- _ ] =>
+              exfalso; revert H; revert H'; clear; intros H' H;
+                eapply WellTyped_exprInstantiate with (S := S') in H;
+                  eapply is_well_typed_correct in H;
+                    rewrite H' in H ; destruct H; congruence
+          end ].
+          revert H3. case_eq (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))); simpl; eauto.
+          case_eq (U.exprUnify bound a e S); intros; try congruence.
+          eapply IHl in H7; eauto using U.exprUnify_WellTyped.
+          intuition. etransitivity; eauto using U.exprUnify_Extends. }
+      Qed.          
+
       Lemma unifyArgsOk : forall bound summ R l r ts f S S',
         U.Subst_WellTyped tfuncs tU tG S ->
         Valid Prover_correct U G summ ->
         all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
         all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
         unifyArgs bound summ l r ts S = Some S' ->
+        U.Subst_equations funcs U G S' ->
         @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') l) R f =
         @applyD types (exprD funcs U G) ts (map (U.exprInstantiate S') r) R f /\
         U.Subst_Extends S' S /\
@@ -104,27 +136,58 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                        let H' := fresh in assert (H':X) by eauto; specialize (H H')
                    end.
             subst.
-            eapply IHl with (f := f t0) in H8; eauto.
+            eapply IHl with (f := f t0) in H9; eauto.
             intuition. rewrite H3. f_equal. f_equal.
-            
+            eapply U.Subst_equations_exprInstantiate in H2; eauto.
+            eapply U.Subst_equations_exprInstantiate in H1; eauto.
+            rewrite U.exprInstantiate_Extends in H2 by eauto.
+            rewrite U.exprInstantiate_Extends in H1 by eauto.
+            rewrite H2 in H8. rewrite H1 in H7. inversion H7; inversion H8; subst; auto. }
+          { clear H3. revert H9. case_eq (U.exprUnify bound a e S); intros; try congruence.
+            eapply IHl with (f := f t0) in H9; eauto using U.exprUnify_WellTyped.
+            intuition. rewrite H10. f_equal. f_equal.
+            eapply U.exprUnify_sound in H3. 
+            assert (U.exprInstantiate S' (U.exprInstantiate s a) = U.exprInstantiate S' (U.exprInstantiate s e)).
+            rewrite H3; auto.
+            repeat rewrite U.exprInstantiate_Extends in H11 by eauto. rewrite H11 in H7. rewrite H7 in H8. inversion H8; auto.
 
-
-            admit. (** TODO: still need more semantic information from ExprUnify **)
-
-          }
-          admit.
-          admit.
-          admit.
-          admit. }
+            etransitivity; eauto using U.exprUnify_Extends. }
+          { exfalso. admit. }
+          { exfalso. admit. }
+          { exfalso. admit. } }
       Qed.
 
-      Lemma unify_removeOk : forall U G cs bound summ f l ts r r' S S' P,
+      Lemma unify_removeOk : forall cs bound summ f l ts r r' S S' P,
+        U.Subst_WellTyped tfuncs tU tG S ->
+        Valid Prover_correct U G summ ->
+        all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
+        List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r ts = true) r ->
         unify_remove bound summ l ts r S = Some (r', S') ->
+        U.Subst_equations funcs U G S' ->
+        SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) ->
         SE.heq funcs preds U G cs
-          (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) ->
-        SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) /\
+          (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) /\
         U.Subst_Extends S' S.
       Proof.
+        induction r; simpl; intros; try congruence.
+        revert H3. case_eq (unifyArgs bound summ l a ts S); intros; try congruence.
+        { inversion H6; clear H6; subst.
+          inversion H2; subst.
+          rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
+          case_eq (nth_error preds f); intros.
+(*          intuition. apply SEP_FACTS.heq_star_frame; [ | eauto ].
+          unfold heq. (*simpl. rewrite H6.
+          generalize (@unifyArgsOk bound summ (ST.hprop (tvarD types pcType) (tvarD types stateType) nil) l a (SDomain s)
+            (SDenotation s)). *) admit.
+*)
+          admit.
+          admit. }
+(*
+        { revert H6; case_eq (unify_remove bound summ l ts r S); intros.
+ *)         
+
+
+
       Admitted.
     End with_typing.
 
@@ -423,17 +486,35 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Qed.
 *)
 
-    Lemma sheapInstantiate_add : forall U G cs S n e acc,
+    Lemma sheapInstantiate_add : forall U G cs S n e m m',
+      ~FM.In n m ->
+      MM.PROPS.Add n e m m' ->
       heq funcs preds U G cs
-        (SH.impuresD pcType stateType (sheapInstantiate S (FM.add n e acc)))
+        (SH.impuresD pcType stateType (sheapInstantiate S m'))
         (SH.starred (fun v => Func n (map (U.exprInstantiate S) v)) e
-          (SH.impuresD pcType stateType (sheapInstantiate S (FM.remove n acc)))).
+          (SH.impuresD pcType stateType (sheapInstantiate S m))).
     Proof.
       clear. intros.
         unfold sheapInstantiate, MM.mmap_map.
-    Admitted.
+        rewrite SH.impuresD_Add with (i := FM.map (map (map (U.exprInstantiate S))) m) (f := n) (argss := map (map (U.exprInstantiate S)) e).
+        symmetry; rewrite SH.starred_base. heq_canceler.
+        repeat rewrite SH.starred_def.
+        match goal with
+          | [ |- context [ @SH.SE.Emp ?X ?Y ?Z ] ] => generalize (@SH.SE.Emp X Y Z)
+        end.
+        clear. induction e; simpl; intros; try reflexivity.
+        rewrite IHe. heq_canceler.
+
+        red. intros. specialize (H0 y). repeat (rewrite MM.FACTS.add_o in * || rewrite MM.FACTS.map_o in * ).
+        unfold exprs in *. rewrite H0. unfold MM.FACTS.option_map. destruct (MF.FACTS.eq_dec n y); auto.
+        
+        intro. apply H. apply MM.FACTS.map_in_iff in H1. auto.
+    Qed.
 
     Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
+(*
+      U.Subst_WellTyped ?28662 ?28663 ?28664 sub ->
+*)
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
       himp funcs preds U G cs 
         (SH.impuresD _ _ (sheapInstantiate S R))
@@ -455,13 +536,33 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                          end = _ |- _ ] =>
                  revert H; case_eq X; intros
                end.
+(*
         { eapply IHls in H3; eauto.
+          rewrite sheapInstantiate_add.
+          Lemma MapsTo_Add_Remove : forall T k (v : T) m,
+            FM.MapsTo k v m ->
+            MM.PROPS.Add k v (FM.remove k m) m.
+          Admitted.
+          3: eapply MapsTo_Add_Remove; eapply MM.FACTS.find_mapsto_iff; eauto.
+          rewrite SH.starred_base.
+          rewrite sheapInstantiate_add in H3.
+          Lemma Add_Remove : forall T k (v : T) m,
+            MM.PROPS.Add k v (FM.remove k m) (FM.add k v m).
+          Admitted.
+          3: eapply Add_Remove.
+          eapply unify_removeOk in H2; eauto.
+
+Valid Prover_correct ?28665 ?28666 summ
+U.Subst_equations funcs ?28665 ?28666 s0
+
+
           rewrite SH.impuresD_Equiv.
           2: eapply sheapInstantiate_Equiv.
           2: eapply MF.equiv_eq_mor.
           2: reflexivity. 3: reflexivity. 2: symmetry. 2: apply MF.MapsTo_add_remove_Equal.
           2: eapply MF.FACTS.find_mapsto_iff; eauto.
-          
+          rewrite sheapInstantiate_add.
+*)
 (*
           rewrite sheapInstantiate_add in H3.
           rewrite sheapInstantiate_add.
@@ -504,6 +605,7 @@ etransitivity.
           Admitted.
           rewrite impuresD_mmap_add in H1.
 *)
+        admit. admit. admit. admit. }
     Admitted.
 
 
