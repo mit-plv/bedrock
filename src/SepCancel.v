@@ -104,6 +104,11 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                        let H' := fresh in assert (H':X) by eauto; specialize (H H')
                    end.
             subst.
+            eapply IHl with (f := f t0) in H8; eauto.
+            intuition. rewrite H3. f_equal. f_equal.
+            
+
+
             admit. (** TODO: still need more semantic information from ExprUnify **)
 
           }
