@@ -70,6 +70,7 @@ Ltac t1 := match goal with
                               | UVar _ => _
                               | Func _ _ => _
                               | Equal _ _ _ => _
+                              | Less _ _ => _
                               | Not _ => _
                             end] ] => destruct E
              | [ |- context[match ?E with
@@ -89,6 +90,7 @@ Ltac t1 := match goal with
                                | UVar _ => _
                                | Func _ _ => _
                                | Equal _ _ _ => _
+                               | Less _ _ => _
                                | Not _ => _
                              end] |- _ ] => destruct E
              | [ _ : context[match ?E with

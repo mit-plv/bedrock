@@ -25,12 +25,11 @@ Module SymIL_Correct.
     Variable ts : list type.
     Let types := repr bedrock_types_r ts.
 
-    Local Notation "'pcT'" := (tvType 0).
-    Local Notation "'tvWord'" := (tvType 0).
-    Local Notation "'stT'" := (tvType 1).
-    Local Notation "'tvState'" := (tvType 2).
-    Local Notation "'tvTest'" := (tvType 3).
-    Local Notation "'tvReg'" := (tvType 4).
+    Local Notation "'pcT'" := tvWord.
+    Local Notation "'stT'" := (tvType 0).
+    Local Notation "'tvState'" := (tvType 1).
+    Local Notation "'tvTest'" := (tvType 2).
+    Local Notation "'tvReg'" := (tvType 3).
 
     Variable fs : functions types.
     Let funcs := repr (bedrock_funcs_r ts) fs.
@@ -248,12 +247,11 @@ Module SymIL_Correct.
     Variable ts : list type.
     Let types := repr bedrock_types_r ts.
 
-    Local Notation "'pcT'" := (tvType 0).
-    Local Notation "'tvWord'" := (tvType 0).
-    Local Notation "'stT'" := (tvType 1).
-    Local Notation "'tvState'" := (tvType 2).
-    Local Notation "'tvTest'" := (tvType 3).
-    Local Notation "'tvReg'" := (tvType 4).
+    Local Notation "'pcT'" := tvWord.
+    Local Notation "'stT'" := (tvType 0).
+    Local Notation "'tvState'" := (tvType 1).
+    Local Notation "'tvTest'" := (tvType 2).
+    Local Notation "'tvReg'" := (tvType 3).
 
     Variable fs : functions types.
     Let funcs := repr (bedrock_funcs_r ts) fs.

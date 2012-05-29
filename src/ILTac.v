@@ -255,8 +255,8 @@ Ltac sep_canceler isConst ext simplifier :=
       let vars := eval simpl in (@nil Expr.tvar) in
       (** build the funcs **)
       let funcs := reduce_repr (PACK.applyFuncs (ILAlgoTypes.Env ext) typesV nil) in
-      let pcT := constr:(Expr.tvType 0) in
-      let stT := constr:(Expr.tvType 1) in
+      let pcT := constr:tvWord in
+      let stT := constr:(Expr.tvType 0) in
       (** build the base sfunctions **)
       let preds := reduce_repr (PACK.applyPreds (ILAlgoTypes.Env ext) typesV nil) in
       ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>

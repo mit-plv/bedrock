@@ -9,17 +9,15 @@ Set Strict Implicit.
 Module BedrockPtsToEvaluator.
 
   Section hide_notation.
-    Local Notation "'pcT'" := (tvType 0).
-    Local Notation "'stT'" := (tvType 1).
-    Local Notation "'wordT'" := (tvType 0).
-    Local Notation "'ptrT'" := (tvType 0).
+    Local Notation "'pcT'" := tvWord.
+    Local Notation "'stT'" := (tvType 0).
+    Local Notation "'wordT'" := tvWord.
+    Local Notation "'ptrT'" := tvWord.
 
     Definition ptsto32_types_r : Env.Repr Expr.type :=
       Eval cbv beta iota zeta delta [ Env.listToRepr ] 
       in 
       let lst := 
-        {| Impl := W 
-         ; Eq := seq_dec |} ::
         {| Impl := IL.settings * IL.state
          ; Eq := fun _ _ => None
          |} :: nil
@@ -64,10 +62,10 @@ Module BedrockPtsToEvaluator.
     Variable types' : list type.
     Definition types := Env.repr ptsto32_types_r types'.
 
-    Local Notation "'pcT'" := (tvType 0).
-    Local Notation "'stT'" := (tvType 1).
-    Local Notation "'wordT'" := (tvType 0).
-    Local Notation "'ptrT'" := (tvType 0).
+    Local Notation "'pcT'" := tvWord.
+    Local Notation "'stT'" := (tvType 0).
+    Local Notation "'wordT'" := tvWord.
+    Local Notation "'ptrT'" := tvWord.
 
     Definition ptsto32_ssig : SEP.ssignature types pcT stT.
     refine (SEP.SSig _ _ _ (ptrT :: wordT :: nil) _).
@@ -197,7 +195,7 @@ Module BedrockPtsToEvaluator.
   End correctness.
 
   Definition MemEval_ptsto32_correct types' funcs
-    : @MEVAL.Plugin.MemEvalPred_correct _ (MemEval_ptsto32 (Env.repr ptsto32_types_r types')) (tvType 0) (tvType 1) (IL.settings * IL.state) (tvType 0) (tvType 0)
+    : @MEVAL.Plugin.MemEvalPred_correct _ (MemEval_ptsto32 (Env.repr ptsto32_types_r types')) tvWord (tvType 0) (IL.settings * IL.state) tvWord tvWord
     (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types') (ptsto32_ssig types') funcs.
   Proof.
     eapply MEVAL.Plugin.Build_MemEvalPred_correct;
@@ -207,15 +205,15 @@ Module BedrockPtsToEvaluator.
   Admitted.
   End hide_notation.
 
-  Definition ptsto32_pack : MEVAL.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord.
+  Definition ptsto32_pack : MEVAL.MemEvaluatorPackage ptsto32_types_r tvWord (tvType 0) tvWord tvWord IL_mem_satisfies IL_ReadWord IL_WriteWord.
 
-  refine (@MEVAL.Build_MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord
+  refine (@MEVAL.Build_MemEvaluatorPackage ptsto32_types_r tvWord (tvType 0) tvWord tvWord IL_mem_satisfies IL_ReadWord IL_WriteWord
             (Env.nil_Repr EmptySet_type)
             (fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts)))
             (fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
              (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
-               (tvType 0) (tvType 1)))
-            (fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil))
+               tvWord (tvType 0)))
+            (fun ts => MEVAL.Plugin.MemEvaluator_plugin tvWord (tvType 0) ((0,MemEval_ptsto32 (types ts)) :: nil))
             _).
   abstract (
     refine (fun ts fs ps =>

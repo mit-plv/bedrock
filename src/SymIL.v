@@ -91,12 +91,11 @@ Section Denotations.
   Variable types' : list type.
   Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := (tvType 0).
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'pcT'" := tvWord.
+  Local Notation "'stT'" := (tvType 0).
+  Local Notation "'tvState'" := (tvType 1).
+  Local Notation "'tvTest'" := (tvType 2).
+  Local Notation "'tvReg'" := (tvType 3).
 
 
   (** Denotation/reflection functions give the meaning of the reflected syntax *)
@@ -316,6 +315,7 @@ Section Denotations.
           match t with
             | IL.Eq => Some (Expr.Equal tvWord l r)
             | IL.Ne => Some (Expr.Not (Expr.Equal tvWord l r))
+            | IL.Lt => Some (Expr.Less l r)
             | _ => Some (Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil))
           end
         | _ , _ => None
@@ -401,12 +401,11 @@ Section spec_functions.
   Variable ts : list type.
   Let types := repr bedrock_types_r ts.
 
-  Local Notation "'pcT'" := (tvType 0).
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'pcT'" := tvWord.
+  Local Notation "'stT'" := (tvType 0).
+  Local Notation "'tvState'" := (tvType 1).
+  Local Notation "'tvTest'" := (tvType 2).
+  Local Notation "'tvReg'" := (tvType 3).
 
 
   Definition IL_mem_satisfies (cs : PropX.codeSpec (tvarD types pcT) (tvarD types stT)) 
