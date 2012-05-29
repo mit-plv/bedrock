@@ -2,6 +2,7 @@ Require Import List DepList.
 Require Import EqdepClass.
 Require Import IL Word.
 Require Import Bool Folds.
+Require Import Reflection. 
 
 Set Implicit Arguments.
 
@@ -709,11 +710,11 @@ Qed.
   Admitted. 
 
   (* This is used by the tactic build_default_type *)
-  Global Instance SemiDec_expr : SemiDec expr.
+  (* Global Instance SemiDec_expr : SemiDec expr.
   constructor. intros a b. case_eq (expr_seq_dec a b).
   intros H; refine (Some (expr_seq_dec_correct _ _ H)). 
   intros _; apply None. 
-  Defined. 
+  Defined. *)
 
   (** lift the "real" variables in the range [a,...)
    ** to the range [a+b,...)
@@ -722,7 +723,7 @@ Qed.
     match e with
       | Const t' c => Const t' c
       | Var x => 
-        if Compare_dec.lt_dec x a
+        if NPeano.ltb x a
         then Var x
         else Var (x + b)
       | UVar x => UVar x
@@ -737,7 +738,7 @@ Qed.
     : expr (*(uvars' ++ ext ++ uvars) vars*) :=
     match e with
       | UVar x => 
-        if Compare_dec.lt_dec a x
+        if NPeano.ltb a x
         then UVar x
         else UVar (x + b)
       | Var v => Var v
@@ -756,9 +757,9 @@ Qed.
       match s with
         | Const _ t => Const _ t
         | Var x =>
-          if Compare_dec.lt_dec x a 
+          if NPeano.ltb x a 
           then Var x
-          else if Compare_dec.lt_dec x b
+          else if NPeano.ltb x b
                then UVar (c + x - a)
                else Var (x + a - b)
         | UVar x => UVar x
@@ -778,7 +779,7 @@ Qed.
   Lemma liftExpr_0 : forall a (b : expr), liftExpr a 0 b = b.
   Proof.
     induction b; simpl; intros; auto.
-    destruct (Compare_dec.lt_dec x a); f_equal; omega.
+    destruct (NPeano.ltb x a); f_equal; omega.
     f_equal. generalize dependent H. clear. induction 1. auto.
     simpl; f_equal; auto.
     rewrite IHb1; rewrite IHb2. reflexivity.
@@ -791,9 +792,9 @@ Qed.
     induction e; intros; simpl; repeat match goal with
                                          | [ H : _ |- _ ] => rewrite H
                                        end; try reflexivity. 
-    destruct (Compare_dec.lt_dec x a); simpl.
-    destruct (Compare_dec.lt_dec x a); auto. exfalso; auto.
-    destruct (Compare_dec.lt_dec (x + c) a). exfalso; omega. f_equal; omega.
+    consider (NPeano.ltb x a); simpl.
+    consider (NPeano.ltb x a); auto. intros; exfalso; auto.
+    consider (NPeano.ltb (x + c) a). intros; exfalso; omega. intros; f_equal; omega.
     
     f_equal. rewrite map_map. induction H; simpl; auto.
     rewrite H. f_equal; auto.
@@ -990,7 +991,7 @@ Lemma liftExpr_ext : forall types (funcs : functions types) EG G G' G'' e t,
   exprD funcs EG (G'' ++ G) e t = exprD funcs EG (G'' ++ G' ++ G) (liftExpr (length G'') (length G') e) t.
 Proof.
   clear. induction e; simpl; intros; try reflexivity.
-  destruct (Compare_dec.lt_dec x (length G'')).
+  consider (NPeano.ltb x (length G'')); intros Hx. 
   simpl. unfold lookupAs. 
   revert G; revert G'. generalize dependent x. generalize dependent G''.
   induction G''; simpl; intros.

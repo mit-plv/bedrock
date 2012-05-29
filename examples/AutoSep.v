@@ -258,6 +258,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          nat_eq_eqdec
          EquivDec_SemiDec
          Compare_dec.nat_compare
+         NPeano.leb NPeano.ltb
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation 
@@ -526,6 +527,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          nat_eq_eqdec
          EquivDec_SemiDec
          Compare_dec.nat_compare
+         NPeano.leb NPeano.ltb
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation 
