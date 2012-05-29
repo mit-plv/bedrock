@@ -10,45 +10,63 @@ Require Import TypedPackage.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Definition test_seq l r : option (l = r) :=
+Definition test_seq l r : bool :=
   match l as l , r as r with
-    | IL.Eq , IL.Eq => Some (refl_equal _)
-    | IL.Ne , IL.Ne => Some (refl_equal _)
-    | IL.Le , IL.Le => Some (refl_equal _)
-    | IL.Lt , IL.Lt => Some (refl_equal _)
-    | _ , _ => None
+    | IL.Eq , IL.Eq => true
+    | IL.Ne , IL.Ne => true
+    | IL.Le , IL.Le => true
+    | IL.Lt , IL.Lt => true
+    | _ , _ => false
   end.
 
-Definition reg_seq l r : option (l = r) :=
+Definition reg_seq l r : bool := 
   match l as l , r as r with
-    | IL.Sp , IL.Sp => Some (refl_equal _)
-    | IL.Rp , IL.Rp => Some (refl_equal _)
-    | IL.Rv , IL.Rv => Some (refl_equal _)
-    | _ , _ => None
+    | IL.Sp , IL.Sp => true
+    | IL.Rp , IL.Rp => true
+    | IL.Rv , IL.Rv => true
+    | _ , _ => false
   end.
 
-Definition W_seq (l r : W) : option (l = r) :=
+Definition W_seq (l r : W) : bool :=
   match weq l r with
-    | left pf => Some pf 
-    | _ => None 
+    | left pf => true
+    | _ => false
   end.
+
+Definition admit {X : Type} : X. Admitted. 
+
+Definition bedrock_type_W : type := 
+  {| Expr.Impl := W 
+     ; Expr.Eqb := W_seq
+     ; Expr.Eqb_correct := admit
+  |}. 
+Definition bedrock_type_setting_X_state : type :=
+  {| Expr.Impl := settings * state
+     ; Expr.Eqb := fun _ _ => false
+     ; Expr.Eqb_correct := admit
+  |}.
+Definition bedrock_type_setting : type :=
+  {| Expr.Impl := state
+   ; Expr.Eqb := fun _ _ => false
+   ; Expr.Eqb_correct := admit
+   |}. 
+Definition bedrock_type_test : type :=
+  {| Expr.Impl := IL.test
+     ; Expr.Eqb := test_seq
+     ; Expr.Eqb_correct := admit
+  |}. 
+Definition bedrock_type_reg : type :=
+  {| Expr.Impl := IL.reg
+     ; Expr.Eqb := reg_seq
+     ; Expr.Eqb_correct := admit
+  |}. 
 
 Definition bedrock_types : list Expr.type :=
-  {| Expr.Impl := W 
-   ; Expr.Eq := W_seq
-   |} ::
-  {| Expr.Impl := settings * state
-   ; Expr.Eq := fun _ _ => None
-   |} ::
-  {| Expr.Impl := state
-   ; Expr.Eq := fun _ _ => None
-   |} ::
-  {| Expr.Impl := IL.test
-   ; Expr.Eq := test_seq
-   |} ::
-  {| Expr.Impl := IL.reg
-   ; Expr.Eq := reg_seq
-   |} :: nil.
+  bedrock_type_W ::
+  bedrock_type_setting_X_state         ::
+  bedrock_type_setting ::
+  bedrock_type_test ::
+  bedrock_type_reg :: nil.
 
 Definition bedrock_types_r : Repr Expr.type :=
   Eval cbv beta iota zeta delta [ listToRepr bedrock_types ]
