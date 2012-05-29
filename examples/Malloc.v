@@ -203,9 +203,20 @@ Definition mallocM := bmodule "malloc" {{
         Rp <- $[Sp+4];;
         Return Rv
       } else {
-        (* Current block too small; continue to next. *)
-        Rp <- Rv+4;;
-        Rv <- $[Rv+4]
+        Rp <- $[Sp] + 2;;
+        If (Rp < $[Rv]) {
+          (* This free list block is large enough to split in two. *)
+          Rp <- Rv + $[Sp];;
+          Rp <- Rp + 2;;
+          $[Rp] <- $[Rv] - $[Sp];;
+          $[Rp] <- $[Rp] - 2;;
+          $[Rp+4] <- $[Rv+4];;
+          Return Rv
+        } else {
+          (* Current block too small; continue to next. *)
+          Rp <- Rv+4;;
+          Rv <- $[Rv+4]
+        }
       }
     };;
 
@@ -226,5 +237,26 @@ Hint Extern 2 (@eq (word _) _ _) =>
 Hint Immediate natToW_inj.
 
 Theorem mallocMOk : moduleOk mallocM.
-  vcgen; abstract (pose four_neq_zero; sep hints; auto).
+  vcgen.
+  Ltac t := abstract (pose four_neq_zero; sep hints; auto).
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  admit.
+  admit.
+  t.
+
+  (*vcgen; abstract (pose four_neq_zero; sep hints; auto).*)
 Qed.

@@ -34,12 +34,11 @@ Section stream_correctness.
   Variable types' : list type.
   Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := (tvType 0).
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'pcT'" := tvWord.
+  Local Notation "'stT'" := (tvType 0).
+  Local Notation "'tvState'" := (tvType 1).
+  Local Notation "'tvTest'" := (tvType 2).
+  Local Notation "'tvReg'" := (tvType 3).
 
   Variable funcs' : functions TYPES.
   Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
@@ -420,7 +419,7 @@ Ltac build_path types instrs st uvars vars funcs k :=
       end
   end.
 
-Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
+(*Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
   Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
   evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
   True.
@@ -440,7 +439,7 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
         assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf))
   end.
   solve [ trivial ].
-Abort.
+Abort.*)
 
 Require Unfolder.
 Require Provers.
@@ -510,7 +509,7 @@ Record AllAlgos_correct
     | None => True
     | Some M => 
       @MEVAL.MemEvaluator_correct _ BedrockCoreEnv.pc BedrockCoreEnv.st M funcs preds
-      (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) (tvType 0) (tvType 0) 
+      (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) tvWord tvWord 
       (@IL_mem_satisfies types) (@IL_ReadWord types) (@IL_WriteWord types)
   end
 }.
@@ -552,10 +551,10 @@ Definition EnvOf : TypedPackage -> PACK.TypeEnv := Env.
 
 Section unfolder_learnhook.
   Variable types : list type.
-  Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
+  Variable hints : UNF.hintsPayload (repr bedrock_types_r types) tvWord (tvType 0).
 
   Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
-    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
+    (SymState (repr bedrock_types_r types) tvWord (tvType 0)) :=
     fun prover st facts => 
       match SymMem st with
         | Some m =>
@@ -577,7 +576,7 @@ Section unfolder_learnhook.
       end.
 
   Variable funcs : functions (repr bedrock_types_r types).
-  Variable preds : SEP.predicates (repr bedrock_types_r types) (tvType 0) (tvType 1).
+  Variable preds : SEP.predicates (repr bedrock_types_r types) tvWord (tvType 0).
   Hypothesis hints_correct : UNF.hintsSoundness funcs preds hints.
 
   Theorem unfolderLearnHook_correct 
@@ -649,11 +648,10 @@ Section apply_stream_correctness.
   Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
   Local Notation "'pcT'" := BedrockCoreEnv.pc.
-  Local Notation "'tvWord'" := (tvType 0).
   Local Notation "'stT'" := BedrockCoreEnv.st.
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'tvState'" := (tvType 1).
+  Local Notation "'tvTest'" := (tvType 2).
+  Local Notation "'tvReg'" := (tvType 3).
 
   Variable funcs' : functions TYPES.
   Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
@@ -869,8 +867,8 @@ Ltac sym_eval isConst ext simplifier :=
                   let typesV := fresh "types" in
                   pose (typesV := types_);
                   (** Check the types **)
-                  let pcT := constr:(tvType 0) in
-                  let stT := constr:(tvType 1) in
+                  let pcT := constr:tvWord in
+                  let stT := constr:(tvType 0) in
                   (** build the variables **)
                   let uvars := constr:(@nil (@sigT Expr.tvar (fun t : Expr.tvar => Expr.tvarD typesV t))) in
                   let vars := uvars in
@@ -1209,7 +1207,7 @@ Module EmptyPackage.
     MEVAL.Default.unfolder H ;
     sym_evaluator s1 s2 s3 H.
 
-  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
+  (*Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
     Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
     evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
@@ -1218,7 +1216,7 @@ Module EmptyPackage.
    intros.
    sym_eval ltac:(isConst) empty_package simplifier.
    intuition congruence. 
-  Abort.
+  Abort.*)
 
 End EmptyPackage.
 
@@ -1261,7 +1259,7 @@ Ltac build_prover_pack prover ret :=
        ; PACK.Funcs := fun ts => 
          nil_Repr (Default_signature (repr bedrock_types_r (repr (Prover.ProverTypes prover) ts)))
        ; PACK.Preds := fun ts =>
-         nil_Repr (SEP.Default_predicate (repr bedrock_types_r (repr (Prover.ProverTypes prover) ts)) (tvType 0) (tvType 1))
+         nil_Repr (SEP.Default_predicate (repr bedrock_types_r (repr (Prover.ProverTypes prover) ts)) tvWord (tvType 0))
        |} 
     in
     let algos ts :=
@@ -1282,9 +1280,9 @@ Ltac build_prover_pack prover ret :=
   let res := eval simpl in res in
   ret res.
 
-Goal TypedPackage.
+(*Goal TypedPackage.
   build_prover_pack Provers.TransitivityProver ltac:(fun x => refine x).
-Defined.
+Defined.*)
 
 Ltac build_mem_pack mem ret :=
   match type of mem with
@@ -1317,7 +1315,7 @@ Definition min_types_r : Repr type :=
    ; default := default bedrock_types_r
    |}.
 
-Goal TypedPackage.
+(*Goal TypedPackage.
   pose (mem := 
     {| MEVAL.MemEvalTypes := nil_Repr EmptySet_type
      ; MEVAL.MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
@@ -1327,7 +1325,7 @@ Goal TypedPackage.
        @MEVAL.Default.MemEvaluator_default_correct _ _ _ _ _ _ _ _ _ _ _
      |} : @MEVAL.MemEvaluatorPackage min_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord).
   build_mem_pack mem ltac:(fun x => refine x).
-Defined.
+Defined.*)
 
 (** builds a [TypedPackage] from the arguments
  ** - [hints] is a list of separation logic hints
@@ -1362,10 +1360,10 @@ Definition bedrock_env : PACK.TypeEnv :=
    ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
   |}.
 
-Goal TypedPackage.
+(*Goal TypedPackage.
   PACKAGED.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) bedrock_env tt tt ltac:(fun v => 
     build_hints_pack v ltac:(fun x => refine x)).
-Defined.
+Defined.*)
 
 
 (** given to [TypedPackage]s, combines them and passes the combined [TypedPackage]
@@ -1471,11 +1469,11 @@ Ltac opaque_pack pack :=
       refine (@Build_TypedPackage env algos _); abstract (exact pf)
   end.
 
-Goal TypedPackage.
+(*Goal TypedPackage.
   build_prover_pack Provers.TransitivityProver ltac:(fun x => 
     build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
     glue_pack x y ltac:(opaque_pack))).
-Qed.
+Qed.*)
 
 (*
 Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
