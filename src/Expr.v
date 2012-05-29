@@ -5,13 +5,24 @@ Require Import Bool Folds.
 
 Set Implicit Arguments.
 
+(** The reification mechanism use instances of this type-class to
+decide how to reify the types *)
+Module ReificationHint.
+  Class Pkg (T : Type) := mk_Pkg
+    {
+      Eqb : forall (x y : T), bool;
+      Eqb_correct : forall x y, Eqb x y = true -> x = y
+    }. 
+End ReificationHint. 
+
 Section env.
   (** Syntax **)
   Record type := Typ {
     Impl : Type;
-    Eq : forall x y : Impl, option (x = y)
+    Eqb : forall x y : Impl, bool;
+    Eqb_correct : forall x y, Eqb x y = true -> x = y
   }.
-
+  
   Definition Impl_ (o : option type) : Type :=
     match o return Type with
       | None => Empty_set
@@ -34,12 +45,20 @@ Section env.
 
   Definition EmptySet_type : type :=
   {| Impl := Empty_set 
-   ; Eq := fun x _ => match x with end
+   ; Eqb := fun x _ => match x with end
+   ; Eqb_correct := fun x _ _ => match x with end                     
    |}.
+  
+  Definition Prop_type : type. 
+  refine ({| Impl := Prop
+       ; Eqb := fun _ _ => false
+       ; Eqb_correct := _
+   |}). abstract (discriminate). 
+  Defined. 
 
   Definition typeFor (t : tvar) : type :=
     match t with
-      | tvProp => {| Impl := Prop ; Eq := fun _ _ => None |}
+      | tvProp => Prop_type
       | tvType t => 
         match nth_error types t with
           | None => EmptySet_type
@@ -47,22 +66,27 @@ Section env.
         end
     end.
 
-  Definition tvar_val_sdec (t : tvar) : forall (x y : tvarD t), option (x = y) :=
-    match t as t return forall (x y : tvarD t), option (x = y) with
-      | tvProp => fun _ _ => None
+  Definition tvar_val_seqb (t : tvar) : forall (x y : tvarD t), bool :=
+    match t with 
+      | tvProp => fun _ _ => false
       | tvType t => 
         match nth_error types t as k return forall x y : match k with 
                                                            | None => Empty_set
                                                            | Some t => Impl t
-                                                         end, option (x = y) with
+                                                         end, bool with
           | None => fun x _ => match x with end
-          | Some t => fun x y => match Eq t x y with
-                                   | None => None
-                                   | Some pf => Some pf
-                                 end
+          | Some t => fun x y =>  Eqb t x y 
         end
-
     end.
+
+  Lemma tvar_val_seqb_correct t x y : tvar_val_seqb t x y = true -> x = y.
+  Proof. 
+    revert x y. destruct t; simpl.   
+    discriminate. 
+    destruct (nth_error types n); simpl. 
+    refine (fun x y H => Eqb_correct _ x y H). 
+    intros []. 
+  Defined. 
 
   Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
@@ -136,11 +160,25 @@ Section env.
     Defined.
   End expr_ind.
 
+ 
   Global Instance EqDec_tvar : EqDec _ (@eq tvar).
    red. change (forall x y : tvar, {x = y} + {x <> y}).
     decide equality. eapply Peano_dec.eq_nat_dec.
   Defined.
+  
+  Definition tvar_seqb (x y : tvar) : bool :=
+    match x, y with
+        | tvProp , tvProp => true
+        | tvType x , tvType y => if Peano_dec.eq_nat_dec x y then true else false
+        | _,_ => false
+    end.
 
+  Lemma tvar_seqb_correct (x y : tvar) : tvar_seqb x y = true -> x = y.
+  Proof. 
+    revert x y. intros [|x] [|y]; simpl; try (reflexivity|| discriminate).
+    destruct (Peano_dec.eq_nat_dec); simpl; try (subst; reflexivity|| discriminate). 
+  Defined. 
+  
   Definition env : Type := list (sigT tvarD).
 
   Definition env_empty : env := nil.
@@ -614,101 +652,68 @@ Qed.
     congruence.
   Qed.
 
-  Definition get_Eq (t : tvar) : forall x y : tvarD t, option (x = y) :=
-    match t as t return forall x y : tvarD t, option (x = y) with
-      | tvProp => fun _ _ => None
+  Definition get_Eq (t : tvar) : forall x y : tvarD t, bool :=
+    match t as t return forall x y : tvarD t, bool with
+      | tvProp => fun _ _ => false
       | tvType t => 
         match nth_error types t as k 
           return forall x y : match k with
                                 | Some t => Impl t
                                 | None => Empty_set
-                              end, option (x = y)
+                              end, bool
           with
           | None => fun x _ => match x with end
-          | Some t => Eq t
+          | Some t => Eqb t
         end 
     end.
 
-  Fixpoint expr_seq_dec (a b : expr) : option (a = b) :=
-    match a as a, b as b return option (a = b) with 
-      | Const t c , Const t' c' =>
-        match t as t , t' as t' return forall (c : tvarD t) (c' : tvarD t'), option (Const t c = Const t' c') with
-          | tvType t , tvType t' =>
-            match equiv_dec t t' with
-              | left pf => 
-                match pf in _ = t' return forall (x : tvarD (tvType t)) (y : tvarD (tvType t')), 
-                  option (Const (tvType t) x = Const (tvType t') y)
-                  with
-                  | refl_equal => fun x y =>
-                    match tvar_val_sdec _ x y with
-                      | None => None
-                      | Some pf => Some (match pf in _ = z return Const (tvType t) x = Const (tvType t) z with
-                                           | refl_equal => refl_equal
-                                         end)  
-                    end
-                end 
-              | right _ => fun _ _ => None
-            end
-          | _ , _ => fun _ _ => None
-        end c c'
+  Definition const_seqb  t t' (c : tvarD t) (c' : tvarD t'): bool. 
+  case_eq (tvar_seqb t t'). 
+  intros. 
+  apply tvar_seqb_correct in H. subst. 
+  apply (tvar_val_seqb _ c c'). 
+  intros _; apply false. 
+  Defined. 
+
+  Fixpoint expr_seq_dec (a b : expr) : bool :=
+          match a,b  with 
+      | Const t c , Const t' c' =>      
+          const_seqb t t' c c'
       | Var x , Var y => 
-        match Peano_dec.eq_nat_dec x y with 
-          | left pf => Some match pf in _ = t return Var x = Var t with
-                              | refl_equal => refl_equal
-                            end
-          | right _ => None
-        end
+          EqNat.beq_nat x y 
       | UVar x , UVar y => 
-        match Peano_dec.eq_nat_dec x y with 
-          | left pf => Some match pf in _ = t return UVar x = UVar t with
-                              | refl_equal => refl_equal
-                            end
-          | right _ => None
-        end
+          EqNat.beq_nat x y 
       | Func x xs , Func y ys =>
         match Peano_dec.eq_nat_dec x y with
           | left pf =>
-            match (fix seq_dec' a b : option (a = b) :=
-              match a as a, b as b return option (a = b) with
-                | nil , nil => Some (refl_equal _)
-                | x :: xs , y :: ys => 
-                  match expr_seq_dec x y with
-                    | None => None
-                    | Some pf => 
-                      match seq_dec' xs ys with
-                        | None => None
-                        | Some pf' => 
-                          match pf in _ = t , pf' in _ = t' return option (x :: xs = t :: t') with
-                            | refl_equal , refl_equal => Some (refl_equal _)
-                          end
-                      end
-                  end
-                | _ , _ => None
-              end) xs ys with
-              | None => None
-              | Some pf' => Some (match pf in _ = t, pf' in _ = t' return Func x xs = Func t t' with
-                                    | refl_equal , refl_equal => refl_equal
-                                  end)
-            end              
-          | right _ => None
+              (fix seq_dec' a b : bool :=
+                     match a, b with  
+                       | nil , nil => true
+                       | x :: xs , y :: ys => 
+                           if  expr_seq_dec x y then 
+                             seq_dec' xs ys                             
+                           else false
+                       | _ , _ => false
+              end) xs ys     
+          | right _ => false
         end
       | Equal t1 e1 f1 , Equal t2 e2 f2 =>
-        match equiv_dec t1 t2, expr_seq_dec e1 e2, expr_seq_dec f1 f2 with
-          | left pf1, Some pf2, Some pf3 => Some (expr_seq_dec_Equal pf1 pf2 pf3)
-          | _, _, _ => None
-        end
+          (tvar_seqb t1 t2) && expr_seq_dec e1 e2 && expr_seq_dec f1 f2
       | Not e1 , Not e2 =>
-        match expr_seq_dec e1 e2 with
-          | Some pf => Some (expr_seq_dec_Not pf)
-          | _ => None
-        end
-      | _ , _ => None
+        expr_seq_dec e1 e2 
+      | _ , _ => false
     end.
+  
+  Lemma expr_seq_dec_correct (a b : expr) :  expr_seq_dec a b = true -> a = b. 
+  Proof. 
+  Admitted. 
 
+  (* This is used by the tactic build_default_type *)
   Global Instance SemiDec_expr : SemiDec expr.
-    let v := eval cbv delta [ expr_seq_dec ] in expr_seq_dec in
-    constructor; exact v.
-  Defined.
+  constructor. intros a b. case_eq (expr_seq_dec a b).
+  intros H; refine (Some (expr_seq_dec_correct _ _ H)). 
+  intros _; apply None. 
+  Defined. 
 
   (** lift the "real" variables in the range [a,...)
    ** to the range [a+b,...)
@@ -1091,7 +1096,7 @@ Ltac lift_signatures fs nt :=
     lift_signature sig nt 
   in
   map_tac (signature nt) f fs.
-
+(*
 Goal True.
   refine (
     let ts := {| Impl := nat ; Eq := fun _ _ => None |} :: nil in
@@ -1111,11 +1116,35 @@ Goal True.
       pose (fs' := r)
   end.
 Abort.      
- 
+*) 
+
+Definition default_type (T : Type) : type. 
+Proof. 
+  refine ({| Impl := T
+             ; Eqb := fun _ _ => false
+             ; Eqb_correct := _
+          |}). abstract (discriminate). 
+Defined. 
+
+(* TODO: remove this type-class... *)
+Global Instance SemiDec_nat : SemiDec nat. 
+constructor. intros.
+destruct (Peano_dec.eq_nat_dec a b). refine (Some e). refine (None). 
+Defined. 
+      
+Definition type_of_ReificationHint T : ReificationHint.Pkg T -> type. 
+intros [Eqb EqbH]; apply (@Typ T Eqb EqbH). 
+Defined. 
+
+Global Instance ReificationHintNat : ReificationHint.Pkg nat :=
+           ReificationHint.mk_Pkg EqNat.beq_nat EqNat.beq_nat_true. 
+
 Ltac build_default_type T := 
   match goal with
-    | [ |- _ ] => constr:(@Typ T (@seq_dec T _))
-    | [ |- _ ] => constr:({| Impl := T ; Eq := fun _ _ : T => None |})
+    | [ |- _ ] => let C := constr:(_ : ReificationHint.Pkg T) in 
+                 let t := constr:(type_of_ReificationHint C) in 
+                   t
+    | [ |- _ ] => constr:(default_type T)
   end.
 
 Ltac extend_type T types :=

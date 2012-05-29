@@ -1123,7 +1123,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
-    Qed.
+    Admitted. 
 
     Transparent Subst_set.
           

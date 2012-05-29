@@ -100,6 +100,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.bedrock_types 
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
+         ILEnv.bedrock_type_W
+         ILEnv.bedrock_type_setting_X_state
+         ILEnv.bedrock_type_setting
+         ILEnv.bedrock_type_test
+         ILEnv.bedrock_type_reg
              
          (** Env **)
          Env.repr_combine Env.default Env.footprint Env.repr'
@@ -107,22 +112,27 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Env.repr_combine Env.footprint Env.default Env.repr
 
          (** Expr **)
-         Expr.Range Expr.Domain Expr.Denotation Expr.Impl Expr.Eq
+         Expr.Range Expr.Domain Expr.Denotation Expr.Impl Expr.Eqb
          Expr.exists_subst Expr.forallEach Expr.existsEach
          Expr.AllProvable Expr.AllProvable_gen
          Expr.AllProvable_and Expr.AllProvable_impl
          Expr.tvarD Expr.exprD Expr.applyD Expr.Impl_ Expr.EqDec_tvar
          Expr.liftExpr Expr.lookupAs
-         Expr.Provable Expr.tvar_val_sdec
+         Expr.Provable Expr.tvar_val_seqb
          Expr.Provable Expr.tvarD
          Expr.tvar_rec Expr.tvar_rect
          Expr.Default_signature Expr.EmptySet_type
-         Expr.expr_seq_dec Expr.SemiDec_expr
-         Expr.tvar_val_sdec Expr.Eq Expr.liftExpr Expr.exprSubstU
+         Expr.expr_seq_dec 
+         Expr.Eqb Expr.liftExpr Expr.exprSubstU
          Expr.typeof
          Expr.expr_ind
-         Expr.SemiDec_expr 
          Expr.get_Eq
+         Expr.const_seqb
+         Expr.tvar_seqb
+         Expr.tvar_val_seqb_correct
+         Expr.tvar_seqb_correct
+         Expr.ReifyExpr.default_type
+
 
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
@@ -314,7 +324,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
-         eq_sym
+         eq_sym eq_trans
+         EqNat.beq_nat  
        ]
   | _ =>
     cbv beta iota zeta
@@ -365,24 +376,29 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.exists_subst Expr.forallEach Expr.existsEach
          Expr.AllProvable_and Expr.AllProvable_impl Expr.AllProvable_gen
          Expr.tvarD Expr.exprD Expr.applyD Expr.Impl_ Expr.EqDec_tvar
-         Expr.tvar_rec Expr.tvar_rect Expr.liftExpr Expr.lookupAs Expr.Eq
-         Expr.Provable Expr.tvar_val_sdec
+         Expr.tvar_rec Expr.tvar_rect Expr.liftExpr Expr.lookupAs Expr.Eqb
+         Expr.Provable Expr.tvar_val_seqb
          Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation
          Expr.lookupAs Expr.AllProvable Expr.AllProvable_gen
          Expr.Provable Expr.tvarD
          Expr.expr_seq_dec
          Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation
          Expr.lookupAs 
-         Expr.tvarD Expr.Eq
+         Expr.tvarD Expr.Eqb
          Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
          Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
-         Expr.expr_seq_dec Expr.SemiDec_expr Expr.expr_seq_dec
-         Expr.tvar_val_sdec Expr.Eq Expr.liftExpr Expr.exprSubstU
+         Expr.expr_seq_dec  Expr.expr_seq_dec
+         Expr.tvar_val_seqb  Expr.liftExpr Expr.exprSubstU
          Expr.typeof
          Expr.Impl_ Expr.exprD
          Expr.expr_ind
-         Expr.SemiDec_expr Expr.expr_seq_dec
+         Expr.expr_seq_dec
          Expr.get_Eq
+         Expr.const_seqb
+         Expr.tvar_seqb
+         Expr.tvar_val_seqb_correct
+         Expr.tvar_seqb_correct
+         Expr.ReifyExpr.default_type
 
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
@@ -577,7 +593,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
-         eq_sym
+         eq_sym eq_trans
+         EqNat.beq_nat 
        ] in H
   end;
   fold plus; fold minus;

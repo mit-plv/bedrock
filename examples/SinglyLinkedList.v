@@ -158,6 +158,8 @@ Ltac finish := repeat match goal with
                       end; try rewrite <- rev_alt;
                congruence || W_eq || reflexivity || tauto || eauto.
 
+Ltac t :=  abstract (sep hints_sll; finish).
+ 
 Theorem sllMOk : moduleOk sllM.
-  vcgen; abstract (sep hints_sll; finish).
+  vcgen; t. 
 Qed.
