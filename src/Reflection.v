@@ -108,7 +108,10 @@ Ltac consider f :=
        | |- _ => idtac
       end in 
     ((let c := constr:(_ : Reflect f _) in 
-    case c) ); clean. 
+      case c; 
+      let H := fresh in 
+      intros H; try rewrite H; revert H
+    ) ); clean. 
 
 (**  Some tests *)
 Section test. 
