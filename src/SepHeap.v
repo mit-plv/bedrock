@@ -205,7 +205,6 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         | Expr.Func f xs => 
           Expr.Func f (map (substV vs) xs)
         | Equal t e1 e2 => Equal t (substV vs e1) (substV vs e2)
-        | Less e1 e2 => Less (substV vs e1) (substV vs e2)
         | Not e1 => Not (substV vs e1)
       end.
 

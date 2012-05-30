@@ -50,7 +50,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         | UVar _ => e
         | Expr.Func f es => Expr.Func f (map (substExpr firstVar firstFree s) es)
         | Equal t e1 e2 => Equal t (substExpr firstVar firstFree s e1) (substExpr firstVar firstFree s e2)
-        | Less e1 e2 => Less (substExpr firstVar firstFree s e1) (substExpr firstVar firstFree s e2)
         | Not e1 => Not (substExpr firstVar firstFree s e1)
       end.
 
@@ -74,7 +73,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         | UVar _ => e
         | Expr.Func f es => Expr.Func f (map (substExprBw offset firstFree s) es)
         | Equal t e1 e2 => Equal t (substExprBw offset firstFree s e1) (substExprBw offset firstFree s e2)
-        | Less e1 e2 => Less (substExprBw offset firstFree s e1) (substExprBw offset firstFree s e2)
         | Not e1 => Not (substExprBw offset firstFree s e1)
       end.
 
@@ -90,7 +88,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         | UVar _ => e
         | Expr.Func f es => Expr.Func f (map (substExprBw' offset firstFree s) es)
         | Equal t e1 e2 => Equal t (substExprBw' offset firstFree s e1) (substExprBw' offset firstFree s e2)
-        | Less e1 e2 => Less (substExprBw' offset firstFree s e1) (substExprBw' offset firstFree s e2)
         | Not e1 => Not (substExprBw' offset firstFree s e1)
       end.
 
@@ -649,10 +646,6 @@ Ltac lift_expr_over_repr e rp :=
       let l := lift_expr_over_repr l rp in
       let r := lift_expr_over_repr r rp in
       constr:(fun ts => @Expr.Equal (repr rp ts) t (l ts) (r ts))
-    | Expr.Less ?l ?r =>
-      let l := lift_expr_over_repr l rp in
-      let r := lift_expr_over_repr r rp in
-      constr:(fun ts => @Expr.Less (repr rp ts) (l ts) (r ts))
     | Expr.Not ?e1 =>
       let e1 := lift_expr_over_repr e1 rp in
       constr:(fun ts => @Expr.Not (repr rp ts) (e1 ts))

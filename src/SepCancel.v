@@ -139,7 +139,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         | UVar _ => 1
         | Not l => expr_count_meta l
         | Equal _ l r => expr_count_meta l + expr_count_meta r
-        | Less l r => expr_count_meta l + expr_count_meta r
         | Expr.Func _ args =>
           fold_left plus (map expr_count_meta args) 0
       end.

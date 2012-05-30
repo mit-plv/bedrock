@@ -580,7 +580,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_sym
        ] in H
   end;
-  fold plus; fold minus;
+  fold plus in *; fold minus in *;
     repeat match goal with
              | [ |- context[list ?A] ] =>
                progress change (fix length (l : list A) : nat :=

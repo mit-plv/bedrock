@@ -1,6 +1,6 @@
 Require Import List DepList.
 Require Import EqdepClass.
-Require Import IL Word Memory.
+Require Import IL Word.
 Require Import Bool Folds.
 
 Set Implicit Arguments.
@@ -22,14 +22,12 @@ Section env.
 
   (** this type requires decidable equality **)
   Inductive tvar : Type :=
-  | tvProp
-  | tvWord
+  | tvProp 
   | tvType : nat -> tvar.
 
   Definition tvarD (x : tvar) := 
     match x return Type with
       | tvProp => Prop
-      | tvWord => W
       | tvType x =>
         Impl_ (nth_error types x)
     end.
@@ -42,7 +40,6 @@ Section env.
   Definition typeFor (t : tvar) : type :=
     match t with
       | tvProp => {| Impl := Prop ; Eq := fun _ _ => None |}
-      | tvWord => {| Impl := W ; Eq := fun _ _ => None |}
       | tvType t => 
         match nth_error types t with
           | None => EmptySet_type
@@ -53,7 +50,6 @@ Section env.
   Definition tvar_val_sdec (t : tvar) : forall (x y : tvarD t), option (x = y) :=
     match t as t return forall (x y : tvarD t), option (x = y) with
       | tvProp => fun _ _ => None
-      | tvWord => fun _ _ => None
       | tvType t => 
         match nth_error types t as k return forall x y : match k with 
                                                            | None => Empty_set
@@ -104,7 +100,6 @@ Section env.
   | Var : var -> expr
   | Func : forall f : func, list expr -> expr
   | Equal : tvar -> expr -> expr -> expr
-  | Less : expr -> expr -> expr
   | Not : expr -> expr
   | UVar : uvar -> expr.
 
@@ -121,7 +116,6 @@ Section env.
       (Hu : forall x : uvar, P (UVar x))
       (Hf : forall (f : func) (l : list expr), Forall P l -> P (Func f l))
       (He : forall t e1 e2, P e1 -> P e2 -> P (Equal t e1 e2))
-      (Hl : forall e1 e2, P e1 -> P e2 -> P (Less e1 e2))
       (Hn : forall e, P e -> P (Not e)).
 
     Theorem expr_ind : forall e : expr, P e.
@@ -137,7 +131,6 @@ Section env.
               | l :: ls => Forall_cons _ (recur l) (prove ls)
             end) xs)
           | Equal tv e1 e2 => He tv (recur e1) (recur e2)
-          | Less e1 e2 => Hl (recur e1) (recur e2)
           | Not e => Hn (recur e)
         end).
     Defined.
@@ -232,14 +225,6 @@ Section env.
                       end
           | _ => None
         end
-      | Less e1 e2 =>
-        match t with
-          | tvProp => match exprD e1 tvWord, exprD e2 tvWord with
-                        | Some v1, Some v2 => Some (v1 < v2)
-                        | _, _ => None
-                      end
-          | _ => None
-        end
       | Not e1 => match t with
                     | tvProp =>
                       match exprD e1 tvProp with
@@ -297,7 +282,6 @@ Section env.
                         | Some r => Some (TRange r)
                       end
         | Equal _ _ _
-        | Less _ _
         | Not _ => Some tvProp
       end.
 
@@ -350,11 +334,6 @@ Section env.
         | Equal t' e1 e2 => 
           match t with
             | tvProp => is_well_typed e1 t' && is_well_typed e2 t'
-            | _ => false
-          end
-        | Less e1 e2 => 
-          match t with
-            | tvProp => is_well_typed e1 tvWord && is_well_typed e2 tvWord
             | _ => false
           end
         | Not e1 => match t with
@@ -432,7 +411,7 @@ Section env.
                                 | left _ => _ | right _ => _ 
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : context [ match ?X with
-                                | tvProp => _ | tvWord => _ | tvType _ => _ 
+                                | tvProp => _ | tvType _ => _ 
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
             | [ H : exists x, _ |- _ ] => destruct H
@@ -453,7 +432,7 @@ repeat (simpl in *; try congruence;
                                 | left _ => _ | right _ => _ 
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : context [ match ?X with
-                                | tvProp => _ | tvWord => _ | tvType _ => _ 
+                                | tvProp => _ | tvType _ => _ 
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : match ?pf with refl_equal => _ end = _ |- _ ] => rewrite (UIP_refl pf) in H
             | [ H : exists x, _ |- _ ] => destruct H
@@ -494,12 +473,6 @@ Proof.
 Qed.
 eapply Forall2_nth_error_L_None in WT_funcs; try eassumption.
 rewrite WT_funcs in *. congruence.
-
-specialize (IHe1 t); specialize (IHe2 t).
-destruct (exprD e1 t); try congruence; solve [ destruct t0; auto ].
-destruct (exprD e1 tvWord); try congruence; solve [ destruct t; auto ].
-destruct (exprD e tvProp); try congruence; solve [ destruct t; auto ].
-
 Qed.
 
   
@@ -608,10 +581,8 @@ Qed.
       apply H in H1. destruct H1. rewrite H1. eapply IHForall; auto. }
     { apply andb_true_iff in H. intuition. apply IHe1 in H0. apply IHe2 in H1.
       destruct H0. destruct H1. rewrite H. rewrite H0. eauto. }
-    { apply andb_true_iff in H. intuition. apply IHe1 in H0. apply IHe2 in H1.
-      destruct H0. destruct H1. rewrite H. rewrite H0. eauto. }
     { apply IHe in H. destruct H; rewrite H; eauto. }
-  Qed.
+  Qed.    
 
   Theorem is_well_typed_typeof : forall e t, 
     is_well_typed e t = true -> typeof e = Some t.
@@ -646,7 +617,6 @@ Qed.
   Definition get_Eq (t : tvar) : forall x y : tvarD t, option (x = y) :=
     match t as t return forall x y : tvarD t, option (x = y) with
       | tvProp => fun _ _ => None
-      | tvWord => fun _ _ => None
       | tvType t => 
         match nth_error types t as k 
           return forall x y : match k with
@@ -754,7 +724,6 @@ Qed.
       | Func f xs => 
         Func f (map (liftExpr a b) xs)
       | Equal t e1 e2 => Equal t (liftExpr a b e1) (liftExpr a b e2)
-      | Less e1 e2 => Less (liftExpr a b e1) (liftExpr a b e2)
       | Not e1 => Not (liftExpr a b e1)
     end.
 
@@ -771,7 +740,6 @@ Qed.
       | Func f xs => 
         Func f (map (liftExprU a b) xs)
       | Equal t e1 e2 => Equal t (liftExprU a b e1) (liftExprU a b e2)
-      | Less e1 e2 => Less (liftExprU a b e1) (liftExprU a b e2)
       | Not e1 => Not (liftExprU a b e1)
     end.
 
@@ -791,7 +759,6 @@ Qed.
         | UVar x => UVar x
         | Func f args => Func f (map (exprSubstU a b c) args)
         | Equal t e1 e2 => Equal t (exprSubstU a b c e1) (exprSubstU a b c e2)
-        | Less e1 e2 => Less (exprSubstU a b c e1) (exprSubstU a b c e2)
         | Not e1 => Not (exprSubstU a b c e1)
       end.
 
@@ -809,7 +776,6 @@ Qed.
     destruct (Compare_dec.lt_dec x a); f_equal; omega.
     f_equal. generalize dependent H. clear. induction 1. auto.
     simpl; f_equal; auto.
-    rewrite IHb1; rewrite IHb2. reflexivity.
     rewrite IHb1; rewrite IHb2. reflexivity.
     f_equal. auto.
   Qed.
@@ -1009,16 +975,6 @@ Proof.
   revert H; case_eq (nth_error vars x); intros.
   eapply nth_error_app_success; auto.
   congruence.
-
-  destruct t; auto.
-  specialize (IHe1 tvWord).
-  specialize (IHe2 tvWord).
-  destruct (exprD fs uvars vars e1 tvWord); try congruence.
-  erewrite IHe1 by reflexivity.
-  destruct (exprD fs uvars vars e2 tvWord); try congruence.
-  erewrite IHe2 by reflexivity.
-  auto.
-
   destruct t; try congruence. 
   revert H; case_eq (exprD fs uvars vars e tvProp); intros; try congruence.
   erewrite IHe; eauto.
@@ -1055,8 +1011,6 @@ Proof.
   auto.
 
   destruct t0; auto. rewrite IHe1. rewrite IHe2. auto.
-
-  destruct t; auto; rewrite IHe1; rewrite IHe2; auto.
 
   destruct t; auto. rewrite IHe. reflexivity.
 Qed.
@@ -1357,8 +1311,6 @@ Ltac typesIndex x types :=
 Ltac reflectType types t :=
   match t with
     | Prop => constr:(tvProp)
-    | W => constr:(tvWord)
-    | word 32 => constr:(tvWord)
     | _ =>
       let i := typesIndex t types in
       let r := constr:(tvType i) in
@@ -1515,15 +1467,6 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
           reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
             reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
               k uvars funcs (Equal T e1 e2)))
-
-      | ?e1 < ?e2 =>
-        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
-          reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
-            k uvars funcs (Less e1 e2)))
-      | fun x => @?e1 x < @?e2 x =>
-        reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
-          reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
-            k uvars funcs (Less e1 e2)))
 
       | not ?e1 =>
         reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
