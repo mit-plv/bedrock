@@ -59,7 +59,7 @@ Ltac sep_firstorder := sep_easy;
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
-         end; sep_easy.
+         end; sep_easy; autorewrite with sepFormula.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with

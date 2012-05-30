@@ -21,7 +21,7 @@ Theorem allocated_extensional : forall base offset len, HProp_extensional (alloc
   destruct len; reflexivity.
 Qed.
 
-Hint Immediate allocated_extensional.
+Local Hint Immediate allocated_extensional.
 
 Lemma allocated_shift_base' : forall base base' len offset offset',
   base ^+ $(offset) = base' ^+ $(offset')
@@ -72,7 +72,7 @@ Theorem allocated_shift_base : forall base base' len len' offset offset',
   intros; subst; apply allocated_shift_base'; auto.
 Qed.
 
-Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
+Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
 
 Theorem allocated_split : forall base len' len offset,
   (len' <= len)%nat
@@ -84,7 +84,7 @@ Theorem allocated_split : forall base len' len offset,
   assert (len' <= m)%nat by omega.
   intuition.
   match goal with
-    | [ _ : _ ===> _ * allocated _ ?X _ |- himp _ _ (SEP.ST.star _ (allocated _ ?Y _)) ] =>
+    | [ _ : _ ===> _ * allocated _ ?X _ |- himp _ _ (_ * allocated _ ?Y _)%Sep ] =>
       replace Y with X by omega
   end.
   auto.
@@ -168,21 +168,6 @@ Import FreeList.
 Export FreeList.
 Hint Immediate freeList_extensional mallocHeap_extensional.
 
-Lemma wordToNat_natToWord_idempotent : forall sz n,
-  (N.of_nat n < Npow2 sz)%N
-  -> wordToNat (natToWord sz n) = n.
-  intros.
-  destruct (wordToNat_natToWord sz n); intuition.
-  destruct x.
-  simpl in *; omega.
-  simpl in *.
-  apply Nlt_out in H.
-  autorewrite with N in *.
-  rewrite Npow2_nat in *.
-  generalize dependent (x * pow2 sz).
-  intros; omega.
-Qed.
-
 Lemma wplus_lt_lift : forall sz n m o : nat,
   (N.of_nat (n + m) < Npow2 sz)%N
   -> (N.of_nat o < Npow2 sz)%N
@@ -197,10 +182,6 @@ Lemma wplus_lt_lift : forall sz n m o : nat,
   nomega.
 Qed.
 
-Lemma goodSize_plus_l : forall n m sz, (N.of_nat (n + m) < sz)%N -> (N.of_nat n < sz)%N.
-  unfold goodSize; intros; nomega.
-Qed.
-
 Lemma malloc_split' : forall cur full init,
   (init < full)%nat
   -> cur =?> full ===> cur =?> init * allocated cur (init * 4) (full - init).
@@ -210,78 +191,59 @@ Lemma malloc_split' : forall cur full init,
   apply (@allocated_split cur init full 0 Hle).
 Qed.
 
-Lemma Himp_trans : forall p q r,
-  p ===> q
-  -> q ===> r
-  -> p ===> r.
-  unfold Himp, himp; eauto using Imply_trans.
+Definition splitMe cur full (_ : nat) := (cur =?> full)%Sep.
+
+Local Hint Immediate goodSize_plus_l.
+Local Hint Resolve wplus_lt_lift.
+
+Lemma malloc_split'' : forall cur full init,
+  goodSize (init + 2)
+  -> goodSize (full + 2)
+  -> natToW init ^+ natToW 2 < natToW full
+  -> splitMe cur full init ===> cur =?> (full - init - 2) * allocated cur ((full - (init + 2)) * 4) (init + 2).
+  intros.
+  replace (full - init - 2) with (full - (init + 2)) by omega.
+  replace (allocated cur ((full - (init + 2)) * 4) (init + 2))
+    with (allocated cur ((full - (init + 2)) * 4) (full - (full - (init + 2)))).
+  apply malloc_split'; eauto.
+  apply wplus_lt_lift in H1.
+  omega.
+  auto.
+  eauto.
+  f_equal.
+  apply wplus_lt_lift in H1.
+  omega.
+  auto.
+  eauto.
 Qed.
 
-Lemma natToWord_times4 : forall n, natToW (n * 4) = natToW n ^* natToW 4.
-  intros.
-  replace (natToW n ^* natToW 4) with (natToW n ^+ (natToW n ^+ (natToW n ^+ (natToW n ^+ natToW 0)))).
+Lemma malloc_split''' : forall cur full init,
+  goodSize (init + 2)
+  -> goodSize (full + 2)
+  -> natToW init ^+ natToW 2 < natToW full
+  -> splitMe cur full init ===> cur =?> (full - init - 2) * (cur ^+ $ ((full - (init + 2)) * 4)%nat) =?> (init + 2).
+  intros; eapply Himp_trans.
+  apply malloc_split''; auto.
+  sepLemma.
+  apply allocated_shift_base; auto.
   autorewrite with sepFormula.
-  intros; rewrite mult_comm; simpl.
-  reflexivity.
+  repeat rewrite natToW_times4.
   W_eq.
 Qed.
 
-Hint Rewrite natToWord_times4 : sepFormula.
-
-Definition splitMe cur full (_ : nat) := (cur =?> full)%Sep.
-
-Section malloc_split.
-  Hint Immediate goodSize_plus_l.
-  Hint Resolve wplus_lt_lift.
-
-  Lemma malloc_split'' : forall cur full init,
-    goodSize (init + 2)
-    -> goodSize (full + 2)
-    -> natToW init ^+ natToW 2 < natToW full
-    -> splitMe cur full init ===> cur =?> (full - init - 2) * allocated cur ((full - (init + 2)) * 4) (init + 2).
-    intros.
-    replace (full - init - 2) with (full - (init + 2)) by omega.
-    replace (allocated cur ((full - (init + 2)) * 4) (init + 2))
-      with (allocated cur ((full - (init + 2)) * 4) (full - (full - (init + 2)))).
-    apply malloc_split'; eauto.
-    apply wplus_lt_lift in H1.
-    omega.
-    auto.
-    eauto.
-    f_equal.
-    apply wplus_lt_lift in H1.
-    omega.
-    auto.
-    eauto.
-  Qed.
-
-  Lemma malloc_split''' : forall cur full init,
-    goodSize (init + 2)
-    -> goodSize (full + 2)
-    -> natToW init ^+ natToW 2 < natToW full
-    -> splitMe cur full init ===> cur =?> (full - init - 2) * (cur ^+ $ ((full - (init + 2)) * 4)%nat) =?> (init + 2).
-    intros; eapply Himp_trans.
-    apply malloc_split''; auto.
-    sepLemma.
-    apply allocated_shift_base; auto.
-    autorewrite with sepFormula.
-    W_eq.
-  Qed.
-
-  Lemma malloc_split : forall cur full init,
-    goodSize (init + 2)
-    -> goodSize (full + 2)
-    -> natToW init ^+ natToW 2 < natToW full
-    -> splitMe cur full init ===> cur =?> (full - init - 2)
-    * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4)%nat) =*> v)
-    * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4) ^+ $4) =*> v)
-    * allocated (cur ^+ $ ((full - (init + 2)) * 4)) 8 init.
-    intros; eapply Himp_trans.
-    apply malloc_split'''; auto.
-    rewrite plus_comm; simpl.
-    sepLemma.
-  Qed.
-End malloc_split.
+Lemma malloc_split : forall cur full init,
+  goodSize (init + 2)
+  -> goodSize (full + 2)
+  -> natToW init ^+ natToW 2 < natToW full
+  -> splitMe cur full init ===> cur =?> (full - init - 2)
+  * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4)%nat) =*> v)
+  * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4) ^+ $4) =*> v)
+  * allocated (cur ^+ $ ((full - (init + 2)) * 4)) 8 init.
+  intros; eapply Himp_trans.
+  apply malloc_split'''; auto.
+  rewrite plus_comm; simpl.
+  sepLemma.
+Qed.
 
 Definition hints' : TacPackage.
   prepare1 (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
@@ -367,35 +329,27 @@ Lemma four_neq_zero : natToW 4 <> natToW 0.
   discriminate.
 Qed.
 
-Hint Extern 2 (@eq (word _) _ _) =>
+Local Hint Extern 2 (@eq (word _) _ _) =>
   match goal with
     | _ => W_eq
     | [ H : _ = _ |- _ ] => rewrite <- H; W_eq
   end.
 
-Hint Resolve natToW_inj.
-
-Lemma natToWord_minus : forall sz n m, (m <= n)%nat
-  -> natToWord sz (n - m) = natToWord _ n ^- natToWord _ m.
-Admitted.
-
-Lemma natToW_minus : forall n m, (m <= n)%nat
-  -> natToW (n - m) = natToW n ^- natToW m.
-  intros; apply natToWord_minus; auto.
-Qed.
+Local Hint Resolve natToW_inj.
 
 Lemma cancel8 : forall x y z,
   (z + 2 <= y)%nat
   -> x ^+ $8 ^+ $((y - (z + 2)) * 4) = x ^+ $4 ^* ($(y) ^- natToW z).
   intros.
   autorewrite with sepFormula.
+  rewrite natToW_times4.
   rewrite natToW_minus by auto.
   rewrite natToW_plus.
   unfold natToW.
   W_eq.
 Qed.
 
-Lemma goodSize_p2 : forall n,
+Lemma goodSize_plus2 : forall n,
   goodSize (n + 2)
   -> goodSize n.
   intros; eapply goodSize_plus_l; eauto.
@@ -407,61 +361,26 @@ Lemma goodSize_diff : forall x y z,
   intros; nomega.
 Qed.
 
-Hint Immediate goodSize_p2.
-Hint Extern 1 (goodSize (_ - _ - _ + _ )) => apply goodSize_diff.
+Local Hint Immediate goodSize_plus2.
+Local Hint Extern 1 (goodSize (_ - _ - _ + _ )) => apply goodSize_diff.
 
-Theorem mallocMOk : moduleOk mallocM.
-  vcgen.
-  Ltac t := abstract (pose four_neq_zero; sep hints; auto).
+Local Hint Extern 1 (_ <= _)%nat => match goal with
+                                      | [ H : _ < _ |- _ ] =>
+                                        apply wplus_lt_lift in H;
+                                          [ omega | solve [ eauto ] | solve [ eauto ] ]
+                                    end.
 
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
 
-  evaluate hints.
-  match goal with
-    | [ _ : natToW ?init ^+ natToW 2 < natToW ?full,
-        H : context[(?base =?> ?full)%Sep] |- _ ] =>
-      change (base =?> full)%Sep with (splitMe base full init) in H
-  end.
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  step hints.
-  auto.
-  rewrite cancel8.
-  step hints.
-  repeat rewrite natToW_minus.
-  step hints.
-  apply wplus_lt_lift in H32; auto.
-  omega.
-  eapply goodSize_plus_l; eauto.
-  apply wplus_lt_lift in H32; auto.
-  omega.
-  eauto.
-  eapply goodSize_plus_l; eauto.
-  apply wplus_lt_lift in H32; auto.
-  omega.
-  apply wplus_lt_lift in H32; auto.
-  eapply goodSize_plus_l; eauto.
-  eapply goodSize_plus_l; eauto.
+Section mallocOk.
+  Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
-  t.
-
-  (*vcgen; abstract (pose four_neq_zero; sep hints; auto).*)
-Qed.
+  Theorem mallocMOk : moduleOk mallocM.
+    vcgen; abstract solve [ pose four_neq_zero; sep hints; auto
+      | evaluate hints;
+        match goal with
+          | [ _ : natToW ?init ^+ natToW 2 < natToW ?full,
+            H : context[(?base =?> ?full)%Sep] |- _ ] =>
+          change (base =?> full)%Sep with (splitMe base full init) in H
+        end; sep hints ].
+  Qed.
+End mallocOk.

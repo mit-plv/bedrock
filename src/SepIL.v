@@ -1,5 +1,5 @@
-Require Import Eqdep_dec List.
-Require Import Word Memory PropX PropXTac IL DepList Heaps SepTheoryXIL.
+Require Import Arith NArith Eqdep_dec List.
+Require Import Nomega Word Memory PropX PropXTac IL DepList Heaps SepTheoryXIL.
 
 Set Implicit Arguments.
 
@@ -457,3 +457,35 @@ Lemma natToW_S : forall n, natToW (S n) = $1 ^+ natToW n.
 Qed.
 
 Hint Rewrite <- natToW_plus : sepFormula.
+
+Lemma natToW_minus : forall n m, (m <= n)%nat
+  -> natToW (n - m) = natToW n ^- natToW m.
+  intros; apply wplus_cancel with (natToW m).
+  rewrite <- natToWord_plus.
+  replace (n - m + m) with n by omega.
+  unfold natToW.
+  W_eq.
+Qed.
+
+Lemma natToW_times4 : forall n, natToW (n * 4) = natToW n ^* natToW 4.
+  intros.
+  replace (natToW n ^* natToW 4) with (natToW n ^+ (natToW n ^+ (natToW n ^+ (natToW n ^+ natToW 0)))).
+  autorewrite with sepFormula.
+  intros; rewrite mult_comm; simpl.
+  reflexivity.
+  W_eq.
+Qed.
+
+Lemma Himp_trans : forall p q r,
+  p ===> q
+  -> q ===> r
+  -> p ===> r.
+  unfold Himp, himp; eauto using Imply_trans.
+Qed.
+
+
+(** * [goodSize] *)
+
+Lemma goodSize_plus_l : forall n m sz, (N.of_nat (n + m) < sz)%N -> (N.of_nat n < sz)%N.
+  unfold goodSize; intros; nomega.
+Qed.
