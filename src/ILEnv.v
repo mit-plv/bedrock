@@ -63,7 +63,7 @@ Definition bedrock_type_reg : type :=
 
 Definition bedrock_types : list Expr.type :=
   bedrock_type_W ::
-  bedrock_type_setting_X_state         ::
+  bedrock_type_setting_X_state ::
   bedrock_type_setting ::
   bedrock_type_test ::
   bedrock_type_reg :: nil.

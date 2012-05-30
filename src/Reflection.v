@@ -116,15 +116,18 @@ Ltac consider f :=
 (**  Some tests *)
 Section test. 
   Require Import NPeano Bool.
+(*
   Instance Reflect_ltb x y : Reflect (ltb x y) (x < y). 
   Proof. 
   Admitted. 
+*)
 
   Goal forall x y z,  (ltb x y && ltb y z) = true ->
                  ltb x z = true. 
   intros x y z.
   consider (ltb x y && ltb y z).
-  Abort. 
+  consider (ltb x z); auto. intros. exfalso. apply H. destruct H0; etransitivity; eassumption.
+  Qed.
 
 End test.  
 
