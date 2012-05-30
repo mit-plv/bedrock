@@ -893,7 +893,10 @@ Ltac sym_eval isConst ext simplifier :=
                            | Logic.ex _ =>
                              destruct H as [ ? H ] ; destruct_exs H
                            | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
-                             destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
+                             destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ];
+                               repeat match goal with
+                                        | [ H' : _ /\ _ |- _ ] => destruct H'
+                                      end
                            | ?G =>
                              fail 100000 "bad result goal" G 
                          end

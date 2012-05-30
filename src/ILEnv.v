@@ -107,12 +107,17 @@ Section typed_ext.
      ; Denotation := _ |} :: 
     {| Domain := tvState :: tvReg :: nil
      ; Range := tvWord
-     ; Denotation := _ |} :: nil).
+     ; Denotation := _ |} ::
+    {| Domain := tvWord :: tvWord :: nil
+     ; Range := tvProp
+     ; Denotation := _ |} ::
+     nil).
   refine (@wplus 32).
   refine (@wminus 32).
   refine (@wmult 32).
   refine comparator.
   refine Regs.
+  refine (@wlt 32).
   Defined.
 
   Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')) :=
