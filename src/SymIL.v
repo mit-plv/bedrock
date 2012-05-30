@@ -316,6 +316,7 @@ Section Denotations.
           match t with
             | IL.Eq => Some (Expr.Equal tvWord l r)
             | IL.Ne => Some (Expr.Not (Expr.Equal tvWord l r))
+            | IL.Lt => Some (Expr.Func 5 (l :: r :: nil))
             | _ => Some (Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil))
           end
         | _ , _ => None

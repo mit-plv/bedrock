@@ -893,7 +893,10 @@ Ltac sym_eval isConst ext simplifier :=
                            | Logic.ex _ =>
                              destruct H as [ ? H ] ; destruct_exs H
                            | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
-                             destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ]
+                             destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ];
+                               repeat match goal with
+                                        | [ H' : _ /\ _ |- _ ] => destruct H'
+                                      end
                            | ?G =>
                              fail 100000 "bad result goal" G 
                          end
@@ -980,7 +983,14 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       SymMem SymRegs SymPures SymVars SymUVars
       SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join 
       SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
-      Expr.SemiDec_expr Expr.expr_seq_dec Expr.tvar_val_sdec Expr.Eq Expr.liftExpr
+      Expr.expr_seq_dec Expr.tvar_val_seqb Expr.Eqb Expr.liftExpr
+      Expr.const_seqb
+      ILEnv.bedrock_type_W
+      ILEnv.bedrock_type_setting_X_state
+      ILEnv.bedrock_type_setting
+      ILEnv.bedrock_type_test
+      ILEnv.bedrock_type_reg
+      Expr.ReifyExpr.default_type
 
       SH.sheap_liftVars
       app map nth_error value error fold_right hd hd_error tl tail rev
@@ -1012,7 +1022,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       SH.sheapD (* SEP.sepCancel *) (* symbolic evaluation doesn't need cancelation **)
       SH.star_SHeap (*SEP.unify_remove_all*)
       SepHeap.MM.mmap_join SH.liftSHeap SH.starred 
-      Expr.tvarD Expr.Eq
+      Expr.tvarD 
       
       SepHeap.FM.fold SepHeap.FM.find SepHeap.FM.add SepHeap.FM.empty 
       bedrock_types 
