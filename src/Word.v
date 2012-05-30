@@ -1,6 +1,7 @@
 (** Fixed precision machine words *)
 
 Require Import Arith Div2 NArith Bool Omega.
+Require Import Nomega.
 
 Set Implicit Arguments.
 
@@ -1111,4 +1112,31 @@ Theorem natToWord_inj : forall sz n m, natToWord sz n = natToWord sz m
   intros.
   omega.
   subst; simpl in *; omega.
+Qed.
+
+Lemma wordToNat_natToWord_idempotent : forall sz n,
+  (N.of_nat n < Npow2 sz)%N
+  -> wordToNat (natToWord sz n) = n.
+  intros.
+  destruct (wordToNat_natToWord sz n); intuition.
+  destruct x.
+  simpl in *; omega.
+  simpl in *.
+  apply Nlt_out in H.
+  autorewrite with N in *.
+  rewrite Npow2_nat in *.
+  generalize dependent (x * pow2 sz).
+  intros; omega.
+Qed.
+
+Lemma wplus_cancel : forall sz (a b c : word sz),
+  a ^+ c = b ^+ c
+  -> a = b.
+  intros.
+  apply (f_equal (fun x => x ^+ ^~ c)) in H.
+  repeat rewrite <- wplus_assoc in H.
+  rewrite wminus_inv in H.
+  repeat rewrite (wplus_comm _ (wzero sz)) in H.
+  repeat rewrite wplus_unit in H.
+  assumption.
 Qed.
