@@ -34,6 +34,9 @@ Definition W_seq (l r : W) : option (l = r) :=
   end.
 
 Definition bedrock_types : list Expr.type :=
+  {| Expr.Impl := W 
+   ; Expr.Eq := W_seq
+   |} ::
   {| Expr.Impl := settings * state
    ; Expr.Eq := fun _ _ => None
    |} ::
@@ -63,11 +66,12 @@ Section typed_ext.
   Variable types' : list type.
   Local Notation "'TYPES'" := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := tvWord.
-  Local Notation "'stT'" := (tvType 0).
-  Local Notation "'tvState'" := (tvType 1).
-  Local Notation "'tvTest'" := (tvType 2).
-  Local Notation "'tvReg'" := (tvType 3).
+  Local Notation "'pcT'" := (tvType 0).
+  Local Notation "'tvWord'" := (tvType 0).
+  Local Notation "'stT'" := (tvType 1).
+  Local Notation "'tvState'" := (tvType 2).
+  Local Notation "'tvTest'" := (tvType 3).
+  Local Notation "'tvReg'" := (tvType 4).
 
   Definition bedrock_funcs : functions (repr bedrock_types_r types').
   refine (
@@ -85,12 +89,17 @@ Section typed_ext.
      ; Denotation := _ |} :: 
     {| Domain := tvState :: tvReg :: nil
      ; Range := tvWord
-     ; Denotation := _ |} :: nil).
+     ; Denotation := _ |} ::
+    {| Domain := tvWord :: tvWord :: nil
+     ; Range := tvProp
+     ; Denotation := _ |} ::
+     nil).
   refine (@wplus 32).
   refine (@wminus 32).
   refine (@wmult 32).
   refine comparator.
   refine Regs.
+  refine (@wlt 32).
   Defined.
 
   Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')) :=
@@ -108,9 +117,9 @@ Section typed_ext.
     Expr.Func 2 (l :: r :: nil).
 
   Theorem fPlus_correct : forall l r uvars vars, 
-    match exprD funcs uvars vars l tvWord , exprD funcs uvars vars r tvWord with
+    match exprD funcs uvars vars l (tvType 0) , exprD funcs uvars vars r (tvType 0) with
       | Some lv , Some rv =>
-        exprD funcs uvars vars (fPlus l r) tvWord = Some (wplus lv rv)
+        exprD funcs uvars vars (fPlus l r) (tvType 0) = Some (wplus lv rv)
       | _ , _ => True
     end.
   Proof.
@@ -159,8 +168,8 @@ Module BedrockCoreEnv <: CoreEnv.
   Definition core := 
     Eval unfold bedrock_types_r in bedrock_types_r.
   
-  Definition pc := tvWord.
-  Definition st := tvType 0.
+  Definition pc := tvType 0.
+  Definition st := tvType 1.
 End BedrockCoreEnv.
 
 Require SepIL.

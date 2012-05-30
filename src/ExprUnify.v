@@ -82,8 +82,6 @@ End SynUnifier.
 Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
 | R_EqualL : forall t l r, R_expr l (Equal t l r)
 | R_EqualR : forall t l r, R_expr r (Equal t l r)
-| R_LessL : forall l r, R_expr l (Less l r)
-| R_LessR : forall l r, R_expr r (Less l r)
 | R_Not    : forall e, R_expr e (Not e)
 | R_Func   : forall f args arg,
   In arg args -> R_expr arg (Func f args).
@@ -129,7 +127,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | l :: ls => mentionsU l || anyb ls
               end) args
           | Equal _ l r => mentionsU l || mentionsU r
-          | Less l r => mentionsU l || mentionsU r
           | Not e => mentionsU e
         end.
     End Mentions.
@@ -146,8 +143,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                         | Some _ => false
                       end
           | Not e => normalized e
-          | Equal _ e1 e2 => normalized e1 && normalized e2
-          | Less e1 e2 => normalized e1 && normalized e2
+          | Equal _ e1 e2 => (normalized e1) && (normalized e2)
           | Func _ l =>
             fold_right (fun x acc => acc && (normalized x)) true l
         end.
@@ -199,7 +195,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                       end
           | Func f args => Func f (map subst_exprInstantiate args)
           | Equal t l r => Equal t (subst_exprInstantiate l) (subst_exprInstantiate r)
-          | Less l r => Less (subst_exprInstantiate l) (subst_exprInstantiate r)
           | Not e => Not (subst_exprInstantiate e)
         end.
     End Instantiate.
@@ -237,7 +232,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | [ H : Some _ = Some _ |- _ ] =>
                   inversion H; clear H; subst
                 | [ H : (if ?X then _ else _) = _ |- _ ] =>
-                  (revert H; case_eq X; intros; try discriminate); [ ]
+                  (revert H; case_eq X; intros; try congruence); [ ]
                 | [ H : ?X = ?X |- _ ] => clear H
               end
               || rewrite FACTS.add_o in *
@@ -288,7 +283,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         { induction H0; simpl; auto.
           rewrite IHForall. eauto.
         }
-        rewrite IHe1; rewrite IHe2; auto.
         { rewrite IHe1. rewrite IHe2. auto. }
     Qed.
 
@@ -297,7 +291,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       subst_exprInstantiate (FM.add k e' s) e = subst_exprInstantiate s e.
     Proof.
       induction e; simpl; intros; think; auto.
-
       { f_equal. revert H0. induction H; simpl; intros; think; auto. }
     Qed.
 
@@ -326,7 +319,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         { generalize true at 1. intros. f_equal. generalize dependent l.
           induction 1; simpl; intros; auto.
           apply andb_true_iff in H1. intuition. f_equal; eauto. }            
-        { intros. apply andb_true_iff in H; f_equal; firstorder. }
         { intros. apply andb_true_iff in H; f_equal; firstorder. }
         { intros; f_equal; auto. }
     Qed.
@@ -432,7 +424,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         destruct H2. eapply H0 in H2. eexists; eauto. }
       { revert H0; revert H1; generalize true at 1 3; induction H; auto; simpl; intros.
         apply andb_true_iff in H2. apply andb_true_iff. intuition. }
-      { apply andb_true_iff in H; intuition. }
       { apply andb_true_iff. apply andb_true_iff in H. intuition. }
     Qed.
     
@@ -565,11 +556,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 end
                 else
                   None
-            | Less e1 f1 , Less e2 f2 => fun recur =>
-              match recur (bound, e1) _ e2 sub with
-                | None => None
-                | Some sub => recur (bound, f1) _ f2 sub
-              end
             | Not e1 , Not e2 => fun recur =>
               recur (bound,e1) _ e2 sub
             | UVar u , _ =>
@@ -724,11 +710,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             end
             else
               None
-        | Less e1 f1 , Less e2 f2 =>
-          match exprUnify bound e1 e2 sub with
-            | None => None
-            | Some sub => exprUnify bound f1 f2 sub
-          end
         | Not e1, Not e2 =>
           exprUnify bound e1 e2 sub
         | UVar u , _ =>
@@ -815,15 +796,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                end = _ ] => destruct X; auto
       end.
       eapply H.
-      erewrite exprUnify_recursor_inv; eauto.
-      instantiate (1 := (guard 4 (wf_R_pair wf_R_nat (wf_R_expr (ts:=types))) (bound, l1))).
-      unfold exprUnify, Fix.
-      match goal with
-        | [ |- match ?X with
-                 | _ => _
-               end = _ ] => destruct X; auto
-      end.
-      erewrite exprUnify_recursor_inv; eauto.
     Qed.
 
     Lemma Subst_set_Subst_lookup : forall k v sub sub',
@@ -1028,10 +1000,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       induction e; simpl; intros; think; auto.
       { case_eq (FM.E.eq_dec x x1); simpl; intros.
         rewrite e0 in H0. rewrite H0 in H. simpl in *.
-        subst.
-        match type of H with
-          | (if ?E then _ else _) = _ => destruct E
-        end; congruence.
+        rewrite H1 in H. congruence.
 
         revert H. case_eq (FM.find x1 x0); simpl; intros; auto.
         unfold subst_lookup. rewrite FACTS.add_o.
@@ -1048,9 +1017,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Proof. reflexivity. Qed.
     Lemma exprInstantiate_Equal : forall a b c d,
       exprInstantiate a (Equal b c d) = Equal b (exprInstantiate a c) (exprInstantiate a d).
-    Proof. reflexivity. Qed.
-    Lemma exprInstantiate_Less : forall a b c,
-      exprInstantiate a (Less b c) = Less (exprInstantiate a b) (exprInstantiate a c).
     Proof. reflexivity. Qed.
     Lemma exprInstantiate_Not : forall a b,
       exprInstantiate a (Not b) = Not (exprInstantiate a b).
@@ -1152,10 +1118,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | [ H : match ?X with _ => _ end = _ |- _ ] => destruct X
                 | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
                 | [ |- Func _ _ = Func _ _ ] => f_equal
-                | [ |- Less _ _ = Less _ _ ] => f_equal
                 | [ |- _ ] => 
                   rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
-                  rewrite exprInstantiate_Less ||
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
@@ -1299,7 +1263,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                    destruct (@equiv_dec A B C E X Y); unfold equiv in *; subst; try congruence
                  | [ H : context [ match ?T with
                                      | tvProp => _
-                                     | tvWord => _
                                      | tvType _ => _
                                    end ] |- _ ] => (destruct T; try congruence); [ ] 
                  | [ H : context [ match nth_error ?X ?Y with
