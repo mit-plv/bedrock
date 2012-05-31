@@ -9,11 +9,7 @@ Definition set := W -> Prop.
 Definition mem (w : W) (s : set) := s w.
 Infix "\in" := mem (at level 70, no associativity).
 
-Definition propToWord (P : Prop) (b : W) :=
-  IF P then b = 1 else b = 0.
-Infix "\is" := (propToWord) (at level 71, no associativity).
-
-Definition empty : set := fun _ => True.
+Definition empty : set := fun _ => False.
 
 Definition equiv (s1 s2 : set) := forall w, s1 w <-> s2 w.
 Infix "%=" := equiv (at level 70, no associativity).
@@ -40,7 +36,16 @@ Module Type BST.
   Axiom bst_fwd : forall s p, bst s p ===> Ex t, bst' s t p.
   Axiom bst_bwd : forall s p, Ex t, bst' s t p ===> bst s p.
 
+  Axiom nil_fwd : forall s t (p : W), p = 0 -> bst' s t p ===> [| s %= empty /\ t = Leaf |].
   Axiom nil_bwd : forall s t (p : W), p = 0 -> [| s %= empty /\ t = Leaf |] ===> bst' s t p.
+
+  Axiom cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
+    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    * [| t = Node t1 t2 /\ v \in s |].
+
+  Axiom cons_bwd : forall s t (p : W), p <> 0 ->
+    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    * [| t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
 End BST.
 
 Module Bst : BST.
@@ -73,18 +78,36 @@ Module Bst : BST.
     unfold bst; sepLemma.
   Qed.
 
+  Theorem nil_fwd : forall s t (p : W), p = 0 -> bst' s t p ===> [| s %= empty /\ t = Leaf |].
+    destruct t; sepLemma.
+  Qed.
+
   Theorem nil_bwd : forall s t (p : W), p = 0 -> [| s %= empty /\ t = Leaf |] ===> bst' s t p.
     destruct t; sepLemma.
+  Qed.
+
+  Theorem cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
+    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    * [| t = Node t1 t2 /\ v \in s |].
+    destruct t; sepLemma.
+  Qed.
+
+  Theorem cons_bwd : forall s t (p : W), p <> 0 ->
+    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    * [| t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
+    destruct t; sepLemma;
+      match goal with
+        | [ H : Node _ _ = Node _ _ |- _ ] => injection H; sepLemma
+      end.
   Qed.
 End Bst.
 
 Import Bst.
 Export Bst.
-
-Hint Immediate bst_extensional.
+Hint Immediate bst_extensional bst'_extensional.
 
 Definition hints' : TacPackage.
-  prepare1 (bst_fwd) (bst_bwd, nil_bwd).
+  prepare1 (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
 Defined.
 
 Definition hints : TacPackage.
@@ -94,14 +117,56 @@ Defined.
 Definition initS : assert := st ~> ExX, ![ ^[mallocHeap] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[bst empty st'#Rv] * ^[mallocHeap] * #1 ] st').
 
+Definition lookupS : assert := st ~> ExX, Ex s, Ex p, Ex w,
+  ![ (st#Sp ==*> p, w) * ^[bst s p] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
+    /\ ![ ^[st#Sp =?> 2] * ^[bst s p] * ^[mallocHeap] * #1 ] st').
+
 Definition bstM := bmodule "bst" {{
   bfunction "init" [initS] {
+    Return 0
+  } with bfunction "lookup" [lookupS] {
+    [st ~> ExX, Ex s, Ex t, Ex p, Ex w,
+      ![ (st#Sp ==*> p, w) * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
+        /\ ![ ^[st#Sp =?> 2] * ^[bst' s t p] * ^[mallocHeap] * #1 ] st')]
+    While ($[Sp] <> 0) {
+      Rv <- $[Sp];;
+      If ($[Rv+4] = $[Sp+4]) {
+        (* Key matches! *)
+        Return 1
+      } else {
+        Rv <- Rv;; (* This shouldn't be necessary, but symbolic evaluation misses some info otherwise. *)
+        If ($[Sp+4] < $[Rv+4]) {
+          (* Searching for a lower key *)
+          $[Sp] <- $[Rv]
+        } else {
+          (* Searching for a higher key *)
+          $[Sp] <- $[Rv+8]
+        }
+      }
+    };;
     Return 0
   }
 }}.
 
-Hint Extern 1 (_ %= _) => hnf; intuition.
+Ltac sets := unfold equiv, empty, mem, add, less, greater in *; firstorder.
+
+Hint Extern 5 (_ %= _) => sets.
+Hint Extern 5 (_ \in _) => sets.
+Hint Extern 5 (~ _ \in _) => sets.
+Hint Extern 5 (_ <-> _) => sets.
+
+Lemma exhausted_cases : forall a b : W, a <> b
+  -> ~(a < b)
+  -> a > b.
+  unfold wlt; intros.
+  assert (wordToN a <> wordToN b) by (generalize wordToN_inj; firstorder).
+  nomega.
+Qed.
+
+Local Hint Resolve exhausted_cases.
 
 Theorem bstMOk : moduleOk bstM.
-  vcgen; sep hints.
+  vcgen; abstract (sep hints; auto).
 Qed.
