@@ -447,3 +447,31 @@ Definition B2N (b : bool) : nat :=
   if b then 1 else 0.
 
 Coercion B2N : bool >-> nat.
+
+Definition propToWord (P : Prop) (b : W) :=
+  IF P then b = 1 else b = 0.
+Infix "\is" := (propToWord) (at level 71, no associativity).
+
+Ltac propToWord := unfold propToWord, IF_then_else; tauto.
+
+Lemma use_propToWord : forall P b, P \is b
+  -> forall P', (P' <-> P)
+    -> P' \is b.
+  propToWord.
+Qed.
+
+Lemma propToWord_true : forall (P : Prop) (b : W), b = 1
+  -> P
+  -> P \is b.
+  propToWord.
+Qed.
+
+Lemma propToWord_false : forall (P : Prop) (b : W), b = 0
+  -> ~P
+  -> P \is b.
+  propToWord.
+Qed.
+
+Hint Resolve propToWord_true propToWord_false.
+
+Hint Extern 5 (_ \is _) => eapply use_propToWord; [ eassumption | ].
