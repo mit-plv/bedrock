@@ -2,7 +2,8 @@ ROOT    := ..
 MODULES := AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap \
            Pair SinglyLinkedList \
-           Malloc
+           Malloc \
+           BinarySearchTree
 
 VS      := $(MODULES:%=%.v)
 
