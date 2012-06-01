@@ -59,7 +59,13 @@ Ltac sep_firstorder := sep_easy;
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
-         end; sep_easy; autorewrite with sepFormula.
+         end; sep_easy; autorewrite with sepFormula;
+  repeat match goal with
+           | [ |- context[Regs (match ?st with
+                                  | (_, y) => y
+                                end) ?r] ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r)
+         end.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
@@ -635,12 +641,31 @@ Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
 Ltac ho := Programming.ho unf; reduce.
 
+Theorem implyR : forall pc state specs (P Q R : PropX pc state),
+  interp specs (P ---> R)
+  -> interp specs (P ---> Q ---> R)%PropX.
+  intros.
+  do 2 apply Imply_I.
+  eapply Imply_E.
+  eauto.
+  constructor; simpl; tauto.
+Qed.
+
+Ltac words := repeat match goal with
+                       | [ H : _ = _ |- _ ] => rewrite H
+                     end; W_eq.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
     | [ |- himp _ _ _ ] => progress cancel ext
+    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
+      match y with
+        | x => fail 1
+        | _ => apply implyR
+      end
     | _ => ho
   end.
 Ltac descend := Programming.descend; reduce.

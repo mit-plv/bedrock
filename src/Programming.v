@@ -345,12 +345,34 @@ Section PropX.
     eauto.
   Qed.
 
+  Theorem allR : forall A (p : A -> _),
+    (forall x, interp specs (P ---> p x))
+    -> interp specs (P ---> (Forall p)).
+    intros.
+    apply Imply_I.
+    apply Forall_I; intro.
+    eapply Imply_E.
+    eauto.
+    eauto.
+  Qed.
+
   Theorem existsR : forall A (p : A -> _) x,
     interp specs (P ---> p x)
     -> interp specs (P ---> (Exists p)).
     intros.
     apply Imply_I.
     apply Exists_I with x.
+    eapply Imply_E.
+    eauto.
+    eauto.
+  Qed.
+
+  Theorem existsXR : forall A (p : propX _ _ (A :: nil)) x,
+    interp specs (P ---> Subst p x)
+    -> interp specs (P ---> (ExistsX p)).
+    intros.
+    apply Imply_I.
+    apply ExistsX_I with x.
     eapply Imply_E.
     eauto.
     eauto.
@@ -379,7 +401,9 @@ Ltac imply_simp' := match goal with
                       | [ |- interp _ (_ ---> Inj _) ] => apply injR
                       | [ |- interp _ (_ ---> Cptr _ _) ] => apply cptrR
                       | [ |- interp _ (_ ---> And _ _) ] => apply andR
+                      | [ |- interp _ (_ ---> Forall _) ] => apply allR; intro
                       | [ |- interp _ (_ ---> Exists _) ] => eapply existsR
+                      | [ |- interp _ (_ ---> ExistsX _) ] => eapply existsXR; unfold Subst; simpl
                     end.
 
 Ltac reduce unf := try (apply simplify_fwd'; simpl); autorewrite with sepFormula; unf; simpl; try congruence.
