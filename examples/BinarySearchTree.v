@@ -136,7 +136,6 @@ Definition bstM := bmodule "bst" {{
         (* Key matches! *)
         Return 1
       } else {
-        Rv <- Rv;; (* This shouldn't be necessary, but symbolic evaluation misses some info otherwise. *)
         If ($[Sp+4] < $[Rv+4]) {
           (* Searching for a lower key *)
           $[Sp] <- $[Rv]

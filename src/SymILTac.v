@@ -350,28 +350,29 @@ Ltac get_instrs st :=
   let rec find_exact H Hs :=
     match Hs with
       | tt => false
-      | H :: _ => true
-      | _ :: ?Hs => find_exact H Hs
+      | (H, _) => true
+      | (_, ?Hs) => find_exact H Hs
     end
-    in
-    let rec get_instrs st ignore :=
-      match goal with
-        | [ H : Structured.evalCond ?l _ ?r _ st = Some _ |- _ ] =>
-          match find_exact H ignore with
-            | false =>
-              let v := get_instrs st (H, ignore) in
-                constr:((((l,r), H), v))
-          end
-        | [ H : Structured.evalCond ?l _ ?r _ st = None |- _ ] =>
-          constr:((((l,r), H), tt))
-        | [ H : evalInstrs _ st ?is = Some ?X |- _ ] =>
-          let v := get_instrs X tt in
-            constr:(((is, H), v))
-        | [ H : evalInstrs _ st ?is = None |- _ ] =>
-          constr:(((is, H), tt))
-        | [ |- _ ] => tt
-      end
-      in get_instrs st tt.
+  in
+  let rec get_instrs st ignore :=
+    match goal with
+      | [ H : Structured.evalCond ?l _ ?r _ st = Some _ |- _ ] =>
+        match find_exact H ignore with
+          | false =>
+            let ignore := constr:((H, ignore)) in
+            let v := get_instrs st ignore in
+            constr:((((l,r), H), v))
+        end
+      | [ H : Structured.evalCond ?l _ ?r _ st = None |- _ ] =>
+        constr:((((l,r), H), tt))
+      | [ H : evalInstrs _ st ?is = Some ?X |- _ ] =>
+        let v := get_instrs X tt in
+        constr:(((is, H), v))
+      | [ H : evalInstrs _ st ?is = None |- _ ] =>
+        constr:(((is, H), tt))
+      | [ |- _ ] => tt
+    end
+  in get_instrs st tt.
 Ltac collectAllTypes_instrs is Ts :=
   match is with
     | tt => Ts
