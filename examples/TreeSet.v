@@ -33,8 +33,8 @@ Module Type BST.
   Axiom bst'_extensional : forall s t p, HProp_extensional (bst' s t p).
   Axiom bst_extensional : forall s p, HProp_extensional (bst s p).
 
-  Axiom bst_fwd : forall s p, bst s p ===> Ex t, bst' s t p.
-  Axiom bst_bwd : forall s p, Ex t, bst' s t p ===> bst s p.
+  Axiom bst_fwd : forall s p, bst s p ===> Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
+  Axiom bst_bwd : forall s p, (Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
 
   Axiom nil_fwd : forall s t (p : W), p = 0 -> bst' s t p ===> [| s %= empty /\ t = Leaf |].
   Axiom nil_bwd : forall s t (p : W), p = 0 -> [| s %= empty /\ t = Leaf |] ===> bst' s t p.
@@ -60,7 +60,7 @@ Module Bst : BST.
         * [| v \in s |]
     end.
 
-  Definition bst (s : set) (p : W) := Ex t, bst' s t p.
+  Definition bst (s : set) (p : W) := Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
 
   Theorem bst'_extensional : forall s t p, HProp_extensional (bst' s t p).
     destruct t; reflexivity.
@@ -70,11 +70,11 @@ Module Bst : BST.
     reflexivity.
   Qed.
 
-  Theorem bst_fwd : forall s p, bst s p ===> Ex t, bst' s t p.
+  Theorem bst_fwd : forall s p, bst s p ===> Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
     unfold bst; sepLemma.
   Qed.
 
-  Theorem bst_bwd : forall s p, Ex t, bst' s t p ===> bst s p.
+  Theorem bst_bwd : forall s p, (Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
     unfold bst; sepLemma.
   Qed.
 
@@ -114,18 +114,34 @@ Definition hints : TacPackage.
   prepare2 hints'.
 Defined.
 
-Definition initS : assert := st ~> ExX, ![ ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[bst empty st'#Rv] * ^[mallocHeap] * #1 ] st').
+Definition initS : assert := st ~> ExX, ![ ^[st#Sp =?> 3] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+    /\ ![ ^[st#Sp =?> 3] * ^[bst empty st'#Rv] * ^[mallocHeap] * #1 ] st').
 
 Definition lookupS : assert := st ~> ExX, Ex s, Ex p, Ex w,
   ![ (st#Sp ==*> p, w) * ^[bst s p] * ^[mallocHeap] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
     /\ ![ ^[st#Sp =?> 2] * ^[bst s p] * ^[mallocHeap] * #1 ] st').
 
-Definition bstM := bmodule "bst" {{
+Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
+  bmodule "bst" {{
   bfunction "init" [initS] {
-    Return 0
+    $[Sp] <- Rp;;
+    $[Sp+4] <- 0;;
+    Sp <- Sp + 4;;
+    Call "malloc"!"malloc"
+    [st ~> ExX, Ex rp, ![ (st#Sp ^- $4) =*> rp * ^[st#Sp =?> 2] * ^[st#Rv =?> 2] * ^[mallocHeap] * #0 ] st
+      /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $4 |]
+        /\ Ex r, Ex junk, ![ ^[st'#Sp =?> 3] * (st'#Rv ==*> r, junk) * ^[bst' empty Leaf r]
+          * ^[mallocHeap] * #1 ] st')];;
+    Sp <- Sp - 4;;
+    $[Rv] <- 0;;
+    Rp <- $[Sp];;
+    Return Rv
   } with bfunction "lookup" [lookupS] {
+    Rv <- $[Sp];;
+    $[Sp] <- $[Rv];;
+
     [st ~> ExX, Ex s, Ex t, Ex p, Ex w,
       ![ (st#Sp ==*> p, w) * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
       /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
@@ -168,5 +184,44 @@ Qed.
 Local Hint Resolve exhausted_cases.
 
 Theorem bstMOk : moduleOk bstM.
-  vcgen; abstract (sep hints; auto).
+  vcgen.
+
+  sep hints.
+
+  sep hints.
+  auto.
+  replace (Regs st Sp ^+ $4) with (Regs x Sp ^+ $8) by words.
+  step hints.
+  descend.
+  replace (Regs b Sp ^- $4) with (Regs x Sp) by words.
+  step hints.
+  words.
+  replace (x7#Sp) with (Regs x Sp) by words.
+  step hints.
+
+  sep hints.
+
+  sep hints.
+  replace (Regs x Sp ^+ $4) with (Regs st Sp ^+ $8) by words.
+  replace (Regs x Sp) with (Regs st Sp ^+ $4) by words.
+  step hints.
+
+  Ltac t := abstract (sep hints; auto).
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  (*vcgen; abstract (sep hints; auto).*)
 Qed.

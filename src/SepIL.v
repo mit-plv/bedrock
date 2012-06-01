@@ -486,6 +486,8 @@ Qed.
 
 (** * [goodSize] *)
 
+Hint Extern 1 (goodSize _) => reflexivity.
+
 Lemma goodSize_plus_l : forall n m sz, (N.of_nat (n + m) < sz)%N -> (N.of_nat n < sz)%N.
   unfold goodSize; intros; nomega.
 Qed.
