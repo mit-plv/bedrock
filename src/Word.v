@@ -61,6 +61,12 @@ Definition Nmod2 (n : N) : bool :=
 
 Definition wzero sz := natToWord sz 0.
 
+Fixpoint wzero' (sz : nat) : word sz :=
+  match sz with
+    | O => WO
+    | S sz' => WS false (wzero' sz')
+  end.
+
 Fixpoint posToWord (sz : nat) (p : positive) {struct p} : word sz :=
   match sz with
     | O => WO
@@ -68,13 +74,13 @@ Fixpoint posToWord (sz : nat) (p : positive) {struct p} : word sz :=
       match p with
         | xI p' => WS true (posToWord sz' p')
         | xO p' => WS false (posToWord sz' p')
-        | xH => WS true (wzero sz')
+        | xH => WS true (wzero' sz')
       end
   end.
 
 Definition NToWord (sz : nat) (n : N) : word sz :=
   match n with
-    | N0 => wzero sz
+    | N0 => wzero' sz
     | Npos p => posToWord sz p
   end.
 
@@ -495,8 +501,13 @@ Theorem mod2_S : forall n k,
   apply H with k; auto.
 Qed.
 
+Theorem wzero'_def : forall sz, wzero' sz = wzero sz.
+  unfold wzero; induction sz; simpl; intuition.
+  congruence.
+Qed.
+
 Theorem posToWord_nat : forall p sz, posToWord sz p = natToWord sz (nat_of_P p).
-  induction p; destruct sz; simpl; intuition; f_equal.
+  induction p; destruct sz; simpl; intuition; f_equal; try rewrite wzero'_def in *.
   
   rewrite ZL6.
   destruct (ZL4 p) as [? Heq]; rewrite Heq; simpl.
@@ -520,10 +531,12 @@ Theorem posToWord_nat : forall p sz, posToWord sz p = natToWord sz (nat_of_P p).
   replace (nat_of_P p + nat_of_P p) with (2 * nat_of_P p) by omega.
   rewrite div2_double.
   auto.
+  auto.
 Qed.
 
 Theorem NToWord_nat : forall sz n, NToWord sz n = natToWord sz (nat_of_N n).
-  destruct n; simpl; intuition.
+  destruct n; simpl; intuition; try rewrite wzero'_def in *.
+  auto.
   apply posToWord_nat.
 Qed.
 
