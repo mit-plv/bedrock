@@ -183,45 +183,8 @@ Qed.
 
 Local Hint Resolve exhausted_cases.
 
+Hint Extern 5 (@eq W _ _) => words.
+  
 Theorem bstMOk : moduleOk bstM.
-  vcgen.
-
-  sep hints.
-
-  sep hints.
-  auto.
-  replace (Regs st Sp ^+ $4) with (Regs x Sp ^+ $8) by words.
-  step hints.
-  descend.
-  replace (Regs b Sp ^- $4) with (Regs x Sp) by words.
-  step hints.
-  words.
-  replace (x7#Sp) with (Regs x Sp) by words.
-  step hints.
-
-  sep hints.
-
-  sep hints.
-  replace (Regs x Sp ^+ $4) with (Regs st Sp ^+ $8) by words.
-  replace (Regs x Sp) with (Regs st Sp ^+ $4) by words.
-  step hints.
-
-  Ltac t := abstract (sep hints; auto).
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  (*vcgen; abstract (sep hints; auto).*)
+  vcgen; abstract (sep hints; auto).
 Qed.
