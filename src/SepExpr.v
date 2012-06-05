@@ -96,6 +96,8 @@ Module Type SepExpr.
 
 End SepExpr.
 
+Require Import Reflection.
+
 Module SepExprFacts (SE : SepExpr).
   Module SEP_FACTS := SepTheoryX_Rewrites SE.ST.
 
@@ -137,6 +139,30 @@ Module SepExprFacts (SE : SepExpr).
     Global Instance Equiv_heq : Equivalence (SE.heq funcs preds U G cs).
     Proof.
       constructor; eauto with typeclass_instances.
+    Qed.
+
+    Lemma himp_not_WellTyped : forall tfuncs tG tU f P Q l,
+      WellTyped_env tU U ->
+      WellTyped_env tG G ->
+      WellTyped_funcs tfuncs funcs ->
+      (forall p, 
+        nth_error preds f = Some p ->
+        Folds.all2 (@is_well_typed types tfuncs tU tG) l (SE.SDomain p) = true ->
+        SE.himp funcs preds U G cs (SE.Star (SE.Func f l) P) Q) ->
+        SE.himp funcs preds U G cs (SE.Star (SE.Func f l) P) Q.
+    Proof.
+      intros. unfold SE.himp; simpl. consider (nth_error preds f); intros;
+        try solve [ eapply SE.ST.himp_star_pure_c; contradiction ].
+      match goal with
+        | [ |- context [ match ?X with | _ => _ end ] ] =>
+          case_eq X
+      end; intros; try solve [ eapply SE.ST.himp_star_pure_c; contradiction ].
+      etransitivity. 2: eapply H2; eauto. simpl. rewrite H3. rewrite H4. reflexivity.
+
+      destruct s; simpl in *. clear H2. clear H3. generalize dependent l.
+      induction SDomain; destruct l; simpl; intros; auto; try congruence.
+      revert H4. consider (exprD funcs U G e a); intros.
+      erewrite is_well_typed_correct_only by eauto. eapply IHSDomain; eauto. congruence.
     Qed.
 
     Add Parametric Relation : (@SE.sexpr types pcType stateType) (@SE.himp types _ _ funcs preds U G cs)

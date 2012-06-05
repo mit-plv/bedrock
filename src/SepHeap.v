@@ -481,7 +481,11 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
           eapply MF.find_empty_iff with (k := k) in H.
           apply MM.FACTS.not_find_mapsto_iff.
           intro. apply H0 in H2. apply MM.FACTS.not_find_mapsto_iff in H. auto. }
-        { admit. }
+        { generalize (@MF.Equiv_Add _ _ _ _ _ _ _ H2 H0 H1); intro.
+          do 2 destruct H3. intuition.
+          repeat rewrite impuresD_Add by eauto. symmetry.
+          repeat rewrite impuresD_Add by eauto. symmetry.
+          rewrite H; eauto. rewrite starred_perm; eauto. heq_canceler. }
       Qed.         
 
       Lemma multimap_join_star : forall 

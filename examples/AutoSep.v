@@ -331,6 +331,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          plus minus
          existsSubst
 
+         (** Reflection **)
+         (* Reflection.Reflect_eqb_nat *)
+
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
@@ -610,6 +613,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          projT1 projT2 andb orb
          plus minus
          existsSubst
+
+         (** Reflection **)
+         (* Reflection.Reflect_eqb_nat *)
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl

@@ -26,5 +26,7 @@ Definition doubleIndir := bmodule "doubleIndir" {{
 }}.
 
 Theorem doubleIndirOk : moduleOk doubleIndir.
+(*TIME Clear Timing Profile. *)
   vcgen; abstract sep_auto.
+(*TIME Print Timing Profile. *)
 Qed.
