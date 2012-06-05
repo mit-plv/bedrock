@@ -9,7 +9,7 @@ Require Import Prover ILEnv.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(*
+(*TIME
 Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
 Declare ML Module "Timing_plugin".

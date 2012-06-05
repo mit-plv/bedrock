@@ -16,3 +16,4 @@ deps.pdf
 *.log
 *.out
 docs/nepls-pl-day/*.pdf
+timing/
