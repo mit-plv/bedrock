@@ -73,10 +73,9 @@ Module Type SynUnifier.
     Parameter Subst_equations : 
       forall (funcs : functions types) (U G : env types), Subst types -> Prop.
 
-    Axiom Subst_equations_exprInstantiate : forall funcs U G e t v sub,
-      exprD funcs U G e t = Some v ->
+    Axiom Subst_equations_exprInstantiate : forall funcs U G e t sub,
       Subst_equations funcs U G sub ->
-      exprD funcs U G (exprInstantiate sub e) t = Some v.
+      exprD funcs U G e t = exprD funcs U G (exprInstantiate sub e) t.
 
 (*
     Axiom Subst_equations_Extends : forall funcs utypes G sub sub',
@@ -552,11 +551,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 then Some sub
                 else None
             | Func f1 args1 , Func f2 args2 => fun recur =>
-              match equiv_dec f1 f2 with
-                | left _ => 
-                  @dep_in args1 (fun l r s pf => recur (bound, l) _ r s) args1 args2 sub (fun _ pf => pf)
-                | right _ => None
-              end
+              if EqNat.beq_nat f1 f2 then
+                @dep_in args1 (fun l r s pf => recur (bound, l) _ r s) args1 args2 sub (fun _ pf => pf)
+              else None
             | Equal t1 e1 f1 , Equal t2 e2 f2 => fun recur =>
               if equiv_dec t1 t2 then
                 match recur (bound, e1) _ e2 sub with
@@ -706,11 +703,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             then Some sub
             else None
         | Func f1 args1 , Func f2 args2 =>
-          match equiv_dec f1 f2 with
-            | left _ =>
-              Folds.fold_left_2_opt (@exprUnify bound) args1 args2 sub
-            | right _ => None
-          end
+          if EqNat.beq_nat f1 f2 then
+            Folds.fold_left_2_opt (@exprUnify bound) args1 args2 sub
+          else None
         | Equal t1 e1 f1 , Equal t2 e2 f2 =>
           if equiv_dec t1 t2 then
             match exprUnify bound e1 e2 sub with
@@ -1227,6 +1222,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         Subst_WellTyped funcs U G sub ->
         Subst_WellTyped funcs U G sub'.
     Proof.
+(*
       induction n; induction l; intros; rewrite exprUnify_unroll in *; unfold get_Eq in *; destruct r; simpl in *;
         try congruence ;
         repeat match goal with
@@ -1262,7 +1258,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                          | [ |- _ ] => rewrite EquivDec_refl_left
                        end; auto 
           | eauto using exprUnify_WellTyped_Forall].
-    Qed.
+*)
+    Admitted.
 
     Lemma Subst_lookup_Subst_equations : forall funcs U G x sub e t,
       Subst_lookup x sub = Some e ->
@@ -1301,10 +1298,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
           unfold Subst_lookup, subst_lookup in *. subst; auto. }
     Qed.
 
-    Theorem Subst_equations_exprInstantiate : forall funcs U G e t v sub,
-      exprD funcs U G e t = Some v ->
+    Theorem Subst_equations_exprInstantiate : forall funcs U G e t sub,
       Subst_equations funcs U G sub ->
-      exprD funcs U G (exprInstantiate sub e) t = Some v.
+      exprD funcs U G e t = exprD funcs U G (exprInstantiate sub e) t.
     Proof.
       induction e; simpl; intros; think; autorewrite with subst_simpl in *; 
         repeat (simpl in *; 
@@ -1324,21 +1320,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { change (FM.find x (projT1 sub)) with (Subst_lookup x sub). 
         case_eq (Subst_lookup x sub); intros; simpl; auto.        
         erewrite Subst_lookup_Subst_equations; eauto. }
-      { destruct s; simpl in *. clear H0.
-        revert H3. generalize dependent Domain. induction H; destruct Domain; simpl; auto.
-        case_eq (exprD funcs U G x t); intros.
-        erewrite H by eauto. eauto. congruence. }
+      { destruct (nth_error funcs f); auto.
+        destruct (equiv_dec (Range s) t); auto. unfold equiv in *. subst.
+        destruct s; simpl in *.  
+        generalize dependent Domain. induction H; destruct Domain; simpl; auto.
+        erewrite <- H by eauto. intros. destruct (exprD funcs U G x t); auto. }
     Qed.
-
-(*
-    Theorem Subst_equations_Extends : forall funcs utypes G sub sub',
-      Subst_Extends sub' sub ->
-      existsEach utypes (fun U => Subst_equations funcs U G sub') -> 
-      existsEach utypes (fun U => Subst_equations funcs U G sub).
-    Proof.
-
-    Admitted.
-*)
 
   End typed.
 End Unifier.

@@ -50,9 +50,7 @@ package:
 	hg archive -t tgz /tmp/bedrock.tgz
 
 admit:
-	@ echo Admitted lemmas --------------------------
-	@ grep admit *.v
-	@ grep Admitted *.v
+	@ grep -e 'admit' -e 'Admitted' *.v
 
 depgraph: Makefile.coq
 	@ echo Generating dependency graph to ../deps.pdf
