@@ -18,7 +18,7 @@ Require Import ILEnv.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(*
+(*TIME
 Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
 Declare ML Module "Timing_plugin".
@@ -751,7 +751,7 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
  **)
 Ltac sym_eval isConst ext simplifier :=
-(*  run_timer 100 ; *)
+(*TIME  start_timer 100 ; *)
   let rec init_from st :=
     match goal with
       | [ H : evalInstrs _ ?st' _ = Some st |- _ ] => init_from st'
@@ -832,17 +832,17 @@ Ltac sym_eval isConst ext simplifier :=
             | (?sp_v, ?sp_pf) =>
               match find_reg st Rv with
                 | (?rv_v, ?rv_pf) =>
-(*                  stop_timer 100 ; *)
-(*                  run_timer 101 ; *)
+(*TIME                  stop_timer 100 ; *)
+(*TIME                  start_timer 101 ; *)
                   let all_instrs := get_instrs st in
                   let all_props := 
                     ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
                   in
                   let pures := ReifyExpr.props_types all_props in
                   let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
-(*                  stop_timer 101 ; *)
+(*TIME                  stop_timer 101 ; *)
                   (** collect the raw types **)
-(*                  run_timer 102 ; *)
+(*TIME                  start_timer 102 ; *)
                   let Ts := constr:(@nil Type) in
                   let Ts := 
                     match SF with
@@ -887,7 +887,7 @@ Ltac sym_eval isConst ext simplifier :=
                   Expr.ReifyExpr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
                   Expr.ReifyExpr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
                     let finish H  :=
-(*                      run_timer 110 ; *)
+(*TIME                      start_timer 110 ; *)
                       ((try exact H) ||
                        (let rec destruct_exs H :=
                          match type of H with
@@ -904,12 +904,12 @@ Ltac sym_eval isConst ext simplifier :=
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
                             assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
-(*                      stop_timer 110 *)
+(*TIME                      stop_timer 110 *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
                       match SF with
                         | tt => 
-(*                          stop_timer 102 ; *)
+(*TIME                          stop_timer 102 ; *)
                           let funcsV := fresh "funcs" in
                           pose (funcsV := funcs) ;
                           let predsV := fresh "preds" in
@@ -930,20 +930,20 @@ Ltac sym_eval isConst ext simplifier :=
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
-(*                            stop_timer 102 ; *)
-(*                            run_timer 103 ; *)
+(*TIME                            stop_timer 102 ; *)
+(*TIME                            start_timer 103 ; *)
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let predsV := fresh "preds" in
                             pose (predsV := preds) ;
 (*                            let ExtC := constr:(@Algos_correct ext typesV funcsV predsV) in *)
-(*                            stop_timer 103 ; *)
-(*                            run_timer 104 ; *)
+(*TIME                            stop_timer 103 ; *)
+(*TIME                            start_timer 104 ; *)
                             apply (@stateD_proof typesV funcsV predsV
                               uvars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ _ (refl_equal _)) in H_interp ;
-(*                            stop_timer 104 ; *)
-(*                            run_timer 105 ; *)
+(*TIME                            stop_timer 104 ; *)
+(*TIME                            start_timer 105 ; *)
                             ((apply (@Apply_sym_eval typesV funcsV predsV
                               (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
                               stn uvars vars fin_state st is is_pf) in H_interp) ||
@@ -964,8 +964,8 @@ Ltac sym_eval isConst ext simplifier :=
                                    (@Algos ext typesV)) ; generalize (@Algos_correct ext typesV funcsV predsV) ; idtac "2" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV) ; idtac "1"  
                                ])) ;
-(*                             stop_timer 105 ; *)
-(*                             run_timer 106 ; *)
+(*TIME                             stop_timer 105 ; *)
+(*TIME                             start_timer 106 ; *)
                             first [ simplifier typesV funcsV predsV H_interp | fail 100000 "simplifier failed! (SF)" ] ;
                             try clear typesV funcsV predsV ;
                             first [ finish H_interp | fail 100000 "finisher failed! (SF)" ])

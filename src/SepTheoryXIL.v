@@ -91,16 +91,16 @@ Module Make (H' : Heap) <:
         PropX.Inj (HT.smem_get p h = Some v /\ forall p', p' <> p -> HT.smem_get p' h = None).
     
     (* satisfies lemmas *)
-    Theorem satisfies_himp : forall P Q stn m,
+    Theorem satisfies_himp : forall P Q stn,
       himp P Q ->
-      satisfies P stn m ->
-      satisfies Q stn m.
+      (forall m, satisfies P stn m ->
+       satisfies Q stn m).
     Proof.
       unfold himp, satisfies. intros. propxFo.
       eapply Imply_E; eauto.
     Qed.
 
-    Lemma satisfies_star : forall P Q stn m,
+    Theorem satisfies_star : forall P Q stn m,
       satisfies (star P Q) stn m <->
       exists ml, exists mr, 
         HT.split m ml mr /\
@@ -110,13 +110,13 @@ Module Make (H' : Heap) <:
       exists x; exists x0. intuition propxFo.
     Qed.
 
-    Lemma satisfies_pure : forall p stn m,
+    Theorem satisfies_pure : forall p stn m,
       satisfies (inj p) stn m ->
-      interp cs p.
+      interp cs p /\ HT.semp m.
     Proof.
       unfold satisfies, inj; simpl; intros; propxFo.
     Qed.
- 
+
     (** Lemmas **)
 (*
     Ltac doIt :=
@@ -232,7 +232,16 @@ Module Make (H' : Heap) <:
       eapply Exists_I. instantiate (1 := m). propxIntuition.
       eapply HT.split_a_semp_a.
       eapply valid_weaken. eassumption. firstorder. eapply HT.semp_smem_emp.
-    Qed.      
+    Qed.
+
+    Theorem himp_star_pure_c : forall P Q (F : Prop),
+      (F -> himp P Q) -> himp (star (inj (PropX.Inj F)) P) Q.
+    Proof.
+      unfold himp, star, inj, interp; intros. propxIntuition.
+      specialize (H H1). eapply PropX.Imply_E. eapply valid_weaken. eauto. firstorder.
+      apply HT.split_semp in H0; auto. subst.
+      constructor. firstorder.
+    Qed.
 
     Theorem himp_subst_p : forall P Q R S,
       himp P S -> himp (star S Q) R ->

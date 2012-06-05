@@ -57,10 +57,11 @@ Section Env.
     hprop pcType stateType sos.
 
   (* satisfies lemmas *)
-  Parameter satisfies_himp : forall cs P Q stn m,
+  Parameter satisfies_himp : forall cs P Q stn,
     himp cs P Q ->
-    satisfies cs P stn m ->
-    satisfies cs Q stn m.
+    (forall m, 
+     satisfies cs P stn m ->
+     satisfies cs Q stn m).
 
   Parameter satisfies_star : forall cs P Q stn m,
     satisfies cs (star P Q) stn m <->
@@ -70,7 +71,7 @@ Section Env.
 
   Parameter satisfies_pure : forall cs p stn m,
     satisfies cs (inj p) stn m ->
-    interp cs p.
+    interp cs p /\ HT.semp m.
 
   (* himp/heq lemmas *)
   Parameter himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
@@ -90,6 +91,12 @@ Section Env.
 
   Parameter himp_star_frame : forall P Q R S, 
     P ===> Q -> R ===> S -> (star P R) ===> (star Q S).
+
+  Parameter himp_star_pure_p : forall P Q F,
+    (star (inj F) P) ===> Q -> (interp cs F -> P ===> Q).
+  
+  Parameter himp_star_pure_c : forall P Q (F : Prop),
+    (F -> P ===> Q) -> (star (inj (PropX.Inj F)) P) ===> Q.
 
   Parameter heq_star_frame : forall P Q R S, 
     P <===> Q -> R <===> S -> (star P R) <===> (star Q S).
