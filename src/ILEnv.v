@@ -53,7 +53,7 @@ Definition bedrock_type_W : type :=
   {| Expr.Impl := W 
    ; Expr.Eqb := W_seq
    ; Expr.Eqb_correct := W_seq_compare
-  |}. 
+  |}.
 Definition bedrock_type_setting_X_state : type :=
   {| Expr.Impl := settings * state
    ; Expr.Eqb := fun _ _ => false
@@ -63,7 +63,7 @@ Definition bedrock_type_setting : type :=
   {| Expr.Impl := state
    ; Expr.Eqb := fun _ _ => false
    ; Expr.Eqb_correct := @all_false_compare _
-   |}. 
+   |}.
 Definition bedrock_type_test : type :=
   {| Expr.Impl := IL.test
    ; Expr.Eqb := test_seq
@@ -73,14 +73,21 @@ Definition bedrock_type_reg : type :=
   {| Expr.Impl := IL.reg
      ; Expr.Eqb := reg_seq
      ; Expr.Eqb_correct := reg_seq_compare
-  |}. 
+  |}.
+Require Import Arith.
+Definition bedrock_type_nat : type :=
+  {| Expr.Impl := nat
+    ; Expr.Eqb := beq_nat
+    ; Expr.Eqb_correct := beq_nat_true
+  |}.
 
 Definition bedrock_types : list Expr.type :=
   bedrock_type_W ::
   bedrock_type_setting_X_state ::
   bedrock_type_setting ::
   bedrock_type_test ::
-  bedrock_type_reg :: nil.
+  bedrock_type_reg ::
+  bedrock_type_nat :: nil.
 
 Definition bedrock_types_r : Repr Expr.type :=
   Eval cbv beta iota zeta delta [ listToRepr bedrock_types ]
@@ -125,6 +132,9 @@ Section typed_ext.
     {| Domain := tvWord :: tvWord :: nil
      ; Range := tvProp
      ; Denotation := _ |} ::
+    {| Domain := tvType 5 :: nil
+      ; Range := tvWord
+      ; Denotation := _ |} ::
      nil).
   refine (@wplus 32).
   refine (@wminus 32).
@@ -132,6 +142,7 @@ Section typed_ext.
   refine comparator.
   refine Regs.
   refine (@wlt 32).
+  refine natToW.
   Defined.
 
   Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')) :=

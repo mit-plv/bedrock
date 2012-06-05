@@ -1220,7 +1220,7 @@ Module EmptyPackage.
     MEVAL.Default.unfolder H ;
     sym_evaluator s1 s2 s3 H.
 
-  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
+  (*Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
     PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
     Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
     evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
@@ -1229,7 +1229,7 @@ Module EmptyPackage.
    intros.
    sym_eval ltac:(isConst) empty_package simplifier.
    intuition congruence. 
-  Abort.
+  Abort.*)
 
 End EmptyPackage.
 
@@ -1265,15 +1265,15 @@ End BedrockPackage.
 
 Module Package.
 
+
 Ltac build_prover_pack prover ret :=
   let res := constr:( 
     let env :=
       {| PACK.Types := Prover.ProverTypes prover
-       ; PACK.Funcs := fun ts => 
-         nil_Repr (Default_signature (repr bedrock_types_r (repr (Prover.ProverTypes prover) ts)))
+       ; PACK.Funcs := fun ts => Prover.ProverFuncs prover (repr bedrock_types_r ts)
        ; PACK.Preds := fun ts =>
-         nil_Repr (SEP.Default_predicate (repr bedrock_types_r (repr (Prover.ProverTypes prover) ts)) (tvType 0) (tvType 1))
-       |} 
+         nil_Repr (SEP.Default_predicate (repr (Prover.ProverTypes prover) (repr bedrock_types_r ts)) (tvType 0) (tvType 1))
+       |}
     in
     let algos ts :=
       @Build_AllAlgos (PACK.applyTypes env ts)
@@ -1284,9 +1284,10 @@ Ltac build_prover_pack prover ret :=
     {| Env := env
      ; Algos := algos
      ; Algos_correct := fun ts fs ps =>
-       let types := repr bedrock_types_r (repr (Prover.ProverTypes prover) ts) in
-       @Build_AllAlgos_correct types fs ps (algos ts)
-         (@Prover.Prover_correct prover types fs)
+       let types := repr bedrock_types_r ts in
+       let funcs := repr (PACK.Funcs env types) fs in
+       @Build_AllAlgos_correct types funcs ps (algos ts)
+         (@Prover.Prover_correct prover types funcs)
          I I
      |})
   in

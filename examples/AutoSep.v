@@ -59,7 +59,15 @@ Ltac sep_firstorder := sep_easy;
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
-         end; sep_easy; autorewrite with sepFormula.
+         end; sep_easy; autorewrite with sepFormula;
+  repeat match goal with
+           | [ |- context[Regs (match ?st with
+                                  | (_, y) => y
+                                end) ?r] ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r)
+         end.
+
+Require Import NArith.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
@@ -100,7 +108,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.bedrock_types 
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
-         ILEnv.bedrock_type_W
+         ILEnv.bedrock_type_W ILEnv.bedrock_type_nat
          ILEnv.bedrock_type_setting_X_state
          ILEnv.bedrock_type_setting
          ILEnv.bedrock_type_test
@@ -330,6 +338,16 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
          EqNat.beq_nat  
+
+         (** WordProver **)
+         Provers.wordProver Provers.Source Provers.Destination Provers.Difference
+         Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
+         Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
+         Provers.alreadyCovered andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
+         Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
+         Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
+         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
+         Provers.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
        ]
   | _ =>
     cbv beta iota zeta
@@ -366,7 +384,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
          ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r 
-         ILEnv.bedrock_types 
+         ILEnv.bedrock_types ILEnv.bedrock_type_nat
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
              
@@ -602,7 +620,17 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
-         EqNat.beq_nat 
+         EqNat.beq_nat
+
+         (** WordProver **)
+         Provers.wordProver Provers.Source Provers.Destination Provers.Difference
+         Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
+         Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
+         Provers.alreadyCovered andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
+         Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
+         Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec posToWord bool_rec bool_rect
+         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double wzero'
+         Provers.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
        ] in H
   end;
   fold plus in *; fold minus in *;
@@ -641,12 +669,31 @@ Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
 Ltac ho := Programming.ho unf; reduce.
 
+Theorem implyR : forall pc state specs (P Q R : PropX pc state),
+  interp specs (P ---> R)
+  -> interp specs (P ---> Q ---> R)%PropX.
+  intros.
+  do 2 apply Imply_I.
+  eapply Imply_E.
+  eauto.
+  constructor; simpl; tauto.
+Qed.
+
+Ltac words := repeat match goal with
+                       | [ H : _ = _ |- _ ] => rewrite H
+                     end; W_eq.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
     | [ |- himp _ _ _ ] => progress cancel ext
+    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
+      match y with
+        | x => fail 1
+        | _ => apply implyR
+      end
     | _ => ho
   end.
 Ltac descend := Programming.descend; reduce.
