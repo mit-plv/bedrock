@@ -1089,7 +1089,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   revert H; case_eq (exprUnify A B C D); intros
                 | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (Subst_lookup X Y); intros
-                | [ H : match ?X with _ => _ end = _ |- _ ] => destruct X
+                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                  revert H; Reflection.consider X; intros
                 | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
                 | [ |- Func _ _ = Func _ _ ] => f_equal
                 | [ |- _ ] => 
@@ -1097,7 +1098,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
-    Admitted. 
+    Qed.
 
     Transparent Subst_set.
           
@@ -1222,7 +1223,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         Subst_WellTyped funcs U G sub ->
         Subst_WellTyped funcs U G sub'.
     Proof.
-(*
       induction n; induction l; intros; rewrite exprUnify_unroll in *; unfold get_Eq in *; destruct r; simpl in *;
         try congruence ;
         repeat match goal with
@@ -1241,7 +1241,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                                    end ] |- _ ] => 
                  revert H; case_eq (Subst_lookup X Y); intros; try congruence
                  | [ H : (if ?X then _ else _) = _ |- _ ] =>
-                   revert H; case_eq X; intros; try congruence
+                   revert H; Reflection.consider X; intros; try congruence
                  | [ H : ?X = _ , H' : ?X = _ |- _ ] => rewrite H in H'
                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
                  | [ H : context [ match exprUnify ?A ?B ?C ?D with _ => _ end ] |- _ ] => 
@@ -1250,6 +1250,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                  | [ H : forall a b c d, exprUnify ?n a b c = Some d -> _ , H' : exprUnify ?n _ _ _ = Some _ |- _ ] =>
                    (eapply H in H'; (eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs)); 
                    instantiate; eauto with exprs
+                 | [ |- _ ] => progress subst
                end; 
         try solve [ eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs
               | (eapply Subst_set_WellTyped; eauto); simpl;
@@ -1258,8 +1259,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                          | [ |- _ ] => rewrite EquivDec_refl_left
                        end; auto 
           | eauto using exprUnify_WellTyped_Forall].
-*)
-    Admitted.
+    Qed.
 
     Lemma Subst_lookup_Subst_equations : forall funcs U G x sub e t,
       Subst_lookup x sub = Some e ->
