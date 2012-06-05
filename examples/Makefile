@@ -1,9 +1,9 @@
 ROOT    := ..
 MODULES := AutoSep LemmaTests \
-           Baby TrivialMem TrivialMem2 Indir Factorial Swap \
+           Baby TrivialMem TrivialMem2 Indir Factorial Swap WordArith \
            Pair SinglyLinkedList \
            Malloc \
-           BinarySearchTree
+           TreeSet
 
 VS      := $(MODULES:%=%.v)
 
