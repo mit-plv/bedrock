@@ -613,13 +613,16 @@ Section WordProver.
       | f' :: fs => combine f f' ++ combine f' f ++ combineAll f fs
     end.
 
-  Fixpoint alreadyCovered (f : fact) (fs : list fact) : bool :=
+  Fixpoint alreadyCovered' (f : fact) (fs : list fact) : bool :=
     match fs with
       | nil => false
       | f' :: fs' => (expr_seq_dec (Source f) (Source f')
         && expr_seq_dec (Destination f) (Destination f'))
-      || alreadyCovered f fs'
+      || alreadyCovered' f fs'
     end.
+
+  Definition alreadyCovered (f : fact) (fs : list fact) : bool :=
+    expr_seq_dec (Source f) (Destination f) || alreadyCovered' f fs.
 
   Fixpoint merge (fs1 fs2 : list fact) : list fact :=
     match fs1 with
@@ -665,9 +668,11 @@ Section WordProver.
       | Equal (tvType 0) e1 e2 =>
         let (b1, n1) := decompose e1 in
         let (b2, n2) := decompose e2 in
-          factMatches {| Source := b1;
-            Destination := b2;
-            Difference := wminus' n1 n2 |} sum
+          if expr_seq_dec b1 b2
+            then W_seq n1 n2
+            else factMatches {| Source := b1;
+              Destination := b2;
+              Difference := wminus' n1 n2 |} sum
       | _ => false
     end.
 
@@ -960,6 +965,7 @@ Section WordProver.
     specialize (decompose_correct uvars vars goal2); intro Hy2.
     destruct (decompose goal1); destruct (decompose goal2).
     simpl in *.
+
     hnf in H1; simpl in H1.
     destruct H1.
     case_eq (exprD funcs uvars vars goal1 (tvType 0)); simpl; intros.
@@ -973,6 +979,14 @@ Section WordProver.
     hnf; simpl.
     rewrite H2.
     rewrite H3.
+
+    generalize (expr_seq_dec_correct e e0).
+    destruct (expr_seq_dec e e0); intuition; subst.
+
+    apply (Expr.Eqb_correct bedrock_type_W) in H0.
+    congruence.
+
+    clear H4.
     eapply factMatches_correct in H0; eauto.
     destruct H0; simpl in *; intuition.
     rewrite H5 in H4; injection H4; clear H4; intros; subst.

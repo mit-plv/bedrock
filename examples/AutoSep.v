@@ -340,7 +340,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Provers.wordProver Provers.Source Provers.Destination Provers.Difference
          Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
          Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
-         Provers.alreadyCovered andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
+         Provers.alreadyCovered Provers.alreadyCovered' andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
          Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
          Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
@@ -620,7 +620,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Provers.wordProver Provers.Source Provers.Destination Provers.Difference
          Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
          Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
-         Provers.alreadyCovered andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
+         Provers.alreadyCovered Provers.alreadyCovered' andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
          Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
          Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double wzero'
@@ -653,11 +653,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
                  end) with (@rev_append A))
            end.
 
-Ltac evaluate ext := 
-  ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
+Ltac evaluate ext := ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
 
-Ltac cancel ext :=
-  sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
+Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
@@ -695,7 +693,7 @@ Ltac descend := Programming.descend; reduce.
 Ltac sep ext := 
   evaluate ext; descend; repeat (step ext; descend).
 
-Ltac sepLemma := simpl; intros; cancel auto_ext.
+Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 
