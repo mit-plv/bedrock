@@ -483,6 +483,14 @@ Lemma Himp_trans : forall p q r,
   unfold Himp, himp; eauto using Imply_trans.
 Qed.
 
+Lemma himp_star_frame_comm :
+  forall (pcType stateType : Type) (cs : codeSpec pcType stateType)
+    (P Q R S : hprop pcType stateType nil),
+    himp cs P Q -> himp cs R S -> himp cs (star P R) (star S Q).
+  intros; eapply Trans_himp; [ | apply himp_star_comm ].
+  apply himp_star_frame; auto.
+Qed.
+
 
 (** * [goodSize] *)
 

@@ -61,6 +61,7 @@ Lemma allocated_shift_base' : forall base base' len offset offset',
   transitivity ($4 ^+ (base ^+ $(offset))).
   simpl; unfold natToW; W_eq.
   transitivity ($4 ^+ (base' ^+ $(offset'))).
+  unfold natToW in *.
   congruence.
   simpl; unfold natToW; W_eq.
 Qed.
@@ -84,7 +85,7 @@ Theorem allocated_split : forall base len' len offset,
   assert (len' <= m)%nat by omega.
   intuition.
   match goal with
-    | [ _ : _ ===> _ * allocated _ ?X _ |- himp _ _ (_ * allocated _ ?Y _)%Sep ] =>
+    | [ _ : forall specs, himp _ _ (_ * allocated _ ?X _)%Sep |- himp _ _ (_ * allocated _ ?Y _)%Sep ] =>
       replace Y with X by omega
   end.
   auto.
