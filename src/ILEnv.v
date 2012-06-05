@@ -19,6 +19,10 @@ Definition test_seq l r : bool :=
     | _ , _ => false
   end.
 
+Theorem test_seq_compare : forall x y, test_seq x y = true -> x = y.
+  destruct x; destruct y; simpl; (reflexivity || congruence).
+Defined.
+
 Definition reg_seq l r : bool := 
   match l as l , r as r with
     | IL.Sp , IL.Sp => true
@@ -27,38 +31,48 @@ Definition reg_seq l r : bool :=
     | _ , _ => false
   end.
 
+Theorem reg_seq_compare : forall x y, reg_seq x y = true -> x = y.
+  destruct x; destruct y; simpl; (reflexivity || congruence).
+Defined.
+
 Definition W_seq (l r : W) : bool :=
   match weq l r with
     | left pf => true
     | _ => false
   end.
 
-Definition admit {X : Type} : X. Admitted. 
+Theorem W_seq_compare : forall x y, W_seq x y = true -> x = y.
+  unfold W_seq; intros; destruct (weq x y); reflexivity || congruence.
+Defined.
+
+Lemma all_false_compare T : forall x y : T, false = true -> x = y.
+  congruence.
+Defined.
 
 Definition bedrock_type_W : type := 
   {| Expr.Impl := W 
-     ; Expr.Eqb := W_seq
-     ; Expr.Eqb_correct := admit
+   ; Expr.Eqb := W_seq
+   ; Expr.Eqb_correct := W_seq_compare
   |}. 
 Definition bedrock_type_setting_X_state : type :=
   {| Expr.Impl := settings * state
-     ; Expr.Eqb := fun _ _ => false
-     ; Expr.Eqb_correct := admit
-  |}.
+   ; Expr.Eqb := fun _ _ => false
+   ; Expr.Eqb_correct := @all_false_compare _
+   |}.
 Definition bedrock_type_setting : type :=
   {| Expr.Impl := state
    ; Expr.Eqb := fun _ _ => false
-   ; Expr.Eqb_correct := admit
+   ; Expr.Eqb_correct := @all_false_compare _
    |}. 
 Definition bedrock_type_test : type :=
   {| Expr.Impl := IL.test
-     ; Expr.Eqb := test_seq
-     ; Expr.Eqb_correct := admit
-  |}. 
+   ; Expr.Eqb := test_seq
+   ; Expr.Eqb_correct := test_seq_compare
+  |}.
 Definition bedrock_type_reg : type :=
   {| Expr.Impl := IL.reg
      ; Expr.Eqb := reg_seq
-     ; Expr.Eqb_correct := admit
+     ; Expr.Eqb_correct := reg_seq_compare
   |}. 
 
 Definition bedrock_types : list Expr.type :=

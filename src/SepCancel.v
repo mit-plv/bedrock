@@ -8,6 +8,7 @@ Require Import Setoid.
 Require Import Prover.
 Require Import SepExpr.
 Require Import Folds.
+Require Import Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -94,6 +95,41 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           intuition. etransitivity; eauto using U.exprUnify_Extends. }
       Qed.          
 
+      Lemma unifyArgs_bad_cases : forall summ bound S S' ts t e a l r,
+        U.Subst_WellTyped tfuncs tU tG S ->
+        Valid Prover_correct U G summ ->
+        all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
+        @is_well_typed _ tfuncs tU tG a t = true ->
+        @is_well_typed _ tfuncs tU tG e t = true ->
+        match
+          (if Prove Prover summ
+            (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))
+            then Some S
+            else U.exprUnify bound a e S)
+          with
+          | Some acc =>
+            fold_left_3_opt
+            (fun (l r : expr types) (t : tvar) (acc0 : U.Subst types) =>
+              if Prove Prover summ
+                (Equal t (U.exprInstantiate acc0 l)
+                  (U.exprInstantiate acc0 r))
+                then Some acc0
+                else U.exprUnify bound l r acc0) l r ts acc
+          | None => None
+        end = Some S' ->
+        U.Subst_Extends S' S /\ U.Subst_WellTyped tfuncs tU tG S'.
+      Proof.
+        intros. destruct (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))).
+        apply unifyArgs_Extends_WellTyped in H5; eauto; intuition.
+        revert H5. case_eq (U.exprUnify bound a e S); intros; eauto.
+        generalize H5. eapply U.exprUnify_Extends in H5.
+        intro. eapply U.exprUnify_WellTyped in H7; eauto.
+        eapply unifyArgs_Extends_WellTyped in H6; eauto; intuition.
+        etransitivity; eauto. 
+        congruence.
+      Qed.
+
       Lemma unifyArgsOk : forall bound summ R l r ts f S S',
         U.Subst_WellTyped tfuncs tU tG S ->
         Valid Prover_correct U G summ ->
@@ -138,8 +174,8 @@ Module Make (U : SynUnifier) (SH : SepHeap).
             subst.
             eapply IHl with (f := f t0) in H9; eauto.
             intuition. rewrite H3. f_equal. f_equal.
-            eapply U.Subst_equations_exprInstantiate in H2; eauto.
-            eapply U.Subst_equations_exprInstantiate in H1; eauto.
+            erewrite U.Subst_equations_exprInstantiate in H2 by eauto.
+            erewrite U.Subst_equations_exprInstantiate in H1 by eauto.
             rewrite U.exprInstantiate_Extends in H2 by eauto.
             rewrite U.exprInstantiate_Extends in H1 by eauto.
             rewrite H2 in H8. rewrite H1 in H7. inversion H7; inversion H8; subst; auto. }
@@ -152,43 +188,96 @@ Module Make (U : SynUnifier) (SH : SepHeap).
             repeat rewrite U.exprInstantiate_Extends in H11 by eauto. rewrite H11 in H7. rewrite H7 in H8. inversion H8; auto.
 
             etransitivity; eauto using U.exprUnify_Extends. }
-          { exfalso. admit. }
-          { exfalso. admit. }
-          { exfalso. admit. } }
+          { exfalso.
+            eapply unifyArgs_bad_cases in H3; eauto; intuition.
+            do 2 match goal with
+              | [ H : is_well_typed _ _ _ ?E _ = true ,
+                  H' : exprD _ _ _ ?E _ = None |- _ ] =>
+              (eapply is_well_typed_correct in H ; eauto) ; destruct H; congruence
+              | [ H : exprD _ _ _ ?E _ = None |- _ ] =>
+                assert (@is_well_typed _ tfuncs tU tG E t = true) by 
+                  (rewrite <- U.exprInstantiate_WellTyped; eauto)
+            end. }
+          { exfalso.
+            eapply unifyArgs_bad_cases in H3; eauto; intuition.
+            do 2 match goal with
+              | [ H : is_well_typed _ _ _ ?E _ = true ,
+                  H' : exprD _ _ _ ?E _ = None |- _ ] =>
+              (eapply is_well_typed_correct in H ; eauto) ; destruct H; congruence
+              | [ H : exprD _ _ _ ?E _ = None |- _ ] =>
+                assert (@is_well_typed _ tfuncs tU tG E t = true) by 
+                  (rewrite <- U.exprInstantiate_WellTyped; eauto)
+            end. }
+          { exfalso.
+            eapply unifyArgs_bad_cases in H3; eauto; intuition.
+            do 2 match goal with
+              | [ H : is_well_typed _ _ _ ?E _ = true ,
+                  H' : exprD _ _ _ ?E _ = None |- _ ] =>
+              (eapply is_well_typed_correct in H ; eauto) ; destruct H; congruence
+              | [ H : exprD _ _ _ ?E _ = None |- _ ] =>
+                assert (@is_well_typed _ tfuncs tU tG E t = true) by 
+                  (rewrite <- U.exprInstantiate_WellTyped; eauto)
+            end. } }
       Qed.
 
-      Lemma unify_removeOk : forall cs bound summ f l ts r r' S S' P,
+      Lemma WellTyped_exprInstantiate_applyD : forall S',
+        U.Subst_equations funcs U G S' ->
+        forall p l,
+          applyD (exprD funcs U G) (SDomain p) l
+          (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+          (SDenotation p) =
+          applyD (exprD funcs U G) (SDomain p) (map (U.exprInstantiate S') l)
+          (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
+          (SDenotation p).
+      Proof.
+        clear. destruct p. induction SDomain0; destruct l; simpl; auto.
+        rewrite <- U.Subst_equations_exprInstantiate; eauto.
+        destruct (exprD funcs U G e a); eauto.
+      Qed.
+      
+      Lemma unify_removeOk : forall cs bound summ f p l S,
         U.Subst_WellTyped tfuncs tU tG S ->
         Valid Prover_correct U G summ ->
-        all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
-        List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r ts = true) r ->
-        unify_remove bound summ l ts r S = Some (r', S') ->
-        U.Subst_equations funcs U G S' ->
-        SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) ->
-        SE.heq funcs preds U G cs
-          (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) /\
-        U.Subst_Extends S' S.
+        nth_error preds f = Some p ->
+        all2 (@is_well_typed _ tfuncs tU tG) l (SDomain p) = true ->
+        forall r r' S' P,
+          List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r (SDomain p) = true) r ->
+          unify_remove bound summ l (SDomain p) r S = Some (r', S') ->
+          U.Subst_equations funcs U G S' ->
+          SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) ->
+          SE.heq funcs preds U G cs
+            (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) /\
+          U.Subst_Extends S' S.
       Proof.
+        do 12 intro.  
+        match goal with
+          | [ |- context [ @Emp ?X ?Y ?Z ] ] => generalize (@Emp X Y Z)
+        end.
         induction r; simpl; intros; try congruence.
-        revert H3. case_eq (unifyArgs bound summ l a ts S); intros; try congruence.
-        { inversion H6; clear H6; subst.
-          inversion H2; subst.
+        revert H4. case_eq (unifyArgs bound summ l a (SDomain p) S); intros; try congruence.
+        { inversion H7; clear H7; subst.
+          inversion H3; clear H3; subst.
           rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
-          case_eq (nth_error preds f); intros.
-(*          intuition. apply SEP_FACTS.heq_star_frame; [ | eauto ].
-          unfold heq. (*simpl. rewrite H6.
-          generalize (@unifyArgsOk bound summ (ST.hprop (tvarD types pcType) (tvarD types stateType) nil) l a (SDomain s)
-            (SDenotation s)). *) admit.
-*)
-          admit.
-          admit. }
-(*
-        { revert H6; case_eq (unify_remove bound summ l ts r S); intros.
- *)         
-
-
-
-      Admitted.
+          eapply unifyArgsOk with (R := ST.hprop (tvarD types pcType) (tvarD types stateType) nil) (f := SDenotation p) in H4;
+            eauto. 
+          intuition.
+          apply heq_star_frame; auto. unfold heq; simpl. rewrite H1.
+          match goal with
+            | [ |- ST.heq _ match ?X with _ => _ end match ?Y with _ => _ end ] =>
+              cutrewrite (X = Y)
+          end. reflexivity.
+          revert H3. repeat rewrite <- WellTyped_exprInstantiate_applyD; eauto. }
+        { revert H7. case_eq (unify_remove bound summ l (SDomain p) r S); intros; try congruence.
+          destruct p0. inversion H8; clear H8; subst. clear H4.
+          inversion H3; clear H3; subst.
+          rewrite SH.starred_def in H6. simpl in H6. rewrite <- SH.starred_def in H6.
+          eapply IHr in H7; eauto.
+          Focus 2. instantiate (1 := (SH.SE.Star (Func f a) s)). instantiate (1 := P).
+          etransitivity. eapply H6. rewrite SH.starred_base. symmetry. rewrite SH.starred_base.
+          heq_canceler.
+          intuition. rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
+          rewrite H3. rewrite SH.starred_base. symmetry. rewrite SH.starred_base. heq_canceler. }
+      Qed.
     End with_typing.
 
     Require Ordering.
@@ -214,7 +303,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Definition meta_order_args (l r : exprs types) : Datatypes.comparison :=
       let cmp l r := Compare_dec.nat_compare (expr_count_meta l) (expr_count_meta r) in
       Ordering.list_lex_cmp _ cmp l r.
-
 
     Definition meta_order_funcs (l r : exprs types * nat) : Datatypes.comparison :=
       match meta_order_args (fst l) (fst r) with
