@@ -29,6 +29,8 @@ Definition swap := bmodule "swap" {{
 }}.
 
 Theorem swapOk : moduleOk swap.
+(*TIME Clear Timing Profile. *)
   vcgen; repeat cbv beta iota zeta delta [ getArg ] in *; simpl in *;
     abstract sep_auto.
+(*TIME Print Timing Profile. *)
 Qed.

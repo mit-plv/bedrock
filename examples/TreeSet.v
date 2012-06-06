@@ -262,5 +262,7 @@ Local Hint Extern 5 (@eq W _ _) => words.
 Local Hint Extern 3 (himp _ _ _) => apply bst'_set_extensional.
   
 Theorem bstMOk : moduleOk bstM.
+(*TIME Clear Timing Profile. *)
   vcgen; abstract (sep hints; auto).
+(*TIME Print Timing Profile. *)
 Qed.

@@ -57,9 +57,9 @@ Hint Extern 5 (@eq W _ _) => cbv zeta; match goal with
                                        end.
 
 Theorem factOk : moduleOk fact.
-(*  Clear Timing Profile. *)
+(*TIME  Clear Timing Profile. *)
   vcgen; abstract (sep_auto; eauto).
-(*  Print Timing Profile. *)
+(*TIME  Print Timing Profile. *)
 Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
@@ -88,10 +88,10 @@ Qed.
 Hint Resolve factR_4.
 
 Theorem factDriverOk : moduleOk factDriver.
-(*  Clear Timing Profile. *)
+(*TIME  Clear Timing Profile. *)
   vcgen;
   abstract (sep_auto; eauto).
-(*  Print Timing Profile. *)
+(*TIME  Print Timing Profile. *)
 Qed.
 
 Definition factProg := link fact factDriver.

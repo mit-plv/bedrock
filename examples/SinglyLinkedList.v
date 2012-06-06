@@ -161,5 +161,7 @@ Ltac finish := repeat match goal with
 Ltac t :=  abstract (sep hints_sll; finish).
  
 Theorem sllMOk : moduleOk sllM.
+(*TIME Clear Timing Profile. *)
   vcgen; t. 
+(*TIME Print Timing Profile. *)
 Qed.
