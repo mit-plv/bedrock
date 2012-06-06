@@ -75,14 +75,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
       cbv beta iota zeta
        delta [s1 s2 s3 hints 
          (** Symbolic Evaluation **)
-         SymIL.MEVAL.Plugin.fold_first
-         SymIL.MEVAL.Plugin.fold_first_update  SymIL.MEVAL.Plugin.plugin_symeval_read_word
-         SymIL.MEVAL.Plugin.plugin_symeval_write_word
-         SymIL.MEVAL.Plugin.MemEvaluator_plugin
-         SymIL.MEVAL.Plugin.smem_read SymIL.MEVAL.Plugin.smem_write
+         SymIL.MEVAL.PredEval.fold_args SymIL.MEVAL.PredEval.fold_args_update 
+         SymIL.MEVAL.PredEval.pred_read_word SymIL.MEVAL.PredEval.pred_write_word
+
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
          SymIL.IL_ReadWord SymIL.IL_WriteWord
-         SymIL.MEVAL.Plugin.smem_read SymIL.MEVAL.Plugin.smem_write
          ILAlgoTypes.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
@@ -97,9 +94,10 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.quantifyNewVars
          ILAlgoTypes.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
-         SymIL.MEVAL.smemeval_read_word SymIL.MEVAL.smemeval_write_word
+         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          ILAlgoTypes.unfolder_LearnHook
+         (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
    
          (** ILEnv **)
@@ -311,6 +309,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Plugin_PtsTo.sym_write_word_ptsto32 Plugin_PtsTo.ptsto32_types_r
          Plugin_PtsTo.types 
          Plugin_PtsTo.MemEval_ptsto32
+         Plugin_PtsTo.MemEvaluator_ptsto32
 
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
@@ -353,14 +352,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
     cbv beta iota zeta
        delta [s1 s2 s3 hints 
          (** Symbolic Evaluation **)
-         SymIL.MEVAL.Plugin.fold_first
-         SymIL.MEVAL.Plugin.fold_first_update  SymIL.MEVAL.Plugin.plugin_symeval_read_word
-         SymIL.MEVAL.Plugin.plugin_symeval_write_word
-         SymIL.MEVAL.Plugin.MemEvaluator_plugin
-         SymIL.MEVAL.Plugin.smem_read SymIL.MEVAL.Plugin.smem_write
+         SymIL.MEVAL.PredEval.fold_args
+         SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
+         SymIL.MEVAL.PredEval.pred_write_word
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
          SymIL.IL_ReadWord SymIL.IL_WriteWord
-         SymIL.MEVAL.Plugin.smem_read SymIL.MEVAL.Plugin.smem_write
          ILAlgoTypes.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
@@ -375,7 +371,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.quantifyNewVars
          ILAlgoTypes.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
-         SymIL.MEVAL.smemeval_read_word SymIL.MEVAL.smemeval_write_word
+         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          ILAlgoTypes.unfolder_LearnHook
          (*SymIL.quantifyNewVars*) 
@@ -594,6 +590,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Plugin_PtsTo.sym_write_word_ptsto32 Plugin_PtsTo.ptsto32_types_r
          Plugin_PtsTo.types 
          Plugin_PtsTo.MemEval_ptsto32
+         Plugin_PtsTo.MemEvaluator_ptsto32
 
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat

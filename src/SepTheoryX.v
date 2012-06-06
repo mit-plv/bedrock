@@ -88,7 +88,6 @@ Section Env.
   Parameter heq_star_emp_l : forall P, (star emp P) <===> P.
   Parameter heq_star_emp_r : forall P, (star P emp) <===> P.
 
-
   Parameter himp_star_frame : forall P Q R S, 
     P ===> Q -> R ===> S -> (star P R) ===> (star Q S).
 

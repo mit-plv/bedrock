@@ -72,3 +72,11 @@ Section All2.
     rewrite P_F; auto.
   Qed.
 End All2.    
+
+Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
+  Forall P ls1
+  -> Forall P ls2
+  -> Forall P (ls1 ++ ls2).
+Proof.
+  induction 1; simpl; auto.
+Qed.

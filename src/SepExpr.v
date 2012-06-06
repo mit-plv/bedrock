@@ -141,6 +141,21 @@ Module SepExprFacts (SE : SepExpr).
       constructor; eauto with typeclass_instances.
     Qed.
 
+    Lemma heq_defn : forall P Q,
+      (@SE.himp types _ _ funcs preds U G cs P Q /\
+       @SE.himp types _ _ funcs preds U G cs Q P) <->
+      (@SE.heq types _ _ funcs preds U G cs P Q).
+    Proof.
+      unfold SE.heq, SE.himp. intros; apply SE.ST.heq_defn. 
+    Qed.
+
+    Lemma heq_himp : forall P Q,
+      @SE.heq types _ _ funcs preds U G cs P Q ->
+      @SE.himp types _ _ funcs preds U G cs P Q.
+    Proof.
+      unfold SE.heq, SE.himp. intros; apply SE.ST.heq_himp; auto.
+    Qed.
+
     Lemma himp_not_WellTyped : forall tfuncs tG tU f P Q l,
       WellTyped_env tU U ->
       WellTyped_env tG G ->

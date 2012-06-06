@@ -81,6 +81,14 @@ Definition bedrock_type_nat : type :=
     ; Expr.Eqb_correct := beq_nat_true
   |}.
 
+Definition core_bedrock_types : list Expr.type :=
+  bedrock_type_W ::
+  bedrock_type_setting_X_state :: nil.
+
+Definition core_bedrock_types_r : Repr Expr.type :=
+  Eval cbv beta iota zeta delta [ listToRepr core_bedrock_types ]
+    in (listToRepr core_bedrock_types Expr.EmptySet_type).
+
 Definition bedrock_types : list Expr.type :=
   bedrock_type_W ::
   bedrock_type_setting_X_state ::

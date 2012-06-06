@@ -15,7 +15,7 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (** The Symbolic Evaluation Interfaces *)
-Module MEVAL := SymEval.MemoryEvaluator SH.
+Module MEVAL := SymEval.SymbolicEvaluator SH.
 
 Section typed.
   Variable types : list type.
@@ -268,7 +268,7 @@ Section Denotations.
             match SymMem ss with
               | None => None
               | Some m =>
-                match MEVAL.smemeval_write_word meval _ Facts l val m with
+                match MEVAL.swrite_word meval _ Facts l val m with
                   | Some m =>
                     Some {| SymVars := SymVars ss
                       ; SymUVars := SymUVars ss
@@ -290,7 +290,7 @@ Section Denotations.
             match SymMem ss with
               | None => None
               | Some m => 
-                MEVAL.smemeval_read_word meval _ Facts l m
+                MEVAL.sread_word meval _ Facts l m
             end
         | SymRvImm w => Some w 
         | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
@@ -400,15 +400,11 @@ Definition IL_stn_st : Type := (IL.settings * IL.state)%type.
 
 Section spec_functions.
   Variable ts : list type.
-  Let types := repr bedrock_types_r ts.
+  Let types := repr core_bedrock_types_r ts.
 
   Local Notation "'pcT'" := (tvType 0).
   Local Notation "'tvWord'" := (tvType 0).
   Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
-
 
   Definition IL_mem_satisfies (cs : PropX.codeSpec (tvarD types pcT) (tvarD types stT)) 
     (P : ST.hprop (tvarD types pcT) (tvarD types stT) nil) (stn_st : (tvarD types stT)) : Prop :=
@@ -423,4 +419,24 @@ Section spec_functions.
           | None => None
           | Some m => Some (stn, {| Regs := Regs st ; Mem := m |})
         end).
+
+  Theorem IL_mem_satisfies_himp : forall cs P Q stn_st,
+    IL_mem_satisfies cs P stn_st ->
+    ST.himp cs P Q ->
+    IL_mem_satisfies cs Q stn_st.
+  Proof.
+    unfold IL_mem_satisfies; intros.
+    eapply sepFormula_himp_imply in H0.
+    2: eapply (refl_equal stn_st). unfold PropXRel.PropX_imply in *.
+    eapply PropX.Imply_E; eauto. 
+  Qed.
+  Theorem IL_mem_satisfies_pure : forall cs p Q stn_st,
+    IL_mem_satisfies cs (ST.star (ST.inj p) Q) stn_st ->
+    interp cs p.
+  Proof.
+    unfold IL_mem_satisfies; intros.
+    rewrite sepFormula_eq in H. 
+    PropXTac.propxFo; auto.
+  Qed.
+
 End spec_functions.

@@ -239,14 +239,7 @@ Section Grouper.
 
   Hint Resolve groupEqualTo_groupEqual.
 
-  Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
-    Forall P ls1
-    -> Forall P ls2
-    -> Forall P (ls1 ++ ls2).
-    induction 1; t.
-  Qed.
-
-  Hint Resolve Forall_app.
+  Hint Resolve Folds.Forall_app.
 
   Lemma groupEqualTo_In : forall x y g,
     InR y g
@@ -809,7 +802,7 @@ Section WordProver.
       symmetry; apply wplus_assoc.
     Qed.
 
-    Hint Resolve combineCorrect Forall_app.
+    Hint Resolve combineCorrect Folds.Forall_app.
 
     Lemma combineAllCorrect : forall f fs,
       factValid f

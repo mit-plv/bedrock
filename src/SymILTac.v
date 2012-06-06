@@ -524,7 +524,7 @@ Proof.
   destruct l; destruct r; destruct CL; destruct CR; simpl in *; constructor; simpl.
   destruct Prover0; destruct Prover1; simpl; auto. apply composite_ProverT_correct; auto.
   destruct Hints0; destruct Hints1; simpl; auto; destruct Acorrect_Hints0; destruct Acorrect_Hints1; constructor; simpl;
-    eapply Provers.Forall_app; auto.
+    eapply Folds.Forall_app; auto.
   destruct MemEval0; destruct MemEval1; simpl; auto. apply MEVAL.Composite.MemEvaluator_correct_composite; auto.
 Qed.
 
@@ -751,7 +751,7 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
  **)
 Ltac sym_eval isConst ext simplifier :=
-(*TIME  start_timer 100 ; *)
+(*TIME  start_timer "sym_eval:init" ; *)
   let rec init_from st :=
     match goal with
       | [ H : evalInstrs _ ?st' _ = Some st |- _ ] => init_from st'
@@ -832,17 +832,17 @@ Ltac sym_eval isConst ext simplifier :=
             | (?sp_v, ?sp_pf) =>
               match find_reg st Rv with
                 | (?rv_v, ?rv_pf) =>
-(*TIME                  stop_timer 100 ; *)
-(*TIME                  start_timer 101 ; *)
+(*TIME                  stop_timer "sym_eval:init" ; *)
+(*TIME                  start_timer "sym_eval:gather_instrs" ; *)
                   let all_instrs := get_instrs st in
                   let all_props := 
                     ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
                   in
                   let pures := ReifyExpr.props_types all_props in
                   let regs := constr:((rp_v, (sp_v, (rv_v, tt)))) in
-(*TIME                  stop_timer 101 ; *)
+(*TIME                  stop_timer "sym_eval:gather_instrs" ; *)
                   (** collect the raw types **)
-(*TIME                  start_timer 102 ; *)
+(*TIME                  start_timer "sym_eval:reify" ; *)
                   let Ts := constr:(@nil Type) in
                   let Ts := 
                     match SF with
@@ -887,7 +887,7 @@ Ltac sym_eval isConst ext simplifier :=
                   Expr.ReifyExpr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
                   Expr.ReifyExpr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
                     let finish H  :=
-(*TIME                      start_timer 110 ; *)
+(*TIME                      start_timer "sym_eval:cleanup" ; *)
                       ((try exact H) ||
                        (let rec destruct_exs H :=
                          match type of H with
@@ -904,12 +904,12 @@ Ltac sym_eval isConst ext simplifier :=
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
                             assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
-(*TIME                      stop_timer 110 *)
+(*TIME                      stop_timer "sym_eval:cleanup" *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
                       match SF with
                         | tt => 
-(*TIME                          stop_timer 102 ; *)
+(*TIME                          stop_timer "sym_eval:reify" ; *)
                           let funcsV := fresh "funcs" in
                           pose (funcsV := funcs) ;
                           let predsV := fresh "preds" in
@@ -930,20 +930,20 @@ Ltac sym_eval isConst ext simplifier :=
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
-(*TIME                            stop_timer 102 ; *)
-(*TIME                            start_timer 103 ; *)
+(*TIME                            stop_timer "sym_eval:reify" ; *)
+(*TIME                            start_timer "sym_eval:pose" ; *)
                             let funcsV := fresh "funcs" in
                             pose (funcsV := funcs) ;
                             let predsV := fresh "preds" in
                             pose (predsV := preds) ;
 (*                            let ExtC := constr:(@Algos_correct ext typesV funcsV predsV) in *)
-(*TIME                            stop_timer 103 ; *)
-(*TIME                            start_timer 104 ; *)
+(*TIME                            stop_timer "sym_eval:pose" ; *)
+(*TIME                            start_timer "sym_eval:apply_stateD_proof" ; *)
                             apply (@stateD_proof typesV funcsV predsV
                               uvars _ sp_v rv_v rp_v 
                               sp_pf rv_pf rp_pf pures proofs SF _ _ (refl_equal _)) in H_interp ;
-(*TIME                            stop_timer 104 ; *)
-(*TIME                            start_timer 105 ; *)
+(*TIME                            stop_timer "sym_eval:apply_stateD_proof" ; *)
+(*TIME                            start_timer "sym_eval:apply_sym_eval" ; *)
                             ((apply (@Apply_sym_eval typesV funcsV predsV
                               (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
                               stn uvars vars fin_state st is is_pf) in H_interp) ||
@@ -964,10 +964,13 @@ Ltac sym_eval isConst ext simplifier :=
                                    (@Algos ext typesV)) ; generalize (@Algos_correct ext typesV funcsV predsV) ; idtac "2" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV) ; idtac "1"  
                                ])) ;
-(*TIME                             stop_timer 105 ; *)
-(*TIME                             start_timer 106 ; *)
+(*TIME                             stop_timer "sym_eval:apply_sym_eval" ; *)
+(*TIME                             start_timer "sym_eval:simplify" ; *)
                             first [ simplifier typesV funcsV predsV H_interp | fail 100000 "simplifier failed! (SF)" ] ;
+(*TIME                             stop_timer "sym_eval:simplify" ; *)
+(*TIME                             start_timer "sym_eval:clear" ; *)
                             try clear typesV funcsV predsV ;
+(*TIME                             stop_timer "sym_eval:clear" ; *)
                             first [ finish H_interp | fail 100000 "finisher failed! (SF)" ])
                       end)))))
               end
@@ -1044,7 +1047,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
 
       Summarize Learn Prove
       
-      MEVAL.smemeval_read_word MEVAL.smemeval_write_word
+      MEVAL.sread_word MEVAL.swrite_word
       
       EquivDec_nat Peano_dec.eq_nat_dec
 
@@ -1418,43 +1421,6 @@ Ltac glue_pack left_pack right_pack ret :=
     |})
   in ret res.
 
-(*
-Ltac refine_glue_pack l r :=
-  let reduce_repr e := e in
-  let opaque v k := k v in
-  match eval hnf in l with
-    | @Build_TypedPackage ?CT ?PC ?ST ?SAT ?READ ?WRITE ?tl ?fl ?pl ?al ?acl =>
-      match eval hnf in r with
-        | @Build_TypedPackage _ _ _ _ _ _ ?tr ?fr ?pr ?ar ?acr =>
-          refine (
-              let types := repr_combine tl tr in
-              let funcs := fun ts => repr_combine (fl (repr types ts)) (fr (repr types ts)) in
-              let preds := fun ts => repr_combine (pl (repr types ts)) (pr (repr types ts)) in
-              @Build_TypedPackage CT PC ST SAT READ WRITE 
-                types funcs preds
-                (fun ts => AllAlgos_composite (al (repr types ts)) (ar (repr types ts)))
-                _ 
-               ); 
-          (subst; abstract exact (fun ts fs ps => AllAlgos_correct_composite 
-                  (acl (repr (repr_combine tl tr) ts) 
-                       (repr (repr_combine (fl (repr (repr_combine tl tr) ts)) (fr (repr (repr_combine tl tr) ts))) fs)
-                       (repr (repr_combine (pl (repr (repr_combine tl tr) ts)) (pr (repr (repr_combine tl tr) ts))) ps))
-                  (acr (repr (repr_combine tl tr) ts)
-                       (repr (repr_combine (fl (repr (repr_combine tl tr) ts)) (fr (repr (repr_combine tl tr) ts))) fs)
-                       (repr (repr_combine (pl (repr (repr_combine tl tr) ts)) (pr (repr (repr_combine tl tr) ts))) ps))))
-      end
-  end.
-
-Ltac hlist_from_tuple tpl acc := 
-  match tpl with
-    | tt => acc
-    | (?L, ?R) => 
-      let acc := hlist_from_tuple R acc in
-      hlist_from_tuple L acc
-    | _ => constr:(@HCons _ _ _ _ tpl acc)
-  end.
-*)
-
 (** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with 
  ** the result.
  **)
@@ -1502,226 +1468,3 @@ Definition AlgoImpl := AllAlgos.
 Definition AlgoProof := AllAlgos_correct.
 End ILAlgoTypes.
 
-(**
-Module UnfolderLearnHook.
-  Require Unfolder.
-
-  Module UNF := Unfolder.Make BedrockHeap ST.
-
-  Section typed.
-    Variable types : list type.
-    Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
-
-    Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
-      (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
-      fun prover st facts => 
-        match SymMem st with
-          | Some m =>
-            match UNF.forward hints prover 10 facts
-              {| UNF.Vars := SymVars st 
-               ; UNF.UVars := SymUVars st
-               ; UNF.Heap := m
-              |}
-              with
-              | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
-                {| SymVars := vs
-                 ; SymUVars := us
-                 ; SymMem := Some m
-                 ; SymRegs := SymRegs st
-                 ; SymPures := SymPures st
-                |}
-            end
-          | None => st
-        end.
-
-    Variable funcs : functions (repr bedrock_types_r types).
-    Variable preds : SEP.predicates (repr bedrock_types_r types) (tvType 0) (tvType 1).
-    Hypothesis hints_correct : UNF.hintsSoundness funcs preds hints.
-
-    Opaque UNF.forward.
-
-    Theorem unfolderLearnHook_correct 
-      : @MEVAL.LearnHook_correct (repr bedrock_types_r types) (tvType 0) (tvType 1) _ (@unfolder_LearnHook) 
-        (@stateD _ funcs preds) funcs preds.
-    Proof.
-      unfold unfolder_LearnHook. econstructor.
-
-      destruct ss; simpl.
-      destruct SymMem0; simpl; intros; subst; eauto.
-      generalize hints_correct.
-      admit.
-    Qed.
-    Transparent UNF.forward.
-  End typed.
-
-  Ltac unfolder_simplifier H := 
-    match H with
-      | tt => 
-        cbv delta [ 
-          UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
-          UNF.Forward
-          UNF.forward
-          UNF.unfoldForward
-          UNF.findWithRest UNF.find 
-          equiv_dec
-          UNF.substExpr
-          Unfolder.FM.add
-
-          impures pures other
-          
-          Unfolder.allb 
-
-          length map app
-          exprSubstU
-          
-          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
-
-          unfolder_LearnHook
-          UNF.default_hintsPayload
-          UNF.fmFind
-          UNF.findWithRest'
-        ]
-      | _ => 
-        cbv delta [ 
-          UNF.Vars UNF.UVars UNF.Heap UNF.Lhs UNF.Rhs
-          UNF.Forward
-          UNF.forward
-          UNF.unfoldForward
-          UNF.findWithRest UNF.find 
-          equiv_dec
-          UNF.substExpr
-          Unfolder.FM.add
-
-          impures pures other
-          
-          Unfolder.allb 
-
-          length map app
-          exprSubstU
-
-          ExprUnify.exprUnifyArgs ExprUnify.empty_Subst 
-
-          unfolder_LearnHook
-          UNF.default_hintsPayload
-          UNF.fmFind
-          UNF.findWithRest'
-        ] in H
-    end.
-
-  (** This ltac builds an unfolder given a hint database.
-   ** [hints] is a gallina term of type [forall ts fs pcT stT ps, UNF.hintsSoundness ts fs pcT stT ps H]
-   **   if [H] is the hints to use in unfolding
-   **)
-  Ltac unfolder_for hints :=
-    fun ts pc st fs ps => constr:(@unfolderLearnHook_correct ts _ fs ps (hints ts fs (tvType 0) (tvType 1) ps)).
-      
-  Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
-    PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
-    Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
-    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
-    Regs st' Rp = natToW 0.
-  Proof.
-    intros.
-    Time sym_eval ltac:(isConst) 
-      ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
-      ltac:(fun ts pc st fs ps k => let res := constr:(@Demo.demo_evaluator ts fs ps) in k tt res) (* memory evaluator *)
-      ltac:(unfolder_for (@UNF.hintsSoundness_default)) (* unfolder *)
-      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; unfolder_simplifier H ; sym_evaluator H)
-      tt tt tt.
-    congruence.
-  Qed.
-
-End UnfolderLearnHook.
-**)
-
-(**
-Module PluginEvaluator.
-  
-  Definition plugin_evaluator ts (fs : functions (repr bedrock_types_r ts)) ps evals consistent_pf := 
-    @MEVAL.Plugin.PluginMemEvaluator_correct _ (tvType 0) (tvType 1) evals fs ps (settings * state) (tvType 0) (tvType 0)
-    (@IL_mem_satisfies ts)
-    (@IL_ReadWord ts)
-    (@IL_WriteWord ts)
-    consistent_pf.
-
-  (** This Ltac builds a function that can be instantiated to build a composite evaluator.
-   ** It should be applied to one argument and passed as the 3rd argument to [sym_eval].
-   ** Arguments:
-   ** - [known] is a tuple of [forall ts fs, @MemEvalPred_correct ts ? (tvType 0) (tvType 1) ? (tvType 0) (tvType 0) ... ]
-   **)
-  Ltac plugin_eval known :=
-    let rec find_in p ls acc :=
-      match ls with
-        | nil => fail 100000 " didn't find " p
-        | ?l :: ?ls =>
-          match Reflect.unifies (SDenotation l) p with
-            | true => acc
-            | false => 
-              find_in p ls (S acc)
-          end
-      end
-    in
-    fun ts _pc _st fs ps k =>
-      let psVal := eval hnf in ps in
-      let rec build_pf known k :=
-        match known with
-          | tt => 
-            let r := constr:(@nil (nat * MEVAL.Plugin.MemEvalPred (repr bedrock_types_r ts))) in
-            let pf := constr:(I) in
-            k r pf
-          | (?L, ?known) =>
-            let Z := type of L in
-            match type of L with
-              | forall ts,  forall fs, @MEVAL.Plugin.MemEvalPred_correct _ _ _ _ _ _ _ _ _ _ (@?s ts) _ =>
-                let p := eval simpl SDenotation in (SDenotation (s ts)) in
-                let idx := find_in p psVal 0 in                  
-                build_pf known ltac:(fun res pf =>
-                  let ZZZ := constr:(@L ts fs) in
-                  let E :=
-                    match type of ZZZ with
-                      | @MEVAL.Plugin.MemEvalPred_correct _ ?P _ _ _ _ _ _ _ _ _ _ => P
-                    end
-                  in
-                  let f := constr:((idx, E) :: res) in
-                  let pf := constr:(@conj _ _ ZZZ pf) in
-                  k f pf)              
-            end
-        end
-      in 
-      build_pf known ltac:(fun evals consistent_pf =>
-        let evalsV := fresh "evals" in
-        pose (evalsV := evals) ;
-        let consistentV := fresh "consistent" in
-          idtac "a" evals consistent_pf ;
-        let res := constr:(@plugin_evaluator ts fs ps evals consistent_pf) in
-          idtac "B" res;
-            pose res ;
-        k evalsV res).
-
-  Goal forall ts fs ps, 
-    { evals : _ & MEVAL.MemEvaluator_correct
-        (MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) evals) fs ps
-        (tvType 0) (tvType 0) (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts) }.
-  Proof.
-    intros.
-    plugin_eval tt ts (tvType 0) (tvType 1) fs ps ltac:(fun evals pf => econstructor; apply pf).
-
-
-forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
-    PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
-    Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
-    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' -> 
-    Regs st' Rp = natToW 0.
-  Proof.
-    intros.
-    Time sym_eval ltac:(isConst) 
-      ltac:(fun ts fs => constr:(@Provers.reflexivityProver_correct ts fs)) (* prover *)
-      ltac:(composite_eval tt) (* memory evaluator *)
-      ltac:(UnfolderLearnHook.unfolder_for (@UnfolderLearnHook.UNF.hintsSoundness_default)) (* unfolder *)
-      ltac:(fun H => Provers.unfold_reflexivityProver H ; MEVAL.Default.unfolder H ; UnfolderLearnHook.unfolder_simplifier H ; sym_evaluator H)
-      tt tt tt.
-    congruence.
-  Qed.
-
-End PluginEvaluator.
-**)

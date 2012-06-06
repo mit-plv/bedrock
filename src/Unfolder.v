@@ -177,11 +177,10 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       econstructor; constructor.
     Qed.
     
-    Require Provers. 
     Theorem hintsSoundness_composite l r (L : hintsSoundness l) (R : hintsSoundness r) 
       : hintsSoundness (composite_hintsPayload l r).
     Proof.
-      econstructor; simpl; eapply Provers.Forall_app; solve [ eapply ForwardOk; auto | eapply BackwardOk; auto ].
+      econstructor; simpl; eapply Folds.Forall_app; solve [ eapply ForwardOk; auto | eapply BackwardOk; auto ].
     Qed.
 
     (** Applying up to a single hint to a hashed separation formula *)
@@ -576,19 +575,12 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             k funcs preds (P :: nil))
     end.
 
-  Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
-    Forall P ls1
-    -> Forall P ls2
-    -> Forall P (ls1 ++ ls2).
-    induction 1; simpl; intuition.
-  Qed.
-
   (* Build proofs of combined lemma statements *)
   Ltac prove Ps :=
     match Ps with
       | tt => constructor
       | (?P1, ?P2) => 
-           (apply Forall_app; [ prove P1 | prove P2 ])
+           (apply Folds.Forall_app; [ prove P1 | prove P2 ])
         || (constructor; [ exact P1 | prove P2 ])
       | _ => constructor; [ exact Ps | constructor ]
     end.
