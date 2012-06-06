@@ -161,10 +161,10 @@ Module SEP_REIFY := ReifySepExpr SEP.
  **   constr:(tt).
  **)
 Ltac sep_canceler isConst ext simplifier :=
-(*TIME  run_timer 10 ; *)
+(*TIME  start_timer "sep_canceler:change_to_himp" ; *)
   (try change_to_himp) ;
-(*TIME  stop_timer 10 ; *)
-(*TIME  run_timer 11 ; *)
+(*TIME  stop_timer "sep_canceler:change_to_himp" ; *)
+(*TIME  start_timer "sep_canceler:init" ; *)
   let ext' := 
     match ext with
       | tt => eval cbv delta [ SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package ] in SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package
@@ -215,18 +215,18 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-(*TIME      stop_timer 11; *)
-(*TIME      run_timer 12 ; *)
+(*TIME      stop_timer start_timer "sep_canceler:init"; *)
+(*TIME      start_timer "sep_canceler:gather_props" ; *)
       let all_props := 
         ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
       in
       let pures := ReifyExpr.props_types all_props in
-(*TIME      stop_timer 12 ; *)
-(*TIME      run_timer 13 ; *)
+(*TIME      stop_timer "sep_canceler:gather_props" ; *)
+(*TIME      start_timer "sep_canceler:unfold_notation" ; *)
       let L := eval unfold empB injB injBX starB exB hvarB in L in
       let R := eval unfold empB injB injBX starB exB hvarB in R in
-(*TIME      stop_timer 13 ; *)
-(*TIME      run_timer 14 ; *)
+(*TIME      stop_timer "sep_canceler:unfold_notation" ; *)
+(*TIME      start_timer "sep_canceler:reify" ; *)
       (** collect types **)
       let Ts := constr:(@nil Type) in
       let Ts := ReifyExpr.collectTypes_exprs ltac:(isConst) pures Ts in
@@ -263,25 +263,19 @@ Ltac sep_canceler isConst ext simplifier :=
       let proofs := ReifyExpr.props_proof all_props in
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
       SEP_REIFY.reify_sexpr ltac:(isConst) R typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds R =>
-(*TIME        stop_timer 14 ; *)
-(*TIME        run_timer 15 ; *)
+(*TIME        stop_timer "sep_canceler:reify" ; *)
+(*TIME        start_timer "sep_canceler:pose" ; *)
         let funcsV := fresh "funcs" in
         pose (funcsV := funcs) ;
         let predsV := fresh "preds" in
         pose (predsV := preds) ;
-(*TIME          stop_timer 15 ; *)
-(*TIME          run_timer 16 ; *)
+(*TIME          stop_timer "sep_canceler:pose" ; *)
+(*TIME          start_timer "sep_canceler:apply_CancelSep" ; *)
         (((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (SymILTac.ILAlgoTypes.Algos ext typesV)
                    (@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ]
-(*         idtac "15" ; *)
-(*TIME         stop_timer 16 ; *)
-(*TIME         run_timer 17 ; *)
-(*TIME         stop_timer 17 ; *)
-(*         idtac "16" ; *)
-(*TIME         run_timer 18 ; *)
-(*TIME         stop_timer 18  *)
+(*TIME         stop_timer "sep_canceler:apply_CancelSep" ; *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
             let algos := constr:(SymILTac.ILAlgoTypes.Algos ext typesV) in
@@ -296,8 +290,12 @@ Ltac sep_canceler isConst ext simplifier :=
                   | generalize (@ApplyCancelSep typesV funcsV predsV); pose (algosC) ; idtac "r" 
                   | generalize (@ApplyCancelSep typesV funcsV) ; idtac "q"
                   ])) ;
+(*TIME          start_timer "sep_canceler:simplify" ; *)
            first [ simplifier typesV funcsV predsV tt | fail 100000 "canceler: simplifier failed" ] ;
+(*TIME          stop_timer "sep_canceler:simplify" ; *)
+(*TIME          start_timer "sep_canceler:clear" ; *)
            try clear typesV funcsV predsV
+(*TIME          stop_timer "sep_canceler:clear" ; *)
         )))))
     | [ |- ?G ] => 
       idtac "no match" G 
