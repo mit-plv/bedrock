@@ -36,8 +36,13 @@ Definition auto_ext : TacPackage.
 Defined.
 
 Ltac vcgen :=
-  structured_auto; autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *.
+(*TIME start_timer "vcgen:structured_auto"; *)
+  structured_auto;
+(*TIME stop_timer "vcgen:structured_auto"; *)
+(*TIME start_timer "vcgen:finish"; *)
+  autorewrite with sepFormula in *; simpl in *;
+    unfold starB, hvarB, hpropB in *; fold hprop in *
+(*TIME ; stop_timer "vcgen:finish" *).
 
 Hint Extern 1 => tauto : contradiction.
 Hint Extern 1 => congruence : contradiction.

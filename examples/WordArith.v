@@ -2,6 +2,8 @@ Require Import AutoSep.
 
 (** Testing prover support for word arithmetic *)
 
+(*TIME Clear Timing Profile. *)
+
 Definition test1S : assert := st ~> ExX, Ex a, Ex b, Ex c, [| st#Rv = st#Sp ^+ $4 |]
   /\ ![ ^[st#Sp ==*> a, b, c] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = c |] /\ ![ ^[st#Sp ==*> a, b, c] * #1 ] st').
@@ -46,3 +48,5 @@ Definition test3 := bmodule "test" {{
 Theorem test3Ok : moduleOk test3.
   vcgen; abstract sep_auto.
 Qed.
+
+(*TIME Print Timing Profile. *)

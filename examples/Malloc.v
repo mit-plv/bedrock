@@ -475,6 +475,7 @@ Section mallocOk.
   Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
   Theorem mallocMOk : moduleOk mallocM.
+(*TIME Clear Timing Profile. *)
     vcgen; abstract solve [ pose four_neq_zero; sep hints; auto;
       try match goal with
             | [ H : _ = _ |- _ ] => apply natToW_inj in H; [ congruence | | ]
@@ -487,5 +488,6 @@ Section mallocOk.
           change (base =?> full)%Sep with (splitMe base full init) in H;
             pose (goodSize_freeable H')
         end; sep hints ].
+(*TIME Print Timing Profile. *)
   Qed.
 End mallocOk.

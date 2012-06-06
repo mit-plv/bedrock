@@ -215,7 +215,7 @@ Ltac sep_canceler isConst ext simplifier :=
     | [ |- himp ?cs ?L ?R ] =>
       let pcT := constr:(W) in
       let stateT := constr:(prod settings state) in
-(*TIME      stop_timer start_timer "sep_canceler:init"; *)
+(*TIME      start_timer "sep_canceler:init"; *)
 (*TIME      start_timer "sep_canceler:gather_props" ; *)
       let all_props := 
         ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect)
@@ -275,7 +275,7 @@ Ltac sep_canceler isConst ext simplifier :=
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (SymILTac.ILAlgoTypes.Algos ext typesV)
                    (@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ]
-(*TIME         stop_timer "sep_canceler:apply_CancelSep" ; *)
+(*TIME       ;  stop_timer "sep_canceler:apply_CancelSep" *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
             let algos := constr:(SymILTac.ILAlgoTypes.Algos ext typesV) in
@@ -295,7 +295,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME          stop_timer "sep_canceler:simplify" ; *)
 (*TIME          start_timer "sep_canceler:clear" ; *)
            try clear typesV funcsV predsV
-(*TIME          stop_timer "sep_canceler:clear" ; *)
+(*TIME        ;  stop_timer "sep_canceler:clear"  *)
         )))))
     | [ |- ?G ] => 
       idtac "no match" G 

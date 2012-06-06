@@ -904,7 +904,7 @@ Ltac sym_eval isConst ext simplifier :=
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
                             assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
-(*TIME                      stop_timer "sym_eval:cleanup" *)
+(*TIME                    ;  stop_timer "sym_eval:cleanup" *)
                     in
                     build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
                       match SF with
