@@ -651,7 +651,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           Proof.
             induction ls; simpl; intros.
             { rewrite SH.starred_def. simpl. admit. }
-          Abort.
+          Abort. 
           admit. }
         { eapply cancel_in_order_mmap_add_acc in H9.
           do 3 destruct H9. intuition.
@@ -677,7 +677,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           admit.
           admit.
           admit. }
-        { admit. (** same proof as above **) }
+        { admit. (** same proof as above **) } }
     Qed.
 
 

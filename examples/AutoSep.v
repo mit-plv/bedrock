@@ -10,8 +10,7 @@ Require Bedrock.sep.PtsTo.
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
 Definition TacPackage : Type := 
-  @ILAlgoTypes.TypedPackage. (* ILEnv.bedrock_types_r (Expr.tvType 0) (Expr.tvType 1)
-    SymIL.IL_mem_satisfies SymIL.IL_ReadWord SymIL.IL_WriteWord. *)
+  @ILAlgoTypes.TypedPackage.
 
 Definition auto_ext : TacPackage.
   ILAlgoTypes.Package.build_prover_pack Provers.ComboProver ltac:(fun a => 
@@ -36,13 +35,13 @@ Definition auto_ext : TacPackage.
 Defined.
 
 Ltac vcgen :=
-(*TIME start_timer "vcgen:structured_auto"; *)
+(*TIME (start_timer "vcgen:structured_auto"; *)
   structured_auto;
-(*TIME stop_timer "vcgen:structured_auto"; *)
-(*TIME start_timer "vcgen:finish"; *)
+(*TIME  stop_timer "vcgen:structured_auto"); *)
+(*TIME (start_timer "vcgen:finish"; *)
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *
-(*TIME ; stop_timer "vcgen:finish" *).
+(*TIME ; stop_timer "vcgen:finish") *).
 
 Hint Extern 1 => tauto : contradiction.
 Hint Extern 1 => congruence : contradiction.
@@ -231,21 +230,46 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_ind_r
 
          (** Prover **)
-         Prover.Prove Prover.Summarize Prover.Learn
-         Prover.Summarize Prover.Learn Prover.Prove
+         Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
          Prover.composite_ProverT
 
          (** Provers **)
-         Provers.transitivitySummarize Provers.transitivityLearn
-         Provers.transitivityProve Provers.groupsOf Provers.addEquality
-         Provers.proveEqual
-         Provers.transitivityLearn Provers.inSameGroup 
-         Provers.in_seq Provers.groupWith
-         Provers.assumptionProver Provers.assumptionSummarize
-         Provers.assumptionLearn Provers.assumptionProve
-         Provers.transitivityProver
-         Prover.Prove Prover.Facts
-         Prover.Learn Prover.Summarize
+         Provers.ComboProver
+
+         (** TransitivityProver **)
+         provers.TransitivityProver.transitivitySummarize 
+         provers.TransitivityProver.transitivityLearn
+         provers.TransitivityProver.transitivityProve
+         provers.TransitivityProver.groupsOf 
+         provers.TransitivityProver.addEquality
+         provers.TransitivityProver.proveEqual
+         provers.TransitivityProver.transitivityLearn
+         provers.TransitivityProver.inSameGroup 
+         provers.TransitivityProver.in_seq 
+         provers.TransitivityProver.groupWith
+         provers.TransitivityProver.transitivityProver
+
+         (** AssumptionProver **)
+         provers.AssumptionProver.assumptionProver 
+         provers.AssumptionProver.assumptionSummarize
+         provers.AssumptionProver.assumptionLearn
+         provers.AssumptionProver.assumptionProve
+
+         (** ReflexivityProver **)
+         provers.ReflexivityProver.reflexivityProver 
+         provers.ReflexivityProver.reflexivitySummarize
+         provers.ReflexivityProver.reflexivityLearn
+         provers.ReflexivityProver.reflexivityProve
+
+         (** WordProver **)
+         provers.WordProver.wordProver provers.WordProver.Source provers.WordProver.Destination provers.WordProver.Difference
+         provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
+         provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
+         provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
+         provers.WordProver.factsEq ILEnv.W_seq weq provers.WordProver.factMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
+         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
+         provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -342,16 +366,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
          EqNat.beq_nat  
-
-         (** WordProver **)
-         Provers.wordProver Provers.Source Provers.Destination Provers.Difference
-         Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
-         Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
-         Provers.alreadyCovered Provers.alreadyCovered' andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
-         Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
-         Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
-         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
-         Provers.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
        ]
   | _ =>
     cbv beta iota zeta
@@ -508,21 +522,46 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_ind_r
 
          (** Prover **)
-         Prover.Prove Prover.Summarize Prover.Learn
-         Prover.Summarize Prover.Learn Prover.Prove
+         Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
          Prover.composite_ProverT
 
          (** Provers **)
-         Provers.transitivitySummarize Provers.transitivityLearn
-         Provers.transitivityProve Provers.groupsOf Provers.addEquality
-         Provers.proveEqual
-         Provers.transitivityLearn Provers.inSameGroup 
-         Provers.in_seq Provers.groupWith
-         Provers.assumptionProver Provers.assumptionSummarize
-         Provers.assumptionLearn Provers.assumptionProve
-         Provers.transitivityProver
-         Prover.Prove Prover.Facts
-         Prover.Learn Prover.Summarize
+         Provers.ComboProver
+
+         (** TransitivityProver **)
+         provers.TransitivityProver.transitivitySummarize 
+         provers.TransitivityProver.transitivityLearn
+         provers.TransitivityProver.transitivityProve
+         provers.TransitivityProver.groupsOf 
+         provers.TransitivityProver.addEquality
+         provers.TransitivityProver.proveEqual
+         provers.TransitivityProver.transitivityLearn
+         provers.TransitivityProver.inSameGroup 
+         provers.TransitivityProver.in_seq 
+         provers.TransitivityProver.groupWith
+         provers.TransitivityProver.transitivityProver
+
+         (** AssumptionProver **)
+         provers.AssumptionProver.assumptionProver 
+         provers.AssumptionProver.assumptionSummarize
+         provers.AssumptionProver.assumptionLearn
+         provers.AssumptionProver.assumptionProve
+
+         (** ReflexivityProver **)
+         provers.ReflexivityProver.reflexivityProver 
+         provers.ReflexivityProver.reflexivitySummarize
+         provers.ReflexivityProver.reflexivityLearn
+         provers.ReflexivityProver.reflexivityProve
+
+         (** WordProver **)
+         provers.WordProver.wordProver provers.WordProver.Source provers.WordProver.Destination provers.WordProver.Difference
+         provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
+         provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
+         provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
+         provers.WordProver.factsEq ILEnv.W_seq weq provers.WordProver.factMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
+         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
+         provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -623,16 +662,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
          EqNat.beq_nat
-
-         (** WordProver **)
-         Provers.wordProver Provers.Source Provers.Destination Provers.Difference
-         Provers.pow32 Provers.wplus' Provers.wneg' Provers.wminus' wordBin NToWord Nplus minus
-         Provers.decompose combine Expr.expr_seq_dec Provers.combineAll Provers.combine app
-         Provers.alreadyCovered Provers.alreadyCovered' andb orb Provers.merge Provers.wordLearn1 Provers.wordLearn
-         Provers.factsEq ILEnv.W_seq weq Provers.factMatches Provers.wordProve Provers.wordSummarize
-         Provers.types ILEnv.bedrock_type_W Provers.zero Bool.bool_dec posToWord bool_rec bool_rect
-         Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double wzero'
-         Provers.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
        ] in H
   end;
   fold plus in *; fold minus in *;

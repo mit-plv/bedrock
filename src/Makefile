@@ -1,5 +1,4 @@
-#SymEvalTests
-
+PROVERS := Assumption Reflexivity Transitivity Word
 MODULES    := HintlessOrderedType HintlessFMapInterface \
 	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
 	Reflection \
@@ -12,6 +11,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	Heaps SepTheoryX SepTheoryXIL \
 	NatMap Expr ExprUnify \
 	Prover Provers \
+	$(PROVERS:%=provers/%Prover) \
 	SepExpr SepHeap SepCancel \
 	Unfolder \
 	Env TypedPackage \
@@ -25,8 +25,6 @@ TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
 TVS        := $(TESTS:%=%.v)
 ARGS :=-R . Bedrock
-
-#SepExprTests UnfolderTests 
 
 .PHONY: coq clean package
 
@@ -50,7 +48,7 @@ package:
 	hg archive -t tgz /tmp/bedrock.tgz
 
 admit:
-	@ grep -e 'admit' -e 'Admitted' *.v
+	@ grep -e 'admit' -e 'Admitted' */*.v */*/*.v
 
 depgraph: Makefile.coq
 	@ echo Generating dependency graph to ../deps.pdf

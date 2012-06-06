@@ -126,7 +126,7 @@ Module BedrockPtsToEvaluator.
             rewrite H in *
         end; simpl in * ).
 
-    Lemma sym_read_ptsto32_correct : forall args uvars vars cs summ pe p ve m stn,
+    Lemma sym_read_word_ptsto32_correct : forall args uvars vars cs summ pe p ve m stn,
       sym_read_word_ptsto32 Prover summ args pe = Some ve ->
       Valid Prover_correct uvars vars summ ->
       exprD funcs uvars vars pe ptrT = Some p ->
@@ -198,35 +198,18 @@ Module BedrockPtsToEvaluator.
     Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
     @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval_ptsto32 types') 0.
 
-  Theorem MemEvalPred_ptsto32_correct (types' : list type)
-    (funcs' : functions (Env.repr ptsto32_types_r types'))
-    : MEVAL.PredEval.MemEvalPred_correct ptrT ptrT
-       (IL_mem_satisfies (ts:=types')) (IL_ReadWord (ts:=types'))
-       (IL_WriteWord (ts:=types'))
-       (MemEval_ptsto32
-         (ILEnv.bedrock_type_W
-           :: ILEnv.bedrock_type_setting_X_state :: tl (tl types')))
-       (ptsto32_ssig types') funcs'.
-  Proof.
-    constructor; simpl; intros.
-    { generalize (@sym_read_ptsto32_correct _ _ _ PE args uvars vars cs facts pe p ve).
-      intro. eapply H3 with (stn := fst stn_st) in H; eauto.
-      simpl in *. clear H3. revert H.  destruct (exprD funcs' uvars vars ve ptrT).
-
-  Admitted.
-
-
   Theorem MemEvaluator_ptsto32_correct types' funcs' preds'
     : @MEVAL.MemEvaluator_correct (Env.repr ptsto32_types_r types') (tvType 0) (tvType 1) 
     (MemEvaluator_ptsto32 (Env.repr ptsto32_types_r types')) funcs' (Env.repr (ptsto32_ssig_r _) preds')
     (IL.settings * IL.state) (tvType 0) (tvType 0) (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types').
   Proof.
-    eapply MEVAL.PredEval.MemEvaluator_MemEvalPred_correct; simpl;
-      try reflexivity.
-    { apply MemEvalPred_ptsto32_correct. }
-    { apply IL_mem_satisfies_himp. }
-    { apply IL_mem_satisfies_pure. }
-  Qed.    
+    intros. eapply MemPredEval_To_MemEvaluator_correct; try reflexivity;
+    intros; unfold MemEval_ptsto32 in *; simpl in *.
+    { generalize (@sym_read_word_ptsto32_correct types' funcs' P PE). simpl in *. intro.
+      eapply H3 in H; eauto. }
+    { generalize (@sym_write_word_ptsto32_correct types' funcs' P PE). simpl in *. intro.
+      eapply H4 in H; eauto. }
+  Qed.
 
   End hide_notation.
 
@@ -244,91 +227,3 @@ Module BedrockPtsToEvaluator.
       (fun ts fs ps => MemEvaluator_ptsto32_correct _ _).
 
 End BedrockPtsToEvaluator.
-
-
-
-(*
-  Check MEVAL.PredEval.MemEvalPred_correct.
-
-
-
-  Theorem MemPredEval_ptsto32_correct types' funcs 
-    : @MEVAL.PredEval.MemEvalPred_correct (Env.repr ptsto32_types_r types') (tvType 0) (tvType 1) (IL.settings * IL.state) (tvType 0) (tvType 0)
-    (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types') 
-    (MemEval_ptsto32 (Env.repr ptsto32_types_r types')) (ptsto32_ssig types') funcs.
-  Proof.
-    unfold MemEval_ptsto32; constructor.
-    { intros. simpl in H. eapply sym_read_ptsto32_correct with (stn := fst stn_st) in H1; eauto.
-      Focus 2. unfold IL_mem_satisfies, ST.satisfies, ptsto32_ssig in *; simpl in *.
-      match goal with
-        | [ H : match ?X with _ => _ end |- match ?Y with _ => _ end ] =>
-          (cutrewrite (Y = X); [ | auto ]); destruct X; auto
-      end. rewrite sepFormula_eq in H2. eapply H2.
-      simpl in *.
-      match goal with 
-        | [ H : match ?X with _ => _ end |- match ?Y with _ => _ end ] =>
-          (cutrewrite (Y = X); [ | auto ]); destruct X; auto
-      end.
-      unfold IL_ReadWord, IL.ReadWord in *.
-      eapply satisfies_get_word; eauto.
-      match goal with 
-        | [ H : match ?X with _ => _ end |- _ ] => destruct X; try contradiction
-      end.
-      unfold IL_mem_satisfies in *. rewrite sepFormula_eq in H2. unfold sepFormula_def in *.
-
-
-      apply H1.
-c
-      
-      unfold IL_ReadWord, IL.ReadWord, smem_get_word, IL.implode, mem_get_word, IL.ReadByte. intro. eapply H3.
-   Admitted.
-
-  Theorem MemEval_ptsto32_correct : MEVAL.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-  refine (@MEVAL.Build_MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord
-            (Env.nil_Repr EmptySet_type)
-            (fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts)))
-            (fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
-             (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
-               (tvType 0) (tvType 1)))
-            (fun ts => MEVAL.PredEval.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil))
-            _).
-
-    eapply MEVAL.PredEval.MemEvalPred_to_MemEvaluator.
-    
-
-
-
-
-
-
-  Definition MemEval_ptsto32_correct types' funcs
-    : @MEVAL.Plugin.MemEvalPred_correct _ (MemEval_ptsto32 (Env.repr ptsto32_types_r types')) (tvType 0) (tvType 1) (IL.settings * IL.state) (tvType 0) (tvType 0)
-    (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types') (ptsto32_ssig types') funcs.
-  Proof.
-    eapply MEVAL.Plugin.Build_MemEvalPred_correct;
-      simpl; unfold MemEval_ptsto32, IL_ReadWord, IL_WriteWord, IL_mem_satisfies, IL.ReadWord, IL.WriteWord.
-    destruct stn_st; simpl in *.
-    (** TODO: the interface is wrong, it needs to be over the symbolic memory **)
-  Admitted.
-  End hide_notation.
-
-  Definition ptsto32_pack : MEVAL.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-
-  refine (@MEVAL.Build_MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord
-            (Env.nil_Repr EmptySet_type)
-            (fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts)))
-            (fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)
-             (SEP.Default_predicate (Env.repr ptsto32_types_r ts)
-               (tvType 0) (tvType 1)))
-            (fun ts => MEVAL.Plugin.MemEvaluator_plugin (tvType 0) (tvType 1) ((0,MemEval_ptsto32 (types ts)) :: nil))
-            _).
-  abstract (
-    refine (fun ts fs ps =>
-      MEVAL.Plugin.PluginMemEvaluator_correct _ _ _ _ _ _ _ _ _);
-    split; simpl; (eapply MemEval_ptsto32_correct with (types' := ts) || exact I)).
-  Defined.
-
-  Goal SymILTac.ILAlgoTypes.TypedPackage.
-    SymILTac.ILAlgoTypes.Package.build_mem_pack ptsto32_pack ltac:(fun x => refine x).
-  Abort.
-*)
