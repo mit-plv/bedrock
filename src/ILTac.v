@@ -63,7 +63,7 @@ Lemma ApplyCancelSep : forall ts,
   forall (algos : ILAlgoTypes.AllAlgos ts), ILAlgoTypes.AllAlgos_correct funcs preds algos ->
   let prover := 
     match ILAlgoTypes.Prover algos with
-      | None => Provers.reflexivityProver
+      | None => provers.ReflexivityProver.reflexivityProver
       | Some p => p
     end
   in

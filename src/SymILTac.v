@@ -672,7 +672,7 @@ Section apply_stream_correctness.
 
   Theorem Apply_sym_eval : forall stn uvars vars sound_or_safe st path,
     let prover := match Prover algos with
-                    | None => Provers.reflexivityProver
+                    | None => provers.ReflexivityProver.reflexivityProver
                     | Some p => p
                   end in
     let meval := match MemEval algos with
@@ -1219,7 +1219,7 @@ Module EmptyPackage.
         ] in H
     end ;
     MEVAL.LearnHookDefault.unfolder H ;
-    Provers.unfold_reflexivityProver H ;
+    provers.ReflexivityProver.unfold_reflexivityProver H ;
     MEVAL.Default.unfolder H ;
     sym_evaluator s1 s2 s3 H.
 
@@ -1261,7 +1261,7 @@ Module BedrockPackage.
         ] in H
     end ;
     MEVAL.LearnHookDefault.unfolder H ;
-    Provers.unfold_reflexivityProver H ;
+    provers.ReflexivityProver.unfold_reflexivityProver H ;
     MEVAL.Default.unfolder H ;
     sym_evaluator H.
 End BedrockPackage.
@@ -1298,7 +1298,7 @@ Ltac build_prover_pack prover ret :=
   ret res.
 
 Goal TypedPackage.
-  build_prover_pack Provers.TransitivityProver ltac:(fun x => refine x).
+  build_prover_pack provers.TransitivityProver.TransitivityProver ltac:(fun x => refine x).
 Defined.
 
 Ltac build_mem_pack mem ret :=
@@ -1450,7 +1450,7 @@ Ltac opaque_pack pack :=
   end.
 
 Goal TypedPackage.
-  build_prover_pack Provers.TransitivityProver ltac:(fun x => 
+  build_prover_pack provers.TransitivityProver.TransitivityProver ltac:(fun x => 
     build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
     glue_pack x y ltac:(opaque_pack))).
 Qed.
