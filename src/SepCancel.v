@@ -244,15 +244,17 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r (SDomain p) = true) r ->
           unify_remove bound summ l (SDomain p) r S = Some (r', S') ->
           U.Subst_equations funcs U G S' ->
-          SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Emp) ->
+          forall Q,
+          SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Q) ->
           SE.heq funcs preds U G cs
-            (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Emp) /\
+            (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Q) /\
           U.Subst_Extends S' S.
       Proof.
-        do 12 intro.  
+(*        do 12 intro.  
         match goal with
           | [ |- context [ @Emp ?X ?Y ?Z ] ] => generalize (@Emp X Y Z)
         end.
+*)
         induction r; simpl; intros; try congruence.
         revert H4. case_eq (unifyArgs bound summ l a (SDomain p) S); intros; try congruence.
         { inversion H7; clear H7; subst.
@@ -272,7 +274,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           inversion H3; clear H3; subst.
           rewrite SH.starred_def in H6. simpl in H6. rewrite <- SH.starred_def in H6.
           eapply IHr in H7; eauto.
-          Focus 2. instantiate (1 := (SH.SE.Star (Func f a) s)). instantiate (1 := P).
+          Focus 2. instantiate (1 := (SH.SE.Star (Func f a) Q)). instantiate (1 := P).
           etransitivity. eapply H6. rewrite SH.starred_base. symmetry. rewrite SH.starred_base.
           heq_canceler.
           intuition. rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
@@ -599,23 +601,29 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         intro. apply H. apply MM.FACTS.map_in_iff in H1. auto.
     Qed.
 
-    Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
-(*
-      U.Subst_WellTyped ?28662 ?28663 ?28664 sub ->
-*)
+    Lemma cancel_in_orderOk : forall tU tG tfuncs U G cs bound summ,
+      WellTyped_env tU U ->
+      WellTyped_env tG G ->
+      WellTyped_funcs tfuncs funcs ->
+      forall ls acc rem sub L R S Q,
+      U.Subst_WellTyped tfuncs tU tG sub ->
+      U.Subst_equations funcs U G S ->
+      Valid Prover_correct U G summ ->
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
       himp funcs preds U G cs 
         (SH.impuresD _ _ (sheapInstantiate S R))
-        (SH.impuresD _ _ (sheapInstantiate S L)) ->
+        (Star (SH.impuresD _ _ (sheapInstantiate S L)) Q) ->
       himp funcs preds U G cs 
         (SH.impuresD _ _ (sheapInstantiate S rem))
-        (Star (SH.starred (fun v => (Func (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls Emp)
-              (SH.impuresD _ _ (sheapInstantiate S acc))).
+        (Star (Star (SH.starred (fun v => (Func (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls Emp)
+                    (SH.impuresD _ _ (sheapInstantiate S acc)))
+              Q).
     Proof.
       induction ls; simpl; intros.
-      { inversion H; clear H; subst.
+      { inversion H5; clear H5; subst.
         rewrite SH.starred_def. simpl. heq_canceler. auto. }
-      { repeat match goal with
+      { rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
+        repeat match goal with
                  | [ H : match ?X with 
                            | (_,_) => _
                          end = _ |- _ ] => destruct X
@@ -624,77 +632,53 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                          end = _ |- _ ] =>
                  revert H; case_eq X; intros
                end.
-(*
-        { eapply IHls in H3; eauto.
-          rewrite sheapInstantiate_add.
-          Lemma MapsTo_Add_Remove : forall T k (v : T) m,
-            FM.MapsTo k v m ->
-            MM.PROPS.Add k v (FM.remove k m) m.
-          Admitted.
-          3: eapply MapsTo_Add_Remove; eapply MM.FACTS.find_mapsto_iff; eauto.
-          rewrite SH.starred_base.
-          rewrite sheapInstantiate_add in H3.
-          Lemma Add_Remove : forall T k (v : T) m,
-            MM.PROPS.Add k v (FM.remove k m) (FM.add k v m).
-          Admitted.
-          3: eapply Add_Remove.
-          eapply unify_removeOk in H2; eauto.
-
-Valid Prover_correct ?28665 ?28666 summ
-U.Subst_equations funcs ?28665 ?28666 s0
-
-
-          rewrite SH.impuresD_Equiv.
-          2: eapply sheapInstantiate_Equiv.
-          2: eapply MF.equiv_eq_mor.
-          2: reflexivity. 3: reflexivity. 2: symmetry. 2: apply MF.MapsTo_add_remove_Equal.
-          2: eapply MF.FACTS.find_mapsto_iff; eauto.
-          rewrite sheapInstantiate_add.
-*)
-(*
-          rewrite sheapInstantiate_add in H3.
-          rewrite sheapInstantiate_add.
-
-        eapply cancel_in_order_mmap_add_acc in H3.
-        rewrite IHls. 2: 
-        
-
-destruct a. 
-        revert H. case_eq (FM.find n rem).
-        { admit. }
-        { intros.
-
-
-    eapply IHls in H; destruct H; intuition; subst. eexists.
-
-    eapply IHls in H1; destruct H1; intuition; subst.
-    eapply IHls in H.
-  
-
-
-etransitivity. 
-          rewrite IHls.
-
-
-          rewrite sheapInstantiate_mmap_add in H1.
-          SearchAbout SH.impuresD.
-
-
-          Lemma impuresD_mmap_add : forall
-    (U G : env types)
-    (cs : codeSpec (tvarD types pcType) (tvarD types stateType)) 
-    f args
-    (i : FM.t (list (exprs types))),
-  SH.SE.heq funcs preds U G cs 
-    (SH.impuresD pcType stateType (MM.mmap_add f args i))
-    (SH.SE.Star (SH.SE.Func f args)
-       (SH.impuresD pcType stateType i)).
+        { (* (eapply unify_removeOk with (cs := cs) 
+            (P := Star (SH.impuresD pcType stateType (sheapInstantiate S acc))
+              (SH.starred
+                (fun x : list (expr types) * func =>
+                  Func (snd x) (map (U.exprInstantiate S) (fst x))) ls Emp)) in H8;
+            [ | | | | eassumption | | | | | | ]); try eassumption. *)
+          Lemma cancel_in_order_add_rem : forall cs U G funcs preds bound summ ls n e acc rem sub L R S l,
+            FM.find n rem = Some l ->
+            cancel_in_order bound summ ls acc (FM.add n e rem) sub = (L, R, S) ->
+            forall P Q,
+            heq funcs preds U G cs 
+              (SH.starred (Func n) e P) 
+              (SH.starred (Func n) l Q) -> (* L, R? *)
+            heq funcs preds U G cs
+              (Star (SH.impuresD pcType stateType (FM.add n e rem)) P)
+              (Star (SH.starred (fun x => Func (snd x) (map (U.exprInstantiate S) (fst x))) ls (SH.impuresD _ _ acc)) Q).
           Proof.
-          Admitted.
-          rewrite impuresD_mmap_add in H1.
-*)
-        admit. admit. admit. admit. }
-    Admitted.
+            induction ls; simpl; intros.
+            { rewrite SH.starred_def. simpl. admit. }
+          Abort.
+          admit. }
+        { eapply cancel_in_order_mmap_add_acc in H9.
+          do 3 destruct H9. intuition.
+          eapply IHls in H10; eauto. simpl. rewrite SEP_FACTS.heq_star_assoc.
+          Focus 3. instantiate (1 := Star (Func n e) Q). admit.
+          admit. admit. }
+        { Lemma impuresD_remove_sheapInstantiate : forall U G S cs h,
+            U.Subst_equations funcs U G S ->
+            heq funcs preds U G cs 
+              (SH.impuresD pcType stateType (sheapInstantiate S h))
+              (SH.impuresD pcType stateType h).
+          Proof.
+            clear. admit.
+          Qed.
+          repeat rewrite impuresD_remove_sheapInstantiate by auto.
+          eapply cancel_in_order_mmap_add_acc in H8; eauto. do 3 destruct H8. intuition.
+          eapply IHls in H9; eauto. 
+          Focus 3. instantiate (1 := Star Q (Func n e)). repeat rewrite impuresD_remove_sheapInstantiate.
+          admit. admit. admit.
+          rewrite impuresD_remove_sheapInstantiate in H9.
+          rewrite impuresD_remove_sheapInstantiate in H9.
+          admit.
+          admit.
+          admit.
+          admit. }
+        { admit. (** same proof as above **) }
+    Qed.
 
 
     Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) :
