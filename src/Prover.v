@@ -1,5 +1,6 @@
 Require Import List Arith Bool.
 Require Import Expr Env.
+Require Import Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -77,7 +78,7 @@ Ltac t1 := match goal with
                               | Some _ => _
                             end] ] => destruct E
              | [ |- context[if ?E then _ else _] ] => 
-               case_eq E; intro
+               consider E; intro
              | [ |- context[match ?E with
                               | nil => _
                               | _ :: _ => _
@@ -96,7 +97,7 @@ Ltac t1 := match goal with
                                | _ :: _ => _
                              end] |- _ ] => destruct E
              | [ H : context[if ?E then _ else _] |- _ ] => 
-               revert H; case_eq E; do 2 intro
+               revert H; consider E; try do 2 intro
              | [ _ : context[match ?E with
                                | left _ => _
                                | right _ => _
