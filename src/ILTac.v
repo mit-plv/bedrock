@@ -77,36 +77,49 @@ Lemma ApplyCancelSep : forall ts,
   (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
   Expr.AllProvable funcs meta_env nil hyps ->
   let (ql, lhs) := SH.hash l in
-  let (qr, rhs) := SH.hash r in
   let facts := Summarize prover (map (liftExpr 0 (length ql)) hyps ++ SH.pures lhs) in
-  let rhs := SH.liftSHeap 0 (length ql) (SH.sheapSubstU 0 (length qr) (length meta_env) rhs) in
   forall cs,
-  let initial := {| UNF.Vars := ql 
-                  ; UNF.UVars := map (@projT1 _ _) meta_env ++ rev qr
-                  ; UNF.Heap := rhs
-                  |} in
-  match UNF.backward hints prover 10 facts initial with
-    | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
-      let new_vars  := vars' in
-      let new_uvars := skipn (length meta_env) uvars' in
-      let bound := length uvars' in
-      match CANCEL.sepCancel preds prover bound facts lhs rhs with
-        | (lhs', rhs', subst) =>
-          Expr.forallEach (rev new_vars) (fun nvs : Expr.env types =>
-            let var_env := nvs in
-            Expr.AllProvable_impl funcs meta_env var_env
-            (existsSubst (exprD funcs meta_env var_env) subst 0 
-                (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-                 map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
-              (fun meta_env : Expr.env types =>
-                (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
-                    (SEP.sexprD funcs preds meta_env var_env
-                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
-                    (SEP.sexprD funcs preds meta_env var_env
-                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) ))
-                (SH.pures lhs'))
+  let pre :=
+    {| UNF.Vars  := ql
+     ; UNF.UVars := map (@projT1 _ _) meta_env
+     ; UNF.Heap  := lhs
+     |}
+  in
+  match UNF.forward hints prover 10 facts pre with
+    | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := lhs |} =>
+      let (qr, rhs) := SH.hash r in
+      let rhs := 
+        (*SH.liftSHeap 0 (length vars') ( *) SH.sheapSubstU 0 (length qr) (length uvars') rhs (* ) *)
+      in
+      let post :=
+        {| UNF.Vars  := vars'
+         ; UNF.UVars := uvars' ++ rev qr
+         ; UNF.Heap  := rhs
+         |}
+      in
+      match UNF.backward hints prover 10 facts post with
+        | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
+          let new_vars  := vars' in
+          let new_uvars := skipn (length meta_env) uvars' in
+          let bound := length uvars' in
+          match CANCEL.sepCancel preds prover bound facts lhs rhs with
+            | (lhs', rhs', subst) =>
+              Expr.forallEach (rev new_vars) (fun nvs : Expr.env types =>
+                let var_env := nvs in
+                Expr.AllProvable_impl funcs meta_env var_env
+                  (existsSubst (exprD funcs meta_env var_env) subst 0 
+                    (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
+                     map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
+                    (fun meta_env : Expr.env types =>
+                      (Expr.AllProvable_and funcs meta_env var_env
+                        (himp cs 
+                          (SEP.sexprD funcs preds meta_env var_env
+                            (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
+                          (SEP.sexprD funcs preds meta_env var_env
+                            (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
+                        (SH.pures rhs')) ))
+                  (SH.pures lhs'))
+          end
       end
   end ->
   himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
