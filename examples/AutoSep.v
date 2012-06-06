@@ -34,13 +34,52 @@ Definition auto_ext : TacPackage.
         ILAlgoTypes.Package.opaque_pack res) || fail 1000 "compose")).
 Defined.
 
+Ltac refold :=
+  fold plus in *; fold minus in *;
+    repeat match goal with
+             | [ |- context[list ?A] ] =>
+               progress change (fix length (l : list A) : nat :=
+                 match l with
+                   | nil => 0
+                   | _ :: l' => S (length l')
+                 end) with (@length A) in *
+             | [ _ : list ?A |- _ ] =>
+               progress change (fix app (l0 m : list A) : list A :=
+                 match l0 with
+                   | nil => m
+                   | a1 :: l1 => a1 :: app l1 m
+                 end) with (@app A) in *
+               || (progress change (fix rev (l : list W) : list W :=
+                 match l with
+                   | nil => nil
+                   | x8 :: l' => (rev l' ++ x8 :: nil)%list
+                 end) with (@rev A) in *)
+               || (progress change (fix rev_append (l l' : list A) : list A :=
+                 match l with
+                   | nil => l'
+                   | a1 :: l0 => rev_append l0 (a1 :: l')
+                 end) with (@rev_append A) in *)
+           end.
+
+Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
+  LabelMap.add Entry Blocks Postcondition VerifCond
+  Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_ Use_
+  Structured.If_ Structured.While_ Goto_ Structured.Call_ IGoto
+  importsMap fullImports buildLocals blocks union Nplus Nsucc length N_of_nat
+  List.fold_left ascii_lt string_lt label'_lt
+  LabelKey.compare' LabelKey.compare LabelKey.eq_dec
+  LabelMap.find
+  toCmd Seq Instr Diverge Fail Skip Use_ Assert_
+  Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
+  Assign'].
+
 Ltac vcgen :=
 (*TIME (start_timer "vcgen:structured_auto"; *)
-  structured_auto;
+  structured_auto vcgen_simp;
 (*TIME  stop_timer "vcgen:structured_auto"); *)
 (*TIME (start_timer "vcgen:finish"; *)
   autorewrite with sepFormula in *; simpl in *;
-    unfold starB, hvarB, hpropB in *; fold hprop in *
+    unfold starB, hvarB, hpropB in *; fold hprop in *; refold
 (*TIME ; stop_timer "vcgen:finish") *).
 
 Hint Extern 1 => tauto : contradiction.
@@ -69,7 +108,7 @@ Ltac sep_firstorder := sep_easy;
                                   | (_, y) => y
                                 end) ?r] ] =>
              change (Regs (let (_, y) := st in y) r) with (st#r)
-         end.
+         end; try subst.
 
 Require Import NArith.
 
@@ -663,32 +702,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_sym eq_trans
          EqNat.beq_nat
        ] in H
-  end;
-  fold plus in *; fold minus in *;
-    repeat match goal with
-             | [ |- context[list ?A] ] =>
-               progress change (fix length (l : list A) : nat :=
-                 match l with
-                   | nil => 0
-                   | _ :: l' => S (length l')
-                 end) with (@length A)
-             | [ _ : list ?A |- _ ] =>
-               progress change (fix app (l0 m : list A) : list A :=
-                 match l0 with
-                   | nil => m
-                   | a1 :: l1 => a1 :: app l1 m
-                 end) with (@app A)
-               || (progress change (fix rev (l : list W) : list W :=
-                 match l with
-                   | nil => nil
-                   | x8 :: l' => (rev l' ++ x8 :: nil)%list
-                 end) with (@rev A))
-               || (progress change (fix rev_append (l l' : list A) : list A :=
-                 match l with
-                   | nil => l'
-                   | a1 :: l0 => rev_append l0 (a1 :: l')
-                 end) with (@rev_append A))
-           end.
+  end; refold.
+
 
 Ltac evaluate ext := ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
 

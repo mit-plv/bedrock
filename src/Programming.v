@@ -233,8 +233,8 @@ Ltac conditions_auto :=
              | [ H : (if ?E then _ else _) = _ |- _ ] => destruct E; try discriminate; clear H
            end; simpl.
 
-Ltac structured_auto := apply bmoduleOk; [ exact (refl_equal false) | exact I |
-  simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
+Ltac structured_auto simp := apply bmoduleOk; [ exact (refl_equal false) | exact I |
+  simp; repeat (apply List.Forall_nil || apply List.Forall_cons);
     (simpl; propxFo; conditions_auto) ].
 (** END Automation Version **)
 
