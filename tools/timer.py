@@ -9,6 +9,10 @@ def uncomment(tkn, data):
 
 def process_file(src, trg):
     data = open('%s.v' % src,'r').read()
+
+    if not os.path.exists(os.path.dirname(trg)):
+        os.makedirs(os.path.dirname(trg))
+
     if '(*TIME' in data:
         f = open('%s.v' % trg, 'w')
         f.write(uncomment("TIME", data))
