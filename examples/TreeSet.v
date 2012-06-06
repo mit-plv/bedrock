@@ -22,6 +22,27 @@ Definition greater (s : set) (w : W) : set := fun w' => w' > w /\ s w'.
 Infix "%<" := less (at level 40, left associativity).
 Infix "%>" := greater (at level 40, left associativity).
 
+Ltac sets := subst;
+  repeat match goal with
+           | [ H : _ %= _ |- _ ] => generalize dependent H
+           | [ H : _ \in _ |- _ ] => generalize dependent H
+           | [ H : ~ _ \in _ |- _ ] => generalize dependent H
+           | [ H : _ < _ |- _ ] => generalize dependent H
+           | [ H : _ <= _ |- _ ] => generalize dependent H
+           | [ H : @eq W _ _ |- _ ] => generalize dependent H
+           | [ H : not (@eq W _ _) |- _ ] => generalize dependent H
+         end; clear;
+  unfold equiv, empty, mem, add, less, greater; firstorder; subst;
+    try (nomega || (elimtype False; nomega)).
+
+Hint Extern 5 (_ %= _) => sets.
+Hint Extern 5 (_ \in _) => sets.
+Hint Extern 5 (~ _ \in _) => sets.
+Hint Extern 5 (_ <-> _) => sets.
+
+Local Hint Extern 3 (himp _ _ _) => apply himp_star_frame.
+Local Hint Extern 3 (himp _ _ _) => apply himp_star_frame_comm.
+
 Inductive tree :=
 | Leaf
 | Node : tree -> tree -> tree.
@@ -33,19 +54,23 @@ Module Type BST.
   Axiom bst'_extensional : forall s t p, HProp_extensional (bst' s t p).
   Axiom bst_extensional : forall s p, HProp_extensional (bst s p).
 
-  Axiom bst_fwd : forall s p, bst s p ===> Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
-  Axiom bst_bwd : forall s p, (Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
+  Axiom bst'_set_extensional : forall t s s' p, s %= s' -> bst' s t p ===> bst' s' t p.
+
+  Axiom bst_fwd : forall s p, bst s p ===> [| freeable p 2 |]
+    * Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
+  Axiom bst_bwd : forall s p, ([| freeable p 2 |]
+    * Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
 
   Axiom nil_fwd : forall s t (p : W), p = 0 -> bst' s t p ===> [| s %= empty /\ t = Leaf |].
   Axiom nil_bwd : forall s t (p : W), p = 0 -> [| s %= empty /\ t = Leaf |] ===> bst' s t p.
 
   Axiom cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
     Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| t = Node t1 t2 /\ v \in s |].
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |].
 
   Axiom cons_bwd : forall s t (p : W), p <> 0 ->
     (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
+      * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
 End BST.
 
 Module Bst : BST.
@@ -54,13 +79,14 @@ Module Bst : BST.
   Fixpoint bst' (s : set) (t : tree) (p : W) : HProp :=
     match t with
       | Leaf => [| p = 0 /\ s %= empty |]
-      | Node t1 t2 => [| p <> 0 |] * Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2)
+      | Node t1 t2 => [| p <> 0 /\ freeable p 3 |] * Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2)
         * bst' (s %< v) t1 p1
         * bst' (s %> v) t2 p2
         * [| v \in s |]
     end.
 
-  Definition bst (s : set) (p : W) := Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
+  Definition bst (s : set) (p : W) := [| freeable p 2 |]
+    * Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
 
   Theorem bst'_extensional : forall s t p, HProp_extensional (bst' s t p).
     destruct t; reflexivity.
@@ -70,11 +96,17 @@ Module Bst : BST.
     reflexivity.
   Qed.
 
-  Theorem bst_fwd : forall s p, bst s p ===> Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
+  Theorem bst'_set_extensional : forall t s s' p, s %= s' -> bst' s t p ===> bst' s' t p.
+    induction t; sepLemma.
+  Qed.
+
+  Theorem bst_fwd : forall s p, bst s p ===> [| freeable p 2 |]
+    * Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r.
     unfold bst; sepLemma.
   Qed.
 
-  Theorem bst_bwd : forall s p, (Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
+  Theorem bst_bwd : forall s p, ([| freeable p 2 |]
+    * Ex t, Ex r, Ex junk, p =*> r * (p ^+ $4) =*> junk * bst' s t r) ===> bst s p.
     unfold bst; sepLemma.
   Qed.
 
@@ -88,13 +120,13 @@ Module Bst : BST.
 
   Theorem cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
     Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| t = Node t1 t2 /\ v \in s |].
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |].
     destruct t; sepLemma.
   Qed.
 
   Theorem cons_bwd : forall s t (p : W), p <> 0 ->
     (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
     destruct t; sepLemma;
       match goal with
         | [ H : Node _ _ = Node _ _ |- _ ] => injection H; sepLemma
@@ -123,6 +155,11 @@ Definition lookupS : assert := st ~> ExX, Ex s, Ex p, Ex w,
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
     /\ ![ ^[st#Sp =?> 2] * ^[bst s p] * ^[mallocHeap] * #1 ] st').
 
+Definition addS : assert := st ~> ExX, Ex s, Ex p, Ex w,
+  ![ (st#Sp ==*> p, w) * ^[(st#Sp ^+ $8) =?> 3] * ^[bst s p] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+    /\ ![ ^[st#Sp =?> 5] * ^[bst (s %+ w) p] * ^[mallocHeap] * #1 ] st').
+
 Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
   bmodule "bst" {{
   bfunction "init" [initS] {
@@ -130,10 +167,10 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
     $[Sp+4] <- 0;;
     Sp <- Sp + 4;;
     Call "malloc"!"malloc"
-    [st ~> ExX, Ex rp, ![ (st#Sp ^- $4) =*> rp * ^[st#Sp =?> 2] * ^[st#Rv =?> 2] * ^[mallocHeap] * #0 ] st
-      /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $4 |]
-        /\ Ex r, Ex junk, ![ ^[st'#Sp =?> 3] * (st'#Rv ==*> r, junk) * ^[bst' empty Leaf r]
-          * ^[mallocHeap] * #1 ] st')];;
+    [st ~> ExX, Ex rp, [| freeable st#Rv 2 |]
+      /\ ![ (st#Sp ^- $4) =*> rp * ^[st#Sp =?> 2] * ^[st#Rv =?> 2] * #0 ] st
+      /\ rp @@ (st' ~> [| st'#Rv = st#Rv /\ st'#Sp = st#Sp ^- $4 |]
+        /\ Ex r, Ex junk, ![ ^[st'#Sp =?> 3] * (st'#Rv ==*> r, junk) * ^[bst' empty Leaf r] * #1 ] st')];;
     Sp <- Sp - 4;;
     $[Rv] <- 0;;
     Rp <- $[Sp];;
@@ -162,27 +199,67 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
       }
     };;
     Return 0
+  } with bfunction "add" [addS] {
+    $[Sp+8] <- Rp;;
+    Rv <- $[Sp];;
+    $[Sp+12] <- Rv;;
+    $[Sp] <- $[Rv];;
+
+    [st ~> ExX, Ex s, Ex t, Ex ans, Ex w, Ex rp, Ex p, Ex v,
+      ![ (st#Sp ==*> p, w, rp, ans, v) * ans =*> p * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
+      /\ rp @@ (st' ~> [| st'#Sp = st#Sp |]
+        /\ Ex t', Ex p', ![ ^[st#Sp =?> 5] * ans =*> p' * ^[bst' (s %+ w) t' p'] * ^[mallocHeap] * #1 ] st')]
+    While ($[Sp] <> 0) {
+      Rv <- $[Sp];;
+      If ($[Rv+4] = $[Sp+4]) {
+        (* Key matches!  No need for changes. *)
+        Rp <- $[Sp+8];;
+        Return 0
+      } else {
+        If ($[Sp+4] < $[Rv+4]) {
+          (* Searching for a lower key *)
+          Skip
+        } else {
+          (* Searching for a higher key *)
+          Rv <- Rv + 8
+        };;
+        $[Sp+12] <- Rv;;
+        $[Sp] <- $[Rv]
+      }
+    };;
+
+    (* Found a spot for a new node.  Allocate and initialize it. *)
+
+    $[Sp] <- $[Sp+12];;
+    Sp <- Sp + 12;;
+    $[Sp] <- 1;;
+    Call "malloc"!"malloc"
+    [st ~> ExX, Ex ans, Ex w, Ex rp, Ex v1, Ex v2, [| st#Rv <> 0 /\ freeable st#Rv 3 |]
+      /\ ![ ((st#Sp ^- $12) ==*> ans, w, rp, v1, v2) * ans =*> 0 * ^[st#Rv =?> 3] * #0 ] st
+      /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $12 |]
+        /\ ![ ^[st'#Sp =?> 5] * ans =*> st#Rv * (st#Rv ==*> $0, w, $0) * #1 ] st')];;
+    Sp <- Sp - 12;;
+    $[Rv] <- 0;;
+    $[Rv+4] <- $[Sp+4];;
+    $[Rv+8] <- 0;;
+    Rp <- $[Sp];;
+    $[Rp] <- Rv;;
+    Rp <- $[Sp+8];;
+    Return 0
   }
 }}.
-
-Ltac sets := unfold equiv, empty, mem, add, less, greater in *; firstorder.
-
-Hint Extern 5 (_ %= _) => sets.
-Hint Extern 5 (_ \in _) => sets.
-Hint Extern 5 (~ _ \in _) => sets.
-Hint Extern 5 (_ <-> _) => sets.
 
 Lemma exhausted_cases : forall a b : W, a <> b
   -> ~(a < b)
   -> a > b.
-  unfold wlt; intros.
+  intros.
   assert (wordToN a <> wordToN b) by (generalize wordToN_inj; firstorder).
   nomega.
 Qed.
 
 Local Hint Resolve exhausted_cases.
-
-Hint Extern 5 (@eq W _ _) => words.
+Local Hint Extern 5 (@eq W _ _) => words.
+Local Hint Extern 3 (himp _ _ _) => apply bst'_set_extensional.
   
 Theorem bstMOk : moduleOk bstM.
   vcgen; abstract (sep hints; auto).
