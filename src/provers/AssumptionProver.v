@@ -50,7 +50,7 @@ Section AssumptionProver.
 
   Theorem assumptionProverCorrect : ProverCorrect fs assumptionValid assumptionProve.
     t; induction sum; t.
-  Admitted. 
+  Qed.
 
   Definition assumptionProver : ProverT types :=
   {| Facts := assumption_summary

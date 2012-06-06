@@ -56,7 +56,6 @@ Section existsSubst.
 End existsSubst.
 
 (** TODO : this isn't true **)
-(** TODO : should we apply forward unfolding as well? **)
 Lemma ApplyCancelSep : forall ts,
   let types := Env.repr BedrockCoreEnv.core ts in
   forall (funcs : functions types) (preds : SEP.predicates types BedrockCoreEnv.pc BedrockCoreEnv.st), 

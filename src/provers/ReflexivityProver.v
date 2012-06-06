@@ -42,7 +42,7 @@ Section ReflexivityProver.
 
   Theorem reflexivityProverCorrect : ProverCorrect fs reflexivityValid reflexivityProve.
     unfold reflexivityProve; t.
-  Admitted. 
+  Qed.
 
   Definition reflexivityProver : ProverT types :=
   {| Facts := unit
