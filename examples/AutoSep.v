@@ -109,7 +109,7 @@ Ltac sep_firstorder := sep_easy;
                                   | (_, y) => y
                                 end) ?r] ] =>
              change (Regs (let (_, y) := st in y) r) with (st#r)
-         end.
+         end; try subst.
 
 Require Import NArith.
 
