@@ -14,9 +14,8 @@ dist:
 
 time:
 	@ rm -rf timing
-	@ mkdir -p timing/src timing/examples timing/src/sep
+	@ ./tools/timer.py timing/ src/*.v examples/*.v src/*/*.v
 	@ cp Makefile timing/Makefile
 	@ cp src/Makefile src/Makefile.coq timing/src
 	@ cp examples/Makefile examples/Makefile.coq timing/examples
-	@ ./tools/timer.py timing/ src/*.v examples/*.v src/sep/*.v
 	@ (cd timing; $(MAKE) all)

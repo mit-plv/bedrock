@@ -130,17 +130,26 @@ Module BedrockHeap.
     exists v, m a = Some v.
 
   Theorem mem_get_acc : forall m p,
-    mem_acc m p ->
+    mem_acc m p <->
     exists v, mem_get m p = Some v.
   Proof.
-    eauto.
+    intuition eauto.
   Qed.
     
   Theorem mem_set_acc : forall m p,
-    mem_acc m p ->
+    mem_acc m p <->
     forall v, exists m', mem_set m p v = Some m'.
   Proof.
-    destruct 1; unfold mem_set. unfold WriteByte. rewrite H. eauto.
+    intuition. destruct H. unfold mem_set, WriteByte. rewrite H.
+    eauto. specialize (H (wzero _)). destruct H. unfold mem_set, mem_acc, WriteByte in *.
+    destruct (m p); eauto. congruence.
+  Qed.
+
+  Theorem mem_acc_dec : forall m p,
+    mem_acc m p \/ ~mem_acc m p.
+  Proof.
+    unfold mem_acc. intros; destruct (m p); eauto. right.
+    intro. destruct H; congruence.
   Qed.
     
   Theorem mem_get_set_eq : forall m p v' m', 
