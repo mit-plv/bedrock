@@ -1,44 +1,8 @@
 Require Import AutoSep.
-Require Import Malloc.
+Require Import Malloc Sets.
 
 Set Implicit Arguments.
 
-
-Definition set := W -> Prop.
-
-Definition mem (w : W) (s : set) := s w.
-Infix "\in" := mem (at level 70, no associativity).
-
-Definition empty : set := fun _ => False.
-
-Definition equiv (s1 s2 : set) := forall w, s1 w <-> s2 w.
-Infix "%=" := equiv (at level 70, no associativity).
-
-Definition add (s : set) (w : W) : set := fun w' => w' = w \/ s w'.
-Infix "%+" := add (at level 50, left associativity).
-
-Definition less (s : set) (w : W) : set := fun w' => w' < w /\ s w'.
-Definition greater (s : set) (w : W) : set := fun w' => w' > w /\ s w'.
-Infix "%<" := less (at level 40, left associativity).
-Infix "%>" := greater (at level 40, left associativity).
-
-Ltac sets := subst;
-  repeat match goal with
-           | [ H : _ %= _ |- _ ] => generalize dependent H
-           | [ H : _ \in _ |- _ ] => generalize dependent H
-           | [ H : ~ _ \in _ |- _ ] => generalize dependent H
-           | [ H : _ < _ |- _ ] => generalize dependent H
-           | [ H : _ <= _ |- _ ] => generalize dependent H
-           | [ H : @eq W _ _ |- _ ] => generalize dependent H
-           | [ H : not (@eq W _ _) |- _ ] => generalize dependent H
-         end; clear;
-  unfold equiv, empty, mem, add, less, greater; firstorder; subst;
-    try (nomega || (elimtype False; nomega)).
-
-Hint Extern 5 (_ %= _) => sets.
-Hint Extern 5 (_ \in _) => sets.
-Hint Extern 5 (~ _ \in _) => sets.
-Hint Extern 5 (_ <-> _) => sets.
 
 Local Hint Extern 3 (himp _ _ _) => apply himp_star_frame.
 Local Hint Extern 3 (himp _ _ _) => apply himp_star_frame_comm.
@@ -66,11 +30,11 @@ Module Type BST.
 
   Axiom cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
     Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |].
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |].
 
   Axiom cons_bwd : forall s t (p : W), p <> 0 ->
     (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-      * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
+      * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |]) ===> bst' s t p.
 End BST.
 
 Module Bst : BST.
@@ -82,7 +46,7 @@ Module Bst : BST.
       | Node t1 t2 => [| p <> 0 /\ freeable p 3 |] * Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2)
         * bst' (s %< v) t1 p1
         * bst' (s %> v) t2 p2
-        * [| v \in s |]
+        * [| v %in s |]
     end.
 
   Definition bst (s : set) (p : W) := [| freeable p 2 |]
@@ -120,13 +84,13 @@ Module Bst : BST.
 
   Theorem cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
     Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |].
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |].
     destruct t; sepLemma.
   Qed.
 
   Theorem cons_bwd : forall s t (p : W), p <> 0 ->
     (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
-    * [| freeable p 3 /\ t = Node t1 t2 /\ v \in s |]) ===> bst' s t p.
+    * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |]) ===> bst' s t p.
     destruct t; sepLemma;
       match goal with
         | [ H : Node _ _ = Node _ _ |- _ ] => injection H; sepLemma
@@ -152,7 +116,7 @@ Definition initS : assert := st ~> ExX, ![ ^[st#Sp =?> 3] * ^[mallocHeap] * #0 ]
 
 Definition lookupS : assert := st ~> ExX, Ex s, Ex p, Ex w,
   ![ (st#Sp ==*> p, w) * ^[bst s p] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w %in s) \is st'#Rv |]
     /\ ![ ^[st#Sp =?> 2] * ^[bst s p] * ^[mallocHeap] * #1 ] st').
 
 Definition addS : assert := st ~> ExX, Ex s, Ex p, Ex w,
@@ -160,7 +124,22 @@ Definition addS : assert := st ~> ExX, Ex s, Ex p, Ex w,
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
     /\ ![ ^[st#Sp =?> 5] * ^[bst (s %+ w) p] * ^[mallocHeap] * #1 ] st').
 
-Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
+Definition removeMinS : assert := st ~> ExX, Ex s, Ex t, Ex p, Ex p' : W, [| p' <> 0 |]
+  /\ ![ st#Sp =*> p * ^[(st#Sp ^+ $4) =?> 3] * p =*> p' * ^[bst' s t p'] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %< st'#Rv %= empty |]
+    /\ Ex t', Ex p'', ![ ^[st#Sp =?> 4] * p =*> p'' * ^[bst' (s %- st'#Rv) t' p''] * ^[mallocHeap] * #1 ] st').
+
+Definition removeMaxS : assert := st ~> ExX, Ex s, Ex t, Ex p, Ex p' : W, [| p' <> 0 |]
+  /\ ![ st#Sp =*> p * ^[(st#Sp ^+ $4) =?> 3] * p =*> p' * ^[bst' s t p'] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %> st'#Rv %= empty |]
+    /\ Ex t', Ex p'', ![ ^[st#Sp =?> 4] * p =*> p'' * ^[bst' (s %- st'#Rv) t' p''] * ^[mallocHeap] * #1 ] st').
+
+Definition removeS : assert := st ~> ExX, Ex s, Ex p, Ex w,
+  ![ (st#Sp ==*> p, w) * ^[(st#Sp ^+ $8) =?> 4] * ^[bst s p] * ^[mallocHeap] * #0 ] st
+  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+    /\ ![ ^[st#Sp =?> 6] * ^[bst (s %- w) p] * ^[mallocHeap] * #1 ] st').
+
+Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "bst" {{
   bfunction "init" [initS] {
     $[Sp] <- Rp;;
@@ -181,7 +160,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
 
     [st ~> ExX, Ex s, Ex t, Ex p, Ex w,
       ![ (st#Sp ==*> p, w) * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w \in s) \is st'#Rv |]
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w %in s) \is st'#Rv |]
         /\ ![ ^[st#Sp =?> 2] * ^[bst' s t p] * ^[mallocHeap] * #1 ] st')]
     While ($[Sp] <> 0) {
       Rv <- $[Sp];;
@@ -246,6 +225,158 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
     $[Rp] <- Rv;;
     Rp <- $[Sp+8];;
     Return 0
+  } with bfunction "removeMin" [removeMinS] {
+    Rv <- $[Sp];;
+    $[Sp+4] <- Rv;;
+    $[Sp] <- $[Rv];; 
+
+    [st ~> ExX, Ex s, Ex t, Ex p : W, Ex pointerHere, [| p <> 0 |]
+      /\ ![ (st#Sp ==*> p, pointerHere) * ^[(st#Sp ^+ $8) =?> 2] * pointerHere =*> p
+        * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %< st'#Rv %= empty |]
+        /\ Ex t', Ex p', ![ ^[st#Sp =?> 4] * pointerHere =*> p'
+          * ^[bst' (s %- st'#Rv) t' p'] * ^[mallocHeap] * #1 ] st')]
+    While (1 = 1) {
+      Rv <- $[Sp];;
+
+      If ($[Rv] <> 0) {
+        $[Sp+4] <- Rv;;
+        $[Sp] <- $[Rv]
+      } else {
+        $[Sp+8] <- $[Rv+8];;
+        Rv <- $[Sp+4];;
+        $[Rv] <- $[Sp+8];;
+
+        Rv <- $[Sp];;
+        $[Sp] <- Rp;;
+        $[Sp+4] <- $[Rv+4];;
+        $[Sp+8] <- Rv;;
+        $[Sp+12] <- 1;;
+        Sp <- Sp + 8;;
+        Call "malloc"!"free"
+        [st ~> ExX, Ex rp, Ex rv, ![ ((st#Sp ^- $8) ==*> rp, rv) * #0 ] st
+          /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 /\ st'#Rv = rv |]
+            /\ ![ ^[(st#Sp ^- $8) =?> 2] * #1 ] st')];;
+        Sp <- Sp - 8;;
+        Rp <- $[Sp];;
+        Return $[Sp+4]
+      }
+    };;
+    
+    Fail (* Unreachable! *)
+  } with bfunction "removeMax" [removeMaxS] {
+    Rv <- $[Sp];;
+    $[Sp+4] <- Rv;;
+    $[Sp] <- $[Rv];; 
+
+    [st ~> ExX, Ex s, Ex t, Ex p : W, Ex pointerHere, [| p <> 0 |]
+      /\ ![ (st#Sp ==*> p, pointerHere) * ^[(st#Sp ^+ $8) =?> 2] * pointerHere =*> p
+        * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %> st'#Rv %= empty |]
+        /\ Ex t', Ex p', ![ ^[st#Sp =?> 4] * pointerHere =*> p'
+          * ^[bst' (s %- st'#Rv) t' p'] * ^[mallocHeap] * #1 ] st')]
+    While (1 = 1) {
+      Rv <- $[Sp];;
+
+      If ($[Rv+8] <> 0) {
+        $[Sp+4] <- Rv+8;;
+        $[Sp] <- $[Rv+8]
+      } else {
+        $[Sp+8] <- $[Rv];;
+        Rv <- $[Sp+4];;
+        $[Rv] <- $[Sp+8];;
+
+        Rv <- $[Sp];;
+        $[Sp] <- Rp;;
+        $[Sp+4] <- $[Rv+4];;
+        $[Sp+8] <- Rv;;
+        $[Sp+12] <- 1;;
+        Sp <- Sp + 8;;
+        Call "malloc"!"free"
+        [st ~> ExX, Ex rp, Ex rv, ![ ((st#Sp ^- $8) ==*> rp, rv) * #0 ] st
+          /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 /\ st'#Rv = rv |]
+            /\ ![ ^[(st#Sp ^- $8) =?> 2] * #1 ] st')];;
+        Sp <- Sp - 8;;
+        Rp <- $[Sp];;
+        Return $[Sp+4]
+      }
+    };;
+    
+    Fail (* Unreachable! *)
+  } with bfunction "remove" [removeS] {
+    Rv <- $[Sp];;
+    $[Sp+8] <- Rv;;
+    $[Sp] <- $[Rv];;
+
+    [st ~> ExX, Ex s, Ex t, Ex ans, Ex w, Ex p,
+      ![ (st#Sp ==*> p, w, ans) * ^[(st#Sp ^+ $12) =?> 3] * ans =*> p * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
+      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+        /\ Ex t', Ex p', ![ ^[st#Sp =?> 6] * ans =*> p' * ^[bst' (s %- w) t' p'] * ^[mallocHeap] * #1 ] st')]
+    While ($[Sp] <> 0) {
+      Rv <- $[Sp];;
+      If ($[Rv+4] = $[Sp+4]) {
+        (* Key matches!  Now the hard part: pulling another node's data value up here (if possible),
+         * and then deleting this node. *)
+        If ($[Rv] <> 0) {
+          (* Nonempty left subtree.  Find and remove its rightmost node. *)
+            $[Sp+8] <- Rv;;
+            $[Sp] <- Rp;;
+            $[Sp+4] <- Rv+4;;
+            Sp <- Sp + 8;;
+            Call "bst"!"removeMax"
+            [st ~> ExX, Ex rp, Ex rv, ![((st#Sp ^- $8) ==*> rp, rv) * ^[st#Sp =?> 4] * ^[rv =?> 1] * #0] st
+              /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 |]
+                /\ ![ ^[(st#Sp ^- $8) =?> 6] * rv =*> st#Rv * #1] st')];;
+
+            Sp <- Sp - 8;;
+            Rp <- $[Sp+4];;
+            $[Rp] <- Rv;;
+            Rp <- $[Sp];;
+            Goto Rp
+        } else {
+          If ($[Rv+8] <> 0) {
+            (* Nonempty right subtree.  Find and remove its leftmost node. *)
+            $[Sp+8] <- Rv+8;;
+            $[Sp] <- Rp;;
+            $[Sp+4] <- Rv+4;;
+            Sp <- Sp + 8;;
+            Call "bst"!"removeMin"
+            [st ~> ExX, Ex rp, Ex rv, ![((st#Sp ^- $8) ==*> rp, rv) * ^[st#Sp =?> 4] * ^[rv =?> 1] * #0] st
+              /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 |]
+                /\ ![ ^[(st#Sp ^- $8) =?> 6] * rv =*> st#Rv * #1] st')];;
+
+            Sp <- Sp - 8;;
+            Rp <- $[Sp+4];;
+            $[Rp] <- Rv;;
+            Rp <- $[Sp];;
+            Goto Rp
+          } else {
+            (* Both subtrees empty.  Easy case!  Can just delete this node. *)
+
+            (* Zero out pointer to the node. *)
+            Rv <- $[Sp+8];;
+            $[Rv] <- 0;;
+
+            (* Free the node. *)
+            $[Sp+4] <- 1;;
+            Goto "malloc"!"free"
+          }
+        }
+      } else {
+        If ($[Sp+4] < $[Rv+4]) {
+          (* Searching for a lower key *)
+          Skip
+        } else {
+          (* Searching for a higher key *)
+          Rv <- Rv + 8
+        };;
+        $[Sp+8] <- Rv;;
+        $[Sp] <- $[Rv]
+      }
+    };;
+
+    (* Key not found!  So deletion is an easy no-op. *)
+    Return 0
   }
 }}.
 
@@ -260,7 +391,7 @@ Qed.
 Local Hint Resolve exhausted_cases.
 Local Hint Extern 5 (@eq W _ _) => words.
 Local Hint Extern 3 (himp _ _ _) => apply bst'_set_extensional.
-  
+
 Theorem bstMOk : moduleOk bstM.
 (*TIME Clear Timing Profile. *)
   vcgen; abstract (sep hints; auto).
