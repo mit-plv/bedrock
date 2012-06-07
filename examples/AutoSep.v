@@ -102,7 +102,7 @@ Ltac sep_firstorder := sep_easy;
            | [ |- _ /\ _ ] => split
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
-           | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; reflexivity)
+           | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula;
   repeat match goal with
            | [ |- context[Regs (match ?st with
@@ -676,7 +676,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   end; refold.
 
 
-Ltac evaluate ext := ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
+Ltac evaluate ext :=
+  repeat match goal with
+           | [ H : ?P -> False |- _ ] => change (not P) in H
+         end;
+  ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
 
 Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
 
@@ -711,10 +715,35 @@ Ltac step ext :=
       end
     | _ => ho
   end.
-Ltac descend := Programming.descend; reduce.
+
+Theorem use_HProp_extensional : forall p, HProp_extensional p
+  -> (fun st sm => p st sm) = p.
+  auto.
+Qed.
+
+Ltac descend := Programming.descend; reduce;
+  unfold hvarB; simpl;
+    repeat match goal with
+             | [ |- context[fun stn0 sm => ?f stn0 sm] ] =>
+               rewrite (@use_HProp_extensional f) by auto
+             | [ |- context[fun stn0 sm => ?f ?a stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a)) by auto
+             | [ |- context[fun stn0 sm => ?f ?a ?b stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a b)) by auto
+             | [ |- context[fun stn0 sm => ?f ?a ?b ?c stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a b c)) by auto
+             | [ |- context[fun stn0 sm => ?f ?a ?b ?c ?d stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a b c d)) by auto
+             | [ |- context[fun stn0 sm => ?f ?a ?b ?c ?d ?e stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a b c d e)) by auto
+             | [ |- context[fun stn0 sm => ?f ?a ?b ?c ?d ?e ?f stn0 sm] ] =>
+               rewrite (@use_HProp_extensional (f a b c d e f)) by auto
+           end.
+
+Ltac post := propxFo; autorewrite with sepFormula in *; unfold substH in *; simpl in *.
 
 Ltac sep ext := 
-  evaluate ext; descend; repeat (step ext; descend).
+  post; evaluate ext; descend; repeat (step ext; descend).
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
