@@ -16,12 +16,15 @@ Module Type Heap.
   Parameter mem_acc : mem -> addr -> Prop.
 
   Parameter mem_get_acc : forall m p,
-    mem_acc m p ->
+    mem_acc m p <->
     exists v, mem_get m p = Some v.
 
   Parameter mem_set_acc : forall m p,
-    mem_acc m p ->
+    mem_acc m p <->
     forall v, exists m', mem_set m p v = Some m'.
+
+  Parameter mem_acc_dec : forall m p,
+    mem_acc m p \/ ~mem_acc m p.
 
   (** mem writes persist **)
   Parameter mem_get_set_eq : forall m p v' m', 
@@ -268,10 +271,10 @@ Module HeapTheory (B : Heap).
       exists m',
       mem_set m p v = Some m' /\ satisfies sm' m'.
   Proof.
-    unfold satisfies, smem_set, smem_get, smem.
+    unfold satisfies, smem_set, smem_get, smem, relevant.
     generalize NoDup_all_addr.
     induction all_addr; simp auto.
-      destruct (mem_set_acc _ _ H2 v). rewrite H3. eexists; split; eauto.
+      destruct (proj1 (mem_set_acc _ _) H2 v). rewrite H3. eexists; split; eauto.        
       erewrite mem_get_set_eq; eauto with memory.
 
       Focus.
@@ -356,7 +359,7 @@ Module HeapTheory (B : Heap).
                eapply satisfies_set in H; eauto; destruct H as [ ? [ ? ? ] ]
              | [ H : _ = _ |- _ ] => rewrite H
            end.
-    eauto.
+    exists x2. intuition eauto.
   Qed.
 
   Lemma smem_set_get_valid : forall m p v v',
@@ -625,6 +628,18 @@ Module HeapTheory (B : Heap).
            end.
     congruence.
   Qed.
+
+  Theorem satisfies_memoryIn : forall m, 
+    satisfies (memoryIn m) m.
+  Proof.
+    unfold satisfies, memoryIn. generalize all_addr.
+    induction l; simpl; auto.
+    intuition. destruct (mem_acc_dec m a).
+    generalize (proj1 (mem_get_acc _ _) H). intro. destruct H0. rewrite H0. auto.
+    case_eq (mem_get m a); intuition; auto.
+    eapply mem_get_acc. eauto.
+  Qed.
+
 (*
 Fixpoint memoryInUpto (width init : nat) (m : word width -> option B)
   : hlist (fun _ => option B) (allWordsUpto width init) :=
