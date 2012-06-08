@@ -94,10 +94,9 @@ Qed.
 Lemma wplus_lt_lift : forall sz n m o : nat,
   (N.of_nat (n + m) < Npow2 sz)%N
   -> (N.of_nat o < Npow2 sz)%N
-  -> natToWord sz n ^+ natToWord sz m < natToWord sz o
+  -> natToWord sz (n + m) < natToWord sz o
   -> (n + m < o)%nat.
   unfold wlt; intros.
-  rewrite wplus_alt in *.
   unfold wplusN, wordBinN in *.
   repeat rewrite wordToNat_natToWord_idempotent in * by nomega.
   repeat rewrite wordToN_nat in *.
@@ -144,7 +143,7 @@ Module Type FREE_LIST.
 
   Axiom freeable_split : forall a b x y,
     freeable a (x + 2)
-    -> $(y) ^+ $2 < natToW x
+    -> $(y + 2) < natToW x
     -> goodSize (y + 2)
     -> b = a ^+ $4 ^* ($(x) ^- $(y))
     -> freeable b (y + 2).
@@ -153,7 +152,7 @@ Module Type FREE_LIST.
     x = y ^+ $4 ^* ($(a) ^- $(b))
     -> x = $0
     -> freeable y (a + 2)
-    -> $(b) ^+ $2 < natToW a
+    -> $(b + 2) < natToW a
     -> goodSize (b + 2)
     -> False.
 
@@ -213,7 +212,7 @@ Module FreeList : FREE_LIST.
     x = y ^+ $4 ^* ($(a) ^- $(b))
     -> x = $0
     -> freeable y (a + 2)
-    -> $(b) ^+ $2 < natToW a
+    -> $(b + 2) < natToW a
     -> goodSize (b + 2)
     -> False.
     intros; subst.
@@ -230,7 +229,7 @@ Module FreeList : FREE_LIST.
 
   Lemma freeable_split : forall a b x y,
     freeable a (x + 2)
-    -> $(y) ^+ $2 < natToW x
+    -> $(y + 2) < natToW x
     -> goodSize (y + 2)
     -> b = a ^+ $4 ^* ($(x) ^- $(y))
     -> freeable b (y + 2).
@@ -319,7 +318,7 @@ Local Hint Resolve wplus_lt_lift.
 Lemma malloc_split'' : forall cur full init,
   goodSize (init + 2)
   -> goodSize (full + 2)
-  -> natToW init ^+ natToW 2 < natToW full
+  -> natToW (init + 2) < natToW full
   -> splitMe cur full init ===> cur =?> (full - init - 2) * allocated cur ((full - (init + 2)) * 4) (init + 2).
   intros.
   replace (full - init - 2) with (full - (init + 2)) by omega.
@@ -336,7 +335,7 @@ Qed.
 Lemma malloc_split''' : forall cur full init,
   goodSize (init + 2)
   -> goodSize (full + 2)
-  -> natToW init ^+ natToW 2 < natToW full
+  -> natToW (init + 2) < natToW full
   -> splitMe cur full init ===> cur =?> (full - init - 2) * (cur ^+ $ ((full - (init + 2)) * 4)%nat) =?> (init + 2).
   intros; eapply Himp_trans.
   apply malloc_split''; auto.
@@ -352,13 +351,14 @@ Local Hint Resolve goodSize_freeable.
 Lemma malloc_split : forall cur full init,
   goodSize (init + 2)
   -> goodSize (full + 2)
-  -> natToW init ^+ natToW 2 < natToW full
+  -> natToW (init + 2) < natToW full
   -> splitMe cur full init ===> cur =?> (full - init - 2)
   * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4)%nat) =*> v)
   * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4) ^+ $4) =*> v)
   * allocated (cur ^+ $ ((full - (init + 2)) * 4)) 8 init.
   intros; eapply Himp_trans.
   apply malloc_split'''; eauto.
+  autorewrite with sepFormula; auto.
   rewrite plus_comm; simpl.
   sepLemma.
 Qed.
@@ -407,7 +407,6 @@ Definition mallocM := bmodule "malloc" {{
         /\ Ex a, Ex b, Ex n', Ex p,
         ![ (st#Sp ==*> a, b) * ^[st'#Rv =?> (2 + sz)] * st#Rp =*> p * ^[freeList n' p] * #1 ] st')]
     While (Rv <> 0) {
-      Rv <- Rv;;
       If ($[Rv] = $[Sp]) {
         (* Exact size match on the current free list block *)
         $[Rp] <- $[Rv+4];;
@@ -457,11 +456,9 @@ Local Hint Resolve natToW_inj.
 
 Lemma cancel8 : forall x y z,
   (z + 2 <= y)%nat
-  -> x ^+ $8 ^+ $((y - (z + 2)) * 4) = x ^+ $4 ^* ($(y) ^- natToW z).
+  -> x ^+ $8 ^+ ($(y) ^- $(z + 2)) ^* $4 = x ^+ $4 ^* ($(y) ^- natToW z).
   intros.
   autorewrite with sepFormula.
-  rewrite natToW_times4.
-  rewrite natToW_minus by auto.
   rewrite natToW_plus.
   unfold natToW.
   W_eq.
@@ -476,17 +473,17 @@ Section mallocOk.
 
   Theorem mallocMOk : moduleOk mallocM.
 (*TIME Clear Timing Profile. *)
-    vcgen; abstract solve [ pose four_neq_zero; sep hints; auto;
+    vcgen; abstract solve [ generalize four_neq_zero; sep hints; auto;
       try match goal with
             | [ H : _ = _ |- _ ] => apply natToW_inj in H; [ congruence | | ]
           end; eauto
-      | evaluate hints;
+      | post; evaluate hints;
         match goal with
           | [ _ : natToW ?init ^+ natToW 2 < natToW ?full,
             H' : freeable _ (?full + 2),
             H : context[(?base =?> ?full)%Sep] |- _ ] =>
           change (base =?> full)%Sep with (splitMe base full init) in H;
-            pose (goodSize_freeable H')
+            generalize (goodSize_freeable H')
         end; sep hints ].
 (*TIME Print Timing Profile. *)
   Qed.

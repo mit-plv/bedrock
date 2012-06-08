@@ -3,7 +3,7 @@ MODULES := AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap WordArith \
            Pair SinglyLinkedList \
            Malloc \
-           TreeSet
+           Sets TreeSet
 
 VS      := $(MODULES:%=%.v)
 

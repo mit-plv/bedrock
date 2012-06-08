@@ -49,16 +49,16 @@ Definition pair := bmodule "pair" {{
 
 (*TIME Clear Timing Profile. *)
 
-Definition hints_pair' : TacPackage.
+Definition hints' : TacPackage.
   prepare1 pair_fwd pair_bwd.
 Defined.
 
-Definition hints_pair : TacPackage.
-  prepare2 hints_pair'.
+Definition hints : TacPackage.
+  prepare2 hints'.
 Defined.
 
 Theorem pairOk : moduleOk pair.
-  vcgen; abstract sep hints_pair.
+  vcgen; abstract sep hints.
 Qed.
 
 (*TIME Print Timing Profile. *)

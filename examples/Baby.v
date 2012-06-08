@@ -11,7 +11,7 @@ Definition diverger := bmodule "diverger" {{
 (* Eval compute in compile diverger. *)
 
 Theorem divergerOk : moduleOk diverger.
-  vcgen.
+  vcgen; post.
 Qed.
 
 (* Print Assumptions divergerOk. *)
