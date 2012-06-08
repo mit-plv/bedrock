@@ -75,7 +75,7 @@ Module Type SynUnifier.
 
     Axiom Subst_equations_exprInstantiate : forall funcs U G e t sub,
       Subst_equations funcs U G sub ->
-      exprD funcs U G e t = exprD funcs U G (exprInstantiate sub e) t.
+      exprD funcs U G (exprInstantiate sub e) t = exprD funcs U G e t.
 
 (*
     Axiom Subst_equations_Extends : forall funcs utypes G sub sub',
@@ -1300,9 +1300,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Theorem Subst_equations_exprInstantiate : forall funcs U G e t sub,
       Subst_equations funcs U G sub ->
-      exprD funcs U G e t = exprD funcs U G (exprInstantiate sub e) t.
+      exprD funcs U G (exprInstantiate sub e) t = exprD funcs U G e t.
     Proof.
-      induction e; simpl; intros; think; autorewrite with subst_simpl in *; 
+      induction e; simpl; intros; think; autorewrite with subst_simpl in *; symmetry;
         repeat (simpl in *; 
           match goal with
             | [ H : context [ match ?X with
@@ -1324,111 +1324,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         destruct (equiv_dec (Range s) t); auto. unfold equiv in *. subst.
         destruct s; simpl in *.  
         generalize dependent Domain. induction H; destruct Domain; simpl; auto.
-        erewrite <- H by eauto. intros. destruct (exprD funcs U G x t); auto. }
+        erewrite H by eauto. intros. destruct (exprD funcs U G x t); auto. }
     Qed.
 
   End typed.
 End Unifier.
 
 Module UNIFIER := Unifier NatMap.Ordered_nat.
-
-
-
-(*
-Module TEST.
-  Definition types := ({| Impl := nat ; Eq := fun _ _ => None |} :: nil).
-  
-  Definition vars_env : env types := nil.
-  Definition uvars := tvType 0 :: tvType 0 :: tvType 0 :: nil.
-  Definition subst := 
-    let s := empty_Subst types in
-    Subst_set 1 (UVar 0) s.
-  Definition funcs : functions types := nil.
-
-  Goal 
-    existsEach uvars (fun uenv =>
-      match subst with 
-        | None => False
-        | Some subst => 
-          Subst_equations funcs vars_env subst uenv 0 uenv 
-      end /\  
-      AllProvable funcs uenv vars_env 
-        ((Equal (tvType 0) (UVar 0) (UVar 2)) :: 
-         (Equal (tvType 0) (UVar 0) (@Const types (tvType 0) 3)) :: nil)).
-    compute.
-  Abort.
-End TEST.
-*)
-
-(**
-(** TODO:
- ** this seems like a more difficult interface, but it seems realistic given 
- ** that you can't actually conclude more information after a substitution occurs
- ** you can only ensure that the substitution is consistent with the equation
- **)
-Module Type SemUnifier.
-  (** An environment that maintains a mapping from variables to their meaning **)
-  Parameter Subst : list type -> Type.
-
-  Section typed.
-    Variable types : list type.
-    
-    Parameter Subst_empty : Subst types.
-
-    (** The invariant that the substitution implies.
-     **)
-    Parameter SubstInv : forall (funcs : functions types) (meta_env var_env : env types), Subst types -> list (tvar * expr types * expr types) -> Prop.
-
-    (** The actual unification algorithm **)
-    Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
-    
-    (** Substitute meta variables **)
-    Parameter exprInstantiate : Subst types -> expr types -> expr types.
-
-    Variable funcs : functions types.
-    Variable vars : env types.
-    
-    (** NOTE: the meaning of Prop isn't quite perfect. We currently reflect Props
-     ** but we actually mean proofs, i.e. using the Provable predicate.
-     **)
-    Definition unifies uenv env (t : tvar) (l r : expr types) : Prop :=
-      match exprD funcs uenv env l t , exprD funcs uenv env r t with
-        | Some l , Some r => match t as t return tvarD types t -> tvarD types t -> Prop with
-                               | tvProp => fun l r => l <-> r (** we'll weaken things a bit more **)
-                               | tvType _ => fun l r => l = r
-                             end l r
-        | _ , _ => False
-      end.
-
-    Axiom SubstInv_empty : forall uenv env sub,
-      SubstInv funcs uenv env sub nil.
-
-    Axiom SubstInvD : forall uenv env sub ctx,
-      SubstInv funcs uenv env sub ctx ->
-      Forall (fun t_l_r => 
-        let '(t,l,r) := t_l_r in
-        unifies uenv env t l r) ctx.
-
-    (** This is the soundness statement.
-     ** TODO: Is this correct?
-     **)
-    Axiom exprUnify_sound : forall env uenv l r t sub sub' n ctx,
-      exprUnify n l r sub = Some sub' ->
-      SubstInv funcs uenv env sub ctx ->
-      is_well_typed funcs uenv env l t = true ->
-      is_well_typed funcs uenv env r t = true ->
-      SubstInv funcs uenv env sub' ((t,l,r) :: ctx).
-
-  End typed.
-
-End SemUnifier.
-
-Module SemFromSyn (SU : SynUnifier) <: SemUnifier.
-  Definition Subst := SU.Subst.
-
-  Definition Subst_empty := SU.Subst_empty.
-
-  Definition 
-End SemFromSyn.
-
-**)
