@@ -9,13 +9,17 @@ Require Import Prover.
 Require Import SepExpr.
 Require Import Folds.
 Require Import Reflection.
+Require SepUnify.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Module Make (U : SynUnifier) (SH : SepHeap).
   Module Import SE := SH.SE.
-  Module Import SEP_FACTS := SepExprFacts SE.
+  Module HEAP_FACTS := SepHeapFacts SH.
+  Module Import SEP_FACTS := HEAP_FACTS.SEP_FACTS.
+  Import HEAP_FACTS.
+  Module Import SEP_UFACTS := SepUnify.Make U SH.
 
   Section env.
     Variable types : list type.
@@ -219,21 +223,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                   (rewrite <- U.exprInstantiate_WellTyped; eauto)
             end. } }
       Qed.
-
-      Lemma WellTyped_exprInstantiate_applyD : forall S',
-        U.Subst_equations funcs U G S' ->
-        forall p l,
-          applyD (exprD funcs U G) (SDomain p) l
-          (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
-          (SDenotation p) =
-          applyD (exprD funcs U G) (SDomain p) (map (U.exprInstantiate S') l)
-          (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
-          (SDenotation p).
-      Proof.
-        clear. destruct p. induction SDomain0; destruct l; simpl; auto.
-        rewrite U.Subst_equations_exprInstantiate; eauto.
-        destruct (exprD funcs U G e a); eauto.
-      Qed.
       
       Lemma unify_removeOk : forall cs bound summ f p l S,
         U.Subst_WellTyped tfuncs tU tG S ->
@@ -268,7 +257,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
             | [ |- ST.heq _ match ?X with _ => _ end match ?Y with _ => _ end ] =>
               cutrewrite (X = Y)
           end. reflexivity.
-          revert H3. repeat rewrite <- WellTyped_exprInstantiate_applyD; eauto. }
+          revert H3. repeat rewrite applyD_forget_exprInstantiate by eauto; eauto. }
         { revert H7. case_eq (unify_remove bound summ l (SDomain p) r S); intros; try congruence.
           destruct p0. inversion H8; clear H8; subst. clear H4.
           inversion H3; clear H3; subst.
@@ -334,6 +323,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         rewrite IHe. reflexivity.
     Qed.
 
+(*
     Lemma starred_perm : forall T L R,
       Permutation.Permutation L R ->
       forall (F : T -> _) U G cs base,
@@ -346,6 +336,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                | [ H : _ |- _ ] => rewrite H
              end; try reflexivity; heq_canceler.
     Qed.
+*)
 
     Lemma fold_Permutation : forall imps L R,
       Permutation.Permutation L R ->
@@ -402,6 +393,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           end
       end.
     
+(*
     Definition sheapInstantiate (s : U.Subst types) : MM.mmap (exprs types) -> MM.mmap (exprs types) :=
       MM.mmap_map (map (@U.exprInstantiate _ s)).
 
@@ -442,6 +434,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
              end.
       apply Permutation.Permutation_map. firstorder.
     Qed.
+*)
 
     Lemma cancel_in_order_equiv : forall bound summ ls acc rem sub L R S acc',
       MM.mmap_Equiv acc acc' ->
@@ -576,6 +569,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Qed.
 *)
 
+(*
     Lemma sheapInstantiate_add : forall U G cs S n e m m',
       ~FM.In n m ->
       MM.PROPS.Add n e m m' ->
@@ -617,7 +611,9 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         erewrite <- WellTyped_exprInstantiate_applyD; eauto.
         reflexivity.
     Qed.
+*)
 
+(*
     Lemma starred_nil : forall T U G cs (F : T -> _) B,
       heq funcs preds U G cs (SH.starred F nil B) B.
     Proof.
@@ -648,7 +644,9 @@ Module Make (U : SynUnifier) (SH : SepHeap).
             end
         end); 
       SEP_FACTS.heq_canceler.
+*)
 
+(*
     Lemma impuresD_forget_sheapInstantiate : forall U G S cs h,
       U.Subst_equations funcs U G S ->
       heq funcs preds U G cs 
@@ -661,6 +659,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         rewrite SH.impuresD_Add; eauto. rewrite <- H0. SEP_FACTS.heq_canceler.
         rewrite starred_forget_sheapInstantiate; auto. reflexivity. }
     Qed.
+*)
 
     Lemma cancel_in_orderOk : forall tU tG tfuncs U G cs bound summ,
       WellTyped_env tU U ->
@@ -672,12 +671,12 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       Valid Prover_correct U G summ ->
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
       himp funcs preds U G cs 
-        (Star (SH.impuresD _ _ (sheapInstantiate S R)) P)
-        (Star (SH.impuresD _ _ (sheapInstantiate S L)) Q) ->
+        (Star (SH.impuresD _ _ (impuresInstantiate S R)) P)
+        (Star (SH.impuresD _ _ (impuresInstantiate S L)) Q) ->
       himp funcs preds U G cs 
-        (Star (SH.impuresD _ _ (sheapInstantiate S rem)) P)
+        (Star (SH.impuresD _ _ (impuresInstantiate S rem)) P)
         (Star (Star (SH.starred (fun v => (Func (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls Emp)
-                    (SH.impuresD _ _ (sheapInstantiate S acc)))
+                    (SH.impuresD _ _ (impuresInstantiate S acc)))
               Q).
 (*    Proof.
       induction ls; simpl; intros.
@@ -694,7 +693,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                  revert H; case_eq X; intros
                end.
         { (* (eapply unify_removeOk with (cs := cs) 
-            (P := Star (SH.impuresD pcType stateType (sheapInstantiate S acc))
+            (P := Star (SH.impuresD pcType stateType (impuresInstantiate S acc))
               (SH.starred
                 (fun x : list (expr types) * func =>
                   Func (snd x) (map (U.exprInstantiate S) (fst x))) ls Emp)) in H8;
@@ -720,13 +719,13 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           Focus 3. instantiate (1 := Star (Func n e) Q). admit.
           admit. admit. }
         { 
-          repeat rewrite impuresD_forget_sheapInstantiate by auto.
+          repeat rewrite impuresD_forget_impuresInstantiate by auto.
           eapply cancel_in_order_mmap_add_acc in H8; eauto. do 3 destruct H8. intuition.
           eapply IHls in H9; eauto. 
-          Focus 3. instantiate (1 := Star Q (Func n e)). repeat rewrite impuresD_forget_sheapInstantiate.
+          Focus 3. instantiate (1 := Star Q (Func n e)). repeat rewrite impuresD_forget_impuresInstantiate.
           admit. admit. admit.
-          rewrite impuresD_forget_sheapInstantiate in H9.
-          rewrite impuresD_forget_sheapInstantiate in H9.
+          rewrite impuresD_forget_impuresInstantiate in H9.
+          rewrite impuresD_forget_impuresInstantiate in H9.
           admit.
           admit.
           admit.
@@ -807,8 +806,8 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       repeat rewrite SH.sheapD_def in H1; simpl in *.
       eapply cancel_in_orderOk with (cs := cs) (U := U) (G := G) in H0;
         eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs, U.Subst_empty_WellTyped.
-      2: rewrite <- impuresD_forget_sheapInstantiate with (h := m0) in H1 by eassumption;
-         rewrite <- impuresD_forget_sheapInstantiate with (h := m) in H1 by eassumption; eassumption.
+      2: rewrite <- impuresD_forget_impuresInstantiate with (h := m0) in H1 by eassumption;
+         rewrite <- impuresD_forget_impuresInstantiate with (h := m) in H1 by eassumption; eassumption.
       clear H1.
       do 2 rewrite SH.sheapD_def; simpl.
       

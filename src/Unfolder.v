@@ -1,10 +1,11 @@
 Require Import Arith Bool EqdepClass List.
 
-Require Import Heaps Reflect.
+Require Import Heaps (* Reflect *).
 Require Import Expr ExprUnify Folds.
 Require Import SepExpr SepHeap.
 Require Import Prover.
 Require Import Env.
+Require Import Reflection.
 
 Set Implicit Arguments.
 
@@ -194,6 +195,15 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                       end
       end.
 
+    Lemma findOk : forall A B (f : A -> option B) ls res,
+      find f ls = Some res ->
+      exists a, In a ls /\ f a = Some res.
+    Proof.
+      clear. induction ls; intros; simpl in *; try congruence.
+      revert H. consider (f a); intros. inversion H0; subst; exists a; intuition.
+      eapply IHls in H0. destruct H0; intuition. eauto.
+    Qed.
+
     Fixpoint findWithRest' A B (f : A -> list A -> option B) (ls acc : list A) : option B :=
       match ls with
         | nil => None
@@ -203,8 +213,27 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                       end
       end.
 
+    Lemma findWithRest'Ok : forall A B (f : A -> list A -> option B) ls acc res,
+      findWithRest' f ls acc = Some res ->
+      exists xs x xs', ls = xs ++ x :: xs' /\ f x (rev acc ++ xs ++ xs') = Some res.
+    Proof.
+      clear.
+      induction ls; intros; simpl in *; try congruence.
+      revert H; consider (f a (rev_append acc ls)); intros.
+      inversion H0; clear H0; subst. exists nil. exists a. exists ls. simpl. rewrite rev_append_rev in H; auto.
+      eapply IHls in H0. do 3 destruct H0. intuition. subst. clear H. simpl in *. rewrite app_ass in H2. simpl in *.
+      exists (a :: x). simpl. exists x0. exists x1. intuition.
+    Qed.
+
     Definition findWithRest A B (f : A -> list A -> option B) (ls : list A) : option B :=
       findWithRest' f ls nil.
+
+    Lemma findWithRestOk : forall A B (f : A -> list A -> option B) ls res,
+      findWithRest f ls = Some res ->
+      exists xs x xs', ls = xs ++ x :: xs' /\ f x (xs ++ xs') = Some res.
+    Proof.
+      clear. unfold findWithRest; simpl. intros. eapply findWithRest'Ok in H. eauto.
+    Qed.
 
     (* As we iterate through unfolding, we modify this sort of state. *)
     Record unfoldingState := {
@@ -214,12 +243,30 @@ Module Make (SH : SepHeap) (U : SynUnifier).
     }.
 
     Section unfoldOne.
+      Variable unify_bound : nat.
+      
       Variable prover : ProverT types.
       (* This prover must discharge all pure obligations of an unfolding lemma, if it is to be applied. *)
       Variable facts : Facts prover.
 
       Variable hs : hintSide.
       (* Use these hints to unfold impure predicates. *)
+
+      Definition applicable (lem : lemma) (args args' : exprs types) : option (U.Subst types) :=
+        None.
+
+(*
+      Theorem applicableFwdOk 
+        applicable lem args args' = Some sub ->
+        map (U.exprInstantiate sub) args = args' ->
+        Lhs lem = Funcs f args ->
+        SE.himp (Func f (map (U.exprInstantiate sub) args))
+                (Rhs 
+
+Lhs lem) (Rhs lem)
+*)
+
+
 
       (* Returns [None] if no unfolding opportunities are found.
        * Otherwise, return state after one unfolding. *)
@@ -240,7 +287,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                     let args' := map (exprSubstU O numForalls firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
-                    match fold_left_2_opt (U.exprUnify 5) args' args (U.Subst_empty _) with
+                    match fold_left_2_opt (U.exprUnify unify_bound) args' args (U.Subst_empty _) with
                       | None => None
                       | Some subs =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
@@ -284,7 +331,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                     let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
-                    match fold_left_2_opt (U.exprUnify 5) args' args (U.Subst_empty _) with
+                    match fold_left_2_opt (U.exprUnify unify_bound) args' args (U.Subst_empty _) with
                       | None => None
                       | Some subs =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
@@ -319,6 +366,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
     End unfoldOne.
 
     Section unfolder.
+      Definition unify_bound := 5.
       Variable hs : hintsPayload.
       Variable prover : ProverT types.
 
@@ -327,7 +375,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         match bound with
           | O => s
           | S bound' =>
-            match unfoldForward prover facts (Forward hs) s with
+            match unfoldForward unify_bound prover facts (Forward hs) s with
               | None => s
               | Some s' => forward bound' facts s'
             end
@@ -337,7 +385,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         match bound with
           | O => s
           | S bound' =>
-            match unfoldBackward prover facts (Backward hs) s with
+            match unfoldBackward unify_bound prover facts (Backward hs) s with
               | None => s
               | Some s' => backward bound' facts s'
             end
@@ -382,6 +430,12 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Qed.
 *)
 
+      (** NOTE: this function builds the existentials so that the environment can be extended at the end
+       **       rather than at the beginning (like [existsEach] does)
+       ** Eval simpl in (ST_exs_env (tvType 0 :: tvType 1 :: nil) (fun x => ST.inj (PropX.Inj (hd_error x = hd_error x)))).
+       ** Eval simpl in (sexprD funcs preds nil nil (SE.existsEach (rev (tvType 0 :: tvType 1 :: nil))
+       **                   (SE.Inj (Equal (tvType 0) (Var 0) (Var 0))))).
+       **)
       Fixpoint ST_exs_env (ls : list tvar) 
         (k : list { t : tvar & tvarD types t } -> ST.hprop (tvarD types pcType) (tvarD types stateType) nil) {struct ls} : 
         ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
@@ -390,6 +444,46 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           | l :: ls =>
             ST.ex (fun x : tvarD types l => ST_exs_env ls (fun env => k (@existT _ _ l x :: env)))
         end.
+
+      Lemma ST_himp_heq_L : forall cs U G P Q S,
+        himp funcs preds U G cs P Q ->
+        ST.himp cs (sexprD funcs preds U G Q) S ->
+        ST.himp cs (sexprD funcs preds U G P) S. 
+      Proof.
+        clear. unfold himp; intros. etransitivity; eauto. 
+      Qed.
+
+      Lemma unfoldForwardOk : forall unify_bound meta_env vars_env cs facts P Q,
+        Valid PC meta_env vars_env facts ->
+        unfoldForward unify_bound prover facts (Forward hs) P = Some Q ->
+        ST.himp cs
+        (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
+        (ST_exs_env (skipn (length vars_env) (Vars Q))
+          (fun vars_ext : list {t : tvar & tvarD types t} =>
+            sexprD funcs preds meta_env (vars_env ++ vars_ext) (sheapD (Heap Q)))).
+      Proof.
+        unfold unfoldForward. intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end.
+        destruct P; simpl in *.
+
+        destruct Heap0; simpl in *.
+        eapply ST_himp_heq_L with (Q := Star (SH.sheapD {| impures := FM.add f (x0 ++ x2) impures0
+          ; pures := pures0
+          ; other := other0
+        |})
+        (Rhs x)).
+        { admit. }
+        { admit. }
+      Qed.
+
+
 
       Theorem forwardOk : forall cs bound facts P Q meta_env vars_env,
         forward bound facts P = Q ->
@@ -403,10 +497,13 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         induction bound; simpl; intros.
         { subst; repeat split; try reflexivity.
           cutrewrite (skipn (length vars_env) (Vars Q) = nil). simpl. rewrite app_nil_r. reflexivity.
-          admit.
-        }
-        { revert H; case_eq (unfoldForward prover facts (Forward hs) P); intros.
-          { admit. }
+          admit. }
+        { revert H; case_eq (unfoldForward unify_bound prover facts (Forward hs) P); intros.
+          { 
+
+
+
+admit. }
           { cutrewrite (skipn (length vars_env) (Vars Q) = nil). subst. simpl. rewrite app_nil_r. reflexivity.
             subst. admit.
           }
@@ -469,6 +566,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
 
   (** * Reflecting hints *)
+  Require Reflect.
   Module SEP_REIFY := SepExpr.ReifySepExpr SE.
 
   (* This tactic processes the part of a lemma statement after the quantifiers. *)
@@ -495,7 +593,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                    | Prop => fail 1
                    | _ => let P := eval simpl in (fun x : ReifyExpr.VarType (T * T') =>
                      f (@ReifyExpr.openUp _ T (@fst _ _) x) (@ReifyExpr.openUp _ T' (@snd _ _) x)) in
-                   let types := cons_uniq T' types in
+                   let types := Reflect.cons_uniq T' types in
                      collectTypes_hint ltac:(isConst) P types k
                  end
         end

@@ -911,3 +911,75 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
   Qed.
 
 End Make.
+
+Module SepHeapFacts (SH : SepHeap).
+  Import SH.SE.
+  Module SEP_FACTS := SepExprFacts SH.SE.
+  Import SEP_FACTS.
+
+  Section with_env.
+    Variable types : list type.
+    Variables pcT stT : tvar.
+    Variable funcs : functions types.
+    Variable preds : predicates types pcT stT.
+    Variable cs : PropX.codeSpec (tvarD types pcT) (tvarD types stT).
+
+    Lemma starred_nil : forall T U G cs (F : T -> _) B,
+      heq funcs preds U G cs (SH.starred F nil B) B.
+    Proof.
+      clear. intros; rewrite SH.starred_def. reflexivity.
+    Qed.
+
+    Lemma starred_cons : forall T U G cs (F : T -> _) a A B,
+      heq funcs preds U G cs (SH.starred F (a :: A) B) (Star (F a) (SH.starred F A B)).
+    Proof.
+      clear. intros; rewrite SH.starred_def. simpl. rewrite <- SH.starred_def. reflexivity.
+    Qed.
+    
+    Lemma starred_app : forall T U G cs (F : T -> _) ls ls'  B,
+      heq funcs preds U G cs (SH.starred F (ls ++ ls') B) (Star (SH.starred F ls Emp) (SH.starred F ls' B)).
+    Proof.
+      clear; intros; rewrite SH.starred_def. rewrite fold_right_app. rewrite <- SH.starred_def.
+      rewrite SH.starred_base. rewrite <- SH.starred_def. heq_canceler.
+    Qed.
+
+    Ltac heq_canceler :=
+      repeat (rewrite starred_nil || rewrite starred_cons || rewrite starred_app ||
+        match goal with
+          | [ |- context [ SH.starred ?A ?B ?X ] ] =>
+            match X with
+              | Emp => fail 1 
+              | _ => rewrite SH.starred_base with (F := A) (ls := B) (base := X)
+            end
+        end); 
+      SEP_FACTS.heq_canceler.
+
+    Lemma starred_perm : forall T L R,
+      Permutation.Permutation L R ->
+      forall (F : T -> _) U G cs base,
+      heq funcs preds U G cs (SH.starred F L base) (SH.starred F R base).
+    Proof.
+      clear. intros.
+      repeat rewrite SH.starred_def.
+      induction H; simpl; intros;
+      repeat match goal with
+               | [ H : _ |- _ ] => rewrite H
+             end; try reflexivity; heq_canceler.
+    Qed.
+  End with_env.
+
+  Ltac heq_canceler :=
+    repeat (rewrite starred_nil || rewrite starred_cons || rewrite starred_app ||
+      match goal with
+        | [ |- context [ SH.starred ?A ?B ?X ] ] =>
+          match X with
+            | Emp => fail 1 
+            | _ => rewrite SH.starred_base with (F := A) (ls := B) (base := X)
+          end
+      end); 
+    SEP_FACTS.heq_canceler.
+
+
+  Export SEP_FACTS.
+
+End SepHeapFacts.
