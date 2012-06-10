@@ -164,17 +164,17 @@ Module SepExprFacts (SE : SepExpr).
         nth_error preds f = Some p ->
         Folds.all2 (@is_well_typed types tfuncs tU tG) l (SE.SDomain p) = true ->
         SE.himp funcs preds U G cs (SE.Star (SE.Func f l) P) Q) ->
-        SE.himp funcs preds U G cs (SE.Star (SE.Func f l) P) Q.
+      SE.himp funcs preds U G cs (SE.Star (SE.Func f l) P) Q.
     Proof.
-      intros. unfold SE.himp; simpl. consider (nth_error preds f); intros;
+      intros. unfold SE.himp in *; simpl in *. consider (nth_error preds f); intros;
         try solve [ eapply SE.ST.himp_star_pure_c; contradiction ].
       match goal with
         | [ |- context [ match ?X with | _ => _ end ] ] =>
           case_eq X
       end; intros; try solve [ eapply SE.ST.himp_star_pure_c; contradiction ].
-      etransitivity. 2: eapply H2; eauto. simpl. rewrite H3. rewrite H4. reflexivity.
+      specialize (H3 _ refl_equal). rewrite <- H3. rewrite H4. reflexivity.
 
-      destruct s; simpl in *. clear H2. clear H3. generalize dependent l.
+      clear H2. clear H3. destruct s; simpl in *. generalize dependent l.
       induction SDomain; destruct l; simpl; intros; auto; try congruence.
       revert H4. consider (exprD funcs U G e a); intros.
       erewrite is_well_typed_correct_only by eauto. eapply IHSDomain; eauto. congruence.

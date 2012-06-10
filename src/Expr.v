@@ -1055,55 +1055,64 @@ Section env.
 
 End env.
 
-Lemma nth_error_app_success : forall T ls' (ls : list T) n v,
+Lemma nth_error_weaken : forall T ls' (ls : list T) n v,
   nth_error ls n = Some v ->
   nth_error (ls ++ ls') n = Some v.
 Proof.
   clear. induction ls; destruct n; simpl; intros; unfold value, error in *; try congruence; auto.
 Qed.
 
-Lemma exprD_weaken : forall types (fs : functions types) uvars vars vars' e t v,
-  exprD fs uvars vars e t = Some v ->
-  exprD fs uvars (vars ++ vars') e t = Some v.
+Lemma lookupAs_weaken : forall types t vars vars' x v,
+  lookupAs (types := types) vars t x = Some v ->
+  lookupAs (vars ++ vars') t x = Some v.
 Proof.
-  clear. induction e; simpl; intros; auto;
-  repeat match goal with
-           | [ H : match ?X with
-                     | _ => _
-                   end = _ |- _ ] => revert H; case_eq X; intros; try congruence
-           | [ H : _ |- _ ] => rewrite H
-         end; auto.
-  Focus 2.
-  unfold Equivalence.equiv in *. subst.
-  destruct s; simpl in *.
-  clear H0. generalize dependent Denotation. generalize dependent Domain0.
-  generalize dependent l. clear. induction l; simpl; intros; destruct Domain0; auto.
-  inversion H; clear H; subst.
-  revert H2. case_eq (exprD fs uvars vars a t); intros.
-  erewrite H3 by eassumption. eauto. congruence.
-
-  Focus 2.
-  generalize dependent t0. destruct t0; intros; try congruence.
-  repeat match goal with
-           | [ H : match ?X with
-                     | _ => _
-                   end = _ |- _ ] => revert H; case_eq X; intros; try congruence
-           | [ H : _ |- _ ] => rewrite H
-         end; auto.
-  erewrite IHe1; try eauto.
-  erewrite IHe2; try eauto. 
-
-  unfold lookupAs in *.
-  cutrewrite (nth_error (vars ++ vars') x = nth_error vars x); auto.
-  
-  revert H; case_eq (nth_error vars x); intros.
-  eapply nth_error_app_success; auto.
+  unfold lookupAs. intros. revert H. 
+  case_eq (nth_error vars x); intros.
+  eapply nth_error_weaken in H. rewrite H. eauto.
   congruence.
-  destruct t; try congruence. 
-  revert H; case_eq (exprD fs uvars vars e tvProp); intros; try congruence.
-  erewrite IHe; eauto.
 Qed.
 
+Lemma exprD_weaken : forall types (fs : functions types) uvars uvars' vars vars' e t v,
+  exprD fs uvars vars e t = Some v ->
+  exprD fs (uvars ++ uvars') (vars ++ vars') e t = Some v.
+Proof.
+  clear. induction e; simpl; intros; eauto using lookupAs_weaken;
+  repeat match goal with
+           | [ H : match ?X with
+                     | _ => _
+                   end = _ |- _ ] => revert H; case_eq X; intros; try congruence
+           | [ H : _ |- _ ] => rewrite H
+           | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+             (revert H; case_eq X; intros; try congruence) ; []
+           | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+             (destruct X; try congruence) ; []
+           | [ H : forall x y, _ |- _ ] =>
+             erewrite H by eauto
+           | [ H : _ === _ |- _ ] => 
+             unfold Equivalence.equiv in *; subst
+         end; eauto using lookupAs_weaken.
+  { destruct s; simpl in *.
+    clear H0. generalize dependent Denotation. generalize dependent Domain0.
+    generalize dependent l. clear. induction l; simpl; intros; destruct Domain0; auto.
+    inversion H; clear H; subst.
+    revert H2. case_eq (exprD fs uvars vars a t); intros.
+    erewrite H3 by eassumption. eauto. congruence. }
+Qed.
+
+Lemma Provable_weaken : forall types (fs : functions types) P U G UE GE,
+  Provable fs U G P ->
+  Provable fs (U ++ UE) (G ++ GE) P.
+Proof.
+  unfold Provable; intros. consider (exprD fs U G P tvProp); intros; try contradiction.
+  erewrite exprD_weaken; eauto.
+Qed.
+
+Lemma AllProvable_weaken : forall types (fs : functions types) U G UE GE P,
+  AllProvable fs U G P ->
+  AllProvable fs (U ++ UE) (G ++ GE) P.
+Proof.  
+  induction P; auto; intros; simpl in *; intuition eauto using Provable_weaken.
+Qed.
 
 Lemma liftExpr_ext : forall types (funcs : functions types) EG G G' G'' e t,
   exprD funcs EG (G'' ++ G) e t = exprD funcs EG (G'' ++ G' ++ G) (liftExpr (length G'') (length G') e) t.

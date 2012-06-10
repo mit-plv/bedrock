@@ -138,9 +138,10 @@ Section stream_correctness.
     apply interp_pull_existsEach in H4. destruct H4. intuition.
     rewrite <- H5. rewrite <- map_rev. apply existsEach_projT1_env. rewrite app_nil_r in *.
     change (rev x) with (nil ++ rev x).
-
+    
+    rewrite <- app_nil_r with (l := uvars).
     repeat (erewrite exprD_weaken by eassumption).
-    intuition eauto.
+    rewrite app_nil_r. intuition eauto. 
 
     apply AllProvable_app; auto.
     { revert H2. clear.
@@ -150,13 +151,12 @@ Section stream_correctness.
       induction pures. auto.
       simpl. unfold Provable in *. intro.
       case_eq (exprD funcs uvars l a tvProp); intros. intuition.
+      rewrite <- app_nil_r with (l := uvars).
       erewrite exprD_weaken by eassumption; auto.
-      exfalso; intuition. 
-    }
+      exfalso; intuition. }
     { rewrite sepFormula_eq in H6. unfold sepFormula_def in H6. simpl in H6.
       eapply SH.sheapD_pures. 
-      unfold SEP.ST.satisfies. simpl in *. eauto.
-    }
+      unfold SEP.ST.satisfies. simpl in *. eauto. }
   Qed.
 
   Variable meval : MEVAL.MemEvaluator TYPES pcT stT.

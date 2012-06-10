@@ -28,6 +28,8 @@ Record ProverT (types : list type) : Type :=
 
 Record ProverT_correct (types : list type) (P : ProverT types) (funcs : functions types) : Type :=
 { Valid : env types -> env types -> Facts P -> Prop
+; Valid_weaken : forall u g f ue ge,
+  Valid u g f -> Valid (u ++ ue) (g ++ ge) f
 ; Summarize_correct : forall uvars vars hyps, 
   AllProvable funcs uvars vars hyps ->
   Valid uvars vars (Summarize P hyps)
