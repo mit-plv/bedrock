@@ -335,6 +335,13 @@ Section TransitivityProver.
 *)
   Qed.
 
+  Theorem transitivityValid_extensible : forall (u g : env types) (f : transitivity_summary)
+     (ue ge : list (sigT (tvarD types))),
+   transitivityValid u g f -> transitivityValid (u ++ ue) (g ++ ge) f.
+  Proof.
+  Admitted.
+
+
   Definition transitivityProver : ProverT types :=
   {| Facts := transitivity_summary
    ; Summarize := transitivitySummarize
@@ -343,11 +350,8 @@ Section TransitivityProver.
    |}.
 
   Definition transitivityProver_correct : ProverT_correct transitivityProver fs.
-  econstructor.
-  instantiate (1 := transitivityValid).
-  apply transitivitySummarizeCorrect.
-  apply transitivityLearnCorrect.
-  apply transitivityProverCorrect.
+  eapply Build_ProverT_correct with (Valid := transitivityValid); 
+    eauto using transitivityValid_extensible, transitivitySummarizeCorrect, transitivityLearnCorrect, transitivityProverCorrect.
   Qed.
 
 End TransitivityProver.

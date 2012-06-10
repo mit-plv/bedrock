@@ -1,6 +1,7 @@
 Require Import List.
 Require Import Expr Env.
 Require Import Prover.
+Require Import Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -32,6 +33,12 @@ Section AssumptionProver.
   Definition assumptionValid (uvars vars : env types) (sum : assumption_summary) : Prop :=
     AllProvable fs uvars vars sum.
 
+  Lemma assumptionValid_extensible : forall u g f ue ge,
+    assumptionValid u g f -> assumptionValid (u ++ ue) (g ++ ge) f.
+  Proof.
+    unfold assumptionValid. eauto using AllProvable_weaken.
+  Qed.
+
   Lemma assumptionSummarizeCorrect : forall uvars vars hyps,
     AllProvable fs uvars vars hyps ->
     assumptionValid uvars vars (assumptionSummarize hyps).
@@ -59,11 +66,8 @@ Section AssumptionProver.
    ; Prove := assumptionProve
    |}.
   Definition assumptionProver_correct : ProverT_correct (types := types) assumptionProver fs.
-  econstructor.
-  instantiate (1 := assumptionValid).
-  apply assumptionSummarizeCorrect.
-  apply assumptionLearnCorrect.
-  apply assumptionProverCorrect.
+  eapply Build_ProverT_correct with (Valid := assumptionValid);
+    eauto using assumptionValid_extensible, assumptionSummarizeCorrect, assumptionLearnCorrect, assumptionProverCorrect.
   Qed.
 
 End AssumptionProver.

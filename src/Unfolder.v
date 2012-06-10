@@ -22,6 +22,8 @@ Fixpoint allb A (P : A -> bool) (ls : list A) : bool :=
 Module Make (SH : SepHeap) (U : SynUnifier).
   Module Import SE := SH.SE.
   Import SH.
+  Module HEAP_FACTS := SepHeapFacts SH.
+  Import HEAP_FACTS.
   
   Module B := SE.ST.H.
 
@@ -255,17 +257,16 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Definition applicable (lem : lemma) (args args' : exprs types) : option (U.Subst types) :=
         None.
 
-(*
-      Theorem applicableFwdOk 
+      Theorem applicableFwdOk : forall U G cs f lem args args' sub,
         applicable lem args args' = Some sub ->
         map (U.exprInstantiate sub) args = args' ->
-        Lhs lem = Funcs f args ->
-        SE.himp (Func f (map (U.exprInstantiate sub) args))
-                (Rhs 
-
-Lhs lem) (Rhs lem)
-*)
-
+        Lhs lem = Func f args ->
+        SE.himp funcs preds U G cs 
+          (SE.Func f (map (U.exprInstantiate sub) args))
+          (Rhs lem).
+      Proof.
+        
+      Admitted.
 
 
       (* Returns [None] if no unfolding opportunities are found.
@@ -406,30 +407,6 @@ Lhs lem) (Rhs lem)
         inversion H. eapply IHa in H3; intuition.
       Qed.
 
-(*
-      Lemma FOO : forall cs meta_env vs H P,
-        (exists e : env types, vs = map (@projT1 _ _) (rev e) /\ 
-          ST.himp cs P (sexprD funcs preds meta_env e H)) ->
-        ST.himp cs P (sexprD funcs preds meta_env nil (existsEach vs H)).
-      Proof.
-        clear. induction vs using rev_ind; simpl; intros.
-          destruct H0. assert (x = nil). destruct x using rev_ind; auto. rewrite rev_unit in H0. simpl in *; intuition.
-          congruence. subst; intuition.
-        
-        destruct H0. intuition. destruct x0. simpl in *. destruct vs; simpl in *; congruence.
-        simpl in *. rewrite map_app in H1. simpl in H1.
-        cutrewrite (existsEach (vs ++ x :: nil) H = existsEach vs (existsEach (x :: nil) H)).
-        simpl. eapply IHvs. exists x0.
-
-        apply app_len_2 in H1; [ | reflexivity ].
-        intuition.
-        simpl; apply ST.himp_ex_c. inversion H3; subst.
-        exists (projT2 s).
-        rewrite H2. destruct s; simpl. reflexivity.
-        admit.
-      Qed.
-*)
-
       (** NOTE: this function builds the existentials so that the environment can be extended at the end
        **       rather than at the beginning (like [existsEach] does)
        ** Eval simpl in (ST_exs_env (tvType 0 :: tvType 1 :: nil) (fun x => ST.inj (PropX.Inj (hd_error x = hd_error x)))).
@@ -445,12 +422,54 @@ Lhs lem) (Rhs lem)
             ST.ex (fun x : tvarD types l => ST_exs_env ls (fun env => k (@existT _ _ l x :: env)))
         end.
 
+      Lemma ST_exs_env_app : forall cs ls ls' ls'' F F',
+        (forall env, map (@projT1 _ _) env = ls -> ST.himp cs (ST_exs_env ls'' (fun x => F (env ++ x))) (ST_exs_env ls' (fun x => F' (env ++ x)))) ->
+        ST.himp cs (ST_exs_env (ls ++ ls'') F) (ST_exs_env (ls ++ ls') F').
+      Proof.
+        clear. induction ls; simpl; intros.
+        { etransitivity. etransitivity. 2: eapply H with (env := nil); reflexivity. reflexivity. reflexivity. }
+        { eapply SE.ST.himp_ex. intro. eapply IHls. intros.
+          etransitivity. etransitivity. 2: eapply H with (env := @existT _ _ a v :: env). 
+          reflexivity. 2: reflexivity. simpl. f_equal; auto. }
+      Qed.
+
+      Lemma ST_exs_env_same : forall cs ls F F',
+        (forall env, map (@projT1 _ _) env = ls -> ST.himp cs (F env) (F' env)) -> 
+        ST.himp cs (ST_exs_env ls F) (ST_exs_env ls F').
+      Proof.
+        clear. intros. generalize (@ST_exs_env_app cs ls nil nil F F'). simpl. repeat rewrite app_nil_r in *. 
+        intro. apply H0. intros; repeat rewrite app_nil_r. eauto.
+      Qed.
+
       Lemma ST_himp_heq_L : forall cs U G P Q S,
-        himp funcs preds U G cs P Q ->
+        heq funcs preds U G cs P Q ->
         ST.himp cs (sexprD funcs preds U G Q) S ->
         ST.himp cs (sexprD funcs preds U G P) S. 
       Proof.
-        clear. unfold himp; intros. etransitivity; eauto. 
+        clear. intros. rewrite H. auto.
+      Qed.
+
+      Lemma Equal_remove_add_remove : forall T k (v : T) m,
+        FM.Equal (FM.remove k (FM.add k v m)) (FM.remove k m).
+      Proof.
+        clear. intros. red. intros.
+        repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
+        consider (MF.FACTS.eq_dec k y); auto.
+      Qed.
+
+      Lemma unfoldForward_vars : forall unify_bound facts P Q,
+        unfoldForward unify_bound prover facts (Forward hs) P = Some Q ->
+        exists vars_ext, Vars Q = Vars P ++ vars_ext /\ UVars Q = UVars P.
+      Proof.
+        unfold unfoldForward. intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end; simpl. eexists; intuition.
       Qed.
 
       Lemma unfoldForwardOk : forall unify_bound meta_env vars_env cs facts P Q,
@@ -478,17 +497,85 @@ Lhs lem) (Rhs lem)
           ; pures := pures0
           ; other := other0
         |})
-        (Rhs x)).
-        { admit. }
-        { admit. }
+        (Func f x1)).
+        { repeat rewrite SH.sheapD_def. simpl.
+          rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x1 :: x2) (i := FM.remove f impures0).
+          rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x2) (i := FM.remove f (FM.add f (x0 ++ x2) impures0))
+            (i' := FM.add f (x0 ++ x2) impures0). heq_canceler.
+          symmetry. rewrite impuresD_Equiv.
+          2: rewrite Equal_remove_add_remove; reflexivity. reflexivity.
+          clear. red; intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
+          destruct (MF.FACTS.eq_dec f y); reflexivity. intro. apply MM.FACTS.remove_in_iff in H3. intuition congruence.
+          red. intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o). consider (MF.FACTS.eq_dec f y); subst; auto. 
+          intro. apply MM.FACTS.remove_in_iff in H3. intuition congruence. }
+        admit.
       Qed.
 
+      Lemma skipn_length_gt : forall T (ls : list T) n,
+        length ls <= n ->
+        skipn n ls = nil.
+      Proof.
+        clear. induction ls; destruct n; simpl; intuition; auto.
+      Qed.
 
+      Lemma skipn_length_all : forall T U (F : T -> U) ls ls',
+        map F ls = ls' ->
+        skipn (length ls) ls' = nil.
+      Proof.
+        clear; intros. eapply skipn_length_gt. rewrite <- H. rewrite map_length. omega.
+      Qed.
 
-      Theorem forwardOk : forall cs bound facts P Q meta_env vars_env,
+      Hint Resolve skipn_length_all : list_length.
+      Hint Rewrite skipn_length_all using (eauto with list_length) : list_length.
+      
+      Lemma forwardLength : forall bound facts P Q,
         forward bound facts P = Q ->
+        exists vars_ext (* meta_ext *),
+          Vars Q = Vars P ++ vars_ext /\
+          UVars Q = UVars P (* ++ meta_ext *).
+      Proof.
+        clear. induction bound; intros; simpl in *; eauto.
+          subst; exists nil; repeat rewrite app_nil_r; auto.
+          consider (unfoldForward unify_bound prover facts (Forward hs) P); intros.
+          { eapply IHbound in H0. eapply unfoldForward_vars in H.
+            repeat match goal with
+                     | [ H : exists x, _ |- _ ] => destruct H
+                     | [ H : _ /\ _ |- _ ] => destruct H
+                     | [ H : _ = _ |- _ ] => rewrite H
+                   end. repeat rewrite app_ass. eauto. }
+          { subst. exists nil; repeat rewrite app_nil_r; eauto. }
+      Qed.
+
+      Lemma rw_skipn_app : forall T (ls ls' : list T) n,
+        length ls = n ->
+        skipn n (ls ++ ls') = ls'.
+      Proof.
+        clear. induction ls; destruct n; simpl in *; intros; auto; congruence. 
+      Qed.
+      Lemma length_equal_map_rev : forall T U (F : T -> U) ls ls',
+        map F ls' = rev ls ->
+        length ls = length ls'.
+      Proof.
+        clear. intros. rewrite <- rev_length. rewrite <- H. rewrite map_length. auto.
+      Qed.
+      Hint Resolve length_equal_map_rev : list_length.
+      Lemma eq_proves_gt : forall a b,
+        a = b -> a <= b.
+      Proof.
+        clear. intros; omega.
+      Qed.
+      Lemma map_length_hint : forall T U (F : T -> U) a b,
+        map F a = b -> length b = length a.
+      Proof.
+        clear. intros. subst. rewrite map_length. auto.
+      Qed.
+      Hint Resolve eq_proves_gt map_length_hint skipn_length_gt : list_length.
+
+      Theorem forwardOk : forall cs bound facts P Q,
+        forward bound facts P = Q ->
+        forall meta_env vars_env,
         map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
-        map (@projT1 _ _) vars_env = rev P.(Vars) ->
+        map (@projT1 _ _) vars_env = P.(Vars) ->
         Valid PC meta_env vars_env facts ->
         ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
                    (ST_exs_env (skipn (length vars_env) Q.(Vars)) (fun vars_ext : list { t : tvar & tvarD types t } =>
@@ -497,17 +584,38 @@ Lhs lem) (Rhs lem)
         induction bound; simpl; intros.
         { subst; repeat split; try reflexivity.
           cutrewrite (skipn (length vars_env) (Vars Q) = nil). simpl. rewrite app_nil_r. reflexivity.
-          admit. }
+          eauto with list_length. }
         { revert H; case_eq (unfoldForward unify_bound prover facts (Forward hs) P); intros.
-          { 
+          { subst. generalize H. eapply unfoldForwardOk with (cs := cs) in H; eauto. rewrite H.
+            intros. eapply unfoldForward_vars in H3. do 2 destruct H3. intuition. 
+            remember (forward bound facts u). symmetry in Hequ0.
+            specialize (IHbound _ _ _ Hequ0).
+            eapply forwardLength in Hequ0.
+            repeat match goal with
+                     | [ H : _ = _ |- _ ] => rewrite H
+                     | [ H : exists x, _ |- _ ] => destruct H
+                     | [ H : _ /\ _ |- _ ] => destruct H
+                     | [ |- _ ] => rewrite app_ass in *
+                     | [ |- _ ] => rewrite rw_skipn_app by eauto with list_length
+                   end.
+            erewrite <- app_nil_r with (l := x) at 1.
+            eapply ST_exs_env_app; intros. simpl.
+            rewrite IHbound; eauto with list_length.
+            rewrite H5. repeat (rewrite app_nil_r || rewrite app_ass). 
+            rewrite rw_skipn_app. eapply ST_exs_env_same; intros. 
+            repeat (rewrite app_nil_r || rewrite app_ass). reflexivity.
 
-
-
-admit. }
-          { cutrewrite (skipn (length vars_env) (Vars Q) = nil). subst. simpl. rewrite app_nil_r. reflexivity.
-            subst. admit.
-          }
-        }
+            rewrite H3. repeat rewrite app_length. subst. rewrite <- H1. repeat rewrite map_length. reflexivity.
+ 
+            rewrite H4; auto.
+            
+            rewrite map_app.
+            repeat match goal with
+                     | [ H : _ = _ |- _ ] => rewrite H
+                   end. rewrite app_nil_r.
+            f_equal; auto. 
+            rewrite <- app_nil_r with (l := meta_env); eapply Valid_weaken; eauto. }
+          { subst. erewrite skipn_length_all by eauto with list_length. simpl. rewrite app_nil_r. reflexivity. } }
       Qed.
 
       Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,

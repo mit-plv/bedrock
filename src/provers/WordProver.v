@@ -476,6 +476,20 @@ Section WordProver.
     rewrite H2 in *; discriminate.
   Qed.
 
+  Lemma wordValid_weaken : forall (u g : env types) (f : word_summary)
+    (ue ge : list (sigT (tvarD types))),
+    wordValid u g f -> wordValid (u ++ ue) (g ++ ge) f.
+  Proof.
+    unfold wordValid. induction 1; eauto.
+    econstructor; eauto. clear H0 IHForall. unfold factValid in *.
+    repeat match goal with
+             | [ H : exists x, _ |- _ ] => destruct H
+             | [ H : _ /\ _ |- _ ] => destruct H
+             | [ |- _ ] => erewrite exprD_weaken by eauto
+             | [ |- exists x, _ ] => eexists; split; [ reflexivity | ]
+           end; auto.
+  Qed.
+  
   Definition wordProver : ProverT types :=
   {| Facts := word_summary
    ; Summarize := wordSummarize
@@ -484,10 +498,8 @@ Section WordProver.
    |}.
 
   Definition wordProver_correct : ProverT_correct wordProver funcs.
-    econstructor.
-    apply wordSummarizeCorrect.
-    apply wordLearnCorrect.
-    apply wordProverCorrect.
+    eapply Build_ProverT_correct with (Valid := wordValid);
+      eauto using wordValid_weaken, wordSummarizeCorrect, wordLearnCorrect, wordProverCorrect.
   Qed.
 
 End WordProver.

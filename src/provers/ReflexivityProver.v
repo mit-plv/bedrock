@@ -51,11 +51,8 @@ Section ReflexivityProver.
    ; Prove := reflexivityProve
    |}.
   Definition reflexivityProver_correct : ProverT_correct reflexivityProver fs.
-  econstructor.
-  instantiate (1 := reflexivityValid).
-  apply reflexivitySummarizeCorrect.
-  apply reflexivityLearnCorrect.
-  apply reflexivityProverCorrect.
+  eapply Build_ProverT_correct with (Valid := reflexivityValid);
+    eauto using reflexivitySummarizeCorrect, reflexivityLearnCorrect, reflexivityProverCorrect.
   Qed.
 
 End ReflexivityProver.

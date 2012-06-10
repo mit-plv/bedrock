@@ -122,6 +122,10 @@ Ltac consider f :=
       | |- _ => idtac
     end
   in
+  (repeat match goal with
+            | [ H : context [ f ] |- _ ] =>
+              revert H
+          end) ;
   match type of f with
     | sumbool _ _ =>
       destruct f
@@ -153,6 +157,15 @@ Section test.
   intros x y z.
   consider (ltb x y && ltb y z).
   consider (ltb x z); auto. intros. exfalso. omega.
+  Qed.
+
+  Goal forall x y z,
+    ltb x y = true ->
+    ltb y z = true ->
+    ltb x z = true.
+  Proof.
+    intros. consider (ltb x y); consider (ltb y z); consider (ltb x z); intros; auto.
+    exfalso; omega.
   Qed.
 
 End test.  
