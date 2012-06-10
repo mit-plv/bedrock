@@ -254,20 +254,106 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Variable hs : hintSide.
       (* Use these hints to unfold impure predicates. *)
 
-      Definition applicable (lem : lemma) (args args' : exprs types) : option (U.Subst types) :=
-        None.
+      Definition applicable (firstUvar : nat) (lem : lemma) (args args' : exprs types) : option (U.Subst types) :=
+        match fold_left_2_opt (U.exprUnify unify_bound) args' args (U.Subst_empty _) with
+          | None => None
+          | Some subs =>
+            (* Now we must make sure all of the lemma's pure obligations are provable. *)
+            if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps lem)) then Some subs else None
+        end.
 
-      Theorem applicableFwdOk : forall U G cs f lem args args' sub,
-        applicable lem args args' = Some sub ->
-        map (U.exprInstantiate sub) args = args' ->
-        Lhs lem = Func f args ->
-        SE.himp funcs preds U G cs 
-          (SE.Func f (map (U.exprInstantiate sub) args))
-          (Rhs lem).
+      Fixpoint Subst_to_env U G (s : U.Subst types) (ts : variables) (cur : uvar) : option (env types) :=
+        match ts with
+          | nil => Some nil 
+          | t :: ts =>
+            match U.Subst_lookup cur s with
+              | None => None 
+              | Some e => 
+                match Subst_to_env U G s ts (S cur) with
+                  | None => None
+                  | Some env =>
+                    match exprD funcs U G e t with
+                      | None => None
+                      | Some v => Some (@existT _ _ t v :: env)
+                    end
+                end
+            end
+        end.
+
+      Theorem unify_args_forallEachR : forall tfuncs tU tG U G l r D (S : U.Subst types) S' P env cur,
+        U.Subst_WellTyped tfuncs tU tG S ->
+        all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
+        fold_left_2_opt (U.exprUnify unify_bound) l r S = Some S' ->
+        Subst_to_env U G S' D cur = Some env ->
+        forallEachR D P ->
+        P env.
+      Proof.
+        clear.
+        induction l; destruct D; try congruence; simpl in *; intros;
+          repeat match goal with
+                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     revert H ; case_eq X ; intros; try congruence
+                   | [ |- _ ] => progress ( simpl in * )
+                   | [ |- _ ] => progress subst
+                   | [ H : U.exprUnify _ _ _ _ = Some _ |- _ ] => 
+                     generalize H ; generalize H; 
+                     apply U.exprUnify_Extends in H ;
+                     let H := fresh "H" in
+                     intro H ;
+                     apply U.exprUnify_sound in H
+                 end; try solve [ intuition ].
+        intro. eapply IHl in H4. eapply H4. 4: eauto. eauto using U.exprUnify_WellTyped. eauto. eauto. eauto.
+      Qed.
+
+(*
+      Theorem unify_args' : forall tfuncs tU tG U G l r D R f  S S',
+        U.Subst_WellTyped tfuncs tU tG S ->
+        all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
+        fold_left_2_opt (U.exprUnify unify_bound) l r S = Some S' ->
+        U.Subst_equations funcs U G S ->
+        @applyD types (exprD funcs U G) D (map (U.exprInstantiate S') l) R f =
+        @applyD types (exprD funcs U G) D (map (U.exprInstantiate S') r) R f /\
+        U.Subst_equations funcs U G S' /\
+        U.Subst_Extends S' S /\
+        U.Subst_WellTyped tfuncs tU tG S'.
+      Proof.
+        induction l; destruct D; try congruence; simpl in *; intros;
+          repeat match goal with
+                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     revert H ; case_eq X ; intros; try congruence
+                   | [ |- _ ] => progress ( simpl in * )
+                   | [ |- _ ] => progress subst
+                   | [ H : U.exprUnify _ _ _ _ = Some _ |- _ ] => 
+                     generalize H ; generalize H; 
+                     apply U.exprUnify_Extends in H ;
+                     let H := fresh "H" in
+                     intro H ;
+                     apply U.exprUnify_sound in H
+                 end; try solve [ intuition ].
+        { 
+          
+
+          generalize H4; generalize H4; apply U.exprUnify_Extends in H4; auto.
+          intro. eapply U.exprUnify_WellTyped in H7; eauto.
+
+ generalize H4. eapply U.exprUnify_sound in H4.
+          
+          
+
+
+      Theorem applicableOk : forall U G lem args args' sub,
+        applicable (length U) lem args args' = Some sub ->
+        map (U.exprInstantiate sub) args = map (U.exprInstantiate sub) args' /\
+        AllProvable funcs U G (map (U.exprInstantiate sub) (Hyps lem)).
       Proof.
         
+        
       Admitted.
-
+*)
 
       (* Returns [None] if no unfolding opportunities are found.
        * Otherwise, return state after one unfolding. *)
