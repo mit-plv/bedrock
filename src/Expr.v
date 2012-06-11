@@ -1099,6 +1099,15 @@ Proof.
     erewrite H3 by eassumption. eauto. congruence. }
 Qed.
 
+Lemma applyD_weaken : forall types (funcs : functions types) l D R F U G UE GE v,
+  applyD (exprD funcs U G) D l R F = Some v ->
+  applyD (exprD funcs (U ++ UE) (G ++ GE)) D l R F = Some v.
+Proof.
+  induction l; destruct D; simpl; intros; try congruence.
+  consider (exprD funcs U G a t); intros.
+  erewrite exprD_weaken by eauto. auto. congruence.
+Qed.
+
 Lemma Provable_weaken : forall types (fs : functions types) P U G UE GE,
   Provable fs U G P ->
   Provable fs (U ++ UE) (G ++ GE) P.

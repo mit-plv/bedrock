@@ -444,7 +444,7 @@ Section spec_functions.
     Local Notation "'valT'" := (tvType 0) (only parsing).
 
     Variable mep : MEVAL.PredEval.MemEvalPred types.
-    Variable pred : SEP.ssignature types pcT stT.
+    Variable pred : SEP.predicate types pcT stT.
     Variable funcs : functions types.
 
     Hypothesis read_pred_correct : forall P (PE : ProverT_correct P funcs),

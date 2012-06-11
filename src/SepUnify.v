@@ -117,7 +117,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                  | [ |- context [ match ?X with _ => _ end ] ] => 
                    case_eq X; intros; try reflexivity
                end.
-        erewrite applyD_forget_exprInstantiate with (D := SH.SE.SDomain s0) (F := SH.SE.SDenotation s0); eauto.
+        erewrite applyD_forget_exprInstantiate with (D := SH.SE.SDomain p) (F := SH.SE.SDenotation p); eauto.
         reflexivity.
     Qed.
 

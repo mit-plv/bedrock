@@ -126,7 +126,7 @@ Module SymbolicEvaluator (SH : SepHeap).
     : Type :=
   { MemEvalTypes : Repr type
   ; MemEvalFuncs : forall ts, Repr (signature (repr tr (repr MemEvalTypes ts)))
-  ; MemEvalPreds : forall ts, Repr (SEP.ssignature (repr tr (repr MemEvalTypes ts)) pc st)
+  ; MemEvalPreds : forall ts, Repr (SEP.predicate (repr tr (repr MemEvalTypes ts)) pc st)
   ; MemEval : forall ts, MemEvaluator (repr tr (repr MemEvalTypes ts)) pc st
   ; MemEval_correct : forall ts fs ps, 
     @MemEvaluator_correct (repr tr (repr MemEvalTypes ts)) pc st (MemEval ts)
@@ -215,7 +215,7 @@ Module SymbolicEvaluator (SH : SepHeap).
 
       Variable me : MemEvalPred.
 
-      Record MemEvalPred_correct (Predicate : SEP.ssignature types pcT stT)
+      Record MemEvalPred_correct (Predicate : SEP.predicate types pcT stT)
         (funcs : functions types) : Prop :=
       { sym_read_word_correct : forall P (PE : ProverT_correct P funcs),
         forall args uvars vars cs facts pe p ve stn_st Q,
@@ -368,7 +368,7 @@ Module SymbolicEvaluator (SH : SepHeap).
       Hypothesis ReadWord : stn_st -> tvarD types ptrT -> option (tvarD types valT).
       Hypothesis WriteWord : stn_st -> tvarD types ptrT -> tvarD types valT -> option stn_st.
 
-      Variable pred : SEP.ssignature types pcT stT.
+      Variable pred : SEP.predicate types pcT stT.
       Hypothesis predAt : nth_error preds predIndex = Some pred.
       Hypothesis pred_correct :
         @MemEvalPred_correct types pcT stT stn_st ptrT valT mem_satisfies ReadWord WriteWord mep pred funcs.

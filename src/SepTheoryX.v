@@ -5,7 +5,7 @@ Require Import RelationClasses.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module Type SepTheoryXType.
+Module Type SepTheoryX.
   Declare Module H : Heap.
   
   Parameter hprop : forall (pcType stateType : Type), list Type -> Type.
@@ -97,6 +97,11 @@ Section Env.
   Parameter himp_star_pure_c : forall P Q (F : Prop),
     (F -> P ===> Q) -> (star (inj (PropX.Inj F)) P) ===> Q.
 
+  Parameter himp_star_pure_cc : forall P Q (p : Prop),
+    p ->
+    P ===> Q ->
+    P ===> (star (inj (PropX.Inj p)) Q).
+
   Parameter heq_star_frame : forall P Q R S, 
     P <===> Q -> R <===> S -> (star P R) <===> (star Q S).
 
@@ -150,9 +155,9 @@ Existing Instance Refl_heq.
 Existing Instance Sym_heq. 
 Existing Instance Trans_heq. 
 
-End SepTheoryXType.
+End SepTheoryX.
 
-Module SepTheoryX_Rewrites (Import ST : SepTheoryXType).
+Module SepTheoryX_Rewrites (Import ST : SepTheoryX).
   
   Require Import Setoid Classes.Morphisms.
   
@@ -233,3 +238,106 @@ Module SepTheoryX_Rewrites (Import ST : SepTheoryXType).
   Existing Instance heq_rel_relation.
 
 End SepTheoryX_Rewrites.
+
+Module SepTheoryX_Ext (ST : SepTheoryX).
+  Require Import List.
+  Module Import ST_RW := SepTheoryX.SepTheoryX_Rewrites ST.
+  Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
+    match domain with
+      | nil => range
+      | d :: domain' => d -> functionTypeD domain' range
+    end.
+
+  Section param.
+    Variables pcT stT : Type.
+    
+    Variable type : Type.
+    Variable typeD : type -> Type.
+    
+
+    Fixpoint existsEach (sos : list Type) (ts : list type) (f : list (@sigT _ typeD) -> ST.hprop pcT stT sos) : ST.hprop pcT stT sos :=
+      @ST.ex pcT stT sos (list (@sigT _ typeD)) (fun env => ST.star (ST.inj (PropX.Inj (map (@projT1 _ _) env = ts))) (f env)).
+
+    Ltac thinker := 
+      repeat match goal with
+               | [ H : forall f, ST.himp _ _ _ |- _ ] => rewrite H
+               | [ |- _ ] => reflexivity
+               | [ |- ST.himp _ (ST.star (ST.inj _) _) _ ] => 
+                 apply ST.himp_star_pure_c ; intros
+               | [ |- ST.himp _ (ST.ex _) _ ] => 
+                 apply ST.himp_ex_p ; intros
+               | [ |- ST.himp _ _ (ST.ex (fun x => ST.star (ST.inj (PropX.Inj (?X = _))) _)) ] => 
+                 apply ST.himp_ex_c ; exists nil ; eapply ST.himp_star_pure_cc; [ solve [ eauto ] | ]
+               | [ |- ST.himp _ _ (ST.ex (fun x => ST.star (ST.inj (PropX.Inj (?X = _))) _)) ] => 
+                 apply ST.himp_ex_c ; eexists; eapply ST.himp_star_pure_cc; [ solve [ eauto ] | ]
+             end.
+
+    Lemma existsEach_perm : forall cs (F : list (@sigT _ typeD) -> _) x x',
+        ST.heq cs (existsEach x (fun e => existsEach x' (fun e' => F (e ++ e'))))
+                  (existsEach x' (fun e' => existsEach x (fun e => F (e ++ e')))).
+    Proof.
+      intros. eapply ST.heq_defn. split;
+      revert F; revert x'; induction x; simpl; intros;
+        repeat match goal with
+                 | [ H : forall f, ST.himp _ _ _ |- _ ] => rewrite H
+                 | [ |- _ ] => reflexivity
+                 | [ |- ST.himp _ (ST.star (ST.inj _) _) _ ] => 
+                   apply ST.himp_star_pure_c ; intros
+                 | [ |- ST.himp _ (ST.ex _) _ ] => 
+                   apply ST.himp_ex_p ; intros
+                 | [ |- ST.himp _ _ (ST.ex (fun x => ST.star (ST.inj (PropX.Inj (?X = _))) _)) ] => 
+                   apply ST.himp_ex_c ; eexists; eapply ST.himp_star_pure_cc; [ solve [ eauto ] | ]
+               end.
+    Qed.
+
+    Lemma map_eq_app : forall T U (F : T -> U) ls x y,
+      map F ls = x ++ y ->
+      exists x' y', ls = x' ++ y' /\ map F x' = x /\ map F y' = y.
+    Proof.
+      clear. induction ls; destruct x; simpl in *; intros; subst; try congruence.
+      exists nil; exists nil; simpl; auto.
+      exists nil. simpl. eexists; eauto.
+      inversion H; clear H; subst. eapply IHls in H2.
+      destruct H2. destruct H. intuition. subst. exists (a :: x0). exists x1. simpl; eauto.
+    Qed.
+    
+    Lemma existsEach_app : forall cs x x' (F : list (@sigT _ typeD) -> _) ,
+      ST.heq cs (existsEach (x ++ x') F)
+                (existsEach x (fun e => existsEach x' (fun e' => F (e ++ e')))).
+    Proof.
+      intros. eapply ST.heq_defn. split;
+      revert F; revert x'; induction x; simpl; intros; thinker.
+      Focus 2. destruct v; simpl in *; try congruence; reflexivity.
+      Focus 2. apply ST.himp_ex_c ; eexists (v ++ v0); eapply ST.himp_star_pure_cc. rewrite map_app. rewrite H. rewrite H0. auto.
+      reflexivity.
+      change (a :: x ++ x') with ((a :: x) ++ x') in H.
+      eapply map_eq_app in H. do 2 destruct H. intuition; subst. thinker.
+    Qed.
+
+    Lemma existsEach_nil : forall cs (F : list (@sigT _ typeD) -> _) ,
+      ST.heq cs (existsEach nil F) (F nil).
+    Proof.
+      intros. eapply ST.heq_defn. unfold existsEach; split; thinker.
+      destruct v; try reflexivity. simpl in *; congruence.
+    Qed.
+
+    Lemma heq_existsEach : forall cs x (F F' : list (@sigT _ typeD) -> _) ,
+      (forall G, map (@projT1 _ _) G = x -> ST.heq cs (F G) (F' G)) ->
+      ST.heq cs (existsEach x F) (existsEach x F').
+    Proof.
+      intros. eapply ST.heq_ex. intros. apply ST.heq_defn. split; thinker;
+      eapply ST.himp_star_pure_cc; eauto; specialize (H _ H0); apply ST.heq_defn in H; intuition.
+    Qed.
+
+    Lemma heq_pushIn : forall P cs x (F : list (@sigT _ typeD) -> _) ,
+      ST.heq cs (ST.star P (existsEach x F)) (existsEach x (fun e => ST.star P (F e))).
+    Proof.
+      intros. unfold existsEach; intros.
+      rewrite ST.heq_star_comm. rewrite ST.heq_ex_star. eapply ST.heq_ex. intros. 
+      repeat rewrite ST.heq_star_assoc. eapply ST.heq_defn; split; thinker; eapply ST.himp_star_pure_cc; eauto.
+      rewrite ST.heq_star_comm. reflexivity.
+      rewrite ST.heq_star_comm. reflexivity.
+    Qed.
+    
+  End param.
+End SepTheoryX_Ext.
