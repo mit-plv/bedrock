@@ -907,11 +907,11 @@ Ltac lift_signatures_over_repr fs rp :=
 Ltac lift_ssignature_over_repr s rp pc st :=
   let d := eval simpl SDomain in (SDomain s) in
   let den := eval simpl SDenotation in (SDenotation s) in
-  constr:(fun ts' => @SSig (repr rp ts') pc st d den).
+  constr:(fun ts' => @PSig (repr rp ts') pc st d den).
 
 Ltac lift_ssignatures_over_repr fs rp pc st :=
   match eval hnf in fs with
-    | nil => constr:(fun ts' => @nil (ssignature (repr rp ts') pc st))
+    | nil => constr:(fun ts' => @nil (predicate (repr rp ts') pc st))
     | ?f :: ?fs => 
       let f := lift_ssignature_over_repr f rp pc st in
       let fs := lift_ssignatures_over_repr fs rp pc st in
@@ -1000,7 +1000,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
     Functions : forall ts, Repr (signature (repr Types ts));
     PcType : tvar;
     StateType : tvar;
-    Predicates : forall ts, Repr (ssignature (repr Types ts) PcType StateType);
+    Predicates : forall ts, Repr (predicate (repr Types ts) PcType StateType);
     Hints : forall ts, hintsPayload (repr Types ts) PcType StateType;
     HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
   }.

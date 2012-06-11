@@ -64,12 +64,12 @@ Module BedrockPtsToEvaluator.
     Local Notation "'wordT'" := (tvType 0).
     Local Notation "'ptrT'" := (tvType 0).
 
-    Definition ptsto32_ssig : SEP.ssignature types pcT stT.
-    refine (SEP.SSig _ _ _ (ptrT :: wordT :: nil) _).
+    Definition ptsto32_ssig : SEP.predicate types pcT stT.
+    refine (SEP.PSig _ _ _ (ptrT :: wordT :: nil) _).
     refine (ptsto32 _).
     Defined.
 
-    Definition ptsto32_ssig_r : Env.Repr (SEP.ssignature types pcT stT) :=
+    Definition ptsto32_ssig_r : Env.Repr (SEP.predicate types pcT stT) :=
       Eval cbv beta iota zeta delta [ Env.listToRepr ] in 
       let lst := 
         ptsto32_ssig :: nil

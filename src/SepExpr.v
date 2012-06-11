@@ -4,6 +4,7 @@ Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Expr.
 Require Import Setoid.
+Require Import Folds Bool.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -13,21 +14,21 @@ Definition BadPred (f : func) := False.
 Definition BadPredApply types (f : func) (es : list (expr types)) (_ : env types) := False.
 
 Module Type SepExpr.
-  Declare Module ST : SepTheoryX.SepTheoryXType.
+  Declare Module ST : SepTheoryX.SepTheoryX.
 
   Section env.
     Variable types : list type.
     Variable pcType : tvar.
     Variable stateType : tvar.
 
-    Record ssignature := SSig {
+    Record predicate := PSig {
       SDomain : list tvar ;
       SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
     }.
 
-    Definition predicates : Type := list ssignature.
+    Definition predicates : Type := list predicate.
 
-    Parameter Default_predicate : ssignature.
+    Parameter Default_predicate : predicate.
 
     Inductive sexpr : Type :=
     | Emp : sexpr
@@ -37,6 +38,33 @@ Module Type SepExpr.
     | Func : func -> list (expr types) -> sexpr
     | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil -> sexpr
     .
+
+    Definition tpredicate : Type := list tvar.
+    Definition tpredicates : Type := list tpredicate.
+
+    Definition Predicate_typeof : predicate -> tpredicate := SDomain.
+    Definition Predicates_typeof : predicates -> tpredicates := map Predicate_typeof.
+
+    Section types.
+      Variable funcs : tfunctions.
+      Variable preds : tpredicates.
+      Variable tU : tenv.
+
+      Fixpoint WellTyped_sexpr (tG : tenv) (s : sexpr) : bool :=
+        match s with
+          | Emp => true
+          | Inj e => is_well_typed funcs tU tG e tvProp
+          | Star l r => WellTyped_sexpr tG l && WellTyped_sexpr tG r
+          | Exists t e => WellTyped_sexpr (t :: tG) e
+          | Func f args =>
+            match nth_error preds f with
+              | None => false
+              | Some ts => all2 (is_well_typed funcs tU tG) args ts
+            end
+          | Const _ => true
+        end.
+
+    End types.
 
     Section funcs_preds.
       Variable funcs : functions types.
@@ -174,7 +202,7 @@ Module SepExprFacts (SE : SepExpr).
       end; intros; try solve [ eapply SE.ST.himp_star_pure_c; contradiction ].
       specialize (H3 _ refl_equal). rewrite <- H3. rewrite H4. reflexivity.
 
-      clear H2. clear H3. destruct s; simpl in *. generalize dependent l.
+      clear H2. clear H3. destruct p; simpl in *. generalize dependent l.
       induction SDomain; destruct l; simpl; intros; auto; try congruence.
       revert H4. consider (exprD funcs U G e a); intros.
       erewrite is_well_typed_correct_only by eauto. eapply IHSDomain; eauto. congruence.
@@ -376,39 +404,29 @@ Module SepExprFacts (SE : SepExpr).
     end; try reflexivity.
 
 (*
-  Section test.
-    Variable types : list type.
-    Variable pcType : tvar.
-    Variable stateType : tvar.
-    Variable funcs : functions types.
-    Variable preds : SE.predicates types pcType stateType.
-    
-    Variables U G : env types.
-    Variable cs : codeSpec (tvarD types pcType) (tvarD types stateType).
-
-    Goal forall P Q R T V,
-      SE.heq funcs preds U G cs 
-         (SE.Star (SE.Star Q R) (SE.Star T (SE.Star V (SE.Star P SE.Emp))))
-         (SE.Star P (SE.Star (SE.Star Q R) (SE.Star (SE.Star SE.Emp T) (SE.Star SE.Emp V)))).
-    Proof.
-      intros. heq_canceler. 
-    Qed.
-
-(*
-    Goal forall P Q R S,
-      SE.heq funcs preds U G cs 
-         (SE.Star P (SE.Star Q R))
-         (SE.Star R (SE.Star).
-    Proof.
-      intros. heq_canceler. 
-    Qed.
+  Theorem sexprD_weaken : forall types pcT stT funcs (preds : SE.predicates types pcT stT) cs s U G G' U',
+    WellTyped_sexpr 
+    SE.ST.himp cs (SE.sexprD funcs preds U G s) 
+                  (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
+  Proof.
+    induction s; simpl; intros; try reflexivity.
+      admit.
+      rewrite IHs1. rewrite IHs2. reflexivity.
+      apply SE.ST.himp_ex. intros. rewrite IHs with (U' := U') (G' := G'). reflexivity.
+      destruct (nth_error preds f); try reflexivity.
+      match goal with
+        | [ |- SE.ST.himp _ match ?X with _ => _ end _ ] => 
+          consider X
+      end; intros.
+      erewrite Expr.applyD_weaken by eauto. reflexivity.
+      rewrite <- SE.ST.heq_star_emp_r.
+      eapply SE.ST.himp_star_pure_c. unfold BadPredApply. contradiction.
+  Qed.
 *)
-  End test.
-*)      
 
 End SepExprFacts.
 
-Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExpr with Module ST := ST'.
+Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.
   Module ST := ST'.
 
   Section env.
@@ -416,20 +434,17 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExpr with Module ST := ST'.
     Variable pcType : tvar.
     Variable stateType : tvar.
 
-    Record ssignature := SSig {
+    Record predicate := PSig {
       SDomain : list tvar ;
       SDenotation : functionTypeD (map (@tvarD types) SDomain) (ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
     }.
 
-    Definition predicates := list ssignature.
+    Definition predicates := list predicate.
 
-    Definition Default_predicate : ssignature :=
+    Definition Default_predicate : predicate :=
     {| SDomain := nil
      ; SDenotation := @ST.emp _ _ _
      |} .
-
-    Variable funcs : functions types.
-    Variable sfuncs : predicates.
 
     Inductive sexpr : Type :=
     | Emp : sexpr
@@ -439,6 +454,36 @@ Module Make (ST' : SepTheoryX.SepTheoryXType) <: SepExpr with Module ST := ST'.
     | Func : func -> list (expr types) -> sexpr
     | Const : ST.hprop (tvarD types pcType) (tvarD types stateType) nil -> sexpr
     .
+
+    Definition tpredicate : Type := list tvar.
+    Definition tpredicates : Type := list tpredicate.
+
+    Definition Predicate_typeof : predicate -> tpredicate := SDomain.
+    Definition Predicates_typeof : predicates -> tpredicates := map Predicate_typeof.
+
+    Section types.
+      Variable funcs : tfunctions.
+      Variable preds : tpredicates.
+      Variable tU : tenv.
+
+      Fixpoint WellTyped_sexpr (tG : tenv) (s : sexpr) : bool :=
+        match s with
+          | Emp => true
+          | Inj e => is_well_typed funcs tU tG e tvProp
+          | Star l r => WellTyped_sexpr tG l && WellTyped_sexpr tG r
+          | Exists t e => WellTyped_sexpr (t :: tG) e
+          | Func f args =>
+            match nth_error preds f with
+              | None => false
+              | Some ts => all2 (is_well_typed funcs tU tG) args ts
+            end
+          | Const _ => true
+        end.
+
+    End types.
+
+    Variable funcs : functions types.
+    Variable sfuncs : predicates.
 
     Fixpoint sexprD (meta_env var_env : env types) (s : sexpr)
       : ST.hprop (tvarD types pcType) (tvarD types stateType) nil :=
@@ -501,19 +546,19 @@ Module ReifySepExpr (Import SEP : SepExpr).
              end
     end.
 
-  Ltac lift_ssignature s nt pc st :=
+  Ltac lift_predicate s nt pc st :=
     let d := eval simpl SDomain in (SDomain s) in
     let f := eval simpl SDenotation in (SDenotation s) in
-    let res := constr:(@SSig nt pc st d f) in 
+    let res := constr:(@PSig nt pc st d f) in 
     eval simpl in res.
 
-  Ltac lift_ssignatures fs nt :=
+  Ltac lift_predicates fs nt :=
     match type of fs with
-      | list (ssignature _ ?pc ?st) =>
+      | list (predicate _ ?pc ?st) =>
         let f sig := 
-          lift_ssignature sig nt pc st
+          lift_predicate sig nt pc st
         in
-        map_tac (ssignature nt pc st) f fs
+        map_tac (predicate nt pc st) f fs
     end.
 
   (** collect the types from an hprop expression.
@@ -606,7 +651,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
   Ltac reify_sfunction pcT stT types f :=
     match f with
       | fun _ => _ =>
-        constr:(@SSig types pcT stT (@nil tvar) f)
+        constr:(@PSig types pcT stT (@nil tvar) f)
       | _ =>
         let T := type of f in
           let rec refl dom T :=
@@ -618,7 +663,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
                     refl dom B 
               | _ =>
                 let dom := eval simpl rev in (rev dom) in
-                  constr:(@SSig types pcT stT dom f)
+                  constr:(@PSig types pcT stT dom f)
             end
             in refl (@nil tvar) T
     end.
@@ -638,7 +683,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
           k sfuncs acc
         | ?F :: ?FS =>
           match F with 
-            | @SSig _ _ _ _ ?F =>
+            | @PSig _ _ _ _ ?F =>
               match F with
                 | f => k sfuncs acc 
                 | _ => 

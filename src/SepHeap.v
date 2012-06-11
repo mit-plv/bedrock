@@ -37,6 +37,12 @@ Module Type SepHeap.
     Parameter sheapD : SHeap -> SE.sexpr types pcType stateType.
 
     (** Operations on [SHeap]s **)
+    Definition SHeap_empty : SHeap :=
+      {| impures := MM.empty _
+       ; pures := nil
+       ; other := nil
+       |}.
+
     Parameter star_SHeap : SHeap -> SHeap -> SHeap.
 
     Parameter sheap_liftVars : nat -> nat -> SHeap -> SHeap.
@@ -683,7 +689,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       eapply ST.heq_ex. intros. specialize (IHs (existT (tvarD types) t v :: G'')).
       simpl in *. auto.
       destruct (nth_error preds f); try reflexivity.
-      clear. destruct s; simpl; clear. generalize dependent SDomain0. induction l; simpl; try reflexivity.
+      clear. destruct p; simpl; clear. generalize dependent SDomain0. induction l; simpl; try reflexivity.
       destruct SDomain0; try reflexivity.
       rewrite <- liftExpr_ext. destruct (exprD funcs EG (G'' ++ G) a t); try reflexivity.
       auto.
@@ -898,7 +904,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
 
   Lemma change_ST_himp_himp : forall (types : list type)
     (funcs : functions types) (pc st : tvar)
-    (sfuncs : list (ssignature types pc st))
+    (sfuncs : list (predicate types pc st))
     EG G
     (cs : codeSpec (tvarD types pc) (tvarD types st))
     (L R : sexpr types pc st),
@@ -966,6 +972,7 @@ Module SepHeapFacts (SH : SepHeap).
                | [ H : _ |- _ ] => rewrite H
              end; try reflexivity; heq_canceler.
     Qed.
+
   End with_env.
 
   Ltac heq_canceler :=

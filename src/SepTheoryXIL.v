@@ -9,8 +9,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Module Make (H' : Heap) <: 
-  SepTheoryXType with Module H := H'
-                 with Definition settings := IL.settings.
+  SepTheoryX with Module H := H'
+             with Definition settings := IL.settings.
   Module H := H'.
   Module HT := HeapTheory H.
 
@@ -243,6 +243,16 @@ Module Make (H' : Heap) <:
       constructor. firstorder.
     Qed.
 
+    Theorem himp_star_pure_cc : forall P Q (p : Prop),
+      p ->
+      himp P Q ->
+      himp P (star (inj (PropX.Inj p)) Q).
+    Proof.
+      unfold himp, star, inj, interp; intros. propxIntuition; eauto using HT.semp_smem_emp, HT.split_a_semp_a.
+      eapply Imply_E. eapply valid_weaken; eauto. firstorder.
+      econstructor. firstorder.
+    Qed.
+      
     Theorem himp_subst_p : forall P Q R S,
       himp P S -> himp (star S Q) R ->
       himp (star P Q) R.

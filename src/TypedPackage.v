@@ -21,7 +21,7 @@ Module Type Package.
   { Types : Repr type
   ; Funcs : forall ts, Repr (signature (repr CE.core (repr Types ts)))
   ; Preds : forall ts, 
-    Repr (SEP.ssignature (repr CE.core (repr Types ts)) CE.pc CE.st)
+    Repr (SEP.predicate (repr CE.core (repr Types ts)) CE.pc CE.st)
   }.
 
   Section Apps.
@@ -81,7 +81,7 @@ Module Make (SEP' : SepExpr) (CE' : CoreEnv) <: Package with Module SEP := SEP' 
     Record TypeEnv : Type :=
     { Types : Repr type
     ; Funcs : forall ts, Repr (signature (repr CE.core (repr Types ts)))
-    ; Preds : forall ts, Repr (SEP.ssignature (repr CE.core (repr Types ts)) CE.pc CE.st)
+    ; Preds : forall ts, Repr (SEP.predicate (repr CE.core (repr Types ts)) CE.pc CE.st)
     }.
 
     Variable TE : TypeEnv.
