@@ -11,9 +11,6 @@ Local Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 (** * The Transitivity Prover **)
 
-
-Notation "x || y" := (if x then true else y) (only parsing). 
-
 (* Algorithm for grouping expressions by equalities. Terribly inefficient... *)
 Section Grouper.
   Variable A : Type.
@@ -25,16 +22,22 @@ Section Grouper.
       | x :: ls' => A_seq x a || in_seq ls' a
     end.
 
+  Fixpoint groupWith (grps : list (list A)) (g : list A) (a : A) :=
+    match grps with
+      | nil => [a :: g]
+      | g' :: grps' => if in_seq g' a
+                       then (g' ++ a :: g) :: grps'
+                       else g' :: groupWith grps' g a
+    end.
+
   Fixpoint addEquality (ls : list (list A)) (a : A) (b : A) : list (list A) :=
     match ls with
       | nil => [[a, b]] (* matched nothing *)
       | grp :: ls' => if in_seq grp a
-                     then 
-                       (b::grp) :: ls'
-                     else if in_seq grp b
-                          then
-                            (a::grp) :: ls'
-                          else grp :: addEquality ls' a b
+                        then groupWith ls' grp b
+                        else if in_seq grp b
+                               then groupWith ls' grp a
+                               else grp :: addEquality ls' a b
     end.
 
   Fixpoint inSameGroup (grps : list (list A)) (a : A) (b : A) :=
@@ -42,7 +45,9 @@ Section Grouper.
       | nil => false
       | g :: grps' => 
         if in_seq g a then
-          in_seq g b           
+          if in_seq g b
+            then true
+            else inSameGroup grps' a b
         else inSameGroup grps' a b
     end.
 
@@ -111,6 +116,16 @@ Section Grouper.
 
   Hint Resolve in_seq_correct A_seq_correct.
 
+  Lemma groupWith_sound : forall x xs grps,
+    Forall groupEqual grps
+    -> Forall (R x) xs
+    -> Forall groupEqual (groupWith grps xs x).
+    induction 1; t. eauto 10. 
+      apply in_seq_correct in H3. eauto 7.
+  Qed.
+
+  Hint Resolve groupWith_sound.
+
   Theorem addEquality_sound : forall x y grps,
     groupsEqual grps
     -> R x y
@@ -119,17 +134,15 @@ Section Grouper.
       match goal with
         | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
       end; eauto 7. 
-    repeat constructor; eauto. 
-    repeat constructor; eauto. 
   Qed.
 
   Theorem inSameGroup_sound : forall grps, groupsEqual grps
     -> forall x y, inSameGroup grps x y = true
       -> R x y.
-    induction 1; t; 
+    induction 1; t;
       repeat match goal with
         | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
-      end; eauto 3.
+      end; eauto 7. 
   Qed.
 End Grouper.
 
@@ -206,7 +219,7 @@ Section TransitivityProver.
       (inSameGroup (@expr_seq_dec _) groups e1 e2
         || match e1, e2 with
              | Func f1 args1, Func f2 args2 =>
-               if EqNat.beq_nat f1 f2
+               if eq_nat_dec f1 f2
                  then (fix proveEquals (es1 es2 : list (expr types)) :=
                    match es1, es2 with
                      | nil, nil => true
@@ -361,6 +374,7 @@ Ltac unfold_transitivityProver H :=
         inSameGroup
         expr_seq_dec
         in_seq
+        groupWith
       ]
     | _ => 
       cbv delta [ 
@@ -372,5 +386,6 @@ Ltac unfold_transitivityProver H :=
         inSameGroup
         expr_seq_dec
         in_seq
+        groupWith
       ] in H
   end.
