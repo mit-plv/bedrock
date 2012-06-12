@@ -775,8 +775,29 @@ Section env.
     repeat match goal with
              | [ |- SemiReflect (match ?X with | _ => _ end _ _) _ ] =>
                destruct X; try constructor
-           end.
-  Admitted.
+           end.    
+
+    unfold tvarD.
+    case_eq (match
+                nth_error types n as ty return (Impl_ ty -> Impl_ ty -> bool)
+              with
+                | Some t => Eqb t
+                | None => fun _ _ : Impl_ None => false
+              end c c');  
+      constructor.
+    exists (eq_refl). 
+    revert H. revert c c'.  
+    unfold tvarD.
+    refine (match (nth_error types n) in option _
+            with 
+              | Some t => _
+              | None => _
+            end). 
+ 
+    apply Eqb_correct. 
+    discriminate. 
+  Defined. 
+ 
 
   Fixpoint expr_seq_dec (a b : expr) : bool :=
     match a,b  with 
