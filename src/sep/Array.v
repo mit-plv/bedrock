@@ -3,7 +3,7 @@ Require Import DepList List.
 Require Import Expr SepExpr SymEval.
 Require Import Word Memory IL SepIL SymIL ILTac.
 Require Import EqdepClass.
-Require Import Env ILEnv Prover.
+Require Import Env Prover.
 Require Import PropX PropXTac Nomega NArith.
 
 Set Implicit Arguments.
@@ -533,4 +533,260 @@ Section correctness.
     eapply smem_read_correct'; eauto.
   Qed.
 
+  Theorem ptsto32m'_out : forall a cs stn vs offset m,
+    interp cs (ptsto32m' _ a offset vs stn m)
+    -> interp cs (ptsto32m _ a offset vs stn m).
+    induction vs.
+
+    auto.
+
+    unfold ptsto32m, ptsto32m'.
+    fold ptsto32m; fold ptsto32m'.
+    destruct vs; destruct offset; intros.
+
+    replace (a ^+ $0) with a in * by W_eq.
+    simpl.
+    propxFo.
+    rewrite <- H.
+    f_equal.
+    eapply split_semp.
+    apply split_comm; eauto.
+    auto.
+
+    apply simplify_fwd in H.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    apply simplify_bwd in H0.
+    replace m with x; auto.
+    symmetry; eapply split_semp.
+    apply split_comm; eauto.    
+    simpl in H1; tauto.
+
+    replace (a ^+ $0) with a in * by W_eq.
+    apply simplify_fwd in H.
+    apply simplify_bwd.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    exists x; exists x0; split.
+    auto.
+    split; auto.
+    apply simplify_fwd.
+    apply simplify_bwd in H1.
+    auto.
+
+    apply simplify_fwd in H.
+    apply simplify_bwd.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    exists x; exists x0; split.
+    auto.
+    split; auto.
+    apply simplify_fwd.
+    apply simplify_bwd in H1.
+    auto.
+  Qed.
+
+  Lemma smem_write_correct'' : forall cs base stn v ws i m offset,
+    (i < length ws)%nat
+    -> interp cs (ptsto32m' _ base (offset * 4) ws stn m)
+    -> exists m', smem_set_word (explode stn) (base ^+ $4 ^* $(offset + i)) v m = Some m'
+      /\ ST.satisfies cs (ptsto32m' _ base (offset * 4) (upd' ws i v)) stn m'.
+    induction ws; simpl length; intros.
+
+    inversion H.
+
+    unfold ptsto32m' in *.
+    fold ptsto32m' in *.
+    destruct i; simpl upd'.
+    rewrite wmult_comm.
+    rewrite <- natToW_times4.
+    replace (offset + 0) with offset by omega.
+    unfold ptsto32m'.
+    fold ptsto32m'.
+    apply simplify_fwd in H0.
+    destruct H0.
+    destruct H0.
+    destruct H0.
+    destruct H1.
+    hnf in H1.
+    unfold natToW.
+    specialize (smem_set_get_valid_word _ (explode stn) _ _ v _ H1).
+    match goal with
+      | [ |- ?E <> None -> _ ] => case_eq E; intuition
+    end.
+    exists (HT.join s x0); split.
+    destruct H0; subst.
+    eapply split_set_word in H3; intuition eauto.
+    
+    apply simplify_bwd.
+    exists s; exists x0.
+    split.
+    apply disjoint_split_join.
+    eapply split_set_word in H3; intuition eauto.
+    destruct H0; auto.
+    split; auto.
+    hnf.
+    eapply smem_set_get_word_eq.
+    2: eauto.
+    apply implode_explode.
+
+    apply simplify_fwd in H0.
+    destruct H0.
+    destruct H0.
+    destruct H0.
+    destruct H1.
+    apply simplify_bwd in H2.
+    replace (4 + offset * 4) with (S offset * 4) in H2 by omega.
+    apply (IHws i) in H2; clear IHws; try omega.
+    destruct H2; intuition.
+    exists (HT.join x x1); split; auto.
+    replace (offset + S i) with (S offset + i) by omega.
+    destruct H0; subst.
+    eapply split_set_word in H3.
+    2: apply disjoint_comm; eauto.
+    rewrite disjoint_join by auto.
+    rewrite (disjoint_join x x1) by (apply disjoint_comm; tauto).
+    tauto.
+
+    unfold ptsto32m'.
+    fold ptsto32m'.
+    apply simplify_bwd.
+    exists x; exists x1.
+    split.
+    apply disjoint_split_join.
+    destruct H0; auto.
+    eapply split_set_word in H3.
+    2: apply disjoint_comm; eauto.      
+    apply disjoint_comm; tauto.
+    split; auto.
+    apply simplify_fwd.
+    replace (4 + offset * 4) with (S offset * 4) by omega.
+    assumption.
+  Qed.
+
+  Lemma smem_write_correct' : forall i ws cs base stn m v,
+    i < natToW (length ws)
+    -> interp cs (array ws base stn m)
+    -> exists m', smem_set_word (explode stn) (base ^+ $4 ^* i) v m = Some m'
+      /\ ST.satisfies cs (array (upd ws i v) base) stn m'.
+    intros.
+    destruct (@smem_write_correct'' cs base stn v ws (wordToNat i) m 0).
+    
+    red in H.
+    apply Nlt_out in H.
+    repeat rewrite wordToN_nat in *.
+    repeat rewrite Nat2N.id in *.
+    rewrite wordToNat_natToWord_idempotent in H; auto.
+    apply array_bound in H0.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    assumption.
+
+    apply ptsto32m'_in; auto.
+
+    intuition.
+    simpl plus in *.
+    simpl mult in *.
+    rewrite natToWord_wordToNat in H2.
+    exists x; split; auto.
+    apply ptsto32m'_out; auto.
+  Qed.
+
+  Lemma sym_write_correct : forall args uvars vars cs summ pe p ve v m stn args',
+    sym_write Prover summ args pe ve = Some args' ->
+    Valid Prover_correct uvars vars summ ->
+    exprD funcs uvars vars pe wordT = Some p ->
+    exprD funcs uvars vars ve wordT = Some v ->
+    match
+      applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs p stn m
+    end ->
+    match 
+      applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args' _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some pr => 
+        match ST.HT.smem_set_word (IL.explode stn) p v m with
+          | None => False
+          | Some sm' => ST.satisfies cs pr stn sm'
+        end
+    end.
+  Proof.
+    simpl; intuition.
+    do 3 (destruct args; simpl in *; intuition; try discriminate).
+    generalize (deref_correct uvars vars pe); destr (deref pe); intro Hderef.
+    destruct p0.
+
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *; simpl in *.
+
+    match goal with
+      | [ _ : (if ?E then _ else _) = Some _ |- _ ] => case_eq E; intro Heq; rewrite Heq in *
+    end; try discriminate.
+    unfold types0 in *; simpl in *.
+    unfold Provable in *; simpl in *.
+    deconstruct.
+    repeat match goal with
+             | [ H : _ |- _ ] => apply andb_prop in H; intuition
+           end.
+    rewrite H1 in *.
+    rewrite H2 in *.
+    specialize (Hderef _ _ _ (refl_equal _) (refl_equal _)); destruct Hderef as [ ? [ ] ]; intuition.
+    subst.
+    simpl in *.
+    rewrite H8 in *.
+    rewrite H5 in *.
+    specialize (H7 (ex_intro _ _ (refl_equal _))).
+    specialize (H4 (ex_intro _ _ (refl_equal _))); subst.
+    red in H3.
+
+    eapply smem_write_correct' in H3; eauto.
+    destruct H3; intuition.
+    rewrite H7; assumption.
+  Qed.
 End correctness.
+
+Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
+  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
+    @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 0.
+
+Theorem MemEvaluator_correct types' funcs' preds'
+  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
+  (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
+  (IL.settings * IL.state) (tvType 0) (tvType 0)
+  (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types')).
+Proof.
+  intros. eapply (@MemPredEval_To_MemEvaluator_correct (types types')); try reflexivity;
+  intros; unfold MemEval in *; simpl in *.
+  { generalize (@sym_read_correct types' funcs' P PE). simpl in *. intro.
+    eapply H3 in H; eauto. }
+  { generalize (@sym_write_correct types' funcs' P PE). simpl in *. intro.
+    eapply H4 in H; eauto. }
+Qed.
+
+Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
+  IL_mem_satisfies IL_ReadWord IL_WriteWord :=
+
+  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+  IL_mem_satisfies IL_ReadWord IL_WriteWord
+  types_r
+  funcs_r
+  (fun ts => Env.listToRepr (ssig ts :: nil)
+    (SEP.Default_predicate (Env.repr types_r ts)
+      (tvType 0) (tvType 1)))
+  (fun ts => MemEvaluator _)
+  (fun ts fs ps => MemEvaluator_correct _ _).
