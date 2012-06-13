@@ -423,6 +423,25 @@ Section env.
       end.
 *)
 
+    Section Mentions.
+      Variable uv : uvar.
+
+      Fixpoint mentionsU (e : expr) : bool :=
+        match e with
+          | Const _ _ 
+          | Var _ => false
+          | UVar n => if EqNat.beq_nat uv n then true else false
+          | Func _ args =>
+            (fix anyb ls : bool := 
+              match ls with
+                | nil => false
+                | l :: ls => mentionsU l || anyb ls
+              end) args
+          | Equal _ l r => mentionsU l || mentionsU r
+          | Not e => mentionsU e
+        end.
+    End Mentions.
+
     Hypothesis WT_meta : WellTyped_env tmeta_env meta_env.
     Hypothesis WT_vars : WellTyped_env tvar_env var_env.
     Hypothesis WT_funcs : WellTyped_funcs tfuncs funcs.
@@ -536,8 +555,6 @@ Section env.
       rewrite WT_funcs in *. congruence.
   Qed.
 
-  
-
   Lemma exprD_typeof : forall a1 t D,
     exprD a1 t = Some D ->
     typeof a1 = Some t.
@@ -549,59 +566,6 @@ Section env.
     f_equal.
     eapply exprD_det in H0. symmetry; eassumption. congruence.
   Qed.
-
-
-(*
-  Theorem well_typed_is_well_typed : forall e t, 
-    well_typed e = Some t <-> is_well_typed e t = true.
-  Proof.
-    clear. induction e; simpl; intros; 
-    try solve [ split; intros; unfold lookupAs in * ;
-      repeat match goal with
-               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
-               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
-               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
-               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
-             end; try congruence; auto ].
-    
-    Focus.
-    split; intros; unfold lookupAs in * ;
-      repeat match goal with
-               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
-               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
-               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
-               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
-             end; try congruence; auto.
-    destruct (all2 is_well_typed l (Domain s)). inversion H0; subst.
-      rewrite EquivDec_refl_left; auto.
-      congruence.
-      rewrite H0.
-      congruence.
-
-    split; intros; unfold lookupAs in * ;
-      repeat match goal with
-               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-               | [ H : context [ equiv_dec ?A ?A ] |- _ ] => rewrite (@EquivDec_refl_left _ _ A) in H
-               | [ |- context [ equiv_dec ?A ?A ] ] => rewrite (@EquivDec_refl_left _ _ A)
-               | [ H : context [ equiv_dec ?A ?B ] |- _ ] => destruct (equiv_dec A B)
-               | [ H : context [ nth_error ?A ?B ] |- _ ] => destruct (nth_error A B)
-             end; try congruence; auto.
-    revert H. case_eq (is_well_typed e1 t); simpl.
-    case_eq (is_well_typed e2 t); simpl; intros. inversion H1; auto. congruence.
-    intros; congruence.
-    destruct t0; try congruence.
-    apply andb_true_iff in H. intuition.
-    rewrite H0. rewrite H1. auto.
-
-    specialize (IHe tvProp).
-    destruct (is_well_typed e tvProp); intuition; try discriminate.
-    injection H; intro; subst; reflexivity.
-    destruct t; congruence.
-    destruct t; congruence.
-  Qed.
-*)
 
   Definition ValidProp (e : expr) := 
     exists v, exprD e tvProp = Some v.
@@ -788,15 +752,18 @@ Section env.
     exists (eq_refl). 
     revert H. revert c c'.  
     unfold tvarD.
-    refine (match (nth_error types n) in option _
+    refine (match (nth_error types n) as t return forall c c' : Impl_ t,
+              match t as ty return (Impl_ ty -> Impl_ ty -> bool) with
+                | Some t => Eqb t
+                | None => fun _ _ : Impl_ None => false
+              end c c' = true -> c = c'
             with 
               | Some t => _
               | None => _
             end). 
- 
     apply Eqb_correct. 
     discriminate. 
-  Defined. 
+  Qed.
  
 
   Fixpoint expr_seq_dec (a b : expr) : bool :=
@@ -847,14 +814,6 @@ Section env.
     apply impl_to_semireflect; exact expr_seq_dec_correct.
   Qed.
 
-
-  (* This is used by the tactic build_default_type *)
-  (* Global Instance SemiDec_expr : SemiDec expr.
-  constructor. intros a b. case_eq (expr_seq_dec a b).
-  intros H; refine (Some (expr_seq_dec_correct _ _ H)). 
-  intros _; apply None. 
-  Defined. *)
-
   (** lift the "real" variables in the range [a,...)
    ** to the range [a+b,...)
    **)
@@ -871,7 +830,6 @@ Section env.
       | Equal t e1 e2 => Equal t (liftExpr a b e1) (liftExpr a b e2)
       | Not e1 => Not (liftExpr a b e1)
     end.
-
 
   Fixpoint liftExprU (a b : nat) (e : expr (*(uvars' ++ uvars) vars*)) 
     : expr (*(uvars' ++ ext ++ uvars) vars*) :=
@@ -1181,6 +1139,57 @@ Qed.
 Section exists_subst.
   Variable types : list type.
   Variable funcs : functions types.
+
+  Lemma nth_error_app_L : forall T (A B : list T) n,
+    (n < length A)%nat ->
+    nth_error (A ++ B) n = nth_error A n.
+  Proof.
+    induction A; destruct n; simpl; intros; try omega; auto.
+    eapply IHA. omega.
+  Qed.
+
+  Lemma nth_error_app_R : forall T (A B : list T) n,
+    (length A <= n)%nat ->
+    nth_error (A ++ B) n = nth_error B (n - length A).
+  Proof.
+    induction A; destruct n; simpl; intros; try omega; auto.
+    apply IHA. omega. 
+  Qed.
+
+  Theorem exprSubstU_spec : forall e a b c e',
+    exprSubstU a b c e = e' ->
+    forall A B C D t v,
+      length B = a ->
+      length B + length C = b ->
+      length A = c ->
+      exprD funcs A (B ++ C ++ D) e t = Some v ->
+      exprD funcs (A ++ C) (B ++ D) e' t = Some v.
+  Proof.
+    induction e; simpl; intros; subst; simpl in *; 
+      try solve [ repeat match goal with
+                           | [ H : _ |- _ ] => erewrite H by eauto
+                           | [ |- match ?X with _ => _ end = match ?X with _ => _ end ] =>
+                             (destruct X; try reflexivity) ; []
+                           | [ H : context [ match ?t with tvProp => _ | tvType _ => _ end ] |- _ ] => destruct t
+                           | [ H : context [ match ?X with _ => _ end ] |- _ ] => (consider X; intros; try congruence) ; []
+                         end; eauto ;reflexivity ].
+    { rewrite <- H3; clear H3.
+      unfold lookupAs in *; consider (NPeano.ltb x (length B)); intros; simpl; unfold lookupAs; simpl in *.
+      repeat ((rewrite nth_error_app_L by omega) || (rewrite nth_error_app_R by omega)). reflexivity.
+      consider (NPeano.ltb x (length B + length C)); intros; simpl; unfold lookupAs; simpl in *;
+      repeat ((rewrite nth_error_app_L by omega) || (rewrite nth_error_app_R by omega)).
+      cutrewrite (x - length B = length A + x - length B - length A). reflexivity. omega.
+      cutrewrite (x - length B - length C = x + length B - (length B + length C) - length B). reflexivity.
+      omega. }
+    { unfold lookupAs in *. consider (nth_error A x); intros. 
+      erewrite nth_error_weaken by eauto. auto.  congruence. }
+    { destruct (nth_error funcs f); auto.  destruct (equiv_dec (Range s) t); auto.
+      unfold equiv in *; subst. destruct s; simpl in *.
+      generalize dependent Domain0. induction H; destruct Domain0; simpl in *; intros; auto.
+      consider (exprD funcs A (B ++ C ++ D) x t); intros; try congruence.
+      erewrite H by eauto. eauto. }
+  Qed.      
+
   Variable U1 : env types.
   
   (* Unification variables corresponding to genuine Coq existentials *)
@@ -1220,6 +1229,36 @@ Proof.
     end; intuition; subst; auto.
     apply IHB in H1. destruct H1. eauto.
     destruct H. eapply IHB in H. destruct H; eauto.
+Qed.
+
+Definition is_well_typed_not_mentionsU_last : forall tfuncs tU tG t (e : expr types) t',
+  is_well_typed tfuncs (tU ++ t :: nil) tG e t' = true ->
+  mentionsU (length tU) e = false ->
+  is_well_typed tfuncs tU tG e t' = true.
+Proof.
+  clear; induction e; intros; simpl in *; auto;
+    repeat match goal with
+             | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+               consider X; intros
+             | [ H : _ && _ = true |- _ ] => apply andb_true_iff in H; destruct H
+             | [ H : _ || _ = false |- _ ] => apply orb_false_iff in H; destruct H
+             | [ H : _ |- _ ] => erewrite H by eauto
+             | [ H : _ === _ |- _ ] => unfold equiv in H; subst
+           end; try congruence; auto.
+  { rewrite nth_error_app_L in H; auto. rewrite H. rewrite EquivDec_refl_left. auto.
+    Lemma nth_error_Some_length : forall T (ls : list T) n v,
+      nth_error ls n = Some v ->
+      (n < length ls)%nat.
+    Proof.
+      clear; induction ls; destruct n; intros; simpl in *; unfold value, error in *; try (congruence || omega).
+      eapply IHls in H. omega.
+    Qed.
+    apply nth_error_Some_length in H. rewrite app_length in H. simpl in *. omega. }
+  { destruct t0; simpl in *. clear H0. generalize dependent TDomain0. revert H1. 
+    induction H; destruct TDomain0; intros; simpl in *; try congruence.
+    apply orb_false_iff in H1. destruct H1.
+    consider (is_well_typed tfuncs (tU ++ t :: nil) tG x t0); intros.
+    rewrite H by eauto. eapply IHForall; eauto. }
 Qed.
 
 End exists_subst.

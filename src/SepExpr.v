@@ -361,7 +361,6 @@ Module SepExprFacts (SE : SepExpr).
 
   End env.
 
-  (** TODO: Fix this so that it works consistently! **)
   Ltac heq_canceler :=
     let cancel cp ap1 ap2 ep cc ac1 ac2 ec frm P Q :=
       let rec iter_right Q :=
@@ -403,26 +402,26 @@ Module SepExprFacts (SE : SepExpr).
    *)
     end; try reflexivity.
 
-(*
   Theorem sexprD_weaken : forall types pcT stT funcs (preds : SE.predicates types pcT stT) cs s U G G' U',
-    WellTyped_sexpr 
     SE.ST.himp cs (SE.sexprD funcs preds U G s) 
                   (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
   Proof.
     induction s; simpl; intros; try reflexivity.
-      admit.
-      rewrite IHs1. rewrite IHs2. reflexivity.
-      apply SE.ST.himp_ex. intros. rewrite IHs with (U' := U') (G' := G'). reflexivity.
-      destruct (nth_error preds f); try reflexivity.
+    { consider (exprD funcs U G e tvProp); intros.
+      erewrite exprD_weaken by eauto. reflexivity.
+      rewrite <- SE.ST.heq_star_emp_r.
+      eapply SE.ST.himp_star_pure_c. contradiction. }
+    { rewrite IHs1. rewrite IHs2. reflexivity. }
+    { apply SE.ST.himp_ex. intros. rewrite IHs with (U' := U') (G' := G'). reflexivity. }
+    { destruct (nth_error preds f); try reflexivity.
       match goal with
         | [ |- SE.ST.himp _ match ?X with _ => _ end _ ] => 
           consider X
       end; intros.
       erewrite Expr.applyD_weaken by eauto. reflexivity.
       rewrite <- SE.ST.heq_star_emp_r.
-      eapply SE.ST.himp_star_pure_c. unfold BadPredApply. contradiction.
+      eapply SE.ST.himp_star_pure_c. unfold BadPredApply. contradiction. }
   Qed.
-*)
 
 End SepExprFacts.
 
