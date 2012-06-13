@@ -15,7 +15,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	SepExpr SepHeap SepUnify SepCancel \
 	Unfolder \
 	Env TypedPackage \
-	SymEval sep/PtsTo \
+	SymEval sep/PtsTo sep/Array \
 	IL \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \
