@@ -1,4 +1,5 @@
 Require Import List.
+Require Import Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -79,4 +80,26 @@ Lemma Forall_app : forall A (P : A -> Prop) ls1 ls2,
   -> Forall P (ls1 ++ ls2).
 Proof.
   induction 1; simpl; auto.
+Qed.
+
+Lemma all2_map_2 : forall T U V (P : T -> U -> bool) (F : V -> _) l1 l2,
+  all2 P l1 (map F l2) = all2 (fun x y => P x (F y)) l1 l2.
+Proof.
+  clear. induction l1; destruct l2; simpl; auto.
+  destruct (P a (F v)); auto.
+Qed.
+Lemma all2_map_1 : forall T U V (P : T -> U -> bool) (F : V -> _) l1 l2,
+  all2 P (map F l1) l2 = all2 (fun x y => P (F x) y) l1 l2.
+Proof.
+  clear. induction l1; destruct l2; simpl; auto.
+  destruct (P (F a) u); auto.
+Qed.
+
+Lemma all2_impl : forall T U (P P' : T -> U -> bool) l1 l2,
+  all2 P' l1 l2 = true ->
+  (forall x y, P' x y = true -> P x y = true) ->
+  all2 P l1 l2 = true .
+Proof.
+  clear; induction l1; destruct l2; simpl; intros; auto.
+  consider (P' a u); intros. rewrite H0; eauto.
 Qed.
