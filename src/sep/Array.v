@@ -1,379 +1,536 @@
+Require Import Bool.
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
-Require Import Word Memory IL SepIL SepTac.
+Require Import Word Memory IL SepIL SymIL ILTac.
 Require Import EqdepClass.
-Require Import Env.
+Require Import Env ILEnv Prover.
+Require Import PropX PropXTac Nomega NArith.
 
-Module BedrockArrayEvaluator (P : EvaluatorPluginType BedrockHeap SepIL.ST).
-  Module Import SEP := P.SEP.
+Set Implicit Arguments.
 
-  Definition pcIndex : nat := 0.
-  Definition stateIndex : nat := 1.
+Definition array (ws : list W) (p : W) : HProp := ptsto32m _ p O ws.
 
-  Definition content_type :=
-    {| Expr.Impl := list W
-     ; Expr.Eq := seq_dec 
-     |}.
+Fixpoint div4 (n : nat) : nat :=
+  match n with
+    | S (S (S (S n'))) => S (div4 n')
+    | _ => O
+  end.
 
-  Section parametric.
-    Variable contentIndex : nat.
-    Variable types' : list type.
-    
-    Definition types := updateAt content_type (bedrock_types ++ types') (S (S contentIndex)).
+Fixpoint sel' (ws : list W) (n : nat) : W :=
+  match ws with
+    | nil => wzero _
+    | w :: ws' => match n with
+                    | O => w
+                    | S n' => sel' ws' n'
+                  end
+  end.
 
-    Fixpoint wbuffer (st : W) (ls : list W) 
-      : hprop (tvarD types (tvType pcIndex)) 
-              (tvarD types (tvType stateIndex)) nil :=
-      match ls with
-        | nil => emp _ _ 
-        | l :: ls =>
-          st =*> l * wbuffer (st ^+ $ 4)  ls
-      end%Sep.
+Definition sel (ws : list W) (a : W) : W :=
+  sel' ws (wordToNat a).
 
-    Definition wbuffer_ssig : ssignature types (tvType pcIndex) (tvType stateIndex).
-    refine (
-      {| SepExpr.SDomain := tvType 0 :: tvType (S (S contentIndex)) :: nil
-       ; SepExpr.SDenotation := _
-       |}).
-    simpl. 
-    rewrite nth_error_updateAt.
-    refine (wbuffer).
-    Defined.
+Fixpoint upd' (ws : list W) (n : nat) (v : W) : list W :=
+  match ws with
+    | nil => nil
+    | w :: ws' => match n with
+                    | O => v :: ws'
+                    | S n' => w :: upd' ws' n' v
+                  end
+  end.
 
-    Definition wordIndex := 0.
-    Definition ptrIndex := 0.
+Definition upd (ws : list W) (a v : W) : list W :=
+  upd' ws (wordToNat a) v.
 
-    Variable funcs' : functions types.
+Definition bedrock_type_listW : type :=
+  {| Expr.Impl := list W;
+    Expr.Eqb := (fun _ _ => false);
+    Expr.Eqb_correct := @ILEnv.all_false_compare _ |}.
 
-    Variable plusIdx : nat.
-    Variable consIdx : nat.
-    Hypothesis plusIdx_consIdx : plusIdx <> consIdx.
+Definition types_r : Env.Repr Expr.type :=
+  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
+    let lst := 
+      Some ILEnv.bedrock_type_W ::
+      Some ILEnv.bedrock_type_setting_X_state ::
+      None ::
+      None ::
+      None ::
+      Some ILEnv.bedrock_type_nat ::
+      Some bedrock_type_listW :: nil
+      in Env.listOptToRepr lst EmptySet_type.
 
-    Definition plus_sig : signature types.
-      refine (
-        {| Expr.Domain := tvType wordIndex :: tvType wordIndex :: nil
-         ; Expr.Range := tvType wordIndex
-         ; Expr.Denotation := _
-         |}); simpl.
-      eapply wplus.
-    Defined.
+Local Notation "'pcT'" := (tvType 0).
+Local Notation "'stT'" := (tvType 1).
+Local Notation "'wordT'" := (tvType 0).
+Local Notation "'natT'" := (tvType 5).
+Local Notation "'listWT'" := (tvType 6).
 
-    Definition cons_sig : signature types.
-      refine (
-        {| Expr.Domain := tvType wordIndex :: tvType (S (S contentIndex)) :: nil
-         ; Expr.Range := tvType (S (S contentIndex))
-         ; Expr.Denotation := _
-         |}); simpl.
-      rewrite nth_error_updateAt. simpl.
-      eapply cons.
-    Defined.
+Local Notation "'wplusF'" := 0.
+Local Notation "'wmultF'" := 2.
+Local Notation "'wltF'" := 5.
+Local Notation "'natToWF'" := 6.
+Local Notation "'lengthF'" := 7.
+Local Notation "'selF'" := 8.
+Local Notation "'updF'" := 9.
 
-    Definition funcs : functions types :=
-      Env.repr ((consIdx, cons_sig) :: (plusIdx, plus_sig) :: nil) funcs'.
+Section parametric.
+  Variable types' : list type.
+  Definition types := repr types_r types'.
+  Variable Prover : ProverT types.
 
-    Fixpoint get_nth (e : expr types) (n : nat) : option (expr types) :=
-      match e with 
-        | Expr.Func i (hd :: tl :: nil) =>
-          if equiv_dec i consIdx then 
-            (* this is a cons cell *)
-            match n with
-              | 0 => Some hd
-              | S n => get_nth tl n
-            end
-          else None
-        | _ => None
-      end.
+  Definition wplus_r : signature types.
+    refine {| Domain := wordT :: wordT :: nil; Range := wordT |}.
+    exact (@wplus 32).
+  Defined.
 
-    Check cast.
+  Definition wmult_r : signature types.
+    refine {| Domain := wordT :: wordT :: nil; Range := wordT |}.
+    exact (@wmult 32).
+  Defined.
 
-    Lemma get_nth_correct : forall uvars vars e eD n x,
-      exprD funcs uvars vars e (tvType (S (S contentIndex))) = Some eD ->
-      get_nth e n = Some x ->
-      match exprD funcs uvars vars x (tvType wordIndex) with
-        | Some y => nth_error (@cast _ content_type (fun t => match t with
-                                                                | None => Empty_set
-                                                                | Some t => Impl t 
-                                                              end) types' contentIndex eD)
-(* contentIndex  match nth_error_updateAt content_type types' contentIndex in _ = t return 
-                                | refl_equal => eD
-                              end *) n = Some y
-        | None => False
-      end.
-  Proof.
-    simpl. induction e; simpl; try congruence.
-    intros. 
-    repeat match goal with
-             | [ H : context [ match ?X with
-                                 | nil => _ 
-                                 | _ :: _ => _
-                               end ] |- _ ] =>
-               (destruct X; [ try congruence | try congruence ]); [ ]
-             | [ H : context [ equiv_dec ?X ?Y ] |- _ ] =>
-               destruct (equiv_dec X Y); try congruence
-           end.
-    unfold funcs in H0.
-    rewrite e1 in *.
-    unfold funcs, repr in *. rewrite Env.nth_error_updateAt with (n := consIdx) in H0.
-    simpl in H0. rewrite EquivDec_refl_left in *.
-    repeat match goal with
-      | [ H0 : context [ match ?X with
-                           | Some _ => _ 
-                           | None => _
-                         end ] |- _ ] =>
-        revert H0; case_eq X; [ intros | intros; exfalso; congruence ]
-             | [ H : Some _ = Some _ |- _ ] =>
-               inversion H; clear H; subst
-    end.
-    destruct n.
-      inversion H1; clear H1; subst.
-      rewrite H0.
-  Admitted.
+  Definition wlt_r : signature types.
+    refine {| Domain := wordT :: wordT :: nil; Range := tvProp |}.
+    exact (@wlt 32).
+  Defined.
 
-  (** TODO: maybe this should be like unification? 
-   ** - in that case the substitution is an effect and needs to be
-   **   threaded through the computation (monadically?)
-   **)
-  Variable expr_equal : forall (hyps : list (expr types)) (tv : tvar) (a b : expr types), bool.
-  Variable expr_equal_correct : 
-    forall (hyps : list (expr types)) (tv : tvar) (a b : expr types),
-      expr_equal hyps tv a b = true ->
-      forall uvars vars, 
-        AllProvable funcs uvars vars hyps ->
-        match exprD funcs uvars vars a tv , exprD funcs uvars vars b tv with 
-          | Some l , Some r => l = r
-          | _ , _ => False
-        end.
-  
-  Ltac expose :=
-    repeat (unfold wordIndex, ptrIndex in *; 
-            match goal with 
-              | [ H : match applyD _ _ ?A _ _ with
-                        | Some _ => _ 
-                        | None => False 
-                      end |- _ ] =>
-              destruct A; simpl in H; try (exfalso; assumption)
-              | [ H : context [ match exprD ?A ?B ?C ?D ?E with
-                          | None => _
-                          | Some _ => _
-                        end ] |- _ ] =>
-              generalize dependent H; case_eq (exprD A B C D E); simpl; intros; 
-                try (exfalso; assumption)
-              | [ H : context [ match expr_equal ?A ?B ?C ?D with
-                                  | true => _
-                                  | false => _
-                                end ] |- _ ] =>
-                generalize dependent H; case_eq (expr_equal A B C D); intros; 
-                  try (exfalso; congruence)
-              | [ H : expr_equal ?A ?B ?C ?D = true 
-                , H' : AllProvable _ _ _ ?A |- _ ] =>
-                generalize (@expr_equal_correct _ _ _ _ H _ _ H'); clear H; intros
-              | [ H : Some _ = Some _ |- _ ] =>
-                inversion H; clear H; subst
-              | [ H : exprD _ _ _ _ _ = Some _ |- _ ] =>
-                rewrite H in *
-            end; simpl in * ).
+  Definition natToW_r : signature types.
+    refine {| Domain := natT :: nil; Range := wordT |}.
+    exact natToW.
+  Defined.
 
+  Definition wlength_r : signature types.
+    refine {| Domain := listWT :: nil; Range := natT |}.
+    exact (@length _).
+  Defined.
 
-  Definition divBy4 (hyps : list (expr types)) (e : expr types) : option nat :=
+  Definition sel_r : signature types.
+    refine {| Domain := listWT :: wordT :: nil; Range := wordT |}.
+    exact sel.
+  Defined.
+
+  Definition upd_r : signature types.
+    refine {| Domain := listWT :: wordT :: wordT :: nil; Range := listWT |}.
+    exact upd.
+  Defined.
+
+  Definition funcs_r : Env.Repr (signature types) :=
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
+      let lst := 
+        Some wplus_r ::
+        None ::
+        Some wmult_r ::
+        None ::
+        None ::
+        Some wlt_r ::
+        Some natToW_r ::
+        Some wlength_r ::
+        Some sel_r ::
+        Some upd_r ::
+        nil
+        in Env.listOptToRepr lst (Default_signature _).
+
+  Definition deref (e : expr types) : option (expr types * expr types) :=
     match e with
-      | Expr.Const t w => 
-        match equiv_dec (tvType 0) t with
-          | left pf =>
-            match pf in _ = t return tvarD types t -> option nat with
-              | refl_equal => fun x => None
-            end w
-          | right _ => None
-        end            
+      | Func wplusF (base :: offset :: nil) =>
+        match offset with
+          | Func wmultF (Func natToWF (Const t k :: nil) :: offset :: nil) =>
+            match t return tvarD types t -> _ with
+              | natT => fun k => match k with
+                                   | 4 => Some (base, offset)
+                                   | _ => None
+                                 end
+              | _ => fun _ => None
+            end k
+          | _ => None
+        end
       | _ => None
     end.
 
-  Definition extractIndex (hyps : list (expr types)) (base e : expr types) : option nat := 
-    if expr_equal hyps (tvType ptrIndex) e base then 
-      Some 0
-    else 
-      match e with 
-        | Expr.Func i (l :: r :: nil) =>
-          match equiv_dec i plusIdx , expr_equal hyps (tvType ptrIndex) l base with
-            | left _ , true => divBy4 hyps r
-            | _ , _ => None
-          end
-        | _ => None
-      end.
-
-  Lemma divBy4_correct : forall uvars vars hyps e eD i,
-    divBy4 hyps e = Some i ->
-    AllProvable funcs uvars vars hyps ->
-    exprD funcs uvars vars e (tvType ptrIndex) = Some eD ->
-    eD = $ (4 * i).
-  Proof.
-    intros. destruct e; simpl in H; try congruence.
-    destruct (equiv_dec (tvType 0) t); try congruence.
-    unfold equiv in *.
-    generalize dependent t0. generalize e.
-    rewrite <- e. 
-    intro. rewrite (UIP_refl e0). congruence.
-  Qed.
-
-  Lemma extractIndex_correct : forall uvars vars hyps b bD e eD i,
-    extractIndex hyps b e = Some i ->
-    AllProvable funcs uvars vars hyps ->
-    exprD funcs uvars vars b (tvType ptrIndex) = Some bD ->
-    exprD funcs uvars vars e (tvType ptrIndex) = Some eD ->
-    eD = bD ^+ $ (4 * i).
-  Proof.
-    unfold extractIndex. intros. 
-    revert H. case_eq (expr_equal hyps (tvType ptrIndex) e b); intros.
-    inversion H3; clear H3; subst.
-    eapply expr_equal_correct in H; eauto.
-    rewrite H1 in *. rewrite H2 in *. subst. simpl in *. admit.
-    
-    destruct e; try congruence.
-    do 3 match goal with
-      | [ H : context [ match ?A with
-                          | nil => _ 
-                          | _ :: _ => _
-                        end ] |- _ ] =>
-      (destruct A; simpl in H; try congruence); [ ]
-    end.
-    clear H.
-    destruct (equiv_dec f plusIdx); try congruence.
-    rewrite e1 in *. clear e1.
-    revert H3. case_eq (expr_equal hyps (tvType ptrIndex) e b); intros; try congruence.
-
-    simpl in H2.
-    unfold funcs in H2.
-(*
-    rewrite Env.nth_error_updateAt in H2. simpl in H2.
-    fold funcs in H2.
-    eapply expr_equal_correct in H; eauto.
-    rewrite H1 in *.
-    unfold ptrIndex, wordIndex in *.
-    destruct (exprD funcs uvars vars0 e (tvType 0)); subst; try congruence.
-    revert H2.
-    case_eq (exprD funcs uvars vars0 e0 (tvType 0)); intros; try congruence.
-    inversion H2; clear H2; subst.
-    eapply divBy4_correct in H3; eauto. subst; eauto.
-*)
-  Admitted.
-
-  End parametric.
-
-(*
-  Definition sym_read_word_wbuffer (hyps args : list (expr types)) (p : expr types) 
+  Definition sym_read (summ : Prover.(Facts)) (args : list (expr types)) (p : expr types)
     : option (expr types) :=
     match args with
-      | p' :: v' :: nil => 
-        if expr_equal hyps (tvType ptrIndex) p p' 
-          then Some v'
-          else None
+      | ws :: p' :: nil =>
+        match deref p with
+          | None => None
+          | Some (base, offset) =>
+            if Prover.(Prove) summ (Equal wordT p' base)
+              && Prover.(Prove) summ (Func wltF (offset :: Func natToWF (Func lengthF (ws :: nil)
+                :: nil) :: nil))
+              then Some (Func selF (ws :: offset :: nil))
+              else None
+        end
       | _ => None
     end.
-(*
-  Definition sym_write_word_wbuffer (hyps args : list (expr types)) (p v : expr types)
+
+  Definition sym_write (summ : Prover.(Facts)) (args : list (expr types)) (p v : expr types)
     : option (list (expr types)) :=
     match args with
-      | p' :: v' :: nil =>
-        if expr_equal hyps (tvType ptrIndex) p p' then Some (p :: v :: nil) else None
+      | ws :: p' :: nil =>
+        match deref p with
+          | None => None
+          | Some (base, offset) =>
+            if Prover.(Prove) summ (Equal wordT p' base)
+              && Prover.(Prove) summ (Func wltF (offset :: Func natToWF (Func lengthF (ws :: nil)
+                :: nil) :: nil))
+              then Some (Func updF (ws :: offset :: v :: nil) :: p' :: nil)
+              else None
+        end
       | _ => None
     end.
-*)
+End parametric.
 
-  Ltac expose :=
-    repeat (unfold wordIndex, ptrIndex in *; 
-            match goal with 
-              | [ H : match applyD _ _ ?A _ _ with
-                        | Some _ => _ 
-                        | None => False 
-                      end |- _ ] =>
-              destruct A; simpl in H; try (exfalso; assumption)
-              | [ H : context [ match exprD ?A ?B ?C ?D ?E with
-                          | None => _
-                          | Some _ => _
-                        end ] |- _ ] =>
-              generalize dependent H; case_eq (exprD A B C D E); simpl; intros; 
-                try (exfalso; assumption)
-              | [ H : context [ match expr_equal ?A ?B ?C ?D with
-                                  | true => _
-                                  | false => _
-                                end ] |- _ ] =>
-                generalize dependent H; case_eq (expr_equal A B C D); intros; 
-                  try (exfalso; congruence)
-              | [ H : expr_equal ?A ?B ?C ?D = true 
-                , H' : AllProvable _ _ _ ?A |- _ ] =>
-                generalize (@expr_equal_correct _ _ _ _ H _ _ H'); clear H; intros
-              | [ H : Some _ = Some _ |- _ ] =>
-                inversion H; clear H; subst
-              | [ H : exprD _ _ _ _ _ = Some _ |- _ ] =>
-                rewrite H in *
-            end; simpl in * ).
+Definition MemEval types' : @MEVAL.PredEval.MemEvalPred (types types').
+  eapply MEVAL.PredEval.Build_MemEvalPred.
+  eapply sym_read.
+  eapply sym_write.
+Defined.
 
-  Lemma sym_read_wbuffer_correct : forall args uvars vars cs hyps pe ve m stn,
-    sym_read_word_wbuffer hyps args pe = Some ve ->
-    AllProvable funcs uvars vars hyps ->
-    match 
-      applyD (exprD funcs uvars vars) (SDomain wbuffer_ssig) args _ (SDenotation wbuffer_ssig)
-      with
-      | None => False
-      | Some p => ST.satisfies cs p stn m
-    end ->
-    match exprD funcs uvars vars pe (tvType ptrIndex) , exprD funcs uvars vars ve (tvType wordIndex) with
-      | Some p , Some v =>
-        ST.HT.smem_get_word (IL.implode stn) p m = Some v
-      | _ , _ => False
-    end.
-  Proof.
-    simpl; intros; expose.
-    rewrite 
-    unfold ST.satisfies in H3. PropXTac.propxFo.
+Ltac destr E :=
+  match E with
+    | context[match _ with None => _ | _ => _ end] => fail 1
+    | _ => destruct E; try (discriminate || tauto); [simpl in *]
+  end.
+
+Ltac stripSuffix E :=
+  match E with
+    | ?E = _ => stripSuffix E
+    | ?E _ => stripSuffix E
+    | ?E _ _ => stripSuffix E
+    | _ => E
+  end.
+
+Ltac doMatch P :=
+  match P with
+    | match ?E with 0 => _ | _ => _ end => destr E
+    | match ?E with nil => _ | _ => _ end => destr E
+    | match ?E with Const _ _ => _ | _ => _ end => destr E
+    | match ?E with tvProp => _ | _ => _ end => destr E
+    | match ?E with None => _ | _ => _ end => destr E
+  end.
+
+Ltac deconstruct' := match goal with
+                       | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst; simpl in *
+                       | [ H : ?P |- _ ] =>
+                         let P := stripSuffix P in
+                           doMatch P
+                           || match P with
+                                | match ?P with None => _ | _ => _ end =>
+                                  let P := stripSuffix P in
+                                    doMatch P
+                              end
+                     end.
+
+Ltac deconstruct := repeat deconstruct'.
+
+Section correctness.
+  Variable types' : list type.
+  Definition types0 := types types'.
+
+  Definition ssig : SEP.predicate types0 pcT stT.
+    refine (SEP.PSig _ _ _ (listWT :: wordT :: nil) _).
+    exact array.
+  Defined.
+
+  Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
+    Eval cbv beta iota zeta delta [ Env.listToRepr ] in 
+      let lst := 
+        ssig :: nil
+      in Env.listToRepr lst (SEP.Default_predicate _ _ _).
+
+  Variable funcs' : functions types0.
+  Definition funcs := Env.repr (funcs_r _) funcs'.
+
+  Variable Prover : ProverT types0.
+  Variable Prover_correct : ProverT_correct Prover funcs.
+
+  Lemma deref_correct : forall uvars vars e w base offset,
+    exprD funcs uvars vars e wordT = Some w
+    -> deref e = Some (base, offset)
+    -> exists wb, exists wo,
+      exprD funcs uvars vars base wordT = Some wb
+      /\ exprD funcs uvars vars offset wordT = Some wo
+      /\ w = wb ^+ $4 ^* wo.
+    destruct e; simpl; intuition; try discriminate; deconstruct; eauto.
   Qed.
 
-  Lemma sym_write_word_ptsto32_correct : forall args uvars vars cs hyps pe ve v m stn args',
-    sym_write_word_ptsto32 hyps args pe ve = Some args' ->
-    AllProvable funcs uvars vars hyps ->
-    exprD funcs uvars vars ve (tvType wordIndex) = Some v ->
-    match
-      applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args _ (SDenotation ptsto32_ssig)
+  Fixpoint ptsto32m' sos (a : W) (offset : nat) (vs : list W) : hpropB sos :=
+    match vs with
+      | nil => Emp
+      | v :: vs' => (a ^+ $(offset)) =*> v * ptsto32m' sos a (4 + offset) vs'
+    end%Sep.
+
+  Theorem ptsto32m'_in : forall a cs stn vs offset m,
+    interp cs (ptsto32m _ a offset vs stn m)
+    -> interp cs (ptsto32m' _ a offset vs stn m).
+    induction vs.
+
+    auto.
+
+    unfold ptsto32m, ptsto32m'.
+    fold ptsto32m; fold ptsto32m'.
+    destruct vs; destruct offset; intros.
+
+    replace (a ^+ $0) with a by W_eq.
+    simpl.
+    propxFo.
+    exists m.
+    exists smem_emp; intuition.
+    apply split_comm; apply split_a_semp_a.
+    reflexivity.
+    
+    unfold ptsto32m'.
+    apply simplify_bwd.
+    exists m.
+    exists smem_emp; intuition.
+    split.
+    apply split_comm; apply split_a_semp_a.
+    split.
+    apply simplify_fwd; assumption.
+    split.
+    constructor.
+    reflexivity.
+
+    replace (a ^+ $0) with a by W_eq.
+    apply simplify_fwd in H.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    apply simplify_bwd in H0.
+    apply simplify_bwd in H1.
+    apply simplify_bwd.
+    exists x.
+    exists x0.
+    split; auto.
+    split.
+    apply simplify_fwd; assumption.
+    apply simplify_fwd; auto.
+
+    apply simplify_fwd in H.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    apply simplify_bwd in H0.
+    apply simplify_bwd in H1.
+    apply simplify_bwd.
+    exists x.
+    exists x0.
+    split; auto.
+    split.
+    apply simplify_fwd; assumption.
+    apply simplify_fwd; auto.
+  Qed.
+
+  Lemma smem_read_correct'' : forall cs base stn ws offset i m,
+    interp cs (ptsto32m' _ base (offset * 4) ws stn m)
+    -> (i < length ws)%nat
+    -> smem_get_word (implode stn) (base ^+ $((offset + i) * 4)) m = Some (sel' ws i).
+    induction ws.
+
+    simpl length.
+    intros.
+    elimtype False.
+    nomega.
+
+    simpl length.
+    unfold ptsto32m'.
+    fold ptsto32m'.
+    intros.
+    destruct i; simpl sel'.
+    replace (offset + 0) with offset by omega.
+    apply simplify_fwd in H.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H1.
+    eapply split_smem_get_word; eauto.
+
+    apply simplify_fwd in H.
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H1.
+    apply simplify_bwd in H2.
+    replace (4 + offset * 4) with (S offset * 4) in H2 by omega.
+    eapply (IHws _ i) in H2.
+    rewrite <- H2.
+    erewrite split_smem_get_word.
+    eauto.
+    eapply split_comm; eauto.
+    left.
+    rewrite <- H2.
+    do 3 f_equal.
+    omega.
+    omega.
+  Qed.
+
+  Lemma smem_get_disjoint : forall a w1 w2 dom m1 m2,
+    disjoint' dom m1 m2
+    -> smem_get' dom a m1 = Some w1
+    -> smem_get' dom a m2 = Some w2
+    -> False.
+    induction dom; simpl; intuition.
+    discriminate.
+    destruct (H.addr_dec a0 a); subst; try congruence.
+    eauto.
+    destruct (H.addr_dec a0 a); subst; try congruence.
+    eauto.
+  Qed.
+
+  Lemma smem_get_word_disjoint : forall a m1 m2 w1 w2 addrs,
+    disjoint m1 m2
+    -> smem_get_word addrs a m1 = Some w1
+    -> smem_get_word addrs a m2 = Some w2
+    -> False.
+    unfold smem_get_word; intros.
+    destruct (H.footprint_w a) as [ [ [ ] ] ].
+    case_eq (smem_get a0 m1); [ intros ? Heq | intros Heq ]; rewrite Heq in *; try discriminate.
+    case_eq (smem_get a0 m2); [ intros ? Heq' | intros Heq' ]; rewrite Heq' in *; try discriminate.
+    eapply smem_get_disjoint; eauto.
+  Qed.
+
+  Lemma array_bound' : forall cs base stn ws m i,
+    (0 < i < length ws)%nat
+    -> base ^+ $(i * 4) = base
+    -> interp cs (ptsto32m' _ base 0 ws stn m)
+    -> False.
+    destruct ws; simpl length; intros.
+
+    elimtype False; omega.
+
+    simpl in H1.
+    propxFo.
+    destruct i; try omega.
+    generalize (@smem_read_correct'' cs base stn ws 1 i x0).
+    simpl plus.
+    rewrite H0.
+    rewrite wplus_comm in H.
+    rewrite wplus_unit in H.
+    intuition.
+    assert (i < length ws)%nat by omega; intuition.
+    destruct H1.
+    eapply smem_get_word_disjoint; eauto.
+  Qed.
+
+  Lemma pow2_pos : forall n, (pow2 n > 0)%nat.
+    induction n; simpl; omega.
+  Qed.
+
+  Lemma pow2_monotone : forall n m,
+    (n < m)%nat
+    -> (pow2 n < pow2 m)%nat.
+    induction 1; simpl; intuition.
+    specialize (pow2_pos n).
+    omega.
+  Qed.
+
+  Lemma pow2_mult : forall m n,
+    pow2 n * pow2 m = pow2 (n + m).
+    induction n; simpl; intuition.
+    repeat rewrite <- IHn.
+    repeat rewrite <- plus_n_O.
+    apply Mult.mult_plus_distr_r.
+  Qed.      
+
+  Lemma array_bound : forall cs ws base stn m,
+    interp cs (array ws base stn m)
+    -> (length ws < pow2 32)%nat.
+    intros.
+    Require Import Arith.
+    destruct (lt_dec (length ws) (pow2 32)); auto.
+    elimtype False.
+    apply ptsto32m'_in in H.
+    apply (@array_bound' _ _ _ _ _ (pow2 30)) in H; auto.
+    split.
+    unfold pow2; omega.
+    specialize (@pow2_monotone 30 32).
+    omega.
+    change (pow2 30 * 4) with (pow2 30 * pow2 2).
+    rewrite pow2_mult.
+    simpl plus.
+    clear.
+    rewrite wplus_alt.
+    unfold wplusN, wordBinN.
+    rewrite natToWord_pow2.
+    rewrite roundTrip_0.
+    rewrite plus_0_r.
+    apply natToWord_wordToNat.
+  Qed.
+
+  Lemma smem_read_correct' : forall cs base stn ws i m,
+    interp cs (array ws base stn m)
+    -> i < $(length ws)
+    -> smem_get_word (implode stn) (base ^+ $4 ^* i) m = Some (sel ws i).
+    unfold sel; intros; rewrite <- (@smem_read_correct'' cs base stn ws 0 (wordToNat i) m).
+    f_equal.
+    simpl plus.
+    rewrite natToW_times4.
+    unfold natToW.
+    rewrite natToWord_wordToNat.
+    W_eq.
+
+    apply ptsto32m'_in; auto. 
+
+    red in H0.
+    apply Nlt_out in H0.
+    repeat rewrite wordToN_nat in *.
+    repeat rewrite Nat2N.id in *.
+    rewrite wordToNat_natToWord_idempotent in H0; auto.
+    apply array_bound in H.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    assumption.
+  Qed.
+
+  Lemma sym_read_correct : forall args uvars vars cs summ pe p ve m stn,
+    sym_read Prover summ args pe = Some ve ->
+    Valid Prover_correct uvars vars summ ->
+    exprD funcs uvars vars pe wordT = Some p ->
+    match 
+      applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
       with
       | None => False
       | Some p => ST.satisfies cs p stn m
     end ->
-    match exprD funcs uvars vars pe (tvType ptrIndex)with
-      | Some p =>
-        match 
-          applyD (@exprD _ funcs uvars vars) (SDomain ptsto32_ssig) args' _ (SDenotation ptsto32_ssig)
-          with
-          | None => False
-          | Some pr => 
-            match ST.HT.smem_set_word (IL.explode stn) p v m with
-              | None => False
-              | Some sm' => ST.satisfies cs pr stn sm'
-            end
-        end
+    match exprD funcs uvars vars ve wordT with
+      | Some v =>
+        ST.HT.smem_get_word (IL.implode stn) p m = Some v
       | _ => False
     end.
   Proof.
-    simpl; intros; expose.
+    simpl; intuition.
+    do 3 (destruct args; simpl in *; intuition; try discriminate).
+    generalize (deref_correct uvars vars pe); destr (deref pe); intro Hderef.
+    destruct p0.
 
-    unfold ST.satisfies in *. PropXTac.propxFo. 
-    case_eq (smem_set_word (IL.explode stn) t v m).
-    intros. unfold ptsto32. PropXTac.propxFo.
-    eapply smem_set_get_word_eq; eauto.
-    eapply IL.implode_explode.
-    eapply smem_set_get_valid_word; eauto.
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *; simpl in *.
+
+    match goal with
+      | [ _ : (if ?E then _ else _) = Some _ |- _ ] => case_eq E; intro Heq; rewrite Heq in *
+    end; try discriminate.
+    unfold types0 in *; simpl in *.
+    unfold Provable in *; simpl in *.
+    deconstruct.
+    repeat match goal with
+             | [ H : _ |- _ ] => apply andb_prop in H; intuition
+           end.
+    rewrite H1 in *.
+    specialize (Hderef _ _ _ (refl_equal _) (refl_equal _)); destruct Hderef as [ ? [ ] ]; intuition.
+    subst.
+    simpl in *.
+    rewrite H4 in *.
+    rewrite H7 in *.
+    specialize (H6 (ex_intro _ _ (refl_equal _))).
+    specialize (H3 (ex_intro _ _ (refl_equal _))); subst.
+    red in H2.
+
+    eapply smem_read_correct'; eauto.
   Qed.
 
-  Print P.SymEval.
-  
-  
-
-  Definition SymEval_ptsto32 : @P.SymEval types (tvType stateIndex) (tvType pcIndex) 
-    (tvType ptrIndex) (tvType wordIndex)
-    (fun stn => ST.HT.smem_get_word (IL.implode stn))
-    (fun stn => ST.HT.smem_set_word (IL.explode stn))
-    funcs ptsto32_ssig.
-  eapply P.Build_SymEval.
-  eapply sym_read_ptsto32_correct.
-  eapply sym_write_word_ptsto32_correct.
-  Defined.  
-*)
-End BedrockArrayEvaluator.
+End correctness.
