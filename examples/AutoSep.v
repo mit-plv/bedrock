@@ -4,7 +4,7 @@ Export Bedrock.
 (** * Specialize the library proof automation to some parameters useful for basic examples. *)
 
 Import SymILTac.
-Require Bedrock.sep.PtsTo.
+Require Bedrock.sep.PtsTo Bedrock.sep.Array.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
@@ -15,7 +15,8 @@ Definition TacPackage : Type :=
 Definition auto_ext : TacPackage.
   ILAlgoTypes.Package.build_prover_pack Provers.ComboProver ltac:(fun a => 
   ILAlgoTypes.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
-    ILAlgoTypes.Package.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b) ltac:(fun res => 
+  ILAlgoTypes.Package.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
+    ILAlgoTypes.Package.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b(*, c*)) ltac:(fun res => 
       let res := 
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
@@ -29,9 +30,9 @@ Definition auto_ext : TacPackage.
           ILAlgoTypes.AllAlgos_composite
           ILAlgoTypes.oplus Prover.composite_ProverT MEVAL.Composite.MemEvaluator_composite Env.listToRepr
 
-          Plugin_PtsTo.ptsto32_ssig
+          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
         ] in res in
-        ILAlgoTypes.Package.opaque_pack res) || fail 1000 "compose")).
+        ILAlgoTypes.Package.opaque_pack res) || fail 1000 "compose"))).
 Defined.
 
 Ltac refold :=
@@ -401,6 +402,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Reflection **)
          (* Reflection.Reflect_eqb_nat *)
 
+         (** Array *)
+         Array.ssig Array.types_r Array.types
+         Array.MemEval Array.MemEvaluator
+         Array.deref Array.sym_read Array.sym_write
+
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
@@ -696,6 +702,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** Reflection **)
          (* Reflection.Reflect_eqb_nat *)
+
+         (** Array *)
+         Array.ssig Array.types_r Array.types
+         Array.MemEval Array.MemEvaluator
+         Array.deref Array.sym_read Array.sym_write
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
