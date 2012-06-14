@@ -5,9 +5,10 @@ Require Import Expr ExprUnify Folds.
 Require Import SepExpr SepHeap.
 Require Import Prover.
 Require Import Env.
-Require Import Reflection.
+Require Import Reflection Tactics.
 
 Set Implicit Arguments.
+Set Strict Implicit.
 
 Require NatMap.
 
@@ -45,7 +46,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
     Fixpoint substExpr (firstVar firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
-        | Var x => if lt_dec x firstFree
+        | Var x => if NPeano.ltb x firstFree
           then Var (x + firstVar)
           else match U.Subst_lookup (x - firstFree) s with
                  | None => e
@@ -64,11 +65,10 @@ Module Make (SH : SepHeap) (U : SynUnifier).
        ; other := other sh
        |}.
 
-
     Fixpoint substExprBw (offset firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
-        | Var x => if lt_dec x firstFree
+        | Var x => if NPeano.ltb x firstFree
           then e
           else match U.Subst_lookup (x - firstFree + offset) s with
                  | None => e
@@ -83,7 +83,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
     Fixpoint substExprBw' (offset firstFree : nat) (s : U.Subst types) (e : expr types) : expr types :=
       match e with
         | Expr.Const _ _ => e
-        | Var x => if lt_dec x firstFree
+        | Var x => if NPeano.ltb x firstFree
           then UVar (x + offset)
           else match U.Subst_lookup (x - firstFree + offset) s with
                  | None => e
@@ -145,8 +145,8 @@ Module Make (SH : SepHeap) (U : SynUnifier).
     Definition lemmaD (meta_base var_base : env types) (lem : lemma) : Prop :=
       WellTyped_lemma (typeof_funcs funcs) (Predicates_typeof preds) lem = true /\
       forallEachR (Foralls lem) (fun env =>
-        implyEach (Hyps lem) meta_base (env ++ var_base)
-        (forall specs, himp funcs preds meta_base (env ++ var_base) specs (Lhs lem) (Rhs lem))).
+        implyEach (Hyps lem) meta_base (var_base ++ env)
+        (forall specs, himp funcs preds meta_base (var_base ++ env) specs (Lhs lem) (Rhs lem))).
 
     (** Preprocessed databases of hints *)
 
@@ -274,74 +274,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             end
         end.
 
-      Lemma forallEachR_sem : forall vs P,
-        forallEachR vs P <-> (forall e, map (@projT1 _ _) e = vs -> P e).
-      Proof.
-        clear. split; revert P; induction vs; simpl; intros.
-          destruct e; simpl in *; try congruence.
-          destruct e; simpl in *; try congruence. inversion H0; clear H0; subst. eapply IHvs in H; eauto.
-            destruct s; eapply H.
-          eapply H; reflexivity.
-          eapply IHvs; intros. eapply H. simpl. f_equal; auto.
-      Qed.
-
-      Lemma Subst_to_env_env : forall U G S' TS cur e0,
-        Subst_to_env U G S' TS cur = Some e0 ->
-        map (@projT1 _ _) e0 = TS.
-      Proof.
-        induction TS; simpl; intros;
-          repeat match goal with
-                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
-                     revert H ; case_eq X ; intros; try congruence
-                   | [ |- _ ] => progress ( simpl in * )
-                   | [ |- _ ] => progress subst
-                 end; try solve [ intuition ].
-        f_equal. eauto.
-      Qed.
-
-
-      Theorem unify_args_forallEachR : forall tfuncs tU tG U G l r D (S : U.Subst types) S' P env cur TS,
-        U.Subst_WellTyped tfuncs tU tG S ->
-        all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
-        all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
-        fold_left_2_opt (U.exprUnify unify_bound) l r S = Some S' ->
-        Subst_to_env U G S' TS cur = Some env ->
-        forallEachR TS P ->
-        P env.
-      Proof.
-        clear.
-        induction l; destruct TS; try congruence; simpl in *; intros;
-          repeat match goal with
-                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
-                     revert H ; case_eq X ; intros; try congruence
-                   | [ |- _ ] => progress ( simpl in * )
-                   | [ |- _ ] => progress subst
-                   | [ H : U.exprUnify _ _ _ _ = Some _ |- _ ] => 
-                     generalize H ; generalize H; 
-                     apply U.exprUnify_Extends in H ;
-                     let H := fresh "H" in
-                     intro H ;
-                     apply U.exprUnify_sound in H
-                 end; try solve [ intuition ].
-        eapply forallEachR_sem in H4. eapply H4.
-        eauto using Subst_to_env_env.        
-        
-        intro. eapply IHl in H4. eapply H4. 4: eauto. eauto using U.exprUnify_WellTyped. eauto. eauto. eauto.
-      Qed.
-
-(*
-      Parameter exprSubstU_spec : forall e a b c e',
-        exprSubstU a b c e = e' ->
-        forall A B C D t v,
-          length B = a ->
-          length B + length C = b ->
-          length A = c ->
-          exprD funcs A (B ++ C ++ D) e t = Some v ->
-          exprD funcs (A ++ C) (B ++ D) e' t = Some v.
-*)
-
       Fixpoint checkAllInstantiated (from : nat) (ts : variables) (sub : U.Subst types) : bool :=
         match ts with
           | nil => true
@@ -355,144 +287,18 @@ Module Make (SH : SepHeap) (U : SynUnifier).
        ** - [args] is the outside
        ** - [key] is the patterns (closed by [Foralls lem]) that need to unify with [args])
        **)
-      Definition applicable (firstUvar : nat) (lem : lemma) (args key : exprs types) : option (U.Subst types) :=
+      Definition applicable (asrt : bool) (firstUvar : nat) (lem : lemma) (args key : exprs types) : option (U.Subst types) :=
         let numForalls := length (Foralls lem) in
         match fold_left_2_opt (U.exprUnify unify_bound) args (map (exprSubstU 0 numForalls firstUvar) key) (U.Subst_empty _) with
           | None => None
           | Some subst =>
             (* Now we must make sure all of the lemma's pure obligations are provable. *)
             if allb (Prove prover facts) (map (substExpr firstUvar O subst) (Hyps lem))
-            then if EqNat.beq_nat (U.Subst_size subst) numForalls && checkAllInstantiated 0 (Foralls lem) subst
+            then if true (* (if asrt then EqNat.beq_nat (U.Subst_size subst) numForalls else true) && checkAllInstantiated 0 (Foralls lem) subst *)
                  then Some subst
                  else None
             else None
         end.
-
-(*
-      Lemma checkAllInstantiated_lookup : forall sub ts from,
-        checkAllInstantiated from ts sub = true ->
-        forall tfuncs tU tG,
-          from = length tU ->
-          U.Subst_WellTyped tfuncs (tU ++ ts) tG sub ->
-          forall n t, 
-            nth_error ts n = Some t ->
-            exists e,
-            U.Subst_lookup (from + n) sub = Some e /\
-            is_well_typed tfuncs tU tG e t = true.
-      Proof.
-        induction ts using rev_ind; intros.
-          destruct n; simpl in *; unfold error in *; congruence.
-
-          
-(*
-        induction ts; simpl; intros. 
-
-        
-          consider (U.Subst_lookup from sub); intros. specialize (IHts _ H3 tfuncs (tU ++ a :: nil) tG).
-          rewrite app_length in IHts. simpl length in IHts. rewrite plus_comm in IHts.
-          rewrite app_ass in IHts. simpl app in IHts. subst; specialize (IHts refl_equal H1).
-          destruct n; simpl in *. inversion H2; clear H2; subst. rewrite plus_0_r. eexists; split; eauto.
-          { admit. }
-          { eapply IHts in H2. destruct H2. intuition. clear IHts. rewrite plus_comm. simpl. rewrite plus_comm.
-            eexists; split; eauto.
- 
-          destruct n; simpl in *. inversion H4; clear H4; subst. rewrite plus_0_r in H3.
-
-
-inversion H3; clear H3; subst.
-          s
-*)
-      Admitted.
-*)
-
-      Lemma checkAllInstantiated_Subst_to_env_success : forall sub ts from,
-        checkAllInstantiated from ts sub = true ->
-        forall U G tfuncs tU tG,
-          WellTyped_env tU U ->
-          WellTyped_env tG G ->
-          WellTyped_funcs tfuncs funcs ->
-          from = length tU ->
-          U.Subst_WellTyped tfuncs (tU ++ ts) tG sub ->
-          exists env, Subst_to_env U G sub ts from = Some env.
-      Proof.
-      Admitted.
-
-      Lemma is_well_typed_weaken : forall tf tU tG e t,
-        is_well_typed (types := types) tf tU tG e t = true ->
-        forall u g,
-          is_well_typed tf (tU ++ u) (tG ++ g) e t = true.
-      Proof.
-        induction e; simpl; intros; 
-          repeat match goal with
-                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
-                     consider X; intros
-                   | [ H : _ === _ |- _ ] => unfold equiv in H; subst
-                   | [ H : _ && _ = _ |- _ ] => apply andb_true_iff in H; destruct H
-                   | [ H : _ |- _ ] => rewrite H by auto
-                   | [ |- _ ] => erewrite nth_error_weaken by eauto
-                   | [ |- _ ] => rewrite EquivDec_refl_left
-                 end; auto.
-        destruct t0. simpl in *. revert H1. generalize TDomain. induction H; destruct TDomain0; intros; simpl in *; auto.
-        consider (is_well_typed tf tU tG x t); intros. erewrite H by eauto. eauto.
-      Qed.
-
-
-      Lemma all2_is_well_typed_weaken : forall tf tU tG es ts,
-        all2 (is_well_typed (types := types) tf tU tG) es ts = true ->
-        forall u g,
-          all2 (is_well_typed tf (tU ++ u) (tG ++ g)) es ts = true.
-      Proof.
-        clear. intros. eapply all2_impl; eauto using is_well_typed_weaken.
-      Qed.
-
-      Lemma exprSubstU_WellTyped : forall tf tU tG ext (a : expr types) t,
-        is_well_typed tf tU (tG ++ ext) a t = true ->
-        is_well_typed tf (tU ++ ext) tG (exprSubstU (length tG) (length tG + length ext) (length tU) a) t = true.
-      Proof.
-        clear. induction a; simpl; intros; 
-        repeat match goal with
-                 | [ H : match ?X with tvProp => _ | tvType _ => _ end = _ |- _ ] =>
-                   destruct X; try congruence
-                 | [ H : (_ && _) = true |- _ ] => apply andb_true_iff in H; destruct H
-                 | [ H : _ |- _ ] => rewrite H by auto
-                 | [ |- context [ if NPeano.ltb ?A ?B then _ else _ ] ] =>
-                   consider (NPeano.ltb A B); intros
-                 | [ |- _ ] => 
-                   rewrite nth_error_app_L by omega
-                 | [ |- _ ] => rewrite nth_error_app_R by omega
-                 | [ H : _ |- _ ] => 
-                   rewrite nth_error_app_R in H by omega 
-                 | [ H : _ |- _ ] => 
-                   rewrite nth_error_app_L in H by omega 
-                 | [ |- _ ] => progress ( simpl in * )
-                 | [ H : match nth_error _ ?X with _ => _ end = _ |- match nth_error _ ?Y with _ => _ end = _ ] => 
-                   cutrewrite (Y = X); [ auto | omega ] 
-               end; auto.
-        exfalso. admit.
-        consider (nth_error tU x); intros. erewrite nth_error_weaken by eauto. auto.
-        consider (nth_error tf f); intros. consider (equiv_dec t (TRange t0)); intros.
-        unfold equiv in *; simpl in *; subst. admit.
-      Qed.
-     
-      Lemma typeof_env_length : forall g, 
-        length (typeof_env (types := types) g) = length g.
-      Proof.
-        clear. apply map_length.
-      Qed.
-      Lemma implyEach_instantiate : forall HYPS U G,
-        AllProvable funcs U G HYPS ->
-        forall cc,
-          implyEach HYPS U G cc ->
-          cc.
-      Proof.
-        induction HYPS; simpl; intros; auto;
-          repeat match goal with
-                   | [ H : _ /\ _ |- _ ] => destruct H
-                   | [ H : _ && _ = _ |- _ ] => 
-                     apply andb_true_iff in H; destruct H
-                 end.
-        eapply IHHYPS; eauto.
-      Qed. 
 
       (* Returns [None] if no unfolding opportunities are found.
        * Otherwise, return state after one unfolding. *)
@@ -510,7 +316,7 @@ inversion H3; clear H3; subst.
                   findWithRest (fun args argss =>
                     (* We must tweak the arguments by substituting unification variables for 
                      * [forall]-quantified variables from the lemma statement. *)
-                    match applicable firstUvar h args args' with
+                    match applicable false firstUvar h args args' with
                       | None => None 
                       | Some subs =>
 (*
@@ -522,13 +328,13 @@ inversion H3; clear H3; subst.
                       | Some subs =>
                         (* Now we must make sure all of the lemma's pure obligations are provable. *)
                         if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
+*)
                           (* Remove the current call from the state, as we are about to replace
                            * it with a simplified set of pieces. *)
-*)
                           let impures' := FM.add f argss (impures (Heap s)) in
-                          let sh := {| impures := impures';
-                            pures := pures (Heap s);
-                            other := other (Heap s) |} in
+                          let sh := {| impures := impures'
+                                     ; pures := pures (Heap s)
+                                     ; other := other (Heap s) |} in
 
                           (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
                           let (exs, sh') := hash (Rhs h) in
@@ -561,6 +367,10 @@ inversion H3; clear H3; subst.
                 | None => None
                 | Some argss => 
                   findWithRest (fun args argss =>
+(*                    match applicable false firstUvar h args args' with
+                      | None => None
+                      | Some subs =>
+*)
                     let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
 
                     (* Unify the respective function arguments. *)
@@ -627,15 +437,211 @@ inversion H3; clear H3; subst.
       Hypothesis hsOk : hintsSoundness hs.
       Hypothesis PC : ProverT_correct prover funcs.
 
-      Check applicable.
 
-      Theorem applicableOk : forall facts U G lem args args' sub TS,
-        lemmaD nil nil lem ->
+      Lemma forallEachR_sem : forall vs P,
+        forallEachR vs P <-> (forall e, map (@projT1 _ _) e = vs -> P e).
+      Proof.
+        clear. split; revert P; induction vs; simpl; intros.
+          destruct e; simpl in *; try congruence.
+          destruct e; simpl in *; try congruence. inversion H0; clear H0; subst. eapply IHvs in H; eauto.
+            destruct s; eapply H.
+          eapply H; reflexivity.
+          eapply IHvs; intros. eapply H. simpl. f_equal; auto.
+      Qed.
+
+      Lemma Subst_to_env_env : forall U G S' TS cur e0,
+        Subst_to_env U G S' TS cur = Some e0 ->
+        map (@projT1 _ _) e0 = TS.
+      Proof.
+        induction TS; simpl; intros;
+          repeat match goal with
+                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     revert H ; case_eq X ; intros; try congruence
+                   | [ |- _ ] => progress ( simpl in * )
+                   | [ |- _ ] => progress subst
+                 end; try solve [ intuition ].
+        f_equal. eauto.
+      Qed.
+
+
+      Theorem unify_args_forallEachR : forall tfuncs tU tG U G l r D (S : U.Subst types) S' P env cur TS,
+        U.Subst_WellTyped tfuncs tU tG S ->
+        all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
+        all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
+        fold_left_2_opt (U.exprUnify unify_bound) l r S = Some S' ->
+        Subst_to_env U G S' TS cur = Some env ->
+        forallEachR TS P ->
+        P env.
+      Proof.
+        clear.
+        induction l; destruct TS; try congruence; simpl in *; intros;
+          repeat match goal with
+                   | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     revert H ; case_eq X ; intros; try congruence
+                   | [ |- _ ] => progress ( simpl in * )
+                   | [ |- _ ] => progress subst
+                   | [ H : U.exprUnify _ _ _ _ = Some _ |- _ ] => 
+                     generalize H ; generalize H; 
+                     apply U.exprUnify_Extends in H ;
+                     let H := fresh "H" in
+                     intro H ;
+                     apply U.exprUnify_sound in H
+                 end; try solve [ intuition ].
+        eapply forallEachR_sem in H4. eapply H4.
+        eauto using Subst_to_env_env.        
+        
+        intro. eapply IHl in H4. eapply H4. 4: eauto. eauto using U.exprUnify_WellTyped. eauto. eauto. eauto.
+      Qed.
+
+      Lemma is_well_typed_weaken : forall tf tU tG e t,
+        is_well_typed (types := types) tf tU tG e t = true ->
+        forall u g,
+          is_well_typed tf (tU ++ u) (tG ++ g) e t = true.
+      Proof.
+        induction e; simpl; intros; 
+          repeat match goal with
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     consider X; intros
+                   | [ H : _ === _ |- _ ] => unfold equiv in H; subst
+                   | [ H : _ && _ = _ |- _ ] => apply andb_true_iff in H; destruct H
+                   | [ H : _ |- _ ] => rewrite H by auto
+                   | [ |- _ ] => erewrite nth_error_weaken by eauto
+                   | [ |- _ ] => rewrite EquivDec_refl_left
+                 end; auto.
+        destruct t0. simpl in *. revert H1. generalize TDomain. induction H; destruct TDomain0; intros; simpl in *; auto.
+        consider (is_well_typed tf tU tG x t); intros. erewrite H by eauto. eauto.
+      Qed.
+
+
+      Lemma all2_is_well_typed_weaken : forall tf tU tG es ts,
+        all2 (is_well_typed (types := types) tf tU tG) es ts = true ->
+        forall u g,
+          all2 (is_well_typed tf (tU ++ u) (tG ++ g)) es ts = true.
+      Proof.
+        clear. intros. eapply all2_impl; eauto using is_well_typed_weaken.
+      Qed.
+
+      Lemma exprSubstU_WellTyped : forall tf tU tG ext (a : expr types) t,
+        is_well_typed tf tU (tG ++ ext) a t = true ->
+        is_well_typed tf (tU ++ ext) tG (exprSubstU (length tG) (length tG + length ext) (length tU) a) t = true.
+      Proof.
+(*
+        clear. induction a; simpl; intros; 
+        repeat match goal with
+                 | [ H : match ?X with tvProp => _ | tvType _ => _ end = _ |- _ ] =>
+                   destruct X; try congruence
+                 | [ H : (_ && _) = true |- _ ] => apply andb_true_iff in H; destruct H
+                 | [ H : _ |- _ ] => rewrite H by auto
+                 | [ |- context [ if NPeano.ltb ?A ?B then _ else _ ] ] =>
+                   consider (NPeano.ltb A B); intros
+                 | [ |- _ ] => 
+                   rewrite nth_error_app_L by omega
+                 | [ |- _ ] => rewrite nth_error_app_R by omega
+                 | [ H : _ |- _ ] => 
+                   rewrite nth_error_app_R in H by omega 
+                 | [ H : _ |- _ ] => 
+                   rewrite nth_error_app_L in H by omega 
+                 | [ |- _ ] => progress ( simpl in * )
+                 | [ H : match nth_error _ ?X with _ => _ end = _ |- match nth_error _ ?Y with _ => _ end = _ ] => 
+                   cutrewrite (Y = X); [ auto | omega ] 
+               end; auto.
+        { exfalso. consider (nth_error ext (x - length tG)); intros. apply nth_error_Some_length in H. omega. }
+        { consider (nth_error tU x); intros. erewrite nth_error_weaken by eauto. auto. }
+        { consider (nth_error tf f); intros. consider (equiv_dec t (TRange t0)); intros.
+          unfold equiv in *; simpl in *; subst. clear H0. generalize dependent (TDomain t0). 
+          induction H; intros; simpl in *; think; auto; intros; think. intros; subst.
+          rewrite H; eauto. }
+          Qed.
+*)
+      Admitted.
+     
+      Lemma typeof_env_length : forall g, 
+        length (typeof_env (types := types) g) = length g.
+      Proof.
+        clear. apply map_length.
+      Qed.
+      Lemma implyEach_instantiate : forall HYPS U G,
+        AllProvable funcs U G HYPS ->
+        forall cc,
+          implyEach HYPS U G cc ->
+          cc.
+      Proof.
+        induction HYPS; simpl; intros; auto;
+          repeat match goal with
+                   | [ H : _ /\ _ |- _ ] => destruct H
+                   | [ H : _ && _ = _ |- _ ] => 
+                     apply andb_true_iff in H; destruct H
+                 end.
+        eapply IHHYPS; eauto.
+      Qed. 
+
+(*  AllProvable funcs U G (map (U.exprInstantiate sub) (Hyps lem)). *)
+
+(*
+      Lemma checkAllInstantiated_lookup : forall sub ts from,
+        checkAllInstantiated from ts sub = true ->
+        forall tfuncs tU tG,
+          from = length tU ->
+          U.Subst_WellTyped tfuncs (tU ++ ts) tG sub ->
+          forall n t, 
+            nth_error ts n = Some t ->
+            exists e,
+            U.Subst_lookup (from + n) sub = Some e /\
+            is_well_typed tfuncs tU tG e t = true.
+      Proof.
+        induction ts using rev_ind; intros.
+          destruct n; simpl in *; unfold error in *; congruence.
+
+          
+(*
+        induction ts; simpl; intros. 
+
+        
+          consider (U.Subst_lookup from sub); intros. specialize (IHts _ H3 tfuncs (tU ++ a :: nil) tG).
+          rewrite app_length in IHts. simpl length in IHts. rewrite plus_comm in IHts.
+          rewrite app_ass in IHts. simpl app in IHts. subst; specialize (IHts refl_equal H1).
+          destruct n; simpl in *. inversion H2; clear H2; subst. rewrite plus_0_r. eexists; split; eauto.
+          { admit. }
+          { eapply IHts in H2. destruct H2. intuition. clear IHts. rewrite plus_comm. simpl. rewrite plus_comm.
+            eexists; split; eauto.
+ 
+          destruct n; simpl in *. inversion H4; clear H4; subst. rewrite plus_0_r in H3.
+
+
+inversion H3; clear H3; subst.
+          s
+*)
+      Admitted.
+*)
+
+      (* Lemma checkAllInstantiated_Subst_to_env_success : forall sub ts from, *)
+      (*   checkAllInstantiated from ts sub = true -> *)
+      (*   forall U G tfuncs tU tG, *)
+      (*     WellTyped_env tU U -> *)
+      (*     WellTyped_env tG G -> *)
+      (*     WellTyped_funcs tfuncs funcs -> *)
+      (*     U.Subst_WellTyped tfuncs (tU ++ ts) tG sub -> *)
+      (*     exists env, Subst_to_env U G sub ts from = Some env. *)
+      (* Proof. *)
+      (* Admitted. *)
+
+
+      Theorem applicableOk : forall asrt facts U G lem args args' sub TS,
         all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) args TS = true ->
         all2 (is_well_typed (typeof_funcs funcs) nil (Foralls lem)) args' TS = true ->
-        applicable unify_bound prover facts (length U) lem args args' = Some sub ->
-        map (U.exprInstantiate sub) args = map (U.exprInstantiate sub) args' /\
-        AllProvable funcs U G (map (U.exprInstantiate sub) (Hyps lem)).
+        allb (fun e => is_well_typed (typeof_funcs funcs) nil (Foralls lem) e tvProp) (Hyps lem) = true ->
+        applicable unify_bound prover facts asrt (length U) lem args args' = Some sub ->
+        args = map (substExpr (length G) 0 sub) args' /\
+        AllProvable funcs U G (map (substExpr (length G) 0 sub) (Hyps lem)).
+      Proof.
+(*
+
+ /\
+        let (lq,lh) := hash (Lhs lem) in
+        let (rq,rh) := hash (Rhs lem) in
+        himp funcs preds U G cs (existsEach lq (sheapD lh)) (existsEach rq (sheapD rh)).          
       Proof.
         unfold applicable; intros.
         repeat match goal with
@@ -646,22 +652,143 @@ inversion H3; clear H3; subst.
         eapply all2_is_well_typed_weaken with (u := Foralls lem) (g := nil) in H0. apply andb_true_iff in H4. destruct H4.
 
         cut (U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U ++ Foralls lem) (typeof_env G) sub); intros.
-        { eapply checkAllInstantiated_Subst_to_env_success in H5 (*; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.*). 5: eauto. 2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. destruct H5.
-          destruct H.
-          eapply unify_args_forallEachR in H2; eauto using U.Subst_empty_WellTyped.
-          Focus 2.
+        { eapply checkAllInstantiated_Subst_to_env_success in H5.
+          5: eassumption.
+          2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+          2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+          2: eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
 
-          rewrite all2_map_1.
-          eapply all2_impl. eauto. clear. intros. rewrite <- app_nil_l with (l := Foralls lem) in H.
+          destruct H5. destruct H.
+
+          Lemma Subst_to_env_typeof_env : forall U G sub TS cur x,
+            Subst_to_env U G sub TS cur = Some x ->
+            typeof_env x = TS.
+          Proof.
+            induction TS; simpl; intros; 
+              repeat match goal with
+                       | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                       | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                         consider X; intros
+                       | [ |- _ ] => progress ( simpl in * )
+                       | [ |- _ ] => f_equal ; [] 
+                     end; eauto; try congruence.
+          Qed.
+
+          Theorem unify_args_instantiate_equals : forall tfuncs tU tG l r D (S : U.Subst types) S',
+            fold_left_2_opt (U.exprUnify unify_bound) l r S = Some S' ->
+            U.Subst_WellTyped tfuncs tU tG S ->
+            all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
+            all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
+            map (U.exprInstantiate S') l = map (U.exprInstantiate S') r.
+          Proof.
+            induction l; destruct r; simpl; intros; think; auto. intros; subst; think. intros.
+            f_equal. admit.
+            eapply IHl; eauto. eapply U.exprUnify_WellTyped; eauto.
+          Qed.
+          match goal with
+            | [ |- ?P /\ _ ] => assert (P); [ | split; [ assumption | ] ]
+          end.
+          
+          Check exprSubstU.
+          eapply unify_args_instantiate_equal
+
+          Lemma substExpr_exprInstantiate_exprSubstU : forall tF tU tG sub e t,
+            is_well_typed tF tU tG e t = true ->
+            substExpr (length tU) 0 sub e = U.exprInstantiate sub (exprSubstU 0 (length tG) (length tU) e).
+          Proof.
+            induction e; simpl; intros; think; intros; think.
+            { admit. }
+            { consider (NPeano.ltb x Y); intros.
+          
+
+          Theorem unify_args_forallEachR : forall tfuncs tU tG U G l r D (S : U.Subst types) S' P env cur TS,
+            U.Subst_WellTyped tfuncs tU tG S ->
+            all2 (@is_well_typed _ tfuncs tU tG) l D = true ->
+            all2 (@is_well_typed _ tfuncs tU tG) r D = true ->
+            fold_left_2_opt (fun l r => U.exprUnify unify_bound l (exprSubstU 0 (length TS) (length U) r)) l r S = Some S' ->
+            Subst_to_env U G S' TS cur = Some env ->
+            forallEachR TS P ->
+            map (U.exprInstantiate S') l = map (substExpr (length G) 0 S') r /\
+            P env.
+          Proof.
+            clear.
+            induction l; destruct r; try congruence; simpl in *; intros; think; intros; try solve [ intuition ].
+            { intuition. destruct TS; simpl in *. inversion H3; subst; intuition. think; intros. think; intros; think; intros.
+              think. eapply forallEachR_sem in H4. eauto. eapply Subst_to_env_typeof_env; eauto. }
+            { think. intros; subst; simpl in *.
+              eapply IHl in H6. 6: eauto. 3: eauto. 3: eauto. 3: eauto. intuition. rewrite H0. f_equal; auto.
+
+
+
+            { think; intuition. }
+            { think; intuition. think. consider (exprD funcs U G e t); intros; try congruence. inversion H6; subst.
+              eapply forallEachR_sem in H4. eapply H4. 
+
+              eapply Subst_to_env_typeof_env; eauto. }
+            { think; intuition; think; intuition. subst. simpl in *. think. intros. eapply IHl in H7; eauto.
+              
+
+(*
+              repeat match goal with
+                       | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                       | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                         revert H ; case_eq X ; intros; try congruence
+                       | [ |- _ ] => progress ( simpl in * )
+                       | [ |- _ ] => progress subst
+                       | [ H : U.exprUnify _ _ _ _ = Some _ |- _ ] => 
+                         generalize H ; generalize H; 
+                           apply U.exprUnify_Extends in H ;
+                             let H := fresh "H" in
+                               intro H ;
+                                 apply U.exprUnify_sound in H
+                     end; try solve [ intuition ]. *) 
+            { intuition. eapply forallEachR_sem; eauto. simpl. admit. }
+            { intros.
+
+
+            eapply forallEachR_sem in H4. eapply H4.
+            eauto using Subst_to_env_env.        
+            
+            intro. eapply IHl in H4. eapply H4. 4: eauto. eauto using U.exprUnify_WellTyped. eauto. eauto. eauto.
+          Qed.
+
+
+
+
+
+          eapply unify_args_forallEachR in H2; eauto using U.Subst_empty_WellTyped.
+          { simpl in *. 
+
+
+          }
+          
+
+
+          Focus 2.
+          { rewrite all2_map_1. eapply all2_impl. eauto.
+            clear H7 H H0 H2. induction x0; simpl; intros; think; auto. intros.
+            { consider (equiv_dec y t); think. unfold equiv in *. subst.
+              consider (NPeano.ltb x0 (length (Foralls lem))); intros; simpl. rewrite <- typeof_env_length.
+              rewrite nth_error_app_R by omega.
+              cutrewrite (length (typeof_env U) + x0 - 0 - length (typeof_env U) = x0). 2: omega. rewrite H.
+              destruct (equiv_dec t t); congruence.
+              exfalso. apply nth_error_Some_length in H. omega. }
+            { intros; think. exfalso. apply nth_error_Some_length in H. simpl in *. omega. }
+            { (* intros; think. unfold equiv in *; subst. induction H; simpl; think; auto.
+                 destruct (TDomain t); intros; try congruence.
+                 consider (is_well_typed (typeof_funcs funcs) nil (Foralls lem) x0 t0); intros.  *) admit. }
+            { intros; think. auto. } }
+          simpl in *.
+            
+
+
+clear. intros. rewrite <- app_nil_l with (l := Foralls lem) in H.
           eapply is_well_typed_weaken with (u := typeof_env U) (g := nil) in H. rewrite app_nil_r in H.
           eapply exprSubstU_WellTyped in H. simpl in *. eapply is_well_typed_weaken with (g := typeof_env G) (u := nil) in H.
           repeat rewrite app_nil_r in *. simpl in *.
 
           rewrite typeof_env_length in H. eassumption.
           simpl in *.
-
-
-(*
 eapply H2. unfold hypD. unfold Provable in H.
 
 consider (exprD funcs nil x a tvProp); intros.
@@ -684,11 +811,11 @@ consider (exprD funcs nil x a tvProp); intros.
             2: instantiate (1 := nil); reflexivity.
             destruct H1; congruence.
           Qed.
-*)
+
           eapply implyEach_instantiate in H2. 
           
         
-
+*)
       Admitted.
 
 
@@ -738,7 +865,9 @@ consider (exprD funcs nil x a tvProp); intros.
 
       Opaque ST_EXT.existsEach.
 
-      Lemma unfoldForwardOk : forall unify_bound meta_env vars_env cs facts P Q,
+      Lemma unfoldForwardOk : forall meta_env vars_env cs facts P Q,
+        WellTyped_env (UVars P) meta_env ->
+        WellTyped_env (Vars P) vars_env ->
         Valid PC meta_env vars_env facts ->
         unfoldForward unify_bound prover facts (Forward hs) P = Some Q ->
         ST.himp cs
@@ -771,19 +900,26 @@ consider (exprD funcs nil x a tvProp); intros.
           symmetry. rewrite impuresD_Equiv.
           2: rewrite Equal_remove_add_remove; reflexivity. reflexivity.
           clear. red; intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
-          destruct (MF.FACTS.eq_dec f y); reflexivity. intro. apply MM.FACTS.remove_in_iff in H3. intuition congruence.
+          destruct (MF.FACTS.eq_dec f y); reflexivity. intro. apply MM.FACTS.remove_in_iff in H5. intuition congruence.
           red. intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o). consider (MF.FACTS.eq_dec f y); subst; auto. 
-          intro. apply MM.FACTS.remove_in_iff in H3. intuition congruence. }
-
+          intro. apply MM.FACTS.remove_in_iff in H5. intuition congruence. }
         Lemma hintSideD_In : forall hs,
           hintSideD hs -> forall x, In x hs -> lemmaD nil nil x.
         Proof.
           clear. induction 1. inversion 1.
           intros. inversion H1; subst; auto.
         Qed.
-        
-          eapply hintSideD_In in H0; eauto using ForwardOk.
+
 (*
+          eapply hintSideD_In in H2; eauto using ForwardOk.
+          destruct H2.
+          unfold WellTyped_lemma in *. think. simpl in H9. consider (nth_error (Predicates_typeof preds) f); intros.
+          destruct (@applicableOk facts meta_env vars_env x x1 l s t); eauto.
+          admit. rewrite map_length in H6. auto.
+          Check Subst_to_env.
+          cut (exists e, Subst_to_env meta_env vars_env s (Foralls x) (length meta_env) = Some e).
+          intro. destruct H13. eapply forallEachR_sem with (e := x3) in H5. 2: admit.
+          apply implyEach_instantiate in H5.
           eapply unify_args_forallEachR in H4. 6: eapply H0. simpl in *.
           SearchAbout fold_left_2_opt.
 *)
@@ -853,8 +989,8 @@ consider (exprD funcs nil x a tvProp); intros.
       Theorem forwardOk : forall cs bound facts P Q,
         forward bound facts P = Q ->
         forall meta_env vars_env,
-        map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
-        map (@projT1 _ _) vars_env = P.(Vars) ->
+        WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
+        WellTyped_env (Vars P) vars_env ->
         Valid PC meta_env vars_env facts ->
         ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
                    (ST_EXT.existsEach (skipn (length vars_env) Q.(Vars)) (fun vars_ext : list { t : tvar & tvarD types t } =>
@@ -878,66 +1014,43 @@ consider (exprD funcs nil x a tvProp); intros.
                      | [ |- _ ] => rewrite app_ass in *
                      | [ |- _ ] => rewrite rw_skipn_app by eauto with list_length
                    end.
-            erewrite <- app_nil_r with (l := x) at 1.
-            eapply ST.existsEach_app; intros. simpl.
-            rewrite IHbound; eauto with list_length.
-            rewrite H5. repeat (rewrite app_nil_r || rewrite app_ass). 
-            rewrite rw_skipn_app. eapply ST_exs_env_same; intros. 
+            rewrite ST_EXT.existsEach_app; intros.
+            eapply ST_EXT.himp_existsEach. intros.
+            rewrite IHbound; try solve [  repeat match goal with 
+                                                   | [ H : _ = _ |- _ ] => rewrite H
+                                                 end; auto ].
+            rewrite H5. rewrite rw_skipn_app.
+            apply ST_EXT.himp_existsEach; intros.
             repeat (rewrite app_nil_r || rewrite app_ass). reflexivity.
-
-            rewrite H3. repeat rewrite app_length. subst. rewrite <- H1. repeat rewrite map_length. reflexivity.
+            rewrite H3. repeat rewrite app_length. subst. rewrite H1. repeat rewrite map_length. reflexivity.
  
-            rewrite H4; auto.
-            
-            rewrite map_app.
+            red. rewrite map_app.
             repeat match goal with
                      | [ H : _ = _ |- _ ] => rewrite H
-                   end. rewrite app_nil_r.
-            f_equal; auto. 
+                   end. f_equal; auto. 
             rewrite <- app_nil_r with (l := meta_env); eapply Valid_weaken; eauto. }
-          { subst. erewrite skipn_length_all by eauto with list_length. simpl. rewrite app_nil_r. reflexivity. } }
+          { subst. erewrite skipn_length_all by eauto with list_length.
+            rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity. } }
       Qed.
 
       Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,
         backward bound facts P = Q ->
-        map (@projT1 _ _) meta_env = P.(UVars) -> (** meta_env instantiates the uvars **)
-        map (@projT1 _ _) vars_env = rev P.(Vars) ->
+        WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
+        WellTyped_env (Vars P) vars_env ->
         Valid PC meta_env vars_env facts ->
-        ST.himp cs (ST_exs_env (skipn (length meta_env) Q.(UVars)) (fun meta_ext : list { t : tvar & tvarD types t } => 
+        ST.himp cs (ST_EXT.existsEach (skipn (length meta_env) Q.(UVars)) (fun meta_ext : env types => 
                       (sexprD funcs preds (meta_env ++ meta_ext) vars_env (sheapD (Heap Q)))))
                    (sexprD funcs preds meta_env vars_env (sheapD (Heap P))).
       Proof.
         induction bound; simpl; intros.
-        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). simpl. rewrite app_nil_r. reflexivity.
-          erewrite <- map_length. instantiate (1 := @projT1 _ _). rewrite H0. admit.
-        }
-        { revert H. admit.
-        }
+        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
+          rewrite app_nil_r. reflexivity. eauto with list_length. }
+        { consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
+          { admit. }
+          { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
+          rewrite app_nil_r. reflexivity. eauto with list_length. } }
       Qed.
 
-(*
-      (* This soundness statement is clearly unsound, but I'll start with it to enable testing. *)
-      (** TODO: Break this into two lemmas, one for forward and one for backward **)
-      Theorem unfolderOk : forall bound P Q,
-        (let (exsP, shP) := hash P in
-         let (exsQ, shQ) := hash Q in
-         let summ := Summarize prover (pures shP) in
-         let sP := forward bound summ {| Vars := exsP;
-           UVars := nil;
-           Heap := shP |} in
-         let shQ := sheapSubstU O (length exsQ) O shQ in
-         let sQ := backward bound summ {| Vars := Vars sP;
-           UVars := exsQ;
-           Heap := shQ |} in
-         forallEach (Vars sP) (fun alls =>
-           exists_subst funcs nil alls (env_of_Subst (empty_Subst _) (UVars sQ) 0) (fun exsQ =>
-             forall cs, ST.himp cs (sexprD funcs preds nil alls (sheapD (Heap sP)))
-               (sexprD funcs preds exsQ nil (sheapD (Heap sQ))))))
-        -> forall cs, ST.himp cs (sexprD funcs preds nil nil P) (sexprD funcs preds nil nil Q).
-      Proof.
-        generalize hsOk. generalize PC. admit.
-      Qed.
-*)
     End unfolder.
   End env.
 
@@ -1067,8 +1180,8 @@ consider (exprD funcs nil x a tvProp); intros.
       | tt => constructor
       | (?P1, ?P2) => 
            (apply Folds.Forall_app; [ prove P1 | prove P2 ])
-        || (constructor; [ exact P1 | prove P2 ])
-      | _ => constructor; [ exact Ps | constructor ]
+        || (constructor; [ split; [ reflexivity | exact P1 ] | prove P2 ])
+      | _ => constructor; [ split; [ reflexivity | exact Ps ] | constructor ]
     end.
 
 

@@ -5,6 +5,7 @@ Require Import RelationClasses EqdepClass.
 Require Import Expr SepExpr.
 Require Import DepList.
 Require Import Setoid.
+Require Import Tactics.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -45,7 +46,7 @@ Module Type SepHeap.
 
     Parameter star_SHeap : SHeap -> SHeap -> SHeap.
 
-    Parameter sheap_liftVars : nat -> nat -> SHeap -> SHeap.
+    Parameter liftSHeap : nat -> nat -> nat -> nat -> SHeap -> SHeap.
 
     Parameter sheapSubstU : nat -> nat -> nat -> SHeap -> SHeap.
 
@@ -163,26 +164,12 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Qed.
 
 
-    (** lift all the "real" variables in [a,...) 
-     ** to the range [a+b,...)
+    (** sexprD (U ++ U') (G ++ G') s = 
+     ** sexprD (U ++ U'' ++ U') (G ++ G'' ++ G') (liftSHeap (length U) (length U'') (length G) (length G'') s)
      **)
-    Fixpoint liftSExpr (a b : nat) (s : sexpr types pcType stateType) : sexpr _ _ _ :=
-      match s with
-        | Emp => Emp
-        | Inj p => Inj (liftExpr a b p)
-        | Star l r => Star (liftSExpr a b l) (liftSExpr a b r)
-        | Exists t s => 
-          Exists t (liftSExpr (S a) b s)
-        | Func f xs => Func f (map (liftExpr a b) xs)
-        | Const c => Const c
-      end.
-
-    (** lift all the "real" variables in [a,...) 
-     ** to the range [a+b,...)
-     **)
-    Definition liftSHeap (a b : nat) (s : SHeap) : SHeap :=
-      {| impures := MM.mmap_map (map (liftExpr a b)) (impures s)
-       ; pures   := map (liftExpr a b) (pures s)
+    Definition liftSHeap (ua ub : nat) (a b : nat) (s : SHeap) : SHeap :=
+      {| impures := MM.mmap_map (map (liftExpr ua ub a b)) (impures s)
+       ; pures   := map (liftExpr ua ub a b) (pures s)
        ; other   := other s
        |}.
 
@@ -191,28 +178,6 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
        ; pures := pures l ++ pures r
        ; other := other l ++ other r
        |}.
-
-    Definition sheap_liftVars (from : nat) (delta : nat) (h : SHeap) : SHeap :=
-      {| impures := MM.mmap_map (map (liftExpr from delta)) (impures h)
-       ; pures := map (liftExpr from delta) (pures h)
-       ; other := other h
-       |}.
-
-    (** CURRENTLY NOT USED **)
-    Fixpoint substV types (vs : list nat) (e : expr types) : expr types :=
-      match e with
-        | Expr.Const _ c => Expr.Const c
-        | Var x => 
-          Var (match nth_error vs x with
-                 | None => x
-                 | Some y => y
-               end)
-        | UVar x => UVar x
-        | Expr.Func f xs => 
-          Expr.Func f (map (substV vs) xs)
-        | Equal t e1 e2 => Equal t (substV vs e1) (substV vs e2)
-        | Not e1 => Not (substV vs e1)
-      end.
 
     Fixpoint hash (s : sexpr types pcType stateType) : ( variables * SHeap ) :=
       match s with
@@ -227,7 +192,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
           let (vr, hr) := hash r in
           let nr := length vr in
           (vl ++ vr,
-            star_SHeap (sheap_liftVars 0 nr hl) (sheap_liftVars nr (length vl) hr))
+            star_SHeap (liftSHeap 0 0 0 nr hl) (liftSHeap 0 0 nr (length vl) hr))
         | Exists t b =>
           let (v, b) := hash b in
           (t :: v, b)
@@ -668,69 +633,31 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       intros. apply heq_ex; intros. apply IHa.
     Qed.
 
-    Lemma liftSExpr_0 : forall b a, liftSExpr a 0 b = b.
-    Proof.
-      induction b; simpl; intros; auto.
-      rewrite liftExpr_0; reflexivity.
-      rewrite IHb1; rewrite IHb2; reflexivity.
-      rewrite IHb. auto.
-      f_equal. clear. induction l; simpl; auto. rewrite liftExpr_0. f_equal; auto.
-    Qed.
-    
-    Lemma sexpr_lift_ext : forall EG cs G G' s G'',
-      ST.heq cs (sexprD funcs preds EG (G'' ++ G) s) 
-      (sexprD funcs preds EG (G'' ++ G' ++ G) (liftSExpr (length G'') (length G') s)).
-    Proof.
-      induction s; simpl; intros; 
-        repeat match goal with
-                 | [ |- _ ] => rewrite <- liftExpr_ext
-                 | [ H : forall a, ST.heq _ _ _ |- _ ] => rewrite <- H
-               end; try reflexivity.
-      eapply ST.heq_ex. intros. specialize (IHs (existT (tvarD types) t v :: G'')).
-      simpl in *. auto.
-      destruct (nth_error preds f); try reflexivity.
-      clear. destruct p; simpl; clear. generalize dependent SDomain0. induction l; simpl; try reflexivity.
-      destruct SDomain0; try reflexivity.
-      rewrite <- liftExpr_ext. destruct (exprD funcs EG (G'' ++ G) a t); try reflexivity.
-      auto.
-    Qed.
-
     Lemma star_pull_exists : forall EG cs a G s s2,
-      heq funcs preds EG G cs (Star (Exists a s) s2) (Exists a (Star s (liftSExpr 0 1 s2))).
+      heq funcs preds EG G cs (Star (Exists a s) s2) (Exists a (Star s (liftSExpr 0 0 0 1 s2))).
     Proof.
       intros. unfold heq. simpl. rewrite ST.heq_ex_star. apply ST.heq_ex. intros.
       apply ST.heq_star_cancel.
-      generalize (sexpr_lift_ext EG cs G (existT (tvarD types) a v :: nil) s2 nil); simpl; intro. auto.
+       apply (liftSExpr_sexprD funcs preds cs s2 nil EG nil nil G (existT _ a v :: nil)). 
     Qed.            
-
-    Lemma liftSExpr_combine : forall s a b c,
-      liftSExpr a b (liftSExpr a c s) = liftSExpr a (c + b) s.
-    Proof.
-      clear. induction s; intros; simpl; 
-      repeat match goal with
-               | [ H : _ |- _ ] => rewrite H
-             end; try reflexivity. 
-      rewrite liftExpr_combine. reflexivity.
-      f_equal. rewrite map_map. apply map_ext. intros; apply liftExpr_combine.
-    Qed.
 
     Lemma star_pull_existsEach : forall EG cs v G s s2,
       heq funcs preds EG G cs (Star (existsEach v s) s2)
-      (existsEach v (Star s (liftSExpr 0 (length v) s2))).
+                              (existsEach v (Star s (liftSExpr 0 0 0 (length v) s2))).
     Proof.
       induction v; simpl.
-      intros; rewrite liftSExpr_0. reflexivity.
+        intros; rewrite liftSExpr_0. reflexivity.
 
-      intros.
-      rewrite star_pull_exists. apply heq_ex. intros.
-      rewrite IHv.
+        intros.
+        rewrite star_pull_exists. apply heq_ex. intros.
+        rewrite IHv.
       
-      rewrite liftSExpr_combine. reflexivity.
+        rewrite liftSExpr_combine. reflexivity.
     Qed.
 
-    Lemma starred_liftSExpr : forall F a b (ls : list (expr types)) base,
-      (forall a0, liftSExpr a b (F a0) = F (liftExpr a b a0)) ->
-      liftSExpr a b (starred F ls base) = starred F (map (liftExpr a b) ls) (liftSExpr a b base).
+    Lemma starred_liftSExpr : forall F ua ub a b (ls : exprs types) base,
+      (forall a0, liftSExpr ua ub a b (F a0) = F (liftExpr ua ub a b a0)) ->
+      liftSExpr ua ub a b (starred F ls base) = starred F (map (liftExpr ua ub a b) ls) (liftSExpr ua ub a b base).
     Proof.
       induction ls; simpl; intros; try reflexivity.
       case_eq (starred F ls base); intros;
@@ -738,8 +665,9 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Qed.
 
     Lemma liftSExpr_existsEach : forall EG cs v0 s G n v,
-      heq funcs preds EG G cs (liftSExpr n v (existsEach v0 s)) 
-                  (existsEach v0 (liftSExpr (n + length v0) v s)).
+      heq funcs preds EG G cs 
+        (liftSExpr 0 0 n v (existsEach v0 s)) 
+        (existsEach v0 (liftSExpr 0 0 (n + length v0) v s)).
     Proof.
       induction v0; simpl; intros.
         intros. rewrite Plus.plus_0_r. reflexivity.
@@ -758,88 +686,84 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
 
     Lemma heq_liftSExpr : forall cs EG G G' G'' P Q,
       heq funcs preds EG (G ++ G'') cs P Q ->
-      heq funcs preds EG (G ++ G' ++ G'') cs (liftSExpr (length G) (length G') P) (liftSExpr (length G) (length G') Q).
+      heq funcs preds EG (G ++ G' ++ G'') cs (liftSExpr 0 0 (length G) (length G') P) (liftSExpr 0 0 (length G) (length G') Q).
     Proof.
-      unfold heq; intros.
-      repeat rewrite <- sexpr_lift_ext. auto.
+      unfold heq; intros. 
+      generalize (liftSExpr_sexprD funcs preds cs P nil EG nil). simpl in *.
+      generalize (liftSExpr_sexprD funcs preds cs Q nil EG nil). simpl in *. intros.
+      etransitivity. symmetry. eapply H1. rewrite H. eauto.
     Qed.
-
-
 
     Lemma sheapD_sexprD_liftVars : forall EG cs s G G' G'',
       heq funcs preds EG (G ++ G' ++ G'') cs
-        (liftSExpr (length G) (length G') (sheapD' s))
-        (sheapD' (sheap_liftVars (length G) (length G') s)).
+        (liftSExpr 0 0 (length G) (length G') (sheapD' s))
+        (sheapD' (liftSHeap 0 0 (length G) (length G') s)).
     Proof.
-      destruct s; unfold sheap_liftVars, sheapD'; simpl; intros; repeat apply heq_star_frame; intros.
-
-      clear. change Emp with (liftSExpr (length G) (length G') Emp) at 2. generalize (@Emp types pcType stateType).
+      destruct s; unfold liftSHeap, sheapD'; simpl; intros; repeat apply heq_star_frame; intros.
+      { clear. change Emp with (liftSExpr 0 0 (length G) (length G') (@Emp types pcType stateType)) at 2. 
+        generalize (@Emp types pcType stateType).
         unfold MM.mmap_map. intros. rewrite MF.fold_map_fusion; eauto with typeclass_instances.
+        { revert s.
+          apply NatMap.IntMapProperties.map_induction with (m := impures0); intros.
+          repeat (rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances). reflexivity.
 
-        Focus. 
-        revert s.
-        apply NatMap.IntMapProperties.map_induction with (m := impures0); intros.
-        repeat (rewrite MM.PROPS.fold_Empty; eauto with typeclass_instances). reflexivity.
-
-        symmetry. rewrite MM.PROPS.fold_Add. 6: eauto. 5: eauto. 2: eauto with typeclass_instances.
-        rewrite starred_base. rewrite <- H. clear H.
-        assert (forall base, heq funcs preds EG (G ++ G' ++ G'') cs 
-          (starred (Func x) (map (map (liftExpr (length G) (length G'))) e) (liftSExpr (length G) (length G') base))
-          (liftSExpr (length G) (length G') (starred (Func x) e base))).
-        { clear.
-          induction e; intros; try reflexivity. rewrite starred_def. simpl. rewrite <- starred_def.
-            rewrite IHe. solve [ destruct (starred (Func x) e base); simpl; heq_canceler ]. 
-        }
-        rewrite H with (base := Emp).
-        change (Star 
-        (liftSExpr (length G) (length G')
-           (FM.fold
-              (fun (k : FM.key) => starred (Func k)) m s))
-(liftSExpr (length G) (length G') (starred (Func x) e Emp)))
-        with (liftSExpr (length G) (length G')
-          (Star 
-            (FM.fold
-              (fun (k : FM.key) => starred (Func k)) m s)
-(starred (Func x) e Emp))).
-
-        eapply heq_liftSExpr.
+          symmetry. rewrite MM.PROPS.fold_Add. 6: eauto. 5: eauto. 2: eauto with typeclass_instances.
+          rewrite starred_base. rewrite <- H. clear H.
+          assert (forall base, heq funcs preds EG (G ++ G' ++ G'') cs 
+            (starred (Func x) (map (map (liftExpr 0 0 (length G) (length G'))) e) (liftSExpr 0 0 (length G) (length G') base))
+            (liftSExpr 0 0 (length G) (length G') (starred (Func x) e base))).
+          { clear.
+            induction e; intros; try reflexivity. rewrite starred_def. simpl. rewrite <- starred_def.
+            rewrite IHe. solve [ destruct (starred (Func x) e base); simpl; heq_canceler ]. }
+          rewrite H with (base := Emp).
+          change (Star 
+            (liftSExpr 0 0 (length G) (length G')
+              (FM.fold
+                (fun (k : FM.key) => starred (Func k)) m s))
+            (liftSExpr 0 0 (length G) (length G') (starred (Func x) e Emp)))
+            with (liftSExpr 0 0 (length G) (length G')
+              (Star 
+                (FM.fold
+                  (fun (k : FM.key) => starred (Func k)) m s)
+                (starred (Func x) e Emp))).
+          eapply heq_liftSExpr.
                 
-        symmetry.
-        rewrite MM.PROPS.fold_Add. 6: eauto. rewrite <- starred_base. reflexivity.
-        eauto with typeclass_instances hprop.
-        eauto with typeclass_instances hprop.
-        clear; red; intros; subst; repeat rewrite MM.FACTS.add_o;
-          repeat match goal with 
-                   | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
-                     destruct (FM.E.eq_dec X Y)
-                   | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
-                 end; auto.
-        heq_canceler.
-        eauto with typeclass_instances hprop.
-        clear; do 4 (red; intros; subst); heq_canceler.
+          symmetry.
+          rewrite MM.PROPS.fold_Add. 6: eauto. rewrite <- starred_base. reflexivity.
+          eauto with typeclass_instances hprop.
+          eauto with typeclass_instances hprop.
+          clear; red; intros; subst; repeat rewrite MM.FACTS.add_o;
+            repeat match goal with 
+                     | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+                       destruct (FM.E.eq_dec X Y)
+                     | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
+                   end; auto.
+          heq_canceler.
+          eauto with typeclass_instances hprop.
+          clear; do 4 (red; intros; subst); heq_canceler.
 
-        clear; red; intros; subst; repeat rewrite MM.FACTS.add_o.
-        heq_canceler.
-        eapply transpose_neqkey_starred.
-        
+          clear; red; intros; subst; repeat rewrite MM.FACTS.add_o.
+          heq_canceler. }
+          eapply transpose_neqkey_starred. }
+
         Opaque starred.
-        symmetry. rewrite starred_def. induction pures0; try reflexivity.
-        simpl. rewrite IHpures0.
-        match goal with
-          | [ |- heq _ _ _ _ _ ?X _ ] =>
-            change X with
-              (liftSExpr (length G) (length G') (Star (Inj a) (starred (@Inj types pcType stateType) pures0 Emp)))
-        end.
-        apply heq_liftSExpr. symmetry. repeat rewrite starred_def. simpl. heq_canceler.
+        { symmetry. rewrite starred_def. induction pures0; try reflexivity.
+          simpl. rewrite IHpures0.
+          match goal with
+            | [ |- heq _ _ _ _ _ ?X _ ] =>
+              change X with
+                (liftSExpr 0 0 (length G) (length G') (Star (Inj a) (starred (@Inj types pcType stateType) pures0 Emp)))
+          end.
+          apply heq_liftSExpr. symmetry. repeat rewrite starred_def. simpl. heq_canceler. }
 
-        symmetry. etransitivity. rewrite starred_def. reflexivity. induction other0; try reflexivity.
-        simpl. rewrite IHother0.
-        match goal with
-          | [ |- heq _ _ _ _ _ ?X _ ] =>
-            change X with
-              (liftSExpr (length G) (length G') (Star (Const a) (starred (@Const types pcType stateType) other0 Emp)))
-        end.
-        apply heq_liftSExpr. symmetry. repeat rewrite starred_def. simpl. reflexivity.
+        { symmetry. etransitivity. rewrite starred_def. reflexivity. induction other0; try reflexivity.
+          simpl. rewrite IHother0.
+          match goal with
+            | [ |- heq _ _ _ _ _ ?X _ ] =>
+              change X with
+                (liftSExpr 0 0 (length G) (length G') (Star (Const a) (starred (@Const types pcType stateType) other0 Emp)))
+          end.
+          apply heq_liftSExpr. symmetry. repeat rewrite starred_def. simpl. reflexivity. }
     Qed.
 
     Lemma hash_denote' : forall EG cs (s : sexpr _ _ _) G, 
@@ -847,14 +771,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Proof.
       Opaque star_SHeap.
       induction s; simpl; try solve [ unfold sheapD'; simpl; intros; repeat (rewrite heq_star_emp_r || rewrite heq_star_emp_l); reflexivity ].
-        (** Exists **)
-        Focus 2.
-        unfold sheapD'; simpl; intros. case_eq (hash s); intros; simpl.
-        eapply heq_ex. intros. specialize (IHs (existT (tvarD types) t v0 :: G)). simpl in *.
-        rewrite H in IHs. simpl in *. eauto.
-
-        (** Star **)
-        Focus.
+      { (** Star **)
         intros. rewrite IHs1 at 1. intros.
         destruct (hash s1); destruct (hash s2); simpl in *.
         rewrite IHs2.
@@ -873,7 +790,12 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         rewrite sheapD_sexprD_liftVars.
         rewrite sheapD_sexprD_liftVars with (G := nil). heq_canceler.
         rewrite <- rev_length; rewrite <- H; apply map_length.
-        rewrite <- rev_length; rewrite <- H0; apply map_length.
+        rewrite <- rev_length; rewrite <- H0; apply map_length. }
+
+      { (** Exists **)
+        unfold sheapD'; simpl; intros. case_eq (hash s); intros; simpl.
+        eapply heq_ex. intros. specialize (IHs (existT (tvarD types) t v0 :: G)). simpl in *.
+        rewrite H in IHs. simpl in *. eauto. }
     Qed.
     
     Theorem hash_denote : forall EG G cs (s : sexpr _ _ _), 

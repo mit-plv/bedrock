@@ -5,6 +5,7 @@ Require Import DepList EqdepClass.
 Require Import PropX.
 Require Import Expr SepExpr SepCancel.
 Require Import Prover ILEnv.
+Require Import Tactics Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -55,28 +56,18 @@ Section existsSubst.
     end.
 End existsSubst.
 
-(** TODO : this isn't true **)
-Lemma ApplyCancelSep : forall ts,
+Lemma apply_CancelSep : forall ts,
   let types := Env.repr BedrockCoreEnv.core ts in
   forall (funcs : functions types) (preds : SEP.predicates types BedrockCoreEnv.pc BedrockCoreEnv.st), 
   forall (algos : ILAlgoTypes.AllAlgos ts), ILAlgoTypes.AllAlgos_correct funcs preds algos ->
-  let prover := 
-    match ILAlgoTypes.Prover algos with
-      | None => provers.ReflexivityProver.reflexivityProver
-      | Some p => p
-    end
-  in
-  let hints :=
-    match ILAlgoTypes.Hints algos with
-      | None => UNF.default_hintsPayload _ _ _ 
-      | Some h => h
-    end
-  in
+  forall prover hints,
+    ProverT_correct prover funcs ->
+    UNF.hintsSoundness funcs preds hints ->  
   forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_))
   (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
   Expr.AllProvable funcs meta_env nil hyps ->
   let (ql, lhs) := SH.hash l in
-  let facts := Summarize prover (map (liftExpr 0 (length ql)) hyps ++ SH.pures lhs) in
+  let facts := Summarize prover (map (liftExpr 0 0 0 (length ql)) hyps ++ SH.pures lhs) in
   forall cs,
   let pre :=
     {| UNF.Vars  := ql
@@ -124,10 +115,85 @@ Lemma ApplyCancelSep : forall ts,
   himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
           (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
 Proof.
-  Opaque UNF.backward.
-  simpl.
-  Transparent UNF.backward.
+  Opaque UNF.backward UNF.forward Env.repr.
+
+
+  Transparent UNF.backward UNF.forward Env.repr.
 Admitted.
+
+Lemma ApplyCancelSep : forall ts,
+  let types := Env.repr BedrockCoreEnv.core ts in
+  forall (funcs : functions types) (preds : SEP.predicates types BedrockCoreEnv.pc BedrockCoreEnv.st), 
+  forall (algos : ILAlgoTypes.AllAlgos ts), ILAlgoTypes.AllAlgos_correct funcs preds algos ->
+  let prover := 
+    match ILAlgoTypes.Prover algos with
+      | None => provers.ReflexivityProver.reflexivityProver
+      | Some p => p
+    end
+  in
+  let hints :=
+    match ILAlgoTypes.Hints algos with
+      | None => UNF.default_hintsPayload _ _ _ 
+      | Some h => h
+    end
+  in
+  forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_))
+  (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
+  Expr.AllProvable funcs meta_env nil hyps ->
+  let (ql, lhs) := SH.hash l in
+  let facts := Summarize prover (map (liftExpr 0 0 0 (length ql)) hyps ++ SH.pures lhs) in
+  forall cs,
+  let pre :=
+    {| UNF.Vars  := ql
+     ; UNF.UVars := map (@projT1 _ _) meta_env
+     ; UNF.Heap  := lhs
+     |}
+  in
+  match UNF.forward hints prover 10 facts pre with
+    | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := lhs |} =>
+      let (qr, rhs) := SH.hash r in
+      let rhs := 
+        (*SH.liftSHeap 0 (length vars') ( *) SH.sheapSubstU 0 (length qr) (length uvars') rhs (* ) *)
+      in
+      let post :=
+        {| UNF.Vars  := vars'
+         ; UNF.UVars := uvars' ++ rev qr
+         ; UNF.Heap  := rhs
+         |}
+      in
+      match UNF.backward hints prover 10 facts post with
+        | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
+          let new_vars  := vars' in
+          let new_uvars := skipn (length meta_env) uvars' in
+          let bound := length uvars' in
+          match CANCEL.sepCancel preds prover bound facts lhs rhs with
+            | (lhs', rhs', subst) =>
+              Expr.forallEach (rev new_vars) (fun nvs : Expr.env types =>
+                let var_env := nvs in
+                Expr.AllProvable_impl funcs meta_env var_env
+                  (existsSubst (exprD funcs meta_env var_env) subst 0 
+                    (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
+                     map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
+                    (fun meta_env : Expr.env types =>
+                      (Expr.AllProvable_and funcs meta_env var_env
+                        (himp cs 
+                          (SEP.sexprD funcs preds meta_env var_env
+                            (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
+                          (SEP.sexprD funcs preds meta_env var_env
+                            (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
+                        (SH.pures rhs')) ))
+                  (SH.pures lhs'))
+          end
+      end
+  end ->
+  himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
+          (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
+Proof.
+  Opaque UNF.backward UNF.forward Env.repr.
+  intros; destruct algos; destruct Hints; destruct Prover; eapply apply_CancelSep; eauto; destruct X; eauto; simpl in *;
+  eauto using provers.ReflexivityProver.reflexivityProver_correct, UNF.hintsSoundness_default.
+  Transparent UNF.backward UNF.forward Env.repr.
+Qed.
 
 Lemma interp_interp_himp : forall cs P Q stn_st,
   interp cs (![ P ] stn_st) ->
@@ -235,8 +301,8 @@ Ltac sep_canceler isConst ext simplifier :=
       let pures := ReifyExpr.props_types all_props in
 (*TIME      stop_timer "sep_canceler:gather_props" ; *)
 (*TIME      start_timer "sep_canceler:unfold_notation" ; *)
-      let L := eval unfold empB injB injBX starB exB hvarB in L in
-      let R := eval unfold empB injB injBX starB exB hvarB in R in
+      let L := eval unfold empB, injB, injBX, starB, exB, hvarB in L in
+      let R := eval unfold empB, injB, injBX, starB, exB, hvarB in R in
 (*TIME      stop_timer "sep_canceler:unfold_notation" ; *)
 (*TIME      start_timer "sep_canceler:reify" ; *)
       (** collect types **)

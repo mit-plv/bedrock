@@ -65,11 +65,11 @@ Import SinglyLinkedList.
 Hint Immediate sll_extensional.
 
 Definition hints' : TacPackage.
-  prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
+  (*TIME idtac "prepare1". Time *)prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
 Defined.
 
 Definition hints : TacPackage.
-  prepare2 hints'.
+  (*TIME idtac "prepare2". Time *)prepare2 hints'.
 Defined.
 
 Definition null A (ls : list A) : bool :=
@@ -160,6 +160,6 @@ Ltac finish := repeat match goal with
 
 Theorem sllMOk : moduleOk sllM.
 (*TIME Clear Timing Profile. *)
-  vcgen; abstract (sep hints; finish).
+  (*TIME idtac "verify". Time *)vcgen; abstract (sep hints; finish).
 (*TIME Print Timing Profile. *)
 Qed.
