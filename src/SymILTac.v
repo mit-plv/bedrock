@@ -777,7 +777,7 @@ Ltac sym_eval isConst ext simplifier :=
   let stn_st_SF :=
     match goal with
       | [ H : interp _ (![ ?SF ] ?X) |- _ ] => 
-        let SF := eval unfold empB injB injBX starB exB hvarB in SF in
+        let SF := eval unfold empB, injB, injBX, starB, exB, hvarB in SF in
         constr:((X, (SF, H)))
       | [ H : Structured.evalCond _ _ _ ?stn ?st = _ |- _ ] => 
         let st := init_from st in
@@ -996,7 +996,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       ILEnv.bedrock_type_reg
       Expr.ReifyExpr.default_type
 
-      SH.sheap_liftVars
+      SH.liftSHeap
       app map nth_error value error fold_right hd hd_error tl tail rev
       Decidables.seq_dec 
       DepList.hlist_hd DepList.hlist_tl 
@@ -1062,7 +1062,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       U.Subst_empty U.subst_empty
       U.Subst_set U.subst_set
       U.Subst_equations
-      U.mentionsU
+      mentionsU
       U.dep_in 
       U.exprUnify_recursor
       

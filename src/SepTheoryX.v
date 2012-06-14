@@ -241,7 +241,7 @@ End SepTheoryX_Rewrites.
 
 Module SepTheoryX_Ext (ST : SepTheoryX).
   Require Import List.
-  Module Import ST_RW := SepTheoryX.SepTheoryX_Rewrites ST.
+  Module Import ST_RW := SepTheoryX_Rewrites ST.
   Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
       | nil => range
@@ -326,6 +326,14 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
       ST.heq cs (existsEach x F) (existsEach x F').
     Proof.
       intros. eapply ST.heq_ex. intros. apply ST.heq_defn. split; thinker;
+      eapply ST.himp_star_pure_cc; eauto; specialize (H _ H0); apply ST.heq_defn in H; intuition.
+    Qed.
+
+    Lemma himp_existsEach : forall cs x (F F' : list (@sigT _ typeD) -> _) ,
+      (forall G, map (@projT1 _ _) G = x -> ST.himp cs (F G) (F' G)) ->
+      ST.himp cs (existsEach x F) (existsEach x F').
+    Proof.
+      intros. eapply ST.himp_ex. intros. thinker;
       eapply ST.himp_star_pure_cc; eauto; specialize (H _ H0); apply ST.heq_defn in H; intuition.
     Qed.
 

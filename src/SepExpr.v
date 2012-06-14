@@ -4,7 +4,7 @@ Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Expr.
 Require Import Setoid.
-Require Import Folds Bool.
+Require Import Folds Bool Tactics.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -65,6 +65,20 @@ Module Type SepExpr.
         end.
 
     End types.
+
+    (** sexprD (U ++ U') (G ++ G') e <===>
+     ** sexprD (U ++ U'' ++ U') (G ++ G'' ++ G')
+     **    (liftSExpr (length U) (length U'') (length G) (length G'') e)
+     **)
+    Fixpoint liftSExpr ua ub a b s : sexpr :=
+      match s with
+        | Emp => Emp
+        | Const c => Const c
+        | Inj p => Inj (liftExpr ua ub a b p)
+        | Star l r => Star (liftSExpr ua ub a b l) (liftSExpr ua ub a b r)
+        | Exists t s => Exists t (liftSExpr ua ub (S a) b s)
+        | Func f args => Func f (map (liftExpr ua ub a b) args)
+      end.
 
     Section funcs_preds.
       Variable funcs : functions types.
@@ -402,26 +416,69 @@ Module SepExprFacts (SE : SepExpr).
    *)
     end; try reflexivity.
 
-  Theorem sexprD_weaken : forall types pcT stT funcs (preds : SE.predicates types pcT stT) cs s U G G' U',
-    SE.ST.himp cs (SE.sexprD funcs preds U G s) 
-                  (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
-  Proof.
-    induction s; simpl; intros; try reflexivity.
-    { consider (exprD funcs U G e tvProp); intros.
-      erewrite exprD_weaken by eauto. reflexivity.
-      rewrite <- SE.ST.heq_star_emp_r.
-      eapply SE.ST.himp_star_pure_c. contradiction. }
-    { rewrite IHs1. rewrite IHs2. reflexivity. }
-    { apply SE.ST.himp_ex. intros. rewrite IHs with (U' := U') (G' := G'). reflexivity. }
-    { destruct (nth_error preds f); try reflexivity.
+  Section other.
+    Variable types : list type.
+    Variables pcT stT : tvar.
+    Variable funcs : functions types.
+    Variable preds : SE.predicates types pcT stT.
+    Variable cs : codeSpec (tvarD types pcT) (tvarD types stT).
+
+    Theorem sexprD_weaken : forall s U G G' U',
+      SE.ST.himp cs (SE.sexprD funcs preds U G s) 
+                    (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
+    Proof.
+      induction s; simpl; intros; try reflexivity.
+      { consider (exprD funcs U G e tvProp); intros.
+        erewrite exprD_weaken by eauto. reflexivity.
+        rewrite <- SE.ST.heq_star_emp_r.
+        eapply SE.ST.himp_star_pure_c. contradiction. }
+      { rewrite IHs1. rewrite IHs2. reflexivity. }
+      { apply SE.ST.himp_ex. intros. rewrite IHs with (U' := U') (G' := G'). reflexivity. }
+      { destruct (nth_error preds f); try reflexivity.
+        match goal with
+          | [ |- SE.ST.himp _ match ?X with _ => _ end _ ] => 
+            consider X
+        end; intros.
+        erewrite Expr.applyD_weaken by eauto. reflexivity.
+        rewrite <- SE.ST.heq_star_emp_r.
+        eapply SE.ST.himp_star_pure_c. unfold BadPredApply. contradiction. }
+    Qed.
+
+    Theorem liftSExpr_sexprD : forall cs s U U' U'' G G' G'', 
+      SE.ST.heq cs (SE.sexprD funcs preds (U ++ U') (G ++ G') s)
+                   (SE.sexprD funcs preds (U ++ U'' ++ U') (G ++ G'' ++ G') 
+                     (SE.liftSExpr (length U) (length U'') (length G) (length G'') s)).
+    Proof.
+      do 8 intro. revert G. induction s; simpl; intros; think; try reflexivity.
+      rewrite <- liftExpr_ext. reflexivity.
+      apply SE.ST.heq_ex. intros. etransitivity. 
+      change (existT (tvarD types) t v :: G ++ G') with ((existT (tvarD types) t v :: G) ++ G'). eapply IHs. reflexivity.
+      destruct (nth_error preds f); try reflexivity.
       match goal with
-        | [ |- SE.ST.himp _ match ?X with _ => _ end _ ] => 
-          consider X
-      end; intros.
-      erewrite Expr.applyD_weaken by eauto. reflexivity.
-      rewrite <- SE.ST.heq_star_emp_r.
-      eapply SE.ST.himp_star_pure_c. unfold BadPredApply. contradiction. }
-  Qed.
+        | [ |- SE.ST.heq _ match ?X with _ => _ end match ?Y with _ => _ end ] =>
+          cutrewrite (X = Y); try reflexivity
+      end.
+      destruct p; simpl. clear. revert l; induction SDomain; destruct l; simpl; auto.
+      rewrite <- liftExpr_ext. destruct (exprD funcs (U ++ U') (G ++ G') e a); eauto.
+    Qed.
+
+    Theorem liftSExpr_combine : forall (s : SE.sexpr types pcT stT) ua ub uc a b c,
+      SE.liftSExpr ua ub a b (SE.liftSExpr ua uc a c s) = 
+      SE.liftSExpr ua (uc + ub) a (c + b) s.
+    Proof.
+      clear. induction s; intros; simpl; think; try reflexivity.
+      rewrite liftExpr_combine. reflexivity.
+      f_equal. clear. induction l; simpl; intros; try rewrite liftExpr_combine; think; auto.
+    Qed.
+
+    Theorem liftSExpr_0 : forall (s : SE.sexpr types pcT stT) ua a,
+      SE.liftSExpr ua 0 a 0 s = s.
+    Proof.
+      clear; induction s; intros; simpl; think; try reflexivity.
+      rewrite liftExpr_0; auto.
+      f_equal. clear. induction l; simpl; intros; try rewrite liftExpr_0; think; auto.
+    Qed.
+  End other.
 
 End SepExprFacts.
 
@@ -524,6 +581,17 @@ Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.
         | nil => fun x => x
         | t :: ts => fun y => Exists t (@existsEach ts y)
       end.
+
+    Fixpoint liftSExpr ua ub a b s : sexpr :=
+      match s with
+        | Emp => Emp
+        | Const c => Const c
+        | Inj p => Inj (liftExpr ua ub a b p)
+        | Star l r => Star (liftSExpr ua ub a b l) (liftSExpr ua ub a b r)
+        | Exists t s => Exists t (liftSExpr ua ub (S a) b s)
+        | Func f args => Func f (map (liftExpr ua ub a b) args)
+      end.    
+
   End env.
 End Make.
 
