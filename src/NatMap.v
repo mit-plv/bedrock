@@ -93,6 +93,25 @@ Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
     eapply FACTS.map_mapsto_iff in H0. destruct H0; intuition. eauto.
   Qed.
 
+  Lemma map_Add : forall T U (F : T -> U) x e m m',
+    PROPS.Add x e m m' ->
+    PROPS.Add x (F e) (FM.map F m) (FM.map F m').
+  Proof.
+    unfold PROPS.Add; intros.
+    specialize (H y).
+    repeat (rewrite FACTS.add_o in * || rewrite FACTS.map_o in *).
+    rewrite H. destruct (FM.E.eq_dec x y); reflexivity.
+  Qed.
+
+  Lemma map_not_In : forall T U (F : T -> U) x m,
+    ~ FM.In x m ->
+    ~ FM.In x (FM.map F m).
+  Proof.
+    intros. intro. apply H; clear H. destruct H0.
+    apply FACTS.map_mapsto_iff in H. destruct H.
+    exists x1. intuition.
+  Qed.
+
   Lemma union_empty : forall T m,
     FM.Equal (union T m (FM.empty _)) m.
   Proof.

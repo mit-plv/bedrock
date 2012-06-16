@@ -71,6 +71,13 @@ Module Type SepHeap.
       Axiom star_SHeap_denote : forall s s',
         SE.heq funcs preds U G cs (SE.Star (sheapD s) (sheapD s')) (sheapD (star_SHeap s s')).
 
+      (** Hash Equations **)
+      Axiom hash_Func : forall p args,
+        hash (SE.Func p args) = (nil, {| impures := MM.mmap_add p args (MM.empty _)
+                                       ; pures   := nil
+                                       ; other   := nil
+                                       |}).
+
       (** Definitions **)
       Axiom starred_def : forall (T : Type) (F : T -> SE.sexpr _ _ _) (ls : list T) (base : SE.sexpr _ _ _),
         SE.heq funcs preds U G cs 
@@ -813,6 +820,13 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
+    
+    Theorem hash_Func : forall p (args : exprs types),
+      hash (Func p args) = (nil, {| impures := MM.mmap_add p args (MM.empty _)
+                                  ; pures   := nil
+                                  ; other   := nil
+                                  |}).
+    Proof. reflexivity. Qed.
 
   End env.
 
@@ -837,6 +851,8 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
   Proof.
     unfold himp. intros. auto.
   Qed.
+
+  
 
 End Make.
 

@@ -42,8 +42,8 @@ Module Type SepExpr.
     Definition tpredicate : Type := list tvar.
     Definition tpredicates : Type := list tpredicate.
 
-    Definition Predicate_typeof : predicate -> tpredicate := SDomain.
-    Definition Predicates_typeof : predicates -> tpredicates := map Predicate_typeof.
+    Definition typeof_pred : predicate -> tpredicate := SDomain.
+    Definition typeof_preds : predicates -> tpredicates := map typeof_pred.
 
     Section types.
       Variable funcs : tfunctions.
@@ -423,6 +423,26 @@ Module SepExprFacts (SE : SepExpr).
     Variable preds : SE.predicates types pcT stT.
     Variable cs : codeSpec (tvarD types pcT) (tvarD types stT).
 
+    Theorem sexprD_weaken_wt : forall U U' G' s G,
+      SE.WellTyped_sexpr (typeof_funcs funcs) (SE.typeof_preds preds) (typeof_env U) (typeof_env G) s = true -> 
+      SE.ST.heq cs (SE.sexprD funcs preds U G s) 
+                   (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
+    Proof.
+      induction s; simpl; intros; think; try reflexivity.
+      { consider (exprD funcs U G e tvProp); intros.
+        erewrite exprD_weaken by eauto. reflexivity.
+        rewrite <- SE.ST.heq_star_emp_r.
+        eapply is_well_typed_correct in H; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+        rewrite H0 in H. exfalso; destruct H; congruence. }
+      { eapply SE.ST.heq_ex. intros. rewrite IHs; eauto. reflexivity. }
+      { unfold SE.typeof_preds in *. rewrite map_nth_error_full in H.
+        consider (nth_error preds f); intros; try reflexivity. inversion H1; subst.
+        clear H1 H. destruct p; simpl in *. generalize dependent SDomain.
+        induction l; destruct SDomain; intros; simpl in *; think; try (reflexivity || congruence).
+        eapply is_well_typed_correct in H; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+        destruct H. erewrite exprD_weaken; eauto. rewrite H. eauto. }
+    Qed.
+ 
     Theorem sexprD_weaken : forall s U G G' U',
       SE.ST.himp cs (SE.sexprD funcs preds U G s) 
                     (SE.sexprD funcs preds (U ++ U') (G ++ G') s).
@@ -514,8 +534,8 @@ Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.
     Definition tpredicate : Type := list tvar.
     Definition tpredicates : Type := list tpredicate.
 
-    Definition Predicate_typeof : predicate -> tpredicate := SDomain.
-    Definition Predicates_typeof : predicates -> tpredicates := map Predicate_typeof.
+    Definition typeof_pred : predicate -> tpredicate := SDomain.
+    Definition typeof_preds : predicates -> tpredicates := map typeof_pred.
 
     Section types.
       Variable funcs : tfunctions.
