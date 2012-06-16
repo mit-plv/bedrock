@@ -347,7 +347,8 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Definition applicable quant (firstUvar : nat) (lem : lemma) (args key : exprs types) 
         : option (U.Subst types) :=
         let numForalls := length (Foralls lem) in
-        match fold_left_2_opt (U.exprUnify unify_bound) args (map (openForUnification firstUvar) key) (U.Subst_empty _) with
+        (** NOTE: it is important that [key] is first because of the way the unification algorithm works **)
+        match fold_left_2_opt (U.exprUnify unify_bound) (map (openForUnification firstUvar) key) args (U.Subst_empty _) with
           | None => None
           | Some subst =>
             if EqNat.beq_nat (U.Subst_size subst) numForalls && checkAllInstantiated firstUvar (Foralls lem) subst
@@ -873,6 +874,77 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         rewrite ST_EXT.existsEach_cons. apply ST.heq_ex. intros. rewrite ST_EXT.existsEach_nil. rewrite IHvars.
         simpl. eapply ST_EXT.heq_existsEach. intros. rewrite app_ass. reflexivity.
       Qed.
+      Lemma exprInstantiate_noop : forall sub (e : expr types),
+        (forall u, mentionsU u e = true -> U.Subst_lookup u sub = None) ->
+        U.exprInstantiate sub e = e.
+      Proof.
+        clear; induction e; simpl in *; intros; 
+          repeat (rewrite U.exprInstantiate_Const || 
+            rewrite U.exprInstantiate_Equal || 
+              rewrite U.exprInstantiate_Func || 
+                rewrite U.exprInstantiate_Not ||
+                  rewrite U.exprInstantiate_Var ||
+                    rewrite U.exprInstantiate_UVar); think; try congruence; auto.
+        { rewrite H; auto. consider (beq_nat x x); auto. }
+        { f_equal. revert H0. induction H; simpl; intros; think; auto.
+          erewrite IHForall; try erewrite H; eauto; intros; eapply H1; think; auto using orb_true_r. }
+        { erewrite IHe1; try erewrite IHe2; eauto; intros; eapply H; think; auto using orb_true_r. }
+      Qed.
+      Lemma independent_well_typed : forall sub F cU,
+        beq_nat (U.Subst_size sub) (length F) = true ->
+        checkAllInstantiated cU F sub = true ->
+        forall u, u <= cU -> U.Subst_lookup u sub = None.
+      Proof.
+      Admitted.
+      Lemma is_well_typed_mentionsU : forall U G (e : expr types) t,
+        is_well_typed (typeof_funcs funcs) U G e t = true ->
+        forall u, mentionsU u e = true -> u < length U.
+      Proof.
+        clear. induction e; simpl; intros; try solve [ think; auto ].
+        think. apply nth_error_Some_length in H. auto.
+        admit.
+        { destruct t0. apply andb_true_iff in H. apply orb_true_iff in H0. destruct H. destruct H0; eauto. congruence. }
+        { destruct t; try congruence. eapply IHe; eauto. }
+      Qed.
+      Lemma applySHeap_spec : forall cs U G U' G' s F,
+        (forall e t, 
+          is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) e t = true ->
+          exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
+        SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
+        (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+      Proof.
+(*
+              clear. intros. do 2 rewrite SH.sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
+              { eapply MM.PROPS.map_induction with (m := impures s); intros.
+                repeat rewrite SH.impuresD_Empty by eauto using MF.map_Empty. reflexivity.
+                rewrite SH.impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
+                symmetry. unfold MM.mmap_map in *. rewrite SH.impuresD_Add. 2: eapply MF.map_Add; eauto. 
+                2: eapply MF.map_not_In; eauto.
+                simpl. symmetry. apply ST.heq_star_frame; eauto.
+                cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+                generalize (@SE.Emp types pcType stateType). revert H. clear.
+                induction e; simpl; intros. repeat rewrite starred_nil. auto.
+                repeat rewrite starred_cons. simpl. apply ST.heq_star_frame; eauto. 
+                destruct (nth_error preds x); try reflexivity.
+                rewrite applyD_map. erewrite applyD_impl. reflexivity. intros. simpl. eauto. }
+              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+                generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
+                repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
+                simpl. rewrite IHl; eauto. rewrite H. reflexivity. }
+              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+                generalize (@SE.Emp types pcType stateType). induction (other s); intros.
+                etransitivity. rewrite starred_nil. reflexivity. etransitivity; [ | rewrite starred_nil; reflexivity ].
+                auto.
+                
+                etransitivity; [ rewrite starred_cons; reflexivity | ].
+                etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
+*)
+      Admitted.
+      Lemma typeof_env_app : forall l r,
+        typeof_env (types := types) l ++ typeof_env r = typeof_env (l ++ r).
+      Proof.
+        clear; induction l; simpl; intros; think; auto.
+      Qed.
 
       Theorem applicableOk : forall quant (BuildUVars BuildVars : env types -> env types -> env types) U G,
         QuantifierSpec U G quant BuildUVars BuildVars ->
@@ -900,52 +972,18 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
                end.
         eapply fold_left_2_opt_unify in H4. 2: apply U.Subst_empty_WellTyped.
-        Focus 2. eapply all2_impl. eassumption. intros. eapply is_well_typed_weaken with (u := Foralls lem) (g := nil).
+        Focus 3. eapply all2_impl. eassumption. intros. eapply is_well_typed_weaken with (u := Foralls lem) (g := nil).
         eassumption.
         Focus 2. rewrite all2_map_1. eapply all2_impl. eassumption. intros. 
         rewrite <- typeof_env_length. eapply openForUnification_typed. eauto.
         intuition.
-        {
-          Check Subst_to_env.
-          Lemma exprInstantiate_noop : forall sub (e : expr types),
-            (forall u, mentionsU u e = true -> U.Subst_lookup u sub = None) ->
-            U.exprInstantiate sub e = e.
-          Proof.
-            clear; induction e; simpl in *; intros; 
-              repeat (rewrite U.exprInstantiate_Const || 
-                  rewrite U.exprInstantiate_Equal || 
-                  rewrite U.exprInstantiate_Func || 
-                  rewrite U.exprInstantiate_Not ||
-                  rewrite U.exprInstantiate_Var ||
-                  rewrite U.exprInstantiate_UVar); think; try congruence; auto.
-            { rewrite H; auto. consider (beq_nat x x); auto. }
-            { f_equal. revert H0. induction H; simpl; intros; think; auto.
-              erewrite IHForall; try erewrite H; eauto; intros; eapply H1; think; auto using orb_true_r. }
-            { erewrite IHe1; try erewrite IHe2; eauto; intros; eapply H; think; auto using orb_true_r. }
-          Qed.
-          erewrite map_ext. 
+        { erewrite map_ext. 
           2: intro; rewrite <- openForUnification_liftInstantiate; reflexivity.
-          Lemma independent_well_typed : forall sub F cU,
-            beq_nat (U.Subst_size sub) (length F) = true ->
-            checkAllInstantiated cU F sub = true ->
-            forall u, u <= cU -> U.Subst_lookup u sub = None.
-          Proof.
-          Admitted.
           think. generalize (independent_well_typed _ _ H5 H8). 
           revert H9. revert H2. clear. revert args'; revert TS.
           induction args; destruct args'; destruct TS; simpl in *; intros; think; try congruence.
-          inversion H9. erewrite <- IHargs; eauto. f_equal. symmetry. eapply exprInstantiate_noop; eauto.
+          inversion H9. erewrite <- IHargs; eauto. f_equal. rewrite H3. symmetry. eapply exprInstantiate_noop; eauto.
           intros. eapply H.
-          Lemma is_well_typed_mentionsU : forall U G (e : expr types) t,
-            is_well_typed (typeof_funcs funcs) U G e t = true ->
-            forall u, mentionsU u e = true -> u < length U.
-          Proof.
-            clear. induction e; simpl; intros; try solve [ think; auto ].
-            think. apply nth_error_Some_length in H. auto.
-            admit.
-            { destruct t0. apply andb_true_iff in H. apply orb_true_iff in H0. destruct H. destruct H0; eauto. congruence. }
-            { destruct t; try congruence. eapply IHe; eauto. }
-          Qed.
           eapply is_well_typed_mentionsU in H2. 2: eauto. rewrite typeof_env_length in H2. omega. }
         { consider (hash (Lhs lem)); consider (hash (Rhs lem)); intros; think.
           generalize (@checkAllInstantiated_Subst_to_env_success _ _ _ _ _
@@ -965,48 +1003,9 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             rewrite himp_existsEach_ST_EXT_existsEach in H0.
             etransitivity. etransitivity; [ | eapply H0 ].
             eapply ST.heq_defn. eapply ST_EXT.heq_existsEach; intros.
-            SearchAbout liftInstantiate.
-            Lemma applySHeap_spec : forall cs U G U' G' s F,
-              (forall e t, 
-                is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) e t = true ->
-                exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
-              SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
-                           (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
-            Proof.
-(*
-              clear. intros. do 2 rewrite SH.sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
-              { eapply MM.PROPS.map_induction with (m := impures s); intros.
-                repeat rewrite SH.impuresD_Empty by eauto using MF.map_Empty. reflexivity.
-                rewrite SH.impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
-                symmetry. unfold MM.mmap_map in *. rewrite SH.impuresD_Add. 2: eapply MF.map_Add; eauto. 
-                2: eapply MF.map_not_In; eauto.
-                simpl. symmetry. apply ST.heq_star_frame; eauto.
-                cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). revert H. clear.
-                induction e; simpl; intros. repeat rewrite starred_nil. auto.
-                repeat rewrite starred_cons. simpl. apply ST.heq_star_frame; eauto. 
-                destruct (nth_error preds x); try reflexivity.
-                rewrite applyD_map. erewrite applyD_impl. reflexivity. intros. simpl. eauto. }
-              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
-                repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
-                simpl. rewrite IHl; eauto. rewrite H. reflexivity. }
-              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). induction (other s); intros.
-                etransitivity. rewrite starred_nil. reflexivity. etransitivity; [ | rewrite starred_nil; reflexivity ].
-                auto.
-                
-                etransitivity; [ rewrite starred_cons; reflexivity | ].
-                etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
-*)
-            Admitted.
+
             rewrite applySHeap_spec. reflexivity. intros. rewrite <- rev_length with (l := G0).
             eapply liftInstantiate_spec; eauto.
-            Lemma typeof_env_app : forall l r,
-              typeof_env (types := types) l ++ typeof_env r = typeof_env (l ++ r).
-            Proof.
-              clear; induction l; simpl; intros; think; auto.
-            Qed.
             rewrite typeof_env_app. assumption.
             eapply ST.heq_defn. eapply ST_EXT.heq_existsEach; intros.
             rewrite <- applySHeap_spec. reflexivity. intros. rewrite <- rev_length with (l := G0).
@@ -1663,8 +1662,6 @@ Module Packaged (CE : TypedPackage.CoreEnv).
       |}.
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
-
-Print PACK.TypeEnv.
 
     Definition env0 : PACK.TypeEnv  :=
       {| PACK.Types := listToRepr 
