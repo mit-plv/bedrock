@@ -255,7 +255,8 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
     Variable typeD : type -> Type.
     
 
-    Fixpoint existsEach (sos : list Type) (ts : list type) (f : list (@sigT _ typeD) -> ST.hprop pcT stT sos) : ST.hprop pcT stT sos :=
+    Definition existsEach (sos : list Type) (ts : list type) (f : list (@sigT _ typeD) -> ST.hprop pcT stT sos) 
+      : ST.hprop pcT stT sos :=
       @ST.ex pcT stT sos (list (@sigT _ typeD)) (fun env => ST.star (ST.inj (PropX.Inj (map (@projT1 _ _) env = ts))) (f env)).
 
     Ltac thinker := 
@@ -276,7 +277,7 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
         ST.heq cs (existsEach x (fun e => existsEach x' (fun e' => F (e ++ e'))))
                   (existsEach x' (fun e' => existsEach x (fun e => F (e ++ e')))).
     Proof.
-      intros. eapply ST.heq_defn. split;
+      intros. eapply ST.heq_defn. split; unfold existsEach;
       revert F; revert x'; induction x; simpl; intros;
         repeat match goal with
                  | [ H : forall f, ST.himp _ _ _ |- _ ] => rewrite H
@@ -305,7 +306,7 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
       ST.heq cs (existsEach (x ++ x') F)
                 (existsEach x (fun e => existsEach x' (fun e' => F (e ++ e')))).
     Proof.
-      intros. eapply ST.heq_defn. split;
+      intros. eapply ST.heq_defn. split; unfold existsEach;
       revert F; revert x'; induction x; simpl; intros; thinker.
       Focus 2. destruct v; simpl in *; try congruence; reflexivity.
       Focus 2. apply ST.himp_ex_c ; eexists (v ++ v0); eapply ST.himp_star_pure_cc. rewrite map_app. rewrite H. rewrite H0. auto.
@@ -347,5 +348,34 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
       rewrite ST.heq_star_comm. reflexivity.
     Qed.
     
+
+    Lemma existsEach_cons : forall cs v vs P,
+      ST.heq cs (existsEach (v :: vs) P)
+                (ST.ex (fun x => existsEach vs (fun env => P (@existT _ _ v x :: env)))).
+    Proof.
+      intros. change (v :: vs) with ((v :: nil) ++ vs). rewrite existsEach_app.
+      eapply ST.heq_defn. simpl. split; unfold existsEach; thinker. eapply ST.himp_ex_c. 
+      destruct v0; simpl in *; try congruence.
+      inversion H; clear H; subst. exists (projT2 s). destruct v0; simpl in *; try congruence.
+      eapply ST.himp_ex_c. exists v1. eapply ST.himp_star_pure_cc; eauto. destruct s; simpl; reflexivity.
+
+      eapply ST.himp_ex_c. exists (existT typeD v v0 :: nil). simpl. eapply ST.himp_star_pure_cc; eauto. 
+      eapply ST.himp_ex_c. exists v1. eapply ST.himp_star_pure_cc; eauto. reflexivity.
+    Qed.
+
+    Lemma existsEach_rev : forall cs v F,
+      ST.heq cs (existsEach v F) (existsEach (rev v) (fun e => F (rev e))).
+    Proof.
+      intros; eapply ST.heq_defn; split; revert F; induction v; simpl; intros;
+        repeat (rewrite existsEach_nil || rewrite existsEach_cons || rewrite existsEach_app); unfold existsEach; thinker; auto.
+      { apply ST.himp_ex_c. exists (rev v1). apply ST.himp_star_pure_cc. subst. rewrite map_rev. reflexivity.
+        apply ST.himp_ex_c. exists (@existT _ _ a v0 :: nil). apply ST.himp_star_pure_cc. reflexivity.
+        rewrite rev_app_distr. rewrite rev_involutive. reflexivity. }
+      { eapply ST.himp_ex_c. destruct v1. simpl in *; congruence. simpl in *. destruct s; simpl in *.
+        inversion H0; clear H0; subst. exists t. rewrite rev_app_distr. simpl. rewrite app_ass. simpl.
+        apply ST.himp_ex_c. exists (rev v0). apply ST.himp_star_pure_cc. rewrite map_rev. rewrite H. apply rev_involutive.
+        destruct v1; try reflexivity. simpl in *; congruence. }
+    Qed.
+
   End param.
 End SepTheoryX_Ext.

@@ -11,7 +11,6 @@ Set Strict Implicit.
 
 (** TODO: factor out [exprInstantiate] **)
 
-
 Module Type SynUnifier.
   (** An environment that maintains a mapping from variables to their meaning **)
   Parameter Subst : list type -> Type.
@@ -42,6 +41,9 @@ Module Type SynUnifier.
 
     Parameter Subst_size : Subst types -> nat.
 
+    (** NOTE : debugging **)
+    Parameter Subst_print : Subst types -> list (uvar * expr types).
+
     (** The actual unification algorithm **)
     Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
     
@@ -66,8 +68,29 @@ Module Type SynUnifier.
       exprInstantiate sub e' = e'' ->
       mentionsU k e'' = false.
 
-    (** This is the soundness statement.
-     **)
+    (** Axiomatization of exprInstantiate **)
+    Axiom exprInstantiate_Func : forall a b c,
+      exprInstantiate a (Func b c) = Func b (map (exprInstantiate a) c).
+
+    Axiom exprInstantiate_Equal : forall a b c d,
+      exprInstantiate a (Equal b c d) = Equal b (exprInstantiate a c) (exprInstantiate a d).
+
+    Axiom exprInstantiate_Not : forall a b,
+      exprInstantiate a (Not b) = Not (exprInstantiate a b).
+
+    Axiom exprInstantiate_UVar : forall a x,
+      exprInstantiate a (UVar x) = match Subst_lookup x a with
+                                     | None => UVar x
+                                     | Some v => v
+                                   end.
+
+    Axiom exprInstantiate_Var : forall a x, 
+      exprInstantiate a (Var x) = Var x.
+
+    Axiom exprInstantiate_Const : forall a t v, 
+      exprInstantiate a (@Const types t v) = (@Const types t v).
+
+    (** This is the soundness statement. **)
     Axiom exprUnify_sound : forall n l r sub sub',
       exprUnify n l r sub = Some sub' ->
       exprInstantiate sub' l = exprInstantiate sub' r.
@@ -195,6 +218,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       subst_lookup k (projT1 s).
 
     Definition Subst_size (s : Subst) : nat := FM.cardinal (projT1 s).
+
+    Definition Subst_print (s : Subst) : list (uvar * expr types) :=
+      FM.fold (fun k v acc => (k,v) :: acc) (projT1 s) nil.
 
     Section Instantiate.
       Variable sub : FM.t (expr types).

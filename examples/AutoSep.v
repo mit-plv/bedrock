@@ -220,12 +220,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.Forward UNF.forward UNF.unfoldForward
          UNF.Backward UNF.backward UNF.unfoldBackward
          UNF.findWithRest UNF.find equiv_dec 
-         UNF.substExpr
+         (* UNF.substExpr *)
          UNF.findWithRest' 
-         Unfolder.allb UNF.substExpr UNF.substSheap
+         Unfolder.allb (* UNF.substExpr *) UNF.substSheap
          UNF.find UNF.default_hintsPayload
          UNF.substExprBw UNF.substExprBw' UNF.substSheapBw
          UNF.applicable UNF.checkAllInstantiated
+         UNF.exprReindexOver UNF.sexprReindexOver
 
          (** NatMap **)
          NatMap.singleton
@@ -514,12 +515,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
          UNF.backward UNF.unfoldBackward  equiv_dec 
-         UNF.substExpr
+         (* UNF.substExpr *)
          UNF.find UNF.findWithRest UNF.findWithRest' 
-         Unfolder.allb UNF.substExpr UNF.substSheap
+         Unfolder.allb (* UNF.substExpr *) UNF.substSheap
          UNF.find UNF.default_hintsPayload
          UNF.substExprBw UNF.substExprBw' UNF.substSheapBw
          UNF.applicable UNF.checkAllInstantiated
+         UNF.exprReindexOver UNF.sexprReindexOver
 
          (** NatMap **)
          NatMap.singleton

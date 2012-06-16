@@ -604,7 +604,7 @@ End unfolder_learnhook.
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr
+(*          UNF.substExpr *)
           Unfolder.FM.add
 
           SH.impures SH.pures SH.other
@@ -627,7 +627,7 @@ End unfolder_learnhook.
           UNF.Backward UNF.backward UNF.unfoldBackward
           UNF.findWithRest UNF.find 
           equiv_dec
-          UNF.substExpr
+(*          UNF.substExpr *)
           Unfolder.FM.add
 
           SH.impures SH.pures SH.other
@@ -1124,13 +1124,13 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs 
       UNF.Forward UNF.Backward 
       UNF.forward UNF.unfoldForward UNF.findWithRest UNF.find
-      equiv_dec UNF.substExpr Unfolder.FM.add 
+      equiv_dec (* UNF.substExpr *) Unfolder.FM.add 
       Unfolder.allb andb length map app exprSubstU
       unfolder_LearnHook
       UNF.default_hintsPayload UNF.findWithRest'
       UNF.findWithRest
 
-      SH.hash SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join map UNF.substExpr
+      SH.hash SH.star_SHeap SH.liftSHeap SepHeap.MM.mmap_join map (* UNF.substExpr *)
       rev_append
 
       Unfolder.FM.fold Unfolder.FM.add
