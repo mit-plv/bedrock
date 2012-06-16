@@ -373,6 +373,13 @@ Ltac get_instrs st :=
       | [ |- _ ] => tt
     end
   in get_instrs st tt.
+
+Ltac clear_instrs ins :=
+  match ins with
+    | tt => idtac
+    | ((_,?H), ?ins) => clear H; clear_instrs ins
+  end.
+
 Ltac collectAllTypes_instrs is Ts :=
   match is with
     | tt => Ts
@@ -926,7 +933,7 @@ Ltac sym_eval isConst ext simplifier :=
                           || fail 100000 "couldn't apply sym_eval_any! (non-SF case)") ;
                           first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
                           try clear typesV funcsV predsV ;
-                          first [ finish H_stateD | fail 100000 "finisher failed! (non-SF)" ]
+                          first [ finish H_stateD ; clear_instrs all_instrs | fail 100000 "finisher failed! (non-SF)" ]
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
@@ -971,7 +978,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*TIME                             start_timer "sym_eval:clear" ; *)
                             try clear typesV funcsV predsV ;
 (*TIME                             stop_timer "sym_eval:clear" ; *)
-                            first [ finish H_interp | fail 100000 "finisher failed! (SF)" ])
+                            first [ finish H_interp ; clear_instrs all_instrs | fail 100000 "finisher failed! (SF)" ])
                       end)))))
               end
           end
