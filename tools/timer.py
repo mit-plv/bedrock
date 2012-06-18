@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys
+import sys, os
 import shutil
 import re
 import os.path
@@ -21,6 +21,8 @@ def process_file(src, trg):
         for ext in ['v','v.d','vo','glob']:
             try:
                 shutil.copyfile('%s.%s' % (src,ext), '%s.%s' % (trg,ext))
+                stat = os.stat('%s.%s' % (src,ext))
+                os.utime('%s.%s' % (trg,ext), (stat.st_atime, stat.st_mtime))
             except:
                 pass
 
