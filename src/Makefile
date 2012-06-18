@@ -9,7 +9,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	XCAP Structured StructuredModule Linker Programming \
 	EqdepClass Decidables DepList Reflect \
 	Heaps SepTheoryX SepTheoryXIL \
-	NatMap Expr ExprUnify \
+	NatMap Expr ReifyExpr ExprUnify \
 	Prover Provers \
 	$(PROVERS:%=provers/%Prover) \
 	SepExpr SepHeap SepUnify SepCancel \

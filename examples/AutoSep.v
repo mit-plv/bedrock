@@ -181,9 +181,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.tvar_seqb
          Expr.tvar_val_seqb_correct
          Expr.tvar_seqb_correct
-         Expr.ReifyExpr.default_type
          Expr.mentionsU
-
+         ReifyExpr.default_type
+         
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor
          U.exprInstantiate U.subst_exprInstantiate
@@ -484,8 +484,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.tvar_seqb
          Expr.tvar_val_seqb_correct
          Expr.tvar_seqb_correct
-         Expr.ReifyExpr.default_type
          Expr.mentionsU
+         ReifyExpr.default_type
+
 
          (** ExprUnify **)
          U.exprUnify U.exprUnify_recursor

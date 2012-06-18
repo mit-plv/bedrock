@@ -1311,8 +1311,8 @@ Module Make (SH : SepHeap) (U : SynUnifier).
   Ltac collectTypes_hint' isConst P types k :=
     match P with
       | fun x => @?H x -> @?P x =>
-        let types := ReifyExpr.collectTypes_expr ltac:(isConst) H types in
-          collectTypes_hint' ltac:(isConst) P types k
+         ReifyExpr.collectTypes_expr ltac:(isConst) H types ltac:(fun types => 
+          collectTypes_hint' ltac:(isConst) P types k)
       | fun x => forall cs, @ST.himp ?pcT ?stT cs (@?L x) (@?R x) =>
         SEP_REIFY.collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
           SEP_REIFY.collectTypes_sexpr ltac:(isConst) R types k)
