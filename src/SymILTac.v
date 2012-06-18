@@ -6,7 +6,7 @@ Require Import Word Memory.
 Require Import DepList EqdepClass.
 Require Import PropX.
 Require Import SepExpr SymEval.
-Require Import Expr.
+Require Import Expr ReifyExpr.
 Require Import Prover.
 Require Import Env TypedPackage.
 Import List.
@@ -212,11 +212,11 @@ End stream_correctness.
 (** Reification **)
 
 (* Reify the instructions *)
-Ltac collectTypes_loc isConst l Ts :=
+Ltac collectTypes_loc isConst l Ts k :=
   match l with
-    | Reg _ => Ts
-    | Imm ?i => ReifyExpr.collectTypes_expr isConst i Ts
-    | Indir _ ?i => ReifyExpr.collectTypes_expr isConst i Ts
+    | Reg _ => k Ts
+    | Imm ?i => ReifyExpr.collectTypes_expr isConst i Ts k
+    | Indir _ ?i => ReifyExpr.collectTypes_expr isConst i Ts k
   end.
 Ltac reify_loc isConst l types funcs uvars vars k :=
   match l with
@@ -231,11 +231,12 @@ Ltac reify_loc isConst l types funcs uvars vars k :=
         let l := constr:(@SymIndir types r i) in k uvars funcs l)
   end.
 
-Ltac collectTypes_lvalue isConst l Ts :=
+Ltac collectTypes_lvalue isConst l Ts k :=
   match l with
-    | LvReg _ => Ts
-    | LvMem ?l => collectTypes_loc isConst l Ts
+    | LvReg _ => k Ts
+    | LvMem ?l => collectTypes_loc isConst l Ts k
   end.
+
 Ltac reify_lvalue isConst l types funcs uvars vars k :=
   match l with
     | LvReg ?r => let l := constr:(@SymLvReg types r) in k uvars funcs l 
@@ -244,11 +245,11 @@ Ltac reify_lvalue isConst l types funcs uvars vars k :=
         let l := constr:(@SymLvMem types l) in k uvars funcs l)
   end.
 
-Ltac collectTypes_rvalue isConst r Ts :=
+Ltac collectTypes_rvalue isConst r Ts k :=
   match r with
-    | RvLval ?l => collectTypes_lvalue isConst l Ts
-    | RvImm ?i => ReifyExpr.collectTypes_expr isConst i Ts
-    | RvLabel _ => let l := constr:(label:Type) in Reflect.cons_uniq l Ts
+    | RvLval ?l => collectTypes_lvalue isConst l Ts k
+    | RvImm ?i => ReifyExpr.collectTypes_expr isConst i Ts k
+    | RvLabel _ => let l := constr:(label:Type) in k ltac:(Reflect.cons_uniq l Ts)
   end.
 
 Ltac reify_rvalue isConst r types funcs uvars vars k :=
@@ -263,15 +264,15 @@ Ltac reify_rvalue isConst r types funcs uvars vars k :=
       let r := constr:(@SymRvLabel types l) in k uvars funcs r
   end.
 
-Ltac collectTypes_instr isConst i Ts :=
+Ltac collectTypes_instr isConst i Ts k :=
   match i with
     | Assign ?l ?r =>
-      let Ts := collectTypes_lvalue isConst l Ts in
-        collectTypes_rvalue isConst r Ts
+      collectTypes_lvalue isConst l Ts ltac:(fun Ts => 
+        collectTypes_rvalue isConst r Ts k)
     | Binop ?l ?r1 _ ?r2 =>
-      let Ts := collectTypes_lvalue isConst l Ts in
-        let Ts := collectTypes_rvalue isConst r1 Ts in
-          collectTypes_rvalue isConst r2 Ts
+      collectTypes_lvalue isConst l Ts ltac:(fun Ts => 
+        collectTypes_rvalue isConst r1 Ts ltac:(fun Ts =>
+          collectTypes_rvalue isConst r2 Ts k ))
   end.
 Ltac reify_instr isConst i types funcs uvars vars k :=
   match i with
@@ -286,12 +287,12 @@ Ltac reify_instr isConst i types funcs uvars vars k :=
             let res := constr:(@SymBinop types l r1 o r2) in k uvars funcs res)))
   end.
 
-Ltac collectTypes_instrs isConst is Ts :=
+Ltac collectTypes_instrs isConst is Ts k :=
   match is with
-    | nil => Ts
+    | nil => k Ts
     | ?i :: ?is => 
-      let Ts := collectTypes_instr isConst i Ts in
-        collectTypes_instrs isConst is Ts
+      collectTypes_instr isConst i Ts ltac:(fun Ts =>
+        collectTypes_instrs isConst is Ts k)
   end.
 Ltac reify_instrs isConst is types funcs uvars vars k :=
   match is with
@@ -380,16 +381,17 @@ Ltac clear_instrs ins :=
     | ((_,?H), ?ins) => clear H; clear_instrs ins
   end.
 
-Ltac collectAllTypes_instrs is Ts :=
+Ltac collectAllTypes_instrs is Ts k :=
+
   match is with
-    | tt => Ts
+    | tt => k Ts
     | (((?l,?r), _), ?is) =>
-      let Ts := collectTypes_rvalue ltac:(isConst) l Ts in
-        let Ts := collectTypes_rvalue ltac:(isConst) r Ts in
-          collectAllTypes_instrs is Ts
+       collectTypes_rvalue ltac:(isConst) l Ts ltac:(fun Ts =>
+         collectTypes_rvalue ltac:(isConst) r Ts ltac:(fun Ts =>
+          collectAllTypes_instrs is Ts k))
     | ((?i, _), ?is) =>
-      let Ts := collectTypes_instrs ltac:(isConst) i Ts in
-        collectAllTypes_instrs is Ts
+      collectTypes_instrs ltac:(isConst) i Ts ltac:(fun Ts =>
+        collectAllTypes_instrs is Ts k)
   end.
 
 Ltac build_path types instrs st uvars vars funcs k :=
@@ -437,7 +439,7 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
     | [ |- _ ] => 
       let i := get_instrs st in
       let Ts := constr:(@nil Type) in
-      let Ts := collectAllTypes_instrs i Ts in
+      collectAllTypes_instrs i Ts ltac:(fun Ts =>
       let types_ := eval unfold bedrock_types in bedrock_types in
       let types_ := ReifyExpr.extend_all_types Ts types_ in
       let typesV := fresh "types" in
@@ -445,7 +447,7 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
       let v := constr:(nil : env typesV) in
       let f := eval unfold ILEnv.bedrock_funcs in (ILEnv.bedrock_funcs typesV) in
       build_path typesV i st v v f ltac:(fun uvars funcs is sf pf =>
-        assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf))
+        assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf)))
   end.
   solve [ trivial ].
 Abort.
@@ -851,16 +853,17 @@ Ltac sym_eval isConst ext simplifier :=
                   (** collect the raw types **)
 (*TIME                  start_timer "sym_eval:reify" ; *)
                   let Ts := constr:(@nil Type) in
-                  let Ts := 
+                  let Ts k := 
                     match SF with
-                      | tt => Ts
+                      | tt => k Ts
                       | (?SF,_) => (** TODO: a little sketchy since it is in CPS **)
-                        SEP_REIFY.collectTypes_sexpr ltac:(isConst) SF Ts ltac:(fun Ts => Ts)
+                        SEP_REIFY.collectTypes_sexpr ltac:(isConst) SF Ts k 
                     end
                   in
-                  let Ts := collectAllTypes_instrs all_instrs Ts in
-                  let Ts := Expr.ReifyExpr.collectTypes_exprs ltac:(isConst) regs Ts in
-                  let Ts := Expr.ReifyExpr.collectTypes_exprs ltac:(isConst) pures Ts in
+                    Ts ltac:(fun Ts => 
+                  collectAllTypes_instrs all_instrs Ts ltac:(fun Ts => 
+                  ReifyExpr.collectTypes_exprs ltac:(isConst) regs Ts ltac:(fun Ts => 
+                  ReifyExpr.collectTypes_exprs ltac:(isConst) pures Ts ltac:(fun Ts => 
                   (** check for potential universe problems **)
                   match Ts with
                     | context [ PropX.PropX ] => 
@@ -888,11 +891,13 @@ Ltac sym_eval isConst ext simplifier :=
 (*                  let preds := constr:(@nil (@SEP.ssignature typesV pcT stT)) in *)
                   let preds := reduce_repr tt (PACK.applyPreds (Env ext) typesV nil) in
                   (** reflect the expressions **)
-                  Expr.ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
+                  ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
                   let proofs := ReifyExpr.props_proof all_props in
-                  Expr.ReifyExpr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v =>
-                  Expr.ReifyExpr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>
-                  Expr.ReifyExpr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v =>
+                  
+                  ReifyExpr.reify_expr ltac:(isConst) rp_v typesV funcs uvars vars ltac:(fun uvars funcs rp_v  => 
+                  ReifyExpr.reify_expr ltac:(isConst) sp_v typesV funcs uvars vars ltac:(fun uvars funcs sp_v =>  
+
+                  ReifyExpr.reify_expr ltac:(isConst) rv_v typesV funcs uvars vars ltac:(fun uvars funcs rv_v => 
                     let finish H  :=
 (*TIME                      start_timer "sym_eval:cleanup" ; *)
                       ((try exact H) ||
@@ -913,7 +918,7 @@ Ltac sym_eval isConst ext simplifier :=
                             assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
 (*TIME                    ;  stop_timer "sym_eval:cleanup" *)
                     in
-                    build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf =>
+                    build_path typesV all_instrs st uvars vars funcs ltac:(fun uvars funcs is fin_state is_pf => 
                       match SF with
                         | tt => 
 (*TIME                          stop_timer "sym_eval:reify" ; *)
@@ -979,7 +984,7 @@ Ltac sym_eval isConst ext simplifier :=
                             try clear typesV funcsV predsV ;
 (*TIME                             stop_timer "sym_eval:clear" ; *)
                             first [ finish H_interp ; clear_instrs all_instrs | fail 100000 "finisher failed! (SF)" ])
-                      end)))))
+                      end)))))  ))))
               end
           end
       end
@@ -1001,7 +1006,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       ILEnv.bedrock_type_setting
       ILEnv.bedrock_type_test
       ILEnv.bedrock_type_reg
-      Expr.ReifyExpr.default_type
+      ReifyExpr.default_type
 
       SH.liftSHeap
       app map nth_error value error fold_right hd hd_error tl tail rev
