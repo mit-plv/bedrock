@@ -364,12 +364,14 @@ Lemma malloc_split : forall cur full init,
 Qed.
 
 Definition hints' : TacPackage.
+(*TIME idtac "malloc:prepare1". Time *)
   prepare1 (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
-Defined.
+(*TIME Time *)Defined.
 
 Definition hints : TacPackage.
+(*TIME idtac "malloc:prepare2". Time *)
   prepare2 hints'.
-Defined.
+(*TIME Time *)Defined.
 
 Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) /\ freeable 4 (n+2) |]
   /\ ![ ^[0 =?> (3 + n)] * #0 ] st
@@ -473,7 +475,8 @@ Section mallocOk.
 
   Theorem mallocMOk : moduleOk mallocM.
 (*TIME Clear Timing Profile. *)
-    vcgen; abstract solve [ generalize four_neq_zero; sep hints; auto;
+(*TIME idtac "malloc:verify". Time *)
+   vcgen; abstract solve [ generalize four_neq_zero; sep hints; auto;
       try match goal with
             | [ H : _ = _ |- _ ] => apply natToW_inj in H; [ congruence | | ]
           end; eauto
@@ -486,5 +489,5 @@ Section mallocOk.
             generalize (goodSize_freeable H')
         end; sep hints ].
 (*TIME Print Timing Profile. *)
-  Qed.
+(*TIME Time *)Qed.
 End mallocOk.
