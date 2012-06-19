@@ -375,19 +375,33 @@ Ltac glue_pack left_pack right_pack ret :=
        |}
     in
     let algos ts := 
-      @AllAlgos_composite (Env.repr ntypesV ts)
-                          (Algos l (Env.repr ntypesV ts))
-                          (Algos r (Env.repr ntypesV ts))
+      @AllAlgos_composite
+        (ILAlgoTypes.PACK.applyTypes env (Env.repr ntypesV ts))
+        (Algos l (Env.repr ntypesV ts))
+        (Algos r (Env.repr ntypesV ts))
     in
     {| Env   := env 
      ; Algos := algos 
      ; Algos_correct := fun ts fs ps =>
+       let types := @ILAlgoTypes.PACK.applyTypes env ts in
+       let funcs := @ILAlgoTypes.PACK.applyFuncs env types fs in
+       let preds := @ILAlgoTypes.PACK.applyPreds env types ps in
+       @ILAlgoTypes.AllAlgos_correct_composite 
+       types
+       (ILAlgoTypes.Algos l types)
+       (ILAlgoTypes.Algos r types)
+       funcs
+       preds
+       (@ILAlgoTypes.Algos_correct l types funcs preds)
+       (@ILAlgoTypes.Algos_correct r types funcs preds)
+(*
        AllAlgos_correct_composite (@Algos_correct l (Env.repr ntypesV ts)
                                                     (Env.repr (nfuncsV ts) fs)
                                                     (Env.repr (npredsV ts) ps))
                                   (@Algos_correct r (Env.repr ntypesV ts)
                                                     (Env.repr (nfuncsV ts) fs)
                                                     (Env.repr (npredsV ts) ps))
+*)
     |})
   in ret res.
 
