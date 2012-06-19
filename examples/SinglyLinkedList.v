@@ -65,24 +65,14 @@ Import SinglyLinkedList.
 Hint Immediate sll_extensional.
 
 Definition hints' : TacPackage.
-<<<<<<< local
 (*TIME idtac "sll:prepare1". Time *)
   prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
-=======
-  (*TIME idtac "prepare1". Time *)prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
-Defined.
->>>>>>> other
 
 Definition hints : TacPackage.
-<<<<<<< local
 (*TIME idtac "sll:prepare2". Time *)
   prepare2 hints'.
 (*TIME Time *)Defined.
-=======
-  (*TIME idtac "prepare2". Time *)prepare2 hints'.
-Defined.
->>>>>>> other
 
 Definition null A (ls : list A) : bool :=
   match ls with
@@ -172,10 +162,6 @@ Ltac finish := repeat match goal with
 
 Theorem sllMOk : moduleOk sllM.
 (*TIME Clear Timing Profile. *)
-<<<<<<< local
 (*TIME idtac "sll:verify". Time *) vcgen; abstract (sep hints; finish).
-=======
-  (*TIME idtac "verify". Time *)vcgen; abstract (sep hints; finish).
->>>>>>> other
 (*TIME Print Timing Profile. *)
 (*TIME Time *)Qed.

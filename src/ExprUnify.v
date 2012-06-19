@@ -68,6 +68,15 @@ Module Type SynUnifier.
       exprInstantiate sub e' = e'' ->
       mentionsU k e'' = false.
 
+    (** The meaning of size **)
+(*
+    Axiom Subst_size_cardinal : forall sub n,
+      Subst_size sub = n ->
+      exists ls, NoDup ls /\ length ls = n /\
+        (forall u, In u ls <-> ~(Subst_lookup u sub = None)). 
+*)
+    
+
     (** Axiomatization of exprInstantiate **)
     Axiom exprInstantiate_Func : forall a b c,
       exprInstantiate a (Func b c) = Func b (map (exprInstantiate a) c).

@@ -11,6 +11,7 @@ Require Import Prover.
 Require Import Env TypedPackage.
 Import List.
 Require Folds.
+Require Import TacPackIL.
 
 Require Structured SymEval.
 Require Import ILEnv.
@@ -208,6 +209,102 @@ Section stream_correctness.
   Admitted.
 
 End stream_correctness.
+
+  Section unfolder_learnhook.
+    Variable types : list type.
+    Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
+
+    Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
+      (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
+      fun prover st facts => 
+        match SymMem st with
+          | Some m =>
+            match UNF.forward hints prover 10 facts
+              {| UNF.Vars := SymVars st 
+               ; UNF.UVars := SymUVars st
+               ; UNF.Heap := m
+              |}
+              with
+              | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
+                {| SymVars := vs
+                 ; SymUVars := us
+                 ; SymMem := Some m
+                 ; SymRegs := SymRegs st
+                 ; SymPures := SymPures st ++ SH.pures m
+                |}
+            end
+          | None => st
+        end.
+
+    Variable funcs : functions (repr bedrock_types_r types).
+    Variable preds : SEP.predicates (repr bedrock_types_r types) (tvType 0) (tvType 1).
+    Hypothesis hints_correct : UNF.hintsSoundness funcs preds hints.
+
+    Theorem unfolderLearnHook_correct 
+      : @MEVAL.LearnHook_correct (repr bedrock_types_r types) _ BedrockCoreEnv.pc BedrockCoreEnv.st (@unfolder_LearnHook) 
+      (@stateD _ funcs preds) funcs preds.
+    Proof.
+      unfold unfolder_LearnHook. econstructor.
+
+      destruct ss; simpl.
+      destruct SymMem; simpl; intros; subst; eauto.
+      generalize hints_correct.
+      admit.
+    Qed.
+    Transparent UNF.forward.
+  End unfolder_learnhook.
+
+(*
+  Ltac unfolder_simplifier s1 s2 s3 H := 
+    match H with
+      | tt => 
+        cbv delta [ s1 s2 s3
+          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
+          UNF.Forward UNF.forward UNF.unfoldForward
+          UNF.Backward UNF.backward UNF.unfoldBackward
+          UNF.findWithRest UNF.find 
+          equiv_dec
+(*          UNF.substExpr *)
+          Unfolder.FM.add
+
+          SH.impures SH.pures SH.other
+          
+          Unfolder.allb andb
+
+          length map app
+          exprSubstU
+          
+          Folds.fold_left_2_opt U.Subst_empty
+
+          unfolder_LearnHook
+          UNF.default_hintsPayload
+          UNF.findWithRest'
+        ]
+      | _ => 
+        cbv delta [ s1 s2 s3
+          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
+          UNF.Forward UNF.forward UNF.unfoldForward
+          UNF.Backward UNF.backward UNF.unfoldBackward
+          UNF.findWithRest UNF.find 
+          equiv_dec
+(*          UNF.substExpr *)
+          Unfolder.FM.add
+
+          SH.impures SH.pures SH.other
+          
+          Unfolder.allb andb
+
+          length map app
+          exprSubstU
+
+          Folds.fold_left_2_opt U.Subst_empty
+
+          unfolder_LearnHook
+          UNF.default_hintsPayload
+          UNF.findWithRest'
+        ] in H
+    end.
+*)
 
 (** Reification **)
 
@@ -450,207 +547,12 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
   solve [ trivial ].
 Abort.
 
-Require Unfolder.
-Require Provers.
-Module U := ExprUnify.UNIFIER.
-Module UNF := Unfolder.Make SH U.  
-Module PACKAGED := UNF.Packaged BedrockCoreEnv.
-Module PACK := PACKAGED.PACK.
 
-Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
 
-  Record AllAlgos (ts : list type) : Type :=
-  { Prover : option (ProverT (repr BedrockCoreEnv.core ts))
-  ; Hints : option (UNF.hintsPayload (repr BedrockCoreEnv.core ts) BedrockCoreEnv.pc BedrockCoreEnv.st)
-  ; MemEval : option (MEVAL.MemEvaluator (repr BedrockCoreEnv.core ts) BedrockCoreEnv.pc BedrockCoreEnv.st)
-  }.
+Module Tactics.
 
-Section oplus.
-  Variable T : Type.
-  Variable F : T -> T -> T.
+  
 
-  Definition oplus (l r : option T) : option T :=
-    match l , r with 
-      | None , _ => r
-      | _ , None => l
-      | Some l , Some r => Some (F l r)
-    end.
-End oplus.
-
-Definition AllAlgos_composite types (l r : AllAlgos types) : AllAlgos types :=
-  match l , r with
-    | {| Prover  := pl ; Hints := hl ; MemEval := ml |} , {| Prover := pr ; Hints := hr ; MemEval := mr |} =>
-      {| Prover  := oplus (@composite_ProverT _) pl pr 
-       ; Hints   := oplus (fun l r => {| UNF.Forward := UNF.Forward l ++ UNF.Forward r
-                                       ; UNF.Backward := UNF.Backward l ++ UNF.Backward r |}) hl hr
-       ; MemEval := oplus (@MEVAL.Composite.MemEvaluator_composite _ BedrockCoreEnv.pc BedrockCoreEnv.st) ml mr
-       |}
-  end.
-
-(*
-Fixpoint AllAlgos_composite_list types pc st (ls : list (AllAlgos types)) : AllAlgos types pc st :=
-  match ls with
-    | nil => {| Prover := None ; Hints := None ; MemEval := None |}
-    | l :: nil => l
-    | l :: ls =>
-      let r := AllAlgos_composite_list ls in
-      AllAlgos_composite l r
-  end.
-*)
-
-Record AllAlgos_correct
-  (types : list type)
-  (funcs : functions (repr BedrockCoreEnv.core types))
-  (preds : SEP.predicates (repr BedrockCoreEnv.core types) BedrockCoreEnv.pc BedrockCoreEnv.st)
-  (algos : AllAlgos types) : Type :=
-{ Acorrect_Prover :
-  match Prover algos with
-    | None => True
-    | Some P => ProverT_correct P funcs
-  end
-; Acorrect_Hints : 
-  match Hints algos with
-    | None => True
-    | Some H => UNF.hintsSoundness funcs preds H
-  end
-; Acorrect_MemEval :
-  match MemEval algos with
-    | None => True
-    | Some M => 
-      @MEVAL.MemEvaluator_correct _ BedrockCoreEnv.pc BedrockCoreEnv.st M funcs preds
-      (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) (tvType 0) (tvType 0) 
-      (@IL_mem_satisfies types) (@IL_ReadWord types) (@IL_WriteWord types)
-  end
-}.
-
-Theorem AllAlgos_correct_composite types (l r : AllAlgos types) funcs preds 
-  (CL : @AllAlgos_correct types funcs preds l)
-  (CR : @AllAlgos_correct types funcs preds r) :
-  @AllAlgos_correct types funcs preds (AllAlgos_composite l r).
-Proof.
-  destruct l; destruct r; destruct CL; destruct CR; simpl in *; constructor; simpl.
-  destruct Prover0; destruct Prover1; simpl; auto. apply composite_ProverT_correct; auto.
-  destruct Hints0; destruct Hints1; simpl; auto; destruct Acorrect_Hints0; destruct Acorrect_Hints1; constructor; simpl;
-    eapply Folds.Forall_app; auto.
-  destruct MemEval0; destruct MemEval1; simpl; auto. apply MEVAL.Composite.MemEvaluator_correct_composite; auto.
-Qed.
-
-(*
-Theorem AllAlgos_correct_composite_list types pc st (ls : list (AllAlgos types pc st)) funcs preds sat read write 
-  (C : @hlist (AllAlgos types pc st) (fun A => @AllAlgos_correct types pc st A funcs preds sat read write) ls) :
-  @AllAlgos_correct types pc st (AllAlgos_composite_list ls) funcs preds sat read write.
-Proof.
-  induction ls.
-  constructor; simpl; auto.
-
-  remember (a :: ls) as FOO. destruct C; inversion HeqFOO; subst.
-  simpl. destruct ls; auto.
-  apply AllAlgos_correct_composite; auto.
-Qed.
-*)
-
-Record TypedPackage : Type :=
-{ Env   : PACK.TypeEnv
-; Algos : forall ts, AllAlgos (PACK.applyTypes Env ts)
-; Algos_correct : forall ts fs ps,
-  @AllAlgos_correct (PACK.applyTypes Env ts) (PACK.applyFuncs Env _ fs) (PACK.applyPreds Env _ ps) (Algos ts)
-}.
-
-Definition EnvOf : TypedPackage -> PACK.TypeEnv := Env.
-
-Section unfolder_learnhook.
-  Variable types : list type.
-  Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
-
-  Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
-    (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
-    fun prover st facts => 
-      match SymMem st with
-        | Some m =>
-          match UNF.forward hints prover 10 facts
-            {| UNF.Vars := SymVars st 
-             ; UNF.UVars := SymUVars st
-             ; UNF.Heap := m
-            |}
-            with
-            | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
-              {| SymVars := vs
-               ; SymUVars := us
-               ; SymMem := Some m
-               ; SymRegs := SymRegs st
-               ; SymPures := SymPures st ++ SH.pures m
-               |}
-          end
-        | None => st
-      end.
-
-  Variable funcs : functions (repr bedrock_types_r types).
-  Variable preds : SEP.predicates (repr bedrock_types_r types) (tvType 0) (tvType 1).
-  Hypothesis hints_correct : UNF.hintsSoundness funcs preds hints.
-
-  Theorem unfolderLearnHook_correct 
-    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) _ BedrockCoreEnv.pc BedrockCoreEnv.st (@unfolder_LearnHook) 
-    (@stateD _ funcs preds) funcs preds.
-  Proof.
-    unfold unfolder_LearnHook. econstructor.
-
-    destruct ss; simpl.
-    destruct SymMem; simpl; intros; subst; eauto.
-    generalize hints_correct.
-    admit.
-  Qed.
-  Transparent UNF.forward.
-End unfolder_learnhook.
-
-  Ltac unfolder_simplifier s1 s2 s3 H := 
-    match H with
-      | tt => 
-        cbv delta [ s1 s2 s3
-          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
-          UNF.Forward UNF.forward UNF.unfoldForward
-          UNF.Backward UNF.backward UNF.unfoldBackward
-          UNF.findWithRest UNF.find 
-          equiv_dec
-(*          UNF.substExpr *)
-          Unfolder.FM.add
-
-          SH.impures SH.pures SH.other
-          
-          Unfolder.allb andb
-
-          length map app
-          exprSubstU
-          
-          Folds.fold_left_2_opt U.Subst_empty
-
-          unfolder_LearnHook
-          UNF.default_hintsPayload
-          UNF.findWithRest'
-        ]
-      | _ => 
-        cbv delta [ s1 s2 s3
-          UNF.Foralls UNF.Vars UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
-          UNF.Forward UNF.forward UNF.unfoldForward
-          UNF.Backward UNF.backward UNF.unfoldBackward
-          UNF.findWithRest UNF.find 
-          equiv_dec
-(*          UNF.substExpr *)
-          Unfolder.FM.add
-
-          SH.impures SH.pures SH.other
-          
-          Unfolder.allb andb
-
-          length map app
-          exprSubstU
-
-          Folds.fold_left_2_opt U.Subst_empty
-
-          unfolder_LearnHook
-          UNF.default_hintsPayload
-          UNF.findWithRest'
-        ] in H
-    end.
 
 Section apply_stream_correctness.
   Variable types' : list type.
@@ -667,8 +569,8 @@ Section apply_stream_correctness.
   Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
   Variable preds : SEP.predicates TYPES pcT stT.
 
-  Variable algos : AllAlgos TYPES.
-  Variable algos_correct : @AllAlgos_correct TYPES funcs preds algos.
+  Variable algos : ILAlgoTypes.AllAlgos TYPES.
+  Variable algos_correct : @ILAlgoTypes.AllAlgos_correct TYPES funcs preds algos.
 
   (** Unfolding may have introduced some new variables, which we quantify existentially. *)
   Fixpoint quantifyNewVars (vs : variables) (en : env TYPES) (k : env TYPES -> Prop) : Prop :=
@@ -678,15 +580,15 @@ Section apply_stream_correctness.
     end.
 
   Theorem Apply_sym_eval : forall stn uvars vars sound_or_safe st path,
-    let prover := match Prover algos with
+    let prover := match ILAlgoTypes.Prover algos with
                     | None => provers.ReflexivityProver.reflexivityProver
                     | Some p => p
                   end in
-    let meval := match MemEval algos with
+    let meval := match ILAlgoTypes.MemEval algos with
                    | None => MEVAL.Default.MemEvaluator_default _ _ _ 
                    | Some me => me
                  end in
-    let unfolder := match Hints algos with
+    let unfolder := match ILAlgoTypes.Hints algos with
                       | None => @MEVAL.LearnHookDefault.LearnHook_default _ _
                       | Some h => unfolder_LearnHook h 
                     end in
@@ -805,22 +707,24 @@ Ltac sym_eval isConst ext simplifier :=
       | tt =>
         eval cbv beta iota zeta delta [ 
           ext
-          Env.repr_combine Env.listToRepr Env.listOptToRepr nil_Repr
-          PACK.Types PACK.Funcs PACK.Preds Env
+          repr_combine listToRepr listOptToRepr nil_Repr
+          PACK.Types PACK.Funcs PACK.Preds
           PACK.applyTypes PACK.applyFuncs PACK.applyPreds
           tl map repr
           PACK.CE.core
           bedrock_types_r bedrock_funcs_r
+          TacPackIL.ILAlgoTypes.Env
         ] in ls
       | _ => 
         eval cbv beta iota zeta delta [
           sym ext
-          Env.repr_combine Env.listToRepr Env.listOptToRepr nil_Repr
-          PACK.Types PACK.Funcs PACK.Preds Env
+          repr_combine listToRepr listOptToRepr nil_Repr
+          PACK.Types PACK.Funcs PACK.Preds
           PACK.applyTypes PACK.applyFuncs PACK.applyPreds
           map tl repr
           PACK.CE.core
           bedrock_types_r bedrock_funcs_r
+          TacPackIL.ILAlgoTypes.Env
         ] in ls
     end
   in
@@ -872,7 +776,7 @@ Ltac sym_eval isConst ext simplifier :=
                     | _ => idtac
                   end;
                   (** elaborate the types **)
-                  let types_ := reduce_repr tt (PACK.applyTypes (Env ext) nil) in
+                  let types_ := reduce_repr tt (PACK.applyTypes (TacPackIL.ILAlgoTypes.Env ext) nil) in
                   let types_ := ReifyExpr.extend_all_types Ts types_ in
                   let typesV := fresh "types" in
                   pose (typesV := types_);
@@ -883,10 +787,10 @@ Ltac sym_eval isConst ext simplifier :=
                   let uvars := constr:(@nil (@sigT Expr.tvar (fun t : Expr.tvar => Expr.tvarD typesV t))) in
                   let vars := uvars in
                   (** build the base functions **)
-                  let funcs := reduce_repr tt (PACK.applyFuncs (Env ext) typesV (repr (bedrock_funcs_r typesV) nil)) in
+                  let funcs := reduce_repr tt (PACK.applyFuncs (TacPackIL.ILAlgoTypes.Env ext) typesV (repr (bedrock_funcs_r typesV) nil)) in
                    (** build the base sfunctions **)
 (*                  let preds := constr:(@nil (@SEP.ssignature typesV pcT stT)) in *)
-                  let preds := reduce_repr tt (PACK.applyPreds (Env ext) typesV nil) in
+                  let preds := reduce_repr tt (PACK.applyPreds (TacPackIL.ILAlgoTypes.Env ext) typesV nil) in
                   (** reflect the expressions **)
                   Expr.ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
                   let proofs := ReifyExpr.props_proof all_props in
@@ -928,7 +832,7 @@ Ltac sym_eval isConst ext simplifier :=
                           let H_stateD := fresh in
                           intro H_stateD ;
                           ((apply (@Apply_sym_eval typesV funcsV predsV
-                            (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
+                            (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                             stn uvars vars fin_state st is is_pf) in H_stateD)
                           || fail 100000 "couldn't apply sym_eval_any! (non-SF case)") ;
                           first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
@@ -952,23 +856,23 @@ Ltac sym_eval isConst ext simplifier :=
 (*TIME                            stop_timer "sym_eval:apply_stateD_proof" ; *)
 (*TIME                            start_timer "sym_eval:apply_sym_eval" ; *)
                             ((apply (@Apply_sym_eval typesV funcsV predsV
-                              (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
+                              (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                               stn uvars vars fin_state st is is_pf) in H_interp) ||
                              (idtac "couldn't apply sym_eval_any! (SF case)"; 
                                first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
-                                   (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
+                                   (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                                    stn uvars vars fin_state st is is_pf) ; idtac "6" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV
-                                   (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
+                                   (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                                    stn uvars vars fin_state st) ; idtac "5"  
                                | generalize (@Apply_sym_eval typesV funcsV predsV
-                                   (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)
+                                   (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                                    stn uvars vars) ; idtac "4" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV
-                                   (@Algos ext typesV) (@Algos_correct ext typesV funcsV predsV)); idtac "3" 
+                                   (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)); idtac "3" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV
-                                   (@Algos ext typesV)) ; generalize (@Algos_correct ext typesV funcsV predsV) ; idtac "2" 
+                                   (@ILAlgoTypes.Algos ext typesV)) ; generalize (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV) ; idtac "2" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV) ; idtac "1"  
                                ])) ;
 (*TIME                             stop_timer "sym_eval:apply_sym_eval" ; *)
@@ -985,6 +889,7 @@ Ltac sym_eval isConst ext simplifier :=
       end
   end.
 
+(*
 Ltac sym_evaluator sym1 sym2 sym3 H := 
   unfolder_simplifier sym1 sym2 sym3 H ;
   cbv beta iota zeta delta
@@ -1200,278 +1105,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       plus minus skipn quantifyNewVars Expr.Impl_ projT1 projT2
     ] in H.
 
-Module EmptyPackage.
-  Definition empty_package : TypedPackage.
-  refine (
-    {| Env := {| PACK.Types := nil_Repr EmptySet_type
-               ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
-               ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
-               |} 
-     ; Algos := fun ts => {| Prover := None ; Hints := None ; MemEval := None |}
-     ; Algos_correct := _
-     |}).
-  abstract (constructor; simpl; trivial).
-  Defined.
-  
-
-  Ltac simplifier s1 s2 s3 H :=
-    match H with
-      | tt => 
-        cbv delta [ s1 s2 s3
-          empty_package UNF.default_hintsPayload
-        ]
-      | _ => 
-        cbv delta [ s1 s2 s3
-          empty_package UNF.default_hintsPayload
-        ] in H
-    end ;
-    MEVAL.LearnHookDefault.unfolder H ;
-    provers.ReflexivityProver.unfold_reflexivityProver H ;
-    MEVAL.Default.unfolder H ;
-    sym_evaluator s1 s2 s3 H.
-
-  (*Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
-    PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
-    Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
-    evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
-    Regs st' Rp = natToW 0.
-  Proof.
-   intros.
-   sym_eval ltac:(isConst) empty_package simplifier.
-   intuition congruence. 
-  Abort.*)
-
-End EmptyPackage.
-
-Module BedrockPackage.
-  Definition bedrock_package : TypedPackage.
-  refine (
-    {| Env := {| PACK.Types := nil_Repr EmptySet_type
-               ; PACK.Funcs := bedrock_funcs_r 
-               ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
-               |}
-     ; Algos := fun ts => {| Prover := None ; Hints := None ; MemEval := None |}
-     ; Algos_correct := _
-     |}).
-  abstract (constructor; simpl; trivial).
-  Defined.
-
-  Ltac simplifier H :=
-    match H with
-      | tt => 
-        cbv delta [
-          bedrock_package UNF.default_hintsPayload
-        ]
-      | _ => 
-        cbv delta [
-          bedrock_package UNF.default_hintsPayload
-        ] in H
-    end ;
-    MEVAL.LearnHookDefault.unfolder H ;
-    provers.ReflexivityProver.unfold_reflexivityProver H ;
-    MEVAL.Default.unfolder H ;
-    sym_evaluator H.
-End BedrockPackage.
-
-Module Package.
-
-
-Ltac build_prover_pack prover ret :=
-  let res := constr:( 
-    let env :=
-      {| PACK.Types := Prover.ProverTypes prover
-       ; PACK.Funcs := fun ts => Prover.ProverFuncs prover (repr bedrock_types_r ts)
-       ; PACK.Preds := fun ts =>
-         nil_Repr (SEP.Default_predicate (repr (Prover.ProverTypes prover) (repr bedrock_types_r ts)) (tvType 0) (tvType 1))
-       |}
-    in
-    let algos ts :=
-      @Build_AllAlgos (PACK.applyTypes env ts)
-         (Some (Prover.Prover prover (PACK.applyTypes env ts)))
-         None
-         None
-    in
-    {| Env := env
-     ; Algos := algos
-     ; Algos_correct := fun ts fs ps =>
-       let types := repr bedrock_types_r ts in
-       let funcs := repr (PACK.Funcs env types) fs in
-       @Build_AllAlgos_correct types funcs ps (algos ts)
-         (@Prover.Prover_correct prover types funcs)
-         I I
-     |})
-  in
-  let res := eval simpl in res in
-  ret res.
-
-Goal TypedPackage.
-  build_prover_pack provers.TransitivityProver.TransitivityProver ltac:(fun x => refine x).
-Defined.
-
-Ltac build_mem_pack mem ret :=
-  match type of mem with
-    | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st ?ptr ?val IL_mem_satisfies IL_ReadWord IL_WriteWord =>
-      (let res := constr:(
-        let TR := Env.repr_combine tr (MEVAL.MemEvalTypes mem) in
-        let env := 
-          {| PACK.Types := TR
-           ; PACK.Funcs := fun ts => MEVAL.MemEvalFuncs mem (Env.repr ILEnv.bedrock_types_r (Env.repr TR ts))
-           ; PACK.Preds := fun ts => MEVAL.MemEvalPreds mem (Env.repr ILEnv.bedrock_types_r (Env.repr TR ts))
-           |}
-        in
-        let algos ts :=
-          @Build_AllAlgos (PACK.applyTypes env ts) 
-             None
-             None 
-             (Some (MEVAL.MemEval mem (PACK.applyTypes env ts)))
-        in
-        @Build_TypedPackage env algos 
-          (fun ts fs ps => @Build_AllAlgos_correct _ _ _ (algos ts) I I
-            (MEVAL.MemEval_correct mem (Env.repr ILEnv.bedrock_types_r ts) _ _))) in
-      let res := eval simpl in res in
-      ret res) || fail 10000 "couldn't construct mem_package"
-    | ?T => 
-      fail 10000 "got bad type" T "expected value of type Packages.MemEvaluatorPackage"
-  end.
-
-Definition min_types_r : Repr type :=
-  {| footprint := firstn 2 (footprint bedrock_types_r)
-   ; default := default bedrock_types_r
-   |}.
-
-Goal TypedPackage.
-  pose (mem := 
-    {| MEVAL.MemEvalTypes := nil_Repr EmptySet_type
-     ; MEVAL.MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
-     ; MEVAL.MemEvalPreds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
-     ; MEVAL.MemEval := fun ts => @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
-     ; MEVAL.MemEval_correct := fun ts fs ps =>
-       @MEVAL.Default.MemEvaluator_default_correct _ _ _ _ _ _ _ _ _ _ _
-     |} : @MEVAL.MemEvaluatorPackage min_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord).
-  build_mem_pack mem ltac:(fun x => refine x).
-Defined.
-
-(** builds a [TypedPackage] from the arguments
- ** - [hints] is a list of separation logic hints
- ** - [prover] is instance of [ProverT_correct]
- ** - [mem] is a tuple of [forall ts fs ps, MemEvaluator_correct ts fs ps] plugin correct instances
- **)
-Ltac build_hints_pack hints ret :=
-  let res := constr:(
-    let env :=
-      {| PACK.Types := PACKAGED.Types hints
-       ; PACK.Funcs := fun ts => PACKAGED.Functions hints (repr bedrock_types_r ts)
-       ; PACK.Preds := fun ts => PACKAGED.Predicates hints (repr bedrock_types_r ts) |}
-    in
-    let algos ts := 
-      @Build_AllAlgos (PACK.applyTypes env ts)
-        None 
-        (Some (PACKAGED.Hints hints ts))
-        None
-    in
-    @Build_TypedPackage env algos 
-     (fun ts fs ps => 
-       let types := repr bedrock_types_r (repr (PACKAGED.Types hints) ts) in
-       @Build_AllAlgos_correct _ _ _ (algos ts)
-         I (PACKAGED.HintsOk hints ts fs ps) I))
-  in
-  let res := eval simpl in res in
-  ret res.
-
-Definition bedrock_env : PACK.TypeEnv :=
-  {| PACK.Types := nil_Repr EmptySet_type
-   ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
-   ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
-  |}.
-
-Goal TypedPackage.
-  PACKAGED.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) bedrock_env tt tt ltac:(fun v => 
-    build_hints_pack v ltac:(fun x => refine x)).
-Defined.
-
-
-(** given to [TypedPackage]s, combines them and passes the combined [TypedPackage]
- ** to [k].
- ** This tactic will fail if any of the environments are not compatible.
- **)
-Ltac glue_pack left_pack right_pack ret :=
-  let res := constr:(
-    let l := left_pack in
-    let r := right_pack in
-    let ntypesV := Env.repr_combine (PACK.Types (Env l)) (PACK.Types (Env r)) in
-    let nfuncsV ts := 
-      Env.repr_combine (PACK.Funcs (Env l) (Env.repr ntypesV ts)) 
-                       (PACK.Funcs (Env r) (Env.repr ntypesV ts))
-    in
-    let npredsV ts :=
-      Env.repr_combine (PACK.Preds (Env l) (Env.repr ntypesV ts))
-                       (PACK.Preds (Env r) (Env.repr ntypesV ts))
-    in
-    let env :=
-      {| PACK.Types := ntypesV
-       ; PACK.Funcs := nfuncsV
-       ; PACK.Preds := npredsV
-       |}
-    in
-    let algos ts := 
-      AllAlgos_composite (Algos l (Env.repr ntypesV ts)) (Algos r (Env.repr ntypesV ts))
-    in
-    {| Env   := env 
-     ; Algos := algos 
-     ; Algos_correct := fun ts fs ps =>
-       AllAlgos_correct_composite (@Algos_correct l (Env.repr ntypesV ts)
-                                                    (Env.repr (nfuncsV ts) fs)
-                                                    (Env.repr (npredsV ts) ps))
-                                  (@Algos_correct r (Env.repr ntypesV ts)
-                                                    (Env.repr (nfuncsV ts) fs)
-                                                    (Env.repr (npredsV ts) ps))
-    |})
-  in ret res.
-
-(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with 
- ** the result.
- **)
-Ltac glue_packs packs k :=
-  match type of packs with
-    | TypedPackage => k packs
-    | _ =>
-      match packs with
-        | tt => k BedrockPackage.bedrock_package
-        | nil => k BedrockPackage.bedrock_package
-        | ?L :: ?R =>
-          glue_packs R ltac:(fun R => glue_pack L)
-        | (?L, ?R) =>
-          glue_packs L ltac:(fun L => 
-          glue_packs R ltac:(fun R => 
-            glue_pack L R k))
-      end
-  end.
-
-(** TODO: is there a way to make this more efficient? **)
-Ltac opaque_pack pack :=
-  let pack := eval hnf in pack in
-  let pack := eval simpl in pack in
-  match pack with
-    | @Build_TypedPackage ?env ?algos ?pf =>
-      refine (@Build_TypedPackage env algos _); abstract (exact pf)
-  end.
-
-Goal TypedPackage.
-  build_prover_pack provers.TransitivityProver.TransitivityProver ltac:(fun x => 
-    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
-    glue_pack x y ltac:(opaque_pack))).
-Qed.
-
-(*
-Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-  build_prover_pack Provers.TransitivityProver ltac:(fun x => 
-    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
-      idtac "1" ;
-    glue_packs (x, y, y) ltac:(fun v => exact v))).
-Qed.
 *)
-End Package.
-Definition AlgoImpl := AllAlgos.
-Definition AlgoProof := AllAlgos_correct.
-End ILAlgoTypes.
+
+End Tactics.
 

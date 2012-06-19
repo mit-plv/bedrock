@@ -3,7 +3,7 @@ Export Bedrock.
 
 (** * Specialize the library proof automation to some parameters useful for basic examples. *)
 
-Import SymILTac.
+Import TacPackIL.
 Require Bedrock.sep.PtsTo Bedrock.sep.Array.
 
 (** Build our memory plugin **)
@@ -13,10 +13,10 @@ Definition TacPackage : Type :=
   @ILAlgoTypes.TypedPackage.
 
 Definition auto_ext : TacPackage.
-  ILAlgoTypes.Package.build_prover_pack Provers.ComboProver ltac:(fun a => 
-  ILAlgoTypes.Package.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
-  ILAlgoTypes.Package.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
-    ILAlgoTypes.Package.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b(*, c*)) ltac:(fun res => 
+  ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
+  ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
+  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
+    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b (* , c*)) ltac:(fun res => 
       let res := 
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
@@ -28,11 +28,12 @@ Definition auto_ext : TacPackage.
           
           ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
           ILAlgoTypes.AllAlgos_composite
-          ILAlgoTypes.oplus Prover.composite_ProverT MEVAL.Composite.MemEvaluator_composite Env.listToRepr
+          ILAlgoTypes.oplus Prover.composite_ProverT 
+          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
 
           Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
         ] in res in
-        ILAlgoTypes.Package.opaque_pack res) || fail 1000 "compose"))).
+        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose"))).
 Defined.
 
 Ltac refold :=
@@ -119,12 +120,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
       cbv beta iota zeta
        delta [s1 s2 s3 hints 
          (** Symbolic Evaluation **)
-         SymIL.MEVAL.PredEval.fold_args SymIL.MEVAL.PredEval.fold_args_update 
-         SymIL.MEVAL.PredEval.pred_read_word SymIL.MEVAL.PredEval.pred_write_word
-
+         SymIL.MEVAL.PredEval.fold_args
+         SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
+         SymIL.MEVAL.PredEval.pred_write_word
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
          SymIL.IL_ReadWord SymIL.IL_WriteWord
-         ILAlgoTypes.unfolder_LearnHook
+         SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
          SymIL.MEVAL.Default.smemeval_write_word_default
@@ -135,12 +136,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
          SymIL.SymVars SymIL.SymUVars
          SymIL.stateD 
-         ILAlgoTypes.quantifyNewVars
-         ILAlgoTypes.unfolder_LearnHook
+         SymILTac.Tactics.quantifyNewVars
+         SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
-         ILAlgoTypes.unfolder_LearnHook
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
    
@@ -425,7 +425,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.MEVAL.PredEval.pred_write_word
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
          SymIL.IL_ReadWord SymIL.IL_WriteWord
-         ILAlgoTypes.unfolder_LearnHook
+         SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
          SymIL.MEVAL.Default.smemeval_write_word_default
@@ -436,12 +436,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
          SymIL.SymVars SymIL.SymUVars
          SymIL.stateD 
-         ILAlgoTypes.quantifyNewVars
-         ILAlgoTypes.unfolder_LearnHook
+         SymILTac.Tactics.quantifyNewVars
+         SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
-         ILAlgoTypes.unfolder_LearnHook
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
    
@@ -728,7 +727,7 @@ Ltac evaluate ext :=
   repeat match goal with
            | [ H : ?P -> False |- _ ] => change (not P) in H
          end;
-  ILAlgoTypes.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
+  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
 
 Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
 
@@ -800,15 +799,15 @@ Ltac prepare :=
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
-  SymILTac.PACKAGED.prepareHints the_unfold_tac W (settings * state)%type isConst.
+  TacPackIL.PACKAGED.prepareHints the_unfold_tac W (settings * state)%type isConst.
 
 Ltac sep_auto := sep auto_ext.
 
 Ltac prepare1 fwd bwd :=
   let env := eval simpl ILAlgoTypes.EnvOf in (ILAlgoTypes.EnvOf auto_ext) in
     prepare env fwd bwd ltac:(fun x => 
-      ILAlgoTypes.Package.build_hints_pack x ltac:(fun x =>
-        ILAlgoTypes.Package.glue_pack x auto_ext ltac:(fun X => refine X))).
+      ILAlgoTypes.Tactics.build_hints_pack x ltac:(fun x =>
+        ILAlgoTypes.Tactics.glue_pack x auto_ext ltac:(fun X => refine X))).
 
 Ltac prepare2 old :=
   let v := eval cbv beta iota zeta delta [ 
@@ -822,4 +821,4 @@ Ltac prepare2 old :=
     Env.listToRepr
     app map 
   ] in old in
-  ILAlgoTypes.Package.opaque_pack v.
+  ILAlgoTypes.Tactics.opaque_pack v.

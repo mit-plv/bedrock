@@ -1589,6 +1589,7 @@ Ltac getAllFunctions types funcs' fs :=
       getAllFunctions types funcs fr
   end.
 
+(*
 Ltac getVar' idx :=
   match idx with
     | fun x => x => constr:(0)
@@ -1597,16 +1598,18 @@ Ltac getVar' idx :=
       constr:(S r)
     | _ => idtac "couldn't find variable! [1]" idx
   end.
+*)
 
 Ltac getVar idx :=
   (** NOTE: reification as indicies **)
   match idx with
+    | fun x => x => constr:(0)
     | fun x => @openUp _ _ (@fst _ _) (@?X x) =>
-      getVar' X
+      getVar X
     | fun x => @openUp _ _ (@snd _ _) (@?X x) =>
       let r := getVar X in
       constr:(S r)
-    | _ => idtac "couldn't find variable! [2]" idx
+    | _ => idtac "couldn't find variable! [1]" idx
   end.
 
 Ltac get_or_extend_var types all t v k :=

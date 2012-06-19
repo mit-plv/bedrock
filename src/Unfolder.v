@@ -890,11 +890,61 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           erewrite IHForall; try erewrite H; eauto; intros; eapply H1; think; auto using orb_true_r. }
         { erewrite IHe1; try erewrite IHe2; eauto; intros; eapply H; think; auto using orb_true_r. }
       Qed.
+
+      Parameter Subst_size_cardinal : forall sub n,
+        U.Subst_size (types := types) sub = n ->
+        exists ls, NoDup ls /\ length ls = n /\
+          (forall u, In u ls <-> ~(U.Subst_lookup u sub = None)). 
+
       Lemma independent_well_typed : forall sub F cU,
         beq_nat (U.Subst_size sub) (length F) = true ->
         checkAllInstantiated cU F sub = true ->
         forall u, u <= cU -> U.Subst_lookup u sub = None.
       Proof.
+        clear. intros. symmetry in H. apply beq_nat_eq in H. 
+        eapply Subst_size_cardinal in H.
+(*
+        Lemma checkAllInstantiated_domain : forall sub F F' cU,
+          checkAllInstantiated cU (F ++ F') sub = true ->
+          U.Subst_size sub = length (F ++ F') ->
+          (forall u, cU + length F <= u -> u < cU + length F + length F' -> U.Subst_lookup u sub <> None) ->
+          forall u, u < cU -> U.Subst_lookup u sub = None.
+        Proof.
+          clear. induction F using rev_ind; intros; simpl in *.
+          { eapply Subst_size_cardinal in H0. destruct H0. intuition.
+            consider (U.Subst_lookup u sub); auto. intros. exfalso.
+            assert (In u x). eapply H5. intro. congruence.
+            
+
+            cut (~In u x). intros. 
+
+
+ }
+          { rewrite app_ass in *; simpl in *. eapply IHF; eauto.
+            rewrite checkAllInstantiated_app in H. simpl in *. think.
+            consider (EqNat.beq_nat (length F + cU) u0). intros. subst. intro. congruence.
+            intros. eapply H1. rewrite app_length. simpl. omega. rewrite app_length. simpl. omega. }
+        Qed.       
+
+            
+
+          clear. induction F; simpl in *; intros; think. exfalso. omega.
+          consider (EqNat.beq_nat cU u); intros. subst. 
+          intro. congruence. eapply IHF; eauto. omega. omega.
+        Qed.
+
+        Lemma checkAllInstantiated_domain : forall sub F cU,
+          checkAllInstantiated cU F sub = true ->
+          forall u, cU <= u -> u < cU + length F -> ~(U.Subst_lookup u sub = None).
+        Proof.
+          clear. induction F; simpl in *; intros; think. exfalso. omega.
+          consider (EqNat.beq_nat cU u); intros. subst. 
+          intro. congruence. eapply IHF; eauto. omega. omega.
+        Qed.
+        generalize (checkAllInstantiated_domain _ H0); intros.
+        destruct H. intuition.
+*)
+        
       Admitted.
       Lemma is_well_typed_mentionsU : forall U G (e : expr types) t,
         is_well_typed (typeof_funcs funcs) U G e t = true ->
@@ -902,7 +952,11 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Proof.
         clear. induction e; simpl; intros; try solve [ think; auto ].
         think. apply nth_error_Some_length in H. auto.
-        admit.
+        { consider (nth_error (typeof_funcs funcs) f). intros. consider (equiv_dec t (TRange t0)); think; intros.
+          clear H0. destruct t0; simpl in *. generalize dependent TDomain. revert H1. 
+          induction H; try congruence; destruct TDomain; simpl in *; think; try congruence; intros.
+          consider (is_well_typed (typeof_funcs funcs) U G x t); intros. apply orb_true_iff in H1. destruct H1.
+          eapply H; eauto. eapply IHForall; eauto. }
         { destruct t0. apply andb_true_iff in H. apply orb_true_iff in H0. destruct H. destruct H0; eauto. congruence. }
         { destruct t; try congruence. eapply IHe; eauto. }
       Qed.
@@ -911,33 +965,33 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) e t = true ->
           exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
         SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
-        (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+                     (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
       Proof.
 (*
-              clear. intros. do 2 rewrite SH.sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
-              { eapply MM.PROPS.map_induction with (m := impures s); intros.
-                repeat rewrite SH.impuresD_Empty by eauto using MF.map_Empty. reflexivity.
-                rewrite SH.impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
-                symmetry. unfold MM.mmap_map in *. rewrite SH.impuresD_Add. 2: eapply MF.map_Add; eauto. 
-                2: eapply MF.map_not_In; eauto.
-                simpl. symmetry. apply ST.heq_star_frame; eauto.
-                cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). revert H. clear.
-                induction e; simpl; intros. repeat rewrite starred_nil. auto.
-                repeat rewrite starred_cons. simpl. apply ST.heq_star_frame; eauto. 
-                destruct (nth_error preds x); try reflexivity.
-                rewrite applyD_map. erewrite applyD_impl. reflexivity. intros. simpl. eauto. }
-              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
-                repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
-                simpl. rewrite IHl; eauto. rewrite H. reflexivity. }
-              { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
-                generalize (@SE.Emp types pcType stateType). induction (other s); intros.
-                etransitivity. rewrite starred_nil. reflexivity. etransitivity; [ | rewrite starred_nil; reflexivity ].
-                auto.
-                
-                etransitivity; [ rewrite starred_cons; reflexivity | ].
-                etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
+        clear. intros. do 2 rewrite SH.sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
+        { eapply MM.PROPS.map_induction with (m := impures s); intros.
+          repeat rewrite SH.impuresD_Empty by eauto using MF.map_Empty. reflexivity.
+          rewrite SH.impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
+          symmetry. unfold MM.mmap_map in *. rewrite SH.impuresD_Add. 2: eapply MF.map_Add; eauto. 
+          2: eapply MF.map_not_In; eauto.
+          simpl. symmetry. apply ST.heq_star_frame; eauto.
+          cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+          generalize (@SE.Emp types pcType stateType). revert H. clear.
+          induction e; simpl; intros. repeat rewrite starred_nil. auto.
+          repeat rewrite starred_cons. simpl. apply ST.heq_star_frame; eauto. 
+          destruct (nth_error preds x); try reflexivity.
+          rewrite applyD_map. erewrite applyD_impl. reflexivity. intros. simpl. eauto. }
+        { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+          generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
+          repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
+          simpl. rewrite IHl; eauto. rewrite H. reflexivity. }
+        { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+          generalize (@SE.Emp types pcType stateType). induction (other s); intros.
+          etransitivity. rewrite starred_nil. reflexivity. etransitivity; [ | rewrite starred_nil; reflexivity ].
+          auto.
+          
+          etransitivity; [ rewrite starred_cons; reflexivity | ].
+          etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
 *)
       Admitted.
       Lemma typeof_env_app : forall l r,

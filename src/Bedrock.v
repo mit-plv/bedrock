@@ -4,6 +4,6 @@ Require Export Heaps SepTheoryX SepIL.
 
 Require Export Nomega Word Memory IL LabelMap PropX PropXTac XCAP Structured StructuredModule Linker Programming.
 
-Require Export ILTac.
+Require Export ILTac SymILTac.
 
 Open Scope string_scope.
