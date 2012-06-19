@@ -4,6 +4,7 @@ Require Import PropXTac.
 Require Import RelationClasses EqdepClass.
 Require Import Expr.
 Require Import Setoid.
+Require ReifyExpr Reflect. 
 Require Import Folds Bool Tactics.
 
 Set Implicit Arguments.
@@ -619,7 +620,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
   Import ReifyExpr.
 
   (** Reflection **)
-  Require Import Reflect.
+  Import Reflect.
 
   Ltac reflectable shouldReflect P :=
     match P with
@@ -665,11 +666,11 @@ Module ReifySepExpr (Import SEP : SepExpr).
         let v := eval simpl in v in
         collectTypes_sexpr isConst v types k
       | fun x : ?T => @ST.inj _ _ _ (PropX.Inj (@?P x)) =>
-        k ltac:(collectTypes_expr isConst P types)
+         collectTypes_expr isConst P types k
       | fun x : ?T => @ST.emp _ _ _ => k types
       | @ST.emp _ _ _ => k types
       | @ST.inj _ _ _ (PropX.Inj ?P) =>
-        k ltac:(collectTypes_expr isConst P types)
+        collectTypes_expr isConst P types k
       | @ST.inj _ _ _ ?PX => k types
       | @ST.star _ _ _ ?L ?R =>
         collectTypes_sexpr isConst L types
@@ -679,17 +680,16 @@ Module ReifySepExpr (Import SEP : SepExpr).
         let v := eval simpl in v in 
         collectTypes_sexpr isConst v types k
       | ?X =>
-        let rec bt_args args types :=
+        let rec bt_args args types k :=
           match args with
             | tt => k types
             | (?a,?b) => 
-              let k := collectTypes_expr isConst a types in
-              bt_args b k
+              collectTypes_expr isConst a types ltac:(fun ts =>  bt_args b ts k)
           end
         in
         let cc _ Ts args := 
           let types := append_uniq Ts types in
-          bt_args args types
+          bt_args args types k
         in
         refl_app cc X
     end.
@@ -700,12 +700,12 @@ Module ReifySepExpr (Import SEP : SepExpr).
    ** - types is a list of raw types.
    ** - isConst determines when an expression should be treated as a constant.
    **)
-  Ltac collectAllTypes_sexpr isConst types goals :=
+  Ltac collectAllTypes_sexpr isConst types goals k :=
     match goals with
-      | nil => types
+      | nil => k types
       | ?a :: ?b =>
         collectTypes_sexpr isConst a types ltac:(fun ts => 
-          collectAllTypes_sexpr isConst ts b)
+          collectAllTypes_sexpr isConst ts b k)
     end.
 
   Ltac collectAllTypes_sfunc Ts T :=

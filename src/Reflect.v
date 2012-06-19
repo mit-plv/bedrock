@@ -3,6 +3,10 @@
  ** - list lookup
  ** - 
  **)
+(* Add Rec LoadPath "reification/".  *)
+(* Add ML Path "reification/".  *)
+(* Declare ML Module "extlib".  *)
+(* Declare ML Module "reif".  *)
 Require Import List DepList.
 
 Set Implicit Arguments.
@@ -22,19 +26,21 @@ Section PartialApply.
     end.
 End PartialApply.
 
-(** Reflect an application
- ** - reflects all the non-dependent arguments of e into a tuple
- ** - the tuple and the resulting function (may be partially applied)
- **   are passed to the continuation [cc]
- **) 
-Ltac refl_app cc e := 
+
+(** Reflect an application *)
+(*  ** - reflects all the non-dependent arguments of e into a tuple *)
+(*  ** - the tuple and the resulting function (may be partially applied) *)
+(*  **   are passed to the continuation [cc] *)
+(*  **)
+(* Ltac refl_app cc e := refl_app_cps e cc. *)
+Ltac refl_app cc e :=
   match e with
-    | (fun _ => _) => 
+    | (fun _ => _) =>
       let rec getTypes As :=
         match As with
           | tt => constr:(@nil Type)
           | (?A, ?B) =>
-            match type of A with 
+            match type of A with
               | _ -> ?TT =>
                 let r := getTypes B in
                 constr:((TT : Type) :: r)
@@ -42,7 +48,7 @@ Ltac refl_app cc e :=
         end
       in
       let rec papply cc F T Tb Ts As :=
-        match T with 
+        match T with
           | ?T1 -> ?TT =>
             match Ts with
               | ?T :: ?T' =>
@@ -68,7 +74,7 @@ Ltac refl_app cc e :=
                 end
             end
           | _ =>
-            cc F Ts As             
+            cc F Ts As
         end
       in
       match e with
@@ -109,22 +115,22 @@ Ltac refl_app cc e :=
           let Tb := constr:(@nil Type) in
           papply cc F Tf Tb Ts As
       end
-    | _ => 
+    | _ =>
       let rec refl cc e As :=
         match e with
           | ?A ?B =>
             let Ta := type of A in
             match Ta with
-              | _ -> ?TT => 
+              | _ -> ?TT =>
                 let As := constr:((B, As)) in
                 let Tb := type of B in
-                let cc f Ts args := 
+                let cc f Ts args :=
                   let Ts' := constr:(Ts ++ (Tb : Type) :: nil) in
                   cc f Ts' args
-                in 
+                in
                 refl cc A As
-              | forall x : ?T1, @?T2 x => 
-                let cc f Ts args := 
+              | forall x : ?T1, @?T2 x =>
+                let cc f Ts args :=
                   let Tb  := type of B in
                   let f'  := eval simpl in (@apply_ls Ts T1 T2 B f) in
                   cc f' Ts args
