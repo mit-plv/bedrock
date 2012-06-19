@@ -6,6 +6,8 @@ Require Import Expr.
 Require Import Env.
 Require Import Memory IL.
 Require Import TypedPackage.
+Require Import Arith.
+
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -59,7 +61,7 @@ Definition bedrock_type_setting_X_state : type :=
    ; Expr.Eqb := fun _ _ => false
    ; Expr.Eqb_correct := @all_false_compare _
    |}.
-Definition bedrock_type_setting : type :=
+Definition bedrock_type_state : type :=
   {| Expr.Impl := state
    ; Expr.Eqb := fun _ _ => false
    ; Expr.Eqb_correct := @all_false_compare _
@@ -71,14 +73,14 @@ Definition bedrock_type_test : type :=
   |}.
 Definition bedrock_type_reg : type :=
   {| Expr.Impl := IL.reg
-     ; Expr.Eqb := reg_seq
-     ; Expr.Eqb_correct := reg_seq_compare
+   ; Expr.Eqb := reg_seq
+   ; Expr.Eqb_correct := reg_seq_compare
   |}.
-Require Import Arith.
+
 Definition bedrock_type_nat : type :=
   {| Expr.Impl := nat
-    ; Expr.Eqb := beq_nat
-    ; Expr.Eqb_correct := beq_nat_true
+   ; Expr.Eqb := beq_nat
+   ; Expr.Eqb_correct := beq_nat_true
   |}.
 
 Definition core_bedrock_types : list Expr.type :=
@@ -92,7 +94,7 @@ Definition core_bedrock_types_r : Repr Expr.type :=
 Definition bedrock_types : list Expr.type :=
   bedrock_type_W ::
   bedrock_type_setting_X_state ::
-  bedrock_type_setting ::
+  bedrock_type_state ::
   bedrock_type_test ::
   bedrock_type_reg ::
   bedrock_type_nat :: nil.
@@ -111,7 +113,7 @@ Definition comparator (t : IL.test) (l r : W) : Prop :=
 
 Section typed_ext.
   Variable types' : list type.
-  Local Notation "'TYPES'" := (repr bedrock_types_r types').
+  (* Local Notation "'types'" := (repr bedrock_types_r types'). *)
 
   Local Notation "'pcT'" := (tvType 0).
   Local Notation "'tvWord'" := (tvType 0).
@@ -119,52 +121,96 @@ Section typed_ext.
   Local Notation "'tvState'" := (tvType 2).
   Local Notation "'tvTest'" := (tvType 3).
   Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'natT'" := (tvType 5).
 
-  Definition bedrock_funcs : functions (repr bedrock_types_r types').
-  refine (
-    {| Domain := tvWord :: tvWord :: nil
-     ; Range := tvWord
-     ; Denotation := _ |} ::
-    {| Domain := tvWord :: tvWord :: nil
-     ; Range := tvWord
-     ; Denotation := _ |} ::
-    {| Domain := tvWord :: tvWord :: nil
-     ; Range := tvWord
-     ; Denotation := _ |} ::
-    {| Domain := tvTest :: tvWord :: tvWord :: nil
-     ; Range := tvProp
-     ; Denotation := _ |} :: 
-    {| Domain := tvState :: tvReg :: nil
-     ; Range := tvWord
-     ; Denotation := _ |} ::
-    {| Domain := tvWord :: tvWord :: nil
-     ; Range := tvProp
-     ; Denotation := _ |} ::
-    {| Domain := tvType 5 :: nil
-      ; Range := tvWord
-      ; Denotation := _ |} ::
-     nil).
-  refine (@wplus 32).
-  refine (@wminus 32).
-  refine (@wmult 32).
-  refine comparator.
-  refine Regs.
-  refine (@wlt 32).
-  refine natToW.
+  Definition word_types_r : Repr Expr.type :=
+    Eval cbv beta iota zeta delta [ listToRepr ] 
+      in (listToRepr (bedrock_type_W :: nil) Expr.EmptySet_type).
+ 
+
+  Definition wplus_r : signature (repr word_types_r types').
+    refine {| Domain := tvWord :: tvWord :: nil; Range := tvWord |}.
+    exact (@wplus 32).
   Defined.
 
-  Definition bedrock_funcs_r : Repr (signature (repr bedrock_types_r types')) :=
+  Definition wminus_r : signature (repr word_types_r types').
+    refine {| Domain := tvWord :: tvWord :: nil; Range := tvWord |}.
+    exact (@wminus 32).
+  Defined.
+
+  Definition wmult_r : signature (repr word_types_r types').
+    refine {| Domain := tvWord :: tvWord :: nil; Range := tvWord |}.
+    exact (@wmult 32).
+  Defined.
+
+  Definition word_test_r : Repr Expr.type :=
+    Eval cbv beta iota zeta delta [ listToRepr ] 
+      in (listOptToRepr (Some bedrock_type_W :: None :: None :: Some bedrock_type_test :: nil) Expr.EmptySet_type).
+
+  Definition wcomparator_r : signature (repr word_test_r types').
+    refine {| Domain := tvTest :: tvWord :: tvWord :: nil ; Range := tvProp |}.
+    exact (comparator).
+  Defined.
+
+  Definition word_state_r : Repr Expr.type :=
+    Eval cbv beta iota zeta delta [ listToRepr ] 
+      in (listOptToRepr (Some bedrock_type_W :: None :: Some bedrock_type_state :: None :: Some bedrock_type_reg :: nil) Expr.EmptySet_type).
+
+  Definition Regs_r : signature (repr word_state_r types').
+    refine {| Domain := tvState :: tvReg :: nil ; Range := tvWord |}.
+    exact (Regs).
+  Defined.
+
+  Definition wlt_r : signature (repr word_types_r types').
+    refine {| Domain := tvWord :: tvWord :: nil; Range := tvProp |}.
+    exact (@wlt 32).
+  Defined.
+
+  Definition word_nat_r : Repr Expr.type :=
+    Eval cbv beta iota zeta delta [ listToRepr ] 
+      in (listOptToRepr (Some bedrock_type_W :: None :: None :: None :: None :: Some bedrock_type_nat :: nil) Expr.EmptySet_type).
+
+  Definition natToW_r : signature (repr word_nat_r types').
+    refine {| Domain := natT :: nil; Range := tvWord |}.
+    exact natToW.
+  Defined.
+End typed_ext.
+
+  Definition bedrock_funcs types' : functions (repr bedrock_types_r types') :=
+    let types := repr bedrock_types_r types' in
+    wplus_r types ::
+    wminus_r types ::
+    wmult_r types ::
+    wcomparator_r types ::
+    Regs_r types ::
+    wlt_r types ::
+    natToW_r types :: nil.
+
+  Definition bedrock_funcs_r types' : Repr (signature (repr bedrock_types_r types')) :=
     Eval cbv beta iota zeta delta [ listToRepr bedrock_funcs ]
-      in (listToRepr bedrock_funcs (Default_signature _)).
+      in (listToRepr (bedrock_funcs types') (Default_signature _)).
   
-  Variable funcs' : functions TYPES.
-  Definition funcs := repr bedrock_funcs_r funcs'.
+Section func_ext.
+  Local Notation "'pcT'" := (tvType 0).
+  Local Notation "'tvWord'" := (tvType 0).
+  Local Notation "'stT'" := (tvType 1).
+  Local Notation "'tvState'" := (tvType 2).
+  Local Notation "'tvTest'" := (tvType 3).
+  Local Notation "'tvReg'" := (tvType 4).
+  Local Notation "'natT'" := (tvType 5).
+
+
+  Variable types' : list type.
+  Definition types := repr bedrock_types_r types'.
+
+  Variable funcs' : functions types.
+  Definition funcs := repr (bedrock_funcs_r types') funcs'.
   
-  Definition fPlus (l r : expr TYPES) : expr TYPES :=
+  Definition fPlus (l r : expr types) : expr types :=
     Expr.Func 0 (l :: r :: nil).
-  Definition fMinus (l r : expr TYPES) : expr TYPES :=
+  Definition fMinus (l r : expr types) : expr types :=
     Expr.Func 1 (l :: r :: nil).
-  Definition fMult (l r : expr TYPES) : expr TYPES :=
+  Definition fMult (l r : expr types) : expr types :=
     Expr.Func 2 (l :: r :: nil).
 
   Theorem fPlus_correct : forall l r uvars vars, 
@@ -212,7 +258,7 @@ Section typed_ext.
                       end ] => destruct X
              end; auto.
   Qed.
-End typed_ext.
+End func_ext.
 
 
 Module BedrockCoreEnv <: CoreEnv.
@@ -223,4 +269,4 @@ Module BedrockCoreEnv <: CoreEnv.
   Definition st := tvType 1.
 End BedrockCoreEnv.
 
-Require SepIL.
+(*Require SepIL. *)

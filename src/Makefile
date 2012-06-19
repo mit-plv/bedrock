@@ -12,8 +12,8 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	NatMap Expr ReifyExpr ExprUnify \
 	Prover Provers \
 	$(PROVERS:%=provers/%Prover) \
-	SepExpr SepHeap SepUnify SepCancel \
-	Unfolder \
+	SepExpr ReifySepExpr SepHeap SepUnify SepCancel \
+	Unfolder ReifyHints \
 	Env TypedPackage TacPackIL \
 	SymEval sep/PtsTo sep/Array \
 	IL \

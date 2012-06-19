@@ -20,27 +20,6 @@ Ltac lift_signatures fs nt :=
     lift_signature sig nt 
   in
   map_tac (signature nt) f fs.
-(*
-Goal True.
-  refine (
-    let ts := {| Impl := nat ; Eq := fun _ _ => None |} :: nil in
-    let ts' := {| Impl := nat ; Eq := fun _ _ => None |} ::
-      {| Impl := bool ; Eq := fun _ _ => None |} :: nil in
-    let fs :=
-      {| Domain := tvType 0 :: tvType 0 :: nil
-       ; Range  := tvType 0
-       ; Denotation := plus : functionTypeD (map (tvarD ts) (tvType 0 :: tvType 0 :: nil))
-     (tvarD ts (tvType 0))
-      |} :: (@nil (signature ts)) in
-    _).
-  match goal with
-    | [ |- _ ] => 
-      let fs := eval unfold fs in fs in
-      let r := lift_signatures fs ts' in
-      pose (fs' := r)
-  end.
-Abort.      
-*) 
 
 Definition default_type (T : Type) : type. 
 Proof. 
@@ -268,7 +247,7 @@ Ltac reflectType types t :=
       let r := constr:(tvType i) in
       r
     | _ =>
-      fail 10000 "couldn't find " t " inside types"
+      fail 10000 "couldn't find " t " inside types " types
   end.  
       
 (** essentially this is [map (reflectType types) ts] **)
@@ -311,7 +290,7 @@ Ltac reify_function types f :=
  **)
 Ltac getFunction types f funcs' k :=
   let rec lookup funcs acc :=
-    match funcs with
+    match eval hnf in funcs with
       | nil =>
         let F := reify_function types f in
         let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
@@ -319,20 +298,23 @@ Ltac getFunction types f funcs' k :=
       (* | Sig _ _ _ ?F :: ?FS =>  *)
       (*     eta_unifies f F;  *)
       (*     k funcs' acc *)
-      | Sig _ _ _ ?F :: ?FS => 
-          match F with 
-            | f => k funcs' acc
-            | natToW =>
-            match f with
-              | natToWord 32 => k funcs' acc
+      | ?F :: ?FS =>
+        match eval hnf in F with
+          | Sig _ _ _ ?F =>
+            match F with
+              | f => k funcs' acc
+              | natToW =>
+                match f with
+                  | natToWord 32 => k funcs' acc
+                end
+              | natToWord 32 =>
+                match f with
+                  | natToW => k funcs' acc
+                end
+              | _ =>
+                let acc := constr:(S acc) in
+                lookup FS acc
             end
-          | natToWord 32 =>
-            match f with
-              | natToW => k funcs' acc
-            end
-          | _ =>
-            let acc := constr:(S acc) in
-            lookup FS acc
         end
     end
   in lookup funcs' 0.
@@ -391,7 +373,6 @@ Ltac get_or_extend_var types all t v k :=
  **)
 Ltac reify_expr isConst e types funcs uvars vars k :=
   let rec reflect e funcs uvars k :=
-(*      idtac "reflect" e funcs uvars;  *)
     match e with
       | ?X => is_evar X ;
         (** this is a unification variable **)
@@ -436,8 +417,11 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
       | fun x => @?e1 x -> False =>
         reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
           k uvars funcs (Not e1))
-      | fun x => ?e =>
+
+      | fun _ => ?e =>
+        (** NOTE: it is important for this to be an _ **)
         reflect e funcs uvars k
+
       | _ =>
         let rec bt_args uvars funcs args k :=
           match args with

@@ -4,15 +4,17 @@ Require Import Env TypedPackage.
 Import List.
 
 Require Import IL SepIL SymIL ILEnv.
+Require ReifyExpr ReifySepExpr ReifyHints.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 Require Unfolder.
 Module UNF := Unfolder.Make SH ExprUnify.UNIFIER.
-Module PACKAGED := UNF.Packaged BedrockCoreEnv.
-Module PACK := PACKAGED.PACK.
 
 Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
+  Module PACK := TypedPackage.Make SEP BedrockCoreEnv.
+  Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
+  Module HINTS_REIFY := ReifyHints.Make UNF.LEM.
 
   Record AllAlgos (ts : list type) : Type :=
   { Prover : option (ProverT (repr BedrockCoreEnv.core ts))
@@ -249,26 +251,85 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       Defined.
     End MemPackTest.
 
+    (** Package hints together with their environment/parameters. *)
+    Record hints := {
+      Types : Repr type;
+      Functions : forall ts, Repr (signature (repr Types ts));
+      PcType : tvar;
+      StateType : tvar;
+      Predicates : forall ts, Repr (SEP.predicate (Env.repr Types ts) PcType StateType);
+      Hints : forall ts, UNF.hintsPayload (repr Types ts) PcType StateType;
+      HintsOk : forall ts fs ps, UNF.hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
+    }.
+
+    Ltac prepareHints unfoldTac pcType stateType isConst env fwd bwd ret :=
+    let types := 
+      match type of env with
+        | PACK.TypeEnv => 
+          let ts := eval cbv beta iota zeta delta [ env PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
+          eval simpl in ts
+        | PACK.TypeEnv => 
+          let ts := eval cbv beta iota zeta delta [ PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
+          eval simpl in ts
+      end
+    in
+    HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
+      HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
+        let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
+        let types := ReifyExpr.extend_all_types rt types in
+        let pcT := ReifyExpr.reflectType types pcType in
+        let stateT := ReifyExpr.reflectType types stateType in
+        let funcs := eval simpl in (PACK.applyFuncs_red env types nil) in
+        let preds := eval simpl in (PACK.applyPreds_red env types nil) in
+        (HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
+          HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
+            let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
+            let types_rV := fresh "types" in
+            (pose (types_rV := types_r) || fail 1000);
+            let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in 
+            let funcs_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (funcs_r ts) (Default_signature (repr types_rV ts))) in
+            let funcs_rV := fresh "funcs" in
+            pose (funcs_rV := funcs_r) ;
+            let preds_r := HINTS_REIFY.lift_ssignatures_over_repr preds types_rV pcT stateT in
+            let preds_rV := fresh "preds" in
+            let preds_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (preds_r ts) (SEP.Default_predicate (repr types_rV ts) pcT stateT)) in
+            pose (preds_rV := preds_r) ;
+            let fwd' := HINTS_REIFY.lift_lemmas_over_repr fwd' types_rV pcT stateT in
+            let bwd' := HINTS_REIFY.lift_lemmas_over_repr bwd' types_rV pcT stateT in
+            let pf := fresh "fwd_pf" in
+            assert (pf : forall ts fs ps, UNF.hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| UNF.Forward := fwd' ts ; UNF.Backward := bwd' ts |})) by 
+              (abstract (constructor; [ HINTS_REIFY.prove fwd | HINTS_REIFY.prove bwd ])) ;
+            let res := constr:(
+              {| Types      := types_rV
+               ; PcType     := pcT
+               ; StateType  := stateT
+               ; Functions  := funcs_rV
+               ; Predicates := preds_rV
+               ; Hints      := fun ts => {| UNF.Forward := fwd' ts ; UNF.Backward := bwd' ts |}
+               ; HintsOk    := pf
+               |}) in ret res))))).
+
+
     (** builds a [TypedPackage] from the arguments
      ** - [hints] is a list of separation logic hints
      **)
     Ltac build_hints_pack hints ret :=
       let res := constr:(
         let env :=
-          {| PACK.Types := PACKAGED.Types hints
-           ; PACK.Funcs := fun ts => PACKAGED.Functions hints (repr bedrock_types_r ts)
-           ; PACK.Preds := fun ts => PACKAGED.Predicates hints (repr bedrock_types_r ts) |}
+          {| PACK.Types := Types hints
+           ; PACK.Funcs := fun ts => Functions hints (repr bedrock_types_r ts)
+           ; PACK.Preds := fun ts => Predicates hints (repr bedrock_types_r ts) |}
         in
         let algos ts := 
           @Build_AllAlgos (PACK.applyTypes env ts)
             None 
-            (Some (PACKAGED.Hints hints ts))
+            (Some (Hints hints ts))
             None
         in
         @Build_TypedPackage env algos 
           (fun ts fs ps => 
-            let types := repr bedrock_types_r (repr (PACKAGED.Types hints) ts) in
-            @Build_AllAlgos_correct _ _ _ (algos ts) I (PACKAGED.HintsOk hints ts fs ps) I))
+            let types := repr bedrock_types_r (repr (Types hints) ts) in
+            @Build_AllAlgos_correct _ _ _ (algos ts) I (HintsOk hints ts fs ps) I))
       in
       let res := eval simpl in res in
       ret res.
@@ -280,7 +341,6 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       |}.
 
     Module HintsPackTest.
-      Ltac isConst _ := true.
       
 (*
       Goal TypedPackage.
