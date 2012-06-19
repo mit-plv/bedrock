@@ -1,6 +1,6 @@
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
-Require Import Memory SepIL SymIL ILTac.
+Require Import Memory SepIL SymIL.
 Require Import Prover.
 Require Import Reflection.
 

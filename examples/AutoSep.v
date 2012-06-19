@@ -20,9 +20,13 @@ Definition auto_ext : TacPackage.
       let res := 
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
-          PACK.Types PACK.Preds PACK.Funcs
-          PACK.applyTypes PACK.applyFuncs PACK.applyPreds
-          ILAlgoTypes.BedrockPackage.bedrock_package Env.repr_combine Env.footprint Env.nil_Repr
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
+
+          ILAlgoTypes.BedrockPackage.bedrock_package
+          Env.repr_combine Env.footprint Env.nil_Repr
           Env.listToRepr
           app map
           
@@ -152,9 +156,23 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
          ILEnv.bedrock_type_W ILEnv.bedrock_type_nat
          ILEnv.bedrock_type_setting_X_state
-         ILEnv.bedrock_type_setting
+         ILEnv.bedrock_type_state
          ILEnv.bedrock_type_test
          ILEnv.bedrock_type_reg
+
+         ILEnv.word_nat_r
+         ILEnv.word_state_r
+         ILEnv.word_test_r
+         
+         ILEnv.wplus_r
+         ILEnv.wminus_r
+         ILEnv.wmult_r
+         ILEnv.word_test_r
+         ILEnv.wcomparator_r
+         ILEnv.Regs_r
+         ILEnv.wlt_r
+         ILEnv.natToW_r
+
              
          (** Env **)
          Env.repr_combine Env.default Env.footprint Env.repr'
@@ -217,12 +235,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Unfolder.FM.fold Unfolder.FM.map
          Unfolder.FM.find 
          UNF.Vars UNF.UVars UNF.Heap
-         UNF.Foralls UNF.Hyps UNF.Lhs UNF.Rhs
+         UNF.LEM.Foralls UNF.LEM.Hyps UNF.LEM.Lhs UNF.LEM.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward
          UNF.Backward UNF.backward UNF.unfoldBackward
          UNF.findWithRest UNF.find equiv_dec 
          UNF.findWithRest' 
-         Unfolder.allb 
+         Folds.allb 
          UNF.find UNF.default_hintsPayload
          UNF.openForUnification 
          UNF.quantFwd UNF.quantBwd 
@@ -447,9 +465,27 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
          ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r 
-         ILEnv.bedrock_types ILEnv.bedrock_type_nat
+         ILEnv.bedrock_types 
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
+         ILEnv.bedrock_type_W ILEnv.bedrock_type_nat
+         ILEnv.bedrock_type_setting_X_state
+         ILEnv.bedrock_type_state
+         ILEnv.bedrock_type_test
+         ILEnv.bedrock_type_reg
+
+         ILEnv.word_nat_r
+         ILEnv.word_state_r
+         ILEnv.word_test_r
+         
+         ILEnv.wplus_r
+         ILEnv.wminus_r
+         ILEnv.wmult_r
+         ILEnv.word_test_r
+         ILEnv.wcomparator_r
+         ILEnv.Regs_r
+         ILEnv.wlt_r
+         ILEnv.natToW_r
              
          (** Env **)
          Env.repr_combine Env.default Env.footprint Env.repr'
@@ -519,12 +555,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
          Unfolder.FM.find 
-         UNF.Foralls UNF.Vars
-         UNF.UVars UNF.Heap UNF.Hyps UNF.Lhs UNF.Rhs
+         UNF.LEM.Foralls UNF.Vars
+         UNF.UVars UNF.Heap UNF.LEM.Hyps UNF.LEM.Lhs UNF.LEM.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
          UNF.backward UNF.unfoldBackward  equiv_dec 
          UNF.find UNF.findWithRest UNF.findWithRest' 
-         Unfolder.allb 
+         Folds.allb 
          UNF.openForUnification 
          UNF.quantFwd UNF.quantBwd 
          UNF.liftInstantiate
@@ -800,7 +836,7 @@ Ltac prepare :=
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
-  TacPackIL.PACKAGED.prepareHints the_unfold_tac W (settings * state)%type isConst.
+  ILAlgoTypes.Tactics.prepareHints the_unfold_tac W (settings * state)%type isConst.
 
 Ltac sep_auto := sep auto_ext.
 
@@ -814,7 +850,7 @@ Ltac prepare2 old :=
   let v := eval cbv beta iota zeta delta [ 
     auto_ext old
     ILAlgoTypes.AllAlgos_composite ILAlgoTypes.oplus
-    PACK.Types PACK.Funcs PACK.Preds 
+    ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds 
     ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.MemEval
     ILAlgoTypes.Env ILAlgoTypes.Algos
     

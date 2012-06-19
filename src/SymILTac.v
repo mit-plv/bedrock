@@ -544,7 +544,7 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
       let v := constr:(nil : env typesV) in
       let f := eval unfold ILEnv.bedrock_funcs in (ILEnv.bedrock_funcs typesV) in
       build_path typesV i st v v f ltac:(fun uvars funcs is sf pf =>
-        assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf)))
+        assert (@istreamD typesV funcs uvars v is stn st sf)  by (exact pf)) || fail 1000)
   end.
   solve [ trivial ].
 Abort.
@@ -652,7 +652,7 @@ Section apply_stream_correctness.
 
 End apply_stream_correctness.
 
-Module SEP_REIFY := ReifySepExpr SEP.
+Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
 
 (** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]
@@ -710,10 +710,12 @@ Ltac sym_eval isConst ext simplifier :=
         eval cbv beta iota zeta delta [ 
           ext
           repr_combine listToRepr listOptToRepr nil_Repr
-          PACK.Types PACK.Funcs PACK.Preds
-          PACK.applyTypes PACK.applyFuncs PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
           tl map repr
-          PACK.CE.core
+          ILAlgoTypes.PACK.CE.core
           bedrock_types_r bedrock_funcs_r
           TacPackIL.ILAlgoTypes.Env
         ] in ls
@@ -721,10 +723,13 @@ Ltac sym_eval isConst ext simplifier :=
         eval cbv beta iota zeta delta [
           sym ext
           repr_combine listToRepr listOptToRepr nil_Repr
-          PACK.Types PACK.Funcs PACK.Preds
-          PACK.applyTypes PACK.applyFuncs PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
+
           map tl repr
-          PACK.CE.core
+          ILAlgoTypes.PACK.CE.core
           bedrock_types_r bedrock_funcs_r
           TacPackIL.ILAlgoTypes.Env
         ] in ls
@@ -779,7 +784,7 @@ Ltac sym_eval isConst ext simplifier :=
                     | _ => idtac
                   end;
                   (** elaborate the types **)
-                  let types_ := reduce_repr tt (PACK.applyTypes (TacPackIL.ILAlgoTypes.Env ext) nil) in
+                  let types_ := reduce_repr tt (ILAlgoTypes.PACK.applyTypes (TacPackIL.ILAlgoTypes.Env ext) nil) in
                   let types_ := ReifyExpr.extend_all_types Ts types_ in
                   let typesV := fresh "types" in
                   pose (typesV := types_);
@@ -790,10 +795,10 @@ Ltac sym_eval isConst ext simplifier :=
                   let uvars := constr:(@nil (@sigT Expr.tvar (fun t : Expr.tvar => Expr.tvarD typesV t))) in
                   let vars := uvars in
                   (** build the base functions **)
-                  let funcs := reduce_repr tt (PACK.applyFuncs (TacPackIL.ILAlgoTypes.Env ext) typesV (repr (bedrock_funcs_r typesV) nil)) in
+                  let funcs := reduce_repr tt (ILAlgoTypes.PACK.applyFuncs (TacPackIL.ILAlgoTypes.Env ext) typesV (repr (bedrock_funcs_r typesV) nil)) in
                    (** build the base sfunctions **)
 (*                  let preds := constr:(@nil (@SEP.ssignature typesV pcT stT)) in *)
-                  let preds := reduce_repr tt (PACK.applyPreds (TacPackIL.ILAlgoTypes.Env ext) typesV nil) in
+                  let preds := reduce_repr tt (ILAlgoTypes.PACK.applyPreds (TacPackIL.ILAlgoTypes.Env ext) typesV nil) in
                   (** reflect the expressions **)
                   ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
                   let proofs := ReifyExpr.props_proof all_props in

@@ -1,4 +1,4 @@
-Require Import List.
+Require Import List Bool.
 Require Import Reflection.
 
 Set Implicit Arguments.
@@ -103,3 +103,14 @@ Proof.
   clear; induction l1; destruct l2; simpl; intros; auto.
   consider (P' a u); intros. rewrite H0; eauto.
 Qed.
+
+Section allb.
+  Variable A : Type.
+  Variable P : A -> bool.
+
+  Fixpoint allb (ls : list A) : bool :=
+    match ls with
+      | nil => true
+      | x :: ls' => if P x then allb ls' else false
+    end.
+End allb.

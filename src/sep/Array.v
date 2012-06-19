@@ -1,7 +1,7 @@
 Require Import Bool.
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
-Require Import Word Memory IL SepIL SymIL ILTac.
+Require Import Word Memory IL SepIL SymIL ILEnv.
 Require Import EqdepClass.
 Require Import Env Prover.
 Require Import PropX PropXTac Nomega NArith.
@@ -41,9 +41,9 @@ Definition upd (ws : list W) (a v : W) : list W :=
   upd' ws (wordToNat a) v.
 
 Definition bedrock_type_listW : type :=
-  {| Expr.Impl := list W;
-    Expr.Eqb := (fun _ _ => false);
-    Expr.Eqb_correct := @ILEnv.all_false_compare _ |}.
+  {| Expr.Impl := list W
+   ; Expr.Eqb := (fun _ _ => false)
+   ; Expr.Eqb_correct := @ILEnv.all_false_compare _ |}.
 
 Definition types_r : Env.Repr Expr.type :=
   Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
@@ -76,21 +76,6 @@ Section parametric.
   Definition types := repr types_r types'.
   Variable Prover : ProverT types.
 
-  Definition wplus_r : signature types.
-    refine {| Domain := wordT :: wordT :: nil; Range := wordT |}.
-    exact (@wplus 32).
-  Defined.
-
-  Definition wmult_r : signature types.
-    refine {| Domain := wordT :: wordT :: nil; Range := wordT |}.
-    exact (@wmult 32).
-  Defined.
-
-  Definition wlt_r : signature types.
-    refine {| Domain := wordT :: wordT :: nil; Range := tvProp |}.
-    exact (@wlt 32).
-  Defined.
-
   Definition natToW_r : signature types.
     refine {| Domain := natT :: nil; Range := wordT |}.
     exact natToW.
@@ -114,18 +99,18 @@ Section parametric.
   Definition funcs_r : Env.Repr (signature types) :=
     Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
       let lst := 
-        Some wplus_r ::
+        Some (ILEnv.wplus_r types) ::
         None ::
-        Some wmult_r ::
+        Some (ILEnv.wmult_r types) ::
         None ::
         None ::
-        Some wlt_r ::
-        Some natToW_r ::
+        Some (ILEnv.wlt_r types) ::
+        Some (ILEnv.natToW_r types) ::
         Some wlength_r ::
         Some sel_r ::
         Some upd_r ::
         nil
-        in Env.listOptToRepr lst (Default_signature _).
+      in Env.listOptToRepr lst (Default_signature _).
 
   Definition deref (e : expr types) : option (expr types * expr types) :=
     match e with

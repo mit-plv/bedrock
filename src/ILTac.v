@@ -231,7 +231,7 @@ Ltac change_to_himp := try apply ignore_regs;
     | _ => apply change_Imply_himp
   end.
 
-Module SEP_REIFY := ReifySepExpr SEP.
+Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
 
 (** The parameters are the following.
  ** - [isConst] is an ltac [* -> bool]
@@ -272,7 +272,11 @@ Ltac sep_canceler isConst ext simplifier :=
       | _ => 
         eval cbv beta iota zeta delta [
           ext
-          PACK.applyTypes PACK.applyFuncs PACK.applyPreds PACK.Types PACK.Funcs PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs 
+          ILAlgoTypes.PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+
           Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
           BedrockCoreEnv.core 
           ILAlgoTypes.Env
@@ -281,7 +285,11 @@ Ltac sep_canceler isConst ext simplifier :=
         ] in ls
       | _ => 
         eval cbv beta iota zeta delta [
-          PACK.applyTypes PACK.applyFuncs PACK.applyPreds PACK.Types PACK.Funcs PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs 
+          ILAlgoTypes.PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          
           Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
           BedrockCoreEnv.core
           ILAlgoTypes.Env
@@ -323,7 +331,7 @@ Ltac sep_canceler isConst ext simplifier :=
       end ;
       (** elaborate the types **)
       let types_ := 
-        reduce_repr (PACK.applyTypes (ILAlgoTypes.Env ext) nil)
+        reduce_repr (ILAlgoTypes.PACK.applyTypes (ILAlgoTypes.Env ext) nil)
       in
       let types_ := ReifyExpr.extend_all_types Ts types_ in
       let typesV := fresh "types" in
@@ -333,11 +341,11 @@ Ltac sep_canceler isConst ext simplifier :=
       let gvars := uvars in
       let vars := eval simpl in (@nil Expr.tvar) in
       (** build the funcs **)
-      let funcs := reduce_repr (PACK.applyFuncs (ILAlgoTypes.Env ext) typesV nil) in
+      let funcs := reduce_repr (ILAlgoTypes.PACK.applyFuncs (ILAlgoTypes.Env ext) typesV nil) in
       let pcT := constr:(Expr.tvType 0) in
       let stT := constr:(Expr.tvType 1) in
       (** build the base sfunctions **)
-      let preds := reduce_repr (PACK.applyPreds (ILAlgoTypes.Env ext) typesV nil) in
+      let preds := reduce_repr (ILAlgoTypes.PACK.applyPreds (ILAlgoTypes.Env ext) typesV nil) in
       ReifyExpr.reify_exprs ltac:(isConst) pures typesV funcs uvars vars ltac:(fun uvars funcs pures =>
       let proofs := ReifyExpr.props_proof all_props in
       SEP_REIFY.reify_sexpr ltac:(isConst) L typesV funcs pcT stT preds uvars vars ltac:(fun uvars funcs preds L =>
