@@ -1,4 +1,4 @@
-Require Import IL SepIL SymILTac.
+Require Import IL SepIL.
 Require Import Word Memory.
 Import List.
 Require Import DepList EqdepClass.
@@ -6,6 +6,7 @@ Require Import PropX.
 Require Import Expr SepExpr SepCancel.
 Require Import Prover ILEnv.
 Require Import Tactics Reflection.
+Require Import TacPackIL.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -245,7 +246,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME  start_timer "sep_canceler:init" ; *)
   let ext' := 
     match ext with
-      | tt => eval cbv delta [ SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package ] in SymILTac.ILAlgoTypes.BedrockPackage.bedrock_package
+      | tt => eval cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ] in ILAlgoTypes.BedrockPackage.bedrock_package
       | _ => eval cbv delta [ ext ] in ext
       | _ => ext
     end
@@ -351,14 +352,14 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME          start_timer "sep_canceler:apply_CancelSep" ; *)
         (((** TODO: for some reason the partial application to proofs doesn't always work... **)
          apply (@ApplyCancelSep typesV funcsV predsV 
-                   (SymILTac.ILAlgoTypes.Algos ext typesV)
-                   (@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ]
+                   (ILAlgoTypes.Algos ext typesV)
+                   (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); [ apply proofs | ]
 (*TIME       ;  stop_timer "sep_canceler:apply_CancelSep" *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
-            let algos := constr:(SymILTac.ILAlgoTypes.Algos ext typesV) in
+            let algos := constr:(ILAlgoTypes.Algos ext typesV) in
             idtac "-" ;
-            let algosC := constr:(@SymILTac.ILAlgoTypes.Algos_correct ext typesV funcsV predsV) in 
+            let algosC := constr:(@ILAlgoTypes.Algos_correct ext typesV funcsV predsV) in 
             idtac "*" ;
             first [ generalize (@ApplyCancelSep typesV funcsV predsV algos algosC uvars pures L R) ; idtac "p"
                   | generalize (@ApplyCancelSep typesV funcsV predsV algos algosC uvars pures L)  ; idtac "o" 

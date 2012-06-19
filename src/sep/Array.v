@@ -55,7 +55,7 @@ Definition types_r : Env.Repr Expr.type :=
       None ::
       Some ILEnv.bedrock_type_nat ::
       Some bedrock_type_listW :: nil
-      in Env.listOptToRepr lst EmptySet_type.
+    in Env.listOptToRepr lst EmptySet_type.
 
 Local Notation "'pcT'" := (tvType 0).
 Local Notation "'stT'" := (tvType 1).
