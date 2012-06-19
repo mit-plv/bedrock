@@ -24,7 +24,8 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
 TVS        := $(TESTS:%=%.v)
-ARGS :=-R . Bedrock
+
+ARGS :=-R . Bedrock 
 
 .PHONY: coq clean package
 
