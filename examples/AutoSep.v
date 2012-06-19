@@ -16,7 +16,7 @@ Definition auto_ext : TacPackage.
   ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
   ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
-    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b (* , c*)) ltac:(fun res => 
+    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c) ltac:(fun res => 
       let res := 
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
@@ -37,7 +37,7 @@ Definition auto_ext : TacPackage.
 
           Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
         ] in res in
-        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose"))).
+        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" ))).
 Defined.
 
 Ltac refold :=

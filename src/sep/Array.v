@@ -215,10 +215,10 @@ Section correctness.
   Defined.
 
   Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
-    Eval cbv beta iota zeta delta [ Env.listToRepr ] in 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
       let lst := 
-        ssig :: nil
-      in Env.listToRepr lst (SEP.Default_predicate _ _ _).
+        None :: Some ssig :: nil
+      in Env.listOptToRepr lst (SEP.Default_predicate _ _ _).
 
   Variable funcs' : functions types0.
   Definition funcs := Env.repr (funcs_r _) funcs'.
@@ -747,7 +747,7 @@ End correctness.
 
 Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
   Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
-    @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 0.
+    @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 1.
 
 Theorem MemEvaluator_correct types' funcs' preds'
   : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
@@ -770,7 +770,7 @@ Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvTyp
   IL_mem_satisfies IL_ReadWord IL_WriteWord
   types_r
   funcs_r
-  (fun ts => Env.listToRepr (ssig ts :: nil)
+  (fun ts => Env.listOptToRepr (None :: Some (ssig ts) :: nil)
     (SEP.Default_predicate (Env.repr types_r ts)
       (tvType 0) (tvType 1)))
   (fun ts => MemEvaluator _)
