@@ -2,13 +2,19 @@ Require Import Expr SepExpr.
 Require Import Prover SymEval.
 Require Import Env TypedPackage.
 Import List.
-
 Require Import IL SepIL SymIL ILEnv.
 Require ReifyExpr ReifySepExpr ReifyHints.
+Require Unfolder.
 
 Set Implicit Arguments.
 Set Strict Implicit.
-Require Unfolder.
+
+(*TIME
+Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
+Add ML Path "/usr/local/lib/coq/user-contrib/". 
+Declare ML Module "Timing_plugin".
+*)
+
 Module UNF := Unfolder.Make SH ExprUnify.UNIFIER.
 
 Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
@@ -538,12 +544,17 @@ Module Extension.
     let red_pack t := eval cbv beta iota zeta delta 
       [ ILAlgoTypes.MemEval ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.Algos pack ] in t 
     in
+    (*TIME start_timer "extend:gather" ; *)
     gather_env_pack pack (ILEnv.BedrockCoreEnv.core) tt tt ltac:(fun ts fs ps =>
     gather_env_prover prover ts fs ps ltac:(fun ts fs ps =>
     gather_env_meval mevals ts fs ps ltac:(fun ts fs ps =>
+    (*TIME stop_timer "extend:gather" ; *)
+    (*TIME start_timer "extend:reduce_repr" ; *)
       let types := reduce_repr (Env.repr ts nil) in
+    (*TIME stop_timer "extend:reduce_repr" ; *)
+    (*TIME start_timer "extend:reify" ; *)
       HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun Ts =>
-      HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd Ts ltac:(fun Ts =>
+      HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd Ts ltac:(fun Ts => (
       let types := ReifyExpr.extend_all_types Ts types in
       set (typesV := types) ;
       let funcs := reduce_repr (Env.repr (fs types) nil) in
@@ -551,7 +562,9 @@ Module Extension.
       let pcT := ILEnv.BedrockCoreEnv.pc in
       let stateT := ILEnv.BedrockCoreEnv.st in
       HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
-      HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
+      HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' => (
+    (*TIME stop_timer "extend:reify" ; *)
+    (*TIME start_timer "extend:lifting" ; *)
         let types_r := eval cbv beta iota zeta delta [ typesV Env.listToRepr map ] in (Env.listToRepr typesV Expr.EmptySet_type) in
         set (types_rV := types_r) ;
         let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in
@@ -562,6 +575,8 @@ Module Extension.
         let preds_r := eval cbv beta iota zeta delta [ Env.listToRepr map ] in
           (fun ts => Env.listToRepr (preds_r ts) (SEP.Default_predicate (Env.repr types_rV ts) pcT stateT)) in
         set (preds_rV := preds_r) ;
+    (*TIME stop_timer "extend:lifting" ; *)
+    (*TIME start_timer "extend:combining" ; *)
         set (env := {| ILAlgoTypes.PACK.Types := types_rV 
                      ; ILAlgoTypes.PACK.Funcs := funcs_rV
                      ; ILAlgoTypes.PACK.Preds := preds_rV |}) ;
@@ -606,7 +621,8 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
         refine ({| ILAlgoTypes.Env := env
                  ; ILAlgoTypes.Algos := algos_V
                  ; ILAlgoTypes.Algos_correct := _
-                |}); idtac ;
+                |}); 
+    (*TIME stop_timer "extend:combining" ; *)
         abstract (let ts := fresh "ts" in
          let fs := fresh "fs" in
          let ps := fresh "ps" in
@@ -643,7 +659,9 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
                      end
              | _ => idtac
            end             
-         ]) || fail 1000 "failed to prove" 
+         ]) || fail 1000 "Failed to prove. Make sure your function and predicate environments are compatible. If they are, Please report this.")
+      || fail 1000 "Combine failed. Make sure your type environments are compatible!")
+      || fail 1000 "Type collection failed! Please report this!"
       ))))))).
 
   End Extension.

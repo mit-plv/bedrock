@@ -7,6 +7,7 @@ Require Import Expr SepExpr SepCancel.
 Require Import Prover ILEnv.
 Require Import Tactics Reflection.
 Require Import TacPackIL.
+Require ExprUnify.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -16,8 +17,6 @@ Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
 Declare ML Module "Timing_plugin".
 *)
-
-Require ExprUnify.
 
 Module U := ExprUnify.UNIFIER.
 Module CANCEL := SepCancel.Make U SepIL.SH.

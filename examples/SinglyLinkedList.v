@@ -64,6 +64,8 @@ End SinglyLinkedList.
 Import SinglyLinkedList.
 Hint Immediate sll_extensional.
 
+(*TIME Clear Timing Profile. *)
+
 Definition hints : TacPackage.
 (*TIME idtac "sll:prepare". Time *)
 Time (* let auto_ext := eval cbv delta [ auto_ext ] in auto_ext in *)
@@ -158,9 +160,9 @@ Ltac finish := repeat match goal with
                congruence || W_eq || reflexivity || tauto || eauto.
 
 Theorem sllMOk : moduleOk sllM.
-(*TIME Clear Timing Profile. *)
 (*TIME idtac "sll:verify". Time *) vcgen;
 abstract (sep hints; finish).
-(*TIME Print Timing Profile. *)
 (*TIME Time *)
 Qed.
+
+(*TIME Print Timing Profile. *)
