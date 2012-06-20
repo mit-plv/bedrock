@@ -363,14 +363,9 @@ Lemma malloc_split : forall cur full init,
   sepLemma.
 Qed.
 
-Definition hints' : TacPackage.
-(*TIME idtac "malloc:prepare1". Time *)
-  prepare1 (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
-(*TIME Time *)Defined.
-
 Definition hints : TacPackage.
-(*TIME idtac "malloc:prepare2". Time *)
-  prepare2 hints'.
+(*TIME idtac "malloc:prepare". Time *)
+  prepare auto_ext tt tt (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
 
 Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) /\ freeable 4 (n+2) |]

@@ -64,15 +64,12 @@ End SinglyLinkedList.
 Import SinglyLinkedList.
 Hint Immediate sll_extensional.
 
-Definition hints' : TacPackage.
-(*TIME idtac "sll:prepare1". Time *)
-  prepare1 (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
-(*TIME Time *)Defined.
-
 Definition hints : TacPackage.
-(*TIME idtac "sll:prepare2". Time *)
-  prepare2 hints'.
-(*TIME Time *)Defined.
+(*TIME idtac "sll:prepare". Time *)
+Time (* let auto_ext := eval cbv delta [ auto_ext ] in auto_ext in *)
+  prepare auto_ext tt tt (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
+(*TIME Time *)
+Defined.
 
 Definition null A (ls : list A) : bool :=
   match ls with
@@ -162,6 +159,8 @@ Ltac finish := repeat match goal with
 
 Theorem sllMOk : moduleOk sllM.
 (*TIME Clear Timing Profile. *)
-(*TIME idtac "sll:verify". Time *) vcgen; abstract (sep hints; finish).
+(*TIME idtac "sll:verify". Time *) vcgen;
+abstract (sep hints; finish).
 (*TIME Print Timing Profile. *)
-(*TIME Time *)Qed.
+(*TIME Time *)
+Qed.
