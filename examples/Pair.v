@@ -50,11 +50,11 @@ Definition pair := bmodule "pair" {{
 (*TIME Clear Timing Profile. *)
 
 Definition hints : TacPackage.
-  (*TIME idtac "prepare1". Time *)prepare auto_ext tt tt pair_fwd pair_bwd.
+  (*TIME idtac "pair:prepare". Time *)prepare auto_ext tt tt pair_fwd pair_bwd.
 Defined.
 
 Theorem pairOk : moduleOk pair.
-  (*TIME idtac "verify". Time *)vcgen; abstract sep hints.
+  (*TIME idtac "pair:verify". Time *)vcgen; abstract sep hints.
 Qed.
 
 (*TIME Print Timing Profile. *)

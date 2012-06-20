@@ -363,6 +363,8 @@ Lemma malloc_split : forall cur full init,
   sepLemma.
 Qed.
 
+(*TIME Clear Timing Profile. *)
+
 Definition hints : TacPackage.
 (*TIME idtac "malloc:prepare". Time *)
   prepare auto_ext tt tt (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
@@ -469,7 +471,6 @@ Section mallocOk.
   Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
   Theorem mallocMOk : moduleOk mallocM.
-(*TIME Clear Timing Profile. *)
 (*TIME idtac "malloc:verify". Time *)
    vcgen; abstract solve [ generalize four_neq_zero; sep hints; auto;
       try match goal with
@@ -483,6 +484,8 @@ Section mallocOk.
           change (base =?> full)%Sep with (splitMe base full init) in H;
             generalize (goodSize_freeable H')
         end; sep hints ].
-(*TIME Print Timing Profile. *)
+
 (*TIME Time *)Qed.
+
+(*TIME Print Timing Profile. *)
 End mallocOk.
