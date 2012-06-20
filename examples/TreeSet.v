@@ -102,15 +102,17 @@ Import Bst.
 Export Bst.
 Hint Immediate bst_extensional bst'_extensional.
 
-Definition hints' : TacPackage.
+Definition hints : TacPackage.
 (*TIME idtac "tree-set:prepare1". Time *)
-  prepare1 (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
+  prepare auto_ext tt tt  (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
 
+(*
 Definition hints : TacPackage.
 (*TIME idtac "tree-set:prepare2". Time *)
   prepare2 hints'.
 (*TIME Time *)Defined.
+*)
 
 Definition initS : assert := st ~> ExX, ![ ^[st#Sp =?> 3] * ^[mallocHeap] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
