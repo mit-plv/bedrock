@@ -432,7 +432,27 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
-         EqNat.beq_nat  
+         EqNat.beq_nat 
+
+
+         (** TODO: sort these **)
+          ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
+
+          ILAlgoTypes.BedrockPackage.bedrock_package
+          Env.repr_combine Env.footprint Env.nil_Repr
+          Env.listToRepr
+          app map
+          
+          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
+          ILAlgoTypes.AllAlgos_composite
+          ILAlgoTypes.oplus Prover.composite_ProverT 
+          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
+
+          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
        ]
   | _ =>
     cbv beta iota zeta
@@ -756,6 +776,26 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
          EqNat.beq_nat
+
+         (** TODO: sort these **)
+         ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
+         ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
+         ILAlgoTypes.PACK.applyTypes
+         ILAlgoTypes.PACK.applyFuncs
+         ILAlgoTypes.PACK.applyPreds
+
+         ILAlgoTypes.BedrockPackage.bedrock_package
+         Env.repr_combine Env.footprint Env.nil_Repr
+         Env.listToRepr
+         app map
+         
+         ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
+         ILAlgoTypes.AllAlgos_composite
+         ILAlgoTypes.oplus Prover.composite_ProverT 
+         (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
+
+         Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
+
        ] in H
   end; refold.
 
@@ -831,14 +871,40 @@ Ltac sep ext :=
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
+(** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
+Ltac prepare base := 
+  let the_unfold_tac x := 
+    eval unfold empB, injB, injBX, starB, exB, hvarB in x
+  in
+(*
+  let base :=
+    match tt with
+      | _ => eval cbv delta [ base ] in base
+      | _ => base
+    end
+  in
+*)
+  ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
+    (*W (settings * state)%type*)
+    isConst base.
+
+(*
+Goal TacPackage.
+  prepare auto_ext tt tt tt tt.
+  Show Proof.
+  Set Printing All.
+  Show Proof.
+*)
+
+Ltac sep_auto := sep auto_ext.
+
+(*
 (** env -> fwd -> bwd -> (hints -> T) -> T **)
 Ltac prepare := 
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.prepareHints the_unfold_tac W (settings * state)%type isConst.
-
-Ltac sep_auto := sep auto_ext.
 
 Ltac prepare1 fwd bwd :=
   let env := eval simpl ILAlgoTypes.EnvOf in (ILAlgoTypes.EnvOf auto_ext) in
@@ -859,3 +925,4 @@ Ltac prepare2 old :=
     app map 
   ] in old in
   ILAlgoTypes.Tactics.opaque_pack v.
+*)

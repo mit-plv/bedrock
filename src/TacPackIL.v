@@ -447,6 +447,212 @@ Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_Read
     glue_packs (x, y, y) ltac:(fun v => exact v))).
 Qed.
 *)
+
+Module Extension.
+
+  Ltac combine_repr l r :=
+    match l with
+      | tt => r
+      | _ => match r with 
+               | tt => l
+               | _ => constr:(Env.repr_combine l r)
+             end
+    end.
+  Ltac combine_repr_abs l r :=
+    match eval hnf in l with
+      | tt => r
+      | ?abs => match r with
+                  | tt => l
+                  | _ => constr:(fun ts => Env.repr_combine (l ts) (r ts))
+                end
+    end.
+
+  Ltac gather_env_prover prover ts fs ps k :=
+    match eval hnf in prover with
+      | tt => k ts fs ps
+      | ?prover =>
+        let ts := combine_repr ts (ProverTypes prover) in
+        let fs := combine_repr_abs fs (ProverFuncs prover) in
+        k ts fs ps
+    end.
+  Ltac gather_env_meval meval ts fs ps k :=
+    match eval hnf in meval with
+      | tt => k ts fs ps
+      | ?meval => match type of meval with
+                    | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st ?ptr ?val IL_mem_satisfies IL_ReadWord IL_WriteWord =>
+                      let ts := combine_repr ts (Env.repr_combine tr (MEVAL.MemEvalTypes mem)) in
+                      let fs := combine_repr_abs fs (MEVAL.MemEvalFuncs meval) in
+                      let ps := combine_repr_abs ps (MEVAL.MemEvalPreds meval ts) in
+                      k ts fs ps
+                  end
+    end.
+  Ltac gather_env_pack pack ts fs ps k :=
+    match eval hnf in pack with
+      | tt => k ts fs ps
+      | ?pack => 
+        let ts := combine_repr ts (PACK.Types (Env pack)) in
+        let fs := combine_repr_abs fs (PACK.Funcs (Env pack)) in
+        let ps := combine_repr_abs ps (PACK.Preds (Env pack)) in
+        k ts fs ps
+    end.
+
+  Lemma hintSideD_app : forall types pc st funcs preds A B,
+    @UNF.hintSideD types funcs pc st preds A ->
+    @UNF.hintSideD types funcs pc st preds B ->
+    @UNF.hintSideD types funcs pc st preds (A ++ B).
+  Proof. 
+    induction 1; simpl; intros; auto. constructor; eauto. eapply IHForall. auto.
+  Qed.
+
+  Definition extend_opt_hints types pc st (o : option (UNF.hintsPayload types pc st)) (fwd bwd : list (UNF.LEM.lemma types pc st)) : option (UNF.hintsPayload types pc st) :=
+    match fwd , bwd with
+      | nil , nil => o
+      | _ , _ =>
+        match o with
+          | None => Some (UNF.Build_hintsPayload fwd bwd)
+          | Some e => Some (UNF.Build_hintsPayload (UNF.Forward e ++ fwd) (UNF.Backward e ++ bwd))
+        end
+    end.
+  Lemma extend_opt_hintsOk : forall types pc st funcs preds (o : option (UNF.hintsPayload types pc st)) (fwd bwd : list (UNF.LEM.lemma types pc st)),
+    match o with
+      | None => True
+      | Some H => @UNF.hintsSoundness types funcs pc st preds H
+    end ->
+    UNF.hintSideD funcs preds fwd ->
+    UNF.hintSideD funcs preds bwd ->    
+    match extend_opt_hints o fwd bwd with
+      | Some H => UNF.hintsSoundness funcs preds H
+      | None => True
+    end.
+  Proof.
+    unfold extend_opt_hints; destruct o; simpl; intros.
+    destruct H; destruct fwd; destruct bwd; constructor; simpl; auto; repeat rewrite app_nil_r; eauto using hintSideD_app.
+    destruct fwd; destruct bwd; constructor; simpl; auto; repeat rewrite app_nil_r; eauto using hintSideD_app.
+  Qed.
+
+  Ltac extend unfoldTac isConst pack prover mevals fwd bwd :=
+    let reduce_repr t := eval cbv beta iota zeta delta
+      [ ILAlgoTypes.Env ILAlgoTypes.PACK.Funcs ILEnv.bedrock_funcs_r map hd tl Env.listToRepr Env.listOptToRepr Env.repr_combine Env.nil_Repr Env.repr ILEnv.BedrockCoreEnv.core 
+        ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs ILEnv.bedrock_types_r ] in t
+    in
+    let red_pack t := eval cbv beta iota zeta delta 
+      [ ILAlgoTypes.MemEval ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.Algos pack ] in t 
+    in
+    gather_env_pack pack (ILEnv.BedrockCoreEnv.core) tt tt ltac:(fun ts fs ps =>
+    gather_env_prover prover ts fs ps ltac:(fun ts fs ps =>
+    gather_env_meval mevals ts fs ps ltac:(fun ts fs ps =>
+      let types := reduce_repr (Env.repr ts nil) in
+      HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun Ts =>
+      HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd Ts ltac:(fun Ts =>
+      let types := ReifyExpr.extend_all_types Ts types in
+      set (typesV := types) ;
+      let funcs := reduce_repr (Env.repr (fs types) nil) in
+      let preds := reduce_repr (Env.repr (ps types) nil) in
+      let pcT := ILEnv.BedrockCoreEnv.pc in
+      let stateT := ILEnv.BedrockCoreEnv.st in
+      HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst fwd types funcs preds ltac:(fun funcs preds fwd' =>
+      HINTS_REIFY.reify_hints unfoldTac pcT stateT isConst bwd types funcs preds ltac:(fun funcs preds bwd' =>
+        let types_r := eval cbv beta iota zeta delta [ typesV Env.listToRepr map ] in (Env.listToRepr typesV Expr.EmptySet_type) in
+        set (types_rV := types_r) ;
+        let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in
+        let funcs_r := eval cbv beta iota zeta delta [ Env.listToRepr map ] in
+          (fun ts => Env.listToRepr (funcs_r ts) (Expr.Default_signature (Env.repr types_rV ts))) in
+        set (funcs_rV := funcs_r) ;
+        let preds_r := HINTS_REIFY.lift_ssignatures_over_repr preds types_rV pcT stateT in
+        let preds_r := eval cbv beta iota zeta delta [ Env.listToRepr map ] in
+          (fun ts => Env.listToRepr (preds_r ts) (SEP.Default_predicate (Env.repr types_rV ts) pcT stateT)) in
+        set (preds_rV := preds_r) ;
+        set (env := {| ILAlgoTypes.PACK.Types := types_rV 
+                     ; ILAlgoTypes.PACK.Funcs := funcs_rV
+                     ; ILAlgoTypes.PACK.Preds := preds_rV |}) ;
+        let fwd' := HINTS_REIFY.lift_lemmas_over_repr fwd' types_rV pcT stateT in
+        let bwd' := HINTS_REIFY.lift_lemmas_over_repr bwd' types_rV pcT stateT in
+        let nprover :=
+          match prover with
+            | tt => match pack with
+                      | tt => constr:(fun ts => @None (Prover.ProverT (Env.repr types_rV ts)))
+                      | _ => red_pack (fun ts => ILAlgoTypes.Prover (ILAlgoTypes.Algos pack (Env.repr types_rV ts)))
+                    end
+            | _ => match pack with
+                     | tt => constr:(fun ts => Some (Prover.Prover (Env.repr types_rV ts)))
+                     | _ => fail 1000 "we don't support combining provers yet!" prover pack
+                   end
+          end
+        in
+        let nmevals :=
+          match mevals with
+            | tt => match pack with
+                      | tt => constr:(fun ts => @None (MEVAL.MemEvaluator (Env.repr types_rV ts) pcT stateT))
+                      | _ => red_pack (fun ts => ILAlgoTypes.MemEval (ILAlgoTypes.Algos pack (Env.repr types_rV ts)))
+                    end
+            | _ => match pack with
+                     | tt => constr:(fun ts => Some (MEVAL.MemEval mevals (Env.repr types_rV ts)))
+                     | _ => fail 1000 "not sure" 
+                   end
+          end
+        in
+        let nhints := 
+          let res := match pack with
+            | tt => constr:(fun ts => @extend_opt_hints _ _ _ None (fwd' ts) (bwd' ts))
+            | _ => red_pack (fun ts => @extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts))) (fwd' ts) (bwd' ts))
+(*
+constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (Env.repr types_rV ts)) pcT stateT)) *)
+          end in
+          eval simpl extend_opt_hints in res
+        in
+        let algos := eval cbv beta in
+          (fun ts => @ILAlgoTypes.Build_AllAlgos (ILAlgoTypes.PACK.applyTypes env ts) (nprover ts) (nhints ts) (nmevals ts)) in
+        set (algos_V := algos) ;
+        refine ({| ILAlgoTypes.Env := env
+                 ; ILAlgoTypes.Algos := algos_V
+                 ; ILAlgoTypes.Algos_correct := _
+                |}); idtac ;
+        abstract (let ts := fresh "ts" in
+         let fs := fresh "fs" in
+         let ps := fresh "ps" in
+         intros ts fs ps ; 
+         let ntypes := fresh "types" in
+         set (ntypes := @ILAlgoTypes.PACK.applyTypes env ts) ;
+         let nfuncs := fresh "funcs" in
+         set (nfuncs := @ILAlgoTypes.PACK.applyFuncs env ntypes fs) ;
+         let npreds := fresh "preds" in
+         set (npreds := @ILAlgoTypes.PACK.applyPreds env ntypes ps) ;
+         constructor ;
+         [ match prover with
+             | tt => match pack with
+                       | tt => simpl; trivial
+                       | _ => eapply (@ILAlgoTypes.Algos_correct pack ntypes nfuncs npreds)
+                     end
+             | _ => match pack with
+                      | tt => eapply (@Prover.Prover_correct prover ntypes nfuncs)
+                      | _ => idtac "NOPE" prover pack
+                    end
+           end
+         | match goal with
+             | [ |- match ?X with _ => _ end ] =>
+               match pack with 
+                 | tt => change (X) with (@extend_opt_hints _ _ _ None (fwd' ntypes) (bwd' ntypes))
+                 | _ => 
+                   (change (X) with (@extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts))) (fwd' ntypes) (bwd' ntypes)))
+               end; apply extend_opt_hintsOk; [ simpl; auto | HINTS_REIFY.prove fwd | HINTS_REIFY.prove bwd ]
+           end
+         | match mevals with
+             | tt => match pack with
+                       | tt => simpl; trivial
+                       | _ => eapply (@ILAlgoTypes.Algos_correct pack ntypes nfuncs npreds)
+                     end
+             | _ => idtac
+           end             
+         ]) || fail 1000 "failed to prove" 
+      ))))))).
+
+  End Extension.
+
+  
+
+(*    extend tt tt BedrockPackage.bedrock_package tt tt tt tt. *)
+    
+
   End Tactics.
 
   Definition AlgoImpl := AllAlgos.
