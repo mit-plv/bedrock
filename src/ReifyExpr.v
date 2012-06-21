@@ -9,6 +9,7 @@ Require Import Expr.
 (** Tactics **)
 Require Import Reflect.
 
+(*
 Ltac lift_signature s nt :=
   let d := eval simpl Domain in (Domain s) in
   let r := eval simpl Range in (Range s) in
@@ -20,6 +21,7 @@ Ltac lift_signatures fs nt :=
     lift_signature sig nt 
   in
   map_tac (signature nt) f fs.
+*)
 
 Definition default_type (T : Type) : type. 
 Proof. 

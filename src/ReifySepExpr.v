@@ -23,6 +23,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
              end
     end.
 
+(*
   Ltac lift_predicate s nt pc st :=
     let d := eval simpl SDomain in (SDomain s) in
     let f := eval simpl SDenotation in (SDenotation s) in
@@ -37,6 +38,7 @@ Module ReifySepExpr (Import SEP : SepExpr).
         in
         map_tac (predicate nt pc st) f fs
     end.
+*)
 
   (** collect the types from an hprop expression.
    ** - s is an expression of type hprop

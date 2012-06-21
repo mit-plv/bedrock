@@ -145,7 +145,7 @@ Ltac refl_app cc e :=
               | forall x : ?T1, @?T2 x =>
                 let cc f Ts args :=
                   let Tb  := type of B in
-                  let f'  := eval simpl in (@apply_ls Ts T1 T2 B f) in
+                  let f'  := eval cbv beta iota zeta delta [ apply_ls ] in (@apply_ls Ts T1 T2 B f) in
                   cc f' Ts args
                 in
                 refl cc A As
@@ -156,7 +156,7 @@ Ltac refl_app cc e :=
         end
         in
         let fcc F Ts As := 
-          let Ts := eval simpl app in Ts in
+          let Ts := eval cbv beta iota zeta delta [ app ] in Ts in
           cc F Ts As
         in
         let b := constr:(tt) in
@@ -194,11 +194,6 @@ Ltac contains e s :=
         | true => true
         | false => contains e b 
       end
-(*    | ?X ++ ?Y => match contains e X with
-                    | true => true
-                    | false => contains e Y 
-                  end
-*)
   end.
 
 Ltac cons_uniq e s :=
