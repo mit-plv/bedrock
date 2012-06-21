@@ -73,8 +73,14 @@ Ltac refl_app cc e :=
                     papply cc f' TT' Tb T' A'
                 end
             end
-          | _ =>
-            cc F Ts As
+          | ?T =>
+            match As with
+              | tt => 
+                cc F Ts As
+              | _ => 
+                let T := eval cbv delta [ T ] in T in
+                papply cc F T Tb Ts As 
+            end
         end
       in
       match e with
@@ -119,7 +125,14 @@ Ltac refl_app cc e :=
       let rec refl cc e As :=
         match e with
           | ?A ?B =>
-            let Ta := type of A in
+            let Ta := 
+              let Ta := type of A in
+              match Ta with
+                | _ -> _ => Ta
+                | forall x, _ => Ta
+                | _ => eval cbv delta [ Ta ] in Ta 
+              end
+            in            
             match Ta with
               | _ -> ?TT =>
                 let As := constr:((B, As)) in
@@ -141,6 +154,10 @@ Ltac refl_app cc e :=
             let Ts := constr:(@nil Type) in
             cc e Ts As
         end
+        in
+        let fcc F Ts As := 
+          let Ts := eval simpl app in Ts in
+          cc F Ts As
         in
         let b := constr:(tt) in
         refl cc e b
