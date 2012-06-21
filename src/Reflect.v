@@ -182,30 +182,48 @@ Goal True.
 Qed.
 
 (** Set operations **)
+Inductive Tlist : Type :=
+| Tnil : Tlist
+| Tcons : Type -> Tlist -> Tlist.
+
 Ltac contains e s :=
   match s with
-    | nil => false
-    | ?e' :: ?b => 
+    | Tnil => false
+    | Tcons ?e' ?b => 
       match unifies e e' with
         | true => true
         | false => contains e b 
       end
-    | ?X ++ ?Y => match contains e X with
+(*    | ?X ++ ?Y => match contains e X with
                     | true => true
                     | false => contains e Y 
                   end
+*)
   end.
 
 Ltac cons_uniq e s :=
   match contains e s with
-    | false => constr:(e :: s)
-    | false => 
-      match type of s with
-        | list ?T => constr:((e : T) :: s)
-      end
+    | false => constr:(Tcons e s)
     | true => s
   end.
 
+Ltac append_uniq es s :=
+  let rec recur es ext :=
+    match es with
+      | nil => ext
+      | ?a :: ?b =>
+        let ext' := cons_uniq a ext in
+        recur b ext'
+      | ?a ++ ?b =>
+        let k := recur a ext in
+        let z := recur b k in
+        z
+    end
+  in
+  recur es s.
+
+
+(*
 Ltac add_end_uniq e s :=
   match contains e s with
     | false => 
@@ -228,32 +246,6 @@ Ltac prepend_uniq es s :=
       let k := prepend_uniq b s in
       prepend_uniq a k
   end.
-
-Ltac append_uniq es s :=
-  let rec recur es ext :=
-    match es with
-      | nil => ext
-      | ?a :: ?b =>
-        match contains a s with
-          | true => recur b ext
-          | false => 
-            let ext' := cons_uniq a ext in
-            recur b ext'
-        end
-      | ?a ++ ?b =>
-        let k := recur a ext in
-        let z := recur b k in
-        z
-    end
-  in
-  let n := 
-    match type of es with
-      | list ?T => constr:(@nil T)
-      | ?X => idtac "append_uniq first argument must be a list! Got type: " X 
-    end
-  in
-  let ext := recur es n in
-  eval simpl app in (s ++ ext).
 
 Ltac indexOf keyF x ls :=
   match ls with
@@ -278,7 +270,7 @@ Ltac extension ls ls' :=
       let v := extension ls ls' in
       extension lss v
   end.
-
+*)
 
 Ltac map_tac T tac fs :=
   let rec map_tac fs :=
@@ -302,6 +294,7 @@ Ltac map_tac T tac fs :=
   in
   map_tac fs.
 
+(*
 (** hset operations **)
 Ltac hcontains x ls :=
   match ls with
@@ -331,3 +324,4 @@ Ltac eval_spine_list ls :=
       let b := eval_spine_list b in
       constr:(a :: b)
   end.
+*)

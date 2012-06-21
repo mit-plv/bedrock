@@ -102,17 +102,12 @@ Import Bst.
 Export Bst.
 Hint Immediate bst_extensional bst'_extensional.
 
+(*TIME Clear Timing Profile. *)
+
 Definition hints : TacPackage.
 (*TIME idtac "tree-set:prepare1". Time *)
   prepare auto_ext tt tt  (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
-
-(*
-Definition hints : TacPackage.
-(*TIME idtac "tree-set:prepare2". Time *)
-  prepare2 hints'.
-(*TIME Time *)Defined.
-*)
 
 Definition initS : assert := st ~> ExX, ![ ^[st#Sp =?> 3] * ^[mallocHeap] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
@@ -397,8 +392,8 @@ Local Hint Extern 5 (@eq W _ _) => words.
 Local Hint Extern 3 (himp _ _ _) => apply bst'_set_extensional.
 
 Theorem bstMOk : moduleOk bstM.
-(*TIME Clear Timing Profile. *)
 (*TIME idtac "tree-set:verify". Time *)
   vcgen; abstract (sep hints; auto).
-(*TIME Print Timing Profile. *)
 (*TIME Time *)Qed.
+
+(*TIME Print Timing Profile. *)

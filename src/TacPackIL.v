@@ -279,9 +279,9 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
           eval simpl in ts
       end
     in
-    HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun rt =>
+    HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (Reflect.Tnil) ltac:(fun rt =>
       HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd rt ltac:(fun rt =>
-        let rt := constr:((pcType : Type) :: (stateType : Type) :: rt) in
+        let rt := constr:(Tcons pcType (Tcons stateType rt)) in
         let types := ReifyExpr.extend_all_types rt types in
         let pcT := ReifyExpr.reflectType types pcType in
         let stateT := ReifyExpr.reflectType types stateType in
@@ -553,7 +553,7 @@ Module Extension.
       let types := reduce_repr (Env.repr ts nil) in
     (*TIME stop_timer "extend:reduce_repr" ; *)
     (*TIME start_timer "extend:reify" ; *)
-      HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (@nil Type) ltac:(fun Ts =>
+      HINTS_REIFY.collectTypes_hints unfoldTac isConst fwd (Reflect.Tnil) ltac:(fun Ts =>
       HINTS_REIFY.collectTypes_hints unfoldTac isConst bwd Ts ltac:(fun Ts => (
       let types := ReifyExpr.extend_all_types Ts types in
       set (typesV := types) ;
