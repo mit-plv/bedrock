@@ -160,6 +160,10 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.bedrock_type_test
          ILEnv.bedrock_type_reg
 
+         ILEnv.test_seq
+         ILEnv.reg_seq
+         ILEnv.W_seq
+
          ILEnv.word_nat_r
          ILEnv.word_state_r
          ILEnv.word_test_r
@@ -493,6 +497,10 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.bedrock_type_state
          ILEnv.bedrock_type_test
          ILEnv.bedrock_type_reg
+
+         ILEnv.test_seq
+         ILEnv.reg_seq
+         ILEnv.W_seq
 
          ILEnv.word_nat_r
          ILEnv.word_state_r

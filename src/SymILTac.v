@@ -407,6 +407,9 @@ Ltac isConst e :=
     | S ?e => isConst e
     | true => true
     | false => true
+    | Rp => true
+    | Rv => true
+    | Sp => true
     | _ => false
   end.
 

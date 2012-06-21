@@ -168,11 +168,12 @@ Ltac collect_props shouldReflect :=
       | [ H : ?X |- _ ] => 
         match shouldReflect X with
           | true =>
-            match hcontains H skip with
-              | false =>
+            match skip with
+              | context [ @pair X _ _ _ ] => fail 1
+              | _ => 
                 let skip := constr:((H, skip)) in
                 collect skip
-            end
+            end 
         end
       | _ => skip
     end
@@ -214,13 +215,14 @@ Ltac collectAllTypes_props shouldReflect isConst Ts :=
   in collect Ts tt.
 *)
 
+(*
 (** find x inside (map proj xs) and return its position as a natural number.
  ** This tactic fails if x does not occur in the list
  ** - proj is a gallina function.
  **)
 Ltac indexOf_nat proj x xs :=
   let rec search xs :=
-    match eval hnf in xs with
+    match xs with
       | ?X :: ?XS =>
         match unifies (proj X) x with
           | true => constr:(0)
@@ -228,12 +230,29 @@ Ltac indexOf_nat proj x xs :=
             let r := search XS in
               constr:(S r)
         end
+      | _ => 
+        let xs := eval hnf in xs in
+        search xs
     end
-    in search xs.
+  in search xs.
+*)
 
 (** specialization of indexOf_nat to project from type **)
 Ltac typesIndex x types :=
-  indexOf_nat Impl x types.
+  let rec search xs :=
+    match xs with
+      | ?X :: ?XS =>
+        match unifies (Impl X) x with
+          | true => constr:(0)
+          | false => 
+            let r := search XS in
+              constr:(S r)
+        end
+      | _ => 
+        let xs := eval hnf in xs in
+        search xs
+    end
+  in search types.
 
 (** given the list of types (of type [list type]) and a raw type
  ** (of type [Type]), return the [tvar] that corresponds to the
@@ -290,34 +309,24 @@ Ltac reify_function types f :=
  **)
 Ltac getFunction types f funcs' k :=
   let rec lookup funcs acc :=
-    match eval hnf in funcs with
+    match funcs with
       | nil =>
         let F := reify_function types f in
         let funcs := eval simpl app in (funcs' ++ (F :: nil)) in
         k funcs acc
-      (* | Sig _ _ _ ?F :: ?FS =>  *)
-      (*     eta_unifies f F;  *)
-      (*     k funcs' acc *)
-      | ?F :: ?FS =>
-        match eval hnf in F with
-          | Sig _ _ _ ?F =>
-            match F with
-              | f => k funcs' acc
-              | natToW =>
-                match f with
-                  | natToWord 32 => k funcs' acc
-                end
-              | natToWord 32 =>
-                match f with
-                  | natToW => k funcs' acc
-                end
-              | _ =>
-                let acc := constr:(S acc) in
-                lookup FS acc
-            end
-        end
+      | ?F :: _ =>
+        guard_unifies f (Denotation F) ;
+        k funcs' acc
+      | _ :: ?FS => 
+        let acc := constr:(S acc) in
+        lookup FS acc
+      | _ => 
+        idtac "had to hnf in funcs" funcs ;
+        let funcs := eval hnf in funcs in
+        lookup funcs acc
     end
-  in lookup funcs' 0.
+  in
+  lookup funcs' 0.
 
 Ltac getAllFunctions types funcs' fs :=
   match fs with
@@ -393,21 +402,21 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
         (** this is a variable **)
         let v := getVar e in
         let r := constr:(@Var types v) in
-        k uvars funcs r
+        (k uvars funcs r)
 
       | @eq ?T ?e1 ?e2 =>
         let T := reflectType types T in
           reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
             reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
-              k uvars funcs (Equal T e1 e2)))
+              (k uvars funcs (Equal T e1 e2))))
       | fun x => @eq ?T (@?e1 x) (@?e2 x) =>
         let T := reflectType types T in
           reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
             reflect e2 funcs uvars ltac:(fun uvars funcs e2 =>
-              k uvars funcs (Equal T e1 e2)))
+              (k uvars funcs (Equal T e1 e2))))
       | not ?e1 =>
         reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
-          k uvars funcs (Not e1))
+          (k uvars funcs (Not e1)))
       | ?e1 -> False =>
         reflect e1 funcs uvars ltac:(fun uvars funcs e1 =>
           k uvars funcs (Not e1))
@@ -420,7 +429,7 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
 
       | fun _ => ?e =>
         (** NOTE: it is important for this to be an _ **)
-        reflect e funcs uvars k
+        (reflect e funcs uvars k)
 
       | _ =>
         let rec bt_args uvars funcs args k :=
@@ -451,7 +460,7 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
                 k uvars funcs r
               | false => refl_app cc e
             end
-          | _ => refl_app cc e
+          | _ => (refl_app cc e)
         end
     end
   in reflect e funcs uvars k.
