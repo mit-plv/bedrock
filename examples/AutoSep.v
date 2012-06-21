@@ -81,13 +81,13 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   Assign'].
 
 Ltac vcgen :=
-(*TIME (start_timer "vcgen:structured_auto"; *)
-  structured_auto vcgen_simp;
-(*TIME  stop_timer "vcgen:structured_auto"); *)
-(*TIME (start_timer "vcgen:finish"; *)
+(*TIME time "vcgen:structured_auto" ( *)
+  structured_auto vcgen_simp 
+(*TIME ) *);
+(*TIME time "vcgen:finish" ( *)
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold
-(*TIME ; stop_timer "vcgen:finish") *).
+(*TIME ) *).
 
 Hint Extern 1 => tauto : contradiction.
 Hint Extern 1 => congruence : contradiction.
@@ -856,9 +856,16 @@ Theorem use_HProp_extensional : forall p, HProp_extensional p
   auto.
 Qed.
 
-Ltac descend := Programming.descend; reduce;
-  unfold hvarB; simpl;
-    repeat match goal with
+Ltac descend := 
+  (*TIME time "descend:descend" *)
+  Programming.descend; 
+  (*TIME time "descend:reduce" *)
+  reduce;
+  (*TIME time "descend:unfold_simpl" ( *)
+  unfold hvarB; simpl
+  (*TIME ) *);
+  (*TIME time "descend:loop" *)
+    (repeat match goal with
              | [ |- context[fun stn0 sm => ?f stn0 sm] ] =>
                rewrite (@use_HProp_extensional f) by auto
              | [ |- context[fun stn0 sm => ?f ?a stn0 sm] ] =>
@@ -873,9 +880,18 @@ Ltac descend := Programming.descend; reduce;
                rewrite (@use_HProp_extensional (f a b c d e)) by auto
              | [ |- context[fun stn0 sm => ?f ?a ?b ?c ?d ?e ?f stn0 sm] ] =>
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
-           end.
+           end).
 
-Ltac post := propxFo; autorewrite with sepFormula in *; unfold substH in *; simpl in *.
+Ltac post := 
+  (*TIME time "post:propxFo" *)
+  propxFo; 
+  (*TIME time "post:autorewrite" ( *)
+  autorewrite with sepFormula in *
+  (*TIME ) *) ;
+  unfold substH in *;
+  (*TIME time "post:simpl" ( *)
+  simpl in *
+  (*TIME ) *).
 
 Ltac sep ext := 
   post; evaluate ext; descend; repeat (step ext; descend).
@@ -887,53 +903,8 @@ Ltac prepare base :=
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
-(*
-  let base :=
-    match tt with
-      | _ => eval cbv delta [ base ] in base
-      | _ => base
-    end
-  in
-*)
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
     (*W (settings * state)%type*)
     isConst base.
 
-(*
-Goal TacPackage.
-  prepare auto_ext tt tt tt tt.
-  Show Proof.
-  Set Printing All.
-  Show Proof.
-*)
-
 Ltac sep_auto := sep auto_ext.
-
-(*
-(** env -> fwd -> bwd -> (hints -> T) -> T **)
-Ltac prepare := 
-  let the_unfold_tac x := 
-    eval unfold empB, injB, injBX, starB, exB, hvarB in x
-  in
-  ILAlgoTypes.Tactics.prepareHints the_unfold_tac W (settings * state)%type isConst.
-
-Ltac prepare1 fwd bwd :=
-  let env := eval simpl ILAlgoTypes.EnvOf in (ILAlgoTypes.EnvOf auto_ext) in
-    prepare env fwd bwd ltac:(fun x => 
-      ILAlgoTypes.Tactics.build_hints_pack x ltac:(fun x =>
-        ILAlgoTypes.Tactics.glue_pack x auto_ext ltac:(fun X => refine X))).
-
-Ltac prepare2 old :=
-  let v := eval cbv beta iota zeta delta [ 
-    auto_ext old
-    ILAlgoTypes.AllAlgos_composite ILAlgoTypes.oplus
-    ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds 
-    ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.MemEval
-    ILAlgoTypes.Env ILAlgoTypes.Algos
-    
-    Env.repr_combine 
-    Env.listToRepr
-    app map 
-  ] in old in
-  ILAlgoTypes.Tactics.opaque_pack v.
-*)
