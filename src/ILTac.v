@@ -314,7 +314,7 @@ Ltac sep_canceler isConst ext simplifier :=
 (*TIME      stop_timer "sep_canceler:unfold_notation" ; *)
 (*TIME      start_timer "sep_canceler:reify" ; *)
       (** collect types **)
-      let Ts := constr:(@nil Type) in
+      let Ts := constr:(Reflect.Tnil) in
        ReifyExpr.collectTypes_exprs ltac:(isConst) pures Ts ltac:(fun Ts => 
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) L Ts ltac:(fun Ts =>
       SEP_REIFY.collectTypes_sexpr ltac:(isConst) R Ts ltac:(fun Ts =>

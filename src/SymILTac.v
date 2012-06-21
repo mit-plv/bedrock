@@ -346,7 +346,7 @@ Ltac collectTypes_rvalue isConst r Ts k :=
   match r with
     | RvLval ?l => collectTypes_lvalue isConst l Ts k
     | RvImm ?i => ReifyExpr.collectTypes_expr isConst i Ts k
-    | RvLabel _ => let l := constr:(label:Type) in k ltac:(Reflect.cons_uniq l Ts)
+    | RvLabel _ => let Ts := Reflect.cons_uniq label Ts in k Ts
   end.
 
 Ltac reify_rvalue isConst r types funcs uvars vars k :=
@@ -482,7 +482,6 @@ Ltac clear_instrs ins :=
   end.
 
 Ltac collectAllTypes_instrs is Ts k :=
-
   match is with
     | tt => k Ts
     | (((?l,?r), _), ?is) =>
@@ -538,7 +537,7 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
   match goal with
     | [ |- _ ] => 
       let i := get_instrs st in
-      let Ts := constr:(@nil Type) in
+      let Ts := constr:(Reflect.Tnil) in
       collectAllTypes_instrs i Ts ltac:(fun Ts =>
       let types_ := eval unfold bedrock_types in bedrock_types in
       let types_ := ReifyExpr.extend_all_types Ts types_ in
@@ -764,7 +763,7 @@ Ltac sym_eval isConst ext simplifier :=
 (*TIME                  stop_timer "sym_eval:gather_instrs" ; *)
                   (** collect the raw types **)
 (*TIME                  start_timer "sym_eval:reify" ; *)
-                  let Ts := constr:(@nil Type) in
+                  let Ts := constr:(Reflect.Tnil) in
                   let Ts k := 
                     match SF with
                       | tt => k Ts

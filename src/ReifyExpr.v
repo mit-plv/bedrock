@@ -78,10 +78,10 @@ Ltac extend_type T types :=
  *)
 Ltac extend_all_types Ts types :=
   match Ts with
-    | nil => types
-    | ?a :: ?b =>
+    | Tnil => types
+    | Tcons ?a ?b =>
       let types := extend_type a types in
-        extend_all_types b types
+      extend_all_types b types
   end.
 
 Record VarType (t : Type) : Type :=
@@ -97,11 +97,10 @@ Definition openUp T U (f : T -> U) (vt : VarType T) : U :=
 Ltac collectTypes_expr isConst e Ts K :=
   match e with
     | fun x => (@openUp _ ?T _ _) =>
-      let v := constr:(T:Type) in
-        let p := cons_uniq v Ts in
+        let p := cons_uniq T Ts in
         K p
     | fun x => ?e =>
-        collectTypes_expr isConst e Ts K
+      collectTypes_expr isConst e Ts K
     | _ =>
       let rec bt_args args Ts K :=
         match args with
@@ -120,10 +119,7 @@ Ltac collectTypes_expr isConst e Ts K :=
             | _ => type of e
           end
         in
-        let Ts' :=
-          let v := constr:(T : Type) in
-          cons_uniq v Ts'
-        in
+        let Ts := cons_uniq T Ts in
         let Ts := append_uniq Ts' Ts in
         bt_args args Ts K
       in
@@ -474,11 +470,11 @@ Ltac collectTypes_exprs isConst es Ts K :=
     | tt => K Ts
     | nil => K Ts
     | (?e, ?es) =>
-       collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
-                                                     collectTypes_exprs ltac:(isConst) es Ts K)
+      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
+        collectTypes_exprs ltac:(isConst) es Ts K)
     | ?e :: ?es =>
-        collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
-                                                      collectTypes_exprs ltac:(isConst) es Ts K)
+      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
+        collectTypes_exprs ltac:(isConst) es Ts K)
     
   end.
 
