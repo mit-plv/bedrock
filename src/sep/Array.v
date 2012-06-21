@@ -10,35 +10,39 @@ Set Implicit Arguments.
 
 Definition array (ws : list W) (p : W) : HProp := ptsto32m _ p O ws.
 
-Fixpoint div4 (n : nat) : nat :=
+Fixpoint div4 (n : nat) : option nat :=
   match n with
-    | S (S (S (S n'))) => S (div4 n')
-    | _ => O
+    | O => Some O
+    | S (S (S (S n'))) => match div4 n' with
+                            | None => None
+                            | Some n'' => Some (S n'')
+                          end
+    | _ => None
   end.
 
-Fixpoint sel' (ws : list W) (n : nat) : W :=
+Fixpoint selN (ws : list W) (n : nat) : W :=
   match ws with
     | nil => wzero _
     | w :: ws' => match n with
                     | O => w
-                    | S n' => sel' ws' n'
+                    | S n' => selN ws' n'
                   end
   end.
 
 Definition sel (ws : list W) (a : W) : W :=
-  sel' ws (wordToNat a).
+  selN ws (wordToNat a).
 
-Fixpoint upd' (ws : list W) (n : nat) (v : W) : list W :=
+Fixpoint updN (ws : list W) (n : nat) (v : W) : list W :=
   match ws with
     | nil => nil
     | w :: ws' => match n with
                     | O => v :: ws'
-                    | S n' => w :: upd' ws' n' v
+                    | S n' => w :: updN ws' n' v
                   end
   end.
 
 Definition upd (ws : list W) (a v : W) : list W :=
-  upd' ws (wordToNat a) v.
+  updN ws (wordToNat a) v.
 
 Definition bedrock_type_listW : type :=
   {| Expr.Impl := list W
@@ -124,6 +128,15 @@ Section parametric.
                                  end
               | _ => fun _ => None
             end k
+          | Func natToWF (Const t k :: nil) =>
+            match t return tvarD types t -> _ with
+              | natT => fun k => match div4 k with
+                                   | None => None
+                                   | Some k' => Some (base, Func natToWF (Const (types := types) (t := natT) k'
+                                     :: nil))
+                                 end
+              | _ => fun _ => None
+            end k
           | _ => None
         end
       | _ => None
@@ -168,10 +181,25 @@ Definition MemEval types' : @MEVAL.PredEval.MemEvalPred (types types').
   eapply sym_write.
 Defined.
 
+Ltac destr' E := destruct E. (*case_eq E; intros;
+  try match goal with
+        | [ H : _ = _ |- _ ] => rewrite H in *
+      end.*)
+
 Ltac destr E :=
   match E with
     | context[match _ with None => _ | _ => _ end] => fail 1
-    | _ => destruct E; try (discriminate || tauto); [simpl in *]
+    | div4 _ => fail 1
+    | _ => destr' E; discriminate || tauto
+    | _ => destr' E; try (discriminate || tauto); [simpl in *]
+  end.
+
+Ltac destr2 E :=
+  match E with
+    | context[match _ with None => _ | _ => _ end] => fail 1
+    | div4 _ => fail 1
+    | _ => destr' E; try (discriminate || tauto); [ simpl in * ]
+    | _ => destr' E; try (discriminate || tauto); [ | ]; simpl in *
   end.
 
 Ltac stripSuffix E :=
@@ -184,9 +212,9 @@ Ltac stripSuffix E :=
 
 Ltac doMatch P :=
   match P with
-    | match ?E with 0 => _ | _ => _ end => destr E
+    | match ?E with 0 => _ | _ => _ end => destr2 E
     | match ?E with nil => _ | _ => _ end => destr E
-    | match ?E with Const _ _ => _ | _ => _ end => destr E
+    | match ?E with Const _ _ => _ | _ => _ end => destr2 E
     | match ?E with tvProp => _ | _ => _ end => destr E
     | match ?E with None => _ | _ => _ end => destr E
   end.
@@ -226,6 +254,25 @@ Section correctness.
   Variable Prover : ProverT types0.
   Variable Prover_correct : ProverT_correct Prover funcs.
 
+  Lemma div4_correct' : forall n0 n m, (n < n0)%nat
+    -> div4 n = Some m
+    -> n = 4 * m.
+    induction n0; simpl; intuition.
+    destruct n; simpl in *.
+    injection H0; omega.
+    repeat destr n.
+    specialize (IHn0 n).
+    destruct (div4 n).
+    injection H0.
+    rewrite (IHn0 n1); auto; omega.
+    discriminate.
+  Qed.
+
+  Lemma div4_correct : forall n m, div4 n = Some m
+    -> n = 4 * m.
+    intros; eapply div4_correct'; eauto.
+  Qed.    
+
   Lemma deref_correct : forall uvars vars e w base offset,
     exprD funcs uvars vars e wordT = Some w
     -> deref e = Some (base, offset)
@@ -233,7 +280,22 @@ Section correctness.
       exprD funcs uvars vars base wordT = Some wb
       /\ exprD funcs uvars vars offset wordT = Some wo
       /\ w = wb ^+ $4 ^* wo.
-    destruct e; simpl; intuition; try discriminate; deconstruct; eauto.
+    destruct e; simpl; intuition; try discriminate.
+    repeat (deconstruct'; []).
+    case_eq (exprD funcs uvars vars e wordT); intros;
+      match goal with
+        | [ H : _ = _ |- _ ] => rewrite H in *
+      end; try discriminate.
+    deconstruct; eauto.
+    match goal with
+      | [ _ : context[div4 ?N] |- _ ] => specialize (div4_correct N); destruct (div4 N)
+    end; try discriminate.
+    deconstruct.
+    specialize (H2 _ (refl_equal _)); subst.
+    repeat (esplit || eassumption).
+    replace (n + (n + (n + (n + 0)))) with (n * 4) by omega.
+    rewrite natToW_times4.
+    W_eq.
   Qed.
 
   Fixpoint ptsto32m' sos (a : W) (offset : nat) (vs : list W) : hpropB sos :=
@@ -308,7 +370,7 @@ Section correctness.
   Lemma smem_read_correct'' : forall cs base stn ws offset i m,
     interp cs (ptsto32m' _ base (offset * 4) ws stn m)
     -> (i < length ws)%nat
-    -> smem_get_word (implode stn) (base ^+ $((offset + i) * 4)) m = Some (sel' ws i).
+    -> smem_get_word (implode stn) (base ^+ $((offset + i) * 4)) m = Some (selN ws i).
     induction ws.
 
     simpl length.
@@ -320,7 +382,7 @@ Section correctness.
     unfold ptsto32m'.
     fold ptsto32m'.
     intros.
-    destruct i; simpl sel'.
+    destruct i; simpl selN.
     replace (offset + 0) with offset by omega.
     apply simplify_fwd in H.
     destruct H.
@@ -581,14 +643,14 @@ Section correctness.
     (i < length ws)%nat
     -> interp cs (ptsto32m' _ base (offset * 4) ws stn m)
     -> exists m', smem_set_word (explode stn) (base ^+ $4 ^* $(offset + i)) v m = Some m'
-      /\ ST.satisfies cs (ptsto32m' _ base (offset * 4) (upd' ws i v)) stn m'.
+      /\ ST.satisfies cs (ptsto32m' _ base (offset * 4) (updN ws i v)) stn m'.
     induction ws; simpl length; intros.
 
     inversion H.
 
     unfold ptsto32m' in *.
     fold ptsto32m' in *.
-    destruct i; simpl upd'.
+    destruct i; simpl updN.
     rewrite wmult_comm.
     rewrite <- natToW_times4.
     replace (offset + 0) with offset by omega.

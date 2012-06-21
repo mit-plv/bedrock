@@ -4,7 +4,8 @@ Export Bedrock.
 (** * Specialize the library proof automation to some parameters useful for basic examples. *)
 
 Import TacPackIL.
-Require Bedrock.sep.PtsTo Bedrock.sep.Array.
+Require Bedrock.sep.PtsTo.
+Require Export Bedrock.sep.Array.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
@@ -431,7 +432,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Array *)
          Array.ssig Array.types_r Array.types
          Array.MemEval Array.MemEvaluator
-         Array.deref Array.sym_read Array.sym_write
+         Array.div4 Array.deref Array.sym_read Array.sym_write
+         Array.wlength_r Array.sel_r Array.upd_r
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
@@ -778,7 +780,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Array *)
          Array.ssig Array.types_r Array.types
          Array.MemEval Array.MemEvaluator
-         Array.deref Array.sym_read Array.sym_write
+         Array.div4 Array.deref Array.sym_read Array.sym_write
+         Array.wlength_r Array.sel_r Array.upd_r
 
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
