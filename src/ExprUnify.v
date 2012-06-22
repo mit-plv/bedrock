@@ -40,9 +40,7 @@ Module Type SynUnifier.
     Parameter Subst_lookup : uvar -> Subst types -> option (expr types).
 
     Parameter Subst_size : Subst types -> nat.
-
-    (** NOTE : debugging **)
-    Parameter Subst_print : Subst types -> list (uvar * expr types).
+    Parameter Subst_domain : Subst types -> list uvar.
 
     (** The actual unification algorithm **)
     Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
@@ -69,13 +67,11 @@ Module Type SynUnifier.
       mentionsU k e'' = false.
 
     (** The meaning of size **)
-(*
-    Axiom Subst_size_cardinal : forall sub n,
-      Subst_size sub = n ->
-      exists ls, NoDup ls /\ length ls = n /\
-        (forall u, In u ls <-> ~(Subst_lookup u sub = None)). 
-*)
-    
+    Axiom Subst_domain_iff : forall s k,
+      (exists e, Subst_lookup k s = Some e) <-> In k (Subst_domain s).
+
+    Axiom Subst_size_cardinal : forall sub,
+      Subst_size sub = length (Subst_domain sub).
 
     (** Axiomatization of exprInstantiate **)
     Axiom exprInstantiate_Func : forall a b c,
@@ -228,8 +224,29 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Definition Subst_size (s : Subst) : nat := FM.cardinal (projT1 s).
 
-    Definition Subst_print (s : Subst) : list (uvar * expr types) :=
-      FM.fold (fun k v acc => (k,v) :: acc) (projT1 s) nil.
+    Definition Subst_domain (s : Subst) : list uvar :=
+      map fst (FM.elements (projT1 s)).
+
+    Theorem Subst_domain_iff : forall s k,
+      (exists e, Subst_lookup k s = Some e) <-> In k (Subst_domain s).
+    Proof.
+      unfold Subst_domain, Subst_lookup, subst_lookup. intros.
+      split. intro.
+      { destruct H.
+        generalize (FACTS.find_mapsto_iff (projT1 s) k x). intros.
+        generalize (FACTS.elements_mapsto_iff (projT1 s) k x). intros. intuition.
+        change k with (fst (k,x)). eapply in_map. eapply SetoidList.InA_alt in H2. destruct H2.
+        destruct H2. destruct x0. inversion H2. simpl in *; subst. auto. }
+      { intros. apply in_map_iff in H. destruct H. destruct x; intuition; subst. exists e.
+        apply FACTS.find_mapsto_iff. apply FACTS.elements_mapsto_iff. 
+        eapply SetoidList.InA_alt. exists (k0,e). simpl. intuition auto. reflexivity. }
+    Qed.
+
+    Theorem Subst_size_cardinal : forall sub,
+      Subst_size sub = length (Subst_domain sub).
+    Proof.
+      intros. unfold Subst_domain. rewrite map_length. eapply FM.cardinal_1.
+    Qed.
 
     Section Instantiate.
       Variable sub : FM.t (expr types).

@@ -6,6 +6,8 @@ Require Import Expr SepExpr.
 Require Import DepList.
 Require Import Setoid.
 Require Import Tactics.
+Require Import Bool Folds.
+Require Import Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -29,6 +31,8 @@ Module Type SepHeap.
     ; pures   : list (expr types)
     ; other   : list (SE.ST.hprop (tvarD types pcType) (tvarD types stateType) nil)
     }.
+
+    Parameter WellTyped_sheap : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap), bool.
 
     (** TODO: What happens if I denote this directly to hprop?
      ** - fewer lemmas about concrete syntax!
@@ -70,6 +74,25 @@ Module Type SepHeap.
 
       Axiom star_SHeap_denote : forall s s',
         SE.heq funcs preds U G cs (SE.Star (sheapD s) (sheapD s')) (sheapD (star_SHeap s s')).
+
+      (** Well-typedness **)
+      Axiom WellTyped_sheap_def : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
+        WellTyped_sheap tf tp tU tG h =
+        FM.fold (fun p argss acc => 
+          acc && match argss , nth_error tp p with
+                   | nil , _ => true
+                   | _ , None => false
+                   | argss , Some ts =>
+                     allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
+                 end) (impures h) true && 
+        (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+
+      Axiom WellTyped_sheap_WellTyped_sexpr : forall tf tp tU tG h,
+        WellTyped_sheap tf tp tU tG h = SE.WellTyped_sexpr tf tp tU tG (sheapD h).
+
+      Axiom WellTyped_hash : forall tf tp tU tG (s : SE.sexpr types pcType stateType), 
+        SE.WellTyped_sexpr tf tp tU tG s = true ->
+        WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)) = true.
 
       (** Hash Equations **)
       Axiom hash_Func : forall p args,
@@ -229,6 +252,102 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       let a := starred (@Inj _ _ _) (pures h) a in
       let a := FM.fold (fun k => starred (Func k)) (impures h) a in
       a.
+
+    Definition WellTyped_sheap (tf : tfunctions) (tp : tpredicates) (tU tG : tenv) (h : SHeap) : bool :=
+      FM.fold (fun p argss acc => 
+        acc && match argss , nth_error tp p with
+                 | nil , _ => true
+                 | _ , None => false
+                 | argss , Some ts =>
+                   allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
+               end) (impures h) true && 
+      (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+
+    Theorem WellTyped_sheap_def : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
+      WellTyped_sheap tf tp tU tG h =
+      FM.fold (fun p argss acc => 
+        acc && match argss , nth_error tp p with
+                 | nil , _ => true
+                 | _ , None => false
+                 | argss , Some ts =>
+                   allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
+               end) (impures h) true && 
+      (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+    Proof.
+      clear. reflexivity.
+    Qed.
+
+    Lemma starred_const_well_typed : forall tf tp tU tG e x,
+      WellTyped_sexpr tf tp tU tG (starred (@Const _ _ _) x e) = WellTyped_sexpr tf tp tU tG e.
+    Proof.
+      clear. induction x; simpl; intros; auto.
+      destruct (starred (Const (stateType:=stateType)) x e); auto.
+    Qed.
+
+    Lemma starred_pures_well_typed : forall tf tp tU tG e x,
+      WellTyped_sexpr tf tp tU tG (starred (@Inj _ _ _) x e) = 
+      allb (fun e => is_well_typed tf tU tG e tvProp) x && WellTyped_sexpr tf tp tU tG e.
+    Proof.
+      clear. induction x; simpl; intros; auto.
+      consider (is_well_typed tf tU tG a tvProp); intros;
+      destruct (starred (Inj (stateType:=stateType)) x e); simpl in *; think; auto.
+      rewrite <- IHx. auto.
+    Qed.
+
+    Lemma starred_funcs_well_typed : forall tf tp tU tG p,
+      forall e x,
+      WellTyped_sexpr tf tp tU tG (starred (@Func _ _ _ p) x e) = 
+      match x , nth_error tp p with
+        | nil , _ => true
+        | _ , None => false
+        | x , Some ts =>
+          allb (fun args => all2 (is_well_typed tf tU tG) args ts) x
+      end && WellTyped_sexpr tf tp tU tG e.
+    Proof.
+      clear. induction x; simpl; intros; auto.
+      destruct x; simpl in *. 
+      { destruct e; simpl; 
+          repeat match goal with
+                   | [ |- context [ nth_error ?a ?b ] ] => destruct (nth_error a b)
+                   | [ |- context [ all2 ?a ?b ?c ] ] => destruct (all2 a b c)
+                 end; auto. }
+      { repeat (simpl in *; 
+        match goal with
+          | [ |- context [ match ?X with _ => _ end ] ] => destruct X
+        end); auto. }
+    Qed.
+
+    Theorem WellTyped_sheap_WellTyped_sexpr : forall tf tp tU tG h,
+      WellTyped_sheap tf tp tU tG h = SE.WellTyped_sexpr tf tp tU tG (sheapD h).
+    Proof.
+      clear. intros. destruct h. unfold WellTyped_sheap, sheapD; simpl.
+      eapply MF.PROPS.fold_rec with (m := impures0); intros; simpl.
+      { rewrite NatMap.IntMapProperties.fold_Empty; eauto with typeclass_instances.
+        rewrite starred_pures_well_typed. rewrite starred_const_well_typed. simpl.
+        symmetry; apply andb_true_r. }
+      { rewrite NatMap.IntMapProperties.fold_Add with (eqA := fun x y => WellTyped_sexpr tf tp tU tG x = WellTyped_sexpr tf tp tU tG y). 5: eauto. 5: eauto.
+        destruct e. simpl. rewrite andb_true_r. eauto.
+        rewrite starred_funcs_well_typed. rewrite <- H2.
+        rewrite andb_comm. rewrite andb_assoc. rewrite andb_assoc. rewrite andb_comm.
+        repeat rewrite <- andb_assoc. f_equal. apply andb_comm.
+        
+        { clear; econstructor; auto. red. intros; think. auto. }
+        { clear. repeat red; intros; subst. induction y0; simpl; intros; auto.
+          consider (starred (Func y) y0 x1);
+          consider (starred (Func y) y0 y1); intros; simpl in *; think; 
+            repeat match goal with
+                     | [ |- context [ nth_error ?X ?Y ] ] => destruct (nth_error X Y)
+                     | [ H : true = _ |- _ ] => rewrite <- H
+                     | [ H : false = _ |- _ ] => rewrite <- H
+                   end; auto using andb_true_r. }
+        { clear. repeat (red; intros; subst).
+          repeat rewrite starred_funcs_well_typed. destruct e; destruct e'; auto.
+          generalize (l :: e); generalize (l0 :: e'). intros.
+          destruct (nth_error tp k); destruct (nth_error tp k'); auto.
+          rewrite andb_comm. rewrite <- andb_assoc. f_equal. apply andb_comm.
+          rewrite andb_false_r. auto.
+          rewrite andb_false_r; auto. } }
+    Qed.
 
     Definition sheapD' (h : SHeap) : sexpr types pcType stateType :=
       Star (FM.fold (fun k => starred (Func k)) (impures h) Emp)
@@ -812,6 +931,159 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       eassumption. apply heq_existsEach. intros. rewrite sheapD_sheapD'. reflexivity.
     Qed.
 
+    Lemma WellTyped_impures : forall tf tp tU tG impures, 
+      FM.fold
+     (fun (p : FM.key) (argss : list (list (expr types))) (acc : bool) =>
+      acc &&
+      match argss with
+      | nil => true
+      | _ :: _ =>
+          match nth_error tp p with
+          | Some ts =>
+              allb
+                (fun args : list (expr types) =>
+                 all2 (is_well_typed tf tU tG) args ts) argss
+          | None => false
+          end
+      end) impures true = true <->
+      (forall k v, FM.find k impures = Some v ->
+        match v with
+          | nil => True
+          | _ => match nth_error tp k with
+                   | None => False
+                   | Some ts => 
+                     allb (fun argss => all2 (is_well_typed tf tU tG) argss ts) v = true
+                 end
+        end).
+    Proof.
+      clear. do 5 intro. eapply MF.PROPS.map_induction with (m := impures0); intros.
+      { rewrite MF.PROPS.fold_Empty; eauto with typeclass_instances. split; intro; auto.
+        intros. exfalso. rewrite MF.find_Empty in H1; auto. congruence. }
+      { rewrite MF.PROPS.fold_Add. 5: eauto. 5: eauto. split; intros.
+        { destruct (FM.E.eq_dec k x); subst. 
+          { specialize (H1 x).
+            rewrite H3 in H1. rewrite MF.FACTS.add_o in H1. destruct (FM.E.eq_dec x x); try congruence.
+            inversion H1; clear H1; subst. clear e0. destruct e; auto.
+            apply andb_true_iff in H2. destruct H2. destruct (nth_error tp x); auto; congruence. }
+          { apply andb_true_iff in H2. destruct H2. eapply H in H2. eauto.
+            specialize (H1 k). rewrite H3 in H1. rewrite MF.FACTS.add_o in H1.
+            destruct (FM.E.eq_dec x k); subst; try congruence. } }
+        { apply andb_true_iff; split. apply H. intros.
+          specialize (H1 k). rewrite MF.FACTS.add_o in H1. destruct (FM.E.eq_dec x k); subst.
+          exfalso. apply MF.FACTS.find_mapsto_iff in H3. apply H0.
+          exists v. auto. rewrite H3 in H1. eapply H2; eauto.
+          
+          specialize (H1 x). rewrite MF.FACTS.add_o in H1. destruct (FM.E.eq_dec x x); try congruence.
+          specialize (H2 _ _ H1). destruct e; auto. destruct (nth_error tp x); auto. }
+        eauto with typeclass_instances.
+        { clear; repeat (red; intros; subst). reflexivity. }
+        { clear; repeat (red; intros; subst). repeat rewrite <- andb_assoc. f_equal.
+          apply andb_comm. } } 
+    Qed.          
+
+    Lemma WellTyped_star_SHeap : forall tf tp tU tG h1 h2, 
+      WellTyped_sheap tf tp tU tG h1 = true ->
+      WellTyped_sheap tf tp tU tG h2 = true ->
+      WellTyped_sheap tf tp tU tG (star_SHeap h1 h2) = true.
+    Proof.
+      Transparent star_SHeap.
+      clear. destruct h1; destruct h2; unfold WellTyped_sheap, star_SHeap; simpl; intros.
+      rewrite allb_app. think. simpl. rewrite andb_true_r. clear H2 H1.
+      apply WellTyped_impures. intros. rewrite MM.mmap_join_o in H1. 
+      consider (FM.find (elt:=list (exprs types)) k impures0); intros.
+      consider (FM.find (elt:=list (exprs types)) k impures1); intros.
+      inversion H3; clear H3; subst.
+      eapply WellTyped_impures in H; [ | eauto ].
+      eapply WellTyped_impures in H0; [ | eauto ].
+      destruct l; destruct l0; auto; try rewrite app_nil_r; auto.
+      simpl. consider (nth_error tp k); intros; simpl in *; think. 
+      rewrite allb_app; apply andb_true_iff; simpl; think; auto.
+      rewrite allb_app; apply andb_true_iff; simpl; think; auto.
+      think. eapply WellTyped_impures; [ | eauto ]; eauto.  eapply WellTyped_impures; [ | eauto ]; eauto.
+    Qed.
+
+    Opaque star_SHeap.
+
+    Lemma fold_ext : forall U V (F F' : _ -> U -> V -> V),
+      (forall k v a, F k v a = F' k v a) ->
+      forall m a,
+        FM.fold F m a = FM.fold F' m a.
+    Proof.
+      unfold FM.fold. destruct m. simpl. induction this; simpl; try reflexivity. 
+      inversion is_bst; subst. intros. think. auto.
+    Qed.
+
+    Lemma liftExpr_wt : forall (types : list type) tf
+      (U U' U'' G G' G'' : list tvar)
+      (e : expr types) (t : tvar),
+      is_well_typed tf (U'' ++ U) (G'' ++ G) e t =
+      is_well_typed tf (U'' ++ U' ++ U) (G'' ++ G' ++ G)
+      (liftExpr (length U'') (length U') (length G'') (length G') e) t.
+    Proof.
+      clear. induction e; simpl; intros; 
+      repeat match goal with 
+               | [ |- context [ NPeano.ltb ?a ?b ] ] => consider (NPeano.ltb a b) ; intros
+               | [ |- _ ] => rewrite nth_error_app_L by omega 
+               | [ |- _ ] => rewrite nth_error_app_R by omega 
+             end; think; auto.
+      cutrewrite (length G' + x - length G'' - length G' = x - length G''); [ | omega ]. auto.
+      cutrewrite (length U' + x - length U'' - length U' = x - length U''); [ | omega ]. auto.
+      consider (nth_error tf f); auto; intros. consider (equiv_dec t (TRange t0)); auto. think.
+      destruct t0; simpl in *. clear -H. revert TDomain; induction H; simpl; auto. 
+      destruct TDomain; auto. think.  auto.          
+    Qed.
+
+
+    Lemma liftSHeap_wt : forall tf tp tU G G' G'' h,
+      WellTyped_sheap tf tp tU (G ++ G'') h =
+      WellTyped_sheap tf tp tU (G ++ G' ++ G'') (liftSHeap 0 0 (length G) (length G') h).
+    Proof.
+      clear. unfold liftSHeap, WellTyped_sheap. intros; simpl.
+
+
+      f_equal. unfold MM.mmap_map. rewrite MF.fold_map_fusion.
+
+      eapply fold_ext; intros. f_equal. destruct v; simpl; auto. destruct (nth_error tp k); auto.
+      generalize (liftExpr_wt (types := types) tf tU nil nil G'' G' G). simpl. repeat rewrite app_nil_r.
+      intro.
+
+      rewrite all2_map_1.
+      erewrite all2_eq. 2: intros; rewrite H; reflexivity.
+      destruct (all2
+        (fun (x : expr types) (y : tvar) =>
+          is_well_typed tf tU (G ++ G' ++ G'')
+          (liftExpr 0 0 (length G) (length G') x) y) l t); auto.
+
+      rewrite allb_map.
+
+      apply allb_ext; auto. intros. rewrite all2_map_1. apply all2_eq; auto.
+      auto with typeclass_instances.
+      { repeat (red; intros; subst). repeat rewrite <- andb_assoc. f_equal. apply andb_comm. }
+      { repeat (red; intros; subst). auto. }
+      rewrite allb_map. apply allb_ext. 
+      generalize (liftExpr_wt (types := types) tf tU nil nil G'' G' G). simpl. auto. 
+    Qed.
+
+    Theorem WellTyped_hash : forall tf tp tU tG (s : SE.sexpr types pcType stateType), 
+      SE.WellTyped_sexpr tf tp tU tG s = true ->
+      WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)) = true.
+    Proof.
+      clear. intros tf tp tU tG s. revert tG.
+      induction s; simpl; intros; unfold WellTyped_sheap; simpl in *; think; auto.
+      { destruct (hash s1). destruct (hash s2). simpl in *.
+        eapply WellTyped_star_SHeap.
+        apply IHs1 in H. rewrite rev_app_distr. 
+        rewrite (liftSHeap_wt tf tp tU nil (rev v0) (rev v ++ tG)) in H. rewrite app_ass. simpl in *.
+        rewrite rev_length in H. auto.
+        apply IHs2 in H0. rewrite rev_app_distr. rewrite app_ass. 
+        rewrite (liftSHeap_wt tf tp tU (rev v0) (rev v) tG) in H0. repeat rewrite rev_length in *; auto. }
+      { destruct (hash s); simpl in *. destruct s0; simpl in *. eapply IHs in H.
+        repeat rewrite app_ass in *. simpl in *. auto. }
+      { unfold MM.mmap_add. simpl. rewrite andb_true_r.
+        unfold FM.fold, FM.Raw.fold. simpl. rewrite H. rewrite H0. auto. }
+    Qed.
+
+      
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
      **)
@@ -851,8 +1123,6 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
   Proof.
     unfold himp. intros. auto.
   Qed.
-
-  
 
 End Make.
 
