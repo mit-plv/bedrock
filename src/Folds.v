@@ -114,3 +114,42 @@ Section allb.
       | x :: ls' => if P x then allb ls' else false
     end.
 End allb.
+
+Lemma allb_app : forall T (P : T -> _) a b,
+  allb P (a ++ b) = allb P a && allb P b.
+Proof.
+  induction a; simpl; intros; auto. destruct (P a); auto.
+Qed.
+
+Lemma all2_eq : forall (T U : Type) (P P' : T -> U -> bool) 
+  (l1 : list T) (l2 : list U),
+  (forall (x : T) (y : U), P' x y = P x y) ->
+  all2 P' l1 l2 = all2 P l1 l2.
+Proof.
+  clear. induction l1; destruct l2; simpl; intros; auto.
+  rewrite H. rewrite IHl1. auto. auto.
+Qed.
+
+Lemma allb_ext : forall T (P P' : T -> _) ls,
+  (forall x, P x = P' x) ->
+  allb P ls = allb P' ls.
+Proof.
+  clear; induction ls; simpl; intros; auto.
+  rewrite H. rewrite IHls; auto.
+Qed.
+
+Lemma allb_map : forall T U (F : T -> U) P ls, 
+  allb P (map F ls) = allb (fun x => P (F x)) ls.
+Proof.
+  clear. induction ls; simpl; intros; auto.
+  rewrite IHls; auto.
+Qed.
+
+Lemma allb_impl : forall T (P P' : T -> _) ls,
+  allb P' ls = true ->
+  (forall x, P' x = true -> P x = true) ->
+  allb P ls = true.
+Proof.
+  induction ls; simpl; intros; auto. consider (P' a); auto; intros;
+  rewrite H0; auto.
+Qed.
