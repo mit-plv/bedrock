@@ -20,6 +20,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \
 	ILTac \
+	Arrays \
 	Bedrock
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
