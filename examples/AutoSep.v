@@ -333,10 +333,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
          provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
          provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
-         provers.WordProver.factsEq ILEnv.W_seq weq provers.WordProver.factMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.equalitysEq ILEnv.W_seq weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
+         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.lessThanMatches
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -677,10 +679,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
          provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
          provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
-         provers.WordProver.factsEq ILEnv.W_seq weq provers.WordProver.factMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.equalitysEq ILEnv.W_seq weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
+         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.lessThanMatches
 
          (** Induction **)
          list_ind list_rec list_rect 
