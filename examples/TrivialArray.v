@@ -52,119 +52,110 @@ Qed.
 
 Hint Immediate length_nil app_nil.
 
+Hint Rewrite app_length : sepFormula.
+
+Ltac pure := intros; subst; autorewrite with sepFormula in *; simpl length;
+  autorewrite with sepFormula; eauto 6.
+
 Lemma shift_length : forall (done pending : list W),
-  ($(length done) : W) ^+ natToW 1
+  ($(length done + 1) : W)
   = $(length (done ++ (hd $0 pending ^+ natToW 1) :: nil)).
-  intros; rewrite app_length; simpl; subst.
-  autorewrite with sepFormula; reflexivity.
+  pure.
 Qed.
 
-Lemma shift_preserve : forall (done pending : list W),
-  ($(length done) : W) < $(length (done ++ pending))
-  -> done ++ pending = (done ++ hd $0 pending :: nil) ++ tl pending.
-  intros; subst; rewrite <- app_assoc; simpl.
-  destruct pending; simpl; try reflexivity.
-  rewrite app_nil_r in *; unfold natToW in *; nomega.
+Hint Extern 1 (_ = _) => apply shift_length.
+
+Hint Rewrite DepList.pf_list_simpl : sepFormula.
+
+Lemma decomp : forall A (v : A) ls,
+  (length ls > 0)%nat
+  -> hd v ls :: tl ls = ls.
+  destruct ls; simpl; intuition.
 Qed.
 
-Hint Resolve shift_preserve.
+Hint Rewrite decomp using solve [ eauto ] : sepFormula.
+
+Lemma not_done_yet : forall A (done pending : list A),
+  natToW (length done) < $ (length done + length pending)
+  -> (length pending > 0)%nat.
+  destruct pending; simpl; intuition;
+    rewrite <- plus_n_O in *; unfold natToW in *; nomega.
+Qed.
+
+Hint Immediate not_done_yet.
 
 Lemma shift_updN : forall v pending done,
   (length pending > 0)%nat
-  -> updN (done ++ pending) (length done) v = (done ++ v :: nil) ++ tl pending.
-  induction done; simpl; intuition.
-  destruct pending; simpl in *; auto.
-  omega.
+  -> updN (done ++ pending) (length done) v = done ++ v :: tl pending.
+  induction done; simpl; intuition;
+    destruct pending; simpl in *; auto; omega.
 Qed.
 
-Lemma shift_upd : forall v pending done,
-  natToW (length done) < $(length (done ++ pending))
-  -> (length (done ++ pending) < pow2 32)%nat
-  -> upd (done ++ pending) (length done) v = (done ++ v :: nil) ++ tl pending.
-  intros.
-  unfold upd.
-  rewrite wordToNat_natToWord_idempotent.
-  apply shift_updN; auto.
-  destruct pending; simpl.
-  rewrite <- app_nil_end in H.
-  clear H0.
-  unfold natToW in *.
-  nomega.
-  omega.
+Hint Resolve shift_updN.
 
-  rewrite app_length in *.
-  assert (Datatypes.length done < pow2 32)%nat by omega.
-  apply Nlt_in.
-  rewrite Npow2_nat.
-  repeat rewrite Nat2N.id.
-  assumption.
-Qed.
+Hint Extern 1 (_ = _) => apply shift_updN.
 
 Theorem selN_hd : forall pending done,
   selN (done ++ pending) (length done) = hd $0 pending.
-  induction done; simpl; intuition.
-  destruct pending; reflexivity.
+  induction done; simpl; intuition;
+    destruct pending; reflexivity.
 Qed.
 
-Theorem sel_hd : forall pending done,
-  (length (done ++ pending) < pow2 32)%nat
-  -> sel (done ++ pending) (length done) = hd $0 pending.
-  unfold sel; intros; subst.
-  rewrite wordToNat_natToWord_idempotent.
-  apply selN_hd.
-  rewrite app_length in *.
-  assert (Datatypes.length done < pow2 32)%nat by omega.
-  apply Nlt_in.
-  rewrite Npow2_nat.
-  repeat rewrite Nat2N.id.
-  assumption.
+Hint Rewrite selN_hd : sepFormula.
+
+Lemma shift_reorg : forall pending,
+  (length pending > 0)%nat
+  -> hd $0 pending ^+ $1 :: bump (tl pending)
+  = bump pending.
+  pure; destruct pending; simpl in *; auto; omega.
 Qed.
 
-Hint Resolve sel_hd.
+Hint Rewrite shift_reorg using solve [ eauto ] : sepFormula.
 
-Lemma shift_reorg : forall done pending,
-  natToW (Datatypes.length done) < $ (Datatypes.length (done ++ pending))
-  -> (done ++ hd $0 pending ^+ $1 :: nil) ++ bump (tl pending)
-  = done ++ bump pending.
-  intros; rewrite DepList.pf_list_simpl.
-  destruct pending; simpl in *.
-  rewrite <- app_nil_end in *; unfold natToW in *; nomega.
-  reflexivity.
+Hint Rewrite Npow2_nat wordToN_nat wordToNat_natToWord_idempotent
+  using nomega : N.
+
+Lemma now_done : forall A (done pending : list A) sz,
+  natToWord sz (length done + length pending) <= $ (length done)
+  -> (length done + length pending < pow2 sz)%nat
+  -> pending = nil.
+  destruct pending; pure; nomega.
 Qed.
 
-Hint Resolve shift_reorg.
-
-Hint Extern 1 (_ = _) => apply shift_length || apply shift_upd.
+Hint Resolve now_done.
 
 Lemma unbump : forall done pending,
-  ($ (length (done ++ pending)) : W) <= $ (length done)
-  -> (length (done ++ pending) < pow2 32)%nat
+  pending = nil
   -> done ++ pending = done ++ bump pending.
-  intros; replace pending with (@nil W).
-  reflexivity.
-  destruct pending; auto; simpl length in *.
-  rewrite app_length in *.
-  simpl length in *.
-  pre_nomega.
-  repeat rewrite wordToN_nat in *.
-  repeat rewrite Nat2N.id in *.
-  rewrite wordToNat_natToWord_idempotent in *.
-  rewrite wordToNat_natToWord_idempotent in *.
-  elimtype False; omega.
-  apply Nlt_in.
-  rewrite Npow2_nat.
-  rewrite Nat2N.id.
-  assumption.
-  apply Nlt_in.
-  rewrite Npow2_nat.
-  rewrite Nat2N.id.
-  omega.
+  pure.
 Qed.
 
 Hint Resolve unbump.
 
+Ltac done_bound := intros done pending; intros;
+  assert (length (done ++ pending) < pow2 32)%nat by eauto;
+    rewrite app_length in *; omega.
+
+Lemma done_bound : forall done pending P stn m specs,
+  interp specs (![ P ] (stn, m))
+  -> containsArray P (done ++ pending)
+  -> (length done < pow2 32)%nat.
+  done_bound.
+Qed.
+
+Lemma done_bound2 : forall done pending P stn m specs,
+  interp specs (![ P ] (stn, m))
+  -> containsArray P (done ++ pending)
+  -> (length done + length pending < pow2 32)%nat.
+  done_bound.
+Qed.
+
+Hint Resolve done_bound done_bound2.
+
+Hint Extern 1 (himp _ _ _) => reflexivity.
+
 Theorem arraysOk : moduleOk arrays.
 (*TIME  Clear Timing Profile. *)
-  vcgen; abstract (sep_auto; (subst; try rewrite sel_hd by eauto; eauto 7); sep_auto).
+  vcgen; abstract (sep_auto; pure).
 (*TIME  Print Timing Profile. *)
 Qed.
