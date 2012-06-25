@@ -33,17 +33,17 @@ Module MEVAL := SymIL.MEVAL.
  **)
 Section stream_correctness.
   Variable types' : list type.
-  Local Notation "'TYPES'" := (repr bedrock_types_r types').
+  Notation TYPES := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := (tvType 0).
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Notation pcT := (tvType 0).
+  Notation tvWord := (tvType 0).
+  Notation stT := (tvType 1).
+  Notation tvState := (tvType 2).
+  Notation tvTest := (tvType 3).
+  Notation tvReg := (tvType 4).
 
   Variable funcs' : functions TYPES.
-  Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
+  Notation funcs := (repr (bedrock_funcs_r types') funcs').
   Variable sfuncs : SEP.predicates TYPES pcT stT.
 
   Lemma skipn_length : forall T (ls : list T) n,
@@ -560,17 +560,17 @@ Module Tactics.
 
 Section apply_stream_correctness.
   Variable types' : list type.
-  Local Notation "'TYPES'" := (repr bedrock_types_r types').
+  Notation TYPES := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := BedrockCoreEnv.pc.
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := BedrockCoreEnv.st.
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Notation pcT := BedrockCoreEnv.pc.
+  Notation tvWord := (tvType 0).
+  Notation stT := BedrockCoreEnv.st.
+  Notation tvState := (tvType 2).
+  Notation tvTest := (tvType 3).
+  Notation tvReg := (tvType 4).
 
   Variable funcs' : functions TYPES.
-  Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
+  Notation funcs := (repr (bedrock_funcs_r types') funcs').
   Variable preds : SEP.predicates TYPES pcT stT.
 
   Variable algos : ILAlgoTypes.AllAlgos TYPES.
