@@ -19,13 +19,16 @@ Section WordProver.
   Variable funcs' : functions types.
   Definition funcs := repr (bedrock_funcs_r _) funcs'.
 
-  Record fact := {
+  Record equality := {
     Source : expr types;
     Destination : expr types;
     Difference : W
   }.
 
-  Definition word_summary := list fact.
+  Record word_summary := {
+    Equalities : list equality;
+    LessThans : list (expr types * expr types)
+  }.
 
   Require Import Div2.
 
@@ -71,20 +74,20 @@ Section WordProver.
       | _ => (e, zero)
     end.
 
-  Definition combine (f1 f2 : fact) : list fact :=
+  Definition combine (f1 f2 : equality) : list equality :=
     if expr_seq_dec (Destination f1) (Source f2)
       then {| Source := Source f1;
         Destination := Destination f2;
         Difference := wplus' (Difference f1) (Difference f2) |} :: nil
       else nil.
 
-  Fixpoint combineAll (f : fact) (fs : list fact) : list fact :=
+  Fixpoint combineAll (f : equality) (fs : list equality) : list equality :=
     match fs with
       | nil => fs
       | f' :: fs => combine f f' ++ combine f' f ++ combineAll f fs
     end.
 
-  Fixpoint alreadyCovered' (f : fact) (fs : list fact) : bool :=
+  Fixpoint alreadyCovered' (f : equality) (fs : list equality) : bool :=
     match fs with
       | nil => false
       | f' :: fs' => (expr_seq_dec (Source f) (Source f')
@@ -92,10 +95,10 @@ Section WordProver.
       || alreadyCovered' f fs'
     end.
 
-  Definition alreadyCovered (f : fact) (fs : list fact) : bool :=
+  Definition alreadyCovered (f : equality) (fs : list equality) : bool :=
     expr_seq_dec (Source f) (Destination f) || alreadyCovered' f fs.
 
-  Fixpoint merge (fs1 fs2 : list fact) : list fact :=
+  Fixpoint merge (fs1 fs2 : list equality) : list equality :=
     match fs1 with
       | nil => fs2
       | f :: fs1' => merge fs1' (if alreadyCovered f fs2 then fs2 else (f :: fs2))
@@ -112,8 +115,13 @@ Section WordProver.
         let f2 := {| Source := b2;
           Destination := b1;
           Difference := wminus' n2 n1 |} in
-        let sum := merge (f1 :: combineAll f1 sum) sum in
-          merge (f2 :: combineAll f2 sum) sum
+        let equalities := merge (f1 :: combineAll f1 sum.(Equalities)) sum.(Equalities) in
+        let equalities := merge (f2 :: combineAll f2 equalities) equalities in
+          {| Equalities := equalities;
+            LessThans := sum.(LessThans) |}
+      | Func 5 (e1 :: e2 :: nil) =>
+        {| Equalities := sum.(Equalities);
+          LessThans := (e1, e2) :: sum.(LessThans) |}
       | _ => sum
     end.
 
@@ -123,15 +131,28 @@ Section WordProver.
       | h :: hyps' => wordLearn (wordLearn1 sum h) hyps'
     end.
 
-  Definition factsEq (f1 f2 : fact) :=
+  Definition equalitysEq (f1 f2 : equality) :=
     expr_seq_dec (Source f1) (Source f2)
     && expr_seq_dec (Destination f1) (Destination f2)
     && W_seq (Difference f1) (Difference f2).
 
-  Fixpoint factMatches (f : fact) (fs : list fact) : bool :=
+  Fixpoint equalityMatches (f : equality) (fs : list equality) : bool :=
     match fs with
       | nil => false
-      | f' :: fs' => factsEq f f' || factMatches f fs'
+      | f' :: fs' => equalitysEq f f' || equalityMatches f fs'
+    end.
+
+  Fixpoint lessThanMatches (e1 e2 : expr types) (lts : list (expr types * expr types)) (eqs : list equality) : bool :=
+    match lts with
+      | nil => false
+      | (e1', e2') :: lts' => ((expr_seq_dec e1 e1'
+        || equalityMatches {| Source := e1;
+          Destination := e1';
+          Difference := zero |} eqs)
+      && (expr_seq_dec e2 e2'
+        || equalityMatches {| Source := e2;
+          Destination := e2';
+          Difference := zero |} eqs)) || lessThanMatches e1 e2 lts' eqs
     end.
 
   Definition wordProve (sum : word_summary) (e : expr types) :=
@@ -141,22 +162,31 @@ Section WordProver.
         let (b2, n2) := decompose e2 in
           if expr_seq_dec b1 b2
             then W_seq n1 n2
-            else factMatches {| Source := b1;
+            else equalityMatches {| Source := b1;
               Destination := b2;
-              Difference := wminus' n1 n2 |} sum
+              Difference := wminus' n1 n2 |} sum.(Equalities)
+      | Func 5 (e1 :: e2 :: nil) =>
+        lessThanMatches e1 e2 sum.(LessThans) sum.(Equalities)
       | _ => false
     end.
 
-  Definition wordSummarize := wordLearn nil.
+  Definition wordSummarize := wordLearn {| Equalities := nil;
+    LessThans := nil |}.
 
   Section vars.
     Variables uvars vars : env types.
 
-    Definition factValid (f : fact) := exists v1, exprD funcs uvars vars (Source f) (tvType 0%nat) = Some v1
+    Definition equalityValid (f : equality) := exists v1, exprD funcs uvars vars (Source f) (tvType 0%nat) = Some v1
       /\ exists v2, exprD funcs uvars vars (Destination f) (tvType 0%nat) = Some v2
         /\ v2 = v1 ^+ Difference f.
 
-    Definition wordValid := Forall factValid.
+    Definition lessThanValid (p : expr types * expr types) := exists v1, exprD funcs uvars vars (fst p) (tvType 0%nat) = Some v1
+      /\ exists v2, exprD funcs uvars vars (snd p) (tvType 0%nat) = Some v2
+        /\ v1 < v2.
+
+    Definition wordValid (sum : word_summary) :=
+      Forall equalityValid sum.(Equalities)
+      /\ Forall lessThanValid sum.(LessThans).
 
     Lemma addZ_0 : forall w : W, w = w ^+ zero.
       intros.
@@ -254,22 +284,22 @@ Section WordProver.
     Qed.
 
     Lemma mergeCorrect : forall fs1,
-      Forall factValid fs1
-      -> forall fs2, Forall factValid fs2
-        -> Forall factValid (merge fs1 fs2).
+      Forall equalityValid fs1
+      -> forall fs2, Forall equalityValid fs2
+        -> Forall equalityValid (merge fs1 fs2).
       induction 1; simpl; intuition.
       destruct (alreadyCovered x fs2); auto.
     Qed.
 
     Lemma combineCorrect : forall f1 f2,
-      factValid f1
-      -> factValid f2
-      -> Forall factValid (combine f1 f2).
+      equalityValid f1
+      -> equalityValid f2
+      -> Forall equalityValid (combine f1 f2).
       unfold combine; intros.
       generalize (expr_seq_dec_correct (Destination f1) (Source f2)).
       destruct (expr_seq_dec (Destination f1) (Source f2)); intuition.
       repeat constructor.
-      unfold factValid in *; simpl in *; intros.
+      unfold equalityValid in *; simpl in *; intros.
 
       destruct H; intuition.
       destruct H3; intuition.
@@ -288,13 +318,13 @@ Section WordProver.
     Hint Resolve combineCorrect Folds.Forall_app.
 
     Lemma combineAllCorrect : forall f fs,
-      factValid f
-      -> Forall factValid fs
-      -> Forall factValid (combineAll f fs).
+      equalityValid f
+      -> Forall equalityValid fs
+      -> Forall equalityValid (combineAll f fs).
       induction 2; simpl; intuition.
     Qed.
 
-    Lemma factValid_basic : forall hyp1 hyp2 e e0 w w0,
+    Lemma equalityValid_basic : forall hyp1 hyp2 e e0 w w0,
       Provable funcs uvars vars (Equal (tvType 0) hyp1 hyp2)
       -> (forall v : tvarD (repr bedrock_types_r types') (tvType 0),
         exprD funcs uvars vars hyp1 (tvType 0) = Some v ->
@@ -304,7 +334,7 @@ Section WordProver.
         exprD funcs uvars vars hyp2 (tvType 0) = Some v ->
         exists v' : tvarD (repr bedrock_types_r types') (tvType 0),
           exprD funcs uvars vars e0 (tvType 0) = Some v' /\ v = v' ^+ w0)
-      -> factValid {| Source := e0; Destination := e; Difference := wminus' w0 w |}.
+      -> equalityValid {| Source := e0; Destination := e; Difference := wminus' w0 w |}.
       intros.
       hnf in H.
       simpl in *.
@@ -360,12 +390,12 @@ Section WordProver.
     Qed.
 
     Hint Immediate Provable_swap.
-    Hint Resolve factValid_basic mergeCorrect combineAllCorrect.
+    Hint Resolve equalityValid_basic mergeCorrect combineAllCorrect.
 
     Lemma Forall_if : forall (b : bool) ls1 ls2,
-      Forall factValid ls1
-      -> Forall factValid ls2
-      -> Forall factValid (if b then ls1 else ls2).
+      Forall equalityValid ls1
+      -> Forall equalityValid ls2
+      -> Forall equalityValid (if b then ls1 else ls2).
       destruct b; auto.
     Qed.
 
@@ -376,12 +406,27 @@ Section WordProver.
         Provable funcs uvars vars hyp ->
         wordValid (wordLearn1 sum hyp).
       destruct hyp; simpl; intuition.
+
+      do 6 (destruct f; auto).
+      do 3 (destruct l; auto).
+      destruct H; split; simpl; auto.
+      constructor; auto.
+      hnf; simpl.
+      red in H0; simpl in H0.
+      simpl in *.
+      do 2 (match type of H0 with
+              | match match ?E with Some _ => _ | _ => _ end _ _ with Some _ => _ | _ => _ end => destruct E
+            end; try tauto).
+      eauto.
+
       destruct t; auto.
       destruct n; auto.
       specialize (decompose_correct hyp1); intro Hy1.
       specialize (decompose_correct hyp2); intro Hy2.
       destruct (decompose hyp1); destruct (decompose hyp2).
-      
+
+      destruct H.
+      split; simpl; auto.
       apply mergeCorrect; try apply Forall_if; eauto 15.
     Qed.
 
@@ -400,12 +445,13 @@ Section WordProver.
       AllProvable funcs uvars vars hyps
       -> wordValid (wordSummarize hyps).
       intros; apply wordLearnCorrect; auto.
+      split; constructor.
     Qed.
 
-    Lemma factsEq_correct : forall f1 f2,
-      factsEq f1 f2 = true
+    Lemma equalitysEq_correct : forall f1 f2,
+      equalitysEq f1 f2 = true
       -> f1 = f2.
-      unfold factsEq; intros.
+      unfold equalitysEq; intros.
       apply andb_prop in H; intuition.
       apply andb_prop in H0; intuition.
       destruct f1; destruct f2; simpl in *.
@@ -415,21 +461,110 @@ Section WordProver.
       apply (Eqb_correct bedrock_type_W); auto.
     Qed.
 
-    Lemma factMatches_correct : forall f sum,
-      wordValid sum
-      -> factMatches f sum = true
-      -> factValid f.
+    Lemma equalityMatches_correct : forall f eqs,
+      Forall equalityValid eqs
+      -> equalityMatches f eqs = true
+      -> equalityValid f.
       induction 1; simpl; intuition.
       apply orb_prop in H1; intuition.
-      apply factsEq_correct in H2; congruence.
+      apply equalitysEq_correct in H2; congruence.
+    Qed.
+
+    Lemma lessThanMatches_correct : forall e1 e2 eqs,
+      Forall equalityValid eqs
+      -> forall lts, Forall lessThanValid lts
+        -> lessThanMatches e1 e2 lts eqs = true
+        -> lessThanValid (e1, e2).
+      induction 2; simpl; intuition.
+      destruct x.
+      apply orb_prop in H2; intuition.
+      apply andb_prop in H3; intuition.
+      apply orb_prop in H2; intuition;
+        apply orb_prop in H4; intuition.
+      apply expr_seq_dec_correct in H3.
+      apply expr_seq_dec_correct in H2.
+      congruence.
+
+      apply equalityMatches_correct in H2; auto.
+      destruct H2; intuition.
+      destruct H5; intuition.
+      subst.
+      simpl in *.
+      apply expr_seq_dec_correct in H3; subst.
+      destruct H0; intuition.
+      destruct H3; intuition.
+      simpl in *.
+      hnf.
+      simpl.
+      repeat esplit.
+      eauto.
+      eauto.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      congruence.
+
+      apply equalityMatches_correct in H3; auto.
+      destruct H3; intuition.
+      destruct H5; intuition.
+      subst.
+      simpl in *.
+      apply expr_seq_dec_correct in H2; subst.
+      destruct H0; intuition.
+      destruct H3; intuition.
+      simpl in *.
+      hnf.
+      simpl.
+      repeat esplit.
+      eauto.
+      eauto.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      congruence.
+
+      apply equalityMatches_correct in H3; auto.
+      apply equalityMatches_correct in H2; auto.
+      destruct H3; intuition.
+      destruct H5; intuition.
+      subst.
+      destruct H2; intuition.
+      destruct H6; intuition.
+      subst.
+      simpl in *.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      rewrite wplus_comm in H6.
+      rewrite wplus_unit in H6.
+      destruct H0; intuition.
+      destruct H7; intuition.
+      simpl in *.
+      hnf.
+      repeat esplit.
+      eauto.
+      eauto.
+      congruence.
     Qed.
   End vars.
 
-  Hint Resolve factMatches_correct.
+  Hint Resolve equalityMatches_correct.
 
   Theorem wordProverCorrect : ProverCorrect funcs wordValid wordProve.
     hnf; intros.
+    destruct H.
     destruct goal; simpl in *; try discriminate.
+
+
+    do 6 (destruct f; try discriminate).
+    do 3 (destruct l; try discriminate).
+    apply (@lessThanMatches_correct uvars vars) in H0; auto.
+    destruct H0; intuition.
+    destruct H4; intuition.
+    hnf.
+    simpl in *.
+    rewrite H3.
+    rewrite H4.
+    assumption.
+
+
     destruct t; try discriminate.
     destruct n; try discriminate.
     specialize (decompose_correct uvars vars goal1); intro Hy1.
@@ -440,16 +575,16 @@ Section WordProver.
     hnf in H1; simpl in H1.
     destruct H1.
     case_eq (exprD funcs uvars vars goal1 (tvType 0)); simpl; intros.
-    rewrite H2 in *.
-    case_eq (exprD funcs uvars vars goal2 (tvType 0)); simpl; intros.
     rewrite H3 in *.
+    case_eq (exprD funcs uvars vars goal2 (tvType 0)); simpl; intros.
+    rewrite H4 in *.
     injection H1; clear H1; intros; subst.
     specialize (Hy1 _ (refl_equal _)); destruct Hy1.
     specialize (Hy2 _ (refl_equal _)); destruct Hy2.
     intuition; subst.
     hnf; simpl.
-    rewrite H2.
     rewrite H3.
+    rewrite H4.
 
     generalize (expr_seq_dec_correct e e0).
     destruct (expr_seq_dec e e0); intuition; subst.
@@ -457,12 +592,13 @@ Section WordProver.
     apply (Expr.Eqb_correct bedrock_type_W) in H0.
     congruence.
 
-    clear H4.
-    eapply factMatches_correct in H0; eauto.
+    clear H5.
+    eapply equalityMatches_correct in H0; eauto.
     destruct H0; simpl in *; intuition.
-    rewrite H5 in H4; injection H4; clear H4; intros; subst.
-    destruct H6; intuition.
-    rewrite H1 in H4; injection H4; clear H4; intros; subst.
+    rewrite H5 in H6; injection H6; clear H6; intros; subst.
+    destruct H7; intuition.
+    rewrite H6 in H1; injection H1; clear H1; intros; subst.
+    subst.
     rewrite wminus'_def.
     rewrite wminus_def.
     repeat rewrite <- wplus_assoc.
@@ -472,16 +608,25 @@ Section WordProver.
     rewrite wplus_unit.
     reflexivity.
 
+    rewrite H4 in *; discriminate.
     rewrite H3 in *; discriminate.
-    rewrite H2 in *; discriminate.
   Qed.
 
   Lemma wordValid_weaken : forall (u g : env types) (f : word_summary)
     (ue ge : list (sigT (tvarD types))),
     wordValid u g f -> wordValid (u ++ ue) (g ++ ge) f.
   Proof.
-    unfold wordValid. induction 1; eauto.
-    econstructor; eauto. clear H0 IHForall. unfold factValid in *.
+    unfold wordValid; intuition.
+    induction H0; eauto.
+    econstructor; eauto. clear H0 IHForall. unfold equalityValid in *.
+    repeat match goal with
+             | [ H : exists x, _ |- _ ] => destruct H
+             | [ H : _ /\ _ |- _ ] => destruct H
+             | [ |- _ ] => erewrite exprD_weaken by eauto
+             | [ |- exists x, _ ] => eexists; split; [ reflexivity | ]
+           end; auto.
+    induction H1; eauto.
+    econstructor; eauto. clear H1 IHForall. unfold lessThanValid in *.
     repeat match goal with
              | [ H : exists x, _ |- _ ] => destruct H
              | [ H : _ /\ _ |- _ ] => destruct H
@@ -509,4 +654,3 @@ Definition WordProver : ProverPackage :=
  ; ProverFuncs := bedrock_funcs_r
  ; Prover_correct := wordProver_correct
 |}.
-

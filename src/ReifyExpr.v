@@ -167,7 +167,7 @@ Ltac collect_props shouldReflect :=
         match shouldReflect X with
           | true =>
             match skip with
-              | context [ @pair X _ _ _ ] => fail 1
+              | context [H] => fail 1
               | _ => 
                 let skip := constr:((H, skip)) in
                 collect skip

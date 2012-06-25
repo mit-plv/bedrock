@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := AutoSep LemmaTests \
+MODULES := AutoSep LemmaTests Allocated \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap WordArith TrivialArray \
            Pair SinglyLinkedList \
            Malloc \
