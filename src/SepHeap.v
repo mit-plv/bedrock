@@ -34,6 +34,8 @@ Module Type SepHeap.
 
     Parameter WellTyped_sheap : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap), bool.
 
+    Parameter WellTyped_impures : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (imps : MM.mmap (exprs types)), bool.
+
     (** TODO: What happens if I denote this directly to hprop?
      ** - fewer lemmas about concrete syntax!
      ** - can't re-hash (probably don't want to do this anyways...)
@@ -76,16 +78,35 @@ Module Type SepHeap.
         SE.heq funcs preds U G cs (SE.Star (sheapD s) (sheapD s')) (sheapD (star_SHeap s s')).
 
       (** Well-typedness **)
-      Axiom WellTyped_sheap_def : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
+      Axiom WellTyped_sheap_eq : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
         WellTyped_sheap tf tp tU tG h =
+        WellTyped_impures tf tp tU tG (impures h) && allb (fun e => is_well_typed tf tU tG e tvProp) (pures h).
+
+      Axiom WellTyped_impures_spec_eq : forall tf tp tU tG impures, 
+        WellTyped_impures tf tp tU tG impures =
         FM.fold (fun p argss acc => 
-          acc && match argss , nth_error tp p with
-                   | nil , _ => true
-                   | _ , None => false
-                   | argss , Some ts =>
-                     allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
-                 end) (impures h) true && 
-        (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+        acc && match argss , nth_error tp p with
+                 | nil , _ => true
+                 | _ , None => false
+                 | argss , Some ts =>
+                   allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
+               end) impures true.
+
+      Axiom WellTyped_impures_eq : forall tf tp tU tG impures, 
+        WellTyped_impures tf tp tU tG impures = true <->
+        (forall k v, FM.find k impures = Some v ->
+          match v with
+            | nil => True
+            | _ => match nth_error tp k with
+                     | None => False
+                     | Some ts => 
+                       allb (fun argss => all2 (is_well_typed tf tU tG) argss ts) v = true
+                   end
+          end).
+
+      Axiom WellTyped_sheap_star : forall tf tp tU tG h0 h1,
+        WellTyped_sheap tf tp tU tG h0 && WellTyped_sheap tf tp tU tG h1 =
+        WellTyped_sheap tf tp tU tG (star_SHeap h0 h1).
 
       Axiom WellTyped_sheap_WellTyped_sexpr : forall tf tp tU tG h,
         WellTyped_sheap tf tp tU tG h = SE.WellTyped_sexpr tf tp tU tG (sheapD h).
@@ -253,26 +274,33 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       let a := FM.fold (fun k => starred (Func k)) (impures h) a in
       a.
 
-    Definition WellTyped_sheap (tf : tfunctions) (tp : tpredicates) (tU tG : tenv) (h : SHeap) : bool :=
+    Definition WellTyped_impures (tf : tfunctions) (tp : tpredicates) (tU tG : tenv) (imps : MM.mmap (exprs types)) : bool :=
       FM.fold (fun p argss acc => 
         acc && match argss , nth_error tp p with
                  | nil , _ => true
                  | _ , None => false
                  | argss , Some ts =>
                    allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
-               end) (impures h) true && 
-      (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+               end) imps true.
 
-    Theorem WellTyped_sheap_def : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
-      WellTyped_sheap tf tp tU tG h =
-      FM.fold (fun p argss acc => 
+    Theorem WellTyped_impures_spec_eq : forall tf tp tU tG impures, 
+        WellTyped_impures tf tp tU tG impures =
+        FM.fold (fun p argss acc => 
         acc && match argss , nth_error tp p with
                  | nil , _ => true
                  | _ , None => false
                  | argss , Some ts =>
                    allb (fun args => all2 (is_well_typed tf tU tG) args ts) argss
-               end) (impures h) true && 
-      (allb (fun e => is_well_typed tf tU tG e tvProp) (pures h)).
+               end) impures true.
+    Proof. reflexivity. Qed.
+
+    Definition WellTyped_sheap (tf : tfunctions) (tp : tpredicates) (tU tG : tenv) (h : SHeap) : bool :=
+      WellTyped_impures tf tp tU tG (impures h) && allb (fun e => is_well_typed tf tU tG e tvProp) (pures h).
+
+    Theorem WellTyped_sheap_eq : forall (tf : tfunctions) (tp : SE.tpredicates) (tU tG : tenv) (h : SHeap),
+      WellTyped_sheap tf tp tU tG h =
+      WellTyped_impures tf tp tU tG (impures h) &&
+      allb (fun e => is_well_typed tf tU tG e tvProp) (pures h).
     Proof.
       clear. reflexivity.
     Qed.
@@ -320,7 +348,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Theorem WellTyped_sheap_WellTyped_sexpr : forall tf tp tU tG h,
       WellTyped_sheap tf tp tU tG h = SE.WellTyped_sexpr tf tp tU tG (sheapD h).
     Proof.
-      clear. intros. destruct h. unfold WellTyped_sheap, sheapD; simpl.
+      clear. intros. destruct h. unfold WellTyped_sheap, WellTyped_impures, sheapD; simpl.
       eapply MF.PROPS.fold_rec with (m := impures0); intros; simpl.
       { rewrite NatMap.IntMapProperties.fold_Empty; eauto with typeclass_instances.
         rewrite starred_pures_well_typed. rewrite starred_const_well_typed. simpl.
@@ -931,21 +959,8 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       eassumption. apply heq_existsEach. intros. rewrite sheapD_sheapD'. reflexivity.
     Qed.
 
-    Lemma WellTyped_impures : forall tf tp tU tG impures, 
-      FM.fold
-     (fun (p : FM.key) (argss : list (list (expr types))) (acc : bool) =>
-      acc &&
-      match argss with
-      | nil => true
-      | _ :: _ =>
-          match nth_error tp p with
-          | Some ts =>
-              allb
-                (fun args : list (expr types) =>
-                 all2 (is_well_typed tf tU tG) args ts) argss
-          | None => false
-          end
-      end) impures true = true <->
+    Lemma WellTyped_impures_eq : forall tf tp tU tG impures, 
+      WellTyped_impures tf tp tU tG impures = true <->
       (forall k v, FM.find k impures = Some v ->
         match v with
           | nil => True
@@ -956,7 +971,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
                  end
         end).
     Proof.
-      clear. do 5 intro. eapply MF.PROPS.map_induction with (m := impures0); intros.
+      clear. do 5 intro. unfold WellTyped_impures. eapply MF.PROPS.map_induction with (m := impures0); intros.
       { rewrite MF.PROPS.fold_Empty; eauto with typeclass_instances. split; intro; auto.
         intros. exfalso. rewrite MF.find_Empty in H1; auto. congruence. }
       { rewrite MF.PROPS.fold_Add. 5: eauto. 5: eauto. split; intros.
@@ -979,27 +994,72 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         { clear; repeat (red; intros; subst). reflexivity. }
         { clear; repeat (red; intros; subst). repeat rewrite <- andb_assoc. f_equal.
           apply andb_comm. } } 
-    Qed.          
+    Qed.
+
+    Lemma eq_iff : forall a b A B, 
+      (a = true <-> A) ->
+      (b = true <-> B) ->
+      (A <-> B) ->
+      a = b.
+    Proof.
+      clear. destruct a; destruct b; intros; intuition. 
+    Qed.
+
+    Lemma andb_iff : forall a b A B, 
+      (a = true <-> A) ->
+      (b = true <-> B) ->
+      (a && b = true <-> A /\ B).
+    Proof.
+      clear. destruct a; destruct b; intros; intuition.
+    Qed.
+
+    Theorem WellTyped_sheap_star : forall tf tp tU tG h0 h1,
+      WellTyped_sheap tf tp tU tG h0 && WellTyped_sheap tf tp tU tG h1 =
+      WellTyped_sheap tf tp tU tG (star_SHeap h0 h1).
+    Proof.
+      Transparent star_SHeap.
+      clear. destruct h0; destruct h1; unfold WellTyped_sheap, star_SHeap; simpl; intros.
+      eapply eq_iff;
+        repeat match goal with
+                 | [ |- _ && _ = true <-> _ ] => eapply andb_iff
+                 | [ |- WellTyped_impures _ _ _ _ _ = true <-> _ ] => eapply WellTyped_impures_eq
+                 | [ |- _ ] => reflexivity
+               end.
+      split; intuition.
+      { rewrite MM.mmap_join_o in H1.
+        repeat match goal with 
+                 | [ H : match FM.find ?A ?B with _ => _ end = _ |- _ ] => 
+                   consider (FM.find A B) ; intros
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : forall x y, FM.find _ _ = Some _ -> _ , H' : FM.find _ _ = _ |- _ ] =>
+                   specialize (H _ _ H')
+                 | [ H : match ?X with nil => _ | _ => _ end |- _ ] => destruct X; simpl in *
+                 | [ H : match nth_error ?A ?B with _ => _ end |- _ ] => destruct (nth_error A B)
+               end; auto;  think; repeat (rewrite allb_app || (apply andb_true_iff; split)); think; simpl; auto. }
+      { rewrite allb_app. apply andb_true_iff. auto. }
+      { consider (FM.find k impures1); intros.
+        specialize (H0 k (v ++ l)). rewrite MM.mmap_join_o in H0.
+        think. specialize (H0 refl_equal).
+        destruct v; auto. simpl in *. destruct (nth_error tp k); auto.
+        think. rewrite allb_app in H3. apply andb_true_iff in H3. intuition.
+        specialize (H0 k v). rewrite MM.mmap_join_o in H0. think.
+        apply H0. auto. }
+      { rewrite allb_app in H1. apply andb_true_iff in H1. destruct H1; auto. }
+      { consider (FM.find k impures0); intros. 
+        specialize (H0 k (l ++ v)). rewrite MM.mmap_join_o in H0. think. specialize (H0 refl_equal).
+        destruct v. auto. destruct (nth_error tp k); destruct l; simpl in *; auto.
+        think. rewrite allb_app in H3. simpl in *.  think; auto.
+        specialize (H0 k v). rewrite MM.mmap_join_o in H0. think. eapply H0; auto. }
+      { rewrite allb_app in H1. apply andb_true_iff in H1. destruct H1; auto. }
+      Opaque star_SHeap.
+    Qed.
 
     Lemma WellTyped_star_SHeap : forall tf tp tU tG h1 h2, 
       WellTyped_sheap tf tp tU tG h1 = true ->
       WellTyped_sheap tf tp tU tG h2 = true ->
       WellTyped_sheap tf tp tU tG (star_SHeap h1 h2) = true.
     Proof.
-      Transparent star_SHeap.
-      clear. destruct h1; destruct h2; unfold WellTyped_sheap, star_SHeap; simpl; intros.
-      rewrite allb_app. think. simpl. rewrite andb_true_r. clear H2 H1.
-      apply WellTyped_impures. intros. rewrite MM.mmap_join_o in H1. 
-      consider (FM.find (elt:=list (exprs types)) k impures0); intros.
-      consider (FM.find (elt:=list (exprs types)) k impures1); intros.
-      inversion H3; clear H3; subst.
-      eapply WellTyped_impures in H; [ | eauto ].
-      eapply WellTyped_impures in H0; [ | eauto ].
-      destruct l; destruct l0; auto; try rewrite app_nil_r; auto.
-      simpl. consider (nth_error tp k); intros; simpl in *; think. 
-      rewrite allb_app; apply andb_true_iff; simpl; think; auto.
-      rewrite allb_app; apply andb_true_iff; simpl; think; auto.
-      think. eapply WellTyped_impures; [ | eauto ]; eauto.  eapply WellTyped_impures; [ | eauto ]; eauto.
+      clear; intros. rewrite <- WellTyped_sheap_star. think. reflexivity.
     Qed.
 
     Opaque star_SHeap.
@@ -1033,13 +1093,11 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       destruct TDomain; auto. think.  auto.          
     Qed.
 
-
     Lemma liftSHeap_wt : forall tf tp tU G G' G'' h,
       WellTyped_sheap tf tp tU (G ++ G'') h =
       WellTyped_sheap tf tp tU (G ++ G' ++ G'') (liftSHeap 0 0 (length G) (length G') h).
     Proof.
-      clear. unfold liftSHeap, WellTyped_sheap. intros; simpl.
-
+      clear. unfold liftSHeap, WellTyped_sheap, WellTyped_impures. intros; simpl.
 
       f_equal. unfold MM.mmap_map. rewrite MF.fold_map_fusion.
 
@@ -1079,11 +1137,10 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         rewrite (liftSHeap_wt tf tp tU (rev v0) (rev v) tG) in H0. repeat rewrite rev_length in *; auto. }
       { destruct (hash s); simpl in *. destruct s0; simpl in *. eapply IHs in H.
         repeat rewrite app_ass in *. simpl in *. auto. }
-      { unfold MM.mmap_add. simpl. rewrite andb_true_r.
+      { unfold WellTyped_impures, MM.mmap_add. simpl. rewrite andb_true_r.
         unfold FM.fold, FM.Raw.fold. simpl. rewrite H. rewrite H0. auto. }
     Qed.
-
-      
+     
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
      **)

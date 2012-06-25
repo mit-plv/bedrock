@@ -99,7 +99,9 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
     Section instantiate.
       Variable doQuant : nat -> expr types.
+      Variable U_or_G : bool.
       Variable U : nat.
+      Variable G : nat.
       Variable G' : nat.
       Variable sub : U.Subst types.
       
@@ -107,7 +109,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         match e with
           | Expr.Const _ _ => e
           | Var v => 
-            if NPeano.ltb v G' then doQuant v (* Var (v + G) *)
+            if NPeano.ltb v G' then (if U_or_G then UVar (v + U) else Var (v + G))
             else let idx := U + v - G' in 
                  match U.Subst_lookup idx sub with
                    | None => UVar idx (** contradiction **)
@@ -124,19 +126,23 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
     End instantiate.
 
+(*
     Definition quantFwd (over : nat) (v : nat) : expr types :=  Var (v + over).
     Definition quantBwd (over : nat) (v : nat) : expr types :=  UVar (v + over).
 
-    Class QuantifierSpec U G (quant : nat -> expr types) (BuildUVars BuildVars : env types -> env types -> env types) : Prop :=
-    { Weakenable : forall funcs F e t v, 
-      exprD funcs U G e t = Some v ->
-      exprD funcs (BuildUVars U F) (BuildVars G F) e t = Some v
+    Class QuantifierSpec (U G : variables) (quant : nat -> expr types) (BuildUVars BuildVars : forall T, list T -> list T -> list T) : Prop :=
+    { Weakenable : forall funcs meta_env vars_env F F_env e t v,
+      WellTyped_env U meta_env ->
+      WellTyped_env G vars_env ->
+      WellTyped_env F F_env ->
+      exprD funcs meta_env vars_env e t = Some v ->
+      exprD funcs (BuildUVars _ meta_env F_env) (BuildVars _ vars_env F_env) e t = Some v
     ; PreservesVar : 
       forall funcs F v t,
       is_well_typed (typeof_funcs funcs) nil (typeof_env F) (Var (types := types) v) t = true ->
       exprD funcs nil F (Var v) t = exprD funcs (BuildUVars U F) (BuildVars G F) (quant v) t
-    ; BuildUVars_nil : forall x, BuildUVars x nil = x
-    ; BuildVars_nil : forall x, BuildVars x nil = x
+    ; BuildUVars_nil : forall T x, BuildUVars T x nil = x
+    ; BuildVars_nil : forall T x, BuildVars T x nil = x
     }.
     Instance QuantifierSpec_Fwd U G : QuantifierSpec U G (quantFwd (length G)) (fun x _ => x) (fun x y => x ++ y).
     constructor; auto.
@@ -153,6 +159,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       rewrite nth_error_app_R. cutrewrite (v + length U - length U = v); [ | omega ]. reflexivity. omega. }
     apply app_nil_r.
     Qed.
+*)
 
     Definition applySHeap (F : expr types -> expr types) (sh : SHeap types pcType stateType) : SHeap types pcType stateType :=
       {| impures := MM.mmap_map (map F) (impures sh)
@@ -299,7 +306,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
        ** - [args] is the outside
        ** - [key] is the patterns (closed by [Foralls lem]) that need to unify with [args])
        **)
-      Definition applicable quant (firstUvar : nat) (lem : lemma types pcType stateType) (args key : exprs types) 
+      Definition applicable U_or_G (firstUvar firstVar : nat) (lem : lemma types pcType stateType) (args key : exprs types) 
         : option (U.Subst types) :=
         let numForalls := length (Foralls lem) in
         (** NOTE: it is important that [key] is first because of the way the unification algorithm works **)
@@ -308,7 +315,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           | Some subst =>
             if EqNat.beq_nat (U.Subst_size subst) numForalls && checkAllInstantiated firstUvar (Foralls lem) subst
             then (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                 if allb (Prove prover facts) (map (liftInstantiate quant firstUvar 0 subst) (Hyps lem))
+                 if allb (Prove prover facts) (map (liftInstantiate U_or_G firstUvar firstVar 0 subst) (Hyps lem))
                  then Some subst
                  else None
             else None
@@ -330,42 +337,28 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                   findWithRest (fun args argss =>
                     (* We must tweak the arguments by substituting unification variables for 
                      * [forall]-quantified variables from the lemma statement. *)
-                    match applicable (quantFwd firstVar) firstUvar h args args' with
+                    match applicable false firstUvar firstVar h args args' with
                       | None => None 
                       | Some subs =>
-(*
-                    let args' := map (exprSubstU O numForalls firstUvar) args' in
+                        (* Remove the current call from the state, as we are about to replace
+                         * it with a simplified set of pieces. *)
+                        let impures' := FM.add f argss (impures (Heap s)) in
+                        let sh := {| impures := impures'
+                                   ; pures := pures (Heap s)
+                                   ; other := other (Heap s) |} in
 
-                    (* Unify the respective function arguments. *)
-                    match fold_left_2_opt (U.exprUnify unify_bound) args' args (U.Subst_empty _) with
-                      | None => None
-                      | Some subs =>
-                        (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (Prove prover facts) (map (substExpr firstUvar O subs) (Hyps h)) then
-*)
-                          (* Remove the current call from the state, as we are about to replace
-                           * it with a simplified set of pieces. *)
-                          let impures' := FM.add f argss (impures (Heap s)) in
-                          let sh := {| impures := impures'
-                                     ; pures := pures (Heap s)
-                                     ; other := other (Heap s) |} in
+                        (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
+                        let (exs, sh') := hash (Rhs h) in
 
-                          (* Time to hash the hint RHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (Rhs h) in
+                        (* Apply the substitution that unification gave us. *)
+                        let sh' := applySHeap (liftInstantiate false firstUvar firstVar (length exs) subs) sh' in
 
-                          (* Apply the substitution that unification gave us. *)
-                          let sh' := applySHeap (liftInstantiate (quantFwd firstVar) firstUvar (length exs) subs) sh' in
-
-                          (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
-                          Some {| Vars := Vars s ++ rev exs
-                                ; UVars := UVars s
-                                ; Heap := star_SHeap sh sh'
-                                |}
-(*
-                        else
-                          None
-*)
-                    end                    
+                        (* The final result is obtained by joining the hint RHS with the original symbolic heap. *)
+                        Some {| Vars := Vars s ++ rev exs
+                              ; UVars := UVars s
+                              ; Heap := star_SHeap sh sh'
+                              |}
+                    end                   
                   ) argss
               end
             | _ => None
@@ -382,42 +375,28 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                 | None => None
                 | Some argss => 
                   findWithRest (fun args argss =>
-                    match applicable (quantBwd firstUvar) firstUvar h args args' with
+                    match applicable true firstUvar firstVar h args args' with
                       | None => None
                       | Some subs =>
-(*
-                    let args' := map (exprSubstU O (length (Foralls h)) firstUvar) args' in
+                        (* Remove the current call from the state, as we are about to replace it with a 
+                         * simplified set of pieces. *)
+                        let impures' := FM.add f argss (impures (Heap s)) in
+                        let sh := {| impures := impures'
+                                   ; pures := pures (Heap s)
+                                   ; other := other (Heap s) |} in
 
-                    (* Unify the respective function arguments. *)
-                    match fold_left_2_opt (U.exprUnify unify_bound) args' args (U.Subst_empty _) with
-                      | None => None
-                      | Some subs =>
-                        (* Now we must make sure all of the lemma's pure obligations are provable. *)
-                        if allb (Prove prover facts) (map (substExprBw firstUvar O subs) (Hyps h)) then
-*)
-                          (* Remove the current call from the state, as we are about to replace it with a 
-                           * simplified set of pieces. *)
-                          let impures' := FM.add f argss (impures (Heap s)) in
-                          let sh := {| impures := impures'
-                                     ; pures := pures (Heap s)
-                                     ; other := other (Heap s) |} in
+                        (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
+                        let (exs, sh') := hash (Lhs h) in
 
-                          (* Time to hash the hint LHS, to (among other things) get the new existential variables it creates. *)
-                          let (exs, sh') := hash (Lhs h) in
+                        (* Newly introduced variables must be replaced with unification variables, and 
+                         * universally quantified variables must be substituted for. *)
+                        let sh' := applySHeap (liftInstantiate true firstUvar firstVar (length exs) subs) sh' in
 
-                          (* Newly introduced variables must be replaced with unification variables, and 
-                           * universally quantified variables must be substituted for. *)
-                          let sh' := applySHeap (liftInstantiate (quantBwd firstUvar) firstUvar (length exs) subs) sh' in
-
-                          (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
-                          Some {| Vars := Vars s
-                                ; UVars := UVars s ++ rev exs
-                                ; Heap := star_SHeap sh sh'
-                                |}
-(*
-                        else
-                          None
-*)
+                        (* The final result is obtained by joining the hint LHS with the original symbolic heap. *)
+                        Some {| Vars := Vars s
+                              ; UVars := UVars s ++ rev exs
+                              ; Heap := star_SHeap sh sh'
+                              |}
                     end
                   ) argss
               end
@@ -454,8 +433,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
       Hypothesis hsOk : hintsSoundness hs.
       Hypothesis PC : ProverT_correct prover funcs.
-
-
 
       Lemma Subst_to_env_env : forall U G S' TS cur e0,
         Subst_to_env U G S' TS cur = Some e0 ->
@@ -555,22 +532,22 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           intros; think; auto. }
       Qed.
 
-      Theorem liftInstantiate_spec : forall U G quant (BuildUVars BuildVars : env types -> env types -> env types),
-        QuantifierSpec U G quant BuildUVars BuildVars ->
-        forall G' F e t sub ts,
+      Definition quant T (b : bool) (B E : list T) : list T := if b then B ++ E else B.
+
+      Theorem liftInstantiate_spec : forall U_or_G U G G' F e t sub ts,
           is_well_typed (typeof_funcs funcs) nil (typeof_env G' ++ typeof_env F) e t = true ->
           Subst_to_env U G sub ts (length U) = Some F ->
           exprD funcs nil (G' ++ F) e t =
-          exprD funcs (BuildUVars U G') (BuildVars G G') (liftInstantiate quant (length U) (length G') sub e) t.
+          exprD funcs (quant U_or_G U G') (quant (negb U_or_G) G G') (liftInstantiate U_or_G (length U) (length G) (length G') sub e) t.
       Proof.
         induction e; repeat progress (simpl in *; unfold lookupAs in *; intros; 
           repeat match goal with
                    | [ H : nth_error _ _ = Some _ |- _ ] =>  
                      eapply WellTyped_env_nth_error_Some in H; [ | solve [ eauto using typeof_env_WellTyped_env ] ] ; destruct H
-                   | [ |- _ ] => rewrite nth_error_app_R by omega
-                   | [ |- _ ] => rewrite nth_error_app_L by omega
-                   | [ |- _ ] => rewrite nth_error_app_R in * by omega
-                   | [ |- _ ] => rewrite nth_error_app_L in * by omega
+                   | [ |- _ ] => rewrite nth_error_app_R by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_L by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_R in * by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_L in * by (try rewrite typeof_env_length in *; omega)
                    | [ H : nth_error ?L ?n = _ |- context [ nth_error ?L ?n' ] ] =>
                      cutrewrite (n' = n); [ | omega ]
                    | [ H : nth_error nil ?X = Some _ |- _ ] =>
@@ -579,53 +556,112 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                      consider X; intros; try reflexivity
                    | [ |- context [ NPeano.ltb ?X ?Y ] ] => consider (NPeano.ltb X Y); intros
                  end; think); auto.
-        { eapply H. rewrite nth_error_app_L in H0. simpl in *. unfold typeof_env in *. 
-          repeat rewrite map_nth_error_full in *. consider (nth_error G' x). intros; think.
-          rewrite EquivDec_refl_left. auto. congruence. rewrite typeof_env_length. auto. }
-        { rewrite nth_error_app_R in H0. 2: rewrite typeof_env_length; auto.
-          rewrite typeof_env_length in *. unfold typeof_env in *. rewrite map_nth_error_full in *.
-          generalize (Subst_to_env_typeof_env _ _ _ _ _ H1); intros; subst.
-          consider (nth_error F (x - length G')); intros; try congruence.
-          eapply Subst_to_env_nth_error_lookup in H1; eauto. inversion H3; clear H3; subst. destruct H1. intuition.
-          cutrewrite (length U + (x - length G') = length U + x - length G') in H3; [ | omega ].
-          rewrite H3. rewrite EquivDec_refl_left. symmetry. eapply Weakenable. eauto. }
-        { unfold typeof_funcs in H1; rewrite map_nth_error_full in H1. rewrite H3 in H1. inversion H1; clear H1; subst.
-          unfold typeof_sig in *. simpl in *. destruct s. revert H5 H2. clear - H0. generalize dependent Domain.
-          induction H0; destruct Domain; simpl in *; intros; think; auto.
+        { rewrite EquivDec_refl_left. destruct U_or_G; simpl; unfold lookupAs; simpl;
+          rewrite nth_error_app_R by omega. cutrewrite (x + length U - length U = x); [ | omega ].
+          rewrite H. simpl. rewrite EquivDec_refl_left. auto.
+          cutrewrite (x + length G - length G = x); [ | omega ]; rewrite H. simpl. rewrite EquivDec_refl_left. auto. }
+        { rewrite typeof_env_length in *. rewrite H. simpl. rewrite EquivDec_refl_left.
+          generalize (Subst_to_env_typeof_env _ _ _ _ _ H0); intros; subst.
+          eapply Subst_to_env_nth_error_lookup in H; eauto. destruct H. intuition.
+          cutrewrite (length U + x - length G' = length U + (x - length G')); [ | omega ]. rewrite H2.
+          simpl in *. symmetry; destruct U_or_G; simpl.
+          rewrite <- app_nil_r with (l := G); eauto using exprD_weaken.
+          rewrite <- app_nil_r with (l := U); eauto using exprD_weaken. }
+        { unfold typeof_funcs in H0; rewrite map_nth_error_full in H0. rewrite H2 in H0. inversion H0; clear H0; subst.
+          unfold typeof_sig in *. simpl in *. destruct s. revert H4 H1. clear - H. generalize dependent Domain.
+          induction H; destruct Domain; simpl in *; intros; think; auto.
           erewrite <- H; eauto. destruct (exprD funcs nil (G' ++ F) x t); auto. }
       Qed.
 
-      Theorem liftInstantiate_typed : forall U G quant (BuildUVars BuildVars : env types -> env types -> env types),
-        QuantifierSpec U G quant BuildUVars BuildVars ->
-        forall G' F e t sub ts,
-          is_well_typed (typeof_funcs funcs) nil (typeof_env G' ++ typeof_env F) e t = true ->
-          Subst_to_env U G sub ts (length U) = Some F ->
-          is_well_typed (typeof_funcs funcs) nil (typeof_env (G' ++ F)) e t = true ->
-          is_well_typed (typeof_funcs funcs) (typeof_env (BuildUVars U G')) (typeof_env (BuildVars G G')) 
-          (liftInstantiate quant (length U) (length G') sub e) t = true.
+      Lemma is_well_typed_weaken : forall tf tu tg u' g' (e : expr types) t,
+        is_well_typed tf tu tg e t = true ->
+        is_well_typed tf (tu ++ u') (tg ++ g') e t = true.
       Proof.
-        intros. eapply is_well_typed_correct in H2; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
-        2: instantiate (1 := nil); reflexivity. destruct H2. erewrite liftInstantiate_spec in H2 by eassumption.
-        eapply is_well_typed_correct_only in H2; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+        clear; induction e; simpl in *; intros; think; auto.
+        { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
+        { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
+        { destruct t0; simpl in *; clear H0. generalize dependent TDomain. induction H; intros; simpl in *; think; auto. }
       Qed.
 
-      Lemma is_well_typed_weaken : forall tf tU tG e t,
-        is_well_typed (types := types) tf tU tG e t = true ->
-        forall u g,
-          is_well_typed tf (tU ++ u) (tG ++ g) e t = true.
+      Lemma checkAllInstantiated_app : forall sub ts ts' from,
+        checkAllInstantiated from (ts ++ ts') sub = 
+        checkAllInstantiated from ts sub && checkAllInstantiated (length ts + from) ts' sub.
       Proof.
-        induction e; simpl; intros; 
+        clear. induction ts; simpl; intros; think; eauto; simpl.
+        consider (U.Subst_lookup from sub); intros; auto.
+        f_equal. rewrite Plus.plus_comm. simpl. rewrite Plus.plus_comm. reflexivity.
+      Qed.
+
+      Lemma checkAllInstantiated_dropU : forall tU tG tfuncs sub ts ts',
+        checkAllInstantiated (length tU) ts sub = true ->
+        U.Subst_WellTyped tfuncs (tU ++ ts ++ ts') tG sub ->
+        forall e t n,
+          n >= length tU ->
+          is_well_typed tfuncs (tU ++ ts) tG e t = true ->
+          U.Subst_lookup n sub = Some e ->
+          is_well_typed tfuncs tU tG e t = true.
+      Proof.
+        clear. induction ts using rev_ind; simpl; intros; think; eauto.
+        rewrite app_nil_r in *. auto.
+        rewrite checkAllInstantiated_app in H. simpl in *; think. 
+        eapply IHts; eauto. rewrite app_ass in H0. simpl in *; eauto.
+        eapply is_well_typed_not_mentionsU_last. rewrite app_ass. eassumption.
+        eapply U.exprInstantiate_Removes. rewrite app_length. rewrite Plus.plus_comm; eauto.
+        instantiate (1 := e). eapply U.exprInstantiate_instantiated. eauto.
+      Qed.
+
+      Lemma checkAllInstantiated_domain : forall sub F cU,
+        checkAllInstantiated cU F sub = true ->
+        forall u, cU <= u -> u < cU + length F -> U.Subst_lookup u sub <> None.
+      Proof.
+        clear. induction F; simpl in *; intros; think. exfalso. omega.
+        consider (EqNat.beq_nat cU u); intros. subst. 
+        intro. congruence. eapply IHF; eauto. omega. omega.
+      Qed.
+
+
+      Theorem liftInstantiate_typed : forall U_or_G U G G' e t sub F,
+        is_well_typed (typeof_funcs funcs) nil (G' ++ F) e t = true ->
+        U.Subst_WellTyped (typeof_funcs funcs) (U ++ F) G sub ->
+        checkAllInstantiated (length U) F sub = true ->
+        is_well_typed (typeof_funcs funcs) (quant U_or_G U G') (quant (negb U_or_G) G G')
+          (liftInstantiate U_or_G (length U) (length G) (length G') sub e) t = true.
+      Proof.
+        clear. induction e; repeat progress (simpl in *; unfold lookupAs in *; intros; 
           repeat match goal with
-                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
-                     consider X; intros
-                   | [ H : _ === _ |- _ ] => unfold equiv in H; subst
-                   | [ H : _ && _ = _ |- _ ] => apply andb_true_iff in H; destruct H
-                   | [ H : _ |- _ ] => rewrite H by auto
-                   | [ |- _ ] => erewrite nth_error_weaken by eauto
-                   | [ |- _ ] => rewrite EquivDec_refl_left
-                 end; auto.
-        destruct t0. simpl in *. revert H1. generalize TDomain. induction H; destruct TDomain0; intros; simpl in *; auto.
-        consider (is_well_typed tf tU tG x t); intros. erewrite H by eauto. eauto.
+                   | [ H : nth_error _ _ = Some _ |- _ ] =>  
+                     eapply WellTyped_env_nth_error_Some in H; [ | solve [ eauto using typeof_env_WellTyped_env ] ] ; destruct H
+                   | [ |- _ ] => rewrite nth_error_app_R by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_L by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_R in * by (try rewrite typeof_env_length in *; omega)
+                   | [ |- _ ] => rewrite nth_error_app_L in * by (try rewrite typeof_env_length in *; omega)
+                   | [ H : nth_error ?L ?n = _ |- context [ nth_error ?L ?n' ] ] =>
+                     cutrewrite (n' = n); [ | omega ]
+                   | [ H : nth_error nil ?X = Some _ |- _ ] =>
+                     clear - H ; abstract (exfalso ; destruct X ; simpl in *; unfold error in *; congruence)
+                   | [ |- match ?X with _ => _ end = match ?X with _ => _ end ] =>
+                     consider X; intros; try reflexivity
+                   | [ |- context [ NPeano.ltb ?X ?Y ] ] => consider (NPeano.ltb X Y); intros
+                 end; think); auto.
+        { destruct U_or_G; simpl; rewrite nth_error_app_R by omega.
+          cutrewrite (x + length U - length U = x); [ | omega ]. rewrite H. rewrite EquivDec_refl_left; auto.
+          cutrewrite (x + length G - length G = x); [ | omega ]. rewrite H. rewrite EquivDec_refl_left; auto. }
+        { consider (U.Subst_lookup (length U + x - length G') sub); intros.
+          generalize H3. eapply U.WellTyped_lookup in H3; eauto. destruct H3. intuition. 
+          assert (is_well_typed (typeof_funcs funcs) U G e x0 = true).
+          { eapply checkAllInstantiated_dropU. eauto. instantiate (1 := nil). rewrite app_nil_r. auto.
+            2: eauto. 2: eauto. omega. }
+          clear H6.
+          rewrite nth_error_app_R in H5 by omega. 
+          cutrewrite (length U + x - length G' - length U = x - length G') in H5; [ | omega ].
+          rewrite H in H5; inversion H5; clear H5; subst. destruct U_or_G; simpl.
+          rewrite <- app_nil_r with (l := G); eapply is_well_typed_weaken; eauto.
+          rewrite <- app_nil_r with (l := U); eapply is_well_typed_weaken; eauto.
+          
+          simpl. exfalso. apply nth_error_Some_length in H. eapply checkAllInstantiated_domain in H1.
+          apply H1. eassumption. omega. omega. }
+        { rewrite all2_map_1. destruct t0. clear H0. simpl in *. generalize dependent TDomain.
+          induction H; destruct TDomain; simpl in *; intros; think; auto. }
       Qed.
 
       Lemma all2_is_well_typed_weaken : forall tf tU tG es ts,
@@ -636,8 +672,8 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         clear. intros. eapply all2_impl; eauto using is_well_typed_weaken.
       Qed.
 
-      Lemma openForUnification_liftInstantiate : forall quant sub U e,
-        U.exprInstantiate sub (openForUnification U e) = liftInstantiate quant U 0 sub e.
+      Lemma openForUnification_liftInstantiate : forall quant sub U G e,
+        U.exprInstantiate sub (openForUnification U e) = liftInstantiate quant U G 0 sub e.
       Proof.
         induction e; simpl; intros; think;
           repeat (rewrite U.exprInstantiate_Const || 
@@ -659,15 +695,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         destruct r; destruct l; intuition; f_equal; auto.
       Qed.
 
-      Lemma checkAllInstantiated_app : forall sub ts ts' from,
-        checkAllInstantiated from (ts ++ ts') sub = 
-        checkAllInstantiated from ts sub && checkAllInstantiated (length ts + from) ts' sub.
-      Proof.
-        clear. induction ts; simpl; intros; think; eauto; simpl.
-        consider (U.Subst_lookup from sub); intros; auto.
-        f_equal. rewrite Plus.plus_comm. simpl. rewrite Plus.plus_comm. reflexivity.
-      Qed.
-
       Lemma Subst_to_env_app : forall U G sub ts ts' from, 
         Subst_to_env U G sub (ts ++ ts') from = 
         match Subst_to_env U G sub ts from , Subst_to_env U G sub ts' (length ts + from) with
@@ -686,7 +713,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                    end
                end; auto.
       Qed.
-
+(*
       Lemma range_dropU : forall U G (e : expr types) t U',
         is_well_typed (typeof_funcs funcs) (U ++ U') G e t = true ->
         (forall n, n >= length U -> n < length U + length U' -> mentionsU n e = false) ->
@@ -698,24 +725,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         intros. eapply H0; auto. rewrite app_length. simpl. omega.
         eapply H0; rewrite app_length; try omega. rewrite app_length. simpl. omega.
       Qed.
-
-      Lemma checkAllInstantiated_dropU : forall tU tG tfuncs sub ts ts',
-        checkAllInstantiated (length tU) ts sub = true ->
-        U.Subst_WellTyped tfuncs (tU ++ ts ++ ts') tG sub ->
-        forall e t n,
-          n >= length tU ->
-          is_well_typed tfuncs (tU ++ ts) tG e t = true ->
-          U.Subst_lookup n sub = Some e ->
-          is_well_typed tfuncs tU tG e t = true.
-      Proof.
-        clear. induction ts using rev_ind; simpl; intros; think; eauto.
-        rewrite app_nil_r in *. auto.
-        rewrite checkAllInstantiated_app in H. simpl in *; think. 
-        eapply IHts; eauto. rewrite app_ass in H0. simpl in *; eauto.
-        eapply is_well_typed_not_mentionsU_last. rewrite app_ass. eassumption.
-        eapply U.exprInstantiate_Removes. rewrite app_length. rewrite Plus.plus_comm; eauto.
-        instantiate (1 := e). eapply U.exprInstantiate_instantiated. eauto.
-      Qed.
+*)
 
       Lemma checkAllInstantiated_Subst_to_env_success : forall U G tU tG tfuncs, 
         WellTyped_env tU U ->
@@ -733,7 +743,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           generalize H5. eapply U.WellTyped_lookup in H5; eauto. destruct H5. intuition.
           eapply checkAllInstantiated_dropU in XX. 5: eapply H7. 4: eauto.
           3: omega. Focus 2. instantiate (1 := nil). repeat rewrite app_ass. simpl. rewrite app_nil_r. auto.
-          repeat rewrite nth_error_app_R in H8 by omega. repeat rewrite map_length in H8.
+          repeat rewrite nth_error_app_R in H8 by omega. repeat rewrite typeof_env_length in H8.
           cutrewrite (length ts + length U - length U - length ts = 0) in H8; [ | omega ]. inversion H8. subst.
           eapply is_well_typed_correct in XX.
           4: eauto. 2: unfold WellTyped_env in *; auto. 2: unfold WellTyped_env in *; auto.
@@ -760,25 +770,33 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         rewrite H2. reflexivity. repeat rewrite U.exprInstantiate_Extends in H8 by eauto. auto.
       Qed.
 
-      Lemma liftInstantiate_lemmaD : forall quant BuildUVars BuildVars U G,
-        QuantifierSpec U G quant BuildUVars BuildVars ->
-        forall lem sub env,
+      Lemma liftInstantiate_lemmaD : forall U_or_G U G (*quant BuildUVars BuildVars U G,
+        QuantifierSpec U G quant BuildUVars BuildVars -> *)
+        lem sub env,
         Subst_to_env U G sub (Foralls lem) (length U) = Some env ->
         lemmaD funcs preds nil nil lem ->            
-        implyEach funcs (map (liftInstantiate quant (length U) 0 sub) (Hyps lem)) U G
+        implyEach funcs (map (liftInstantiate U_or_G (length U) (length G) 0 sub) (Hyps lem)) U G
         (forall specs : PropX.codeSpec (tvarD types pcType) (tvarD types stateType),
           himp funcs preds nil env specs (Lhs lem) (Rhs lem)). 
       Proof.
-        clear. destruct 3; simpl in *. eapply forallEachR_sem in H2; eauto using Subst_to_env_env.
-        eapply implyEach_sem. intros. eapply implyEach_sem in H2; eauto.
+        clear. destruct 2; simpl in *. eapply forallEachR_sem in H1; eauto using Subst_to_env_env.
+        eapply implyEach_sem. intros. eapply implyEach_sem in H1; eauto.
         
-        clear H2 specs. unfold WellTyped_lemma in *. think. generalize dependent (Hyps lem).
-        induction l; simpl; intros; auto. think. intuition. clear H6 H8.
+        clear H1 specs. unfold WellTyped_lemma in *. think. generalize dependent (Hyps lem).
+        induction l; simpl; intros; auto. think. intuition. clear H5 H7.
         unfold Provable in *.
-        generalize (liftInstantiate_spec H nil (F := env)). simpl. erewrite <- Subst_to_env_typeof_env by eassumption.
-        intro. eapply H6 in H1; eauto. rewrite H1.
-        consider (exprD funcs U G (liftInstantiate quant (length U) 0 sub a) tvProp); try contradiction; intros.
-        generalize (Weakenable _ nil _ _ H3). intro. rewrite H8. auto.
+        generalize (liftInstantiate_spec U_or_G U G nil (F := env)). simpl. erewrite <- Subst_to_env_typeof_env by eassumption.
+        intro. eapply H5 in H; eauto. rewrite H.
+        consider (exprD funcs U G (liftInstantiate U_or_G (length U) (length G) 0 sub a) tvProp); try contradiction; intros.
+        Lemma exprD_weaken_quant : forall U U' G G' ug ug' a t v,
+          exprD funcs U G a t = Some v ->
+          exprD funcs (quant ug U U') (quant ug' G G') a t = Some v.
+        Proof.
+          clear; destruct ug; destruct ug'; simpl; intros; 
+            [ | rewrite <- app_nil_r with (l := G) | rewrite <- app_nil_r with (l := U) | auto ];
+            apply exprD_weaken; auto. 
+        Qed.
+        erewrite exprD_weaken_quant by eauto. auto.
       Qed.
       Lemma allb_AllProvable : forall U G facts hyps,
         Valid PC U G facts ->
@@ -817,14 +835,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         { erewrite IHe1; try erewrite IHe2; eauto; intros; eapply H; think; auto using orb_true_r. }
       Qed.
 
-      Lemma checkAllInstantiated_domain : forall sub F cU,
-        checkAllInstantiated cU F sub = true ->
-        forall u, cU <= u -> u < cU + length F -> U.Subst_lookup u sub <> None.
-      Proof.
-        clear. induction F; simpl in *; intros; think. exfalso. omega.
-        consider (EqNat.beq_nat cU u); intros. subst. 
-        intro. congruence. eapply IHF; eauto. omega. omega.
-      Qed.
 
 (*
       Parameter Subst_domain : U.Subst types -> list uvar.
@@ -862,7 +872,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         clear; induction b; simpl; intros; auto. intro. destruct H0. omega. eapply IHb. 2: eauto. omega.
       Qed.
 
-      Lemma a : forall sub F cU,
+      Lemma checkAllInstantiated_perm : forall sub F cU,
         checkAllInstantiated cU F sub = true ->
         exists p, Permutation.Permutation (fromTo cU (length F) ++ p) (U.Subst_domain sub).
       Proof.
@@ -893,7 +903,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         rewrite U.Subst_size_cardinal in H. cut (~In u (U.Subst_domain sub)).
         intros. consider (U.Subst_lookup u sub); auto. intros. exfalso. apply H2. eapply U.Subst_domain_iff. eauto.
         
-        apply a in H0. destruct H0.
+        apply checkAllInstantiated_perm in H0. destruct H0.
         intro. eapply Permutation.Permutation_in in H2. 2: symmetry; eauto. apply in_app_or in H2. destruct H2. 
         eapply fromTo_none_less in H2; eauto.
         apply Permutation.Permutation_length in H0. rewrite app_length in H0. rewrite fromTo_length in H0. rewrite <- H in H0.
@@ -923,9 +933,9 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
                      (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
       Proof.
-        clear. intros. rewrite WellTyped_sheap_def in H0. apply andb_true_iff in H0. destruct H0. 
+        clear. intros. rewrite WellTyped_sheap_eq in H0. apply andb_true_iff in H0. destruct H0. 
         do 2 rewrite SH.sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
-        { revert H0. clear H1. eapply MM.PROPS.map_induction with (m := impures s); intros.
+        { revert H0. clear H1. rewrite WellTyped_impures_spec_eq. eapply MM.PROPS.map_induction with (m := impures s); intros.
           repeat rewrite SH.impuresD_Empty by eauto using MF.map_Empty. reflexivity.
           rewrite SH.impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
           symmetry. unfold MM.mmap_map in *. rewrite SH.impuresD_Add. 2: eapply MF.map_Add; eauto. 
@@ -938,13 +948,13 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           repeat rewrite starred_cons. simpl in *. apply ST.heq_star_frame; eauto. 
           unfold typeof_preds in H4. rewrite map_nth_error_full in H4.
           destruct (nth_error preds x); try reflexivity.
-          consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a0 (typeof_pred p)). intros.
+          consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a (typeof_pred p)). intros.
           rewrite applyD_map. revert H1. clear -H. destruct p; simpl. generalize dependent SDomain0.
-          { induction a0; destruct SDomain0; intros; simpl; auto; try reflexivity.
-            simpl in H1. consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a0 t); intros.
-            rewrite H; eauto. destruct (exprD funcs U' G' (F a0) t); eauto. reflexivity. }
+          { induction a; destruct SDomain0; intros; simpl; auto; try reflexivity.
+            simpl in H1. consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a t); intros.
+            rewrite H; eauto. destruct (exprD funcs U' G' (F a) t); eauto. reflexivity. }
           { destruct (nth_error (typeof_preds preds) x); try congruence.
-            consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a0 t); intros.
+            consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a t); intros.
             destruct e. simpl; repeat rewrite starred_nil. eauto.
             generalize dependent (e :: e0); intros.
             eapply IHe; eauto. }
@@ -956,7 +966,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           revert H1. clear H0. generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
           repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
           simpl. simpl in H1.
-          consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a0 tvProp); intros.
+          consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a tvProp); intros.
           rewrite IHl; eauto. rewrite H; auto. reflexivity. }
         { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
           generalize (@SE.Emp types pcType stateType). induction (other s); intros.
@@ -967,30 +977,67 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
       Qed.
 
+      (** TODO : Move to Expr **)
       Lemma typeof_env_app : forall l r,
         typeof_env (types := types) l ++ typeof_env r = typeof_env (l ++ r).
       Proof.
         clear; induction l; simpl; intros; think; auto.
       Qed.
 
-      Theorem applicableOk : forall quant (BuildUVars BuildVars : env types -> env types -> env types) U G,
-        QuantifierSpec U G quant BuildUVars BuildVars ->
-        forall cs facts lem args args' sub TS,
+      Lemma typeof_env_rev : forall g,
+        typeof_env (types := types) (rev g) = rev (typeof_env g).
+      Proof.
+        clear. induction g; simpl; auto. rewrite <- typeof_env_app. simpl. rewrite IHg. auto.
+      Qed.
+
+      Lemma quant_nil : forall T ug U, quant (T := T) ug U nil = U.
+      Proof.
+        clear; destruct ug; simpl; intros; try reflexivity. rewrite app_nil_r; auto.
+      Qed.
+
+      Lemma applySHeap_typed : forall U G U' G' s F,
+        (forall e t, 
+          is_well_typed (typeof_funcs funcs) U G e t = true ->
+          is_well_typed (typeof_funcs funcs) U' G' (F e) t = true) ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) U G s = true ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) U' G' (applySHeap F s) = true.
+      Proof.
+        clear. intros. rewrite WellTyped_sheap_eq in *. destruct s; unfold applySHeap; simpl in *.
+        think. apply andb_true_iff; split.
+        rewrite WellTyped_impures_eq in H0. apply WellTyped_impures_eq. intros.
+        unfold MM.mmap_map in *. rewrite MM.FACTS.map_o in H2. unfold MM.FACTS.option_map in H2.
+        consider (SepHeap.FM.find (elt:=list (list (expr types))) k impures0); intros. think.
+        specialize (H0 _ _ H2). Opaque allb. destruct l; simpl in *; auto. Transparent allb.
+        change (map F l :: map (map F) l0) with (map (map F) (l :: l0)). generalize dependent (l :: l0); intros.
+        think. revert H3. clear - H. induction l1; simpl in *; intros; think; auto.
+        rewrite all2_map_1. erewrite all2_impl; eauto. congruence.
+        rewrite allb_map. eapply allb_impl; eauto.
+      Qed.
+
+
+
+      Theorem applicableOk : forall U_or_G U G cs facts lem args args' sub TS,
         lemmaD funcs preds nil nil lem ->
         Valid PC U G facts ->
         all2 (is_well_typed (typeof_funcs funcs) (typeof_env (types := types) U) (typeof_env G)) args TS = true ->
         all2 (is_well_typed (typeof_funcs funcs) nil (Foralls lem)) args' TS = true ->
 (*        allb (fun e => is_well_typed (typeof_funcs funcs) nil (Foralls lem) e tvProp) (Hyps lem) = true -> *)
-        applicable unify_bound prover facts quant (length U) lem args args' = Some sub ->
-        args = map (liftInstantiate quant (length U) 0 sub) args' /\
+        applicable unify_bound prover facts U_or_G (length U) (length G) lem args args' = Some sub ->
+        args = map (liftInstantiate U_or_G (length U) (length G) 0 sub) args' /\
         let (lq,lh) := hash (Lhs lem) in
         let (rq,rh) := hash (Rhs lem) in
         ST.himp cs (ST_EXT.existsEach lq (fun lq => 
-                       sexprD funcs preds (BuildUVars U (rev lq)) (BuildVars G (rev lq)) (*(G ++ lq)*)
-                       (sheapD (applySHeap (liftInstantiate quant (length U) (length lq) sub) lh))))
+                       sexprD funcs preds (quant U_or_G U (rev lq)) (quant (negb U_or_G) G (rev lq))
+                       (sheapD (applySHeap (liftInstantiate U_or_G (length U) (length G) (length lq) sub) lh))))
                    (ST_EXT.existsEach rq (fun rq => 
-                       sexprD funcs preds (BuildUVars U (rev rq)) (BuildVars G (rev rq)) (*(G ++ lq)*)
-                       (sheapD (applySHeap (liftInstantiate quant (length U) (length rq) sub) rh)))).
+                       sexprD funcs preds (quant U_or_G U (rev rq)) (quant (negb U_or_G) G (rev rq))
+                       (sheapD (applySHeap (liftInstantiate U_or_G (length U) (length G) (length rq) sub) rh))))
+        /\ WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) 
+              (quant U_or_G (typeof_env U) (rev lq)) (quant (negb U_or_G) (typeof_env G) (rev lq))
+                (applySHeap (liftInstantiate U_or_G (length U) (length G) (length lq) sub) lh) = true
+        /\ WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) 
+              (quant U_or_G (typeof_env U) (rev rq)) (quant (negb U_or_G) (typeof_env G) (rev rq))
+                (applySHeap (liftInstantiate U_or_G (length U) (length G) (length rq) sub) rh) = true.
       Proof.
         unfold applicable; intros.
         repeat match goal with
@@ -998,67 +1045,75 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                    consider X; try congruence; intros
                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
                end.
-        eapply fold_left_2_opt_unify in H4. 2: apply U.Subst_empty_WellTyped.
-        Focus 3. eapply all2_impl. eassumption. intros. eapply is_well_typed_weaken with (u := Foralls lem) (g := nil).
+        eapply fold_left_2_opt_unify in H3. 2: apply U.Subst_empty_WellTyped.
+        Focus 3. eapply all2_impl. eassumption. intros. eapply is_well_typed_weaken with (u' := Foralls lem) (g' := nil).
         eassumption.
         Focus 2. rewrite all2_map_1. eapply all2_impl. eassumption. intros. 
         rewrite <- typeof_env_length. eapply openForUnification_typed. eauto.
-        intuition.
+        think. split.
         { erewrite map_ext. 
           2: intro; rewrite <- openForUnification_liftInstantiate; reflexivity.
-          think. generalize (independent_well_typed _ _ H5 H8). 
-          revert H9. revert H2. clear. revert args'; revert TS.
+          think. generalize (independent_well_typed _ _ H4 H6). 
+          revert H8. revert H1. clear. revert args'; revert TS.
           induction args; destruct args'; destruct TS; simpl in *; intros; think; try congruence.
-          inversion H9. erewrite <- IHargs; eauto. f_equal. rewrite H3. symmetry. eapply exprInstantiate_noop; eauto.
+          inversion H8. erewrite <- IHargs; eauto. f_equal. rewrite H3. symmetry. eapply exprInstantiate_noop; eauto.
           intros. eapply H.
           eapply is_well_typed_mentionsU in H2. 2: eauto. rewrite typeof_env_length in H2. omega. }
         { consider (hash (Lhs lem)); consider (hash (Rhs lem)); intros; think.
           generalize (@checkAllInstantiated_Subst_to_env_success _ _ _ _ _
             (typeof_env_WellTyped_env U) (typeof_env_WellTyped_env G) (typeof_funcs_WellTyped_funcs funcs) sub (Foralls lem) nil).
-          rewrite app_nil_r in *. intro. destruct H12. rewrite typeof_env_length; auto. auto.
+          rewrite app_nil_r in *. intro. destruct H11. rewrite typeof_env_length; auto. auto.
 
-          rewrite typeof_env_length in H12. generalize H0. eapply liftInstantiate_lemmaD with (quant := quant) in H0; eauto.
-          intro.
-          eapply implyEach_sem in H0.
-          { specialize (H0 cs). 
-            rewrite SH.hash_denote in H0. rewrite H10 in H0.
-            rewrite SH.hash_denote with (s := Rhs lem) in H0. rewrite H8 in H0. simpl in H0.
+          rewrite typeof_env_length in H11. generalize H.
+          eapply liftInstantiate_lemmaD with (U_or_G := U_or_G) (U := U) (G := G) in H; eauto. intro.
+          eapply implyEach_sem in H.
+          { specialize (H cs). 
+            rewrite SH.hash_denote in H. rewrite H10 in H.
+            rewrite SH.hash_denote with (s := Rhs lem) in H. rewrite H9 in H. simpl in H.
             
-            destruct H13. clear H14. unfold WellTyped_lemma in *. think.
-            unfold himp in H0.
-            rewrite himp_existsEach_ST_EXT_existsEach in H0.
-            rewrite himp_existsEach_ST_EXT_existsEach in H0.
-            etransitivity. etransitivity; [ | eapply H0 ].
-            apply ST_EXT.himp_existsEach; intros.
+            destruct H12. clear H13. unfold WellTyped_lemma in *. think.
+            unfold himp in H.
+            rewrite himp_existsEach_ST_EXT_existsEach in H.
+            rewrite himp_existsEach_ST_EXT_existsEach in H.
+            split.
+            { etransitivity. etransitivity; [ | eapply H ].
+              apply ST_EXT.himp_existsEach; intros.
 
-            rewrite <- applySHeap_spec. reflexivity. intros. eauto. rewrite <- rev_length with (l := G0).
-            eapply liftInstantiate_spec; eauto. rewrite typeof_env_app. auto.
-            cutrewrite (s0 = snd (hash (Lhs lem))). rewrite <- typeof_env_app.
-            Lemma typeof_env_rev : forall g,
-              typeof_env (types := types) (rev g) = rev (typeof_env g).
-            Proof.
-              clear. induction g; simpl; auto. rewrite <- typeof_env_app. simpl. rewrite IHg. auto.
-            Qed.
-            rewrite typeof_env_rev.
-            cutrewrite (typeof_env G0 = fst (hash (Lhs lem))).
-            eapply WellTyped_hash. simpl typeof_env. apply Subst_to_env_typeof_env in H12. rewrite <- H12. auto.
-            rewrite H10; auto. rewrite H10; auto.
+              rewrite <- applySHeap_spec. reflexivity. intros. eauto. rewrite <- rev_length with (l := G0).
+              eapply liftInstantiate_spec; eauto. rewrite typeof_env_app. auto.
+              cutrewrite (s0 = snd (hash (Lhs lem))). rewrite <- typeof_env_app.
+              rewrite typeof_env_rev.
+              cutrewrite (typeof_env G0 = fst (hash (Lhs lem))).
+              eapply WellTyped_hash. simpl typeof_env. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
+              rewrite H10; auto. rewrite H10; auto.
 
-            apply ST_EXT.himp_existsEach. intros.
-            rewrite <- applySHeap_spec. reflexivity. intros. rewrite <- rev_length with (l := G0).
-            eapply liftInstantiate_spec; eauto. rewrite typeof_env_app. auto.
+              apply ST_EXT.himp_existsEach. intros.
+              rewrite <- applySHeap_spec. reflexivity. intros. rewrite <- rev_length with (l := G0).
+              eapply liftInstantiate_spec; eauto. rewrite typeof_env_app. auto.
 
-            cutrewrite (s = snd (hash (Rhs lem))). rewrite <- typeof_env_app. rewrite typeof_env_rev. 
-            cutrewrite (typeof_env G0 = v). cutrewrite (v  = fst (hash (Rhs lem))).
-            eapply WellTyped_hash. simpl. apply Subst_to_env_typeof_env in H12. rewrite <- H12. auto.
-            rewrite H8. auto. subst. reflexivity. rewrite H8. reflexivity. }
-          { destruct H13. clear H14. unfold WellTyped_lemma in H13. eapply allb_AllProvable; eauto.
-            apply andb_true_iff in H13. destruct H13. apply andb_true_iff in H13. destruct H13.
+              cutrewrite (s = snd (hash (Rhs lem))). rewrite <- typeof_env_app. rewrite typeof_env_rev. 
+              cutrewrite (typeof_env G0 = v). cutrewrite (v  = fst (hash (Rhs lem))).
+              eapply WellTyped_hash. simpl. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
+              rewrite H9. auto. subst. reflexivity. rewrite H9. reflexivity. }
+            { apply WellTyped_hash in H14. apply WellTyped_hash in H13. think. simpl in *.
+              rewrite (Subst_to_env_typeof_env _ _ _ _ _ H11) in *.
+              split; (eapply applySHeap_typed; [ | eauto ]).
+              intros.
+              eapply liftInstantiate_typed with (U_or_G := U_or_G) (U := typeof_env U) (G := typeof_env G) (sub := sub) in H15. 
+              rewrite rev_length in H15. repeat rewrite typeof_env_length in H15. eapply H15. eassumption.
+              rewrite typeof_env_length. eassumption.              
+              intros.
+              eapply liftInstantiate_typed with (U_or_G := U_or_G) (U := typeof_env U) (G := typeof_env G) (sub := sub) in H15. 
+              rewrite rev_length in H15. repeat rewrite typeof_env_length in H15. eapply H15. eassumption.
+              rewrite typeof_env_length. eassumption. } }
+          { destruct H12. clear H13. unfold WellTyped_lemma in H12. eapply allb_AllProvable; eauto.
+            apply andb_true_iff in H12. destruct H12. apply andb_true_iff in H12. destruct H12.
             rewrite allb_map. eapply allb_impl. eauto. intros.
-            simpl in *. generalize (liftInstantiate_typed H nil (F := x) x0 tvProp sub (Foralls lem)). simpl.
-            intro. rewrite (Subst_to_env_typeof_env _ _ _ _ _ H12) in *. apply H17 in H16; auto.
-            Focus 2. rewrite (Subst_to_env_typeof_env _ _ _ _ _ H12) in H12. auto.
-            clear H17. rewrite BuildUVars_nil in H16. rewrite BuildVars_nil in H16. auto. } }
+            simpl in *. generalize (@liftInstantiate_typed U_or_G (typeof_env U) (typeof_env G) nil x0 tvProp sub (Foralls lem)). 
+            simpl. rewrite (Subst_to_env_typeof_env _ _ _ _ _ H11) in *. intro. apply H16 in H15; auto.
+
+            repeat rewrite quant_nil in *. repeat rewrite typeof_env_length in *. auto.
+            rewrite typeof_env_length. auto. } }
       Qed.
 
       Lemma app_len_2 : forall T (a b c d : list T),
@@ -1066,11 +1121,11 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         length b = length d ->
         a = c /\ b = d.
       Proof.
-        clear. induction a0; destruct c; simpl; intuition; subst; auto;
+        clear. induction a; destruct c; simpl; intuition; subst; auto;
         simpl in *; try rewrite app_length in H0; 
           try solve [ try generalize dependent (length d); intros; exfalso; omega ].
-        inversion H. subst. f_equal. eapply IHa0 in H3; eauto. intuition.
-        inversion H. eapply IHa0 in H3; intuition.
+        inversion H. subst. f_equal. eapply IHa in H3; eauto. intuition.
+        inversion H. eapply IHa in H3; intuition.
       Qed.
 
       Lemma ST_himp_heq_L : forall cs U G P Q S,
@@ -1146,6 +1201,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Hint Resolve skipn_length_all : list_length.
       Hint Rewrite skipn_length_all using (eauto with list_length) : list_length.
 
+(*
       Lemma quantFwd_spec : forall U G (F : env types) (v : var) (t : tvar),
         is_well_typed (typeof_funcs funcs) nil (typeof_env F) (Var (types := types) v) t = true ->
         exprD funcs nil F (Var v) t =
@@ -1157,6 +1213,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         rewrite nth_error_app_R by omega. cutrewrite (v + length G - length G = v); [ | omega ].
         destruct (nth_error F v); auto.
       Qed.
+*)
       Lemma hintSideD_In : forall hs,
         hintSideD hs -> forall x, In x hs -> lemmaD funcs preds nil nil x.
       Proof.
@@ -1184,15 +1241,80 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
       Opaque ST_EXT.existsEach.
 
+(*
+        Lemma himp_derive_welltyped : forall cs meta_env se vars_env P,
+          (WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env) se = true ->
+            ST.himp cs (sexprD funcs preds meta_env vars_env se) P) ->
+          ST.himp cs (sexprD funcs preds meta_env vars_env se) P.
+        Proof.
+          clear. induction se; simpl; intros; auto.
+          { consider (exprD funcs meta_env vars_env e tvProp); intros. eapply H0.
+            eapply is_well_typed_correct_only; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+            rewrite <- SH.SE.ST.heq_star_emp_r. apply SH.SE.ST.himp_star_pure_c; contradiction. }
+          {
+
+ etransitivity. eapply ST.himp_star_frame. eapply IHse1. reflexivity. eapply IHse2. reflexivity.
+
+          2: apply SH.SE.ST.himp_star_pure_c; contradiction.
+          specialize (H _ refl_equal). destruct p; simpl in *. generalize dependent SDomain0.
+          induction x; destruct SDomain0; simpl; intros; auto; try solve [ apply SH.SE.ST.himp_star_pure_c; contradiction ].
+          consider (exprD funcs meta_env vars_env a0 t); intros; try solve [ apply SH.SE.ST.himp_star_pure_c; contradiction ].
+          erewrite is_well_typed_correct_only in H0; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+        Qed.
+
+
+        Lemma himp_derive_welltyped : forall meta_env vars_env se P f x cs,
+          (forall p, nth_error preds f = Some p ->
+            all2 (is_well_typed (typeof_funcs funcs) (typeof_env meta_env) (typeof_env vars_env)) x (SDomain p) = true ->
+            ST.himp cs (sexprD funcs preds meta_env vars_env (Star (Func f x) se)) P) ->
+          ST.himp cs (sexprD funcs preds meta_env vars_env (Star (Func f x) se)) P.
+        Proof.
+          clear. intros. simpl in *. destruct (nth_error preds f).
+          2: apply SH.SE.ST.himp_star_pure_c; contradiction.
+          specialize (H _ refl_equal). destruct p; simpl in *. generalize dependent SDomain0.
+          induction x; destruct SDomain0; simpl; intros; auto; try solve [ apply SH.SE.ST.himp_star_pure_c; contradiction ].
+          consider (exprD funcs meta_env vars_env a0 t); intros; try solve [ apply SH.SE.ST.himp_star_pure_c; contradiction ].
+          erewrite is_well_typed_correct_only in H0; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+        Qed.
+*)
+
+      Lemma WellTyped_impures_find_fst_last : forall tfuncs tpreds tU tG imps x0 x1 x2 k,
+        WellTyped_impures tfuncs tpreds tU tG imps = true ->
+        FM.find (elt:=list (exprs types)) k imps = Some (x0 ++ x1 :: x2) ->
+        match x0 ++ x2 with
+          | nil => True
+          | _ :: _ =>
+            match nth_error tpreds k with
+              | Some ts =>
+                allb (fun argss : list (expr types) =>
+                  all2 (is_well_typed tfuncs tU tG) argss ts) (x0 ++ x2) = true
+              | None => False
+            end
+        end.
+      Proof.
+        clear. intros.
+        rewrite WellTyped_impures_eq in H. specialize (H _ _ H0).
+        destruct x0; simpl in *; destruct (nth_error tpreds k); think; auto. destruct x2; auto. contradiction.
+        rewrite allb_app. rewrite allb_app in H1. think. simpl in *. think.
+      Qed.
+
+      Lemma with_left : forall (P Q R : Prop),
+        (R -> P) ->
+        R /\ Q ->
+        P /\ Q.
+      Proof. clear. firstorder. Qed.
+
       Lemma unfoldForwardOk : forall meta_env vars_env cs facts P Q,
         WellTyped_env (UVars P) meta_env ->
         WellTyped_env (Vars P) vars_env ->
         Valid PC meta_env vars_env facts ->
         unfoldForward unify_bound prover facts (Forward hs) P = Some Q ->
+        forall (WT : WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env) (Heap P) = true),
         ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
                    (ST_EXT.existsEach (skipn (length vars_env) (Vars Q))
                      (fun vars_ext : list {t : tvar & tvarD types t} =>
-                       sexprD funcs preds meta_env (vars_env ++ vars_ext) (sheapD (Heap Q)))).
+                       sexprD funcs preds meta_env (vars_env ++ vars_ext) (sheapD (Heap Q))))
+        /\ WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
       Proof.
         unfold unfoldForward. intros.
         repeat match goal with
@@ -1206,49 +1328,200 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         destruct P; simpl in *.
 
         destruct Heap0; simpl in *.
+        eapply with_left. intro.
         eapply ST_himp_heq_L with (Q := Star (SH.sheapD {| impures := FM.add f (x0 ++ x2) impures0
           ; pures := pures0
           ; other := other0
         |})
-        (Func f x1)).
-        { repeat rewrite SH.sheapD_def. simpl.
-          rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x1 :: x2) (i := FM.remove f impures0).
-          rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x2) (i := FM.remove f (FM.add f (x0 ++ x2) impures0))
-            (i' := FM.add f (x0 ++ x2) impures0). heq_canceler.
-          symmetry. rewrite impuresD_Equiv.
-          2: rewrite Equal_remove_add_remove; reflexivity. reflexivity.
-          clear. red; intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
-          destruct (MF.FACTS.eq_dec f y); reflexivity. intro. apply MM.FACTS.remove_in_iff in H5. intuition congruence.
-          red. intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o). consider (MF.FACTS.eq_dec f y); subst; auto. 
-          intro. apply MM.FACTS.remove_in_iff in H5. intuition congruence. }
-        assert (exists p, nth_error preds f = Some p /\ all2 (is_well_typed (typeof_funcs funcs) UVars0 Vars0) x1 (SDomain p) = true).
-        { admit. }
-        destruct H5. destruct H5.
+        (Func f x1)). 2: eapply H5.
+          { repeat rewrite SH.sheapD_def. simpl.
+            rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x2) (i := FM.remove f (FM.add f (x0 ++ x2) impures0))
+              (i' := FM.add f (x0 ++ x2) impures0). 
+            rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x1 :: x2) (i := FM.remove f impures0).
+            heq_canceler.
+            symmetry. rewrite impuresD_Equiv.
+            2: rewrite Equal_remove_add_remove; reflexivity. reflexivity.
+            red; intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
+            destruct (MF.FACTS.eq_dec f y). subst; auto. auto. intro. apply MM.FACTS.remove_in_iff in H8. intuition congruence.
+            red. intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o). consider (MF.FACTS.eq_dec f y); subst; auto. 
+            intro. apply MM.FACTS.remove_in_iff in H8. intuition congruence. }
 
-        eapply hintSideD_In in H2; eauto using ForwardOk.
-        assert (length UVars0 = length meta_env).
-        { unfold WellTyped_env in *. subst. rewrite map_length. auto. }
-        rewrite H9 in *. 
-        eapply (applicableOk (QuantifierSpec_Fwd meta_env vars_env) cs facts (*meta_env vars_env*)) in H6.
-        Focus 2. eauto.
-        Focus 2. eauto.
-        Focus 2. unfold WellTyped_env in *. rewrite H in H8. rewrite H0 in H8. eapply H8.
-        Focus 2. destruct H2. unfold WellTyped_lemma in H2. think. simpl in H12. unfold typeof_preds in H12.
-          rewrite map_nth_error_full in H12. rewrite H5 in H12. eapply H12.
-        { destruct H6. rewrite H3 in *. rewrite SH.hash_Func in H10. rewrite H7 in H10.
-          rewrite ST_EXT.existsEach_nil in H10.
-          rewrite SH.hash_denote with (s := Func f x1). rewrite SH.hash_Func.
-          unfold fst, snd, SE.existsEach. rewrite app_nil_r in H10. 
-          subst.
-          rewrite applySHeap_singleton in H10. simpl in H10. simpl. rewrite H10. clear H10.
-          rewrite ST_EXT.heq_pushIn. rewrite rw_skipn_app; eauto with list_length.
+          rewrite SEP_FACTS.heq_star_comm. 
+          assert (WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env)
+            (SH.SE.Func (types := types) (pcType := pcType) (stateType := stateType) f x1) = true).
+          { rewrite WellTyped_sheap_eq in WT. apply andb_true_iff in WT; intuition.
+            rewrite WellTyped_impures_eq in H5. simpl in *. specialize (H5 _ _ H4).
+            consider (x0 ++ x1 :: x2). intros. exfalso; destruct x0; simpl in *; congruence. intros.
+            destruct (nth_error (typeof_preds preds) f); try contradiction. rewrite <- H4 in *. rewrite allb_app in H9. 
+            simpl in *. think. }
+          cut (WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env)
+            (sheapD {| impures := FM.add f (x0 ++ x2) impures0; pures := pures0; other := other0 |}) = true); intros.
+          
+          eapply hintSideD_In in H2; eauto using ForwardOk.
+          assert (length UVars0 = length meta_env).
+          { unfold WellTyped_env in *. subst. rewrite typeof_env_length. auto. }
+          rewrite H9 in *.
+          simpl in H5. consider (nth_error (typeof_preds preds) f); intros.
+          rewrite H0 in H6. rewrite typeof_env_length in H6. eapply applicableOk with (cs := cs) in H6; [ | eauto | eauto | eauto | ].
+          Focus 2. destruct H2. unfold WellTyped_lemma in H2. think. simpl in H13. rewrite H5 in H13. eapply H13.
+          { destruct H6. rewrite H3 in *. rewrite SH.hash_Func in *. rewrite H7 in *.
+            rewrite ST_EXT.existsEach_nil in *.
+            rewrite SH.hash_denote with (s := Func f x1). rewrite SH.hash_Func.
+            unfold fst, snd, SE.existsEach. subst.
+            rewrite applySHeap_singleton in *. simpl in *. rewrite app_nil_r in *. destruct H11. rewrite H6. clear H6.
+            rewrite ST.heq_star_comm. rewrite ST_EXT.heq_pushIn. rewrite rw_skipn_app; eauto with list_length.
+            rewrite ST_EXT.existsEach_rev. split. 
+            { eapply ST.heq_defn. eapply ST_EXT.heq_existsEach; intros.
+              rewrite <- star_SHeap_denote. simpl. apply ST.heq_star_frame.
+              { generalize dependent (sheapD {| impures := FM.add f (x0 ++ x2) impures0;
+                pures := pures0;
+                other := other0 |}). clear; intros.
+                generalize (SEP_FACTS.sexprD_weaken_wt funcs preds cs meta_env nil G s vars_env). 
+                rewrite app_nil_r. intro. rewrite H; try reflexivity. auto. }
+              { rewrite rev_involutive. unfold WellTyped_env in *. subst. repeat rewrite typeof_env_length.
+                cutrewrite (length v = length (rev G)). reflexivity.
+                rewrite <- rev_length. rewrite <- H6. rewrite map_length. rewrite rev_length. reflexivity. } }
+            { rewrite <- WellTyped_sheap_star. apply andb_true_iff. split.
+              repeat rewrite WellTyped_sheap_eq in *; simpl in *. apply andb_true_iff in WT; destruct WT. 
+              apply andb_true_iff; split; auto.
+              { apply WellTyped_impures_eq. intros. rewrite MM.FACTS.add_o in H13.
+                consider (MF.FACTS.eq_dec f k); subst; intros. inversion H13; clear H13; subst.
 
-          rewrite ST_EXT.existsEach_rev. eapply ST.heq_defn. eapply ST_EXT.heq_existsEach; intros.
-          rewrite <- star_SHeap_denote. simpl. apply ST.heq_star_frame. 
-          { admit.  (** This requires weakening **) }
-          { rewrite rev_involutive. unfold WellTyped_env in *. subst. repeat rewrite map_length.
-            cutrewrite (length v = length (rev G)). reflexivity.
-            rewrite <- rev_length. rewrite <- H6. rewrite map_length. rewrite rev_length. reflexivity. } }
+                eapply WellTyped_impures_find_fst_last in H4; [ | eassumption ]. destruct (x0 ++ x2); auto.
+                destruct (nth_error (typeof_preds preds) k); auto. eapply allb_impl; try eassumption.
+                rewrite H in *. rewrite H0 in *. clear; intros; simpl in *. unfold typeof_env in *. 
+                rewrite <- app_nil_r with (l := map (@projT1 _ _) meta_env). 
+                eapply all2_impl; try eassumption. intros. eapply is_well_typed_weaken. auto.
+                rewrite WellTyped_impures_eq in H6. specialize (H6 _ _ H13). destruct v0; auto.
+                destruct (nth_error (typeof_preds preds) k); auto.
+                generalize dependent (e :: v0). rewrite H. rewrite H0. clear. intros.
+                eapply allb_impl; try eassumption; intros. eapply all2_impl; try eapply H; intros.
+                rewrite <- app_nil_r with (l := typeof_env meta_env). eapply is_well_typed_weaken. auto. }
+              { eapply allb_impl; try eassumption; intros. rewrite <- app_nil_r with (l := UVars0).
+                eapply is_well_typed_weaken. rewrite H0. rewrite H. eapply H13. }
+              { destruct H11. unfold WellTyped_env in *. rewrite H. rewrite H0. rewrite typeof_env_length. apply H11. } }
+            rewrite H0. rewrite typeof_env_length. reflexivity. }
+          { clear - WT H4. rewrite <- WellTyped_sheap_WellTyped_sexpr. rewrite WellTyped_sheap_eq in *. think. simpl in *. 
+            apply andb_true_iff. split; auto. apply WellTyped_impures_eq; intros.
+            rewrite MM.FACTS.add_o in H1. destruct (MF.FACTS.eq_dec f k). think.
+            rewrite WellTyped_impures_eq in H. specialize (H _ _ H4). destruct x0; simpl in *. destruct x2; auto.
+            destruct (nth_error (typeof_preds preds) k); auto. simpl in *. think.
+            destruct (nth_error (typeof_preds preds) k); auto. simpl in *. think. rewrite allb_app in *. simpl in H1. think; auto.
+            rewrite WellTyped_impures_eq in H. apply H; auto. }
+      Qed.
+
+      Lemma unfoldBackwardOk : forall meta_env vars_env cs facts P Q,
+        WellTyped_env (UVars P) meta_env ->
+        WellTyped_env (Vars P) vars_env ->
+        Valid PC meta_env vars_env facts ->
+        unfoldBackward unify_bound prover facts (Backward hs) P = Some Q ->
+        forall (WT : WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env) (Heap P) = true),
+        ST.himp cs (ST_EXT.existsEach (skipn (length meta_env) (UVars Q))
+                     (fun meta_ext : list {t : tvar & tvarD types t} =>
+                       sexprD funcs preds (meta_env ++ meta_ext) vars_env (sheapD (Heap Q))))
+                   (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
+        /\ WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
+      Proof.
+        unfold unfoldBackward. intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end.
+        destruct P; simpl in *.
+
+        destruct Heap0; simpl in *.
+        eapply with_left. intro.
+        Lemma ST_himp_heq_R : forall (cs : PropX.codeSpec (tvarD types pcType) (tvarD types stateType))
+          (U G : env types) (P Q : sexpr types pcType stateType)
+          (S : ST.hprop (tvarD types pcType) (tvarD types stateType) nil),
+          heq funcs preds U G cs P Q ->
+          ST.himp cs S (sexprD funcs preds U G Q) ->
+          ST.himp cs S (sexprD funcs preds U G P).
+        Proof.
+          clear. intros. rewrite H0. rewrite H. reflexivity.
+        Qed.          
+        eapply ST_himp_heq_R with (Q := Star (SH.sheapD {| impures := FM.add f (x0 ++ x2) impures0
+          ; pures := pures0
+          ; other := other0
+        |})
+        (Func f x1)). 2: eapply H5.
+          { repeat rewrite SH.sheapD_def. simpl.
+            rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x2) (i := FM.remove f (FM.add f (x0 ++ x2) impures0))
+              (i' := FM.add f (x0 ++ x2) impures0). 
+            rewrite SH.impuresD_Add with (f := f) (argss := x0 ++ x1 :: x2) (i := FM.remove f impures0).
+            heq_canceler.
+            symmetry. rewrite impuresD_Equiv.
+            2: rewrite Equal_remove_add_remove; reflexivity. reflexivity.
+            red; intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o).
+            destruct (MF.FACTS.eq_dec f y). subst; auto. auto. intro. apply MM.FACTS.remove_in_iff in H8. intuition congruence.
+            red. intros. repeat (rewrite MM.FACTS.add_o || rewrite MM.FACTS.remove_o). consider (MF.FACTS.eq_dec f y); subst; auto. 
+            intro. apply MM.FACTS.remove_in_iff in H8. intuition congruence. }
+
+          rewrite SEP_FACTS.heq_star_comm. 
+          assert (WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env)
+            (SH.SE.Func (types := types) (pcType := pcType) (stateType := stateType) f x1) = true).
+          { rewrite WellTyped_sheap_eq in WT. apply andb_true_iff in WT; intuition.
+            rewrite WellTyped_impures_eq in H5. simpl in *. specialize (H5 _ _ H4).
+            consider (x0 ++ x1 :: x2). intros. exfalso; destruct x0; simpl in *; congruence. intros.
+            destruct (nth_error (typeof_preds preds) f); try contradiction. rewrite <- H4 in *. rewrite allb_app in H9. 
+            simpl in *. think. }
+          cut (WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) (typeof_env meta_env) (typeof_env vars_env)
+            (sheapD {| impures := FM.add f (x0 ++ x2) impures0; pures := pures0; other := other0 |}) = true); intros.
+          
+          eapply hintSideD_In in H2; eauto using BackwardOk.
+          assert (length UVars0 = length meta_env).
+          { unfold WellTyped_env in *. subst. rewrite typeof_env_length. auto. }
+          rewrite H9 in *.
+          simpl in H5. consider (nth_error (typeof_preds preds) f); intros.
+          rewrite H0 in H6. rewrite typeof_env_length in H6. eapply applicableOk with (cs := cs) in H6; [ | eauto | eauto | eauto | ].
+          Focus 2. destruct H2. unfold WellTyped_lemma in H2. think. simpl in H12. rewrite H5 in H12. eapply H12.
+          { destruct H6. rewrite H3 in *. rewrite SH.hash_Func in *. rewrite H7 in *.
+            rewrite ST_EXT.existsEach_nil in *.
+            rewrite SH.hash_denote with (s := Func f x1). rewrite SH.hash_Func.
+            unfold fst, snd, SE.existsEach. subst.
+            rewrite applySHeap_singleton in *. simpl in *. rewrite app_nil_r in *. destruct H11. rewrite <- H6. clear H6.
+            rewrite ST.heq_star_comm. rewrite ST_EXT.heq_pushIn. rewrite rw_skipn_app; eauto with list_length.
+            rewrite ST_EXT.existsEach_rev. split. 
+            { eapply ST.heq_defn. rewrite rev_involutive. eapply ST_EXT.heq_existsEach; intros.
+              rewrite <- star_SHeap_denote. simpl. apply ST.heq_star_frame.
+              { generalize dependent (sheapD {| impures := FM.add f (x0 ++ x2) impures0;
+                pures := pures0;
+                other := other0 |}). clear; intros.
+                generalize (SEP_FACTS.sexprD_weaken_wt funcs preds cs meta_env (rev G) nil s vars_env). 
+                rewrite app_nil_r. intro. rewrite H; try reflexivity. auto. }
+              { unfold WellTyped_env in *. subst. repeat rewrite map_length.
+                rewrite typeof_env_length. reflexivity. } }
+            { rewrite <- WellTyped_sheap_star. apply andb_true_iff. split.
+              repeat rewrite WellTyped_sheap_eq in *; simpl in *. apply andb_true_iff in WT; destruct WT. 
+              apply andb_true_iff; split; auto.
+              { apply WellTyped_impures_eq. intros. rewrite MM.FACTS.add_o in H13.
+                consider (MF.FACTS.eq_dec f k); subst; intros. inversion H13; clear H13; subst.
+
+                eapply WellTyped_impures_find_fst_last in H4; [ | eassumption ]. destruct (x0 ++ x2); auto.
+                destruct (nth_error (typeof_preds preds) k); auto. eapply allb_impl; try eassumption.
+                rewrite H in *. rewrite H0 in *. clear; intros; simpl in *. unfold typeof_env in *. 
+                rewrite <- app_nil_r with (l := map (@projT1 _ _) vars_env). 
+                eapply all2_impl; try eassumption. intros. eapply is_well_typed_weaken. auto.
+                rewrite WellTyped_impures_eq in H6. specialize (H6 _ _ H13). destruct v0; auto.
+                destruct (nth_error (typeof_preds preds) k); auto.
+                generalize dependent (e :: v0). rewrite H. rewrite H0. clear. intros.
+                eapply allb_impl; try eassumption; intros. eapply all2_impl; try eapply H; intros.
+                rewrite <- app_nil_r with (l := typeof_env vars_env). eapply is_well_typed_weaken. auto. }
+              { eapply allb_impl; try eassumption; intros. rewrite <- app_nil_r with (l := Vars0).
+                eapply is_well_typed_weaken. rewrite H0. rewrite H. eapply H13. }
+              { destruct H11. unfold WellTyped_env in *. rewrite H. rewrite H0. rewrite typeof_env_length.
+                eapply H6. } } }
+          { clear - WT H4. rewrite <- WellTyped_sheap_WellTyped_sexpr. rewrite WellTyped_sheap_eq in *. think. simpl in *. 
+            apply andb_true_iff. split; auto. apply WellTyped_impures_eq; intros.
+            rewrite MM.FACTS.add_o in H1. destruct (MF.FACTS.eq_dec f k). think.
+            rewrite WellTyped_impures_eq in H. specialize (H _ _ H4). destruct x0; simpl in *. destruct x2; auto.
+            destruct (nth_error (typeof_preds preds) k); auto. simpl in *. think.
+            destruct (nth_error (typeof_preds preds) k); auto. simpl in *. think. rewrite allb_app in *. simpl in H1. think; auto.
+            rewrite WellTyped_impures_eq in H. apply H; auto. }
       Qed.
       
       Lemma forwardLength : forall bound facts P Q,
@@ -1269,11 +1542,45 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           { subst. exists nil; repeat rewrite app_nil_r; eauto. }
       Qed.
 
+      Lemma unfoldBackward_vars : forall unify_bound facts P Q,
+        unfoldBackward unify_bound prover facts (Backward hs) P = Some Q ->
+        exists meta_ext, Vars Q = Vars P /\ UVars Q = UVars P ++ meta_ext.
+      Proof.
+        unfold unfoldBackward. intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end; simpl. eexists; intuition.
+      Qed.
+
+      Lemma backwardLength : forall bound facts P Q,
+        backward bound facts P = Q ->
+        exists meta_ext,
+          Vars Q = Vars P /\
+          UVars Q = UVars P ++ meta_ext.
+      Proof.
+        clear. induction bound; intros; simpl in *; eauto.
+          subst; exists nil; repeat rewrite app_nil_r; auto.
+          consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
+          { eapply IHbound in H0. eapply unfoldBackward_vars in H.
+            repeat match goal with
+                     | [ H : exists x, _ |- _ ] => destruct H
+                     | [ H : _ /\ _ |- _ ] => destruct H
+                     | [ H : _ = _ |- _ ] => rewrite H
+                   end. repeat rewrite app_ass. eauto. }
+          { subst. exists nil; repeat rewrite app_nil_r; eauto. }
+      Qed.
+
       Theorem forwardOk : forall cs bound facts P Q,
         forward bound facts P = Q ->
         forall meta_env vars_env,
         WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
         WellTyped_env (Vars P) vars_env ->
+        forall (WT : WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true),
         Valid PC meta_env vars_env facts ->
         ST.himp cs (sexprD funcs preds meta_env vars_env (sheapD (Heap P)))
                    (ST_EXT.existsEach (skipn (length vars_env) Q.(Vars)) (fun vars_ext : list { t : tvar & tvarD types t } =>
@@ -1283,55 +1590,78 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         { subst; repeat split; try reflexivity.
           cutrewrite (skipn (length vars_env) (Vars Q) = nil).
           rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity.
-          eauto with list_length. }
+          rewrite H1. rewrite <- typeof_env_length. eauto with list_length. }
         { revert H; case_eq (unfoldForward unify_bound prover facts (Forward hs) P); intros.
-          { subst. generalize H. eapply unfoldForwardOk with (cs := cs) in H; eauto. rewrite H.
-            intros. eapply unfoldForward_vars in H3. do 2 destruct H3. intuition. 
-            remember (forward bound facts u). symmetry in Hequ0.
-            specialize (IHbound _ _ _ Hequ0).
-            eapply forwardLength in Hequ0.
-            repeat match goal with
-                     | [ H : _ = _ |- _ ] => rewrite H
-                     | [ H : exists x, _ |- _ ] => destruct H
-                     | [ H : _ /\ _ |- _ ] => destruct H
-                     | [ |- _ ] => rewrite app_ass in *
-                     | [ |- _ ] => rewrite rw_skipn_app by eauto with list_length
-                   end.
-            rewrite ST_EXT.existsEach_app; intros.
-            eapply ST_EXT.himp_existsEach. intros.
-            rewrite IHbound; try solve [  repeat match goal with 
-                                                   | [ H : _ = _ |- _ ] => rewrite H
-                                                 end; auto ].
-            rewrite H5. rewrite rw_skipn_app.
-            apply ST_EXT.himp_existsEach; intros.
-            repeat (rewrite app_nil_r || rewrite app_ass). reflexivity.
-            rewrite H3. repeat rewrite app_length. subst. rewrite H1. repeat rewrite map_length. reflexivity.
- 
-            red. rewrite map_app.
-            repeat match goal with
-                     | [ H : _ = _ |- _ ] => rewrite H
-                   end. f_equal; auto. 
-            rewrite <- app_nil_r with (l := meta_env); eapply Valid_weaken; eauto. }
-          { subst. erewrite skipn_length_all by eauto with list_length.
-            rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity. } }
+          { subst. generalize H. eapply unfoldForwardOk with (cs := cs) in H; eauto.
+            { destruct H. rewrite H.
+              intros. eapply unfoldForward_vars in H4. do 2 destruct H4. intuition. 
+              remember (forward bound facts u). symmetry in Hequ0.
+              specialize (IHbound _ _ _ Hequ0).
+              eapply forwardLength in Hequ0.
+              assert (length vars_env = length (Vars P)). rewrite H1. rewrite typeof_env_length. reflexivity.
+              repeat match goal with
+                       | [ H : _ = _ |- _ ] => rewrite H
+                       | [ H : exists x, _ |- _ ] => destruct H
+                       | [ H : _ /\ _ |- _ ] => destruct H
+                       | [ |- _ ] => rewrite app_ass in *
+                       | [ |- _ ] => rewrite rw_skipn_app by eauto with list_length 
+                     end.
+              rewrite ST_EXT.existsEach_app; intros.
+              eapply ST_EXT.himp_existsEach. intros.
+              rewrite IHbound; try solve [  repeat match goal with 
+                                                     | [ H : _ = _ |- _ ] => rewrite H
+                                                   end; auto ].
+              think. rewrite rw_skipn_app.
+              apply ST_EXT.himp_existsEach; intros.
+              repeat (rewrite app_nil_r || rewrite app_ass). reflexivity.
+              repeat rewrite app_length. rewrite typeof_env_length. subst. rewrite map_length. reflexivity.
+              rewrite H4. repeat rewrite app_length. subst. rewrite H1. repeat rewrite map_length.
+              unfold WellTyped_env. rewrite <- typeof_env_app. f_equal.
+              
+              repeat match goal with
+                       | [ H : _ = _ |- _ ] => rewrite H in *
+                     end. auto. 
+              rewrite <- app_nil_r with (l := meta_env); eapply Valid_weaken; eauto. }
+            { rewrite <- WT. f_equal. rewrite H0. reflexivity. rewrite H1. reflexivity. } }
+          { subst. erewrite skipn_length_all.
+            rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity. 
+            unfold WellTyped_env in *. rewrite H1. unfold typeof_env. reflexivity. } }
       Qed.
 
       Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,
         backward bound facts P = Q ->
         WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
         WellTyped_env (Vars P) vars_env ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
         Valid PC meta_env vars_env facts ->
         ST.himp cs (ST_EXT.existsEach (skipn (length meta_env) Q.(UVars)) (fun meta_ext : env types => 
                       (sexprD funcs preds (meta_env ++ meta_ext) vars_env (sheapD (Heap Q)))))
                    (sexprD funcs preds meta_env vars_env (sheapD (Heap P))).
       Proof.
         induction bound; simpl; intros.
-        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
-          rewrite app_nil_r. reflexivity. eauto with list_length. }
+        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil.
+          rewrite app_nil_r. reflexivity. rewrite H0. rewrite <- typeof_env_length. eauto with list_length. }
         { consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
-          { admit. }
+          { generalize H. 
+            eapply unfoldBackwardOk with (cs := cs) in H; eauto. intro.
+            apply unfoldBackward_vars in H5. think.
+            generalize (backwardLength _ _ _ H4); intro. think.
+            rewrite app_ass. rewrite rw_skipn_app by (rewrite <- typeof_env_length; eauto with list_length).
+            rewrite <- H. rewrite <- H7 in H6. rewrite <- H5 in H6. erewrite rw_skipn_app.
+            2: rewrite <- typeof_env_length; reflexivity.
+            rewrite ST_EXT.existsEach_app. eapply ST_EXT.himp_existsEach. intros.
+            eapply IHbound in H4.
+            Focus 2. rewrite H7. instantiate (1 := meta_env ++ G). unfold WellTyped_env. rewrite <- typeof_env_app.
+            f_equal. symmetry; auto.
+            Focus 2. rewrite H5. apply typeof_env_WellTyped_env.
+            Focus 2. apply H6. 
+            Focus 2. rewrite <- app_nil_r with (l := vars_env). eapply Valid_weaken; auto.
+            think. rewrite <- H4.
+            rewrite rw_skipn_app. apply ST_EXT.himp_existsEach. intros. rewrite app_ass. reflexivity.
+            repeat rewrite app_length. rewrite typeof_env_length. subst. rewrite map_length. reflexivity.
+            rewrite <- H2. f_equal. symmetry; apply H0. symmetry; apply H1. }           
           { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
-          rewrite app_nil_r. reflexivity. eauto with list_length. } }
+            rewrite app_nil_r. reflexivity.  rewrite H0. rewrite <- typeof_env_length. eauto with list_length. } }
       Qed.
 
     End unfolder.

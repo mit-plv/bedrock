@@ -322,13 +322,6 @@ Section env.
     Variable tmeta_env : tenv.
     Variable tvar_env : tenv.
 
-    Definition WellTyped_env (t : tenv) (g : env) : Prop :=
-      t = map (@projT1 _ _) g.
-    Definition WellTyped_sig (t : tsignature) (g : signature) : Prop :=
-      TDomain t = Domain g /\ TRange t = Range g.
-    
-    Definition WellTyped_funcs (t : tfunctions) (g : functions) : Prop :=
-      Forall2 WellTyped_sig t g.
 
     Fixpoint typeof (e : expr) : option tvar :=
       match e with
@@ -351,6 +344,14 @@ Section env.
        |}.
     Definition typeof_funcs : functions -> tfunctions :=
       map typeof_sig.
+
+    Definition WellTyped_env (t : tenv) (g : env) : Prop :=
+      t = typeof_env g.
+    Definition WellTyped_sig (t : tsignature) (g : signature) : Prop :=
+      TDomain t = Domain g /\ TRange t = Range g.
+    
+    Definition WellTyped_funcs (t : tfunctions) (g : functions) : Prop :=
+      Forall2 WellTyped_sig t g.
 
     Theorem typeof_env_WellTyped_env : forall g,
       WellTyped_env (typeof_env g) g.

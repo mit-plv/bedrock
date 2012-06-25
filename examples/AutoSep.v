@@ -248,7 +248,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Folds.allb 
          UNF.find UNF.default_hintsPayload
          UNF.openForUnification 
-         UNF.quantFwd UNF.quantBwd 
+         UNF.quant
          UNF.liftInstantiate
          UNF.applySHeap
          UNF.applicable UNF.checkAllInstantiated
@@ -592,7 +592,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.find UNF.findWithRest UNF.findWithRest' 
          Folds.allb 
          UNF.openForUnification 
-         UNF.quantFwd UNF.quantBwd 
+         UNF.quant
          UNF.liftInstantiate
          UNF.applySHeap
          UNF.find UNF.default_hintsPayload
