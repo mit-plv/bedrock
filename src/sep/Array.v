@@ -186,20 +186,20 @@ Ltac destr' E := destruct E. (*case_eq E; intros;
         | [ H : _ = _ |- _ ] => rewrite H in *
       end.*)
 
-Ltac destr E :=
+Ltac destr simp E :=
   match E with
     | context[match _ with None => _ | _ => _ end] => fail 1
     | div4 _ => fail 1
     | _ => destr' E; discriminate || tauto
-    | _ => destr' E; try (discriminate || tauto); [simpl in *]
+    | _ => destr' E; try (discriminate || tauto); [simp]
   end.
 
-Ltac destr2 E :=
+Ltac destr2 simp E :=
   match E with
     | context[match _ with None => _ | _ => _ end] => fail 1
     | div4 _ => fail 1
-    | _ => destr' E; try (discriminate || tauto); [ simpl in * ]
-    | _ => destr' E; try (discriminate || tauto); [ | ]; simpl in *
+    | _ => destr' E; try (discriminate || tauto); [simp]
+    | _ => destr' E; try (discriminate || tauto); [ | ]; simp
   end.
 
 Ltac stripSuffix E :=
@@ -210,28 +210,29 @@ Ltac stripSuffix E :=
     | _ => E
   end.
 
-Ltac doMatch P :=
+Ltac doMatch simp P :=
   match P with
-    | match ?E with 0 => _ | _ => _ end => destr2 E
-    | match ?E with nil => _ | _ => _ end => destr E
-    | match ?E with Const _ _ => _ | _ => _ end => destr2 E
-    | match ?E with tvProp => _ | _ => _ end => destr E
-    | match ?E with None => _ | _ => _ end => destr E
+    | match ?E with 0 => _ | _ => _ end => destr2 simp E
+    | match ?E with nil => _ | _ => _ end => destr simp E
+    | match ?E with Const _ _ => _ | _ => _ end => destr2 simp E
+    | match ?E with tvProp => _ | _ => _ end => destr simp E
+    | match ?E with None => _ | _ => _ end => destr simp E
+    | match ?E with left _ => _ | _ => _ end => destr2 simp E
   end.
 
-Ltac deconstruct' := match goal with
-                       | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst; simpl in *
-                       | [ H : ?P |- _ ] =>
-                         let P := stripSuffix P in
-                           doMatch P
-                           || match P with
-                                | match ?P with None => _ | _ => _ end =>
-                                  let P := stripSuffix P in
-                                    doMatch P
-                              end
-                     end.
+Ltac deconstruct' simp := match goal with
+                            | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst; simp
+                            | [ H : ?P |- _ ] =>
+                              let P := stripSuffix P in
+                                doMatch simp P
+                                || match P with
+                                     | match ?P with None => _ | _ => _ end =>
+                                       let P := stripSuffix P in
+                                         doMatch simp P
+                                   end
+                          end.
 
-Ltac deconstruct := repeat deconstruct'.
+Ltac deconstruct := repeat deconstruct' ltac:(simpl in *).
 
 Section correctness.
   Variable types' : list type.
@@ -260,7 +261,7 @@ Section correctness.
     induction n0; simpl; intuition.
     destruct n; simpl in *.
     injection H0; omega.
-    repeat destr n.
+    repeat destr ltac:(simpl in *) n.
     specialize (IHn0 n).
     destruct (div4 n).
     injection H0.
@@ -281,7 +282,7 @@ Section correctness.
       /\ exprD funcs uvars vars offset wordT = Some wo
       /\ w = wb ^+ $4 ^* wo.
     destruct e; simpl; intuition; try discriminate.
-    repeat (deconstruct'; []).
+    repeat (deconstruct' ltac:(simpl in *); []).
     case_eq (exprD funcs uvars vars e wordT); intros;
       match goal with
         | [ H : _ = _ |- _ ] => rewrite H in *
@@ -547,7 +548,7 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 3 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (deref_correct uvars vars pe); destr (deref pe); intro Hderef.
+    generalize (deref_correct uvars vars pe); destr ltac:(simpl in *) (deref pe); intro Hderef.
     destruct p0.
 
     repeat match goal with
@@ -770,7 +771,7 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 3 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (deref_correct uvars vars pe); destr (deref pe); intro Hderef.
+    generalize (deref_correct uvars vars pe); destr ltac:(simpl in *) (deref pe); intro Hderef.
     destruct p0.
 
     repeat match goal with
