@@ -4,17 +4,17 @@ Require Import AutoSep.
 
 Notation myLocals := ("a" :: "b" :: "c" :: nil).
 
-Definition readS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs st#Sp] * #0 ] st
+Definition readS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs 7 st#Sp] * #0 ] st
   /\ st#Rp @@ (st' ~> [| st'#Rv = Locals.sel vs "a" /\ st'#Sp = Locals.sel vs "b" |]
-    /\ ![ ^[locals myLocals vs st#Sp] * #1 ] st').
+    /\ ![ ^[locals myLocals vs 7 st#Sp] * #1 ] st').
 
-Definition writeS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs st#Sp] * #0 ] st
+Definition writeS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs 7 st#Sp] * #0 ] st
   /\ st#Rp @@ (st' ~> Ex vs', [| Locals.sel vs' "a" = 3 /\ Locals.sel vs' "b" = 8 |]
-    /\ ![ ^[locals myLocals vs' st#Sp] * #1 ] st').
+    /\ ![ ^[locals myLocals vs' 7 st#Sp] * #1 ] st').
 
-Definition readBackS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs st#Sp] * #0 ] st
+Definition readBackS : assert := st ~> ExX, Ex vs, ![ ^[locals myLocals vs 7 st#Sp] * #0 ] st
   /\ st#Rp @@ (st' ~> Ex vs', [| st'#Rv = 42 |]
-    /\ ![ ^[locals myLocals vs' st#Sp] * #1 ] st').
+    /\ ![ ^[locals myLocals vs' 7 st#Sp] * #1 ] st').
 
 Definition m := bmodule "m" {{
   bfunction "read" [readS] {

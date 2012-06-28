@@ -1,6 +1,5 @@
-Require Import AutoSep Allocated.
+Require Import AutoSep.
 Require Import Arith List.
-Export Allocated.
 
 Set Implicit Arguments.
 

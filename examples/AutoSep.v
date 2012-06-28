@@ -69,6 +69,8 @@ Ltac refold :=
                  end) with (@rev_append A) in *)
            end.
 
+Require Import Bool.
+
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
   Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_ Use_
@@ -79,7 +81,10 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.find
   toCmd Seq Instr Diverge Fail Skip Use_ Assert_
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
-  Assign'].
+  Assign' variableSlot' localsInvariant
+  regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
+  andb eqb
+].
 
 Ltac vcgen :=
 (*TIME time "vcgen:structured_auto" ( *)
