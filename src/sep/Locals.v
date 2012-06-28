@@ -365,4 +365,107 @@ Section correctness.
     rewrite string_eq_false; auto.
   Qed.
 
+  Theorem sym_read_correct : forall args uvars vars cs summ pe p ve m stn,
+    sym_read Prover summ args pe = Some ve ->
+    Valid Prover_correct uvars vars summ ->
+    exprD funcs uvars vars pe wordT = Some p ->
+    match 
+      applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs p stn m
+    end ->
+    match exprD funcs uvars vars ve wordT with
+      | Some v =>
+        ST.HT.smem_get_word (IL.implode stn) p m = Some v
+      | _ => False
+    end.
+    simpl; intuition.
+    do 4 (destruct args; simpl in *; intuition; try discriminate).
+    generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
+    destruct p0.
+    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
+    specialize (HlistIn _ (refl_equal _)).
+    rewrite HlistIn in *.
+
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *.
+    unfold types0 in *.
+    match type of H with
+      | (if ?E then _ else _) = _ => destruct E
+    end; intuition; try discriminate.
+    simpl in H4.
+    case_eq (nth_error l n); [ intros ? Heq | intro Heq ]; rewrite Heq in *; try discriminate.
+    injection H; clear H; intros; subst.
+    generalize (sym_sel_correct uvars vars s e0); intro Hsym_sel.
+    destruct (exprD funcs uvars vars e0 valsT); try tauto.
+    specialize (Hsym_sel _ (refl_equal _)).
+    rewrite Hsym_sel.
+    specialize (Hderef _ _ _ H1 (refl_equal _)).
+    destruct Hderef as [ ? [ ] ].
+    subst.
+    case_eq (exprD funcs uvars vars e1 wordT); [ intros ? Heq' | intro Heq' ]; rewrite Heq' in *; try tauto.
+    rewrite H in H4.
+    specialize (H4 (ex_intro _ _ (refl_equal _))).
+    hnf in H4; simpl in H4.
+    rewrite Heq' in H4.
+    rewrite H in H4.
+    subst.
+    specialize (smem_read_correct' _ _ _ _ (i := natToW n) H2); intro Hsmem.
+    rewrite natToW_times4.
+    rewrite wmult_comm.
+    unfold natToW in *.
+    rewrite Hsmem.
+    f_equal.
+
+    Lemma array_selN : forall nm vs ns n,
+      nth_error ns n = Some nm
+      -> Array.selN (toArray ns vs) n = sel vs nm.
+      induction ns; destruct n; simpl; intuition; try discriminate.
+      injection H; clear H; intros; subst; reflexivity.
+    Qed.
+
+    Require Import NArith Nomega.
+
+    unfold Array.sel.
+    apply array_selN.
+    apply array_bound in H2.
+    rewrite wordToNat_natToWord_idempotent; auto.
+    apply nth_error_Some_length in Heq.
+
+    Lemma length_toArray : forall ns vs,
+      length (toArray ns vs) = length ns.
+      induction ns; simpl; intuition.
+    Qed.
+
+    rewrite length_toArray in *.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    omega.
+
+    rewrite length_toArray.
+    apply Nlt_in.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    apply array_bound in H2.
+    rewrite length_toArray in *.
+    repeat rewrite wordToNat_natToWord_idempotent.
+    eapply nth_error_Some_length; eauto.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    omega.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    apply nth_error_Some_length in Heq.
+    omega.
+  Qed.
+
 End correctness.
