@@ -14,7 +14,7 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	$(PROVERS:%=provers/%Prover) \
 	SepExpr ReifySepExpr SepHeap SepUnify SepCancel \
 	Unfolder ReifyHints SepLemma \
-	Env TypedPackage TacPackIL \
+	Env TypedPackage TacPackIL Allocated \
 	SymEval sep/PtsTo sep/Array Arrays sep/Locals \
 	IL \
 	ILEnv SepIL \

@@ -1,9 +1,12 @@
 Require Import AutoSep.
 
-(** The simplest function *)
+(** * The simplest function *)
 
 Definition diverger := bmodule "diverger" {{
-  bfunction "diverger" [st ~> [|True|] ] {
+  bfunction "diverger" [SPEC reserving 0
+    PRE[_] [| True |]
+    POST[_, _] [| False |] ]
+  reserving 0 {
     Diverge
   }
 }}.
@@ -16,42 +19,38 @@ Qed.
 
 (* Print Assumptions divergerOk. *)
 
-(** Asserts *)
 
-Definition asserter := bmodule "asserter" {{
-  bfunction "asserter" [st ~> [|True|] ] {
-    Assert [ st ~> [|False|] ];;
-    Diverge
-  }
-}}.
+(** * Immediate return *)
 
-Theorem asserterOk : moduleOk asserter.
-  vcgen.
-Abort.
-
-(** Immediate return *)
-
-Definition immedS : assert := st ~> st#Rp @@ (st' ~> [| True |]).
+Definition immedS : assert := SPEC reserving 0
+  PRE[_] [| True |]
+  POST[_, _] [| True |].
 
 Definition immed := bmodule "immed" {{
-  bfunction "immed" [immedS] {
-    Goto Rp
+  bfunction "immed" [immedS]
+  reserving 0 {
+    Return 0
   }
 }}.
 
 (* Eval compute in compile immed. *)
 
 Theorem immedOk : moduleOk immed.
-  vcgen; (sep_auto).
+  vcgen; sep_auto.
 Qed.
 
 (* Print Assumptions immedOk. *)
 
 Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
   bmodule "main" {{
-    bfunction "main" [st ~> [| True |] ] {
+    bfunction "main" [SPEC reserving 0
+      PRE[_] [| True |]
+      POST[_, _] [| False |] ]
+    reserving 0 {
       Call "immed"!"immed"
-      [st ~> [| True |] ];;
+      [INV
+        PRE[_] [| True |]
+        POST[_, _] [| False |] ];;
       Diverge
     }
   }}.
@@ -59,7 +58,7 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
 (* Eval compute in compile immedTest. *)
 
 Theorem immedTestOk : moduleOk immedTest.
-  vcgen; (sep_auto).
+  vcgen; sep_auto.
 Qed.
 
 (* Print Assumptions immedTestOk. *)
@@ -98,96 +97,27 @@ Section final.
 *)
 End final.
 
-(** Always-0, in a convoluted way *)
 
-Definition always0S : assert := st ~> st#Rp @@ (st' ~> [| st'#Rv = $0 |]).
+(** * Always-0, in a convoluted way *)
+
+Definition always0S : assert := SPEC reserving 0
+  PRE[_] [| True |]
+  POST[_, rv] [| rv = $0 |].
 
 Definition always0 := bmodule "always0" {{
-  bfunction "always0" [always0S] {
+  bfunction "always0" [always0S]
+  reserving 0 {
     If (Rv = 0) {
       Skip
     } else {
       Rv <- 0
     };;
-    Goto Rp
+    Return Rv
   }
 }}.
 
 (* Eval compute in compile always0. *)
 
 Theorem always0Ok : moduleOk always0.
-  vcgen; abstract sep_auto.
-Qed.
-
-(** Stress testing [structured] performance *)
-
-Definition stress := bmodule "stress" {{
-  bfunction "stress" [st ~> [| True |] ] {
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Rp <- Rp;;
-    Diverge
-  }
-}}.
-
-Theorem stressOk : moduleOk stress.
-  vcgen; abstract sep_auto.
+  vcgen; sep_auto.
 Qed.

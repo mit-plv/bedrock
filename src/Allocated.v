@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Word SepIL IL Memory.
 
 
 Fixpoint allocated (base : W) (offset len : nat) : HProp :=
