@@ -8,7 +8,8 @@ Definition vals := string -> W.
 
 Definition toArray (ns : list string) (vs : vals) : list W := map vs ns.
 
-Definition locals (ns : list string) (vs : vals) (p : W) : HProp := array (toArray ns vs) p.
+Definition locals (ns : list string) (vs : vals) (p : W) : HProp :=
+  ([| NoDup ns |] * array (toArray ns vs) p)%Sep.
 
 Definition ascii_eq (a1 a2 : ascii) : bool :=
   let (b1, c1, d1, e1, f1, g1, h1, i1) := a1 in
@@ -264,7 +265,7 @@ Section correctness.
   Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
     Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
       let lst := 
-        None :: Some ssig :: nil
+        None :: None :: Some ssig :: nil
       in Env.listOptToRepr lst (SEP.Default_predicate _ _ _).
 
   Variable funcs' : functions types0.
@@ -380,6 +381,7 @@ Section correctness.
         ST.HT.smem_get_word (IL.implode stn) p m = Some v
       | _ => False
     end.
+  Proof.
     simpl; intuition.
     do 4 (destruct args; simpl in *; intuition; try discriminate).
     generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
@@ -416,7 +418,14 @@ Section correctness.
     rewrite Heq' in H4.
     rewrite H in H4.
     subst.
-    specialize (smem_read_correct' _ _ _ _ (i := natToW n) H2); intro Hsmem.
+    Require Import PropXTac.
+    apply simplify_fwd in H2.
+    destruct H2 as [ ? [ ? [ ? [ ] ] ] ].
+    simpl simplify in *.
+    destruct H3.
+    apply simplify_bwd in H4.
+    generalize (split_semp _ _ _ H2 H5); intro; subst.
+    specialize (smem_read_correct' _ _ _ _ (i := natToW n) H4); intro Hsmem.
     rewrite natToW_times4.
     rewrite wmult_comm.
     unfold natToW in *.
@@ -434,7 +443,7 @@ Section correctness.
 
     unfold Array.sel.
     apply array_selN.
-    apply array_bound in H2.
+    apply array_bound in H4.
     rewrite wordToNat_natToWord_idempotent; auto.
     apply nth_error_Some_length in Heq.
 
@@ -453,7 +462,148 @@ Section correctness.
     apply Nlt_in.
     repeat rewrite wordToN_nat.
     repeat rewrite Nat2N.id.
-    apply array_bound in H2.
+    apply array_bound in H4.
+    rewrite length_toArray in *.
+    repeat rewrite wordToNat_natToWord_idempotent.
+    eapply nth_error_Some_length; eauto.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    omega.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    apply nth_error_Some_length in Heq.
+    omega.
+  Qed.
+
+  Theorem sym_write_correct : forall args uvars vars cs summ pe p ve v m stn args',
+    sym_write Prover summ args pe ve = Some args' ->
+    Valid Prover_correct uvars vars summ ->
+    exprD funcs uvars vars pe wordT = Some p ->
+    exprD funcs uvars vars ve wordT = Some v ->
+    match
+      applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs p stn m
+    end ->
+    match 
+      applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args' _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some pr => 
+        match ST.HT.smem_set_word (IL.explode stn) p v m with
+          | None => False
+          | Some sm' => ST.satisfies cs pr stn sm'
+        end
+    end.
+  Proof.
+    simpl; intuition.
+    do 4 (destruct args; simpl in *; intuition; try discriminate).
+    generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
+    destruct p0.
+    specialize (Hderef _ _ _ H1 (refl_equal _)).
+    destruct Hderef as [ ? [ ] ]; subst.
+    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
+    specialize (HlistIn _ (refl_equal _)).
+    rewrite HlistIn in *.
+
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *.
+    unfold types0 in *.
+    match type of H with
+      | (if ?E then _ else _) = _ => destruct E
+    end; intuition; try discriminate.
+    simpl in H6.
+    case_eq (nth_error l n); [ intros ? Heq | intro Heq ]; rewrite Heq in *; try discriminate.
+    rewrite H4 in *.
+    injection H; clear H; intros; subst.
+    unfold applyD.
+    rewrite HlistIn.
+    simpl exprD.
+    destruct (exprD funcs uvars vars e0 valsT); try tauto.
+    rewrite H2.
+    unfold Provable in H6.
+    simpl in H6.
+    rewrite H4 in H6.
+    destruct (exprD funcs uvars vars e1 wordT); try tauto.
+    specialize (H6 (ex_intro _ _ (refl_equal _))); subst.
+    apply simplify_fwd in H3.
+    destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
+    simpl simplify in *.
+    destruct H3.
+    apply simplify_bwd in H5.
+    eapply smem_write_correct' in H5.
+    destruct H5 as [ ? [ ] ].
+    rewrite natToW_times4.
+    rewrite wmult_comm.
+    generalize (split_semp _ _ _ H H6); intro; subst.
+    rewrite H5.
+    unfold locals.
+    apply simplify_bwd.
+    exists smem_emp.
+    exists x2.
+    simpl; intuition.
+    apply split_a_semp_a.
+    reflexivity.
+    apply simplify_fwd.
+
+    Lemma toArray_irrel : forall vs v nm ns,
+      ~In nm ns
+      -> toArray ns (upd vs nm v) = toArray ns vs.
+      induction ns; simpl; intuition.
+      f_equal; auto.
+      unfold upd.
+      rewrite string_eq_false; auto.
+    Qed.
+
+    Lemma nth_error_In : forall A (x : A) ls n,
+      nth_error ls n = Some x
+      -> In x ls.
+      induction ls; destruct n; simpl; intuition; try discriminate; eauto.
+      injection H; intros; subst; auto.
+    Qed.
+
+    Lemma array_updN : forall vs nm v ns,
+      NoDup ns
+      -> forall n, nth_error ns n = Some nm
+        -> Array.updN (toArray ns vs) n v
+        = toArray ns (upd vs nm v).
+      induction 1; destruct n; simpl; intuition.
+      injection H1; clear H1; intros; subst.
+      rewrite toArray_irrel by assumption.
+      unfold upd; rewrite string_eq_true; reflexivity.
+      rewrite IHNoDup; f_equal; auto.
+      unfold upd; rewrite string_eq_false; auto.
+      intro; subst.
+      apply H.
+      eapply nth_error_In; eauto.
+    Qed.
+
+    unfold Array.upd in H7.
+    rewrite wordToNat_natToWord_idempotent in H7.
+    erewrite array_updN in H7; eauto.
+    apply nth_error_Some_length in Heq.
+    apply array_bound in H7.
+    Require Import Arrays.
+    rewrite updN_length in H7.
+    rewrite length_toArray in H7.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+    omega.
+
+    rewrite length_toArray.
+    apply Nlt_in.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    apply array_bound in H5.
     rewrite length_toArray in *.
     repeat rewrite wordToNat_natToWord_idempotent.
     eapply nth_error_Some_length; eauto.
@@ -469,3 +619,32 @@ Section correctness.
   Qed.
 
 End correctness.
+
+Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
+  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
+    @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 2.
+
+Theorem MemEvaluator_correct types' funcs' preds'
+  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
+  (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
+  (IL.settings * IL.state) (tvType 0) (tvType 0)
+  (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types')).
+Proof.
+  intros. eapply (@MemPredEval_To_MemEvaluator_correct (types types')); simpl; intros.
+  eapply sym_read_correct; eauto.
+  eapply sym_write_correct; eauto.
+  reflexivity.
+Qed.
+
+Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
+  IL_mem_satisfies IL_ReadWord IL_WriteWord :=
+
+  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+  IL_mem_satisfies IL_ReadWord IL_WriteWord
+  types_r
+  funcs_r
+  (fun ts => Env.listOptToRepr (None :: None :: Some (ssig ts) :: nil)
+    (SEP.Default_predicate (Env.repr types_r ts)
+      (tvType 0) (tvType 1)))
+  (fun ts => MemEvaluator _)
+  (fun ts fs ps => MemEvaluator_correct _ _).
