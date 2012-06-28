@@ -410,6 +410,45 @@ Ltac isConst e :=
     | Rp => true
     | Rv => true
     | Sp => true
+    | String.EmptyString => true
+    | String.String ?e1 ?e2 =>
+      match isConst e1 with
+        | true => isConst e2
+        | _ => false
+      end
+    | Ascii.Ascii ?a ?b ?c ?d ?e ?f ?g ?h =>
+      match isConst a with
+        | true =>
+          match isConst b with
+            | true =>
+              match isConst c with
+                | true =>
+                  match isConst d with
+                    | true =>
+                      match isConst e with
+                        | true =>
+                          match isConst f with
+                            | true =>
+                              match isConst g with
+                                | true =>
+                                  match isConst h with
+                                    | true => true
+                                    | _ => false
+                                  end
+                                | _ => false
+                              end
+                            | _ => false
+                          end
+                        | _ => false
+                      end
+                    | _ => false
+                  end
+                | _ => false
+              end
+            | _ => false
+          end
+        | _ => false
+      end
     | _ => false
   end.
 
@@ -822,7 +861,7 @@ Ltac sym_eval isConst ext simplifier :=
                                         | [ H' : _ /\ _ |- _ ] => destruct H'
                                       end
                            | ?G =>
-                             fail 100000 "bad result goal" G 
+                             idtac(*fail 100000 "bad result goal" G *)
                          end
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
@@ -846,10 +885,10 @@ Ltac sym_eval isConst ext simplifier :=
                           ((apply (@Apply_sym_eval typesV funcsV predsV
                             (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
                             stn uvars vars fin_state st is is_pf) in H_stateD)
-                          || fail 100000 "couldn't apply sym_eval_any! (non-SF case)") ;
+                          || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"); 
                           first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
                           try clear typesV funcsV predsV ;
-                          first [ finish H_stateD ; clear_instrs all_instrs | fail 100000 "finisher failed! (non-SF)" ]
+                          first [ finish H_stateD (*; clear_instrs all_instrs*) | fail 100000 "finisher failed! (non-SF)" ]
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
