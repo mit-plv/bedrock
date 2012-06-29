@@ -390,6 +390,7 @@ Section correctness.
     destruct H.
     destruct H.
     destruct H1.
+    destruct H1.
     eapply split_smem_get_word; eauto.
 
     apply simplify_fwd in H.
@@ -451,8 +452,8 @@ Section correctness.
     generalize (@smem_read_correct'' cs base stn ws 1 i x0).
     simpl plus.
     rewrite H0.
-    rewrite wplus_comm in H.
-    rewrite wplus_unit in H.
+    rewrite wplus_comm in H4.
+    rewrite wplus_unit in H4.
     intuition.
     assert (i < length ws)%nat by omega; intuition.
     destruct H1.
@@ -595,10 +596,14 @@ Section correctness.
     replace (a ^+ $0) with a in * by W_eq.
     simpl.
     propxFo.
-    rewrite <- H.
+    rewrite <- H1.
     f_equal.
     eapply split_semp.
     apply split_comm; eauto.
+    auto.
+
+    apply split_comm in H3.
+    generalize (split_semp _ _ _ H3 H8); intro; subst.
     auto.
 
     apply simplify_fwd in H.
@@ -664,25 +669,41 @@ Section correctness.
     destruct H1.
     hnf in H1.
     unfold natToW.
+    destruct H1.
     specialize (smem_set_get_valid_word _ (explode stn) _ _ v _ H1).
     match goal with
       | [ |- ?E <> None -> _ ] => case_eq E; intuition
     end.
     exists (HT.join s x0); split.
     destruct H0; subst.
-    eapply split_set_word in H3; intuition eauto.
+    eapply split_set_word in H4; intuition eauto.
     
     apply simplify_bwd.
     exists s; exists x0.
     split.
     apply disjoint_split_join.
-    eapply split_set_word in H3; intuition eauto.
+    eapply split_set_word in H4; intuition eauto.
     destruct H0; auto.
     split; auto.
     hnf.
+    split.
     eapply smem_set_get_word_eq.
     2: eauto.
     apply implode_explode.
+
+    intros.
+    unfold smem_set_word in H4.
+    unfold H.footprint_w in H4.
+    destruct (explode stn v) as [ [ [ ] ] ].
+    repeat match type of H4 with
+             | match ?E with None => _ | _ => _ end = Some _ =>
+               let Heq := fresh "Heq" in case_eq E;
+                 [ intros ? Heq | intro Heq ];
+                 rewrite Heq in *; try discriminate
+           end.
+    intuition idtac.
+    repeat erewrite smem_set_get_neq by eauto.
+    auto.
 
     apply simplify_fwd in H0.
     destruct H0.

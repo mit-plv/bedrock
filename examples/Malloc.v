@@ -3,76 +3,7 @@ Require Import Arith List.
 
 Set Implicit Arguments.
 
-
-(** * Allocated memory regions with unknown contents *)
-
-Lemma allocated_shift_base' : forall base base' len offset offset',
-  base ^+ $(offset) = base' ^+ $(offset')
-  -> allocated base offset len ===> allocated base' offset' len.
-  induction len; sepLemma.
-
-  match goal with
-    | [ |- context[(?X =*> _)%Sep] ] =>
-      assert (X = base ^+ natToW offset)
-  end.
-  destruct offset; auto.
-  W_eq.
-  rewrite H0; clear H0.
-
-  match goal with
-    | [ |- context[(?X =*> ?Y)%Sep] ] =>
-      is_evar Y;
-      assert (X = base' ^+ natToW offset')
-  end.
-  destruct offset'; auto.
-  W_eq.
-  rewrite H0; clear H0.
-
-  match goal with
-    | [ H : ?X = _ |- context[(?Y =*> _)%Sep] ] => change Y with X; rewrite H
-  end.
-  sepLemma.
-  apply IHlen.
-  repeat match goal with
-           | [ |- context[S (S (S (S ?N)))] ] =>
-             match N with
-               | O => fail 1
-               | _ => change (S (S (S (S N)))) with (4 + N)
-             end
-         end.
-  repeat rewrite natToW_plus.
-  transitivity ($4 ^+ (base ^+ $(offset))).
-  simpl; unfold natToW; W_eq.
-  transitivity ($4 ^+ (base' ^+ $(offset'))).
-  unfold natToW in *.
-  congruence.
-  simpl; unfold natToW; W_eq.
-Qed.
-
-Theorem allocated_shift_base : forall base base' len len' offset offset',
-  base ^+ $(offset) = base' ^+ $(offset')
-  -> len = len'
-  -> allocated base offset len ===> allocated base' offset' len'.
-  intros; subst; apply allocated_shift_base'; auto.
-Qed.
-
 Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
-
-Theorem allocated_split : forall base len' len offset,
-  (len' <= len)%nat
-  -> allocated base offset len ===> allocated base offset len' * allocated base (offset + 4 * len') (len - len').
-  induction len'; simpl; inversion 1; sepLemma.
-  rewrite plus_0_r; sepLemma.
-  rewrite minus_diag; sepLemma.
-  specialize (IHlen' m (S (S (S (S offset))))).
-  assert (len' <= m)%nat by omega.
-  intuition.
-  match goal with
-    | [ _ : forall specs, himp _ _ (_ * allocated _ ?X _)%Sep |- himp _ _ (_ * allocated _ ?Y _)%Sep ] =>
-      replace Y with X by omega
-  end.
-  auto.
-Qed.
 
 Lemma wplus_lt_lift : forall sz n m o : nat,
   (N.of_nat (n + m) < Npow2 sz)%N

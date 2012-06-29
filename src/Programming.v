@@ -72,7 +72,9 @@ Definition Goto (rv : rvalue') : chunk := fun ns _ =>
                                  end).
 
 Definition Call_ (f : label) (afterCall : list string -> nat -> assert) : chunk := fun ns res =>
-  Structured nil (fun im mn H => Call_ H mn f (afterCall ns res)).
+  Structured (Binop Sp Sp Plus (natToW (4 + 4 * List.length ns)) :: nil)
+  (fun im mn H => Seq_ H (Call_ H mn f (afterCall ns res))
+    (Straightline_ im mn (Binop Sp Sp Minus (natToW (4 + 4 * List.length ns)) :: nil))).
 
 
 (** * Modules *)
@@ -104,9 +106,9 @@ Definition compile (m : module) : list (label * block) :=
 Infix "+" := Indir : loc_scope.
 Delimit Scope loc_scope with loc.
 
-Notation "$[ v ]" := ((fun _ => LvMem v%loc) : rvalue') (at level 0, n at level 0) : SP_scope.
-
 Definition lvalue' := list string -> lvalue.
+
+Notation "$[ v ]" := ((fun _ => LvMem v%loc) : lvalue') (at level 0, n at level 0) : SP_scope.
 
 Definition regInL (r : reg) : lvalue' := fun _ => LvReg r.
 Coercion regInL : reg >-> lvalue'.
@@ -213,38 +215,71 @@ Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, 
 
 Local Open Scope string_scope.
 
-Definition localsInvariant (pre : vals -> HProp) (post : vals -> vals -> W -> HProp)
+Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> vals -> W -> W -> HProp) (rpStashed : bool)
   (ns : list string) (res : nat) : assert :=
-  st ~> ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res st#Sp] * ^[pre vs] * #0 ] st
-  /\ Locals.sel vs "rp" @@ (st' ~> [| st'#Sp = st#Sp |]
-    /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res st#Sp] * ^[post vs vs' st'#Rv] * #1 ] st').
+  st ~> ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res st#Sp] * ^[pre vs st#Rv] * #0 ] st
+  /\ (if rpStashed then Locals.sel vs "rp" else st#Rp) @@ (st' ~>
+    [| st'#Sp = st#Sp |]
+    /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res st#Sp] * ^[post vs vs' st#Rv st'#Rv] * #1 ] st').
 
-Notation "'INV' 'PRE' [ vs ] pre 'POST' [ vs' , rv ] post" := (localsInvariant (fun vs => pre%Sep) (fun vs vs' rv => post%Sep))
+Notation "'PRE' [ vs ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs vs' _ _ => post%Sep))
   (at level 0).
 
-Notation "'SPEC' 'reserving' n 'PRE' [ vs ] pre 'POST' [ vs' , rv ] post" :=
-  (localsInvariant (fun vs => pre%Sep) (fun vs vs' rv => post%Sep) nil n) (at level 0, n at level 0).
+Notation "'PRE' [ vs ] pre 'POST' [ vs' , rv ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs vs' _ rv => post%Sep))
+  (at level 0).
 
-Notation "'SPEC' 'reserving' n 'parameters' x1 , .. , xN 'PRE' [ vs ] pre 'POST' [ vs' , rv ] post" :=
-  (localsInvariant (fun vs => pre%Sep) (fun vs vs' rv => post%Sep) (cons x1 (.. (cons xN nil) ..)) n) (at level 0, n at level 0).
+Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' , rv' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs vs' rv rv' => post%Sep))
+  (at level 0).
+
+Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs vs' rv _ => post%Sep))
+  (at level 0).
+
+Notation INV := (fun inv => inv true).
+
+Definition spec := option (list string) -> assert.
+(* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
+
+Notation "'SPEC' 'reserving' n" :=
+  (fun inv extras =>
+    match extras with
+      | None => inv false nil n
+      | Some extras => inv true extras n
+    end) (at level 0, n at level 0).
+
+Notation "'SPEC' 'reserving' n 'parameters' x1 , .. , xN" :=
+  (fun inv extras =>
+    let vars := cons x1 (.. (cons xN nil) ..) in
+    match extras with
+      | None => inv false vars n
+      | Some extras => inv true extras n
+    end) (at level 0, n at level 0, x1 at level 0, xN at level 0).
 
 
 (** ** Modules *)
 
 Notation "'bfunction' name [ p ] 'reserving' n 'variables' x1 , .. , xN { b }" :=
-  {| FName := name;
-    FPrecondition := p;
-    FBody := b%SP;
-    FVars := cons x1 (.. (cons xN nil) ..);
-    FReserved := n |}
+  (let p' := p in
+   let vars := cons x1 (.. (cons xN nil) ..) in
+    {| FName := name;
+      FPrecondition := p' None;
+      FBody := ($[Sp+0] <- Rp;;
+        (fun _ _ => 
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (p' (Some vars))));;
+        b)%SP;
+      FVars := vars;
+      FReserved := n |})
   (no associativity, at level 95, n at level 0, only parsing) : SPfuncs_scope.
 
 Notation "'bfunction' name [ p ] 'reserving' n { b }" :=
-  {| FName := name;
-    FPrecondition := p;
-    FBody := b%SP;
-    FVars := nil;
-    FReserved := n |}
+  (let p' := p in
+    {| FName := name;
+      FPrecondition := p None;
+      FBody := ($[Sp+0] <- Rp;;
+        (fun _ _ =>
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (p' (Some nil))));;
+        b)%SP;
+      FVars := nil;
+      FReserved := n |})
   (no associativity, at level 95, n at level 0, only parsing) : SPfuncs_scope.
 
 Delimit Scope SPfuncs_scope with SPfuncs.
@@ -255,7 +290,7 @@ Delimit Scope SPfuncs_scope with SPfuncs.
 Notation "'bmodule' name fs" := (bmodule_ nil name fs%SPfuncs) (no associativity, at level 95, name at level 0, only parsing).
 
 Notation "x ! y" := (x, y) (only parsing) : SPimps_scope.
-Notation "name @ [ p ]" := (let (x, y) := name in (x, y, p)) (at level 0, only parsing) : SPimps_scope.
+Notation "name @ [ p ]" := (let (x, y) := name in (x, y, p None)) (at level 0, only parsing) : SPimps_scope.
 Notation "[[ x , .. , y ]]" := (cons x .. (cons y nil) ..) (only parsing) : SPimps_scope.
 
 Delimit Scope SPimps_scope with SPimps.

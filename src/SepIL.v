@@ -242,7 +242,9 @@ Notation "a =8> v" := (ptsto8 _ a v) (no associativity, at level 39) : Sep_scope
 
 (* This breaks the hprop abstraction because it needs access to 'settings' *)
 Definition ptsto32 sos (a v : W) : hpropB sos :=
-  (fun stn sm => [| ST.HT.smem_get_word (implode stn) a sm = Some v |])%PropX.
+  (fun stn sm => [| ST.HT.smem_get_word (implode stn) a sm = Some v
+    /\ forall a', a' <> a /\ a' <> (a ^+ $1) /\ a' <> (a ^+ $2) /\ a' <> (a ^+ $3)
+      -> ST.HT.smem_get a' sm = None |])%PropX.
 
 Notation "a =*> v" := (ptsto32 _ a v) (no associativity, at level 39) : Sep_scope.
 

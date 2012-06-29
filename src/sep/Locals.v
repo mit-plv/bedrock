@@ -773,3 +773,267 @@ Theorem locals_weaken : forall ns vs avail avail' p,
   do 2 eapply And_E2.
   apply Env; simp; eauto.
 Qed.
+
+Lemma do_call' : forall ns ns' vs avail avail' p p',
+  (length ns' <= avail)%nat
+  -> avail' = avail - length ns'
+  -> p' = p ^+ natToW (4 * length ns)
+  -> NoDup ns'
+  -> locals ns vs avail p ===> locals ns vs 0 p * Ex vs', locals ns' vs' avail' p'.
+  intros; intro; hnf; intros; subst.
+  unfold locals, starB, star, injB, inj.
+  apply Imply_I.
+  eapply Exists_E.
+  eauto.
+  simp; intros.
+  eapply Exists_E.
+  apply Env.
+  simp.
+  eauto.
+  simp; intros.
+  eapply Exists_E.
+  eapply And_E1.
+  eapply And_E2.
+  apply Env.
+  simp; eauto.
+  simp; intros.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  unfold exB, ex; simp.
+  eapply And_E2.
+  eapply And_E2.
+  apply Env; simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env; simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env; simp; eauto.
+  simp; intro.
+  
+  Ltac pure' := solve [ apply Env; simp; eauto 10 ].
+
+  Ltac and_d n :=
+    match n with
+      | O => pure'
+      | S ?n' =>
+        solve [ pure' | eapply And_E1; and_d n' | eapply And_E2; and_d n' ]
+    end.
+
+  Ltac from_hyp := and_d 3.
+
+  Ltac pure E := apply Inj_E with E; [ from_hyp | intro ].
+
+  pure (split B0 B4 B5).
+  pure (B3 >= avail)%nat.
+  pure (semp B4).
+  pure (split B B1 B2).
+  pure (NoDup ns).
+  pure (semp B1).
+  pure (split m B B0).
+  generalize (split_semp _ _ _ H0 H3); intro; subst.
+  generalize (split_semp _ _ _ H4 H6); intro; subst.
+
+  apply Exists_I with B2.
+  apply Exists_I with B5.
+  apply And_I.
+  apply Inj_I; auto.
+  unfold exB, ex.
+  apply And_I.
+  apply Exists_I with B2; apply Exists_I with B1.
+  apply And_I.
+  apply Inj_I; auto.
+  apply split_comm; assumption.
+  apply And_I.
+  apply Exists_I with B1; apply Exists_I with B2.
+  repeat apply And_I; try (apply Inj_I; assumption).
+  from_hyp.
+  apply Exists_I with 0.
+  do 2 apply Exists_I with B1.
+  repeat apply And_I; try solve [ apply Inj_I; auto ].
+
+  Hint Resolve split_empty.
+  apply Inj_I; auto.
+
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken.
+  eapply allocated_split.
+  instantiate (2 := length ns').
+  instantiate (1 := B3).
+  omega.
+  do 2 eapply And_E2; apply Env; unfold List.In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  apply Env; simp; eauto.
+  simp; intro.
+
+  Lemma behold_the_array' : forall p ns,
+    NoDup ns
+    -> forall offset, allocated p offset (length ns)
+      ===> Ex vs, ptsto32m' nil p offset (toArray ns vs).
+    induction 1; simpl length; unfold allocated; fold allocated; intros.
+    simpl.
+
+    hnf; intros; hnf; intros.
+    apply Imply_I.
+    apply Exists_I with (fun _ => $0).
+    apply Env; simp; eauto.
+
+    simpl toArray.
+    unfold ptsto32m'; fold ptsto32m'.
+
+    hnf; intros; hnf; intros;
+      unfold starB, star, exB, ex, empB, emp, injB, inj; apply Imply_I.
+    eapply Exists_E.
+    apply Env; simp; eauto.
+    simp; intro.
+    eapply Exists_E.
+    apply Env; simp; eauto.
+    simp; intro.
+    eapply Exists_E.
+    eapply Imply_E.
+    apply interp_weaken.
+    eapply IHNoDup.
+    from_hyp.
+    simp; intro.
+    eapply Exists_E.
+    eapply And_E1; eapply And_E2; apply Env; simp; eauto.
+    simp; intro.
+    apply Exists_I with (upd B1 x B2).
+    
+    replace (match offset with
+               | 0 => p
+               | S _ => p ^+ $ (offset)
+             end) with (p ^+ $(offset)) by (destruct offset; W_eq).
+    
+    eapply Inj_E.
+    eapply And_E1; apply Env; simp; eauto.
+    intro.
+    change (upd B1 x B2 x) with (sel (upd B1 x B2) x).
+    rewrite sel_upd_eq by reflexivity.
+    rewrite toArray_irrel by assumption.
+    do 2 eapply Exists_I; repeat apply And_I; from_hyp.
+  Qed.
+
+  Theorem ptsto32m'_out : forall a vs offset,
+    ptsto32m' _ a offset vs ===> ptsto32m _ a offset vs.
+    induction vs; intros.
+
+    apply Himp_refl.
+
+    unfold ptsto32m', ptsto32m; fold ptsto32m; fold ptsto32m'.
+    replace (match offset with
+               | 0 => a
+               | S _ => a ^+ $ (offset)
+             end) with (a ^+ $(offset)) by (destruct offset; W_eq).
+    destruct vs.
+    simpl ptsto32m'.
+    unfold empB, emp, starB, star, exB, ex, injB, inj.
+    hnf; intros; hnf; intros.
+    apply Imply_I.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    eapply Inj_E.
+    from_hyp.
+    intro.
+    apply Inj_E with (semp B0).
+    from_hyp.
+    intro.
+    apply split_comm in H.
+    generalize (split_semp _ _ _ H H0); intro; subst.
+    from_hyp.
+
+    unfold empB, emp, starB, star, exB, ex, injB, inj.
+    hnf; intros; hnf; intros.
+    apply Imply_I.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    do 2 eapply Exists_I.
+    repeat apply And_I.
+    from_hyp.
+    from_hyp.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply IHvs.
+    from_hyp.
+  Qed.
+
+  Lemma behold_the_array : forall p ns,
+    NoDup ns
+    -> forall offset, allocated p offset (length ns)
+      ===> Ex vs, ptsto32m nil p offset (toArray ns vs).
+    intros; hnf; intros; hnf; intros.
+    apply Imply_I.
+    eapply Exists_E.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply behold_the_array'; eauto.
+    from_hyp.
+    simp; intro.
+    apply Exists_I with B.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply ptsto32m'_out.
+    from_hyp.
+  Qed.
+
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken.
+  apply behold_the_array.
+  apply H2.
+  from_hyp.
+  simp; intro.
+  apply Exists_I with B6.
+  apply Exists_I with B.
+  apply Exists_I with B0.
+  repeat apply And_I.
+  from_hyp.
+  apply Exists_I with smem_emp; apply Exists_I with B.
+  repeat apply And_I.
+  apply Inj_I; apply split_a_semp_a.
+  apply Inj_I; assumption.
+  apply Inj_I; reflexivity.
+  unfold array.
+  rewrite (Mult.mult_comm 4 (length ns)).
+  from_hyp.
+
+  apply Exists_I with (B3 - Datatypes.length ns').
+  apply Exists_I with smem_emp; apply Exists_I with B0.
+  repeat apply And_I.
+  apply Inj_I; apply split_a_semp_a.
+  apply Inj_I; omega.
+  apply Inj_I; reflexivity.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_shift_base.
+  3: from_hyp.
+  repeat rewrite (Mult.mult_comm 4).
+  unfold natToW.
+  change (0 + length ns' * 4) with (length ns' * 4).
+  W_eq.
+  reflexivity.
+Qed.
+
+Theorem do_call : forall ns ns' vs avail avail' p p',
+  (length ns' <= avail)%nat
+  -> (avail' <= avail - length ns')%nat
+  -> p' = p ^+ natToW (4 * length ns)
+  -> NoDup ns'
+  -> locals ns vs avail p ===>
+  (p ^+ natToW (4 * (length ns + length ns' + avail'))) =?>
+    (avail - length ns' - avail')
+  * locals ns vs 0 p
+  * Ex vs', locals ns' vs' avail' p'.
+Admitted.
