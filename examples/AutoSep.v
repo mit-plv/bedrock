@@ -13,7 +13,7 @@ Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 Definition TacPackage : Type := 
   @ILAlgoTypes.TypedPackage.
 
-Definition auto_ext : TacPackage.
+Definition auto_ext' : TacPackage.
   ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
   ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
@@ -908,6 +908,30 @@ Ltac descend :=
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
            end).
 
+Definition locals_call ns vs avail p (ns' : list string) :=
+  locals ns vs avail p.
+
+Lemma make_call : forall ns ns' vs avail p,
+  (length ns' <= avail)%nat
+  -> NoDup ns'
+  -> locals_call ns vs avail p ns' ===>
+  locals ns vs 0 p * Ex vs', locals ns' vs' (avail - length ns') (p ^+ natToW (4 * length ns)).
+  intros; eapply do_call'; eauto.
+Qed.
+
+(** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
+Ltac prepare fwd bwd := 
+  let the_unfold_tac x := 
+    eval unfold empB, injB, injBX, starB, exB, hvarB in x
+  in
+  ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
+    (*W (settings * state)%type*)
+    isConst auto_ext' tt tt (make_call, fwd) bwd.
+
+Definition auto_ext : TacPackage.
+  prepare tt tt.
+Defined.
+
 Ltac post := 
   (*TIME time "post:propxFo" *)
   propxFo; 
@@ -916,21 +940,22 @@ Ltac post :=
   (*TIME ) *) ;
   unfold substH in *;
   (*TIME time "post:simpl" ( *)
-  simpl in *
+  simpl in *;
+    try match goal with
+          | [ H : context[locals ?ns ?vs ?avail ?p]
+              |- context[locals ?ns' _ ?avail' _] ] =>
+            match avail' with
+              | avail => fail 1
+              | _ => change (locals ns vs avail p) with (locals_call ns vs avail p ns') in H;
+                assert (length ns' <= avail)%nat by (simpl; omega);
+                assert (NoDup ns') by (repeat constructor; simpl; intuition congruence)
+            end
+        end
   (*TIME ) *).
 
 Ltac sep ext := 
   post; evaluate ext; descend; repeat (step ext; descend).
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
-
-(** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
-Ltac prepare base := 
-  let the_unfold_tac x := 
-    eval unfold empB, injB, injBX, starB, exB, hvarB in x
-  in
-  ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    (*W (settings * state)%type*)
-    isConst base.
 
 Ltac sep_auto := sep auto_ext.

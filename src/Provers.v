@@ -14,6 +14,6 @@ Definition ComboProver : ProverPackage :=
  ; ProverFuncs := bedrock_funcs_r
  ; Prover_correct := fun ts fs => composite_ProverT_correct
    (composite_ProverT_correct (provers.AssumptionProver.assumptionProver_correct _)
-     (provers.TransitivityProver.transitivityProver_correct _))
+     (provers.ReflexivityProver.reflexivityProver_correct _))
    (provers.WordProver.wordProver_correct _)
 |}.

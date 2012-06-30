@@ -10,8 +10,7 @@ Definition vals := string -> W.
 Definition toArray (ns : list string) (vs : vals) : list W := map vs ns.
 
 Definition locals (ns : list string) (vs : vals) (avail : nat) (p : W) : HProp :=
-  ([| NoDup ns |] * array (toArray ns vs) p
-    * Ex n, [| (n >= avail)%nat |] * ((p ^+ $(length ns * 4)) =?> n))%Sep.
+  ([| NoDup ns |] * array (toArray ns vs) p * ((p ^+ $(length ns * 4)) =?> avail))%Sep.
 
 Definition ascii_eq (a1 a2 : ascii) : bool :=
   let (b1, c1, d1, e1, f1, g1, h1, i1) := a1 in
@@ -427,11 +426,10 @@ Section correctness.
     apply simplify_fwd in H2.
     destruct H2 as [ ? [ ? [ ? [ ] ] ] ].
     destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
-    destruct H4 as [ ? [ ? [ ? [ ? [ ] ] ] ] ].
-    simpl simplify in H2, H3, H5, H4, H7.
-    destruct H5, H7.
+    simpl simplify in H2, H3, H5.
+    destruct H5.
     apply simplify_bwd in H6.
-    generalize (split_semp _ _ _ H3 H9); intro; subst.
+    generalize (split_semp _ _ _ H3 H7); intro; subst.
     specialize (smem_read_correct' _ _ _ _ (i := natToW n) H6); intro Hsmem.
     rewrite natToW_times4.
     rewrite wmult_comm.
@@ -547,26 +545,24 @@ Section correctness.
     apply simplify_fwd in H3.
     destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
     destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
-    destruct H5 as [ ? [ ? [ ? [ ? [ ] ] ] ] ].
-    simpl in H, H3, H6, H7, H5, H8.
-    destruct H6, H8.
+    simpl in H, H3, H6, H7.
+    destruct H6.
     apply simplify_bwd in H7.
     eapply smem_write_correct' in H7.
     destruct H7 as [ ? [ ] ].
     rewrite natToW_times4.
     rewrite wmult_comm.
-    generalize (split_semp _ _ _ H3 H10); intro; subst.
-    generalize (split_semp _ _ _ H5 H11); intro; subst.
+    generalize (split_semp _ _ _ H3 H8); intro; subst.
     eapply split_set_word in H7.
     destruct H7.
     destruct H; subst.
-    rewrite H13.
+    rewrite H10.
     unfold locals.
     apply simplify_bwd.
-    exists x7; exists x6.
+    exists x4; exists x1.
     repeat split; auto.
     exists smem_emp.
-    exists x7.
+    exists x4.
     simpl; intuition.
     apply split_a_semp_a.
     reflexivity.
@@ -604,30 +600,19 @@ Section correctness.
       eapply nth_error_In; eauto.
     Qed.
 
-    unfold Array.upd in H12.
-    rewrite wordToNat_natToWord_idempotent in H12.
-    erewrite array_updN in H12; eauto.
+    unfold Array.upd in H9.
+    rewrite wordToNat_natToWord_idempotent in H9.
+    erewrite array_updN in H9; eauto.
     apply nth_error_Some_length in Heq.
-    apply array_bound in H12.
+    apply array_bound in H9.
     Require Import Arrays.
-    rewrite updN_length in H12.
-    rewrite length_toArray in H12.
+    rewrite updN_length in H9.
+    rewrite length_toArray in H9.
     apply Nlt_in.
     rewrite Nat2N.id.
     rewrite Npow2_nat.
     omega.
 
-    exists x4.
-    exists smem_emp.
-    exists x6.
-    split.
-    apply split_a_semp_a.
-    split.
-    simpl.
-    split.
-    auto.
-    reflexivity.
-    assumption.
     destruct H; auto.
 
     rewrite length_toArray.
@@ -697,82 +682,7 @@ Qed.
 
 Require Import PropX.
 
-Theorem locals_weaken : forall ns vs avail avail' p,
-  (avail' <= avail)%nat
-  -> locals ns vs avail p ===> locals ns vs avail' p.
-  Ltac simp := cbv beta; unfold In.
-  intros; intro; hnf; intros.
-  unfold locals, starB, star.
-  apply Imply_I.
-  eapply Exists_E.
-  eauto.
-  simp; intros.
-  eapply Exists_E.
-  apply Env.
-  simp.
-  eauto.
-  simp; intros.
-  eapply Exists_E.
-  eapply And_E1.
-  eapply And_E2.
-  apply Env.
-  simp; eauto.
-  simp; intros.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  unfold exB, ex; simp.
-  eapply And_E2.
-  eapply And_E2.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env; simp; eauto.
-  simp; intro.
-  apply Exists_I with B.
-  apply Exists_I with B0.
-  unfold exB, ex; simp.
-  apply And_I.
-  eapply And_E1.
-  apply Env; simp; eauto 10.
-  apply And_I.
-  apply Exists_I with B1.
-  apply Exists_I with B2.
-  apply And_I.
-  eapply And_E1.
-  apply Env; simp; eauto 10.
-  eapply And_E2.
-  apply Env; simp; eauto 10.
-  apply Exists_I with B3.
-  apply Exists_I with B4.
-  apply Exists_I with B5.
-  apply And_I.
-  eapply And_E1.
-  apply Env; simp; eauto.
-  apply And_I.
-  apply And_I.
-  apply Inj_E with (B3 >= avail)%nat.
-  eapply And_E1.
-  eapply And_E1.
-  eapply And_E2.
-  unfold injB, inj; simp.
-  apply Env; simp; eauto.
-  intro.
-  apply Inj_I.
-  omega.
-  unfold injB, inj.
-  eapply And_E2.
-  eapply And_E1.
-  eapply And_E2.
-  apply Env; simp; eauto.
-  do 2 eapply And_E2.
-  apply Env; simp; eauto.
-Qed.
+Ltac simp := cbv beta; unfold In.
 
 Lemma do_call' : forall ns ns' vs avail avail' p p',
   (length ns' <= avail)%nat
@@ -801,18 +711,6 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
   apply Env.
   simp; eauto.
   simp; intro.
-  eapply Exists_E.
-  unfold exB, ex; simp.
-  eapply And_E2.
-  eapply And_E2.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env; simp; eauto.
-  simp; intro.
   
   Ltac pure' := solve [ apply Env; simp; eauto 10 ].
 
@@ -827,45 +725,20 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
 
   Ltac pure E := apply Inj_E with E; [ from_hyp | intro ].
 
-  pure (split B0 B4 B5).
-  pure (B3 >= avail)%nat.
-  pure (semp B4).
   pure (split B B1 B2).
   pure (NoDup ns).
   pure (semp B1).
   pure (split m B B0).
   generalize (split_semp _ _ _ H0 H3); intro; subst.
-  generalize (split_semp _ _ _ H4 H6); intro; subst.
-
-  apply Exists_I with B2.
-  apply Exists_I with B5.
-  apply And_I.
-  apply Inj_I; auto.
-  unfold exB, ex.
-  apply And_I.
-  apply Exists_I with B2; apply Exists_I with B1.
-  apply And_I.
-  apply Inj_I; auto.
-  apply split_comm; assumption.
-  apply And_I.
-  apply Exists_I with B1; apply Exists_I with B2.
-  repeat apply And_I; try (apply Inj_I; assumption).
-  from_hyp.
-  apply Exists_I with 0.
-  do 2 apply Exists_I with B1.
-  repeat apply And_I; try solve [ apply Inj_I; auto ].
 
   Hint Resolve split_empty.
-  apply Inj_I; auto.
 
   eapply Exists_E.
   eapply Imply_E.
   apply interp_weaken.
   eapply allocated_split.
-  instantiate (2 := length ns').
-  instantiate (1 := B3).
-  omega.
-  do 2 eapply And_E2; apply Env; unfold List.In; eauto.
+  eassumption.
+  from_hyp.
   cbv beta; intro.
   eapply Exists_E.
   apply Env; simp; eauto.
@@ -989,6 +862,12 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
     from_hyp.
   Qed.
 
+  apply Exists_I with B2.
+  apply Exists_I with B0.
+  apply And_I.
+  apply Inj_I; auto.
+  unfold exB, ex.
+
   eapply Exists_E.
   eapply Imply_E.
   apply interp_weaken.
@@ -996,9 +875,19 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
   apply H2.
   from_hyp.
   simp; intro.
-  apply Exists_I with B6.
+  apply And_I.
+
+  apply Exists_I with B2; apply Exists_I with smem_emp.
+  repeat apply And_I; try (apply Inj_I; auto; reflexivity).
+  apply Inj_I; apply split_comm; apply split_a_semp_a.
+  apply Exists_I with smem_emp; apply Exists_I with B2.
+  repeat apply And_I; try (apply Inj_I; auto; reflexivity).
+  apply Inj_I; apply split_a_semp_a.
+  from_hyp.
+  
+  apply Exists_I with B4.
   apply Exists_I with B.
-  apply Exists_I with B0.
+  apply Exists_I with B3.
   repeat apply And_I.
   from_hyp.
   apply Exists_I with smem_emp; apply Exists_I with B.
@@ -1010,12 +899,6 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
   rewrite (Mult.mult_comm 4 (length ns)).
   from_hyp.
 
-  apply Exists_I with (B3 - Datatypes.length ns').
-  apply Exists_I with smem_emp; apply Exists_I with B0.
-  repeat apply And_I.
-  apply Inj_I; apply split_a_semp_a.
-  apply Inj_I; omega.
-  apply Inj_I; reflexivity.
   eapply Imply_E.
   apply interp_weaken; apply allocated_shift_base.
   3: from_hyp.

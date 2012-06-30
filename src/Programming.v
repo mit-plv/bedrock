@@ -48,22 +48,22 @@ Definition Skip : chunk := fun _ _ =>
 Definition Assert_ (post : list string -> nat -> assert) : chunk := fun ns res =>
   Structured nil (fun im mn _ => Assert_ im mn (post ns res)).
 
+Definition rvalue' := list string -> rvalue.
+
 Record condition := {
-  COperand1 : rvalue;
+  COperand1 : rvalue';
   CTest : test;
-  COperand2 : rvalue
+  COperand2 : rvalue'
 }.
 
-Definition If_ (c : list string -> nat -> condition) (Then Else : chunk) : chunk := fun ns res =>
-  Structured nil (fun im mn H => If_ H (COperand1 (c ns res)) (CTest (c ns res)) (COperand2 (c ns res))
+Definition If_ (c : condition) (Then Else : chunk) : chunk := fun ns res =>
+  Structured nil (fun im mn H => If_ H (COperand1 c ns) (CTest c) (COperand2 c ns)
     (toCmd Then mn H ns res) (toCmd Else mn H ns res)).
 
-Definition While_ (inv : list string -> nat -> assert) (c : list string -> nat -> condition)
+Definition While_ (inv : list string -> nat -> assert) (c : condition)
   (Body : chunk) : chunk := fun ns res =>
-  Structured nil (fun im mn H => While_ H (inv ns res) (COperand1 (c ns res)) (CTest (c ns res))
-    (COperand2 (c ns res)) (toCmd Body mn H ns res)).
-
-Definition rvalue' := list string -> rvalue.
+  Structured nil (fun im mn H => While_ H (inv ns res) (COperand1 c ns) (CTest c)
+    (COperand2 c ns) (toCmd Body mn H ns res)).
 
 Definition Goto (rv : rvalue') : chunk := fun ns _ =>
   Structured nil (fun im mn H => match rv ns with
@@ -150,12 +150,12 @@ Notation "x + y" := (Bop x Plus y) : SP_scope.
 Notation "x - y" := (Bop x Minus y) : SP_scope.
 Notation "x * y" := (Bop x Times y) : SP_scope.
 
-Notation "x = y" := {| COperand1 := x; CTest := Eq; COperand2 := y |} : SP_scope.
-Notation "x <> y" := {| COperand1 := x; CTest := Ne; COperand2 := y |} : SP_scope.
-Notation "x < y" := {| COperand1 := x; CTest := Lt; COperand2 := y |} : SP_scope.
-Notation "x <= y" := {| COperand1 := x; CTest := Le; COperand2 := y |} : SP_scope.
-Notation "x > y" := {| COperand1 := y; CTest := Lt; COperand2 := x |} : SP_scope.
-Notation "x >= y" := {| COperand1 := y; CTest := Le; COperand2 := x |} : SP_scope.
+Notation "x = y" := {| COperand1 := x; CTest := IL.Eq; COperand2 := y |} : SP_scope.
+Notation "x <> y" := {| COperand1 := x; CTest := IL.Ne; COperand2 := y |} : SP_scope.
+Notation "x < y" := {| COperand1 := x; CTest := IL.Lt; COperand2 := y |} : SP_scope.
+Notation "x <= y" := {| COperand1 := x; CTest := IL.Le; COperand2 := y |} : SP_scope.
+Notation "x > y" := {| COperand1 := y; CTest := IL.Lt; COperand2 := x |} : SP_scope.
+Notation "x >= y" := {| COperand1 := y; CTest := IL.Le; COperand2 := x |} : SP_scope.
 
 Definition Assign' (lv : lvalue') (rh : rhs) :=
   Instr (fun ns => match rh with
@@ -175,12 +175,13 @@ Fixpoint variableSlot' (ns : list string) (nm : string) : option nat :=
            end
   end.
 
-Definition unboundVariable := LvMem (Imm (wzero _)).
+Definition unboundVariable (ns : list string) (nm : string) :=
+  LvMem (Imm (wzero _)).
 Global Opaque unboundVariable.
 
 Definition variableSlot (nm : string) : lvalue' := fun ns =>
   match variableSlot' ns nm with
-    | None => unboundVariable
+    | None => unboundVariable ns nm
     | Some n => LvMem (Indir Sp n)
   end.
 
@@ -215,12 +216,13 @@ Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, 
 
 Local Open Scope string_scope.
 
-Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> vals -> W -> W -> HProp) (rpStashed : bool)
+Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> vals -> W -> W -> HProp) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (res : nat) : assert :=
-  st ~> ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res st#Sp] * ^[pre vs st#Rv] * #0 ] st
-  /\ (if rpStashed then Locals.sel vs "rp" else st#Rp) @@ (st' ~>
-    [| st'#Sp = st#Sp |]
-    /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res st#Sp] * ^[post vs vs' st#Rv st'#Rv] * #1 ] st').
+  st ~> let sp := adjustSp st#Sp in
+    ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res sp] * ^[pre (sel vs) st#Rv] * #0 ] st
+    /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
+      [| st'#Sp = sp |]
+      /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res sp] * ^[post (sel vs) (sel vs') st#Rv st'#Rv] * #1 ] st').
 
 Notation "'PRE' [ vs ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs vs' _ _ => post%Sep))
   (at level 0).
@@ -234,55 +236,58 @@ Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' , rv' ] post" := (localsInvariant (
 Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs vs' rv _ => post%Sep))
   (at level 0).
 
-Notation INV := (fun inv => inv true).
+Notation INV := (fun inv => inv true (fun w => w)).
+Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
 
-Definition spec := option (list string) -> assert.
+Definition spec := (nat * (option (list string) -> assert))%type.
 (* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
 
 Notation "'SPEC' 'reserving' n" :=
-  (fun inv extras =>
+  (fun inv => (n, fun extras =>
     match extras with
-      | None => inv false nil n
-      | Some extras => inv true extras n
-    end) (at level 0, n at level 0).
+      | None => inv false (fun w => w) nil n
+      | Some extras => inv true (fun w => w) extras n
+    end)) (at level 0, n at level 0).
 
-Notation "'SPEC' 'reserving' n 'parameters' x1 , .. , xN" :=
-  (fun inv extras =>
-    let vars := cons x1 (.. (cons xN nil) ..) in
-    match extras with
-      | None => inv false vars n
-      | Some extras => inv true extras n
-    end) (at level 0, n at level 0, x1 at level 0, xN at level 0).
+Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n" :=
+  (let vars := cons x1 (.. (cons xN nil) ..) in
+    fun inv => (n, fun extras =>
+      match extras with
+        | None => inv false (fun w => w) vars n
+        | Some extras => inv true (fun w => w) extras n
+      end)) (at level 0, n at level 0, x1 at level 0, xN at level 0).
 
 
 (** ** Modules *)
 
-Notation "'bfunction' name [ p ] 'reserving' n 'variables' x1 , .. , xN { b }" :=
-  (let p' := p in
-   let vars := cons x1 (.. (cons xN nil) ..) in
-    {| FName := name;
-      FPrecondition := p' None;
-      FBody := ($[Sp+0] <- Rp;;
-        (fun _ _ => 
-          Structured nil (fun im mn _ => Structured.Assert_ im mn (p' (Some vars))));;
-        b)%SP;
-      FVars := vars;
-      FReserved := n |})
-  (no associativity, at level 95, n at level 0, only parsing) : SPfuncs_scope.
-
-Notation "'bfunction' name [ p ] 'reserving' n { b }" :=
+Notation "'bfunction' name () [ p ] b 'end'" :=
   (let p' := p in
     {| FName := name;
-      FPrecondition := p None;
+      FPrecondition := snd p' None;
       FBody := ($[Sp+0] <- Rp;;
         (fun _ _ =>
-          Structured nil (fun im mn _ => Structured.Assert_ im mn (p' (Some nil))));;
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (snd p' (Some nil))));;
         b)%SP;
       FVars := nil;
-      FReserved := n |})
-  (no associativity, at level 95, n at level 0, only parsing) : SPfuncs_scope.
+      FReserved := fst p' |})
+  (no associativity, at level 95, name at level 0, only parsing) : SPfuncs_scope.
+
+Notation "'bfunction' name ( x1 , .. , xN ) [ p ] b 'end'" :=
+  (let p' := p in
+   let vars := cons x1 (.. (cons xN nil) ..) in
+   let b' := b%SP in
+    {| FName := name;
+      FPrecondition := snd p' None;
+      FBody := ($[Sp+0] <- Rp;;
+        (fun _ _ =>
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (snd p' (Some vars))));;
+        b')%SP;
+      FVars := vars;
+      FReserved := fst p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Delimit Scope SPfuncs_scope with SPfuncs.
+
 
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : SPfuncs_scope.
 Delimit Scope SPfuncs_scope with SPfuncs.
@@ -290,7 +295,7 @@ Delimit Scope SPfuncs_scope with SPfuncs.
 Notation "'bmodule' name fs" := (bmodule_ nil name fs%SPfuncs) (no associativity, at level 95, name at level 0, only parsing).
 
 Notation "x ! y" := (x, y) (only parsing) : SPimps_scope.
-Notation "name @ [ p ]" := (let (x, y) := name in (x, y, p None)) (at level 0, only parsing) : SPimps_scope.
+Notation "name @ [ p ]" := (let (x, y) := name in (x, y, snd p None)) (at level 0, only parsing) : SPimps_scope.
 Notation "[[ x , .. , y ]]" := (cons x .. (cons y nil) ..) (only parsing) : SPimps_scope.
 
 Delimit Scope SPimps_scope with SPimps.
