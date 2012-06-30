@@ -711,8 +711,10 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
   apply Env.
   simp; eauto.
   simp; intro.
+
+  Ltac iner := reflexivity || (left; iner) || (right; iner).
   
-  Ltac pure' := solve [ apply Env; simp; eauto 10 ].
+  Ltac pure' := solve [ apply Env; simp; iner ].
 
   Ltac and_d n :=
     match n with
@@ -909,14 +911,188 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
   reflexivity.
 Qed.
 
+Definition reserved (p : W) (len : nat) := (p =?> len)%Sep.
+
 Theorem do_call : forall ns ns' vs avail avail' p p',
   (length ns' <= avail)%nat
   -> (avail' <= avail - length ns')%nat
   -> p' = p ^+ natToW (4 * length ns)
   -> NoDup ns'
   -> locals ns vs avail p ===>
-  (p ^+ natToW (4 * (length ns + length ns' + avail'))) =?>
-    (avail - length ns' - avail')
-  * locals ns vs 0 p
-  * Ex vs', locals ns' vs' avail' p'.
+  locals ns vs 0 p
+  * Ex vs', locals ns' vs' avail' p'
+  * reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
+  (avail - length ns' - avail').
 Admitted.
+
+Lemma do_return' : forall ns ns' vs avail avail' p p',
+  avail = avail' + length ns'
+  -> p' = p ^+ natToW (4 * length ns)
+  -> (locals ns vs 0 p * Ex vs', locals ns' vs' avail' p') ===> locals ns vs avail p.
+  intros; intro; hnf; intros; subst.
+  unfold locals, starB, star, injB, inj.
+  apply Imply_I.
+  eapply Exists_E.
+  eauto.
+  simp; intros.
+  eapply Exists_E.
+  apply Env.
+  simp.
+  eauto.
+  simp; intros.
+  eapply Exists_E.
+  eapply And_E1.
+  eapply And_E2.
+  apply Env.
+  simp; eauto.
+  simp; intros.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+  unfold exB, ex; simp.
+  eapply Exists_E.
+  eapply And_E1; eapply And_E2.
+  apply Env; simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  do 2 eapply And_E2.
+  apply Env.
+  simp.
+  do 4 right; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  eapply And_E1; eapply And_E2.
+  apply Env; simp; eauto.
+  simp; intro.
+  eapply Exists_E.
+  apply Env.
+  simp; eauto.
+  simp; intro.
+
+  apply Exists_I with B1.
+  apply Exists_I with (HT.join B2 B0).
+  pure (split m B B0).
+  pure (split B B1 B2).
+  pure (split B1 B3 B4).
+  pure (NoDup ns).
+  pure (semp B3).
+  pure (split B0 B6 B7).
+  pure (split B6 B8 B9).
+  pure (NoDup ns').
+  pure (semp B8).
+  generalize (split_semp _ _ _ H1 H3); intro; subst.
+  generalize (split_semp _ _ _ H5 H7); intro; subst.
+  hnf in H3, H7; subst.
+  repeat apply And_I.
+  apply Inj_I.
+  apply split_comm.
+  eapply split_assoc.
+  apply split_comm; eassumption.
+  apply split_comm; assumption.
+  apply Exists_I with smem_emp; apply Exists_I with B4.
+  repeat apply And_I; try (apply Inj_I; auto).
+  reflexivity.
+  from_hyp.
+  
+  Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
+    ptsto32m' nil p offset ls ===> allocated p offset (length ls).
+    induction ls.
+
+    simpl; intros; apply Himp_refl.
+
+    simpl length.
+    unfold ptsto32m', allocated; fold ptsto32m'; fold allocated.
+    intros.
+    replace (match offset with
+               | 0 => p
+               | S _ => p ^+ $ (offset)
+             end) with (p ^+ $(offset)) by (destruct offset; W_eq).
+    intros; intro; hnf; intros; subst.
+    unfold locals, starB, star, injB, inj.
+    apply Imply_I.
+    eapply Exists_E.
+    eauto.
+    simp; intros.
+    eapply Exists_E.
+    apply Env.
+    simp.
+    eauto.
+    simp; intros.
+    do 2 eapply Exists_I.
+    repeat apply And_I.
+    from_hyp.
+    eapply Exists_I.
+    from_hyp.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply IHls.
+    from_hyp.
+  Qed.
+
+  Theorem ptsto32m'_in : forall a vs offset,
+    ptsto32m _ a offset vs ===> ptsto32m' _ a offset vs.
+    induction vs; intros.
+
+    apply Himp_refl.
+
+    unfold ptsto32m', ptsto32m; fold ptsto32m; fold ptsto32m'.
+    replace (match offset with
+               | 0 => a
+               | S _ => a ^+ $ (offset)
+             end) with (a ^+ $(offset)) by (destruct offset; W_eq).
+    destruct vs.
+    simpl ptsto32m'.
+    unfold empB, emp, starB, star, exB, ex, injB, inj.
+    hnf; intros; hnf; intros.
+    apply Imply_I.
+    apply Exists_I with m; apply Exists_I with smem_emp.
+    repeat apply And_I.
+    apply Inj_I; apply split_comm; apply split_a_semp_a.
+    from_hyp.
+    apply Inj_I; auto.
+    apply Inj_I; reflexivity.
+
+    unfold empB, emp, starB, star, exB, ex, injB, inj.
+    hnf; intros; hnf; intros.
+    apply Imply_I.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    eapply Exists_E.
+    from_hyp.
+    simp; intro.
+    do 2 eapply Exists_I.
+    repeat apply And_I.
+    from_hyp.
+    from_hyp.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply IHvs.
+    from_hyp.
+  Qed.
+
+  Lemma ptsto32m_allocated : forall (p : W) (ls : list W) (offset : nat),
+    ptsto32m nil p offset ls ===> allocated p offset (length ls).
+    intros; eapply Himp_trans.
+    apply ptsto32m'_in.
+    apply ptsto32m'_allocated.
+  Qed.
+
+  eapply Imply_E.
+  apply interp_weaken.
+  apply allocated_join.
+  instantiate (1 := length ns').
+  omega.
