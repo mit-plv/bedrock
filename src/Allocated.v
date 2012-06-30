@@ -233,3 +233,139 @@ Theorem allocated_split : forall base len' len offset,
   eapply And_E1; eapply And_E2; apply Env; unfold List.In; eauto.
   do 2 eapply And_E2; apply Env; unfold List.In; eauto.
 Qed.
+
+Theorem allocated_join : forall base len' len offset,
+  (len' <= len)%nat
+  -> allocated base offset len' * allocated base (offset + 4 * len') (len - len') ===> allocated base offset len.
+  induction len'; inversion 1.
+
+  simpl.
+  hnf; intros; hnf; intros.
+  apply Imply_I.
+  unfold empB, emp, inj, starB, star.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  apply And_I.
+  apply Inj_I; auto.
+  eapply Inj_E.
+  eapply And_E1; apply Env; simpl; eauto.
+  intro.
+  destruct H1; subst.
+  eapply Inj_E.
+  eapply And_E2; eapply And_E1; eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  eapply Inj_E.
+  do 3 eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  unfold semp in *; subst.
+  apply Inj_I.
+  symmetry; apply join'_emp.
+
+  unfold allocated at 1.
+  unfold empB, emp, starB, star, injB, inj, exB, ex.
+  replace (offset + 4 * 0) with offset by omega.
+  replace (S m - 0) with (S m) by omega.
+  hnf; intros; hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Inj_E.
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  eapply Inj_E.
+  eapply And_E2; eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
+  intro.
+  generalize (split_semp _ _ _ H2 H3); intro; subst.
+  do 2 eapply And_E2; apply Env; unfold In; eauto.
+
+  replace (S len' - S len') with 0 by omega.
+  unfold allocated at 2.
+  unfold empB, emp, starB, star, injB, inj, exB, ex.
+  hnf; intros; hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Inj_E.
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  eapply Inj_E.
+  do 3 eapply And_E2; apply Env; unfold In; eauto.
+  intro.
+  apply split_comm in H1.
+  generalize (split_semp _ _ _ H1 H2); intro; subst.
+  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
+
+  subst.
+  replace (S m - S len') with (m - len') by omega.
+  unfold allocated at 1 3; fold allocated.
+  replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.  
+  unfold empB, emp, starB, star, injB, inj, exB, ex.
+  hnf; intros; hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
+  cbv beta; intro.
+  eapply Exists_E.
+  apply Env; unfold In; eauto.
+  cbv beta; intro.
+  apply Exists_I with B1; apply Exists_I with (HT.join B0 B2).
+  repeat apply And_I.
+  eapply Inj_E.
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  apply Inj_E with (HT.split m0 B B0).
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  apply Inj_I.
+  assert (disjoint B0 B2).
+  eapply split_split_disjoint.
+  eauto.
+  apply split_comm; eassumption.
+  apply split_comm in H1.
+  eapply split_assoc in H1.
+  2: apply split_comm; eassumption.
+  apply split_comm.
+  rewrite disjoint_join; auto.
+
+  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
+
+  eapply Imply_E.
+  apply PropXTac.interp_weaken.
+  apply IHlen'.
+  omega.
+  apply Exists_I with B2.
+  apply Exists_I with B0.
+  repeat apply And_I.
+  eapply Inj_E.
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  apply Inj_E with (HT.split m0 B B0).
+  eapply And_E1; apply Env; unfold In; eauto.
+  intro.
+  apply Inj_I.
+  apply split_comm.
+  apply disjoint_split_join.
+  eapply split_split_disjoint.
+  eauto.
+  apply split_comm; eauto.
+  do 2 eapply And_E2; apply Env; unfold In; eauto.
+  do 2 eapply And_E2; apply Env; unfold In; eauto.
+Qed.
