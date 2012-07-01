@@ -684,6 +684,8 @@ Require Import PropX.
 
 Ltac simp := cbv beta; unfold In.
 
+(** ** Point-of-view switch at function call sites *)
+
 Lemma do_call' : forall ns ns' vs avail avail' p p',
   (length ns' <= avail)%nat
   -> avail' = avail - length ns'
@@ -1328,4 +1330,254 @@ Lemma do_return : forall ns ns' vs avail avail' p p',
   unfold natToW.
   f_equal.
   omega.
+Qed.
+
+
+(** ** Point-of-view switch in function preludes *)
+
+Definition agree_on (vs vs' : vals) (ns : list string) :=
+  List.Forall (fun nm => sel vs nm = sel vs' nm) ns.
+
+Fixpoint merge (vs vs' : vals) (ns : list string) :=
+  match ns with
+    | nil => vs'
+    | nm :: ns' => upd (merge vs vs' ns') nm (sel vs nm)
+  end.
+
+Lemma Forall_weaken : forall A (P P' : A -> Prop),
+  (forall x, P x -> P' x)
+  -> forall ls, List.Forall P ls
+    -> List.Forall P' ls.
+  induction 2; simpl; intuition.
+Qed.
+
+Theorem merge_agree : forall vs vs' ns,
+  agree_on (merge vs vs' ns) vs ns.
+  induction ns; simpl; intuition; constructor.
+  unfold sel, upd.
+  rewrite string_eq_true; reflexivity.
+  eapply Forall_weaken; [ | eassumption ].
+  simpl; intros.
+  destruct (string_dec a x); subst.
+  apply sel_upd_eq; reflexivity.
+  rewrite sel_upd_ne; assumption.
+Qed.
+
+Theorem prelude_in : forall ns ns' vs avail p,
+  (length ns' <= avail)%nat
+  -> NoDup (ns ++ ns')
+  -> locals ns vs avail p ===>
+  Ex vs', locals (ns ++ ns') (merge vs vs' ns) (avail - length ns') p.
+  unfold locals, empB, emp, starB, star, exB, ex, injB, inj.
+  intros; hnf; intros; hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  eapply And_E1; eapply And_E2; from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  pure (split m B B0).
+  pure (split B B1 B2).
+  pure (semp B1).
+  generalize (split_semp _ _ _ H2 H3); intro; subst.
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_split.
+  2: from_hyp.
+  eassumption.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  pure (split B0 B B3).
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken; apply behold_the_array.
+  2: from_hyp.
+
+  Lemma NoDup_unapp2 : forall A (ls1 ls2 : list A),
+    NoDup (ls1 ++ ls2)
+    -> NoDup ls2.
+    induction ls1; inversion 1; simpl in *; intuition.
+  Qed.
+
+  eapply NoDup_unapp2; eauto.
+  simp; intro.
+  apply Exists_I with B4.
+  apply Exists_I with (HT.join B2 B); apply Exists_I with B3.
+  repeat apply And_I.
+  apply Inj_I.
+  assert (disjoint B2 B).
+  eapply split_split_disjoint.
+  apply split_comm; eassumption.
+  eassumption.
+  eapply split_assoc in H4.
+  rewrite disjoint_join; eauto.
+  assumption.
+
+  apply Exists_I with smem_emp; apply Exists_I with (HT.join B2 B).
+  repeat apply And_I.
+  apply Inj_I; apply split_a_semp_a.
+  apply Inj_I; assumption.
+  apply Inj_I; reflexivity.
+  unfold array.
+
+  Lemma ptsto32m'_merge : forall p vs' ns' ns offset vs vs'',
+    NoDup (ns ++ ns')
+    -> agree_on vs'' (merge vs vs' ns) (ns ++ ns')
+    -> ptsto32m' nil p offset (toArray ns vs)
+    * ptsto32m' nil p (offset + 4 * length ns) (toArray ns' vs')
+    ===> ptsto32m' nil p offset (toArray (ns ++ ns') vs'').
+    induction ns; simpl app; intros.
+
+    simpl; intro.
+    apply himp_star_emp_p.
+    apply himp_refl.
+    
+    Lemma toArray_vals_eq : forall vs vs' ns, agree_on vs vs' ns
+      -> toArray ns vs = toArray ns vs'.
+      induction ns; simpl; intuition.
+      inversion H; clear H; subst.
+      f_equal; auto.
+    Qed.
+
+    Lemma agree_on_symm : forall vs vs' nm, agree_on vs vs' nm
+      -> agree_on vs' vs nm.
+      intros; eapply Forall_weaken; [ | eauto ].
+      intuition.
+    Qed.
+
+    f_equal.
+    omega.
+    simpl in *.
+    apply toArray_vals_eq; auto.
+    apply agree_on_symm; auto.
+
+    inversion H; clear H; subst.
+    simpl in H0.
+    simpl toArray; simpl length.
+    unfold ptsto32m'; fold ptsto32m'.
+    eapply Himp_trans.
+    intro.
+    eapply himp_star_assoc.
+    intro.
+    inversion H0; clear H0; subst.
+    rewrite sel_upd_eq in H2 by reflexivity.
+    apply himp_star_frame.
+    apply himp_refl.
+    f_equal.
+    auto.
+    replace (offset + 4 * S (length ns))
+      with ((4 + offset) + 4 * length ns) by omega.
+    apply IHns; auto.
+    hnf.
+
+    Lemma Forall_weaken' : forall A (P P' : A -> Prop) ls,
+      List.Forall P ls
+      -> (forall x, In x ls -> P x -> P' x)
+      -> List.Forall P' ls.
+      induction 1; simpl; intuition.
+    Qed.
+    
+    eapply Forall_weaken'.
+    eassumption.
+    simpl; intros.
+    rewrite H0.
+    destruct (string_dec a x); subst.
+    tauto.
+    rewrite sel_upd_ne by assumption; reflexivity.
+  Qed.
+
+  Lemma ptsto32m_merge : forall p vs' ns' ns offset vs vs'',
+    NoDup (ns ++ ns')
+    -> agree_on vs'' (merge vs vs' ns) (ns ++ ns')
+    -> ptsto32m nil p offset (toArray ns vs)
+    * ptsto32m nil p (offset + 4 * length ns) (toArray ns' vs')
+    ===> ptsto32m nil p offset (toArray (ns ++ ns') vs'').
+    intros.
+    eapply Himp_trans.
+    intro.
+    apply himp_star_frame; apply ptsto32m'_in.
+    eapply Himp_trans; [ | apply ptsto32m'_out ].
+    apply ptsto32m'_merge; auto.
+  Qed.
+
+  eapply Imply_E.
+  apply interp_weaken; apply ptsto32m_merge; auto.
+  
+  Lemma agree_on_refl : forall vs ns,
+    agree_on vs vs ns.
+    unfold agree_on; induction ns; simpl; intuition.
+  Qed.
+
+  apply agree_on_refl.
+  
+  do 2 eapply Exists_I.
+  repeat apply And_I.
+  apply Inj_I.
+  apply disjoint_split_join.
+  eapply split_split_disjoint in H4.
+  eauto.
+  apply split_comm; eassumption.
+  from_hyp.
+  replace (0 + 4 * length ns) with (length ns * 4) by omega.
+
+  Lemma ptsto32m'_shift_base : forall p n ls offset,
+    (n <= offset)%nat
+    -> ptsto32m' nil (p ^+ $(n)) (offset - n) ls
+    ===> ptsto32m' nil p offset ls.
+    induction ls.
+
+    simpl; intros; apply Himp_refl.
+
+    unfold ptsto32m'; fold ptsto32m'.
+    intros.
+    intro; apply himp_star_frame.
+    apply himp_refl.
+    f_equal.
+    rewrite <- wplus_assoc.
+    rewrite <- natToW_plus.
+    unfold natToW.
+    repeat f_equal.
+    omega.
+    replace (4 + (offset - n)) with ((4 + offset) - n) by omega.
+    apply IHls; omega.
+  Qed.
+
+  Lemma ptsto32m_shift_base : forall p n ls offset,
+    (n <= offset)%nat
+    -> ptsto32m nil (p ^+ $(n)) (offset - n) ls
+    ===> ptsto32m nil p offset ls.
+    intros; eapply Himp_trans.
+    apply ptsto32m'_in.
+    eapply Himp_trans.
+    apply ptsto32m'_shift_base; auto.
+    apply ptsto32m'_out.
+  Qed.
+
+  eapply Imply_E.
+  apply interp_weaken; apply ptsto32m_shift_base.    
+  eauto.
+  replace (length ns * 4 - length ns * 4) with 0 by omega.
+  from_hyp.
+
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_shift_base.
+  3: from_hyp.
+  rewrite (wplus_comm _ (natToW 0)).
+  rewrite wplus_unit.
+  rewrite plus_O_n.
+  rewrite <- wplus_assoc.
+  rewrite <- natToWord_plus.
+  do 2 f_equal.
+  rewrite app_length.
+  omega.
+  reflexivity.
 Qed.

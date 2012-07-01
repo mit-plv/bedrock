@@ -19,6 +19,30 @@ Qed.
 (* Print Assumptions divergerOk. *)
 
 
+(** * A function with a private local variable *)
+
+Definition seven := bmodule "seven" {{
+  bfunction "seven"("x") [SPEC reserving 1
+    PRE[_] [| True |]
+    POST[R] [| R = $7 |] ]
+    "x" <- 7;;
+    Return "x"
+  end
+}}.
+
+Theorem sevenOk : moduleOk seven.
+  vcgen.
+
+  sep_auto.
+  sep_auto.
+  sep_auto.
+  (* Placeholder for [init_out] *)
+  instantiate (1 := x4); admit.
+  sep_auto.
+  sep_auto.
+Qed.
+
+
 (** * Immediate return *)
 
 Definition immedS : spec := SPEC reserving 0
@@ -96,7 +120,7 @@ Qed.
 
 Definition incS : spec := SPEC("x") reserving 0
   PRE[V] [| True |]
-  POST[_, rv] [| rv = V "x" ^+ $1 |].
+  POST[R] [| R = V "x" ^+ $1 |].
 
 Definition inc := bmodule "inc" {{
   bfunction "inc"("x") [incS]
@@ -115,7 +139,7 @@ Qed.
 
 Definition always0S : spec := SPEC("x") reserving 0
   PRE[_] [| True |]
-  POST[_, rv] [| rv = $0 |].
+  POST[R] [| R = $0 |].
 
 Definition always0 := bmodule "always0" {{
   bfunction "always0"("x") [always0S]
