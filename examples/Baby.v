@@ -70,6 +70,27 @@ Qed.
 
 (* Print Assumptions immedProgOk. *)
 
+(** Let's also test with a version that reserves more stack space than needed. *)
+
+Definition immedTestBig := bimport [[ "immed"!"immed" @ [immedS] ]]
+  bmodule "main" {{
+    bfunction "main"() [SPEC reserving 5
+      PRE[_] [| True |]
+      POST[_] [| True |] ]
+      Call "immed"!"immed"
+      [RET
+        PRE[_] [| True |]
+        POST[_] [| True|] ];;
+      Return 0
+    end
+  }}.
+
+(* Eval compute in compile immedTest. *)
+
+Theorem immedTestBigOk : moduleOk immedTestBig.
+  vcgen; (sep_auto; words).
+Qed.
+
 
 (** * Incrementer *)
 

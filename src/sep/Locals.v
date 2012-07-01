@@ -913,6 +913,69 @@ Qed.
 
 Definition reserved (p : W) (len : nat) := (p =?> len)%Sep.
 
+Lemma expose_avail : forall ns vs avail p expose avail',
+  (expose <= avail)%nat
+  -> avail' = avail - expose
+  -> locals ns vs avail p ===> locals ns vs avail' p
+  * reserved (p ^+ natToW (4 * (length ns + avail'))) expose.
+  unfold locals; intros; subst; hnf; intros; hnf; intros.
+  unfold starB, star at 1.
+  apply Imply_I.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_split.
+  instantiate (2 := avail - expose).
+  instantiate (1 := avail).
+  omega.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  pure (split B0 B1 B2).
+  pure (split m B B0).
+  apply Exists_I with (HT.join B B1); apply Exists_I with B2.
+  repeat apply And_I.
+
+  apply Inj_I.
+  assert (disjoint B B1).
+  eapply split_split_disjoint.
+  apply split_comm; eassumption.
+  eassumption.
+  eapply split_assoc in H0.
+  2: eassumption.
+  rewrite disjoint_join; auto.
+  apply Exists_I with B; apply Exists_I with B1.
+  repeat apply And_I.
+  apply Inj_I.
+  apply disjoint_split_join.
+  eapply split_split_disjoint.
+  apply split_comm; eassumption.
+  eassumption.
+  from_hyp.
+  from_hyp.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_shift_base.
+  3: from_hyp.
+  repeat rewrite <- wplus_assoc.
+  rewrite natToWord_plus.
+  f_equal.
+  rewrite wplus_unit.
+  rewrite <- (wplus_comm (natToW 0)).
+  rewrite wplus_unit.
+  rewrite <- natToWord_plus.
+  unfold natToW.
+  apply f_equal.
+  omega.
+  omega.
+Qed.
+
 Theorem do_call : forall ns ns' vs avail avail' p p',
   (length ns' <= avail)%nat
   -> (avail' <= avail - length ns')%nat
@@ -923,7 +986,38 @@ Theorem do_call : forall ns ns' vs avail avail' p p',
   * Ex vs', locals ns' vs' avail' p'
   * reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
   (avail - length ns' - avail').
-Admitted.
+  intros; hnf; intros; hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  eapply Imply_E.
+  apply interp_weaken; apply do_call'.
+  eassumption.
+  reflexivity.
+  eassumption.
+  assumption.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  do 2 eapply And_E2; from_hyp.
+  simp; intro.
+  do 2 eapply Exists_I; repeat apply And_I.
+  from_hyp.
+  from_hyp.
+  eapply Exists_I.
+  replace (4 * (length ns + length ns' + avail'))
+    with (4 * length ns + 4 * (length ns' + avail')) by omega.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  subst p'.
+  eapply Imply_E.
+  apply interp_weaken; apply expose_avail.
+  3: from_hyp.
+  omega.
+  omega.
+Qed.
 
 Lemma do_return' : forall ns ns' vs avail avail' p p',
   avail = avail' + length ns'
@@ -1119,4 +1213,119 @@ Lemma do_return' : forall ns ns' vs avail avail' p p',
   unfold natToW.
   W_eq.
   reflexivity.
+Qed.
+
+Lemma unexpose_avail : forall ns vs avail p expose avail',
+  (expose <= avail)%nat
+  -> avail' = avail - expose
+  -> locals ns vs avail' p
+  * reserved (p ^+ natToW (4 * (length ns + avail'))) expose
+  ===> locals ns vs avail p.
+  unfold locals; intros; subst; hnf; intros; hnf; intros.
+  unfold starB, star at 1.
+  apply Imply_I.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  unfold starB, star at 1.
+  eapply Exists_E.
+  eapply And_E1; eapply And_E2; from_hyp.
+  simp; intro.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.  
+  pure (split m B B0).
+  pure (split B B1 B2).
+  apply Exists_I with B1; apply Exists_I with (HT.join B2 B0).
+  repeat apply And_I.
+  apply Inj_I.
+  apply split_comm.
+  eapply split_assoc.
+  apply split_comm; eassumption.
+  apply split_comm; assumption.
+  from_hyp.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_join.
+  instantiate (1 := avail - expose).
+  omega.
+  do 2 eapply Exists_I; repeat apply And_I.
+  apply Inj_I.
+  apply disjoint_split_join.
+  apply split_comm in H1.
+  eapply split_split_disjoint in H1.
+  apply disjoint_comm; eassumption.
+  eassumption.
+  from_hyp.
+  eapply Imply_E.
+  apply interp_weaken; apply allocated_shift_base.
+  3: from_hyp.
+  repeat rewrite <- wplus_assoc.
+  rewrite natToWord_plus.
+  f_equal.
+  rewrite wplus_unit.
+  rewrite <- (wplus_comm (natToW 0)).
+  rewrite wplus_unit.
+  rewrite <- natToWord_plus.
+  unfold natToW.
+  apply f_equal.
+  omega.
+  omega.
+Qed.
+
+Lemma do_return : forall ns ns' vs avail avail' p p',
+  (avail >= avail' + length ns')%nat
+  -> p' = p ^+ natToW (4 * length ns)
+  -> (locals ns vs 0 p * Ex vs', locals ns' vs' avail' p'
+    * reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
+    (avail - length ns' - avail'))
+    ===> locals ns vs avail p.
+  intros.
+  eapply Himp_trans; [ | apply do_return' ].
+  3: eassumption.
+  Focus 2.
+  instantiate (1 := ns').
+  instantiate (1 := (avail - avail' - length ns') + avail').
+  omega.
+  intro.
+  apply himp_star_frame.
+  reflexivity.
+  hnf; intros.
+  apply Imply_I.
+  eapply Exists_E.
+  from_hyp.
+  simp; intro.
+  apply Exists_I with B.
+  replace (avail - avail' - length ns' + avail')
+    with (avail - length ns') by omega.
+  eapply Imply_E.
+  apply interp_weaken; apply unexpose_avail.
+  instantiate (1 := avail - length ns' - avail').
+  omega.
+  reflexivity.
+  eapply Imply_E.
+  2: from_hyp.
+  apply interp_weaken.
+  subst.
+  apply himp_star_frame.
+  
+  Lemma himp_refl : forall pc st (cs : codeSpec pc st) P Q, P = Q
+    -> himp cs P Q.
+    intros; subst; reflexivity.
+  Qed.
+
+  apply himp_refl.
+  f_equal.
+  omega.
+
+  apply himp_refl.
+  f_equal.
+  rewrite <- wplus_assoc.
+  rewrite <- natToWord_plus.
+  f_equal.
+  unfold natToW.
+  f_equal.
+  omega.
 Qed.
