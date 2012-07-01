@@ -35,6 +35,23 @@ Theorem sevenOk : moduleOk seven.
 Qed.
 
 
+(** * A function with both parameters and private local variables *)
+
+Definition triple := bmodule "triple" {{
+  bfunction "triple"("x", "y") [SPEC("x") reserving 1
+    PRE[V] [| True |]
+    POST[R] [| R = $3 ^* V "x" |] ]
+    "y" <- "x" + "x";;
+    "y" <- "y" + "x";;
+    Return "y"
+  end
+}}.
+
+Theorem tripleOk : moduleOk triple.
+  vcgen; (sep_auto; words).
+Qed.
+
+
 (** * Immediate return *)
 
 Definition immedS : spec := SPEC reserving 0

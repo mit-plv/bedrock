@@ -843,6 +843,8 @@ Ltac peelPrefix ls1 ls2 :=
       end
   end.
 
+Global Opaque merge.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
