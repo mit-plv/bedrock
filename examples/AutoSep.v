@@ -863,11 +863,32 @@ Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
                      end; W_eq.
 
+Definition locals_return ns vs avail p (ns' : list string) :=
+  locals ns vs avail p.
+
+Theorem create_locals_return : forall ns' ns avail vs p,
+  locals ns vs avail p = locals_return ns vs avail p ns'.
+  reflexivity.
+Qed.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
+    | [ |- himp _ ?pre ?post ] =>
+      match post with
+        | context[locals ?ns ?vs ?avail _] =>
+          match pre with
+            | context[locals ?ns' ?vs' _ _] =>
+              match vs' with
+                | vs => fail 1
+                | _ => rewrite (create_locals_return ns' ns avail);
+                  assert (avail >= length ns')%nat by (simpl; omega);
+                    solve [ do 2 cancel ext ]
+              end
+          end
+      end
     | [ |- himp _ _ _ ] => progress cancel ext
     | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
       match y with
@@ -919,6 +940,14 @@ Lemma make_call : forall ns ns' vs avail p,
   intros; eapply do_call'; eauto.
 Qed.
 
+Lemma make_return : forall ns ns' vs avail p,
+  (avail >= length ns')%nat
+  -> (locals ns vs 0 p
+    * Ex vs', locals ns' vs' (avail - length ns') (p ^+ natToW (4 * length ns)))
+  ===> locals_return ns vs avail p ns'.
+  intros; apply do_return'; omega || words.
+Qed.
+
 (** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
 Ltac prepare fwd bwd := 
   let the_unfold_tac x := 
@@ -926,7 +955,7 @@ Ltac prepare fwd bwd :=
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
     (*W (settings * state)%type*)
-    isConst auto_ext' tt tt (make_call, fwd) bwd.
+    isConst auto_ext' tt tt (make_call, fwd) (make_return, bwd).
 
 Definition auto_ext : TacPackage.
   prepare tt tt.

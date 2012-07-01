@@ -43,23 +43,19 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
   bmodule "main" {{
     bfunction "main"() [SPEC reserving 1
       PRE[_] [| True |]
-      POST[_] [| False |] ]
+      POST[_] [| True |] ]
       Call "immed"!"immed"
       [RET
         PRE[_] [| True |]
-        POST[_] [| False |] ];;
-      Diverge
+        POST[_] [| True|] ];;
+      Return 0
     end
   }}.
 
 (* Eval compute in compile immedTest. *)
 
 Theorem immedTestOk : moduleOk immedTest.
-  vcgen; (sep_auto; try words).
-
-  (* Need to prove a theorem for switching from callee's to caller's view of stack. *)
-  instantiate (1 := fun _ => [| True |]%PropX).
-  admit.
+  vcgen; (sep_auto; words).
 Qed.
 
 (* Print Assumptions immedTestOk. *)
