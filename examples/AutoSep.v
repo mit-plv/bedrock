@@ -1,46 +1,5 @@
-Require Import Bedrock.
-Export Bedrock.
-
-(** * Specialize the library proof automation to some parameters useful for basic examples. *)
-
-Import TacPackIL.
-Require Bedrock.sep.PtsTo.
-Require Export Bedrock.sep.Array Bedrock.sep.Locals.
-
-(** Build our memory plugin **)
-Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
-
-Definition TacPackage : Type := 
-  @ILAlgoTypes.TypedPackage.
-
-Definition auto_ext' : TacPackage.
-  ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
-  ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
-  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
-  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Locals.pack ltac:(fun d =>
-    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c, d) ltac:(fun res => 
-      let res := 
-        eval cbv beta iota zeta delta [
-          ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
-          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
-          ILAlgoTypes.PACK.applyTypes
-          ILAlgoTypes.PACK.applyFuncs
-          ILAlgoTypes.PACK.applyPreds
-
-          ILAlgoTypes.BedrockPackage.bedrock_package
-          Env.repr_combine Env.footprint Env.nil_Repr
-          Env.listToRepr
-          app map
-          
-          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
-          ILAlgoTypes.AllAlgos_composite
-          ILAlgoTypes.oplus Prover.composite_ProverT 
-          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
-
-          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig Bedrock.sep.Locals.ssig
-        ] in res in
-        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" )))).
-Defined.
+Require Import AutoSepExt.
+Export AutoSepExt.
 
 Ltac refold :=
   fold plus in *; fold minus in *;
@@ -124,6 +83,7 @@ Ltac sep_firstorder := sep_easy;
          end; try subst.
 
 Require Import NArith.
+Import TacPackIL.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
@@ -863,13 +823,16 @@ Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
                      end; W_eq.
 
-Definition locals_return ns vs avail p (ns' : list string) :=
+Definition locals_return ns vs avail p (ns' : list string) (avail' : nat) :=
   locals ns vs avail p.
 
-Theorem create_locals_return : forall ns' ns avail vs p,
-  locals ns vs avail p = locals_return ns vs avail p ns'.
+Theorem create_locals_return : forall ns' avail' ns avail vs p,
+  locals ns vs avail p = locals_return ns vs avail p ns' avail'.
   reflexivity.
 Qed.
+
+Definition ok_return (ns' : list string) (avail avail' : nat) :=
+  (avail >= avail' + length ns')%nat.
 
 Ltac step ext := 
   match goal with
@@ -880,11 +843,11 @@ Ltac step ext :=
       match post with
         | context[locals ?ns ?vs ?avail _] =>
           match pre with
-            | context[locals ?ns' ?vs' _ _] =>
+            | context[locals ?ns' ?vs' ?avail' _] =>
               match vs' with
                 | vs => fail 1
-                | _ => rewrite (create_locals_return ns' ns avail);
-                  assert (avail >= length ns')%nat by (simpl; omega);
+                | _ => rewrite (create_locals_return ns' avail' ns avail);
+                  assert (ok_return ns' avail avail')%nat by (red; simpl; omega);
                     solve [ do 2 cancel ext ]
               end
           end
@@ -929,32 +892,41 @@ Ltac descend :=
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
            end).
 
-Definition locals_call ns vs avail p (ns' : list string) :=
+Definition locals_call ns vs avail p (ns' : list string) (avail' : nat) :=
   locals ns vs avail p.
 
-Lemma make_call : forall ns ns' vs avail p,
+Definition ok_call (ns' : list string) (avail avail' : nat) :=
   (length ns' <= avail)%nat
-  -> NoDup ns'
-  -> locals_call ns vs avail p ns' ===>
-  locals ns vs 0 p * Ex vs', locals ns' vs' (avail - length ns') (p ^+ natToW (4 * length ns)).
-  intros; eapply do_call'; eauto.
+  /\ (avail' <= avail - length ns')%nat
+  /\ NoDup ns'.
+
+Definition excessStack (p : W) (ns : list string) (avail : nat) (ns' : list string) (avail' : nat) :=
+  reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
+  (avail - length ns' - avail').
+
+Lemma make_call : forall ns ns' vs avail avail' p,
+  ok_call ns' avail avail'
+  -> locals_call ns vs avail p ns' avail' ===>
+  locals ns vs 0 p
+  * Ex vs', locals ns' vs' avail' (p ^+ natToW (4 * length ns))
+  * excessStack p ns avail ns' avail'.
+  unfold ok_call; intuition; eapply do_call; eauto.
 Qed.
 
-Lemma make_return : forall ns ns' vs avail p,
-  (avail >= length ns')%nat
+Lemma make_return : forall ns ns' vs avail avail' p,
+  ok_return ns' avail avail'
   -> (locals ns vs 0 p
-    * Ex vs', locals ns' vs' (avail - length ns') (p ^+ natToW (4 * length ns)))
-  ===> locals_return ns vs avail p ns'.
-  intros; apply do_return'; omega || words.
+    * Ex vs', locals ns' vs' avail' (p ^+ natToW (4 * length ns))
+    * excessStack p ns avail ns' avail')
+  ===> locals_return ns vs avail p ns' avail'.
+  unfold ok_return; intuition; apply do_return; omega || words.
 Qed.
 
-(** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
 Ltac prepare fwd bwd := 
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    (*W (settings * state)%type*)
     isConst auto_ext' tt tt (make_call, fwd) (make_return, bwd).
 
 Definition auto_ext : TacPackage.
@@ -975,9 +947,11 @@ Ltac post :=
               |- context[locals ?ns' _ ?avail' _] ] =>
             match avail' with
               | avail => fail 1
-              | _ => change (locals ns vs avail p) with (locals_call ns vs avail p ns') in H;
-                assert (length ns' <= avail)%nat by (simpl; omega);
-                assert (NoDup ns') by (repeat constructor; simpl; intuition congruence)
+              | _ => change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail') in H;
+                assert (ok_call ns' avail avail')%nat
+                  by (split; [ simpl; omega
+                    | split; [ simpl; omega
+                      | repeat constructor; simpl; intuition congruence ] ])
             end
         end
   (*TIME ) *).

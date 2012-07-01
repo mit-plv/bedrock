@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := AutoSep LemmaTests \
+MODULES := AutoSepExt AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap WordArith TrivialArray \
            TrivialLocals \
            Pair SinglyLinkedList \
