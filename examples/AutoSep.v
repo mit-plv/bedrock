@@ -34,6 +34,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
   Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_ Use_
   Structured.If_ Structured.While_ Goto_ Structured.Call_ IGoto
+  setArgs Programming.Reserved Programming.Formals Programming.Precondition
   importsMap fullImports buildLocals blocks union Nplus Nsucc length N_of_nat
   List.fold_left ascii_lt string_lt label'_lt
   LabelKey.compare' LabelKey.compare LabelKey.eq_dec
@@ -823,16 +824,17 @@ Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
                      end; W_eq.
 
-Definition locals_return ns vs avail p (ns' : list string) (avail' : nat) :=
+Definition locals_return ns vs avail p (ns' : list string) (avail' offset : nat) :=
   locals ns vs avail p.
 
-Theorem create_locals_return : forall ns' avail' ns avail vs p,
-  locals ns vs avail p = locals_return ns vs avail p ns' avail'.
+Theorem create_locals_return : forall ns' avail' ns avail offset vs p,
+  locals ns vs avail p = locals_return ns vs avail p ns' avail' offset.
   reflexivity.
 Qed.
 
-Definition ok_return (ns' : list string) (avail avail' : nat) :=
-  (avail >= avail' + length ns')%nat.
+Definition ok_return (ns ns' : list string) (avail avail' offset : nat) :=
+  (avail >= avail' + length ns')%nat
+  /\ offset = 4 * length ns.
 
 Ltac peelPrefix ls1 ls2 :=
   match ls1 with
@@ -861,9 +863,12 @@ Ltac step ext :=
             | context[locals ?ns' ?vs' ?avail' _] =>
               match vs' with
                 | vs => fail 1
-                | _ => rewrite (create_locals_return ns' avail' ns avail);
-                  assert (ok_return ns' avail avail')%nat by (red; simpl; omega);
-                    solve [ do 2 cancel ext ]
+                | _ => let offset := eval simpl in (4 * List.length ns) in
+                  rewrite (create_locals_return ns' avail' ns avail offset);
+                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                    simpl; omega
+                    | reflexivity ] );
+                    solve [ cancel ext ]
               end
           end
       end
@@ -907,48 +912,50 @@ Ltac descend :=
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
            end).
 
-Definition locals_call ns vs avail p (ns' : list string) (avail' : nat) :=
+Definition locals_call ns vs avail p (ns' : list string) (avail' : nat) (offset : nat) :=
   locals ns vs avail p.
 
-Definition ok_call (ns' : list string) (avail avail' : nat) :=
+Definition ok_call (ns ns' : list string) (avail avail' : nat) (offset : nat) :=
   (length ns' <= avail)%nat
   /\ (avail' <= avail - length ns')%nat
-  /\ NoDup ns'.
+  /\ NoDup ns'
+  /\ offset = 4 * length ns.
 
 Definition excessStack (p : W) (ns : list string) (avail : nat) (ns' : list string) (avail' : nat) :=
   reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
   (avail - length ns' - avail').
 
-Lemma make_call : forall ns ns' vs avail avail' p,
-  ok_call ns' avail avail'
-  -> locals_call ns vs avail p ns' avail' ===>
+Lemma make_call : forall ns ns' vs avail avail' p offset,
+  ok_call ns ns' avail avail' offset
+  -> locals_call ns vs avail p ns' avail' offset ===>
   locals ns vs 0 p
-  * Ex vs', locals ns' vs' avail' (p ^+ natToW (4 * length ns))
+  * Ex vs', locals ns' vs' avail' (p ^+ natToW offset)
   * excessStack p ns avail ns' avail'.
-  unfold ok_call; intuition; eapply do_call; eauto.
+  unfold ok_call; intuition; subst; eapply do_call; eauto.
 Qed.
 
-Lemma make_return : forall ns ns' vs avail avail' p,
-  ok_return ns' avail avail'
+Lemma make_return : forall ns ns' vs avail avail' p offset,
+  ok_return ns ns' avail avail' offset
   -> (locals ns vs 0 p
-    * Ex vs', locals ns' vs' avail' (p ^+ natToW (4 * length ns))
+    * Ex vs', locals ns' vs' avail' (p ^+ natToW offset)
     * excessStack p ns avail ns' avail')
-  ===> locals_return ns vs avail p ns' avail'.
-  unfold ok_return; intuition; apply do_return; omega || words.
+  ===> locals_return ns vs avail p ns' avail' offset.
+  unfold ok_return; intuition; subst; apply do_return; omega || words.
 Qed.
 
-Definition locals_in ns vs avail p (ns' : list string) (ns'' : list string) :=
+Definition locals_in ns vs avail p (ns' : list string) (ns'' : list string) (avail' : nat) :=
   locals ns vs avail p.
 
 Open Scope list_scope.
 
-Definition ok_in (ns : list string) (avail : nat) (ns' ns'' : list string) :=
-  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat /\ NoDup (ns ++ ns').
+Definition ok_in (ns : list string) (avail : nat) (ns' ns'' : list string) (avail' : nat) :=
+  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat /\ NoDup (ns ++ ns')
+  /\ avail' = avail - length ns'.
 
-Theorem init_in : forall ns ns' ns'' vs avail p,
-  ok_in ns avail ns' ns''
-  -> locals_in ns vs avail p ns' ns'' ===>
-  Ex vs', locals ns'' (merge vs vs' ns) (avail - length ns') p.
+Theorem init_in : forall ns ns' ns'' vs avail p avail',
+  ok_in ns avail ns' ns'' avail'
+  -> locals_in ns vs avail p ns' ns'' avail' ===>
+  Ex vs', locals ns'' (merge vs vs' ns) avail' p.
   unfold ok_in; intuition; subst; apply prelude_in; auto.
 Qed.
 
@@ -983,19 +990,22 @@ Ltac post :=
                  let new := eval simpl in (List.length ns' - List.length ns) in
                  match new with
                    | exposed =>
-                     change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns') in H;
-                       assert (ok_in ns avail ns'' ns')%nat
+                     let avail' := eval simpl in (avail - List.length ns'') in
+                     change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns' avail') in H;
+                       assert (ok_in ns avail ns'' ns' avail')%nat
                          by (split; [
                            reflexivity
                            | split; [simpl; omega
-                             | repeat constructor; simpl; intuition congruence ]
-                         ])
+                             | split; [ repeat constructor; simpl; intuition congruence
+                               | reflexivity ] ] ])                        
                  end)
-                || (change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail') in H;
-                  assert (ok_call ns' avail avail')%nat
+                || (let offset := eval simpl in (4 * List.length ns) in
+                  change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+                  assert (ok_call ns ns' avail avail' offset)%nat
                     by (split; [ simpl; omega
                       | split; [ simpl; omega
-                        | repeat constructor; simpl; intuition congruence ] ]))
+                        | split; [ repeat constructor; simpl; intuition congruence
+                          | reflexivity ] ] ]))
             end
         end
   (*TIME ) *).

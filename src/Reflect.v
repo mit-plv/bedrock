@@ -84,6 +84,18 @@ Ltac refl_app cc e :=
         end
       in
       match e with
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,tt))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,tt)))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
         | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) =>
           let As := constr:((A,(B,(C,(D,(E,(G,tt))))))) in
           let Ts := getTypes As in
