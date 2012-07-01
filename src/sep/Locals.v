@@ -982,8 +982,6 @@ Lemma do_return' : forall ns ns' vs avail avail' p p',
   simp; eauto.
   simp; intro.
 
-  apply Exists_I with B1.
-  apply Exists_I with (HT.join B2 B0).
   pure (split m B B0).
   pure (split B B1 B2).
   pure (split B1 B3 B4).
@@ -996,15 +994,17 @@ Lemma do_return' : forall ns ns' vs avail avail' p p',
   generalize (split_semp _ _ _ H1 H3); intro; subst.
   generalize (split_semp _ _ _ H5 H7); intro; subst.
   hnf in H3, H7; subst.
+  apply Exists_I with B.
+  apply Exists_I with B0.
   repeat apply And_I.
-  apply Inj_I.
-  apply split_comm.
-  eapply split_assoc.
-  apply split_comm; eassumption.
-  apply split_comm; assumption.
-  apply Exists_I with smem_emp; apply Exists_I with B4.
-  repeat apply And_I; try (apply Inj_I; auto).
-  reflexivity.
+  apply Inj_I; assumption.
+  apply Exists_I with B2; apply Exists_I with B4.
+  repeat apply And_I.
+  apply Inj_I; apply split_comm; assumption.
+  apply Inj_I; assumption.
+  unfold allocated at 4.
+  unfold empB, emp, inj.
+  from_hyp.
   from_hyp.
   
   Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
@@ -1096,3 +1096,27 @@ Lemma do_return' : forall ns ns' vs avail avail' p p',
   apply allocated_join.
   instantiate (1 := length ns').
   omega.
+  replace (0 + 4 * length ns') with (length ns' * 4) by omega.
+  replace (avail' + Datatypes.length ns' - Datatypes.length ns') with avail' by omega.
+  apply Exists_I with B9; apply Exists_I with B7.
+  repeat apply And_I.
+  apply Inj_I; assumption.
+  
+  unfold array at 1.
+  replace (length ns') with (length (toArray ns' B5))
+    by apply length_toArray.
+  eapply Imply_E.
+  apply interp_weaken.
+  apply ptsto32m_allocated.
+  replace (length ns * 4) with (4 * length ns) by omega.
+  from_hyp.
+
+  eapply Imply_E.
+  apply interp_weaken.
+  apply allocated_shift_base.
+  3: from_hyp.
+  replace (4 * length ns) with (length ns * 4) by omega.
+  unfold natToW.
+  W_eq.
+  reflexivity.
+Qed.
