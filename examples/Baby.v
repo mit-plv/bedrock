@@ -77,7 +77,7 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
     bfunction "main"() [SPEC reserving 1
       PRE[_] [| True |]
       POST[_] [| True |] ]
-      Call "immed"!"immed"
+      Call "immed"!"immed"()
       [RET
         PRE[_] [| True |]
         POST[_] [| True|] ];;
@@ -110,7 +110,7 @@ Definition immedTestBig := bimport [[ "immed"!"immed" @ [immedS] ]]
     bfunction "main"() [SPEC reserving 5
       PRE[_] [| True |]
       POST[_] [| True |] ]
-      Call "immed"!"immed"
+      Call "immed"!"immed"()
       [RET
         PRE[_] [| True |]
         POST[_] [| True|] ];;
@@ -141,6 +141,32 @@ Definition inc := bmodule "inc" {{
 
 Theorem incOk : moduleOk inc.
   vcgen; sep_auto.
+Qed.
+
+Definition incTest := bimport [[ "inc"!"inc" @ [incS] ]]
+  bmodule "main" {{
+    bfunction "main"("y") [SPEC reserving 3
+      PRE[_] [| True |]
+      POST[rv] [| rv = $10 |] ]
+      "y" <-- Call "inc"!"inc"(7)
+      [RET
+        PRE[_, R] [| R = $8 |]
+        POST[R'] [| R' = $10 |] ];;
+      "y" <- "y" + 2;;
+      Return "y"
+    end
+  }}.
+
+Theorem incTestOk : moduleOk incTest.
+  vcgen.
+  sep_auto.
+  sep_auto.
+  sep_auto.
+  admit. (* Missing support for safety conditions at function calls w/ args *)
+  sep_auto; words.
+  sep_auto.
+  sep_auto.
+  sep_auto; words.
 Qed.
 
 

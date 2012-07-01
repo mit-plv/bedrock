@@ -71,10 +71,28 @@ Definition Goto (rv : rvalue') : chunk := fun ns _ =>
                                    | _ => IGoto im mn (rv ns)
                                  end).
 
-Definition Call_ (f : label) (afterCall : list string -> nat -> assert) : chunk := fun ns res =>
-  Structured (Binop Sp Sp Plus (natToW (4 + 4 * List.length ns)) :: nil)
+Fixpoint setArgs (slot : nat) (args : list rvalue') (ns : list string) :=
+  match args with
+    | nil => nil
+    | arg :: args' =>
+      Binop Rv Sp Plus (natToW (4 + 4 * List.length ns))
+      :: Assign (LvMem (Indir Rv (natToW slot))) (arg ns)
+      :: setArgs (4 + slot) args' ns
+  end.
+
+Definition lvalue' := list string -> lvalue.
+
+Definition Call_ (retOpt : option lvalue') (f : label) (args : list rvalue')
+  (afterCall : list string -> nat -> assert) : chunk := fun ns res =>
+  Structured (setArgs 4 args ns
+    ++ Binop Sp Sp Plus (natToW (4 + 4 * List.length ns)) :: nil)
   (fun im mn H => Seq_ H (Call_ H mn f (afterCall ns res))
-    (Straightline_ im mn (Binop Sp Sp Minus (natToW (4 + 4 * List.length ns)) :: nil))).
+    (Straightline_ im mn
+      (Binop Sp Sp Minus (natToW (4 + 4 * List.length ns))
+        :: match retOpt with
+             | None => nil
+             | Some lv => Assign (lv ns) Rv :: nil
+           end))).
 
 
 (** * Modules *)
@@ -105,8 +123,6 @@ Definition compile (m : module) : list (label * block) :=
 
 Infix "+" := Indir : loc_scope.
 Delimit Scope loc_scope with loc.
-
-Definition lvalue' := list string -> lvalue.
 
 Notation "$[ v ]" := ((fun _ => LvMem v%loc) : lvalue') (at level 0, n at level 0) : SP_scope.
 
@@ -200,8 +216,18 @@ Notation "'If' c { b1 } 'else' { b2 }" := (If_ c b1 b2)
 Notation "[ p ] 'While' c { b }" := (While_ p c b)
   (no associativity, at level 95, c at level 0) : SP_scope.
 
-Notation "'Call' f [ p ]" := (Call_ f p)
-  (no associativity, at level 95) : SP_scope.
+Notation "'Call' f () [ p ]" :=
+  (Call_ None f nil p)
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "'Call' f ( x1 , .. , xN ) [ p ]" :=
+  (Call_ None f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) p)
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'Call' f () [ p ]" :=
+  (Call_ (@Some lvalue' rv) f nil p)
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'Call' f ( x1 , .. , xN ) [ p ]" :=
+  (Call_ (@Some lvalue' rv) f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) p)
+  (no associativity, at level 95, f at level 0) : SP_scope.
 
 Notation "'Return' e" := (Rv <- e;; Rp <- $[Sp+0];; Goto Rp)%SP
   (no associativity, at level 95) : SP_scope.
@@ -233,24 +259,32 @@ Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs
 Notation INV := (fun inv => inv true (fun w => w)).
 Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
 
-Definition spec := (nat * (option (list string) -> assert))%type.
-(* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
+Record spec := {
+  Reserved : nat;
+  Formals : list string;
+  Precondition : option (list string) -> assert
+  (* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
+}.
 
 Notation "'SPEC' 'reserving' n" :=
-  (fun inv => let n' := n in (n', fun extras =>
+  (fun inv => let n' := n in {| Reserved := n';
+    Formals := nil;
+    Precondition :=  fun extras =>
     match extras with
       | None => inv false (fun w => w) nil n'
       | Some extras => inv true (fun w => w) extras (n' - List.length extras)
-    end)) (at level 0, n at level 0).
+    end |}) (at level 0, n at level 0).
 
 Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n" :=
   (let vars := cons x1 (.. (cons xN nil) ..) in
    let n' := n in
-    fun inv => (n', fun extras =>
+    fun inv => {| Reserved := n';
+      Formals := vars;
+      Precondition := fun extras =>
       match extras with
         | None => inv false (fun w => w) vars n'
-        | Some extras => inv true (fun w => w) extras (n' - List.length extras)
-      end)) (at level 0, n at level 0, x1 at level 0, xN at level 0).
+        | Some extras => inv true (fun w => w) extras (n' - (List.length extras - List.length vars))
+      end |} ) (at level 0, n at level 0, x1 at level 0, xN at level 0).
 
 
 (** ** Modules *)
@@ -258,13 +292,13 @@ Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n" :=
 Notation "'bfunction' name () [ p ] b 'end'" :=
   (let p' := p in
     {| FName := name;
-      FPrecondition := snd p' None;
+      FPrecondition := Precondition p' None;
       FBody := ($[Sp+0] <- Rp;;
         (fun _ _ =>
-          Structured nil (fun im mn _ => Structured.Assert_ im mn (snd p' (Some nil))));;
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some nil))));;
         b)%SP;
       FVars := nil;
-      FReserved := fst p' |})
+      FReserved := Reserved p' |})
   (no associativity, at level 95, name at level 0, only parsing) : SPfuncs_scope.
 
 Notation "'bfunction' name ( x1 , .. , xN ) [ p ] b 'end'" :=
@@ -272,13 +306,13 @@ Notation "'bfunction' name ( x1 , .. , xN ) [ p ] b 'end'" :=
    let vars := cons x1 (.. (cons xN nil) ..) in
    let b' := b%SP in
     {| FName := name;
-      FPrecondition := snd p' None;
+      FPrecondition := Precondition p' None;
       FBody := ($[Sp+0] <- Rp;;
         (fun _ _ =>
-          Structured nil (fun im mn _ => Structured.Assert_ im mn (snd p' (Some vars))));;
-        b')%SP;
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some vars))));;
+        (fun ns res => b' ns (res - (List.length vars - List.length (Formals p')))%nat))%SP;
       FVars := vars;
-      FReserved := fst p' |})
+      FReserved := Reserved p' |})
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Delimit Scope SPfuncs_scope with SPfuncs.
@@ -290,7 +324,7 @@ Delimit Scope SPfuncs_scope with SPfuncs.
 Notation "'bmodule' name fs" := (bmodule_ nil name fs%SPfuncs) (no associativity, at level 95, name at level 0, only parsing).
 
 Notation "x ! y" := (x, y) (only parsing) : SPimps_scope.
-Notation "name @ [ p ]" := (let (x, y) := name in (x, y, snd p None)) (at level 0, only parsing) : SPimps_scope.
+Notation "name @ [ p ]" := (let (x, y) := name in (x, y, Precondition p None)) (at level 0, only parsing) : SPimps_scope.
 Notation "[[ x , .. , y ]]" := (cons x .. (cons y nil) ..) (only parsing) : SPimps_scope.
 
 Delimit Scope SPimps_scope with SPimps.
