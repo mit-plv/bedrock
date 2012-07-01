@@ -922,16 +922,40 @@ Lemma make_return : forall ns ns' vs avail avail' p,
   unfold ok_return; intuition; apply do_return; omega || words.
 Qed.
 
+Definition locals_in ns vs avail p (ns' : list string) (ns'' : list string) :=
+  locals ns vs avail p.
+
+Open Scope list_scope.
+
+Definition ok_in (ns : list string) (avail : nat) (ns' ns'' : list string) :=
+  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat /\ NoDup (ns ++ ns').
+
+Theorem init_in : forall ns ns' ns'' vs avail p,
+  ok_in ns avail ns' ns''
+  -> locals_in ns vs avail p ns' ns'' ===>
+  Ex vs', locals ns'' (merge vs vs' ns) (avail - length ns') p.
+  unfold ok_in; intuition; subst; apply prelude_in; auto.
+Qed.
+
 Ltac prepare fwd bwd := 
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    isConst auto_ext' tt tt (make_call, fwd) (make_return, bwd).
+    isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, bwd).
 
 Definition auto_ext : TacPackage.
   prepare tt tt.
 Defined.
+
+Ltac peelPrefix ls1 ls2 :=
+  match ls1 with
+    | nil => ls2
+    | ?x :: ?ls1' =>
+      match ls2 with
+        | x :: ?ls2' => peelPrefix ls1' ls2'
+      end
+  end.
 
 Ltac post := 
   (*TIME time "post:propxFo" *)
@@ -947,11 +971,25 @@ Ltac post :=
               |- context[locals ?ns' _ ?avail' _] ] =>
             match avail' with
               | avail => fail 1
-              | _ => change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail') in H;
-                assert (ok_call ns' avail avail')%nat
-                  by (split; [ simpl; omega
-                    | split; [ simpl; omega
-                      | repeat constructor; simpl; intuition congruence ] ])
+              | _ =>
+                (let ns'' := peelPrefix ns ns' in
+                 let exposed := eval simpl in (avail - avail') in
+                 let new := eval simpl in (List.length ns' - List.length ns) in
+                 match new with
+                   | exposed =>
+                     change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns') in H;
+                       assert (ok_in ns avail ns'' ns')%nat
+                         by (split; [
+                           reflexivity
+                           | split; [simpl; omega
+                             | repeat constructor; simpl; intuition congruence ]
+                         ])
+                 end)
+                || (change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail') in H;
+                  assert (ok_call ns' avail avail')%nat
+                    by (split; [ simpl; omega
+                      | split; [ simpl; omega
+                        | repeat constructor; simpl; intuition congruence ] ]))
             end
         end
   (*TIME ) *).

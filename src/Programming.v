@@ -216,24 +216,18 @@ Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, 
 
 Local Open Scope string_scope.
 
-Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> vals -> W -> W -> HProp) (rpStashed : bool) (adjustSp : W -> W)
+Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> W -> W -> HProp) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (res : nat) : assert :=
   st ~> let sp := adjustSp st#Sp in
     ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res sp] * ^[pre (sel vs) st#Rv] * #0 ] st
     /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
       [| st'#Sp = sp |]
-      /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res sp] * ^[post (sel vs) (sel vs') st#Rv st'#Rv] * #1 ] st').
+      /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res sp] * ^[post (sel vs) st#Rv st'#Rv] * #1 ] st').
 
-Notation "'PRE' [ vs ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs vs' _ _ => post%Sep))
+Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs _ rv => post%Sep))
   (at level 0).
 
-Notation "'PRE' [ vs ] pre 'POST' [ vs' , rv ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs vs' _ rv => post%Sep))
-  (at level 0).
-
-Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' , rv' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs vs' rv rv' => post%Sep))
-  (at level 0).
-
-Notation "'PRE' [ vs , rv ] pre 'POST' [ vs' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs vs' rv _ => post%Sep))
+Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs rv rv' => post%Sep))
   (at level 0).
 
 Notation INV := (fun inv => inv true (fun w => w)).
@@ -243,18 +237,19 @@ Definition spec := (nat * (option (list string) -> assert))%type.
 (* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
 
 Notation "'SPEC' 'reserving' n" :=
-  (fun inv => (n, fun extras =>
+  (fun inv => let n' := n in (n', fun extras =>
     match extras with
-      | None => inv false (fun w => w) nil n
-      | Some extras => inv true (fun w => w) extras n
+      | None => inv false (fun w => w) nil n'
+      | Some extras => inv true (fun w => w) extras (n' - List.length extras)
     end)) (at level 0, n at level 0).
 
 Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n" :=
   (let vars := cons x1 (.. (cons xN nil) ..) in
-    fun inv => (n, fun extras =>
+   let n' := n in
+    fun inv => (n', fun extras =>
       match extras with
-        | None => inv false (fun w => w) vars n
-        | Some extras => inv true (fun w => w) extras n
+        | None => inv false (fun w => w) vars n'
+        | Some extras => inv true (fun w => w) extras (n' - List.length extras)
       end)) (at level 0, n at level 0, x1 at level 0, xN at level 0).
 
 
