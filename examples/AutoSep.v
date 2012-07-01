@@ -834,11 +834,24 @@ Qed.
 Definition ok_return (ns' : list string) (avail avail' : nat) :=
   (avail >= avail' + length ns')%nat.
 
+Ltac peelPrefix ls1 ls2 :=
+  match ls1 with
+    | nil => ls2
+    | ?x :: ?ls1' =>
+      match ls2 with
+        | x :: ?ls2' => peelPrefix ls1' ls2'
+      end
+  end.
+
 Ltac step ext := 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
+    | [ |- himp _ (locals ?ns'' ?vs _ ?p) (locals ?ns _ ?avail ?p') ] =>
+      replace p' with p by words;
+      let ns' := peelPrefix ns ns'' in
+        apply (@prelude_out ns ns' vs avail p); simpl; omega
     | [ |- himp _ ?pre ?post ] =>
       match post with
         | context[locals ?ns ?vs ?avail _] =>
@@ -947,15 +960,6 @@ Ltac prepare fwd bwd :=
 Definition auto_ext : TacPackage.
   prepare tt tt.
 Defined.
-
-Ltac peelPrefix ls1 ls2 :=
-  match ls1 with
-    | nil => ls2
-    | ?x :: ?ls1' =>
-      match ls2 with
-        | x :: ?ls2' => peelPrefix ls1' ls2'
-      end
-  end.
 
 Ltac post := 
   (*TIME time "post:propxFo" *)

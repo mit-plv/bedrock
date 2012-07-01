@@ -31,15 +31,7 @@ Definition seven := bmodule "seven" {{
 }}.
 
 Theorem sevenOk : moduleOk seven.
-  vcgen.
-
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  (* Placeholder for [init_out] *)
-  instantiate (1 := x4); admit.
-  sep_auto.
-  sep_auto.
+  vcgen; sep_auto.
 Qed.
 
 
