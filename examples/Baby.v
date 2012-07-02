@@ -158,15 +158,7 @@ Definition incTest := bimport [[ "inc"!"inc" @ [incS] ]]
   }}.
 
 Theorem incTestOk : moduleOk incTest.
-  vcgen.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  admit. (* Missing support for safety conditions at function calls w/ args *)
-  sep_auto; words.
-  sep_auto.
-  sep_auto.
-  sep_auto; words.
+  vcgen; (sep_auto; words).
 Qed.
 
 

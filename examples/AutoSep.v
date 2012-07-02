@@ -970,6 +970,32 @@ Definition auto_ext : TacPackage.
   prepare tt tt.
 Defined.
 
+Ltac slotVariable E :=
+  match E with
+    | 4 => constr:"0"
+    | 8 => constr:"1"
+    | 12 => constr:"2"
+    | 16 => constr:"3"
+    | 20 => constr:"4"
+    | 24 => constr:"5"
+    | 28 => constr:"6"
+    | 32 => constr:"7"
+    | 36 => constr:"8"
+    | 40 => constr:"9"
+  end.
+
+Ltac slotVariables E :=
+  match E with
+    | Binop (LvReg Rv) (RvLval (LvReg Sp)) Plus (RvImm (natToW _))
+      :: Assign (LvMem (Indir Rv (natToW ?slot))) _
+      :: ?E' =>
+      let v := slotVariable slot in
+        let vs := slotVariables E' in
+          constr:(v :: vs)
+    | _ :: ?E' => slotVariables E'
+    | nil => constr:(@nil string)
+  end.
+
 Ltac post := 
   (*TIME time "post:propxFo" *)
   propxFo; 
@@ -1006,6 +1032,20 @@ Ltac post :=
                       | split; [ simpl; omega
                         | split; [ repeat constructor; simpl; intuition congruence
                           | reflexivity ] ] ]))
+            end
+          | [ _ : evalInstrs _ _ ?E = None, H : context[locals ?ns ?vs ?avail ?p] |- _ ] =>
+            let ns' := slotVariables E in
+            match ns' with
+              | nil => fail 1
+              | _ =>
+                let ns' := constr:("rp" :: ns') in
+                  let offset := eval simpl in (4 * List.length ns) in
+                    change (locals ns vs avail p) with (locals_call ns vs avail p ns' 0 offset) in H;
+                      assert (ok_call ns ns' avail 0 offset)%nat
+                        by (split; [ simpl; omega
+                          | split; [ simpl; omega
+                            | split; [ repeat constructor; simpl; intuition congruence
+                              | reflexivity ] ] ])
             end
         end
   (*TIME ) *).
