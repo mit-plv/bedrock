@@ -180,6 +180,9 @@ Definition Assign' (lv : lvalue') (rh : rhs) :=
                    end).
 
 Infix "<-" := Assign' (no associativity, at level 90) : SP_scope.
+Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
+Notation "x <-* y" := (Rv <- y;; x <- $[Rv])%SP (at level 90) : SP_scope.
+Notation "x *<- y" := (Rv <- x;; $[Rv] <- y)%SP (at level 90) : SP_scope.
 
 Fixpoint variableSlot' (ns : list string) (nm : string) : option nat :=
   match ns with
@@ -205,8 +208,6 @@ Coercion variableSlot : string >-> lvalue'.
 
 
 (** ** Commands *)
-
-Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
 
 Notation "'Assert' [ p ]" := (Assert_ p) (no associativity, at level 95) : SP_scope.
 
@@ -251,13 +252,15 @@ Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> W -> W -> 
       /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res sp] * ^[post (sel vs) st#Rv st'#Rv] * #1 ] st').
 
 Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs _ rv => post%Sep))
-  (at level 0).
+  (at level 89).
 
 Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs rv rv' => post%Sep))
-  (at level 0).
+  (at level 89).
 
-Notation INV := (fun inv => inv true (fun w => w)).
-Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
+
+Notation "'INV' inv" := (inv true (fun w => w)) (at level 90).
+Notation "'RET' inv" := (fun ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns) (at level 90).
 
 Record spec := {
   Reserved : nat;
@@ -266,25 +269,25 @@ Record spec := {
   (* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
 }.
 
-Notation "'SPEC' 'reserving' n" :=
-  (fun inv => let n' := n in {| Reserved := n';
+Notation "'SPEC' 'reserving' n inv" :=
+  (let n' := n in {| Reserved := n';
     Formals := nil;
     Precondition :=  fun extras =>
     match extras with
       | None => inv false (fun w => w) nil n'
       | Some extras => inv true (fun w => w) extras (n' - List.length extras)
-    end |}) (at level 0, n at level 0).
+    end |}) (at level 90, n at level 0, inv at next level).
 
-Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n" :=
+Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n inv" :=
   (let vars := cons x1 (.. (cons xN nil) ..) in
    let n' := n in
-    fun inv => {| Reserved := n';
+    {| Reserved := n';
       Formals := vars;
       Precondition := fun extras =>
       match extras with
         | None => inv false (fun w => w) vars n'
         | Some extras => inv true (fun w => w) extras (n' - (List.length extras - List.length vars))
-      end |} ) (at level 0, n at level 0, x1 at level 0, xN at level 0).
+      end |} ) (at level 90, n at level 0, x1 at level 0, xN at level 0, inv at next level).
 
 
 (** ** Modules *)
