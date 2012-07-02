@@ -78,6 +78,3 @@ Hint Immediate pow2_pos.
 Hint Extern 1 (_ < _)%nat => omega.
 
 Require Import List.
-
-Hint Rewrite sel_selN upd_updN
-  using (repeat rewrite app_length in *; solve [ eauto ]) : sepFormula.

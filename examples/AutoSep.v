@@ -4,18 +4,17 @@ Export AutoSepExt.
 Ltac refold :=
   fold plus in *; fold minus in *;
     repeat match goal with
-             | [ |- context[list ?A] ] =>
+             | [ _ : list ?A |- _ ] =>
                progress change (fix length (l : list A) : nat :=
                  match l with
                    | nil => 0
                    | _ :: l' => S (length l')
                  end) with (@length A) in *
-             | [ _ : list ?A |- _ ] =>
-               progress change (fix app (l0 m : list A) : list A :=
+               || (progress change (fix app (l0 m : list A) : list A :=
                  match l0 with
                    | nil => m
                    | a1 :: l1 => a1 :: app l1 m
-                 end) with (@app A) in *
+                 end) with (@app A) in *)
                || (progress change (fix rev (l : list W) : list W :=
                  match l with
                    | nil => nil

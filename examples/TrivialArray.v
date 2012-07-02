@@ -2,78 +2,94 @@ Require Import AutoSep.
 
 (** * A trivial example to make sure the array proof automation isn't completely borked *)
 
-Definition readS : assert := st ~> ExX, Ex ls, [| $3 < natToW (length ls) |]%word
-  /\ ![ ^[array ls st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = selN ls 3 |] /\ ![ ^[array ls st#Rv] * #1 ] st').
+Definition readS : spec := SPEC("x") reserving 0
+  Ex ls,
+  PRE[V] [| $3 < natToW (length ls) |] * array ls (V "x")
+  POST[R] [| R = selN ls 3 |] * array ls (V "x").
 
-Definition writeS : assert := st ~> ExX, Ex ls, [| $3 < natToW (length ls) |]%word
-  /\ ![ ^[array ls st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> ![ ^[array (updN ls 3 11) st#Rv] * #1 ] st').
+Definition writeS : spec := SPEC("x") reserving 0
+  Ex ls,
+  PRE[V] [| $3 < natToW (length ls) |] * array ls (V "x")
+  POST[_] array (updN ls 3 11) (V "x").
 
 Definition bump := map (fun w : W => w ^+ $1).
 
-Definition bumpS : assert := st ~> ExX, Ex ls, Ex arr, Ex junk,
-  ![ (st#Sp ==*> arr, $(length ls), junk) * ^[array ls arr] * #0 ] st
-  /\ st#Rp @@ (st' ~> ![ ^[st#Sp =?> 3] * ^[array (bump ls) arr] * #1 ] st').
+Definition bumpS : spec := SPEC("arr", "len") reserving 3
+  Ex ls,
+  PRE[V] [| V "len" = $(length ls) |] * array ls (V "arr")
+  POST[_] array (bump ls) (V "arr").
 
 Open Scope list_scope.
 
 Definition arrays := bmodule "read" {{
-  bfunction "read" [readS] {
-    Rv <- $[Rv + 12];;
-    Goto Rp
-  } with bfunction "write" [writeS] {
-    $[Rv + 12] <- 11;;
-    Goto Rp
-  } with bfunction "bump" [bumpS] {
-    $[Sp+8] <- 0;;
-    [st ~> ExX, Ex ls, Ex done, Ex pending, Ex arr, Ex len, Ex i,
-      [| len = $(length ls) /\ i = $(length done) /\ ls = done ++ pending |]
-      /\ ![ (st#Sp ==*> arr, len, i) * ^[array ls arr] * #0 ] st
-      /\ st#Rp @@ (st' ~> Ex ls', [| ls' = done ++ bump pending |]
-        /\ ![ ^[st#Sp =?> 3] * ^[array ls' arr] * #1 ] st')]
-    While ($[Sp+8] < $[Sp+4]) {
-      Rv <- 4 * $[Sp+8];;
-      Rv <- $[Sp] + Rv;;
-      $[Rv] <- $[Rv] + 1;;
-      $[Sp+8] <- $[Sp+8] + 1
+  bfunction "read"("x") [readS]
+    "x" <- "x" + 12;;
+    "x" <-* "x";;
+    Return "x"
+  end with bfunction "write"("x") [writeS]
+    "x" <- "x" + 12;;
+    "x" *<- 11;;
+    Return 0
+  end with bfunction "bump"("arr", "len", "i", "tmp", "tmp2") [bumpS]
+    "i" <- 0;;
+    [INV Ex ls, Ex done, Ex pending,
+      PRE[V] [| V "len" = $(length ls) |] * [| V "i" = $(length done) |] * [| ls = done ++ pending |]
+        * array ls (V "arr")
+      POST[_] Ex ls', [| ls' = done ++ bump pending |] * array ls' (V "arr") ]
+    While ("i" < "len") {
+      "tmp" <- 4 * "i";;
+      "tmp" <- "arr" + "tmp";;
+      "tmp2" <-* "tmp";;
+      "tmp" *<- "tmp2" + 1;;
+      "i" <- "i" + 1
     };;
-    Goto Rp
-  }
+    Return 0
+  end
 }}.
-
-Lemma length_nil : forall A, natToW 0 = $(length (@nil A)).
-  reflexivity.
-Qed.
-
-Lemma app_nil : forall A (ls : list A), ls = nil ++ ls.
-  reflexivity.
-Qed.
-
-Hint Immediate length_nil app_nil.
 
 Hint Rewrite app_length : sepFormula.
 
-Ltac pure := intros; subst; autorewrite with sepFormula in *; simpl length;
-  autorewrite with sepFormula; eauto 6.
-
-Lemma shift_length : forall (done pending : list W),
-  ($(length done + 1) : W)
-  = $(length (done ++ (hd $0 pending ^+ natToW 1) :: nil)).
-  pure.
+Lemma shift_pos : forall (ls1 ls2 : list W),
+  (length ls1 < length (ls1 ++ ls2))%nat
+  -> length ls1 + length ls2 = length (ls1 ++ hd (natToW 0) ls2 ^+ natToW 1 :: nil) + length (tl ls2).
+  intros; autorewrite with sepFormula in *;
+    destruct ls2; simpl in *; unfold W; omega.
 Qed.
 
-Hint Extern 1 (_ = _) => apply shift_length.
+Ltac pure' := intros; repeat match goal with
+                               | [ H : sel _ _ = _ |- _ ] => rewrite H in *
+                             end;
+  autorewrite with sepFormula in *; simpl length in *; autorewrite with sepFormula.
+
+Ltac pure := pure'; try (apply f_equal; apply shift_pos; pure'); eauto 7.
+
+Lemma nil_front : forall A n,
+  n = @length A nil + n.
+  reflexivity.
+Qed.
+
+Hint Immediate nil_front.
+
+Lemma shift_updN : forall v pending done,
+  (length pending > 0)%nat
+  -> updN (done ++ pending) (length done) v = done ++ v :: tl pending.
+  induction done; simpl; intuition;
+    destruct pending; simpl in *; auto; omega.
+Qed.
+
+Theorem selN_hd : forall pending done,
+  selN (done ++ pending) (length done) = hd $0 pending.
+  induction done; simpl; intuition;
+    destruct pending; reflexivity.
+Qed.
+
+Hint Rewrite shift_updN selN_hd using solve [ eauto ] : sepFormula.
 
 Hint Rewrite DepList.pf_list_simpl : sepFormula.
 
-Lemma decomp : forall A (v : A) ls,
-  (length ls > 0)%nat
-  -> hd v ls :: tl ls = ls.
-  destruct ls; simpl; intuition.
-Qed.
+Hint Rewrite sel_selN upd_updN using solve [ eauto 6 ] : sepFormula.
 
-Hint Rewrite decomp using solve [ eauto ] : sepFormula.
+Hint Resolve shift_pos.
 
 Lemma not_done_yet : forall A (done pending : list A),
   natToW (length done) < $ (length done + length pending)
@@ -83,54 +99,6 @@ Lemma not_done_yet : forall A (done pending : list A),
 Qed.
 
 Hint Immediate not_done_yet.
-
-Lemma shift_updN : forall v pending done,
-  (length pending > 0)%nat
-  -> updN (done ++ pending) (length done) v = done ++ v :: tl pending.
-  induction done; simpl; intuition;
-    destruct pending; simpl in *; auto; omega.
-Qed.
-
-Hint Resolve shift_updN.
-
-Hint Extern 1 (_ = _) => apply shift_updN.
-
-Theorem selN_hd : forall pending done,
-  selN (done ++ pending) (length done) = hd $0 pending.
-  induction done; simpl; intuition;
-    destruct pending; reflexivity.
-Qed.
-
-Hint Rewrite selN_hd : sepFormula.
-
-Lemma shift_reorg : forall pending,
-  (length pending > 0)%nat
-  -> hd $0 pending ^+ $1 :: bump (tl pending)
-  = bump pending.
-  pure; destruct pending; simpl in *; auto; omega.
-Qed.
-
-Hint Rewrite shift_reorg using solve [ eauto ] : sepFormula.
-
-Hint Rewrite Npow2_nat wordToN_nat wordToNat_natToWord_idempotent
-  using nomega : N.
-
-Lemma now_done : forall A (done pending : list A) sz,
-  natToWord sz (length done + length pending) <= $ (length done)
-  -> (length done + length pending < pow2 sz)%nat
-  -> pending = nil.
-  destruct pending; pure; nomega.
-Qed.
-
-Hint Resolve now_done.
-
-Lemma unbump : forall done pending,
-  pending = nil
-  -> done ++ pending = done ++ bump pending.
-  pure.
-Qed.
-
-Hint Resolve unbump.
 
 Ltac done_bound := intros done pending; intros;
   assert (length (done ++ pending) < pow2 32)%nat by eauto;
@@ -151,6 +119,45 @@ Lemma done_bound2 : forall done pending P stn m specs,
 Qed.
 
 Hint Resolve done_bound done_bound2.
+
+Lemma shift_reorg : forall pending,
+  (length pending > 0)%nat
+  -> hd $0 pending ^+ $1 :: bump (tl pending)
+  = bump pending.
+  intros; autorewrite with sepFormula in *; destruct pending; simpl in *; auto; omega.
+Qed.
+
+Hint Rewrite shift_reorg using solve [ eauto ] : sepFormula.
+
+Hint Rewrite Npow2_nat wordToN_nat wordToNat_natToWord_idempotent
+  using nomega : N.
+
+Lemma now_done : forall A (done pending : list A) sz,
+  natToWord sz (length done + length pending) <= $ (length done)
+  -> (length done + length pending < pow2 sz)%nat
+  -> pending = nil.
+  destruct pending; pure; nomega.
+Qed.
+
+Hint Resolve now_done.
+
+Lemma unbump : forall done pending,
+  pending = nil
+  -> done ++ pending = done ++ bump pending.
+  intros; subst; reflexivity.
+Qed.
+
+Hint Resolve unbump.
+
+Lemma bound_nat : forall sz (done pending : list W),
+  natToWord sz (length done) < natToWord sz (length done + length pending)
+  -> (length (done ++ hd $0 pending ^+ $1 :: tl pending) < pow2 sz)%nat
+  -> (length done < length done + length pending)%nat.
+  intros; pre_nomega; autorewrite with sepFormula N in *; pure; destruct pending; pure;
+    autorewrite with N in *; auto.
+Qed.
+
+Hint Resolve bound_nat.
 
 Hint Extern 1 (himp _ _ _) => reflexivity.
 

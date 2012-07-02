@@ -1,7 +1,6 @@
 ROOT    := ..
 MODULES := AutoSepExt AutoSep LemmaTests \
-           Baby TrivialMem TrivialMem2 Indir Factorial Swap WordArith TrivialArray \
-           TrivialLocals \
+           Baby TrivialMem TrivialMem2 Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \
            Sets TreeSet
