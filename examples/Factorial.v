@@ -16,64 +16,55 @@ Qed.
 
 Hint Resolve FR0' FRS'.
 
-Definition factS : assert := st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 *  $4 =*> n4 * #0 ] st
-  /\ st#Rp @@ (st' ~> [| factR st#Rv st'#Rv |] /\ Ex n0', Ex n4', ![ $0 =*> n0' * $4 =*> n4' * #1 ] st').
+Definition factS : spec := SPEC("n") reserving 1
+  PRE[V] Emp
+  POST[R] [| factR (V "n") R |].
 
 Definition fact := bmodule "fact" {{
-  bfunction "fact" [factS] {
-    $[0] <- Rv;;
-    $[4] <- 1;;
+  bfunction "fact"("n", "acc") [factS]
+    "acc" <- 1;;
     
-    [st ~> ExX, Ex inp, Ex acc, ![ $0 =*> inp * $4 =*> acc * #0 ] st
-      /\ st#Rp @@ (st' ~> Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #1 ] st' /\ [| exists r, factR inp r /\ st'#Rv = acc ^* r |])]
-    While ($[0] <> 0) {
-      $[4] <- $[0] * $[4];;
-      $[0] <- $[0] - 1
+    [INV
+      PRE[V] Emp
+      POST[R] [| exists r, factR (V "n") r /\ R = V "acc" ^* r |] ]
+    While ("n" <> 0) {
+      "acc" <- "n" * "acc";;
+      "n" <- "n" - 1
     };;
 
-    Rv <- $[4];;
-    Goto Rp
-  }
+    Return "acc"
+  end
 }}.
 
 Lemma times_1 : forall (n m x : W), factR n x
   -> m = $1 ^* x
   -> factR n m.
-  intros; subst. replace ($1 ^* x) with x by W_eq. auto.
+  intros; subst; replace ($1 ^* x) with x by W_eq; auto.
 Qed.
 
 Hint Resolve times_1.
 
-Hint Extern 5 (@eq W ?X _) => match goal with
-                                | [ H : X = _ |- _ ] =>
-                                  let T := type of H in
-                                    (has_evar T; fail 1)
-                                    || (rewrite H; clear H; W_eq)
-                              end.
-
-Hint Extern 5 (@eq W _ _) => cbv zeta; match goal with
-                                         | [ |- ?G ] => has_evar G; fail 1
-                                         | _ => W_eq
-                                       end.
-
 Theorem factOk : moduleOk fact.
 (*TIME  Clear Timing Profile. *)
-  vcgen; abstract (sep_auto; eauto).
+  vcgen; abstract (sep_auto; eauto; words).
 (*TIME  Print Timing Profile. *)
 Qed.
 
 Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
   bmodule "factDriver" {{
-    bfunction "main" [st ~> ExX, Ex n0, Ex n4, ![ $0 =*> n0 * $4 =*> n4 * #0 ] st] {
-      Rv <- 4;;
-      Call "fact"!"fact"
-      [st ~> [| st#Rv = 24 |] ];;
-      Diverge
-    }
+    bfunction "main"("x") [SPEC reserving 4
+      PRE[_] Emp
+      POST[R] [| R = $24 |] ]
+      "x" <-- Call "fact"!"fact"(4)
+      [RET
+        PRE[_, R] [| R = $24 |]
+        POST[R'] [| R' = $24 |]];;
+      Return "x"
+    end
   }}.
 
-Theorem factR_4 : forall inp r, factR inp r -> inp = 4 -> r = 24.
-  intros; subst;
+Theorem factR_4 : forall r, factR 4 r -> r = 24.
+  intros;
     repeat match goal with
              | [ H : factR _ _ |- _ ] => inversion H; clear H; subst; []
            end;
@@ -89,8 +80,7 @@ Hint Resolve factR_4.
 
 Theorem factDriverOk : moduleOk factDriver.
 (*TIME  Clear Timing Profile. *)
-  vcgen;
-  abstract (sep_auto; eauto).
+  vcgen; abstract (sep_auto; words).
 (*TIME  Print Timing Profile. *)
 Qed.
 

@@ -461,7 +461,16 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
           | _ => (refl_app cc e)
         end
     end
-  in reflect e funcs uvars k.
+  in match e with
+       | context[fun x : ?T => _] =>
+         match T with
+           | VarType _ => fail 1
+           | _ => getFunction types e funcs ltac:(fun funcs F =>
+             let r := constr:(@Func types F nil) in
+               k uvars funcs r)
+         end
+       | _ => reflect e funcs uvars k
+     end.
 
 (** collect all the types in es into a list.
  ** it return a value of type [list Type]
