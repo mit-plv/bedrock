@@ -69,6 +69,7 @@ Qed.
 
 Ltac sep_firstorder := sep_easy;
   repeat match goal with
+           | [ H : Logic.ex _ |- _ ] => destruct H
            | [ H : _ /\ _ |- _ ] => destruct H
            | [ |- Logic.ex _ ] => sep_easy; eexists
            | [ |- _ /\ _ ] => split
@@ -355,7 +356,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
@@ -713,7 +714,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
