@@ -1056,3 +1056,15 @@ Ltac sep ext :=
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
 Ltac sep_auto := sep auto_ext.
+
+Hint Rewrite sel_upd_eq sel_upd_ne using congruence : sepFormula.
+
+Lemma sel_merge : forall vs vs' ns nm,
+  In nm ns
+  -> sel (merge vs vs' ns) nm = sel vs nm.
+  intros.
+  generalize (merge_agree vs vs' ns); intro Hl.
+  eapply Forall_forall in Hl; eauto.
+Qed.
+
+Hint Rewrite sel_merge using (simpl; tauto) : sepFormula.
