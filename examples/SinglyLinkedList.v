@@ -93,13 +93,13 @@ Definition appendS : assert := st ~> ExX, Ex p1, Ex p2, Ex c, Ex ls1, Ex ls2,
   /\ st#Rp @@ (st' ~> Ex a, Ex b, Ex c', ![ (st#Sp ==*> a, b, c') * ^[sll (ls1 ++ ls2) st'#Rv] * #1 ] st').
 
 Definition sllM := bmodule "sll" {{
-  bfunction "null" [nullS] {
+(*  bfunction "null" [nullS] {
     If (Rv = 0) {
       Return 1
     } else {
       Return 0
     }
-  } with bfunction "length" [lengthS] {
+  } with *) bfunction "length" [lengthS] {
     Sp <- 0;;
     [st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
       /\ st#Rp @@ (st' ~> [| st'#Rv = st#Sp ^+ (length ls : W) |] /\ ![ ^[sll ls st#Rv] * #1 ] st')]
@@ -108,7 +108,7 @@ Definition sllM := bmodule "sll" {{
       Rv <- $[Rv + 4]
     };;
     Return Sp
-  } with bfunction "rev" [revS] {
+  } (*with bfunction "rev" [revS] {
     $[Sp] <- 0;;
     [st ~> ExX, Ex p, Ex b, Ex ls, Ex acc, ![ (st#Sp ==*> p, b) * ^[sll ls st#Rv] * ^[sll acc p] * #0 ] st
       /\ st#Rp @@ (st' ~> Ex a, Ex b', Ex ls', [| ls' = rev_append ls acc |]
