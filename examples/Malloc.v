@@ -62,13 +62,13 @@ Module Type FREE_LIST.
     -> b = a ^+ $4 ^* ($(x) ^- $(y))
     -> freeable b (y + 2).
 
-  Axiom it's_not_zero : forall x y a b,
-    x = y ^+ $4 ^* ($(a) ^- $(b))
-    -> x = $0
+  Axiom it's_not_zero : forall x y a b b',
+    x = y ^+ $4 ^* ($(a) ^- b)
     -> freeable y (a + 2)
-    -> $(b + 2) < natToW a
-    -> goodSize (b + 2)
-    -> False.
+    -> b ^+ $2 < natToW a
+    -> b = natToW b'
+    -> goodSize (b' + 2)
+    -> x <> $0.
 
   Parameter freeList : nat (* number of elements in list *) -> W -> HProp.
   Parameter mallocHeap : HProp.
@@ -122,22 +122,24 @@ Module FreeList : FREE_LIST.
     unfold freeable; tauto.
   Qed.
 
-  Lemma it's_not_zero : forall x y a b,
-    x = y ^+ $4 ^* ($(a) ^- $(b))
-    -> x = $0
+  Lemma it's_not_zero : forall x y a b b',
+    x = y ^+ $4 ^* ($(a) ^- b)
     -> freeable y (a + 2)
-    -> $(b + 2) < natToW a
-    -> goodSize (b + 2)
-    -> False.
+    -> b ^+ $2 < natToW a
+    -> b = natToW b'
+    -> goodSize (b' + 2)
+    -> x <> $0.
     intros; subst.
-    destruct H1.
-    apply (H1 (4 * (a - b))).
+    destruct H0.
+    intro.
+    apply (H0 (4 * (a - b'))).
     auto.
     rewrite mult_comm.
     rewrite natToW_times4.
     rewrite natToW_minus.
     rewrite wmult_comm.
     assumption.
+    rewrite <- natToWord_plus in H1.
     auto.
   Qed.
 
@@ -263,96 +265,101 @@ Qed.
 Local Hint Resolve goodSize_freeable.
 
 Lemma malloc_split : forall cur full init,
-  goodSize (init + 2)
+  (*goodSize (init + 2)
   -> goodSize (full + 2)
-  -> natToW (init + 2) < natToW full
-  -> splitMe cur full init ===> cur =?> (full - init - 2)
-  * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4)%nat) =*> v)
-  * (Ex v, (cur ^+ $ ((full - (init + 2)) * 4) ^+ $4) =*> v)
-  * allocated (cur ^+ $ ((full - (init + 2)) * 4)) 8 init.
+  ->*) (init <= full)%nat
+  -> splitMe cur full init ===> cur =?> init
+  * (cur ^+ $ (init * 4)) =?> (full - init).
   intros; eapply Himp_trans.
-  apply malloc_split'''; eauto.
-  autorewrite with sepFormula; auto.
-  rewrite plus_comm; simpl.
+  eapply allocated_split.
+  eauto.
   sepLemma.
+  apply allocated_shift_base.
+  rewrite mult_comm; simpl.
+  unfold natToW.
+  W_eq.
+  auto.
 Qed.
 
 (*TIME Clear Timing Profile. *)
 
 Definition hints : TacPackage.
 (*TIME idtac "malloc:prepare". Time *)
-  prepare auto_ext tt tt (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
+  prepare (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
 
-Definition initS : assert := st ~> ExX, Ex n, [| st#Rv = $(n) /\ freeable 4 (n+2) |]
-  /\ ![ ^[0 =?> (3 + n)] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ ^[mallocHeap] * #1 ] st').
+Definition initS : spec := SPEC("size") reserving 0
+  Ex n,
+  PRE[V] [| V("size") = $(n) |] * [| freeable 4 (n+2) |] * 0 =?> (3 + n)
+  POST[_] mallocHeap.
 
-Definition freeS : assert := st ~> ExX, Ex p : W, Ex n, [| p <> 0 /\ freeable p (n+2) |]
-  /\ ![ (st#Sp ==*> p, $(n)) * ^[p =?> (2 + n)] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |] /\ ![ (st#Sp ==*> p, $(n)) * ^[mallocHeap] * #1 ] st').
+Definition freeS : spec := SPEC("p", "n") reserving 1
+  Ex n,
+  PRE[V] [| V "n" = $(n) |] * [| V "p" <> 0 |] * [| freeable (V "p") (n+2) |] * V "p" =?> (2 + n) * mallocHeap
+  POST[_] mallocHeap.
 
-Definition mallocS : assert := st ~> ExX, Ex sz, Ex v, [| goodSize (sz+2) |]
-  /\ ![ (st#Sp ==*> $(sz), v) * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv <> 0 /\ freeable st'#Rv (sz+2) |]
-    /\ Ex a, Ex b, ![ (st#Sp ==*> a, b) * ^[st'#Rv =?> (2 + sz)] * ^[mallocHeap] * #1 ] st').
+Definition mallocS : spec := SPEC("n") reserving 4
+  Ex sz,
+  PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * mallocHeap
+  POST[R] [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (2 + sz) * mallocHeap.
 
 Definition mallocM := bmodule "malloc" {{
-  bfunction "init" [initS] {
-    $[0] <- 4;;
-    $[4] <- Rv;;
-    $[8] <- 0;;
+  (*bfunction "init"("size") [initS]
+    0 *<- 4;;
+    4 *<- "size";;
+    8 *<- 0;;
     Return 0
-  } with bfunction "free" [freeS] {
-    Rv <- $[Sp];;
-    $[Rv] <- $[Sp+4];;
-    $[Rv+4] <- $[0];;
-    $[0] <- Rv;;
+  end with bfunction "free"("p", "n", "tmp") [freeS]
+    "p" *<- "n";;
+    "tmp" <-* 0;;
+    0 *<- "p";;
+    "p" <- "p" + 4;;
+    "p" *<- "tmp";;
     Return 0
-  } with bfunction "malloc" [mallocS] {
-    Rv <- $[0];;
-    $[Sp+4] <- Rp;;
-    Rp <- 0;;
+  end with*) bfunction "malloc"("n", "cur", "prev", "tmp", "tmp2") [mallocS]
+    "cur" <-* 0;;
+    "prev" <- 0;;
 
-    [st ~> ExX, Ex sz, Ex ret, Ex n, [| goodSize (sz+2) |]
-      /\ ![ (st#Sp ==*> $(sz), ret) * st#Rp =*> st#Rv * ^[freeList n st#Rv] * #0 ] st
-      /\ ret @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv <> 0 /\ freeable st'#Rv (sz+2) |]
-        /\ Ex a, Ex b, Ex n', Ex p,
-        ![ (st#Sp ==*> a, b) * ^[st'#Rv =?> (2 + sz)] * st#Rp =*> p * ^[freeList n' p] * #1 ] st')]
-    While (Rv <> 0) {
-      If ($[Rv] = $[Sp]) {
+    [Ex sz, Ex len,
+      PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * V "prev" =*> V "cur" * freeList len (V "cur")
+      POST[R] Ex p, Ex len', [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (2 + sz)
+        * V "prev" =*> p * freeList len' p]
+    While ("cur" <> 0) {
+      "tmp" <-* "cur";;
+      If ("tmp" = "n") {
         (* Exact size match on the current free list block *)
-        $[Rp] <- $[Rv+4];;
-        Rp <- $[Sp+4];;
-        Return Rv
+        "tmp" <- "cur" + 4;;
+        "tmp" <-* "tmp";;
+        "prev" *<- "tmp";;
+        Return "cur"
       } else {
-        Rp <- $[Sp] + 2;;
-        If (Rp < $[Rv]) {
+        "tmp" <- "n" + 2;;
+        "tmp2" <-* "cur";;
+        If ("tmp" < "tmp2") {
           (* This free list block is large enough to split in two. *)
 
           (* Calculate starting address of a suffix of this free block to return to caller. *)
-          Rp <- $[Rv] - $[Sp];;
-          Rp <- 4 * Rp;;
-          Rp <- Rv + Rp;;
+          "tmp" <- "tmp2" - "n";;
+          "tmp" <- 4 * "tmp";;
+          "tmp" <- "cur" + "tmp";;
 
           (* Decrement size of free list block to reflect deleted suffix. *)
-          $[Rv] <- $[Rv] - $[Sp];;
-          $[Rv] <- $[Rv] - 2;;
+          "tmp2" <- "tmp2" - "n";;
+          "tmp2" <- "tmp2" - 2;;
+          "cur" *<- "tmp2";;
 
           (* Return suffix starting address. *)
-          Rv <- Rp;;
-          Rp <- $[Sp+4];;
-          Return Rv
+          Return "tmp"
         } else {
           (* Current block too small; continue to next. *)
-          Rp <- Rv+4;;
-          Rv <- $[Rv+4]
+          "prev" <- "cur" + 4;;
+          "cur" <-* "prev"
         }
       }
     };;
 
     Diverge (* out of memory! *)
-  }
+  end
 }}.
 
 Lemma four_neq_zero : natToW 4 <> natToW 0.
@@ -385,6 +392,215 @@ Section mallocOk.
   Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
   Theorem mallocMOk : moduleOk mallocM.
+    vcgen.
+
+    (*sep hints.
+    sep hints.
+    sep_auto; auto.
+    sep hints.
+    sep hints.
+    auto.
+    sep hints.
+    sep hints.
+    auto.
+    sep hints.
+    sep hints.
+    sep hints.
+    sep hints.
+    sep hints.
+    sep hints.
+    sep hints.
+    
+    Lemma they're_the_same : forall a b c,
+      natToW a = b
+      -> b = natToW c
+      -> goodSize a
+      -> goodSize c
+      -> a = c.
+      intros; subst; match goal with
+                       | [ H : _ |- _ ] => apply natToW_inj in H; assumption
+                     end.
+    Qed.
+
+    match goal with
+      | [ _ : natToW ?a = ?b, _ : ?b = natToW ?c |- _ ] =>
+        assert (a = c) by (eapply they're_the_same; eauto); subst
+    end.
+    congruence.
+
+    match goal with
+      | [ _ : natToW ?a = ?b, _ : ?b = natToW ?c |- _ ] =>
+        assert (a = c) by (eapply they're_the_same; eauto); subst
+    end.
+    eauto.
+
+    sep hints.
+    sep hints.
+    sep hints.*)
+
+    Focus 15.
+
+    post.
+    evaluate hints.
+    repeat match goal with
+             | [ H : True |- _ ] => clear H
+             | [ H : ?X, H' : ?X |- _ ] => clear H'
+           end.
+    match goal with
+      | [ _ : ?x ^+ natToW 2 < natToW ?full,
+          _ : ?x = natToW ?x',
+          H : context[(?base =?> ?full)%Sep],
+          H' : freeable _ (?full + 2) |- _ ] =>
+        change (base =?> full)%Sep with (splitMe base full (full - (x' + 2))) in H(*;
+          generalize (goodSize_freeable H')*)
+    end.
+
+    assert (x8 - (x2 + 2) <= x8)%nat by omega.
+    evaluate hints.
+    repeat match goal with
+             | [ H : True |- _ ] => clear H
+             | [ H : ?X, H' : ?X |- _ ] => clear H'
+           end.
+
+    Lemma split_bound : forall x a x',
+      x ^+ natToW 2 < natToW a
+      -> x = natToW x'
+      -> goodSize (x' + 2)
+      -> goodSize a
+      -> (x' + 2 <= a)%nat.
+      intros; subst.
+      rewrite <- natToW_plus in H.
+      apply Nlt_out in H.
+      repeat rewrite wordToN_nat in H.
+      repeat rewrite Nat2N.id in H.
+      repeat rewrite wordToNat_natToWord_idempotent in H by auto.
+      omega.
+    Qed.
+
+    assert (x2 + 2 <= x8)%nat by (eapply split_bound; eauto).
+    replace (x8 - (x8 - (x2 + 2))) with (2 + x2) in H5 by omega.
+    simpl in H5.
+    replace (x8 - (x2 + 2)) with (x8 - x2 - 2) in H5 by omega.
+
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+    
+    Axiom freeable_split : forall a b x y y',
+      freeable a (x + 2)
+      -> y ^+ $2 < natToW x
+      -> y = natToW y'
+      -> goodSize (y' + 2)
+      -> b = a ^+ $4 ^* ($(x) ^- y)
+      -> freeable b (y' + 2).
+
+    eapply freeable_split; eassumption.
+
+    step hints.
+    rewrite H2.
+    repeat rewrite <- natToW_minus.
+    replace (x8 - (x2 + 2)) with (x8 - x2 - 2) by omega.
+    step hints.
+
+    Lemma split_bound : forall x a x',
+      x ^+ natToW 2 < natToW a
+      -> x = natToW x'
+      -> goodSize (x' + 2)
+      -> goodSize a
+      -> (x' + 2 <= a)%nat.
+      intros; subst.
+      rewrite <- natToW_plus in H.
+      apply Nlt_out in H.
+      repeat rewrite wordToN_nat in H.
+      repeat rewrite Nat2N.id in H.
+      repeat rewrite wordToNat_natToWord_idempotent in H by auto.
+      omega.
+    Qed.
+
+    assert (x2 + 2 <= x8)%nat by (eapply split_bound; eauto).
+
+    replace (x8 - (x8 - x2 - 2)) with (2 + x2) by omega.
+    descend.
+    step hints.
+
+
+    Lemma split_bound : forall x a x',
+      x ^+ natToW 2 < natToW a
+      -> x = natToW x'
+      -> goodSize (x' + 2)
+      -> goodSize a
+      -> (x' + 2 <= a)%nat.
+      intros; subst.
+      rewrite <- natToW_plus in H.
+      apply Nlt_out in H.
+      repeat rewrite wordToN_nat in H.
+      repeat rewrite Nat2N.id in H.
+      repeat rewrite wordToNat_natToWord_idempotent in H by auto.
+      omega.
+    Qed.
+
+    eapply split_bound.
+    eassumption.
+    eassumption.
+    eassumption.
+    eauto.
+
+    evaluate hints.
+    
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+
+    Axiom freeable_split : forall a b x y y',
+      freeable a (x + 2)
+      -> y ^+ $2 < natToW x
+      -> y = natToW y'
+      -> goodSize (y' + 2)
+      -> b = a ^+ $4 ^* ($(x) ^- y)
+      -> freeable b (y' + 2).
+
+    eapply freeable_split; eassumption.
+
+    step hints.
+    
+    
+
+
+    Ltac t := solve [ generalize four_neq_zero; sep hints; eauto; cancel hints
+      | sep_auto; auto (* extra case needed to compensate for some hint-triggered bug in tactics *) ].
+
+    t.
+    t.
+    t.
+    t.
+    t.
+  Qed.
+
+    post.
+    evaluate auto_ext.
+    evaluate hints.
+    
+
+    t.
+    
+
+    sep_auto.
+    auto.
+    auto.
+
+    t.
+    
+
+    t.
+    t.
+    t.
+    t.
+    t.
+
 (*TIME idtac "malloc:verify". Time *)
    vcgen; abstract solve [ generalize four_neq_zero; sep hints; auto;
       try match goal with
