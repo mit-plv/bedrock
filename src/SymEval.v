@@ -122,69 +122,68 @@ Section over_types.
     { eapply quantD_impl; eauto; intros. simpl in *. rewrite app_nil_r in *. auto. }
   Qed.
 
-    Lemma appendQ_assoc : forall a b c,
-      appendQ (appendQ a b) c = appendQ a (appendQ b c).
-    Proof.
-      clear. induction a; simpl; intros; try f_equal; eauto.
-    Qed.
+  Lemma appendQ_assoc : forall a b c,
+    appendQ (appendQ a b) c = appendQ a (appendQ b c).
+  Proof.
+    clear. induction a; simpl; intros; try f_equal; eauto.
+  Qed.
 
-    Lemma appendQ_QAll : forall a b v,
-      appendQ a (QAll v b) = appendQ (appendQ a (QAll v QBase)) b.
-    Proof. clear.
-      induction a; simpl; intros; try rewrite IHa; eauto.
-    Qed.
-    Lemma appendQ_QEx : forall a b v,
-      appendQ a (QEx v b) = appendQ (appendQ a (QEx v QBase)) b.
-    Proof. clear.
-      induction a; simpl; intros; try rewrite IHa; eauto.
-    Qed.
+  Lemma appendQ_QAll : forall a b v,
+    appendQ a (QAll v b) = appendQ (appendQ a (QAll v QBase)) b.
+  Proof. clear.
+    induction a; simpl; intros; try rewrite IHa; eauto.
+  Qed.
+  Lemma appendQ_QEx : forall a b v,
+    appendQ a (QEx v b) = appendQ (appendQ a (QEx v QBase)) b.
+  Proof. clear.
+    induction a; simpl; intros; try rewrite IHa; eauto.
+  Qed.
 
-    Lemma QAll_inj_False : forall a b,
-      QAll a b = b -> False.
-    Proof. clear.
-      induction b; simpl; intros; try congruence; auto.
-    Qed.
+  Lemma QAll_inj_False : forall a b,
+    QAll a b = b -> False.
+  Proof. clear.
+    induction b; simpl; intros; try congruence; auto.
+  Qed.
 
-    Lemma QEx_inj_False : forall a b,
-      QEx a b = b -> False.
-    Proof. clear.
-      induction b; simpl; intros; try congruence; auto.
-    Qed.
+  Lemma QEx_inj_False : forall a b,
+    QEx a b = b -> False.
+  Proof. clear.
+    induction b; simpl; intros; try congruence; auto.
+  Qed.
 
-    Fixpoint qsize (q : Quant) : nat :=
-      match q with
-        | QBase => 0
-        | QAll _ q              
-        | QEx _ q => S (qsize q)
-      end.
+  Fixpoint qsize (q : Quant) : nat :=
+    match q with
+      | QBase => 0
+      | QAll _ q              
+      | QEx _ q => S (qsize q)
+    end.
 
-    Lemma qsize_appendQ : forall a b,
-      qsize (appendQ a b) = qsize a + qsize b.
-    Proof.
-      clear; induction a; simpl in *; auto.
-    Qed.
+  Lemma qsize_appendQ : forall a b,
+    qsize (appendQ a b) = qsize a + qsize b.
+  Proof.
+    clear; induction a; simpl in *; auto.
+  Qed.
 
-    Ltac apply_eq f H :=
-      match type of H with
-        | ?X = ?Y =>
-          assert (f X = f Y); [ f_equal; apply H | ] 
-      end.
+  Ltac apply_eq f H :=
+    match type of H with
+      | ?X = ?Y =>
+        assert (f X = f Y); [ f_equal; apply H | ] 
+    end.
 
-    Lemma appendQ_proper : forall a b c,
-      appendQ a b = appendQ c b ->
-      a = c.
-    Proof.
-      clear. induction a; destruct c; simpl; intros; try congruence;
-      repeat match goal with
-               | [ H : QAll _ _ = QAll _ _ |- _ ] => inversion H; clear H; subst
-               | [ H : QEx _ _ = QEx _ _ |- _ ] => inversion H; clear H; subst
-             end; try solve [ f_equal; eauto ]; exfalso.
-      { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
-      { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
-      { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
-      { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
-    Qed.
-
+  Lemma appendQ_proper : forall a b c,
+    appendQ a b = appendQ c b ->
+    a = c.
+  Proof.
+    clear. induction a; destruct c; simpl; intros; try congruence;
+    repeat match goal with
+             | [ H : QAll _ _ = QAll _ _ |- _ ] => inversion H; clear H; subst
+             | [ H : QEx _ _ = QEx _ _ |- _ ] => inversion H; clear H; subst
+           end; try solve [ f_equal; eauto ]; exfalso.
+    { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
+    { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
+    { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
+    { apply_eq qsize H. simpl in *; rewrite qsize_appendQ in H0. omega. }
+  Qed.
 
 End over_types.
 

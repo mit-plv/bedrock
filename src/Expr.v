@@ -375,6 +375,12 @@ Section env.
       intros. apply map_length.
     Qed.
 
+    Lemma typeof_env_app : forall a b,
+      typeof_env (a ++ b) = typeof_env a ++ typeof_env b.
+    Proof.
+      clear. unfold typeof_env. intros. rewrite map_app. reflexivity.
+    Qed.
+
 
     Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
       match e with 

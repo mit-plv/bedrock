@@ -15,12 +15,11 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	SepExpr ReifySepExpr SepHeap SepUnify SepCancel \
 	Unfolder ReifyHints SepLemma \
 	Env TypedPackage TacPackIL \
-	SymEval sep/PtsTo sep/Array \
+	SymEval sep/PtsTo sep/Array Arrays sep/Locals \
 	IL \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \
 	ILTac \
-	Arrays \
 	Bedrock
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)

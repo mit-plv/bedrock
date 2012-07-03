@@ -413,6 +413,45 @@ Ltac isConst e :=
     | Rp => true
     | Rv => true
     | Sp => true
+    | String.EmptyString => true
+    | String.String ?e1 ?e2 =>
+      match isConst e1 with
+        | true => isConst e2
+        | _ => false
+      end
+    | Ascii.Ascii ?a ?b ?c ?d ?e ?f ?g ?h =>
+      match isConst a with
+        | true =>
+          match isConst b with
+            | true =>
+              match isConst c with
+                | true =>
+                  match isConst d with
+                    | true =>
+                      match isConst e with
+                        | true =>
+                          match isConst f with
+                            | true =>
+                              match isConst g with
+                                | true =>
+                                  match isConst h with
+                                    | true => true
+                                    | _ => false
+                                  end
+                                | _ => false
+                              end
+                            | _ => false
+                          end
+                        | _ => false
+                      end
+                    | _ => false
+                  end
+                | _ => false
+              end
+            | _ => false
+          end
+        | _ => false
+      end
     | _ => false
   end.
 
@@ -554,8 +593,6 @@ Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st',
   solve [ trivial ].
 Abort.
 
-
-
 Module Tactics.
 
 Section apply_stream_correctness.
@@ -584,7 +621,7 @@ Section apply_stream_correctness.
     end.
 
 
-  Definition sym_eval uvars path ss :=
+  Definition sym_eval uvars path qs_env ss :=
     let new_pures := 
       match SymMem ss with
         | None => SymPures ss
@@ -603,9 +640,11 @@ Section apply_stream_correctness.
                       | Some h => unfolder_LearnHook h 
                     end in
     let facts := Summarize prover new_pures in
+    let uvars := uvars ++ gatherAll qs_env in
+    let vars := gatherEx qs_env in
     (** initial unfolding **)
-    let (ss,qs) := unfolder prover uvars nil ss facts new_pures in
-    @sym_evalStream _ prover meval unfolder facts path qs (uvars ++ gatherAll qs) (gatherEx qs) ss.
+    let (ss,qs) := unfolder prover uvars vars ss facts new_pures in
+    @sym_evalStream _ prover meval unfolder facts path (appendQ qs qs_env) (uvars ++ gatherAll qs) (vars ++ gatherEx qs) ss.
 
   Lemma stateD_AllProvable_pures : forall meta_env vars stn_st ss cs,
     stateD funcs preds meta_env vars cs stn_st ss ->
@@ -622,9 +661,9 @@ Section apply_stream_correctness.
 
   Theorem Apply_sym_eval_with_eq : forall stn meta_env sound_or_safe st path,   
     istreamD funcs meta_env nil path stn st sound_or_safe ->
-    forall cs ss res,
-      stateD funcs preds meta_env nil cs (stn,st) ss ->
-      sym_eval (typeof_env meta_env) path ss = res ->
+    forall cs qs ss res,
+      qstateD funcs preds meta_env nil cs (stn,st) qs ss ->
+      sym_eval (typeof_env meta_env) path qs ss = res ->
       match res with
         | Safe qs' ss' =>
           quantD nil meta_env qs' (fun vars_env meta_env =>
@@ -682,28 +721,60 @@ Section apply_stream_correctness.
       { apply SymIL.MEVAL.LearnHookDefault.LearnHook_default_correct. } }
     intros l LC m MC p ? PC.
     match goal with 
-      | [ H : context [ @Summarize _ ?A ?B ] |- _ ] => 
-        assert (AP : AllProvable funcs meta_env nil B); [ |
-        assert (VF : Valid PC meta_env nil (Summarize A B)); [ clear H | generalize dependent (Summarize A B); generalize dependent B  ] ]
+      | [ H : context [ l ?A ?B ?C ?D ?E ?F ] |- _ ] =>
+        consider (l A B C D E F); intros
     end.
-    { eapply stateD_AllProvable_pures; eauto. } 
-    apply Summarize_correct. auto.
-    intros.
-    consider (l p (typeof_env meta_env) nil ss f l0); intros.
-    apply (@SymILProofs.MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC meta_env nil cs (stn,st)) in H1; eauto.
-    
-    apply (@SymILProofs.SymIL_Correct.evalStream_correct TYPES funcs preds _ PC _ MC _ LC sound_or_safe cs
-      stn path f s q (typeof_env meta_env ++ gatherAll q) (gatherEx q) res H2 meta_env nil refl_equal refl_equal
-    _  H).
-    eapply quantD_impl; eauto; intros.
-    intuition. eapply Valid_weaken; eauto.
+    unfold qstateD in *. destruct res.
+    Opaque stateD.
+    { destruct (SymILProofs.SymIL_Correct.sym_evalStream_quant_append _ _ _ _ _ _ _ _ _ H2).
+      subst. rewrite <- appendQ_assoc. rewrite quantD_app. eapply quantD_impl; eauto; intros. clear H0.
+      simpl in *.
+      match goal with 
+        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] => 
+          assert (AP : AllProvable funcs (meta_env ++ b) a B); [ eauto using stateD_AllProvable_pures |
+            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B)); 
+              [ clear H; eauto using Summarize_correct | generalize dependent (Summarize A B); generalize dependent B ; intros ] ]
+      end.
+      eapply (@SymILProofs.MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC (meta_env ++ b) a cs (stn,st)) in H5; eauto.
+      2: etransitivity; [ | eapply H1 ]. 2: f_equal; eauto. 2: rewrite typeof_env_app; f_equal; auto.
+      rewrite quantD_app. eapply quantD_impl; eauto; intros. simpl in *.
+
+      eapply (@SymILProofs.SymIL_Correct.evalStream_correct_Safe TYPES funcs preds _ PC _ MC _ LC sound_or_safe cs
+        stn path f s QBase x s0 ((typeof_env meta_env ++ gatherAll qs) ++ gatherAll q) (gatherEx qs ++ gatherEx q) (appendQ q qs)
+        H2).
+      { repeat (progress simpl || rewrite typeof_env_app || rewrite app_nil_r); f_equal; auto. f_equal; auto. }
+      { repeat (progress simpl || rewrite typeof_env_app || rewrite app_nil_r); f_equal; auto. }
+      { apply SymILProofs.SymIL_Correct.istreamD_weaken with (B := b ++ b0) (D := a ++ a0) in H.
+        rewrite repr_idempotent. rewrite app_ass. apply H. }
+      { simpl. intuition. eapply Valid_weaken. eauto. } }
+    { destruct (SymILProofs.SymIL_Correct.sym_evalStream_quant_append _ _ _ _ _ _ _ _ _ H2).
+      subst. rewrite <- appendQ_assoc. rewrite quantD_app. eapply quantD_impl; eauto; intros. clear H0.
+      simpl in *.
+      match goal with 
+        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] => 
+          assert (AP : AllProvable funcs (meta_env ++ b) a B); [ eauto using stateD_AllProvable_pures |
+            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B)); 
+              [ clear H; eauto using Summarize_correct | generalize dependent (Summarize A B); generalize dependent B ; intros ] ]
+      end.
+      eapply (@SymILProofs.MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC (meta_env ++ b) a cs (stn,st)) in H5; eauto.
+      2: etransitivity; [ | eapply H1 ]. 2: f_equal; eauto. 2: rewrite typeof_env_app; f_equal; auto.
+      rewrite quantD_app. eapply quantD_impl; eauto; intros. simpl in *.
+
+      eapply (@SymILProofs.SymIL_Correct.evalStream_correct_SafeUntil TYPES funcs preds _ PC _ MC _ LC sound_or_safe cs
+        stn path f s QBase x s0); eauto.  (*((typeof_env meta_env ++ gatherAll qs) ++ gatherAll q) (gatherEx qs ++ gatherEx q) (appendQ q qs)
+        H2). *)
+      { repeat (progress simpl || rewrite typeof_env_app || rewrite app_nil_r); f_equal; auto. f_equal; auto. }
+      { repeat (progress simpl || rewrite typeof_env_app || rewrite app_nil_r); f_equal; auto. }
+      { apply SymILProofs.SymIL_Correct.istreamD_weaken with (B := b ++ b0) (D := a ++ a0) in H.
+        rewrite repr_idempotent. rewrite app_ass. apply H. }
+      { simpl. intuition. eapply Valid_weaken. eauto. } }
   Qed.
 
-  Theorem Apply_sym_eval : forall stn meta_env sound_or_safe st path,   
+  Theorem Apply_sym_eval : forall stn meta_env sound_or_safe st path,
     istreamD funcs meta_env nil path stn st sound_or_safe ->
-    forall cs ss,
-      stateD funcs preds meta_env nil cs (stn,st) ss ->    
-      match sym_eval (typeof_env meta_env) path ss with
+    forall cs qs ss,
+      qstateD funcs preds meta_env nil cs (stn,st) qs ss ->
+      match sym_eval (typeof_env meta_env) path qs ss with
         | Safe qs' ss' =>
           quantD nil meta_env qs' (fun vars_env meta_env =>
             match sound_or_safe with
@@ -721,6 +792,8 @@ Section apply_stream_correctness.
 End apply_stream_correctness.
 
 Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
+
+Check Apply_sym_eval.
 
 (** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]
@@ -893,7 +966,7 @@ Ltac sym_eval isConst ext simplifier :=
                                         | [ H' : _ /\ _ |- _ ] => destruct H'
                                       end
                            | ?G =>
-                             fail 100000 "bad result goal" G 
+                             idtac(*fail 100000 "bad result goal" G *)
                          end
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
@@ -916,11 +989,11 @@ Ltac sym_eval isConst ext simplifier :=
                           intro H_stateD ;
                           ((apply (@Apply_sym_eval typesV funcsV predsV
                             (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
-                            stn uvars vars fin_state st is is_pf) in H_stateD)
-                          || fail 100000 "couldn't apply sym_eval_any! (non-SF case)") ;
+                            stn uvars fin_state st is is_pf) in H_stateD)
+                          || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"); 
                           first [ simplifier typesV funcsV predsV H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
                           try clear typesV funcsV predsV ;
-                          first [ finish H_stateD ; clear_instrs all_instrs | fail 100000 "finisher failed! (non-SF)" ]
+                          first [ finish H_stateD (*; clear_instrs all_instrs*) | fail 100000 "finisher failed! (non-SF)" ]
                         | (?SF, ?H_interp) =>
                           SEP_REIFY.reify_sexpr ltac:(isConst) SF typesV funcs pcT stT preds uvars vars 
                           ltac:(fun uvars funcs preds SF =>
@@ -940,18 +1013,18 @@ Ltac sym_eval isConst ext simplifier :=
 (*TIME                            start_timer "sym_eval:apply_sym_eval" ; *)
                             ((apply (@Apply_sym_eval typesV funcsV predsV
                               (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
-                              stn uvars vars fin_state st is is_pf) in H_interp) ||
+                              stn uvars fin_state st is is_pf) in H_interp) ||
                              (idtac "couldn't apply sym_eval_any! (SF case)"; 
                                first [ 
                                  generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
-                                   stn uvars vars fin_state st is is_pf) ; idtac "6" 
+                                   stn uvars fin_state st is is_pf) ; idtac "6" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
-                                   stn uvars vars fin_state st) ; idtac "5"  
+                                   stn uvars fin_state st) ; idtac "5"  
                                | generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)
-                                   stn uvars vars) ; idtac "4" 
+                                   stn uvars) ; idtac "4" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV
                                    (@ILAlgoTypes.Algos ext typesV) (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV)); idtac "3" 
                                | generalize (@Apply_sym_eval typesV funcsV predsV

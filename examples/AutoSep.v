@@ -5,7 +5,7 @@ Export Bedrock.
 
 Import TacPackIL.
 Require Bedrock.sep.PtsTo.
-Require Export Bedrock.sep.Array.
+Require Export Bedrock.sep.Array Bedrock.sep.Locals.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
@@ -14,10 +14,12 @@ Definition TacPackage : Type :=
   @ILAlgoTypes.TypedPackage.
 
 Definition auto_ext : TacPackage.
+(** TODO: this is getting really slow, maybe we need to special case this as well... **)
   ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
   ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
-    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c) ltac:(fun res => 
+  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Locals.pack ltac:(fun d =>
+    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c, d) ltac:(fun res => 
       let res := 
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
@@ -36,9 +38,9 @@ Definition auto_ext : TacPackage.
           ILAlgoTypes.oplus Prover.composite_ProverT 
           (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
 
-          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
+          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig Bedrock.sep.Locals.ssig
         ] in res in
-        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" ))).
+        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" )))).
 Defined.
 
 Ltac refold :=
@@ -139,8 +141,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_evalLoc SymIL.sym_evalStream SymIL.sym_assertTest
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
-         SymIL.SymVars SymIL.SymUVars
-         SymIL.stateD 
+(*         SymIL.SymVars SymIL.SymUVars *)
+         SymIL.stateD SymIL.qstateD
          SymILTac.Tactics.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -148,6 +150,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
+
+         SymEval.quantD SymEval.appendQ
+         SymEval.qex SymEval.qall
+         SymEval.gatherAll SymEval.gatherEx
+         SymILTac.Tactics.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -297,7 +304,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_ind_r
 
          (** Prover **)
-         Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
+         Prover.Prove Prover.Prover Prover.Facts Prover.Learn Prover.Summarize
          Prover.composite_ProverT
 
          (** Provers **)
@@ -437,6 +444,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Array.div4 Array.deref Array.sym_read Array.sym_write
          Array.wlength_r Array.sel_r Array.upd_r
 
+         (** Locals *)
+         Locals.bedrock_type_string Locals.bedrock_type_listString Locals.bedrock_type_vals
+         Locals.ssig Locals.types_r Locals.types
+         Locals.MemEval Locals.MemEvaluator
+         Locals.ascii_eq Locals.string_eq Bool.eqb
+         Locals.nil_r Locals.cons_r Locals.sel_r Locals.upd_r
+         Locals.deref Locals.listIn Locals.sym_sel Locals.sym_read Locals.sym_write
+
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
@@ -480,8 +495,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_evalLoc SymIL.sym_evalStream SymIL.sym_assertTest
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
-         SymIL.SymVars SymIL.SymUVars
-         SymIL.stateD 
+(*         SymIL.SymVars SymIL.SymUVars *)
+         SymIL.stateD SymIL.qstateD
          SymILTac.Tactics.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -489,6 +504,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
+
+         SymEval.quantD SymEval.appendQ
+         SymEval.qex SymEval.qall
+         SymEval.gatherAll SymEval.gatherEx
+         SymILTac.Tactics.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -643,7 +663,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          eq_ind_r
 
          (** Prover **)
-         Prover.Prove Prover.Facts Prover.Learn Prover.Summarize
+         Prover.Prove Prover.Prover Prover.Facts Prover.Learn Prover.Summarize
          Prover.composite_ProverT
 
          (** Provers **)
@@ -787,6 +807,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Array.div4 Array.deref Array.sym_read Array.sym_write
          Array.wlength_r Array.sel_r Array.upd_r
 
+         (** Locals *)
+         Locals.bedrock_type_string Locals.bedrock_type_listString Locals.bedrock_type_vals
+         Locals.ssig Locals.types_r Locals.types
+         Locals.MemEval Locals.MemEvaluator
+         Locals.ascii_eq Locals.string_eq Bool.eqb
+         Locals.nil_r Locals.cons_r Locals.sel_r Locals.upd_r
+         Locals.deref Locals.listIn Locals.sym_sel Locals.sym_read Locals.sym_write
+         
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans

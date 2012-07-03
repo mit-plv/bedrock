@@ -564,12 +564,6 @@ Module SymIL_Correct.
         exists QBase; auto. }
     Qed.
 
-    Lemma typeof_env_app : forall ts a b,
-      typeof_env (types := ts) (a ++ b) = typeof_env a ++ typeof_env b.
-    Proof.
-      clear. unfold typeof_env. intros. rewrite map_app. reflexivity.
-    Qed.
-
     Hint Extern 1 (@eq (list tvar) _ _) =>
       simpl; repeat (rewrite app_nil_r in * || rewrite typeof_env_app in * || rewrite app_ass || 
         (f_equal; []) || (f_equal; [ solve [ reflexivity | assumption ] | ] || reflexivity || assumption)) : env_resolution.
@@ -733,9 +727,9 @@ Module SymIL_Correct.
 
     Lemma appendQ_QBase_r : forall a, appendQ a QBase = a.
     Proof. clear. induction a; simpl; intros; think; auto. Qed.
-
-    Theorem evalStream_correct : forall sound_or_safe cs stn path facts ss qs uvars vars res,
-      sym_evalStream Prover meval learnHook facts path qs uvars vars ss = res ->
+(*
+    Theorem evalStream_correct : forall sound_or_safe cs stn path facts ss qs env_q uvars vars res,
+      sym_evalStream Prover meval learnHook facts path (appendQ qs env_q) uvars vars ss = res ->
       forall meta_env vars_env,
         typeof_env meta_env ++ gatherAll qs = uvars ->
         typeof_env vars_env ++ gatherEx qs = vars ->
@@ -760,13 +754,15 @@ Module SymIL_Correct.
     Proof.
       destruct res; intros.
       { destruct (sym_evalStream_quant_append _ _ _ _ _ _ H).
-        generalize (@evalStream_correct_Safe sound_or_safe cs stn path facts ss qs (appendQ x qs) s uvars vars QBase). subst.
-        repeat rewrite appendQ_QBase_r. intro. eapply H0 in H; eauto. }
+        generalize (@evalStream_correct_Safe sound_or_safe cs stn path facts ss qs (appendQ x qs) s uvars vars env_q). subst.
+        rewrite appendQ_assoc.
+        intro. eapply H0 in H; eauto. }
       { destruct (sym_evalStream_quant_append _ _ _ _ _ _ H).
         generalize (@evalStream_correct_SafeUntil sound_or_safe cs stn path facts ss qs (appendQ x qs) s i uvars vars QBase); 
           subst.
         repeat rewrite appendQ_QBase_r. intro. eapply H0 in H; eauto. }
     Qed.
+*)
   End typed2.
 
 End SymIL_Correct.
