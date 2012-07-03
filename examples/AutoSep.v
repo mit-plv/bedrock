@@ -204,7 +204,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Default_signature Expr.EmptySet_type
          Expr.expr_seq_dec 
          Expr.Eqb Expr.liftExpr Expr.exprSubstU
-         Expr.typeof
+         Expr.typeof Expr.typeof_env 
+         Expr.typeof_sig Expr.typeof_funcs
          Expr.expr_ind
          Expr.get_Eq
          Expr.const_seqb
@@ -377,6 +378,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SEP.himp SEP.sexprD
          SEP.heq
          SEP.liftSExpr
+         SEP.typeof_pred SEP.typeof_preds
 
          (** SepHeap **)
          SH.impures SH.pures SH.other
@@ -562,7 +564,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
          Expr.expr_seq_dec  Expr.expr_seq_dec
          Expr.tvar_val_seqb  Expr.liftExpr Expr.exprSubstU
-         Expr.typeof
+         Expr.typeof Expr.typeof_env 
+         Expr.typeof_sig Expr.typeof_funcs
          Expr.Impl_ Expr.exprD
          Expr.expr_ind
          Expr.expr_seq_dec
@@ -736,6 +739,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation 
          SEP.Default_predicate
+         SEP.typeof_pred SEP.typeof_preds
          SEP.himp SEP.sexprD
          SEP.heq
          nat_eq_eqdec
