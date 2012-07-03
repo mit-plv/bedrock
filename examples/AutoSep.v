@@ -304,7 +304,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
-         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
 
          (** Induction **)
@@ -658,7 +658,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
-         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
 
          (** Induction **)

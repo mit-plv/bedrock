@@ -26,35 +26,49 @@ Module Pair : PAIR.
 
   Theorem pair_fwd : forall a b p,
     pair a b p ===> p =*> a * (p ^+ $4) =*> b.
-    sepLemma. 
+    unfold pair; sepLemma. 
   Qed.
 
   Theorem pair_bwd : forall a b p,
     p =*> a * (p ^+ $4) =*> b ===> pair a b p.
-    sepLemma.
+    unfold pair; sepLemma.
   Qed.
 End Pair.
 
 Import Pair.
 Hint Immediate pair_extensional.
 
-Definition firstS : assert := st ~> ExX, Ex a, Ex b, ![ ^[pair a b st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = a |] /\ ![ ^[pair a b st#Rv] * #1 ] st').
+Definition firstS : spec := SPEC("p") reserving 0
+  Ex a, Ex b,
+  PRE[V] pair a b (V "p")
+  POST[R] [| R = a |] * pair a b (V "p").
+
+Definition updSecondS : spec := SPEC("p", "x") reserving 0
+  Ex a, Ex b,
+  PRE[V] pair a b (V "p")
+  POST[_] pair a (V "x") (V "p").
 
 Definition pair := bmodule "pair" {{
-  bfunction "first" [firstS] {
-    Return $[Rv]
-  }
+  bfunction "first"("p") [firstS]
+    "p" <-* "p";;
+    Return "p"
+  end with bfunction "second"("p", "x") [updSecondS]
+    "p" <- "p" + 4;;
+    "p" *<- "x";;
+    Return 0
+  end
 }}.
 
 (*TIME Clear Timing Profile. *)
 
 Definition hints : TacPackage.
-  (*TIME idtac "pair:prepare". Time *)prepare auto_ext tt tt pair_fwd pair_bwd.
+  (*TIME idtac "pair:prepare". Time *)
+  prepare pair_fwd pair_bwd.
 Defined.
 
 Theorem pairOk : moduleOk pair.
-  (*TIME idtac "pair:verify". Time *)vcgen; abstract sep hints.
+  (*TIME idtac "pair:verify". Time *)
+  vcgen; abstract sep hints.
 Qed.
 
 (*TIME Print Timing Profile. *)

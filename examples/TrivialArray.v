@@ -32,7 +32,7 @@ Definition arrays := bmodule "read" {{
     Return 0
   end with bfunction "bump"("arr", "len", "i", "tmp", "tmp2") [bumpS]
     "i" <- 0;;
-    [INV Ex ls, Ex done, Ex pending,
+    [Ex ls, Ex done, Ex pending,
       PRE[V] [| V "len" = $(length ls) |] * [| V "i" = $(length done) |] * [| ls = done ++ pending |]
         * array ls (V "arr")
       POST[_] Ex ls', [| ls' = done ++ bump pending |] * array ls' (V "arr") ]

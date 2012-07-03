@@ -209,25 +209,28 @@ Coercion variableSlot : string >-> lvalue'.
 
 (** ** Commands *)
 
-Notation "'Assert' [ p ]" := (Assert_ p) (no associativity, at level 95) : SP_scope.
+Local Notation INV := (fun inv => inv true (fun w => w)).
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+
+Notation "'Assert' [ p ]" := (Assert_ (INV p)) (no associativity, at level 95) : SP_scope.
 
 Notation "'If' c { b1 } 'else' { b2 }" := (If_ c b1 b2)
   (no associativity, at level 95, c at level 0) : SP_scope.
 
-Notation "[ p ] 'While' c { b }" := (While_ p c b)
+Notation "[ p ] 'While' c { b }" := (While_ (INV p) c b)
   (no associativity, at level 95, c at level 0) : SP_scope.
 
 Notation "'Call' f () [ p ]" :=
-  (Call_ None f nil p)
+  (Call_ None f nil (RET p))
   (no associativity, at level 95, f at level 0) : SP_scope.
 Notation "'Call' f ( x1 , .. , xN ) [ p ]" :=
-  (Call_ None f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) p)
+  (Call_ None f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
   (no associativity, at level 95, f at level 0) : SP_scope.
 Notation "rv <-- 'Call' f () [ p ]" :=
-  (Call_ (@Some lvalue' rv) f nil p)
+  (Call_ (@Some lvalue' rv) f nil (RET p))
   (no associativity, at level 95, f at level 0) : SP_scope.
 Notation "rv <-- 'Call' f ( x1 , .. , xN ) [ p ]" :=
-  (Call_ (@Some lvalue' rv) f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) p)
+  (Call_ (@Some lvalue' rv) f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
   (no associativity, at level 95, f at level 0) : SP_scope.
 
 Notation "'Return' e" := (Rv <- e;; Rp <- $[Sp+0];; Goto Rp)%SP
@@ -258,9 +261,6 @@ Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs
   (at level 89).
 
 Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
-
-Notation "'INV' inv" := (inv true (fun w => w)) (at level 90).
-Notation "'RET' inv" := (fun ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns) (at level 90).
 
 Record spec := {
   Reserved : nat;
