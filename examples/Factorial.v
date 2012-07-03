@@ -24,9 +24,8 @@ Definition fact := bmodule "fact" {{
   bfunction "fact"("n", "acc") [factS]
     "acc" <- 1;;
     
-    [INV
-      PRE[V] Emp
-      POST[R] [| exists r, factR (V "n") r /\ R = V "acc" ^* r |] ]
+    [PRE[V] Emp
+     POST[R] [| exists r, factR (V "n") r /\ R = V "acc" ^* r |] ]
     While ("n" <> 0) {
       "acc" <- "n" * "acc";;
       "n" <- "n" - 1
@@ -56,9 +55,8 @@ Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
       PRE[_] Emp
       POST[R] [| R = $24 |] ]
       "x" <-- Call "fact"!"fact"(4)
-      [RET
-        PRE[_, R] [| R = $24 |]
-        POST[R'] [| R' = $24 |]];;
+      [PRE[_, R] [| R = $24 |]
+       POST[R'] [| R' = $24 |]];;
       Return "x"
     end
   }}.

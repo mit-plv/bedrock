@@ -78,9 +78,8 @@ Definition immedTest := bimport [[ "immed"!"immed" @ [immedS] ]]
       PRE[_] [| True |]
       POST[_] [| True |] ]
       Call "immed"!"immed"()
-      [RET
-        PRE[_] [| True |]
-        POST[_] [| True|] ];;
+      [PRE[_] [| True |]
+       POST[_] [| True|] ];;
       Return 0
     end
   }}.
@@ -111,9 +110,8 @@ Definition immedTestBig := bimport [[ "immed"!"immed" @ [immedS] ]]
       PRE[_] [| True |]
       POST[_] [| True |] ]
       Call "immed"!"immed"()
-      [RET
-        PRE[_] [| True |]
-        POST[_] [| True|] ];;
+      [PRE[_] [| True |]
+       POST[_] [| True|] ];;
       Return 0
     end
   }}.
@@ -149,9 +147,8 @@ Definition incTest := bimport [[ "inc"!"inc" @ [incS] ]]
       PRE[_] [| True |]
       POST[rv] [| rv = $10 |] ]
       "y" <-- Call "inc"!"inc"(7)
-      [RET
-        PRE[_, R] [| R = $8 |]
-        POST[R'] [| R' = $10 |] ];;
+      [PRE[_, R] [| R = $8 |]
+       POST[R'] [| R' = $10 |] ];;
       "y" <- "y" + 2;;
       Return "y"
     end
