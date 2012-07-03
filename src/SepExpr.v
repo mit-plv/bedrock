@@ -500,6 +500,33 @@ Module SepExprFacts (SE : SepExpr).
     Qed.
   End other.
 
+  Theorem interp_WellTyped_sexpr : forall ts pcT stT funcs (preds : SE.predicates ts pcT stT) cs s vars uvars stn m,
+    SE.ST.satisfies cs (SE.sexprD funcs preds uvars vars s) stn m ->
+    SE.WellTyped_sexpr (typeof_funcs funcs) (SE.typeof_preds preds) (typeof_env uvars) (typeof_env vars) s = true.
+  Proof.
+    induction s; simpl; intros; auto.
+    { consider (exprD funcs uvars vars e tvProp); intros.
+      eapply is_well_typed_correct_only in H; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+      eapply SE.ST.satisfies_pure in H0. unfold BadInj. intuition. PropXTac.propxFo. }
+    { eapply SE.ST.satisfies_star in H. 
+      repeat match goal with 
+               | [ H : exists x, _ |- _ ] => destruct H
+               | [ H : _ /\ _ |- _ ] => destruct H
+             end.
+      erewrite IHs1; eauto.
+      erewrite IHs2; eauto. }
+    { eapply SE.ST.satisfies_ex in H. destruct H.
+      eapply IHs in H. simpl in *. auto. }
+    { unfold SE.typeof_preds. rewrite map_nth_error_full. destruct (nth_error preds f).
+      { destruct p; simpl in *. generalize dependent SDomain. clear. induction l; destruct SDomain; simpl; intros; auto.
+        eapply SE.ST.satisfies_pure in H. unfold BadPredApply. intuition. PropXTac.propxFo.
+        eapply SE.ST.satisfies_pure in H. unfold BadPredApply. intuition. PropXTac.propxFo.
+        consider (exprD funcs uvars vars a t); intros.
+        erewrite is_well_typed_correct_only; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+        eapply SE.ST.satisfies_pure in H0. unfold BadPredApply. intuition. PropXTac.propxFo. }
+      { eapply SE.ST.satisfies_pure in H. unfold BadPred. intuition. PropXTac.propxFo. } }
+  Qed.
+
 End SepExprFacts.
 
 Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.

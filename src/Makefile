@@ -1,7 +1,7 @@
 PROVERS := Assumption Reflexivity Transitivity Word
 MODULES    := HintlessOrderedType HintlessFMapInterface \
 	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
-	Reflection Tactics \
+	Reflection Tactics ListFacts \
 	GenRec Ordering Multimap Folds \
 	Nomega Word Labels LabelMap \
 	PropX PropXRel PropXTac \
@@ -50,7 +50,7 @@ package:
 	hg archive -t tgz /tmp/bedrock.tgz
 
 admit:
-	@ grep -e 'admit' -e 'Admitted' ${VS}
+	@ grep -n -e 'admit' -e 'Admitted' ${VS}
 
 depgraph: Makefile.coq
 	@ echo Generating dependency graph to ../deps.pdf

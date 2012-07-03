@@ -369,6 +369,12 @@ Section env.
       clear; induction f; simpl; intros; econstructor; auto using typeof_sig_WellTyped_sig.
     Qed.
 
+    Lemma typeof_env_length : forall g, 
+      length (typeof_env g) = length g.
+    Proof.
+      intros. apply map_length.
+    Qed.
+
 
     Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
       match e with 
@@ -893,7 +899,7 @@ Section env.
     end.
 
   Theorem forallEach_sem : forall ls P,
-    forallEach ls P <-> (forall env, map (@projT1 _ _) env = ls -> P env).
+    forallEach ls P <-> (forall env, typeof_env env = ls -> P env).
   Proof.
     induction ls; simpl; split; intros.
       destruct env0; auto. simpl in *; congruence.
@@ -916,7 +922,7 @@ Section env.
     end.
 
   Theorem existsEach_sem : forall ls P,
-    existsEach ls P <-> (exists env, map (@projT1 _ _) env = ls /\ P env).
+    existsEach ls P <-> (exists env, typeof_env env = ls /\ P env).
   Proof.
     induction ls; simpl; split; intros.
       exists nil; auto.
@@ -941,7 +947,7 @@ Section env.
 
   Lemma existsEach_projT1_env' : forall (F : env.env -> Prop) vars r, 
     F (r ++ vars) ->
-    existsEach (map (@projT1 _ _) vars) (fun x => F (r ++ x)).
+    existsEach (typeof_env vars) (fun x => F (r ++ x)).
   Proof.
     clear. induction vars; simpl; intros; auto.
     exists (projT2 a). specialize (IHl (r ++ a :: nil)). destruct a; simpl in *.
@@ -953,7 +959,7 @@ Section env.
 
   Lemma existsEach_projT1_env : forall (F : env.env -> Prop) vars,
     F vars ->
-    existsEach (map (@projT1 _ _) vars) F.
+    existsEach (typeof_env vars) F.
   Proof.
     clear. intros. generalize (existsEach_projT1_env' F vars nil H). intros.
     eapply existsEach_ext; try eassumption. simpl. auto.
