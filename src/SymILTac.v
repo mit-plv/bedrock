@@ -793,8 +793,6 @@ End apply_stream_correctness.
 
 Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
 
-Check Apply_sym_eval.
-
 (** NOTE:
  ** - [isConst] is an ltac function of type [* -> bool]
  ** - [ext] is the extension. it is a value of type [TypedPackage]
