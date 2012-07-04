@@ -797,14 +797,20 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
        ] in H
   end; refold.
 
+Ltac clear_junk := repeat match goal with
+                            | [ H : True |- _ ] => clear H
+                            | [ H : ?X = ?X |- _ ] => clear H
+                                | [ H : ?X, H' : ?X |- _ ] => clear H'
+                          end.
 
 Ltac evaluate ext :=
   repeat match goal with
            | [ H : ?P -> False |- _ ] => change (not P) in H
          end;
-  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
+  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext);
+  clear_junk.
 
-Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
+Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
