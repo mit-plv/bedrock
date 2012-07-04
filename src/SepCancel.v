@@ -291,8 +291,23 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           fold_left plus (map expr_count_meta args) 0
       end.
 
+    (** When expressions have the same number of uvars, we want to favor the larger
+     ** expressions first, since they are less likely to match spuriously. *)
+    Fixpoint expr_size (e : expr types) : nat :=
+      match e with
+        | Expr.Const _ _
+        | Var _
+        | UVar _ => 0
+        | Not l => S (expr_size l)
+        | Equal _ l r => S (expr_size l + expr_size r)
+        | Expr.Func _ args => fold_left plus (map expr_size args) 1
+      end.
+
     Definition meta_order_args (l r : exprs types) : Datatypes.comparison :=
-      let cmp l r := Compare_dec.nat_compare (expr_count_meta l) (expr_count_meta r) in
+      let cmp l r := match Compare_dec.nat_compare (expr_count_meta l) (expr_count_meta r) with
+                       | Datatypes.Eq => Compare_dec.nat_compare (expr_size l) (expr_size r)
+                       | v => v
+                     end in
       Ordering.list_lex_cmp _ cmp l r.
 
     Definition meta_order_funcs (l r : exprs types * func) : Datatypes.comparison :=

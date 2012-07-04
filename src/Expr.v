@@ -1245,6 +1245,24 @@ Proof.
     rewrite H by eauto. eapply IHForall; eauto. }
 Qed.
 
+Lemma is_well_typed_weaken : forall tf tu tg u' g' (e : expr types) t,
+  is_well_typed tf tu tg e t = true ->
+  is_well_typed tf (tu ++ u') (tg ++ g') e t = true.
+Proof.
+  clear; induction e; simpl in *; intros; think; auto.
+  { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
+  { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
+  { destruct t0; simpl in *; clear H0. generalize dependent TDomain0. induction H; intros; simpl in *; think; auto. }
+Qed.
+
+Lemma all2_is_well_typed_weaken : forall tf tU tG es ts,
+  all2 (is_well_typed (types := types) tf tU tG) es ts = true ->
+  forall u g,
+    all2 (is_well_typed tf (tU ++ u) (tG ++ g)) es ts = true.
+Proof.
+  clear. intros. eapply all2_impl; eauto using is_well_typed_weaken.
+Qed.
+
 End exists_subst.
 
 (** Use this function to get an environment extension

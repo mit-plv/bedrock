@@ -129,10 +129,10 @@ Module Type SynUnifier.
       exprD funcs U G (exprInstantiate sub e) t = exprD funcs U G e t.
 
 (*
-    Axiom Subst_equations_Extends : forall funcs utypes G sub sub',
+    Axiom Subst_equations_Extends : forall funcs G sub sub' U,
       Subst_Extends sub' sub ->
-      existsEach utypes (fun U => Subst_equations funcs U G sub') ->
-      existsEach utypes (fun U => Subst_equations funcs U G sub).
+      Subst_equations funcs U G sub' ->
+      Subst_equations funcs U G sub.
 *)
     
   End typed.
@@ -1414,6 +1414,117 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { induction H; simpl; auto. rewrite H; auto. }
     Qed.
 
+    Lemma Subst_set_unroll_None: forall (u : nat) (E : expr types) (sub : Subst),
+      Subst_set u E sub = None ->
+      mentionsU u (exprInstantiate sub E) = true.
+    Proof.
+      unfold Subst_set. do 3 intro.
+      match goal with
+        | [ |- context [ eq_refl ?X ] ] => generalize (eq_refl X)
+      end.
+      generalize (subst_set u E (projT1 sub)) at 2 3. destruct o; intros; try congruence.
+      unfold subst_set in *.
+      unfold exprInstantiate.
+      destruct (mentionsU u (subst_exprInstantiate (projT1 sub) E)); congruence.
+    Qed.
+
+(*
+    Lemma extends_add_from : forall sub sub' k v,
+      Subst_Extends sub' sub ->
+      Subst_lookup k sub' = Some v ->
+      Subst_lookup k sub = None ->
+      match Subst_set k v sub with
+        | None => False
+        | Some sub => Subst_Extends sub' sub
+      end.
+    Proof.
+      intros.
+      consider (Subst_set k v sub); intros.
+      { generalize (Subst_set_Extends _ _ _ H2 H1); intros.
+        generalize (exprInstantiate_Extends H).
+        generalize (exprInstantiate_Extends H3); intros.
+        eapply Subst_set_unroll in H2; intuition.
+        unfold Subst_Extends in *; intros. unfold exprInstantiate in *. rewrite H7 in *. clear H7 s.
+        unfold Subst_lookup, subst_lookup in *.
+        apply MFACTS.PROPS.F.find_mapsto_iff in H0.
+        apply MFACTS.PROPS.F.map_mapsto_iff in H2. destruct H2. intuition. subst.
+        apply MFACTS.PROPS.F.add_mapsto_iff in H8. destruct H8; intuition; subst.
+        { match goal with 
+          | H : FM.MapsTo ?A ?Y ?B |- FM.MapsTo ?A ?X ?B => cutrewrite (X = Y); auto
+          end.
+          rewrite subst_exprInstantiate_add_not_mentions by auto.
+          rewrite subst_exprInstantiate_idem.
+          2: destruct sub; auto. rewrite H5.
+          apply WellFormed_Canonical.
+          destruct sub' as [ sub' ? ]; simpl in *. eapply w. eauto. }
+        { specialize (H _ _ H8). 
+          match goal with 
+            | |- FM.MapsTo _ ?X _ => cutrewrite (X = exprInstantiate sub' x); auto
+          end.
+          clear H0 H1.
+          SearchAbout subst_exprInstantiate.
+          specialize (H3 _ _ H8).
+          destruct sub as [ sub ? ]; simpl in *. apply w in H8.
+          revert H8. generalize x. revert H6. clear. induction x; simpl; intros; auto.
+          consider (FM.find (elt:=expr types) x sub); intros; try congruence.
+          unfold subst_lookup. rewrite MFACTS.PROPS.F.add_o. destruct (FM.E.eq_dec k x); subst.
+
+          apply MFACTS.PROPS.F.map_mapsto_iff in H3. destruct H3. intuition.
+          cut (x0 = x). intros; subst. rewrite <- H3.
+          SearchAbout exprInstantiate.
+          SearchAbout subst_exprInstantiate.
+
+          Focus 2.
+          rewrite normalized_add.
+          
+
+          eapply normalized_Lt. 
+          SearchAbout normalized.
+          
+        
+
+        generalize (@exprInstantiate_instantiated k0 sub (exprInstantiate sub' v)). unfold Subst_lookup. unfold subst_lookup.
+        rewrite 
+
+
+
+        rewrite MFACTS.PROPS.F.add_o in H6.
+      
+      SearchAbout FM.MapsTo.
+
+      destruct sub as [ sub ? ]; destruct sub' as [ sub' ? ].
+      unfold Subst_Extends, Subst_lookup, subst_lookup; intros; simpl in *.
+      SearchAbout Subst_set.
+
+
+
+      unfold subst_set. remember (mentionsU k (subst_exprInstantiate sub v)).
+        
+      
+      
+      
+
+    Lemma extends_as_extension : forall sub sub',
+      Subst_Extends sub' sub ->
+      exists ls sub'',
+        Some sub'' = fold_left (fun sub kv => match sub with
+                                                | None => None
+                                                | Some sub => Subst_set (fst kv) (snd kv) sub
+                                              end) ls (Some sub) /\
+        Subst_Equal sub'' sub'.
+    Proof.
+      
+
+
+
+    Theorem Subst_equations_Extends : forall funcs G sub sub' U,
+      Subst_Extends sub' sub ->
+      Subst_equations funcs U G sub' ->
+      Subst_equations funcs U G sub.
+    Proof.
+      destruct sub; destruct sub'.
+      Print Subst_equations.
+*)
 
   End typed.
 End Unifier.
