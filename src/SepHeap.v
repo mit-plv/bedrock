@@ -1013,6 +1013,21 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       clear. destruct a; destruct b; intros; intuition.
     Qed.
 
+    Theorem WellTyped_sheap_weaken : forall tf tp tU tG tU' tG' h,
+      WellTyped_sheap tf tp tU tG h = true ->
+      WellTyped_sheap tf tp (tU ++ tU') (tG ++ tG') h = true.
+    Proof.
+      clear. unfold WellTyped_sheap. simpl; intros.
+      think. apply andb_true_iff. split. clear - H.
+      { rewrite WellTyped_impures_eq in *. intros.
+        eapply H in H0. destruct v; auto.
+        destruct (nth_error tp k); auto.
+        generalize dependent (e :: v). clear.
+        intros. eapply allb_impl; eauto; intros.
+        simpl in *. eapply all2_impl; eauto. intros. apply is_well_typed_weaken; auto. }
+      { eapply allb_impl; eauto. intros. apply is_well_typed_weaken. auto. }
+    Qed.
+
     Theorem WellTyped_sheap_star : forall tf tp tU tG h0 h1,
       WellTyped_sheap tf tp tU tG h0 && WellTyped_sheap tf tp tU tG h1 =
       WellTyped_sheap tf tp tU tG (star_SHeap h0 h1).
@@ -1237,6 +1252,67 @@ Module SepHeapFacts (SH : SepHeap).
                | [ H : _ |- _ ] => rewrite H
              end; try reflexivity; heq_canceler.
     Qed.
+
+    Lemma himp_pull_pures : forall cs U G s Q,
+      (AllProvable funcs U G (SH.pures s) ->
+       ST.himp cs (sexprD funcs preds U G (SH.sheapD s)) Q) ->
+      ST.himp cs (sexprD funcs preds U G (SH.sheapD s)) Q.
+    Proof. clear.
+      destruct s; simpl in *. generalize dependent pures.
+      induction pures; simpl; intros.
+      { apply H; auto. }
+      { repeat rewrite SH.sheapD_def in *.
+        simpl in *. rewrite starred_cons in *.
+        rewrite ST.heq_star_comm with (P := sexprD funcs preds U G (SH.impuresD pcT stT impures)).
+        simpl in *.
+        repeat rewrite ST.heq_star_assoc with (P := match exprD funcs U G a tvProp with
+                                                   | Some p => ST.inj [|p|]
+                                                   | None => ST.inj [|BadInj a|]
+                                                 end).
+        unfold himp, Provable in *.
+        destruct (exprD funcs U G a tvProp).
+        { eapply ST.himp_star_pure_c. intros.
+          etransitivity. 2: eapply IHpures. Focus 2. intros. etransitivity. 2: eapply H; eauto.
+          rewrite SH.sheapD_def. simpl.
+          repeat (eapply ST.himp_star_frame; [ reflexivity | ]).
+          rewrite ST.heq_star_assoc with (P := ST.inj [| t |]).
+          eapply ST.himp_star_pure_cc; auto. reflexivity.
+          rewrite SH.sheapD_def. simpl.
+          repeat (eapply ST.himp_star_frame; [ reflexivity | ]).
+          rewrite ST.himp_star_comm. reflexivity. }
+        { eapply ST.himp_star_pure_c. intros.
+          inversion H0. } }
+    Qed.
+
+(*
+   Lemma himp_pull_pures : forall cs U G s Q,
+      (AllProvable funcs U G (SH.pures s) ->
+       himp funcs preds U G cs (SH.sheapD s) Q) ->
+      himp funcs preds U G cs (SH.sheapD s) Q.
+    Proof. clear.
+      destruct s; simpl in *. generalize dependent pures.
+      induction pures; simpl; intros.
+      { apply H; auto. }
+      { repeat rewrite SH.sheapD_def in *.
+        simpl in *. rewrite starred_cons in *.
+        rewrite heq_star_comm with (P := SH.impuresD pcT stT impures).
+        repeat rewrite heq_star_assoc with (P := Inj a).
+        unfold himp, Provable in *. simpl in *.
+        destruct (exprD funcs U G a tvProp).
+        { eapply ST.himp_star_pure_c. intros.
+          etransitivity. 2: eapply IHpures. Focus 2. intros. etransitivity. 2: eapply H; eauto.
+          rewrite SH.sheapD_def. simpl.
+          repeat (eapply ST.himp_star_frame; [ reflexivity | ]).
+          rewrite ST.heq_star_assoc with (P := ST.inj [| t |]).
+          eapply ST.himp_star_pure_cc; auto. reflexivity.
+          rewrite SH.sheapD_def. simpl.
+          repeat (eapply ST.himp_star_frame; [ reflexivity | ]).
+          rewrite ST.himp_star_comm. reflexivity. }
+        { eapply ST.himp_star_pure_c. intros.
+          inversion H0. } }
+    Qed.
+*)
+
 
   End with_env.
 

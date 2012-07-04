@@ -517,16 +517,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           erewrite <- H; eauto. destruct (exprD funcs nil (G' ++ F) x t); auto. }
       Qed.
 
-      Lemma is_well_typed_weaken : forall tf tu tg u' g' (e : expr types) t,
-        is_well_typed tf tu tg e t = true ->
-        is_well_typed tf (tu ++ u') (tg ++ g') e t = true.
-      Proof.
-        clear; induction e; simpl in *; intros; think; auto.
-        { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
-        { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
-        { destruct t0; simpl in *; clear H0. generalize dependent TDomain. induction H; intros; simpl in *; think; auto. }
-      Qed.
-
       Lemma checkAllInstantiated_app : forall sub ts ts' from,
         checkAllInstantiated from (ts ++ ts') sub = 
         checkAllInstantiated from ts sub && checkAllInstantiated (length ts + from) ts' sub.
@@ -608,13 +598,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           induction H; destruct TDomain; simpl in *; intros; think; auto. }
       Qed.
 
-      Lemma all2_is_well_typed_weaken : forall tf tU tG es ts,
-        all2 (is_well_typed (types := types) tf tU tG) es ts = true ->
-        forall u g,
-          all2 (is_well_typed tf (tU ++ u) (tG ++ g)) es ts = true.
-      Proof.
-        clear. intros. eapply all2_impl; eauto using is_well_typed_weaken.
-      Qed.
 
       Lemma openForUnification_liftInstantiate : forall quant sub U G e,
         U.exprInstantiate sub (openForUnification U e) = liftInstantiate quant U G 0 sub e.
@@ -701,6 +684,15 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         rewrite H2. reflexivity. repeat rewrite U.exprInstantiate_Extends in H8 by eauto. auto.
       Qed.
 
+      Lemma exprD_weaken_quant : forall U U' G G' ug ug' a t v,
+        exprD funcs U G a t = Some v ->
+        exprD funcs (quant ug U U') (quant ug' G G') a t = Some v.
+      Proof.
+        clear; destruct ug; destruct ug'; simpl; intros; 
+          [ | rewrite <- app_nil_r with (l := G) | rewrite <- app_nil_r with (l := U) | auto ];
+          apply exprD_weaken; auto. 
+      Qed.
+
       Lemma liftInstantiate_lemmaD : forall U_or_G U G lem sub env,
         Subst_to_env U G sub (Foralls lem) (length U) = Some env ->
         lemmaD funcs preds nil nil lem ->            
@@ -717,14 +709,6 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         generalize (liftInstantiate_spec U_or_G U G nil (F := env)). simpl. erewrite <- Subst_to_env_typeof_env by eassumption.
         intro. eapply H5 in H; eauto. rewrite H.
         consider (exprD funcs U G (liftInstantiate U_or_G (length U) (length G) 0 sub a) tvProp); try contradiction; intros.
-        Lemma exprD_weaken_quant : forall U U' G G' ug ug' a t v,
-          exprD funcs U G a t = Some v ->
-          exprD funcs (quant ug U U') (quant ug' G G') a t = Some v.
-        Proof.
-          clear; destruct ug; destruct ug'; simpl; intros; 
-            [ | rewrite <- app_nil_r with (l := G) | rewrite <- app_nil_r with (l := U) | auto ];
-            apply exprD_weaken; auto. 
-        Qed.
         erewrite exprD_weaken_quant by eauto. auto.
       Qed.
       Lemma allb_AllProvable : forall U G facts hyps,
