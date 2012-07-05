@@ -1,30 +1,40 @@
 Require Import AutoSepExt.
 Export AutoSepExt.
 
+Ltac refold' A :=
+  progress change (fix length (l : list A) : nat :=
+    match l with
+      | nil => 0
+      | _ :: l' => S (length l')
+    end) with (@length A) in *
+  || (progress change (fix app (l0 m : list A) : list A :=
+    match l0 with
+      | nil => m
+      | a1 :: l1 => a1 :: app l1 m
+    end) with (@app A) in *)
+  || (progress change (fix rev (l : list W) : list W :=
+    match l with
+      | nil => nil
+      | x8 :: l' => (rev l' ++ x8 :: nil)%list
+    end) with (@rev A) in *)
+  || (progress change (fix rev_append (l l' : list A) : list A :=
+    match l with
+      | nil => l'
+      | a1 :: l0 => rev_append l0 (a1 :: l')
+    end) with (@rev_append A) in *).
+
 Ltac refold :=
   fold plus in *; fold minus in *;
     repeat match goal with
              | [ _ : list ?A |- _ ] =>
-               progress change (fix length (l : list A) : nat :=
-                 match l with
-                   | nil => 0
-                   | _ :: l' => S (length l')
-                 end) with (@length A) in *
-               || (progress change (fix app (l0 m : list A) : list A :=
-                 match l0 with
-                   | nil => m
-                   | a1 :: l1 => a1 :: app l1 m
-                 end) with (@app A) in *)
-               || (progress change (fix rev (l : list W) : list W :=
-                 match l with
-                   | nil => nil
-                   | x8 :: l' => (rev l' ++ x8 :: nil)%list
-                 end) with (@rev A) in *)
-               || (progress change (fix rev_append (l l' : list A) : list A :=
-                 match l with
-                   | nil => l'
-                   | a1 :: l0 => rev_append l0 (a1 :: l')
-                 end) with (@rev_append A) in *)
+               match A with
+                 | _ => refold' A
+                 | W => refold' (word 32)
+               end
+             | [ |- context[match ?X with nil => ?D | x :: _ => x end] ] =>
+               change (match X with nil => D | x :: _ => x end) with (List.hd D X)
+             | [ |- context[match ?X with nil => nil | _ :: x => x end] ] =>
+               change (match X with nil => nil | _ :: x => x end) with (List.tl X)
            end.
 
 Require Import Bool.
@@ -853,40 +863,6 @@ Ltac peelPrefix ls1 ls2 :=
 
 Global Opaque merge.
 
-Ltac step ext := 
-  match goal with
-    | [ |- _ _ = Some _ ] => solve [ eauto ]
-    | [ |- interp _ (![ _ ] _) ] => cancel ext
-    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
-    | [ |- himp _ (locals ?ns'' ?vs _ ?p) (locals ?ns _ ?avail ?p') ] =>
-      replace p' with p by words;
-      let ns' := peelPrefix ns ns'' in
-        apply (@prelude_out ns ns' vs avail p); simpl; omega
-    | [ |- himp _ ?pre ?post ] =>
-      match post with
-        | context[locals ?ns ?vs ?avail _] =>
-          match pre with
-            | context[locals ?ns' ?vs' ?avail' _] =>
-              match vs' with
-                | vs => fail 1
-                | _ => let offset := eval simpl in (4 * List.length ns) in
-                  rewrite (create_locals_return ns' avail' ns avail offset);
-                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
-                    simpl; omega
-                    | reflexivity ] );
-                    solve [ cancel ext ]
-              end
-          end
-      end
-    | [ |- himp _ _ _ ] => progress cancel ext
-    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
-      match y with
-        | x => fail 1
-        | _ => apply implyR
-      end
-    | _ => ho
-  end.
-
 Theorem use_HProp_extensional : forall p, HProp_extensional p
   -> (fun st sm => p st sm) = p.
   auto.
@@ -976,6 +952,43 @@ Definition auto_ext : TacPackage.
   prepare tt tt.
 Defined.
 
+Ltac step ext := 
+  match goal with
+    | [ |- _ _ = Some _ ] => solve [ eauto ]
+    | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] =>
+      try solve [ cancel auto_ext;
+        try match goal with
+              | [ |- himp _ (locals ?ns'' ?vs _ ?p) (locals ?ns _ ?avail ?p') ] =>
+                replace p' with p by words;
+                  let ns' := peelPrefix ns ns'' in
+                    apply (@prelude_out ns ns' vs avail p); simpl; omega          
+            end; assumption]; cancel ext
+    | [ |- himp _ ?pre ?post ] =>
+      match post with
+        | context[locals ?ns ?vs ?avail _] =>
+          match pre with
+            | context[locals ?ns' ?vs' ?avail' _] =>
+              match vs' with
+                | vs => fail 1
+                | _ => let offset := eval simpl in (4 * List.length ns) in
+                  rewrite (create_locals_return ns' avail' ns avail offset);
+                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                    simpl; omega
+                    | reflexivity ] );
+                    solve [ cancel ext ]
+              end
+          end
+      end
+    | [ |- himp _ _ _ ] => progress cancel ext
+    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
+      match y with
+        | x => fail 1
+        | _ => apply implyR
+      end
+    | _ => ho
+  end.
+
 Ltac slotVariable E :=
   match E with
     | 4 => constr:"0"
@@ -1056,12 +1069,19 @@ Ltac post :=
         end
   (*TIME ) *).
 
-Ltac sep ext := 
+Ltac sep' ext := 
   post; evaluate ext; descend; repeat (step ext; descend).
+
+Ltac sep ext :=
+  match goal with
+    | [ |- context[Assign (LvMem (Indir Sp (natToW 0))) (RvLval (LvReg Rp)) :: nil] ] =>
+      sep' auto_ext (* Easy case; don't bring the hints into it *)
+    | _ => sep' ext
+  end.
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
-Ltac sep_auto := sep auto_ext.
+Ltac sep_auto := sep' auto_ext.
 
 Hint Rewrite sel_upd_eq sel_upd_ne using congruence : sepFormula.
 

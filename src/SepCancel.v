@@ -311,9 +311,15 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       Ordering.list_lex_cmp _ cmp l r.
 
     Definition meta_order_funcs (l r : exprs types * func) : Datatypes.comparison :=
-      match meta_order_args (fst l) (fst r) with
-        | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
-        | x => x
+      match snd l, snd r with
+        | 2, 0 => Datatypes.Lt
+        | 2, 1 => Datatypes.Lt
+        | 2, S (S (S _)) => Datatypes.Lt
+        | _, _ =>
+          match meta_order_args (fst l) (fst r) with
+            | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
+            | x => x
+          end
       end.
 
     Definition order_impures (imps : MM.mmap (exprs types)) : cancel_list :=

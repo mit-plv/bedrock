@@ -1,5 +1,4 @@
-Require Import AutoSep.
-Require Import Malloc Sets.
+Require Import AutoSep Malloc Sets.
 
 Set Implicit Arguments.
 
@@ -106,277 +105,240 @@ Hint Immediate bst_extensional bst'_extensional.
 
 Definition hints : TacPackage.
 (*TIME idtac "tree-set:prepare1". Time *)
-  prepare auto_ext tt tt  (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
+  prepare (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
 
-Definition initS : assert := st ~> ExX, ![ ^[st#Sp =?> 3] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
-    /\ ![ ^[st#Sp =?> 3] * ^[bst empty st'#Rv] * ^[mallocHeap] * #1 ] st').
+Definition removeMinS : spec := SPEC("prev") reserving 5
+  Ex s, Ex t, Ex p,
+  PRE[V] V "prev" =*> p * [| p <> 0 |] * bst' s t p * mallocHeap
+  POST[R] Ex t', Ex p', [| R %in s |] * [| s %< R %= empty |]
+    * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap.
 
-Definition lookupS : assert := st ~> ExX, Ex s, Ex p, Ex w,
-  ![ (st#Sp ==*> p, w) * ^[bst s p] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w %in s) \is st'#Rv |]
-    /\ ![ ^[st#Sp =?> 2] * ^[bst s p] * ^[mallocHeap] * #1 ] st').
+Definition removeMaxS : spec := SPEC("prev") reserving 5
+  Ex s, Ex t, Ex p,
+  PRE[V] V "prev" =*> p * [| p <> 0 |] * bst' s t p * mallocHeap
+  POST[R] Ex t', Ex p', [| R %in s |] * [| s %> R %= empty |]
+    * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap.
 
-Definition addS : assert := st ~> ExX, Ex s, Ex p, Ex w,
-  ![ (st#Sp ==*> p, w) * ^[(st#Sp ^+ $8) =?> 3] * ^[bst s p] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
-    /\ ![ ^[st#Sp =?> 5] * ^[bst (s %+ w) p] * ^[mallocHeap] * #1 ] st').
-
-Definition removeMinS : assert := st ~> ExX, Ex s, Ex t, Ex p, Ex p' : W, [| p' <> 0 |]
-  /\ ![ st#Sp =*> p * ^[(st#Sp ^+ $4) =?> 3] * p =*> p' * ^[bst' s t p'] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %< st'#Rv %= empty |]
-    /\ Ex t', Ex p'', ![ ^[st#Sp =?> 4] * p =*> p'' * ^[bst' (s %- st'#Rv) t' p''] * ^[mallocHeap] * #1 ] st').
-
-Definition removeMaxS : assert := st ~> ExX, Ex s, Ex t, Ex p, Ex p' : W, [| p' <> 0 |]
-  /\ ![ st#Sp =*> p * ^[(st#Sp ^+ $4) =?> 3] * p =*> p' * ^[bst' s t p'] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %> st'#Rv %= empty |]
-    /\ Ex t', Ex p'', ![ ^[st#Sp =?> 4] * p =*> p'' * ^[bst' (s %- st'#Rv) t' p''] * ^[mallocHeap] * #1 ] st').
-
-Definition removeS : assert := st ~> ExX, Ex s, Ex p, Ex w,
-  ![ (st#Sp ==*> p, w) * ^[(st#Sp ^+ $8) =?> 4] * ^[bst s p] * ^[mallocHeap] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
-    /\ ![ ^[st#Sp =?> 6] * ^[bst (s %- w) p] * ^[mallocHeap] * #1 ] st').
+Definition initS := initS bst 7.
+Definition lookupS := lookupS bst 1.
+Definition addS := addS bst 7.
+Definition removeS := removeS bst 10.
 
 Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "bst" {{
-  bfunction "init" [initS] {
-    $[Sp] <- Rp;;
-    $[Sp+4] <- 0;;
-    Sp <- Sp + 4;;
-    Call "malloc"!"malloc"
-    [st ~> ExX, Ex rp, [| freeable st#Rv 2 |]
-      /\ ![ (st#Sp ^- $4) =*> rp * ^[st#Sp =?> 2] * ^[st#Rv =?> 2] * #0 ] st
-      /\ rp @@ (st' ~> [| st'#Rv = st#Rv /\ st'#Sp = st#Sp ^- $4 |]
-        /\ Ex r, Ex junk, ![ ^[st'#Sp =?> 3] * (st'#Rv ==*> r, junk) * ^[bst' empty Leaf r] * #1 ] st')];;
-    Sp <- Sp - 4;;
-    $[Rv] <- 0;;
-    Rp <- $[Sp];;
-    Return Rv
-  } with bfunction "lookup" [lookupS] {
-    Rv <- $[Sp];;
-    $[Sp] <- $[Rv];;
+  (*bfunction "init"("r") [initS]
+    "r" <-- Call "malloc"!"malloc"(0)
+    [PRE[_, R] R =?> 2 * [| freeable R 2 |]
+     POST[R'] [| R' = R |] * bst empty R ];;
+    "r" *<- 0;;
+    Return "r"
+  end with bfunction "lookup"("s", "k", "tmp") [lookupS]
+    "s" <-* "s";;
 
-    [st ~> ExX, Ex s, Ex t, Ex p, Ex w,
-      ![ (st#Sp ==*> p, w) * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ (w %in s) \is st'#Rv |]
-        /\ ![ ^[st#Sp =?> 2] * ^[bst' s t p] * ^[mallocHeap] * #1 ] st')]
-    While ($[Sp] <> 0) {
-      Rv <- $[Sp];;
-      If ($[Rv+4] = $[Sp+4]) {
+    [Ex s, Ex t,
+      PRE[V] bst' s t (V "s") * mallocHeap
+      POST[R] [| (V "k" %in s) \is R |] * bst' s t (V "s") * mallocHeap]
+    While ("s" <> 0) {
+      "tmp" <- "s" + 4;;
+      "tmp" <-* "tmp";;
+      If ("k" = "tmp") {
         (* Key matches! *)
         Return 1
       } else {
-        If ($[Sp+4] < $[Rv+4]) {
+        If ("k" < "tmp") {
           (* Searching for a lower key *)
-          $[Sp] <- $[Rv]
+          "s" <-* "s"
         } else {
           (* Searching for a higher key *)
-          $[Sp] <- $[Rv+8]
+          "s" <- "s" + 8;;
+          "s" <-* "s"
         }
       }
     };;
     Return 0
-  } with bfunction "add" [addS] {
-    $[Sp+8] <- Rp;;
-    Rv <- $[Sp];;
-    $[Sp+12] <- Rv;;
-    $[Sp] <- $[Rv];;
-
-    [st ~> ExX, Ex s, Ex t, Ex ans, Ex w, Ex rp, Ex p, Ex v,
-      ![ (st#Sp ==*> p, w, rp, ans, v) * ans =*> p * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ rp @@ (st' ~> [| st'#Sp = st#Sp |]
-        /\ Ex t', Ex p', ![ ^[st#Sp =?> 5] * ans =*> p' * ^[bst' (s %+ w) t' p'] * ^[mallocHeap] * #1 ] st')]
-    While ($[Sp] <> 0) {
-      Rv <- $[Sp];;
-      If ($[Rv+4] = $[Sp+4]) {
+  end with bfunction "add"("s", "k", "tmp") [addS]
+    "tmp" <-* "s";;
+    [Ex s, Ex t,
+      PRE[V] V "s" =*> V "tmp" * bst' s t (V "tmp") * mallocHeap
+      POST[_] Ex t', Ex p', V "s" =*> p' * bst' (s %+ V "k") t' p' * mallocHeap]
+    While ("tmp" <> 0) {
+      "tmp" <- "tmp" + 4;;
+      "tmp" <-* "tmp";;
+      If ("k" = "tmp") {
         (* Key matches!  No need for changes. *)
-        Rp <- $[Sp+8];;
         Return 0
       } else {
-        If ($[Sp+4] < $[Rv+4]) {
+        "s" <-* "s";;
+        If ("k" < "tmp") {
           (* Searching for a lower key *)
           Skip
         } else {
           (* Searching for a higher key *)
-          Rv <- Rv + 8
+          "s" <- "s" + 8
         };;
-        $[Sp+12] <- Rv;;
-        $[Sp] <- $[Rv]
+        "tmp" <-* "s"
       }
     };;
 
     (* Found a spot for a new node.  Allocate and initialize it. *)
 
-    $[Sp] <- $[Sp+12];;
-    Sp <- Sp + 12;;
-    $[Sp] <- 1;;
-    Call "malloc"!"malloc"
-    [st ~> ExX, Ex ans, Ex w, Ex rp, Ex v1, Ex v2, [| st#Rv <> 0 /\ freeable st#Rv 3 |]
-      /\ ![ ((st#Sp ^- $12) ==*> ans, w, rp, v1, v2) * ans =*> 0 * ^[st#Rv =?> 3] * #0 ] st
-      /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $12 |]
-        /\ ![ ^[st'#Sp =?> 5] * ans =*> st#Rv * (st#Rv ==*> $0, w, $0) * #1 ] st')];;
-    Sp <- Sp - 12;;
-    $[Rv] <- 0;;
-    $[Rv+4] <- $[Sp+4];;
-    $[Rv+8] <- 0;;
-    Rp <- $[Sp];;
-    $[Rp] <- Rv;;
-    Rp <- $[Sp+8];;
+    "tmp" <-- Call "malloc"!"malloc"(1)
+    [PRE[V, R] V "s" =*> 0 * [| R <> 0 |] * [| freeable R 3 |] * R =?> 3
+     POST[_] V "s" =*> R * [| R <> 0 |] * [| freeable R 3 |] * (R ==*> $0, V "k", $0)];;
+    "s" *<- "tmp";;
+    "tmp" *<- 0;;
+    "tmp" <- "tmp" + 4;;
+    "tmp" *<- "k";;
+    "tmp" <- "tmp" + 4;;
+    "tmp" *<- 0;;
     Return 0
-  } with bfunction "removeMin" [removeMinS] {
-    Rv <- $[Sp];;
-    $[Sp+4] <- Rv;;
-    $[Sp] <- $[Rv];; 
+  end with*) bfunction "removeMin"("prev", "s", "tmp") [removeMinS]
+    Diverge(*
+    "prev" <- "s";;
+    "s" <-* "prev";;
 
-    [st ~> ExX, Ex s, Ex t, Ex p : W, Ex pointerHere, [| p <> 0 |]
-      /\ ![ (st#Sp ==*> p, pointerHere) * ^[(st#Sp ^+ $8) =?> 2] * pointerHere =*> p
-        * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %< st'#Rv %= empty |]
-        /\ Ex t', Ex p', ![ ^[st#Sp =?> 4] * pointerHere =*> p'
-          * ^[bst' (s %- st'#Rv) t' p'] * ^[mallocHeap] * #1 ] st')]
+    [Ex s, Ex t,
+      PRE[V] [| V "s" <> 0 |] * V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
+      POST[R] Ex t', Ex p', [| R %in s |] * [| s %< R %= empty |]
+        * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap ]
     While (1 = 1) {
-      Rv <- $[Sp];;
+      "tmp" <-* "s";;
 
-      If ($[Rv] <> 0) {
-        $[Sp+4] <- Rv;;
-        $[Sp] <- $[Rv]
+      If ("tmp" <> 0) {
+        (* Left subtree is nonempty.  Keep looping. *)
+        "prev" <- "s";;
+        "s" <- "tmp"
       } else {
-        $[Sp+8] <- $[Rv+8];;
-        Rv <- $[Sp+4];;
-        $[Rv] <- $[Sp+8];;
+        (* Left subtree is empty.  We can free this node and return its key. *)
 
-        Rv <- $[Sp];;
-        $[Sp] <- Rp;;
-        $[Sp+4] <- $[Rv+4];;
-        $[Sp+8] <- Rv;;
-        $[Sp+12] <- 1;;
-        Sp <- Sp + 8;;
-        Call "malloc"!"free"
-        [st ~> ExX, Ex rp, Ex rv, ![ ((st#Sp ^- $8) ==*> rp, rv) * #0 ] st
-          /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 /\ st'#Rv = rv |]
-            /\ ![ ^[(st#Sp ^- $8) =?> 2] * #1 ] st')];;
-        Sp <- Sp - 8;;
-        Rp <- $[Sp];;
-        Return $[Sp+4]
+        (* Overwrite pointer into this node with its right subtree. *)
+        "tmp" <- "s" + 8;;
+        "tmp" <-* "tmp";;
+        "prev" *<- "tmp";;
+
+        (* Save key. *)
+        "tmp" <- "s" + 4;;
+        "tmp" <-* "tmp";;
+
+        (* Free node. *)
+        Call "malloc"!"free"("s", 1)
+        [PRE[V] Emp
+         POST[R] [| R = V "tmp" |] ];;
+
+        (* Return key. *)
+        Return "tmp"
       }
     };;
     
-    Fail (* Unreachable! *)
-  } with bfunction "removeMax" [removeMaxS] {
-    Rv <- $[Sp];;
-    $[Sp+4] <- Rv;;
-    $[Sp] <- $[Rv];; 
+    Fail (* Unreachable! *)*)
+  end with bfunction "removeMax"("prev", "s", "tmp") [removeMaxS]
+    Diverge(*
+    "prev" <- "s";;
+    "s" <-* "prev";;
 
-    [st ~> ExX, Ex s, Ex t, Ex p : W, Ex pointerHere, [| p <> 0 |]
-      /\ ![ (st#Sp ==*> p, pointerHere) * ^[(st#Sp ^+ $8) =?> 2] * pointerHere =*> p
-        * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv %in s /\ s %> st'#Rv %= empty |]
-        /\ Ex t', Ex p', ![ ^[st#Sp =?> 4] * pointerHere =*> p'
-          * ^[bst' (s %- st'#Rv) t' p'] * ^[mallocHeap] * #1 ] st')]
+    [Ex s, Ex t,
+      PRE[V] [| V "s" <> 0 |] * V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
+      POST[R] Ex t', Ex p', [| R %in s |] * [| s %> R %= empty |]
+        * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap ]
     While (1 = 1) {
-      Rv <- $[Sp];;
+      "tmp" <- "s" + 8;;
+      "tmp" <-* "tmp";;
 
-      If ($[Rv+8] <> 0) {
-        $[Sp+4] <- Rv+8;;
-        $[Sp] <- $[Rv+8]
+      If ("tmp" <> 0) {
+        (* Right subtree is nonempty.  Keep looping. *)
+        "prev" <- "s" + 8;;
+        "s" <- "tmp"
       } else {
-        $[Sp+8] <- $[Rv];;
-        Rv <- $[Sp+4];;
-        $[Rv] <- $[Sp+8];;
+        (* Right subtree is empty.  We can free this node and return its key. *)
 
-        Rv <- $[Sp];;
-        $[Sp] <- Rp;;
-        $[Sp+4] <- $[Rv+4];;
-        $[Sp+8] <- Rv;;
-        $[Sp+12] <- 1;;
-        Sp <- Sp + 8;;
-        Call "malloc"!"free"
-        [st ~> ExX, Ex rp, Ex rv, ![ ((st#Sp ^- $8) ==*> rp, rv) * #0 ] st
-          /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 /\ st'#Rv = rv |]
-            /\ ![ ^[(st#Sp ^- $8) =?> 2] * #1 ] st')];;
-        Sp <- Sp - 8;;
-        Rp <- $[Sp];;
-        Return $[Sp+4]
+        (* Overwrite pointer into this node with its left subtree. *)
+        "tmp" <-* "s";;
+        "prev" *<- "tmp";;
+
+        (* Save key. *)
+        "tmp" <- "s" + 4;;
+        "tmp" <-* "tmp";;
+
+        (* Free node. *)
+        Call "malloc"!"free"("s", 1)
+        [PRE[V] Emp
+         POST[R] [| R = V "tmp" |] ];;
+
+        (* Return key. *)
+        Return "tmp"
       }
     };;
     
-    Fail (* Unreachable! *)
-  } with bfunction "remove" [removeS] {
-    Rv <- $[Sp];;
-    $[Sp+8] <- Rv;;
-    $[Sp] <- $[Rv];;
+    Fail (* Unreachable! *)*)
+  end with bfunction "remove"("s", "k", "prev", "tmp") [removeS]
+    "prev" <- "s";;
+    "s" <-* "prev";;
 
-    [st ~> ExX, Ex s, Ex t, Ex ans, Ex w, Ex p,
-      ![ (st#Sp ==*> p, w, ans) * ^[(st#Sp ^+ $12) =?> 3] * ans =*> p * ^[bst' s t p] * ^[mallocHeap] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
-        /\ Ex t', Ex p', ![ ^[st#Sp =?> 6] * ans =*> p' * ^[bst' (s %- w) t' p'] * ^[mallocHeap] * #1 ] st')]
-    While ($[Sp] <> 0) {
-      Rv <- $[Sp];;
-      If ($[Rv+4] = $[Sp+4]) {
+    [Ex s, Ex t,
+      PRE[V] V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
+      POST[_] Ex t', Ex p', V "prev" =*> p' * bst' (s %- V "k") t' p' * mallocHeap ]
+    While ("s" <> 0) {
+      "tmp" <- "s" + 4;;
+      "tmp" <-* "tmp";;
+
+      If ("k" = "tmp") {
         (* Key matches!  Now the hard part: pulling another node's data value up here (if possible),
          * and then deleting this node. *)
-        If ($[Rv] <> 0) {
+        "tmp" <-* "s";;
+        If ("tmp" <> 0) {
           (* Nonempty left subtree.  Find and remove its rightmost node. *)
-            $[Sp+8] <- Rv;;
-            $[Sp] <- Rp;;
-            $[Sp+4] <- Rv+4;;
-            Sp <- Sp + 8;;
-            Call "bst"!"removeMax"
-            [st ~> ExX, Ex rp, Ex rv, ![((st#Sp ^- $8) ==*> rp, rv) * ^[st#Sp =?> 4] * ^[rv =?> 1] * #0] st
-              /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 |]
-                /\ ![ ^[(st#Sp ^- $8) =?> 6] * rv =*> st#Rv * #1] st')];;
 
-            Sp <- Sp - 8;;
-            Rp <- $[Sp+4];;
-            $[Rp] <- Rv;;
-            Rp <- $[Sp];;
-            Goto Rp
+          "tmp" <-- Call "bst"!"removeMax"("s")
+          [PRE[V, R] (V "s" ^+ $4) =?> 1
+           POST[_] (V "s" ^+ $4) =*> R];;
+
+          "s" <- "s" + 4;;
+          "s" *<- "tmp";;
+          Return 0
         } else {
-          If ($[Rv+8] <> 0) {
+          "tmp" <- "s" + 8;;
+          "tmp" <-* "tmp";;
+          If ("tmp" <> 0) {
             (* Nonempty right subtree.  Find and remove its leftmost node. *)
-            $[Sp+8] <- Rv+8;;
-            $[Sp] <- Rp;;
-            $[Sp+4] <- Rv+4;;
-            Sp <- Sp + 8;;
-            Call "bst"!"removeMin"
-            [st ~> ExX, Ex rp, Ex rv, ![((st#Sp ^- $8) ==*> rp, rv) * ^[st#Sp =?> 4] * ^[rv =?> 1] * #0] st
-              /\ rp @@ (st' ~> [| st'#Sp = st#Sp ^- $8 |]
-                /\ ![ ^[(st#Sp ^- $8) =?> 6] * rv =*> st#Rv * #1] st')];;
 
-            Sp <- Sp - 8;;
-            Rp <- $[Sp+4];;
-            $[Rp] <- Rv;;
-            Rp <- $[Sp];;
-            Goto Rp
+            "tmp" <- "s" + 8;;
+            "tmp" <-- Call "bst"!"removeMin"("tmp")
+            [PRE[V, R] (V "s" ^+ $4) =?> 1
+             POST[_] (V "s" ^+ $4) =*> R];;
+
+            "s" <- "s" + 4;;
+            "s" *<- "tmp";;
+            Return 0
           } else {
             (* Both subtrees empty.  Easy case!  Can just delete this node. *)
 
             (* Zero out pointer to the node. *)
-            Rv <- $[Sp+8];;
-            $[Rv] <- 0;;
+            "prev" *<- 0;;
 
             (* Free the node. *)
-            $[Sp+4] <- 1;;
-            Goto "malloc"!"free"
+            Call "malloc"!"free"("s", 1)
+            [PRE[_] Emp
+             POST[_] Emp];;
+            Return 0
           }
         }
       } else {
-        If ($[Sp+4] < $[Rv+4]) {
+        If ("k" < "tmp") {
           (* Searching for a lower key *)
           Skip
         } else {
           (* Searching for a higher key *)
-          Rv <- Rv + 8
+          "s" <- "s" + 8
         };;
-        $[Sp+8] <- Rv;;
-        $[Sp] <- $[Rv]
+        "prev" <- "s";;
+        "s" <-* "prev"
       }
     };;
 
     (* Key not found!  So deletion is an easy no-op. *)
     Return 0
-  }
+  end
 }}.
 
 Lemma exhausted_cases : forall a b : W, a <> b
@@ -391,7 +353,206 @@ Local Hint Resolve exhausted_cases.
 Local Hint Extern 5 (@eq W _ _) => words.
 Local Hint Extern 3 (himp _ _ _) => apply bst'_set_extensional.
 
+Ltac t := sep hints; auto.
+
 Theorem bstMOk : moduleOk bstM.
+  vcgen.
+
+  Focus 28.
+  post.
+  evaluate hints.
+  descend.
+  step hints.
+
+
+  match goal with
+    | [ H : context[locals ?NS ?VS ?AV ?SP] |- context[locals ?NS ?VS' ?AV ?SP'] ] =>
+      equate VS VS'; autorewrite with sepFormula
+  end.
+  step hints.
+
+  
+
+  t.
+  t.
+  sep_auto.
+  t.
+
+  t.
+  t.
+  sep_auto.
+  t.
+
+  t.
+  t.
+  sep_auto.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  post.
+  evaluate hints.
+  descend.
+
+  match goal with
+    | [ H : context[locals ?NS ?VS ?AV ?SP] |- context[locals ?NS ?VS' ?AV ?SP'] ] =>
+      equate VS VS'; autorewrite with sepFormula
+  end.
+  step hints.
+  descend.
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+
+  match goal with
+    | [ |- interp _ (?L ---> ?R) ] =>
+      match L with
+        | context[locals ?NS ?VS _ _] =>
+          match R with
+            | context[locals NS ?VS' _ _] =>
+              equate VS VS'; autorewrite with sepFormula
+          end
+      end
+  end.
+  step hints.
+  descend.
+  step hints.
+
+  step hints.
+  cancel hints.
+  cancel hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+
+
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  admit.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+t.  
+
+
+
+
+  t.
+  t.
+  sep_auto.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t. (*!*)
+  t.
+  t.
+  t.
+  t.  
+
+
+  t.
+  t.
+  sep_auto.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  post.
+  evaluate hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  auto.
+  descend.
+  step hints.
+
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
 (*TIME idtac "tree-set:verify". Time *)
   vcgen; abstract (sep hints; auto).
 (*TIME Time *)Qed.

@@ -346,8 +346,6 @@ Section mallocOk.
         end; congruence || eauto; try rewrite <- (plus_comm 2);
     simpl; cancel hints.
 
-  Ltac backup := sep_auto; auto.
-
   Ltac split_case := post; evaluate hints;
     match goal with
       | [ H : sel _ _ = natToW _ |- _ ] => rewrite H in *
@@ -368,8 +366,6 @@ Section mallocOk.
 
   Ltac combined :=
     match goal with
-      | [ |- context[Assign (LvMem (Indir Sp (natToW 0))) (RvLval (LvReg Rp)) :: nil] ] =>
-        backup
       | [ |- context[Times] ] =>
         match goal with
           | [ |- context[Logic.ex _] ] => split_case
