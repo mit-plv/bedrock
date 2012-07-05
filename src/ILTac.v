@@ -23,7 +23,10 @@ Module CANCEL := SepCancel.Make U SepIL.SH.
 
 Section existsSubst.
   Variable types : list type.
-  Variable denote : expr types -> forall t : tvar, option (tvarD types t).
+  Variable funcs : functions types.
+  Variable meta_base : env types.
+  Variable var_env : env types.
+(*  Variable denote : expr types -> forall t : tvar, option (tvarD types t). *)
   Variable sub : U.Subst types.
  
   Definition ExistsSubstNone (_ : list { t : tvar & option (tvarD types t) }) (_ : tvar) (_ : expr types) := 
@@ -38,7 +41,7 @@ Section existsSubst.
         match U.Subst_lookup from sub with
           | None => exists v : tvarD types t, existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v =>
-            match denote v t with
+            match exprD funcs meta_base var_env v t with
               | None => ExistsSubstNone vals t v
               | Some v => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
             end
@@ -47,15 +50,27 @@ Section existsSubst.
         match U.Subst_lookup from sub with
           | None => existsSubst (S from) vals (fun env => ret (existT (tvarD types) t v :: env))
           | Some v' =>
-            match denote v' t with
+            match exprD funcs meta_base var_env v' t with
               | None => ExistsSubstSome vals v'
               | Some v' => 
                 existsSubst (S from) vals (fun env => v = v' /\ ret (existT (tvarD types) t v' :: env))
             end
         end
     end.
+  Check U.Subst_equations.
 End existsSubst.
 
+(*
+Check existsSubst.
+
+Lemma existsSubst_existsEach_equations : forall ts (funcs : functions ts) vals sub meta_base vars_env from ret,
+  existsSubst funcs meta_base vars_env sub from vals ret ->
+  existsEach (map (@projT1 _ _) vals) (fun meta_env =>
+    U.Subst_equations funcs meta_env vars_env sub /\ ret meta_env).
+Proof.
+  induction vals; simpl; intros. 
+  { intuition. SearchAbout U.Subst_equations.
+*)
 (*
 Lemma apply_CancelSep : forall ts,
   let types := Env.repr BedrockCoreEnv.core ts in
@@ -189,7 +204,7 @@ Section canceller.
         end
     end.
 
-  Lemma ApplyCancelSep_with_eq : 
+  Lemma ApplyCancelSep_with_eq' : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
     Expr.AllProvable funcs meta_env nil hyps ->
@@ -206,7 +221,7 @@ Section canceller.
         Expr.forallEach ((*rev*) new_vars) (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-            (existsSubst (exprD funcs meta_env var_env) subst 0 
+            (existsSubst funcs meta_env var_env subst 0 
               (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
                map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
               (fun meta_env : Expr.env types =>
@@ -253,7 +268,7 @@ Section canceller.
     rewrite UNF.himp_existsEach_ST_EXT_existsEach.
     rewrite UNF.ST_EXT.himp_existsEach_p; [ reflexivity | intros ].
     rewrite app_nil_r.
-    assert (AllProvable funcs meta_env (rev G) (SH.pures s)) by admit.
+    apply CANCEL.HEAP_FACTS.himp_pull_pures; intro.
     match goal with 
       | [ H : context [ Summarize ?P ?ps ] |- _ ] =>
         assert (Valid PC meta_env (rev G) (Summarize P ps)); [ | generalize dependent (Summarize P ps); intros ]
@@ -268,8 +283,10 @@ Section canceller.
     match goal with
       | [ H : match ?X with _ => _ end = _ |- _ ] => consider X
     end; intros.
-    assert (SH.WellTyped_sheap (typeof_funcs funcs) (UNF.SE.typeof_preds preds)
-      (typeof_env meta_env) (rev v) s = true) by admit.
+    apply CANCEL.SEP_FACTS.himp_WellTyped_sexpr; intro.
+(*
+    cutrewrite (typeof_env (rev G) = rev v) in H7.
+    Focus 2. subst. rewrite <- map_rev. reflexivity. *)
     destruct (UNF.forwardLength _ _ _ _ _ H2).
     eapply UNF.forwardOk  with (cs := cs) in H2; simpl; eauto using typeof_env_WellTyped_env.
     Focus 2. unfold WellTyped_env. subst. rewrite <- map_rev. auto.
@@ -290,18 +307,53 @@ Section canceller.
       AllProvable funcs U G ps ->
       AllProvable_impl funcs U G P ps ->
       P.
-    Proof. clear. induction ps; simpl; intros; eauto. intuition. Qed.
-    eapply AllProvable_impl_AllProvable in H1; [ | admit ]. (** TODO **)
+    Proof. clear. induction ps; simpl; intros; eauto. intuition. Qed.    
+    eapply AllProvable_impl_AllProvable in H1.
     
     Transparent UNF.backward UNF.forward Env.repr.
   Admitted.
 
+  Lemma ApplyCancelSep_with_eq : 
+    forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
+    forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
+
+    forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) res,
+    Expr.AllProvable funcs meta_env nil hyps ->
+    canceller (typeof_env meta_env) hyps l r = res ->
+    forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
+    match res with
+      | {| AllExt := new_vars
+         ; ExExt  := new_uvars
+         ; Lhs    := lhs'
+         ; Rhs    := rhs'
+         ; Subst  := subst
+         |} =>
+        Expr.forallEach ((*rev*) new_vars) (fun nvs : Expr.env types =>
+          let var_env := nvs in
+          Expr.AllProvable_impl funcs meta_env var_env
+            (existsSubst funcs meta_env var_env subst 0 
+              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
+               map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
+              (fun meta_env : Expr.env types =>
+                (Expr.AllProvable_and funcs meta_env var_env
+                  (himp cs 
+                    (SEP.sexprD funcs preds meta_env var_env
+                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
+                    (SEP.sexprD funcs preds meta_env var_env
+                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
+                  (SH.pures rhs')) ))
+            (SH.pures lhs'))
+    end ->
+    himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
+            (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
+  Proof. intros. eapply ApplyCancelSep_with_eq'; eauto. Qed.
+
   Lemma ApplyCancelSep : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
-    Expr.AllProvable funcs meta_env nil hyps ->
-    forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) cs,
-    forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true),
+    forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
+      Expr.AllProvable funcs meta_env nil hyps ->
+    forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
     match canceller (typeof_env meta_env) hyps l r with
       | {| AllExt := new_vars
          ; ExExt  := new_uvars
@@ -312,7 +364,7 @@ Section canceller.
         Expr.forallEach ((*rev*) new_vars) (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-            (existsSubst (exprD funcs meta_env var_env) subst 0 
+            (existsSubst funcs meta_env var_env subst 0 
               (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
                map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
               (fun meta_env : Expr.env types =>

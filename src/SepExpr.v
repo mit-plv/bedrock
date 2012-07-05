@@ -527,6 +527,44 @@ Module SepExprFacts (SE : SepExpr).
       { eapply SE.ST.satisfies_pure in H. unfold BadPred. intuition. PropXTac.propxFo. } }
   Qed.
 
+  Theorem himp_not_WellTyped_sexpr : forall ts pcT stT funcs (preds : SE.predicates ts pcT stT) cs s vars uvars,
+    SE.WellTyped_sexpr (typeof_funcs funcs) (SE.typeof_preds preds) (typeof_env uvars) (typeof_env vars) s = false ->
+    SE.ST.himp cs (SE.sexprD funcs preds uvars vars s) (SE.ST.inj [| False |]).
+  Proof.
+    induction s; simpl; intros; auto; try congruence.
+    { consider (exprD funcs uvars vars e tvProp); intros; try reflexivity.
+      eapply is_well_typed_correct_only in H0; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. congruence. }
+    { apply andb_false_iff in H. destruct H.
+      rewrite IHs1 by auto. eapply SE.ST.himp_star_pure_c; contradiction.
+      rewrite SE.ST.heq_star_comm.
+      rewrite IHs2 by auto. eapply SE.ST.himp_star_pure_c; contradiction. }
+    { eapply SE.ST.himp_ex_p. intros.
+      rewrite IHs. reflexivity. auto. }
+    { unfold SE.typeof_preds in H. 
+      rewrite map_nth_error_full in H. destruct (nth_error preds f); try reflexivity.
+      destruct p; simpl in *. generalize dependent SDomain. induction l; destruct SDomain; simpl in *; intros; auto; try (congruence || reflexivity).
+      consider (is_well_typed (typeof_funcs funcs) (typeof_env uvars) (typeof_env vars) a t); intros.
+      eapply is_well_typed_correct in H. destruct H. rewrite H.
+      rewrite IHl. reflexivity. auto.
+      eauto using typeof_env_WellTyped_env.
+      eauto using typeof_env_WellTyped_env.
+      eauto using typeof_funcs_WellTyped_funcs.
+      consider (exprD funcs uvars vars a t); intros; try reflexivity.
+      eapply is_well_typed_correct_only in H1; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. congruence. }
+  Qed.
+    
+  Theorem himp_WellTyped_sexpr : forall ts pcT stT funcs (preds : SE.predicates ts pcT stT) cs s vars uvars Q,
+    (SE.WellTyped_sexpr (typeof_funcs funcs) (SE.typeof_preds preds) (typeof_env uvars) (typeof_env vars) s = true ->
+     SE.ST.himp cs (SE.sexprD funcs preds uvars vars s) Q) ->
+    SE.ST.himp cs (SE.sexprD funcs preds uvars vars s) Q.
+  Proof.
+    intros. consider (SE.WellTyped_sexpr (typeof_funcs funcs) (SE.typeof_preds preds)
+        (typeof_env uvars) (typeof_env vars) s); intros; auto.
+    rewrite himp_not_WellTyped_sexpr; auto.
+    rewrite <- SE.ST.heq_star_emp_r.
+    eapply SE.ST.himp_star_pure_c; contradiction. 
+  Qed.
+
 End SepExprFacts.
 
 Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.
