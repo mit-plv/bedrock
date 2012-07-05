@@ -37,14 +37,10 @@ Theorem reg_seq_compare : forall x y, reg_seq x y = true -> x = y.
   destruct x; destruct y; simpl; (reflexivity || congruence).
 Defined.
 
-Definition W_seq (l r : W) : bool :=
-  match weq l r with
-    | left pf => true
-    | _ => false
-  end.
+Definition W_seq (l r : W) : bool := Word.weqb l r.
 
 Theorem W_seq_compare : forall x y, W_seq x y = true -> x = y.
-  unfold W_seq; intros; destruct (weq x y); reflexivity || congruence.
+  intros. apply weqb_sound. unfold W_seq in *. apply H.
 Defined.
 
 Lemma all_false_compare T : forall x y : T, false = true -> x = y.

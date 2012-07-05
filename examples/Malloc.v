@@ -68,8 +68,9 @@ Theorem allocated_split : forall base len' len offset,
   specialize (IHlen' m (S (S (S (S offset))))).
   assert (len' <= m)%nat by omega.
   intuition.
+  rewrite H2. sepLemma.
   match goal with
-    | [ _ : forall specs, himp _ _ (_ * allocated _ ?X _)%Sep |- himp _ _ (_ * allocated _ ?Y _)%Sep ] =>
+    | [ |- himp _ (allocated _ ?X _)%Sep (allocated _ ?Y _)%Sep ] =>
       replace Y with X by omega
   end.
   auto.

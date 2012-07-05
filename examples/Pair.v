@@ -26,12 +26,12 @@ Module Pair : PAIR.
 
   Theorem pair_fwd : forall a b p,
     pair a b p ===> p =*> a * (p ^+ $4) =*> b.
-    sepLemma. 
+    unfold pair; sepLemma. 
   Qed.
 
   Theorem pair_bwd : forall a b p,
     p =*> a * (p ^+ $4) =*> b ===> pair a b p.
-    sepLemma.
+    unfold pair; sepLemma.
   Qed.
 End Pair.
 

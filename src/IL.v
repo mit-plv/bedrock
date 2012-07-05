@@ -485,8 +485,7 @@ Section settings.
 
     Definition wltb (w1 w2 : W) : bool :=
       if wlt_dec w1 w2 then true else false.
-    Definition weqb (w1 w2 : W) : bool :=
-      if weq w1 w2 then true else false.
+    Definition weqb (w1 w2 : W) : bool := Word.weqb w1 w2.
     Definition wneb (w1 w2 : W) : bool :=
       if weq w1 w2 then false else true.
     Definition wleb (w1 w2 : W) : bool :=
