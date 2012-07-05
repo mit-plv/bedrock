@@ -253,6 +253,8 @@ Module SymIL_Correct.
                  | [ |- context [ wlt_dec ?X ?Y ] ] =>
                    destruct (wlt_dec X Y); try congruence
                end; try congruence; eauto 10 using eq_le, lt_le, le_neq_lt.
+      eapply weqb_true_iff; auto.
+      intro. apply weqb_true_iff in H1. congruence.
     Qed.
 
   End typed.

@@ -300,6 +300,31 @@ Definition weq : forall sz (x y : word sz), {x = y} + {x <> y}.
   abstract (rewrite (shatter_word y); simpl; intro; apply _H; injection H; auto).
 Defined.
 
+Fixpoint weqb sz (x : word sz) : word sz -> bool :=
+  match x in word sz return word sz -> bool with
+    | WO => fun _ => true
+    | WS b _ x' => fun y => 
+      if eqb b (whd y)
+      then if @weqb _ x' (wtl y) then true else false
+      else false
+  end.
+
+Theorem weqb_true_iff : forall sz x y,
+  @weqb sz x y = true <-> x = y.
+Proof.
+  induction x; simpl; intros.
+  { split; auto. }
+  { rewrite (shatter_word y) in *. simpl in *.
+    case_eq (eqb b (whd y)); intros.
+    case_eq (weqb x (wtl y)); intros.
+    split; auto; intros. rewrite eqb_true_iff in H. f_equal; eauto. eapply IHx; eauto.
+    split; intros; try congruence. inversion H1; clear H1; subst.
+    eapply inj_pair2_eq_dec in H4. eapply IHx in H4. congruence.
+    eapply Peano_dec.eq_nat_dec.
+    split; intros; try congruence.
+    inversion H0. apply eqb_false_iff in H. congruence. }
+Qed.    
+
 (** * Combining and splitting *)
 
 Fixpoint combine (sz1 : nat) (w : word sz1) : forall sz2, word sz2 -> word (sz1 + sz2) :=
@@ -816,10 +841,9 @@ Definition wring (sz : nat) : ring_theory (wzero sz) (wone sz) (@wplus sz) (@wmu
   (@wmult_unit _) (@wmult_comm _) (@wmult_assoc _)
   (@wmult_plus_distr _) (@wminus_def _) (@wminus_inv _).
 
-Definition weqb sz (x y : word sz) := if weq x y then true else false.
-
 Theorem weqb_sound : forall sz (x y : word sz), weqb x y = true -> x = y.
-  unfold weqb; intros; destruct (weq x y); congruence.
+Proof.
+  eapply weqb_true_iff.
 Qed.
 
 Implicit Arguments weqb_sound [].
