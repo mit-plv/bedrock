@@ -362,6 +362,36 @@ Theorem bstMOk : moduleOk bstM.
   post.
   evaluate hints.
   descend.
+
+  assert (Ho : interp specs (![locals ("rp" :: "prev" :: nil)
+    (upd x8 "prev" (sel x6 "s" ^+ $8)) 5 (Regs x2 Sp ^+ $20)
+    * (sel x6 "s" ^+ $8) =*> x9
+    * x9 =*> x16 * (x9 ^+ $4) =*> x15 * (x9 ^+ $8) =*> x14
+    (** bst' (x3 %> x10 %< x15) x18 x16
+    * bst' (x3 %> x10 %> x15) x17 x14*)] (stn, st))) by admit.
+  clear H14.
+  cancel hints.
+
+
+  match goal with
+    | [ |- interp ?specs (![?P * star (star (star ?Q _) _) _ * _] ?x) ] =>
+      assert (interp specs (![P * Q] x))
+  end.
+
+  assert (Ho : interp specs (![locals ("rp" :: "prev" :: nil)
+    (upd x8 "prev" (sel x6 "s" ^+ $8)) 5 (Regs x2 Sp ^+ $20)
+    * (sel x6 "s" ^+ $8) =*> x9] (stn, st))) by admit.
+  cancel auto_ext.
+
+  assert (exists vs, exists v, interp specs
+    (![locals ("x" :: nil) (upd x8 "x" (sel x6 "x" ^+ $8)) 0 x9
+      * (sel x6 "x" ^+ $8) =*> 8] (stn, st)
+    ---> ![locals ("x" :: nil) vs 0 x9
+      * sel vs "x" =*> v] (stn, st))%PropX).
+  clear.
+  do 2 eexists.
+  cancel auto_ext.
+
   step hints.
 
 

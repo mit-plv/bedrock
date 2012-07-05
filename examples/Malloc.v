@@ -233,10 +233,10 @@ Qed.
 
 (*TIME Clear Timing Profile. *)
 
-Definition hints : TacPackage.
+(*Definition hints : TacPackage.
 (*TIME idtac "malloc:prepare". Time *)
   prepare (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
-(*TIME Time *)Defined.
+(*TIME Time *)Defined.*)
 
 Definition initS : spec := SPEC("size") reserving 0
   Ex n,
@@ -334,7 +334,7 @@ Local Hint Extern 1 (@eq (word _) _ _) => words.
 Local Hint Extern 5 (@eq nat _ _) => omega.
 Local Hint Extern 5 (_ <= _)%nat => omega.
 
-Section mallocOk.
+(*Section mallocOk.
   Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
   Ltac main := generalize four_neq_zero; sep hints;
@@ -379,4 +379,4 @@ Section mallocOk.
 (*TIME Time *)Qed.
 
 (*TIME Print Timing Profile. *)
-End mallocOk.
+End mallocOk.*)

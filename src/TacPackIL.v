@@ -192,7 +192,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
         {| Env := env
          ; Algos := algos
          ; Algos_correct := fun ts fs ps =>
-           let types := repr bedrock_types_r ts in
+           let types := repr (PACK.Types env) (repr bedrock_types_r ts) in
            let funcs := repr (PACK.Funcs env types) fs in
            @Build_AllAlgos_correct types funcs ps (algos ts)
              (@Prover.Prover_correct prover types funcs)

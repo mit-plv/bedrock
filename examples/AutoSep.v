@@ -317,6 +317,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
 
+         (** LocalsProver **)
+         provers.LocalsProver.localsProver
+         provers.LocalsProver.localsSimplify
+         provers.LocalsProver.localsProve
+         provers.LocalsProver.types
+
          (** Induction **)
          list_ind list_rec list_rect 
          sumbool_rect sumbool_rec
@@ -670,6 +676,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
          provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
+
+         (** LocalsProver **)
+         provers.LocalsProver.localsProver
+         provers.LocalsProver.localsSimplify
+         provers.LocalsProver.localsProve
+         provers.LocalsProver.types
 
          (** Induction **)
          list_ind list_rec list_rect 
