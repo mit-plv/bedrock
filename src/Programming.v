@@ -244,20 +244,45 @@ Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, 
 
 Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, only parsing).
 
+Inductive qspec :=
+| Body : HProp -> qspec
+| Quant : forall A, (A -> qspec) -> qspec.
+
+Notation "'Ex' x , b" := (Quant (fun x => b)) : qspec_scope.
+Notation "'Ex' x : A , b" := (Quant (fun x : A => b)) : qspec_scope.
+
+Notation "'Emp'" := (Body (empB _)) : qspec_scope.
+Notation "[| P |]" := (Body (injB _ P)) : qspec_scope.
+Notation "[|| P ||]" := (Body (injBX P%PropX)) : qspec_scope.
+Notation "a =8> v" := (Body (ptsto8 _ a v)) : qspec_scope.
+Notation "a =*> v" := (Body (ptsto32 _ a v)) : qspec_scope.
+Notation "P * Q" := (Body (starB P%Sep Q%Sep)) : qspec_scope.
+Coercion Body : HProp >-> qspec.
+
+Delimit Scope qspec_scope with qspec.
+
 Local Open Scope string_scope.
 
-Definition localsInvariant (pre : vals -> W -> HProp) (post : vals -> W -> W -> HProp) (rpStashed : bool) (adjustSp : W -> W)
+Fixpoint qspecOut (qs : qspec) pc st b (k : HProp -> propX pc st b) : propX pc st b :=
+  match qs with
+    | Body P => k P
+    | Quant A f => Ex x : A, qspecOut (f x) k
+  end%PropX.
+
+Definition localsInvariant (pre : vals -> W -> qspec) (post : vals -> W -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (res : nat) : assert :=
   st ~> let sp := adjustSp st#Sp in
-    ExX, Ex vs, ![ ^[locals ("rp" :: ns) vs res sp] * ^[pre (sel vs) st#Rv] * #0 ] st
-    /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
-      [| st'#Sp = sp |]
-      /\ Ex vs', ![ ^[locals ("rp" :: ns) vs' res sp] * ^[post (sel vs) st#Rv st'#Rv] * #1 ] st').
+    ExX, Ex vs, qspecOut (pre (sel vs) st#Rv) (fun PRE =>
+      ![ ^[locals ("rp" :: ns) vs res sp * PRE] * #0 ] st
+      /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
+        [| st'#Sp = sp |]
+        /\ Ex vs', qspecOut (post (sel vs) st#Rv st'#Rv) (fun POST =>
+          ![ ^[locals ("rp" :: ns) vs' res sp * POST] * #1 ] st'))).
 
-Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => pre%Sep) (fun vs _ rv => post%Sep))
+Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => pre%qspec%Sep) (fun vs _ rv => post%qspec%Sep))
   (at level 89).
 
-Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%Sep) (fun vs rv rv' => post%Sep))
+Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%qspec%Sep) (fun vs rv rv' => post%qspec%Sep))
   (at level 89).
 
 Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).

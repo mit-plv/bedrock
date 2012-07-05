@@ -52,7 +52,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
   Assign' variableSlot' localsInvariant
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
-  andb eqb
+  andb eqb qspecOut
 ].
 
 Ltac vcgen :=
@@ -371,7 +371,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
@@ -735,7 +735,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
@@ -848,6 +848,67 @@ Theorem implyR : forall pc state specs (P Q R : PropX pc state),
   constructor; simpl; tauto.
 Qed.
 
+Inductive pureConsequences : HProp -> list Prop -> Prop :=
+| PurePure : forall P, pureConsequences [| P |]%Sep (P :: nil)
+| PureStar : forall P P' Q Q', pureConsequences P P'
+  -> pureConsequences Q Q'
+  -> pureConsequences (P * Q)%Sep (P' ++ Q')
+| PureOther : forall P, pureConsequences P nil.
+
+Theorem pureConsequences_correct : forall P P',
+  pureConsequences P P'
+  -> forall specs stn st, interp specs (P stn st ---> [| List.Forall (fun p => p) P' |]%PropX).
+  induction 1; intros.
+
+  unfold injB, inj.
+  apply Imply_I.
+  eapply Inj_E.
+  eapply And_E1; apply Env; simpl; eauto.
+  intro; apply Inj_I; repeat constructor; assumption.
+
+  unfold starB, star.
+  apply Imply_I.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken; apply IHpureConsequences1.
+  eapply And_E1; eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken; apply IHpureConsequences2.
+  do 2 eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  apply Inj_I.
+  apply Forall_app; auto.
+
+  apply Imply_I; apply Inj_I; auto.
+Qed.
+
+Theorem extractPure : forall specs P Q Q' R st,
+  pureConsequences Q Q'
+  -> (List.Forall (fun p => p) Q' -> interp specs (P ---> R))
+  -> interp specs (P ---> ![Q] st ---> R)%PropX.
+  intros.
+  do 2 apply Imply_I.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken.
+  apply pureConsequences_correct; eauto.
+  rewrite sepFormula_eq.
+  unfold sepFormula_def.
+  apply Env; simpl; eauto.
+  intro.
+  eapply Imply_E.
+  eauto.
+  apply Env; simpl; eauto.
+Qed.
+
 Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
                      end; W_eq.
@@ -937,7 +998,7 @@ Lemma make_return : forall ns ns' vs avail avail' p offset,
   unfold ok_return; intuition; subst; apply do_return; omega || words.
 Qed.
 
-Definition locals_in ns vs avail p (ns' : list string) (ns'' : list string) (avail' : nat) :=
+Definition locals_in ns vs avail p (ns' ns'' : list string) (avail' : nat) :=
   locals ns vs avail p.
 
 Open Scope list_scope.
@@ -953,21 +1014,78 @@ Theorem init_in : forall ns ns' ns'' vs avail p avail',
   unfold ok_in; intuition; subst; apply prelude_in; auto.
 Qed.
 
+Definition locals_out ns vs avail p (ns' ns'' : list string) (avail' : nat) :=
+  locals ns vs avail p.
+
+Definition ok_out (ns : list string) (avail : nat) (ns' ns'' : list string) (avail' : nat) :=
+  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat
+  /\ avail' = avail - length ns'.
+
+Theorem init_out : forall ns ns' ns'' vs avail p avail',
+  ok_out ns avail ns' ns'' avail'
+  -> locals ns'' vs avail' p
+  ===> locals_out ns vs avail p ns' ns'' avail'.
+  unfold ok_out; intuition; subst; apply prelude_out; auto.
+Qed.
+
 Ltac prepare fwd bwd := 
   let the_unfold_tac x := 
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, bwd).
+    isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, init_out, bwd).
 
 Definition auto_ext : TacPackage.
   prepare tt tt.
 Defined.
 
-Ltac step ext := 
+Theorem create_locals_out : forall ns' ns'' avail' ns avail vs p,
+  locals ns vs avail p = locals_out ns vs avail p ns' ns'' avail'.
+  reflexivity.
+Qed.
+
+Ltac step ext :=
+  let considerImp pre post :=
+    match post with
+      | context[locals ?ns ?vs ?avail _] =>
+        match pre with
+          | context[excessStack _ ns avail ?ns' ?avail'] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                match pre with
+                  | context[locals ns ?vs' 0 _] => equate vs vs';
+                    let offset := eval simpl in (4 * List.length ns) in
+                      rewrite (create_locals_return ns' avail' ns avail offset);
+                        assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                          simpl; omega
+                          | reflexivity ] ); autorewrite with sepFormula;
+                        generalize vs'; intro
+                end
+            end
+          | context[locals ?ns' ?vs' ?avail' _] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                match vs' with
+                  | vs => fail 1
+                  | _ => let ns'' := peelPrefix ns ns' in
+                    rewrite (create_locals_out ns'' ns' avail' ns avail);
+                      assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
+                        reflexivity
+                        | split; [
+                          simpl; omega
+                          | reflexivity ] ] )
+                end
+            end
+        end; cancel ext
+    end in
+
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ |- interp _ (?pre ---> ?post) ] => considerImp pre post
+    | [ |- himp _ ?pre ?post ] => considerImp pre post
     | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] =>
       try solve [ cancel auto_ext;
         try match goal with
@@ -975,27 +1093,16 @@ Ltac step ext :=
                 replace p' with p by words;
                   let ns' := peelPrefix ns ns'' in
                     apply (@prelude_out ns ns' vs avail p); simpl; omega          
-            end; assumption]; cancel ext
-    | [ |- himp _ ?pre ?post ] =>
-      match post with
-        | context[locals ?ns ?vs ?avail _] =>
-          match pre with
-            | context[locals ?ns' ?vs' ?avail' _] =>
-              match vs' with
-                | vs => fail 1
-                | _ => let offset := eval simpl in (4 * List.length ns) in
-                  rewrite (create_locals_return ns' avail' ns avail offset);
-                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
-                    simpl; omega
-                    | reflexivity ] );
-                    solve [ cancel ext ]
-              end
-          end
-      end
+            end; assumption]; progress cancel ext
     | [ |- himp _ _ _ ] => progress cancel ext
     | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
       match y with
         | x => fail 1
+        | _ => eapply extractPure; [ repeat constructor
+          | cbv zeta; simpl; intro; repeat match goal with
+                                             | [ H : List.Forall _ nil |- _ ] => clear H
+                                             | [ H : List.Forall _ (_ :: _) |- _ ] => inversion H; clear H; subst
+                                           end; clear_junk ]
         | _ => apply implyR
       end
     | _ => ho

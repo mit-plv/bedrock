@@ -286,12 +286,15 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
         (* Key matches!  Now the hard part: pulling another node's data value up here (if possible),
          * and then deleting this node. *)
         "tmp" <-* "s";;
-        If ("tmp" <> 0) {
+        If (0 <> "tmp") {
+          (* Oh my goodness!  This test expression is a hack to prevent unfolding from firing!
+           * (Since the provers don't understand symmetry of [<>]) *)
+
           (* Nonempty left subtree.  Find and remove its rightmost node. *)
 
           "tmp" <-- Call "bst"!"removeMax"("s")
           [PRE[V, R] (V "s" ^+ $4) =?> 1
-           POST[_] (V "s" ^+ $4) =*> R];;
+           POST[_] (V "s" ^+ $4) =*> R ];;
 
           "s" <- "s" + 4;;
           "s" *<- "tmp";;
@@ -299,7 +302,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
         } else {
           "tmp" <- "s" + 8;;
           "tmp" <-* "tmp";;
-          If ("tmp" <> 0) {
+          If (0 <> "tmp") {
             (* Nonempty right subtree.  Find and remove its leftmost node. *)
 
             "tmp" <- "s" + 8;;
@@ -362,115 +365,306 @@ Theorem bstMOk : moduleOk bstM.
   post.
   evaluate hints.
   descend.
-
-  assert (Ho : interp specs (![locals ("rp" :: "prev" :: nil)
-    (upd x8 "prev" (sel x6 "s" ^+ $8)) 5 (Regs x2 Sp ^+ $20)
-    * (sel x6 "s" ^+ $8) =*> x9
-    * x9 =*> x16 * (x9 ^+ $4) =*> x15 * (x9 ^+ $8) =*> x14
-    (** bst' (x3 %> x10 %< x15) x18 x16
-    * bst' (x3 %> x10 %> x15) x17 x14*)] (stn, st))) by admit.
-  clear H14.
-  cancel hints.
-
-
-  match goal with
-    | [ |- interp ?specs (![?P * star (star (star ?Q _) _) _ * _] ?x) ] =>
-      assert (interp specs (![P * Q] x))
-  end.
-
-  assert (Ho : interp specs (![locals ("rp" :: "prev" :: nil)
-    (upd x8 "prev" (sel x6 "s" ^+ $8)) 5 (Regs x2 Sp ^+ $20)
-    * (sel x6 "s" ^+ $8) =*> x9] (stn, st))) by admit.
-  cancel auto_ext.
-
-  assert (exists vs, exists v, interp specs
-    (![locals ("x" :: nil) (upd x8 "x" (sel x6 "x" ^+ $8)) 0 x9
-      * (sel x6 "x" ^+ $8) =*> 8] (stn, st)
-    ---> ![locals ("x" :: nil) vs 0 x9
-      * sel vs "x" =*> v] (stn, st))%PropX).
-  clear.
-  do 2 eexists.
-  cancel auto_ext.
-
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  auto.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
   step hints.
 
 
-  match goal with
-    | [ H : context[locals ?NS ?VS ?AV ?SP] |- context[locals ?NS ?VS' ?AV ?SP'] ] =>
-      equate VS VS'; autorewrite with sepFormula
-  end.
-  step hints.
+  Ltac considerImp pre post :=
+    match post with
+      | context[locals ?ns ?vs ?avail _] =>
+        match pre with
+          | context[excessStack _ ns avail ?ns' ?avail'] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                match pre with
+                  | context[locals ns ?vs' 0 _] => equate vs vs';
+                    let offset := eval simpl in (4 * List.length ns) in
+                      rewrite (create_locals_return ns' avail' ns avail offset);
+                        assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                          simpl; omega
+                          | reflexivity ] ); autorewrite with sepFormula;
+                        generalize vs'; intro
+                end
+            end
+        end
+    end.
 
+  match goal with
+    | [ |- interp _ (?pre ---> ?post) ] => considerImp pre post
+  end.
   
+  cancel hints.
+  step hints.
+  descend.
 
-  t.
-  t.
-  sep_auto.
-  t.
+  eapply extractPure; [ repeat constructor
+    | cbv zeta; simpl; intro; repeat match goal with
+                                       | [ H : List.Forall _ nil |- _ ] => clear H
+                                       | [ H : List.Forall _ (_ :: _) |- _ ] => inversion H; clear H; subst
+                                     end; clear_junk ].
 
-  t.
-  t.
-  sep_auto.
-  t.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  auto.  
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
 
-  t.
-  t.
-  sep_auto.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+
+
+
+
+
+
 
   post.
   evaluate hints.
   descend.
+  step hints.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+
+  Ltac considerImp pre post :=
+    match post with
+      | context[locals ?ns _ ?avail _] =>
+        match pre with
+          | context[excessStack _ ns avail ?ns' ?avail'] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                let offset := eval simpl in (4 * List.length ns) in
+                  rewrite (create_locals_return ns' avail' ns avail offset);
+                    assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                      simpl; omega
+                      | reflexivity ] )(*;
+                    solve [ cancel ext ]*)
+            end
+          | context[locals ?ns' _ ?avail' _] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                let ns'' := peelPrefix ns ns' in
+                  rewrite (create_locals_out ns'' ns' avail' ns avail);
+                    assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
+                      reflexivity
+                      | split; [
+                        simpl; omega
+                        | reflexivity ] ] )(*;
+                      solve [ cancel ext ]*)
+            end
+        end
+    end.
 
   match goal with
-    | [ H : context[locals ?NS ?VS ?AV ?SP] |- context[locals ?NS ?VS' ?AV ?SP'] ] =>
-      equate VS VS'; autorewrite with sepFormula
+    | [ |- interp _ (?pre ---> ?post) ] => considerImp pre post
   end.
-  step hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  descend.
+
+  cancel hints.
+  cancel hints.
   step hints.
   descend.
 
+  Inductive pureConsequences : HProp -> list Prop -> Prop :=
+  | PurePure : forall P, pureConsequences [| P |]%Sep (P :: nil)
+  | PureStar : forall P P' Q Q', pureConsequences P P'
+    -> pureConsequences Q Q'
+    -> pureConsequences (P * Q)%Sep (P' ++ Q')
+  | PureOther : forall P, pureConsequences P nil.
+
+  Theorem pureConsequences_correct : forall P P',
+    pureConsequences P P'
+    -> forall specs stn st, interp specs (P stn st ---> [| List.Forall (fun p => p) P' |]%PropX).
+    induction 1; intros.
+
+    unfold injB, inj.
+    apply Imply_I.
+    eapply Inj_E.
+    eapply And_E1; apply Env; simpl; eauto.
+    intro; apply Inj_I; repeat constructor; assumption.
+
+    unfold starB, star.
+    apply Imply_I.
+    eapply Exists_E.
+    apply Env; simpl; eauto.
+    simpl; intro.
+    eapply Exists_E.
+    apply Env; simpl; eauto.
+    simpl; intro.
+    eapply Inj_E.
+    eapply Imply_E.
+    apply interp_weaken; apply IHpureConsequences1.
+    eapply And_E1; eapply And_E2; apply Env; simpl; eauto.
+    intro.
+    eapply Inj_E.
+    eapply Imply_E.
+    apply interp_weaken; apply IHpureConsequences2.
+    do 2 eapply And_E2; apply Env; simpl; eauto.
+    intro.
+    apply Inj_I.
+    apply Forall_app; auto.
+
+    apply Imply_I; apply Inj_I; auto.
+  Qed.
+
+  Theorem extractPure : forall specs P Q Q' R st,
+    pureConsequences Q Q'
+    -> (List.Forall (fun p => p) Q' -> interp specs (P ---> R))
+    -> interp specs (P ---> ![Q] st ---> R)%PropX.
+    intros.
+    do 2 apply Imply_I.
+    eapply Inj_E.
+    eapply Imply_E.
+    apply interp_weaken.
+    apply pureConsequences_correct; eauto.
+    rewrite sepFormula_eq.
+    unfold sepFormula_def.
+    apply Env; simpl; eauto.
+    intro.
+    eapply Imply_E.
+    eauto.
+    apply Env; simpl; eauto.
+  Qed.
+
+  eapply extractPure.
+  repeat constructor.
+  simpl; intro.
+  repeat match goal with
+           | [ H : List.Forall _ nil |- _ ] => clear H
+           | [ H : List.Forall _ (_ :: _) |- _ ] => inversion H; clear H; subst
+         end.
+  clear_junk.
+
+  descend.
+  step hints.
+  descend.
+  step hints.
+  auto.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  descend.
+  step hints.
+  auto.
+  
+
+  Ltac considerImp pre post :=
+    match post with
+      | context[locals ?ns ?vs ?avail _] =>
+        match pre with
+          | context[excessStack _ ns avail ?ns' ?avail'] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                let offset := eval simpl in (4 * List.length ns) in
+                  rewrite (create_locals_return ns' avail' ns avail offset);
+                    assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                      simpl; omega
+                      | reflexivity ] )(*;
+                    solve [ cancel ext ]*)
+            end
+          | context[locals ?ns' ?vs' ?avail' _] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                match vs' with
+                  | vs => fail 1
+                  | _ => let ns'' := peelPrefix ns ns' in
+                    rewrite (create_locals_out ns'' ns' avail' ns avail);
+                      assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
+                        reflexivity
+                        | split; [
+                          simpl; omega
+                          | reflexivity ] ] )(*;
+                      solve [ cancel ext ]*)
+                end
+            end
+        end
+    end.
+
   match goal with
-    | [ |- interp _ (?L ---> ?R) ] =>
-      match L with
-        | context[locals ?NS ?VS _ _] =>
-          match R with
-            | context[locals NS ?VS' _ _] =>
-              equate VS VS'; autorewrite with sepFormula
+    | [ |- interp _ (?pre ---> ?post) ] => considerImp pre post
+  end.
+  clear H12 H13 H15 H16 H17 H18 H20 H46 H47 H23 H41 H26 H36 H37.
+  cancel hints.
+  cancel hints.
+  cancel hints.
+
+  step hints.
+
+  match goal with
+    | [ |- interp _ (?pre ---> ?post)%PropX ] =>
+      match post with
+        | context[locals ?ns ?vs ?avail _] =>
+          match pre with
+            | context[excessStack _ ns avail ?ns' ?avail'] =>
+              let offset := eval simpl in (4 * List.length ns) in
+                  rewrite (create_locals_return ns' avail' ns avail offset);
+                    assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                      simpl; omega
+                      | reflexivity ] )(*;
+                    solve [ cancel ext ]*)
           end
       end
   end.
-  step hints.
-  descend.
-  step hints.
+  
+  match goal with
+    | [ |- interp _ (?pre ---> ?post) ] =>
+      match post with
+        | context[locals ?ns ?vs ?avail _] =>
+          match pre with
+            | context[locals ?ns' ?vs' ?avail' _] =>
+              match vs' with
+                | vs => fail 1
+                | _ => let ns'' := peelPrefix ns ns' in
+                  rewrite (create_locals_out ns'' ns' avail' ns avail);
+                    assert (ok_out ns avail ns'' ns' avail')%nat (*by (split; [
+                      reflexivity
+                      | split; [
+                        simpl; omega
+                        | reflexivity ] ] );
+                    solve [ cancel hints ]*)
+              end
+          end
+      end
+  end.
+
+  split.
+  reflexivity.
 
   step hints.
-  cancel hints.
-  cancel hints.
-  step hints.
   descend.
   step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-
 
 
   t.
