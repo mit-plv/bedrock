@@ -1052,28 +1052,6 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Hint Rewrite exprInstantiate_Func exprInstantiate_Equal exprInstantiate_Not 
       exprInstantiate_UVar exprInstantiate_Var exprInstantiate_Const : subst_simpl.
 
-      Lemma is_well_typed_only : forall funcs U G t t' (e : expr types),
-        is_well_typed funcs U G e t = true ->
-        t <> t' ->
-        is_well_typed funcs U G e t' = false.
-      Proof.
-        induction e; simpl; intros;
-          repeat (congruence || 
-            match goal with
-              | [ H : context [ nth_error ?X ?Y ] |- _ ] =>
-                destruct (nth_error X Y)
-              | [ H : context [ equiv_dec ?X ?Y ] |- _ ] =>
-                destruct (equiv_dec X Y)
-              | [ |- context [ equiv_dec ?X ?Y ] ] =>
-                destruct (equiv_dec X Y)
-              | [ H : match ?X with _ => _ end = _ |- _ ] =>
-                (destruct X; try congruence); [ ]
-              | [ |- context [ match ?X with | _ => _ end ] ] =>
-                solve [ destruct X; try congruence ] || ((destruct X; try congruence); [ ])
-            end); auto.
-      Qed.
-
-
     Theorem exprInstantiate_WellTyped : forall funcs U G sub,
       Subst_WellTyped funcs U G sub ->
       forall e t, 
@@ -1095,16 +1073,16 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | [ H : exists x, _ |- _ ] => destruct H
                 | [ H : _ /\ _ |- _ ] => destruct H
                 | [ |- context [ match ?X with | _ => _ end ] ] =>
-                  solve [ destruct X; try congruence ] || ((destruct X; try congruence; auto); [ ])
+                  solve [ consider X; try congruence ] || ((consider X; try congruence; auto); [ ])
                 | [ H : forall k v, FM.MapsTo k v _ -> _ , H' : FM.MapsTo _ _ _ |- _ ] => apply H in H'
                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
               end); try solve [ auto | congruence | symmetry; eapply H; eauto using FACTS.find_mapsto_iff ].
       symmetry. eapply is_well_typed_only; eauto.
       
-      generalize dependent (TDomain t0). clear H1. clear t0.
+      intros. generalize dependent (TDomain t0). clear H1. clear - H0.
       induction H0; simpl. reflexivity.
       destruct l0; auto; simpl in *.
-      rewrite <- IHForall. rewrite <- H0. reflexivity.
+      rewrite <- IHForall. rewrite <- H. reflexivity.
     Qed. 
 
     Opaque Subst_lookup Subst_set exprInstantiate.
@@ -1172,7 +1150,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             | [ H : context [ match ?X with 
                                 | _ => _
                               end ] |- _ ] => 
-            revert H; case_eq X; intros
+            revert H; consider X; intros
             | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => destruct (FM.E.eq_dec X Y); subst
             | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
             | [ |- _ ] => rewrite <- exprInstantiate_WellTyped by assumption
@@ -1186,8 +1164,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             | [ H : _ /\ _ |- _ ] => destruct H
             | [ |- _ ] => apply andb_true_iff; split
           end); auto; try congruence.
-        destruct t0; simpl in *. revert H6; clear H4 H3. revert TDomain. induction H; simpl; destruct TDomain; auto.
-        case_eq (is_well_typed funcs U G x0 t0); intros; try congruence.
+        consider (tvar_seqb t0 t0); eauto.
+        destruct t0; simpl in *. revert H5; clear -H. revert TDomain. induction H; simpl; destruct TDomain; auto.
+        case_eq (is_well_typed funcs U G x0 t); intros; try congruence.
         rewrite H; eauto. }
     Qed.
 
@@ -1203,32 +1182,39 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       inversion H2; auto.
     Qed.
     Opaque Subst_lookup.
-(*
-        Lemma is_well_typed_const : forall funcs U G t (v : tvarD types t),
-          is_well_typed funcs U G (Const v) t = true.
-        Proof.
-          simpl. intros; rewrite EquivDec_refl_left. auto.
-        Qed.
-        Lemma is_well_typed_var : forall funcs U G t v,
-          nth_error G v = Some t ->
-          is_well_typed funcs U G (@Var types v) t = true.
-        Proof.
-          simpl. intros; rewrite H; rewrite EquivDec_refl_left. auto.
-        Qed.
-        Lemma is_well_typed_uvar : forall funcs U G t v,
-          nth_error U v = Some t ->
-          is_well_typed funcs U G (@UVar types v) t = true.
-        Proof.
-          simpl. intros; rewrite H; rewrite EquivDec_refl_left. auto.
-        Qed.
+
+(*    SearchAbout is_well_typed.
+
+    Lemma is_well_typed_const : forall funcs U G t (v : tvarD types t),
+      is_well_typed funcs U G (Const v) t = true.
+    Proof.
+      simpl. intros. consider (tvar_seqb t t); auto.
+    Qed.
+    Lemma is_well_typed_var : forall funcs U G t v,
+      nth_error G v = Some t ->
+      is_well_typed funcs U G (@Var types v) t = true.
+    Proof.
+      simpl. intros; rewrite H. consider (tvar_seqb t t); auto. 
+    Qed.
+    Lemma is_well_typed_uvar : forall funcs U G t v,
+      nth_error U v = Some t ->
+      is_well_typed funcs U G (@UVar types v) t = true.
+    Proof.
+      simpl. intros; rewrite H. consider (tvar_seqb t t); auto. 
+    Qed.
 *)
+
     Hint Extern 1 (is_well_typed _ _ _ _ _ = _) =>
       simpl;
         repeat match goal with 
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => rewrite EquivDec_refl_left
+                 | [ |- _ ] => rewrite tvar_seqb_refl
                end; reflexivity : exprs.
-(*    Hint Resolve is_well_typed_const is_well_typed_var is_well_typed_uvar : exprs. *)
+(*
+    Hint Resolve is_well_typed_const is_well_typed_var is_well_typed_uvar : exprs. 
+        Hint Extern 1 (is_well_typed _ _ _ _ _ = true) => simpl; think : exprs.
+*)
     
     Lemma exprUnify_WellTyped_Forall : forall n (l : list (expr types)),
       Forall
@@ -1257,7 +1243,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                                    end ] |- _ ] =>
                  revert H; case_eq X; try congruence; intros
                end. eauto. }
-    Qed.        
+    Qed.    
 
     Theorem exprUnify_WellTyped : forall n l r sub sub',
       exprUnify n l r sub = Some sub' ->
@@ -1268,8 +1254,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         Subst_WellTyped funcs U G sub'.
     Proof.
       induction n; induction l; intros; rewrite exprUnify_unroll in *; unfold get_Eq in *; destruct r; simpl in *;
-        try congruence ;
-        repeat match goal with
+        try congruence;
+        repeat (match goal with
+                 | [ H : (if ?X then _ else _) = _ |- _ ] =>
+                   (revert H; Reflection.consider X; intros; try congruence); [ try subst ]
                  | [ H : context [ @equiv_dec ?A ?B ?C ?E ?X ?Y ] |- _ ] =>
                    destruct (@equiv_dec A B C E X Y); unfold equiv in *; subst; try congruence
                  | [ H : context [ match ?T with
@@ -1285,7 +1273,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                                    end ] |- _ ] => 
                  revert H; case_eq (Subst_lookup X Y); intros; try congruence
                  | [ H : (if ?X then _ else _) = _ |- _ ] =>
-                   revert H; Reflection.consider X; intros; try congruence
+                   (revert H; Reflection.consider X; intros; try congruence); [ ]
                  | [ H : ?X = _ , H' : ?X = _ |- _ ] => rewrite H in H'
                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
                  | [ H : context [ match exprUnify ?A ?B ?C ?D with _ => _ end ] |- _ ] => 
@@ -1294,13 +1282,16 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                  | [ H : forall a b c d, exprUnify ?n a b c = Some d -> _ , H' : exprUnify ?n _ _ _ = Some _ |- _ ] =>
                    (eapply H in H'; (eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs)); 
                    instantiate; eauto with exprs
-                 | [ |- _ ] => progress subst
-               end; 
+                 | [ H : ?X = ?X , H' : context [ match ?H with _ => _ end ] |- _ ] =>
+                   rewrite (EqdepClass.UIP_refl H) in H'
+                 | [ |- _ ] => try unfold equiv in *; progress subst 
+               end);
         try solve [ eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs
               | (eapply Subst_set_WellTyped; eauto); simpl;
                 repeat match goal with
                          | [ H : _ = _ |- _ ] => rewrite H
                          | [ |- _ ] => rewrite EquivDec_refl_left
+                         | [ |- _ ] => rewrite tvar_seqb_refl
                        end; auto 
           | eauto using exprUnify_WellTyped_Forall].
     Qed.
