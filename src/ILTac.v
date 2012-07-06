@@ -59,12 +59,6 @@ Section existsSubst.
     end.
 End existsSubst.
 
-(*
-(existsSubst funcs meta_env var_env subst 0 
-              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-               map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
-              P)
-*)
 Section typed.
   Variable types : list type.
   Variable funcs : functions types. 
@@ -234,24 +228,6 @@ Section canceller.
         end
     end.
 
-(*
-        Expr.forallEach ((*rev*) new_vars) (fun nvs : Expr.env types =>
-          let var_env := nvs in
-          Expr.AllProvable_impl funcs meta_env var_env
-            (Expr.existsEach new_uvars (fun nus : Expr.env types =>
-            (existsSubst funcs meta_env var_env subst 0 
-              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-               map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
-              (fun meta_env : Expr.env types =>
-                (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
-                    (SEP.sexprD funcs preds meta_env var_env
-                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
-                    (SEP.sexprD funcs preds meta_env var_env
-                      (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) )) ))
-            (SH.pures lhs')) *)
-
   Lemma ApplyCancelSep_with_eq' : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
@@ -270,10 +246,10 @@ Section canceller.
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
             (existsSubst funcs meta_env var_env subst 0 
-              ( (* map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++ *)
+              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
                map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
               (fun meta_ext : Expr.env types =>
-                let meta_env := meta_env ++ meta_ext in
+                let meta_env := meta_ext in
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
@@ -360,7 +336,7 @@ Section canceller.
       AllProvable_and funcs U G P Ps <-> (AllProvable funcs U G Ps /\ P).
     Proof. induction Ps; simpl; intros; intuition auto. Qed.
     eapply AllProvable_and_sem in H11. destruct H11.
-
+(*
     rewrite app_ass in *. rewrite ListFacts.rw_skipn_app in * by eauto. rewrite map_map in *. simpl in *. rewrite map_id in *.
 
     Lemma app_inj_length : forall T (a b c d : list T),
@@ -442,10 +418,10 @@ Section canceller.
 *)
 
     admit. (** From forwardOk **)
-    
+*)    
     
     Transparent UNF.backward UNF.forward Env.repr.
-  Qed.
+  Admitted.
 
   Lemma ApplyCancelSep_with_eq : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
@@ -513,9 +489,7 @@ Section canceller.
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
-  Proof.
-    intros. eapply ApplyCancelSep_with_eq; eauto.
-  Qed.
+  Proof. intros. eapply ApplyCancelSep_with_eq; eauto. Qed.
 
 End canceller.
 
