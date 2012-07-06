@@ -1054,13 +1054,17 @@ Ltac step ext :=
               | avail => fail 1
               | _ =>
                 match pre with
-                  | context[locals ns ?vs' 0 _] => equate vs vs';
-                    let offset := eval simpl in (4 * List.length ns) in
-                      rewrite (create_locals_return ns' avail' ns avail offset);
-                        assert (ok_return ns ns' avail avail' offset)%nat by (split; [
-                          simpl; omega
-                          | reflexivity ] ); autorewrite with sepFormula;
-                        generalize vs'; intro
+                  | context[locals ns ?vs' 0 ?sp] =>
+                    match goal with
+                      | [ _ : _ = sp |- _ ] => fail 1
+                      | _ => equate vs vs';
+                        let offset := eval simpl in (4 * List.length ns) in
+                          rewrite (create_locals_return ns' avail' ns avail offset);
+                            assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                              simpl; omega
+                              | reflexivity ] ); autorewrite with sepFormula;
+                            generalize vs'; intro
+                    end
                 end
             end
           | context[locals ?ns' ?vs' ?avail' _] =>
