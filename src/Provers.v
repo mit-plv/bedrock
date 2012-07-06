@@ -2,12 +2,13 @@ Require Import Prover.
 Require Import ILEnv.
 Require provers.AssumptionProver.
 Require provers.ReflexivityProver.
-Require provers.TransitivityProver.
+(* Require provers.TransitivityProver. *)
 Require provers.WordProver.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(*
 (** * The Combo Prover **)
 Definition ComboProver : ProverPackage :=
 {| ProverTypes := bedrock_types_r
@@ -17,3 +18,4 @@ Definition ComboProver : ProverPackage :=
      (provers.TransitivityProver.transitivityProver_correct _))
    (provers.WordProver.wordProver_correct _)
 |}.
+*)

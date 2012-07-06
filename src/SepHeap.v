@@ -54,7 +54,14 @@ Module Type SepHeap.
 
     Parameter liftSHeap : nat -> nat -> nat -> nat -> SHeap -> SHeap.
 
-    Parameter sheapSubstU : nat -> nat -> nat -> SHeap -> SHeap.
+    Parameter applySHeap : forall (F : expr types -> expr types) (sh : SHeap), SHeap.
+
+    Axiom applySHeap_defn : forall F sh,
+      applySHeap F sh =
+      {| impures := MM.mmap_map (map F) (impures sh)
+       ; pures := map F (pures sh)
+       ; other := other sh
+       |}.
 
     (** Convert an [sexpr] to an [SHeap] **)
     Parameter hash : SE.sexpr types pcType stateType -> variables * SHeap.
@@ -165,6 +172,29 @@ Module Type SepHeap.
             (SE.Star (impuresD (impures s))
                      (SE.Star (starred (@SE.Inj _ _ _) (pures s) SE.Emp)
                               (starred (@SE.Const _ _ _) (other s) SE.Emp))).
+
+      (** applySHeap **)
+      Axiom applySHeap_wt_spec : forall cs U G U' G' s F,
+        (forall e t, 
+          is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) e t = true ->
+          exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
+        WellTyped_sheap (typeof_funcs funcs) (SE.typeof_preds preds) (typeof_env U) (typeof_env G) s = true ->
+        SE.ST.heq cs (SE.sexprD funcs preds U G (sheapD s))
+                     (SE.sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+
+      Axiom applySHeap_spec : forall cs U G U' G' s F,
+        (forall e t, 
+          exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
+        SE.ST.heq cs (SE.sexprD funcs preds U G (sheapD s))
+                     (SE.sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+
+      Axiom applySHeap_typed : forall tf tp U G U' G' s F,
+        (forall e t, 
+          is_well_typed tf U G e t = true ->
+          is_well_typed tf U' G' (F e) t = true) ->
+        WellTyped_sheap tf tp U G s = true ->
+        WellTyped_sheap tf tp U' G' (applySHeap F s) = true.
+
     End facts.
   End env.
 End SepHeap.
@@ -1103,7 +1133,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
              end; think; auto.
       cutrewrite (length G' + x - length G'' - length G' = x - length G''); [ | omega ]. auto.
       cutrewrite (length U' + x - length U'' - length U' = x - length U''); [ | omega ]. auto.
-      consider (nth_error tf f); auto; intros. consider (equiv_dec t (TRange t0)); auto. think.
+      consider (nth_error tf f); auto; intros. consider (tvar_seqb t (TRange t0)); intros; auto. think.
       destruct t0; simpl in *. clear -H. revert TDomain; induction H; simpl; auto. 
       destruct TDomain; auto. think.  auto.          
     Qed.
@@ -1156,6 +1186,136 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         unfold FM.fold, FM.Raw.fold. simpl. rewrite H. rewrite H0. auto. }
     Qed.
      
+    Definition applySHeap (F : expr types -> expr types) (sh : SHeap) : SHeap :=
+      {| impures := MM.mmap_map (map F) (impures sh)
+       ; pures := map F (pures sh)
+       ; other := other sh
+       |}.
+
+    Theorem applySHeap_defn : forall F sh,
+      applySHeap F sh =
+      {| impures := MM.mmap_map (map F) (impures sh)
+       ; pures := map F (pures sh)
+       ; other := other sh
+       |}.
+    Proof. reflexivity. Qed.
+
+
+    Lemma starred_nil : forall T U G cs (F : T -> _) B,
+      heq funcs preds U G cs (starred F nil B) B.
+    Proof.
+      clear. reflexivity.
+    Qed.
+
+
+    Lemma starred_cons : forall T U G cs (F : T -> _) a A B,
+      heq funcs preds U G cs (starred F (a :: A) B) (Star (F a) (starred F A B)).
+    Proof.
+      clear. intros; rewrite starred_def. simpl. rewrite <- starred_def. reflexivity.
+    Qed.
+
+    Theorem applySHeap_spec : forall cs U G U' G' s F,
+      (forall e t, 
+        exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
+      SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
+                   (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+    Proof.
+      clear. intros. 
+      do 2 rewrite sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
+      { eapply MM.PROPS.map_induction with (m := impures s); intros.
+        repeat rewrite impuresD_Empty by eauto using MF.map_Empty. reflexivity.
+        rewrite impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
+        symmetry. unfold MM.mmap_map in *. rewrite impuresD_Add. 2: eapply MF.map_Add; eauto. 
+        2: eapply MF.map_not_In; eauto.
+        simpl. rewrite H0. apply ST.heq_star_frame; try reflexivity.
+        clear - H. induction e; simpl. reflexivity. repeat rewrite starred_cons.
+        simpl. rewrite IHe. apply ST.heq_star_frame; try reflexivity. 
+        destruct (nth_error preds x); try reflexivity.
+        match goal with
+          | |- ST.heq _ match ?X with _ => _ end match ?Y with _ => _ end =>
+            cutrewrite (X = Y); try reflexivity
+        end.
+        destruct p. simpl in *; clear -H. generalize dependent SDomain0.
+        clear -H; induction a; destruct SDomain0; simpl; intros; auto; try congruence; try reflexivity.
+        rewrite H. destruct (exprD funcs U' G' (F a) t); try reflexivity. rewrite IHa. reflexivity. }
+      { induction (pures s); try reflexivity.
+        simpl. repeat rewrite starred_cons. simpl. rewrite H. rewrite IHl. reflexivity. }
+      { induction (other s). reflexivity. etransitivity. rewrite starred_cons. reflexivity.
+        etransitivity. 2: rewrite starred_cons; reflexivity. simpl. rewrite IHl. reflexivity. }
+    Qed.
+
+    Theorem applySHeap_wt_spec : forall cs U G U' G' s F,
+      (forall e t, 
+        is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) e t = true ->
+        exprD funcs U G e t = exprD funcs U' G' (F e) t) ->
+      WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) s = true ->
+      SE.ST.heq cs (sexprD funcs preds U G (sheapD s))
+                   (sexprD funcs preds U' G' (sheapD (applySHeap F s))).
+    Proof.
+      clear. intros. rewrite WellTyped_sheap_eq in H0. apply andb_true_iff in H0. destruct H0. 
+      do 2 rewrite sheapD_def. simpl. repeat eapply SE.ST.heq_star_frame.
+      { revert H0. clear H1. rewrite WellTyped_impures_spec_eq. eapply MM.PROPS.map_induction with (m := impures s); intros.
+        repeat rewrite impuresD_Empty by eauto using MF.map_Empty. reflexivity.
+        rewrite impuresD_Add by eauto using MF.map_Add, MF.map_not_In.
+        symmetry. unfold MM.mmap_map in *. rewrite impuresD_Add. 2: eapply MF.map_Add; eauto. 
+        2: eapply MF.map_not_In; eauto.
+        simpl. symmetry. rewrite NatMap.IntMapProperties.fold_Add in H3. 5: eauto. 5: eauto.
+        apply andb_true_iff in H3. destruct H3. apply ST.heq_star_frame.
+        cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+        generalize (@SE.Emp types pcType stateType). revert H. clear - H4.
+        induction e; simpl; intros. repeat rewrite starred_nil. auto.
+        repeat rewrite starred_cons. simpl in *. apply ST.heq_star_frame; eauto. 
+        unfold typeof_preds in H4. rewrite map_nth_error_full in H4.
+        destruct (nth_error preds x); try reflexivity.
+        consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a (typeof_pred p)). intros.
+        rewrite applyD_map. revert H1. clear -H. destruct p; simpl. generalize dependent SDomain0.
+        { induction a; destruct SDomain0; intros; simpl; auto; try reflexivity.
+          simpl in H1. consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a t); intros.
+          rewrite H; eauto. destruct (exprD funcs U' G' (F a) t); eauto. reflexivity. }
+        { destruct (nth_error (typeof_preds preds) x); try congruence.
+          consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a t); intros.
+          destruct e. simpl; repeat rewrite starred_nil. eauto.
+          generalize dependent (e :: e0); intros.
+          eapply IHe; eauto. }
+        { eapply H0; eauto. }
+        { unfold Basics.flip; constructor; eauto. }
+        { clear. unfold Basics.flip. repeat (red; intros; subst). auto. }
+        { clear. repeat (red; intros; subst). repeat rewrite <- andb_assoc. f_equal. apply andb_comm. } }
+      { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+        revert H1. clear H0. generalize (@SE.Emp types pcType stateType). induction (pures s); intros; 
+        repeat (rewrite starred_nil || rewrite starred_cons); auto. simpl map. rewrite starred_cons.
+        simpl. simpl in H1.
+        consider (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G) a tvProp); intros.
+        rewrite IHl; eauto. rewrite H; auto. reflexivity. }
+      { cut (ST.heq cs (sexprD funcs preds U G SE.Emp) (sexprD funcs preds U' G' SE.Emp)); [ | reflexivity ].
+        generalize (@SE.Emp types pcType stateType). induction (other s); intros.
+        etransitivity. rewrite starred_nil. reflexivity. etransitivity; [ | rewrite starred_nil; reflexivity ].
+        auto.
+        
+        etransitivity; [ rewrite starred_cons; reflexivity | ].
+        etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
+    Qed.
+
+    Lemma applySHeap_typed : forall tf tp U G U' G' s F,
+      (forall e t, 
+        is_well_typed tf U G e t = true ->
+        is_well_typed tf U' G' (F e) t = true) ->
+      WellTyped_sheap tf tp U G s = true ->
+      WellTyped_sheap tf tp U' G' (applySHeap F s) = true.
+    Proof.
+      clear. intros. rewrite WellTyped_sheap_eq in *. destruct s; unfold applySHeap; simpl in *.
+      think. apply andb_true_iff; split.
+      rewrite WellTyped_impures_eq in H0. apply WellTyped_impures_eq. intros.
+      unfold MM.mmap_map in *. rewrite MM.FACTS.map_o in H2. unfold MM.FACTS.option_map in H2.
+      consider (FM.find (elt:=list (list (expr types))) k impures0); intros. think.
+      specialize (H0 _ _ H2). Opaque allb. destruct l; simpl in *; auto. Transparent allb.
+      change (map F l :: map (map F) l0) with (map (map F) (l :: l0)). generalize dependent (l :: l0); intros.
+      think. revert H3. clear - H. induction l1; simpl in *; intros; think; auto.
+      rewrite all2_map_1. erewrite all2_impl; eauto. congruence.
+      rewrite allb_map. eapply allb_impl; eauto.
+    Qed.
+    
+(*
     (** replace "real" variables [a,b) and replace them with
      ** uvars [c,..]
      **)
@@ -1164,6 +1324,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
        ; pures := map (exprSubstU a b c) (pures s)
        ; other := other s
        |}.
+*)
     
     Theorem hash_Func : forall p (args : exprs types),
       hash (Func p args) = (nil, {| impures := MM.mmap_add p args (MM.empty _)
@@ -1313,6 +1474,25 @@ Module SepHeapFacts (SH : SepHeap).
     Qed.
 *)
 
+    Definition sheapSubstU (a b c : nat) : SH.SHeap types pcT stT -> SH.SHeap types pcT stT :=
+      SH.applySHeap (Expr.exprSubstU a b c).
+
+    Lemma sheapSubstU_wt : forall tf tp tu tg tg' tg'' s,
+      SH.WellTyped_sheap (types := types) (pcType := pcT) (stateType := stT) tf tp tu (tg ++ tg' ++ tg'') s = true ->
+      SH.WellTyped_sheap tf tp (tu ++ tg') (tg ++ tg'') (sheapSubstU (length tg) (length tg' + length tg) (length tu) s) = true.
+    Proof.
+      clear. intros.
+      eapply SH.applySHeap_typed; eauto. clear.
+      intros. rewrite <- exprSubstU_wt. auto.
+    Qed.
+
+    Lemma sheapSubstU_sheapD : forall U G G' G'' s,
+      ST.heq cs (sexprD funcs preds U (G ++ G' ++ G'') (SH.sheapD s))
+                (sexprD funcs preds (U ++ G') (G ++ G'') (SH.sheapD (sheapSubstU (length G) (length G' + length G) (length U) s))).
+    Proof.
+      intros. eapply SH.applySHeap_spec. intros.
+      apply exprSubstU_exprD.
+    Qed.
 
   End with_env.
 
@@ -1327,6 +1507,24 @@ Module SepHeapFacts (SH : SepHeap).
       end); 
     SEP_FACTS.heq_canceler.
 
+  Lemma applySHeap_singleton : forall types pcT stT funcs (preds : SH.SE.predicates types pcT stT)  meta_env vars_env cs F f l,
+    heq funcs preds meta_env vars_env cs
+    (SH.sheapD (SH.applySHeap F
+      {| SH.impures := MM.mmap_add f l (MM.empty (list (expr types)))
+        ; SH.pures := nil
+        ; SH.other := nil |}))
+    (SH.sheapD 
+      {| SH.impures := MM.mmap_add f (map F l) (MM.empty (list (expr types)))
+        ; SH.pures := nil
+        ; SH.other := nil |}).
+  Proof.
+    clear. intros. rewrite SH.applySHeap_defn; simpl. repeat rewrite SH.sheapD_def; simpl.
+    heq_canceler. unfold MM.mmap_add. repeat rewrite MM.FACTS.empty_o.
+    rewrite SH.impuresD_Add with (f := f) (argss := map F l :: nil) (i := MM.empty _). symmetry. 
+    rewrite SH.impuresD_Add with (f := f) (argss := map F l :: nil) (i := MM.empty _). reflexivity.
+    red; reflexivity. intro; eapply MM.FACTS.empty_in_iff; eassumption.
+    red; reflexivity. intro; eapply MM.FACTS.empty_in_iff; eassumption.
+  Qed.
 
   Export SEP_FACTS.
 
