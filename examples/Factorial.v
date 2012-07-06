@@ -55,8 +55,8 @@ Definition factDriver := bimport [[ "fact"!"fact" @ [factS] ]]
       PRE[_] Emp
       POST[R] [| R = $24 |] ]
       "x" <-- Call "fact"!"fact"(4)
-      [PRE[_, R] [| R = $24 |]
-       POST[R'] [| R' = $24 |]];;
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |]];;
       Return "x"
     end
   }}.

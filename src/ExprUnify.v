@@ -128,12 +128,10 @@ Module Type SynUnifier.
       Subst_equations funcs U G sub ->
       exprD funcs U G (exprInstantiate sub e) t = exprD funcs U G e t.
 
-(*
-    Axiom Subst_equations_Extends : forall funcs utypes G sub sub',
+    Axiom Subst_equations_Extends : forall funcs G sub sub' U,
       Subst_Extends sub' sub ->
-      existsEach utypes (fun U => Subst_equations funcs U G sub') ->
-      existsEach utypes (fun U => Subst_equations funcs U G sub).
-*)
+      Subst_equations funcs U G sub' ->
+      Subst_equations funcs U G sub.
     
   End typed.
 End SynUnifier.
@@ -1414,6 +1412,175 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { induction H; simpl; auto. rewrite H; auto. }
     Qed.
 
+    Lemma Subst_set_unroll_None: forall (u : nat) (E : expr types) (sub : Subst),
+      Subst_set u E sub = None ->
+      mentionsU u (exprInstantiate sub E) = true.
+    Proof.
+      unfold Subst_set. do 3 intro.
+      match goal with
+        | [ |- context [ eq_refl ?X ] ] => generalize (eq_refl X)
+      end.
+      generalize (subst_set u E (projT1 sub)) at 2 3. destruct o; intros; try congruence.
+      unfold subst_set in *.
+      unfold exprInstantiate.
+      destruct (mentionsU u (subst_exprInstantiate (projT1 sub) E)); congruence.
+    Qed.
+
+    Lemma extends_add_from : forall sub sub' k v,
+      Subst_Extends sub' sub ->
+      Subst_lookup k sub' = Some v ->
+      Subst_lookup k sub = None ->
+      match Subst_set k v sub with
+        | None => False
+        | Some sub => Subst_Extends sub' sub
+      end.
+    Proof.
+      intros.
+      consider (Subst_set k v sub); intros.
+      { generalize (Subst_set_Extends _ _ _ H2 H1); intros.
+        generalize (exprInstantiate_Extends H).
+        generalize (exprInstantiate_Extends H3); intros.
+        eapply Subst_set_unroll in H2; intuition.
+        unfold Subst_Extends. generalize H.
+        unfold Subst_Extends in * |-; intros. unfold exprInstantiate in *. rewrite H7 in *. clear H7 s.
+        unfold Subst_lookup, subst_lookup in *.
+        apply MFACTS.PROPS.F.find_mapsto_iff in H0.
+        apply MFACTS.PROPS.F.map_mapsto_iff in H8. destruct H8. intuition. subst.
+        apply MFACTS.PROPS.F.add_mapsto_iff in H9. destruct H9; intuition; subst.
+        { match goal with 
+          | H : FM.MapsTo ?A ?Y ?B |- FM.MapsTo ?A ?X ?B => cutrewrite (X = Y); auto
+          end.
+          rewrite subst_exprInstantiate_add_not_mentions by auto.
+          rewrite subst_exprInstantiate_idem.
+          2: destruct sub; auto. rewrite H5.
+          apply WellFormed_Canonical.
+          destruct sub' as [ sub' ? ]; simpl in *. eapply w. eauto. }
+        { match goal with 
+            | |- FM.MapsTo _ ?X _ => cutrewrite (X = exprInstantiate sub' x); auto
+          end.
+          Lemma Subst_Extends_fin_instantiate : forall x sub sub' v k,
+            Subst_Extends sub' sub ->
+            mentionsU k (subst_exprInstantiate (projT1 sub) v) = false ->
+            FM.MapsTo k v (projT1 sub') ->
+            normalized (projT1 sub) x = true ->
+            subst_exprInstantiate (projT1 sub')
+            (subst_exprInstantiate
+              (FM.add k (subst_exprInstantiate (projT1 sub) v) (projT1 sub)) x) =
+            exprInstantiate sub' x.
+          Proof.
+            induction x; simpl; intros; auto.
+            { unfold subst_lookup.
+              consider (FM.find (elt:=expr types) x (projT1 sub)); try congruence; intros.
+              rewrite MFACTS.PROPS.F.add_o. destruct (FM.E.eq_dec k x); subst.
+              generalize (exprInstantiate_Extends H); unfold exprInstantiate.
+              intro. rewrite H3.
+              apply MFACTS.PROPS.F.find_mapsto_iff in H1. rewrite H1.
+              change (exprInstantiate sub' v = v).
+              eapply exprInstantiate_instantiated. unfold Subst_lookup, subst_lookup.
+              eassumption. 
+              rewrite H2. reflexivity. }
+            { f_equal. rewrite map_map.
+              revert H3; induction H; simpl; intros; think; auto. }
+            { f_equal; think; auto. }
+            { think. }
+          Qed.
+          eapply Subst_Extends_fin_instantiate; eauto.
+          eapply (projT2 sub). eauto. } }
+      { apply Subst_set_unroll_None in H2.
+        rewrite <- (exprInstantiate_instantiated _ _ H0) in H2.
+        Lemma exprInstantiate_Extends' : forall x y,
+          Subst_Extends x y ->
+          forall t, exprInstantiate y (exprInstantiate x t) = exprInstantiate x t.
+        Proof.
+          induction t; simpl; intros; think; auto.
+          { consider (FM.find (elt:=expr types) x0 (projT1 x)); intros.
+            apply MFACTS.PROPS.F.find_mapsto_iff in H0. 
+            eapply (projT2 x) in H0.
+            eapply WellFormed_Canonical.
+            destruct y; destruct x. eapply normalized_Lt. eassumption. eassumption.
+            simpl. unfold subst_lookup.
+            consider (FM.find (elt:=expr types) x0 (projT1 y)); intros.
+            apply MFACTS.PROPS.F.find_mapsto_iff in H1.
+            apply H in H1.
+            apply MFACTS.PROPS.F.find_mapsto_iff in H1. congruence. auto. }
+          { f_equal. rewrite map_map. induction H0; intros; think; auto. }
+        Qed.
+        rewrite exprInstantiate_Extends' in H2; eauto.
+        erewrite normalized_not_mentions in H2; eauto.
+        congruence. apply wf_instantiate_normalized. apply (projT2 sub'). }
+    Qed.
+    
+    Definition collect_path (sub sub' : Subst) : list (nat * expr types) :=
+      FM.fold (fun k v acc =>
+        if FM.find k (projT1 sub) then acc else (k,v) :: acc) (projT1 sub') nil.
+    
+    Lemma collect_path_nil : forall a b, 
+      Subst_Extends b a ->
+      collect_path a b = nil ->
+      Subst_Equal a b.
+    Proof.
+(*
+      unfold collect_path.
+      do 2 intro. destruct a; destruct b. unfold Subst_Extends, Subst_Equal, exprInstantiate in *; 
+      simpl in *. clear w w0.
+      eapply MFACTS.PROPS.fold_rec with (m := x0); intros.
+      { red; intros.        
+        symmetry; rewrite MFACTS.find_Empty; auto.
+        consider (FM.find (elt:=expr types) y x); auto; intros.
+        apply MFACTS.FACTS.find_mapsto_iff in H2. eapply H0 in H2.
+        do 2 red in H. eapply H in H2. contradiction. }
+      { consider (FM.find (elt:=expr types) k x); intros; think; eauto.
+        subst. red; intros. unfold MFACTS.PROPS.Add in *. specialize (H1 y).
+        rewrite MFACTS.FACTS.add_o in H1.
+        destruct (FM.E.eq_dec k y); subst. 
+        rewrite H4. apply MFACTS.FACTS.find_mapsto_iff in H4.
+        apply H3 in H4.
+
+ apply MFACTS.FACTS.find_mapsto_iff in H4. eapply H3 in H4.   
+ *)
+    Admitted.
+
+    Lemma collect_path_cons : forall a b c d, 
+      Subst_Extends b a ->
+      collect_path a b = c :: d ->
+      exists x, Subst_set (fst c) (snd c) a = Some x /\
+        collect_path a x = d.
+    Proof.
+    Admitted.        
+(*
+    Inductive Subst_Extends' : Subst -> Subst -> Prop :=
+    | SE_Refl : forall a b, Subst_Equal a b -> Subst_Extends' a b
+    | SE_Add : forall k v a b c,
+      Subst_set k v a = Some b -> ~FM.In k (projT1 a) -> Subst_Extends' c b ->
+      Subst_Extends' c a.
+
+    Lemma extends_as_extension : forall sub sub',
+      Subst_Extends sub' sub ->
+      exists ls sub'',
+        Some sub'' = fold_left (fun sub kv => match sub with
+                                                | None => None
+                                                | Some sub => Subst_set (fst kv) (snd kv) sub
+                                              end) ls (Some sub) /\
+        Subst_Equal sub'' sub'.
+    Proof.
+      intros. exists (collect_path sub' sub).
+      remember (collect_path sub' sub).
+      induction l.
+      { exists sub'. symmetry in Heql. apply collect_path_nil in Heql.
+
+ simpl. intuition; try reflexivity. f_equal. admit.
+        apply Equiv_Subst_Equal. }
+      { 
+        SearchAbout Subst_Equal.
+*)      
+
+
+    Theorem Subst_equations_Extends : forall funcs G sub sub' U,
+      Subst_Extends sub' sub ->
+      Subst_equations funcs U G sub' ->
+      Subst_equations funcs U G sub.
+    Proof.
+    Admitted.
 
   End typed.
 End Unifier.

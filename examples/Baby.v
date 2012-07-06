@@ -145,10 +145,10 @@ Definition incTest := bimport [[ "inc"!"inc" @ [incS] ]]
   bmodule "main" {{
     bfunction "main"("y") [SPEC reserving 3
       PRE[_] [| True |]
-      POST[rv] [| rv = $10 |] ]
+      POST[R] [| R = $10 |] ]
       "y" <-- Call "inc"!"inc"(7)
-      [PRE[_, R] [| R = $8 |]
-       POST[R'] [| R' = $10 |] ];;
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R ^+ $2 |] ];;
       "y" <- "y" + 2;;
       Return "y"
     end

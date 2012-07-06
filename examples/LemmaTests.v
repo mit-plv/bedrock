@@ -7,7 +7,7 @@ Require Import AutoSep.
 
 Hint Extern 1 => elimtype False; omega : contradiction.
 
-Theorem t0 : forall a b, a =*> b ===> a =*> b.  
+Theorem t0 : forall a b, a =*> b ===> a =*> b.
   sepLemma.
 Qed.
 

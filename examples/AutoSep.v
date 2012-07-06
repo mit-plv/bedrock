@@ -87,10 +87,14 @@ Ltac sep_firstorder := sep_easy;
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula;
   repeat match goal with
+           | [ _ : context[Regs (match ?st with
+                                 | (_, y) => y
+                               end) ?r] |- _ ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
            | [ |- context[Regs (match ?st with
                                   | (_, y) => y
                                 end) ?r] ] =>
-             change (Regs (let (_, y) := st in y) r) with (st#r)
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
          end; try subst.
 
 Require Import NArith.
@@ -116,7 +120,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_evalLoc SymIL.sym_evalStream SymIL.sym_assertTest
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
-         SymIL.SymVars SymIL.SymUVars
+(*         SymIL.SymVars SymIL.SymUVars *)
          SymIL.stateD 
          SymILTac.Tactics.quantifyNewVars
          SymILTac.unfolder_LearnHook
@@ -125,6 +129,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
+
+         SymEval.quantD SymEval.appendQ
+         SymEval.qex SymEval.qall
+         SymEval.gatherAll SymEval.gatherEx
+         SymILTac.Tactics.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -174,7 +183,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Default_signature Expr.EmptySet_type
          Expr.expr_seq_dec 
          Expr.Eqb Expr.liftExpr Expr.exprSubstU
-         Expr.typeof
+         Expr.typeof Expr.typeof_env 
+         Expr.typeof_sig Expr.typeof_funcs
          Expr.expr_ind
          Expr.get_Eq
          Expr.const_seqb
@@ -310,7 +320,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
          provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
          provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
-         provers.WordProver.equalitysEq ILEnv.W_seq weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.equalitysEq ILEnv.W_seq Word.weqb weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
@@ -353,6 +363,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SEP.himp SEP.sexprD
          SEP.heq
          SEP.liftSExpr
+         SEP.typeof_pred SEP.typeof_preds
 
          (** SepHeap **)
          SH.impures SH.pures SH.other
@@ -375,6 +386,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
+         CANCEL.expr_size
+
+         ILTac.canceller
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -471,8 +485,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_evalLoc SymIL.sym_evalStream SymIL.sym_assertTest
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
-         SymIL.SymVars SymIL.SymUVars
-         SymIL.stateD 
+(*         SymIL.SymVars SymIL.SymUVars *)
+         SymIL.stateD SymIL.qstateD
          SymILTac.Tactics.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -480,6 +494,11 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
+
+         SymEval.quantD SymEval.appendQ
+         SymEval.qex SymEval.qall
+         SymEval.gatherAll SymEval.gatherEx
+         SymILTac.Tactics.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -533,7 +552,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
          Expr.expr_seq_dec  Expr.expr_seq_dec
          Expr.tvar_val_seqb  Expr.liftExpr Expr.exprSubstU
-         Expr.typeof
+         Expr.typeof Expr.typeof_env 
+         Expr.typeof_sig Expr.typeof_funcs
          Expr.Impl_ Expr.exprD
          Expr.expr_ind
          Expr.expr_seq_dec
@@ -670,7 +690,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.pow32 provers.WordProver.wplus' provers.WordProver.wneg' provers.WordProver.wminus' wordBin NToWord Nplus minus
          provers.WordProver.decompose combine Expr.expr_seq_dec provers.WordProver.combineAll provers.WordProver.combine app
          provers.WordProver.alreadyCovered provers.WordProver.alreadyCovered' andb orb provers.WordProver.merge provers.WordProver.wordLearn1 provers.WordProver.wordLearn
-         provers.WordProver.equalitysEq ILEnv.W_seq weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
+         provers.WordProver.equalitysEq ILEnv.W_seq Word.weqb weq provers.WordProver.equalityMatches provers.WordProver.wordProve provers.WordProver.wordSummarize
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
@@ -739,6 +759,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
+         CANCEL.expr_size
+          
+         ILTac.canceller
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -1046,59 +1069,51 @@ Qed.
 
 Ltac step ext :=
   let considerImp pre post :=
-    match post with
-      | context[locals ?ns ?vs ?avail _] =>
-        match pre with
-          | context[excessStack _ ns avail ?ns' ?avail'] =>
-            match avail' with
-              | avail => fail 1
-              | _ =>
-                match pre with
-                  | context[locals ns ?vs' 0 ?sp] =>
-                    match goal with
-                      | [ _ : _ = sp |- _ ] => fail 1
-                      | _ => equate vs vs';
-                        let offset := eval simpl in (4 * List.length ns) in
-                          rewrite (create_locals_return ns' avail' ns avail offset);
-                            assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+    try match post with
+          | context[locals ?ns ?vs ?avail _] =>
+            match pre with
+              | context[excessStack _ ns avail ?ns' ?avail'] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match pre with
+                      | context[locals ns ?vs' 0 ?sp] =>
+                        match goal with
+                          | [ _ : _ = sp |- _ ] => fail 1
+                          | _ => equate vs vs';
+                            let offset := eval simpl in (4 * List.length ns) in
+                              rewrite (create_locals_return ns' avail' ns avail offset);
+                                assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                  simpl; omega
+                                  | reflexivity ] ); autorewrite with sepFormula;
+                                generalize vs'; intro
+                        end
+                    end
+                end
+              | context[locals ?ns' ?vs' ?avail' _] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match vs' with
+                      | vs => fail 1
+                      | _ => let ns'' := peelPrefix ns ns' in
+                        rewrite (create_locals_out ns'' ns' avail' ns avail);
+                          assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
+                            reflexivity
+                            | split; [
                               simpl; omega
-                              | reflexivity ] ); autorewrite with sepFormula;
-                            generalize vs'; intro
+                              | reflexivity ] ] )
                     end
                 end
             end
-          | context[locals ?ns' ?vs' ?avail' _] =>
-            match avail' with
-              | avail => fail 1
-              | _ =>
-                match vs' with
-                  | vs => fail 1
-                  | _ => let ns'' := peelPrefix ns ns' in
-                    rewrite (create_locals_out ns'' ns' avail' ns avail);
-                      assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
-                        reflexivity
-                        | split; [
-                          simpl; omega
-                          | reflexivity ] ] )
-                end
-            end
-        end; cancel ext
-    end in
+        end;
+    progress cancel ext in
 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
     | [ |- interp _ (![ _ ] _) ] => cancel ext
-    | [ |- interp _ (?pre ---> ?post) ] => considerImp pre post
+    | [ |- interp _ (![?pre]%PropX _ ---> ![?post]%PropX _) ] => considerImp pre post
     | [ |- himp _ ?pre ?post ] => considerImp pre post
-    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] =>
-      try solve [ cancel auto_ext;
-        try match goal with
-              | [ |- himp _ (locals ?ns'' ?vs _ ?p) (locals ?ns _ ?avail ?p') ] =>
-                replace p' with p by words;
-                  let ns' := peelPrefix ns ns'' in
-                    apply (@prelude_out ns ns' vs avail p); simpl; omega          
-            end; assumption]; progress cancel ext
-    | [ |- himp _ _ _ ] => progress cancel ext
     | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
       match y with
         | x => fail 1
