@@ -299,6 +299,16 @@ Section Repr2.
             {| footprint := join lf rf ; default := ld |}
         end.
 
+    Lemma repr_idempotent : forall a b,
+      repr a (repr a b) = repr a b.
+    Proof.
+      clear. destruct a.
+      simpl. induction footprint0; simpl; intros; auto.
+      destruct a; simpl; auto. f_equal. rewrite IHfootprint0. auto.
+      destruct b; auto. rewrite IHfootprint0; auto. simpl.
+      rewrite IHfootprint0. auto.
+    Qed.
+
   End parametric.
 End Repr2.
 

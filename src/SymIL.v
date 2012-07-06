@@ -27,9 +27,7 @@ Section typed.
 
   (** Symbolic State **)
   Record SymState : Type :=
-  { SymVars  : variables
-  ; SymUVars : variables
-  ; SymMem   : option (SH.SHeap types pcT stT)
+  { SymMem   : option (SH.SHeap types pcT stT)
   ; SymRegs  : SymRegType
   ; SymPures : list (expr types)
   }.
@@ -78,8 +76,49 @@ Section typed.
   | SymAssertCond : sym_rvalue -> test -> sym_rvalue -> option bool -> sym_assert.
 
   Definition istream : Type := list ((list sym_instr * option state) + sym_assert).
-
 End typed.
+
+Section stateD.
+  Notation pcT := (tvType 0).
+  Notation tvWord := (tvType 0).
+  Notation stT := (tvType 1).
+  Notation tvState := (tvType 2).
+  Notation tvTest := (tvType 3).
+  Notation tvReg := (tvType 4).
+
+  Variable types' : list type.
+  Notation TYPES := (repr bedrock_types_r types').
+  Variable funcs : functions TYPES.
+  Variable sfuncs : SEP.predicates TYPES pcT stT.
+
+  Definition stateD (uvars vars : env TYPES) cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
+    let (stn,st) := stn_st in
+    match ss with
+      | {| SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
+        match 
+          exprD funcs uvars vars sp tvWord ,
+          exprD funcs uvars vars rp tvWord ,
+          exprD funcs uvars vars rv tvWord
+          with
+          | Some sp , Some rp , Some rv =>
+            Regs st Sp = sp /\ Regs st Rp = rp /\ Regs st Rv = rv
+          | _ , _ , _ => False
+        end
+        /\ match m with 
+             | None => True
+             | Some m => 
+               PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SH.sheapD m)) stn_st)%PropX
+           end
+        /\ AllProvable funcs uvars vars (match m with 
+                                           | None => pures
+                                           | Some m => pures ++ SH.pures m
+                                         end)
+    end.
+
+  Definition qstateD (uvars vars : env TYPES) cs (stn_st : IL.settings * state) (qs : SymEval.Quant) (ss : SymState TYPES pcT stT) : Prop :=
+    SymEval.quantD vars uvars qs (fun vars_env meta_env => stateD meta_env vars_env cs stn_st ss).
+
+End stateD.
 
 Implicit Arguments sym_loc [ ].
 Implicit Arguments sym_lvalue [ ].
@@ -89,19 +128,19 @@ Implicit Arguments sym_assert [ ].
 
 Section Denotations.
   Variable types' : list type.
-  Local Notation "'TYPES'" := (repr bedrock_types_r types').
+  Notation TYPES := (repr bedrock_types_r types').
 
-  Local Notation "'pcT'" := (tvType 0).
-  Local Notation "'tvWord'" := (tvType 0).
-  Local Notation "'stT'" := (tvType 1).
-  Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
+  Notation pcT := (tvType 0).
+  Notation tvWord := (tvType 0).
+  Notation stT := (tvType 1).
+  Notation tvState := (tvType 2).
+  Notation tvTest := (tvType 3).
+  Notation tvReg := (tvType 4).
 
 
   (** Denotation/reflection functions give the meaning of the reflected syntax *)
   Variable funcs' : functions TYPES.
-  Local Notation "'funcs'" := (repr (bedrock_funcs_r types') funcs').
+  Notation funcs := (repr (bedrock_funcs_r types') funcs').
   Variable sfuncs : SEP.predicates TYPES pcT stT.
   Variable uvars vars : env TYPES.
   
@@ -213,32 +252,6 @@ Section Denotations.
         end
     end.
 
-  Definition stateD cs (stn_st : IL.settings * state) (ss : SymState TYPES pcT stT) : Prop :=
-    let (stn,st) := stn_st in
-    match ss with
-      | {| SymVars := vs ; SymMem := m ; SymRegs := (sp, rp, rv) ; SymPures := pures |} =>
-        existsEach (skipn (length vars) vs) (fun vars_ext =>
-          let vars := vars ++ vars_ext in
-          match 
-            exprD funcs uvars vars sp tvWord ,
-            exprD funcs uvars vars rp tvWord ,
-            exprD funcs uvars vars rv tvWord
-            with
-            | Some sp , Some rp , Some rv =>
-              Regs st Sp = sp /\ Regs st Rp = rp /\ Regs st Rv = rv
-            | _ , _ , _ => False
-          end
-          /\ match m with 
-               | None => True
-               | Some m => 
-                 PropX.interp cs (SepIL.SepFormula.sepFormula (SEP.sexprD funcs sfuncs uvars vars (SH.sheapD m)) stn_st)%PropX
-             end
-          /\ AllProvable funcs uvars vars (match m with 
-                                             | None => pures
-                                             | Some m => pures ++ SH.pures m
-                                           end))
-    end.
-
   Section SymEvaluation.
     Variable Prover : ProverT TYPES.
     Variable meval : MEVAL.MemEvaluator TYPES pcT stT.
@@ -257,12 +270,10 @@ Section Denotations.
       : option (SymState TYPES pcT stT) :=
       match lv with
         | SymLvReg r =>
-          Some {| SymVars := SymVars ss
-            ; SymUVars := SymUVars ss
-            ; SymMem := SymMem ss 
-            ; SymRegs := sym_setReg r val (SymRegs ss)
-            ; SymPures := SymPures ss
-          |}
+          Some {| SymMem := SymMem ss 
+                ; SymRegs := sym_setReg r val (SymRegs ss)
+                ; SymPures := SymPures ss
+                |}
         | SymLvMem l => 
           let l := sym_evalLoc l ss in
             match SymMem ss with
@@ -270,12 +281,10 @@ Section Denotations.
               | Some m =>
                 match MEVAL.swrite_word meval _ Facts l val m with
                   | Some m =>
-                    Some {| SymVars := SymVars ss
-                      ; SymUVars := SymUVars ss
-                      ; SymMem := Some m
-                      ; SymRegs := SymRegs ss
-                      ; SymPures := SymPures ss
-                    |}
+                    Some {| SymMem := Some m
+                          ; SymRegs := SymRegs ss
+                          ; SymPures := SymPures ss
+                          |}
                   | None => None
                 end
             end
@@ -313,11 +322,11 @@ Section Denotations.
       in
       match sym_evalRval l ss , sym_evalRval r ss with
         | Some l , Some r =>
-          match t with
-            | IL.Eq => Some (Expr.Equal tvWord l r)
-            | IL.Ne => Some (Expr.Not (Expr.Equal tvWord l r))
-            | IL.Lt => Some (Expr.Func 5 (l :: r :: nil))
-            | _ => Some (Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil))
+          Some match t with
+                 | IL.Eq => Expr.Equal tvWord l r
+                 | IL.Ne => Expr.Not (Expr.Equal tvWord l r)
+                 | IL.Lt => Expr.Func 5 (l :: r :: nil)
+                 | _ => Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil)
           end
         | _ , _ => None
       end.
@@ -358,14 +367,19 @@ Section Denotations.
     
     Variable learnHook : MEVAL.LearnHook TYPES (SymState TYPES pcT stT).
 
-    Fixpoint sym_evalStream (facts : Facts Prover) (is : istream TYPES) (ss : SymState TYPES pcT stT) 
-      : option (SymState TYPES pcT stT) + (SymState TYPES pcT stT * istream TYPES) :=
+    Inductive SymResult : Type :=
+    | Safe      : SymEval.Quant -> SymState TYPES pcT stT -> SymResult
+(*    | Unsafe    : SymEval.Quant -> SymResult *)
+    | SafeUntil : SymEval.Quant -> SymState TYPES pcT stT -> istream TYPES -> SymResult. 
+
+    Fixpoint sym_evalStream (facts : Facts Prover) (is : istream TYPES) (qs : SymEval.Quant) (u g : variables) 
+      (ss : SymState TYPES pcT stT) : SymResult :=
       match is with
-        | nil => inl (Some ss)
+        | nil => Safe qs ss
         | inl (ins, st) :: is =>
           match sym_evalInstrs facts ins ss with
-            | inr (ss,rm) => inr (ss, inl (rm, st) :: is)
-            | inl ss => sym_evalStream facts is ss
+            | inr (ss,rm) => SafeUntil qs ss (inl (rm, st) :: is)
+            | inl ss => sym_evalStream facts is qs u g ss
           end
         | inr asrt :: is =>
           match asrt with
@@ -374,22 +388,20 @@ Section Denotations.
                 | Some sp =>
                   let facts' := Learn Prover facts (sp :: nil) in 
                   let ss' := 
-                    {| SymVars := SymVars ss
-                     ; SymUVars := SymUVars ss
-                     ; SymRegs := SymRegs ss 
+                    {| SymRegs := SymRegs ss 
                      ; SymMem := SymMem ss
                      ; SymPures := sp :: SymPures ss
                      |}
                   in
-                  let ss' := learnHook Prover ss' facts' in
-                  sym_evalStream facts' is ss'
-                | None => inr (ss, inr asrt :: is)
+                  let (ss', qs') := learnHook Prover u g ss' facts' (sp :: nil) in
+                  sym_evalStream facts' is (SymEval.appendQ qs' qs) (u ++ SymEval.gatherAll qs') (g ++ SymEval.gatherEx qs') ss'
+                | None => SafeUntil qs ss (inr asrt :: is)
               end
             | SymAssertCond l t r None =>
               match sym_evalRval facts l ss , sym_evalRval facts r ss with
-                | None , _ => inl None
-                | _ , None => inl None
-                | _ , _ => sym_evalStream facts is ss 
+                | None , _ => SafeUntil qs ss (inr asrt :: is)
+                | _ , None => SafeUntil qs ss (inr asrt :: is)
+                | Some _ , Some _ => sym_evalStream facts is qs u g ss 
               end
           end
       end.
@@ -602,6 +614,5 @@ Section spec_functions.
     Qed.
 
   End ForWord.
-
 
 End spec_functions.

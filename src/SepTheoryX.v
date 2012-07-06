@@ -73,6 +73,10 @@ Section Env.
     satisfies cs (inj p) stn m ->
     interp cs p /\ HT.semp m.
 
+  Parameter satisfies_ex : forall cs T p stn m,
+    satisfies cs (@ex _ T p) stn m ->
+    exists x : T, satisfies cs (p x) stn m.
+
   (* himp/heq lemmas *)
   Parameter himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
 
@@ -356,7 +360,6 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
       rewrite ST.heq_star_comm. reflexivity.
     Qed.
     
-
     Lemma existsEach_cons : forall cs v vs P,
       ST.heq cs (existsEach (v :: vs) P)
                 (ST.ex (fun x => existsEach vs (fun env => P (@existT _ _ v x :: env)))).
@@ -383,6 +386,20 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
         inversion H0; clear H0; subst. exists t. rewrite rev_app_distr. simpl. rewrite app_ass. simpl.
         apply ST.himp_ex_c. exists (rev v0). apply ST.himp_star_pure_cc. rewrite map_rev. rewrite H. apply rev_involutive.
         destruct v1; try reflexivity. simpl in *; congruence. }
+    Qed.
+
+    Lemma interp_existsEach : forall cs vs P stn st,
+      ST.satisfies cs (existsEach vs P) stn st ->
+      exists G, map (@projT1 _ _) G = vs /\ ST.satisfies cs (P G) stn st. 
+    Proof.
+      intros. apply ST.satisfies_ex in H. destruct H. exists x.
+      apply ST.satisfies_star in H. 
+      repeat match goal with
+               | [ H : exists x, _ |- _ ] => destruct H
+               | [ H : _ /\ _ |- _ ] => destruct H
+             end.
+      apply ST.satisfies_pure in H0. intuition.
+      PropXTac.propxFo. eapply ST.HT.split_semp in H; eauto. subst; auto.
     Qed.
 
   End param.

@@ -117,6 +117,13 @@ Module Make (H' : Heap) <:
       unfold satisfies, inj; simpl; intros; propxFo.
     Qed.
 
+    Theorem satisfies_ex : forall T p stn m,
+      satisfies (@ex _ T p) stn m ->
+      exists x : T, satisfies (p x) stn m.
+    Proof.
+      unfold satisfies, ex; simpl; intros; propxFo; eauto.
+    Qed.
+
     (** Lemmas **)
 (*
     Ltac doIt :=
