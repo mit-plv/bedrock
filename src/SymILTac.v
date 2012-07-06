@@ -888,8 +888,9 @@ Ltac sym_eval isConst ext simplifier :=
                                repeat match goal with
                                         | [ H' : _ /\ _ |- _ ] => destruct H'
                                       end
+                           | False => destruct H
                            | ?G =>
-                             idtac(*fail 100000 "bad result goal" G *)
+                             fail 100000 "bad result goal" G
                          end
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in

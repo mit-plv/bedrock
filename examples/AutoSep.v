@@ -1,86 +1,59 @@
-Require Import Bedrock.
-Export Bedrock.
+Require Import AutoSepExt.
+Export AutoSepExt.
 
-(** * Specialize the library proof automation to some parameters useful for basic examples. *)
-
-Import TacPackIL.
-Require Bedrock.sep.PtsTo.
-Require Export Bedrock.sep.Array Bedrock.sep.Locals.
-
-(** Build our memory plugin **)
-Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
-
-Definition TacPackage : Type := 
-  @ILAlgoTypes.TypedPackage.
-
-Definition auto_ext : TacPackage.
-(** TODO: this is getting really slow, maybe we need to special case this as well... **)
-  ILAlgoTypes.Tactics.build_prover_pack Provers.ComboProver ltac:(fun a => 
-  ILAlgoTypes.Tactics.build_mem_pack Plugin_PtsTo.ptsto32_pack ltac:(fun b =>
-  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
-  ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Locals.pack ltac:(fun d =>
-    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c, d) ltac:(fun res => 
-      let res := 
-        eval cbv beta iota zeta delta [
-          ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
-          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
-          ILAlgoTypes.PACK.applyTypes
-          ILAlgoTypes.PACK.applyFuncs
-          ILAlgoTypes.PACK.applyPreds
-
-          ILAlgoTypes.BedrockPackage.bedrock_package
-          Env.repr_combine Env.footprint Env.nil_Repr
-          Env.listToRepr
-          app map
-          
-          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
-          ILAlgoTypes.AllAlgos_composite
-          ILAlgoTypes.oplus Prover.composite_ProverT 
-          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
-
-          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig Bedrock.sep.Locals.ssig
-        ] in res in
-        ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" )))).
-Defined.
+Ltac refold' A :=
+  progress change (fix length (l : list A) : nat :=
+    match l with
+      | nil => 0
+      | _ :: l' => S (length l')
+    end) with (@length A) in *
+  || (progress change (fix app (l0 m : list A) : list A :=
+    match l0 with
+      | nil => m
+      | a1 :: l1 => a1 :: app l1 m
+    end) with (@app A) in *)
+  || (progress change (fix rev (l : list W) : list W :=
+    match l with
+      | nil => nil
+      | x8 :: l' => (rev l' ++ x8 :: nil)%list
+    end) with (@rev A) in *)
+  || (progress change (fix rev_append (l l' : list A) : list A :=
+    match l with
+      | nil => l'
+      | a1 :: l0 => rev_append l0 (a1 :: l')
+    end) with (@rev_append A) in *).
 
 Ltac refold :=
   fold plus in *; fold minus in *;
     repeat match goal with
-             | [ |- context[list ?A] ] =>
-               progress change (fix length (l : list A) : nat :=
-                 match l with
-                   | nil => 0
-                   | _ :: l' => S (length l')
-                 end) with (@length A) in *
              | [ _ : list ?A |- _ ] =>
-               progress change (fix app (l0 m : list A) : list A :=
-                 match l0 with
-                   | nil => m
-                   | a1 :: l1 => a1 :: app l1 m
-                 end) with (@app A) in *
-               || (progress change (fix rev (l : list W) : list W :=
-                 match l with
-                   | nil => nil
-                   | x8 :: l' => (rev l' ++ x8 :: nil)%list
-                 end) with (@rev A) in *)
-               || (progress change (fix rev_append (l l' : list A) : list A :=
-                 match l with
-                   | nil => l'
-                   | a1 :: l0 => rev_append l0 (a1 :: l')
-                 end) with (@rev_append A) in *)
+               match A with
+                 | _ => refold' A
+                 | W => refold' (word 32)
+               end
+             | [ |- context[match ?X with nil => ?D | x :: _ => x end] ] =>
+               change (match X with nil => D | x :: _ => x end) with (List.hd D X)
+             | [ |- context[match ?X with nil => nil | _ :: x => x end] ] =>
+               change (match X with nil => nil | _ :: x => x end) with (List.tl X)
            end.
+
+Require Import Bool.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
   Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_ Use_
   Structured.If_ Structured.While_ Goto_ Structured.Call_ IGoto
+  setArgs Programming.Reserved Programming.Formals Programming.Precondition
   importsMap fullImports buildLocals blocks union Nplus Nsucc length N_of_nat
   List.fold_left ascii_lt string_lt label'_lt
   LabelKey.compare' LabelKey.compare LabelKey.eq_dec
   LabelMap.find
   toCmd Seq Instr Diverge Fail Skip Use_ Assert_
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
-  Assign'].
+  Assign' variableSlot' localsInvariant
+  regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
+  andb eqb qspecOut
+].
 
 Ltac vcgen :=
 (*TIME time "vcgen:structured_auto" ( *)
@@ -105,6 +78,7 @@ Qed.
 
 Ltac sep_firstorder := sep_easy;
   repeat match goal with
+           | [ H : Logic.ex _ |- _ ] => destruct H
            | [ H : _ /\ _ |- _ ] => destruct H
            | [ |- Logic.ex _ ] => sep_easy; eexists
            | [ |- _ /\ _ ] => split
@@ -113,13 +87,18 @@ Ltac sep_firstorder := sep_easy;
            | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula;
   repeat match goal with
+           | [ _ : context[Regs (match ?st with
+                                 | (_, y) => y
+                               end) ?r] |- _ ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
            | [ |- context[Regs (match ?st with
                                   | (_, y) => y
                                 end) ?r] ] =>
-             change (Regs (let (_, y) := st in y) r) with (st#r)
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
          end; try subst.
 
 Require Import NArith.
+Import TacPackIL.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
@@ -142,7 +121,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
 (*         SymIL.SymVars SymIL.SymUVars *)
-         SymIL.stateD SymIL.qstateD
+         SymIL.stateD 
          SymILTac.Tactics.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -345,8 +324,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
-         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
+
+         (** LocalsProver **)
+         provers.LocalsProver.localsProver
+         provers.LocalsProver.localsSimplify
+         provers.LocalsProver.localsProve
+         provers.LocalsProver.types
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -397,7 +382,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
@@ -709,8 +694,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.types ILEnv.bedrock_type_W provers.WordProver.zero Bool.bool_dec wzero' posToWord bool_rec bool_rect
          Nminus wordToN Nsucc Nmult Pos.mul Pos.add Pos.sub_mask Pos.succ_double_mask Pos.double_mask Pos.pred_double
          provers.WordProver.natToWord' mod2 Div2.div2 whd wtl Pos.double_pred_mask
-         provers.WordProver.Equalities provers.WordProver.LessThans
+         provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
+
+         (** LocalsProver **)
+         provers.LocalsProver.localsProver
+         provers.LocalsProver.localsSimplify
+         provers.LocalsProver.localsProve
+         provers.LocalsProver.types
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -742,7 +733,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation 
          SEP.Default_predicate
-         SEP.typeof_pred SEP.typeof_preds
          SEP.himp SEP.sexprD
          SEP.heq
          nat_eq_eqdec
@@ -765,14 +755,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepCancel **)
          CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.meta_order_funcs CANCEL.meta_order_args
+         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
          CANCEL.order_impures 
          CANCEL.cancel_in_order
          CANCEL.unify_remove CANCEL.unifyArgs
          CANCEL.expr_size
-         
+          
          ILTac.canceller
-
+         
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
          
@@ -852,14 +842,20 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
        ] in H
   end; refold.
 
+Ltac clear_junk := repeat match goal with
+                            | [ H : True |- _ ] => clear H
+                            | [ H : ?X = ?X |- _ ] => clear H
+                                | [ H : ?X, H' : ?X |- _ ] => clear H'
+                          end.
 
 Ltac evaluate ext :=
   repeat match goal with
            | [ H : ?P -> False |- _ ] => change (not P) in H
          end;
-  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext).
+  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext);
+  clear_junk.
 
-Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder.
+Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
@@ -875,23 +871,93 @@ Theorem implyR : forall pc state specs (P Q R : PropX pc state),
   constructor; simpl; tauto.
 Qed.
 
+Inductive pureConsequences : HProp -> list Prop -> Prop :=
+| PurePure : forall P, pureConsequences [| P |]%Sep (P :: nil)
+| PureStar : forall P P' Q Q', pureConsequences P P'
+  -> pureConsequences Q Q'
+  -> pureConsequences (P * Q)%Sep (P' ++ Q')
+| PureOther : forall P, pureConsequences P nil.
+
+Theorem pureConsequences_correct : forall P P',
+  pureConsequences P P'
+  -> forall specs stn st, interp specs (P stn st ---> [| List.Forall (fun p => p) P' |]%PropX).
+  induction 1; intros.
+
+  unfold injB, inj.
+  apply Imply_I.
+  eapply Inj_E.
+  eapply And_E1; apply Env; simpl; eauto.
+  intro; apply Inj_I; repeat constructor; assumption.
+
+  unfold starB, star.
+  apply Imply_I.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  eapply Exists_E.
+  apply Env; simpl; eauto.
+  simpl; intro.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken; apply IHpureConsequences1.
+  eapply And_E1; eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken; apply IHpureConsequences2.
+  do 2 eapply And_E2; apply Env; simpl; eauto.
+  intro.
+  apply Inj_I.
+  apply Forall_app; auto.
+
+  apply Imply_I; apply Inj_I; auto.
+Qed.
+
+Theorem extractPure : forall specs P Q Q' R st,
+  pureConsequences Q Q'
+  -> (List.Forall (fun p => p) Q' -> interp specs (P ---> R))
+  -> interp specs (P ---> ![Q] st ---> R)%PropX.
+  intros.
+  do 2 apply Imply_I.
+  eapply Inj_E.
+  eapply Imply_E.
+  apply interp_weaken.
+  apply pureConsequences_correct; eauto.
+  rewrite sepFormula_eq.
+  unfold sepFormula_def.
+  apply Env; simpl; eauto.
+  intro.
+  eapply Imply_E.
+  eauto.
+  apply Env; simpl; eauto.
+Qed.
+
 Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
                      end; W_eq.
 
-Ltac step ext := 
-  match goal with
-    | [ |- _ _ = Some _ ] => solve [ eauto ]
-    | [ |- interp _ (![ _ ] _) ] => cancel ext
-    | [ |- interp _ (![ _ ] _ ---> ![ _ ] _)%PropX ] => cancel ext
-    | [ |- himp _ _ _ ] => progress cancel ext
-    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
-      match y with
-        | x => fail 1
-        | _ => apply implyR
+Definition locals_return ns vs avail p (ns' : list string) (avail' offset : nat) :=
+  locals ns vs avail p.
+
+Theorem create_locals_return : forall ns' avail' ns avail offset vs p,
+  locals ns vs avail p = locals_return ns vs avail p ns' avail' offset.
+  reflexivity.
+Qed.
+
+Definition ok_return (ns ns' : list string) (avail avail' offset : nat) :=
+  (avail >= avail' + length ns')%nat
+  /\ offset = 4 * length ns.
+
+Ltac peelPrefix ls1 ls2 :=
+  match ls1 with
+    | nil => ls2
+    | ?x :: ?ls1' =>
+      match ls2 with
+        | x :: ?ls2' => peelPrefix ls1' ls2'
       end
-    | _ => ho
   end.
+
+Global Opaque merge.
 
 Theorem use_HProp_extensional : forall p, HProp_extensional p
   -> (fun st sm => p st sm) = p.
@@ -924,6 +990,169 @@ Ltac descend :=
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
            end).
 
+Definition locals_call ns vs avail p (ns' : list string) (avail' : nat) (offset : nat) :=
+  locals ns vs avail p.
+
+Definition ok_call (ns ns' : list string) (avail avail' : nat) (offset : nat) :=
+  (length ns' <= avail)%nat
+  /\ (avail' <= avail - length ns')%nat
+  /\ NoDup ns'
+  /\ offset = 4 * length ns.
+
+Definition excessStack (p : W) (ns : list string) (avail : nat) (ns' : list string) (avail' : nat) :=
+  reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
+  (avail - length ns' - avail').
+
+Lemma make_call : forall ns ns' vs avail avail' p offset,
+  ok_call ns ns' avail avail' offset
+  -> locals_call ns vs avail p ns' avail' offset ===>
+  locals ns vs 0 p
+  * Ex vs', locals ns' vs' avail' (p ^+ natToW offset)
+  * excessStack p ns avail ns' avail'.
+  unfold ok_call; intuition; subst; eapply do_call; eauto.
+Qed.
+
+Lemma make_return : forall ns ns' vs avail avail' p offset,
+  ok_return ns ns' avail avail' offset
+  -> (locals ns vs 0 p
+    * Ex vs', locals ns' vs' avail' (p ^+ natToW offset)
+    * excessStack p ns avail ns' avail')
+  ===> locals_return ns vs avail p ns' avail' offset.
+  unfold ok_return; intuition; subst; apply do_return; omega || words.
+Qed.
+
+Definition locals_in ns vs avail p (ns' ns'' : list string) (avail' : nat) :=
+  locals ns vs avail p.
+
+Open Scope list_scope.
+
+Definition ok_in (ns : list string) (avail : nat) (ns' ns'' : list string) (avail' : nat) :=
+  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat /\ NoDup (ns ++ ns')
+  /\ avail' = avail - length ns'.
+
+Theorem init_in : forall ns ns' ns'' vs avail p avail',
+  ok_in ns avail ns' ns'' avail'
+  -> locals_in ns vs avail p ns' ns'' avail' ===>
+  Ex vs', locals ns'' (merge vs vs' ns) avail' p.
+  unfold ok_in; intuition; subst; apply prelude_in; auto.
+Qed.
+
+Definition locals_out ns vs avail p (ns' ns'' : list string) (avail' : nat) :=
+  locals ns vs avail p.
+
+Definition ok_out (ns : list string) (avail : nat) (ns' ns'' : list string) (avail' : nat) :=
+  ns ++ ns' = ns'' /\ (length ns' <= avail)%nat
+  /\ avail' = avail - length ns'.
+
+Theorem init_out : forall ns ns' ns'' vs avail p avail',
+  ok_out ns avail ns' ns'' avail'
+  -> locals ns'' vs avail' p
+  ===> locals_out ns vs avail p ns' ns'' avail'.
+  unfold ok_out; intuition; subst; apply prelude_out; auto.
+Qed.
+
+Ltac prepare fwd bwd := 
+  let the_unfold_tac x := 
+    eval unfold empB, injB, injBX, starB, exB, hvarB in x
+  in
+  ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
+    isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, init_out, bwd).
+
+Definition auto_ext : TacPackage.
+  prepare tt tt.
+Defined.
+
+Theorem create_locals_out : forall ns' ns'' avail' ns avail vs p,
+  locals ns vs avail p = locals_out ns vs avail p ns' ns'' avail'.
+  reflexivity.
+Qed.
+
+Ltac step ext :=
+  let considerImp pre post :=
+    try match post with
+          | context[locals ?ns ?vs ?avail _] =>
+            match pre with
+              | context[excessStack _ ns avail ?ns' ?avail'] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match pre with
+                      | context[locals ns ?vs' 0 ?sp] =>
+                        match goal with
+                          | [ _ : _ = sp |- _ ] => fail 1
+                          | _ => equate vs vs';
+                            let offset := eval simpl in (4 * List.length ns) in
+                              rewrite (create_locals_return ns' avail' ns avail offset);
+                                assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                  simpl; omega
+                                  | reflexivity ] ); autorewrite with sepFormula;
+                                generalize vs'; intro
+                        end
+                    end
+                end
+              | context[locals ?ns' ?vs' ?avail' _] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match vs' with
+                      | vs => fail 1
+                      | _ => let ns'' := peelPrefix ns ns' in
+                        rewrite (create_locals_out ns'' ns' avail' ns avail);
+                          assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
+                            reflexivity
+                            | split; [
+                              simpl; omega
+                              | reflexivity ] ] )
+                    end
+                end
+            end
+        end;
+    progress cancel ext in
+
+  match goal with
+    | [ |- _ _ = Some _ ] => solve [ eauto ]
+    | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ |- interp _ (![?pre]%PropX _ ---> ![?post]%PropX _) ] => considerImp pre post
+    | [ |- himp _ ?pre ?post ] => considerImp pre post
+    | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
+      match y with
+        | x => fail 1
+        | _ => eapply extractPure; [ repeat constructor
+          | cbv zeta; simpl; intro; repeat match goal with
+                                             | [ H : List.Forall _ nil |- _ ] => clear H
+                                             | [ H : List.Forall _ (_ :: _) |- _ ] => inversion H; clear H; subst
+                                           end; clear_junk ]
+        | _ => apply implyR
+      end
+    | _ => ho
+  end.
+
+Ltac slotVariable E :=
+  match E with
+    | 4 => constr:"0"
+    | 8 => constr:"1"
+    | 12 => constr:"2"
+    | 16 => constr:"3"
+    | 20 => constr:"4"
+    | 24 => constr:"5"
+    | 28 => constr:"6"
+    | 32 => constr:"7"
+    | 36 => constr:"8"
+    | 40 => constr:"9"
+  end.
+
+Ltac slotVariables E :=
+  match E with
+    | Binop (LvReg Rv) (RvLval (LvReg Sp)) Plus (RvImm (natToW _))
+      :: Assign (LvMem (Indir Rv (natToW ?slot))) _
+      :: ?E' =>
+      let v := slotVariable slot in
+        let vs := slotVariables E' in
+          constr:(v :: vs)
+    | _ :: ?E' => slotVariables E'
+    | nil => constr:(@nil string)
+  end.
+
 Ltac post := 
   (*TIME time "post:propxFo" *)
   propxFo; 
@@ -932,21 +1161,74 @@ Ltac post :=
   (*TIME ) *) ;
   unfold substH in *;
   (*TIME time "post:simpl" ( *)
-  simpl in *
+  simpl in *;
+    try match goal with
+          | [ H : context[locals ?ns ?vs ?avail ?p]
+              |- context[locals ?ns' _ ?avail' _] ] =>
+            match avail' with
+              | avail => fail 1
+              | _ =>
+                (let ns'' := peelPrefix ns ns' in
+                 let exposed := eval simpl in (avail - avail') in
+                 let new := eval simpl in (List.length ns' - List.length ns) in
+                 match new with
+                   | exposed =>
+                     let avail' := eval simpl in (avail - List.length ns'') in
+                     change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns' avail') in H;
+                       assert (ok_in ns avail ns'' ns' avail')%nat
+                         by (split; [
+                           reflexivity
+                           | split; [simpl; omega
+                             | split; [ repeat constructor; simpl; intuition congruence
+                               | reflexivity ] ] ])                        
+                 end)
+                || (let offset := eval simpl in (4 * List.length ns) in
+                  change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+                  assert (ok_call ns ns' avail avail' offset)%nat
+                    by (split; [ simpl; omega
+                      | split; [ simpl; omega
+                        | split; [ repeat constructor; simpl; intuition congruence
+                          | reflexivity ] ] ]))
+            end
+          | [ _ : evalInstrs _ _ ?E = None, H : context[locals ?ns ?vs ?avail ?p] |- _ ] =>
+            let ns' := slotVariables E in
+            match ns' with
+              | nil => fail 1
+              | _ =>
+                let ns' := constr:("rp" :: ns') in
+                  let offset := eval simpl in (4 * List.length ns) in
+                    change (locals ns vs avail p) with (locals_call ns vs avail p ns' 0 offset) in H;
+                      assert (ok_call ns ns' avail 0 offset)%nat
+                        by (split; [ simpl; omega
+                          | split; [ simpl; omega
+                            | split; [ repeat constructor; simpl; intuition congruence
+                              | reflexivity ] ] ])
+            end
+        end
   (*TIME ) *).
 
-Ltac sep ext := 
+Ltac sep' ext := 
   post; evaluate ext; descend; repeat (step ext; descend).
+
+Ltac sep ext :=
+  match goal with
+    | [ |- context[Assign (LvMem (Indir Sp (natToW 0))) (RvLval (LvReg Rp)) :: nil] ] =>
+      sep' auto_ext (* Easy case; don't bring the hints into it *)
+    | _ => sep' ext
+  end.
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
 
-(** TacPack -> ProverPackage -> MemEvaluator -> fwd -> bwd -> TacPack **)
-Ltac prepare base := 
-  let the_unfold_tac x := 
-    eval unfold empB, injB, injBX, starB, exB, hvarB in x
-  in
-  ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    (*W (settings * state)%type*)
-    isConst base.
+Ltac sep_auto := sep' auto_ext.
 
-Ltac sep_auto := sep auto_ext.
+Hint Rewrite sel_upd_eq sel_upd_ne using congruence : sepFormula.
+
+Lemma sel_merge : forall vs vs' ns nm,
+  In nm ns
+  -> sel (merge vs vs' ns) nm = sel vs nm.
+  intros.
+  generalize (merge_agree vs vs' ns); intro Hl.
+  eapply Forall_forall in Hl; eauto.
+Qed.
+
+Hint Rewrite sel_merge using (simpl; tauto) : sepFormula.
