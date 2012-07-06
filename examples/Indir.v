@@ -1,28 +1,34 @@
 Require Import AutoSep.
 
-(** Read from pointer in register *)
+(** Read from pointers in variables *)
 
-Definition indirS : assert := st ~> ExX, Ex v, ![ st#Sp =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |]).
+Definition indirS : spec := SPEC("x") reserving 1
+  Ex v,
+  PRE[V] V "x" =*> v
+  POST[R] [| R = v |] * V "x" =*> v.
+
 Definition indir := bmodule "indir" {{
-  bfunction "indir" [indirS] {
-    Rv <- $[Sp];;
-    Goto Rp
-  }
+  bfunction "indir"("x", "y") [indirS]
+    "y" <-* "x";;
+    Return "y"
+  end
 }}.
+
 Theorem indirOk : moduleOk indir.
-  vcgen; abstract (sep_auto).
+  vcgen; abstract sep_auto.
 Qed.
 
-Definition doubleIndirS : assert := st ~> ExX, Ex p, Ex v, ![ st#Sp =*> p * p =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st#Sp = st'#Sp /\ st'#Rv = v |] /\ ![ st'#Sp =*> p * p =*> v * #1 ] st').
+Definition doubleIndirS : spec := SPEC("x") reserving 1
+  Ex p, Ex v,
+  PRE[V] V "x" =*> p * p =*> v
+  POST[R] [| R = v |] * V "x" =*> p * p =*> v.
 
 Definition doubleIndir := bmodule "doubleIndir" {{
-  bfunction "doubleIndir" [doubleIndirS] {
-    Rv <- $[Sp];;
-    Rv <- $[Rv];;
-    Goto Rp
-  }
+  bfunction "doubleIndir"("x", "y") [doubleIndirS]
+    "y" <-* "x";;
+    "y" <-* "y";;
+    Return "y"
+  end
 }}.
 
 Theorem doubleIndirOk : moduleOk doubleIndir.

@@ -2,7 +2,9 @@
 
 Require Import List NArith Bool String.
 
-Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker Memory.
+Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker Memory SepIL.
+
+Require Import sep.Locals.
 
 Set Implicit Arguments.
 
@@ -10,71 +12,109 @@ Set Implicit Arguments.
 
 (** * The type of context-independent structured program chunks *)
 
-Inductive chunk :=
-| StraightLine : list instr -> chunk
-| Structured : list instr -> (forall im mn, importsGlobal im -> cmd im mn) -> chunk.
+Inductive chunk' :=
+| StraightLine : list instr -> chunk'
+| Structured : list instr -> (forall im mn, importsGlobal im -> cmd im mn) -> chunk'.
 
-Definition toCmd (ch : chunk) im mn (H : importsGlobal im) : cmd im mn :=
-  match ch with
+Definition chunk := list string -> nat -> chunk'.
+(* Arguments: local variables and amount of reserved stack space *)
+
+Definition toCmd (ch : chunk) im mn (H : importsGlobal im) ns res : cmd im mn :=
+  match ch ns res with
     | StraightLine is => Straightline_ im mn is
     | Structured nil c => c im mn H
     | Structured is c => Seq_ H (Straightline_ im mn is) (c im mn H)
   end.
 
-Definition Seq (ch1 ch2 : chunk) : chunk :=
-  match ch1, ch2 with
+Definition Seq (ch1 ch2 : chunk) : chunk := fun ns res =>
+  match ch1 ns res, ch2 ns res with
     | StraightLine is1, StraightLine is2 => StraightLine (is1 ++ is2)
     | StraightLine is1, Structured is2 c => Structured (is1 ++ is2) c
-    | Structured is1 c1, _ => Structured is1 (fun im mn H => Seq_ H (c1 im mn H) (toCmd ch2 mn H))
+    | Structured is1 c1, _ => Structured is1 (fun im mn H => Seq_ H (c1 im mn H) (toCmd ch2 mn H ns res))
   end.
 
-Definition Instr (i : instr) : chunk :=
-  StraightLine (i :: nil).
+Definition Instr (i : list string -> instr) : chunk := fun ns _ =>
+  StraightLine (i ns :: nil).
 
-Definition Diverge : chunk :=
+Definition Diverge : chunk := fun _ _ =>
   Structured nil (fun im mn _ => Diverge_ im mn).
 
-Definition Fail : chunk :=
+Definition Fail : chunk := fun _ _ =>
   Structured nil (fun im mn _ => Fail_ im mn).
 
-Definition Skip : chunk :=
+Definition Skip : chunk := fun _ _ =>
   Structured nil (fun im mn _ => Skip_ im mn).
 
-Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : chunk :=
-  Structured nil (fun im mn _ => Use_ im mn lemma pf).
+Definition Assert_ (post : list string -> nat -> assert) : chunk := fun ns res =>
+  Structured nil (fun im mn _ => Assert_ im mn (post ns res)).
 
-Definition Assert_ (post : assert) : chunk :=
-  Structured nil (fun im mn _ => Assert_ im mn post).
+Definition rvalue' := list string -> rvalue.
 
 Record condition := {
-  COperand1 : rvalue;
+  COperand1 : rvalue';
   CTest : test;
-  COperand2 : rvalue
+  COperand2 : rvalue'
 }.
 
-Definition If_ (c : condition) (Then Else : chunk) : chunk :=
-  Structured nil (fun im mn H => If_ H (COperand1 c) (CTest c) (COperand2 c) (toCmd Then mn H) (toCmd Else mn H)).
+Definition If_ (c : condition) (Then Else : chunk) : chunk := fun ns res =>
+  Structured nil (fun im mn H => If_ H (COperand1 c ns) (CTest c) (COperand2 c ns)
+    (toCmd Then mn H ns res) (toCmd Else mn H ns res)).
 
-Definition While_ (inv : assert) (c : condition) (Body : chunk) : chunk :=
-  Structured nil (fun im mn H => While_ H inv (COperand1 c) (CTest c) (COperand2 c) (toCmd Body mn H)).
+Definition While_ (inv : list string -> nat -> assert) (c : condition)
+  (Body : chunk) : chunk := fun ns res =>
+  Structured nil (fun im mn H => While_ H (inv ns res) (COperand1 c ns) (CTest c)
+    (COperand2 c ns) (toCmd Body mn H ns res)).
 
-Definition Goto (rv : rvalue) : chunk :=
-  Structured nil (fun im mn H => match rv with
+Definition Goto (rv : rvalue') : chunk := fun ns _ =>
+  Structured nil (fun im mn H => match rv ns with
                                    | RvLabel f => Goto_ H mn f
-                                   | _ => IGoto im mn rv
+                                   | _ => IGoto im mn (rv ns)
                                  end).
 
-Definition Call_ (f : label) (afterCall : assert) : chunk :=
-  Structured nil (fun im mn H => Call_ H mn f afterCall).
+Fixpoint setArgs (slot : nat) (args : list rvalue') (ns : list string) :=
+  match args with
+    | nil => nil
+    | arg :: args' =>
+      Binop Rv Sp Plus (natToW (4 + 4 * List.length ns))
+      :: Assign (LvMem (Indir Rv (natToW slot))) (arg ns)
+      :: setArgs (4 + slot) args' ns
+  end.
+
+Definition lvalue' := list string -> lvalue.
+
+Definition Call_ (retOpt : option lvalue') (f : label) (args : list rvalue')
+  (afterCall : list string -> nat -> assert) : chunk := fun ns res =>
+  Structured (setArgs 4 args ns
+    ++ Binop Sp Sp Plus (natToW (4 + 4 * List.length ns)) :: nil)
+  (fun im mn H => Seq_ H (Call_ H mn f (afterCall ns res))
+    (Straightline_ im mn
+      (Binop Sp Sp Minus (natToW (4 + 4 * List.length ns))
+        :: match retOpt with
+             | None => nil
+             | Some lv => Assign (lv ns) Rv :: nil
+           end))).
 
 
 (** * Modules *)
 
-Definition bmodule_ (im : list import) (mn : string)
-  (fs : list (string * assert * chunk)) : module :=
-  bmodule_ im (List.map (fun p => let '(f, pre, ch) := p in (f, pre, fun im' H => toCmd ch mn H)) fs).
+Record function := {
+  FName : string;
+  FVars : list string;
+  FReserved : nat;
+  FPrecondition : assert;
+  FBody : chunk
+}.
 
-Definition compile (m : module) : list (label * block) := List.map (fun x => let '(k, (_, b)) := x in (k, b)) (LabelMap.elements (XCAP.Blocks m)).
+Definition bmodule_ (im : list import) (mn : string)
+  (fs : list function) : module :=
+  bmodule_ im (List.map (fun p => match p with
+                                    | {| FName := f; FVars := ns; FReserved := res;
+                                      FPrecondition := pre; FBody := ch |} =>
+                                    (f, pre, fun im' H => toCmd ch mn H ns res)
+                                  end) fs).
+
+Definition compile (m : module) : list (label * block) :=
+  List.map (fun x => let '(k, (_, b)) := x in (k, b)) (LabelMap.elements (XCAP.Blocks m)).
 
 
 (** * Notations *)
@@ -84,7 +124,10 @@ Definition compile (m : module) : list (label * block) := List.map (fun x => let
 Infix "+" := Indir : loc_scope.
 Delimit Scope loc_scope with loc.
 
-Notation "$[ v ]" := (LvMem v%loc) (at level 0, n at level 0) : SP_scope.
+Notation "$[ v ]" := ((fun _ => LvMem v%loc) : lvalue') (at level 0, n at level 0) : SP_scope.
+
+Definition regInL (r : reg) : lvalue' := fun _ => LvReg r.
+Coercion regInL : reg >-> lvalue'.
 
 Coercion natToW: nat >-> W.
 
@@ -97,14 +140,23 @@ Infix "!" := labl (at level 0, only parsing) : SP_scope.
 
 Delimit Scope SP_scope with SP.
 
+Definition lvalIn (lv : lvalue') : rvalue' := fun ns => RvLval (lv ns).
+Coercion lvalIn : lvalue' >-> rvalue'.
+
+Definition immInR (w : W) : rvalue' := fun _ => RvImm w.
+Coercion immInR : W >-> rvalue'.
+
+Definition labelIn (l : label) : rvalue' := fun _ => RvLabel l.
+Coercion labelIn : label >-> rvalue'.
+
 
 (** ** Instructions *)
 
 Inductive rhs :=
-| Rvalue : rvalue -> rhs
-| Bop : rvalue -> binop -> rvalue -> rhs.
+| Rvalue : rvalue' -> rhs
+| Bop : rvalue' -> binop -> rvalue' -> rhs.
 
-Coercion Rvalue : rvalue >-> rhs.
+Coercion Rvalue : rvalue' >-> rhs.
 
 Definition RvImm' (n : nat) := RvImm ($ n).
 
@@ -114,49 +166,185 @@ Notation "x + y" := (Bop x Plus y) : SP_scope.
 Notation "x - y" := (Bop x Minus y) : SP_scope.
 Notation "x * y" := (Bop x Times y) : SP_scope.
 
-Notation "x = y" := {| COperand1 := x; CTest := Eq; COperand2 := y |} : SP_scope.
-Notation "x <> y" := {| COperand1 := x; CTest := Ne; COperand2 := y |} : SP_scope.
-Notation "x < y" := {| COperand1 := x; CTest := Lt; COperand2 := y |} : SP_scope.
-Notation "x <= y" := {| COperand1 := x; CTest := Le; COperand2 := y |} : SP_scope.
-Notation "x > y" := {| COperand1 := y; CTest := Lt; COperand2 := x |} : SP_scope.
-Notation "x >= y" := {| COperand1 := y; CTest := Le; COperand2 := x |} : SP_scope.
+Notation "x = y" := {| COperand1 := x; CTest := IL.Eq; COperand2 := y |} : SP_scope.
+Notation "x <> y" := {| COperand1 := x; CTest := IL.Ne; COperand2 := y |} : SP_scope.
+Notation "x < y" := {| COperand1 := x; CTest := IL.Lt; COperand2 := y |} : SP_scope.
+Notation "x <= y" := {| COperand1 := x; CTest := IL.Le; COperand2 := y |} : SP_scope.
+Notation "x > y" := {| COperand1 := y; CTest := IL.Lt; COperand2 := x |} : SP_scope.
+Notation "x >= y" := {| COperand1 := y; CTest := IL.Le; COperand2 := x |} : SP_scope.
 
-Definition Assign' (lv : lvalue) (rh : rhs) :=
-  Instr (match rh with
-           | Rvalue rv => Assign lv rv
-           | Bop rv1 bo rv2 => Binop lv rv1 bo rv2
-         end).
+Definition Assign' (lv : lvalue') (rh : rhs) :=
+  Instr (fun ns => match rh with
+                     | Rvalue rv => Assign (lv ns) (rv ns)
+                     | Bop rv1 bo rv2 => Binop (lv ns) (rv1 ns) bo (rv2 ns)
+                   end).
 
 Infix "<-" := Assign' (no associativity, at level 90) : SP_scope.
+Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
+Notation "x <-* y" := (Rv <- y;; x <- $[Rv])%SP (at level 90) : SP_scope.
+Notation "x *<- y" := (Rv <- x;; $[Rv] <- y)%SP (at level 90) : SP_scope.
+
+Fixpoint variableSlot' (ns : list string) (nm : string) : option nat :=
+  match ns with
+    | nil => None
+    | nm' :: ns' => if string_dec nm' nm then Some 4
+      else match variableSlot' ns' nm with
+             | None => None
+             | Some n => Some (4 + n)
+           end
+  end.
+
+Definition unboundVariable (ns : list string) (nm : string) :=
+  LvMem (Imm (wzero _)).
+Global Opaque unboundVariable.
+
+Definition variableSlot (nm : string) : lvalue' := fun ns =>
+  match variableSlot' ns nm with
+    | None => unboundVariable ns nm
+    | Some n => LvMem (Indir Sp n)
+  end.
+
+Coercion variableSlot : string >-> lvalue'.
 
 
 (** ** Commands *)
 
-Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
+Local Notation INV := (fun inv => inv true (fun w => w)).
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
 
-Notation "'Assert' [ p ]" := (Assert_ p) (no associativity, at level 95) : SP_scope.
-
-Notation "'Use' [ pf ]" := (Use_ _ (fun _ _ => pf%nat)) (no associativity, at level 95) : SP_scope.
-Notation "'Use' st [ pf ]" := (Use_ _ (fun _ st => pf%nat)) (no associativity, at level 95) : SP_scope.
+Notation "'Assert' [ p ]" := (Assert_ (INV p)) (no associativity, at level 95) : SP_scope.
 
 Notation "'If' c { b1 } 'else' { b2 }" := (If_ c b1 b2)
   (no associativity, at level 95, c at level 0) : SP_scope.
 
-Notation "[ p ] 'While' c { b }" := (While_ p c b)
+Notation "[ p ] 'While' c { b }" := (While_ (INV p) c b)
   (no associativity, at level 95, c at level 0) : SP_scope.
 
-Notation "'Call' f [ p ]" := (Call_ f p)
+Notation "'Call' f () [ p ]" :=
+  (Call_ None f nil (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "'Call' f ( x1 , .. , xN ) [ p ]" :=
+  (Call_ None f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'Call' f () [ p ]" :=
+  (Call_ (@Some lvalue' rv) f nil (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'Call' f ( x1 , .. , xN ) [ p ]" :=
+  (Call_ (@Some lvalue' rv) f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+
+Notation "'Return' e" := (Rv <- e;; Rp <- $[Sp+0];; Goto Rp)%SP
   (no associativity, at level 95) : SP_scope.
 
-Notation "'Return' e" := (Rv <- e;; Goto Rp)%SP
-  (no associativity, at level 95) : SP_scope.
+
+(** * Specs *)
+
+Notation "st # r" := (Regs (snd st) r) (no associativity, at level 0).
+Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, at level 0).
+
+Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, only parsing).
+
+Inductive qspec :=
+| Body : HProp -> qspec
+| Quant : forall A, (A -> qspec) -> qspec.
+
+Notation "'Ex' x , b" := (Quant (fun x => b)) : qspec_scope.
+Notation "'Ex' x : A , b" := (Quant (fun x : A => b)) : qspec_scope.
+
+Notation "'Emp'" := (Body (empB _)) : qspec_scope.
+Notation "[| P |]" := (Body (injB _ P)) : qspec_scope.
+Notation "[|| P ||]" := (Body (injBX P%PropX)) : qspec_scope.
+Notation "a =8> v" := (Body (ptsto8 _ a v)) : qspec_scope.
+Notation "a =*> v" := (Body (ptsto32 _ a v)) : qspec_scope.
+Notation "P * Q" := (Body (starB P%Sep Q%Sep)) : qspec_scope.
+Coercion Body : HProp >-> qspec.
+
+Delimit Scope qspec_scope with qspec.
+
+Local Open Scope string_scope.
+
+Fixpoint qspecOut (qs : qspec) pc st b (k : HProp -> propX pc st b) : propX pc st b :=
+  match qs with
+    | Body P => k P
+    | Quant A f => Ex x : A, qspecOut (f x) k
+  end%PropX.
+
+Definition localsInvariant (pre : vals -> W -> qspec) (post : vals -> W -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (res : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    ExX, Ex vs, qspecOut (pre (sel vs) st#Rv) (fun PRE =>
+      ![ ^[locals ("rp" :: ns) vs res sp * PRE] * #0 ] st
+      /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
+        [| st'#Sp = sp |]
+        /\ Ex vs', qspecOut (post (sel vs) st#Rv st'#Rv) (fun POST =>
+          ![ ^[locals ("rp" :: ns) vs' res sp * POST] * #1 ] st'))).
+
+Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => pre%qspec%Sep) (fun vs _ rv => post%qspec%Sep))
+  (at level 89).
+
+Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%qspec%Sep) (fun vs rv rv' => post%qspec%Sep))
+  (at level 89).
+
+Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
+
+Record spec := {
+  Reserved : nat;
+  Formals : list string;
+  Precondition : option (list string) -> assert
+  (* Argument is used to tell the spec which additional local variables there are, for a use of the spec within a function body. *)
+}.
+
+Notation "'SPEC' 'reserving' n inv" :=
+  (let n' := n in {| Reserved := n';
+    Formals := nil;
+    Precondition :=  fun extras =>
+    match extras with
+      | None => inv false (fun w => w) nil n'
+      | Some extras => inv true (fun w => w) extras (n' - List.length extras)
+    end |}) (at level 90, n at level 0, inv at next level).
+
+Notation "'SPEC' ( x1 , .. , xN ) 'reserving' n inv" :=
+  (let vars := cons x1 (.. (cons xN nil) ..) in
+   let n' := n in
+    {| Reserved := n';
+      Formals := vars;
+      Precondition := fun extras =>
+      match extras with
+        | None => inv false (fun w => w) vars n'
+        | Some extras => inv true (fun w => w) extras (n' - (List.length extras - List.length vars))
+      end |} ) (at level 90, n at level 0, x1 at level 0, xN at level 0, inv at next level).
 
 
 (** ** Modules *)
 
-Notation "'bfunction' name [ p ] { b }" := (name, p, b%SP)
-  (no associativity, at level 95, only parsing) : SPfuncs_scope.
+Notation "'bfunction' name () [ p ] b 'end'" :=
+  (let p' := p in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := ($[Sp+0] <- Rp;;
+        (fun _ _ =>
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some nil))));;
+        b)%SP;
+      FVars := nil;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, only parsing) : SPfuncs_scope.
+
+Notation "'bfunction' name ( x1 , .. , xN ) [ p ] b 'end'" :=
+  (let p' := p in
+   let vars := cons x1 (.. (cons xN nil) ..) in
+   let b' := b%SP in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := ($[Sp+0] <- Rp;;
+        (fun _ _ =>
+          Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some vars))));;
+        (fun ns res => b' ns (res - (List.length vars - List.length (Formals p')))%nat))%SP;
+      FVars := vars;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
+
 Delimit Scope SPfuncs_scope with SPfuncs.
+
 
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : SPfuncs_scope.
 Delimit Scope SPfuncs_scope with SPfuncs.
@@ -164,20 +352,12 @@ Delimit Scope SPfuncs_scope with SPfuncs.
 Notation "'bmodule' name fs" := (bmodule_ nil name fs%SPfuncs) (no associativity, at level 95, name at level 0, only parsing).
 
 Notation "x ! y" := (x, y) (only parsing) : SPimps_scope.
-Notation "name @ [ p ]" := (let (x, y) := name in (x, y, p)) (at level 0, only parsing) : SPimps_scope.
+Notation "name @ [ p ]" := (let (x, y) := name in (x, y, Precondition p None)) (at level 0, only parsing) : SPimps_scope.
 Notation "[[ x , .. , y ]]" := (cons x .. (cons y nil) ..) (only parsing) : SPimps_scope.
 
 Delimit Scope SPimps_scope with SPimps.
 
 Notation "'bimport' is 'bmodule' name fs" := (bmodule_ is%SPimps name fs%SPfuncs) (no associativity, at level 95, name at level 0, only parsing).
-
-
-(** ** Specs *)
-
-Notation "st ~> p" := (fun st : settings * state => p%PropX%nat) (at level 100, only parsing).
-
-Notation "st # r" := (Regs (snd st) r) (no associativity, at level 0).
-Notation "st .[ a ]" := (ReadWord (fst st) (Mem (snd st)) a) (no associativity, at level 0).
 
 
 (** * Tactics *)
@@ -193,6 +373,8 @@ Theorem evalInstrs_cons : forall stn st i is, evalInstrs stn st (i :: is)
     end.
   reflexivity.
 Qed.
+
+Local Transparent evalInstrs.
 
 Theorem evalInstrs_app : forall stn st2 st3 is2 is1 st1, evalInstrs stn st1 is1 = Some st2
   -> evalInstrs stn st2 is2 = st3
@@ -398,7 +580,7 @@ Ltac imply_simp unf := (imply_simp' || (apply swap; imply_simp')); reduce unf.
 
 Ltac descend := autorewrite with IL in *;
   repeat match goal with
-           | [ |- ex _ ] => eexists
+           | [ |- Logic.ex _ ] => eexists
            | [ |- _ /\ _ ] => split
            | [ |- specs _ = _ ] => eassumption
          end; cbv zeta; simpl; intros.

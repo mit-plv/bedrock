@@ -291,6 +291,12 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           fold_left plus (map expr_count_meta args) 0
       end.
 
+    Fixpoint exprs_count_meta (es : exprs types) : nat :=
+      match es with
+        | nil => O
+        | e :: es' => expr_count_meta e + exprs_count_meta es'
+      end.
+
     (** When expressions have the same number of uvars, we want to favor the larger
      ** expressions first, since they are less likely to match spuriously. *)
     Fixpoint expr_size (e : expr types) : nat :=
@@ -304,16 +310,22 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       end.
 
     Definition meta_order_args (l r : exprs types) : Datatypes.comparison :=
-      let cmp l r := match Compare_dec.nat_compare (expr_count_meta l) (expr_count_meta r) with
-                       | Datatypes.Eq => Compare_dec.nat_compare (expr_size l) (expr_size r)
-                       | v => v
-                     end in
-      Ordering.list_lex_cmp _ cmp l r.
+      match Compare_dec.nat_compare (exprs_count_meta l) (exprs_count_meta r) with
+        | Datatypes.Eq =>
+          Ordering.list_lex_cmp _ (fun l r => Compare_dec.nat_compare (expr_size l) (expr_size r)) l r
+        | v => v
+      end.
 
     Definition meta_order_funcs (l r : exprs types * func) : Datatypes.comparison :=
-      match meta_order_args (fst l) (fst r) with
-        | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
-        | x => x
+      match snd l, snd r with
+        | 2, 0 => Datatypes.Lt
+        | 2, 1 => Datatypes.Lt
+        | 2, S (S (S _)) => Datatypes.Lt
+        | _, _ =>
+          match meta_order_args (fst l) (fst r) with
+            | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
+            | x => x
+          end
       end.
 
     Definition order_impures (imps : MM.mmap (exprs types)) : cancel_list :=
