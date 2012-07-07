@@ -3,7 +3,8 @@ MODULES := AutoSepExt AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \
-           Sets ListSet TreeSet
+           Sets ListSet TreeSet \
+           Bags Queue
 
 VS      := $(MODULES:%=%.v)
 
