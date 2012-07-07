@@ -1086,7 +1086,7 @@ Ltac step ext :=
                                 assert (ok_return ns ns' avail avail' offset)%nat by (split; [
                                   simpl; omega
                                   | reflexivity ] ); autorewrite with sepFormula;
-                                generalize vs'; intro
+                                generalize dependent vs'; intros
                         end
                     end
                 end
@@ -1111,7 +1111,7 @@ Ltac step ext :=
 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
-    | [ |- interp _ (![ _ ] _) ] => cancel ext
+    | [ _ : interp _ (![ ?pre ] _) |- interp _ (![ ?post ] _) ] => considerImp pre post
     | [ |- interp _ (![?pre]%PropX _ ---> ![?post]%PropX _) ] => considerImp pre post
     | [ |- himp _ ?pre ?post ] => considerImp pre post
     | [ |- interp _ (_ _ _ ?x ---> _ _ _ ?y ---> _ ?x)%PropX ] =>
