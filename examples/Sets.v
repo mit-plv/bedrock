@@ -33,8 +33,9 @@ Ltac sets := subst;
            | [ H : _ <= _ |- _ ] => generalize dependent H
            | [ H : @eq W _ _ |- _ ] => generalize dependent H
            | [ H : not (@eq W _ _) |- _ ] => generalize dependent H
+           | [ H : _ \is _ |- _ ] => generalize dependent H
          end; clear;
-  unfold equiv, empty, mem, add, del, less, greater; intros;
+  unfold equiv, empty, mem, add, del, less, greater, propToWord, IF_then_else; intros;
     try match goal with
           | [ |- context[?s ?w] ] =>
             match type of s with

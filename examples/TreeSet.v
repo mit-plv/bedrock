@@ -108,12 +108,6 @@ Definition hints : TacPackage.
   prepare (bst_fwd, nil_fwd, cons_fwd) (bst_bwd, nil_bwd, cons_bwd).
 (*TIME Time *)Defined.
 
-Definition removeMinS : spec := SPEC("prev") reserving 6
-  Ex s, Ex t, Ex p,
-  PRE[V] V "prev" =*> p * [| p <> 0 |] * bst' s t p * mallocHeap
-  POST[R] Ex t', Ex p', [| R %in s |] * [| s %< R %= empty |]
-    * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap.
-
 Definition removeMaxS : spec := SPEC("prev") reserving 6
   Ex s, Ex t, Ex p,
   PRE[V] V "prev" =*> p * [| p <> 0 |] * bst' s t p * mallocHeap
@@ -184,7 +178,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     (* Found a spot for a new node.  Allocate and initialize it. *)
 
     "tmp" <-- Call "malloc"!"malloc"(1)
-    [PRE[V, R] V "s" =*> 0 * R =?> 3
+    [PRE[V, R] V "s" =?> 1 * R =?> 3
      POST[_] V "s" =*> R * (R ==*> $0, V "k", $0)];;
     "s" *<- "tmp";;
     "tmp" *<- 0;;
@@ -193,43 +187,6 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     "tmp" <- "tmp" + 4;;
     "tmp" *<- 0;;
     Return 0
-  end with bfunction "removeMin"("prev", "s", "tmp") [removeMinS]
-    "s" <-* "prev";;
-
-    [Ex s, Ex t,
-      PRE[V] [| V "s" <> 0 |] * V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
-      POST[R] Ex t', Ex p', [| R %in s |] * [| s %< R %= empty |]
-        * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap ]
-    While (1 = 1) {
-      "tmp" <-* "s";;
-
-      If ("tmp" <> 0) {
-        (* Left subtree is nonempty.  Keep looping. *)
-        "prev" <- "s";;
-        "s" <- "tmp"
-      } else {
-        (* Left subtree is empty.  We can free this node and return its key. *)
-
-        (* Overwrite pointer into this node with its right subtree. *)
-        "tmp" <- "s" + 8;;
-        "tmp" <-* "tmp";;
-        "prev" *<- "tmp";;
-
-        (* Save key. *)
-        "tmp" <- "s" + 4;;
-        "tmp" <-* "tmp";;
-
-        (* Free node. *)
-        Call "malloc"!"free"("s", 1)
-        [PRE[V] Emp
-         POST[R] [| R = V "tmp" |] ];;
-
-        (* Return key. *)
-        Return "tmp"
-      }
-    };;
-    
-    Fail (* Unreachable! *)
   end with bfunction "removeMax"("prev", "s", "tmp") [removeMaxS]
     "s" <-* "prev";;
 
@@ -282,43 +239,44 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
         (* Key matches!  Now the hard part: pulling another node's data value up here (if possible),
          * and then deleting this node. *)
         "tmp" <-* "s";;
-        If (0 <> "tmp") {
+        If (0 = "tmp") {
           (* Oh my goodness!  This test expression is a hack to prevent unfolding from firing!
-           * (Since the provers don't understand symmetry of [<>]) *)
+           * (Since the provers don't understand symmetry of [=]) *)
 
-          (* Nonempty left subtree.  Find and remove its rightmost node. *)
+          (* Empty left subtree.  Promote the right subtree to this position. *)
 
-          "tmp" <-- Call "bst"!"removeMax"("s")
-          [PRE[V, R] (V "s" ^+ $4) =?> 1
-           POST[_] (V "s" ^+ $4) =*> R ];;
+          "tmp" <- "s" + 8;;
+          "tmp" <-* "tmp";;
+          "prev" *<- "tmp";;
 
-          "s" <- "s" + 4;;
-          "s" *<- "tmp";;
+          Call "malloc"!"free"("s", 1)
+          [PRE[_] Emp
+           POST[_] Emp ];;
+
           Return 0
         } else {
           "tmp" <- "s" + 8;;
           "tmp" <-* "tmp";;
-          If (0 <> "tmp") {
-            (* Nonempty right subtree.  Find and remove its leftmost node. *)
+          If (0 = "tmp") {
+            (* Empty right subtree.  Promote the left subtree to this position. *)
 
-            "tmp" <- "s" + 8;;
-            "tmp" <-- Call "bst"!"removeMin"("tmp")
+            "tmp" <-* "s";;
+            "prev" *<- "tmp";;
+
+            Call "malloc"!"free"("s", 1)
+            [PRE[_] Emp
+             POST[_] Emp ];;
+
+            Return 0
+          } else {
+            (* Both subtrees nonempty.  Remove minimum from right subtree and put it in this position. *)
+
+            "tmp" <-- Call "bst"!"removeMax"("s")
             [PRE[V, R] (V "s" ^+ $4) =?> 1
              POST[_] (V "s" ^+ $4) =*> R];;
 
             "s" <- "s" + 4;;
             "s" *<- "tmp";;
-            Return 0
-          } else {
-            (* Both subtrees empty.  Easy case!  Can just delete this node. *)
-
-            (* Zero out pointer to the node. *)
-            "prev" *<- 0;;
-
-            (* Free the node. *)
-            Call "malloc"!"free"("s", 1)
-            [PRE[_] Emp
-             POST[_] Emp];;
             Return 0
           }
         }
