@@ -23,6 +23,20 @@ Module Type QUEUE.
   Axiom lseg'_empty_bwd : forall b isEmpty (fr : W) ba,
     fr = 0
     -> [| isEmpty = true /\ b %= empty |] ===> lseg' b isEmpty fr ba.
+
+  Axiom lseg'_empty_fwd : forall b isEmpty (fr : W) ba,
+    fr = 0
+    -> lseg' b isEmpty fr ba ===> [| isEmpty = true /\ b %= empty |].
+
+  Axiom lseg'_nonempty_fwd : forall b isEmpty (fr : W) ba,
+    fr <> 0
+    -> lseg' b isEmpty fr ba
+    ===> [| isEmpty = false |] * Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0).
+
+  Axiom lseg'_nonempty_bwd : forall b isEmpty (fr : W) ba,
+    fr <> 0
+    -> [| isEmpty = false |] * (Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0))
+    ===> lseg' b isEmpty fr ba.
 End QUEUE.
 
 Module Queue : QUEUE.
@@ -37,7 +51,7 @@ Module Queue : QUEUE.
   Definition lseg' (b : bag) (isEmpty : bool) (fr ba : W) : HProp :=
     if isEmpty
       then [| b %= empty /\ fr = 0 |]
-      else Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0).
+      else [| fr <> 0 |] * Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0).
 
   Definition queue (b : bag) (p : W) : HProp :=
     Ex fr, Ex ba, Ex isEmpty, [| freeable p 2 |] * (p ==*> fr, ba) * lseg' b isEmpty fr ba.
@@ -71,6 +85,26 @@ Module Queue : QUEUE.
     -> [| isEmpty = true /\ b %= empty |] ===> lseg' b isEmpty fr ba.
     destruct isEmpty; sepLemma.
   Qed.
+
+  Theorem lseg'_empty_fwd : forall b isEmpty (fr : W) ba,
+    fr = 0
+    -> lseg' b isEmpty fr ba ===> [| isEmpty = true /\ b %= empty |].
+    destruct isEmpty; sepLemma.
+  Qed.
+
+  Theorem lseg'_nonempty_fwd : forall b isEmpty (fr : W) ba,
+    fr <> 0
+    -> lseg' b isEmpty fr ba
+    ===> [| isEmpty = false |] * Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0).
+    destruct isEmpty; sepLemma.
+  Qed.
+
+  Theorem lseg'_nonempty_bwd : forall b isEmpty (fr : W) ba,
+    fr <> 0
+    -> [| isEmpty = false |] * (Ex v1, Ex v2, Ex n, [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n fr ba * (ba ==*> v1, v2, $0))
+    ===> lseg' b isEmpty fr ba.
+    destruct isEmpty; sepLemma.
+  Qed.
 End Queue.
 
 Import Queue.
@@ -79,13 +113,15 @@ Export Queue.
 Hint Immediate lseg_extensional lseg'_extensional queue_extensional.
 
 Definition hints : TacPackage.
-  prepare queue_fwd (queue_bwd, lseg'_empty_bwd).
+  prepare (queue_fwd, lseg'_empty_fwd, lseg'_nonempty_fwd)
+  (queue_bwd, lseg'_empty_bwd, lseg'_nonempty_bwd).
 Defined.
 
 
 (** * The code *)
 
 Definition initS := initS queue 7.
+Definition isEmptyS := isEmptyS queue 0.
 
 Definition queueM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "queue" {{
@@ -95,6 +131,13 @@ Definition queueM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @
      POST[R'] [| R' = R |] * queue empty R ];;
     "r" *<- 0;;
     Return "r"
+  end with bfunction "isEmpty"("b") [isEmptyS]
+    "b" <-* "b";;
+    If ("b" = 0) {
+      Return 1
+    } else {
+      Return 0
+    }
   end
 }}.
 

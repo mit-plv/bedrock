@@ -25,21 +25,16 @@ Ltac bags := subst;
            | [ H : _ %in _ |- _ ] => generalize dependent H
            | [ H : ~ _ %in _ |- _ ] => generalize dependent H
            | [ H : _ \is _ |- _ ] => generalize dependent H
+           | [ H : @eq W _ _ |- _ ] => generalize dependent H
+           | [ H : ~(@eq W _ _) |- _ ] => generalize dependent H
          end; clear;
-  unfold equiv, empty, mem, add, del, propToWord, IF_then_else; intros;
-    try match goal with
-          | [ |- context[?b ?p] ] =>
-            match type of b with
-              | bag => repeat match goal with
-                                | [ H : forall x : W * W, _ |- _ ] => specialize (H p)
-                              end
-            end
-        end; intuition; subst.
+  unfold equiv, empty, mem, add, del, propToWord, IF_then_else; firstorder.
 
 Hint Extern 5 (_ %= _) => bags.
 Hint Extern 5 (_ %in _) => bags.
 Hint Extern 5 (~ _ %in _) => bags.
 Hint Extern 5 (_ <-> _) => bags.
+Hint Extern 5 (_ \is _) => bags.
 
 
 Section adt.
