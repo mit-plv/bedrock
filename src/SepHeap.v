@@ -119,8 +119,8 @@ Module Type SepHeap.
         WellTyped_sheap tf tp tU tG h = SE.WellTyped_sexpr tf tp tU tG (sheapD h).
 
       Axiom WellTyped_hash : forall tf tp tU tG (s : SE.sexpr types pcType stateType), 
-        SE.WellTyped_sexpr tf tp tU tG s = true ->
-        WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)) = true.
+        SE.WellTyped_sexpr tf tp tU tG s = 
+        WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)).
 
       (** Hash Equations **)
       Axiom hash_Func : forall p args,
@@ -188,7 +188,12 @@ Module Type SepHeap.
         SE.ST.heq cs (SE.sexprD funcs preds U G (sheapD s))
                      (SE.sexprD funcs preds U' G' (sheapD (applySHeap F s))).
 
-      Axiom applySHeap_typed : forall tf tp U G U' G' s F,
+      Axiom applySHeap_typed_eq : forall tf tp U G U' G' s F,
+        (forall e t, 
+          is_well_typed tf U G e t = is_well_typed tf U' G' (F e) t) ->
+        WellTyped_sheap tf tp U G s = WellTyped_sheap tf tp U' G' (applySHeap F s).
+
+      Axiom applySHeap_typed_impl : forall tf tp U G U' G' s F,
         (forall e t, 
           is_well_typed tf U G e t = true ->
           is_well_typed tf U' G' (F e) t = true) ->
@@ -1168,8 +1173,38 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
     Qed.
 
     Theorem WellTyped_hash : forall tf tp tU tG (s : SE.sexpr types pcType stateType), 
-      SE.WellTyped_sexpr tf tp tU tG s = true ->
-      WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)) = true.
+      SE.WellTyped_sexpr tf tp tU tG s =
+      WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)).
+    Proof.
+      clear. intros tf tp tU tG s. revert tG.
+      induction s; simpl; intros; unfold WellTyped_sheap; simpl in *; think; auto.
+      { destruct (is_well_typed tf tU tG e tvProp); auto. }
+      { destruct (hash s1); destruct (hash s2); simpl in *.
+        rewrite <- WellTyped_sheap_eq. rewrite <- WellTyped_sheap_star.
+        rewrite rev_app_distr. rewrite app_ass.
+        f_equal.
+        rewrite (liftSHeap_wt tf tp tU nil (rev v0) (rev v ++ tG)). simpl. rewrite rev_length. reflexivity.
+        rewrite (liftSHeap_wt tf tp tU (rev v0) (rev v) tG). repeat rewrite rev_length. reflexivity. }
+      { destruct (hash s); simpl in *. destruct s0; simpl in *. 
+        rewrite WellTyped_sheap_eq. simpl. repeat rewrite app_ass; reflexivity. }
+      { unfold WellTyped_impures, MM.mmap_add. simpl. rewrite andb_true_r.
+        rewrite MF.PROPS.fold_add; eauto with typeclass_instances. 
+        rewrite MF.PROPS.fold_Empty; eauto using FM.empty_1 with typeclass_instances.
+        destruct (nth_error tp f); auto. simpl. destruct (all2 (is_well_typed tf tU tG) l t); auto.
+        repeat (red; intros);
+          repeat match goal with
+                   | |- context [ match ?X with _ => _ end ] => destruct X
+                   | |- _ => rewrite Bool.andb_true_l
+                   | |- _ => rewrite Bool.andb_true_r
+                   | |- context [ allb ?A ?B ] => destruct (allb A B)
+                 end; try reflexivity.
+        rewrite MF.FACTS.empty_in_iff; auto. }
+    Qed.
+
+(*
+    Theorem WellTyped_hash : forall tf tp tU tG (s : SE.sexpr types pcType stateType), 
+      SE.WellTyped_sexpr tf tp tU tG s =
+      WellTyped_sheap tf tp tU (rev (fst (hash s)) ++ tG) (snd (hash s)).
     Proof.
       clear. intros tf tp tU tG s. revert tG.
       induction s; simpl; intros; unfold WellTyped_sheap; simpl in *; think; auto.
@@ -1185,6 +1220,7 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
       { unfold WellTyped_impures, MM.mmap_add. simpl. rewrite andb_true_r.
         unfold FM.fold, FM.Raw.fold. simpl. rewrite H. rewrite H0. auto. }
     Qed.
+*)
      
     Definition applySHeap (F : expr types -> expr types) (sh : SHeap) : SHeap :=
       {| impures := MM.mmap_map (map F) (impures sh)
@@ -1296,7 +1332,37 @@ Module Make (SE : SepExpr) <: SepHeap with Module SE := SE.
         etransitivity; [ |  rewrite starred_cons; reflexivity ]. simpl. rewrite IHl; eauto. reflexivity. }
     Qed.
 
-    Lemma applySHeap_typed : forall tf tp U G U' G' s F,
+    Lemma applySHeap_typed_eq : forall tf tp U G U' G' s F,
+      (forall e t, 
+        is_well_typed tf U G e t = is_well_typed tf U' G' (F e) t) ->
+      WellTyped_sheap tf tp U G s = WellTyped_sheap tf tp U' G' (applySHeap F s).
+    Proof.
+      clear. intros. repeat rewrite WellTyped_sheap_eq in *. destruct s; unfold applySHeap; simpl in *.
+      f_equal. unfold WellTyped_impures.
+      unfold MM.mmap_map. rewrite MF.fold_map_fusion. eapply fold_ext. intros.
+      destruct a; simpl; auto.
+      destruct (nth_error tp k); auto; try solve [ destruct v; simpl; auto ].
+      cutrewrite (allb (fun args : list (expr types) => all2 (is_well_typed tf U G) args t) v =
+        allb (fun args : list (expr types) => all2 (is_well_typed tf U' G') args t) (map (map F) v)); [ destruct v; auto | ].
+      induction v; simpl; intros; think; auto.
+      rewrite all2_map_1. erewrite all2_eq. 2: eapply H. auto. auto with typeclass_instances.
+      repeat red; intros; repeat match goal with
+                                   | |- context [ match ?X with _ => _ end ] => destruct X
+                                   | |- _ => rewrite andb_true_l
+                                   | |- _ => rewrite andb_true_r
+                                   | |- context [ allb ?A ?B ] => destruct (allb A B)
+                                 end; auto.
+      repeat red; intros; repeat match goal with
+                                   | |- _ => subst
+                                   | |- context [ match ?X with _ => _ end ] => destruct X
+                                   | |- _ => rewrite andb_true_l
+                                   | |- _ => rewrite andb_true_r
+                                   | |- context [ allb ?A ?B ] => destruct (allb A B)
+                                 end; auto.
+      rewrite allb_map. apply allb_ext. intros. apply H.
+    Qed.
+
+    Lemma applySHeap_typed_impl : forall tf tp U G U' G' s F,
       (forall e t, 
         is_well_typed tf U G e t = true ->
         is_well_typed tf U' G' (F e) t = true) ->
@@ -1477,12 +1543,22 @@ Module SepHeapFacts (SH : SepHeap).
     Definition sheapSubstU (a b c : nat) : SH.SHeap types pcT stT -> SH.SHeap types pcT stT :=
       SH.applySHeap (Expr.exprSubstU a b c).
 
-    Lemma sheapSubstU_wt : forall tf tp tu tg tg' tg'' s,
+    Lemma sheapSubstU_WellTyped_eq : forall tf tp tu tg tg' tg'' s,
+      SH.WellTyped_sheap (types := types) (pcType := pcT) (stateType := stT) tf tp tu (tg ++ tg' ++ tg'') s = 
+      SH.WellTyped_sheap tf tp (tu ++ tg') (tg ++ tg'') (sheapSubstU (length tg) (length tg' + length tg) (length tu) s).
+    Proof.
+      clear. intros.
+      eapply SH.applySHeap_typed_eq; eauto. clear.
+      intros. rewrite <- exprSubstU_wt. auto.
+    Qed.
+
+    (** TODO: deprecated **)
+    Lemma sheapSubstU_WellTyped : forall tf tp tu tg tg' tg'' s,
       SH.WellTyped_sheap (types := types) (pcType := pcT) (stateType := stT) tf tp tu (tg ++ tg' ++ tg'') s = true ->
       SH.WellTyped_sheap tf tp (tu ++ tg') (tg ++ tg'') (sheapSubstU (length tg) (length tg' + length tg) (length tu) s) = true.
     Proof.
       clear. intros.
-      eapply SH.applySHeap_typed; eauto. clear.
+      eapply SH.applySHeap_typed_impl; eauto. clear.
       intros. rewrite <- exprSubstU_wt. auto.
     Qed.
 

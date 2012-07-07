@@ -902,7 +902,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
               cutrewrite (s0 = snd (hash (Lhs lem))). rewrite typeof_env_app.
               rewrite typeof_env_rev.
               cutrewrite (typeof_env G0 = fst (hash (Lhs lem))).
-              eapply WellTyped_hash. simpl typeof_env. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
+              rewrite <- WellTyped_hash. simpl typeof_env. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
               rewrite H10; auto. rewrite H10; auto.
 
               apply ST_EXT.himp_existsEach. intros.
@@ -911,11 +911,11 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
               cutrewrite (s = snd (hash (Rhs lem))). rewrite typeof_env_app. rewrite typeof_env_rev. 
               cutrewrite (typeof_env G0 = v). cutrewrite (v  = fst (hash (Rhs lem))).
-              eapply WellTyped_hash. simpl. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
+              rewrite <- WellTyped_hash. simpl. apply Subst_to_env_typeof_env in H11. rewrite <- H11. auto.
               rewrite H9. auto. subst. reflexivity. rewrite H9. reflexivity. }
-            { apply WellTyped_hash in H14. apply WellTyped_hash in H13. think. simpl in *.
+            { rewrite WellTyped_hash in H14. rewrite WellTyped_hash in H13. think. simpl in *.
               rewrite (Subst_to_env_typeof_env _ _ _ _ _ H11) in *.
-              split; (eapply applySHeap_typed; [ | eauto ]).
+              split; (eapply applySHeap_typed_impl; [ | eauto ]).
               intros.
               eapply liftInstantiate_typed with (U_or_G := U_or_G) (U := typeof_env U) (G := typeof_env G) (sub := sub) in H15. 
               rewrite rev_length in H15. repeat rewrite typeof_env_length in H15. eapply H15. eassumption.
@@ -934,6 +934,55 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             rewrite typeof_env_length. auto. } }
       Qed.
 
+      Theorem applicable_WellTyped : forall U_or_G tU tG facts lem args args' sub TS,
+        WellTyped_lemma (typeof_funcs funcs) (typeof_preds preds) lem = true ->
+        all2 (is_well_typed (typeof_funcs funcs) tU tG) args TS = true ->
+        all2 (is_well_typed (typeof_funcs funcs) nil (Foralls lem)) args' TS = true ->
+        applicable unify_bound prover facts U_or_G (length tU) (length tG) lem args args' = Some sub ->
+        args = map (liftInstantiate U_or_G (length tU) (length tG) 0 sub) args' /\
+        let (lq,lh) := hash (Lhs lem) in
+        let (rq,rh) := hash (Rhs lem) in
+           WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) 
+             (quant U_or_G tU (rev lq)) (quant (negb U_or_G) tG (rev lq))
+                (applySHeap (liftInstantiate U_or_G (length tU) (length tG) (length lq) sub) lh) = true
+        /\ WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) 
+             (quant U_or_G tU (rev rq)) (quant (negb U_or_G) tG (rev rq))
+                (applySHeap (liftInstantiate U_or_G (length tU) (length tG) (length rq) sub) rh) = true.
+      Proof.
+        unfold applicable; intros.
+        repeat match goal with
+                 | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                   consider X; try congruence; intros
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+               end.
+        eapply fold_left_2_opt_unify in H2. 2: apply U.Subst_empty_WellTyped.
+        Focus 3. eapply all2_impl. eassumption. intros. eapply is_well_typed_weaken with (u' := Foralls lem) (g' := nil).
+        eassumption.
+        Focus 2. rewrite all2_map_1. eapply all2_impl. eassumption. intros. 
+        eapply openForUnification_typed. eauto. intuition.
+        { erewrite map_ext. 
+          2: intro; rewrite <- openForUnification_liftInstantiate; reflexivity. apply andb_true_iff in H3.
+          think. generalize (independent_well_typed _ _ H3 H6). 
+          revert H7. revert H0. clear. revert args'; revert TS.
+          induction args; destruct args'; destruct TS; simpl in *; intros; think; try congruence.
+          inversion H7. erewrite <- IHargs; eauto. f_equal. rewrite H3. symmetry. eapply exprInstantiate_noop; eauto.
+          intros. eapply H.
+          eapply is_well_typed_mentionsU in H2. 2: eauto. omega. }
+        { consider (hash (Lhs lem)); consider (hash (Rhs lem)); intros; think.
+          unfold WellTyped_lemma in *.
+          repeat match goal with
+                   | H : _ && _ = true |- _ => apply andb_true_iff in H; destruct H
+                 end.
+          { rewrite WellTyped_hash in H11. rewrite WellTyped_hash in H10. rewrite H6 in *; rewrite H8 in *. simpl in *.
+            rewrite app_nil_r in *.
+            split; (eapply applySHeap_typed_impl; [ | eauto ]).
+            intros.
+            eapply liftInstantiate_typed with (U_or_G := U_or_G) (U := tU) (G := tG) (sub := sub) in H12; eauto.
+            rewrite rev_length in *. auto. 
+            intros.
+            eapply liftInstantiate_typed with (U_or_G := U_or_G) (U := tU) (G := tG) (sub := sub) in H12; eauto.
+            rewrite rev_length in *. auto. } }
+      Qed. (** TODO: This is duplicated from the full lemma **)
 
       Lemma ST_himp_heq_L : forall cs U G P Q S,
         heq funcs preds U G cs P Q ->
@@ -1021,6 +1070,59 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         R /\ Q ->
         P /\ Q.
       Proof. clear. firstorder. Qed.
+
+      Lemma unfoldForward_WellTyped : forall facts P Q,
+        unfoldForward unify_bound prover facts (Forward hs) P = Some Q ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
+      Proof.
+        unfold unfoldForward; intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end; simpl.
+        eapply hintSideD_In in H; eauto using ForwardOk. destruct H. clear H3.
+        rewrite WellTyped_sheap_eq in H0. apply andb_true_iff in H0. destruct H0.
+        generalize (WellTyped_impures_find_fst_last _ _ _ _ H0 H2).
+        rewrite WellTyped_impures_eq in H0. eapply H0 in H2.
+        assert (match nth_error (typeof_preds preds) f with
+           | Some ts =>
+               allb
+                 (fun argss : list (expr types) =>
+                  all2
+                    (is_well_typed (typeof_funcs funcs) (UVars P) (Vars P))
+                    argss ts) (x0 ++ x1 :: x2) = true
+           | None => False
+           end). destruct x0; simpl in *; auto. clear H2.
+        intros. rewrite <- WellTyped_sheap_star. apply andb_true_iff.  split.
+        { rewrite WellTyped_sheap_eq; simpl. apply andb_true_iff; split.
+          { rewrite WellTyped_impures_eq. intros.
+            rewrite MF.FACTS.add_o in H7. destruct (MF.FACTS.eq_dec f k).
+            { inversion H7; clear H7; subst; auto. destruct (x0 ++ x2); auto.
+              generalize dependent (e :: l0). intros. destruct (nth_error (typeof_preds preds) k); auto.
+              eapply allb_impl; try eassumption. simpl; intros. eapply all2_impl; try eassumption.
+              intros. rewrite <- app_nil_r with (l := UVars P). eapply is_well_typed_weaken. auto. }
+            { eapply H0 in H7. destruct v0; auto. destruct (nth_error (typeof_preds preds) k); auto.
+              eapply allb_impl; try eassumption. simpl; intros. eapply all2_impl; try eassumption.
+              intros; rewrite <- app_nil_r with (l := UVars P). eapply is_well_typed_weaken. auto. } }
+          { eapply allb_impl; try eassumption. simpl; intros. 
+            rewrite <- app_nil_r with (l := UVars P). eapply is_well_typed_weaken. auto. } }
+        { consider (nth_error (typeof_preds preds) f); try contradiction; intros.
+          eapply applicable_WellTyped with (TS := t)in H4; try eassumption. intuition.
+          rewrite H5 in *. rewrite H1 in *. rewrite hash_Func in H9. intuition.
+          rewrite allb_app in H6; simpl in H6. apply andb_true_iff in H6. destruct H6.
+          consider (all2 (is_well_typed (typeof_funcs funcs) (UVars P) (Vars P)) x1 t); try congruence.
+          unfold WellTyped_lemma in *.
+          repeat match goal with 
+                   | H : _ && _ = _ |- _ => apply andb_true_iff in H; destruct H
+                 end.
+          rewrite H1 in *. simpl in H9. rewrite H2 in H9. auto. }
+      Qed.
+
 
       Lemma unfoldForwardOk : forall meta_env vars_env cs facts P Q,
         WellTyped_env (UVars P) meta_env ->
@@ -1138,6 +1240,57 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         clear. intros. rewrite H0. rewrite H. reflexivity.
       Qed.          
 
+      Lemma unfoldBackward_WellTyped : forall facts P Q,
+        unfoldBackward unify_bound prover facts (Backward hs) P = Some Q ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
+      Proof.
+        unfold unfoldBackward; intros.
+        repeat match goal with
+                 | [ H : _ = Some _ |- _ ] => eapply findOk in H || eapply findWithRestOk in H
+                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
+                 | [ H : exists x, _ |- _ ] => destruct H
+                 | [ H : _ /\ _ |- _ ] => destruct H
+                 | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                   (revert H; consider X; intros; try congruence) ; []                                           
+               end; simpl.
+        eapply hintSideD_In in H; eauto using BackwardOk. destruct H. clear H3.
+        rewrite WellTyped_sheap_eq in H0. apply andb_true_iff in H0. destruct H0.
+        generalize (WellTyped_impures_find_fst_last _ _ _ _ H0 H2).
+        rewrite WellTyped_impures_eq in H0. eapply H0 in H2.
+        assert (match nth_error (typeof_preds preds) f with
+           | Some ts =>
+               allb
+                 (fun argss : list (expr types) =>
+                  all2
+                    (is_well_typed (typeof_funcs funcs) (UVars P) (Vars P))
+                    argss ts) (x0 ++ x1 :: x2) = true
+           | None => False
+           end). destruct x0; simpl in *; auto. clear H2.
+        intros. rewrite <- WellTyped_sheap_star. apply andb_true_iff.  split.
+        { rewrite WellTyped_sheap_eq; simpl. apply andb_true_iff; split.
+          { rewrite WellTyped_impures_eq. intros.
+            rewrite MF.FACTS.add_o in H7. destruct (MF.FACTS.eq_dec f k).
+            { inversion H7; clear H7; subst; auto. destruct (x0 ++ x2); auto.
+              generalize dependent (e :: l0). intros. destruct (nth_error (typeof_preds preds) k); auto.
+              eapply allb_impl; try eassumption. simpl; intros. eapply all2_impl; try eassumption.
+              intros. rewrite <- app_nil_r with (l := Vars P). eapply is_well_typed_weaken. auto. }
+            { eapply H0 in H7. destruct v0; auto. destruct (nth_error (typeof_preds preds) k); auto.
+              eapply allb_impl; try eassumption. simpl; intros. eapply all2_impl; try eassumption.
+              intros; rewrite <- app_nil_r with (l := Vars P). eapply is_well_typed_weaken. auto. } }
+          { eapply allb_impl; try eassumption. simpl; intros. 
+            rewrite <- app_nil_r with (l := Vars P). eapply is_well_typed_weaken. auto. } }
+        { consider (nth_error (typeof_preds preds) f); try contradiction; intros.
+          eapply applicable_WellTyped with (TS := t)in H4; try eassumption. intuition.
+          rewrite H5 in *. rewrite H1 in *. rewrite hash_Func in H9. intuition.
+          rewrite allb_app in H6; simpl in H6. apply andb_true_iff in H6. destruct H6.
+          consider (all2 (is_well_typed (typeof_funcs funcs) (UVars P) (Vars P)) x1 t); try congruence.
+          unfold WellTyped_lemma in *.
+          repeat match goal with 
+                   | H : _ && _ = _ |- _ => apply andb_true_iff in H; destruct H
+                 end.
+          rewrite H1 in *. simpl in H8. rewrite H2 in H8. auto. }
+      Qed.
 
       Lemma unfoldBackwardOk : forall meta_env vars_env cs facts P Q,
         WellTyped_env (UVars P) meta_env ->
@@ -1295,6 +1448,19 @@ Module Make (SH : SepHeap) (U : SynUnifier).
           { subst. exists nil; repeat rewrite app_nil_r; eauto. }
       Qed.
 
+      Theorem forward_WellTyped : forall bound facts P Q,
+        forward bound facts P = Q ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
+      Proof.
+        induction bound; simpl; intros; try subst; auto;
+          match goal with
+            | |- context [ match ?X with _ => _ end ] =>
+              consider X; intros
+          end; auto.
+        eapply unfoldForward_WellTyped in H; try eassumption. eapply IHbound; eauto.
+      Qed.
+
       Theorem forwardOk : forall cs bound facts P Q,
         forward bound facts P = Q ->
         forall meta_env vars_env,
@@ -1348,6 +1514,19 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             unfold WellTyped_env in *. rewrite H1. unfold typeof_env. reflexivity. } }
       Qed.
 
+      Theorem backward_WellTyped : forall bound facts P Q,
+        backward bound facts P = Q ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
+        WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
+      Proof.
+        induction bound; simpl; intros; try subst; auto;
+          match goal with
+            | |- context [ match ?X with _ => _ end ] =>
+              consider X; intros
+          end; auto.
+        eapply unfoldBackward_WellTyped in H; try eassumption. eapply IHbound; eauto.
+      Qed.
+
       Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,
         backward bound facts P = Q ->
         WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
@@ -1386,17 +1565,5 @@ Module Make (SH : SepHeap) (U : SynUnifier).
 
     End unfolder.
   End env.
-
-(*
-  Ltac unfold_unfolder H :=
-    match H with
-      | tt => 
-        cbv beta iota zeta delta [ 
-          Hints Foralls Hints Hyps Lhs Rhs 
-          Forward Backward 
-          forward backward 
-          unfoldForward unfoldBackward
-*)
-
 
 End Make.

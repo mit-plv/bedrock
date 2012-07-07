@@ -832,6 +832,21 @@ Module Make (U : SynUnifier) (SH : SepHeap).
        {| SH.impures := rf ; SH.pures := SH.pures r ; SH.other := SH.other r |},
        sub).
 
+    Theorem sepCancel_PuresPrem : forall funcs U G bound summ l r l' r' s,
+      sepCancel bound summ l r = (l', r', s) ->
+      AllProvable funcs U G (SH.pures l) ->
+      AllProvable funcs U G (SH.pures l').
+    Proof.
+      unfold sepCancel. intros.
+      destruct (cancel_in_order bound summ (order_impures (SH.impures r))
+              (MM.empty (exprs types))
+              (FM.map
+                 (fun v : list (exprs types) =>
+                  Ordering.sort (exprs types) meta_order_args v)
+                 (SH.impures l)) (U.Subst_empty types)). destruct p. inversion H.
+      auto.
+    Qed.
+
     Lemma starred_ext : forall T U G cs F F' (ls : list T) B,
       (forall x, heq funcs preds U G cs (F x) (F' x)) -> 
       heq funcs preds U G cs (SH.starred F ls B) (SH.starred F' ls B).
@@ -873,7 +888,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       induction l; simpl; intros. 
       rewrite app_nil_r; reflexivity.
       etransitivity. 2: eapply IHl. destruct a; simpl. 
-      symmetry. Check fold_left_insert_perm.
+      symmetry. 
       rewrite Permutation.Permutation_app_tail.
       2: symmetry; apply (@fold_left_insert_perm l0 B k).
       rewrite Permutation.Permutation_app_tail.
