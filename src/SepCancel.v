@@ -819,33 +819,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       eapply Permutation.Permutation_middle.
     Qed.
 
-(*
-    Lemma order_impuresOk : forall U G cs imps ordered P Q,
-      order_impures imps = ordered ->
-      heq funcs preds U G cs P Q ->
-      heq funcs preds U G cs (Star (SH.impuresD _ _ imps) P) (SH.starred (fun e_a => Func (snd e_a) (fst e_a)) ordered Q).
-    Proof.
-      clear. unfold order_impures. intros.
-      assert (heq funcs preds U G cs (SH.starred (fun (e_a : exprs types * func) => Func (snd e_a) (fst e_a)) nil Q) P).
-        rewrite SH.starred_def; simpl. symmetry; auto. clear H0. subst.
-      revert H1. change (@nil (exprs types * nat)) with (@nil (exprs types * func)).
-      generalize dependent (@nil (exprs types * func)).
-      intro. revert P Q.
-      eapply MM.PROPS.fold_rec; intros.
-      { rewrite SH.impuresD_Empty by eauto. rewrite <- H1. heq_canceler. }
-      { rewrite SH.impuresD_Add by eauto.
-        assert (heq funcs preds U G cs 
-                 (Star (SH.SE.Star (SH.starred (SH.SE.Func k) e SH.SE.Emp) (SH.impuresD pcType stateType m')) P)
-                 (Star (SH.impuresD pcType stateType m') (Star P (SH.starred (SH.SE.Func k) e Emp)))) by heq_canceler.
-        rewrite H4; clear H4. rewrite <- H3; clear H3. rewrite H2; clear H2.
-        Focus 2.
-        instantiate (1 := Star Q (SH.starred (Func k) e Emp)). heq_canceler. heq_canceler.
-        symmetry. rewrite SH.starred_perm.
-        Focus 2. symmetry. eapply fold_left_insert_perm. heq_canceler. clear.
-        induction e; simpl; heq_canceler. rewrite IHe. reflexivity. }
-    Qed.
-*)
-
     (** TODO: it would be good to keep this somewhat general with respect to the order so that we can play around with it
      **)
     Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) :
