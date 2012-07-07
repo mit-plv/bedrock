@@ -234,16 +234,11 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           unify_remove bound summ l (SDomain p) r S = Some (r', S') ->
           U.Subst_equations funcs U G S' ->
           forall Q,
-          SE.heq funcs preds U G cs P (SH.starred (SE.Func f) r' Q) ->
-          SE.heq funcs preds U G cs
-            (SE.Star (SE.Func f l) P) (SH.starred (SE.Func f) r Q) /\
+          SE.himp funcs preds U G cs (SH.starred (SE.Func f) r' Q) P ->
+          SE.himp funcs preds U G cs
+            (SH.starred (SE.Func f) r Q) (SE.Star (SE.Func f l) P) /\
           U.Subst_Extends S' S.
       Proof.
-(*        do 12 intro.  
-        match goal with
-          | [ |- context [ @Emp ?X ?Y ?Z ] ] => generalize (@Emp X Y Z)
-        end.
-*)
         induction r; simpl; intros; try congruence.
         revert H4. case_eq (unifyArgs bound summ l a (SDomain p) S); intros; try congruence.
         { inversion H7; clear H7; subst.
@@ -252,9 +247,9 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           eapply unifyArgsOk with (R := ST.hprop (tvarD types pcType) (tvarD types stateType) nil) (f := SDenotation p) in H4;
             eauto. 
           intuition.
-          apply heq_star_frame; auto. unfold heq; simpl. rewrite H1.
+          apply himp_star_frame; auto. unfold himp; simpl. rewrite H1.
           match goal with
-            | [ |- ST.heq _ match ?X with _ => _ end match ?Y with _ => _ end ] =>
+            | [ |- ST.himp _ match ?X with _ => _ end match ?Y with _ => _ end ] =>
               cutrewrite (X = Y)
           end. reflexivity.
           revert H3. repeat rewrite applyD_forget_exprInstantiate by eauto; eauto. }
@@ -263,12 +258,39 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           inversion H3; clear H3; subst.
           rewrite SH.starred_def in H6. simpl in H6. rewrite <- SH.starred_def in H6.
           eapply IHr in H7; eauto.
-          Focus 2. instantiate (1 := (SH.SE.Star (Func f a) Q)). instantiate (1 := P).
-          etransitivity. eapply H6. rewrite SH.starred_base. symmetry. rewrite SH.starred_base.
-          heq_canceler.
-          intuition. rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
-          rewrite H3. rewrite SH.starred_base. symmetry. rewrite SH.starred_base. heq_canceler. }
+          Focus 2. instantiate (2 := (SH.SE.Star (Func f a) Q)). instantiate (1 := P).
+          etransitivity; [ | eapply H6 ].
+          rewrite SH.starred_base. rewrite heq_star_assoc. 
+          rewrite SH.starred_base with (base := Q). reflexivity.
+          intuition. rewrite starred_cons. rewrite <- H3. 
+          rewrite SH.starred_base. rewrite SH.starred_base with (base := SH.SE.Star (Func f a) Q). 
+          rewrite heq_star_assoc. reflexivity. }
       Qed.
+
+      Require Import Reflection Tactics.
+
+      Lemma unify_remove_PureFacts : forall bound summ f p l S,
+        U.Subst_WellTyped tfuncs tU tG S ->
+        Valid Prover_correct U G summ ->
+        nth_error preds f = Some p ->
+        all2 (@is_well_typed _ tfuncs tU tG) l (SDomain p) = true ->
+        forall r r' S',
+          List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r (SDomain p) = true) r ->
+          unify_remove bound summ l (SDomain p) r S = Some (r', S') ->
+             U.Subst_Extends S' S
+          /\ U.Subst_WellTyped tfuncs tU tG S'
+          /\ List.Forall (fun r => all2 (@is_well_typed _ tfuncs tU tG) r (SDomain p) = true) r'.
+      Proof.
+        induction r; simpl; intros; try congruence.
+        consider (unifyArgs bound summ l a (SDomain p) S); intros.
+        { inversion H5; clear H5; subst. inversion H3; clear H3; subst.
+          eapply unifyArgs_Extends_WellTyped in H4; eauto. intuition eauto. }
+        { consider (unify_remove bound summ l (SDomain p) r S); intros.
+          { destruct p0. inversion H6; clear H6; subst. inversion H3; clear H3; subst.
+            eapply IHr in H9; intuition. eauto. eauto. eauto. }
+          { congruence. } }
+      Qed.
+
     End with_typing.
 
     Require Ordering.
@@ -350,21 +372,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         rewrite IHe. reflexivity.
     Qed.
 
-(*
-    Lemma starred_perm : forall T L R,
-      Permutation.Permutation L R ->
-      forall (F : T -> _) U G cs base,
-      heq funcs preds U G cs (SH.starred F L base) (SH.starred F R base).
-    Proof.
-      clear. intros.
-      repeat rewrite SH.starred_def.
-      induction H; simpl; intros;
-      repeat match goal with
-               | [ H : _ |- _ ] => rewrite H
-             end; try reflexivity; heq_canceler.
-    Qed.
-*)
-
     Lemma fold_Permutation : forall imps L R,
       Permutation.Permutation L R ->
       Permutation.Permutation
@@ -399,6 +406,10 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Qed.
     
     (** NOTE : l and r are reversed here **)
+    (** cancel_in_order ls acc rem = (l,r,sub) ->
+     ** r ===> l ->
+     ** rem ===> ls * acc
+     **)
     Fixpoint cancel_in_order (bound : nat) (summ : Facts Prover) 
       (ls : cancel_list) (acc rem : MM.mmap (exprs types)) (sub : U.Subst types) 
       : MM.mmap (exprs types) * MM.mmap (exprs types) * U.Subst types :=
@@ -419,49 +430,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
               end                      
           end
       end.
-    
-(*
-    Definition sheapInstantiate (s : U.Subst types) : MM.mmap (exprs types) -> MM.mmap (exprs types) :=
-      MM.mmap_map (map (@U.exprInstantiate _ s)).
-
-    Lemma sheapInstantiate_mmap_add : forall U G cs S n e acc,
-      heq funcs preds U G cs
-        (SH.impuresD pcType stateType 
-          (sheapInstantiate S (MM.mmap_add n e acc)))
-        (SH.impuresD pcType stateType 
-          (MM.mmap_add n (map (@U.exprInstantiate _ S) e) 
-                         (sheapInstantiate S acc))).
-    Proof.
-      clear. intros. eapply MM.PROPS.map_induction with (m := acc); intros.
-      { unfold MM.mmap_add, sheapInstantiate, MM.mmap_map.
-        repeat rewrite MF.find_Empty by auto using MF.map_Empty.
-        rewrite SH.impuresD_Equiv. reflexivity.
-        rewrite MF.map_add. simpl.
-        reflexivity. }
-      { unfold MM.mmap_add, sheapInstantiate, MM.mmap_map.
-        rewrite MF.FACTS.map_o. simpl in *. unfold exprs in *. case_eq (FM.find n m'); simpl; intros.
-        { rewrite SH.impuresD_Equiv. reflexivity.
-          rewrite MF.map_add. reflexivity. }
-        { rewrite SH.impuresD_Equiv. reflexivity.
-          rewrite MF.map_add. simpl. reflexivity. } }
-    Qed.
-
-    Lemma sheapInstantiate_Equiv : forall S a b,
-      MM.mmap_Equiv a b ->
-      MM.mmap_Equiv (sheapInstantiate S a) (sheapInstantiate S b).
-    Proof.
-      clear. unfold sheapInstantiate, MM.mmap_Equiv, MM.mmap_map, FM.Equiv; intuition;
-      try solve [ repeat match goal with
-                           | [ H : FM.In _ (FM.map _ _) |- _ ] => apply MF.FACTS.map_in_iff in H
-                           | [ |- FM.In _ (FM.map _ _) ] => apply MF.FACTS.map_in_iff
-                         end; firstorder ].
-      repeat match goal with
-               | [ H : FM.MapsTo _ _ (FM.map _ _) |- _ ] =>
-                 apply MF.FACTS.map_mapsto_iff in H; destruct H; intuition; subst
-             end.
-      apply Permutation.Permutation_map. firstorder.
-    Qed.
-*)
 
     Lemma cancel_in_order_equiv : forall bound summ ls acc rem sub L R S acc',
       MM.mmap_Equiv acc acc' ->
@@ -532,234 +500,307 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                end; intuition reflexivity. }
     Qed.
 
-(*
-    Lemma cancel_in_order_add_acc : forall bound summ ls n e acc rem sub L R S,
-      ~FM.In n acc ->
-      cancel_in_order bound summ ls (FM.add n e acc) rem sub = (L, R, S) ->
-      exists L' R' S',
-        cancel_in_order bound summ ls acc rem sub = (L', R', S') /\
-        MM.mmap_Equiv (FM.add n e L') L /\
-        MM.mmap_Equiv R R' /\
-        U.Subst_Equal S S'.
+    Lemma nth_error_typeof_preds : forall p n,
+      nth_error (typeof_preds p) n = option_map (@typeof_pred types pcType stateType) (nth_error p n).
     Proof.
-      clear. induction ls; simpl; intros.
-      { inversion H0; subst. do 3 eexists; split. 
-        reflexivity. split; try reflexivity. split; try reflexivity. }
-      { repeat match goal with
-                 | [ H : match ?X with 
-                           | (_,_) => _
-                         end = _ |- _ ] => destruct X
+      clear. unfold typeof_preds. intros. rewrite Tactics.map_nth_error_full. reflexivity.
+    Qed.
+    
+    Require Import Tactics.
+
+    Lemma WellTyped_impures_add : forall tf tp tU tG f l m,
+      SH.WellTyped_impures (types := types) tf tp tU tG m = true ->
+      match nth_error tp f with
+        | None => false
+        | Some p => allb (fun l => all2 (is_well_typed tf tU tG) l p) l
+      end = true ->
+      SH.WellTyped_impures tf tp tU tG (FM.add f l m) = true.
+    Proof. clear.
+      intros. eapply SH.WellTyped_impures_eq. intros.
+      consider (nth_error tp f); try congruence; intros.
+      rewrite MF.FACTS.add_o in H1. destruct (MF.FACTS.eq_dec f k); think.
+      destruct v; auto.
+      eapply SH.WellTyped_impures_eq in H; eauto.
+    Qed.
+
+    Lemma WellTyped_impures_mmap_add : forall tf tp tU tG f l m,
+      SH.WellTyped_impures (types := types) tf tp tU tG m = true ->
+      match nth_error tp f with
+        | None => false
+        | Some p => all2 (is_well_typed tf tU tG) l p
+      end = true ->
+      SH.WellTyped_impures tf tp tU tG (MM.mmap_add f l m) = true.
+    Proof. clear.
+      intros. eapply SH.WellTyped_impures_eq. intros.
+      consider (nth_error tp f); try congruence; intros.
+      unfold MM.mmap_add in *. consider (FM.find (elt:=list (list (expr types))) f m); intros.
+      rewrite MF.FACTS.add_o in H3. destruct (MF.FACTS.eq_dec f k).
+      { inversion H3; clear H3; subst. rewrite H0. simpl. rewrite H2.
+        eapply SH.WellTyped_impures_eq in H. 2: eauto. destruct l0; auto. rewrite H0 in *. assumption. }
+      { eapply SH.WellTyped_impures_eq; eauto. }
+      { rewrite MF.FACTS.add_o in H3. destruct (MF.FACTS.eq_dec f k).
+        inversion H3; clear H3; subst. rewrite H0. simpl; rewrite H2; auto.
+        eapply SH.WellTyped_impures_eq; eauto. }
+    Qed.
+
+    Lemma cancel_in_order_PureFacts : forall U G bound summ,
+      let tf := typeof_funcs funcs in
+      let tp := SE.typeof_preds preds in
+      let tU := typeof_env U in
+      let tG := typeof_env G in
+      forall ls acc rem sub L R S,
+      U.Subst_WellTyped tf tU tG sub ->
+      U.Subst_equations funcs U G S ->
+      allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
+        (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true ->
+      SH.WellTyped_impures tf tp tU tG acc = true ->
+      SH.WellTyped_impures tf tp tU tG rem = true ->
+      Valid Prover_correct U G summ ->
+      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+         U.Subst_equations funcs U G sub 
+      /\ U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S
+      /\ SH.WellTyped_impures tf tp tU tG L = true 
+      /\ SH.WellTyped_impures tf tp tU tG R = true.
+    Proof.
+      induction ls; simpl; intros.
+      { inversion H5; clear H5; subst; auto. }
+      { subst tp. rewrite nth_error_typeof_preds in H1. destruct a; simpl in *.
+        repeat match goal with
+                 | H : context [ option_map _ ?X ] |- _ =>
+                   (consider X; simpl in *; try congruence); [ intros ]
+                 | [ H : match ?X with _ => _ end = _ |- _ ] =>
+                   (consider X; intros; try congruence); [ intros ]
                  | [ H : match ?X with
                            | Some _ => _ | None => _ 
                          end = _ |- _ ] =>
-                 revert H; case_eq X; intros
-                 
-               end;
-        try solve [ eapply IHls; eauto |
-        match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
-            eapply cancel_in_order_equiv in H; [ | eapply MM.mmap_add_comm ]
-        end;
-        repeat match goal with
-                 | [ H : exists x, _ |- _ ] => destruct H
-                 | [ H : _ /\ _ |- _ ] => destruct H
-               end;
-        match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
-            eapply IHls in H
-        end;
-        repeat match goal with
-                 | [ H : exists x, _ |- _ ] => destruct H
-                 | [ H : _ /\ _ |- _ ] => destruct H
-                 | [ |- exists x, _ /\ _ ] => eexists; split; [ eassumption | ]
-                 | [ |- exists x, _ ] => eexists
-                 | [ H : MM.mmap_Equiv _ _ |- _ ] => rewrite H
-                 | [ H : U.Subst_Equal _ _ |- _ ] => rewrite H
-               end; intuition reflexivity ].
-        Focus 3.
-        match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
-            eapply cancel_in_order_equiv in H; [ | ]
-        end.
-        repeat match goal with
-                 | [ H : exists x, _ |- _ ] => destruct H
-                 | [ H : _ /\ _ |- _ ] => destruct H
-               end;
-        match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
-            eapply IHls in H
-        end.
-
-
-
- }
-    Qed.
-*)
-
-(*
-    Lemma sheapInstantiate_add : forall U G cs S n e m m',
-      ~FM.In n m ->
-      MM.PROPS.Add n e m m' ->
-      heq funcs preds U G cs
-        (SH.impuresD pcType stateType (sheapInstantiate S m'))
-        (SH.starred (fun v => Func n (map (U.exprInstantiate S) v)) e
-          (SH.impuresD pcType stateType (sheapInstantiate S m))).
-    Proof.
-      clear. intros.
-        unfold sheapInstantiate, MM.mmap_map.
-        rewrite SH.impuresD_Add with (i := FM.map (map (map (U.exprInstantiate S))) m) (f := n) (argss := map (map (U.exprInstantiate S)) e).
-        symmetry; rewrite SH.starred_base. heq_canceler.
-        repeat rewrite SH.starred_def.
-        match goal with
-          | [ |- context [ @SH.SE.Emp ?X ?Y ?Z ] ] => generalize (@SH.SE.Emp X Y Z)
-        end.
-        clear. induction e; simpl; intros; try reflexivity.
-        rewrite IHe. heq_canceler.
-
-        red. intros. specialize (H0 y). repeat (rewrite MM.FACTS.add_o in * || rewrite MM.FACTS.map_o in * ).
-        unfold exprs in *. rewrite H0. unfold MM.FACTS.option_map. destruct (MF.FACTS.eq_dec n y); auto.
-        
-        intro. apply H. apply MM.FACTS.map_in_iff in H1. auto.
+                 consider X; intros
+               end; simpl in *; subst.
+        { eapply unify_remove_PureFacts in H9; eauto. 
+          { eapply IHls in H10; eauto. intuition.
+            eapply U.Subst_equations_Extends. 2: eassumption. eauto. intuition. 
+            eapply SH.WellTyped_impures_eq. intros. rewrite MF.FACTS.add_o in H8.
+            destruct (MF.FACTS.eq_dec f k); auto. inversion H8; clear H8; subst. 
+            rewrite nth_error_typeof_preds. rewrite H1. simpl. intuition.
+            destruct v; auto. generalize dependent (e :: v); intros.
+            clear - H12. unfold typeof_pred. induction H12; simpl; auto. rewrite H. auto.
+            eapply SH.WellTyped_impures_eq; eauto. } 
+          { eapply SH.WellTyped_impures_eq in H3; eauto.
+            rewrite nth_error_typeof_preds in H3. rewrite H1 in H3. simpl in H3.
+            destruct l0. constructor.
+            revert H3. clear. induction (e :: l0); intros; simpl. constructor.
+            simpl in *. consider (all2 (is_well_typed tf tU tG) a (typeof_pred p)); intros; constructor; auto. } }
+        { clear H8. eapply IHls in H9; eauto.
+          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
+          rewrite H1. simpl. auto. }
+        { clear H6. eapply IHls in H8; eauto.
+          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
+          rewrite H1. simpl. auto. } }
     Qed.
 
-    Lemma starred_forget_sheapInstantiate : forall cs U G S x P,
-      U.Subst_equations funcs U G S ->
-      forall e,
-      heq funcs preds U G cs 
-        (SH.starred (fun v : list (expr types) => Func x (map (U.exprInstantiate S) v)) e P)
-        (SH.starred (SH.SE.Func x) e P).
-    Proof.
-      clear. induction e; intros; repeat rewrite SH.starred_def; simpl; repeat rewrite <- SH.starred_def; SEP_FACTS.heq_canceler.
-        rewrite IHe. SEP_FACTS.heq_canceler. unfold heq. simpl.
-        match goal with
-                 | [ |- context [ match ?X with _ => _ end ] ] => 
-                   case_eq X; intros; try reflexivity
-               end.
-        erewrite <- WellTyped_exprInstantiate_applyD; eauto.
-        reflexivity.
-    Qed.
-*)
-
-(*
-    Lemma starred_nil : forall T U G cs (F : T -> _) B,
-      heq funcs preds U G cs (SH.starred F nil B) B.
-    Proof.
-      clear. intros; rewrite SH.starred_def. reflexivity.
-    Qed.
-
-    Lemma starred_cons : forall T U G cs (F : T -> _) a A B,
-      heq funcs preds U G cs (SH.starred F (a :: A) B) (Star (F a) (SH.starred F A B)).
-    Proof.
-      clear. intros; rewrite SH.starred_def. simpl. rewrite <- SH.starred_def. reflexivity.
-    Qed.
-    
-    Lemma starred_app : forall T U G cs (F : T -> _) ls ls'  B,
-      heq funcs preds U G cs (SH.starred F (ls ++ ls') B) (Star (SH.starred F ls Emp) (SH.starred F ls' B)).
-    Proof.
-      clear; intros; rewrite SH.starred_def. rewrite fold_right_app. rewrite <- SH.starred_def.
-      rewrite SH.starred_base. rewrite <- SH.starred_def. heq_canceler.
-    Qed.
-
-
-    Ltac heq_canceler :=
-      repeat (rewrite starred_nil || rewrite starred_cons || rewrite starred_app ||
-        match goal with
-          | [ |- context [ SH.starred ?A ?B ?X ] ] =>
-            match X with
-              | Emp => fail 1 
-              | _ => rewrite SH.starred_base with (F := A) (ls := B) (base := X)
-            end
-        end); 
-      SEP_FACTS.heq_canceler.
-*)
-
-(*
-    Lemma impuresD_forget_sheapInstantiate : forall U G S cs h,
-      U.Subst_equations funcs U G S ->
-      heq funcs preds U G cs 
-        (SH.impuresD pcType stateType (sheapInstantiate S h))
-        (SH.impuresD pcType stateType h).
-    Proof.
-      clear. intros. eapply MM.PROPS.map_induction with (m := h); intros.
-      { unfold sheapInstantiate, MM.mmap_map. repeat rewrite SH.impuresD_Empty; eauto using MF.map_Empty. reflexivity. }
-      { rewrite sheapInstantiate_add; eauto. rewrite SH.starred_base. symmetry.
-        rewrite SH.impuresD_Add; eauto. rewrite <- H0. SEP_FACTS.heq_canceler.
-        rewrite starred_forget_sheapInstantiate; auto. reflexivity. }
-    Qed.
-*)
-
-    Lemma cancel_in_orderOk : forall tU tG tfuncs U G cs bound summ,
-      WellTyped_env tU U ->
-      WellTyped_env tG G ->
-      WellTyped_funcs tfuncs funcs ->
-      forall ls acc rem sub L R S P Q,
-      U.Subst_WellTyped tfuncs tU tG sub ->
+    (** cancel_in_order ls acc rem = (l,r,sub) ->
+     ** r ===> l ->
+     ** rem ===> ls * acc
+     **)
+    Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
+      let tf := typeof_funcs funcs in
+      let tp := SE.typeof_preds preds in
+      let tU := typeof_env U in
+      let tG := typeof_env G in
+      U.Subst_WellTyped tf tU tG sub ->
+      U.Subst_WellTyped tf tU tG S ->
       U.Subst_equations funcs U G S ->
       Valid Prover_correct U G summ ->
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+      allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
+        (Func (pcType := pcType) (stateType := stateType) (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls = true ->
+      SH.WellTyped_impures tf tp tU tG acc = true ->
+      SH.WellTyped_impures tf tp tU tG rem = true ->
+      forall P Q,
       himp funcs preds U G cs 
         (Star (SH.impuresD _ _ (impuresInstantiate S R)) P)
         (Star (SH.impuresD _ _ (impuresInstantiate S L)) Q) ->
       himp funcs preds U G cs 
         (Star (SH.impuresD _ _ (impuresInstantiate S rem)) P)
         (Star (Star (SH.starred (fun v => (Func (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls Emp)
-                    (SH.impuresD _ _ (impuresInstantiate S acc)))
-              Q).
-(*    Proof.
+                    (SH.impuresD _ _ (impuresInstantiate S acc))) Q).
+    Proof.
       induction ls; simpl; intros.
-      { inversion H5; clear H5; subst.
-        rewrite SH.starred_def. simpl. heq_canceler. auto. }
-      { rewrite SH.starred_def. simpl. rewrite <- SH.starred_def.
+      { inversion H3; clear H3; subst. repeat rewrite starred_nil. rewrite heq_star_emp_l. auto. }
+      { rewrite starred_cons. rewrite nth_error_typeof_preds in H4. destruct a; simpl in *.
         repeat match goal with
-                 | [ H : match ?X with 
-                           | (_,_) => _
-                         end = _ |- _ ] => destruct X
+                 | H : context [ option_map _ ?X ] |- _ =>
+                   (consider X; simpl in *; try congruence); [ intros ]
+                 | [ H : match ?X with _ => _ end = _ |- _ ] =>
+                   (consider X; intros; try congruence); [ intros ]
                  | [ H : match ?X with
                            | Some _ => _ | None => _ 
                          end = _ |- _ ] =>
-                 revert H; case_eq X; intros
-               end.
-        { (* (eapply unify_removeOk with (cs := cs) 
-            (P := Star (SH.impuresD pcType stateType (impuresInstantiate S acc))
-              (SH.starred
-                (fun x : list (expr types) * func =>
-                  Func (snd x) (map (U.exprInstantiate S) (fst x))) ls Emp)) in H8;
-            [ | | | | eassumption | | | | | | ]); try eassumption. *)
-          Lemma cancel_in_order_add_rem : forall cs U G funcs preds bound summ ls n e acc rem sub L R S l,
-            FM.find n rem = Some l ->
-            cancel_in_order bound summ ls acc (FM.add n e rem) sub = (L, R, S) ->
-            forall P Q,
-            heq funcs preds U G cs 
-              (SH.starred (Func n) e P) 
-              (SH.starred (Func n) l (SE.Star (SH.impuresD _ _ L) Q)) -> (* L, R? *)
-            heq funcs preds U G cs
-              (Star (SH.impuresD pcType stateType (FM.add n e rem)) P)
-              (Star (SH.starred (fun x => Func (snd x) (map (U.exprInstantiate S) (fst x))) ls (SH.impuresD _ _ acc)) Q).
+                 consider X; intros
+               end; simpl in *; subst.
+        { assert (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) e (SDomain p) = true).
+          { rewrite all2_map_1 in H8. eapply all2_impl. eapply H8. intros. simpl in *.
+            rewrite <- U.exprInstantiate_WellTyped in H10; eauto. }
+          assert (List.Forall (fun r : list (expr types) =>
+            all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) r (SDomain p) = true) l).
+          { eapply SH.WellTyped_impures_eq in H6; eauto. destruct l. constructor.
+            rewrite nth_error_typeof_preds in *. rewrite H3 in H6. revert H6.
+            generalize (e0 :: l). simpl. clear. induction l; simpl; intros; auto.
+            consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) a (typeof_pred p)); intros.
+            constructor; auto. }
+          generalize H11. eapply unify_remove_PureFacts in H11; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+          intuition.
+          assert (allb (fun v : list (expr types) * func =>
+            WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds)
+            (typeof_env U) (typeof_env G) (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true).
+          { eapply allb_impl. eassumption. simpl. intros.
+            destruct (nth_error (typeof_preds preds) (snd x)); auto.
+            rewrite all2_map_1 in H16. eapply all2_impl. eauto. simpl. intros.
+            rewrite <- U.exprInstantiate_WellTyped in H18; eauto. }
+          assert (SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+            (typeof_env U) (typeof_env G) (FM.add n l0 rem) = true).
+          { eapply WellTyped_impures_add; eauto. 
+            rewrite nth_error_typeof_preds in *. rewrite H3. simpl. clear - H17.
+            unfold typeof_pred in *. induction H17; simpl; think; auto. }
+          generalize H12. eapply cancel_in_order_PureFacts in H12; eauto. intuition.
+          do 2 rewrite SEP_UFACTS.impuresD_forget_impuresInstantiate by eassumption.
+          assert (MM.PROPS.Add n l (FM.remove (elt:=list (exprs types)) n rem) rem).
+          { red. intro. rewrite MF.FACTS.add_o. rewrite MF.FACTS.remove_o.
+            destruct (MF.FACTS.eq_dec n y); subst; auto. }
+          assert (~FM.In (elt:=list (exprs types)) n (FM.remove (elt:=list (exprs types)) n rem)).
+          { rewrite MF.FACTS.remove_in_iff. intro. intuition; congruence. }
+          rewrite SH.impuresD_Add with (i := FM.remove n rem) (i' := rem) (f := n) (argss := l) by eassumption.
+          rewrite heq_star_assoc.
+          
+          rewrite Func_forget_exprInstantiate by eassumption.
+          eapply unify_removeOk with (cs := cs) in H14; [ | | | | eassumption | | | | | | ];
+            eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
+          destruct H14. repeat rewrite heq_star_assoc. rewrite <- H14. rewrite heq_star_comm. rewrite <- SH.starred_base. 
+          reflexivity.
+          eapply IHls in H19; eauto.
+          do 2 rewrite SEP_UFACTS.impuresD_forget_impuresInstantiate in H19 by eassumption.
+          rewrite heq_star_assoc in H19. rewrite <- H19.
+          rewrite SH.impuresD_Add with (i := FM.remove n rem) (i' := FM.add n l0 rem) (f := n) (argss := l0).
+          rewrite SH.starred_base. rewrite heq_star_comm. rewrite heq_star_assoc. reflexivity.
+          { intro. repeat (rewrite MF.FACTS.add_o || rewrite MF.FACTS.remove_o). destruct (MF.FACTS.eq_dec n y); auto. }
+          { rewrite MF.FACTS.remove_in_iff. intro. intuition; congruence. } }
+        { Lemma cancel_in_order_common : forall 
+            (U G : env types)
+            (cs : codeSpec (tvarD types pcType) (tvarD types stateType))
+            (bound : nat) (summ : Facts Prover) (e : exprs types) 
+            (n : nat) (ls : list (exprs types * nat)),
+            (forall (acc rem : MM.mmap (exprs types)) (sub : U.Subst types)
+              (L R : MM.mmap (exprs types)) (S : U.Subst types),
+              U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
+              U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S ->
+              U.Subst_equations funcs U G S ->
+              Valid Prover_correct U G summ ->
+              cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+              allb
+              (fun v : list (expr types) * func =>
+                match nth_error (typeof_preds preds) (snd v) with
+                  | Some ts =>
+                    all2
+                    (is_well_typed (typeof_funcs funcs) (typeof_env U)
+                      (typeof_env G)) (map (U.exprInstantiate S) (fst v)) ts
+                  | None => false
+                end) ls = true ->
+              SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+              (typeof_env U) (typeof_env G) acc = true ->
+              SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+              (typeof_env U) (typeof_env G) rem = true ->
+              forall P Q,
+                himp funcs preds U G cs
+                  (Star (SH.impuresD pcType stateType (impuresInstantiate S R)) P)
+                  (Star (SH.impuresD pcType stateType (impuresInstantiate S L)) Q) ->
+                himp funcs preds U G cs
+                  (Star (SH.impuresD pcType stateType (impuresInstantiate S rem)) P)
+                  (Star
+                    (Star
+                      (SH.starred
+                        (fun v : list (expr types) * func =>
+                          Func (snd v) (map (U.exprInstantiate S) (fst v))) ls Emp)
+                      (SH.impuresD pcType stateType (impuresInstantiate S acc))) Q)) ->
+            forall (acc rem : MM.mmap (exprs types)) (sub : U.Subst types)
+              (L R : MM.mmap (exprs types)) (S : U.Subst types),
+              U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
+              U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S ->
+              U.Subst_equations funcs U G S ->
+              Valid Prover_correct U G summ ->
+              SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+              (typeof_env U) (typeof_env G) acc = true ->
+              SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+              (typeof_env U) (typeof_env G) rem = true ->
+              forall P Q,
+              himp funcs preds U G cs
+                (Star (SH.impuresD pcType stateType (impuresInstantiate S R)) P)
+                (Star (SH.impuresD pcType stateType (impuresInstantiate S L)) Q) ->
+              forall p : predicate types pcType stateType,
+                nth_error preds n = Some p ->
+                all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G))
+                (map (U.exprInstantiate S) e) (typeof_pred p) = true ->
+                allb
+                (fun v : list (expr types) * func =>
+                  match nth_error (typeof_preds preds) (snd v) with
+                    | Some ts =>
+                      all2
+                      (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G))
+                      (map (U.exprInstantiate S) (fst v)) ts
+                    | None => false
+                  end) ls = true ->
+                  cancel_in_order bound summ ls (MM.mmap_add n e acc) rem sub = (L, R, S) ->
+                  himp funcs preds U G cs
+                    (Star (SH.impuresD pcType stateType (impuresInstantiate S rem)) P)
+                    (Star (Star
+                    (SH.SE.Star (Func n (map (U.exprInstantiate S) e))
+                      (SH.starred
+                        (fun v : list (expr types) * func =>
+                          Func (snd v) (map (U.exprInstantiate S) (fst v))) ls Emp))
+                    (SH.impuresD pcType stateType (impuresInstantiate S acc))) Q).
           Proof.
-            induction ls; simpl; intros.
-            { rewrite SH.starred_def. simpl. inversion H0; subst.  admit. }
-          Abort. 
-          admit. }
-        { eapply cancel_in_order_mmap_add_acc in H9.
-          do 3 destruct H9. intuition.
-          eapply IHls in H10; eauto. simpl. rewrite SEP_FACTS.heq_star_assoc.
-          Focus 3. instantiate (1 := Star (Func n e) Q). admit.
-          admit. admit. }
-        { 
-          repeat rewrite impuresD_forget_impuresInstantiate by auto.
-          eapply cancel_in_order_mmap_add_acc in H8; eauto. do 3 destruct H8. intuition.
-          eapply IHls in H9; eauto. 
-          Focus 3. instantiate (1 := Star Q (Func n e)). repeat rewrite impuresD_forget_impuresInstantiate.
-          admit. admit. admit.
-          rewrite impuresD_forget_impuresInstantiate in H9.
-          rewrite impuresD_forget_impuresInstantiate in H9.
-          admit.
-          admit.
-          admit.
-          admit. }
-        { admit. (** same proof as above **) } }
-*)
-    Admitted.
+            intros. 
+            assert (allb (fun v : list (expr types) * func => WellTyped_sexpr (typeof_funcs funcs) (typeof_preds preds) 
+              (typeof_env U) (typeof_env G) (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true).
+            { eapply allb_impl. eauto. simpl. intros. destruct (nth_error (typeof_preds preds) (snd x)); auto.
+              rewrite all2_map_1 in H11. eapply all2_impl; try eassumption. intros.
+              simpl in *. rewrite <- U.exprInstantiate_WellTyped in H12; eauto. }
+            assert (SH.WellTyped_impures (typeof_funcs funcs) (typeof_preds preds)
+              (typeof_env U) (typeof_env G) (MM.mmap_add n e acc) = true).
+            { eapply WellTyped_impures_mmap_add. eauto. rewrite nth_error_typeof_preds. rewrite H7. simpl.
+              unfold typeof_pred. rewrite all2_map_1 in H8. eapply all2_impl. eauto. simpl.
+              intros. rewrite <- U.exprInstantiate_WellTyped in H12; eauto. }
+            generalize H10. eapply cancel_in_order_PureFacts in H10; eauto. intro.
+            eapply H in H13; eauto. intuition.
+            rewrite H13.
+            do 2 rewrite SEP_UFACTS.impuresD_forget_impuresInstantiate by eassumption.
+            Lemma impuresD_mmap_add : forall cs U G f args m,
+              heq funcs preds U G cs 
+                (SH.impuresD pcType stateType (MM.mmap_add f args m))
+                (Star (Func f args) (SH.impuresD pcType stateType m)).
+            Proof. clear.
+              intros. unfold MM.mmap_add. consider (FM.find (elt:=list (exprs types)) f m); intros.
+              { rewrite SH.impuresD_Add with (f := f) (argss := args :: l) (i := FM.remove f m).
+                rewrite starred_cons. 
+                rewrite SH.impuresD_Add with (f := f) (argss := l) (i := FM.remove f m) (i' := m).
+                heq_canceler.
+                intro. repeat (rewrite MF.FACTS.add_o || rewrite MF.FACTS.remove_o). destruct (MF.FACTS.eq_dec f y); subst; auto.
+                rewrite MF.FACTS.remove_in_iff. intro. intuition; congruence.
+                intro. repeat (rewrite MF.FACTS.add_o || rewrite MF.FACTS.remove_o). destruct (MF.FACTS.eq_dec f y); subst; auto.
+                rewrite MF.FACTS.remove_in_iff. intro. intuition; congruence. }
+              { rewrite SH.impuresD_Add with (f := f) (argss := args :: nil) (i := m).
+                rewrite starred_cons. 
+                heq_canceler.
+                intro. repeat (rewrite MF.FACTS.add_o || rewrite MF.FACTS.remove_o). destruct (MF.FACTS.eq_dec f y); subst; auto.
+                intro. destruct H0. apply MF.FACTS.find_mapsto_iff in H0; congruence. }
+            Qed.
+            rewrite impuresD_mmap_add. rewrite Func_forget_exprInstantiate by eassumption.
+            rewrite heq_star_comm with (Q := SH.starred
+              (fun v : list (expr types) * func =>
+                Func (snd v) (map (U.exprInstantiate S) (fst v))) ls Emp).
+            repeat rewrite heq_star_assoc. reflexivity.
+          Qed.
+          eapply cancel_in_order_common in H11; eauto. }
+        { eapply cancel_in_order_common in H10; eauto. } }
+    Qed.
 
     Lemma fold_left_insert_perm : forall e a k,
       Permutation.Permutation (map (fun x => (x,k)) e ++ a)
@@ -815,30 +856,88 @@ Module Make (U : SynUnifier) (SH : SepHeap).
        {| SH.impures := rf ; SH.pures := SH.pures r ; SH.other := SH.other r |},
        sub).
 
+    Lemma starred_ext : forall T U G cs F F' (ls : list T) B,
+      (forall x, heq funcs preds U G cs (F x) (F' x)) -> 
+      heq funcs preds U G cs (SH.starred F ls B) (SH.starred F' ls B).
+    Proof. clear.
+      induction ls; intros; repeat (rewrite starred_nil || rewrite starred_cons).
+      reflexivity. rewrite H. rewrite IHls; auto. reflexivity.
+    Qed.
+
+    Lemma Equiv_map : forall T (E : T -> T -> Prop) (F : T -> T) a,
+      (forall x, E (F x) x) ->
+      FM.Equiv E (FM.map F a) a.
+    Proof. clear.
+      red; intros. split; intros.
+      rewrite MF.PROPS.F.map_in_iff. tauto.
+      apply MF.FACTS.map_mapsto_iff in H0. destruct H0. intuition; subst.
+      apply MF.FACTS.find_mapsto_iff in H1. apply MF.FACTS.find_mapsto_iff in H3. 
+      rewrite H1 in H3; inversion H3; auto.
+    Qed.
+
     Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub,
+      U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
+      SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) l = true ->
+      SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) r = true ->
       Valid Prover_correct U G summ ->
       sepCancel bound summ l r = (l', r', sub) ->
       himp funcs preds U G cs (SH.sheapD l') (SH.sheapD r') ->
       U.Subst_equations funcs U G sub ->
       himp funcs preds U G cs (SH.sheapD l) (SH.sheapD r).
     Proof.
-      clear. destruct l; destruct r. unfold sepCancel. simpl.
-      intros.
+      destruct l; destruct r. unfold sepCancel. simpl. intros.
       repeat match goal with 
                | [ H : (let (x,y) := ?X in _) = _ |- _ ] => 
                  revert H; case_eq X; intros
                | [ H : prod _ _ |- _ ] => destruct H
                | [ H : (_,_) = (_,_) |- _ ] => inversion H; clear H; subst
              end.
-      repeat rewrite SH.sheapD_def in H1; simpl in *.
-      eapply cancel_in_orderOk with (cs := cs) (U := U) (G := G) in H0;
+      do 2 rewrite SH.sheapD_def. simpl.
+      eapply cancel_in_orderOk with (cs := cs) (U := U) (G := G) 
+        (P := Star (SH.starred (SH.SE.Inj (stateType:=stateType)) pures SH.SE.Emp)
+                   (SH.starred (SH.SE.Const (stateType:=stateType)) other SH.SE.Emp)) 
+        (Q := Star (SH.starred (SH.SE.Inj (stateType:=stateType)) pures0 SH.SE.Emp)
+                   (SH.starred (SH.SE.Const (stateType:=stateType)) other0 SH.SE.Emp)) in H3;
         eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs, U.Subst_empty_WellTyped.
+      { clear H4.
+        do 2 rewrite impuresD_forget_impuresInstantiate in H3 by eassumption. 
+        rewrite SH.impuresD_Empty with (i := MM.empty _) in H3.
+        rewrite starred_ext with (ls := order_impures impures0) in H3. 2: intro; apply Func_forget_exprInstantiate; auto.
+        rewrite SH.impuresD_Equiv with (b := impures) in H3.
+        rewrite H3. repeat rewrite heq_star_assoc. apply himp_star_frame.
+        rewrite <- order_impures_D. reflexivity.
+        rewrite heq_star_emp_l. reflexivity.
+
+        red.
+        symmetry. erewrite Equiv_map. reflexivity. intros.
+        
+
+
+          eapply H.
+          SearchAbout FM.map.
+          SearchAbout FM.In.
+          
+        
+        SearchAbout order_impures.
+
+
+
+      rewrite <- order_impures_D in H3.
+      rewrite heq_star_emp_r in H3. rewrite <- H3.
+
+
+      Focus 5.
+      do 2 (rewrite SH.sheapD_def in H4; simpl in H4). 
+      do 2 rewrite impuresD_forget_impuresInstantiate by eassumption. eapply H4.
+      
+      SH.
       2: rewrite <- impuresD_forget_impuresInstantiate with (h := m0) in H1 by eassumption;
-         rewrite <- impuresD_forget_impuresInstantiate with (h := m) in H1 by eassumption; eassumption.
+         rewrite <- impuresD_forget_impuresInstantiate with (h := m) in H1 by eassumption.
+           ,; eassumption.
       clear H1.
       do 2 rewrite SH.sheapD_def; simpl.
       
-    Admitted.
+    Qed.
 
   End env.
 
