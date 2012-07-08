@@ -1015,7 +1015,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       Expr.lookupAs
       SEP.SDenotation SEP.SDomain
       EquivDec.nat_eq_eqdec  
-      SH.sheapD (* SEP.sepCancel *) (* symbolic evaluation doesn't need cancelation **)
+      SH.sheapD 
       SH.star_SHeap (*SEP.unify_remove_all*)
       SepHeap.MM.mmap_join SH.liftSHeap SH.starred 
       Expr.tvarD 

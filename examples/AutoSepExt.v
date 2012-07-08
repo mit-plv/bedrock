@@ -7,6 +7,7 @@ Import TacPackIL.
 Require Bedrock.sep.PtsTo.
 Require Export Bedrock.sep.Array Bedrock.sep.Locals.
 Require Bedrock.provers.LocalsProver.
+Require Import Provers.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.

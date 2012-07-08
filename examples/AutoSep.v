@@ -240,7 +240,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.openForUnification 
          UNF.quant
          UNF.liftInstantiate
-         UNF.applySHeap
+         SH.applySHeap
          UNF.applicable UNF.checkAllInstantiated
 
 
@@ -293,6 +293,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Provers **)
          Provers.ComboProver
 
+(*
          (** TransitivityProver **)
          provers.TransitivityProver.transitivitySummarize 
          provers.TransitivityProver.transitivityLearn
@@ -305,6 +306,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.TransitivityProver.in_seq 
          provers.TransitivityProver.groupWith
          provers.TransitivityProver.transitivityProver
+*)
 
          (** AssumptionProver **)
          provers.AssumptionProver.assumptionProver 
@@ -370,7 +372,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepHeap **)
          SH.impures SH.pures SH.other
-         SH.liftSHeap SH.sheapSubstU
+         SH.liftSHeap UNF.HEAP_FACTS.sheapSubstU
          SH.starred SH.hash 
          SH.star_SHeap 
          SH.SHeap_empty 
@@ -392,6 +394,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.expr_size
 
          ILTac.canceller
+         ILTac.substInEnv ILTac.existsMaybe ILTac.existsSubst
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -610,7 +613,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          UNF.openForUnification 
          UNF.quant
          UNF.liftInstantiate
-         UNF.applySHeap
+         SH.applySHeap
          UNF.find UNF.default_hintsPayload
          UNF.applicable UNF.checkAllInstantiated
 
@@ -663,6 +666,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Provers **)
          Provers.ComboProver
 
+(*
          (** TransitivityProver **)
          provers.TransitivityProver.transitivitySummarize 
          provers.TransitivityProver.transitivityLearn
@@ -675,6 +679,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.TransitivityProver.in_seq 
          provers.TransitivityProver.groupWith
          provers.TransitivityProver.transitivityProver
+*)
 
          (** AssumptionProver **)
          provers.AssumptionProver.assumptionProver 
@@ -743,7 +748,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
          (** SepHeap **)
          SH.impures SH.pures SH.other
-         SH.liftSHeap SH.sheapSubstU
+         SH.liftSHeap UNF.HEAP_FACTS.sheapSubstU
          SH.starred SH.hash 
          SH.star_SHeap 
          SH.SHeap_empty 
@@ -765,6 +770,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CANCEL.expr_size
           
          ILTac.canceller
+         ILTac.substInEnv ILTac.existsMaybe ILTac.existsSubst
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort

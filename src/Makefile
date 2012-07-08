@@ -1,4 +1,5 @@
-PROVERS := Assumption Reflexivity Transitivity Word
+PROVERS := Assumption Reflexivity Word
+#  Transitivity
 MODULES    := HintlessOrderedType HintlessFMapInterface \
 	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
 	Reflection Tactics ListFacts \
