@@ -5,8 +5,8 @@ Require Import AutoSep Malloc Bags.
 
 Definition ifZero (n : nat) (p1 p2 : W) := n = 0 -> p1 = p2.
 
-Definition focusOnFront := True.
-Definition focusOnBack := True.
+Inductive focusOnFront : Prop := FF.
+Inductive focusOnBack : Prop := FB.
 
 Module Type QUEUE.
   Parameter queue : bag -> W -> HProp.
@@ -33,34 +33,45 @@ Module Type QUEUE.
     (Ex fr, Ex ba, Ex n, [| freeable p 2 |] * (p ==*> fr, ba) * llist b n fr ba)
     ===> queue b p.
 
-  Axiom llist_empty_fwd_fr : forall b n (fr : W) ba,
+  Axiom llist_empty_fwd : forall b n (fr : W) ba,
     fr = 0
     -> llist b n fr ba ===> [| b %= empty |] * [| n = O |].
 
-  Axiom llist_empty_bwd_fr : forall b n (fr : W) ba,
+  Axiom llist_empty_bwd : forall b n (fr : W) ba,
     fr = 0
     -> [| b %= empty |] * [| n = O |] ===> llist b n fr ba.
 
-  Axiom llist_nonempty_fwd_fr : forall ba n (fr : W) b,
+  Axiom llist_nonempty_fwd : forall ba n (fr : W) b,
     fr <> 0
     -> focusOnFront
     -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |] * [| freeable fr 3 |] * (fr ==*> v1, v2, p) * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
 
-  Axiom llist_nonempty_fwd_ba : forall ba n (fr : W) b,
+  Axiom llist_end_fwd : forall ba n (fr : W) b,
     fr <> 0
     -> focusOnBack
-    -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, [| n = S n' |] * [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n' fr ba * (ba ==*> v1, v2, $0).
+    -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, [| n = S n' |] * [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n' fr ba * [| ba <> 0 |] * [| freeable ba 3 |] * (ba ==*> v1, v2, $0).
 
   Axiom llist_nonempty_fwd_b : forall b n fr ba,
     ~(b %= empty)
+    -> focusOnFront
     -> llist b n fr ba ===> [| fr <> 0 |] * Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |]
       * (fr ==*> v1, v2, p) * [| freeable fr 3 |] * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
 
-  Axiom llist_nonempty_bwd_fr : forall b n (fr ba : W),
+  Axiom llist_nonempty_bwd : forall b n (fr ba : W),
     fr <> 0
     -> focusOnFront
     -> (Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |] 
       * (fr ==*> v1, v2, p) * [| freeable fr 3 |] * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba) ===> llist b n fr ba.
+
+  Axiom llist_end_bwd : forall (ba : W) n (fr : W) b,
+    fr <> 0
+    -> focusOnBack
+    -> (Ex v1, Ex v2, Ex v1', Ex v2', Ex n', Ex p,
+      [| n = S (S n') |] * [| (v1', v2') %in b |] * [| (v1, v2) %in b %- (v1', v2')|]
+      * lseg (b %- (v1, v2) %- (v1', v2')) n' fr p
+      * [| p <> 0 |] * [| freeable p 3 |] * (p ==*> v1, v2, ba)
+      * [| ba <> 0 |] * [| freeable ba 3 |] * (ba ==*> v1', v2', $0))
+    ===> llist b n fr ba.
 End QUEUE.
 
 Module Queue : QUEUE.
@@ -117,47 +128,51 @@ Module Queue : QUEUE.
     unfold queue; sepLemma.
   Qed.
 
-  Theorem llist_empty_fwd_fr : forall b n (fr : W) ba,
+  Theorem llist_empty_fwd : forall b n (fr : W) ba,
     fr = 0
     -> llist b n fr ba ===> [| b %= empty |] * [| n = O |].
     destruct n; sepLemma.
   Qed.
 
-  Theorem llist_empty_bwd_fr : forall b n (fr : W) ba,
+  Theorem llist_empty_bwd : forall b n (fr : W) ba,
     fr = 0
     -> [| b %= empty |] * [| n = O |] ===> llist b n fr ba.
     destruct n; sepLemma.
   Qed.
 
-  Theorem llist_nonempty_fwd_fr : forall ba n (fr : W) b,
+  Theorem llist_nonempty_fwd : forall ba n (fr : W) b,
     fr <> 0
     -> focusOnFront
     -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |] * [| freeable fr 3 |] * (fr ==*> v1, v2, p) * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
     destruct n; sepLemma.
   Qed.
 
-  Theorem llist_nonempty_fwd_ba : forall ba n (fr : W) b,
+  Ltac sepLemmaLhsOnly :=
+    let sllo Q := remember Q;
+      match goal with
+        | [ H : ?X = Q |- _ ] => let H' := fresh in
+          assert (H' : bool -> X = Q) by (intro; assumption);
+            clear H; rename H' into H;
+              sepLemma; rewrite (H true); clear H
+      end in
+    simpl; intros;
+      match goal with
+        | [ |- _ ===> ?Q ] => sllo Q
+        | [ |- himp _ _ ?Q ] => sllo Q
+      end.
+
+  Theorem llist_end_fwd : forall ba n (fr : W) b,
     fr <> 0
     -> focusOnBack
-    -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, [| n = S n' |] * [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n' fr ba * (ba ==*> v1, v2, $0).
+    -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, [| n = S n' |] * [| (v1, v2) %in b |] * lseg (b %- (v1, v2)) n' fr ba * [| ba <> 0 |] * [| freeable ba 3 |] * (ba ==*> v1, v2, $0).
     induction n.
 
     sepLemma.
 
-    simpl; intros.
-    match goal with
-      | [ |- _ ===> ?Q ] => remember Q;
-        match goal with
-          | [ H : ?X = Q |- _ ] => let H' := fresh in
-            assert (H' : bool -> X = Q) by (intro; assumption);
-              clear H; rename H' into H
-        end
-    end.
-    sepLemma.
+    sepLemmaLhsOnly.
     destruct n.
-    rewrite (Heqh true); sepLemma.
-    eauto.
     specialize (H4 (refl_equal _)); subst.
+    sepLemma.
     sepLemma.
     clear H4.
     transitivity ([| x <> 0 |] * llist (b %- (x1, x0)) (S n) x ba *
@@ -165,10 +180,9 @@ Module Queue : QUEUE.
         (SEP.ST.star ((fr ^+ $4) =*> x0) ((fr ^+ $8) =*> x))).
     sepLemma.
     remember (S n).
-    sepLemma.
+    sepLemmaLhsOnly.
     etransitivity.
     eapply himp_star_frame; [ auto | reflexivity ].
-    rewrite (Heqh true).
     sepLemma.
     sepLemma.
     injection H4; clear H4; intros; subst.
@@ -177,12 +191,13 @@ Module Queue : QUEUE.
 
   Theorem llist_nonempty_fwd_b : forall b n (fr : W) ba,
     ~(b %= empty)
+    -> focusOnFront
     -> llist b n fr ba ===> [| fr <> 0 |] * Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |]
       * (fr ==*> v1, v2, p) * [| freeable fr 3 |] * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
     destruct n; sepLemma.
   Qed.
 
-  Theorem llist_nonempty_bwd_fr : forall b n (fr ba : W),
+  Theorem llist_nonempty_bwd : forall b n (fr ba : W),
     fr <> 0
     -> focusOnFront
     -> (Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |]
@@ -190,6 +205,50 @@ Module Queue : QUEUE.
     destruct n; sepLemma; match goal with
                             | [ H : S _ = S _ |- _ ] => injection H; intros; subst
                           end; auto; sepLemma.
+  Qed.
+
+  Lemma llist_end_bwd' : forall (ba : W) n (fr : W) b,
+    (Ex v1, Ex v2, Ex v1', Ex v2', Ex n', Ex p,
+      [| n = S (S n') |] * [| (v1', v2') %in b |] * [| (v1, v2) %in b %- (v1', v2')|]
+      * lseg (b %- (v1, v2) %- (v1', v2')) n' fr p
+      * [| p <> 0 |] * [| freeable p 3 |] * (p ==*> v1, v2, ba)
+      * [| ba <> 0 |] * [| freeable ba 3 |] * (ba ==*> v1', v2', $0))
+    ===> llist b n fr ba.
+    induction n.
+
+    sepLemma.
+
+    destruct n.
+    sepLemma.
+
+    destruct n.
+    sepLemmaLhsOnly.
+    injection H; clear H; intros; subst.
+    sepLemmaLhsOnly.
+    sepLemma.
+
+    remember (S (S n)).
+    sepLemmaLhsOnly.
+    remember (S (S n)).
+    replace x0 with (S n) by omega.
+    sepLemmaLhsOnly.
+    remember (S (S n)).
+    sepLemma.
+    etransitivity; try apply IHn.
+    sepLemma.
+    apply lseg_extensional'; bags.
+  Qed.
+
+  Theorem llist_end_bwd : forall (ba : W) n (fr : W) b,
+    fr <> 0
+    -> focusOnBack
+    -> (Ex v1, Ex v2, Ex v1', Ex v2', Ex n', Ex p,
+      [| n = S (S n') |] * [| (v1', v2') %in b |] * [| (v1, v2) %in b %- (v1', v2')|]
+      * lseg (b %- (v1, v2) %- (v1', v2')) n' fr p
+      * [| p <> 0 |] * [| freeable p 3 |] * (p ==*> v1, v2, ba)
+      * [| ba <> 0 |] * [| freeable ba 3 |] * (ba ==*> v1', v2', $0))
+    ===> llist b n fr ba.
+    intros; apply llist_end_bwd'.
   Qed.
 End Queue.
 
@@ -199,8 +258,8 @@ Export Queue.
 Hint Immediate llist_extensional lseg_extensional queue_extensional.
 
 Definition hints : TacPackage.
-  prepare (queue_fwd, llist_empty_fwd_fr, llist_nonempty_fwd_fr, llist_nonempty_fwd_ba, llist_nonempty_fwd_b)
-  (queue_bwd, llist_empty_bwd_fr, llist_nonempty_bwd_fr).
+  prepare (queue_fwd, llist_empty_fwd, llist_nonempty_fwd, llist_end_fwd, llist_nonempty_fwd_b)
+  (queue_bwd, llist_empty_bwd, llist_nonempty_bwd, llist_end_bwd).
 Defined.
 
 
@@ -246,6 +305,8 @@ Definition queueM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @
     } else {
       (* Nonempty queue *)
 
+      "tmp" <- "b" + 4;;
+      "tmp" <-* "tmp";;
       "tmp" <- "tmp" + 8;;
       "tmp" *<- "r"
     };;
@@ -288,141 +349,24 @@ Local Hint Extern 1 (himp _ (llist _ _ _ _) (llist _ _ _ _)) => apply llist_exte
 
 Ltac choose E := assert E by constructor.
 
+Ltac chooser :=
+  match goal with
+    | [ _ : context[_ %+ _],
+        _ : evalInstrs _ _ (Binop _ _ Plus (RvImm (natToW 4))
+          :: Assign (LvReg Rv) _
+          :: Assign _ (RvLval (LvMem (Reg Rv)))
+          :: _) = _
+        |- _ ] => choose focusOnBack
+    | _ => choose focusOnFront
+ end.
+
+Ltac combined :=
+  match goal with
+    | [ |- context[Assign (LvMem (Indir Sp (natToW 0))) (RvLval (LvReg Rp)) :: nil] ] =>
+      sep' auto_ext (* Easy case; standard automation suffices *)
+    | _ => post; chooser; sep hints; auto
+  end.
+
 Theorem queueMOk : moduleOk queueM.
-  vcgen.
-
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  auto.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  choose focusOnFront; sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-
-  Focus.
-  choose focusOnFront.
-  post.
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  auto.
-  descend.
-  step hints.
-
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  choose focusOnFront; sep hints.
-  choose focusOnBack; sep hints.
-
-  choose focusOnBack.
-  post.
-
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-
-  (** Important (but unprovable-looking) remaining hint:
-   himp specs
-     (llist (x3 %- (x15, x14)) x16 x13 x11 *
-      SEP.ST.star (x12 =*> x15)
-        (SEP.ST.star (Regs x2 Rv =*> sel x5 "v1")
-           (SEP.ST.star ((x12 ^+ 4) =*> x14)
-              (SEP.ST.star ((x12 ^+ 8) =*> Regs x2 Rv)
-                 (SEP.ST.star ((Regs x2 Rv ^+ 8) =*> 0)
-                    ((Regs x2 Rv ^+ 4) =*> sel x5 "v2"))))))%Sep
-     (llist (x3 %+ (sel x5 "v1", sel x5 "v2")) ?923782 x12 (Regs x2 Rv)) *)
-  instantiate (1 := O).
-  admit.
-
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  
-  choose focusOnFront.
-  post.
-
-  evaluate hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  descend.
-  step hints.
-  auto.
-  descend.
-  step hints.
-  descend.
-  step hints.
-
-  (* Ran out of RAM at this point and had to check this case in a separate run. *)
-  admit.
-
-  sep hints.
-  sep hints.
-  sep hints.
+  vcgen; abstract combined.
 Qed.
