@@ -569,7 +569,7 @@ Section apply_stream_correctness.
     let vars := gatherEx qs_env in
     (** initial unfolding **)
     let (ss,qs) := unfolder prover uvars vars ss facts new_pures in
-    @sym_evalStream _ prover meval unfolder facts path (appendQ qs qs_env) (uvars ++ gatherAll qs) (vars ++ gatherEx qs) ss.
+    @sym_evalStream _ prover meval unfolder facts path (appendQ qs qs_env) (uvars ++ gatherAll qs) (vars ++ gatherEx qs) ss. 
 
   Lemma stateD_AllProvable_pures : forall meta_env vars stn_st ss cs,
     stateD funcs preds meta_env vars cs stn_st ss ->
@@ -725,7 +725,193 @@ Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
  **     (this should be implmented using [cbv beta iota zeta delta [ ... ] in H])
  **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
  **)
+Add ML Path "reification". 
+Declare ML Module "extlib".
+Declare ML Module "reif". 
 Ltac sym_eval isConst ext simplifier :=
+(*TIME  start_timer "sym_eval:init" ; *)
+  let rec init_from st :=
+    match goal with
+      | [ H : evalInstrs _ ?st' _ = Some st |- _ ] => init_from st'
+      | [ |- _ ] => st
+    end
+  in          
+  let shouldReflect P :=
+    match P with
+      | evalInstrs _ _ _ = _ => false
+      | Structured.evalCond _ _ _ _ _ = _ => false
+      | @PropX.interp _ _ _ _ => false
+      | @PropX.valid _ _ _ _ _ => false
+      | @eq ?X _ _ => 
+        match X with
+          | context [ PropX.PropX ] => false
+          | context [ PropX.spec ] => false
+        end
+      | forall x, _ => false
+      | exists x, _ => false
+      | _ => true
+    end
+  in
+  let cs :=
+    match goal with
+      | [ H : codeSpec _ _ |- _ ] => H
+    end
+  in
+    let finish H  :=
+        (*TIME                      start_timer "sym_eval:cleanup" ; *)
+        ((try exact H) 
+           ||
+           (let rec destruct_exs H :=
+                match type of H with
+                  | Logic.ex _ =>
+                      destruct H as [ ? H ] ; destruct_exs H
+                  | forall x : ?T, _ =>
+                      let n := fresh in
+                        evar (n : T); 
+                      let e := eval cbv delta [ n ] in n in 
+                        specialize (H e)                             
+                  | (_ /\ (_ /\ _)) /\ (_ /\ _) =>
+                      destruct H as [ [ ? [ ? ? ] ] [ ? ? ] ];
+                      repeat match goal with
+                               | [ H' : _ /\ _ |- _ ] => destruct H'
+                             end
+                  | ?G =>
+                      idtac(*fail 100000 "bad result goal" G *)
+                end
+            in let fresh Hcopy := fresh "Hcopy" in
+                 let T := type of H in
+                   assert (Hcopy : T) by apply H; clear H; destruct_exs Hcopy))
+    (*TIME                    ;  stop_timer "sym_eval:cleanup" *)
+    in
+      
+  let reduce_repr sym ls :=
+    match sym with
+      | tt =>
+        eval cbv beta iota zeta delta [ 
+          ext
+          repr_combine listToRepr listOptToRepr nil_Repr
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
+          tl map repr
+          ILAlgoTypes.PACK.CE.core
+          bedrock_types_r bedrock_funcs_r
+          TacPackIL.ILAlgoTypes.Env
+        ] in ls
+      | _ => 
+        eval cbv beta iota zeta delta [
+          sym ext
+          repr_combine listToRepr listOptToRepr nil_Repr
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs
+          ILAlgoTypes.PACK.applyPreds
+
+          map tl repr
+          ILAlgoTypes.PACK.CE.core
+          bedrock_types_r bedrock_funcs_r
+          TacPackIL.ILAlgoTypes.Env
+        ] in ls
+    end
+  in
+  let ext' := 
+    match ext with
+      | _ => eval cbv delta [ ext ] in ext
+      | _ => ext
+    end
+  in
+  let stn_st_SF :=
+    match goal with
+      | [ H : interp _ (![ ?SF ] ?X) |- _ ] => 
+        let SF := eval unfold empB, injB, injBX, starB, exB, hvarB in SF in
+        constr:((X, (SF, H)))
+      | [ H : Structured.evalCond _ _ _ ?stn ?st = _ |- _ ] => 
+        let st := init_from st in
+        constr:(((stn, st), tt))
+      | [ H : IL.evalInstrs ?stn ?st _ = _ |- _ ] =>
+        let st := init_from st in
+        constr:(((stn, st), tt))
+      | [ |- _ ] => tt
+    end
+  in
+  let types := reduce_repr tt (ILAlgoTypes.PACK.applyTypes (TacPackIL.ILAlgoTypes.Env ext) nil) in
+  let funcs := reduce_repr tt (ILAlgoTypes.PACK.applyFuncs (TacPackIL.ILAlgoTypes.Env ext) types (repr (bedrock_funcs_r types) nil)) in
+  let preds := reduce_repr tt (ILAlgoTypes.PACK.applyPreds (TacPackIL.ILAlgoTypes.Env ext) types nil) in
+  let all_props := ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect) in 
+  let pures := all_props in 
+  match stn_st_SF with
+    | tt => idtac (* nothing to symbolically evluate *)
+    | ((?stn, ?st), tt) => 
+      match find_reg st Rp with
+        | (?rp_v, ?rp_pf) => 
+          match find_reg st Sp with
+            | (?sp_v, ?sp_pf) => 
+              match find_reg st Rv with
+                | (?rv_v, ?rv_pf) => 
+                    let k :=
+                        (fun types funcs uvars preds rp sp rv is isP fin pures proofs => 
+                           (*TIME       stop_timer "sym_eval:reify" ; *)
+
+                        generalize (@stateD_proof_no_heap types funcs preds
+                                             uvars st sp rv rp 
+                                             sp_pf rv_pf rp_pf 
+                                             pures proofs cs stn);
+                          let H_stateD := fresh in
+                          intro H_stateD ;
+                          ((apply (@Apply_sym_eval types funcs preds
+                            (@ILAlgoTypes.Algos ext types) (@ILAlgoTypes.Algos_correct ext types funcs preds)
+                            stn uvars fin st is isP) in H_stateD)
+                             || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"); 
+                          first [ simplifier types funcs preds H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
+                          try clear types funcs preds ;
+                          first [ finish H_stateD (*; clear_instrs all_instrs*) | fail 100000 "finisher failed! (non-SF)" ]
+                        )                         
+                    in
+                      (*TIME       start_timer "sym_eval:reify"; *)
+
+                    (sym_eval_nosep   types funcs preds pures rp_v sp_v rv_v st k) || fail 10000 "sym_eval_nosep failed"
+              end
+          end
+      end
+    | ((?stn, ?st), (?SF, ?H_interp)) =>
+        match find_reg st Rp with
+          | (?rp_v, ?rp_pf) =>
+              match find_reg st Sp with
+                | (?sp_v, ?sp_pf) =>
+                    match find_reg st Rv with
+                      | (?rv_v, ?rv_pf) =>                         
+                        let k := (fun types funcs uvars preds rp sp rv is isP fin pures proofs SF => 
+                           (*TIME       stop_timer "sym_eval:reify" ; *)
+                                    
+                                    
+                                apply (@stateD_proof types funcs preds
+                                        uvars _ sp rv rp 
+                                        sp_pf rv_pf rp_pf pures proofs SF _ _ (refl_equal _)) in H_interp ;
+                                  ((apply (@Apply_sym_eval types funcs preds
+                                            (@ILAlgoTypes.Algos ext types) (@ILAlgoTypes.Algos_correct ext types funcs preds)
+                                        stn uvars fin st is isP) in H_interp) 
+                                  ) ;
+                            first [ simplifier types funcs preds H_interp | fail 100000 "simplifier failed! (SF)" ] ;
+                            try clear types funcs preds ;
+                            first [ finish H_interp (* ; clear_instrs all_instrs *) | fail 100000 "finisher failed! (SF)" ])
+                        in                         (*TIME       start_timer "sym_eval:reify" ; *)
+                          (sym_eval_sep  types funcs preds pures rp_v sp_v rv_v st SF k) || fail 10000  "bad enough"
+                    end                      
+              end
+        end
+    | ?X => idtac X ; fail 100000 "bad"
+  end. 
+
+
+(** NOTE:
+ ** - [isConst] is an ltac function of type [* -> bool]
+ ** - [ext] is the extension. it is a value of type [TypedPackage]
+ ** - [simplifier] is an ltac that takes a hypothesis names and simplifies it
+ **     (this should be implmented using [cbv beta iota zeta delta [ ... ] in H])
+ **     (it is recommended/necessary to call [sym_evaluator] or import its simplification)
+ **)
+Ltac sym_eval_base isConst ext simplifier :=
 (*TIME  start_timer "sym_eval:init" ; *)
   let rec init_from st :=
     match goal with

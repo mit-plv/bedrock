@@ -465,7 +465,8 @@ Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
  ** - [simplifier] is an ltac that simplifies the goal after the cancelation, it is passed
  **   constr:(tt).
  **)
-Ltac sep_canceler isConst ext simplifier :=
+
+Ltac sep_canceler_base isConst ext simplifier :=
 (*TIME  start_timer "sep_canceler:change_to_himp" ; *)
   (try change_to_himp) ;
 (*TIME  stop_timer "sep_canceler:change_to_himp" ; *)
@@ -613,6 +614,111 @@ Ltac sep_canceler isConst ext simplifier :=
         ))))))
     | [ |- ?G ] => 
       idtac "no match" G 
+  end.
+
+Add ML Path "reification". 
+Declare ML Module "extlib".
+Declare ML Module "reif". 
+
+Ltac sep_canceler isConst ext simplifier :=
+(*TIME  start_timer "sep_canceler:change_to_himp" ; *)
+  (try change_to_himp) ;
+(*TIME  stop_timer "sep_canceler:change_to_himp" ; *)
+(*TIME  start_timer "sep_canceler:init" ; *)
+  let ext' := 
+    match ext with
+      | tt => eval cbv delta [ ILAlgoTypes.BedrockPackage.bedrock_package ] in ILAlgoTypes.BedrockPackage.bedrock_package
+      | _ => eval cbv delta [ ext ] in ext
+      | _ => ext
+    end
+  in
+  let shouldReflect P :=
+    match P with
+      | evalInstrs _ _ _ = _ => false
+      | Structured.evalCond _ _ _ _ _ = _ => false
+      | @PropX.interp _ _ _ _ => false
+      | @PropX.valid _ _ _ _ _ => false
+      | @eq ?X _ _ => 
+        match X with
+          | context [ PropX.PropX ] => false
+          | context [ PropX.spec ] => false
+        end
+      | forall x, _ => false
+      | exists x, _ => false
+      | _ => true
+    end
+  in
+  let reduce_repr ls :=
+    match ls with
+      | _ => 
+        eval cbv beta iota zeta delta [
+          ext
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs 
+          ILAlgoTypes.PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+
+          Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
+          BedrockCoreEnv.core 
+          ILAlgoTypes.Env
+          tl map
+          bedrock_types_r bedrock_funcs_r
+        ] in ls
+      | _ => 
+        eval cbv beta iota zeta delta [
+          ILAlgoTypes.PACK.applyTypes
+          ILAlgoTypes.PACK.applyFuncs 
+          ILAlgoTypes.PACK.applyPreds
+          ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
+          
+          Env.repr Env.listToRepr Env.repr_combine Env.listOptToRepr Env.nil_Repr
+          BedrockCoreEnv.core
+          ILAlgoTypes.Env
+          tl map
+          bedrock_types_r bedrock_funcs_r
+        ] in ls
+    end
+  in
+  match goal with 
+    | [ |- himp ?cs ?L ?R ] =>
+  let types := reduce_repr (ILAlgoTypes.PACK.applyTypes (TacPackIL.ILAlgoTypes.Env ext) nil) in
+  let funcs := reduce_repr (ILAlgoTypes.PACK.applyFuncs (TacPackIL.ILAlgoTypes.Env ext) types (Env.repr (bedrock_funcs_r types) nil)) in
+  let preds := reduce_repr (ILAlgoTypes.PACK.applyPreds (TacPackIL.ILAlgoTypes.Env ext) types nil) in
+  let all_props := ReifyExpr.collect_props ltac:(SEP_REIFY.reflectable shouldReflect) in 
+  let pures := all_props in 
+  
+  let L := eval unfold empB, injB, injBX, starB, exB, hvarB in L in
+  let R := eval unfold empB, injB, injBX, starB, exB, hvarB in R in   
+      let k :=
+            (fun types funcs uvars preds L R pures proofs => 
+               (*TIME         stop_timer "sep_canceler:reify" *)
+
+               ((** TODO: for some reason the partial application to proofs doesn't always work... **)
+                 apply (@ApplyCancelSep types funcs preds
+                         (ILAlgoTypes.Algos ext types)
+                         (@ILAlgoTypes.Algos_correct ext types funcs preds) uvars pures L R); 
+                [ apply proofs | reflexivity| ]                 
+               (*TIME       ;  stop_timer "sep_canceler:apply_CancelSep" *)
+               )
+                 || (idtac "failed to apply, generalizing instead!" ;
+                    let algos := constr:(ILAlgoTypes.Algos ext types) in
+                    let algosC := constr:(@ILAlgoTypes.Algos_correct ext types funcs preds) in 
+                    generalize (@ApplyCancelSep types funcs preds algos algosC uvars pures L R));
+                 
+             (*TIME          start_timer "sep_canceler:simplify" ; *)
+           first [ simplifier types funcs preds tt | fail 100000 "canceler: simplifier failed" ] ;
+             (*TIME          stop_timer "sep_canceler:simplify" ; *)
+             (*TIME          start_timer "sep_canceler:clear" ; *)
+           try clear types funcs preds
+             (*TIME        ;  stop_timer "sep_canceler:clear"  *)
+             )
+      in
+        (*TIME         start_timer "sep_canceler:reify"; *)
+
+        (((sep_canceler_plugin types funcs preds pures L R k))
+          (* || fail 10000 "sep_canceler_plugin failed" *))
+    | [ |- ?G ] => 
+        idtac "no match" G 
   end.
 
 Definition smem_read stn := SepIL.ST.HT.smem_get_word (IL.implode stn).
