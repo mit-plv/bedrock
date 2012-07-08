@@ -864,7 +864,7 @@ Ltac evaluate ext :=
   SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext);
   clear_junk.
 
-Ltac cancel ext := sep_canceler ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
+Ltac cancel ext := sep_canceller ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
