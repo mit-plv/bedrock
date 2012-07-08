@@ -8,7 +8,6 @@ Require provers.WordProver.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(*
 (** * The Combo Prover **)
 Definition ComboProver : ProverPackage :=
 {| ProverTypes := bedrock_types_r
@@ -18,4 +17,3 @@ Definition ComboProver : ProverPackage :=
      (provers.ReflexivityProver.reflexivityProver_correct _))
    (provers.WordProver.wordProver_correct _)
 |}.
-*)
