@@ -203,7 +203,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       ret res.
 
     Module ProverPackTest.
-      Require Provers.
+      Require provers.ReflexivityProver.
       (** Test **)
       Goal TypedPackage.
         build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x => refine x).
@@ -440,6 +440,7 @@ Ltac opaque_pack pack :=
   end.
 
 Goal TypedPackage.
+  Require provers.ReflexivityProver.
   build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x => 
     build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
     glue_pack x y ltac:(opaque_pack))).
