@@ -639,19 +639,19 @@ Section canceller.
          |} =>
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
-          Expr.AllProvable_impl funcs meta_env var_env
-            (existsSubst funcs meta_env var_env subst 0 
-              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-               map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
-              (fun meta_env : Expr.env types =>
+          (existsSubst funcs var_env subst 0 
+            (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
+             map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
+            (fun meta_env : Expr.env types =>
+              Expr.AllProvable_impl funcs meta_env var_env
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) ))
-            (SH.pures lhs'))
+                  (SH.pures rhs')) 
+            (SH.pures lhs')) ))
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
@@ -670,21 +670,21 @@ Section canceller.
          ; Rhs    := rhs'
          ; Subst  := subst
          |} =>
-        Expr.forallEach ((*rev*) new_vars) (fun nvs : Expr.env types =>
+        Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
-          Expr.AllProvable_impl funcs meta_env var_env
-            (existsSubst funcs meta_env var_env subst 0 
-              (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
-               map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
-              (fun meta_env : Expr.env types =>
+          (existsSubst funcs var_env subst 0 
+            (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
+             map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
+            (fun meta_env : Expr.env types =>
+              Expr.AllProvable_impl funcs meta_env var_env
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) ))
-            (SH.pures lhs'))
+                  (SH.pures rhs')) 
+            (SH.pures lhs')) ))
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
