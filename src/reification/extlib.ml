@@ -203,6 +203,7 @@ module Logic = struct
   let conj () = (init_constant path "conj") 
   let and_ () = (init_constant path "and") 
 
+  let exists () = (init_constant path "ex")
   let is_not t = match decomp_term t with 
     | Term.App (hd, args) -> 
       Term.eq_constr hd (Lazy.force _not) 

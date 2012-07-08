@@ -65,6 +65,7 @@ module Logic : sig
   val _not : Term.constr lazy_t
   val _false : Term.constr lazy_t
   val is_not : Term.constr -> bool
+  val exists : unit -> Term.constr
   val conj : unit -> Term.constr 
   val and_ : unit -> Term.constr 
   val get_body_not : Term.constr -> Term.constr 

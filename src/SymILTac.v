@@ -775,8 +775,9 @@ Ltac sym_eval isConst ext simplifier :=
                       repeat match goal with
                                | [ H' : _ /\ _ |- _ ] => destruct H'
                              end
+                  | False => destruct H
                   | ?G =>
-                      idtac(*fail 100000 "bad result goal" G *)
+                      fail 100000 "bad result goal" G 
                 end
             in let fresh Hcopy := fresh "Hcopy" in
                  let T := type of H in
@@ -1074,8 +1075,9 @@ Ltac sym_eval_base isConst ext simplifier :=
                                repeat match goal with
                                         | [ H' : _ /\ _ |- _ ] => destruct H'
                                       end
+                           | False => destruct H
                            | ?G =>
-                             idtac(*fail 100000 "bad result goal" G *)
+                             fail 100000 "bad result goal" G
                          end
                         in let fresh Hcopy := fresh "Hcopy" in
                           let T := type of H in
@@ -1200,7 +1202,7 @@ Ltac sym_evaluator sym1 sym2 sym3 H :=
       Expr.lookupAs
       SEP.SDenotation SEP.SDomain
       EquivDec.nat_eq_eqdec  
-      SH.sheapD (* SEP.sepCancel *) (* symbolic evaluation doesn't need cancelation **)
+      SH.sheapD 
       SH.star_SHeap (*SEP.unify_remove_all*)
       SepHeap.MM.mmap_join SH.liftSHeap SH.starred 
       Expr.tvarD 

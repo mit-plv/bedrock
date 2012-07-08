@@ -68,8 +68,7 @@ Hint Immediate sll_extensional.
 
 Definition hints : TacPackage.
 (*TIME idtac "sll:prepare". Time *)
-Time (* let auto_ext := eval cbv delta [ auto_ext ] in auto_ext in *)
-  prepare auto_ext tt tt (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
+  prepare (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
 (*TIME Time *)
 Defined.
 
@@ -79,68 +78,79 @@ Definition null A (ls : list A) : bool :=
     | _ => false
   end.
 
-Definition nullS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = null ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
+Definition nullS : spec := SPEC("x") reserving 0
+  Ex ls,
+  PRE[V] sll ls (V "x")
+  POST[R] [| R = null ls |] * sll ls (V "x").
 
-Definition lengthS : assert := st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = length ls |] /\ ![ ^[sll ls st#Rv] * #1 ] st').
+Definition lengthS : spec := SPEC("x") reserving 1
+  Ex ls,
+  PRE[V] sll ls (V "x")
+  POST[R] [| R = length ls |] * sll ls (V "x").
 
-Definition revS : assert := st ~> ExX, Ex a, Ex b, Ex ls, ![ (st#Sp ==*> a, b) * ^[sll ls st#Rv] * #0 ] st
-  /\ st#Rp @@ (st' ~> Ex a', Ex b', ![ (st#Sp ==*> a', b') * ^[sll (rev ls) st'#Rv] * #1 ] st').
+Definition revS : spec := SPEC("x") reserving 3
+  Ex ls,
+  PRE[V] sll ls (V "x")
+  POST[R] sll (rev ls) R.
 
-Definition appendS : assert := st ~> ExX, Ex p1, Ex p2, Ex c, Ex ls1, Ex ls2,
-  ![ (st#Sp ==*> p1, p2, c) * ^[sll ls1 p1] * ^[sll ls2 p2] * #0 ] st
-  /\ st#Rp @@ (st' ~> Ex a, Ex b, Ex c', ![ (st#Sp ==*> a, b, c') * ^[sll (ls1 ++ ls2) st'#Rv] * #1 ] st').
+Definition appendS : spec := SPEC("x", "y") reserving 2
+  Ex ls1, Ex ls2,
+  PRE[V] sll ls1 (V "x") * sll ls2 (V "y")
+  POST[R] sll (ls1 ++ ls2) R.
 
 Definition sllM := bmodule "sll" {{
-  bfunction "null" [nullS] {
-    If (Rv = 0) {
+  bfunction "null"("x") [nullS]
+    If ("x" = 0) {
       Return 1
     } else {
       Return 0
     }
-  } with bfunction "length" [lengthS] {
-    Sp <- 0;;
-    [st ~> ExX, Ex ls, ![ ^[sll ls st#Rv] * #0 ] st
-      /\ st#Rp @@ (st' ~> [| st'#Rv = st#Sp ^+ (length ls : W) |] /\ ![ ^[sll ls st#Rv] * #1 ] st')]
-    While (Rv <> 0) {
-      Sp <- Sp + 1;;
-      Rv <- $[Rv + 4]
+  end with bfunction "length"("x", "n") [lengthS]
+    "n" <- 0;;
+    [Ex ls,
+      PRE[V] sll ls (V "x")
+      POST[R] [| R = V "n" ^+ (length ls : W) |] * sll ls (V "x")]
+    While ("x" <> 0) {
+      "n" <- "n" + 1;;
+      "x" <- "x" + 4;;
+      "x" <-* "x"
     };;
-    Return Sp
-  } with bfunction "rev" [revS] {
-    $[Sp] <- 0;;
-    [st ~> ExX, Ex p, Ex b, Ex ls, Ex acc, ![ (st#Sp ==*> p, b) * ^[sll ls st#Rv] * ^[sll acc p] * #0 ] st
-      /\ st#Rp @@ (st' ~> Ex a, Ex b', Ex ls', [| ls' = rev_append ls acc |]
-        /\ ![ (st#Sp ==*> a, b') * ^[sll ls' st'#Rv] * #1 ] st')]
-    While (Rv <> 0) {
-      $[Sp+4] <- $[Rv+4];;
-      $[Rv + 4] <- $[Sp];;
-      $[Sp] <- Rv;;
-      Rv <- $[Sp+4]
+    Return "n"
+  end with bfunction "rev"("x", "acc", "tmp1", "tmp2") [revS]
+    "acc" <- 0;;
+    [Ex ls, Ex accLs,
+      PRE[V] sll ls (V "x") * sll accLs (V "acc")
+      POST[R] Ex ls', [| ls' = rev_append ls accLs |] * sll ls' R ]
+    While ("x" <> 0) {
+      "tmp2" <- "x";;
+      "tmp1" <- "x" + 4;;
+      "x" <-* "tmp1";;
+      "tmp1" *<- "acc";;
+      "acc" <- "tmp2"
     };;
-    Return $[Sp]
-  } with bfunction "append" [appendS] {
-    If ($[Sp] = 0) {
-      Return $[Sp+4]
+    Return "acc"
+  end with bfunction "append"("x", "y", "r", "tmp") [appendS]
+    If ("x" = 0) {
+      Return "y"
     } else {
-      $[Sp+8] <- $[Sp];;
-      Rv <- $[Sp] + 4;;
-      [st ~> ExX, Ex p1, Ex p1', Ex p2, Ex r, Ex x, Ex ls1, Ex ls2, [| p1 <> $0 /\ st#Rv = p1 ^+ $4 |]
-        /\ ![ (st#Sp ==*> p1, p2, r) * p1 =*> x * (p1 ^+ $4) =*> p1' * ^[sll ls1 p1']
-          * ^[sll ls2 p2] * #0 ] st
-        /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp /\ st'#Rv = r |]
-          /\ Ex a, Ex b, Ex c', Ex ls, [| ls = x :: ls1 ++ ls2 |]
-          /\ ![ (st'#Sp ==*> a, b, c') * ^[sll ls p1] * #1 ] st')]
-      While ($[Rv] <> 0) {
-        $[Sp] <- $[Rv];;
-        Rv <- $[Sp] + 4
+      "r" <- "x";;
+      "tmp" <- "x" + 4;;
+      "tmp" <-* "tmp";;
+      [Ex p1, Ex x, Ex ls1, Ex ls2,
+        PRE[V] [| V "x" <> $0 |] * [| V "tmp" = p1 |]
+          * V "x" =*> x * (V "x" ^+ $4) =*> p1 * sll ls1 p1 * sll ls2 (V "y")
+        POST[R] [| R = V "r" |] * sll (x :: ls1 ++ ls2) (V "x") ]
+      While ("tmp" <> 0) {
+        "x" <- "tmp";;
+        "tmp" <- "x" + 4;;
+        "tmp" <-* "tmp"
       };;
 
-      $[Rv] <- $[Sp+4];;
-      Return $[Sp+8]
+      "tmp" <- "x" + 4;;
+      "tmp" *<- "y";;
+      Return "r"
     }
-  }
+  end
 }}.
 
 Ltac notConst x :=
@@ -160,8 +170,8 @@ Ltac finish := repeat match goal with
                congruence || W_eq || reflexivity || tauto || eauto.
 
 Theorem sllMOk : moduleOk sllM.
-(*TIME idtac "sll:verify". Time *) vcgen;
-abstract (sep hints; finish).
+(*TIME idtac "sll:verify". Time *)
+  vcgen; abstract (sep hints; finish).
 (*TIME Time *)
 Qed.
 

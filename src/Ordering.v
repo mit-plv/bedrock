@@ -55,3 +55,14 @@ Proof.
   destruct IHl. destruct H. intuition. subst.
   rewrite H0. exists (a :: x0). exists x1. simpl; eauto.
 Qed.
+
+Require Import Permutation.
+
+Lemma sort_permutation : forall T (C : T -> T -> _) x,
+  Permutation (sort _ C x) x.
+Proof.
+  induction x; simpl.
+  { reflexivity. }
+  { destruct (insert_in_order_inserts T C a (sort T C x)) as [ ? [ ? ? ] ].
+    destruct H. rewrite H. rewrite <- Permutation_cons_app. reflexivity. rewrite H0 in *. symmetry; auto. }
+Qed.

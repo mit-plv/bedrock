@@ -27,7 +27,8 @@ Section WordProver.
 
   Record word_summary := {
     Equalities : list equality;
-    LessThans : list (expr types * expr types)
+    LessThans : list (expr types * expr types);
+    NotEquals : list (expr types * expr types)
   }.
 
   Require Import Div2.
@@ -118,10 +119,16 @@ Section WordProver.
         let equalities := merge (f1 :: combineAll f1 sum.(Equalities)) sum.(Equalities) in
         let equalities := merge (f2 :: combineAll f2 equalities) equalities in
           {| Equalities := equalities;
-            LessThans := sum.(LessThans) |}
+            LessThans := sum.(LessThans);
+            NotEquals := sum.(NotEquals) |}
       | Func 5 (e1 :: e2 :: nil) =>
         {| Equalities := sum.(Equalities);
-          LessThans := (e1, e2) :: sum.(LessThans) |}
+          LessThans := (e1, e2) :: sum.(LessThans);
+          NotEquals := sum.(NotEquals) |}
+      | Not (Equal (tvType 0) e1 e2) =>
+        {| Equalities := sum.(Equalities);
+          LessThans := sum.(LessThans);
+          NotEquals := (e1, e2) :: sum.(NotEquals) |}
       | _ => sum
     end.
 
@@ -167,11 +174,14 @@ Section WordProver.
               Difference := wminus' n1 n2 |} sum.(Equalities)
       | Func 5 (e1 :: e2 :: nil) =>
         lessThanMatches e1 e2 sum.(LessThans) sum.(Equalities)
+      | Not (Equal (tvType 0) e1 e2) =>
+        lessThanMatches e1 e2 sum.(NotEquals) sum.(Equalities)
       | _ => false
     end.
 
   Definition wordSummarize := wordLearn {| Equalities := nil;
-    LessThans := nil |}.
+    LessThans := nil;
+    NotEquals := nil|}.
 
   Section vars.
     Variables uvars vars : env types.
@@ -184,9 +194,14 @@ Section WordProver.
       /\ exists v2, exprD funcs uvars vars (snd p) (tvType 0%nat) = Some v2
         /\ v1 < v2.
 
+    Definition notEqualValid (p : expr types * expr types) := exists v1, exprD funcs uvars vars (fst p) (tvType 0%nat) = Some v1
+      /\ exists v2, exprD funcs uvars vars (snd p) (tvType 0%nat) = Some v2
+        /\ v1 <> v2.
+
     Definition wordValid (sum : word_summary) :=
       Forall equalityValid sum.(Equalities)
-      /\ Forall lessThanValid sum.(LessThans).
+      /\ Forall lessThanValid sum.(LessThans)
+      /\ Forall notEqualValid sum.(NotEquals).
 
     Lemma addZ_0 : forall w : W, w = w ^+ zero.
       intros.
@@ -410,6 +425,7 @@ Section WordProver.
       do 6 (destruct f; auto).
       do 3 (destruct l; auto).
       destruct H; split; simpl; auto.
+      split.
       constructor; auto.
       hnf; simpl.
       red in H0; simpl in H0.
@@ -418,6 +434,8 @@ Section WordProver.
               | match match ?E with Some _ => _ | _ => _ end _ _ with Some _ => _ | _ => _ end => destruct E
             end; try tauto).
       eauto.
+      tauto.
+      tauto.
 
       destruct t; auto.
       destruct n; auto.
@@ -428,6 +446,22 @@ Section WordProver.
       destruct H.
       split; simpl; auto.
       apply mergeCorrect; try apply Forall_if; eauto 15.
+
+      destruct hyp; auto.
+      destruct t; auto.
+      destruct n; auto.
+      destruct H.
+      destruct H1.
+      repeat split; simpl; auto.
+      constructor; auto.
+      hnf; simpl.
+      red in H0; simpl in H0.
+      simpl in *.
+      match goal with
+        | [ |- exists v1, ?E = _ /\ (exists v2, ?F = _ /\ _) ] => destruct E; try tauto;
+          destruct F; try tauto
+      end.
+      eauto.
     Qed.
 
     Hint Resolve wordLearn1Correct.
@@ -445,7 +479,7 @@ Section WordProver.
       AllProvable funcs uvars vars hyps
       -> wordValid (wordSummarize hyps).
       intros; apply wordLearnCorrect; auto.
-      split; constructor.
+      repeat split; constructor.
     Qed.
 
     Lemma equalitysEq_correct : forall f1 f2,
@@ -543,6 +577,80 @@ Section WordProver.
       eauto.
       congruence.
     Qed.
+
+    Lemma lessThanMatches_notEqual_correct : forall e1 e2 eqs,
+      Forall equalityValid eqs
+      -> forall lts, Forall notEqualValid lts
+        -> lessThanMatches e1 e2 lts eqs = true
+        -> notEqualValid (e1, e2).
+      induction 2; simpl; intuition.
+      destruct x.
+      apply orb_prop in H2; intuition.
+      apply andb_prop in H3; intuition.
+      apply orb_prop in H2; intuition;
+        apply orb_prop in H4; intuition.
+      apply expr_seq_dec_correct in H3.
+      apply expr_seq_dec_correct in H2.
+      congruence.
+
+      apply equalityMatches_correct in H2; auto.
+      destruct H2; intuition.
+      destruct H5; intuition.
+      subst.
+      simpl in *.
+      apply expr_seq_dec_correct in H3; subst.
+      destruct H0; intuition.
+      destruct H3; intuition.
+      simpl in *.
+      hnf.
+      simpl.
+      repeat esplit.
+      eauto.
+      eauto.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      congruence.
+
+      apply equalityMatches_correct in H3; auto.
+      destruct H3; intuition.
+      destruct H5; intuition.
+      subst.
+      simpl in *.
+      apply expr_seq_dec_correct in H2; subst.
+      destruct H0; intuition.
+      destruct H3; intuition.
+      simpl in *.
+      hnf.
+      simpl.
+      repeat esplit.
+      eauto.
+      eauto.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      congruence.
+
+      apply equalityMatches_correct in H3; auto.
+      apply equalityMatches_correct in H2; auto.
+      destruct H3; intuition.
+      destruct H5; intuition.
+      subst.
+      destruct H2; intuition.
+      destruct H6; intuition.
+      subst.
+      simpl in *.
+      rewrite wplus_comm in H5.
+      rewrite wplus_unit in H5.
+      rewrite wplus_comm in H6.
+      rewrite wplus_unit in H6.
+      destruct H0; intuition.
+      destruct H7; intuition.
+      simpl in *.
+      hnf.
+      repeat esplit.
+      eauto.
+      eauto.
+      congruence.
+    Qed.
   End vars.
 
   Hint Resolve equalityMatches_correct.
@@ -557,12 +665,13 @@ Section WordProver.
     do 3 (destruct l; try discriminate).
     apply (@lessThanMatches_correct uvars vars) in H0; auto.
     destruct H0; intuition.
-    destruct H4; intuition.
+    destruct H5; intuition.
     hnf.
     simpl in *.
-    rewrite H3.
-    rewrite H4.
+    rewrite H2.
+    rewrite H5.
     assumption.
+    tauto.
 
 
     destruct t; try discriminate.
@@ -595,10 +704,10 @@ Section WordProver.
     clear H5.
     eapply equalityMatches_correct in H0; eauto.
     destruct H0; simpl in *; intuition.
-    rewrite H5 in H6; injection H6; clear H6; intros; subst.
-    destruct H7; intuition.
-    rewrite H6 in H1; injection H1; clear H1; intros; subst.
+    destruct H8; intuition.
     subst.
+    rewrite H5 in H2; injection H2; clear H2; intros; subst.
+    rewrite H8 in H1; injection H1; clear H1; intros; subst.
     rewrite wminus'_def.
     rewrite wminus_def.
     repeat rewrite <- wplus_assoc.
@@ -610,6 +719,19 @@ Section WordProver.
 
     rewrite H4 in *; discriminate.
     rewrite H3 in *; discriminate.
+
+    destruct goal; try discriminate.
+    destruct t; try discriminate.
+    destruct n; try discriminate.
+    apply (@lessThanMatches_notEqual_correct uvars vars) in H0; auto.
+    destruct H0; intuition.
+    destruct H5; intuition.
+    hnf.
+    simpl in *.
+    rewrite H2.
+    rewrite H5.
+    assumption.
+    tauto.
   Qed.
 
   Lemma wordValid_weaken : forall (u g : env types) (f : word_summary)
@@ -618,15 +740,23 @@ Section WordProver.
   Proof.
     unfold wordValid; intuition.
     induction H0; eauto.
-    econstructor; eauto. clear H0 IHForall. unfold equalityValid in *.
+    econstructor; eauto. unfold equalityValid in *.
     repeat match goal with
              | [ H : exists x, _ |- _ ] => destruct H
              | [ H : _ /\ _ |- _ ] => destruct H
              | [ |- _ ] => erewrite exprD_weaken by eauto
              | [ |- exists x, _ ] => eexists; split; [ reflexivity | ]
            end; auto.
-    induction H1; eauto.
-    econstructor; eauto. clear H1 IHForall. unfold lessThanValid in *.
+    induction H; eauto.
+    econstructor; eauto. clear IHForall. unfold lessThanValid in *.
+    repeat match goal with
+             | [ H : exists x, _ |- _ ] => destruct H
+             | [ H : _ /\ _ |- _ ] => destruct H
+             | [ |- _ ] => erewrite exprD_weaken by eauto
+             | [ |- exists x, _ ] => eexists; split; [ reflexivity | ]
+           end; auto.
+    induction H2; eauto.
+    econstructor; eauto. clear IHForall. unfold notEqualValid in *.
     repeat match goal with
              | [ H : exists x, _ |- _ ] => destruct H
              | [ H : _ /\ _ |- _ ] => destruct H

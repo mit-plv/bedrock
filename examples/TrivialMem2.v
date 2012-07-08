@@ -2,18 +2,20 @@ Require Import AutoSep.
 
 (** * Like TrivialMem, but tests use of equality prover in symbolic evaluation *)
 
-Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
+Definition readS : spec := SPEC("x", "y") reserving 1
+  Ex v,
+  PRE[V] V "x" =*> v
+  POST[R] [| R = v |] * V "x" =*> v.
 
 Definition read := bmodule "read" {{
-  bfunction "read" [readS] {
-    If (Rv = 0) {
-      Rv <- $[Rv]
+  bfunction "read"("x", "y", "z") [readS]
+    If ("x" = "y") {
+      "z" <-* "y"
     } else {
-      Rv <- $[0]
-    } ;;
-    Goto Rp
-  }
+      "z" <-* "x"
+    };;
+    Return "z"
+  end
 }}.
 
 Theorem readOk : moduleOk read.
