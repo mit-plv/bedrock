@@ -181,7 +181,15 @@ Section canceller.
               | (l,r,s) =>
                 {| AllExt := new_vars
                  ; ExExt  := new_uvars
-                 ; Lhs    := l
+                 ; Lhs    := 
+                   (** TODO: this is a hack for the moment to ensure that
+                    ** the pure premises are well typed without the new
+                    ** unification variables
+                    **)
+                   {| SH.impures := SH.impures l
+                    ; SH.pures   := SH.pures lhs
+                    ; SH.other   := SH.other l
+                    |}
                  ; Rhs    := r
                  ; Subst  := s
                  |}
@@ -287,19 +295,19 @@ Section canceller.
          |} =>
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
+          Expr.AllProvable_impl funcs meta_env var_env
           (existsSubst funcs var_env subst 0 
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
-              Expr.AllProvable_impl funcs meta_env var_env
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) 
-            (SH.pures lhs')) ))
+                  (SH.pures rhs')) ))
+            (SH.pures lhs'))
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
@@ -377,7 +385,10 @@ Section canceller.
     rewrite ListFacts.rw_skipn_app in H11 by auto with list_length. 
 
     eapply forallEach_sem with (env := rev G ++ G0) in H1; [ | solve [ env_resolution ] ]. 
-    
+
+    eapply (@CANCEL.HEAP_FACTS.himp_pull_pures types _ _ funcs preds cs meta_env (rev G ++ G0) Heap). intro.
+    eapply AllProvable_impl_AllProvable in H1; [ clear H3 | assumption ].
+   
     apply existsSubst_sem in H1. apply existsEach_sem in H1.
     destruct H1. intuition.
     assert (meta_env = firstn (length meta_env) x1 /\
@@ -400,11 +411,12 @@ Section canceller.
       revert H. t_list_length. intro. rewrite firstn_length; rewrite min_l; auto.
       rewrite skipn_length. omega. }
     intuition. clear H3 H1.
-    eapply (@CANCEL.HEAP_FACTS.himp_pull_pures types _ _ funcs preds cs meta_env (rev G ++ G0) Heap). intro.
-    eapply AllProvable_impl_AllProvable in H14.
+
+(*
     Focus 2. eapply CANCEL.sepCancel_PuresPrem; eauto.
     rewrite <- firstn_skipn with (n := length meta_env) (l := x1).
     rewrite <- app_nil_r with (l := rev G ++ G0). eapply AllProvable_weaken. rewrite <- H15. solve [ auto ].
+*)
 
     eapply AllProvable_and_sem in H14. destruct H14.
     rewrite app_ass in *.
@@ -423,7 +435,7 @@ Section canceller.
       simpl in WTR. rewrite app_nil_r in WTR.  
       rewrite Plus.plus_0_r in *. rewrite rev_length in WTR. apply WTR. }
     
-    generalize (@UNF.backward_WellTyped _ _ _ _ _ _ _ HC _ _ _ _ H6 H16); simpl.
+    generalize (@UNF.backward_WellTyped _ _ _ _ _ _ _ HC _ _ _ _ H6 H14); simpl.
     eapply UNF.backwardOk with (cs := cs) in H6; simpl in *.
     2: eassumption.
     2: solve [ rewrite <- H17; eapply WellTyped_env_app; eauto using typeof_env_WellTyped_env ].
@@ -453,7 +465,7 @@ Section canceller.
       rewrite <- SH.WellTyped_sheap_WellTyped_sexpr. rewrite <- H10. f_equal.
       rewrite typeof_env_app. f_equal. rewrite <- map_rev. reflexivity.
       rewrite <- H11. reflexivity. }
-    etransitivity; [ eapply H19 | clear H19 ].
+    etransitivity; [ eapply H18 | clear H18 ].
 
     assert (SH.SE.ST.heq cs 
               (SH.SE.sexprD funcs preds (meta_env ++ firstn (length (rev v0)) (skipn (length meta_env) x1)) (rev G ++ G0) (SH.sheapD (UNF.HEAP_FACTS.sheapSubstU 0 (length v0)
@@ -491,7 +503,7 @@ Section canceller.
       rewrite <- WTR. rewrite <- H17. t_list_length. rewrite typeof_env_app. repeat rewrite Plus.plus_0_r.
       f_equal. f_equal. rewrite <- rev_length with (l := v0). rewrite <- H17 at 2.
       t_list_length. reflexivity. }
-    rewrite <- H19; clear H19.
+    rewrite <- H18; clear H18.
     revert H6. t_list_length.
     intro H6. etransitivity; [ clear H6 | eapply H6 ].
 
@@ -520,7 +532,7 @@ Section canceller.
     { eapply U.Subst_empty_WellTyped. }
     assert (SH.WellTyped_sheap (typeof_funcs funcs) (CANCEL.SE.typeof_preds preds)
       (typeof_env x1) (typeof_env (rev G ++ G0)) Heap0 = true).
-    { rewrite <- H18. f_equal.
+    { rewrite <- H16. f_equal.
       rewrite H15. rewrite <- H17. rewrite <- H12. t_list_length. 
       repeat rewrite <- typeof_env_app. repeat rewrite firstn_skipn. reflexivity.
       rewrite typeof_env_app. f_equal. rewrite typeof_env_rev. reflexivity. apply H11. }
@@ -533,13 +545,13 @@ Section canceller.
     eapply CANCEL.sepCancel_correct with (cs := cs) (funcs := funcs) (U := x1) (G := rev G ++ G0) in H13; try eassumption.
     { instantiate (1 := PC). eapply Valid_weaken with (ue := skipn (length meta_env) x1) (ge := G0) in H5.
       rewrite <- firstn_skipn with (n := length meta_env) (l := x1). rewrite <- H15. assumption. }
-    { eapply CANCEL.sepCancel_PuresPrem in H13; try eassumption.
-      match type of H14 with
+    { (* eapply CANCEL.sepCancel_PuresPrem in H13; try eassumption. *)
+      match type of H3 with
         | himp ?CS (SEP.sexprD ?F ?P ?U ?G ?L) (SEP.sexprD ?F ?P ?U ?G ?R) =>
-          change (SEP.himp F P U G CS L R) in H14
+          change (SEP.himp F P U G CS L R) in H3
       end. 
-      do 2 rewrite SH.sheapD_def. do 2 rewrite SH.sheapD_def in H14. simpl in *.
-      do 2 rewrite CANCEL.SEP_FACTS.heq_star_emp_l in H14.
+      do 2 rewrite SH.sheapD_def. do 2 rewrite SH.sheapD_def in H3. simpl in *.
+      do 2 rewrite CANCEL.SEP_FACTS.heq_star_emp_l in H3.
       rewrite CANCEL.SEP_FACTS.heq_star_comm 
         with (P := SH.starred (SEP.Inj (stateType:=BedrockCoreEnv.st)) (SH.pures s2) SEP.Emp).
       rewrite CANCEL.SEP_FACTS.heq_star_comm 
@@ -570,19 +582,19 @@ Section canceller.
          |} =>
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
+          Expr.AllProvable_impl funcs meta_env var_env
           (existsSubst funcs var_env subst 0 
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
-              Expr.AllProvable_impl funcs meta_env var_env
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) 
-            (SH.pures lhs')) ))
+                  (SH.pures rhs')) ))
+            (SH.pures lhs'))
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
@@ -603,19 +615,19 @@ Section canceller.
          |} =>
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
+          Expr.AllProvable_impl funcs meta_env var_env
           (existsSubst funcs var_env subst 0 
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
-              Expr.AllProvable_impl funcs meta_env var_env
                 (Expr.AllProvable_and funcs meta_env var_env
                   (himp cs 
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
-                  (SH.pures rhs')) 
-            (SH.pures lhs')) ))
+                  (SH.pures rhs')) ))
+            (SH.pures lhs'))
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
