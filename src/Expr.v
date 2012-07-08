@@ -199,6 +199,9 @@ Section env.
       simpl. consider (EqNat.beq_nat n n0); constructor; auto.
       congruence.
   Qed.
+
+  Lemma tvar_seqb_refl : forall a, tvar_seqb a a = true.
+  Proof. intros; consider (tvar_seqb a a); auto. Qed.
   
   Definition env : Type := list (sigT tvarD).
 
@@ -381,26 +384,33 @@ Section env.
       clear. unfold typeof_env. intros. rewrite map_app. reflexivity.
     Qed.
 
+    Lemma typeof_env_rev : forall g,
+      typeof_env (rev g) = rev (typeof_env g).
+    Proof.
+      clear. induction g; simpl; auto. rewrite typeof_env_app. simpl. rewrite IHg. auto.
+    Qed.
+
+
 
     Fixpoint is_well_typed (e : expr) (t : tvar) {struct e} : bool :=
       match e with 
         | Const t' _ => 
-          if equiv_dec t' t then true else false
+          if tvar_seqb t' t then true else false
         | Var x => match nth_error tvar_env x with
                      | None => false
-                     | Some t' => if equiv_dec t t' then true else false
+                     | Some t' => if tvar_seqb t t' then true else false
                    end
         | UVar x => match nth_error tmeta_env x with
                       | None => false
-                      | Some t' => if equiv_dec t t' then true else false
+                      | Some t' => if tvar_seqb t t' then true else false
                     end
         | Func f xs => 
           match nth_error tfuncs f with
             | None => false
             | Some f =>
-              if equiv_dec t (TRange f) then 
+              if tvar_seqb t (TRange f) then 
                 all2 is_well_typed xs (TDomain f)
-                else false
+              else false
           end
         | Equal t' e1 e2 => 
           match t with
@@ -412,29 +422,6 @@ Section env.
                       | _ => false
                     end
       end.
-(*
-    Definition well_typed (e : expr) : option tvar :=
-      match e with 
-        | Const t' _ => Some t'
-        | Var x => nth_error tvar_env x
-        | UVar x => 
-          match nth_error meta_env x with
-            | None => None
-            | Some z => Some (projT1 z)
-          end
-        | Func f xs => 
-          match nth_error funcs f with
-            | None => None
-            | Some f =>
-              if (all2 is_well_typed xs (Domain f))
-                then Some (Range f) else None
-          end
-        | Equal t' e1 e2 => 
-          if is_well_typed e1 t' && is_well_typed e2 t'
-            then Some tvProp else None
-        | Not e1 => if is_well_typed e1 tvProp then Some tvProp else None
-      end.
-*)
 
     Section Mentions.
       Variable uv : uvar.
@@ -605,21 +592,17 @@ Section env.
              | [ H : _ = _ |- _ ] => rewrite H
              | [ H : match ?X with 
                        | _ => _ 
-                     end = true |- _ ] => destruct X; try congruence
+                     end = true |- _ ] => consider X; try congruence
              | [ |- _ ] => unfold lookupAs in *; simpl in *
-        end; eauto; try congruence.
-    { unfold equiv in *; subst.
-      eapply Forall2_nth_error_L in WT_funcs; eauto. destruct WT_funcs. intuition. rewrite H3.
-      destruct H4. rewrite H4 in *; rewrite H2 in *. rewrite EquivDec_refl_left. 
-      revert H1. destruct x; simpl in *. generalize Denotation0. generalize Domain0. revert H. clear.
-      induction 1; simpl; intros.
-      destruct Domain0; eauto. congruence.
-      destruct Domain0; try congruence.
-      revert H1. case_eq (is_well_typed x t); intros; try congruence.
-      apply H in H1. destruct H1. rewrite H1. eapply IHForall; auto. }
-    { apply andb_true_iff in H. intuition. apply IHe1 in H0. apply IHe2 in H1.
-      destruct H0. destruct H1. rewrite H. rewrite H0. eauto. }
-    { apply IHe in H. destruct H; rewrite H; eauto. }
+        end; intros; eauto; try congruence.
+    { eapply Forall2_nth_error_L in WT_funcs; eauto. destruct WT_funcs. intuition. subst.
+      destruct H5. rewrite H1 in *; clear H1. rewrite H3 in *; clear H3. rewrite H4.
+      rewrite EquivDec_refl_left. destruct x; simpl in *. revert H2. clear - H.
+      generalize dependent Domain0. induction H; destruct Domain0; simpl in *; intros; eauto; try congruence.
+      consider (is_well_typed x t); intros. apply H in H1. destruct H1. rewrite H1. eapply IHForall; auto. }
+    { apply andb_true_iff in H0. intuition. apply IHe1 in H1. apply IHe2 in H2.
+      destruct H1. destruct H2. think. eauto. }
+    { apply IHe in H0. destruct H0; think; eauto. }
   Qed.
 
   Lemma WellTyped_env_nth_error_Some' : forall g t n V,
@@ -667,17 +650,15 @@ Section env.
                (erewrite WellTyped_env_nth_error_Some' by eauto) ||
                (erewrite WellTyped_env_nth_error_None' by eauto)
              | [ |- _ ] => unfold lookupAs in *; simpl in *
-        end; eauto; try congruence.
+        end; think; eauto; try congruence.
+    { consider (tvar_seqb t1 t1); auto. }
+    { consider (tvar_seqb (projT1 s) (projT1 s)); intros; auto. }
+    { consider (tvar_seqb (projT1 s) (projT1 s)); intros; auto. }
     { eapply Forall2_nth_error_R in WT_funcs; eauto. destruct WT_funcs. intuition.
-      rewrite H3. destruct H4. rewrite H4. rewrite EquivDec_refl_left.
-      rewrite H2 in *. clear H2 H4 H0 WT_funcs; destruct s; simpl in *.
-      revert H1. generalize dependent Domain0. induction H; destruct Domain0; simpl; auto; try congruence.
-      consider (exprD x0 t); try congruence; intros.
-      eapply H in H1. rewrite H1. eauto. }
-    { revert H. destruct t0; try congruence; consider (exprD e1 t); try congruence; consider (exprD e2 t); try congruence; intros.
-      erewrite IHe1 by eauto. erewrite IHe2 by eauto.
-      auto. }
-    { revert H; destruct t; consider (exprD e tvProp); try congruence; intros. eauto. }
+      rewrite H3. destruct H4. rewrite H4. consider (tvar_seqb (Range s) (Range s)); intros; try congruence. 
+      destruct s; simpl in *; subst. destruct x; simpl in *; subst.
+      clear - H H1. generalize dependent TDomain0. induction H; destruct TDomain0; simpl; auto; intros; try congruence.
+      consider (exprD x t); intros; eauto. erewrite H; eauto. congruence. }
   Qed.
 
   Theorem is_well_typed_typeof : forall e t, 
@@ -686,14 +667,24 @@ Section env.
     induction e; simpl; intros;
       repeat (progress (unfold equiv in *; subst) ||
         match goal with
-          | [ H : context [ equiv_dec ?X ?Y ] |- _ ] => destruct (equiv_dec X Y); try congruence
           | [ H : context [ match nth_error ?X ?Y with | _ => _ end ] |- _ ] => 
             revert H; case_eq (nth_error X Y); intros; try congruence
           | [ H : match ?X with
                     | _ => _
-                  end = true |- _ ] => destruct X; try congruence
+                  end = true |- _ ] => consider X; try congruence
         end); auto.
   Qed.
+
+  Lemma is_well_typed_only : forall t t' e,
+    is_well_typed e t = true ->
+    t <> t' ->
+    is_well_typed e t' = false.
+  Proof. 
+    intros. consider (is_well_typed e t'); auto; intros.
+    apply is_well_typed_typeof in H.
+    apply is_well_typed_typeof in H1; congruence.    
+  Qed.
+
   End type_system.
  
   Lemma expr_seq_dec_Equal : forall t1 t2 e1 f1 e2 f2,
@@ -701,14 +692,12 @@ Section env.
     -> e1 = e2
     -> f1 = f2
     -> Equal t1 e1 f1 = Equal t2 e2 f2.
-    congruence.
-  Qed.
+  Proof. congruence. Qed.
 
   Lemma expr_seq_dec_Not : forall e1 e2,
     e1 = e2
     -> Not e1 = Not e2.
-    congruence.
-  Qed.
+  Proof. congruence. Qed.
 
   Definition get_Eq (t : tvar) : forall x y : tvarD t, bool :=
     match t as t return forall x y : tvarD t, bool with
@@ -880,11 +869,71 @@ Section env.
         else if NPeano.ltb x b
              then UVar (c + x - a)
              else Var (x + a - b)
-      | UVar x => UVar x
+      | UVar x => 
+        if NPeano.ltb x c
+        then UVar x
+        else UVar (x + b - a)
       | Func f args => Func f (map (exprSubstU a b c) args)
       | Equal t e1 e2 => Equal t (exprSubstU a b c e1) (exprSubstU a b c e2)
       | Not e1 => Not (exprSubstU a b c e1)
     end.
+
+  Lemma nth_error_app_L : forall T (A B : list T) n,
+    (n < length A)%nat ->
+    nth_error (A ++ B) n = nth_error A n.
+  Proof.
+    induction A; destruct n; simpl; intros; try omega; auto.
+    eapply IHA. omega.
+  Qed.
+
+  Lemma nth_error_app_R : forall T (A B : list T) n,
+    (length A <= n)%nat ->
+    nth_error (A ++ B) n = nth_error B (n - length A).
+  Proof.
+    induction A; destruct n; simpl; intros; try omega; auto.
+    apply IHA. omega. 
+  Qed.
+
+  Lemma nth_error_weaken : forall T ls' (ls : list T) n v,
+    nth_error ls n = Some v ->
+    nth_error (ls ++ ls') n = Some v.
+  Proof.
+    clear. induction ls; destruct n; simpl; intros; unfold value, error in *; try congruence; auto.
+  Qed.
+
+  Lemma nth_error_past_end : forall T (ls : list T) n, 
+    (n >= length ls)%nat ->
+    nth_error ls n = None.
+  Proof.
+    clear. induction ls; destruct n; simpl; intros; auto.
+    exfalso; omega. rewrite IHls; auto. omega.
+  Qed.
+
+  Lemma exprSubstU_wt : forall tf tu tg tg' tg'' s t,
+    is_well_typed tf tu (tg ++ tg' ++ tg'') s t =
+    is_well_typed tf (tu ++ tg') (tg ++ tg'') (exprSubstU (length tg) (length tg' + length tg) (length tu) s) t.
+  Proof.
+    induction s; simpl; intros; think; auto.
+    { consider (NPeano.ltb x (length tg)); intros; simpl.
+      repeat rewrite nth_error_app_L in * by omega. reflexivity.
+      consider (NPeano.ltb x (length tg' + length tg)); simpl; intros.
+      repeat rewrite nth_error_app_R in * by omega.
+      repeat rewrite nth_error_app_L in * by omega.
+      repeat rewrite nth_error_app_R in * by omega.
+      cutrewrite (length tu + x - length tg - length tu = x - length tg); [ | omega ]. reflexivity.
+      repeat (rewrite nth_error_app_R in * by omega).
+      cutrewrite (x + length tg - (length tg' + length tg) - length tg = x - length tg - length tg'); [ | omega ].
+      reflexivity. }
+    { consider (NPeano.ltb x (length tu)); intros; simpl.
+      rewrite nth_error_app_L in * by omega. reflexivity.
+      rewrite nth_error_app_R in * by omega.
+      repeat rewrite nth_error_past_end by omega. auto. }
+    { destruct (nth_error tf f); auto.
+      destruct (tvar_seqb t (TRange t0)); auto.
+      rewrite all2_map_1. destruct t0; simpl in *. 
+      clear - H; generalize dependent TDomain0; induction H; destruct TDomain0; simpl; intros; auto.
+      think. reflexivity. }
+  Qed.    
 
   Lemma nth_error_length : forall T (ls ls' : list T) n,
     nth_error (ls ++ ls') (n + length ls) = nth_error ls' n.
@@ -1032,13 +1081,6 @@ Section env.
 
 End env.
 
-Lemma nth_error_weaken : forall T ls' (ls : list T) n v,
-  nth_error ls n = Some v ->
-  nth_error (ls ++ ls') n = Some v.
-Proof.
-  clear. induction ls; destruct n; simpl; intros; unfold value, error in *; try congruence; auto.
-Qed.
-
 Lemma lookupAs_weaken : forall types t vars vars' x v,
   lookupAs (types := types) vars t x = Some v ->
   lookupAs (vars ++ vars') t x = Some v.
@@ -1047,6 +1089,33 @@ Proof.
   case_eq (nth_error vars x); intros.
   eapply nth_error_weaken in H. rewrite H. eauto.
   congruence.
+Qed.
+
+
+Lemma exprSubstU_exprD : forall ts tf tu tg tg' tg'' s t,
+  exprD (types := ts) tf tu (tg ++ tg' ++ tg'') s t = 
+  exprD tf (tu ++ tg') (tg ++ tg'') (exprSubstU (length tg) (length tg' + length tg) (length tu) s) t.
+Proof.
+  induction s; simpl; intros; think; auto.
+  { consider (NPeano.ltb x (length tg)); intros; simpl; unfold lookupAs in *; simpl.
+    repeat rewrite nth_error_app_L in * by omega. reflexivity.
+    consider (NPeano.ltb x (length tg' + length tg)); simpl; unfold lookupAs in *; intros.
+    repeat rewrite nth_error_app_R in * by omega.
+    repeat rewrite nth_error_app_L in * by omega.
+    repeat rewrite nth_error_app_R in * by omega.
+    cutrewrite (length tu + x - length tg - length tu = x - length tg); [ | omega ]. reflexivity.
+    repeat (rewrite nth_error_app_R in * by omega).
+    cutrewrite (x + length tg - (length tg' + length tg) - length tg = x - length tg - length tg'); [ | omega ].
+    reflexivity. }
+  { consider (NPeano.ltb x (length tu)); intros; simpl; unfold lookupAs.
+    rewrite nth_error_app_L in * by omega. reflexivity.
+    rewrite nth_error_app_R in * by omega.
+    repeat rewrite nth_error_past_end by omega. reflexivity. }
+  { destruct (nth_error tf f); auto. destruct (equiv_dec (Range s) t); auto. 
+    destruct s; simpl in *. unfold equiv in *; subst. 
+    generalize dependent Domain0; clear -H; induction H; destruct Domain0; simpl in *; intros; auto.
+    think. destruct (exprD tf (tu ++ tg') (tg ++ tg'')
+       (exprSubstU (length tg) (length tg' + length tg) (length tu) x) t0); auto. }
 Qed.
 
 Lemma exprD_weaken : forall types (fs : functions types) uvars uvars' vars vars' e t v,
@@ -1100,23 +1169,6 @@ Proof.
   induction P; auto; intros; simpl in *; intuition eauto using Provable_weaken.
 Qed.
 
-Lemma nth_error_app_L : forall T (A B : list T) n,
-  (n < length A)%nat ->
-  nth_error (A ++ B) n = nth_error A n.
-Proof.
-  induction A; destruct n; simpl; intros; try omega; auto.
-  eapply IHA. omega.
-Qed.
-
-Lemma nth_error_app_R : forall T (A B : list T) n,
-  (length A <= n)%nat ->
-  nth_error (A ++ B) n = nth_error B (n - length A).
-Proof.
-  induction A; destruct n; simpl; intros; try omega; auto.
-  apply IHA. omega. 
-Qed.
-
-
 Lemma liftExpr_ext : forall types (funcs : functions types) U U' U'' G G' G'' e t,
   exprD funcs (U'' ++ U) (G'' ++ G) e t =
   exprD funcs (U'' ++ U' ++ U) (G'' ++ G' ++ G) (liftExpr (length U'') (length U') (length G'') (length G') e) t.
@@ -1149,30 +1201,9 @@ Section exists_subst.
       exprD funcs A (B ++ C ++ D) e t = Some v ->
       exprD funcs (A ++ C) (B ++ D) e' t = Some v.
   Proof.
-    induction e; simpl; intros; subst; simpl in *; 
-      try solve [ repeat match goal with
-                           | [ H : _ |- _ ] => erewrite H by eauto
-                           | [ |- match ?X with _ => _ end = match ?X with _ => _ end ] =>
-                             (destruct X; try reflexivity) ; []
-                           | [ H : context [ match ?t with tvProp => _ | tvType _ => _ end ] |- _ ] => destruct t
-                           | [ H : context [ match ?X with _ => _ end ] |- _ ] => (consider X; intros; try congruence) ; []
-                         end; eauto ;reflexivity ].
-    { rewrite <- H3; clear H3.
-      unfold lookupAs in *; consider (NPeano.ltb x (length B)); intros; simpl; unfold lookupAs; simpl in *.
-      repeat ((rewrite nth_error_app_L by omega) || (rewrite nth_error_app_R by omega)). reflexivity.
-      consider (NPeano.ltb x (length B + length C)); intros; simpl; unfold lookupAs; simpl in *;
-      repeat ((rewrite nth_error_app_L by omega) || (rewrite nth_error_app_R by omega)).
-      cutrewrite (x - length B = length A + x - length B - length A). reflexivity. omega.
-      cutrewrite (x - length B - length C = x + length B - (length B + length C) - length B). reflexivity.
-      omega. }
-    { unfold lookupAs in *. consider (nth_error A x); intros. 
-      erewrite nth_error_weaken by eauto. auto.  congruence. }
-    { destruct (nth_error funcs f); auto.  destruct (equiv_dec (Range s) t); auto.
-      unfold equiv in *; subst. destruct s; simpl in *.
-      generalize dependent Domain0. induction H; destruct Domain0; simpl in *; intros; auto.
-      consider (exprD funcs A (B ++ C ++ D) x t); intros; try congruence.
-      erewrite H by eauto. eauto. }
-  Qed.      
+    intros.
+    rewrite exprSubstU_exprD in H3. subst. rewrite Plus.plus_comm. auto.
+  Qed.
 
   Variable U1 : env types.
   
@@ -1215,6 +1246,14 @@ Proof.
     destruct H. eapply IHB in H. destruct H; eauto.
 Qed.
 
+Lemma nth_error_Some_length : forall T (ls : list T) n v,
+  nth_error ls n = Some v ->
+  (n < length ls)%nat.
+Proof.
+  clear; induction ls; destruct n; intros; simpl in *; unfold value, error in *; try (congruence || omega).
+  eapply IHls in H. omega.
+Qed.
+
 Definition is_well_typed_not_mentionsU_last : forall tfuncs tU tG t (e : expr types) t',
   is_well_typed tfuncs (tU ++ t :: nil) tG e t' = true ->
   mentionsU (length tU) e = false ->
@@ -1229,14 +1268,7 @@ Proof.
              | [ H : _ |- _ ] => erewrite H by eauto
              | [ H : _ === _ |- _ ] => unfold equiv in H; subst
            end; try congruence; auto.
-  { rewrite nth_error_app_L in H; auto. rewrite H. rewrite EquivDec_refl_left. auto.
-    Lemma nth_error_Some_length : forall T (ls : list T) n v,
-      nth_error ls n = Some v ->
-      (n < length ls)%nat.
-    Proof.
-      clear; induction ls; destruct n; intros; simpl in *; unfold value, error in *; try (congruence || omega).
-      eapply IHls in H. omega.
-    Qed.
+  { rewrite nth_error_app_L in H; auto. rewrite H. consider (tvar_seqb t0 t0); auto.
     apply nth_error_Some_length in H. rewrite app_length in H. simpl in *. omega. }
   { destruct t0; simpl in *. clear H0. generalize dependent TDomain0. revert H1. 
     induction H; destruct TDomain0; intros; simpl in *; try congruence.
@@ -1250,8 +1282,8 @@ Lemma is_well_typed_weaken : forall tf tu tg u' g' (e : expr types) t,
   is_well_typed tf (tu ++ u') (tg ++ g') e t = true.
 Proof.
   clear; induction e; simpl in *; intros; think; auto.
-  { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
-  { erewrite nth_error_weaken by eauto. rewrite EquivDec_refl_left. auto. }
+  { erewrite nth_error_weaken by eauto. consider (tvar_seqb t0 t0); auto. } 
+  { erewrite nth_error_weaken by eauto. consider (tvar_seqb t0 t0); auto. }
   { destruct t0; simpl in *; clear H0. generalize dependent TDomain0. induction H; intros; simpl in *; think; auto. }
 Qed.
 
@@ -1265,6 +1297,31 @@ Qed.
 
 End exists_subst.
 
+Lemma applyD_impl_Forall : forall types F F' P Dom args R D v,
+  applyD (types := types) F Dom args R D = Some v ->
+  Forall P args ->
+  (forall x y v, P x -> F x y = Some v -> F' x y = Some v) ->
+  applyD F' Dom args R D = Some v.
+Proof.
+  induction Dom; destruct args; simpl; intros; think; auto. inversion H0; subst; intros.
+  erewrite H1; eauto.
+Qed.
+
+Lemma applyD_impl : forall types F F' Dom args R D,
+  (forall x y, F x y = F' x y) ->
+  applyD (types := types) F Dom args R D = applyD F' Dom args R D.
+Proof.
+  induction Dom; destruct args; simpl; intros; think; auto.
+  destruct (F' e a); auto.
+Qed.
+
+Lemma applyD_map : forall types F F' Dom args R D,
+  applyD (types := types) F Dom (map F' args) R D = applyD (fun x y => F (F' x) y) Dom args R D.
+Proof.
+  induction Dom; destruct args; simpl; intros; think; auto.
+  destruct (F (F' e) a); auto.
+Qed.
+
 (** Use this function to get an environment extension
  ** - n is the length of the old environment
  **)
@@ -1273,9 +1330,10 @@ Definition env_ext (T : Type) n (ls : list T) : list T :=
 
 (** TODO: There probably need to be some facts about this... **)
   
-
-Implicit Arguments Const [ types t ].
-Implicit Arguments Var [ types ].
-Implicit Arguments UVar [ types ].
-Implicit Arguments Func [ types ].
+Arguments Const {types} {t} (_).
+Arguments Var {types} (_).
+Arguments UVar {types} (_).
+Arguments Func {types} (_) (_).
+Arguments Equal {types} (_) (_) (_).
+Arguments Not {types} (_).
 

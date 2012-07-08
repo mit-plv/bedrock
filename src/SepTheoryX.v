@@ -350,6 +350,14 @@ Module SepTheoryX_Ext (ST : SepTheoryX).
       eapply H; eauto.
     Qed.
 
+    Lemma himp_existsEach_c : forall cs x (F : list (@sigT _ typeD) -> _) F',
+      (exists G, map (@projT1 _ _) G = x /\ ST.himp cs F' (F G)) ->
+      ST.himp cs F' (existsEach x F).
+    Proof.
+      intros. eapply ST.himp_ex_c. intros. destruct H.
+      exists x0. intuition. rewrite H1. eapply ST.himp_star_pure_cc; auto. reflexivity. 
+    Qed.
+
     Lemma heq_pushIn : forall P cs x (F : list (@sigT _ typeD) -> _) ,
       ST.heq cs (ST.star P (existsEach x F)) (existsEach x (fun e => ST.star P (F e))).
     Proof.

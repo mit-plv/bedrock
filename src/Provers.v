@@ -2,7 +2,7 @@ Require Import Prover.
 Require Import ILEnv.
 Require provers.AssumptionProver.
 Require provers.ReflexivityProver.
-Require provers.TransitivityProver.
+(* Require provers.TransitivityProver. *)
 Require provers.WordProver.
 
 Set Implicit Arguments.
