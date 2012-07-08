@@ -132,7 +132,37 @@ Module Type SynUnifier.
       Subst_Extends sub' sub ->
       Subst_equations funcs U G sub' ->
       Subst_equations funcs U G sub.
-    
+
+    Axiom Subst_equations_WellTyped : forall funcs G U sub,
+      Subst_equations funcs U G sub ->
+      Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub.
+
+    (** An incremental version of Subst_equations **)
+    Section Subst_equations_to.
+      Variable funcs : functions types. 
+      Variables uenv venv : env types.
+      Variable subst : Subst types.
+
+      Fixpoint Subst_equations_to (from : nat) (ls : Expr.env types) : Prop :=
+        match ls with
+          | nil => True
+          | l :: ls =>
+            match Subst_lookup from subst with
+              | None => True
+              | Some e => match exprD funcs uenv venv e (projT1 l) with
+                            | None => False
+                            | Some v => projT2 l = v
+                          end
+            end /\ Subst_equations_to (S from) ls 
+        end.
+
+      Axiom Subst_equations_to_Subst_equations : 
+        Subst_WellTyped (typeof_funcs funcs) (typeof_env uenv) (typeof_env venv) subst ->
+        Subst_equations_to 0 uenv ->
+        Subst_equations funcs uenv venv subst.
+
+    End Subst_equations_to.
+        
   End typed.
 End SynUnifier.
 
@@ -1761,6 +1791,80 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         eapply Subst_equations_sem in IHSubst_Extends'. 2: eassumption.
         destruct (nth_error U k); auto. }
     Qed.
+
+
+    Theorem Subst_equations_WellTyped : forall funcs G U sub,
+      Subst_equations funcs U G sub ->
+      Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub.
+    Proof.
+      intros. intro; intros. 
+      eapply Subst_equations_sem with (k := k) (e := v) in H.
+      consider (nth_error U k); intros; try contradiction.
+      consider (exprD funcs U G v (projT1 s)); intros; try contradiction. subst.
+      unfold typeof_env at 1. erewrite map_nth_error by eassumption. eexists; split. reflexivity.
+      eapply is_well_typed_correct_only in H1; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+      unfold Subst_lookup, subst_lookup. apply FACTS.find_mapsto_iff; auto.
+    Qed.
+ 
+    (** An incremental version of Subst_equations **)
+    Section Subst_equations_to.
+      Variable funcs : functions types. 
+      Variables uenv venv : env types.
+      Variable subst : Subst.
+
+      Fixpoint Subst_equations_to (from : nat) (ls : Expr.env types) : Prop :=
+        match ls with
+          | nil => True
+          | l :: ls =>
+            match Subst_lookup from subst with
+              | None => True
+              | Some e => match exprD funcs uenv venv e (projT1 l) with
+                            | None => False
+                            | Some v => projT2 l = v
+                          end
+            end /\ Subst_equations_to (S from) ls 
+        end.
+      
+      Lemma Subst_equations_to_sem : forall ls from, 
+        Subst_equations_to from ls ->
+        forall n,
+          match nth_error ls n with
+            | None => True
+            | Some v' =>
+              match Subst_lookup (from + n) subst with 
+                | None => True
+                | Some e => match exprD funcs uenv venv e (projT1 v') with
+                              | None => False
+                              | Some v => projT2 v' = v
+                            end
+              end
+          end.
+      Proof.
+        induction ls; destruct n; simpl in *; intros; auto.
+        { rewrite Plus.plus_0_r. intuition. }
+        { intuition. eapply IHls with (n := n) in H1.
+          cutrewrite (from + S n = S from + n); [ assumption | omega ]. }
+      Qed.
+
+
+      Theorem Subst_equations_to_Subst_equations : 
+        Subst_WellTyped (typeof_funcs funcs) (typeof_env uenv) (typeof_env venv) subst ->
+        Subst_equations_to 0 uenv ->
+        Subst_equations funcs uenv venv subst.
+      Proof.
+        intros. 
+        eapply Subst_equations_sem. intros.
+        assert (FM.MapsTo k e (projT1 subst)). apply FACTS.find_mapsto_iff. eapply H1.
+        eapply H in H2. destruct H2.
+        apply Subst_equations_to_sem with (n := k) in H0. destruct H2.
+        unfold typeof_env in H2.
+        rewrite Tactics.map_nth_error_full in H2.
+        destruct (nth_error uenv k); try congruence.
+        simpl in *. rewrite H1 in H0.
+        destruct (exprD funcs uenv venv e (projT1 s)); auto.
+      Qed.
+
+    End Subst_equations_to.
 
   End typed.
 End Unifier.
