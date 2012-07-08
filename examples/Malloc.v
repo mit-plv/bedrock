@@ -233,10 +233,10 @@ Qed.
 
 (*TIME Clear Timing Profile. *)
 
-Definition hints : TacPackage.
+(*Definition hints : TacPackage.
 (*TIME idtac "malloc:prepare". Time *)
   prepare (mallocHeap_fwd, cons_fwd, malloc_split) (mallocHeap_bwd, nil_bwd, cons_bwd).
-(*TIME Time *)Defined.
+(*TIME Time *)Defined.*)
 
 Definition initS : spec := SPEC("size") reserving 0
   Ex n,
@@ -253,7 +253,7 @@ Definition mallocS : spec := SPEC("n") reserving 4
   PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * mallocHeap
   POST[R] [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2) * mallocHeap.
 
-Definition mallocM := bmodule "malloc" {{
+(*Definition mallocM := bmodule "malloc" {{
   bfunction "init"("size") [initS]
     0 *<- 4;;
     4 *<- "size";;
@@ -379,4 +379,4 @@ Section mallocOk.
 (*TIME Time *)Qed.
 
 (*TIME Print Timing Profile. *)
-End mallocOk.
+End mallocOk.*)
