@@ -70,7 +70,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
       Lemma unifyArgs_Extends_WellTyped : forall bound summ l r ts S S',
         U.Subst_WellTyped tfuncs tU tG S ->
-        Valid Prover_correct U G summ ->
         all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
         all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
         unifyArgs bound summ l r ts S = Some S' ->
@@ -78,7 +77,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         U.Subst_WellTyped tfuncs tU tG S'.
       Proof.
         unfold unifyArgs; induction l; destruct r; destruct ts; simpl; intros; try congruence.
-        { inversion H2. inversion H3; subst; intuition; auto. }
+        { inversion H2. subst; intuition; auto. }
         { repeat match goal with
           | [ H : (if ?X then _ else _) = true |- _ ] =>
             revert H; case_eq X; intros; [ | congruence ]
@@ -93,15 +92,15 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                   eapply is_well_typed_correct in H;
                     rewrite H' in H ; destruct H; congruence
           end ].
-          revert H3. case_eq (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))); simpl; eauto.
-          case_eq (U.exprUnify bound a e S); intros; try congruence.
-          eapply IHl in H7; eauto using U.exprUnify_WellTyped.
+          consider (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))); simpl; eauto.
+          consider (U.exprUnify bound a e S); intros; try congruence.
+          eapply IHl in H6; eauto using U.exprUnify_WellTyped.
           intuition. etransitivity; eauto using U.exprUnify_Extends. }
       Qed.          
 
       Lemma unifyArgs_bad_cases : forall summ bound S S' ts t e a l r,
         U.Subst_WellTyped tfuncs tU tG S ->
-        Valid Prover_correct U G summ ->
+(*        Valid Prover_correct U G summ -> *)
         all2 (@is_well_typed _ tfuncs tU tG) l ts = true ->
         all2 (@is_well_typed _ tfuncs tU tG) r ts = true ->
         @is_well_typed _ tfuncs tU tG a t = true ->
@@ -125,11 +124,11 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         U.Subst_Extends S' S /\ U.Subst_WellTyped tfuncs tU tG S'.
       Proof.
         intros. destruct (Prove Prover summ (Equal t (U.exprInstantiate S a) (U.exprInstantiate S e))).
-        apply unifyArgs_Extends_WellTyped in H5; eauto; intuition.
-        revert H5. case_eq (U.exprUnify bound a e S); intros; eauto.
-        generalize H5. eapply U.exprUnify_Extends in H5.
-        intro. eapply U.exprUnify_WellTyped in H7; eauto.
-        eapply unifyArgs_Extends_WellTyped in H6; eauto; intuition.
+        apply unifyArgs_Extends_WellTyped in H4; eauto; intuition.
+        revert H4. case_eq (U.exprUnify bound a e S); intros; eauto.
+        generalize H4. eapply U.exprUnify_Extends in H4.
+        intro. eapply U.exprUnify_WellTyped in H6; eauto.
+        eapply unifyArgs_Extends_WellTyped in H5; eauto; intuition.
         etransitivity; eauto. 
         congruence.
       Qed.
@@ -271,7 +270,6 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
       Lemma unify_remove_PureFacts : forall bound summ f p l S,
         U.Subst_WellTyped tfuncs tU tG S ->
-        Valid Prover_correct U G summ ->
         nth_error preds f = Some p ->
         all2 (@is_well_typed _ tfuncs tU tG) l (SDomain p) = true ->
         forall r r' S',
@@ -283,11 +281,11 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       Proof.
         induction r; simpl; intros; try congruence.
         consider (unifyArgs bound summ l a (SDomain p) S); intros.
-        { inversion H5; clear H5; subst. inversion H3; clear H3; subst.
-          eapply unifyArgs_Extends_WellTyped in H4; eauto. intuition eauto. }
+        { inversion H4; clear H4; subst. inversion H2; clear H2; subst.
+          eapply unifyArgs_Extends_WellTyped in H3; eauto. intuition eauto. }
         { consider (unify_remove bound summ l (SDomain p) r S); intros.
-          { destruct p0. inversion H6; clear H6; subst. inversion H3; clear H3; subst.
-            eapply IHr in H9; intuition. eauto. eauto. eauto. }
+          { destruct p0. inversion H5; clear H5; subst. inversion H2; clear H2; subst.
+            eapply IHr in H8; intuition. eauto. eauto. eauto. }
           { congruence. } }
       Qed.
 
@@ -543,6 +541,65 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         eapply SH.WellTyped_impures_eq; eauto. }
     Qed.
 
+    Lemma cancel_in_order_PureFacts_weak : forall tU tG bound summ,
+      let tf := typeof_funcs funcs in
+      let tp := SE.typeof_preds preds in
+(*
+      let tU := typeof_env U in
+      let tG := typeof_env G in *)
+      forall ls acc rem sub L R S,
+      U.Subst_WellTyped tf tU tG sub ->
+      allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
+        (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true ->
+      SH.WellTyped_impures tf tp tU tG acc = true ->
+      SH.WellTyped_impures tf tp tU tG rem = true ->
+(*      Valid Prover_correct U G summ ->  *)
+      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+         U.Subst_Extends S sub 
+      /\ U.Subst_WellTyped tf tU tG S
+      /\ SH.WellTyped_impures tf tp tU tG L = true 
+      /\ SH.WellTyped_impures tf tp tU tG R = true.
+    Proof.
+      induction ls; simpl; intros.
+      { inversion H3; clear H3; subst; intuition. }
+      { subst tp. rewrite nth_error_typeof_preds in H0. destruct a; simpl in *.
+        repeat match goal with
+                 | H : context [ option_map _ ?X ] |- _ =>
+                   (consider X; simpl in *; try congruence); [ intros ]
+                 | [ H : match ?X with _ => _ end = _ |- _ ] =>
+                   (consider X; intros; try congruence); [ intros ]
+                 | [ H : match ?X with
+                           | Some _ => _ | None => _ 
+                         end = _ |- _ ] =>
+                 consider X; intros
+               end; simpl in *; subst.
+        { assert (List.Forall
+          (fun r : list (expr types) =>
+            all2 (is_well_typed tf tU tG) r (SDomain p) = true) l0).
+          { eapply SH.WellTyped_impures_eq in H2; try eassumption.
+            destruct l0. constructor. rewrite nth_error_typeof_preds in H2.
+            rewrite H0 in H2. generalize dependent (e :: l0); simpl; intros.
+            unfold typeof_pred in H2. clear - H2.
+            induction l2; simpl in *; constructor; think; auto. }
+          eapply unify_remove_PureFacts in H7.
+          2: eauto. 2: eauto. 2: eauto. 2: eauto. 
+          { eapply IHls in H8; eauto. intuition.
+            etransitivity; eassumption.
+            intuition. intuition.
+            eapply SH.WellTyped_impures_eq. intros. rewrite MF.FACTS.add_o in H10.
+            destruct (MF.FACTS.eq_dec f k); auto. inversion H10; clear H10; subst. 
+            rewrite nth_error_typeof_preds in *. rewrite H0 in *. simpl. destruct v; intuition.
+            generalize dependent (e :: v); intros.
+            clear - H11. unfold typeof_pred. induction H11; simpl; auto. rewrite H. auto.
+            eapply SH.WellTyped_impures_eq; eauto. } }
+        { clear H6. eapply IHls in H7; eauto.
+          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
+          rewrite H0. simpl. auto. }
+        { clear H4. eapply IHls in H6; eauto.
+          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
+          rewrite H0. simpl. auto. } }
+    Qed.
+
     Lemma cancel_in_order_PureFacts : forall U G bound summ,
       let tf := typeof_funcs funcs in
       let tp := SE.typeof_preds preds in
@@ -555,46 +612,15 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true ->
       SH.WellTyped_impures tf tp tU tG acc = true ->
       SH.WellTyped_impures tf tp tU tG rem = true ->
-      Valid Prover_correct U G summ ->
       cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
          U.Subst_equations funcs U G sub 
       /\ U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S
       /\ SH.WellTyped_impures tf tp tU tG L = true 
       /\ SH.WellTyped_impures tf tp tU tG R = true.
     Proof.
-      induction ls; simpl; intros.
-      { inversion H5; clear H5; subst; auto. }
-      { subst tp. rewrite nth_error_typeof_preds in H1. destruct a; simpl in *.
-        repeat match goal with
-                 | H : context [ option_map _ ?X ] |- _ =>
-                   (consider X; simpl in *; try congruence); [ intros ]
-                 | [ H : match ?X with _ => _ end = _ |- _ ] =>
-                   (consider X; intros; try congruence); [ intros ]
-                 | [ H : match ?X with
-                           | Some _ => _ | None => _ 
-                         end = _ |- _ ] =>
-                 consider X; intros
-               end; simpl in *; subst.
-        { eapply unify_remove_PureFacts in H9; eauto. 
-          { eapply IHls in H10; eauto. intuition.
-            eapply U.Subst_equations_Extends. 2: eassumption. eauto. intuition. 
-            eapply SH.WellTyped_impures_eq. intros. rewrite MF.FACTS.add_o in H8.
-            destruct (MF.FACTS.eq_dec f k); auto. inversion H8; clear H8; subst. 
-            rewrite nth_error_typeof_preds. rewrite H1. simpl. intuition.
-            destruct v; auto. generalize dependent (e :: v); intros.
-            clear - H12. unfold typeof_pred. induction H12; simpl; auto. rewrite H. auto.
-            eapply SH.WellTyped_impures_eq; eauto. } 
-          { eapply SH.WellTyped_impures_eq in H3; eauto.
-            rewrite nth_error_typeof_preds in H3. rewrite H1 in H3. simpl in H3.
-            destruct l0. constructor.
-            revert H3. clear. induction (e :: l0); intros; simpl. constructor.
-            simpl in *. consider (all2 (is_well_typed tf tU tG) a (typeof_pred p)); intros; constructor; auto. } }
-        { clear H8. eapply IHls in H9; eauto.
-          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
-          rewrite H1. simpl. auto. }
-        { clear H6. eapply IHls in H8; eauto.
-          eapply WellTyped_impures_mmap_add; auto. rewrite nth_error_typeof_preds.
-          rewrite H1. simpl. auto. } }
+      intros.
+      eapply cancel_in_order_PureFacts_weak in H4; try eassumption. intuition.
+      eapply U.Subst_equations_Extends. 2: eassumption. eauto. 
     Qed.
 
     Lemma impuresD_mmap_add : forall cs U G f args m,
@@ -821,19 +847,19 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
     (** TODO: it would be good to keep this somewhat general with respect to the order so that we can play around with it
      **)
-    Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) :
+    Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) (s : U.Subst types) :
       SH.SHeap _ _ _ * SH.SHeap _ _ _ * U.Subst types :=
       let ordered_r := order_impures (SH.impures r) in
       let sorted_l := FM.map (fun v => Ordering.sort _ meta_order_args v) (SH.impures l) in 
       let '(rf, lf, sub) := 
-        cancel_in_order bound summ ordered_r (MM.empty _) sorted_l (U.Subst_empty _)
+        cancel_in_order bound summ ordered_r (MM.empty _) sorted_l s
       in
       ({| SH.impures := lf ; SH.pures := SH.pures l ; SH.other := SH.other l |},
        {| SH.impures := rf ; SH.pures := SH.pures r ; SH.other := SH.other r |},
        sub).
 
-    Theorem sepCancel_PuresPrem : forall funcs U G bound summ l r l' r' s,
-      sepCancel bound summ l r = (l', r', s) ->
+    Theorem sepCancel_PuresPrem : forall funcs U G bound summ l r l' r' s s',
+      sepCancel bound summ l r s = (l', r', s') ->
       AllProvable funcs U G (SH.pures l) ->
       AllProvable funcs U G (SH.pures l').
     Proof.
@@ -843,7 +869,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
               (FM.map
                  (fun v : list (exprs types) =>
                   Ordering.sort (exprs types) meta_order_args v)
-                 (SH.impures l)) (U.Subst_empty types)). destruct p. inversion H.
+                 (SH.impures l)) s). destruct p. inversion H.
       auto.
     Qed.
 
@@ -898,13 +924,106 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       etransitivity. 2: apply fold_left_insert_perm. rewrite app_nil_r; auto.
     Qed.
 
+    Lemma WellTyped_empty : forall tf tp tU tG,
+      SH.WellTyped_impures tf tp tU tG (MM.empty (exprs types)) = true.
+    Proof. clear.
+      intros. rewrite SH.WellTyped_impures_spec_eq. rewrite MF.PROPS.fold_Empty; auto with typeclass_instances.
+      apply FM.empty_1.
+    Qed.
 
-    Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub,
-      U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
+    Lemma order_impures_WellTyped : forall tf tp tU tG imp,
+      SH.WellTyped_impures tf tp tU tG imp = true ->
+      allb (fun v : list (expr types) * func => WellTyped_sexpr tf tp tU tG
+        (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) (order_impures imp) = true.
+    Proof. clear.
+      intros. unfold order_impures.
+      rewrite SH.WellTyped_impures_spec_eq in H.
+      rewrite FM.fold_1 in *. revert H. unfold exprs in *. generalize true at 2 4.
+      induction (FM.elements (elt:=list (list (expr types))) imp); auto; intros.
+      simpl in *. 
+      assert (fold_left
+        (fun (a : bool) (p : FM.key * list (list (expr types))) =>
+          (a &&
+            match snd p with
+              | nil => true
+              | _ :: _ =>
+                match nth_error tp (fst p) with
+                  | Some ts =>
+                    allb
+                    (fun args : list (expr types) =>
+                      all2
+                      (is_well_typed tf
+                        tU tG) args ts) 
+                    (snd p)
+                  | None => false
+                end
+            end)%bool) l false = false).
+      { clear. induction l; simpl; auto. } 
+      destruct b; simpl in H; try congruence.
+      destruct a. destruct l0; simpl in *. eauto.
+      consider (nth_error tp k); intros; try congruence.
+      consider (all2 (is_well_typed tf tU tG) l0 t); intros; try congruence.
+      consider (allb
+        (fun args : list (expr types) =>
+          all2
+          (is_well_typed tf tU tG) args t) l1); intros; try congruence.
+      rewrite <- IHl by assumption.
+      erewrite allb_permutation. 
+      2: symmetry; apply fold_left_fold_left_insert_perm.
+      rewrite allb_app. erewrite <- allb_permutation.
+      2: eapply fold_left_insert_perm.
+      rewrite allb_app. rewrite allb_map. simpl. unfold exprs in *.
+      think. simpl. auto. 
+    Qed.
+
+    Lemma map_sort_WellTyped : forall C tf tp tU tG imp,
+      SH.WellTyped_impures tf tp tU tG imp = true ->
+      SH.WellTyped_impures tf tp tU tG
+      (FM.map (fun v : list (exprs types) => Ordering.sort (exprs types) C v) imp) = true.
+    Proof. clear.
+      intros. eapply SH.WellTyped_impures_eq; intros. rewrite MF.FACTS.map_o in H0.
+      consider (FM.find (elt:=list (exprs types)) k imp); simpl in *; try congruence; intros.
+      inversion H1; clear H1; subst.
+      eapply SH.WellTyped_impures_eq in H0. 2: eassumption.
+      destruct l; auto. destruct (nth_error tp k); try contradiction.
+      erewrite allb_permutation in H0. 2: symmetry; eapply Ordering.sort_permutation.
+      rewrite H0. destruct (Ordering.sort (exprs types) C (e :: l)); auto. 
+    Qed.
+
+    Theorem sepCancel_PureFacts : forall tU tG bound summ l r l' r' s s',
+      let tf := typeof_funcs funcs in
+      let tp := typeof_preds preds in
+      sepCancel bound summ l r s = (l', r', s') ->
+      U.Subst_WellTyped tf tU tG s ->
+      SH.WellTyped_sheap tf tp tU tG l = true ->
+      SH.WellTyped_sheap tf tp tU tG r = true ->
+         U.Subst_WellTyped tf tU tG s' 
+      /\ SH.WellTyped_sheap tf tp tU tG l' = true
+      /\ SH.WellTyped_sheap tf tp tU tG r' = true.
+    Proof. 
+      unfold sepCancel. intros.
+      consider (cancel_in_order bound summ (order_impures (SH.impures r))
+              (MM.empty (exprs types))
+              (FM.map
+                 (fun v : list (exprs types) =>
+                  Ordering.sort (exprs types) meta_order_args v)
+                 (SH.impures l)) s); intros.
+      destruct p. inversion H3; clear H3; subst.
+      rewrite SH.WellTyped_sheap_eq in H1.
+      rewrite SH.WellTyped_sheap_eq in H2. think.
+      eapply cancel_in_order_PureFacts_weak in H; try eassumption; 
+        eauto using order_impures_WellTyped, WellTyped_empty, map_sort_WellTyped.
+      intuition.
+      rewrite SH.WellTyped_sheap_eq; simpl; think; auto.
+      rewrite SH.WellTyped_sheap_eq; simpl; think; auto.
+    Qed.
+
+    Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub sub',
+      U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub' ->
       SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) l = true ->
       SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) r = true ->
       Valid Prover_correct U G summ ->
-      sepCancel bound summ l r = (l', r', sub) ->
+      sepCancel bound summ l r sub' = (l', r', sub) ->
       himp funcs preds U G cs (SH.sheapD l') (SH.sheapD r') ->
       U.Subst_equations funcs U G sub ->
       himp funcs preds U G cs (SH.sheapD l) (SH.sheapD r).
@@ -935,60 +1054,16 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         red.
         symmetry. erewrite Equiv_map. reflexivity. intros. eapply Ordering.sort_permutation.
         apply FM.empty_1. }
+      { eapply U.Subst_equations_WellTyped; auto. }
       { rewrite SH.WellTyped_sheap_eq in H1. think. simpl in *.
-        unfold order_impures. clear - H H1.
-        rewrite SH.WellTyped_impures_spec_eq in H1.
-        rewrite FM.fold_1 in *. revert H1. unfold exprs in *. generalize true at 2 4.
-        induction (FM.elements (elt:=list (list (expr types))) impures0); auto; intros.
-        simpl in *. 
-        assert (fold_left
-         (fun (a : bool) (p : FM.key * list (list (expr types))) =>
-          (a &&
-           match snd p with
-           | nil => true
-           | _ :: _ =>
-               match nth_error (typeof_preds preds) (fst p) with
-               | Some ts =>
-                   allb
-                     (fun args : list (expr types) =>
-                      all2
-                        (is_well_typed (typeof_funcs funcs) 
-                           (typeof_env U) (typeof_env G)) args ts) 
-                     (snd p)
-               | None => false
-               end
-           end)%bool) l false = false).
-        { clear. induction l; simpl; auto. } 
-        destruct b; simpl in H1; try congruence.
-        destruct a. destruct l0; simpl in *. eauto.
-        consider (nth_error (typeof_preds preds) k); intros; try congruence.
-        consider (all2 (is_well_typed (typeof_funcs funcs) (typeof_env U) (typeof_env G)) l0 t); intros; try congruence.
-        consider (allb
-            (fun args : list (expr types) =>
-             all2
-               (is_well_typed (typeof_funcs funcs) 
-                  (typeof_env U) (typeof_env G)) args t) l1); intros; try congruence.
-        rewrite <- IHl by assumption.
-        erewrite allb_permutation. 
-        2: symmetry; apply fold_left_fold_left_insert_perm.
-        rewrite allb_app. erewrite <- allb_permutation.
-        2: eapply fold_left_insert_perm.
-        rewrite allb_app. rewrite allb_map. simpl.
-        think. erewrite allb_impl. 2: eassumption. simpl.
-        rewrite all2_map_1. erewrite all2_impl. 2: eauto. simpl. auto.
-        clear -H. intros. rewrite <- U.exprInstantiate_WellTyped; auto.
-        clear -H. intros. rewrite all2_map_1. simpl in *.
-        eapply all2_impl; eauto. intros. rewrite <- U.exprInstantiate_WellTyped; auto. }
-      { rewrite SH.WellTyped_impures_spec_eq. rewrite MF.PROPS.fold_Empty; auto with typeclass_instances.
-        apply FM.empty_1. }
-      { rewrite SH.WellTyped_sheap_eq in H0. simpl in *. think.
-        eapply SH.WellTyped_impures_eq; intros. rewrite MF.FACTS.map_o in H7.
-        consider (FM.find (elt:=list (exprs types)) k impures); simpl in *; try congruence; intros.
-        inversion H8; clear H8; subst.
-        eapply SH.WellTyped_impures_eq in H0. 2: eassumption.
-        destruct l; auto. destruct (nth_error (typeof_preds preds) k); try contradiction.
-        erewrite allb_permutation in H0. 2: symmetry; eapply Ordering.sort_permutation.
-        rewrite H0. destruct (Ordering.sort (exprs types) meta_order_args (e :: l)); auto. }
+        eapply order_impures_WellTyped in H1.
+        eapply allb_impl; try eassumption. simpl; intros.
+        destruct (nth_error (typeof_preds preds) (snd x)); auto.
+        rewrite all2_map_1. erewrite all2_impl. 2: eauto. auto.        
+        simpl; intros.
+        rewrite <- U.exprInstantiate_WellTyped; auto using U.Subst_equations_WellTyped. }
+      { apply WellTyped_empty. }
+      { apply map_sort_WellTyped. rewrite SH.WellTyped_sheap_eq in H0. think. simpl in *. auto. }
       { do 2 (rewrite SH.sheapD_def in H4; simpl in H4). 
         do 2 rewrite impuresD_forget_impuresInstantiate by eassumption. eapply H4. }
     Qed.
