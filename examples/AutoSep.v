@@ -84,7 +84,10 @@ Ltac sep_firstorder := sep_easy;
            | [ |- _ /\ _ ] => split
            | [ |- forall x, _ ] => intro
            | [ |- _ = _ ] => reflexivity
-           | [ |- himp _ _ _ ] => reflexivity || (apply frame_reflexivity; apply refl_equal)
+           | [ |- himp _ _ _ ] => reflexivity
+             || (apply frame_reflexivity; try match goal with
+                                                | [ |- _ = ?X ] => instantiate (1 := X)
+                                              end; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula;
   repeat match goal with
            | [ _ : context[Regs (match ?st with

@@ -56,7 +56,7 @@ Module SinglyLinkedList : SINGLY_LINKED_LIST.
     -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
     destruct ls; sepLemma;
       match goal with
-        | [ H : _ :: _ = _ :: _ |- _ ] => inversion H; intros; subst; reflexivity
+        | [ H : _ :: _ = _ :: _ |- _ ] => injection H; sepLemma
       end.
   Qed.
 End SinglyLinkedList.
