@@ -28,11 +28,11 @@ Module Type BST.
   Axiom nil_bwd : forall s t (p : W), p = 0 -> [| s %= empty /\ t = Leaf |] ===> bst' s t p.
 
   Axiom cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
-    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1 * bst' (s %> v) t2 p2
     * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |].
 
   Axiom cons_bwd : forall s t (p : W), p <> 0 ->
-    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1 * bst' (s %> v) t2 p2
       * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |]) ===> bst' s t p.
 End BST.
 
@@ -82,13 +82,13 @@ Module Bst : BST.
   Qed.
 
   Theorem cons_fwd : forall s t (p : W), p <> 0 -> bst' s t p ===>
-    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1 * bst' (s %> v) t2 p2
     * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |].
     destruct t; sepLemma.
   Qed.
 
   Theorem cons_bwd : forall s t (p : W), p <> 0 ->
-    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1* bst' (s %> v) t2 p2
+    (Ex t1, Ex t2, Ex p1, Ex v, Ex p2, (p ==*> p1, v, p2) * bst' (s %< v) t1 p1 * bst' (s %> v) t2 p2
     * [| freeable p 3 /\ t = Node t1 t2 /\ v %in s |]) ===> bst' s t p.
     destruct t; sepLemma;
       match goal with
@@ -241,7 +241,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
         "tmp" <-* "s";;
         If (0 = "tmp") {
           (* Oh my goodness!  This test expression is a hack to prevent unfolding from firing!
-           * (Since the provers don't understand symmetry of [=]) *)
+           * (Since the provers don't understand symmetry of [<>]) *)
 
           (* Empty left subtree.  Promote the right subtree to this position. *)
 
