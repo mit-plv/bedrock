@@ -1,7 +1,7 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
-let debug = true
+let debug = false
 
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
 let pp_list pp fmt l = List.iter (fun x -> Format.fprintf fmt "%a; " pp x) l
