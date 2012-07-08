@@ -398,7 +398,7 @@ Section canceller.
       generalize (typeof_env_length x1). rewrite H3; intros.
       rewrite <- firstn_skipn with (n := length meta_env) (l := x1) in H3.
       repeat (rewrite map_app in *  || rewrite map_map in * || rewrite map_id in * || rewrite app_ass in *
-        || rewrite ListFacts.rw_skipn_app in * by eauto || rewrite typeof_env_app in *).
+        || rewrite ListFacts.rw_skipn_app in * by eauto || rewrite typeof_env_app in * ).
       simpl in *. rewrite typeof_env_app in *. eapply app_inj_length in H3.
       Focus 2. revert H. t_list_length. rewrite firstn_length. intro. rewrite min_l; omega.
       destruct H3.
@@ -411,12 +411,6 @@ Section canceller.
       revert H. t_list_length. intro. rewrite firstn_length; rewrite min_l; auto.
       rewrite skipn_length. omega. }
     intuition. clear H3 H1.
-
-(*
-    Focus 2. eapply CANCEL.sepCancel_PuresPrem; eauto.
-    rewrite <- firstn_skipn with (n := length meta_env) (l := x1).
-    rewrite <- app_nil_r with (l := rev G ++ G0). eapply AllProvable_weaken. rewrite <- H15. solve [ auto ].
-*)
 
     eapply AllProvable_and_sem in H14. destruct H14.
     rewrite app_ass in *.
@@ -678,7 +672,7 @@ Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
  ** - [simplifier] is an ltac that simplifies the goal after the cancelation, it is passed
  **   constr:(tt).
  **)
-Ltac sep_canceler isConst ext simplifier :=
+Ltac sep_canceller isConst ext simplifier :=
 (*TIME  start_timer "sep_canceler:change_to_himp" ; *)
   (try change_to_himp) ;
 (*TIME  stop_timer "sep_canceler:change_to_himp" ; *)
@@ -801,7 +795,7 @@ Ltac sep_canceler isConst ext simplifier :=
          apply (@ApplyCancelSep typesV funcsV predsV 
                    (ILAlgoTypes.Algos ext typesV)
                    (@ILAlgoTypes.Algos_correct ext typesV funcsV predsV) uvars pures L R); 
-           [ apply proofs | reflexivity | ]
+           [ solve [ apply proofs ] | compute; reflexivity | ]
 (*TIME       ;  stop_timer "sep_canceler:apply_CancelSep" *)
  )
         || (idtac "failed to apply, generalizing instead!" ;
