@@ -133,6 +133,16 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         rewrite SH.impuresD_Add; eauto. rewrite <- H0. SEP_FACTS.heq_canceler.
         rewrite starred_forget_exprInstantiate; auto. reflexivity. }
     Qed.
+
+    Lemma Func_forget_exprInstantiate : forall n e,
+      U.Subst_equations funcs U G s ->
+      SH.SE.heq funcs preds U G cs (SH.SE.Func n (map (U.exprInstantiate s) e)) (SH.SE.Func n e).
+    Proof. clear.
+      unfold SH.SE.heq. simpl. intros.
+      destruct (nth_error preds n); try reflexivity.
+      rewrite applyD_forget_exprInstantiate; auto. reflexivity.
+    Qed.
+
   End typed.
 
 End Make.

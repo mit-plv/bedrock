@@ -1,7 +1,7 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
-let debug = false
+let debug = true
 
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
 let pp_list pp fmt l = List.iter (fun x -> Format.fprintf fmt "%a; " pp x) l
@@ -328,6 +328,7 @@ module Bedrock = struct
 	in 	
 	let ty = (Term.mkApp (ty,[|types|])) in 
 	let funcs = Extlib.List.of_list ty (List.map mk_function renv.funcs) in 
+	debug_type_gl gl funcs "FUNCS";
 	Extlib.cps_mk_letin "funcs" funcs (fun funcs gl ->
 	(* Preds *)
 	let ty = Extlib.init_constant ["Bedrock"; "SepIL"; "SEP"] "predicate" in
@@ -385,6 +386,14 @@ module Bedrock = struct
       try aux Term.eq_constr 0 l
       with
       	| Length _ -> aux (Reductionops.is_conv env evar) 0 l
+
+    let c_exists env evar f x l =
+      let rec aux eq n = function 
+	| [] -> raise (Length n)
+	| t :: q -> if eq (f t) x  then n else aux eq (n+1) q
+      in
+      aux Term.eq_constr 0 l
+
       (* aux Term.eq_constr 0 l *)
 
     (* add a bedrock [type] to the environment *)
@@ -562,7 +571,11 @@ module Bedrock = struct
 	    renv, Not e
 	  | Term.Prod (_,s,t) when Term.eq_constr t (Lazy.force Extlib.Logic._false) -> 
 	    let renv, e = reify_expr renv s in 
-	    renv, Not e	   
+	    renv, Not e	  
+	  (* special case to add a constant. May fail later. *)
+	  | Term.App (hd,_) when Term.eq_constr hd (Extlib.Logic.exists ()) -> 
+	    let renv, f = Renv.add_func env evar renv e [] (Typing.type_of env evar e) in 
+	    renv, Func (f,[]) 
 	  | _ when Renv.is_const e ->         	  
 	    let ty = Typing.type_of env evar e in
 	    let renv, nty = Renv.add_type env evar renv ty in 
@@ -1146,9 +1159,12 @@ module Bedrock = struct
 	  let ty = Typing.type_of env evar f in
 	  (* let ty = Tacred.hnf_constr env evar ty in  *)
       	  let (rel_context, return) = Term.decompose_prod_assum ty in 
-	  let types = List.fold_left (fun acc (_,_,ty) -> ty :: acc) [] rel_context in 
-	  let renv, _ = Renv.add_pred env evar renv f types in 
-	  renv	      
+	  let types = List.fold_left (fun acc (_,_,ty) -> ty :: acc) [] rel_context in 	  
+	  let renv,types = List.fold_right (fun ty (renv,acc) ->
+	    let renv, t = Renv.add_type env evar renv ty in 
+	    renv, (ty,t)::acc
+	  )  types (renv,[]) in 
+ 	  {renv with Renv.preds = renv.Renv.preds @ [f, types ]}
 	) preds renv in 
 	renv	  
       with e -> Format.printf "exception %s\n%!" (Printexc.to_string e); Util.anomaly "should not happen" 

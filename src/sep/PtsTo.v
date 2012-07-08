@@ -183,15 +183,30 @@ Module BedrockPtsToEvaluator.
       inversion H6; clear H6; subst. simpl.
       rewrite H1. rewrite H2.
       
-      consider (smem_set_word (IL.explode stn) p v m); intros; unfold ptsto32 in *. 
+      consider (smem_set_word (IL.explode stn) p v m); intros; unfold ptsto32 in *.
+      unfold ST.satisfies in *.
       PropXTac.propxFo.
       eapply smem_set_get_word_eq; eauto.
       eapply IL.implode_explode.
-
+      unfold smem_set_word in H6.
+      unfold H.footprint_w in H6.
+      destruct (IL.explode stn v) as [ [ [ ] ] ].
+      repeat match type of H6 with
+               | match ?E with None => _ | _ => _ end = Some _ =>
+                 let Heq := fresh "Heq" in case_eq E;
+                   [ intros ? Heq | intro Heq ];
+                   rewrite Heq in *; try discriminate
+             end.
+      Require Import Nomega.
+      repeat erewrite smem_set_get_neq by eauto.
+      eapply expr_equal_correct in H; [ | eauto | eauto | eauto ].
+      subst.
+      auto.
+      
       eapply expr_equal_correct in H; eauto. subst.
       unfold ST.satisfies in H5. PropXTac.propxFo.
       eapply smem_set_get_valid_word; eauto.
-    Qed.  
+    Qed.
   End correctness.
 
   Definition MemEvaluator_ptsto32 types' : MEVAL.MemEvaluator types' (tvType 0) (tvType 1) :=

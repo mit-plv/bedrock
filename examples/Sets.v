@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import AutoSep Malloc.
 
 
 (** Theory of sets, with tactics and hints *)
@@ -33,8 +33,9 @@ Ltac sets := subst;
            | [ H : _ <= _ |- _ ] => generalize dependent H
            | [ H : @eq W _ _ |- _ ] => generalize dependent H
            | [ H : not (@eq W _ _) |- _ ] => generalize dependent H
+           | [ H : _ \is _ |- _ ] => generalize dependent H
          end; clear;
-  unfold equiv, empty, mem, add, del, less, greater; intros;
+  unfold equiv, empty, mem, add, del, less, greater, propToWord, IF_then_else; intros;
     try match goal with
           | [ |- context[?s ?w] ] =>
             match type of s with
@@ -58,3 +59,33 @@ Lemma wlt_trans : forall a b c : W, a < b -> b < c -> a < c.
 Qed.
 
 Hint Extern 1 (_ < _) => eapply wlt_trans; eassumption.
+
+
+(** * The finite set ADT *)
+
+Section adt.
+  Variable P : set -> W -> HProp.
+  (* Abstract predicate for the data structure *)
+
+  Variable res : nat.
+  (* How many reserved stack slots? *)
+
+  Definition initS : spec := SPEC reserving res
+    PRE[_] mallocHeap
+    POST[R] P empty R * mallocHeap.
+
+  Definition lookupS : spec := SPEC("s", "k") reserving res
+    Ex s,
+    PRE[V] P s (V "s") * mallocHeap
+    POST[R] [| (V "k" %in s) \is R |] * P s (V "s") * mallocHeap.
+
+  Definition addS : spec := SPEC("s", "k") reserving res
+    Ex s,
+    PRE[V] P s (V "s") * mallocHeap
+    POST[_] P (s %+ V "k") (V "s") * mallocHeap.
+
+  Definition removeS : spec := SPEC("s", "k") reserving res
+    Ex s,
+    PRE[V] P s (V "s") * mallocHeap
+    POST[_] P (s %- V "k") (V "s") * mallocHeap.
+End adt.

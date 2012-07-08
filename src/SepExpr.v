@@ -275,6 +275,13 @@ Module SepExprFacts (SE : SepExpr).
       unfold SE.heq; simpl; auto.
     Qed.
 
+    Global Add Parametric Morphism : (SE.sexprD funcs preds U G) with 
+      signature (SE.himp funcs preds U G cs ==> SE.ST.himp cs)
+      as himp_ST_himp_mor.
+    Proof.
+      unfold SE.himp; simpl; auto.
+    Qed.
+
     Lemma heq_star_emp_r : forall P, 
       SE.heq funcs preds U G cs (SE.Star P SE.Emp) P.
     Proof.

@@ -2,20 +2,22 @@ Require Import AutoSep.
 
 (** * A trivial example to make sure the separation logic proof automation isn't completely borked *)
 
-Definition readS : assert := st ~> ExX, Ex v, ![ $0 =*> v * #0 ] st
-  /\ st#Rp @@ (st' ~> [| st'#Rv = v |] /\ ![ $0 =*> v * #1 ] st').
+Definition readS : spec := SPEC("x") reserving 1
+  Ex v,
+  PRE[V] V "x" =*> v
+  POST[R] [| R = v |] * V "x" =*> v.
 
 Definition read := bmodule "read" {{
-  bfunction "read" [readS] {
-    Rv <- $[0];;
-    If (Rv = 0) {
-      $[0] <- 0
+  bfunction "read"("x", "y") [readS]
+    "y" <-* "x";;
+    If ("y" = 0) {
+      "x" *<- 0
     } else {
-      $[0] <- $[0]
+      "x" *<- "y"
     } ;;
-    Rv <- $[0];;
-    Goto Rp
-  }
+    "y" <-* "x";;
+    Return "y"
+  end
 }}.
 
 Theorem readOk : moduleOk read.

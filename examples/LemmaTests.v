@@ -12,7 +12,7 @@ Theorem t0 : forall a b, a =*> b ===> a =*> b.
 Qed.
 
 Theorem t1 : forall a b c d, a =*> b * c =*> d ===> c =*> d * a =*> b.
-  sepLemma.
+  sepLemma. 
 Qed.
 
 Theorem t2 : forall P : nat -> Prop, (Ex x, [| P x |]) ===> Ex x, [| P x |].
