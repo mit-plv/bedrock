@@ -17,10 +17,11 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	Unfolder ReifyHints SepLemma \
 	Env TypedPackage TacPackIL Allocated \
 	SymEval sep/PtsTo sep/Array Arrays sep/Locals provers/LocalsProver \
-	IL \
+	IL ReifyIL \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \
-	ILTac \
+	CancelIL \
+	ILTacCommon ILTac \
 	Bedrock
 
 TESTS := UnfolderTests
@@ -29,9 +30,9 @@ TVS        := $(TESTS:%=%.v)
 
 ARGS :=-R . Bedrock 
 
-.PHONY: coq clean package
+.PHONY: coq clean package native ltac
 
-coq: Makefile.coq
+coq: Makefile.coq ILTac.v
 	$(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(VS)
@@ -45,7 +46,29 @@ test: coq Makefile.test.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
-	rm -f Makefile.coq .depend
+	rm -f Makefile.coq .depend ILTac.v ILTac.vo ILTac.v.d ILTac.glob
+
+native:
+	@ echo "## "
+	@ echo "## Switching to OCaml reification."
+	@ echo "## "
+	@ rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob
+	@ ln -s ILTacML.v ILTac.v
+
+ltac:
+	@ echo "## "
+	@ echo "## Switching to ltac reification."
+	@ echo "## "
+	@ rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob
+	@ ln -s ILTacLtac.v ILTac.v
+
+ILTac.v:
+	@ echo "## "
+	@ echo "## Warning: No ILTac.v, defaulting to Ltac reification."
+	@ echo "## NOTE: If you would like to use the faster, ML reification"
+	@ echo "##       run 'make native'"
+	@ echo "## "
+	@ $(MAKE) ltac
 
 package:
 	hg archive -t tgz /tmp/bedrock.tgz
