@@ -902,6 +902,7 @@ Ltac sep_canceler isConst ext simplifier :=
   
   let L := eval unfold empB, injB, injBX, starB, exB, hvarB in L in
   let R := eval unfold empB, injB, injBX, starB, exB, hvarB in R in   
+
       let k :=
             (fun types funcs uvars preds L R pures proofs => 
                (*TIME         stop_timer "sep_canceler:reify" *)

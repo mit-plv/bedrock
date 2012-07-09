@@ -265,7 +265,8 @@ module Bedrock = struct
       fun r -> 
 	match r with 
 	  | Some x -> tvType @@ [| Extlib.Nat.of_int x |] 
-	  | None -> Lazy.force tvProp
+	  | None -> 
+	    Lazy.force tvProp
 
 
   module ReificationHint = struct
@@ -317,13 +318,19 @@ module Bedrock = struct
       let ty = Extlib.init_constant ["Bedrock"; "Expr"] "type" in
       let types = Extlib.List.of_list ty  (List.map snd renv.types) in 
       debug_type_gl gl types "pose/types"; 
-      Extlib.cps_mk_letin "types" types (fun types ->      		
+      Extlib.cps_mk_letin "types" types (fun types gl ->      		
 	(* Functions *)
 	let ty = Extlib.init_constant ["Bedrock"; "Expr"] "signature" in
 	let mk = Extlib.init_constant ["Bedrock"; "Expr"] "Sig" in
 	let mk_function (denotation, domain, range) = 
-	  let domain = Extlib.List.of_list tvar (List.map (fun x -> mk_tvar (snd x)) domain) in  
+	  let domain = Extlib.List.of_list tvar (List.map (fun x -> mk_tvar (snd x)) domain) in 
 	  let range  = mk_tvar (snd range) in  
+	  debug_type_gl gl range "range";
+	  debug_type_gl gl denotation "denotation";
+	  debug_type_gl gl domain "domain";
+	  debug_type_gl gl (Term.mkApp (mk,[| types |])) "papp 1";
+	  debug_type_gl gl (Term.mkApp (mk,[| types ; domain; |])) "papp 1";
+	  debug_type_gl gl (Term.mkApp (mk,[| types ; domain; range|])) "papp 1";
 	  Term.mkApp (mk, [| types; domain; range; denotation |])
 	in 	
 	let ty = (Term.mkApp (ty,[|types|])) in 
@@ -365,7 +372,7 @@ module Bedrock = struct
 	  (* debug_type_gl gl uvars "UVARS"; *)
 	  (* Extlib.cps_mk_letin "uvars" uvars (fun uvars -> *)
 	    k types funcs preds uvars  	  
-	gl ) gl )) gl
+	gl ) gl )gl ) gl
 	
 
     let pp fmt renv =
@@ -379,13 +386,24 @@ module Bedrock = struct
     exception Length of int
 	
     let exists env evar f x l =
-      let rec aux eq n = function 
-	| [] -> raise (Length n)
-	| t :: q -> if eq (f t) x  then n else aux eq (n+1) q
-      in
-      try aux Term.eq_constr 0 l
-      with
-      	| Length _ -> aux (Reductionops.is_conv env evar) 0 l
+      try 
+	begin let rec aux eq n = function 
+	  | [] -> raise (Length n)
+	  | t :: q -> if eq (f t) x  then n else aux eq (n+1) q
+	      in
+	      try aux Term.eq_constr 0 l
+	      with
+      		| Length _ -> aux (Reductionops.is_conv env evar) 0 l
+	end
+      with 
+	| Length n -> raise (Length n)
+	| Util.UserError (func, e) ->   
+	  debug "exists exception function %s has failed with message : %s\n%!" func 
+	    (Pp.string_of_ppcmds e);
+	  raise (Length (List.length l))
+	| e -> 
+	  debug "exists exception %s\n%!" (Printexc.to_string e); 
+	  raise (Length (List.length l))
 
     let c_exists env evar f x l =
       let rec aux eq n = function 
@@ -397,7 +415,8 @@ module Bedrock = struct
       (* aux Term.eq_constr 0 l *)
 
     (* add a bedrock [type] to the environment *)
-    let add_type env evar (renv : t) ty : t * tvar =	
+    let add_type env evar (renv : t) ty : t * tvar =
+      debug "call add_type %a\n" pp_constr ty;
       if Term.is_Prop ty then renv, None
       else 
 	try renv, Some (exists env evar fst ty renv.types)
@@ -413,6 +432,7 @@ module Bedrock = struct
 
     let add_func env evar renv (f : Term.constr) (types : Term.types list) (return : Term.types):
 	t * int =  
+      debug "Call add_func %a\n" pp_constr f;
       (* if not (Term.closed0 f) then  Util.error "Unable to reify higher-order existentials" *)
       (* else *)
 	try renv, exists env evar (fun (f,_,_) -> f) f renv.funcs
@@ -424,6 +444,7 @@ module Bedrock = struct
 	  )  types (renv,[]) in 
 	  let renv, returni = add_type env evar renv return in
  	  {renv with funcs = renv.funcs @ [f, types, (return,returni)]}, n
+	  | e -> Format.printf "add_func exception %s\n%!" (Printexc.to_string e); Util.anomaly "should not happen" 
 
     let add_pred env evar renv (f : Term.constr) (types : Term.types list) :
 	t * int =  
@@ -581,6 +602,7 @@ module Bedrock = struct
 	    let renv, nty = Renv.add_type env evar renv ty in 
 	    renv, Const (nty,e) 	      
 	  | Term.App (hd, args) ->
+	    debug "Call reify_application with %a in reify_expr\n" pp_constr e;
 	    begin match reify_application env evar e with 
 	      | Some (f,types, args, return) -> 
 		let args, renv = List.fold_right (fun x (args, renv) -> 
@@ -1185,13 +1207,13 @@ module Bedrock = struct
       (* we start the actual reification *)
       debug "pure : %a\n%!" pp_constr pures;
       let renv, pures = Expr.reify_exprs env evar renv pures in
-      debug "Reified the pure props \n %!";	let _ = debug_type_gl gl sp "sp "in 
+      debug "===> Reified the pure props \n %!";	let _ = debug_type_gl gl sp "sp "in 
 
       (* we reify the registers *)
       let renv, rp = Expr.reify_expr env evar renv rp in
       let renv, sp = Expr.reify_expr env evar renv sp in
       let renv, rv = Expr.reify_expr env evar renv rv in
-      debug "Reified the registers \n %!";
+      debug "===> Reified the registers \n %!";
       (* we reify the instructions *)
       let renv, fin, is, ispf = SymIL.build_path env evar renv st hyps in       
       debug "Reified the instructions \n %!";
@@ -1256,21 +1278,23 @@ module Bedrock = struct
       
     (* hump cs l r *)
     let sep_canceler gl types funcs preds pures l r k = 
-      debug "I was here ! \n%!";
+      debug "Begin sep_canceler !\n%!";
       let hyps = Tacmach.pf_hyps_types gl in 
       let env = Tacmach.pf_env gl in 
       let evar = Tacmach.project gl in       
       let renv = Renv.init (parse_types types) in 
-      debug "Initialisation done ! \n%!";
+      debug "===> Initialisation done ! \n%!";
       let renv = parse_funcs env evar renv types funcs in 
       let renv = parse_preds env evar renv types preds in 
       debug "Finished to parse the initial arguments ! \n%!";
       (* we start the actual reification *)
-      debug "pure : %a\n%!" pp_constr pures;
+      debug "===> pure : %a\n%!" pp_constr pures;
       let renv, pures = Expr.reify_exprs env evar renv pures in
-      debug "Reified the pure props \n %!";
+      debug "===> Reified the pure props \n %!";
       let renv, l = SepExpr.reify_sexpr env evar renv l in 
+      debug "===> Reified the separation logic formula L\n %!";
       let renv, r = SepExpr.reify_sexpr env evar renv r in 
+      debug "===> Reified the separation logic formula R\n %!";
       Renv.pose gl renv (fun types funcs preds uvars gl ->       
 	let l = SepExpr.dump_sexpr gl types l in 
 	let r = SepExpr.dump_sexpr gl types r in 
@@ -1321,7 +1345,12 @@ TACTIC EXTEND plugin_
 	  let _ = Format.printf "%s\n%!" (String.make 6 '*') in 
 	  let renv, f = Bedrock.Expr.reify_expr env evar  renv e in 
 	  Format.printf "Env\n%a\nExpr:%a\nReification:%a\n"  Bedrock.Renv.pp renv pp_constr e Bedrock.Expr.pp_expr f ;
-	  Tacticals.tclIDTAC gl
+	  Bedrock.Renv.pose gl renv (fun types funcs preds uvars gl ->       
+	    let t = Bedrock.Expr.dump_expr types f in 
+	    debug_type_gl gl t "t";
+	    
+	    Tacticals.tclIDTAC gl
+	  )
       ]
 	END;;
 
@@ -1338,7 +1367,9 @@ TACTIC EXTEND plugin_2
 	  let _ = Format.printf "%s\n%!" (String.make 6 '*') in 
 	  let renv, f = Bedrock.SepExpr.reify_sexpr env evar  renv e in 
 	  Format.printf "Env\n%a\nSExpr:%a\nReification:%a\n" Bedrock.Renv.pp renv pp_constr e Bedrock.SepExpr.pp_sexpr f ;
-	  Tacticals.tclIDTAC gl
+	  Bedrock.Renv.pose gl renv (fun types funcs preds uvars gl ->       
+	    Tacticals.tclIDTAC gl
+	  )
       ]
 END;;
 
