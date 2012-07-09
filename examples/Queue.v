@@ -3,7 +3,7 @@ Require Import AutoSep Malloc Bags.
 
 (** * Queue ADT *)
 
-Definition ifZero (n : nat) (p1 p2 : W) := n = 0 -> p1 = p2.
+Definition ifZero (n : nat) (p1 p2 : W)  := n = 0 -> p1 = p2.
 
 Inductive focusOnFront : Prop := FF.
 Inductive focusOnBack : Prop := FB.

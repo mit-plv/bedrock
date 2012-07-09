@@ -1,4 +1,6 @@
 (* Declare ML Module "plugin". *)
+
+(*
 Declare ML Module "extlib".
 Declare ML Module "reif".
 
@@ -196,67 +198,75 @@ Goal  (fun x y => test2 (x, y)) = (fun _ b => b). intros.
 match goal with |- ?l = _  => refl_app cc2 l end. 
 match goal with |- ?l = _  => refl_app_cps l cc1 end. 
 Abort. 
-
-Require Bedrock. Require ReifyExpr. 
+Require Import String. 
+Require Bedrock. Require ReifyExpr.
+Definition test_dep_0 (n : nat) (arg : bool) := True. 
+Definition test_dep (n : nat) (arg : bool) := n = 0 -> arg = arg. 
 Goal True. 
-reify_expr (forall (x : bool), x = x). 
-reify_expr (1).
-reify_expr (fun (x : nat )=> x). 
-reify_expr (1 + 3). 
-reify_expr (1 + 3 = 2 + 2). 
-reify_expr (not (1 + 3 = 2 + 2)). 
-reify_expr (not (1 + 3 = 2 + 2)). 
-reify_expr ((1 + 3 = 2 + 2) -> False). 
-(* Time reify_expr ((1 + 1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 + 3 = 2 + 2) -> False).  *)
-reify_expr (fun n => n + n = n + n). 
-reify_expr (fun x => negb (negb x) = x).
+reify_expr (test_dep_0 1 true). 
+reify_expr (test_dep 1 true). 
 Abort. 
-Require Import Bedrock.SepIL. Import SEP. 
-Locate SEP.Emp. 
-Axiom types : list Type. 
-Axiom pc : Type. 
-Notation "a * b" := (@star pc pc types  a b) (only parsing). 
-Notation "0" := (@emp pc pc types ) (only parsing). 
-Notation "'Ex' x , p" := (@ex pc pc types _ (fun x => p)).
-Notation "'Ex' x : T , p" := (@ex pc pc types T (fun x => p)) .
-Notation "[| P |]" := (@inj pc pc types (@PropX.Inj pc pc types  P )). 
-Require Import IL. 
-Variable st : state. 
-Goal True. 
-reify_expr (Regs st Rp).
-reify_sexpr (0 ). 
-reify_sexpr (0 * 0 * 0). 
-reify_sexpr ( [| 1 + 1 = 2 |] * 0 * [| 12 = 6 + 6 |] ).
-reify_sexpr ( [| 1 + 1 = 2 |] * 0 * [| 12 = 6 + 6 |] ). 
-reify_sexpr ( Ex x, [| x = 1|]). 
-reify_sexpr ( Ex x, Ex y, Ex z, [| x = y + z|]). 
-reify_sexpr ( Ex x, [| x = 1|]). 
-reify_sexpr ( Ex x : bool, Ex y, Ex z, [| (if x then 1 else 2) = y + z|]). 
-reify_sexpr ( Ex x: bool, [| (if x then true else false) = x|]). 
-reify_sexpr ( Ex x:bool, Ex y : bool, [| (if x then y else false) = andb x y|]). 
-reify_sexpr ( Ex x:bool, Ex y : nat, [| (if x then y else y) = y|]). 
-Fail reify_sexpr (Ex x : (bool -> bool), [| x true = false |]). 
-evar (x : nat); let s := eval simpl in (Ex y : nat, [|x = y|] * [| S x = S y|]) in reify_sexpr s ; clear x.  
-Abort. 
+(* Require Bedrock. Require ReifyExpr.  *)
+(* Goal True.  *)
+(* reify_expr (forall (x : bool), x = x).  *)
+(* reify_expr (1). *)
+(* reify_expr (fun (x : nat )=> x).  *)
+(* reify_expr (1 + 3).  *)
+(* reify_expr (1 + 3 = 2 + 2).  *)
+(* reify_expr (not (1 + 3 = 2 + 2)).  *)
+(* reify_expr (not (1 + 3 = 2 + 2)).  *)
+(* reify_expr ((1 + 3 = 2 + 2) -> False).  *)
+(* (* Time reify_expr ((1 + 1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 +1 + 3 = 2 + 2) -> False).  *) *)
+(* reify_expr (fun n => n + n = n + n).  *)
+(* reify_expr (fun x => negb (negb x) = x). *)
+(* Abort.  *)
+(* Require Import Bedrock.SepIL. Import SEP.  *)
+(* Locate SEP.Emp.  *)
+(* Axiom types : list Type.  *)
+(* Axiom pc : Type.  *)
+(* Notation "a * b" := (@star pc pc types  a b) (only parsing).  *)
+(* Notation "0" := (@emp pc pc types ) (only parsing).  *)
+(* Notation "'Ex' x , p" := (@ex pc pc types _ (fun x => p)). *)
+(* Notation "'Ex' x : T , p" := (@ex pc pc types T (fun x => p)) . *)
+(* Notation "[| P |]" := (@inj pc pc types (@PropX.Inj pc pc types  P )).  *)
+(* Require Import IL.  *)
+(* Variable st : state.  *)
+(* Goal True.  *)
+(* reify_expr (Regs st Rp). *)
+(* reify_sexpr (0 ).  *)
+(* reify_sexpr (0 * 0 * 0).  *)
+(* reify_sexpr ( [| 1 + 1 = 2 |] * 0 * [| 12 = 6 + 6 |] ). *)
+(* reify_sexpr ( [| 1 + 1 = 2 |] * 0 * [| 12 = 6 + 6 |] ).  *)
+(* reify_sexpr ( Ex x, [| x = 1|]).  *)
+(* reify_sexpr ( Ex x, Ex y, Ex z, [| x = y + z|]).  *)
+(* reify_sexpr ( Ex x, [| x = 1|]).  *)
+(* reify_sexpr ( Ex x : bool, Ex y, Ex z, [| (if x then 1 else 2) = y + z|]).  *)
+(* reify_sexpr ( Ex x: bool, [| (if x then true else false) = x|]).  *)
+(* reify_sexpr ( Ex x:bool, Ex y : bool, [| (if x then y else false) = andb x y|]).  *)
+(* reify_sexpr ( Ex x:bool, Ex y : nat, [| (if x then y else y) = y|]).  *)
+(* Fail reify_sexpr (Ex x : (bool -> bool), [| x true = false |]).  *)
+(* evar (x : nat); let s := eval simpl in (Ex y : nat, [|x = y|] * [| S x = S y|]) in reify_sexpr s ; clear x.   *)
+(* Abort.  *)
 
-Goal forall P,   
-       P( Ex x : bool, [|negb (negb x) = false |]).
-intros.  
-assert (forall x, false = (x && negb x)%bool). admit. 
-Require Import Setoid. erewrite H. 
-match goal with 
-    |- P ?l => 
-      reify_sexpr l
-end. 
-Abort. 
+(* Goal forall P,    *)
+(*        P( Ex x : bool, [|negb (negb x) = false |]). *)
+(* intros.   *)
+(* assert (forall x, false = (x && negb x)%bool). admit.  *)
+(* Require Import Setoid. erewrite H.  *)
+(* match goal with  *)
+(*     |- P ?l =>  *)
+(*       reify_sexpr l *)
+(* end.  *)
+(* Abort.  *)
 
-Goal True. 
-Ltac t f :=
-match f with 
-  | (fun x => @?B x) => idtac 1 B; 
-      refl_app ltac:(fun x y z => idtac x y z) B
-  | (fun x => _) => idtac 2
-end. 
+(* Goal True.  *)
+(* Ltac t f := *)
+(* match f with  *)
+(*   | (fun x => @?B x) => idtac 1 B;  *)
+(*       refl_app ltac:(fun x y z => idtac x y z) B *)
+(*   | (fun x => _) => idtac 2 *)
+(* end.  *)
 
-t ((fun x => (if (x : bool) then true else false))). 
-Abort. 
+(* t ((fun x => (if (x : bool) then true else false))).  *)
+(* Abort.  *)
+*)

@@ -1,5 +1,5 @@
 ROOT    := ../..
-MODULES := extlib.mli extlib.ml reif.ml4 Sep.v example.v
+MODULES := extlib.mli extlib.ml reif.ml4 example.v
 
 .PHONY: coq clean
 
