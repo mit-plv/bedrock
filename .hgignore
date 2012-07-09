@@ -1,14 +1,16 @@
 syntax: glob
 
 *~
+\#*\#
 
 *.depend
-*.vo
 Makefile.coq
+*.vo
 *.glob
 *.v.d
 deps.dot
 deps.pdf
+src/ILTac.v
 
 *.aux
 *.bbl
@@ -17,3 +19,9 @@ deps.pdf
 *.out
 docs/nepls-pl-day/*.pdf
 timing/
+*.cmo
+*.cmx
+*.cmxs
+*.cmi
+*.o
+*.ml4.d
