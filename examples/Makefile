@@ -4,7 +4,8 @@ MODULES := AutoSepExt AutoSep LemmaTests \
            Pair SinglyLinkedList \
            Malloc \
            Sets ListSet TreeSet \
-           Bags Queue
+           Bags Queue \
+           Memoize
 
 VS      := $(MODULES:%=%.v)
 
