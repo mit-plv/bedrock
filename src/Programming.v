@@ -94,6 +94,20 @@ Definition Call_ (retOpt : option lvalue') (f : label) (args : list rvalue')
              | Some lv => Assign (lv ns) Rv :: nil
            end))).
 
+Definition ICall_ (retOpt : option lvalue') (f : rvalue') (args : list rvalue')
+  (afterCall : list string -> nat -> assert) : chunk := fun ns res =>
+  Structured (Assign Rp (f ns)
+    :: setArgs 4 args ns
+    ++ Binop Sp Sp Plus (natToW (4 + 4 * List.length ns))
+    :: Assign Rv Rp :: nil)
+  (fun im mn H => Seq_ H (ICall_ im mn Rv (afterCall ns res))
+    (Straightline_ im mn
+      (Binop Sp Sp Minus (natToW (4 + 4 * List.length ns))
+        :: match retOpt with
+             | None => nil
+             | Some lv => Assign (lv ns) Rv :: nil
+           end))).
+
 
 (** * Modules *)
 
@@ -235,6 +249,19 @@ Notation "rv <-- 'Call' f ( x1 , .. , xN ) [ p ]" :=
 
 Notation "'Return' e" := (Rv <- e;; Rp <- $[Sp+0];; Goto Rp)%SP
   (no associativity, at level 95) : SP_scope.
+
+Notation "'ICall' f () [ p ]" :=
+  (ICall_ None f nil (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "'ICall' f ( x1 , .. , xN ) [ p ]" :=
+  (ICall_ None f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'ICall' f () [ p ]" :=
+  (ICall_ (@Some lvalue' rv) f nil (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+Notation "rv <-- 'ICall' f ( x1 , .. , xN ) [ p ]" :=
+  (ICall_ (@Some lvalue' rv) f (@cons rvalue' x1 (.. (@cons rvalue' xN nil) ..)) (RET p))
+  (no associativity, at level 95, f at level 0) : SP_scope.
 
 
 (** * Specs *)
@@ -424,6 +451,17 @@ Hint Extern 1 (?specs _ = Some _) =>
     | [ H : specs _ = Some _ |- _ ] => apply (specs_cong H); congruence
   end.
 
+Lemma use_himp : forall pc state specs (P Q : hprop pc state nil), himp specs P Q
+  -> forall s m, interp specs (P s m)
+    -> interp specs (Q s m).
+  intros; apply (Imply_sound (H _ _)); auto.
+Qed.
+
+Lemma Imply_refl : forall pc state specs (P : PropX pc state),
+  interp specs (P ---> P).
+  intros; apply Imply_I; apply Env; simpl; auto.
+Qed.
+
 Section PropX.
   Variables pc state : Type.
   Variable P : PropX pc state.
@@ -546,6 +584,17 @@ Section PropX.
     eauto.
   Qed.
 
+  Theorem forallXR : forall A (p : propX _ _ (A :: nil)),
+    (forall x, interp specs (P ---> PropX.Subst p x))
+    -> interp specs (P ---> (ForallX p)).
+    intros.
+    apply Imply_I.
+    apply ForallX_I; intro.
+    eapply Imply_E.
+    eauto.
+    eauto.
+  Qed.
+
   Theorem swap : forall Q R,
     interp specs (R ---> Q ---> P)
     -> interp specs (Q ---> R ---> P).
@@ -572,6 +621,7 @@ Ltac imply_simp' := match goal with
                       | [ |- interp _ (_ ---> Forall _) ] => apply allR; intro
                       | [ |- interp _ (_ ---> Exists _) ] => eapply existsR
                       | [ |- interp _ (_ ---> ExistsX _) ] => eapply existsXR; unfold Subst; simpl
+                      | [ |- interp _ (_ ---> ForallX _) ] => eapply forallXR; unfold Subst; simpl; intro
                     end.
 
 Ltac reduce unf := try (apply simplify_fwd'; simpl); autorewrite with sepFormula; unf; simpl; try congruence.
