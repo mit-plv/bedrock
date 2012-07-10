@@ -14,9 +14,6 @@ Require Import SymILTac CancelIL.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Module U := ExprUnify.UNIFIER.
-Module CANCEL := SepCancel.Make U SepIL.SH.
-
 (*TIME
 Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
 Add ML Path "/usr/local/lib/coq/user-contrib/". 
@@ -117,7 +114,7 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.applyTypes
         ILAlgoTypes.PACK.applyFuncs
         ILAlgoTypes.PACK.applyPreds
-        tl hd map Env.repr
+        List.tl List.hd List.map Env.repr
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
@@ -125,13 +122,12 @@ Ltac reduce_repr ext sym ls :=
       ] in ls
     | tt =>
       eval cbv beta iota zeta delta [ 
-        ext
         Env.repr_combine Env.listToRepr Env.listOptToRepr Env.nil_Repr
         ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
         ILAlgoTypes.PACK.applyTypes
         ILAlgoTypes.PACK.applyFuncs
         ILAlgoTypes.PACK.applyPreds
-        tl hd map Env.repr
+        List.tl List.hd List.map Env.repr
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
@@ -145,7 +141,7 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.applyTypes
         ILAlgoTypes.PACK.applyFuncs
         ILAlgoTypes.PACK.applyPreds
-        tl hd map Env.repr
+        List.tl List.hd List.map Env.repr
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
@@ -159,7 +155,7 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.applyTypes
         ILAlgoTypes.PACK.applyFuncs
         ILAlgoTypes.PACK.applyPreds
-        tl hd map Env.repr
+        List.tl List.hd List.map Env.repr
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
@@ -178,7 +174,7 @@ Section canceller.
 
   Lemma ApplyCancelSep_with_eq : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
-    forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
+    forall (meta_env : Expr.env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
 
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) res,
     Expr.AllProvable funcs meta_env nil hyps ->

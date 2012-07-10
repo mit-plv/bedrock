@@ -1,4 +1,4 @@
-.PHONY: all clean dist
+.PHONY: all clean dist native ltac version
 
 all:
 	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
@@ -10,6 +10,15 @@ clean:
 	$(MAKE) -C src/reification clean
 	$(MAKE) -C src clean
 	$(MAKE) -C examples clean
+
+native:
+	$(MAKE) -C src native
+
+ltac:
+	$(MAKE) -C src ltac
+
+version:
+	$(MAKE) -C src version
 
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz

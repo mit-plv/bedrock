@@ -28,9 +28,9 @@ TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
 TVS        := $(TESTS:%=%.v)
 
-ARGS :=-R . Bedrock 
+ARGS :=-R . Bedrock
 
-.PHONY: coq clean package native ltac
+.PHONY: coq clean package native ltac version
 
 coq: Makefile.coq ILTac.v
 	$(MAKE) -f Makefile.coq
@@ -54,6 +54,7 @@ native:
 	@ echo "## "
 	@ rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob
 	@ ln -s ILTacML.v ILTac.v
+	@ make -C reification
 
 ltac:
 	@ echo "## "
@@ -69,6 +70,11 @@ ILTac.v:
 	@ echo "##       run 'make native'"
 	@ echo "## "
 	@ $(MAKE) ltac
+
+version:
+	@ echo "## "
+	@ echo "## You are running" $(patsubst ILTac%.v,%,$(shell readlink ILTac.v)) "reification"
+	@ echo "## "
 
 package:
 	hg archive -t tgz /tmp/bedrock.tgz
