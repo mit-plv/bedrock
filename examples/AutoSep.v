@@ -126,7 +126,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
 (*         SymIL.SymVars SymIL.SymUVars *)
          SymIL.stateD 
-         SymILTac.Tactics.quantifyNewVars
+         SymILTac.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
@@ -137,7 +137,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymEval.quantD SymEval.appendQ
          SymEval.qex SymEval.qall
          SymEval.gatherAll SymEval.gatherEx
-         SymILTac.Tactics.sym_eval
+         SymILTac.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -199,32 +199,32 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ReifyExpr.default_type
          
          (** ExprUnify **)
-         U.exprUnify U.exprUnify_recursor
-         U.exprInstantiate U.subst_exprInstantiate
-         U.Subst_lookup U.subst_lookup
-         U.Subst_empty U.subst_empty
-         U.Subst_set U.subst_set
-         U.Subst_equations
-         U.Subst_size
-         U.dep_in
-         U.exprUnify_recursor
+         CancelIL.U.exprUnify CancelIL.U.exprUnify_recursor
+         CancelIL.U.exprInstantiate CancelIL.U.subst_exprInstantiate
+         CancelIL.U.Subst_lookup CancelIL.U.subst_lookup
+         CancelIL.U.Subst_empty CancelIL.U.subst_empty
+         CancelIL.U.Subst_set CancelIL.U.subst_set
+         CancelIL.U.Subst_equations
+         CancelIL.U.Subst_size
+         CancelIL.U.dep_in
+         CancelIL.U.exprUnify_recursor
 
-         U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
-         U.FM.Raw.bal U.FM.Raw.remove_min U.FM.Raw.merge U.FM.Raw.join
-         U.FM.Raw.t_left U.FM.Raw.t_opt U.FM.Raw.t_right
-         U.FM.Raw.cardinal U.FM.Raw.empty U.FM.Raw.is_empty
-         U.FM.Raw.mem U.FM.Raw.find   
-         U.FM.Raw.add  U.FM.Raw.remove
-         U.FM.Raw.fold U.FM.Raw.map U.FM.Raw.mapi U.FM.Raw.map2
+         CancelIL.U.FM.Raw.height CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.assert_false CancelIL.U.FM.Raw.create
+         CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
+         CancelIL.U.FM.Raw.t_left CancelIL.U.FM.Raw.t_opt CancelIL.U.FM.Raw.t_right
+         CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.empty CancelIL.U.FM.Raw.is_empty
+         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find   
+         CancelIL.U.FM.Raw.add  CancelIL.U.FM.Raw.remove
+         CancelIL.U.FM.Raw.fold CancelIL.U.FM.Raw.map CancelIL.U.FM.Raw.mapi CancelIL.U.FM.Raw.map2
 
-         U.FM.this U.FM.is_bst
-         U.FM.empty U.FM.is_empty
-         U.FM.add U.FM.remove
-         U.FM.mem U.FM.find
-         U.FM.map U.FM.mapi U.FM.map2
-         U.FM.elements U.FM.cardinal U.FM.fold
-         U.FM.equal
-         U.FM.E.eq_dec
+         CancelIL.U.FM.this CancelIL.U.FM.is_bst
+         CancelIL.U.FM.empty CancelIL.U.FM.is_empty
+         CancelIL.U.FM.add CancelIL.U.FM.remove
+         CancelIL.U.FM.mem CancelIL.U.FM.find
+         CancelIL.U.FM.map CancelIL.U.FM.mapi CancelIL.U.FM.map2
+         CancelIL.U.FM.elements CancelIL.U.FM.cardinal CancelIL.U.FM.fold
+         CancelIL.U.FM.equal
+         CancelIL.U.FM.E.eq_dec
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
@@ -387,15 +387,21 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SepHeap.FM.fold
 
          (** SepCancel **)
-         CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
-         CANCEL.order_impures 
-         CANCEL.cancel_in_order
-         CANCEL.unify_remove CANCEL.unifyArgs
-         CANCEL.expr_size
+         CancelIL.CANCEL.sepCancel 
+         CancelIL.CANCEL.expr_count_meta
+         CancelIL.CANCEL.exprs_count_meta
+         CancelIL.CANCEL.expr_size
+         CancelIL.CANCEL.meta_order_funcs
+         CancelIL.CANCEL.meta_order_args
+         CancelIL.CANCEL.order_impures 
+         CancelIL.CANCEL.cancel_in_order
+         CancelIL.CANCEL.unify_remove CancelIL.CANCEL.unifyArgs
+         CancelIL.CANCEL.expr_size
 
-         ILTac.canceller
-         ILTac.substInEnv ILTac.existsMaybe ILTac.existsSubst
+         CancelIL.canceller
+         CancelIL.substInEnv
+         CancelIL.existsMaybe 
+         CancelIL.existsSubst
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -430,7 +436,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          fst snd projT1 projT2 Basics.impl value error 
          projT1 projT2 andb orb
          plus minus
-         existsSubst
 
          (** Reflection **)
          (* Reflection.Reflect_eqb_nat *)
@@ -494,7 +499,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
 (*         SymIL.SymVars SymIL.SymUVars *)
          SymIL.stateD SymIL.qstateD
-         SymILTac.Tactics.quantifyNewVars
+         SymILTac.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
@@ -505,7 +510,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymEval.quantD SymEval.appendQ
          SymEval.qex SymEval.qall
          SymEval.gatherAll SymEval.gatherEx
-         SymILTac.Tactics.sym_eval
+         SymILTac.sym_eval
    
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
@@ -574,32 +579,32 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
 
          (** ExprUnify **)
-         U.exprUnify U.exprUnify_recursor
-         U.exprInstantiate U.subst_exprInstantiate
-         U.Subst_lookup U.subst_lookup
-         U.Subst_empty U.subst_empty
-         U.Subst_set U.subst_set
-         U.Subst_equations
-         U.Subst_size
-         U.dep_in
-         U.exprUnify_recursor
+         CancelIL.U.exprUnify CancelIL.U.exprUnify_recursor
+         CancelIL.U.exprInstantiate CancelIL.U.subst_exprInstantiate
+         CancelIL.U.Subst_lookup CancelIL.U.subst_lookup
+         CancelIL.U.Subst_empty CancelIL.U.subst_empty
+         CancelIL.U.Subst_set CancelIL.U.subst_set
+         CancelIL.U.Subst_equations
+         CancelIL.U.Subst_size
+         CancelIL.U.dep_in
+         CancelIL.U.exprUnify_recursor
 
-         U.FM.Raw.height U.FM.Raw.cardinal U.FM.Raw.assert_false U.FM.Raw.create
-         U.FM.Raw.bal U.FM.Raw.remove_min U.FM.Raw.merge U.FM.Raw.join
-         U.FM.Raw.t_left U.FM.Raw.t_opt U.FM.Raw.t_right
-         U.FM.Raw.cardinal U.FM.Raw.empty U.FM.Raw.is_empty
-         U.FM.Raw.mem U.FM.Raw.find   
-         U.FM.Raw.add  U.FM.Raw.remove
-         U.FM.Raw.fold U.FM.Raw.map U.FM.Raw.mapi U.FM.Raw.map2
+         CancelIL.U.FM.Raw.height CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.assert_false CancelIL.U.FM.Raw.create
+         CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
+         CancelIL.U.FM.Raw.t_left CancelIL.U.FM.Raw.t_opt CancelIL.U.FM.Raw.t_right
+         CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.empty CancelIL.U.FM.Raw.is_empty
+         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find   
+         CancelIL.U.FM.Raw.add  CancelIL.U.FM.Raw.remove
+         CancelIL.U.FM.Raw.fold CancelIL.U.FM.Raw.map CancelIL.U.FM.Raw.mapi CancelIL.U.FM.Raw.map2
 
-         U.FM.this U.FM.is_bst
-         U.FM.empty U.FM.is_empty
-         U.FM.add U.FM.remove
-         U.FM.mem U.FM.find
-         U.FM.map U.FM.mapi U.FM.map2
-         U.FM.elements U.FM.cardinal U.FM.fold
-         U.FM.equal
-         U.FM.E.eq_dec
+         CancelIL.U.FM.this CancelIL.U.FM.is_bst
+         CancelIL.U.FM.empty CancelIL.U.FM.is_empty
+         CancelIL.U.FM.add CancelIL.U.FM.remove
+         CancelIL.U.FM.mem CancelIL.U.FM.find
+         CancelIL.U.FM.map CancelIL.U.FM.mapi CancelIL.U.FM.map2
+         CancelIL.U.FM.elements CancelIL.U.FM.cardinal CancelIL.U.FM.fold
+         CancelIL.U.FM.equal
+         CancelIL.U.FM.E.eq_dec
 
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
@@ -763,15 +768,22 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SepHeap.FM.fold
 
          (** SepCancel **)
-         CANCEL.sepCancel 
-         CANCEL.expr_count_meta CANCEL.exprs_count_meta CANCEL.expr_size CANCEL.meta_order_funcs CANCEL.meta_order_args
-         CANCEL.order_impures 
-         CANCEL.cancel_in_order
-         CANCEL.unify_remove CANCEL.unifyArgs
-         CANCEL.expr_size
+         CancelIL.CANCEL.sepCancel 
+         CancelIL.CANCEL.expr_count_meta
+         CancelIL.CANCEL.exprs_count_meta
+         CancelIL.CANCEL.expr_size
+         CancelIL.CANCEL.meta_order_funcs
+         CancelIL.CANCEL.meta_order_args
+         CancelIL.CANCEL.order_impures 
+         CancelIL.CANCEL.cancel_in_order
+         CancelIL.CANCEL.unify_remove
+         CancelIL.CANCEL.unifyArgs
+         CancelIL.CANCEL.expr_size
           
-         ILTac.canceller
-         ILTac.substInEnv ILTac.existsMaybe ILTac.existsSubst
+         CancelIL.canceller
+         CancelIL.substInEnv 
+         CancelIL.existsMaybe
+         CancelIL.existsSubst
          
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
@@ -806,7 +818,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          fst snd projT1 projT2 Basics.impl value error 
          projT1 projT2 andb orb
          plus minus
-         existsSubst
 
          (** Reflection **)
          (* Reflection.Reflect_eqb_nat *)
@@ -862,10 +873,10 @@ Ltac evaluate ext :=
   repeat match goal with
            | [ H : ?P -> False |- _ ] => change (not P) in H
          end;
-  SymILTac.Tactics.sym_eval ltac:(isConst) ext ltac:(hints_ext_simplifier ext);
+  ILTac.sym_eval ltac:(ILTacCommon.isConst) ext ltac:(hints_ext_simplifier ext);
   clear_junk.
 
-Ltac cancel ext := sep_canceller ltac:(isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
+Ltac cancel ext := sep_canceller ltac:(ILTacCommon.isConst) ext ltac:(hints_ext_simplifier ext); sep_firstorder; clear_junk.
 
 Ltac unf := unfold substH.
 Ltac reduce := Programming.reduce unf.
@@ -1066,7 +1077,7 @@ Ltac prepare fwd bwd :=
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
-    isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, init_out, bwd).
+    ILTacCommon.isConst auto_ext' tt tt (make_call, init_in, fwd) (make_return, init_out, bwd).
 
 Definition auto_ext : TacPackage.
   prepare tt tt.

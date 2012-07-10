@@ -11,18 +11,6 @@ Module ReifySepExpr (Import SEP : SepExpr).
   (** Reflection **)
   Import Reflect.
 
-  Ltac reflectable shouldReflect P :=
-    match P with
-      | @PropX.interp _ _ _ _ => false
-      | @PropX.valid _ _ _ _ _ => false
-      | forall x, _ => false
-      | context [ PropX.PropX _ _ ] => false
-      | context [ PropX.spec _ _ ] => false
-      | _ => match type of P with
-               | Prop => shouldReflect P
-             end
-    end.
-
 (*
   Ltac lift_predicate s nt pc st :=
     let d := eval simpl SDomain in (SDomain s) in
