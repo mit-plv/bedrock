@@ -46,6 +46,9 @@ Hint Resolve times_1.
 Theorem factOk : moduleOk fact.
 (*TIME  Clear Timing Profile. *)
   vcgen; abstract (sep_auto; eauto; words).
+
+  (* sep_canceler ltac:(isConst) auto_ext ltac:(hints_ext_simplifier auto_ext).  *)
+  (* simpl. intros. refine (H8 _ _ _ _).  *)
 (*TIME  Print Timing Profile. *)
 Qed.
 

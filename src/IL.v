@@ -116,7 +116,7 @@ Definition block := prod (list instr) jmp.
 (** Semantics *)
 
 (* Register banks *)
-Definition regs := reg -> W.
+Notation regs := (reg -> W).
 
 Definition reg_eq : forall x y : reg, {x = y} + {x <> y}.
   decide equality.
