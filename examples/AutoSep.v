@@ -53,6 +53,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   Assign' variableSlot' localsInvariant
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
   andb eqb qspecOut
+  ICall_ Structured.ICall_
 ].
 
 Ltac vcgen :=
@@ -1227,6 +1228,20 @@ Ltac sep ext :=
   end.
 
 Ltac sepLemma := unfold Himp in *; simpl; intros; cancel auto_ext.
+
+Ltac sepLemmaLhsOnly :=
+  let sllo Q := remember Q;
+    match goal with
+      | [ H : ?X = Q |- _ ] => let H' := fresh in
+        assert (H' : bool -> X = Q) by (intro; assumption);
+          clear H; rename H' into H;
+            sepLemma; rewrite (H true); clear H
+    end in
+    simpl; intros;
+      match goal with
+        | [ |- _ ===> ?Q ] => sllo Q
+        | [ |- himp _ _ ?Q ] => sllo Q
+      end.
 
 Ltac sep_auto := sep' auto_ext.
 

@@ -356,6 +356,7 @@ Section imports.
                              | _ => specialize (nth_error_bound' _ _ H)
                            end
                          | [ H : snd ?x = _ |- _ ] => destruct x; simpl in H; congruence
+                         | [ H : forall rp, _ rp = Some _ -> _, H' : _ _ = Some _ |- _ ] => specialize (H _ H')
                        end; intros; unfold evalBlock, evalCond in *; simpl; autorewrite with N in *).
 
   Ltac struct := preSimp; simp; eauto 15.
@@ -668,4 +669,23 @@ Section imports.
     |}); abstract struct.
   Defined.
 
+  (** * Indirect function call *)
+
+  Definition ICall_ (rv : rvalue) (afterCall : assert) : cmd.
+    red; refine (fun pre => {|
+      Postcondition := afterCall;
+      VerifCond := forall stn st specs,
+        interp specs (pre (stn, st))
+        -> forall rp, specs rp = Some afterCall
+          -> match evalRvalue stn {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |} rv with
+               | None => False
+               | Some w => exists pre', specs w = Some pre'
+                 /\ interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
+             end;
+          Generate := fun Base Exit => {|
+            Entry := 0;
+            Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond rv)) :: nil
+          |}
+    |}); abstract struct.
+  Defined.
 End imports.

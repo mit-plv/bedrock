@@ -147,20 +147,6 @@ Module Queue : QUEUE.
     destruct n; sepLemma.
   Qed.
 
-  Ltac sepLemmaLhsOnly :=
-    let sllo Q := remember Q;
-      match goal with
-        | [ H : ?X = Q |- _ ] => let H' := fresh in
-          assert (H' : bool -> X = Q) by (intro; assumption);
-            clear H; rename H' into H;
-              sepLemma; rewrite (H true); clear H
-      end in
-    simpl; intros;
-      match goal with
-        | [ |- _ ===> ?Q ] => sllo Q
-        | [ |- himp _ _ ?Q ] => sllo Q
-      end.
-
   Theorem llist_end_fwd : forall ba n (fr : W) b,
     fr <> 0
     -> focusOnBack
