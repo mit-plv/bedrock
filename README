@@ -1,0 +1,20 @@
+The BEDROCK Coq library
+Mostly automated verification of higher-order programs with higher-order separation logic, with a small trusted code base
+http://plv.csail.mit.edu/bedrock/
+
+
+This release requires Coq 8.4beta2.
+
+To build, run one of the following:
+   make native
+or
+   make ltac
+to select whether to use the OCaml or Ltac reification code, respectively.
+
+Then, just run:
+   make
+and go take a break while it runs for about an hour (if you're lucky enough to have a new-ish machine). ;)
+
+Also see the 'examples' directory and its README.
+
+P.S.: One case study, Memoize, is known only to work in "ltac" mode, but "native" mode is much more efficient and is generally preferable.  However, it may not work for you if you haven't built your Coq binaries from source.
