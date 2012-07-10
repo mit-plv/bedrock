@@ -8,6 +8,8 @@ Require Import IL ILEnv SymIL.
 Require Import Word Memory.
 Require Import Env.
 
+Set Implicit Arguments.
+Set Strict Implicit.
 
 Module SEP_REIFY := ReifySepExpr.ReifySepExpr SEP.
 
