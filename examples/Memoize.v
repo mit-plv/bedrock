@@ -203,6 +203,12 @@ Theorem memoizeMOk : moduleOk memoizeM.
     | [ |- context[fun stn0 sm => ?f ?a ?b ?c stn0 sm] ] =>
       rewrite (@use_HProp_extensional (f a b c)) by auto
   end.
+  repeat match goal with
+           | [ |- context C[Regs (match ?st with
+                                    | (_, y) => y
+                                  end) ?r] ] =>
+             let E := context C[st#r] in change E
+         end.
   cancel hints.
   eauto.
   cancel hints.
@@ -230,6 +236,12 @@ Theorem memoizeMOk : moduleOk memoizeM.
   apply cptrR; eauto.
   apply allR; intro.
   apply swap; apply implyR.
+  repeat match goal with
+           | [ |- context C[Regs (match ?st with
+                                    | (_, y) => y
+                                  end) ?r] ] =>
+             let E := context C[st#r] in change E
+         end.
   eapply Imply_trans; [ | apply H6 ].
   apply andL; apply injL; intro.
   apply existsL; intro.

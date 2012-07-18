@@ -54,6 +54,20 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
   andb eqb qspecOut
   ICall_ Structured.ICall_
+  Assert_ Structured.Assert_
+  LabelMap.Raw.find LabelMap.this LabelMap.Raw.add
+  LabelMap.empty LabelMap.Raw.empty string_dec
+  Ascii.ascii_dec string_rec string_rect sumbool_rec sumbool_rect Ascii.ascii_rec Ascii.ascii_rect
+  Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
+  fst snd labl
+  Ascii.N_of_ascii Ascii.N_of_digits N.compare Nmult Pos.compare Pos.compare_cont
+  Pos.mul Pos.add LabelMap.Raw.bal
+  Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec LabelMap.Raw.create
+  ZArith_dec.Z_gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.max LabelMap.Raw.height
+  ZArith_dec.Z_gt_dec Int.Z_as_Int._1 BinInt.Z.add Int.Z_as_Int._0 Int.Z_as_Int._2 BinInt.Z.max
+  ZArith_dec.Zcompare_rec ZArith_dec.Z_ge_lt_dec BinInt.Z.compare ZArith_dec.Zcompare_rect
+  ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect
+  COperand1 CTest COperand2 Pos.succ
 ].
 
 Ltac vcgen :=
@@ -77,6 +91,18 @@ Lemma frame_reflexivity : forall pcT stateT p q specs,
   apply Imply_I; eauto.
 Qed.
 
+Ltac rereg :=
+  repeat match goal with
+           | [ _ : context[Regs (match ?st with
+                                   | (_, y) => y
+                                 end) ?r] |- _ ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
+           | [ |- context[Regs (match ?st with
+                                  | (_, y) => y
+                                end) ?r] ] =>
+             change (Regs (let (_, y) := st in y) r) with (st#r) in *
+         end.
+  
 Ltac sep_firstorder := sep_easy;
   repeat match goal with
            | [ H : Logic.ex _ |- _ ] => destruct H
@@ -89,17 +115,7 @@ Ltac sep_firstorder := sep_easy;
              || (apply frame_reflexivity; try match goal with
                                                 | [ |- _ = ?X ] => instantiate (1 := X)
                                               end; apply refl_equal)
-         end; sep_easy; autorewrite with sepFormula;
-  repeat match goal with
-           | [ _ : context[Regs (match ?st with
-                                 | (_, y) => y
-                               end) ?r] |- _ ] =>
-             change (Regs (let (_, y) := st in y) r) with (st#r) in *
-           | [ |- context[Regs (match ?st with
-                                  | (_, y) => y
-                                end) ?r] ] =>
-             change (Regs (let (_, y) := st in y) r) with (st#r) in *
-         end; try subst.
+         end; sep_easy; autorewrite with sepFormula; rereg; try subst.
 
 Require Import NArith.
 Import TacPackIL.
@@ -991,7 +1007,7 @@ Ltac descend :=
   (*TIME time "descend:reduce" *)
   reduce;
   (*TIME time "descend:unfold_simpl" ( *)
-  unfold hvarB; simpl
+  unfold hvarB; simpl; rereg
   (*TIME ) *);
   (*TIME time "descend:loop" *)
     (repeat match goal with
@@ -1145,7 +1161,7 @@ Ltac step ext :=
                                            end; clear_junk ]
         | _ => apply implyR
       end
-    | _ => ho
+    | _ => ho; rereg
   end.
 
 Ltac slotVariable E :=
@@ -1182,7 +1198,7 @@ Ltac post :=
   (*TIME ) *) ;
   unfold substH in *;
   (*TIME time "post:simpl" ( *)
-  simpl in *;
+  simpl in *; rereg;
     try match goal with
           | [ H : context[locals ?ns ?vs ?avail ?p]
               |- context[locals ?ns' _ ?avail' _] ] =>
