@@ -42,20 +42,47 @@ Section imports.
 
   (** The data type of structured program pieces *)
 
-  Record codeGen (Precondition : assert) (Base Exit : N) (Postcondition : assert) (VerifCond : Prop) := {
+  Inductive vcs : list Prop -> Prop :=
+  | VcsNil : vcs nil
+  | VcsCons : forall (P : Prop) Ps, P -> vcs Ps -> vcs (P :: Ps).
+
+  Implicit Arguments VcsCons [P Ps].
+
+  Hint Constructors vcs.
+
+  Theorem vcs_app_fwd : forall Ps1 Ps2,
+    vcs Ps1
+    -> vcs Ps2
+    -> vcs (Ps1 ++ Ps2).
+    induction 1; simpl; auto.
+  Qed.
+
+  Theorem vcs_app_bwd1 : forall Ps1 Ps2,
+    vcs (Ps1 ++ Ps2)
+    -> vcs Ps1.
+    induction Ps1; inversion 1; subst; eauto.
+  Qed.
+
+  Theorem vcs_app_bwd2 : forall Ps1 Ps2,
+    vcs (Ps1 ++ Ps2)
+    -> vcs Ps2.
+    induction Ps1; inversion 1; subst; eauto.
+  Qed.
+
+  Record codeGen (Precondition : assert) (Base Exit : N) (Postcondition : assert) (VerifCond : list Prop) := {
     Entry : N;                      (* Jump here to start *)
     Blocks : list (assert * block); (* Code blocks *)
 
     PreconditionOk : exists bl, nth_error Blocks (nat_of_N Entry) = Some (Precondition, bl);
     
-    BlocksOk : VerifCond
+    BlocksOk : vcs VerifCond
       -> Exit < Base
       -> List.Forall (fun p => blockOk (imps Blocks Base Exit Postcondition) (fst p) (snd p)) Blocks
   }.
 
   Record codeOut (Precondition : assert) := {
     Postcondition : assert;     (* Guarantee this on exit. *)
-    VerifCond : Prop;           (* User must prove this *)
+    VerifCond : list Prop;      (* User must prove all of these conditions. *)
     Generate : forall Base Exit : N, (* Start generating code labels at this address *)
       codeGen Precondition Base Exit Postcondition VerifCond
   }.
@@ -322,10 +349,22 @@ Section imports.
       | _, _ => None
     end.
 
+  Implicit Arguments vcs_app_bwd1 [Ps1 Ps2].
+  Implicit Arguments vcs_app_bwd2 [Ps1 Ps2].
+
   Ltac simp := repeat (match goal with
                          | [ x : codeGen _ _ _ _ _ |- _ ] => destruct x; simpl in *
                          | [ H : _ /\ _ |- _ ] => destruct H
                          | [ H : ex _ |- _ ] => destruct H
+
+                         | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                         | [ H : vcs (_ ++ _) |- _ ] => generalize (vcs_app_bwd1 H);
+                           generalize (vcs_app_bwd2 H); clear H; intros
+
+                         | [ |- vcs nil ] => constructor
+                         | [ |- vcs (_ :: _) ] => constructor
+                         | [ |- vcs (_ ++ _) ] => apply vcs_app_fwd
+
                          | [ H1 : notStuck _ _, H2 : _ |- _ ] => specialize (H1 _ _ _ H2)
                          | [ H : LabelMap.find _ _ = Some _ |- _ ] => apply LabelMap.find_2 in H
                          | [ H : forall k v, _ |- _ ] => destruct (split_add H); clear H
@@ -366,7 +405,7 @@ Section imports.
   Definition Straightline_ (is : list instr) : cmd.
     red; refine (fun pre => {|
       Postcondition := (fun stn_st => Ex st', pre (fst stn_st, st') /\ [|evalInstrs (fst stn_st) st' is = Some (snd stn_st)|])%PropX;
-      VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalInstrs stn st is <> None);
+      VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalInstrs stn st is <> None) :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (is, Uncond (RvLabel (modName, Local Exit)))) :: nil
@@ -382,7 +421,7 @@ Section imports.
       let cout2 := c2 (Postcondition cout1) in
         {|
           Postcondition := Postcondition cout2;
-          VerifCond := VerifCond cout1 /\ VerifCond cout2;
+          VerifCond := VerifCond cout1 ++ VerifCond cout2;
           Generate := fun Base Exit =>
             let cg2 := Generate cout2 Base Exit in
               let numBlocks := N_of_nat (length (Blocks cg2)) in
@@ -399,7 +438,7 @@ Section imports.
   Definition Diverge_ : cmd.
     red; refine (fun pre => {|
       Postcondition := (fun _ => [|False|])%PropX;
-      VerifCond := True;
+      VerifCond := nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Base)))) :: nil
@@ -412,7 +451,7 @@ Section imports.
   Definition Fail_ : cmd.
     red; refine (fun pre => {|
       Postcondition := (fun _ => [|False|])%PropX;
-      VerifCond := forall x specs, ~interp specs (pre x);
+      VerifCond := (forall x specs, ~interp specs (pre x)) :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
@@ -425,7 +464,7 @@ Section imports.
   Definition Skip_ : cmd.
     red; refine (fun pre => {|
       Postcondition := pre;
-      VerifCond := True;
+      VerifCond := nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
@@ -438,20 +477,7 @@ Section imports.
   Definition Assert_ (post : assert) : cmd.
     red; refine (fun pre => {|
       Postcondition := post;
-      VerifCond := forall stn_st specs, interp specs (pre stn_st) -> interp specs (post stn_st);
-      Generate := fun Base Exit => {|
-        Entry := 0;
-        Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
-      |}
-    |}); abstract struct.
-  Defined.
-
-  (** * Lemma hints, to be added to the postcondition *)
-
-  Definition Use_ (lemma : settings -> state -> Prop) (pf : forall stn st, lemma stn st) : cmd.
-    red; refine (fun pre => {|
-      Postcondition := (fun stn_st => pre stn_st /\ [|lemma (fst stn_st) (snd stn_st)|])%PropX;
-      VerifCond := True;
+      VerifCond := (forall stn_st specs, interp specs (pre stn_st) -> interp specs (post stn_st)) :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel (modName, Local Exit)))) :: nil
@@ -540,7 +566,7 @@ Section imports.
       {|
         Postcondition := (fun stn_st => Postcondition cout1 stn_st \/ Postcondition cout2 stn_st)%PropX;
         VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
-          /\ VerifCond cout1 /\ VerifCond cout2;
+          :: VerifCond cout1 ++ VerifCond cout2;
         Generate := fun Base Exit =>
           let Base' := Nsucc (Nsucc (Nsucc Base)) in
           let cg1 := Generate cout1 Base' (Nsucc Base) in
@@ -595,9 +621,9 @@ Section imports.
       {|
         Postcondition := (fun stn_st => inv stn_st /\ [|evalCond rv1 t rv2 (fst stn_st) (snd stn_st) = Some false|])%PropX;
         VerifCond := (forall stn_st specs, interp specs (pre stn_st) -> interp specs (inv stn_st))
-          /\ (forall stn st specs, interp specs (inv (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
-          /\ (forall stn_st specs, interp specs (Postcondition cout stn_st) -> interp specs (inv stn_st))
-          /\ VerifCond cout;
+          :: (forall stn st specs, interp specs (inv (stn, st)) -> evalCond rv1 t rv2 stn st <> None)
+          :: (forall stn_st specs, interp specs (Postcondition cout stn_st) -> interp specs (inv stn_st))
+          :: VerifCond cout;
         Generate := fun Base Exit =>
           let Base' := Nsucc (Nsucc (Nsucc Base)) in
           let cg := Generate cout Base' (Nsucc (Nsucc Base)) in
@@ -624,7 +650,7 @@ Section imports.
                      | None => False
                      | Some pre' => forall stn_st specs, interp specs (pre stn_st)
                        -> interp specs (pre' stn_st)
-                   end;
+                   end :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond (RvLabel f))) :: nil
@@ -643,7 +669,7 @@ Section imports.
                        interp specs (pre (stn, st))
                        -> forall rp, specs rp = Some afterCall
                          -> interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
-                   end;
+                   end :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond (RvLabel f))) :: nil
@@ -661,7 +687,7 @@ Section imports.
              | None => False
              | Some w => exists pre', specs w = Some pre'
                /\ interp specs (pre' (stn, st))
-           end);
+           end) :: nil;
       Generate := fun Base Exit => {|
         Entry := 0;
         Blocks := (pre, (nil, Uncond rv)) :: nil
@@ -674,18 +700,18 @@ Section imports.
   Definition ICall_ (rv : rvalue) (afterCall : assert) : cmd.
     red; refine (fun pre => {|
       Postcondition := afterCall;
-      VerifCond := forall stn st specs,
+      VerifCond := (forall stn st specs,
         interp specs (pre (stn, st))
         -> forall rp, specs rp = Some afterCall
           -> match evalRvalue stn {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |} rv with
                | None => False
                | Some w => exists pre', specs w = Some pre'
                  /\ interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
-             end;
-          Generate := fun Base Exit => {|
-            Entry := 0;
-            Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond rv)) :: nil
-          |}
+             end) :: nil;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (Assign Rp (RvLabel (modName, Local Exit)) :: nil, Uncond rv)) :: nil
+      |}
     |}); abstract struct.
   Defined.
 End imports.
