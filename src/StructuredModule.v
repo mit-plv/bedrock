@@ -156,22 +156,30 @@ Section module.
       | Some _ => True
     end.
 
-  Hypothesis BlocksGood : List.Forall (fun p =>
-    (forall stn_st specs, ~interp specs (fst p stn_st))
-    /\ snd p) (map (fun f : function =>
-      let '(_, pre, c) := f in
-        let cout := c fullImports fullImportsGlobal pre in
-          (Postcondition cout, VerifCond cout)) functions).
+  Fixpoint makeVcs (fs : list function) : list Prop :=
+    match fs with
+      | nil => nil
+      | f :: fs' =>
+        let '(_, pre, c) := f in
+          let cout := c fullImports fullImportsGlobal pre in
+            (forall stn_st specs, ~interp specs (Postcondition cout stn_st))
+            :: VerifCond cout
+            ++ makeVcs fs'
+    end.
+
+  Hypothesis BlocksGood : vcs (makeVcs functions).
 
   Lemma BlocksGood' : List.Forall (fun f : function => let '(_, pre, c) := f in
     let cout := c fullImports fullImportsGlobal pre in
     (forall stn_st specs, ~interp specs (Postcondition cout stn_st))
-    /\ VerifCond cout) functions.
+    /\ vcs (VerifCond cout)) functions.
     generalize BlocksGood; clear.
     induction functions; simpl; intuition.
+    destruct a as [ [ ] ].
     inversion BlocksGood; subst; intuition.
     constructor; intuition.
-    destruct a as [ [ ] ]; intuition.
+    eapply vcs_app_bwd1; eauto.
+    apply IHl; eapply vcs_app_bwd2; eauto.
   Qed.
 
   Theorem bmoduleOk : moduleOk bmodule_.

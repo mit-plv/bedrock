@@ -428,11 +428,26 @@ Ltac structured := apply bmoduleOk; [ exact (refl_equal false) | exact I |
   simpl; repeat (apply List.Forall_nil || apply List.Forall_cons);
     (simpl; propxFo; conditions) ].
 
+Fixpoint vcsImp (Ps : list Prop) (goal : Prop) : Prop :=
+  match Ps with
+    | nil => goal
+    | P :: Ps' => P -> vcsImp Ps' goal
+  end.
+
+Local Hint Constructors vcs.
+
+Lemma vcsImp_correct' : forall Ps (goal : Prop), (vcs Ps -> goal) -> vcsImp Ps goal.
+  induction Ps; simpl; auto.
+Qed.
+
+Theorem vcsImp_correct : forall Ps, vcsImp Ps (vcs Ps).
+  intros; apply vcsImp_correct'; auto.
+Qed.
+
 Ltac structured_auto simp := apply bmoduleOk; [ exact (refl_equal false) | exact I |
-  simp; simpl; repeat (apply List.Forall_nil || apply List.Forall_cons); simpl;
-    repeat match goal with
-             | [ |- _ /\ _ ] => split
-           end ].
+  simp; simpl; match goal with
+                 | [ |- vcs ?Ps ] => apply (vcsImp_correct Ps)
+               end ].
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
   | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].
