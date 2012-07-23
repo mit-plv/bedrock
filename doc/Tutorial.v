@@ -3,6 +3,7 @@
 (** printing ^+ $\hat{+}$ *)
 (** printing =*> $\mapsto$ *)
 (** printing ==*> $\mapsto$ *)
+(** printing =?> $\stackrel{?}{\mapsto}$ *)
 (** printing Ex $\exists$ *)
 (** printing Al $\forall$ *)
 (** printing ExX $\exists$ *)
@@ -275,3 +276,131 @@ Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f st ---> #0 s)%PropX.
    Thus, adapting the almost trivial syntactic type soundness proof method, we arrive at some theorems about verified Bedrock programs.  First, if execution begins in a block whose spec is satisfied, then _execution continues forever without getting stuck_.  Second, if execution begins in a block whose spec is satisfied, then _every basic block's spec is satisfied whenever control enters that block_.  The first condition is a sort of _memory safety_, while the second is a kind of _functional correctness_.
 
    The [moduleOk] theorems we established in the last section are actually about a higher-level notion, that of _structured programs_ and what it means for them to be correct.  We defer details of structured programs to a later section.  For now, what matters is that structured programs can be _compiled_ into verified Bedrock IL programs, at which point their code and the associated guarantees can be understood as in this section. *)
+
+
+(** * Interactive Program Verification *)
+
+(** A central design point of Bedrock is to provide tactics to make the verification of individual programs be as automatic as possible.  Realistic programs involve many details, few of which are interesting, so why ask the programmer to account for them manually?  The programmer helps Bedrock by providing _hints_ that can come in many varieties.  There are the normal [auto] and [autorewrite] hints familiar to most Coq users, but there are also new notions like _unfolding rules_ and _symbolic evaluators_.  Bedrock verifications of serious programs will tend to use all of these notions in concert.
+
+   Final proofs may be automated, but, during development, it is usually helpful to step through proofs incrementally.  Of course, this is a mode that Coq supports very well.  However, with Bedrock, there is no need to work at such fine granularity as is found in the average Coq proof script.  Instead, there is a small vocabulary of automation procedures that modify proof states in ways that a human can follow.
+
+   The workhorse [sep] tactic is essentially defined as the following:
+   [[
+   Ltac sep hints := post; evaluate hints; descend; repeat (step hints; descend).
+   ]]
+   The tactic is parameterized on [hints], which provides a set of abstract predicate unfolding rules.  There is a default hints package [auto_ext], and [sep_auto] is defined as [sep auto_ext].
+
+   A few basic steps make up the [sep] procedure.  First, [post] does post-processing on the results of [vcgen]'s verification condition generation, trying to eliminate as much explicit $\mathsf{PropX}$#PropX# notation as possible.  Next, [evaluate] implements _symbolic execution_, modifying a block's precondition to reflect the effects of a piece of straightline code, possibly including the equivalents of $\mathsf{assume}$#assume# statements to record the results of conditionals.  The [descend] tactic is a generic simplifier; among other steps, it descends under existential quantifiers and conjunctions in the conclusion, introducing new unification variables for the quantifiers.  The rest of the procedure is a loop over [step] and [descend], where the former implements a variety of basic steps in a Bedrock proof.
+
+   It is probably easiest to illustrate the basic steps by example.  To make things interesting, consider this function which calls our earlier swap function.  In filling out the new [reserving] clause, we keep in mind that the new function will call ["swap"], and we plan not to use any private local variables.  Therefore, the only reserved stack space that we need is that for the function call, computed by this recipe: one slot for each function argument, plus one for a saved return pointer, plus the callee's number of reserved stack slots.  The notation [p =?> n] indicates an allocated memory region of unknown contents, beginning at [p] and spanning [n] words. *)
+
+Definition sillyS := SPEC("p", "q") reserving 5
+  PRE[V] V "p" =?> 1 * V "q" =?> 1
+  POST[R] [| R = 3 |] * V "p" =?> 1 * V "q" =?> 1.
+
+(* The module definition uses the [bimport] syntax to import functions defined in other modules.  The [m!x] syntax indicates function [x] of module [m]. *)
+
+Definition sillyM := bimport [[ "swap"!"swap" @ [swapS] ]]
+  bmodule "silly" {{
+    bfunction "main"("p", "q") [sillyS]
+      "p" *<- 3;;
+      "q" *<- 8;;
+
+      Call "swap"!"swap"("p", "q")
+      [ Ex v,
+        PRE[V] V "q" =*> v
+        POST[R] [| R = v |] * V "q" =*> v ];;
+
+      "q" <-* "q";;
+      Return "q"
+    end
+  }}.
+
+(** We use the [Call] notation, which always requires an invariant afterward.  That invariant position is often a convenient place to simplify the state that we are tracking.  The invariant above is an example: we _forget about the pointer [p]_, remembering only [q], since the rest of the function only touches [q].  Bedrock's tactics automatically justify this state reduction, with a reasoning pattern reminiscent of separation logic's _frame rule_.  That pattern and many others are encapsulated in the definition of [step].
+
+   To demonstrate the recommended interactive verification approach, we will step through a more manual proof of the most challenging verification condition, the one associated with the [Call] command.  Interested readers may step through this proof script in Coq, so we will not dump the gory details of subgoal structure into this tutorial.  Instead, we give a high-level account of what each subgoal means and how it is dealt with. *)
+
+Theorem sillyMOk : moduleOk sillyM.
+Proof.
+  vcgen.
+
+  Focus 5.
+  (** This is the subgoal for the function call.  We always begin with post-processing the verification condition. *)
+
+  post.
+
+  (** Next, we need to execute the instructions of the prior basic block symbolically, to reflect their effects in the predicate that characterizes the current machine state. *)
+
+  evaluate auto_ext.
+
+  (** At this point, we are staring at the spec of ["swap"], which begins with some existential quantifiers and conjunctions.  One of the conjuncts comes from a use of the [@@] derived $\mathsf{PropX}$#PropX# operator, to express the postcondition via a fact about the return pointer we pass to ["swap"].  We call [descend] to peel away the quantifiers and conjunctions, leaving the conjuncts as distinct subgoals. *)
+
+  descend.
+
+  (** This subgoal is the precondition we gave for ["swap"], with an extra fact added to characterize the stack contents in terms of values of local variables.  There are unification variables in positions that were previously existentially quantified.  This sort of goal is just what [step] is designed for. *)
+
+  step auto_ext.
+
+  (** We are thrown back another goal, this time stated as an implication between separation logic assertions.  One of the unification variables has been replaced with a known substitution for local variable values, which will enable [step] to discharge the subgoal completely this time. *)
+
+  step auto_ext.
+
+  (** Here is an easy subgoal.  It asks us to find a spec for the return pointer we pass in the function call, and exactly such a fact was given to us by [vcgen]. *)
+
+  step auto_ext.
+
+  (** We have finished proving the precondition of ["swap"].  Now we must prove that its postcondition implies the invariant we wrote after the function call.  The form of the obligation is an implication within $\mathsf{PropX}$#PropX#, where the antecedent is ["swap"]'s postcondition and the consequent is the invariant we wrote after the call.  Recall that simplifying $\mathsf{PropX}$#PropX# implications into normal-looking Coq formulas is difficult.  However, we can rely on [step] to simplify the implication into some more basic subgoals, some of which will still be $\mathsf{PropX}$#PropX# implications. *)
+
+  descend; step auto_ext.
+
+  (** The first resulting subgoal is an implication between ["swap"]'s postcondition and the [PRE] clause from the post-call invariant.  Again, this is exactly the sort of separation logic simplification that [step] handles predictably. *)
+
+  step auto_ext.
+
+  (** Now we are asked to find a specification for the original return pointer passed to ["main"].  Again, [vcgen] left us a matching hypothesis. *)
+
+  step auto_ext.
+
+  (** We are in the home stretch now!  The single subgoal asks us to prove an implication [P ---> Q ---> R], where [P] is the [POST] clause of the post-call invariant, [Q] is the postcondition of ["swap"], and [R] is the literal specification of the original return pointer for ["main"].  In fact, [R] is an application of a context variable to the current machine state. We also have a hypothesis telling us that [R] is implied by the postcondition we originally ascribed to ["main"] in its spec.
+
+     Our first step is to reduce the implication to just [P ---> R], augmented with extra _pure_ (memory-independent) hypotheses that we glean from [Q].  The intuition behind this step is that we already incorporated in [P] any facts about memory that we will need. *)
+
+  descend; step auto_ext.
+
+  (** Now we prove [P ---> R] using the hypothesis mentioned above, which can be thought of as a quantified version of [U ---> R].  That means [step] can help us by reducing the subgoal to [P ---> U]. *)
+
+  step auto_ext.
+
+  (** Here is another $\mathsf{PropX}$#PropX# implication, which we want to simplify to convert as much structure as possible into normal Coq propositions. *)
+
+  step auto_ext.
+
+  (** The first of two new subgoals is an equality between the current stack pointer and the value that the spec of ["main"] says it should have.  We call a library tactic for proving equalities between bitvector expressions. *)
+
+  words.
+
+  (** The last subgoal is an implication between the [POST] clause of the post-call invariant and the overall postcondition of ["main"].  This is just a separation logic implication, so we make short work of it. *)
+
+  step auto_ext.
+
+  (** This concludes our proof of the most interesting verification condition.  Let's back up to the high level and prove the whole theorem automatically. *)
+
+Abort.
+
+(** A manual exploration like the above serves to learn which hints will be important in proving the theorem.  One might even do this exploration using more usual manual Coq proofs.  In the end, we distill what we've learned into hint commands.  In the script above, we saw only one place where [sep] wouldn't be sufficient, and that was an equality between machine words.  Therefore, we register a hint for such cases. *)
+
+Hint Extern 1 (@eq W _ _) => words.
+
+(** Now it is easy to prove the theorem automatically. *)
+
+Theorem sillyMOk : moduleOk sillyM.
+Proof.
+  vcgen; (sep_auto; auto).
+Qed.
+
+(** We might even make small changes to the program specification or implementation, and often a proof script like the above will continue working. *)
+
+
+(** * More *)
+
+(** This tutorial will likely grow some more sections later.  One topic worth adding is Bedrock's _structured programming system_, which includes support for extending the visible programming language with new control flow constructs, when they are accompanied by appropriate proofs. *)
