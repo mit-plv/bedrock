@@ -4,10 +4,14 @@
 (** printing =*> $\mapsto$ *)
 (** printing ==*> $\mapsto$ *)
 (** printing Ex $\exists$ *)
+(** printing Al $\forall$ *)
+(** printing ExX $\exists$ *)
+(** printing AlX $\forall$ *)
 (** printing <-* $\leftarrow{}*$ *)
 (** printing *<- $*\leftarrow$ *)
 (** printing * $*$ *)
 (** printing ===> $\Longrightarrow$ *)
+(** printing ---> $\supset$ *)
 
 (** %\textbf{%#<b>#Bedrock#</b>#%}% is a #<a href="http://coq.inria.fr/">#Coq#</a># library that supports implementation, specification, and verification of low-level programs.  Low-level means roughly %``%#"#at the level of C or assembly,#"#%''% and the idea of %``%#"#systems programming#"#%''% is closely related, as some of the primary target domains for Bedrock are operating systems and runtime systems.
 
@@ -193,3 +197,81 @@ Theorem revMOk : moduleOk revM.
 Proof.
   vcgen; sep hints.
 Qed.
+
+
+(** * Foundational Guarantees *)
+
+(** What does [moduleOk] really mean?  The Bedrock library defines it in a way that can be used to generate theorems about behavioral properties of programs in an assembly-like language (the %\textbf{%#<b>#Bedrock IL#</b>#%}%), such that the theorem statement only depends on a conventional operational semantics for this language.  This means we can apply Coq's normal _proof checker_ to validate our verification results, without trusting anything about the process whereby the proofs were constructed.  When the _trusted code base_ of a verification system is so small, we call the system (or the theorems it produces) _foundational_.
+
+   This section of the tutorial explains exactly what is the final product of a Bedrock verification.  Here and throughout the tutorial, we omit fully detailed formalizations, since the Coq source code already does a more thorough job of that than we could hope to do here. *)
+
+(** ** The Bedrock IL *)
+
+(** #<p><b>A nifty BNF grammar appears here in the PDF version!</b></p>#
+   %\begin{figure}
+   $$\begin{array}{llcl}
+     \textrm{32-bit machine words} & w &\in& \mathbb W \\
+     \textrm{Code labels} & \ell &\in& \mathbb L \\
+     \textrm{32-bit registers} & r &::=& \mathsf{Sp} \mid \mathsf{Rp} \mid \mathsf{Rv} \\
+     \textrm{Locations} & l &::=& r \mid w \mid r+w \\
+     \textrm{Lvalues} & L &::=& r \mid l \\
+     \textrm{Rvalues} & R &::=& L \mid w \mid \ell \\
+     \textrm{Binops} & o &::=& + \mid - \mid \times \\
+     \textrm{Instructions} & i &::=& L \leftarrow R \mid L \leftarrow R \; o \; R \\
+     \textrm{Tests} & t &::=& = \mid \neq \mid < \mid \leq \\
+     \textrm{Jumps} & j &::=& \mathsf{goto} \; R \mid \mathsf{if} \; R \; o \; R \; \mathsf{then} \; \mathsf{goto} \; \ell \; \mathsf{else} \; \mathsf{goto} \; \ell \\
+     \textrm{Blocks} & B &::=& i^*; j \\
+     \textrm{Programs} & P &::=& B^*
+   \end{array}$$
+   \caption{\label{il}Syntax of the Bedrock IL, where $^*$ denotes zero-or-more repetition}
+   \end{figure}%
+
+   Figure %\ref{il}%#<i>(omitted in HTML version)</i># gives the complete syntax of the Bedrock IL, which is meant to be a cross between an assembly language and a compiler intermediate language.  Like an assembly language, there are a fixed word size, a small set of registers, and direct access to an array-like finite memory.  Like a compiler intermediate language, the Bedrock IL is designed to be compiled to a variety of popular assembly languages, though this compilation process is more straightforward than usual.  There is no built-in notion of local variables or calling conventions, but code labels are maintained with special syntactic treatment, to allow compilation to perform certain jump-related optimizations soundly.
+
+   The IL has a standard operational semantics, implemented in Coq.  A global parameter of a program execution maps code labels to machine words, so that memory and register values may be treated uniformly as words, even with stored code pointers.  The semantics _gets stuck_ if a program tries to jump to a word not associated with any code label.  Further, another piece of global state gives a _memory access policy_, identifying a set of addresses that the program may read from or write to.  Execution gets stuck on any memory access outside this set.  One consequence of verifying a whole-program Bedrock module is that we are guaranteed lack of stuckness during execution, starting in states related appropriately to the module's specs. *)
+
+(** ** The XCAP PropX Assertion Logic *)
+
+(** It is one of the surprising facts of formal semantics that merely stating an operational semantics for a programming language is not enough to enable _modular_ program verification.  That is, we want to verify libraries separately and then compose their correctness theorems to yield a theorem about the final program.  We must fix some _theorem format_ that enables easy composition, and a _program logic_ may be thought of as such a format.
+
+   Bedrock adopts an adapted version of the XCAP program logic by Ni and Shao.  The central novel feature of XCAP is support for _first-class code pointers_ in a logic expressive enough to verify _functional correctness_, not just traditional notions of type safety.  However, XCAP's insight is to apply the _syntactic approach to type soundness_ in this richer setting.  We no longer think in terms of assigning types to the variables of a program, but we retain the key idea of establishing a global _invariant_ that all reachable program states must satisfy, where the invariant is expressed in terms of a _syntactic language of assertions_.  In Coq, this notion of _syntactic_ means _deep embedding_ of a type of formulas.
+
+   #<p><b>A nifty BNF grammar appears here in the PDF version!</b></p>#
+   %\begin{figure}
+   $$\begin{array}{llcl}
+     \textrm{Second-order variables} & \alpha \\
+     \textrm{Coq propositions} & P &\in& \mathsf{Prop} \\
+     \textrm{Machine states} & s &\in& \mathbb S \\
+     \textrm{State assertions} & f &\in& \mathbb S \to \mathsf{PropX} \\
+     \textrm{Coq terms} & v \\
+     \mathsf{PropX} & \phi &::=& \lceil P \rceil \mid \mathsf{Cptr} \; w \; f \mid \phi \land \phi \mid \phi \lor \phi \mid \phi \supset \phi \mid \forall x, \phi \mid \exists x, \phi \\
+     &&& \mid \alpha(v) \mid \forall \alpha, \phi \mid \exists \alpha, \phi
+   \end{array}$$
+   \caption{\label{propx}Syntax of the XCAP assertion language}
+   \end{figure}%
+
+   Figure %\ref{propx}%#<i>(omitted in HTML version)</i># gives the syntax of $\mathsf{PropX}$, XCAP's language of formulas, otherwise known as an _assertion logic_ when taken together with the associated proof rules.  The standard connectives [/\], [\/], [--->], [forall], and [exists] are present, but a few other cases imbue the logic with a richer structure.  First, the lifting operator [[| _ |]] allows injection of _any Coq proposition_.
+
+   One may wonder what is the point of defining a layer of syntax like this one, instead of just using normal Coq propositions.  The surprising answer is that it is difficult to support _modular theorems about first-class code pointers_ without some extra layer of complication, and for XCAP, that layer is associated with formulas [Cptr w f].  Such a formula asserts that word [w] points to a valid code block, whose specification is [f], a function from machine states to formulas.  The idea is that [f(s)] is true iff it is safe to jump to [w] in state [s].
+
+   It may be unclear how this logic connects to our earlier examples.  We only have a way to say when it is _safe_ to jump to a code block, which does not directly yield the discipline of functions, preconditions, and postconditions.  The explanation is that we _encode_ such disciplines using _higher-order_ features.  Bedrock IL programs, like assembly programs, are inherently in _continuation-passing style_, and it is possible to lower _direct style_ programs to this format and reason about them in a logic that only builds in primitives for continuations, not functions.  The freedom to work with continuations when needed will be invaluable in implementing and verifying systems components like thread schedulers.
+
+   The second line of the grammar for $\mathsf{PropX}$PropX gives some more interesting cases: those associated with _impredicative quantifiers_, which may range over assertions themselves.  With these quantifiers, we can get around an apparent deficiency of [Cptr], which is that its arguments must give the _exact_ spec of a code block, whereas we will generally want to require only that the spec of the code block be _implied_ by some other spec.  We define an infix operator [@@] for this laxer version of [Cptr].
+   [[
+Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f st ---> #0 s)%PropX.
+   ]]
+   This syntax is complicated by the fact that we represent impredicative quantifiers with _de Bruijn indices_.  Unraveling that detail, we can rephrase the above definition as: program counter [w] may be treated as having spec [f] if there exists $\alpha$#a# such that (1) $\alpha$#a# is the literal spec of [w] and (2) any state [s] satisfying [f] also satisfies $\alpha$#a#.
+
+   A $\mathsf{PropX}$#PropX# $\phi$#p# is translated to a [Prop] using the [interp] function, applied like [interp specs] $\phi$#p#, where [specs] is a partial function from code addresses to specs.  Under the hood, [interp] is implemented via an explicit natural deduction system for $\mathsf{PropX}$#PropX#.  This system is unusual in that _the impredicative quantifiers have introduction rules but no elimination rules_.  As a result, we may really only reason non-trivially about those quantifiers at the level of the meta-logic, which is Coq.  One consequence is that we cannot transparently and automatically translate uses of [interp] into normal-looking Coq propositions.  However, this can be done for formulas that do not use implication.  A Bedrock tactic [propxFo] handles that automated simplification, where it applies.
+
+   The most commonly used Bedrock tactics are designed to hide the use of $\mathsf{PropX}$#PropX# where feasible, though sometimes details creep through.  It is important that we have this machinery around, to allow modular reasoning about programs with first-class code pointers. *)
+
+(** ** The XCAP Program Logic *)
+
+(** Now we are finally ready to describe the end product of a Bedrock verification (though, as forewarned, we will stay fairly sketchy, since details abound in the Coq code).  A verified program is nothing more than a normal Bedrock IL program, where _each basic block is annotated with a $\mathsf{PropX}$#PropX# assertion_.  For the program to be truly verified, two conditions must be proved for each block [b] with spec [f].  First, a _progress_ condition says: for any initial state satisfying [f], if execution starts at the beginning of [b], then execution continues safely without getting stuck, at least until after the jump that ends [b].  Second, a _preservation_ condition says: for any state satisfying [f], if execution starts at the beginning of [b] and makes it safely to another block [b'], then [b'] has some spec that is satisfied by the machine state at this point.
+
+   The terms _progress_ and _preservation_ are chosen to evoke the _syntactic approach to type soundness_, which is based around a small-step operational semantics and an inductive invariant on reachable states: each state (program term) is well-typed, according to an inductively defined typing judgment.  In XCAP, we follow much the same approach, where a single small-step transition is _one basic block execution_, and the inductive invariant is that _the current machine state satisfies the spec of the current basic block_.
+
+   Thus, adapting the almost trivial syntactic type soundness proof method, we arrive at some theorems about verified Bedrock programs.  First, if execution begins in a block whose spec is satisfied, then _execution continues forever without getting stuck_.  Second, if execution begins in a block whose spec is satisfied, then _every basic block's spec is satisfied whenever control enters that block_.  The first condition is a sort of _memory safety_, while the second is a kind of _functional correctness_.
+
+   The [moduleOk] theorems we established in the last section are actually about a higher-level notion, that of _structured programs_ and what it means for them to be correct.  We defer details of structured programs to a later section.  For now, what matters is that structured programs can be _compiled_ into verified Bedrock IL programs, at which point their code and the associated guarantees can be understood as in this section. *)
