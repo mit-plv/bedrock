@@ -2,10 +2,12 @@
 (** printing |] $\rceil$ *)
 (** printing ^+ $\hat{+}$ *)
 (** printing =*> $\mapsto$ *)
+(** printing ==*> $\mapsto$ *)
 (** printing Ex $\exists$ *)
 (** printing <-* $\leftarrow{}*$ *)
 (** printing *<- $*\leftarrow$ *)
 (** printing * $*$ *)
+(** printing ===> $\Longrightarrow$ *)
 
 (** %\textbf{%#<b>#Bedrock#</b>#%}% is a #<a href="http://coq.inria.fr/">#Coq#</a># library that supports implementation, specification, and verification of low-level programs.  Low-level means roughly %``%#"#at the level of C or assembly,#"#%''% and the idea of %``%#"#systems programming#"#%''% is closely related, as some of the primary target domains for Bedrock are operating systems and runtime systems.
 
@@ -86,4 +88,108 @@ Definition swap := bmodule "swap" {{
 Theorem swapOk : moduleOk swap.
 Proof.
   vcgen; sep_auto.
+Qed.
+
+
+(** ** An Abstract Predicate: In-Place List Reverse *)
+
+(** Bedrock also supports highly automated verifications that involve _data structures_, formalized in a way along the lines of _abstract predicates_ in separation logic.  As an example, consider the following recursive definition of an abstract predicate for singly linked lists. *)
+
+Fixpoint sll (ls : list W) (p : W) : HProp :=
+  match ls with
+    | nil => [| p = 0 |]
+    | x :: ls' => [| p <> 0 |] * Ex p', (p ==*> x, p') * sll ls' p'
+  end%Sep.
+
+(** The type [W] is for machine words, and the [%Sep] at the end of the definition asks to parse the function body using the rules for separation logic-style assertions.
+
+   The predicate [sll ls p] captures the idea that mathematical list [ls] is encoded in memory, starting from root pointer [p].  The codomain [HProp] is the domain of predicates over memories.
+
+   We define [sll] by recursion on the structure of [ls].  If the list is empty, then we merely assert the lifted fact [p = 0], forcing [p] to be null.  Note that a lifted fact takes up no memory, so we implicitly assert emptiness of whatever memory this [HProp] is later applied to.
+
+   If the list is nonempty, we split it into head [x] and tail [ls'].  Next, we assert that [p] is not null, and that there exists some pointer [p'] such that [p] points in memory to the two values [x] and [p'], such that [p'] is the root of a list encoding [ls'].  By using [*], we implicitly require that all of the memory regions that we are describing are _disjoint_ from each other.
+
+   To avoid depending on Coq's usual axiom of functional extensionality, Bedrock requires that we prove administrative lemmas like the following for each new separation logic-style predicate we define. *)
+
+Theorem sll_extensional : forall ls (p : W), HProp_extensional (sll ls p).
+Proof.
+  destruct ls; reflexivity.
+Qed.
+
+(** We add the lemma as a hint, so that appropriate machinery within Bedrock knows about it. *)
+
+Hint Immediate sll_extensional.
+
+(** We want to treat the predicate [sll] abstractly, relying only on a set of rules for simplifying its uses.  For instance, here is an implication in separation logic, establishing the consequences of a list with a null root pointer. *)
+
+Theorem nil_fwd : forall ls (p : W), p = 0
+  -> sll ls p ===> [| ls = nil |].
+Proof.
+  destruct ls; sepLemma.
+Qed.
+
+(** The proof only needs to request a case analysis on [ls] and then hand off the rest of the work to [sepLemma], a relative of [sep_auto].  Staying at more or less this same level of automation, we also prove 3 more useful facts about [sll]. *)
+
+Theorem nil_bwd : forall ls (p : W), p = 0
+  -> [| ls = nil |] ===> sll ls p.
+Proof.
+  destruct ls; sepLemma.
+Qed.
+
+Theorem cons_fwd : forall ls (p : W), p <> 0
+  -> sll ls p ===> Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
+Proof.
+  destruct ls; sepLemma.
+Qed.
+
+Theorem cons_bwd : forall ls (p : W), p <> 0
+  -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
+Proof.
+  destruct ls; sepLemma;
+    match goal with
+      | [ H : _ :: _ = _ :: _ |- _ ] => injection H; sepLemma
+    end.
+Qed.
+
+(** So that Bedrock knows to use these rules where applicable, we combine them into a _hint package_, using a Bedrock tactic [prepare]. *)
+
+Definition hints : TacPackage.
+  prepare (nil_fwd, cons_fwd) (nil_bwd, cons_bwd).
+Defined.
+
+(** Now that we have our general %``%#"#theory of lists#"#%''% in place, we can specify and verify in-placed reversal for lists. *)
+
+Definition revS := SPEC("x") reserving 3
+  Ex ls,
+  PRE[V] sll ls (V "x")
+  POST[R] sll (rev ls) R.
+
+Definition revM := bmodule "rev" {{
+  bfunction "rev"("x", "acc", "tmp1", "tmp2") [revS]
+    "acc" <- 0;;
+    [Ex ls, Ex accLs,
+      PRE[V] sll ls (V "x") * sll accLs (V "acc")
+      POST[R] sll (rev_append ls accLs) R ]
+    While ("x" <> 0) {
+      "tmp2" <- "x";;
+      "tmp1" <- "x" + 4;;
+      "x" <-* "tmp1";;
+      "tmp1" *<- "acc";;
+      "acc" <- "tmp2"
+    };;
+    Return "acc"
+  end
+}}.
+
+(** Note that the function implementation contains a [While] loop with a _loop invariant_ before it.  As for all instances of invariants appearing within Bedrock programs, we put the loop invariant within square brackets.  We must be slightly clever in stating what is essentially a strengthened induction hypothesis.  Where the overall function is specified in terms of the function [rev], reasoning about intermediate loop states requires use of the [rev_append] function.
+
+   Tactics like [sep_auto] take care of most reasoning about programs and memories.  A finished Bedrock proof generally consists of little more than the right hints to finish the rest of the process.  The [hints] package we created above supplies rules for reasoning about memories and abstract predicates, and we can use Coq's normal hint mechanism to help with goals that remain, which will generally be about more standard mathematical domains.  Our example here uses Coq's [list] type family, and the only help Bedrock needs to verify ["rev"] will be a lemma from the standard library that relates [rev] and [rev_append], added to a hint database that Bedrock uses in simplifying separation logic-style formulas. *)
+
+Hint Rewrite <- rev_alt : sepFormula.
+
+(** Now the proof script is almost the same as before, except we call Bedrock tactic [sep] instead of [sep_auto].  The former takes a hint package as argument. *)
+
+Theorem revMOk : moduleOk revM.
+Proof.
+  vcgen; sep hints.
 Qed.
