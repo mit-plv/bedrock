@@ -25,3 +25,9 @@ timing/
 *.cmi
 *.o
 *.ml4.d
+
+*.html
+*.v.tex
+*.css
+*.sty
+*.pdf
