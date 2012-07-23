@@ -1,6 +1,11 @@
 (** printing [| $\lceil$ *)
 (** printing |] $\rceil$ *)
 (** printing ^+ $\hat{+}$ *)
+(** printing =*> $\mapsto$ *)
+(** printing Ex $\exists$ *)
+(** printing <-* $\leftarrow{}*$ *)
+(** printing *<- $*\leftarrow$ *)
+(** printing * $*$ *)
 
 (** %\textbf{%#<b>#Bedrock#</b>#%}% is a #<a href="http://coq.inria.fr/">#Coq#</a># library that supports implementation, specification, and verification of low-level programs.  Low-level means roughly %``%#"#at the level of C or assembly,#"#%''% and the idea of %``%#"#systems programming#"#%''% is closely related, as some of the primary target domains for Bedrock are operating systems and runtime systems.
 
@@ -47,3 +52,38 @@ Proof.
 Qed.
 
 (** The predicate [moduleOk] captures the usual notion from Hoare Logic, etc., of when a program satisfies a specification.  Here we prove correctness by chaining invocations of two tactics: [vcgen], which performs _verification condition generation_, reducing program correctness to a set of proof obligations that only refer directly to straightline code, not structured code; and [sep_auto], a simplification procedure based on _separation logic_ that is quite a bit of overkill for this example, but gets the job done.  (There actually _is_ some quite non-trivial reasoning going on behind the scenes here, dealing with complexity hidden by our nice notations; more on that later.) *)
+
+
+(** ** Pointers and Memory: A Swap Function *)
+
+(** A crucial component of low-level programming is mutable state, which we introduce with a simple example: a function that takes two pointers as arguments and swaps the values in the memory cells that they point to.  Here is its spec. *)
+
+Definition swapS := SPEC("x", "y") reserving 2
+  Ex v, Ex w,
+  PRE[V] V "x" =*> v * V "y" =*> w
+  POST[_] V "x" =*> w * V "y" =*> v.
+
+(** We see several important changes from the last spec.  First, this time we reserve 2 stack slots, to use for local variable temporaries.  Second, the spec is _existentially quantified_.  The function may be called whenever the precondition can be satisfied _for some values of [v] and [w]_.  Note that the same quantifier variables appear in precondition and postcondition, giving us a way to connect the initial and final states of a function call.
+
+   Both precondition and postcondition use notation inspired by _separation logic_.  The syntax [p =*> v] indicates that pointer [p] points to a memory cell holding value [v].  The [*] operator combines facts about smaller memories into facts about larger composite memories.  The concrete precondition above says that the function will be aware of only two memory cells, whose addresses come from the values of parameters ["x"] and ["y"].  These cells start out holding [v] and [w], respectively.  The postcondition says that the function swaps these values.
+
+   Here is an implementation. *)
+
+Definition swap := bmodule "swap" {{
+  bfunction "swap"("x", "y", "v", "w") [swapS]
+    "v" <-* "x";;
+    "w" <-* "y";;
+    "x" *<- "w";;
+    "y" *<- "v";;
+    Return 0
+  end
+}}.
+
+(** We write private local variables as extra function formal parameters.  The operator [;;] sequences commands, the operator [<-*] is a memory read, and [*<-] is memory write.
+
+   Our function is not very complex, but there are still opportunities for mistakes.  A quick verification establishes that we implemented it right after all. *)
+
+Theorem swapOk : moduleOk swap.
+Proof.
+  vcgen; sep_auto.
+Qed.
