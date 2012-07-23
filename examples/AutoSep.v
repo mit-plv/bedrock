@@ -1026,7 +1026,10 @@ Ltac descend :=
                rewrite (@use_HProp_extensional (f a b c d e)) by auto
              | [ |- context[fun stn0 sm => ?f ?a ?b ?c ?d ?e ?f stn0 sm] ] =>
                rewrite (@use_HProp_extensional (f a b c d e f)) by auto
-           end).
+           end);
+    try match goal with
+          | [ p : (ST.settings * state)%type |- _ ] => destruct p; simpl in *
+        end.
 
 Definition locals_call ns vs avail p (ns' : list string) (avail' : nat) (offset : nat) :=
   locals ns vs avail p.
