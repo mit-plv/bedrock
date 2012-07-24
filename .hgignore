@@ -17,7 +17,6 @@ src/ILTac.v
 *.blg
 *.log
 *.out
-docs/nepls-pl-day/*.pdf
 timing/
 *.cmo
 *.cmx

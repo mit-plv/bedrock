@@ -1,4 +1,6 @@
-.PHONY: all clean
+WWW = /afs/csail.mit.edu/group/plv/www/data/bedrock
+
+.PHONY: all install
 
 BEDROCK = -R ../src Bedrock
 ARGS = $(BEDROCK) -I ../examples
@@ -18,3 +20,9 @@ Tutorial.html: Tutorial.vo Makefile
 
 Tutorial.vo: Tutorial.v Makefile
 	coqc $(ARGS) -dump-glob Tutorial.glob Tutorial
+
+install: tutorial.pdf Tutorial.html
+	cp Tutorial.v $(WWW)/
+	cp tutorial.pdf $(WWW)/
+	cp Tutorial.html $(WWW)/
+	cp coqdoc.css $(WWW)/
