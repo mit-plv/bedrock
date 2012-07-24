@@ -8,6 +8,7 @@ all: tutorial.pdf Tutorial.html
 
 tutorial.pdf: tutorial.tex Tutorial.v.tex Makefile
 	pdflatex tutorial
+	pdflatex tutorial
 
 Tutorial.v.tex: Tutorial.vo Makefile
 	coqdoc -s --body-only --latex $(BEDROCK) $(GLOB) Tutorial.v -o Tutorial.v.tex

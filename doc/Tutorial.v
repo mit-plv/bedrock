@@ -18,7 +18,9 @@
 
    Bedrock is _foundational_, meaning that one needs to trust very little code to believe that a program has really been verified.  Bedrock supports _higher-order_ programs and specifications.  That is, programs may pass code pointers around as data, and specifications are allowed to quantify over other specifications.  Bedrock supports _mostly automated_ proofs, to save programmers from the tedium of step-by-step formal derivations; and Bedrock is also an _extensible low-level programming language_, where programmers can add new features by justifying their logical soundness.
 
-   This advertising pitch can be a bit of a mouthful.  To make things more concrete, we'll start with three small examples.  Some knowledge of Coq will be helpful in what follows, but especially our first pass through the examples should be accessible to a broad audience with a basic level of %``%#"#POPL literacy.#"#%''%  This document is generated from a literate Coq source file using %\texttt{%#<tt>#coqdoc#</tt>#%}%. *)
+   This advertising pitch can be a bit of a mouthful.  To make things more concrete, we'll start with three small examples.  Some knowledge of Coq will be helpful in what follows, but especially our first pass through the examples should be accessible to a broad audience with a basic level of %``%#"#POPL literacy.#"#%''%  Readers interested in applying Bedrock, but who _don't_ have backgrounds in core Coq concepts, should consult some other source.  Naturally, the author is partial to his _Certified Programming with Dependent Types_.  Other popular choices are _Software Foundations_ by Pierce et al. and _Coq'Art_ by Bertot and Casteran.
+
+   This document is generated from a literate Coq source file (%\texttt{%#<tt>#doc/Tutorial.v#</tt>#%}% in the Bedrock distribution) using %\texttt{%#<tt>#coqdoc#</tt>#%}%. *)
 
 
 (** * Three Verified Bedrock Programs *)
@@ -35,7 +37,7 @@ Definition addS := SPEC("n", "m") reserving 0
   PRE[V] [| True |]
   POST[R] [| R = V "n" ^+ V "m" |].
 
-(** Up through the [:=], this is normal Coq syntax for associating an identifier with a definition.  Past that point, we use a special Bedrock notation.  The [SPEC("n", "m")] part declares this as a spec for a function of two arguments with the given formal parameter names, and [reserving 0] declares that this function will require no more stack space than is needed to store its parameters.  (As Bedrock is targeted at operating systems and similar lowest-level code, we opt for static tracking of stack space usage, rather than forcing use of a fixed dynamic regime for avoiding stack overflows.)
+(** Up through the [:=], this is normal Coq syntax for associating an identifier with a definition.  Past that point, we use a special Bedrock notation.  The [SPEC("n", "m")] part declares this as a spec for a function of two arguments with the given formal parameter names, and [reserving 0] declares that this function will require no more stack space than is needed to store its parameters.  (As Bedrock is targeted at operating systems and similar lowest-level code, we opt for static tracking of stack space usage, rather than forcing use of a fixed dynamic regime for avoiding stack overflows.  Furthermore, handling of the stack is not built into the underlying program logic, and it is possible to implement alternate regimes without changing the Bedrock library.)
 
    A specification includes a _precondition_ and a _postcondition_.  The notation [PRE[V]] introduces a precondition, binding a local variable [V] that can be used to refer to the function argument values.  In this example, we impose no conditions on the arguments, so the precondition is merely [True].  Actually, Bedrock uses a fancier domain of logical assertions than Coq's usual [Prop], so we need to use the [[| ... |]] operator to _lift_ a normal proposition as an assertion.  More later on what assertions really are.  %Note that the rendering here uses pretty \LaTeX{} symbols; see some of the files in the \texttt{examples} directory for the concrete ASCII syntax.%
 
@@ -70,7 +72,7 @@ Definition swapS := SPEC("x", "y") reserving 2
   PRE[V] V "x" =*> v * V "y" =*> w
   POST[_] V "x" =*> w * V "y" =*> v.
 
-(** We see several important changes from the last spec.  First, this time we reserve 2 stack slots, to use for local variable temporaries.  Second, the spec is _existentially quantified_.  The function may be called whenever the precondition can be satisfied _for some values of [v] and [w]_.  Note that the same quantifier variables appear in precondition and postcondition, giving us a way to connect the initial and final states of a function call.
+(** We see several important changes from the last spec.  First, this time we reserve 2 stack slots, to use for local variable temporaries.  Second, the spec is _existentially quantified_.  The function may be called whenever the precondition can be satisfied _for some values of [v] and [w]_.  Note that the same quantified variables appear in precondition and postcondition, giving us a way to connect the initial and final states of a function call.
 
    Both precondition and postcondition use notation inspired by _separation logic_.  The syntax [p =*> v] indicates that pointer [p] points to a memory cell holding value [v].  The [*] operator combines facts about smaller memories into facts about larger composite memories.  The concrete precondition above says that the function will be aware of only two memory cells, whose addresses come from the values of parameters ["x"] and ["y"].  These cells start out holding [v] and [w], respectively.  The postcondition says that the function swaps these values.
 
@@ -98,7 +100,7 @@ Qed.
 
 (** ** An Abstract Predicate: In-Place List Reverse *)
 
-(** Bedrock also supports highly automated verifications that involve _data structures_, formalized in a way along the lines of _abstract predicates_ in separation logic.  As an example, consider the following recursive definition of an abstract predicate for singly linked lists. *)
+(** Bedrock also supports highly automated verifications that involve _data structures_, formalized in a way similar to _abstract predicates_ in separation logic.  As an example, consider the following recursive definition of an abstract predicate for singly linked lists. *)
 
 Fixpoint sll (ls : list W) (p : W) : HProp :=
   match ls with
@@ -186,7 +188,7 @@ Definition revM := bmodule "rev" {{
   end
 }}.
 
-(** Note that the function implementation contains a [While] loop with a _loop invariant_ before it.  As for all instances of invariants appearing within Bedrock programs, we put the loop invariant within square brackets.  We must be slightly clever in stating what is essentially a strengthened induction hypothesis.  Where the overall function is specified in terms of the function [rev], reasoning about intermediate loop states requires use of the [rev_append] function.
+(** Note that the function implementation contains a [While] loop with a _loop invariant_ before it.  As for all instances of invariants appearing within Bedrock programs, we put the loop invariant within square brackets.  We must be slightly clever in stating what is essentially a strengthened induction hypothesis.  Where the overall function is specified in terms of the function [rev], reasoning about intermediate loop states requires use of the [rev_append] function.  (There is also something else quite interesting going on in our choice of invariant.  We reveal exactly what in discussing a simpler example in a later section.)
 
    Tactics like [sep_auto] take care of most reasoning about programs and memories.  A finished Bedrock proof generally consists of little more than the right hints to finish the rest of the process.  The [hints] package we created above supplies rules for reasoning about memories and abstract predicates, and we can use Coq's normal hint mechanism to help with goals that remain, which will generally be about more standard mathematical domains.  Our example here uses Coq's [list] type family, and the only help Bedrock needs to verify ["rev"] will be a lemma from the standard library that relates [rev] and [rev_append], added to a hint database that Bedrock uses in simplifying separation logic-style formulas. *)
 
@@ -220,7 +222,7 @@ Qed.
      \textrm{Binops} & o &::=& + \mid - \mid \times \\
      \textrm{Instructions} & i &::=& L \leftarrow R \mid L \leftarrow R \; o \; R \\
      \textrm{Tests} & t &::=& = \mid \neq \mid < \mid \leq \\
-     \textrm{Jumps} & j &::=& \mathsf{goto} \; R \mid \mathsf{if} \; R \; o \; R \; \mathsf{then} \; \mathsf{goto} \; \ell \; \mathsf{else} \; \mathsf{goto} \; \ell \\
+     \textrm{Jumps} & j &::=& \mathsf{goto} \; R \mid \mathsf{if} \; R \; t \; R \; \mathsf{then} \; \mathsf{goto} \; \ell \; \mathsf{else} \; \mathsf{goto} \; \ell \\
      \textrm{Blocks} & B &::=& i^*; j \\
      \textrm{Programs} & P &::=& B^*
    \end{array}$$
@@ -257,7 +259,7 @@ Qed.
 
    It may be unclear how this logic connects to our earlier examples.  We only have a way to say when it is _safe_ to jump to a code block, which does not directly yield the discipline of functions, preconditions, and postconditions.  The explanation is that we _encode_ such disciplines using _higher-order_ features.  Bedrock IL programs, like assembly programs, are inherently in _continuation-passing style_, and it is possible to lower _direct style_ programs to this format and reason about them in a logic that only builds in primitives for continuations, not functions.  The freedom to work with continuations when needed will be invaluable in implementing and verifying systems components like thread schedulers.
 
-   The second line of the grammar for $\mathsf{PropX}$PropX gives some more interesting cases: those associated with _impredicative quantifiers_, which may range over assertions themselves.  With these quantifiers, we can get around an apparent deficiency of [Cptr], which is that its arguments must give the _exact_ spec of a code block, whereas we will generally want to require only that the spec of the code block be _implied_ by some other spec.  We define an infix operator [@@] for this laxer version of [Cptr].
+   The second line of the grammar for $\mathsf{PropX}$#PropX# gives some more interesting cases: those associated with _impredicative quantifiers_, which may range over assertions themselves.  With these quantifiers, we can get around an apparent deficiency of [Cptr], which is that its arguments must give the _exact_ spec of a code block, whereas we will generally want to require only that the spec of the code block be _implied_ by some other spec.  We define an infix operator [@@] for this laxer version of [Cptr].
    [[
 Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f st ---> #0 s)%PropX.
    ]]
@@ -265,7 +267,9 @@ Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f st ---> #0 s)%PropX.
 
    A $\mathsf{PropX}$#PropX# $\phi$#p# is translated to a [Prop] using the [interp] function, applied like [interp specs] $\phi$#p#, where [specs] is a partial function from code addresses to specs.  Under the hood, [interp] is implemented via an explicit natural deduction system for $\mathsf{PropX}$#PropX#.  This system is unusual in that _the impredicative quantifiers have introduction rules but no elimination rules_.  As a result, we may really only reason non-trivially about those quantifiers at the level of the meta-logic, which is Coq.  One consequence is that we cannot transparently and automatically translate uses of [interp] into normal-looking Coq propositions.  However, this can be done for formulas that do not use implication.  A Bedrock tactic [propxFo] handles that automated simplification, where it applies.
 
-   The most commonly used Bedrock tactics are designed to hide the use of $\mathsf{PropX}$#PropX# where feasible, though sometimes details creep through.  It is important that we have this machinery around, to allow modular reasoning about programs with first-class code pointers. *)
+   The most commonly used Bedrock tactics are designed to hide the use of $\mathsf{PropX}$#PropX# where feasible, though sometimes details creep through.  It is important that we have this machinery around, to allow modular reasoning about programs with first-class code pointers.
+
+   One further foundational point is worth making: while most separation logics outside of Coq build into their assertion languages such constructs as [=*>] and [*], with XCAP and related systems, we instead define these as derived operators, with definitions in terms of the basic $\mathsf{PropX}$#PropX# connectives. *)
 
 (** ** The XCAP Program Logic *)
 
@@ -349,11 +353,11 @@ Proof.
 
   step auto_ext.
 
-  (** We have finished proving the precondition of ["swap"].  Now we must prove that its postcondition implies the invariant we wrote after the function call.  The form of the obligation is an implication within $\mathsf{PropX}$#PropX#, where the antecedent is ["swap"]'s postcondition and the consequent is the invariant we wrote after the call.  Recall that simplifying $\mathsf{PropX}$#PropX# implications into normal-looking Coq formulas is difficult.  However, we can rely on [step] to simplify the implication into some more basic subgoals, some of which will still be $\mathsf{PropX}$#PropX# implications. *)
+  (** We have finished proving the precondition of ["swap"].  Now we must prove that its postcondition implies the invariant we wrote after the function call.  The form of the obligation is an implication within $\mathsf{PropX}$#PropX#, where the antecedent is the postcondition of ["swap"] and the consequent is the invariant we wrote after the call.  Recall that simplifying $\mathsf{PropX}$#PropX# implications into normal-looking Coq formulas is difficult.  However, we can rely on [step] to simplify the implication into some more basic subgoals, some of which will still be $\mathsf{PropX}$#PropX# implications. *)
 
   descend; step auto_ext.
 
-  (** The first resulting subgoal is an implication between ["swap"]'s postcondition and the [PRE] clause from the post-call invariant.  Again, this is exactly the sort of separation logic simplification that [step] handles predictably. *)
+  (** The first resulting subgoal is an implication between the postcondition of ["swap"] and the [PRE] clause from the post-call invariant.  Again, this is exactly the sort of separation logic simplification that [step] handles predictably. *)
 
   step auto_ext.
 
@@ -361,7 +365,7 @@ Proof.
 
   step auto_ext.
 
-  (** We are in the home stretch now!  The single subgoal asks us to prove an implication [P ---> Q ---> R], where [P] is the [POST] clause of the post-call invariant, [Q] is the postcondition of ["swap"], and [R] is the literal specification of the original return pointer for ["main"].  In fact, [R] is an application of a context variable to the current machine state. We also have a hypothesis telling us that [R] is implied by the postcondition we originally ascribed to ["main"] in its spec.
+  (** We are in the home stretch now!  The single subgoal asks us to prove an implication [P ---> Q ---> R], where [P] is the [POST] clause of the post-call invariant, [Q] is the postcondition of ["swap"], and [R] is the literal specification of the original return pointer for ["main"].  In fact, [R] is an application of a second-order variable to the current machine state. We also have a hypothesis telling us that [R] is implied by the postcondition we originally ascribed to ["main"] in its spec.
 
      Our first step is to reduce the implication to just [P ---> R], augmented with extra _pure_ (memory-independent) hypotheses that we glean from [Q].  The intuition behind this step is that we already incorporated in [P] any facts about memory that we will need. *)
 
@@ -387,7 +391,7 @@ Proof.
 
 Abort.
 
-(** A manual exploration like the above serves to learn which hints will be important in proving the theorem.  One might even do this exploration using more usual manual Coq proofs.  In the end, we distill what we've learned into hint commands.  In the script above, we saw only one place where [sep] wouldn't be sufficient, and that was an equality between machine words.  Therefore, we register a hint for such cases. *)
+(** A manual exploration like the above is about learning which hints will be important in proving the theorem.  One might even do this exploration using more usual manual Coq proofs.  In the end, we distill what we've learned into hint commands.  In the script above, we saw only one place where [sep] wouldn't be sufficient, and that was an equality between machine words.  Therefore, we register a hint for such cases. *)
 
 Hint Extern 1 (@eq W _ _) => words.
 
