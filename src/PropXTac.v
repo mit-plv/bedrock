@@ -72,16 +72,26 @@ Section machine.
       Lemma valid_weaken : forall G Q, valid (state := state) specs G Q
         -> forall G', incl G G'
           -> valid specs G' Q.
-        induction 1; intuition.
-
+      Proof.
+        induction 1; intros.
+        intuition.
+        intuition.
         eapply Inj_E; [ eauto | auto ].
+        intuition.
         eapply Cptr_E; [ eauto | auto ].
+        intuition.
         eapply And_E1; [ eauto ].
         eapply And_E2; [ eauto ].
-        eapply Or_E; [ eauto | auto | auto ].
+        eapply Or_I1; eapply IHvalid; eassumption.
+        eapply Or_I2; eapply IHvalid; eassumption.
+        eapply Or_E. eapply IHvalid1; eassumption. eapply IHvalid2. clear -H2. eauto.  eapply IHvalid3. clear -H2. eauto.
+        intuition.
         eapply Imply_E; [ eauto | auto ].
+        intuition.
+        eapply Forall_E. eauto.
         eapply Exists_I; eauto.
         eapply Exists_E; eauto.
+        intuition.
         eapply ExistsX_I; eauto.
       Qed.
 
