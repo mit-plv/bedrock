@@ -29,6 +29,7 @@ Qed.
 Lemma allocated_shift_base' : forall base base' len offset offset',
   base ^+ $(offset) = base' ^+ $(offset')
   -> allocated base offset len ===> allocated base' offset' len.
+Proof.
   induction len; intros.
 
   apply Himp_refl.
@@ -51,44 +52,15 @@ Lemma allocated_shift_base' : forall base base' len offset offset',
   destruct offset'; auto.
   W_eq.
   rewrite H0; clear H0.
-
+  
   match goal with
     | [ H : ?X = _ |- context[(?Y =*> _)%Sep] ] => change Y with X; rewrite H
   end.
-  hnf; intros; hnf; intros.
-  Require Import PropX.
-  apply Imply_I.
-  unfold starB, star.
-  eapply Exists_E.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  unfold exB, ex.
-  eapply Exists_E.
-  eapply And_E1.
-  eapply And_E2.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  apply Exists_I with B; apply Exists_I with B0.
-  apply And_I.
-  eapply And_E1; apply Env; unfold List.In; eauto.
-  apply And_I.
-  apply Exists_I with B1.
-  apply Env; unfold List.In; auto.
-  eapply Imply_E.
-  apply PropXTac.interp_weaken.
-  apply IHlen; eauto.
-  instantiate (1 := 4 + offset).
-  repeat rewrite natToW_plus.
-  do 2 rewrite (wplus_comm (natToW 4)).
-  repeat rewrite wplus_assoc.
-  f_equal.
-  assumption.
-
-  do 2 eapply And_E2.
-  apply Env; unfold List.In; eauto.
+  intro. apply himp_star_frame. apply himp_ex. reflexivity.
+  eapply IHlen. repeat rewrite natToW_plus.
+  repeat rewrite (wplus_comm (natToW 4)). 
+  repeat rewrite wplus_assoc. 
+  unfold natToW in *. rewrite H. reflexivity.
 Qed.
 
 Theorem allocated_shift_base : forall base base' len len' offset offset',
@@ -119,253 +91,44 @@ Qed.
 Theorem allocated_split : forall base len' len offset,
   (len' <= len)%nat
   -> allocated base offset len ===> allocated base offset len' * allocated base (offset + 4 * len') (len - len').
+Proof.
   induction len'; inversion 1.
-
-  simpl.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  do 2 apply Exists_I with smem_emp.
-  unfold empB, emp, inj.
-  eapply Inj_E.
-  eapply And_E2; apply Env; unfold List.In; eauto.
-  intro.
-  hnf in H1; subst.
-  repeat apply And_I; apply Inj_I; auto.
-  apply split_empty; reflexivity.
-  reflexivity.
-  reflexivity.
-
-  replace (offset + 4 * 0) with offset by omega.
-  simpl minus.
-  unfold allocated at 2.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  apply Exists_I with smem_emp.
-  apply Exists_I with m0.
-  unfold empB, emp, inj.
-  repeat apply And_I; try apply Inj_I; auto.
-  apply split_a_semp_a.
-  reflexivity.
-
-  subst.
-  replace (S len' - S len') with 0 by omega.
-  unfold allocated at 3.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  apply Exists_I with m.
-  apply Exists_I with smem_emp.
-  unfold empB, emp, inj.
-  repeat apply And_I; try apply Inj_I; auto.
-  apply split_comm; apply split_a_semp_a.
-  reflexivity.
-
-  subst.
-  replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.
-  unfold allocated at 1 2; fold allocated.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  unfold starB, star, exB, ex, injB, inj.
-  eapply Exists_E.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  eapply Imply_E.
-  apply PropXTac.interp_weaken.
-  eapply IHlen'.
-  instantiate (1 := m); omega.
-  do 2 eapply And_E2; apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold List.In; eauto.
-  cbv beta; intro.
-  apply Exists_I with (HT.join B B1).
-  apply Exists_I with B2.
-  apply And_I.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold List.In; eauto.
-  intro.
-  apply Inj_E with (split m0 B B0).
-  eapply And_E1; apply Env; unfold List.In; eauto.
-  intro.
-  apply Inj_I.
-  rewrite disjoint_join.
-  eapply split_assoc; eauto.
-  unfold split in *; intuition; subst.
-  
-  Require Import List DepList.
-
-  Lemma hlist_eta : forall A B (ls : list A) (h : hlist B ls),
-    h = match ls return hlist B ls -> hlist B ls with
-          | nil => fun _ => HNil
-          | _ :: _ => fun h => HCons (hlist_hd h) (hlist_tl h)
-        end h.
-    destruct h; reflexivity.
-  Qed.
-
-  Lemma disjoint_join' : forall dom (sm sm1 sm2 : smem' dom),
-    disjoint' _ sm (join' _ sm1 sm2)
-    -> disjoint' _ sm sm1.
-    induction sm; intros; rewrite (hlist_eta _ _ _ sm1) in *;
-      rewrite (hlist_eta _ _ _ sm2) in *; simpl in *; intuition eauto.
-    destruct (hlist_hd sm1); auto; discriminate.
-  Qed.
-
-  eapply disjoint_join'; eauto.
-
-  apply And_I.
-  apply Exists_I with B; apply Exists_I with B1.
-  apply And_I.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold List.In; eauto.
-  intro.
-  apply Inj_E with (HT.split m0 B B0).
-  eapply And_E1; apply Env; unfold List.In; eauto.
-  intro.  
-  apply Inj_I.
-  apply disjoint_split_join.
-  unfold HT.split in *; intuition; subst.
-  eapply disjoint_join'; eauto.
-  apply And_I.
-  eapply And_E1; eapply And_E2; apply Env; unfold List.In; eauto.
-  eapply And_E1; eapply And_E2; apply Env; unfold List.In; eauto.
-  do 2 eapply And_E2; apply Env; unfold List.In; eauto.
+  { simpl. intro. unfold empB, starB.
+    rewrite heq_star_emp_r. reflexivity. }
+  { replace (offset + 4 * 0) with offset by omega.
+    simpl minus.
+    unfold allocated at 2. unfold empB, starB. intro. rewrite heq_star_emp_l. reflexivity. }
+  { replace (S len' - S len') with 0 by omega. intro.
+    unfold allocated at 3. unfold empB, starB. rewrite heq_star_emp_r. reflexivity. }
+  { subst.
+    replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.
+    unfold allocated at 1 2; fold allocated.
+    unfold empB, starB, exB. intro.
+    rewrite heq_star_assoc.    
+    repeat rewrite heq_ex_star.
+    apply himp_ex. intros.
+    apply himp_star_frame. reflexivity.
+    simpl minus. eapply IHlen'. omega. }
 Qed.
 
 Theorem allocated_join : forall base len' len offset,
   (len' <= len)%nat
   -> allocated base offset len' * allocated base (offset + 4 * len') (len - len') ===> allocated base offset len.
+Proof.
   induction len'; inversion 1.
-
-  simpl.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  unfold empB, emp, inj, starB, star.
-  eapply Exists_E.
-  apply Env; simpl; eauto.
-  simpl; intro.
-  eapply Exists_E.
-  apply Env; simpl; eauto.
-  simpl; intro.
-  apply And_I.
-  apply Inj_I; auto.
-  eapply Inj_E.
-  eapply And_E1; apply Env; simpl; eauto.
-  intro.
-  destruct H1; subst.
-  eapply Inj_E.
-  eapply And_E2; eapply And_E1; eapply And_E2; apply Env; simpl; eauto.
-  intro.
-  eapply Inj_E.
-  do 3 eapply And_E2; apply Env; simpl; eauto.
-  intro.
-  unfold semp in *; subst.
-  apply Inj_I.
-  symmetry; apply join'_emp.
-
-  unfold allocated at 1.
-  unfold empB, emp, starB, star, injB, inj, exB, ex.
-  replace (offset + 4 * 0) with offset by omega.
-  replace (S m - 0) with (S m) by omega.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  eapply Inj_E.
-  eapply And_E2; eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
-  intro.
-  generalize (split_semp _ _ _ H2 H3); intro; subst.
-  do 2 eapply And_E2; apply Env; unfold In; eauto.
-
-  replace (S len' - S len') with 0 by omega.
-  unfold allocated at 2.
-  unfold empB, emp, starB, star, injB, inj, exB, ex.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  eapply Inj_E.
-  do 3 eapply And_E2; apply Env; unfold In; eauto.
-  intro.
-  apply split_comm in H1.
-  generalize (split_semp _ _ _ H1 H2); intro; subst.
-  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
-
-  subst.
-  replace (S m - S len') with (m - len') by omega.
-  unfold allocated at 1 3; fold allocated.
-  replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.  
-  unfold empB, emp, starB, star, injB, inj, exB, ex.
-  hnf; intros; hnf; intros.
-  apply Imply_I.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
-  cbv beta; intro.
-  eapply Exists_E.
-  apply Env; unfold In; eauto.
-  cbv beta; intro.
-  apply Exists_I with B1; apply Exists_I with (HT.join B0 B2).
-  repeat apply And_I.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  apply Inj_E with (HT.split m0 B B0).
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  apply Inj_I.
-  assert (disjoint B0 B2).
-  eapply split_split_disjoint.
-  eauto.
-  apply split_comm; eassumption.
-  apply split_comm in H1.
-  eapply split_assoc in H1.
-  2: apply split_comm; eassumption.
-  apply split_comm.
-  rewrite disjoint_join; auto.
-
-  eapply And_E1; eapply And_E2; apply Env; unfold In; eauto.
-
-  eapply Imply_E.
-  apply PropXTac.interp_weaken.
-  apply IHlen'.
-  omega.
-  apply Exists_I with B2.
-  apply Exists_I with B0.
-  repeat apply And_I.
-  eapply Inj_E.
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  apply Inj_E with (HT.split m0 B B0).
-  eapply And_E1; apply Env; unfold In; eauto.
-  intro.
-  apply Inj_I.
-  apply split_comm.
-  apply disjoint_split_join.
-  eapply split_split_disjoint.
-  eauto.
-  apply split_comm; eauto.
-  do 2 eapply And_E2; apply Env; unfold In; eauto.
-  do 2 eapply And_E2; apply Env; unfold In; eauto.
+  { intro; unfold starB, empB; simpl. rewrite heq_star_emp_r. reflexivity. }
+  { replace (offset + 4 * 0) with offset by omega.
+    simpl minus.
+    unfold allocated at 1. unfold empB, starB. intro. rewrite heq_star_emp_l. reflexivity. }
+  { replace (S len' - S len') with 0 by omega. intro.
+    unfold allocated at 3. unfold empB, starB. rewrite heq_star_emp_r. reflexivity. }
+  { subst.
+    replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.
+    unfold allocated at 1 3; fold allocated.
+    unfold empB, starB, exB. intro.
+    rewrite heq_star_assoc.    
+    repeat rewrite heq_ex_star.
+    apply himp_ex. intros.
+    apply himp_star_frame. reflexivity.
+    simpl minus. eapply IHlen'. omega. }
 Qed.
