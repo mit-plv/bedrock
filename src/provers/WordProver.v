@@ -66,10 +66,10 @@ Section WordProver.
 
   Fixpoint decompose (e : expr types) : expr types * W :=
     match e with
-      | Func 0%nat [e1, Func 6%nat (Const (tvType 5%nat) k :: nil)] =>
+      | Func 0%nat [e1, Func 5%nat (Const (tvType 4%nat) k :: nil)] =>
         let (e1', d) := decompose e1 in
           (e1', wplus' d (natToWord' _ k))
-      | Func 1%nat [e1, Func 6%nat (Const (tvType 5%nat) k :: nil)] =>
+      | Func 1%nat [e1, Func 5%nat (Const (tvType 4%nat) k :: nil)] =>
         let (e1', d) := decompose e1 in
           (e1', wminus' d (natToWord' _ k))
       | _ => (e, zero)
@@ -121,7 +121,7 @@ Section WordProver.
           {| Equalities := equalities;
             LessThans := sum.(LessThans);
             NotEquals := sum.(NotEquals) |}
-      | Func 5 (e1 :: e2 :: nil) =>
+      | Func 4 (e1 :: e2 :: nil) =>
         {| Equalities := sum.(Equalities);
           LessThans := (e1, e2) :: sum.(LessThans);
           NotEquals := sum.(NotEquals) |}
@@ -172,7 +172,7 @@ Section WordProver.
             else equalityMatches {| Source := b1;
               Destination := b2;
               Difference := wminus' n1 n2 |} sum.(Equalities)
-      | Func 5 (e1 :: e2 :: nil) =>
+      | Func 4 (e1 :: e2 :: nil) =>
         lessThanMatches e1 e2 sum.(LessThans) sum.(Equalities)
       | Not (Equal (tvType 0) e1 e2) =>
         lessThanMatches e1 e2 sum.(NotEquals) sum.(Equalities)
@@ -216,6 +216,7 @@ Section WordProver.
       forall v, exprD funcs uvars vars e (tvType 0) = Some v
         -> exists v', exprD funcs uvars vars b (tvType 0) = Some v'
           /\ v = v' ^+ n.
+    Proof.
       Opaque natToWord'.
       induction e; simpl; intuition.
 
@@ -231,11 +232,11 @@ Section WordProver.
       eauto.
 
       destruct e0; eauto.
-      do 7 (destruct f; eauto).
+      do 6(destruct f; eauto).
       destruct l0; eauto.
       destruct e0; eauto.
       destruct t; eauto.
-      do 6 (destruct n; eauto).
+      do 5(destruct n; eauto).
       destruct l0; eauto.
       destruct l; eauto.
       simpl.
@@ -264,11 +265,11 @@ Section WordProver.
       eauto.
 
       destruct e0; eauto.
-      do 7 (destruct f; eauto).
+      do 6 (destruct f; eauto).
       destruct l0; eauto.
       destruct e0; eauto.
       destruct t; eauto.
-      do 6 (destruct n; eauto).
+      do 5 (destruct n; eauto).
       destruct l0; eauto.
       destruct l; eauto.
       simpl.
@@ -310,6 +311,7 @@ Section WordProver.
       equalityValid f1
       -> equalityValid f2
       -> Forall equalityValid (combine f1 f2).
+    Proof.
       unfold combine; intros.
       generalize (expr_seq_dec_correct (Destination f1) (Source f2)).
       destruct (expr_seq_dec (Destination f1) (Source f2)); intuition.
@@ -336,6 +338,7 @@ Section WordProver.
       equalityValid f
       -> Forall equalityValid fs
       -> Forall equalityValid (combineAll f fs).
+    Proof.
       induction 2; simpl; intuition.
     Qed.
 
@@ -350,6 +353,7 @@ Section WordProver.
         exists v' : tvarD (repr bedrock_types_r types') (tvType 0),
           exprD funcs uvars vars e0 (tvType 0) = Some v' /\ v = v' ^+ w0)
       -> equalityValid {| Source := e0; Destination := e; Difference := wminus' w0 w |}.
+    Proof.
       intros.
       hnf in H.
       simpl in *.
@@ -391,6 +395,7 @@ Section WordProver.
     Lemma Provable_swap : forall hyp1 hyp2,
       Provable funcs uvars vars (Equal (tvType 0) hyp1 hyp2)
       -> Provable funcs uvars vars (Equal (tvType 0) hyp2 hyp1).
+    Proof.
       unfold Provable; simpl; intros.
       case_eq (exprD funcs uvars vars hyp2 (tvType 0)); intros.
       simpl in *; rewrite H0 in *.
@@ -411,6 +416,7 @@ Section WordProver.
       Forall equalityValid ls1
       -> Forall equalityValid ls2
       -> Forall equalityValid (if b then ls1 else ls2).
+    Proof.
       destruct b; auto.
     Qed.
 
@@ -420,9 +426,10 @@ Section WordProver.
       wordValid sum -> forall hyp,
         Provable funcs uvars vars hyp ->
         wordValid (wordLearn1 sum hyp).
+    Proof.
       destruct hyp; simpl; intuition.
 
-      do 6 (destruct f; auto).
+      do 5 (destruct f; auto).
       do 3 (destruct l; auto).
       destruct H; split; simpl; auto.
       split.
@@ -470,6 +477,7 @@ Section WordProver.
       wordValid sum
       -> forall hyps, AllProvable funcs uvars vars hyps
         -> wordValid (wordLearn sum hyps).
+    Proof.
       intros; generalize dependent sum; induction hyps; simpl in *; intuition.
     Qed.
 
@@ -478,6 +486,7 @@ Section WordProver.
     Theorem wordSummarizeCorrect : forall hyps,
       AllProvable funcs uvars vars hyps
       -> wordValid (wordSummarize hyps).
+    Proof.
       intros; apply wordLearnCorrect; auto.
       repeat split; constructor.
     Qed.
@@ -485,6 +494,7 @@ Section WordProver.
     Lemma equalitysEq_correct : forall f1 f2,
       equalitysEq f1 f2 = true
       -> f1 = f2.
+    Proof.
       unfold equalitysEq; intros.
       apply andb_prop in H; intuition.
       apply andb_prop in H0; intuition.
@@ -499,6 +509,7 @@ Section WordProver.
       Forall equalityValid eqs
       -> equalityMatches f eqs = true
       -> equalityValid f.
+    Proof.
       induction 1; simpl; intuition.
       apply orb_prop in H1; intuition.
       apply equalitysEq_correct in H2; congruence.
@@ -509,6 +520,7 @@ Section WordProver.
       -> forall lts, Forall lessThanValid lts
         -> lessThanMatches e1 e2 lts eqs = true
         -> lessThanValid (e1, e2).
+    Proof.
       induction 2; simpl; intuition.
       destruct x.
       apply orb_prop in H2; intuition.
@@ -583,6 +595,7 @@ Section WordProver.
       -> forall lts, Forall notEqualValid lts
         -> lessThanMatches e1 e2 lts eqs = true
         -> notEqualValid (e1, e2).
+    Proof.
       induction 2; simpl; intuition.
       destruct x.
       apply orb_prop in H2; intuition.
@@ -656,12 +669,12 @@ Section WordProver.
   Hint Resolve equalityMatches_correct.
 
   Theorem wordProverCorrect : ProverCorrect funcs wordValid wordProve.
+  Proof.
     hnf; intros.
     destruct H.
     destruct goal; simpl in *; try discriminate.
 
-
-    do 6 (destruct f; try discriminate).
+    do 5 (destruct f; try discriminate).
     do 3 (destruct l; try discriminate).
     apply (@lessThanMatches_correct uvars vars) in H0; auto.
     destruct H0; intuition.
@@ -672,7 +685,6 @@ Section WordProver.
     rewrite H5.
     assumption.
     tauto.
-
 
     destruct t; try discriminate.
     destruct n; try discriminate.
