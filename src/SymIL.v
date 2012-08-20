@@ -325,8 +325,8 @@ Section Denotations.
           Some match t with
                  | IL.Eq => Expr.Equal tvWord l r
                  | IL.Ne => Expr.Not (Expr.Equal tvWord l r)
-                 | IL.Lt => Expr.Func 5 (l :: r :: nil)
-                 | _ => Expr.Func 3 (Expr.Const (types := TYPES) (t := tvTest) t :: l :: r :: nil)
+                 | IL.Lt => Expr.Func 4 (l :: r :: nil)
+                 | IL.Le => Expr.Not (Expr.Func 4 (r :: l :: nil))
           end
         | _ , _ => None
       end.

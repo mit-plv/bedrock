@@ -1,6 +1,7 @@
 Require Import HintlessFMapInterface HintlessFMapFacts.
 Require Import List.
 Require Import NatMap.
+Require Permutation.
 
 Set Implicit Arguments.
 Set Strict Implicit.

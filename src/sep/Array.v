@@ -55,7 +55,7 @@ Definition types_r : Env.Repr Expr.type :=
       Some ILEnv.bedrock_type_W ::
       Some ILEnv.bedrock_type_setting_X_state ::
       None ::
-      None ::
+(*      None :: *)
       None ::
       Some ILEnv.bedrock_type_nat ::
       Some bedrock_type_listW :: nil
@@ -64,16 +64,16 @@ Definition types_r : Env.Repr Expr.type :=
 Local Notation "'pcT'" := (tvType 0).
 Local Notation "'stT'" := (tvType 1).
 Local Notation "'wordT'" := (tvType 0).
-Local Notation "'natT'" := (tvType 5).
-Local Notation "'listWT'" := (tvType 6).
+Local Notation "'natT'" := (tvType 4).
+Local Notation "'listWT'" := (tvType 5).
 
 Local Notation "'wplusF'" := 0.
 Local Notation "'wmultF'" := 2.
-Local Notation "'wltF'" := 5.
-Local Notation "'natToWF'" := 6.
-Local Notation "'lengthF'" := 7.
-Local Notation "'selF'" := 8.
-Local Notation "'updF'" := 9.
+Local Notation "'wltF'" := 4.
+Local Notation "'natToWF'" := 5.
+Local Notation "'lengthF'" := 6.
+Local Notation "'selF'" := 7.
+Local Notation "'updF'" := 8.
 
 Section parametric.
   Variable types' : list type.
@@ -106,7 +106,7 @@ Section parametric.
         Some (ILEnv.wplus_r types) ::
         None ::
         Some (ILEnv.wmult_r types) ::
-        None ::
+(*        None :: *)
         None ::
         Some (ILEnv.wlt_r types) ::
         Some (ILEnv.natToW_r types) ::

@@ -12,6 +12,7 @@ Require Import Arith.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(*
 Definition test_seq l r : bool :=
   match l as l , r as r with
     | IL.Eq , IL.Eq => true
@@ -24,6 +25,7 @@ Definition test_seq l r : bool :=
 Theorem test_seq_compare : forall x y, test_seq x y = true -> x = y.
   destruct x; destruct y; simpl; (reflexivity || congruence).
 Defined.
+*)
 
 Definition reg_seq l r : bool := 
   match l as l , r as r with
@@ -62,11 +64,13 @@ Definition bedrock_type_state : type :=
    ; Expr.Eqb := fun _ _ => false
    ; Expr.Eqb_correct := @all_false_compare _
    |}.
+(*
 Definition bedrock_type_test : type :=
   {| Expr.Impl := IL.test
    ; Expr.Eqb := test_seq
    ; Expr.Eqb_correct := test_seq_compare
   |}.
+*)
 Definition bedrock_type_reg : type :=
   {| Expr.Impl := IL.reg
    ; Expr.Eqb := reg_seq
@@ -91,7 +95,7 @@ Definition bedrock_types : list Expr.type :=
   bedrock_type_W ::
   bedrock_type_setting_X_state ::
   bedrock_type_state ::
-  bedrock_type_test ::
+(*  bedrock_type_test :: *)
   bedrock_type_reg ::
   bedrock_type_nat :: nil.
 
@@ -115,9 +119,9 @@ Section typed_ext.
   Local Notation "'tvWord'" := (tvType 0).
   Local Notation "'stT'" := (tvType 1).
   Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
-  Local Notation "'natT'" := (tvType 5).
+(*Local Notation "'tvTest'" := (tvType 3).*)
+  Local Notation "'tvReg'" := (tvType 3).
+  Local Notation "'natT'" := (tvType 4).
 
   Definition word_types_r : Repr Expr.type :=
     Eval cbv beta iota zeta delta [ listToRepr ] 
@@ -139,6 +143,7 @@ Section typed_ext.
     exact (@wmult 32).
   Defined.
 
+(*
   Definition word_test_r : Repr Expr.type :=
     Eval cbv beta iota zeta delta [ listToRepr ] 
       in (listOptToRepr (Some bedrock_type_W :: None :: None :: Some bedrock_type_test :: nil) Expr.EmptySet_type).
@@ -147,10 +152,11 @@ Section typed_ext.
     refine {| Domain := tvTest :: tvWord :: tvWord :: nil ; Range := tvProp |}.
     exact (comparator).
   Defined.
+*)
 
   Definition word_state_r : Repr Expr.type :=
     Eval cbv beta iota zeta delta [ listToRepr ] 
-      in (listOptToRepr (Some bedrock_type_W :: None :: Some bedrock_type_state :: None :: Some bedrock_type_reg :: nil) Expr.EmptySet_type).
+      in (listOptToRepr (Some bedrock_type_W :: None :: Some bedrock_type_state :: Some bedrock_type_reg :: nil) Expr.EmptySet_type).
 
   Definition Regs_r : signature (repr word_state_r types').
     refine {| Domain := tvState :: tvReg :: nil ; Range := tvWord |}.
@@ -164,7 +170,7 @@ Section typed_ext.
 
   Definition word_nat_r : Repr Expr.type :=
     Eval cbv beta iota zeta delta [ listToRepr ] 
-      in (listOptToRepr (Some bedrock_type_W :: None :: None :: None :: None :: Some bedrock_type_nat :: nil) Expr.EmptySet_type).
+      in (listOptToRepr (Some bedrock_type_W :: None :: None :: None :: Some bedrock_type_nat :: nil) Expr.EmptySet_type).
 
   Definition natToW_r : signature (repr word_nat_r types').
     refine {| Domain := natT :: nil; Range := tvWord |}.
@@ -177,7 +183,7 @@ End typed_ext.
     wplus_r types ::
     wminus_r types ::
     wmult_r types ::
-    wcomparator_r types ::
+    (* wcomparator_r types :: *)
     Regs_r types ::
     wlt_r types ::
     natToW_r types :: nil.
@@ -191,9 +197,9 @@ Section func_ext.
   Local Notation "'tvWord'" := (tvType 0).
   Local Notation "'stT'" := (tvType 1).
   Local Notation "'tvState'" := (tvType 2).
-  Local Notation "'tvTest'" := (tvType 3).
-  Local Notation "'tvReg'" := (tvType 4).
-  Local Notation "'natT'" := (tvType 5).
+(*Local Notation "'tvTest'" := (tvType 3).*)
+  Local Notation "'tvReg'" := (tvType 3).
+  Local Notation "'natT'" := (tvType 4).
 
 
   Variable types' : list type.
