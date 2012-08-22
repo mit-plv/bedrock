@@ -655,7 +655,7 @@ Proof.
   eapply sym_read_correct; eauto.
   eapply sym_write_correct; eauto.
   reflexivity.
-Admitted.
+Qed.
 
 Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord :=
@@ -862,6 +862,10 @@ Qed.
 
 Definition reserved (p : W) (len : nat) := (p =?> len)%Sep.
 
+Ltac words' := repeat (rewrite (Mult.mult_comm 4)
+  || rewrite natToW_times4 || rewrite natToW_plus); unfold natToW.
+Ltac words := words'; W_eq.
+
 Lemma expose_avail : forall ns vs avail p expose avail',
   (expose <= avail)%nat
   -> avail' = avail - expose
@@ -878,11 +882,7 @@ Proof.
   apply Himp_star_frame.
   apply Himp_refl.
   apply allocated_shift_base; try omega.
-  repeat rewrite (Mult.mult_comm 4).
-  repeat rewrite natToW_times4.
-  repeat rewrite natToW_plus.
-  repeat rewrite natToW_times4.
-  unfold natToW; W_eq.
+  words.
 Qed.
 
 Theorem Himp_refl' : forall P Q,
@@ -914,219 +914,81 @@ Proof.
   f_equal; omega.
   apply Himp_refl'.
   f_equal.
-  repeat rewrite (Mult.mult_comm 4).
-  repeat rewrite natToW_times4.
-  repeat rewrite natToW_plus.
-  repeat rewrite natToW_times4.  
+  words'.
   replace (avail - Datatypes.length ns' -
     (avail - Datatypes.length ns' - avail'))
     with avail' by omega.
-  unfold natToW; W_eq.
+  W_eq.
+Qed.
+
+Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
+  ptsto32m' nil p offset ls ===> allocated p offset (length ls).
+  induction ls.
+
+  intros; apply Himp_refl.
+
+  simpl length.
+  unfold ptsto32m', allocated; fold ptsto32m'; fold allocated.
+  intros.
+  replace (match offset with
+             | 0 => p
+             | S _ => p ^+ $ (offset)
+           end) with (p ^+ $(offset)) by (destruct offset; W_eq).
+  apply Himp_star_frame.
+  apply Himp_ex_c; eexists; apply Himp_refl.
+  auto.
+Qed.
+
+Theorem ptsto32m'_in : forall a vs offset,
+  ptsto32m _ a offset vs ===> ptsto32m' _ a offset vs.
+  induction vs; intros.
+
+  apply Himp_refl.
+
+  unfold ptsto32m', ptsto32m; fold ptsto32m; fold ptsto32m'.
+  replace (match offset with
+             | 0 => a
+             | S _ => a ^+ $ (offset)
+           end) with (a ^+ $(offset)) by (destruct offset; W_eq).
+  destruct vs.
+  simpl ptsto32m'.
+  eapply Himp_trans; [ | apply Himp_star_comm ].
+  apply Himp_star_Emp'.
+
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  auto.
+Qed.
+
+Lemma ptsto32m_allocated : forall (p : W) (ls : list W) (offset : nat),
+  ptsto32m nil p offset ls ===> allocated p offset (length ls).
+  intros; eapply Himp_trans.
+  apply ptsto32m'_in.
+  apply ptsto32m'_allocated.
 Qed.
 
 Lemma do_return' : forall ns ns' vs avail avail' p p',
   avail = avail' + length ns'
   -> p' = p ^+ natToW (4 * length ns)
   -> (locals ns vs 0 p * Ex vs', locals ns' vs' avail' p') ===> locals ns vs avail p.
-Proof. Admitted. (*
-  intros; intro; hnf; intros; subst.
-  unfold locals, starB, star, injB, inj.
-  apply Imply_I.
-  eapply Exists_E.
-  eauto.
-  simp; intros.
-  eapply Exists_E.
-  apply Env.
-  simp.
-  eauto.
-  simp; intros.
-  eapply Exists_E.
-  eapply And_E1.
-  eapply And_E2.
-  apply Env.
-  simp; eauto.
-  simp; intros.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-  unfold exB, ex; simp.
-  eapply Exists_E.
-  eapply And_E1; eapply And_E2.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  do 2 eapply And_E2.
-  apply Env.
-  simp.
-  do 4 right; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  eapply And_E1; eapply And_E2.
-  apply Env; simp; eauto.
-  simp; intro.
-  eapply Exists_E.
-  apply Env.
-  simp; eauto.
-  simp; intro.
-
-  pure (split m B B0).
-  pure (split B B1 B2).
-  pure (split B1 B3 B4).
-  pure (NoDup ns).
-  pure (semp B3).
-  pure (split B0 B6 B7).
-  pure (split B6 B8 B9).
-  pure (NoDup ns').
-  pure (semp B8).
-  generalize (split_semp _ _ _ H1 H3); intro; subst.
-  generalize (split_semp _ _ _ H5 H7); intro; subst.
-  hnf in H3, H7; subst.
-  apply Exists_I with B.
-  apply Exists_I with B0.
-  repeat apply And_I.
-  apply Inj_I; assumption.
-  apply Exists_I with B2; apply Exists_I with B4.
-  repeat apply And_I.
-  apply Inj_I; apply split_comm; assumption.
-  apply Inj_I; assumption.
-  unfold allocated at 4.
-  unfold empB, emp, inj.
-  from_hyp.
-  from_hyp.
-*)  
-  Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
-    ptsto32m' nil p offset ls ===> allocated p offset (length ls).
-  Proof. Admitted. (*
-    induction ls.
-
-    simpl; intros; apply Himp_refl.
-
-    simpl length.
-    unfold ptsto32m', allocated; fold ptsto32m'; fold allocated.
-    intros.
-    replace (match offset with
-               | 0 => p
-               | S _ => p ^+ $ (offset)
-             end) with (p ^+ $(offset)) by (destruct offset; W_eq).
-    intros; intro; hnf; intros; subst.
-    unfold locals, starB, star, injB, inj.
-    apply Imply_I.
-    eapply Exists_E.
-    eauto.
-    simp; intros.
-    eapply Exists_E.
-    apply Env.
-    simp.
-    eauto.
-    simp; intros.
-    do 2 eapply Exists_I.
-    repeat apply And_I.
-    from_hyp.
-    eapply Exists_I.
-    from_hyp.
-    eapply Imply_E.
-    apply interp_weaken.
-    apply IHls.
-    from_hyp.
-  Qed.
-*)
-
-  Theorem ptsto32m'_in : forall a vs offset,
-    ptsto32m _ a offset vs ===> ptsto32m' _ a offset vs.
-  Proof. Admitted. (*
-    induction vs; intros.
-
-    apply Himp_refl.
-
-    unfold ptsto32m', ptsto32m; fold ptsto32m; fold ptsto32m'.
-    replace (match offset with
-               | 0 => a
-               | S _ => a ^+ $ (offset)
-             end) with (a ^+ $(offset)) by (destruct offset; W_eq).
-    destruct vs.
-    simpl ptsto32m'.
-    unfold empB, emp, starB, star, exB, ex, injB, inj.
-    hnf; intros; hnf; intros.
-    apply Imply_I.
-    apply Exists_I with m; apply Exists_I with smem_emp.
-    repeat apply And_I.
-    apply Inj_I; apply split_comm; apply split_a_semp_a.
-    from_hyp.
-    apply Inj_I; auto.
-    apply Inj_I; reflexivity.
-
-    unfold empB, emp, starB, star, exB, ex, injB, inj.
-    hnf; intros; hnf; intros.
-    apply Imply_I.
-    eapply Exists_E.
-    from_hyp.
-    simp; intro.
-    eapply Exists_E.
-    from_hyp.
-    simp; intro.
-    do 2 eapply Exists_I.
-    repeat apply And_I.
-    from_hyp.
-    from_hyp.
-    eapply Imply_E.
-    apply interp_weaken.
-    apply IHvs.
-    from_hyp.
-  Qed.
-*)
-  Lemma ptsto32m_allocated : forall (p : W) (ls : list W) (offset : nat),
-    ptsto32m nil p offset ls ===> allocated p offset (length ls).
-  Proof. Admitted. (*
-    intros; eapply Himp_trans.
-    apply ptsto32m'_in.
-    apply ptsto32m'_allocated.
-  Qed.
-*)
-(*
-  eapply Imply_E.
-  apply interp_weaken.
-  apply allocated_join.
-  instantiate (1 := length ns').
-  omega.
-  replace (0 + 4 * length ns') with (length ns' * 4) by omega.
-  replace (avail' + Datatypes.length ns' - Datatypes.length ns') with avail' by omega.
-  apply Exists_I with B9; apply Exists_I with B7.
-  repeat apply And_I.
-  apply Inj_I; assumption.
-  
-  unfold array at 1.
-  replace (length ns') with (length (toArray ns' B5))
-    by apply length_toArray.
-  eapply Imply_E.
-  apply interp_weaken.
+  unfold locals; intros.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  unfold allocated; fold allocated.
+  eapply Himp_trans; [ apply Himp_star_Emp | ].
+  apply Himp'_ex; intro vs'.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_pure_c; intro.
+  subst.
+  eapply Himp_trans; [ | apply allocated_join ].
+  2: instantiate (1 := length ns'); omega.
+  apply Himp_star_frame.
+  unfold array.
+  words'.
+  replace (length ns') with (length (toArray ns' vs')) by apply length_toArray.
   apply ptsto32m_allocated.
-  replace (length ns * 4) with (4 * length ns) by omega.
-  from_hyp.
-
-  eapply Imply_E.
-  apply interp_weaken.
-  apply allocated_shift_base.
-  3: from_hyp.
-  replace (4 * length ns) with (length ns * 4) by omega.
-  unfold natToW.
-  W_eq.
-  reflexivity.
+  apply allocated_shift_base; try omega.
+  words.
 Qed.
-*)
-
 
 Lemma unexpose_avail : forall ns vs avail p expose avail',
   (expose <= avail)%nat
@@ -1134,61 +996,16 @@ Lemma unexpose_avail : forall ns vs avail p expose avail',
   -> locals ns vs avail' p
   * reserved (p ^+ natToW (4 * (length ns + avail'))) expose
   ===> locals ns vs avail p.
-Proof. Admitted. (*
-  unfold locals; intros; subst; hnf; intros; hnf; intros.
-  unfold starB, star at 1.
-  apply Imply_I.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  unfold starB, star at 1.
-  eapply Exists_E.
-  eapply And_E1; eapply And_E2; from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.  
-  pure (split m B B0).
-  pure (split B B1 B2).
-  apply Exists_I with B1; apply Exists_I with (HT.join B2 B0).
-  repeat apply And_I.
-  apply Inj_I.
-  apply split_comm.
-  eapply split_assoc.
-  apply split_comm; eassumption.
-  apply split_comm; assumption.
-  from_hyp.
-  eapply Imply_E.
-  apply interp_weaken; apply allocated_join.
-  instantiate (1 := avail - expose).
-  omega.
-  do 2 eapply Exists_I; repeat apply And_I.
-  apply Inj_I.
-  apply disjoint_split_join.
-  apply split_comm in H1.
-  eapply split_split_disjoint in H1.
-  apply disjoint_comm; eassumption.
-  eassumption.
-  from_hyp.
-  eapply Imply_E.
-  apply interp_weaken; apply allocated_shift_base.
-  3: from_hyp.
-  repeat rewrite <- wplus_assoc.
-  rewrite natToWord_plus.
-  f_equal.
-  rewrite wplus_unit.
-  rewrite <- (wplus_comm (natToW 0)).
-  rewrite wplus_unit.
-  rewrite <- natToWord_plus.
-  unfold natToW.
-  apply f_equal.
-  omega.
-  omega.
+  unfold locals; intros.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  eapply Himp_trans; [ | apply allocated_join ].
+  2: instantiate (1 := avail'); omega.
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  apply allocated_shift_base; try omega.
+  subst.
+  words.
 Qed.
-*)
 
 Lemma do_return : forall ns ns' vs avail avail' p p',
   (avail >= avail' + length ns')%nat
@@ -1197,7 +1014,6 @@ Lemma do_return : forall ns ns' vs avail avail' p p',
     * reserved (p ^+ natToW (4 * (length ns + length ns' + avail')))
     (avail - length ns' - avail'))
     ===> locals ns vs avail p.
-Proof. Admitted. (*
   intros.
   eapply Himp_trans; [ | apply do_return' ].
   3: eassumption.
@@ -1205,48 +1021,19 @@ Proof. Admitted. (*
   instantiate (1 := ns').
   instantiate (1 := (avail - avail' - length ns') + avail').
   omega.
-  intro.
-  apply himp_star_frame.
-  reflexivity.
-  hnf; intros.
-  apply Imply_I.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  apply Exists_I with B.
-  replace (avail - avail' - length ns' + avail')
-    with (avail - length ns') by omega.
-  eapply Imply_E.
-  apply interp_weaken; apply unexpose_avail.
-  instantiate (1 := avail - length ns' - avail').
-  omega.
-  reflexivity.
-  eapply Imply_E.
-  2: from_hyp.
-  apply interp_weaken.
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  apply Himp_ex; intro vs'.
+  unfold locals.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  eapply Himp_trans; [ | apply allocated_join ].
+  2: instantiate (1 := avail'); omega.
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  apply allocated_shift_base; try omega.
   subst.
-  apply himp_star_frame.
-  
-  Lemma himp_refl : forall pc st (cs : codeSpec pc st) P Q, P = Q
-    -> himp cs P Q.
-  Proof.
-    intros; subst; reflexivity.
-  Qed.
-
-  apply himp_refl.
-  f_equal.
-  omega.
-
-  apply himp_refl.
-  f_equal.
-  rewrite <- wplus_assoc.
-  rewrite <- natToWord_plus.
-  f_equal.
-  unfold natToW.
-  f_equal.
-  omega.
+  words.
 Qed.
-*)
+
 
 (** ** Point-of-view switch in function preludes *)
 
