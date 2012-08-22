@@ -1243,233 +1243,107 @@ Theorem prelude_in : forall ns ns' vs avail p,
   words.
 Qed.
 
+Lemma ptsto32m'_split : forall p ns' ns offset vs,
+  ptsto32m' nil p offset (toArray (ns ++ ns') vs)
+  ===> ptsto32m' nil p offset (toArray ns vs)
+  * ptsto32m' nil p (offset + 4 * length ns) (toArray ns' vs).
+Proof.
+  induction ns.
+
+  simpl.
+  intros.
+  eapply Himp_trans; [ | apply Himp_star_Emp' ].
+  apply Himp_refl'; f_equal; omega.
+
+  simpl toArray; simpl length.
+  unfold ptsto32m'; fold ptsto32m'.
+  intros.
+
+  eapply Himp_trans; [ | apply Himp_star_assoc' ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  eapply Himp_trans; [ apply IHns | ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  apply Himp_refl'; f_equal; omega.
+Qed.
+
+Lemma ptsto32m_split : forall p ns' ns offset vs,
+  ptsto32m nil p offset (toArray (ns ++ ns') vs)
+  ===> ptsto32m nil p offset (toArray ns vs)
+  * ptsto32m nil p (offset + 4 * length ns) (toArray ns' vs).
+  intros; eapply Himp_trans.
+  apply ptsto32m'_in.
+  eapply Himp_trans.
+  apply ptsto32m'_split.
+  apply Himp_star_frame; apply ptsto32m'_out.
+Qed.
+
+Lemma NoDup_unapp1 : forall A (ls1 ls2 : list A),
+  NoDup (ls1 ++ ls2)
+  -> NoDup ls1.
+  induction ls1; inversion 1; simpl in *; intuition; subst; constructor.
+  intro; apply H2.
+  apply in_or_app; auto.
+  eauto.
+Qed.
+
+Lemma ptsto32m'_shift_base' : forall p n ls offset,
+  (n <= offset)%nat
+  -> ptsto32m' nil p offset ls
+  ===> ptsto32m' nil (p ^+ $(n)) (offset - n) ls.
+  induction ls.
+
+  intros; apply Himp_refl.
+
+  unfold ptsto32m'; fold ptsto32m'.
+  intros.
+  intro; apply Himp_star_frame.
+  apply Himp_refl'; f_equal.
+  rewrite <- wplus_assoc.
+  rewrite <- natToW_plus.
+  unfold natToW.
+  repeat f_equal.
+  omega.
+  replace (4 + (offset - n)) with ((4 + offset) - n) by omega.
+  apply IHls; omega.
+Qed.
+
+Lemma ptsto32m_shift_base' : forall p n ls offset,
+  (n <= offset)%nat
+  -> ptsto32m nil p offset ls
+  ===> ptsto32m nil (p ^+ $(n)) (offset - n) ls.
+  intros; eapply Himp_trans.
+  apply ptsto32m'_in.
+  eapply Himp_trans.
+  apply ptsto32m'_shift_base'.
+  2: apply ptsto32m'_out.
+  auto.
+Qed.
+
 Theorem prelude_out : forall ns ns' vs avail p,
   (length ns' <= avail)%nat
   -> locals (ns ++ ns') vs (avail - length ns') p
   ===> locals ns vs avail p.
-Proof. Admitted.
-(*
-  Lemma ptsto32m'_split : forall p ns' ns offset vs,
-    ptsto32m' nil p offset (toArray (ns ++ ns') vs)
-    ===> ptsto32m' nil p offset (toArray ns vs)
-    * ptsto32m' nil p (offset + 4 * length ns) (toArray ns' vs).
-  Proof.
-    induction ns.
-
-    simpl.
-    intros.
-    intro.
-    apply himp_star_emp_c.
-    apply himp_refl.
-    f_equal.
-    omega.
-
-    simpl toArray; simpl length.
-    unfold ptsto32m'; fold ptsto32m'.
-    intros.
-    eapply Himp_trans.
-
-    Lemma himp_star_assoc' : forall pcType stateType (cs : codeSpec pcType stateType) (P Q R : hprop pcType stateType nil),
-      himp cs (star P (star Q R)) (star (star P Q) R).
-    Proof.
-      intros; hnf; intros; hnf; intros.
-      unfold star.
-      apply Imply_I.
-      eapply Exists_E.
-      from_hyp.
-      simp; intro.
-      eapply Exists_E.
-      from_hyp.
-      simp; intro.
-      eapply Exists_E.
-      do 2 eapply And_E2; from_hyp.
-      simp; intro.
-      eapply Exists_E.
-      from_hyp.
-      simp; intro.
-      pure (split m B B0).
-      pure (split B0 B1 B2).
-      apply Exists_I with (HT.join B B1); apply Exists_I with B2.
-      repeat apply And_I.
-      apply Inj_I.
-      assert (disjoint B B1).
-      eapply split_split_disjoint; [ | eauto ].
-      apply split_comm; eauto.
-      eapply split_assoc in H0.
-      rewrite disjoint_join; eauto.
-      assumption.
-      apply Exists_I with B; apply Exists_I with B1.
-      repeat apply And_I.
-      apply Inj_I.
-      apply disjoint_split_join.
-      eapply split_split_disjoint; [ | eauto ].
-      apply split_comm; eauto.
-      from_hyp.
-      from_hyp.
-      from_hyp.
-    Qed.
-
-    eapply Himp_trans; [ | intro; apply himp_star_assoc' ].
-    intro; apply himp_star_frame.
-    reflexivity.
-    apply IHns.
-    replace (offset + 4 * S (length ns))
-      with ((4 + offset) + 4 * length ns) by omega.
-    apply Himp_refl.
-  Qed.
-
-  Lemma ptsto32m_split : forall p ns' ns offset vs,
-    ptsto32m nil p offset (toArray (ns ++ ns') vs)
-    ===> ptsto32m nil p offset (toArray ns vs)
-    * ptsto32m nil p (offset + 4 * length ns) (toArray ns' vs).
-  Proof.
-    intros; eapply Himp_trans.
-    apply ptsto32m'_in.
-    eapply Himp_trans.
-    apply ptsto32m'_split.
-    intro; apply himp_star_frame; apply ptsto32m'_out.
-  Qed.
-
-  unfold locals, empB, emp, starB, star, exB, ex, injB, inj.
-  intros; hnf; intros; hnf; intros.
-  apply Imply_I.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  eapply And_E1; eapply And_E2; from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  pure (split m B B0).
-  pure (split B B1 B2).
-  pure (semp B1).
-  generalize (split_semp _ _ _ H1 H2); intro; subst.
-  eapply Exists_E.
-  eapply Imply_E.
-  apply interp_weaken; apply ptsto32m_split.
-  from_hyp.
-  simp; intro.
-  eapply Exists_E.
-  from_hyp.
-  simp; intro.
-  pure (split B2 B B3).
-  pure (NoDup (ns ++ ns')).
-  apply Exists_I with B; apply Exists_I with (HT.join B0 B3).
-  repeat apply And_I.
-  apply Inj_I.
-  assert (disjoint B0 B3).
-  eapply split_split_disjoint.
-  eauto.
-  apply split_comm; eauto.
-  apply split_comm in H3.
-  eapply split_assoc in H3.
-  rewrite disjoint_join; eauto.
-  apply split_comm; eauto.
-  apply split_comm; eauto.
-
-  apply Exists_I with smem_emp; apply Exists_I with B;
-    repeat apply And_I.
-  apply Inj_I; apply split_a_semp_a.
-
-  Lemma NoDup_unapp1 : forall A (ls1 ls2 : list A),
-    NoDup (ls1 ++ ls2)
-    -> NoDup ls1.
-  Proof.
-    induction ls1; inversion 1; simpl in *; intuition; subst; constructor.
-    intro; apply H2.
-    apply in_or_app; auto.
-    eauto.
-  Qed.
-
-  apply Inj_I; eapply NoDup_unapp1; eassumption.
-  apply Inj_I; reflexivity.
-  from_hyp.
-
-  eapply Imply_E.
-  apply interp_weaken; apply allocated_join.
-  eassumption.
-  apply Exists_I with B3; apply Exists_I with B0.
-  repeat apply And_I.
-  apply Inj_I.
-  rewrite disjoint_join; eauto.  
-  eapply disjoint_split_join.
-  apply disjoint_comm.
-  eapply split_split_disjoint.
-  eauto.
-  apply split_comm; eauto.
-  eapply split_split_disjoint.
-  eauto.
-  apply split_comm; eauto.
-
-  erewrite <- (length_toArray ns' vs).
-  eapply Imply_E.
-  apply interp_weaken.
-  apply ptsto32m_allocated.
-  eapply Imply_E.
-  apply interp_weaken.
-
-  Lemma ptsto32m'_shift_base' : forall p n ls offset,
-    (n <= offset)%nat
-    -> ptsto32m' nil p offset ls
-    ===> ptsto32m' nil (p ^+ $(n)) (offset - n) ls.
-  Proof.
-    induction ls.
-
-    simpl; intros; apply Himp_refl.
-
-    unfold ptsto32m'; fold ptsto32m'.
-    intros.
-    intro; apply himp_star_frame.
-    apply himp_refl.
-    f_equal.
-    rewrite <- wplus_assoc.
-    rewrite <- natToW_plus.
-    unfold natToW.
-    repeat f_equal.
-    omega.
-    replace (4 + (offset - n)) with ((4 + offset) - n) by omega.
-    apply IHls; omega.
-  Qed.
-
-  Lemma ptsto32m_shift_base' : forall p n ls offset,
-    (n <= offset)%nat
-    -> ptsto32m nil p offset ls
-    ===> ptsto32m nil (p ^+ $(n)) (offset - n) ls.
-  Proof.
-    intros; eapply Himp_trans.
-    apply ptsto32m'_in.
-    eapply Himp_trans.
-    apply ptsto32m'_shift_base'.
-    2: apply ptsto32m'_out.
-    auto.
-  Qed.
-
-  apply Imply_trans with (ptsto32m nil (p ^+ $ (Datatypes.length ns * 4)) (length ns * 4 - length
-    ns * 4) (toArray ns' vs) s B3).
-  apply ptsto32m_shift_base'.
+  unfold locals; intros.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_pure_c; intro Hboth.
+  eapply Himp_trans; [ | apply Himp_star_assoc' ].
+  apply Himp_star_pure_cc.
+  eapply NoDup_unapp1; eauto.
+  unfold array.
+  eapply Himp_trans.
+  eapply Himp_star_frame.
+  apply ptsto32m_split.
+  apply Himp_refl.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_frame; [ apply Himp_refl | ].
+  eapply Himp_trans; [ | apply allocated_join ].
+  2: eassumption.
+  apply Himp_star_frame.
+  eapply Himp_trans; [ apply ptsto32m_allocated | ].
+  apply allocated_shift_base.
+  words.
+  apply length_toArray.
+  apply allocated_shift_base.
+  rewrite app_length; words.
   auto.
-  apply Imply_I.
-  apply Env; simp.
-  left; f_equal.
-  omega.
-  replace (length ns * 4) with (0 + 4 * length ns) by omega.
-  from_hyp.
-  eapply Imply_E.
-  apply interp_weaken; apply allocated_shift_base.
-  3: from_hyp.
-  rewrite (wplus_comm _ (natToW 0)).
-  rewrite wplus_unit.
-  rewrite plus_O_n.
-  rewrite <- wplus_assoc.
-  rewrite <- natToWord_plus.
-  do 2 f_equal.
-  rewrite app_length.
-  omega.
-  reflexivity.
-Qed.  
-*)
+Qed.

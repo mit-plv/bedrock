@@ -37,27 +37,24 @@ Section LocalsProver.
   Lemma localsSimplify_correct : forall uvars vars (e : expr types) t v,
     exprD funcs uvars vars e t = Some v
     -> exprD funcs uvars vars (localsSimplify e) t = Some v.
-  Proof.
-(*
     destruct e; simpl; intuition idtac.
-    do 13 (destruct f; try assumption).
+    do 12 (destruct f; try assumption).
     do 2 (destruct l; try assumption).
     destruct e0; try assumption.
     destruct l; try assumption.
     destruct t0; try assumption.
-    do 8 (destruct n; try assumption).
+    do 7 (destruct n; try assumption).
     simpl in *.
     destruct (equiv_dec (tvType 0) t); try discriminate.
     hnf in e0; subst.
     generalize (sym_sel_correct funcs' uvars vars t1 e).
     unfold funcs in *.
-    destruct (exprD (Locals.funcs funcs') uvars vars e (tvType 9));
-      try discriminate.
+    match type of H with
+      | match ?E with Some _ => _ | _ => _ end _ _ = _ => destruct E; try discriminate
+    end.
     injection H; clear H; intros; subst.
     auto.
   Qed.
-*)
-  Admitted.
 
   Theorem localsProveCorrect : ProverCorrect funcs reflexivityValid localsProve.
     unfold localsProve; hnf; simpl; intros.
