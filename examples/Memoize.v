@@ -174,24 +174,6 @@ Qed.
 Hint Extern 1 (himp _ _ _) =>
   apply switchUp; eapply goodMemo_intro; eassumption.
 
-(* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassocate [H]
- * to put [P] in front. *)
-Ltac toFront which H :=
-  let rec toFront' P k :=
-    match P with
-      | SEP.ST.star ?Q ?R =>
-        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-          || fail 2
-      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
-    end in
-    match type of H with
-      | interp ?specs (![ ?P ] ?st) => toFront' P ltac:(fun it P' =>
-        let H' := fresh in
-          assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step hints;
-            clear H; rename H' into H)
-    end.
-
 (* Alternate VC post-processor that understands indirect function calls *)
 Ltac post :=
   AutoSep.post;
