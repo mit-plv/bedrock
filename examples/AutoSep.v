@@ -1208,7 +1208,7 @@ Ltac post :=
   (*TIME ) *) ;
   unfold substH in *;
   (*TIME time "post:simpl" ( *)
-  simpl in *; rereg;
+  simpl in *; rereg; autorewrite with IL;
     try match goal with
           | [ H : context[locals ?ns ?vs ?avail ?p]
               |- context[locals ?ns' _ ?avail' _] ] =>
@@ -1293,3 +1293,27 @@ Lemma sel_merge : forall vs vs' ns nm,
 Qed.
 
 Hint Rewrite sel_merge using (simpl; tauto) : sepFormula.
+
+Theorem lift0 : forall P, lift nil P = P.
+  reflexivity.
+Qed.
+
+Hint Rewrite lift0 : sepFormula.
+
+(* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassocate [H]
+ * to put [P] in front. *)
+Ltac toFront which H :=
+  let rec toFront' P k :=
+    match P with
+      | SEP.ST.star ?Q ?R =>
+        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+          || fail 2
+      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+    end in
+    match type of H with
+      | interp ?specs (![ ?P ] ?st) => toFront' P ltac:(fun it P' =>
+        let H' := fresh in
+          assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step auto_ext;
+            clear H; rename H' into H)
+    end.

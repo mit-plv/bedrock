@@ -105,178 +105,131 @@ Hint Extern 1 (@eq W _ _) =>
     | _ => words
   end.
 
-Theorem memoizeMOk : moduleOk memoizeM.
-  vcgen.
-
-  Focus 17.
-  
-  post.
-  autorewrite with IL.
-
-  change (locals ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) x3 2 (Regs x0 Sp))
-    with (locals_call ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) x3 2 (Regs x0 Sp)
-      ("rp" :: "x" :: nil) 0 20) in H1.
-  assert (ok_call ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) ("rp" :: "x" :: nil) 2 0 20)
-    by (split; [ simpl; omega
-      | split; [ simpl; omega
-        | split; [ repeat constructor; simpl; intuition congruence
-          | reflexivity ] ] ]).
-
-  evaluate hints.
-
+Hint Extern 1 (interp ?specs (?U ?x ?y)) =>
   match goal with
-    | [ H : interp ?specs (![SEP.ST.star ?P (SEP.ST.star (goodMemo ?f ?pc) ?Q)] ?s) |- _ ] =>
-      assert (interp specs (![SEP.ST.star (goodMemo f pc) (SEP.ST.star Q P)] s))
+    | [ H : interp ?specs (?f (?x, ?y)) |- _ ] =>
+      equate U (fun x y => f (x, y)); exact H
   end.
-  
-  step hints.
-  clear H9.
-  subst.
-  rewrite sepFormula_eq in H2.
-  apply simplify_fwd in H2.
-  do 3 destruct H2.
-  simpl in H2.
-  destruct H3.
-  simpl in H3.
-  do 2 destruct H3.
-  do 2 destruct H7.
-  descend.
-  step hints.
-  step hints.
-  eapply Imply_sound; [ apply H9 | ].
-  apply simplify_bwd; simpl.
-  repeat esplit.
-  autorewrite with IL.
-  rewrite H0.
-  reflexivity.
 
-  autorewrite with sepFormula.
-  simpl.
-  autorewrite with sepFormula.
-  autorewrite with IL.
-  apply simplify_fwd.
-  
-  match goal with
-    | [ |- interp ?specs (![?P * ?Q * ?R] ?s) ] =>
-      assert (interp specs (![R * (P * Q)] s))
-  end.
-  Focus 2.
-  eapply interp_interp_himp; eauto.
-  cancel auto_ext.
-  apply simplify_bwd.
-  rewrite sepFormula_eq.
-  do 3 esplit.
-  eauto.
-  split; apply simplify_fwd; simpl.
+Lemma goodMemo_elim : forall specs f pc P st,
+  interp specs (![ goodMemo f pc * P ] st)
+  -> exists pre, specs pc = Some pre
+    /\ exists inv, interp specs (![ inv * P ] st)
+      /\ forall st fr rpre,
+        interp specs ((Ex vs, Cptr st#Rp (fun x => rpre x)
+          /\ ![ ^[locals ("rp" :: "x" :: nil) vs 0 st#Sp] * fr * inv ] st
+          /\ Al st' : settings * state,
+          ([| st'#Sp = st#Sp /\ st'#Rv = app f (sel vs "x") |]
+            /\ Ex vs', ![ ^[locals ("rp" :: "x" :: nil) vs' 0 st#Sp] * fr * inv ] st')
+          ---> rpre st')
+        ---> pre st)%PropX.
+  Local Opaque locals.
+  rewrite sepFormula_eq; repeat (propxFo; repeat (eauto; esplit)).
+  specialize (H4 (a, b) (fun a_b => fr (fst a_b) (snd a_b)) rpre).
+  Local Transparent locals lift.
+  repeat rewrite sepFormula_eq in *.
   assumption.
+  Local Opaque locals lift.
+Qed.
 
-  eapply use_himp; [ | eauto ].
-  clear H4.
-  cancel auto_ext.
+Lemma goodMemo_intro : forall specs pre inv f pc,
+  specs pc = Some pre
+  -> (forall (st : ST.settings * state) (fr : hpropB nil)
+    (rpre : settings * state -> propX W (settings * state) nil),
+    interp specs
+    ((Ex vs : vals,
+      Cptr (st) # (Rp) (fun x : settings * state => rpre x) /\
+      ![^[locals ("rp" :: "x" :: nil) vs 0 (st) # (Sp)] * fr * inv] st /\
+      (Al st' : settings * state,
+        [|(st') # (Sp) = (st) # (Sp) /\
+          (st') # (Rv) = app f (sel vs "x")|] /\
+        (Ex vs' : vals,
+          ![^[locals ("rp" :: "x" :: nil) vs' 0 (st) # (Sp)] * fr * inv]
+          st') ---> rpre st'))%PropX ---> pre st))
+  -> himp specs inv (goodMemo f pc).
   intros.
-  descend.
-  apply andL.
-  apply injL; destruct 1.
-  apply existsL; intro.
-  autorewrite with sepFormula.
-  simpl.
-  autorewrite with sepFormula.
-  unfold substH.
-  simpl.
-  eapply existsR.
-  eapply existsXR; unfold PropX.Subst; simpl.
-  eapply existsR.
-  autorewrite with sepFormula; simpl.
-  unfold substH; simpl.
-  apply andR.
-
-  match goal with
-    | [ |- context[locals ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) ?vs 2 ?sp] ] =>
-      rewrite (create_locals_return ("rp" :: "x" :: nil) 0 ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) 2 20)
-  end.
-  assert (ok_return ("rp" :: "m" :: "x" :: "tmp" :: "tmp2" :: nil) ("rp" :: "x" :: nil) 2 0 20)%nat by (split; [
-    simpl; omega
-    | reflexivity ] ).
-  autorewrite with sepFormula.
-  simpl.
-  match goal with
-    | [ |- context[fun stn0 sm => ?f ?a ?b ?c stn0 sm] ] =>
-      rewrite (@use_HProp_extensional (f a b c)) by auto
-  end.
-  repeat match goal with
-           | [ |- context C[Regs (match ?st with
-                                    | (_, y) => y
-                                  end) ?r] ] =>
-             let E := context C[st#r] in change E
-         end.
-  cancel hints.
+  unfold goodMemo, himp; propxFo.
+  imply_simp unf.
+  imply_simp unf.
+  imply_simp unf.
   eauto.
-  cancel hints.
-  etransitivity; [ | apply himp_star_comm ].
-  apply himp_star_frame_comm.
-  reflexivity.
-  do 2 intro.
-  eapply existsXR; unfold PropX.Subst; simpl.
-  apply andR.
-  apply cptrR; eauto.
-  eapply existsXR; unfold PropX.Subst; simpl.
-  apply andR.
+  imply_simp unf.
+  imply_simp unf.
+  instantiate (1 := fun p => inv (fst p) (snd p)); apply Imply_refl.
+  apply Imply_I; apply interp_weaken.
+  propxFo.
+  eapply Imply_trans; [ | apply H0 ].
+  rewrite sepFormula_eq.
+  instantiate (1 := a1).
+  instantiate (1 := fun a b => a0 (a, b)).
   apply Imply_refl.
+Qed.
 
-  apply allR; intro.
-  apply forallXR; unfold PropX.Subst; simpl; intro.
-  apply forallXR; unfold PropX.Subst; simpl; intro.
-  apply swap; apply implyR.
-  eapply Imply_trans; [ | apply H9 ].
-  apply Imply_refl.
-  
-  descend.
-  eapply existsXR; unfold PropX.Subst; simpl.
-  apply andR.
-  apply cptrR; eauto.
-  apply allR; intro.
-  apply swap; apply implyR.
-  repeat match goal with
-           | [ |- context C[Regs (match ?st with
-                                    | (_, y) => y
-                                  end) ?r] ] =>
-             let E := context C[st#r] in change E
-         end.
-  eapply Imply_trans; [ | apply H6 ].
-  apply andL; apply injL; intro.
-  apply existsL; intro.
-  autorewrite with sepFormula; simpl.
-  apply andR.
-  apply injR.
-  unfold ST.settings in *.
-  words.
-  eapply existsR.
-  autorewrite with sepFormula; simpl.
-  unfold substH; simpl.
-  cancel auto_ext.
-  rewrite H14.
-  destruct x10; simpl in *.
-  assumption.
+Lemma switchUp : forall specs P Q R,
+  himp specs P R
+  -> himp specs (P * Q)%Sep (Q * R)%Sep.
+  intros; etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; auto; reflexivity.
+Qed.
 
-  Ltac t := sep hints; auto.
+Hint Extern 1 (himp _ _ _) =>
+  apply switchUp; eapply goodMemo_intro; eassumption.
 
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+(* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassocate [H]
+ * to put [P] in front. *)
+Ltac toFront which H :=
+  let rec toFront' P k :=
+    match P with
+      | SEP.ST.star ?Q ?R =>
+        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+          || fail 2
+      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+    end in
+    match type of H with
+      | interp ?specs (![ ?P ] ?st) => toFront' P ltac:(fun it P' =>
+        let H' := fresh in
+          assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step hints;
+            clear H; rename H' into H)
+    end.
+
+(* Alternate VC post-processor that understands indirect function calls *)
+Ltac post :=
+  AutoSep.post;
+  try match goal with
+        | [ H : context[locals ?ns ?vs ?avail ?p] |- exists pre', _ (Regs _ Rv) = Some pre' /\ _ ] =>
+          (* This appears to be an indirect function call.
+           * Put the appropriate marker predicate in [H], to trigger use of a lemma about the
+           * point-of-view shift from caller to callee. *)
+          let ns' := constr:("rp" :: "x" :: nil) in
+          let avail' := constr:0 in
+          let offset := eval simpl in (4 * List.length ns) in
+            change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+              assert (ok_call ns ns' avail avail' offset)%nat
+                by (split; [ simpl; omega
+                  | split; [ simpl; omega
+                    | split; [ repeat constructor; simpl; intuition congruence
+                      | reflexivity ] ] ]);
+
+          (* Trigger symbolic execution early. *)
+          evaluate hints;
+
+          (* Move [goodMemo] to the front of its hypothesis and eliminate it. *)
+          match goal with
+            | [ H : interp _ _ |- _ ] =>
+              toFront ltac:(fun P => match P with goodMemo _ _ => idtac end) H;
+              apply goodMemo_elim in H; sep_firstorder
+          end;
+
+          (* Find and apply the hypothesis explaining the spec of the function pointer. *)
+          match goal with
+            | [ H : forall x : ST.settings * state, _ |- _ ] =>
+              eapply Imply_sound; [ apply H | ]
+          end
+      end.
+
+(* Main tactic *)
+Ltac sep := post; AutoSep.sep hints; auto.
+
+Theorem memoizeMOk : moduleOk memoizeM.
+  vcgen; abstract sep.
 Qed.
