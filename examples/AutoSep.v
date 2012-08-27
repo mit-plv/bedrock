@@ -919,8 +919,6 @@ Inductive pureConsequences : HProp -> list Prop -> Prop :=
 Theorem pureConsequences_correct : forall P P',
   pureConsequences P P'
   -> forall specs stn st, interp specs (P stn st ---> [| List.Forall (fun p => p) P' |]%PropX).
-Proof. Admitted.
-(*
   induction 1; intros.
 
   unfold injB, inj.
@@ -935,7 +933,7 @@ Proof. Admitted.
   apply Env; simpl; eauto.
   simpl; intro.
   eapply Exists_E.
-  apply Env; simpl; eauto.
+  apply Env; simpl; left; eauto.
   simpl; intro.
   eapply Inj_E.
   eapply Imply_E.
@@ -952,14 +950,11 @@ Proof. Admitted.
 
   apply Imply_I; apply Inj_I; auto.
 Qed.
-*)
 
 Theorem extractPure : forall specs P Q Q' R st,
   pureConsequences Q Q'
   -> (List.Forall (fun p => p) Q' -> interp specs (P ---> R))
   -> interp specs (P ---> ![Q] st ---> R)%PropX.
-Proof. Admitted.
-(*
   intros.
   do 2 apply Imply_I.
   eapply Inj_E.
@@ -974,7 +969,6 @@ Proof. Admitted.
   eauto.
   apply Env; simpl; eauto.
 Qed.
-*)
 
 Ltac words := repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
