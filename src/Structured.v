@@ -715,3 +715,87 @@ Section imports.
     |}); abstract struct.
   Defined.
 End imports.
+
+
+(** Redefine tactics for use in other files *)
+
+Hint Constructors vcs.
+
+Hint Resolve ge_refl.
+
+Ltac lomega := (let H := fresh in intro H; discriminate
+  || injection H; clear H; intro; try subst; simpl in *; congruence || nomega)
+|| (repeat match goal with
+             | [ |- eq (A := ?A) _ _ ] =>
+               match A with
+                 | N => fail 1
+                 | _ => f_equal
+               end
+           end; nomega).
+
+Hint Extern 1 (eq (A := label) _ _) => lomega.
+Hint Extern 1 (~(eq (A := label) _ _)) => lomega.
+Hint Extern 1 (eq (A := LabelKey.t) _ _) => lomega.
+Hint Extern 1 (~(eq (A := LabelKey.t) _ _)) => lomega.
+
+Hint Resolve LabelMap.add_1 LabelMap.add_2.
+
+Hint Resolve lookup_imps.
+
+Hint Immediate simplify_fwd.
+
+Hint Extern 2 (blockOk _ _ _) => simpl in *; eapply blockOk_impl; [ | eassumption ].
+
+Hint Resolve imps_exit.
+
+Ltac preSimp := simpl in *; intuition eauto; repeat (apply Forall_nil || apply Forall_cons); simpl; unfold importsGlobal in *.
+
+Ltac destrOpt E := let Heq := fresh "Heq" in case_eq E; (intros ? Heq || intro Heq); rewrite Heq in *.
+
+Ltac simp := repeat (match goal with
+                       | [ x : codeGen _ _ _ _ _ _ _ |- _ ] => destruct x; simpl in *
+                       | [ H : _ /\ _ |- _ ] => destruct H
+                       | [ H : ex _ |- _ ] => destruct H
+
+                       | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                       | [ H : vcs (_ ++ _) |- _ ] => generalize (vcs_app_bwd1 _ _ H);
+                         generalize (vcs_app_bwd2 _ _ H); clear H; intros
+
+                       | [ |- vcs nil ] => constructor
+                       | [ |- vcs (_ :: _) ] => constructor
+                       | [ |- vcs (_ ++ _) ] => apply vcs_app_fwd
+
+                       | [ H1 : notStuck _ _, H2 : _ |- _ ] => specialize (H1 _ _ _ H2)
+                       | [ H : LabelMap.find _ _ = Some _ |- _ ] => apply LabelMap.find_2 in H
+                       | [ H : forall k v, _ |- _ ] => destruct (split_add H); clear H
+                       | [ H : forall n x y, _ |- _ ] => destruct (nth_app_hyp H); clear H
+                       | [ H : _ |- _ ] => destruct (specialize_imps H); clear H
+                       | [ H : forall x, _ -> _ |- _ ] => specialize (H _ (refl_equal _))
+                       | [ H : forall x y z, _ -> _ , H' : _ |- _ ] => specialize (H _ _ _ H')
+                       | [ H : forall x y, _ -> _ , H' : LabelMap.MapsTo _ _ _ |- _ ] => destruct (H _ _ H'); clear H; auto
+                       | [ |- blockOk _ _ _ ] => red
+                       | [ _ : match ?E with Some _ => _ | None => _ end = Some _ |- _ ] => destrOpt E; [ | discriminate ]
+                       | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
+                       | [ _ : match ?E with Some _ => _ | None => False end |- _ ] => destrOpt E; [ | tauto ]
+                       | [ |- context[if ?E then _ else _] ] => destrOpt E
+                       | [ H : ?E = None -> False |- _ ] =>
+                         match E with
+                           | Some _ => clear H
+                           | _ => case_eq E; intros; tauto || clear H
+                         end
+                       | [ H : _ |- _ ] => rewrite H
+                       | [ H : ?P -> _ |- _ ] =>
+                         match type of P with
+                           | Prop => let H' := fresh in assert (H' : P) by (lomega || auto); specialize (H H'); clear H'
+                         end
+                       | [ x : N |- _ ] => unfold x in *; clear x
+                       | [ H : nth_error ?ls (nat_of_N ?n) = _ |- _ ] =>
+                         match goal with
+                           | [ _ : n < N_of_nat (length ls) |- _ ] => fail 1
+                           | _ => specialize (nth_error_bound' _ _ H)
+                         end
+                       | [ H : snd ?x = _ |- _ ] => destruct x; simpl in H; congruence
+                       | [ H : forall rp, _ rp = Some _ -> _, H' : _ _ = Some _ |- _ ] => specialize (H _ H')
+                     end; intros; unfold evalBlock, evalCond in *; simpl; autorewrite with N in *).
+
+Ltac struct := preSimp; simp; eauto 15.

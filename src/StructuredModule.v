@@ -255,7 +255,6 @@ Section module.
       apply IHbls.
       nomega.
       apply LabelMap.add_2; eauto.
-      intro Ho; injection Ho; nomega.
 
       replace (Base + Entry) with (Nsucc Base + (Entry - 1)) by nomega.
       apply IHbls.
@@ -644,10 +643,6 @@ Section module.
     induction l as [ | [ [ ] ] ]; simpl; intuition.
     specialize (fun H => IHl _ H NoDupFunc).
     apply IHl; auto.
-    apply LabelMap.add_2; auto.
-    intro Ho; injection Ho; clear Ho; intros; subst.
-    assert (LabelMap.In (s, Local 0) t0) by (hnf; eauto).
-    apply LabelMap.mem_1 in H0; congruence.
 
     assert (exists bl, LabelMap.MapsTo (modName, Global x5) (pre0, bl) (blocks functions 1)).
     generalize H11 H9; clear.

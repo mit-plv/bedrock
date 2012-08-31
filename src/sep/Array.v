@@ -734,9 +734,6 @@ Section correctness.
     2: apply disjoint_comm; eauto.      
     apply disjoint_comm; tauto.
     split; auto.
-    apply simplify_fwd.
-    replace (4 + offset * 4) with (S offset * 4) by omega.
-    assumption.
   Qed.
 
   Lemma smem_write_correct' : forall i ws cs base stn m v,
