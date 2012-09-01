@@ -1,5 +1,6 @@
 ROOT    := ..
-MODULES := AutoSepExt AutoSep LemmaTests \
+MODULES := Conditional \
+           AutoSepExt AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \

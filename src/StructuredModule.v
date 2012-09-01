@@ -8,6 +8,7 @@ Set Implicit Arguments.
 
 Local Open Scope N_scope.
 
+Import DefineStructured.
 
 Section module.
   Definition import := (string * string * assert)%type.
@@ -472,12 +473,11 @@ Section module.
       destruct a as [ [ ] ]; simpl in *; subst; simpl in *.
       injection H; clear H; intros; subst.
       generalize H2 H4; clear.
-      induction 1; simpl; intuition; eauto.
+      induction 1; simpl; intuition.
       apply H4.
       constructor.
-      hnf in H; hnf; intuition.
+      hnf in H; hnf; simpl in *; tauto.
       eauto.
-
 
       destruct a as [ [ ] ]; simpl in *.
       apply IHl0; auto.

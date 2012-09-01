@@ -34,9 +34,11 @@ Fixpoint size (b : bexp) : nat :=
   match b with
     | Test _ _ _ => 1
     | Not b => size b
-    | And b1 b2 => S (size b1 + size b2)
-    | Or b1 b2 => S (size b1 + size b2)
+    | And b1 b2 => size b1 + size b2
+    | Or b1 b2 => size b1 + size b2
   end.
+
+Import DefineStructured.
 
 Section Cond.
   Variable imports : LabelMap.t assert.
@@ -70,9 +72,25 @@ Section Cond.
       end; simpl; eauto.
   Qed.
 
-  (*Lemma blocks_blockOk : forall pres b Base pre Tru Fals,
-    List.Forall (fun p => blockOk pres (fst p) (snd p))
-     (blocks Base pre b Tru Fals).*)
+  Lemma length_size : forall b Base pre Tru Fals,
+    length (blocks Base pre b Tru Fals) = size b.
+    induction b; simpl; intuition; rewrite app_length; struct.
+  Qed.
+
+  Ltac choosePost :=
+    match goal with
+      | [ _ : LabelMap.MapsTo _ _ (imps _ _ _ _ _ ?post) |- LabelMap.MapsTo _ _ (imps _ _ _ _ _ ?post') ] =>
+        equate post' post
+    end.
+
+  Hint Extern 2 (LabelMap.MapsTo _ _ _) =>
+    eapply imps_app_2; [ assumption | | eassumption | nomega | nomega ];
+      rewrite length_size; choosePost.
+
+  Transparent evalInstrs.
+
+  Hint Extern 1 (_ < _)%N => nomega.
+  Hint Extern 1 (~(eq (A := LabelMap.key) _ _)) => lomega.
 
   Definition Cond_ (b : bexp) (Then Else : cmd imports modName) : cmd imports modName.
     red; refine (fun pre =>
@@ -96,18 +114,14 @@ Section Cond.
           |}
       |}).
 
-    simpl.
+    struct.
+
     match goal with
       | [ |- context[blocks ?Base ?pre ?b ?Tru ?Fals] ] =>
         let H := fresh in destruct (blocks_first b Base pre Tru Fals) as [ ? [ ? H ] ];
           rewrite H
     end.
     struct.
-
-    Transparent evalInstrs.
-
-    Hint Extern 1 (_ < _)%N => nomega.
-    Hint Extern 1 (~(eq (A := LabelMap.key) _ _)) => lomega.
 
     struct;
       try match goal with
@@ -120,14 +134,9 @@ Section Cond.
 
     admit.
 
-    eapply Forall_impl; [ | eassumption ].
-    simpl; intros.
-    eapply blockOk_impl; [ | eassumption ].
-    simpl; intros.
+    eauto 15.
 
-    Lemma Cond_maps1 : forall k v exit post1 post2 other bls2 bls0 bls1 base,
-      LabelMap.MapsTo k v (imps imports modName bls1 base exit post1)
-      -> (other > base)%N
-      -> LabelMap.MapsTo k v (LabelMap.add (modName, Local exit) post1
-        (LabelMap.add (modName, Local other) post2
-          (imps imports modName (bls0 ++ bls1 ++ bls2)))).
+    eauto 15.
+  Defined.
+
+End Cond.
