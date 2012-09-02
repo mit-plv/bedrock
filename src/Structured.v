@@ -448,7 +448,6 @@ Section imports.
   Lemma imps_app_2 : forall k v exit post bls2 exit' post' bls1 base,
     LabelMap.MapsTo k v (imps bls2 (base + N_of_nat (length bls1)) exit post)
     -> k <> (modName, Local exit)
-    -> exit' < base + N_of_nat (length bls1)
     -> exit' < base
     -> LabelMap.MapsTo k v (imps (bls1 ++ bls2) base exit' post').
     induction bls1; simpl; intuition.

@@ -55,12 +55,12 @@ Section Cond.
         let Base' := (Base + N_of_nat (size b1))%N in
         blocks Base pre b1 Base' Fals
         ++ blocks Base' (fun stn_st =>
-          [| bexpD b (fst stn_st) (snd stn_st) = Some true |] /\ pre stn_st)%PropX b2 Tru Fals
+          [| bexpD b1 (fst stn_st) (snd stn_st) = Some true |] /\ pre stn_st)%PropX b2 Tru Fals
       | Or b1 b2 =>
         let Base' := (Base + N_of_nat (size b1))%N in
         blocks Base pre b1 Tru Base'
         ++ blocks Base' (fun stn_st =>
-          [| bexpD b (fst stn_st) (snd stn_st) = Some false |] /\ pre stn_st)%PropX b2 Tru Fals
+          [| bexpD b1 (fst stn_st) (snd stn_st) = Some false |] /\ pre stn_st)%PropX b2 Tru Fals
     end.
 
   Lemma blocks_first : forall b Base pre Tru Fals,
@@ -77,6 +77,136 @@ Section Cond.
     induction b; simpl; intuition; rewrite app_length; struct.
   Qed.
 
+  Transparent evalInstrs.
+
+  Hint Extern 1 => match goal with
+                     | [ H : ?E = _ |- match ?E with None => _ | _ => _ end = _ ] =>
+                       rewrite H; reflexivity
+                   end.
+
+  Lemma blocks_ok : forall imps b Base pre Tru Fals Tru_spec Fals_spec,
+    (forall specs st, interp specs (pre st)
+      -> exists v, bexpD b (fst st) (snd st) = Some v)
+    -> LabelMap.MapsTo (modName, Local Tru) Tru_spec imps
+    -> LabelMap.MapsTo (modName, Local Fals) Fals_spec imps
+    -> (forall specs stn_st, bexpD b (fst stn_st) (snd stn_st) = Some true
+      -> interp specs (pre stn_st)
+      -> interp specs (Tru_spec stn_st))
+    -> (forall specs stn_st, bexpD b (fst stn_st) (snd stn_st) = Some false
+      -> interp specs (pre stn_st)
+      -> interp specs (Fals_spec stn_st))
+    -> (forall n pre' bl, nth_error (blocks Base pre b Tru Fals) n = Some (pre', bl)
+      -> LabelMap.MapsTo (modName, Local (Base + N_of_nat n)) pre' imps)
+    -> List.Forall (fun p => blockOk imps (fst p) (snd p))
+    (blocks Base pre b Tru Fals).
+    induction b; simpl; intuition; repeat match goal with
+                                            | [ |- List.Forall _ _ ] => (constructor || apply Forall_app); simpl
+                                          end.
+
+    Ltac t := repeat match goal with
+                       | [ |- blockOk _ _ _ ] => hnf; simpl; intros
+                       | [ H1 : _, H2 : interp _ _ |- _ ] => destruct (H1 _ _ H2); clear H1; simpl in *
+                       | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+                       | [ H : _ = _ |- _ ] => rewrite H in *
+                       | [ H : match ?E with Some _ => _ | _ => _ end = Some _ |- _ ] => case_eq E; intros
+                       | [ |- context[if ?E then _ else _] ] => case_eq E; intros
+                       | [ H : LabelMap.MapsTo ?Which _ _ |- context[Labels _ ?Which] ] =>
+                         match goal with
+                           | [ H' : LabelMap.MapsTo _ _ _ |- _ ] =>
+                             match H' with
+                               | H => fail 1
+                               | _ => clear H'
+                             end
+                         end
+                     end; discriminate || intuition; struct;
+    repeat match goal with
+             | [ |- Logic.ex _ ] => eexists
+             | [ |- _ /\ _ ] => split
+           end; (simpl; simpl; eauto);
+    try match goal with
+          | [ |- interp _ _ ] =>
+            propxFo;
+            try match goal with
+                  | [ H : _ |- _ ] => apply H; auto
+                end; simpl;
+            repeat match goal with
+                     | [ H : _ = _ |- _ ] => rewrite H in *
+                   end; trivial
+        end.
+
+    t.
+    eapply IHb; intuition eauto; t.
+
+    edestruct (blocks_first b2) as [ ? [ ] ].
+    eapply IHb1; intros.
+    t.
+    eapply H4.
+    rewrite Expr.nth_error_app_R.
+    rewrite length_size.
+    replace (size b1 - size b1) with 0 by omega.
+    rewrite H5.
+    reflexivity.
+    rewrite length_size; auto.
+    eauto.
+    propxFo.
+    t.
+    t.
+    eapply H4.
+    rewrite Expr.nth_error_app_L.
+    eauto.
+    eapply nth_error_bound; eauto.
+
+    eapply IHb2; intros.
+    propxFo.
+    t.
+    eauto.
+    eauto.
+    t.
+    t.
+    replace (Base + N.of_nat (size b1) + N.of_nat n)%N
+      with (Base + N.of_nat (size b1 + n))%N by nomega.
+    eapply H4.
+    rewrite Expr.nth_error_app_R.
+    rewrite length_size.
+    replace (size b1 + n - size b1) with n by omega.
+    eauto.
+    rewrite length_size; omega.
+
+    edestruct (blocks_first b2) as [ ? [ ] ].
+    eapply IHb1; intros.
+    t.
+    eauto.
+    eapply H4.
+    rewrite Expr.nth_error_app_R.
+    rewrite length_size.
+    replace (size b1 - size b1) with 0 by omega.
+    rewrite H5.
+    reflexivity.
+    rewrite length_size; auto.
+    t.
+    propxFo.
+    eapply H4.
+    rewrite Expr.nth_error_app_L.
+    eauto.
+    eapply nth_error_bound; eauto.
+
+    eapply IHb2; intros.
+    propxFo.
+    t.
+    eauto.
+    eauto.
+    t.
+    t.
+    replace (Base + N.of_nat (size b1) + N.of_nat n)%N
+      with (Base + N.of_nat (size b1 + n))%N by nomega.
+    eapply H4.
+    rewrite Expr.nth_error_app_R.
+    rewrite length_size.
+    replace (size b1 + n - size b1) with n by omega.
+    eauto.
+    rewrite length_size; omega.
+  Qed.
+
   Ltac choosePost :=
     match goal with
       | [ _ : LabelMap.MapsTo _ _ (imps _ _ _ _ _ ?post) |- LabelMap.MapsTo _ _ (imps _ _ _ _ _ ?post') ] =>
@@ -84,13 +214,41 @@ Section Cond.
     end.
 
   Hint Extern 2 (LabelMap.MapsTo _ _ _) =>
-    eapply imps_app_2; [ assumption | | eassumption | nomega | nomega ];
+    eapply imps_app_2; [ assumption | | eassumption | nomega ];
       rewrite length_size; choosePost.
-
-  Transparent evalInstrs.
 
   Hint Extern 1 (_ < _)%N => nomega.
   Hint Extern 1 (~(eq (A := LabelMap.key) _ _)) => lomega.
+
+  Lemma imps_app_1 : forall k v exit post bls2 bls1 base,
+    LabelMap.MapsTo k v (imps imports modName bls1 base exit post)
+    -> k <> (modName, Local exit)
+    -> (exit < base + N_of_nat (length bls1))%N
+    -> LabelMap.MapsTo k v (imps imports modName (bls1 ++ bls2) base exit post).
+    intros; eapply imps_app_1; eauto.
+  Qed.
+
+  Lemma imps_app_2 : forall k v exit post bls2 bls1 base,
+    LabelMap.MapsTo k v (imps imports modName bls2 (base + N_of_nat (length bls1)) exit post)
+    -> k <> (modName, Local exit)
+    -> (exit < base)%N
+    -> LabelMap.MapsTo k v (imps imports modName (bls1 ++ bls2) base exit post).
+    intros; eapply imps_app_2; eauto.
+  Qed.
+
+  Lemma interp_eta : forall specs (pre : assert) st,
+    interp specs (pre st)
+    -> interp specs (pre (fst st, snd st)).
+    destruct st; auto.
+  Qed.
+
+  Lemma ex_up : forall A (e : option A),
+    (e = None -> False)
+    -> exists v, e = Some v.
+    destruct e; intuition eauto.
+  Qed.
+
+  Hint Resolve interp_eta ex_up.
 
   Definition Cond_ (b : bexp) (Then Else : cmd imports modName) : cmd imports modName.
     red; refine (fun pre =>
@@ -109,34 +267,31 @@ Section Cond.
             Entry := 2;
             Blocks := (Postcondition cout1, (nil, Uncond (RvLabel (modName, Local Exit))))
               :: (Postcondition cout2, (nil, Uncond (RvLabel (modName, Local Exit))))
-              :: blocks (Nsucc (Nsucc Base)) pre b Base' Base''
+              :: blocks (Nsucc (Nsucc Base)) pre b (Base' + Entry cg1) (Base'' + Entry cg2)
               ++ Blocks cg1 ++ Blocks cg2
           |}
-      |}).
-
-    struct.
-
-    match goal with
-      | [ |- context[blocks ?Base ?pre ?b ?Tru ?Fals] ] =>
-        let H := fresh in destruct (blocks_first b Base pre Tru Fals) as [ ? [ ? H ] ];
-          rewrite H
-    end.
-    struct.
-
-    struct;
-      try match goal with
-            | [ H : context[imps _ ?modName _ _ ?Exit ?post] |- context[Labels _ (?modName, Local ?Exit)] ] =>
-              let H' := fresh in destruct (H (modName, Local Exit) post) as [ ? [ H' ] ]; eauto; rewrite H';
-                repeat esplit; eauto; propxFo
-          end.
-
-    repeat apply Forall_app.
-
-    admit.
-
-    eauto 15.
-
-    eauto 15.
+      |}); abstract (struct;
+        try match goal with
+              | [ |- context[blocks ?Base ?pre ?b ?Tru ?Fals] ] =>
+                solve [ let H := fresh in destruct (blocks_first b Base pre Tru Fals) as [ ? [ ? H ] ];
+                  rewrite H; struct ]
+              | [ H : context[imps _ ?modName _ _ ?Exit ?post] |- context[Labels _ (?modName, Local ?Exit)] ] =>
+                let H' := fresh in destruct (H (modName, Local Exit) post) as [ ? [ H' ] ]; eauto; rewrite H';
+                  repeat esplit; eauto; propxFo
+            end;
+        repeat apply Forall_app;
+          (eapply blocks_ok; (intros; eauto; propxFo; repeat (apply LabelMap.add_2; [ lomega | ]);
+            match goal with
+              | [ H : nth_error ?Blocks (N.to_nat ?Entry) = Some _
+                  |- LabelMap.MapsTo (_, Local (_ + ?Entry)) _ ?m ] =>
+                apply imps_app_2; auto;
+                  match m with
+                    | context[Blocks ++ _] => apply imps_app_1
+                    | _ => apply imps_app_2
+                  end; auto; eapply lookup_imps in H; rewrite length_size; eauto
+              | [ H : nth_error ?Blocks ?n = Some _ |- LabelMap.MapsTo (_, Local (_ + N.of_nat ?n)) _ ?m ] =>
+                apply imps_app_1; auto; eapply lookup_imps; rewrite Nat2N.id; eauto
+            end)) || eauto 15).
   Defined.
 
 End Cond.
