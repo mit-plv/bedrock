@@ -67,6 +67,23 @@ Theorem bexpD_truth : forall stn st b,
            end.
 Qed.
 
+Fixpoint bexpSafe (b : bexp) (stn : settings) (st : state) : Prop :=
+  match b with
+    | Test rv1 t rv2 => ~(evalCond rv1 t rv2 stn st = None)
+    | Not b => bexpSafe b stn st
+    | And b1 b2 => bexpSafe b1 stn st /\ bexpSafe b2 stn st
+    | Or b1 b2 => bexpSafe b1 stn st /\ bexpSafe b2 stn st
+  end.
+
+Theorem bexpSafe_really : forall stn st b,
+  bexpSafe b stn st
+  -> bexpD b stn st = None -> False.
+  induction b; simpl; intuition;
+    repeat match goal with
+             | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] => destruct E
+           end; intuition; discriminate.
+Qed.
+
 Fixpoint size (b : bexp) : nat :=
   match b with
     | Test _ _ _ => 1
@@ -285,7 +302,7 @@ Section Cond.
     destruct e; intuition eauto.
   Qed.
 
-  Hint Resolve interp_eta ex_up.
+  Hint Resolve interp_eta ex_up bexpSafe_really.
 
   Definition Cond_ (b : bexp) (Then Else : cmd imports modName) : cmd imports modName.
     red; refine (fun pre =>
@@ -293,7 +310,7 @@ Section Cond.
       let cout2 := Else (fun stn_st => pre stn_st /\ [|bexpFalse b (fst stn_st) (snd stn_st)|])%PropX in
       {|
         Postcondition := (fun stn_st => Postcondition cout1 stn_st \/ Postcondition cout2 stn_st)%PropX;
-        VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> bexpD b stn st <> None)
+        VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> bexpSafe b stn st)
           :: VerifCond cout1 ++ VerifCond cout2;
         Generate := fun Base Exit =>
           let Base' := (Nsucc (Nsucc Base) + N_of_nat (size b))%N in
@@ -336,3 +353,34 @@ Section Cond.
   Defined.
 
 End Cond.
+
+
+(** * Notation *)
+
+Inductive bexp' :=
+| Test' : condition -> bexp'
+| Not' : bexp' -> bexp'
+| And' : bexp' -> bexp' -> bexp'
+| Or' : bexp' -> bexp' -> bexp'.
+
+Coercion Test' : condition >-> bexp'.
+Notation "!" := Not' : Condition_scope.
+Infix "&&" := And' : Condition_scope.
+Infix "||" := Or' : Condition_scope.
+
+Delimit Scope Condition_scope with Condition.
+
+Fixpoint makeBexp (b : bexp') (ns : list string) : bexp :=
+  match b with
+    | Test' c => Test (c.(COperand1) ns) c.(CTest) (c.(COperand2) ns)
+    | Not' b => Not (makeBexp b ns)
+    | And' b1 b2 => And (makeBexp b1 ns) (makeBexp b2 ns)
+    | Or' b1 b2 => Or (makeBexp b1 ns) (makeBexp b2 ns)
+  end.
+
+Definition Cond (b : bexp') (Then Else : chunk) : chunk := fun ns res =>
+  Structured nil (fun im mn H => Cond_ im H mn (makeBexp b ns)
+    (toCmd Then mn H ns res) (toCmd Else mn H ns res)).
+
+Notation "'If*' c { b1 } 'else' { b2 }" := (Cond c%Condition b1 b2)
+  (no associativity, at level 95, c at level 0) : SP_scope.
