@@ -30,6 +30,43 @@ Fixpoint bexpD (b : bexp) (stn : settings) (st : state) : option bool :=
                   end
   end.
 
+Fixpoint bexpTrue (b : bexp) (stn : settings) (st : state) : Prop :=
+  match b with
+    | Test rv1 t rv2 => evalCond rv1 t rv2 stn st = Some true
+    | Not b => bexpFalse b stn st
+    | And b1 b2 => bexpTrue b1 stn st /\ bexpTrue b2 stn st
+    | Or b1 b2 => bexpTrue b1 stn st \/ bexpTrue b2 stn st
+  end
+
+with bexpFalse (b : bexp) (stn : settings) (st : state) : Prop :=
+  match b with
+    | Test rv1 t rv2 => evalCond rv1 t rv2 stn st = Some false
+    | Not b => bexpTrue b stn st
+    | And b1 b2 => bexpFalse b1 stn st \/ bexpFalse b2 stn st
+    | Or b1 b2 => bexpFalse b1 stn st /\ bexpFalse b2 stn st
+  end.
+
+Theorem bexpD_truth : forall stn st b,
+  match bexpD b stn st with
+    | None => True
+    | Some true => bexpTrue b stn st
+    | Some false => bexpFalse b stn st
+  end.
+  induction b; simpl; unfold evalCond; intuition;
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H in *
+             | [ |- context[match ?E with None => _ | _ => _ end] ] =>
+               match E with
+                 | context[match _ with None => _ | _ => _ end] => fail 1
+                 | _ => case_eq E; intros
+               end
+             | [ |- context[if ?E then _ else _] ] => case_eq E; intros
+           end; intuition; try discriminate;
+    repeat match goal with
+             | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; simpl in *; intuition
+           end.
+Qed.
+
 Fixpoint size (b : bexp) : nat :=
   match b with
     | Test _ _ _ => 1
@@ -252,8 +289,8 @@ Section Cond.
 
   Definition Cond_ (b : bexp) (Then Else : cmd imports modName) : cmd imports modName.
     red; refine (fun pre =>
-      let cout1 := Then (fun stn_st => pre stn_st /\ [|bexpD b (fst stn_st) (snd stn_st) = Some true|])%PropX in
-      let cout2 := Else (fun stn_st => pre stn_st /\ [|bexpD b (fst stn_st) (snd stn_st) = Some false|])%PropX in
+      let cout1 := Then (fun stn_st => pre stn_st /\ [|bexpTrue b (fst stn_st) (snd stn_st)|])%PropX in
+      let cout2 := Else (fun stn_st => pre stn_st /\ [|bexpFalse b (fst stn_st) (snd stn_st)|])%PropX in
       {|
         Postcondition := (fun stn_st => Postcondition cout1 stn_st \/ Postcondition cout2 stn_st)%PropX;
         VerifCond := (forall stn st specs, interp specs (pre (stn, st)) -> bexpD b stn st <> None)
@@ -280,7 +317,11 @@ Section Cond.
                   repeat esplit; eauto; propxFo
             end;
         repeat apply Forall_app;
-          (eapply blocks_ok; (intros; eauto; propxFo; repeat (apply LabelMap.add_2; [ lomega | ]);
+          (eapply blocks_ok; (intros; eauto; propxFo;
+            try match goal with
+                  | [ H : bexpD ?b ?stn ?st = _ |- _ ] => specialize (bexpD_truth stn st b); rewrite H; tauto
+                end;
+            repeat (apply LabelMap.add_2; [ lomega | ]);
             match goal with
               | [ H : nth_error ?Blocks (N.to_nat ?Entry) = Some _
                   |- LabelMap.MapsTo (_, Local (_ + ?Entry)) _ ?m ] =>
