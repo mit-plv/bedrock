@@ -38,6 +38,8 @@ Ltac refold :=
            end.
 
 Require Import Bool.
+Require Import Conditional.
+Export Conditional.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
@@ -69,6 +71,8 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect
   COperand1 CTest COperand2 Pos.succ
   makeVcs
+
+  Cond_ Cond
 ].
 
 Ltac vcgen :=
