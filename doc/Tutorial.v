@@ -261,7 +261,7 @@ Qed.
 
    The second line of the grammar for $\mathsf{PropX}$#PropX# gives some more interesting cases: those associated with _impredicative quantifiers_, which may range over assertions themselves.  With these quantifiers, we can get around an apparent deficiency of [Cptr], which is that its arguments must give the _exact_ spec of a code block, whereas we will generally want to require only that the spec of the code block be _implied_ by some other spec.  We define an infix operator [@@] for this laxer version of [Cptr].
    [[
-Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f st ---> #0 s)%PropX.
+Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f s ---> #0 s)%PropX.
    ]]
    This syntax is complicated by the fact that we represent impredicative quantifiers with _de Bruijn indices_.  Unraveling that detail, we can rephrase the above definition as: program counter [w] may be treated as having spec [f] if there exists $\alpha$#a# such that (1) $\alpha$#a# is the literal spec of [w] and (2) any state [s] satisfying [f] also satisfies $\alpha$#a#.
 
