@@ -18,15 +18,14 @@ Section Lambda.
 
   Transparent evalInstrs.
 
-  Definition Lambda : cmd imports modName.
+  Definition Lambda__ : cmd imports modName.
     red; refine (fun pre =>
       let cout := body precondition in
       {|
-        Postcondition := (fun st => Ex st',
-        [| snd st = {| Regs := rupd st'.(Regs) Rv st#Rv;
-          Mem := st'.(Mem) |} |]
-        /\ pre (fst st, st')
-        /\ Cptr st#Rv precondition)%PropX;
+        Postcondition := (fun st => Ex st', Ex fp,
+          [| evalInstrs (fst st) st' (Assign Rp (RvImm fp) :: nil) = Some (snd st) |]
+          /\ pre (fst st, st')
+          /\ Cptr fp precondition)%PropX;
       VerifCond := (forall specs st, ~interp specs (cout.(Postcondition) st))
         :: cout.(VerifCond);
       Generate := fun Base Exit =>
@@ -35,7 +34,7 @@ Section Lambda.
           Entry := 1;
           Blocks := (cout.(Postcondition),
             (nil, Uncond (RvLabel (modName, Local Base))))
-          :: (pre, (Assign Rv (RvLabel (modName,
+          :: (pre, (Assign Rp (RvLabel (modName,
             Local (Nsucc (Nsucc Base) + cg.(Entry)))) :: nil,
             Uncond (RvLabel (modName, Local Exit))))
           :: cg.(Blocks)
@@ -53,3 +52,17 @@ Section Lambda.
   Defined.
 
 End Lambda.
+
+Definition Lambda_ (pre : spec) (Body : chunk) : chunk := fun ns res =>
+  Structured nil (fun im mn H =>
+    Lambda__ im H mn
+    (toCmd ($[Sp+0] <- Rp;;
+      (fun _ _ =>
+        Structured nil (fun im mn _ => Structured.Assert_ im mn
+          (Precondition pre (Some nil))));;
+        Body)%SP mn H ns res)
+    (Precondition pre None)).
+
+Notation "rv <-- 'Lambda' () [ p ] b 'end'" :=
+  (Seq (Lambda_ p b) (Assign' rv Rp))
+  (no associativity, at level 95, f at level 0) : SP_scope.

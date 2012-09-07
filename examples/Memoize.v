@@ -177,37 +177,26 @@ Hint Extern 1 (himp _ _ _) =>
 (* Alternate VC post-processor that understands indirect function calls *)
 Ltac post :=
   AutoSep.post;
-  try match goal with
-        | [ H : context[locals ?ns ?vs ?avail ?p] |- exists pre', _ (Regs _ Rv) = Some pre' /\ _ ] =>
-          (* This appears to be an indirect function call.
-           * Put the appropriate marker predicate in [H], to trigger use of a lemma about the
-           * point-of-view shift from caller to callee. *)
-          let ns' := constr:("rp" :: "x" :: nil) in
-          let avail' := constr:0 in
-          let offset := eval simpl in (4 * List.length ns) in
-            change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
-              assert (ok_call ns ns' avail avail' offset)%nat
-                by (split; [ simpl; omega
-                  | split; [ simpl; omega
-                    | split; [ repeat constructor; simpl; intuition congruence
-                      | reflexivity ] ] ]);
+  try ((* This appears to be an indirect function call.
+        * Put the appropriate marker predicate in [H], to trigger use of a lemma about the
+        * point-of-view shift from caller to callee. *)
+    icall ("x" :: nil);
 
-          (* Trigger symbolic execution early. *)
-          evaluate hints;
+    (* Trigger symbolic execution early. *)
+    evaluate hints;
 
-          (* Move [goodMemo] to the front of its hypothesis and eliminate it. *)
-          match goal with
-            | [ H : interp _ _ |- _ ] =>
-              toFront ltac:(fun P => match P with goodMemo _ _ => idtac end) H;
-              apply goodMemo_elim in H; sep_firstorder
-          end;
+    (* Move [goodMemo] to the front of its hypothesis and eliminate it. *)
+    match goal with
+      | [ H : interp _ _ |- _ ] =>
+        toFront ltac:(fun P => match P with goodMemo _ _ => idtac end) H;
+        apply goodMemo_elim in H; sep_firstorder
+    end;
 
-          (* Find and apply the hypothesis explaining the spec of the function pointer. *)
-          match goal with
-            | [ H : forall x : ST.settings * state, _ |- _ ] =>
-              eapply Imply_sound; [ apply H | ]
-          end
-      end.
+    (* Find and apply the hypothesis explaining the spec of the function pointer. *)
+    match goal with
+      | [ H : forall x : ST.settings * state, _ |- _ ] =>
+        eapply Imply_sound; [ apply H | ]
+    end).
 
 (* Main tactic *)
 Ltac sep := post; AutoSep.sep hints; auto.

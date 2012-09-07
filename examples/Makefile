@@ -1,7 +1,7 @@
 ROOT    := ..
 MODULES := Conditional Lambda \
            AutoSepExt AutoSep LemmaTests \
-           Baby TrivialMem TrivialMem2 ConditionalTest \
+           Baby TrivialMem TrivialMem2 ConditionalTest LambdaTest \
            Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \
