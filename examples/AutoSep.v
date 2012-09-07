@@ -38,8 +38,8 @@ Ltac refold :=
            end.
 
 Require Import Bool.
-Require Import Conditional.
-Export Conditional.
+Require Import Conditional Lambda.
+Export Conditional Lambda.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
@@ -73,6 +73,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
 
   Cond_ Cond
+  Lambda__ Lambda_
 ].
 
 Ltac vcgen :=
@@ -1315,3 +1316,18 @@ Ltac toFront which H :=
           assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step auto_ext;
             clear H; rename H' into H)
     end.
+
+(* Handle a VC for an indirect function call, given the callee's formal arguments list. *)
+Ltac icall formals :=
+  match goal with
+    | [ H : context[locals ?ns ?vs ?avail ?p] |- exists pre', _ (Regs _ Rv) = Some pre' /\ _ ] =>
+      let ns' := constr:("rp" :: formals) in
+        let avail' := constr:0 in
+          let offset := eval simpl in (4 * List.length ns) in
+            change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+              assert (ok_call ns ns' avail avail' offset)%nat
+                by (split; [ simpl; omega
+                  | split; [ simpl; omega
+                    | split; [ repeat constructor; simpl; intuition congruence
+                      | reflexivity ] ] ])
+  end.
