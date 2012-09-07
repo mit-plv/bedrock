@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := Conditional \
+MODULES := Conditional Lambda \
            AutoSepExt AutoSep LemmaTests \
            Baby TrivialMem TrivialMem2 ConditionalTest \
            Indir Factorial Swap TrivialArray \
