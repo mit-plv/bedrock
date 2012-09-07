@@ -53,16 +53,20 @@ Section Lambda.
 
 End Lambda.
 
-Definition Lambda_ (pre : spec) (Body : chunk) : chunk := fun ns res =>
+Definition Lambda_ (vars : list string) (pre : spec) (Body : chunk) : chunk := fun ns res =>
   Structured nil (fun im mn H =>
     Lambda__ im H mn
     (toCmd ($[Sp+0] <- Rp;;
       (fun _ _ =>
         Structured nil (fun im mn _ => Structured.Assert_ im mn
-          (Precondition pre (Some nil))));;
-        Body)%SP mn H ns res)
+          (Precondition pre (Some vars))));;
+      (fun ns res => Body ns (res - (List.length vars - List.length (Formals pre)))%nat))%SP mn H vars (Reserved pre))
     (Precondition pre None)).
 
 Notation "rv <-- 'Lambda' () [ p ] b 'end'" :=
-  (Seq (Lambda_ p b) (Assign' rv Rp))
+  (Seq (Lambda_ nil p b) (Assign' rv Rp))
+  (no associativity, at level 95, f at level 0) : SP_scope.
+
+Notation "rv <-- 'Lambda' ( x1 , .. , xN ) [ p ] b 'end'" :=
+  (Seq (Lambda_ (cons x1 (.. (cons xN nil) ..)) p b) (Assign' rv Rp))
   (no associativity, at level 95, f at level 0) : SP_scope.
