@@ -176,7 +176,7 @@ Hint Extern 1 (himp _ _ _) =>
 
 (* Alternate VC post-processor that understands indirect function calls *)
 Ltac post :=
-  AutoSep.post;
+  PreAutoSep.post;
   try ((* This appears to be an indirect function call.
         * Put the appropriate marker predicate in [H], to trigger use of a lemma about the
         * point-of-view shift from caller to callee. *)
@@ -199,7 +199,7 @@ Ltac post :=
     end).
 
 (* Main tactic *)
-Ltac sep := post; AutoSep.sep hints; auto.
+Ltac sep := post; PreAutoSep.sep hints; auto.
 
 Theorem memoizeMOk : moduleOk memoizeM.
   vcgen; abstract sep.

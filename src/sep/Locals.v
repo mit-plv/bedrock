@@ -211,7 +211,7 @@ Section parametric.
               | _ => fun _ => Nothing
             end k
 
-          | Func variablePositionF (xs :: x :: nil) => Symbolic base xs x
+          | Func natToWF (Func variablePositionF (xs :: x :: nil) :: nil) => Symbolic base xs x
 
           | _ => Nothing
         end
@@ -250,25 +250,25 @@ Section parametric.
     : option (expr types) :=
     match args with
       | ns :: vs :: _ :: p' :: nil =>
-        match listIn ns with
-          | None => None
-          | Some ns' =>
-            match deref p with
-              | Nothing => None
-              | Constant base offset =>
+        match deref p with
+          | Nothing => None
+          | Constant base offset =>
+            match listIn ns with
+              | None => None
+              | Some ns' =>
                 if Prover.(Prove) summ (Equal wordT p' base)
                   then match nth_error ns' offset with
                          | None => None
                          | Some nm => Some (sym_sel vs nm)
                        end
                   else None
-              | Symbolic base nms nm =>
-                if Prover.(Prove) summ (Equal wordT p' base)
-                  && Prover.(Prove) summ (Equal listStringT nms ns)
-                  && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
-                  then Some (Func selF (vs :: nm :: nil))
-                  else None
             end
+          | Symbolic base nms nm =>
+            if Prover.(Prove) summ (Equal wordT p' base)
+              && Prover.(Prove) summ (Equal listStringT nms ns)
+              && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
+              then Some (Func selF (vs :: nm :: nil))
+              else None
         end
       | _ => None
     end.
@@ -277,11 +277,12 @@ Section parametric.
     : option (list (expr types)) :=
     match args with
       | ns :: vs :: avail :: p' :: nil =>
-        match listIn ns with
-          | Some ns' =>
-            match deref p with
-              | Nothing => None
-              | Constant base offset =>
+        match deref p with
+          | Nothing => None
+          | Constant base offset =>
+            match listIn ns with
+              | None => None
+              | Some ns' =>
                 if Prover.(Prove) summ (Equal wordT p' base)
                   then match nth_error ns' offset with
                          | None => None
@@ -290,16 +291,15 @@ Section parametric.
                            :: avail :: p' :: nil)
                        end
                   else None
-              | Symbolic base nms nm =>
-                if Prover.(Prove) summ (Equal wordT p' base)
-                  && Prover.(Prove) summ (Equal listStringT nms ns)
-                  && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
-                  then Some (ns
-                    :: Func updF (vs :: nm :: v :: nil)
-                    :: avail :: p' :: nil)
-                  else None
             end
-          | _ => None
+          | Symbolic base nms nm =>
+            if Prover.(Prove) summ (Equal wordT p' base)
+              && Prover.(Prove) summ (Equal listStringT nms ns)
+              && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
+              then Some (ns
+                :: Func updF (vs :: nm :: v :: nil)
+                :: avail :: p' :: nil)
+              else None
         end
       | _ => None
     end.
@@ -387,6 +387,9 @@ Section correctness.
 
     simpl in H.
     deconstruct.
+    destruct (exprD funcs uvars vars e0 listStringT); try discriminate.
+    destruct (exprD funcs uvars vars e1 stringT); try discriminate.
+    deconstruct; eauto 10.
   Qed.
 
   Lemma listIn_correct : forall uvars vars e ns, listIn e = Some ns
@@ -478,11 +481,11 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 5 (destruct args; simpl in *; intuition; try discriminate).
+    generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
+
     generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
     specialize (HlistIn _ (refl_equal _)).
     rewrite HlistIn in *.
-    generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
-
     repeat match goal with
              | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
                match goal with
@@ -600,15 +603,16 @@ Section correctness.
     rewrite H10 in *.
     rewrite H5 in *.
     rewrite H11 in *.
-    rewrite HlistIn in *.
-    specialize (H3 (ex_intro _ _ (refl_equal _))).
     specialize (H4 (ex_intro _ _ (refl_equal _))).
-    unfold types0 in *.
+    unfold Provable in H4.
     injection H; clear H; intros; subst.
+    simpl exprD in *.
+    unfold types0 in *.
     unfold Provable in *.
     simpl exprD in *.
     deconstruct.
     rewrite H10 in *.
+    specialize (H3 (ex_intro _ _ (refl_equal _))).
     specialize (H9 (ex_intro _ _ (refl_equal _))).
     subst.
     apply simplify_fwd in H2.
@@ -634,7 +638,7 @@ Section correctness.
           else S (variablePosition' ns' nm)
       end.
 
-    specialize (smem_read_correct' _ _ _ _ (i := natToW (variablePosition' l x1)) H9); intro Hsmem.
+    specialize (smem_read_correct' _ _ _ _ (i := natToW (variablePosition' t x1)) H9); intro Hsmem.
     rewrite wmult_comm in Hsmem.
     rewrite <- natToW_times4 in Hsmem.
     
@@ -725,10 +729,10 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 5 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn;
-      specialize (HlistIn _ (refl_equal _)); rewrite HlistIn in *.
     generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
 
+    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn;
+      specialize (HlistIn _ (refl_equal _)); rewrite HlistIn in *.
     destruct (Hderef _ H1); clear Hderef; intuition; subst.
     repeat match goal with
              | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
@@ -869,7 +873,6 @@ Section correctness.
     intuition.
     injection H; clear H; intros; subst.
     simpl applyD.
-    rewrite HlistIn in *.
     unfold Provable in *.
     simpl exprD in *.
     deconstruct.
