@@ -52,7 +52,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.find
   toCmd Seq Instr Diverge Fail Skip Assert_
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
-  Assign' variableSlot' localsInvariant
+  Assign' localsInvariant
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
   andb eqb qspecOut
   ICall_ Structured.ICall_

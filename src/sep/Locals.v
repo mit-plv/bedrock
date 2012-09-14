@@ -722,18 +722,14 @@ Section correctness.
           | Some sm' => ST.satisfies cs pr stn sm'
         end
     end.
-  Admitted.
-  (*Proof.
+  Proof.
     simpl; intuition.
     do 5 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
-    destruct p0.
-    specialize (Hderef _ _ _ H1 (refl_equal _)).
-    destruct Hderef as [ ? [ ] ]; subst.
-    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
-    specialize (HlistIn _ (refl_equal _)).
-    rewrite HlistIn in *.
+    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn;
+      specialize (HlistIn _ (refl_equal _)); rewrite HlistIn in *.
+    generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
 
+    destruct (Hderef _ H1); clear Hderef; intuition; subst.
     repeat match goal with
              | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
                match goal with
@@ -745,9 +741,8 @@ Section correctness.
     match type of H with
       | (if ?E then _ else _) = _ => destruct E
     end; intuition; try discriminate.
-    simpl in H6.
+    simpl in H5.
     case_eq (nth_error l n); [ intros ? Heq | intro Heq ]; rewrite Heq in *; try discriminate.
-    rewrite H4 in *.
     injection H; clear H; intros; subst.
     unfold applyD.
     rewrite HlistIn.
@@ -755,7 +750,7 @@ Section correctness.
     destruct (exprD funcs uvars vars e0 valsT); try tauto.
     unfold Provable in H6.
     simpl in H6.
-    rewrite H4 in H6.
+    rewrite H5 in H6.
     destruct (exprD funcs uvars vars e1 natT); try tauto.
     destruct (exprD funcs uvars vars e2 wordT); try tauto.
     rewrite H2.
@@ -850,7 +845,139 @@ Section correctness.
     rewrite Npow2_nat.
     apply nth_error_Some_length in Heq.
     omega.
-  Qed.*)
+
+
+    (* Now the [Symbolic] case... *)
+
+    destruct (Hderef _ H1) as [ ? [ ? [ ? [ ] ] ] ]; clear Hderef; intuition; subst.
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *.
+    unfold types0 in *.
+    match type of H with
+      | (if ?E then _ else _) = _ => case_eq E
+    end; intuition; match goal with
+                      | [ H : _ = _ |- _ ] => rewrite H in *
+                    end; try discriminate.
+    simpl in H7, H8, H9.
+    apply andb_prop in H10; destruct H10.
+    apply andb_prop in H10; destruct H10.
+    intuition.
+    injection H; clear H; intros; subst.
+    simpl applyD.
+    rewrite HlistIn in *.
+    unfold Provable in *.
+    simpl exprD in *.
+    deconstruct.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H in *
+             | [ H : _ |- _ ] => specialize (H (ex_intro _ _ (refl_equal _))); subst
+           end.
+    apply simplify_fwd in H3.
+    destruct H3.
+    destruct H.
+    destruct H.
+    simpl in H.
+    destruct H3.
+    destruct H3.
+    destruct H3.
+    destruct H3.
+    simpl in H3.
+    destruct H9.
+    simpl in H9.
+    destruct H9.
+    apply simplify_bwd in H13.
+    generalize (split_semp _ _ _ H3 H14); intro; subst.
+    eapply smem_write_correct' in H13.
+    destruct H13 as [ ? [ ] ].
+    rewrite <- variablePosition'_4.
+    rewrite natToW_times4.
+    rewrite wmult_comm.
+    eapply split_set_word in H13.
+    destruct H13.
+    generalize (proj2 H); intro; subst.
+    rewrite H16.
+    apply simplify_bwd.
+    esplit.
+    esplit.
+    esplit.
+    simpl.
+    apply disjoint_split_join; auto.
+    esplit.
+    esplit.
+    esplit.
+    esplit.
+    simpl.
+    apply split_a_semp_a.
+    esplit.
+    simpl; intuition.
+    apply semp_smem_emp.
+    apply simplify_fwd.
+    unfold Array.upd in H15.
+    rewrite wordToNat_natToWord_idempotent in H15.
+
+    Lemma array_updN_variablePosition' : forall vs nm v ns,
+      NoDup ns
+      -> In nm ns
+      -> toArray ns (upd vs nm v) = updN (toArray ns vs) (variablePosition' ns nm) v.
+      induction 1; simpl; intuition; subst.
+      destruct (string_dec nm nm); try tauto.
+      rewrite toArray_irrel; auto.
+      unfold upd.
+      rewrite string_eq_true.
+      auto.
+
+      destruct (string_dec x nm); subst.
+      rewrite toArray_irrel; auto.
+      unfold upd.
+      rewrite string_eq_true.
+      auto.
+
+      unfold upd at 1.
+      rewrite string_eq_false by auto.
+      rewrite H1; auto.
+    Qed.
+    
+    rewrite array_updN_variablePosition'; auto.
+
+    apply array_bound in H15.
+    rewrite updN_length in H15.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    apply variablePosition'_length in H8.
+    rewrite length_toArray in H15.
+    omega.
+
+    assumption.
+    apply H.
+    rewrite length_toArray.
+    apply Nlt_in.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    rewrite wordToNat_natToWord_idempotent.
+    rewrite wordToNat_natToWord_idempotent.
+    apply variablePosition'_length; auto.
+    apply array_bound in H13.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    rewrite length_toArray in H13.
+    assumption.
+
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    apply array_bound in H13.
+    generalize (variablePosition'_length _ _ H8).
+    rewrite length_toArray in H13.
+    omega.
+  Qed.
 
 End correctness.
 
@@ -964,16 +1091,6 @@ Lemma behold_the_array' : forall p ns,
   change (upd x1 x x0 x) with (sel (upd x1 x x0) x).
   rewrite sel_upd_eq by reflexivity.
   apply Himp_refl.
-
-  (* Remove later *)
-  Lemma toArray_irrel : forall vs v nm ns,
-    ~In nm ns
-    -> toArray ns (upd vs nm v) = toArray ns vs.
-    induction ns; simpl; intuition.
-    f_equal; auto.
-    unfold upd.
-    rewrite string_eq_false; auto.
-  Qed.
 
   rewrite toArray_irrel by assumption.
   apply Himp_refl.
