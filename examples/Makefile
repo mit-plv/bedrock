@@ -1,6 +1,8 @@
 ROOT    := ..
 MODULES := Conditional Lambda Wrap Arr \
-           AutoSepExt AutoSep LemmaTests \
+           AutoSepExt PreAutoSep \
+           For AutoSep \
+           LemmaTests \
            Baby TrivialMem TrivialMem2 ConditionalTest LambdaTest \
            Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
