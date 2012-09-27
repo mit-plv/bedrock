@@ -1,4 +1,4 @@
-Require Import Word PropX PropXTac Memory SepIL IL.
+Require Import Nomega NArith Word PropX PropXTac Memory SepIL IL.
 
 Require Import sep.Array.
 
@@ -46,6 +46,19 @@ Theorem containsArray_bound : forall cs P stn ls st,
 Qed.
 
 Hint Resolve containsArray_bound.
+
+Theorem containsArray_goodSize : forall cs P stn ls st,
+  interp cs (![P] (stn, st))
+  -> containsArray P ls
+  -> goodSize (length ls).
+  intros; unfold goodSize.
+  apply Nlt_in.
+  rewrite Npow2_nat.
+  rewrite Nat2N.id.
+  eapply containsArray_bound; eauto.
+Qed.
+
+Hint Resolve containsArray_goodSize.
 
 Require Import NArith Nomega.
 
