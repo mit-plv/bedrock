@@ -45,7 +45,7 @@ Ltac sep_canceller isConst ext simplifier :=
 
       let k :=
             (fun types funcs uvars preds L R pures proofs => 
-               (*TIME         stop_timer "sep_canceler:reify" *)
+               (*TIME         stop_timer "sep_canceler:reify" ; *)
 
                ((** TODO: for some reason the partial application to proofs doesn't always work... **)
                  apply (@ApplyCancelSep types funcs preds
