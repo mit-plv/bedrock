@@ -23,10 +23,13 @@ version:
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
+.dir-locals.el: 
+	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el > .dir-locals.el
+
 time:
 	@ rm -rf timing
 	@ ./tools/timer.py timing/ src/*.v examples/*.v src/*/*.v
 	@ cp Makefile timing/Makefile
-	@ cp src/Makefile src/Makefile.coq timing/src
+	@ cp -r src/Makefile src/Makefile.coq src/reification/ timing/src 
 	@ cp examples/Makefile examples/Makefile.coq timing/examples
 	@ (cd timing; $(MAKE) all)

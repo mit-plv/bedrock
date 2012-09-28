@@ -69,7 +69,7 @@ ILTac.v:
 	@ echo "## NOTE: If you would like to use the faster, ML reification"
 	@ echo "##       run 'make native'"
 	@ echo "## "
-	@ $(MAKE) ltac
+	@ $(MAKE) native
 
 version:
 	@ echo "## "
