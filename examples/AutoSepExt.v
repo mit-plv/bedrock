@@ -6,7 +6,6 @@ Export Bedrock.
 Import TacPackIL.
 Require Bedrock.sep.PtsTo.
 Require Export Bedrock.sep.Array Bedrock.sep.Locals.
-Require Bedrock.provers.LocalsProver.
 Require Import Provers.
 
 (** Build our memory plugin **)
@@ -37,11 +36,14 @@ Definition auto_ext' : TacPackage.
           ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
           ILAlgoTypes.AllAlgos_composite
           ILAlgoTypes.oplus Prover.composite_ProverT 
-          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
+          Env.listToRepr
 
           Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig Bedrock.sep.Locals.ssig
 
           Bedrock.sep.Locals.types_r Bedrock.sep.Locals.funcs_r
+          
+          comboTypes comboFuncs
+          Bedrock.sep.Array.types_r Bedrock.sep.Array.funcs_r
         ] in res in
         ILAlgoTypes.Tactics.opaque_pack res) || fail 1000 "compose" )))).
 Defined.

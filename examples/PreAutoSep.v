@@ -355,11 +355,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
 
-         (** LocalsProver **)
-         provers.LocalsProver.localsProver
-         provers.LocalsProver.localsSimplify
-         provers.LocalsProver.localsProve
-         provers.LocalsProver.types
+         (** ArrayBoundProver **)
+         provers.ArrayBoundProver.boundProver
+         provers.ArrayBoundProver.deupd provers.ArrayBoundProver.factIn
+         provers.ArrayBoundProver.boundLearn1 provers.ArrayBoundProver.boundLearn
+         provers.ArrayBoundProver.boundSummarize provers.ArrayBoundProver.hypMatches
+         provers.ArrayBoundProver.boundProve
+         provers.ArrayBoundProver.types
 
          (** Induction **)
          list_ind list_rec list_rect 
@@ -733,11 +735,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.WordProver.Equalities provers.WordProver.LessThans provers.WordProver.NotEquals
          provers.WordProver.lessThanMatches
 
-         (** LocalsProver **)
-         provers.LocalsProver.localsProver
-         provers.LocalsProver.localsSimplify
-         provers.LocalsProver.localsProve
-         provers.LocalsProver.types
+         (** ArrayBoundProver **)
+         provers.ArrayBoundProver.boundProver
+         provers.ArrayBoundProver.deupd provers.ArrayBoundProver.factIn
+         provers.ArrayBoundProver.boundLearn1 provers.ArrayBoundProver.boundLearn
+         provers.ArrayBoundProver.boundSummarize provers.ArrayBoundProver.hypMatches
+         provers.ArrayBoundProver.boundProve
+         provers.ArrayBoundProver.types
 
          (** Induction **)
          list_ind list_rec list_rect 
