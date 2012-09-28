@@ -99,7 +99,6 @@ Definition types_r : Env.Repr type :=
       (@Some type ILEnv.bedrock_type_W) ::
       (@Some type ILEnv.bedrock_type_setting_X_state) ::
       None ::
-(*    None :: *)
       None ::
       (@Some type ILEnv.bedrock_type_nat) ::
       None ::
@@ -117,6 +116,16 @@ Local Notation "'stringT'" := (tvType 6).
 Local Notation "'listStringT'" := (tvType 7).
 Local Notation "'valsT'" := (tvType 8).
 
+Definition badLocalVariable := O.
+Global Opaque badLocalVariable.
+
+Fixpoint variablePosition (ns : list string) (nm : string) : nat :=
+  match ns with
+    | nil => badLocalVariable
+    | nm' :: ns' => if string_dec nm' nm then O
+      else 4 + variablePosition ns' nm
+  end.
+
 Local Notation "'wplusF'" := 0.
 Local Notation "'wmultF'" := 2.
 Local Notation "'natToWF'" := 5.
@@ -124,6 +133,8 @@ Local Notation "'nilF'" := 9.
 Local Notation "'consF'" := 10.
 Local Notation "'selF'" := 11.
 Local Notation "'updF'" := 12.
+Local Notation "'InF'" := 13.
+Local Notation "'variablePositionF'" := 14.
 
 Section parametric.
   Variable types' : list type.
@@ -150,6 +161,16 @@ Section parametric.
     exact upd.
   Defined.
 
+  Definition In_r : signature types.
+    refine {| Domain := stringT :: listStringT :: nil; Range := tvProp |}.
+    exact (@In _).
+  Defined.
+
+  Definition variablePosition_r : signature types.
+    refine {| Domain := listStringT :: stringT :: nil; Range := natT |}.
+    exact variablePosition.
+  Defined.
+
   Definition funcs_r : Env.Repr (signature types) :=
     Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
       let lst := 
@@ -166,24 +187,36 @@ Section parametric.
         Some cons_r ::
         Some sel_r ::
         Some upd_r ::
+        Some In_r ::
+        Some variablePosition_r ::
         nil
       in Env.listOptToRepr lst (Default_signature _).
 
-  Definition deref (e : expr types) : option (expr types * nat) :=
+  Inductive deref_res :=
+  | Nothing : deref_res
+  | Constant : expr types -> nat -> deref_res
+  | Symbolic : expr types -> expr types -> expr types -> deref_res.
+  (* Last one's args: base, variable list, and specific variable name *)
+
+  Definition deref (e : expr types) : deref_res :=
     match e with
       | Func wplusF (base :: offset :: nil) =>
         match offset with
           | Func natToWF (Const t k :: nil) =>
             match t return tvarD types t -> _ with
               | natT => fun k => match div4 k with
-                                   | None => None
-                                   | Some k' => Some (base, k')
+                                   | None => Nothing
+                                   | Some k' => Constant base k'
                                  end
-              | _ => fun _ => None
+              | _ => fun _ => Nothing
             end k
-          | _ => None
+
+          | Func natToWF (Func variablePositionF (xs :: x :: nil) :: nil) => Symbolic base xs x
+
+          | _ => Nothing
         end
-      | _ => None
+
+      | _ => Nothing
     end.
 
   Fixpoint listIn (e : expr types) : option (list string) :=
@@ -217,15 +250,25 @@ Section parametric.
     : option (expr types) :=
     match args with
       | ns :: vs :: _ :: p' :: nil =>
-        match deref p, listIn ns with
-          | Some (base, offset), Some ns =>
+        match deref p with
+          | Nothing => None
+          | Constant base offset =>
+            match listIn ns with
+              | None => None
+              | Some ns' =>
+                if Prover.(Prove) summ (Equal wordT p' base)
+                  then match nth_error ns' offset with
+                         | None => None
+                         | Some nm => Some (sym_sel vs nm)
+                       end
+                  else None
+            end
+          | Symbolic base nms nm =>
             if Prover.(Prove) summ (Equal wordT p' base)
-              then match nth_error ns offset with
-                     | None => None
-                     | Some nm => Some (sym_sel vs nm)
-                   end
+              && Prover.(Prove) summ (Equal listStringT nms ns)
+              && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
+              then Some (Func selF (vs :: nm :: nil))
               else None
-          | _, _ => None
         end
       | _ => None
     end.
@@ -234,17 +277,29 @@ Section parametric.
     : option (list (expr types)) :=
     match args with
       | ns :: vs :: avail :: p' :: nil =>
-        match deref p, listIn ns with
-          | Some (base, offset), Some ns' =>
+        match deref p with
+          | Nothing => None
+          | Constant base offset =>
+            match listIn ns with
+              | None => None
+              | Some ns' =>
+                if Prover.(Prove) summ (Equal wordT p' base)
+                  then match nth_error ns' offset with
+                         | None => None
+                         | Some nm => Some (ns
+                           :: Func updF (vs :: Const (types := types) (t := stringT) nm :: v :: nil)
+                           :: avail :: p' :: nil)
+                       end
+                  else None
+            end
+          | Symbolic base nms nm =>
             if Prover.(Prove) summ (Equal wordT p' base)
-              then match nth_error ns' offset with
-                     | None => None
-                     | Some nm => Some (ns
-                       :: Func updF (vs :: Const (types := types) (t := stringT) nm :: v :: nil)
-                       :: avail :: p' :: nil)
-                   end
+              && Prover.(Prove) summ (Equal listStringT nms ns)
+              && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
+              then Some (ns
+                :: Func updF (vs :: nm :: v :: nil)
+                :: avail :: p' :: nil)
               else None
-          | _, _ => None
         end
       | _ => None
     end.
@@ -274,28 +329,67 @@ Section correctness.
   Variable Prover : ProverT types0.
   Variable Prover_correct : ProverT_correct Prover funcs.
 
-  Ltac deconstruct := repeat deconstruct' idtac.
+  Ltac doMatch P :=
+    match P with
+      | match ?E with 0 => _ | _ => _ end => destr2 idtac E
+      | match ?E with nil => _ | _ => _ end => destr idtac E
+      | match ?E with Const _ _ => _ | _ => _ end => destr2 idtac E
+      | match ?E with tvProp => _ | _ => _ end => destr idtac E
+      | match ?E with None => _ | _ => _ end => destr idtac E
+      | match ?E with left _ => _ | _ => _ end => destr2 idtac E
+      | match ?E with Nothing => _ | _ => _ end => destr2 idtac E
+    end.
 
-  Lemma deref_correct : forall uvars vars e w base offset,
+  Ltac deconstruct' :=
+    match goal with
+      | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+      | [ H : ?P |- _ ] =>
+        let P := stripSuffix P in doMatch P
+      | [ H : match ?P with None => _ | _ => _ end |- _ ] =>
+        let P := stripSuffix P in doMatch P
+      | [ |- match ?P with Nothing => _ | _ => _ end ] =>
+        let P := stripSuffix P in doMatch P
+    end.
+
+  Ltac deconstruct := repeat deconstruct'.
+
+  Lemma deref_correct : forall uvars vars e w,
     exprD funcs uvars vars e wordT = Some w
-    -> deref e = Some (base, offset)
-    -> exists wb,
-      exprD funcs uvars vars base wordT = Some wb
-      /\ w = wb ^+ $(offset * 4).
+    -> match deref e with
+         | Nothing => True
+         | Constant base offset =>
+           exists wb,
+             exprD funcs uvars vars base wordT = Some wb
+             /\ w = wb ^+ $(offset * 4)
+         | Symbolic base nms nm =>
+           exists wb nmsV nmV,
+             exprD funcs uvars vars base wordT = Some wb
+             /\ exprD funcs uvars vars nms listStringT = Some nmsV
+             /\ exprD funcs uvars vars nm stringT = Some nmV
+             /\ w = wb ^+ $(variablePosition nmsV nmV)
+       end.
   Proof.
     destruct e; simpl deref; intuition; try discriminate.
     deconstruct.
-    simpl exprD in *.
+    
     match goal with
-      | [ _ : context[div4 ?N] |- _ ] => specialize (div4_correct N); destruct (div4 N)
-    end; try discriminate.
+      | [ |- context[div4 ?N] ] => specialize (div4_correct N);
+        destruct (div4 N)
+    end; intuition.
+    specialize (H0 _ (refl_equal _)); subst.
+    simpl in H.
     deconstruct.
-    specialize (H2 _ (refl_equal _)); subst.
     repeat (esplit || eassumption).
     repeat f_equal.
     unfold natToW.
     f_equal.
     omega.
+
+    simpl in H.
+    deconstruct.
+    destruct (exprD funcs uvars vars e0 listStringT); try discriminate.
+    destruct (exprD funcs uvars vars e1 stringT); try discriminate.
+    deconstruct; eauto 10.
   Qed.
 
   Lemma listIn_correct : forall uvars vars e ns, listIn e = Some ns
@@ -304,7 +398,7 @@ Section correctness.
     induction e; simpl; intuition; try discriminate.
     repeat match type of H with
              | Forall _ (_ :: _ :: nil) => inversion H; clear H; subst
-             | _ => deconstruct' idtac
+             | _ => deconstruct'
            end.
     inversion H4; clear H4; subst.
     clear H5.
@@ -387,12 +481,11 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 5 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
-    destruct p0.
+    generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
+
     generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
     specialize (HlistIn _ (refl_equal _)).
     rewrite HlistIn in *.
-
     repeat match goal with
              | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
                match goal with
@@ -411,7 +504,7 @@ Section correctness.
     destruct (exprD funcs uvars vars e0 valsT); try tauto.
     specialize (Hsym_sel _ (refl_equal _)).
     rewrite Hsym_sel.
-    specialize (Hderef _ _ _ H1 (refl_equal _)).
+    specialize (Hderef _ H1).
     destruct Hderef as [ ? [ ] ].
     subst.
     unfold types0 in H2.
@@ -487,6 +580,129 @@ Section correctness.
     rewrite Npow2_nat.
     apply nth_error_Some_length in Heq.
     omega.
+
+    (* Now the [Symbolic] case... *)
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *.
+    unfold types0 in *.
+    match type of H with
+      | (if ?E then _ else _) = _ => case_eq E
+    end; intuition; match goal with
+                      | [ H : _ = _ |- _ ] => rewrite H in *
+                    end; try discriminate.
+    simpl in H3, H4, H5.
+    apply andb_prop in H6; destruct H6.
+    apply andb_prop in H6; destruct H6.
+    intuition.
+    destruct (Hderef _ H1) as [ ? [ ? [ ] ] ]; clear Hderef; intuition; subst.
+    rewrite H10 in *.
+    rewrite H5 in *.
+    rewrite H11 in *.
+    specialize (H4 (ex_intro _ _ (refl_equal _))).
+    unfold Provable in H4.
+    injection H; clear H; intros; subst.
+    simpl exprD in *.
+    unfold types0 in *.
+    unfold Provable in *.
+    simpl exprD in *.
+    deconstruct.
+    rewrite H10 in *.
+    specialize (H3 (ex_intro _ _ (refl_equal _))).
+    specialize (H9 (ex_intro _ _ (refl_equal _))).
+    subst.
+    apply simplify_fwd in H2.
+    destruct H2.
+    destruct H.
+    destruct H.
+    destruct H2.
+    destruct H2.
+    destruct H2.
+    destruct H2.
+    destruct H5.
+    simpl in H.
+    simpl in H2.
+    simpl in H5.
+    destruct H5.
+    generalize (split_semp _ _ _ H2 H11); intro; subst.
+    apply simplify_bwd in H9.
+
+    Fixpoint variablePosition' (ns : list string) (nm : string) : nat :=
+      match ns with
+        | nil => O
+        | nm' :: ns' => if string_dec nm' nm then O
+          else S (variablePosition' ns' nm)
+      end.
+
+    specialize (smem_read_correct' _ _ _ _ (i := natToW (variablePosition' t x1)) H9); intro Hsmem.
+    rewrite wmult_comm in Hsmem.
+    rewrite <- natToW_times4 in Hsmem.
+    
+    Lemma variablePosition'_4 : forall nm ns,
+      variablePosition' ns nm * 4 = variablePosition ns nm.
+      induction ns; simpl; intuition.
+      destruct (string_dec a nm); intuition.
+    Qed.
+
+    rewrite variablePosition'_4 in Hsmem.
+    erewrite split_smem_get_word; eauto.
+    left.
+    unfold natToW in *.
+    rewrite Hsmem.
+    f_equal.
+    unfold Array.sel.
+    apply array_selN.
+    apply array_bound in H9.
+    rewrite wordToNat_natToWord_idempotent; auto.
+
+    Lemma nth_error_variablePosition' : forall nm ns,
+      In nm ns
+      -> nth_error ns (variablePosition' ns nm) = Some nm.
+      induction ns; simpl; intuition; subst.
+      destruct (string_dec nm nm); tauto.
+      destruct (string_dec a nm); intuition; subst; auto.
+    Qed.
+
+    apply nth_error_variablePosition'; auto.
+    rewrite length_toArray in *.
+    apply Nlt_in.
+    rewrite Nat2N.id.
+    rewrite Npow2_nat.
+
+    Lemma variablePosition'_length : forall nm ns,
+      In nm ns
+      -> (variablePosition' ns nm < length ns)%nat.
+      induction ns; simpl; intuition; subst.
+      destruct (string_dec nm nm); intuition.
+      destruct (string_dec a nm); omega.
+    Qed.
+
+    specialize (variablePosition'_length _ _ H4).
+    omega.
+
+    red.
+    apply array_bound in H9.    
+    repeat rewrite wordToN_nat.
+    rewrite wordToNat_natToWord_idempotent.
+    rewrite wordToNat_natToWord_idempotent.
+    apply Nlt_in.
+    repeat rewrite Nat2N.id.
+    rewrite length_toArray.
+    apply variablePosition'_length; auto.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    assumption.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    specialize (variablePosition'_length _ _ H4).
+    rewrite length_toArray in H9.
+    omega.
   Qed.
 
   Theorem sym_write_correct : forall args uvars vars cs summ pe p ve v m stn args',
@@ -513,14 +729,11 @@ Section correctness.
   Proof.
     simpl; intuition.
     do 5 (destruct args; simpl in *; intuition; try discriminate).
-    generalize (deref_correct uvars vars pe); destr idtac (deref pe); intro Hderef.
-    destruct p0.
-    specialize (Hderef _ _ _ H1 (refl_equal _)).
-    destruct Hderef as [ ? [ ] ]; subst.
-    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn.
-    specialize (HlistIn _ (refl_equal _)).
-    rewrite HlistIn in *.
+    generalize (deref_correct uvars vars pe); destruct (deref pe); intro Hderef; try discriminate.
 
+    generalize (listIn_correct uvars vars e); destr idtac (listIn e); intro HlistIn;
+      specialize (HlistIn _ (refl_equal _)); rewrite HlistIn in *.
+    destruct (Hderef _ H1); clear Hderef; intuition; subst.
     repeat match goal with
              | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
                match goal with
@@ -532,9 +745,8 @@ Section correctness.
     match type of H with
       | (if ?E then _ else _) = _ => destruct E
     end; intuition; try discriminate.
-    simpl in H6.
+    simpl in H5.
     case_eq (nth_error l n); [ intros ? Heq | intro Heq ]; rewrite Heq in *; try discriminate.
-    rewrite H4 in *.
     injection H; clear H; intros; subst.
     unfold applyD.
     rewrite HlistIn.
@@ -542,7 +754,7 @@ Section correctness.
     destruct (exprD funcs uvars vars e0 valsT); try tauto.
     unfold Provable in H6.
     simpl in H6.
-    rewrite H4 in H6.
+    rewrite H5 in H6.
     destruct (exprD funcs uvars vars e1 natT); try tauto.
     destruct (exprD funcs uvars vars e2 wordT); try tauto.
     rewrite H2.
@@ -637,6 +849,137 @@ Section correctness.
     rewrite Npow2_nat.
     apply nth_error_Some_length in Heq.
     omega.
+
+
+    (* Now the [Symbolic] case... *)
+
+    destruct (Hderef _ H1) as [ ? [ ? [ ? [ ] ] ] ]; clear Hderef; intuition; subst.
+    repeat match goal with
+             | [ H : Valid _ _ _ _, _ : context[Prove Prover ?summ ?goal] |- _ ] =>
+               match goal with
+                 | [ _ : context[ValidProp _ _ _ goal] |- _ ] => fail 1
+                 | _ => specialize (Prove_correct Prover_correct summ H (goal := goal)); intro
+               end
+           end; unfold ValidProp in *.
+    unfold types0 in *.
+    match type of H with
+      | (if ?E then _ else _) = _ => case_eq E
+    end; intuition; match goal with
+                      | [ H : _ = _ |- _ ] => rewrite H in *
+                    end; try discriminate.
+    simpl in H7, H8, H9.
+    apply andb_prop in H10; destruct H10.
+    apply andb_prop in H10; destruct H10.
+    intuition.
+    injection H; clear H; intros; subst.
+    simpl applyD.
+    unfold Provable in *.
+    simpl exprD in *.
+    deconstruct.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H in *
+             | [ H : _ |- _ ] => specialize (H (ex_intro _ _ (refl_equal _))); subst
+           end.
+    apply simplify_fwd in H3.
+    destruct H3.
+    destruct H.
+    destruct H.
+    simpl in H.
+    destruct H3.
+    destruct H3.
+    destruct H3.
+    destruct H3.
+    simpl in H3.
+    destruct H9.
+    simpl in H9.
+    destruct H9.
+    apply simplify_bwd in H13.
+    generalize (split_semp _ _ _ H3 H14); intro; subst.
+    eapply smem_write_correct' in H13.
+    destruct H13 as [ ? [ ] ].
+    rewrite <- variablePosition'_4.
+    rewrite natToW_times4.
+    rewrite wmult_comm.
+    eapply split_set_word in H13.
+    destruct H13.
+    generalize (proj2 H); intro; subst.
+    rewrite H16.
+    apply simplify_bwd.
+    esplit.
+    esplit.
+    esplit.
+    simpl.
+    apply disjoint_split_join; auto.
+    esplit.
+    esplit.
+    esplit.
+    esplit.
+    simpl.
+    apply split_a_semp_a.
+    esplit.
+    simpl; intuition.
+    apply semp_smem_emp.
+    apply simplify_fwd.
+    unfold Array.upd in H15.
+    rewrite wordToNat_natToWord_idempotent in H15.
+
+    Lemma array_updN_variablePosition' : forall vs nm v ns,
+      NoDup ns
+      -> In nm ns
+      -> toArray ns (upd vs nm v) = updN (toArray ns vs) (variablePosition' ns nm) v.
+      induction 1; simpl; intuition; subst.
+      destruct (string_dec nm nm); try tauto.
+      rewrite toArray_irrel; auto.
+      unfold upd.
+      rewrite string_eq_true.
+      auto.
+
+      destruct (string_dec x nm); subst.
+      rewrite toArray_irrel; auto.
+      unfold upd.
+      rewrite string_eq_true.
+      auto.
+
+      unfold upd at 1.
+      rewrite string_eq_false by auto.
+      rewrite H1; auto.
+    Qed.
+    
+    rewrite array_updN_variablePosition'; auto.
+
+    apply array_bound in H15.
+    rewrite updN_length in H15.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    apply variablePosition'_length in H8.
+    rewrite length_toArray in H15.
+    omega.
+
+    assumption.
+    apply H.
+    rewrite length_toArray.
+    apply Nlt_in.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    rewrite wordToNat_natToWord_idempotent.
+    rewrite wordToNat_natToWord_idempotent.
+    apply variablePosition'_length; auto.
+    apply array_bound in H13.
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite Nat2N.id.
+    rewrite length_toArray in H13.
+    assumption.
+
+    apply Nlt_in.
+    rewrite Npow2_nat.
+    repeat rewrite wordToN_nat.
+    repeat rewrite Nat2N.id.
+    apply array_bound in H13.
+    generalize (variablePosition'_length _ _ H8).
+    rewrite length_toArray in H13.
+    omega.
   Qed.
 
 End correctness.
@@ -652,8 +995,8 @@ Theorem MemEvaluator_correct types' funcs' preds'
   (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types')).
 Proof.
   intros. eapply (@MemPredEval_To_MemEvaluator_correct (types types')); simpl; intros.
-  eapply sym_read_correct; eauto.
-  eapply sym_write_correct; eauto.
+  eapply (@sym_read_correct (types types')); eauto.
+  eapply (@sym_write_correct (types types')); eauto.
   reflexivity.
 Qed.
 
@@ -667,8 +1010,8 @@ Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvTyp
   (fun ts => Env.listOptToRepr (None :: None :: Some (ssig ts) :: nil)
     (SEP.Default_predicate (Env.repr types_r ts)
       (tvType 0) (tvType 1)))
-  (fun ts => MemEvaluator _)
-  (fun ts fs ps => MemEvaluator_correct _ _).
+  (fun ts => MemEvaluator (types ts))
+  (fun ts fs ps => @MemEvaluator_correct (types ts) _ _).
 
 
 (** * Some additional helpful theorems *)
@@ -751,6 +1094,7 @@ Lemma behold_the_array' : forall p ns,
   change (upd x1 x x0 x) with (sel (upd x1 x x0) x).
   rewrite sel_upd_eq by reflexivity.
   apply Himp_refl.
+
   rewrite toArray_irrel by assumption.
   apply Himp_refl.
 Qed.

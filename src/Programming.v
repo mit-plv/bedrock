@@ -198,25 +198,8 @@ Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
 Notation "x <-* y" := (Rv <- y;; x <- $[Rv])%SP (at level 90) : SP_scope.
 Notation "x *<- y" := (Rv <- x;; $[Rv] <- y)%SP (at level 90) : SP_scope.
 
-Fixpoint variableSlot' (ns : list string) (nm : string) : option nat :=
-  match ns with
-    | nil => None
-    | nm' :: ns' => if string_dec nm' nm then Some 4
-      else match variableSlot' ns' nm with
-             | None => None
-             | Some n => Some (4 + n)
-           end
-  end.
-
-Definition unboundVariable (ns : list string) (nm : string) :=
-  LvMem (Imm (wzero _)).
-Global Opaque unboundVariable.
-
 Definition variableSlot (nm : string) : lvalue' := fun ns =>
-  match variableSlot' ns nm with
-    | None => unboundVariable ns nm
-    | Some n => LvMem (Indir Sp n)
-  end.
+  LvMem (Indir Sp (4 + variablePosition ns nm)).
 
 Coercion variableSlot : string >-> lvalue'.
 
@@ -313,6 +296,7 @@ Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs
   (at level 89).
 
 Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
+Notation "'Ex' x : A , s" := (fun a b c d e => PropX.Exists (fun x : A => s a b c d e)).
 
 Record spec := {
   Reserved : nat;
