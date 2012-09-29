@@ -376,7 +376,7 @@ Section imports.
                          | [ |- blockOk _ _ _ ] => red
                          | [ _ : match ?E with Some _ => _ | None => _ end = Some _ |- _ ] => destrOpt E; [ | discriminate ]
                          | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
-                         | [ _ : match ?E with Some _ => _ | None => False end |- _ ] => destrOpt E; [ | tauto ]
+                         | [ _ : match ?E with Some _ => _ | None => _ end |- _ ] => destrOpt E; [ | tauto ]
                          | [ |- context[if ?E then _ else _] ] => destrOpt E
                          | [ H : ?E = None -> False |- _ ] =>
                            match E with
@@ -616,11 +616,13 @@ Section imports.
 
   (** * Direct jump *)
 
+  Inductive jumpToUnknownLabel (f : label) : Prop := .
+
   Definition Goto_ (f : label) : cmd.
     red; refine (fun pre => {|
       Postcondition := (fun _ => [|False|])%PropX;
       VerifCond := match LabelMap.find f imports with
-                     | None => False
+                     | None => jumpToUnknownLabel f
                      | Some pre' => forall stn_st specs, interp specs (pre stn_st)
                        -> interp specs (pre' stn_st)
                    end :: nil;
@@ -637,7 +639,7 @@ Section imports.
     red; refine (fun pre => {|
       Postcondition := afterCall;
       VerifCond := match LabelMap.find f imports with
-                     | None => False
+                     | None => jumpToUnknownLabel f
                      | Some pre' => forall stn st specs,
                        interp specs (pre (stn, st))
                        -> forall rp, specs rp = Some afterCall
@@ -652,12 +654,14 @@ Section imports.
 
   (** * Indirect jump *)
 
+  Inductive rvalueCrashes (rv : rvalue) : Prop := .
+
   Definition IGoto (rv : rvalue) : cmd.
     red; refine (fun pre => {|
       Postcondition := (fun _ => [|False|])%PropX;
       VerifCond := (forall specs stn st, interp specs (pre (stn, st))
         -> match evalRvalue stn st rv with
-             | None => False
+             | None => rvalueCrashes rv
              | Some w => exists pre', specs w = Some pre'
                /\ interp specs (pre' (stn, st))
            end) :: nil;
@@ -677,7 +681,7 @@ Section imports.
         interp specs (pre (stn, st))
         -> forall rp, specs rp = Some afterCall
           -> match evalRvalue stn {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |} rv with
-               | None => False
+               | None => rvalueCrashes rv
                | Some w => exists pre', specs w = Some pre'
                  /\ interp specs (pre' (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
              end) :: nil;
@@ -756,7 +760,7 @@ Module DefineStructured.
                          | [ |- blockOk _ _ _ ] => red
                          | [ _ : match ?E with Some _ => _ | None => _ end = Some _ |- _ ] => destrOpt E; [ | discriminate ]
                          | [ _ : match ?E with Some _ => _ | None => _ end = None -> False |- _ ] => destrOpt E; [ | tauto ]
-                         | [ _ : match ?E with Some _ => _ | None => False end |- _ ] => destrOpt E; [ | tauto ]
+                         | [ _ : match ?E with Some _ => _ | None => _ end |- _ ] => destrOpt E; [ | tauto ]
                          | [ |- context[if ?E then _ else _] ] => destrOpt E
                          | [ H : ?E = None -> False |- _ ] =>
                            match E with
