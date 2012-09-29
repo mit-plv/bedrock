@@ -129,7 +129,6 @@ Section ArrayBoundProver.
     destruct (exprD funcs uvars vars e0 wordT); auto.
     destruct (exprD funcs uvars vars e1 wordT); auto.
     Require Import Arrays.
-    SearchAbout length upd.
     rewrite upd_length; assumption.
   Qed.
 
