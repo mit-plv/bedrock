@@ -90,21 +90,23 @@ Hint Immediate pow2_pos.
 
 Hint Extern 1 (_ < _)%nat => omega.
 
-Hint Rewrite wordToN_nat Npow2_nat : N.
-
 Hint Rewrite roundTrip_0 roundTrip_1 wordToNat_natToWord_idempotent using assumption : Arr.
 
-Lemma next : forall sz (w : word (S sz)) bound,
-  w < bound
-  -> wordToNat w + 1 = wordToNat (w ^+ $1).
-  intros; rewrite wplus_alt; unfold wplusN, wordBinN.
+Section next.
+  Hint Rewrite wordToN_nat Npow2_nat : N.
+
+  Lemma next : forall sz (w : word (S sz)) bound,
+    w < bound
+    -> wordToNat w + 1 = wordToNat (w ^+ $1).
+    intros; rewrite wplus_alt; unfold wplusN, wordBinN.
     autorewrite with Arr.
-  symmetry; apply wordToNat_natToWord_idempotent.
-  apply Nlt_out in H; apply Nlt_in.
-  autorewrite with N in *.
-  specialize (wordToNat_bound bound).
-  omega.
-Qed.
+    symmetry; apply wordToNat_natToWord_idempotent.
+    apply Nlt_out in H; apply Nlt_in.
+    autorewrite with N in *.
+    specialize (wordToNat_bound bound).
+    omega.
+  Qed.
+End next.
 
 Hint Resolve next.
 
@@ -127,11 +129,15 @@ Qed.
 
 Hint Rewrite app_length using solve [ auto ] : Arr.
 
-Lemma goodSize_wordToNat : forall (w : W),
-  goodSize (wordToNat w).
-  intros; specialize (wordToNat_bound w); intros; unfold goodSize.
-  unfold W in *; generalize dependent 32; intros; nomega.
-Qed.
+Section goodSize_wordToNat.
+  Hint Rewrite wordToN_nat Npow2_nat : N.
+
+  Lemma goodSize_wordToNat : forall (w : W),
+    goodSize (wordToNat w).
+    intros; specialize (wordToNat_bound w); intros; unfold goodSize.
+    unfold W in *; generalize dependent 32; intros; nomega.
+  Qed.
+End goodSize_wordToNat.
 
 Hint Resolve goodSize_wordToNat.
 
