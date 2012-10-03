@@ -13,7 +13,8 @@ Section Wrap.
   Variable verifCond : assert -> list Prop.
 
   Hypothesis postcondition_ok : forall pre specs st,
-    interp specs ((body pre).(Postcondition) st)
+    vcs (verifCond pre)
+    -> interp specs ((body pre).(Postcondition) st)
     -> interp specs (postcondition pre st).
 
   Hypothesis verifCond_ok : forall pre,
@@ -47,7 +48,7 @@ Section Wrap.
               |- context[Labels _ ?k]  ] =>
             edestruct (H k) as [ ? [ ] ]; eauto;
               match goal with
-                | [ H : _ = _ |- _ ] => solve [ rewrite H; eauto ]
+                | [ H : _ = _ |- _ ] => solve [ rewrite H; eauto 6 ]
               end
           | [ |- context[LabelMap.add (_, Local ?Base) _ _] ] =>
             assert (Base < N.succ Base)%N by nomega;
