@@ -9,13 +9,7 @@ Section Wrap.
   Variable modName : string.
 
   Variable body : cmd imports modName.
-  Variable postcondition : assert -> assert.
   Variable verifCond : assert -> list Prop.
-
-  Hypothesis postcondition_ok : forall pre specs st,
-    vcs (verifCond pre)
-    -> interp specs ((body pre).(Postcondition) st)
-    -> interp specs (postcondition pre st).
 
   Hypothesis verifCond_ok : forall pre,
     vcs (verifCond pre)
@@ -32,7 +26,7 @@ Section Wrap.
     red; refine (fun pre =>
       let cout := body pre in
       {|
-        Postcondition := postcondition pre;
+        Postcondition := cout.(Postcondition);
         VerifCond := verifCond pre;
         Generate := fun Base Exit =>
         let cg := cout.(Generate) (Nsucc Base) Base in
