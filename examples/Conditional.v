@@ -22,10 +22,12 @@ Fixpoint bexpD (b : bexp) (stn : settings) (st : state) : option bool :=
                end
     | And b1 b2 => match bexpD b1 stn st, bexpD b2 stn st with
                      | Some v1, Some v2 => Some (v1 && v2)
+                     | Some false, None => Some false
                      | _, _ => None
                    end
     | Or b1 b2 => match bexpD b1 stn st, bexpD b2 stn st with
                     | Some v1, Some v2 => Some (v1 || v2)
+                    | Some true, None => Some true
                     | _, _ => None
                   end
   end.
@@ -35,14 +37,14 @@ Fixpoint bexpTrue (b : bexp) (stn : settings) (st : state) : Prop :=
     | Test rv1 t rv2 => evalCond rv1 t rv2 stn st = Some true
     | Not b => bexpFalse b stn st
     | And b1 b2 => bexpTrue b1 stn st /\ bexpTrue b2 stn st
-    | Or b1 b2 => bexpTrue b1 stn st \/ bexpTrue b2 stn st
+    | Or b1 b2 => bexpTrue b1 stn st \/ (bexpFalse b1 stn st /\ bexpTrue b2 stn st)
   end
 
 with bexpFalse (b : bexp) (stn : settings) (st : state) : Prop :=
   match b with
     | Test rv1 t rv2 => evalCond rv1 t rv2 stn st = Some false
     | Not b => bexpTrue b stn st
-    | And b1 b2 => bexpFalse b1 stn st \/ bexpFalse b2 stn st
+    | And b1 b2 => bexpFalse b1 stn st \/ (bexpTrue b1 stn st /\ bexpFalse b2 stn st)
     | Or b1 b2 => bexpFalse b1 stn st /\ bexpFalse b2 stn st
   end.
 
@@ -60,19 +62,17 @@ Theorem bexpD_truth : forall stn st b,
                  | context[match _ with None => _ | _ => _ end] => fail 1
                  | _ => case_eq E; intros
                end
-             | [ |- context[if ?E then _ else _] ] => case_eq E; intros
-           end; intuition; try discriminate;
-    repeat match goal with
-             | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; simpl in *; intuition
-           end.
+             | [ b : bool |- _ ] => destruct b; simpl in *
+             | [ |- context[if ?E then _ else _] ] => destruct E
+           end; intuition; try discriminate.
 Qed.
 
 Fixpoint bexpSafe (b : bexp) (stn : settings) (st : state) : Prop :=
   match b with
     | Test rv1 t rv2 => ~(evalCond rv1 t rv2 stn st = None)
     | Not b => bexpSafe b stn st
-    | And b1 b2 => bexpSafe b1 stn st /\ bexpSafe b2 stn st
-    | Or b1 b2 => bexpSafe b1 stn st /\ bexpSafe b2 stn st
+    | And b1 b2 => bexpSafe b1 stn st /\ (bexpTrue b1 stn st -> bexpSafe b2 stn st)
+    | Or b1 b2 => bexpSafe b1 stn st /\ (bexpFalse b1 stn st -> bexpSafe b2 stn st)
   end.
 
 Theorem bexpSafe_really : forall stn st b,
@@ -80,8 +80,12 @@ Theorem bexpSafe_really : forall stn st b,
   -> bexpD b stn st = None -> False.
   induction b; simpl; intuition;
     repeat match goal with
-             | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] => destruct E
-           end; intuition; discriminate.
+             | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
+               match E with
+                 | bexpD ?b ?stn ?st => specialize (bexpD_truth stn st b)
+               end; destruct E
+             | [ b : bool |- _ ] => destruct b
+           end; intuition; try discriminate.
 Qed.
 
 Fixpoint size (b : bexp) : nat :=

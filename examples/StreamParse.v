@@ -111,24 +111,22 @@ Section Parse.
   Definition ThenPre (pre : assert) : assert :=
     (fun stn_st => let (stn, st) := stn_st in
       Ex st', pre (stn, st')
-      /\ ExX, Ex V, Ex ws, Ex r,
-      ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st')
-      /\ [| matches p (suffix (wordToNat (sel V pos)) ws) |]
-      /\ ![ ^[array ws (sel V stream) * locals ("rp" :: ns)
-        (upd
-          (fold_left (fun V p => upd V (fst p) (snd p)) (binds p (suffix (wordToNat (sel V pos)) ws)) V)
-          pos (sel V pos ^+ $(length p))) r (Regs st Sp)]
-      * #0] (stn, st')
+      /\ (AlX, Al V, Al ws, Al r,
+        ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st')
+        /\ [| sel V size = length ws |]
+        ---> [| matches p (suffix (wordToNat (sel V pos)) ws)
+          /\ exists st'', evalInstrs stn st' nil = Some st''
+            /\ Mem st = Mem st''|])
       /\ [| Regs st Sp = Regs st' Sp |])%PropX.
 
   Definition ElsePre (pre : assert) : assert :=
     (fun stn_st => let (stn, st) := stn_st in
       Ex st', pre (stn, st')
-      /\ ExX, Ex V, Ex ws, Ex r,
+      /\ (AlX, Al V, Al ws, Al r,
         ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st')
-        /\ [| ~matches p (suffix (wordToNat (sel V pos)) ws)|]
-        /\ ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st)
-        /\ [| Regs st Sp = Regs st' Sp |])%PropX.
+        /\ [| sel V size = length ws |]
+        ---> [| ~matches p (suffix (wordToNat (sel V pos)) ws) |])
+      /\ [| Regs st Sp = Regs st' Sp /\ Mem st = Mem st' |])%PropX.
 
   (* Here's the raw parsing command, which we will later wrap with nicer VCs. *)
   Definition Parse1_ : cmd imports modName := fun pre =>
@@ -194,25 +192,63 @@ Section Parse.
 
   Opaque mult.
 
-  Lemma bexpSafe_guard : forall specs stn st ws V r fr posV,
+  Lemma bexpTrue_bound : forall specs stn st ws V r fr,
     interp specs
     (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
     -> In size ns
     -> ~In "rp" ns
-    -> Regs st Rp = sel V stream ^+ $4 ^* posV
+    -> forall p' offset, bexpTrue (guard p' offset) stn st
+      -> Regs st Rv <= sel V size.
+    clear H; induction p' as [ | [ ] ]; simpl; intuition eauto.
+
+    prep_locals; evaluate auto_ext; tauto.
+  Qed.
+
+  Theorem wle_goodSize : forall n m,
+    natToW n <= natToW m
+    -> goodSize n
+    -> goodSize m
+    -> (n <= m)%nat.
+    intros.
+    destruct (le_lt_dec n m); auto.
+    elimtype False.
+    apply H0.
+    apply Nlt_in.
+    autorewrite with N.
+    auto.
+  Qed.
+
+  Lemma bexpSafe_guard : forall specs stn st ws V r fr,
+    interp specs
+    (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
+    -> In size ns
+    -> ~In "rp" ns
+    -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
+    -> sel V size = $(length ws)
     -> forall p' offset,
-      (wordToNat posV + offset + length p' <= length ws)%nat
+      Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      -> goodSize (offset + wordToNat (sel V pos) + Datatypes.length p')
       -> bexpSafe (guard p' offset) stn st.
     clear H; induction p' as [ | [ ] ]; simpl; intuition.
 
     prep_locals; evaluate auto_ext.
 
+    apply IHp'.
+    rewrite H4; f_equal; omega.
+    eauto.
+
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
-      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat posV)))) IL.Eq w stn st) in *.
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+        in *.
     assert (goodSize (length ws)) by eauto.
-    assert (natToW (offset + wordToNat posV) < $(length ws)) by eauto.
-    
-    evaluate auto_ext.
+    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H6).
+    rewrite H3, H4.
+    intros.
+    apply wle_goodSize in H9; auto; eauto.
+
+    prep_locals; evaluate auto_ext.
+
     unfold evalCond; simpl.
     rewrite H2.
     match goal with
@@ -224,6 +260,122 @@ Section Parse.
     unfold natToW.
     rewrite natToWord_wordToNat.
     W_eq.
+
+    apply IHp'; eauto.
+    rewrite H4; f_equal; omega.
+  Qed.
+
+  Lemma bexpTrue_matches : forall specs stn st ws V r fr,
+    interp specs
+    (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
+    -> In size ns
+    -> ~In "rp" ns
+    -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
+    -> forall p' offset, bexpTrue (guard p' offset) stn st
+      -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      -> (offset + wordToNat (sel V pos) + length p' <= length ws)%nat
+      -> matches p' (suffix (offset + wordToNat (sel V pos)) ws).
+    clear H; induction p' as [ | [ ] ]; simpl; intuition.
+
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H6).
+    rewrite H4; intros.
+    rewrite suffix_remains in * by auto.
+    replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+        in *.
+    assert (natToW (offset + wordToNat (sel V pos)) < natToW (length ws))
+      by (apply lt_goodSize; eauto).
+    prep_locals; evaluate auto_ext.
+    split.
+    subst.
+    unfold Array.sel.
+    rewrite wordToNat_natToWord_idempotent; auto.
+    change (goodSize (offset + wordToNat (sel V pos))); eauto.
+    change (S (offset + wordToNat (sel V pos))) with (S offset + wordToNat (sel V pos)).
+    apply IHp'; auto.
+    rewrite H4; f_equal; omega.
+
+    unfold evalCond; simpl.
+    rewrite H2.
+    match goal with
+      | [ |- match ?E with None => _ | _ => _ end = match ?E' with None => _ | _ => _ end ] =>
+        replace E with E'; auto
+    end.
+    f_equal.
+    rewrite natToW_plus.
+    rewrite mult_comm; rewrite natToW_times4.
+    unfold natToW.
+    rewrite natToWord_wordToNat.
+    W_eq.
+
+    rewrite suffix_remains in * by auto.
+    change (S (offset + wordToNat (sel V pos))) with (S offset + wordToNat (sel V pos)).
+    apply IHp'; auto.
+    rewrite H4; f_equal; omega.
+  Qed.
+
+  Theorem le_goodSize : forall n m,
+    (n <= m)%nat
+    -> goodSize n
+    -> goodSize m
+    -> natToW n <= natToW m.
+    unfold goodSize, natToW, W; generalize 32; intros; nomega.
+  Qed.
+
+  Lemma bexpFalse_not_matches : forall specs stn st ws V r fr,
+    interp specs
+    (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
+    -> In size ns
+    -> ~In "rp" ns
+    -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
+    -> sel V size = $(length ws)
+    -> forall p' offset, bexpFalse (guard p' offset) stn st
+      -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      -> (offset + wordToNat (sel V pos) + length p' <= length ws)%nat
+      -> ~matches p' (suffix (offset + wordToNat (sel V pos)) ws).
+    clear H; induction p' as [ | [ ] ]; simpl; intuition.
+
+    prep_locals; evaluate auto_ext.
+    rewrite H3 in *.
+    apply le_goodSize in H6; eauto.
+
+    rewrite suffix_remains in * by auto.
+    intuition; subst.
+    eapply IHp'; eauto.
+    rewrite H5; f_equal; omega.
+
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H4).
+    rewrite H5; intros.
+    rewrite suffix_remains in * by auto.
+    replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+        in *.
+    assert (natToW (offset + wordToNat (sel V pos)) < natToW (length ws))
+      by (apply lt_goodSize; eauto).
+    prep_locals; evaluate auto_ext.
+    subst.
+    apply H15.
+    unfold Array.sel.
+    rewrite wordToNat_natToWord_idempotent; auto.
+    change (goodSize (offset + wordToNat (sel V pos))); eauto.
+
+    unfold evalCond; simpl.
+    rewrite H2.
+    match goal with
+      | [ |- match ?E with None => _ | _ => _ end = match ?E' with None => _ | _ => _ end ] =>
+        replace E with E'; auto
+    end.
+    f_equal.
+    rewrite natToW_plus.
+    rewrite mult_comm; rewrite natToW_times4.
+    unfold natToW.
+    rewrite natToWord_wordToNat.
+    W_eq.
+
+    rewrite suffix_remains in * by auto.
+    intuition; subst.
+    eapply IHp'; eauto.
+    rewrite H5; f_equal; omega.
   Qed.
 
   Ltac wrap :=
@@ -266,9 +418,7 @@ Section Parse.
           interp specs (pre (stn, st))
           -> interp specs (ExX, Ex V, Ex ws, Ex r,
             ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st)
-            /\ [| sel V size = length ws
-              /\ goodSize (length ws + length p)
-              /\ (wordToNat (sel V pos) + length p <= length ws)%nat  |]))%PropX
+            /\ [| sel V size = length ws /\ goodSize (wordToNat (sel V pos) + length p) |]))%PropX
         :: VerifCond (Then (ThenPre pre))
         ++ VerifCond (Else (ElsePre pre)))
       _); wrap.
@@ -277,25 +427,37 @@ Section Parse.
 
     clear_fancy; evaluate auto_ext.
     eapply bexpSafe_guard; eauto.
-    instantiate (4 := specs); step auto_ext.
-    auto.
+    instantiate (3 := specs); step auto_ext.
+    rewrite H1.
+    simpl.
+    rewrite natToW_plus.
+    f_equal.
+    symmetry; apply natToWord_wordToNat.
+    
+    (* needs [reads] reasoning *)
+    admit.
 
-    clear_fancy.
-    generalize dependent H14.
-    evaluate auto_ext.
-    clear H17; intro.
-    admit. (* Needs [reads] reasoning *)
+    (* needs [reads] reasoning *)
+    admit.
 
-    admit. (* Needs [reads] reasoning *)
-
-    generalize H13.
-    clear_fancy; evaluate auto_ext; intro Hold.
+    clear_fancy; evaluate auto_ext.
     eexists; split.
-    eauto.
-    repeat esplit; eauto.
-    apply simplify_fwd'; simpl; autorewrite with sepFormula; simpl; step auto_ext.
-    admit. (* Needs bexpFalse -> ~matches *)
-    apply simplify_fwd'; simpl; autorewrite with sepFormula; simpl; step auto_ext.
+    apply simplify_fwd; eassumption.
+    intuition.
+    autorewrite with sepFormula; simpl.
+    (* needs [array] and [locals] uniqueness reasoning *)
+    admit.
+
+    generalize H16; clear.
+    Transparent evalInstrs.
+    simpl.
+    repeat match goal with
+             | [ |- context[match ?E with None => _ | _ => _ end] ] =>
+               match E with
+                 | context[match _ with None => _ | _ => _ end] => fail 1
+                 | _ => destruct E
+               end
+           end; simpl; inversion 1; subst; reflexivity.
   Defined.
 
 End Parse.
