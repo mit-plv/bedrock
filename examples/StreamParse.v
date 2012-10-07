@@ -1351,16 +1351,13 @@ Section Parse.
   Definition Parse1 : cmd imports modName.
     refine (Wrap _ H _ Parse1_
       (fun pre =>
-        (N_of_nat (length ns) < Npow2 30)%N
-        :: In stream ns
+        In stream ns
         :: In size ns
         :: In pos ns
         :: (~In "rp" ns)
         :: patternBound p
         :: okVarName stream p
-        :: okVarName size p
         :: okVarName pos p
-        :: NoDup (stream :: size :: pos :: nil)
         :: (forall stn st specs,
           interp specs (pre (stn, st))
           -> interp specs (ExX, Ex V, Ex ws, Ex r,
