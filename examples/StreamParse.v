@@ -276,19 +276,24 @@ Section Parse.
     -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
     -> forall p' offset, bexpTrue (guard p' offset) stn st
       -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
-      -> (offset + wordToNat (sel V pos) + length p' <= length ws)%nat
+      -> (offset + wordToNat (sel V pos) <= length ws)%nat
+      -> sel V size = $(length ws)
+      -> goodSize (offset + wordToNat (sel V pos) + length p')
       -> matches p' (suffix (offset + wordToNat (sel V pos)) ws).
     clear H; induction p' as [ | [ ] ]; simpl; intuition.
 
-    specialize (bexpTrue_bound _ H H0 H1 _ _ H6).
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H8).
     rewrite H4; intros.
-    rewrite suffix_remains in * by auto.
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
       with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
         in *.
+    rewrite H6 in H3.
+    eapply wle_goodSize in H3.
+    rewrite suffix_remains in * by auto.
     assert (natToW (offset + wordToNat (sel V pos)) < natToW (length ws))
       by (apply lt_goodSize; eauto).
     prep_locals; evaluate auto_ext.
+
     split.
     subst.
     unfold Array.sel.
@@ -297,6 +302,9 @@ Section Parse.
     change (S (offset + wordToNat (sel V pos))) with (S offset + wordToNat (sel V pos)).
     apply IHp'; auto.
     rewrite H4; f_equal; omega.
+    eauto.
+    eauto.
+    eauto.
 
     unfold evalCond; simpl.
     rewrite H2.
@@ -311,10 +319,18 @@ Section Parse.
     rewrite natToWord_wordToNat.
     W_eq.
 
+
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H3).    
+    rewrite H4; intros.
+    rewrite H6 in H8.
+    eapply wle_goodSize in H8.
     rewrite suffix_remains in * by auto.
     change (S (offset + wordToNat (sel V pos))) with (S offset + wordToNat (sel V pos)).
     apply IHp'; auto.
     rewrite H4; f_equal; omega.
+    eauto.
+    eauto.
+    eauto.
   Qed.
 
   Theorem le_goodSize : forall n m,
@@ -323,6 +339,23 @@ Section Parse.
     -> goodSize m
     -> natToW n <= natToW m.
     unfold goodSize, natToW, W; generalize 32; intros; nomega.
+  Qed.
+
+  Theorem lt_goodSize' : forall n m,
+    natToW n < natToW m
+    -> goodSize n
+    -> goodSize m
+    -> (n < m)%nat.
+    unfold goodSize, natToW, W; generalize 32; intros.
+    pre_nomega.
+    repeat rewrite wordToNat_natToWord_idempotent in H0 by nomega.
+    assumption.
+  Qed.
+
+  Lemma suffix_none : forall n ls,
+    (n >= length ls)%nat
+    -> suffix n ls = nil.
+    induction n; destruct ls; simpl; intuition.
   Qed.
 
   Lemma bexpFalse_not_matches : forall specs stn st ws V r fr,
@@ -334,21 +367,32 @@ Section Parse.
     -> sel V size = $(length ws)
     -> forall p' offset, bexpFalse (guard p' offset) stn st
       -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
-      -> (offset + wordToNat (sel V pos) + length p' <= length ws)%nat
+      -> (offset + wordToNat (sel V pos) <= length ws)%nat
+      -> goodSize (offset + wordToNat (sel V pos) + length p')
       -> ~matches p' (suffix (offset + wordToNat (sel V pos)) ws).
     clear H; induction p' as [ | [ ] ]; simpl; intuition.
 
     prep_locals; evaluate auto_ext.
     rewrite H3 in *.
-    apply le_goodSize in H6; eauto.
+    apply lt_goodSize' in H13.
+    omega.
+    eauto.
+    eauto.
 
+
+    destruct (le_lt_dec (length ws) (offset + wordToNat (sel V pos))).
+    rewrite suffix_none in *; auto.
     rewrite suffix_remains in * by auto.
-    intuition; subst.
+    assert (natToW (offset + wordToNat (sel V pos)) < natToW (length ws))
+      by (apply lt_goodSize; eauto).
+    prep_locals; evaluate auto_ext.
     eapply IHp'; eauto.
     rewrite H5; f_equal; omega.
 
     specialize (bexpTrue_bound _ H H0 H1 _ _ H4).
     rewrite H5; intros.
+    destruct (le_lt_dec (length ws) (offset + wordToNat (sel V pos))).
+    rewrite suffix_none in *; auto.
     rewrite suffix_remains in * by auto.
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
       with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
@@ -357,7 +401,7 @@ Section Parse.
       by (apply lt_goodSize; eauto).
     prep_locals; evaluate auto_ext.
     subst.
-    apply H15.
+    apply H16.
     unfold Array.sel.
     rewrite wordToNat_natToWord_idempotent; auto.
     change (goodSize (offset + wordToNat (sel V pos))); eauto.
@@ -375,6 +419,8 @@ Section Parse.
     rewrite natToWord_wordToNat.
     W_eq.
 
+    destruct (le_lt_dec (length ws) (offset + wordToNat (sel V pos))).
+    rewrite suffix_none in *; auto.
     rewrite suffix_remains in * by auto.
     intuition; subst.
     eapply IHp'; eauto.
@@ -1058,7 +1104,7 @@ Section Parse.
             ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st)
             /\ [| sel V size = length ws
               /\ goodSize (wordToNat (sel V pos) + length p)
-              /\ (wordToNat (sel V pos) + length p <= length ws)%nat |]))%PropX
+              /\ (wordToNat (sel V pos) <= length ws)%nat |]))%PropX
         :: VerifCond (Then (ThenPre pre))
         ++ VerifCond (Else (ElsePre pre)))
       _); wrap.
@@ -1101,16 +1147,31 @@ Section Parse.
     eauto.
     destruct H14 as [ ? [ ] ].
     eapply reads_exec in H14; eauto.
-    2: instantiate (3 := specs); step auto_ext.
+    2: instantiate (4 := specs); step auto_ext.
     simpl in H14; destruct H14 as [V' [ ] ].
     evaluate auto_ext.
     simpl.
+    apply wle_goodSize.
+    rewrite natToW_plus.
+    unfold natToW; rewrite natToWord_wordToNat.    
+    change (fix length (l : list pattern0) : nat :=
+      match l with
+        | nil => 0
+        | _ :: l' => S (length l')
+      end) with (@length pattern0) in H1.
+    unfold natToW in H1, H12.
+    rewrite <- H1.
+    rewrite <- H12.
+    eapply bexpTrue_bound; eauto.
+    instantiate (4 := specs); step auto_ext.
+    assumption.
+    eauto.
     
 
     clear_fancy; generalize dependent H15; evaluate auto_ext; intro H15.
     apply evalInstrs_app_fwd in H15; destruct H15 as [ ? [ ] ].
     eapply reads_exec in H15; eauto.
-    2: instantiate (3 := specs); step auto_ext.
+    2: instantiate (4 := specs); step auto_ext.
     simpl in H15; destruct H15 as [V' [ ] ].
     evaluate auto_ext.
     eexists; split.
@@ -1119,6 +1180,24 @@ Section Parse.
     autorewrite with sepFormula; simpl.
     (* needs [array] and [locals] uniqueness reasoning *)
     admit.
+
+    simpl.
+    apply wle_goodSize.
+    rewrite natToW_plus.
+    unfold natToW; rewrite natToWord_wordToNat.    
+    change (fix length (l : list pattern0) : nat :=
+      match l with
+        | nil => 0
+        | _ :: l' => S (length l')
+      end) with (@length pattern0) in H1.
+    unfold natToW in H1, H12.
+    rewrite <- H1.
+    rewrite <- H12.
+    eapply bexpTrue_bound; eauto.
+    instantiate (4 := specs); step auto_ext.
+    assumption.
+    eauto.
+
 
     clear_fancy; evaluate auto_ext.
     eexists; split.
