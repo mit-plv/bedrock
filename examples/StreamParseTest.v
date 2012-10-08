@@ -25,14 +25,15 @@ Definition mainS := SPEC("req", "len") reserving 3
 Definition m := bmodule "m" {{
   bfunction "main"("req", "len", "pos", "x", "y") [mainS]
     "pos" <- 0;;
-    Match1 "req" Size "len" Position "pos" Pattern (0 ++ "x") {
-      Return "x"
-    } else {
-      Match1 "req" Size "len" Position "pos" Pattern (1 ++ "x" ++ "y") {
+    Match "req" Size "len" Position "pos" {
+      Case (0 ++ "x")
+        Return "x"
+      end;;
+      Case (1 ++ "x" ++ "y")
         Return "x" + "y"
-      } else {
-        Fail
-      }
+      end
+    } Default {
+      Fail
     }
   end
 }}.
