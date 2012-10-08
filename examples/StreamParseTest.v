@@ -26,17 +26,24 @@ Definition m := bmodule "m" {{
   bfunction "main"("req", "len", "pos", "x", "y") [mainS]
     "pos" <- 0;;
     Match1 "req" Size "len" Position "pos" Pattern (0 ++ "x") {
-      Diverge
+      Return "x"
     } else {
       Match1 "req" Size "len" Position "pos" Pattern (1 ++ "x" ++ "y") {
-        Diverge
+        Return "x" + "y"
       } else {
-        Diverge
+        Fail
       }
     }
   end
 }}.
 
+Ltac encode_case :=
+  match goal with
+    | [ H : context[match encode ?E with nil => _ | _ => _ end] |- _ ] =>
+      destruct E; simpl in *; intuition (try discriminate)
+  end.
+
 Theorem mOk : moduleOk m.
-  vcgen; abstract (parse0; post; evaluate auto_ext; parse1; sep_auto; parse2).
+  vcgen; abstract (parse0; post; evaluate auto_ext;
+    repeat (parse1; try encode_case; reveal_slots; evaluate auto_ext); sep_auto; parse2).
 Qed.
