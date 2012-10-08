@@ -112,15 +112,15 @@ Section Parse.
     (fun stn_st => let (stn, st) := stn_st in
       Ex st', pre (stn, st')
       /\ (AlX, Al V, Al ws, Al r,
-        ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp)] * #0] (stn, st')
+        ![ ^[array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st' Sp)] * #0] (stn, st')
         /\ [| sel V size = length ws |]
         ---> [| matches p (suffix (wordToNat (sel V pos)) ws)
           /\ exists st'', Mem st'' = Mem st'
+            /\ Regs st'' Sp = Regs st' Sp
             /\ evalInstrs stn st'' (map (fun p => Assign (variableSlot (fst p) ns) (RvImm (snd p)))
               (binds p (suffix (wordToNat (sel V pos)) ws))
               ++ Binop (variableSlot pos ns) (variableSlot pos ns) Plus (length p)
-              :: nil) = Some st |])
-      /\ [| Regs st Sp = Regs st' Sp |])%PropX.
+              :: nil) = Some st |]))%PropX.
 
   Definition ElsePre (pre : assert) : assert :=
     (fun stn_st => let (stn, st) := stn_st in
@@ -1382,7 +1382,7 @@ Section Parse.
                    edestruct (reads_exec _ _ H) as [V' [ ] ]; eauto; evaluate auto_ext
                end;
         try match goal with
-              | [ |- exists x, _ /\ _ ] => eexists; split; [ solve [ eauto ] | split; intros ];
+              | [ |- exists x, _ /\ _ ] => eexists; split; [ solve [ eauto ] | try split; intros ];
                 try (autorewrite with sepFormula; simpl; eapply Imply_trans; [
                   eapply unify; eauto
                   | apply inj_imply; intuition; subst; simpl in * ] )
@@ -1417,9 +1417,31 @@ Notation "'Match1' stream 'Size' size 'Position' pos 'Pattern' p { c1 } 'else' {
   (no associativity, at level 95, stream at level 0, size at level 0, pos at level 0, p at level 0) : SP_scope.
 
 Ltac parse0 := try solve [ intuition congruence ].
-Ltac parse1 := try match goal with
-                     | [ H : interp _ (![ _ ] _) |- _ ] => eapply sepFormula_Mem in H; [ | eassumption ]
-                   end.
+
+Ltac especialize H :=
+  repeat match type of H with
+           | forall x : ?T, _ =>
+             let v := fresh in evar (v : T); let v' := eval unfold v in v in clear v; specialize (H v')
+         end.
+
+Ltac parse1 :=
+  match goal with
+    | [ H : forall (a : _ -> _), _ |- _ ] =>
+      especialize H; post;
+      match goal with
+        | [ H : interp ?specs (?P ---> ?Q)%PropX |- _ ] =>
+          let H' := fresh in assert (H' : interp specs P) by (propxFo; step auto_ext || auto);
+            specialize (Imply_sound H H'); clear H H'; intro H
+      end; propxFo; autorewrite with StreamParse in *; simpl in *
+
+    | [ H : interp _ (![ _ ] _) |- _ ] => eapply sepFormula_Mem in H; [ | eassumption ]
+  end.
+
+Ltac reveal_slots :=
+  repeat match goal with
+           | [ H : evalInstrs _ _ _ = _ |- _ ] =>
+             progress unfold variableSlot in H; simpl in H
+         end.
 
 Hint Rewrite roundTrip_0 sel_upd_eq sel_upd_ne using congruence : StreamParse.
 
