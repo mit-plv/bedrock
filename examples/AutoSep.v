@@ -40,7 +40,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   Lambda__ Lambda_
 
   Wrap
-  Parse1 ParseOne
+  Parse1 ParseOne ParseOne'
 ].
 
 Ltac vcgen :=
