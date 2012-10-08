@@ -3,7 +3,8 @@ MODULES := Conditional Lambda Wrap Arr StreamParse \
            AutoSepExt PreAutoSep \
            AutoSep \
            LemmaTests \
-           Baby TrivialMem TrivialMem2 ConditionalTest LambdaTest \
+           Baby TrivialMem TrivialMem2 \
+           ConditionalTest LambdaTest StreamParseTest \
            Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \

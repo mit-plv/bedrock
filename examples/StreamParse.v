@@ -1350,6 +1350,8 @@ Section Parse.
 
   Definition Parse1 : cmd imports modName.
     refine (Wrap _ H _ Parse1_
+      (fun pre x => Postcondition (Then (ThenPre pre)) x
+        \/ Postcondition (Else (ElsePre pre)) x)%PropX
       (fun pre =>
         In stream ns
         :: In size ns
@@ -1367,7 +1369,7 @@ Section Parse.
               /\ (wordToNat (sel V pos) <= length ws)%nat |]))%PropX
         :: VerifCond (Then (ThenPre pre))
         ++ VerifCond (Else (ElsePre pre)))
-      _); abstract (wrap;
+      _ _); abstract (wrap;
         try match goal with
               | [ H : context[reads] |- _ ] => generalize dependent H
             end; evaluate auto_ext; intros; eauto;
@@ -1403,3 +1405,24 @@ Section Parse.
   Defined.
 
 End Parse.
+
+Definition ParseOne (stream size pos : string) (p : pattern) (Then Else : chunk) : chunk := fun ns res =>
+  Structured nil (fun _ _ H => Parse1 stream size pos p H (toCmd Then _ H ns res) (toCmd Else _ H ns res) ns).
+
+Infix "++" := (fun p1 p2 : pattern => app p1 p2) : pattern_scope.
+Delimit Scope pattern_scope with pattern.
+
+Notation "'Match1' stream 'Size' size 'Position' pos 'Pattern' p { c1 } 'else' { c2 }" :=
+  (ParseOne stream size pos p%pattern c1 c2)
+  (no associativity, at level 95, stream at level 0, size at level 0, pos at level 0, p at level 0) : SP_scope.
+
+Ltac parse0 := try solve [ intuition congruence ].
+Ltac parse1 := try match goal with
+                     | [ H : interp _ (![ _ ] _) |- _ ] => eapply sepFormula_Mem in H; [ | eassumption ]
+                   end.
+
+Hint Rewrite roundTrip_0 sel_upd_eq sel_upd_ne using congruence : StreamParse.
+
+Hint Extern 1 (_ <= _)%nat => omega : StreamParse.
+
+Ltac parse2 := autorewrite with StreamParse; auto with StreamParse.
