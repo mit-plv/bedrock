@@ -79,7 +79,6 @@ def print_phase_summary(summary):
     print tbl
 
 def print_file_data(data):
-    print data
     for (f, d) in data.items():
         print ""
         if 'SUMMARY' in d:
