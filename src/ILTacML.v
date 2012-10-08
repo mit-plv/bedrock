@@ -155,6 +155,7 @@ Ltac sym_eval isConst ext simplifier :=
                     let k :=
                         (fun types funcs uvars preds rp sp rv is isP fin pures proofs => 
                            (*TIME       stop_timer "sym_eval:reify" ; *)
+                           (*TIME       start_timer "sym_eval:apply" ; *)
 
                         generalize (@SymILTac.stateD_proof_no_heap types funcs preds
                                              uvars st sp rv rp 
@@ -166,8 +167,11 @@ Ltac sym_eval isConst ext simplifier :=
                             (@ILAlgoTypes.Algos ext types) (@ILAlgoTypes.Algos_correct ext types funcs preds)
                             stn uvars fin st is isP) in H_stateD)
                              || fail 100000 "couldn't apply sym_eval_any! (non-SF case)"); 
+                           (*TIME       stop_timer "sym_eval:apply" ; *)
+                           (*TIME       start_timer "sym_eval:simplify" ; *)
                           first [ simplifier types funcs preds H_stateD | fail 100000 "simplifier failed! (non-SF)" ] ;
                           try clear types funcs preds ;
+                            (*TIME       stop_timer "sym_eval:simplify" ; *)
                           first [ finish H_stateD (*; clear_instrs all_instrs*) | fail 100000 "finisher failed! (non-SF)" ]
                         )                         
                     in
@@ -186,6 +190,7 @@ Ltac sym_eval isConst ext simplifier :=
                       | (?rv_v, ?rv_pf) =>                         
                         let k := (fun types funcs uvars preds rp sp rv is isP fin pures proofs SF => 
                            (*TIME       stop_timer "sym_eval:reify" ; *)
+                           (*TIME       start_timer "sym_eval:apply" ; *)
                                     
                                     
                                 apply (@SymILTac.stateD_proof types funcs preds
@@ -195,8 +200,11 @@ Ltac sym_eval isConst ext simplifier :=
                                             (@ILAlgoTypes.Algos ext types) (@ILAlgoTypes.Algos_correct ext types funcs preds)
                                         stn uvars fin st is isP) in H_interp) 
                                   ) ;
+                           (*TIME       stop_timer "sym_eval:apply" ; *)
+                           (*TIME       start_timer "sym_eval:simplify" ; *)
                             first [ simplifier types funcs preds H_interp | fail 100000 "simplifier failed! (SF)" ] ;
                             try clear types funcs preds ;
+                            (*TIME       stop_timer "sym_eval:simplify" ; *)
                             first [ finish H_interp (* ; clear_instrs all_instrs *) | fail 100000 "finisher failed! (SF)" ])
                         in                         (*TIME       start_timer "sym_eval:reify" ; *)
                           (sym_eval_sep  types funcs preds pures rp_v sp_v rv_v st SF k) || fail 10000  "bad enough"

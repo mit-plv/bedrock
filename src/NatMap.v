@@ -2,6 +2,7 @@ Require Import HintlessOrderedType HintlessFMapAVL.
 Require Import List.
 Require Import Setoid RelationClasses.
 Require Import Reflection.
+Require Import NPeano.
 
 Set Implict Arguments.
 Set Strict Implicit.
@@ -41,8 +42,13 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
       | Gt => fun pf => OrderedType.GT (lt:=lt) (nat_compare_Gt_gt _ _ pf)
     end (refl_equal _).
 
-  Definition eq_dec : forall x y : nat, {x = y} + {x <> y} := 
-    Peano_dec.eq_nat_dec.
+  Definition eq_dec (x y : nat) : {x = y} + {x <> y} :=
+    match beq_nat x y as r return 
+      beq_nat x y = r -> {x = y} + {x <> y} with
+      | true => fun pf => left (beq_nat_true _ _ pf) 
+      | false => fun pf => right (beq_nat_false _ _ pf)
+    end (refl_equal _).
+
 
 End Ordered_nat.
 
