@@ -709,49 +709,6 @@ Theorem roundTrip_1 : forall sz, wordToNat (natToWord (S sz) 1) = 1.
   induction sz; simpl in *; intuition.
 Qed.
 
-Lemma mult_2_lt_reg  : forall n m, 2 * n < 2 * m -> n < m.
-  intros.
-  case (lt_dec n m).
-  auto.
-  intro H'.
-  elimtype False.
-  assert (mult_2_plus: forall n, 2 * n = n + n) by (simpl; auto).
-  repeat rewrite mult_2_plus in H.
-
-  apply NPeano.Nat.le_ngt in H'.
-  assert (m + n <= n + n) by (apply plus_le_compat_r; auto).
-  assert (m + m <= m + n) by (apply plus_le_compat_l; auto).
-  assert (m + m <= n + n) by apply (le_trans _ _ _ H1 H0).
-  assert (m + m < m + m) by apply (le_lt_trans _ _ _ H2 H).
-  absurd (m + m < m + m); [apply lt_irrefl | auto].
-Qed.
-
-Theorem roundTrip : forall sz n:nat, (n < pow2 sz)%nat  ->
-                              wordToNat (natToWord sz n) = n.
-  induction sz.
-  simpl; intuition.
-  intuition.
-  simpl in *.
-
-  case_eq (mod2 n); intro n_eq.
-  rewrite (IHsz (div2 n)).
-  rewrite div2_odd; auto.
-  apply mult_2_lt_reg.  
-  rewrite div2_odd in H at 1.
-
-  assert (2 * div2 n < S (2 * div2 n)) by auto.
-  apply (lt_trans _ _ _ H0) in H.
-  simpl in *; auto.
-  auto.
-
-  rewrite (IHsz (div2 n)).
-  rewrite div2_even; auto.
-  apply mult_2_lt_reg.
-  rewrite div2_even in H at 1.
-  simpl in *; auto.
-  auto.
-Qed.
-
 Theorem mod2_WS : forall sz (x : word sz) b, mod2 (wordToNat (WS b x)) = b.
   intros. rewrite wordToNat_wordToNat'.
   destruct b; simpl.
