@@ -239,17 +239,17 @@ Definition hints : TacPackage.
 (*TIME Time *)Defined.
 
 Definition initS : spec := SPEC("size") reserving 0
-  Ex n,
+  Al n,
   PRE[V] [| V("size") = $(n) |] * [| freeable 4 (n+2) |] * 0 =?> (3 + n)
   POST[_] mallocHeap.
 
 Definition freeS : spec := SPEC("p", "n") reserving 1
-  Ex n,
+  Al n,
   PRE[V] [| V "n" = $(n) |] * [| V "p" <> 0 |] * [| freeable (V "p") (n+2) |] * V "p" =?> (2 + n) * mallocHeap
   POST[_] mallocHeap.
 
 Definition mallocS : spec := SPEC("n") reserving 4
-  Ex sz,
+  Al sz,
   PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * mallocHeap
   POST[R] [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2) * mallocHeap.
 
@@ -270,7 +270,7 @@ Definition mallocM := bmodule "malloc" {{
     "cur" <-* 0;;
     "prev" <- 0;;
 
-    [Ex sz, Ex len,
+    [Al sz, Al len,
       PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * V "prev" =*> V "cur" * freeList len (V "cur")
       POST[R] Ex p, Ex len', [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2)
         * V "prev" =*> p * freeList len' p]

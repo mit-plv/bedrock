@@ -3,19 +3,19 @@ Require Import AutoSep.
 (** * A trivial example to make sure the array proof automation isn't completely borked *)
 
 Definition readS : spec := SPEC("x") reserving 0
-  Ex ls,
+  Al ls,
   PRE[V] [| $3 < natToW (length ls) |] * array ls (V "x")
   POST[R] [| R = selN ls 3 |] * array ls (V "x").
 
 Definition writeS : spec := SPEC("x") reserving 0
-  Ex ls,
+  Al ls,
   PRE[V] [| $3 < natToW (length ls) |] * array ls (V "x")
   POST[_] array (updN ls 3 11) (V "x").
 
 Definition bump := map (fun w : W => w ^+ $1).
 
 Definition bumpS : spec := SPEC("arr", "len") reserving 3
-  Ex ls,
+  Al ls,
   PRE[V] [| V "len" = $(length ls) |] * array ls (V "arr")
   POST[_] array (bump ls) (V "arr").
 
@@ -32,7 +32,7 @@ Definition arrays := bmodule "read" {{
     Return 0
   end with bfunction "bump"("arr", "len", "i", "tmp", "tmp2") [bumpS]
     "i" <- 0;;
-    [Ex ls, Ex done, Ex pending,
+    [Al ls, Al done, Al pending,
       PRE[V] [| V "len" = $(length ls) |] * [| V "i" = $(length done) |] * [| ls = done ++ pending |]
         * array ls (V "arr")
       POST[_] Ex ls', [| ls' = done ++ bump pending |] * array ls' (V "arr") ]

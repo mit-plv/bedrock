@@ -3,7 +3,7 @@ Require Import AutoSep.
 (** * A trivial example to make sure the separation logic proof automation isn't completely borked *)
 
 Definition readS : spec := SPEC("x") reserving 1
-  Ex v,
+  Al v,
   PRE[V] V "x" =*> v
   POST[R] [| R = v |] * V "x" =*> v.
 

@@ -62,17 +62,17 @@ Section adt.
     POST[R] P empty R * mallocHeap.
 
   Definition isEmptyS : spec := SPEC("b") reserving res
-    Ex b,
+    Al b,
     PRE[V] P b (V "b") * mallocHeap
     POST[R] [| (b %= empty) \is R |] * P b (V "b") * mallocHeap.
 
   Definition enqueueS : spec := SPEC("b", "v1", "v2") reserving res
-    Ex b,
+    Al b,
     PRE[V] P b (V "b") * mallocHeap
     POST[_] P (b %+ (V "v1", V "v2")) (V "b") * mallocHeap.
 
   Definition dequeueS : spec := SPEC("b", "r") reserving res
-    Ex b,
+    Al b,
     PRE[V] [| ~(b %= empty) |] * P b (V "b") * V "r" =?> 2 * mallocHeap
     POST[_] Ex v1, Ex v2, P (b %- (v1, v2)) (V "b") * (V "r" ==*> v1, v2) * mallocHeap.
 End adt.

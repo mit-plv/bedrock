@@ -1452,7 +1452,7 @@ Ltac parse2 := autorewrite with StreamParse; auto with StreamParse.
 Definition ParseOne' stream size pos (pr : pattern * chunk) :=
   ParseOne stream size pos (fst pr) (snd pr).
 
-Notation "'Case' p c 'end'" := (p%pattern, c) (no associativity, at level 0, p at level 94) : Case_scope.
+Notation "'Case' p c 'end'" := (p%pattern, c) (no associativity, at level 0, p at level 94, only parsing) : Case_scope.
 Delimit Scope Case_scope with Case_.
 
 Notation "'Match' stream 'Size' size 'Position' pos { case1 ;; .. ;; caseN }" :=
@@ -1462,4 +1462,4 @@ Notation "'Match' stream 'Size' size 'Position' pos { case1 ;; .. ;; caseN }" :=
   (no associativity, at level 95, stream at level 0, size at level 0, pos at level 0,
     case1 at next level, caseN at next level) : SP_scope.
 
-Notation "'Default' { c }" := c (at level 0, no associativity) : SP_scope.
+Notation "'Default' { c }" := c (at level 0, no associativity, only parsing) : SP_scope.

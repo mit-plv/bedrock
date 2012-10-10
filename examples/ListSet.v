@@ -118,7 +118,7 @@ Definition uslM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
   end with bfunction "lookup"("s", "k", "tmp") [lookupS]
     "s" <-* "s";;
 
-    [Ex s, Ex n,
+    [Al s, Al n,
       PRE[V] usl' s n (V "s")
       POST[R] [| (V "k" %in s) \is R |] * usl' s n (V "s")]
     While ("s" <> 0) {
@@ -134,7 +134,7 @@ Definition uslM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     Return 0
   end with bfunction "add"("s", "k", "tmp", "tmp2") [addS]
     "tmp" <-- Call "usl"!"lookup"("s", "k")
-    [Ex s,
+    [Al s,
       PRE[V, R] [| (V "k" %in s) \is R |] * usl s (V "s") * mallocHeap
       POST[R'] usl (s %+ V "k") (V "s") * mallocHeap];;
 
@@ -142,7 +142,7 @@ Definition uslM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
       Return 0
     } else {
       "tmp" <-- Call "malloc"!"malloc"(0)
-      [Ex p,
+      [Al p,
         PRE[V, R] V "s" =*> p * R =?> 2
         POST[_] V "s" =*> R * (R ==*> V "k", p) ];;
 
@@ -157,7 +157,7 @@ Definition uslM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     "prev" <- "s";;
     "s" <-* "prev";;
 
-    [Ex s, Ex n,
+    [Al s, Al n,
       PRE[V] V "prev" =*> V "s" * usl' s n (V "s") * mallocHeap
       POST[R] Ex p, Ex n', V "prev" =*> p * usl' (s %- V "k") n' p * mallocHeap]
     While ("s" <> 0) {

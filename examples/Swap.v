@@ -3,7 +3,7 @@ Require Import AutoSep.
 (** Swapping two pointers *)
 
 Definition swapS : spec := SPEC("x", "y") reserving 2
-  Ex v, Ex w,
+  Al v, Al w,
   PRE[V] V "x" =*> v * V "y" =*> w
   POST[_] V "x" =*> w * V "y" =*> v.
 

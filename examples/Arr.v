@@ -4,7 +4,7 @@ Set Implicit Arguments.
 
 
 Definition copyS : spec := SPEC("dst", "src", "sz") reserving 3
-  Ex src, Ex dst,
+  Al src, Al dst,
   PRE[V] array src (V "src") * array dst (V "dst")
     * [| V "sz" = length src |] * [| V "sz" = length dst |]
   POST[_] array src (V "src") * array src (V "dst").
@@ -18,7 +18,7 @@ Definition array := bmodule "array" {{
   bfunction "copy"("dst", "src", "sz", "i", "to", "from") [copyS]
     "i" <- 0;;
 
-    [Ex src, Ex dst,
+    [Al src, Al dst,
       PRE[V] array src (V "src") * array dst (V "dst")
         * [| V "sz" = length src |] * [| V "sz" = length dst |]
         * [| agreeUpTo dst src (wordToNat (V "i")) |]
