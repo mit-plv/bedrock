@@ -75,17 +75,17 @@ Section adt.
     POST[R] P empty R * mallocHeap.
 
   Definition lookupS : spec := SPEC("s", "k") reserving res
-    Ex s,
+    Al s,
     PRE[V] P s (V "s") * mallocHeap
     POST[R] [| (V "k" %in s) \is R |] * P s (V "s") * mallocHeap.
 
   Definition addS : spec := SPEC("s", "k") reserving res
-    Ex s,
+    Al s,
     PRE[V] P s (V "s") * mallocHeap
     POST[_] P (s %+ V "k") (V "s") * mallocHeap.
 
   Definition removeS : spec := SPEC("s", "k") reserving res
-    Ex s,
+    Al s,
     PRE[V] P s (V "s") * mallocHeap
     POST[_] P (s %- V "k") (V "s") * mallocHeap.
 End adt.

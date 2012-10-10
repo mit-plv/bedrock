@@ -18,7 +18,7 @@ Definition reply (req : request) : W :=
   end.
 
 Definition mainS := SPEC("req", "len") reserving 3
-  Ex req,
+  Al req,
   PRE[V] [| V "len" = length (encode req) |] * array (encode req) (V "req")
   POST[R] [| R = reply req |] * array (encode req) (V "req").
 

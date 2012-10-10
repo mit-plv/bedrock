@@ -3,7 +3,7 @@ Require Import AutoSep.
 (** * Like TrivialMem, but tests use of equality prover in symbolic evaluation *)
 
 Definition readS : spec := SPEC("x", "y") reserving 1
-  Ex v,
+  Al v,
   PRE[V] V "x" =*> v
   POST[R] [| R = v |] * V "x" =*> v.
 

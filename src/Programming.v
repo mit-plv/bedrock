@@ -295,8 +295,8 @@ Notation "'PRE' [ vs ] pre 'POST' [ rv ] post" := (localsInvariant (fun vs _ => 
 Notation "'PRE' [ vs , rv ] pre 'POST' [ rv' ] post" := (localsInvariant (fun vs rv => pre%qspec%Sep) (fun vs rv rv' => post%qspec%Sep))
   (at level 89).
 
-Notation "'Ex' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
-Notation "'Ex' x : A , s" := (fun a b c d e => PropX.Exists (fun x : A => s a b c d e)).
+Notation "'Al' x , s" := (fun a b c d e => PropX.Exists (fun x => s a b c d e)).
+Notation "'Al' x : A , s" := (fun a b c d e => PropX.Exists (fun x : A => s a b c d e)).
 
 Record spec := {
   Reserved : nat;

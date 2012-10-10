@@ -39,12 +39,12 @@ Import Pair.
 Hint Immediate pair_extensional.
 
 Definition firstS : spec := SPEC("p") reserving 0
-  Ex a, Ex b,
+  Al a, Al b,
   PRE[V] pair a b (V "p")
   POST[R] [| R = a |] * pair a b (V "p").
 
 Definition updSecondS : spec := SPEC("p", "x") reserving 0
-  Ex a, Ex b,
+  Al a, Al b,
   PRE[V] pair a b (V "p")
   POST[_] pair a (V "x") (V "p").
 

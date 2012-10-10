@@ -109,7 +109,7 @@ Definition hints : TacPackage.
 (*TIME Time *)Defined.
 
 Definition removeMaxS : spec := SPEC("prev") reserving 6
-  Ex s, Ex t, Ex p,
+  Al s, Al t, Al p,
   PRE[V] V "prev" =*> p * [| p <> 0 |] * bst' s t p * mallocHeap
   POST[R] Ex t', Ex p', [| R %in s |] * [| s %> R %= empty |]
     * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap.
@@ -130,7 +130,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
   end with bfunction "lookup"("s", "k", "tmp") [lookupS]
     "s" <-* "s";;
 
-    [Ex s, Ex t,
+    [Al s, Al t,
       PRE[V] bst' s t (V "s") * mallocHeap
       POST[R] [| (V "k" %in s) \is R |] * bst' s t (V "s") * mallocHeap]
     While ("s" <> 0) {
@@ -153,7 +153,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     Return 0
   end with bfunction "add"("s", "k", "tmp") [addS]
     "tmp" <-* "s";;
-    [Ex s, Ex t,
+    [Al s, Al t,
       PRE[V] V "s" =*> V "tmp" * bst' s t (V "tmp") * mallocHeap
       POST[_] Ex t', Ex p', V "s" =*> p' * bst' (s %+ V "k") t' p' * mallocHeap]
     While ("tmp" <> 0) {
@@ -190,7 +190,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
   end with bfunction "removeMax"("prev", "s", "tmp") [removeMaxS]
     "s" <-* "prev";;
 
-    [Ex s, Ex t,
+    [Al s, Al t,
       PRE[V] [| V "s" <> 0 |] * V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
       POST[R] Ex t', Ex p', [| R %in s |] * [| s %> R %= empty |]
         * V "prev" =*> p' * bst' (s %- R) t' p' * mallocHeap ]
@@ -228,7 +228,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
     "prev" <- "s";;
     "s" <-* "prev";;
 
-    [Ex s, Ex t,
+    [Al s, Al t,
       PRE[V] V "prev" =*> V "s" * bst' s t (V "s") * mallocHeap
       POST[_] Ex t', Ex p', V "prev" =*> p' * bst' (s %- V "k") t' p' * mallocHeap ]
     While ("s" <> 0) {

@@ -52,12 +52,12 @@ Definition hints : TacPackage.
 Defined.
 
 Definition initS : spec := SPEC("f", "in", "out") reserving 7
-  Ex f,
+  Al f,
   PRE[V] goodMemo f (V "f") * [| V "out" = app f (V "in") |] * mallocHeap
   POST[R] memo f R * mallocHeap.
 
 Definition callS : spec := SPEC("m", "x") reserving 4
-  Ex f,
+  Al f,
   PRE[V] memo f (V "m")
   POST[R] [| R = app f (V "x") |] * memo f (V "m").
 
@@ -85,7 +85,7 @@ Definition memoizeM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free"
 
       "tmp" <-* "m";;
      "tmp" <-- ICall "tmp"("x")
-      [Ex f,
+      [Al f,
         PRE[V, R] [| R = app f (V "x") |] * memo f (V "m")
         POST[R'] [| R' = R |] * memo f (V "m") ];;
 

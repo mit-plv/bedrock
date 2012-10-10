@@ -273,7 +273,7 @@ Definition queueM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @
     }
   end with bfunction "enqueue"("b", "v1", "v2", "r", "tmp", "tmp2") [enqueueS]
     "r" <-- Call "malloc"!"malloc"(1)
-    [Ex b,
+    [Al b,
       PRE[V, R] queue b (V "b") * R =?> 3 * [| R <> 0 |] * [| freeable R 3 |]
       POST[_] queue (b %+ (V "v1", V "v2")) (V "b")];;
 

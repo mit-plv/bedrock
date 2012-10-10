@@ -3,7 +3,7 @@ Require Import AutoSep.
 (** Read from pointers in variables *)
 
 Definition indirS : spec := SPEC("x") reserving 1
-  Ex v,
+  Al v,
   PRE[V] V "x" =*> v
   POST[R] [| R = v |] * V "x" =*> v.
 
@@ -19,7 +19,7 @@ Theorem indirOk : moduleOk indir.
 Qed.
 
 Definition doubleIndirS : spec := SPEC("x") reserving 1
-  Ex p, Ex v,
+  Al p, Al v,
   PRE[V] V "x" =*> p * p =*> v
   POST[R] [| R = v |] * V "x" =*> p * p =*> v.
 

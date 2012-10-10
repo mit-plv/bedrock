@@ -79,22 +79,22 @@ Definition null A (ls : list A) : bool :=
   end.
 
 Definition nullS : spec := SPEC("x") reserving 0
-  Ex ls,
+  Al ls,
   PRE[V] sll ls (V "x")
   POST[R] [| R = null ls |] * sll ls (V "x").
 
 Definition lengthS : spec := SPEC("x") reserving 1
-  Ex ls,
+  Al ls,
   PRE[V] sll ls (V "x")
   POST[R] [| R = length ls |] * sll ls (V "x").
 
 Definition revS : spec := SPEC("x") reserving 3
-  Ex ls,
+  Al ls,
   PRE[V] sll ls (V "x")
   POST[R] sll (rev ls) R.
 
 Definition appendS : spec := SPEC("x", "y") reserving 2
-  Ex ls1, Ex ls2,
+  Al ls1, Al ls2,
   PRE[V] sll ls1 (V "x") * sll ls2 (V "y")
   POST[R] sll (ls1 ++ ls2) R.
 
@@ -107,7 +107,7 @@ Definition sllM := bmodule "sll" {{
     }
   end with bfunction "length"("x", "n") [lengthS]
     "n" <- 0;;
-    [Ex ls,
+    [Al ls,
       PRE[V] sll ls (V "x")
       POST[R] [| R = V "n" ^+ (length ls : W) |] * sll ls (V "x")]
     While ("x" <> 0) {
@@ -118,7 +118,7 @@ Definition sllM := bmodule "sll" {{
     Return "n"
   end with bfunction "rev"("x", "acc", "tmp1", "tmp2") [revS]
     "acc" <- 0;;
-    [Ex ls, Ex accLs,
+    [Al ls, Al accLs,
       PRE[V] sll ls (V "x") * sll accLs (V "acc")
       POST[R] Ex ls', [| ls' = rev_append ls accLs |] * sll ls' R ]
     While ("x" <> 0) {
@@ -136,7 +136,7 @@ Definition sllM := bmodule "sll" {{
       "r" <- "x";;
       "tmp" <- "x" + 4;;
       "tmp" <-* "tmp";;
-      [Ex p1, Ex x, Ex ls1, Ex ls2,
+      [Al p1, Al x, Al ls1, Al ls2,
         PRE[V] [| V "x" <> $0 |] * [| V "tmp" = p1 |]
           * V "x" =*> x * (V "x" ^+ $4) =*> p1 * sll ls1 p1 * sll ls2 (V "y")
         POST[R] [| R = V "r" |] * sll (x :: ls1 ++ ls2) (V "x") ]
