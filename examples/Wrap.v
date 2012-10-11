@@ -59,3 +59,55 @@ Section Wrap.
   Defined.
 
 End Wrap.
+
+
+(** * Some tactics useful in clients of [Wrap] *)
+
+Require Import Locals.
+
+Lemma four_plus_variablePosition : forall x ns',
+  ~In "rp" ns'
+  -> In x ns'
+  -> 4 + variablePosition ns' x = variablePosition ("rp" :: ns') x.
+  unfold variablePosition at 2; intros.
+  destruct (string_dec "rp" x); auto; subst; tauto.
+Qed.
+
+Ltac prep_locals :=
+  unfold variableSlot in *; repeat rewrite four_plus_variablePosition in * by assumption;
+    repeat match goal with
+             | [ H : In ?X ?ls |- _ ] =>
+               match ls with
+                 | "rp" :: _ => fail 1
+                 | _ =>
+                   match goal with
+                     | [ _ : In X ("rp" :: ls) |- _ ] => fail 1
+                     | _ => assert (In X ("rp" :: ls)) by (simpl; tauto)
+                   end
+               end
+           end.
+
+Ltac clear_fancy := repeat match goal with
+                             | [ H : importsGlobal _ |- _ ] => clear H
+                             | [ H : vcs _ |- _ ] => clear H
+                           end.
+
+Ltac wrap0 :=
+  intros;
+    repeat match goal with
+             | [ H : vcs nil |- _ ] => clear H
+             | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; intros; subst
+             | [ H : vcs (_ ++ _) |- _ ] => specialize (vcs_app_bwd1 _ _ H);
+               specialize (vcs_app_bwd2 _ _ H); clear H; intros
+           end; simpl;
+    repeat match goal with
+             | [ |- vcs nil ] => constructor
+             | [ |- vcs (_ :: _) ] => constructor
+             | [ |- vcs (_ ++ _) ] => apply vcs_app_fwd
+           end; propxFo;
+    try match goal with
+          | [ H : forall stn : settings, _, H' : interp _ _ |- _ ] =>
+            specialize (H _ _ _ H')
+        end.
+
+Ltac wrap1 := prep_locals; auto; clear_fancy.

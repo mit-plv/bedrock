@@ -298,6 +298,8 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
   end
 }}.
 
+Hint Rewrite Nat2N.id : N.
+
 Lemma exhausted_cases : forall a b : W, a <> b
   -> ~(a < b)
   -> a > b.

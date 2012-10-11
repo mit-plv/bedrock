@@ -56,15 +56,16 @@ Theorem Nge_in : forall n m, (nat_of_N n >= nat_of_N m)%nat
   apply nat_compare_ge; assumption.
 Qed.
 
+Ltac nsimp H := simpl in H; repeat progress (autorewrite with N in H; simpl in H).
+
 Ltac pre_nomega :=
   try (apply nat_of_N_eq || apply Nneq_in || apply Nlt_in || apply Nge_in); simpl;
     repeat (progress autorewrite with N; simpl);
     repeat match goal with
-             | [ H : _ <> _ |- _ ] => apply Nneq_out in H
-             | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H
+             | [ H : _ <> _ |- _ ] => apply Nneq_out in H; nsimp H
+             | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H; nsimp H
              | [ H : _ |- _ ] => (apply (f_equal nat_of_N) in H
-               || apply Nlt_out in H || apply Nge_out in H);
-             simpl in H; repeat progress (autorewrite with N in H; simpl in H)
+               || apply Nlt_out in H || apply Nge_out in H); nsimp H
            end.
 
 Ltac nomega := pre_nomega; omega || (unfold nat_of_P in *; simpl in *; omega).

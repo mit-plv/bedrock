@@ -1038,31 +1038,6 @@ Ltac simp := cbv beta; unfold In.
 
 (** ** Point-of-view switch at function call sites *)
 
-Theorem Himp_ex_c : forall T (P : T -> _) Q, 
-  (exists v, Q ===> (P v)) -> Q ===> (ex P).
-  intros; intro cs; apply himp_ex_c; firstorder.
-Qed.
-
-Theorem Himp_ex_star : forall T (P : T -> _) Q,
-  (star (ex P) Q) ===> (ex (fun x => star (P x) Q)).
-  intros; intro cs; apply himp_ex_star.
-Qed.
-
-Theorem Himp'_ex : forall T (P : T -> _) Q,
-  (forall x, (P x) ===> Q) ->
-  ex P ===> Q.
-  intros; intro cs; apply himp'_ex; firstorder.
-Qed.
-
-Theorem Himp_star_frame : forall P Q R S, 
-  P ===> Q -> R ===> S -> (star P R) ===> (star Q S).
-  intros; intro cs; apply himp_star_frame; auto.
-Qed.
-
-Theorem Himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
-  intros; intro cs; apply himp_star_comm.
-Qed.
-
 Lemma behold_the_array' : forall p ns,
   NoDup ns
   -> forall offset, allocated p offset (length ns)
@@ -1139,35 +1114,6 @@ Lemma behold_the_array : forall p ns,
   eapply Himp_trans; [ apply behold_the_array' | ]; auto.
   apply Himp_ex; intro.
   apply ptsto32m'_out.
-Qed.
-
-Theorem Himp_star_pure_c : forall P Q (F : Prop),
-  (F -> P ===> Q) -> (star (inj (PropX.Inj F)) P) ===> Q.
-  intros; intro; apply himp_star_pure_c; firstorder.
-Qed.
-
-Theorem Himp_star_assoc : forall P Q R,
-  (star (star P Q) R) ===> (star P (star Q R)).
-  intros; intro; apply himp_star_assoc.
-Qed.
-
-Theorem Himp_star_assoc' : forall P Q R,
-  (star P (star Q R)) ===> (star (star P Q) R).
-  intros; intro cs.
-  destruct (heq_star_assoc cs P Q R); auto.
-Qed.
-
-Theorem Himp_star_Emp' : forall P,
-  P ===> Emp * P.
-  intros; intro cs.
-  destruct (heq_star_emp_l cs P); auto.
-Qed.
-
-Theorem Himp_star_pure_cc : forall P Q (p : Prop),
-  p ->
-  P ===> Q ->
-  P ===> (star (inj (PropX.Inj p)) Q).
-  intros; intro; eapply himp_star_pure_cc; eauto.
 Qed.
 
 Lemma do_call' : forall ns ns' vs avail avail' p p',
@@ -1280,26 +1226,6 @@ Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
            end) with (p ^+ $(offset)) by (destruct offset; W_eq).
   apply Himp_star_frame.
   apply Himp_ex_c; eexists; apply Himp_refl.
-  auto.
-Qed.
-
-Theorem ptsto32m'_in : forall a vs offset,
-  ptsto32m _ a offset vs ===> ptsto32m' _ a offset vs.
-  induction vs; intros.
-
-  apply Himp_refl.
-
-  unfold ptsto32m', ptsto32m; fold ptsto32m; fold ptsto32m'.
-  replace (match offset with
-             | 0 => a
-             | S _ => a ^+ $ (offset)
-           end) with (a ^+ $(offset)) by (destruct offset; W_eq).
-  destruct vs.
-  simpl ptsto32m'.
-  eapply Himp_trans; [ | apply Himp_star_comm ].
-  apply Himp_star_Emp'.
-
-  apply Himp_star_frame; [ apply Himp_refl | ].
   auto.
 Qed.
 
@@ -1689,5 +1615,17 @@ Theorem prelude_out : forall ns ns' vs avail p,
   apply length_toArray.
   apply allocated_shift_base.
   rewrite app_length; words.
+  auto.
+Qed.
+
+Lemma toArray_sel : forall x V V' ns',
+  In x ns'
+  -> toArray ns' V' = toArray ns' V
+  -> sel V' x = sel V x.
+  unfold toArray; induction ns'; simpl; intuition.
+  subst.
+  injection H0; intros.
+  assumption.
+  injection H0.
   auto.
 Qed.
