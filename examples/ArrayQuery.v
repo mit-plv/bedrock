@@ -97,6 +97,16 @@ Section Query.
         /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
           ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
 
+  Definition bodyPre : assert :=
+    st ~> Ex wsPre, ExX, Ex vs, qspecOut (invPre wsPre (sel vs)) (fun PR =>
+      Ex ws, ![ ^[locals ("rp" :: ns) vs res st#Sp * array ws (sel vs arr) * PR] * #0 ] st
+      /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
+      /\ Ex wsPost, [| ws = wsPre ++ sel vs value :: wsPost |]
+      /\ sel vs "rp" @@ (st' ~>
+        [| st'#Sp = st#Sp |]
+        /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+          ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
+
   Definition expBound (e : exp) : Prop :=
     match e with
       | Const _ => True
@@ -142,7 +152,9 @@ Section Query.
               :: Binop Rv (variableSlot arr ns) Plus Rv
               :: Assign (variableSlot value ns) (LvMem (Reg Rv))
               :: nil))
-            Body)
+            (Seq_ H
+              (Structured.Assert_ _ _ bodyPre)
+              Body))
           (Skip_ _ _))
         (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil)))).
 
@@ -189,6 +201,39 @@ Section Query.
     induction qs; simpl; propxFo; eauto.
   Qed.
 
+  Lemma must_be_nil : forall (ind sz : W) (ws1 ws2 : list W),
+    sz <= ind
+    -> ind = length ws1
+    -> sz = length (ws1 ++ ws2)
+    -> goodSize (length (ws1 ++ ws2))
+    -> ws2 = nil.
+    intros; subst; rewrite app_length in *;
+      match goal with
+        | [ H : _ |- _ ] => eapply wle_goodSize in H; eauto
+      end; destruct ws2; simpl in *; auto; omega.
+  Qed.
+
+  Hint Extern 1 (_ = _) => eapply must_be_nil; solve [ eauto ].
+
+  Lemma length_app_nil : forall (w : W) A (ls : list A),
+    w = length (ls ++ nil)
+    -> w = length ls.
+    intros; rewrite app_length in *; simpl in *; subst; auto.
+  Qed.
+
+  Hint Immediate length_app_nil.
+
+  Hint Extern 1 (interp _ (_ ---> _)%PropX) => apply Imply_refl.
+
+  Theorem double_sel : forall V x,
+    sel (sel V) x = sel V x.
+    reflexivity.
+  Qed.
+
+  Hint Rewrite double_sel sel_upd_ne using congruence : Locals.
+
+  Ltac locals := intros; autorewrite with Locals; reflexivity.
+
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
       (fun _ st => Ex ws, ExX, Ex vs, qspecOut (invPre ws (sel vs)) (fun PR =>
@@ -198,66 +243,124 @@ Section Query.
           [| st'#Sp = st#Sp |]
           /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
             ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX
-      (fun _ =>
+      (fun pre =>
         In arr ns
         :: In size ns
         :: In index ns
         :: In value ns
         :: (~In "rp" ns)
+        :: (~(index = arr))
+        :: (~(size = index))
         :: conditionBound c
-        :: VerifCond (Body (st ~> Ex wsPre, ExX, Ex vs, qspecOut (invPre wsPre (sel vs)) (fun PR =>
-          Ex ws, ![ ^[locals ("rp" :: ns) vs res st#Sp * array ws (sel vs arr) * PR] * #0 ] st
-          /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
-          /\ Ex wsPost, [| ws = wsPre ++ sel vs value :: wsPost |]
-          /\ sel vs "rp" @@ (st' ~>
-            [| st'#Sp = st#Sp |]
-            /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
-              ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))))
+        :: (forall ws V V',
+          (forall x, x <> index -> sel V x = sel V' x)
+          -> invPre ws V = invPre ws V')
+        :: (forall V V',
+          (forall x, x <> index -> sel V x = sel V' x)
+          -> invPost V = invPost V')
+        :: (forall specs stn st, interp specs (pre (stn, st))
+          -> interp specs (ExX, Ex vs, qspecOut (invPre nil (sel vs)) (fun PR =>
+            Ex ws, ![ ^[locals ("rp" :: ns) vs res (Regs st Sp) * array ws (sel vs arr) * PR] * #0 ] (stn, st)
+            /\ [| sel vs size = length ws |]
+            /\ sel vs "rp" @@ (st' ~>
+              [| st'#Sp = Regs st Sp |]
+              /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+                ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+        :: VerifCond (Body bodyPre))
       _ _).
 
     wrap.
-    Opaque In variableSlot.
-    apply subst_qspecOut_fwd in H0; simpl in H0.
-    apply qspecOut_fwd in H0; simpl in H0; autorewrite with sepFormula in H0; simpl in H0; destruct H0.
-    apply simplify_fwd in H.
-    simpl in H.
-    destruct H; clear H.
-    repeat match goal with
-             | [ H : Logic.ex _ |- _ ] => destruct H
-             | [ H : _ /\ _ |- _ ] => destruct H
-           end.
-    subst.
-    apply simplify_bwd in H.
-    autorewrite with sepFormula in H; simpl in H.
-    destruct x; unfold fst, snd in *.
-    evaluate auto_ext.
-    propxFo.
-    assert (goodSize (length (x1 ++ x5))) by eauto.
-    rewrite H15 in H18.
-    rewrite H0 in H18.
-    rewrite app_length in *.
-    eapply wle_goodSize in H18; [ | eauto | eauto ].
-    assert (x5 = nil) by (destruct x5; simpl in H18; auto; omega).
-    subst.
-    descend.
-    apply subst_qspecOut_bwd; eapply qspecOut_bwd.
-    post.
-    rewrite app_nil_r in *.
-    step auto_ext.
-    step auto_ext.
-    rewrite H0; f_equal; omega.
-    descend.
-    step auto_ext.
-    descend.
-    step auto_ext.
-    descend.
-    step auto_ext.
-    descend.
-    step auto_ext.
-    rewrite app_nil_r.
-    apply Imply_refl.
 
-    (* VS *)
+    Ltac depropx H := apply simplify_fwd in H; simpl in H;
+      repeat match goal with
+               | [ H : Logic.ex ?P |- _ ] => destruct H;
+                 try match goal with
+                       | [ H : Logic.ex P |- _ ] => clear H
+                     end
+               | [ H : _ /\ _ |- _ ] => destruct H
+             end.
+
+    Ltac begin0 :=
+      match goal with
+        | [ x : (settings * state)%type |- _ ] => destruct x; unfold fst, snd in *
+        | [ H : forall x y z, _, H' : interp _ _ |- _ ] =>
+          specialize (H _ _ _ H')
+        | [ H : interp _ _ |- _ ] =>
+          (apply subst_qspecOut_fwd in H; simpl in H)
+          || (apply qspecOut_fwd in H; simpl in H; autorewrite with sepFormula in H; simpl in H; destruct H)
+        | [ H : interp _ (Ex x, _) |- _ ] => depropx H
+        | [ H : interp _ (ExX, _) |- _ ] => depropx H
+        | [ H : simplify _ _ _ |- _ ] =>
+          (apply simplify_bwd in H || (apply simplify_bwd' in H; unfold Substs in H);
+            simpl in H; autorewrite with sepFormula in H; simpl in H)
+      end.
+
+    Ltac begin := repeat begin0; subst; evaluate auto_ext;
+      try match goal with
+            | [ _ : sel _ size = natToW (length (_ ++ ?ws)) |- _ ] => assert (ws = nil) by auto; subst
+            | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+              generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
+                intros; eexists; exists nil
+          end.
+
+    Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend;
+      repeat match goal with
+               | [ H : _ = _ |- _ ] => rewrite H
+               | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] =>
+                 assert (y <> x) by congruence
+               | [ |- appcontext[invPost ?V] ] =>
+                 match goal with
+                   | [ |- appcontext[invPost ?V'] ] =>
+                     match V' with
+                       | V => fail 1
+                       | _ => match goal with
+                                | [ H : forall V : vals, _ |- _ ] => rewrite (H V V') by locals
+                              end
+                     end
+                 end
+             end;
+      try match goal with
+            | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
+            | _ => step auto_ext
+          end).
+
+    Ltac finish := repeat finish0.
+
+    Ltac t := begin; finish.
+
+    t.
+
+
+    wrap.
+
+
+    t.
+
+
+    t.
+
+
+    t.
+
+
+    admit.
+
+
+    admit.
+
+
+    admit.
+
+
+    admit.
+
+
+    admit.
+
+
+    admit.
+
+
     admit.
   Defined.
 
