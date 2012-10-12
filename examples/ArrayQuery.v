@@ -306,8 +306,7 @@ Section Query.
     Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend;
       repeat match goal with
                | [ H : _ = _ |- _ ] => rewrite H
-               | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] =>
-                 assert (y <> x) by congruence
+               | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
                | [ |- appcontext[invPost ?V] ] =>
                  match goal with
                    | [ |- appcontext[invPost ?V'] ] =>
