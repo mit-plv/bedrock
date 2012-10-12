@@ -1,5 +1,6 @@
 ROOT    := ..
-MODULES := Conditional Lambda Wrap Arr StreamParse \
+MODULES := Conditional Lambda Wrap Arr \
+           StreamParse ArrayQuery \
            AutoSepExt PreAutoSep \
            AutoSep \
            LemmaTests \
