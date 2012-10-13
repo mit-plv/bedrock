@@ -448,18 +448,31 @@ Section Query.
                 | [ H : context[v] |- _ ] => generalize v H
               end; locals_rewrite; rewrite sel_middle by eauto; intro v'; intros; do 3 eexists;
               apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd; apply qspecOut_bwd with v'
-            | [ Hf : bexpFalse _ _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
+            | [ Hf : bexpFalse (conditionOut c) _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
                 v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
-                _ : context[Array.sel (?wPre ++ ?wPost) ?u] |- _ ] =>
+                _ : context[Array.sel (?wPre ++ ?wPost) ?u], _ : _ = natToW (length ?L) |- _ ] =>
+              let Hf' := fresh in
+              match goal with
+                | [ _ : context[locals _ ?V' _ _] |- _ ] =>
+                  assert (Hf' : ~satisfies V' (length L) (sel V' value) c)
+                    by (eapply condition_not_satisfies; finish0)
+              end; clear Hf; rename Hf' into Hf;
               generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost) u))) by locals;
                 intros;
                   match goal with
-                    | [ H' : forall specs : codeSpec _ _, _ |- _ ] => eapply H' in Hf; [ |
-                      match goal with
-                        | [ |- context[qspecOut' _ ?v'] ] => equate v v'
-                      end; eauto
-                      | finish0
-                      | eapply condition_not_satisfies; solve [ finish0 ] ]
+                    | [ H' : forall specs : codeSpec _ _, _ |- _ ] =>
+                      change (forall specs stn st V ws v fr,
+                        ~satisfies V (Datatypes.length ws) (sel V value) c
+                        -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
+                          * qspecOut' (invPre ws V) v * fr] (stn, st))
+                        -> sel V index = length ws
+                        -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
+                          * qspecOut' (invPre (ws ++ sel V value :: nil) V) v' * fr] (stn, st))) in H';
+                      eapply H' in Hf; [ |
+                        match goal with
+                          | [ |- context[qspecOut' _ ?v'] ] => equate v v'
+                        end; eauto
+                        | finish0 ]
                   end; rewrite (H _ _ (upd
                     (upd V value (Array.sel (wPre ++ wPost) u)) index
                     (sel (upd V value (Array.sel (wPre ++ wPost) u)) index ^+ $1)))
@@ -487,13 +500,13 @@ Section Query.
 
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
-      (fun _ st => Ex ws, ExX, Ex vs, qspecOut (invPre ws (sel vs)) (fun PR =>
-        ![ ^[locals ("rp" :: ns) vs res st#Sp * array ws (sel vs arr) * PR] * #0 ] st
-        /\ [| sel vs size = length ws |]
-        /\ sel vs "rp" @@ (st' ~>
+      (fun _ st => Ex ws, ExX, Ex V, qspecOut (invPre ws (sel V)) (fun PR =>
+        ![ ^[locals ("rp" :: ns) V res st#Sp * array ws (sel V arr) * PR] * #0 ] st
+        /\ [| sel V size = length ws |]
+        /\ sel V "rp" @@ (st' ~>
           [| st'#Sp = st#Sp |]
-          /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
-            ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX
+          /\ Ex V', qspecOut (invPost ws (sel V) st'#Rv) (fun PO =>
+            ![ ^[locals ("rp" :: ns) V' res st#Sp * array ws (sel V arr) * PO] * #1 ] st'))))%PropX
       (fun pre =>
         (* Basic hygiene requirements *)
         In arr ns
@@ -518,34 +531,33 @@ Section Query.
 
         (* Precondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (pre (stn, st))
-          -> interp specs (ExX, Ex vs, qspecOut (invPre nil (sel vs)) (fun PR =>
-            Ex ws, ![ ^[locals ("rp" :: ns) vs res (Regs st Sp) * array ws (sel vs arr) * PR] * #0 ] (stn, st)
-            /\ [| sel vs size = length ws |]
-            /\ sel vs "rp" @@ (st' ~>
+          -> interp specs (ExX, Ex V, qspecOut (invPre nil (sel V)) (fun PR =>
+            Ex ws, ![ ^[locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V arr) * PR] * #0 ] (stn, st)
+            /\ [| sel V size = length ws |]
+            /\ sel V "rp" @@ (st' ~>
               [| st'#Sp = Regs st Sp |]
-              /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
-                ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+              /\ Ex V', qspecOut (invPost ws (sel V) st'#Rv) (fun PO =>
+                ![ ^[locals ("rp" :: ns) V' res (Regs st Sp) * array ws (sel V arr) * PO] * #1 ] st'))))%PropX)
 
         (* Loop invariant is preserved on no-op, when the current cell isn't a match. *)
         :: (forall specs stn st V ws v fr,
-          bexpFalse (conditionOut c) stn st
-          -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws V) v * fr] (stn, st))
+          ~satisfies V (length ws) (sel V value) c
+          -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws (sel V)) v * fr] (stn, st))
           -> sel V index = length ws
-          -> ~satisfies V (length ws) (sel V value) c
           -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-            * qspecOut' (invPre (ws ++ sel V value :: nil) V) v' * fr] (stn, st)))
+            * qspecOut' (invPre (ws ++ sel V value :: nil) (sel V)) v' * fr] (stn, st)))
 
         (* Postcondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (Postcondition (Body bodyPre) (stn, st))
-          -> interp specs (ExX, Ex wsPre, Ex this, Ex vs,
-            qspecOut (invPre (wsPre ++ this :: nil) (sel vs)) (fun PR =>
-              Ex ws, ![ ^[locals ("rp" :: ns) vs res (Regs st Sp) * array ws (sel vs arr) * PR] * #0 ] (stn, st)
-              /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
+          -> interp specs (ExX, Ex wsPre, Ex this, Ex V,
+            qspecOut (invPre (wsPre ++ this :: nil) (sel V)) (fun PR =>
+              Ex ws, ![ ^[locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V arr) * PR] * #0 ] (stn, st)
+              /\ [| sel V size = length ws /\ sel V index = length wsPre |]
               /\ Ex wsPost, [| ws = wsPre ++ this :: wsPost |]
-              /\ sel vs "rp" @@ (st' ~>
+              /\ sel V "rp" @@ (st' ~>
                 [| st'#Sp = Regs st Sp |]
-                /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
-                  ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+                /\ Ex V', qspecOut (invPost ws (sel V) st'#Rv) (fun PO =>
+                  ![ ^[locals ("rp" :: ns) V' res (Regs st Sp) * array ws (sel V arr) * PO] * #1 ] st'))))%PropX)
 
         (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
@@ -557,3 +569,14 @@ End Query.
 Definition ForArray (arr size index value : string) (c : condition) invPre invPost (Body : chunk) : chunk :=
   fun ns res => Structured nil (fun _ _ H => Query arr size index value c H invPre invPost
     (toCmd Body _ H ns res) ns res).
+
+Notation "[ 'After' ws 'Approaching' full 'PRE' [ V ] pre 'POST' [ R ] post ] 'For' index 'Holding' value 'in' arr 'Size' size 'Where' c { Body }" :=
+  (ForArray arr size index value c%ArrayQuery (fun ws V => pre%qspec%Sep)
+    (fun full V R => post%qspec%Sep) Body)
+  (no associativity, at level 95, index at level 0, value at level 0, arr at level 0, size at level 0,
+    c at level 0) : SP_scope.
+
+Ltac for0 := try solve [ intuition (try congruence);
+  repeat match goal with
+           | [ H : forall x : string, _ |- _ ] => rewrite H by congruence
+         end; reflexivity ].
