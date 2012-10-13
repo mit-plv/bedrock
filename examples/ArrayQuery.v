@@ -234,6 +234,8 @@ Section Query.
 
   Ltac locals := intros; autorewrite with Locals; reflexivity.
 
+  Hint Rewrite app_length natToW_plus DepList.pf_list_simpl : sepFormula.
+
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
       (fun _ st => Ex ws, ExX, Ex vs, qspecOut (invPre ws (sel vs)) (fun PR =>
@@ -244,6 +246,7 @@ Section Query.
           /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
             ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX
       (fun pre =>
+        (* Basic higiene requirements *)
         In arr ns
         :: In size ns
         :: In index ns
@@ -252,12 +255,16 @@ Section Query.
         :: (~(index = arr))
         :: (~(size = index))
         :: conditionBound c
+
+        (* Invariants are independent of values of some variables. *)
         :: (forall ws V V',
           (forall x, x <> index -> sel V x = sel V' x)
           -> invPre ws V = invPre ws V')
         :: (forall V V',
           (forall x, x <> index -> sel V x = sel V' x)
           -> invPost V = invPost V')
+
+        (* Precondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (pre (stn, st))
           -> interp specs (ExX, Ex vs, qspecOut (invPre nil (sel vs)) (fun PR =>
             Ex ws, ![ ^[locals ("rp" :: ns) vs res (Regs st Sp) * array ws (sel vs arr) * PR] * #0 ] (stn, st)
@@ -266,6 +273,20 @@ Section Query.
               [| st'#Sp = Regs st Sp |]
               /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
                 ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+
+        (* Postcondition implies loop invariant. *)
+        :: (forall specs stn st, interp specs (Postcondition (Body bodyPre) (stn, st))
+          -> interp specs (ExX, Ex wsPre, Ex this, Ex vs,
+            qspecOut (invPre (wsPre ++ this :: nil) (sel vs)) (fun PR =>
+              Ex ws, ![ ^[locals ("rp" :: ns) vs res (Regs st Sp) * array ws (sel vs arr) * PR] * #0 ] (stn, st)
+              /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
+              /\ Ex wsPost, [| ws = wsPre ++ this :: wsPost |]
+              /\ sel vs "rp" @@ (st' ~>
+                [| st'#Sp = Regs st Sp |]
+                /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+                  ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+
+        (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
       _ _).
 
@@ -301,9 +322,12 @@ Section Query.
             | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
               generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
                 intros; eexists; exists nil
+            | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+              generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
+                by locals; intros; eexists; exists (x ++ l :: nil)
           end.
 
-    Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend;
+    Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
       repeat match goal with
                | [ H : _ = _ |- _ ] => rewrite H
                | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
@@ -342,8 +366,7 @@ Section Query.
     t.
 
 
-    admit.
-
+    t.
 
     admit.
 
