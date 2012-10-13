@@ -12,12 +12,6 @@ Definition mainS := SPEC("arr", "len") reserving 3
   PRE[V] [| V "len" = length arr |] * array arr (V "arr")
   POST[R] [| R = countNonzero arr |] * array arr (V "arr").
 
-Notation "[ 'After' ws 'Approaching' full 'PRE' [ V ] pre 'POST' [ R ] post ] 'For' index 'Holding' value 'in' arr 'Size' size 'Where' c { Body }" :=
-  (ForArray arr size index value c%ArrayQuery (fun ws V => pre%qspec%Sep)
-    (fun full V R => post%qspec%Sep) Body)
-  (no associativity, at level 95, index at level 0, value at level 0, arr at level 0, size at level 0,
-    c at level 0) : SP_scope.
-
 Definition m := bmodule "m" {{
   bfunction "main"("arr", "len", "acc", "index", "value") [mainS]
     "acc" <- 0;;
@@ -34,22 +28,38 @@ Definition m := bmodule "m" {{
   end
 }}.
 
-Ltac for0 := try solve [ intuition (try congruence);
-  repeat match goal with
-           | [ H : forall x : string, _ |- _ ] => rewrite H by congruence
-         end; reflexivity ].
+Lemma countNonzero_app : forall ws2 ws1,
+  countNonzero (ws1 ++ ws2) = countNonzero ws1 + countNonzero ws2.
+  induction ws1; simpl; intuition;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; intuition.
+Qed.
+
+Lemma skip : forall val x,
+  wneb val 0 <> true
+  -> forall ws, x = natToW (countNonzero ws)
+    -> x = countNonzero (ws ++ val :: nil).
+  intros; subst; rewrite countNonzero_app; simpl;
+    unfold wneb, natToW in *;
+      match goal with
+        | [ |- context[if ?E then _ else _] ] => destruct E
+      end; intuition.
+Qed.
+
+Lemma increment : forall val x,
+  wneb val 0 = true
+  -> forall ws, x = natToW (countNonzero ws)
+    -> x ^+ $1 = natToW (countNonzero (ws ++ val :: nil)).
+  intros; subst; rewrite countNonzero_app; simpl;
+    unfold wneb, natToW in *;
+      match goal with
+        | [ |- context[if ?E then _ else _] ] => destruct E
+      end; discriminate || post; auto.
+Qed.
+
+Hint Immediate skip increment.
 
 Theorem mOk : moduleOk m.
-  vcgen; for0.
-
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto; auto.
-  admit.
-  admit.
-  sep_auto.
-  sep_auto.
-  sep_auto.
+  vcgen; abstract (for0; sep_auto; eauto).
 Qed.
