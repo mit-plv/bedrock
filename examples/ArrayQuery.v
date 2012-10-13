@@ -264,6 +264,106 @@ Section Query.
 
   Hint Resolve condition_safe.
 
+  Hint Extern 1 (weqb _ _ = true) => apply weqb_true_iff.
+
+  Lemma wneb_true : forall w1 w2,
+    w1 <> w2
+    -> wneb w1 w2 = true.
+    unfold wneb; intros; destruct (weq w1 w2); auto.
+  Qed.
+
+  Lemma wltb_true : forall w1 w2,
+    w1 < w2
+    -> wltb w1 w2 = true.
+    unfold wltb; intros; destruct (wlt_dec w1 w2); auto.
+  Qed.
+
+  Lemma wleb_true : forall w1 w2,
+    w1 <= w2
+    -> wleb w1 w2 = true.
+    unfold wleb; intros; destruct (weq w1 w2); destruct (wlt_dec w1 w2); auto.
+    elimtype False; apply n.
+    assert (wordToNat w1 = wordToNat w2) by nomega.
+    apply (f_equal (fun w => natToWord 32 w)) in H1.
+    repeat rewrite natToWord_wordToNat in H1.
+    assumption.
+  Qed.
+
+  Hint Resolve wneb_true wltb_true wleb_true.
+
+  Lemma bool_one : forall b,
+    b = true
+    -> b = false
+    -> False.
+    intros; congruence.
+  Qed.
+
+  Lemma weqb_false : forall w1 w2,
+    w1 <> w2
+    -> weqb w1 w2 = false.
+    unfold weqb; intros; generalize (weqb_true_iff w1 w2); destruct (Word.weqb w1 w2); intuition.
+  Qed.
+
+  Lemma wneb_false : forall w1 w2,
+    w1 = w2
+    -> wneb w1 w2 = false.
+    unfold wneb; intros; destruct (weq w1 w2); intuition.
+  Qed.
+
+  Lemma wltb_false : forall w1 w2,
+    w2 <= w1
+    -> wltb w1 w2 = false.
+    unfold wltb; intros; destruct (wlt_dec w1 w2); intuition.
+  Qed.
+
+  Lemma wleb_false : forall w1 w2,
+    w2 < w1
+    -> wleb w1 w2 = false.
+    unfold wleb; intros; destruct (weq w1 w2); destruct (wlt_dec w1 w2); intuition; nomega.
+  Qed.
+
+  Hint Resolve weqb_false wneb_false wltb_false wleb_false.
+
+  Lemma condition_satisfies' : forall specs V fr stn st,
+    interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * fr] (stn, st))
+    -> In index ns
+    -> In value ns
+    -> ~In "rp" ns
+    -> forall c', conditionBound c'
+      -> (bexpTrue (conditionOut c') stn st -> satisfies V (sel V index) (sel V value) c')
+      /\ (bexpFalse (conditionOut c') stn st -> ~satisfies V (sel V index) (sel V value) c').
+    clear_fancy; induction c'; simpl; intuition;
+      try (eapply bool_one; [ eassumption | ]);
+        match goal with
+          | [ _ : evalCond (expOut ?e1) ?t (expOut ?e2) _ _ = _ |- _ ] =>
+            destruct e1; destruct t; destruct e2; (simpl in *; prep_locals; evaluate auto_ext; auto)
+        end.
+  Qed.
+
+  Lemma condition_satisfies : forall specs V fr stn st ind val,
+    interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * fr] (stn, st))
+    -> In index ns
+    -> In value ns
+    -> ~In "rp" ns
+    -> sel V index = ind
+    -> sel V value = val
+    -> forall c', conditionBound c'
+      -> bexpTrue (conditionOut c') stn st
+      -> satisfies V ind val c'.
+    intros; subst; edestruct condition_satisfies'; eauto.
+  Qed.
+
+  Lemma condition_not_satisfies : forall specs V fr stn st,
+    interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * fr] (stn, st))
+    -> In index ns
+    -> In value ns
+    -> ~In "rp" ns
+    -> forall c', conditionBound c'
+      -> bexpFalse (conditionOut c') stn st
+      -> ~satisfies V (sel V index) (sel V value) c'.
+    intros; edestruct condition_satisfies'; eauto.
+  Qed.
+
 
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
@@ -381,6 +481,7 @@ Section Query.
                  end
              end;
       try match goal with
+            | [ |- satisfies _ _ _ _ ] => eapply condition_satisfies; solve [ finish0 ]
             | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
             | _ => step auto_ext
           end).
@@ -399,6 +500,19 @@ Section Query.
               | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
                 generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
                   by locals; intros; eexists; exists (x ++ l :: nil)
+              | [ _ : bexpTrue _ _ _, v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
+                  _ : _ = natToW (length (?wPre ++ ?wPost)) |- _ ] =>
+                generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost)
+                  (sel V index)))) by locals; intros;
+                destruct wPost; [ rewrite app_nil_r in *;
+                  repeat match goal with
+                           | [ H : _ = _ |- _ ] => rewrite H in *
+                         end; nomega
+                  | ];
+                match goal with
+                  | [ H : context[v] |- _ ] => generalize v H
+                end; locals_rewrite; rewrite sel_middle by eauto; intro v'; intros; do 3 eexists;
+                apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd; apply qspecOut_bwd with v'
               | [ Hf : bexpFalse _ _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
                   v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
                   _ : context[Array.sel (?wPre ++ ?wPost) ?u] |- _ ] =>
@@ -423,13 +537,13 @@ Section Query.
                         repeat match goal with
                                  | [ H : _ = _ |- _ ] => rewrite H in *
                                end; nomega
-                        | ]; subst;
+                        | ];
                       repeat match goal with
                                | [ H : interp _ _ |- _ ] => clear H
                              end; destruct Hf as [v']; evaluate auto_ext;
                       apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd;
                         generalize dependent v'; locals_rewrite; intros; apply qspecOut_bwd with v'
-            end; subst.
+            end.
 
     Ltac finish := repeat finish0.
 
@@ -462,7 +576,7 @@ Section Query.
     t.
 
 
-    admit.
+    t.
 
 
     t.
