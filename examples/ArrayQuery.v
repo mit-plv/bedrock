@@ -100,7 +100,8 @@ Section Query.
   Definition bodyPre : assert :=
     st ~> Ex wsPre, ExX, Ex vs, qspecOut (invPre wsPre (sel vs)) (fun PR =>
       Ex ws, ![ ^[locals ("rp" :: ns) vs res st#Sp * array ws (sel vs arr) * PR] * #0 ] st
-      /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
+      /\ [| sel vs size = length ws /\ sel vs index = length wsPre
+        /\ satisfies vs (sel vs index) (sel vs value) c |]
       /\ Ex wsPost, [| ws = wsPre ++ sel vs value :: wsPost |]
       /\ sel vs "rp" @@ (st' ~>
         [| st'#Sp = st#Sp |]
@@ -145,18 +146,18 @@ Section Query.
     (Straightline_ _ _ (Assign (variableSlot index ns) 0 :: nil))
     (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
       (Seq_ H
-        (Cond_ _ H _ (conditionOut c)
-          (Seq_ H
-            (Straightline_ _ _ (
-              Binop Rv (variableSlot index ns) Times 4
-              :: Binop Rv (variableSlot arr ns) Plus Rv
-              :: Assign (variableSlot value ns) (LvMem (Reg Rv))
-              :: nil))
+        (Straightline_ _ _ (
+          Binop Rv 4 Times (variableSlot index ns)
+          :: Binop Rv (variableSlot arr ns) Plus Rv
+          :: Assign (variableSlot value ns) (LvMem (Reg Rv))
+          :: nil))
+        (Seq_ H
+          (Cond_ _ H _ (conditionOut c)
             (Seq_ H
               (Structured.Assert_ _ _ bodyPre)
-              Body))
-          (Skip_ _ _))
-        (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil)))).
+              Body)
+            (Skip_ _ _))
+          (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil))))).
 
   Ltac wrap := wrap0; post; wrap1.
 
@@ -230,11 +231,22 @@ Section Query.
     reflexivity.
   Qed.
 
-  Hint Rewrite double_sel sel_upd_ne using congruence : Locals.
+  Hint Rewrite double_sel sel_upd_eq sel_upd_ne using congruence : Locals.
 
   Ltac locals := intros; autorewrite with Locals; reflexivity.
 
   Hint Rewrite app_length natToW_plus DepList.pf_list_simpl : sepFormula.
+
+  Lemma goodSize_middle : forall (pre : list W) mid post,
+    goodSize (length (pre ++ mid :: post))
+    -> goodSize (length pre).
+    intros; autorewrite with sepFormula in *; simpl in *; eauto.
+  Qed.
+
+  Hint Extern 1 (goodSize (length _)) => eapply goodSize_middle;
+    eapply containsArray_goodSize; [ eassumption | eauto ].
+
+  Hint Rewrite sel_middle using solve [ eauto ] : sepFormula.
 
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
@@ -246,7 +258,7 @@ Section Query.
           /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
             ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX
       (fun pre =>
-        (* Basic higiene requirements *)
+        (* Basic hygiene requirements *)
         In arr ns
         :: In size ns
         :: In index ns
@@ -254,14 +266,17 @@ Section Query.
         :: (~In "rp" ns)
         :: (~(index = arr))
         :: (~(size = index))
+        :: (~(value = index))
+        :: (~(value = size))
+        :: (~(value = arr))
         :: conditionBound c
 
         (* Invariants are independent of values of some variables. *)
         :: (forall ws V V',
-          (forall x, x <> index -> sel V x = sel V' x)
+          (forall x, x <> index -> x <> value -> sel V x = sel V' x)
           -> invPre ws V = invPre ws V')
         :: (forall V V',
-          (forall x, x <> index -> sel V x = sel V' x)
+          (forall x, x <> index -> x <> value -> sel V x = sel V' x)
           -> invPost V = invPost V')
 
         (* Precondition implies loop invariant. *)
@@ -273,6 +288,14 @@ Section Query.
               [| st'#Sp = Regs st Sp |]
               /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
                 ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
+
+        (* Loop invariant is preserved on no-op, when the current cell isn't a match. *)
+        :: (forall specs stn st V ws v fr,
+          bexpFalse (conditionOut c) stn st
+          -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws V) v * fr] (stn, st))
+          -> sel V index = length ws
+          -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
+            * qspecOut' (invPre (ws ++ sel V value :: nil) V) v' * fr] (stn, st)))
 
         (* Postcondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (Postcondition (Body bodyPre) (stn, st))
@@ -316,16 +339,14 @@ Section Query.
             simpl in H; autorewrite with sepFormula in H; simpl in H)
       end.
 
-    Ltac begin := repeat begin0; subst; evaluate auto_ext;
-      try match goal with
-            | [ _ : sel _ size = natToW (length (_ ++ ?ws)) |- _ ] => assert (ws = nil) by auto; subst
-            | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
-              generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
-                intros; eexists; exists nil
-            | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
-              generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
-                by locals; intros; eexists; exists (x ++ l :: nil)
-          end.
+    Ltac locals_rewrite :=
+      repeat match goal with
+               | [ H : _ = _ |- _ ] => rewrite H
+               | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
+                 rewrite (@sel_upd_ne V x v y) by congruence
+               | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
+                 rewrite (@sel_upd_eq V x v y) by congruence
+             end.
 
     Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
       repeat match goal with
@@ -346,6 +367,52 @@ Section Query.
             | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
             | _ => step auto_ext
           end).
+
+    Ltac begin := repeat begin0;
+      try match goal with
+            | [ _ : bexpFalse _ _ _, H : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _ |- _ ] =>
+              generalize dependent H
+          end;
+      evaluate auto_ext; intros; subst;
+        try match goal with
+              | [ _ : sel _ size = natToW (length (_ ++ ?ws)) |- _ ] => assert (ws = nil) by auto; subst
+              | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+                generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
+                  intros; eexists; exists nil
+              | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+                generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
+                  by locals; intros; eexists; exists (x ++ l :: nil)
+              | [ Hf : bexpFalse _ _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
+                  v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
+                  _ : context[Array.sel (?wPre ++ ?wPost) ?u] |- _ ] =>
+                generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost) u))) by locals;
+                  intros;
+                  match goal with
+                    | [ H' : forall specs : codeSpec _ _, _ |- _ ] => eapply H' in Hf; [ |
+                      match goal with
+                        | [ |- context[qspecOut' _ ?v'] ] => equate v v'
+                      end; eauto
+                      | finish0 ]
+                  end; rewrite (H _ _ (upd
+                    (upd V value (Array.sel (wPre ++ wPost) u)) index
+                    (sel (upd V value (Array.sel (wPre ++ wPost) u)) index ^+ $1)))
+                  in Hf by locals;
+                  intros; eexists;
+                    exists (wPre ++ Array.sel (wPre ++ wPost) u :: nil);
+                      exists (upd (upd V value (Array.sel (wPre ++ wPost) u)) index
+                        (sel (upd V value (Array.sel (wPre ++ wPost) u))
+                        index ^+ $1));
+                      destruct wPost; [ rewrite app_nil_r in *;
+                        repeat match goal with
+                                 | [ H : _ = _ |- _ ] => rewrite H in *
+                               end; nomega
+                        | ]; subst;
+                      repeat match goal with
+                               | [ H : interp _ _ |- _ ] => clear H
+                             end; destruct Hf as [v']; evaluate auto_ext;
+                      apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd;
+                        generalize dependent v'; locals_rewrite; intros; apply qspecOut_bwd with v'
+            end; subst.
 
     Ltac finish := repeat finish0.
 
@@ -368,7 +435,11 @@ Section Query.
 
     t.
 
-    admit.
+
+    t.
+
+
+    t.
 
 
     admit.
@@ -377,13 +448,10 @@ Section Query.
     admit.
 
 
-    admit.
+    t.
 
 
-    admit.
-
-
-    admit.
+    t.
   Defined.
 
 End Query.

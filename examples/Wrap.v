@@ -1,4 +1,4 @@
-Require Import Bedrock.
+Require Import Bedrock PreAutoSep.
 
 
 Import DefineStructured.
@@ -111,3 +111,119 @@ Ltac wrap0 :=
         end.
 
 Ltac wrap1 := prep_locals; auto; clear_fancy.
+
+
+(** * Useful facts about instruction sequences not changing parts of machine state *)
+
+Fixpoint scratchOnly (is : list instr) : Prop :=
+  match is with
+    | nil => True
+    | Assign (LvReg r) _ :: is' => r <> Sp /\ scratchOnly is'
+    | Binop (LvReg r) _ _ _ :: is' => r <> Sp /\ scratchOnly is'
+    | _ => False
+  end.
+
+Ltac matcher := repeat match goal with
+                         | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
+                           match E with
+                             | context[match _ with None => _ | _ => _ end] => fail 1
+                             | _ => destruct E; try discriminate
+                           end
+                         | [ |- context[match ?E with None => _ | _ => _ end] ] =>
+                           match E with
+                             | context[match _ with None => _ | _ => _ end] => fail 1
+                             | _ => destruct E; try discriminate
+                           end
+                       end.
+
+Transparent evalInstrs.
+
+Theorem scratchOnlySp : forall stn st' is st,
+  scratchOnly is
+  -> evalInstrs stn st is = Some st'
+  -> Regs st' Sp = Regs st Sp.
+  induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher; try congruence;
+    erewrite IHis by eassumption; apply rupd_ne; auto.
+Qed.
+
+Theorem scratchOnlyMem : forall stn st' is st,
+  scratchOnly is
+  -> evalInstrs stn st is = Some st'
+  -> Mem st' = Mem st.
+  induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher; try congruence;
+    erewrite IHis by eassumption; reflexivity.
+Qed.
+
+Theorem sepFormula_Mem : forall specs stn st st' P,
+  interp specs (![P] (stn, st))
+  -> Mem st' = Mem st
+  -> interp specs (![P] (stn, st')).
+  rewrite sepFormula_eq; unfold sepFormula_def; simpl; intros; congruence.
+Qed.
+
+Fixpoint spless (is : list instr) : Prop :=
+  match is with
+    | nil => True
+    | Assign (LvReg r) _ :: is' => r <> Sp /\ spless is'
+    | Binop (LvReg r) _ _ _ :: is' => r <> Sp /\ spless is'
+    | _ :: is' => spless is'
+  end.
+
+Theorem splessSp : forall stn st' is st,
+  spless is
+  -> evalInstrs stn st is = Some st'
+  -> Regs st' Sp = Regs st Sp.
+  induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher; try congruence;
+    erewrite IHis by eassumption; simpl; try rewrite rupd_ne by auto; auto.
+Qed.
+
+Theorem spless_app : forall is1 is2,
+  spless is1
+  -> spless is2
+  -> spless (is1 ++ is2).
+  induction is1 as [ | [ ] ]; simpl; intuition;
+    destruct l; intuition.
+Qed.
+
+Lemma evalInstrs_app_fwd_None : forall stn is2 is1 st,
+  evalInstrs stn st (is1 ++ is2) = None
+  -> evalInstrs stn st is1 = None
+  \/ (exists st', evalInstrs stn st is1 = Some st' /\ evalInstrs stn st' is2 = None).
+  induction is1; simpl; intuition eauto.
+  destruct (evalInstr stn st a); eauto.
+Qed.
+
+Lemma evalInstrs_app_fwd : forall stn is2 st' is1 st,
+  evalInstrs stn st (is1 ++ is2) = Some st'
+  -> exists st'', evalInstrs stn st is1 = Some st''
+    /\ evalInstrs stn st'' is2 = Some st'.
+  induction is1; simpl; intuition eauto.
+  destruct (evalInstr stn st a); eauto; discriminate.
+Qed.
+
+Lemma evalInstr_evalInstrs : forall stn st i,
+  evalInstr stn st i = evalInstrs stn st (i :: nil).
+  simpl; intros; destruct (evalInstr stn st i); auto.
+Qed.
+
+Lemma evalAssign_rhs : forall stn st lv rv rv',
+  evalRvalue stn st rv = evalRvalue stn st rv'
+  -> evalInstr stn st (Assign lv rv) = evalInstr stn st (Assign lv rv').
+  simpl; intros.
+  rewrite H; reflexivity.
+Qed.
+
+Hint Extern 1 (Mem _ = Mem _) =>
+  eapply scratchOnlyMem; [ | eassumption ];
+    simpl; intuition congruence.
+Hint Extern 1 (Mem _ = Mem _) =>
+  symmetry; eapply scratchOnlyMem; [ | eassumption ];
+    simpl; intuition congruence.
+
+Hint Resolve evalInstrs_app sepFormula_Mem.
+
+Hint Extern 2 (interp ?specs2 (![ _ ] (?stn2, ?st2))) =>
+  match goal with
+    | [ _ : interp ?specs1 (![ _ ] (?stn1, ?st1)) |- _ ] =>
+      solve [ equate specs1 specs2; equate stn1 stn2; equate st1 st2; step auto_ext ]
+  end.

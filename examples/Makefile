@@ -1,10 +1,10 @@
 ROOT    := ..
-MODULES := Conditional Lambda Wrap Arr \
-           StreamParse ArrayQuery \
+MODULES := Conditional Lambda \
            AutoSepExt PreAutoSep \
+           Wrap StreamParse ArrayQuery \
            AutoSep \
            LemmaTests \
-           Baby TrivialMem TrivialMem2 \
+           Baby TrivialMem TrivialMem2 Arr \
            ConditionalTest LambdaTest StreamParseTest \
            Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
