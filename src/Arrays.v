@@ -629,3 +629,22 @@ Theorem containsArray_goodSizex : forall cs P stn ls st,
 Qed.
 
 Hint Resolve containsArray_goodSizex.
+
+Theorem le_goodSize : forall n m,
+  (n <= m)%nat
+  -> goodSize n
+  -> goodSize m
+  -> natToW n <= natToW m.
+  unfold goodSize, natToW, W; generalize 32; intros; nomega.
+Qed.
+
+Theorem lt_goodSize' : forall n m,
+  natToW n < natToW m
+  -> goodSize n
+  -> goodSize m
+  -> (n < m)%nat.
+  unfold goodSize, natToW, W; generalize 32; intros.
+  pre_nomega.
+  repeat rewrite wordToNat_natToWord_idempotent in H by nomega.
+  assumption.
+Qed.

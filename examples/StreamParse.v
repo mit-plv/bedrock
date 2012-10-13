@@ -281,25 +281,6 @@ Section Parse.
     eauto.
   Qed.
 
-  Theorem le_goodSize : forall n m,
-    (n <= m)%nat
-    -> goodSize n
-    -> goodSize m
-    -> natToW n <= natToW m.
-    unfold goodSize, natToW, W; generalize 32; intros; nomega.
-  Qed.
-
-  Theorem lt_goodSize' : forall n m,
-    natToW n < natToW m
-    -> goodSize n
-    -> goodSize m
-    -> (n < m)%nat.
-    unfold goodSize, natToW, W; generalize 32; intros.
-    pre_nomega.
-    repeat rewrite wordToNat_natToWord_idempotent in H0 by nomega.
-    assumption.
-  Qed.
-
   Lemma suffix_none : forall n ls,
     (n >= length ls)%nat
     -> suffix n ls = nil.
@@ -376,21 +357,7 @@ Section Parse.
   Qed.
 
   Transparent evalInstrs.
-
-  Lemma evalInstrs_app_fwd : forall stn is2 st' is1 st,
-    evalInstrs stn st (is1 ++ is2) = Some st'
-    -> exists st'', evalInstrs stn st is1 = Some st''
-      /\ evalInstrs stn st'' is2 = Some st'.
-    induction is1; simpl; intuition eauto.
-    destruct (evalInstr stn st a); eauto; discriminate.
-  Qed.
-
   Opaque evalInstr.
-
-  Lemma evalInstr_evalInstrs : forall stn st i,
-    evalInstr stn st i = evalInstrs stn st (i :: nil).
-    simpl; intros; destruct (evalInstr stn st i); auto.
-  Qed.
 
   Lemma reads_nocrash : forall specs stn ws r fr,
     ~In "rp" ns
@@ -592,58 +559,6 @@ Section Parse.
     eauto using reads_exec'.
   Qed.
 
-  Lemma evalInstrs_app_fwd_None : forall stn is2 is1 st,
-    evalInstrs stn st (is1 ++ is2) = None
-    -> evalInstrs stn st is1 = None
-    \/ (exists st', evalInstrs stn st is1 = Some st' /\ evalInstrs stn st' is2 = None).
-    induction is1; simpl; intuition eauto.
-    destruct (evalInstr stn st a); eauto.
-  Qed.
-
-  Fixpoint scratchOnly (is : list instr) : Prop :=
-    match is with
-      | nil => True
-      | Assign (LvReg r) _ :: is' => r <> Sp /\ scratchOnly is'
-      | Binop (LvReg r) _ _ _ :: is' => r <> Sp /\ scratchOnly is'
-      | _ => False
-    end.
-
-  Ltac matcher := repeat match goal with
-                           | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
-                             match E with
-                               | context[match _ with None => _ | _ => _ end] => fail 1
-                               | _ => destruct E; try discriminate
-                             end
-                           | [ |- context[match ?E with None => _ | _ => _ end] ] =>
-                             match E with
-                               | context[match _ with None => _ | _ => _ end] => fail 1
-                               | _ => destruct E; try discriminate
-                             end
-                         end.
-
-  Theorem scratchOnlySp : forall stn st' is st,
-    scratchOnly is
-    -> evalInstrs stn st is = Some st'
-    -> Regs st' Sp = Regs st Sp.
-    induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher;
-      erewrite IHis by eassumption; apply rupd_ne; auto.
-  Qed.
-
-  Theorem scratchOnlyMem : forall stn st' is st,
-    scratchOnly is
-    -> evalInstrs stn st is = Some st'
-    -> Mem st' = Mem st.
-    induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher;
-      erewrite IHis by eassumption; reflexivity.
-  Qed.
-
-  Theorem sepFormula_Mem : forall specs stn st st' P,
-    interp specs (![P] (stn, st))
-    -> Mem st' = Mem st
-    -> interp specs (![P] (stn, st')).
-    rewrite sepFormula_eq; unfold sepFormula_def; simpl; intros; congruence.
-  Qed.
-
   Opaque evalInstrs.
 
   Lemma unify_V : forall specs stn st ws V r sp fr ws' V' r' fr',
@@ -736,24 +651,6 @@ Section Parse.
     apply Inj_I; intuition.
   Qed.
 
-  Fixpoint spless (is : list instr) : Prop :=
-    match is with
-      | nil => True
-      | Assign (LvReg r) _ :: is' => r <> Sp /\ spless is'
-      | Binop (LvReg r) _ _ _ :: is' => r <> Sp /\ spless is'
-      | _ :: is' => spless is'
-    end.
-
-  Transparent evalInstrs.
-
-  Theorem splessSp : forall stn st' is st,
-    spless is
-    -> evalInstrs stn st is = Some st'
-    -> Regs st' Sp = Regs st Sp.
-    induction is as [ | [ [ ] | [ ] ] ]; simpl; intuition; matcher;
-      erewrite IHis by eassumption; simpl; try rewrite rupd_ne by auto; auto.
-  Qed.
-
   Theorem splessReads : forall p' offset,
     spless (reads p' offset).
     induction p' as [ | [ ] ]; simpl; intuition.
@@ -762,6 +659,7 @@ Section Parse.
   Hint Resolve splessReads.
 
   Opaque evalInstr mult.
+  Transparent evalInstrs.
 
   Lemma simplify_reads : forall st' ws r fr stn specs p' offset st V,
     interp specs (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
@@ -859,13 +757,6 @@ Section Parse.
     generalize H19 H20 H22; clear; intros.
     Transparent evalInstr.
 
-    Lemma evalAssign_rhs : forall stn st lv rv rv',
-      evalRvalue stn st rv = evalRvalue stn st rv'
-      -> evalInstr stn st (Assign lv rv) = evalInstr stn st (Assign lv rv').
-      simpl; intros.
-      rewrite H0; reflexivity.
-    Qed.
-
     apply evalAssign_rhs.
     simpl.
     unfold evalInstr, evalRvalue, evalLvalue, evalLoc in *.
@@ -922,14 +813,6 @@ Section Parse.
 
   Opaque evalInstrs.
 
-  Theorem spless_app : forall is1 is2,
-    spless is1
-    -> spless is2
-    -> spless (is1 ++ is2).
-    induction is1 as [ | [ ] ]; simpl; intuition;
-      destruct l; intuition.
-  Qed.
-
   Lemma Rv_preserve : forall rv posV len,
     rv = posV ^+ $(len)
     -> rv = natToW (0 + wordToNat posV + len).
@@ -961,22 +844,8 @@ Section Parse.
 
   Opaque variablePosition.
 
-  Hint Extern 2 (interp ?specs2 (![ _ ] (?stn2, ?st2))) =>
-    match goal with
-      | [ _ : interp ?specs1 (![ _ ] (?stn1, ?st1)) |- _ ] =>
-        solve [ equate specs1 specs2; equate stn1 stn2; equate st1 st2; step auto_ext ]
-    end.
-
-  Hint Resolve Rv_preserve bexpSafe_guard guard_says_safe evalInstrs_app sepFormula_Mem
-    bexpFalse_not_matches simplify_reads.
-  Hint Extern 1 (Mem _ = Mem _) =>
-    eapply scratchOnlyMem; [ | eassumption ];
-      simpl; intuition congruence.
-  Hint Extern 1 (Mem _ = Mem _) =>
-    symmetry; eapply scratchOnlyMem; [ | eassumption ];
-      simpl; intuition congruence.
+  Hint Resolve Rv_preserve bexpSafe_guard guard_says_safe bexpFalse_not_matches simplify_reads.
   Hint Immediate sym_eq.
-
 
   Ltac wrap := wrap0; post; wrap1.
 
