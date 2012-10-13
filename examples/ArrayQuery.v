@@ -353,17 +353,136 @@ Section Query.
     intros; subst; edestruct condition_satisfies'; eauto.
   Qed.
 
-  Lemma condition_not_satisfies : forall specs V fr stn st,
+  Lemma condition_not_satisfies : forall specs V fr stn st ind val,
     interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * fr] (stn, st))
     -> In index ns
     -> In value ns
     -> ~In "rp" ns
+    -> sel V index = ind
+    -> sel V value = val
     -> forall c', conditionBound c'
       -> bexpFalse (conditionOut c') stn st
-      -> ~satisfies V (sel V index) (sel V value) c'.
-    intros; edestruct condition_satisfies'; eauto.
+      -> ~satisfies V ind val c'.
+    intros; subst; edestruct condition_satisfies'; eauto.
   Qed.
 
+  Ltac depropx H := apply simplify_fwd in H; simpl in H;
+    repeat match goal with
+             | [ H : Logic.ex ?P |- _ ] => destruct H;
+               try match goal with
+                     | [ H : Logic.ex P |- _ ] => clear H
+                   end
+             | [ H : _ /\ _ |- _ ] => destruct H
+           end.
+
+  Ltac begin0 :=
+    match goal with
+      | [ x : (settings * state)%type |- _ ] => destruct x; unfold fst, snd in *
+      | [ H : forall x y z, _, H' : interp _ _ |- _ ] =>
+        specialize (H _ _ _ H')
+      | [ H : interp _ _ |- _ ] =>
+        (apply subst_qspecOut_fwd in H; simpl in H)
+        || (apply qspecOut_fwd in H; simpl in H; autorewrite with sepFormula in H; simpl in H; destruct H)
+      | [ H : interp _ (Ex x, _) |- _ ] => depropx H
+      | [ H : interp _ (ExX, _) |- _ ] => depropx H
+      | [ H : simplify _ _ _ |- _ ] =>
+        (apply simplify_bwd in H || (apply simplify_bwd' in H; unfold Substs in H);
+          simpl in H; autorewrite with sepFormula in H; simpl in H)
+    end.
+
+  Ltac locals_rewrite :=
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+             | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
+               rewrite (@sel_upd_ne V x v y) by congruence
+             | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
+               rewrite (@sel_upd_eq V x v y) by congruence
+           end.
+
+  Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+             | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
+             | [ |- appcontext[invPost ?V] ] =>
+               match goal with
+                 | [ |- appcontext[invPost ?V'] ] =>
+                   match V' with
+                     | V => fail 1
+                     | _ => match goal with
+                              | [ H : forall V : vals, _ |- _ ] => rewrite (H V V') by locals
+                            end
+                   end
+               end
+           end;
+    try match goal with
+          | [ |- satisfies _ _ _ _ ] => eapply condition_satisfies; solve [ finish0 ]
+          | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
+          | _ => step auto_ext
+        end).
+
+  Ltac begin := repeat begin0;
+    try match goal with
+          | [ _ : bexpFalse _ _ _, H : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _ |- _ ] =>
+            generalize dependent H
+        end;
+    evaluate auto_ext; intros; subst;
+      try match goal with
+            | [ _ : sel _ size = natToW (length (_ ++ ?ws)) |- _ ] => assert (ws = nil) by auto; subst
+            | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+              generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
+                intros; eexists; exists nil
+            | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
+              generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
+                by locals; intros; eexists; exists (x ++ l :: nil)
+            | [ _ : bexpTrue _ _ _, v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
+                _ : _ = natToW (length (?wPre ++ ?wPost)) |- _ ] =>
+              generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost)
+                (sel V index)))) by locals; intros;
+              destruct wPost; [ rewrite app_nil_r in *;
+                repeat match goal with
+                         | [ H : _ = _ |- _ ] => rewrite H in *
+                       end; nomega
+                | ];
+              match goal with
+                | [ H : context[v] |- _ ] => generalize v H
+              end; locals_rewrite; rewrite sel_middle by eauto; intro v'; intros; do 3 eexists;
+              apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd; apply qspecOut_bwd with v'
+            | [ Hf : bexpFalse _ _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
+                v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
+                _ : context[Array.sel (?wPre ++ ?wPost) ?u] |- _ ] =>
+              generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost) u))) by locals;
+                intros;
+                  match goal with
+                    | [ H' : forall specs : codeSpec _ _, _ |- _ ] => eapply H' in Hf; [ |
+                      match goal with
+                        | [ |- context[qspecOut' _ ?v'] ] => equate v v'
+                      end; eauto
+                      | finish0
+                      | eapply condition_not_satisfies; solve [ finish0 ] ]
+                  end; rewrite (H _ _ (upd
+                    (upd V value (Array.sel (wPre ++ wPost) u)) index
+                    (sel (upd V value (Array.sel (wPre ++ wPost) u)) index ^+ $1)))
+                  in Hf by locals;
+                  intros; eexists;
+                    exists (wPre ++ Array.sel (wPre ++ wPost) u :: nil);
+                      exists (upd (upd V value (Array.sel (wPre ++ wPost) u)) index
+                        (sel (upd V value (Array.sel (wPre ++ wPost) u))
+                          index ^+ $1));
+                      destruct wPost; [ rewrite app_nil_r in *;
+                        repeat match goal with
+                                 | [ H : _ = _ |- _ ] => rewrite H in *
+                               end; nomega
+                        | ];
+                      repeat match goal with
+                               | [ H : interp _ _ |- _ ] => clear H
+                             end; destruct Hf as [v']; evaluate auto_ext;
+                      apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd;
+                        generalize dependent v'; locals_rewrite; intros; apply qspecOut_bwd with v'
+          end.
+
+  Ltac finish := repeat finish0.
+
+  Ltac t := begin; finish.
 
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
@@ -411,6 +530,7 @@ Section Query.
           bexpFalse (conditionOut c) stn st
           -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws V) v * fr] (stn, st))
           -> sel V index = length ws
+          -> ~satisfies V (length ws) (sel V value) c
           -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
             * qspecOut' (invPre (ws ++ sel V value :: nil) V) v' * fr] (stn, st)))
 
@@ -428,161 +548,11 @@ Section Query.
 
         (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
-      _ _).
-
-    wrap.
-
-    Ltac depropx H := apply simplify_fwd in H; simpl in H;
-      repeat match goal with
-               | [ H : Logic.ex ?P |- _ ] => destruct H;
-                 try match goal with
-                       | [ H : Logic.ex P |- _ ] => clear H
-                     end
-               | [ H : _ /\ _ |- _ ] => destruct H
-             end.
-
-    Ltac begin0 :=
-      match goal with
-        | [ x : (settings * state)%type |- _ ] => destruct x; unfold fst, snd in *
-        | [ H : forall x y z, _, H' : interp _ _ |- _ ] =>
-          specialize (H _ _ _ H')
-        | [ H : interp _ _ |- _ ] =>
-          (apply subst_qspecOut_fwd in H; simpl in H)
-          || (apply qspecOut_fwd in H; simpl in H; autorewrite with sepFormula in H; simpl in H; destruct H)
-        | [ H : interp _ (Ex x, _) |- _ ] => depropx H
-        | [ H : interp _ (ExX, _) |- _ ] => depropx H
-        | [ H : simplify _ _ _ |- _ ] =>
-          (apply simplify_bwd in H || (apply simplify_bwd' in H; unfold Substs in H);
-            simpl in H; autorewrite with sepFormula in H; simpl in H)
-      end.
-
-    Ltac locals_rewrite :=
-      repeat match goal with
-               | [ H : _ = _ |- _ ] => rewrite H
-               | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
-                 rewrite (@sel_upd_ne V x v y) by congruence
-               | [ |- context[sel (upd ?V ?x ?v) ?y] ] =>
-                 rewrite (@sel_upd_eq V x v y) by congruence
-             end.
-
-    Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
-      repeat match goal with
-               | [ H : _ = _ |- _ ] => rewrite H
-               | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
-               | [ |- appcontext[invPost ?V] ] =>
-                 match goal with
-                   | [ |- appcontext[invPost ?V'] ] =>
-                     match V' with
-                       | V => fail 1
-                       | _ => match goal with
-                                | [ H : forall V : vals, _ |- _ ] => rewrite (H V V') by locals
-                              end
-                     end
-                 end
-             end;
-      try match goal with
-            | [ |- satisfies _ _ _ _ ] => eapply condition_satisfies; solve [ finish0 ]
-            | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
-            | _ => step auto_ext
-          end).
-
-    Ltac begin := repeat begin0;
-      try match goal with
-            | [ _ : bexpFalse _ _ _, H : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _ |- _ ] =>
-              generalize dependent H
-          end;
-      evaluate auto_ext; intros; subst;
-        try match goal with
-              | [ _ : sel _ size = natToW (length (_ ++ ?ws)) |- _ ] => assert (ws = nil) by auto; subst
-              | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
-                generalize dependent v; rewrite (H nil (sel V) (sel (upd V index 0))) by locals;
-                  intros; eexists; exists nil
-              | [ v : domain (invPre (?x ++ ?l :: nil) (sel ?V)), H : forall ws : list W, _ |- _ ] =>
-                generalize dependent v; rewrite (H (x ++ l :: nil) (sel V) (sel (upd V index (sel V index ^+ $1))))
-                  by locals; intros; eexists; exists (x ++ l :: nil)
-              | [ _ : bexpTrue _ _ _, v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
-                  _ : _ = natToW (length (?wPre ++ ?wPost)) |- _ ] =>
-                generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost)
-                  (sel V index)))) by locals; intros;
-                destruct wPost; [ rewrite app_nil_r in *;
-                  repeat match goal with
-                           | [ H : _ = _ |- _ ] => rewrite H in *
-                         end; nomega
-                  | ];
-                match goal with
-                  | [ H : context[v] |- _ ] => generalize v H
-                end; locals_rewrite; rewrite sel_middle by eauto; intro v'; intros; do 3 eexists;
-                apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd; apply qspecOut_bwd with v'
-              | [ Hf : bexpFalse _ _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,
-                  v : domain (invPre ?l (sel ?V)), H : forall ws : list W, _,
-                  _ : context[Array.sel (?wPre ++ ?wPost) ?u] |- _ ] =>
-                generalize dependent v; rewrite (H _ _ (upd V value (Array.sel (wPre ++ wPost) u))) by locals;
-                  intros;
-                  match goal with
-                    | [ H' : forall specs : codeSpec _ _, _ |- _ ] => eapply H' in Hf; [ |
-                      match goal with
-                        | [ |- context[qspecOut' _ ?v'] ] => equate v v'
-                      end; eauto
-                      | finish0 ]
-                  end; rewrite (H _ _ (upd
-                    (upd V value (Array.sel (wPre ++ wPost) u)) index
-                    (sel (upd V value (Array.sel (wPre ++ wPost) u)) index ^+ $1)))
-                  in Hf by locals;
-                  intros; eexists;
-                    exists (wPre ++ Array.sel (wPre ++ wPost) u :: nil);
-                      exists (upd (upd V value (Array.sel (wPre ++ wPost) u)) index
-                        (sel (upd V value (Array.sel (wPre ++ wPost) u))
-                        index ^+ $1));
-                      destruct wPost; [ rewrite app_nil_r in *;
-                        repeat match goal with
-                                 | [ H : _ = _ |- _ ] => rewrite H in *
-                               end; nomega
-                        | ];
-                      repeat match goal with
-                               | [ H : interp _ _ |- _ ] => clear H
-                             end; destruct Hf as [v']; evaluate auto_ext;
-                      apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd;
-                        generalize dependent v'; locals_rewrite; intros; apply qspecOut_bwd with v'
-            end.
-
-    Ltac finish := repeat finish0.
-
-    Ltac t := begin; finish.
-
-    t.
-
-
-    wrap.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
-
-
-    t.
+      _ _); abstract (wrap; t).
   Defined.
 
 End Query.
+
+Definition ForArray (arr size index value : string) (c : condition) invPre invPost (Body : chunk) : chunk :=
+  fun ns res => Structured nil (fun _ _ H => Query arr size index value c H invPre invPost
+    (toCmd Body _ H ns res) ns res).
