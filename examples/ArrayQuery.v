@@ -121,7 +121,7 @@ Section Query.
       | Test e1 _ e2 => expBound e1 /\ expBound e2
       | Not c1 => conditionBound c1
       | And c1 c2 => conditionBound c1 /\ conditionBound c2
-      | Or c1 c2 => conditionBound c1 \/ conditionBound c2
+      | Or c1 c2 => conditionBound c1 /\ conditionBound c2
     end.
 
   Definition expOut (e : exp) : rvalue :=
@@ -247,6 +247,23 @@ Section Query.
     eapply containsArray_goodSize; [ eassumption | eauto ].
 
   Hint Rewrite sel_middle using solve [ eauto ] : sepFormula.
+
+  Lemma condition_safe : forall specs V fr stn st,
+    interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * fr] (stn, st))
+    -> In index ns
+    -> In value ns
+    -> ~In "rp" ns
+    -> forall c', conditionBound c'
+      -> bexpSafe (conditionOut c') stn st.
+    clear_fancy; induction c'; simpl; intuition;
+      match goal with
+        | [ _ : evalCond (expOut ?e1) _ (expOut ?e2) _ _ = None |- _ ] =>
+          destruct e1; destruct e2; (simpl in *; prep_locals; evaluate auto_ext)
+      end.
+  Qed.
+
+  Hint Resolve condition_safe.
+
 
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
@@ -442,7 +459,7 @@ Section Query.
     t.
 
 
-    admit.
+    t.
 
 
     admit.
