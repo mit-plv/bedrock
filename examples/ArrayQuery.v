@@ -75,9 +75,10 @@ Section Query.
   Variable modName : string.
 
   Variable invPre : list W -> vals -> qspec.
-  Variable invPost : vals -> W -> qspec.
-  (* Loop invariant (precondition and postcondition), parameterized over list of cells already considered
-   * (parameter starts as [nil] and grows monotonically to full array) *)
+  (* Precondition part of loop invariant, parameterized over part of array visited already *)
+
+  Variable invPost : list W -> vals -> W -> qspec.
+  (* Postcondition part of loop invariant, parameterized over whole array *)
 
   Variables Body : cmd imports modName.
   (* Code to run on each matching array index *)
@@ -94,7 +95,7 @@ Section Query.
       /\ Ex wsPost, [| ws = wsPre ++ wsPost |]
       /\ sel vs "rp" @@ (st' ~>
         [| st'#Sp = st#Sp |]
-        /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+        /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
           ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
 
   Definition bodyPre : assert :=
@@ -105,7 +106,7 @@ Section Query.
       /\ Ex wsPost, [| ws = wsPre ++ sel vs value :: wsPost |]
       /\ sel vs "rp" @@ (st' ~>
         [| st'#Sp = st#Sp |]
-        /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+        /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
           ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
 
   Definition expBound (e : exp) : Prop :=
@@ -403,13 +404,13 @@ Section Query.
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
              | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
-             | [ |- appcontext[invPost ?V] ] =>
+             | [ |- appcontext[invPost _ ?V] ] => (has_evar V; fail 2) ||
                match goal with
-                 | [ |- appcontext[invPost ?V'] ] =>
+                 | [ |- appcontext[invPost _ ?V'] ] =>
                    match V' with
                      | V => fail 1
                      | _ => match goal with
-                              | [ H : forall V : vals, _ |- _ ] => rewrite (H V V') by locals
+                              | [ H : forall (_ : list W) (V : vals), _ |- _ ] => rewrite (H _ V V') by locals
                             end
                    end
                end
@@ -491,7 +492,7 @@ Section Query.
         /\ [| sel vs size = length ws |]
         /\ sel vs "rp" @@ (st' ~>
           [| st'#Sp = st#Sp |]
-          /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+          /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
             ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX
       (fun pre =>
         (* Basic hygiene requirements *)
@@ -511,9 +512,9 @@ Section Query.
         :: (forall ws V V',
           (forall x, x <> index -> x <> value -> sel V x = sel V' x)
           -> invPre ws V = invPre ws V')
-        :: (forall V V',
+        :: (forall ws V V',
           (forall x, x <> index -> x <> value -> sel V x = sel V' x)
-          -> invPost V = invPost V')
+          -> invPost ws V = invPost ws V')
 
         (* Precondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (pre (stn, st))
@@ -522,7 +523,7 @@ Section Query.
             /\ [| sel vs size = length ws |]
             /\ sel vs "rp" @@ (st' ~>
               [| st'#Sp = Regs st Sp |]
-              /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+              /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
                 ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
 
         (* Loop invariant is preserved on no-op, when the current cell isn't a match. *)
@@ -543,7 +544,7 @@ Section Query.
               /\ Ex wsPost, [| ws = wsPre ++ this :: wsPost |]
               /\ sel vs "rp" @@ (st' ~>
                 [| st'#Sp = Regs st Sp |]
-                /\ Ex vs', qspecOut (invPost (sel vs) st'#Rv) (fun PO =>
+                /\ Ex vs', qspecOut (invPost ws (sel vs) st'#Rv) (fun PO =>
                   ![ ^[locals ("rp" :: ns) vs' res (Regs st Sp) * array ws (sel vs arr) * PO] * #1 ] st'))))%PropX)
 
         (* Conditions of body are satisfied. *)
