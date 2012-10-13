@@ -2,8 +2,8 @@ Require Import PreAutoSep.
 
 Export PreAutoSep.
 
-Require Import Bool StreamParse.
-Export StreamParse.
+Require Import Bool StreamParse ArrayQuery.
+Export StreamParse ArrayQuery.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
@@ -41,6 +41,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
 
   Wrap.Wrap
   Parse1 ParseOne ParseOne'
+  Query ForArray
 ].
 
 Ltac vcgen :=
