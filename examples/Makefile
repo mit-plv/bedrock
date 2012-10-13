@@ -5,7 +5,7 @@ MODULES := Conditional Lambda \
            AutoSep \
            LemmaTests \
            Baby TrivialMem TrivialMem2 Arr \
-           ConditionalTest LambdaTest StreamParseTest \
+           ConditionalTest LambdaTest StreamParseTest ArrayQueryTest \
            Indir Factorial Swap TrivialArray \
            Pair SinglyLinkedList \
            Malloc \
