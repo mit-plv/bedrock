@@ -461,18 +461,16 @@ Section Query.
                 intros;
                   match goal with
                     | [ H' : forall specs : codeSpec _ _, _ |- _ ] =>
-                      change (forall specs stn st V ws v fr,
-                        ~satisfies V (Datatypes.length ws) (sel V value) c
+                      change (forall specs stn st V ws this v fr,
+                        ~satisfies V (Datatypes.length ws) this c
                         -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
                           * qspecOut' (invPre ws V) v * fr] (stn, st))
-                        -> sel V index = length ws
                         -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-                          * qspecOut' (invPre (ws ++ sel V value :: nil) V) v' * fr] (stn, st))) in H';
+                          * qspecOut' (invPre (ws ++ this :: nil) V) v' * fr] (stn, st))) in H';
                       eapply H' in Hf; [ |
                         match goal with
                           | [ |- context[qspecOut' _ ?v'] ] => equate v v'
-                        end; eauto
-                        | finish0 ]
+                        end; eauto ]
                   end; rewrite (H _ _ (upd
                     (upd V value (Array.sel (wPre ++ wPost) u)) index
                     (sel (upd V value (Array.sel (wPre ++ wPost) u)) index ^+ $1)))
@@ -540,12 +538,11 @@ Section Query.
                 ![ ^[locals ("rp" :: ns) V' res (Regs st Sp) * array ws (sel V arr) * PO] * #1 ] st'))))%PropX)
 
         (* Loop invariant is preserved on no-op, when the current cell isn't a match. *)
-        :: (forall specs stn st V ws v fr,
-          ~satisfies V (length ws) (sel V value) c
+        :: (forall specs stn st V ws this v fr,
+          ~satisfies V (length ws) this c
           -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws (sel V)) v * fr] (stn, st))
-          -> sel V index = length ws
           -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-            * qspecOut' (invPre (ws ++ sel V value :: nil) (sel V)) v' * fr] (stn, st)))
+            * qspecOut' (invPre (ws ++ this :: nil) (sel V)) v' * fr] (stn, st)))
 
         (* Postcondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (Postcondition (Body bodyPre) (stn, st))
