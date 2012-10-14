@@ -648,6 +648,23 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   None
             | Not e1 , Not e2 => fun recur =>
               recur (bound,e1) _ e2 sub
+            | UVar l , UVar r => 
+              if EqNat.beq_nat l r then fun _ => Some sub
+              else 
+                match Subst_lookup l sub with
+                  | None => fun _ => Subst_set l (UVar r) sub
+                  | Some l' =>
+                    match Subst_lookup r sub with
+                      | None => fun _ => Subst_set r l' sub
+                      | Some r' =>
+                        match bound as bound return 
+                          (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,UVar l) -> expr types -> Subst -> option Subst)
+                          -> option Subst with
+                          | 0 => fun _ => None
+                          | S bound => fun recur => recur (bound, l') _ r' sub
+                        end
+                    end
+                end
             | UVar u , _ =>
               match Subst_lookup u sub with
                 | None => fun recur =>
@@ -800,6 +817,21 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
               None
         | Not e1, Not e2 =>
           exprUnify bound e1 e2 sub
+        | UVar l , UVar r => 
+          if EqNat.beq_nat l r then Some sub
+            else 
+              match Subst_lookup l sub with
+                | None => Subst_set l (UVar r) sub
+                | Some l' =>
+                  match Subst_lookup r sub with
+                    | None => Subst_set r l' sub
+                    | Some r' =>
+                      match bound with
+                        | 0 => None
+                        | S bound => exprUnify bound l' r' sub
+                      end
+                  end
+              end
         | UVar u , _ =>
           match Subst_lookup u sub with
             | None => Subst_set u r sub
@@ -1150,6 +1182,66 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
+      { repeat (congruence || 
+                  solve [ eauto |
+                          eapply exprInstantiate_extends; eauto using exprUnify_Extends |
+                          eapply fold_left_2_opt_map_sound'; eauto ] ||
+              match goal with
+                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                  unfold Equivalence.equiv in H; subst
+                | [ |- _ ] => erewrite Subst_set_exprInstantiate by eauto
+                | [ H : _ |- _ ] => erewrite H by eauto
+                | [ |- _ ] => erewrite Subst_set_Subst_lookup by eauto
+                | [ H : forall (l r : expr types) (sub sub' : Subst), exprUnify _ l r sub = Some sub' -> _ , H' : _ |- _ ] =>
+                  specialize (@H _ _ _ _ H')
+                | [ H : Subst_lookup _ _ = _ |- _ ] =>
+                  eapply Subst_lookup_Extends in H; [ | solve [ eauto using exprUnify_Extends ] ]
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                  revert H; case_eq (exprUnify A B C D); intros
+                | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
+                  revert H; case_eq (Subst_lookup X Y); intros
+                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                  revert H; Reflection.consider X; intros
+                | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
+                | [ |- Func _ _ = Func _ _ ] => f_equal
+                | [ |- _ ] => 
+                  rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
+                  rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
+                  rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
+              end).
+        eapply Subst_set_Extends in H2; try eassumption.
+        erewrite Subst_lookup_Extends; try eassumption.
+        reflexivity. }
+      { repeat (congruence || 
+                  solve [ eauto |
+                          eapply exprInstantiate_extends; eauto using exprUnify_Extends |
+                          eapply fold_left_2_opt_map_sound'; eauto ] ||
+              match goal with
+                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                  unfold Equivalence.equiv in H; subst
+                | [ |- _ ] => erewrite Subst_set_exprInstantiate by eauto
+                | [ H : _ |- _ ] => erewrite H by eauto
+                | [ |- _ ] => erewrite Subst_set_Subst_lookup by eauto
+                | [ H : forall (l r : expr types) (sub sub' : Subst), exprUnify _ l r sub = Some sub' -> _ , H' : _ |- _ ] =>
+                  specialize (@H _ _ _ _ H')
+                | [ H : Subst_lookup _ _ = _ |- _ ] =>
+                  eapply Subst_lookup_Extends in H; [ | solve [ eauto using exprUnify_Extends ] ]
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                  revert H; case_eq (exprUnify A B C D); intros
+                | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
+                  revert H; case_eq (Subst_lookup X Y); intros
+                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                  revert H; Reflection.consider X; intros
+                | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
+                | [ |- Func _ _ = Func _ _ ] => f_equal
+                | [ |- _ ] => 
+                  rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
+                  rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
+                  rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
+              end).
+        eapply Subst_set_Extends in H2; try eassumption.
+        erewrite Subst_lookup_Extends; try eassumption.
+        reflexivity. }
     Qed.
 
     Transparent Subst_set.
@@ -1324,6 +1416,19 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                          | [ |- _ ] => rewrite tvar_seqb_refl
                        end; auto 
           | eauto using exprUnify_WellTyped_Forall].
+      { consider (EqNat.beq_nat x u); intros; subst.
+        inversion H4; clear H4; subst; auto. 
+        eapply Subst_set_WellTyped; try eassumption.
+        simpl. rewrite H1. consider (tvar_seqb t t); auto. }
+      { consider (EqNat.beq_nat x u); intros; subst.
+        inversion H5; clear H5; subst; auto. 
+        eapply IHn. eassumption. 3: eassumption. 
+        eapply Subst_lookup_WellTyped; eassumption.
+        eapply Subst_lookup_WellTyped; eassumption. }
+      { consider (EqNat.beq_nat x u); intros; subst.
+        inversion H4; clear H4; subst; auto. 
+        eapply Subst_set_WellTyped; try eassumption.
+        simpl. rewrite H1. consider (tvar_seqb t t); auto. }
     Qed.
 
     Lemma Subst_lookup_Subst_equations : forall funcs U G x sub e t,
