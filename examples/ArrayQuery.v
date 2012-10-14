@@ -114,7 +114,7 @@ Section Query.
       | Const _ => True
       | Index => True
       | Value => True
-      | Var x => In x ns
+      | Var x => In x ns /\ x <> value /\ x <> index
     end.
 
   Fixpoint conditionBound (c : condition) : Prop :=
@@ -141,24 +141,54 @@ Section Query.
       | Or c1 c2 => Conditional.Or (conditionOut c1) (conditionOut c2)
     end.
 
+  Fixpoint indexEquals (c : condition) : option string :=
+    match c with
+      | Test Index IL.Eq (Var s) => Some s
+      | Test _ _ _ => None
+      | Not _ => None
+      | And c1 c2 => match indexEquals c1 with
+                       | None => indexEquals c2
+                       | v => v
+                     end
+      | Or _ _ => None
+    end.
+
   (* Here's the raw command, which we will later wrap with nicer VCs. *)
   Definition Query_ : cmd imports modName :=
-    Seq_ H
-    (Straightline_ _ _ (Assign (variableSlot index ns) 0 :: nil))
-    (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
-      (Seq_ H
-        (Straightline_ _ _ (
-          Binop Rv 4 Times (variableSlot index ns)
-          :: Binop Rv (variableSlot arr ns) Plus Rv
-          :: Assign (variableSlot value ns) (LvMem (Reg Rv))
-          :: nil))
+    match indexEquals c with
+      | None =>
+        Seq_ H
+        (Straightline_ _ _ (Assign (variableSlot index ns) 0 :: nil))
+        (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
+          (Seq_ H
+            (Straightline_ _ _ (
+              Binop Rv 4 Times (variableSlot index ns)
+              :: Binop Rv (variableSlot arr ns) Plus Rv
+              :: Assign (variableSlot value ns) (LvMem (Reg Rv))
+              :: nil))
+            (Seq_ H
+              (Cond_ _ H _ (conditionOut c)
+                (Seq_ H
+                  (Structured.Assert_ _ _ bodyPre)
+                  Body)
+                (Skip_ _ _))
+              (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil)))))
+      | Some b =>
+        Structured.If_ H (variableSlot b ns) IL.Lt (variableSlot size ns)
         (Seq_ H
+          (Straightline_ _ _ (
+            Binop Rv 4 Times (variableSlot b ns)
+            :: Binop Rv (variableSlot arr ns) Plus Rv
+            :: Assign (variableSlot value ns) (LvMem (Reg Rv))
+            :: Assign (variableSlot index ns) (variableSlot b ns)
+            :: nil))
           (Cond_ _ H _ (conditionOut c)
             (Seq_ H
               (Structured.Assert_ _ _ bodyPre)
               Body)
-            (Skip_ _ _))
-          (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil))))).
+            (Skip_ _ _)))
+        (Skip_ _ _)
+    end.
 
   Ltac wrap := wrap0; post; wrap1.
 
@@ -259,7 +289,7 @@ Section Query.
     clear_fancy; induction c'; simpl; intuition;
       match goal with
         | [ _ : evalCond (expOut ?e1) _ (expOut ?e2) _ _ = None |- _ ] =>
-          destruct e1; destruct e2; (simpl in *; prep_locals; evaluate auto_ext)
+          destruct e1; destruct e2; (simpl in *; intuition idtac; prep_locals; evaluate auto_ext)
       end.
   Qed.
 
@@ -337,7 +367,8 @@ Section Query.
       try (eapply bool_one; [ eassumption | ]);
         match goal with
           | [ _ : evalCond (expOut ?e1) ?t (expOut ?e2) _ _ = _ |- _ ] =>
-            destruct e1; destruct t; destruct e2; (simpl in *; prep_locals; evaluate auto_ext; auto)
+            destruct e1; destruct t; destruct e2;
+              (simpl in *; intuition idtac; prep_locals; evaluate auto_ext; auto)
         end.
   Qed.
 
@@ -366,6 +397,97 @@ Section Query.
       -> ~satisfies V ind val c'.
     intros; subst; edestruct condition_satisfies'; eauto.
   Qed.
+
+  Fixpoint noMatches (V : vals) (ws : list W) (index : nat) : Prop :=
+    match ws with
+      | nil => True
+      | w :: ws' => ~satisfies V index w c /\ noMatches V ws' (index + 1)
+    end.
+
+  Hint Rewrite app_nil_r : sepFormula.
+
+  Lemma invPre_skip : (forall specs stn st V ws this v fr,
+    ~satisfies V (length ws) this c
+    -> interp specs (![qspecOut' (invPre ws (sel V)) v * fr] (stn, st))
+    -> exists v', interp specs (![qspecOut' (invPre (ws ++ this :: nil) (sel V)) v' * fr] (stn, st)))
+  -> forall specs V fr stn st ws' ws v,
+    interp specs (![qspecOut' (invPre ws V) v * fr] (stn, st))
+    -> noMatches V ws' (length ws)
+    -> exists v', interp specs (![qspecOut' (invPre (ws ++ ws') V) v' * fr] (stn, st)).
+    induction ws'; simpl; intuition; autorewrite with sepFormula; eauto.
+
+    eapply H0 in H3; [ | eauto ].
+    post.
+    apply IHws' in H2; [ | post; auto ].
+    autorewrite with sepFormula in *; auto.
+  Qed.
+
+  Hint Resolve natToW_inj.
+
+  Ltac indexEquals :=
+    repeat match goal with
+             | [ _ : match ?E with None => _ | _ => _ end = _ |- _ ] => destruct E; try discriminate
+             | [ _ : match ?E with Const _ => _ | _ => _ end = _ |- _ ] => destruct E; try discriminate
+             | [ _ : match ?E with IL.Eq => _ | _ => _ end = _ |- _ ] => destruct E; try discriminate
+             | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst; simpl in *
+             | [ H : weqb _ _ = true |- _ ] => apply weqb_true_iff in H
+           end.
+
+  Lemma indexEquals_correct : forall k V (len : nat) val c',
+    indexEquals c' = Some k
+    -> satisfies V len val c'
+    -> goodSize len
+    -> (forall len' val', goodSize len' -> len <> len' -> ~satisfies V len' val' c').
+    induction c'; simpl; intuition; indexEquals; intuition (subst; eauto);
+      match goal with
+        | [ H : _ -> False |- _ ] => apply H; apply natToW_inj; auto; congruence
+      end.
+  Qed.
+
+  Lemma notSatisfies_noMatches' : forall V ws index,
+    (forall (index' : nat) val, goodSize index' -> satisfies V index' val c
+      -> (index <= index' < index + length ws)%nat -> False)
+    -> goodSize (index + length ws)
+    -> noMatches V ws index.
+    induction ws; simpl; intuition eauto.
+    eapply IHws; intros.
+    eauto.
+    Require Import Arith.
+    rewrite <- plus_assoc.
+    auto.
+  Qed.
+
+  Lemma notSatisfies_noMatches : forall V ws index,
+    (forall (index' : nat) val, goodSize index' -> (index <= index' < index + length ws)%nat
+      -> ~satisfies V index' val c)
+    -> goodSize (index + length ws)
+    -> noMatches V ws index.
+    intuition; eapply notSatisfies_noMatches'; eauto.
+  Qed.
+
+  Lemma goodSize_middle' : forall (ls1 : list W) x ls2,
+    goodSize (length (ls1 ++ x :: ls2))
+    -> goodSize (length (ls1 ++ x :: nil) + length ls2).
+    intros; autorewrite with sepFormula in *; simpl in *; rewrite <- plus_assoc; auto.
+  Qed.
+
+  Hint Resolve goodSize_middle'.
+
+  Hint Extern 1 (~(@eq nat _ _)) => omega.
+
+  Lemma indexEquals_bound : forall x c',
+    indexEquals c' = Some x
+    -> conditionBound c'
+    -> In x ns.
+    induction c'; simpl; intuition; indexEquals; tauto.
+  Qed.
+
+  Lemma indexEquals_correct' : forall k V c',
+    indexEquals c' = Some k
+    -> (forall len' val', goodSize len' -> sel V k <> len' -> ~satisfies V len' val' c').
+    induction c'; simpl; intuition; indexEquals; intuition (subst; eauto).
+  Qed.
+  
 
   Ltac depropx H := apply simplify_fwd in H; simpl in H;
     repeat match goal with
@@ -463,10 +585,8 @@ Section Query.
                     | [ H' : forall specs : codeSpec _ _, _ |- _ ] =>
                       change (forall specs stn st V ws this v fr,
                         ~satisfies V (Datatypes.length ws) this c
-                        -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-                          * qspecOut' (invPre ws V) v * fr] (stn, st))
-                        -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-                          * qspecOut' (invPre (ws ++ this :: nil) V) v' * fr] (stn, st))) in H';
+                        -> interp specs (![qspecOut' (invPre ws V) v * fr] (stn, st))
+                        -> exists v', interp specs (![qspecOut' (invPre (ws ++ this :: nil) V) v' * fr] (stn, st))) in H';
                       eapply H' in Hf; [ |
                         match goal with
                           | [ |- context[qspecOut' _ ?v'] ] => equate v v'
@@ -540,16 +660,15 @@ Section Query.
         (* Loop invariant is preserved on no-op, when the current cell isn't a match. *)
         :: (forall specs stn st V ws this v fr,
           ~satisfies V (length ws) this c
-          -> interp specs (![locals ("rp" :: ns) V res (Regs st Sp) * qspecOut' (invPre ws (sel V)) v * fr] (stn, st))
-          -> exists v', interp specs (![locals ("rp" :: ns) V res (Regs st Sp)
-            * qspecOut' (invPre (ws ++ this :: nil) (sel V)) v' * fr] (stn, st)))
+          -> interp specs (![qspecOut' (invPre ws (sel V)) v * fr] (stn, st))
+          -> exists v', interp specs (![qspecOut' (invPre (ws ++ this :: nil) (sel V)) v' * fr] (stn, st)))
 
         (* Postcondition implies loop invariant. *)
         :: (forall specs stn st, interp specs (Postcondition (Body bodyPre) (stn, st))
           -> interp specs (ExX, Ex wsPre, Ex this, Ex V,
             qspecOut (invPre (wsPre ++ this :: nil) (sel V)) (fun PR =>
               Ex ws, ![ ^[locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V arr) * PR] * #0 ] (stn, st)
-              /\ [| sel V size = length ws /\ sel V index = length wsPre |]
+              /\ [| sel V size = length ws /\ sel V index = length wsPre /\ satisfies V (length wsPre) this c |]
               /\ Ex wsPost, [| ws = wsPre ++ this :: wsPost |]
               /\ sel V "rp" @@ (st' ~>
                 [| st'#Sp = Regs st Sp |]
@@ -558,7 +677,167 @@ Section Query.
 
         (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
-      _ _); abstract (wrap; t).
+      _ _); (unfold Query_; case_eq (indexEquals c); intros).
+
+    wrap.
+
+    begin.
+    edestruct invPre_skip.
+    assumption.
+    instantiate (4 := x3).
+    eauto.
+    eapply notSatisfies_noMatches; [ | eauto 6 ];
+      autorewrite with sepFormula; simpl; intros; eapply indexEquals_correct; (cbv beta; eauto).
+    generalize x4 H.
+    autorewrite with sepFormula; intros.
+    finish.
+    
+    Focus 2.
+    specialize (indexEquals_bound _ H0 H14); intro Hs.
+    prep_locals.
+    begin.
+    autorewrite with Locals in *.
+    edestruct invPre_skip.
+    assumption.
+    instantiate (4 := x1); eauto.
+    simpl.
+    eapply notSatisfies_noMatches; [ | simpl; eauto ].
+    simpl; intros.
+    eapply indexEquals_correct'.
+    eauto.
+    eauto.
+    rewrite H21 in H29.
+    change (sel (sel x0) s) with (sel x0 s).
+    intro.
+    apply H29.
+    rewrite H27.
+    apply lt_goodSize; eauto.
+    finish0.
+    finish0.
+    finish0.
+    finish0.
+
+    Lemma indexEquals_value : forall x c',
+      indexEquals c' = Some x
+      -> conditionBound c'
+      -> x <> value.
+      induction c'; simpl; intuition; indexEquals; tauto.
+    Qed.
+
+    match goal with
+      | [ H : indexEquals _ = Some _, H' : conditionBound _ |- _ ] =>
+        specialize (indexEquals_bound _ H H'); specialize (indexEquals_value _ H H');
+          intros; prep_locals
+    end.
+    begin.
+    edestruct invPre_skip.
+    assumption.
+    instantiate (4 := x2); eauto.
+    simpl.
+    instantiate (1 := x3).
+    admit.
+    generalize dependent x5.
+    simpl.
+    rewrite (H15 _ _ (sel (upd (upd x1 value (Array.sel x3 (sel x1 s))) index
+      (sel (upd x1 value (Array.sel x3 (sel x1 s))) s)))) by locals.
+    intros.
+    finish0.
+    finish0.
+    instantiate (2 := x5).
+    finish0.
+    finish0.
+    finish0.
+    finish0.
+    finish0.
+    finish0.
+
+
+    wrap; t.
+
+
+    Ltac enrich := match goal with
+                     | [ H : indexEquals _ = Some _, H' : conditionBound _ |- _ ] =>
+                       specialize (indexEquals_bound _ H H'); specialize (indexEquals_value _ H H');
+                         intros; prep_locals
+                   end.
+    wrap; try enrich.
+
+    t.
+    t.
+    t.
+    
+    begin.
+    edestruct invPre_skip.
+    assumption.
+    instantiate (4 := x2); eauto.
+    simpl.
+    instantiate (1 := firstn (wordToNat (sel x1 s)) x3).
+    eapply notSatisfies_noMatches; simpl; rewrite firstn_length; rewrite min_l; intros.
+    eapply indexEquals_correct'.
+    eauto.
+    eauto.
+    rewrite H27 in H33.
+    change (sel (sel x1) s) with (sel x1 s).
+    intro.
+    rewrite H36 in *.
+    unfold natToW in H35; rewrite wordToNat_natToWord_idempotent in H35 by assumption.
+    omega.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    Focus 2.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    eauto.
+
+    generalize dependent x5; simpl;
+      rewrite (H14 _ _ (sel (upd (upd x1 value (Array.sel x3 (sel x1 s))) index
+        (sel (upd x1 value (Array.sel x3 (sel x1 s))) s)))) by locals; intros.
+    finish0.
+    finish0.
+    fold (@firstn W).
+    instantiate (2 := x5).
+    finish0.
+    finish0.
+    finish0.
+    finish0.
+    rewrite firstn_length; rewrite min_l.
+    unfold natToW; rewrite natToWord_wordToNat; reflexivity.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    autorewrite with Locals.
+    etransitivity.
+    symmetry; apply (firstn_skipn (wordToNat (sel x1 s))).
+    f_equal.
+
+    Hint Rewrite roundTrip_0 : N.
+
+    Lemma skipn_breakout : forall ws n,
+      (n < length ws)%nat
+      -> skipn n ws = Array.selN ws n :: tl (skipn n ws).
+      induction ws; destruct n; simpl; intuition.
+    Qed.
+
+    rewrite skipn_breakout.
+    eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    finish0.
+    finish0.
+
+
+    wrap; t.
   Defined.
 
 End Query.
