@@ -1,3 +1,5 @@
+MODULE:=Bedrock
+
 .PHONY: all clean dist native ltac version
 
 all:
@@ -23,8 +25,8 @@ version:
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
-.dir-locals.el: 
-	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el > .dir-locals.el
+.dir-locals.el: .dir-locals.el Makefile
+	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el | sed s,MOD,$(MODULE),g > .dir-locals.el
 
 time:
 	@ rm -rf timing
