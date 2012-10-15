@@ -31,3 +31,4 @@ timing/
 *.sty
 *.pdf
 *.toc
+.dir-locals.el

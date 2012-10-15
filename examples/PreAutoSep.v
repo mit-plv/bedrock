@@ -229,7 +229,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CancelIL.U.Subst_equations
          CancelIL.U.Subst_size
          CancelIL.U.dep_in
-         CancelIL.U.exprUnify_recursor
 
          CancelIL.U.FM.Raw.height CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.assert_false CancelIL.U.FM.Raw.create
          CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
@@ -611,7 +610,6 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CancelIL.U.Subst_equations
          CancelIL.U.Subst_size
          CancelIL.U.dep_in
-         CancelIL.U.exprUnify_recursor
 
          CancelIL.U.FM.Raw.height CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.assert_false CancelIL.U.FM.Raw.create
          CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
