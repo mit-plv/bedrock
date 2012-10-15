@@ -487,7 +487,16 @@ Section Query.
     -> (forall len' val', goodSize len' -> sel V k <> len' -> ~satisfies V len' val' c').
     induction c'; simpl; intuition; indexEquals; intuition (subst; eauto).
   Qed.
-  
+
+  Lemma noMatches_app : forall V ws' ws index,
+    noMatches V ws index
+    -> noMatches V ws' (length ws + index)
+    -> noMatches V (ws ++ ws') index.
+    induction ws; simpl; intuition.
+    replace (S (length ws + index0)) with (length ws + (index0 + 1)) in H1 by omega.
+    auto.
+  Qed.
+
 
   Ltac depropx H := apply simplify_fwd in H; simpl in H;
     repeat match goal with
@@ -735,7 +744,180 @@ Section Query.
     instantiate (4 := x2); eauto.
     simpl.
     instantiate (1 := x3).
-    admit.
+
+    Hint Rewrite roundTrip_0 : N.
+
+    Lemma skipn_breakout : forall ws n,
+      (n < length ws)%nat
+      -> skipn n ws = Array.selN ws n :: tl (skipn n ws).
+      induction ws; destruct n; simpl; intuition.
+    Qed.
+
+    rewrite <- (firstn_skipn (wordToNat (sel x1 s)) x3).
+    apply noMatches_app.
+    eapply notSatisfies_noMatches; simpl; rewrite firstn_length; rewrite min_l; intros.
+    eapply indexEquals_correct'.
+    eauto.
+    eauto.
+    change (sel (sel x1) s) with (sel x1 s).
+    rewrite H27 in *.
+    intro.
+    rewrite H36 in *.
+    unfold natToW in H35; rewrite wordToNat_natToWord_idempotent in H35 by assumption.
+    omega.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite H27 in *.
+    apply goodSize_weaken with (length x3); [ eauto | ].
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite skipn_breakout.
+    split.
+    rewrite firstn_length; rewrite min_l.
+    replace (wordToNat (sel x1 s) + 0) with (wordToNat (sel x1 s)) by omega.
+    generalize dependent x2.
+    rewrite (H15 _ _ (upd (upd x1 value (Array.sel x3 (sel x1 s))) index
+      (sel (upd x1 value (Array.sel x3 (sel x1 s))) s))) by locals.
+    intros.
+    edestruct invPre_skip.
+    assumption.
+    instantiate (4 := x2); eauto.
+    instantiate (1 := firstn (wordToNat (sel x1 s)) x3).
+    eapply notSatisfies_noMatches; simpl; rewrite firstn_length; rewrite min_l; intros. 
+    eapply indexEquals_correct'.
+    eauto.
+    eauto.
+
+    Lemma indexEquals_index : forall x c',
+      indexEquals c' = Some x
+      -> conditionBound c'
+      -> x <> index.
+      induction c'; simpl; intuition; indexEquals; tauto.
+    Qed.
+
+    specialize (indexEquals_index _ H0 H14); intros.
+    autorewrite with Locals.
+    destruct H35.
+    intro.
+    rewrite H38 in *.
+    unfold natToW in H37; rewrite wordToNat_natToWord_idempotent in H37 by assumption.
+    omega.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+
+    Lemma satisfies_incidentals : forall ind val c',
+      conditionBound c'
+      -> forall V V', (forall x, x <> index -> x <> value -> sel V x = sel V' x)
+        -> satisfies V ind val c'
+        -> satisfies V' ind val c'.
+      induction c'; simpl; intuition eauto.
+      destruct e1; destruct e2; simpl in *; intuition idtac;
+        repeat match goal with
+                 | [ H : _ |- _ ] => rewrite <- H0 by tauto
+               end; tauto.
+      apply H3.
+      eapply H1.
+      intros.
+      symmetry; apply H2; auto.
+      auto.
+    Qed.
+
+    Lemma not_satisfies_incidentals : forall ind val c',
+      conditionBound c'
+      -> forall V V', (forall x, x <> index -> x <> value -> sel V x = sel V' x)
+        -> ~satisfies V ind val c'
+        -> ~satisfies V' ind val c'.
+      intuition.
+      apply H2; eapply satisfies_incidentals; [ eauto | | eauto ].
+      intros; symmetry; apply H1; auto.
+    Qed.
+
+    apply not_satisfies_incidentals with (upd (upd x1 value (Array.sel x3 (sel x1 s))) index
+      (sel (upd x1 value (Array.sel x3 (sel x1 s))) s)).
+    auto.
+    locals.
+
+    simpl in x5, H34.
+    eapply condition_not_satisfies.
+    eauto.
+    auto.
+    auto.
+    auto.
+    finish0.
+    unfold natToW; rewrite natToWord_wordToNat; reflexivity.
+    finish0.
+    auto.
+    auto.
+    auto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.    
+    eapply notSatisfies_noMatches; simpl; rewrite firstn_length; rewrite min_l; intros.
+    eapply indexEquals_correct'.
+    eauto.
+    eauto.
+    change (sel (sel x1) s) with (sel x1 s).
+    rewrite H27 in *.
+    intro.
+    rewrite H36 in *.
+    
+    Lemma length_tl : forall A (ls : list A),
+      length (tl ls) = length ls - 1.
+      destruct ls; simpl; omega.
+    Qed.
+
+    rewrite length_tl in H35.
+    rewrite CancelIL.skipn_length in H35.
+    unfold natToW in H35; rewrite wordToNat_natToWord_idempotent in H35 by assumption.
+    omega.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite length_tl.
+    rewrite CancelIL.skipn_length.
+    match goal with
+      | [ |- goodSize ?E ] => replace E with (length x3)
+    end.
+    eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+    rewrite H27 in *.
+    pre_nomega.
+    unfold natToW in H33; rewrite wordToNat_natToWord_idempotent in H33.
+    omega.
+    change (goodSize (length x3)); eauto.
+
     generalize dependent x5.
     simpl.
     rewrite (H15 _ _ (sel (upd (upd x1 value (Array.sel x3 (sel x1 s))) index
@@ -817,14 +999,6 @@ Section Query.
     etransitivity.
     symmetry; apply (firstn_skipn (wordToNat (sel x1 s))).
     f_equal.
-
-    Hint Rewrite roundTrip_0 : N.
-
-    Lemma skipn_breakout : forall ws n,
-      (n < length ws)%nat
-      -> skipn n ws = Array.selN ws n :: tl (skipn n ws).
-      induction ws; destruct n; simpl; intuition.
-    Qed.
 
     rewrite skipn_breakout.
     eauto.
