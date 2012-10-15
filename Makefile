@@ -25,7 +25,7 @@ version:
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
-.dir-locals.el: .dir-locals.el Makefile
+.dir-locals.el: tools/dir-locals.el Makefile
 	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el | sed s,MOD,$(MODULE),g > .dir-locals.el
 
 time:
