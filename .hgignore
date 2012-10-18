@@ -32,3 +32,6 @@ timing/
 *.pdf
 *.toc
 .dir-locals.el
+
+*.exe
+examples/x86/factorial.s
