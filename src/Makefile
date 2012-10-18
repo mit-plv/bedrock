@@ -22,7 +22,8 @@ MODULES    := HintlessOrderedType HintlessFMapInterface \
 	SymIL SymILProofs SymILTac \
 	CancelIL \
 	ILTacCommon ILTac \
-	Bedrock
+	Bedrock \
+	X86_gas
 
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)
