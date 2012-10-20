@@ -35,3 +35,4 @@ timing/
 
 *.exe
 examples/x86/factorial.s
+examples/comparison/*data.*
