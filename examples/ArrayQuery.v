@@ -153,26 +153,60 @@ Section Query.
       | Or _ _ => None
     end.
 
+  Fixpoint indexGe (c : condition) : option string :=
+    match c with
+      | Test (Var s) IL.Le Index => Some s
+      | Test _ _ _ => None
+      | Not _ => None
+      | And c1 c2 => match indexGe c1 with
+                       | None => indexGe c2
+                       | v => v
+                     end
+      | Or _ _ => None
+    end.
+
   (* Here's the raw command, which we will later wrap with nicer VCs. *)
   Definition Query_ : cmd imports modName :=
     match indexEquals c with
       | None =>
-        Seq_ H
-        (Straightline_ _ _ (Assign (variableSlot index ns) 0 :: nil))
-        (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
-          (Seq_ H
-            (Straightline_ _ _ (
-              Binop Rv 4 Times (variableSlot index ns)
-              :: Binop Rv (variableSlot arr ns) Plus Rv
-              :: Assign (variableSlot value ns) (LvMem (Reg Rv))
-              :: nil))
-            (Seq_ H
-              (Cond_ _ H _ (conditionOut c)
+        match indexGe c with
+          | None =>
+            Seq_ H
+            (Straightline_ _ _ (Assign (variableSlot index ns) 0 :: nil))
+            (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
+              (Seq_ H
+                (Straightline_ _ _ (
+                  Binop Rv 4 Times (variableSlot index ns)
+                  :: Binop Rv (variableSlot arr ns) Plus Rv
+                  :: Assign (variableSlot value ns) (LvMem (Reg Rv))
+                  :: nil))
                 (Seq_ H
-                  (Structured.Assert_ _ _ bodyPre)
-                  Body)
-                (Skip_ _ _))
-              (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil)))))
+                  (Cond_ _ H _ (conditionOut c)
+                    (Seq_ H
+                      (Structured.Assert_ _ _ bodyPre)
+                      Body)
+                    (Skip_ _ _))
+                  (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil)))))
+          | Some b =>
+            Structured.If_ H (variableSlot size ns) IL.Le (variableSlot b ns)
+            (Skip_ _ _)
+            (Seq_ H
+              (Straightline_ _ _ (Assign (variableSlot index ns) (variableSlot b ns) :: nil))
+              (Structured.While_ H loopInvariant (variableSlot index ns) IL.Lt (variableSlot size ns)
+                (Seq_ H
+                  (Straightline_ _ _ (
+                    Binop Rv 4 Times (variableSlot index ns)
+                    :: Binop Rv (variableSlot arr ns) Plus Rv
+                    :: Assign (variableSlot value ns) (LvMem (Reg Rv))
+                    :: nil))
+                  (Seq_ H
+                    (Cond_ _ H _ (conditionOut c)
+                      (Seq_ H
+                        (Structured.Assert_ _ _ bodyPre)
+                        Body)
+                      (Skip_ _ _))
+                    (Straightline_ _ _ (Binop (variableSlot index ns) (variableSlot index ns) Plus 1 :: nil))))))
+        end
       | Some b =>
         Structured.If_ H (variableSlot b ns) IL.Lt (variableSlot size ns)
         (Seq_ H
@@ -424,6 +458,11 @@ Section Query.
 
   Hint Resolve natToW_inj.
 
+  Lemma wleb_true_fwd : forall u v, wleb u v = true -> u <= v.
+    unfold wleb; intros;
+      destruct (weq u v); destruct (wlt_dec u v); subst; auto; discriminate || nomega.
+  Qed.
+
   Ltac indexEquals :=
     repeat match goal with
              | [ _ : match ?E with None => _ | _ => _ end = _ |- _ ] => destruct E; try discriminate
@@ -431,6 +470,7 @@ Section Query.
              | [ _ : match ?E with IL.Eq => _ | _ => _ end = _ |- _ ] => destruct E; try discriminate
              | [ H : Some _ = Some _ |- _ ] => injection H; clear H; intros; subst; simpl in *
              | [ H : weqb _ _ = true |- _ ] => apply weqb_true_iff in H
+             | [ H : wleb _ _ = true |- _ ] => apply wleb_true_fwd in H
            end.
 
   Lemma indexEquals_correct : forall k V (len : nat) val c',
@@ -482,9 +522,22 @@ Section Query.
     induction c'; simpl; intuition; indexEquals; tauto.
   Qed.
 
+  Lemma indexGe_bound : forall x c',
+    indexGe c' = Some x
+    -> conditionBound c'
+    -> In x ns.
+    induction c'; simpl; intuition; indexEquals; tauto.
+  Qed.
+
   Lemma indexEquals_correct' : forall k V c',
     indexEquals c' = Some k
     -> (forall len' val', goodSize len' -> sel V k <> len' -> ~satisfies V len' val' c').
+    induction c'; simpl; intuition; indexEquals; intuition (subst; eauto).
+  Qed.
+
+  Lemma indexGe_correct : forall k V c',
+    indexGe c' = Some k
+    -> (forall len' val', goodSize len' -> natToW len' < sel V k -> ~satisfies V len' val' c').
     induction c'; simpl; intuition; indexEquals; intuition (subst; eauto).
   Qed.
 
@@ -506,6 +559,20 @@ Section Query.
 
   Lemma indexEquals_value : forall x c',
     indexEquals c' = Some x
+    -> conditionBound c'
+    -> x <> value.
+    induction c'; simpl; intuition; indexEquals; tauto.
+  Qed.
+
+  Lemma indexGe_index : forall x c',
+    indexGe c' = Some x
+    -> conditionBound c'
+    -> x <> index.
+    induction c'; simpl; intuition; indexEquals; tauto.
+  Qed.
+
+  Lemma indexGe_value : forall x c',
+    indexGe c' = Some x
     -> conditionBound c'
     -> x <> value.
     induction c'; simpl; intuition; indexEquals; tauto.
@@ -649,27 +716,30 @@ Section Query.
                rewrite (@sel_upd_eq V x v y) by congruence
            end.
 
-  Ltac finish0 := eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
-    repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-             | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
-             | [ |- appcontext[invPost _ ?V] ] => (has_evar V; fail 2) ||
-               match goal with
-                 | [ |- appcontext[invPost _ ?V'] ] =>
-                   match V' with
-                     | V => fail 1
-                     | _ => match goal with
-                              | [ H : forall (_ : list W) (V : vals), _ |- _ ] => rewrite (H _ V V') by locals
-                            end
-                   end
-               end
-           end;
+  Ltac finish0 :=
     try match goal with
-          | [ |- satisfies _ _ _ _ ] => eapply condition_satisfies; solve [ finish0 ]
-          | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
-          | _ => try match goal with
-                       | [ _ : context[qspecOut' _ ?X] |- context[qspecOut' _ ?Y] ] => equate X Y
-                     end; step auto_ext
+          | [ |- ?L = firstn _ ?L ++ _ ] => symmetry; apply firstn_skipn
+        end; eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
+          repeat match goal with
+                   | [ H : _ = _ |- _ ] => rewrite H
+                   | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
+                   | [ |- appcontext[invPost _ ?V] ] => (has_evar V; fail 2) ||
+                     match goal with
+                       | [ |- appcontext[invPost _ ?V'] ] =>
+                         match V' with
+                           | V => fail 1
+                           | _ => match goal with
+                                    | [ H : forall (_ : list W) (V : vals), _ |- _ ] => rewrite (H _ V V') by locals
+                                  end
+                         end
+                     end
+                 end;
+          try match goal with
+                | [ |- satisfies _ _ _ _ ] => eapply condition_satisfies; solve [ finish0 ]
+                | [ |- interp _ (subst _ _) ] => apply subst_qspecOut_bwd; eapply qspecOut_bwd; propxFo
+                | _ => try match goal with
+                             | [ _ : context[qspecOut' _ ?X] |- context[qspecOut' _ ?Y] ] => equate X Y
+                           end; step auto_ext
         end).
 
   Ltac enrich := match goal with
@@ -677,6 +747,11 @@ Section Query.
                      specialize (indexEquals_bound _ H H');
                        specialize (indexEquals_index _ H H');
                          specialize (indexEquals_value _ H H');
+                           intros; prep_locals
+                   | [ H : indexGe _ = Some _, H' : conditionBound _ |- _ ] =>
+                     specialize (indexGe_bound _ H H');
+                       specialize (indexGe_index _ H H');
+                         specialize (indexGe_value _ H H');
                            intros; prep_locals
                  end.
 
@@ -691,6 +766,7 @@ Section Query.
     eapply indexEquals_correct; (cbv beta; eauto).
   Ltac indexEquals_correct' := eapply indexEquals_correct'; autorewrite with Locals; eauto;
     (autorewrite with Locals; my_nomega).
+  Ltac indexGe_correct := eapply indexGe_correct; autorewrite with Locals; eauto; my_nomega.
 
   Ltac evolve :=
     match goal with
@@ -750,6 +826,20 @@ Section Query.
                                | [ _ : ?mid < sel _ size, _ : context[array ?ws _] |- _ ] =>
                                  instantiate (1 := firstn (wordToNat mid) ws)
                              end; notSatisfies_noMatches; indexEquals_correct'
+                | evolve ]
+
+            | [ _ : indexGe _ = Some _, _ : evalCond _ _ _ _ _ = Some true |- _ ] =>
+              invPre_skip; [ notSatisfies_noMatches; indexGe_correct
+                | match goal with
+                    | [ v : domain (invPre (nil ++ _) _) |- _ ] =>
+                      generalize dependent v; simpl; intros
+                  end ]
+
+            | [ _ : indexGe _ = Some _, _ : evalCond _ _ _ _ _ = Some false |- _ ] =>
+              invPre_skip; [ match goal with
+                               | [ _ : ?mid < sel _ size, _ : context[array ?ws _] |- _ ] =>
+                                 instantiate (1 := firstn (wordToNat mid) ws)
+                             end; notSatisfies_noMatches; indexGe_correct
                 | evolve ]
 
             | [ v : domain (invPre nil (sel ?V)), H : forall ws : list W, _ |- _ ] =>
@@ -879,7 +969,8 @@ Section Query.
 
         (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
-      _ _); abstract (unfold Query_; case_eq (indexEquals c); intros; wrap; try enrich; t).
+      _ _); abstract (unfold Query_; case_eq (indexEquals c); [ | case_eq (indexGe c) ]; intros;
+        wrap; try enrich; t).
   Defined.
 
 End Query.
