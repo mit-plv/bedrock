@@ -59,6 +59,7 @@ Lemma increment : forall val x,
 Qed.
 
 Hint Immediate skip increment.
+Hint Resolve tt.
 
 Theorem mOk : moduleOk m.
   vcgen; abstract (for0; sep_auto; eauto).
