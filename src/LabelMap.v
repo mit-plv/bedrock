@@ -1,6 +1,6 @@
 (* Finite maps for labels *)
 
-Require Import Ascii NArith String HintlessOrderedType HintlessFMapAVL.
+Require Import Ascii NArith String OrderedType FMapAVL.
 
 Require Import Nomega Labels.
 
@@ -227,7 +227,60 @@ Module LabelKey.
 End LabelKey.
 
 
-Module LabelMap := HintlessFMapAVL.Make(LabelKey).
+Module LabelMap := FMapAVL.Make(LabelKey).
+
+Remove Hints LabelMap.E.eq_sym LabelMap.E.eq_refl LabelMap.E.eq_trans LabelMap.E.lt_not_eq LabelMap.E.lt_trans
+  LabelMap.Raw.Proofs.L.PX.eqk_refl LabelMap.Raw.Proofs.L.PX.eqk_sym
+  LabelMap.Raw.Proofs.L.PX.eqk_trans
+  LabelMap.Raw.Proofs.PX.eqk_refl LabelMap.Raw.Proofs.PX.eqk_sym LabelMap.Raw.Proofs.PX.eqk_trans
+  LabelMap.Raw.Proofs.L.PX.eqke_refl LabelMap.Raw.Proofs.L.PX.eqke_sym LabelMap.Raw.Proofs.L.PX.eqke_trans
+  LabelMap.Raw.Proofs.PX.eqke_refl LabelMap.Raw.Proofs.PX.eqke_sym LabelMap.Raw.Proofs.PX.eqke_trans
+  LabelMap.Raw.Proofs.L.PX.MO.lt_eq LabelMap.Raw.Proofs.L.PX.MO.eq_lt LabelMap.Raw.Proofs.L.MX.lt_eq
+  LabelMap.Raw.Proofs.L.MX.eq_lt LabelMap.Raw.Proofs.PX.MO.lt_eq LabelMap.Raw.Proofs.PX.MO.eq_lt
+  LabelMap.Raw.Proofs.MX.lt_eq LabelMap.Raw.Proofs.MX.eq_lt
+  LabelMap.Raw.Proofs.L.PX.eqk_ltk LabelMap.Raw.Proofs.L.PX.ltk_eqk LabelMap.Raw.Proofs.L.PX.ltk_trans
+  LabelMap.Raw.Proofs.PX.eqk_ltk LabelMap.Raw.Proofs.PX.ltk_eqk LabelMap.Raw.Proofs.PX.ltk_trans
+  LabelMap.Raw.Proofs.L.PX.MO.lt_antirefl
+  LabelMap.Raw.Proofs.L.MX.lt_antirefl LabelMap.Raw.Proofs.PX.MO.lt_antirefl LabelMap.Raw.Proofs.MX.lt_antirefl
+  LabelMap.Raw.Proofs.L.PX.eqk_not_ltk LabelMap.Raw.Proofs.L.PX.ltk_not_eqke
+  LabelMap.Raw.Proofs.L.PX.ltk_not_eqk LabelMap.Raw.Proofs.L.PX.MO.lt_not_gt
+  LabelMap.Raw.Proofs.L.PX.MO.eq_not_gt LabelMap.Raw.Proofs.L.PX.MO.eq_neq
+  LabelMap.Raw.Proofs.L.PX.MO.neq_eq LabelMap.Raw.Proofs.L.PX.MO.eq_le
+  LabelMap.Raw.Proofs.L.PX.MO.le_eq LabelMap.Raw.Proofs.L.PX.MO.eq_not_lt
+  LabelMap.Raw.Proofs.L.PX.MO.gt_not_eq LabelMap.Raw.Proofs.L.MX.lt_not_gt
+  LabelMap.Raw.Proofs.L.MX.eq_not_gt LabelMap.Raw.Proofs.L.MX.eq_neq
+  LabelMap.Raw.Proofs.L.MX.neq_eq LabelMap.Raw.Proofs.L.MX.eq_le
+  LabelMap.Raw.Proofs.L.MX.le_eq LabelMap.Raw.Proofs.L.MX.eq_not_lt
+  LabelMap.Raw.Proofs.L.MX.gt_not_eq LabelMap.Raw.Proofs.PX.eqk_not_ltk
+  LabelMap.Raw.Proofs.PX.ltk_not_eqke LabelMap.Raw.Proofs.PX.ltk_not_eqk
+  LabelMap.Raw.Proofs.PX.MO.lt_not_gt LabelMap.Raw.Proofs.PX.MO.eq_not_gt
+  LabelMap.Raw.Proofs.PX.MO.eq_neq LabelMap.Raw.Proofs.PX.MO.neq_eq
+  LabelMap.Raw.Proofs.PX.MO.eq_le LabelMap.Raw.Proofs.PX.MO.le_eq
+  LabelMap.Raw.Proofs.PX.MO.eq_not_lt LabelMap.Raw.Proofs.PX.MO.gt_not_eq
+  LabelMap.Raw.Proofs.MX.lt_not_gt LabelMap.Raw.Proofs.MX.eq_not_gt
+  LabelMap.Raw.Proofs.MX.eq_neq LabelMap.Raw.Proofs.MX.neq_eq
+  LabelMap.Raw.Proofs.MX.eq_le LabelMap.Raw.Proofs.MX.le_eq
+  LabelMap.Raw.Proofs.MX.eq_not_lt LabelMap.Raw.Proofs.MX.gt_not_eq
+  LabelMap.Raw.Proofs.L.PX.Sort_Inf_NotIn LabelMap.Raw.Proofs.PX.Sort_Inf_NotIn
+  LabelMap.Raw.Proofs.L.PX.Inf_eq LabelMap.Raw.Proofs.L.PX.MO.Inf_lt
+  LabelMap.Raw.Proofs.L.MX.Inf_lt LabelMap.Raw.Proofs.PX.Inf_eq
+  LabelMap.Raw.Proofs.PX.MO.Inf_lt LabelMap.Raw.Proofs.MX.Inf_lt
+  LabelMap.Raw.Proofs.L.PX.Inf_lt LabelMap.Raw.Proofs.L.PX.MO.Inf_lt
+  LabelMap.Raw.Proofs.L.MX.Inf_lt LabelMap.Raw.Proofs.PX.Inf_lt
+  LabelMap.Raw.Proofs.PX.MO.Inf_lt LabelMap.Raw.Proofs.MX.Inf_lt
+  LabelMap.Raw.InRight LabelMap.Raw.InLeft LabelMap.Raw.InRoot
+  LabelMap.Raw.Proofs.L.PX.InA_eqke_eqk LabelMap.Raw.Proofs.L.PX.MO.In_eq
+  LabelMap.Raw.Proofs.L.PX.MO.ListIn_In LabelMap.Raw.Proofs.L.MX.In_eq
+  LabelMap.Raw.Proofs.L.MX.ListIn_In LabelMap.Raw.Proofs.PX.InA_eqke_eqk
+  LabelMap.Raw.Proofs.PX.MO.In_eq LabelMap.Raw.Proofs.PX.MO.ListIn_In
+  LabelMap.Raw.Proofs.MX.In_eq LabelMap.Raw.Proofs.MX.ListIn_In
+  LabelMap.Raw.Proofs.L.PX.In_inv_3 LabelMap.Raw.Proofs.PX.In_inv_3
+  LabelMap.Raw.Proofs.L.PX.In_inv_2 LabelMap.Raw.Proofs.PX.In_inv_2
+  LabelMap.Raw.MapsRight LabelMap.Raw.MapsLeft
+  LabelMap.Raw.MapsRoot LabelMap.Raw.Proofs.L.PX.MO.Sort_NoDup
+  LabelMap.Raw.Proofs.L.MX.Sort_NoDup LabelMap.Raw.Proofs.PX.MO.Sort_NoDup
+  LabelMap.Raw.Proofs.MX.Sort_NoDup
+  LabelMap.Raw.BSLeaf LabelMap.Raw.BSNode LabelMap.Raw.Leaf LabelMap.Raw.Node.
 
 Require FMapFacts.
 Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).
