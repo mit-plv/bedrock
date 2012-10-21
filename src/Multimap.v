@@ -1,4 +1,4 @@
-Require Import HintlessFMapInterface HintlessFMapFacts.
+Require Import FMapInterface FMapFacts.
 Require Import List.
 Require Import NatMap.
 Require Permutation.
@@ -7,8 +7,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Module Make (FM : WS).
-  Module FACTS := HintlessFMapFacts.WFacts_fun FM.E FM.
-  Module PROPS := HintlessFMapFacts.WProperties_fun FM.E FM.
+  Module FACTS := FMapFacts.WFacts_fun FM.E FM.
+  Module PROPS := FMapFacts.WProperties_fun FM.E FM.
   Module MFACTS := NatMap.MoreFMapFacts FM.
   
   Lemma find_Empty : forall T (m : FM.t T) x,

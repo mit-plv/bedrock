@@ -5,17 +5,16 @@ Set Implicit Arguments.
 
 Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply allocated_shift_base.
 
-Lemma wplus_lt_lift : forall sz n m o : nat,
-  (N.of_nat (n + m) < Npow2 sz)%N
-  -> (N.of_nat o < Npow2 sz)%N
-  -> natToWord sz n ^+ natToWord sz m < natToWord sz o
+Lemma wplus_lt_lift : forall n m o : nat,
+  goodSize (n + m)
+  -> goodSize o
+  -> natToW n ^+ natToW m < natToW o
   -> (n + m < o)%nat.
   unfold wlt; intros.
   rewrite <- natToWord_plus in H1.
   unfold wplusN, wordBinN in *.
-  repeat rewrite wordToNat_natToWord_idempotent in * by nomega.
   repeat rewrite wordToN_nat in *.
-  repeat rewrite wordToNat_natToWord_idempotent in * by nomega.
+  repeat rewrite wordToNat_natToW_goodSize in * by auto.
   nomega.
 Qed.
 
@@ -31,15 +30,13 @@ Lemma goodSize_plus2 : forall n,
   intros; eapply goodSize_plus_l; eauto.
 Qed.
 
-Lemma goodSize_diff : forall x y z,
-  (N.of_nat (x + 2) < z)%N
-  -> (N.of_nat (x - y - 2 + 2) < z)%N.
-  intros; nomega.
+Lemma goodSize_diff : forall x y,
+  goodSize (x + 2)
+  -> goodSize (x - y - 2 + 2).
+  intros; eapply goodSize_weaken; eauto.
 Qed.
 
-Local Hint Resolve goodSize_plus2.
-Local Hint Extern 1 (_ < _)%N => apply goodSize_plus2.
-Local Hint Extern 1 (goodSize (_ - _ - _ + _ )) => apply goodSize_diff.
+Local Hint Resolve goodSize_plus2 goodSize_diff.
 
 
 (** * A free-list heap managed by the malloc library *)
@@ -92,6 +89,8 @@ Module Type FREE_LIST.
 End FREE_LIST.
 
 Module FreeList : FREE_LIST.
+  Transparent goodSize.
+
   Definition noWrapAround (p : W) (sz : nat) :=
     forall n, (n < sz * 4)%nat -> p ^+ $(n) <> $0.
 
@@ -138,8 +137,10 @@ Module FreeList : FREE_LIST.
     rewrite natToW_minus.
     rewrite wmult_comm.
     subst; assumption.
-    rewrite natToW_plus in H1; auto.
+    apply lt_goodSize' in H1; auto.
   Qed.
+
+  Hint Extern 1 (_ < _)%N => apply goodSize_plus2.
 
   Lemma freeable_split : forall a b x y,
     freeable a (x + 2)
