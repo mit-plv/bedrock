@@ -1,8 +1,6 @@
 PROVERS := Assumption Reflexivity Word
 #  Transitivity
-MODULES    := HintlessOrderedType HintlessFMapInterface \
-	HintlessFMapList HintlessFMapAVL HintlessFMapFacts \
-	Reflection Tactics ListFacts \
+MODULES    := Reflection Tactics ListFacts \
 	GenRec Ordering Multimap Folds \
 	Nomega Word Labels LabelMap \
 	PropX PropXRel PropXTac \

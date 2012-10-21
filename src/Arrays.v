@@ -71,13 +71,13 @@ Qed.
 Hint Resolve bound_N_nat.
 
 Lemma sel_selN : forall ls (a : nat),
-  (a < pow2 32)%nat
+  goodSize a
   -> sel ls (natToW a) = selN ls a.
   unfold sel; intros; rewrite wordToNat_natToWord_idempotent; auto.
 Qed.
 
 Lemma upd_updN : forall ls (a : nat) v,
-  (a < pow2 32)%nat
+  goodSize a
   -> upd ls (natToW a) v = updN ls a v.
   unfold upd; intros; rewrite wordToNat_natToWord_idempotent; auto.
 Qed.
@@ -648,3 +648,5 @@ Theorem lt_goodSize' : forall n m,
   repeat rewrite wordToNat_natToWord_idempotent in H by nomega.
   assumption.
 Qed.
+
+Global Opaque goodSize.

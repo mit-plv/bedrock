@@ -14,6 +14,60 @@ Require NatMap.
 
 Module FM := NatMap.IntMap.
 
+Remove Hints FM.Raw.Proofs.L.PX.eqk_refl FM.Raw.Proofs.L.PX.eqk_sym
+  FM.Raw.Proofs.L.PX.eqk_trans
+  FM.Raw.Proofs.PX.eqk_refl FM.Raw.Proofs.PX.eqk_sym FM.Raw.Proofs.PX.eqk_trans
+  FM.Raw.Proofs.L.PX.eqke_refl FM.Raw.Proofs.L.PX.eqke_sym FM.Raw.Proofs.L.PX.eqke_trans
+  FM.Raw.Proofs.PX.eqke_refl FM.Raw.Proofs.PX.eqke_sym FM.Raw.Proofs.PX.eqke_trans
+  FM.Raw.Proofs.L.PX.MO.lt_eq FM.Raw.Proofs.L.PX.MO.eq_lt FM.Raw.Proofs.L.MX.lt_eq
+  FM.Raw.Proofs.L.MX.eq_lt FM.Raw.Proofs.PX.MO.lt_eq FM.Raw.Proofs.PX.MO.eq_lt
+  FM.Raw.Proofs.MX.lt_eq FM.Raw.Proofs.MX.eq_lt
+  FM.Raw.Proofs.L.PX.eqk_ltk FM.Raw.Proofs.L.PX.ltk_eqk FM.Raw.Proofs.L.PX.ltk_trans
+  FM.Raw.Proofs.PX.eqk_ltk FM.Raw.Proofs.PX.ltk_eqk FM.Raw.Proofs.PX.ltk_trans
+  FM.Raw.Proofs.L.PX.MO.lt_antirefl
+  FM.Raw.Proofs.L.MX.lt_antirefl FM.Raw.Proofs.PX.MO.lt_antirefl FM.Raw.Proofs.MX.lt_antirefl
+  FM.Raw.Proofs.L.PX.eqk_not_ltk FM.Raw.Proofs.L.PX.ltk_not_eqke
+  FM.Raw.Proofs.L.PX.ltk_not_eqk FM.Raw.Proofs.L.PX.MO.lt_not_gt
+  FM.Raw.Proofs.L.PX.MO.eq_not_gt FM.Raw.Proofs.L.PX.MO.eq_neq
+  FM.Raw.Proofs.L.PX.MO.neq_eq FM.Raw.Proofs.L.PX.MO.eq_le
+  FM.Raw.Proofs.L.PX.MO.le_eq FM.Raw.Proofs.L.PX.MO.eq_not_lt
+  FM.Raw.Proofs.L.PX.MO.gt_not_eq FM.Raw.Proofs.L.MX.lt_not_gt
+  FM.Raw.Proofs.L.MX.eq_not_gt FM.Raw.Proofs.L.MX.eq_neq
+  FM.Raw.Proofs.L.MX.neq_eq FM.Raw.Proofs.L.MX.eq_le
+  FM.Raw.Proofs.L.MX.le_eq FM.Raw.Proofs.L.MX.eq_not_lt
+  FM.Raw.Proofs.L.MX.gt_not_eq FM.Raw.Proofs.PX.eqk_not_ltk
+  FM.Raw.Proofs.PX.ltk_not_eqke FM.Raw.Proofs.PX.ltk_not_eqk
+  FM.Raw.Proofs.PX.MO.lt_not_gt FM.Raw.Proofs.PX.MO.eq_not_gt
+  FM.Raw.Proofs.PX.MO.eq_neq FM.Raw.Proofs.PX.MO.neq_eq
+  FM.Raw.Proofs.PX.MO.eq_le FM.Raw.Proofs.PX.MO.le_eq
+  FM.Raw.Proofs.PX.MO.eq_not_lt FM.Raw.Proofs.PX.MO.gt_not_eq
+  FM.Raw.Proofs.MX.lt_not_gt FM.Raw.Proofs.MX.eq_not_gt
+  FM.Raw.Proofs.MX.eq_neq FM.Raw.Proofs.MX.neq_eq
+  FM.Raw.Proofs.MX.eq_le FM.Raw.Proofs.MX.le_eq
+  FM.Raw.Proofs.MX.eq_not_lt FM.Raw.Proofs.MX.gt_not_eq
+  FM.Raw.Proofs.L.PX.Sort_Inf_NotIn FM.Raw.Proofs.PX.Sort_Inf_NotIn
+  FM.Raw.Proofs.L.PX.Inf_eq FM.Raw.Proofs.L.PX.MO.Inf_lt
+  FM.Raw.Proofs.L.MX.Inf_lt FM.Raw.Proofs.PX.Inf_eq
+  FM.Raw.Proofs.PX.MO.Inf_lt FM.Raw.Proofs.MX.Inf_lt
+  FM.Raw.Proofs.L.PX.Inf_lt FM.Raw.Proofs.L.PX.MO.Inf_lt
+  FM.Raw.Proofs.L.MX.Inf_lt FM.Raw.Proofs.PX.Inf_lt
+  FM.Raw.Proofs.PX.MO.Inf_lt FM.Raw.Proofs.MX.Inf_lt
+  FM.Raw.InRight FM.Raw.InLeft FM.Raw.InRoot
+  FM.Raw.Proofs.L.PX.InA_eqke_eqk FM.Raw.Proofs.L.PX.MO.In_eq
+  FM.Raw.Proofs.L.PX.MO.ListIn_In FM.Raw.Proofs.L.MX.In_eq
+  FM.Raw.Proofs.L.MX.ListIn_In FM.Raw.Proofs.PX.InA_eqke_eqk
+  FM.Raw.Proofs.PX.MO.In_eq FM.Raw.Proofs.PX.MO.ListIn_In
+  FM.Raw.Proofs.MX.In_eq FM.Raw.Proofs.MX.ListIn_In
+  FM.Raw.Proofs.L.PX.In_inv_3 FM.Raw.Proofs.PX.In_inv_3
+  FM.Raw.Proofs.L.PX.In_inv_2 FM.Raw.Proofs.PX.In_inv_2
+  FM.Raw.MapsRight FM.Raw.MapsLeft
+  FM.Raw.MapsRoot FM.Raw.Proofs.L.PX.MO.Sort_NoDup
+  FM.Raw.Proofs.L.MX.Sort_NoDup FM.Raw.Proofs.PX.MO.Sort_NoDup
+  FM.Raw.Proofs.MX.Sort_NoDup
+  FM.Raw.BSLeaf FM.Raw.BSNode FM.Raw.Leaf FM.Raw.Node
+  FM.E.lt_trans FM.E.lt_not_eq FM.E.eq_refl
+  FM.E.eq_sym FM.E.eq_trans.
+
 
 Module Make (SH : SepHeap) (U : SynUnifier).
   Module Import SE := SH.SE.

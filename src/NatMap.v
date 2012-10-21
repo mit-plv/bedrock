@@ -1,4 +1,4 @@
-Require Import HintlessOrderedType HintlessFMapAVL.
+Require Import OrderedType FMapAVL.
 Require Import List.
 Require Import Setoid RelationClasses.
 Require Import Reflection.
@@ -52,21 +52,74 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
 End Ordered_nat.
 
-Module IntMap := HintlessFMapAVL.Make Ordered_nat.
+Module IntMap := FMapAVL.Make Ordered_nat.
 
-Require HintlessFMapFacts.
-Module IntMapFacts := HintlessFMapFacts.WFacts_fun(Ordered_nat)(IntMap).
+Remove Hints IntMap.E.eq_sym IntMap.E.eq_refl IntMap.E.eq_trans IntMap.E.lt_not_eq IntMap.E.lt_trans
+  IntMap.Raw.Proofs.L.PX.eqk_refl IntMap.Raw.Proofs.L.PX.eqk_sym
+  IntMap.Raw.Proofs.L.PX.eqk_trans
+  IntMap.Raw.Proofs.PX.eqk_refl IntMap.Raw.Proofs.PX.eqk_sym IntMap.Raw.Proofs.PX.eqk_trans
+  IntMap.Raw.Proofs.L.PX.eqke_refl IntMap.Raw.Proofs.L.PX.eqke_sym IntMap.Raw.Proofs.L.PX.eqke_trans
+  IntMap.Raw.Proofs.PX.eqke_refl IntMap.Raw.Proofs.PX.eqke_sym IntMap.Raw.Proofs.PX.eqke_trans
+  IntMap.Raw.Proofs.L.PX.MO.lt_eq IntMap.Raw.Proofs.L.PX.MO.eq_lt IntMap.Raw.Proofs.L.MX.lt_eq
+  IntMap.Raw.Proofs.L.MX.eq_lt IntMap.Raw.Proofs.PX.MO.lt_eq IntMap.Raw.Proofs.PX.MO.eq_lt
+  IntMap.Raw.Proofs.MX.lt_eq IntMap.Raw.Proofs.MX.eq_lt
+  IntMap.Raw.Proofs.L.PX.eqk_ltk IntMap.Raw.Proofs.L.PX.ltk_eqk IntMap.Raw.Proofs.L.PX.ltk_trans
+  IntMap.Raw.Proofs.PX.eqk_ltk IntMap.Raw.Proofs.PX.ltk_eqk IntMap.Raw.Proofs.PX.ltk_trans
+  IntMap.Raw.Proofs.L.PX.MO.lt_antirefl
+  IntMap.Raw.Proofs.L.MX.lt_antirefl IntMap.Raw.Proofs.PX.MO.lt_antirefl IntMap.Raw.Proofs.MX.lt_antirefl
+  IntMap.Raw.Proofs.L.PX.eqk_not_ltk IntMap.Raw.Proofs.L.PX.ltk_not_eqke
+  IntMap.Raw.Proofs.L.PX.ltk_not_eqk IntMap.Raw.Proofs.L.PX.MO.lt_not_gt
+  IntMap.Raw.Proofs.L.PX.MO.eq_not_gt IntMap.Raw.Proofs.L.PX.MO.eq_neq
+  IntMap.Raw.Proofs.L.PX.MO.neq_eq IntMap.Raw.Proofs.L.PX.MO.eq_le
+  IntMap.Raw.Proofs.L.PX.MO.le_eq IntMap.Raw.Proofs.L.PX.MO.eq_not_lt
+  IntMap.Raw.Proofs.L.PX.MO.gt_not_eq IntMap.Raw.Proofs.L.MX.lt_not_gt
+  IntMap.Raw.Proofs.L.MX.eq_not_gt IntMap.Raw.Proofs.L.MX.eq_neq
+  IntMap.Raw.Proofs.L.MX.neq_eq IntMap.Raw.Proofs.L.MX.eq_le
+  IntMap.Raw.Proofs.L.MX.le_eq IntMap.Raw.Proofs.L.MX.eq_not_lt
+  IntMap.Raw.Proofs.L.MX.gt_not_eq IntMap.Raw.Proofs.PX.eqk_not_ltk
+  IntMap.Raw.Proofs.PX.ltk_not_eqke IntMap.Raw.Proofs.PX.ltk_not_eqk
+  IntMap.Raw.Proofs.PX.MO.lt_not_gt IntMap.Raw.Proofs.PX.MO.eq_not_gt
+  IntMap.Raw.Proofs.PX.MO.eq_neq IntMap.Raw.Proofs.PX.MO.neq_eq
+  IntMap.Raw.Proofs.PX.MO.eq_le IntMap.Raw.Proofs.PX.MO.le_eq
+  IntMap.Raw.Proofs.PX.MO.eq_not_lt IntMap.Raw.Proofs.PX.MO.gt_not_eq
+  IntMap.Raw.Proofs.MX.lt_not_gt IntMap.Raw.Proofs.MX.eq_not_gt
+  IntMap.Raw.Proofs.MX.eq_neq IntMap.Raw.Proofs.MX.neq_eq
+  IntMap.Raw.Proofs.MX.eq_le IntMap.Raw.Proofs.MX.le_eq
+  IntMap.Raw.Proofs.MX.eq_not_lt IntMap.Raw.Proofs.MX.gt_not_eq
+  IntMap.Raw.Proofs.L.PX.Sort_Inf_NotIn IntMap.Raw.Proofs.PX.Sort_Inf_NotIn
+  IntMap.Raw.Proofs.L.PX.Inf_eq IntMap.Raw.Proofs.L.PX.MO.Inf_lt
+  IntMap.Raw.Proofs.L.MX.Inf_lt IntMap.Raw.Proofs.PX.Inf_eq
+  IntMap.Raw.Proofs.PX.MO.Inf_lt IntMap.Raw.Proofs.MX.Inf_lt
+  IntMap.Raw.Proofs.L.PX.Inf_lt IntMap.Raw.Proofs.L.PX.MO.Inf_lt
+  IntMap.Raw.Proofs.L.MX.Inf_lt IntMap.Raw.Proofs.PX.Inf_lt
+  IntMap.Raw.Proofs.PX.MO.Inf_lt IntMap.Raw.Proofs.MX.Inf_lt
+  IntMap.Raw.InRight IntMap.Raw.InLeft IntMap.Raw.InRoot
+  IntMap.Raw.Proofs.L.PX.InA_eqke_eqk IntMap.Raw.Proofs.L.PX.MO.In_eq
+  IntMap.Raw.Proofs.L.PX.MO.ListIn_In IntMap.Raw.Proofs.L.MX.In_eq
+  IntMap.Raw.Proofs.L.MX.ListIn_In IntMap.Raw.Proofs.PX.InA_eqke_eqk
+  IntMap.Raw.Proofs.PX.MO.In_eq IntMap.Raw.Proofs.PX.MO.ListIn_In
+  IntMap.Raw.Proofs.MX.In_eq IntMap.Raw.Proofs.MX.ListIn_In
+  IntMap.Raw.Proofs.L.PX.In_inv_3 IntMap.Raw.Proofs.PX.In_inv_3
+  IntMap.Raw.Proofs.L.PX.In_inv_2 IntMap.Raw.Proofs.PX.In_inv_2
+  IntMap.Raw.MapsRight IntMap.Raw.MapsLeft
+  IntMap.Raw.MapsRoot IntMap.Raw.Proofs.L.PX.MO.Sort_NoDup
+  IntMap.Raw.Proofs.L.MX.Sort_NoDup IntMap.Raw.Proofs.PX.MO.Sort_NoDup
+  IntMap.Raw.Proofs.MX.Sort_NoDup
+  IntMap.Raw.BSLeaf IntMap.Raw.BSNode IntMap.Raw.Leaf IntMap.Raw.Node.
 
-Module IntMapProperties := HintlessFMapFacts.WProperties_fun(Ordered_nat)(IntMap).
+Require FMapFacts.
+Module IntMapFacts := FMapFacts.WFacts_fun(Ordered_nat)(IntMap).
+
+Module IntMapProperties := FMapFacts.WProperties_fun(Ordered_nat)(IntMap).
 
 Definition singleton {T} (k : nat) (v : T) : IntMap.t T :=
   IntMap.add k v (IntMap.empty _).
 
 (** Neither Properties nor Facts contains anything useful about 'map' **)
-Module MoreFMapFacts (FM : HintlessFMapInterface.WS).
-  
-  Module PROPS := HintlessFMapFacts.WProperties_fun(FM.E) FM.
-  Module FACTS := HintlessFMapFacts.WFacts_fun FM.E FM.    
+Module MoreFMapFacts (FM : FMapInterface.WS)
+. 
+  Module PROPS := FMapFacts.WProperties_fun(FM.E) FM.
+  Module FACTS := FMapFacts.WFacts_fun FM.E FM.    
 
   Definition union T :=
     FM.fold (fun k (v : T) a => FM.add k v a).

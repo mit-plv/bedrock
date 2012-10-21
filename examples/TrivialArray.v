@@ -59,6 +59,10 @@ Qed.
 Ltac pure' := intros; repeat match goal with
                                | [ H : sel _ _ = _ |- _ ] => rewrite H in *
                              end;
+  try match goal with
+        | [ _ : context[length (?A ++ ?B)] |- _ ] =>
+          assert (goodSize (length (A ++ B))) by (eapply containsArray_goodSize; eauto)
+      end;
   autorewrite with sepFormula in *; simpl length in *; autorewrite with sepFormula.
 
 Ltac pure := pure'; try (apply f_equal; apply shift_pos; pure'); eauto 7.
@@ -100,26 +104,6 @@ Qed.
 
 Hint Immediate not_done_yet.
 
-Ltac done_bound := intros done pending; intros;
-  assert (length (done ++ pending) < pow2 32)%nat by eauto;
-    rewrite app_length in *; omega.
-
-Lemma done_bound : forall done pending P stn m specs,
-  interp specs (![ P ] (stn, m))
-  -> containsArray P (done ++ pending)
-  -> (length done < pow2 32)%nat.
-  done_bound.
-Qed.
-
-Lemma done_bound2 : forall done pending P stn m specs,
-  interp specs (![ P ] (stn, m))
-  -> containsArray P (done ++ pending)
-  -> (length done + length pending < pow2 32)%nat.
-  done_bound.
-Qed.
-
-Hint Resolve done_bound done_bound2.
-
 Lemma shift_reorg : forall pending,
   (length pending > 0)%nat
   -> hd $0 pending ^+ $1 :: bump (tl pending)
@@ -132,11 +116,11 @@ Hint Rewrite shift_reorg using solve [ eauto ] : sepFormula.
 Hint Rewrite Npow2_nat wordToN_nat wordToNat_natToWord_idempotent
   using nomega : N.
 
-Lemma now_done : forall A (done pending : list A) sz,
-  natToWord sz (length done + length pending) <= $ (length done)
-  -> (length done + length pending < pow2 sz)%nat
+Lemma now_done : forall A (done pending : list A),
+  natToW (length done + length pending) <= $ (length done)
+  -> goodSize (length done + length pending)
   -> pending = nil.
-  destruct pending; pure; nomega.
+  destruct pending; simpl; intuition; elimtype False; eauto.
 Qed.
 
 Hint Resolve now_done.
@@ -149,17 +133,36 @@ Qed.
 
 Hint Resolve unbump.
 
-Lemma bound_nat : forall sz (done pending : list W),
-  natToWord sz (length done) < natToWord sz (length done + length pending)
-  -> (length (done ++ hd $0 pending ^+ $1 :: tl pending) < pow2 sz)%nat
+Hint Rewrite wordToNat_natToW_goodSize using solve [ eauto ] : N.
+
+Lemma bound_nat : forall (done pending : list W),
+  natToW (length done) < natToW (length done + length pending)
+  -> goodSize (length (done ++ hd $0 pending ^+ $1 :: tl pending))
   -> (length done < length done + length pending)%nat.
-  intros; pre_nomega; autorewrite with sepFormula N in *; pure; destruct pending; pure;
-    autorewrite with N in *; auto.
+  intros; autorewrite with sepFormula N in *; simpl in *;
+    apply lt_goodSize'; eauto; destruct pending; simpl in *; eauto using goodSize_weaken.
 Qed.
 
 Hint Resolve bound_nat.
 
 Hint Extern 1 (himp _ _ _) => reflexivity.
+
+Lemma goodSize_prefix : forall a b : list W,
+  goodSize (length (a ++ b))
+  -> goodSize (length a).
+  intros; autorewrite with sepFormula in *; eapply goodSize_weaken; eauto.
+Qed.
+
+Lemma goodSize_full : forall a b : list W,
+  goodSize (length (a ++ b))
+  -> goodSize (length a + length b).
+  intros; autorewrite with sepFormula in *; eapply goodSize_weaken; eauto.
+Qed.
+
+Hint Extern 1 (goodSize (length _)) => eapply goodSize_prefix; eapply containsArray_goodSize.
+Hint Extern 1 (goodSize (length _ + length _)) => eapply goodSize_full; eapply containsArray_goodSize.
+
+Hint Extern 1 (_ < _)%nat => apply lt_goodSize'; [ assumption | | ].
 
 Theorem arraysOk : moduleOk arrays.
 (*TIME  Clear Timing Profile. *)

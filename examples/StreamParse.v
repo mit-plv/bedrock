@@ -964,4 +964,4 @@ Notation "'Match' stream 'Size' size 'Position' pos { case1 ;; .. ;; caseN }" :=
   (no associativity, at level 95, stream at level 0, size at level 0, pos at level 0,
     case1 at next level, caseN at next level) : SP_scope.
 
-Notation "'Default' { c }" := c (at level 0, no associativity, only parsing) : SP_scope.
+Notation "'Default' { c }" := c (at level 0, c at level 95, no associativity, only parsing) : SP_scope.
