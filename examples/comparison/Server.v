@@ -37,7 +37,7 @@ Definition valueIsGe (data : list W) (index lower : W) : W :=
     else if wlt_dec (Array.sel data index) lower then $0 else $1.
 
 Definition wmax (w w' : W) : W :=
-  if wlt_dec w' w then w' else w.
+  if wlt_dec w' w then w else w'.
 
 Fixpoint maxInRange (lower upper : W) (data : list W) : W :=
   match data with
@@ -68,7 +68,7 @@ Definition response (data : list W) (acc : list W) (r : req) : list W :=
     | MaxInRange lower upper =>
       maxInRange lower upper data :: acc
     | CollectBelow lower upper =>
-      collectBelow upper (firstn (wordToNat lower) data) acc
+      collectBelow upper (skipn (wordToNat lower) data) acc
   end.
 
 Definition responseAll (data : list W) (rs : list req) (acc : list W) :=
@@ -101,6 +101,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
         Match "cmd" Size "cmdLen" Position "position" {
           (* ValueIsGe *)
           Case (0 ++ "posn" ++ "lower")
+            Diverge(*
             "res" <- 0;;
 
             [Al rdone, Al r, Al out,
@@ -130,20 +131,81 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
 
             "node" *<- "res";;
             "node" + 4 *<- "output";;
-            "output" <- "node"
+            "output" <- "node"*)
           end;;
 
           (* MaxInRange *)
           Case (1 ++ "lower" ++ "upper")
-            Diverge
+            Diverge(*
+            "res" <- 0;;
+
+            [Al rdone, Al r, Al out,
+              After prefix Approaching all
+                PRE[V] array (rdone ++ encodeAll (MaxInRange (V "lower") (V "upper") :: r)) (V "cmd")
+                  * mallocHeap * sll out (V "output") * [| V "position" = natToW (length rdone + 3) |]
+                  * [| V "cmdLen" = (length rdone + 3 + length (encodeAll r))%nat |]
+                  * [| V "dataLen" = length all |]
+                  * [| V "res" = maxInRange (V "lower") (V "upper") prefix |]
+                  * [| goodSize (length rdone + 3 + length (encodeAll r) + 3) |]
+                POST[R] array (rdone ++ encodeAll (MaxInRange (V "lower") (V "upper") :: r)) (V "cmd")
+                  * mallocHeap * sll (responseAll all (MaxInRange (V "lower") (V "upper") :: r) out) R ]
+            For "index" Holding "value" in "data" Size "dataLen"
+              Where (("lower" <= Value) && (Value <= "upper") && (Value >= "res")) {
+              "res" <- "value"
+            };;
+
+            "node" <-- Call "malloc"!"malloc"(0)
+            [Al rdone, Al r, Al d, Al out,
+              PRE[V, MR] array (rdone ++ encodeAll r) (V "cmd") * array d (V "data") * mallocHeap
+                * sll out (V "output") * [| V "position" = length rdone |]
+                * [| V "cmdLen" = (length rdone + length (encodeAll r))%nat |] * [| V "dataLen" = length d |]
+                * [| goodSize (length rdone + length (encodeAll r) + 3) |]
+                * MR =?> 2 * [| MR <> 0 |]
+              POST[R] array (rdone ++ encodeAll r) (V "cmd") * array d (V "data") * mallocHeap
+                * sll (responseAll d r (V "res" :: out)) R];;
+
+            "node" *<- "res";;
+            "node" + 4 *<- "output";;
+            "output" <- "node"*)
           end;;
 
           (* CollectBelow *)
           Case (2 ++ "lower" ++ "upper")
-            Diverge
+            [Al rdone, Al r, Al out,
+              After prefix Approaching all
+                PRE[V] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
+                  * mallocHeap
+                  * sll (collectBelow (V "upper") (skipn (wordToNat (V "lower")) prefix) out) (V "output")
+                  * [| V "position" = natToW (length rdone + 3) |]
+                  * [| V "cmdLen" = (length rdone + 3 + length (encodeAll r))%nat |]
+                  * [| V "dataLen" = length all |]
+                  * [| goodSize (length rdone + 3 + length (encodeAll r) + 3) |]
+                POST[R] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
+                  * mallocHeap * sll (responseAll all r
+                    (collectBelow (V "upper")
+                      (skipn (wordToNat (V "lower")) all) out)) R ]
+            For "index" Holding "value" in "data" Size "dataLen"
+              Where ((Index >= "lower") && (Value <= "upper")) {
+              "node" <-- Call "malloc"!"malloc"(0)
+              [Al rdone, Al r, Al d, Al out,
+                PRE[V, MR] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
+                  * array d (V "data") * mallocHeap * sll out (V "output")
+                  * [| V "position" = natToW (length rdone + 3) |]
+                  * [| V "cmdLen" = (length rdone + 3 + length (encodeAll r))%nat |]
+                  * [| V "dataLen" = length d |]
+                  * [| goodSize (length rdone + 3 + length (encodeAll r) + 3) |]
+                  * MR =?> 2 * [| MR <> 0 |]
+                POST[R] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
+                  * mallocHeap * sll (responseAll d r
+                    (collectBelow (V "upper") (skipn (wordToNat (V "index")) d) out)) R ];;
+
+              "node" *<- "value";;
+              "node" + 4 *<- "output";;
+              "output" <- "node"
+            }
           end
         } Default {
-          Diverge
+          Diverge(*Fail*) (* Impossible: the match was exhaustive w.r.t. the spec. *)
         }
       };;
 
@@ -268,7 +330,16 @@ Lemma valueIsGe_set : forall ls posn V lower,
         rewrite sel_middle by auto; destruct (wlt_dec (sel V "value") lower); auto; nomega.
 Qed.
 
-Ltac finish := subst; eauto;
+Lemma not_done_yet : forall (pos len : W) (ws : list W) r,
+  pos < len
+  -> pos = natToW (length ws)
+  -> len = length ws + length (encodeAll r)
+  -> r <> nil.
+  destruct r; intuition (try discriminate); subst; simpl in *;
+    rewrite plus_0_r in *; nomega.
+Qed.
+
+Ltac finish := fold (@skipn W); subst; eauto;
   try match goal with
         | [ _ : context[?a ++ ?b :: ?c :: ?d :: _] |- sel _ "position" = natToW (length _) ] =>
           instantiate (1 := a ++ b :: c :: d :: nil)
@@ -278,7 +349,17 @@ Ltac finish := subst; eauto;
            | [ H : Regs _ _ = sel _ _ |- _ ] => rewrite H in *
          end; try rewrite wordToNat_natToW_goodSize by (eapply goodSize_weaken; eauto);
   eauto; autorewrite with StreamParse Server; simpl; autorewrite with StreamParse Server; eauto; simpl;
-    try solve [ auto | eapply goodSize_weaken; eauto | step hints ].
+    try solve [ auto
+      | eapply goodSize_weaken; eauto
+      | step hints
+      | match goal with
+          | [ _ : ~match encodeAll ?r with nil => _ | _ => _ end |- _ ] =>
+            match goal with
+              | [ _ : match encodeAll _ with nil => False | _ => _ end |- _ ] => fail 1
+              | _ => assert (r <> nil) by (eapply not_done_yet; eauto);
+                destruct r as [ | [ ] ]; simpl in *; tauto
+            end
+        end ].
 
 Hint Extern 1 (natToW 1 = valueIsGe _ _ _) =>
   eapply valueIsGe_set; [ eassumption | eassumption | eassumption
@@ -346,18 +427,227 @@ Hint Extern 1 (@eq W _ _) =>
     | _ => words
   end.
 
+Fixpoint maxInRange' (lower upper : W) (data : list W) (acc : W) : W :=
+  match data with
+    | nil => acc
+    | w :: ws =>
+      maxInRange' lower upper ws (if wlt_dec w lower
+        then acc
+        else if wlt_dec upper w
+          then acc
+          else wmax w acc)
+  end.
+
+Ltac ifs := repeat match goal with
+                     | [ |- context[if ?E then _ else _] ] => destruct E; auto
+                     | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; auto
+                   end.
+
+Hint Rewrite roundTrip_0 : N.
+
+Lemma wordToNat_inj : forall sz (w w' : word sz),
+  wordToNat w = wordToNat w'
+  -> w = w'.
+  intros ? ? ? H; apply (f_equal (natToWord sz)) in H;
+    repeat rewrite natToWord_wordToNat in *; auto.
+Qed.
+
+Lemma maxInRange'_alt : forall lower upper data acc,
+  maxInRange' lower upper data acc
+  = wmax (maxInRange lower upper data) acc.
+  induction data; simpl; unfold wmax in *; intuition; [
+    ifs; nomega
+    | rewrite IHdata; clear IHdata; ifs; (try nomega; apply wordToNat_inj; nomega) ].
+Qed.
+
+Lemma maxInRange_alt : forall lower upper data,
+  maxInRange lower upper data = maxInRange' lower upper data 0.
+  intros; rewrite maxInRange'_alt; unfold wmax; ifs; apply wordToNat_inj; nomega.
+Qed.
+
+Lemma wle_lt : forall u v : W,
+  u < v
+  -> u <= v.
+  intros; nomega.
+Qed.
+
+Hint Immediate wle_lt.
+
+Lemma maxInRange'_skip : forall lower upper w ws acc,
+  (wleb lower w = true
+    -> wleb w upper = true
+    -> wleb (maxInRange' lower upper ws acc) w = true
+    -> False)
+  -> maxInRange' lower upper ws acc = maxInRange' lower upper (ws ++ w :: nil) acc.
+  induction ws; simpl; unfold wmax; intros; ifs; elimtype False; eauto.
+Qed.
+
+Lemma maxInRange_skip : forall lower upper w ws,
+  (wleb lower w = true
+    -> wleb w upper = true
+    -> wleb (maxInRange lower upper ws) w = true
+    -> False)
+  -> maxInRange lower upper ws = maxInRange lower upper (ws ++ w :: nil).
+  intros; repeat rewrite maxInRange_alt in *; apply maxInRange'_skip; auto.
+Qed.
+
+Hint Immediate maxInRange_skip.
+
+Lemma maxInRange'_set : forall lower upper w ws acc,
+  wleb lower w = true
+  -> wleb w upper = true
+  -> wleb (maxInRange' lower upper ws acc) w = true
+  -> w = maxInRange' lower upper (ws ++ w :: nil) acc.
+  induction ws; simpl; unfold wmax; intuition;
+    ifs; repeat match goal with
+                  | [ H : wleb _ _ = true |- _ ] => apply wleb_true_fwd in H
+                end; try nomega; apply wordToNat_inj; nomega.
+Qed.
+
+Lemma maxInRange_set : forall lower upper w ws,
+  wleb lower w = true
+  -> wleb w upper = true
+  -> wleb (maxInRange lower upper ws) w = true
+  -> w = maxInRange lower upper (ws ++ w :: nil).
+  intros; repeat rewrite maxInRange_alt in *; apply maxInRange'_set; auto.
+Qed.
+
+Hint Immediate maxInRange_set.
+
+
 Theorem ok : moduleOk m.
 Proof.
   vcgen; parse0; for0.
 
   Ltac t := post; evaluate hints; repeat (parse1 finish; use_match); multi_ex; sep hints; finish.
 
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+
   t.
   t.
   t.
   t.
+
+
+  Lemma skipn_nil : forall A n,
+    skipn n (@nil A) = nil.
+    destruct n; reflexivity.
+  Qed.
+
+  Hint Rewrite skipn_nil : Server.
+
   t.
-  t.
+
+
+  post.
+  evaluate hints.
+  multi_ex.
+  descend.
+  step hints.
+  fold (@skipn W).
+
+  Lemma eq0_le : forall w : W,
+    wordToNat w = 0
+    -> w <= natToW 0.
+    intros ? H; apply (f_equal natToW) in H;
+      unfold natToW in H; rewrite natToWord_wordToNat in H; subst; nomega.
+  Qed.
+
+  Hint Immediate eq0_le.
+
+  (*Lemma le0' : forall w,
+    w <= natToW 0
+    -> w = natToW 0.
+    intros; apply wordToNat_inj; nomega.
+  Qed.
+
+  Lemma le0 : forall w b,
+    w <= natToW 0
+    -> w <= b.
+    intros; rewrite (le0' w); nomega.
+  Qed.
+
+  Hint Immediate le0.*)
+
+  Lemma le_any : forall (w : W) b,
+    wordToNat w = 0
+    -> w <= b.
+    intros; pre_nomega; rewrite H; omega.
+  Qed.
+
+  Hint Immediate le_any.
+
+  Lemma wleb_false_fwd : forall u v,
+    wleb u v = false
+    -> v < u.
+    unfold wleb; intros; ifs; try discriminate;
+      assert (wordToNat u <> wordToNat v) by (intro; apply wordToNat_inj in H0; tauto); nomega.
+  Qed.
+
+  Hint Immediate wleb_false_fwd.
+
+  Lemma collectBelow_skip1 : forall upper this ws lower base,
+    wleb this upper = false
+    -> collectBelow upper (skipn lower (ws ++ this :: nil)) base
+    = collectBelow upper (skipn lower ws) base.
+    induction ws; destruct lower; simpl; intuition idtac; autorewrite with Server; auto;
+      solve [ ifs; elimtype False; eauto
+        | specialize (IHws 0); simpl in *; ifs ].
+  Qed.
+
+  Lemma skipn_app1 : forall A (ls2 : list A) n ls1,
+    (length ls1 < n)%nat
+    -> skipn n (ls1 ++ ls2) = skipn (n - length ls1) ls2.
+    induction n; destruct ls1; simpl; intuition.
+  Qed.
+
+  Lemma skipn_all : forall A n (ls1 : list A),
+    (length ls1 <= n)%nat
+    -> skipn n ls1 = nil.
+    induction n; destruct ls1; simpl; intuition.
+  Qed.
+
+  Lemma collectBelow_skip2 : forall upper this ws (lower : W) base,
+    wleb (wordToNat lower) (length ws) = false
+    -> goodSize (S (length ws))
+    -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
+    = collectBelow upper (skipn (wordToNat lower) ws) base.
+    intros; repeat (rewrite skipn_all; simpl; auto);
+      match goal with
+        | [ H : _ |- _ ] => apply wleb_false_fwd in H
+      end;
+      match goal with
+        | [ H : _ |- _ ] => apply lt_goodSize' in H; autorewrite with Server; simpl; auto
+      end.
+  Qed.
+
+  Lemma collectBelow_skip : forall upper (lower : W) this base ws,
+    (wleb lower (length ws) = true
+      -> wleb this upper = true
+      -> False)
+    -> goodSize (S (length ws))
+    -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
+    = collectBelow upper (skipn (wordToNat lower) ws) base.
+    intros; case_eq (wleb this upper); intros; try solve [ apply collectBelow_skip1; auto ];
+      intros; case_eq (wleb lower (length ws)); intros; [
+        elimtype False; eauto
+        | apply collectBelow_skip2; auto; unfold natToW; rewrite natToWord_wordToNat; auto ].
+  Qed.
+
+  rewrite collectBelow_skip.
+  finish.
+  auto.
+  apply goodSize_weaken with (length ws); auto.
+  admit.
+  
+
+
+
   t.
   t.
   t.
