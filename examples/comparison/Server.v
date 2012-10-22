@@ -74,7 +74,7 @@ Definition response (data : list W) (acc : list W) (r : req) : list W :=
 Definition responseAll (data : list W) (rs : list req) (acc : list W) :=
   fold_left (response data) rs acc.
 
-Definition mainS := SPEC("cmd", "cmdLen", "data", "dataLen") reserving 13
+Definition mainS := SPEC("cmd", "cmdLen", "data", "dataLen") reserving 15
   Al r, Al d,
   PRE[V] array (encodeAll r) (V "cmd") * array d (V "data") * mallocHeap
     * [| V "cmdLen" = length (encodeAll r) |] * [| V "dataLen" = length d |]
@@ -86,7 +86,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
   bmodule "m" {{
     bfunction "main"("cmd", "cmdLen", "data", "dataLen",
                      "output", "position", "posn", "lower", "upper",
-                     "index", "value", "res") [mainS]
+                     "index", "value", "res", "node") [mainS]
       "output" <- 0;;
       "position" <- 0;;
 
@@ -115,10 +115,22 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
                   * mallocHeap * sll (responseAll all (ValueIsGe (V "posn") (V "lower") :: r) out) R ]
             For "index" Holding "value" in "data" Size "dataLen"
               Where ((Index = "posn") && (Value >= "lower")) {
-              Diverge
+              "res" <- 1
             };;
 
-            Diverge
+            "node" <-- Call "malloc"!"malloc"(0)
+            [Al rdone, Al r, Al d, Al out,
+              PRE[V, MR] array (rdone ++ encodeAll r) (V "cmd") * array d (V "data") * mallocHeap
+                * sll out (V "output") * [| V "position" = length rdone |]
+                * [| V "cmdLen" = (length rdone + length (encodeAll r))%nat |] * [| V "dataLen" = length d |]
+                * [| goodSize (length rdone + length (encodeAll r) + 3) |]
+                * MR =?> 2 * [| MR <> 0 |]
+              POST[R] array (rdone ++ encodeAll r) (V "cmd") * array d (V "data") * mallocHeap
+                * sll (responseAll d r (V "res" :: out)) R];;
+
+            "node" *<- "res";;
+            "node" + 4 *<- "output";;
+            "output" <- "node"
           end;;
 
           (* MaxInRange *)
@@ -235,14 +247,54 @@ Ltac multi_ex :=
 
 Hint Rewrite app_length : Server.
 
-Ltac finish :=
+Lemma valueIsGe_set : forall ls posn V lower,
+  sel V "index" = length ls
+  -> weqb (sel V "index") posn = true
+  -> wleb lower (sel V "value") = true
+  -> goodSize (length ls)
+  -> $1 = valueIsGe (ls ++ sel V "value" :: nil) posn lower.
+  intros; subst;
+    match goal with
+      | [ H : _ |- _ ] => apply wleb_true_fwd in H
+    end;
+    match goal with
+      | [ H : _ |- _ ] => apply weqb_true_iff in H
+    end;
+    match goal with
+      | [ H : _ = _ |- _ ] => rewrite H in *
+    end; replace posn with (natToW (length ls)) by auto; unfold valueIsGe;
+    autorewrite with Server; simpl; rewrite wordToNat_natToW_goodSize by auto;
+      destruct (le_lt_dec (Datatypes.length ls + 1) (Datatypes.length ls)); try omega;
+        rewrite sel_middle by auto; destruct (wlt_dec (sel V "value") lower); auto; nomega.
+Qed.
+
+Ltac finish := subst; eauto;
+  try match goal with
+        | [ _ : context[?a ++ ?b :: ?c :: ?d :: _] |- sel _ "position" = natToW (length _) ] =>
+          instantiate (1 := a ++ b :: c :: d :: nil)
+      end;
   repeat match goal with
            | [ H : sel _ _ = _ |- _ ] => rewrite H in *
            | [ H : Regs _ _ = sel _ _ |- _ ] => rewrite H in *
          end; try rewrite wordToNat_natToW_goodSize by (eapply goodSize_weaken; eauto);
-  eauto; autorewrite with Server; simpl; autorewrite with Server; eauto; simpl;
+  eauto; autorewrite with StreamParse Server; simpl; autorewrite with StreamParse Server; eauto; simpl;
     try solve [ auto | eapply goodSize_weaken; eauto | step hints ].
 
+Hint Extern 1 (natToW 1 = valueIsGe _ _ _) =>
+  eapply valueIsGe_set; [ eassumption | eassumption | eassumption
+    | match goal with
+        | [ _ : context[?a ++ sel ?V "value" :: ?b] |- _ ] =>
+          apply goodSize_weaken with (length (a ++ sel V "value" :: b)); [
+            eapply containsArray_goodSize; eauto 10
+            | finish ]
+      end ].
+
+Lemma join3 : forall A x y z ls' (ls : list A),
+  ((ls ++ x :: y :: z :: nil) ++ ls') = ls ++ x :: y :: z :: ls'.
+  induction ls; simpl; intuition.
+Qed.
+
+Hint Rewrite join3 : Server.
 
 Lemma switch_sides : forall w n,
   wordToNat w = n
@@ -288,6 +340,11 @@ Qed.
 
 Hint Immediate valueIsGe_skip.
 
+Hint Extern 1 (@eq W _ _) =>
+  match goal with
+    | [ |- ?G ] => has_evar G; fail 1
+    | _ => words
+  end.
 
 Theorem ok : moduleOk m.
 Proof.
@@ -295,6 +352,11 @@ Proof.
 
   Ltac t := post; evaluate hints; repeat (parse1 finish; use_match); multi_ex; sep hints; finish.
 
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
