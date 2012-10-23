@@ -101,7 +101,6 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
         Match "cmd" Size "cmdLen" Position "position" {
           (* ValueIsGe *)
           Case (0 ++ "posn" ++ "lower")
-            Diverge(*
             "res" <- 0;;
 
             [Al rdone, Al r, Al out,
@@ -131,12 +130,11 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
 
             "node" *<- "res";;
             "node" + 4 *<- "output";;
-            "output" <- "node"*)
+            "output" <- "node"
           end;;
 
           (* MaxInRange *)
           Case (1 ++ "lower" ++ "upper")
-            Diverge(*
             "res" <- 0;;
 
             [Al rdone, Al r, Al out,
@@ -166,7 +164,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
 
             "node" *<- "res";;
             "node" + 4 *<- "output";;
-            "output" <- "node"*)
+            "output" <- "node"
           end;;
 
           (* CollectBelow *)
@@ -189,15 +187,20 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
               "node" <-- Call "malloc"!"malloc"(0)
               [Al rdone, Al r, Al d, Al out,
                 PRE[V, MR] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
-                  * array d (V "data") * mallocHeap * sll out (V "output")
+                  * array d (V "data") * mallocHeap
+                  * sll (collectBelow (V "upper")
+                    (skipn (wordToNat (V "lower")) (firstn (wordToNat (V "index")) d)) out) (V "output")
                   * [| V "position" = natToW (length rdone + 3) |]
                   * [| V "cmdLen" = (length rdone + 3 + length (encodeAll r))%nat |]
                   * [| V "dataLen" = length d |]
                   * [| goodSize (length rdone + 3 + length (encodeAll r) + 3) |]
+                  * [| (V "lower" <= V "index")%word |] * [| (V "value" <= V "upper")%word |]
+                  * [| V "value" = Array.sel d (V "index") |]
+                  * [| (V "index" < natToW (length d))%word |]
                   * MR =?> 2 * [| MR <> 0 |]
                 POST[R] array (rdone ++ encodeAll (CollectBelow (V "lower") (V "upper") :: r)) (V "cmd")
-                  * mallocHeap * sll (responseAll d r
-                    (collectBelow (V "upper") (skipn (wordToNat (V "index")) d) out)) R ];;
+                  * array d (V "data") * mallocHeap * sll (responseAll d r
+                    (collectBelow (V "upper") (skipn (wordToNat (V "lower")) d) out)) R ];;
 
               "node" *<- "value";;
               "node" + 4 *<- "output";;
@@ -205,7 +208,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
             }
           end
         } Default {
-          Diverge(*Fail*) (* Impossible: the match was exhaustive w.r.t. the spec. *)
+          Fail (* Impossible: the match was exhaustive w.r.t. the spec. *)
         }
       };;
 
@@ -339,7 +342,7 @@ Lemma not_done_yet : forall (pos len : W) (ws : list W) r,
     rewrite plus_0_r in *; nomega.
 Qed.
 
-Ltac finish := fold (@skipn W); subst; eauto;
+Ltac finish := fold (@skipn W); fold (@firstn W); subst; eauto;
   try match goal with
         | [ _ : context[?a ++ ?b :: ?c :: ?d :: _] |- sel _ "position" = natToW (length _) ] =>
           instantiate (1 := a ++ b :: c :: d :: nil)
@@ -386,7 +389,7 @@ Qed.
 Hint Immediate switch_sides.
 
 Hint Extern 1 (weqb _ _ = true) => apply weqb_true_iff.
-Hint Resolve wleb_true.
+Hint Immediate wleb_true.
 
 Lemma selN_beginning : forall (w : W) (ws' : list W) (ws : list W) i,
   (i < length ws)%nat
@@ -401,11 +404,10 @@ Lemma sel_beginning : forall (ws : list W) (w : W) (ws' : list W) i,
   unfold Array.sel; intros; apply selN_beginning; nomega.
 Qed.
 
-Lemma valueIsGe_skip : forall v ws this posn lower,
-  v = valueIsGe ws posn lower
-  -> goodSize (length ws)
+Lemma valueIsGe_skip : forall ws this posn lower,
+  goodSize (length ws)
   -> (weqb (length ws) posn = true -> wleb lower this = true -> False)
-  -> v = valueIsGe (ws ++ this :: nil) posn lower.
+  -> valueIsGe ws posn lower = valueIsGe (ws ++ this :: nil) posn lower.
   unfold valueIsGe; intros; autorewrite with Server; simpl.
   destruct (le_lt_dec (length ws) (wordToNat posn));
     destruct (le_lt_dec (length ws + 1) (wordToNat posn)); auto; try omega; [
@@ -419,7 +421,7 @@ Lemma valueIsGe_skip : forall v ws this posn lower,
         | rewrite sel_beginning; auto; nomega ] ].
 Qed.
 
-Hint Immediate valueIsGe_skip.
+Hint Resolve valueIsGe_skip.
 
 Hint Extern 1 (@eq W _ _) =>
   match goal with
@@ -479,7 +481,7 @@ Lemma maxInRange'_skip : forall lower upper w ws acc,
     -> wleb (maxInRange' lower upper ws acc) w = true
     -> False)
   -> maxInRange' lower upper ws acc = maxInRange' lower upper (ws ++ w :: nil) acc.
-  induction ws; simpl; unfold wmax; intros; ifs; elimtype False; eauto.
+  induction ws; simpl; unfold wmax; intros; ifs; elimtype False; eauto using wleb_true.
 Qed.
 
 Lemma maxInRange_skip : forall lower upper w ws,
@@ -514,152 +516,172 @@ Qed.
 
 Hint Immediate maxInRange_set.
 
+Lemma skipn_nil : forall A n,
+  skipn n (@nil A) = nil.
+  destruct n; reflexivity.
+Qed.
+
+Hint Rewrite skipn_nil : Server.
+
+Lemma eq0_le : forall w : W,
+  wordToNat w = 0
+  -> w <= natToW 0.
+  intros ? H; apply (f_equal natToW) in H;
+    unfold natToW in H; rewrite natToWord_wordToNat in H; subst; nomega.
+Qed.
+
+Hint Immediate eq0_le.
+
+Lemma le_any : forall (w : W) b,
+  wordToNat w = 0
+  -> w <= b.
+  intros; pre_nomega; rewrite H; omega.
+Qed.
+
+Hint Immediate le_any.
+
+Lemma wleb_false_fwd : forall u v,
+  wleb u v = false
+  -> v < u.
+  unfold wleb; intros; ifs; try discriminate;
+    assert (wordToNat u <> wordToNat v) by (intro; apply wordToNat_inj in H0; tauto); nomega.
+Qed.
+
+Hint Immediate wleb_false_fwd.
+
+Lemma collectBelow_skip1 : forall upper this ws lower base,
+  wleb this upper = false
+  -> collectBelow upper (skipn lower (ws ++ this :: nil)) base
+  = collectBelow upper (skipn lower ws) base.
+  induction ws; destruct lower; simpl; intuition idtac; autorewrite with Server; auto;
+    solve [ ifs; elimtype False; eauto
+      | specialize (IHws 0); simpl in *; ifs ].
+Qed.
+
+Lemma skipn_all : forall A n (ls1 : list A),
+  (length ls1 <= n)%nat
+  -> skipn n ls1 = nil.
+  induction n; destruct ls1; simpl; intuition.
+Qed.
+
+Lemma collectBelow_skip2 : forall upper this ws (lower : W) base,
+  wleb (wordToNat lower) (length ws) = false
+  -> goodSize (S (length ws))
+  -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
+  = collectBelow upper (skipn (wordToNat lower) ws) base.
+  intros; repeat (rewrite skipn_all; simpl; auto);
+    match goal with
+      | [ H : _ |- _ ] => apply wleb_false_fwd in H
+    end;
+    match goal with
+      | [ H : _ |- _ ] => apply lt_goodSize' in H; autorewrite with Server; simpl; auto
+    end.
+Qed.
+
+Lemma collectBelow_skip : forall upper (lower : W) this base ws,
+  (wleb lower (length ws) = true
+    -> wleb this upper = true
+    -> False)
+  -> goodSize (S (length ws))
+  -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
+  = collectBelow upper (skipn (wordToNat lower) ws) base.
+  intros; case_eq (wleb this upper); intros; try solve [ apply collectBelow_skip1; auto ];
+    intros; case_eq (wleb lower (length ws)); intros; [
+      elimtype False; eauto
+      | apply collectBelow_skip2; auto; unfold natToW; rewrite natToWord_wordToNat; auto ].
+Qed.
+
+Hint Rewrite collectBelow_skip using assumption : Server.
+
+Lemma skipn_app2 : forall A (ls2 : list A) n ls1,
+  (n <= length ls1)%nat
+  -> skipn n (ls1 ++ ls2) = skipn n ls1 ++ ls2.
+  induction n; destruct ls1; simpl; intuition.
+Qed.
+
+Lemma collectBelow_set' : forall upper ws this acc,
+  this <= upper
+  -> collectBelow upper (ws ++ this :: nil) acc
+  = this :: collectBelow upper ws acc.
+  induction ws; simpl; intros; ifs; nomega.
+Qed.
+
+Lemma collectBelow_set : forall upper (lower : W) ws this acc,
+  (wordToNat lower <= length ws)%nat
+  -> this <= upper
+  -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) acc
+  = this :: collectBelow upper (skipn (wordToNat lower) ws) acc.
+  intros; rewrite skipn_app2 by auto; apply collectBelow_set'; auto.
+Qed.
+
+Hint Extern 1 (collectBelow _ _ _ = _ :: _) => apply collectBelow_set; autorewrite with Server.
+
+Lemma length_firstn_below : forall index (ls : list W),
+  index < natToW (length ls)
+  -> goodSize (length ls)
+  -> length (firstn (wordToNat index) ls) = wordToNat index.
+  intros; rewrite firstn_length; apply min_l; nomega.
+Qed.
+
+Lemma natToW_wordToNat : forall w : W,
+  natToW (wordToNat w) = w.
+  unfold natToW; intros; apply natToWord_wordToNat.
+Qed.
+
+Hint Rewrite natToW_wordToNat : Server.
+
+Hint Rewrite length_firstn_below using (auto; eapply containsArray_goodSize; eauto 10) : Server.
+
+Lemma le_wordToNat : forall u v : W,
+  u <= v
+  -> (wordToNat u <= wordToNat v)%nat.
+  intros; nomega.
+Qed.
+
+Hint Immediate le_wordToNat.
+
+Lemma lt_wordToNat : forall (u: W) v,
+  u < natToW v
+  -> goodSize v
+  -> (wordToNat u < v)%nat.
+  intros; nomega.
+Qed.
+
+Hint Extern 1 (wordToNat _ < _)%nat => apply lt_wordToNat;
+  solve [ auto; eapply containsArray_goodSize; eauto 10 ].
+
+Hint Extern 1 (_ = _ ++ _ :: _) => apply breakout.
+
+Hint Immediate wleb_true_fwd.
+Hint Rewrite sel_middle
+  using solve [ auto; eapply goodSize_middle; eapply containsArray_goodSize; eauto 10 ] : Server.
+
+Lemma wlt_S : forall (ls1 : list W) v ls2,
+  goodSize (length (ls1 ++ v :: ls2))
+  -> natToW (length ls1) < natToW (length ls1) ^+ natToW (S (length ls2)).
+  intros; autorewrite with Server in *; rewrite <- natToW_plus; apply lt_goodSize; eauto.
+Qed.
+
+Hint Extern 1 (_ < _ ^+ _) => eapply wlt_S; eapply containsArray_goodSize; eauto 10.
+
+Hint Rewrite wordToNat_natToW_goodSize
+  using (eapply goodSize_middle; eapply containsArray_goodSize; eauto 10) : Server.
+
+Lemma firstn_app1 : forall A (ls1 ls2 : list A),
+  firstn (length ls1) (ls1 ++ ls2) = ls1.
+  induction ls1; simpl; intuition.
+Qed.
+
+Hint Rewrite firstn_app1 : Server.
+
+Lemma wle_refl : forall w : W, w <= w.
+  intros; nomega.
+Qed.
+
+Hint Resolve wle_refl.
 
 Theorem ok : moduleOk m.
 Proof.
-  vcgen; parse0; for0.
-
-  Ltac t := post; evaluate hints; repeat (parse1 finish; use_match); multi_ex; sep hints; finish.
-
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-
-  t.
-  t.
-  t.
-  t.
-
-
-  Lemma skipn_nil : forall A n,
-    skipn n (@nil A) = nil.
-    destruct n; reflexivity.
-  Qed.
-
-  Hint Rewrite skipn_nil : Server.
-
-  t.
-
-
-  post.
-  evaluate hints.
-  multi_ex.
-  descend.
-  step hints.
-  fold (@skipn W).
-
-  Lemma eq0_le : forall w : W,
-    wordToNat w = 0
-    -> w <= natToW 0.
-    intros ? H; apply (f_equal natToW) in H;
-      unfold natToW in H; rewrite natToWord_wordToNat in H; subst; nomega.
-  Qed.
-
-  Hint Immediate eq0_le.
-
-  (*Lemma le0' : forall w,
-    w <= natToW 0
-    -> w = natToW 0.
-    intros; apply wordToNat_inj; nomega.
-  Qed.
-
-  Lemma le0 : forall w b,
-    w <= natToW 0
-    -> w <= b.
-    intros; rewrite (le0' w); nomega.
-  Qed.
-
-  Hint Immediate le0.*)
-
-  Lemma le_any : forall (w : W) b,
-    wordToNat w = 0
-    -> w <= b.
-    intros; pre_nomega; rewrite H; omega.
-  Qed.
-
-  Hint Immediate le_any.
-
-  Lemma wleb_false_fwd : forall u v,
-    wleb u v = false
-    -> v < u.
-    unfold wleb; intros; ifs; try discriminate;
-      assert (wordToNat u <> wordToNat v) by (intro; apply wordToNat_inj in H0; tauto); nomega.
-  Qed.
-
-  Hint Immediate wleb_false_fwd.
-
-  Lemma collectBelow_skip1 : forall upper this ws lower base,
-    wleb this upper = false
-    -> collectBelow upper (skipn lower (ws ++ this :: nil)) base
-    = collectBelow upper (skipn lower ws) base.
-    induction ws; destruct lower; simpl; intuition idtac; autorewrite with Server; auto;
-      solve [ ifs; elimtype False; eauto
-        | specialize (IHws 0); simpl in *; ifs ].
-  Qed.
-
-  Lemma skipn_app1 : forall A (ls2 : list A) n ls1,
-    (length ls1 < n)%nat
-    -> skipn n (ls1 ++ ls2) = skipn (n - length ls1) ls2.
-    induction n; destruct ls1; simpl; intuition.
-  Qed.
-
-  Lemma skipn_all : forall A n (ls1 : list A),
-    (length ls1 <= n)%nat
-    -> skipn n ls1 = nil.
-    induction n; destruct ls1; simpl; intuition.
-  Qed.
-
-  Lemma collectBelow_skip2 : forall upper this ws (lower : W) base,
-    wleb (wordToNat lower) (length ws) = false
-    -> goodSize (S (length ws))
-    -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
-    = collectBelow upper (skipn (wordToNat lower) ws) base.
-    intros; repeat (rewrite skipn_all; simpl; auto);
-      match goal with
-        | [ H : _ |- _ ] => apply wleb_false_fwd in H
-      end;
-      match goal with
-        | [ H : _ |- _ ] => apply lt_goodSize' in H; autorewrite with Server; simpl; auto
-      end.
-  Qed.
-
-  Lemma collectBelow_skip : forall upper (lower : W) this base ws,
-    (wleb lower (length ws) = true
-      -> wleb this upper = true
-      -> False)
-    -> goodSize (S (length ws))
-    -> collectBelow upper (skipn (wordToNat lower) (ws ++ this :: nil)) base
-    = collectBelow upper (skipn (wordToNat lower) ws) base.
-    intros; case_eq (wleb this upper); intros; try solve [ apply collectBelow_skip1; auto ];
-      intros; case_eq (wleb lower (length ws)); intros; [
-        elimtype False; eauto
-        | apply collectBelow_skip2; auto; unfold natToW; rewrite natToWord_wordToNat; auto ].
-  Qed.
-
-  rewrite collectBelow_skip.
-  finish.
-  auto.
-  auto.
-  
-
-
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract (parse0; for0; post; evaluate hints; repeat (parse1 finish; use_match);
+    multi_ex; sep hints; finish).
 Qed.
