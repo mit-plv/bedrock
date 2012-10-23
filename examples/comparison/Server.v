@@ -642,8 +642,7 @@ Proof.
   rewrite collectBelow_skip.
   finish.
   auto.
-  apply goodSize_weaken with (length ws); auto.
-  admit.
+  auto.
   
 
 

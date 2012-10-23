@@ -311,7 +311,14 @@ Section Query.
     intros; autorewrite with sepFormula in *; simpl in *; eauto.
   Qed.
 
-  Hint Extern 1 (goodSize (length _)) => eapply goodSize_middle;
+  Lemma goodSize_middleS : forall (pre : list W) mid post,
+    goodSize (length (pre ++ mid :: post))
+    -> goodSize (S (length pre)).
+    intros; autorewrite with sepFormula in *; simpl in *; eauto.
+    eapply goodSize_weaken; eauto.
+  Qed.
+
+  Hint Extern 1 (goodSize (length _)) => (eapply goodSize_middle || eapply goodSize_middleS);
     eapply containsArray_goodSize; [ eassumption | eauto ].
 
   Hint Rewrite sel_middle using solve [ eauto ] : sepFormula.
@@ -446,7 +453,7 @@ Section Query.
   Lemma invPre_skip : (forall specs stn st V qs ws wsAll this v fr,
     ~satisfies V (length ws) this c
     -> interp specs (![qspecOut' (invPre qs ws wsAll (sel V)) v * fr] (stn, st))
-    -> goodSize (length ws)
+    -> goodSize (S (length ws))
     -> exists v', interp specs (![qspecOut' (invPre qs (ws ++ this :: nil) wsAll (sel V)) v' * fr] (stn, st)))
   -> forall specs V fr stn st ws' qs ws wsAll v,
     interp specs (![qspecOut' (invPre qs ws wsAll V) v * fr] (stn, st))
@@ -461,7 +468,7 @@ Section Query.
     autorewrite with sepFormula in *; eauto.
     autorewrite with sepFormula in *; auto.
     eauto.
-    eapply goodSize_middle; eauto.
+    eapply goodSize_middleS; eauto.
   Qed.
 
   Hint Resolve natToW_inj.
@@ -818,9 +825,21 @@ Section Query.
 
   Hint Resolve app_length_le.
 
+  Lemma goodSize_S' : forall (ls1 ls2 : list W) ind siz,
+    ind = natToW (length ls1)
+    -> siz = natToW (length (ls1 ++ ls2))
+    -> ind < siz
+    -> goodSize (length (ls1 ++ ls2))
+    -> (S (length ls1) <= length ls1 + length ls2)%nat.
+    intros; subst; autorewrite with sepFormula in *; apply lt_goodSize' in H2; eauto.
+  Qed.
+
+  Hint Extern 1 (S _ <= _)%nat => eapply goodSize_S'; [ eassumption | eassumption | eassumption
+    | eapply containsArray_goodSize; eauto ].
+
   Ltac goodSize := eapply goodSize_weaken; [
     eapply containsArray_goodSize; eauto
-    | autorewrite with sepFormula; simpl; eauto; my_nomega ].
+    | cbv beta; autorewrite with sepFormula; simpl; eauto; my_nomega ].
 
   Ltac begin := repeat begin0;
     try match goal with
@@ -924,7 +943,7 @@ Section Query.
                       change (forall specs stn st V qs ws wsAll this v fr,
                         ~satisfies V (Datatypes.length ws) this c
                         -> interp specs (![qspecOut' (invPre qs ws wsAll V) v * fr] (stn, st))
-                        -> goodSize (length ws)
+                        -> goodSize (S (length ws))
                         -> exists v', interp specs (![qspecOut' (invPre qs (ws ++ this :: nil) wsAll V) v' * fr] (stn, st))) in H';
                       eapply H' in Hf; [ |
                         match goal with
@@ -994,7 +1013,7 @@ Section Query.
         :: (forall specs stn st V qs ws all this v fr,
           ~satisfies V (length ws) this c
           -> interp specs (![qspecOut' (invPre qs ws all (sel V)) v * fr] (stn, st))
-          -> goodSize (length ws)
+          -> goodSize (S (length ws))
           -> exists v', interp specs (![qspecOut' (invPre qs (ws ++ this :: nil) all (sel V)) v' * fr] (stn, st)))
 
         (* Postcondition implies loop invariant. *)
