@@ -27,6 +27,26 @@ let main () =
   output_string out "let cmd = [|";
   Array.iter (fun (code, v1, v2) -> Printf.fprintf out "%d;%d;%d;" code v1 v2) cmd;
   output_string out "|]\n";
+  close_out out;
+
+  let out = open_out "bedrock_data.s" in
+  output_string out "\t.global data\n";
+  output_string out "\t.global dataLen\n";
+  output_string out "\t.global cmd\n";
+  output_string out "\t.global cmdLen\n";
+  output_string out "\t.data\n";
+  output_string out "data:\n";
+  output_string out "\t.int ";
+  Array.iter (Printf.fprintf out "%d,") data;
+  output_string out "0\n";
+  output_string out "dataLen:\n";
+  output_string out "\t.int (dataLen-data)/4 - 1\n";
+  output_string out "cmd:\n";
+  output_string out "\t.int ";
+  Array.iter (fun (code, v1, v2) -> Printf.fprintf out "%d, %d, %d, " code v1 v2) cmd;
+  output_string out "0\n";
+  output_string out "cmdLen:\n";
+  output_string out "\t.int (cmdLen-cmd)/4 - 1\n";
   close_out out
 
 let () = main ()
