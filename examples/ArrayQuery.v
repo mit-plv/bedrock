@@ -58,6 +58,21 @@ Fixpoint satisfies (vs : vals) (index value : W) (c : condition) : Prop :=
   end.
 
 Section Query.
+  Hint Extern 1 (Mem _ = Mem _) =>
+    eapply scratchOnlyMem; [ | eassumption ];
+      simpl; intuition congruence.
+  Hint Extern 1 (Mem _ = Mem _) =>
+    symmetry; eapply scratchOnlyMem; [ | eassumption ];
+      simpl; intuition congruence.
+
+  Hint Resolve evalInstrs_app sepFormula_Mem.
+
+  Hint Extern 2 (interp ?specs2 (![ _ ] (?stn2, ?st2))) =>
+    match goal with
+      | [ _ : interp ?specs1 (![ _ ] (?stn1, ?st1)) |- _ ] =>
+        solve [ equate specs1 specs2; equate stn1 stn2; equate st1 st2; step auto_ext ]
+    end.
+
   Variable arr : string.
   (* Name of local variable containing an array to query *)
   Variable size : string.
@@ -1075,3 +1090,29 @@ Ltac for0 := try solve [ intuition (try congruence);
   repeat match goal with
            | [ H : forall x : string, _ |- _ ] => rewrite H by congruence
          end; reflexivity ].
+
+Ltac eta_evar T k :=
+  match eval cbv beta in T with
+    | unit => k tt
+    | @sigT ?A ?F =>
+      let x' := fresh in evar (x' : A); let x := eval unfold x' in x' in clear x';
+        eta_evar (F x) ltac:(fun v => k (existT F x v))
+    | _ =>
+      idtac "BYE";
+        let x' := fresh in evar (x' : T); let x := eval unfold x' in x' in clear x';
+          k x
+  end.
+
+Ltac multi_ex :=
+  try match goal with
+        | [ _ : sigT _ |- _ ] =>
+          repeat match goal with
+                   | [ x : sigT _ |- _ ] => destruct x
+                 end; simpl in *
+      end;
+  try match goal with
+        | [ |- @Logic.ex ?T _ ] =>
+          match T with
+            | sigT _ => eta_evar T ltac:(fun v => exists v; simpl)
+          end
+      end.

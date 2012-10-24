@@ -38,6 +38,21 @@ Fixpoint binds (p : pattern) (ws : list W) : list (string * W) :=
   end.
 
 Section Parse.
+  Hint Extern 1 (Mem _ = Mem _) =>
+    eapply scratchOnlyMem; [ | eassumption ];
+      simpl; intuition congruence.
+  Hint Extern 1 (Mem _ = Mem _) =>
+    symmetry; eapply scratchOnlyMem; [ | eassumption ];
+      simpl; intuition congruence.
+
+  Hint Resolve evalInstrs_app sepFormula_Mem.
+
+  Hint Extern 2 (interp ?specs2 (![ _ ] (?stn2, ?st2))) =>
+    match goal with
+      | [ _ : interp ?specs1 (![ _ ] (?stn1, ?st1)) |- _ ] =>
+        solve [ equate specs1 specs2; equate stn1 stn2; equate st1 st2; step auto_ext ]
+    end.
+
   Variable stream : string.
   (* Name of local variable containing an array to treat as the stream of words *)
   Variable size : string.
@@ -925,17 +940,17 @@ Ltac especialize H :=
              let v := fresh in evar (v : T); let v' := eval unfold v in v in clear v; specialize (H v')
          end.
 
-Ltac parse1 :=
+Ltac parse1 solver :=
   match goal with
     | [ H : forall (a : _ -> _), _ |- _ ] =>
       especialize H; post;
       match goal with
         | [ H : interp ?specs (?P ---> ?Q)%PropX |- _ ] =>
-          let H' := fresh in assert (H' : interp specs P) by (propxFo; step auto_ext || auto);
+          let H' := fresh in assert (H' : interp specs P) by (propxFo; step auto_ext || solver);
             specialize (Imply_sound H H'); clear H H'; intro H
       end; propxFo; autorewrite with StreamParse in *; simpl in *
 
-    | [ H : interp _ (![ _ ] _) |- _ ] => eapply sepFormula_Mem in H; [ | eassumption ]
+    | [ H : interp _ (![ _ ] _) |- _ ] => eapply Wrap.sepFormula_Mem in H; [ | eassumption ]
   end.
 
 Ltac reveal_slots :=

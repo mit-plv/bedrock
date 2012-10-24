@@ -212,18 +212,3 @@ Lemma evalAssign_rhs : forall stn st lv rv rv',
   simpl; intros.
   rewrite H; reflexivity.
 Qed.
-
-Hint Extern 1 (Mem _ = Mem _) =>
-  eapply scratchOnlyMem; [ | eassumption ];
-    simpl; intuition congruence.
-Hint Extern 1 (Mem _ = Mem _) =>
-  symmetry; eapply scratchOnlyMem; [ | eassumption ];
-    simpl; intuition congruence.
-
-Hint Resolve evalInstrs_app sepFormula_Mem.
-
-Hint Extern 2 (interp ?specs2 (![ _ ] (?stn2, ?st2))) =>
-  match goal with
-    | [ _ : interp ?specs1 (![ _ ] (?stn1, ?st1)) |- _ ] =>
-      solve [ equate specs1 specs2; equate stn1 stn2; equate st1 st2; step auto_ext ]
-  end.

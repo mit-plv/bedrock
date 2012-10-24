@@ -253,31 +253,6 @@ Qed.
 
 Hint Rewrite triple : Server.
 
-Ltac eta_evar T k :=
-  match eval cbv beta in T with
-    | unit => k tt
-    | @sigT ?A ?F =>
-      let x' := fresh in evar (x' : A); let x := eval unfold x' in x' in clear x';
-        eta_evar (F x) ltac:(fun v => k (existT F x v))
-    | _ =>
-      idtac "BYE";
-        let x' := fresh in evar (x' : T); let x := eval unfold x' in x' in clear x';
-          k x
-  end.
-
-Ltac parse1 solver :=
-  match goal with
-    | [ H : forall (a : _ -> _), _ |- _ ] =>
-      especialize H; post;
-      match goal with
-        | [ H : interp ?specs (?P ---> ?Q)%PropX |- _ ] =>
-          let H' := fresh in assert (H' : interp specs P) by (propxFo; step auto_ext || solver);
-            specialize (Imply_sound H H'); clear H H'; intro H
-      end; propxFo; autorewrite with StreamParse in *; simpl in *
-
-    | [ H : interp _ (![ _ ] _) |- _ ] => eapply Wrap.sepFormula_Mem in H; [ | eassumption ]
-  end.
-
 Lemma suffix_app' : forall (ls2 ls1 : list W),
   suffix (length ls1) (ls1 ++ ls2) = ls2.
   induction ls1; simpl; intuition.
@@ -295,20 +270,6 @@ Ltac use_match := try rewrite suffix_app in * by (assumption || eapply goodSize_
         | [ H : match encodeAll ?E with nil => False | _ => _ end |- _ ] =>
           destruct E as [ | [ ] ]; simpl in *; intuition (try discriminate); subst
       end; reveal_slots; evaluate hints.
-
-Ltac multi_ex :=
-  try match goal with
-        | [ _ : sigT _ |- _ ] =>
-          repeat match goal with
-                   | [ x : sigT _ |- _ ] => destruct x
-                 end; simpl in *
-      end;
-  try match goal with
-        | [ |- @Logic.ex ?T _ ] =>
-          match T with
-            | sigT _ => eta_evar T ltac:(fun v => exists v; simpl)
-          end
-      end.
 
 Hint Rewrite app_length : Server.
 
