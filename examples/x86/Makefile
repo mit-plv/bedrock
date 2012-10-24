@@ -4,9 +4,6 @@ all: factorial.exe
 
 COQC = coqc -R ../../src Bedrock -I ..
 
-%.o: %.s
-	gcc -c $< -o $@
-
 factorial.s: FactorialX86.v
 	echo ".global bedrock_heap" >$@
 	echo ".comm bedrock_heap,4096,32" >>$@
