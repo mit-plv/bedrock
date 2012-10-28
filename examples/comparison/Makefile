@@ -40,7 +40,7 @@ bedrock_server.s Combined.vo: Combined.v Server.vo
 	echo ".global bedrock_heap" >$@
 	echo ".data" >>$@
 	echo "bedrock_heap:" >>$@
-	echo ".space 4*(1024*1024+3+1024), 0" >>$@
+	echo ".space 4*(100*1024*1024+3+1024), 0" >>$@
 	echo >>$@
 	echo ".text" >>$@
 	echo ".global m_main" >>$@
