@@ -11,8 +11,8 @@ SUMM_PTRN = re.compile(r'([0-9:\.]+)user\s+([0-9:\.]+)system\s+([0-9:\.]+)elapse
 def parse_file_data(stream):
     """returns the file data"""
     data = {}
-    
-    for i in stream():
+
+    for i in stream:
         if i == "":
             break
         m = LINE_PTRN.match(i)
@@ -22,12 +22,14 @@ def parse_file_data(stream):
                                , 'runs'  : int(m.group(4))
                                , 'sigma' : float(m.group(5))
                                }
+        
     return data
 
 def parse_files(stream):
     data = {}
     last = None
-    for i in stream():
+
+    for i in stream:
         m = CMD_PTRN.match(i)
         if not m is None:
             data[m.group(1)] = parse_file_data(stream)
@@ -108,7 +110,7 @@ def reader(files):
 
 def main():
     f = sys.argv[1]
-    res = parse_files(lambda : reader(sys.argv[1:]))
+    res = parse_files(reader(sys.argv[1:]))
 
     summary = phase_summary(res)
     
