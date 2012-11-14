@@ -68,11 +68,11 @@ Qed.
 (** A crucial component of low-level programming is mutable state, which we introduce with a simple example: a function that takes two pointers as arguments and swaps the values in the memory cells that they point to.  Here is its spec. *)
 
 Definition swapS := SPEC("x", "y") reserving 2
-  Ex v, Ex w,
+  Al v, Al w,
   PRE[V] V "x" =*> v * V "y" =*> w
   POST[_] V "x" =*> w * V "y" =*> v.
 
-(** We see several important changes from the last spec.  First, this time we reserve 2 stack slots, to use for local variable temporaries.  Second, the spec is _existentially quantified_.  The function may be called whenever the precondition can be satisfied _for some values of [v] and [w]_.  Note that the same quantified variables appear in precondition and postcondition, giving us a way to connect the initial and final states of a function call.
+(** We see several important changes from the last spec.  First, this time we reserve 2 stack slots, to use for local variable temporaries.  Second, the spec is _universally quantified_.  The function may be called whenever the precondition can be satisfied _for some values of [v] and [w]_.  Note that the same quantified variables appear in precondition and postcondition, giving us a way to connect the initial and final states of a function call.
 
    Both precondition and postcondition use notation inspired by _separation logic_.  The syntax [p =*> v] indicates that pointer [p] points to a memory cell holding value [v].  The [*] operator combines facts about smaller memories into facts about larger composite memories.  The concrete precondition above says that the function will be aware of only two memory cells, whose addresses come from the values of parameters ["x"] and ["y"].  These cells start out holding [v] and [w], respectively.  The postcondition says that the function swaps these values.
 
@@ -167,14 +167,14 @@ Defined.
 (** Now that we have our general %``%#"#theory of lists#"#%''% in place, we can specify and verify in-placed reversal for lists. *)
 
 Definition revS := SPEC("x") reserving 3
-  Ex ls,
+  Al ls,
   PRE[V] sll ls (V "x")
   POST[R] sll (rev ls) R.
 
 Definition revM := bmodule "rev" {{
   bfunction "rev"("x", "acc", "tmp1", "tmp2") [revS]
     "acc" <- 0;;
-    [Ex ls, Ex accLs,
+    [Al ls, Al accLs,
       PRE[V] sll ls (V "x") * sll accLs (V "acc")
       POST[R] sll (rev_append ls accLs) R ]
     While ("x" <> 0) {
@@ -271,6 +271,47 @@ Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f s ---> #0 s)%PropX.
 
    One further foundational point is worth making: while most separation logics outside of Coq build into their assertion languages such constructs as [=*>] and [*], with XCAP and related systems, we instead define these as derived operators, with definitions in terms of the basic $\mathsf{PropX}$#PropX# connectives. *)
 
+(** *** A Note on the Format of Invariants *)
+
+(** Recall the beginning of the [While] loop from our last example:
+[[
+    [Al ls, Al accLs,
+      PRE[V] sll ls (V "x") * sll accLs (V "acc")
+      POST[R] sll (rev_append ls accLs) R ]
+    While ("x" <> 0) {
+]]
+
+The loop invariant is strange, since it includes both a _precondition_ and a _postcondition_.  Standard Hoare-logic loop invariants only represent assertions over single program states.  How should an invariant like the above be interpreted?
+
+One answer is to consider it a new notation in separation logic, as in a VSTTE 2010 paper by Thomas Tuerk.  However, it turns out that this idea of loop invariant is actually _more natural_ for assembly language than the more common notation is.  It all has to do with the idea that assembly programs are naturally thought of as in _continuation-passing style_, since call stacks and return pointers are represented explicitly via memory and registers.  Thus, the natural idea of specification for a function is just a precondition, not a precondition plus a postcondition.
+
+Using a more informal notation, the surface syntax for loop invariants could be written like:
+
+$\forall \vec{x}. \; \{P\} \; \{Q\}$#<tt>forall x. {P} {Q}</tt>#
+
+There are both a precondition and a postcondition, potentially with both mentioning some variables quantified at the top level.  We desugar such invariants to underlying Bedrock IL specifications (preconditions) like so:
+
+$\{\exists \vec{x}. \; P \land \{Q\}\mathsf{Rp}\}$#<tt>{exists x. P /\ {Q}Rp}</tt>#
+
+We use a _nested Hoare double_, writing $\{Q\}\mathsf{Rp}$#{Q}<tt>Rp</tt># to assert that _register $\mathsf{Rp}$#<tt>Rp</tt># holds a pointer to a code block whose precondition is compatible with $Q$#<tt>Q</tt>#_.  That is, we mention the return pointer explicitly, rather than keeping it as implicit in our use of a postcondition.
+
+Actually, to support separation logic reasoning, the desugaring is a bit more complex.  It is more accurate to write as:
+
+$\{\exists \vec{x}, \alpha. \; P * \alpha \land \{Q * \alpha\}\mathsf{Rp}\}$#<tt>{exists x, a. P * a /\ {Q * a}Rp}</tt>#
+
+We build the _frame rule_ into the desugaring scheme.  Some piece of memory is described by an unknown predicate $\alpha$#<tt>a</tt># on entry and must still be described by $\alpha$#<tt>a</tt># on exit.
+
+So there is a first-principles explanation of what Bedrock loop invariants mean.  It can still be helpful to build some intuition for what the notation means in practice.  One way to think of it is: an invariant's _precondition_ describes what the machine state looks like upon entering a loop iteration, and the _postcondition_ describes what the state must be transformed into before it is legal to _return_ from the current function.
+
+This treatment of invariants is natural in continuation-passing style; implementing the conventional notation would actually require more work for the Bedrock authors.  However, the alternate notation is actually quite useful in concert with separation logic.  Invariants in this style can provide very effective hints on where the _frame rule_ ought to be applied.
+
+Specifically, suppose that the state upon entry to a loop is described by an invariant with precondition [P * R] and postcondition [Q * R].  In other words, the loop will transform some state from satisfying [P] into satisfying [Q], and there is some additional state satisfying [R] that need not be touched.  In such a state, we can write a loop invariant with precondition based only on [P] and postcondition based only on [Q].  We forget about [R] for the rest of this function's verification.
+
+Such a technique is very helpful in traversals of linked data structures.  For instance, consider a loop over the cells of a linked list.  Traditional separation logic requires a loop invariant that splits the full list into a prefix list segment that has already been visited and a suffix list that has not yet been visited.  In Bedrock, we can instead use a loop invariant that only mentions the unvisited suffix.  Automatic application of the frame rule lets us gradually hide list elements from the invariant as we visit them.
+
+The next section gives an example program containing one invariant, which triggers a similar use of the frame rule, but for a function call rather than a loop.  That is, after the call, we no longer need to know about certain parts of memory, so we need not mention those parts in the invariant.  It may be a useful exercise to consider the invariant in light of the desugaring to continuation-passing style. *)
+
+
 (** ** The XCAP Program Logic *)
 
 (** Now we are finally ready to describe the end product of a Bedrock verification (though, as forewarned, we will stay fairly sketchy, since details abound in the Coq code).  A verified program is nothing more than a normal Bedrock IL program, where _each basic block is annotated with a $\mathsf{PropX}$#PropX# assertion_.  For the program to be truly verified, two conditions must be proved for each block [b] with spec [f].  First, a _progress_ condition says: for any initial state satisfying [f], if execution starts at the beginning of [b], then execution continues safely without getting stuck, at least until after the jump that ends [b].  Second, a _preservation_ condition says: for any state satisfying [f], if execution starts at the beginning of [b] and makes it safely to another block [b'], then [b'] has some spec that is satisfied by the machine state at this point.
@@ -311,7 +352,7 @@ Definition sillyM := bimport [[ "swap"!"swap" @ [swapS] ]]
       "q" *<- 8;;
 
       Call "swap"!"swap"("p", "q")
-      [ Ex v,
+      [ Al v,
         PRE[V] V "q" =*> v
         POST[R] [| R = v |] * V "q" =*> v ];;
 
