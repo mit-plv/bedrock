@@ -13,6 +13,22 @@ Bags: the bag ADT, implemented by:
   Queue: ...using a linked list to provide a FIFO interface
 Memoize: an ADT that optimizes use of a stateful function (passed as a parameter at runtime) by caching results
 
+==========================
+SOME MACRO IMPLEMENTATIONS
+==========================
+
+Lambda: anonymous local functions
+Conditional: 'if..then..else' with complex Boolean conditionals
+Wrap: embodies Hoare logic's rule of consequence as a macro combinator
+StreamParse: ML-style pattern matching for word arrays
+ArrayQuery: a sort of array comprehension with compile-time optimization based on analyzing the test expression
+
+============================================
+PERFORMANCE TESTING OF COMPILED BEDROCK CODE
+============================================
+
+See subdirectory 'comparison'.
+
 ================
 REGRESSION TESTS
 ================
@@ -26,3 +42,4 @@ Factorial: speaks for itself
 Swap: let's swap the values in two memory addresses!
 TrivialArray: array read and write functions, plus incrementing every cell of an array
 Pair: a very basic stateful ADT: pairs of words, with read and write methods
+
