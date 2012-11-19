@@ -1,6 +1,6 @@
-Require Import List DepList.
+Require Import List.
 Require Import EqdepClass.
-Require Import IL Word.
+Require Import Word.
 Require Import Bool Folds.
 Require Import Reflection. 
 Require Import Expr. 
@@ -31,11 +31,11 @@ Proof.
           |}). abstract (discriminate). 
 Defined. 
 
-(* TODO: remove this type-class... *)
-Global Instance SemiDec_nat : SemiDec nat. 
-constructor. intros.
-destruct (Peano_dec.eq_nat_dec a b). refine (Some e). refine (None). 
-Defined. 
+(* (* TODO: remove this type-class... *) *)
+(* Global Instance SemiDec_nat : SemiDec nat.  *)
+(* constructor. intros. *)
+(* destruct (Peano_dec.eq_nat_dec a b). refine (Some e). refine (None).  *)
+(* Defined.  *)
       
 Definition type_of_ReificationHint T : ReificationHint.Pkg T -> type. 
 intros [Eqb EqbH]; apply (@Typ T Eqb EqbH). 

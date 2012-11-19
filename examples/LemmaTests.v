@@ -1,6 +1,6 @@
 Require Import Omega.
 
-Require Import AutoSep.
+Require Import PreAutoSep.
 
 
 (** Let's put the lemma prover through its paces. *)
@@ -20,7 +20,7 @@ Theorem t2 : forall P : nat -> Prop, (Ex x, [| P x |]) ===> Ex x, [| P x |].
 Qed.
 
 Theorem t3 : forall ls : list nat, [| (length ls > 0)%nat |] ===> Ex x, Ex ls', [| ls = x :: ls' |].
-  destruct ls; sepLemma. 
+  destruct ls; sepLemma.
 Qed.
 
 Theorem t4 : forall A (R : A -> A -> Prop),
@@ -54,3 +54,9 @@ Theorem t8 : forall p1 P2 V, exists p2, exists v,
   intros. do 2 eexists.
   sepLemma.
 Qed.
+
+Theorem t_err : forall a b c d, a =*> c * b =*> d ===> a =*> b * c =*> d.
+  intros.
+  progress sep_canceller ltac:ILTacCommon.isConst auto_ext ltac:(hints_ext_simplifier auto_ext).
+  (progress sep_canceller ltac:ILTacCommon.isConst auto_ext ltac:(hints_ext_simplifier auto_ext); fail 3) || idtac.
+Abort.

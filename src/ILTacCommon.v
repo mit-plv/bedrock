@@ -178,7 +178,7 @@ Section canceller.
 
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) res,
     Expr.AllProvable funcs meta_env nil hyps ->
-    canceller preds algos (typeof_env meta_env) hyps l r = res ->
+    canceller preds algos (typeof_env meta_env) hyps l r = Some res ->
     forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
     match res with
       | {| AllExt := new_vars
@@ -214,7 +214,7 @@ Section canceller.
       Expr.AllProvable funcs meta_env nil hyps ->
     forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
     match canceller preds algos (typeof_env meta_env) hyps l r with
-      | {| AllExt := new_vars
+      | Some {| AllExt := new_vars
          ; ExExt  := new_uvars
          ; Lhs    := lhs'
          ; Rhs    := rhs'
@@ -235,10 +235,16 @@ Section canceller.
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
                   (SH.pures rhs')) ))
             (SH.pures lhs'))
+      | None => 
+        himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
+                (@SEP.sexprD _ _ _ funcs preds meta_env nil r)
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
-  Proof. intros. eapply ApplyCancelSep_with_eq; eauto. Qed.
+  Proof. 
+    intros. consider (canceller preds algos (typeof_env meta_env) hyps l r); intros; auto.
+    eapply ApplyCancelSep_with_eq; eauto. 
+  Qed.
 
 End canceller.
 

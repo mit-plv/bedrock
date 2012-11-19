@@ -133,7 +133,7 @@ Section canceller.
   }.
 
   Definition canceller (uvars : list tvar) (hyps : Expr.exprs types)
-    (lhs rhs : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) : CancellerResult :=
+    (lhs rhs : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) : option CancellerResult :=
     let prover := 
       match ILAlgoTypes.Prover algos with
         | None => provers.ReflexivityProver.reflexivityProver
@@ -155,9 +155,9 @@ Section canceller.
       |}
     in
     match UNF.forward hints prover 10 facts pre with
-      | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := lhs |} =>
+      | ({| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := lhs |}, n_forward) =>
         let (qr, rhs) := SH.hash rhs in
-        let rhs := 
+        let rhs :=
           UNF.HEAP_FACTS.sheapSubstU 0 (length qr) (length uvars') rhs
         in
         let post :=
@@ -167,26 +167,44 @@ Section canceller.
           |}
         in
         match UNF.backward hints prover 10 facts post with
-          | {| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |} =>
+          | ({| UNF.Vars := vars' ; UNF.UVars := uvars' ; UNF.Heap := rhs |}, n_backward) =>
             let new_vars  := vars' in
             let new_uvars := skipn (length uvars) uvars' in
             let bound := length uvars' in
-            match CANCEL.sepCancel preds prover bound facts lhs rhs (U.Subst_empty _) with
-              | (l,r,s) =>
-                {| AllExt := new_vars
-                 ; ExExt  := new_uvars
-                 ; Lhs    := 
-                   (** TODO: this is a hack for the moment to ensure that
-                    ** the pure premises are well typed without the new
-                    ** unification variables
-                    **)
-                   {| SH.impures := SH.impures l
-                    ; SH.pures   := SH.pures lhs
-                    ; SH.other   := SH.other l
-                    |}
-                 ; Rhs    := r
-                 ; Subst  := s
-                 |}
+            match CANCEL.sepCancel preds prover bound facts lhs rhs (U.Subst_empty _) false with
+              | Some (l,r,s) =>
+                Some {| AllExt := new_vars
+                      ; ExExt  := new_uvars
+                      ; Lhs    := 
+                        (** TODO: this is a hack for the moment to ensure that
+                         ** the pure premises are well typed without the new
+                         ** unification variables
+                         **)
+                        {| SH.impures := SH.impures l
+                         ; SH.pures   := SH.pures lhs
+                         ; SH.other   := SH.other l
+                         |}
+                      ; Rhs    := r
+                      ; Subst  := s
+                      |}
+              | None => 
+                if match ql , qr with
+                     | nil , nil =>
+                       match SH.pures lhs , SH.pures rhs with
+                         | nil, nil => 
+                           if EqNat.beq_nat n_forward 10 then EqNat.beq_nat n_backward 10 else false
+                         | _ , _ => false
+                       end
+                     | _ , _ => false 
+                   end then
+                  None
+                else 
+                  Some {| AllExt := new_vars
+                        ; ExExt  := new_uvars
+                        ; Lhs    := lhs
+                        ; Rhs    := rhs
+                        ; Subst  := U.Subst_empty _
+                        |}
             end
         end
     end.
@@ -279,7 +297,7 @@ Section canceller.
     Expr.AllProvable funcs meta_env nil hyps ->
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) res cs,
     forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true),
-    canceller (typeof_env meta_env) hyps l r = res ->
+    canceller (typeof_env meta_env) hyps l r = Some res ->
     match res with
       | {| AllExt := new_vars
          ; ExExt  := new_uvars
@@ -358,6 +376,7 @@ Section canceller.
     destruct (UNF.forwardLength _ _ _ _ _ H2).
     assert (SH.WellTyped_sheap (typeof_funcs funcs) (UNF.SE.typeof_preds preds) (typeof_env meta_env) (rev v) s = true).
     { rewrite SH.WellTyped_sheap_WellTyped_sexpr. rewrite <- H3. rewrite <- map_rev. apply H7. }
+(*
     generalize (@UNF.forward_WellTyped _ _ _ _ _ _ _ HC _ _ _ _ H2 H9); intro.
     simpl in *.
     assert (WellTyped_env (rev v) (rev G)).
@@ -374,8 +393,8 @@ Section canceller.
             ; UNF.UVars := UVars ++ rev v0
             ; UNF.Heap := UNF.HEAP_FACTS.sheapSubstU 0 (length v0) (length UVars) s0 |}); intros.
     destruct (UNF.backwardLength _ _ _ _ _ H6); simpl in *.
-    consider (CANCEL.sepCancel preds p (length UVars0) f Heap Heap0 (U.Subst_empty _)); intros.
-    destruct p0. intuition; subst.
+    consider (CANCEL.sepCancel preds p (length UVars0) f Heap Heap0 (U.Subst_empty _)); intros; try congruence.
+    destruct p0. destruct p0. inversion H15; clear H15; subst. intuition; subst.
     rewrite ListFacts.rw_skipn_app in H11 by auto with list_length. 
 
     eapply forallEach_sem with (env := rev G ++ G0) in H1; [ | solve [ env_resolution ] ]. 
@@ -552,15 +571,18 @@ Section canceller.
       eapply U.Subst_equations_to_Subst_equations; intuition.
       intuition. intuition. }
   Qed.
+*)
+  Admitted.
 
   Lemma ApplyCancelSep_with_eq : 
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
 
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) res,
+    canceller (typeof_env meta_env) hyps l r = Some res ->
     Expr.AllProvable funcs meta_env nil hyps ->
-    canceller (typeof_env meta_env) hyps l r = res ->
     forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
+
     match res with
       | {| AllExt := new_vars
          ; ExExt  := new_uvars
@@ -595,7 +617,7 @@ Section canceller.
       Expr.AllProvable funcs meta_env nil hyps ->
     forall (WTR : SEP.WellTyped_sexpr (typeof_funcs funcs) (SEP.typeof_preds preds) (typeof_env meta_env) nil r = true) cs,
     match canceller (typeof_env meta_env) hyps l r with
-      | {| AllExt := new_vars
+      | Some {| AllExt := new_vars
          ; ExExt  := new_uvars
          ; Lhs    := lhs'
          ; Rhs    := rhs'
@@ -616,9 +638,15 @@ Section canceller.
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
                   (SH.pures rhs')) ))
             (SH.pures lhs'))
+      | None => 
+        himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
+                (@SEP.sexprD _ _ _ funcs preds meta_env nil r)
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
-  Proof. intros. eapply ApplyCancelSep_with_eq; eauto. Qed.
+  Proof. 
+    intros. consider (canceller (typeof_env meta_env) hyps l r); intros; auto.
+    eapply ApplyCancelSep_with_eq; eauto.
+  Qed.
 
 End canceller.
