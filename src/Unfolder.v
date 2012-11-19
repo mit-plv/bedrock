@@ -390,22 +390,22 @@ Module Make (SH : SepHeap) (U : SynUnifier).
       Variable prover : ProverT types.
 
       (* Perform up to [bound] simplifications, based on [hs]. *)
-      Fixpoint forward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState :=
+      Fixpoint forward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState * nat :=
         match bound with
-          | O => s
+          | O => (s, bound)
           | S bound' =>
             match unfoldForward unify_bound prover facts (Forward hs) s with
-              | None => s
+              | None => (s, bound)
               | Some s' => forward bound' facts s'
             end
         end.
 
-      Fixpoint backward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState :=
+      Fixpoint backward (bound : nat) (facts : Facts prover) (s : unfoldingState) : unfoldingState * nat :=
         match bound with
-          | O => s
+          | O => (s, bound)
           | S bound' =>
             match unfoldBackward unify_bound prover facts (Backward hs) s with
-              | None => s
+              | None => (s, bound)
               | Some s' => backward bound' facts s'
             end
         end.
@@ -1451,22 +1451,22 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             rewrite WellTyped_impures_eq in H. apply H; auto. }
       Qed.
       
-      Lemma forwardLength : forall bound facts P Q,
-        forward bound facts P = Q ->
+      Lemma forwardLength : forall bound facts P Q r,
+        forward bound facts P = (Q,r) ->
         exists vars_ext (* meta_ext *),
           Vars Q = Vars P ++ vars_ext /\
           UVars Q = UVars P (* ++ meta_ext *).
       Proof.
         clear. induction bound; intros; simpl in *; eauto.
-          subst; exists nil; repeat rewrite app_nil_r; auto.
-          consider (unfoldForward unify_bound prover facts (Forward hs) P); intros.
+        { inversion H; clear H; subst; exists nil; repeat rewrite app_nil_r; auto. }
+        { consider (unfoldForward unify_bound prover facts (Forward hs) P); intros.
           { eapply IHbound in H0. eapply unfoldForward_vars in H.
             repeat match goal with
                      | [ H : exists x, _ |- _ ] => destruct H
                      | [ H : _ /\ _ |- _ ] => destruct H
                      | [ H : _ = _ |- _ ] => rewrite H
                    end. repeat rewrite app_ass. eauto. }
-          { subst. exists nil; repeat rewrite app_nil_r; eauto. }
+          { inversion H0; clear H0; subst. exists nil; repeat rewrite app_nil_r; eauto. } }
       Qed.
 
       Lemma unfoldBackward_vars : forall unify_bound facts P Q,
@@ -1484,39 +1484,40 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                end; simpl. eexists; intuition.
       Qed.
 
-      Lemma backwardLength : forall bound facts P Q,
-        backward bound facts P = Q ->
+      Lemma backwardLength : forall bound facts P Q r,
+        backward bound facts P = (Q,r) ->
         exists meta_ext,
           Vars Q = Vars P /\
           UVars Q = UVars P ++ meta_ext.
       Proof.
         clear. induction bound; intros; simpl in *; eauto.
-          subst; exists nil; repeat rewrite app_nil_r; auto.
-          consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
+        { inversion H; clear H; subst; exists nil; repeat rewrite app_nil_r; auto. }
+        { consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
           { eapply IHbound in H0. eapply unfoldBackward_vars in H.
             repeat match goal with
                      | [ H : exists x, _ |- _ ] => destruct H
                      | [ H : _ /\ _ |- _ ] => destruct H
                      | [ H : _ = _ |- _ ] => rewrite H
                    end. repeat rewrite app_ass. eauto. }
-          { subst. exists nil; repeat rewrite app_nil_r; eauto. }
+          { inversion H0; clear H0; subst. exists nil; repeat rewrite app_nil_r; eauto. } }
       Qed.
 
-      Theorem forward_WellTyped : forall bound facts P Q,
-        forward bound facts P = Q ->
+      Theorem forward_WellTyped : forall bound facts P Q r,
+        forward bound facts P = (Q,r) ->
         WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
         WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
       Proof.
         induction bound; simpl; intros; try subst; auto;
-          match goal with
-            | |- context [ match ?X with _ => _ end ] =>
-              consider X; intros
-          end; auto.
+          repeat match goal with
+                   | [ H : (_,_) = (_,_) |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     consider X; intros
+                 end; auto.
         eapply unfoldForward_WellTyped in H; try eassumption. eapply IHbound; eauto.
       Qed.
 
-      Theorem forwardOk : forall cs bound facts P Q,
-        forward bound facts P = Q ->
+      Theorem forwardOk : forall cs bound facts P Q r,
+        forward bound facts P = (Q,r) ->
         forall meta_env vars_env,
         WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
         WellTyped_env (Vars P) vars_env ->
@@ -1527,17 +1528,17 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                      (sexprD funcs preds meta_env (vars_env ++ vars_ext) (sheapD (Heap Q))))).
       Proof.
         induction bound; simpl; intros.
-        { subst; repeat split; try reflexivity.
+        { inversion H; clear H; subst; repeat split; try reflexivity.
           cutrewrite (skipn (length vars_env) (Vars Q) = nil).
           rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity.
           rewrite H1. rewrite <- typeof_env_length. eauto with list_length. }
         { revert H; case_eq (unfoldForward unify_bound prover facts (Forward hs) P); intros.
           { subst. generalize H. eapply unfoldForwardOk with (cs := cs) in H; eauto.
             { destruct H. rewrite H.
-              intros. eapply unfoldForward_vars in H4. do 2 destruct H4. intuition. 
-              remember (forward bound facts u). symmetry in Hequ0.
-              specialize (IHbound _ _ _ Hequ0).
-              eapply forwardLength in Hequ0.
+              intros. eapply unfoldForward_vars in H5. do 2 destruct H5.
+(*              remember (forward bound facts u). symmetry in Hequ0. *)
+              specialize (IHbound _ _ _ _ H3).
+              eapply forwardLength in H3.
               assert (length vars_env = length (Vars P)). rewrite H1. rewrite typeof_env_length. reflexivity.
               repeat match goal with
                        | [ H : _ = _ |- _ ] => rewrite H
@@ -1555,7 +1556,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
               apply ST_EXT.himp_existsEach; intros.
               repeat (rewrite app_nil_r || rewrite app_ass). reflexivity.
               repeat rewrite app_length. rewrite typeof_env_length. subst. rewrite map_length. reflexivity.
-              rewrite H4. repeat rewrite app_length. subst. rewrite H1. repeat rewrite map_length.
+              rewrite H5. repeat rewrite app_length. subst. rewrite H1. repeat rewrite map_length.
               unfold WellTyped_env. rewrite typeof_env_app. f_equal.
               
               repeat match goal with
@@ -1563,26 +1564,27 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                      end. auto. 
               rewrite <- app_nil_r with (l := meta_env); eapply Valid_weaken; eauto. }
             { rewrite <- WT. f_equal. rewrite H0. reflexivity. rewrite H1. reflexivity. } }
-          { subst. erewrite skipn_length_all.
+          { inversion H3; clear H3; subst. erewrite skipn_length_all.
             rewrite ST_EXT.existsEach_nil. rewrite app_nil_r. reflexivity. 
             unfold WellTyped_env in *. rewrite H1. unfold typeof_env. reflexivity. } }
       Qed.
 
-      Theorem backward_WellTyped : forall bound facts P Q,
-        backward bound facts P = Q ->
+      Theorem backward_WellTyped : forall bound facts P Q r,
+        backward bound facts P = (Q,r) ->
         WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
         WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars Q) (Vars Q) (Heap Q) = true.
       Proof.
         induction bound; simpl; intros; try subst; auto;
-          match goal with
-            | |- context [ match ?X with _ => _ end ] =>
-              consider X; intros
-          end; auto.
+          repeat match goal with
+                   | [ H : (_,_) = (_,_) |- _ ] => inversion H; clear H; subst
+                   | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
+                     consider X; intros
+                 end; auto.
         eapply unfoldBackward_WellTyped in H; try eassumption. eapply IHbound; eauto.
       Qed.
 
-      Theorem backwardOk : forall cs bound facts P Q meta_env vars_env,
-        backward bound facts P = Q ->
+      Theorem backwardOk : forall cs bound facts P Q meta_env vars_env r,
+        backward bound facts P = (Q,r) ->
         WellTyped_env (UVars P) meta_env -> (** meta_env instantiates the uvars **)
         WellTyped_env (Vars P) vars_env ->
         WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (UVars P) (Vars P) (Heap P) = true ->
@@ -1592,7 +1594,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
                    (sexprD funcs preds meta_env vars_env (sheapD (Heap P))).
       Proof.
         induction bound; simpl; intros.
-        { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil.
+        { inversion H; clear H; subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil.
           rewrite app_nil_r. reflexivity. rewrite H0. rewrite <- typeof_env_length. eauto with list_length. }
         { consider (unfoldBackward unify_bound prover facts (Backward hs) P); intros.
           { generalize H. 
@@ -1613,7 +1615,7 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             rewrite rw_skipn_app. apply ST_EXT.himp_existsEach. intros. rewrite app_ass. reflexivity.
             repeat rewrite app_length. rewrite typeof_env_length. subst. rewrite map_length. reflexivity.
             rewrite <- H2. f_equal. symmetry; apply H0. symmetry; apply H1. }           
-          { subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
+          { inversion H4; clear H4; subst. cutrewrite (skipn (length meta_env) (UVars Q) = nil). rewrite ST_EXT.existsEach_nil. 
             rewrite app_nil_r. reflexivity.  rewrite H0. rewrite <- typeof_env_length. eauto with list_length. } }
       Qed.
 

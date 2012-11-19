@@ -32,11 +32,11 @@ Section unfolder_learnhook.
     fun prover meta_vars vars_vars st facts ext => 
       match SymMem st with
         | Some m =>
-          match UNF.forward hints prover 10 facts
+          match fst (UNF.forward hints prover 10 facts
             {| UNF.Vars := vars_vars
              ; UNF.UVars := meta_vars
              ; UNF.Heap := m
-             |}
+             |})
             with
             | {| UNF.Vars := vs ; UNF.UVars := us ; UNF.Heap := m |} =>
               (** assert (us = meta_vars) **)
@@ -77,9 +77,10 @@ Section unfolder_learnhook.
       {| UNF.Vars := typeof_env vars
         ; UNF.UVars := typeof_env uvars
         ; UNF.Heap := s |}).
+      destruct p. simpl in *.
       destruct u; simpl in *.
-      symmetry in Hequ.
-      eapply UNF.forwardOk with (cs := cs) in Hequ; eauto using typeof_env_WellTyped_env.
+      symmetry in Heqp.
+      eapply UNF.forwardOk with (cs := cs) in Heqp; eauto using typeof_env_WellTyped_env.
       Focus 2. simpl.
       eapply stateD_WellTyped_sheap. eauto. simpl in *.
       inversion H2; clear H2; subst.
@@ -91,7 +92,7 @@ Section unfolder_learnhook.
                  consider X; intros; try contradiction
              end.
       intuition; subst.
-      rewrite Hequ in H.
+      rewrite Heqp in H.
       rewrite sepFormula_eq in H. unfold sepFormula_def in *. simpl in H.
       eapply UNF.ST_EXT.interp_existsEach in H. destruct H.
       apply existsEach_sem. exists x. destruct H. split.

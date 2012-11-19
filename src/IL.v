@@ -270,14 +270,6 @@ Qed.
 (* Execution is parametric in settings that distinguish different platforms.
  * Programs will generally be verified to work in all platforms. *)
 Record settings := {
-(*
-  (* ezyang: Do we need this now that memories are partial? 
-   * gmm: we shouldn't
-   *)
-  MemHigh : W;
-  (* The first non-addressable RAM address *)
-*)
-
   (* gmm: we can push this into the heap model since it already has
    *      the functionality footprint_w
    *)
@@ -389,27 +381,6 @@ Proof.
   reflexivity.
 Qed.  
 
-(*
-Theorem ReadWordFootprint : forall stn m m' a a',
-  m a = m' a'
-  -> m (a ^+ $1) = m' (a' ^+ $1)
-  -> m (a ^+ $2) = m' (a' ^+ $2)
-  -> m (a ^+ $3) = m' (a' ^+ $3)
-  -> ReadWord stn m a = ReadWord stn m' a'.
-Proof.
-  unfold ReadWord, mem_get_word, ReadByte, footprint_w. intros.
-  rewrite H; rewrite H0; rewrite H1; rewrite H2; reflexivity. (* congruence doesn't work... *)
-Qed. 
-
-Theorem ReadWriteEq' : forall s m k v k', k' = k -> ReadWord s (WriteWord s m k v) k' = Some v.
-  intros; subst; apply ReadWriteEq.
-Qed.
-
-
-Hint Rewrite ReadWriteEq' using W_eq : IL.
-Hint Rewrite ReadWriteNe using solve [ auto ] : IL.
-*)
-
 (* Machine states *)
 Record state := {
   Regs : regs;
@@ -418,19 +389,6 @@ Record state := {
 
 Section settings.
   Variable stn : settings.
-
-(*
-  (* Is a word-sized memory chunk in bounds, within addressable RAM? *)
-  Definition inBounds (a : W) := a < MemHigh stn /\ a ^+ $3 < MemHigh stn.
-
-  Definition inBounds_dec (a : W) : {inBounds a} + {~inBounds a}.
-    refine (if wlt_dec a (MemHigh stn)
-      then if wlt_dec (a ^+ $3) (MemHigh stn)
-        then left _ _
-        else right _ _
-      else right _ _); abstract (unfold inBounds; tauto).
-  Defined.
-*)
 
   Section state.
     Variable st : state.

@@ -1,6 +1,6 @@
 Require Import List DepList.
 Require Import EqdepClass.
-Require Import IL Word.
+Require Import Word.
 Require Import Bool Folds.
 Require Import Reflection Tactics. 
 

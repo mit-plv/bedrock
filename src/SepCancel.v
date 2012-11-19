@@ -409,37 +409,40 @@ Module Make (U : SynUnifier) (SH : SepHeap).
      ** rem ===> ls * acc
      **)
     Fixpoint cancel_in_order (bound : nat) (summ : Facts Prover) 
-      (ls : cancel_list) (acc rem : MM.mmap (exprs types)) (sub : U.Subst types) 
-      : MM.mmap (exprs types) * MM.mmap (exprs types) * U.Subst types :=
+      (ls : cancel_list) (acc rem : MM.mmap (exprs types)) (sub : U.Subst types)
+      (progress : bool)
+      : option (MM.mmap (exprs types) * MM.mmap (exprs types) * U.Subst types) :=
       match ls with
-        | nil => (acc, rem, sub)
+        | nil => 
+          if progress then Some (acc, rem, sub) else None
         | (args,f) :: ls => 
           match FM.find f rem with
-            | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub
+            | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub progress
             | Some argss =>
               match nth_error preds f with
-                | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub (** Unused! **)
+                | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub progress (** Unused! **)
                 | Some ts => 
                   match unify_remove bound summ args (SDomain ts) argss sub with
-                    | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub
+                    | None => cancel_in_order bound summ ls (MM.mmap_add f args acc) rem sub progress
                     | Some (rem', sub) =>
-                      cancel_in_order bound summ ls acc (FM.add f rem' rem) sub
+                      cancel_in_order bound summ ls acc (FM.add f rem' rem) sub true
                   end
               end                      
           end
       end.
 
-    Lemma cancel_in_order_equiv : forall bound summ ls acc rem sub L R S acc',
+    Lemma cancel_in_order_equiv : forall bound summ ls acc rem sub L R S acc' progress,
       MM.mmap_Equiv acc acc' ->
-      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+      cancel_in_order bound summ ls acc rem sub progress = Some (L, R, S) ->
       exists L' R' S',
-        cancel_in_order bound summ ls acc' rem sub = (L', R', S') /\
+        cancel_in_order bound summ ls acc' rem sub progress = Some (L', R', S') /\
         MM.mmap_Equiv L L' /\
         MM.mmap_Equiv R R' /\
         U.Subst_Equal S S'.
     Proof.
       clear. induction ls; simpl; intros.
       { inversion H0; subst; auto. 
+        destruct progress; try congruence. inversion H0; clear H0; subst.
         do 3 eexists. split; [ reflexivity | intuition ]. }
       { repeat match goal with
                  | [ H : match ?X with 
@@ -449,21 +452,22 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                            | Some _ => _ | None => _ 
                          end = _ |- _ ] =>
                  revert H; case_eq X; intros
-                 
                end;
         (eapply IHls; [ eauto using MM.mmap_add_mor | eassumption ]). }
     Qed.
 
-    Lemma cancel_in_order_mmap_add_acc : forall bound summ ls n e acc rem sub L R S,
-      cancel_in_order bound summ ls (MM.mmap_add n e acc) rem sub = (L, R, S) ->
+    Lemma cancel_in_order_mmap_add_acc : forall bound summ ls n e acc rem sub L R S progress,
+      cancel_in_order bound summ ls (MM.mmap_add n e acc) rem sub progress = Some (L, R, S) ->
       exists L' R' S',
-        cancel_in_order bound summ ls acc rem sub = (L', R', S') /\
+        cancel_in_order bound summ ls acc rem sub progress = Some (L', R', S') /\
         MM.mmap_Equiv (MM.mmap_add n e L') L /\
         MM.mmap_Equiv R R' /\
         U.Subst_Equal S S'.
     Proof.
       clear. induction ls; simpl; intros.
-      { inversion H; subst. do 3 eexists; split. 
+      { inversion H; subst.
+        destruct progress; try congruence. inversion H; clear H; subst.
+        do 3 eexists; split. 
         reflexivity. split; try reflexivity. split; try reflexivity. }
       { repeat match goal with
                  | [ H : match ?X with 
@@ -473,11 +477,10 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                            | Some _ => _ | None => _ 
                          end = _ |- _ ] =>
                  revert H; case_eq X; intros
-                 
                end;
         try solve [ eapply IHls; eauto ];
         match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
+          | [ H : cancel_in_order _ _ _ _ _ _ _ = _ |- _ ] =>
             eapply cancel_in_order_equiv in H; [ | eapply MM.mmap_add_comm ]
         end;
         repeat match goal with
@@ -485,7 +488,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                  | [ H : _ /\ _ |- _ ] => destruct H
                end;
         match goal with
-          | [ H : cancel_in_order _ _ _ _ _ _ = _ |- _ ] =>
+          | [ H : cancel_in_order _ _ _ _ _ _ _ = _ |- _ ] =>
             eapply IHls in H
         end;
         repeat match goal with
@@ -495,7 +498,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                  | [ |- exists x, _ ] => eexists
                  | [ H : MM.mmap_Equiv _ _ |- _ ] => rewrite H
                  | [ H : U.Subst_Equal _ _ |- _ ] => rewrite H
-               end; intuition reflexivity. }
+               end; try intuition reflexivity. }
     Qed.
 
     Lemma nth_error_typeof_preds : forall p n,
@@ -547,22 +550,22 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 (*
       let tU := typeof_env U in
       let tG := typeof_env G in *)
-      forall ls acc rem sub L R S,
+      forall ls acc rem sub L R S progress,
       U.Subst_WellTyped tf tU tG sub ->
       allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
         (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true ->
       SH.WellTyped_impures tf tp tU tG acc = true ->
       SH.WellTyped_impures tf tp tU tG rem = true ->
 (*      Valid Prover_correct U G summ ->  *)
-      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+      cancel_in_order bound summ ls acc rem sub progress = Some (L, R, S) ->
          U.Subst_Extends S sub 
       /\ U.Subst_WellTyped tf tU tG S
       /\ SH.WellTyped_impures tf tp tU tG L = true 
       /\ SH.WellTyped_impures tf tp tU tG R = true.
     Proof.
       induction ls; simpl; intros.
-      { inversion H3; clear H3; subst; intuition. }
-      { subst tp. rewrite nth_error_typeof_preds in H0. destruct a; simpl in *.
+      { destruct progress; try congruence. inversion H3; clear H3; subst; intuition. }
+      { subst tp. rewrite nth_error_typeof_preds in H0. destruct a; simpl in *. 
         repeat match goal with
                  | H : context [ option_map _ ?X ] |- _ =>
                    (consider X; simpl in *; try congruence); [ intros ]
@@ -573,7 +576,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                          end = _ |- _ ] =>
                  consider X; intros
                end; simpl in *; subst.
-        { assert (List.Forall
+{ assert (List.Forall
           (fun r : list (expr types) =>
             all2 (is_well_typed tf tU tG) r (SDomain p) = true) l0).
           { eapply SH.WellTyped_impures_eq in H2; try eassumption.
@@ -605,14 +608,14 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       let tp := SE.typeof_preds preds in
       let tU := typeof_env U in
       let tG := typeof_env G in
-      forall ls acc rem sub L R S,
+      forall ls acc rem sub L R S progress,
       U.Subst_WellTyped tf tU tG sub ->
       U.Subst_equations funcs U G S ->
       allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
         (Func (pcType := pcType) (stateType := stateType) (snd v) (fst v))) ls = true ->
       SH.WellTyped_impures tf tp tU tG acc = true ->
       SH.WellTyped_impures tf tp tU tG rem = true ->
-      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+      cancel_in_order bound summ ls acc rem sub progress = Some (L, R, S) ->
          U.Subst_equations funcs U G sub 
       /\ U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S
       /\ SH.WellTyped_impures tf tp tU tG L = true 
@@ -650,12 +653,12 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       (bound : nat) (summ : Facts Prover) (e : exprs types) 
       (n : nat) (ls : list (exprs types * nat)),
       (forall (acc rem : MM.mmap (exprs types)) (sub : U.Subst types)
-        (L R : MM.mmap (exprs types)) (S : U.Subst types),
+        (L R : MM.mmap (exprs types)) (S : U.Subst types) progress,
         U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
         U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S ->
         U.Subst_equations funcs U G S ->
         Valid Prover_correct U G summ ->
-        cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+        cancel_in_order bound summ ls acc rem sub progress = Some (L, R, S) ->
         allb
         (fun v : list (expr types) * func =>
           match nth_error (typeof_preds preds) (snd v) with
@@ -682,7 +685,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                   Func (snd v) (map (U.exprInstantiate S) (fst v))) ls Emp)
               (SH.impuresD pcType stateType (impuresInstantiate S acc))) Q)) ->
       forall (acc rem : MM.mmap (exprs types)) (sub : U.Subst types)
-        (L R : MM.mmap (exprs types)) (S : U.Subst types),
+        (L R : MM.mmap (exprs types)) (S : U.Subst types) progress,
         U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub ->
         U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) S ->
         U.Subst_equations funcs U G S ->
@@ -708,7 +711,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                   (map (U.exprInstantiate S) (fst v)) ts
                 | None => false
               end) ls = true ->
-            cancel_in_order bound summ ls (MM.mmap_add n e acc) rem sub = (L, R, S) ->
+            cancel_in_order bound summ ls (MM.mmap_add n e acc) rem sub progress = Some (L, R, S) ->
             himp funcs preds U G cs
             (Star (SH.impuresD pcType stateType (impuresInstantiate S rem)) P)
             (Star (Star
@@ -744,7 +747,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
      ** r ===> l ->
      ** rem ===> ls * acc
      **)
-    Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S,
+    Lemma cancel_in_orderOk : forall U G cs bound summ ls acc rem sub L R S progress,
       let tf := typeof_funcs funcs in
       let tp := SE.typeof_preds preds in
       let tU := typeof_env U in
@@ -753,7 +756,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       U.Subst_WellTyped tf tU tG S ->
       U.Subst_equations funcs U G S ->
       Valid Prover_correct U G summ ->
-      cancel_in_order bound summ ls acc rem sub = (L, R, S) ->
+      cancel_in_order bound summ ls acc rem sub progress = Some (L, R, S) ->
       allb (fun v => SE.WellTyped_sexpr tf tp tU tG 
         (Func (pcType := pcType) (stateType := stateType) (snd v) (map (@U.exprInstantiate _ S) (fst v)))) ls = true ->
       SH.WellTyped_impures tf tp tU tG acc = true ->
@@ -768,7 +771,8 @@ Module Make (U : SynUnifier) (SH : SepHeap).
                     (SH.impuresD _ _ (impuresInstantiate S acc))) Q).
     Proof.
       induction ls; simpl; intros.
-      { inversion H3; clear H3; subst. repeat rewrite starred_nil. rewrite heq_star_emp_l. auto. }
+      { destruct progress; try congruence. inversion H3; clear H3; subst. 
+        repeat rewrite starred_nil. rewrite heq_star_emp_l. auto. }
       { rewrite starred_cons. rewrite nth_error_typeof_preds in H4. destruct a; simpl in *.
         repeat match goal with
                  | H : context [ option_map _ ?X ] |- _ =>
@@ -846,20 +850,24 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Qed.
 
     (** TODO: it would be good to keep this somewhat general with respect to the order so that we can play around with it
+     ** NOTE: return None if we don't make progress
      **)
-    Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) (s : U.Subst types) :
-      SH.SHeap _ _ _ * SH.SHeap _ _ _ * U.Subst types :=
+    Definition sepCancel (bound : nat) (summ : Facts Prover) (l r : SH.SHeap types pcType stateType) (s : U.Subst types) 
+      (prog : bool) : option (SH.SHeap _ _ _ * SH.SHeap _ _ _ * U.Subst types) :=
       let ordered_r := order_impures (SH.impures r) in
       let sorted_l := FM.map (fun v => Ordering.sort _ meta_order_args v) (SH.impures l) in 
-      let '(rf, lf, sub) := 
-        cancel_in_order bound summ ordered_r (MM.empty _) sorted_l s
-      in
-      ({| SH.impures := lf ; SH.pures := SH.pures l ; SH.other := SH.other l |},
-       {| SH.impures := rf ; SH.pures := SH.pures r ; SH.other := SH.other r |},
-       sub).
+      match 
+        cancel_in_order bound summ ordered_r (MM.empty _) sorted_l s prog
+        with
+        | None => None 
+        | Some (rf, lf, sub) =>
+          Some ({| SH.impures := lf ; SH.pures := SH.pures l ; SH.other := SH.other l |},
+                {| SH.impures := rf ; SH.pures := SH.pures r ; SH.other := SH.other r |},
+                sub)
+      end.
 
-    Theorem sepCancel_PuresPrem : forall funcs U G bound summ l r l' r' s s',
-      sepCancel bound summ l r s = (l', r', s') ->
+    Theorem sepCancel_PuresPrem : forall funcs U G bound summ l r l' r' s s' b,
+      sepCancel bound summ l r s b = Some (l', r', s') ->
       AllProvable funcs U G (SH.pures l) ->
       AllProvable funcs U G (SH.pures l').
     Proof.
@@ -869,8 +877,8 @@ Module Make (U : SynUnifier) (SH : SepHeap).
               (FM.map
                  (fun v : list (exprs types) =>
                   Ordering.sort (exprs types) meta_order_args v)
-                 (SH.impures l)) s). destruct p. inversion H.
-      auto.
+                 (SH.impures l)) s). destruct p. destruct p. inversion H.
+      auto. congruence.
     Qed.
 
     Lemma starred_ext : forall T U G cs F F' (ls : list T) B,
@@ -990,10 +998,10 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       rewrite H0. destruct (Ordering.sort (exprs types) C (e :: l)); auto. 
     Qed.
 
-    Theorem sepCancel_PureFacts : forall tU tG bound summ l r l' r' s s',
+    Theorem sepCancel_PureFacts : forall tU tG bound summ l r l' r' s s' b,
       let tf := typeof_funcs funcs in
       let tp := typeof_preds preds in
-      sepCancel bound summ l r s = (l', r', s') ->
+      sepCancel bound summ l r s b = Some (l', r', s') ->
       U.Subst_WellTyped tf tU tG s ->
       SH.WellTyped_sheap tf tp tU tG l = true ->
       SH.WellTyped_sheap tf tp tU tG r = true ->
@@ -1007,8 +1015,8 @@ Module Make (U : SynUnifier) (SH : SepHeap).
               (FM.map
                  (fun v : list (exprs types) =>
                   Ordering.sort (exprs types) meta_order_args v)
-                 (SH.impures l)) s); intros.
-      destruct p. inversion H3; clear H3; subst.
+                 (SH.impures l)) s b); intros.
+      destruct p. destruct p. inversion H3; clear H3; subst.
       rewrite SH.WellTyped_sheap_eq in H1.
       rewrite SH.WellTyped_sheap_eq in H2. think.
       eapply cancel_in_order_PureFacts_weak in H; try eassumption; 
@@ -1016,26 +1024,28 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       intuition.
       rewrite SH.WellTyped_sheap_eq; simpl; think; auto.
       rewrite SH.WellTyped_sheap_eq; simpl; think; auto.
+      congruence.
     Qed.
 
-    Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub sub',
+    Theorem sepCancel_correct : forall U G cs bound summ l r l' r' sub sub' b,
       U.Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub' ->
       SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) l = true ->
       SH.WellTyped_sheap (typeof_funcs funcs) (typeof_preds preds) (typeof_env U) (typeof_env G) r = true ->
       Valid Prover_correct U G summ ->
-      sepCancel bound summ l r sub' = (l', r', sub) ->
+      sepCancel bound summ l r sub' b = Some (l', r', sub) ->
       himp funcs preds U G cs (SH.sheapD l') (SH.sheapD r') ->
       U.Subst_equations funcs U G sub ->
       himp funcs preds U G cs (SH.sheapD l) (SH.sheapD r).
     Proof.
       destruct l; destruct r. unfold sepCancel. simpl. intros.
       repeat match goal with 
-               | [ H : (let (x,y) := ?X in _) = _ |- _ ] => 
-                 revert H; case_eq X; intros
+               | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                 revert H; case_eq X; intros; try congruence
                | [ H : prod _ _ |- _ ] => destruct H
                | [ H : (_,_) = (_,_) |- _ ] => inversion H; clear H; subst
+               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
              end.
-      do 2 rewrite SH.sheapD_def. simpl.
+      do 2 rewrite SH.sheapD_def. simpl. 
       eapply cancel_in_orderOk with (cs := cs) (U := U) (G := G) 
         (P := Star (SH.starred (SH.SE.Inj (stateType:=stateType)) pures SH.SE.Emp)
                    (SH.starred (SH.SE.Const (stateType:=stateType)) other SH.SE.Emp)) 
