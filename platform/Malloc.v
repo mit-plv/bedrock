@@ -9,7 +9,7 @@ Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply alloca
 (** * A free-list heap managed by the malloc library *)
 
 Definition noWrapAround (p sz : W) :=
-  forall n, (n < 4 * wordToNat sz)%nat -> p ^+ $(n) <> $0.
+  goodSize (wordToNat p + 4 * wordToNat sz).
 
 Definition freeable (p sz : W) :=
   (wordToNat sz >= 2)%nat
@@ -267,12 +267,51 @@ Qed.
 
 Hint Rewrite wordToNat_wminus using assumption : sepFormula.
 
+Lemma Nle_out : forall n m, (n <= m)%N -> (N.to_nat n <= N.to_nat m)%nat.
+  intros; apply N.lt_eq_cases in H; intuition.
+  apply Nlt_out in H0; auto.
+Qed.
+
 Lemma noWrapAround_plus4 : forall p sz,
   noWrapAround p sz
-  -> sz >= $3
+  -> $3 <= sz
   -> p ^+ $4 <> $0.
-  intros; apply H; destruct (expose3' H0) as [ ? Heq ];
-    rewrite Heq; omega.
+  intros; rewrite <- (natToWord_wordToNat p); rewrite <- natToW_plus;
+    intro; apply natToW_inj in H1; auto; try omega.
+  eapply goodSize_weaken; eauto.
+  match goal with
+    | [ |- (?X <= ?Y)%nat ] => destruct (le_lt_dec X Y)
+  end; auto.
+  elimtype False; apply H0.
+  red.
+  apply Nlt_in.
+  autorewrite with N.
+  rewrite wordToNat_natToWord_idempotent; auto.
+  reflexivity.
+Qed.
+
+Lemma wordToNat_wplus : forall (w u : W),
+  goodSize (wordToNat w + wordToNat u)
+  -> wordToNat (w ^+ u) = wordToNat w + wordToNat u.
+  intros.
+  rewrite wplus_alt; unfold wplusN, wordBinN.
+  apply wordToNat_natToWord_idempotent; auto.
+Qed.
+
+Lemma wordToNat_wmult : forall (w u : W),
+  goodSize (wordToNat w * wordToNat u)
+  -> wordToNat (w ^* u) = wordToNat w * wordToNat u.
+  intros.
+  rewrite wmult_alt; unfold wmultN, wordBinN.
+  apply wordToNat_natToWord_idempotent; auto.
+Qed.
+
+Lemma wle_le : forall (n sz : W),
+  n <= sz
+  -> (wordToNat n <= wordToNat sz)%nat.
+  intros; destruct (le_lt_dec (wordToNat n) (wordToNat sz)); auto.
+  elimtype False; apply H.
+  nomega.
 Qed.
 
 Lemma noWrapAround_weaken : forall p sz p' n,
@@ -281,11 +320,20 @@ Lemma noWrapAround_weaken : forall p sz p' n,
   -> p' = p ^+ $4 ^* n
   -> noWrapAround p' (sz ^- n).
   unfold noWrapAround; intros; subst.
-  rewrite <- wplus_assoc.
-  rewrite <- (natToWord_wordToNat ($4 ^* n)).
-  rewrite <- natToWord_plus.
-  apply H.
-Admitted.
+  rewrite wordToNat_wminus by auto.
+  apply wle_le in H0.
+  rewrite wordToNat_wplus.
+  rewrite wordToNat_wmult.
+  change (wordToNat (natToWord 32 4)) with 4.
+  eapply goodSize_weaken; eauto.
+  change (wordToNat (natToWord 32 4)) with 4.
+  eapply goodSize_weaken; eauto.
+  rewrite wordToNat_wmult.
+  change (wordToNat (natToWord 32 4)) with 4.
+  eapply goodSize_weaken; eauto.
+  change (wordToNat (natToWord 32 4)) with 4.
+  eapply goodSize_weaken; eauto.
+Qed.
 
 Local Hint Extern 1 (noWrapAround _ _) => eapply noWrapAround_weaken; [ eassumption | | ].
 
