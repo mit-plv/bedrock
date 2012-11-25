@@ -8,15 +8,16 @@ Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply alloca
 
 (** * A free-list heap managed by the malloc library *)
 
-Definition noWrapAround (p sz : W) :=
-  goodSize (wordToNat p + 4 * wordToNat sz).
+Definition noWrapAround (p : W) (sz : nat) :=
+  forall n, (n < 4 * sz)%nat -> p ^+ $(n) <> $0.
 
-Record freeable (p sz : W) : Prop := {
-  BigEnough : sz >= $2;
+Record freeable (p : W) (sz : nat) : Prop := {
+  BigEnough : (sz >= 2)%nat;
   SmallEnough : noWrapAround p sz
 }.
 
 Hint Immediate BigEnough SmallEnough.
+Hint Constructors freeable.
 
 Module Type FREE_LIST.
   Parameter freeList : nat (* number of elements in list *) -> W -> HProp.
@@ -30,13 +31,15 @@ Module Type FREE_LIST.
 
   Axiom nil_bwd : forall n p, p = 0 -> [| n = 0 |] ===> freeList n p.
   Axiom cons_bwd : forall n (p : W), p <> 0
-    -> (Ex n', Ex sz, Ex p', [| n = S n' |] * [| noWrapAround (p ^+ $8) sz |]
+    -> (Ex n', Ex sz, Ex p', [| n = S n' |]
+      * [| noWrapAround p (2 + wordToNat sz) |]
       * (p ==*> sz, p') * (p ^+ $8) =?> wordToNat sz * freeList n' p')
     ===> freeList n p.
 
   Axiom cons_fwd : forall n (p : W), p <> 0
     -> freeList n p
-    ===> Ex n', Ex sz, Ex p', [| n = S n' |] * [| noWrapAround (p ^+ $8) sz |]
+    ===> Ex n', Ex sz, Ex p', [| n = S n' |]
+    * [| noWrapAround p (2 + wordToNat sz) |]
     * (p ==*> sz, p')  * (p ^+ $8) =?> wordToNat sz * freeList n' p'.
 End FREE_LIST.
 
@@ -46,7 +49,8 @@ Module FreeList : FREE_LIST.
   Fixpoint freeList (n : nat) (p : W) : HProp :=
     match n with
       | O => [| p = 0 |]
-      | S n' => [| p <> 0 |] * Ex sz, Ex p', [| noWrapAround (p ^+ $8) sz |]
+      | S n' => [| p <> 0 |] * Ex sz, Ex p',
+        [| noWrapAround p (2 + wordToNat sz) |]
         * (p ==*> sz, p') * (p ^+ $8) =?> wordToNat sz * freeList n' p'
     end.
 
@@ -73,7 +77,8 @@ Module FreeList : FREE_LIST.
   Qed.
 
   Theorem cons_bwd : forall n (p : W), p <> 0
-    -> (Ex n', Ex sz, Ex p', [| n = S n' |] * [| noWrapAround (p ^+ $8) sz |]
+    -> (Ex n', Ex sz, Ex p', [| n = S n' |]
+      * [| noWrapAround p (2 + wordToNat sz) |]
       * (p ==*> sz, p') * (p ^+ $8) =?> wordToNat sz * freeList n' p')
     ===> freeList n p.
     destruct n; sepLemma; match goal with
@@ -83,7 +88,8 @@ Module FreeList : FREE_LIST.
 
   Theorem cons_fwd : forall n (p : W), p <> 0
     -> freeList n p
-    ===> Ex n', Ex sz, Ex p', [| n = S n' |] * [| noWrapAround (p ^+ $8) sz |]
+    ===> Ex n', Ex sz, Ex p', [| n = S n' |]
+    * [| noWrapAround p (2 + wordToNat sz) |]
     * (p ==*> sz, p') * (p ^+ $8) =?> wordToNat sz * freeList n' p'.
     destruct n; sepLemma.
   Qed.
@@ -93,19 +99,6 @@ Import FreeList.
 Export FreeList.
 Hint Immediate freeList_extensional mallocHeap_extensional.
 
-Definition splitMe cur full (_ : nat) := (cur =?> full)%Sep.
-
-Lemma malloc_split : forall cur full init,
-  (init <= full)%nat
-  -> splitMe cur full init ===> cur =?> init
-  * (cur ^+ $ (init * 4)) =?> (full - init).
-  intros; eapply Himp_trans; [
-    eapply allocated_split; eauto
-    | sepLemma; apply allocated_shift_base; [
-      rewrite mult_comm; simpl; unfold natToW; W_eq
-      | reflexivity ] ].
-Qed.
-
 Ltac expose := intros w ?; case_eq (wordToNat w); [ intro Heq;
   apply (f_equal (natToWord 32)) in Heq; rewrite natToWord_wordToNat in Heq;
     subst; elimtype False; auto
@@ -114,9 +107,15 @@ Ltac expose := intros w ?; case_eq (wordToNat w); [ intro Heq;
       subst; elimtype False; auto
     | eauto ]) ].
 
-Lemma expose2' : forall (w : W),
-  w >= $2
-  -> exists n, wordToNat w = S (S n).
+Lemma expose2N : forall n,
+  (n >= 2)%nat
+  -> exists n', n = S (S n').
+  destruct n as [ | [ | ] ]; eauto; intros; omega.
+Qed.
+
+Lemma expose2' : forall w : W,
+  $2 <= w
+  -> exists n', wordToNat w = S (S n').
   expose.
 Qed.
 
@@ -126,17 +125,17 @@ Lemma expose3' : forall (w : W),
   expose.
 Qed.
 
-Lemma freeable_fwd : forall p (sz : W),
+Lemma freeable_fwd : forall p sz,
   freeable p sz
-  -> p =?> wordToNat sz ===> Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (wordToNat sz-2).
-  intuition idtac; destruct (expose2' BigEnough0) as [? Heq];
+  -> p =?> sz ===> Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (sz-2).
+  intuition idtac; destruct (expose2N BigEnough0) as [? Heq];
     rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
 Qed.
 
-Lemma freeable_bwd : forall p (sz : W),
-  freeable p sz
+Lemma expose2_bwd : forall p (sz : W),
+  $2 <= sz
   -> (Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (wordToNat sz-2)) ===> p =?> wordToNat sz.
-  intuition idtac; destruct (expose2' BigEnough0) as [? Heq];
+  intros; destruct (expose2' H) as [? Heq];
     rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
 Qed.
 
@@ -148,23 +147,24 @@ Lemma expose3_fwd : forall p (sz : W),
 Qed.
 
 Definition hints : TacPackage.
-  prepare (mallocHeap_fwd, cons_fwd, malloc_split, freeable_fwd, expose3_fwd)
-  (mallocHeap_bwd, nil_bwd, cons_bwd, freeable_bwd).
+  prepare (mallocHeap_fwd, cons_fwd, freeable_fwd, expose3_fwd)
+  (mallocHeap_bwd, nil_bwd, cons_bwd, expose2_bwd).
 Defined.
 
 Definition initS : spec := SPEC("base", "size") reserving 0
-  PRE[V] [| $3 <= V "size" |] * [| noWrapAround (V "base") (V "size") |]
+  PRE[V] [| $3 <= V "size" |]
+    * [| noWrapAround (V "base") (wordToNat (V "size")) |]
     * V "base" =?> wordToNat (V "size")
   POST[_] mallocHeap (V "base").
 
 Definition freeS : spec := SPEC("base", "p", "n") reserving 1
-  PRE[V] [| V "p" <> 0 |] * [| freeable (V "p") (V "n") |]
+  PRE[V] [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "n")) |]
     * V "p" =?> wordToNat (V "n") * mallocHeap (V "base")
   POST[_] mallocHeap (V "base").
 
 Definition mallocS : spec := SPEC("base", "n") reserving 4
   PRE[V] [| V "n" >= $2 |] * mallocHeap (V "base")
-  POST[R] [| R <> 0 |] * [| freeable R (V "n") |]
+  POST[R] [| R <> 0 |] * [| freeable R (wordToNat (V "n")) |]
     * R =?> wordToNat (V "n") * mallocHeap (V "base").
 
 Definition mallocM := bmodule "malloc" {{
@@ -179,27 +179,27 @@ Definition mallocM := bmodule "malloc" {{
     "base" *<- "p";;
     "p" + 4 *<- "tmp";;
     Return 0
-  end (*with bfunction "malloc"("n", "cur", "prev", "tmp", "tmp2") [mallocS]
-    "cur" <-* 0;;
-    "prev" <- 0;;
+  end with bfunction "malloc"("base", "n", "cur", "prev", "tmp", "tmp2") [mallocS]
+    "cur" <-* "base";;
+    "prev" <- "base";;
 
-    [Al sz, Al len,
-      PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * V "prev" =*> V "cur" * freeList len (V "cur")
-      POST[R] Ex p, Ex len', [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2)
+    [Al len,
+      PRE[V] [| (V "n" >= $2)%word |] * V "prev" =*> V "cur" * freeList len (V "cur")
+      POST[R] Ex p, Ex len', [| R <> 0 |] * [| freeable R (wordToNat (V "n")) |] * R =?> wordToNat (V "n")
         * V "prev" =*> p * freeList len' p]
     While ("cur" <> 0) {
       "tmp" <-* "cur";;
+      "tmp" <- "tmp" + 2;;
       If ("tmp" = "n") {
         (* Exact size match on the current free list block *)
-        "tmp" <- "cur" + 4;;
-        "tmp" <-* "tmp";;
+        "tmp" <-* "cur" + 4;;
         "prev" *<- "tmp";;
         Return "cur"
       } else {
-        "tmp" <- "n" + 2;;
         "tmp2" <-* "cur";;
-        If ("tmp" < "tmp2") {
+        If ("n" < "tmp2") {
           (* This free list block is large enough to split in two. *)
+          Diverge(*
 
           (* Calculate starting address of a suffix of this free block to return to caller. *)
           "tmp" <- "tmp2" - "n";;
@@ -212,7 +212,7 @@ Definition mallocM := bmodule "malloc" {{
           "cur" *<- "tmp2";;
 
           (* Return suffix starting address. *)
-          Return "tmp"
+          Return "tmp"*)
         } else {
           (* Current block too small; continue to next. *)
           "prev" <- "cur" + 4;;
@@ -222,80 +222,138 @@ Definition mallocM := bmodule "malloc" {{
     };;
 
     Diverge (* out of memory! *)
-  end*)
+  end
 }}.
-
-Lemma four_neq_zero : natToW 4 <> natToW 0.
-  discriminate.
-Qed.
-
-Lemma cancel8 : forall x y z,
-  (z + 2 <= y)%nat
-  -> x ^+ $8 ^+ ($(y) ^- $(z + 2)) ^* $4 = x ^+ $4 ^* ($(y) ^- natToW z).
-  intros.
-  autorewrite with sepFormula.
-  rewrite natToW_plus.
-  unfold natToW.
-  W_eq.
-Qed.
 
 Local Hint Extern 1 (@eq (word _) _ _) => words.
 Local Hint Extern 5 (@eq nat _ _) => omega.
 Local Hint Extern 5 (_ <= _)%nat => omega.
 
-Lemma noWrapAround_plus4 : forall p sz,
-  noWrapAround p sz
+Lemma three_le : forall w : W,
+  $3 <= w
+  -> (wordToNat w >= 3)%nat.
+  intros; destruct (le_lt_dec (wordToNat w) 3); auto.
+  pre_nomega.
+  change (wordToNat (natToWord _ 3)) with 3 in H.
+  omega.
+Qed.
+
+Lemma noWrapAround_plus4 : forall p (sz : W),
+  noWrapAround p (wordToNat sz)
   -> $3 <= sz
   -> p ^+ $4 <> $0.
-  intros; rewrite <- (natToWord_wordToNat p); rewrite <- natToW_plus;
-    intro; apply natToW_inj in H1; auto; try omega.
-  eapply goodSize_weaken; eauto.
-  match goal with
-    | [ |- (?X <= ?Y)%nat ] => destruct (le_lt_dec X Y)
-  end; auto.
-  elimtype False; apply H0.
-  red.
-  apply Nlt_in.
-  autorewrite with N.
-  rewrite wordToNat_natToWord_idempotent; auto.
-  reflexivity.
+  intros.
+  intro.
+  eapply H.
+  2: eassumption.
+  apply three_le in H0.
+  omega.
 Qed.
 
-Lemma noWrapAround_weaken : forall p sz p' n,
+Lemma noWrapAround_weaken : forall p sz p' sz',
   noWrapAround p sz
-  -> n <= sz
-  -> p' = p ^+ $4 ^* n
-  -> noWrapAround p' (sz ^- n).
+  -> (sz' <= sz)%nat
+  -> p' = p ^+ $(4 * (sz - sz'))
+  -> noWrapAround p' sz'.
   unfold noWrapAround; intros; subst.
-  rewrite wordToNat_wminus by auto.
-  apply wle_le in H0.
-  rewrite wordToNat_wplus.
-  rewrite wordToNat_wmult.
-  change (wordToNat (natToWord 32 4)) with 4.
-  eapply goodSize_weaken; eauto.
-  change (wordToNat (natToWord 32 4)) with 4.
-  eapply goodSize_weaken; eauto.
-  rewrite wordToNat_wmult.
-  change (wordToNat (natToWord 32 4)) with 4.
-  eapply goodSize_weaken; eauto.
-  change (wordToNat (natToWord 32 4)) with 4.
-  eapply goodSize_weaken; eauto.
+  intro.
+  rewrite <- wplus_assoc in H1.
+  rewrite <- natToW_plus in H1.
+  eapply H; [ | eassumption ].
+  omega.
 Qed.
 
-Local Hint Extern 1 (noWrapAround _ _) => eapply noWrapAround_weaken; [ eassumption | | ].
+Local Hint Extern 1 (noWrapAround _ _) =>
+  eapply noWrapAround_weaken; [ eassumption | | ].
+
+Lemma weq_cong : forall (w : W) n m,
+  n = m
+  -> w ^+ $(n) = w ^+ $(m).
+  intros; subst; W_eq.
+Qed.
+
+Lemma weq_0 : forall (w w' : W) n,
+  w = w'
+  -> n = 0
+  -> w = w' ^+ $(n).
+  intros; subst; W_eq.
+Qed.
+
+Local Hint Resolve weq_0 weq_cong.
+
+Lemma two_ge : forall w : W,
+  (wordToNat w >= 2)%nat
+  -> w >= $2.
+  intros.
+  intro.
+  red in H0.
+  pre_nomega.
+  change (wordToNat (natToWord _ 2)) with 2 in *.
+  omega.
+Qed.
+
+Lemma wminus0 : forall (w : W),
+  (wordToNat w >= 2)%nat
+  -> wordToNat (w ^- $2) = wordToNat w - 2.
+  intros; rewrite wordToNat_wminus; auto.
+  apply two_ge; auto.
+Qed.
+
+Hint Rewrite wminus0 using assumption : sepFormula.
+
+Lemma sub2 : forall w w' : W,
+  w' ^+ $2 = w
+  -> $2 <= w
+  -> wordToNat w - 2 = wordToNat w'.
+  intros; apply (f_equal (fun x => x ^- $2)) in H.
+  replace (w' ^+ $2 ^- $2) with w' in H by W_eq.
+  subst.
+  symmetry; apply wordToNat_wminus; auto.
+Qed.
+
+Lemma two_le : forall w : W,
+  $2 <= w
+  -> (2 <= wordToNat w)%nat.
+  intros.
+  destruct (le_lt_dec 2 (wordToNat w)); auto.
+  elimtype False; apply H.
+  pre_nomega.
+  change (wordToNat (natToWord _ 2)) with 2 in *.
+  omega.
+Qed.
 
 Section mallocOk.
-  Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
-
-  Ltac t := sep hints;
+  Ltac t := sep hints; eauto;
     match goal with
-      | [ H1 : noWrapAround _ ?sz, H2 : _ <= ?sz |- _ ] =>
+      | [ H1 : noWrapAround _ (wordToNat ?sz), H2 : _ <= ?sz |- _ ] =>
         specialize (noWrapAround_plus4 H1 H2); intro
-    end; sep hints.
+      | [ H : _ |- _ ] => apply sub2 in H; [ | solve [ auto ] ]
+    end; sep hints;
+    repeat match goal with
+             | [ H : _ <= _ |- _ ] => apply three_le in H
+             | [ H : _ |- _ ] => apply two_le in H
+           end; change (wordToNat (natToW 3)) with 3 in *;
+    change (wordToNat (natToWord _ 3)) with 3 in *; eauto.
 
   Theorem mallocMOk : moduleOk mallocM.
     vcgen.
 
+    t.
+    t.
+    t.
+    t.
+    t.
+
+    t.
+    t.
+    t.
+    t.
+    t.
+
+    t.
+    t.
+    t.
+    t.
     t.
     t.
     t.
