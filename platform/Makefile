@@ -1,5 +1,7 @@
 ROOT    := ..
-MODULES := AutoSepExt AutoSep \
+MODULES := AutoSepExt PreAutoSep \
+           Util \
+           AutoSep \
            Malloc
 
 VS      := $(MODULES:%=%.v)

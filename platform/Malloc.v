@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import AutoSep Util.
 Require Import Arith List.
 
 Set Implicit Arguments.
@@ -11,9 +11,12 @@ Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply alloca
 Definition noWrapAround (p sz : W) :=
   goodSize (wordToNat p + 4 * wordToNat sz).
 
-Definition freeable (p sz : W) :=
-  (wordToNat sz >= 2)%nat
-  /\ noWrapAround p sz.
+Record freeable (p sz : W) : Prop := {
+  BigEnough : sz >= $2;
+  SmallEnough : noWrapAround p sz
+}.
+
+Hint Immediate BigEnough SmallEnough.
 
 Module Type FREE_LIST.
   Parameter freeList : nat (* number of elements in list *) -> W -> HProp.
@@ -123,18 +126,18 @@ Lemma expose3' : forall (w : W),
   expose.
 Qed.
 
-Lemma expose2_fwd : forall p (sz : W),
-  sz >= $2
+Lemma freeable_fwd : forall p (sz : W),
+  freeable p sz
   -> p =?> wordToNat sz ===> Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (wordToNat sz-2).
-  intros; destruct (expose2' H) as [? Heq]; rewrite Heq; sepLemma;
-    apply allocated_shift_base; omega || words.
+  intuition idtac; destruct (expose2' BigEnough0) as [? Heq];
+    rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
 Qed.
 
-Lemma expose2_bwd : forall p (sz : W),
-  sz >= $2
+Lemma freeable_bwd : forall p (sz : W),
+  freeable p sz
   -> (Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (wordToNat sz-2)) ===> p =?> wordToNat sz.
-  intros; destruct (expose2' H) as [? Heq]; rewrite Heq; sepLemma;
-    apply allocated_shift_base; omega || words.
+  intuition idtac; destruct (expose2' BigEnough0) as [? Heq];
+    rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
 Qed.
 
 Lemma expose3_fwd : forall p (sz : W),
@@ -145,8 +148,8 @@ Lemma expose3_fwd : forall p (sz : W),
 Qed.
 
 Definition hints : TacPackage.
-  prepare (mallocHeap_fwd, cons_fwd, malloc_split, expose2_fwd, expose3_fwd)
-  (mallocHeap_bwd, nil_bwd, cons_bwd, expose2_bwd).
+  prepare (mallocHeap_fwd, cons_fwd, malloc_split, freeable_fwd, expose3_fwd)
+  (mallocHeap_bwd, nil_bwd, cons_bwd, freeable_bwd).
 Defined.
 
 Definition initS : spec := SPEC("base", "size") reserving 0
@@ -170,14 +173,13 @@ Definition mallocM := bmodule "malloc" {{
     "base" + 4 *<- "size" - 3;;
     "base" + 8 *<- 0;;
     Return 0
-  end (*with bfunction "free"("p", "n", "tmp") [freeS]
-    "p" *<- "n";;
-    "tmp" <-* 0;;
-    0 *<- "p";;
-    "p" <- "p" + 4;;
-    "p" *<- "tmp";;
+  end with bfunction "free"("base", "p", "n", "tmp") [freeS]
+    "p" *<- "n" - 2;;
+    "tmp" <-* "base";;
+    "base" *<- "p";;
+    "p" + 4 *<- "tmp";;
     Return 0
-  end with bfunction "malloc"("n", "cur", "prev", "tmp", "tmp2") [mallocS]
+  end (*with bfunction "malloc"("n", "cur", "prev", "tmp", "tmp2") [mallocS]
     "cur" <-* 0;;
     "prev" <- 0;;
 
@@ -241,37 +243,6 @@ Local Hint Extern 1 (@eq (word _) _ _) => words.
 Local Hint Extern 5 (@eq nat _ _) => omega.
 Local Hint Extern 5 (_ <= _)%nat => omega.
 
-Lemma wordToNat_wminus : forall sz (w u : word sz),
-  u <= w
-  -> wordToNat (w ^- u) = wordToNat w - wordToNat u.
-  intros.
-  eapply natToWord_inj; try eapply wordToNat_bound.
-  2: generalize (wordToNat_bound w); omega.
-  rewrite natToWord_wordToNat.
-  unfold wminus.
-  rewrite wneg_alt.
-  unfold wnegN.
-  pattern w at 1.
-  rewrite <- (natToWord_wordToNat w).
-  rewrite <- natToWord_plus.
-  specialize (wordToNat_bound u); intro.
-  destruct (le_lt_dec (wordToNat u) (wordToNat w)).
-  replace (wordToNat w + (pow2 sz - wordToNat u))
-    with (pow2 sz + (wordToNat w - wordToNat u)) by omega.
-  rewrite natToWord_plus.
-  rewrite natToWord_pow2.
-  apply wplus_unit.
-  elimtype False; apply H.
-  nomega.
-Qed.
-
-Hint Rewrite wordToNat_wminus using assumption : sepFormula.
-
-Lemma Nle_out : forall n m, (n <= m)%N -> (N.to_nat n <= N.to_nat m)%nat.
-  intros; apply N.lt_eq_cases in H; intuition.
-  apply Nlt_out in H0; auto.
-Qed.
-
 Lemma noWrapAround_plus4 : forall p sz,
   noWrapAround p sz
   -> $3 <= sz
@@ -288,30 +259,6 @@ Lemma noWrapAround_plus4 : forall p sz,
   autorewrite with N.
   rewrite wordToNat_natToWord_idempotent; auto.
   reflexivity.
-Qed.
-
-Lemma wordToNat_wplus : forall (w u : W),
-  goodSize (wordToNat w + wordToNat u)
-  -> wordToNat (w ^+ u) = wordToNat w + wordToNat u.
-  intros.
-  rewrite wplus_alt; unfold wplusN, wordBinN.
-  apply wordToNat_natToWord_idempotent; auto.
-Qed.
-
-Lemma wordToNat_wmult : forall (w u : W),
-  goodSize (wordToNat w * wordToNat u)
-  -> wordToNat (w ^* u) = wordToNat w * wordToNat u.
-  intros.
-  rewrite wmult_alt; unfold wmultN, wordBinN.
-  apply wordToNat_natToWord_idempotent; auto.
-Qed.
-
-Lemma wle_le : forall (n sz : W),
-  n <= sz
-  -> (wordToNat n <= wordToNat sz)%nat.
-  intros; destruct (le_lt_dec (wordToNat n) (wordToNat sz)); auto.
-  elimtype False; apply H.
-  nomega.
 Qed.
 
 Lemma noWrapAround_weaken : forall p sz p' n,
@@ -340,20 +287,24 @@ Local Hint Extern 1 (noWrapAround _ _) => eapply noWrapAround_weaken; [ eassumpt
 Section mallocOk.
   Hint Rewrite natToW_times4 cancel8 natToW_minus using solve [ auto ] : sepFormula.
 
-  Theorem mallocMOk : moduleOk mallocM.
-    vcgen.
-
-    sep hints.
-    sep hints.
-    sep hints.
-    sep hints.
-    sep hints.
-
+  Ltac t := sep hints;
     match goal with
       | [ H1 : noWrapAround _ ?sz, H2 : _ <= ?sz |- _ ] =>
         specialize (noWrapAround_plus4 H1 H2); intro
-    end.
+    end; sep hints.
 
-    sep hints.
+  Theorem mallocMOk : moduleOk mallocM.
+    vcgen.
+
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
   Qed.
 End mallocOk.
