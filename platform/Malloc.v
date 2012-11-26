@@ -125,8 +125,13 @@ Lemma expose3' : forall (w : W),
   expose.
 Qed.
 
+Inductive fwd : Prop := Fwd.
+Inductive bwd : Prop := Bwd.
+Hint Constructors fwd bwd.
+
 Lemma freeable_fwd : forall p sz,
   freeable p sz
+  -> fwd
   -> p =?> sz ===> Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (sz-2).
   intuition idtac; destruct (expose2N BigEnough0) as [? Heq];
     rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
@@ -134,6 +139,7 @@ Qed.
 
 Lemma expose2_bwd : forall p (sz : W),
   $2 <= sz
+  -> bwd
   -> (Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (wordToNat sz-2)) ===> p =?> wordToNat sz.
   intros; destruct (expose2' H) as [? Heq];
     rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
@@ -167,13 +173,14 @@ Definition mallocS : spec := SPEC("base", "n") reserving 4
   POST[R] [| R <> 0 |] * [| freeable R (wordToNat (V "n")) |]
     * R =?> wordToNat (V "n") * mallocHeap (V "base").
 
-Definition mallocM := bmodule "malloc" {{
+Definition m := bmodule "malloc" {{
   bfunction "init"("base", "size") [initS]
     "base" *<- "base" + 4;;
     "base" + 4 *<- "size" - 3;;
     "base" + 8 *<- 0;;
     Return 0
   end with bfunction "free"("base", "p", "n", "tmp") [freeS]
+    Note [fwd];;
     "p" *<- "n" - 2;;
     "tmp" <-* "base";;
     "base" *<- "p";;
@@ -192,6 +199,8 @@ Definition mallocM := bmodule "malloc" {{
       "tmp" <- "tmp" + 2;;
       If ("tmp" = "n") {
         (* Exact size match on the current free list block *)
+        Note [bwd];;
+
         "tmp" <-* "cur" + 4;;
         "prev" *<- "tmp";;
         Return "cur"
@@ -199,20 +208,19 @@ Definition mallocM := bmodule "malloc" {{
         "tmp2" <-* "cur";;
         If ("n" < "tmp2") {
           (* This free list block is large enough to split in two. *)
-          Diverge(*
 
           (* Calculate starting address of a suffix of this free block to return to caller. *)
           "tmp" <- "tmp2" - "n";;
+          "tmp" <- "tmp" + 2;;
           "tmp" <- 4 * "tmp";;
           "tmp" <- "cur" + "tmp";;
 
           (* Decrement size of free list block to reflect deleted suffix. *)
           "tmp2" <- "tmp2" - "n";;
-          "tmp2" <- "tmp2" - 2;;
           "cur" *<- "tmp2";;
 
           (* Return suffix starting address. *)
-          Return "tmp"*)
+          Return "tmp"
         } else {
           (* Current block too small; continue to next. *)
           "prev" <- "cur" + 4;;
@@ -322,7 +330,7 @@ Lemma two_le : forall w : W,
   omega.
 Qed.
 
-Section mallocOk.
+Section ok.
   Ltac t := sep hints; eauto;
     match goal with
       | [ H1 : noWrapAround _ (wordToNat ?sz), H2 : _ <= ?sz |- _ ] =>
@@ -335,7 +343,7 @@ Section mallocOk.
            end; change (wordToNat (natToW 3)) with 3 in *;
     change (wordToNat (natToWord _ 3)) with 3 in *; eauto.
 
-  Theorem mallocMOk : moduleOk mallocM.
+  Theorem ok : moduleOk m.
     vcgen.
 
     t.
@@ -349,6 +357,7 @@ Section mallocOk.
     t.
     t.
     t.
+    t.
 
     t.
     t.
@@ -364,5 +373,80 @@ Section mallocOk.
     t.
     t.
     t.
+    t.
+    2: t.
+
+    sep hints.
+    Focus 4.
+    eapply Himp_trans; [ eapply allocated_split | ].
+    Opaque mult.
+    2: sepLemma.
+    rewrite wordToNat_wminus by nomega; omega.
+    apply allocated_shift_base.
+    rewrite H9.
+    replace (natToW 4 ^* (x7 ^- sel x4 "n" ^+ natToW 2)) with ($4 ^* (x7 ^- sel x4 "n") ^+ $8) by words.
+
+    Lemma four_times_wordToNat : forall w : W,
+      $(4 * wordToNat w) = $4 ^* w.
+      intros; rewrite wmult_alt; auto.
+    Qed.
+
+    rewrite four_times_wordToNat.
+    words.
+
+    rewrite wordToNat_wminus; nomega.
+
+    rewrite H9.
+    rewrite <- four_times_wordToNat.
+    apply H17.
+    
+    Focus 3.
+
+    Lemma noWrapAround_weaken' : forall p sz sz',
+      noWrapAround p sz
+      -> (sz' <= sz)%nat
+      -> noWrapAround p sz'.
+      unfold noWrapAround; auto.
+    Qed.
+
+    eapply noWrapAround_weaken'.
+    eassumption.
+    rewrite wordToNat_wminus; nomega.
+    rewrite wordToNat_wplus.
+    rewrite wordToNat_wminus.
+    nomega.
+    nomega.
+    rewrite wordToNat_wminus by nomega.
+    apply (goodSize_weaken (wordToNat x7)).
+    apply goodSize_wordToNat.
+    nomega.
+
+    rewrite H9.
+    split.
+    pre_nomega.
+    change (wordToNat (natToW 2)) with 2 in *.
+    omega.
+
+    eapply noWrapAround_weaken.
+    eassumption.
+    nomega.
+    f_equal.
+    rewrite (mult_comm 4).
+    rewrite natToW_times4.
+    rewrite wmult_comm.
+    f_equal.
+    transitivity (natToW (wordToNat x7 - wordToNat (sel x4 "n") + 2)).
+    Focus 2.
+    f_equal.
+    Opaque minus.
+    nomega.
+    change 2 with (wordToNat (natToW 2)) at 2.
+    match goal with
+      | [ |- ?X ^+ _ = _ ] => rewrite <- (natToWord_wordToNat X)
+    end.
+    rewrite <- natToW_plus.
+    rewrite wordToNat_wminus.
+    auto.
+    nomega.
   Qed.
-End mallocOk.
+End ok.
