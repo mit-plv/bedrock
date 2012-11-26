@@ -37,6 +37,30 @@ Ltac refold :=
                change (match X with nil => nil | _ :: x => x end) with (List.tl X)
            end.
 
+Section Note_.
+  Variable imps : LabelMap.t assert.
+  Variable mn : string.
+
+  Import DefineStructured.
+  Transparent evalInstrs.
+
+  Definition Note_ (P : Prop) : cmd imps mn.
+    red; refine (fun pre => {|
+      Postcondition := (fun st => pre st /\ [| P |])%PropX;
+      VerifCond := P :: nil;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond (RvLabel (mn, Local Exit)))) :: nil
+      |}
+    |}); abstract (struct; repeat esplit; eauto; propxFo).
+  Defined.
+End Note_.
+
+Definition Note__ (P : Prop) : chunk := fun _ _ =>
+  Structured nil (fun _ _ _ => Note_ _ _ P).
+
+Notation "'Note' [ P ]" := (Note__ P) (no associativity, at level 95) : SP_scope.
+
 Require Import Bool.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
@@ -69,6 +93,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect
   COperand1 CTest COperand2 Pos.succ
   makeVcs
+  Note_ Note__
 ].
 
 Ltac vcgen :=
