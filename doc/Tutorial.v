@@ -283,7 +283,9 @@ Notation "w @@ f" := (ExX, Cptr w #0 /\ Al s, f s ---> #0 s)%PropX.
 
 The loop invariant is strange, since it includes both a _precondition_ and a _postcondition_.  Standard Hoare-logic loop invariants only represent assertions over single program states.  How should an invariant like the above be interpreted?
 
-One answer is to consider it a new notation in separation logic, as in a VSTTE 2010 paper by Thomas Tuerk.  However, it turns out that this idea of loop invariant is actually _more natural_ for assembly language than the more common notation is.  It all has to do with the idea that assembly programs are naturally thought of as in _continuation-passing style_, since call stacks and return pointers are represented explicitly via memory and registers.  Thus, the natural idea of specification for a function is just a precondition, not a precondition plus a postcondition.
+One answer is to consider it a new notation in separation logic, as in a VSTTE 2010 paper by Thomas Tuerk.  One way to think of it is: an invariant's _precondition_ describes what the machine state looks like upon entering a loop iteration, and the _postcondition_ describes what the state must be transformed into before it is legal to _return_ from the current function.
+
+It also turns out that this idea of loop invariant is actually _more natural_ for assembly language than the more common notation is.  It all has to do with the idea that assembly programs are naturally thought of as in _continuation-passing style_, since call stacks and return pointers are represented explicitly via memory and registers.  Thus, the natural idea of specification for a function is just a precondition, not a precondition plus a postcondition.
 
 Using a more informal notation, the surface syntax for loop invariants could be written like:
 
@@ -301,13 +303,15 @@ $\{\exists \vec{x}, \alpha. \; P * \alpha \land \{Q * \alpha\}\mathsf{Rp}\}$#<tt
 
 We build the _frame rule_ into the desugaring scheme.  Some piece of memory is described by an unknown predicate $\alpha$#<tt>a</tt># on entry and must still be described by $\alpha$#<tt>a</tt># on exit.
 
-So there is a first-principles explanation of what Bedrock loop invariants mean.  It can still be helpful to build some intuition for what the notation means in practice.  One way to think of it is: an invariant's _precondition_ describes what the machine state looks like upon entering a loop iteration, and the _postcondition_ describes what the state must be transformed into before it is legal to _return_ from the current function.
+So there is a first-principles explanation of what Bedrock loop invariants mean.
 
 This treatment of invariants is natural in continuation-passing style; implementing the conventional notation would actually require more work for the Bedrock authors.  However, the alternate notation is actually quite useful in concert with separation logic.  Invariants in this style can provide very effective hints on where the _frame rule_ ought to be applied.
 
 Specifically, suppose that the state upon entry to a loop is described by an invariant with precondition [P * R] and postcondition [Q * R].  In other words, the loop will transform some state from satisfying [P] into satisfying [Q], and there is some additional state satisfying [R] that need not be touched.  In such a state, we can write a loop invariant with precondition based only on [P] and postcondition based only on [Q].  We forget about [R] for the rest of this function's verification.
 
 Such a technique is very helpful in traversals of linked data structures.  For instance, consider a loop over the cells of a linked list.  Traditional separation logic requires a loop invariant that splits the full list into a prefix list segment that has already been visited and a suffix list that has not yet been visited.  In Bedrock, we can instead use a loop invariant that only mentions the unvisited suffix.  Automatic application of the frame rule lets us gradually hide list elements from the invariant as we visit them.
+
+For a lengthier explanation of this pattern, see again Tuerk's VSTTE 2010 paper.
 
 The next section gives an example program containing one invariant, which triggers a similar use of the frame rule, but for a function call rather than a loop.  That is, after the call, we no longer need to know about certain parts of memory, so we need not mention those parts in the invariant.  It may be a useful exercise to consider the invariant in light of the desugaring to continuation-passing style. *)
 
