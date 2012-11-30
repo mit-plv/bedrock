@@ -330,6 +330,24 @@ Lemma two_le : forall w : W,
   omega.
 Qed.
 
+Lemma four_times_wordToNat : forall w : W,
+  $(4 * wordToNat w) = $4 ^* w.
+  intros; rewrite wmult_alt; auto.
+Qed.
+
+Lemma noWrapAround_weaken' : forall p sz sz',
+  noWrapAround p sz
+  -> (sz' <= sz)%nat
+  -> noWrapAround p sz'.
+  unfold noWrapAround; auto.
+Qed.
+
+Lemma the_ole_switcheroo : forall a b : W,
+  a ^+ natToW 8 ^+ $(4 * wordToNat b) = a ^+ natToW 4 ^* (b ^+ natToW 2) ^+ $0.
+  intros; replace (natToW 4 ^* (b ^+ natToW 2)) with ($4 ^* b ^+ $8) by words;
+    rewrite four_times_wordToNat; words.
+Qed.
+
 Section ok.
   Ltac t := sep hints; eauto;
     match goal with
@@ -344,74 +362,27 @@ Section ok.
     change (wordToNat (natToWord _ 3)) with 3 in *; eauto.
 
   Theorem ok : moduleOk m.
-    vcgen.
+    vcgen; try t.
 
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    2: t.
+    Opaque mult.
 
     sep hints.
+
+    Hint Rewrite wordToNat_wminus using nomega : N.
+
     Focus 4.
-    eapply Himp_trans; [ eapply allocated_split | ].
-    Opaque mult.
-    2: sepLemma.
-    rewrite wordToNat_wminus by nomega; omega.
+    eapply Himp_trans; [ eapply allocated_split | sepLemma ].
+    nomega.
     apply allocated_shift_base.
-    rewrite H9.
-    replace (natToW 4 ^* (x7 ^- sel x4 "n" ^+ natToW 2)) with ($4 ^* (x7 ^- sel x4 "n") ^+ $8) by words.
-
-    Lemma four_times_wordToNat : forall w : W,
-      $(4 * wordToNat w) = $4 ^* w.
-      intros; rewrite wmult_alt; auto.
-    Qed.
-
-    rewrite four_times_wordToNat.
-    words.
-
-    rewrite wordToNat_wminus; nomega.
+    repeat match goal with
+             | H:_ = _ |- _ => rewrite H
+           end.
+    apply the_ole_switcheroo.
+    nomega.
 
     rewrite H9.
     rewrite <- four_times_wordToNat.
     apply H17.
-    
-    Focus 3.
-
-    Lemma noWrapAround_weaken' : forall p sz sz',
-      noWrapAround p sz
-      -> (sz' <= sz)%nat
-      -> noWrapAround p sz'.
-      unfold noWrapAround; auto.
-    Qed.
-
-    eapply noWrapAround_weaken'.
-    eassumption.
-    rewrite wordToNat_wminus; nomega.
     rewrite wordToNat_wplus.
     rewrite wordToNat_wminus.
     nomega.
@@ -436,10 +407,7 @@ Section ok.
     rewrite wmult_comm.
     f_equal.
     transitivity (natToW (wordToNat x7 - wordToNat (sel x4 "n") + 2)).
-    Focus 2.
-    f_equal.
-    Opaque minus.
-    nomega.
+
     change 2 with (wordToNat (natToW 2)) at 2.
     match goal with
       | [ |- ?X ^+ _ = _ ] => rewrite <- (natToWord_wordToNat X)
@@ -448,5 +416,11 @@ Section ok.
     rewrite wordToNat_wminus.
     auto.
     nomega.
+
+    f_equal.
+    Opaque minus.
+    nomega.
+
+    eapply noWrapAround_weaken'; [ eassumption | nomega ].
   Qed.
 End ok.
