@@ -2,7 +2,8 @@ ROOT    := ..
 MODULES := AutoSepExt PreAutoSep \
            Util \
            AutoSep \
-           Malloc
+           Malloc \
+           Bags Queue
 
 VS      := $(MODULES:%=%.v)
 

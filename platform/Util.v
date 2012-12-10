@@ -248,3 +248,29 @@ Theorem localsInvariant_in : forall ns' pre post ns res ns'' res' stn_st specs,
   apply H15.
   apply in_or_app; tauto.
 Qed.
+
+Theorem localsInvariant_inEx : forall specs A p q p',
+  (forall x, interp specs (Ex st' : state,
+      p st' x
+      /\ q st')%PropX
+    -> interp specs (p' x))
+  -> interp specs (Ex st' : state,
+    (Ex x : A, p st' x)
+    /\ q st')%PropX
+  -> interp (pc := W) (state := settings * state) specs (Ex x : A, p' x).
+  propxFo.
+  exists x0.
+  apply simplify_fwd.
+  apply H.
+  propxFo; eauto.
+Qed.
+
+Lemma word_le : forall sz (u v : word sz),
+  u = v \/ u < v
+  -> u <= v.
+  intuition subst; nomega.
+Qed.
+
+Hint Resolve word_le.
+
+Hint Rewrite wordToNat_natToWord_idempotent using reflexivity : sepFormula.

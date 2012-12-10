@@ -11,13 +11,19 @@ Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply alloca
 Definition noWrapAround (p : W) (sz : nat) :=
   forall n, (n < 4 * sz)%nat -> p ^+ $(n) <> $0.
 
-Record freeable (p : W) (sz : nat) : Prop := {
-  BigEnough : (sz >= 2)%nat;
-  SmallEnough : noWrapAround p sz
-}.
+Definition freeable (p : W) (sz : nat) := (sz >= 2)%nat
+  /\ noWrapAround p sz.
 
-Hint Immediate BigEnough SmallEnough.
-Hint Constructors freeable.
+Lemma BigEnough : forall p sz, freeable p sz -> (sz >= 2)%nat.
+  unfold freeable; tauto.
+Qed.
+
+Lemma SmallEnough : forall p sz, freeable p sz -> noWrapAround p sz.
+  unfold freeable; tauto.
+Qed.
+
+Local Hint Immediate BigEnough SmallEnough.
+Local Hint Unfold freeable.
 
 Module Type FREE_LIST.
   Parameter freeList : nat (* number of elements in list *) -> W -> HProp.
@@ -133,7 +139,7 @@ Lemma freeable_fwd : forall p sz,
   freeable p sz
   -> fwd
   -> p =?> sz ===> Ex u, Ex v, p =*> u * (p ^+ $4) =*> v * (p ^+ $8) =?> (sz-2).
-  intuition idtac; destruct (expose2N BigEnough0) as [? Heq];
+  intuition idtac; destruct (expose2N (BigEnough H)) as [? Heq];
     rewrite Heq; sepLemma; apply allocated_shift_base; omega || words.
 Qed.
 
@@ -350,6 +356,9 @@ Qed.
 
 Section ok.
   Ltac t := sep hints; eauto;
+    try match goal with
+          | [ H : freeable _ _ |- _ ] => destruct H; sep hints; eauto
+        end;
     match goal with
       | [ H1 : noWrapAround _ (wordToNat ?sz), H2 : _ <= ?sz |- _ ] =>
         specialize (noWrapAround_plus4 H1 H2); intro
@@ -422,5 +431,9 @@ Section ok.
     nomega.
 
     eapply noWrapAround_weaken'; [ eassumption | nomega ].
+
+
   Qed.
 End ok.
+
+Global Opaque freeable.
