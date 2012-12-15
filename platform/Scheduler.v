@@ -1,4 +1,4 @@
-Require Import AutoSep Bags.
+Require Import AutoSep Bags Malloc Queue.
 
 Set Implicit Arguments.
 
@@ -173,3 +173,98 @@ Section starB.
     sepLemma.
   Qed.
 End starB.
+
+
+(** * The actual scheduler (will later move above stuff to Bags) *)
+
+(* What does it mean for a program counter to be valid for a suspended thread? *)
+Definition susp (sc pc sp : W) : HProp := fun s m =>
+  (ExX : settings * state, Cptr pc #0
+    /\ ExX : settings * smem, #0 (s, m)
+    /\ AlX : W * settings * smem, Al pc_yield,
+      [| s.(Labels) ("scheduler"!"yield")%SP = Some pc_yield |]
+      /\ Cptr pc_yield (st ~> ExX : settings * smem, Ex vs,
+        ![ ^[locals ("rp" :: "sc" :: nil) vs 0 st#Sp] * (fun s m => Lift (Var0 (sel vs "sc", s, m))) * #0 ] st
+        /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
+          /\ Ex vs', ![ ^[locals ("rp" :: "sc" :: nil) vs' 0 st#Sp]
+            * (fun s m => Lift (Lift (Var0 (sel vs "sc", s, m)))) * #1 ] st' ))
+      /\ Al st : settings * state, 
+        [| st#Sp = sp |]
+        /\ ![ #1 * (fun s m => Var0 (sc, s, m)) ] st
+        ---> #2 st)%PropX.
+
+Module Type SCHED.
+  Parameter susps : bag -> W -> HProp.
+  Parameter sched : W -> HProp.
+
+  Axiom susps_empty_bwd : forall sc, Emp ===> susps empty sc.
+
+  Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
+  Axiom sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
+End SCHED.
+
+Module Sched : SCHED.
+  Open Scope Sep_scope.
+
+  Definition susps (b : bag) (sc : W) : HProp :=
+    starB (fun p => susp sc (fst p) (snd p)) b.
+
+  Theorem susps_empty_bwd : forall sc, Emp ===> susps empty sc.
+    intros; apply starB_empty_bwd.
+  Qed.
+
+  Definition sched (sc : W) : HProp :=
+    Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
+
+  Theorem sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
+    unfold sched; sepLemma.
+  Qed.
+
+  Theorem sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
+    unfold sched; sepLemma.
+  Qed.
+End Sched.
+
+Import Sched.
+Export Sched.
+
+Definition hints : TacPackage.
+  prepare tt (sched_bwd, susps_empty_bwd).
+Defined.
+
+Definition initS : spec := SPEC reserving 11
+  PRE[_] mallocHeap 0
+  POST[R] sched R * mallocHeap 0.
+
+Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "queue"!"init" @ [Queue.initS] ]]
+  bmodule "scheduler" {{
+    bfunction "init"("q", "r") [initS]
+      "q" <-- Call "queue"!"init"()
+      [PRE[_, R] mallocHeap 0
+       POST[R'] R' =*> R * (R' ^+ $4) =?> 2 * mallocHeap 0];;
+
+      "r" <-- Call "malloc"!"malloc"(0, 3)
+      [PRE[V, R] R =?> 3
+       POST[R'] [| R' = R |] * R =*> V "q" * (R ^+ $4) =?> 2 ];;
+      "r" *<- "q";;
+      Return "r"
+    end
+  }}.
+
+Hint Extern 1 (@eq W _ _) => words.
+
+Theorem mOk : moduleOk m.
+  vcgen.
+
+  sep hints.
+  sep hints.
+  sep hints.
+  sep hints.
+  sep hints; auto.
+  sep hints.
+  sep hints.
+  sep hints; auto.
+  sep hints.
+  sep hints.
+  sep hints.
+Qed.
