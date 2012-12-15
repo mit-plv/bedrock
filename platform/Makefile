@@ -3,7 +3,7 @@ MODULES := AutoSepExt PreAutoSep \
            Util \
            AutoSep \
            Malloc \
-           Bags Queue
+           Bags Queue Scheduler
 
 VS      := $(MODULES:%=%.v)
 
