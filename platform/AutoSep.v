@@ -1,7 +1,7 @@
 Require Import PreAutoSep Util.
 Export PreAutoSep Util.
 
-Ltac sep hints :=
+Ltac enterFunction :=
   match goal with
     | [ |- context[localsInvariant _ _ false _ ?ns _ _] ] =>
       match goal with
@@ -22,5 +22,8 @@ Ltac sep hints :=
                 | intros ? ? Hrew; repeat rewrite Hrew by (simpl; tauto); reflexivity
                 | intros ? ? Hrew; repeat rewrite Hrew by (simpl; tauto); reflexivity ]
       end
-    | _ => PreAutoSep.sep hints
   end.
+
+Ltac sep hints := enterFunction || PreAutoSep.sep hints.
+
+Ltac sep_auto := sep auto_ext.

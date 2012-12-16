@@ -341,6 +341,9 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         | 2, 0 => Datatypes.Lt
         | 2, 1 => Datatypes.Lt
         | 2, S (S (S _)) => Datatypes.Lt
+        | 0, 2 => Datatypes.Gt
+        | 1, 2 => Datatypes.Gt
+        | S (S (S _)), 2 => Datatypes.Gt
         | _, _ =>
           match meta_order_args (fst l) (fst r) with
             | Datatypes.Eq => Compare_dec.nat_compare (snd l) (snd r)
