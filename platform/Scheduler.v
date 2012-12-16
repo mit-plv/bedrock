@@ -83,27 +83,17 @@ Section starB.
     sepLemma.
   Qed.
 
-  Definition W_pair_eq (x y : W * W): {x = y} + {x <> y}.
-    refine (match weq (fst x) (fst y) with
-              | left _ => match weq (snd x) (snd y) with
-                            | left _ => left _
-                            | right _ => right _
-                          end
-              | right _ => right _
-            end); abstract (try congruence; destruct x; destruct y; simpl in *; congruence).
-  Defined.
-
   Fixpoint nuke (p : W * W) (ls : list (W * W)) : list (W * W) :=
     match ls with
       | nil => nil
-      | p' :: ls => if W_pair_eq p p' then ls else p' :: nuke p ls
+      | p' :: ls => if W_W_dec p p' then ls else p' :: nuke p ls
     end.
 
   Lemma starL_del_fwd : forall v ls, In v ls
     -> starL P ls ===> P v * starL P (nuke v ls).
     induction ls; unfold bagify in *; simpl in *; intuition subst.
-    destruct (W_pair_eq v v); apply Himp_refl || tauto.
-    destruct (W_pair_eq v (a0, b)); subst; try apply Himp_refl.
+    destruct (W_W_dec v v); apply Himp_refl || tauto.
+    destruct (W_W_dec v (a0, b)); subst; try apply Himp_refl.
     simpl.
     eapply Himp_trans.
     apply Himp_star_frame; [ apply Himp_refl | apply H ].
@@ -122,11 +112,11 @@ Section starB.
   Lemma bagify_nuke' : forall v ls, In v ls
     -> forall b, fold_left add (nuke v ls) b %= fold_left add ls b %- v.
     induction ls; simpl; intuition subst.
-    destruct (W_pair_eq v v); intuition.
+    destruct (W_W_dec v v); intuition.
     eapply equiv_trans; [ | apply del_something ].
     apply bagify_cong; auto.
     auto.
-    destruct (W_pair_eq v (a0, b)); subst.
+    destruct (W_W_dec v (a0, b)); subst.
     eapply equiv_trans; [ | apply del_something ].
     apply bagify_cong; auto.
     auto.
@@ -193,11 +183,16 @@ Definition susp (sc pc sp : W) : HProp := fun s m =>
         /\ ![ #1 * (fun s m => Var0 (sc, s, m)) ] st
         ---> #2 st)%PropX.
 
+Inductive mergeSusp : Prop := MS.
+
+Hint Constructors mergeSusp.
+
 Module Type SCHED.
   Parameter susps : bag -> W -> HProp.
   Parameter sched : W -> HProp.
 
   Axiom susps_empty_bwd : forall sc, Emp ===> susps empty sc.
+  Axiom susps_add_bwd : forall sc b pc sp, pc = pc -> mergeSusp -> susp sc pc sp * susps b sc ===> susps (b %+ (pc, sp)) sc.
 
   Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
   Axiom sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
@@ -211,6 +206,12 @@ Module Sched : SCHED.
 
   Theorem susps_empty_bwd : forall sc, Emp ===> susps empty sc.
     intros; apply starB_empty_bwd.
+  Qed.
+
+  Theorem susps_add_bwd : forall sc b pc sp, pc = pc -> mergeSusp -> susp sc pc sp * susps b sc ===> susps (b %+ (pc, sp)) sc.
+    intros; eapply Himp_trans; [ | apply starB_add_bwd ].
+    unfold susps; simpl.
+    apply Himp_star_comm.
   Qed.
 
   Definition sched (sc : W) : HProp :=
@@ -229,14 +230,19 @@ Import Sched.
 Export Sched.
 
 Definition hints : TacPackage.
-  prepare tt (sched_bwd, susps_empty_bwd).
+  prepare sched_fwd (sched_bwd, susps_empty_bwd, susps_add_bwd).
 Defined.
 
 Definition initS : spec := SPEC reserving 11
   PRE[_] mallocHeap 0
   POST[R] sched R * mallocHeap 0.
 
-Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "queue"!"init" @ [Queue.initS] ]]
+Definition spawnS : spec := SPEC("sc", "pc", "sp") reserving 14
+  PRE[V] sched (V "sc") * susp (V "sc") (V "pc") (V "sp") * mallocHeap 0
+  POST[_] sched (V "sc") * mallocHeap 0.
+
+Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
+    "queue"!"init" @ [Queue.initS], "queue"!"enqueue" @ [enqueueS] ]]
   bmodule "scheduler" {{
     bfunction "init"("q", "r") [initS]
       "q" <-- Call "queue"!"init"()
@@ -248,6 +254,14 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "queue"!"init" @ [Queu
        POST[R'] [| R' = R |] * R =*> V "q" * (R ^+ $4) =?> 2 ];;
       "r" *<- "q";;
       Return "r"
+    end with bfunction "spawn"("sc", "pc", "sp") [spawnS]
+      "sc" <-* "sc";;
+      Note [mergeSusp];;
+      Call "queue"!"enqueue"("sc", "pc", "sp")
+      [Al b, Al sc,
+        PRE[V] susps (b %+ (V "pc", V "sp")) sc
+        POST[_] susps (b %+ (V "pc", V "sp")) sc];;
+      Return 0
     end
   }}.
 
@@ -261,6 +275,17 @@ Theorem mOk : moduleOk m.
   sep hints.
   sep hints.
   sep hints; auto.
+  sep hints.
+  sep hints.
+  sep hints; auto.
+  sep hints.
+  sep hints.
+  sep hints.
+
+  sep hints.
+  sep hints.
+  sep hints.
+  sep hints.
   sep hints.
   sep hints.
   sep hints; auto.
