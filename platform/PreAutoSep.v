@@ -61,6 +61,75 @@ Definition Note__ (P : Prop) : chunk := fun _ _ =>
 
 Notation "'Note' [ P ]" := (Note__ P) (no associativity, at level 95) : SP_scope.
 
+Section IGotoStar_.
+  Variable imps : LabelMap.t assert.
+  Variable mn : string.
+
+  Fixpoint augment (specs : codeSpec W (settings * state)) (stn : settings) (ls : list (string * string)) : Prop :=
+    match ls with
+      | nil => True
+      | (mn, f) :: ls =>
+        match LabelMap.find (mn, Global f) imps with
+          | None => True
+          | Some p => (exists pc, stn.(Labels) (mn, Global f) = Some pc /\ specs pc = Some p) /\ augment specs stn ls
+        end
+    end.
+
+  Lemma prove_augment : forall specs stn ls,
+    (forall mn f (pre : assert),
+      LabelMap.MapsTo (mn, Global f) pre imps
+      -> exists w : W, Labels stn (mn, Global f) = Some w /\ specs w = Some pre)
+    -> augment specs stn ls.
+    induction ls; simpl; intuition.
+    case_eq (LabelMap.find (a0, Global b) imps); intuition.
+    apply LabelMap.find_2 in H1; eauto.
+  Qed.
+
+  Import DefineStructured.
+
+  Variable ls : list (string * string).
+  Variable rv : rvalue.
+
+  Transparent evalInstrs.
+
+  Hint Resolve prove_augment.
+
+  Definition IGotoStar_ : cmd imps mn.
+    red; refine (fun pre => {|
+      Postcondition := (fun _ => [|False|])%PropX;
+      VerifCond := (forall specs stn st, interp specs (pre (stn, st))
+        -> augment specs stn ls
+        -> match evalRvalue stn st rv with
+             | None => rvalueCrashes rv
+             | Some w => exists pre', specs w = Some pre'
+               /\ interp specs (pre' (stn, st))
+           end) :: nil;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (nil, Uncond rv)) :: nil
+      |}
+    |}); abstract (solve [ struct
+      | intros; repeat match goal with
+                         | [ H : vcs nil |- _ ] => clear H
+                         | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                         | [ |- List.Forall _ _ ] => constructor; simpl
+                         | [ |- blockOk _ _ _ ] => hnf; intros
+                         | [ H : forall x y z, interp _ _ -> augment _ _ _ -> _, H' : interp _ _ |- _ ] =>
+                           specialize (H _ _ _ H');
+                             match type of H with
+                               | ?P -> _ => assert P by auto; intuition simpl
+                             end
+                         | [ H : match ?X with None => _ | _ => _ end |- _ ] => destruct X; intuition
+                         | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
+                       end ]).
+  Defined.
+End IGotoStar_.
+
+Definition IGotoStar ls (rv : rvalue') : chunk := fun ns _ =>
+  Structured nil (fun _ _ _ => IGotoStar_ _ _ ls (rv ns)).
+
+Notation "'IGoto*' [ l1 , .. , lN ] rv" := (IGotoStar (cons l1 (.. (cons lN nil) ..)) rv) (no associativity, at level 95) : SP_scope.
+
 Require Import Bool.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
@@ -94,6 +163,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   COperand1 CTest COperand2 Pos.succ
   makeVcs
   Note_ Note__
+  IGotoStar_ IGotoStar
 ].
 
 Ltac vcgen :=
