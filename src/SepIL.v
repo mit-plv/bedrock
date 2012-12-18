@@ -423,6 +423,16 @@ Theorem substH_lift4 : forall p' t1 t2 t3 t4 p,
   reflexivity.
 Qed.
 
+Theorem substH_lift5 : forall p' t1 t2 t3 t4 t5 p,
+  substH (lift (t1 :: t2 :: t3 :: t4 :: t5 :: nil) p') p = lift (t1 :: t2 :: t3 :: t4 :: nil) p'.
+  reflexivity.
+Qed.
+
+Theorem substH_lift6 : forall p' t1 t2 t3 t4 t5 t6 p,
+  substH (lift (t1 :: t2 :: t3 :: t4 :: t5 :: t6 :: nil) p') p = lift (t1 :: t2 :: t3 :: t4 :: t5 :: nil) p'.
+  reflexivity.
+Qed.
+
 Theorem substH_lift1_eatLast : forall T U P p,
   HProp_extensional P ->
   substH (sos := eatLast (T :: U :: nil)) (^[P])%Sep p = P.
@@ -442,7 +452,7 @@ Qed.
 
 
 Hint Rewrite substH_inj substH_injX substH_ptsto8 substH_ptsto32 substH_star substH_ex substH_hvar
-  substH_lift1 substH_lift2 substH_lift3 substH_lift4
+  substH_lift1 substH_lift2 substH_lift3 substH_lift4 substH_lift5 substH_lift6
   substH_lift1_eatLast star_eta1 star_eta2
   using solve [ auto ] : sepFormula.
 

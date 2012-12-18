@@ -1362,7 +1362,7 @@ Qed.
 
 Hint Rewrite lift0 : sepFormula.
 
-(* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassocate [H]
+(* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassociate [H]
  * to put [P] in front. *)
 Ltac toFront which H :=
   let rec toFront' P k :=
@@ -1394,3 +1394,9 @@ Ltac icall formals :=
                     | split; [ repeat constructor; simpl; intuition congruence
                       | reflexivity ] ] ])
   end.
+
+Definition any : HProp := fun _ _ => [| True |]%PropX.
+
+Theorem any_easy : forall P, P ===> any.
+  unfold any; repeat intro; step auto_ext; auto.
+Qed.
