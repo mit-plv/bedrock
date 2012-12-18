@@ -168,24 +168,24 @@ End starB.
 (** * The actual scheduler (will later move above stuff to Bags) *)
 
 (* What does it mean for a program counter to be valid for a suspended thread? *)
+
 Definition susp (sc pc sp : W) : HProp := fun s m =>
   (ExX : settings * state, Cptr pc #0
     /\ ExX : settings * smem, #0 (s, m)
-    /\ AlX : W * settings * smem, Al pc_yield,
-      [| s.(Labels) ("scheduler"!"yield")%SP = Some pc_yield |]
-      /\ Cptr pc_yield (st ~> ExX : settings * smem, Ex vs,
-        ![ ^[locals ("rp" :: "sc" :: nil) vs 0 st#Sp] * (fun s m => Lift (Var0 (sel vs "sc", s, m))) * #0 ] st
-        /\ st#Rp @@ (st' ~> [| st'#Sp = st#Sp |]
-          /\ Ex vs', ![ ^[locals ("rp" :: "sc" :: nil) vs' 0 st#Sp]
-            * (fun s m => Lift (Lift (Var0 (sel vs "sc", s, m)))) * #1 ] st' ))
+    /\ AlX : W * settings * smem, Al pc_exit,
+      [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+      /\ Cptr pc_exit (st ~> ExX (* fr *) : settings * smem, Ex vs : vals,
+        ![^[locals ("rp" :: "sc" :: "rem" :: nil) vs 0 st#Sp]
+          * ((fun s m => Lift (Var0 (sel vs "sc", s, m))) * #0)] st)
       /\ Al st : settings * state, 
         [| st#Sp = sp |]
         /\ ![ #1 * (fun s m => Var0 (sc, s, m)) ] st
         ---> #2 st)%PropX.
 
 Inductive mergeSusp : Prop := MS.
+Inductive splitSusp : Prop := SS.
 
-Hint Constructors mergeSusp.
+Hint Constructors mergeSusp splitSusp.
 
 Module Type SCHED.
   Parameter susps : bag -> W -> HProp.
@@ -193,6 +193,7 @@ Module Type SCHED.
 
   Axiom susps_empty_bwd : forall sc, Emp ===> susps empty sc.
   Axiom susps_add_bwd : forall sc b pc sp, pc = pc -> mergeSusp -> susp sc pc sp * susps b sc ===> susps (b %+ (pc, sp)) sc.
+  Axiom susps_del_fwd : forall sc b pc sp, (pc, sp) %in b -> susps b sc ===> susp sc pc sp * susps (b %- (pc, sp)) sc.
 
   Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
   Axiom sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
@@ -213,6 +214,10 @@ Module Sched : SCHED.
     unfold susps; simpl.
     apply Himp_star_comm.
   Qed.
+
+  Theorem susps_del_fwd : forall sc b pc sp, (pc, sp) %in b -> susps b sc ===> susp sc pc sp * susps (b %- (pc, sp)) sc.
+    intros; eapply Himp_trans; [ apply starB_del_fwd; eauto | apply Himp_refl ].
+  Qed.    
 
   Definition sched (sc : W) : HProp :=
     Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
@@ -241,8 +246,13 @@ Definition spawnS : spec := SPEC("sc", "pc", "sp") reserving 14
   PRE[V] sched (V "sc") * susp (V "sc") (V "pc") (V "sp") * mallocHeap 0
   POST[_] sched (V "sc") * mallocHeap 0.
 
+Definition exitS : spec := SPEC("sc", "rem") reserving 12
+  PRE[V] sched (V "sc") * mallocHeap 0
+  POST[_] [| False |].
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
-    "queue"!"init" @ [Queue.initS], "queue"!"enqueue" @ [enqueueS] ]]
+    "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [isEmptyS],
+    "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
   bmodule "scheduler" {{
     bfunction "init"("q", "r") [initS]
       "q" <-- Call "queue"!"init"()
@@ -262,34 +272,87 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         PRE[V] susps (b %+ (V "pc", V "sp")) sc
         POST[_] susps (b %+ (V "pc", V "sp")) sc];;
       Return 0
+    end with bfunction "exit"("sc", "rem", "q", "r") [exitS]
+      "q" <-* "sc";;
+      "r" <-- Call "queue"!"isEmpty"("q")
+      [Al q,
+        PRE[V, R] [| (q %= empty) \is R |]
+          * queue q (V "q") * (V "sc" ^+ $4) =?> 2 * susps q (V "sc") * mallocHeap 0
+        POST[_] [| False |] ];;
+
+      If ("r" = 1) {
+        (* No threads left to run.  Let's loop forever! *)
+        Diverge
+      } else {
+        (* Pick a thread to switch to. *)
+
+        "r" <- "sc" + 4;;
+        Call "queue"!"dequeue"("q", "r")
+        [Al q, Al pc, Al sp,
+          PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
+            * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
+            * ((V "sc" ^+ $4) ==*> pc, sp) * mallocHeap 0
+          POST[_] [| False |] ];;
+
+        Rp <-* "sc" + 4;;
+        Sp <-* "sc" + 8;;
+        IGoto* [("scheduler","exit")] Rp
+      }
     end
   }}.
 
-Hint Extern 1 (@eq W _ _) => words.
+Local Hint Extern 1 (@eq W _ _) => words.
 
-Theorem mOk : moduleOk m.
+Lemma propToWord_elim_not1 : forall P b,
+  P \is b
+  -> b <> 1
+  -> ~P.
+  bags.
+Qed.
+
+Local Hint Immediate propToWord_elim_not1.
+
+Ltac t := sep hints; try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]); eauto.
+
+Theorem ok : moduleOk m.
   vcgen.
 
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints; auto.
-  sep hints.
-  sep hints.
-  sep hints; auto.
-  sep hints.
-  sep hints.
-  sep hints.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints.
-  sep hints; auto.
-  sep hints.
-  sep hints.
-  sep hints.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  post; evaluate hints.
+  (* And here is where we need to prove that it is safe to jump to an activation record. *)
+  admit.
 Qed.

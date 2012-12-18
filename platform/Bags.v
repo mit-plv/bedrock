@@ -74,5 +74,5 @@ Section adt.
   Definition dequeueS : spec := SPEC("b", "r") reserving res
     Al b,
     PRE[V] [| ~(b %= empty) |] * P b (V "b") * V "r" =?> 2 * mallocHeap 0
-    POST[_] Ex v1, Ex v2, P (b %- (v1, v2)) (V "b") * (V "r" ==*> v1, v2) * mallocHeap 0.
+    POST[_] Ex v1, Ex v2, [| (v1, v2) %in b |] * P (b %- (v1, v2)) (V "b") * (V "r" ==*> v1, v2) * mallocHeap 0.
 End adt.
