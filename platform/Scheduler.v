@@ -169,34 +169,49 @@ End starB.
 
 (* What does it mean for a program counter to be valid for a suspended thread? *)
 
+Notation "#5" := (fun x => Lift (Lift (Lift (Lift (Lift (Var0 x)))))) : PropX_scope.
+
 Definition susp (sc pc sp : W) : HProp := fun s m =>
-  (ExX : settings * state, Cptr pc #0
-    /\ ExX : settings * smem, #0 (s, m)
-    /\ AlX : W * settings * smem, Al pc_exit,
+  (ExX (* pre *) : settings * state, Cptr pc #0
+    /\ ExX (* inv *) : settings * smem, #0 (s, m)
+    /\ AlX (* sched *) : W * settings * smem, AlX (* pre_exit *) : settings * state,
+      AlX (* fr_exit *) : settings * smem, AlX (* pre_rp *) : settings * state,
+      Al pc_exit : W, Al st : settings * state,
       [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-      /\ Cptr pc_exit (st ~> ExX (* fr *) : settings * smem, Ex vs : vals,
-        ![^[locals ("rp" :: "sc" :: "rem" :: nil) vs 0 st#Sp]
-          * ((fun s m => Lift (Var0 (sel vs "sc", s, m))) * #0)] st)
-      /\ Al st : settings * state, 
-        [| st#Sp = sp |]
-        /\ ![ #1 * (fun s m => Var0 (sc, s, m)) ] st
-        ---> #2 st)%PropX.
+      /\ Cptr pc_exit #2
+      /\ (Al st',
+        (Ex vs : vals,
+          ![^[locals ("rp" :: "sc" :: "rem" :: nil) vs 12 st'#Sp]
+            * ((fun s m => Lift (Lift (Lift (Var0 (sel vs "sc", s, m))))) * #1 * ^[mallocHeap 0])] st'
+          /\ Cptr st'#Rp #0)
+        ---> #2 st')
+      /\ [| st#Sp = sp |]
+      /\ ![ #4 * (fun s m => Lift (Lift (Lift (Var0 (sc, s, m))))) ] st
+      ---> #5 st)%PropX.
 
 Inductive mergeSusp : Prop := MS.
 Inductive splitSusp : Prop := SS.
 
 Hint Constructors mergeSusp splitSusp.
 
+Definition any : HProp := fun _ _ => [| True |]%PropX.
+
+Theorem any_easy : forall P, P ===> any.
+  unfold any; repeat intro; step auto_ext; auto.
+Qed.
+
 Module Type SCHED.
   Parameter susps : bag -> W -> HProp.
   Parameter sched : W -> HProp.
+
+  Axiom sched_extensional : forall sc, HProp_extensional (sched sc).
 
   Axiom susps_empty_bwd : forall sc, Emp ===> susps empty sc.
   Axiom susps_add_bwd : forall sc b pc sp, pc = pc -> mergeSusp -> susp sc pc sp * susps b sc ===> susps (b %+ (pc, sp)) sc.
   Axiom susps_del_fwd : forall sc b pc sp, (pc, sp) %in b -> susps b sc ===> susp sc pc sp * susps (b %- (pc, sp)) sc.
 
-  Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
-  Axiom sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
+  Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc * any.
+  Axiom sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc * any) ===> sched sc.
 End SCHED.
 
 Module Sched : SCHED.
@@ -217,22 +232,27 @@ Module Sched : SCHED.
 
   Theorem susps_del_fwd : forall sc b pc sp, (pc, sp) %in b -> susps b sc ===> susp sc pc sp * susps (b %- (pc, sp)) sc.
     intros; eapply Himp_trans; [ apply starB_del_fwd; eauto | apply Himp_refl ].
-  Qed.    
+  Qed.
 
   Definition sched (sc : W) : HProp :=
-    Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
+    Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc * any.
 
-  Theorem sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc.
+  Theorem sched_extensional : forall sc, HProp_extensional (sched sc).
+    reflexivity.
+  Qed.
+
+  Theorem sched_fwd : forall sc, sched sc ===> Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc * any.
     unfold sched; sepLemma.
   Qed.
 
-  Theorem sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc) ===> sched sc.
+  Theorem sched_bwd : forall sc, (Ex b, Ex p, sc =*> p * (sc ^+ $4) =?> 2 * queue b p * susps b sc * any) ===> sched sc.
     unfold sched; sepLemma.
   Qed.
 End Sched.
 
 Import Sched.
 Export Sched.
+Hint Immediate sched_extensional.
 
 Definition hints : TacPackage.
   prepare sched_fwd (sched_bwd, susps_empty_bwd, susps_add_bwd).
@@ -277,7 +297,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       "r" <-- Call "queue"!"isEmpty"("q")
       [Al q,
         PRE[V, R] [| (q %= empty) \is R |]
-          * queue q (V "q") * (V "sc" ^+ $4) =?> 2 * susps q (V "sc") * mallocHeap 0
+          * queue q (V "q") * V "sc" =*> V "q" * (V "sc" ^+ $4) =?> 2 * susps q (V "sc") * mallocHeap 0
         POST[_] [| False |] ];;
 
       If ("r" = 1) {
@@ -291,7 +311,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         [Al q, Al pc, Al sp,
           PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * ((V "sc" ^+ $4) ==*> pc, sp) * mallocHeap 0
+            * (V "sc" ==*> V "q", pc, sp) * mallocHeap 0
           POST[_] [| False |] ];;
 
         Rp <-* "sc" + 4;;
@@ -312,7 +332,55 @@ Qed.
 
 Local Hint Immediate propToWord_elim_not1.
 
-Ltac t := sep hints; try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]); eauto.
+Lemma susp_elim : forall specs sc pc sp P stn st,
+  interp specs (![ susp sc pc sp * P ] (stn, st))
+  -> exists pre, specs pc = Some pre
+    /\ exists inv, interp specs (![ inv * P ] (stn, st))
+      /\ forall sched_ pre_exit fr_exit pre_rp pc_exit stn_st',
+        stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit
+        -> specs pc_exit = Some (fun x => pre_exit x)
+        -> (forall stn_st'', interp specs ((Ex vs : vals,
+            ![^[locals ("rp" :: "sc" :: "rem" :: nil) vs 12 stn_st''#Sp]
+              * ((fun s m => sched_ (sel vs "sc", s, m)) * (fun s m => fr_exit s m) * ^[mallocHeap 0])] stn_st''
+            /\ Cptr stn_st''#Rp pre_rp)
+          ---> pre_exit stn_st'')%PropX)
+        -> stn_st'#Sp = sp
+        -> interp specs (![ inv * (fun s m => sched_ (sc, s, m)) ] stn_st')
+        -> interp specs (pre stn_st').
+  rewrite sepFormula_eq; repeat (propxFo; repeat (eauto; esplit)).
+  instantiate (1 := fun stn x => x2 (stn, x)); auto.
+  eapply (Imply_sound (H4 _ _ _ _ _ _)); clear H4.
+  propxFo; eauto.
+  rewrite <- sepFormula_eq in *.
+  eapply Imply_trans; [ | apply H6 ].
+  step auto_ext.
+  step auto_ext.
+  match goal with
+    | [ |- interp ?specs (![?P] ?x ---> ![?Q] ?x)%PropX ] =>
+      let H := fresh in assert (H : himp specs P Q); [ | rewrite sepFormula_eq; apply H ]
+  end.
+  repeat apply himp_star_frame; try reflexivity.
+  instantiate (1 := fun p => fr_exit (fst p) (snd p)); reflexivity.
+  eauto.
+
+  Theorem substH_lift5 : forall p' t1 t2 t3 t4 t5 p,
+    substH (lift (t1 :: t2 :: t3 :: t4 :: t5 :: nil) p') p = lift (t1 :: t2 :: t3 :: t4 :: nil) p'.
+    reflexivity.
+  Qed.
+
+  Theorem substH_lift6 : forall p' t1 t2 t3 t4 t5 t6 p,
+    substH (lift (t1 :: t2 :: t3 :: t4 :: t5 :: t6 :: nil) p') p = lift (t1 :: t2 :: t3 :: t4 :: t5 :: nil) p'.
+    reflexivity.
+  Qed.
+
+  Hint Rewrite substH_lift5 substH_lift6 : sepFormula.
+  post.
+  rewrite sepFormula_eq; propxFo; eauto.
+Qed.
+
+Ltac t := sep hints; try apply any_easy;
+  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
+    eauto.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -353,6 +421,55 @@ Theorem ok : moduleOk m.
   t.
 
   post; evaluate hints.
-  (* And here is where we need to prove that it is safe to jump to an activation record. *)
-  admit.
+
+  (* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassociate [H]
+   * to put [P] in front. *)
+  Ltac toFront which H :=
+    let rec toFront' P k :=
+      match P with
+        | SEP.ST.star ?Q ?R =>
+          toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+          || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+            || fail 2
+        | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+      end in
+      match type of H with
+        | interp ?specs (![ ?P ] ?st) => toFront' P ltac:(fun it P' =>
+          let H' := fresh in
+            assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step auto_ext;
+              clear H; rename H' into H)
+      end.
+
+  toFront ltac:(fun P => match P with
+                           | susp _ _ _ => idtac
+                         end) H8.
+
+  apply susp_elim in H8; post.
+  esplit; split.
+  eauto.
+  eapply H12.
+  eauto.
+  eauto.
+  2: auto.
+  Focus 2.
+  instantiate (1 := fun p => sched (fst (fst p)) (snd (fst p)) (snd p)); simpl.
+  descend; step hints.
+  apply any_easy.
+
+  Show Existentials.
+  unfold localsInvariant; simpl.
+  intros.
+  step auto_ext.
+  step auto_ext.
+  generalize sched_extensional.
+  unfold HProp_extensional.
+  intro Ho; rewrite <- Ho.
+  step auto_ext.
+  eauto.
+  instantiate (1 := x7).
+  instantiate (1 := fun _ _ => [|False|]%PropX).
+  eapply Imply_trans with (![ [| False |] ] x11)%PropX.
+  step auto_ext.
+  rewrite sepFormula_eq; unfold sepFormula_def, injB, inj.
+  apply Imply_I; eapply Inj_E; [ eapply And_E1; apply Env; simpl; eauto | tauto ].
 Qed.
