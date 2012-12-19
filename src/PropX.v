@@ -1571,6 +1571,9 @@ Notation "#2" := (fun x => Lift (Lift (Var0 x))) : PropX_scope.
 Notation "#3" := (fun x => Lift (Lift (Lift (Var0 x)))) : PropX_scope.
 Notation "#4" := (fun x => Lift (Lift (Lift (Lift (Var0 x))))) : PropX_scope.
 Notation "#5" := (fun x => Lift (Lift (Lift (Lift (Lift (Var0 x)))))) : PropX_scope.
+Notation "#6" := (fun x => Lift (Lift (Lift (Lift (Lift (Lift (Var0 x))))))) : PropX_scope.
+Notation "#7" := (fun x => Lift (Lift (Lift (Lift (Lift (Lift (Lift (Var0 x)))))))) : PropX_scope.
+Notation "#8" := (fun x => Lift (Lift (Lift (Lift (Lift (Lift (Lift (Lift (Var0 x))))))))) : PropX_scope.
 
 Delimit Scope PropX_scope with PropX.
 Bind Scope PropX_scope with PropX propX.

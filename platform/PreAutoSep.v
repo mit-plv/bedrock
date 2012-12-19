@@ -132,6 +132,31 @@ Notation "'IGoto*' [ l1 , .. , lN ] rv" := (IGotoStar (cons l1 (.. (cons lN nil)
 
 Require Import Bool.
 
+Definition localsInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (res : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    ExX, Ex vs, qspecOut (pre (sel vs) st#Rv) (fun pre =>
+      ![ ^[locals ("rp" :: ns) vs res sp * pre] * #0 ] st).
+
+Notation "'PREonly' [ vs ] pre" := (localsInvariantCont (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
+Notation "'PREonly' [ vs , rv ] pre" := (localsInvariantCont (fun vs rv => pre%qspec%Sep))
+  (at level 89).
+
+Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
+  (let p' := p in
+   let vars := cons x1 (.. (cons xN nil) ..) in
+   let b' := b%SP in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := ((fun _ _ =>
+        Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some vars))));;
+      (fun ns res => b' ns (res - (List.length vars - List.length (Formals p')))%nat))%SP;
+      FVars := vars;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
+
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
   Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_
@@ -143,7 +168,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.find
   toCmd Seq Instr Diverge Fail Skip Assert_
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
-  Assign' localsInvariant
+  Assign' localsInvariant localsInvariantCont
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
   andb eqb qspecOut
   ICall_ Structured.ICall_
@@ -1291,13 +1316,27 @@ Ltac post :=
             match avail' with
               | avail => fail 1
               | _ =>
-                let offset := eval simpl in (4 * List.length ns) in
+                (let ns'' := peelPrefix ns ns' in
+                  let exposed := eval simpl in (avail - avail') in
+                    let new := eval simpl in (List.length ns' - List.length ns) in
+                      match new with
+                        | exposed =>
+                          let avail' := eval simpl in (avail - List.length ns'') in
+                            change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns' avail') in H;
+                              assert (ok_in ns avail ns'' ns' avail')%nat
+                                by (split; [
+                                  reflexivity
+                                  | split; [simpl; omega
+                                    | split; [ repeat constructor; simpl; intuition congruence
+                                      | reflexivity ] ] ])                        
+                      end)
+                || (let offset := eval simpl in (4 * List.length ns) in
                   change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
                     assert (ok_call ns ns' avail avail' offset)%nat
                       by (split; [ simpl; omega
                         | split; [ simpl; omega
                           | split; [ repeat constructor; simpl; intuition congruence
-                            | reflexivity ] ] ])
+                            | reflexivity ] ] ]))
             end
           | [ _ : evalInstrs _ _ ?E = None, H : context[locals ?ns ?vs ?avail ?p] |- _ ] =>
             let ns' := slotVariables E in
