@@ -1301,6 +1301,8 @@ Ltac slotVariables E :=
     | nil => constr:(@nil string)
   end.
 
+Ltac NoDup := repeat constructor; simpl; intuition congruence.
+
 Ltac post := 
   (*TIME time "post:propxFo" *)
   propxFo; 
@@ -1327,7 +1329,7 @@ Ltac post :=
                                 by (split; [
                                   reflexivity
                                   | split; [simpl; omega
-                                    | split; [ repeat constructor; simpl; intuition congruence
+                                    | split; [ NoDup
                                       | reflexivity ] ] ])                        
                       end)
                 || (let offset := eval simpl in (4 * List.length ns) in
@@ -1335,7 +1337,7 @@ Ltac post :=
                     assert (ok_call ns ns' avail avail' offset)%nat
                       by (split; [ simpl; omega
                         | split; [ simpl; omega
-                          | split; [ repeat constructor; simpl; intuition congruence
+                          | split; [ NoDup
                             | reflexivity ] ] ]))
             end
           | [ _ : evalInstrs _ _ ?E = None, H : context[locals ?ns ?vs ?avail ?p] |- _ ] =>
@@ -1349,7 +1351,7 @@ Ltac post :=
                       assert (ok_call ns ns' avail 0 offset)%nat
                         by (split; [ simpl; omega
                           | split; [ simpl; omega
-                            | split; [ repeat constructor; simpl; intuition congruence
+                            | split; [ NoDup
                               | reflexivity ] ] ])
             end
         end
@@ -1419,6 +1421,30 @@ Ltac toFront which H :=
             clear H; rename H' into H)
     end.
 
+(* Just like [toFront], but for the conclusion rather than a hypothesis *)
+Ltac toFront_conc which :=
+  let rec toFront' P k :=
+    match P with
+      | SEP.ST.star ?Q ?R =>
+        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+          || fail 2
+      | (?Q * ?R)%Sep =>
+        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+          || fail 2
+      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+    end in
+    match goal with
+      | [ |- interp ?specs (![ ?P ] ?st) ] => toFront' P ltac:(fun it P' =>
+        let H := fresh "H" in assert (H : interp specs (![ SEP.ST.star it P' ] st)); [ |
+          generalize dependent H;
+            repeat match goal with
+                     | [ H : interp _ _ |- _ ] => clear H
+                   end; intro; eapply Imply_sound; [ eapply sepFormula_himp_imply | ];
+            [ | reflexivity | eassumption ]; solve [ step auto_ext ] ])
+    end.
+
 (* Handle a VC for an indirect function call, given the callee's formal arguments list. *)
 Ltac icall formals :=
   match goal with
@@ -1438,4 +1464,12 @@ Definition any : HProp := fun _ _ => [| True |]%PropX.
 
 Theorem any_easy : forall P, P ===> any.
   unfold any; repeat intro; step auto_ext; auto.
+Qed.
+
+Theorem unandL : forall pc state specs (P Q R : PropX pc state),
+  interp specs (P /\ Q ---> R)%PropX
+  -> interp specs (P ---> Q ---> R)%PropX.
+  intros; do 2 apply Imply_I.
+  eapply Imply_E; eauto.
+  apply And_I; eapply Env; simpl; eauto.
 Qed.
