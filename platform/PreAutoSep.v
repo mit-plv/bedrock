@@ -1403,47 +1403,38 @@ Qed.
 
 Hint Rewrite lift0 : sepFormula.
 
+Ltac toFront' which P k :=
+  match P with
+    | SEP.ST.star ?Q ?R =>
+      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+    | (?Q * ?R)%Sep =>
+      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+    | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+  end.
+
 (* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassociate [H]
  * to put [P] in front. *)
 Ltac toFront which H :=
-  let rec toFront' P k :=
-    match P with
-      | SEP.ST.star ?Q ?R =>
-        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-          || fail 2
-      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
-    end in
-    match type of H with
-      | interp ?specs (![ ?P ] ?st) => toFront' P ltac:(fun it P' =>
-        let H' := fresh in
-          assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step auto_ext;
-            clear H; rename H' into H)
-    end.
+  match type of H with
+    | interp ?specs (![ ?P ] ?st) => toFront' which P ltac:(fun it P' =>
+      let H' := fresh in
+        assert (H' : interp specs (![ SEP.ST.star it P' ] st)) by step auto_ext;
+          clear H; rename H' into H)
+  end.
 
 (* Just like [toFront], but for the conclusion rather than a hypothesis *)
 Ltac toFront_conc which :=
-  let rec toFront' P k :=
-    match P with
-      | SEP.ST.star ?Q ?R =>
-        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-          || fail 2
-      | (?Q * ?R)%Sep =>
-        toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-        || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-          || fail 2
-      | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
-    end in
-    match goal with
-      | [ |- interp ?specs (![ ?P ] ?st) ] => toFront' P ltac:(fun it P' =>
-        let H := fresh "H" in assert (H : interp specs (![ SEP.ST.star it P' ] st)); [ |
-          generalize dependent H;
-            repeat match goal with
-                     | [ H : interp _ _ |- _ ] => clear H
-                   end; intro; eapply Imply_sound; [ eapply sepFormula_himp_imply | ];
-            [ | reflexivity | eassumption ]; solve [ step auto_ext ] ])
-    end.
+  match goal with
+    | [ |- interp ?specs (![ ?P ] ?st) ] => toFront' which P ltac:(fun it P' =>
+      let H := fresh "H" in assert (H : interp specs (![ SEP.ST.star it P' ] st)); [ |
+        generalize dependent H;
+          repeat match goal with
+                   | [ H : interp _ _ |- _ ] => clear H
+                 end; intro; eapply Imply_sound; [ eapply sepFormula_himp_imply | ];
+          [ | reflexivity | eassumption ]; solve [ step auto_ext ] ])
+  end.
 
 (* Handle a VC for an indirect function call, given the callee's formal arguments list. *)
 Ltac icall formals :=
