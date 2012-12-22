@@ -11,15 +11,16 @@ Definition susp (sc pc sp : W) : HProp := fun s m =>
     /\ AlX (* sched *) : settings * smem, AlX (* pre_exit *) : settings * state,
       Al pc_exit : W, Al st : settings * state,
       [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+      /\ [| (fst st).(Labels) = s.(Labels) |]
       /\ Cptr pc_exit #0
-      /\ (AlX (* fr_exit *) : settings * smem, Al st',
-        (Ex vs : vals,
-          ![^[locals ("rp" :: "sc" :: nil) vs 12 st'#Sp]
-            * (#2 * #0 * ^[mallocHeap 0])] st'
-          /\ [| sel vs "sc" = sc |])
+      /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs,
+        ![^[locals ("rp" :: "sc" :: nil) vs 12 st'#Sp]
+          * (#2 * #0 * ^[mallocHeap 0])] st'
+        /\ [| sel vs "sc" = sc |]
+        /\ [| (fst st').(Labels) = s.(Labels) |]
         ---> #1 st')
       /\ [| st#Sp = sp |]
-      /\ ![ #2 * #1 ] st
+      /\ ![ #2 * #1 * ^[mallocHeap 0] ] st
       ---> #3 st)%PropX.
 
 (* What is a valid initial code pointer for a thread, given the requested stack size? *)
@@ -30,14 +31,15 @@ Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
     /\ AlX (* sched *) : settings * smem, AlX (* pre_exit *) : settings * state,
       Al pc_exit : W, Al st : settings * state, Al vs : vals,
       [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+      /\ [| (fst st).(Labels) = s.(Labels) |]
       /\ Cptr pc_exit #0
-      /\ (AlX (* fr_exit *) : settings * smem, Al st',
-        (Ex vs' : vals,
-          ![^[locals ("rp" :: "sc" :: nil) vs' 12 st'#Sp]
-            * (#2 * #0 * ^[mallocHeap 0])] st'
-          /\ [| sel vs' "sc" = sc |])
+      /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs',
+        ![^[locals ("rp" :: "sc" :: nil) vs' 12 st'#Sp]
+          * (#2 * #0 * ^[mallocHeap 0])] st'
+        /\ [| sel vs' "sc" = sc |]
+        /\ [| (fst st').(Labels) = s.(Labels) |]
         ---> #1 st')
-      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp] * #1 ] st
+      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * mallocHeap 0] * #1 ] st
       /\ [| sel vs "sc" = sc |]
       ---> #2 st)%PropX.
 
@@ -214,14 +216,16 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
     /\ exists inv, interp specs (![ inv * P ] (stn, st))
       /\ forall sched_ pre_exit pc_exit stn_st',
         interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+          /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
           /\ Cptr pc_exit (fun x => pre_exit x)
-          /\ (AlX, Al stn_st'', (Ex vs : vals,
+          /\ (AlX, Al stn_st'', Al vs : vals,
             ![^[locals ("rp" :: "sc" :: nil) vs 12 stn_st''#Sp]
               * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
-            /\ [| sel vs "sc" = sc |])
-          ---> Lift (pre_exit stn_st''))
+            /\ [| sel vs "sc" = sc |]
+            /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
+            ---> Lift (pre_exit stn_st''))
           /\ [| stn_st'#Sp = sp |]
-          /\ ![ inv * sched_ ] stn_st'
+          /\ ![ inv * sched_ * mallocHeap 0 ] stn_st'
           ---> pre stn_st')%PropX)
   -> interp specs (![ susp sc pc sp * P ] (stn, st)).
   post.
@@ -233,6 +237,7 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
   instantiate (1 := fun p => x0 (fst p) (snd p)); auto.
   eapply Imply_trans; try apply H2; clear H2.
   apply andL; apply injL; intro.
+  apply andL; apply injL; intro.
   apply andL; apply cptrL; intro.
   simpl.
   apply andL.
@@ -240,6 +245,7 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
   apply andL; apply injL; intro.
   apply unandL.
   repeat apply andR.
+  apply injR; eauto.
   apply injR; eauto.
   apply cptrR; eauto.
   apply andL; apply swap; apply implyR.
@@ -249,27 +255,73 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
   apply andL; apply implyR; apply Imply_refl.
 Qed.
 
+Lemma starting_intro : forall specs sc pc ss P stn st,
+  (exists pre, specs pc = Some pre
+    /\ interp specs (![ P ] (stn, st))
+    /\ forall sched_ pre_exit pc_exit stn_st' vs,
+      interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+        /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
+        /\ Cptr pc_exit (fun x => pre_exit x)
+        /\ [| sel vs "sc" = sc |]
+        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * mallocHeap 0 * sched_ ] stn_st'
+        /\ (AlX , Al stn_st'', Al vs' : vals,
+          ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
+            * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
+          /\ [| sel vs' "sc" = sc |]
+          /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
+          ---> Lift (pre_exit stn_st''))
+        ---> pre stn_st')%PropX)
+  -> interp specs (![ starting sc pc ss * P ] (stn, st)).
+  post.
+  rewrite sepFormula_eq; rewrite sepFormula_eq in H; propxFo.
+  descend.
+  apply split_a_semp_a.
+  eauto.
+  apply semp_smem_emp.
+  2: auto.
+  eapply Imply_trans; try apply H2; clear H2.
+  apply andL; apply injL; intro.
+  apply andL; apply injL; intro.
+  apply andL; apply cptrL; intro.
+  simpl.
+  apply andL.
+  apply swap.
+  apply andL; apply swap; apply injL; intro.
+  apply unandL.
+  repeat apply andR.
+  apply injR; eauto.
+  apply injR; eauto.
+  apply cptrR; eauto.
+  apply injR; eassumption.
+  apply andL; apply implyR.
+  instantiate (1 := fun x y => a (x, y)).
+  rewrite sepFormula_eq; apply Imply_refl.
+  apply andL; apply swap; apply implyR.
+  rewrite sepFormula_eq; apply Imply_refl.
+Qed.
+
 Lemma susp_elim : forall specs sc pc sp P stn st,
   interp specs (![ susp sc pc sp * P ] (stn, st))
   -> exists pre, specs pc = Some pre
     /\ exists inv, interp specs (![ inv * P ] (stn, st))
       /\ forall sched_ pre_exit pc_exit stn_st',
         stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit
+        -> (fst stn_st').(Labels) = stn.(Labels)
         -> specs pc_exit = Some (fun x => pre_exit x)
-        -> (forall fr_exit stn_st'', interp specs ((Ex vs : vals,
-            ![^[locals ("rp" :: "sc" :: nil) vs 12 stn_st''#Sp]
-              * (sched_ * (fun s m => fr_exit s m) * ^[mallocHeap 0])] stn_st''
-            /\ [| sel vs "sc" = sc |])
-          ---> pre_exit stn_st'')%PropX)
+        -> (forall fr_exit stn_st'' vs, interp specs (![^[locals ("rp" :: "sc" :: nil) vs 12 stn_st''#Sp]
+          * (sched_ * (fun s m => fr_exit s m) * ^[mallocHeap 0])] stn_st''
+        /\ [| sel vs "sc" = sc |]
+        /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
+        ---> pre_exit stn_st'')%PropX)
         -> stn_st'#Sp = sp
-        -> interp specs (![ inv * sched_ ] stn_st')
+        -> interp specs (![ inv * sched_ * mallocHeap 0 ] stn_st')
         -> interp specs (pre stn_st').
   rewrite sepFormula_eq; repeat (propxFo; repeat (eauto; esplit)).
   instantiate (1 := fun stn x => x2 (stn, x)); auto.
   eapply (Imply_sound (H4 _ _ _ _)); clear H4.
   propxFo; eauto.
   rewrite <- sepFormula_eq in *.
-  eapply Imply_trans; [ | apply H6 ].
+  eapply Imply_trans; [ | apply H7 ].
   step auto_ext.
   step auto_ext.
   match goal with
@@ -279,9 +331,8 @@ Lemma susp_elim : forall specs sc pc sp P stn st,
   repeat apply himp_star_frame; try reflexivity.
   instantiate (1 := fun p => sched_ (fst p) (snd p)); reflexivity.
   auto.
-  eauto.
-  post.
-  rewrite sepFormula_eq; propxFo; eauto.
+  descend.
+  rewrite sepFormula_eq; propxFo; eauto 10.
 Qed.
 
 Lemma starting_elim : forall specs sc pc ss P stn st,
@@ -290,13 +341,15 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall sched_ pre_exit pc_exit stn_st' vs,
       interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
+        /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
         /\ Cptr pc_exit (fun x => pre_exit x)
         /\ [| sel vs "sc" = sc |]
-        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * sched_ ] stn_st'
-        /\ (AlX , Al stn_st'', (Ex vs' : vals,
+        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * mallocHeap 0 * sched_ ] stn_st'
+        /\ (AlX, Al stn_st'', Al vs',
           ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
             * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
-          /\ [| sel vs' "sc" = sc |])
+          /\ [| sel vs' "sc" = sc |]
+          /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
         ---> Lift (pre_exit stn_st''))
         ---> pre stn_st')%PropX.
   intros; rewrite sepFormula_eq in H; repeat (propxFo; repeat (eauto; esplit)).
@@ -304,19 +357,27 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
   rewrite (split_semp _ _ _ H0); auto.
   eapply Imply_trans; [ | apply H4 ].
   apply andL; apply injL; intro.
+  apply andL; apply injL; intro.
   apply andL; apply cptrL; intro.
   apply andL; apply injL; intro.
   repeat apply andR.
+  apply injR; eauto.
   apply injR; eauto.
   apply cptrR; eauto.
   apply andL; apply swap; apply implyR.
   instantiate (1 := fun p => sched_ (fst p) (snd p)).
   rewrite sepFormula_eq; apply Imply_refl.
   apply andL; apply implyR.
+  2: apply injR; eassumption.
+
+  Lemma substH_in2 : forall a b (P : hpropB (a :: b :: nil)) q1 q2,
+    (fun stn sm => subst (G := a :: nil) (subst (P stn sm) q1) q2) = substH (substH P q1) q2.
+    reflexivity.
+  Qed.
+
+  Hint Rewrite substH_in2 : sepFormula.
+
   descend; step auto_ext.
-  hnf; simpl; intros.
-  apply Imply_refl.
-  apply injR; auto.
 Qed.
 
 Ltac t := sep hints; try apply any_easy;
@@ -413,18 +474,22 @@ Theorem ok : moduleOk m.
   step auto_ext.
   eapply Imply_trans; try apply H10.
   apply andL; apply injL; intro.
+  apply andL; apply injL; intro.
   apply andL; apply cptrL; intro.
   apply andL; apply swap.
   apply andL; apply injL; intro.
   apply unandL.
   repeat apply andR.
   apply injR; eauto.
+  apply injR; eauto.
   apply cptrR; eauto.
   Focus 2.
   apply andL; apply implyR.
   descend.
-  rewrite H12.
-  descend; step auto_ext.
+  rewrite H13.
+  descend.
+  clear.
+  step auto_ext.
   apply injR; eauto.
   apply andL; apply swap; apply implyR.
   rewrite sepFormula_eq; apply Imply_refl.
@@ -465,6 +530,7 @@ Theorem ok : moduleOk m.
   eapply H10.
   eauto.
   eauto.
+  eauto.
   2: auto.
   Focus 2.
   instantiate (1 := sched (sel x6 "sc")); simpl.
@@ -474,5 +540,10 @@ Theorem ok : moduleOk m.
   unfold localsInvariantCont; simpl; intros.
   step auto_ext.
   step auto_ext.
+  instantiate (1 := fun p => fr_exit (fst p) (snd p)).
+  descend.
+  instantiate (1 := vs).
+  rewrite H6.
+  clear.
   step auto_ext.
 Qed.
