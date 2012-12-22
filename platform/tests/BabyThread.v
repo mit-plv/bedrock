@@ -43,27 +43,6 @@ Theorem ok : moduleOk m.
   evaluate auto_ext.
   descend.
 
-  Ltac toFront_conc which :=
-    let rec toFront' P k :=
-      match P with
-        | SEP.ST.star ?Q ?R =>
-          toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-          || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-        | (?Q * ?R)%Sep =>
-          toFront' Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-          || toFront' R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-        | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
-      end in
-      match goal with
-        | [ |- interp ?specs (![ ?P ] ?st) ] => toFront' P ltac:(fun it P' =>
-          let H := fresh "H" in assert (H : interp specs (![ SEP.ST.star it P' ] st)); [ |
-            generalize dependent H;
-              repeat match goal with
-                       | [ H : interp _ _ |- _ ] => clear H
-                     end; intro; eapply Imply_sound; [ eapply sepFormula_himp_imply | ];
-              [ | reflexivity | eassumption ]; solve [ step auto_ext ] ])
-      end.
-
   toFront_conc ltac:(fun P => match P with
                                 | starting _ _ _ => idtac
                               end).

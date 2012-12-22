@@ -258,7 +258,7 @@ Definition isEmptyS := isEmptyS queue 0.
 Definition dequeueS := dequeueS queue 7.
 Definition enqueueS := enqueueS queue 10.
 
-Definition queueM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
+Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "queue" {{
   bfunction "init"("r") [initS]
     "r" <-- Call "malloc"!"malloc"(0, 2)
@@ -340,6 +340,6 @@ Local Hint Extern 5 (@eq W _ _) => words.
 Local Hint Extern 1 (himp _ (lseg _ _ _ _) (lseg _ _ _ _)) => apply lseg_extensional'.
 Local Hint Extern 1 (himp _ (llist _ _ _ _) (llist _ _ _ _)) => apply llist_extensional'.
 
-Theorem queueMOk : moduleOk queueM.
+Theorem ok : moduleOk m.
   vcgen; abstract (sep hints; auto).
 Qed.
