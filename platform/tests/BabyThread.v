@@ -11,8 +11,7 @@ Definition m := bimport [[ "scheduler"!"init" @ [initS], "scheduler"!"exit" @ [e
                            "scheduler"!"spawn" @ [spawnS] ]]
   bmodule "test" {{
     tfunctionNoRet "handler"() [handlerS]
-      Diverge
-      (*Exit*)
+      Exit
     end with bfunctionNoRet "main"("sc") [mainS]
       "sc" <-- Call "scheduler"!"init"()
       [PREonly[_, R] sched R * mallocHeap 0];;
@@ -29,8 +28,8 @@ Theorem ok : moduleOk m.
 
   sep_auto.
   sep_auto.
-  (*sep_auto.
-  sep_auto.*)
+  sep_auto.
+  sep_auto.
 
   sep_auto.
   sep_auto.
