@@ -260,7 +260,9 @@ Ltac sep hints :=
                     change (locals ns vs avail sp)
               with (locals_call ns vs avail sp ("rp" :: "sc" :: nil) 12 offset) in H;
                 sep' hints; eapply Imply_sound; [ solve [ eauto ] | ];
-                  descend; repeat (step hints; descend); try reflexivity
+                  descend; match goal with
+                             | [ _ : context[locals _ ?vs' 12 _] |- _ ] => instantiate (1 := vs')
+                           end; repeat step hints
             end
     | _ => sep' hints
   end.
