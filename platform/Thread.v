@@ -10,12 +10,12 @@ Definition threadInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (ad
         ![ ^[locals ("rp" :: "sc" :: ns) vs res sp * pre * mallocHeap 0] * #1 * #0 ] st))
       /\ (Ex pc_exit, [| (fst st).(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
         /\ ExX (* pre_exit *), Cptr pc_exit #0
-        /\ (AlX (* fr_exit *) : settings * smem, Al st',
-        (Ex vs' : vals,
+        /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs',
           ![^[locals ("rp" :: "sc" :: nil) vs' 12 st'#Sp]
             * (#2 * #0 * ^[mallocHeap 0])] st'
-          /\ [| sel vs' "sc" = sel vs "sc" |])
-        ---> #1 st')).
+          /\ [| sel vs' "sc" = sel vs "sc" |]
+          /\ [| (fst st').(Labels) = (fst st).(Labels) |]
+          ---> #1 st')).
 
 Notation "'PREonly' [ vs ] pre" := (threadInvariantCont (fun vs _ => pre%qspec%Sep))
   (at level 89) : thread_scope.
@@ -30,6 +30,17 @@ Notation "'SPECthd' 'reserving' n inv" :=
       | None => inv' false (fun w => w) nil n'
       | Some extras => inv' true (fun w => w) extras (n' - List.length extras)
     end |}) (at level 90, n at level 0, inv at next level).
+
+Notation "'SPECthd' ( x1 , .. , xN ) 'reserving' n inv" :=
+  (let inv' := inv%thread in let vars := cons x1 (.. (cons xN nil) ..) in
+   let n' := n in
+    {| Reserved := n';
+      Formals := vars;
+      Precondition := fun extras =>
+      match extras with
+        | None => inv' false (fun w => w) vars n'
+        | Some extras => inv' true (fun w => w) extras (n' - (List.length extras - List.length vars))
+      end |} ) (at level 90, n at level 0, x1 at level 0, xN at level 0, inv at next level).
 
 Notation "'tfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
   (let p' := p%thread in
@@ -56,7 +67,7 @@ Notation "'tfunctionNoRet' name () [ p ] b 'end'" :=
       FReserved := Reserved p' |})
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
-Section Exit_.
+Section Thread.
   Variable imps : LabelMap.t assert.
   Variable mn : string.
 
@@ -91,7 +102,62 @@ Section Exit_.
       |}
     |}); abstract (struct; congruence).
   Defined.
-End Exit_.
+
+  Definition Recall (mn' l : string) : cmd imps mn.
+    red; refine (fun pre => {|
+      Postcondition := match LabelMap.find (mn', Global l) imps with
+                         | None => (fun _ => [| False |])%PropX
+                         | Some pre' => (fun stn_st => Ex st', pre (fst stn_st, st')
+                           /\ Ex cp : W, [| evalInstrs (fst stn_st) st' (Assign Rp cp :: nil) = Some (snd stn_st) |]
+                             /\ [| (fst stn_st).(Labels) (mn', Global l) = Some cp |]
+                             /\ Cptr cp pre')%PropX
+                       end;
+      VerifCond := match LabelMap.find (mn', Global l) imps with
+                     | None => jumpToUnknownLabel (mn', Global l)
+                     | Some _ => True
+                   end :: nil;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (Assign Rp (RvLabel (mn', Global l)) :: nil,
+          Uncond (RvLabel (mn, Local Exit)))) :: nil
+      |}
+    |}); abstract (struct; try congruence; descend; eauto; propxFo; eauto 10).
+  Defined.
+
+  Definition Spawn_ (afterCall : assert) : cmd imps mn.
+    red; refine (fun pre => {|
+      Postcondition := afterCall;
+      VerifCond := match LabelMap.find ("scheduler", Global "spawn") imps with
+                     | None => jumpToUnknownLabel ("scheduler", Global "spawn")
+                     | Some spawn => forall stn st specs,
+                       interp specs (pre (stn, st))
+                       -> forall rp, specs rp = Some afterCall
+                         -> interp specs (spawn (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
+                   end :: nil;
+      Generate := fun Base Exit => {|
+        Entry := 0;
+        Blocks := (pre, (Assign Rp (RvLabel (mn, Local Exit)) :: nil,
+          Uncond (RvLabel ("scheduler", Global "spawn")))) :: nil
+      |}
+    |}); [ abstract struct
+      | abstract (intros;
+        repeat match goal with
+                 | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                 | [ H : vcs nil |- _ ] => clear H
+                 | [ _ : match ?E with Some _ => _ | None => _ end |- _ ] => destrOpt E; [ | tauto ]
+                 | [ |- List.Forall _ nil ] => constructor
+                 | [ |- List.Forall _ (_ :: _) ] => constructor
+                 | [ |- blockOk _ _ _ ] => simpl; hnf; intros
+               end;
+        match goal with
+          | [ H : forall l : LabelMap.key, _ |- _ ] =>
+            repeat match goal with
+                     | [ H' : LabelMap.find ?k _ = Some _ |- _ ] =>
+                       edestruct (H k); [ solve [ eauto ] | ]; generalize dependent H'
+                   end
+        end; struct; descend; (simpl; eauto)) ].
+  Defined.
+End Thread.
 
 Definition Exit : chunk := fun ns _ =>
   Structured (Binop Rv Sp Plus (4 + 4 * length ns)
@@ -106,6 +172,30 @@ Definition Go (rv : rvalue') : chunk := fun ns _ =>
     :: Binop Sp Sp Plus (4 + 4 * length ns)
     :: nil)
   (fun _ _ _ => Go_ _ _).
+
+Definition SpawnBootstrap (rv : rvalue') (l : label) (ss : W) (afterCall : list string -> nat -> assert)
+  : chunk := fun ns res =>
+    match snd l with
+      | Global l' =>
+        Seq (Seq (fun _ _ => Structured nil (fun _ _ H => Recall _ _ (fst l) l'))
+          (fun ns _ => Structured
+            (Binop Rv Sp Plus (4 + 4 * length ns)
+              :: Assign (LvMem (Indir Rv 4)) (rv ns)
+              :: Binop Rv Sp Plus (4 + 4 * length ns)
+              :: Assign (LvMem (Indir Rv 8)) Rp
+              :: Binop Rv Sp Plus (4 + 4 * length ns)
+              :: Assign (LvMem (Indir Rv 12)) ss
+              :: Binop Sp Sp Plus (4 + 4 * length ns)
+              :: nil)
+            (fun _ _ _ => Spawn_ _ _ (afterCall ns res))))
+        (Instr (fun ns => Binop Sp Sp Minus (4 + 4 * length ns))) ns res
+      | _ => Fail ns res
+    end.
+
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+
+Notation "'Spawn' ( rv , l , ss ) [ afterCall ]" :=
+  (SpawnBootstrap rv l ss (RET afterCall)).
 
 Require Import Bool.
 
@@ -141,19 +231,12 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
   Note_ Note__
   IGotoStar_ IGotoStar
-  Exit_ Exit Go_ Go
+  Exit_ Exit Go_ Go Recall Spawn_ SpawnBootstrap
 ].
 
 Ltac vcgen := structured_auto vcgen_simp;
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold.
-
-Lemma substH_in2 : forall a b (P : hpropB (a :: b :: nil)) q1 q2,
-  (fun stn sm => subst (G := a :: nil) (subst (P stn sm) q1) q2) = substH (substH P q1) q2.
-  reflexivity.
-Qed.
-
-Hint Rewrite substH_in2 : sepFormula.
 
 Ltac sep' hints := unfold localsInvariantCont; AutoSep.sep hints;
   match goal with
