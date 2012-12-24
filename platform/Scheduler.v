@@ -437,11 +437,14 @@ Theorem eatEasy_simpl : forall pc state (P Q : PropX pc state) specs,
   apply andL; auto.
 Qed.
 
-Ltac big_imp := eapply Imply_trans; [ | match goal with
+Ltac big_imp := ((eapply Imply_sound; [ match goal with
                                           | [ H : _ |- _ ] => apply H
-                                        end ].
+                                        end | ])
+|| (eapply Imply_trans; [ | match goal with
+                              | [ H : _ |- _ ] => apply H
+                            end ])); cbv beta; simpl.
 
-Ltac ho_intro := post; rewrite sepFormula_eq;
+Ltac cptr := post; rewrite sepFormula_eq;
   repeat match goal with
            | [ H : interp _ (![_] _) |- _ ] => rewrite sepFormula_eq in H
          end; propxFo; descend; eauto;
@@ -459,7 +462,8 @@ Lemma jiggle : forall pc state (P Q R S : PropX pc state) specs,
   eapply And_E2; eapply And_E1; apply Env; simpl; eauto.
 Qed.
 
-Ltac refl := apply Imply_refl || (apply jiggle; apply Imply_refl).
+Ltac refl := try rewrite sepFormula_eq;
+  apply Imply_refl || (apply jiggle; apply Imply_refl).
 
 Ltac imp := rewrite sepFormula_eq; apply eatEasy_simpl;
   unfold andify, andify'; simpl;
@@ -485,7 +489,7 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
           /\ ![ inv * sched_ * mallocHeap 0 ] stn_st'
           ---> pre stn_st')%PropX)
   -> interp specs (![ susp sc pc sp * P ] (stn, st)).
-  ho_intro.
+  cptr.
   instantiate (1 := fun x y => a (x, y)).
   imp; propxFo; eauto.
 Qed.
@@ -509,10 +513,21 @@ Lemma starting_intro : forall specs sc pc ss P stn st,
           ---> Lift (pre_exit stn_st''))
         ---> pre stn_st')%PropX)
   -> interp specs (![ starting sc pc ss * P ] (stn, st)).
-  ho_intro.
+  cptr.
   instantiate (2 := fun x y => a (x, y)).
   imp; propxFo; eauto.
 Qed.
+
+Lemma curry_predicate : forall A B pc state
+  (P : A * B -> PropX pc state) P' specs x y,
+  interp specs (P (x, y))
+  -> P' = (fun x y => P (x, y))
+  -> interp specs (P' x y).
+  intros; subst; auto.
+Qed.
+
+Hint Extern 1 (simplify _ _ _) =>
+  apply simplify_fwd; eapply curry_predicate; [ eassumption | reflexivity ].
 
 Lemma susp_elim : forall specs sc pc sp P stn st,
   interp specs (![ susp sc pc sp * P ] (stn, st))
@@ -530,24 +545,23 @@ Lemma susp_elim : forall specs sc pc sp P stn st,
         -> stn_st'#Sp = sp
         -> interp specs (![ inv * sched_ * mallocHeap 0 ] stn_st')
         -> interp specs (pre stn_st').
-  rewrite sepFormula_eq; repeat (propxFo; repeat (eauto; esplit)).
-  instantiate (1 := fun stn x => x2 (stn, x)); auto.
-  eapply (Imply_sound (H4 _ _ _ _)); clear H4.
+  cptr.
   propxFo; eauto.
-  rewrite <- sepFormula_eq in *.
-  eapply Imply_trans; [ | apply H7 ].
-  step auto_ext.
-  step auto_ext.
-  match goal with
-    | [ |- interp ?specs (![?P] ?x ---> ![?Q] ?x)%PropX ] =>
-      let H := fresh in assert (H : himp specs P Q); [ | rewrite sepFormula_eq; apply H ]
-  end.
-  repeat apply himp_star_frame; try reflexivity.
-  instantiate (1 := fun p => sched_ (fst p) (snd p)); reflexivity.
-  auto.
-  descend.
-  rewrite sepFormula_eq; propxFo; eauto 10.
+  post; eauto.
+  big_imp.
+  instantiate (1 := x3).
+  instantiate (1 := fun x y => a (x, y)).
+  instantiate (1 := fun p => sched_ (fst p) (snd p)).
+  refl.
+  post; rewrite sepFormula_eq; propxFo; eauto 10.
 Qed.
+
+Lemma substH_in2 : forall a b (P : hpropB (a :: b :: nil)) q1 q2,
+  (fun stn sm => subst (G := a :: nil) (subst (P stn sm) q1) q2) = substH (substH P q1) q2.
+reflexivity.
+Qed.
+
+Hint Rewrite substH_in2 : sepFormula.
 
 Lemma starting_elim : forall specs sc pc ss P stn st,
   interp specs (![ starting sc pc ss * P ] (stn, st))
@@ -566,32 +580,11 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
           /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
         ---> Lift (pre_exit stn_st''))
         ---> pre stn_st')%PropX.
-  intros; rewrite sepFormula_eq in H; repeat (propxFo; repeat (eauto; esplit)).
-  rewrite sepFormula_eq; unfold sepFormula_def; simpl.
-  rewrite (split_semp _ _ _ H0); auto.
-  eapply Imply_trans; [ | apply H4 ].
-  apply andL; apply injL; intro.
-  apply andL; apply injL; intro.
-  apply andL; apply cptrL; intro.
-  apply andL; apply injL; intro.
-  repeat apply andR.
-  apply injR; eauto.
-  apply injR; eauto.
-  apply cptrR; eauto.
-  apply andL; apply swap; apply implyR.
-  instantiate (1 := fun p => sched_ (fst p) (snd p)).
-  rewrite sepFormula_eq; apply Imply_refl.
-  apply andL; apply implyR.
-  2: apply injR; eassumption.
-
-  Lemma substH_in2 : forall a b (P : hpropB (a :: b :: nil)) q1 q2,
-    (fun stn sm => subst (G := a :: nil) (subst (P stn sm) q1) q2) = substH (substH P q1) q2.
-    reflexivity.
-  Qed.
-
-  Hint Rewrite substH_in2 : sepFormula.
-
-  descend; step auto_ext.
+  cptr.
+  generalize (split_semp _ _ _ H0 H); intros; subst; auto.
+  post.
+  instantiate (2 := fun p => sched_ (fst p) (snd p)).
+  imp; propxFo; eauto.
 Qed.
 
 Ltac t := sep hints; try apply any_easy;
