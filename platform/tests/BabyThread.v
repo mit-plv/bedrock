@@ -19,27 +19,13 @@ Definition m := bimport [[ "scheduler"!"init" @ [initS], "scheduler"!"exit" @ [e
       Spawn("sc", "test"!"handler", 16)
       [PREonly[V] sched (V "sc") * mallocHeap 0];;
 
+      Spawn("sc", "test"!"handler", 16)
+      [PREonly[V] sched (V "sc") * mallocHeap 0];;
+
       Go "sc"
     end
   }}.
 
 Theorem ok : moduleOk m.
-  vcgen.
-
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
-  sep_auto.
+  vcgen; abstract sep_auto.
 Qed.
