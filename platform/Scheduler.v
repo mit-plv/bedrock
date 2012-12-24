@@ -591,6 +591,17 @@ Ltac t := sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
     eauto.
 
+Lemma wordBound : forall w : W,
+  natToW 2 <= w
+  -> (wordToNat w >= 2)%nat.
+  intros; pre_nomega;
+    rewrite wordToNat_natToWord_idempotent in * by reflexivity; assumption.
+Qed.
+
+Local Hint Immediate wordBound.
+  
+Hint Rewrite <- minus_n_O : sepFormula.
+
 Theorem ok : moduleOk m.
   vcgen.
 
@@ -621,42 +632,14 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-  
-  post.
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  pre_nomega.
-  rewrite wordToNat_natToWord_idempotent in * by reflexivity.
-  assumption.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  descend; step hints.
 
+  t.
   t.
 
   post.
   replace x0 with (length ("rp" :: "sc" :: nil) + (x0 - length ("rp" :: "sc" :: nil))) in H0.
   assert (NoDup ("rp" :: "sc" :: nil)) by NoDup.
-  evaluate hints.
-  descend.
-  step hints.
-  descend; step hints.
-  rewrite <- minus_n_O; step hints.
-  step auto_ext.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  descend; step hints.
+  evaluate hints; sep hints; auto.
   evaluate hints; simpl; omega.
 
   t.
