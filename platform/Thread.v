@@ -244,8 +244,40 @@ Ltac sep' hints := unfold localsInvariantCont; AutoSep.sep hints;
     | _ => AutoSep.sep hints
   end.
 
+Ltac refl := repeat match goal with
+                      | [ H : _ = _ |- _ ] => (rewrite H || rewrite <- H); clear H
+                    end; AutoSep.refl.
+
+Ltac spawn_imp :=
+  unfold threadInvariantCont;
+    repeat (apply andL; (apply injL || apply cptrL; intro));
+      repeat ((eapply existsXR; unfold Subst; simpl) || eapply existsR
+        || apply andR || apply injR || apply cptrR); post.
+
+Ltac spawn_heap :=
+  match goal with
+    | [ sched_ : hpropB nil, _ : sel ?vs "sc" = _ |- _ ] =>
+      apply andL; apply implyR;
+        instantiate (1 := fun p => Emp%Sep (fst p) (snd p));
+          instantiate (1 := fun p => sched_ (fst p) (snd p));
+            instantiate (1 := vs); clear; step auto_ext
+  end.
+
+Ltac spawn_cptr :=
+  apply andL; apply swap; apply implyR; refl.
+
+Ltac spawn hints :=
+  post; evaluate hints; descend;
+  try (toFront_conc ltac:(fun P => match P with
+                                     | starting _ _ _ => idtac
+                                   end); apply starting_intro; descend;
+  [ | repeat step hints | ]; eauto;
+    spawn_imp; spawn_heap || spawn_cptr || eauto); sep hints.
+
 Ltac sep hints :=
   match goal with
+    | [ |- context[starting] ] =>
+      spawn hints
     | [ |- forall specs stn st, interp specs _
       -> exists pc_exit, Labels stn ("scheduler", Global "exit") = Some pc_exit
         /\ _ ] =>
@@ -268,3 +300,14 @@ Ltac sep hints :=
   end.
 
 Ltac sep_auto := sep auto_ext.
+
+Hint Extern 1 False => discriminate.
+
+Lemma Labels_cong : forall stn stn' l pc,
+  Labels stn l = Some pc
+  -> Labels stn' = Labels stn
+  -> Labels stn' l = Some pc.
+  intros; rewrite H0; auto.
+Qed.
+
+Hint Immediate Labels_cong.
