@@ -39,7 +39,7 @@ Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
         /\ [| sel vs' "sc" = sc |]
         /\ [| (fst st').(Labels) = s.(Labels) |]
         ---> #1 st')
-      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * mallocHeap 0] * #1 ] st
+      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp] * #1 * ^[mallocHeap 0] ] st
       /\ [| sel vs "sc" = sc |]
       ---> #2 st)%PropX.
 
@@ -504,7 +504,7 @@ Lemma starting_intro : forall specs sc pc ss P stn st,
         /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
         /\ Cptr pc_exit (fun x => pre_exit x)
         /\ [| sel vs "sc" = sc |]
-        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * mallocHeap 0 * sched_ ] stn_st'
+        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * sched_ * mallocHeap 0] stn_st'
         /\ (AlX , Al stn_st'', Al vs' : vals,
           ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
             * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
@@ -572,7 +572,7 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
         /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
         /\ Cptr pc_exit (fun x => pre_exit x)
         /\ [| sel vs "sc" = sc |]
-        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * mallocHeap 0 * sched_ ] stn_st'
+        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * sched_ * mallocHeap 0 ] stn_st'
         /\ (AlX, Al stn_st'', Al vs',
           ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
             * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
@@ -583,7 +583,7 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   post.
-  instantiate (2 := fun p => sched_ (fst p) (snd p)).
+  instantiate (3 := fun p => sched_ (fst p) (snd p)).
   imp; propxFo; eauto.
 Qed.
 
@@ -603,113 +603,44 @@ Local Hint Immediate wordBound.
 Hint Rewrite <- minus_n_O : sepFormula.
 
 Theorem ok : moduleOk m.
-  vcgen.
+  vcgen; try solve [ t ].
 
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
 
   post.
-  replace x0 with (length ("rp" :: "sc" :: nil) + (x0 - length ("rp" :: "sc" :: nil))) in H0.
+  match goal with
+    | [ H : context[?X - 2] |- _ ] =>
+      replace X with (length ("rp" :: "sc" :: nil) + (X - length ("rp" :: "sc" :: nil))) in H
+  end.
   assert (NoDup ("rp" :: "sc" :: nil)) by NoDup.
   evaluate hints; sep hints; auto.
   evaluate hints; simpl; omega.
 
-  t.
 
   post.
   evaluate auto_ext.
-  toFront ltac:(fun P => match P with
-                           | starting _ _ _ => idtac
-                         end) H7.
-  apply starting_elim in H7; post.
-  descend.
-
+  match goal with
+    | [ H : interp _ _ |- _ ] =>
+      toFront ltac:(fun P => match P with
+                               | starting _ _ _ => idtac
+                             end) H;
+      apply starting_elim in H; post; descend
+  end.
   toFront_conc ltac:(fun P => match P with
                                 | susp _ _ _ => idtac
-                              end).
+                              end);
   apply susp_intro; descend.
-  Focus 2.
+  2: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
   step auto_ext.
   step auto_ext.
-  instantiate (2 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")).
-  step auto_ext.
-  step auto_ext.
-  eapply Imply_trans; try apply H10.
-  apply andL; apply injL; intro.
-  apply andL; apply injL; intro.
-  apply andL; apply cptrL; intro.
-  apply andL; apply swap.
-  apply andL; apply injL; intro.
-  apply unandL.
-  repeat apply andR.
-  apply injR; eauto.
-  apply injR; eauto.
-  apply cptrR; eauto.
-  Focus 2.
-  apply andL; apply implyR.
-  descend.
-  rewrite H13.
-  descend.
-  clear.
-  step auto_ext.
-  apply injR; eauto.
-  apply andL; apply swap; apply implyR.
-  rewrite sepFormula_eq; apply Imply_refl.
-  step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  auto.
-  descend; step auto_ext.
+  big_imp.
+  imp; [ | match goal with
+             | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H; refl
+           end ]; propxFo; eauto.
+  sep_auto.
+  sep_auto; auto.
 
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
 
   post; evaluate hints.
-
   toFront ltac:(fun P => match P with
                            | susp _ _ _ => idtac
                          end) H6.
@@ -726,7 +657,6 @@ Theorem ok : moduleOk m.
   instantiate (1 := sched (sel x6 "sc")); simpl.
   descend; step hints.
   apply any_easy.
-
   unfold localsInvariantCont; simpl; intros.
   step auto_ext.
   step auto_ext.
