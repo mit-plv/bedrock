@@ -641,29 +641,25 @@ Theorem ok : moduleOk m.
 
 
   post; evaluate hints.
-  toFront ltac:(fun P => match P with
-                           | susp _ _ _ => idtac
-                         end) H6.
-
-  apply susp_elim in H6; post.
-  esplit; split.
-  eauto.
-  eapply H10.
-  eauto.
-  eauto.
-  eauto.
-  2: auto.
-  Focus 2.
-  instantiate (1 := sched (sel x6 "sc")); simpl.
-  descend; step hints.
-  apply any_easy.
-  unfold localsInvariantCont; simpl; intros.
-  step auto_ext.
-  step auto_ext.
-  instantiate (1 := fun p => fr_exit (fst p) (snd p)).
+  match goal with
+    | [ H : interp _ _ |- _ ] =>
+      toFront ltac:(fun P => match P with
+                               | susp _ _ _ => idtac
+                             end) H;
+      apply susp_elim in H; post
+  end.
   descend.
-  instantiate (1 := vs).
-  rewrite H6.
-  clear.
   step auto_ext.
+  match goal with
+    | [ H : _ |- _ ] => eapply H; eauto
+  end.
+  instantiate (1 := sched (sel x6 "sc")); simpl.
+  unfold localsInvariantCont.
+  descend; step auto_ext.
+  instantiate (1 := fun p => fr_exit (fst p) (snd p));
+    instantiate (1 := vs);
+      match goal with
+        | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
+      end; clear; descend; step auto_ext.
+  step hints; apply any_easy.
 Qed.
