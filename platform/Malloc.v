@@ -165,7 +165,7 @@ Defined.
 
 Definition initS : spec := SPEC("base", "size") reserving 0
   PRE[V] [| $3 <= V "size" |]
-    * [| noWrapAround (V "base") (wordToNat (V "size")) |]
+    * [| noWrapAround (V "base" ^+ $4) (wordToNat (V "size") - 1) |]
     * V "base" =?> wordToNat (V "size")
   POST[_] mallocHeap (V "base").
 
@@ -253,13 +253,13 @@ Lemma three_le : forall w : W,
 Qed.
 
 Lemma noWrapAround_plus4 : forall p (sz : W),
-  noWrapAround p (wordToNat sz)
+  noWrapAround p (wordToNat sz - 1)
   -> $3 <= sz
-  -> p ^+ $4 <> $0.
+  -> p <> $0.
   intros.
   intro.
   eapply H.
-  2: eassumption.
+  2: instantiate (1 := 0); words.
   apply three_le in H0.
   omega.
 Qed.
@@ -360,7 +360,7 @@ Section ok.
           | [ H : freeable _ _ |- _ ] => destruct H; sep hints; eauto
         end;
     match goal with
-      | [ H1 : noWrapAround _ (wordToNat ?sz), H2 : _ <= ?sz |- _ ] =>
+      | [ H1 : noWrapAround _ (wordToNat ?sz - 1), H2 : _ <= ?sz |- _ ] =>
         specialize (noWrapAround_plus4 H1 H2); intro
       | [ H : _ |- _ ] => apply sub2 in H; [ | solve [ auto ] ]
     end; sep hints;
