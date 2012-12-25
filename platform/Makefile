@@ -4,6 +4,7 @@ MODULES := AutoSepExt PreAutoSep \
            AutoSep \
            Malloc \
            Bags Queue Scheduler Thread \
+           Bootstrap \
            tests/BabyThread
 
 VS      := $(MODULES:%=%.v)
