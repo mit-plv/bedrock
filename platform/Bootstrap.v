@@ -122,17 +122,84 @@ Theorem materialize_allocated' : forall specs stn size base sm,
     (base ^+ $1)) (base ^+ $2)) (base ^+ $3)).
   split.
 
-  Lemma split_put_clear : forall sm sm1 sm2 a v,
-    split sm sm1 sm2
-    -> smem_get a sm2 = Some v
-    -> split sm (smem_put sm1 a v) (smem_clear sm2 a).
-  Admitted.
+  Lemma disjoint_get' : forall ls sm1 sm2,
+    NoDup ls
+    -> List.Forall (fun w => smem_get' ls w sm1 <> None -> smem_get' ls w sm2 <> None -> False) ls
+    -> disjoint' ls sm1 sm2.
+    induction sm1; simpl; intuition; rewrite (hlist_eta sm2) in *; simpl in *.
+    inversion H; clear H; subst.
+    inversion H0; clear H0; subst.
+    destruct (H.addr_dec x x); try tauto.
+    destruct b; auto.
+    destruct (hlist_hd sm2); auto.
+    intuition discriminate.
+    inversion H; clear H; subst.
+    inversion H0; clear H0; subst.
+    apply IHsm1; intros; auto.
+    eapply Forall_weaken'; eauto.
+    simpl; intros.
+    destruct (H.addr_dec x x0); subst; tauto.
+  Qed.
 
-  repeat apply split_put_clear.
-  apply split_a_semp_a.
-  replace (base ^+ $0) with base in H7 by words.
-  congruence.
-  
+  Lemma disjoint_get : forall sm1 sm2,
+    (forall w, smem_get w sm1 <> None -> smem_get w sm2 <> None -> False)
+    -> disjoint sm1 sm2.
+    intros; apply disjoint_get'.
+    apply BedrockHeap.NoDup_all_addr.
+    apply Forall_forall; intros.
+    eauto.
+  Qed.
+
+  Lemma disjoint_get_fwd' : forall ls sm1 sm2,
+    disjoint' ls sm1 sm2
+    -> NoDup ls
+    -> List.Forall (fun w => smem_get' ls w sm1 <> None -> smem_get' ls w sm2 <> None -> False) ls.
+    induction sm1; simpl; intuition; rewrite (hlist_eta sm2) in *; simpl in *;
+      subst; constructor; simpl.
+    destruct (H.addr_dec x x); tauto.
+    inversion H0; clear H0; subst.
+    eapply Forall_weaken'; try apply IHsm1.
+    eauto.
+    auto.
+    simpl; intros.
+    destruct (H.addr_dec x x0); subst; tauto.
+    destruct (H.addr_dec x x); tauto.
+    inversion H0; clear H0; subst.
+    eapply Forall_weaken'; try apply IHsm1.
+    eauto.
+    auto.
+    simpl; intros.
+    destruct (H.addr_dec x x0); subst; tauto.
+  Qed.
+
+  Lemma allWordsUpto_universal : forall width init w,
+    (wordToNat w < init)%nat
+    -> (init <= pow2 width)%nat
+    -> In w (allWordsUpto width init).
+    induction init; simpl; intuition.
+    destruct (weq w $(init)); subst; auto; right.
+    assert (wordToNat w <> init).
+    intro; apply n.
+    subst.
+    symmetry; apply natToWord_wordToNat.
+    auto.
+  Qed.
+
+  Lemma allWords_universal : forall sz w,
+    In w (allWords sz).
+    rewrite allWords_eq; intros; apply allWordsUpto_universal.
+    apply wordToNat_bound.
+    auto.
+  Qed.
+
+  Lemma disjoint_get_fwd : forall sm1 sm2,
+    disjoint sm1 sm2
+    -> (forall w, smem_get w sm1 <> None -> smem_get w sm2 <> None -> False).
+    intros; eapply disjoint_get_fwd' in H; try apply BedrockHeap.NoDup_all_addr.
+    assert (In w H.all_addr) by apply allWords_universal.
+    generalize (proj1 (Forall_forall _ _) H _ H2); tauto.
+  Qed.
+
   Lemma get_clear_ne' : forall a a' ls (sm : smem' ls),
     a <> a'
     -> smem_get' ls a (smem_clear sm a') = smem_get' ls a sm.
@@ -161,35 +228,6 @@ Theorem materialize_allocated' : forall specs stn size base sm,
 
   Hint Rewrite get_clear_eq get_clear_ne
     using solve [ assumption | W_neq ] : get.
-
-  autorewrite with get; assumption.
-  autorewrite with get; assumption.
-  autorewrite with get; assumption.
-  
-  split.
-  exists (implode stn (b, b0, b1, b2)).
-  split.
-  unfold smem_get_word.
-  
-  Lemma allWordsUpto_universal : forall width init w,
-    (wordToNat w < init)%nat
-    -> (init <= pow2 width)%nat
-    -> In w (allWordsUpto width init).
-    induction init; simpl; intuition.
-    destruct (weq w $(init)); subst; auto; right.
-    assert (wordToNat w <> init).
-    intro; apply n.
-    subst.
-    symmetry; apply natToWord_wordToNat.
-    auto.
-  Qed.
-
-  Lemma allWords_universal : forall sz w,
-    In w (allWords sz).
-    rewrite allWords_eq; intros; apply allWordsUpto_universal.
-    apply wordToNat_bound.
-    auto.
-  Qed.
 
   Lemma get_put_eq' : forall a v ls (sm : smem' ls),
     In a ls
@@ -227,6 +265,84 @@ Theorem materialize_allocated' : forall specs stn size base sm,
   Hint Rewrite get_emp get_put_eq get_put_ne
     using solve [ assumption | W_neq ] : get.
 
+  Lemma join_None' : forall a ls sm1 sm2,
+    smem_get' ls a sm1 = None
+    -> smem_get' ls a (join' ls sm1 sm2) = smem_get' ls a sm2.
+    induction sm1; simpl; intuition.
+    destruct (H.addr_dec x a); subst; auto.
+  Qed.
+
+  Lemma join_None : forall a sm1 sm2,
+    smem_get a sm1 = None
+    -> smem_get a (join sm1 sm2) = smem_get a sm2.
+    intros; apply join_None'; auto.
+  Qed.
+
+  Lemma join_Some' : forall a v ls sm1 sm2,
+    smem_get' ls a sm1 = Some v
+    -> smem_get' ls a (join' ls sm1 sm2) = Some v.
+    induction sm1; simpl; intuition.
+    destruct (H.addr_dec x a); subst; auto.
+  Qed.
+
+  Lemma join_Some : forall a v sm1 sm2,
+    smem_get a sm1 = Some v
+    -> smem_get a (join sm1 sm2) = Some v.
+    intros; apply join_Some'; auto.
+  Qed.
+
+  Lemma split_put_clear : forall sm sm1 sm2 a v,
+    split sm sm1 sm2
+    -> smem_get a sm2 = Some v
+    -> split sm (smem_put sm1 a v) (smem_clear sm2 a).
+    unfold split; intuition subst.
+    apply disjoint_get; intros.
+    destruct (weq w a); subst.
+    autorewrite with get in *; tauto.
+    autorewrite with get in *.
+    eapply disjoint_get_fwd in H1; eassumption.
+
+    apply smem_eta; try apply BedrockHeap.NoDup_all_addr.
+    apply Forall_forall; intros.
+    destruct (weq x a); subst.
+    rewrite join_None.
+    erewrite join_Some.
+    eauto.
+    autorewrite with get; reflexivity.
+    case_eq (smem_get a sm1); auto; intros.
+    eapply disjoint_get_fwd in H1; try eassumption.
+    tauto.
+    instantiate (1 := a); congruence.
+    congruence.
+    
+    case_eq (smem_get x sm1); intros.
+    erewrite join_Some.
+    erewrite join_Some.
+    2: autorewrite with get; eassumption.
+    2: eassumption.
+    reflexivity.
+
+    rewrite join_None.
+    rewrite join_None.
+    autorewrite with get; reflexivity.
+    autorewrite with get; assumption.
+    assumption.
+  Qed.
+
+  repeat apply split_put_clear.
+  apply split_a_semp_a.
+  replace (base ^+ $0) with base in H7 by words.
+  congruence.
+  
+  autorewrite with get; assumption.
+  autorewrite with get; assumption.
+  autorewrite with get; assumption.
+  
+  split.
+  exists (implode stn (b, b0, b1, b2)).
+  split.
+  unfold smem_get_word.
+  
   unfold H.footprint_w.
   autorewrite with get.
   reflexivity.
