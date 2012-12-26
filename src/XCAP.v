@@ -298,10 +298,13 @@ Section moduleOk.
     eauto.
   Qed.
 
-  Theorem safety : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-    -> forall w, Labels stn l = Some w
+  Theorem safety : forall mn g pre,
+    LabelMap.MapsTo (mn, Global g) pre (Exports m)
+    -> forall w, Labels stn (mn, Global g) = Some w
       -> forall st, interp specs (pre (stn, st))
         -> safe stn prog (w, st).
+    intros.
+    apply (ExportsSound ok) in H; destruct H.
     unfold safe; intros; eapply safety''; eauto.
   Qed.
 End moduleOk.
