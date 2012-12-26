@@ -312,3 +312,23 @@ reflexivity.
 Qed.
 
 Hint Rewrite substH_in2 : sepFormula.
+
+Lemma create_stack : forall ns ss sp,
+  NoDup ns
+  -> sp =?> (length ns + ss) ===> Ex vs, locals ns vs ss sp.
+  intros; eapply Himp_trans; [ apply allocated_split | ].
+  instantiate (1 := length ns); omega.
+  eapply Himp_trans.
+  eapply Himp_star_frame.
+  apply behold_the_array; auto.
+  apply Himp_refl.
+  unfold locals, array.
+  Opaque mult.
+  sepLemma.
+  apply allocated_shift_base.
+  Require Import Arith.
+  unfold natToW; rewrite mult_comm; words.
+  omega.
+Qed.
+
+Transparent mult.

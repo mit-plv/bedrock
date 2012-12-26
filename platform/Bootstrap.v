@@ -627,9 +627,9 @@ Lemma get_memoryIn : forall m w,
 Qed.
 
 Theorem materialize_allocated : forall stn st size specs,
-  (forall n, (n < 4 * size)%nat -> st.(Mem) n <> None)
-  -> (forall w, $(4 * size) <= w -> st.(Mem) w = None)
-  -> goodSize (4 * size)%nat
+  (forall n, (n < size * 4)%nat -> st.(Mem) n <> None)
+  -> (forall w, $(size * 4) <= w -> st.(Mem) w = None)
+  -> goodSize (size * 4)%nat
   -> interp specs (![ 0 =?> size ] (stn, st)).
   rewrite sepFormula_eq; intros.
   apply materialize_allocated'; simpl.
@@ -644,6 +644,101 @@ Theorem materialize_allocated : forall stn st size specs,
   intros.
   rewrite wplus_unit in H2.
   rewrite get_memoryIn.
-  auto.
-  assumption.
+  apply H0.
+  Require Import Arith.
+  rewrite mult_comm; assumption.
+  rewrite mult_comm; assumption.
 Qed.
+
+
+(** * Now put it all together to prove [genesis]. *)
+
+Section boot.
+  Variables heapSize : nat.
+
+  Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
+  Hypothesis heapSizeUpperBound : goodSize (heapSize * 4).
+
+  Lemma goodSize_heapSize : goodSize heapSize.
+    eapply goodSize_weaken; [ eassumption | omega ].
+  Qed.
+
+  Hint Immediate goodSize_heapSize.
+
+  Theorem heapSizeLowerBound' : natToW heapSize < natToW 3 -> False.
+    change (natToW 3 <= natToW heapSize).
+    intro; pre_nomega.
+    rewrite wordToNat_natToWord_idempotent in *.
+    rewrite wordToNat_natToWord_idempotent in *.
+    omega.
+    reflexivity.
+    change (goodSize heapSize); eapply goodSize_weaken; [ eassumption | omega ].
+  Qed.
+
+  Hint Immediate heapSizeLowerBound'.
+
+  Theorem noWrap : noWrapAround (natToW 4) (heapSize - 1).
+    simpl; hnf; intros.
+    intro.
+    rewrite <- natToW_plus in H0.
+    apply natToW_inj in H0.
+    omega.
+    2: reflexivity.
+    eapply goodSize_weaken; [ eassumption | omega ].
+  Qed.
+
+  Theorem heapSize_roundTrip : wordToNat (natToW heapSize) = heapSize.
+    intros; apply wordToNat_natToWord_idempotent;
+      change (goodSize heapSize); eauto.
+  Qed.
+
+  Hint Rewrite heapSize_roundTrip : sepFormula.
+
+  Definition bootS := {|
+    Reserved := 49;
+    Formals := nil;
+    Precondition := fun _ => st ~> ![ 0 =?> (heapSize + 50) ] st
+  |}.
+
+  Theorem genesis :
+    0 =?> (heapSize + 50)
+    ===> (Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat) * 0 =?> heapSize.
+    descend; intros; eapply Himp_trans; [ apply allocated_split | ].
+    instantiate (1 := heapSize); auto.
+    apply Himp_trans with (0 =?> heapSize *
+      (heapSize * 4)%nat =?> 50)%Sep.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    apply allocated_shift_base.
+    Require Import Arith.
+    rewrite mult_comm.
+    simpl.
+    unfold natToW.
+    words.
+    omega.
+    apply Himp_trans with (0 =?> heapSize *
+      Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat)%Sep.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    change 50 with (length ("rp" :: nil) + 49).
+    apply create_stack.
+    NoDup.
+    sepLemma.
+  Qed.
+
+  Transparent mult.
+End boot.
+
+Definition genesisHints : TacPackage.
+  prepare genesis tt.
+Defined.
+
+Ltac safety ok :=
+  eapply XCAP.safety; try apply ok; try eassumption; [
+    reflexivity
+    | apply LabelMap.find_2; link_simp; reflexivity
+    | propxFo; descend; apply materialize_allocated; assumption ].
+
+Hint Immediate goodSize_heapSize heapSizeLowerBound'.
+Hint Rewrite heapSize_roundTrip using assumption : sepFormula.
+Hint Extern 1 (noWrapAround _ _) => apply noWrap.
