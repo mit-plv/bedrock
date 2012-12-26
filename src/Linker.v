@@ -611,7 +611,6 @@ Section LittleEndianSettings.
   Qed.
 
   Definition leSettings := {|
-(*    MemHigh := memHigh; *)
     implode := implode_le ; 
     explode := explode_le ;
     implode_explode := implode_explode_le ;
@@ -623,8 +622,8 @@ Section LittleEndianSettings.
   Hypothesis notTooBig : (N_of_nat (LabelMap.cardinal (Blocks m)) < Npow2 32)%N.
   Hypothesis ok : moduleOk m.
 
-  Theorem safety : forall l pre bl, LabelMap.find l (Blocks m) = Some (pre, bl)
-    -> forall w, Labels leSettings l = Some w
+  Theorem safety : forall mn g pre, LabelMap.find (mn, Global g) (Exports m) = Some pre
+    -> forall w, Labels leSettings (mn, Global g) = Some w
       -> forall st, interp (specs m leSettings) (pre (leSettings, st))
         -> safe leSettings (snd (labelsOf (Blocks m))) (w, st).
     intros; eapply safety; intuition eauto.

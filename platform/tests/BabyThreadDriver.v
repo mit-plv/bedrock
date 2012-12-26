@@ -15,7 +15,7 @@ Notation "'bfunctionNoRet' name () [ p ] b 'end'" :=
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Section boot.
-  Variable heapSize : nat.
+  Variables heapSize : nat.
 
   Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
   Hypothesis heapSizeUpperBound : goodSize (4 * heapSize).
@@ -58,12 +58,19 @@ Section boot.
 
   Hint Rewrite heapSize_roundTrip : sepFormula.
 
-  Definition bootS := SPEC reserving 50
-    PREonly[_] 0 =?> heapSize.
+  Definition bootS := {|
+    Reserved := 49;
+    Formals := nil;
+    Precondition := fun _ => st ~> ![ 0 =?> (heapSize + 50) ] st
+  |}.
 
   Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "test"!"main" @ [BabyThread.mainS] ]]
     bmodule "main" {{
       bfunctionNoRet "main"() [bootS]
+        Sp <- (heapSize * 4)%nat;;
+
+        Assert [PREonly[_] 0 =?> heapSize];;
+
         Call "malloc"!"init"(0, heapSize)
         [PREonly[_] mallocHeap 0];;
 
@@ -74,8 +81,58 @@ Section boot.
       end
     }}.
 
+  Lemma create_stack : forall ns ss sp,
+    NoDup ns
+    -> sp =?> (length ns + ss) ===> Ex vs, locals ns vs ss sp.
+    intros; eapply Himp_trans; [ apply allocated_split | ].
+    instantiate (1 := length ns); omega.
+    eapply Himp_trans.
+    eapply Himp_star_frame.
+    apply behold_the_array; auto.
+    apply Himp_refl.
+    unfold locals, array.
+    Opaque mult.
+    sepLemma.
+    apply allocated_shift_base.
+    Require Import Arith.
+    unfold natToW; rewrite mult_comm; words.
+    omega.
+  Qed.
+
+  Theorem genesis :
+    0 =?> (heapSize + 50)
+    ===> (Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat) * 0 =?> heapSize.
+    descend; intros; eapply Himp_trans; [ apply allocated_split | ].
+    instantiate (1 := heapSize); auto.
+    apply Himp_trans with (0 =?> heapSize *
+      (heapSize * 4)%nat =?> 50)%Sep.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    apply allocated_shift_base.
+    Require Import Arith.
+    rewrite mult_comm.
+    simpl.
+    unfold natToW.
+    words.
+    omega.
+    apply Himp_trans with (0 =?> heapSize *
+      Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat)%Sep.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    change 50 with (length ("rp" :: nil) + 49).
+    apply create_stack.
+    NoDup.
+    sepLemma.
+  Qed.
+
+  Transparent mult.
+
+  Definition genesisHints : TacPackage.
+    prepare genesis tt.
+  Defined.
+
   Theorem ok : moduleOk boot.
-    vcgen; abstract sep_auto.
+    vcgen; abstract sep genesisHints.
   Qed.
 
   Ltac link_simp := simpl Imports; simpl Exports;
@@ -123,5 +180,38 @@ Section boot.
 
   Lemma ok3 : moduleOk m3.
     link BabyThread.ok ok2.
+  Qed.
+
+  Variable stn : settings.
+  Variable prog : program.
+  
+  Hypothesis inj : forall l1 l2 w, Labels stn l1 = Some w
+    -> Labels stn l2 = Some w
+    -> l1 = l2.
+
+  Hypothesis agree : forall l pre bl,
+    LabelMap.MapsTo l (pre, bl) (XCAP.Blocks m3)
+    -> exists w, Labels stn l = Some w
+      /\ prog w = Some bl.
+
+  Variable w : W.
+  Hypothesis at_start : Labels stn ("main", Global "main") = Some w.
+
+  Variable st : state.
+
+  Definition size := heapSize + 50.
+
+  Hypothesis mem_low : forall n, (n < 4 * size)%nat -> st.(Mem) n <> None.
+  Hypothesis mem_high : forall w, $(4 * size) <= w -> st.(Mem) w = None.
+  Hypothesis mem_size : goodSize (4 * size)%nat.
+
+  Ltac safety ok :=
+    eapply XCAP.safety; try apply ok; try eassumption; [
+      reflexivity
+      | apply LabelMap.find_2; link_simp; reflexivity
+      | propxFo; descend; apply materialize_allocated; assumption ].
+
+  Theorem safe : safe stn prog (w, st).
+    safety ok3.
   Qed.
 End boot.
