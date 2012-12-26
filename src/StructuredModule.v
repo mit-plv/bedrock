@@ -3,6 +3,7 @@
 Require Import Bool NArith String List.
 
 Require Import Nomega PropX PropXTac Word LabelMap IL XCAP Structured.
+Require Import StringSet.
 
 Set Implicit Arguments.
 
@@ -80,9 +81,17 @@ Section module.
               (blocks fs' (Nsucc Base + N_of_nat (length (Blocks cg))))))
     end.
 
+  Fixpoint exps (fs : list function) : LabelMap.t assert :=
+    match fs with
+      | nil => LabelMap.empty _
+      | (f, pre, _) :: fs' => LabelMap.add (modName, Global f) pre (exps fs')
+    end.
+
   Definition bmodule_ : module := {|
     Imports := importsMap;
-    XCAP.Blocks := blocks functions 1
+    XCAP.Blocks := blocks functions 1;
+    Exports := exps functions;
+    Modules := StringSet.singleton modName
   |}.
 
   Lemma Forall_MapsTo : forall A (P : _ * A -> Prop) m,
@@ -690,6 +699,133 @@ Section module.
 
     destruct H9 as [ ? [ ] ]; intuition; subst.
     eapply skipImports; eauto.
+
+
+    simpl.
+
+    Lemma importsMap_global' : forall l pre imps (acc : LabelMap.t assert),
+      (forall l' pre', LabelMap.MapsTo l' pre' acc
+        -> exists g, snd l' = Global g)
+      -> LabelMap.MapsTo l pre (fold_left (fun m p => let '(modl, f, pre) := p in
+        LabelMap.add (modl, Global f) pre m) imps acc)
+      -> exists g, snd l = Global g.
+      clear; induction imps; simpl; intuition eauto.
+      eapply IHimps; [ | eauto ].
+      intros.
+      destruct (LabelKey.eq_dec l' (a, Global b0)).
+      hnf in e; subst; simpl; eauto.
+      eapply LabelMap.add_3 in H1.
+      eauto.
+      auto.
+    Qed.      
+
+    Lemma importsMap_global : forall l pre,
+      LabelMap.MapsTo l pre importsMap -> exists g, snd l = Global g.
+      intros; apply importsMap_global' with pre imports (LabelMap.empty _).
+      intros.
+      apply LabelMap.empty_1 in H0; tauto.
+      assumption.
+    Qed.
+
+    intros; eapply importsMap_global; eauto.
+
+
+    simpl.
+
+    Lemma blocks_exps : forall (mn g : string) (pre : assert) (bl : block)
+      funcs start,
+      LabelMap.MapsTo (mn, Global g) (pre, bl) (blocks funcs start) ->
+      LabelMap.MapsTo (mn, Global g) pre (exps funcs).
+      clear; induction funcs; simpl; intuition.
+      apply LabelMap.empty_1 in H; tauto.
+      destruct a as [ [ ] ].
+      destruct (LabelKey.eq_dec (modName, Global s) (mn, Global g)).
+      generalize e; intro e'.
+      eapply LabelMap.add_1 in e'.
+      
+      Lemma MapsTo_func : forall A (m : LabelMap.t A) k v v',
+        LabelMap.MapsTo k v m
+        -> LabelMap.MapsTo k v' m
+        -> v = v'.
+        intros.
+        apply LabelMap.find_1 in H.
+        apply LabelMap.find_1 in H0.
+        congruence.
+      Qed.
+
+      hnf in e.
+      rewrite <- e in *.
+      eapply MapsTo_func in e'.
+      2: apply H.
+      injection e'; clear e'; intros; subst.
+      eauto.
+
+      apply LabelMap.add_3 in H; [ | assumption ].
+      apply LabelMap.add_3 in H; [ | lomega ].
+      apply MapsTo_union in H; intuition.
+      apply buildLocals_notImport in H0; destruct H0; intuition congruence.
+
+      eauto.
+    Qed.
+
+    intros; eapply blocks_exps; eauto.
+
+
+    simpl.
+
+    Lemma exps_blocks : forall (mn g : string) (pre : assert)
+      funcs start,
+      LabelMap.MapsTo (mn, Global g) pre (exps funcs)
+      -> exists bl, LabelMap.MapsTo (mn, Global g) (pre, bl) (blocks funcs start).
+      induction funcs; simpl; intuition.
+      apply LabelMap.empty_1 in H; tauto.
+      destruct a as [ [ ] ].
+      destruct (LabelKey.eq_dec (modName, Global s) (mn, Global g)).
+      generalize e; intro e'.
+      eapply LabelMap.add_1 in e'.
+      hnf in e.
+      rewrite <- e in *.
+      eapply MapsTo_func in e'.
+      2: apply H.
+      subst.
+      eauto.
+
+      apply LabelMap.add_3 in H; [ | assumption ].
+      eapply IHfuncs in H; destruct H.
+      exists x.
+      apply LabelMap.add_2; auto.
+      apply LabelMap.add_2; auto.
+      apply MapsTo_union2.
+      eauto.
+      intros.
+      apply buildLocals_notImport in H0; destruct H0; intuition congruence.
+    Qed.
+
+    intros; eapply exps_blocks; eauto.
+
+
+    simpl.
+    intros.
+    apply StringSet.singleton_2.
+    
+    Lemma blocks_modName : forall mn l pre_bl funcs start,
+      LabelMap.MapsTo (mn, l) pre_bl (blocks funcs start)
+      -> modName = mn.
+      clear; induction funcs; simpl; intuition.
+      apply LabelMap.empty_1 in H; tauto.
+      destruct a as [ [ ] ].
+      destruct (LabelKey.eq_dec (modName, Global s) (mn, l)).
+      congruence.
+      apply LabelMap.add_3 in H; [ | assumption ].
+      destruct (LabelKey.eq_dec (modName, Local start) (mn, l)).
+      congruence.
+      apply LabelMap.add_3 in H; [ | assumption ].
+      apply MapsTo_union in H; intuition.
+      apply buildLocals_notImport in H0; destruct H0; intuition congruence.
+      eauto.
+    Qed.
+
+    eapply blocks_modName; eauto.
   Qed.
 
 End module.
