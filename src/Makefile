@@ -2,7 +2,7 @@ PROVERS := Assumption Reflexivity Word
 #  Transitivity
 MODULES    := Reflection Tactics ListFacts \
 	GenRec Ordering Multimap Folds \
-	Nomega Word Labels LabelMap \
+	Nomega Word Labels LabelMap StringSet \
 	PropX PropXRel PropXTac \
 	Memory \
 	XCAP Structured StructuredModule Linker Programming \

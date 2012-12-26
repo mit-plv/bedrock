@@ -78,9 +78,50 @@ Section boot.
     vcgen; abstract sep_auto.
   Qed.
 
+  Ltac link_simp := simpl Imports; simpl Exports;
+    cbv beta iota zeta delta [importsOk LabelMap.fold LabelMap.Raw.fold
+      LabelMap.this importsMap fold_left LabelMap.add LabelMap.Raw.add
+      LabelMap.empty LabelMap.Raw.empty
+      LabelKey.compare LabelKey.compare' string_lt
+      fst snd string_dec sumbool_rec sumbool_rect
+      Ascii.N_of_ascii Ascii.N_of_digits N.compare Pos.compare
+      string_rec string_rect Ascii.ascii_dec
+      LabelMap.find LabelMap.Raw.find Nplus Nmult Pos.compare_cont
+      Pos.add Pos.mul Ascii.ascii_rec Ascii.ascii_rect
+      Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
+      label'_lt label'_eq label'_rec label'_rect
+      LabelMap.Raw.bal LabelMap.Raw.create
+      Int.Z_as_Int.gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.ge_lt_dec
+      LabelMap.Raw.height
+      ZArith_dec.Z_gt_le_dec Int.Z_as_Int._0
+      BinInt.Z.add Int.Z_as_Int._1 Int.Z_as_Int._2
+      ZArith_dec.Z_gt_dec ZArith_dec.Z_ge_lt_dec Int.Z_as_Int.max
+      BinInt.Z.max BinInt.Z.compare union ZArith_dec.Z_ge_dec
+      diff LabelMap.mem LabelMap.Raw.mem LabelMap.is_empty
+      LabelMap.Raw.is_empty Pos.succ].
+
+  Ltac link m1 m2 :=
+    apply linkOk; [ apply m1 | apply m2 | exact (refl_equal true)
+      | link_simp; tauto | link_simp; tauto | link_simp; tauto ].
 
   Definition m0 := link Malloc.m boot.
   Definition m1 := link Queue.m m0.
   Definition m2 := link Scheduler.m m1.
   Definition m3 := link BabyThread.m m2.
+
+  Lemma ok0 : moduleOk m0.
+    link Malloc.ok ok.
+  Qed.
+
+  Lemma ok1 : moduleOk m1.
+    link Queue.ok ok0.
+  Qed.
+
+  Lemma ok2 : moduleOk m2.
+    link Scheduler.ok ok1.
+  Qed.
+
+  Lemma ok3 : moduleOk m3.
+    link BabyThread.ok ok2.
+  Qed.
 End boot.

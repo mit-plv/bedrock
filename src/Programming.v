@@ -434,7 +434,7 @@ Ltac structured_auto simp := apply bmoduleOk; [ exact (refl_equal false) | exact
                end ].
 
 Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
-  | exact (refl_equal false) | compute; repeat split | compute; repeat split | exact I ].
+  | exact (refl_equal true) | repeat split | repeat split | repeat split ].
 
 Lemma specs_cong : forall (specs : codeSpec W (settings * state)) x p,
   specs x = p

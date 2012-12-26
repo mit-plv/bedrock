@@ -2,7 +2,7 @@
 
 Require Import Bool String.
 
-Require Import Word IL LabelMap PropX Memory.
+Require Import Word IL LabelMap StringSet PropX Memory.
 
 Set Implicit Arguments.
 
@@ -16,8 +16,14 @@ Definition assert := spec W (settings * state).
 Record module := {
   Imports : LabelMap.t assert;
   (* Which other blocks do we assume are available, and with what preconditions? *)
-  Blocks : LabelMap.t (assert * block)
+  Blocks : LabelMap.t (assert * block);
   (* The blocks that we provide, with precondition and code for each *)
+  Exports : LabelMap.t assert;
+  (* As an optimization, here is information on just the preconditions for
+   * just the main function entry points. *)
+  Modules : StringSet.t
+  (* As another optimization, here is an exhaustive set of all module names
+   * appearing in labels of blocks that we define. *)
 }.
 
 (* What must be verified for an individual block? *)
@@ -43,7 +49,19 @@ Section moduleOk.
   Record moduleOk := {
     NoSelfImport : noSelfImport;
     BlocksOk : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> blockOk allPreconditions pre bl
+      -> blockOk allPreconditions pre bl;
+    ImportsGlobal : forall l pre,
+      LabelMap.MapsTo l pre (Imports m)
+      -> exists g, snd l = Global g;
+    ExportsComplete : forall mn g pre bl,
+      LabelMap.MapsTo (mn, Global g) (pre, bl) (Blocks m)
+      -> LabelMap.MapsTo (mn, Global g) pre (Exports m);
+    ExportsSound : forall mn g pre,
+      LabelMap.MapsTo (mn, Global g) pre (Exports m)
+      -> exists bl, LabelMap.MapsTo (mn, Global g) (pre, bl) (Blocks m);
+    ModulesSound : forall mn l pre_bl,
+      LabelMap.MapsTo (mn, l) pre_bl (Blocks m)
+      -> StringSet.In mn (Modules m)
   }.
 
   (** Safety theorem *)
@@ -300,26 +318,28 @@ Section link.
     LabelMap.fold (fun k v mp => if LabelMap.mem k mp2 then mp else LabelMap.add k v mp) mp1 (@LabelMap.empty _).
 
   Definition link := {|
-    Imports := union (diff (Imports m1) (Blocks m2)) (diff (Imports m2) (Blocks m1));
-    Blocks := union (Blocks m1) (Blocks m2)
+    Imports := union (diff (Imports m1) (Exports m2)) (diff (Imports m2) (Exports m1));
+    Blocks := union (Blocks m1) (Blocks m2);
+    Exports := union (Exports m1) (Exports m2);
+    Modules := StringSet.union (Modules m1) (Modules m2)
   |}.
 
   Hypothesis m1Ok : moduleOk m1.
   Hypothesis m2Ok : moduleOk m2.
 
   (* No label should be duplicated between the blocks of the two modules. *)
-  Hypothesis NoDups : LabelMap.fold (fun k v b => b || LabelMap.mem k (Blocks m2)) (Blocks m1) false = false.
+  Hypothesis NoDups : StringSet.is_empty (StringSet.inter (Modules m1) (Modules m2)) = true.
 
   (* Any import of one module provided by the other should have agreement on specification. *)
-  Definition importsOk (Imp : LabelMap.t assert) (Blo : LabelMap.t (assert * block)) :=
+  Definition importsOk (Imp : LabelMap.t assert) (Exp : LabelMap.t assert) :=
     LabelMap.fold (fun l pre P =>
-      match LabelMap.find l Blo with
+      match LabelMap.find l Exp with
         | None => P
-        | Some (pre', _) => pre = pre' /\ P
+        | Some pre' => pre = pre' /\ P
       end) Imp True.
 
-  Hypothesis ImportsOk1 : importsOk (Imports m1) (Blocks m2).
-  Hypothesis ImportsOk2 : importsOk (Imports m2) (Blocks m1).
+  Hypothesis ImportsOk1 : importsOk (Imports m1) (Exports m2).
+  Hypothesis ImportsOk2 : importsOk (Imports m2) (Exports m1).
 
   (* The modules must agree on shared imports. *)
   Hypothesis ImportsAgree : LabelMap.fold (fun l pre P =>
@@ -669,33 +689,57 @@ Section link.
     apply MapsTo_union in H0; intuition.
 
     apply MapsTo_diff in H1; intuition.
-
+    hnf in NoSelfImport0.
     eapply (proj1 (List.Forall_forall _ _)) in NoSelfImport0.
     apply NoSelfImport0.
     hnf; eauto.
     auto.
 
     apply MapsTo_diff in H1; intuition.
-
     apply H2.
-    exists (snd x).
+    destruct x; simpl in *.
+    destruct k; simpl in *; subst.
+    destruct p.
+    eexists.
+    match goal with
+      | [ |- LabelMap.Raw.MapsTo ?X ?Y (LabelMap.this ?Z) ] =>
+        change (LabelMap.MapsTo X Y Z)
+    end.
+    apply ImportsGlobal1 in H0; destruct H0; simpl in *; subst.
+    eapply ExportsComplete0.
     apply LabelMap.elements_2.
     apply SetoidList.InA_alt.
-    destruct x; simpl in *; repeat esplit; auto.
+    eexists.
+    split.
+    reflexivity.
+    eauto.
 
 
     destruct H0.
     apply MapsTo_union in H0; intuition.
 
     apply MapsTo_diff in H1; intuition.
+    destruct x; simpl in *.
+    destruct k; simpl in *; subst.
+    destruct p.
+    destruct (ImportsGlobal0 _ _ H0).
+    simpl in *; subst.
     apply H2.
-    exists (snd x).
+    eexists.
+    match goal with
+      | [ |- LabelMap.Raw.MapsTo ?X ?Y (LabelMap.this ?Z) ] =>
+        change (LabelMap.MapsTo X Y Z)
+    end.
+    eapply ExportsComplete1.
     apply LabelMap.elements_2.
     apply SetoidList.InA_alt.
-    destruct x; simpl in *; repeat esplit; auto.
+    eexists.
+    split.
+    reflexivity.
+    eauto.
 
     apply MapsTo_diff in H1; intuition.
-
+    hnf in NoSelfImport1.
     eapply (proj1 (List.Forall_forall _ _)) in NoSelfImport1.
     apply NoSelfImport1.
     hnf; eauto.
@@ -704,26 +748,25 @@ Section link.
 
   Hint Resolve linkOk'.
 
-  Lemma use_importsOk' : forall (bls : LabelMap.t (assert * block)) l P,
+  Lemma use_importsOk' : forall (exp : LabelMap.t assert) l P,
     List.fold_left (fun P p =>
-      match LabelMap.find (fst p) bls with
+      match LabelMap.find (fst p) exp with
         | None => P
-        | Some (pre', _) => snd p = pre' /\ P
+        | Some pre' => snd p = pre' /\ P
       end) l P
     -> P.
     induction l; simpl; intuition; simpl in *.
     
-    destruct (LabelMap.find a0 bls).
-    destruct p.
+    destruct (LabelMap.find a0 exp).
     apply IHl in H; tauto.
     apply IHl in H; tauto.
   Qed.
 
-  Lemma use_importsOk : forall k v p imp bls,
-    importsOk imp bls
+  Lemma use_importsOk : forall k v p imp exp,
+    importsOk imp exp
     -> LabelMap.MapsTo k v imp
-    -> LabelMap.find k bls = Some p
-    -> v = fst p.
+    -> LabelMap.find k exp = Some p
+    -> v = p.
     clear ImportsAgree; unfold importsOk; intros.
 
     rewrite LabelMap.fold_1 in *.
@@ -736,7 +779,6 @@ Section link.
     hnf in H3; simpl in *; intuition; subst.
     unfold LabelMap.key in *.
     rewrite H1 in H.
-    destruct p; simpl in *.
     apply use_importsOk' in H; tauto.
 
     eauto.
@@ -778,14 +820,13 @@ Section link.
     -> forall v', LabelMap.MapsTo k0 v' (Blocks m1) -> v' = v.
     intros.
     elimtype False.
-    apply NoDups_Forall in NoDups.
-    apply LabelMap.elements_1 in H0.
-    apply SetoidList.InA_alt in H0.
-    destruct H0; intuition.
-    hnf in H1; simpl in *; intuition; subst.
-    apply (proj1 (List.Forall_forall _ _) NoDups) in H2; auto.
     apply LabelMap.find_2 in H.
-    hnf; eauto.
+    destruct k0.
+    apply (ModulesSound m1Ok) in H0.
+    apply (ModulesSound m2Ok) in H.
+    apply StringSet.is_empty_2 in NoDups.
+    eapply NoDups.
+    apply StringSet.inter_3; eauto.
   Qed.
 
   Hint Resolve use_NoDups.
@@ -818,22 +859,34 @@ Section link.
 
     intros.
     case_eq (LabelMap.find k0 (Blocks m2)); intros.
+    destruct (ImportsGlobal0 _ _ H1).
+    destruct k0; simpl in *; subst.
 
+    apply LabelMap.find_2 in H2.
+    destruct p.
+    apply ExportsComplete1 in H2.
+    apply LabelMap.find_1 in H2.
     specialize (use_importsOk _ ImportsOk1 H1 H2); intro; subst.
-    destruct p; simpl in *.
+
     right.
+    apply LabelMap.find_2 in H2.
+    apply ExportsSound1 in H2.
+    destruct H2.
     eexists.
     apply MapsTo_union2.
-    apply LabelMap.find_2; eauto.
     eauto.
+    apply LabelMap.find_1 in H2.
+    eauto.
+
     left.
     apply MapsTo_union1.
-
-
     apply MapsTo_diffr; auto.
     intro.
     destruct H3.
-    apply LabelMap.find_1 in H3; congruence.
+    apply ImportsGlobal0 in H1; destruct H1.
+    destruct k0; simpl in *; subst.
+    apply ExportsSound1 in H3; destruct H3.
+    apply LabelMap.find_1 in H1; congruence.
     apply LabelMap.elements_3w.
 
 
@@ -850,13 +903,20 @@ Section link.
     intros.
     case_eq (LabelMap.find k0 (Blocks m1)); intros.
 
+    apply LabelMap.find_2 in H2.
+    destruct p.
+    destruct (ImportsGlobal1 _ _ H1).
+    destruct k0; simpl in *; subst.
+    apply ExportsComplete0 in H2.
+    apply LabelMap.find_1 in H2.    
     specialize (use_importsOk _ ImportsOk2 H1 H2); intro; subst.
-    destruct p; simpl in *.
     right.
+    apply LabelMap.find_2 in H2.
+    destruct (ExportsSound0 _ _ _ H2).
     eexists.
     apply MapsTo_union1.
-    apply LabelMap.find_2; eauto.
     eauto.
+
     left.
     apply MapsTo_union2.
 
@@ -864,7 +924,12 @@ Section link.
     apply MapsTo_diffr; auto.
     intro.
     destruct H3.
-    apply LabelMap.find_1 in H3; congruence.
+    apply LabelMap.find_1 in H3.
+    apply ImportsGlobal1 in H1; destruct H1.
+    destruct k0; simpl in *; subst.
+    apply LabelMap.find_2 in H3.
+    apply ExportsSound0 in H3; destruct H3.
+    apply LabelMap.find_1 in H1; congruence.
     apply LabelMap.elements_3w.
 
     intros.
@@ -882,5 +947,49 @@ Section link.
 
     apply ImportsAgree_mono in ImportsAgree; tauto.
     eauto.
+
+
+    simpl; intros.
+    apply MapsTo_union in H; intuition.
+    apply MapsTo_diff in H0; intuition eauto.
+    apply MapsTo_diff in H0; intuition eauto.
+
+
+    simpl; intros.
+    apply MapsTo_union in H; intuition.
+    apply MapsTo_union1; eauto.
+    apply MapsTo_union2; eauto.
+
+
+    intros.
+    apply ModulesSound1 in H0.
+    apply ExportsSound0 in H; destruct H.
+    apply ModulesSound0 in H.
+    apply StringSet.is_empty_2 in NoDups.
+    hnf in NoDups; unfold not in NoDups.
+    elimtype False; eapply NoDups.
+    apply StringSet.inter_3; eauto.
+
+
+    simpl; intros.
+    apply MapsTo_union in H; intuition.
+    destruct (ExportsSound0 _ _ _ H0); eauto.
+    destruct (ExportsSound1 _ _ _ H0); eauto.
+    eexists; apply MapsTo_union2; eauto.
+
+
+    intros.
+    apply ModulesSound1 in H.
+    apply ModulesSound0 in H1.
+    apply StringSet.is_empty_2 in NoDups.
+    hnf in NoDups; unfold not in NoDups.
+    elimtype False; eapply NoDups.
+    apply StringSet.inter_3; eauto.
+
+
+    simpl; intros.
+    apply MapsTo_union in H; intuition.
+    apply StringSet.union_2; eapply ModulesSound0; eauto.
+    apply StringSet.union_3; eapply ModulesSound1; eauto.
   Qed.
 End link.
