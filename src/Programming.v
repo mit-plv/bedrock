@@ -433,8 +433,31 @@ Ltac structured_auto simp := apply bmoduleOk; [ exact (refl_equal false) | exact
                  | [ |- vcs ?Ps ] => apply (vcsImp_correct Ps)
                end ].
 
-Ltac link t1 t2 := apply linkOk; [ apply t1 | apply t2
-  | exact (refl_equal true) | repeat split | repeat split | repeat split ].
+Ltac link_simp := simpl Imports; simpl Exports;
+  cbv beta iota zeta delta [importsOk LabelMap.fold LabelMap.Raw.fold
+    LabelMap.this importsMap fold_left LabelMap.add LabelMap.Raw.add
+    LabelMap.empty LabelMap.Raw.empty
+    LabelKey.compare LabelKey.compare' string_lt
+    fst snd string_dec sumbool_rec sumbool_rect
+    Ascii.N_of_ascii Ascii.N_of_digits N.compare Pos.compare
+    string_rec string_rect Ascii.ascii_dec
+    LabelMap.find LabelMap.Raw.find Nplus Nmult Pos.compare_cont
+    Pos.add Pos.mul Ascii.ascii_rec Ascii.ascii_rect
+    Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
+    label'_lt label'_eq label'_rec label'_rect
+    LabelMap.Raw.bal LabelMap.Raw.create
+    Int.Z_as_Int.gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.ge_lt_dec
+    LabelMap.Raw.height
+    ZArith_dec.Z_gt_le_dec Int.Z_as_Int._0
+    BinInt.Z.add Int.Z_as_Int._1 Int.Z_as_Int._2
+    ZArith_dec.Z_gt_dec ZArith_dec.Z_ge_lt_dec Int.Z_as_Int.max
+    BinInt.Z.max BinInt.Z.compare union ZArith_dec.Z_ge_dec
+    diff LabelMap.mem LabelMap.Raw.mem LabelMap.is_empty
+    LabelMap.Raw.is_empty Pos.succ].
+
+Ltac link m1 m2 :=
+  apply linkOk; [ apply m1 | apply m2 | exact (refl_equal true)
+    | link_simp; tauto | link_simp; tauto | link_simp; tauto ].
 
 Lemma specs_cong : forall (specs : codeSpec W (settings * state)) x p,
   specs x = p

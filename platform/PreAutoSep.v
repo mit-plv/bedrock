@@ -144,6 +144,19 @@ Notation "'PREonly' [ vs ] pre" := (localsInvariantCont (fun vs _ => pre%qspec%S
 Notation "'PREonly' [ vs , rv ] pre" := (localsInvariantCont (fun vs rv => pre%qspec%Sep))
   (at level 89).
 
+Notation "'bfunctionNoRet' name () [ p ] b 'end'" :=
+  (let p' := p in
+   let vars := nil in
+   let b' := b%SP in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := ((fun _ _ =>
+        Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some vars))));;
+      (fun ns res => b' ns (res - (List.length vars - List.length (Formals p')))%nat))%SP;
+      FVars := vars;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
+
 Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
   (let p' := p in
    let vars := cons x1 (.. (cons xN nil) ..) in
