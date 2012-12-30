@@ -302,12 +302,3 @@ Ltac sep hints :=
 Ltac sep_auto := sep auto_ext.
 
 Hint Extern 1 False => discriminate.
-
-Lemma Labels_cong : forall stn stn' l pc,
-  Labels stn l = Some pc
-  -> Labels stn' = Labels stn
-  -> Labels stn' l = Some pc.
-  intros; rewrite H0; auto.
-Qed.
-
-Hint Immediate Labels_cong.
