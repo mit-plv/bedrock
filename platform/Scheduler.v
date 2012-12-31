@@ -284,7 +284,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [isEmptyS],
     "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
   bmodule "scheduler" {{
-    (*bfunction "init"("q", "sp", "r") [initS]
+    bfunction "init"("q", "sp", "r") [initS]
       "q" <-- Call "queue"!"init"()
       [PRE[_, R] mallocHeap 0
        POST[R'] Ex sp, Ex vs, (R' ==*> R, sp) * (R' ^+ $8) =?> 2
@@ -332,13 +332,14 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end with*) bfunctionNoRet "exit"("sc", "q", "r") [exitS]
-      Diverge
-      (*"q" <-* "sc";;
+    end with bfunctionNoRet "exit"("sc", "q", "r") [exitS]
+      "q" <-* "sc";;
       "r" <-- Call "queue"!"isEmpty"("q")
-      [Al q,
+      [Al q, Al tsp, Al vs,
         PREonly[V, R] [| (q %= empty) \is R |]
-          * queue q (V "q") * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * mallocHeap 0];;
+          * queue q (V "q") * (V "sc" ==*> V "q", tsp)
+          * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp          
+          * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * mallocHeap 0];;
 
       If ("r" = 1) {
         (* No threads left to run.  Let's loop forever! *)
@@ -348,15 +349,16 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
         "r" <- "sc" + 8;;
         Call "queue"!"dequeue"("q", "r")
-        [Al q, Al tsp, Al pc, Al sp,
+        [Al q, Al tsp, Al pc, Al sp, Al vs,
           PREonly[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * mallocHeap 0];;
+            * (V "sc" ==*> V "q", tsp, pc, sp) * mallocHeap 0
+            * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp];;
 
         Rp <-* "sc" + 8;;
         Sp <-* "sc" + 12;;
         IGoto* [("scheduler","exit")] Rp
-      }*)
+      }
     end with bfunction "yield"("sc", "q", "curPc", "curSp", "newPc", "newSp") [yieldS]
       "q" <-* "sc";;
       (* Using "curPc" as a temporary before getting to its primary use... *)
@@ -369,7 +371,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
       If ("curPc" = 1) {
         (* No other threads to run.  Simply returning to caller acts like a yield. *)
-        Return 0
+        Diverge (* Punting for now *)
       } else {
         (* Pick a thread to switch to. *)
 
@@ -421,9 +423,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := sep hints; try apply any_easy;
+Ltac t := abstract (sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto.
+    eauto).
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w
@@ -436,6 +438,25 @@ Local Hint Immediate wordBound.
   
 Hint Rewrite <- minus_n_O : sepFormula.
 
+Lemma substH_in3 : forall (a b c : Type) (P : hpropB (a :: b :: c :: nil))
+  (q1 : c -> PropX W (ST.settings * state))
+  (q2 : b -> PropX W (ST.settings * state))
+  (q3 : a -> PropX W (ST.settings * state)),
+  (fun (stn : ST.settings) (sm : smem) => subst (G := a :: nil) (subst (G := a :: b :: nil) (subst (P stn sm) q1) q2) q3) =
+  substH (substH (substH P q1) q2) q3.
+reflexivity.
+Qed.
+
+Hint Rewrite substH_in3 : sepFormula.
+
+Lemma Labels_cong : forall stn stn' l pc,
+  Labels stn l = Some pc
+  -> Labels stn' = Labels stn
+  -> Labels stn' l = Some pc.
+  intros; rewrite H0; auto.
+Qed.
+
+Hint Immediate Labels_cong.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -444,17 +465,114 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
-  Lemma substH_in3 : forall (a b c : Type) (P : hpropB (a :: b :: c :: nil))
-    (q1 : c -> PropX W (ST.settings * state))
-    (q2 : b -> PropX W (ST.settings * state))
-    (q3 : a -> PropX W (ST.settings * state)),
-    (fun (stn : ST.settings) (sm : smem) => subst (G := a :: nil) (subst (G := a :: b :: nil) (subst (P stn sm) q1) q2) q3) =
-    substH (substH (substH P q1) q2) q3.
-    reflexivity.
-  Qed.
+  post.
+  rewrite stackSize_split in H0.
+  assert (NoDup ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)) by NoDup.
+  evaluate hints; descend; repeat (step hints; descend); auto.
 
-  Hint Rewrite substH_in3 : sepFormula.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  post.
+  match goal with
+    | [ H : context[?X - 2] |- _ ] =>
+      replace X with (length ("rp" :: "sc" :: nil) + (X - length ("rp" :: "sc" :: nil))) in H
+  end.
+  assert (NoDup ("rp" :: "sc" :: nil)) by NoDup.
+  evaluate hints; sep hints; auto.
+  evaluate hints; simpl; omega.
+
+  t.
+
+  post.
+  evaluate auto_ext.
+  match goal with
+    | [ H : interp _ _ |- _ ] =>
+      toFront ltac:(fun P => match P with
+                               | starting _ _ _ => idtac
+                             end) H;
+      apply starting_elim in H; post; descend
+  end.
+  toFront_conc ltac:(fun P => match P with
+                                | susp _ _ _ => idtac
+                              end);
+  apply susp_intro; descend.
+  2: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
+  step auto_ext.
+  step auto_ext.
+  big_imp.
+  imp; [ | match goal with
+             | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H; refl
+           end ]; propxFo; eauto.
+  sep_auto.
+  sep_auto; auto.
+
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  
+  post; evaluate hints.
+  match goal with
+    | [ H : interp _ _ |- _ ] =>
+      toFront ltac:(fun P => match P with
+                               | susp _ _ _ => idtac
+                             end) H;
+      apply susp_elim in H; post
+  end.
+  descend.
+  step auto_ext.
+  match goal with
+    | [ H : _ |- _ ] => eapply H; eauto
+  end.
+  instantiate (1 := sched (sel x8 "sc")); simpl.
+  unfold localsInvariantCont; descend; step auto_ext.
+  instantiate (1 := fun p => fr_exit (fst p) (snd p));
+    instantiate (1 := vs);
+      match goal with
+        | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
+      end; clear; descend; step auto_ext.
+  step hints; apply any_easy.
+
+  t.
+  t.
 
   sep_auto.
   apply unandL.
@@ -502,8 +620,6 @@ Theorem ok : moduleOk m.
   
   t.
   t.
-  t.
-  admit. (* Regular return.  Needs exit() assumption. *)
   t.
 
   post.
@@ -582,16 +698,6 @@ Theorem ok : moduleOk m.
   repeat (apply andL; (apply injL || apply cptrL); intro).
   apply andL; apply swap; apply andL; apply injL; intro.
   apply unandL.
-
-  Lemma Labels_cong : forall stn stn' l pc,
-    Labels stn l = Some pc
-    -> Labels stn' = Labels stn
-    -> Labels stn' l = Some pc.
-    intros; rewrite H0; auto.
-  Qed.
-
-  Hint Immediate Labels_cong.
-
   simpl; repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
   apply andL; apply swap; apply implyR.
   rewrite H7; instantiate (1 := fun p => sched_ (fst p) (snd p)); refl.
@@ -641,104 +747,6 @@ Theorem ok : moduleOk m.
         | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
       end; clear.
   descend; step hints.
-
-
-  t.
-  t.
-  t.
-  t.
-  t.
-
-
-
-
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  
-
-  post.
-
-  rewrite stackSize_split in H0.
-  assert (NoDup ("rp" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)) by NoDup.
-  evaluate hints; descend; repeat (step hints; descend); auto.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-
-
-
-
-
-  vcgen; try abstract t.
-
-
-  post.
-  match goal with
-    | [ H : context[?X - 2] |- _ ] =>
-      replace X with (length ("rp" :: "sc" :: nil) + (X - length ("rp" :: "sc" :: nil))) in H
-  end.
-  assert (NoDup ("rp" :: "sc" :: nil)) by NoDup.
-  evaluate hints; sep hints; auto.
-  evaluate hints; simpl; omega.
-
-
-  post.
-  evaluate auto_ext.
-  match goal with
-    | [ H : interp _ _ |- _ ] =>
-      toFront ltac:(fun P => match P with
-                               | starting _ _ _ => idtac
-                             end) H;
-      apply starting_elim in H; post; descend
-  end.
-  toFront_conc ltac:(fun P => match P with
-                                | susp _ _ _ => idtac
-                              end);
-  apply susp_intro; descend.
-  2: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
-  step auto_ext.
-  step auto_ext.
-  big_imp.
-  imp; [ | match goal with
-             | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H; refl
-           end ]; propxFo; eauto.
-  sep_auto.
-  sep_auto; auto.
-
-
-  post; evaluate hints.
-  match goal with
-    | [ H : interp _ _ |- _ ] =>
-      toFront ltac:(fun P => match P with
-                               | susp _ _ _ => idtac
-                             end) H;
-      apply susp_elim in H; post
-  end.
-  descend.
-  step auto_ext.
-  match goal with
-    | [ H : _ |- _ ] => eapply H; eauto
-  end.
-  instantiate (1 := sched (sel x6 "sc")); simpl.
-  unfold localsInvariantCont.
-  descend; step auto_ext.
-  instantiate (1 := fun p => fr_exit (fst p) (snd p));
-    instantiate (1 := vs);
-      match goal with
-        | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
-      end; clear; descend; step auto_ext.
-  step hints; apply any_easy.
 Qed.
 
 Transparent stackSize.
