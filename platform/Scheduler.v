@@ -371,10 +371,10 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
       If ("curPc" = 1) {
         (* No other threads to run.  Simply returning to caller acts like a yield. *)
-        Diverge (* Punting for now *)
+        Rp <- $[Sp+0];;
+        IGoto* [("scheduler","exit")] Rp
       } else {
         (* Pick a thread to switch to. *)
-
         "curPc" <- "sc" + 8;;
         Call "queue"!"dequeue"("q", "curPc")
         [Al q, Al tsp, Al vs, Al pc, Al sp,
@@ -447,7 +447,16 @@ Lemma substH_in3 : forall (a b c : Type) (P : hpropB (a :: b :: c :: nil))
 reflexivity.
 Qed.
 
-Hint Rewrite substH_in3 : sepFormula.
+Lemma substH_in4 : forall (a b c d : Type) (P : hpropB (a :: b :: c :: d :: nil))
+  (q1 : d -> PropX W (ST.settings * state))
+  (q2 : c -> PropX W (ST.settings * state))
+  (q3 : b -> PropX W (ST.settings * state))
+  (q4 : a -> PropX W (ST.settings * state)),
+  (fun (stn : ST.settings) (sm : smem) => subst (G := a :: nil) (subst (G := a :: b :: nil)
+    (subst (G := a :: b :: c :: nil) (subst (P stn sm) q1) q2) q3) q4) =
+  substH (substH (substH (substH P q1) q2) q3) q4.
+  reflexivity.
+Qed.
 
 Lemma Labels_cong : forall stn stn' l pc,
   Labels stn l = Some pc
@@ -617,9 +626,29 @@ Theorem ok : moduleOk m.
   descend.
   rewrite substH_in3; descend.
   step auto_ext.
+  descend.
+  rewrite substH_in3; descend.
+  step auto_ext.
+
+  t.
+  t.
+  t.
+
+  sep hints.
+  eapply (Imply_sound (H7 _ _ _ _ _)); clear H7.
+  propxFo; eauto.
+  unfold localsInvariantCont; descend.
+  repeat rewrite substH_in4; descend.
+  instantiate (1 := fun p => sched (sel x6 "sc") (fst p) (snd p)).
+  descend; step hints.
+  instantiate (1 := a).
+  instantiate (1 := x10).
+  rewrite <- H7; clear.
+  step hints.
+  unfold localsInvariantCont; descend.
+  rewrite substH_in3; descend.
+  step hints.
   
-  t.
-  t.
   t.
 
   post.
@@ -642,6 +671,9 @@ Theorem ok : moduleOk m.
   repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
   apply andL; apply swap; apply implyR; refl.
   apply andL; apply implyR.
+  descend.
+  rewrite substH_in3; descend.
+  step auto_ext.
   descend.
   rewrite substH_in3; descend.
   step auto_ext.
@@ -675,6 +707,7 @@ Theorem ok : moduleOk m.
   apply andL; apply swap; apply implyR; refl.
   apply andL; apply implyR.
   descend.
+  rewrite substH_in3; descend.
   rewrite substH_in3; descend.
   step auto_ext.
 
