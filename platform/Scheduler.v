@@ -3,142 +3,74 @@ Require Import Arith AutoSep Bags Malloc Queue.
 Set Implicit Arguments.
 
 
+Require Import DepList.
+
+Fixpoint memoryOut' ls (m : smem' ls) : IL.mem :=
+  match m with
+    | HNil => fun _ => None
+    | HCons a _ v m' => fun a' => if weq a' a then v else memoryOut' m' a'
+  end.
+
+Definition memoryOut (m : smem) : IL.mem := memoryOut' m.
+
+Definition stateOut (p : settings * smem) (sc : W) : settings * state :=
+  (fst p, {| Regs := fun _ => sc; Mem := memoryOut (snd p) |}).
+
+Notation "##1" := (fun sc => ![ fun x : settings * smem => Lift (Var0 (stateOut x sc)) ])%Sep : Sep_scope.
+Notation "##2" := (fun sc => ![ fun x : settings * smem => Lift (Lift (Var0 (stateOut x sc))) ])%Sep : Sep_scope.
+
 (* What does it mean for a program counter to be valid for a suspended thread? *)
 
 Definition susp (sc pc sp : W) : HProp := fun s m =>
-  (ExX (* pre *) : settings * state, Cptr pc #0
+  (Ex pc_sched : W, [| s.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched |]
+    /\ ExX (* sched *) : settings * state, Cptr pc_sched #0
+    /\ ExX (* pre *) : settings * state, Cptr pc #0
     /\ ExX (* inv *) : settings * smem, #0 (s, m)
-    /\ AlX (* sched *) : settings * smem, AlX (* pre_exit *) : settings * state,
-      Al pc_exit : W, Al st : settings * state,
-      [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-      /\ [| (fst st).(Labels) = s.(Labels) |]
-      /\ Cptr pc_exit #0
-      /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs,
-        ![^[locals ("rp" :: "sc" :: nil) vs 12 st'#Sp]
-          * (#2 * #0 * ^[mallocHeap 0])] st'
-        /\ [| sel vs "sc" = sc |]
-        /\ [| (fst st').(Labels) = s.(Labels) |]
-        ---> #1 st')
-      /\ [| st#Sp = sp |]
-      /\ ![ #2 * #1 * ^[mallocHeap 0] ] st
-      ---> #3 st)%PropX.
+    /\ Al st : settings * state,
+    ![ #0 * ##2 sc * ^[mallocHeap 0] ] st
+    /\ [| st#Sp = sp |]
+    ---> #1 st)%PropX.
 
-(* What is a valid initial code pointer for a thread, given the requested stack size? *)
-
-Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
-  (ExX (* pre *) : settings * state, Cptr pc #0
-    /\ [| semp m |]
-    /\ AlX (* sched *) : settings * smem, AlX (* pre_exit *) : settings * state,
-      Al pc_exit : W, Al st : settings * state, Al vs : vals,
-      [| s.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-      /\ [| (fst st).(Labels) = s.(Labels) |]
-      /\ Cptr pc_exit #0
-      /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs',
-        ![^[locals ("rp" :: "sc" :: nil) vs' 12 st'#Sp]
-          * (#2 * #0 * ^[mallocHeap 0])] st'
-        /\ [| sel vs' "sc" = sc |]
-        /\ [| (fst st').(Labels) = s.(Labels) |]
-        ---> #1 st')
-      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp] * #1 * ^[mallocHeap 0] ] st
-      /\ [| sel vs "sc" = sc |]
-      ---> #2 st)%PropX.
+Definition predIn (P : settings * state -> PropX W (settings * state)) (sc : W) : HProp :=
+  fun stn sm => P (stateOut (stn, sm) sc).
 
 Lemma susp_intro : forall specs sc pc sp P stn st,
-  (exists pre, specs pc = Some (fun x => pre x)
-    /\ exists inv, interp specs (![ inv * P ] (stn, st))
-      /\ forall sched_ pre_exit pc_exit stn_st',
-        interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-          /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
-          /\ Cptr pc_exit (fun x => pre_exit x)
-          /\ (AlX, Al stn_st'', Al vs : vals,
-            ![^[locals ("rp" :: "sc" :: nil) vs 12 stn_st''#Sp]
-              * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
-            /\ [| sel vs "sc" = sc |]
-            /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
-            ---> Lift (pre_exit stn_st''))
-          /\ [| stn_st'#Sp = sp |]
-          /\ ![ inv * sched_ * mallocHeap 0 ] stn_st'
-          ---> pre stn_st')%PropX)
+  (exists pc_sched, stn.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched
+    /\ exists sched, specs pc_sched = Some (fun x => sched x)
+      /\ exists pre, specs pc = Some (fun x => pre x)
+        /\ exists inv, interp specs (![ inv * P ] (stn, st))
+          /\ forall stn_st, interp specs (![ inv * predIn sched sc * mallocHeap 0 ] stn_st
+            /\ [| stn_st#Sp = sp |]
+            ---> pre stn_st)%PropX)
   -> interp specs (![ susp sc pc sp * P ] (stn, st)).
   cptr.
-  instantiate (1 := fun x y => a (x, y)).
-  imp; propxFo; eauto.
 Qed.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
 
-Lemma starting_intro : forall specs sc pc ss P stn st,
-  (exists pre, specs pc = Some pre
-    /\ interp specs (![ P ] (stn, st))
-    /\ forall sched_ pre_exit pc_exit stn_st' vs,
-      interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-        /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
-        /\ Cptr pc_exit (fun x => pre_exit x)
-        /\ [| sel vs "sc" = sc |]
-        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * sched_ * mallocHeap 0] stn_st'
-        /\ (AlX , Al stn_st'', Al vs' : vals,
-          ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
-            * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
-          /\ [| sel vs' "sc" = sc |]
-          /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
-          ---> Lift (pre_exit stn_st''))
-        ---> pre stn_st')%PropX)
-  -> interp specs (![ starting sc pc ss * P ] (stn, st)).
-  cptr.
-  instantiate (2 := fun x y => a (x, y)).
-  imp; propxFo; eauto.
-Qed.
+Ltac make_Himp := match goal with
+                    | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
+                      let H := fresh in assert (P ===> Q); [ | rewrite sepFormula_eq; apply H ]
+                  end.
 
 Lemma susp_elim : forall specs sc pc sp P stn st,
   interp specs (![ susp sc pc sp * P ] (stn, st))
-  -> exists pre, specs pc = Some pre
-    /\ exists inv, interp specs (![ inv * P ] (stn, st))
-      /\ forall sched_ pre_exit pc_exit stn_st',
-        stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit
-        -> (fst stn_st').(Labels) = stn.(Labels)
-        -> specs pc_exit = Some (fun x => pre_exit x)
-        -> (forall fr_exit stn_st'' vs, interp specs (![^[locals ("rp" :: "sc" :: nil) vs 12 stn_st''#Sp]
-          * (sched_ * (fun s m => fr_exit s m) * ^[mallocHeap 0])] stn_st''
-        /\ [| sel vs "sc" = sc |]
-        /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
-        ---> pre_exit stn_st'')%PropX)
-        -> stn_st'#Sp = sp
-        -> interp specs (![ inv * sched_ * mallocHeap 0 ] stn_st')
-        -> interp specs (pre stn_st').
+  -> (exists pc_sched, stn.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched
+    /\ exists sched, specs pc_sched = Some (fun x => sched x)
+      /\ exists pre, specs pc = Some (fun x => pre x)
+        /\ exists inv, interp specs (![ inv * P ] (stn, st))
+          /\ forall stn_st, interp specs (![ inv * predIn sched sc * mallocHeap 0 ] stn_st
+            /\ [| stn_st#Sp = sp |]
+            ---> pre stn_st)%PropX).
   cptr.
   propxFo; eauto.
-  post; eauto.
-  big_imp.
-  instantiate (1 := x3).
-  instantiate (1 := fun x y => a (x, y)).
-  instantiate (1 := fun p => sched_ (fst p) (snd p)).
-  refl.
-  post; rewrite sepFormula_eq; propxFo; eauto 10.
+  descend; eauto.
+  rewrite <- sepFormula_eq; descend.
+  step auto_ext.
+  make_Himp.
+  apply Himp_refl.
 Qed.
 
-Lemma starting_elim : forall specs sc pc ss P stn st,
-  interp specs (![ starting sc pc ss * P ] (stn, st))
-  -> exists pre, specs pc = Some pre
-    /\ interp specs (![ P ] (stn, st))
-    /\ forall sched_ pre_exit pc_exit stn_st' vs,
-      interp specs ([| stn.(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-        /\ [| (fst stn_st').(Labels) = stn.(Labels) |]
-        /\ Cptr pc_exit (fun x => pre_exit x)
-        /\ [| sel vs "sc" = sc |]
-        /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st'#Sp * sched_ * mallocHeap 0 ] stn_st'
-        /\ (AlX, Al stn_st'', Al vs',
-          ![^[locals ("rp" :: "sc" :: nil) vs' 12 stn_st''#Sp]
-            * (^[sched_] * #0 * ^[mallocHeap 0])] stn_st''
-          /\ [| sel vs' "sc" = sc |]
-          /\ [| (fst stn_st'').(Labels) = stn.(Labels) |]
-        ---> Lift (pre_exit stn_st''))
-        ---> pre stn_st')%PropX.
-  cptr.
-  generalize (split_semp _ _ _ H0 H); intros; subst; auto.
-  post.
-  instantiate (3 := fun p => sched_ (fst p) (snd p)).
-  imp; propxFo; eauto.
-Qed.
 
 
 Inductive mergeSusp : Prop := MS.
@@ -218,32 +150,51 @@ Definition hints : TacPackage.
   prepare (sched_fwd, create_stack) (sched_bwd, susps_empty_bwd, susps_add_bwd).
 Defined.
 
-Definition yieldInvariant (pre : vals -> W -> qspec) (post : vals -> W -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
-  (ns : list string) (res : nat) : assert :=
-  st ~> let sp := adjustSp st#Sp in
-    ExX (* fr *), Ex vs, qspecOut (pre (sel vs) st#Rv) (fun _PRE =>
-      ![ ^[locals ("rp" :: ns) vs res sp * _PRE] * #0 ] st
-      /\ ExX (* ret *) : settings * state, Cptr (if rpStashed then sel vs "rp" else st#Rp) #0
-      /\ AlX (* sched *) : settings * smem, AlX (* pre_exit *) : settings * state,
-      Al pc_exit : W, Al st' : settings * state, Al vs' : vals,
-        [| (fst st').(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-        /\ Cptr pc_exit #0
-        /\ (AlX (* fr_exit *) : settings * smem, Al st'', Al vs',
-          ![^[locals ("rp" :: "sc" :: nil) vs' 12 st''#Sp]
-            * (#2 * #0 * ^[mallocHeap 0])] st''
-          /\ [| sel vs' "sc" = sel vs "sc" |]
-          /\ [| (fst st'').(Labels) = (fst st').(Labels) |]
-          ---> #1 st'')
-        /\ [| st'#Sp = sp |]
-        /\ qspecOut (post (sel vs) st#Rv st'#Rv) (fun _POST =>
-          ![ ^[locals ("rp" :: ns) vs' res sp * _POST] * #3 * #1 ] st')
-        ---> #2 st')%PropX.
+(* What is a valid initial code pointer for a thread, given the requested stack size? *)
 
-Notation "'PREy' [ vs ] pre 'POST' [ rv ] post" := (yieldInvariant (fun vs _ => pre%qspec%Sep) (fun vs _ rv => post%qspec%Sep))
-  (at level 89).
+Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
+  (ExX (* pre *) : settings * state, Cptr pc #0
+    /\ [| semp m |]
+    /\ Al st : settings * state, Al vs,
+      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * sched sc * mallocHeap 0] ] st
+      /\ [| sel vs "sc" = sc |]
+      ---> #0 st)%PropX.
 
-Notation "'PREy' [ vs , rv ] pre 'POST' [ rv' ] post" := (yieldInvariant (fun vs rv => pre%qspec%Sep) (fun vs rv rv' => post%qspec%Sep))
-  (at level 89).
+Lemma starting_intro : forall specs sc pc ss P stn st,
+  (exists pre, specs pc = Some (fun x => pre x)
+    /\ interp specs (![ P ] (stn, st))
+    /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      * sched sc * mallocHeap 0 ] stn_st
+    /\ [| sel vs "sc" = sc |]
+    ---> pre stn_st)%PropX)
+  -> interp specs (![ starting sc pc ss * P ] (stn, st)).
+  cptr.
+Qed.
+
+Lemma starting_elim : forall specs sc pc ss P stn st,
+  interp specs (![ starting sc pc ss * P ] (stn, st))
+  -> (exists pre, specs pc = Some (fun x => pre x)
+    /\ interp specs (![ P ] (stn, st))
+    /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      * sched sc * mallocHeap 0 ] stn_st
+    /\ [| sel vs "sc" = sc |]
+    ---> pre stn_st)%PropX).
+  cptr.
+  generalize (split_semp _ _ _ H0 H); intros; subst; auto.
+  rewrite <- sepFormula_eq; descend; step auto_ext.
+  make_Himp.
+  apply Himp_refl.
+  assumption.
+Qed.
+
+
+Notation "'badt' name p 'end'" :=
+  {| FName := name;
+    FPrecondition := (fun s => ![ p s#Rp ] s)%PropX;
+    FBody := Diverge;
+    FVars := nil;
+    FReserved := 0 |}
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Definition initS : spec := SPEC reserving 12
   PRE[_] mallocHeap 0
@@ -261,8 +212,8 @@ Definition exitS : spec := SPEC("sc") reserving 12
   PREonly[V] sched (V "sc") * mallocHeap 0.
 
 Definition yieldS : spec := SPEC("sc") reserving 19
-  PREy[V] sched (V "sc") * mallocHeap 0
-  POST[_] mallocHeap 0.
+  PRE[V] sched (V "sc") * mallocHeap 0
+  POST[_] sched (V "sc") * mallocHeap 0.
 
 (* Next, some hijinks to prevent unnecessary unfolding of distinct memory cells for the scheduler's stack. *)
 
@@ -280,11 +231,22 @@ Qed.
 
 Opaque stackSize.
 
+Definition yieldInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (res : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    Ex vs, qspecOut (pre (sel vs) st#Rv) (fun pre =>
+      ![ ^[locals ("rp" :: ns) vs res sp * pre] ] st).
+
+Notation "'PREy' [ vs ] pre" := (yieldInvariantCont (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [isEmptyS],
     "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
   bmodule "scheduler" {{
-    bfunction "init"("q", "sp", "r") [initS]
+    badt "ADT"
+      sched
+    end with bfunction "init"("q", "sp", "r") [initS]
       "q" <-- Call "queue"!"init"()
       [PRE[_, R] mallocHeap 0
        POST[R'] Ex sp, Ex vs, (R' ==*> R, sp) * (R' ^+ $8) =?> 2
@@ -357,37 +319,37 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
         Rp <-* "sc" + 8;;
         Sp <-* "sc" + 12;;
-        IGoto* [("scheduler","exit")] Rp
+        IGoto* [("scheduler","ADT")] Rp
       }
     end with bfunction "yield"("sc", "q", "curPc", "curSp", "newPc", "newSp") [yieldS]
       "q" <-* "sc";;
       (* Using "curPc" as a temporary before getting to its primary use... *)
       "curPc" <-- Call "queue"!"isEmpty"("q")
       [Al q, Al tsp, Al vs,
-        PREy[V, R] [| (q %= empty) \is R |]
+        PRE[V, R] [| (q %= empty) \is R |]
           * queue q (V "q") * (V "sc" ==*> V "q", tsp) * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * mallocHeap 0
           * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-        POST[_] mallocHeap 0];;
+        POST[_] sched (V "sc") * mallocHeap 0];;
 
       If ("curPc" = 1) {
         (* No other threads to run.  Simply returning to caller acts like a yield. *)
         Rp <- $[Sp+0];;
-        IGoto* [("scheduler","exit")] Rp
+        IGoto* [("scheduler","ADT")] Rp
       } else {
         (* Pick a thread to switch to. *)
         "curPc" <- "sc" + 8;;
         Call "queue"!"dequeue"("q", "curPc")
         [Al q, Al tsp, Al vs, Al pc, Al sp,
-          PREy[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
+          PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
             * (V "sc" ==*> V "q", tsp, pc, sp) * mallocHeap 0
             * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-          POST[_] mallocHeap 0];;
+          POST[_] sched (V "sc") * mallocHeap 0];;
         "newPc" <-* "sc" + 8;;
         "newSp" <-* "sc" + 12;;
 
-        Assert [PREy[V] susp (V "sc") (V "newPc") (V "newSp") * sched (V "sc") * mallocHeap 0
-          POST[_] mallocHeap 0];;
+        Assert [PRE[V] susp (V "sc") (V "newPc") (V "newSp") * sched (V "sc") * mallocHeap 0
+          POST[_] sched (V "sc") * mallocHeap 0];;
 
         (* Initialize the temporary stack with data we will need, then switch to using it as our stack. *)
         "curPc" <-* "sc" + 4;;
@@ -400,7 +362,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         "curPc" + 24 *<- "newSp";;
         Sp <- "curPc";;
 
-        Assert [PREonly[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
+        Assert [PREy[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
           * queue b (V "q") * susps b (V "sc") * any * mallocHeap 0
           * susp (V "sc") (V "newPc") (V "newSp") * susp (V "sc") (V "curPc") (V "curSp")];;
 
@@ -408,7 +370,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
         (* Enqueue current thread; note that variable references below resolve in the temporary stack. *)
         Call "queue"!"enqueue"("q", "curPc", "curSp")
-        [PREonly[V] Ex b, Ex p, Ex sp, (V "sc" ==*> p, sp) * (V "sc" ^+ $8) =?> 2
+        [PREy[V] Ex b, Ex p, Ex sp, (V "sc" ==*> p, sp) * (V "sc" ^+ $8) =?> 2
           * queue b p * susps b (V "sc") * any
           * mallocHeap 0 * susp (V "sc") (V "newPc") (V "newSp")];;
 
@@ -416,16 +378,20 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         "sc" + 4 *<- Sp;;
         Rp <- "newPc";;
         Sp <- "newSp";;
-        IGoto* [("scheduler","exit")] Rp
+        IGoto* [("scheduler","ADT")] Rp
       }
     end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := abstract (sep hints; try apply any_easy;
+Ltac t := solve [ sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto).
+    eauto ].
+
+(*Ltac t := abstract (sep hints; try apply any_easy;
+  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
+    eauto).*)
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w
@@ -438,26 +404,6 @@ Local Hint Immediate wordBound.
   
 Hint Rewrite <- minus_n_O : sepFormula.
 
-Lemma substH_in3 : forall (a b c : Type) (P : hpropB (a :: b :: c :: nil))
-  (q1 : c -> PropX W (ST.settings * state))
-  (q2 : b -> PropX W (ST.settings * state))
-  (q3 : a -> PropX W (ST.settings * state)),
-  (fun (stn : ST.settings) (sm : smem) => subst (G := a :: nil) (subst (G := a :: b :: nil) (subst (P stn sm) q1) q2) q3) =
-  substH (substH (substH P q1) q2) q3.
-reflexivity.
-Qed.
-
-Lemma substH_in4 : forall (a b c d : Type) (P : hpropB (a :: b :: c :: d :: nil))
-  (q1 : d -> PropX W (ST.settings * state))
-  (q2 : c -> PropX W (ST.settings * state))
-  (q3 : b -> PropX W (ST.settings * state))
-  (q4 : a -> PropX W (ST.settings * state)),
-  (fun (stn : ST.settings) (sm : smem) => subst (G := a :: nil) (subst (G := a :: b :: nil)
-    (subst (G := a :: b :: c :: nil) (subst (P stn sm) q1) q2) q3) q4) =
-  substH (substH (substH (substH P q1) q2) q3) q4.
-  reflexivity.
-Qed.
-
 Lemma Labels_cong : forall stn stn' l pc,
   Labels stn l = Some pc
   -> Labels stn' = Labels stn
@@ -467,8 +413,36 @@ Qed.
 
 Hint Immediate Labels_cong.
 
+Lemma memoryIn'_irrel : forall ls m m',
+  List.Forall (fun a => m a = m' a) ls
+  -> memoryIn' m ls = memoryIn' m' ls.
+  induction ls; inversion 1; subst; simpl; intuition.
+  f_equal; auto.
+Qed.
+
+Lemma memoryIn'_memoryOut' : forall ls (m : smem' ls),
+  NoDup ls
+  -> memoryIn' (memoryOut' m) ls = m.
+  induction m0; inversion 1; subst; simpl; intuition.
+  f_equal.
+  unfold H.mem_get, ReadByte.
+  destruct (weq x x); tauto.
+  erewrite memoryIn'_irrel.
+  eauto.
+  apply Forall_forall; intros.
+  destruct (weq x0 x).
+  subst x; tauto.
+  auto.
+Qed.
+
+Theorem memoryIn_memoryOut : forall m, memoryIn (memoryOut m) = m.
+  intros; apply memoryIn'_memoryOut'; apply H.NoDup_all_addr.
+Qed.
+
 Theorem ok : moduleOk m.
   vcgen.
+
+  t.
 
   t.
   t.
@@ -520,8 +494,9 @@ Theorem ok : moduleOk m.
 
   t.
 
-  post.
-  evaluate auto_ext.
+  (* This case ("starting -> susp") will need some more Structured magic. *)
+  admit.
+  (*post; evaluate auto_ext.
   match goal with
     | [ H : interp _ _ |- _ ] =>
       toFront ltac:(fun P => match P with
@@ -533,15 +508,19 @@ Theorem ok : moduleOk m.
                                 | susp _ _ _ => idtac
                               end);
   apply susp_intro; descend.
-  2: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
+  4: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
+  eauto.
+  eauto.
+  eauto.
+  eapply Imply_trans; [ | apply H12 ]; clear H12.
   step auto_ext.
   step auto_ext.
-  big_imp.
-  imp; [ | match goal with
-             | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H; refl
-           end ]; propxFo; eauto.
-  sep_auto.
-  sep_auto; auto.
+  match goal with
+    | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H
+  end; make_Himp; apply Himp_refl.
+  auto.
+  step auto_ext.
+  sep_auto; auto.*)
 
   t.
   t.
@@ -569,41 +548,28 @@ Theorem ok : moduleOk m.
   descend.
   step auto_ext.
   match goal with
-    | [ H : _ |- _ ] => eapply H; eauto
+    | [ H : _ |- _ ] => eapply (Imply_sound (H _)); clear H; eauto
   end.
-  instantiate (1 := sched (sel x8 "sc")); simpl.
-  unfold localsInvariantCont; descend; step auto_ext.
-  instantiate (1 := fun p => fr_exit (fst p) (snd p));
-    instantiate (1 := vs);
-      match goal with
-        | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
-      end; clear; descend; step auto_ext.
+  propxFo.
+  unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
+  rewrite H9 in H2; injection H2; clear H2 H9; intros; subst.
+  assert (interp specs (![x12 * sched (sel x8 "sc") * mallocHeap 0] (stn, st)
+    ---> ![x12 * predIn x10 (sel x8 "sc") * mallocHeap 0] (stn, st))%PropX).
+  make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
+  unfold Himp, himp; intros.
+  unfold predIn.
+  change x10 with (fun x => x10 x).
+  rewrite H.
+  rewrite sepFormula_eq; unfold sepFormula_def; simpl.
+
+  rewrite memoryIn_memoryOut.
+  apply Imply_refl.
+  apply (Imply_sound H0); clear H0 H.
   step hints; apply any_easy.
 
   t.
   t.
-
-  sep_auto.
-  apply unandL.
-  eapply Imply_trans; [ | apply H3 ]; clear H3.
-  repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
-  apply andL; apply swap; apply implyR.
-  refl.
-  apply andL; apply implyR.
-  descend.
-  rewrite substH_in3; descend.
-  match goal with
-    | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
-      let H := fresh in assert (H : P ===> Q); [ | rewrite sepFormula_eq; apply H ]
-  end.
-  repeat (apply Himp_star_frame; [ | apply Himp_refl ]).
-  change ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
-    with (("rp" :: "sc" :: nil) ++ ("q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)).
-  change 14 with (19 - length ("q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)) at 1.
-  eapply Himp_trans; [ apply prelude_out | ].
-  simpl; auto.
-  rewrite H0; apply Himp_refl.
-
+  t.
   t.
 
   post.
@@ -612,108 +578,42 @@ Theorem ok : moduleOk m.
   step hints.
   step hints.
   step hints.
-  unfold yieldInvariant; descend; step hints.
+  descend; step hints.
   instantiate (2 := x7).
   instantiate (3 := upd x1 "q" x8).
   descend; cancel hints.
-  step hints.
-  step hints.
-  apply unandL; apply implyR.
-  eapply Imply_trans; [ | apply H4 ]; clear H4.
-  repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
-  apply andL; apply swap; apply implyR; refl.
-  apply andL; apply implyR.
-  descend.
-  rewrite substH_in3; descend.
-  step auto_ext.
-  descend.
-  rewrite substH_in3; descend.
-  step auto_ext.
-
-  t.
-  t.
-  t.
-
   sep hints.
-  eapply (Imply_sound (H7 _ _ _ _ _)); clear H7.
-  propxFo; eauto.
-  unfold localsInvariantCont; descend.
-  repeat rewrite substH_in4; descend.
-  instantiate (1 := fun p => sched (sel x6 "sc") (fst p) (snd p)).
-  descend; step hints.
-  instantiate (1 := a).
-  instantiate (1 := x10).
-  rewrite <- H7; clear.
-  step hints.
-  unfold localsInvariantCont; descend.
-  rewrite substH_in3; descend.
-  step hints.
-  
+  sep hints.
+  sep hints; auto.
+
+  t.
+  t.
+  t.
+  t.
   t.
 
-  post.
-  evaluate hints.
-  descend.
+  post; evaluate hints; descend.
   step hints.
   2: step hints.
   eauto.
   step hints.
-  unfold yieldInvariant; descend; step hints.
+  descend; step hints.
   instantiate (2 := x2).
   instantiate (4 := upd (upd x5 "curPc" (Regs x0 Rv)) "curPc" (sel x5 "sc" ^+ $8)).
   descend; cancel hints.
   step hints.
   apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ].
   step hints.
-  descend.
-  apply unandL; apply implyR.
-  eapply Imply_trans; [ | apply H6 ]; clear H6.
-  repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
-  apply andL; apply swap; apply implyR; refl.
-  apply andL; apply implyR.
-  descend.
-  rewrite substH_in3; descend.
-  step auto_ext.
-  descend.
-  rewrite substH_in3; descend.
-  step auto_ext.
+  sep hints; auto.
 
   t.
   t.
-
-  post.
-  evaluate hints.
-  descend.
-  instantiate (2 := upd (upd x7 "newPc" x4) "newSp" x5).
-  descend.
-  step hints.
-  rewrite (create_locals_return ("rp" :: "sc" :: nil) 12
-    ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
-    14 28).
-  assert (ok_return ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
-    ("rp" :: "sc" :: nil) 14 12 28)%nat by (split; [
-      simpl; omega
-      | reflexivity ] ).
-  autorewrite with sepFormula.
-  generalize dependent (upd (upd x7 "newPc" x4) "newSp" x5); intros.
-  cancel auto_ext.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  apply unandL.
-  eapply Imply_trans; [ | apply H4 ]; clear H4.
-  repeat (apply andL; (apply injL || apply cptrL); intro).
-  simpl; repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
-  apply andL; apply swap; apply implyR; refl.
-  apply andL; apply implyR.
-  descend.
-  rewrite substH_in3; descend.
-  rewrite substH_in3; descend.
-  step auto_ext.
-
+  t.
   t.
 
-  post.
+  (* Needs more Structured magic to get ahold of a fact about ADT *)
+  admit.
+  (*post.
   evaluate hints.
   descend.
   instantiate (2 := upd (upd (upd (upd (upd (upd x5 "sc" (sel x1 "sc")) "q" x7) "curPc"
@@ -739,20 +639,18 @@ Theorem ok : moduleOk m.
   rewrite substH_in3; descend.
   instantiate (1 := upd (upd x1 "curPc" x6) "q" x7).
   clear.
-  step auto_ext.
+  step auto_ext.*)
 
   t.
   t.
 
-  post.
-  evaluate hints.
-  descend.
-  instantiate (3 := x3).
+  post; evaluate hints; descend.
+  instantiate (3 := x2).
   step hints.
   step hints.
   step hints.
-  descend; step hints.
-  instantiate (6 := x3 %+ (sel x1 "curPc", sel x1 "curSp")).
+  unfold yieldInvariantCont; descend; step hints.
+  instantiate (5 := x2 %+ (sel x0 "curPc", sel x0 "curSp")).
   descend; step hints.
 
   t.
@@ -769,17 +667,23 @@ Theorem ok : moduleOk m.
   descend.
   step auto_ext.
   match goal with
-    | [ H : _ |- _ ] => eapply H; eauto
+    | [ H : _ |- _ ] => eapply (Imply_sound (H _)); eauto
   end.
-  2: step hints.
-  unfold localsInvariantCont.
-  descend; step auto_ext.
-  instantiate (1 := fun p => (fr_exit * (fun x y => x2 (x, y)))%Sep (fst p) (snd p));
-    instantiate (1 := vs);
-      match goal with
-        | [ H : sel _ "sc" = sel _ "sc" |- _ ] => rewrite H
-      end; clear.
-  descend; step hints.
+  unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
+  rewrite H8 in H2; injection H2; clear H2 H8; intros; subst.
+  assert (interp specs (![x10 * sched (sel x2 "sc") * mallocHeap 0] (stn, st)
+    ---> ![x10 * predIn x8 (sel x2 "sc") * mallocHeap 0] (stn, st))%PropX).
+  make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
+  unfold Himp, himp; intros.
+  unfold predIn.
+  change x8 with (fun x => x8 x).
+  rewrite H1.
+  rewrite sepFormula_eq; unfold sepFormula_def; simpl.
+  rewrite memoryIn_memoryOut.
+  apply Imply_refl.
+  propxFo.
+  apply (Imply_sound H2); clear H2 H1.
+  step hints.
 Qed.
 
 Transparent stackSize.
