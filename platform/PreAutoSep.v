@@ -61,7 +61,7 @@ Definition Note__ (P : Prop) : chunk := fun _ _ =>
 
 Notation "'Note' [ P ]" := (Note__ P) (no associativity, at level 95) : SP_scope.
 
-Section IGotoStar_.
+Section SomethingStar.
   Variable imps : LabelMap.t assert.
   Variable mn : string.
 
@@ -88,47 +88,94 @@ Section IGotoStar_.
   Import DefineStructured.
 
   Variable ls : list (string * string).
-  Variable rv : rvalue.
 
   Transparent evalInstrs.
 
   Hint Resolve prove_augment.
 
-  Definition IGotoStar_ : cmd imps mn.
-    red; refine (fun pre => {|
-      Postcondition := (fun _ => [|False|])%PropX;
-      VerifCond := (forall specs stn st, interp specs (pre (stn, st))
-        -> augment specs stn ls
-        -> match evalRvalue stn st rv with
-             | None => rvalueCrashes rv
-             | Some w => exists pre', specs w = Some pre'
-               /\ interp specs (pre' (stn, st))
-           end) :: nil;
-      Generate := fun Base Exit => {|
-        Entry := 0;
-        Blocks := (pre, (nil, Uncond rv)) :: nil
-      |}
-    |}); abstract (solve [ struct
-      | intros; repeat match goal with
-                         | [ H : vcs nil |- _ ] => clear H
-                         | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
-                         | [ |- List.Forall _ _ ] => constructor; simpl
-                         | [ |- blockOk _ _ _ ] => hnf; intros
-                         | [ H : forall x y z, interp _ _ -> augment _ _ _ -> _, H' : interp _ _ |- _ ] =>
-                           specialize (H _ _ _ H');
-                             match type of H with
-                               | ?P -> _ => assert P by auto; intuition simpl
-                             end
-                         | [ H : match ?X with None => _ | _ => _ end |- _ ] => destruct X; intuition
-                         | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
-                       end ]).
-  Defined.
-End IGotoStar_.
+  Section IGotoStar.
+    Variable rv : rvalue.
+
+    Definition IGotoStar_ : cmd imps mn.
+      red; refine (fun pre => {|
+        Postcondition := (fun _ => [|False|])%PropX;
+        VerifCond := (forall specs stn st, interp specs (pre (stn, st))
+          -> augment specs stn ls
+          -> match evalRvalue stn st rv with
+               | None => rvalueCrashes rv
+               | Some w => exists pre', specs w = Some pre'
+                 /\ interp specs (pre' (stn, st))
+             end) :: nil;
+        Generate := fun Base Exit => {|
+          Entry := 0;
+          Blocks := (pre, (nil, Uncond rv)) :: nil
+        |}
+      |}); abstract (solve [ struct
+        | intros; repeat match goal with
+                           | [ H : vcs nil |- _ ] => clear H
+                           | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                           | [ |- List.Forall _ _ ] => constructor; simpl
+                           | [ |- blockOk _ _ _ ] => hnf; intros
+                           | [ H : forall x y z, interp _ _ -> augment _ _ _ -> _, H' : interp _ _ |- _ ] =>
+                             specialize (H _ _ _ H');
+                               match type of H with
+                                 | ?P -> _ => assert P by auto; intuition simpl
+                               end
+                           | [ H : match ?X with None => _ | _ => _ end |- _ ] => destruct X; intuition
+                           | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
+                         end ]).
+    Defined.
+  End IGotoStar.
+
+  Section AssertStar.
+    Variable post : assert.
+
+    Definition AssertStar_ : cmd imps mn.
+      red; refine (fun pre => {|
+        Postcondition := post;
+        VerifCond := (forall stn_st specs, interp specs (pre stn_st)
+          -> augment specs (fst stn_st) ls
+          -> interp specs (post stn_st)) :: nil;
+        Generate := fun Base Exit => {|
+          Entry := 0;
+          Blocks := (pre, (nil, Uncond (RvLabel (mn, Local Exit)))) :: nil
+        |}
+      |}); abstract solve [ struct
+        | intros; repeat match goal with
+                           | [ H : vcs nil |- _ ] => clear H
+                           | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                           | [ |- List.Forall _ _ ] => constructor; simpl
+                           | [ |- blockOk _ _ _ ] => hnf; intros
+                           | [ H : forall x y z, interp _ _ -> augment _ _ _ -> _, H' : interp _ _ |- _ ] =>
+                             specialize (H _ _ _ H');
+                               match type of H with
+                                 | ?P -> _ => assert P by auto; intuition simpl
+                               end
+                           | [ H : match ?X with None => _ | _ => _ end |- _ ] => destruct X; intuition
+                           | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
+                           | [ H : forall l : LabelMap.key, _ |- _ ] => destruct (H (mn, Local Exit) post) as [ ? [ ] ];
+                             [ solve [ auto ] | ]; do 2 esplit; [ unfold evalBlock; simpl;
+                               match goal with
+                                 | [ H : _ |- _ ] => solve [ rewrite H; eauto ]
+                               end | simpl; do 2 esplit; eauto; match goal with
+                                                                  | [ H : _ |- _ ] => apply H; auto
+                                                                end ]
+                         end ].
+    Defined.
+  End AssertStar.
+End SomethingStar.
 
 Definition IGotoStar ls (rv : rvalue') : chunk := fun ns _ =>
   Structured nil (fun _ _ _ => IGotoStar_ _ _ ls (rv ns)).
 
 Notation "'IGoto*' [ l1 , .. , lN ] rv" := (IGotoStar (cons l1 (.. (cons lN nil) ..)) rv) (no associativity, at level 95) : SP_scope.
+
+Definition AssertStar ls (post : list string -> nat -> assert) : chunk := fun ns res =>
+  Structured nil (fun _ _ _ => AssertStar_ _ _ ls (post ns res)).
+
+Local Notation INV := (fun inv => inv true (fun w => w)).
+
+Notation "'Assert*' [ l1 , .. , lN ] [ post ]" := (AssertStar (cons l1 (.. (cons lN nil) ..)) (INV post)) (no associativity, at level 95) : SP_scope.
 
 Require Import Bool.
 
@@ -201,7 +248,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   COperand1 CTest COperand2 Pos.succ
   makeVcs
   Note_ Note__
-  IGotoStar_ IGotoStar
+  IGotoStar_ IGotoStar AssertStar_ AssertStar
 ].
 
 Ltac vcgen :=

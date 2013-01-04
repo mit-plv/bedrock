@@ -290,6 +290,10 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       (* Save pointer to scheduler data structure in new thread's stack. *)
       "ss" + 4 *<- "sc";;
 
+      Assert* [("scheduler","ADT")]
+      [PRE[V] sched (V "sc") * susp (V "sc") (V "pc") (V "ss") * mallocHeap 0
+       POST[_] sched (V "sc") * mallocHeap 0];;
+
       Call "scheduler"!"spawnWithStack"("sc", "pc", "ss")
       [PRE[_] Emp
        POST[_] Emp];;
@@ -362,7 +366,8 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         "curPc" + 24 *<- "newSp";;
         Sp <- "curPc";;
 
-        Assert [PREy[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
+        Assert* [("scheduler","ADT")]
+        [PREy[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
           * queue b (V "q") * susps b (V "sc") * any * mallocHeap 0
           * susp (V "sc") (V "newPc") (V "newSp") * susp (V "sc") (V "curPc") (V "curSp")];;
 
@@ -494,9 +499,7 @@ Theorem ok : moduleOk m.
 
   t.
 
-  (* This case ("starting -> susp") will need some more Structured magic. *)
-  admit.
-  (*post; evaluate auto_ext.
+  post; evaluate auto_ext.
   match goal with
     | [ H : interp _ _ |- _ ] =>
       toFront ltac:(fun P => match P with
@@ -508,20 +511,28 @@ Theorem ok : moduleOk m.
                                 | susp _ _ _ => idtac
                               end);
   apply susp_intro; descend.
-  4: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x1 "sc" (sel x3 "sc")) x0 (sel x3 "ss")); sep_auto.
+  4: instantiate (4 := locals ("rp" :: "sc" :: nil) (upd x2 "sc" (sel x4 "sc")) x1 (sel x4 "ss")); sep_auto.
   eauto.
   eauto.
   eauto.
-  eapply Imply_trans; [ | apply H12 ]; clear H12.
+  eapply Imply_trans; [ | apply H10 ]; clear H10.
   step auto_ext.
   step auto_ext.
   match goal with
-    | [ H : Regs _ Sp = sel _ "ss" |- _ ] => rewrite H
-  end; make_Himp; apply Himp_refl.
+    | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
+      let H := fresh in assert (P ===> Q); [ | rewrite sepFormula_eq in *; apply H ]
+  end.
+  rewrite H9.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply Himp_star_frame; try apply Himp_refl.
+  do 3 intro; rewrite sepFormula_eq; unfold predIn, sepFormula_def; simpl.
+  rewrite memoryIn_memoryOut; apply Imply_refl.
   auto.
   step auto_ext.
-  sep_auto; auto.*)
+  sep_auto.
 
+  t.
+  sep_auto; auto.
   t.
   t.
   t.
@@ -561,7 +572,6 @@ Theorem ok : moduleOk m.
   change x10 with (fun x => x10 x).
   rewrite H.
   rewrite sepFormula_eq; unfold sepFormula_def; simpl.
-
   rewrite memoryIn_memoryOut.
   apply Imply_refl.
   apply (Imply_sound H0); clear H0 H.
@@ -611,35 +621,34 @@ Theorem ok : moduleOk m.
   t.
   t.
 
-  (* Needs more Structured magic to get ahold of a fact about ADT *)
-  admit.
-  (*post.
-  evaluate hints.
+  post; evaluate hints.
   descend.
-  instantiate (2 := upd (upd (upd (upd (upd (upd x5 "sc" (sel x1 "sc")) "q" x7) "curPc"
-    (sel x1 "rp")) "curSp" (Regs x Sp)) "newPc" (sel x1 "newPc")) "newSp" (sel x1 "newSp")); descend.
+  instantiate (1 := upd (upd (upd (upd (upd (upd x6 "sc" (sel x2 "sc")) "q" x8) "curPc"
+    (sel x2 "rp")) "curSp" (Regs x0 Sp)) "newPc" (sel x2 "newPc")) "newSp" (sel x2 "newSp")); descend.
   toFront_conc ltac:(fun P => match P with
                                 | susp _ (sel _ "rp") _ => idtac
                               end).
   apply susp_intro; descend; eauto.
   match goal with
     | [ _ : context[locals ?ns ?v ?a (Regs ?st Sp)] |- interp specs (![?P * _] _) ] =>
-      equate P (locals ns v a (Regs st Sp) * (fun x y => x0 (x, y)))%Sep
+      equate P (locals ns v a (Regs st Sp) * (fun x y => x1 (x, y)))%Sep
   end.
   step hints.
-  big_imp.
-  repeat (apply andL; (apply injL || apply cptrL); intro).
-  apply andL; apply swap; apply andL; apply injL; intro.
-  apply unandL.
-  simpl; repeat apply andR; try ((apply injR || apply cptrR); simpl; eauto).
-  apply andL; apply swap; apply implyR.
-  rewrite H7; instantiate (1 := fun p => sched_ (fst p) (snd p)); refl.
-  apply andL; apply implyR.
-  descend.
-  rewrite substH_in3; descend.
-  instantiate (1 := upd (upd x1 "curPc" x6) "q" x7).
-  clear.
-  step auto_ext.*)
+  step auto_ext.
+  step auto_ext.
+  match goal with
+    | [ |- interp _ (![?P * ?Q * ?R * ?S] _ ---> _)%PropX ] =>
+      let H := fresh in assert (H : P * Q * R * S ===> P * Q * sched (sel x2 "sc") * S); [
+        | eapply Imply_trans; [ rewrite sepFormula_eq in *; apply H | ] ]
+  end.
+  repeat apply Himp_star_frame; try apply Himp_refl.
+  do 3 intro; rewrite sepFormula_eq; unfold sepFormula_def, predIn; simpl.
+  rewrite memoryIn_memoryOut; apply Imply_refl.
+  match goal with
+    | [ |- interp _ (?P ?x ?y ---> _) ] => change (P x y) with (sepFormula_def P (s, s0))
+  end; rewrite <- sepFormula_eq.
+  instantiate (1 := upd (upd x2 "curPc" x7) "q" x8); clear.
+  step auto_ext.
 
   t.
   t.
