@@ -2,108 +2,14 @@ Require Import AutoSep Malloc Scheduler.
 Export AutoSep Malloc Scheduler.
 
 
-Definition threadInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
-  (ns : list string) (res : nat) : assert := st ~>
-    let sp := adjustSp st#Sp in
-      ExX (* sched *), Ex vs,
-      (ExX (* fr *), qspecOut (pre (sel vs) st#Rv) (fun pre =>
-        ![ ^[locals ("rp" :: "sc" :: ns) vs res sp * pre * mallocHeap 0] * #1 * #0 ] st))
-      /\ (Ex pc_exit, [| (fst st).(Labels) ("scheduler"!"exit")%SP = Some pc_exit |]
-        /\ ExX (* pre_exit *), Cptr pc_exit #0
-        /\ (AlX (* fr_exit *) : settings * smem, Al st', Al vs',
-          ![^[locals ("rp" :: "sc" :: nil) vs' 12 st'#Sp]
-            * (#2 * #0 * ^[mallocHeap 0])] st'
-          /\ [| sel vs' "sc" = sel vs "sc" |]
-          /\ [| (fst st').(Labels) = (fst st).(Labels) |]
-          ---> #1 st')).
-
-Notation "'PREonly' [ vs ] pre" := (threadInvariantCont (fun vs _ => pre%qspec%Sep))
-  (at level 89) : thread_scope.
-
-Delimit Scope thread_scope with thread.
-
-Notation "'SPECthd' 'reserving' n inv" :=
-  (let inv' := inv%thread in let n' := n in {| Reserved := n';
-    Formals := nil;
-    Precondition := fun extras =>
-    match extras with
-      | None => inv' false (fun w => w) nil n'
-      | Some extras => inv' true (fun w => w) extras (n' - List.length extras)
-    end |}) (at level 90, n at level 0, inv at next level).
-
-Notation "'SPECthd' ( x1 , .. , xN ) 'reserving' n inv" :=
-  (let inv' := inv%thread in let vars := cons x1 (.. (cons xN nil) ..) in
-   let n' := n in
-    {| Reserved := n';
-      Formals := vars;
-      Precondition := fun extras =>
-      match extras with
-        | None => inv' false (fun w => w) vars n'
-        | Some extras => inv' true (fun w => w) extras (n' - (List.length extras - List.length vars))
-      end |} ) (at level 90, n at level 0, x1 at level 0, xN at level 0, inv at next level).
-
-Notation "'tfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
-  (let p' := p%thread in
-   let vars := cons x1 (.. (cons xN nil) ..) in
-   let b' := b%thread%SP in
-    {| FName := name;
-      FPrecondition := Precondition p' None;
-      FBody := ((fun _ _ =>
-        Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some vars))));;
-      (fun ns res => b' ("sc" :: ns) (res - (List.length vars - List.length (Formals p')))%nat))%SP;
-      FVars := vars;
-      FReserved := Reserved p' |})
-  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
-
-Notation "'tfunctionNoRet' name () [ p ] b 'end'" :=
-  (let p' := p%thread in
-   let b' := b%thread%SP in
-    {| FName := name;
-      FPrecondition := Precondition p' None;
-      FBody := ((fun _ _ =>
-        Structured nil (fun im mn _ => Structured.Assert_ im mn (Precondition p' (Some nil))));;
-      (fun ns res => b' ("sc" :: ns) res))%SP;
-      FVars := nil;
-      FReserved := Reserved p' |})
-  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
-
-Section Thread.
+Section Recall.
   Variable imps : LabelMap.t assert.
   Variable mn : string.
 
   Import DefineStructured.
   Transparent evalInstrs.
 
-  Definition Exit_ : cmd imps mn.
-    red; refine (fun pre => {|
-      Postcondition := (fun _ => [| False |])%PropX;
-      VerifCond := (forall specs stn st, interp specs (pre (stn, st))
-        -> exists pc_exit, stn.(Labels) ("scheduler", Global "exit") = Some pc_exit
-          /\ exists pre_exit, specs pc_exit = Some pre_exit
-            /\ interp specs (pre_exit (stn, st)))
-        :: nil;
-      Generate := fun _ _ => {|
-        Entry := 0;
-        Blocks := (pre, (nil, Uncond (RvLabel ("scheduler", Global "exit")))) :: nil
-      |}
-    |}); abstract struct.
-  Defined.
-
-  Definition Go_ : cmd imps mn.
-    red; refine (fun pre => {|
-      Postcondition := (fun _ => [| False |])%PropX;
-      VerifCond := (forall specs stn st, interp specs (pre (stn, st))
-        -> exists pre_exit, LabelMap.find ("scheduler", Global "exit") imps = Some pre_exit
-          /\ interp specs (pre_exit (stn, st)))
-        :: nil;
-      Generate := fun _ _ => {|
-        Entry := 0;
-        Blocks := (pre, (nil, Uncond (RvLabel ("scheduler", Global "exit")))) :: nil
-      |}
-    |}); abstract (struct; congruence).
-  Defined.
-
-  Definition Recall (mn' l : string) : cmd imps mn.
+  Definition Recall_ (mn' l : string) : cmd imps mn.
     red; refine (fun pre => {|
       Postcondition := match LabelMap.find (mn', Global l) imps with
                          | None => (fun _ => [| False |])%PropX
@@ -123,79 +29,30 @@ Section Thread.
       |}
     |}); abstract (struct; try congruence; descend; eauto; propxFo; eauto 10).
   Defined.
+End Recall.
 
-  Definition Spawn_ (afterCall : assert) : cmd imps mn.
-    red; refine (fun pre => {|
-      Postcondition := afterCall;
-      VerifCond := match LabelMap.find ("scheduler", Global "spawn") imps with
-                     | None => jumpToUnknownLabel ("scheduler", Global "spawn")
-                     | Some spawn => forall stn st specs,
-                       interp specs (pre (stn, st))
-                       -> forall rp, specs rp = Some afterCall
-                         -> interp specs (spawn (stn, {| Regs := rupd (Regs st) Rp rp; Mem := Mem st |}))
-                   end :: nil;
-      Generate := fun Base Exit => {|
-        Entry := 0;
-        Blocks := (pre, (Assign Rp (RvLabel (mn, Local Exit)) :: nil,
-          Uncond (RvLabel ("scheduler", Global "spawn")))) :: nil
-      |}
-    |}); [ abstract struct
-      | abstract (intros;
-        repeat match goal with
-                 | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
-                 | [ H : vcs nil |- _ ] => clear H
-                 | [ _ : match ?E with Some _ => _ | None => _ end |- _ ] => destrOpt E; [ | tauto ]
-                 | [ |- List.Forall _ nil ] => constructor
-                 | [ |- List.Forall _ (_ :: _) ] => constructor
-                 | [ |- blockOk _ _ _ ] => simpl; hnf; intros
-               end;
-        match goal with
-          | [ H : forall l : LabelMap.key, _ |- _ ] =>
-            repeat match goal with
-                     | [ H' : LabelMap.find ?k _ = Some _ |- _ ] =>
-                       edestruct (H k); [ solve [ eauto ] | ]; generalize dependent H'
-                   end
-        end; struct; descend; (simpl; eauto)) ].
-  Defined.
-End Thread.
 
-Definition Exit : chunk := fun ns _ =>
-  Structured (Binop Rv Sp Plus (4 + 4 * length ns)
-    :: Assign (LvMem (Indir Rv 4)) (LvMem (Indir Sp 4))
-    :: Binop Sp Sp Plus (4 + 4 * length ns)
-    :: nil)
-  (fun _ _ _ => Exit_ _ _).
+Definition Exit : chunk := (Call "scheduler"!"exit"("sc")
+  [PREonly[_] [| False |]];; Fail)%SP.
 
-Definition Go (rv : rvalue') : chunk := fun ns _ =>
-  Structured (Binop Rv Sp Plus (4 + 4 * length ns)
-    :: Assign (LvMem (Indir Rv 4)) (rv ns)
-    :: Binop Sp Sp Plus (4 + 4 * length ns)
-    :: nil)
-  (fun _ _ _ => Go_ _ _).
+Definition Go : chunk := (Call "scheduler"!"exit"("sc")
+  [PREonly[_] [| False |]];; Fail)%SP.
 
-Definition SpawnBootstrap (rv : rvalue') (l : label) (ss : W) (afterCall : list string -> nat -> assert)
-  : chunk := fun ns res =>
-    match snd l with
-      | Global l' =>
-        Seq (Seq (fun _ _ => Structured nil (fun _ _ H => Recall _ _ (fst l) l'))
-          (fun ns _ => Structured
-            (Binop Rv Sp Plus (4 + 4 * length ns)
-              :: Assign (LvMem (Indir Rv 4)) (rv ns)
-              :: Binop Rv Sp Plus (4 + 4 * length ns)
-              :: Assign (LvMem (Indir Rv 8)) Rp
-              :: Binop Rv Sp Plus (4 + 4 * length ns)
-              :: Assign (LvMem (Indir Rv 12)) ss
-              :: Binop Sp Sp Plus (4 + 4 * length ns)
-              :: nil)
-            (fun _ _ _ => Spawn_ _ _ (afterCall ns res))))
-        (Instr (fun ns => Binop Sp Sp Minus (4 + 4 * length ns))) ns res
-      | _ => Fail ns res
-    end.
+Definition Recall (mn' l : string) : chunk := fun ns res =>
+  Structured nil (fun _ _ _ => Recall_ _ _ mn' l).
+
+Definition Spawn_ (l : label) (ss : W) (afterCall : list string -> nat -> assert) : chunk :=
+  match snd l with
+    | Global l' =>
+      (Recall (fst l) l';;
+        Call "scheduler"!"spawn"("sc", Rp, ss)
+        [fun (_ : bool) (_ : W -> W) => afterCall])%SP
+    | _ => Fail%SP
+  end.
 
 Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
 
-Notation "'Spawn' ( rv , l , ss ) [ afterCall ]" :=
-  (SpawnBootstrap rv l ss (RET afterCall)).
+Notation "'Spawn' ( l , ss ) [ afterCall ]" := (Spawn_ l ss (RET afterCall)) : SP_scope.
 
 Require Import Bool.
 
@@ -210,7 +67,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.find
   toCmd Seq Instr Diverge Fail Skip Assert_
   Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
-  Assign' localsInvariant localsInvariantCont threadInvariantCont
+  Assign' localsInvariant localsInvariantCont
   regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
   andb eqb qspecOut
   ICall_ Structured.ICall_
@@ -230,75 +87,22 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   COperand1 CTest COperand2 Pos.succ
   makeVcs
   Note_ Note__
-  IGotoStar_ IGotoStar
-  Exit_ Exit Go_ Go Recall Spawn_ SpawnBootstrap
+  IGotoStar_ IGotoStar AssertStar_ AssertStar
+  Exit Go Recall Spawn_
 ].
 
 Ltac vcgen := structured_auto vcgen_simp;
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold.
 
-Ltac sep' hints := unfold localsInvariantCont; AutoSep.sep hints;
+Ltac sep hints :=
   match goal with
-    | [ |- Some _ = Some _ ] => reflexivity
+    | [ |- context[starting] ] => post; evaluate hints; descend; [
+      toFront_conc ltac:(fun P => match P with
+                                    | starting _ _ _ => idtac
+                                  end); apply starting_intro; descend; [ | step hints | ];
+      step hints; unfold localsInvariantCont | | ]; AutoSep.sep hints
     | _ => AutoSep.sep hints
   end.
 
-Ltac refl := repeat match goal with
-                      | [ H : _ = _ |- _ ] => (rewrite H || rewrite <- H); clear H
-                    end; AutoSep.refl.
-
-Ltac spawn_imp :=
-  unfold threadInvariantCont;
-    repeat (apply andL; (apply injL || apply cptrL; intro));
-      repeat ((eapply existsXR; unfold Subst; simpl) || eapply existsR
-        || apply andR || apply injR || apply cptrR); post.
-
-Ltac spawn_heap :=
-  match goal with
-    | [ sched_ : hpropB nil, _ : sel ?vs "sc" = _ |- _ ] =>
-      apply andL; apply implyR;
-        instantiate (1 := fun p => Emp%Sep (fst p) (snd p));
-          instantiate (1 := fun p => sched_ (fst p) (snd p));
-            instantiate (1 := vs); clear; step auto_ext
-  end.
-
-Ltac spawn_cptr :=
-  apply andL; apply swap; apply implyR; refl.
-
-Ltac spawn hints :=
-  post; evaluate hints; descend;
-  try (toFront_conc ltac:(fun P => match P with
-                                     | starting _ _ _ => idtac
-                                   end); apply starting_intro; descend;
-  [ | repeat step hints | ]; eauto;
-    spawn_imp; spawn_heap || spawn_cptr || eauto); sep hints.
-
-Ltac sep hints :=
-  match goal with
-    | [ |- context[starting] ] =>
-      spawn hints
-    | [ |- forall specs stn st, interp specs _
-      -> exists pc_exit, Labels stn ("scheduler", Global "exit") = Some pc_exit
-        /\ _ ] =>
-      post; match goal with
-              | [ H : context[locals ?ns ?vs ?avail ?sp] |- _ ] =>
-                let offset := eval simpl in (4 * length ns) in
-                  assert (ok_call ns ("rp" :: "sc" :: nil) avail 12 offset) by
-                    (split; [ simpl; omega
-                      | split; [ simpl; omega
-                        | split; [ NoDup
-                          | reflexivity ] ] ]);
-                    change (locals ns vs avail sp)
-              with (locals_call ns vs avail sp ("rp" :: "sc" :: nil) 12 offset) in H;
-                sep' hints; eapply Imply_sound; [ solve [ eauto ] | ];
-                  descend; match goal with
-                             | [ _ : context[locals _ ?vs' 12 _] |- _ ] => instantiate (1 := vs')
-                           end; repeat step hints
-            end
-    | _ => sep' hints
-  end.
-
 Ltac sep_auto := sep auto_ext.
-
-Hint Extern 1 False => discriminate.

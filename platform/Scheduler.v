@@ -1,23 +1,7 @@
-Require Import Arith AutoSep Bags Malloc Queue.
+Require Import Arith AutoSep Bags Malloc Queue RecPred.
 
 Set Implicit Arguments.
 
-
-Require Import DepList.
-
-Fixpoint memoryOut' ls (m : smem' ls) : IL.mem :=
-  match m with
-    | HNil => fun _ => None
-    | HCons a _ v m' => fun a' => if weq a' a then v else memoryOut' m' a'
-  end.
-
-Definition memoryOut (m : smem) : IL.mem := memoryOut' m.
-
-Definition stateOut (p : settings * smem) (sc : W) : settings * state :=
-  (fst p, {| Regs := fun _ => sc; Mem := memoryOut (snd p) |}).
-
-Notation "##1" := (fun sc => ![ fun x : settings * smem => Lift (Var0 (stateOut x sc)) ])%Sep : Sep_scope.
-Notation "##2" := (fun sc => ![ fun x : settings * smem => Lift (Lift (Var0 (stateOut x sc))) ])%Sep : Sep_scope.
 
 (* What does it mean for a program counter to be valid for a suspended thread? *)
 
@@ -30,9 +14,6 @@ Definition susp (sc pc sp : W) : HProp := fun s m =>
     ![ #0 * ##2 sc * ^[mallocHeap 0] ] st
     /\ [| st#Sp = sp |]
     ---> #1 st)%PropX.
-
-Definition predIn (P : settings * state -> PropX W (settings * state)) (sc : W) : HProp :=
-  fun stn sm => P (stateOut (stn, sm) sc).
 
 Lemma susp_intro : forall specs sc pc sp P stn st,
   (exists pc_sched, stn.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched
@@ -47,11 +28,6 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
 Qed.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
-
-Ltac make_Himp := match goal with
-                    | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
-                      let H := fresh in assert (P ===> Q); [ | rewrite sepFormula_eq; apply H ]
-                  end.
 
 Lemma susp_elim : forall specs sc pc sp P stn st,
   interp specs (![ susp sc pc sp * P ] (stn, st))
@@ -70,7 +46,6 @@ Lemma susp_elim : forall specs sc pc sp P stn st,
   make_Himp.
   apply Himp_refl.
 Qed.
-
 
 
 Inductive mergeSusp : Prop := MS.
@@ -188,14 +163,6 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
 Qed.
 
 
-Notation "'badt' name p 'end'" :=
-  {| FName := name;
-    FPrecondition := (fun s => ![ p s#Rp ] s)%PropX;
-    FBody := Diverge;
-    FVars := nil;
-    FReserved := 0 |}
-  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
-
 Definition initS : spec := SPEC reserving 12
   PRE[_] mallocHeap 0
   POST[R] sched R * mallocHeap 0.
@@ -237,7 +204,7 @@ Definition yieldInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (adj
     Ex vs, qspecOut (pre (sel vs) st#Rv) (fun pre =>
       ![ ^[locals ("rp" :: ns) vs res sp * pre] ] st).
 
-Notation "'PREy' [ vs ] pre" := (yieldInvariantCont (fun vs _ => pre%qspec%Sep))
+Local Notation "'PREy' [ vs ] pre" := (yieldInvariantCont (fun vs _ => pre%qspec%Sep))
   (at level 89).
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
@@ -390,13 +357,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := solve [ sep hints; try apply any_easy;
+Ltac t := abstract (sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto ].
-
-(*Ltac t := abstract (sep hints; try apply any_easy;
-  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto).*)
+    eauto).
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w
@@ -417,32 +380,6 @@ Lemma Labels_cong : forall stn stn' l pc,
 Qed.
 
 Hint Immediate Labels_cong.
-
-Lemma memoryIn'_irrel : forall ls m m',
-  List.Forall (fun a => m a = m' a) ls
-  -> memoryIn' m ls = memoryIn' m' ls.
-  induction ls; inversion 1; subst; simpl; intuition.
-  f_equal; auto.
-Qed.
-
-Lemma memoryIn'_memoryOut' : forall ls (m : smem' ls),
-  NoDup ls
-  -> memoryIn' (memoryOut' m) ls = m.
-  induction m0; inversion 1; subst; simpl; intuition.
-  f_equal.
-  unfold H.mem_get, ReadByte.
-  destruct (weq x x); tauto.
-  erewrite memoryIn'_irrel.
-  eauto.
-  apply Forall_forall; intros.
-  destruct (weq x0 x).
-  subst x; tauto.
-  auto.
-Qed.
-
-Theorem memoryIn_memoryOut : forall m, memoryIn (memoryOut m) = m.
-  intros; apply memoryIn'_memoryOut'; apply H.NoDup_all_addr.
-Qed.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -518,10 +455,7 @@ Theorem ok : moduleOk m.
   eapply Imply_trans; [ | apply H10 ]; clear H10.
   step auto_ext.
   step auto_ext.
-  match goal with
-    | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
-      let H := fresh in assert (P ===> Q); [ | rewrite sepFormula_eq in *; apply H ]
-  end.
+  make_Himp.
   rewrite H9.
   apply Himp_star_frame; try apply Himp_refl.
   apply Himp_star_frame; try apply Himp_refl.
