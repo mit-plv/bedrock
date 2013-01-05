@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import AutoSep Malloc.
 Require Import List.
 
 Set Implicit Arguments.
@@ -18,10 +18,10 @@ Module Type SINGLY_LINKED_LIST.
     -> [| ls = nil |] ===> sll ls p.
 
   Axiom cons_fwd : forall ls (p : W), p <> 0
-    -> sll ls p ===> Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
+    -> sll ls p ===> [| freeable p 2 |] * Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
 
   Axiom cons_bwd : forall ls (p : W), p <> 0
-    -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
+    -> ([| freeable p 2 |] * Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
 End SINGLY_LINKED_LIST.
 
 Module SinglyLinkedList : SINGLY_LINKED_LIST.
@@ -30,7 +30,7 @@ Module SinglyLinkedList : SINGLY_LINKED_LIST.
   Fixpoint sll (ls : list W) (p : W) : HProp :=
     match ls with
       | nil => [| p = 0 |]
-      | x :: ls' => [| p <> 0 |] * Ex p', (p ==*> x, p') * sll ls' p'
+      | x :: ls' => [| freeable p 2 |] * [| p <> 0 |] * Ex p', (p ==*> x, p') * sll ls' p'
     end.
 
   Theorem sll_extensional : forall ls (p : W), HProp_extensional (sll ls p).
@@ -48,12 +48,12 @@ Module SinglyLinkedList : SINGLY_LINKED_LIST.
   Qed.
 
   Theorem cons_fwd : forall ls (p : W), p <> 0
-    -> sll ls p ===> Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
+    -> sll ls p ===> [| freeable p 2 |] * Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p'.
     destruct ls; sepLemma.
   Qed.
 
   Theorem cons_bwd : forall ls (p : W), p <> 0
-    -> (Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
+    -> ([| freeable p 2 |] * Ex x, Ex ls', [| ls = x :: ls' |] * Ex p', (p ==*> x, p') * sll ls' p') ===> sll ls p.
     destruct ls; sepLemma;
       match goal with
         | [ H : _ :: _ = _ :: _ |- _ ] => injection H; sepLemma
