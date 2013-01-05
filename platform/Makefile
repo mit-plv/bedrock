@@ -5,7 +5,8 @@ MODULES := AutoSepExt PreAutoSep \
            Malloc \
            Bags Queue Scheduler Thread \
            Bootstrap SinglyLinkedList \
-           tests/LinkTest tests/BabyThread tests/BabyThreadDriver tests/Yield tests/Spawn tests/ListBuilder
+           tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder \
+           tests/BabyThreadDriver tests/ListBuilderDriver
 
 VS      := $(MODULES:%=%.v)
 
@@ -14,10 +15,26 @@ VS      := $(MODULES:%=%.v)
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
+COQARGS := -R $(ROOT)/src Bedrock -I tests
+COQC    := coqc $(COQARGS)
+
 Makefile.coq: Makefile $(VS)
-	coq_makefile -R $(ROOT)/src Bedrock -I tests \
-		     $(VS) -o Makefile.coq
+	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
+
+tests/listbuilder.s: tests/ListBuilderAMD64.v
+	echo ".global bedrock_heap" >$@
+	echo ".comm bedrock_heap,4096,32" >>$@
+	echo ".global main_main" >>$@
+	echo >>$@
+	$(COQC) $< \
+		| sed 's/^.*= "//' \
+		| sed 's/^"//' \
+		| sed 's/^.*: string//' \
+		>>$@
+
+tests/listbuilder.exe: tests/listbuilder.o tests/driver.o
+	gcc tests/listbuilder.o tests/driver.o -o $@
