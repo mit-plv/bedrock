@@ -38,6 +38,14 @@ Definition Exit : chunk := (Call "scheduler"!"exit"("sc")
 Definition Go : chunk := (Call "scheduler"!"exit"("sc")
   [PREonly[_] [| False |]];; Fail)%SP.
 
+Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
+  (Call "scheduler"!"yield"("sc")
+    [fun (_ : bool) (_ : W -> W) => afterCall])%SP.
+
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+
+Notation "'Yield' [ afterCall ]" := (Yield_ (RET afterCall)) : SP_scope.
+
 Definition Recall (mn' l : string) : chunk := fun ns res =>
   Structured nil (fun _ _ _ => Recall_ _ _ mn' l).
 
@@ -49,8 +57,6 @@ Definition Spawn_ (l : label) (ss : W) (afterCall : list string -> nat -> assert
         [fun (_ : bool) (_ : W -> W) => afterCall])%SP
     | _ => Fail%SP
   end.
-
-Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
 
 Notation "'Spawn' ( l , ss ) [ afterCall ]" := (Spawn_ l ss (RET afterCall)) : SP_scope.
 
@@ -88,7 +94,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
   Note_ Note__
   IGotoStar_ IGotoStar AssertStar_ AssertStar
-  Exit Go Recall Spawn_
+  Exit Go Yield_ Recall Spawn_
 ].
 
 Ltac vcgen := structured_auto vcgen_simp;
