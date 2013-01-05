@@ -372,15 +372,6 @@ Local Hint Immediate wordBound.
   
 Hint Rewrite <- minus_n_O : sepFormula.
 
-Lemma Labels_cong : forall stn stn' l pc,
-  Labels stn l = Some pc
-  -> Labels stn' = Labels stn
-  -> Labels stn' l = Some pc.
-  intros; rewrite H0; auto.
-Qed.
-
-Hint Immediate Labels_cong.
-
 Theorem ok : moduleOk m.
   vcgen.
 
