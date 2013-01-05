@@ -5,7 +5,7 @@ MODULES := AutoSepExt PreAutoSep \
            Malloc \
            Bags Queue Scheduler Thread \
            Bootstrap \
-           tests/LinkTest tests/BabyThread tests/BabyThreadDriver
+           tests/LinkTest tests/BabyThread tests/BabyThreadDriver tests/Yield
 
 VS      := $(MODULES:%=%.v)
 
