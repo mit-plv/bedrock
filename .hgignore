@@ -37,3 +37,5 @@ timing/
 examples/x86/factorial.s
 examples/comparison/*data.*
 examples/comparison/bedrock_server.s
+
+platform/tests/listbuilder.s
