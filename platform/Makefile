@@ -4,8 +4,8 @@ MODULES := AutoSepExt PreAutoSep \
            AutoSep RecPred \
            Malloc \
            Bags Queue Scheduler Thread \
-           Bootstrap \
-           tests/LinkTest tests/BabyThread tests/BabyThreadDriver tests/Yield
+           Bootstrap SinglyLinkedList \
+           tests/LinkTest tests/BabyThread tests/BabyThreadDriver tests/Yield tests/Spawn tests/ListBuilder
 
 VS      := $(MODULES:%=%.v)
 
