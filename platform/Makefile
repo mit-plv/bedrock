@@ -1,7 +1,7 @@
 ROOT    := ..
 MODULES := AutoSepExt PreAutoSep \
            Util \
-           AutoSep \
+           AutoSep RecPred \
            Malloc \
            Bags Queue Scheduler Thread \
            Bootstrap \
