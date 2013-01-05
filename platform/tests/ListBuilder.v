@@ -34,7 +34,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "r" <- "p";;
         "p" <-* "p" + 4;;
         Call "malloc"!"free"(0, "r", 2)
-        [PREonly[V, R] Ex ls, sll ls (V "p") * sched (V "sc") * mallocHeap 0];;
+        [PREonly[V] Ex ls, sll ls (V "p") * sched (V "sc") * mallocHeap 0];;
 
         Yield
         [PREonly[V] Ex ls, sll ls (V "p") * sched (V "sc") * mallocHeap 0]
