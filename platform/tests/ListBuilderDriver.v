@@ -2,7 +2,7 @@ Require Import Thread ListBuilder Bootstrap.
 
 
 Section boot.
-  Variables heapSize : nat.
+  Variable heapSize : nat.
 
   Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
 

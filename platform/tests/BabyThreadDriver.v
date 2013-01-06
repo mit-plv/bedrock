@@ -2,7 +2,7 @@ Require Import Thread BabyThread Bootstrap.
 
 
 Section boot.
-  Variables heapSize : nat.
+  Variable heapSize : nat.
 
   Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
 
