@@ -1,6 +1,11 @@
-Require Import AutoSep Malloc Scheduler.
-Export AutoSep Malloc Scheduler.
+Require Import AutoSep Malloc ThreadQueue.
+Export AutoSep Malloc.
 
+
+Module Make(M : ThreadQueue.S).
+Module Q := ThreadQueue.Make(M).
+Import M Q.
+Export M Q.
 
 Section Recall.
   Variable imps : LabelMap.t assert.
@@ -32,14 +37,14 @@ Section Recall.
 End Recall.
 
 
-Definition Exit : chunk := (Call "scheduler"!"exit"("sc")
+Definition Exit : chunk := (Call "threadq"!"exit"("sc")
   [PREonly[_] [| False |]];; Fail)%SP.
 
-Definition Go : chunk := (Call "scheduler"!"exit"("sc")
+Definition Go : chunk := (Call "threadq"!"exit"("sc")
   [PREonly[_] [| False |]];; Fail)%SP.
 
 Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
-  (Call "scheduler"!"yield"("sc")
+  (Call "threadq"!"yield"("sc")
     [fun (_ : bool) (_ : W -> W) => afterCall])%SP.
 
 Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
@@ -53,7 +58,7 @@ Definition Spawn_ (l : label) (ss : W) (afterCall : list string -> nat -> assert
   match snd l with
     | Global l' =>
       (Recall (fst l) l';;
-        Call "scheduler"!"spawn"("sc", Rp, ss)
+        Call "threadq"!"spawn"("sc", Rp, ss)
         [fun (_ : bool) (_ : W -> W) => afterCall])%SP
     | _ => Fail%SP
   end.
@@ -111,4 +116,4 @@ Ltac sep hints :=
     | _ => AutoSep.sep hints
   end.
 
-Ltac sep_auto := sep auto_ext.
+End Make.

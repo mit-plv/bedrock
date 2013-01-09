@@ -3,8 +3,9 @@ MODULES := AutoSepExt PreAutoSep \
            Util \
            AutoSep RecPred \
            Malloc \
-           Bags Queue Scheduler Thread \
+           Bags Queue ThreadQueue Thread \
            Bootstrap SinglyLinkedList \
+           tests/Thread0 \
            tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder \
            tests/BabyThreadDriver tests/ListBuilderDriver
 

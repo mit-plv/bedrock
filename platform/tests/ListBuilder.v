@@ -1,4 +1,4 @@
-Require Import Thread SinglyLinkedList.
+Require Import Thread0 SinglyLinkedList.
 
 
 Definition handlerS := SPEC("sc") reserving 24
@@ -8,8 +8,8 @@ Definition mainS := SPEC reserving 23
   PREonly[_] mallocHeap 0.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
-                           "scheduler"!"init" @ [initS], "scheduler"!"exit" @ [exitS],
-                           "scheduler"!"spawn" @ [spawnS], "scheduler"!"yield" @ [yieldS] ]]
+                           "threadq"!"init" @ [initS], "threadq"!"exit" @ [exitS],
+                           "threadq"!"spawn" @ [spawnS], "threadq"!"yield" @ [yieldS] ]]
   bmodule "test" {{
     bfunctionNoRet "handler"("sc", "i", "p", "r") [handlerS]
       "i" <- 0;; (* Loop counter *)
@@ -42,7 +42,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       Exit
     end with bfunctionNoRet "main"("sc") [mainS]
-      "sc" <-- Call "scheduler"!"init"()
+      "sc" <-- Call "threadq"!"init"()
       [PREonly[_, R] sched R * mallocHeap 0];;
 
       Spawn("test"!"handler", 26)
