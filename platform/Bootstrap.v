@@ -742,3 +742,8 @@ Ltac safety ok :=
 Hint Immediate goodSize_heapSize heapSizeLowerBound'.
 Hint Rewrite heapSize_roundTrip using assumption : sepFormula.
 Hint Extern 1 (noWrapAround _ _) => apply noWrap.
+
+Ltac goodSize :=
+  match goal with
+    | [ H : goodSize (?size * 4)%nat |- _ ] => unfold size in *
+  end; eapply goodSize_weaken; [ eassumption | omega ].

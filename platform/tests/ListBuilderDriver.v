@@ -1,4 +1,4 @@
-Require Import Thread ListBuilder Bootstrap.
+Require Import Thread0 ListBuilder Bootstrap.
 
 
 Section boot.
@@ -11,7 +11,7 @@ Section boot.
   Hypothesis mem_size : goodSize (size * 4)%nat.
 
   Let heapSizeUpperBound : goodSize (heapSize * 4).
-    unfold size in *; eapply goodSize_weaken; [ eassumption | omega ].
+    goodSize.
   Qed.
 
   Definition bootS := bootS heapSize.
@@ -39,7 +39,7 @@ Section boot.
 
   Definition m0 := link Malloc.m boot.
   Definition m1 := link Queue.m m0.
-  Definition m2 := link Scheduler.m m1.
+  Definition m2 := link Q.m m1.
   Definition m3 := link ListBuilder.m m2.
 
   Lemma ok0 : moduleOk m0.
@@ -51,7 +51,7 @@ Section boot.
   Qed.
 
   Lemma ok2 : moduleOk m2.
-    link Scheduler.ok ok1.
+    link Q.ok ok1.
   Qed.
 
   Lemma ok3 : moduleOk m3.

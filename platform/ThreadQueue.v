@@ -3,39 +3,44 @@ Require Import Arith AutoSep Bags Malloc Queue RecPred.
 Set Implicit Arguments.
 
 
+Module Type S.
+  Variable globalInv : HProp.
+End S.
+
+Module Make(M : S).
+Import M.
+
 (* What does it mean for a program counter to be valid for a suspended thread? *)
 
 Definition susp (sc pc sp : W) : HProp := fun s m =>
-  (Ex pc_sched : W, [| s.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched |]
-    /\ ExX (* sched *) : settings * state, Cptr pc_sched #0
+  (Ex pc_tq : W, [| s.(Labels) ("threadq"!"ADT")%SP = Some pc_tq |]
+    /\ ExX (* tq *) : settings * state, Cptr pc_tq #0
     /\ ExX (* pre *) : settings * state, Cptr pc #0
     /\ ExX (* inv *) : settings * smem, #0 (s, m)
     /\ Al st : settings * state,
-    ![ #0 * ##2 sc * ^[mallocHeap 0] ] st
+    ![ #0 * ##2 sc * ^[globalInv * mallocHeap 0] ] st
     /\ [| st#Sp = sp |]
     ---> #1 st)%PropX.
 
 Lemma susp_intro : forall specs sc pc sp P stn st,
-  (exists pc_sched, stn.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched
-    /\ exists sched, specs pc_sched = Some (fun x => sched x)
+  (exists pc_tq, stn.(Labels) ("threadq"!"ADT")%SP = Some pc_tq
+    /\ exists tq, specs pc_tq = Some (fun x => tq x)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st, interp specs (![ inv * predIn sched sc * mallocHeap 0 ] stn_st
+          /\ forall stn_st, interp specs (![ inv * predIn tq sc * (globalInv * mallocHeap 0) ] stn_st
             /\ [| stn_st#Sp = sp |]
             ---> pre stn_st)%PropX)
   -> interp specs (![ susp sc pc sp * P ] (stn, st)).
   cptr.
 Qed.
 
-Local Hint Resolve split_a_semp_a semp_smem_emp.
-
 Lemma susp_elim : forall specs sc pc sp P stn st,
   interp specs (![ susp sc pc sp * P ] (stn, st))
-  -> (exists pc_sched, stn.(Labels) ("scheduler"!"ADT")%SP = Some pc_sched
-    /\ exists sched, specs pc_sched = Some (fun x => sched x)
+  -> (exists pc_tq, stn.(Labels) ("threadq"!"ADT")%SP = Some pc_tq
+    /\ exists tq, specs pc_tq = Some (fun x => tq x)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st, interp specs (![ inv * predIn sched sc * mallocHeap 0 ] stn_st
+          /\ forall stn_st, interp specs (![ inv * predIn tq sc * (globalInv * mallocHeap 0) ] stn_st
             /\ [| stn_st#Sp = sp |]
             ---> pre stn_st)%PropX).
   cptr.
@@ -53,29 +58,29 @@ Inductive splitSusp : Prop := SS.
 
 Hint Constructors mergeSusp splitSusp.
 
-Module Type SCHED.
+Module Type TQ.
   Parameter susps : bag -> W -> HProp.
-  Parameter sched : W -> HProp.
+  Parameter tq : W -> HProp.
 
-  Axiom sched_extensional : forall sc, HProp_extensional (sched sc).
+  Axiom tq_extensional : forall sc, HProp_extensional (tq sc).
 
   Axiom susps_empty_bwd : forall sc, Emp ===> susps empty sc.
   Axiom susps_add_bwd : forall sc b pc sp, pc = pc -> mergeSusp -> susp sc pc sp * susps b sc ===> susps (b %+ (pc, sp)) sc.
   Axiom susps_del_fwd : forall sc b pc sp, (pc, sp) %in b -> susps b sc ===> susp sc pc sp * susps (b %- (pc, sp)) sc.
 
-  (* Below, the extra [locals] is a temporary stack for the scheduler to use during sensitive
+  (* Below, the extra [locals] is a temporary stack for the threadq to use during sensitive
    * stack manipulations when the threads' own stacks may not be safe to touch. *)
 
-  Axiom sched_fwd : forall sc, sched sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
+  Axiom tq_fwd : forall sc, tq sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps b sc * any.
 
-  Axiom sched_bwd : forall sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
+  Axiom tq_bwd : forall sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps b sc * any) ===> sched sc.
-End SCHED.
+    * queue b p * susps b sc * any) ===> tq sc.
+End TQ.
 
-Module Sched : SCHED.
+Module Tq : TQ.
   Open Scope Sep_scope.
 
   Definition susps (b : bag) (sc : W) : HProp :=
@@ -95,34 +100,34 @@ Module Sched : SCHED.
     intros; eapply Himp_trans; [ apply starB_del_fwd; eauto | apply Himp_refl ].
   Qed.
 
-  Definition sched (sc : W) : HProp :=
+  Definition tq (sc : W) : HProp :=
     Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
       * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
       * queue b p * susps b sc * any.
 
-  Theorem sched_extensional : forall sc, HProp_extensional (sched sc).
+  Theorem tq_extensional : forall sc, HProp_extensional (tq sc).
     reflexivity.
   Qed.
 
-  Theorem sched_fwd : forall sc, sched sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
+  Theorem tq_fwd : forall sc, tq sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps b sc * any.
-    unfold sched; sepLemma.
+    unfold tq; sepLemma.
   Qed.
 
-  Theorem sched_bwd : forall sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
+  Theorem tq_bwd : forall sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps b sc * any) ===> sched sc.
-    unfold sched; sepLemma.
+    * queue b p * susps b sc * any) ===> tq sc.
+    unfold tq; sepLemma.
   Qed.
-End Sched.
+End Tq.
 
-Import Sched.
-Export Sched.
-Hint Immediate sched_extensional.
+Import Tq.
+Export Tq.
+Hint Immediate tq_extensional.
 
 Definition hints : TacPackage.
-  prepare (sched_fwd, create_stack) (sched_bwd, susps_empty_bwd, susps_add_bwd).
+  prepare (tq_fwd, create_stack) (tq_bwd, susps_empty_bwd, susps_add_bwd).
 Defined.
 
 (* What is a valid initial code pointer for a thread, given the requested stack size? *)
@@ -131,15 +136,17 @@ Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs,
-      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * sched sc * mallocHeap 0] ] st
+      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tq sc * globalInv * mallocHeap 0] ] st
       /\ [| sel vs "sc" = sc |]
       ---> #0 st)%PropX.
+
+Local Hint Resolve split_a_semp_a semp_smem_emp.
 
 Lemma starting_intro : forall specs sc pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
-      * sched sc * mallocHeap 0 ] stn_st
+      * tq sc * globalInv * mallocHeap 0 ] stn_st
     /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX)
   -> interp specs (![ starting sc pc ss * P ] (stn, st)).
@@ -151,7 +158,7 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
-      * sched sc * mallocHeap 0 ] stn_st
+      * tq sc * globalInv * mallocHeap 0 ] stn_st
     /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX).
   cptr.
@@ -165,24 +172,24 @@ Qed.
 
 Definition initS : spec := SPEC reserving 12
   PRE[_] mallocHeap 0
-  POST[R] sched R * mallocHeap 0.
+  POST[R] tq R * mallocHeap 0.
 
 Definition spawnWithStackS : spec := SPEC("sc", "pc", "sp") reserving 14
-  PRE[V] sched (V "sc") * susp (V "sc") (V "pc") (V "sp") * mallocHeap 0
-  POST[_] sched (V "sc") * mallocHeap 0.
+  PRE[V] tq (V "sc") * susp (V "sc") (V "pc") (V "sp") * mallocHeap 0
+  POST[_] tq (V "sc") * mallocHeap 0.
 
 Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
-  PRE[V] [| V "ss" >= $2 |] * sched (V "sc") * starting (V "sc") (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
-  POST[_] sched (V "sc") * mallocHeap 0.
+  PRE[V] [| V "ss" >= $2 |] * tq (V "sc") * starting (V "sc") (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
+  POST[_] tq (V "sc") * mallocHeap 0.
 
 Definition exitS : spec := SPEC("sc") reserving 12
-  PREonly[V] sched (V "sc") * mallocHeap 0.
+  PREonly[V] tq (V "sc") * globalInv * mallocHeap 0.
 
 Definition yieldS : spec := SPEC("sc") reserving 19
-  PRE[V] sched (V "sc") * mallocHeap 0
-  POST[_] sched (V "sc") * mallocHeap 0.
+  PRE[V] tq (V "sc") * globalInv * mallocHeap 0
+  POST[_] tq (V "sc") * globalInv * mallocHeap 0.
 
-(* Next, some hijinks to prevent unnecessary unfolding of distinct memory cells for the scheduler's stack. *)
+(* Next, some hijinks to prevent unnecessary unfolding of distinct memory cells for the threadq's stack. *)
 
 Definition stackSize := 21.
 
@@ -210,9 +217,9 @@ Local Notation "'PREy' [ vs ] pre" := (yieldInvariantCont (fun vs _ => pre%qspec
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [isEmptyS],
     "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
-  bmodule "scheduler" {{
+  bmodule "threadq" {{
     badt "ADT"
-      sched
+      tq
     end with bfunction "init"("q", "sp", "r") [initS]
       "q" <-- Call "queue"!"init"()
       [PRE[_, R] mallocHeap 0
@@ -245,23 +252,23 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     end with bfunction "spawn"("sc", "pc", "ss") [spawnS]
       "ss" <-- Call "malloc"!"malloc"(0, "ss")
       [Al ss,
-        PRE[V, R] sched (V "sc") * starting (V "sc") (V "pc") (ss - 2) * mallocHeap 0
+        PRE[V, R] tq (V "sc") * starting (V "sc") (V "pc") (ss - 2) * mallocHeap 0
           * R =?> ss * [| (ss >= 2)%nat |]
-        POST[_] sched (V "sc") * mallocHeap 0];;
+        POST[_] tq (V "sc") * mallocHeap 0];;
 
       Assert [Al ss, Al vs,
-        PRE[V] sched (V "sc") * starting (V "sc") (V "pc") ss * mallocHeap 0
+        PRE[V] tq (V "sc") * starting (V "sc") (V "pc") ss * mallocHeap 0
           * locals ("rp" :: "sc" :: nil) vs ss (V "ss")
-        POST[_] sched (V "sc") * mallocHeap 0];;
+        POST[_] tq (V "sc") * mallocHeap 0];;
 
-      (* Save pointer to scheduler data structure in new thread's stack. *)
+      (* Save pointer to threadq data structure in new thread's stack. *)
       "ss" + 4 *<- "sc";;
 
-      Assert* [("scheduler","ADT")]
-      [PRE[V] sched (V "sc") * susp (V "sc") (V "pc") (V "ss") * mallocHeap 0
-       POST[_] sched (V "sc") * mallocHeap 0];;
+      Assert* [("threadq","ADT")]
+      [PRE[V] tq (V "sc") * susp (V "sc") (V "pc") (V "ss") * mallocHeap 0
+       POST[_] tq (V "sc") * mallocHeap 0];;
 
-      Call "scheduler"!"spawnWithStack"("sc", "pc", "ss")
+      Call "threadq"!"spawnWithStack"("sc", "pc", "ss")
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
@@ -272,7 +279,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         PREonly[V, R] [| (q %= empty) \is R |]
           * queue q (V "q") * (V "sc" ==*> V "q", tsp)
           * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp          
-          * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * mallocHeap 0];;
+          * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * globalInv * mallocHeap 0];;
 
       If ("r" = 1) {
         (* No threads left to run.  Let's loop forever! *)
@@ -285,12 +292,12 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         [Al q, Al tsp, Al pc, Al sp, Al vs,
           PREonly[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * mallocHeap 0
+            * (V "sc" ==*> V "q", tsp, pc, sp) * globalInv * mallocHeap 0
             * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp];;
 
         Rp <-* "sc" + 8;;
         Sp <-* "sc" + 12;;
-        IGoto* [("scheduler","ADT")] Rp
+        IGoto* [("threadq","ADT")] Rp
       }
     end with bfunction "yield"("sc", "q", "curPc", "curSp", "newPc", "newSp") [yieldS]
       "q" <-* "sc";;
@@ -298,14 +305,15 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       "curPc" <-- Call "queue"!"isEmpty"("q")
       [Al q, Al tsp, Al vs,
         PRE[V, R] [| (q %= empty) \is R |]
-          * queue q (V "q") * (V "sc" ==*> V "q", tsp) * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * mallocHeap 0
+          * queue q (V "q") * (V "sc" ==*> V "q", tsp) * (V "sc" ^+ $8) =?> 2 * susps q (V "sc")
+          * globalInv * mallocHeap 0
           * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-        POST[_] sched (V "sc") * mallocHeap 0];;
+        POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
 
       If ("curPc" = 1) {
         (* No other threads to run.  Simply returning to caller acts like a yield. *)
         Rp <- $[Sp+0];;
-        IGoto* [("scheduler","ADT")] Rp
+        IGoto* [("threadq","ADT")] Rp
       } else {
         (* Pick a thread to switch to. *)
         "curPc" <- "sc" + 8;;
@@ -313,14 +321,14 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         [Al q, Al tsp, Al vs, Al pc, Al sp,
           PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * mallocHeap 0
+            * (V "sc" ==*> V "q", tsp, pc, sp) * globalInv * mallocHeap 0
             * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-          POST[_] sched (V "sc") * mallocHeap 0];;
+          POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
         "newPc" <-* "sc" + 8;;
         "newSp" <-* "sc" + 12;;
 
-        Assert [PRE[V] susp (V "sc") (V "newPc") (V "newSp") * sched (V "sc") * mallocHeap 0
-          POST[_] sched (V "sc") * mallocHeap 0];;
+        Assert [PRE[V] susp (V "sc") (V "newPc") (V "newSp") * tq (V "sc") * globalInv * mallocHeap 0
+          POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
 
         (* Initialize the temporary stack with data we will need, then switch to using it as our stack. *)
         "curPc" <-* "sc" + 4;;
@@ -333,9 +341,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         "curPc" + 24 *<- "newSp";;
         Sp <- "curPc";;
 
-        Assert* [("scheduler","ADT")]
+        Assert* [("threadq","ADT")]
         [PREy[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
-          * queue b (V "q") * susps b (V "sc") * any * mallocHeap 0
+          * queue b (V "q") * susps b (V "sc") * any * globalInv * mallocHeap 0
           * susp (V "sc") (V "newPc") (V "newSp") * susp (V "sc") (V "curPc") (V "curSp")];;
 
         Note [mergeSusp];;
@@ -343,23 +351,27 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         (* Enqueue current thread; note that variable references below resolve in the temporary stack. *)
         Call "queue"!"enqueue"("q", "curPc", "curSp")
         [PREy[V] Ex b, Ex p, Ex sp, (V "sc" ==*> p, sp) * (V "sc" ^+ $8) =?> 2
-          * queue b p * susps b (V "sc") * any
+          * queue b p * susps b (V "sc") * any * globalInv
           * mallocHeap 0 * susp (V "sc") (V "newPc") (V "newSp")];;
 
         (* Jump to dequeued thread. *)
         "sc" + 4 *<- Sp;;
         Rp <- "newPc";;
         Sp <- "newSp";;
-        IGoto* [("scheduler","ADT")] Rp
+        IGoto* [("threadq","ADT")] Rp
       }
     end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := abstract (sep hints; try apply any_easy;
+(*Ltac t := abstract (sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto).
+    eauto).*)
+
+Ltac t := solve [ sep hints; try apply any_easy;
+  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
+    eauto ].
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w
@@ -448,6 +460,11 @@ Theorem ok : moduleOk m.
   step auto_ext.
   make_Himp.
   rewrite H9.
+  match goal with
+    | [ |- _ ===> ?P * ?Q * ?R * ?S ] =>
+      let H := fresh in assert (H : P * Q * (R * S) ===> P * Q * R * S) by sepLemma;
+        eapply Himp_trans; [ | apply H ]; clear H
+  end.
   apply Himp_star_frame; try apply Himp_refl.
   apply Himp_star_frame; try apply Himp_refl.
   do 3 intro; rewrite sepFormula_eq; unfold predIn, sepFormula_def; simpl.
@@ -489,8 +506,8 @@ Theorem ok : moduleOk m.
   propxFo.
   unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
   rewrite H9 in H2; injection H2; clear H2 H9; intros; subst.
-  assert (interp specs (![x12 * sched (sel x8 "sc") * mallocHeap 0] (stn, st)
-    ---> ![x12 * predIn x10 (sel x8 "sc") * mallocHeap 0] (stn, st))%PropX).
+  assert (interp specs (![x12 * tq (sel x8 "sc") * (globalInv * mallocHeap 0)] (stn, st)
+    ---> ![x12 * predIn x10 (sel x8 "sc") * (globalInv * mallocHeap 0)] (stn, st))%PropX).
   make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
   unfold Himp, himp; intros.
   unfold predIn.
@@ -563,7 +580,7 @@ Theorem ok : moduleOk m.
   step auto_ext.
   match goal with
     | [ |- interp _ (![?P * ?Q * ?R * ?S] _ ---> _)%PropX ] =>
-      let H := fresh in assert (H : P * Q * R * S ===> P * Q * sched (sel x2 "sc") * S); [
+      let H := fresh in assert (H : P * Q * R * S ===> P * Q * tq (sel x2 "sc") * S); [
         | eapply Imply_trans; [ rewrite sepFormula_eq in *; apply H | ] ]
   end.
   repeat apply Himp_star_frame; try apply Himp_refl.
@@ -605,8 +622,8 @@ Theorem ok : moduleOk m.
   end.
   unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
   rewrite H8 in H2; injection H2; clear H2 H8; intros; subst.
-  assert (interp specs (![x10 * sched (sel x2 "sc") * mallocHeap 0] (stn, st)
-    ---> ![x10 * predIn x8 (sel x2 "sc") * mallocHeap 0] (stn, st))%PropX).
+  assert (interp specs (![x10 * tq (sel x2 "sc") * (globalInv * mallocHeap 0)] (stn, st)
+    ---> ![x10 * predIn x8 (sel x2 "sc") * (globalInv * mallocHeap 0)] (stn, st))%PropX).
   make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
   unfold Himp, himp; intros.
   unfold predIn.
@@ -621,3 +638,5 @@ Theorem ok : moduleOk m.
 Qed.
 
 Transparent stackSize.
+
+End Make.

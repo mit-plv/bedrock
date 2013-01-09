@@ -1,4 +1,4 @@
-Require Import Thread.
+Require Import Thread0.
 
 
 Definition handlerS := SPEC("sc") reserving 14
@@ -7,13 +7,13 @@ Definition handlerS := SPEC("sc") reserving 14
 Definition mainS := SPEC reserving 23
   PREonly[_] mallocHeap 0.
 
-Definition m := bimport [[ "scheduler"!"init" @ [initS], "scheduler"!"exit" @ [exitS],
-                           "scheduler"!"spawn" @ [spawnS] ]]
+Definition m := bimport [[ "threadq"!"init" @ [initS], "threadq"!"exit" @ [exitS],
+                           "threadq"!"spawn" @ [spawnS] ]]
   bmodule "test" {{
     bfunctionNoRet "handler"("sc") [handlerS]
       Exit
     end with bfunctionNoRet "main"("sc") [mainS]
-      "sc" <-- Call "scheduler"!"init"()
+      "sc" <-- Call "threadq"!"init"()
       [PREonly[_, R] sched R * mallocHeap 0];;
 
       Spawn("test"!"handler", 16)
