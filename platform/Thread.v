@@ -106,12 +106,12 @@ Ltac vcgen := structured_auto vcgen_simp;
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold.
 
-Ltac sep hints :=
+Ltac sep unf hints := unf;
   match goal with
     | [ |- context[starting] ] => post; evaluate hints; descend; [
       toFront_conc ltac:(fun P => match P with
                                     | starting _ _ _ => idtac
-                                  end); apply starting_intro; descend; [ | step hints | ];
+                                  end); apply starting_intro; unf; descend; [ | step hints | ];
       step hints; unfold localsInvariantCont | | ]; AutoSep.sep hints
     | _ => AutoSep.sep hints
   end.
