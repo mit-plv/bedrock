@@ -6,7 +6,7 @@ MODULES := AutoSepExt PreAutoSep \
            Bags Queue ThreadQueue Thread \
            Bootstrap SinglyLinkedList \
            tests/Thread0 \
-           tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder \
+           tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList \
            tests/BabyThreadDriver tests/ListBuilderDriver
 
 VS      := $(MODULES:%=%.v)

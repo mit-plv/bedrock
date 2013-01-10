@@ -13,5 +13,5 @@ Export T.
 
 Notation sched := tq.
 
-Ltac sep hints := unfold M.globalInv in *; T.sep hints.
+Ltac sep := T.sep ltac:(unfold M.globalInv in *).
 Ltac sep_auto := sep auto_ext.
