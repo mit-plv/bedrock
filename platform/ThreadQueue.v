@@ -1,4 +1,5 @@
 Require Import Arith AutoSep Bags Malloc Queue RecPred.
+Import W_W_Bag.
 
 Set Implicit Arguments.
 
@@ -365,13 +366,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-(*Ltac t := abstract (sep hints; try apply any_easy;
+Ltac t := abstract (sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto).*)
-
-Ltac t := solve [ sep hints; try apply any_easy;
-  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto ].
+    eauto).
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w

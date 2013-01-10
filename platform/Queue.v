@@ -1,4 +1,5 @@
 Require Import AutoSep Malloc Bags.
+Import W_W_Bag.
 
 
 (** * Queue ADT *)
