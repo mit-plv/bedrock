@@ -22,12 +22,18 @@ Declare ML Module "Timing_plugin".
 
 (** isConst **)
 (*************)
+
+Ltac isConst_bool e :=
+  match e with
+    | true => true
+    | false => true
+    | _ => false
+  end.
+
 Ltac isConst e :=
   match e with
     | 0 => true
     | S ?e => isConst e
-    | true => true
-    | false => true
     | Rp => true
     | Rv => true
     | Sp => true
@@ -38,21 +44,21 @@ Ltac isConst e :=
         | _ => false
       end
     | Ascii.Ascii ?a ?b ?c ?d ?e ?f ?g ?h =>
-      match isConst a with
+      match isConst_bool a with
         | true =>
-          match isConst b with
+          match isConst_bool b with
             | true =>
-              match isConst c with
+              match isConst_bool c with
                 | true =>
-                  match isConst d with
+                  match isConst_bool d with
                     | true =>
-                      match isConst e with
+                      match isConst_bool e with
                         | true =>
-                          match isConst f with
+                          match isConst_bool f with
                             | true =>
-                              match isConst g with
+                              match isConst_bool g with
                                 | true =>
-                                  match isConst h with
+                                  match isConst_bool h with
                                     | true => true
                                     | _ => false
                                   end
