@@ -465,12 +465,17 @@ module Bedrock = struct
     let is_const e =
       let init p x = Extlib.init_constant  p x in 
       let f x = init ["Bedrock"; "IL"] x in
+
+      (* Boolean constants need separate handling, until such time as we extend
+       * the reified type environment with an equality test for Booleans. *)
+      let bool_constants = [Lazy.force Extlib.Bool._true;
+			    Lazy.force Extlib.Bool._false] in
+
       let constants = [f "Rp" ; f "Rv"; f "Sp"; 
 					 Lazy.force Extlib.Nat._O;
-					 Lazy.force Extlib.Bool._true;
-					 Lazy.force Extlib.Bool._false;
 					 init ["Coq"; "Strings"; "String"] "EmptyString";
 		      ]  in 
+
       let string = (init ["Coq"; "Strings"; "String"] "String") in 
       let ascii = (init ["Coq"; "Strings"; "Ascii"] "Ascii") in 
     let rec is_const e = 
@@ -481,10 +486,10 @@ module Bedrock = struct
 	      is_const args.(0)
 	    | Term.App (hd, args) when 
 		Term.eq_constr hd string ->
-	      is_const args.(0) && is_const args.(1)
+	       is_const args.(0) && is_const args.(1)
 	    | Term.App (hd, args) when 
 		Term.eq_constr hd ascii -> 
-	      Array.fold_left (fun acc x -> acc && is_const x) true args
+	      Array.fold_left (fun acc x -> acc && List.exists (Term.eq_constr x) bool_constants) true args
 	    | _ -> false
       in 
       let r = is_const e in 
