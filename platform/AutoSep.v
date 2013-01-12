@@ -45,6 +45,10 @@ Qed.
 Hint Extern 1 (interp _ _) =>
   eapply tuple_predicate; [ eassumption | reflexivity ].
 
+(* avoid name conflict with Conditional.v *)
+Definition And := PropX.And.
+Definition Or := PropX.Or.
+
 Fixpoint eatEasy pc state G (P : propX pc state G)
   : list (propX pc state G) * list (propX pc state G) :=
   match P in propX _ _ G return list (propX _ _ G) * list (propX _ _ G) with
