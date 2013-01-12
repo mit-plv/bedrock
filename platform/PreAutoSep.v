@@ -217,6 +217,10 @@ Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
       FReserved := Reserved p' |})
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
+(* added Conditional *)
+Require Import Conditional.
+Export Conditional.
+
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond
   Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_
@@ -249,6 +253,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
   Note_ Note__
   IGotoStar_ IGotoStar AssertStar_ AssertStar
+  Cond_ Cond
 ].
 
 Ltac vcgen :=

@@ -1,5 +1,5 @@
 ROOT    := ..
-MODULES := AutoSepExt PreAutoSep \
+MODULES := Conditional AutoSepExt PreAutoSep \
            Util \
            AutoSep RecPred \
            Malloc \
