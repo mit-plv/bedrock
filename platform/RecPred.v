@@ -20,6 +20,9 @@ Notation "##2" := (fun sc => ![ fun x : settings * smem => Lift (Lift (Var0 (sta
 Definition predIn (P : settings * state -> PropX W (settings * state)) (sc : W) : HProp :=
   fun stn sm => P (stateOut (stn, sm) sc).
 
+Definition predOut (P : W -> HProp) : settings * state -> PropX W (settings * state) :=
+  fun stn_st => P stn_st#Rp (fst stn_st) (memoryIn (Mem (snd stn_st))).
+
 Ltac make_Himp := match goal with
                     | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
                       let H := fresh in assert (P ===> Q); [ | rewrite sepFormula_eq in *; apply H ]

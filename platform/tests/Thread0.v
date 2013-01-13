@@ -3,7 +3,9 @@ Export Thread.
 
 
 Module M.
-  Definition globalInv : HProp := Emp%Sep.
+  Open Scope Sep_scope.
+
+  Definition globalInv (_ : W) : hpropB ((settings * state : Type)%type :: nil) := ^[Emp].
 End M.
 
 Module T := Make(M).
