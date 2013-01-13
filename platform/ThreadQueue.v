@@ -5,7 +5,7 @@ Set Implicit Arguments.
 
 
 Module Type S.
-  Variable globalInv : HProp.
+  Variable globalInv : W -> hpropB ((settings * state : Type)%type :: nil).
 End S.
 
 Module Make(M : S).
@@ -19,7 +19,7 @@ Definition susp (sc pc sp : W) : HProp := fun s m =>
     /\ ExX (* pre *) : settings * state, Cptr pc #0
     /\ ExX (* inv *) : settings * smem, #0 (s, m)
     /\ Al st : settings * state,
-    ![ #0 * ##2 sc * ^[globalInv * mallocHeap 0] ] st
+    ![ #0 * ##2 sc * (fun x y => Lift (Lift (globalInv sc x y))) * ^[mallocHeap 0] ] st
     /\ [| st#Sp = sp |]
     ---> #1 st)%PropX.
 
@@ -28,7 +28,7 @@ Lemma susp_intro : forall specs sc pc sp P stn st,
     /\ exists tq, specs pc_tq = Some (fun x => tq x)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st, interp specs (![ inv * predIn tq sc * (globalInv * mallocHeap 0) ] stn_st
+          /\ forall stn_st, interp specs (![ inv * predIn tq sc * substH (globalInv sc) tq * mallocHeap 0 ] stn_st
             /\ [| stn_st#Sp = sp |]
             ---> pre stn_st)%PropX)
   -> interp specs (![ susp sc pc sp * P ] (stn, st)).
@@ -41,7 +41,7 @@ Lemma susp_elim : forall specs sc pc sp P stn st,
     /\ exists tq, specs pc_tq = Some (fun x => tq x)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st, interp specs (![ inv * predIn tq sc * (globalInv * mallocHeap 0) ] stn_st
+          /\ forall stn_st, interp specs (![ inv * predIn tq sc * substH (globalInv sc) tq * mallocHeap 0 ] stn_st
             /\ [| stn_st#Sp = sp |]
             ---> pre stn_st)%PropX).
   cptr.
@@ -133,11 +133,13 @@ Defined.
 
 (* What is a valid initial code pointer for a thread, given the requested stack size? *)
 
+Definition ginv sc := substH (globalInv sc) (predOut tq).
+
 Definition starting (sc pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs,
-      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tq sc * globalInv * mallocHeap 0] ] st
+      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tq sc * ginv sc * mallocHeap 0] ] st
       /\ [| sel vs "sc" = sc |]
       ---> #0 st)%PropX.
 
@@ -147,7 +149,7 @@ Lemma starting_intro : forall specs sc pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
-      * tq sc * globalInv * mallocHeap 0 ] stn_st
+      * tq sc * ginv sc * mallocHeap 0 ] stn_st
     /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX)
   -> interp specs (![ starting sc pc ss * P ] (stn, st)).
@@ -159,7 +161,7 @@ Lemma starting_elim : forall specs sc pc ss P stn st,
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
-      * tq sc * globalInv * mallocHeap 0 ] stn_st
+      * tq sc * ginv sc * mallocHeap 0 ] stn_st
     /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX).
   cptr.
@@ -184,11 +186,11 @@ Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
   POST[_] tq (V "sc") * mallocHeap 0.
 
 Definition exitS : spec := SPEC("sc") reserving 12
-  PREonly[V] tq (V "sc") * globalInv * mallocHeap 0.
+  PREonly[V] tq (V "sc") * ginv (V "sc") * mallocHeap 0.
 
 Definition yieldS : spec := SPEC("sc") reserving 19
-  PRE[V] tq (V "sc") * globalInv * mallocHeap 0
-  POST[_] tq (V "sc") * globalInv * mallocHeap 0.
+  PRE[V] tq (V "sc") * ginv (V "sc") * mallocHeap 0
+  POST[_] tq (V "sc") * ginv (V "sc") * mallocHeap 0.
 
 (* Next, some hijinks to prevent unnecessary unfolding of distinct memory cells for the threadq's stack. *)
 
@@ -280,7 +282,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         PREonly[V, R] [| (q %= empty) \is R |]
           * queue q (V "q") * (V "sc" ==*> V "q", tsp)
           * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp          
-          * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * globalInv * mallocHeap 0];;
+          * (V "sc" ^+ $8) =?> 2 * susps q (V "sc") * ginv (V "sc") * mallocHeap 0];;
 
       If ("r" = 1) {
         (* No threads left to run.  Let's loop forever! *)
@@ -293,7 +295,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         [Al q, Al tsp, Al pc, Al sp, Al vs,
           PREonly[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * globalInv * mallocHeap 0
+            * (V "sc" ==*> V "q", tsp, pc, sp) * ginv (V "sc") * mallocHeap 0
             * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp];;
 
         Rp <-* "sc" + 8;;
@@ -307,9 +309,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       [Al q, Al tsp, Al vs,
         PRE[V, R] [| (q %= empty) \is R |]
           * queue q (V "q") * (V "sc" ==*> V "q", tsp) * (V "sc" ^+ $8) =?> 2 * susps q (V "sc")
-          * globalInv * mallocHeap 0
+          * ginv (V "sc") * mallocHeap 0
           * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-        POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
+        POST[_] tq (V "sc") * ginv (V "sc") * mallocHeap 0];;
 
       If ("curPc" = 1) {
         (* No other threads to run.  Simply returning to caller acts like a yield. *)
@@ -322,14 +324,14 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         [Al q, Al tsp, Al vs, Al pc, Al sp,
           PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
             * susps (q %- (pc, sp)) (V "sc") * susp (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * globalInv * mallocHeap 0
+            * (V "sc" ==*> V "q", tsp, pc, sp) * ginv (V "sc") * mallocHeap 0
             * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
-          POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
+          POST[_] tq (V "sc") * ginv (V "sc") * mallocHeap 0];;
         "newPc" <-* "sc" + 8;;
         "newSp" <-* "sc" + 12;;
 
-        Assert [PRE[V] susp (V "sc") (V "newPc") (V "newSp") * tq (V "sc") * globalInv * mallocHeap 0
-          POST[_] tq (V "sc") * globalInv * mallocHeap 0];;
+        Assert [PRE[V] susp (V "sc") (V "newPc") (V "newSp") * tq (V "sc") * ginv (V "sc") * mallocHeap 0
+          POST[_] tq (V "sc") * ginv (V "sc") * mallocHeap 0];;
 
         (* Initialize the temporary stack with data we will need, then switch to using it as our stack. *)
         "curPc" <-* "sc" + 4;;
@@ -344,7 +346,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
         Assert* [("threadq","ADT")]
         [PREy[V] Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
-          * queue b (V "q") * susps b (V "sc") * any * globalInv * mallocHeap 0
+          * queue b (V "q") * susps b (V "sc") * any * ginv (V "sc") * mallocHeap 0
           * susp (V "sc") (V "newPc") (V "newSp") * susp (V "sc") (V "curPc") (V "curSp")];;
 
         Note [mergeSusp];;
@@ -352,7 +354,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         (* Enqueue current thread; note that variable references below resolve in the temporary stack. *)
         Call "queue"!"enqueue"("q", "curPc", "curSp")
         [PREy[V] Ex b, Ex p, Ex sp, (V "sc" ==*> p, sp) * (V "sc" ^+ $8) =?> 2
-          * queue b p * susps b (V "sc") * any * globalInv
+          * queue b p * susps b (V "sc") * any * ginv (V "sc")
           * mallocHeap 0 * susp (V "sc") (V "newPc") (V "newSp")];;
 
         (* Jump to dequeued thread. *)
@@ -457,15 +459,10 @@ Theorem ok : moduleOk m.
   step auto_ext.
   make_Himp.
   rewrite H9.
-  match goal with
-    | [ |- _ ===> ?P * ?Q * ?R * ?S ] =>
-      let H := fresh in assert (H : P * Q * (R * S) ===> P * Q * R * S) by sepLemma;
-        eapply Himp_trans; [ | apply H ]; clear H
-  end.
-  apply Himp_star_frame; try apply Himp_refl.
-  apply Himp_star_frame; try apply Himp_refl.
+  repeat (apply Himp_star_frame; try apply Himp_refl).
   do 3 intro; rewrite sepFormula_eq; unfold predIn, sepFormula_def; simpl.
   rewrite memoryIn_memoryOut; apply Imply_refl.
+  rewrite sepFormula_eq; apply Himp_refl.
   auto.
   step auto_ext.
   sep_auto.
@@ -503,8 +500,10 @@ Theorem ok : moduleOk m.
   propxFo.
   unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
   rewrite H9 in H2; injection H2; clear H2 H9; intros; subst.
-  assert (interp specs (![x12 * tq (sel x8 "sc") * (globalInv * mallocHeap 0)] (stn, st)
-    ---> ![x12 * predIn x10 (sel x8 "sc") * (globalInv * mallocHeap 0)] (stn, st))%PropX).
+  change (fun st m => subst (globalInv (sel x8 "sc") st m) x10)
+    with (substH (globalInv (sel x8 "sc")) x10).
+  assert (interp specs (![x12 * tq (sel x8 "sc") * ginv (sel x8 "sc") * mallocHeap 0] (stn, st)
+    ---> ![x12 * predIn x10 (sel x8 "sc") * substH (globalInv (sel x8 "sc")) x10 * mallocHeap 0] (stn, st))%PropX).
   make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
   unfold Himp, himp; intros.
   unfold predIn.
@@ -513,6 +512,10 @@ Theorem ok : moduleOk m.
   rewrite sepFormula_eq; unfold sepFormula_def; simpl.
   rewrite memoryIn_memoryOut.
   apply Imply_refl.
+  unfold substH.
+  replace x10 with (predOut tq).
+  apply Himp_refl.
+  symmetry; rewrite sepFormula_eq in H; assumption.
   apply (Imply_sound H0); clear H0 H.
   step hints; apply any_easy.
 
@@ -548,7 +551,7 @@ Theorem ok : moduleOk m.
   step hints.
   descend; step hints.
   instantiate (2 := x2).
-  instantiate (4 := upd (upd x5 "curPc" (Regs x0 Rv)) "curPc" (sel x5 "sc" ^+ $8)).
+  instantiate (3 := upd (upd x5 "curPc" (Regs x0 Rv)) "curPc" (sel x5 "sc" ^+ $8)).
   descend; cancel hints.
   step hints.
   apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ].
@@ -576,13 +579,14 @@ Theorem ok : moduleOk m.
   step auto_ext.
   step auto_ext.
   match goal with
-    | [ |- interp _ (![?P * ?Q * ?R * ?S] _ ---> _)%PropX ] =>
-      let H := fresh in assert (H : P * Q * R * S ===> P * Q * tq (sel x2 "sc") * S); [
+    | [ |- interp _ (![?P * ?Q * ?R * ?S * ?T] _ ---> _)%PropX ] =>
+      let H := fresh in assert (H : P * Q * R * S * T ===> P * Q * tq (sel x2 "sc") * ginv (sel x2 "sc") * T); [
         | eapply Imply_trans; [ rewrite sepFormula_eq in *; apply H | ] ]
   end.
   repeat apply Himp_star_frame; try apply Himp_refl.
   do 3 intro; rewrite sepFormula_eq; unfold sepFormula_def, predIn; simpl.
   rewrite memoryIn_memoryOut; apply Imply_refl.
+  rewrite sepFormula_eq; apply Himp_refl.
   match goal with
     | [ |- interp _ (?P ?x ?y ---> _) ] => change (P x y) with (sepFormula_def P (s, s0))
   end; rewrite <- sepFormula_eq.
@@ -598,7 +602,7 @@ Theorem ok : moduleOk m.
   step hints.
   step hints.
   unfold yieldInvariantCont; descend; step hints.
-  instantiate (5 := x2 %+ (sel x0 "curPc", sel x0 "curSp")).
+  instantiate (6 := x2 %+ (sel x0 "curPc", sel x0 "curSp")).
   descend; step hints.
 
   t.
@@ -619,8 +623,10 @@ Theorem ok : moduleOk m.
   end.
   unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
   rewrite H8 in H2; injection H2; clear H2 H8; intros; subst.
-  assert (interp specs (![x10 * tq (sel x2 "sc") * (globalInv * mallocHeap 0)] (stn, st)
-    ---> ![x10 * predIn x8 (sel x2 "sc") * (globalInv * mallocHeap 0)] (stn, st))%PropX).
+  change (fun (st0 : ST.settings) (m0 : smem) => subst (globalInv (sel x2 "sc") st0 m0) x8)
+    with (substH (globalInv (sel x2 "sc")) x8).
+  assert (interp specs (![x10 * tq (sel x2 "sc") * ginv (sel x2 "sc") * mallocHeap 0] (stn, st)
+    ---> ![x10 * predIn x8 (sel x2 "sc") * substH (globalInv (sel x2 "sc")) x8 * mallocHeap 0] (stn, st))%PropX).
   make_Himp; repeat apply Himp_star_frame; try apply Himp_refl.
   unfold Himp, himp; intros.
   unfold predIn.
@@ -629,6 +635,10 @@ Theorem ok : moduleOk m.
   rewrite sepFormula_eq; unfold sepFormula_def; simpl.
   rewrite memoryIn_memoryOut.
   apply Imply_refl.
+  unfold ginv.
+  replace (predOut tq) with x8.
+  apply Himp_refl.
+  rewrite sepFormula_eq in *; assumption.
   propxFo.
   apply (Imply_sound H2); clear H2 H1.
   step hints.
