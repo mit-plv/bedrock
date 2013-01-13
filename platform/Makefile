@@ -3,7 +3,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Util \
            AutoSep RecPred \
            Malloc \
-           Bags Queue ThreadQueue Thread \
+           Bags Queue ThreadQueue ThreadQueues Thread \
            Bootstrap SinglyLinkedList \
            tests/Thread0 \
            tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList \

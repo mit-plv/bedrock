@@ -7,16 +7,36 @@ Set Implicit Arguments.
 
 Section starL.
   Variable A : Type.
-  Variable P : A -> HProp.
+  Variable G : list Type.
+  Variable P : A -> hpropB G.
 
   Open Scope Sep_scope.
 
-  Fixpoint starL (ls : list A) : HProp :=
+  Fixpoint starL (ls : list A) : hpropB G :=
     match ls with
       | nil => Emp
       | x :: ls => P x * starL ls
     end.
 End starL.
+
+Theorem starL_substH : forall A G (P : A-> hpropB G) v ls,
+  substH (starL P ls) v = starL (fun x => substH (P x) v) ls.
+  induction ls; simpl; intuition (autorewrite with sepFormula; congruence).
+Qed.
+
+Section starL_weaken.
+  Variable A : Type.
+  Variables P P' : A -> HProp.
+
+  Hypothesis HP' : forall x, P x ===> P' x.
+
+  Theorem starL_weaken : forall ls,
+    starL P ls ===> starL P' ls.
+    induction ls; simpl; intuition.
+    sepLemma.
+    apply Himp_star_frame; auto.
+  Qed.
+End starL_weaken.
 
 Lemma propToWord_elim_not1 : forall P b,
   P \is b
@@ -105,17 +125,44 @@ Module Make(M : S).
     sepLemma.
   Qed.
 
-  Section starB.
-    Definition bagify (ls : list A) : bag :=
-      fold_left add ls empty.
+  Definition bagify (ls : list A) : bag :=
+    fold_left add ls empty.
 
-    Definition predB := A -> HProp.
+  Section starB.
+    Variable G : list Type.
+    Definition predB := A -> hpropB G.
     Variable P : predB.
 
     Open Scope Sep_scope.
 
-    Definition starB (b : bag) : HProp :=
+    Definition starB (b : bag) : hpropB G :=
       Ex ls, [| b %= bagify ls |] * starL P ls.
+  End starB.
+
+  Theorem starB_substH_fwd : forall T (P : predB (T :: nil)) b v,
+    substH (starB P b) v ===> starB (fun x => substH (P x) v) b.
+    unfold starB; intros; autorewrite with sepFormula.
+    apply Himp'_ex; intro; apply Himp_ex_c; eexists.
+    autorewrite with sepFormula.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    rewrite starL_substH.
+    apply Himp_refl.
+  Qed.
+
+  Theorem starB_substH_bwd : forall T (P : predB (T :: nil)) b v,
+    starB (fun x => substH (P x) v) b ===> substH (starB P b) v.
+    unfold starB; intros; autorewrite with sepFormula.
+    apply Himp'_ex; intro; apply Himp_ex_c; eexists.
+    autorewrite with sepFormula.
+    apply Himp_star_frame.
+    apply Himp_refl.
+    rewrite starL_substH.
+    apply Himp_refl.
+  Qed.
+
+  Section starB_closed.
+    Variable P : predB nil.
 
     Ltac to_himp := repeat intro.
     Ltac from_himp := match goal with
@@ -124,7 +171,7 @@ Module Make(M : S).
                             change (p ===> q)
                       end.
 
-    Theorem starB_empty_bwd : Emp ===> starB empty.
+    Theorem starB_empty_bwd : Emp ===> starB P empty.
       to_himp; apply existsR with nil; from_himp; sepLemma.
     Qed.
 
@@ -141,7 +188,7 @@ Module Make(M : S).
       apply bagify_cong; auto.
     Qed.
 
-    Theorem starB_add_bwd : forall b v, starB b * P v ===> starB (b %+ v).
+    Theorem starB_add_bwd : forall b v, starB P b * P v ===> starB P (b %+ v).
       intros; eapply Himp_trans; [ apply exists_starL_fwd | ]; cbv beta.
       to_himp; apply existsL; intro ls; apply existsR with (v :: ls); from_himp.
       simpl; generalize (starL P ls); generalize (P v); sepLemma.
@@ -215,7 +262,7 @@ Module Make(M : S).
     Hint Resolve bagify_In bagify_nuke.
 
     Theorem starB_del_fwd : forall b v, v %in b
-      -> starB b ===> P v * starB (b %- v).
+      -> starB P b ===> P v * starB P (b %- v).
       intros; eapply Himp_trans; [ | apply exists_starR_bwd ]; cbv beta.
       to_himp; apply existsL; intro ls; apply existsR with (nuke v ls).
       specialize (starL_del_fwd v ls);
@@ -225,10 +272,23 @@ Module Make(M : S).
       eapply equiv_trans; [ | apply equiv_symm; apply bagify_nuke ].
       auto.
       eauto.
-      transitivity (h0 * h); eauto.
+      transitivity (h0 * h)%Sep; eauto.
       sepLemma.
     Qed.
-  End starB.
+
+    Variable P' : predB nil.
+
+    Hypothesis HP' : forall x, P x ===> P' x.
+
+    Theorem starB_weaken : forall b,
+      starB P b ===> starB P' b.
+      unfold starB; intro.
+      apply Himp'_ex; intro; apply Himp_ex_c; eexists.
+      apply Himp_star_frame.
+      apply Himp_refl.
+      apply starL_weaken; auto.
+    Qed.
+  End starB_closed.
 
 End Make.
 
