@@ -106,8 +106,13 @@ Definition exitS : spec := SPEC("q") reserving 14
   Al ts,
   PREonly[V] [| V "q" %in ts |] * tqs ts * globalInv ts * mallocHeap 0.
 
+Definition yieldS : spec := SPEC("q") reserving 21
+  Al ts,
+  PRE[V] [| V "q" %in ts |] * tqs ts * globalInv ts * mallocHeap 0
+  POST[_] Ex ts', tqs ts' * globalInv ts' * mallocHeap 0.
+
 Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.spawnS],
-                           "threadq"!"exit" @ [Q.exitS] ]]
+                           "threadq"!"exit" @ [Q.exitS], "threadq"!"yield" @ [Q.yieldS] ]]
   bmodule "threadqs" {{
     bfunction "alloc"("r") [allocS]
       "r" <-- Call "threadq"!"init"()
@@ -122,7 +127,12 @@ Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.
     end with bfunctionNoRet "exit"("q") [exitS]
       Call "threadq"!"exit"("q")
       [PREonly[_] [| False |] ]
-    end
+    end with bfunction "yield"("q") [yieldS]
+      Call "threadq"!"yield"("q")
+      [PRE[_] Emp
+       POST[_] Emp];;
+      Return 0
+   end
   }}.
 
 Hint Extern 1 (@eq W _ _) => words.
@@ -315,6 +325,99 @@ Theorem ok : moduleOk m.
   step hints.
 
   t.
+
+  t.
+  t.
+  t.
+  t.
+
+  post; evaluate hints.
+  change (tqs x0) with (tqs_pick_this_one (sel x2 "q") x0) in H7.
+  descend.
+  step hints.
+  step hints.
+  unfold ginv, M'.globalInv.
+  autorewrite with sepFormula.
+  etransitivity; [ | apply heq_ex_star ].
+  apply himp_ex_c; exists (x0 %- sel x2 "q").
+  autorewrite with sepFormula.
+  etransitivity; [ | apply Himp_star_assoc' ].
+  etransitivity; [ | apply Himp_star_frame ].
+  2: apply starB_substH_bwd.
+  2: apply Himp_refl.
+  match goal with
+    | [ |- himp _ _ (star _ (_ * ?P)%Sep) ] => transitivity (tqs (x0 %- sel x2 "q") * globalInv x0 * P)%Sep
+  end.
+  step hints.
+  etransitivity; [ | apply Himp_star_assoc ].
+  simpl.
+  apply himp_star_frame; try reflexivity.
+  apply himp_star_frame.
+  rewrite tqs_eq; apply starB_weaken.
+  unfold Himp, himp; intros; unfold substH, predOut; simpl; rewrite memoryIn_memoryOut; apply Imply_refl.
+  apply globalInv_extensional; auto.
+  step hints.
+  descend; step hints.
+  descend; step hints.
+  step hints.
+  descend; step hints.
+  unfold ginv, M'.globalInv.
+  autorewrite with sepFormula.
+
+  Lemma woogle : forall P Q R S T,
+    P * (Q * (R * (S * T))) ===> S * (P * Q * R * T).
+    sepLemma.
+  Qed.
+
+  Lemma switch_up : forall P Q specs p,
+    P ===> Q
+    -> interp specs (![P] p ---> ![Q] p)%PropX.
+    rewrite sepFormula_eq; unfold sepFormula_def; intros.
+    apply H.
+  Qed.
+
+  eapply Imply_trans; [ apply switch_up; apply woogle | ].
+  eapply Imply_trans; [ apply switch_up; apply Himp_ex_star | ].
+  eapply Imply_trans; [ apply switch_up; apply Himp_ex; intro | ].
+  autorewrite with sepFormula.
+  apply Himp_refl.
+  eapply Imply_trans; [ apply ex_out | ].
+  apply existsL; intro.
+  eapply Imply_trans; try apply H4; clear H4.
+  apply andR.
+  apply injR; simpl; auto.
+  do 2 eapply existsR.
+  autorewrite with sepFormula.
+  eapply Imply_trans; [ apply switch_up; apply Himp_star_assoc | ].
+  eapply Imply_trans; [ apply switch_up; apply Himp_star_frame | ].
+  eapply starB_substH_fwd.
+  apply Himp_refl.
+  eapply Imply_trans; [ apply switch_up; apply Himp_star_frame | ].
+  instantiate (1 := tqs x5).
+  rewrite tqs_eq; apply starB_weaken.
+  unfold Himp, himp; intros; unfold substH, predOut; simpl; rewrite memoryIn_memoryOut; apply Imply_refl.
+  apply Himp_refl.
+  change (tqs x5) with (tqs_pick_this_one (sel x2 "q") x5).
+  descend; step hints.
+  
+  apply tqs_add_bwd.
+
+
+
+  Lemma jiggle : forall P Q R,
+    P * Q * R ===> Q * (P * R).
+    sepLemma.
+  Qed.
+
+  etransitivity; [ apply jiggle | ].
+  apply himp_star_frame.
+
+  apply globalInv_extensional; auto.
+
+  apply himp_ex_c; exists (x0 %- sel x2 "q"). 
+
+
+
 Qed.
 
 End Make.
