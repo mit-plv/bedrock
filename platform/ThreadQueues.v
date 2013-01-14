@@ -6,6 +6,9 @@ Set Implicit Arguments.
 
 Module Type S.
   Variable globalInv : bag -> HProp.
+
+  Hypothesis globalInv_extensional : forall b1 b2, b1 %= b2
+    -> globalInv b1 ===> globalInv b2.
 End S.
 
 Module Make(M : S).
@@ -99,7 +102,12 @@ Definition spawnS : spec := SPEC("q", "pc", "ss") reserving 25
     * tqs ts * starting (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
   POST[_] tqs ts * mallocHeap 0.
 
-Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.spawnS] ]]
+Definition exitS : spec := SPEC("q") reserving 14
+  Al ts,
+  PREonly[V] [| V "q" %in ts |] * tqs ts * globalInv ts * mallocHeap 0.
+
+Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.spawnS],
+                           "threadq"!"exit" @ [Q.exitS] ]]
   bmodule "threadqs" {{
     bfunction "alloc"("r") [allocS]
       "r" <-- Call "threadq"!"init"()
@@ -111,6 +119,9 @@ Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
+    end with bfunctionNoRet "exit"("q") [exitS]
+      Call "threadq"!"exit"("q")
+      [PREonly[_] [| False |] ]
     end
   }}.
 
@@ -230,6 +241,79 @@ Theorem ok : moduleOk m.
 
   t.
   t.
+  t.
+
+  t.
+  t.
+  t.
+  
+  post; evaluate hints; descend.
+  unfold ginv, M'.globalInv.
+  autorewrite with sepFormula.
+
+  Lemma grab : forall P Q R S T,
+    R * (P * Q * S * T) ===> P * (Q * R * S) * T.
+    sepLemma.
+  Qed.
+
+  Lemma use_Himp : forall specs Q P p,
+    Q ===> P
+    -> interp specs (![Q] p)
+    -> interp specs (![P] p).
+    rewrite sepFormula_eq; unfold sepFormula_def; intros.
+    eapply Imply_sound.
+    apply H.
+    auto.
+  Qed.
+
+  eapply use_Himp; [ apply grab | ].
+
+  Lemma exB_intro : forall A x (P : A -> HProp) Q specs p,
+    interp specs (![P x * Q] p)
+    -> interp specs (![exB P * Q] p).
+    rewrite sepFormula_eq; propxFo; eauto 10.
+  Qed.
+
+  apply (exB_intro (x0 %- (sel x2 "q"))).
+  autorewrite with sepFormula.
+
+  Lemma get_first' : forall P Q R P',
+    P ===> P'
+    -> P * (Q * R) ===> P' * Q * R.
+    sepLemma.
+  Qed.
+
+  eapply use_Himp.
+  apply get_first'.
+  apply starB_substH_bwd.
+  eapply use_Himp.
+  apply Himp_star_frame.
+  instantiate (1 := tqs (x0 %- sel x2 "q")).
+  rewrite tqs_eq.
+  apply starB_weaken; intros.
+  unfold Himp, himp; intros.
+  unfold substH, predOut.
+  simpl.
+  rewrite memoryIn_memoryOut; apply Himp_refl.
+  apply Himp_refl.
+  instantiate (2 := upd x3 "sc" (sel x2 "q")).
+  descend.
+  eapply use_Himp.
+
+  Lemma wiggle : forall P Q R,
+    Q * (P * R) ===> P * (Q * R).
+    sepLemma.
+  Qed.
+  
+  apply wiggle.
+  eapply use_Himp.
+  apply Himp_star_frame.
+  apply globalInv_extensional.
+  instantiate (1 := x0); auto.
+  apply Himp_refl.
+  change (tqs x0) with (tqs_pick_this_one (sel x2 "q") x0) in H5.
+  step hints.
+
   t.
 Qed.
 
