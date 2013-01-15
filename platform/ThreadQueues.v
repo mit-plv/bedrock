@@ -1,14 +1,20 @@
-Require Import AutoSep Bags Malloc RecPred ThreadQueue.
+Require Import AutoSep Bags Malloc ThreadQueue RecPred.
 Import W_Bag.
 
 Set Implicit Arguments.
 
 
 Module Type S.
-  Variable globalInv : bag -> HProp.
+  Variable world : Type.
 
-  Hypothesis globalInv_extensional : forall b1 b2, b1 %= b2
-    -> globalInv b1 ===> globalInv b2.
+  Variable evolve : world -> world -> Prop.
+  Axiom evolve_refl : forall w, evolve w w.
+  Axiom evolve_trans : forall w1 w2 w3, evolve w1 w2 -> evolve w2 w3 -> evolve w1 w3.
+
+  Variable globalInv : bag -> world -> HProp.
+
+  Hypothesis globalInv_extensional : forall b1 b2 w, b1 %= b2
+    -> globalInv b1 w ===> globalInv b2 w.
 End S.
 
 Module Make(M : S).
@@ -17,107 +23,153 @@ Import M.
 Module M'.
   Open Scope Sep_scope.
 
-  Definition globalInv (p : W) : hpropB ((settings * state : Type)%type :: nil) :=
-    Ex b, starB (fun p' stn sm => Var0 (stateOut (stn, sm) p')) b * ^[globalInv (b %+ p)].
+  Definition world := (bag * M.world)%type.
+  Definition evolve (w1 w2 : world) :=
+    fst w1 %<= fst w2
+    /\ M.evolve (snd w1) (snd w2).
+
+  Local Hint Resolve M.evolve_refl M.evolve_trans.
+
+  Theorem evolve_refl : forall w, evolve w w.
+    unfold evolve; auto.
+  Qed.
+
+  Theorem evolve_trans : forall w1 w2 w3, evolve w1 w2 -> evolve w2 w3 -> evolve w1 w3.
+    unfold evolve; intuition eauto.
+  Qed.
+
+  Definition globalInv (w : world) (p : W) : hpropB (tq_args world :: nil) :=
+    starB (fun p' stn sm => Var0 {| World := w; Pointer := p'; Settings := stn; Mem := sm |}) (fst w %- p) * ^[M.globalInv (fst w) (snd w)].
 End M'.
 
 Module Q := ThreadQueue.Make(M').
-Import Q.
+Import M' Q.
 
 Module Type TQS.
-  Parameter tqs : bag -> HProp.
+  Parameter tqs' : world -> bag -> HProp.
 
-  Axiom tqs_eq : tqs = starB tq.
+  Axiom tqs'_eq : tqs' = fun w => starB (tq w).
 
-  Definition tqs_pick_this_one (_ : W) := tqs.
+  Parameter tqs : bag -> M.world -> HProp.
 
-  Axiom tqs_empty_bwd : Emp ===> tqs empty.
-  Axiom tqs_add_bwd : forall ts t, tqs ts * tq t ===> tqs (ts %+ t).
-  Axiom tqs_del_fwd : forall ts t, t %in ts -> tqs_pick_this_one t ts ===> tq t * tqs (ts %- t).
-  Axiom tqs_del_bwd : forall ts t, t %in ts -> tqs (ts %- t) * tq t ===> tqs ts.
+  Axiom tqs_eq : tqs = fun b w => tqs' (b, w) b.
+
+  Definition tqs'_pick_this_one (_ : W) := tqs'.
+
+  Axiom tqs'_empty_bwd : forall w, Emp ===> tqs' w empty.
+  Axiom tqs'_add_bwd : forall w ts t, tqs' w ts * tq w t ===> tqs' w (ts %+ t).
+  Axiom tqs'_del_fwd : forall w ts t, t %in ts -> tqs'_pick_this_one t w ts ===> tq w t * tqs' w (ts %- t).
+  Axiom tqs'_del_bwd : forall w ts t, t %in ts -> tqs' w (ts %- t) * tq w t ===> tqs' w ts.
+
+  Axiom tqs'_weaken : forall w w' b, evolve w w' -> tqs' w b ===>* tqs' w' b.
 End TQS.
 
 Module Tqs : TQS.
   Open Scope Sep_scope.
 
-  Definition tqs := starB tq.
+  Definition tqs' w := starB (tq w).
 
-  Theorem tqs_eq : tqs = starB tq.
+  Theorem tqs'_eq : tqs' = fun w => starB (tq w).
     auto.
   Qed.
 
-  Definition tqs_pick_this_one (_ : W) := tqs.
+  Definition tqs b w := tqs' (b, w) b.
 
-  Theorem tqs_empty_bwd : Emp ===> tqs empty.
-    apply starB_empty_bwd.
+  Theorem tqs_eq : tqs = fun b w => tqs' (b, w) b.
+    auto.
   Qed.
 
-  Theorem tqs_add_bwd : forall ts t, tqs ts * tq t ===> tqs (ts %+ t).
-    apply starB_add_bwd.
+  Definition tqs'_pick_this_one (_ : W) := tqs'.
+
+  Theorem tqs'_empty_bwd : forall w, Emp ===> tqs' w empty.
+    intros; apply starB_empty_bwd.
   Qed.
 
-  Theorem tqs_del_fwd : forall ts t, t %in ts -> tqs_pick_this_one t ts ===> tq t * tqs (ts %- t).
-    apply starB_del_fwd.
+  Theorem tqs'_add_bwd : forall w ts t, tqs' w ts * tq w t ===> tqs' w (ts %+ t).
+    intros; apply (starB_add_bwd (tq w)).
   Qed.
 
-  Theorem tqs_del_bwd : forall ts t, t %in ts -> tqs (ts %- t) * tq t ===> tqs ts.
-  Admitted.
+  Theorem tqs'_del_fwd : forall w ts t, t %in ts -> tqs'_pick_this_one t w ts ===> tq w t * tqs' w (ts %- t).
+    intros; apply (starB_del_fwd (tq w)); auto.
+  Qed.
+
+  Theorem tqs'_del_bwd : forall w ts t, t %in ts -> tqs' w (ts %- t) * tq w t ===> tqs' w ts.
+    intros; eapply Himp_trans; [ | apply (starB_del_bwd (tq w)); eauto ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_refl.
+  Qed.
+
+  Theorem tqs'_weaken : forall w w' b, evolve w w' -> tqs' w b ===>* tqs' w' b.
+    intros; apply starB_weaken_weak; intros.
+    apply tq_weaken; unfold evolve in *; simpl in *; intuition.
+  Qed.
 End Tqs.
 
 Import Tqs.
 Export Tqs.
 
 Definition hints : TacPackage.
-  prepare tqs_del_fwd (tqs_empty_bwd, tqs_add_bwd).
+  prepare tqs'_del_fwd (tqs'_empty_bwd, tqs'_add_bwd).
 Defined.
 
-Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
+Definition starting (ts : bag) (w : M.world) (pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
-    /\ Al st : settings * state, Al vs, Al ts,
-      ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tqs ts * globalInv ts * mallocHeap 0] ] st
+    /\ Al st : settings * state, Al vs, Al ts', Al w',
+      [| ts %<= ts' |]
+      /\ [| M.evolve w w' |]
+      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
-Lemma starting_elim : forall specs pc ss P stn st,
-  interp specs (![ starting pc ss * P ] (stn, st))
+Lemma starting_elim : forall specs ts w pc ss P stn st,
+  interp specs (![ starting ts w pc ss * P ] (stn, st))
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs ts, interp specs (![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
-      * tqs ts * globalInv ts * mallocHeap 0 ] stn_st
+    /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
+      /\ [| M.evolve w w' |]
+      /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
+  eauto.
+  eauto.
+  step auto_ext.
 Qed.
 
 
 Definition allocS : spec := SPEC reserving 15
-  Al ts,
-  PRE[_] tqs ts * mallocHeap 0
-  POST[R] tqs (ts %+ R) * mallocHeap 0.
+  Al ts, Al w,
+  PRE[_] tqs ts w * mallocHeap 0
+  POST[R] tqs (ts %+ R) w * mallocHeap 0.
 
 Definition spawnS : spec := SPEC("q", "pc", "ss") reserving 25
-  Al ts,
-  PRE[V] [| V "q" %in ts |] * [| V "ss" >= $2 |]
-    * tqs ts * starting (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
-  POST[_] tqs ts * mallocHeap 0.
+  Al ts, Al w, Al w',
+  PRE[V] [| V "q" %in ts |] * [| V "ss" >= $2 |] * [| M.evolve w w' |]
+    * tqs ts w * starting ts w' (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
+  POST[_] tqs ts w' * mallocHeap 0.
 
 Definition exitS : spec := SPEC("q") reserving 14
-  Al ts,
-  PREonly[V] [| V "q" %in ts |] * tqs ts * globalInv ts * mallocHeap 0.
+  Al ts, Al w, Al w',
+  PREonly[V] [| V "q" %in ts |] * [| M.evolve w w' |]
+    * tqs ts w * M.globalInv ts w' * mallocHeap 0.
 
 Definition yieldS : spec := SPEC("q") reserving 21
-  Al ts,
-  PRE[V] [| V "q" %in ts |] * tqs ts * globalInv ts * mallocHeap 0
-  POST[_] Ex ts', tqs ts' * globalInv ts' * mallocHeap 0.
+  Al ts, Al w, Al w',
+  PRE[V] [| V "q" %in ts |] * [| M.evolve w w' |]
+    * tqs ts w * M.globalInv ts w' * mallocHeap 0
+  POST[_] Ex ts', Ex w'', [| ts %<= ts' |] * [| M.evolve w' w'' |]
+    * tqs ts' w'' * M.globalInv ts' w'' * mallocHeap 0.
 
 Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.spawnS],
                            "threadq"!"exit" @ [Q.exitS], "threadq"!"yield" @ [Q.yieldS] ]]
   bmodule "threadqs" {{
     bfunction "alloc"("r") [allocS]
       "r" <-- Call "threadq"!"init"()
-      [PRE[_, R] tq R
-       POST[R'] tq R'];;
+      [Al ts, Al w,
+        PRE[_, R] tq (ts, w) R * tqs ts w
+        POST[R'] tqs (ts %+ R') w ];;
       Return "r"
     end with bfunction "spawn"("q", "pc", "ss") [spawnS]
       Call "threadq"!"spawn"("q", "pc", "ss")
@@ -135,9 +187,11 @@ Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.
    end
   }}.
 
-Hint Extern 1 (@eq W _ _) => words.
+Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := sep hints; auto.
+Ltac t := abstract (sep hints; auto).
+
+Local Hint Immediate M.evolve_refl.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -149,180 +203,117 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-  t.
 
-  t.
-  t.
-  t.
-  t.
-
-  post; evaluate hints; descend.
-  change (tqs x0) with (tqs_pick_this_one (sel x2 "q") x0) in H7.
+  post; evaluate hints.
+  rewrite tqs_eq in *.
   toFront ltac:(fun P => match P with
-                           | starting _ _ => idtac
+                           | tqs' _ _ => idtac
+                         end) H6.
+  eapply use_HimpWeak in H6; [ | apply (tqs'_weaken (w' := (x1 %+ Regs x0 Rv, x2))); (red; intuition) ].
+  toFront ltac:(fun P => match P with
+                           | tq _ _ => idtac
+                         end) H6.
+  eapply use_HimpWeak in H6; [ | apply (tq_weaken (w' := (x1 %+ Regs x0 Rv, x2))); (red; simpl; intuition) ].
+  descend.
+  step hints.
+  step hints.
+  descend; step hints.
+  rewrite H5; step hints.
+  simpl; auto.
+
+  t.
+  t.
+  t.
+  t.
+
+  post; evaluate hints.
+  rewrite tqs_eq in *.
+  toFront ltac:(fun P => match P with
+                           | tqs' _ _ => idtac
+                         end) H7.
+  eapply use_HimpWeak in H7; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
+  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H7.
+  toFront ltac:(fun P => match P with
+                           | starting _ _ _ _ => idtac
                          end) H7; apply starting_elim in H7; post.
+  evaluate hints.
+  descend.
   toFront_conc ltac:(fun P => match P with
-                                | Q.starting _ _ _ => idtac
+                                | Q.starting _ _ _ _ => idtac
                               end); apply Q.starting_intro; descend.
   2: step hints.
   step hints.
   step hints.
   descend.
+  apply andL; apply injL; intro.
   apply andL; apply swap; apply injL; intro.
   unfold ginv, M'.globalInv.
   autorewrite with sepFormula.
+  destruct w'; simpl in *.
+  destruct H7; simpl in *.
+  eapply Imply_trans; [ | eapply (H13 _ _ b w) ]; clear H13.
+  repeat (apply andR; [ apply injR; assumption | ]).
+
+  Lemma switchy : forall P Q R S T R',
+    R ===> R'
+    -> P * Q * (R * S) * T ===> P * Q * R' * S * T.
+    sepLemma.
+  Qed.
+
+  make_Himp.
+  eapply Himp_trans; [ eapply switchy; apply starB_substH_fwd | ].
+  unfold substH; simpl.
   match goal with
-    | [ |- interp _ (![?P * exB ?Q * ?R] ?p ---> _)%PropX ] =>
-      apply Imply_trans with (![Ex b, P * Q b * R] p)%PropX
+    | [ |- (_ * _ * ?P * _ * _ ===> _)%Sep ] =>
+      replace P with (tqs' (b, w) (b %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
   end.
-  make_Himp.
-  
-  Lemma get_ex : forall P Q R S,
-    P * Q * R * S ===> R * (P * Q * S).
-    sepLemma.
-  Qed.
-
-  eapply Himp_trans; [ apply get_ex | ].
-  eapply Himp_trans; [ apply Himp_ex_star | ].
-  apply Himp'_ex; intro.
-  apply Himp_ex_c; exists x6.
-
-  Lemma get_ex' : forall P Q R S,
-    R * (P * Q * S) ===> P * Q * R * S.
-    sepLemma.
-  Qed.
-
-  apply get_ex'.
-
-  Lemma ex_out : forall A (P : A -> HProp) p specs,
-    interp specs (![exB P] p ---> Ex x, ![P x] p)%PropX.
-    rewrite sepFormula_eq; unfold sepFormula_def; intros.
-    apply Imply_refl.
-  Qed.
-
-  eapply Imply_trans; [ apply ex_out | ].
-  apply existsL; intro.
-  eapply Imply_trans; [ | apply H12 ]; clear H12.
-  make_Himp.
-
-  Lemma Himp_star_assoc' : forall P Q R,
-    P * (Q * R) ===> P * Q * R.
-    sepLemma.
-  Qed.
-
-  Lemma get_first : forall P Q R P' Q' R',
-    P ===> P'
-    -> Q * R ===> Q' * R'
-    -> P * Q * R ===> P' * Q' * R'.
-    intros; eapply Himp_trans; [ | apply Himp_star_assoc' ].
-    eapply Himp_trans; [ apply Himp_star_assoc | ].
-    apply Himp_star_frame; auto.
-  Qed.
-
-  autorewrite with sepFormula.
-  apply Himp_star_frame; try apply Himp_refl.
-  apply get_first.
-  sepLemma.
-
-  Lemma blergh : forall P Q R,
-    P * (Q * R) ===> Q * (P * R).
-    sepLemma.
-  Qed.
-
-  eapply Himp_trans; [ apply blergh | ].
-  eapply Himp_trans.
-  apply Himp_star_frame.
-  apply starB_substH_fwd.
-  apply Himp_refl.
-  eapply Himp_trans.
-  apply Himp_star_frame.
-  instantiate (1 := tqs x6).
-  rewrite tqs_eq; apply starB_weaken; intros.
-  unfold Himp, himp; intros.
-  unfold substH, predOut.
-  simpl.
-  rewrite memoryIn_memoryOut; apply Himp_refl.
-  apply Himp_refl.
-  instantiate (1 := x6 %+ sel x2 "q").
-  intro; step hints.
-  step hints.
-  sep hints; auto.
-  apply tqs_del_bwd; auto.
-
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  
-  post; evaluate hints; descend.
-  unfold ginv, M'.globalInv.
-  autorewrite with sepFormula.
-
-  Lemma grab : forall P Q R S T,
-    R * (P * Q * S * T) ===> P * (Q * R * S) * T.
-    sepLemma.
-  Qed.
-
-  Lemma use_Himp : forall specs Q P p,
-    Q ===> P
-    -> interp specs (![Q] p)
-    -> interp specs (![P] p).
-    rewrite sepFormula_eq; unfold sepFormula_def; intros.
-    eapply Imply_sound.
-    apply H.
-    auto.
-  Qed.
-
-  eapply use_Himp; [ apply grab | ].
-
-  Lemma exB_intro : forall A x (P : A -> HProp) Q specs p,
-    interp specs (![P x * Q] p)
-    -> interp specs (![exB P * Q] p).
-    rewrite sepFormula_eq; propxFo; eauto 10.
-  Qed.
-
-  apply (exB_intro (x0 %- (sel x2 "q"))).
-  autorewrite with sepFormula.
-
-  Lemma get_first' : forall P Q R P',
-    P ===> P'
-    -> P * (Q * R) ===> P' * Q * R.
-    sepLemma.
-  Qed.
-
-  eapply use_Himp.
-  apply get_first'.
-  apply starB_substH_bwd.
-  eapply use_Himp.
-  apply Himp_star_frame.
-  instantiate (1 := tqs (x0 %- sel x2 "q")).
   rewrite tqs_eq.
-  apply starB_weaken; intros.
-  unfold Himp, himp; intros.
-  unfold substH, predOut.
-  simpl.
-  rewrite memoryIn_memoryOut; apply Himp_refl.
-  apply Himp_refl.
-  instantiate (2 := upd x3 "sc" (sel x2 "q")).
-  descend.
-  eapply use_Himp.
 
-  Lemma wiggle : forall P Q R,
-    Q * (P * R) ===> P * (Q * R).
+  Local Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
+  Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
+
+  hnf; intros; step hints.
+  step hints.
+  t.
+
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+
+  post; evaluate hints.
+  rewrite tqs_eq in *.
+  toFront ltac:(fun P => match P with
+                           | tqs' _ _ => idtac
+                         end) H5.
+  eapply use_HimpWeak in H5; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
+  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H5.
+  evaluate hints.
+  descend.
+  step hints.
+  step hints.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
+  match goal with
+    | [ |- himp _ ?P ?Q ] => let H := fresh in assert (H : P ===> Q); [ | apply H ]
+  end.
+
+  Lemma swatchy : forall P Q R P',
+    P ===> P'
+    -> (P * Q) * R ===> P' * Q * R.
     sepLemma.
   Qed.
-  
-  apply wiggle.
-  eapply use_Himp.
-  apply Himp_star_frame.
-  apply globalInv_extensional.
-  instantiate (1 := x0); auto.
-  apply Himp_refl.
-  change (tqs x0) with (tqs_pick_this_one (sel x2 "q") x0) in H5.
-  step hints.
+
+  eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
+  unfold substH; simpl.
+  match goal with
+    | [ |- (_ ===> ?P * _ * _)%Sep ] => 
+      replace P with (tqs' (x0, x2) (x0 %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+  end.
+  sepLemma.
 
   t.
 
@@ -332,92 +323,61 @@ Theorem ok : moduleOk m.
   t.
 
   post; evaluate hints.
-  change (tqs x0) with (tqs_pick_this_one (sel x2 "q") x0) in H7.
+  rewrite tqs_eq in *.
+  toFront ltac:(fun P => match P with
+                           | tqs' _ _ => idtac
+                         end) H7.
+  eapply use_HimpWeak in H7; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
+  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H7.
+  evaluate hints.
   descend.
   step hints.
   step hints.
-  unfold ginv, M'.globalInv.
-  autorewrite with sepFormula.
-  etransitivity; [ | apply heq_ex_star ].
-  apply himp_ex_c; exists (x0 %- sel x2 "q").
-  autorewrite with sepFormula.
-  etransitivity; [ | apply Himp_star_assoc' ].
-  etransitivity; [ | apply Himp_star_frame ].
-  2: apply starB_substH_bwd.
-  2: apply Himp_refl.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
   match goal with
-    | [ |- himp _ _ (star _ (_ * ?P)%Sep) ] => transitivity (tqs (x0 %- sel x2 "q") * globalInv x0 * P)%Sep
+    | [ |- himp _ ?P ?Q ] => let H := fresh in assert (H : P ===> Q); [ | apply H ]
   end.
-  step hints.
-  etransitivity; [ | apply Himp_star_assoc ].
-  simpl.
-  apply himp_star_frame; try reflexivity.
-  apply himp_star_frame.
-  rewrite tqs_eq; apply starB_weaken.
-  unfold Himp, himp; intros; unfold substH, predOut; simpl; rewrite memoryIn_memoryOut; apply Imply_refl.
-  apply globalInv_extensional; auto.
-  step hints.
-  descend; step hints.
-  descend; step hints.
+  eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
+  unfold substH; simpl.
+  match goal with
+    | [ |- (_ ===> ?P * _ * _)%Sep ] => 
+      replace P with (tqs' (x0, x2) (x0 %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+  end.
+  sepLemma.
   step hints.
   descend; step hints.
-  unfold ginv, M'.globalInv.
-  autorewrite with sepFormula.
+  descend; step hints.
+  step hints.
+  destruct x8; simpl in *.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  auto.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
+  make_Himp.
 
-  Lemma woogle : forall P Q R S T,
-    P * (Q * (R * (S * T))) ===> S * (P * Q * R * T).
+  Lemma swotchy : forall P Q R S T U S',
+    S ===> S'
+    -> P * (Q * (R * ((S * T) * U))) ===> P * Q * R * S' * T * U.
     sepLemma.
   Qed.
 
-  Lemma switch_up : forall P Q specs p,
-    P ===> Q
-    -> interp specs (![P] p ---> ![Q] p)%PropX.
-    rewrite sepFormula_eq; unfold sepFormula_def; intros.
-    apply H.
-  Qed.
+  eapply Himp_trans; [ apply swotchy; apply starB_substH_fwd | ].
+  unfold substH; simpl.
+  match goal with
+    | [ |- (_ * _ * _ * ?P * _ * _ ===> _)%Sep ] => 
+      replace P with (tqs' (b, w) (b %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+  end.
+  destruct H16; simpl in *.
+  sepLemma.
+  etransitivity; [ apply himp_star_comm | ].
+  auto.
 
-  eapply Imply_trans; [ apply switch_up; apply woogle | ].
-  eapply Imply_trans; [ apply switch_up; apply Himp_ex_star | ].
-  eapply Imply_trans; [ apply switch_up; apply Himp_ex; intro | ].
-  autorewrite with sepFormula.
-  apply Himp_refl.
-  eapply Imply_trans; [ apply ex_out | ].
-  apply existsL; intro.
-  eapply Imply_trans; try apply H4; clear H4.
-  apply andR.
-  apply injR; simpl; auto.
-  do 2 eapply existsR.
-  autorewrite with sepFormula.
-  eapply Imply_trans; [ apply switch_up; apply Himp_star_assoc | ].
-  eapply Imply_trans; [ apply switch_up; apply Himp_star_frame | ].
-  eapply starB_substH_fwd.
-  apply Himp_refl.
-  eapply Imply_trans; [ apply switch_up; apply Himp_star_frame | ].
-  instantiate (1 := tqs x5).
-  rewrite tqs_eq; apply starB_weaken.
-  unfold Himp, himp; intros; unfold substH, predOut; simpl; rewrite memoryIn_memoryOut; apply Imply_refl.
-  apply Himp_refl.
-  change (tqs x5) with (tqs_pick_this_one (sel x2 "q") x5).
-  descend; step hints.
-  
-  apply tqs_add_bwd.
-
-
-
-  Lemma jiggle : forall P Q R,
-    P * Q * R ===> Q * (P * R).
-    sepLemma.
-  Qed.
-
-  etransitivity; [ apply jiggle | ].
-  apply himp_star_frame.
-
-  apply globalInv_extensional; auto.
-
-  apply himp_ex_c; exists (x0 %- sel x2 "q"). 
-
-
-
+  t.
+  t.
+  t.
 Qed.
 
 End Make.

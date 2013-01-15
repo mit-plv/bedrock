@@ -24,18 +24,45 @@ Theorem starL_substH : forall A G (P : A-> hpropB G) v ls,
   induction ls; simpl; intuition (autorewrite with sepFormula; congruence).
 Qed.
 
+Definition HimpWeak (P Q : HProp) :=
+  forall specs stn m, interp specs (P stn m)
+    -> interp specs (Q stn m).
+
+Infix "===>*" := HimpWeak (no associativity, at level 90).
+
+Theorem use_HimpWeak : forall P Q p P' specs,
+  interp specs (![P * Q] p)
+  -> P ===>* P'
+  -> interp specs (![P' * Q] p).
+  rewrite sepFormula_eq; propxFo.
+  do 3 esplit; eauto.
+  propxFo.
+Qed.
+
 Section starL_weaken.
   Variable A : Type.
   Variables P P' : A -> HProp.
 
-  Hypothesis HP' : forall x, P x ===> P' x.
+  Section starL_strong.
+    Hypothesis HP' : forall x, P x ===> P' x.
 
-  Theorem starL_weaken : forall ls,
-    starL P ls ===> starL P' ls.
-    induction ls; simpl; intuition.
-    sepLemma.
-    apply Himp_star_frame; auto.
-  Qed.
+    Theorem starL_weaken : forall ls,
+      starL P ls ===> starL P' ls.
+      induction ls; simpl; intuition.
+      sepLemma.
+      apply Himp_star_frame; auto.
+    Qed.
+  End starL_strong.
+
+  Section starL_weak.
+    Hypothesis HP' : forall x, P x ===>* P' x.
+
+    Theorem starL_weaken_weak : forall ls,
+      starL P ls ===>* starL P' ls.
+      unfold HimpWeak in *; induction ls; simpl; propxFo.
+      do 3 esplit; eauto; propxFo.
+    Qed.
+  End starL_weak.
 End starL_weaken.
 
 Lemma propToWord_elim_not1 : forall P b,
@@ -68,6 +95,9 @@ Module Make(M : S).
   Definition equiv (b1 b2 : bag) := forall x, b1 x = b2 x.
   Infix "%=" := equiv (at level 70, no associativity).
 
+  Definition incl (b1 b2 : bag) : Prop := forall x, (b1 x <= b2 x)%nat.
+  Infix "%<=" := incl (at level 70, no associativity).
+
   Definition add (b : bag) (x : A) : bag := fun x' => if eq_dec x' x then S (b x') else b x'.
   Infix "%+" := add (at level 50, left associativity).
 
@@ -77,13 +107,14 @@ Module Make(M : S).
   Ltac bags := subst;
     repeat match goal with
              | [ H : _ %= _ |- _ ] => generalize dependent H
+             | [ H : _ %<= _ |- _ ] => generalize dependent H
              | [ H : _ %in _ |- _ ] => generalize dependent H
              | [ H : ~ _ %in _ |- _ ] => generalize dependent H
              | [ H : _ \is _ |- _ ] => generalize dependent H
              | [ H : @eq W _ _ |- _ ] => generalize dependent H
              | [ H : ~(@eq W _ _) |- _ ] => generalize dependent H
            end; clear;
-    unfold equiv, empty, mem, add, del, propToWord, IF_then_else; intuition idtac;
+    unfold equiv, empty, incl, mem, add, del, propToWord, IF_then_else; intuition idtac;
       repeat (match goal with
                 | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst
                 | [ |- context[if ?E then _ else _] ] => destruct E; subst
@@ -98,21 +129,43 @@ Module Make(M : S).
              end; auto; try (discriminate || omega).
 
   Hint Extern 5 (_ %= _) => bags.
+  Hint Extern 5 (_ %<= _) => bags.
   Hint Extern 5 (_ %in _) => bags.
   Hint Extern 5 (~ _ %in _) => bags.
   Hint Extern 5 (_ \is _) => bags.
 
-  Lemma equiv_symm : forall b1 b2,
+  Theorem equiv_symm : forall b1 b2,
     b1 %= b2
     -> b2 %= b1.
-    unfold equiv; firstorder.
+    bags.
   Qed.
 
-  Lemma equiv_trans : forall b1 b2 b3,
+  Theorem equiv_trans : forall b1 b2 b3,
     b1 %= b2
     -> b2 %= b3
     -> b1 %= b3.
-    unfold equiv; firstorder.
+    bags.
+  Qed.
+
+  Lemma incl_refl : forall b,
+    b %<= b.
+    bags.
+  Qed.
+
+  Lemma incl_trans : forall b1 b2 b3,
+    b1 %<= b2
+    -> b2 %<= b3
+    -> b1 %<= b3.
+    bags.
+  Qed.
+
+  Lemma incl_mem : forall x b1 b2,
+    x %in b1
+    -> b1 %<= b2
+    -> x %in b2.
+    bags.
+    specialize (H0 x).
+    omega.
   Qed.
 
   Lemma exists_starL_fwd : forall A (P : A -> _) Q,
@@ -276,18 +329,67 @@ Module Make(M : S).
       sepLemma.
     Qed.
 
+    Lemma fun_fun_fun : forall A P Q R,
+      P * (Ex ls : A, Q ls * R ls)
+      ===> (Ex ls : A, Q ls * (P * R ls)).
+      sepLemma.
+    Qed.
+
+    Lemma undel_something' : forall v b x b',
+      v %in b
+      -> (b %- v) x = b' x
+      -> b x = (b' %+ v) x.
+      unfold mem, del, add; intros.
+      destruct (eq_dec x v); subst; omega.
+    Qed.
+
+    Lemma undel_something : forall v b ls,
+      v %in b
+      -> b %- v %= bagify ls
+      -> b %= bagify (v :: ls).
+      unfold bagify, equiv; simpl; intros.
+      specialize (H0 x).
+      rewrite add_something.
+      apply undel_something'; auto.
+    Qed.      
+
+    Theorem starB_del_bwd : forall b v, v %in b
+      -> P v * starB P (b %- v) ===> starB P b.
+      unfold starB; intros.
+      eapply Himp_trans; [ apply fun_fun_fun | ]; cbv beta.
+      apply Himp'_ex; intro ls.
+      apply Himp_ex_c; exists (v :: ls).
+      apply Himp_star_pure_c; intro.
+      apply Himp_star_pure_cc.
+      apply undel_something; auto.
+      apply Himp_refl.
+    Qed.
+
     Variable P' : predB nil.
 
-    Hypothesis HP' : forall x, P x ===> P' x.
+    Section starB_strong.
+      Hypothesis HP' : forall x, P x ===> P' x.
 
-    Theorem starB_weaken : forall b,
-      starB P b ===> starB P' b.
-      unfold starB; intro.
-      apply Himp'_ex; intro; apply Himp_ex_c; eexists.
-      apply Himp_star_frame.
-      apply Himp_refl.
-      apply starL_weaken; auto.
-    Qed.
+      Theorem starB_weaken : forall b,
+        starB P b ===> starB P' b.
+        unfold starB; intro.
+        apply Himp'_ex; intro; apply Himp_ex_c; eexists.
+        apply Himp_star_frame.
+        apply Himp_refl.
+        apply starL_weaken; auto.
+      Qed.
+    End starB_strong.
+
+    Section starB_weak.
+      Hypothesis HP' : forall x, P x ===>* P' x.
+
+      Theorem starB_weaken_weak : forall b, starB P b ===>* starB P' b.
+        unfold HimpWeak in *; propxFo.
+        do 4 esplit; eauto.
+        propxFo.
+        eapply starL_weaken_weak; eauto.
+      Qed.
+    End starB_weak.
   End starB_closed.
 
 End Make.

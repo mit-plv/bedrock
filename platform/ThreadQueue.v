@@ -109,6 +109,11 @@ Module Type TQ.
   Axiom tq_bwd : forall w sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps w b sc * any) ===> tq w sc.
+
+
+  Axiom tq_weaken : forall w w' sc,
+    evolve w w'
+    -> tq w sc ===>* tq w' sc.
 End TQ.
 
 Module Tq : TQ.
@@ -150,6 +155,43 @@ Module Tq : TQ.
     * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps w b sc * any) ===> tq w sc.
     unfold tq; sepLemma.
+  Qed.
+
+  Theorem into_ex : forall A (P P' : A -> _),
+    (forall x, P x ===>* P' x)
+    -> exB P ===>* exB P'.
+    unfold HimpWeak; propxFo.
+    apply H in H0; eauto.
+  Qed.
+
+  Theorem into_star : forall P P' Q Q',
+    P ===>* P'
+    -> Q ===>* Q'
+    -> P * Q ===>* P' * Q'.
+    unfold HimpWeak; propxFo.
+    apply H in H1; apply H0 in H4; eauto.
+  Qed.
+
+  Theorem weak_refl : forall P,
+    P ===>* P.
+    unfold HimpWeak; auto.
+  Qed.
+
+  Theorem tq_weaken : forall w w' sc,
+    evolve w w'
+    -> tq w sc ===>* tq w' sc.
+    unfold tq; intros; repeat match goal with
+                                | [ |- exB _ ===>* exB _ ] => apply into_ex; intro
+                                | [ |- (_ * _ ===>* _ * _)%Sep ] => apply into_star; try apply weak_refl
+                              end.
+    apply starB_weaken_weak; intros.
+    unfold HimpWeak; propxFo; descend; eauto.
+    eapply Imply_trans; [ | apply H5 ]; clear H5.
+    descend.
+    apply andL; apply injL; intro.
+    apply andR; [ apply injR | ].
+    eapply evolve_trans; eauto.
+    apply Imply_refl.
   Qed.
 End Tq.
 
@@ -417,13 +459,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-(*Ltac t := abstract (sep hints; try apply any_easy;
+Ltac t := abstract (sep hints; try apply any_easy;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto).*)
-
-Ltac t := solve [ sep hints; try apply any_easy;
-  try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
-    eauto ].
+    eauto).
 
 Lemma wordBound : forall w : W,
   natToW 2 <= w
