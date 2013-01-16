@@ -1,13 +1,13 @@
 ROOT    := ..
 MODULES := Conditional AutoSepExt PreAutoSep \
            Util \
-           AutoSep RecPred \
+           AutoSep Misc \
            Malloc \
-           Bags Queue ThreadQueue ThreadQueues Thread \
+           Bags Queue ThreadQueue ThreadQueues Scheduler Thread \
            Bootstrap SinglyLinkedList \
            tests/Thread0 \
            tests/LinkTest tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList \
-           tests/BabyThreadDriver tests/ListBuilderDriver
+           tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver
 
 VS      := $(MODULES:%=%.v)
 
@@ -28,14 +28,32 @@ clean:: Makefile.coq
 
 tests/listbuilder.s: tests/ListBuilderAMD64.v
 	echo ".global bedrock_heap" >$@
-	echo ".comm bedrock_heap,4096,32" >>$@
+	echo ".comm bedrock_heap,4*(1024+50+1)" >>$@
 	echo ".global main_main" >>$@
 	echo >>$@
 	$(COQC) $< \
+		| sed 's/^.*:: nil//' \
+		| sed 's/^.*:: *//' \
+		| sed 's/^.*: list string//' \
 		| sed 's/^.*= "//' \
-		| sed 's/^"//' \
-		| sed 's/^.*: string//' \
+		| sed 's/^.*"//' \
 		>>$@
 
 tests/listbuilder.exe: tests/listbuilder.o tests/driver.o
 	gcc tests/listbuilder.o tests/driver.o -o $@
+
+tests/sharedlist.s: tests/SharedListAMD64.v
+	echo ".global bedrock_heap" >$@
+	echo ".comm bedrock_heap,4*(1024+50+2)" >>$@
+	echo ".global main_main" >>$@
+	echo >>$@
+	$(COQC) $< \
+		| sed 's/^.*:: nil//' \
+		| sed 's/^.*:: *//' \
+		| sed 's/^.*: list string//' \
+		| sed 's/^.*= "//' \
+		| sed 's/^.*"//' \
+		>>$@
+
+tests/sharedlist.exe: tests/sharedlist.o tests/driver.o
+	gcc tests/sharedlist.o tests/driver.o -o $@

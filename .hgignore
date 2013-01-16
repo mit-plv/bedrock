@@ -39,3 +39,4 @@ examples/comparison/*data.*
 examples/comparison/bedrock_server.s
 
 platform/tests/listbuilder.s
+platform/tests/sharedlist.s

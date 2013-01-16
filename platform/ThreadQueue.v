@@ -1,4 +1,4 @@
-Require Import Arith AutoSep Bags Malloc Queue RecPred.
+Require Import Arith AutoSep Bags Malloc Queue Misc.
 Import W_W_Bag.
 
 Set Implicit Arguments.
@@ -212,8 +212,7 @@ Definition starting (w : world) (sc pc : W) (ss : nat) : HProp := fun s m =>
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs, Al w',
       [| evolve w w' |]
-      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tq w' sc * ginv w' sc * mallocHeap 0] ] st
-      /\ [| sel vs "sc" = sc |]
+      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tq w' sc * ginv w' sc * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
@@ -222,9 +221,8 @@ Lemma starting_intro : forall specs sc w pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs w', interp specs ([| evolve w w' |]
-      /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
-    /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX)
   -> interp specs (![ starting w sc pc ss * P ] (stn, st)).
   cptr.
@@ -235,9 +233,8 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs w', interp specs ([| evolve w w' |]
-      /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
-    /\ [| sel vs "sc" = sc |]
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
@@ -245,7 +242,6 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   eauto.
   make_Himp.
   apply Himp_refl.
-  assumption.
 Qed.
 
 
@@ -254,6 +250,11 @@ Definition initS : spec := SPEC reserving 12
   PRE[_] mallocHeap 0
   POST[R] tq w R * mallocHeap 0.
 
+Definition isEmptyS : spec := SPEC("sc") reserving 4
+  Al w,
+  PRE[V] tq w (V "sc") * mallocHeap 0
+  POST[_] tq w (V "sc") * mallocHeap 0.
+
 Definition spawnWithStackS : spec := SPEC("sc", "pc", "sp") reserving 14
   Al w,
   PRE[V] tq w (V "sc") * susp w (V "sc") (V "pc") (V "sp") * mallocHeap 0
@@ -261,7 +262,7 @@ Definition spawnWithStackS : spec := SPEC("sc", "pc", "sp") reserving 14
 
 Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
   Al w,
-  PRE[V] [| V "ss" >= $2 |] * tq w (V "sc") * starting w (V "sc") (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
+  PRE[V] [| V "ss" >= $2 |] * tq w (V "sc") * starting w (V "sc") (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] tq w (V "sc") * mallocHeap 0.
 
 Definition exitS : spec := SPEC("sc") reserving 12
@@ -307,7 +308,7 @@ Notation "'badt' name p 'end'" :=
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
-    "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [isEmptyS],
+    "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [Queue.isEmptyS],
     "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
   bmodule "threadq" {{
     badt "ADT"
@@ -333,6 +334,12 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       "r" *<- "q";;
       "r" + 4 *<- "sp";;
       Return "r"
+    end with bfunction "isEmpty"("sc") [isEmptyS]
+      "sc" <-* "sc";;
+      "sc" <-- Call "queue"!"isEmpty"("sc")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "sc"
     end with bfunction "spawnWithStack"("sc", "pc", "sp") [spawnWithStackS]
       "sc" <-* "sc";;
       Note [mergeSusp];;
@@ -344,17 +351,14 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     end with bfunction "spawn"("sc", "pc", "ss") [spawnS]
       "ss" <-- Call "malloc"!"malloc"(0, "ss")
       [Al w, Al ss,
-        PRE[V, R] tq w (V "sc") * starting w (V "sc") (V "pc") (ss - 2) * mallocHeap 0
+        PRE[V, R] tq w (V "sc") * starting w (V "sc") (V "pc") (ss - 1) * mallocHeap 0
           * R =?> ss * [| (ss >= 2)%nat |]
         POST[_] tq w (V "sc") * mallocHeap 0];;
 
       Assert [Al w, Al ss, Al vs,
         PRE[V] tq w (V "sc") * starting w (V "sc") (V "pc") ss * mallocHeap 0
-          * locals ("rp" :: "sc" :: nil) vs ss (V "ss")
+          * locals ("rp" :: nil) vs ss (V "ss")
         POST[_] tq w (V "sc") * mallocHeap 0];;
-
-      (* Save pointer to threadq data structure in new thread's stack. *)
-      "ss" + 4 *<- "sc";;
 
       Assert* [("threadq","ADT")]
       [Al w,
@@ -507,6 +511,15 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
 
@@ -519,14 +532,12 @@ Theorem ok : moduleOk m.
 
   post.
   match goal with
-    | [ H : context[?X - 2] |- _ ] =>
-      replace X with (length ("rp" :: "sc" :: nil) + (X - length ("rp" :: "sc" :: nil))) in H
+    | [ H : context[?X - 1] |- _ ] =>
+      replace X with (length ("rp" :: nil) + (X - length ("rp" :: nil))) in H
   end.
-  assert (NoDup ("rp" :: "sc" :: nil)) by NoDup.
+  assert (NoDup ("rp" :: nil)) by NoDup.
   evaluate hints; sep hints; auto.
   evaluate hints; simpl; omega.
-
-  t.
 
   post; evaluate auto_ext.
   match goal with
@@ -540,11 +551,11 @@ Theorem ok : moduleOk m.
                                 | susp _ _ _ _ => idtac
                               end);
   apply susp_intro; descend.
-  4: instantiate (5 := locals ("rp" :: "sc" :: nil) (upd x3 "sc" (sel x5 "sc")) x2 (sel x5 "ss")); sep_auto.
+  4: instantiate (5 := locals ("rp" :: nil) x2 x1 (sel x4 "ss")); sep_auto.
   eauto.
   eauto.
   eauto.
-  eapply Imply_trans; [ | apply H10 ]; clear H10.
+  eapply Imply_trans; [ | apply H6 ]; clear H6.
   descend; step auto_ext.
   eauto.
   step auto_ext.

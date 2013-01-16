@@ -2,18 +2,29 @@ Require Import Thread.
 Export Thread.
 
 
-Module M.
+Module Type S.
+  Variable globalSched : W.
+End S.
+
+Module Make(M : S).
+Import M.
+
+Module M'.
+  Definition globalSched := M.globalSched.
+
   Open Scope Sep_scope.
 
-  Definition globalInv (_ : W) : hpropB ((settings * state : Type)%type :: nil) := ^[Emp].
-End M.
+  Definition globalInv : HProp := Emp.
+End M'.
 
-Module T := Make(M).
+Ltac unf := unfold M'.globalInv in *.
+
+Module T := Thread.Make(M').
 
 Import T.
 Export T.
 
-Notation sched := tq.
-
-Ltac sep := T.sep ltac:(unfold M.globalInv in *).
+Ltac sep := T.sep unf.
 Ltac sep_auto := sep auto_ext.
+
+End Make.

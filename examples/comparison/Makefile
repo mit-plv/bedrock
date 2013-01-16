@@ -38,17 +38,15 @@ Server.vo: Server.v ../AutoSep.vo ../SinglyLinkedList.vo ../Malloc.vo
 
 bedrock_server.s Combined.vo: Combined.v Server.vo
 	echo ".global bedrock_heap" >$@
-	echo ".data" >>$@
-	echo "bedrock_heap:" >>$@
-	echo ".space 4*(100*1024*1024+3+1024), 0" >>$@
-	echo >>$@
-	echo ".text" >>$@
+	echo ".comm bedrock_heap,4*(100*1024*1024+3+1024)" >>$@
 	echo ".global m_main" >>$@
 	echo >>$@
 	$(COQC) $< \
+		| sed 's/^.*:: nil//' \
+		| sed 's/^.*:: *//' \
+		| sed 's/^.*: list string//' \
 		| sed 's/^.*= "//' \
-		| sed 's/^"//' \
-		| sed 's/^.*: string//' \
+		| sed 's/^.*"//' \
 		>>$@
 
 bedrock.exe: bedrock_server.o bedrock_data.o bedrock_driver.o

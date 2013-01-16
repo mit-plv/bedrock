@@ -1,11 +1,13 @@
-Require Import AutoSep Malloc ThreadQueue.
+Require Import AutoSep Malloc Scheduler.
 Export AutoSep Malloc.
 
 
-Module Make(M : ThreadQueue.S).
-Module Q := ThreadQueue.Make(M).
-Import M Q.
-Export M Q.
+Module Make(M : Scheduler.S).
+Import M.
+
+Module Q'' := Scheduler.Make(M).
+Import Q''.
+Export Q''.
 
 Section Recall.
   Variable imps : LabelMap.t assert.
@@ -37,17 +39,23 @@ Section Recall.
 End Recall.
 
 
-Definition Exit : chunk := (Call "threadq"!"exit"("sc")
-  [PREonly[_] [| False |]];; Fail)%SP.
-
-Definition Go : chunk := (Call "threadq"!"exit"("sc")
-  [PREonly[_] [| False |]];; Fail)%SP.
-
-Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
-  (Call "threadq"!"yield"("sc")
+Definition Init_ (afterCall : list string -> nat -> assert) : chunk :=
+  (Call "scheduler"!"init"()
     [fun (_ : bool) (_ : W -> W) => afterCall])%SP.
 
 Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+
+Notation "'Init' [ afterCall ]" := (Init_ (RET afterCall)) : SP_scope.
+
+Definition Exit : chunk := (Call "scheduler"!"exit"()
+  [PREonly[_] [| False |]])%SP.
+
+Definition Go : chunk := (Call "scheduler"!"exit"()
+  [PREonly[_] [| False |]])%SP.
+
+Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
+  (Call "scheduler"!"yield"()
+    [fun (_ : bool) (_ : W -> W) => afterCall])%SP.
 
 Notation "'Yield' [ afterCall ]" := (Yield_ (RET afterCall)) : SP_scope.
 
@@ -58,7 +66,7 @@ Definition Spawn_ (l : label) (ss : W) (afterCall : list string -> nat -> assert
   match snd l with
     | Global l' =>
       (Recall (fst l) l';;
-        Call "threadq"!"spawn"("sc", Rp, ss)
+        Call "scheduler"!"spawn"(Rp, ss)
         [fun (_ : bool) (_ : W -> W) => afterCall])%SP
     | _ => Fail%SP
   end.
@@ -99,21 +107,21 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
   Note_ Note__
   IGotoStar_ IGotoStar AssertStar_ AssertStar
-  Exit Go Yield_ Recall Spawn_
+  Init_ Exit Go Yield_ Recall Spawn_
 ].
 
 Ltac vcgen := structured_auto vcgen_simp;
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold.
 
-Ltac sep unf hints := unfold ginv in *; unf;
+Ltac sep unf hints := unf;
   match goal with
     | [ |- context[starting] ] => post; evaluate hints; descend; [
       toFront_conc ltac:(fun P => match P with
-                                    | starting _ _ _ => idtac
+                                    | starting _ _ => idtac
                                   end); apply starting_intro;
-      unfold ginv in *; unf; descend; [ | step hints | ];
-      step hints; unfold localsInvariantCont | | ]; AutoSep.sep hints
+      unf; descend; [ | step hints | ] | | ];
+    (unfold localsInvariantCont; AutoSep.sep hints)
     | _ => AutoSep.sep hints
   end.
 

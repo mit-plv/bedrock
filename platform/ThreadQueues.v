@@ -1,4 +1,4 @@
-Require Import AutoSep Bags Malloc ThreadQueue RecPred.
+Require Import AutoSep Bags Malloc ThreadQueue Misc.
 Import W_Bag.
 
 Set Implicit Arguments.
@@ -12,9 +12,6 @@ Module Type S.
   Axiom evolve_trans : forall w1 w2 w3, evolve w1 w2 -> evolve w2 w3 -> evolve w1 w3.
 
   Variable globalInv : bag -> world -> HProp.
-
-  Hypothesis globalInv_extensional : forall b1 b2 w, b1 %= b2
-    -> globalInv b1 w ===> globalInv b2 w.
 End S.
 
 Module Make(M : S).
@@ -118,7 +115,7 @@ Definition starting (ts : bag) (w : M.world) (pc : W) (ss : nat) : HProp := fun 
     /\ Al st : settings * state, Al vs, Al ts', Al w',
       [| ts %<= ts' |]
       /\ [| M.evolve w w' |]
-      /\ ![ ^[locals ("rp" :: "sc" :: nil) vs ss st#Sp * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] st
+      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
 Lemma starting_elim : forall specs ts w pc ss P stn st,
@@ -127,7 +124,7 @@ Lemma starting_elim : forall specs ts w pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M.evolve w w' |]
-      /\ ![ locals ("rp" :: "sc" :: nil) vs ss stn_st#Sp
+      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
@@ -144,10 +141,15 @@ Definition allocS : spec := SPEC reserving 15
   PRE[_] tqs ts w * mallocHeap 0
   POST[R] tqs (ts %+ R) w * mallocHeap 0.
 
+Definition isEmptyS : spec := SPEC("q") reserving 8
+  Al ts, Al w,
+  PRE[V] [| V "q" %in ts |] * tqs ts w * mallocHeap 0
+  POST[_] tqs ts w * mallocHeap 0.
+
 Definition spawnS : spec := SPEC("q", "pc", "ss") reserving 25
   Al ts, Al w, Al w',
   PRE[V] [| V "q" %in ts |] * [| V "ss" >= $2 |] * [| M.evolve w w' |]
-    * tqs ts w * starting ts w' (V "pc") (wordToNat (V "ss") - 2) * mallocHeap 0
+    * tqs ts w * starting ts w' (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] tqs ts w' * mallocHeap 0.
 
 Definition exitS : spec := SPEC("q") reserving 14
@@ -162,7 +164,8 @@ Definition yieldS : spec := SPEC("q") reserving 21
   POST[_] Ex ts', Ex w'', [| ts %<= ts' |] * [| M.evolve w' w'' |]
     * tqs ts' w'' * M.globalInv ts' w'' * mallocHeap 0.
 
-Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.spawnS],
+Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"isEmpty" @ [Q.isEmptyS],
+                           "threadq"!"spawn" @ [Q.spawnS],
                            "threadq"!"exit" @ [Q.exitS], "threadq"!"yield" @ [Q.yieldS] ]]
   bmodule "threadqs" {{
     bfunction "alloc"("r") [allocS]
@@ -171,6 +174,11 @@ Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"spawn" @ [Q.
         PRE[_, R] tq (ts, w) R * tqs ts w
         POST[R'] tqs (ts %+ R') w ];;
       Return "r"
+    end with bfunction "isEmpty"("q") [isEmptyS]
+      "q" <-- Call "threadq"!"isEmpty"("q")
+      [PRE[_] Emp
+       POST[_] Emp];;
+      Return "q"
     end with bfunction "spawn"("q", "pc", "ss") [spawnS]
       Call "threadq"!"spawn"("q", "pc", "ss")
       [PRE[_] Emp
@@ -231,6 +239,24 @@ Theorem ok : moduleOk m.
   toFront ltac:(fun P => match P with
                            | tqs' _ _ => idtac
                          end) H7.
+  change (tqs' (x0, x1) x0) with (tqs'_pick_this_one (sel x3 "q") (x0, x1) x0) in H7.
+  Local Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
+  Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+
+  post; evaluate hints.
+  rewrite tqs_eq in *.
+  toFront ltac:(fun P => match P with
+                           | tqs' _ _ => idtac
+                         end) H7.
   eapply use_HimpWeak in H7; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
   change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H7.
   toFront ltac:(fun P => match P with
@@ -246,7 +272,6 @@ Theorem ok : moduleOk m.
   step hints.
   descend.
   apply andL; apply injL; intro.
-  apply andL; apply swap; apply injL; intro.
   unfold ginv, M'.globalInv.
   autorewrite with sepFormula.
   destruct w'; simpl in *.
@@ -268,9 +293,6 @@ Theorem ok : moduleOk m.
       replace P with (tqs' (b, w) (b %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
   end.
   rewrite tqs_eq.
-
-  Local Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
-  Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
 
   hnf; intros; step hints.
   step hints.
@@ -297,9 +319,7 @@ Theorem ok : moduleOk m.
   step hints.
   unfold ginv, globalInv.
   autorewrite with sepFormula; simpl.
-  match goal with
-    | [ |- himp _ ?P ?Q ] => let H := fresh in assert (H : P ===> Q); [ | apply H ]
-  end.
+  make_Himp.
 
   Lemma swatchy : forall P Q R P',
     P ===> P'
@@ -335,9 +355,7 @@ Theorem ok : moduleOk m.
   step hints.
   unfold ginv, globalInv.
   autorewrite with sepFormula; simpl.
-  match goal with
-    | [ |- himp _ ?P ?Q ] => let H := fresh in assert (H : P ===> Q); [ | apply H ]
-  end.
+  make_Himp.
   eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
   unfold substH; simpl.
   match goal with
