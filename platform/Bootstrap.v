@@ -654,7 +654,7 @@ Qed.
 (** * Now put it all together to prove [genesis]. *)
 
 Section boot.
-  Variables heapSize : nat.
+  Variables heapSize globalsSize : nat.
 
   Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
   Hypothesis heapSizeUpperBound : goodSize (heapSize * 4).
@@ -697,33 +697,46 @@ Section boot.
   Definition bootS := {|
     Reserved := 49;
     Formals := nil;
-    Precondition := fun _ => st ~> ![ 0 =?> (heapSize + 50) ] st
+    Precondition := fun _ => st ~> ![ 0 =?> (heapSize + 50 + globalsSize) ] st
   |}.
 
   Theorem genesis :
-    0 =?> (heapSize + 50)
-    ===> (Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat) * 0 =?> heapSize.
+    0 =?> (heapSize + 50 + globalsSize)
+    ===> (Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat) * 0 =?> heapSize * ((heapSize + 50) * 4)%nat =?> globalsSize.
     descend; intros; eapply Himp_trans; [ apply allocated_split | ].
     instantiate (1 := heapSize); auto.
     apply Himp_trans with (0 =?> heapSize *
-      (heapSize * 4)%nat =?> 50)%Sep.
+      ((heapSize * 4)%nat =?> 50 * ((heapSize + 50) * 4)%nat =?> globalsSize))%Sep.
     apply Himp_star_frame.
     apply Himp_refl.
+    intros; eapply Himp_trans; [ apply allocated_split | ].
+    instantiate (1 := 50); auto.
+    apply Himp_star_frame.
     apply allocated_shift_base.
     Require Import Arith.
     rewrite mult_comm.
     simpl.
     unfold natToW.
     words.
+    reflexivity.
+    apply allocated_shift_base.
+    simpl.
+    rewrite <- mult_plus_distr_l.
+    rewrite mult_comm.
+    unfold natToW.
+    words.
     omega.
-    apply Himp_trans with (0 =?> heapSize *
-      Ex vs, locals ("rp" :: nil) vs 49 (heapSize * 4)%nat)%Sep.
-    apply Himp_star_frame.
-    apply Himp_refl.
+
+    Lemma wiggle : forall P Q R,
+      P * (Q * R) ===> Q * P * R.
+      sepLemma.
+    Qed.
+
+    eapply Himp_trans; [ apply wiggle | ].
+    repeat (apply Himp_star_frame; try apply Himp_refl).
     change 50 with (length ("rp" :: nil) + 49).
     apply create_stack.
     NoDup.
-    sepLemma.
   Qed.
 
   Transparent mult.
@@ -732,6 +745,9 @@ End boot.
 Definition genesisHints : TacPackage.
   prepare genesis tt.
 Defined.
+
+Ltac genesis := solve [ sep genesisHints; eauto
+  | post; evaluate genesisHints; simpl in *; sep genesisHints; eauto ].
 
 Ltac safety ok :=
   eapply XCAP.safety; try apply ok; try eassumption; [

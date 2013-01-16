@@ -107,8 +107,8 @@ Definition blockS (b : block) : string :=
   let (is, j) := b in
     fold_right (fun i s => instrS i ++ s) (jmpS j) is.
 
-Definition moduleS (m : module) : string :=
-  fold_right (fun bl s => let '(lab, (_, b)) := bl in
-    labelS lab ++ ":" ++ nl ++ blockS b ++ s) "" (LabelMap.elements m.(Blocks)).
+Definition moduleS (m : module) : list string :=
+  map (fun bl => let '(lab, (_, b)) := bl in
+    labelS lab ++ ":" ++ nl ++ blockS b) (LabelMap.elements m.(Blocks)).
 
 Global Transparent natToWord.
