@@ -2,6 +2,20 @@ Require Import AutoSep Malloc Scheduler.
 Export AutoSep Malloc.
 
 
+Definition localsInvariantMain (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (res : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    [| sp <> 0 /\ freeable sp (1 + length ns + res) |]
+    /\ Ex vs, qspecOut (pre (sel vs) st#Rv) (fun pre =>
+        ![ locals ("rp" :: ns) vs res sp * pre ] st).
+
+Notation "'PREmain' [ vs ] pre" := (localsInvariantMain (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
+Notation "'PREmain' [ vs , rv ] pre" := (localsInvariantMain (fun vs rv => pre%qspec%Sep))
+  (at level 89).
+
+
 Module Make(M : Scheduler.S).
 Import M.
 
@@ -47,11 +61,11 @@ Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.leng
 
 Notation "'Init' [ afterCall ]" := (Init_ (RET afterCall)) : SP_scope.
 
-Definition Exit : chunk := (Call "scheduler"!"exit"()
-  [PREonly[_] [| False |]])%SP.
+Definition Exit (ss : W) : chunk := ($[Sp+8] <- ss;;
+  Goto "scheduler"!"exit")%SP.
 
-Definition Go : chunk := (Call "scheduler"!"exit"()
-  [PREonly[_] [| False |]])%SP.
+Definition Go (ss : W) : chunk := ($[Sp+8] <- ss;;
+  Goto "scheduler"!"exit")%SP.
 
 Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
   (Call "scheduler"!"yield"()

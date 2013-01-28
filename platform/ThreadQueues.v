@@ -136,33 +136,43 @@ Lemma starting_elim : forall specs ts w pc ss P stn st,
 Qed.
 
 
-Definition allocS : spec := SPEC reserving 15
+Definition allocS : spec := SPEC reserving 14
   Al ts, Al w,
   PRE[_] tqs ts w * mallocHeap 0
   POST[R] tqs (ts %+ R) w * mallocHeap 0.
 
-Definition isEmptyS : spec := SPEC("q") reserving 8
+Definition isEmptyS : spec := SPEC("sc") reserving 4
   Al ts, Al w,
-  PRE[V] [| V "q" %in ts |] * tqs ts w * mallocHeap 0
+  PRE[V] [| V "sc" %in ts |] * tqs ts w * mallocHeap 0
   POST[_] tqs ts w * mallocHeap 0.
 
-Definition spawnS : spec := SPEC("q", "pc", "ss") reserving 25
+Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
   Al ts, Al w, Al w',
-  PRE[V] [| V "q" %in ts |] * [| V "ss" >= $2 |] * [| M.evolve w w' |]
+  PRE[V] [| V "sc" %in ts |] * [| V "ss" >= $2 |] * [| M.evolve w w' |]
     * tqs ts w * starting ts w' (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] tqs ts w' * mallocHeap 0.
 
-Definition exitS : spec := SPEC("q") reserving 14
+Definition exitS : spec := SPEC("sc", "ss") reserving 0
   Al ts, Al w, Al w',
-  PREonly[V] [| V "q" %in ts |] * [| M.evolve w w' |]
+  PREexit[V] [| V "ss" >= $3 |] * [| V "sc" %in ts |] * [| M.evolve w w' |]
     * tqs ts w * M.globalInv ts w' * mallocHeap 0.
 
-Definition yieldS : spec := SPEC("q") reserving 21
+Definition yieldS : spec := SPEC("sc") reserving 19
   Al ts, Al w, Al w',
-  PRE[V] [| V "q" %in ts |] * [| M.evolve w w' |]
+  PRE[V] [| V "sc" %in ts |] * [| M.evolve w w' |]
     * tqs ts w * M.globalInv ts w' * mallocHeap 0
   POST[_] Ex ts', Ex w'', [| ts %<= ts' |] * [| M.evolve w' w'' |]
     * tqs ts' w'' * M.globalInv ts' w'' * mallocHeap 0.
+
+Notation "'balias' name () [ p ] l 'end'" :=
+  (let p' := p in
+   let vars := nil in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := Goto l%SP;
+      FVars := vars;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"isEmpty" @ [Q.isEmptyS],
                            "threadq"!"spawn" @ [Q.spawnS],
@@ -174,24 +184,14 @@ Definition m := bimport [[ "threadq"!"init" @ [Q.initS], "threadq"!"isEmpty" @ [
         PRE[_, R] tq (ts, w) R * tqs ts w
         POST[R'] tqs (ts %+ R') w ];;
       Return "r"
-    end with bfunction "isEmpty"("q") [isEmptyS]
-      "q" <-- Call "threadq"!"isEmpty"("q")
-      [PRE[_] Emp
-       POST[_] Emp];;
-      Return "q"
-    end with bfunction "spawn"("q", "pc", "ss") [spawnS]
-      Call "threadq"!"spawn"("q", "pc", "ss")
-      [PRE[_] Emp
-       POST[_] Emp];;
-      Return 0
-    end with bfunctionNoRet "exit"("q") [exitS]
-      Call "threadq"!"exit"("q")
-      [PREonly[_] [| False |] ]
-    end with bfunction "yield"("q") [yieldS]
-      Call "threadq"!"yield"("q")
-      [PRE[_] Emp
-       POST[_] Emp];;
-      Return 0
+    end with balias "isEmpty"() [isEmptyS]
+      "threadq"!"isEmpty"
+    end with balias "spawn"() [spawnS]
+      "threadq"!"spawn"
+    end with balias "exit"() [exitS]
+      "threadq"!"exit"
+    end with balias "yield"() [yieldS]
+      "threadq"!"yield"
    end
   }}.
 
@@ -230,38 +230,29 @@ Theorem ok : moduleOk m.
   simpl; auto.
 
   t.
-  t.
-  t.
-  t.
 
   post; evaluate hints.
   rewrite tqs_eq in *.
   toFront ltac:(fun P => match P with
                            | tqs' _ _ => idtac
-                         end) H7.
-  change (tqs' (x0, x1) x0) with (tqs'_pick_this_one (sel x3 "q") (x0, x1) x0) in H7.
+                         end) H4.
+  change (tqs' (x, x0) x) with (tqs'_pick_this_one (sel x2 "sc") (x, x0) x) in H4.
   Local Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
   Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
   t.
-  t.
-  t.
-  t.
 
-  t.
-  t.
-  t.
   t.
 
   post; evaluate hints.
   rewrite tqs_eq in *.
   toFront ltac:(fun P => match P with
                            | tqs' _ _ => idtac
-                         end) H7.
-  eapply use_HimpWeak in H7; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
-  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H7.
+                         end) H4.
+  eapply use_HimpWeak in H4; [ | apply (tqs'_weaken (w' := (x, x1))); (red; intuition) ].
+  change (tqs' (x, x1) x) with (tqs'_pick_this_one (sel x3 "sc") (x, x1) x) in H4.
   toFront ltac:(fun P => match P with
                            | starting _ _ _ _ => idtac
-                         end) H7; apply starting_elim in H7; post.
+                         end) H4; apply starting_elim in H4; post.
   evaluate hints.
   descend.
   toFront_conc ltac:(fun P => match P with
@@ -270,13 +261,10 @@ Theorem ok : moduleOk m.
   2: step hints.
   step hints.
   step hints.
-  descend.
-  apply andL; apply injL; intro.
-  unfold ginv, M'.globalInv.
-  autorewrite with sepFormula.
+  step hints.
   destruct w'; simpl in *.
-  destruct H7; simpl in *.
-  eapply Imply_trans; [ | eapply (H13 _ _ b w) ]; clear H13.
+  destruct H; simpl in *.
+  eapply Imply_trans; [ | eapply (H4 _ _ b0 w) ]; clear H4.
   repeat (apply andR; [ apply injR; assumption | ]).
 
   Lemma switchy : forall P Q R S T R',
@@ -286,11 +274,13 @@ Theorem ok : moduleOk m.
   Qed.
 
   make_Himp.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
   eapply Himp_trans; [ eapply switchy; apply starB_substH_fwd | ].
   unfold substH; simpl.
   match goal with
     | [ |- (_ * _ * ?P * _ * _ ===> _)%Sep ] =>
-      replace P with (tqs' (b, w) (b %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+      replace P with (tqs' (b0, w) (b0 %- sel x3 "sc")) by (rewrite tqs'_eq; reflexivity)
   end.
   rewrite tqs_eq.
 
@@ -299,103 +289,90 @@ Theorem ok : moduleOk m.
   t.
 
   t.
-  t.
-  t.
 
-  t.
-  t.
+  post; evaluate hints.
+  rewrite tqs_eq in *.
+  toFront ltac:(fun P => match P with
+                           | tqs' _ _ => idtac
+                         end) H4.
+  eapply use_HimpWeak in H4; [ | apply (tqs'_weaken (w' := (x, x1))); (red; intuition) ].
+  change (tqs' (x, x1) x) with (tqs'_pick_this_one (sel x2 "sc") (x, x1) x) in H4.
+  evaluate hints.
+  descend.
+  eauto.
+  step hints.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
+  make_Himp.
+
+  eapply Himp_trans; [ | apply Himp_star_comm ].
+  apply Himp_star_frame; try apply Himp_refl.
+  eapply Himp_trans; [ | apply starB_substH_bwd ].
+  unfold substH; simpl.
+  match goal with
+    | [ |- (?P ===> ?Q)%Sep ] => 
+      replace P with Q; try apply Himp_refl
+  end.
+  rewrite tqs'_eq; reflexivity.
+
   t.
 
   post; evaluate hints.
   rewrite tqs_eq in *.
   toFront ltac:(fun P => match P with
                            | tqs' _ _ => idtac
-                         end) H5.
-  eapply use_HimpWeak in H5; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
-  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H5.
+                         end) H4.
+  eapply use_HimpWeak in H4; [ | apply (tqs'_weaken (w' := (x, x1))); (red; intuition) ].
+  change (tqs' (x, x1) x) with (tqs'_pick_this_one (sel x3 "sc") (x, x1) x) in H4.
   evaluate hints.
   descend.
-  step hints.
   step hints.
   unfold ginv, globalInv.
   autorewrite with sepFormula; simpl.
   make_Himp.
 
-  Lemma swatchy : forall P Q R P',
-    P ===> P'
-    -> (P * Q) * R ===> P' * Q * R.
+  Lemma swatchy : forall P Q Q' R,
+    Q' ===> Q
+    -> P * (Q' * R) ===> P * (Q * R).
     sepLemma.
   Qed.
 
   eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
   unfold substH; simpl.
   match goal with
-    | [ |- (_ ===> ?P * _ * _)%Sep ] => 
-      replace P with (tqs' (x0, x2) (x0 %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
-  end.
-  sepLemma.
-
-  t.
-
-  t.
-  t.
-  t.
-  t.
-
-  post; evaluate hints.
-  rewrite tqs_eq in *.
-  toFront ltac:(fun P => match P with
-                           | tqs' _ _ => idtac
-                         end) H7.
-  eapply use_HimpWeak in H7; [ | apply (tqs'_weaken (w' := (x0, x2))); (red; intuition) ].
-  change (tqs' (x0, x2) x0) with (tqs'_pick_this_one (sel x4 "q") (x0, x2) x0) in H7.
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  unfold ginv, globalInv.
-  autorewrite with sepFormula; simpl.
-  make_Himp.
-  eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
-  unfold substH; simpl.
-  match goal with
-    | [ |- (_ ===> ?P * _ * _)%Sep ] => 
-      replace P with (tqs' (x0, x2) (x0 %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+    | [ |- (_ ===> _ * (?P * _))%Sep ] => 
+      replace P with (tqs' (x, x1) (x %- sel x3 "sc")) by (rewrite tqs'_eq; reflexivity)
   end.
   sepLemma.
   step hints.
   descend; step hints.
   descend; step hints.
-  step hints.
-  destruct x8; simpl in *.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  auto.
+  unfold ginv, globalInv.
+  autorewrite with sepFormula; simpl.
+  instantiate (1 := snd x6).
+  instantiate (1 := fst x6).
   unfold ginv, globalInv.
   autorewrite with sepFormula; simpl.
   make_Himp.
 
-  Lemma swotchy : forall P Q R S T U S',
-    S ===> S'
-    -> P * (Q * (R * ((S * T) * U))) ===> P * Q * R * S' * T * U.
+  Lemma swotchy : forall P Q R S T R' U,
+    R ===> R'
+    -> P * star (star Q (R * U)) S * T ===> P * Q * R' * U * S * T.
     sepLemma.
   Qed.
 
   eapply Himp_trans; [ apply swotchy; apply starB_substH_fwd | ].
   unfold substH; simpl.
   match goal with
-    | [ |- (_ * _ * _ * ?P * _ * _ ===> _)%Sep ] => 
-      replace P with (tqs' (b, w) (b %- sel x4 "q")) by (rewrite tqs'_eq; reflexivity)
+    | [ |- (_ * _ * ?P * _ * _ * _ ===> _)%Sep ] => 
+      replace P with (tqs' (fst x6, snd x6) (fst x6 %- sel x3 "sc"))
   end.
-  destruct H16; simpl in *.
   sepLemma.
-  etransitivity; [ apply himp_star_comm | ].
-  auto.
-
-  t.
-  t.
-  t.
+  destruct x6; destruct H0; simpl in *; auto.
+  destruct x6; destruct H0; simpl in *; auto.
+  destruct x6; destruct H0; simpl in *; auto.
+  rewrite tqs'_eq.
+  destruct x6; reflexivity.
 Qed.
 
 End Make.

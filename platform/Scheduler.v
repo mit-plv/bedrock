@@ -107,18 +107,21 @@ Lemma other_starting_intro : forall specs ts w pc ss P stn st,
 Qed.
 
 
+Local Notation "'PREexit' [ vs ] pre" := (Q'.Q.localsInvariantExit (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
 Definition initS : spec := SPEC reserving 16
   PRE[_] globalSched =?> 1 * mallocHeap 0
   POST[R] sched * mallocHeap 0.
 
-Definition spawnS : spec := SPEC("pc", "ss") reserving 32
+Definition spawnS : spec := SPEC("pc", "ss") reserving 25
   PRE[V] [| V "ss" >= $2 |] * sched * starting (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] sched * mallocHeap 0.
 
-Definition exitS : spec := SPEC reserving 17
-  PREonly[_] sched * M.globalInv * mallocHeap 0.
+Definition exitS : spec := SPEC("sc", "ss") reserving 2
+  PREexit[V] [| V "ss" >= $3 |] * sched * M.globalInv * mallocHeap 0.
 
-Definition yieldS : spec := SPEC reserving 24
+Definition yieldS : spec := SPEC reserving 22
   PRE[_] sched * M.globalInv * mallocHeap 0
   POST[_] sched * M.globalInv * mallocHeap 0.
 
@@ -135,9 +138,9 @@ Definition m := bimport [[ "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" 
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end with bfunction "exit"() [exitS]
-      Call "threadqs"!"exit"($[globalSched])
-      [PREonly[_] [| False |] ]
+    end with bfunctionNoRet "exit"("sc", "ss") [exitS]
+      "sc" <-* globalSched;;
+      Goto "threadqs"!"exit"
     end with bfunction "yield"() [yieldS]
       Call "threadqs"!"yield"($[globalSched])
       [PRE[_] Emp
@@ -202,9 +205,12 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-  t.
-  t.
-  t.
+
+  post.
+  evaluate hints.
+  descend.
+  2: instantiate (8 := upd x0 "sc" x1); unfold globalInv; descend; step hints.
+  rewrite H0; assumption.
 
   t.
   t.
