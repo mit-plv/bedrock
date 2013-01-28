@@ -103,12 +103,12 @@ Module Type TQ.
    * stack manipulations when the threads' own stacks may not be safe to touch. *)
 
   Axiom tq_fwd : forall w sc, tq w sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
-    * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps w b sc * any.
+    * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+    * queue b p * susps w b sc.
 
   Axiom tq_bwd : forall w sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
-    * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps w b sc * any) ===> tq w sc.
+    * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+    * queue b p * susps w b sc) ===> tq w sc.
 
 
   Axiom tq_weaken : forall w w' sc,
@@ -138,22 +138,22 @@ Module Tq : TQ.
 
   Definition tq (w : world) (sc : W) : HProp :=
     Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
-      * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-      * queue b p * susps w b sc * any.
+      * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+      * queue b p * susps w b sc.
 
   Theorem tq_extensional : forall w sc, HProp_extensional (tq w sc).
     reflexivity.
   Qed.
 
   Theorem tq_fwd : forall w sc, tq w sc ===> Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
-    * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps w b sc * any.
+    * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+    * queue b p * susps w b sc.
     unfold tq; sepLemma.
   Qed.
 
   Theorem tq_bwd : forall w sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
-    * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
-    * queue b p * susps w b sc * any) ===> tq w sc.
+    * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+    * queue b p * susps w b sc) ===> tq w sc.
     unfold tq; sepLemma.
   Qed.
 
@@ -199,8 +199,28 @@ Import Tq.
 Export Tq.
 Hint Immediate tq_extensional.
 
+Definition locals_expose ns vs ss sp := locals ns vs ss sp.
+
+Lemma expose_stack : forall ns vs ss sp,
+  locals_expose ns vs ss sp ===> sp =?> (length ns + ss).
+  unfold locals_expose, locals; intros; eapply Himp_trans; [ | apply allocated_join ].
+  instantiate (1 := length ns).
+  2: omega.
+  Opaque mult.
+  sepLemma.
+  eapply Himp_trans; [ apply Himp_star_comm | ].
+  eapply Himp_star_frame.
+  eapply Himp_trans; [ apply ptsto32m_allocated | ].
+  rewrite length_toArray; apply Himp_refl.
+  apply allocated_shift_base.
+  Require Import Arith.
+  unfold natToW; rewrite mult_comm; words.
+  omega.
+  Transparent mult.
+Qed.
+
 Definition hints : TacPackage.
-  prepare (tq_fwd, create_stack) (tq_bwd, susps_empty_bwd, susps_add_bwd).
+  prepare (tq_fwd, create_stack, expose_stack) (tq_bwd, susps_empty_bwd, susps_add_bwd).
 Defined.
 
 (* What is a valid initial code pointer for a thread, given the requested stack size? *)
@@ -265,9 +285,46 @@ Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
   PRE[V] [| V "ss" >= $2 |] * tq w (V "sc") * starting w (V "sc") (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] tq w (V "sc") * mallocHeap 0.
 
-Definition exitS : spec := SPEC("sc") reserving 12
+Definition localsInvariantExit (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (_ : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    [| sp <> 0 |]
+    /\ Ex vs, let res := wordToNat (sel vs "ss") - S (length ns) in
+      [| freeable sp (wordToNat (sel vs "ss")) |]
+      /\ qspecOut (pre (sel vs) st#Rv) (fun pre =>
+        ![ locals ("rp" :: ns) vs res sp * pre ] st).
+
+Notation "'PREexit' [ vs ] pre" := (localsInvariantExit (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
+Notation "'PREexit' [ vs , rv ] pre" := (localsInvariantExit (fun vs rv => pre%qspec%Sep))
+  (at level 89).
+
+Definition localsInvariantExit' (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (_ : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    Ex vs, qspecOut (pre (sel vs) st#Rv) (fun pre =>
+      ![ locals ("rp" :: ns) vs 14 sp * pre ] st).
+
+Local Notation "'PREexit'' [ vs ] pre" := (localsInvariantExit' (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
+Local Notation "'PREexit'' [ vs , rv ] pre" := (localsInvariantExit' (fun vs rv => pre%qspec%Sep))
+  (at level 89).
+
+Definition exitS : spec := SPEC("sc", "ss") reserving 0
   Al w,
-  PREonly[V] tq w (V "sc") * ginv w (V "sc") * mallocHeap 0.
+  PREexit[V] [| V "ss" >= $3 |] * tq w (V "sc") * ginv w (V "sc") * mallocHeap 0.
+
+Local Notation "'bexit' name ( x1 , .. , xN ) [ p ] b 'end'" :=
+  (let p' := p in
+   let vars := cons x1 (.. (cons xN nil) ..) in
+    {| FName := name;
+      FPrecondition := Precondition p' None;
+      FBody := b%SP;
+      FVars := vars;
+      FReserved := Reserved p' |})
+  (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 Definition yieldS : spec := SPEC("sc") reserving 19
   Al w,
@@ -284,7 +341,7 @@ Qed.
 
 Hint Immediate stackSize_bound.
 
-Lemma stackSize_split : stackSize = length ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) + 14.
+Lemma stackSize_split : stackSize = length ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) + 14.
   reflexivity.
 Qed.
 
@@ -307,7 +364,7 @@ Notation "'badt' name p 'end'" :=
     FReserved := 0 |}
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
-Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
+Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
     "queue"!"init" @ [Queue.initS], "queue"!"isEmpty" @ [Queue.isEmptyS],
     "queue"!"enqueue" @ [enqueueS], "queue"!"dequeue" @ [dequeueS] ]]
   bmodule "threadq" {{
@@ -317,13 +374,13 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       "q" <-- Call "queue"!"init"()
       [PRE[_, R] mallocHeap 0
        POST[R'] Ex sp, Ex vs, (R' ==*> R, sp) * (R' ^+ $8) =?> 2
-         * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
+         * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
          * mallocHeap 0];;
 
       "sp" <-- Call "malloc"!"malloc"(0, stackSize)
       [PRE[V, R] R =?> stackSize * mallocHeap 0
         POST[R'] Ex vs, (R' ==*> V "q", R) * (R' ^+ $8) =?> 2 * mallocHeap 0
-         * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 R];;
+         * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 R];;
 
       Assert [PRE[V] mallocHeap 0
         POST[R] (R ==*> V "q", V "sp") * (R ^+ $8) =?> 2 * mallocHeap 0];;
@@ -369,42 +426,52 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end with bfunctionNoRet "exit"("sc", "q", "r") [exitS]
-      "q" <-* "sc";;
-      "r" <-- Call "queue"!"isEmpty"("q")
-      [Al w, Al q, Al tsp, Al vs,
-        PREonly[V, R] [| (q %= empty) \is R |]
-          * queue q (V "q") * (V "sc" ==*> V "q", tsp)
-          * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp          
+    end with bexit "exit"("sc", "ss", "curPc", "curSp", "newPc", "newSp") [exitS]
+      Rp <-* "sc" + 4;;
+      Rp + 4 *<- "sc";;
+      Rp + 8 *<- "ss";;
+      Rp + 12 *<- Sp;;
+      Sp <- Rp;;
+
+      Call "malloc"!"free"(0, "curPc", "ss")
+      [Al w, Al q, Al qp, Al tsp,
+        PREexit'[V] (V "sc" ==*> qp, tsp) * queue q qp * (V "sc" ^+ $8) =?> 2 
+          * susps w q (V "sc") * ginv w (V "sc") * mallocHeap 0];;
+
+      "curPc" <-* "sc";;
+      "curSp" <-- Call "queue"!"isEmpty"("curPc")
+      [Al w, Al q, Al tsp,
+        PREexit'[V, R] [| (q %= empty) \is R |]
+          * queue q (V "curPc") * (V "sc" ==*> V "curPc", tsp)
           * (V "sc" ^+ $8) =?> 2 * susps w q (V "sc") * ginv w (V "sc") * mallocHeap 0];;
 
-      If ("r" = 1) {
+      If ("curSp" = 1) {
         (* No threads left to run.  Let's loop forever! *)
         Diverge
       } else {
         (* Pick a thread to switch to. *)
 
-        "r" <- "sc" + 8;;
-        Call "queue"!"dequeue"("q", "r")
-        [Al w, Al q, Al tsp, Al pc, Al sp, Al vs,
-          PREonly[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
+        "curSp" <- "sc" + 8;;
+        Call "queue"!"dequeue"("curPc", "curSp")
+        [Al w, Al q, Al tsp, Al pc, Al sp,
+          PREexit'[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "curPc")
             * susps w (q %- (pc, sp)) (V "sc") * susp w (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * ginv w (V "sc") * mallocHeap 0
-            * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp];;
+            * (V "sc" ==*> V "curPc", tsp, pc, sp) * ginv w (V "sc") * mallocHeap 0];;
 
+        "sc" + 4 *<- Sp;;
         Rp <-* "sc" + 8;;
         Sp <-* "sc" + 12;;
         IGoto* [("threadq","ADT")] Rp
       }
-    end with bfunction "yield"("sc", "q", "curPc", "curSp", "newPc", "newSp") [yieldS]
-      "q" <-* "sc";;
+    end with bfunction "yield"("sc", "ss", "curPc", "curSp", "newPc", "newSp") [yieldS]
+      "ss" <-* "sc";;
       (* Using "curPc" as a temporary before getting to its primary use... *)
-      "curPc" <-- Call "queue"!"isEmpty"("q")
+      "curPc" <-- Call "queue"!"isEmpty"("ss")
       [Al w, Al q, Al tsp, Al vs,
         PRE[V, R] [| (q %= empty) \is R |]
-          * queue q (V "q") * (V "sc" ==*> V "q", tsp) * (V "sc" ^+ $8) =?> 2 * susps w q (V "sc")
+          * queue q (V "ss") * (V "sc" ==*> V "ss", tsp) * (V "sc" ^+ $8) =?> 2 * susps w q (V "sc")
           * ginv w (V "sc") * mallocHeap 0
-          * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
+          * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp
         POST[_] Ex w', [| evolve w w' |] * tq w' (V "sc") * ginv w' (V "sc") * mallocHeap 0];;
 
       If ("curPc" = 1) {
@@ -414,12 +481,12 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
       } else {
         (* Pick a thread to switch to. *)
         "curPc" <- "sc" + 8;;
-        Call "queue"!"dequeue"("q", "curPc")
+        Call "queue"!"dequeue"("ss", "curPc")
         [Al w, Al q, Al tsp, Al vs, Al pc, Al sp,
-          PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "q")
+          PRE[V] [| (pc, sp) %in q |] * queue (q %- (pc, sp)) (V "ss")
             * susps w (q %- (pc, sp)) (V "sc") * susp w (V "sc") pc sp
-            * (V "sc" ==*> V "q", tsp, pc, sp) * ginv w (V "sc") * mallocHeap 0
-            * locals ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp * any
+            * (V "sc" ==*> V "ss", tsp, pc, sp) * ginv w (V "sc") * mallocHeap 0
+            * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 tsp
           POST[_] Ex w', [| evolve w w' |] * tq w' (V "sc") * ginv w' (V "sc") * mallocHeap 0];;
         "newPc" <-* "sc" + 8;;
         "newSp" <-* "sc" + 12;;
@@ -430,9 +497,9 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
         (* Initialize the temporary stack with data we will need, then switch to using it as our stack. *)
         "curPc" <-* "sc" + 4;;
-        "q" <-* "sc";;
+        "ss" <-* "sc";;
         "curPc" + 4 *<- "sc";;
-        "curPc" + 8 *<- "q";;
+        "curPc" + 8 *<- "ss";;
         "curPc" + 12 *<- $[Sp+0];;
         "curPc" + 16 *<- Sp;;
         "curPc" + 20 *<- "newPc";;
@@ -440,16 +507,16 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
         Sp <- "curPc";;
 
         Assert* [("threadq","ADT")]
-        [PREy[V] Ex w, Ex sp, Ex b, (V "sc" ==*> V "q", sp) * (V "sc" ^+ $8) =?> 2
-          * queue b (V "q") * susps w b (V "sc") * any * ginv w (V "sc") * mallocHeap 0
+        [PREy[V] Ex w, Ex sp, Ex b, (V "sc" ==*> V "ss", sp) * (V "sc" ^+ $8) =?> 2
+          * queue b (V "ss") * susps w b (V "sc") * ginv w (V "sc") * mallocHeap 0
           * susp w (V "sc") (V "newPc") (V "newSp") * susp w (V "sc") (V "curPc") (V "curSp")];;
 
         Note [mergeSusp];;
 
         (* Enqueue current thread; note that variable references below resolve in the temporary stack. *)
-        Call "queue"!"enqueue"("q", "curPc", "curSp")
+        Call "queue"!"enqueue"("ss", "curPc", "curSp")
         [PREy[V] Ex w, Ex b, Ex p, Ex sp, (V "sc" ==*> p, sp) * (V "sc" ^+ $8) =?> 2
-          * queue b p * susps w b (V "sc") * any * ginv w (V "sc")
+          * queue b p * susps w b (V "sc") * ginv w (V "sc")
           * mallocHeap 0 * susp w (V "sc") (V "newPc") (V "newSp")];;
 
         (* Jump to dequeued thread. *)
@@ -463,7 +530,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := abstract (sep hints; try apply any_easy;
+Ltac t := abstract (sep hints;
   try (apply himp_star_frame; [ reflexivity | apply susps_del_fwd; assumption ]);
     eauto).
 
@@ -482,6 +549,7 @@ Theorem ok : moduleOk m.
   vcgen.
 
   t.
+
   t.
   t.
   t.
@@ -494,7 +562,7 @@ Theorem ok : moduleOk m.
 
   post.
   rewrite stackSize_split in H0.
-  assert (NoDup ("rp" :: "sc" :: "q" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)) by NoDup.
+  assert (NoDup ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)) by NoDup.
   evaluate hints; descend; repeat (step hints; descend); auto.
 
   t.
@@ -570,13 +638,136 @@ Theorem ok : moduleOk m.
   t.
 
   t.
+
+  post.
+
+  Transparent evalInstrs.
+
+  Theorem evalInstrs_app_fwd_None : forall stn is1 is2 st,
+    evalInstrs stn st (is1 ++ is2) = None
+    -> evalInstrs stn st is1 = None
+    \/ exists st', evalInstrs stn st is1 = Some st' /\ evalInstrs stn st' is2 = None.
+    induction is1; simpl; intuition eauto.
+    destruct (evalInstr stn st a); eauto.
+  Qed.
+
+  Theorem evalInstrs_app_fwd_Some : forall stn is1 is2 st st',
+    evalInstrs stn st (is1 ++ is2) = Some st'
+    -> exists st'', evalInstrs stn st is1 = Some st'' /\ evalInstrs stn st'' is2 = Some st'.
+    induction is1; simpl; intuition eauto.
+    destruct (evalInstr stn st a); eauto.
+    discriminate.
+  Qed.
+
+  Opaque evalInstrs.
+
+  change (evalInstrs stn st
+    ((Binop Rv (LvMem (Sp + 4)%loc) Plus 4
+      :: Assign Rp (LvMem Rv)
+      :: Binop Rv Rp Plus 4
+      :: Assign (LvMem Rv) (LvMem (Sp + 4)%loc)
+      :: Binop Rv Rp Plus 8
+      :: Assign (LvMem Rv) (LvMem (Sp + 8)%loc)
+      :: Binop Rv Rp Plus 12
+      :: Assign (LvMem Rv) Sp
+      :: Assign Sp Rp :: nil)
+      ++ (Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 4)%loc) 0
+      :: Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 8)%loc) (LvMem (Sp + 12)%loc)
+      :: Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 12)%loc) (LvMem (Sp + 8)%loc)
+      :: Binop Sp Sp Plus 28 :: nil)) = None) in H0.
+
+  apply evalInstrs_app_fwd_None in H0.
+  destruct H0 as [ | [ ? [ ] ] ].
+  evaluate hints.
+  generalize dependent H0; evaluate hints; intro.
+  
+  change (locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+    (upd (upd (upd x4 "sc" (sel x0 "sc")) "ss" (sel x0 "ss")) "curPc" (Regs st Sp))
+    14 x5)
+    with (locals_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+      (upd (upd (upd x4 "sc" (sel x0 "sc")) "ss" (sel x0 "ss")) "curPc" (Regs st Sp))
+      14 x5
+      ("rp" :: "base" :: "p" :: "n" :: nil) 1 28) in H5.
+  assert (ok_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+    ("rp" :: "base" :: "p" :: "n" :: nil)
+    14 1 28)
+  by (split; [ simpl; omega
+    | split; [ simpl; omega
+      | split; [ NoDup
+        | reflexivity ] ] ]).
+  evaluate hints.
+
+  propxFo.
+  change (evalInstrs stn x
+    ((Binop Rv (LvMem (Sp + 4)%loc) Plus 4
+      :: Assign Rp (LvMem Rv)
+      :: Binop Rv Rp Plus 4
+      :: Assign (LvMem Rv) (LvMem (Sp + 4)%loc)
+      :: Binop Rv Rp Plus 8
+      :: Assign (LvMem Rv) (LvMem (Sp + 8)%loc)
+      :: Binop Rv Rp Plus 12
+      :: Assign (LvMem Rv) Sp
+      :: Assign Sp Rp :: nil)
+      ++ (Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 4)%loc) 0
+      :: Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 8)%loc) (LvMem (Sp + 12)%loc)
+      :: Binop Rv Sp Plus 28
+      :: Assign (LvMem (Rv + 12)%loc) (LvMem (Sp + 8)%loc)
+      :: Binop Sp Sp Plus 28 :: nil)) = Some st) in H2.
+
+  apply evalInstrs_app_fwd_Some in H2.
+  destruct H2 as [ ? [ ] ].
+  generalize dependent H2; evaluate hints; intro.
+  change (locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+    (upd (upd (upd x5 "sc" (sel x1 "sc")) "ss" (sel x1 "ss")) "curPc" (Regs x Sp))
+    14 x6)
+    with (locals_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+      (upd (upd (upd x5 "sc" (sel x1 "sc")) "ss" (sel x1 "ss")) "curPc" (Regs x Sp))
+      14 x6
+      ("rp" :: "base" :: "p" :: "n" :: nil) 1 28) in H6.
+  assert (ok_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
+    ("rp" :: "base" :: "p" :: "n" :: nil)
+    14 1 28)
+  by (split; [ simpl; omega
+    | split; [ simpl; omega
+      | split; [ NoDup
+        | reflexivity ] ] ]).
+  change (locals ("rp" :: "sc" :: "ss" :: nil) x1 (wordToNat (sel x1 "ss") - 3) (Regs x Sp))
+  with (locals_expose ("rp" :: "sc" :: "ss" :: nil) x1 (wordToNat (sel x1 "ss") - 3) (Regs x Sp)) in H6.
+  evaluate hints.
+  replace (S (S (S (wordToNat (sel x1 "ss") - 3)))) with (wordToNat (sel x1 "ss")) in H12.
+  descend.
+  step hints.
+  step hints.
+  step hints.
+  unfold localsInvariantExit'; descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  generalize H9; clear.
+  intros; pre_nomega.
+  rewrite wordToNat_natToWord_idempotent in H9 by reflexivity; omega.
+
+  t.
+  t.
+  unfold localsInvariantExit'; t.
   t.
   t.
   t.
-  t.
-  t.
-  t.
-  t.
+
+  unfold localsInvariantExit'; post; evaluate hints.
+  descend.
+  step hints.
+  2: step hints.
+  eauto.
+  step hints.
+  descend; step hints.
+  descend; step hints.
+  apply susps_del_fwd; assumption.
+
   t.
   t.
   
@@ -602,11 +793,11 @@ Theorem ok : moduleOk m.
   Require Import Eqdep.
   injection H; clear H; intros; subst.
   do 2 apply inj_pair2 in H; subst; simpl.
-  change (fun x y => tq x2 (sel x9 "sc") x y) with (tq x2 (sel x9 "sc")).
-  change (fun st m => subst (globalInv x2 (sel x9 "sc") st m)
+  change (fun x y => tq x2 (sel x7 "sc") x y) with (tq x2 (sel x7 "sc")).
+  change (fun st m => subst (globalInv x2 (sel x7 "sc") st m)
     (fun x : tq_args world => tq (World x) (Pointer x) (Settings x) (Mem x)))
-    with (ginv x2 (sel x9 "sc")).
-  step hints; apply any_easy.
+    with (ginv x2 (sel x7 "sc")).
+  step hints.
 
   t.
   t.
@@ -621,7 +812,7 @@ Theorem ok : moduleOk m.
   step hints.
   descend; step hints.
   instantiate (2 := x8).
-  instantiate (3 := upd x2 "q" x9).
+  instantiate (3 := upd x2 "ss" x9).
   descend; cancel hints.
   sep hints.
   sep hints.
@@ -657,7 +848,7 @@ Theorem ok : moduleOk m.
 
   post; evaluate hints.
   descend.
-  instantiate (1 := upd (upd (upd (upd (upd (upd x7 "sc" (sel x3 "sc")) "q" x9) "curPc"
+  instantiate (1 := upd (upd (upd (upd (upd (upd x7 "sc" (sel x3 "sc")) "ss" x9) "curPc"
     (sel x3 "rp")) "curSp" (Regs x0 Sp)) "newPc" (sel x3 "newPc")) "newSp" (sel x3 "newSp")); descend.
   toFront_conc ltac:(fun P => match P with
                                 | susp _ _ (sel _ "rp") _ => idtac
