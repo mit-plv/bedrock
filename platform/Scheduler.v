@@ -67,19 +67,23 @@ Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs,
-      ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched * M.globalInv * mallocHeap 0] ] st
+      [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
+      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched * M.globalInv * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
 Lemma starting_elim : forall specs pc ss P stn st,
   interp specs (![ starting pc ss * P ] (stn, st))
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs, interp specs (![ locals ("rp" :: nil) vs ss stn_st#Sp
+    /\ forall stn_st vs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * sched * M.globalInv * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
+  auto.
+  step auto_ext.
 Qed.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
@@ -87,7 +91,8 @@ Local Hint Resolve split_a_semp_a semp_smem_emp.
 Lemma starting_intro : forall specs pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs, interp specs (![ locals ("rp" :: nil) vs ss stn_st#Sp
+    /\ forall stn_st vs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * sched * M.globalInv * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX)
   -> interp specs (![ starting pc ss * P ] (stn, st)).
@@ -99,6 +104,7 @@ Lemma other_starting_intro : forall specs ts w pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M''.evolve w w' |]
+      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tqs ts' w' * M''.globalInv ts' w' * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX)
@@ -193,6 +199,7 @@ Theorem ok : moduleOk m.
   repeat (apply andL; apply injL; intro).
   eapply Imply_trans; [ | apply H12 ]; clear H12.
   unfold globalInv; descend; step hints.
+  step hints.
   eauto.
   destruct w'; step hints.
   step hints.

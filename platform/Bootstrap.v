@@ -740,6 +740,32 @@ Section boot.
   Qed.
 
   Transparent mult.
+
+  Lemma bootstrap_Sp_nonzero : forall sp : W,
+    sp = 0
+    -> sp = heapSize * 4
+    -> goodSize (heapSize * 4)
+    -> False.
+    intros; subst; apply natToW_inj in H0; auto; omega.
+  Qed.
+
+  Hypothesis globals : nat.
+  Hypothesis mem_size : goodSize ((heapSize + 50 + globals) * 4)%nat.
+
+  Lemma bootstrap_Sp_freeable : forall sp : W,
+    sp = heapSize * 4
+    -> freeable sp 50.
+    intros; subst; constructor; auto.
+    hnf; intros.
+    rewrite <- natToW_plus.
+    intro.
+    apply natToW_inj in H0.
+    omega.
+    unfold size in *.
+    eapply goodSize_weaken; [ apply mem_size | ].
+    omega.
+    auto.
+  Qed.
 End boot.
 
 Definition genesisHints : TacPackage.
@@ -755,7 +781,7 @@ Ltac safety ok :=
     | apply LabelMap.find_2; link_simp; reflexivity
     | propxFo; descend; apply materialize_allocated; assumption ].
 
-Hint Immediate goodSize_heapSize heapSizeLowerBound'.
+Hint Immediate goodSize_heapSize heapSizeLowerBound' bootstrap_Sp_nonzero bootstrap_Sp_freeable.
 Hint Rewrite heapSize_roundTrip using assumption : sepFormula.
 Hint Extern 1 (noWrapAround _ _) => apply noWrap.
 
