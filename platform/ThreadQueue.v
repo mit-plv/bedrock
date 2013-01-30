@@ -232,6 +232,7 @@ Definition starting (w : world) (sc pc : W) (ss : nat) : HProp := fun s m =>
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs, Al w',
       [| evolve w w' |]
+      /\ [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
       /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tq w' sc * ginv w' sc * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
@@ -241,6 +242,7 @@ Lemma starting_intro : forall specs sc w pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs w', interp specs ([| evolve w w' |]
+      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX)
@@ -253,12 +255,14 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs w', interp specs ([| evolve w w' |]
+      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
+  eauto.
   eauto.
   make_Himp.
   apply Himp_refl.
@@ -409,12 +413,12 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "ss" <-- Call "malloc"!"malloc"(0, "ss")
       [Al w, Al ss,
         PRE[V, R] tq w (V "sc") * starting w (V "sc") (V "pc") (ss - 1) * mallocHeap 0
-          * R =?> ss * [| (ss >= 2)%nat |]
+          * R =?> ss * [| (ss >= 2)%nat |] * [| R <> 0 |] * [| freeable R ss |]
         POST[_] tq w (V "sc") * mallocHeap 0];;
 
       Assert [Al w, Al ss, Al vs,
         PRE[V] tq w (V "sc") * starting w (V "sc") (V "pc") ss * mallocHeap 0
-          * locals ("rp" :: nil) vs ss (V "ss")
+          * locals ("rp" :: nil) vs ss (V "ss") * [| V "ss" <> 0 |] * [| freeable (V "ss") (1 + ss) |]
         POST[_] tq w (V "sc") * mallocHeap 0];;
 
       Assert* [("threadq","ADT")]
@@ -627,7 +631,11 @@ Theorem ok : moduleOk m.
   descend; step auto_ext.
   eauto.
   step auto_ext.
+  eauto.
   auto.
+  rewrite H6.
+  auto.
+  step auto_ext.
   step auto_ext.
   sep_auto.
 

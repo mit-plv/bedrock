@@ -128,15 +128,128 @@ Ltac vcgen := structured_auto vcgen_simp;
   autorewrite with sepFormula in *; simpl in *;
     unfold starB, hvarB, hpropB in *; fold hprop in *; refold.
 
-Ltac sep unf hints := unf;
+Definition exitize_me a b c d := locals a b c d.
+
+Lemma exitize_locals : forall xx yy ns vs res sp,
+  exitize_me ("rp" :: xx :: yy :: ns) vs res sp ===> Ex vs', locals ("rp" :: "sc" :: "ss" :: nil) (upd vs' "ss" (sel vs yy)) (res + length ns) sp.
+  unfold exitize_me, locals; intros.
+  simpl; unfold upd; simpl.
+  apply Himp_ex_c; exists (fun x => if string_dec x "rp" then vs "rp" else vs xx).
+  eapply Himp_trans.
+  eapply Himp_star_frame.
+  eapply Himp_star_frame.
+  apply Himp_refl.
+  change (vs "rp" :: vs xx :: vs yy :: toArray ns vs)
+    with (toArray (("rp" :: xx :: yy :: nil) ++ ns) vs).
+  apply ptsto32m_split.
+  apply Himp_refl.
+  destruct (string_dec "rp" "rp"); intuition.
+  destruct (string_dec "sc" "rp"); intuition.
+  unfold array, toArray in *.
+  simpl map in *.
+  simpl length in *.
+
+  Lemma switchedy : forall P Q R S : HProp,
+    (P * (Q * R)) * S ===> P * (Q * (R * S)).
+    sepLemma.
+  Qed.
+
+  eapply Himp_trans; [ apply switchedy | ].
+  
+  Lemma swatchedy : forall P Q R : HProp,
+    P * (Q * R) ===> P * Q * R.
+    sepLemma.
+  Qed.
+
+  eapply Himp_trans; [ | apply swatchedy ].
+  apply Himp_star_frame.
+  sepLemma; NoDup.
+  apply Himp_star_frame.
+  apply Himp_refl.
+  eapply Himp_trans; [ | apply allocated_join ].
+  apply Himp_star_frame.
+  eapply Himp_trans; [ | apply allocated_shift_base ].
+  apply ptsto32m_allocated.
+  simpl.
+  words.
+  eauto.
+  apply allocated_shift_base.
+  rewrite map_length.
+  repeat rewrite <- wplus_assoc.
+  repeat rewrite <- natToW_plus.
+  f_equal.
+  f_equal.
+  omega.
+  rewrite map_length; omega.
+  rewrite map_length; omega.
+Qed.
+
+Definition exitize_hints : TacPackage.
+  prepare exitize_locals tt.
+Defined.
+
+Ltac sep unf hints := unf; unfold localsInvariantMain;
   match goal with
+    (* spawn *)
     | [ |- context[starting] ] => post; evaluate hints; descend; [
       toFront_conc ltac:(fun P => match P with
                                     | starting _ _ => idtac
                                   end); apply starting_intro;
       unf; descend; [ | step hints | ] | | ];
     (unfold localsInvariantCont; AutoSep.sep hints)
+
+    (* exit *)
+    | [ |- context[Q.localsInvariantExit] ] =>
+      post; evaluate hints; [ unfold natToW in *; congruence | ];
+      match goal with
+        | [ H : context[locals ?a ?b ?c ?d] |- _ ] =>
+          change (locals a b c d) with (exitize_me a b c d) in H
+      end;
+      evaluate exitize_hints; post; descend; [
+        | match goal with
+            | [ _ : context[locals _ ?vs _ _ ] |- _ ] =>
+              unf; instantiate (1 := vs); descend; step hints
+          end
+      ]; AutoSep.sep hints
+
     | _ => AutoSep.sep hints
   end.
+
+Lemma eq_neq_0 : forall u v : W,
+  u <> 0
+  -> v = 0
+  -> u = v
+  -> False.
+  congruence.
+Qed.
+
+Lemma freeable_cong : forall (u v : W) n,
+  freeable v n
+  -> v = u
+  -> freeable u n.
+  congruence.
+Qed.
+
+Ltac words_rewr := repeat match goal with
+                            | [ H : _ = ?X |- _ ] =>
+                              match X with
+                                | natToW 0 => fail 1
+                                | _ => rewrite H
+                              end
+                          end; words.
+
+Hint Extern 1 False => eapply eq_neq_0; [ match goal with
+                                            | [ H : context[Sp] |- _ ] =>
+                                              match type of H with
+                                                | (_ <> _)%type => apply H
+                                              end
+                                          end
+  | match goal with
+      | [ H : context[Sp] |- _ ] =>
+        match type of H with
+          | _ = _ => apply H
+        end
+    end | words_rewr ].
+Hint Extern 1 (freeable _ _) => eapply freeable_cong; [ eassumption | words_rewr ].
 
 End Make.

@@ -115,6 +115,7 @@ Definition starting (ts : bag) (w : M.world) (pc : W) (ss : nat) : HProp := fun 
     /\ Al st : settings * state, Al vs, Al ts', Al w',
       [| ts %<= ts' |]
       /\ [| M.evolve w w' |]
+      /\ [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
       /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
@@ -124,12 +125,14 @@ Lemma starting_elim : forall specs ts w pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M.evolve w w' |]
+      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
       * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
+  eauto.
   eauto.
   eauto.
   step auto_ext.
@@ -266,6 +269,7 @@ Theorem ok : moduleOk m.
   destruct H; simpl in *.
   eapply Imply_trans; [ | eapply (H4 _ _ b0 w) ]; clear H4.
   repeat (apply andR; [ apply injR; assumption | ]).
+  repeat (apply andR; [ apply injR; auto | ]).
 
   Lemma switchy : forall P Q R S T R',
     R ===> R'

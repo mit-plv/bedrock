@@ -36,18 +36,17 @@ Section boot.
       bfunctionNoRet "main"() [bootS]
         Sp <- (heapSize * 4)%nat;;
 
-        Assert [PREonly[_] globalSched =?> 2 * 0 =?> heapSize];;
+        Assert [PREmain[_] globalSched =?> 2 * 0 =?> heapSize];;
 
         Call "malloc"!"init"(0, heapSize)
-        [PREonly[_] globalList =?> 1 * globalSched =?> 1 * mallocHeap 0];;
+        [PREmain[_] globalList =?> 1 * globalSched =?> 1 * mallocHeap 0];;
 
-        Call "test"!"main"()
-        [PREonly[_] [| False |] ]
+        Goto "test"!"main"
       end
     }}.
 
   Theorem ok : moduleOk boot.
-    vcgen; abstract (unfold globalSched, M'.globalList, M'.globalSched; genesis).
+    vcgen; abstract (unfold globalSched, localsInvariantMain, M'.globalList, M'.globalSched; genesis).
   Qed.
 
   Definition m0 := link Malloc.m boot.
