@@ -25,7 +25,7 @@ Export T M'''.
 
 Ltac sep := T.sep unf SinglyLinkedList.hints.
 
-Definition handlerS := SPEC reserving 29
+Definition handlerS := SPEC reserving 39
   PREmain[_] sched * globalInv * mallocHeap 0.
 
 Definition mainS := SPEC reserving 49
@@ -68,17 +68,17 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "p" <-* globalList
       };;
 
-      Exit 30
+      Exit 40
     end with bfunctionNoRet "main"("x", "y") [mainS]
       globalList *<- 0;;
 
       Init
       [PREmain[_] sched * globalInv * mallocHeap 0];;
 
-      Spawn("test"!"handler", 30)
+      Spawn("test"!"handler", 40)
       [PREmain[_] sched * globalInv * mallocHeap 0];;
 
-      Spawn("test"!"handler", 30)
+      Spawn("test"!"handler", 40)
       [PREmain[_] sched * globalInv * mallocHeap 0];;
 
       Go 50

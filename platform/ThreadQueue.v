@@ -268,6 +268,41 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   apply Himp_refl.
 Qed.
 
+Definition susp' (w : world) (sc pc sp : W) : HProp := fun s m =>
+  (ExX (* pre *) : settings * state, Cptr pc #0
+    /\ ExX (* inv *) : settings * smem, #0 (s, m)
+    /\ Al st : settings * state, Al w' : world,
+    [| evolve w w' |]
+    /\ ![ #0 * ^[tq w' sc * ginv w' sc * mallocHeap 0] ] st
+    /\ [| st#Sp = sp |]
+    ---> #1 st)%PropX.
+
+Lemma susp_convert : forall specs w sc pc sp P stn st pc_tq,
+  interp specs (![ susp' w sc pc sp * P ] (stn, st))
+  -> Labels stn (labl "threadq" "ADT") = Some pc_tq
+  -> specs pc_tq = Some (fun _ => PropX.Forall (fun x => tq (World x) (Pointer x) (Settings x) (Mem x)))
+  -> interp specs (![ susp w sc pc sp * P ] (stn, st)).
+  cptr.
+  descend; step auto_ext.
+  step auto_ext.
+  eauto.
+  descend; step auto_ext.
+Qed.
+
+Lemma susp'_intro : forall specs w sc pc sp P stn st,
+  (exists pre, specs pc = Some (fun x => pre x)
+    /\ exists inv, interp specs (![ inv * P ] (stn, st))
+      /\ forall stn_st w', interp specs ([| evolve w w' |]
+        /\ ![ inv * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
+        /\ [| stn_st#Sp = sp |]
+        ---> pre stn_st)%PropX)
+  -> interp specs (![ susp' w sc pc sp * P ] (stn, st)).
+  cptr.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  eauto.
+  descend; step auto_ext.
+Qed.
 
 Definition initS : spec := SPEC reserving 12
   Al w,
@@ -281,7 +316,7 @@ Definition isEmptyS : spec := SPEC("sc") reserving 4
 
 Definition spawnWithStackS : spec := SPEC("sc", "pc", "sp") reserving 14
   Al w,
-  PRE[V] tq w (V "sc") * susp w (V "sc") (V "pc") (V "sp") * mallocHeap 0
+  PRE[V] tq w (V "sc") * susp' w (V "sc") (V "pc") (V "sp") * mallocHeap 0
   POST[_] tq w (V "sc") * mallocHeap 0.
 
 Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
@@ -402,6 +437,10 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
        POST[R'] [| R' = R |] ];;
       Return "sc"
     end with bfunction "spawnWithStack"("sc", "pc", "sp") [spawnWithStackS]
+      Assert* [("threadq","ADT")] [Al w,
+        PRE[V] tq w (V "sc") * susp w (V "sc") (V "pc") (V "sp") * mallocHeap 0
+        POST[_] tq w (V "sc") * mallocHeap 0];;
+
       "sc" <-* "sc";;
       Note [mergeSusp];;
       Call "queue"!"enqueue"("sc", "pc", "sp")
@@ -423,7 +462,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       Assert* [("threadq","ADT")]
       [Al w,
-        PRE[V] tq w (V "sc") * susp w (V "sc") (V "pc") (V "ss") * mallocHeap 0
+        PRE[V] tq w (V "sc") * susp' w (V "sc") (V "pc") (V "ss") * mallocHeap 0
         POST[_] tq w (V "sc") * mallocHeap 0];;
 
       Call "threadq"!"spawnWithStack"("sc", "pc", "ss")
@@ -587,6 +626,14 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
+
+  post.
+  toFront ltac:(fun P => match P with
+                           | susp' _ _ _ _ => idtac
+                         end) H0.
+  eapply susp_convert in H0; eauto.
+  t.
+
   t.
   t.
   t.
@@ -620,21 +667,16 @@ Theorem ok : moduleOk m.
       apply starting_elim in H; post; descend
   end.
   toFront_conc ltac:(fun P => match P with
-                                | susp _ _ _ _ => idtac
+                                | susp' _ _ _ _ => idtac
                               end);
-  apply susp_intro; descend.
-  4: instantiate (5 := locals ("rp" :: nil) x2 x1 (sel x4 "ss")); sep_auto.
-  eauto.
-  eauto.
+  apply susp'_intro; descend.
+  2: instantiate (5 := locals ("rp" :: nil) x2 x1 (sel x4 "ss")); sep_auto.
   eauto.
   eapply Imply_trans; [ | apply H6 ]; clear H6.
   descend; step auto_ext.
-  eauto.
   step auto_ext.
   eauto.
-  auto.
-  rewrite H6.
-  auto.
+  rewrite H6; auto.
   step auto_ext.
   step auto_ext.
   sep_auto.
