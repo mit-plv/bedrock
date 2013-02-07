@@ -127,7 +127,7 @@ Definition spawnS : spec := SPEC("pc", "ss") reserving 25
 Definition exitS : spec := SPEC("sc", "ss") reserving 2
   PREexit[V] [| V "ss" >= $3 |] * sched * M.globalInv * mallocHeap 0.
 
-Definition yieldS : spec := SPEC reserving 22
+Definition yieldS : spec := SPEC reserving 25
   PRE[_] sched * M.globalInv * mallocHeap 0
   POST[_] sched * M.globalInv * mallocHeap 0.
 
@@ -148,7 +148,7 @@ Definition m := bimport [[ "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" 
       "sc" <-* globalSched;;
       Goto "threadqs"!"exit"
     end with bfunction "yield"() [yieldS]
-      Call "threadqs"!"yield"($[globalSched])
+      Call "threadqs"!"yield"($[globalSched], $[globalSched])
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0

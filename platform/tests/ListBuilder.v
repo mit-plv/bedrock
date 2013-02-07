@@ -7,7 +7,7 @@ Import M.
 Module T := Thread0.Make(M).
 Import T.
 
-Definition handlerS := SPEC reserving 29
+Definition handlerS := SPEC reserving 39
   PREmain[_] sched * mallocHeap 0.
 
 Definition mainS := SPEC reserving 49
@@ -46,15 +46,15 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         [PREmain[V] Ex ls, sll ls (V "p") * sched * mallocHeap 0]
       };;
 
-      Exit 30
+      Exit 40
     end with bfunctionNoRet "main"("x", "y") [mainS]
       Init
       [PREmain[_] sched * mallocHeap 0];;
 
-      Spawn("test"!"handler", 30)
+      Spawn("test"!"handler", 40)
       [PREmain[_] sched * mallocHeap 0];;
 
-      Spawn("test"!"handler", 30)
+      Spawn("test"!"handler", 40)
       [PREmain[_] sched * mallocHeap 0];;
 
       Go 50
