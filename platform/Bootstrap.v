@@ -775,9 +775,13 @@ Defined.
 Ltac genesis := solve [ sep genesisHints; eauto
   | post; evaluate genesisHints; simpl in *; sep genesisHints; eauto ].
 
+Require Import Sys Safety.
+Export Sys.
+
 Ltac safety ok :=
-  eapply XCAP.safety; try apply ok; try eassumption; [
-    reflexivity
+  eapply safety; try eassumption; [
+    link_simp; tauto
+    | apply ok
     | apply LabelMap.find_2; link_simp; reflexivity
     | propxFo; descend; apply materialize_allocated; assumption ].
 
