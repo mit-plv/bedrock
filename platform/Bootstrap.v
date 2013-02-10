@@ -780,7 +780,7 @@ Export Sys.
 
 Ltac safety ok :=
   eapply safety; try eassumption; [
-    link_simp; tauto
+    link_simp; unfold labelSys; tauto
     | apply ok
     | apply LabelMap.find_2; link_simp; reflexivity
     | propxFo; descend; apply materialize_allocated; assumption ].

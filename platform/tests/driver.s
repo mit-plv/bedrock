@@ -1,8 +1,10 @@
         .section        .rodata
 .LC0:
-        .string "Execution complete\n"
+        .string "Bedrock main() returned (should never happen!)\n"
         .text
 
+        .globl sys_abort
+        
         .globl main
 main:
         movl    $ret, %ecx
