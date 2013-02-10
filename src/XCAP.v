@@ -64,17 +64,15 @@ Section moduleOk.
       -> StringSet.In mn (Modules m)
   }.
 
-  (** Safety theorem *)
-
-  Hypothesis closed : LabelMap.cardinal (Imports m) = 0.
+  (** Safety theorem that allows some unresolved imports *)
 
   Hint Constructors SetoidList.InA.
 
-  Lemma allPreconditions_just_blocks' : forall l pre mp,
+  Lemma allPreconditions_cases' : forall l pre mp,
     LabelMap.MapsTo l pre (LabelMap.fold (fun l x m => LabelMap.add l (fst x) m) (Blocks m) mp)
     -> LabelMap.MapsTo l pre mp
       \/ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m).
-    clear closed; intros.
+    intros.
     rewrite LabelMap.fold_1 in H.
     apply LabelMap.elements_1 in H.
     assert (SetoidList.InA (@LabelMap.eq_key_elt _) (l, pre) (LabelMap.elements mp)
@@ -98,17 +96,384 @@ Section moduleOk.
     apply LabelMap.elements_2 in H0; eauto.
   Qed.
 
-  Lemma allPreconditions_just_blocks : forall l pre, LabelMap.MapsTo l pre allPreconditions
-    -> exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m).
+  Lemma allPreconditions_cases : forall l pre, LabelMap.MapsTo l pre allPreconditions
+    -> LabelMap.MapsTo l pre (Imports m)
+    \/ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m).
     intros.
-    apply allPreconditions_just_blocks' in H; firstorder.
-
-    rewrite LabelMap.cardinal_1 in closed.
-    apply LabelMap.elements_1 in H.
-    destruct (LabelMap.elements (Imports m)); simpl in *.
-    inversion H.
-    discriminate.
+    apply allPreconditions_cases' in H; firstorder.
   Qed.
+
+  Section safetyWithImports.
+    Variable stn : settings.
+    Variable prog : program.
+
+    Hypothesis inj : forall l1 l2 w, Labels stn l1 = Some w
+      -> Labels stn l2 = Some w
+      -> l1 = l2.
+
+    Hypothesis agree : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
+      -> exists w, Labels stn l = Some w
+        /\ prog w = Some bl.
+
+    Hypothesis agreeImp : forall l pre, LabelMap.MapsTo l pre (Imports m)
+      -> exists w, Labels stn l = Some w
+        /\ prog w = None.
+
+    Hypothesis ok : moduleOk.
+
+    Definition specs' : codeSpec W (settings * state) := fun w =>
+      LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some p
+                        else pre
+                    end
+        end) (Imports m) None.
+
+    Definition specs0 : codeSpec W (settings * state) := fun w =>
+      LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (fst p)
+                        else pre
+                    end
+        end) (Blocks m) (specs' w).
+
+    Theorem InA_weaken : forall A (P : A -> A -> Prop) (x : A) (ls : list A),
+      SetoidList.InA P x ls
+      -> forall (P' : A -> A -> Prop) x',
+        (forall y, P x y -> P' x' y)
+        -> SetoidList.InA P' x' ls.
+      induction 1; simpl; intuition.
+    Qed.
+    
+    Lemma specs_nochange' : forall v w (bls : list (LabelMap.key * (assert * block))),
+      List.fold_left (fun pre l_p =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn (fst l_p) with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (fst (snd l_p))
+                        else pre
+                    end
+        end) bls (Some v) = Some v.
+      induction bls; simpl; intuition.
+    Qed.
+
+    Lemma specs_nochange : forall v w (bls : LabelMap.t (assert * block)),
+      LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (fst p)
+                        else pre
+                    end
+        end) bls (Some v) = Some v.
+      intros; rewrite LabelMap.fold_1; apply specs_nochange'.
+    Qed.
+
+    Lemma specs'_nochange : forall w v (imps : list (LabelMap.key * assert)),
+      List.fold_left (fun pre l_p =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn (fst l_p) with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (snd l_p)
+                        else pre
+                    end
+        end) imps (Some v) = Some v.
+      induction imps; simpl; intuition.
+    Qed.
+
+    Lemma specs'_gotit : forall l pre w (imps : LabelMap.t assert),
+      LabelMap.MapsTo l pre imps
+      -> Labels stn l = Some w
+      -> LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some p
+                        else pre
+                    end
+        end) imps None = Some pre.
+      intros; apply LabelMap.elements_1 in H; rewrite LabelMap.fold_1;
+        generalize (LabelMap.elements_3w imps); induction H; simpl; intuition.
+
+      hnf in H; simpl in H; intuition subst.
+      unfold LabelMap.key; rewrite H0.
+      destruct (weq w w); subst; intuition.
+      apply specs'_nochange.
+
+      inversion H1; clear H1; subst.
+      specialize (inj _ (fst y) H0).
+      case_eq (Labels stn (fst y)); intuition.
+      destruct (weq w w0); subst; intuition subst.
+      rewrite specs'_nochange.
+      elimtype False; apply H4.
+      eapply InA_weaken; eauto.
+      intros.
+      hnf; hnf in H3; simpl in H3; tauto.
+    Qed.
+
+    Lemma specs'_nothere : forall l w (imps : LabelMap.t assert),
+      ~LabelMap.In l imps
+      -> Labels stn l = Some w
+      -> LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some p
+                        else pre
+                    end
+        end) imps None = None.
+      intros.
+      assert (forall pre, ~SetoidList.InA (LabelMap.eq_key_elt (elt:=assert)) (l, pre) (LabelMap.elements imps)).
+      intros; intro.
+      apply H.
+      apply LabelFacts.elements_in_iff.
+      eauto.
+      clear H; rename H1 into H.
+      rewrite LabelMap.fold_1; induction (LabelMap.elements imps); simpl; intuition.
+      assert (forall pre, ~SetoidList.InA (LabelMap.eq_key_elt (elt := assert)) (l, pre) l0) by eauto.
+      intuition.
+      case_eq (Labels stn (fst a)); intuition.
+      destruct (weq w w0); intuition subst.
+      eapply inj in H3; [ | eauto ].
+      subst.
+      elimtype False; eapply H.
+      constructor; hnf; simpl; eauto.
+    Qed.
+
+    Lemma specs_gotit : forall l pre w bl (bls : LabelMap.t (assert * block)),
+      LabelMap.MapsTo l (pre, bl) bls
+      -> Labels stn l = Some w
+      -> LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (fst p)
+                        else pre
+                    end
+        end) bls None = Some pre.
+      intros; apply LabelMap.elements_1 in H; rewrite LabelMap.fold_1;
+        generalize (LabelMap.elements_3w bls); induction H; simpl; intuition.
+
+      hnf in H; simpl in H; intuition subst.
+      unfold LabelMap.key; rewrite H0.
+      destruct (weq w w); subst; intuition.
+      rewrite <- H3; simpl.
+      apply specs_nochange'.
+
+      inversion H1; clear H1; subst.
+      specialize (inj _ (fst y) H0).
+      case_eq (Labels stn (fst y)); intuition.
+      destruct (weq w w0); subst; intuition subst.
+      rewrite specs_nochange'.
+      elimtype False; apply H4.
+      eapply InA_weaken; eauto.
+      intros.
+      hnf; hnf in H3; simpl in H3; tauto.
+    Qed.
+
+    Lemma specsOk : forall l pre, LabelMap.MapsTo l pre allPreconditions
+      -> exists w, Labels stn l = Some w
+        /\ specs0 w = Some pre.
+      unfold specs0; intros.
+      destruct (allPreconditions_cases H) as [ | [ ] ]; clear H.
+
+      specialize (agreeImp H0); destruct agreeImp as [ ? [ ] ]; clear agreeImp.
+      do 2 esplit; eauto.
+      unfold specs'; erewrite specs'_gotit.
+      apply specs_nochange.
+      eauto.
+      auto.
+
+      destruct (agree H0); intuition.
+      do 2 esplit; eauto.
+      unfold specs'; erewrite specs'_nothere; eauto.
+
+      Focus 2.
+      apply LabelMap.elements_1 in H0.
+      apply SetoidList.InA_alt in H0; destruct H0; intuition.
+      generalize (proj1 (List.Forall_forall _ _) (NoSelfImport ok) _ H4); intros.
+      hnf in H3; simpl in H3; intuition subst.
+      tauto.
+
+      eapply specs_gotit; eauto.
+    Qed.
+
+    Lemma specs'_hit : forall w pre (imps : LabelMap.t assert),
+      LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some p
+                        else pre
+                    end
+        end) imps None = Some pre
+      -> exists l, LabelMap.MapsTo l pre imps
+        /\ Labels stn l = Some w.
+      intros.
+      assert (exists l : LabelMap.key,
+        SetoidList.InA (@LabelMap.eq_key_elt _) (l, pre) (LabelMap.elements imps) /\ Labels stn l = Some w).
+      rewrite LabelMap.fold_1 in *.
+      induction (LabelMap.elements imps); simpl in *; intuition (try congruence).
+      case_eq (Labels stn (fst a)); intros.
+      rewrite H0 in *.
+      destruct (weq w w0); subst.
+      rewrite specs'_nochange in H.
+      injection H; clear H; intros; subst.
+      do 2 esplit; eauto.
+      constructor; hnf; simpl; tauto.
+      intuition.
+      destruct H1; intuition eauto.
+      rewrite H0 in H.
+      intuition.
+      destruct H1; intuition eauto.
+      destruct H0; intuition.
+      do 2 esplit; eauto.
+      apply LabelMap.elements_2; auto.
+    Qed.
+
+    Lemma specs_hit : forall w preOpt pre (bls : LabelMap.t (assert * block)),
+      LabelMap.fold (fun l p pre =>
+        match pre with
+          | Some _ => pre
+          | None => match Labels stn l with
+                      | None => None
+                      | Some w' => if weq w w'
+                        then Some (fst p)
+                        else pre
+                    end
+        end) bls preOpt = Some pre
+      -> preOpt = Some pre
+      \/ exists l, exists bl, LabelMap.MapsTo l (pre, bl) bls
+        /\ Labels stn l = Some w.
+      intros.
+      assert (preOpt = Some pre
+        \/ exists l, exists bl,
+        SetoidList.InA (@LabelMap.eq_key_elt _) (l, (pre, bl)) (LabelMap.elements bls) /\ Labels stn l = Some w).
+      rewrite LabelMap.fold_1 in *.
+      induction (LabelMap.elements bls); simpl in *; intuition (try congruence).
+      destruct preOpt.
+      rewrite specs_nochange' in H.
+      injection H; clear H; intros; subst; tauto.
+      case_eq (Labels stn (fst a)); intros.
+      rewrite H0 in *.
+      destruct (weq w w0); subst.
+      rewrite specs_nochange' in H.
+      injection H; clear H; intros; subst.
+      destruct a as [ ? [ ] ]; simpl in *.
+      right; do 3 esplit; eauto.
+      constructor; hnf; simpl; tauto.
+      intuition.
+      destruct H2 as [ ? [ ] ]; intuition eauto.
+      rewrite H0 in H.
+      intuition.
+      destruct H2 as [ ? [ ] ]; intuition eauto.
+      destruct H0; intuition.
+      destruct H0 as [ ? [ ] ]; intuition.
+      right; do 3 esplit; eauto.
+      apply LabelMap.elements_2; eauto.
+    Qed.
+
+    Lemma specsOk' : forall w pre, specs0 w = Some pre
+      -> exists l, Labels stn l = Some w
+        /\ (LabelMap.MapsTo l pre (Imports m)
+          \/ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m)).
+      unfold specs0, specs'; intros.
+      apply specs_hit in H; intuition.
+      apply specs'_hit in H0.
+      destruct H0; intuition eauto.
+      destruct H0 as [ ? [ ] ]; intuition eauto.
+    Qed.
+
+    Lemma safety' : forall st' st'', reachable stn prog st' st''
+      -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
+        -> forall st, interp specs0 (pre (stn, st))
+          -> forall w, Labels stn l = Some w
+            -> st' = (w, st)
+            -> exists l', Labels stn l' = Some (fst st'')
+              /\ exists pre', (LabelMap.MapsTo l' pre' (Imports m)
+                \/ exists bl', LabelMap.MapsTo l' (pre', bl') (Blocks m))
+              /\ interp specs0 (pre' (stn, snd st'')).
+      induction 1; simpl; intuition; subst; simpl in *.
+      eauto 10.
+
+      destruct (agree H1); intuition.
+      rewrite H3 in H5; injection H5; clear H5; intros; subst.
+      unfold step in H; simpl in H.
+      rewrite H6 in H.
+      specialize (BlocksOk ok H1); clear ok; intro ok.
+      red in ok.
+      specialize (@ok stn _ specsOk _ H2).
+      destruct ok; clear ok; intuition.
+      rewrite H in H5; injection H5; clear H5; intros; subst.
+      destruct H7; intuition.
+      destruct (specsOk' _ H5) as [? [? [ ] ] ].
+
+      inversion H0; clear H0; subst.
+      eauto 10.
+
+      unfold step in H9.
+      destruct (agreeImp H8) as [ ? [ ] ].
+      rewrite H4 in H0; injection H0; clear H0; intros; subst.
+      rewrite H11 in H9; discriminate.
+
+      destruct H8.
+      eapply IHreachable.
+      apply H8.
+      eauto.
+      eauto.
+      destruct x0; simpl in *.
+      congruence.
+    Qed.
+
+    Theorem safety'' : forall st st', reachable stn prog st st'
+      -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
+        -> Labels stn l = Some (fst st)
+        -> interp specs0 (pre (stn, snd st))
+        -> (exists l', Labels stn l' = Some (fst st')
+          /\ exists pre', LabelMap.MapsTo l' pre' (Imports m)
+            /\ interp specs0 (pre' (stn, snd st')))
+        \/ step stn prog st' <> None.
+      intros.
+      eapply safety' in H; eauto.
+      2: destruct st; auto.
+      destruct H as [ ? [ ? [ ? [ ] ] ] ]; intuition eauto.
+      destruct H5.
+      apply (BlocksOk ok H3) in H4; [ | apply specsOk ].
+      destruct H4 as [ ? [ ? [ ? [ ] ] ] ].
+      right; intro.
+      unfold step in H7.
+      apply agree in H3; destruct H3; intuition.
+      rewrite H in H8; injection H8; clear H8; intros; subst.
+      rewrite H9 in H7.
+      congruence.
+    Qed.
+  End safetyWithImports.
+
+  (** Main safety theorem *)
+
+  Hypothesis closed : LabelMap.cardinal (Imports m) = 0.
 
   Variable stn : settings.
   Variable prog : program.
@@ -123,179 +488,20 @@ Section moduleOk.
 
   Hypothesis ok : moduleOk.
 
-  Definition specs : codeSpec W (settings * state) := fun w =>
-    LabelMap.fold (fun l p pre =>
-      match pre with
-        | Some _ => pre
-        | None => match Labels stn l with
-                    | None => None
-                    | Some w' => if weq w w'
-                      then Some (fst p)
-                      else pre
-                  end
-      end) (Blocks m) None.
+  Hint Constructors SetoidList.InA.
 
-  Theorem InA_weaken : forall A (P : A -> A -> Prop) (x : A) (ls : list A),
-    SetoidList.InA P x ls
-    -> forall (P' : A -> A -> Prop) x',
-      (forall y, P x y -> P' x' y)
-      -> SetoidList.InA P' x' ls.
-    induction 1; simpl; intuition.
-  Qed.
+  Definition specs : codeSpec W (settings * state) := specs0 stn.
 
-  Lemma specsOk : forall l pre, LabelMap.MapsTo l pre allPreconditions
-    -> exists w, Labels stn l = Some w
-      /\ specs w = Some pre.
-    unfold specs; intros.
-
-    destruct (allPreconditions_just_blocks H); clear H.
-
-    destruct (agree H0); intuition.
-    do 2 esplit; eauto.
-
-    apply LabelMap.elements_1 in H0.
-    rewrite LabelMap.fold_1.
-    generalize (LabelMap.elements_3w (Blocks m)).
-    generalize (fun l pre bl H => @agree l pre bl (LabelMap.elements_2 H)); clear agree; intro agree.
-    unfold assert in *.
-    match goal with
-      | [ |- _ -> List.fold_left _ ?X _ = _ ] => induction X
-    end; simpl in *.
-    inversion H0.
-
-    case_eq (Labels stn (fst a)); intros.
-
-    destruct (weq x0 w); subst.
-    inversion H0; clear H0; subst.
-    hnf in H5; simpl in H5; intuition; subst.
-    destruct a; simpl in *; subst; simpl in *.
-    clear.
-    induction l0; simpl; intuition.
-
-    inversion H3; subst.
-    eapply inj in H; eauto; subst.
-    elimtype False.
-    apply H6; clear H6.
-    eapply InA_weaken; eauto.
-    intros.
-    subst.
-    hnf in H0; simpl in H0; intuition.
-
-    inversion H0; clear H0; subst.
-    hnf in H5; simpl in H5; intuition; subst.
-    unfold LabelMap.key in *.
-    congruence.
-    inversion H3; eauto.
-
-    unfold LabelMap.key in *.
-    specialize (@agree (fst a) (fst (snd a)) (snd (snd a))).
-    destruct agree.
-    apply SetoidList.InA_cons; left.
-    hnf; simpl.
-    intuition.
-    simpl.
-    destruct (snd (A := label) a); auto.
-    intuition; congruence.
-  Qed.
-
-  Lemma specsOk' : forall w pre, specs w = Some pre
-    -> exists l, Labels stn l = Some w
-      /\ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m).
-    unfold specs; intros.
-    assert (exists l : label,
-      Labels stn l = Some w /\
-      (exists bl : block, SetoidList.InA (@LabelMap.eq_key_elt _) (l, (pre, bl)) (LabelMap.elements (Blocks m)))).
-    rewrite LabelMap.fold_1 in H.
-    generalize (fun l pre bl H => @agree l pre bl (LabelMap.elements_2 H)).
-    generalize H; clear.
-    induction (LabelMap.elements (Blocks m)); simpl; intuition.
+  Lemma it's_really_empty : forall k v,
+    LabelMap.MapsTo k v (Imports m)
+    -> False.
+    intros; apply LabelMap.elements_1 in H.
+    rewrite LabelMap.cardinal_1 in closed.
+    inversion H.
+    rewrite <- H0 in closed.
     discriminate.
-
-    assert (SetoidList.InA (@LabelMap.eq_key_elt _) (fst a, (fst (snd a), snd (snd a))) (a :: l)).
-    constructor; hnf; simpl.
-    destruct a as [ ? [ ] ]; auto.
-    apply H0 in H1.
-    destruct H1; intuition.
-    rewrite H2 in H.
-    destruct (weq w x); subst.
-    assert (Labels stn (fst a) = Some x /\ fst (snd a) = pre).
-    generalize H H2; clear.
-    induction l; simpl; intuition eauto.
-    congruence.
-    intuition.
-    destruct a as [ ? [ ] ]; simpl in *; subst.
-    repeat esplit; eauto.
-    constructor; hnf; simpl; eauto.
-    intuition.
-    match type of H1 with
-      | ?P -> _ => assert P
-    end.
-    intros.
-    eapply H0.
-    eauto.
-    intuition.
-    destruct H5; intuition.
-    destruct H6.
-    eauto.
-
-    destruct H0; intuition.
-    destruct H2.
-    repeat esplit; eauto.
-    apply LabelMap.elements_2; eauto.
-  Qed.
-
-  Lemma safety' : forall st' st'', reachable stn prog st' st''
-    -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> forall st, interp specs (pre (stn, st))
-        -> forall w, Labels stn l = Some w
-          -> st' = (w, st)
-        -> exists l', Labels stn l' = Some (fst st'')
-          /\ exists pre', exists bl', LabelMap.MapsTo l' (pre', bl') (Blocks m)
-            /\ interp specs (pre' (stn, snd st'')).
-    induction 1; simpl; intuition; subst; simpl in *.
-    eauto 6.
-
-    destruct (agree H1); intuition.
-    rewrite H3 in H5; injection H5; clear H5; intros; subst.
-    unfold step in H; simpl in H.
-    rewrite H6 in H.
-    specialize (BlocksOk ok H1); clear ok; intro ok.
-    red in ok.
-    specialize (@ok stn _ specsOk _ H2).
-    destruct ok; clear ok; intuition.
-    destruct H6; intuition.
-    destruct H7; intuition.
-    destruct (specsOk' _ H6) as [? [? [ ] ] ].
-    eapply IHreachable.
-    apply H8.
-    eauto.
-    eauto.
-    destruct x0; simpl in *.
-    congruence.
-  Qed.
-
-  Theorem safety'' : forall st st', reachable stn prog st st'
-    -> forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
-      -> Some (fst st) = Labels stn l -> interp specs (pre (stn, snd st))
-      -> step stn prog st' <> None.
-    induction 1; simpl; intuition.
-
-    unfold step in H2.
-    destruct (agree H); intuition.
-    rewrite <- H0 in H4; injection H4; clear H4; intros; subst.
-    rewrite H5 in H2.
-    specialize (BlocksOk ok H _ specsOk _ H1); clear ok; destruct 1; intuition.
-    congruence.
-
-    destruct (BlocksOk ok H1 _ specsOk _ H3); clear ok; intuition.
-    destruct H7; intuition.
-    destruct (agree H1); intuition.
-    unfold step in H.
-    rewrite <- H2 in H9; injection H9; clear H9; intros; subst.
-    rewrite H10 in H.
-    rewrite H in H6; injection H6; clear H6; intros; subst.
-    destruct (specsOk' _ H7) as [? [? [ ] ] ].
-    eauto.
+    rewrite <- H0 in closed.
+    discriminate.
   Qed.
 
   Theorem safety : forall mn g pre,
@@ -303,9 +509,15 @@ Section moduleOk.
     -> forall w, Labels stn (mn, Global g) = Some w
       -> forall st, interp specs (pre (stn, st))
         -> safe stn prog (w, st).
-    intros.
+    intros; hnf; intros.
     apply (ExportsSound ok) in H; destruct H.
-    unfold safe; intros; eapply safety''; eauto.
+    eapply safety'' in H; eauto.
+    intuition.
+    destruct H4 as [ ? [ ? [ ? [ ] ] ] ]; intuition.
+    eapply it's_really_empty; eauto.
+
+    intros.
+    elimtype False; eapply it's_really_empty; eauto.
   Qed.
 End moduleOk.
 

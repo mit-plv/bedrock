@@ -2,6 +2,7 @@ ROOT    := ..
 MODULES := Conditional AutoSepExt PreAutoSep \
            Util \
            AutoSep Misc \
+           Sys Safety \
            Malloc \
            Bags Sets Queue ThreadQueue ThreadQueues Scheduler Thread \
            Bootstrap SinglyLinkedList \
