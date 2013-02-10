@@ -1,4 +1,4 @@
-Require Import AutoSep Sys.
+Require Import AutoSep.
 
 
 Definition mainS := SPEC reserving 0
@@ -7,7 +7,7 @@ Definition mainS := SPEC reserving 0
 Definition m := bimport [[ "sys"!"abort" @ [abortS] ]]
   bmodule "test" {{
     bfunctionNoRet "main"() [mainS]
-      Goto "sys"!"abort"
+      Abort
     end
   }}.
 
