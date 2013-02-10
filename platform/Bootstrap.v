@@ -775,8 +775,7 @@ Defined.
 Ltac genesis := solve [ sep genesisHints; eauto
   | post; evaluate genesisHints; simpl in *; sep genesisHints; eauto ].
 
-Require Import Sys Safety.
-Export Sys.
+Require Import Safety.
 
 Ltac safety ok :=
   eapply safety; try eassumption; [
