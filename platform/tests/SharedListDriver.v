@@ -92,6 +92,14 @@ Section boot.
     -> exists w, Labels stn l = Some w
       /\ prog w = Some bl.
 
+  Hypothesis agreeImp : forall l pre, LabelMap.MapsTo l pre (XCAP.Imports m5)
+    -> exists w, Labels stn l = Some w
+      /\ prog w = None.
+
+  Hypothesis omitImp : forall l w,
+    Labels stn ("sys", l) = Some w
+    -> prog w = None.
+
   Variable w : W.
   Hypothesis at_start : Labels stn ("main", Global "main") = Some w.
 
@@ -100,7 +108,7 @@ Section boot.
   Hypothesis mem_low : forall n, (n < size * 4)%nat -> st.(Mem) n <> None.
   Hypothesis mem_high : forall w, $(size * 4) <= w -> st.(Mem) w = None.
 
-  Theorem safe : safe stn prog (w, st).
+  Theorem safe : sys_safe stn prog (w, st).
     safety ok5.
   Qed.
 End boot.
