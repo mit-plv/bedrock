@@ -1,5 +1,5 @@
-Require Import PreAutoSep Util.
-Export PreAutoSep Util.
+Require Import PreAutoSep Util Sys.
+Export PreAutoSep Util Sys.
 
 Set Implicit Arguments.
 
@@ -336,3 +336,5 @@ Lemma create_stack : forall ns ss sp,
 Qed.
 
 Transparent mult.
+
+Notation Abort := (Goto "sys"!"abort")%SP.
