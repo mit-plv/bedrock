@@ -79,7 +79,8 @@ Coercion Imm : W >-> loc.
 (* Valid targets of assignments *)
 Inductive lvalue :=
 | LvReg : reg -> lvalue
-| LvMem : loc -> lvalue.
+| LvMem : loc -> lvalue  (* 32-bit read/write *)
+| LvMem8 : loc -> lvalue (* 8-bit read/write *) .
 
 Coercion LvReg : reg >-> lvalue.
 
@@ -387,6 +388,9 @@ Record state := {
   Mem : mem
 }.
 
+Definition WtoB : W -> B := split2 24 8.
+Definition BtoW : B -> W := combine (wzero 24) (sz2 := 8).
+
 Section settings.
   Variable stn : settings.
 
@@ -410,6 +414,12 @@ Section settings.
             | None => None
             | Some m' => Some {| Regs := Regs st ; Mem := m' |}
           end
+        | LvMem8 l => 
+          let a := evalLoc l in
+          match WriteByte (Mem st) a (WtoB v) with
+            | None => None
+            | Some m' => Some {| Regs := Regs st ; Mem := m' |}
+          end
       end.
 
     Definition evalRvalue (rv : rvalue) : option W :=
@@ -418,6 +428,12 @@ Section settings.
         | LvMem l =>
           let a := evalLoc l in
           ReadWord stn (Mem st) a
+        | LvMem8 l =>
+          let a := evalLoc l in
+          match ReadByte (Mem st) a with
+            | None => None
+            | Some b => Some (BtoW b)
+          end
         | RvImm w => Some w
         | RvLabel l => Labels stn l
       end.

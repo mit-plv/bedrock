@@ -8,7 +8,7 @@
         
         .globl main
 main:
-        movl    $ret, %ecx
+        movl    $ret, %esi
         jmp     main_main
 ret:
         movl    $.LC0, %eax
@@ -19,5 +19,5 @@ ret:
 
 sys_printInt:
         movl	bedrock_heap+4(%rbx), %edi
-        pushq   %rcx
+        pushq   %rsi
         jmp     _sys_printInt
