@@ -849,6 +849,7 @@ module Bedrock = struct
     type lvalue = 
       | LvReg of reg
       | LvMem of loc
+      | LvMem8 of loc
 
     type rvalue =
       | RvLval of lvalue
@@ -885,10 +886,11 @@ module Bedrock = struct
       in
       
       (* dump_lvalue *)
-      let lvreg = init  "SymLvReg" and lvmem = init "SymLvMem" in 
+      let lvreg = init  "SymLvReg" and lvmem = init "SymLvMem" and lvmem8 = init "SymLvMem8" in 
       let dump_lvalue = function 
       | LvReg r -> lvreg @@ [r]
       | LvMem l -> lvmem @@ [dump_loc l]
+      | LvMem8 l -> lvmem8 @@ [dump_loc l]
       in
       
       (* dump_lvalue *)
@@ -969,6 +971,7 @@ module Bedrock = struct
     let pp_lvalue fmt = function 
       | LvReg r -> Format.fprintf fmt "reg %a" pp_constr r
       | LvMem l -> Format.fprintf fmt "<loc>" 
+      | LvMem8 l -> Format.fprintf fmt "<loc8>" 
 	
     let pp_rvalue fmt = function 
       | RvLval l -> Format.fprintf fmt "val %a" pp_lvalue l
@@ -1007,7 +1010,9 @@ module Bedrock = struct
 	[
 	  f "LvReg", 1, (fun args -> renv, LvReg args.(0));
 	  f "LvMem", 1, (fun args -> let renv, l = reify_loc env evar renv args.(0) in 
-				     renv, LvMem l)
+				     renv, LvMem l);
+	  f "LvMem8", 1, (fun args -> let renv, l = reify_loc env evar renv args.(0) in 
+				     renv, LvMem8 l)
 	]
 	
     let reify_rvalue env evar renv r =

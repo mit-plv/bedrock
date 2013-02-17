@@ -138,7 +138,8 @@ Definition compile (m : module) : list (label * block) :=
 Infix "+" := Indir : loc_scope.
 Delimit Scope loc_scope with loc.
 
-Notation "$[ v ]" := ((fun _ => LvMem v%loc) : lvalue') (at level 0, n at level 0) : SP_scope.
+Notation "$[ v ]" := ((fun _ => LvMem v%loc) : lvalue') (at level 0) : SP_scope.
+Notation "$8[ v ]" := ((fun _ => LvMem8 v%loc) : lvalue') (at level 0) : SP_scope.
 
 Definition regInL (r : reg) : lvalue' := fun _ => LvReg r.
 Coercion regInL : reg >-> lvalue'.
@@ -197,6 +198,8 @@ Infix "<-" := Assign' (no associativity, at level 90) : SP_scope.
 Infix ";;" := Seq (right associativity, at level 95) : SP_scope.
 Notation "x <-* y" := (Rv <- y;; x <- $[Rv])%SP (at level 90) : SP_scope.
 Notation "x *<- y" := (Rv <- x;; $[Rv] <- y)%SP (at level 90) : SP_scope.
+Notation "x <-*8 y" := (Rv <- y;; x <- $8[Rv])%SP (at level 90) : SP_scope.
+Notation "x *<-8 y" := (Rv <- x;; $8[Rv] <- y)%SP (at level 90) : SP_scope.
 
 Definition variableSlot (nm : string) : lvalue' := fun ns =>
   LvMem (Indir Sp (4 + variablePosition ns nm)).
