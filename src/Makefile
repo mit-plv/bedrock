@@ -14,7 +14,7 @@ MODULES    := Reflection Tactics ListFacts \
 	SepExpr ReifySepExpr SepHeap SepUnify SepCancel \
 	Unfolder ReifyHints SepLemma \
 	Env TypedPackage TacPackIL Allocated \
-	SymEval sep/PtsTo sep/Array Arrays sep/Locals provers/LocalsProver provers/ArrayBoundProver \
+	SymEval sep/PtsTo sep/Array Arrays sep/Locals sep/Array8 provers/LocalsProver provers/ArrayBoundProver \
 	IL ReifyIL \
 	ILEnv SepIL \
 	SymIL SymILProofs SymILTac \

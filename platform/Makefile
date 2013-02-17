@@ -8,7 +8,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Bootstrap SinglyLinkedList \
            tests/Thread0 \
            tests/LinkTest tests/Abort tests/PrintInt \
-           tests/AbortDriver tests/PrintIntDriver \
+           tests/AbortDriver tests/PrintIntDriver tests/ArrayTest \
            tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver
 

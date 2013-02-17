@@ -27,6 +27,7 @@ Ltac collectTypes_lvalue isConst l Ts k :=
   match l with
     | LvReg _ => k Ts
     | LvMem ?l => collectTypes_loc isConst l Ts k
+    | LvMem8 ?l => collectTypes_loc isConst l Ts k
   end.
 
 Ltac reify_lvalue isConst l types funcs uvars vars k :=
@@ -35,6 +36,9 @@ Ltac reify_lvalue isConst l types funcs uvars vars k :=
     | LvMem ?l => 
       reify_loc isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
         let l := constr:(@SymLvMem types l) in k uvars funcs l)
+    | LvMem8 ?l => 
+      reify_loc isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
+        let l := constr:(@SymLvMem8 types l) in k uvars funcs l)
   end.
 
 Ltac collectTypes_rvalue isConst r Ts k :=

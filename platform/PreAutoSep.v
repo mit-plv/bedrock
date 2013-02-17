@@ -649,6 +649,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Array.div4 Array.deref Array.sym_read Array.sym_write
          Array.wlength_r Array.sel_r Array.upd_r
 
+         (** Array8 *)
+         Array8.ssig Array8.types_r Array8.types
+         Array8.MemEval Array8.MemEvaluator
+         Array8.deref Array8.sym_read Array8.sym_write
+         Array8.blength_r Array8.sel_r Array8.upd_r Array8.BtoW_r Array8.WtoB_r
+
          (** Locals *)
          Locals.bedrock_type_string Locals.bedrock_type_listString Locals.bedrock_type_vals
          Locals.ssig Locals.types_r Locals.types
@@ -1031,6 +1037,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Array.MemEval Array.MemEvaluator
          Array.div4 Array.deref Array.sym_read Array.sym_write
          Array.wlength_r Array.sel_r Array.upd_r
+
+         (** Array8 *)
+         Array8.ssig Array8.types_r Array8.types
+         Array8.MemEval Array8.MemEvaluator
+         Array8.deref Array8.sym_read Array8.sym_write
+         Array8.blength_r Array8.sel_r Array8.upd_r Array8.BtoW_r Array8.WtoB_r
 
          (** Locals *)
          Locals.bedrock_type_string Locals.bedrock_type_listString Locals.bedrock_type_vals
