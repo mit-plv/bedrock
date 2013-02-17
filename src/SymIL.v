@@ -59,7 +59,8 @@ Section typed.
   (* Valid targets of assignments *)
   Inductive sym_lvalue :=
   | SymLvReg : reg -> sym_lvalue
-  | SymLvMem : sym_loc -> sym_lvalue.
+  | SymLvMem : sym_loc -> sym_lvalue
+  | SymLvMem8 : sym_loc -> sym_lvalue.
   
   (* Operands *)
   Inductive sym_rvalue :=
@@ -185,6 +186,10 @@ Section Denotations.
                         | Some l => Some (LvMem l)
                         | None => None
                       end
+      | SymLvMem8 l => match sym_locD l with
+                         | Some l => Some (LvMem8 l)
+                         | None => None
+                       end
     end.
 
   Definition sym_rvalueD (r : sym_rvalue TYPES) : option rvalue :=
@@ -288,6 +293,20 @@ Section Denotations.
                   | None => None
                 end
             end
+        | SymLvMem8 l => 
+          let l := sym_evalLoc l ss in
+            match SymMem ss with
+              | None => None
+              | Some m =>
+                match MEVAL.swrite_byte meval _ Facts l val m with
+                  | Some m =>
+                    Some {| SymMem := Some m
+                          ; SymRegs := SymRegs ss
+                          ; SymPures := SymPures ss
+                          |}
+                  | None => None
+                end
+            end
       end.
 
     Definition sym_evalRval (rv : sym_rvalue TYPES) (ss : SymState TYPES pcT stT) : option (expr TYPES) :=
@@ -300,6 +319,13 @@ Section Denotations.
               | None => None
               | Some m => 
                 MEVAL.sread_word meval _ Facts l m
+            end
+        | SymRvLval (SymLvMem8 l) =>
+          let l := sym_evalLoc l ss in
+            match SymMem ss with
+              | None => None
+              | Some m => 
+                MEVAL.sread_byte meval _ Facts l m
             end
         | SymRvImm w => Some w 
         | SymRvLabel l => None (* TODO: can we use labels? it seems like we need to reflect these as words. *)
@@ -432,6 +458,19 @@ Section spec_functions.
           | Some m => Some (stn, {| Regs := Regs st ; Mem := m |})
         end).
 
+  Definition IL_ReadByte : IL_stn_st -> tvarD types tvWord -> option (tvarD types tvWord) :=
+    (fun stn_st a => match IL.ReadByte (Mem (snd stn_st)) a with
+                       | None => None
+                       | Some b => Some (BtoW b)
+                     end).
+  Definition IL_WriteByte : IL_stn_st -> tvarD types tvWord -> tvarD types tvWord -> option IL_stn_st :=
+    (fun stn_st p v => 
+      let (stn,st) := stn_st in
+        match IL.WriteByte (Mem st) p (WtoB v) with
+          | None => None
+          | Some m => Some (stn, {| Regs := Regs st ; Mem := m |})
+        end).
+
   Theorem IL_mem_satisfies_himp : forall cs P Q stn_st,
     IL_mem_satisfies cs P stn_st ->
     ST.himp cs P Q ->
@@ -499,6 +538,45 @@ Section spec_functions.
             end
         end.
 
+    Hypothesis read_pred_byte_correct : forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve stn st,
+        MEVAL.PredEval.pred_read_byte mep P facts args pe = Some ve ->
+        Valid PE uvars vars facts ->
+        exprD funcs uvars vars pe ptrT = Some p ->
+        match 
+          applyD (exprD funcs uvars vars) (SEP.SDomain pred) args _ (SEP.SDenotation pred)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn st
+        end ->
+        match ST.HT.smem_get p st with
+          | Some b => exprD funcs uvars vars ve valT = Some (BtoW b)
+          | _ => False
+        end.
+
+    Hypothesis write_pred_byte_correct : forall P (PE : ProverT_correct P funcs),
+      forall args uvars vars cs facts pe p ve v stn st args',
+        MEVAL.PredEval.pred_write_byte mep P facts args pe ve = Some args' ->
+        Valid PE uvars vars facts ->
+        exprD funcs uvars vars pe ptrT = Some p ->
+        exprD funcs uvars vars ve valT = Some v ->
+        match
+          applyD (@exprD _ funcs uvars vars) (SEP.SDomain pred) args _ (SEP.SDenotation pred)
+          with
+          | None => False
+          | Some p => ST.satisfies cs p stn st
+        end ->
+        match 
+          applyD (@exprD _ funcs uvars vars) (SEP.SDomain pred) args' _ (SEP.SDenotation pred)
+          with
+          | None => False
+          | Some pr => 
+            match ST.HT.smem_set p (WtoB v) st with
+              | None => False
+              | Some sm' => ST.satisfies cs pr stn sm'
+            end
+        end.
+
     Theorem interp_satisfies : forall cs P stn st,
       PropX.interp cs (SepIL.SepFormula.sepFormula P (stn,st)) <->
       (HT.satisfies (memoryIn (IL.Mem st)) (IL.Mem st) /\ ST.satisfies cs P stn (memoryIn (IL.Mem st))).
@@ -549,13 +627,14 @@ Section spec_functions.
     Qed.
 
     Lemma mep_correct : @MEVAL.PredEval.MemEvalPred_correct types pcT stT (IL.settings * IL.state)
-      (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord mep pred funcs.
+      (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte mep pred funcs.
     Proof.
       constructor; intros; destruct stn_st as [ stn st ];
         match goal with
           | [ H : match ?X with _ => _ end |- _ ] =>
             revert H; case_eq X; intros; try contradiction
         end.
+
       { eapply interp_satisfies in H3. think.
         apply satisfies_star in H4. think.
         eapply read_pred_correct in H; eauto.
@@ -569,6 +648,7 @@ Section spec_functions.
         unfold IL_ReadWord, ReadWord. simpl.
         eapply satisfies_get_word; eauto.
         eapply split_smem_get_word; eauto. }
+
       { eapply interp_satisfies in H4. think.
         apply satisfies_star in H5. think.
         eapply write_pred_correct in H; eauto.
@@ -594,10 +674,150 @@ Section spec_functions.
         unfold split. intuition.
         eapply relevant_eq; eauto. 2: apply satisfies_memoryIn.
         eapply smem_set_word_relevant in H14. rewrite <- H14. rewrite <- H11.
-
           
         eapply mem_set_word_relevant_memoryIn; eauto.
         rewrite <- H11; apply satisfies_memoryIn. }
+
+      { eapply interp_satisfies in H3. think.
+        apply satisfies_star in H4. think.
+        eapply read_pred_byte_correct in H; eauto.
+        Focus 2. simpl in *.
+        match goal with
+          | [ H : applyD ?A ?B ?C ?D ?E = _ |- match ?X with _ => _ end ] =>
+            change X with (applyD A B C D E); rewrite H
+        end. eassumption.
+
+        consider (smem_get p x); intros; auto; try tauto.
+        revert H; consider (exprD funcs uvars vars ve tvWord); intros; auto; try discriminate.
+        injection H7; clear H7; intros; subst.
+        unfold IL_ReadByte, ReadByte. simpl.
+        eapply split_smem_get in H4; eauto.
+        eapply satisfies_get in H4; eauto.
+        unfold H.mem_get, ReadByte in H4; rewrite H4.
+        reflexivity. }
+
+      { eapply interp_satisfies in H4. think.
+        apply satisfies_star in H5. think.
+        eapply write_pred_byte_correct in H; eauto.
+        Focus 2. simpl in *.
+        match goal with
+          | [ H : applyD ?A ?B ?C ?D ?E = _ |- match ?X with _ => _ end ] =>
+            change X with (applyD A B C D E); rewrite H
+        end. eassumption.
+        revert H.
+        match goal with
+          | [ |- match ?X with _ => _ end -> match ?Y with _ => _ end ] =>
+            change X with Y; consider Y; intros; auto
+        end.
+        revert H8. consider (smem_set p (WtoB v) x); try contradiction; intros.
+        unfold IL_WriteByte, WriteByte in *.
+
+        Lemma smem_set'_present : forall p v ls m m',
+          smem_set' ls p v m = Some m'
+          -> exists v', smem_get' ls p m = Some v'.
+          clear; induction ls; simpl; intuition.
+          discriminate.
+          destruct (H.addr_dec a p); subst; eauto.
+          destruct (DepList.hlist_hd m); eauto; discriminate.
+          specialize (IHls (DepList.hlist_tl m)).
+          destruct (smem_set' ls p v (DepList.hlist_tl m)); eauto; discriminate.
+        Qed.
+
+        Lemma smem_set_present : forall p v m m',
+          smem_set p v m = Some m'
+          -> exists v', smem_get p m = Some v'.
+          intros; eapply smem_set'_present; eauto.
+        Qed.
+
+        destruct (smem_set_present _ _ _ H8).
+        generalize H5; intro Ho; eapply split_smem_get in Ho; eauto.
+        eapply satisfies_get in Ho; eauto.
+        unfold H.mem_get, ReadByte in Ho; rewrite Ho.
+        hnf; rewrite sepFormula_eq; PropXTac.propxFo.
+        exists s; exists x0; intuition.
+        unfold split in *; intuition.
+
+        Lemma smem_set'_disjoint : forall p v ls m m' m'',
+          smem_set' ls p v m = Some m'
+          -> disjoint' ls m m''
+          -> disjoint' ls m' m''.
+          clear; induction ls; simpl; intuition.
+          destruct (H.addr_dec a p); subst.
+          rewrite H0 in H; discriminate.
+          specialize (IHls (DepList.hlist_tl m)).
+          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+          injection H; clear H; intros; subst; auto.
+          destruct (H.addr_dec a p); subst.
+          rewrite H0 in H; discriminate.
+          specialize (IHls (DepList.hlist_tl m)).
+          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+          injection H; clear H; intros; subst; auto.
+          destruct (H.addr_dec a p); subst.
+          destruct (DepList.hlist_hd m); try discriminate.
+          injection H; clear H; intros; subst; auto.
+          specialize (IHls (DepList.hlist_tl m)).
+          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+          injection H; clear H; intros; subst; auto.
+        Qed.
+
+        Lemma smem_set_disjoint : forall p v m m' m'',
+          smem_set p v m = Some m'
+          -> disjoint m m''
+          -> disjoint m' m''.
+          intros; eapply smem_set'_disjoint; eauto.
+        Qed.
+
+        eauto using smem_set_disjoint.
+
+        Lemma parts : forall A (B : A -> Type) x ls (h1 h2 : B x) (t1 t2 : DepList.hlist B ls),
+          DepList.HCons h1 t1 = DepList.HCons h2 t2
+          -> h1 = h2 /\ t1 = t2.
+          clear; intros.
+          assert (DepList.hlist_hd (DepList.HCons h1 t1) = DepList.hlist_hd (DepList.HCons h2 t2)) by congruence.
+          assert (DepList.hlist_tl (DepList.HCons h1 t1) = DepList.hlist_tl (DepList.HCons h2 t2)) by congruence.
+          auto.
+        Qed.
+
+        Lemma memoryIn'_agree : forall ls m1 m2,
+          List.Forall (fun p => m1 p = m2 p) ls
+          -> memoryIn' m1 ls = memoryIn' m2 ls.
+          clear; induction 1; simpl; intuition.
+          f_equal; auto.
+        Qed.
+
+        Lemma memoryIn'_join : forall m p v ls, NoDup ls
+          -> forall m1 m2 m1',
+            memoryIn' m ls = join' ls m1 m2
+            -> smem_set' ls p v m1 = Some m1'
+            -> memoryIn' (fun p' => if weq p' p then Some v else m p') ls = join' ls m1' m2.
+          clear; induction 1; simpl; intuition.
+          apply parts in H1; destruct H1.
+          destruct (H.addr_dec x p); subst.
+          destruct (DepList.hlist_hd m1); try discriminate.
+          injection H2; clear H2; intros; subst.
+          simpl.
+          f_equal.
+          unfold H.mem_get, ReadByte; destruct (weq p p); tauto.
+          rewrite (@memoryIn'_agree _ _ m); auto.
+          apply Forall_forall; intros.
+          destruct (weq x p); subst; tauto.
+          specialize (IHNoDup (DepList.hlist_tl m1)).
+          destruct (smem_set' l p v (DepList.hlist_tl m1)); try discriminate.
+          rewrite (IHNoDup _ _ H3 eq_refl); clear IHNoDup.
+          injection H2; clear H2; intros; subst; simpl.
+          f_equal; auto.
+          unfold H.mem_get, ReadByte.
+          destruct (weq x p); intuition.
+        Qed.
+
+        Lemma memoryIn_join : forall m m1 m2 p v m1',
+          memoryIn m = join m1 m2
+          -> smem_set p v m1 = Some m1'
+          -> memoryIn (fun p' => if weq p' p then Some v else m p') = join m1' m2.
+          intros; eapply memoryIn'_join; eauto using H.NoDup_all_addr.
+        Qed.
+        
+        eauto using memoryIn_join. }
     Qed.
 
     Variable predIndex : nat.
@@ -606,7 +826,8 @@ Section spec_functions.
       nth_error preds predIndex = Some pred ->
       @MEVAL.MemEvaluator_correct types pcT stT
       (@MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ pcT stT mep predIndex) funcs preds
-      (IL.settings * IL.state) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord.
+      (IL.settings * IL.state) (tvType 0) (tvType 0) IL_mem_satisfies
+      IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte.
     Proof.
       intros.
       eapply MEVAL.PredEval.MemEvaluator_MemEvalPred_correct; simpl;
