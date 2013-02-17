@@ -41,7 +41,7 @@ Module SymIL_Correct.
 
     Variable meval : MEVAL.MemEvaluator types pcT stT.
     Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs preds tvWord tvWord
-      (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts).
+      (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts) (@IL_ReadByte ts) (@IL_WriteByte ts).
 
     Variable facts : Facts Prover.
     Variable meta_env : env types.
@@ -116,6 +116,9 @@ Module SymIL_Correct.
           Transparent sym_locD. simpl. reflexivity. Opaque sym_locD. reflexivity. reflexivity. }
         { eapply (MEVAL.ReadCorrect meval_correct) with (cs := cs) in H2; eauto with sym_eval_hints.
           2: eapply sym_evalLoc_correct; (instantiate; eauto with sym_eval_hints). 2: eauto.
+          t_correct. }
+        { eapply (MEVAL.ReadByteCorrect meval_correct) with (cs := cs) in H2; eauto with sym_eval_hints.
+          2: eapply sym_evalLoc_correct; (instantiate; eauto with sym_eval_hints). 2: eauto.
           t_correct. } }
       { congruence. }
     Qed.
@@ -144,6 +147,19 @@ Module SymIL_Correct.
         end.
         simpl in *.
         destruct (WriteWord s0 (Mem s1) (evalLoc s1 l) valD); try contradiction. t_correct.
+        Transparent stateD. destruct ss; destruct SymRegs; destruct p. simpl in *. Opaque stateD. intuition. subst.
+        generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX. 
+        rewrite sepFormula_eq in H3. unfold sepFormula_def in H3. simpl in *.
+        specialize (@XXX _ _ _ funcs preds meta_env vars_env cs _ _ _ H3). 
+        apply AllProvable_app' in H6. apply AllProvable_app; intuition auto. }
+      { eapply (@sym_evalLoc_correct s) in H0; eauto.
+        simpl.
+        match goal with
+          | [ H : MEVAL.swrite_byte _ _ _ _ _ _ = _ |- _ ] => 
+            eapply (MEVAL.WriteByteCorrect meval_correct) with (cs := cs) (stn_m := (s0,s1)) in H; eauto with sym_eval_hints
+        end.
+        simpl in *.
+        destruct (WriteByte (Mem s1) (evalLoc s1 l) (WtoB valD)); try contradiction. t_correct.
         Transparent stateD. destruct ss; destruct SymRegs; destruct p. simpl in *. Opaque stateD. intuition. subst.
         generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX. 
         rewrite sepFormula_eq in H3. unfold sepFormula_def in H3. simpl in *.
@@ -280,7 +296,7 @@ Module SymIL_Correct.
 
     Variable meval : MEVAL.MemEvaluator types pcT stT.
     Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs preds tvWord tvWord
-      (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts).
+      (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts) (@IL_ReadByte ts) (@IL_WriteByte ts).
 
     Ltac t_correct := 
       simpl; intros;
@@ -473,6 +489,7 @@ Module SymIL_Correct.
         sym_lvalueD X (A ++ B) (C ++ D) Y = Some Z.
     Proof.
       clear. destruct Y; simpl; intros; think; auto.
+      erewrite sym_locD_weaken; eauto.
       erewrite sym_locD_weaken; eauto.
     Qed.      
     Lemma sym_rvalueD_weaken : forall ts X A C Y Z,

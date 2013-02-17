@@ -134,9 +134,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Symbolic Evaluation **)
          SymIL.MEVAL.PredEval.fold_args
          SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
-         SymIL.MEVAL.PredEval.pred_write_word
+         SymIL.MEVAL.PredEval.pred_write_word SymIL.MEVAL.PredEval.pred_read_byte SymIL.MEVAL.PredEval.pred_write_byte
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
-         SymIL.IL_ReadWord SymIL.IL_WriteWord
+         SymIL.IL_ReadWord SymIL.IL_WriteWord SymIL.IL_ReadByte SymIL.IL_WriteByte
          SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
@@ -151,7 +151,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymILTac.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
-         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
+         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word SymIL.MEVAL.sread_byte SymIL.MEVAL.swrite_byte
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
@@ -508,9 +508,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Symbolic Evaluation **)
          SymIL.MEVAL.PredEval.fold_args
          SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
-         SymIL.MEVAL.PredEval.pred_write_word
+         SymIL.MEVAL.PredEval.pred_write_word SymIL.MEVAL.PredEval.pred_read_byte SymIL.MEVAL.PredEval.pred_write_byte
          SymIL.MEVAL.LearnHookDefault.LearnHook_default 
-         SymIL.IL_ReadWord SymIL.IL_WriteWord
+         SymIL.IL_ReadWord SymIL.IL_WriteWord SymIL.IL_ReadByte SymIL.IL_WriteByte
          SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
          SymIL.MEVAL.Default.smemeval_read_word_default
@@ -525,7 +525,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymILTac.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
-         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word
+         SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word SymIL.MEVAL.sread_byte SymIL.MEVAL.swrite_byte
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
          (*SymIL.quantifyNewVars*) 
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover

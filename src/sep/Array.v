@@ -176,9 +176,11 @@ Section parametric.
 End parametric.
 
 Definition MemEval types' : @MEVAL.PredEval.MemEvalPred (types types').
-  eapply MEVAL.PredEval.Build_MemEvalPred.
-  eapply sym_read.
-  eapply sym_write.
+  apply MEVAL.PredEval.Build_MemEvalPred.
+  apply sym_read.
+  apply sym_write.
+  exact (fun _ _ _ _ => None).
+  exact (fun _ _ _ _ _ => None).
 Defined.
 
 Ltac destr' E := destruct E. (*case_eq E; intros;
@@ -834,10 +836,11 @@ Theorem MemEvaluator_correct types' funcs' preds'
   : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
   (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
   (IL.settings * IL.state) (tvType 0) (tvType 0)
-  (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types')).
+  (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types'))
+  (@IL_ReadByte (types types')) (@IL_WriteByte (types types')).
 Proof.
   intros. eapply (@MemPredEval_To_MemEvaluator_correct (types types')); try reflexivity;
-  intros; unfold MemEval in *; simpl in *.
+  intros; unfold MemEval in *; simpl in *; try discriminate.
   { generalize (@sym_read_correct types' funcs' P PE). simpl in *. intro.
     eapply H3 in H; eauto. }
   { generalize (@sym_write_correct types' funcs' P PE). simpl in *. intro.
@@ -845,10 +848,10 @@ Proof.
 Qed.
 
 Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
-  IL_mem_satisfies IL_ReadWord IL_WriteWord :=
+  IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte :=
 
   @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
-  IL_mem_satisfies IL_ReadWord IL_WriteWord
+  IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte
   types_r
   funcs_r
   (fun ts => Env.listOptToRepr (None :: Some (ssig ts) :: nil)

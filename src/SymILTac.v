@@ -335,7 +335,7 @@ Section apply_stream_correctness.
             pcT stT
       end (repr (bedrock_funcs_r types') funcs) preds tvWord tvWord
       (IL_mem_satisfies (ts:=types')) (IL_ReadWord (ts:=types'))
-      (IL_WriteWord (ts:=types'))).
+      (IL_WriteWord (ts:=types')) (IL_ReadByte (ts:=types')) (IL_WriteByte (ts:=types'))).
     { generalize (ILAlgoTypes.Acorrect_MemEval algos_correct).
       destruct (ILAlgoTypes.MemEval algos); auto; intros.
       apply SymIL.MEVAL.Default.MemEvaluator_default_correct. }

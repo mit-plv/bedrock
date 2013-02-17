@@ -50,9 +50,11 @@ Module BedrockPtsToEvaluator.
   End parametric.
 
   Definition MemEval_ptsto32 types : @MEVAL.PredEval.MemEvalPred types.
-  eapply MEVAL.PredEval.Build_MemEvalPred.
-  eapply sym_read_word_ptsto32.
-  eapply sym_write_word_ptsto32.
+    apply MEVAL.PredEval.Build_MemEvalPred.
+    apply sym_read_word_ptsto32.
+    apply sym_write_word_ptsto32.
+    exact (fun _ _ _ _ => None).
+    exact (fun _ _ _ _ _ => None).
   Defined.
 
   Section correctness.
@@ -216,10 +218,11 @@ Module BedrockPtsToEvaluator.
   Theorem MemEvaluator_ptsto32_correct types' funcs' preds'
     : @MEVAL.MemEvaluator_correct (Env.repr ptsto32_types_r types') (tvType 0) (tvType 1) 
     (MemEvaluator_ptsto32 (Env.repr ptsto32_types_r types')) funcs' (Env.repr (ptsto32_ssig_r _) preds')
-    (IL.settings * IL.state) (tvType 0) (tvType 0) (@IL_mem_satisfies types') (@IL_ReadWord types') (@IL_WriteWord types').
+    (IL.settings * IL.state) (tvType 0) (tvType 0) (@IL_mem_satisfies types')
+    (@IL_ReadWord types') (@IL_WriteWord types') (@IL_ReadByte types') (@IL_WriteByte types').
   Proof.
     intros. eapply MemPredEval_To_MemEvaluator_correct; try reflexivity;
-    intros; unfold MemEval_ptsto32 in *; simpl in *.
+    intros; unfold MemEval_ptsto32 in *; simpl in *; try discriminate.
     { generalize (@sym_read_word_ptsto32_correct types' funcs' P PE). simpl in *. intro.
       eapply H3 in H; eauto. }
     { generalize (@sym_write_word_ptsto32_correct types' funcs' P PE). simpl in *. intro.
@@ -229,10 +232,10 @@ Module BedrockPtsToEvaluator.
   End hide_notation.
 
   Definition ptsto32_pack : MEVAL.MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
-    IL_mem_satisfies IL_ReadWord IL_WriteWord :=
+    IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte :=
 
     @MEVAL.Build_MemEvaluatorPackage ptsto32_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
-      IL_mem_satisfies IL_ReadWord IL_WriteWord
+      IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte
       (Env.nil_Repr EmptySet_type)
       (fun ts => Env.nil_Repr (Default_signature (Env.repr ptsto32_types_r ts)))
       (fun ts => Env.listToRepr (ptsto32_ssig ts :: nil)

@@ -72,6 +72,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
         @MEVAL.MemEvaluator_correct _ BedrockCoreEnv.pc BedrockCoreEnv.st M funcs preds
           (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) (tvType 0) (tvType 0) 
           (@IL_mem_satisfies types) (@IL_ReadWord types) (@IL_WriteWord types)
+          (@IL_ReadByte types) (@IL_WriteByte types)
     end
   }.
 
@@ -212,7 +213,8 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
 
     Ltac build_mem_pack mem ret :=
       match type of mem with
-        | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st ?ptr ?val IL_mem_satisfies IL_ReadWord IL_WriteWord =>
+        | @MEVAL.MemEvaluatorPackage ?tr ?pc ?st ?ptr ?val IL_mem_satisfies
+          IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte =>
           (let res := constr:(
              let TR := Env.repr_combine tr (MEVAL.MemEvalTypes mem) in
              let env := 
@@ -250,9 +252,9 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
            ; MEVAL.MemEvalPreds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
            ; MEVAL.MemEval := fun ts => @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
            ; MEVAL.MemEval_correct := fun ts fs ps =>
-             @MEVAL.Default.MemEvaluator_default_correct _ _ _ _ _ _ _ _ _ _ _
+             @MEVAL.Default.MemEvaluator_default_correct _ _ _ _ _ _ _ _ _ _ _ _ _
           |} : @MEVAL.MemEvaluatorPackage min_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
-                   IL_mem_satisfies IL_ReadWord IL_WriteWord).
+                   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte).
         build_mem_pack mem ltac:(fun x => refine x).
       Defined.
     End MemPackTest.
@@ -442,7 +444,7 @@ Ltac opaque_pack pack :=
 Goal TypedPackage.
   Require provers.ReflexivityProver.
   build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x => 
-    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
+    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte) ltac:(fun y =>   
     glue_pack x y ltac:(opaque_pack))).
 Qed.
 
