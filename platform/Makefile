@@ -5,7 +5,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Sys Safety \
            Malloc \
            Bags Sets Queue ThreadQueue ThreadQueues Scheduler Thread \
-           Bootstrap SinglyLinkedList \
+           Bootstrap Arrays8 SinglyLinkedList \
            tests/Thread0 \
            tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest \
            tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver \
@@ -29,7 +29,7 @@ clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
 
-tests/%.gen.s: tests/%AMD64.v tests/%.txt
+tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
 	echo ".global bedrock_heap" >$@
 	echo ".comm bedrock_heap,4*(1024+50+`cat tests/$*.txt`)" >>$@
 	echo ".global main_main" >>$@
