@@ -46,7 +46,7 @@ Definition lvalueS (lv : lvalue) (tmp : registerPair) : string * string :=
   match lv with
     | LvReg r => (regS r, "")
     | LvMem l => (locS l, "")
-    | LvMem8 l => ("%" ++ Name32 tmp, tab ++ "movl %" ++ Name8 tmp ++ "," ++ locS l ++ nl)
+    | LvMem8 l => ("%" ++ Name32 tmp, tab ++ "mov %" ++ Name8 tmp ++ "," ++ locS l ++ nl)
   end.
 
 Definition label'S (lab' : label') : string :=
@@ -63,7 +63,8 @@ Definition rvalueS (rv : rvalue) (tmp : registerPair) : string * string :=
   match rv with
     | RvLval (LvReg r) => ("", regS r)
     | RvLval (LvMem l) => ("", locS l)
-    | RvLval (LvMem8 l) => (tab ++ "movl " ++ locS l ++ ",%" ++ Name8 tmp ++ nl, "%" ++ Name32 tmp)
+    | RvLval (LvMem8 l) => (tab ++ "xorl %" ++ Name32 tmp ++ ",%" ++ Name32 tmp ++ nl
+      ++ tab ++ "mov " ++ locS l ++ ",%" ++ Name8 tmp ++ nl, "%" ++ Name32 tmp)
     | RvImm w => ("", "$" ++ binS w)
     | RvLabel lab => ("", "$" ++ labelS lab)
   end.
@@ -72,7 +73,8 @@ Definition rvalueSnomem (rv : rvalue) (tmp : registerPair) : string * string :=
   match rv with
     | RvLval (LvReg r) => ("", regS r)
     | RvLval (LvMem l) => (tab ++ "movl " ++ locS l ++ ",%" ++ Name32 tmp ++ nl, "%" ++ Name32 tmp)
-    | RvLval (LvMem8 l) => (tab ++ "movl " ++ locS l ++ ",%" ++ Name8 tmp ++ nl, "%" ++ Name32 tmp)
+    | RvLval (LvMem8 l) => (tab ++ "xorl %" ++ Name32 tmp ++ ",%" ++ Name32 tmp ++ nl
+      ++ tab ++ "mov " ++ locS l ++ ",%" ++ Name8 tmp ++ nl, "%" ++ Name32 tmp)
     | RvImm w => ("", "$" ++ binS w)
     | RvLabel lab => ("", "$" ++ labelS lab)
   end.
@@ -81,7 +83,8 @@ Definition rvalueSinto (rv : rvalue) (tmp : registerPair) : string :=
   match rv with
     | RvLval (LvReg r) => tab ++ "movl " ++ regS r ++ ",%" ++ Name32 tmp ++ nl
     | RvLval (LvMem l) => tab ++ "movl " ++ locS l ++ ",%" ++ Name32 tmp ++ nl
-    | RvLval (LvMem8 l) => tab ++ "movl " ++ locS l ++ ",%" ++ Name8 tmp ++ nl
+    | RvLval (LvMem8 l) => tab ++ "xorl %" ++ Name32 tmp ++ ",%" ++ Name32 tmp ++ nl
+      ++ tab ++ "mov " ++ locS l ++ ",%" ++ Name8 tmp ++ nl
     | RvImm w => tab ++ "movl $" ++ binS w ++ ",%" ++ Name32 tmp ++ nl
     | RvLabel lab => tab ++ "movl $" ++ labelS lab ++ ",%" ++ Name32 tmp ++ nl
   end.

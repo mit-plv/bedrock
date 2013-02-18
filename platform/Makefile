@@ -7,8 +7,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Bags Sets Queue ThreadQueue ThreadQueues Scheduler Thread \
            Bootstrap SinglyLinkedList \
            tests/Thread0 \
-           tests/LinkTest tests/Abort tests/PrintInt \
-           tests/AbortDriver tests/PrintIntDriver tests/ArrayTest \
+           tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest \
+           tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver \
            tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver
 
