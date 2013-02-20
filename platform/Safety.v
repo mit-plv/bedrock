@@ -74,11 +74,18 @@ Section OpSem.
     -> Labels stn l2 = Some w
     -> l1 = l2.
 
+  Definition labelSys' (l_pre : string * spec) :=
+    (Global (fst l_pre), Precondition (snd l_pre) None).
+
   Definition labelSys (l : LabelMap.key) (pre : assert) :=
-    (l = ("sys", Global "abort")
-      /\ pre = Precondition abortS None)
-    \/ (l = ("sys", Global "printInt")
-      /\ pre = Precondition printIntS None).
+    fst l = "sys"
+    /\ In (snd l, pre) (map labelSys' (
+      ("abort", abortS)
+      :: ("printInt", printIntS)
+      :: ("listen", listenS)
+      :: ("accept", acceptS)
+      :: ("read", readS)
+      :: nil)).
 
   Hypothesis impSys :
     LabelMap.fold (fun l pre P => labelSys l pre /\ P) (Imports m) True.
@@ -224,6 +231,67 @@ Section OpSem.
     eapply locals_mapped'; eauto.
   Qed.
 
+  Lemma array8_mapped : forall specs stn bs p m,
+    interp specs (array8 bs p stn m)
+    -> forall n, (n < length bs)%nat
+      -> smem_get (p ^+ $(n)) m <> None.
+    induction bs; simpl; post.
+    intuition.
+    destruct n.
+    replace (p ^+ $0) with p in H1 by words.
+    eapply split_smem_get in H2; eauto.
+    rewrite H1 in H2; discriminate.
+    eapply IHbs in H4; try tauto.
+    instantiate (1 := n); auto.
+    replace (p ^+ $1 ^+ $(n)) with (p ^+ $(S n))
+      by (rewrite natToW_S; unfold natToW; W_eq).
+    case_eq (smem_get (p ^+ $(S n)) x0); intros; auto.
+    eapply split_smem_get in H2; eauto.
+    congruence.
+  Qed.
+
+  Lemma bytes_mapped : forall specs p sz stn st P,
+    interp specs (![p =?>8 sz * P] (stn, st))
+    -> mapped p sz (Mem st).
+    rewrite sepFormula_eq; post.
+    hnf; intros.
+    eapply split_comm in H1; eapply split_semp in H1; eauto; subst.
+    eapply array8_mapped in H; eauto.
+    case_eq (smem_get (p ^+ $(n)) x2); intros; try congruence.
+    eapply split_smem_get in H0; eauto.
+    rewrite get_memoryIn in H0.
+    congruence.
+  Qed.
+
+  Hint Unfold onlyChange.
+
+  Lemma prove_ReadWord : forall stn m (p : W) v st,
+    evalInstrs stn st (Assign Rv (LvMem p) :: nil) <> None
+    -> (forall st', evalInstrs stn st (Assign Rv (LvMem p) :: nil) = Some st'
+      -> Regs st' Rv = v)
+    -> Mem st = m
+    -> ReadWord stn m p = Some v.
+    intros.
+    match goal with
+      | [ H : (?X <> None)%type |- _ ] => case_eq X; intros; try tauto
+    end.
+    Transparent evalInstrs.
+    simpl in *.
+    subst.
+    destruct (ReadWord stn0 (Mem st) p); simpl in *; try congruence.
+    injection H2; clear H2; intros; subst; auto.
+    specialize (H0 _ eq_refl).
+    subst; auto.
+  Qed.
+
+  Lemma evalInstrs_slot : forall stn st n,
+    evalInstrs stn st (Assign Rv (LvMem (Imm (Regs st Sp ^+ $(n)))) :: nil)
+    = evalInstrs stn st (Assign Rv (LvMem (Sp + $(n))%loc) :: nil).
+    auto.
+  Qed.
+  
+  Opaque evalInstrs.
+
   Lemma specs_hit : forall w pre,
     specs m stn w = Some pre
     -> exists l, Labels stn l = Some w
@@ -236,38 +304,78 @@ Section OpSem.
 
   Lemma progress : forall st, goodState st
     -> exists st', sys_step stn prog st st'.
-    unfold goodState; post.
+    unfold goodState; post;
+      match goal with
+        | [ x : label |- _ ] => destruct x
+      end.
 
-    specialize (impSys' _ _ H1); intro Hi; hnf in Hi; intuition subst.
-    eauto 10.
-    post.
     match goal with
-      | [ H : interp ?specs (![?P * ?Q * ?R] ?X) |- _ ] =>
+      | [ H : _ |- _ ] => specialize (impSys' _ _ H); intro Hi; hnf in Hi;
+        unfold labelSys' in Hi; simpl in Hi; intuition subst;
+          match goal with
+            | [ H : (_, _) = (_, _) |- _ ] =>
+              injection H; clear H; intros; subst
+          end; eauto; post
+    end;
+    match goal with
+      | [ H : interp ?specs (![locals ?a ?b ?c ?d * ?Q * ?R] ?X) |- _ ] =>
         let H' := fresh in
-          assert (H' :interp specs (![P * (Q * R)] X)) by (generalize H; clear; intros; step auto_ext);
-            clear H; rename H' into H
-    end.
-    specialize (locals_mapped _ _ _ _ _ _ _ _ H2); intro Hm; simpl in Hm.
-    apply specs_hit in H3; post; eauto.
+          assert (H' : interp specs (![locals a b c d * (Q * R)] X))
+            by (generalize H; clear; intros; step auto_ext);
+            clear H; rename H' into H;
+              specialize (locals_mapped _ _ _ _ _ _ _ _ H);
+                intro Hm; simpl in Hm
+    end;
+    try match goal with
+          | [ H : interp ?specs (![?P * (?p =?>8 ?sz * ?Q)] ?X) |- _ ] =>
+            let H' := fresh in
+              assert (H' : interp specs (![p =?>8 sz * (P * Q)] X))
+                by (generalize H; clear; intros; step auto_ext);
+                clear H; rename H' into H;
+                  specialize (bytes_mapped _ _ _ _ _ _ H);
+                    intro Hb; simpl in Hb
+        end;
+    match goal with
+      | [ H : specs _ _ _ = Some _ |- _ ] =>
+        apply specs_hit in H; post; eauto
+    end;
+    try match goal with
+          | [ st : state' |- Logic.ex _ ] =>
+            solve [ exists (st#Rp, snd st); eauto
+              | exists (st#Rp, snd st); eapply Read; eauto;
+                match goal with
+                  | [ H : interp _ _ |- ReadWord ?stn (Mem (snd ?st)) _ = Some _ ] =>
+                    generalize H; clear; intros;
+                      apply prove_ReadWord with (snd st); hnf; intros; cbv beta in *;
+                        try rewrite evalInstrs_slot in *;
+                          generalize dependent (snd st);
+                            generalize dependent (specs m stn); intros;
+                              evaluate auto_ext; auto
+                end ]
+        end.
 
-    specialize (BlocksOk ok H1); intro Hb; hnf in Hb.
-    apply Hb in H; [ | eapply specsOk; eauto ].
-    clear Hb; post.
-    specialize (agree _ _ _ H1); destruct agree as [ ? [ ] ].
-    rewrite H0 in H; injection H; clear H; intros; subst.
-    apply specs_hit in H3; destruct H3; intuition idtac.
-    descend.
-    apply Normal.
-    unfold step.
-    rewrite H5.
-    eauto.
-
-    destruct H.
-    descend.
-    apply Normal.
-    unfold step.
-    rewrite H5.
-    eauto.
+    match goal with
+      | [ H : _, H' : interp _ _ |- _ ] =>
+        specialize (BlocksOk ok H); intro Hb; hnf in Hb;
+          apply Hb in H'; [ | eapply specsOk; eauto ];
+            clear Hb; post;
+              specialize (agree _ _ _ H); destruct agree as [ ? [ ] ]
+    end;
+    repeat (match goal with
+              | [ H : _ = _ |- _ ] => rewrite H in *
+              | [ H : Some _ = Some _ |- _ ] =>
+                injection H; clear H; intros
+              | [ H : Logic.ex _ |- _ ] => destruct H; try clear H
+              | [ H : _ /\ _ |- _ ] => destruct H; try clear H
+            end; subst);
+    match goal with
+      | [ H : specs _ _ _ = Some _ |- _ ] =>
+        apply specs_hit in H; post; eauto
+    end;
+    descend; apply Normal; unfold step;
+      match goal with
+        | [ H : _ = _ |- _ ] => rewrite H; eauto
+      end.
   Qed.
 
   Lemma preservation : forall st, goodState st
@@ -294,6 +402,50 @@ Section OpSem.
     apply specs_hit in H4; destruct H4; intuition idtac.
     eauto 10.
     destruct H; eauto 10.
+
+    specialize (impSys' _ _ H3); intro Hi; hnf in Hi; intuition subst.
+    eapply (inj _ _ _ H0) in H2; discriminate. 
+    post.
+    apply specs_hit in H5; destruct H5; intuition idtac.
+    descend.
+    eauto.
+    2: eauto.
+    descend; step auto_ext.
+    descend; eauto.
+    descend.
+    eauto.
+    2: eauto.
+    descend; step auto_ext.
+    descend; eauto.
+
+    apply (inj _ _ _ H0) in H2.
+    subst.
+    specialize (omitImp _ _ H0).
+    apply agree in H3.
+    post.
+    congruence.
+
+    specialize (impSys' _ _ H3); intro Hi; hnf in Hi; intuition subst.
+    eapply (inj _ _ _ H0) in H2; discriminate. 
+    post.
+    apply specs_hit in H5; destruct H5; intuition idtac.
+    descend.
+    eauto.
+    2: eauto.
+    descend; step auto_ext.
+    descend; eauto.
+    descend.
+    eauto.
+    2: eauto.
+    descend; step auto_ext.
+    descend; eauto.
+
+    apply (inj _ _ _ H0) in H2.
+    subst.
+    specialize (omitImp _ _ H0).
+    apply agree in H3.
+    post.
+    congruence.
 
     specialize (impSys' _ _ H3); intro Hi; hnf in Hi; intuition subst.
     eapply (inj _ _ _ H0) in H2; discriminate. 
