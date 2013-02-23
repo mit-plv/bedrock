@@ -779,7 +779,7 @@ Require Import Safety.
 
 Ltac safety ok :=
   eapply safety; try eassumption; [
-    link_simp; unfold labelSys; tauto
+    link_simp; unfold labelSys, labelSys'; simpl; tauto
     | apply ok
     | apply LabelMap.find_2; link_simp; reflexivity
     | propxFo; descend; apply materialize_allocated; assumption ].
