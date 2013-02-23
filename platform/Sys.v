@@ -18,8 +18,10 @@ Definition acceptS := SPEC("stream") reserving 0
   PRE[_] Emp
   POST[stream'] Emp.
 
-Notation "buf =?>8 size" := (Ex bs, array8 bs buf * [| length bs = size |])%Sep
-  (at level 39) : Sep_scope.
+Definition buffer (p : W) (size : nat) : HProp :=
+  (Ex bs, array8 bs p * [| length bs = size |])%Sep.
+
+Infix "=?>8" := buffer (at level 39) : Sep_scope.
 Notation "buf =?>8 size" := (Body (buf =?>8 size)%Sep) : qspec_scope.
 
 Definition readS := SPEC("stream", "buffer", "size") reserving 0

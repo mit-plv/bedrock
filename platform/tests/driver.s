@@ -7,6 +7,7 @@
         .globl _sys_printInt, sys_printInt
 	.global _sys_listen, sys_listen
 	.global _sys_accept, sys_accept
+	.globl sys_read
         
         .globl main
 main:
@@ -27,17 +28,23 @@ sys_printInt:
 sys_listen:
         movl	bedrock_heap+4(%rbx), %edi
 	pushq	%rsi
-        pushq   $sys_listen_ret
+        pushq   $sys_ret
         jmp     _sys_listen
-sys_listen_ret:
+sys_ret:
 	movl	%eax, %edi
 	retq
 
 sys_accept:
         movl	bedrock_heap+4(%rbx), %edi
 	pushq	%rsi
-        pushq   $sys_accept_ret
+        pushq   $sys_ret
         jmp     _sys_accept
-sys_accept_ret:
-	movl	%eax, %edi
-	retq
+
+sys_read:
+	pushq	%rsi
+        movl	bedrock_heap+4(%rbx), %edi
+	movl	bedrock_heap+8(%rbx), %esi
+	addl	$bedrock_heap, %esi
+	movl	bedrock_heap+12(%rbx), %edx
+        pushq   $sys_ret
+        jmp     read
