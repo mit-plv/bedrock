@@ -110,6 +110,7 @@ Section OpSem.
       :: ("listen", listenS)
       :: ("accept", acceptS)
       :: ("read", readS)
+      :: ("write", writeS)
       :: nil)).
 
   Hypothesis impSys :
@@ -1119,7 +1120,11 @@ Section OpSem.
     try match goal with
           | [ st : state' |- Logic.ex _ ] =>
             solve [ exists (st#Rp, snd st); eauto
-              | exists (st#Rp, snd st); eapply Read; eauto;
+              | exists (st#Rp, snd st);
+                match goal with
+                  | [ _ : context["read"] |- _ ] => eapply Read
+                  | _ => eapply Write
+                end; eauto;
                 match goal with
                   | [ H : interp _ _ |- ReadWord ?stn (Mem (snd ?st)) _ = Some _ ] =>
                     generalize H; clear; intros; prove_ReadWord

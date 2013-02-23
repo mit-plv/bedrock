@@ -26,6 +26,10 @@ Definition readS := SPEC("stream", "buffer", "size") reserving 0
   PRE[V] V "buffer" =?>8 wordToNat (V "size")
   POST[bytesRead] V "buffer" =?>8 wordToNat (V "size").
 
+Definition writeS := SPEC("stream", "buffer", "size") reserving 0
+  PRE[V] V "buffer" =?>8 wordToNat (V "size")
+  POST[bytesWritten] V "buffer" =?>8 wordToNat (V "size").
+
 
 (** * More primitive operational semantics *)
 
@@ -73,6 +77,15 @@ Section OpSem.
     -> mapped buffer (wordToNat size) (Mem (snd st))
     -> Regs st' Sp = Regs (snd st) Sp
     -> onlyChange buffer (wordToNat size) (Mem (snd st)) (Mem st')
+    -> sys_step st (Regs (snd st) Rp, st')
+  | Write : forall st buffer size st',
+    Labels stn ("sys", Global "write") = Some (fst st)
+    -> mapped (Regs (snd st) Sp) 16 (Mem (snd st))
+    -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $8) = Some buffer
+    -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $12) = Some size
+    -> mapped buffer (wordToNat size) (Mem (snd st))
+    -> Regs st' Sp = Regs (snd st) Sp
+    -> Mem st' = Mem (snd st)
     -> sys_step st (Regs (snd st) Rp, st').
 
   Inductive sys_reachable : state' -> state' -> Prop :=
