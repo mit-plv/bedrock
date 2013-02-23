@@ -282,6 +282,15 @@ Theorem materialize_array8_tagged : forall p sz,
   intros; apply materialize_array8.
 Qed.
 
+Inductive please_materialize_buffer (sz : nat) : Prop := PleaseMaterializeBuffer.
+Hint Constructors please_materialize_buffer.
+
+Theorem materialize_buffer : forall p sz,
+  please_materialize_buffer sz
+  -> p =?> sz ===> p =?>8 (sz * 4).
+  intros; apply materialize_array8.
+Qed.
+
 Definition array8_decomission (sz : nat) := array8.
 
 Definition decomission_ok (sz : nat) (bs : list B) :=

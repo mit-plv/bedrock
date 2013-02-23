@@ -279,7 +279,7 @@ Section OpSem.
   Lemma bytes_mapped : forall specs p sz stn st P,
     interp specs (![p =?>8 sz * P] (stn, st))
     -> mapped p sz (Mem st).
-    rewrite sepFormula_eq; post.
+    unfold buffer; rewrite sepFormula_eq; post.
     hnf; intros.
     eapply split_comm in H1; eapply split_semp in H1; eauto; subst.
     eapply array8_mapped in H; eauto.
@@ -948,7 +948,7 @@ Section OpSem.
     interp specs (![ p =?>8 sz * P] (stn, st))
     -> onlyChange p sz (Mem st) (Mem st')
     -> interp specs (![ p =?>8 sz * P] (stn, st')).
-    clear; rewrite sepFormula_eq.
+    clear; unfold buffer; rewrite sepFormula_eq.
     intros.
     apply simplify_fwd in H; simpl in *.
     repeat match goal with
