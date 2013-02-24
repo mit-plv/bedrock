@@ -273,6 +273,102 @@ Lemma decomission_array8 : forall p bs sz,
   constructor.
 Qed.
 
+Lemma firstn_nil : forall A n,
+  firstn n (nil (A := A)) = nil.
+  destruct n; auto.
+Qed.
+
+Lemma skipn_nil : forall A n,
+  skipn n (nil (A := A)) = nil.
+  destruct n; auto.
+Qed.
+
+Theorem array8_split : forall bs p n,
+  (n <= length bs)%nat
+  -> array8 bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)).
+  induction bs; simpl; intuition.
+
+  rewrite firstn_nil; rewrite skipn_nil; simpl.
+  apply Himp_star_Emp'.
+
+  destruct n; simpl in *.
+  replace (p ^+ $0) with p by W_eq.
+  sepLemma.
+
+  sepLemma; fold (@skipn B); fold (@firstn B).
+  etransitivity; [ apply (IHbs _ n) | ]; auto.
+  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $(n))
+    by (rewrite (natToW_S n); unfold natToW; words).
+  sepLemma.
+Qed.
+
+Theorem array8_join : forall bs p n,
+  (n <= length bs)%nat
+  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)) ===> array8 bs p.
+  induction bs; simpl; intuition.
+
+  rewrite firstn_nil; rewrite skipn_nil; simpl.
+  apply Himp_star_Emp.
+
+  destruct n; simpl in *.
+  replace (p ^+ $0) with p by W_eq.
+  sepLemma.
+
+  sepLemma; fold (@skipn B); fold (@firstn B).
+  etransitivity; [ | apply (IHbs _ n) ]; auto.
+  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $(n))
+    by (rewrite (natToW_S n); unfold natToW; words).
+  sepLemma.
+Qed.
+
+Lemma firstn_length : forall A (ls : list A) n,
+  (n <= length ls)%nat
+  -> length (firstn n ls) = n.
+  induction ls; destruct n; simpl; intuition.
+Qed.
+
+Lemma skipn_length : forall A (ls : list A) n,
+  (n <= length ls)%nat
+  -> length (skipn n ls) = length ls - n.
+  induction ls; destruct n; simpl; intuition.
+Qed.  
+
+Theorem buffer_split : forall len p n,
+  (n <= len)%nat
+  -> buffer p len ===> buffer p n * buffer (p ^+ $(n)) (len - n).
+  unfold buffer; sepLemmaLhsOnly; fold (@length B) in *.
+  etransitivity; [ apply array8_split | ]; eauto.
+  sepLemma; fold (@length B); fold (@firstn B); fold (@skipn B);
+    auto using firstn_length, skipn_length.
+Qed.
+
+Lemma firstn_app : forall A (ls2 ls1 : list A),
+  firstn (length ls1) (ls1 ++ ls2) = ls1.
+  induction ls1; simpl; intuition.
+Qed.
+
+Lemma skipn_app : forall A (ls2 ls1 : list A),
+  skipn (length ls1) (ls1 ++ ls2) = ls2.
+  induction ls1; simpl; intuition.
+Qed.
+
+Theorem buffer_join : forall len p n,
+  (n <= len)%nat
+  -> buffer p n * buffer (p ^+ $(n)) (len - n) ===> buffer p len.
+  unfold buffer; sepLemmaLhsOnly; fold (@length B) in *.
+  apply himp_ex_c; exists (x0 ++ x).
+  rewrite app_length.
+  etransitivity; [ | apply himp_star_comm ].
+  apply himp_star_pure_cc; [ omega | ].
+  etransitivity; [ | apply array8_join ].
+  2: instantiate (1 := length x0); rewrite app_length; omega.
+  rewrite firstn_app; rewrite skipn_app.
+  sepLemma.
+Qed.
+
+
+(** * Convenient restatements to use as Bedrock [sep] hints *)
+
 Inductive please_materialize (sz : nat) : Prop := PleaseMaterialize.
 Hint Constructors please_materialize.
 
@@ -300,4 +396,36 @@ Lemma decomission_array8_tagged : forall p bs sz,
   decomission_ok sz bs
   -> array8_decomission sz bs p ===> p =?> sz.
   intros; apply decomission_array8; auto.
+Qed.
+
+Definition array8_splitAt (n : nat) := array8.
+
+Theorem array8_split_tagged : forall bs p n,
+  (n <= length bs)%nat
+  -> array8_splitAt n bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)).
+  intros; apply array8_split; auto.
+Qed.
+
+Definition array8_joinAt (n : nat) := array8.
+
+Theorem array8_join_tagged : forall bs p n,
+  (n <= length bs)%nat
+  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)) ===> array8_joinAt n bs p.
+  intros; apply array8_join; auto.
+Qed.
+
+Definition buffer_splitAt (n : nat) := buffer.
+
+Theorem buffer_split_tagged : forall len p n,
+  (n <= len)%nat
+  -> buffer_splitAt n p len ===> buffer p n * buffer (p ^+ $(n)) (len - n).
+  intros; apply buffer_split; auto.
+Qed.
+
+Definition buffer_joinAt (n : nat) := buffer.
+
+Theorem buffer_join_tagged : forall len p n,
+  (n <= len)%nat
+  -> buffer p n * buffer (p ^+ $(n)) (len - n) ===> buffer_joinAt n p len.
+  intros; apply buffer_join; auto.
 Qed.

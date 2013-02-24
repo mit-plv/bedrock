@@ -8,6 +8,7 @@
 	.global _sys_listen, sys_listen
 	.global _sys_accept, sys_accept
 	.globl sys_read
+	.globl sys_write
         
         .globl main
 main:
@@ -48,3 +49,12 @@ sys_read:
 	movl	bedrock_heap+12(%rbx), %edx
         pushq   $sys_ret
         jmp     read
+
+sys_write:
+	pushq	%rsi
+        movl	bedrock_heap+4(%rbx), %edi
+	movl	bedrock_heap+8(%rbx), %esi
+	addl	$bedrock_heap, %esi
+	movl	bedrock_heap+12(%rbx), %edx
+        pushq   $sys_ret
+        jmp     write
