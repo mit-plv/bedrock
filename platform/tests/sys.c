@@ -15,7 +15,9 @@ void _sys_printInt(unsigned n) {
 }
 
 unsigned _sys_listen(unsigned port) {
+#ifdef DEBUG
   fprintf(stderr, "listen(%u)\n", port);
+#endif
 
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   struct sockaddr_in sa;
@@ -47,13 +49,17 @@ unsigned _sys_listen(unsigned port) {
     exit(1);
   }
 
+#ifdef DEBUG
   fprintf(stderr, "listen(%u) = %u\n", port, sock);
+#endif
 
   return sock;
 }
 
 unsigned _sys_accept(unsigned sock) {
+#ifdef DEBUG
   fprintf(stderr, "accept(%u)\n", sock);
+#endif
 
   int new_sock = accept(sock, NULL, NULL);
 
@@ -62,7 +68,9 @@ unsigned _sys_accept(unsigned sock) {
     exit(1);
   }
 
+#ifdef DEBUG
   fprintf(stderr, "accept(%u) = %u\n", sock, new_sock);
+#endif
 
   return new_sock;
 }
