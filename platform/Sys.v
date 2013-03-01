@@ -32,6 +32,17 @@ Definition writeS := SPEC("stream", "buffer", "size") reserving 0
   PRE[V] V "buffer" =?>8 wordToNat (V "size")
   POST[bytesWritten] V "buffer" =?>8 wordToNat (V "size").
 
+(* Limited version of epoll_ctl *)
+Definition declareS := SPEC("stream", "mode") reserving 0
+  PRE[_] Emp
+  POST[index] Emp.
+(* Mode is either 0 for read or 1 for write. *)
+
+(* Limited version of epoll_wait *)
+Definition waitS := SPEC("blocking") reserving 0
+  PRE[_] Emp
+  POST[index] Emp.
+
 
 (** * More primitive operational semantics *)
 
@@ -86,6 +97,18 @@ Section OpSem.
     -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $8) = Some buffer
     -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $12) = Some size
     -> mapped buffer (wordToNat size) (Mem (snd st))
+    -> Regs st' Sp = Regs (snd st) Sp
+    -> Mem st' = Mem (snd st)
+    -> sys_step st (Regs (snd st) Rp, st')
+  | Declare : forall st st',
+    Labels stn ("sys", Global "declare") = Some (fst st)
+    -> mapped (Regs (snd st) Sp) 12 (Mem (snd st))
+    -> Regs st' Sp = Regs (snd st) Sp
+    -> Mem st' = Mem (snd st)
+    -> sys_step st (Regs (snd st) Rp, st')
+  | Wait : forall st st',
+    Labels stn ("sys", Global "wait") = Some (fst st)
+    -> mapped (Regs (snd st) Sp) 8 (Mem (snd st))
     -> Regs st' Sp = Regs (snd st) Sp
     -> Mem st' = Mem (snd st)
     -> sys_step st (Regs (snd st) Rp, st').

@@ -9,6 +9,8 @@
 	.global _sys_accept, sys_accept
 	.globl sys_read
 	.globl sys_write
+        .global _sys_declare, sys_declare
+	.global _sys_wait, sys_wait
         
         .globl main
 main:
@@ -58,3 +60,16 @@ sys_write:
 	movl	bedrock_heap+12(%rbx), %edx
         pushq   $sys_ret
         jmp     write
+
+sys_declare:
+	pushq	%rsi
+        movl	bedrock_heap+4(%rbx), %edi
+	movl	bedrock_heap+8(%rbx), %esi
+        pushq   $sys_ret
+        jmp     _sys_declare
+
+sys_wait:
+        movl	bedrock_heap+4(%rbx), %edi
+        pushq   %rsi
+        pushq   $sys_ret
+        jmp     _sys_wait

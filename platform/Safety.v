@@ -111,6 +111,8 @@ Section OpSem.
       :: ("accept", acceptS)
       :: ("read", readS)
       :: ("write", writeS)
+      :: ("declare", declareS)
+      :: ("wait", waitS)
       :: nil)).
 
   Hypothesis impSys :

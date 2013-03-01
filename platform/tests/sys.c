@@ -1,12 +1,15 @@
+#include <limits.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/epoll.h>
 
 __attribute__((noreturn)) void sys_abort() {
-  puts("Bedrock program aborted.");
+  puts("Bedrock program terminated.");
   exit(0);
 }
 
@@ -73,4 +76,102 @@ unsigned _sys_accept(unsigned sock) {
 #endif
 
   return new_sock;
+}
+
+static unsigned epoll, num_fds, num_outstanding;
+static uint32_t *fds;
+
+static void init_epoll() {
+  if (epoll == 0) {
+    epoll = epoll_create(1);
+
+    if (epoll == -1) {
+      perror("epoll_create");
+      exit(1);
+    }
+
+    fds = malloc(0);
+  }
+}
+
+unsigned _sys_declare(unsigned sock, unsigned mode) {
+  init_epoll();
+
+  if (sock >= num_fds) {
+    fds = realloc(fds, sizeof(uint32_t) * (sock+1));
+    memset(fds + num_fds, 0, sizeof(uint32_t) * (sock+1 - num_fds));
+  }
+
+  uint32_t mask = mode ? EPOLLOUT : EPOLLIN;
+
+  if (fds[sock] & mask)
+    return UINT_MAX;
+
+  int is_new = 0;
+
+  if (fds[sock] == 0) {
+    ++num_outstanding;
+    is_new = 1;
+  }
+
+  fds[sock] |= mask;
+
+  struct epoll_event event;
+
+  event.events = fds[sock];
+  event.data.fd = sock;
+
+  if (epoll_ctl(epoll, is_new ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, sock, &event)) {
+    perror("epoll_ctl");
+    exit(1);
+  }
+
+  unsigned index = 2 * sock + (mode ? 1 : 0);
+
+#ifdef DEBUG
+  fprintf(stderr, "declare(%u, %u) = %u\n", sock, mode, index);
+#endif
+
+  return index;
+}
+
+unsigned _sys_wait(unsigned blocking) {
+  if (num_outstanding == 0)
+    return UINT_MAX;
+
+  init_epoll();
+
+  struct epoll_event event;
+  int count = epoll_wait(epoll, &event, 1, blocking ? -1 : 0);
+
+  if (count == -1) {
+    perror("epoll_wait");
+    exit(1);
+  }
+
+  if (count == 0)
+    return UINT_MAX;
+
+  int fd = event.data.fd;
+  uint32_t mask = (event.events & EPOLLIN) ? EPOLLIN : EPOLLOUT;
+
+  fds[fd] &= ~mask;
+
+  if (fds[fd] == 0)
+    --num_outstanding;
+
+  event.events = fds[fd];
+
+  if (epoll_ctl(epoll, (fds[fd] == 0) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD, fd, &event)) {
+    perror("epoll_ctl");
+    exit(1);
+  }
+
+  unsigned index = 2 * fd + ((mask == EPOLLIN) ? 0 : 1);
+
+#ifdef DEBUG
+  fprintf(stderr, "wait(%u) = %u\n", blocking, index);
+#endif
+
+  return index;
 }
