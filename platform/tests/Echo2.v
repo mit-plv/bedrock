@@ -17,7 +17,7 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS], "sys"!"printInt" @ [printIn
                            "sys"!"listen" @ [listenS], "sys"!"accept" @ [acceptS],
                            "sys"!"read" @ [readS], "sys"!"write" @ [Sys.writeS],
                            "sys"!"declare" @ [declareS], "sys"!"wait" @ [Sys.waitS],
-                           "malloc"!"malloc" @ [mallocS] ]]
+                           "sys"!"close" @ [closeS], "malloc"!"malloc" @ [mallocS] ]]
   bmodule "test" {{
     bfunction "write"("fd", "buf", "len") [writeS]
       Assert [Al len,
@@ -64,7 +64,8 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS], "sys"!"printInt" @ [printIn
         [PREonly[V] V "buf" =?>8 40];;
 
         If ("n" = 0) {
-          Skip
+          Call "sys"!"close"("fd")
+          [PREonly[V] V "buf" =?>8 40]
         } else {
           If ("fd" = "fd1") {
             "ind1" <-- Call "sys"!"declare"("fd1", 0)
