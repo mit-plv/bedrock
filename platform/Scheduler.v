@@ -31,6 +31,12 @@ End S.
 Module Make(M : S).
 Import M.
 
+Definition allIn (b : bag) := List.Forall (fun p => p %in b).
+Definition allInOrZero (b : bag) := List.Forall (fun p => p = $0 \/ p %in b).
+
+Definition files (ts : bag) : bag -> HProp :=
+  starB (fun p => Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq) * [| inq %in ts |] * [| outq %in ts |])%Sep.
+
 Module M''.
   Definition world := bag.
 
@@ -55,13 +61,13 @@ Module M''.
     * [| ready %in ts |]
 
     (* The free list stores available file pointers. *)
-    * Ex freeL, sll freeL free * [| List.Forall (fun p => p %in w) freeL |]
+    * Ex freeL, sll freeL free * [| allIn w freeL |]
 
     (* Each available file pointer stores a record of a file descriptor and input/output thread queues. *)
-    * starB (fun p => Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq) * [| inq %in ts |] * [| outq %in ts |]) w
+    * files ts w
 
     (* There is an array correspoinding to outstanding declare() calls, mapping each to a queue that should be poked when its event is enabled. *)
-    * Ex waitL, array waitL wait * [| List.Forall (fun p => p = $0 \/ p %in ts) waitL |]
+    * Ex waitL, array waitL wait * [| allInOrZero ts waitL |]
       * [| length waitL = wordToNat waitLen |]
       * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
 
@@ -73,14 +79,9 @@ Module Q' := ThreadQueues.Make(M'').
 Import M'' Q'.
 Export M'' Q'.
 
-Definition allIn (b : bag) := List.Forall (fun p => p %in b).
-Definition allInOrZero (b : bag) := List.Forall (fun p => p = $0 \/ p %in b).
-
 Module Type SCHED.
   Parameter sched : bag -> HProp.
   (* Parameter is available file pointers. *)
-
-  Parameter files : bag -> bag -> HProp.
 
   Axiom sched_fwd : forall fs, sched fs ===>
     Ex ts, Ex p, globalSched =*> p
@@ -109,9 +110,6 @@ End SCHED.
 
 Module Sched : SCHED.
   Open Scope Sep_scope.
-
-  Definition files (ts : bag) : bag -> HProp :=
-    starB (fun p => Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq) * [| inq %in ts |] * [| outq %in ts |]).
 
   Definition sched fs :=
     Ex ts, Ex p, globalSched =*> p
@@ -248,7 +246,7 @@ Lemma starting_intro : forall specs pc ss P stn st,
   cptr.
 Qed.
 
-(*Lemma other_starting_intro : forall specs ts w pc ss P stn st,
+Lemma other_starting_intro : forall specs ts w pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
@@ -259,7 +257,7 @@ Qed.
     ---> pre stn_st)%PropX)
   -> interp specs (![ Q'.starting ts w pc ss * P ] (stn, st)).
   cptr.
-Qed.*)
+Qed.
 
 
 Local Notation "'PREexit' [ vs ] pre" := (Q'.Q.localsInvariantExit (fun vs _ => pre%qspec%Sep))
@@ -269,7 +267,7 @@ Definition initS : spec := SPEC reserving 18
   PRE[_] globalSched =?> 1 * mallocHeap 0
   POST[R] sched empty * mallocHeap 0.
 
-Definition spawnS : spec := SPEC("pc", "ss") reserving 25
+Definition spawnS : spec := SPEC("pc", "ss") reserving 26
   Al fs,
   PRE[V] [| V "ss" >= $2 |] * sched fs * starting (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] sched fs * mallocHeap 0.
@@ -338,12 +336,15 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "root"+8 *<- "wait";;
       "root"+12 *<- 2;;
       Return 0
-    end (*with bfunction "spawn"("pc", "ss") [spawnS]
-      Call "threadqs"!"spawn"($[globalSched], "pc", "ss")
+    end with bfunction "spawn"("pc", "ss", "root") [spawnS]
+      "root" <-* globalSched;;
+      "root" <-* "root";;
+
+      Call "threadqs"!"spawn"("root", "pc", "ss")
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end with bfunctionNoRet "exit"("sc", "ss") [exitS]
+    end (*with bfunctionNoRet "exit"("sc", "ss") [exitS]
       "sc" <-* globalSched;;
       Goto "threadqs"!"exit"
     end with bfunction "yield"() [yieldS]
@@ -377,8 +378,35 @@ Qed.
 
 Local Hint Extern 1 (selN _ _ = _) => apply selN_upd_eq; solve [ finish ].
 
-(*Ltac t := abstract (unfold globalInv; sep hints; auto).*)
-Ltac t := solve [ unfold globalInv; sep hints; finish ].
+Ltac t' := unfold globalInv; sep hints; finish.
+
+Ltac spawn := post; evaluate hints;
+  match goal with
+    | [ H : interp _ _ |- _ ] =>
+      toFront ltac:(fun P => match P with
+                               | starting _ _ => idtac
+                             end) H; apply starting_elim in H; post; descend
+  end;
+  try (toFront_conc ltac:(fun P => match P with
+                                     | Q'.starting _ _ _ _ => idtac
+                                   end); apply other_starting_intro; descend;
+  try match goal with
+        | [ |- interp _ (![ _ ] _) ] => step hints
+      end);
+  (try (repeat (apply andL; apply injL; intro);
+    match goal with
+      | [ H : forall stn_st : ST.settings * state, _ |- _ ] =>
+        eapply Imply_trans; [ | apply H ]; clear H
+    end); t').
+
+Ltac t := solve [
+  match goal with
+    | [ |- context[starting] ] =>
+      match goal with
+        | [ |- context[Q'.starting] ] => spawn
+      end
+    | _ => t'
+  end ].
 
 Local Hint Extern 1 (@eq W _ _) => words.
 Local Hint Immediate evolve_refl.
@@ -414,6 +442,15 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
