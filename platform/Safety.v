@@ -113,6 +113,7 @@ Section OpSem.
       :: ("write", writeS)
       :: ("declare", declareS)
       :: ("wait", waitS)
+      :: ("close", closeS)
       :: nil)).
 
   Hypothesis impSys :

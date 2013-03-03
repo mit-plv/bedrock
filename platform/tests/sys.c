@@ -175,3 +175,12 @@ unsigned _sys_wait(unsigned blocking) {
 
   return index;
 }
+
+void _sys_close(unsigned fd) {
+  if (fd < num_fds && fds[fd]) {
+    fds[fd] = 0;
+    --num_outstanding;
+  }
+
+  close(fd);
+}

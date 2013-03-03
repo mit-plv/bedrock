@@ -43,6 +43,10 @@ Definition waitS := SPEC("blocking") reserving 0
   PRE[_] Emp
   POST[index] Emp.
 
+Definition closeS := SPEC("stream") reserving 0
+  PRE[_] Emp
+  POST[_] Emp.
+
 
 (** * More primitive operational semantics *)
 
@@ -108,6 +112,12 @@ Section OpSem.
     -> sys_step st (Regs (snd st) Rp, st')
   | Wait : forall st st',
     Labels stn ("sys", Global "wait") = Some (fst st)
+    -> mapped (Regs (snd st) Sp) 8 (Mem (snd st))
+    -> Regs st' Sp = Regs (snd st) Sp
+    -> Mem st' = Mem (snd st)
+    -> sys_step st (Regs (snd st) Rp, st')
+  | Close : forall st st',
+    Labels stn ("sys", Global "close") = Some (fst st)
     -> mapped (Regs (snd st) Sp) 8 (Mem (snd st))
     -> Regs st' Sp = Regs (snd st) Sp
     -> Mem st' = Mem (snd st)

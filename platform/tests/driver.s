@@ -11,7 +11,8 @@
 	.globl sys_write
         .global _sys_declare, sys_declare
 	.global _sys_wait, sys_wait
-        
+        .global _sys_close, sys_close
+
         .globl main
 main:
         movl    $ret, %esi
@@ -73,3 +74,8 @@ sys_wait:
         pushq   %rsi
         pushq   $sys_ret
         jmp     _sys_wait
+
+sys_close:
+        movl	bedrock_heap+4(%rbx), %edi
+        pushq   %rsi
+        jmp     _sys_close
