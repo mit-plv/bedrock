@@ -4,8 +4,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            AutoSep Misc \
            Sys Safety \
            Malloc \
-           Bags Sets Queue ThreadQueue ThreadQueues Scheduler Thread \
-           Bootstrap Arrays8 SinglyLinkedList \
+           Bags Sets Queue ThreadQueue ThreadQueues SinglyLinkedList Scheduler Thread \
+           Bootstrap Arrays8 \
            tests/Thread0 \
            tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest tests/Echo tests/Echo2 \
            tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver tests/EchoDriver tests/Echo2Driver \
