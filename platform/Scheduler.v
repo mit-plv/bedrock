@@ -25,7 +25,8 @@ Qed.
 Module Type S.
   Parameter globalSched : W.
 
-  Parameter globalInv : HProp.
+  Parameter globalInv : bag -> HProp.
+  (* Argument is set of available file objects. *)
 End S.
 
 Module Make(M : S).
@@ -73,7 +74,7 @@ Module M''.
       * [| wait <> 0 |] * [| freeable wait (length waitL) |]
 
     (* Finally, the application-specific global invariant holds. *)
-    * globalInv.
+    * globalInv w.
 End M''.
 
 Module Q' := ThreadQueues.Make(M'').
@@ -216,7 +217,7 @@ Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs, Al fs,
       [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
-      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched fs * M.globalInv * mallocHeap 0] ] st
+      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched fs * M.globalInv fs * mallocHeap 0] ] st
       ---> #0 st)%PropX.
 
 Lemma starting_elim : forall specs pc ss P stn st,
@@ -225,7 +226,7 @@ Lemma starting_elim : forall specs pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs fs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * sched fs * M.globalInv * mallocHeap 0 ] stn_st
+      * sched fs * M.globalInv fs * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
@@ -241,7 +242,7 @@ Lemma starting_intro : forall specs pc ss P stn st,
     /\ interp specs (![ P ] (stn, st))
     /\ forall stn_st vs fs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * sched fs * M.globalInv * mallocHeap 0 ] stn_st
+      * sched fs * M.globalInv fs * mallocHeap 0 ] stn_st
     ---> pre stn_st)%PropX)
   -> interp specs (![ starting pc ss * P ] (stn, st)).
   cptr.
@@ -275,12 +276,12 @@ Definition spawnS : spec := SPEC("pc", "ss") reserving 26
 
 Definition exitS : spec := SPEC("sc", "ss") reserving 2
   Al fs,
-  PREexit[V] [| V "ss" >= $3 |] * sched fs * M.globalInv * mallocHeap 0.
+  PREexit[V] [| V "ss" >= $3 |] * sched fs * M.globalInv fs * mallocHeap 0.
 
 Definition yieldS : spec := SPEC reserving 28
   Al fs,
-  PRE[_] sched fs * M.globalInv * mallocHeap 0
-  POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * M.globalInv * mallocHeap 0.
+  PRE[_] sched fs * M.globalInv fs * mallocHeap 0
+  POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * M.globalInv fs' * mallocHeap 0.
 
 Definition pickNextS : spec := SPEC reserving 13
   Al p, Al ready, Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
@@ -379,7 +380,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
           * array waitL wait * [| allInOrZero ts waitL |]
           * [| length waitL = wordToNat waitLen |]
           * [| wait <> 0 |] * [| freeable wait (length waitL) |]
-          * tqs ts fs * M.globalInv * mallocHeap 0
+          * tqs ts fs * M.globalInv fs * mallocHeap 0
         POST[_] Ex ts', Ex fs', Ex p, Ex ready, Ex free, Ex wait, Ex waitLen, Ex freeL, Ex waitL,
           [| ts %<= ts' |] * [| fs %<= fs' |]
           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
@@ -389,7 +390,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
           * array waitL wait * [| allInOrZero ts' waitL |]
           * [| length waitL = wordToNat waitLen |]
           * [| wait <> 0 |] * [| freeable wait (length waitL) |]
-          * tqs ts' fs' * M.globalInv * mallocHeap 0 ];;
+          * tqs ts' fs' * M.globalInv fs' * mallocHeap 0 ];;
 
       Call "threadqs"!"yield"("ready", "q")
       [PRE[_] Emp
