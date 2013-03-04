@@ -53,23 +53,24 @@ Module M''.
   Open Scope Sep_scope.
 
   Definition globalInv (ts : bag) (w : world) : HProp :=
+    Ex p, Ex ready, Ex free, Ex wait, Ex waitLen, Ex freeL, Ex waitL,
+    
     (* The scheduler entry point *)
-    Ex p, globalSched =*> p
-    * Ex ready, Ex free, Ex wait, Ex waitLen, (p ==*> ready, free, wait, waitLen)
+    globalSched =*> p * (p ==*> ready, free, wait, waitLen)
 
     (* The ready queue is a valid thread queue, for threads ready to run immediately. *)
     * [| ready %in ts |]
 
     (* The free list stores available file pointers. *)
-    * Ex freeL, sll freeL free * [| allIn w freeL |]
+    * sll freeL free * [| allIn w freeL |]
 
     (* Each available file pointer stores a record of a file descriptor and input/output thread queues. *)
     * files ts w
 
     (* There is an array correspoinding to outstanding declare() calls, mapping each to a queue that should be poked when its event is enabled. *)
-    * Ex waitL, array waitL wait * [| allInOrZero ts waitL |]
+    * array waitL wait * [| allInOrZero ts waitL |]
       * [| length waitL = wordToNat waitLen |]
-      * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
 
     (* Finally, the application-specific global invariant holds. *)
     * globalInv.
@@ -90,7 +91,7 @@ Module Type SCHED.
     * Ex freeL, sll freeL free * [| allIn fs freeL |]
     * files ts fs
     * Ex waitL, array waitL wait * [| allInOrZero ts waitL |] * [| length waitL = wordToNat waitLen |]
-      * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
     * tqs ts fs.
 
   Axiom sched_bwd : forall fs,
@@ -100,7 +101,7 @@ Module Type SCHED.
      * Ex freeL, sll freeL free * [| allIn fs freeL |]
      * files ts fs
      * Ex waitL, array waitL wait * [| allInOrZero ts waitL |] * [| length waitL = wordToNat waitLen |]
-       * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+       * [| wait <> 0 |] * [| freeable wait (length waitL) |]
      * tqs ts fs)
     ===> sched fs.
 
@@ -118,7 +119,7 @@ Module Sched : SCHED.
     * Ex freeL, sll freeL free * [| allIn fs freeL |]
     * files ts fs
     * Ex waitL, array waitL wait * [| allInOrZero ts waitL |] * [| length waitL = wordToNat waitLen |]
-      * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
     * tqs ts fs.
 
   Theorem sched_fwd : forall fs, sched fs ===>
@@ -128,7 +129,7 @@ Module Sched : SCHED.
     * Ex freeL, sll freeL free * [| allIn fs freeL |]
     * files ts fs
     * Ex waitL, array waitL wait * [| allInOrZero ts waitL |] * [| length waitL = wordToNat waitLen |]
-      * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
     * tqs ts fs.
     intros; apply Himp_refl.
   Qed.
@@ -140,7 +141,7 @@ Module Sched : SCHED.
      * Ex freeL, sll freeL free * [| allIn fs freeL |]
      * files ts fs
      * Ex waitL, array waitL wait * [| allInOrZero ts waitL |] * [| length waitL = wordToNat waitLen |]
-       * [| (length waitL >= 2)%nat |] * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+       * [| wait <> 0 |] * [| freeable wait (length waitL) |]
      * tqs ts fs)
      ===> sched fs.
     intros; apply Himp_refl.
@@ -276,10 +277,22 @@ Definition exitS : spec := SPEC("sc", "ss") reserving 2
   Al fs,
   PREexit[V] [| V "ss" >= $3 |] * sched fs * M.globalInv * mallocHeap 0.
 
-Definition yieldS : spec := SPEC reserving 25
+Definition yieldS : spec := SPEC reserving 28
   Al fs,
   PRE[_] sched fs * M.globalInv * mallocHeap 0
   POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * M.globalInv * mallocHeap 0.
+
+Definition pickNextS : spec := SPEC reserving 13
+  Al p, Al ready, Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
+  PRE[_] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+    * tqs ts fs * [| ready %in ts |]
+    * array waitL wait * [| allInOrZero ts waitL |]
+    * [| length waitL = wordToNat waitLen |] * mallocHeap 0
+  POST[R] [| R %in ts |]
+    * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+    * tqs ts fs * [| ready %in ts |]
+    * array waitL wait * [| allInOrZero ts waitL |]
+    * [| length waitL = wordToNat waitLen |] * mallocHeap 0.
 
 Definition initSize := 2.
 
@@ -291,7 +304,13 @@ Opaque initSize.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" @ [Q'.spawnS],
-                           "threadqs"!"exit" @ [Q'.exitS], "threadqs"!"yield" @ [Q'.yieldS] ]]
+                           "threadqs"!"exit" @ [Q'.exitS], "threadqs"!"yield" @ [Q'.yieldS],
+                           "threadqs"!"isEmpty" @ [Q'.isEmptyS],
+
+                           "sys"!"abort" @ [abortS], "sys"!"close" @ [closeS],
+                           "sys"!"listen" @ [listenS], "sys"!"accept" @ [acceptS],
+                           "sys"!"read" @ [readS], "sys"!"write" @ [Sys.writeS],
+                           "sys"!"declare" @ [declareS], "sys"!"wait" @ [Sys.waitS] ]]
   bmodule "scheduler" {{
     bfunction "init"("root", "ready", "wait") [initS]
       "root" <-- Call "malloc"!"malloc"(0, 4)
@@ -347,19 +366,91 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
     end (*with bfunctionNoRet "exit"("sc", "ss") [exitS]
       "sc" <-* globalSched;;
       Goto "threadqs"!"exit"
-    end with bfunction "yield"() [yieldS]
-      Call "threadqs"!"yield"($[globalSched], $[globalSched])
+    end*) with bfunction "yield"("root", "ready", "q") [yieldS]
+      "root" <-* globalSched;;
+      "ready" <-* "root";;
+
+      "q" <-- Call "scheduler"!"pickNext"()
+      [Al ts, Al fs, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V, R] globalSched =*> V "root" * (V "root" ==*> V "ready", free, wait, waitLen)
+          * [| V "ready" %in ts |] * [| R %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+          * [| length waitL = wordToNat waitLen |]
+          * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * tqs ts fs * M.globalInv * mallocHeap 0
+        POST[_] Ex ts', Ex fs', Ex p, Ex ready, Ex free, Ex wait, Ex waitLen, Ex freeL, Ex waitL,
+          [| ts %<= ts' |] * [| fs %<= fs' |]
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts' |]
+          * sll freeL free * [| allIn fs' freeL |]
+          * files ts' fs'
+          * array waitL wait * [| allInOrZero ts' waitL |]
+          * [| length waitL = wordToNat waitLen |]
+          * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * tqs ts' fs' * M.globalInv * mallocHeap 0 ];;
+
+      Call "threadqs"!"yield"("ready", "q")
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end*)
+    end with bfunction "pickNext"("root", "ready", "wait", "waitLen", "blocking", "n") [pickNextS]
+      "root" <-* globalSched;;
+      "ready" <-* "root";;
+
+      "blocking" <-- Call "threadqs"!"isEmpty"("ready")
+      [Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
+        PRE[V] globalSched =*> V "root" * (V "root" ==*> V "ready", free, wait, waitLen)
+          * tqs ts fs * [| V "ready" %in ts |]
+          * array waitL wait * [| allInOrZero ts waitL |]
+          * [| length waitL = wordToNat waitLen |]
+        POST[R] [| R %in ts |]
+          * tqs ts fs * globalSched =*> V "root" * (V "root" ==*> V "ready", free, wait, waitLen)
+          * array waitL wait ];;
+
+      "n" <-- Call "sys"!"wait"("blocking")
+      [Al free, Al wait, Al waitLen, Al ts, Al waitL,
+        PRE[V] globalSched =*> V "root" * (V "root" ==*> V "ready", free, wait, waitLen)
+          * [| V "ready" %in ts |]
+          * array waitL wait * [| allInOrZero ts waitL |]
+          * [| length waitL = wordToNat waitLen |]
+        POST[R] [| R %in ts |]
+          * globalSched =*> V "root" * (V "root" ==*> V "ready", free, wait, waitLen)
+          * array waitL wait ];;
+
+      "wait" <-* "root"+8;;
+      "waitLen" <-* "root"+12;;
+
+      If ("n" < "waitLen") {
+        Assert [Al free, Al ts, Al waitL,
+          PRE[V] globalSched =*> V "root" * (V "root" ==*> V "ready", free, V "wait", V "waitLen")
+          * [| V "ready" %in ts |] * [| allInOrZero ts waitL |]
+          * array waitL (V "wait") * [| (V "n" < natToW (length waitL))%word |]
+        POST[R] [| R %in ts |]
+          * globalSched =*> V "root" * (V "root" ==*> V "ready", free, V "wait", V "waitLen")
+          * array waitL (V "wait") ];;
+
+        "n" <- 4 * "n";;
+        "wait" <-* "wait" + "n";;
+
+        If ("wait" = 0) {
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ]
+        } else {
+          Return "wait"
+        }
+      } else {
+        Return "ready"
+      }
+    end
   }}.
 
 Ltac finish := auto;
   try solve [ try rewrite initSize_eq in *;
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
-           end; reflexivity || auto 2 ].
+           end; reflexivity || eauto 2 ].
 
 Lemma selN_updN_eq : forall v a n,
   (n < length a)%nat
@@ -399,12 +490,50 @@ Ltac spawn := post; evaluate hints;
         eapply Imply_trans; [ | apply H ]; clear H
     end); t').
 
+
+Lemma breakout : forall A (P : A -> _) Q R x specs,
+  (forall v, interp specs (![P v * Q] x ---> R)%PropX)
+  -> interp specs (![exB P * Q] x ---> R)%PropX.
+  rewrite sepFormula_eq; propxFo.
+  unfold sepFormula_def, exB, ex.
+  simpl.
+  repeat (apply existsL; intros); step auto_ext.
+  apply unandL.
+  eapply Imply_trans; try apply H; clear H.
+  do 2 eapply existsR.
+  simpl.
+  repeat apply andR.
+  apply injR; eauto.
+  apply andL; apply implyR.
+  apply Imply_refl.
+  apply andL; apply swap; apply implyR.
+  apply Imply_refl.
+Qed.
+
+Ltac exBegone :=
+  match goal with
+    | [ |- interp ?specs (![ ?P ] ?x ---> ?Q)%PropX ] =>
+      toFront' ltac:(fun R => match R with
+                                | exB _ => idtac
+                              end) P
+      ltac:(fun it P' =>
+        apply Imply_trans with (![ it * P'] x)%PropX; [ step auto_ext | ])
+  end; repeat match goal with
+                | [ |- interp _ (![ exB _ * _] _ ---> _)%PropX ] => apply breakout; intro
+              end.
+
+
 Ltac t := solve [
   match goal with
     | [ |- context[starting] ] =>
       match goal with
         | [ |- context[Q'.starting] ] => spawn
       end
+    | [ |- context[evolve] ] =>
+      unfold globalInv; post; evaluate hints; descend; [ step hints | step hints | ];
+        descend; step hints;
+        repeat ((apply andL; apply injL) || apply existsL; intro); descend;
+          exBegone; t'
     | _ => t'
   end ].
 
@@ -413,10 +542,13 @@ Local Hint Immediate evolve_refl.
 
 Hint Rewrite upd_length : sepFormula.
 
-Local Hint Unfold allIn allInOrZero.
+Local Hint Extern 1 (allInOrZero _ nil) => constructor.
+Local Hint Extern 1 (allInOrZero _ (_ :: _)) => constructor.
 
-Local Hint Extern 1 (List.Forall _ (Array.upd _ (natToW 1) (natToW 0))) =>
-  rewrite upd_updN by auto;
+Local Hint Extern 1 (allIn empty _) => constructor.
+
+Local Hint Extern 1 (allInOrZero _ (Array.upd _ (natToW 1) (natToW 0))) =>
+  hnf; rewrite upd_updN by auto;
     repeat match goal with
              | [ ls : list W |- _ ] =>
                match goal with
@@ -426,6 +558,57 @@ Local Hint Extern 1 (List.Forall _ (Array.upd _ (natToW 1) (natToW 0))) =>
                    end
                end
            end; simpl in *.
+
+Local Hint Extern 1 (freeable _ _) => congruence.
+Local Hint Extern 1 (himp _ _ (sll nil (natToW 0))) => solve [ step hints ].
+
+Lemma length_ok : forall u v n,
+  u < v
+  -> n = wordToNat v
+  -> u < natToW n.
+  intros; subst; unfold natToW; rewrite natToWord_wordToNat; auto.
+Qed.
+
+Local Hint Immediate length_ok.
+
+Lemma selN_In : forall ls n,
+  (n < length ls)%nat
+  -> In (Array.selN ls n) ls.
+  induction ls; destruct n; simpl; intuition.
+Qed.
+
+Lemma sel_In : forall ls n,
+  n < natToW (length ls)
+  -> goodSize (length ls)
+  -> In (Array.sel ls n) ls.
+  unfold Array.sel; intros; apply selN_In; nomega.
+Qed.    
+
+Lemma found_queue : forall x ls i b,
+  x = Array.sel ls i
+  -> Array.sel ls i <> 0
+  -> allInOrZero b ls
+  -> i < natToW (length ls)
+  -> goodSize (length ls)
+  -> x %in b.
+  intros; subst.
+  eapply Forall_forall in H1; [ | eauto using sel_In ].
+  tauto.
+Qed.
+
+Local Hint Extern 1 (_ %in _) =>
+  eapply found_queue; [ eassumption | eassumption | eassumption | eassumption | eauto ].
+
+Lemma allIn_monotone : forall b ls b',
+  allIn b ls
+  -> b %<= b'
+  -> allIn b' ls.
+  intros; eapply Forall_weaken; eauto.
+  bags.
+  specialize (H0 x); omega.
+Qed.
+
+Local Hint Immediate allIn_monotone.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -460,16 +643,14 @@ Theorem ok : moduleOk m.
   t.
   t.
 
-(*
-  post; evaluate auto_ext.
-  match goal with
-    | [ H : interp ?specs (![?P] ?x) |- _ ] =>
-      let H' := fresh in assert (H' : interp specs (![P * tqs empty tt] x))
-        by (sepLemma; rewrite tqs_eq; apply tqs'_empty_bwd);
-        clear H; rename H' into H
-  end.
   t.
-
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
@@ -478,92 +659,23 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-
-  post; evaluate hints.
-  toFront ltac:(fun P => match P with
-                           | starting _ _ => idtac
-                         end) H7; apply starting_elim in H7; post.
-  descend.
-  toFront_conc ltac:(fun P => match P with
-                                | Q'.starting _ _ _ _ => idtac
-                              end); apply other_starting_intro; descend.
-  2: step hints.
-  step hints.
-  repeat (apply andL; apply injL; intro).
-  eapply Imply_trans; [ | apply H12 ]; clear H12.
-  unfold globalInv; descend; step hints.
-  step hints.
-  eauto.
-  destruct w'; step hints.
-  step hints.
-  t.
-
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-
-  post.
-  evaluate hints.
-  descend.
-  2: instantiate (8 := upd x0 "sc" x1); unfold globalInv; descend; step hints.
-  rewrite H0; assumption.
-
   t.
   t.
   t.
   t.
-
-  unfold globalInv.
-  post; evaluate hints; descend.
-  step hints.
-  auto.
-  step hints.
-  apply andL; apply injL; intro.
-  repeat (apply existsL; intro).
-  descend.
-
-  Lemma getOutHere : forall P Q A (R : A -> _) S T,
-    P * (Q * (Ex x, R x) * S) * T ===> Ex x, P * Q * R x * S * T.
-    sepLemma.
-  Qed.
-
-  Lemma useHimp : forall specs P x P',
-    P ===> P'
-    -> interp specs (![P] x ---> ![P'] x)%PropX.
-    rewrite sepFormula_eq; intros; apply H.
-  Qed.
-
-  eapply Imply_trans; [ eapply useHimp; apply getOutHere | ].
-
-  Lemma breakout : forall A (P : A -> _) Q x specs,
-    (forall v, interp specs (![P v] x ---> Q)%PropX)
-    -> interp specs (![exB P] x ---> Q)%PropX.
-    rewrite sepFormula_eq; propxFo.
-    unfold sepFormula_def, exB, ex.
-    simpl.
-    apply existsL; auto.
-  Qed.
-    
-  apply breakout; intro.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  descend; step hints.
-  eauto.
-  destruct x8; step hints.
-
   t.
   t.
   t.
-*)
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 Qed.
 
 Transparent initSize.
