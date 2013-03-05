@@ -81,6 +81,9 @@ Module Q' := ThreadQueues.Make(M'').
 Import M'' Q'.
 Export M'' Q'.
 
+
+Definition files_pick (_ : W) := files.
+
 Module Type SCHED.
   Parameter sched : bag -> HProp.
   (* Parameter is available file pointers. *)
@@ -108,6 +111,17 @@ Module Type SCHED.
 
   Axiom files_empty_fwd : forall ts, files ts empty ===> Emp.
   Axiom files_empty_bwd : forall ts, Emp ===> files ts empty.
+
+  Axiom files_pick_fwd : forall p ts fs, p %in fs
+    -> files_pick p ts fs ===> Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts (fs %- p).
+  Axiom files_pick_bwd : forall p ts fs, p %in fs
+    -> (Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts (fs %- p)) ===> files_pick p ts fs.
+
+  Axiom files_add_bwd : forall p ts fs,
+    (Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts fs) ===> files ts (fs %+ p).
 End SCHED.
 
 Module Sched : SCHED.
@@ -154,6 +168,28 @@ Module Sched : SCHED.
 
   Theorem files_empty_bwd : forall ts, Emp ===> files ts empty.
     intros; apply starB_empty_bwd.
+  Qed.
+
+  Ltac fin ts := match goal with
+                   | [ |- context[starB ?X ?Y] ] => change (starB X Y) with (files ts Y)
+                 end; sepLemma.
+
+  Theorem files_pick_fwd : forall p ts fs, p %in fs
+    -> files_pick p ts fs ===> Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts (fs %- p).
+    intros; eapply Himp_trans; [ apply starB_del_fwd | ]; eauto; fin ts.
+  Qed.
+
+  Theorem files_pick_bwd : forall p ts fs, p %in fs
+    -> (Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts (fs %- p)) ===> files_pick p ts fs.
+    intros; eapply Himp_trans; [ | apply starB_del_bwd ]; eauto; fin ts.
+  Qed.
+
+  Theorem files_add_bwd : forall p ts fs,
+    (Ex fd, Ex inq, Ex outq, (p ==*> fd, inq, outq)
+      * [| inq %in ts |] * [| outq %in ts |] * files ts fs) ===> files ts (fs %+ p).
+    intros; eapply Himp_trans; [ | apply starB_add_bwd ]; fin ts.
   Qed.
 End Sched.
 
@@ -208,8 +244,10 @@ Theorem tqs_empty_bwd : forall w, Emp ===> tqs empty w.
 Qed.
 
 Definition hints : TacPackage.
-  prepare (sched_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd, allocate_array, files_empty_fwd)
-  (sched_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd, tqs_empty_bwd, files_empty_bwd).
+  prepare (sched_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd, allocate_array,
+    files_empty_fwd, files_pick_fwd)
+  (sched_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd, tqs_empty_bwd,
+    files_empty_bwd, files_pick_bwd, files_add_bwd).
 Defined.
 
 Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
@@ -283,6 +321,11 @@ Definition yieldS : spec := SPEC reserving 28
   PRE[_] sched fs * M.globalInv fs * mallocHeap 0
   POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * M.globalInv fs' * mallocHeap 0.
 
+Definition listenS : spec := SPEC("port") reserving 25
+  Al fs,
+  PRE[_] sched fs * mallocHeap 0
+  POST[R] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * [| R %in fs' |].
+
 Definition pickNextS : spec := SPEC reserving 13
   Al p, Al ready, Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
   PRE[_] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
@@ -295,6 +338,17 @@ Definition pickNextS : spec := SPEC reserving 13
     * array waitL wait * [| allInOrZero ts waitL |]
     * [| length waitL = wordToNat waitLen |] * mallocHeap 0.
 
+Definition newS : spec := SPEC("fd") reserving 21
+  Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL,
+  PRE[V] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+    * sll freeL free * [| allIn fs freeL |]
+    * files ts fs * tqs ts fs * mallocHeap 0
+  POST[R] Ex ts', Ex fs', Ex free', Ex freeL',
+    [| R %in fs' |] * [| ts %<= ts' |] * [| fs %<= fs' |]
+    * globalSched =*> p * (p ==*> ready, free', wait, waitLen)
+    * sll freeL' free' * [| allIn fs' freeL' |]
+    * files ts' fs' * tqs ts' fs' * mallocHeap 0.
+
 Definition initSize := 2.
 
 Theorem initSize_eq : initSize = 2.
@@ -303,15 +357,18 @@ Qed.
 
 Opaque initSize.
 
+Inductive add_a_file : Prop := AddAFile.
+Local Hint Constructors add_a_file.
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" @ [Q'.spawnS],
                            "threadqs"!"exit" @ [Q'.exitS], "threadqs"!"yield" @ [Q'.yieldS],
                            "threadqs"!"isEmpty" @ [Q'.isEmptyS],
 
-                           "sys"!"abort" @ [abortS], "sys"!"close" @ [closeS],
-                           "sys"!"listen" @ [listenS], "sys"!"accept" @ [acceptS],
-                           "sys"!"read" @ [readS], "sys"!"write" @ [Sys.writeS],
-                           "sys"!"declare" @ [declareS], "sys"!"wait" @ [Sys.waitS] ]]
+                           "sys"!"abort" @ [abortS], "sys"!"close" @ [Sys.closeS],
+                           "sys"!"listen" @ [Sys.listenS], "sys"!"accept" @ [Sys.acceptS],
+                           "sys"!"read" @ [Sys.readS], "sys"!"write" @ [Sys.writeS],
+                           "sys"!"declare" @ [Sys.declareS], "sys"!"wait" @ [Sys.waitS] ]]
   bmodule "scheduler" {{
     bfunction "init"("root", "ready", "wait") [initS]
       "root" <-- Call "malloc"!"malloc"(0, 4)
@@ -396,6 +453,16 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
+    end with bfunction "listen"("port", "fd", "fr") [listenS]
+      "fd" <-- Call "sys"!"listen"("port")
+      [Al fs,
+        PRE[_] sched fs * mallocHeap 0
+        POST[R] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * [| R %in fs' |] ];;
+
+      "fr" <-- Call "scheduler"!"new"("fd")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "fr"
     end with bfunction "pickNext"("root", "ready", "wait", "waitLen", "blocking", "n") [pickNextS]
       "root" <-* globalSched;;
       "ready" <-* "root";;
@@ -443,6 +510,53 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         }
       } else {
         Return "ready"
+      }
+    end with bfunction "new"("fd", "root", "free", "oldFree", "fr", "inq", "outq") [newS]
+      "root" <-* globalSched;;
+      "free" <-* "root"+4;;
+
+      If ("free" <> 0) {
+        "oldFree" <- "free";;
+        "fr" <-* "free";;
+        "free" <-* "free"+4;;
+        "root"+4 *<- "free";;
+
+        Call "malloc"!"free"(0, "oldFree", 2)
+        [Al ts, Al fs,
+          PRE[V] [| V "fr" %in fs |] * files_pick (V "fr") ts fs
+          POST[R] [| R = V "fr" |] * files_pick (V "fr") ts fs];;
+
+        "fr" *<- "fd";;
+        Return "fr"
+      } else {
+        "inq" <-- Call "threadqs"!"alloc"()
+        [Al ts, Al fs,
+          PRE[V, R] files ts fs * tqs (ts %+ R) fs * mallocHeap 0
+          POST[R'] Ex ts', Ex fs', [| R' %in fs' |] * [| ts %+ R %<= ts' |] * [| fs %<= fs' |]
+            * files ts' fs' * tqs ts' fs' * mallocHeap 0];;
+
+        "outq" <-- Call "threadqs"!"alloc"()
+        [Al ts, Al fs,
+          PRE[V, R] files ts fs * tqs (ts %+ V "inq" %+ R) fs * mallocHeap 0
+          POST[R'] Ex ts', Ex fs', [| R' %in fs' |] * [| ts %+ V "inq" %+ R %<= ts' |] * [| fs %<= fs' |]
+            * files ts' fs' * tqs ts' fs' * mallocHeap 0];;
+
+        "fr" <-- Call "malloc"!"malloc"(0, 3)
+        [Al ts, Al fs,
+          PRE[V, R] R =?> 3 * files ts fs * tqs (ts %+ V "inq" %+ V "outq") fs
+          POST[R'] Ex fs', [| fs %<= fs' |] * [| R' %in fs' |] * files (ts %+ V "inq" %+ V "outq") fs'
+            * tqs (ts %+ V "inq" %+ V "outq") fs' ];;
+
+        Note [add_a_file];;
+
+        Assert [Al ts, Al fs,
+          PRE[V] V "fr" =?> 3 * files ts fs
+          POST[R] [| R = V "fr" |] * files (ts %+ V "inq" %+ V "outq") (fs %+ V "fr") ];;
+
+        "fr" *<- "fd";;
+        "fr"+4 *<- "inq";;
+        "fr"+8 *<- "outq";;
+        Return "fr"
       }
     end
   }}.
@@ -523,6 +637,11 @@ Ltac exBegone :=
                 | [ |- interp _ (![ exB _ * _] _ ---> _)%PropX ] => apply breakout; intro
               end.
 
+Lemma tqs_weaken : forall ts fs fs',
+  fs %<= fs'
+  -> tqs ts fs ===>* tqs ts fs'.
+  rewrite tqs_eq; intros; apply tqs'_weaken; hnf; intuition.
+Qed.
 
 Ltac t := solve [
   match goal with
@@ -535,6 +654,22 @@ Ltac t := solve [
         descend; step hints;
         repeat ((apply andL; apply injL) || apply existsL; intro); descend;
           exBegone; t'
+    | [ |- context[add_a_file] ] =>
+      post; evaluate hints;
+      match goal with
+        | [ H : context[upd _ "fr" ?V] |- _ ] =>
+          match type of H with
+            | context[files _ ?B] =>
+              toFront ltac:(fun P => match P with
+                                       | tqs _ _ => idtac
+                                     end) H;
+              eapply use_HimpWeak in H; [ | apply (tqs_weaken _ _ (B %+ V)) ]; [ t | finish ]
+          end
+      end
+    | [ |- context[Some ?E] ] =>
+      match E with
+        | context[files_pick] => unfold files_pick; t'
+      end
     | _ => t'
   end ].
 
@@ -611,6 +746,43 @@ Qed.
 
 Local Hint Immediate allIn_monotone.
 
+Lemma allIn_hd : forall b x ls,
+  allIn b (x :: ls)
+  -> x %in b.
+  inversion 1; auto.
+Qed.
+
+Lemma allIn_tl : forall b x ls,
+  allIn b (x :: ls)
+  -> allIn b ls.
+  inversion 1; auto.
+Qed.
+
+Local Hint Immediate allIn_hd allIn_tl.
+
+Lemma add_incl : forall a b x,
+  a %+ x %<= b
+  -> a %<= b.
+  bags.
+  specialize (H x0).
+  destruct (W_Key.eq_dec x0 x); auto.
+Qed.
+
+Local Hint Immediate add_incl.
+
+Hint Extern 1 (himp _ (files _ _) (files _ _)) => apply starB_weaken; solve [ sepLemma ].
+
+Lemma allInOrZero_monotone : forall b ls b',
+  allInOrZero b ls
+  -> b %<= b'
+  -> allInOrZero b' ls.
+  intros; eapply Forall_weaken; [ | eauto ].
+  bags.
+  specialize (H0 x); omega.
+Qed.
+
+Local Hint Immediate allInOrZero_monotone.
+
 Theorem ok : moduleOk m.
   vcgen.
 
@@ -656,6 +828,42 @@ Theorem ok : moduleOk m.
   t.
   t.
 
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
   t.
   t.
   t.
