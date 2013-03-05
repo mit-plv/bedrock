@@ -326,6 +326,11 @@ Definition listenS : spec := SPEC("port") reserving 25
   PRE[_] sched fs * mallocHeap 0
   POST[R] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * [| R %in fs' |].
 
+Definition closeS : spec := SPEC("fr") reserving 11
+  Al fs,
+  PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0
+  POST[_] sched fs * mallocHeap 0.
+
 Definition pickNextS : spec := SPEC reserving 13
   Al p, Al ready, Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
   PRE[_] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
@@ -358,7 +363,8 @@ Qed.
 Opaque initSize.
 
 Inductive add_a_file : Prop := AddAFile.
-Local Hint Constructors add_a_file.
+Inductive reveal_files_pick : Prop := RevealFilesPick.
+Local Hint Constructors add_a_file reveal_files_pick.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" @ [Q'.spawnS],
@@ -463,6 +469,48 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[_, R] Emp
        POST[R'] [| R' = R |] ];;
       Return "fr"
+    end with bfunction "close"("fr", "root", "free", "fd", "node") [closeS]
+      "root" <-* globalSched;;
+      "free" <-* "root"+4;;
+
+      Note [reveal_files_pick];;
+
+      Assert [Al ts, Al fs, Al ready, Al wait, Al waitLen, Al freeL,
+        PRE[V] globalSched =*> V "root" * (V "root" ==*> ready, V "free", wait, waitLen)
+          * sll freeL (V "free") * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * mallocHeap 0
+          * [| V "fr" %in fs |]
+        POST[_] Ex free', Ex freeL',
+          globalSched =*> V "root" * (V "root" ==*> ready, free', wait, waitLen)
+          * sll freeL' free' * [| allIn fs freeL' |]
+          * files_pick (V "fr") ts fs * mallocHeap 0];;
+
+      "fd" <-* "fr";;
+      Call "sys"!"close"("fd")
+      [Al fs, Al ready, Al wait, Al waitLen, Al freeL, Al fd, Al inq, Al outq,
+        PRE[V] globalSched =*> V "root" * (V "root" ==*> ready, V "free", wait, waitLen)
+          * sll freeL (V "free") * [| allIn fs freeL |]
+          * (V "fr" ==*> fd, inq, outq) * mallocHeap 0
+          * [| V "fr" %in fs |]
+        POST[_] Ex free', Ex freeL',
+          globalSched =*> V "root" * (V "root" ==*> ready, free', wait, waitLen)
+          * sll freeL' free' * [| allIn fs freeL' |]
+          * (V "fr" ==*> fd, inq, outq) * mallocHeap 0];;
+
+      "node" <-- Call "malloc"!"malloc"(0, 2)
+      [Al fs, Al ready, Al wait, Al waitLen, Al freeL,
+        PRE[V, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
+          * globalSched =*> V "root" * (V "root" ==*> ready, V "free", wait, waitLen)
+          * sll freeL (V "free") * [| allIn fs freeL |]
+          * [| V "fr" %in fs |]
+        POST[_] Ex free', Ex freeL',
+          globalSched =*> V "root" * (V "root" ==*> ready, free', wait, waitLen)
+          * sll freeL' free' * [| allIn fs freeL' |] ];;
+
+      "node" *<- "fr";;
+      "node"+4 *<- "free";;
+      "root"+4 *<- "node";;
+      Return 0
     end with bfunction "pickNext"("root", "ready", "wait", "waitLen", "blocking", "n") [pickNextS]
       "root" <-* globalSched;;
       "ready" <-* "root";;
@@ -520,6 +568,8 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "fr" <-* "free";;
         "free" <-* "free"+4;;
         "root"+4 *<- "free";;
+
+        Note [reveal_files_pick];;
 
         Call "malloc"!"free"(0, "oldFree", 2)
         [Al ts, Al fs,
@@ -666,10 +716,7 @@ Ltac t := solve [
               eapply use_HimpWeak in H; [ | apply (tqs_weaken _ _ (B %+ V)) ]; [ t | finish ]
           end
       end
-    | [ |- context[Some ?E] ] =>
-      match E with
-        | context[files_pick] => unfold files_pick; t'
-      end
+    | [ |- context[reveal_files_pick] ] => unfold files_pick; t'
     | _ => t'
   end ].
 
@@ -783,6 +830,15 @@ Qed.
 
 Local Hint Immediate allInOrZero_monotone.
 
+Lemma allIn_cons : forall b x ls,
+  allIn b ls
+  -> x %in b
+  -> allIn b (x :: ls).
+  constructor; auto.
+Qed.
+
+Local Hint Immediate allIn_cons.
+
 Theorem ok : moduleOk m.
   vcgen.
 
@@ -854,6 +910,21 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
@@ -862,6 +933,8 @@ Theorem ok : moduleOk m.
   t.
   t.
 
+  t.
+  t.
   t.
   t.
   t.
