@@ -228,14 +228,37 @@ Lemma allocate_array' : forall p n offset,
   auto.
 Qed.
 
-Inductive make_array (sz : nat) : Prop := MakeArray.
+Inductive make_array : Prop := MakeArray.
 
 Hint Constructors make_array.
 
 Lemma allocate_array : forall p n,
-  make_array n
+  p = p
+  -> make_array
   -> p =?> n ===> Ex ls, [| length ls = n |] * array ls p.
   intros; eapply Himp_trans; [ apply allocate_array' | ].
+  replace (p ^+ $0) with p by words; apply Himp_refl.
+Qed.
+
+Lemma free_array' : forall p n offset,
+  Ex ls, [| length ls = n |] * array ls (p ^+ $(offset)) ===> allocated p offset n.
+  sepLemma.
+  etransitivity; [ apply ptsto32m_allocated | ].
+  etransitivity; [ apply allocated_shift_base | ].
+  3: sepLemma.
+  unfold natToW; W_eq.
+  auto.
+Qed.
+
+Inductive dissolve_array : Prop := DissolveArray.
+
+Hint Constructors dissolve_array.
+
+Lemma free_array : forall p n,
+  p = p
+  -> dissolve_array
+  -> Ex ls, [| length ls = n |] * array ls p ===> p =?> n.
+  intros; eapply Himp_trans; [ | apply free_array' ].
   replace (p ^+ $0) with p by words; apply Himp_refl.
 Qed.
 
@@ -246,7 +269,7 @@ Qed.
 Definition hints : TacPackage.
   prepare (sched_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd, allocate_array,
     files_empty_fwd, files_pick_fwd)
-  (sched_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd, tqs_empty_bwd,
+  (sched_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd, free_array, tqs_empty_bwd,
     files_empty_bwd, files_pick_bwd, files_add_bwd).
 Defined.
 
@@ -331,6 +354,8 @@ Definition closeS : spec := SPEC("fr") reserving 11
   PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0
   POST[_] sched fs * mallocHeap 0.
 
+(* Specs below this point are for "private" functions. *)
+
 Definition pickNextS : spec := SPEC reserving 13
   Al p, Al ready, Al free, Al wait, Al waitLen, Al ts, Al fs, Al waitL,
   PRE[_] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
@@ -353,6 +378,20 @@ Definition newS : spec := SPEC("fd") reserving 21
     * globalSched =*> p * (p ==*> ready, free', wait, waitLen)
     * sll freeL' free' * [| allIn fs' freeL' |]
     * files ts' fs' * tqs ts' fs' * mallocHeap 0.
+
+Definition declareS : spec := SPEC("tq", "fd", "mode") reserving 16
+    Al ts, Al p, Al ready, Al free, Al wait, Al waitLen, Al waitL,
+    PRE[V] [| V "tq" %in ts |] * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+      * array waitL wait * [| allInOrZero ts waitL |]
+      * [| length waitL = wordToNat waitLen |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+      * mallocHeap 0
+    POST[_] Ex wait', Ex waitLen', Ex waitL',
+      globalSched =*> p * (p ==*> ready, free, wait', waitLen')
+      * array waitL' wait' * [| allInOrZero ts waitL' |]
+      * [| length waitL' = wordToNat waitLen' |]
+      * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+      * mallocHeap 0.
 
 Definition initSize := 2.
 
@@ -396,7 +435,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
          * tqs (empty %+ V "ready") empty
        POST[_] sched empty];;
 
-      Note [make_array initSize];;
+      Note [make_array];;
 
       Assert [Al waitL,
         PRE[V] array waitL (V "wait") * [| length waitL = 2 |] * [| V "wait" <> 0 |] * [| freeable (V "wait") 2 |]
@@ -608,14 +647,187 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "fr"+8 *<- "outq";;
         Return "fr"
       }
+    end with bfunction "declare"("tq", "fd", "mode", "root", "wait", "waitLen", "n", "newWait", "newLen", "i", "j", "v") [declareS]
+      "root" <-* globalSched;;
+      "wait" <-* "root"+8;;
+      "waitLen" <-* "root"+12;;
+
+      "n" <-- Call "sys"!"declare"("fd", "mode")
+      [Al ts, Al ready, Al free, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+          * array waitL (V "wait") * [| allInOrZero ts waitL |]
+          * [| length waitL = wordToNat (V "waitLen") |]
+          * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+          * mallocHeap 0
+        POST[_] Ex wait', Ex waitLen', Ex waitL',
+          (V "root" ==*> ready, free, wait', waitLen')
+          * array waitL' wait' * [| allInOrZero ts waitL' |]
+          * [| length waitL' = wordToNat waitLen' |]
+          * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * mallocHeap 0];;
+
+      If ("n" < "waitLen") {
+        Assert [Al ts, Al ready, Al free, Al waitL,
+          PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+            * array waitL (V "wait") * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat (V "waitLen") |]
+            * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+            * [| (V "n" < natToW (length waitL))%word |]
+            * mallocHeap 0
+          POST[_] Ex wait', Ex waitLen', Ex waitL',
+            (V "root" ==*> ready, free, wait', waitLen')
+            * array waitL' wait' * [| allInOrZero ts waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+            * mallocHeap 0];;
+
+        "n" <- 4 * "n";;
+        "wait"+"n" *<- "tq";;
+        Return 0
+      } else {
+        "newLen" <- "n" + 1;;
+
+        If ("newLen" < 2) {
+          (* This case should be impossible, following the intended API usage. *)
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ]
+        } else {
+          "newWait" <-- Call "malloc"!"malloc"(0, "newLen")
+          [Al ts, Al ready, Al free, Al waitL,
+            PRE[V, R] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+              * array waitL (V "wait") * [| allInOrZero ts waitL |]
+              * [| length waitL = wordToNat (V "waitLen") |]
+              * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+              * R =?> wordToNat (V "newLen") * [| R <> 0 |] * [| freeable R (wordToNat (V "newLen")) |]
+              * mallocHeap 0
+            POST[_] Ex wait', Ex waitLen', Ex waitL',
+              (V "root" ==*> ready, free, wait', waitLen')
+              * array waitL' wait' * [| allInOrZero ts waitL' |]
+              * [| length waitL' = wordToNat waitLen' |]
+              * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+              * mallocHeap 0];;
+
+          Note [make_array];;
+
+          Assert [Al ts, Al ready, Al free, Al waitL, Al newL,
+            PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+              * array waitL (V "wait") * [| allInOrZero ts waitL |]
+              * [| length waitL = wordToNat (V "waitLen") |]
+              * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+              * array newL (V "newWait") * [| length newL = wordToNat (V "newLen") |]
+              * [| V "newWait" <> 0 |] * [| freeable (V "newWait") (wordToNat (V "newLen")) |]
+              * mallocHeap 0
+            POST[_] Ex wait', Ex waitLen', Ex waitL',
+              (V "root" ==*> ready, free, wait', waitLen')
+              * array waitL' wait' * [| allInOrZero ts waitL' |]
+              * [| length waitL' = wordToNat waitLen' |]
+              * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+              * mallocHeap 0];;
+
+          "i" <- 0;;
+          [Al ts, Al ready, Al free, Al waitL, Al waitL',
+            PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+              * array waitL (V "wait") * [| allInOrZero ts waitL |]
+              * [| length waitL = wordToNat (V "waitLen") |]
+              * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+              * array waitL' (V "newWait") * [| length waitL' = wordToNat (V "newLen") |]
+              * [| V "newWait" <> 0 |] * [| freeable (V "newWait") (wordToNat (V "newLen")) |]
+              * [| allInOrZero ts (firstn (wordToNat (V "i")) waitL') |]
+              * mallocHeap 0 * [| (V "i" <= V "newLen")%word |]
+            POST[_] Ex wait', Ex waitLen', Ex waitL',
+              (V "root" ==*> ready, free, wait', waitLen')
+              * array waitL' wait' * [| allInOrZero ts waitL' |]
+              * [| length waitL' = wordToNat waitLen' |]
+              * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+              * mallocHeap 0]
+          While ("i" < "newLen") {
+            If ("i" = "n") {
+              "v" <- "tq"
+            } else {
+              If ("i" < "waitLen") {
+                Assert [Al ts, Al ready, Al free, Al waitL, Al waitL',
+                  PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+                    * array waitL (V "wait") * [| allInOrZero ts waitL |]
+                    * [| length waitL = wordToNat (V "waitLen") |]
+                    * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+                    * array waitL' (V "newWait") * [| length waitL' = wordToNat (V "newLen") |]
+                    * [| V "newWait" <> 0 |] * [| freeable (V "newWait") (wordToNat (V "newLen")) |]
+                    * [| allInOrZero ts (firstn (wordToNat (V "i")) waitL') |]
+                    * [| (V "i" < natToW (length waitL'))%word |]
+                    * [| (V "i" < natToW (length waitL))%word |]
+                    * mallocHeap 0
+                  POST[_] Ex wait', Ex waitLen', Ex waitL',
+                    (V "root" ==*> ready, free, wait', waitLen')
+                    * array waitL' wait' * [| allInOrZero ts waitL' |]
+                    * [| length waitL' = wordToNat waitLen' |]
+                    * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+                    * mallocHeap 0];;
+                "j" <- 4 * "i";;
+                "v" <-* "wait" + "j"
+              } else {
+                "v" <- 0
+              }
+            };;
+
+            Assert [Al ts, Al ready, Al free, Al waitL, Al waitL',
+              PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+                * array waitL (V "wait") * [| allInOrZero ts waitL |]
+                * [| length waitL = wordToNat (V "waitLen") |]
+                * [| V "wait" <> 0 |] * [| freeable (V "wait") (length waitL) |]
+                * array waitL' (V "newWait") * [| length waitL' = wordToNat (V "newLen") |]
+                * [| V "newWait" <> 0 |] * [| freeable (V "newWait") (wordToNat (V "newLen")) |]
+                * [| allInOrZero ts (firstn (wordToNat (V "i")) waitL') |]
+                * [| (V "i" < natToW (length waitL'))%word |]
+                * [| V "v" = $0 \/ V "v" %in ts |]
+                * mallocHeap 0
+              POST[_] Ex wait', Ex waitLen', Ex waitL',
+                (V "root" ==*> ready, free, wait', waitLen')
+                * array waitL' wait' * [| allInOrZero ts waitL' |]
+                * [| length waitL' = wordToNat waitLen' |]
+                * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+                * mallocHeap 0];;
+
+            "j" <- 4 * "i";;
+            "newWait" + "j" *<- "v";;
+            "i" <- "i" + 1
+          };;
+
+          Note [dissolve_array];;
+
+          Assert [Al ts, Al ready, Al free, Al newL,
+            PRE[V] [| V "tq" %in ts |] * (V "root" ==*> ready, free, V "wait", V "waitLen")
+              * V "wait" =?> wordToNat (V "waitLen")
+              * [| V "wait" <> 0 |] * [| freeable (V "wait") (wordToNat (V "waitLen")) |]
+              * array newL (V "newWait") * [| length newL = wordToNat (V "newLen") |]
+              * [| V "newWait" <> 0 |] * [| freeable (V "newWait") (wordToNat (V "newLen")) |]
+              * [| allInOrZero ts newL |]
+              * mallocHeap 0
+            POST[_] Ex wait', Ex waitLen', Ex waitL',
+              (V "root" ==*> ready, free, wait', waitLen')
+              * array waitL' wait' * [| allInOrZero ts waitL' |]
+              * [| length waitL' = wordToNat waitLen' |]
+              * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+              * mallocHeap 0];;
+
+          Call "malloc"!"free"(0, "wait", "waitLen")
+          [Al ready, Al free,
+            PRE[V] mallocHeap 0 * (V "root" ==*> ready, free, V "wait", V "waitLen")
+            POST[_] mallocHeap 0 * (V "root" ==*> ready, free, V "newWait", V "newLen")];;
+
+          "root"+8 *<- "newWait";;
+          "root"+12 *<- "newLen";;
+          Return 0
+        }
+      }
     end
   }}.
 
 Ltac finish := auto;
-  try solve [ try rewrite initSize_eq in *;
+  try solve [ fold (@length W) in *; try rewrite initSize_eq in *;
     repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-           end; reflexivity || eauto 2 ].
+             | [ H : length _ = _ |- _ ] => rewrite H
+           end; reflexivity || eauto 2;
+  fold (@firstn W) in *; autorewrite with sepFormula; eauto 2 ].
 
 Lemma selN_updN_eq : forall v a n,
   (n < length a)%nat
@@ -817,7 +1029,7 @@ Qed.
 
 Local Hint Immediate add_incl.
 
-Hint Extern 1 (himp _ (files _ _) (files _ _)) => apply starB_weaken; solve [ sepLemma ].
+Local Hint Extern 1 (himp _ (files _ _) (files _ _)) => apply starB_weaken; solve [ sepLemma ].
 
 Lemma allInOrZero_monotone : forall b ls b',
   allInOrZero b ls
@@ -838,6 +1050,115 @@ Lemma allIn_cons : forall b x ls,
 Qed.
 
 Local Hint Immediate allIn_cons.
+
+Lemma allInOrZero_updN : forall b v ls,
+  allInOrZero b ls
+  -> forall i, v %in b
+    -> allInOrZero b (Array.updN ls i v).
+  induction 1; destruct i; simpl; intuition;
+    constructor; auto; apply IHForall; auto.
+Qed.    
+
+Lemma allInOrZero_upd : forall b ls i v,
+  allInOrZero b ls
+  -> v %in b
+  -> allInOrZero b (Array.upd ls i v).
+  intros; apply allInOrZero_updN; auto.
+Qed.
+
+Local Hint Immediate allInOrZero_upd.
+
+Hint Rewrite roundTrip_0 : N.
+
+Lemma zero_le : forall w : W, natToW 0 <= w.
+  intros; nomega.
+Qed.
+
+Local Hint Immediate zero_le.
+
+Lemma firstn_advance' : forall v n ls,
+  (n < length ls)%nat
+  -> firstn (n + 1) (Array.updN ls n v) = firstn n ls ++ v :: nil.
+  induction n; destruct ls; simpl; intuition.
+  rewrite IHn; auto.
+Qed.
+
+Lemma firstn_advance : forall ls w v,
+  w < natToW (length ls)
+  -> goodSize (length ls)
+  -> firstn (wordToNat w + 1) (Array.upd ls w v) = firstn (wordToNat w) ls ++ v :: nil.
+  unfold Array.upd; intros; apply firstn_advance'; nomega.
+Qed.
+
+Lemma allInOrZero_advance : forall b w ls (v : W),
+  allInOrZero b (firstn (wordToNat w) ls)
+  -> v = 0 \/ v %in b
+  -> w < natToW (length ls)
+  -> goodSize (length ls)
+  -> allInOrZero b (firstn (wordToNat (w ^+ natToW 1)) (Array.upd ls w v)).
+  intros.
+  erewrite <- next; eauto.
+  rewrite firstn_advance; auto; apply Forall_app; auto.
+Qed.
+
+Local Hint Extern 1 (allInOrZero _ (firstn (wordToNat (_ ^+ _)) _)) =>
+  solve [ apply allInOrZero_advance; auto; [ eauto 10 ] ].
+
+Lemma inc : forall n (w : W) l,
+  n = wordToNat l
+  -> w < natToW n
+  -> w ^+ natToW 1 <= l.
+  intros; subst.
+  assert (exists b, w < b) by eauto.
+  pre_nomega.
+  destruct H.
+  erewrite <- next; eauto.
+  unfold natToW in *; rewrite natToWord_wordToNat in *.
+  auto.
+Qed.  
+
+Local Hint Immediate inc.
+
+Theorem natToW_wordToNat : forall w : W,
+  natToW (wordToNat w) = w.
+  intros; apply natToWord_wordToNat.
+Qed.
+
+Hint Rewrite natToW_wordToNat : sepFormula.
+
+Lemma allInOrZero_delivers : forall b ls i,
+  allInOrZero b ls
+  -> i < natToW (length ls)
+  -> goodSize (length ls)
+  -> Array.sel ls i = natToW 0 \/ Array.sel ls i %in b.
+  intros ? ? ? H ? ?; eapply Forall_forall in H; eauto; apply sel_In; auto.
+Qed.
+
+Local Hint Extern 1 (_ \/ _) => solve [ apply allInOrZero_delivers; auto; [ eauto 10 ] ].
+
+Lemma firstn_length : forall A (ls : list A),
+  firstn (length ls) ls = ls.
+  induction ls; simpl; intuition.
+Qed.
+
+Lemma wordToNat_inj : forall sz (u v : word sz),
+  wordToNat u = wordToNat v
+  -> u = v.
+  intros; rewrite <- (natToWord_wordToNat u); rewrite <- (natToWord_wordToNat v); congruence.
+Qed.
+
+Lemma allInOrZero_done : forall b (i : W) ls l,
+  allInOrZero b (firstn (wordToNat i) ls)
+  -> l <= i
+  -> i <= l
+  -> length ls = wordToNat l
+  -> allInOrZero b ls.
+  intros; replace i with l in *.
+  rewrite <- H2 in *; rewrite firstn_length in *; assumption.
+  apply wordToNat_inj; nomega.
+Qed.
+
+Local Hint Immediate allInOrZero_done.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -933,6 +1254,46 @@ Theorem ok : moduleOk m.
   t.
   t.
 
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
