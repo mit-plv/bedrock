@@ -354,6 +354,22 @@ Definition closeS : spec := SPEC("fr") reserving 11
   PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0
   POST[_] sched fs * mallocHeap 0.
 
+Definition readS : spec := SPEC("fr", "buffer", "size") reserving 32
+  Al fs,
+  PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * M.globalInv fs
+  POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * M.globalInv fs'.
+
+Definition writeS : spec := SPEC("fr", "buffer", "size") reserving 32
+  Al fs,
+  PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * M.globalInv fs
+  POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * M.globalInv fs'.
+
+Definition acceptS : spec := SPEC("fr") reserving 32
+  Al fs,
+  PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0 * M.globalInv fs
+  POST[R] Ex fs', Ex fs'', [| fs %<= fs' |] * [| fs' %<= fs'' |]
+    * [| R %in fs'' |] * sched fs'' * mallocHeap 0 * M.globalInv fs'.
+
 (* Specs below this point are for "private" functions. *)
 
 Definition pickNextS : spec := SPEC reserving 13
@@ -392,6 +408,28 @@ Definition declareS : spec := SPEC("tq", "fd", "mode") reserving 16
       * [| length waitL' = wordToNat waitLen' |]
       * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
       * mallocHeap 0.
+
+Definition blockS : spec := SPEC("tq", "fd", "mode") reserving 26
+  Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+  PRE[V] [| V "tq" %in ts |]
+    * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+    * [| ready %in ts |]
+    * sll freeL free * [| allIn fs freeL |]
+    * files ts fs * tqs ts fs
+    * array waitL wait * [| allInOrZero ts waitL |]
+      * [| length waitL = wordToNat waitLen |]
+      * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+    * M.globalInv fs * mallocHeap 0
+  POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+    [| ts %<= ts' |] * [| fs %<= fs' |]
+    * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+    * [| ready' %in ts' |]
+    * sll freeL' free' * [| allIn fs' freeL' |]
+    * files ts' fs' * tqs ts' fs'
+    * array waitL' wait' * [| allInOrZero ts' waitL' |]
+      * [| length waitL' = wordToNat waitLen' |]
+      * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+    * M.globalInv fs' * mallocHeap 0.
 
 Definition initSize := 2.
 
@@ -550,6 +588,228 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "node"+4 *<- "free";;
       "root"+4 *<- "node";;
       Return 0
+    end with bfunction "read"("fr", "buffer", "size", "fd", "tq") [readS]
+      Note [reveal_files_pick];;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size")
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size")
+          * [| V "fr" %in fs' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs' freeL' |]
+          * files ts' fs' * tqs ts' fs'
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      "fd" <-* "fr";;
+      "tq" <-* "fr"+4;;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size")
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size")
+          * [| V "fr" %in fs' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs' freeL' |]
+          * files ts' fs' * tqs ts' fs'
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      Note [reveal_files_pick];;
+
+      Call "scheduler"!"block"("tq", "fd", 0)
+      [PRE[V] V "buffer" =?>8 wordToNat (V "size")
+       POST[_] V "buffer" =?>8 wordToNat (V "size")];;
+
+      "size" <-- Call "sys"!"read"("fd", "buffer", "size")
+      [PRE[_] Emp
+       POST[_] Emp ];;
+      Return "size"
+    end with bfunction "write"("fr", "buffer", "size", "fd", "tq") [writeS]
+      Note [reveal_files_pick];;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size")
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size")
+          * [| V "fr" %in fs' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs' freeL' |]
+          * files ts' fs' * tqs ts' fs'
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      "fd" <-* "fr";;
+      "tq" <-* "fr"+8;;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size")
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size")
+          * [| V "fr" %in fs' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs' freeL' |]
+          * files ts' fs' * tqs ts' fs'
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      Note [reveal_files_pick];;
+
+      Call "scheduler"!"block"("tq", "fd", 1)
+      [PRE[V] V "buffer" =?>8 wordToNat (V "size")
+       POST[_] V "buffer" =?>8 wordToNat (V "size")];;
+
+      "size" <-- Call "sys"!"write"("fd", "buffer", "size")
+      [PRE[_] Emp
+       POST[_] Emp ];;
+      Return "size"
+    end with bfunction "accept"("fr", "fd", "tq") [acceptS]
+      Note [reveal_files_pick];;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "fr" %in fs |]
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[R] Ex p', Ex ts', Ex fs', Ex fs'', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * [| fs' %<= fs'' |]
+          * [| V "fr" %in fs'' |] * [| R %in fs'' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs'' freeL' |]
+          * files ts' fs'' * tqs ts' fs''
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      "fd" <-* "fr";;
+      "tq" <-* "fr"+4;;
+
+      Assert [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * [| V "fr" %in fs |]
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files_pick (V "fr") ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[R] Ex p', Ex ts', Ex fs', Ex fs'', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * [| fs' %<= fs'' |]
+          * [| V "fr" %in fs'' |] * [| R %in fs'' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs'' freeL' |]
+          * files ts' fs'' * tqs ts' fs''
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      Note [reveal_files_pick];;
+
+      Call "scheduler"!"block"("tq", "fd", 0)
+      [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * [| V "fr" %in fs |]
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[R] Ex p', Ex ts', Ex fs', Ex fs'', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * [| fs' %<= fs'' |]
+          * [| V "fr" %in fs'' |] * [| R %in fs'' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs'' freeL' |]
+          * files ts' fs'' * tqs ts' fs''
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      "fd" <-- Call "sys"!"accept"("fd")
+      [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PRE[V] [| V "tq" %in ts |] * [| V "fr" %in fs |]
+          * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files ts fs * tqs ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+            * [| length waitL = wordToNat waitLen |]
+            * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * M.globalInv fs * mallocHeap 0
+        POST[R] Ex p', Ex ts', Ex fs', Ex fs'', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+          [| ts %<= ts' |] * [| fs %<= fs' |] * [| fs' %<= fs'' |]
+          * [| V "fr" %in fs'' |] * [| R %in fs'' |]
+          * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+          * [| ready' %in ts' |]
+          * sll freeL' free' * [| allIn fs'' freeL' |]
+          * files ts' fs'' * tqs ts' fs''
+          * array waitL' wait' * [| allInOrZero ts' waitL' |]
+            * [| length waitL' = wordToNat waitLen' |]
+            * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+          * M.globalInv fs' * mallocHeap 0];;
+
+      "fr" <-- Call "scheduler"!"new"("fd")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "fr"
     end with bfunction "pickNext"("root", "ready", "wait", "waitLen", "blocking", "n") [pickNextS]
       "root" <-* globalSched;;
       "ready" <-* "root";;
@@ -819,6 +1079,115 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
           Return 0
         }
       }
+    end with bfunction "block"("tq", "fd", "mode", "tmp") [blockS]
+       "tmp" <-- Call "threadqs"!"isEmpty"("tq")
+       [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+         PRE[V] [| V "tq" %in ts |]
+           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+           * [| ready %in ts |]
+           * sll freeL free * [| allIn fs freeL |]
+           * files ts fs * tqs ts fs
+           * array waitL wait * [| allInOrZero ts waitL |]
+             * [| length waitL = wordToNat waitLen |]
+             * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+           * M.globalInv fs * mallocHeap 0
+         POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+           [| ts %<= ts' |] * [| fs %<= fs' |]
+           * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+           * [| ready' %in ts' |]
+           * sll freeL' free' * [| allIn fs' freeL' |]
+           * files ts' fs' * tqs ts' fs'
+           * array waitL' wait' * [| allInOrZero ts' waitL' |]
+             * [| length waitL' = wordToNat waitLen' |]
+             * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+           * M.globalInv fs' * mallocHeap 0];;
+
+       If ("tmp" = 1) {
+         Call "scheduler"!"declare"("tq", "fd", "mode")
+         [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+         PRE[V] [| V "tq" %in ts |]
+           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+           * [| ready %in ts |]
+           * sll freeL free * [| allIn fs freeL |]
+           * files ts fs * tqs ts fs
+           * array waitL wait * [| allInOrZero ts waitL |]
+             * [| length waitL = wordToNat waitLen |]
+             * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+           * M.globalInv fs * mallocHeap 0
+         POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+           [| ts %<= ts' |] * [| fs %<= fs' |]
+           * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+           * [| ready' %in ts' |]
+           * sll freeL' free' * [| allIn fs' freeL' |]
+           * files ts' fs' * tqs ts' fs'
+           * array waitL' wait' * [| allInOrZero ts' waitL' |]
+             * [| length waitL' = wordToNat waitLen' |]
+             * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+           * M.globalInv fs' * mallocHeap 0]
+       } else {
+         Skip
+       };;
+
+       "tmp" <-- Call "scheduler"!"pickNext"()
+       [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+         PRE[V, R] [| V "tq" %in ts |] * [| R %in ts |]
+           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+           * [| ready %in ts |]
+           * sll freeL free * [| allIn fs freeL |]
+           * files ts fs * tqs ts fs
+           * array waitL wait * [| allInOrZero ts waitL |]
+             * [| length waitL = wordToNat waitLen |]
+             * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+           * M.globalInv fs * mallocHeap 0
+         POST[_] Ex p', Ex ts', Ex fs', Ex ready', Ex free', Ex wait', Ex waitLen', Ex freeL', Ex waitL',
+           [| ts %<= ts' |] * [| fs %<= fs' |]
+           * globalSched =*> p' * (p' ==*> ready', free', wait', waitLen')
+           * [| ready' %in ts' |]
+           * sll freeL' free' * [| allIn fs' freeL' |]
+           * files ts' fs' * tqs ts' fs'
+           * array waitL' wait' * [| allInOrZero ts' waitL' |]
+             * [| length waitL' = wordToNat waitLen' |]
+             * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+           * M.globalInv fs' * mallocHeap 0];;
+
+       Call "threadqs"!"yield"("tq", "tmp")
+       [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al waitL,
+         PRE[V] [| V "tq" %in ts |]
+           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+           * array waitL wait * [| allInOrZero ts waitL |]
+             * [| length waitL = wordToNat waitLen |]
+             * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+           * tqs ts fs * mallocHeap 0
+         POST[_] Ex wait', Ex waitLen', Ex waitL',
+           globalSched =*> p * (p ==*> ready, free, wait', waitLen')
+           * array waitL' wait' * [| allInOrZero ts waitL' |]
+             * [| length waitL' = wordToNat waitLen' |]
+             * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+           * tqs ts fs * mallocHeap 0];;
+
+       "tmp" <-- Call "threadqs"!"isEmpty"("tq")
+       [Al ts, Al p, Al ready, Al free, Al wait, Al waitLen, Al waitL,
+         PRE[V] [| V "tq" %in ts |]
+           * globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+           * array waitL wait * [| allInOrZero ts waitL |]
+             * [| length waitL = wordToNat waitLen |]
+             * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+           * mallocHeap 0
+         POST[_] Ex wait', Ex waitLen', Ex waitL',
+           globalSched =*> p * (p ==*> ready, free, wait', waitLen')
+           * array waitL' wait' * [| allInOrZero ts waitL' |]
+             * [| length waitL' = wordToNat waitLen' |]
+             * [| wait' <> 0 |] * [| freeable wait' (length waitL') |]
+           * mallocHeap 0];;
+
+       If ("tmp" = 0) {
+         Call "scheduler"!"declare"("tq", "fd", "mode")
+         [PRE[_] Emp POST[_] Emp]
+       } else {
+         Skip
+       };;
+
+       Return 0
     end
   }}.
 
@@ -1160,165 +1529,236 @@ Qed.
 
 Local Hint Immediate allInOrZero_done.
 
+Ltac u := abstract t.
+
 Theorem ok : moduleOk m.
   vcgen.
 
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u
+.  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
 Qed.
 
 Transparent initSize.
