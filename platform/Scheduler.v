@@ -266,9 +266,65 @@ Theorem tqs_empty_bwd : forall w, Emp ===> tqs empty w.
   intros; rewrite tqs_eq; apply tqs'_empty_bwd.
 Qed.
 
+Definition exitize_me a b c d := locals a b c d.
+
+Lemma exitize_locals : forall xx yy ns vs res sp,
+  exitize_me ("rp" :: xx :: yy :: ns) vs res sp ===> Ex vs', locals ("rp" :: "sc" :: "ss" :: nil) (upd (upd vs' "ss" (sel vs yy)) "sc" (sel vs xx)) (res + length ns) sp.
+  unfold exitize_me, locals; intros.
+  simpl; unfold upd; simpl.
+  apply Himp_ex_c; exists (fun x => if string_dec x "rp" then vs "rp" else vs xx).
+  eapply Himp_trans.
+  eapply Himp_star_frame.
+  eapply Himp_star_frame.
+  apply Himp_refl.
+  change (vs "rp" :: vs xx :: vs yy :: toArray ns vs)
+    with (toArray (("rp" :: xx :: yy :: nil) ++ ns) vs).
+  apply ptsto32m_split.
+  apply Himp_refl.
+  destruct (string_dec "rp" "rp"); intuition.
+  destruct (string_dec "sc" "rp"); intuition.
+  unfold array, toArray in *.
+  simpl map in *.
+  simpl length in *.
+
+  Lemma switchedy : forall P Q R S : HProp,
+    (P * (Q * R)) * S ===> P * (Q * (R * S)).
+    sepLemma.
+  Qed.
+
+  eapply Himp_trans; [ apply switchedy | ].
+  
+  Lemma swatchedy : forall P Q R : HProp,
+    P * (Q * R) ===> P * Q * R.
+    sepLemma.
+  Qed.
+
+  eapply Himp_trans; [ | apply swatchedy ].
+  apply Himp_star_frame.
+  sepLemma; NoDup.
+  apply Himp_star_frame.
+  apply Himp_refl.
+  eapply Himp_trans; [ | apply allocated_join ].
+  apply Himp_star_frame.
+  eapply Himp_trans; [ | apply allocated_shift_base ].
+  apply ptsto32m_allocated.
+  simpl.
+  words.
+  eauto.
+  apply allocated_shift_base.
+  rewrite map_length.
+  repeat rewrite <- wplus_assoc.
+  repeat rewrite <- natToW_plus.
+  f_equal.
+  f_equal.
+  omega.
+  rewrite map_length; omega.
+  rewrite map_length; omega.
+Qed.
+
 Definition hints : TacPackage.
   prepare (sched_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd, allocate_array,
-    files_empty_fwd, files_pick_fwd)
+    files_empty_fwd, files_pick_fwd, exitize_locals)
   (sched_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd, free_array, tqs_empty_bwd,
     files_empty_bwd, files_pick_bwd, files_add_bwd).
 Defined.
@@ -335,9 +391,9 @@ Definition spawnS : spec := SPEC("pc", "ss") reserving 26
   PRE[V] [| V "ss" >= $2 |] * sched fs * starting (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] sched fs * mallocHeap 0.
 
-Definition exitS : spec := SPEC("sc", "ss") reserving 2
+Definition exitS : spec := SPEC("ss") reserving 18
   Al fs,
-  PREexit[V] [| V "ss" >= $3 |] * sched fs * M.globalInv fs * mallocHeap 0.
+  PREexit[V] [| V "ss" >= $18 |] * sched fs * M.globalInv fs * mallocHeap 0.
 
 Definition yieldS : spec := SPEC reserving 28
   Al fs,
@@ -443,6 +499,8 @@ Inductive add_a_file : Prop := AddAFile.
 Inductive reveal_files_pick : Prop := RevealFilesPick.
 Local Hint Constructors add_a_file reveal_files_pick.
 
+Notation "'PREexit' [ vs , rv ] pre" := (Q.localsInvariantExit (fun vs rv => pre%qspec%Sep)) (at level 89).
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" @ [Q'.spawnS],
                            "threadqs"!"exit" @ [Q'.exitS], "threadqs"!"yield" @ [Q'.yieldS],
@@ -504,10 +562,23 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
-    end (*with bfunctionNoRet "exit"("sc", "ss") [exitS]
-      "sc" <-* globalSched;;
+    end with bfunctionNoRet "exit"("ss", "tq", "tmp") [exitS]
+      "tq" <-- Call "scheduler"!"pickNext"()
+      [Al ts, Al fs, Al p, Al ready, Al free, Al wait, Al waitLen, Al freeL, Al waitL,
+        PREexit[V, R] globalSched =*> p * (p ==*> ready, free, wait, waitLen)
+          * [| ready %in ts |] * [| R %in ts |] * [| (V "ss" >= $18)%word |]
+          * sll freeL free * [| allIn fs freeL |]
+          * files ts fs
+          * array waitL wait * [| allInOrZero ts waitL |]
+          * [| length waitL = wordToNat waitLen |]
+          * [| wait <> 0 |] * [| freeable wait (length waitL) |]
+          * tqs ts fs * M.globalInv fs * mallocHeap 0 ];;
+
+      "tmp" <- "ss";;
+      "ss" <- "tq";;
+      "tq" <- "tmp";;
       Goto "threadqs"!"exit"
-    end*) with bfunction "yield"("root", "ready", "q") [yieldS]
+    end with bfunction "yield"("root", "ready", "q") [yieldS]
       "root" <-* globalSched;;
       "ready" <-* "root";;
 
@@ -1274,8 +1345,101 @@ Lemma tqs_weaken : forall ts fs fs',
   rewrite tqs_eq; intros; apply tqs'_weaken; hnf; intuition.
 Qed.
 
+Ltac funky_nomega :=
+  simpl; pre_nomega;
+    match goal with
+      | [ H : (wordToNat (sel _ "ss") >= _)%nat |- _ ] =>
+        rewrite wordToNat_natToWord_idempotent in H by reflexivity
+      | [ H : (_ <= wordToNat (sel _ "ss"))%nat |- _ ] =>
+        rewrite wordToNat_natToWord_idempotent in H by reflexivity
+    end;
+    try match goal with
+          | [ |- (wordToNat (sel _ "ss") >= _)%nat ] => rewrite wordToNat_natToWord_idempotent by reflexivity
+        end; omega.
+
 Ltac t := solve [
   match goal with
+    | [ |- context[Q'.Q.localsInvariantExit] ] =>
+      match goal with
+        | [ |- forall stn_st specs, interp specs _ -> interp specs _ ] =>
+          match goal with
+            | [ |- context[evolve] ] =>
+              unfold globalInv; post; evaluate hints;
+                match goal with
+                  | [ H : context[locals ?a ?b ?c ?d] |- _ ] =>
+                    change (locals a b c d) with (exitize_me a b c d) in H
+                end; evaluate hints;
+                match goal with
+                  | [ H : context[?ss - 4 + 1] |- _ ] =>
+                    replace (ss - 4 + 1) with (ss - 3) in H by funky_nomega
+                end;
+                repeat match goal with
+                         | [ |- Logic.ex _ ] => eexists
+                         | [ |- _ /\ _ ] => split
+                         | [ H : context[locals _ ?vs _ _] |- context[locals _ ?vs' _ _] ] =>
+                           equate vs vs'; descend; step hints
+                       end; unfold natToW in *; descend; finish; funky_nomega
+            | _ =>
+              post; evaluate hints;
+              match goal with
+                | [ H : context[locals ?ns ?vs (?ss - 2) ?p]
+                  |- context[locals ?ns' _ (wordToNat (sel _ "ss") - 4) _] ] =>
+                let ns'' := peelPrefix ns ns' in
+                  let avail := constr:(ss - 2) in
+                    let avail' := constr:(ss - 4) in
+                      change (locals ns vs avail p) with (locals_in ns vs avail p ns'' ns' avail') in H;
+                        assert (ok_in ns avail ns'' ns' avail')%nat
+                          by (split; [
+                            reflexivity
+                            | split; [ funky_nomega
+                              | split; [ NoDup
+                                | simpl; omega ] ] ])
+              end; evaluate hints;
+              repeat match goal with
+                       | [ |- Logic.ex _ ] => eexists
+                       | [ |- _ /\ _ ] => split
+                       | [ H : context[locals _ ?vs _ _] |- context[locals _ ?vs' _ _] ] =>
+                         equate vs vs'; descend; step hints
+                     end; finish
+          end
+        | [ |- forall stn st specs, interp specs _ -> forall rp : W, _ ] =>
+          post; evaluate hints;
+          match goal with
+            | [ H : context[locals ?ns ?vs (?ss - 4) ?p]
+              |- context[locals ("rp" :: nil) _ 13 _] ] =>
+            let avail := constr:(ss - 4) in
+              let offset := eval simpl in (4 * List.length ns)%nat in
+                change (locals ns vs avail p) with (locals_call ns vs avail p ("rp" :: nil) 13 offset) in H;
+                  assert (ok_call ns ("rp" :: nil) avail 13 offset)%nat
+                    by (split; [ funky_nomega
+                      | split; [ funky_nomega
+                        | split; [ NoDup
+                          | reflexivity ] ] ])
+          end; unfold Q'.Q.localsInvariantExit in *; sep hints;
+          try match goal with
+                | [ |- himp _ ?pre ?post ] =>
+                  match post with
+                    | context[locals ?ns ?vs ?avail _] =>
+                      match pre with
+                        | context[excessStack _ ns ?availAlt ?ns' ?avail'] =>
+                          match pre with
+                            | context[locals ns ?vs' 0 ?sp] =>
+                              match goal with
+                                | _ => equate vs vs';
+                                  let offset := eval simpl in (4 * List.length ns)%nat in
+                                    rewrite (create_locals_return ns' avail' ns avail offset);
+                                      assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                        funky_nomega
+                                        | reflexivity ] ); autorewrite with sepFormula;
+                                      generalize dependent vs'; intros; step hints
+                              end
+                          end
+                      end
+                  end
+              end; finish; funky_nomega
+        | _ => t'
+      end
+
     | [ |- context[starting] ] =>
       match goal with
         | [ |- context[Q'.starting] ] => spawn
@@ -1529,236 +1693,19 @@ Qed.
 
 Local Hint Immediate allInOrZero_done.
 
-Ltac u := abstract t.
+Lemma nonzero : forall sp sp' sp'' : W,
+  sp ^- $16 = natToW 0
+  -> sp' = sp'' ^+ natToW 16
+  -> sp'' <> 0
+  -> sp = sp'
+  -> False.
+  intros; subst; apply H1; unfold natToW in *; ring_simplify in H; auto.
+Qed.
+
+Local Hint Immediate nonzero.
 
 Theorem ok : moduleOk m.
-  vcgen.
-
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u
-.  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
+  vcgen; abstract t.
 Qed.
 
 Transparent initSize.
