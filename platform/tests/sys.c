@@ -78,6 +78,28 @@ unsigned _sys_accept(unsigned sock) {
   return new_sock;
 }
 
+unsigned _sys_read(unsigned sock, void *buf, unsigned count) {
+  ssize_t n = read(sock, buf, count);
+
+  if (n == -1) {
+    perror("read");
+    exit(1);
+  }
+
+  return n;
+}
+
+unsigned _sys_write(unsigned sock, void *buf, unsigned count) {
+  ssize_t n = write(sock, buf, count);
+
+  if (n == -1) {
+    perror("write");
+    exit(1);
+  }
+
+  return n;
+}
+
 static unsigned epoll, num_fds, num_outstanding;
 static uint32_t *fds;
 
@@ -182,5 +204,8 @@ void _sys_close(unsigned fd) {
     --num_outstanding;
   }
 
-  close(fd);
+  if (close(fd) == -1) {
+    perror("close");
+    exit(1);
+  }
 }

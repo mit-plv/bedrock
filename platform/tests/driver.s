@@ -7,8 +7,8 @@
         .globl _sys_printInt, sys_printInt
 	.global _sys_listen, sys_listen
 	.global _sys_accept, sys_accept
-	.globl sys_read
-	.globl sys_write
+	.globl _sys_read, sys_read
+	.globl _sys_write, sys_write
         .global _sys_declare, sys_declare
 	.global _sys_wait, sys_wait
         .global _sys_close, sys_close
@@ -51,7 +51,7 @@ sys_read:
 	addl	$bedrock_heap, %esi
 	movl	bedrock_heap+12(%rbx), %edx
         pushq   $sys_ret
-        jmp     read
+        jmp     _sys_read
 
 sys_write:
 	pushq	%rsi
@@ -60,7 +60,7 @@ sys_write:
 	addl	$bedrock_heap, %esi
 	movl	bedrock_heap+12(%rbx), %edx
         pushq   $sys_ret
-        jmp     write
+        jmp     _sys_write
 
 sys_declare:
 	pushq	%rsi
