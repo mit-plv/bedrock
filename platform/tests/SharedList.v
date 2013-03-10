@@ -13,7 +13,7 @@ Module M'''.
 
   Open Scope Sep_scope.
 
-  Definition globalInv : HProp := Ex p, globalList =*> p * Ex ls, sll ls p.
+  Definition globalInv (_ : files) : HProp := Ex p, globalList =*> p * Ex ls, sll ls p.
 End M'''.
 
 Ltac unf := unfold M'''.globalSched, M'''.globalInv in *.
@@ -25,8 +25,8 @@ Export T M'''.
 
 Ltac sep := T.sep unf SinglyLinkedList.hints.
 
-Definition handlerS := SPEC reserving 39
-  PREmain[_] sched * globalInv * mallocHeap 0.
+Definition handlerS := SPEC reserving 49
+  Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0.
 
 Definition mainS := SPEC reserving 49
   PREmain[_] globalSched =?> 1 * globalList =?> 1 * mallocHeap 0.
@@ -38,10 +38,10 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
     bfunctionNoRet "handler"("i", "p", "r") [handlerS]
       "i" <- 0;; (* Loop counter *)
 
-      [PREmain[_] sched * globalInv * mallocHeap 0]
+      [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0]
       While ("i" < 10) {
         "r" <-- Call "malloc"!"malloc"(0, 2)
-        [PREmain[V, R] [| R <> 0 |] * [| freeable R 2 |] * R =?> 2 * sched * globalInv * mallocHeap 0];;
+        [Al fs, PREmain[V, R] [| R <> 0 |] * [| freeable R 2 |] * R =?> 2 * sched fs * globalInv fs * mallocHeap 0];;
 
         "r" *<- "i";;
         "p" <-* globalList;;
@@ -50,38 +50,38 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "i" <- "i" + 1;;
 
         Yield
-        [PREmain[_] sched * globalInv * mallocHeap 0]
+        [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0]
       };;
 
       "p" <-* globalList;;
-      [PREmain[V] sched * globalList =*> V "p" * Ex ls, sll ls (V "p") * mallocHeap 0]
+      [Al fs, PREmain[V] sched fs * globalList =*> V "p" * Ex ls, sll ls (V "p") * mallocHeap 0]
       While ("p" <> 0) {
         "r" <- "p";;
         "p" <-* "p" + 4;;
         globalList *<- "p";;
         Call "malloc"!"free"(0, "r", 2)
-        [PREmain[_] sched * globalInv * mallocHeap 0];;
+        [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0];;
 
         Yield
-        [PREmain[_] sched * globalInv * mallocHeap 0];;
+        [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0];;
 
         "p" <-* globalList
       };;
 
-      Exit 40
+      Exit 50
     end with bfunctionNoRet "main"("x", "y") [mainS]
       globalList *<- 0;;
 
       Init
-      [PREmain[_] sched * globalInv * mallocHeap 0];;
+      [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0];;
 
-      Spawn("test"!"handler", 40)
-      [PREmain[_] sched * globalInv * mallocHeap 0];;
+      Spawn("test"!"handler", 50)
+      [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0];;
 
-      Spawn("test"!"handler", 40)
-      [PREmain[_] sched * globalInv * mallocHeap 0];;
+      Spawn("test"!"handler", 50)
+      [Al fs, PREmain[_] sched fs * globalInv fs * mallocHeap 0];;
 
-      Go 50
+      Exit 50
     end
   }}.
 

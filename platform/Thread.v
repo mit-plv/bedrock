@@ -15,6 +15,8 @@ Notation "'PREmain' [ vs ] pre" := (localsInvariantMain (fun vs _ => pre%qspec%S
 Notation "'PREmain' [ vs , rv ] pre" := (localsInvariantMain (fun vs rv => pre%qspec%Sep))
   (at level 89).
 
+Definition files := Bags.W_Bag.bag.
+
 
 Module Make(M : Scheduler.S).
 Import M.
@@ -61,10 +63,7 @@ Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.leng
 
 Notation "'Init' [ afterCall ]" := (Init_ (RET afterCall)) : SP_scope.
 
-Definition Exit (ss : W) : chunk := ($[Sp+8] <- ss;;
-  Goto "scheduler"!"exit")%SP.
-
-Definition Go (ss : W) : chunk := ($[Sp+8] <- ss;;
+Definition Exit (ss : W) : chunk := ($[Sp+4] <- ss;;
   Goto "scheduler"!"exit")%SP.
 
 Definition Yield_ (afterCall : list string -> nat -> assert) : chunk :=
@@ -121,7 +120,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   makeVcs
   Note_ Note__
   IGotoStar_ IGotoStar AssertStar_ AssertStar
-  Init_ Exit Go Yield_ Recall Spawn_
+  Init_ Exit Yield_ Recall Spawn_
 ].
 
 Ltac vcgen := structured_auto vcgen_simp;
@@ -130,8 +129,8 @@ Ltac vcgen := structured_auto vcgen_simp;
 
 Definition exitize_me a b c d := locals a b c d.
 
-Lemma exitize_locals : forall xx yy ns vs res sp,
-  exitize_me ("rp" :: xx :: yy :: ns) vs res sp ===> Ex vs', locals ("rp" :: "sc" :: "ss" :: nil) (upd vs' "ss" (sel vs yy)) (res + length ns) sp.
+Lemma exitize_locals : forall xx ns vs res sp,
+  exitize_me ("rp" :: xx :: ns) vs res sp ===> Ex vs', locals ("rp" :: "ss" :: nil) (upd vs' "ss" (sel vs xx)) (res + length ns) sp.
   unfold exitize_me, locals; intros.
   simpl; unfold upd; simpl.
   apply Himp_ex_c; exists (fun x => if string_dec x "rp" then vs "rp" else vs xx).
@@ -139,12 +138,11 @@ Lemma exitize_locals : forall xx yy ns vs res sp,
   eapply Himp_star_frame.
   eapply Himp_star_frame.
   apply Himp_refl.
-  change (vs "rp" :: vs xx :: vs yy :: toArray ns vs)
-    with (toArray (("rp" :: xx :: yy :: nil) ++ ns) vs).
+  change (vs "rp" :: vs xx :: toArray ns vs)
+    with (toArray (("rp" :: xx :: nil) ++ ns) vs).
   apply ptsto32m_split.
   apply Himp_refl.
   destruct (string_dec "rp" "rp"); intuition.
-  destruct (string_dec "sc" "rp"); intuition.
   unfold array, toArray in *.
   simpl map in *.
   simpl length in *.
@@ -200,17 +198,16 @@ Ltac sep unf hints := unf; unfold localsInvariantMain;
 
     (* exit *)
     | [ |- context[Q.localsInvariantExit] ] =>
-      post; evaluate hints; [ unfold natToW in *; congruence | ];
+      post; evaluate hints;
       match goal with
         | [ H : context[locals ?a ?b ?c ?d] |- _ ] =>
           change (locals a b c d) with (exitize_me a b c d) in H
       end;
-      evaluate exitize_hints; post; descend; [
-        | match goal with
-            | [ _ : context[locals _ ?vs _ _ ] |- _ ] =>
-              unf; instantiate (1 := vs); descend; step hints
-          end
-      ]; AutoSep.sep hints
+      evaluate exitize_hints; post; descend;
+      try match goal with
+            | [ _ : context[locals _ ?vs _ _ ] |- context[locals _ ?vs' _ _] ] =>
+              unf; equate vs vs'
+          end; AutoSep.sep hints
 
     | _ => AutoSep.sep hints
   end.
@@ -250,6 +247,28 @@ Hint Extern 1 False => eapply eq_neq_0; [ match goal with
           | _ = _ => apply H
         end
     end | words_rewr ].
+
 Hint Extern 1 (freeable _ _) => eapply freeable_cong; [ eassumption | words_rewr ].
+
+Definition m0 := link Malloc.m Queue.m.
+Definition m1 := link Q''.m m0.
+Definition m2 := link Q''.Q'.m m1.
+Definition m := link Q''.Q'.Q.m m2.
+
+Lemma ok0 : moduleOk m0.
+  link Malloc.ok Queue.ok.
+Qed.
+
+Lemma ok1 : moduleOk m1.
+  link Q''.ok ok0.
+Qed.
+
+Lemma ok2 : moduleOk m2.
+  link Q''.Q'.ok ok1.
+Qed.
+
+Theorem ok : moduleOk m.
+  link Q''.Q'.Q.ok ok2.
+Qed.
 
 End Make.
