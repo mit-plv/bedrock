@@ -45,39 +45,19 @@ Section boot.
       end
     }}.
 
-  Theorem ok : moduleOk boot.
+  Theorem ok0 : moduleOk boot.
     vcgen; abstract (unfold globalSched, localsInvariantMain, M'.globalList, M'.globalSched; genesis).
   Qed.
 
-  Definition m0 := link Malloc.m boot.
-  Definition m1 := link Queue.m m0.
-  Definition m2 := link E.T.Q''.m m1.
-  Definition m3 := link E.T.Q''.Q'.m m2.
-  Definition m4 := link E.T.Q''.Q'.Q.m m3.
-  Definition m5 := link E.m m4.
-
-  Lemma ok0 : moduleOk m0.
-    link Malloc.ok ok.
-  Qed.
+  Definition m1 := link boot E.T.m.
+  Definition m := link E.m m1.
 
   Lemma ok1 : moduleOk m1.
-    link Queue.ok ok0.
+    link ok0 E.T.ok.
   Qed.
 
-  Lemma ok2 : moduleOk m2.
-    link E.T.Q''.ok ok1.
-  Qed.
-
-  Lemma ok3 : moduleOk m3.
-    link E.T.Q''.Q'.ok ok2.
-  Qed.
-
-  Lemma ok4 : moduleOk m4.
-    link E.T.Q''.Q'.Q.ok ok3.
-  Qed.
-
-  Lemma ok5 : moduleOk m5.
-    link E.ok ok4.
+  Theorem ok : moduleOk m.
+    link E.ok ok1.
   Qed.
 
   Variable stn : settings.
@@ -88,11 +68,11 @@ Section boot.
     -> l1 = l2.
 
   Hypothesis agree : forall l pre bl,
-    LabelMap.MapsTo l (pre, bl) (XCAP.Blocks m5)
+    LabelMap.MapsTo l (pre, bl) (XCAP.Blocks m)
     -> exists w, Labels stn l = Some w
       /\ prog w = Some bl.
 
-  Hypothesis agreeImp : forall l pre, LabelMap.MapsTo l pre (XCAP.Imports m5)
+  Hypothesis agreeImp : forall l pre, LabelMap.MapsTo l pre (XCAP.Imports m)
     -> exists w, Labels stn l = Some w
       /\ prog w = None.
 
@@ -109,7 +89,7 @@ Section boot.
   Hypothesis mem_high : forall w, $(size * 4) <= w -> st.(Mem) w = None.
 
   Theorem safe : sys_safe stn prog (w, st).
-    safety ok5.
+    safety ok.
   Qed.
 End boot.
 

@@ -782,7 +782,7 @@ Ltac safety ok :=
     link_simp; unfold labelSys, labelSys'; simpl; tauto
     | apply ok
     | apply LabelMap.find_2; link_simp; reflexivity
-    | propxFo; descend; apply materialize_allocated; assumption ].
+    | propxFo; apply materialize_allocated; assumption ].
 
 Hint Immediate goodSize_heapSize heapSizeLowerBound' bootstrap_Sp_nonzero bootstrap_Sp_freeable.
 Hint Rewrite heapSize_roundTrip using assumption : sepFormula.

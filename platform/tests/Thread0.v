@@ -1,7 +1,6 @@
 Require Import Thread.
 Export Thread.
 
-
 Module Type S.
   Variable globalSched : W.
 End S.
@@ -14,7 +13,7 @@ Module M'.
 
   Open Scope Sep_scope.
 
-  Definition globalInv : HProp := Emp.
+  Definition globalInv (_ : files) : HProp := Emp.
 End M'.
 
 Ltac unf := unfold M'.globalInv in *.

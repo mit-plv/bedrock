@@ -7,8 +7,8 @@ Import M.
 Module T := Thread0.Make(M).
 Import T.
 
-Definition handlerS := SPEC reserving 39
-  PREmain[_] sched * mallocHeap 0.
+Definition handlerS := SPEC reserving 49
+  Al fs, PREmain[_] sched fs * mallocHeap 0.
 
 Definition mainS := SPEC reserving 49
   PREmain[_] M.globalSched =?> 1 * mallocHeap 0.
@@ -18,16 +18,16 @@ Definition m := bimport [[ "scheduler"!"init" @ [initS], "scheduler"!"exit" @ [e
   bmodule "test" {{
     bfunctionNoRet "handler"("x", "y") [handlerS]
       Yield
-      [PREmain[_] sched * mallocHeap 0];;
-      Exit 40
+      [Al fs, PREmain[_] sched fs * mallocHeap 0];;
+      Exit 50
     end with bfunctionNoRet "main"("x", "y") [mainS]
       Init
-      [PREmain[_] sched * mallocHeap 0];;
+      [Al fs, PREmain[_] sched fs * mallocHeap 0];;
 
-      Spawn("test"!"handler", 40)
-      [PREmain[_] sched * mallocHeap 0];;
+      Spawn("test"!"handler", 50)
+      [Al fs, PREmain[_] sched fs * mallocHeap 0];;
 
-      Go 50
+      Exit 50
     end
   }}.
 
