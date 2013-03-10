@@ -772,8 +772,7 @@ Definition genesisHints : TacPackage.
   prepare genesis tt.
 Defined.
 
-Ltac genesis := solve [ sep genesisHints; eauto
-  | post; evaluate genesisHints; simpl in *; sep genesisHints; eauto ].
+Ltac genesis := post; evaluate genesisHints; simpl in *; sep genesisHints; eauto.
 
 Require Import Safety.
 

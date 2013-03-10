@@ -133,6 +133,8 @@ Definition testS (t : test) : string :=
     | Le => "na"
   end.
 
+Check evalTest.
+
 Definition jmpS (j : jmp) : string :=
   match j with
     | Uncond (RvLabel lab) =>
@@ -141,12 +143,18 @@ Definition jmpS (j : jmp) : string :=
       rvalueSinto rv edx
       ++ tab ++ "jmp *%rdx" ++ nl
     | Cond rv1 t rv2 lab1 lab2 =>
-      let (rv1I, rv1S) := rvalueS rv1 ecx in
-      let (rv2I, rv2S) := (if rvalueIsMem rv1 then rvalueSnomem else rvalueS) rv2 edx in
-        rv1I ++ rv2I
-        ++ tab ++ "cmpl " ++ rv2S ++ "," ++ rv1S ++ nl
-        ++ tab ++ "j" ++ testS t ++ " " ++ labelS lab1 ++ nl
-        ++ tab ++ "jmp " ++ labelS lab2 ++ nl
+      match rv1, rv2 with
+        | RvImm w1, RvImm w2 => if evalTest t w1 w2
+          then tab ++ "jmp " ++ labelS lab1 ++ nl
+          else tab ++ "jmp " ++ labelS lab2 ++ nl
+        | _, _ =>
+          let (rv1I, rv1S) := rvalueS rv1 ecx in
+          let (rv2I, rv2S) := (if rvalueIsMem rv1 then rvalueSnomem else rvalueS) rv2 edx in
+            rv1I ++ rv2I
+            ++ tab ++ "cmpl " ++ rv2S ++ "," ++ rv1S ++ nl
+            ++ tab ++ "j" ++ testS t ++ " " ++ labelS lab1 ++ nl
+            ++ tab ++ "jmp " ++ labelS lab2 ++ nl
+      end
   end.
 
 Definition blockS (b : block) : string :=
