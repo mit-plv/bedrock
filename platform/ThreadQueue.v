@@ -21,6 +21,21 @@ Module Type S.
   Variable globalInv : world -> W -> hpropB (tq_args world :: nil).
 End S.
 
+Definition localsInvariantExit (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
+  (ns : list string) (_ : nat) : assert :=
+  st ~> let sp := adjustSp st#Sp in
+    [| sp <> 0 |]
+    /\ Ex vs, let res := wordToNat (sel vs "ss") - S (length ns) in
+      [| freeable sp (wordToNat (sel vs "ss")) |]
+      /\ qspecOut (pre (sel vs) st#Rv) (fun pre =>
+        ![ locals ("rp" :: ns) vs res sp * pre ] st).
+
+Notation "'PREexit' [ vs ] pre" := (localsInvariantExit (fun vs _ => pre%qspec%Sep))
+  (at level 89).
+
+Notation "'PREexit' [ vs , rv ] pre" := (localsInvariantExit (fun vs rv => pre%qspec%Sep))
+  (at level 89).
+
 Module Make(M : S).
 Import M.
 
@@ -323,21 +338,6 @@ Definition spawnS : spec := SPEC("sc", "pc", "ss") reserving 18
   Al w,
   PRE[V] [| V "ss" >= $2 |] * tq w (V "sc") * starting w (V "sc") (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
   POST[_] tq w (V "sc") * mallocHeap 0.
-
-Definition localsInvariantExit (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
-  (ns : list string) (_ : nat) : assert :=
-  st ~> let sp := adjustSp st#Sp in
-    [| sp <> 0 |]
-    /\ Ex vs, let res := wordToNat (sel vs "ss") - S (length ns) in
-      [| freeable sp (wordToNat (sel vs "ss")) |]
-      /\ qspecOut (pre (sel vs) st#Rv) (fun pre =>
-        ![ locals ("rp" :: ns) vs res sp * pre ] st).
-
-Notation "'PREexit' [ vs ] pre" := (localsInvariantExit (fun vs _ => pre%qspec%Sep))
-  (at level 89).
-
-Notation "'PREexit' [ vs , rv ] pre" := (localsInvariantExit (fun vs rv => pre%qspec%Sep))
-  (at level 89).
 
 Definition localsInvariantExit' (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (_ : nat) : assert :=

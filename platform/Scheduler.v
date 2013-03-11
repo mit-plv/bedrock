@@ -1,26 +1,6 @@
-Require Import AutoSep Malloc Bags ThreadQueues SinglyLinkedList.
+Require Import AutoSep Malloc Bags ThreadQueue ThreadQueues SinglyLinkedList MoreArrays.
 Import W_Bag.
 Export AutoSep Malloc W_Bag.
-
-Lemma equiv_empty : forall ls, empty %= bagify ls
-  -> ls = nil.
-  unfold bagify; destruct ls; simpl; intuition.
-  eapply equiv_symm in H; eapply equiv_trans in H; [ | eapply equiv_symm; eapply add_something ].
-  elimtype False.
-  generalize dependent (fold_left add ls empty); intros.
-  bags.
-  specialize (H a).
-  destruct (W_Key.eq_dec a a); congruence.
-Qed.
-
-Theorem starB_empty_fwd : forall P, starB P empty ===> Emp.
-  unfold starB; intros; intro.
-  apply himp_ex_p; intros.
-  apply himp_star_pure_c; intro H.
-  apply equiv_empty in H; subst.
-  reflexivity.
-Qed.
-
 
 Module Type S.
   Parameter globalSched : W.
@@ -28,6 +8,57 @@ Module Type S.
   Parameter globalInv : bag -> HProp.
   (* Argument is set of available file objects. *)
 End S.
+
+Section specs.
+  Variable globalSched : W.
+  Variables sched globalInv : bag -> HProp.
+  Variable starting : W -> nat -> HProp.
+
+  Definition initGS : spec := SPEC reserving 18
+    PRE[_] globalSched =?> 1 * mallocHeap 0
+    POST[R] sched empty * mallocHeap 0.
+
+  Definition spawnGS : spec := SPEC("pc", "ss") reserving 26
+    Al fs,
+    PRE[V] [| V "ss" >= $2 |] * sched fs * starting (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
+    POST[_] sched fs * mallocHeap 0.
+
+  Definition exitGS : spec := SPEC("ss") reserving 18
+    Al fs,
+    PREexit[V] [| V "ss" >= $18 |] * sched fs * globalInv fs * mallocHeap 0.
+
+  Definition yieldGS : spec := SPEC reserving 28
+    Al fs,
+    PRE[_] sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0.
+
+  Definition listenGS : spec := SPEC("port") reserving 25
+    Al fs,
+    PRE[_] sched fs * mallocHeap 0
+    POST[R] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * [| R %in fs' |].
+
+  Definition closeGS : spec := SPEC("fr") reserving 11
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0
+    POST[_] sched fs * mallocHeap 0.
+
+  Definition readGS : spec := SPEC("fr", "buffer", "size") reserving 32
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * globalInv fs
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * globalInv fs'.
+
+  Definition writeGS : spec := SPEC("fr", "buffer", "size") reserving 32
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * globalInv fs
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * globalInv fs'.
+
+  Definition acceptGS : spec := SPEC("fr") reserving 32
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0 * globalInv fs
+    POST[R] Ex fs', Ex fs'', [| fs %<= fs' |] * [| fs' %<= fs'' |]
+    * [| R %in fs'' |] * sched fs'' * mallocHeap 0 * globalInv fs'.
+End specs.
+  
 
 Module Make(M : S).
 Import M.
@@ -196,75 +227,6 @@ End Sched.
 Import Sched.
 Export Sched.
 
-Lemma allocate_array' : forall p n offset,
-  allocated p offset n ===> Ex ls, [| length ls = n |] * array ls (p ^+ $(offset)).
-  induction n; simpl.
-
-  sepLemma.
-  instantiate (1 := nil); auto.
-  sepLemma.
-
-  intros; sepLemmaLhsOnly.
-  etransitivity; [ eapply himp_star_frame; [ apply IHn | reflexivity ] | ]; clear IHn.
-  sepLemmaLhsOnly.
-  apply himp_ex_c; exists (x :: x0).
-  sepLemma.
-  etransitivity; [ eapply himp_star_frame; [ apply ptsto32m'_in | reflexivity ] | ].
-  etransitivity; [ | apply ptsto32m'_out ].
-  simpl.
-  destruct offset; simpl.
-  replace (p ^+ natToW 0) with p by words; sepLemma.
-  etransitivity; [ | apply ptsto32m'_shift_base ].
-  instantiate (1 := 4); reflexivity.
-  auto.
-  replace (p ^+ natToW (S offset) ^+ $0) with (p ^+ natToW (S offset)) by words.
-  sepLemma.
-  etransitivity; [ | apply ptsto32m'_shift_base ].
-  instantiate (1 := 4).
-  rewrite <- wplus_assoc.
-  rewrite <- natToW_plus.
-  replace (S offset + 4) with (S (S (S (S (S offset))))) by omega.
-  reflexivity.
-  auto.
-Qed.
-
-Inductive make_array : Prop := MakeArray.
-
-Hint Constructors make_array.
-
-Lemma allocate_array : forall p n,
-  p = p
-  -> make_array
-  -> p =?> n ===> Ex ls, [| length ls = n |] * array ls p.
-  intros; eapply Himp_trans; [ apply allocate_array' | ].
-  replace (p ^+ $0) with p by words; apply Himp_refl.
-Qed.
-
-Lemma free_array' : forall p n offset,
-  Ex ls, [| length ls = n |] * array ls (p ^+ $(offset)) ===> allocated p offset n.
-  sepLemma.
-  etransitivity; [ apply ptsto32m_allocated | ].
-  etransitivity; [ apply allocated_shift_base | ].
-  3: sepLemma.
-  unfold natToW; W_eq.
-  auto.
-Qed.
-
-Inductive dissolve_array : Prop := DissolveArray.
-
-Hint Constructors dissolve_array.
-
-Lemma free_array : forall p n,
-  p = p
-  -> dissolve_array
-  -> Ex ls, [| length ls = n |] * array ls p ===> p =?> n.
-  intros; eapply Himp_trans; [ | apply free_array' ].
-  replace (p ^+ $0) with p by words; apply Himp_refl.
-Qed.
-
-Theorem tqs_empty_bwd : forall w, Emp ===> tqs empty w.
-  intros; rewrite tqs_eq; apply tqs'_empty_bwd.
-Qed.
 
 Definition exitize_me a b c d := locals a b c d.
 
@@ -333,9 +295,9 @@ Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
     /\ Al st : settings * state, Al vs, Al fs,
-      [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
-      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched fs * M.globalInv fs * mallocHeap 0] ] st
-      ---> #0 st)%PropX.
+    [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
+    /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched fs * M.globalInv fs * mallocHeap 0] ] st
+    ---> #0 st)%PropX.
 
 Lemma starting_elim : forall specs pc ss P stn st,
   interp specs (![ starting pc ss * P ] (stn, st))
@@ -379,52 +341,15 @@ Lemma other_starting_intro : forall specs ts w pc ss P stn st,
 Qed.
 
 
-Local Notation "'PREexit' [ vs ] pre" := (Q'.Q.localsInvariantExit (fun vs _ => pre%qspec%Sep))
-  (at level 89).
-
-Definition initS : spec := SPEC reserving 18
-  PRE[_] globalSched =?> 1 * mallocHeap 0
-  POST[R] sched empty * mallocHeap 0.
-
-Definition spawnS : spec := SPEC("pc", "ss") reserving 26
-  Al fs,
-  PRE[V] [| V "ss" >= $2 |] * sched fs * starting (V "pc") (wordToNat (V "ss") - 1) * mallocHeap 0
-  POST[_] sched fs * mallocHeap 0.
-
-Definition exitS : spec := SPEC("ss") reserving 18
-  Al fs,
-  PREexit[V] [| V "ss" >= $18 |] * sched fs * M.globalInv fs * mallocHeap 0.
-
-Definition yieldS : spec := SPEC reserving 28
-  Al fs,
-  PRE[_] sched fs * M.globalInv fs * mallocHeap 0
-  POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * M.globalInv fs' * mallocHeap 0.
-
-Definition listenS : spec := SPEC("port") reserving 25
-  Al fs,
-  PRE[_] sched fs * mallocHeap 0
-  POST[R] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * [| R %in fs' |].
-
-Definition closeS : spec := SPEC("fr") reserving 11
-  Al fs,
-  PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0
-  POST[_] sched fs * mallocHeap 0.
-
-Definition readS : spec := SPEC("fr", "buffer", "size") reserving 32
-  Al fs,
-  PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * M.globalInv fs
-  POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * M.globalInv fs'.
-
-Definition writeS : spec := SPEC("fr", "buffer", "size") reserving 32
-  Al fs,
-  PRE[V] [| V "fr" %in fs |] * V "buffer" =?>8 wordToNat (V "size") * sched fs * mallocHeap 0 * M.globalInv fs
-  POST[_] Ex fs', [| fs %<= fs' |] * V "buffer" =?>8 wordToNat (V "size") * sched fs' * mallocHeap 0 * M.globalInv fs'.
-
-Definition acceptS : spec := SPEC("fr") reserving 32
-  Al fs,
-  PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0 * M.globalInv fs
-  POST[R] Ex fs', Ex fs'', [| fs %<= fs' |] * [| fs' %<= fs'' |]
-    * [| R %in fs'' |] * sched fs'' * mallocHeap 0 * M.globalInv fs'.
+Definition initS := initGS globalSched sched.
+Definition spawnS := spawnGS sched starting.
+Definition exitS := exitGS sched M.globalInv.
+Definition yieldS := yieldGS sched M.globalInv.
+Definition listenS := listenGS sched.
+Definition closeS := closeGS sched.
+Definition readS := readGS sched M.globalInv.
+Definition writeS := writeGS sched M.globalInv.
+Definition acceptS := acceptGS sched M.globalInv.
 
 (* Specs below this point are for "private" functions. *)
 
@@ -498,8 +423,6 @@ Opaque initSize.
 Inductive add_a_file : Prop := AddAFile.
 Inductive reveal_files_pick : Prop := RevealFilesPick.
 Local Hint Constructors add_a_file reveal_files_pick.
-
-Notation "'PREexit' [ vs , rv ] pre" := (Q.localsInvariantExit (fun vs rv => pre%qspec%Sep)) (at level 89).
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "threadqs"!"alloc" @ [Q'.allocS], "threadqs"!"spawn" @ [Q'.spawnS],
@@ -1269,21 +1192,6 @@ Ltac finish := auto;
            end; reflexivity || eauto 2;
   fold (@firstn W) in *; autorewrite with sepFormula; eauto 2 ].
 
-Lemma selN_updN_eq : forall v a n,
-  (n < length a)%nat
-  -> Array.selN (Array.updN a n v) n = v.
-  induction a; destruct n; simpl; intuition.
-Qed.
-
-Lemma selN_upd_eq : forall v a n,
-  (n < length a)%nat
-  -> goodSize (length a)
-  -> Array.selN (Array.upd a (natToW n) v) n = v.
-  intros; rewrite upd_updN.
-  apply selN_updN_eq; auto.
-  eauto using goodSize_weaken.
-Qed.
-
 Local Hint Extern 1 (selN _ _ = _) => apply selN_upd_eq; solve [ finish ].
 
 Ltac t' := unfold globalInv; sep hints; finish.
@@ -1307,38 +1215,6 @@ Ltac spawn := post; evaluate hints;
         eapply Imply_trans; [ | apply H ]; clear H
     end); t').
 
-
-Lemma breakout : forall A (P : A -> _) Q R x specs,
-  (forall v, interp specs (![P v * Q] x ---> R)%PropX)
-  -> interp specs (![exB P * Q] x ---> R)%PropX.
-  rewrite sepFormula_eq; propxFo.
-  unfold sepFormula_def, exB, ex.
-  simpl.
-  repeat (apply existsL; intros); step auto_ext.
-  apply unandL.
-  eapply Imply_trans; try apply H; clear H.
-  do 2 eapply existsR.
-  simpl.
-  repeat apply andR.
-  apply injR; eauto.
-  apply andL; apply implyR.
-  apply Imply_refl.
-  apply andL; apply swap; apply implyR.
-  apply Imply_refl.
-Qed.
-
-Ltac exBegone :=
-  match goal with
-    | [ |- interp ?specs (![ ?P ] ?x ---> ?Q)%PropX ] =>
-      toFront' ltac:(fun R => match R with
-                                | exB _ => idtac
-                              end) P
-      ltac:(fun it P' =>
-        apply Imply_trans with (![ it * P'] x)%PropX; [ step auto_ext | ])
-  end; repeat match goal with
-                | [ |- interp _ (![ exB _ * _] _ ---> _)%PropX ] => apply breakout; intro
-              end.
-
 Lemma tqs_weaken : forall ts fs fs',
   fs %<= fs'
   -> tqs ts fs ===>* tqs ts fs'.
@@ -1359,7 +1235,7 @@ Ltac funky_nomega :=
 
 Ltac t := solve [
   match goal with
-    | [ |- context[Q'.Q.localsInvariantExit] ] =>
+    | [ |- context[localsInvariantExit] ] =>
       match goal with
         | [ |- forall stn_st specs, interp specs _ -> interp specs _ ] =>
           match goal with
@@ -1415,7 +1291,7 @@ Ltac t := solve [
                       | split; [ funky_nomega
                         | split; [ NoDup
                           | reflexivity ] ] ])
-          end; unfold Q'.Q.localsInvariantExit in *; sep hints;
+          end; unfold localsInvariantExit in *; sep hints;
           try match goal with
                 | [ |- himp _ ?pre ?post ] =>
                   match post with
@@ -1444,11 +1320,6 @@ Ltac t := solve [
       match goal with
         | [ |- context[Q'.starting] ] => spawn
       end
-    | [ |- context[evolve] ] =>
-      unfold globalInv; post; evaluate hints; descend; [ step hints | step hints | ];
-        descend; step hints;
-        repeat ((apply andL; apply injL) || apply existsL; intro); descend;
-          exBegone; t'
     | [ |- context[add_a_file] ] =>
       post; evaluate hints;
       match goal with
@@ -1637,25 +1508,7 @@ Qed.
 Local Hint Extern 1 (allInOrZero _ (firstn (wordToNat (_ ^+ _)) _)) =>
   solve [ apply allInOrZero_advance; auto; [ eauto 10 ] ].
 
-Lemma inc : forall n (w : W) l,
-  n = wordToNat l
-  -> w < natToW n
-  -> w ^+ natToW 1 <= l.
-  intros; subst.
-  assert (exists b, w < b) by eauto.
-  pre_nomega.
-  destruct H.
-  erewrite <- next; eauto.
-  unfold natToW in *; rewrite natToWord_wordToNat in *.
-  auto.
-Qed.  
-
 Local Hint Immediate inc.
-
-Theorem natToW_wordToNat : forall w : W,
-  natToW (wordToNat w) = w.
-  intros; apply natToWord_wordToNat.
-Qed.
 
 Hint Rewrite natToW_wordToNat : sepFormula.
 
@@ -1672,12 +1525,6 @@ Local Hint Extern 1 (_ \/ _) => solve [ apply allInOrZero_delivers; auto; [ eaut
 Lemma firstn_length : forall A (ls : list A),
   firstn (length ls) ls = ls.
   induction ls; simpl; intuition.
-Qed.
-
-Lemma wordToNat_inj : forall sz (u v : word sz),
-  wordToNat u = wordToNat v
-  -> u = v.
-  intros; rewrite <- (natToWord_wordToNat u); rewrite <- (natToWord_wordToNat v); congruence.
 Qed.
 
 Lemma allInOrZero_done : forall b (i : W) ls l,
