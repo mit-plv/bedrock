@@ -82,7 +82,10 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
 
           "n" <-- Call "scheduler"!"read"("fr", "buf", 40)
           [Al fs, PREmain[V] [| V "fr" %in fs |] * V "buf" =?>8 40 * sched fs * globalInv fs * mallocHeap 0]
-        }
+        };;
+
+        Call "scheduler"!"close"("fr")
+        [Al fs, PREmain[V] V "buf" =?>8 40 * sched fs * globalInv fs * mallocHeap 0]
       }
     end with bfunctionNoRet "main"("fr", "x") [mainS]
       Init
