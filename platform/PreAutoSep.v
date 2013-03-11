@@ -1307,6 +1307,54 @@ Theorem create_locals_out : forall ns' ns'' avail' ns avail vs p,
   reflexivity.
 Qed.
 
+Theorem unandL : forall pc state specs (P Q R : PropX pc state),
+  interp specs (P /\ Q ---> R)%PropX
+  -> interp specs (P ---> Q ---> R)%PropX.
+  intros; do 2 apply Imply_I.
+  eapply Imply_E; eauto.
+  apply And_I; eapply Env; simpl; eauto.
+Qed.
+
+Lemma breakout : forall A (P : A -> _) Q R x specs,
+  (forall v, interp specs (![P v * Q] x ---> R)%PropX)
+  -> interp specs (![exB P * Q] x ---> R)%PropX.
+  rewrite sepFormula_eq; propxFo.
+  unfold sepFormula_def, exB, ex.
+  simpl.
+  repeat (apply existsL; intros).
+  apply andL; apply injL; intro.
+  apply andL.
+  apply existsL; intro.
+  apply unandL.
+  eapply Imply_trans; try apply H; clear H.
+  do 2 eapply existsR.
+  simpl.
+  repeat apply andR.
+  apply injR; eauto.
+  apply andL; apply implyR.
+  apply Imply_refl.
+  apply andL; apply swap; apply implyR.
+  apply Imply_refl.
+Qed.
+
+Ltac imply_simp'' := match goal with
+                       | [ |- interp _ (PropX.Inj _ ---> _) ] => apply injL; intro
+                       | [ |- interp _ (PropX.Cptr _ _ ---> _) ] => apply cptrL; intro
+                       | [ |- interp _ (PropX.And _ _ ---> _) ] => apply andL
+                       | [ |- interp _ (PropX.Exists _ ---> _) ] => apply existsL; intro
+                     end.
+
+Ltac toFront' which P k :=
+  match P with
+    | SEP.ST.star ?Q ?R =>
+      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+    | (?Q * ?R)%Sep =>
+      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
+      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
+    | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
+  end.
+
 Ltac step ext :=
   let considerImp pre post :=
     try match post with
@@ -1333,6 +1381,28 @@ Ltac step ext :=
             end
         end;
     progress cancel ext in
+
+ let exBegone :=
+   match goal with
+     | [ |- interp ?specs (![ ?P ] ?x ---> ?Q)%PropX ] =>
+       match P with
+         | context[exB] =>
+           toFront' ltac:(fun R => match R with
+                                     | exB _ => idtac
+                                   end) P
+           ltac:(fun it P' =>
+             apply Imply_trans with (![ it * P'] x)%PropX; [ cancel auto_ext | ])
+       end
+   end; repeat match goal with
+                 | [ |- interp _ (![ exB _ * _] _ ---> _)%PropX ] => apply breakout; intro
+               end in
+
+ try match goal with
+       | [ |- interp _ (?P ---> _)%PropX ] =>
+         match P with
+           | context[exB] => repeat imply_simp''; descend; repeat exBegone
+         end
+     end;
 
   match goal with
     | [ |- _ _ = Some _ ] => solve [ eauto ]
@@ -1480,17 +1550,6 @@ Qed.
 
 Hint Rewrite lift0 : sepFormula.
 
-Ltac toFront' which P k :=
-  match P with
-    | SEP.ST.star ?Q ?R =>
-      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-    | (?Q * ?R)%Sep =>
-      toFront' which Q ltac:(fun it P' => k it (SEP.ST.star P' R))
-      || toFront' which R ltac:(fun it P' => k it (SEP.ST.star P' Q))
-    | _ => which P; k P (@SEP.ST.emp W (settings * state) nil)
-  end.
-
 (* Within [H], find a conjunct [P] such that [which P] doesn't fail, and reassociate [H]
  * to put [P] in front. *)
 Ltac toFront which H :=
@@ -1532,12 +1591,4 @@ Definition any : HProp := fun _ _ => [| True |]%PropX.
 
 Theorem any_easy : forall P, P ===> any.
   unfold any; repeat intro; step auto_ext; auto.
-Qed.
-
-Theorem unandL : forall pc state specs (P Q R : PropX pc state),
-  interp specs (P /\ Q ---> R)%PropX
-  -> interp specs (P ---> Q ---> R)%PropX.
-  intros; do 2 apply Imply_I.
-  eapply Imply_E; eauto.
-  apply And_I; eapply Env; simpl; eauto.
 Qed.

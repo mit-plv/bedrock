@@ -1,9 +1,6 @@
 Require Import Thread Arrays8.
 
 
-(* Move this to Thread *)
-Import Bags.W_Bag.
-
 Module Type S.
   Variables globalSched globalSock : W.
 End S.
@@ -106,12 +103,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS],
     end
   }}.
 
-Ltac t := sep; auto.
-
 Opaque allocated.
-
-(* Move to Thread *)
-Hint Extern 1 (@eq W _ _) => words.
 
 Lemma single_cell : forall p,
   (p =?> 1 = (Ex v, p =*> v) * Emp)%Sep.
@@ -127,117 +119,15 @@ Qed.
 
 Hint Immediate le_40.
 
+Ltac t' := try rewrite (single_cell globalSock); sep; auto.
+Ltac t := solve [ t'
+  | post; evaluate hints; descend;
+    try match goal with
+          | [ _ : context[locals ?ns ?X _ _] |- context[locals ?ns ?Y _ _] ] => equate X Y
+        end; t' ].
+
 Theorem ok : moduleOk m.
-  vcgen.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  unf.
-  post.
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  step hints.
-  descend.
-  
-  Ltac imply_simp'' := match goal with
-                         | [ H : ex _ |- _ ] => destruct H
-                         | [ H : _ /\ _ |- _ ] => destruct H
-                         | [ |- interp _ (PropX.Inj _ ---> _) ] => apply injL; intro
-                         | [ |- interp _ (PropX.Cptr _ _ ---> _) ] => apply cptrL; intro
-                         | [ |- interp _ (PropX.And _ _ ---> _) ] => apply andL
-                         | [ |- interp _ (PropX.Exists _ ---> _) ] => apply existsL; intro
-                       end.
-
-  repeat imply_simp''.
-  descend.
-  exBegone.
-  step hints.
-  step hints.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  step hints.
-  step hints.
-
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  post.
-  evaluate hints.
-  descend.
-  match goal with
-    | [ |- context[locals _ ?X _ _] ] => equate X (upd
-                                      (upd (upd x2 "fr" (sel x1 "fr")) "buf"
-                                         (sel x1 "buf")) "len" 
-                                      (sel x1 "n"))
-  end.
-  descend.
-
-  step hints.
-  step hints.
-  unfold localsInvariantMain.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  step hints.
-
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-
-  rewrite (single_cell globalSock).
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract t.
 Qed.
 
 End Make.

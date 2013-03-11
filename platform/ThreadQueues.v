@@ -105,6 +105,10 @@ End Tqs.
 Import Tqs.
 Export Tqs.
 
+Theorem tqs_empty_bwd : forall w, Emp ===> tqs empty w.
+  intros; rewrite tqs_eq; apply tqs'_empty_bwd.
+Qed.
+
 Definition exitize_me a b c d := locals a b c d.
 
 Lemma exitize_locals : forall xx yy ns vs res sp,

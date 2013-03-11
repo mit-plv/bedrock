@@ -1,5 +1,5 @@
-Require Import AutoSep Malloc Scheduler.
-Export AutoSep Malloc.
+Require Import AutoSep Malloc Scheduler ThreadQueue.
+Export AutoSep Malloc Bags.W_Bag.
 
 
 Definition localsInvariantMain (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
@@ -197,7 +197,7 @@ Ltac sep unf hints := unf; unfold localsInvariantMain;
     (unfold localsInvariantCont; AutoSep.sep hints)
 
     (* exit *)
-    | [ |- context[Q.localsInvariantExit] ] =>
+    | [ |- context[localsInvariantExit] ] =>
       post; evaluate hints;
       match goal with
         | [ H : context[locals ?a ?b ?c ?d] |- _ ] =>
@@ -249,6 +249,8 @@ Hint Extern 1 False => eapply eq_neq_0; [ match goal with
     end | words_rewr ].
 
 Hint Extern 1 (freeable _ _) => eapply freeable_cong; [ eassumption | words_rewr ].
+
+Hint Extern 1 (@eq W _ _) => words.
 
 Definition m0 := link Malloc.m Queue.m.
 Definition m1 := link Q''.m m0.

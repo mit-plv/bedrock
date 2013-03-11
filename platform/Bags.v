@@ -392,6 +392,25 @@ Module Make(M : S).
     End starB_weak.
   End starB_closed.
 
+  Lemma equiv_empty : forall ls, empty %= bagify ls
+    -> ls = nil.
+    unfold bagify; destruct ls; simpl; intuition.
+    eapply equiv_symm in H; eapply equiv_trans in H; [ | eapply equiv_symm; eapply add_something ].
+    elimtype False.
+    generalize dependent (fold_left add ls empty); intros.
+    bags.
+    specialize (H a).
+    destruct (eq_dec a a); congruence.
+  Qed.
+
+  Theorem starB_empty_fwd : forall P, starB P empty ===> Emp.
+    unfold starB; intros; intro.
+    apply himp_ex_p; intros.
+    apply himp_star_pure_c; intro H.
+    apply equiv_empty in H; subst.
+    reflexivity.
+  Qed.
+
 End Make.
 
 
