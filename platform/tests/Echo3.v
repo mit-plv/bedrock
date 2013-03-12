@@ -1,4 +1,4 @@
-Require Import Thread Arrays8.
+Require Import Thread Arrays8 MoreArrays.
 
 
 Module Type S.
@@ -124,10 +124,7 @@ Hint Immediate le_40.
 
 Ltac t' := try rewrite (single_cell globalSock); sep; auto.
 Ltac t := solve [ t'
-  | post; evaluate hints; descend;
-    try match goal with
-          | [ _ : context[locals ?ns ?X _ _] |- context[locals ?ns ?Y _ _] ] => equate X Y
-        end; t' ].
+  | post; evaluate hints; descend; try match_locals; t' ].
 
 Theorem ok : moduleOk m.
   vcgen; abstract t.

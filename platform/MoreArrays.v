@@ -105,3 +105,10 @@ Theorem wordToNat_inj : forall sz (u v : word sz),
   -> u = v.
   intros; rewrite <- (natToWord_wordToNat u); rewrite <- (natToWord_wordToNat v); congruence.
 Qed.
+
+Ltac match_locals :=
+  match goal with
+    | [ _ : context[locals ?NS ?X _ _] |- context[locals ?NS ?Y _ _] ] => equate X Y
+  end; descend.
+
+Hint Extern 1 (@eq W _ _) => words.

@@ -250,8 +250,6 @@ Hint Extern 1 False => eapply eq_neq_0; [ match goal with
 
 Hint Extern 1 (freeable _ _) => eapply freeable_cong; [ eassumption | words_rewr ].
 
-Hint Extern 1 (@eq W _ _) => words.
-
 Definition m0 := link Malloc.m Queue.m.
 Definition m1 := link Q''.m m0.
 Definition m2 := link Q''.Q'.m m1.
