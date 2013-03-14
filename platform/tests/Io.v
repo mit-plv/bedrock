@@ -1,9 +1,34 @@
 Require Import AutoSep Scheduler Arrays8 MoreArrays.
 
 
-Module Type S.
-  Variable globalSched : W.
+Section specs.
   Variables sched globalInv : bag -> HProp.
+
+  Definition readSomeGS := SPEC("fr", "buf", "start", "len") reserving 36
+    Al fs, Al len,
+    PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
+      * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
+      * sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
+
+  Definition writeSomeGS := SPEC("fr", "buf", "start", "len") reserving 36
+    Al fs, Al len,
+    PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
+      * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
+      * sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
+
+  Definition writeAllGS := SPEC("fr", "buf", "start", "len") reserving 42
+    Al fs, Al len,
+    PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
+      * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
+      * [| goodSize len |]
+      * sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
+End specs.
+
+Module Type S.
+  Parameters sched globalInv : bag -> HProp.
 End S.
 
 Module Make(M : S).
@@ -13,27 +38,9 @@ Definition hints : TacPackage.
   prepare buffer_split_tagged buffer_join_tagged.
 Defined.
 
-Definition readSomeS := SPEC("fr", "buf", "start", "len") reserving 36
-  Al fs, Al len,
-  PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
-    * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
-    * sched fs * globalInv fs * mallocHeap 0
-  POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
-
-Definition writeSomeS := SPEC("fr", "buf", "start", "len") reserving 36
-  Al fs, Al len,
-  PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
-    * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
-    * sched fs * globalInv fs * mallocHeap 0
-  POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
-
-Definition writeAllS := SPEC("fr", "buf", "start", "len") reserving 42
-  Al fs, Al len,
-  PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
-    * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
-    * [| goodSize len |]
-    * sched fs * globalInv fs * mallocHeap 0
-  POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
+Definition readSomeS := readSomeGS sched globalInv.
+Definition writeSomeS := writeSomeGS sched globalInv.
+Definition writeAllS := writeAllGS sched globalInv.
 
 Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
                            "scheduler"!"write" @ [writeGS sched globalInv],
