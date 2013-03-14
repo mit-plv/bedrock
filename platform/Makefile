@@ -1,5 +1,6 @@
 ROOT    := ..
 MODULES := Conditional AutoSepExt PreAutoSep \
+	   Wrap \
            Util \
            AutoSep Misc \
            Sys Safety \
