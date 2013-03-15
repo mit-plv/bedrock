@@ -7,7 +7,7 @@
 (* Add ML Path "reification/".  *)
 (* Declare ML Module "extlib".  *)
 (* Declare ML Module "reif".  *)
-Require Import List DepList.
+Require Import List.
 
 Set Implicit Arguments.
 
@@ -84,6 +84,42 @@ Ltac refl_app cc e :=
         end
       in
       match e with
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) (@?K x) (@?L x) (@?M x) (@?N x) (@?O x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,(K,(L,(M,(N,(O,tt))))))))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) (@?K x) (@?L x) (@?M x) (@?N x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,(K,(L,(M,(N,tt)))))))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) (@?K x) (@?L x) (@?M x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,(K,(L,(M,tt))))))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) (@?K x) (@?L x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,(K,(L,tt)))))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) (@?K x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,(K,tt))))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
+        | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) (@?J x) =>
+          let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,(J,tt)))))))))) in
+          let Ts := getTypes As in
+          let Tf := type of F in
+          let Tb := constr:(@nil Type) in
+          papply cc F Tf Tb Ts As
         | fun x => ?F (@?A x) (@?B x) (@?C x) (@?D x) (@?E x) (@?G x) (@?H x) (@?I x) =>
           let As := constr:((A,(B,(C,(D,(E,(G,(H,(I,tt))))))))) in
           let Ts := getTypes As in
