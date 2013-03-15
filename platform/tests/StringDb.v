@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bags Arrays8.
+Require Import AutoSep Malloc Bags Arrays8 MoreArrays.
 Import Bags.W_Bag.
 
 
@@ -180,7 +180,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
                 * array8 bs (V "key") * [| (V "i" < natToW (length bs))%word |]
                 * [| length bs = wordToNat (V "keyLen") |]
               POST[R] [| R = 0 \/ R %in b |] * (V "t" ==*> V "i", V "c", p1, p2) * tree' b t1 p1 * tree' b t2 p2
-                * array8 bs (V "key")];;
+                * V "key" =?>8 wordToNat (V "keyLen")];;
 
             "i" <-*8 "key" + "i";;
 
@@ -209,75 +209,20 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS] ]]
 
 Hint Extern 1 (@eq W _ _) => words.
 
-Ltac t := sep hints; auto.
+Ltac finish :=
+  repeat match goal with
+           | [ H : _ = _ |- _ ] => rewrite H
+         end; try rewrite natToW_wordToNat; auto.
+
+Ltac t' := sep hints; finish.
+
+Ltac t :=
+  try match goal with
+        | [ |- context[debufferize] ] => unfold buffer
+      end;
+  try solve [ t' ];
+    post; evaluate hints; descend; try match_locals; t'.
 
 Theorem ok : moduleOk m.
-  vcgen.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  unfold buffer.
-  post.
-  evaluate hints.
-  descend.
-  step hints.
-  3: step hints.
-  rewrite H14.
-  Require Import MoreArrays.
-  rewrite natToW_wordToNat.
-  auto.
-  auto.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  2: step hints.
-  auto.
-
-  t.
-  t.
-
-  unfold buffer.
-  post.
-  evaluate hints.
-  descend.
-  match_locals.
-  step hints.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  admit.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract t.
 Qed.
-
-End Make.
