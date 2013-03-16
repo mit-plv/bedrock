@@ -1,4 +1,4 @@
-Require Import AutoSep Scheduler Arrays8 MoreArrays.
+Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers.
 
 
 Section specs.
@@ -17,6 +17,12 @@ Section specs.
       * [| (wordToNat (V "start") + wordToNat (V "len") <= len)%nat |]
       * sched fs * globalInv fs * mallocHeap 0
     POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 len * sched fs' * globalInv fs' * mallocHeap 0.
+
+  Definition readUntilGS := SPEC("fr", "buf", "len", "ch") reserving 39
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+      * sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len") * sched fs' * globalInv fs' * mallocHeap 0.
 
   Definition writeAllGS := SPEC("fr", "buf", "start", "len") reserving 42
     Al fs, Al len,
@@ -40,11 +46,12 @@ Defined.
 
 Definition readSomeS := readSomeGS sched globalInv.
 Definition writeSomeS := writeSomeGS sched globalInv.
+Definition readUntilS := readUntilGS sched globalInv.
 Definition writeAllS := writeAllGS sched globalInv.
 
 Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
                            "scheduler"!"write" @ [writeGS sched globalInv],
-                           "sys"!"abort" @ [abortS] ]]
+                           "sys"!"abort" @ [abortS], "buffers"!"contains" @ [containsS] ]]
   bmodule "io" {{
     bfunction "readSome"("fr", "buf", "start", "len") [writeSomeS]
       Assert [Al fs, Al len,
@@ -114,6 +121,60 @@ Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
       Call "scheduler"!"write"("fr", "buf", "len")
       [PRE[_] Emp POST[_] Emp];;
       Return 0
+    end with bfunction "readUntil"("fr", "buf", "len", "ch", "readSoFar", "n", "b") [readUntilS]
+      "n" <-- Call "scheduler"!"read"("fr", "buf", "len")
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len") * sched fs' * globalInv fs'
+          * mallocHeap 0];;
+
+      "readSoFar" <- 0;;
+
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len") * sched fs' * globalInv fs'
+          * mallocHeap 0]
+      While ("n" <> 0) {
+        If ("len" < "n") {
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ];;
+          Fail
+        } else {
+          Assert [Al fs,
+            PRE[V] [| V "fr" %in fs |] * buffer_splitAt (wordToNat (V "n")) (V "buf") (wordToNat (V "len"))
+              * [| (wordToNat (V "n") <= wordToNat (V "len"))%nat |]
+              * sched fs * globalInv fs * mallocHeap 0
+            POST[_] Ex fs', [| fs %<= fs' |] * buffer_joinAt (wordToNat (V "n")) (V "buf") (wordToNat (V "len"))
+              * sched fs' * globalInv fs' * mallocHeap 0];;
+
+          "b" <-- Call "buffers"!"contains"("buf", "n", "ch")
+          [Al fs,
+            PRE[V] [| V "fr" %in fs |] * (V "buf" ^+ V "n") =?>8 wordToNat (V "len" ^- V "n")
+              * sched fs * globalInv fs * mallocHeap 0
+            POST[_] Ex fs', [| fs %<= fs' |] * (V "buf" ^+ V "n") =?>8 wordToNat (V "len" ^- V "n") * sched fs'
+              * globalInv fs' * mallocHeap 0];;
+
+          "readSoFar" <- "readSoFar" + "n";;
+
+          If ("b" = 1) {
+            Return "readSoFar"
+          } else {
+            "len" <- "len" - "n";;
+            "buf" <- "buf" + "n";;
+
+            "n" <-- Call "scheduler"!"read"("fr", "buf", "len")
+            [Al fs,
+              PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+                * sched fs * globalInv fs * mallocHeap 0
+              POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len") * sched fs' * globalInv fs'
+                * mallocHeap 0]
+          }
+        }
+      };;
+
+      Return 0
     end with bfunction "writeAll"("fr", "buf", "start", "len", "n") [writeAllS]
       [Al fs, Al len,
         PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 len
@@ -169,6 +230,8 @@ Lemma wordToNat_wplus' : forall u v w : W,
 Qed.
 
 Local Hint Extern 2 (_ <= _)%nat => try erewrite wordToNat_wplus' by eassumption; nomega.
+
+Hint Rewrite wordToNat_wminus using nomega : sepFormula.
 
 Theorem ok : moduleOk m.
   vcgen; abstract t.
