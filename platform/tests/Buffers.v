@@ -11,6 +11,12 @@ Definition bfreeS : spec := SPEC("p", "n") reserving 5
     * V "p" =?>8 (wordToNat (V "n") * 4) * mallocHeap 0
   POST[_] mallocHeap 0.
 
+Definition ensureS : spec := SPEC("p", "len", "min") reserving 10
+  PRE[V] V "p" =?>8 (wordToNat (V "len") * 4) * [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "len")) |]
+    * mallocHeap 0
+  POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| len >= V "min" |] * [| R <> 0 |]
+    * [| freeable R (wordToNat len) |] * mallocHeap 0.
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "buffers" {{
     bfunction "bmalloc"("n", "r") [bmallocS]
@@ -27,6 +33,37 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[_] Emp
        POST[_] Emp ];;
       Return 0
+    end with bfunction "ensure"("p", "len", "min") [ensureS]
+      If ("len" >= "min") {
+        Return "p"
+      } else {
+        Call "buffers"!"bfree"("p", "len")
+        [PRE[V] mallocHeap 0
+         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len >= V "min")%word |] * [| R <> 0 |]
+           * [| freeable R (wordToNat len) |] * mallocHeap 0];;
+
+        [PRE[V] mallocHeap 0
+         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len >= V "min")%word |] * [| R <> 0 |]
+           * [| freeable R (wordToNat len) |] * mallocHeap 0]
+        While ("len" < "min") {
+          "len" <- "len" * 2
+        };;
+
+        If ("len" < 2) {
+          "len" <- 2
+        } else {
+          Skip
+        };;
+
+        Assert [PRE[V] [| (V "len" >= $2)%word |] * [| (V "len" >= V "min")%word |] * mallocHeap 0
+         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len >= V "min")%word |] * [| R <> 0 |]
+           * [| freeable R (wordToNat len) |] * mallocHeap 0];;
+
+        "p" <-- Call "buffers"!"bmalloc"("len")
+        [PRE[_, R] Emp
+         POST[R'] [| R' = R |] ];;
+        Return "p"
+      }
     end
   }}.
 
@@ -39,7 +76,7 @@ Ltac finish :=
            | [ H : _ = _ |- _ ] => rewrite H
          end; try apply materialize_array8;
   try (etransitivity; [ apply himp_star_comm | apply himp_star_frame; reflexivity || apply dematerialize_buffer ]);
-    auto.
+    auto; try nomega.
 
 Ltac t := sep_auto; finish.
 
