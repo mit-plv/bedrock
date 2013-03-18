@@ -158,7 +158,7 @@ Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
 
           "readSoFar" <- "readSoFar" + "n";;
 
-          If ("b" = 1) {
+          If ("b" <> neg1) {
             Return "readSoFar"
           } else {
             "len" <- "len" - "n";;
