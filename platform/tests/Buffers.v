@@ -11,12 +11,6 @@ Definition bfreeS : spec := SPEC("p", "n") reserving 5
     * V "p" =?>8 (wordToNat (V "n") * 4) * mallocHeap 0
   POST[_] mallocHeap 0.
 
-Definition ensureS : spec := SPEC("p", "len", "min") reserving 11
-  PRE[V] V "p" =?>8 (wordToNat (V "len") * 4) * [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "len")) |]
-    * mallocHeap 0
-  POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| len ^* $4 >= V "min" |] * [| R <> 0 |]
-    * [| freeable R (wordToNat len) |] * mallocHeap 0.
-
 Definition containsS : spec := SPEC("haystack", "len", "needle") reserving 2
   PRE[V] V "haystack" =?>8 wordToNat (V "len")
   POST[_] V "haystack" =?>8 wordToNat (V "len").
@@ -48,41 +42,6 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS],
       [PRE[_] Emp
        POST[_] Emp ];;
       Return 0
-    end with bfunction "ensure"("p", "len", "min", "len4") [ensureS]
-      "len4" <- "len" * 4;;
-      If ("len4" >= "min") {
-        Return "p"
-      } else {
-        Call "buffers"!"bfree"("p", "len")
-        [PRE[V] [| V "len4" = V "len" ^* $4 |] * mallocHeap 0
-         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len ^* $4 >= V "min")%word |] * [| R <> 0 |]
-           * [| freeable R (wordToNat len) |] * mallocHeap 0];;
-
-        [PRE[V] [| V "len4" = V "len" ^* $4 |] * mallocHeap 0
-         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len ^* $4 >= V "min")%word |] * [| R <> 0 |]
-           * [| freeable R (wordToNat len) |] * mallocHeap 0]
-        While ("len4" < "min") {
-          "len" <- "len" * 2;;
-          "len4" <- "len" * 4
-        };;
-
-        If ("len" < 2) {
-          Call "sys"!"abort"()
-          [PREonly[_] [| False |] ];;
-          Fail
-        } else {
-          Skip
-        };;
-
-        Assert [PRE[V] [| (V "len" >= $2)%word |] * [| (V "len" ^* $4 >= V "min")%word |] * mallocHeap 0
-         POST[R] Ex len, R =?>8 (wordToNat len * 4) * [| (len ^* $4 >= V "min")%word |] * [| R <> 0 |]
-           * [| freeable R (wordToNat len) |] * mallocHeap 0];;
-
-        "p" <-- Call "buffers"!"bmalloc"("len")
-        [PRE[_, R] Emp
-         POST[R'] [| R' = R |] ];;
-        Return "p"
-      }
     end with bfunction "contains"("haystack", "len", "needle", "i", "tmp") [containsS]
       Note [debufferize];;
 
