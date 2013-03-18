@@ -6,7 +6,7 @@ Definition bmallocS : spec := SPEC("n") reserving 8
   POST[R] [| R <> 0 |] * [| freeable R (wordToNat (V "n")) |]
     * R =?>8 (wordToNat (V "n") * 4) * mallocHeap 0.
 
-Definition bfreeS : spec := SPEC("p", "n") reserving 5
+Definition bfreeS : spec := SPEC("p", "n") reserving 6
   PRE[V] [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "n")) |]
     * V "p" =?>8 (wordToNat (V "n") * 4) * mallocHeap 0
   POST[_] mallocHeap 0.
