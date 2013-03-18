@@ -29,6 +29,8 @@ Definition copyS : spec := SPEC("dst", "src", "srcLen") reserving 2
 Inductive debufferize : Prop := Debufferize.
 Hint Constructors debufferize.
 
+Definition neg1 : W := wones _.
+
 Definition m := bimport [[ "sys"!"abort" @ [abortS],
                            "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "buffers" {{
@@ -98,13 +100,13 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS],
 
         "tmp" <-*8 "haystack" + "i";;
         If ("tmp" = "needle") {
-          Return 1
+          Return "i"
         } else {
           "i" <- "i" + 1
         }
       };;
 
-      Return 0
+      Return neg1
     end with bfunction "copy"("dst", "src", "srcLen", "i", "tmp") [copyS]
       Note [debufferize];;
 
