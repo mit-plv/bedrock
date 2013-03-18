@@ -169,7 +169,7 @@ Definition initS : spec := SPEC("base", "size") reserving 0
     * V "base" =?> wordToNat (V "size")
   POST[_] mallocHeap (V "base").
 
-Definition freeS : spec := SPEC("base", "p", "n") reserving 1
+Definition freeS : spec := SPEC("base", "p", "n") reserving 2
   PRE[V] [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "n")) |]
     * V "p" =?> wordToNat (V "n") * mallocHeap (V "base")
   POST[_] mallocHeap (V "base").
@@ -185,12 +185,114 @@ Definition m := bmodule "malloc" {{
     "base" + 4 *<- "size" - 3;;
     "base" + 8 *<- 0;;
     Return 0
-  end with bfunction "free"("base", "p", "n", "tmp") [freeS]
+  end with bfunction "free"("base", "p", "n", "cur", "tmp") [freeS]
+    "cur" <-* "base";;
+
+    [Al len,
+      PRE[V] [| V "p" <> 0 |] * [| freeable (V "p") (wordToNat (V "n")) |] * V "p" =?> wordToNat (V "n")
+        * V "base" =*> V "cur" * freeList len (V "cur")
+      POST[R] Ex p, Ex len', V "base" =*> p * freeList len' p]
+    While ("cur" <> 0) {
+      "tmp" <- 4 * "n";;
+      "tmp" <- "p" + "tmp";;
+
+      If ("tmp" = "cur") {
+        (* The block we are freeing appears immediately before this free block.  Let's merge. *)
+
+        Note [fwd];;
+
+        (* Update size. *)
+        "tmp" <-* "cur";;
+        "tmp" <- "tmp" + "n";;
+        "p" *<- "tmp";;
+
+        (* Update next pointer. *)
+        "tmp" <-* "cur"+4;;
+        "p"+4 *<- "tmp";;
+
+        "base" *<- "p";;
+
+        Return 0
+      } else {
+        "tmp" <-* "cur";;
+        "tmp" <- 4 * "tmp";;
+        "tmp" <- "cur" + "tmp";;
+        "tmp" <- "tmp" + 8;;
+
+        If ("tmp" = "p") {
+          (* The block we are freeing appears immediately after this free block.  Let's merge. *)
+
+          "tmp" <-* "cur"+4;;
+
+          If ("tmp" = 0) {
+            (* Simple merge-after case *)
+
+            (* Update size field. *)
+            "base" <-* "cur";;
+            "base" <- "base" + "n";;
+            "cur" *<- "base";;
+
+            Return 0
+          } else {
+            "base" <- 4 * "n";;
+            "base" <- "p" + "base";;
+
+            If ("tmp" = "base") {
+              (* The block we are freeing appears sandwiched between the next two free blocks.  Mega-merge! *)
+
+              (* Update size field. *)
+              "base" <-* "base";;
+              "base" <- "base" + "n";;
+              "base" <- "base" + 2;;
+              "n" <-* "cur";;
+              "base" <- "base" + "n";;
+              "cur" *<- "base";;
+
+              (* Update next pointer. *)
+              "tmp" <-* "tmp"+4;;
+              "cur"+4 *<- "tmp";;
+
+              Return 0
+            } else {
+              (* Simpler merge-after case *)
+
+              (* Update size field. *)
+              "base" <-* "cur";;
+              "base" <- "base" + "n";;
+              "cur" *<- "base";;
+
+              Return 0
+            }
+          }
+        } else {
+          If ("p" < "cur") {
+            (* We keep the free list sorted, so this is the appropriate point to insert the current block. *)
+
+            Note [fwd];;
+            "p" *<- "n" - 2;;
+            "tmp" <-* "base";;
+            "base" *<- "p";;
+            "p" + 4 *<- "tmp";;
+
+            Return 0
+          } else {
+            (* We haven't yet reached the right place in the free list.  Keep looping. *)
+
+            "base" <- "cur"+4;;
+            "cur" <-* "base"
+          }
+        }
+      }
+    };;
+
+    (* We reached the end of the free list without finding a block with a higher address.  Insert here. *)
+
     Note [fwd];;
     "p" *<- "n" - 2;;
     "tmp" <-* "base";;
     "base" *<- "p";;
     "p" + 4 *<- "tmp";;
+
     Return 0
   end with bfunction "malloc"("base", "n", "cur", "prev", "tmp", "tmp2") [mallocS]
     "cur" <-* "base";;
@@ -354,6 +456,263 @@ Lemma the_ole_switcheroo : forall a b : W,
     rewrite four_times_wordToNat; words.
 Qed.
 
+Lemma noWrapAround_merge_before : forall p n cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> p ^+ natToW 4 ^* n = cur
+  -> noWrapAround p (S (S (wordToNat sz + wordToNat n))).
+  unfold noWrapAround in *; intros; subst.
+
+  destruct (le_lt_dec (4 * wordToNat n) n0); auto.
+  replace n0 with (4 * wordToNat n + (n0 - 4 * wordToNat n)) by auto.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite mult_comm.
+  rewrite natToW_times4.
+  rewrite wmult_comm.
+  unfold natToW at 2.
+  rewrite natToWord_wordToNat.
+  auto.
+Qed.
+
+Local Hint Immediate noWrapAround_merge_before.
+
+Ltac isConst n :=
+  match n with
+    | O => idtac
+    | S ?n' => isConst n'
+  end.
+
+Ltac deS1 := match goal with
+               | [ |- context[S ?N] ] =>
+                 let rec count N k :=
+                   match N with
+                     | S ?N' => count N' ltac:(fun n e => k (S n) e)
+                     | _ => k O N
+                   end in
+                   (isConst N; fail 1)
+                   || count (S N) ltac:(fun n e => change (S N) with (n + e)%nat)
+             end; repeat rewrite natToW_plus.
+Ltac deS := repeat deS1.
+
+Lemma allocatedSS : forall base offset len,
+  (Ex v1, Ex v2, (base ^+ natToW offset) =*> v1 * (base ^+ natToW offset ^+ $4) =*> v2 * allocated base (8 + offset) len)
+  ===> allocated base offset (S (S len)).
+  sepLemma; destruct offset; sepLemma.
+
+  match goal with
+    | [ |- himp _ (?N =*> _)%Sep (?M =*> _)%Sep ] => replace M with N; [ reflexivity | ]
+  end.
+
+  deS; words.
+Qed.
+
+Lemma goodSize_dec : forall n, {goodSize n} + {~goodSize n}.
+  Transparent goodSize.
+  unfold goodSize, Nlt; intros.
+  destruct (N.of_nat n ?= Npow2 32)%N; auto; right; discriminate.
+  Opaque goodSize.
+Qed.
+
+Lemma not_goodSize : forall n, ~goodSize n -> (n >= pow2 32)%nat.
+  Transparent goodSize.
+  unfold goodSize; intros.
+  generalize dependent 32; intro sz; intros.
+  assert (N.of_nat n >= Npow2 sz)%N.
+  nomega.
+  apply Nge_out in H0.
+  rewrite Npow2_nat in *.
+  rewrite Nat2N.id in *; auto.
+  Opaque goodSize.
+Qed.
+
+Lemma noWrapAround_goodSize' : forall p (n : W) cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> p ^+ natToW 4 ^* n = cur
+  -> goodSize (4 * (wordToNat sz + wordToNat n)).
+  intros; assert (noWrapAround p (S (S (wordToNat sz + wordToNat n)))) by eauto.
+  destruct (goodSize_dec (4 * (wordToNat sz + wordToNat n))); auto.
+  clear H H0.
+  elimtype False; apply H2 with (pow2 32 - wordToNat p).
+
+  Focus 2.
+  rewrite natToW_minus.
+  unfold natToW; rewrite natToWord_wordToNat.
+  rewrite natToWord_pow2; words.
+  specialize (wordToNat_bound p); omega.
+
+  apply not_goodSize in n0.
+  omega.
+Qed.
+
+Lemma noWrapAround_goodSize : forall p (n : W) cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> p ^+ natToW 4 ^* n = cur
+  -> goodSize (wordToNat sz + wordToNat n).
+  intros; eapply goodSize_weaken; [ eapply noWrapAround_goodSize'; eauto | omega ].
+Qed.
+
+Local Hint Immediate noWrapAround_goodSize.
+
+Lemma noWrapAround_merge_after : forall p (n : W) cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> noWrapAround cur (S (S (wordToNat sz + wordToNat n))).
+  unfold noWrapAround in *; intros; subst.
+
+  destruct (le_lt_dec (4 * S (S (wordToNat sz))) n0); auto.
+  replace n0 with (4 * wordToNat sz + 8 + (n0 - 4 * S (S (wordToNat sz)))) by auto.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite mult_comm.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite natToW_times4.
+  rewrite wmult_comm.
+  unfold natToW at 2.
+  rewrite natToWord_wordToNat.
+  auto.
+Qed.
+
+Local Hint Immediate noWrapAround_merge_after.
+
+Lemma noWrapAround_after_goodSize' : forall p (n : W) cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> goodSize (4 * (wordToNat sz + wordToNat n)).
+  intros; assert (noWrapAround cur (S (S (wordToNat sz + wordToNat n)))) by eauto.
+  destruct (goodSize_dec (4 * (wordToNat sz + wordToNat n))); auto.
+  clear H H0.
+  elimtype False; apply H2 with (pow2 32 - wordToNat cur).
+
+  apply not_goodSize in n0.
+  omega.
+
+  rewrite natToW_minus.
+  unfold natToW; rewrite natToWord_wordToNat.
+  rewrite natToWord_pow2; words.
+  specialize (wordToNat_bound cur); omega.
+Qed.
+
+Lemma noWrapAround_after_goodSize : forall p (n : W) cur (sz : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> goodSize (wordToNat sz + wordToNat n).
+  intros; eapply goodSize_weaken; [ eapply noWrapAround_after_goodSize'; eauto | omega ].
+Qed.
+
+Local Hint Immediate noWrapAround_after_goodSize.
+
+Lemma noWrapAround_merge_middle : forall p (n : W) cur (sz sz' : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> noWrapAround (p ^+ natToW 4 ^* n) (S (S (wordToNat sz')))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> noWrapAround cur (S (S (wordToNat sz' + wordToNat n + 2 + wordToNat sz))).
+  unfold noWrapAround in *; intros; subst.
+
+  destruct (le_lt_dec (4 * S (S (wordToNat sz))) n0); auto.
+  destruct (le_lt_dec (4 * S (S (wordToNat sz)) + 4 * wordToNat n) n0); auto.
+
+  replace n0 with (4 * wordToNat sz + 8 + 4 * wordToNat n + (n0 - 4 * wordToNat sz - 8 - 4 * wordToNat n))
+    by auto.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite mult_comm.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite natToW_times4.
+  rewrite wmult_comm.
+  unfold natToW at 2.
+  rewrite natToWord_wordToNat.
+  rewrite mult_comm.
+  rewrite natToW_times4.
+  rewrite (wmult_comm _ (natToW 4)).
+  unfold natToW at 4.
+  rewrite natToWord_wordToNat.
+  auto.
+
+  replace n0 with (4 * wordToNat sz + 8 + (n0 - 4 * S (S (wordToNat sz)))) by auto.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite mult_comm.
+  rewrite natToW_plus.
+  rewrite wplus_assoc.
+  rewrite natToW_times4.
+  rewrite wmult_comm.
+  unfold natToW at 2.
+  rewrite natToWord_wordToNat.
+  auto.
+Qed.
+
+Local Hint Immediate noWrapAround_merge_middle.
+
+Lemma noWrapAround_middle_goodSize' : forall p (n : W) cur (sz sz' : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> noWrapAround (p ^+ natToW 4 ^* n) (S (S (wordToNat sz')))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> goodSize (4 * (wordToNat sz + wordToNat n + wordToNat (natToW 2) + wordToNat sz')).
+  change (wordToNat (natToW 2)) with 2.
+  intros; assert (noWrapAround cur (S (S (wordToNat sz' + wordToNat n + 2 + wordToNat sz)))) by eauto.
+  destruct (goodSize_dec (4 * (wordToNat sz + wordToNat n + 2 + wordToNat sz'))); auto.
+  clear H H0 H1.
+  elimtype False; apply H3 with (pow2 32 - wordToNat cur).
+
+  apply not_goodSize in n0.
+  omega.
+
+  rewrite natToW_minus.
+  unfold natToW; rewrite natToWord_wordToNat.
+  rewrite natToWord_pow2; words.
+  specialize (wordToNat_bound cur); omega.
+Qed.
+
+Lemma noWrapAround_middle_goodSize : forall p (n : W) cur (sz sz' : W),
+  noWrapAround p (wordToNat n)
+  -> noWrapAround (p ^+ natToW 4 ^* n) (S (S (wordToNat sz')))
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> goodSize (wordToNat sz' + wordToNat n + wordToNat (natToW 2) + wordToNat sz).
+  intros; replace (wordToNat sz' + wordToNat n + wordToNat (natToW 2) + wordToNat sz)
+    with (wordToNat sz + wordToNat n + wordToNat (natToW 2) + wordToNat sz') by omega.
+  eapply goodSize_weaken; [ eapply noWrapAround_middle_goodSize'; try apply H; eauto | omega ].
+Qed.
+
+Lemma noWrapAround_middle_goodSize_less : forall p (n : W) cur (sz sz' : W),
+  cur ^+ natToW 4 ^* sz ^+ natToW 8 = p
+  -> noWrapAround (p ^+ natToW 4 ^* n) (S (S (wordToNat sz')))
+  -> noWrapAround cur (S (S (wordToNat sz)))
+  -> noWrapAround p (wordToNat n)
+  -> goodSize (wordToNat sz' + wordToNat n + wordToNat (natToW 2)).
+  intros; eapply goodSize_weaken; [ eapply noWrapAround_middle_goodSize; eauto | omega ].
+Qed.
+
+Local Hint Immediate noWrapAround_middle_goodSize noWrapAround_middle_goodSize_less.
+
+Lemma tickle : forall n, (n >= 2)%nat -> S (S (n - 2)) = n.
+  intros; omega.
+Qed.
+
+
+Ltac warith1 :=
+  match goal with
+    | [ |- context[natToW (wordToNat _)] ] => unfold natToW; rewrite natToWord_wordToNat
+    | [ |- context[(4 * _)%nat] ] => rewrite mult_comm; rewrite natToW_times4
+    | [ |- context[_ - _] ] => rewrite natToW_minus by auto
+    | [ |- context[wordToNat (_ ^+ _)] ] => rewrite wordToNat_wplus by eauto
+    | _ => progress deS
+  end.
+
+Ltac warith := repeat warith1; words.
+
 Section ok.
   Ltac t := sep hints; eauto;
     try match goal with
@@ -370,10 +729,111 @@ Section ok.
            end; change (wordToNat (natToW 3)) with 3 in *;
     change (wordToNat (natToWord _ 3)) with 3 in *; eauto.
 
+  Hint Rewrite wordToNat_wplus using solve [ eauto ] : sepFormula.
+
+  Hint Rewrite tickle using assumption : sepFormula.
+
   Theorem ok : moduleOk m.
     vcgen; try t.
 
     Opaque mult.
+
+    post.
+    evaluate hints.
+    destruct H14.
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+    step hints.
+    eauto.
+    rewrite <- H10.
+    etransitivity; [ | apply allocated_join ].
+    step hints.
+    replace (wordToNat x8 + wordToNat (sel x3 "n") - (wordToNat (sel x3 "n") - 2))
+      with (S (S (wordToNat x8))) by omega.
+    etransitivity; [ | apply allocatedSS ].
+    replace (sel x3 "p" ^+ natToW 8 ^+ natToW (4 * (wordToNat (sel x3 "n") - 2))%nat)
+      with (sel x3 "p" ^+ natToW 4 ^* sel x3 "n") by warith.
+    step hints.
+    apply allocated_shift_base; warith || omega.
+    omega.
+
+    post.
+    evaluate hints.
+    destruct H18.
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+    step hints.
+    eauto.
+    rewrite <- H14.
+    etransitivity; [ | apply allocated_join ].
+    step hints.
+    apply allocated_shift_base; warith || omega.
+    omega.
+
+    post.
+    evaluate hints.
+    destruct H21.
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+    step hints.
+    descend.
+    repeat rewrite wordToNat_wplus; eauto.
+    rewrite <- H17.
+    etransitivity; [ | apply allocated_join ].
+    step hints.
+    etransitivity; [ | apply allocated_join ].
+    etransitivity; [ | apply himp_star_frame; [ apply allocated_shift_base | reflexivity ] ].
+    step hints.
+    repeat rewrite wordToNat_wplus; eauto.
+    instantiate (1 := wordToNat (sel x6 "n")).
+    change (wordToNat (natToW 2)) with 2.
+    replace (wordToNat x12 + wordToNat (sel x6 "n") + 2 + wordToNat x9 -
+      wordToNat x9 - wordToNat (sel x6 "n"))
+    with (2 + wordToNat x12) by omega.
+    etransitivity; [ | apply allocatedSS ].
+    replace (sel x6 "cur" ^+ natToW 8 ^+ natToW (4 * wordToNat x9 + 4 * wordToNat (sel x6 "n")))
+      with (sel x6 "cur" ^+ natToW 4 ^* x9 ^+ natToW 8 ^+ natToW 4 ^* sel x6 "n").
+    step hints.
+    apply allocated_shift_base; warith || omega.
+    rewrite mult_comm.
+    rewrite natToW_plus.
+    rewrite natToW_times4.
+    rewrite mult_comm.
+    rewrite natToW_times4.
+    repeat warith1.
+    rewrite natToWord_wordToNat.
+    words.
+    warith.
+    auto.
+    repeat rewrite wordToNat_wplus; eauto.
+    repeat rewrite wordToNat_wplus; eauto.
+
+    post.
+    evaluate hints.
+    destruct H21.
+    descend.
+    step hints.
+    step hints.
+    descend.
+    step hints.
+    step hints.
+    eauto.
+    rewrite <- H17.
+    step hints.
+    etransitivity; [ | apply allocated_join ].
+    step hints.
+    apply allocated_shift_base; warith || omega.
+    omega.
+
 
     sep hints.
 
@@ -431,8 +891,6 @@ Section ok.
     nomega.
 
     eapply noWrapAround_weaken'; [ eassumption | nomega ].
-
-
   Qed.
 End ok.
 

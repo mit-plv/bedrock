@@ -256,7 +256,7 @@ Defined.
 
 Definition initS := initS queue 8.
 Definition isEmptyS := isEmptyS queue 0.
-Definition dequeueS := dequeueS queue 7.
+Definition dequeueS := dequeueS queue 8.
 Definition enqueueS := enqueueS queue 10.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]

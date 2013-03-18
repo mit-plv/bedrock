@@ -740,10 +740,10 @@ Theorem ok : moduleOk m.
     with (locals_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
       (upd (upd (upd x4 "sc" (sel x0 "sc")) "ss" (sel x0 "ss")) "curPc" (Regs st Sp))
       14 x5
-      ("rp" :: "base" :: "p" :: "n" :: nil) 1 28) in H5.
+      ("rp" :: "base" :: "p" :: "n" :: nil) 0 28) in H5.
   assert (ok_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
     ("rp" :: "base" :: "p" :: "n" :: nil)
-    14 1 28)
+    14 0 28)
   by (split; [ simpl; omega
     | split; [ simpl; omega
       | split; [ NoDup
@@ -778,10 +778,10 @@ Theorem ok : moduleOk m.
     with (locals_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
       (upd (upd (upd x5 "sc" (sel x1 "sc")) "ss" (sel x1 "ss")) "curPc" (Regs x Sp))
       14 x6
-      ("rp" :: "base" :: "p" :: "n" :: nil) 1 28) in H6.
+      ("rp" :: "base" :: "p" :: "n" :: nil) 2 28) in H6.
   assert (ok_call ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
     ("rp" :: "base" :: "p" :: "n" :: nil)
-    14 1 28)
+    14 2 28)
   by (split; [ simpl; omega
     | split; [ simpl; omega
       | split; [ NoDup
