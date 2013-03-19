@@ -93,7 +93,8 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS],
             * [| length dst' = length dst |] ];;
 
         "tmp" <-*8 "src" + "i";;
-        "dst" + "i" *<-8 "tmp"
+        "dst" + "i" *<-8 "tmp";;
+        "i" <- "i" + 1
       };;
 
       Return 0

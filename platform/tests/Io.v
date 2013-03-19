@@ -84,9 +84,9 @@ Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
           * sched fs' * globalInv fs' * mallocHeap 0];;
 
       "buf" <- "buf" + "start";;
-      Call "scheduler"!"read"("fr", "buf", "len")
+      "len" <-- Call "scheduler"!"read"("fr", "buf", "len")
       [PRE[_] Emp POST[_] Emp];;
-      Return 0
+      Return "len"
     end with bfunction "writeSome"("fr", "buf", "start", "len") [writeSomeS]
       Assert [Al fs, Al len,
         PRE[V] [| V "fr" %in fs |] * buffer_splitAt (wordToNat (V "start")) (V "buf") len
@@ -118,9 +118,9 @@ Definition m := bimport [[ "scheduler"!"read" @ [readGS sched globalInv],
           * sched fs' * globalInv fs' * mallocHeap 0];;
 
       "buf" <- "buf" + "start";;
-      Call "scheduler"!"write"("fr", "buf", "len")
+      "len" <-- Call "scheduler"!"write"("fr", "buf", "len")
       [PRE[_] Emp POST[_] Emp];;
-      Return 0
+      Return "len"
     end with bfunction "readUntil"("fr", "buf", "len", "ch", "readSoFar", "n", "b") [readUntilS]
       "n" <-- Call "scheduler"!"read"("fr", "buf", "len")
       [Al fs,
