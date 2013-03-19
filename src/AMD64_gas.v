@@ -143,6 +143,15 @@ Definition jmpS (j : jmp) : string :=
       rvalueSinto rv edx
       ++ tab ++ "jmp *%rdx" ++ nl
     | Cond rv1 t rv2 lab1 lab2 =>
+      let '(rv1, t, rv2, lab1, lab2) :=
+        if rvalueIsMem rv2
+          then match t with
+                 | Eq => (rv2, Eq, rv1, lab1, lab2)
+                 | Ne => (rv2, Ne, rv1, lab1, lab2)
+                 | Lt => (rv2, Le, rv1, lab2, lab1)
+                 | Le => (rv2, Lt, rv1, lab2, lab1)
+               end
+          else (rv1, t, rv2, lab1, lab2) in
       match rv1, rv2 with
         | RvImm w1, RvImm w2 => if evalTest t w1 w2
           then tab ++ "jmp " ++ labelS lab1 ++ nl
