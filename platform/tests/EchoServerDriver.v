@@ -1,21 +1,35 @@
-Require Import Thread0 Echo3 Bootstrap.
+Require Import Thread0 EchoServer Bootstrap.
 
 
 Module Type S.
-  Variable heapSize : nat.
+  Parameter heapSize : nat.
+  Parameters port numWorkers : W.
 End S.
 
 Module Make(M : S).
 Import M.
 
 Module M'.
-  Definition globalSched : W := (heapSize + 50) * 4.
+  Definition globalSched : W := ((heapSize + 50) * 4)%nat.
   Definition globalSock : W := globalSched ^+ $4.
+
+  Definition port := M.port.
+  Definition numWorkers := M.numWorkers.
+
+  Definition inbuf_size := 40.
+
+  Theorem inbuf_size_lower : (inbuf_size >= 2)%nat.
+    unfold inbuf_size; auto.
+  Qed.
+
+  Theorem inbuf_size_upper : (N_of_nat (inbuf_size * 4) < Npow2 32)%N.
+    reflexivity.
+  Qed.
 End M'.
 
 Import M'.
 
-Module E := Echo3.Make(M').
+Module E := EchoServer.Make(M').
 Import E.
 
 Section boot.
@@ -31,7 +45,7 @@ Section boot.
 
   Definition bootS := bootS heapSize 2.
 
-  Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "test"!"main" @ [E.mainS] ]]
+  Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "echo"!"main" @ [E.mainS] ]]
     bmodule "main" {{
       bfunctionNoRet "main"() [bootS]
         Sp <- (heapSize * 4)%nat;;
@@ -41,7 +55,7 @@ Section boot.
         Call "malloc"!"init"(0, heapSize)
         [PREmain[_] globalSock =?> 1 * globalSched =?> 1 * mallocHeap 0];;
 
-        Goto "test"!"main"
+        Goto "echo"!"main"
       end
     }}.
 
@@ -52,14 +66,24 @@ Section boot.
   Qed.
 
   Definition m1 := link boot E.T.m.
-  Definition m := link E.m m1.
+  Definition m2 := link Buffers.m m1.
+  Definition m3 := link E.MyIo.m m2.
+  Definition m := link E.m m3.
 
   Lemma ok1 : moduleOk m1.
     link ok0 E.T.ok.
   Qed.
 
+  Lemma ok2 : moduleOk m2.
+    link Buffers.ok ok1.
+  Qed.
+
+  Lemma ok3 : moduleOk m3.
+    link E.MyIo.ok ok2.
+  Qed.
+
   Theorem ok : moduleOk m.
-    link E.ok ok1.
+    link E.ok ok3.
   Qed.
 
   Variable stn : settings.

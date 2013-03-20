@@ -23,7 +23,8 @@ End Hide.
 
 
 Module Type S.
-  Variable heapSize : N.
+  Parameter heapSize : N.
+  Parameters port numWorkers : W.
 End S.
 
 Module Make(M : S).
@@ -35,8 +36,8 @@ Module M'.
   Definition globalTree : W := globalSched ^+ $8.
   Definition globalPages : W := globalSched ^+ $12.
 
-  Definition port : W := 8080.
-  Definition numWorkers : W := 2.
+  Definition port := M.port.
+  Definition numWorkers := M.numWorkers.
 
   Definition inbuf_size := 256.
 

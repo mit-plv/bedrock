@@ -39,3 +39,4 @@ examples/comparison/*data.*
 examples/comparison/bedrock_server.s
 
 platform/tests/*.gen.s
+platform/tests/echotest

@@ -139,6 +139,11 @@ Definition buildDbS := SPEC("p") reserving 23
   PRE[V] strings n (V "p") * mallocHeap 0
   POST[R] Ex b, Ex trailer, tree b R * keyValues b * trailer =*> 0 * mallocHeap 0.
 
+Definition contentOfS := SPEC("tree", "buf", "len") reserving 11
+  Al b,
+  PRE[V] tree b (V "tree") * V "buf" =?>8 wordToNat (V "len")
+  POST[R] [| R = 0 \/ R %in b |] * tree b (V "tree") * V "buf" =?>8 wordToNat (V "len").
+
 Inductive reveal : Prop := Reveal.
 Hint Constructors reveal.
 
@@ -197,130 +202,98 @@ Definition m := bimport [[ "stringdb"!"new" @ [StringDb.newS], "stringdb"!"looku
         If ("n" = 0) {
           Skip
         } else {
-          "n" <-- Call "buffers"!"contains"("inbuf", bsize, 13)
-          [Al fs, PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-            * sched fs * globalInv fs * mallocHeap 0];;
+          "p" <-- Call "web"!"contentOf"($[globalTree], "inbuf", bsize)
+          [Al fs, Al fr, Al b, Al p, Al trailer,
+            PREmain[V, R] V "inbuf" =?>8 bsize
+              * [| V "fr" %in fs|]
+              * globalSock =*> fr * [| fr %in fs |]
+              * globalTree =*> p * tree b p * keyValues b
+              * trailer =*> 0
+              * [| R = 0 \/ R %in b |]
+              * sched fs * mallocHeap 0];;
 
-          If ("n" <= bsize) {
-            Assert [Al fs, PREmain[V] buffer_splitAt (wordToNat (V "n")) (V "inbuf") bsize
-              * [| V "fr" %in fs|] * [| (wordToNat (V "n") <= bsize)%nat |]
-              * sched fs * globalInv fs * mallocHeap 0];;
-
-            "p" <-- Call "stringdb"!"lookup"($[globalTree], "inbuf", "n")
-            [Al fs, Al fr, Al b, Al p, Al trailer,
-              PREmain[V, R] V "inbuf" =?>8 wordToNat (V "n") * (V "inbuf" ^+ V "n") =?>8 (bsize - wordToNat (V "n"))
-                * [| V "fr" %in fs|]
-                * globalSock =*> fr * [| fr %in fs |]
-                * globalTree =*> p * tree b p * keyValues b
-                * trailer =*> 0
-                * [| R = 0 \/ R %in b |]
-                * [| (wordToNat (V "n") <= bsize)%nat |]
-                * sched fs * mallocHeap 0];;
-
-            Assert [Al fs, Al fr, Al b, Al p, Al trailer,
-              PREmain[V] buffer_joinAt (wordToNat (V "n")) (V "inbuf") bsize * [| V "fr" %in fs|]
-                * globalSock =*> fr * [| fr %in fs |]
-                * globalTree =*> p * tree b p * keyValues b
-                * trailer =*> 0
-                * [| V "p" = 0 \/ V "p" %in b |]
-                * [| (wordToNat (V "n") <= bsize)%nat |]
-                * sched fs * mallocHeap 0];;
+          If ("p" = 0) {
+            Skip
+          } else {
+            Note [reveal];;
 
             Assert [Al fs, Al fr, Al b, Al p, Al trailer,
               PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
                 * globalSock =*> fr * [| fr %in fs |]
-                * globalTree =*> p * tree b p * keyValues b
+                * globalTree =*> p * tree b p * keyValues_pick (V "p") b
                 * trailer =*> 0
-                * [| V "p" = 0 \/ V "p" %in b |]
-                * [| (wordToNat (V "n") <= bsize)%nat |]
+                * [| V "p" %in b |]
                 * sched fs * mallocHeap 0];;
 
-            If ("p" = 0) {
-              Skip
+            "n" <-* "p";;
+
+            "len" <- 1;;
+            "len4" <- 4;;
+            [Al fs, Al fr, Al b, Al p, Al trailer, Al q, Al len,
+              PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
+                * globalSock =*> fr * [| fr %in fs |]
+                * globalTree =*> p * tree b p * keyValues (b %- V "p")
+                * q =*> len * (q ^+ $4) =?>8 wordToNat len
+                * [| V "p" = q ^+ $4 ^+ len |] * V "p" =*> V "n" * (V "p" ^+ $4) =?>8 wordToNat (V "n")
+                * trailer =*> 0
+                * [| V "p" %in b |] * [| V "len4" = V "len" ^* $4 |]
+                * sched fs * mallocHeap 0]
+            While ("len4" < "n") {
+              "len" <- "len" * 2;;
+              "len4" <- "len" * 4
+            };;
+
+            If ("len" < 2) {
+              Call "sys"!"abort"()
+              [PREonly[_] [| False |] ];;
+              Fail
             } else {
-              Note [reveal];;
-
-              Assert [Al fs, Al fr, Al b, Al p, Al trailer,
-                PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                  * globalSock =*> fr * [| fr %in fs |]
-                  * globalTree =*> p * tree b p * keyValues_pick (V "p") b
-                  * trailer =*> 0
-                  * [| V "p" %in b |]
-                  * [| (wordToNat (V "n") <= bsize)%nat |]
-                  * sched fs * mallocHeap 0];;
-
-              "n" <-* "p";;
-
-              "len" <- 1;;
-              "len4" <- 4;;
-              [Al fs, Al fr, Al b, Al p, Al trailer, Al q, Al len,
-                PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                  * globalSock =*> fr * [| fr %in fs |]
-                  * globalTree =*> p * tree b p * keyValues (b %- V "p")
-                  * q =*> len * (q ^+ $4) =?>8 wordToNat len
-                  * [| V "p" = q ^+ $4 ^+ len |] * V "p" =*> V "n" * (V "p" ^+ $4) =?>8 wordToNat (V "n")
-                  * trailer =*> 0
-                  * [| V "p" %in b |] * [| V "len4" = V "len" ^* $4 |]
-                  * sched fs * mallocHeap 0]
-              While ("len4" < "n") {
-                "len" <- "len" * 2;;
-                "len4" <- "len" * 4
-              };;
-
-              If ("len" < 2) {
+              If ("len" >= Npow2 30) {
                 Call "sys"!"abort"()
                 [PREonly[_] [| False |] ];;
                 Fail
               } else {
-                If ("len" >= Npow2 30) {
-                  Call "sys"!"abort"()
-                  [PREonly[_] [| False |] ];;
-                  Fail
-                } else {
-                  "outbuf" <-- Call "buffers"!"bmalloc"("len")
-                  [Al fs, Al fr, Al b, Al p, Al trailer, Al q, Al len,
-                    PREmain[V, R] R =?>8 (wordToNat (V "len") * 4) * [| R <> 0 |]
-                      * [| freeable R (wordToNat (V "len")) |] * [| (V "n" <= V "len" ^* $4)%word |]
-                      * [| (V "len" < NToW (Npow2 30))%word |]
-                      * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                      * globalSock =*> fr * [| fr %in fs |]
-                      * globalTree =*> p * tree b p * keyValues (b %- V "p")
-                      * q =*> len * (q ^+ $4) =?>8 wordToNat len
-                      * [| V "p" = q ^+ $4 ^+ len |] * V "p" =*> V "n" * (V "p" ^+ $4) =?>8 wordToNat (V "n")
-                      * trailer =*> 0
-                      * [| V "p" %in b |]
-                      * sched fs * mallocHeap 0];;
+                "outbuf" <-- Call "buffers"!"bmalloc"("len")
+                [Al fs, Al fr, Al b, Al p, Al trailer, Al q, Al len,
+                  PREmain[V, R] R =?>8 (wordToNat (V "len") * 4) * [| R <> 0 |]
+                    * [| freeable R (wordToNat (V "len")) |] * [| (V "n" <= V "len" ^* $4)%word |]
+                    * [| (V "len" < NToW (Npow2 30))%word |]
+                    * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
+                    * globalSock =*> fr * [| fr %in fs |]
+                    * globalTree =*> p * tree b p * keyValues (b %- V "p")
+                    * q =*> len * (q ^+ $4) =?>8 wordToNat len
+                    * [| V "p" = q ^+ $4 ^+ len |] * V "p" =*> V "n" * (V "p" ^+ $4) =?>8 wordToNat (V "n")
+                    * trailer =*> 0
+                    * [| V "p" %in b |]
+                    * sched fs * mallocHeap 0];;
 
-                  "p" <- "p" + 4;;
-                  Call "buffers"!"copy"("outbuf", "p", "n")
-                  [Al fs, Al fr, Al b, Al p, Al trailer, Al Vp,
-                    PREmain[V] V "outbuf" =?>8 (wordToNat (V "len") * 4) * [| V "outbuf" <> 0 |]
-                      * [| freeable (V "outbuf") (wordToNat (V "len")) |] * [| (V "n" <= V "len" ^* $4)%word |]
-                      * [| (V "len" < NToW (Npow2 30))%word |]
-                      * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                      * globalSock =*> fr * [| fr %in fs |]
-                      * globalTree =*> p * tree b p * keyValues_pick Vp b
-                      * trailer =*> 0 * [| Vp %in b |]
-                      * sched fs * mallocHeap 0];;
+                "p" <- "p" + 4;;
+                Call "buffers"!"copy"("outbuf", "p", "n")
+                [Al fs, Al fr, Al b, Al p, Al trailer, Al Vp,
+                  PREmain[V] V "outbuf" =?>8 (wordToNat (V "len") * 4) * [| V "outbuf" <> 0 |]
+                    * [| freeable (V "outbuf") (wordToNat (V "len")) |] * [| (V "n" <= V "len" ^* $4)%word |]
+                    * [| (V "len" < NToW (Npow2 30))%word |]
+                    * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
+                    * globalSock =*> fr * [| fr %in fs |]
+                    * globalTree =*> p * tree b p * keyValues_pick Vp b
+                    * trailer =*> 0 * [| Vp %in b |]
+                    * sched fs * mallocHeap 0];;
 
-                  Note [reveal];;
+                Note [reveal];;
 
-                  Call "io"!"writeAll"("fr", "outbuf", 0, "n")
-                  [Al fs,
-                    PREmain[V] V "outbuf" =?>8 (wordToNat (V "len") * 4) * [| V "outbuf" <> 0 |]
-                      * [| freeable (V "outbuf") (wordToNat (V "len")) |]
-                      * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                      * sched fs * globalInv fs * mallocHeap 0];;
+                Call "io"!"writeAll"("fr", "outbuf", 0, "n")
+                [Al fs,
+                  PREmain[V] V "outbuf" =?>8 (wordToNat (V "len") * 4) * [| V "outbuf" <> 0 |]
+                    * [| freeable (V "outbuf") (wordToNat (V "len")) |]
+                    * V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
+                    * sched fs * globalInv fs * mallocHeap 0];;
 
-                  Call "buffers"!"bfree"("outbuf", "len")
-                  [Al fs,
-                    PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
-                      * sched fs * globalInv fs * mallocHeap 0]
-                }
+                Call "buffers"!"bfree"("outbuf", "len")
+                [Al fs,
+                  PREmain[V] V "inbuf" =?>8 bsize * [| V "fr" %in fs|]
+                    * sched fs * globalInv fs * mallocHeap 0]
               }
             }
-          } else {
-            Skip
           }
         };;
 
@@ -354,6 +327,62 @@ Definition m := bimport [[ "stringdb"!"new" @ [StringDb.newS], "stringdb"!"looku
       };;
 
       Return "db"
+    end with bfunction "contentOf"("tree", "buf", "len", "newline", "space") [contentOfS]
+      If ("len" < 4) {
+        (* No "GET " at the beginning. *)
+        Return 0
+      } else {
+        Skip
+      };;
+
+      (* Seek forward past "GET ". *)
+
+      Assert [Al b,
+        PRE[V] [| (4 <= wordToNat (V "len"))%nat |] * tree b (V "tree")
+          * buffer_splitAt 4 (V "buf") (wordToNat (V "len"))
+        POST[R] [| R = 0 \/ R %in b |] * tree b (V "tree") * buffer_joinAt 4 (V "buf") (wordToNat (V "len"))];;
+
+      "buf" <- "buf" + 4;;
+      "len" <- "len" - 4;;
+
+      (* Find position of line break. *)
+      "newline" <-- Call "buffers"!"contains"("buf", "len", 13)
+      [Al b,
+        PRE[V] tree b (V "tree") * V "buf" =?>8 wordToNat (V "len")
+        POST[R] [| R = 0 \/ R %in b |] * tree b (V "tree") * V "buf" =?>8 wordToNat (V "len")];;
+
+      (* Find next position (if any) of a space character, ideally right before "HTTP/1.1". *)
+      "space" <-- Call "buffers"!"contains"("buf", "len", " "%char)
+      [Al b,
+        PRE[V] tree b (V "tree") * V "buf" =?>8 wordToNat (V "len")
+        POST[R] [| R = 0 \/ R %in b |] * tree b (V "tree") * V "buf" =?>8 wordToNat (V "len")];;
+
+      If ("space" < "newline") {
+        (* OK, this is the space we hoped to find. *)
+        Skip
+      } else {
+        (* Use the newline as the end marker, since no " HTTP/1.1" exists. *)
+        "space" <- "newline"
+      };;
+
+      If ("space" >= "len") {
+        (* Oops, impossible overflow! *)
+        Return 0
+      } else {
+        Skip
+      };;
+
+      Assert [Al b,
+        PRE[V] [| (wordToNat (V "space") <= wordToNat (V "len"))%nat |] * tree b (V "tree")
+          * buffer_splitAt (wordToNat (V "space")) (V "buf") (wordToNat (V "len"))
+        POST[R] [| R = 0 \/ R %in b |] * tree b (V "tree")
+          * buffer_joinAt (wordToNat (V "space")) (V "buf") (wordToNat (V "len"))];;
+
+      (* Ready to look up in the database. *)
+      "newline" <-- Call "stringdb"!"lookup"("tree", "buf", "space")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "newline"
     end
   }}.
 
@@ -418,6 +447,22 @@ Qed.
 
 Local Hint Immediate convert_le.
 
+Lemma four_le : forall w : W, (4 <= wordToNat w)%nat
+  -> natToW 4 <= w.
+  intros; pre_nomega; auto.
+Qed.
+
+Local Hint Immediate four_le.
+
+Hint Rewrite wordToNat_wminus using solve [ auto ] : sepFormula.
+
+Lemma wlt_le : forall u v : W, u < v
+  -> (wordToNat u <= wordToNat v)%nat.
+  intros; nomega.
+Qed.
+
+Local Hint Immediate wlt_le.
+
 Ltac t :=
   try match goal with
         | [ |- context[reveal] ] => unfold keyValues_pick
@@ -426,6 +471,8 @@ Ltac t :=
     unf; unfold localsInvariantMain; post; evaluate hints; descend;
       try (rewrite four_in in * by assumption; match_locals); sep unf hints;
         eauto; try step hints.
+
+Ltac u := solve [ t ].
 
 Theorem ok : moduleOk m.
   vcgen; abstract t.
