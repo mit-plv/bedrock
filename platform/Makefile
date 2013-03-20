@@ -11,9 +11,9 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest tests/Echo tests/Echo2 \
            tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver tests/EchoDriver tests/Echo2Driver \
            tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList tests/Echo3 \
-           tests/Buffers tests/Io tests/StringDb tests/WebServer \
+           tests/Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
-           tests/WebServerDriver
+           tests/WebServerDriver tests/EchoServerDriver
 
 VS      := $(MODULES:%=%.v)
 

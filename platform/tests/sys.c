@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 __attribute__((noreturn)) void sys_abort() {
   puts("Bedrock program terminated.");
@@ -37,6 +38,11 @@ unsigned _sys_listen(unsigned port) {
     exit(1);
   }
 
+  if (ioctl(sock, FIONBIO, &one)) {
+    perror("ioctl");
+    exit(1);
+  }
+
   memset(&sa, 0, sizeof(sa));
   sa.sin_family = AF_INET;
   sa.sin_port = htons(port);
@@ -64,10 +70,15 @@ unsigned _sys_accept(unsigned sock) {
   fprintf(stderr, "accept(%u)\n", sock);
 #endif
 
-  int new_sock = accept(sock, NULL, NULL);
+  int new_sock = accept(sock, NULL, NULL), one = 1;
 
   if (new_sock == -1) {
     perror("accept");
+    exit(1);
+  }
+
+  if (ioctl(new_sock, FIONBIO, &one)) {
+    perror("ioctl");
     exit(1);
   }
 
@@ -82,9 +93,17 @@ unsigned _sys_read(unsigned sock, void *buf, unsigned count) {
   ssize_t n = read(sock, buf, count);
 
   if (n == -1) {
-    perror("read");
-    exit(1);
+    if (errno == ECONNRESET)
+      n = 0;
+    else {
+      perror("read");
+      exit(1);
+    }
   }
+
+#ifdef DEBUG
+  fprintf(stderr, "read(%u, %p, %u) = %u\n", sock, buf, count, n);
+#endif
 
   return n;
 }
@@ -96,6 +115,10 @@ unsigned _sys_write(unsigned sock, void *buf, unsigned count) {
     perror("write");
     exit(1);
   }
+
+#ifdef DEBUG
+  fprintf(stderr, "write(%u, %p, %u) = %u\n", sock, buf, count, n);
+#endif
 
   return n;
 }

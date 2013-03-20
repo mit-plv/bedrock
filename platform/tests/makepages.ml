@@ -47,7 +47,7 @@ let rec doFile path microPath =
     Array.iter (fun path' -> doFile (Filename.concat path path') (Filename.concat microPath path')) (Sys.readdir path)
   else
     let data = read_file path in
-    let fullData = Printf.sprintf "Content-type: %s\r\nContent-length: %d\r\n\r\n%s"
+    let fullData = Printf.sprintf "HTTP/1.1 200 OK\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n%s"
         (Hashtbl.find mimeTypes (extension microPath))
         (String.length data)
         data in

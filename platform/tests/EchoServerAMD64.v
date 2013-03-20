@@ -1,8 +1,8 @@
-Require Import Bedrock WebServerDriver AMD64_gas.
+Require Import Bedrock EchoServerDriver AMD64_gas.
 
 Module M.
-  Definition heapSize := (1024 * 1024 * 25)%N.
-  Definition port : W := 8080%N.
+  Definition heapSize := 1024.
+  Definition port : W := 8081%N.
   Definition numWorkers : W := 2.
 End M.
 
