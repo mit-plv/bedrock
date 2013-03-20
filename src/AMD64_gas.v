@@ -133,8 +133,6 @@ Definition testS (t : test) : string :=
     | Le => "na"
   end.
 
-Check evalTest.
-
 Definition jmpS (j : jmp) : string :=
   match j with
     | Uncond (RvLabel lab) =>
