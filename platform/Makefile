@@ -7,11 +7,13 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Malloc \
            Bags Sets Queue ThreadQueue ThreadQueues SinglyLinkedList Scheduler Thread \
            Bootstrap Arrays8 MoreArrays \
-           tests/Thread0 tests/Io tests/StringDb \
+           tests/Thread0 \
            tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest tests/Echo tests/Echo2 \
            tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver tests/EchoDriver tests/Echo2Driver \
            tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList tests/Echo3 \
-           tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver
+           tests/Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
+           tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
+           tests/WebServerDriver tests/EchoServerDriver
 
 VS      := $(MODULES:%=%.v)
 
@@ -31,9 +33,13 @@ clean:: Makefile.coq
 	rm -f Makefile.coq .depend
 
 tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
-	echo ".global bedrock_heap" >$@
-	echo ".comm bedrock_heap,4*(1024+50+`cat tests/$*.txt`)" >>$@
-	echo ".global main_main" >>$@
+	echo "\t.data" >$@
+	echo "\t.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "\t.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
+	echo >>$@
+	echo "\t.text" >>$@
+	echo "\t.global main_main" >>$@
 	echo >>$@
 	$(COQC) $< \
 		| sed 's/^.*:: nil//' \
@@ -46,4 +52,8 @@ tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
 tests/%.exe: tests/%.gen.o tests/sys.o tests/driver.o
 	cc $^ -o $@
 
-.PRECIOUS: %.gen.s
+tests/pages.gen.s:
+	ocaml str.cma tests/makepages.ml $(PAGES) >$@
+
+tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/driver.o
+	cc $^ -o $@

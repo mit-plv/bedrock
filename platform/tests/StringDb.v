@@ -280,7 +280,8 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "sys"!"abort" @ [abort
             } else {
               If ("c2" = "c") {
                 (* Character match.  Continue along the "true" path. *)
-                "t" <- "p"+8
+                "t" <- "p"+8;;
+                "pos" <- "pos" + 1
               } else {
                 (* Character non-match.  Continue along the "false" path. *)
                 "t" <- "p"+12
