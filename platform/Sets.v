@@ -372,6 +372,14 @@ Module Make(M : S).
       sets.
     Qed.
 
+    Lemma star_cancel_right : forall a b c, b ===> c -> b * a ===> c * a.
+      sepLemma.
+    Qed.
+
+    Lemma starS_equiv : forall P a b, a %= b -> starS P a ===> starS P b.
+      intros; unfold starS; to_himp; apply existsL; intros; apply existsR with x; from_himp; eapply star_cancel_right; sepLemma.
+    Qed.
+
     Variable P' : predS nil.
 
     Theorem starS_weaken : forall b,
