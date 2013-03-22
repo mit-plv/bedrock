@@ -145,6 +145,7 @@ unsigned _sys_declare(unsigned sock, unsigned mode) {
   if (sock >= num_fds) {
     fds = realloc(fds, sizeof(uint32_t) * (sock+1));
     memset(fds + num_fds, 0, sizeof(uint32_t) * (sock+1 - num_fds));
+    num_fds = sock;
   }
 
   uint32_t mask = mode ? EPOLLOUT : EPOLLIN;
