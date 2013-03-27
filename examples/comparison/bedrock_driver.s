@@ -33,10 +33,10 @@ main:
         movl    dataLen, %eax
         movl    %eax, STACK_START+16
         
-        movl    $ret, %ecx
+        movl    $ret, %esi
         jmp     m_main
 ret:
-        movl    %eax, %ebx
+        movl    %edi, %ebx
 loop:
         cmpl    $0, %ebx
         jz      done
