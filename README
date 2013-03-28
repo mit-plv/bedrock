@@ -16,4 +16,4 @@ Then, just run:
    make
 and go take a break while it runs for an hour or so (if you're lucky enough to have a new-ish machine). ;)  Using the '-j' switch for parallel build is highly recommended.
 
-Also see the 'examples' directory and its README.
+Also see the 'examples' and 'platform' directories and their READMEs.
