@@ -61,6 +61,40 @@ Section Wrap.
 End Wrap.
 
 
+(** * A simpler combinator, for [chunk]-level programs with explicit invariants ahoy *)
+
+Section WrapC.
+  Variable body : chunk.
+  
+  Definition assertC := bool
+    -> (W -> W)
+    -> list string
+    -> nat
+    -> assert.
+
+  Variables precondition postcondition : assertC.
+  Variable verifCond : list string -> list Prop.
+
+  Hypothesis postcondition_covered : forall im mn H ns res pre specs st,
+    (forall specs st, interp specs (pre st)
+      -> interp specs (precondition true (fun x => x) ns res st))
+    -> vcs (verifCond ns)
+    -> interp specs ((toCmd body (im := im) mn H ns res pre).(Postcondition) st)
+    -> interp specs (postcondition true (fun x => x) ns res st).
+
+  Hypothesis verifCond_covered : forall im mn H ns res pre,
+    vcs ((toCmd body (im := im) mn H ns res pre).(VerifCond)).
+
+  Definition WrapC : chunk.
+    red; refine (fun ns res => Structured nil
+      (fun im mn H => Wrap im H mn (toCmd body mn H ns res)
+        (fun _ => postcondition true (fun x => x) ns res)
+        (fun pre => (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st)) :: verifCond ns)
+        _ _)); abstract struct.
+  Defined.
+End WrapC.
+
+
 (** * Some tactics useful in clients of [Wrap] *)
 
 Require Import Locals.
