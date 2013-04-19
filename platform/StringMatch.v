@@ -59,7 +59,10 @@ Section StringEq.
     POST[R] postcondition x V R.
 
   Ltac app := match goal with
-                | [ H : _, H' : _ |- _ ] => apply H in H'
+                | [ H : _, H' : ?P |- _ ] => apply H in H';
+                  try match goal with
+                        | [ H' : P |- _ ] => clear H'
+                      end
               end.
 
   Ltac handle_IH :=
@@ -129,23 +132,20 @@ Section StringEq.
       (StringEqSpec' const offset)
       (StringEqSpec' const offset)
       StringEqVcs
-      _ _).
-
-    wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre; induction const.
-
-    propxFo; t.
-
-    propxFo.
-    
-    apply IHs in H1.
-    post; handle_IH; finish.
-
-    clear H1; post.
-    t.
-
-    t.
-
-    admit.
+      _ _); [
+        abstract (wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
+          induction const;
+            (propxFo;
+              match goal with
+                | [ _ : interp _ (Postcondition _ _) |- _ ] =>
+                  app; [ post; handle_IH; finish
+                    | post; t ]
+                | _ => t
+              end))
+        | abstract (generalize dependent offset; induction const; wrap0;
+          try match goal with
+                | [ H : _ |- vcs _ ] => apply H; wrap0; post
+              end; t) ].
   Defined.
 
   Definition StringEqSpec :=
