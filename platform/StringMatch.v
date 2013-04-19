@@ -16,11 +16,6 @@ Section StringEq.
   Variable precondition : A -> vals -> HProp.
   Variable postcondition : A -> vals -> W -> HProp.
 
-  Definition StringEqSpec :=
-    Al bs, Al x : A,
-    PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |] * [| V pos <= V len |]
-    POST[R] postcondition x V R.
-
   Fixpoint StringEq' (const : string) (offset : nat) : chunk :=
     match const with
       | "" => output <- 1
@@ -57,10 +52,10 @@ Section StringEq.
 
   Hint Rewrite precondition_sel postcondition_sel : sepFormula.
 
-  Definition StringEqSpec' (offset : nat) :=
+  Definition StringEqSpec' (const : string) (offset : nat) :=
     Al bs, Al x : A,
     PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
-      * [| V pos ^+ natToW offset < V len |]
+      * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
     POST[R] postcondition x V R.
 
   Ltac app := match goal with
@@ -72,34 +67,50 @@ Section StringEq.
           | [ H : importsGlobal _ |- _ ] =>
             match goal with
               | [ IH : context[H] |- _ ] => clear H IH
+              | _ => clear H
             end
         end.
 
   Ltac simp := post; unfold lvalIn, regInL, immInR in *; clear_fancy; prep_locals.
 
-  Lemma bound_switch : forall (u v : W) n,
-    u < v
-    -> n = wordToNat v
-    -> u < natToW n.
+  Lemma bound_narrow : forall len (len' : W) pos offset spacing,
+    len = wordToNat len'
+    -> (wordToNat pos + offset + S spacing <= wordToNat len')%nat
+    -> pos ^+ natToW offset < natToW len.
     intros; subst; unfold natToW; rewrite natToWord_wordToNat; auto.
+    pre_nomega.
+    rewrite wordToNat_wplus.
+    rewrite wordToNat_natToWord_idempotent; auto.
+    change (goodSize offset); eapply goodSize_weaken; eauto.
+    instantiate (1 := len'); auto.
+    eapply goodSize_weaken; eauto.
+    rewrite wordToNat_natToWord_idempotent; auto.
+    instantiate (1 := len'); auto.
+    change (goodSize offset); eapply goodSize_weaken; eauto.
+    instantiate (1 := len'); auto.
   Qed.
   
+  Implicit Arguments bound_narrow [len len' pos offset spacing].
+
   Ltac evalu :=
     repeat match goal with
              | [ H : evalInstrs _ _ _ = _ |- _ ] => generalize dependent H
            end;
     evaluate auto_ext; intros;
     try match goal with
-          | [ H : length _ = wordToNat _, H' : _ < _ |- _ ] => specialize (bound_switch H' H); intro
+          | [ H : length _ = wordToNat _, H' : (_ <= _)%nat |- _ ] => specialize (bound_narrow H H'); intro
         end;
     evaluate auto_ext; intros;
     repeat match goal with
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
-           end.
+           end;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end.
 
   Ltac finish := descend; repeat (step auto_ext; descend); descend; step auto_ext.
 
-  Ltac t := app; simp; handle_IH; evalu; finish.
+  Ltac t := try app; simp; handle_IH; evalu; finish.
 
   Notation StringEqVcs := (fun ns => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
     :: not (str = len) :: not (str = pos) :: not (str = output)
@@ -115,40 +126,40 @@ Section StringEq.
 
   Definition StringEq'' (offset : nat) : chunk.
     refine (WrapC (StringEq' const offset)
-      (StringEqSpec' offset)
-      (StringEqSpec' offset)
+      (StringEqSpec' const offset)
+      (StringEqSpec' const offset)
       StringEqVcs
       _ _).
 
-    wrap0; generalize dependent offset; generalize dependent st; induction const.
+    wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre; induction const.
 
     propxFo; t.
 
     propxFo.
     
-    admit. (* Recursive case *)
+    apply IHs in H1.
+    post; handle_IH; finish.
+
+    clear H1; post.
+    t.
 
     t.
 
     admit.
   Defined.
 
+  Definition StringEqSpec :=
+    Al bs, Al x : A,
+    PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
+      * [| wordToNat (V pos) + String.length const <= wordToNat (V len) |]%nat
+    POST[R] postcondition x V R.
+
   Definition StringEq : chunk.
     refine (WrapC (StringEq'' O)
       StringEqSpec
       StringEqSpec
       StringEqVcs
-      _ _).
-
-    wrap0.
-    clear H.
-    post; descend; repeat (step auto_ext; descend).
-    replace (sel x2 pos ^+ natToW 0) with (sel x2 pos) in H1.
-    auto.
-    words.
-
-    wrap0.
-    admit.
+      _ _); abstract (wrap0; try app; simp; handle_IH; finish).
   Defined.
 
 End StringEq.
