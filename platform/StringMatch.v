@@ -58,24 +58,6 @@ Section StringEq.
       * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
     POST[R] postcondition x V R.
 
-  Ltac app := match goal with
-                | [ H : _, H' : ?P |- _ ] => apply H in H';
-                  try match goal with
-                        | [ H' : P |- _ ] => clear H'
-                      end
-              end.
-
-  Ltac handle_IH :=
-    try match goal with
-          | [ H : importsGlobal _ |- _ ] =>
-            match goal with
-              | [ IH : context[H] |- _ ] => clear H IH
-              | _ => clear H
-            end
-        end.
-
-  Ltac simp := post; unfold lvalIn, regInL, immInR in *; clear_fancy; prep_locals.
-
   Lemma bound_narrow : forall len (len' : W) pos offset spacing,
     len = wordToNat len'
     -> (wordToNat pos + offset + S spacing <= wordToNat len')%nat
@@ -110,8 +92,6 @@ Section StringEq.
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end.
-
-  Ltac finish := descend; repeat (step auto_ext; descend); descend; step auto_ext.
 
   Ltac t := try app; simp; handle_IH; evalu; finish.
 

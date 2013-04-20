@@ -148,6 +148,26 @@ Ltac wrap0 :=
 
 Ltac wrap1 := prep_locals; auto; clear_fancy.
 
+Ltac app := match goal with
+              | [ H : _, H' : ?P |- _ ] => apply H in H';
+                try match goal with
+                      | [ H' : P |- _ ] => clear H'
+                    end
+            end.
+
+Ltac handle_IH :=
+  try match goal with
+        | [ H : importsGlobal _ |- _ ] =>
+          match goal with
+            | [ IH : context[H] |- _ ] => clear H IH
+            | _ => clear H
+          end
+      end.
+
+Ltac simp := post; unfold lvalIn, regInL, immInR in *; clear_fancy; prep_locals.
+
+Ltac finish := descend; repeat (step auto_ext; descend); descend; step auto_ext.
+
 
 (** * Useful facts about instruction sequences not changing parts of machine state *)
 
