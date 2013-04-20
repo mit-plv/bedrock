@@ -124,7 +124,7 @@ Definition nextS := SPEC("buf", "p") reserving 8
 (** * Implementation *)
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
-  bmodule "xmlparse" {{
+  bmodule "xml_lex" {{
     bfunction "init"("len", "r") [initS]
       "r" <-- Call "malloc"!"malloc"(0, 4)
       [PRE[V, R] [| R <> 0 |] * [| freeable R 4 |] * R =?> 4
