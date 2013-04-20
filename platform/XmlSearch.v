@@ -57,21 +57,17 @@ Section Pat.
     List.Forall (fun p => wordToNat (V (fst p)) + wordToNat (V (snd p)) <= wordToNat (V "len"))%nat
     cdatas.
 
+  (* Precondition and postcondition of search *)
+  Definition invar :=
+    Al bs,
+    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * [| length bs = wordToNat (V "len") |]
+    POST[_] array8 bs (V "buf").
+
   (* Primary invariant, recording that a set of CDATA positions is in bounds. *)
   Definition inv cdatas :=
     Al bs,
     PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * [| length bs = wordToNat (V "len") |]
       * [| inBounds cdatas V |]
-    POST[_] array8 bs (V "buf").
-
-  Definition maybeInBounds (cdatas : list (string * string)) (V : vals) :=
-    V "matched" = 1 -> inBounds cdatas V.
-
-  (* Condition that should hold after a pattern match. *)
-  Definition post cdatas :=
-    Al bs,
-    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex")
-      * [| maybeInBounds cdatas V |]
     POST[_] array8 bs (V "buf").
 
   (* Intermediate invariant, to use right after reading token position from the lexer. *)
@@ -88,6 +84,8 @@ Section Pat.
       * [| inBounds cdatas V |] * [| wordToNat (V start) + wordToNat R <= wordToNat (V "len") |]%nat
     POST[_] array8 bs (V "buf").
 
+  Variable onSuccess : chunk.
+
   Fixpoint Pat' (p : pat) (level : nat) (cdatas : list (string * string)) : chunk :=
     match p with
       | Cdata start len =>
@@ -102,14 +100,15 @@ Section Pat.
           len <-- Call "xml_lex"!"tokenStart"("lex")
           [invL cdatas start];;
 
-          "matched" <- 1
+          onSuccess
         } else {
-          "matched" <- 0
+          Skip
         }
+
       | _ => Diverge
     end%SP.
 
-  Notation baseVars := ("buf" :: "len" :: "lex" :: "res" :: "matched" :: nil).
+  Notation baseVars := ("buf" :: "len" :: "lex" :: "res" :: nil).
 
   Definition noConflict pt := List.Forall (fun p => ~In (fst p) baseVars /\ ~In (snd p) baseVars
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
@@ -119,13 +118,12 @@ Section Pat.
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
     :: wf p
     :: noConflict p cdatas
+    :: (forall specs im mn H res pre st,
+      interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
+      -> interp specs (inv cdatas true (fun w => w) ns res st))
     :: nil).
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
-    auto.
-  Qed.
-
-  Lemma maybeInBounds_sel : forall cdatas V, maybeInBounds cdatas (sel V) = maybeInBounds cdatas V.
     auto.
   Qed.
 
@@ -163,23 +161,8 @@ Section Pat.
 
   Ltac finish := descend; repeat (step auto_ext; descend); auto.
 
-  Lemma maybeDefinitely : forall cdatas V,
-    inBounds cdatas V
-    -> maybeInBounds cdatas V.
-    red; auto.
-  Qed.
-
-  Lemma maybeNope : forall cdatas V,
-    sel V "matched" = 0
-    -> maybeInBounds cdatas V.
-    red; unfold sel; intros.
-    rewrite H in H0.
-    discriminate.
-  Qed.
-
   Ltac inBounds :=
-    try solve [ apply maybeNope; descend ];
-    (try apply maybeDefinitely; rewrite <- inBounds_sel;
+    rewrite <- inBounds_sel;
       repeat match goal with
                | [ H : inBounds _ ?X |- _ ] =>
                  match X with
@@ -187,11 +170,11 @@ Section Pat.
                    | _ => rewrite <- inBounds_sel in H
                  end
              end;
-      constructor; [ descend |
+      try (constructor; [ descend | ]);
         match goal with
           | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
             eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend ]
-        end ]).
+        end.
 
   Local Hint Extern 1 (@eq W _ _) => unfold natToW in *; words.
 
@@ -200,13 +183,13 @@ Section Pat.
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string)) : chunk.
     refine (WrapC (Pat' p level cdatas)
       (inv cdatas)
-      (post (allCdatas p ++ cdatas))
+      (inv cdatas)
       (PatVcs' p cdatas)
       _ _).
 
-    generalize dependent cdatas; generalize dependent level;
-      induction p; (wrap0; (deDouble; simp; evalu; descend;
-        (try rewrite maybeInBounds_sel; descend; step auto_ext; eauto; inBounds || finish))).
+    generalize dependent cdatas; generalize dependent level; induction p;
+      (wrap0; deDouble; try solve [ app; simp ];
+        simp; evalu; descend; (try rewrite inBounds_sel; descend; step auto_ext; eauto; inBounds || finish)).
 
     admit.
   Defined.
@@ -215,21 +198,25 @@ Section Pat.
     (~In "rp" ns) :: In "buf" ns :: In "len" ns :: In "lex" ns :: In "res" ns :: In "matched" ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars)
     :: wf p
+    :: (forall specs im mn H res pre st,
+      interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
+      -> interp specs (invar true (fun w => w) ns res st))
     :: nil).
 
   Definition Pat (p : pat) : chunk.
     refine (WrapC (PatR p 0 nil)
-      (inv nil)
-      (post (allCdatas p))
+      invar
+      invar
       (PatVcs p)
       _ _).
 
     wrap0; simp; descend;
     try match goal with
-          | [ H : interp _ _ |- _ ] => rewrite maybeInBounds_sel; rewrite maybeInBounds_sel in H
+          | [ H : interp _ _ |- _ ] => rewrite inBounds_sel in H
         end; step auto_ext; try fold (@app (string * string)) in *; try rewrite app_nil_r in *; finish.
 
-    wrap0; try (app; subst; tauto); constructor.
+    wrap0; try (app; subst; tauto); try constructor;
+      (app; simp; descend; try rewrite inBounds_sel; finish; constructor).
   Defined.
 
 End Pat.
