@@ -128,7 +128,88 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
                 If ("ch" = "<"%char) {
                   (* Found a tag! *)
 
-                  Diverge
+                  "start" <- "pos" + 1;;
+                  "pos" <- "start";;
+
+                  [Al bs, Al pos, Al start, Al selLen,
+                    PRE[V] (V "p" ==*> V "len", pos, start, selLen) * [| length bs = wordToNat (V "len") |]
+                      * [| V "p" <> 0 |] * [| freeable (V "p") 4 |] * [| (V "start" <= V "pos")%word |]
+                      * [| (V "pos" <= V "len")%word |] * array8 bs (V "buf")
+                    POST[_] array8 bs (V "buf") * xmlp (V "len") (V "p")]
+                  While ("pos" < "len") {
+                    Assert [Al bs, Al pos, Al start, Al selLen,
+                      PRE[V] (V "p" ==*> V "len", pos, start, selLen) * [| length bs = wordToNat (V "len") |]
+                        * [| V "pos" < natToW (length bs) |]%word
+                        * [| V "p" <> 0 |] * [| freeable (V "p") 4 |] * [| (V "start" <= V "pos")%word |]
+                        * [| (V "pos" < V "len")%word |] * array8 bs (V "buf")
+                      POST[_] array8 bs (V "buf") * xmlp (V "len") (V "p")];;
+
+                    "ch" <- "buf" + "pos";;
+                    "ch" <-*8 "ch";;
+
+                    If ("ch" = ">"%char) {
+                      (* End of tag. *)
+
+                      If ("start" = "pos") {
+                        "p"+4 *<- "len";;
+                        "p"+8 *<- "len";;
+                        "p"+12 *<- 0;;
+                        Return 0
+                      } else {
+                        Skip
+                      };;
+
+                      Assert [Al bs, Al pos, Al start, Al selLen,
+                        PRE[V] (V "p" ==*> V "len", pos, start, selLen) * [| length bs = wordToNat (V "len") |]
+                          * [| V "start" < natToW (length bs) |]%word
+                          * [| V "p" <> 0 |] * [| freeable (V "p") 4 |] * [| (V "start" < V "pos")%word |]
+                          * [| (V "pos" < V "len")%word |] * array8 bs (V "buf")
+                        POST[_] array8 bs (V "buf") * xmlp (V "len") (V "p")];;
+
+                      "ch" <- "buf" + "start";;
+                      "ch" <-*8 "ch";;
+
+                      If ("ch" = "?"%char) {
+                        (* Funny meta-tag *)
+
+                        "ch" <- "pos" + 1;;
+                        "p"+4 *<- "ch";;
+                        "ch" <- "start" + 1;;
+                        "p"+8 *<- "ch";;
+                        "ch" <- "pos" - "ch";;
+                        "p"+12 *<- "ch";;
+                        Return 4
+                      } else {
+                        If ("ch" = "/"%char) {
+                          (* Closing tag *)
+
+                          "ch" <- "pos" + 1;;
+                          "p"+4 *<- "ch";;
+                          "ch" <- "start" + 1;;
+                          "p"+8 *<- "ch";;
+                          "ch" <- "pos" - "ch";;
+                          "p"+12 *<- "ch";;
+                          Return 3
+                        } else {
+                          (* Opening tag *)
+
+                          "ch" <- "pos" + 1;;
+                          "p"+4 *<- "ch";;
+                          "p"+8 *<- "start";;
+                          "ch" <- "pos" - "start";;
+                          "p"+12 *<- "ch";;
+                          Return 1
+                        }
+                      }
+                    } else {
+                      "pos" <- "pos" + 1
+                    }
+                  };;
+
+                  "p"+4 *<- "len";;
+                  "p"+8 *<- "len";;
+                  "p"+12 *<- 0;;
+                  Return 0
                 } else {
                   (* Found CDATA! *)
 
@@ -210,7 +291,37 @@ Lemma quite_so_old_fellow : forall pos n n',
   intros; subst; unfold natToW; rewrite natToWord_wordToNat; auto.
 Qed.
 
-Local Hint Immediate wle_plus1 quite_so_old_fellow inc.
+Lemma ruleout : forall u v : W,
+  u <= v
+  -> u <> v
+  -> u < v.
+  intros; pre_nomega.
+  assert (wordToNat u <> wordToNat v) by (intro Ho; apply H0; apply wordToNat_inj in Ho; auto).
+  auto.
+Qed.
+
+Lemma wlt_wle : forall u v,
+  u < v
+  -> u ^+ natToW 1 <= v.
+  intros; pre_nomega.
+  rewrite wordToNat_wplus; rewrite roundTrip_1; auto.
+  apply goodSize_weaken with (wordToNat v); eauto.
+Qed.
+
+Lemma combotize : forall start pos len,
+  start < pos
+  -> pos < len
+  -> (wordToNat (start ^+ natToW 1) + wordToNat (pos ^- (start ^+ natToW 1)) <= wordToNat len)%nat.
+  intros; pre_nomega.
+  rewrite wordToNat_wminus.
+  rewrite wordToNat_wplus; rewrite roundTrip_1; auto.
+  apply goodSize_weaken with (wordToNat len); eauto.
+  pre_nomega.
+  rewrite wordToNat_wplus; rewrite roundTrip_1; auto.
+  apply goodSize_weaken with (wordToNat pos); eauto.
+Qed.
+
+Local Hint Immediate wle_plus1 quite_so_old_fellow inc ruleout wlt_wle combotize.
 
 Ltac t := sep hints; eauto; nomega || rewrite wordToNat_wminus; nomega.
 
