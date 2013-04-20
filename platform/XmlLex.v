@@ -5,6 +5,7 @@ Require Import AutoSep Malloc MoreArrays.
 
 Module Type XMLP.
   Variable xmlp : W -> W -> HProp.
+  Variable xmlp' : W -> W -> W -> HProp.
 
   Axiom xmlp_fwd : forall len p, xmlp len p
     ===> Ex pos, Ex selStart, Ex selLen, (p ==*> len, pos, selStart, selLen)
@@ -14,6 +15,15 @@ Module Type XMLP.
   Axiom xmlp_bwd : forall len p, (Ex pos, Ex selStart, Ex selLen, (p ==*> len, pos, selStart, selLen)
     * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
     * [| p <> 0 |] * [| freeable p 4 |]) ===> xmlp len p.
+
+  Axiom xmlp'_fwd : forall len selStart p, xmlp' len selStart p
+    ===> Ex pos, Ex selLen, (p ==*> len, pos, selStart, selLen)
+    * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
+    * [| p <> 0 |] * [| freeable p 4 |].
+
+  Axiom xmlp'_bwd : forall len selStart p, (Ex pos, Ex selLen, (p ==*> len, pos, selStart, selLen)
+    * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
+    * [| p <> 0 |] * [| freeable p 4 |]) ===> xmlp' len selStart p.
 End XMLP.
 
 Module Xmlp : XMLP.
@@ -21,6 +31,11 @@ Module Xmlp : XMLP.
 
   Definition xmlp (len p : W) : HProp :=
     Ex pos, Ex selStart, Ex selLen, (p ==*> len, pos, selStart, selLen)
+    * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
+    * [| p <> 0 |] * [| freeable p 4 |].
+
+  Definition xmlp' (len selStart p : W) : HProp :=
+    Ex pos, Ex selLen, (p ==*> len, pos, selStart, selLen)
     * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
     * [| p <> 0 |] * [| freeable p 4 |].
 
@@ -36,13 +51,26 @@ Module Xmlp : XMLP.
     * [| p <> 0 |] * [| freeable p 4 |]) ===> xmlp len p.
     unfold xmlp; sepLemma.
   Qed.
+
+  Theorem xmlp'_fwd : forall len selStart p, xmlp' len selStart p
+    ===> Ex pos, Ex selLen, (p ==*> len, pos, selStart, selLen)
+    * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
+    * [| p <> 0 |] * [| freeable p 4 |].
+    unfold xmlp'; sepLemma.
+  Qed.
+
+  Theorem xmlp'_bwd : forall len selStart p, (Ex pos, Ex selLen, (p ==*> len, pos, selStart, selLen)
+    * [| pos <= len |] * [| (wordToNat selStart + wordToNat selLen <= wordToNat len)%nat |]
+    * [| p <> 0 |] * [| freeable p 4 |]) ===> xmlp' len selStart p.
+    unfold xmlp'; sepLemma.
+  Qed.
 End Xmlp.
 
 Import Xmlp.
 Export Xmlp.
 
 Definition hints : TacPackage.
-  prepare xmlp_fwd xmlp_bwd.
+  prepare (xmlp_fwd, xmlp'_fwd) (xmlp_bwd, xmlp'_bwd).
 Defined.
 
 
@@ -60,6 +88,26 @@ Definition deleteS := SPEC("p") reserving 6
   Al len,
   PRE[V] xmlp len (V "p") * mallocHeap 0
   POST[_] mallocHeap 0.
+
+Definition positionS := SPEC("p") reserving 0
+  Al len,
+  PRE[V] xmlp len (V "p")
+  POST[R] [| R <= len |] * xmlp len (V "p").
+
+Definition setPositionS := SPEC("p", "pos") reserving 0
+  Al len,
+  PRE[V] xmlp len (V "p") * [| V "pos" <= len |]
+  POST[_] xmlp len (V "p").
+
+Definition tokenStartS := SPEC("p") reserving 0
+  Al len,
+  PRE[V] xmlp len (V "p")
+  POST[R] xmlp' len R (V "p").
+
+Definition tokenLengthS := SPEC("p") reserving 0
+  Al len, Al pos,
+  PRE[V] xmlp' len pos (V "p")
+  POST[R] [| wordToNat pos + wordToNat R <= wordToNat len |]%nat * xmlp len (V "p").
 
 Definition nextS := SPEC("buf", "p") reserving 8
   Al bs, Al len,
@@ -92,6 +140,18 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[_] Emp
        POST[_] Emp];;
       Return 0
+    end with bfunction "position"("p") [positionS]
+      Rv <-* "p"+4;;
+      Return Rv
+    end with bfunction "setPosition"("p", "pos") [setPositionS]
+      "p"+4 *<- "pos";;
+      Return 0
+    end with bfunction "tokenStart"("p") [tokenStartS]
+      Rv <-* "p"+8;;
+      Return Rv
+    end with bfunction "tokenLength"("p") [tokenLengthS]
+      Rv <-* "p"+12;;
+      Return Rv
     end with bfunction "next"("buf", "p", "len", "pos", "start", "ch") [nextS]
       "len" <-* "p";;
       "pos" <-* "p"+4;;
