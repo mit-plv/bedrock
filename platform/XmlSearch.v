@@ -105,6 +105,56 @@ Section Pat.
           Skip
         }
 
+      | Tag tag inner =>
+        "level" <- level;;
+
+        [inv cdatas]
+        While ("level" >= level) {
+          "res" <-- Call "xml_lex"!"next"("buf", "lex")
+          [inv cdatas];;
+
+          If ("res" = 1) {
+            (* Open tag -- does it match? *)
+            "level" <- "level" + 1;;
+
+            If ("level" > level) {
+              (* We've descended too deep, so this position doesn't qualify. *)
+              Skip
+            } else {
+              "tagStart" <-- Call "xml_lex"!"tokenStart"("lex")
+              [invP cdatas];;
+
+              "tagLen" <-- Call "xml_lex"!"tokenStart"("lex")
+              [invL cdatas "tagStart"];;
+
+              StringEq "buf" "len" "tagStart" "tagLen" tag
+              (A := unit)
+              (fun _ V => xmlp (V "len") (V "lex")
+                * [| inBounds cdatas V |])%Sep
+              (fun _ V _ => xmlp (V "len") (V "lex")
+                * [| inBounds cdatas V |])%Sep;;
+
+              If ("matched" = 0) {
+                Skip
+              } else {
+                Pat' inner (S level) cdatas
+              }
+            }
+          } else {
+            If ("res" = 3) {
+              (* Close tag *)
+              "level" <- "level" - 1
+            } else {
+              If ("res" = 0) {
+                (* Done parsing.  Force exit from the loop. *)
+                "level" <- 0
+              } else {
+                Skip
+              }
+            }
+          }
+        }
+
       | _ => Diverge
     end%SP.
 
@@ -204,7 +254,7 @@ Section Pat.
     :: nil).
 
   Definition Pat (p : pat) : chunk.
-    refine (WrapC (PatR p 0 nil)
+    refine (WrapC (PatR p 1 nil)
       invar
       invar
       (PatVcs p)
