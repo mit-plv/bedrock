@@ -1,4 +1,4 @@
-Require Import AutoSep Wrap StringMatch XmlLex.
+Require Import AutoSep Wrap StringMatch XmlLex SinglyLinkedList Malloc.
 
 Set Implicit Arguments.
 
@@ -32,15 +32,6 @@ Fixpoint wf (p : pat) : Prop :=
     | Both p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
   end%type.
 
-(** Executing a pattern requires keeping a stack of saved positions.
-    This function calculates the precise stack depth that we need. *)
-Fixpoint stackDepth (p : pat) : nat :=
-  match p with
-    | Cdata _ _ => O
-    | Tag _ p => stackDepth p
-    | Both p1 p2 => S (max (stackDepth p1) (stackDepth p2))
-  end.
-
 (** All pairs of start-length variables in a pattern *)
 Fixpoint allCdatas (p : pat) : list (string * string) :=
   match p with
@@ -57,36 +48,44 @@ Section Pat.
     List.Forall (fun p => wordToNat (V (fst p)) + wordToNat (V (snd p)) <= wordToNat (V "len"))%nat
     cdatas.
 
+  Definition stackOk (ls : list W) (len : W) :=
+    List.Forall (fun x => x <= len) ls.
+
   (* Precondition and postcondition of search *)
   Definition invar :=
-    Al bs,
-    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * [| length bs = wordToNat (V "len") |]
+    Al bs, Al ls,
+    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+      * [| length bs = wordToNat (V "len") |] * [| stackOk ls (V "len") |]
     POST[_] array8 bs (V "buf").
 
   (* Primary invariant, recording that a set of CDATA positions is in bounds. *)
   Definition inv cdatas :=
-    Al bs,
-    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * [| length bs = wordToNat (V "len") |]
-      * [| inBounds cdatas V |]
+    Al bs, Al ls,
+    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+      * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+      * [| stackOk ls (V "len") |]
     POST[_] array8 bs (V "buf").
 
   (* Intermediate invariant, to use right after reading token position from the lexer. *)
   Definition invP cdatas :=
-    Al bs,
-    PRE[V, R] array8 bs (V "buf") * xmlp' (V "len") R (V "lex") * [| length bs = wordToNat (V "len") |]
-      * [| inBounds cdatas V |]
+    Al bs, Al ls,
+    PRE[V, R] array8 bs (V "buf") * xmlp' (V "len") R (V "lex")
+      * sll ls (V "stack")
+      * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+      * [| stackOk ls (V "len") |]
     POST[_] array8 bs (V "buf").
 
   (* Intermediater invariant, to use right after reading token length from the lexer. *)
   Definition invL cdatas start :=
-    Al bs,
-    PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex") * [| length bs = wordToNat (V "len") |]
-      * [| inBounds cdatas V |] * [| wordToNat (V start) + wordToNat R <= wordToNat (V "len") |]%nat
+    Al bs, Al ls,
+    PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+      * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+      * [| stackOk ls (V "len") |]
+      * [| wordToNat (V start) + wordToNat R <= wordToNat (V "len") |]%nat
     POST[_] array8 bs (V "buf").
 
-  Variable onSuccess : chunk.
-
-  Fixpoint Pat' (p : pat) (level : nat) (cdatas : list (string * string)) : chunk :=
+  Fixpoint Pat' (p : pat) (level : nat) (cdatas : list (string * string))
+    (onSuccess : chunk) : chunk :=
     match p with
       | Cdata start len =>
         "res" <-- Call "xml_lex"!"next"("buf", "lex")
@@ -127,7 +126,7 @@ Section Pat.
               "tagLen" <-- Call "xml_lex"!"tokenStart"("lex")
               [invL cdatas "tagStart"];;
 
-              StringEq "buf" "len" "tagStart" "tagLen" tag
+              StringEq "buf" "len" "tagStart" "matched" tag
               (A := unit)
               (fun _ V => xmlp (V "len") (V "lex")
                 * [| inBounds cdatas V |])%Sep
@@ -137,7 +136,7 @@ Section Pat.
               If ("matched" = 0) {
                 Skip
               } else {
-                Pat' inner (S level) cdatas
+                Pat' inner (S level) cdatas onSuccess
               }
             }
           } else {
@@ -155,15 +154,62 @@ Section Pat.
           }
         }
 
-      | _ => Diverge
+      | Both p1 p2 =>
+        (* Warning: shameless reuse here of variables for new purposes *)
+
+        "tagLen" <-- Call "xml_lex"!"position"("lex")
+        [Al bs, Al ls,
+          PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex")
+            * sll ls (V "stack") * [| R <= V "len" |]%word
+            * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+            * [| stackOk ls (V "len") |]
+          POST[_] array8 bs (V "buf")];;
+
+        "tagStart" <-- Call "malloc"!"malloc"(0, 2)
+        [Al bs, Al ls,
+          PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex")
+            * sll ls (V "stack") * [| V "tagLen" <= V "len" |]%word
+            * [| R <> 0 |] * [| freeable R 2 |]
+            * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+            * [| stackOk ls (V "len") |]
+          POST[_] array8 bs (V "buf")];;
+
+        "tagStart" *<- "tagLen";;
+        "tagStart" *<- "stack";;
+        "stack" <- "tagStart";;
+
+        Pat' p1 level cdatas
+        (If ("stack" = 0) {
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |]]
+        } else {
+          "tagLen" <-* "stack";;
+          "tagStart" <- "stack";;
+          "stack" <-* "stack"+4;;
+
+          Call "malloc"!"free"(0, "tagStart", 2)
+          [Al bs, Al ls,
+            PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex")
+              * sll ls (V "stack") * [| V "tagLen" <= V "len" |]%word
+              * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+              * [| stackOk ls (V "len") |]
+          POST[_] array8 bs (V "buf")];;
+
+          Call "xml_lex"!"setPosition"("lex", "tagLen")
+          [inv cdatas];;
+
+          Pat' p2 level (allCdatas p1 ++ cdatas)
+          onSuccess
+        })
     end%SP.
 
-  Notation baseVars := ("buf" :: "len" :: "lex" :: "res" :: nil).
+  Notation baseVars := ("buf" :: "len" :: "lex" :: "res"
+    :: "tagStart" :: "tagLen" :: "matched" :: nil).
 
   Definition noConflict pt := List.Forall (fun p => ~In (fst p) baseVars /\ ~In (snd p) baseVars
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
 
-  Notation PatVcs' p cdatas := (fun ns =>
+  Notation PatVcs' p cdatas onSuccess := (fun ns =>
     (~In "rp" ns) :: In "buf" ns :: In "len" ns :: In "lex" ns :: In "res" ns :: In "matched" ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
     :: wf p
@@ -230,11 +276,12 @@ Section Pat.
 
   Opaque mult.
 
-  Definition PatR (p : pat) (level : nat) (cdatas : list (string * string)) : chunk.
-    refine (WrapC (Pat' p level cdatas)
+  Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
+    (onSuccess : chunk) : chunk.
+    refine (WrapC (Pat' p level cdatas onSuccess)
       (inv cdatas)
       (inv cdatas)
-      (PatVcs' p cdatas)
+      (PatVcs' p cdatas onSuccess)
       _ _).
 
     generalize dependent cdatas; generalize dependent level; induction p;
