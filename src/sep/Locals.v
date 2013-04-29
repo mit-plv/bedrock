@@ -267,6 +267,40 @@ Section parametric.
             if Prover.(Prove) summ (Equal wordT p' base)
               && Prover.(Prove) summ (Equal listStringT nms ns)
               && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
+              then Some (match nm with
+                           | Const tp nm' =>
+                             match tp return tvarD types tp -> expr types with
+                               | stringT => fun nm' => sym_sel vs nm'
+                               | _ => fun _ => Func selF (vs :: nm :: nil)
+                             end nm'
+                           | _ => Func selF (vs :: nm :: nil)
+                         end)
+              else None
+        end
+      | _ => None
+    end.
+
+  Definition sym_read_easier (summ : Prover.(Facts)) (args : list (expr types)) (p : expr types)
+    : option (expr types) :=
+    match args with
+      | ns :: vs :: _ :: p' :: nil =>
+        match deref p with
+          | Nothing => None
+          | Constant base offset =>
+            match listIn ns with
+              | None => None
+              | Some ns' =>
+                if Prover.(Prove) summ (Equal wordT p' base)
+                  then match nth_error ns' offset with
+                         | None => None
+                         | Some nm => Some (sym_sel vs nm)
+                       end
+                  else None
+            end
+          | Symbolic base nms nm =>
+            if Prover.(Prove) summ (Equal wordT p' base)
+              && Prover.(Prove) summ (Equal listStringT nms ns)
+              && Prover.(Prove) summ (Func InF (nm :: nms :: nil))
               then Some (Func selF (vs :: nm :: nil))
               else None
         end
@@ -463,8 +497,8 @@ Section correctness.
     rewrite string_eq_false; auto.
   Qed.
 
-  Theorem sym_read_correct : forall args uvars vars cs summ pe p ve m stn,
-    sym_read Prover summ args pe = Some ve ->
+  Theorem sym_read_easier_correct : forall args uvars vars cs summ pe p ve m stn,
+    sym_read_easier Prover summ args pe = Some ve ->
     Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe wordT = Some p ->
     match 
@@ -703,6 +737,64 @@ Section correctness.
     specialize (variablePosition'_length _ _ H4).
     rewrite length_toArray in H9.
     omega.
+  Qed.
+
+  Theorem easy_bridge : forall args uvars vars summ pe ve P,
+    sym_read Prover summ args pe = Some ve
+    -> match 
+         applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
+         with
+         | None => False
+         | Some p => P p
+       end
+    -> exists ve', sym_read_easier Prover summ args pe = Some ve'
+      /\ exprD funcs uvars vars ve wordT = exprD funcs uvars vars ve' wordT.
+    intros.
+    simpl in H0.
+    repeat (destruct args; simpl in *; try discriminate).
+    case_eq (exprD funcs uvars vars e0 valsT); [ intros ? Heq | intro Heq ]; rewrite Heq in *.
+    Focus 2.
+    deconstruct.
+    deconstruct.
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; try discriminate.
+    deconstruct; eauto.
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; try discriminate.
+    deconstruct.
+    do 2 esplit; [ reflexivity | ].
+    simpl exprD.
+    destruct e5; try reflexivity.
+    destruct t3; try reflexivity.
+    do 7 (destruct n; try reflexivity).
+    rewrite Heq.
+    erewrite sym_sel_correct by eassumption; reflexivity.
+  Qed.    
+
+  Theorem sym_read_correct : forall args uvars vars cs summ pe p ve m stn,
+    sym_read Prover summ args pe = Some ve ->
+    Valid Prover_correct uvars vars summ ->
+    exprD funcs uvars vars pe wordT = Some p ->
+    match 
+      applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
+      with
+      | None => False
+      | Some p => ST.satisfies cs p stn m
+    end ->
+    match exprD funcs uvars vars ve wordT with
+      | Some v =>
+        ST.HT.smem_get_word (IL.implode stn) p m = Some v
+      | _ => False
+    end.
+  Proof.
+    intros.
+    eapply easy_bridge in H; eauto.
+    2: instantiate (1 := fun p => ST.satisfies cs p stn m); eauto.
+    destruct H as [ ? [ ] ].
+    rewrite H3.
+    eapply sym_read_easier_correct; eauto.
   Qed.
 
   Theorem sym_write_correct : forall args uvars vars cs summ pe p ve v m stn args',
