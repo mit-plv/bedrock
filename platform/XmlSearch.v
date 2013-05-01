@@ -148,7 +148,7 @@ Section Pat.
               "tagStart" <-- Call "xml_lex"!"tokenStart"("lex")
               [invP cdatas];;
 
-              "tagLen" <-- Call "xml_lex"!"tokenStart"("lex")
+              "tagLen" <-- Call "xml_lex"!"tokenLength"("lex")
               [invL cdatas "tagStart"];;
 
               (* Now check if the tag name here matches the name from the pattern. *)
@@ -250,14 +250,29 @@ Section Pat.
   Definition noConflict pt := List.Forall (fun p => ~In (fst p) baseVars /\ ~In (snd p) baseVars
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
 
-  Notation PatVcs' p cdatas cdatasPost onSuccess := (fun ns =>
+  Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
+
+  Notation PatVcs' p cdatas onSuccess := (fun im ns res =>
     (~In "rp" ns) :: incl baseVars ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
     :: wf p
     :: noConflict p cdatas
     :: (forall specs im mn H res pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
-      -> interp specs (inv cdatasPost true (fun w => w) ns res st))
+      -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
+    :: (res >= 11)%nat
+    :: "xml_lex"!"next" ~~ im ~~> nextS
+    :: "xml_lex"!"position" ~~ im ~~> positionS
+    :: "xml_lex"!"setPosition" ~~ im ~~> positionS
+    :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
+    :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
+    :: "malloc"!"malloc" ~~ im ~~> mallocS
+    :: "malloc"!"free" ~~ im ~~> freeS
+    :: "sys"!"abort" ~~ im ~~> abortS
+    :: (forall specs im mn H res pre,
+      (forall st, interp specs (pre st)
+        -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
+      -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: nil).
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
@@ -279,6 +294,7 @@ Section Pat.
   Qed.
 
   Ltac deDouble := repeat match goal with
+                            | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
                             | [ H : incl nil _ |- _ ] => clear H
                             | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
                             | [ H : forall x, x = _ \/ x = _ -> _ |- _ ] =>
@@ -292,13 +308,18 @@ Section Pat.
                             | [ H : False -> False |- _ ] => clear H
                           end.
 
+  Lemma mult4_S : forall n,
+    4 * S n = S (S (S (S (4 * n)))).
+    simpl; intros; omega.
+  Qed.
+
   Ltac evalu :=
     match goal with
       | [ ns : list string |- _ ] =>
         repeat match goal with
                  | [ H : In _ ns |- _ ] => clear H
                end
-    end; repeat rewrite inBounds_sel in *;
+    end; try rewrite mult4_S in *; repeat rewrite inBounds_sel in *;
     match goal with
       | [ _ : evalInstrs _ _ _ = _ |- _ ] => evaluate auto_ext
       | _ => idtac
@@ -307,9 +328,9 @@ Section Pat.
              | [ H : In _ _ |- _ ] => clear H
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
            end;
-    match goal with
-      | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
-    end.
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end.
 
   Ltac finish := descend; repeat (step auto_ext; descend); auto.
 
@@ -443,27 +464,128 @@ Section Pat.
       | _ => finale
     end.
 
+  Lemma wplus_wminus : forall u v : W,
+    u ^+ v ^- v = u.
+    intros; words.
+  Qed.
+
+  Hint Rewrite wplus_wminus mult4_S : sepFormula.
+
+  Ltac reger := repeat match goal with
+                         | [ H : Regs _ _ = _ |- _ ] => rewrite H
+                       end.
+
+  Ltac bash :=
+    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend;
+      try rewrite inBounds_sel; step auto_ext.
+
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk.
     refine (WrapC (Pat' p level cdatas onSuccess)
       (inv cdatas)
       (inv cdatas)
-      (PatVcs' p cdatas (allCdatas p ++ cdatas) onSuccess)
+      (PatVcs' p cdatas onSuccess)
       _ _).
 
-    generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p;
-      (wrap0; deDouble; repeat PatR_post).
+    admit.
+    (*generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p;
+      (wrap0; deDouble; repeat PatR_post).*)
 
+    generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p.
+
+    wrap0.
+
+    Ltac PatR_vc := deDouble; propxFo; app; simp; evalu; repeat bash; eauto.
+
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+
+    deDouble.
+    propxFo.
+    app.
+    simp.
+    evalu.
+    descend.
+    step auto_ext.
+    step auto_ext.
+    step auto_ext.
+    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend.
+    step auto_ext.
+    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend.
+    rewrite inBounds_sel.
+
+    assert (inBounds cdatas (upd x4 "res" 2)).
+    inBounds.
+
+    Ltac considerImp pre post :=
+      try match post with
+            | context[locals ?ns ?vs ?avail _] =>
+              match pre with
+                | context[excessStack _ ns avail ?ns' ?avail'] =>
+                  match avail' with
+                    | avail => fail 1
+                    | _ =>
+                      match pre with
+                        | context[locals ns ?vs' 0 ?sp] =>
+                          match goal with
+                            | [ _ : _ = sp |- _ ] => fail 1
+                            | _ => equate vs vs';
+                              let offset := eval simpl in (4 * List.length ns) in
+                                rewrite (create_locals_return ns' avail' ns avail offset);
+                                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                    simpl; omega
+                                    | reflexivity ] ); autorewrite with sepFormula;
+                                  generalize dependent vs'; intros
+                          end
+                      end
+                  end
+              end
+          end;
+      try rewrite mult4_S in *;
+      progress cancel auto_ext.
+
+    match goal with
+      | [ |- interp _ (![?pre]%PropX _ ---> ![?post]%PropX _) ] => considerImp pre post
+    end.
+    bash.
+    repeat bash; auto.
+
+    (* OK, so that was seriously grungy.  The function return logic in PreAutoSep generalizes over
+     * a variable environment as an optimization, but here the details of that environment remain
+     * relevant, for proving an [inBounds]. *)
+
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
     admit.
   Defined.
 
-  Notation PatVcs p onSuccess := (fun ns =>
+  Notation PatVcs p onSuccess := (fun im ns res =>
     (~In "rp" ns) :: incl baseVars ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars)
     :: wf p
     :: (forall specs im mn H res pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
       -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
+    :: (res >= 11)%nat
+    :: "xml_lex"!"next" ~~ im ~~> nextS
+    :: "xml_lex"!"position" ~~ im ~~> positionS
+    :: "xml_lex"!"setPosition" ~~ im ~~> positionS
+    :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
+    :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
+    :: "malloc"!"malloc" ~~ im ~~> mallocS
+    :: "malloc"!"free" ~~ im ~~> freeS
+    :: "sys"!"abort" ~~ im ~~> abortS
+    :: (forall specs im mn H res pre,
+      (forall st, interp specs (pre st)
+        -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
+      -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: nil).
 
   Definition Pat (p : pat) (onSuccess : chunk) : chunk.

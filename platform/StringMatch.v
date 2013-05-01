@@ -95,7 +95,7 @@ Section StringEq.
 
   Ltac t := try app; simp; handle_IH; evalu; finish.
 
-  Notation StringEqVcs := (fun ns => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
+  Notation StringEqVcs := (fun _ ns _ => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
     :: not (str = len) :: not (str = pos) :: not (str = output)
     :: not (len = pos) :: not (len = output)
     :: not (pos = output)
