@@ -73,17 +73,17 @@ Section WrapC.
     -> assert.
 
   Variables precondition postcondition : assertC.
-  Variable verifCond : list string -> list Prop.
+  Variable verifCond : LabelMap.t assert -> list string -> nat -> list Prop.
 
   Hypothesis postcondition_covered : forall im mn H ns res pre specs st,
     (forall specs st, interp specs (pre st)
       -> interp specs (precondition true (fun x => x) ns res st))
-    -> vcs (verifCond ns)
+    -> vcs (verifCond im ns res)
     -> interp specs ((toCmd body (im := im) mn H ns res pre).(Postcondition) st)
     -> interp specs (postcondition true (fun x => x) ns res st).
 
   Hypothesis verifCond_covered : forall im mn H ns res pre,
-    vcs (verifCond ns)
+    vcs (verifCond im ns res)
     -> (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st))
     -> vcs ((toCmd body (im := im) mn H ns res pre).(VerifCond)).
 
@@ -91,7 +91,7 @@ Section WrapC.
     red; refine (fun ns res => Structured nil
       (fun im mn H => Wrap im H mn (toCmd body mn H ns res)
         (fun _ => postcondition true (fun x => x) ns res)
-        (fun pre => (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st)) :: verifCond ns)
+        (fun pre => (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st)) :: verifCond im ns res)
         _ _)); abstract struct.
   Defined.
 End WrapC.
