@@ -230,13 +230,13 @@ Section Pat.
           [Al bs, Al ls,
             PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex")
               * sll ls (V "stack") * [| V "tagLen" <= V "len" |]%word
-              * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
+              * [| length bs = wordToNat (V "len") |] * [| inBounds (allCdatas p1 ++ cdatas) V |]
               * [| stackOk ls (V "len") |]
           POST[_] array8 bs (V "buf")];;
 
           (* Restore the position we popped. *)
           Call "xml_lex"!"setPosition"("lex", "tagLen")
-          [inv cdatas];;
+          [inv (allCdatas p1 ++ cdatas)];;
 
           (* Now try matching the second pattern from the same initial position. *)
           Pat' p2 level (allCdatas p1 ++ cdatas)
@@ -250,14 +250,14 @@ Section Pat.
   Definition noConflict pt := List.Forall (fun p => ~In (fst p) baseVars /\ ~In (snd p) baseVars
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
 
-  Notation PatVcs' p cdatas onSuccess := (fun ns =>
+  Notation PatVcs' p cdatas cdatasPost onSuccess := (fun ns =>
     (~In "rp" ns) :: incl baseVars ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
     :: wf p
     :: noConflict p cdatas
     :: (forall specs im mn H res pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
-      -> interp specs (inv cdatas true (fun w => w) ns res st))
+      -> interp specs (inv cdatasPost true (fun w => w) ns res st))
     :: nil).
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
@@ -284,6 +284,9 @@ Section Pat.
                             | [ H : forall x, x = _ \/ x = _ -> _ |- _ ] =>
                               generalize (H _ (or_introl _ eq_refl)); intro;
                                 specialize (H _ (or_intror _ eq_refl))
+                            | [ H : forall x, freeVar _ _ \/ freeVar _ _ -> _ |- _ ] =>
+                              generalize (fun x H0 => H x (or_introl _ H0)); intro;
+                                specialize (fun x H0 => H x (or_intror _ H0))
                           end;
   intuition idtac; repeat match goal with
                             | [ H : False -> False |- _ ] => clear H
@@ -295,7 +298,11 @@ Section Pat.
         repeat match goal with
                  | [ H : In _ ns |- _ ] => clear H
                end
-    end; repeat rewrite inBounds_sel in *; evaluate auto_ext;
+    end; repeat rewrite inBounds_sel in *;
+    match goal with
+      | [ _ : evalInstrs _ _ _ = _ |- _ ] => evaluate auto_ext
+      | _ => idtac
+    end;
     repeat match goal with
              | [ H : In _ _ |- _ ] => clear H
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
@@ -321,7 +328,7 @@ Section Pat.
             eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend ]
         end.
 
-  Local Hint Extern 1 (@eq W _ _) => unfold natToW in *; words.
+  Hint Extern 1 (@eq W _ _) => unfold natToW in *; words.
 
   Opaque mult.
 
@@ -332,29 +339,120 @@ Section Pat.
     constructor; auto.
   Qed.
 
-  Local Hint Immediate stackOk_cons.
+  Hint Immediate stackOk_cons.
+
+  Ltac noConflict := unfold noConflict; intros; eapply Forall_impl; [ | eauto ]; (cbv beta; simpl; tauto).
+
+  Lemma noConflict_Both1 : forall p1 p2 cdatas,
+    noConflict (Both p1 p2) cdatas
+    -> noConflict p1 cdatas.
+    noConflict.
+  Qed.
+
+  Lemma noConflict_Both2' : forall p1 p2 cdatas,
+    noConflict (Both p1 p2) cdatas
+    -> noConflict p2 cdatas.
+    noConflict.
+  Qed.
+
+  Ltac allCdatas_freeVar := intros ? p;
+    induction p; simpl; intuition; subst; auto;
+      match goal with
+        | [ H : _ |- _ ] => apply in_app_or in H; tauto
+      end.
+
+  Lemma allCdatas_freeVar1 : forall xy p,
+    In xy (allCdatas p) -> freeVar p (fst xy).
+    allCdatas_freeVar.
+  Qed.
+
+  Lemma allCdatas_freeVar2 : forall xy p,
+    In xy (allCdatas p) -> freeVar p (snd xy).
+    allCdatas_freeVar.
+  Qed.
+
+  Lemma noConflict_Both2 : forall p1 p2 cdatas,
+    noConflict (Both p1 p2) cdatas
+    -> (forall x, freeVar p1 x -> freeVar p2 x -> False)
+    -> (forall x, freeVar p1 x -> ~In x baseVars)
+    -> noConflict p2 (allCdatas p1 ++ cdatas).
+    intros; apply Forall_app.
+    2: eapply noConflict_Both2'; eauto.
+    apply Forall_forall; intros.
+    generalize (allCdatas_freeVar1 _ _ H2); intro.
+    apply allCdatas_freeVar2 in H2.
+    intuition eauto.
+  Qed.
+
+  Hint Immediate noConflict_Both1.
+  Hint Extern 1 (noConflict _ (_ ++ _)) => eapply noConflict_Both2; [ eassumption | eassumption |
+    simpl; intros; app; tauto ].
+
+  Hint Extern 1 (incl _ _) => hnf; simpl; intuition congruence.
+
+  Lemma Forall_app1 : forall A P (ls1 ls2 : list A),
+    List.Forall P (ls1 ++ ls2)
+    -> List.Forall P ls1.
+    induction ls1; inversion 1; eauto.
+  Qed.
+
+  Lemma Forall_app2 : forall A P (ls1 ls2 : list A),
+    List.Forall P (ls1 ++ ls2)
+    -> List.Forall P ls2.
+    induction ls1; inversion 1; eauto.
+  Qed.
+
+  Lemma inBounds_app1 : forall ls1 ls2 x,
+    inBounds (ls1 ++ ls2) x
+    -> inBounds ls1 x.
+    intros; eapply Forall_app1; eauto.
+  Qed.
+
+  Lemma inBounds_app2 : forall ls1 ls2 x,
+    inBounds (ls1 ++ ls2) x
+    -> inBounds ls2 x.
+    intros; eapply Forall_app2; eauto.
+  Qed.
+
+  Hint Immediate inBounds_app1 inBounds_app2.
+
+  Lemma inBounds_decons : forall x cdatas y,
+    inBounds (x :: cdatas) y
+    -> inBounds cdatas y.
+    inversion 1; auto.
+  Qed.
+
+  Hint Immediate inBounds_decons.
+
+  Lemma inBounds_assoc : forall ls1 ls2 ls3 x,
+    inBounds ((ls1 ++ ls2) ++ ls3) x
+    -> inBounds (ls1 ++ ls2 ++ ls3) x.
+    intros; rewrite app_assoc; assumption.
+  Qed.
+
+  Hint Immediate inBounds_assoc.
+
+  Ltac finale := simp; evalu; try tauto; descend;
+    (try rewrite inBounds_sel in *; descend; step SinglyLinkedList.hints;
+      try step SinglyLinkedList.hints; eauto; inBounds || finish).
+
+  Ltac PatR_post :=
+    match goal with
+      | [ H : interp _ (Postcondition _ _) |- _ ] => app
+      | [ |- vcs _ ] => wrap0; eauto
+      | _ => finale
+    end.
 
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk.
     refine (WrapC (Pat' p level cdatas onSuccess)
       (inv cdatas)
       (inv cdatas)
-      (PatVcs' p cdatas onSuccess)
+      (PatVcs' p cdatas (allCdatas p ++ cdatas) onSuccess)
       _ _).
 
     generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p;
-      wrap0; deDouble.
-
-    Ltac t := simp; evalu; descend; (try rewrite inBounds_sel; descend; step SinglyLinkedList.hints;
-      try step SinglyLinkedList.hints; eauto; inBounds || finish).
-
-    try solve [ app; simp ]; t.
-    try solve [ app; simp ]; t.
-
-    app.
-    t.
-    t.
-    admit.
+      (wrap0; deDouble; repeat PatR_post).
 
     admit.
   Defined.
@@ -365,7 +463,7 @@ Section Pat.
     :: wf p
     :: (forall specs im mn H res pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
-      -> interp specs (invar true (fun w => w) ns res st))
+      -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
     :: nil).
 
   Definition Pat (p : pat) (onSuccess : chunk) : chunk.
@@ -381,7 +479,7 @@ Section Pat.
         end; step auto_ext; try fold (@app (string * string)) in *; try rewrite app_nil_r in *; finish.
 
     wrap0; try (app; subst; tauto); try constructor;
-      (app; simp; descend; try rewrite inBounds_sel; finish; constructor).
+      (try rewrite app_nil_r; app; simp; descend; try rewrite inBounds_sel; finish; constructor).
   Defined.
 
 End Pat.
