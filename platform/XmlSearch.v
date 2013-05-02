@@ -269,8 +269,8 @@ Section Pat.
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: "malloc"!"free" ~~ im ~~> freeS
     :: "sys"!"abort" ~~ im ~~> abortS
-    :: (forall specs im mn H res pre,
-      (forall st, interp specs (pre st)
+    :: (forall im mn H res pre,
+      (forall specs st, interp specs (pre st)
         -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: nil).
@@ -477,7 +477,28 @@ Section Pat.
 
   Ltac bash :=
     unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend;
-      try rewrite inBounds_sel; step auto_ext.
+      try rewrite inBounds_sel;
+        try match goal with
+              | [ _ : inBounds ?cdatas _ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
+                match post with
+                  | context[locals ?ns _ _ _] =>
+                    match pre with
+                      | context[locals ns ?vs _ _] =>
+                        assert (inBounds cdatas vs) by inBounds
+                    end
+                end
+            end;
+        step auto_ext.
+
+  Ltac PatR_vc := deDouble; propxFo;
+    match goal with
+      | [ |- vcs _ ] =>
+        match goal with
+          | [ H : _ |- _ ] => apply H; clear H
+        end
+      | _ => app
+    end;
+    simp; evalu; descend; repeat bash; inBounds || eauto.
 
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk.
@@ -493,75 +514,8 @@ Section Pat.
 
     generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p.
 
-    wrap0.
+    wrap0; PatR_vc.
 
-    Ltac PatR_vc := deDouble; propxFo; app; simp; evalu; repeat bash; eauto.
-
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-
-    deDouble.
-    propxFo.
-    app.
-    simp.
-    evalu.
-    descend.
-    step auto_ext.
-    step auto_ext.
-    step auto_ext.
-    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend.
-    step auto_ext.
-    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend.
-    rewrite inBounds_sel.
-
-    assert (inBounds cdatas (upd x4 "res" 2)).
-    inBounds.
-
-    Ltac considerImp pre post :=
-      try match post with
-            | context[locals ?ns ?vs ?avail _] =>
-              match pre with
-                | context[excessStack _ ns avail ?ns' ?avail'] =>
-                  match avail' with
-                    | avail => fail 1
-                    | _ =>
-                      match pre with
-                        | context[locals ns ?vs' 0 ?sp] =>
-                          match goal with
-                            | [ _ : _ = sp |- _ ] => fail 1
-                            | _ => equate vs vs';
-                              let offset := eval simpl in (4 * List.length ns) in
-                                rewrite (create_locals_return ns' avail' ns avail offset);
-                                  assert (ok_return ns ns' avail avail' offset)%nat by (split; [
-                                    simpl; omega
-                                    | reflexivity ] ); autorewrite with sepFormula;
-                                  generalize dependent vs'; intros
-                          end
-                      end
-                  end
-              end
-          end;
-      try rewrite mult4_S in *;
-      progress cancel auto_ext.
-
-    match goal with
-      | [ |- interp _ (![?pre]%PropX _ ---> ![?post]%PropX _) ] => considerImp pre post
-    end.
-    bash.
-    repeat bash; auto.
-
-    (* OK, so that was seriously grungy.  The function return logic in PreAutoSep generalizes over
-     * a variable environment as an optimization, but here the details of that environment remain
-     * relevant, for proving an [inBounds]. *)
-
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
     admit.
     admit.
   Defined.
@@ -582,8 +536,8 @@ Section Pat.
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: "malloc"!"free" ~~ im ~~> freeS
     :: "sys"!"abort" ~~ im ~~> abortS
-    :: (forall specs im mn H res pre,
-      (forall st, interp specs (pre st)
+    :: (forall im mn H res pre,
+      (forall specs st, interp specs (pre st)
         -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: nil).
@@ -595,13 +549,15 @@ Section Pat.
       (PatVcs p onSuccess)
       _ _).
 
-    wrap0; simp; descend;
+    admit.
+    (*wrap0; simp; descend;
     try match goal with
           | [ H : interp _ _ |- _ ] => rewrite inBounds_sel in H
-        end; step auto_ext; try fold (@app (string * string)) in *; try rewrite app_nil_r in *; finish.
+        end; step auto_ext; try fold (@app (string * string)) in *; try rewrite app_nil_r in *; finish.*)
 
-    wrap0; try (app; subst; tauto); try constructor;
-      (try rewrite app_nil_r; app; simp; descend; try rewrite inBounds_sel; finish; constructor).
+    admit.
+    (*wrap0; try (app; subst; tauto); try constructor;
+      (try rewrite app_nil_r; app; simp; descend; try rewrite inBounds_sel; finish; constructor).*)
   Defined.
 
 End Pat.
