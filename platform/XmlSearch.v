@@ -24,11 +24,13 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
   end.
 
-(** Does the pattern avoid double-binding a program variable? *)
+(** Does the pattern avoid:
+  * - double-binding a program variable?
+  * - mentioning a huge string constant as a tag name? *)
 Fixpoint wf (p : pat) : Prop :=
   match p with
     | Cdata start len => start <> len
-    | Tag _ inner => wf inner
+    | Tag tag inner => goodSize (String.length tag) /\ wf inner
     | Both p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
   end%type.
 
@@ -154,10 +156,9 @@ Section Pat.
               (* Now check if the tag name here matches the name from the pattern. *)
               StringEq "buf" "len" "tagStart" "matched" tag
               (A := unit)
-              (fun _ V => xmlp (V "len") (V "lex")
-                * [| inBounds cdatas V |])%Sep
-              (fun _ V _ => xmlp (V "len") (V "lex")
-                * [| inBounds cdatas V |])%Sep;;
+              (fun _ V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack")
+                * [| inBounds cdatas V |] * [| stackOk ls (V "len") |])%Sep
+              (fun _ _ _ => Emp)%Sep;;
 
               If ("matched" = 0) {
                 (* Nope, not equal. *)
@@ -245,7 +246,7 @@ Section Pat.
     end%SP.
 
   Notation baseVars := ("buf" :: "len" :: "lex" :: "res"
-    :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: nil).
+    :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil).
 
   Definition noConflict pt := List.Forall (fun p => ~In (fst p) baseVars /\ ~In (snd p) baseVars
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
@@ -293,20 +294,21 @@ Section Pat.
     unfold incl; intuition.
   Qed.
 
-  Ltac deDouble := repeat match goal with
-                            | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
-                            | [ H : incl nil _ |- _ ] => clear H
-                            | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
-                            | [ H : forall x, x = _ \/ x = _ -> _ |- _ ] =>
-                              generalize (H _ (or_introl _ eq_refl)); intro;
-                                specialize (H _ (or_intror _ eq_refl))
-                            | [ H : forall x, freeVar _ _ \/ freeVar _ _ -> _ |- _ ] =>
-                              generalize (fun x H0 => H x (or_introl _ H0)); intro;
-                                specialize (fun x H0 => H x (or_intror _ H0))
-                          end;
-  intuition idtac; repeat match goal with
-                            | [ H : False -> False |- _ ] => clear H
-                          end.
+  Ltac deDouble := simpl in *;
+    repeat match goal with
+             | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
+             | [ H : incl nil _ |- _ ] => clear H
+             | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
+             | [ H : forall x, x = _ \/ x = _ -> _ |- _ ] =>
+               generalize (H _ (or_introl _ eq_refl)); intro;
+                 specialize (H _ (or_intror _ eq_refl))
+             | [ H : forall x, freeVar _ _ \/ freeVar _ _ -> _ |- _ ] =>
+               generalize (fun x H0 => H x (or_introl _ H0)); intro;
+                 specialize (fun x H0 => H x (or_intror _ H0))
+           end;
+    intuition idtac; repeat match goal with
+                              | [ H : False -> False |- _ ] => clear H
+                            end.
 
   Lemma mult4_S : forall n,
     4 * S n = S (S (S (S (4 * n)))).
@@ -322,6 +324,7 @@ Section Pat.
     end; try rewrite mult4_S in *; repeat rewrite inBounds_sel in *;
     match goal with
       | [ _ : evalInstrs _ _ _ = _ |- _ ] => evaluate auto_ext
+      | [ _ : evalCond _ _ _ _ _ = _ |- _ ] => evaluate auto_ext
       | _ => idtac
     end;
     repeat match goal with
@@ -346,7 +349,10 @@ Section Pat.
       try (constructor; [ descend | ]);
         match goal with
           | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
-            eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend ]
+            eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend;
+              repeat match goal with
+                       | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
+                     end; assumption ]
         end.
 
   Hint Extern 1 (@eq W _ _) => unfold natToW in *; words.
@@ -490,15 +496,150 @@ Section Pat.
             end;
         step auto_ext.
 
+  Ltac clear_fancier := match goal with
+                          | [ H : importsGlobal _ |- _ ] =>
+                            repeat match goal with
+                                     | [ H' : context[H] |- _ ] => clear H'
+                                   end; clear H
+                        end.
+
+  Ltac prove_Himp :=
+    clear_fancier; apply Himp_ex; intro;
+      repeat match goal with
+               | [ V : vals |- _ ] =>
+                 match goal with
+                   | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                 end
+             end;
+      match goal with
+        | [ H : forall x : string, _ |- _ ] =>
+          repeat rewrite H by congruence; cancel auto_ext; inBounds
+      end.
+
   Ltac PatR_vc := deDouble; propxFo;
-    match goal with
-      | [ |- vcs _ ] =>
-        match goal with
-          | [ H : _ |- _ ] => apply H; clear H
-        end
-      | _ => app
-    end;
-    simp; evalu; descend; repeat bash; inBounds || eauto.
+    try (match goal with
+           | [ |- _ ===> _ ] => prove_Himp
+           | [ H : _ |- vcs _ ] => apply H; clear H
+           | [ H : forall x, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
+         end; auto; propxFo;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end);
+    clear_fancier; simp; evalu; descend; repeat bash; inBounds || eauto.
+
+  Ltac split_IH := match goal with
+                     | [ IH : forall level : nat, _ |- _ ] =>
+                       generalize (fun a b c d e f g h i j => proj1 (IH a b c d e f g h i j));
+                         generalize (fun a b c d e f g h i j => proj2 (IH a b c d e f g h i j));
+                           clear IH; intros
+                   end.
+
+  Hint Constructors unit.
+
+  Lemma StringMatch_ok : forall (x : W) n y,
+    (wordToNat x + n <= wordToNat y)%nat
+    -> x <= y.
+    intros; nomega.
+  Qed.
+
+  Hint Immediate StringMatch_ok.
+
+  Theorem PatR_correct : forall im mn H ns res,
+    ~In "rp" ns
+    -> incl baseVars ns
+    -> (res >= 11)%nat
+    -> "xml_lex"!"next" ~~ im ~~> nextS
+    -> "xml_lex"!"position" ~~ im ~~> positionS
+    -> "xml_lex"!"setPosition" ~~ im ~~> positionS
+    -> "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
+    -> "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
+    -> "malloc"!"malloc" ~~ im ~~> mallocS
+    -> "malloc"!"free" ~~ im ~~> freeS
+    -> "sys"!"abort" ~~ im ~~> abortS
+    -> forall p level cdatas onSuccess,
+      (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
+      -> wf p
+      -> noConflict p cdatas
+      -> (forall specs pre st,
+        interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
+        -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
+      -> (forall pre,
+        (forall specs st, interp specs (pre st)
+          -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
+        -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
+      -> forall pre,
+        (forall specs st, interp specs (pre st) -> interp specs (inv cdatas true (fun x => x) ns res st))
+        -> (forall specs st, interp specs ((toCmd (Pat' p level cdatas onSuccess)
+          (im := im) mn H ns res pre).(Postcondition) st)
+          -> interp specs (inv cdatas true (fun x => x) ns res st))
+        /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
+    induction p.
+
+    Ltac t := abstract PatR_vc.
+
+    wrap0.
+    t.
+    t.
+    
+    wrap0.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+
+    split_IH.
+    wrap0.
+    wrap0.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+
+    admit.
+  Defined.
 
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk.
@@ -506,18 +647,13 @@ Section Pat.
       (inv cdatas)
       (inv cdatas)
       (PatVcs' p cdatas onSuccess)
-      _ _).
-
-    admit.
-    (*generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p;
-      (wrap0; deDouble; repeat PatR_post).*)
-
-    generalize dependent onSuccess; generalize dependent cdatas; generalize dependent level; induction p.
-
-    wrap0; PatR_vc.
-
-    admit.
-    admit.
+      _ _); abstract (intros; repeat match goal with
+                                       | [ H : vcs nil |- _ ] => clear H
+                                       | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+                                     end;
+      match goal with
+        | [ H : wf _ |- _ ] => eapply PatR_correct in H; eauto; destruct H; eauto
+      end).
   Defined.
 
   Notation PatVcs p onSuccess := (fun im ns res =>
@@ -547,17 +683,9 @@ Section Pat.
       invar
       invar
       (PatVcs p onSuccess)
-      _ _).
-
-    admit.
-    (*wrap0; simp; descend;
-    try match goal with
-          | [ H : interp _ _ |- _ ] => rewrite inBounds_sel in H
-        end; step auto_ext; try fold (@app (string * string)) in *; try rewrite app_nil_r in *; finish.*)
-
-    admit.
-    (*wrap0; try (app; subst; tauto); try constructor;
-      (try rewrite app_nil_r; app; simp; descend; try rewrite inBounds_sel; finish; constructor).*)
+      _ _); [ abstract (simpl; intros; PatR_vc)
+        | abstract (wrap0; try constructor; try (subst; app; tauto); try rewrite app_nil_r in *;
+          (PatR_vc; try constructor; fold (@app (string * string)); rewrite app_nil_r; assumption)) ].
   Defined.
 
 End Pat.

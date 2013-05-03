@@ -56,7 +56,7 @@ Section StringEq.
     Al bs, Al x : A,
     PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
       * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
-    POST[R] postcondition x V R.
+    POST[R] array8 bs (V str) * postcondition x V R.
 
   Lemma bound_narrow : forall len (len' : W) pos offset spacing,
     len = wordToNat len'
@@ -85,13 +85,24 @@ Section StringEq.
     try match goal with
           | [ H : length _ = wordToNat _, H' : (_ <= _)%nat |- _ ] => specialize (bound_narrow H H'); intro
         end;
-    evaluate auto_ext; intros;
+    evaluate auto_ext; intros; simpl in *;
     repeat match goal with
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
+             | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
+             | [ H : _ \/ _ |- _ ] => clear H
            end;
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end.
+
+  Ltac tweak_precondition :=
+    etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; try reflexivity;
+      [ match goal with
+          | [ H : _ |- _ ] => apply H; solve [ descend ]
+        end ].
+
+  Ltac finish := descend; repeat (step auto_ext; descend); descend;
+    eauto || nomega || tweak_precondition || step auto_ext.
 
   Ltac t := try app; simp; handle_IH; evalu; finish.
 
@@ -101,27 +112,35 @@ Section StringEq.
     :: not (pos = output)
     :: (forall a V V',
       (forall x, x <> output -> sel V x = sel V' x)
-      -> precondition a V = precondition a V')
+      -> precondition a V ===> precondition a V')
     :: (forall a V V' r,
       (forall x, x <> output -> sel V x = sel V' x)
       -> postcondition a V r = postcondition a V' r)
+    :: goodSize (String.length const)
     :: nil).
+
+  Lemma goodSize_length : forall a s,
+    goodSize (String.length (String a s))
+    -> goodSize (String.length s).
+    intros; eapply goodSize_weaken; (cbv beta; simpl; eauto).
+  Qed.
+
+  Hint Immediate goodSize_length.
 
   Definition StringEq'' (offset : nat) : chunk.
     refine (WrapC (StringEq' const offset)
       (StringEqSpec' const offset)
       (StringEqSpec' const offset)
       StringEqVcs
-      _ _); [
-        abstract (wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
-          induction const;
-            (propxFo;
-              match goal with
-                | [ _ : interp _ (Postcondition _ _) |- _ ] =>
-                  app; [ post; handle_IH; finish
-                    | post; t ]
-                | _ => t
-              end))
+      _ _); [ abstract (wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
+        induction const; propxFo;
+          match goal with
+            | [ _ : interp _ (Postcondition _ _) |- _ ] =>
+              app; [ post; handle_IH; finish
+                | eauto
+                | post; t ]
+            | _ => t
+          end)
         | abstract (generalize dependent offset; induction const; wrap0;
           try match goal with
                 | [ H : _ |- vcs _ ] => apply H; wrap0; post
@@ -131,15 +150,28 @@ Section StringEq.
   Definition StringEqSpec :=
     Al bs, Al x : A,
     PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
-      * [| wordToNat (V pos) + String.length const <= wordToNat (V len) |]%nat
-    POST[R] postcondition x V R.
+      * [| V pos <= V len |]
+    POST[R] array8 bs (V str) * postcondition x V R.
+
+  Hint Rewrite wordToNat_wminus using nomega : N.
 
   Definition StringEq : chunk.
-    refine (WrapC (StringEq'' O)
+    refine (WrapC (
+      output <- len - pos;;
+      If (String.length const <= output) {
+        StringEq'' O
+      } else {
+        output <- 0
+      })%SP
       StringEqSpec
       StringEqSpec
       StringEqVcs
-      _ _); abstract (wrap0; try app; simp; handle_IH; finish).
+      _ _); abstract (wrap0;
+        (try app; simp;
+          match goal with
+            | [ H : evalInstrs _ _ _ = _ |- _ ] => evalu
+            | _ => idtac
+          end; autorewrite with sepFormula in *; finish)).
   Defined.
 
 End StringEq.
