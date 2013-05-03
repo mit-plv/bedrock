@@ -58,35 +58,35 @@ Section Pat.
   (* Precondition and postcondition of search *)
   Definition invar :=
     Al bs, Al ls,
-    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
       * [| length bs = wordToNat (V "len") |] * [| stackOk ls (V "len") |]
-    POST[_] array8 bs (V "buf").
+    POST[_] array8 bs (V "buf") * mallocHeap 0.
 
   (* Primary invariant, recording that a set of CDATA positions is in bounds. *)
   Definition inv cdatas :=
     Al bs, Al ls,
-    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+    PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |]
-    POST[_] array8 bs (V "buf").
+    POST[_] array8 bs (V "buf") * mallocHeap 0.
 
   (* Intermediate invariant, to use right after reading token position from the lexer. *)
   Definition invP cdatas :=
     Al bs, Al ls,
-    PRE[V, R] array8 bs (V "buf") * xmlp' (V "len") R (V "lex")
+    PRE[V, R] array8 bs (V "buf") * xmlp' (V "len") R (V "lex") * mallocHeap 0
       * sll ls (V "stack")
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |]
-    POST[_] array8 bs (V "buf").
+    POST[_] array8 bs (V "buf") * mallocHeap 0.
 
   (* Intermediater invariant, to use right after reading token length from the lexer. *)
   Definition invL cdatas start :=
     Al bs, Al ls,
-    PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack")
+    PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |]
       * [| wordToNat (V start) + wordToNat R <= wordToNat (V "len") |]%nat
-    POST[_] array8 bs (V "buf").
+    POST[_] array8 bs (V "buf") * mallocHeap 0.
 
   (* Alternate sequencing operator, which generates twistier code but simpler postconditions and VCs *)
   Definition SimpleSeq (ch1 ch2 : chunk) : chunk := fun ns res =>
@@ -156,9 +156,9 @@ Section Pat.
               (* Now check if the tag name here matches the name from the pattern. *)
               StringEq "buf" "len" "tagStart" "matched" tag
               (A := unit)
-              (fun _ V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack")
+              (fun _ V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
                 * [| inBounds cdatas V |] * [| stackOk ls (V "len") |])%Sep
-              (fun _ _ _ => Emp)%Sep;;
+              (fun _ _ _ => mallocHeap 0);;
 
               If ("matched" = 0) {
                 (* Nope, not equal. *)
@@ -191,20 +191,20 @@ Section Pat.
         "tagLen" <-- Call "xml_lex"!"position"("lex")
         [Al bs, Al ls,
           PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex")
-            * sll ls (V "stack") * [| R <= V "len" |]%word
+            * sll ls (V "stack") * mallocHeap 0 * [| R <= V "len" |]%word
             * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
             * [| stackOk ls (V "len") |]
-          POST[_] array8 bs (V "buf")];;
+          POST[_] array8 bs (V "buf") * mallocHeap 0];;
 
         (* Allocate a new entry for the position stack. *)
         "tagStart" <-- Call "malloc"!"malloc"(0, 2)
         [Al bs, Al ls,
           PRE[V, R] array8 bs (V "buf") * xmlp (V "len") (V "lex")
-            * sll ls (V "stack") * [| V "tagLen" <= V "len" |]%word
+            * sll ls (V "stack") * mallocHeap 0 * [| V "tagLen" <= V "len" |]%word
             * R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
             * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
             * [| stackOk ls (V "len") |]
-          POST[_] array8 bs (V "buf")];;
+          POST[_] array8 bs (V "buf") * mallocHeap 0];;
 
         (* Save the current position in this entry, then push it onto the stack. *)
         "tagStart" *<- "tagLen";;
@@ -230,10 +230,10 @@ Section Pat.
           Call "malloc"!"free"(0, "tagStart", 2)
           [Al bs, Al ls,
             PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex")
-              * sll ls (V "stack") * [| V "tagLen" <= V "len" |]%word
+              * sll ls (V "stack") * mallocHeap 0 * [| V "tagLen" <= V "len" |]%word
               * [| length bs = wordToNat (V "len") |] * [| inBounds (allCdatas p1 ++ cdatas) V |]
               * [| stackOk ls (V "len") |]
-          POST[_] array8 bs (V "buf")];;
+          POST[_] array8 bs (V "buf") * mallocHeap 0];;
 
           (* Restore the position we popped. *)
           Call "xml_lex"!"setPosition"("lex", "tagLen")
@@ -264,7 +264,7 @@ Section Pat.
     :: (res >= 11)%nat
     :: "xml_lex"!"next" ~~ im ~~> nextS
     :: "xml_lex"!"position" ~~ im ~~> positionS
-    :: "xml_lex"!"setPosition" ~~ im ~~> positionS
+    :: "xml_lex"!"setPosition" ~~ im ~~> setPositionS
     :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
     :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
     :: "malloc"!"malloc" ~~ im ~~> mallocS
@@ -296,7 +296,6 @@ Section Pat.
 
   Ltac deDouble := simpl in *;
     repeat match goal with
-             | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
              | [ H : incl nil _ |- _ ] => clear H
              | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
              | [ H : forall x, x = _ \/ x = _ -> _ |- _ ] =>
@@ -323,8 +322,8 @@ Section Pat.
                end
     end; try rewrite mult4_S in *; repeat rewrite inBounds_sel in *;
     match goal with
-      | [ _ : evalInstrs _ _ _ = _ |- _ ] => evaluate auto_ext
-      | [ _ : evalCond _ _ _ _ _ = _ |- _ ] => evaluate auto_ext
+      | [ _ : evalInstrs _ _ _ = _ |- _ ] => evaluate SinglyLinkedList.hints
+      | [ _ : evalCond _ _ _ _ _ = _ |- _ ] => evaluate SinglyLinkedList.hints
       | _ => idtac
     end;
     repeat match goal with
@@ -335,25 +334,7 @@ Section Pat.
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end.
 
-  Ltac finish := descend; repeat (step auto_ext; descend); auto.
-
-  Ltac inBounds :=
-    rewrite <- inBounds_sel;
-      repeat match goal with
-               | [ H : inBounds _ ?X |- _ ] =>
-                 match X with
-                   | sel _ => fail 1
-                   | _ => rewrite <- inBounds_sel in H
-                 end
-             end;
-      try (constructor; [ descend | ]);
-        match goal with
-          | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
-            eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend;
-              repeat match goal with
-                       | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
-                     end; assumption ]
-        end.
+  Ltac finish := descend; repeat (step SinglyLinkedList.hints; descend); auto.
 
   Hint Extern 1 (@eq W _ _) => unfold natToW in *; words.
 
@@ -413,7 +394,9 @@ Section Pat.
 
   Hint Immediate noConflict_Both1.
   Hint Extern 1 (noConflict _ (_ ++ _)) => eapply noConflict_Both2; [ eassumption | eassumption |
-    simpl; intros; app; tauto ].
+    simpl; intros; match goal with
+                     | [ H : _, H' : freeVar _ _ |- _ ] => apply H in H'; tauto
+                   end ].
 
   Hint Extern 1 (incl _ _) => hnf; simpl; intuition congruence.
 
@@ -457,18 +440,13 @@ Section Pat.
     intros; rewrite app_assoc; assumption.
   Qed.
 
-  Hint Immediate inBounds_assoc.
+  Lemma inBounds_assoc' : forall ls1 ls2 ls3 x,
+    inBounds (ls1 ++ ls2 ++ ls3) x
+    -> inBounds ((ls1 ++ ls2) ++ ls3) x.
+    intros; rewrite <- app_assoc; assumption.
+  Qed.
 
-  Ltac finale := simp; evalu; try tauto; descend;
-    (try rewrite inBounds_sel in *; descend; step SinglyLinkedList.hints;
-      try step SinglyLinkedList.hints; eauto; inBounds || finish).
-
-  Ltac PatR_post :=
-    match goal with
-      | [ H : interp _ (Postcondition _ _) |- _ ] => app
-      | [ |- vcs _ ] => wrap0; eauto
-      | _ => finale
-    end.
+  Hint Immediate inBounds_assoc inBounds_assoc'.
 
   Lemma wplus_wminus : forall u v : W,
     u ^+ v ^- v = u.
@@ -476,6 +454,24 @@ Section Pat.
   Qed.
 
   Hint Rewrite wplus_wminus mult4_S : sepFormula.
+
+  Ltac inBounds :=
+    rewrite <- inBounds_sel;
+      repeat match goal with
+               | [ H : inBounds _ ?X |- _ ] =>
+                 match X with
+                   | sel _ => fail 1
+                   | _ => rewrite <- inBounds_sel in H
+                 end
+             end;
+      try (constructor; [ descend | ]);
+        match goal with
+          | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
+            eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend;
+              repeat match goal with
+                       | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
+                     end; assumption ]
+        end.
 
   Ltac reger := repeat match goal with
                          | [ H : Regs _ _ = _ |- _ ] => rewrite H
@@ -494,7 +490,7 @@ Section Pat.
                     end
                 end
             end;
-        step auto_ext.
+        step SinglyLinkedList.hints.
 
   Ltac clear_fancier := match goal with
                           | [ H : importsGlobal _ |- _ ] =>
@@ -516,16 +512,23 @@ Section Pat.
           repeat rewrite H by congruence; cancel auto_ext; inBounds
       end.
 
-  Ltac PatR_vc := deDouble; propxFo;
-    try (match goal with
-           | [ |- _ ===> _ ] => prove_Himp
-           | [ H : _ |- vcs _ ] => apply H; clear H
-           | [ H : forall x, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
-         end; auto; propxFo;
+  Ltac deSpec := simpl in *;
+    repeat match goal with
+             | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
+           end; clear_fancier.
+
+  Ltac invoke1 :=
+    match goal with
+      | [ |- _ ===> _ ] => prove_Himp
+      | [ H : _ |- vcs _ ] => apply H; clear H
+      | [ H : forall x, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
+    end; eauto; propxFo;
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
-        end);
-    clear_fancier; simp; evalu; descend; repeat bash; inBounds || eauto.
+        end.
+
+  Ltac PatR_vc := deDouble; propxFo; repeat invoke1;
+    deSpec; simp; evalu; try tauto; descend; repeat bash; inBounds || eauto.
 
   Ltac split_IH := match goal with
                      | [ IH : forall level : nat, _ |- _ ] =>
@@ -550,7 +553,7 @@ Section Pat.
     -> (res >= 11)%nat
     -> "xml_lex"!"next" ~~ im ~~> nextS
     -> "xml_lex"!"position" ~~ im ~~> positionS
-    -> "xml_lex"!"setPosition" ~~ im ~~> positionS
+    -> "xml_lex"!"setPosition" ~~ im ~~> setPositionS
     -> "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
     -> "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
     -> "malloc"!"malloc" ~~ im ~~> mallocS
@@ -577,7 +580,8 @@ Section Pat.
 
     Ltac t := abstract PatR_vc.
 
-    wrap0.
+    admit.
+    (*wrap0.
     t.
     t.
     
@@ -592,9 +596,10 @@ Section Pat.
     t.
     t.
     t.
-    t.
+    t.*)
 
-    split_IH.
+    admit.
+    (*split_IH.
     wrap0.
     wrap0.
     t.
@@ -636,7 +641,145 @@ Section Pat.
     t.
     t.
     t.
-    t.
+    t.*)
+
+    repeat split_IH.
+    wrap0.
+
+    deDouble; propxFo.
+    invoke1.
+
+    PatR_vc.
+    PatR_vc.
+
+    wrap0.
+
+    PatR_vc.
+    PatR_vc.
+
+    deDouble; propxFo.
+    deSpec.
+    simp.
+    invoke1.
+
+    Ltac prep_call :=
+      match goal with
+        | [ H : context[locals ?ns ?vs ?avail ?p]
+          |- context[locals ?ns' _ ?avail' _] ] =>
+          match avail' with
+            | avail => fail 1
+            | _ =>
+              let offset := eval simpl in (4 * List.length ns) in
+                change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+                  assert (ok_call ns ns' avail avail' offset)%nat
+                    by (split; [ simpl; omega
+                      | split; [ simpl; omega
+                        | split; [ NoDup
+                          | reflexivity ] ] ])
+          end;
+          match goal with
+            | [ H : interp _ _ |- _ ] => autorewrite with sepFormula in H; simpl in H
+          end
+      end.
+
+    prep_call.
+    evalu.
+    descend.
+    step auto_ext.
+
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    
+    deDouble; propxFo.
+    deSpec.
+    simp.
+    invoke1.
+    prep_call.
+    evalu.
+    descend.
+    bash.
+    bash.
+    bash.
+
+    Lemma stackOk_hd : forall w ws len,
+      stackOk (w :: ws) len
+      -> w <= len.
+      inversion 1; auto.
+    Qed.
+
+    Lemma stackOk_tl : forall w ws len,
+      stackOk (w :: ws) len
+      -> stackOk ws len.
+      inversion 1; auto.
+    Qed.
+
+    Hint Immediate stackOk_hd stackOk_tl.
+
+    bash.
+
+    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend;
+      try rewrite inBounds_sel.
+    match goal with
+      | [ _ : inBounds ?cdatas _ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
+        match post with
+          | context[locals ?ns _ _ _] =>
+            match pre with
+              | context[locals ns ?vs _ _] =>
+                assert (inBounds cdatas vs) (*by inBounds*)
+            end
+        end
+    end.
+    rewrite <- inBounds_sel.
+    repeat match goal with
+             | [ H : inBounds _ ?X |- _ ] =>
+               match X with
+                 | sel _ => fail 1
+                 | _ => rewrite <- inBounds_sel in H
+               end
+           end.
+    try (constructor; [ descend | ]).
+    match goal with
+      | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
+        eapply Forall_impl2; [ apply H | | (*cbv beta; simpl; intuition descend;
+          repeat match goal with
+                   | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
+                 end; assumption*) ]
+    end.
+    eapply noConflict_Both2; [ eassumption | eassumption |
+      simpl; intros; match goal with
+                       | [ H : _, H' : freeVar _ _ |- _ ] => apply H in H'; tauto
+                     end ].
+    cbv beta; simpl; intuition descend.
+    step auto_ext.
+    eauto.
+    eauto.
+    bash.
+    bash.
+    repeat bash.
+
+    PatR_vc.
+    PatR_vc.
+
+    deDouble; propxFo.
+    deSpec.
+    simp.
+    evalu.
+    descend.
+    instantiate (3 := sel x4 "len").
+    repeat bash.
+    bash.
+    repeat bash; auto.
+
+    PatR_vc.
+
+    apply H11; clear H11; try (eassumption || rewrite app_assoc; eassumption).
+    eauto.
+    deSpec; simp; evalu; descend; repeat bash; auto.
+
+    PatR_vc.
 
     admit.
   Defined.
@@ -666,7 +809,7 @@ Section Pat.
     :: (res >= 11)%nat
     :: "xml_lex"!"next" ~~ im ~~> nextS
     :: "xml_lex"!"position" ~~ im ~~> positionS
-    :: "xml_lex"!"setPosition" ~~ im ~~> positionS
+    :: "xml_lex"!"setPosition" ~~ im ~~> setPositionS
     :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
     :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
     :: "malloc"!"malloc" ~~ im ~~> mallocS
