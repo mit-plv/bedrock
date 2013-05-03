@@ -83,8 +83,8 @@ Section WrapC.
     -> interp specs (postcondition true (fun x => x) ns res st).
 
   Hypothesis verifCond_covered : forall im mn H ns res pre,
-    vcs (verifCond im ns res)
-    -> (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st))
+    (forall specs st, interp specs (pre st) -> interp specs (precondition true (fun x => x) ns res st))
+    -> vcs (verifCond im ns res)
     -> vcs ((toCmd body (im := im) mn H ns res pre).(VerifCond)).
 
   Definition WrapC : chunk.
