@@ -467,10 +467,15 @@ Section Pat.
       try (constructor; [ descend | ]);
         match goal with
           | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
-            eapply Forall_impl2; [ apply H | apply H' | cbv beta; simpl; intuition descend;
-              repeat match goal with
-                       | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
-                     end; assumption ]
+            eapply Forall_impl2; [ apply H
+              | (eapply noConflict_Both2; [ eassumption | eassumption |
+                simpl; intros; match goal with
+                                 | [ H : _, H' : freeVar _ _ |- _ ] => apply H in H'; tauto
+                               end ]) || apply H'
+              | cbv beta; simpl; intuition descend;
+                repeat match goal with
+                         | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
+                       end; assumption ]
         end.
 
   Ltac reger := repeat match goal with
@@ -522,13 +527,43 @@ Section Pat.
       | [ |- _ ===> _ ] => prove_Himp
       | [ H : _ |- vcs _ ] => apply H; clear H
       | [ H : forall x, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
-    end; eauto; propxFo;
+    end; try eassumption; try (rewrite app_assoc; eassumption); eauto; propxFo;
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end.
 
+  Ltac set_env :=
+    match goal with
+      | [ _ : context[locals ?ns ?vs ?res ?sp] |- context[locals ?ns ?vs' ?res ?sp'] ] =>
+        match sp with
+          | sp' => idtac
+          | _ => let H := fresh in assert (H : sp = sp') by words; clear H
+        end; equate vs' vs; descend
+    end.
+
+  Ltac prep_call :=
+    match goal with
+      | [ H : context[locals ?ns ?vs ?avail ?p]
+        |- context[locals ?ns' _ ?avail' _] ] =>
+      match avail' with
+        | avail => fail 1
+        | _ =>
+          let offset := eval simpl in (4 * List.length ns) in
+            change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+              assert (ok_call ns ns' avail avail' offset)%nat
+                by (split; [ simpl; omega
+                  | split; [ simpl; omega
+                    | split; [ NoDup
+                      | reflexivity ] ] ])
+      end;
+      match goal with
+        | [ H : interp _ _ |- _ ] => autorewrite with sepFormula in H; simpl in H
+      end
+    end.
+
   Ltac PatR_vc := deDouble; propxFo; repeat invoke1;
-    deSpec; simp; evalu; try tauto; descend; repeat bash; inBounds || eauto.
+    deSpec; simp; repeat invoke1; try prep_call;
+      evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
 
   Ltac split_IH := match goal with
                      | [ IH : forall level : nat, _ |- _ ] =>
@@ -546,6 +581,20 @@ Section Pat.
   Qed.
 
   Hint Immediate StringMatch_ok.
+
+  Lemma stackOk_hd : forall w ws len,
+    stackOk (w :: ws) len
+    -> w <= len.
+    inversion 1; auto.
+  Qed.
+
+  Lemma stackOk_tl : forall w ws len,
+    stackOk (w :: ws) len
+    -> stackOk ws len.
+    inversion 1; auto.
+  Qed.
+
+  Hint Immediate stackOk_hd stackOk_tl.
 
   Theorem PatR_correct : forall im mn H ns res,
     ~In "rp" ns
@@ -656,129 +705,18 @@ Section Pat.
 
     PatR_vc.
     PatR_vc.
-
-    deDouble; propxFo.
-    deSpec.
-    simp.
-    invoke1.
-
-    Ltac prep_call :=
-      match goal with
-        | [ H : context[locals ?ns ?vs ?avail ?p]
-          |- context[locals ?ns' _ ?avail' _] ] =>
-          match avail' with
-            | avail => fail 1
-            | _ =>
-              let offset := eval simpl in (4 * List.length ns) in
-                change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
-                  assert (ok_call ns ns' avail avail' offset)%nat
-                    by (split; [ simpl; omega
-                      | split; [ simpl; omega
-                        | split; [ NoDup
-                          | reflexivity ] ] ])
-          end;
-          match goal with
-            | [ H : interp _ _ |- _ ] => autorewrite with sepFormula in H; simpl in H
-          end
-      end.
-
-    prep_call.
-    evalu.
-    descend.
-    step auto_ext.
-
     PatR_vc.
     PatR_vc.
     PatR_vc.
     PatR_vc.
     PatR_vc.
-    
-    deDouble; propxFo.
-    deSpec.
-    simp.
-    invoke1.
-    prep_call.
-    evalu.
-    descend.
-    bash.
-    bash.
-    bash.
-
-    Lemma stackOk_hd : forall w ws len,
-      stackOk (w :: ws) len
-      -> w <= len.
-      inversion 1; auto.
-    Qed.
-
-    Lemma stackOk_tl : forall w ws len,
-      stackOk (w :: ws) len
-      -> stackOk ws len.
-      inversion 1; auto.
-    Qed.
-
-    Hint Immediate stackOk_hd stackOk_tl.
-
-    bash.
-
-    unfold inv, invP, invL, localsInvariant; try rewrite mult4_S in *; reger; descend;
-      try rewrite inBounds_sel.
-    match goal with
-      | [ _ : inBounds ?cdatas _ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
-        match post with
-          | context[locals ?ns _ _ _] =>
-            match pre with
-              | context[locals ns ?vs _ _] =>
-                assert (inBounds cdatas vs) (*by inBounds*)
-            end
-        end
-    end.
-    rewrite <- inBounds_sel.
-    repeat match goal with
-             | [ H : inBounds _ ?X |- _ ] =>
-               match X with
-                 | sel _ => fail 1
-                 | _ => rewrite <- inBounds_sel in H
-               end
-           end.
-    try (constructor; [ descend | ]).
-    match goal with
-      | [ H : inBounds _ _, H' : noConflict _ _ |- _ ] =>
-        eapply Forall_impl2; [ apply H | | (*cbv beta; simpl; intuition descend;
-          repeat match goal with
-                   | [ H : forall x, _ |- _ ] => rewrite <- H by congruence
-                 end; assumption*) ]
-    end.
-    eapply noConflict_Both2; [ eassumption | eassumption |
-      simpl; intros; match goal with
-                       | [ H : _, H' : freeVar _ _ |- _ ] => apply H in H'; tauto
-                     end ].
-    cbv beta; simpl; intuition descend.
-    step auto_ext.
-    eauto.
-    eauto.
-    bash.
-    bash.
-    repeat bash.
-
     PatR_vc.
     PatR_vc.
-
-    deDouble; propxFo.
-    deSpec.
-    simp.
-    evalu.
-    descend.
-    instantiate (3 := sel x4 "len").
-    repeat bash.
-    bash.
-    repeat bash; auto.
-
     PatR_vc.
-
-    apply H11; clear H11; try (eassumption || rewrite app_assoc; eassumption).
-    eauto.
-    deSpec; simp; evalu; descend; repeat bash; auto.
-
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
+    PatR_vc.
     PatR_vc.
 
     admit.
