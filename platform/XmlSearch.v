@@ -504,8 +504,13 @@ Section Pat.
                                    end; clear H
                         end.
 
+  Ltac deSpec := simpl in *;
+    repeat match goal with
+             | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
+           end; clear_fancier.
+
   Ltac prove_Himp :=
-    clear_fancier; apply Himp_ex; intro;
+    deSpec; apply Himp_ex; intro;
       repeat match goal with
                | [ V : vals |- _ ] =>
                  match goal with
@@ -516,11 +521,6 @@ Section Pat.
         | [ H : forall x : string, _ |- _ ] =>
           repeat rewrite H by congruence; cancel auto_ext; inBounds
       end.
-
-  Ltac deSpec := simpl in *;
-    repeat match goal with
-             | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
-           end; clear_fancier.
 
   Ltac invoke1 :=
     match goal with
@@ -561,7 +561,7 @@ Section Pat.
       end
     end.
 
-  Ltac PatR_vc := deDouble; propxFo; repeat invoke1;
+  Ltac PatR := deDouble; propxFo; repeat invoke1;
     deSpec; simp; repeat invoke1; try prep_call;
       evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
 
@@ -627,10 +627,9 @@ Section Pat.
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
     induction p.
 
-    Ltac t := abstract PatR_vc.
+    Ltac t := solve [ PatR ].
 
-    admit.
-    (*wrap0.
+    wrap0.
     t.
     t.
     
@@ -645,10 +644,9 @@ Section Pat.
     t.
     t.
     t.
-    t.*)
+    t.
 
-    admit.
-    (*split_IH.
+    split_IH.
     wrap0.
     wrap0.
     t.
@@ -690,7 +688,7 @@ Section Pat.
     t.
     t.
     t.
-    t.*)
+    t.
 
     repeat split_IH.
     wrap0.
@@ -698,28 +696,63 @@ Section Pat.
     deDouble; propxFo.
     invoke1.
 
-    PatR_vc.
-    PatR_vc.
+    t.
+    t.
 
     wrap0.
 
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
-    PatR_vc.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
 
-    admit.
+    wrap0.
+
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+
+    deDouble; propxFo.
+
+    invoke1.
+
+    t.
+    t.
+
+    wrap0.
+
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
+    t.
   Defined.
 
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
@@ -764,9 +797,9 @@ Section Pat.
       invar
       invar
       (PatVcs p onSuccess)
-      _ _); [ abstract (simpl; intros; PatR_vc)
+      _ _); [ abstract (simpl; intros; PatR)
         | abstract (wrap0; try constructor; try (subst; app; tauto); try rewrite app_nil_r in *;
-          (PatR_vc; try constructor; fold (@app (string * string)); rewrite app_nil_r; assumption)) ].
+          (PatR; try constructor; fold (@app (string * string)); rewrite app_nil_r; assumption)) ].
   Defined.
 
 End Pat.
