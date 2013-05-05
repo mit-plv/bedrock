@@ -14,7 +14,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
            tests/WebServerDriver tests/EchoServerDriver \
-           StringMatch XmlLex XmlSearch
+           StringMatch XmlLex XmlSearch XmlLang
 
 VS      := $(MODULES:%=%.v)
 
