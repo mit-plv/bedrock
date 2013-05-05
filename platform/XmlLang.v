@@ -213,6 +213,12 @@ Qed.
 
 Local Hint Immediate wf_compile.
 
+Lemma wf_NoDup : forall p,
+  wf p
+  -> NoDup (allCdatas p).
+  induction p; simpl; intuition; try NoDup; eauto using NoDup_app.
+Qed.
+
 
 (** * Compiling programs *)
 
@@ -292,20 +298,41 @@ Section compileProgram.
             Structured.Assert_ im mn
             (Precondition mainS (Some lvars))))
         ("lex" <-- Call "xml_lex"!"init"("len")
-          [Al bs,
-            PRE[V, R] array8 bs (V "buf") * mallocHeap 0 * xmlp (V "len") R * [| length bs = wordToNat (V "len") |]
-            POST[_] array8 bs (V "buf") * mallocHeap 0];;
+         [Al bs,
+           PRE[V, R] array8 bs (V "buf") * mallocHeap 0 * xmlp (V "len") R * [| length bs = wordToNat (V "len") |]
+           POST[_] array8 bs (V "buf") * mallocHeap 0];;
          "stack" <- 0;;
 
          Pat (compilePat (Pattern pr))
            (Assert [inv (XmlSearch.allCdatas (compilePat (Pattern pr)))]);;
 
-         Diverge)%SP)
+         Call "xml_lex"!"delete"("lex")
+         [Al bs, Al ls,
+           PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
+           POST[_] array8 bs (V "buf") * mallocHeap 0];;
+
+         [Al bs, Al ls,
+           PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
+           POST[_] array8 bs (V "buf") * mallocHeap 0]
+         While ("stack" <> 0) {
+           "lex" <- "stack";;
+           "stack" <-* "stack"+4;;
+
+           Call "malloc"!"free"(0, "lex", 2)
+           [Al bs, Al ls,
+             PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
+             POST[_] array8 bs (V "buf") * mallocHeap 0]
+         };;
+
+         Return 0)%SP)
       |}
     }}.
 
   Hypothesis wellFormed : wf (Pattern pr).
-  Hypothesis distinct : NoDup (allCdatas (Pattern pr)).
+
+  Let distinct : NoDup (allCdatas (Pattern pr)).
+    intros; apply wf_NoDup; auto.
+  Qed.
 
   Ltac xomega := unfold preLvars, reserved, numCdatas; simpl; omega.
 
@@ -334,6 +361,9 @@ Section compileProgram.
 
   Ltac prep :=
     fold (@length string) in *; varer 32 "stack"; varer 8 "len"; varer 12 "lex";
+      try match goal with
+            | [ _ : context[Assign _ (RvLval (LvMem (Sp + natToW 0)%loc))] |- _ ] => varer 0 "rp"
+          end;
       try match goal with
             | [ H : context[Binop (LvReg Rv) (RvLval (LvReg Sp)) Plus (RvImm (natToW ?X))] |- _ ] =>
               replace X with (S (S (S (S (4 * Datatypes.length lvars)))))%nat in * by xomega
@@ -365,7 +395,11 @@ Section compileProgram.
                         (hnf; intuition; xomega || NoDup)
             end
         | _ => idtac
-      end.
+      end;
+      try match goal with
+            | [ _ : context[Binop (LvReg Rv) _ Plus (RvImm (natToW ?N))],
+              _ : context[locals_call _ _ _ _ _ _ ?M] |- _ ] => replace N with M in * by (simpl; omega)
+          end.
 
   Ltac my_descend :=
     repeat match goal with
@@ -395,6 +429,8 @@ Section compileProgram.
 
   Hint Immediate stackOk_nil.
 
+
+  Opaque mult.
 
   Theorem ok : moduleOk m.
     vcgen; pre; abstract t.
