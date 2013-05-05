@@ -527,6 +527,7 @@ Section Pat.
       | [ |- _ ===> _ ] => prove_Himp
       | [ H : _ |- vcs _ ] => apply H; clear H
       | [ H : forall x, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
+      | [ |- vcs _ ] => wrap0
     end; try eassumption; try (rewrite app_assoc; eassumption); eauto; propxFo;
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
@@ -561,16 +562,16 @@ Section Pat.
       end
     end.
 
-  Ltac PatR := deDouble; propxFo; repeat invoke1;
-    deSpec; simp; repeat invoke1; try prep_call;
-      evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
-
   Ltac split_IH := match goal with
                      | [ IH : forall level : nat, _ |- _ ] =>
                        generalize (fun a b c d e f g h i j => proj1 (IH a b c d e f g h i j));
                          generalize (fun a b c d e f g h i j => proj2 (IH a b c d e f g h i j));
                            clear IH; intros
                    end.
+
+  Ltac PatR := repeat split_IH; wrap0; deDouble; propxFo; repeat invoke1;
+    deSpec; simp; repeat invoke1; try prep_call;
+      evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
 
   Hint Constructors unit.
 
@@ -625,135 +626,8 @@ Section Pat.
           (im := im) mn H ns res pre).(Postcondition) st)
           -> interp specs (inv cdatas true (fun x => x) ns res st))
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
-    induction p.
-
-    Ltac t := solve [ PatR ].
-
-    wrap0.
-    t.
-    t.
-    
-    wrap0.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    split_IH.
-    wrap0.
-    wrap0.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    repeat split_IH.
-    wrap0.
-
-    deDouble; propxFo.
-    invoke1.
-
-    t.
-    t.
-
-    wrap0.
-
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    wrap0.
-
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-
-    deDouble; propxFo.
-
-    invoke1.
-
-    t.
-    t.
-
-    wrap0.
-
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-  Defined.
+    induction p; abstract PatR.
+  Qed.
 
   Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk.
