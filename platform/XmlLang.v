@@ -84,7 +84,7 @@ Lemma no_clash : forall s,
     end.
 Qed.
 
-Local Hint Extern 1 False => eapply no_clash; [ | eassumption ]; (cbv beta; simpl; intuition congruence).
+Local Hint Extern 1 False => eapply no_clash; [ | eauto 1 ]; (cbv beta; simpl; intuition congruence).
 
 Lemma append_inj : forall s1 s2 s,
   (s ++ s1 = s ++ s2)%string
@@ -152,6 +152,13 @@ Lemma lastChar_app : forall s2,
       destruct s2; simpl in *; auto; omega.
 Qed.
 
+Ltac injy :=
+  match goal with
+    | [ H : _ |- _ ] => solve [ apply append_inj' in H; subst; eauto ]
+    | [ H : _ |- _ ] => apply (f_equal lastChar) in H;
+      repeat rewrite lastChar_app in H by (simpl; omega); discriminate
+  end.
+
 Lemma allCdatas_NoDup : forall p,
   NoDup (allCdatas p)
   -> NoDup (allCdatas_both p).
@@ -170,19 +177,89 @@ Lemma allCdatas_NoDup : forall p,
   repeat match goal with
            | [ H : _ |- _ ] => apply In_allCdatas_both in H
          end; post; subst;
-  match goal with
-    | [ H : _ |- _ ] => solve [ apply append_inj' in H; subst; eauto ]
-    | [ H : _ |- _ ] => apply (f_equal lastChar) in H;
-      repeat rewrite lastChar_app in H by (simpl; omega); discriminate
-  end.
+  injy.
 Qed.
 
 Local Hint Immediate allCdatas_NoDup.
+
+Lemma freeVar_compile : forall x p,
+  XmlSearch.freeVar (compilePat p) x
+  -> In x (allCdatas_both p).
+  induction p; simpl; intuition.
+Qed.
+
+Local Hint Immediate freeVar_compile.
+
+Lemma allCdatas_freeVar : forall x p,
+  In x (allCdatas p)
+  -> freeVar p x.
+  induction p; simpl; intuition;
+    match goal with
+      | [ H : _ |- _ ] =>
+        apply in_app_or in H; tauto
+    end.
+Qed.
+
+Local Hint Resolve allCdatas_freeVar.
+
+Lemma wf_compile : forall p,
+  wf p
+  -> XmlSearch.wf (compilePat p).
+  induction p; simpl; intuition;
+    repeat match goal with
+             | [ H : _ |- _ ] => apply freeVar_compile in H; apply In_allCdatas_both in H
+           end; post; subst; injy.
+Qed.
+
+Local Hint Immediate wf_compile.
 
 
 (** * Compiling programs *)
 
 Section compileProgram.
+  (** First, create a [vcgen] version that knows about [Pat], with some shameless copy-and-paste. *)
+
+  Ltac vcgen_simp := cbv beta iota zeta delta [WrapC Wrap Pat
+    map app imps
+    LabelMap.add Entry Blocks Postcondition VerifCond
+    Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_
+    Structured.If_ Structured.While_ Goto_ Structured.Call_ IGoto
+    setArgs Programming.Reserved Programming.Formals Programming.Precondition
+    importsMap fullImports buildLocals blocks union Nplus Nsucc length N_of_nat
+    List.fold_left ascii_lt string_lt label'_lt
+    LabelKey.compare' LabelKey.compare LabelKey.eq_dec
+    LabelMap.find
+    toCmd Seq Instr Diverge Fail Skip Assert_
+    Programming.If_ Programming.While_ Goto Programming.Call_ RvImm'
+    Assign' localsInvariant localsInvariantCont
+    regInL lvalIn immInR labelIn variableSlot string_eq ascii_eq
+    andb Bool.eqb qspecOut
+    ICall_ Structured.ICall_
+    Assert_ Structured.Assert_
+    LabelMap.Raw.find LabelMap.this LabelMap.Raw.add
+    LabelMap.empty LabelMap.Raw.empty string_dec
+    Ascii.ascii_dec string_rec string_rect sumbool_rec sumbool_rect Ascii.ascii_rec Ascii.ascii_rect
+    Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
+    fst snd labl
+    Ascii.N_of_ascii Ascii.N_of_digits N.compare Nmult Pos.compare Pos.compare_cont
+    Pos.mul Pos.add LabelMap.Raw.bal
+    Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec LabelMap.Raw.create
+    ZArith_dec.Z_gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.max LabelMap.Raw.height
+    ZArith_dec.Z_gt_dec Int.Z_as_Int._1 BinInt.Z.add Int.Z_as_Int._0 Int.Z_as_Int._2 BinInt.Z.max
+    ZArith_dec.Zcompare_rec ZArith_dec.Z_ge_lt_dec BinInt.Z.compare ZArith_dec.Zcompare_rect
+    ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect
+    COperand1 CTest COperand2 Pos.succ
+    makeVcs
+    Note_ Note__
+    IGotoStar_ IGotoStar AssertStar_ AssertStar
+    Cond_ Cond
+  ].
+
+  Ltac vcgen := structured_auto vcgen_simp.
+
+
+  (** Now, on to the interesting part.... *)
+
   Variable pr : program.
 
   Definition numCdatas := length (allCdatas_both (Pattern pr)).
@@ -219,10 +296,15 @@ Section compileProgram.
             PRE[V, R] array8 bs (V "buf") * mallocHeap 0 * xmlp (V "len") R * [| length bs = wordToNat (V "len") |]
             POST[_] array8 bs (V "buf") * mallocHeap 0];;
          "stack" <- 0;;
+
+         Pat (compilePat (Pattern pr))
+           (Assert [inv (XmlSearch.allCdatas (compilePat (Pattern pr)))]);;
+
          Diverge)%SP)
       |}
     }}.
 
+  Hypothesis wellFormed : wf (Pattern pr).
   Hypothesis distinct : NoDup (allCdatas (Pattern pr)).
 
   Ltac xomega := unfold preLvars, reserved, numCdatas; simpl; omega.
@@ -234,7 +316,7 @@ Section compileProgram.
   Ltac reger := fold (@length string) in *;
     repeat match goal with
              | [ H : Regs _ _ = _ |- _ ] => rewrite H
-           end; try rewrite wplus_wminus; try rewrite <- mult4_S.
+           end; try rewrite wplus_wminus; repeat rewrite <- mult4_S in *.
 
   Ltac prelude :=
     intros;
@@ -285,22 +367,37 @@ Section compileProgram.
         | _ => idtac
       end.
 
-  Ltac my_descend := repeat match goal with
-                              | [ H : In _ _ |- _ ] => clear H
-                            end; descend; reger.
+  Ltac my_descend :=
+    repeat match goal with
+             | [ H : In _ _ |- _ ] => clear H
+           end;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end;
+    descend; reger.
 
-  Ltac t' := post; prep; evaluate auto_ext; my_descend; repeat (step auto_ext; my_descend).
-  Ltac t := prelude || t'.
+  Ltac my_evaluate := evaluate SinglyLinkedList.hints.
+  Ltac my_step := step SinglyLinkedList.hints.
+
+  Ltac t' := post; prep; my_evaluate; my_descend; repeat (my_step; my_descend); eauto.
+
+  Ltac easy := solve [ hnf; simpl; intuition (subst; try congruence; eauto) ].
+
+  Ltac pre := repeat match goal with
+                       | [ |- context[vcs] ] => wrap0
+                     end.
+
+  Ltac t := easy || prelude || t'.
+
+  Lemma stackOk_nil : forall len, stackOk nil len.
+    constructor.
+  Qed.
+
+  Hint Immediate stackOk_nil.
+
 
   Theorem ok : moduleOk m.
-    vcgen.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
-    t.
+    vcgen; pre; abstract t.
   Qed.
 
 End compileProgram.
