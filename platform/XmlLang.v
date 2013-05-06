@@ -1,4 +1,4 @@
-Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringMatch XmlLex XmlSearch.
+Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringMatch XmlLex XmlSearch XmlOutput.
 
 Set Implicit Arguments.
 
@@ -74,7 +74,7 @@ Lemma no_clash' : forall s' s,
   induction s; simpl; intuition.
 Qed.
 
-Lemma no_clash : forall s,
+Lemma no_clash'' : forall s,
   underscore_free s
   -> forall p, In s (allCdatas_both p)
     -> False.
@@ -84,7 +84,16 @@ Lemma no_clash : forall s,
     end.
 Qed.
 
-Local Hint Extern 1 False => eapply no_clash; [ | eauto 1 ]; (cbv beta; simpl; intuition congruence).
+Lemma no_clash : forall s p,
+  In s (allCdatas_both p)
+  -> underscore_free s
+  -> False.
+  intros; eapply no_clash''; eauto.
+Qed.
+
+Local Hint Resolve no_clash.
+
+Local Hint Extern 1 (underscore_free _) => simpl; intuition congruence.
 
 Lemma append_inj : forall s1 s2 s,
   (s ++ s1 = s ++ s2)%string
@@ -157,6 +166,8 @@ Ltac injy :=
     | [ H : _ |- _ ] => solve [ apply append_inj' in H; subst; eauto ]
     | [ H : _ |- _ ] => apply (f_equal lastChar) in H;
       repeat rewrite lastChar_app in H by (simpl; omega); discriminate
+    | [ H : _ |- _ ] =>
+      apply (f_equal String.length) in H; simpl in H; rewrite length_append in H; simpl in H; omega
   end.
 
 Lemma allCdatas_NoDup : forall p,
@@ -225,7 +236,7 @@ Qed.
 Section compileProgram.
   (** First, create a [vcgen] version that knows about [Pat], with some shameless copy-and-paste. *)
 
-  Ltac vcgen_simp := cbv beta iota zeta delta [WrapC Wrap Pat
+  Ltac vcgen_simp := cbv beta iota zeta delta [WrapC Wrap Pat Out
     map app imps
     LabelMap.add Entry Blocks Postcondition VerifCond
     Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_
@@ -269,10 +280,10 @@ Section compileProgram.
   Variable pr : program.
 
   Definition numCdatas := length (allCdatas_both (Pattern pr)).
-  Definition reserved := numCdatas + 18.
+  Definition reserved := numCdatas + 19.
 
   Definition preLvars := "lex" :: "res"
-    :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: allCdatas_both (Pattern pr).
+    :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: "tmp" :: allCdatas_both (Pattern pr).
   Definition lvars := "buf" :: "len" :: preLvars.
 
   Definition mainS := SPEC("buf", "len") reserving reserved
@@ -283,8 +294,9 @@ Section compileProgram.
   Definition m := bimport [["xml_lex"!"next" @ [nextS], "xml_lex"!"position" @ [positionS],
                             "xml_lex"!"setPosition" @ [setPositionS], "xml_lex"!"tokenStart" @ [tokenStartS],
                             "xml_lex"!"tokenLength" @ [tokenLengthS], "malloc"!"malloc" @ [mallocS],
-                            "malloc"!"free" @ [freeS], "sys"!"abort" @ [abortS], "sys"!"write" @ [writeS],
+                            "malloc"!"free" @ [freeS], "sys"!"abort" @ [abortS], "sys"!"printInt" @ [printIntS],
                             "xml_lex"!"init" @ [initS], "xml_lex"!"delete" @ [deleteS] ]]
+
     bmodule "xml_prog" {{
       {|
         FName := "main";
@@ -304,7 +316,11 @@ Section compileProgram.
          "stack" <- 0;;
 
          Pat (compilePat (Pattern pr))
-           (Assert [inv (XmlSearch.allCdatas (compilePat (Pattern pr)))]);;
+           (Out (Output pr ++ "_start")%string (Output pr ++ "_len")%string
+             (fun V => mallocHeap 0 * xmlp (V "len") (V "lex")
+               * [| inBounds (XmlSearch.allCdatas (compilePat (Pattern pr))) V |]
+               * Ex ls, sll ls (V "stack")
+                 * [| stackOk ls (V "len") |])%Sep);;
 
          Call "xml_lex"!"delete"("lex")
          [Al bs, Al ls,
@@ -324,11 +340,12 @@ Section compileProgram.
              POST[_] array8 bs (V "buf") * mallocHeap 0]
          };;
 
-         Return 0)%SP)
+         Return 0))%SP
       |}
     }}.
 
   Hypothesis wellFormed : wf (Pattern pr).
+  Hypothesis inScope : freeVar (Pattern pr) (Output pr).
 
   Let distinct : NoDup (allCdatas (Pattern pr)).
     intros; apply wf_NoDup; auto.
@@ -360,6 +377,10 @@ Section compileProgram.
       assert (In s ("rp" :: lvars)) by (simpl; tauto).
 
   Ltac prep :=
+    post;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end;
     fold (@length string) in *; varer 32 "stack"; varer 8 "len"; varer 12 "lex";
       try match goal with
             | [ _ : context[Assign _ (RvLval (LvMem (Sp + natToW 0)%loc))] |- _ ] => varer 0 "rp"
@@ -374,15 +395,15 @@ Section compileProgram.
           end;
       match goal with
         | [ H : context[locals ?ns ?vs ?avail ?p]
-            |- context[locals ?ns' _ ?avail' _] ] =>
-          match avail' with
-            | avail => fail 1
-            | _ =>
-              let offset := constr:(S (S (S (S (4 * List.length lvars))))) in
-                change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
-                  assert (ok_call ns ns' avail avail' offset)%nat
-                    by (hnf; intuition; xomega || NoDup)
-          end
+          |- context[locals ?ns' _ ?avail' _] ] =>
+        match avail' with
+          | avail => fail 1
+          | _ =>
+            let offset := constr:(S (S (S (S (4 * List.length lvars))))) in
+              change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
+                assert (ok_call ns ns' avail avail' offset)%nat
+                  by (hnf; intuition; xomega || NoDup)
+        end
         | [ _ : evalInstrs _ _ ?E = None, H : context[locals ?ns ?vs ?avail ?p] |- _ ] =>
           let ns' := slotVariables E in
             match ns' with
@@ -399,7 +420,7 @@ Section compileProgram.
       try match goal with
             | [ _ : context[Binop (LvReg Rv) _ Plus (RvImm (natToW ?N))],
               _ : context[locals_call _ _ _ _ _ _ ?M] |- _ ] => replace N with M in * by (simpl; omega)
-          end.
+          end; try rewrite inBounds_sel in *.
 
   Ltac my_descend :=
     repeat match goal with
@@ -408,12 +429,17 @@ Section compileProgram.
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end;
-    descend; reger.
+    descend; reger; try rewrite inBounds_sel in *.
 
   Ltac my_evaluate := evaluate SinglyLinkedList.hints.
   Ltac my_step := step SinglyLinkedList.hints.
 
-  Ltac t' := post; prep; my_evaluate; my_descend; repeat (my_step; my_descend); eauto.
+  Ltac invoke1 :=
+    match goal with
+      | [ H : interp _ _, H' : _ |- _ ] => apply H' in H; clear H'
+    end.
+
+  Ltac t' := post; repeat invoke1; prep; my_evaluate; my_descend; repeat (my_step; my_descend); eauto.
 
   Ltac easy := solve [ hnf; simpl; intuition (subst; try congruence; eauto) ].
 
@@ -429,11 +455,46 @@ Section compileProgram.
 
   Hint Immediate stackOk_nil.
 
+  Lemma freeVar_all : forall x p,
+    freeVar p x
+    -> In x (allCdatas p).
+    induction p; simpl; intuition.
+  Qed.
+
+  Lemma freeVar_compile' : forall x p,
+    freeVar p x
+    -> In (x ++ "_start", x ++ "_len")%string (XmlSearch.allCdatas (compilePat p)).
+    induction p; simpl; intuition.
+  Qed.
+
+  Hint Extern 1 (_ <= _)%nat =>
+    match goal with
+      | [ H : inBounds _ _ |- _ ] => eapply Forall_forall in H; [ | eauto using freeVar_compile' ]
+    end.
+
+  Lemma freeVar_start : forall x p,
+    freeVar p x
+    -> In (x ++ "_start")%string (allCdatas_both p).
+    induction p; simpl; intuition.
+  Qed.
+
+  Lemma freeVar_len : forall x p,
+    freeVar p x
+    -> In (x ++ "_len")%string (allCdatas_both p).
+    induction p; simpl; intuition.
+  Qed.
+
+  Hint Immediate freeVar_start freeVar_len.
+
+  Hint Extern 1 (NoDup (_ :: _)) => repeat constructor; simpl; intuition injy.
+
 
   Opaque mult.
 
   Theorem ok : moduleOk m.
-    vcgen; pre; abstract t.
+    vcgen; (intros; try match goal with
+                          | [ H : importsGlobal _ |- _ ] => clear H
+                        end; pre); abstract t.
   Qed.
 
 End compileProgram.
