@@ -258,7 +258,7 @@ Section Pat.
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
     :: wf p
     :: noConflict p cdatas
-    :: (forall specs im mn H res pre st,
+    :: (forall specs mn H pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
       -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
     :: (res >= 11)%nat
@@ -270,7 +270,7 @@ Section Pat.
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: "malloc"!"free" ~~ im ~~> freeS
     :: "sys"!"abort" ~~ im ~~> abortS
-    :: (forall im mn H res pre,
+    :: (forall mn H pre,
       (forall specs st, interp specs (pre st)
         -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
@@ -648,7 +648,7 @@ Section Pat.
     (~In "rp" ns) :: incl baseVars ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars)
     :: wf p
-    :: (forall specs im mn H res pre st,
+    :: (forall specs mn H pre st,
       interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
       -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
     :: (res >= 11)%nat
@@ -660,7 +660,7 @@ Section Pat.
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: "malloc"!"free" ~~ im ~~> freeS
     :: "sys"!"abort" ~~ im ~~> abortS
-    :: (forall im mn H res pre,
+    :: (forall mn H pre,
       (forall specs st, interp specs (pre st)
         -> interp specs (inv (allCdatas p) true (fun w => w) ns res st))
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
