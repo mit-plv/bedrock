@@ -140,12 +140,14 @@ Section Pat.
           (* What type of token is it? *)
           If ("res" = 1) {
             (* Open tag -- does it match? *)
-            "level" <- "level" + 1;;
 
             If ("level" > level) {
               (* We've descended too deep, so this position doesn't qualify. *)
+              "level" <- "level" + 1;;
               Skip
             } else {
+              "level" <- "level" + 1;;
+
               (* We may have a match!  First, grab the boundaries of the matching string. *)
               "tagStart" <-- Call "xml_lex"!"tokenStart"("lex")
               [invP cdatas];;
