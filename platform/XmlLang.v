@@ -1,4 +1,4 @@
-Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringMatch XmlLex XmlSearch XmlOutput.
+Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringOps XmlLex XmlSearch XmlOutput.
 
 Set Implicit Arguments.
 
