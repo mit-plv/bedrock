@@ -1,4 +1,4 @@
-Require Import AutoSep Wrap StringMatch XmlLex SinglyLinkedList Malloc.
+Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc.
 
 Set Implicit Arguments.
 
