@@ -18,7 +18,7 @@ Inductive pat :=
 (* A full program: find all matches of a pattern, outputting the value of a variable for each. *)
 Record program := {
   Pattern : pat;
-  Output : string
+  Output : xml
 }.
 
 
@@ -31,11 +31,11 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
   end.
 
-Fixpoint wf (p : pat) : Prop :=
+Fixpoint wfPat (p : pat) : Prop :=
   match p with
     | Cdata _ => True
-    | Tag tag inner => goodSize (String.length tag) /\ wf inner
-    | Both p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
+    | Tag tag inner => goodSize (String.length tag) /\ wfPat inner
+    | Both p1 p2 => wfPat p1 /\ wfPat p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
   end%type.
 
 Fixpoint allCdatas (p : pat) : list string :=
@@ -44,6 +44,13 @@ Fixpoint allCdatas (p : pat) : list string :=
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
   end.
+
+
+(** * Well-formedness overall *)
+
+Definition wf (pr : program) :=
+  wfPat (Pattern pr)
+  /\ XmlOutput.wf (Output pr).
 
 
 (** * Compiling patterns *)
@@ -214,7 +221,7 @@ Qed.
 Local Hint Resolve allCdatas_freeVar.
 
 Lemma wf_compile : forall p,
-  wf p
+  wfPat p
   -> XmlSearch.wf (compilePat p).
   induction p; simpl; intuition;
     repeat match goal with
@@ -225,7 +232,7 @@ Qed.
 Local Hint Immediate wf_compile.
 
 Lemma wf_NoDup : forall p,
-  wf p
+  wfPat p
   -> NoDup (allCdatas p).
   induction p; simpl; intuition; try NoDup; eauto using NoDup_app.
 Qed.
@@ -280,16 +287,18 @@ Section compileProgram.
   Variable pr : program.
 
   Definition numCdatas := length (allCdatas_both (Pattern pr)).
-  Definition reserved := numCdatas + 19.
+  Definition reserved := numCdatas + 21.
 
-  Definition preLvars := "lex" :: "res"
+  Definition preLvars := "lex" :: "res" :: "opos" :: "overflowed"
     :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: "tmp" :: allCdatas_both (Pattern pr).
-  Definition lvars := "buf" :: "len" :: preLvars.
+  Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: preLvars.
 
-  Definition mainS := SPEC("buf", "len") reserving reserved
-    Al bs,
-    PRE[V] array8 bs (V "buf") * mallocHeap 0 * [| length bs = wordToNat (V "len") |]
-    POST[_] array8 bs (V "buf") * mallocHeap 0.
+  Definition mainS := SPEC("buf", "len", "obuf", "olen") reserving reserved
+    Al bsI, Al bsO,
+    PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0
+      * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+    POST[_] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+      * [| length bsO' = length bsO |].
 
   Definition m := bimport [["xml_lex"!"next" @ [nextS], "xml_lex"!"position" @ [positionS],
                             "xml_lex"!"setPosition" @ [setPositionS], "xml_lex"!"tokenStart" @ [tokenStartS],
@@ -310,45 +319,53 @@ Section compileProgram.
             Structured.Assert_ im mn
             (Precondition mainS (Some lvars))))
         ("lex" <-- Call "xml_lex"!"init"("len")
-         [Al bs,
-           PRE[V, R] array8 bs (V "buf") * mallocHeap 0 * xmlp (V "len") R * [| length bs = wordToNat (V "len") |]
-           POST[_] array8 bs (V "buf") * mallocHeap 0];;
+         [Al bsI, Al bsO,
+           PRE[V, R] array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0 * xmlp (V "len") R
+             * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+           POST[_] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+             * [| length bsO' = length bsO |] ];;
          "stack" <- 0;;
+         "opos" <- 0;;
 
-         Pat (compilePat (Pattern pr))
-           (Out (Output pr ++ "_start")%string (Output pr ++ "_len")%string
-             (fun V => mallocHeap 0 * xmlp (V "len") (V "lex")
-               * [| inBounds (XmlSearch.allCdatas (compilePat (Pattern pr))) V |]
-               * Ex ls, sll ls (V "stack")
-                 * [| stackOk ls (V "len") |])%Sep);;
+         Pat (fun bsO V => array8 bsO (V "obuf") * [| length bsO = wordToNat (V "olen") |]
+           * [| V "opos" <= V "olen" |]%word)%Sep
+         (fun bsO V => Ex bsO', array8 bsO' (V "obuf") * [| length bsO' = length bsO |])%Sep
+         (compilePat (Pattern pr))
+         (Out
+           (fun bsI V => array8 bsI (V "buf") * mallocHeap 0 * xmlp (V "len") (V "lex")
+             * [| inBounds (XmlSearch.allCdatas (compilePat (Pattern pr))) V |]
+             * [| length bsI = wordToNat (V "len") |]
+             * Ex ls, sll ls (V "stack")
+             * [| stackOk ls (V "len") |])%Sep
+           (fun bsI V => array8 bsI (V "buf") * mallocHeap 0)%Sep
+           (Output pr));;
 
          Call "xml_lex"!"delete"("lex")
-         [Al bs, Al ls,
-           PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
-           POST[_] array8 bs (V "buf") * mallocHeap 0];;
+         [Al ls,
+           PRE[V] mallocHeap 0 * sll ls (V "stack")
+           POST[_] mallocHeap 0];;
 
-         [Al bs, Al ls,
-           PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
-           POST[_] array8 bs (V "buf") * mallocHeap 0]
+         [Al ls,
+           PRE[V] mallocHeap 0 * sll ls (V "stack")
+           POST[_] mallocHeap 0]
          While ("stack" <> 0) {
            "lex" <- "stack";;
            "stack" <-* "stack"+4;;
 
            Call "malloc"!"free"(0, "lex", 2)
-           [Al bs, Al ls,
-             PRE[V] array8 bs (V "buf") * mallocHeap 0 * sll ls (V "stack")
-             POST[_] array8 bs (V "buf") * mallocHeap 0]
+           [Al ls,
+             PRE[V] mallocHeap 0 * sll ls (V "stack")
+             POST[_] mallocHeap 0]
          };;
 
          Return 0))%SP
       |}
     }}.
 
-  Hypothesis wellFormed : wf (Pattern pr).
-  Hypothesis inScope : freeVar (Pattern pr) (Output pr).
+  Hypothesis wellFormed : wf pr.
 
   Let distinct : NoDup (allCdatas (Pattern pr)).
-    intros; apply wf_NoDup; auto.
+    destruct wellFormed; intros; apply wf_NoDup; auto.
   Qed.
 
   Ltac xomega := unfold preLvars, reserved, numCdatas; simpl; omega.
@@ -364,10 +381,10 @@ Section compileProgram.
 
   Ltac prelude :=
     intros;
-      match goal with
-        | [ H : _ |- _ ] =>
-          eapply localsInvariant_inEx; [ | apply H ]; clear H; simpl; intros
-      end;
+      repeat match goal with
+               | [ H : _ |- _ ] =>
+                 eapply localsInvariant_inEx; [ | apply H ]; clear H; simpl; intros
+             end;
       eapply (@localsInvariant_in preLvars); try eassumption; try reflexivity; try xomega;
         try solve [ repeat constructor; simpl; intuition (try congruence; eauto) ];
           (intros ? ? Hrew; repeat rewrite Hrew by (simpl; tauto); reflexivity).
@@ -381,7 +398,7 @@ Section compileProgram.
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end;
-    fold (@length string) in *; varer 32 "stack"; varer 8 "len"; varer 12 "lex";
+    fold (@length string) in *; varer 48 "stack"; varer 8 "len"; varer 20 "lex"; varer 28 "opos";
       try match goal with
             | [ _ : context[Assign _ (RvLval (LvMem (Sp + natToW 0)%loc))] |- _ ] => varer 0 "rp"
           end;
@@ -443,11 +460,49 @@ Section compileProgram.
 
   Ltac easy := solve [ hnf; simpl; intuition (subst; try congruence; eauto) ].
 
-  Ltac pre := repeat match goal with
-                       | [ |- context[vcs] ] => wrap0
-                     end.
+  Ltac pre := try destruct wellFormed;
+    repeat match goal with
+             | [ |- context[vcs] ] => wrap0
+           end.
 
-  Ltac t := easy || prelude || t'.
+  Hint Resolve no_clash' Forall_app.
+
+  Lemma xall_underscore : forall p,
+    List.Forall (fun p => not (underscore_free (fst p)) /\ not (underscore_free (snd p)))
+    (XmlSearch.allCdatas (compilePat p)).
+    induction p; simpl; intuition eauto.
+  Qed.
+
+  Lemma inBounds_swizzle : forall V V' p,
+    (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
+    -> inBounds (XmlSearch.allCdatas (compilePat p)) V
+    -> inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+    intros.
+    rewrite <- inBounds_sel.
+    rewrite <- inBounds_sel in H0.
+    eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
+    simpl; intuition; match goal with
+                        | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
+                      end.
+    repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
+    auto.
+  Qed.
+
+  Hint Immediate inBounds_swizzle.
+
+  Ltac prove_irrel :=
+    repeat match goal with
+             | [ V : vals |- _ ] =>
+               match goal with
+                 | [ |- context[V ?x] ] => change (V x) with (sel V x)
+               end
+           end;
+    match goal with
+      | [ H : forall x : string, _ |- _ ] =>
+        repeat rewrite H by intuition (congruence || eauto)
+    end; reflexivity || cancel auto_ext; eauto.
+
+  Ltac t := easy || prelude || prove_irrel || t'.
 
   Lemma stackOk_nil : forall len, stackOk nil len.
     constructor.
@@ -492,9 +547,10 @@ Section compileProgram.
   Opaque mult.
 
   Theorem ok : moduleOk m.
-    vcgen; (intros; try match goal with
-                          | [ H : importsGlobal _ |- _ ] => clear H
-                        end; pre); abstract t.
+    destruct wellFormed; vcgen;
+      (intros; try match goal with
+                     | [ H : importsGlobal _ |- _ ] => clear H
+                   end; pre); abstract t.
   Qed.
 
 End compileProgram.

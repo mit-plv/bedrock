@@ -24,13 +24,12 @@ End Hide.
 
 Module Type S.
   Parameter pr : program.
-  Axiom wellFormed : wf (Pattern pr).
-  Axiom inScope : freeVar (Pattern pr) (Output pr).
-  Axiom notTooGreedy : (reserved pr <= 44)%nat.
+  Axiom wellFormed : wf pr.
+  Axiom notTooGreedy : (reserved pr <= 41)%nat.
 
-  Parameter inbuf_size : N.
-  Axiom inbuf_size_lower : (inbuf_size >= 2)%N.
-  Axiom inbuf_size_upper : (inbuf_size * 4 < Npow2 32)%N.
+  Parameter buf_size : N.
+  Axiom buf_size_lower : (buf_size >= 2)%N.
+  Axiom buf_size_upper : (buf_size * 4 < Npow2 32)%N.
 
   Parameter heapSize : N.
 End S.
@@ -41,7 +40,7 @@ Import M.
 Definition mainS := SPEC reserving 49
   PREonly[_] mallocHeap 0.
 
-Definition bsize := nat_of_N (inbuf_size * 4)%N.
+Definition bsize := nat_of_N (buf_size * 4)%N.
 
 Inductive unfold_here := UnfoldHere.
 Local Hint Constructors unfold_here.
@@ -53,25 +52,29 @@ Defined.
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
                             "sys"!"read" @ [Sys.readS], "xml_prog"!"main" @ [XmlLang.mainS pr] ]]
   bmodule "xml_driver" {{
-    bfunctionNoRet "main"("inbuf", "len") [mainS]
-      "inbuf" <-- Call "buffers"!"bmalloc"(inbuf_size)
+    bfunctionNoRet "main"("inbuf", "len", "outbuf") [mainS]
+      "inbuf" <-- Call "buffers"!"bmalloc"(buf_size)
       [PREonly[_, R] R =?>8 bsize * mallocHeap 0];;
 
+      "outbuf" <-- Call "buffers"!"bmalloc"(buf_size)
+      [PREonly[V, R] V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
+
       "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
-      [PREonly[V] V "inbuf" =?>8 bsize * mallocHeap 0];;
+      [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
 
       If ("len" > bsize) {
         Call "sys"!"abort"()
         [PREonly[_] [| False |] ]
       } else {
-        Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize * mallocHeap 0
+        Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
+          * V "outbuf" =?>8 bsize * mallocHeap 0
           * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-        Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len") * mallocHeap 0 ];;
+        Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len") * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
 
         Note [unfold_here];;
 
-        Call "xml_prog"!"main"("inbuf", "len")
+        Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
         [PREonly[_] Emp];;
 
         Call "sys"!"abort"()
@@ -80,47 +83,47 @@ Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [a
     end
   }}.
 
-Lemma inbuf_size_lower'' : (inbuf_size < Npow2 32)%N.
-  eapply Nlt_trans; [ | apply inbuf_size_upper ].
-  specialize inbuf_size_lower; intros.
+Lemma buf_size_lower'' : (buf_size < Npow2 32)%N.
+  eapply Nlt_trans; [ | apply buf_size_upper ].
+  specialize buf_size_lower; intros.
   pre_nomega.
   rewrite N2Nat.inj_mul.
   simpl.
-  generalize dependent (N.to_nat inbuf_size); intros.
+  generalize dependent (N.to_nat buf_size); intros.
   change (Pos.to_nat 2) with 2 in *.
   change (Pos.to_nat 4) with 4.
   omega.
 Qed.
 
-Lemma inbuf_size_lower' : natToW 2 <= NToW inbuf_size.
+Lemma buf_size_lower' : natToW 2 <= NToW buf_size.
   unfold NToW.
   rewrite NToWord_nat.
   pre_nomega.
   rewrite wordToNat_natToWord_idempotent.
   change (wordToNat (natToW 2)) with (nat_of_N 2).
   apply Nge_out.
-  apply inbuf_size_lower.
+  apply buf_size_lower.
   rewrite N2Nat.id.
-  apply inbuf_size_lower''.
+  apply buf_size_lower''.
 Qed.
 
-Local Hint Immediate inbuf_size_lower'.
+Local Hint Immediate buf_size_lower'.
 
-Lemma bsize_in : (wordToNat (NToW inbuf_size) * 4) = bsize.
+Lemma bsize_in : (wordToNat (NToW buf_size) * 4) = bsize.
   unfold NToW, bsize.
   rewrite NToWord_nat.
   rewrite N2Nat.inj_mul.
   rewrite wordToNat_natToWord_idempotent.
   auto.
   rewrite N2Nat.id.
-  apply inbuf_size_lower''.
+  apply buf_size_lower''.
 Qed.
 
 Lemma bsize_roundTrip : wordToNat (natToW bsize) = bsize.
   apply wordToNat_natToWord_idempotent.
   unfold bsize.
   rewrite N2Nat.id.
-  apply inbuf_size_upper.
+  apply buf_size_upper.
 Qed.
 
 Hint Rewrite bsize_in bsize_roundTrip : sepFormula.
@@ -284,7 +287,7 @@ Section boot.
   Qed.
 
   Lemma ok : moduleOk m.
-    link (XmlLang.ok pr wellFormed inScope) ok4.
+    link (XmlLang.ok wellFormed) ok4.
   Qed.
   
   Variable stn : settings.
