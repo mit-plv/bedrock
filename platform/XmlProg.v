@@ -25,7 +25,7 @@ End Hide.
 Module Type S.
   Parameter pr : program.
   Axiom wellFormed : wf pr.
-  Axiom notTooGreedy : (reserved pr <= 41)%nat.
+  Axiom notTooGreedy : (reserved pr <= 40)%nat.
 
   Parameter buf_size : N.
   Axiom buf_size_lower : (buf_size >= 2)%N.
@@ -46,39 +46,71 @@ Inductive unfold_here := UnfoldHere.
 Local Hint Constructors unfold_here.
 
 Definition hints : TacPackage.
-  prepare buffer_split_tagged tt.
+  prepare buffer_split_tagged buffer_join_tagged.
 Defined.
 
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
-                            "sys"!"read" @ [Sys.readS], "xml_prog"!"main" @ [XmlLang.mainS pr] ]]
+                            "sys"!"read" @ [Sys.readS], "sys"!"write" @ [Sys.writeS],
+                            "xml_prog"!"main" @ [XmlLang.mainS pr] ]]
   bmodule "xml_driver" {{
-    bfunctionNoRet "main"("inbuf", "len", "outbuf") [mainS]
+    bfunctionNoRet "main"("inbuf", "len", "outbuf", "tmp") [mainS]
       "inbuf" <-- Call "buffers"!"bmalloc"(buf_size)
       [PREonly[_, R] R =?>8 bsize * mallocHeap 0];;
 
       "outbuf" <-- Call "buffers"!"bmalloc"(buf_size)
       [PREonly[V, R] V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
 
-      "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
-      [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
+      [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
+      While (1 = 1) {
+        "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
+        [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
 
-      If ("len" > bsize) {
-        Call "sys"!"abort"()
-        [PREonly[_] [| False |] ]
-      } else {
-        Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
-          * V "outbuf" =?>8 bsize * mallocHeap 0
-          * [| wordToNat (V "len") <= bsize |]%nat ];;
+        If ("len" > bsize) {
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ];;
+          Fail
+        } else {
+          Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0
+            * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-        Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len") * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
+          Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len")
+            * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
+            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-        Note [unfold_here];;
+          Note [unfold_here];;
 
-        Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
-        [PREonly[_] Emp];;
+          "tmp" <-- Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
+          [PREonly[V, R] V "inbuf" =?>8 wordToNat (V "len")
+            * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
+            * V "outbuf" =?>8 bsize
+            * [| R <= natToW bsize |]%word * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-        Call "sys"!"abort"()
-        [PREonly[_] [| False |] ]
+          Assert [PREonly[V] buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+
+          Assert [PREonly[V] V "inbuf" =?>8 bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+
+          Assert [PREonly[V] V "inbuf" =?>8 bsize
+            * buffer_splitAt (wordToNat (V "tmp")) (V "outbuf") bsize * mallocHeap 0
+            * [| wordToNat (V "tmp") <= bsize |]%nat ];;
+
+          Assert [PREonly[V] V "inbuf" =?>8 bsize
+            * V "outbuf" =?>8 wordToNat (V "tmp")
+            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
+            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
+
+          Call "sys"!"write"(1, "outbuf", "tmp")
+          [PREonly[V] V "inbuf" =?>8 bsize
+            * V "outbuf" =?>8 wordToNat (V "tmp")
+            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
+            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
+
+          Assert [PREonly[V] V "inbuf" =?>8 bsize
+            * buffer_joinAt (wordToNat (V "tmp")) (V "outbuf") bsize
+            * mallocHeap 0]
+        }
       }
     end
   }}.

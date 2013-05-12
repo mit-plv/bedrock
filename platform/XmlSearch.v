@@ -47,7 +47,8 @@ Fixpoint allCdatas (p : pat) : list (string * string) :=
 
 Section Pat.
   Variable A : Type.
-  Variables invPre invPost : A -> vals -> HProp.
+  Variables invPre : A -> vals -> HProp.
+  Variables invPost : A -> vals -> W -> HProp.
 
   (* Do all start-length pairs in a list denote valid spans in a string of length "len"? *)
   Definition inBounds (cdatas : list (string * string)) (V : vals) :=
@@ -63,7 +64,7 @@ Section Pat.
     Al a : A, Al bs, Al ls,
     PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
       * [| length bs = wordToNat (V "len") |] * [| stackOk ls (V "len") |] * invPre a V
-    POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V.
+    POST[R] array8 bs (V "buf") * mallocHeap 0 * invPost a V R.
 
   (* Primary invariant, recording that a set of CDATA positions is in bounds. *)
   Definition inv cdatas :=
@@ -71,7 +72,7 @@ Section Pat.
     PRE[V] array8 bs (V "buf") * xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |] * invPre a V
-    POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V.
+    POST[R] array8 bs (V "buf") * mallocHeap 0 * invPost a V R.
 
   (* Intermediate invariant, to use right after reading token position from the lexer. *)
   Definition invP cdatas :=
@@ -80,7 +81,7 @@ Section Pat.
       * sll ls (V "stack")
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |] * invPre a V
-    POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V.
+    POST[R'] array8 bs (V "buf") * mallocHeap 0 * invPost a V R'.
 
   (* Intermediater invariant, to use right after reading token length from the lexer. *)
   Definition invL cdatas start :=
@@ -89,7 +90,7 @@ Section Pat.
       * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
       * [| stackOk ls (V "len") |]
       * [| wordToNat (V start) + wordToNat R <= wordToNat (V "len") |]%nat * invPre a V
-    POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V.
+    POST[R'] array8 bs (V "buf") * mallocHeap 0 * invPost a V R'.
 
   (* Alternate sequencing operator, which generates twistier code but simpler postconditions and VCs *)
   Definition SimpleSeq (ch1 ch2 : chunk) : chunk := fun ns res =>
@@ -162,7 +163,7 @@ Section Pat.
               StringEq "buf" "len" "tagStart" "matched" tag
               (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
                 * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
-              (fun a V _ => mallocHeap 0 * invPost a V)%Sep;;
+              (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
 
               If ("matched" = 0) {
                 (* Nope, not equal. *)
@@ -198,7 +199,7 @@ Section Pat.
             * sll ls (V "stack") * mallocHeap 0 * [| R <= V "len" |]%word
             * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
             * [| stackOk ls (V "len") |] * invPre a V
-          POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V];;
+          POST[R'] array8 bs (V "buf") * mallocHeap 0 * invPost a V R'];;
 
         (* Allocate a new entry for the position stack. *)
         "tagStart" <-- Call "malloc"!"malloc"(0, 2)
@@ -208,7 +209,7 @@ Section Pat.
             * R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
             * [| length bs = wordToNat (V "len") |] * [| inBounds cdatas V |]
             * [| stackOk ls (V "len") |] * invPre a V
-          POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V];;
+          POST[R'] array8 bs (V "buf") * mallocHeap 0 * invPost a V R'];;
 
         (* Save the current position in this entry, then push it onto the stack. *)
         "tagStart" *<- "tagLen";;
@@ -237,7 +238,7 @@ Section Pat.
               * sll ls (V "stack") * mallocHeap 0 * [| V "tagLen" <= V "len" |]%word
               * [| length bs = wordToNat (V "len") |] * [| inBounds (allCdatas p1 ++ cdatas) V |]
               * [| stackOk ls (V "len") |] * invPre a V
-          POST[_] array8 bs (V "buf") * mallocHeap 0 * invPost a V];;
+          POST[R'] array8 bs (V "buf") * mallocHeap 0 * invPost a V R'];;
 
           (* Restore the position we popped. *)
           Call "xml_lex"!"setPosition"("lex", "tagLen")
@@ -280,8 +281,8 @@ Section Pat.
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
       -> invPre a V = invPre a V')
-    ::  (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
-      -> invPost a V = invPost a V')
+    ::  (forall a V V' R, (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
+      -> invPost a V R = invPost a V' R)
     :: nil).
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
@@ -326,7 +327,7 @@ Section Pat.
     auto.
   Qed.
 
-  Lemma invPost_sel : forall a V, invPost a (sel V) = invPost a V.
+  Lemma invPost_sel : forall a V R, invPost a (sel V) R = invPost a V R.
     auto.
   Qed.
 
@@ -511,9 +512,9 @@ Section Pat.
                   | _ => rewrite (H _ vs vs') by intuition descend
                 end
             end
-          | context[invPost _ ?vs] =>
+          | context[invPost _ ?vs _] =>
             match Q with
-              | context[invPost _ ?vs'] =>
+              | context[invPost _ ?vs' _] =>
                 match vs' with
                   | vs => fail 1
                   | _ => rewrite (H _ vs vs') by intuition descend
@@ -536,9 +537,9 @@ Section Pat.
                 end
               | [ H : context[invPost] |- ?P = ?Q ] =>
                 match P with
-                  | context[invPost ?a ?V] =>
+                  | context[invPost ?a ?V _] =>
                     match Q with
-                      | context[invPost a ?V'] =>
+                      | context[invPost a ?V' _] =>
                         rewrite (H a V V') by intuition; reflexivity
                     end
                 end
@@ -555,8 +556,8 @@ Section Pat.
                               match goal with
                                 | [ H : _ |- _ ] => intro; apply H; intuition descend
                               end
-                          | context[invPost ?a ?vs'] =>
-                            assert (unit -> invPost a vs' = invPost a vs) by
+                          | context[invPost ?a ?vs' ?r] =>
+                            assert (unit -> invPost a vs' r = invPost a vs r) by
                               match goal with
                                 | [ H : _ |- _ ] => intro; apply H; intuition descend
                               end
@@ -567,7 +568,7 @@ Section Pat.
         step SinglyLinkedList.hints;
         try match goal with
               | [ H : unit -> invPre _ _ = invPre _ _ |- _ ] => rewrite (H tt)
-              | [ H : unit -> invPost _ _ = invPost _ _ |- _ ] => rewrite (H tt)
+              | [ H : unit -> invPost _ _ _ = invPost _ _ _ |- _ ] => rewrite (H tt)
             end.
 
   Ltac clear_fancier := match goal with
@@ -698,8 +699,8 @@ Section Pat.
       -> noConflict p cdatas
       -> (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
         -> invPre a V = invPre a V')
-      -> (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
-        -> invPost a V = invPost a V')
+      -> (forall a V V' R, (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
+        -> invPost a V R = invPost a V' R)
       -> (forall specs pre st,
         interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
         -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
@@ -753,8 +754,8 @@ Section Pat.
       -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
     :: (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
       -> invPre a V = invPre a V')
-    ::  (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
-      -> invPost a V = invPost a V')
+    ::  (forall a V V' R, (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
+      -> invPost a V R = invPost a V' R)
     :: nil).
 
   Definition Pat (p : pat) (onSuccess : chunk) : chunk.

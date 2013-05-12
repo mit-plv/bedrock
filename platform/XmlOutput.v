@@ -59,14 +59,15 @@ Opaque xml_ind'.
 
 Section Out.
   Variable A : Type.
-  Variables invPre invPost : A -> vals -> HProp.
+  Variable invPre : A -> vals -> HProp.
+  Variable invPost : A -> vals -> W -> HProp.
 
   (* Precondition and postcondition of generation *)
   Definition invar :=
     Al a : A, Al bs,
     PRE[V] array8 bs (V "obuf") * [| length bs = wordToNat (V "olen") |]
       * [| V "opos" <= V "olen" |] * invPre a V
-    POST[_] Ex bs', array8 bs' (V "obuf") * [| length bs' = length bs |] * invPost a V.
+    POST[R] Ex bs', array8 bs' (V "obuf") * [| length bs' = length bs |] * invPost a V R.
 
   (* Alternate sequencing operator, which generates twistier code but simpler postconditions and VCs *)
   Definition SimpleSeq (ch1 ch2 : chunk) : chunk := fun ns res =>
@@ -87,21 +88,21 @@ Section Out.
   Fixpoint Out' (xm : xml) : chunk :=
     match xm with
       | Cdata data => StringWrite "obuf" "olen" "opos" "overflowed" data
-        invPre (fun a V _ => invPost a V)
+        invPre invPost
       | Tag tag inner =>
         (StringWrite "obuf" "olen" "opos" "overflowed" ("<" ++ tag ++ ">")
-          invPre (fun a V _ => invPost a V);;
+          invPre invPost;;
          OutList Out' inner;;
          StringWrite "obuf" "olen" "opos" "overflowed" ("</" ++ tag ++ ">")
-          invPre (fun a V _ => invPost a V))
+          invPre invPost)
     end%SP.
 
   Notation OutVcs xm := (fun im ns res =>
     (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
     :: (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V')
-    :: (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
-      -> invPost a V = invPost a V')
+    :: (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
+      -> invPost a V R = invPost a V' R)
     :: wf xm
     :: nil).
 
@@ -111,7 +112,7 @@ Section Out.
     auto.
   Qed.
 
-  Lemma invPost_sel : forall a V, invPost a (sel V) = invPost a V.
+  Lemma invPost_sel : forall a V R, invPost a (sel V) R = invPost a V R.
     auto.
   Qed.
 
@@ -129,8 +130,8 @@ Section Out.
     repeat match goal with
              | [ H : context[invPre ?a (sel ?V)] |- _ ] => rewrite (invPre_sel a V) in H
              | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
-             | [ H : context[invPost ?a (sel ?V)] |- _ ] => rewrite (invPost_sel a V) in H
-             | [ |- context[invPost ?a (sel ?V)] ] => rewrite (invPost_sel a V)
+             | [ H : context[invPost ?a (sel ?V) _] |- _ ] => rewrite (invPost_sel a V) in H
+             | [ |- context[invPost ?a (sel ?V) _] ] => rewrite (invPost_sel a V)
            end; reger.
 
   Ltac prepl := post; unfold lvalIn, regInL, immInR in *;
@@ -171,8 +172,8 @@ Section Out.
     Hypothesis Hoverflowed : In "overflowed" ns.
     Hypothesis HinvPre : forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V'.
-    Hypothesis HinvPost : forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
-      -> invPost a V = invPost a V'.
+    Hypothesis HinvPost : forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
+      -> invPost a V R = invPost a V' R.
 
     Ltac split_IH :=
       match goal with
