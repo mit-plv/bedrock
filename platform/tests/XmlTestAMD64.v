@@ -1,30 +1,35 @@
-Require Import Bedrock XmlProg AMD64_gas XmlLang.
+Require Import Bedrock Xml XmlProg AMD64_gas.
 
 Module M.
-  Definition pr := {|
-    Pattern := Tag "test" (Both (Tag "toast" (Cdata "toast")) (Tag "twist" (Cdata "twist")));
-    Output := "toast"
-  |}.
+  Definition pr := Match
+    "test"/(
+      "toast"/"toast"
+      & "twist"/"twist"
+    )
+  Do
+    <*> "a" </>
+      "b",
+      <*> "c" </>
+        "d"
+      </>
+    </>
+  end.
 
-  Theorem wellFormed : wf (Pattern pr).
-    simpl; intuition.
+  Theorem wellFormed : wf pr.
+    wf.
   Qed.
 
-  Theorem inScope : freeVar (Pattern pr) (Output pr).
-    simpl; tauto.
-  Qed.
-
-  Theorem notTooGreedy : (reserved pr <= 44)%nat.
+  Theorem notTooGreedy : (reserved pr <= 40)%nat.
     compute; omega.
   Qed.
 
-  Definition inbuf_size := 1024%N.
+  Definition buf_size := 1024%N.
 
-  Theorem inbuf_size_lower : (inbuf_size >= 2)%N.
+  Theorem buf_size_lower : (buf_size >= 2)%N.
     discriminate.
   Qed.
     
-  Theorem inbuf_size_upper : (inbuf_size * 4 < Npow2 32)%N.
+  Theorem buf_size_upper : (buf_size * 4 < Npow2 32)%N.
     reflexivity.
   Qed.
 
