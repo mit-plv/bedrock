@@ -297,8 +297,8 @@ Section compileProgram.
     Al bsI, Al bsO,
     PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0
       * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-    POST[_] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
-      * [| length bsO' = length bsO |].
+    POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+      * [| length bsO' = length bsO |] * [| R <= V "olen" |].
 
   Definition m := bimport [["xml_lex"!"next" @ [nextS], "xml_lex"!"position" @ [positionS],
                             "xml_lex"!"setPosition" @ [setPositionS], "xml_lex"!"tokenStart" @ [tokenStartS],
@@ -322,14 +322,16 @@ Section compileProgram.
          [Al bsI, Al bsO,
            PRE[V, R] array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0 * xmlp (V "len") R
              * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-           POST[_] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
-             * [| length bsO' = length bsO |] ];;
+           POST[R'] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+             * [| length bsO' = length bsO |] * [| R' <= V "olen" |]%word ];;
          "stack" <- 0;;
          "opos" <- 0;;
+         "overflowed" <- 0;;
 
          Pat (fun bsO V => array8 bsO (V "obuf") * [| length bsO = wordToNat (V "olen") |]
            * [| V "opos" <= V "olen" |]%word)%Sep
-         (fun bsO V => Ex bsO', array8 bsO' (V "obuf") * [| length bsO' = length bsO |])%Sep
+         (fun bsO V R => Ex bsO', array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
+           * [| R <= V "olen" |]%word)%Sep
          (compilePat (Pattern pr))
          (Out
            (fun bsI V => array8 bsI (V "buf") * mallocHeap 0 * xmlp (V "len") (V "lex")
@@ -337,28 +339,32 @@ Section compileProgram.
              * [| length bsI = wordToNat (V "len") |]
              * Ex ls, sll ls (V "stack")
              * [| stackOk ls (V "len") |])%Sep
-           (fun bsI V => array8 bsI (V "buf") * mallocHeap 0)%Sep
+           (fun bsI V R => array8 bsI (V "buf") * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
            (Output pr));;
 
          Call "xml_lex"!"delete"("lex")
          [Al ls,
-           PRE[V] mallocHeap 0 * sll ls (V "stack")
-           POST[_] mallocHeap 0];;
+           PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+           POST[R] [| R <= V "olen" |]%word * mallocHeap 0];;
 
          [Al ls,
-           PRE[V] mallocHeap 0 * sll ls (V "stack")
-           POST[_] mallocHeap 0]
+           PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+           POST[R] [| R <= V "olen" |]%word * mallocHeap 0]
          While ("stack" <> 0) {
            "lex" <- "stack";;
            "stack" <-* "stack"+4;;
 
            Call "malloc"!"free"(0, "lex", 2)
            [Al ls,
-             PRE[V] mallocHeap 0 * sll ls (V "stack")
-             POST[_] mallocHeap 0]
+             PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+             POST[R] [| R <= V "olen" |]%word * mallocHeap 0]
          };;
 
-         Return 0))%SP
+         If ("overflowed" = 1) {
+           Return 0
+         } else {
+           Return "opos"
+         }))%SP
       |}
     }}.
 
@@ -399,6 +405,7 @@ Section compileProgram.
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end;
     fold (@length string) in *; varer 48 "stack"; varer 8 "len"; varer 20 "lex"; varer 28 "opos";
+      varer 32 "overflowed";
       try match goal with
             | [ _ : context[Assign _ (RvLval (LvMem (Sp + natToW 0)%loc))] |- _ ] => varer 0 "rp"
           end;
