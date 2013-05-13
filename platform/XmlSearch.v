@@ -7,21 +7,29 @@ Set Implicit Arguments.
 
 Inductive pat :=
 
+(* Match CDATA constant. *)
+| Cdata (const : string)
+
 (* Record CDATA at this position via two variables. *)
-| Cdata (start len : string)
+| Var (start len : string)
 
 (* Match a specific tag at this level in the XML tree, then continue into its children. *)
 | Tag (tag : string) (inner : pat)
 
 (* Match two different patterns at this level of the tree. *)
-| Both (p1 p2 : pat).
+| Both (p1 p2 : pat)
+
+(* Match one pattern and then another in the part of the XML tree right after the match of the first. *)
+| Ordered (p1 p2 : pat).
 
 (** Which program variables appear free in a pattern? *)
 Fixpoint freeVar (p : pat) (x : string) : Prop :=
   match p with
-    | Cdata start len => x = start \/ x = len
+    | Cdata _ => False
+    | Var start len => x = start \/ x = len
     | Tag _ inner => freeVar inner x
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
+    | Ordered p1 p2 => freeVar p1 x \/ freeVar p2 x
   end.
 
 (** Does the pattern avoid:
@@ -29,17 +37,21 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
   * - mentioning a huge string constant as a tag name? *)
 Fixpoint wf (p : pat) : Prop :=
   match p with
-    | Cdata start len => start <> len
+    | Cdata const => goodSize (String.length const)
+    | Var start len => start <> len
     | Tag tag inner => goodSize (String.length tag) /\ wf inner
     | Both p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
+    | Ordered p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
   end%type.
 
 (** All pairs of start-length variables in a pattern *)
 Fixpoint allCdatas (p : pat) : list (string * string) :=
   match p with
-    | Cdata start len => (start, len) :: nil
+    | Cdata _ => nil
+    | Var start len => (start, len) :: nil
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
+    | Ordered p1 p2 => allCdatas p2 ++ allCdatas p1
   end.
 
 
@@ -108,7 +120,39 @@ Section Pat.
   Fixpoint Pat' (p : pat) (level : nat) (cdatas : list (string * string))
     (onSuccess : chunk) : chunk :=
     match p with
-      | Cdata start len =>
+      | Cdata const =>
+        (* Read next token. *)
+        "res" <-- Call "xml_lex"!"next"("buf", "lex")
+        [inv cdatas];;
+
+        (* What type of token is it? *)
+        If ("res" = 2) {
+          (* We may have a match!  First, grab the boundaries of the matching string. *)
+          "tagStart" <-- Call "xml_lex"!"tokenStart"("lex")
+          [invP cdatas];;
+
+          "tagLen" <-- Call "xml_lex"!"tokenLength"("lex")
+          [invL cdatas "tagStart"];;
+
+          (* Now check if the CDATA content here matches the constant from the pattern. *)
+          StringEq "buf" "len" "tagStart" "matched" const
+          (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
+            * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
+          (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
+
+          If ("matched" = 0) {
+            (* Nope, not equal. *)
+            Skip
+          } else {
+            (* Equal! *)
+            onSuccess
+          }
+        } else {
+          (* It's not CDATA.  Pattern doesn't match. *)
+          Skip
+        }
+
+      | Var start len =>
         (* Read next token. *)
         "res" <-- Call "xml_lex"!"next"("buf", "lex")
         [inv cdatas];;
@@ -248,6 +292,33 @@ Section Pat.
           Pat' p2 level (allCdatas p1 ++ cdatas)
           onSuccess
         })
+
+      | Ordered p1 p2 =>
+        (* Try matching the first pattern. *)
+        Pat' p1 level cdatas (
+          (* Loop lexing tokens until we return to the appropriate tree level. *)
+          [inv (allCdatas p1 ++ cdatas)]
+          While ("level" > level) {
+            "res" <-- Call "xml_lex"!"next"("buf", "lex")
+            [inv (allCdatas p1 ++ cdatas)];;
+
+            If ("res" = 1) {
+              (* Open tag *)
+              "level" <- "level" + 1
+            } else {
+              If ("res" = 3) {
+                (* Close tag *)
+                "level" <- "level" - 1
+              } else {
+                Skip
+              }
+            }
+          };;
+
+          (* Now try matching the second pattern from the same initial position. *)
+          Pat' p2 level (allCdatas p1 ++ cdatas)
+          onSuccess
+        )
     end%SP.
 
   Notation baseVars := ("buf" :: "len" :: "lex" :: "res"
@@ -257,33 +328,6 @@ Section Pat.
     /\ ~freeVar pt (fst p) /\ ~freeVar pt (snd p)).
 
   Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
-
-  Notation PatVcs' p cdatas onSuccess := (fun im ns res =>
-    (~In "rp" ns) :: incl baseVars ns
-    :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars /\ x <> "rp")
-    :: wf p
-    :: noConflict p cdatas
-    :: (forall specs mn H pre st,
-      interp specs (Postcondition (toCmd onSuccess (im := im) mn H ns res pre) st)
-      -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
-    :: (res >= 11)%nat
-    :: "xml_lex"!"next" ~~ im ~~> nextS
-    :: "xml_lex"!"position" ~~ im ~~> positionS
-    :: "xml_lex"!"setPosition" ~~ im ~~> setPositionS
-    :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
-    :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
-    :: "malloc"!"malloc" ~~ im ~~> mallocS
-    :: "malloc"!"free" ~~ im ~~> freeS
-    :: "sys"!"abort" ~~ im ~~> abortS
-    :: (forall mn H pre,
-      (forall specs st, interp specs (pre st)
-        -> interp specs (inv (allCdatas p ++ cdatas) true (fun w => w) ns res st))
-      -> vcs (VerifCond (toCmd onSuccess (im := im) mn H ns res pre)))
-    :: (forall a V V', (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
-      -> invPre a V = invPre a V')
-    ::  (forall a V V' R, (forall x, ~In x baseVars -> ~freeVar p x -> sel V x = sel V' x)
-      -> invPost a V R = invPost a V' R)
-    :: nil).
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
     auto.
@@ -581,7 +625,10 @@ Section Pat.
   Ltac deSpec := simpl in *;
     repeat match goal with
              | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
-           end; clear_fancier.
+           end; clear_fancier;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end.
 
   Ltac prove_Himp :=
     deSpec; apply Himp_ex; intro;
@@ -717,21 +764,6 @@ Section Pat.
     induction p; abstract PatR.
   Qed.
 
-  Definition PatR (p : pat) (level : nat) (cdatas : list (string * string))
-    (onSuccess : chunk) : chunk.
-    refine (WrapC (Pat' p level cdatas onSuccess)
-      (inv cdatas)
-      (inv cdatas)
-      (PatVcs' p cdatas onSuccess)
-      _ _); abstract (intros; repeat match goal with
-                                       | [ H : vcs nil |- _ ] => clear H
-                                       | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
-                                     end;
-      match goal with
-        | [ H : wf _ |- _ ] => eapply PatR_correct in H; eauto; destruct H; eauto
-      end).
-  Defined.
-
   Notation PatVcs p onSuccess := (fun im ns res =>
     (~In "rp" ns) :: incl baseVars ns
     :: (forall x, freeVar p x -> In x ns /\ ~In x baseVars)
@@ -758,14 +790,23 @@ Section Pat.
       -> invPost a V R = invPost a V' R)
     :: nil).
 
+  Hint Extern 1 (noConflict _ nil) => constructor.
+  Hint Extern 1 (inBounds nil _) => constructor.
+
   Definition Pat (p : pat) (onSuccess : chunk) : chunk.
-    refine (WrapC (PatR p 1 nil onSuccess)
+    refine (WrapC (Pat' p 1 nil onSuccess)
       invar
       invar
       (PatVcs p onSuccess)
-      _ _); [ abstract (simpl; intros; PatR)
-        | abstract (wrap0; try constructor; try (subst; app; tauto); try rewrite app_nil_r in *;
-          (PatR; try constructor; fold (@app (string * string)); rewrite app_nil_r; assumption)) ].
+      _ _); abstract (wrap0;
+        match goal with
+          | [ H : wf _ |- _ ] => eapply PatR_correct in H;
+            match goal with
+              | [ |- Logic.ex _ ] => destruct H; PatR
+              | [ |- vcs _ ] => destruct H; PatR
+              | _ => try rewrite app_nil_r; eauto
+            end; (intros; app; simpl; intuition congruence) || PatR
+        end).
   Defined.
 
 End Pat.
