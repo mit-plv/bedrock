@@ -1,4 +1,4 @@
-Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringOps XmlLex XmlSearch XmlOutput.
+Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList StringOps XmlLex XmlSearch XmlOutput ArrayOps.
 
 Set Implicit Arguments.
 
@@ -6,14 +6,20 @@ Set Implicit Arguments.
 (* Patterns matching against XML trees *)
 Inductive pat :=
 
-(* Record CDATA at this position in the specified variable. *)
-| Cdata (text : string)
+(* Match CDATA constant. *)
+| Cdata (const : string)
+
+(* Record CDATA at this position via a variable. *)
+| Var (text : string)
 
 (* Match a specific tag at this level in the XML tree, then continue into its children. *)
 | Tag (tag : string) (inner : pat)
 
 (* Match two different patterns at this level of the tree. *)
-| Both (p1 p2 : pat).
+| Both (p1 p2 : pat)
+
+(* Match one pattern and then another in the part of the XML tree right after the match of the first. *)
+| Ordered (p1 p2 : pat).
 
 (* A full program: find all matches of a pattern, outputting the value of a variable for each. *)
 Record program := {
@@ -26,47 +32,58 @@ Record program := {
 
 Fixpoint freeVar (p : pat) (x : string) : Prop :=
   match p with
-    | Cdata text => x = text
+    | Cdata _ => False
+    | Var text => x = text
     | Tag _ inner => freeVar inner x
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
+    | Ordered p1 p2 => freeVar p1 x \/ freeVar p2 x
   end.
 
 Fixpoint wfPat (p : pat) : Prop :=
   match p with
-    | Cdata _ => True
+    | Cdata const => goodSize (String.length const)
+    | Var _ => True
     | Tag tag inner => goodSize (String.length tag) /\ wfPat inner
     | Both p1 p2 => wfPat p1 /\ wfPat p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
+    | Ordered p1 p2 => wfPat p1 /\ wfPat p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
   end%type.
 
 Fixpoint allCdatas (p : pat) : list string :=
   match p with
-    | Cdata text => text :: nil
+    | Cdata _ => nil
+    | Var text => text :: nil
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
+    | Ordered p1 p2 => allCdatas p2 ++ allCdatas p1
   end.
-
-
-(** * Well-formedness overall *)
-
-Definition wf (pr : program) :=
-  wfPat (Pattern pr)
-  /\ XmlOutput.wf (Output pr).
 
 
 (** * Compiling patterns *)
 
 Fixpoint compilePat (p : pat) : XmlSearch.pat :=
   match p with
-    | Cdata text => XmlSearch.Cdata (text ++ "_start") (text ++ "_len")
+    | Cdata const => XmlSearch.Cdata const
+    | Var text => XmlSearch.Var (text ++ "_start") (text ++ "_len")
     | Tag tag inner => XmlSearch.Tag tag (compilePat inner)
     | Both p1 p2 => XmlSearch.Both (compilePat p1) (compilePat p2)
+    | Ordered p1 p2 => XmlSearch.Ordered (compilePat p1) (compilePat p2)
   end%string.
+
+Definition wf (pr : program) :=
+  wfPat (Pattern pr)
+  /\ XmlOutput.wf (Output pr)
+  /\ cdatasGood (XmlSearch.allCdatas (compilePat (Pattern pr)))
+  /\ forall start len, XmlOutput.freeVar (Output pr) (start, len)
+    -> exists x, start = (x ++ "_start")%string /\ len = (x ++ "_len")%string
+      /\ freeVar (Pattern pr) x.
 
 Fixpoint allCdatas_both (p : pat) : list string :=
   match p with
-    | Cdata text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
+    | Cdata _ => nil
+    | Var text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
     | Tag _ inner => allCdatas_both inner
     | Both p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
+    | Ordered p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
   end.
 
 Fixpoint underscore_free (s : string) : Prop :=
@@ -180,18 +197,18 @@ Ltac injy :=
 Lemma allCdatas_NoDup : forall p,
   NoDup (allCdatas p)
   -> NoDup (allCdatas_both p).
-  induction p; simpl; intuition.
-  repeat constructor; simpl; intuition;
-    match goal with
-      | [ H : _ |- _ ] => apply append_inj in H; discriminate
-    end.
+  induction p; simpl; intuition;
+    repeat constructor; simpl; intuition;
+      try match goal with
+            | [ H : _ |- _ ] => apply append_inj in H; discriminate
+          end;
   match goal with
     | [ H : NoDup _ |- _ ] =>
       specialize (NoDup_unapp1 _ _ H);
         specialize (NoDup_unapp2 _ _ H);
           specialize (NoDup_unapp_noclash _ _ H);
             clear H; intros
-  end; apply NoDup_app; auto; intros.
+  end; apply NoDup_app; auto; intros;
   repeat match goal with
            | [ H : _ |- _ ] => apply In_allCdatas_both in H
          end; post; subst;
@@ -304,7 +321,8 @@ Section compileProgram.
                             "xml_lex"!"setPosition" @ [setPositionS], "xml_lex"!"tokenStart" @ [tokenStartS],
                             "xml_lex"!"tokenLength" @ [tokenLengthS], "malloc"!"malloc" @ [mallocS],
                             "malloc"!"free" @ [freeS], "sys"!"abort" @ [abortS], "sys"!"printInt" @ [printIntS],
-                            "xml_lex"!"init" @ [initS], "xml_lex"!"delete" @ [deleteS] ]]
+                            "xml_lex"!"init" @ [initS], "xml_lex"!"delete" @ [deleteS],
+                            "array8"!"copy" @ [copyS] ]]
 
     bmodule "xml_prog" {{
       {|
@@ -334,12 +352,10 @@ Section compileProgram.
            * [| R <= V "olen" |]%word)%Sep
          (compilePat (Pattern pr))
          (Out
-           (fun bsI V => array8 bsI (V "buf") * mallocHeap 0 * xmlp (V "len") (V "lex")
-             * [| inBounds (XmlSearch.allCdatas (compilePat (Pattern pr))) V |]
-             * [| length bsI = wordToNat (V "len") |]
-             * Ex ls, sll ls (V "stack")
-             * [| stackOk ls (V "len") |])%Sep
-           (fun bsI V R => array8 bsI (V "buf") * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
+           (fun (_ : unit) V => mallocHeap 0 * xmlp (V "len") (V "lex")
+             * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+           (fun _ V R => [| R <= V "olen" |]%word * mallocHeap 0)%Sep
+           (XmlSearch.allCdatas (compilePat (Pattern pr)))
            (Output pr));;
 
          Call "xml_lex"!"delete"("lex")
@@ -465,7 +481,12 @@ Section compileProgram.
 
   Ltac t' := post; repeat invoke1; prep; my_evaluate; my_descend; repeat (my_step; my_descend); eauto.
 
-  Ltac easy := solve [ hnf; simpl; intuition (subst; try congruence; eauto) ].
+  Ltac easy :=
+    try match goal with
+          | [ H : XmlOutput.freeVar _ _, H' : forall start len : string, _ |- _ ] =>
+            apply H' in H; post; subst
+        end;
+    solve [ hnf; simpl; intuition (subst; try congruence; eauto) ].
 
   Ltac pre := try destruct wellFormed;
     repeat match goal with
@@ -507,7 +528,7 @@ Section compileProgram.
     match goal with
       | [ H : forall x : string, _ |- _ ] =>
         repeat rewrite H by intuition (congruence || eauto)
-    end; reflexivity || cancel auto_ext; eauto.
+    end; reflexivity || cancel auto_ext; solve [ eauto ].
 
   Ltac t := easy || prelude || prove_irrel || t'.
 
@@ -552,6 +573,9 @@ Section compileProgram.
 
 
   Opaque mult.
+
+  Hint Constructors unit.
+  Hint Immediate freeVar_compile'.
 
   Theorem ok : moduleOk m.
     destruct wellFormed; vcgen;

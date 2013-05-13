@@ -1,4 +1,4 @@
-Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8.
+Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
 
 
 Module Type HIDE.
@@ -300,7 +300,8 @@ Section boot.
   Definition m2 := link Buffers.m m1.
   Definition m3 := link XmlLex.m m2.
   Definition m4 := link Malloc.m m3.
-  Definition m := link (XmlLang.m pr) m4.
+  Definition m5 := link ArrayOps.m m4.
+  Definition m := link (XmlLang.m pr) m5.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.
@@ -318,8 +319,12 @@ Section boot.
     link Malloc.ok ok3.
   Qed.
 
+  Lemma ok5 : moduleOk m5.
+    link ArrayOps.ok ok4.
+  Qed.
+
   Lemma ok : moduleOk m.
-    link (XmlLang.ok wellFormed) ok4.
+    link (XmlLang.ok wellFormed) ok5.
   Qed.
   
   Variable stn : settings.
