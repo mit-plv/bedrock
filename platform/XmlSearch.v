@@ -134,18 +134,23 @@ Section Pat.
           "tagLen" <-- Call "xml_lex"!"tokenLength"("lex")
           [invL cdatas "tagStart"];;
 
-          (* Now check if the CDATA content here matches the constant from the pattern. *)
-          StringEq "buf" "len" "tagStart" "matched" const
-          (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
-            * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
-          (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
+          If ("tagLen" = String.length const) {
+            (* Now check if the CDATA content here matches the constant from the pattern. *)
+            StringEq "buf" "len" "tagStart" "matched" const
+            (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
+              * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
+            (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
 
-          If ("matched" = 0) {
-            (* Nope, not equal. *)
-            Skip
+            If ("matched" = 0) {
+              (* Nope, not equal. *)
+              Skip
+            } else {
+              (* Equal! *)
+              onSuccess
+            }
           } else {
-            (* Equal! *)
-            onSuccess
+            (* Tag is wrong length to match. *)
+            Skip
           }
         } else {
           (* It's not CDATA.  Pattern doesn't match. *)
@@ -203,18 +208,23 @@ Section Pat.
               "tagLen" <-- Call "xml_lex"!"tokenLength"("lex")
               [invL cdatas "tagStart"];;
 
-              (* Now check if the tag name here matches the name from the pattern. *)
-              StringEq "buf" "len" "tagStart" "matched" tag
-              (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
-                * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
-              (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
+              If ("tagLen" = String.length tag) {
+                (* Now check if the tag name here matches the name from the pattern. *)
+                StringEq "buf" "len" "tagStart" "matched" tag
+                (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
+                  * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
+                (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
 
-              If ("matched" = 0) {
-                (* Nope, not equal. *)
-                Skip
+                If ("matched" = 0) {
+                  (* Nope, not equal. *)
+                  Skip
+                } else {
+                  (* Equal!  Continue with the nested pattern. *)
+                  Pat' inner (S level) cdatas onSuccess
+                }
               } else {
-                (* Equal!  Continue with the nested pattern. *)
-                Pat' inner (S level) cdatas onSuccess
+                (* Tag is wrong length to match. *)
+                Skip
               }
             }
           } else {
