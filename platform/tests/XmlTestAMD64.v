@@ -2,16 +2,19 @@ Require Import Bedrock Xml XmlProg AMD64_gas.
 
 Module M.
   Definition pr := Match
-    "test"/(
-      "toast"/"toast"
-      & "twist"/"twist"
+    "rpc"/(
+      "cmd"/"frob"
+      & "mode"/$"mode"
+      & "args"/(
+        "string"/$"a";;
+        "string"/$"b"
+        )
     )
   Do
-    <*> "a" </>
-      "b",
-      <*> "c" </>
-        "d"
-      </>
+    <*> "answer" </>
+      <*> "mode" </> $"mode" </>,
+      <*> "a" </> $"a" </>,
+      <*> "b" </> $"b" </>
     </>
   end.
 
