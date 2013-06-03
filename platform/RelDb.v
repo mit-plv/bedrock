@@ -127,13 +127,34 @@ Section Insert.
           * [| length (fst p) = wordToNat (V "len") |] * [| length cols = length sch |]
           * [| V "row" <> 0 |] * [| freeable (V "row") (length sch * 4 + length sch * 4 + 8) |]
           * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
-          * [| inBounds (V "ilen") (firstn col cols) |] * invPre (snd p) V)%Sep
+          * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre (snd p) V)%Sep
         (fun (p : list B * A) V R => array8 (fst p) (V "buf")
           * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
           * array (lenl cols) (V "row" ^+ $(length sch + 8))
           * [| length cols = length sch |]
           * [| inBounds (V "ilen") cols |] * invPost (snd p) V R)%Sep
-      | Input _ _ => Diverge
+      | Input start len =>
+        "tmp" <- "ilen" - "ipos";;
+        If (len < "tmp") {
+          Call "array8"!"copy"("ibuf", "ipos", "buf", start, len)
+          [Al a : A, Al bs, Al bsI,
+            PRE[V] array8 bs (V "buf")
+              * array8 bsI (V "ibuf") * [| length bsI = wordToNat bufSize |] * [| V "ibuf" <> 0 |]
+              * [| freeable (V "ibuf") (wordToNat bufSize) |]
+              * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
+              * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
+              * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
+              * [| V "row" <> 0 |] * [| freeable (V "row") (length sch * 4 + length sch * 4 + 8) |]
+              * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
+              * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V * mallocHeap 0
+            POST[R] Ex bsI', array8 bs (V "buf") * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat bufSize |]
+              * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
+              * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
+              * [| length cols = length sch |]
+              * [| inBounds (V "ilen") cols |] * mallocHeap 0 * invPost a V R]
+        } else {
+          "overflowed" <- 1
+        }
     end%SP.
 
   Definition lengthOf (e : exp) : rvalue' :=
@@ -167,19 +188,19 @@ Section Insert.
       POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * invPost a V R'];;
 
-    "row" <-- Call "malloc"!"malloc"(0, (length sch * 4 + length sch * 4 + 8)%nat)
+    "row" <-- Call "malloc"!"malloc"(0, (2 + length sch + length sch)%nat)
     [Al a : A, Al bs,
       PRE[V, R] V "ibuf" =?> wordToNat bufSize * [| V "ibuf" <> 0 |]
         * [| freeable (V "ibuf") (wordToNat bufSize) |]
-        * R =?> (length sch * 4 + length sch * 4 + 8)%nat * [| R <> 0 |]
-        * [| freeable R (length sch * 4 + length sch * 4 + 8)%nat |]
+        * R =?> (2 + length sch + length sch)%nat * [| R <> 0 |]
+        * [| freeable R (2 + length sch + length sch)%nat |]
         * array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
       POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * invPost a V R'];;
 
     "row" *<- "ibuf";;
-    "ilen" <- (length sch * 4 + length sch * 4 + 8)%nat;;
+    "ilen" <- (2 + length sch + length sch)%nat;;
     "row"+4 *<- "ilen";;
 
     writeExps O es;;
@@ -208,8 +229,11 @@ Section Insert.
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
     :: (res >= 7)%nat
+    :: (bufSize >= natToW 2)
+    :: goodSize (2 + length sch + length sch)
     :: wfExps es
     :: "malloc"!"malloc" ~~ im ~~> mallocS
+    :: "array8"!"copy" ~~ im ~~> copyS
     :: nil).
 
   Lemma incl_peel : forall A (x : A) ls ls',
@@ -230,12 +254,16 @@ Section Insert.
     auto.
   Qed.
 
+  Lemma mult4_S : forall n, 4 * S n = S (S (S (S (4 * n)))).
+    simpl; intros; omega.
+  Qed.
+
   Ltac prep := post;
     repeat match goal with
              | [ H : incl nil _ |- _ ] => clear H
              | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
-             | [ H : LabelMap.find _ _ = Some _ |- _ ] => try rewrite H; clear H
            end; clear_fancy; unfold lvalIn, regInL, immInR in *; prep_locals;
+    try rewrite mult4_S in *;
     try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *.
 
   Ltac evalu := evaluate hints;
@@ -259,18 +287,32 @@ Section Insert.
         end
     end.
 
-  Ltac my_descend := descend;
+  Lemma wminus_wplus : forall u v : W, u ^- v ^+ v = u.
+    intros; words.
+  Qed.
+
+  Lemma wplus_wminus : forall u v : W, u ^+ v ^- v = u.
+    intros; words.
+  Qed.
+
+  Hint Rewrite mult4_S wminus_wplus wplus_wminus : words.
+
+  Ltac my_descend := unfold localsInvariant; descend;
     repeat match goal with
+             | [ H : Regs _ _ = _ |- _ ] => rewrite H
              | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
-             | [ |- context[invPost ?a (sel ?V) _] ] => rewrite (invPost_sel a V)
-             | [ |- context[inputOk (sel ?V) _] ] => rewrite (inputOk_sel V)
-           end; autorewrite with sepFormula in *.
+             | [ |- context[invPost ?a (sel ?V) ?R] ] => rewrite (invPost_sel a V R)
+             | [ |- context[inputOk (sel ?V) ?es] ] => rewrite (inputOk_sel V es)
+           end; autorewrite with sepFormula in *; autorewrite with words.
+
+  Ltac weaken_invPre' :=
+    match goal with
+      | [ H : context[invPre] |- _ ] => apply H; solve [ descend ]
+    end.
 
   Ltac weaken_invPre :=
-    apply himp_star_frame; try reflexivity;
-      [match goal with
-         | [ H : context[invPre] |- _ ] => apply H; solve [ descend ]
-       end].
+    (apply himp_star_frame; try reflexivity; [weaken_invPre'])
+    || (etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; try reflexivity; [weaken_invPre']).
 
   Ltac weaken_invPost :=
     apply himp_refl;
@@ -278,7 +320,36 @@ Section Insert.
         | [ H : context[invPost] |- _ ] => apply H; solve [ descend ]
       end.
 
-  Ltac my_step := (unfold natToW in *; congruence) || weaken_invPre || weaken_invPost || step hints.
+  Ltac my_cancel :=
+    match goal with
+      | [ |- interp _ (?pre ---> ?post)%PropX ] =>
+        match post with
+          | context[locals ?ns ?vs ?avail _] =>
+            match pre with
+              | context[excessStack _ ns avail ?ns' ?avail'] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match pre with
+                      | context[locals ns ?vs' 0 ?sp] =>
+                        match goal with
+                          | [ _ : _ = sp |- _ ] => fail 1
+                          | _ => equate vs vs';
+                            let offset := eval simpl in (4 * List.length ns) in
+                              rewrite (create_locals_return ns' avail' ns avail offset);
+                                assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                  simpl; omega
+                                  | reflexivity ] ); autorewrite with sepFormula
+                        end
+                    end
+                end
+            end
+        end
+    end;
+    cancel hints.
+
+  Ltac my_step := (unfold natToW in *; congruence) || weaken_invPre || weaken_invPost
+    || my_cancel || step hints.
 
   Theorem Forall_impl2 : forall A (P Q R : A -> Prop) ls,
     List.Forall P ls
@@ -303,7 +374,26 @@ Section Insert.
 
   Hint Extern 2 (inputOk _ _) => eapply inputOk_weaken; try eassumption; [ simpl; intuition descend ].
 
-  Ltac t := prep; evalu; my_descend; repeat (my_step; my_descend); auto.
+  Lemma roundTrip_2 : wordToNat (natToW 2) = 2.
+    auto.
+  Qed.
+
+  Hint Rewrite roundTrip_2 : N.
+
+  Ltac invoke1 :=
+    match goal with
+      | [ H : forall specs : codeSpec _ _, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
+    end; post.
+
+  Ltac specify :=
+    repeat match goal with
+             | [ H : LabelMap.find _ _ = Some _ |- _ ] => try rewrite H; clear H
+           end; propxFo.
+
+  Ltac pre := post; specify; repeat invoke1.
+
+  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega.
+  Ltac u := solve [ t ].
 
   Opaque mult.
 
@@ -314,9 +404,26 @@ Section Insert.
       InsertVcs
       _ _).
 
-    wrap0; t.
+    wrap0; u.
 
+    wrap0.
+
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
     admit.
+    admit.
+    admit.
+    u.
+    u.
+    u.
+    u.
   Defined.
 
 End Insert.
