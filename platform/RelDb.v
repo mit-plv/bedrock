@@ -1,4 +1,4 @@
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Bags SinglyLinkedList.
+Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags SinglyLinkedList.
 
 Set Implicit Arguments.
 
@@ -36,14 +36,14 @@ Section preds.
     Ex buf, Ex len, Ex cols, Ex bs,
     (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $(length s * 4 + 8)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
-    * [| p <> 0 |] * [| freeable p (length s * 4 + length s * 4 + 8) |]
+    * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable buf (length bs) |].
 
   Theorem row_fwd : forall p,
     row p ===> Ex buf, Ex len, Ex cols, Ex bs,
     (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $(length s * 4 + 8)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
-    * [| p <> 0 |] * [| freeable p (length s * 4 + length s * 4 + 8) |]
+    * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable buf (length bs) |].
     unfold row; sepLemma.
   Qed.
@@ -52,7 +52,7 @@ Section preds.
     (Ex buf, Ex len, Ex cols, Ex bs,
     (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $(length s * 4 + 8)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
-    * [| p <> 0 |] * [| freeable p (length s * 4 + length s * 4 + 8) |]
+    * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable buf (length bs) |]) ===> row p.
     unfold row; sepLemma.
   Qed.
@@ -125,7 +125,7 @@ Section Insert.
           * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
           * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
           * [| length (fst p) = wordToNat (V "len") |] * [| length cols = length sch |]
-          * [| V "row" <> 0 |] * [| freeable (V "row") (length sch * 4 + length sch * 4 + 8) |]
+          * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
           * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
           * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre (snd p) V)%Sep
         (fun (p : list B * A) V R => array8 (fst p) (V "buf")
@@ -144,7 +144,7 @@ Section Insert.
               * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
               * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
               * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
-              * [| V "row" <> 0 |] * [| freeable (V "row") (length sch * 4 + length sch * 4 + 8) |]
+              * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
               * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
               * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V * mallocHeap 0
             POST[R] Ex bsI', array8 bs (V "buf") * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat bufSize |]
@@ -180,17 +180,17 @@ Section Insert.
     end%SP.
 
   Definition Insert' : chunk := (
-    "ibuf" <-- Call "malloc"!"malloc"(0, bufSize)
+    "ibuf" <-- Call "buffers"!"bmalloc"(bufSize)
     [Al a : A, Al bs,
-      PRE[V, R] R =?> wordToNat bufSize * [| R <> 0 |] * [| freeable R (wordToNat bufSize) |]
+      PRE[V, R] R =?>8 (wordToNat bufSize * 4) * [| R <> 0 |] * [| freeable R (wordToNat bufSize) |]
         * array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
       POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * invPost a V R'];;
 
     "row" <-- Call "malloc"!"malloc"(0, (2 + length sch + length sch)%nat)
-    [Al a : A, Al bs,
-      PRE[V, R] V "ibuf" =?> wordToNat bufSize * [| V "ibuf" <> 0 |]
+    [Al a : A, Al bs, Al bsI,
+      PRE[V, R] array8 bsI (V "ibuf") * [| length bsI = (wordToNat bufSize * 4)%nat |] * [| V "ibuf" <> 0 |]
         * [| freeable (V "ibuf") (wordToNat bufSize) |]
         * R =?> (2 + length sch + length sch)%nat * [| R <> 0 |]
         * [| freeable R (2 + length sch + length sch)%nat |]
@@ -200,7 +200,7 @@ Section Insert.
         * invPost a V R'];;
 
     "row" *<- "ibuf";;
-    "ilen" <- (2 + length sch + length sch)%nat;;
+    "ilen" <- (4 * bufSize)%word;;
     "row"+4 *<- "ilen";;
 
     writeExps O es;;
@@ -228,10 +228,12 @@ Section Insert.
     :: (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
-    :: (res >= 7)%nat
+    :: (res >= 10)%nat
     :: (bufSize >= natToW 2)
     :: goodSize (2 + length sch + length sch)
+    :: goodSize (4 * wordToNat bufSize)
     :: wfExps es
+    :: "buffers"!"bmalloc" ~~ im ~~> bmallocS
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: "array8"!"copy" ~~ im ~~> copyS
     :: nil).
@@ -266,7 +268,7 @@ Section Insert.
     try rewrite mult4_S in *;
     try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *.
 
-  Ltac evalu := evaluate hints;
+  Ltac evalu := unfold buffer in *; evaluate hints;
     repeat match goal with
              | [ H : In _ _ |- _ ] => clear H
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
@@ -297,7 +299,7 @@ Section Insert.
 
   Hint Rewrite mult4_S wminus_wplus wplus_wminus : words.
 
-  Ltac my_descend := unfold localsInvariant; descend;
+  Ltac my_descend := unfold localsInvariant in *; descend;
     repeat match goal with
              | [ H : Regs _ _ = _ |- _ ] => rewrite H
              | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
