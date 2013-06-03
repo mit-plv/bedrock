@@ -11,10 +11,12 @@ Inductive exp :=
 | Const (s : string)
 | Input (pos len : string).
 
+Definition baseVars := "ibuf" :: "row" :: "ilen" :: "overflowed" :: "tmp" :: "ipos" :: "buf" :: "len" :: nil.
+
 Definition wfExp (e : exp) :=
   match e with
     | Const s => goodSize (String.length s)
-    | Input _ _ => True
+    | Input pos len => ~In pos baseVars /\ ~In len baseVars
   end.
 
 Definition wfExps := List.Forall wfExp.
@@ -197,8 +199,6 @@ Section Insert.
 
   Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
 
-  Definition baseVars := "ibuf" :: "row" :: "ilen" :: "overflowed" :: "tmp" :: "ipos" :: "buf" :: "len" :: nil.
-
   Notation InsertVcs := (fun im ns res =>
     (~In "rp" ns) :: incl baseVars ns
     :: (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
@@ -212,57 +212,43 @@ Section Insert.
     :: "malloc"!"malloc" ~~ im ~~> mallocS
     :: nil).
 
-  Opaque mult.
+  Lemma incl_peel : forall A (x : A) ls ls',
+    incl (x :: ls) ls'
+    -> In x ls' /\ incl ls ls'.
+    unfold incl; intuition.
+  Qed.
 
-  Definition Insert : chunk.
-    refine (WrapC Insert'
-      invar
-      invar
-      InsertVcs
-      _ _).
+  Lemma invPre_sel : forall a V, invPre a (sel V) = invPre a V.
+    auto.
+  Qed.
 
-    wrap0.
-    post.
+  Lemma invPost_sel : forall a V R, invPost a (sel V) R = invPost a V R.
+    auto.
+  Qed.
 
-    Lemma incl_peel : forall A (x : A) ls ls',
-      incl (x :: ls) ls'
-      -> In x ls' /\ incl ls ls'.
-      unfold incl; intuition.
-    Qed.
+  Lemma inputOk_sel : forall V es, inputOk (sel V) es = inputOk V es.
+    auto.
+  Qed.
 
+  Ltac prep := post;
     repeat match goal with
              | [ H : incl nil _ |- _ ] => clear H
              | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
-           end.
+             | [ H : LabelMap.find _ _ = Some _ |- _ ] => try rewrite H; clear H
+           end; clear_fancy; unfold lvalIn, regInL, immInR in *; prep_locals;
+    try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *.
 
-    clear H10.
-    clear_fancy.
-
-    unfold lvalIn, regInL, immInR in *.
-    prep_locals.
-
-    Lemma invPre_sel : forall a V, invPre a (sel V) = invPre a V.
-      auto.
-    Qed.
-
-    Lemma invPost_sel : forall a V R, invPost a (sel V) R = invPost a V R.
-      auto.
-    Qed.
-
-    Lemma inputOk_sel : forall V es, inputOk (sel V) es = inputOk V es.
-      auto.
-    Qed.
-
-    rewrite invPre_sel in *.
-    rewrite inputOk_sel in *.
-    evaluate hints.
+  Ltac evalu := evaluate hints;
     repeat match goal with
              | [ H : In _ _ |- _ ] => clear H
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
-           end.
-    destruct st; simpl in *.
-    descend.
+             | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
+           end;
+    try match goal with
+          | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
+        end.
 
+  Ltac match_locals :=
     match goal with
       | [ _ : interp _ (?P ?x) |- interp _ (?Q ?x) ] =>
         match P with
@@ -273,24 +259,62 @@ Section Insert.
         end
     end.
 
-    rewrite invPre_sel; rewrite inputOk_sel.
-    autorewrite with sepFormula in *.
-    step hints.
-    admit.
-    step hints.
-    apply himp_star_frame; try reflexivity.
-    apply H6.
-    descend.
-    descend; step hints.
-    descend; step hints.
-    descend; step hints.
-    descend; step hints.
-    unfold natToW in *; congruence.
-    do 2 rewrite invPost_sel.
-    descend; step hints.
-    apply himp_refl.
-    apply H7.
-    descend.
+  Ltac my_descend := descend;
+    repeat match goal with
+             | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
+             | [ |- context[invPost ?a (sel ?V) _] ] => rewrite (invPost_sel a V)
+             | [ |- context[inputOk (sel ?V) _] ] => rewrite (inputOk_sel V)
+           end; autorewrite with sepFormula in *.
+
+  Ltac weaken_invPre :=
+    apply himp_star_frame; try reflexivity;
+      [match goal with
+         | [ H : context[invPre] |- _ ] => apply H; solve [ descend ]
+       end].
+
+  Ltac weaken_invPost :=
+    apply himp_refl;
+      match goal with
+        | [ H : context[invPost] |- _ ] => apply H; solve [ descend ]
+      end.
+
+  Ltac my_step := (unfold natToW in *; congruence) || weaken_invPre || weaken_invPost || step hints.
+
+  Theorem Forall_impl2 : forall A (P Q R : A -> Prop) ls,
+    List.Forall P ls
+    -> List.Forall Q ls
+    -> (forall x, P x -> Q x -> R x)
+    -> List.Forall R ls.
+    induction 1; inversion 1; auto.
+  Qed.
+
+  Theorem inputOk_weaken : forall V V' es,
+    inputOk V es
+    -> wfExps es
+    -> (forall x, ~In x baseVars \/ x = "len" -> sel V x = sel V' x)
+    -> inputOk V' es.
+    intros; eapply Forall_impl2; [ apply H | apply H0 | ].
+    intro e; destruct e; simpl; intuition idtac.
+    match goal with
+      | [ |- context[V' ?x] ] => change (V' x) with (sel V' x)
+    end.
+    repeat rewrite <- H1 by (simpl; tauto); assumption.
+  Qed.
+
+  Hint Extern 2 (inputOk _ _) => eapply inputOk_weaken; try eassumption; [ simpl; intuition descend ].
+
+  Ltac t := prep; evalu; my_descend; repeat (my_step; my_descend); auto.
+
+  Opaque mult.
+
+  Definition Insert : chunk.
+    refine (WrapC Insert'
+      invar
+      invar
+      InsertVcs
+      _ _).
+
+    wrap0; t.
 
     admit.
   Defined.
