@@ -35,13 +35,13 @@ clean:: Makefile.coq
 	rm -f Makefile.coq .depend
 
 tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
-	echo "\t.data" >$@
-	echo "\t.global bedrock_heap" >>$@
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
-	echo "\t.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
+	echo "	.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
 	echo >>$@
-	echo "\t.text" >>$@
-	echo "\t.global main_main" >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
 	echo >>$@
 	$(COQC) $< \
 		| sed 's/^.*:: nil//' \
