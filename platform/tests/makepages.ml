@@ -48,7 +48,9 @@ let rec doFile path microPath =
   else
     let data = read_file path in
     let fullData = Printf.sprintf "HTTP/1.1 200 OK\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n%s"
-        (Hashtbl.find mimeTypes (extension microPath))
+        (try
+	   Hashtbl.find mimeTypes (extension microPath)
+	 with Not_found -> "text/html")
         (String.length data)
         data in
 
