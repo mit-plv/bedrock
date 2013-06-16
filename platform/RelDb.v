@@ -13,13 +13,13 @@ Inductive exp :=
 
 Definition baseVars := "ibuf" :: "row" :: "ilen" :: "overflowed" :: "tmp" :: "ipos" :: "buf" :: "len" :: nil.
 
-Definition wfExp (e : exp) :=
+Definition wfExp (ns : list string) (e : exp) :=
   match e with
     | Const s => goodSize (String.length s)
-    | Input pos len => ~In pos baseVars /\ ~In len baseVars
+    | Input pos len => In pos ns /\ In len ns /\ ~In pos baseVars /\ ~In len baseVars
   end.
 
-Definition wfExps := List.Forall wfExp.
+Definition wfExps ns := List.Forall (wfExp ns).
 
 Section preds.
   Open Scope Sep_scope.
@@ -84,11 +84,13 @@ Definition hints : TacPackage.
   (nil_bwd, cons_bwd, table_bwd, row_bwd, rows_cons_bwd).
 Defined.
 
-Definition inputOk (V : vals) :=
-  List.Forall (fun e => match e with
-                          | Const _ => True
-                          | Input pos len => wordToNat (sel V pos) + wordToNat (sel V len) < wordToNat (V "len")
-                        end)%nat.
+Definition inputOk1 (V : vals) (e : exp) :=
+  match e with
+    | Const _ => True
+    | Input pos len => wordToNat (sel V pos) + wordToNat (sel V len) <= wordToNat (sel V "len")
+  end%nat.
+
+Definition inputOk (V : vals) := List.Forall (inputOk1 V).
 
 
 (** * Inserting into a table *)
@@ -130,7 +132,7 @@ Section Insert.
           * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre (snd p) V)%Sep
         (fun (p : list B * A) V R => array8 (fst p) (V "buf") * mallocHeap 0 * table sch tptr
           * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-          * array (lenl cols) (V "row" ^+ $(length sch + 8))
+          * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
           * [| length cols = length sch |]
           * [| inBounds (V "ilen") cols |] * invPost (snd p) V R)%Sep
       | Input start len =>
@@ -138,17 +140,18 @@ Section Insert.
         If (len < "tmp") {
           Call "array8"!"copy"("ibuf", "ipos", "buf", start, len)
           [Al a : A, Al bs, Al bsI,
-            PRE[V] array8 bs (V "buf") * mallocHeap 0 * table sch tptr
-              * array8 bsI (V "ibuf") * [| length bsI = wordToNat bufSize |] * [| V "ibuf" <> 0 |]
-              * [| freeable (V "ibuf") (wordToNat bufSize) |]
+            PRE[V] array8 bs (V "buf") * table sch tptr
+              * [| V "ipos" <= V "ilen" |]%word
+              * array8 bsI (V "ibuf") * [| length bsI = wordToNat (V "ilen") |] * [| V "ibuf" <> 0 |]
+              * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
               * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
               * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
               * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
               * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
               * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
               * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V * mallocHeap 0
-            POST[R] Ex bsI', array8 bs (V "buf") * mallocHeap 0 * table sch tptr
-              * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat bufSize |]
+            POST[R] Ex bsI', array8 bs (V "buf") * table sch tptr
+              * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat (V "ilen") |]
               * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
               * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
               * [| length cols = length sch |]
@@ -237,7 +240,7 @@ Section Insert.
     :: wfExps es
     :: "buffers"!"bmalloc" ~~ im ~~> bmallocS
     :: "malloc"!"malloc" ~~ im ~~> mallocS
-    :: "array8"!"copy" ~~ im ~~> copyS
+    :: "array8"!"copy" ~~ im ~~> ArrayOps.copyS
     :: nil).
 
   Lemma incl_peel : forall A (x : A) ls ls',
@@ -277,7 +280,11 @@ Section Insert.
 
   Ltac evalu := state_apart; unfold buffer in *; evaluate hints;
     repeat match goal with
-             | [ H : In _ _ |- _ ] => clear H
+             | [ ns : list string |- _ ] =>
+               repeat match goal with
+                        | [ H : In _ ns |- _ ] => clear H
+                        | [ H : In _ (_ :: ns) |- _ ] => clear H
+                      end
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
              | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
            end; state_apart;
@@ -368,7 +375,7 @@ Section Insert.
     cancel hints.
 
   Ltac my_step := (unfold natToW in *; congruence) || weaken_invPre || weaken_invPost
-    || my_cancel || step hints.
+    || ((my_cancel || step hints); fold (@firstn (W * W))).
 
   Theorem Forall_impl2 : forall A (P Q R : A -> Prop) ls,
     List.Forall P ls
@@ -378,16 +385,13 @@ Section Insert.
     induction 1; inversion 1; auto.
   Qed.
 
-  Theorem inputOk_weaken : forall V V' es,
+  Theorem inputOk_weaken : forall ns V V' es,
     inputOk V es
-    -> wfExps es
+    -> wfExps ns es
     -> (forall x, ~In x baseVars \/ x = "len" -> sel V x = sel V' x)
     -> inputOk V' es.
     intros; eapply Forall_impl2; [ apply H | apply H0 | ].
     intro e; destruct e; simpl; intuition idtac.
-    match goal with
-      | [ |- context[V' ?x] ] => change (V' x) with (sel V' x)
-    end.
     repeat rewrite <- H1 by (simpl; tauto); assumption.
   Qed.
 
@@ -430,10 +434,22 @@ Section Insert.
   Ltac pre := try discriminate; try prove_Himp;
     post; specify; repeat invoke1.
 
-  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega.
+  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega; eauto.
   Ltac u := solve [ t ].
 
   Opaque mult.
+
+  Hint Rewrite wordToNat_wminus using nomega : N.
+
+  Lemma minus_bound : forall (u v w : W) n,
+    n = wordToNat w
+    -> v < w ^- u
+    -> u <= w
+    -> (wordToNat u + wordToNat v <= n)%nat.
+    intros; subst; nomega.
+  Qed.
+
+  Hint Immediate minus_bound.
 
   Definition winv (col : nat) :=
     (Al a : A, Al bs, Al bsI,
@@ -449,21 +465,34 @@ Section Insert.
       POST[R] Ex bsI', array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat (V "ilen") |]
         * (Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-          * array (lenl cols) (V "row" ^+ $(length sch + 8))
+          * array (lenl cols) (V "row" ^+ $(length sch * 4 + 8))
           * [| length cols = length sch |]
           * [| inBounds (V "ilen") cols |]) * invPost a V R) true (fun w => w).
+
+  Lemma use_inputOk : forall V es pos len n,
+    inputOk V es
+    -> In (Input pos len) es
+    -> n = wordToNat (sel V "len")
+    -> (wordToNat (sel V pos) + wordToNat (sel V len) <= n)%nat.
+    intros; subst; eapply Forall_forall in H0; eauto; auto.
+  Qed.
+
+  Hint Immediate use_inputOk.
 
   Lemma writeExp_correct : forall mn im H ns res e col pre,
     ~In "rp" ns
     -> incl baseVars ns
-    -> wfExps es
+    -> (res >= 10)%nat
+    -> wfExps ns es
     -> (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V')
     -> (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
-    -> wfExp e
+    -> "array8"!"copy" ~~ im ~~> ArrayOps.copyS
+    -> wfExp ns e
+    -> In e es
     -> (forall specs st,
       interp specs (pre st)
       -> interp specs (winv col ns res st))
@@ -491,7 +520,17 @@ Section Insert.
     u.
     u.
 
-    admit.
+    wrap0.
+    wrap0.
+
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
+    u.
   Qed.
 
   Lemma writeExps_correct : forall mn im H ns res es0 col pre,
