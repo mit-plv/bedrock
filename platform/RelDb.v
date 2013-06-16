@@ -268,7 +268,11 @@ Section Insert.
   Ltac prep := post;
     repeat match goal with
              | [ H : incl nil _ |- _ ] => clear H
-             | [ H : incl _ _ |- _ ] => apply incl_peel in H; destruct H
+             | [ H : incl _ _ |- _ ] =>
+               apply incl_peel in H; let P := type of H in destruct H;
+                 try match goal with
+                       | [ H : P |- _ ] => clear H
+                     end
            end; clear_fancy; unfold lvalIn, regInL, immInR in *; prep_locals;
     try rewrite mult4_S in *;
     try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *; auto.
@@ -280,11 +284,7 @@ Section Insert.
 
   Ltac evalu := state_apart; unfold buffer in *; evaluate hints;
     repeat match goal with
-             | [ ns : list string |- _ ] =>
-               repeat match goal with
-                        | [ H : In _ ns |- _ ] => clear H
-                        | [ H : In _ (_ :: ns) |- _ ] => clear H
-                      end
+             | [ H : @In string _ _ |- _ ] => clear H
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
              | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
            end; state_apart;
@@ -416,16 +416,18 @@ Section Insert.
   Ltac prove_Himp :=
     match goal with
       | [ V : vals, V' : vals, H : forall x : string, _ |- _ ===> _ ] =>
-        simpl; repeat match goal with
-                        | [ |- context[V ?X] ] => change (V X) with (sel V X)
-                        | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
-                      end; repeat rewrite H by congruence;
+        specify;
+        repeat match goal with
+                 | [ |- context[V ?X] ] => change (V X) with (sel V X)
+                 | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
+               end; repeat rewrite H by congruence;
         clear_fancy; solve [ sepLemma ]
       | [ V : vals, V' : vals, H : forall x : string, _ |- _ = _ ] =>
-        simpl; repeat match goal with
-                        | [ |- context[V ?X] ] => change (V X) with (sel V X)
-                        | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
-                      end; repeat rewrite H by congruence;
+        specify;
+        repeat match goal with
+                 | [ |- context[V ?X] ] => change (V X) with (sel V X)
+                 | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
+               end; repeat rewrite H by congruence;
         clear_fancy; match goal with
                        | [ H : _ |- _ ] => solve [ erewrite H; [ reflexivity | auto ] ]
                      end
@@ -479,74 +481,84 @@ Section Insert.
 
   Hint Immediate use_inputOk.
 
-  Lemma writeExp_correct : forall mn im H ns res e col pre,
-    ~In "rp" ns
-    -> incl baseVars ns
-    -> (res >= 10)%nat
-    -> wfExps ns es
-    -> (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+  Section writeExps_correct.
+    Variable mn : string.
+    Variable im : LabelMap.t assert.
+    Variable H : importsGlobal im.
+    Variable ns : list string.
+    Variable res : nat.
+
+    Hypothesis not_rp : ~In "rp" ns.
+    Hypothesis included : incl baseVars ns.
+    Hypothesis reserved : (res >= 10)%nat.
+    Hypothesis wellFormed : wfExps ns es.
+
+    Hypothesis weakenPre : (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
-      -> invPre a V ===> invPre a V')
-    -> (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+    -> invPre a V ===> invPre a V').
+
+    Hypothesis weakenPost : (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> sel V x = sel V' x)
-      -> invPost a V R = invPost a V' R)
-    -> "array8"!"copy" ~~ im ~~> ArrayOps.copyS
-    -> wfExp ns e
-    -> In e es
-    -> (forall specs st,
-      interp specs (pre st)
-      -> interp specs (winv col ns res st))
-    -> vcs (VerifCond (toCmd (writeExp col e) mn (im := im) H ns res pre))
-    /\ (forall specs st,
-      interp specs (Postcondition (toCmd (writeExp col e) mn (im := im) H ns res pre) st)
-      -> interp specs (winv col ns res st)).
-    destruct e.
+    -> invPost a V R = invPost a V' R).
 
-    wrap0.
-    wrap0.
+    Hypothesis copy : "array8"!"copy" ~~ im ~~> ArrayOps.copyS.
 
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
+    Ltac v := abstract t.
 
-    wrap0.
-    wrap0.
+    Lemma writeExp_correct : forall e col pre,
+      wfExp ns e
+      -> In e es
+      -> (forall specs st,
+        interp specs (pre st)
+        -> interp specs (winv col ns res st))
+      -> vcs (VerifCond (toCmd (writeExp col e) mn (im := im) H ns res pre))
+      /\ (forall specs st,
+        interp specs (Postcondition (toCmd (writeExp col e) mn (im := im) H ns res pre) st)
+        -> interp specs (winv col ns res st)).
+      destruct e; wrap0; try match goal with
+                             | [ |- vcs _ ] => wrap0
+                           end.
+    
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
 
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-  Qed.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+      v.
+    Qed.
 
-  Lemma writeExps_correct : forall mn im H ns res es0 col pre,
-    (forall specs stn st,
-      interp specs (pre (stn, st))
-      -> interp specs (winv col ns res (stn, st)))
-    -> vcs (VerifCond (toCmd (writeExps col es0) mn (im := im) H ns res pre))
-    /\ (forall specs stn st,
-      interp specs (Postcondition (toCmd (writeExps col es0) mn (im := im) H ns res pre) (stn, st))
-      -> interp specs (winv (length es0 + col) ns res (stn, st))).
-    induction es0.
+    Lemma writeExps_correct : forall es0 col pre,
+      (forall specs stn st,
+        interp specs (pre (stn, st))
+        -> interp specs (winv col ns res (stn, st)))
+      -> vcs (VerifCond (toCmd (writeExps col es0) mn (im := im) H ns res pre))
+      /\ (forall specs stn st,
+        interp specs (Postcondition (toCmd (writeExps col es0) mn (im := im) H ns res pre) (stn, st))
+        -> interp specs (winv (length es0 + col) ns res (stn, st))).
+      induction es0.
 
-    wrap0.
+      wrap0.
 
-    admit.
-  Qed.
+      admit.
+    Qed.
+  End writeExps_correct.
 
   Definition Insert : chunk.
     refine (WrapC Insert'
