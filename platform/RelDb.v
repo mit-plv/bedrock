@@ -155,7 +155,8 @@ Section Insert.
               * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
               * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
               * [| length cols = length sch |]
-              * [| inBounds (V "ilen") cols |] * mallocHeap 0 * invPost a V R]
+              * [| inBounds (V "ilen") cols |] * mallocHeap 0 * invPost a V R];;
+          "ipos" <- "ipos" + len
         } else {
           "overflowed" <- 1
         }
@@ -167,22 +168,50 @@ Section Insert.
       | Input _ len => len
     end%SP.
 
+  Definition winv' (col : nat) :=
+    Al a : A, Al bs, Al bsI,
+      PRE[V] array8 bs (V "buf") * table sch tptr * mallocHeap 0
+        * array8 bsI (V "ibuf") * [| length bsI = wordToNat (V "ilen") |]
+        * [| V "ipos" <= V "ilen" |]
+        * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
+        * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
+        * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
+        * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
+        * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
+        * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V
+      POST[R] Ex bsI', array8 bs (V "buf") * table sch tptr * mallocHeap 0
+        * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat (V "ilen") |]
+        * (Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
+          * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
+          * [| length cols = length sch |]
+          * [| inBounds (V "ilen") cols |]) * invPost a V R.
+
+  Definition winv (col : nat) := winv' col true (fun w => w).
+
   Fixpoint writeExps (col : nat) (es : list exp) {struct es} : chunk :=
     match es with
       | nil => Skip
       | e :: es' =>
-        writeExp col e;;
+        (* Save the current position as the start of the current column. *)
         "tmp" <- "row" + 8;;
         "tmp" + (4 * col)%nat *<- "ipos";;
-        "tmp" <- "tmp" + (length sch * 4)%nat;;
-        "tmp" + (4 * col)%nat *<- lengthOf e;;
+
+        (* Check if the current item is small enough to fit in the buffer. *)
         "tmp" <- "ilen" - "ipos";;
         If ("tmp" < lengthOf e) {
-          "overflowed" <- 1
+          (* It doesn't fit.  Save the "safe" length 0.  [writeExp] will set "overflowed" later. *)
+          "tmp" <- "row" + 8;;
+          "tmp" <- "tmp" + (length sch * 4)%nat;;
+          "tmp" + (4 * col)%nat *<- 0
         } else {
-          "ipos" <- "ipos" + lengthOf e;;
-          writeExps (S col) es'
-        }
+          (* Good, it fits.  Save the proper length. *)
+          "tmp" <- "row" + 8;;
+          "tmp" <- "tmp" + (length sch * 4)%nat;;
+          "tmp" + (4 * col)%nat *<- lengthOf e
+        };;
+        Assert [winv' (S col)];;
+        writeExp (S col) e;;
+        writeExps (S col) es'
     end%SP.
 
   Definition Insert' : chunk := (
@@ -288,9 +317,16 @@ Section Insert.
                try match goal with
                      | [ H : P |- _ ] => clear H
                    end
-         end; clear_fancy; unfold lvalIn, regInL, immInR in *; prep_locals;
-  try rewrite mult4_S in *;
-    try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *; auto.
+         end; clear_fancy;
+  try match goal with
+        | [ H : importsGlobal _ |- _ ] =>
+          repeat match goal with
+                   | [ H' : context[H] |- _ ] => clear H'
+                 end; clear H
+      end;
+  unfold lvalIn, regInL, immInR in *; prep_locals;
+    try rewrite mult4_S in *;
+      try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *; auto.
 
   Ltac state_apart :=
     try match goal with
@@ -470,7 +506,23 @@ Section Insert.
     Array.upd (lenl cols) col len = lenl (update cols col pos len).
     intros; eapply updN_lenl.
   Qed.
-  
+
+  Lemma moveS' : forall n m,
+    (S m <= n)%nat
+    -> S (n - S m) = n - m.
+    intros; omega.
+  Qed.
+
+  Lemma wle_plus0 : forall u v : W,
+    u <= v
+    -> u ^+ natToW 0 <= v.
+    intros; pre_nomega.
+    rewrite wordToNat_wplus by (rewrite roundTrip_0; apply goodSize_weaken with (wordToNat u); eauto);
+      nomega.
+  Qed.
+
+  Hint Immediate wle_plus0.
+
   Ltac updify :=
     match goal with
       | [ |- himp _ ?pre _ ] =>
@@ -540,7 +592,7 @@ Section Insert.
                      end
     end.
 
-  Ltac pre := try discriminate; try prove_Himp;
+  Ltac pre := auto 1; try discriminate; try prove_Himp;
     post; specify; repeat invoke1.
 
   Lemma moveS : forall A (x : A) (ls : list A) ls',
@@ -631,28 +683,18 @@ Section Insert.
 
   Hint Rewrite length_update : sepFormula.
 
-  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega; eauto using inBounds_up.
+  Ltac firstnify :=
+    match goal with
+      | [ col := _ |- context C[match ?E with nil => nil | a :: l => a :: firstn ?N l end] ] =>
+        let G := context C[firstn (S N) E] in
+          change G; unfold col; rewrite moveS'
+    end.
+
+  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega; try firstnify;
+    eauto using inBounds_up.
   Ltac u := solve [ t ].
 
   Opaque mult.
-
-  Definition winv (col : nat) :=
-    (Al a : A, Al bs, Al bsI,
-      PRE[V] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-        * array8 bsI (V "ibuf") * [| length bsI = wordToNat (V "ilen") |]
-        * [| V "ipos" <= V "ilen" |]
-        * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-        * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
-        * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
-        * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
-        * [| V "ibuf" <> 0 |] * [| freeable (V "ibuf") (wordToNat (V "ilen")) |]
-        * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V
-      POST[R] Ex bsI', array8 bs (V "buf") * table sch tptr * mallocHeap 0
-        * array8 bsI' (V "ibuf") * [| length bsI' = wordToNat (V "ilen") |]
-        * (Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-          * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
-          * [| length cols = length sch |]
-          * [| inBounds (V "ilen") cols |]) * invPost a V R) true (fun w => w).
 
   Lemma use_inputOk : forall V es pos len n,
     inputOk V es
@@ -688,45 +730,35 @@ Section Insert.
 
     Ltac v := abstract t.
 
-    Lemma writeExp_correct : forall e col pre,
+    Lemma writeExp_correct_vcs : forall e col pre,
       wfExp ns e
       -> In e es
       -> (forall specs st,
         interp specs (pre st)
         -> interp specs (winv col ns res st))
-      -> vcs (VerifCond (toCmd (writeExp col e) mn (im := im) H ns res pre))
-      /\ (forall specs st,
-        interp specs (Postcondition (toCmd (writeExp col e) mn (im := im) H ns res pre) st)
-        -> interp specs (winv col ns res st)).
-    Admitted.
+      -> vcs (VerifCond (toCmd (writeExp col e) mn (im := im) H ns res pre)).
       (*destruct e; wrap0; try match goal with
                              | [ |- vcs _ ] => wrap0
                            end.
-    
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
 
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-      v.
-    Qed.*)
+        v.*)
+    Admitted.
+
+    Lemma writeExp_correct_post : forall e col pre,
+      wfExp ns e
+      -> In e es
+      -> (forall specs st,
+        interp specs (pre st)
+        -> interp specs (winv col ns res st))
+      -> forall specs st,
+        interp specs (Postcondition (toCmd (writeExp col e) mn (im := im) H ns res pre) st)
+        -> interp specs (winv col ns res st).
+      (*destruct e; wrap0; try match goal with
+                             | [ |- vcs _ ] => wrap0
+                           end.
+
+        v.*)
+    Admitted.
 
     Lemma wfExps_inv2 : forall ns e es,
       wfExps ns (e :: es)
@@ -739,7 +771,7 @@ Section Insert.
     Hypothesis length_es : length es = length sch.
     Hypothesis goodSize_sch : goodSize (length sch).
 
-    Ltac split_IH :=
+    Ltac split_IH := intros;
       match goal with
         | [ IH : forall pre : settings * state -> PropX _ _, _ |- _ ] =>
           generalize (fun a b c d e => proj1 (IH a b c d e));
@@ -748,10 +780,35 @@ Section Insert.
       end;
       match goal with
         | [ H : incl (_ :: _) _ |- _ ] => apply incl_peel in H; destruct H
-      end;
-      match goal with
-        | [ H : _ |- _ ] => eapply writeExp_correct in H; eauto; destruct H
       end.
+
+    Ltac basic_eauto :=
+      match goal with
+        | [ |- forall x, _ ] => idtac
+        | [ |- Logic.ex _ ] => idtac
+        | _ => simpl in *; eauto
+      end.
+
+    Lemma inBounds_move : forall ilen n m ls,
+      inBounds ilen (firstn (S (n - S m)) ls)
+      -> (S m <= n)%nat
+      -> inBounds ilen (firstn (n - m) ls).
+      intros; replace (n - m) with (S (n - S m)) by omega; auto.
+    Qed.
+
+    Hint Immediate inBounds_move.
+
+    Lemma inBounds_wiggle : forall ilen n m col ls,
+      inBounds ilen (firstn m ls)
+      -> col = m - S n
+      -> (S n <= m)%nat
+      -> inBounds ilen (match ls with nil => nil | x :: ls' => x :: firstn (n + col) ls' end).
+      intros; subst; replace m with (S (n + (m - S n))) in * |- by omega; auto.
+    Qed.
+
+    Hint Immediate inBounds_wiggle.
+
+    Hint Rewrite Minus.le_plus_minus_r using (simpl in *; omega) : sepFormula.
 
     Ltac use_IH :=
       match goal with
@@ -762,15 +819,21 @@ Section Insert.
           end; rewrite moveS by assumption;
           match goal with
             | [ H : forall x : settings * state -> PropX _ _, _ |- _ ] =>
-              apply H; match goal with
-                         | [ |- forall x, _ ] => idtac
-                         | _ => simpl in *; eauto
-                       end
+              apply H; basic_eauto
           end
-      end.
 
-    Ltac we := try use_IH; t.
+        | [ H : interp _ (Postcondition (toCmd (writeExps (S ?col) _) _ _ _ _ _) _),
+            H' : forall a, wfExps _ _ -> _ |- _ ] =>
+          unfold col in H; rewrite moveS in H by (simpl in *; omega);
+            eapply H' in H; basic_eauto
+
+        | _ => eapply writeExp_correct_vcs; basic_eauto
+        | [ H : interp _ (Postcondition _ _) |- _ ] => eapply writeExp_correct_post in H; basic_eauto
+      end; pre.
+
+    Ltac we := repeat use_IH; t.
     Ltac swe := solve [ we ].
+    Ltac awe := abstract we.
 
     Lemma writeExps_correct : forall es0 pre,
       wfExps ns es0
@@ -788,24 +851,26 @@ Section Insert.
 
       wrap0.
 
-      intros.
       split_IH.
 
       wrap0.
       wrap0.
 
-      swe.
-      swe.
-      swe.
-      swe.
-      swe.
-      swe.
-      swe.
-      swe.
-      swe.
-
-      admit.
-      admit.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
+      awe.
     Qed.
   End writeExps_correct.
  
