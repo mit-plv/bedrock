@@ -132,7 +132,8 @@ Section Out.
       | Cdata const => StringWrite "obuf" "olen" "opos" "overflowed" const
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
           * [| inBounds cdatas V |] * invPre (snd p) V)%Sep
-        (fun (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
+        (fun (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
+          * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
       | Var start len =>
         "tmp" <- "olen" - "opos";;
         If (len < "tmp") {
@@ -151,12 +152,14 @@ Section Out.
         StringWrite "obuf" "olen" "opos" "overflowed" ("<" ++ tag ++ ">")
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
           * invPre (snd p) V * [| inBounds cdatas V |])%Sep
-        (fun (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep;;
+        (fun (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
+          * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep;;
         OutList (Out' cdatas) inner;;
         StringWrite "obuf" "olen" "opos" "overflowed" ("</" ++ tag ++ ">")
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
           * invPre (snd p) V * [| inBounds cdatas V |])%Sep
-        (fun (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
+        (fun (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
+          * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
     end%SP.
 
   Opaque mult.
