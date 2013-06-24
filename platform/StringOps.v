@@ -200,7 +200,7 @@ Section Params.
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
         * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
         (** [| V len ^- V pos >= natToW (offset + String.length const) |]%word*)
-      POST[R] Ex bs', array8 bs' (V str) * [| length bs' = length bs |] * postcondition x V R.
+      POST[R] postcondition x V R.
 
     Notation StringWriteVcs := (fun _ ns _ => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
       :: not (str = len) :: not (str = pos) :: not (str = output)
@@ -239,7 +239,7 @@ Section Params.
       Al bs, Al x : A,
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
         * [| V pos <= V len |]
-      POST[R] Ex bs', array8 bs' (V str) * [| length bs' = length bs |] * postcondition x V R.
+      POST[R] postcondition x V R.
 
     Lemma simplify_inc : forall (u v : W) w,
       (wordToNat v + 0 + w <= wordToNat u)%nat
