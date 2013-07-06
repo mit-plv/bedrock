@@ -111,7 +111,7 @@ Section Query.
       ![ ^[locals ("rp" :: ns) vs res st#Sp * array ws (sel vs arr) * PR] * #0 ] st
       /\ [| sel vs size = length ws /\ sel vs index = length wsPre |]
       /\ Ex wsPost, [| ws = wsPre ++ wsPost |]
-      /\ sel vs "rp" @@ (st' ~>
+      /\ (sel vs "rp", fst st) @@@ (st' ~>
         [| st'#Sp = st#Sp |]
         /\ Ex vs', qspecOut (invPost qs ws (sel vs) st'#Rv) (fun PO =>
           ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
@@ -122,7 +122,7 @@ Section Query.
       /\ [| sel vs size = length ws /\ sel vs index = length wsPre
         /\ satisfies vs (sel vs index) (sel vs value) c |]
       /\ Ex wsPost, [| ws = wsPre ++ sel vs value :: wsPost |]
-      /\ sel vs "rp" @@ (st' ~>
+      /\ (sel vs "rp", fst st) @@@ (st' ~>
         [| st'#Sp = st#Sp |]
         /\ Ex vs', qspecOut (invPost qs ws (sel vs) st'#Rv) (fun PO =>
           ![ ^[locals ("rp" :: ns) vs' res st#Sp * array ws (sel vs arr) * PO] * #1 ] st'))).
@@ -988,7 +988,7 @@ Section Query.
       (fun _ st => Ex qs, Ex ws, ExX, Ex V, qspecOut (invPre qs ws ws (sel V)) (fun PR =>
         ![ ^[locals ("rp" :: ns) V res st#Sp * array ws (sel V arr) * PR] * #0 ] st
         /\ [| sel V size = length ws |]
-        /\ sel V "rp" @@ (st' ~>
+        /\ (sel V "rp", fst st) @@@ (st' ~>
           [| st'#Sp = st#Sp |]
           /\ Ex V', qspecOut (invPost qs ws (sel V) st'#Rv) (fun PO =>
             ![ ^[locals ("rp" :: ns) V' res st#Sp * array ws (sel V arr) * PO] * #1 ] st'))))%PropX
@@ -1019,7 +1019,7 @@ Section Query.
           -> interp specs (Ex qs, ExX, Ex V, Ex ws, qspecOut (invPre qs nil ws (sel V)) (fun PR =>
             ![ ^[locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V arr) * PR] * #0 ] (stn, st)
             /\ [| sel V size = length ws |]
-            /\ sel V "rp" @@ (st' ~>
+            /\ (sel V "rp", stn) @@@ (st' ~>
               [| st'#Sp = Regs st Sp |]
               /\ Ex V', qspecOut (invPost qs ws (sel V) st'#Rv) (fun PO =>
                 ![ ^[locals ("rp" :: ns) V' res (Regs st Sp) * array ws (sel V arr) * PO] * #1 ] st'))))%PropX)
@@ -1038,7 +1038,7 @@ Section Query.
               ![ ^[locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V arr) * PR] * #0 ] (stn, st)
               /\ [| sel V size = length ws /\ sel V index = length wsPre /\ satisfies V (length wsPre) this c |]
               /\ Ex wsPost, [| ws = wsPre ++ this :: wsPost |]
-              /\ sel V "rp" @@ (st' ~>
+              /\ (sel V "rp", stn) @@@ (st' ~>
                 [| st'#Sp = Regs st Sp |]
                 /\ Ex V', qspecOut (invPost qs ws (sel V) st'#Rv) (fun PO =>
                   ![ ^[locals ("rp" :: ns) V' res (Regs st Sp) * array ws (sel V arr) * PO] * #1 ] st'))))%PropX)

@@ -1140,7 +1140,7 @@ Section OpSem.
           apply Hb in H'; [ | eapply specsOk; eauto ];
             clear Hb; post;
               specialize (agree _ _ _ H); destruct agree as [ ? [ ] ]
-    end;
+    end.
     eqer;
     match goal with
       | [ H : specs _ _ _ = Some _ |- _ ] =>
@@ -1213,7 +1213,7 @@ Section OpSem.
                   | [ st' : state |- _ ] => destruct st'; simpl in *; subst
                 end; descend; eauto;
                 match goal with
-                  | [ H : forall x : ST.settings * state, _ |- _ ] =>
+                  | [ H : forall x : state, _ |- _ ] =>
                     apply (Imply_sound (H _)); propxFo; descend;
                       try (apply ILTacCommon.ignore_regs; eassumption)
                 end

@@ -282,12 +282,15 @@ Fixpoint qspecOut (qs : qspec) pc st b (k : HProp -> propX pc st b) : propX pc s
     | Quant A f => Ex x : A, qspecOut (f x) k
   end%PropX.
 
+Notation "i @@@ sp" := (ExX, Cptr (fst i) #0 /\ Al st, sp (snd i, st) ---> #0 (snd i, st))%PropX
+  (no associativity, at level 39) : PropX_scope.
+
 Definition localsInvariant (pre : vals -> W -> qspec) (post : vals -> W -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (res : nat) : assert :=
   st ~> let sp := adjustSp st#Sp in
     ExX, Ex vs, qspecOut (pre (sel vs) st#Rv) (fun PRE =>
       ![ ^[locals ("rp" :: ns) vs res sp * PRE] * #0 ] st
-      /\ (if rpStashed then sel vs "rp" else st#Rp) @@ (st' ~>
+      /\ (if rpStashed then sel vs "rp" else st#Rp, fst st) @@@ (st' ~>
         [| st'#Sp = sp |]
         /\ Ex vs', qspecOut (post (sel vs) st#Rv st'#Rv) (fun POST =>
           ![ ^[locals ("rp" :: ns) vs' res sp * POST] * #1 ] st'))).
@@ -667,8 +670,8 @@ Ltac propxFo' := propxFo; repeat match goal with
 Ltac ho unf :=
   match goal with
     | [ H : ?X = Some _ |- ?X = Some (fun x => ?g x) ] => apply H
-    | [ H : forall x, interp _ (_ ---> ?p x) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo'
-    | [ H : forall x, interp _ (_ ---> _ x) |- interp _ (_ ---> _ _) ] => eapply Imply_trans; [ | apply H ]
+    | [ H : forall x, interp _ (_ ---> ?p _) |- interp _ (?p _) ] => apply (Imply_sound (H _)); propxFo'
+    | [ H : forall x, interp _ (_ ---> _ _) |- interp _ (_ ---> _ _) ] => eapply Imply_trans; [ | apply H ]
     | [ |- interp _ _ ] => progress propxFo'
     | [ |- interp _ (_ ---> _) ] => imply_simp unf; repeat imply_simp unf
   end; autorewrite with IL in *.

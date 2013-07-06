@@ -46,31 +46,31 @@ Definition susp (w : world) (sc pc sp : W) : HProp := fun s m =>
     /\ ExX (* tq *) : tq_args world, Cptr pc_tq (_ ~> PropX.Forall #0)
     /\ ExX (* pre *) : settings * state, Cptr pc #0
     /\ ExX (* inv *) : settings * smem, #0 (s, m)
-    /\ Al st : settings * state, Al w' : world,
+    /\ Al st : state, Al w' : world,
     [| evolve w w' |]
     /\ ![ #0 * (fun x y => Lift (Lift (Var0 {| World := w';
                                                Pointer := sc;
                                                Settings := x;
                                                Mem := y |})))
       * (fun x y => Lift (Lift (globalInv w' sc x y)))
-      * ^[mallocHeap 0] ] st
-    /\ [| st#Sp = sp |]
-    ---> #1 st)%PropX.
+      * ^[mallocHeap 0] ] (s, st)
+    /\ [| Regs st Sp = sp |]
+    ---> #1 (s, st))%PropX.
 
 Lemma susp_intro : forall specs w sc pc sp P stn st,
   (exists pc_tq, stn.(Labels) ("threadq"!"ADT")%SP = Some pc_tq
     /\ exists tq, specs pc_tq = Some (fun _ => PropX.Forall tq)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st w', interp specs ([| evolve w w' |]
+          /\ forall st' w', interp specs ([| evolve w w' |]
             /\ ![ inv
               * (fun x y => tq {| World := w';
                                   Pointer := sc;
                                   Settings := x;
                                   Mem := y |})
-              * substH (globalInv w' sc) tq * mallocHeap 0 ] stn_st
-            /\ [| stn_st#Sp = sp |]
-            ---> pre stn_st)%PropX)
+              * substH (globalInv w' sc) tq * mallocHeap 0 ] (stn, st')
+            /\ [| Regs st' Sp = sp |]
+            ---> pre (stn, st'))%PropX)
   -> interp specs (![ susp w sc pc sp * P ] (stn, st)).
   cptr.
 Qed.
@@ -81,13 +81,13 @@ Lemma susp_elim : forall specs w sc pc sp P stn st,
     /\ exists tq, specs pc_tq = Some (fun _ => PropX.Forall tq)
       /\ exists pre, specs pc = Some (fun x => pre x)
         /\ exists inv, interp specs (![ inv * P ] (stn, st))
-          /\ forall stn_st w', interp specs ([| evolve w w' |]
+          /\ forall st' w', interp specs ([| evolve w w' |]
             /\ ![ inv * (fun x y => tq {| World := w';
                                           Pointer := sc;
                                           Settings := x;
-                                          Mem := y |}) * substH (globalInv w' sc) tq * mallocHeap 0 ] stn_st
-            /\ [| stn_st#Sp = sp |]
-            ---> pre stn_st)%PropX).
+                                          Mem := y |}) * substH (globalInv w' sc) tq * mallocHeap 0 ] (stn, st')
+            /\ [| Regs st' Sp = sp |]
+            ---> pre (stn, st'))%PropX).
   cptr.
   propxFo; eauto.
   descend; eauto.
@@ -245,22 +245,22 @@ Definition ginv w sc := substH (globalInv w sc) (fun x => tq (World x) (Pointer 
 Definition starting (w : world) (sc pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
-    /\ Al st : settings * state, Al vs, Al w',
+    /\ Al st : state, Al vs, Al w',
       [| evolve w w' |]
-      /\ [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
-      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tq w' sc * ginv w' sc * mallocHeap 0] ] st
-      ---> #0 st)%PropX.
+      /\ [| Regs st Sp <> 0 /\ freeable (Regs st Sp) (1 + ss) |]
+      /\ ![ ^[locals ("rp" :: nil) vs ss (Regs st Sp) * tq w' sc * ginv w' sc * mallocHeap 0] ] (s, st)
+      ---> #0 (s, st))%PropX.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
 
 Lemma starting_intro : forall specs sc w pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs w', interp specs ([| evolve w w' |]
-      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
+    /\ forall st' vs w', interp specs ([| evolve w w' |]
+      /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
       * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX)
+    ---> pre (stn, st'))%PropX)
   -> interp specs (![ starting w sc pc ss * P ] (stn, st)).
   cptr.
 Qed.
@@ -269,11 +269,11 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   interp specs (![ starting w sc pc ss * P ] (stn, st))
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs w', interp specs ([| evolve w w' |]
-      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX).
+    /\ forall st' vs w', interp specs ([| evolve w w' |]
+      /\ [| Regs st' Sp <> 0 /\ freeable Regs st' Sp (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
+      * tq w' sc * ginv w' sc * mallocHeap 0 ] (stn, st')
+    ---> pre (stn, st'))%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
@@ -286,11 +286,11 @@ Qed.
 Definition susp' (w : world) (sc pc sp : W) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ ExX (* inv *) : settings * smem, #0 (s, m)
-    /\ Al st : settings * state, Al w' : world,
+    /\ Al st : state, Al w' : world,
     [| evolve w w' |]
-    /\ ![ #0 * ^[tq w' sc * ginv w' sc * mallocHeap 0] ] st
-    /\ [| st#Sp = sp |]
-    ---> #1 st)%PropX.
+    /\ ![ #0 * ^[tq w' sc * ginv w' sc * mallocHeap 0] ] (s, st)
+    /\ [| Regs st Sp = sp |]
+    ---> #1 (s, st))%PropX.
 
 Lemma susp_convert : forall specs w sc pc sp P stn st pc_tq,
   interp specs (![ susp' w sc pc sp * P ] (stn, st))
@@ -307,10 +307,10 @@ Qed.
 Lemma susp'_intro : forall specs w sc pc sp P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ exists inv, interp specs (![ inv * P ] (stn, st))
-      /\ forall stn_st w', interp specs ([| evolve w w' |]
-        /\ ![ inv * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
-        /\ [| stn_st#Sp = sp |]
-        ---> pre stn_st)%PropX)
+      /\ forall st' w', interp specs ([| evolve w w' |]
+        /\ ![ inv * tq w' sc * ginv w' sc * mallocHeap 0 ] (stn, st')
+        /\ [| Regs st' Sp = sp |]
+        ---> pre (stn, st'))%PropX)
   -> interp specs (![ susp' w sc pc sp * P ] (stn, st)).
   cptr.
   descend; step auto_ext.

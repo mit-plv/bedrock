@@ -206,11 +206,11 @@ Theorem localsInvariant_in : forall ns' pre post ns res ns'' res' stn_st specs,
   end.
   step auto_ext.
   descend.
-  eauto.
-  step auto_ext.
   clear H8.
-  descend.
+  eauto.
+  clear H8.
   step auto_ext.
+  descend.
   Focus 2.
   intuition subst.
   unfold sel at 1 3.
@@ -223,18 +223,19 @@ Theorem localsInvariant_in : forall ns' pre post ns res ns'' res' stn_st specs,
   apply H14.
   apply in_or_app; tauto.
 
-  eapply Imply_trans; [ eapply subst_qspecOut_fwd' | ].
-  eapply Imply_trans; [ | eapply subst_qspecOut_bwd' ].
-
+  step auto_ext.
   erewrite H5.
-  rewrite H10.
+  instantiate (2 := sel x1).
+  generalize dependent x2.
+  rewrite H10; intros.
+  eapply Imply_trans; [ apply subst_qspecOut_fwd' | ].
+  eapply Imply_trans; [ | apply subst_qspecOut_bwd' ].
   eapply Imply_trans; [ apply qspecOut_fwd' | ].
-  eapply Imply_trans; [ | apply qspecOut_bwd'' ].
   simpl.
+  apply existsL; simpl; intros.
   post.
-  step auto_ext.
-  instantiate (3 := sel x1).
-  step auto_ext.
+  eapply Imply_trans; [ | apply qspecOut_bwd' ].
+  descend; step auto_ext.
   change ("rp" :: ns ++ ns') with (("rp" :: ns) ++ ns').
   rewrite H1.
   apply prelude_out; auto.
