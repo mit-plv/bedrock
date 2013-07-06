@@ -172,23 +172,23 @@ Defined.
 Definition starting (ts : bag) (w : M.world) (pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
-    /\ Al st : settings * state, Al vs, Al ts', Al w',
+    /\ Al st : state, Al vs, Al ts', Al w',
       [| ts %<= ts' |]
       /\ [| M.evolve w w' |]
-      /\ [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
-      /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] st
-      ---> #0 st)%PropX.
+      /\ [| Regs st Sp <> 0 /\ freeable (Regs st Sp) (1 + ss) |]
+      /\ ![ ^[locals ("rp" :: nil) vs ss (Regs st Sp) * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0] ] (s, st)
+      ---> #0 (s, st))%PropX.
 
 Lemma starting_elim : forall specs ts w pc ss P stn st,
   interp specs (![ starting ts w pc ss * P ] (stn, st))
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
+    /\ forall st' vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M.evolve w w' |]
-      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX).
+      /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st Sp)
+      * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] (stn, st')
+    ---> pre (stn, st'))%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.

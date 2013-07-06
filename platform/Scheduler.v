@@ -294,10 +294,10 @@ Defined.
 Definition starting (pc : W) (ss : nat) : HProp := fun s m =>
   (ExX (* pre *) : settings * state, Cptr pc #0
     /\ [| semp m |]
-    /\ Al st : settings * state, Al vs, Al fs,
-    [| st#Sp <> 0 /\ freeable st#Sp (1 + ss) |]
-    /\ ![ ^[locals ("rp" :: nil) vs ss st#Sp * sched fs * M.globalInv fs * mallocHeap 0] ] st
-    ---> #0 st)%PropX.
+    /\ Al st : state, Al vs, Al fs,
+    [| Regs st Sp <> 0 /\ freeable (Regs st Sp) (1 + ss) |]
+    /\ ![ ^[locals ("rp" :: nil) vs ss (Regs st Sp) * sched fs * M.globalInv fs * mallocHeap 0] ] (s, st)
+    ---> #0 (s, st))%PropX.
 
 Lemma starting_elim : forall specs pc ss P stn st,
   interp specs (![ starting pc ss * P ] (stn, st))
@@ -1211,7 +1211,7 @@ Ltac spawn := post; evaluate hints;
       end);
   (try (repeat (apply andL; apply injL; intro);
     match goal with
-      | [ H : forall stn_st : ST.settings * state, _ |- _ ] =>
+      | [ H : forall st : state, _ |- _ ] =>
         eapply Imply_trans; [ | apply H ]; clear H
     end); t').
 
