@@ -14,7 +14,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
            tests/WebServerDriver tests/EchoServerDriver \
-           ArrayOps StringOps RelDb \
+           ArrayOps StringOps \
            XmlLex XmlSearch XmlOutput XmlLang XmlProg tests/XmlTestDriver Xml
 
 VS      := $(MODULES:%=%.v)

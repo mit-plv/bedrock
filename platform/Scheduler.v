@@ -303,10 +303,10 @@ Lemma starting_elim : forall specs pc ss P stn st,
   interp specs (![ starting pc ss * P ] (stn, st))
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs fs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * sched fs * M.globalInv fs * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX).
+    /\ forall st' vs fs, interp specs ([| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
+      * sched fs * M.globalInv fs * mallocHeap 0 ] (stn, st')
+    ---> pre (stn, st'))%PropX).
   cptr.
   generalize (split_semp _ _ _ H0 H); intros; subst; auto.
   rewrite <- sepFormula_eq; descend; step auto_ext.
@@ -319,10 +319,10 @@ Local Hint Resolve split_a_semp_a semp_smem_emp.
 Lemma starting_intro : forall specs pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs fs, interp specs ([| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * sched fs * M.globalInv fs * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX)
+    /\ forall st' vs fs, interp specs ([| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
+      * sched fs * M.globalInv fs * mallocHeap 0 ] (stn, st')
+    ---> pre (stn, st'))%PropX)
   -> interp specs (![ starting pc ss * P ] (stn, st)).
   cptr.
 Qed.
@@ -330,12 +330,12 @@ Qed.
 Lemma other_starting_intro : forall specs ts w pc ss P stn st,
   (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
-    /\ forall stn_st vs ts' w', interp specs ([| ts %<= ts' |]
+    /\ forall st' vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M''.evolve w w' |]
-      /\ [| stn_st#Sp <> 0 /\ freeable stn_st#Sp (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss stn_st#Sp
-      * tqs ts' w' * M''.globalInv ts' w' * mallocHeap 0 ] stn_st
-    ---> pre stn_st)%PropX)
+      /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
+      * tqs ts' w' * M''.globalInv ts' w' * mallocHeap 0 ] (stn, st')
+    ---> pre (stn, st'))%PropX)
   -> interp specs (![ Q'.starting ts w pc ss * P ] (stn, st)).
   cptr.
 Qed.

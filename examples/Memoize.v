@@ -12,10 +12,10 @@ Definition goodMemo (f : fn) (pc : W) : HProp := fun s m =>
     /\ Al st : settings * state, AlX : settings * smem, AlX : settings * state,
     (Ex vs, Cptr st#Rp #0
       /\ ![ ^[locals ("rp" :: "x" :: nil) vs 0 st#Sp] * #1 * #2 ] st
-      /\ Al st' : settings * state,
-      ([| st'#Sp = st#Sp /\ st'#Rv = app f (sel vs "x") |]
-        /\ Ex vs', ![ ^[locals ("rp" :: "x" :: nil) vs' 0 st#Sp] * #1 * #2 ] st')
-      ---> #0 st')
+      /\ Al st' : state,
+      ([| Regs st' Sp = st#Sp /\ Regs st' Rv = app f (sel vs "x") |]
+        /\ Ex vs', ![ ^[locals ("rp" :: "x" :: nil) vs' 0 st#Sp] * #1 * #2 ] (fst st, st'))
+      ---> #0 (fst st, st'))
     ---> #3 st)%PropX.
 
 Module Type MEMO.
@@ -84,7 +84,7 @@ Definition memoizeM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free"
       (* This is a different argument from last time.  Call the function again. *)
 
       "tmp" <-* "m";;
-     "tmp" <-- ICall "tmp"("x")
+      "tmp" <-- ICall "tmp"("x")
       [Al f,
         PRE[V, R] [| R = app f (V "x") |] * memo f (V "m")
         POST[R'] [| R' = R |] * memo f (V "m") ];;
@@ -118,10 +118,10 @@ Lemma goodMemo_elim : forall specs f pc P st,
       /\ forall st fr rpre,
         interp specs ((Ex vs, Cptr st#Rp (fun x => rpre x)
           /\ ![ ^[locals ("rp" :: "x" :: nil) vs 0 st#Sp] * fr * inv ] st
-          /\ Al st' : settings * state,
-          ([| st'#Sp = st#Sp /\ st'#Rv = app f (sel vs "x") |]
-            /\ Ex vs', ![ ^[locals ("rp" :: "x" :: nil) vs' 0 st#Sp] * fr * inv ] st')
-          ---> rpre st')
+          /\ Al st' : state,
+          ([| Regs st' Sp = st#Sp /\ Regs st' Rv = app f (sel vs "x") |]
+            /\ Ex vs', ![ ^[locals ("rp" :: "x" :: nil) vs' 0 st#Sp] * fr * inv ] (fst st, st'))
+          ---> rpre (fst st, st'))
         ---> pre st)%PropX.
   Local Opaque locals.
   rewrite sepFormula_eq; repeat (propxFo; repeat (eauto; esplit)).
@@ -140,12 +140,12 @@ Lemma goodMemo_intro : forall specs pre inv f pc,
     ((Ex vs : vals,
       Cptr (st) # (Rp) (fun x : settings * state => rpre x) /\
       ![^[locals ("rp" :: "x" :: nil) vs 0 (st) # (Sp)] * fr * inv] st /\
-      (Al st' : settings * state,
-        [|(st') # (Sp) = (st) # (Sp) /\
-          (st') # (Rv) = app f (sel vs "x")|] /\
+      (Al st' : state,
+        [| Regs st' Sp = (st) # (Sp) /\
+          Regs st' Rv = app f (sel vs "x")|] /\
         (Ex vs' : vals,
           ![^[locals ("rp" :: "x" :: nil) vs' 0 (st) # (Sp)] * fr * inv]
-          st') ---> rpre st'))%PropX ---> pre st))
+          (fst st, st')) ---> rpre (fst st, st')))%PropX ---> pre st))
   -> himp specs inv (goodMemo f pc).
   intros.
   unfold goodMemo, himp; propxFo.

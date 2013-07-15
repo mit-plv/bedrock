@@ -186,7 +186,7 @@ Lemma starting_elim : forall specs ts w pc ss P stn st,
     /\ forall st' vs ts' w', interp specs ([| ts %<= ts' |]
       /\ [| M.evolve w w' |]
       /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
-      /\ ![ locals ("rp" :: nil) vs ss (Regs st Sp)
+      /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
       * tqs ts' w' * M.globalInv ts' w' * mallocHeap 0 ] (stn, st')
     ---> pre (stn, st'))%PropX).
   cptr.
@@ -511,8 +511,8 @@ Theorem ok : moduleOk m.
   words.
   unfold ginv, globalInv.
   autorewrite with sepFormula; simpl.
-  instantiate (1 := snd x8).
-  instantiate (1 := fst x8).
+  instantiate (1 := snd x9).
+  instantiate (1 := fst x9).
   make_Himp.
 
   Lemma swotchy : forall P Q R S T U S',
@@ -525,18 +525,18 @@ Theorem ok : moduleOk m.
   unfold substH; simpl.
   match goal with
     | [ |- (_ * _ * _ * ?P * _ * _ ===> _)%Sep ] => 
-      replace P with (tqs' (fst x8, snd x8) (fst x8 %- sel x4 "enq"))
+      replace P with (tqs' (fst x9, snd x9) (fst x9 %- sel x4 "enq"))
   end.
   sepLemma.
-  destruct x8; destruct H19; simpl in *; auto.
-  destruct x8; destruct H19; simpl in *; auto.
-  destruct x8; destruct H19; simpl in *; auto.
+  destruct x9; destruct H19; simpl in *; auto.
+  destruct x9; destruct H19; simpl in *; auto.
+  destruct x9; destruct H19; simpl in *; auto.
   make_Himp.
   rewrite tqs'_eq.
   apply starB_del_bwd.
   auto.
   rewrite tqs'_eq.
-  destruct x8; reflexivity.
+  destruct x9; reflexivity.
 
   t.
   t.
