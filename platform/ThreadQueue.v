@@ -259,7 +259,7 @@ Lemma starting_intro : forall specs sc w pc ss P stn st,
     /\ forall st' vs w', interp specs ([| evolve w w' |]
       /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
-      * tq w' sc * ginv w' sc * mallocHeap 0 ] stn_st
+      * tq w' sc * ginv w' sc * mallocHeap 0 ] (stn, st')
     ---> pre (stn, st'))%PropX)
   -> interp specs (![ starting w sc pc ss * P ] (stn, st)).
   cptr.
@@ -270,7 +270,7 @@ Lemma starting_elim : forall specs w sc pc ss P stn st,
   -> (exists pre, specs pc = Some (fun x => pre x)
     /\ interp specs (![ P ] (stn, st))
     /\ forall st' vs w', interp specs ([| evolve w w' |]
-      /\ [| Regs st' Sp <> 0 /\ freeable Regs st' Sp (1 + ss) |]
+      /\ [| Regs st' Sp <> 0 /\ freeable (Regs st' Sp) (1 + ss) |]
       /\ ![ locals ("rp" :: nil) vs ss (Regs st' Sp)
       * tq w' sc * ginv w' sc * mallocHeap 0 ] (stn, st')
     ---> pre (stn, st'))%PropX).
@@ -299,9 +299,8 @@ Lemma susp_convert : forall specs w sc pc sp P stn st pc_tq,
   -> interp specs (![ susp w sc pc sp * P ] (stn, st)).
   cptr.
   descend; step auto_ext.
-  step auto_ext.
   eauto.
-  descend; step auto_ext.
+  step auto_ext.
 Qed.
 
 Lemma susp'_intro : forall specs w sc pc sp P stn st,
@@ -313,7 +312,6 @@ Lemma susp'_intro : forall specs w sc pc sp P stn st,
         ---> pre (stn, st'))%PropX)
   -> interp specs (![ susp' w sc pc sp * P ] (stn, st)).
   cptr.
-  descend; step auto_ext.
   descend; step auto_ext.
   eauto.
   descend; step auto_ext.
