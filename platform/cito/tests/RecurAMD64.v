@@ -1,4 +1,4 @@
-Require Import Bedrock RecurDriver AMD64_gas.
+Require Import Bedrock Cito.tests.RecurDriver AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.

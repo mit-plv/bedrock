@@ -1,4 +1,4 @@
-Require Import Bedrock AdderDriver AMD64_gas.
+Require Import Bedrock Cito.tests.AdderDriver AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.
