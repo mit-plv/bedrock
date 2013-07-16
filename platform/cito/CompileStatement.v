@@ -1,7 +1,7 @@
 Require Import AutoSep Wrap Arith.
 Import DefineStructured.
 Require Import ExprLemmas.
-Require Import variables.
+Require Import VariableLemmas.
 Require Import GeneralTactics.
 Require Import CompileExpr.
 Require Import SyntaxExpr SemanticsExpr.
@@ -164,7 +164,7 @@ Hint Rewrite sum_S : arith.
 Hint Resolve S_le_lt.
 Hint Resolve sel_upd_firstn.
 Hint Resolve firstn_S_upd.
-Hint Resolve variables.noChange.
+Hint Resolve VariableLemmas.noChange.
 Hint Resolve Max.le_max_l Max.le_max_r.
 Hint Extern 12 => rv_solver.
 Hint Extern 12 => sp_solver.
@@ -458,7 +458,7 @@ Ltac extend_runs_loop_partially :=
 
 Ltac use_changed_in_eval :=
   match goal with
-    H : variables.equiv ?V (merge _ _ _) |- changed_in ?V _ _ =>
+    H : VariableLemmas.equiv ?V (merge _ _ _) |- changed_in ?V _ _ =>
       apply_in_all RunsTo_footprint; eapply changed_in_eval; [eassumption | ..]
   end.
 
@@ -627,7 +627,7 @@ Local Notation agree_in := unchanged_in.
 Local Notation agree_except := changed_in.
 Definition st_agree_except (v1 v2 : st) vars := agree_except (fst v1) (fst v2) vars /\ snd v1 = snd v2.
 Local Notation "b [ vars => c ]" := (merge c b vars) (no associativity, at level 60).
-Infix "==" := variables.equiv.
+Infix "==" := VariableLemmas.equiv.
 Local Notation "v1 =~= v2 [^ except ]" := (st_agree_except v1 v2 except) (no associativity, at level 60).
 
 Lemma st_agree_except_symm : forall v1 v2 ex, v1 =~= v2 [^ex] -> v2 =~= v1 [^ex].
@@ -789,12 +789,11 @@ Lemma agree_except_app_comm : forall vs1 vs2 a b,
   agree_except vs1 vs2 (b ++ a).
   intros; eauto.
 Qed.
-Require Import VariableLemmas.
 Lemma merge_comm : forall v vars1 v1 vars2 v2,
   disjoint vars1 vars2 ->
   v [vars1 => v1] [vars2 => v2] == v [vars2 => v2] [vars1 => v1].
   intros.
-  unfold variables.equiv, changedVariables.
+  unfold VariableLemmas.equiv, changedVariables.
   intros.
   contradict H0.
   destruct (In_dec string_dec x vars1).
@@ -879,11 +878,11 @@ Lemma RunsToRelax_seq_fwd : forall fs a b v1 v2,
   2 : eapply List.incl_refl.
   eapply changedVariables_incl.
   2 : eauto.
-  eapply variables.equiv_trans.
+  eapply VariableLemmas.equiv_trans.
   eauto.
   apply_in_all RunsTo_footprint.
-  eapply variables.equiv_trans.
-  eapply variables.equiv_symm.
+  eapply VariableLemmas.equiv_trans.
+  eapply VariableLemmas.equiv_symm.
   eapply merge_comm.
   unfold diff, tmps_diff.
   eauto.

@@ -1,5 +1,5 @@
 (*Require Import MyMalloc MyFree.*)
-Require Import GeneralTactics variables.
+Require Import GeneralTactics VariableLemmas.
 Require Import SyntaxExpr SemanticsExpr CompileExpr.
 Require Import Semantics Safety CompileStatement SemanticsLemmas Syntax.
 Export SyntaxExpr.

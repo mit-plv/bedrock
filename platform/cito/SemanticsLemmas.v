@@ -1,6 +1,6 @@
 Require Import SyntaxExpr SemanticsExpr Syntax Semantics.
 Require Import SemanticsExprLemmas.
-Require Import ExprLemmas variables GeneralTactics.
+Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import Arith.
 
 Fixpoint footprint (statement : Statement) :=

@@ -1,6 +1,6 @@
 Require Import AutoSep.
 
-Require Import variables Syntax Semantics CompileStatement.
+Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
 
 

@@ -1,8 +1,8 @@
-BEDROCK := ..
+BEDROCK := ../..
 
-MODULES := GeneralTactics ExprLemmas variables SyntaxExpr SemanticsExpr \
+MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	SemanticsExprLemmas Dict Syntax Semantics SemanticsLemmas \
-	CompileExpr MyMalloc MyFree VariableLemmas SepLemmas CompileStatement \
+	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
 	Compiler Wf WritingPrograms Compile \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
@@ -14,8 +14,9 @@ coq: Makefile.coq
 	COQC='time coqc -verbose' $(MAKE) -f Makefile.coq
 
 COQARGS := -R $(BEDROCK)/src Bedrock \
-		-I $(BEDROCK)/platform \
-		-I tests
+	-R . Cito \
+	-I $(BEDROCK)/platform \
+	-I tests
 COQC    := coqc $(COQARGS)
 
 Makefile.coq: Makefile $(VS)
@@ -42,5 +43,5 @@ clean:: Makefile.coq
 		| sed 's/^.*"//' \
 		>>$@
 
-%.exe: %.gen.o tests/sys.o tests/driver.o
+%.exe: %.gen.o $(BEDROCK)/platform/tests/sys.o $(BEDROCK)/platform/tests/driver.o
 	cc $^ -o $@

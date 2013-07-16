@@ -1,6 +1,6 @@
 Require Import AutoSep Wrap Arith.
 Import DefineStructured.
-Require Import ExprLemmas variables GeneralTactics.
+Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import SyntaxExpr SemanticsExpr.
 
 Set Printing Coercions.
