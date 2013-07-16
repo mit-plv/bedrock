@@ -1,4 +1,5 @@
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags SinglyLinkedList.
+Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
+Require Import SinglyLinkedList ListSegment.
 
 Set Implicit Arguments.
 
@@ -61,6 +62,11 @@ Section preds.
   Qed.
     
   Definition rows (_ : W) := starL row.
+
+  Theorem rows_cons_fwd : forall (dummy : W) p ps,
+    rows dummy (p :: ps) ===> row p * rows dummy ps.
+    sepLemma.
+  Qed.
 
   Theorem rows_cons_bwd : forall (dummy : W) ps, dummy <> 0
     -> (Ex p, Ex ps', Ex dummy', [| ps = p :: ps' |] * row p * rows dummy' ps') ===> rows dummy ps.
@@ -144,9 +150,37 @@ Lemma create_len_pos_div2 : forall base len off,
   destruct 1; subst; intros; rewrite div2_double'; apply create_len_pos.
 Qed.
 
+Definition lseg_append := lseg.
+
+Theorem append_bwd_tagged : forall p' ls p,
+  (Ex ls', Ex x, Ex p'', [| ls = ls' ++ x :: nil |] * lseg ls' p p'' * [| freeable p'' 2 |]
+    * [| p'' <> 0 |] * (p'' ==*> x, p'))
+  ===> lseg_append ls p p'.
+  apply append_bwd.
+Qed.
+
+Lemma starL_app_end : forall A (P : A -> HProp) x ls,
+  starL P ls * P x ===> starL P (ls ++ x :: nil).
+  intros until x.
+  induction ls.
+  sepLemma.
+  simpl.
+  eapply Himp_trans; [ apply Himp_star_assoc | ].
+  apply Himp_star_frame; auto; apply Himp_refl.
+Qed.
+
+Lemma rows_app_end : forall sch x ls y,
+  rows sch x ls * row sch y ===> rows sch x (ls ++ y :: nil).
+  intros; apply starL_app_end.
+Qed.
+
 Definition hints : TacPackage.
-  prepare (nil_fwd, cons_fwd, table_fwd, row_fwd, create_len_pos_div2)
-  (nil_bwd, cons_bwd, table_bwd, row_bwd, rows_cons_bwd).
+  prepare (SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd,
+    ListSegment.sll_fwd,
+    table_fwd, row_fwd, rows_cons_fwd, create_len_pos_div2)
+  (SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd,
+    ListSegment.nil_bwd, ListSegment.nil_bwd', append_bwd_tagged,
+    table_bwd, row_bwd, rows_cons_bwd, rows_app_end).
 Defined.
 
 Definition inputOk1 (V : vals) (e : exp) :=
@@ -237,7 +271,11 @@ Section invariants.
 
   Ltac state_apart :=
     try match goal with
-          | [ st : (settings * state)%type |- _ ] => destruct st; simpl fst in *; simpl snd in *
+          | [ st : (settings * state)%type |- _ ] => destruct st;
+            repeat match goal with
+                     | [ H : context[fst (?a, ?b)] |- _ ] => change (fst (a, b)) with a in *
+                     | [ H : context[snd (?a, ?b)] |- _ ] => change (snd (a, b)) with b in *
+                   end
         end.
 
   (* Alternate sequencing operator, which generates twistier code but simpler postconditions and VCs *)
@@ -277,7 +315,7 @@ Section invariants.
 
   Import Div2.
 
-  Ltac evalu := state_apart; unfold buffer in *;
+  Ltac evalu' := state_apart; unfold buffer in *;
     match goal with
       | [ _ : context[Binop _ _ Plus (RvImm (natToW (4 * _)))] |- _ ] =>
         repeat match goal with
@@ -309,7 +347,13 @@ Section invariants.
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
              | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
            end; state_apart;
-    fold (@firstn (W * W)) in *; fold (@length (W * W)) in *; fold (@length W) in *; fold div2 in *.
+    fold (@firstn (W * W)) in *; fold (@length (W * W)) in *; fold (@length W) in *; fold div2 in *;
+      fold (@length B) in *.
+
+  Ltac evalu := evalu';
+    try match goal with
+          | [ H : ?x = _ :: _ |- _ ] => subst x; progress simpl rows in *; evalu'
+        end.
 
   Ltac match_locals :=
     match goal with
@@ -342,23 +386,33 @@ Section invariants.
             equate E (x', y'); clear x y; simpl
     end.
 
-  Ltac my_descend := unfold localsInvariant in *;
-    repeat match goal with
-             | [ H : (_ * _)%type |- _ ] => destruct H; simpl in *
-           end; descend;
-    repeat match goal with
-             | [ H : Regs _ _ = _ |- _ ] => rewrite H
-             | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
-             | [ |- context[invPost ?a (sel ?V) ?R] ] => rewrite (invPost_sel a V R)
-             | [ |- context[inputOk (sel ?V) ?es] ] => rewrite (inputOk_sel V es)
-           end; autorewrite with sepFormula in *; autorewrite with words; try pair_evar.
+  Ltac my_descend :=
+    try match goal with
+          | [ |- context[rows _ _ (_ ?ls _)] ] => equate ls (@nil W)
+        end;
+    unfold localsInvariant in *;
+      repeat match goal with
+               | [ H : (_ * _)%type |- _ ] => destruct H; simpl in *
+             end; descend;
+      repeat match goal with
+               | [ H : Regs _ _ = _ |- _ ] => rewrite H
+               | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
+               | [ |- context[invPost ?a (sel ?V) ?R] ] => rewrite (invPost_sel a V R)
+               | [ |- context[inputOk (sel ?V) ?es] ] => rewrite (inputOk_sel V es)
+               | [ H : _ :: _ = _ :: _ |- _ ] => injection H; clear H; intros; subst
+             end; autorewrite with sepFormula in *; autorewrite with words; try pair_evar.
 
   Ltac weaken_invPre' :=
     match goal with
       | [ H : context[invPre] |- _ ] => apply H; solve [ descend ]
     end.
 
-  Ltac weaken_invPre :=
+  Lemma eat_emp : forall P Q,
+    P * Q ===> P * (Q * Emp).
+    sepLemma.
+  Qed.
+
+  Ltac weaken_invPre := try (etransitivity; [ | apply eat_emp ]);
     (apply himp_star_frame; try reflexivity; [weaken_invPre'])
     || (etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; try reflexivity; [weaken_invPre']).
 
@@ -394,6 +448,7 @@ Section invariants.
       | [ |- interp _ (?pre ---> ?post)%PropX ] => my_cancel' pre post
       | [ |- himp _ ?pre ?post ] => my_cancel' pre post
     end; cancel hints.
+
 
   Fixpoint updateN (cols : list (W * W)) col pos len :=
     match cols with
@@ -462,7 +517,7 @@ Section invariants.
     end.
 
   Ltac my_step := (unfold natToW in *; congruence) || weaken_invPre || weaken_invPost
-    || ((my_cancel || (try updify; try guess_locals; step hints)); fold (@firstn (W * W))).
+    || ((my_cancel || (try updify; try guess_locals; try match_locals; step hints)); fold (@firstn (W * W))).
 
   Theorem Forall_impl2 : forall A (P Q R : A -> Prop) ls,
     List.Forall P ls
@@ -493,6 +548,7 @@ Section invariants.
   Ltac invoke1 :=
     match goal with
       | [ H : forall specs : codeSpec _ _, _, H' : interp _ _ |- _ ] => apply H in H'; clear H
+      | [ H : forall inv : _ -> _, _ |- vcs _ ] => apply H; clear H
     end; post.
 
   Ltac specify :=
@@ -619,7 +675,7 @@ Section invariants.
           change G; unfold col; rewrite moveS'
     end.
 
-  Ltac t := pre; prep; evalu; repeat (my_descend; my_step); my_descend; try nomega; try firstnify;
+  Ltac t := pre; prep; evalu; my_descend; (my_descend; repeat (my_step; my_descend)); try nomega; try firstnify;
     eauto using inBounds_up.
   Ltac u := solve [ t ].
 
@@ -638,6 +694,100 @@ Section invariants.
   Ltac v := abstract t.
 
 
+  (** * Iterating over matching rows of a table *)
+
+  Section Select.
+    (* Eventually, there will be a "WHERE clause" here, but let's start simple. *)
+
+    (* Store a pointer to the current linked list node and actual row data, respectively,
+     * in these variables. *)
+    Variables rw data : string.
+
+    (* Run this command on every matching row. *)
+    Variable body : (vals -> HProp) -> chunk.
+    (* The argument to [body] is an invariant to preserve. *)
+
+    Definition Select' : chunk := (
+      rw <-* tptr;;
+
+      [Al a : A, Al head, Al done, Al remaining,
+        PRE[V] tptr =*> head * lseg done head (V rw) * sll remaining (V rw)
+          * rows sch head done * rows sch head remaining * invPre a V
+        POST[R] invPost a V R]
+      While (rw <> 0) {
+        data <-* rw;;
+
+        Assert [Al a : A, Al head, Al done, Al remaining,
+          PRE[V] [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+            * rows sch head remaining * rows sch head done * row sch (V data) * invPre a V
+          POST[R] invPost a V R];;
+
+        body (fun V => Ex head, Ex done, Ex remaining, Ex p,
+          tptr =*> head * lseg done head (V rw)
+          * (V rw ==*> V data, p) * sll remaining p
+          * rows sch head done * rows sch head remaining
+          * [| freeable (V rw) 2 |] * [| V rw <> 0 |])%Sep;;
+        rw <-* rw + 4;;
+
+        Assert [Al a : A, Al head, Al done, Al remaining,
+          PRE[V] tptr =*> head * lseg_append (done ++ V data :: nil) head (V rw) * sll remaining (V rw)
+            * rows sch head (done ++ V data :: nil) * rows sch head remaining * invPre a V
+          POST[R] invPost a V R]
+      }
+    )%SP.
+
+    Definition sinvar :=
+      Al a : A,
+      PRE[V] table sch tptr * invPre a V
+      POST[R] invPost a V R.
+
+    Definition spost inv :=
+      Al a : A,
+      PRE[V] row sch (V data) * inv V * invPre a V
+      POST[R] invPost a V R.
+
+    Notation svars := (rw :: data :: nil).
+
+    Notation SelectVcs := (fun im ns res =>
+      (~In "rp" ns) :: incl svars ns :: (rw <> "rp")%type :: (data <> "rp")%type
+      :: (rw <> data)%type
+      :: (forall a V V', (forall x, x <> rw -> x <> data -> sel V x = sel V' x)
+        -> invPre a V ===> invPre a V')
+      :: (forall a V V' R, (forall x, x <> rw -> x <> data -> sel V x = sel V' x)
+        -> invPost a V R = invPost a V' R)
+      :: (forall inv pre mn H,
+        (forall specs st, interp specs (pre st)
+          -> interp specs (spost inv true (fun w => w) ns res st))
+        -> vcs (VerifCond (toCmd (body inv) mn (im := im) H ns res pre)))
+      :: (forall specs inv pre mn H st,
+        interp specs (Postcondition (toCmd (body inv) mn (im := im) H ns res pre) st)
+        -> interp specs (spost inv true (fun w => w) ns res st))
+      :: nil).
+
+    Definition Select : chunk.
+      refine (WrapC Select'
+        sinvar
+        sinvar
+        SelectVcs
+        _ _).
+
+      wrap0; t.
+
+      wrap0.
+
+      t.
+      t.
+      t.
+      t.
+      t.
+      t.
+      t.
+      t.
+      t.
+    Defined.
+  End Select.
+
+
   (** * Inserting into a table *)
 
   Section Insert.
@@ -648,8 +798,7 @@ Section invariants.
       Al a : A, Al bs,
       PRE[V] array8 bs (V "buf") * table sch tptr * mallocHeap 0
         * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
-      POST[R] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-        * invPost a V R.
+      POST[R] array8 bs (V "buf") * invPost a V R.
 
     (* Write the value of an expression into a new row's buffer. *)
     Definition writeExp (col : nat) (e : exp) : chunk :=
@@ -662,8 +811,7 @@ Section invariants.
             * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
             * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
             * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre (snd p) V)%Sep
-          (fun (p : list B * A) V R => array8 (fst p) (V "buf") * mallocHeap 0 * table sch tptr
-            * invPost (snd p) V R)%Sep
+          (fun (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
         | Input start len =>
           "tmp" <- "ilen" - "ipos";;
           If ("tmp" < len) {
@@ -683,7 +831,7 @@ Section invariants.
                 * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |]
                 * [| V len <= V "ilen" ^- V "ipos" |]%word
                 * invPre a V * mallocHeap 0
-              POST[R] array8 bs (V "buf") * table sch tptr * mallocHeap 0 * invPost a V R];;
+              POST[R] array8 bs (V "buf") * invPost a V R];;
             "ipos" <- "ipos" + len
           }
       end%SP.
@@ -699,8 +847,7 @@ Section invariants.
           * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
           * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
           * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre a V
-        POST[R] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-          * invPost a V R.
+        POST[R] array8 bs (V "buf") * invPost a V R.
 
     Definition winv (col : nat) := winv' col true (fun w => w).
 
@@ -736,8 +883,7 @@ Section invariants.
         PRE[V, R] R =?>8 (wordToNat bufSize * 4) * [| R <> 0 |] * [| freeable R (wordToNat bufSize) |]
           * array8 bs (V "buf") * table sch tptr * mallocHeap 0
           * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
-        POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-          * invPost a V R'];;
+        POST[R'] array8 bs (V "buf") * invPost a V R'];;
 
       "row" <-- Call "malloc"!"malloc"(0, (2 + length sch + length sch)%nat)
       [Al a : A, Al bs, Al bsI,
@@ -747,8 +893,7 @@ Section invariants.
           * [| freeable R (2 + length sch + length sch)%nat |]
           * array8 bs (V "buf") * table sch tptr * mallocHeap 0
           * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
-        POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-          * invPost a V R'];;
+        POST[R'] array8 bs (V "buf") * invPost a V R'];;
 
       "row" *<- "ibuf";;
       "ipos" <- 0;;
@@ -764,8 +909,7 @@ Section invariants.
         PRE[V, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
           * row sch (V "row") * array8 bs (V "buf") * table sch tptr * mallocHeap 0
           * [| length bs = wordToNat (V "len") |] * [| inputOk V es |] * invPre a V
-        POST[R'] array8 bs (V "buf") * table sch tptr * mallocHeap 0
-          * invPost a V R'];;
+        POST[R'] array8 bs (V "buf") * invPost a V R'];;
 
       "tmp" *<- "row";;
       "tmp"+4 *<- $[tptr];;
@@ -939,11 +1083,15 @@ Section invariants.
         awe.
         awe.
         awe.
-        awe.
-        awe.
-        awe.
-        awe.
-        awe.
+
+        repeat use_IH.
+        t; my_descend.
+        (* So add [; my_descend] to [we]. *)
+
+        abstract (repeat use_IH; t; my_descend).
+        abstract (repeat use_IH; t; my_descend).
+        abstract (repeat use_IH; t; my_descend).
+        abstract (repeat use_IH; t; my_descend).
       Qed.
     End writeExps_correct.
 
