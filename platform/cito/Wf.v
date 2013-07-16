@@ -2,7 +2,7 @@
  * with respect to not reading uninitialized variables. *)
 
 Require Import Bool.
-Require Import variables SyntaxExpr SemanticsExpr Syntax Semantics.
+Require Import VariableLemmas SyntaxExpr SemanticsExpr Syntax Semantics.
 
 Fixpoint expReads (unwritten : string -> Prop) (e : Expr) (x : string) : Prop :=
   match e with
