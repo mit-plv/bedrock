@@ -1,0 +1,46 @@
+BEDROCK := ..
+
+MODULES := GeneralTactics ExprLemmas variables SyntaxExpr SemanticsExpr \
+	SemanticsExprLemmas Dict Syntax Semantics SemanticsLemmas \
+	CompileExpr MyMalloc MyFree VariableLemmas SepLemmas CompileStatement \
+	Compiler Wf WritingPrograms Compile \
+	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
+
+VS      := $(MODULES:%=%.v)
+
+.PHONY: coq clean
+
+coq: Makefile.coq
+	COQC='time coqc -verbose' $(MAKE) -f Makefile.coq
+
+COQARGS := -R $(BEDROCK)/src Bedrock \
+		-I $(BEDROCK)/platform \
+		-I tests
+COQC    := coqc $(COQARGS)
+
+Makefile.coq: Makefile $(VS)
+	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+
+clean:: Makefile.coq
+	$(MAKE) -f Makefile.coq clean
+	rm -f Makefile.coq .depend
+
+%.gen.s: %AMD64.v %Driver.vo
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024*1024*25+50),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
+	echo >>$@
+	$(COQC) $< \
+		| sed 's/^.*:: nil//' \
+		| sed 's/^.*:: *//' \
+		| sed 's/^.*: list string//' \
+		| sed 's/^.*= "//' \
+		| sed 's/^.*"//' \
+		>>$@
+
+%.exe: %.gen.o tests/sys.o tests/driver.o
+	cc $^ -o $@

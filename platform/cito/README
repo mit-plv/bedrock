@@ -1,0 +1,15 @@
+Verified compositional compiler from language Cito to Bedrock.
+
+Run 'make' from .. to make this compiler and all its dependences.
+
+There are two demo programs in tests. One is for adding two integers. The other uses two mutually recursive Cito functions and foreign function calls.
+To compile the demos down to binary executables:
+  make tests/Adder.exe
+or
+  make tests/Recur.exe
+
+The main correctness proof of the compiler is in CompileExpr.v, CompileStatement.v, and Compiler.v
+The syntax of Cito is in Syntax.v
+The semantics of Cito is in Semantics.v
+To use the compiler to verify a program, import module Compile, as the demos do.
+
