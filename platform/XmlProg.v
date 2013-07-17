@@ -301,7 +301,7 @@ Section boot.
   Definition m3 := link XmlLex.m m2.
   Definition m4 := link Malloc.m m3.
   Definition m5 := link ArrayOps.m m4.
-  Definition m := link (XmlLang.m pr) m5.
+  Definition m := link (XmlLang.m wellFormed) m5.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.
