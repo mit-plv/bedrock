@@ -11,10 +11,14 @@ Module M.
         )
     )
   Do
-    <*> "answer" </>
+    Write <*> "answer" </>
       <*> "mode" </> $"mode" </>,
       <*> "a" </> $"a" </>,
       <*> "b" </> $"b" </>
+    </>;;
+    Write <*> "extra" </>
+      <*> "boring" </> "constant" </>,
+      <*> "B" </> $"b" </>
     </>
   end.
 
