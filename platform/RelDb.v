@@ -769,21 +769,7 @@ Section invariants.
         sinvar
         sinvar
         SelectVcs
-        _ _).
-
-      wrap0; t.
-
-      wrap0.
-
-      t.
-      t.
-      t.
-      t.
-      t.
-      t.
-      t.
-      t.
-      t.
+        _ _); abstract (wrap0; abstract t).
     Defined.
   End Select.
 
@@ -1048,7 +1034,7 @@ Section invariants.
           | [ H : interp _ (Postcondition _ _) |- _ ] => eapply writeExp_correct_post in H; basic_eauto
         end; pre.
 
-      Ltac we := repeat use_IH; t.
+      Ltac we := repeat use_IH; t; my_descend.
       Ltac swe := solve [ we ].
       Ltac awe := abstract we.
 
@@ -1083,15 +1069,11 @@ Section invariants.
         awe.
         awe.
         awe.
-
-        repeat use_IH.
-        t; my_descend.
-        (* So add [; my_descend] to [we]. *)
-
-        abstract (repeat use_IH; t; my_descend).
-        abstract (repeat use_IH; t; my_descend).
-        abstract (repeat use_IH; t; my_descend).
-        abstract (repeat use_IH; t; my_descend).
+        awe.
+        awe.
+        awe.
+        awe.
+        awe.
       Qed.
     End writeExps_correct.
 
@@ -1182,29 +1164,7 @@ Section invariants.
         invar
         invar
         InsertVcs
-        _ _).
-
-      wrap0; i.
-
-      wrap0.
-
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
-      i.
+        _ _); abstract (wrap0; i).
     Defined.
 
   End Insert.
