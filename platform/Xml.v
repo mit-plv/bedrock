@@ -16,10 +16,32 @@ Notation "<*> tag </> x1 , .. , xN </>" := (XTag tag (xcons x1 .. (xcons xN nil)
   (tag at level 0) : out_scope.
 Delimit Scope out_scope with out.
 
+Coercion Const : string >-> exp.
+Notation "$ x" := (Input x) : exp_scope.
+Delimit Scope exp_scope with exp.
+
+Definition econs (x : exp) (xs : list exp) : list exp := x :: xs.
+Notation "'Insert' t ( e1 , .. , eN )" := (XmlLang.Insert t (econs e1%exp .. (econs eN%exp nil) ..))
+  (at level 0, t at level 0) : action_scope.
 Notation "'Write' o" := (Output o%out) (at level 0, o at level 0) : action_scope.
 Infix ";;" := Seq : action_scope.
 Delimit Scope action_scope with action.
 
 Notation "'Match' p 'Do' a 'end'" := {| Pattern := p%pat; Action := a%action |}.
 
-Ltac wf := split; simpl; intuition (try (congruence || reflexivity)).
+Ltac wf := split; simpl; intuition (try (congruence || reflexivity || NoDup));
+  match goal with
+      | [ |- Logic.ex _ ] =>
+        match goal with
+          | [ |- context[?e = _] ] => exists e
+        end; unfold ewfs; simpl; intuition;
+        repeat match goal with
+                 | [ |- List.Forall _ _ ] => constructor
+               end; simpl; auto
+    | _ =>
+      repeat match goal with
+               | [ H : List.Exists _ _ |- _ ] => inversion H; clear H; subst
+             end; simpl in *; tauto
+  end.
+
+Ltac goodSchema := repeat constructor.

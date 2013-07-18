@@ -23,8 +23,9 @@ End Hide.
 
 
 Module Type S.
+  Parameter ts : tables.
   Parameter pr : program.
-  Axiom wellFormed : wf pr.
+  Axiom wellFormed : wf ts pr.
   Axiom notTooGreedy : (reserved pr <= 40)%nat.
 
   Parameter buf_size : N.
@@ -32,13 +33,16 @@ Module Type S.
   Axiom buf_size_upper : (buf_size * 4 < Npow2 32)%N.
 
   Parameter heapSize : N.
+
+  Parameter ND : NoDup (Names ts).
+  Parameter goodSchema : twfs ts.
 End S.
 
 Module Make(M : S).
 Import M.
 
 Definition mainS := SPEC reserving 49
-  PREonly[_] mallocHeap 0.
+  PREonly[_] db ts * mallocHeap 0.
 
 Definition bsize := nat_of_N (buf_size * 4)%N.
 
@@ -51,63 +55,63 @@ Defined.
 
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
                             "sys"!"read" @ [Sys.readS], "sys"!"write" @ [Sys.writeS],
-                            "xml_prog"!"main" @ [XmlLang.mainS pr] ]]
+                            "xml_prog"!"main" @ [XmlLang.mainS ts pr] ]]
   bmodule "xml_driver" {{
     bfunctionNoRet "main"("inbuf", "len", "outbuf", "tmp") [mainS]
       "inbuf" <-- Call "buffers"!"bmalloc"(buf_size)
-      [PREonly[_, R] R =?>8 bsize * mallocHeap 0];;
+      [PREonly[_, R] db ts * R =?>8 bsize * mallocHeap 0];;
 
       "outbuf" <-- Call "buffers"!"bmalloc"(buf_size)
-      [PREonly[V, R] V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
+      [PREonly[V, R] db ts * V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
 
-      [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
+      [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
       While (1 = 1) {
         "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
-        [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
+        [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
 
         If ("len" > bsize) {
           Call "sys"!"abort"()
           [PREonly[_] [| False |] ];;
           Fail
         } else {
-          Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
+          Assert [PREonly[V] db ts * buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
             * V "outbuf" =?>8 bsize * mallocHeap 0
             * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len")
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
           Note [unfold_here];;
 
           "tmp" <-- Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
-          [PREonly[V, R] V "inbuf" =?>8 wordToNat (V "len")
+          [PREonly[V, R] db ts * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
             * V "outbuf" =?>8 bsize
             * [| R <= natToW bsize |]%word * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
+          Assert [PREonly[V] db ts * buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
             * buffer_splitAt (wordToNat (V "tmp")) (V "outbuf") bsize * mallocHeap 0
             * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
             * V "outbuf" =?>8 wordToNat (V "tmp")
             * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
             * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
           Call "sys"!"write"(1, "outbuf", "tmp")
-          [PREonly[V] V "inbuf" =?>8 bsize
+          [PREonly[V] db ts * V "inbuf" =?>8 bsize
             * V "outbuf" =?>8 wordToNat (V "tmp")
             * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
             * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
             * buffer_joinAt (wordToNat (V "tmp")) (V "outbuf") bsize
             * mallocHeap 0]
         }
@@ -180,7 +184,7 @@ Section boot.
     assert (heapSize >= 3)%N by (apply N.le_ge; apply heapSizeLowerBound); nomega.
   Qed.
 
-  Definition size := heapSize' + 50 + 0.
+  Definition size := heapSize' + 50 + length ts.
 
   Hypothesis mem_size : goodSize (size * 4)%nat.
 
@@ -216,7 +220,7 @@ Section boot.
   Definition bootS := {|
     Reserved := 49;
     Formals := nil;
-    Precondition := fun _ => st ~> ![ 0 =?> (heapSize' + 50 + 0) ] st
+    Precondition := fun _ => st ~> ![ 0 =?> (heapSize' + 50 + 0) * db ts ] st
   |}.
 
   Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "xml_driver"!"main" @ [mainS] ]]
@@ -224,10 +228,10 @@ Section boot.
       bfunctionNoRet "main"() [bootS]
         Sp <- (heapSize * 4)%N;;
 
-        Assert [PREonly[_] 0 =?> heapSize' ];;
+        Assert [PREonly[_] 0 =?> heapSize' * db ts];;
 
         Call "malloc"!"init"(0, heapSize)
-        [PREonly[_] mallocHeap 0];;
+        [PREonly[_] mallocHeap 0 * db ts];;
 
         Goto "xml_driver"!"main"
       end
@@ -296,12 +300,28 @@ Section boot.
 
   Global Opaque heapSize'.
 
+  Lemma buf_size_upper' : goodSize (4 * wordToNat (NToWord 32 buf_size)).
+    red.
+    rewrite Nat2N.inj_mul.
+    rewrite NToWord_nat.
+    rewrite wordToNat_natToWord_idempotent.
+    rewrite N2Nat.id.
+    rewrite Nmult_comm.
+    apply buf_size_upper.
+    rewrite N2Nat.id.
+    clear; generalize buf_size_upper.
+    generalize (Npow2 32).
+    Hint Rewrite N2Nat.inj_mul : N.
+    intros; nomega.
+  Qed.
+
   Definition m1 := link boot m0.
   Definition m2 := link Buffers.m m1.
   Definition m3 := link XmlLex.m m2.
   Definition m4 := link Malloc.m m3.
   Definition m5 := link ArrayOps.m m4.
-  Definition m := link (XmlLang.m wellFormed) m5.
+  Definition m := link (XmlLang.m wellFormed ND goodSchema
+    buf_size_lower' buf_size_upper') m5.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.

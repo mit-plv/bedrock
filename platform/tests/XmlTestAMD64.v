@@ -1,6 +1,11 @@
 Require Import Bedrock Xml XmlProg AMD64_gas.
 
 Module M.
+  Definition ts := {| Name := "rpcs";
+    Address := ((1024 * 1024 + 50) * 4)%N;
+    Schema := "cmd" :: "a" :: "b" :: nil
+  |} :: nil.
+
   Definition pr := Match
     "rpc"/(
       "cmd"/"frob"
@@ -16,13 +21,14 @@ Module M.
       <*> "a" </> $"a" </>,
       <*> "b" </> $"b" </>
     </>;;
+    Insert "rpcs" ("frob", $"a", $"b");;
     Write <*> "extra" </>
       <*> "boring" </> "constant" </>,
       <*> "B" </> $"b" </>
     </>
   end.
 
-  Theorem wellFormed : wf pr.
+  Theorem wellFormed : wf ts pr.
     wf.
   Qed.
 
@@ -41,6 +47,14 @@ Module M.
   Qed.
 
   Definition heapSize := (1024 * 1024)%N.
+
+  Theorem ND : NoDup (Names ts).
+    NoDup.
+  Qed.
+
+  Theorem goodSchema : twfs ts.
+    goodSchema.
+  Qed.
 End M.
 
 Module E := Make(M).

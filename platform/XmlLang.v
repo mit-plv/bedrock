@@ -51,8 +51,6 @@ End xml_ind'.
 
 Opaque xml_ind'.
 
-Print Insert.
-
 
 (* Expressions for data queries and updates *)
 Inductive exp :=
