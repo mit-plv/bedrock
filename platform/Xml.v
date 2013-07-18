@@ -22,4 +22,4 @@ Delimit Scope action_scope with action.
 
 Notation "'Match' p 'Do' a 'end'" := {| Pattern := p%pat; Action := a%action |}.
 
-Ltac wf := split; [ | split ]; simpl; intuition (try (congruence || reflexivity)).
+Ltac wf := split; simpl; intuition (try (congruence || reflexivity)).
