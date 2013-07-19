@@ -10,6 +10,14 @@ Definition copyS := SPEC("dst", "dstPos", "src", "srcPos", "len") reserving 1
   POST[_] Ex bsD', array8 bsD' (V "dst") * array8 bsS (V "src")
     * [| length bsD' = length bsD |].
 
+Definition equalS := SPEC("arr1", "pos1", "arr2", "pos2", "len") reserving 2
+  Al bs1, Al bs2, Al len1 : W, Al len2 : W,
+  PRE[V] array8 bs1 (V "arr1") * array8 bs2 (V "arr2")
+    * [| wordToNat (V "pos1") + wordToNat (V "len") <= length bs1 |]%nat
+    * [| wordToNat (V "pos2") + wordToNat (V "len") <= length bs2 |]%nat
+    * [| length bs1 = wordToNat len1 |] * [| length bs2 = wordToNat len2 |]
+  POST[_] array8 bs1 (V "arr1") * array8 bs2 (V "arr2").
+
 Definition m := bmodule "array8" {{
   bfunction "copy"("dst", "dstPos", "src", "srcPos", "len", "tmp") [copyS]
     [Al bsD, Al bsS, Al lenD : W, Al lenS : W,
@@ -38,6 +46,35 @@ Definition m := bmodule "array8" {{
     };;
 
     Return 0
+  end with bfunction "equal"("arr1", "pos1", "arr2", "pos2", "len", "tmp1", "tmp2") [equalS]
+    [Al bs1, Al bs2, Al len1 : W, Al len2 : W,
+      PRE[V] array8 bs1 (V "arr1") * array8 bs2 (V "arr2")
+        * [| wordToNat (V "pos1") + wordToNat (V "len") <= length bs1 |]%nat
+        * [| wordToNat (V "pos2") + wordToNat (V "len") <= length bs2 |]%nat
+        * [| length bs1 = wordToNat len1 |] * [| length bs2 = wordToNat len2 |]
+      POST[_] array8 bs1 (V "arr1") * array8 bs2 (V "arr2") ]
+    While ("len" > 0) {
+      Assert [Al bs1, Al bs2, Al len1 : W, Al len2 : W,
+        PRE[V] [| V "len" > natToW 0 |]%word * [| V "pos1" < natToW (length bs1) |]%word
+          * [| V "pos2" < natToW (length bs2) |]%word
+          * array8 bs1 (V "arr1") * array8 bs2 (V "arr2")
+          * [| wordToNat (V "pos1") + wordToNat (V "len") <= length bs1 |]%nat
+          * [| wordToNat (V "pos2") + wordToNat (V "len") <= length bs2 |]%nat
+          * [| length bs1 = wordToNat len1 |] * [| length bs2 = wordToNat len2 |]
+        POST[_] array8 bs1 (V "arr1") * array8 bs2 (V "arr2") ];;
+
+      "tmp1" <-*8 "arr1" + "pos1";;
+      "tmp2" <-*8 "arr2" + "pos2";;
+      If ("tmp1" = "tmp2") {
+        "pos1" <- "pos1" + 1;;
+        "pos2" <- "pos2" + 1;;
+        "len" <- "len" - 1
+      } else {
+        Return 0
+      }
+    };;
+
+    Return 1
   end
 }}.
 

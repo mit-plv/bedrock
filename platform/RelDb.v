@@ -12,7 +12,8 @@ Inductive exp :=
 | Const (s : string)
 | Input (pos len : string).
 
-Definition baseVars := "ibuf" :: "row" :: "ilen" :: "overflowed" :: "tmp" :: "ipos" :: "buf" :: "len" :: nil.
+Definition baseVars := "ibuf" :: "row" :: "ilen" :: "overflowed" :: "tmp"
+  :: "ipos" :: "buf" :: "len" :: "matched" :: nil.
 
 Definition wfExp (ns : list string) (e : exp) :=
   match e with
@@ -243,6 +244,11 @@ Section invariants.
     auto.
   Qed.
 
+  Lemma natToW_4times : forall n,
+    natToW (4 * n) = natToW 4 ^* natToW n.
+    intros; rewrite Mult.mult_comm; rewrite wmult_comm; apply natToW_times4.
+  Qed.
+
   Ltac prep := try match goal with
                      | [ _ : context[lengthOf ?E _] |- _ ] =>
                        destruct E; simpl lengthOf in *
@@ -267,7 +273,8 @@ Section invariants.
       end;
   unfold lvalIn, regInL, immInR in *; prep_locals;
     try rewrite mult4_S in *;
-      try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *; auto.
+      try rewrite invPre_sel in *; try rewrite inputOk_sel in *; try rewrite invPost_sel in *;
+        try rewrite natToW_4times in *; auto.
 
   Ltac state_apart :=
     try match goal with
@@ -308,16 +315,11 @@ Section invariants.
 
   Hint Immediate posl_bound lenl_bound.
 
-  Lemma natToW_4times : forall n,
-    natToW (4 * n) = natToW 4 ^* natToW n.
-    intros; rewrite Mult.mult_comm; rewrite wmult_comm; apply natToW_times4.
-  Qed.
-
   Import Div2.
 
   Ltac evalu' := state_apart; unfold buffer in *;
     match goal with
-      | [ _ : context[Binop _ _ Plus (RvImm (natToW (4 * _)))] |- _ ] =>
+      | [ _ : context[Binop _ _ Plus (RvImm (natToW 4 ^* _))] |- _ ] =>
         repeat match goal with
                  | [ H : evalInstrs _ _ _ = _ |- _ ] => generalize dependent H
                  | [ H : evalCond _ _ _ _ _ = _ |- _ ] => generalize dependent H
@@ -329,7 +331,7 @@ Section invariants.
               by (subst col; auto);
               assert (natToW col < natToW (length (lenl cols)))
                 by (subst col; auto)
-        end; intros; rewrite natToW_4times in *;
+        end; intros;
         try match goal with
               | [ _ : evalCond _ _ _ _ ?s = _,
                 H : evalInstrs _ ?s _ = _ |- _ ] =>
@@ -393,13 +395,13 @@ Section invariants.
     unfold localsInvariant in *;
       repeat match goal with
                | [ H : (_ * _)%type |- _ ] => destruct H; simpl in *
+               | [ H : _ :: _ = _ :: _ |- _ ] => injection H; clear H; intros; subst
              end; descend;
       repeat match goal with
                | [ H : Regs _ _ = _ |- _ ] => rewrite H
                | [ |- context[invPre ?a (sel ?V)] ] => rewrite (invPre_sel a V)
                | [ |- context[invPost ?a (sel ?V) ?R] ] => rewrite (invPost_sel a V R)
                | [ |- context[inputOk (sel ?V) ?es] ] => rewrite (inputOk_sel V es)
-               | [ H : _ :: _ = _ :: _ |- _ ] => injection H; clear H; intros; subst
              end; autorewrite with sepFormula in *; autorewrite with words; try pair_evar.
 
   Ltac weaken_invPre' :=
@@ -565,7 +567,11 @@ Section invariants.
                  | [ |- context[V ?X] ] => change (V X) with (sel V X)
                  | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
                end; repeat rewrite H by congruence;
-        clear_fancy; solve [ sepLemma ]
+        clear_fancy; solve [ sepLemma;
+          eapply inputOk_weaken; eauto 1; [
+            match goal with
+              | [ H : forall x : string, _ |- _ ] => intros; apply H; simpl in *; intuition congruence
+            end ] ]
       | [ V : vals, V' : vals, H : forall x : string, _ |- _ = _ ] =>
         specify;
         repeat match goal with
@@ -697,15 +703,433 @@ Section invariants.
   (** * Iterating over matching rows of a table *)
 
   Section Select.
-    (* Eventually, there will be a "WHERE clause" here, but let's start simple. *)
+    (* We will support garden-variety conjunctive queries, matching column values against expressions. *)
+    Definition equality := (string * exp)%type.
+    Definition condition := list equality.
 
     (* Store a pointer to the current linked list node and actual row data, respectively,
      * in these variables. *)
     Variables rw data : string.
 
+    (* Test to use in filtering rows *)
+    Variable cond : condition.
+
     (* Run this command on every matching row. *)
     Variable body : (vals -> HProp) -> chunk.
     (* The argument to [body] is an invariant to preserve. *)
+
+    (* Look up a column by name. *)
+    Fixpoint resolve (sch : schema) (x : string) : option nat :=
+      match sch with
+        | nil => None
+        | y :: sch => if string_dec y x then Some 0
+          else match resolve sch x with
+                 | None => None
+                 | Some n => Some (S n)
+               end
+      end.
+
+    Definition exps : condition -> list exp := map (@snd _ _).
+
+    Section compileEquality.
+      (* One field test, storing Boolean result in "matched" *)
+      Definition compileEquality (e : equality) : chunk :=
+        match resolve sch (fst e) with
+          | None => Fail
+          | Some offset =>
+            "tmp" <- data;;
+            "ibuf" <-* "tmp";;
+            "ilen" <-* "tmp" + 4;;
+
+            Assert [Al bs, Al a : A, Al head, Al done, Al remaining, Al rcols, Al rbs,
+              PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+                * [| inputOk V (exps cond) |]
+                * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+                * rows sch head remaining * rows sch head done * invPre a V
+                * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
+                * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+                * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
+                * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
+                * [| freeable (V data) (2 + length sch + length sch) |]
+                * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (length rbs) |]
+                * [| natToW offset < natToW (length (posl rcols)) |]%word
+              POST[R] array8 bs (V "buf") * invPost a V R];;
+
+            "tmp" <- data + 8;;
+            "ipos" <-* "tmp" + (4 * offset)%nat;;
+
+            Assert [Al bs, Al a : A, Al head, Al done, Al remaining, Al rcols, Al rbs,
+              PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+                * [| inputOk V (exps cond) |]
+                * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+                * rows sch head remaining * rows sch head done * invPre a V
+                * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
+                * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+                * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
+                * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
+                * [| freeable (V data) (2 + length sch + length sch) |]
+                * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (length rbs) |]
+                * [| V "ipos" = Array.selN (posl rcols) offset |]
+                * [| natToW offset < natToW (length (lenl rcols)) |]%word
+              POST[R] array8 bs (V "buf") * invPost a V R];;
+
+            "tmp" <- data + 8;;
+            "tmp" <- "tmp" + (length sch * 4)%nat;;
+            "tmp" <-* "tmp" + (4 * offset)%nat;;
+
+            Assert [Al bs, Al a : A, Al head, Al done, Al remaining, Al rcols, Al rbs,
+              PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+                * [| inputOk V (exps cond) |]
+                * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+                * rows sch head remaining * rows sch head done * invPre a V
+                * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
+                * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+                * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
+                * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
+                * [| freeable (V data) (2 + length sch + length sch) |]
+                * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (length rbs) |]
+                * [| V "ipos" = Array.selN (posl rcols) offset |]
+                * [| V "tmp" = Array.selN (lenl rcols) offset |]
+              POST[R] array8 bs (V "buf") * invPost a V R];;
+
+            match snd e with
+              | Const s =>
+                If ("tmp" <> String.length s) {
+                  (* Field value has wrong length to match. *)
+                  "matched" <- 0
+                } else {
+                  StringEq "ibuf" "ilen" "ipos" "matched" s
+                  (fun (a_bs : A * list B) V => array8 (snd a_bs) (V "buf")
+                    * [| length (snd a_bs) = wordToNat (V "len") |]
+                    * [| inputOk V (exps cond) |]
+                    * Ex head, Ex done, Ex remaining, Ex rcols,
+                      [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw)
+                      * sll (V data :: remaining) (V rw)
+                      * rows sch head remaining * rows sch head done
+                      * invPre (fst a_bs) V
+                      * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
+                      * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4))
+                      * [| length rcols = length sch |]
+                      * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
+                      * [| freeable (V data) (2 + length sch + length sch) |]
+                      * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
+                      * [| V "ipos" = Array.selN (posl rcols) offset |])%Sep
+                  (fun _ a_bs V R => array8 (snd a_bs) (V "buf") * invPost (fst a_bs) V R)%Sep
+                }
+              | Input pos len =>
+                If ("tmp" <> len) {
+                  "matched" <- 0
+                } else {
+                  "matched" <-- Call "array8"!"equal"("ibuf", "ipos", "buf", pos, len)
+                  [Al bs, Al a : A, Al head, Al done, Al remaining,
+                    PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+                      * [| inputOk V (exps cond) |]
+                      * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw)
+                      * sll (V data :: remaining) (V rw)
+                      * rows sch head remaining * rows sch head done * row sch (V data) * invPre a V
+                    POST[R] array8 bs (V "buf") * invPost a V R]
+                }
+            end
+        end%SP.
+
+      Variable mn : string.
+      Variable im : LabelMap.t assert.
+      Variable H : importsGlobal im.
+      Variable ns : list string.
+      Variable res : nat.
+
+      Definition wfEquality s (e : equality) :=
+        In (fst e) s /\ wfExp ns (snd e).
+      Definition wfEqualities s := List.Forall (wfEquality s).
+
+      Definition eqinv' := Al bs, Al a : A, Al head, Al done, Al remaining,
+        PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+          * [| inputOk V (exps cond) |]
+          * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+          * rows sch head remaining * rows sch head done * row sch (V data) * invPre a V
+        POST[R] array8 bs (V "buf") * invPost a V R.
+
+      Definition eqinv := eqinv' true (fun w => w).
+
+      Hypothesis not_rp : ~In "rp" ns.
+      Hypothesis included : incl baseVars ns.
+      Hypothesis reserved : (res >= 10)%nat.
+      Hypothesis wellFormed : wfEqualities sch cond.
+
+      Hypothesis weakenPre : (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+      -> invPre a V ===> invPre a V').
+
+      Hypothesis weakenPost : (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+      -> invPost a V R = invPost a V' R).
+
+      Lemma resolve_ok : forall e s,
+        wfEquality s e
+        -> exists offset, resolve s (fst e) = Some offset
+          /\ (offset < length s)%nat.
+        unfold wfEquality; induction s; simpl; intuition subst;
+          match goal with
+            | [ |- context[if ?E then _ else _] ] => destruct E
+          end; intuition eauto.
+        destruct H1; intuition idtac.
+        rewrite H3; eauto.
+      Qed.
+
+      Hypothesis matched_rw : "matched" <> rw.
+      Hypothesis matched_data : "matched" <> data.
+
+      (*Lemma compileEquality_post : forall e pre,
+        wfEquality sch e
+        -> (forall specs st,
+          interp specs (pre st)
+          -> interp specs (eqinv ns res st))
+        -> forall specs st,
+          interp specs (Postcondition (toCmd (compileEquality e) mn (im := im) H ns res pre) st)
+          -> interp specs (eqinv ns res st).
+        unfold compileEquality; intros.
+        match goal with
+          | [ H : _ |- _ ] => destruct (resolve_ok H); intuition idtac; destruct H
+        end.
+        match goal with
+          | [ H : resolve _ _ = _ |- _ ] => rewrite H in *
+        end.
+        destruct e as [ ? [ ] ]; simpl in *; intuition idtac.
+        t.
+        t.
+      Qed.*)
+
+      Hypothesis equal : "array8"!"equal" ~~ im ~~> ArrayOps.equalS.
+
+      Hypothesis data_rp : data <> "rp".
+      Hypothesis data_ibuf : data <> "ibuf".
+      Hypothesis data_ipos : data <> "ipos".
+      Hypothesis data_ilen : data <> "ilen".
+      Hypothesis data_tmp : data <> "tmp".
+      Hypothesis data_ns : In data ns.
+
+      Hypothesis rw_rp : rw <> "rp".
+      Hypothesis rw_ibuf : rw <> "ibuf".
+      Hypothesis rw_ipos : rw <> "ipos".
+      Hypothesis rw_ilen : rw <> "ilen".
+      Hypothesis rw_tmp : rw <> "tmp".
+
+      Hypothesis goodSize_sch : goodSize (length sch).
+
+      Lemma length_posl : forall ls, length (posl ls) = length ls.
+        clear; induction ls; simpl; intuition.
+      Qed.
+
+      Lemma length_lenl : forall ls, length (lenl ls) = length ls.
+        clear; induction ls; simpl; intuition.
+      Qed.
+
+      Lemma length_match : forall x (ls : list (W * W)),
+        (x < length sch)%nat
+        -> length ls = length sch
+        -> natToW x < natToW (Datatypes.length ls).
+        generalize goodSize_sch; clear; intros.
+        pre_nomega.
+        rewrite wordToNat_natToWord_idempotent.
+        rewrite wordToNat_natToWord_idempotent.
+        congruence.
+        rewrite H0; assumption.
+        change (goodSize x); eapply goodSize_weaken; eauto.
+      Qed.
+      
+      Lemma length_match_posl : forall x ls,
+        (x < length sch)%nat
+        -> length ls = length sch
+        -> natToW x < natToW (Datatypes.length (posl ls)).
+        intros; rewrite length_posl; auto using length_match.
+      Qed.
+
+      Lemma length_match_lenl : forall x ls,
+        (x < length sch)%nat
+        -> length ls = length sch
+        -> natToW x < natToW (Datatypes.length (lenl ls)).
+        intros; rewrite length_lenl; auto using length_match.
+      Qed.
+
+      Hint Immediate length_match_posl length_match_lenl.
+
+      Lemma selN_col : forall x ls,
+        (x < length sch)%nat
+        -> Array.sel ls (natToW x) = selN ls x.
+        generalize goodSize_sch; clear; unfold Array.sel; intros; f_equal.
+        apply wordToNat_natToWord_idempotent.
+        change (goodSize x).
+        eapply goodSize_weaken; eauto.
+      Qed.
+
+      Hint Immediate selN_col.
+
+      Lemma wfEqualities_wfExps : forall c,
+        wfEqualities sch c
+        -> wfExps ns (exps c).
+        unfold wfExps; clear; induction c; inversion 1; subst; simpl; intuition; hnf in *;
+          constructor; tauto.
+      Qed.
+
+      Hint Immediate wfEqualities_wfExps.
+
+      Lemma inBounds_selN' : forall len cols,
+        inBounds len cols
+        -> forall col, (col < length cols)%nat
+          -> (wordToNat (selN (posl cols) col) + wordToNat (selN (lenl cols) col) <= wordToNat len)%nat.
+        clear; induction cols; inversion 1; simpl; intuition; destruct col; intuition.
+      Qed.
+
+      Lemma inBounds_selN : forall len cols,
+        inBounds len cols
+        -> forall col a b c, a = selN (posl cols) col
+          -> b = selN (lenl cols) col
+          -> c = wordToNat len
+          -> (col < length cols)%nat
+          -> (wordToNat a + wordToNat b <= c)%nat.
+        intros; subst; eauto using inBounds_selN'.
+      Qed.
+
+      Hint Extern 1 (_ + _ <= _)%nat =>
+        eapply inBounds_selN; try eassumption; (cbv beta; congruence).
+
+      Lemma weakened_bound : forall pos cols x len,
+        inBounds len cols
+        -> pos = selN (posl cols) x
+        -> (x < length cols)%nat
+        -> pos <= len.
+        clear; intros; subst.
+        eapply inBounds_selN in H; try (reflexivity || eassumption).
+        nomega.
+      Qed.
+
+      Hint Extern 1 (_ <= _) => eapply weakened_bound; try eassumption; (cbv beta; congruence).
+
+      Lemma compileEquality_vcs : forall e pre,
+        wfEquality sch e
+        -> (forall specs st,
+          interp specs (pre st)
+          -> interp specs (eqinv ns res st))
+        -> vcs (VerifCond (toCmd (compileEquality e) mn (im := im) H ns res pre)).
+        unfold compileEquality; intros.
+        match goal with
+          | [ H : _ |- _ ] => destruct (resolve_ok H); intuition idtac; destruct H
+        end.
+        match goal with
+          | [ H : resolve _ _ = _ |- _ ] => rewrite H in *
+        end.
+        wrap0.
+
+        Focus 12.
+
+        destruct e as [ ? [ ] ]; simpl in *; intuition idtac.
+        
+        repeat match goal with
+                 | [ |- vcs _ ] => constructor
+               end; intros.
+
+        t.
+        t.
+
+        pre.
+        prep.
+        evalu.
+        my_descend.
+        my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+
+        repeat match goal with
+                 | [ |- vcs _ ] => constructor
+               end; intros.
+
+        (* Something bizarre is happening here, with [destruct] not clearing a hypothesis
+         * within [propxFo]. *)
+        apply simplify_fwd in H24.
+        repeat match goal with
+                 | [ H : simplify _ (Ex x, _) _ |- _ ] => destruct H
+               end.
+        apply simplify_bwd in H24.
+        pre.
+        prep.
+        evalu.
+
+        t.
+        t.
+
+        pre.
+        prep.
+        evalu.
+        my_descend.
+        my_step.
+        5: my_step.
+        eauto.
+        eauto.
+
+        eapply use_inputOk; eauto.
+        (* Glurgh.  Needs a new hypothesis saying that this equality belongs to [cond]. *)
+        admit.
+        eauto.
+        eauto.
+        my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+
+        t.
+
+
+
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+        t.
+
+        pre.
+        prep.
+        evalu.
+        my_descend.
+        my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+        my_descend; my_step.
+      Qed.        
+    End compileEquality.
 
     Definition Select' : chunk := (
       rw <-* tptr;;
@@ -751,9 +1175,13 @@ Section invariants.
     Notation SelectVcs := (fun im ns res =>
       (~In "rp" ns) :: incl svars ns :: (rw <> "rp")%type :: (data <> "rp")%type
       :: (rw <> data)%type
-      :: (forall a V V', (forall x, x <> rw -> x <> data -> sel V x = sel V' x)
+      :: (forall a V V', (forall x, x <> rw -> x <> data
+        -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
         -> invPre a V ===> invPre a V')
-      :: (forall a V V' R, (forall x, x <> rw -> x <> data -> sel V x = sel V' x)
+      :: (forall a V V' R, (forall x, x <> rw -> x <> data
+        -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
         -> invPost a V R = invPost a V' R)
       :: (forall inv pre mn H,
         (forall specs st, interp specs (pre st)
@@ -762,6 +1190,22 @@ Section invariants.
       :: (forall specs inv pre mn H st,
         interp specs (Postcondition (toCmd (body inv) mn (im := im) H ns res pre) st)
         -> interp specs (spost inv true (fun w => w) ns res st))
+      :: "array8"!"equal" ~~ im ~~> ArrayOps.equalS
+      :: (res >= 10)%nat.
+      :: wfEqualities sch cond.
+      :: ("matched" <> rw)%type
+      :: ("matched" <> data)%type
+      Hypothesis data_ibuf : data <> "ibuf".
+      Hypothesis data_ipos : data <> "ipos".
+      Hypothesis data_ilen : data <> "ilen".
+      Hypothesis data_tmp : data <> "tmp".
+      Hypothesis data_ns : In data ns.
+
+      Hypothesis rw_rp : rw <> "rp".
+      Hypothesis rw_ibuf : rw <> "ibuf".
+      Hypothesis rw_ipos : rw <> "ipos".
+      Hypothesis rw_ilen : rw <> "ilen".
+      Hypothesis rw_tmp : rw <> "tmp".
       :: nil).
 
     Definition Select : chunk.
