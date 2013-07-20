@@ -539,7 +539,27 @@ Section invariants.
     repeat rewrite <- H1 by (simpl; tauto); assumption.
   Qed.
 
-  Hint Extern 2 (inputOk _ _) => eapply inputOk_weaken; try eassumption; [ simpl; intuition descend ].
+  (* We will support garden-variety conjunctive queries, matching column values against expressions. *)
+  Definition equality := (string * exp)%type.
+  Definition condition := list equality.
+
+  Definition exps : condition -> list exp := map (@snd _ _).
+
+  Definition wfEquality ns s (e : equality) :=
+    In (fst e) s /\ wfExp ns (snd e).
+  Definition wfEqualities ns s := List.Forall (wfEquality ns s).
+
+  Lemma wfEqualities_wfExps : forall ns c,
+    wfEqualities ns sch c
+    -> wfExps ns (exps c).
+    unfold wfExps; clear; induction c; inversion 1; subst; simpl; intuition; hnf in *;
+      constructor; tauto.
+  Qed.
+
+  Hint Immediate wfEqualities_wfExps.
+
+  Hint Extern 2 (inputOk _ _) => eapply inputOk_weaken; try eassumption;
+    try (apply wfEqualities_wfExps; eassumption); [ simpl; intuition descend ].
 
   Lemma roundTrip_2 : wordToNat (natToW 2) = 2.
     auto.
@@ -567,11 +587,7 @@ Section invariants.
                  | [ |- context[V ?X] ] => change (V X) with (sel V X)
                  | [ |- context[V' ?X] ] => change (V' X) with (sel V' X)
                end; repeat rewrite H by congruence;
-        clear_fancy; solve [ sepLemma;
-          eapply inputOk_weaken; eauto 1; [
-            match goal with
-              | [ H : forall x : string, _ |- _ ] => intros; apply H; simpl in *; intuition congruence
-            end ] ]
+        clear_fancy; sepLemma
       | [ V : vals, V' : vals, H : forall x : string, _ |- _ = _ ] =>
         specify;
         repeat match goal with
@@ -703,10 +719,6 @@ Section invariants.
   (** * Iterating over matching rows of a table *)
 
   Section Select.
-    (* We will support garden-variety conjunctive queries, matching column values against expressions. *)
-    Definition equality := (string * exp)%type.
-    Definition condition := list equality.
-
     (* Store a pointer to the current linked list node and actual row data, respectively,
      * in these variables. *)
     Variables rw data : string.
@@ -728,8 +740,6 @@ Section invariants.
                  | Some n => Some (S n)
                end
       end.
-
-    Definition exps : condition -> list exp := map (@snd _ _).
 
     Section compileEquality.
       (* One field test, storing Boolean result in "matched" *)
@@ -838,10 +848,6 @@ Section invariants.
       Variable ns : list string.
       Variable res : nat.
 
-      Definition wfEquality s (e : equality) :=
-        In (fst e) s /\ wfExp ns (snd e).
-      Definition wfEqualities s := List.Forall (wfEquality s).
-
       Definition eqinv' := Al bs, Al a : A, Al head, Al done, Al remaining,
         PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
           * [| inputOk V (exps cond) |]
@@ -854,7 +860,7 @@ Section invariants.
       Hypothesis not_rp : ~In "rp" ns.
       Hypothesis included : incl baseVars ns.
       Hypothesis reserved : (res >= 10)%nat.
-      Hypothesis wellFormed : wfEqualities sch cond.
+      Hypothesis wellFormed : wfEqualities ns sch cond.
 
       Hypothesis weakenPre : (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
         -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
@@ -865,7 +871,7 @@ Section invariants.
       -> invPost a V R = invPost a V' R).
 
       Lemma resolve_ok : forall e s,
-        wfEquality s e
+        wfEquality ns s e
         -> exists offset, resolve s (fst e) = Some offset
           /\ (offset < length s)%nat.
         unfold wfEquality; induction s; simpl; intuition subst;
@@ -879,8 +885,8 @@ Section invariants.
       Hypothesis matched_rw : "matched" <> rw.
       Hypothesis matched_data : "matched" <> data.
 
-      (*Lemma compileEquality_post : forall e pre,
-        wfEquality sch e
+      Lemma compileEquality_post : forall e pre,
+        wfEquality ns sch e
         -> (forall specs st,
           interp specs (pre st)
           -> interp specs (eqinv ns res st))
@@ -895,9 +901,9 @@ Section invariants.
           | [ H : resolve _ _ = _ |- _ ] => rewrite H in *
         end.
         destruct e as [ ? [ ] ]; simpl in *; intuition idtac.
-        t.
-        t.
-      Qed.*)
+        v.
+        v.
+      Qed.
 
       Hypothesis equal : "array8"!"equal" ~~ im ~~> ArrayOps.equalS.
 
@@ -964,15 +970,6 @@ Section invariants.
 
       Hint Immediate selN_col.
 
-      Lemma wfEqualities_wfExps : forall c,
-        wfEqualities sch c
-        -> wfExps ns (exps c).
-        unfold wfExps; clear; induction c; inversion 1; subst; simpl; intuition; hnf in *;
-          constructor; tauto.
-      Qed.
-
-      Hint Immediate wfEqualities_wfExps.
-
       Lemma inBounds_selN' : forall len cols,
         inBounds len cols
         -> forall col, (col < length cols)%nat
@@ -1005,8 +1002,19 @@ Section invariants.
 
       Hint Extern 1 (_ <= _) => eapply weakened_bound; try eassumption; (cbv beta; congruence).
 
+      Hint Resolve use_inputOk.
+
+      Lemma In_exps : forall s e c,
+        In (s, e) c
+        -> In e (exps c).
+        clear; induction c; simpl; intuition (subst; auto).
+      Qed.
+
+      Hint Immediate In_exps.
+
       Lemma compileEquality_vcs : forall e pre,
-        wfEquality sch e
+        wfEquality ns sch e
+        -> In e cond
         -> (forall specs st,
           interp specs (pre st)
           -> interp specs (eqinv ns res st))
@@ -1020,7 +1028,17 @@ Section invariants.
         end.
         wrap0.
 
-        Focus 12.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
 
         destruct e as [ ? [ ] ]; simpl in *; intuition idtac.
         
@@ -1028,34 +1046,23 @@ Section invariants.
                  | [ |- vcs _ ] => constructor
                end; intros.
 
-        t.
-        t.
-
-        pre.
-        prep.
-        evalu.
-        my_descend.
-        my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
+        v.
 
         repeat match goal with
                  | [ |- vcs _ ] => constructor
@@ -1063,117 +1070,147 @@ Section invariants.
 
         (* Something bizarre is happening here, with [destruct] not clearing a hypothesis
          * within [propxFo]. *)
-        apply simplify_fwd in H24.
+        apply simplify_fwd in H25.
         repeat match goal with
                  | [ H : simplify _ (Ex x, _) _ |- _ ] => destruct H
                end.
-        apply simplify_bwd in H24.
-        pre.
-        prep.
-        evalu.
+        apply simplify_bwd in H25.
+        v.
 
-        t.
-        t.
+        v.
+        v.
+        v.
+        v.
+      Qed.
 
-        pre.
-        prep.
-        evalu.
-        my_descend.
-        my_step.
-        5: my_step.
-        eauto.
-        eauto.
+      Fixpoint compileEqualities (es : condition) : chunk :=
+        match es with
+          | nil => "matched" <- 1
+          | e :: es' =>
+            compileEquality e;;
+            If ("matched" = 0) {
+              Skip
+            } else {
+              compileEqualities es'
+            }
+        end%SP.
 
-        eapply use_inputOk; eauto.
-        (* Glurgh.  Needs a new hypothesis saying that this equality belongs to [cond]. *)
-        admit.
-        eauto.
-        eauto.
-        my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
+      Lemma wfEqualities_inv1 : forall ns sch e es,
+        wfEqualities ns sch (e :: es)
+        -> wfEquality ns sch e.
+        inversion 1; auto.
+      Qed.
 
-        t.
+      Lemma wfEqualities_inv2 : forall ns sch e es,
+        wfEqualities ns sch (e :: es)
+        -> wfEqualities ns sch es.
+        inversion 1; auto.
+      Qed.
 
+      Hint Immediate wfEqualities_inv1 wfEqualities_inv2.
 
+      Lemma compileEqualities_post : forall es pre,
+        wfEqualities ns sch es
+        -> (forall specs st,
+          interp specs (pre st)
+          -> interp specs (eqinv ns res st))
+        -> forall specs st,
+          interp specs (Postcondition (toCmd (compileEqualities es) mn (im := im) H ns res pre) st)
+          -> interp specs (eqinv ns res st).
+        induction es; simpl; intuition idtac;
+          (pre;
+            repeat (match goal with
+                      | [ H : interp _ (Postcondition (toCmd (compileEquality _) _ _ _ _ _) _) |- _ ] =>
+                        apply compileEquality_post in H
+                      | [ IH : forall pre : _ -> _, _, H : interp _ (Postcondition _ _) |- _ ] =>
+                        apply IH in H
+                    end; eauto; pre); t).
+      Qed.
 
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-        t.
-
-        pre.
-        prep.
-        evalu.
-        my_descend.
-        my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-        my_descend; my_step.
-      Qed.        
+      Lemma compileEqualities_vcs : forall es pre,
+        wfEqualities ns sch es
+        -> incl es cond
+        -> (forall specs st,
+          interp specs (pre st)
+          -> interp specs (eqinv ns res st))
+        -> vcs (VerifCond (toCmd (compileEqualities es) mn (im := im) H ns res pre)).
+        induction es; intros; try match goal with
+                                    | [ H : incl _ cond |- _ ] => apply incl_peel in H
+                                  end; wrap0;
+        (repeat (match goal with
+                   | _ => apply compileEquality_vcs
+                   | [ H : interp _ (Postcondition (toCmd (compileEquality _) _ _ _ _ _) _) |- _ ] =>
+                     apply compileEquality_post in H
+                   | [ IH : forall pre : _ -> _, _ |- vcs _ ] =>
+                     apply IH
+                 end; eauto; pre); t).
+      Qed.
     End compileEquality.
 
     Definition Select' : chunk := (
       rw <-* tptr;;
 
-      [Al a : A, Al head, Al done, Al remaining,
-        PRE[V] tptr =*> head * lseg done head (V rw) * sll remaining (V rw)
+      [Al bs, Al a : A, Al head, Al done, Al remaining,
+        PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
+          * tptr =*> head * lseg done head (V rw) * sll remaining (V rw)
           * rows sch head done * rows sch head remaining * invPre a V
-        POST[R] invPost a V R]
+        POST[R] array8 bs (V "buf") * invPost a V R]
       While (rw <> 0) {
         data <-* rw;;
 
-        Assert [Al a : A, Al head, Al done, Al remaining,
-          PRE[V] [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
+        Assert [Al bs, Al a : A, Al head, Al done, Al remaining,
+          PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
+            * [| V rw <> 0 |] * tptr =*> head * lseg done head (V rw) * sll (V data :: remaining) (V rw)
             * rows sch head remaining * rows sch head done * row sch (V data) * invPre a V
-          POST[R] invPost a V R];;
+          POST[R] array8 bs (V "buf") * invPost a V R];;
 
-        body (fun V => Ex head, Ex done, Ex remaining, Ex p,
-          tptr =*> head * lseg done head (V rw)
-          * (V rw ==*> V data, p) * sll remaining p
-          * rows sch head done * rows sch head remaining
-          * [| freeable (V rw) 2 |] * [| V rw <> 0 |])%Sep;;
+        compileEqualities cond;;
+
+        If ("matched" = 0) {
+          Skip
+        } else {
+          body (fun V => Ex head, Ex done, Ex remaining, Ex p,
+            tptr =*> head * lseg done head (V rw)
+            * (V rw ==*> V data, p) * sll remaining p
+            * rows sch head done * rows sch head remaining
+            * [| freeable (V rw) 2 |] * [| V rw <> 0 |])%Sep
+        };;
+
         rw <-* rw + 4;;
 
-        Assert [Al a : A, Al head, Al done, Al remaining,
-          PRE[V] tptr =*> head * lseg_append (done ++ V data :: nil) head (V rw) * sll remaining (V rw)
+        Assert [Al bs, Al a : A, Al head, Al done, Al remaining,
+          PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
+            * tptr =*> head * lseg_append (done ++ V data :: nil) head (V rw) * sll remaining (V rw)
             * rows sch head (done ++ V data :: nil) * rows sch head remaining * invPre a V
-          POST[R] invPost a V R]
+          POST[R] array8 bs (V "buf") * invPost a V R]
       }
     )%SP.
 
     Definition sinvar :=
-      Al a : A,
-      PRE[V] table sch tptr * invPre a V
-      POST[R] invPost a V R.
+      Al bs, Al a : A,
+      PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
+        * table sch tptr * invPre a V
+      POST[R] array8 bs (V "buf") * invPost a V R.
 
     Definition spost inv :=
-      Al a : A,
-      PRE[V] row sch (V data) * inv V * invPre a V
-      POST[R] invPost a V R.
+      Al bs, Al a : A,
+      PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
+        * row sch (V data) * inv V * invPre a V
+      POST[R] array8 bs (V "buf") * invPost a V R.
 
     Notation svars := (rw :: data :: nil).
 
+    Definition noOverlapExp (e : exp) :=
+      match e with
+        | Const _ => True
+        | Input pos len => pos <> rw /\ pos <> data /\ len <> rw /\ len <> data
+      end.
+
+    Definition noOverlapExps := List.Forall noOverlapExp.
+
     Notation SelectVcs := (fun im ns res =>
       (~In "rp" ns) :: incl svars ns :: (rw <> "rp")%type :: (data <> "rp")%type
+      :: incl baseVars ns
       :: (rw <> data)%type
       :: (forall a V V', (forall x, x <> rw -> x <> data
         -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
@@ -1191,30 +1228,75 @@ Section invariants.
         interp specs (Postcondition (toCmd (body inv) mn (im := im) H ns res pre) st)
         -> interp specs (spost inv true (fun w => w) ns res st))
       :: "array8"!"equal" ~~ im ~~> ArrayOps.equalS
-      :: (res >= 10)%nat.
-      :: wfEqualities sch cond.
+      :: (res >= 10)%nat
+      :: wfEqualities ns sch cond
       :: ("matched" <> rw)%type
       :: ("matched" <> data)%type
-      Hypothesis data_ibuf : data <> "ibuf".
-      Hypothesis data_ipos : data <> "ipos".
-      Hypothesis data_ilen : data <> "ilen".
-      Hypothesis data_tmp : data <> "tmp".
-      Hypothesis data_ns : In data ns.
-
-      Hypothesis rw_rp : rw <> "rp".
-      Hypothesis rw_ibuf : rw <> "ibuf".
-      Hypothesis rw_ipos : rw <> "ipos".
-      Hypothesis rw_ilen : rw <> "ilen".
-      Hypothesis rw_tmp : rw <> "tmp".
+      :: (data <> "ibuf")%type
+      :: (data <> "ipos")%type
+      :: (data <> "ilen")%type
+      :: (data <> "tmp")%type
+      :: (data <> "len")%type
+      :: (data <> "buf")%type
+      :: In data ns
+      :: (rw <> "rp")%type
+      :: (rw <> "ibuf")%type
+      :: (rw <> "ipos")%type
+      :: (rw <> "ilen")%type
+      :: (rw <> "tmp")%type
+      :: (rw <> "len")%type
+      :: (rw <> "buf")%type
+      :: goodSize (length sch)
+      :: noOverlapExps (exps cond)
       :: nil).
+
+    Hint Immediate incl_refl.
+
+    Theorem Forall_impl3 : forall A (P Q R S : A -> Prop) ls,
+      List.Forall P ls
+      -> List.Forall Q ls
+      -> List.Forall R ls
+      -> (forall x : A, P x -> Q x -> R x -> S x)
+      -> List.Forall S ls.
+      induction 1; inversion 1; inversion 1; auto.
+    Qed.
+
+    Theorem inputOk_weaken_params : forall ns V V' es,
+      inputOk V es
+      -> noOverlapExps es
+      -> wfExps ns es
+      -> (forall x, x <> rw -> x <> data -> sel V x = sel V' x)
+      -> rw <> "len"
+      -> data <> "len"
+      -> inputOk V' es.
+      intros; eapply Forall_impl3; [ apply H | apply H0 | apply H1 | ].
+      intro e; destruct e; simpl; intuition idtac.
+      repeat rewrite <- H2 by (simpl; congruence); assumption.
+    Qed.
+
+    Hint Extern 2 (inputOk _ _) => eapply inputOk_weaken_params; try eassumption;
+      try (apply wfEqualities_wfExps; eassumption); [ descend ].
+
+    Hint Resolve compileEqualities_vcs.
+
+    Ltac q :=
+      repeat match goal with
+               | [ H : interp _ _, _ : context[Binop _ _ Plus (immInR (natToW 4) _)] |- _ ] =>
+                 apply compileEqualities_post in H; auto; pre; prep; evalu;
+                   match goal with
+                     | [ _ : _ = _ :: ?ls |- _ ] => do 4 eexists; exists ls
+                   end
+               | [ H : interp _ _ |- _ ] => apply compileEqualities_post in H; auto
+               | [ H : _ |- vcs _ ] => apply H; pre
+             end; t.
 
     Definition Select : chunk.
       refine (WrapC Select'
         sinvar
         sinvar
         SelectVcs
-        _ _); abstract (wrap0; abstract t).
-    Defined.
+        _ _); abstract (wrap0; abstract q).
+    Qed.
   End Select.
 
 
@@ -1241,7 +1323,7 @@ Section invariants.
             * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
             * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
             * [| inBounds (V "ilen") (firstn col cols) |] * [| inputOk V es |] * invPre (snd p) V)%Sep
-          (fun (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
+          (fun _ (p : list B * A) V R => array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
         | Input start len =>
           "tmp" <- "ilen" - "ipos";;
           If ("tmp" < len) {
