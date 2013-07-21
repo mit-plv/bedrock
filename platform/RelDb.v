@@ -727,8 +727,9 @@ Section invariants.
     Variable cond : condition.
 
     (* Run this command on every matching row. *)
-    Variable body : (vals -> HProp) -> chunk.
-    (* The argument to [body] is an invariant to preserve. *)
+    Variable body : (W -> W -> HProp) -> chunk.
+    (* The argument to [body] is an invariant to preserve.
+     * Its inputs are the values of [rw] and [data]. *)
 
     (* Look up a column by name. *)
     Fixpoint resolve (sch : schema) (x : string) : option nat :=
@@ -1169,11 +1170,11 @@ Section invariants.
         If ("matched" = 0) {
           Skip
         } else {
-          body (fun V => Ex head, Ex done, Ex remaining, Ex p,
-            tptr =*> head * lseg done head (V rw)
-            * (V rw ==*> V data, p) * sll remaining p
+          body (fun V_rw V_data => Ex head, Ex done, Ex remaining, Ex p,
+            tptr =*> head * lseg done head V_rw
+            * (V_rw ==*> V_data, p) * sll remaining p
             * rows sch head done * rows sch head remaining
-            * [| freeable (V rw) 2 |] * [| V rw <> 0 |])%Sep
+            * [| freeable V_rw 2 |] * [| V_rw <> 0 |])%Sep
         };;
 
         rw <-* rw + 4;;
@@ -1195,7 +1196,7 @@ Section invariants.
     Definition spost inv :=
       Al bs, Al a : A,
       PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
-        * row sch (V data) * inv V * invPre a V
+        * row sch (V data) * inv (V rw) (V data) * invPre a V
       POST[R] array8 bs (V "buf") * invPost a V R.
 
     Notation svars := (rw :: data :: nil).
