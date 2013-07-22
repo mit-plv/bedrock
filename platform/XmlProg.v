@@ -1,4 +1,5 @@
 Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
+Require Import RelDb.
 
 
 Module Type HIDE.
@@ -26,7 +27,7 @@ Module Type S.
   Parameter ts : tables.
   Parameter pr : program.
   Axiom wellFormed : wf ts pr.
-  Axiom notTooGreedy : (reserved pr <= 40)%nat.
+  Axiom notTooGreedy : (reserved pr <= 38)%nat.
 
   Parameter buf_size : N.
   Axiom buf_size_lower : (buf_size >= 2)%N.
@@ -53,21 +54,41 @@ Definition hints : TacPackage.
   prepare buffer_split_tagged buffer_join_tagged.
 Defined.
 
+Inductive reveal_row : Prop := RevealRow.
+Local Hint Constructors reveal_row.
+
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
                             "sys"!"read" @ [Sys.readS], "sys"!"write" @ [Sys.writeS],
-                            "xml_prog"!"main" @ [XmlLang.mainS ts pr] ]]
+                            "xml_prog"!"main" @ [XmlLang.mainS ts pr],
+                            "malloc"!"malloc" @ [mallocS] ]]
   bmodule "xml_driver" {{
-    bfunctionNoRet "main"("inbuf", "len", "outbuf", "tmp") [mainS]
+    bfunctionNoRet "main"("inbuf", "len", "outbuf", "tmp", "dummy") [mainS]
       "inbuf" <-- Call "buffers"!"bmalloc"(buf_size)
       [PREonly[_, R] db ts * R =?>8 bsize * mallocHeap 0];;
 
       "outbuf" <-- Call "buffers"!"bmalloc"(buf_size)
       [PREonly[V, R] db ts * V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
 
-      [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
+      "tmp" <-- Call "buffers"!"bmalloc"(2)
+      [PREonly[V, R] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize
+        * R =?>8 8 * [| R <> 0 |] * [| freeable R 2 |] * mallocHeap 0];;
+
+      "dummy" <-- Call "malloc"!"malloc"(0, 2)
+      [PREonly[V, R] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize
+        * V "tmp" =?>8 8 * [| V "tmp" <> 0 |] * [| freeable (V "tmp") 2 |]
+        * R =?> 2 * [| R <> 0 |] * [| freeable R 2 |] * mallocHeap 0];;
+
+      "dummy" *<- "tmp";;
+      "dummy"+4 *<- 8;;
+
+      Note [reveal_row];;
+
+      [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize
+        * row nil (V "dummy") * mallocHeap 0]
       While (1 = 1) {
         "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
-        [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
+        [PREonly[V] db ts * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize
+          * row nil (V "dummy") * mallocHeap 0];;
 
         If ("len" > bsize) {
           Call "sys"!"abort"()
@@ -75,43 +96,43 @@ Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [a
           Fail
         } else {
           Assert [PREonly[V] db ts * buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
-            * V "outbuf" =?>8 bsize * mallocHeap 0
+            * V "outbuf" =?>8 bsize * row nil (V "dummy") * mallocHeap 0
             * [| wordToNat (V "len") <= bsize |]%nat ];;
 
           Assert [PREonly[V] db ts * V "inbuf" =?>8 wordToNat (V "len")
-            * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
+            * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len")) * row nil (V "dummy")
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
           Note [unfold_here];;
 
-          "tmp" <-- Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
+          "tmp" <-- Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize, "dummy")
           [PREonly[V, R] db ts * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
-            * V "outbuf" =?>8 bsize
+            * V "outbuf" =?>8 bsize * row nil (V "dummy")
             * [| R <= natToW bsize |]%word * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] db ts * buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
+          Assert [PREonly[V] db ts * buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize * row nil (V "dummy")
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
 
-          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize * row nil (V "dummy")
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
 
-          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize * row nil (V "dummy")
             * buffer_splitAt (wordToNat (V "tmp")) (V "outbuf") bsize * mallocHeap 0
             * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize * row nil (V "dummy")
             * V "outbuf" =?>8 wordToNat (V "tmp")
             * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
             * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
           Call "sys"!"write"(1, "outbuf", "tmp")
-          [PREonly[V] db ts * V "inbuf" =?>8 bsize
+          [PREonly[V] db ts * V "inbuf" =?>8 bsize * row nil (V "dummy")
             * V "outbuf" =?>8 wordToNat (V "tmp")
             * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
             * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize
+          Assert [PREonly[V] db ts * V "inbuf" =?>8 bsize * row nil (V "dummy")
             * buffer_joinAt (wordToNat (V "tmp")) (V "outbuf") bsize
             * mallocHeap 0]
         }
@@ -136,9 +157,8 @@ Lemma buf_size_lower' : natToW 2 <= NToW buf_size.
   rewrite NToWord_nat.
   pre_nomega.
   rewrite wordToNat_natToWord_idempotent.
-  change (wordToNat (natToW 2)) with (nat_of_N 2).
-  apply Nge_out.
-  apply buf_size_lower.
+  generalize buf_size_lower.
+  intros; nomega.
   rewrite N2Nat.id.
   apply buf_size_lower''.
 Qed.
@@ -165,14 +185,48 @@ Qed.
 Hint Rewrite bsize_in bsize_roundTrip : sepFormula.
 Hint Rewrite bsize_roundTrip : N.
 
+Hint Extern 1 (_ ?X = 0) =>
+  match type of X with
+    | list ?A => equate X (@nil A); reflexivity
+  end.
+
+Lemma inBounds_nil : forall n, inBounds n nil.
+  constructor.
+Qed.
+
+Hint Immediate inBounds_nil.
+
+Lemma freeable8_8 : forall p n,
+  n = 8
+  -> freeable p 2
+  -> freeable8 p n.
+  intros; subst; eexists; split; eauto; eauto.
+Qed.
+
+Hint Immediate freeable8_8.
+
+Lemma arrays_begone : forall specs P p q,
+  himp specs P (P * (array nil p * array nil q))%Sep.
+  unfold array; sepLemma.
+Qed.
+
+Hint Immediate arrays_begone.
+
 Ltac t :=
   try match goal with
         | [ |- context[unfold_here] ] => unfold buffer; generalize notTooGreedy
-      end; sep hints; auto; nomega.
+      end;
+  match goal with
+    | [ |- context[reveal_row] ] =>
+      unfold buffer; post; evaluate RelDb.hints; descend;
+        match_locals; step RelDb.hints
+    | _ => sep hints; auto; nomega
+  end.
 
 Theorem ok0 : moduleOk m0.
-  vcgen; abstract t.
-Qed.
+Admitted.
+  (*vcgen; abstract t.
+Qed.*)
 
 Section boot.
   Definition heapSize' := Hide.to_nat heapSize.
@@ -295,8 +349,9 @@ Section boot.
   Ltac t := genesis; rewrite natToW_plus; reflexivity.
 
   Theorem okb : moduleOk boot.
-    unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
-  Qed.
+  Admitted.
+    (*unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
+  Qed.*)
 
   Global Opaque heapSize'.
 
@@ -320,8 +375,9 @@ Section boot.
   Definition m3 := link XmlLex.m m2.
   Definition m4 := link Malloc.m m3.
   Definition m5 := link ArrayOps.m m4.
-  Definition m := link (XmlLang.m wellFormed ND goodSchema
-    buf_size_lower' buf_size_upper') m5.
+
+  Definition m := link (XmlLang.m wellFormed buf_size(*ND goodSchema
+    buf_size_lower' buf_size_upper'*)) m5.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.

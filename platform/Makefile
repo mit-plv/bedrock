@@ -15,9 +15,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
            tests/WebServerDriver tests/EchoServerDriver \
            ArrayOps StringOps RelDb RelDbSelect RelDbInsert \
-           XmlLex XmlSearch XmlOutput 
-
-# XmlLang XmlProg tests/XmlTestDriver Xml
+           XmlLex XmlSearch XmlOutput XmlLang XmlProg Xml \
+	   tests/XmlTestDriver tests/XmlTest2Driver
 
 VS      := $(MODULES:%=%.v)
 
