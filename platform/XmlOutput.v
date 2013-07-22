@@ -698,7 +698,7 @@ Section Out.
       abstract solve [ t | proveHimp |
         match goal with
           | [ H : List.Forall _ _ |- _ ] =>
-            eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | auto | | auto ]
+            eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
         end; t ].
     Qed.
   End Out_correct.
@@ -717,8 +717,9 @@ Section Out.
     :: (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
       -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V')
-    :: (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" -> sel V x = sel V' x)
-      -> x <> "matched" -> x <> "res" -> invPost a V R = invPost a V' R)
+    :: (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" ->
+         x <> "matched" -> x <> "res" -> sel V x = sel V' x)
+       -> invPost a V R = invPost a V' R)
     :: (res >= 7)%nat
     :: wf xm
     :: (forall start len, freeVar xm (start, len) -> In (start, len) cdatas)
