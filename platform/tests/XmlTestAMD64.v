@@ -32,7 +32,7 @@ Module M.
     wf.
   Qed.
 
-  Theorem notTooGreedy : (reserved pr <= 40)%nat.
+  Theorem notTooGreedy : (reserved pr <= 38)%nat.
     compute; omega.
   Qed.
 

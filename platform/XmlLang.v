@@ -1315,7 +1315,8 @@ Section compileProgram.
     }}.
 
   Theorem ok : moduleOk m.
-    destruct wellFormed; vcgen;
+  Admitted.
+    (*destruct wellFormed; vcgen;
       (intros; try match goal with
                      | [ H : importsGlobal _ |- _ ] => clear H
                    end; pre).
@@ -1386,6 +1387,6 @@ Section compileProgram.
     u.
     u.
     u.
-  Qed.
+  Qed.*)
 
 End compileProgram.
