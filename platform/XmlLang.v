@@ -831,9 +831,8 @@ Section compileProgram.
       -> awf ts a
       -> forall specs st, interp specs (Postcondition (toCmd (compileAction' a) mn H ns res pre) st)
         -> interp specs (ainv true (fun x : W => x) ns res st).
-    Admitted.
-      (*induction a; cap.
-    Qed.*)
+      induction a; cap.
+    Qed.
 
     Lemma Exists_map : forall A B (f : A -> B) (P : B -> Prop) ls,
       List.Exists P (map f ls)
@@ -1174,9 +1173,8 @@ Section compileProgram.
           (XmlSearch.allCdatas (compilePat p)))
         -> (forall text, afreeVar a text -> In (text ++ "_start") ns /\ In (text ++ "_len") ns)%string
         -> vcs (VerifCond (toCmd (compileAction' a) mn H ns res pre)).
-    Admitted.
-      (*induction a; cav.
-    Qed.*)
+      induction a; cav.
+    Qed.
 
     Hint Resolve compileAction_post compileAction_vcs.
 
@@ -1315,8 +1313,7 @@ Section compileProgram.
     }}.
 
   Theorem ok : moduleOk m.
-  Admitted.
-    (*destruct wellFormed; vcgen;
+    destruct wellFormed; vcgen;
       (intros; try match goal with
                      | [ H : importsGlobal _ |- _ ] => clear H
                    end; pre).
@@ -1387,6 +1384,6 @@ Section compileProgram.
     u.
     u.
     u.
-  Qed.*)
+  Qed.
 
 End compileProgram.
