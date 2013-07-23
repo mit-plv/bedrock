@@ -693,14 +693,17 @@ Section Out.
           -> interp specs (invar cdatas true (fun x => x) ns res st))
         /\ vcs (VerifCond (toCmd (Out' cdatas xm) mn H ns res pre)).
     Admitted.
-      (*induction xm using xml_ind'; (post; try match goal with
-                                                | [ |- vcs (_ :: _) ] => wrap0; try discriminate
-                                              end; deDouble; deSpec; intuition subst);
-      abstract solve [ t | proveHimp |
-        match goal with
-          | [ H : List.Forall _ _ |- _ ] =>
-            eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
-        end; t ].
+    (* Runs out of memory on my laptop :-(
+      induction xm using xml_ind';
+        abstract (post; try match goal with
+                              | [ |- vcs (_ :: _) ] => wrap0; try discriminate
+                            end;
+        abstract (deDouble; deSpec; intuition subst;
+          solve [ t | proveHimp |
+            match goal with
+              | [ H : List.Forall _ _ |- _ ] =>
+                eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
+            end; t ])).
     Qed.*)
   End Out_correct.
 

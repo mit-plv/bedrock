@@ -224,9 +224,8 @@ Ltac t :=
   end.
 
 Theorem ok0 : moduleOk m0.
-Admitted.
-  (*vcgen; abstract t.
-Qed.*)
+  vcgen; abstract t.
+Qed.
 
 Section boot.
   Definition heapSize' := Hide.to_nat heapSize.
@@ -349,9 +348,8 @@ Section boot.
   Ltac t := genesis; rewrite natToW_plus; reflexivity.
 
   Theorem okb : moduleOk boot.
-  Admitted.
-    (*unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
-  Qed.*)
+    unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
+  Qed.
 
   Global Opaque heapSize'.
 
@@ -376,8 +374,8 @@ Section boot.
   Definition m4 := link Malloc.m m3.
   Definition m5 := link ArrayOps.m m4.
 
-  Definition m := link (XmlLang.m wellFormed buf_size(*ND goodSchema
-    buf_size_lower' buf_size_upper'*)) m5.
+  Definition m := link (XmlLang.m wellFormed ND goodSchema
+    buf_size_lower' buf_size_upper') m5.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.
