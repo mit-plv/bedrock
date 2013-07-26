@@ -743,9 +743,9 @@ Section compileProgram.
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
               (Address t) (Schema t) "row" "data" (compileCondition cond)
-              (fun inv =>
-                Out
-                (fun (_ : unit) V => inv (V "row") (V "data")
+              (Out
+                (fun (_ : unit) V =>
+                  RelDbSelect.inv (Address t) (Schema t) (V "row") (V "data")
                   * db (removeTable (Name t) ts) * mallocHeap 0
                   * xmlp (V "len") (V "lex") * row nil (V "dummy")
                   * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep

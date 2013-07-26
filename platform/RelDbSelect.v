@@ -25,9 +25,7 @@ Section Select.
   Variable cond : condition.
 
   (* Run this command on every matching row. *)
-  Variable body : (W -> W -> HProp) -> chunk.
-  (* The argument to [body] is an invariant to preserve.
-   * Its inputs are the values of [rw] and [data]. *)
+  Variable body : chunk.
 
   Section compileEquality.
     (* One field test, storing Boolean result in "matched" *)
@@ -436,6 +434,12 @@ Section Select.
     Qed.
   End compileEquality.
 
+  Definition inv (V_rw V_data : W) := (Ex head, Ex done, Ex remaining, Ex p,
+    tptr =*> head * lseg done head V_rw
+    * (V_rw ==*> V_data, p) * sll remaining p
+    * rows sch head done * rows sch head remaining
+    * [| freeable V_rw 2 |] * [| V_rw <> 0 |])%Sep.
+
   Definition Select' : chunk := (
     rw <-* tptr;;
 
@@ -458,11 +462,7 @@ Section Select.
       If ("matched" = 0) {
         Skip
       } else {
-        body (fun V_rw V_data => Ex head, Ex done, Ex remaining, Ex p,
-          tptr =*> head * lseg done head V_rw
-          * (V_rw ==*> V_data, p) * sll remaining p
-          * rows sch head done * rows sch head remaining
-          * [| freeable V_rw 2 |] * [| V_rw <> 0 |])%Sep
+        body
       };;
 
       rw <-* rw + 4;;
@@ -481,7 +481,7 @@ Section Select.
       * table sch tptr * invPre a V
     POST[R] array8 bs (V "buf") * invPost a V R.
 
-  Definition spost inv :=
+  Definition spost :=
     Al bs, Al a : A,
     PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |] * [| inputOk V (exps cond) |]
       * row sch (V data) * inv (V rw) (V data) * invPre a V
@@ -509,13 +509,13 @@ Section Select.
       -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
-    :: (forall inv pre mn H,
+    :: (forall pre mn H,
       (forall specs st, interp specs (pre st)
-        -> interp specs (spost inv true (fun w => w) ns res st))
-      -> vcs (VerifCond (toCmd (body inv) mn (im := im) H ns res pre)))
-    :: (forall specs inv pre mn H st,
-      interp specs (Postcondition (toCmd (body inv) mn (im := im) H ns res pre) st)
-      -> interp specs (spost inv true (fun w => w) ns res st))
+        -> interp specs (spost true (fun w => w) ns res st))
+      -> vcs (VerifCond (toCmd body mn (im := im) H ns res pre)))
+    :: (forall specs pre mn H st,
+      interp specs (Postcondition (toCmd body mn (im := im) H ns res pre) st)
+      -> interp specs (spost true (fun w => w) ns res st))
     :: "array8"!"equal" ~~ im ~~> ArrayOps.equalS
     :: (res >= 10)%nat
     :: wfEqualities ns sch cond
@@ -576,7 +576,9 @@ Section Select.
                    | [ _ : _ = _ :: ?ls |- _ ] => do 4 eexists; exists ls
                  end
              | [ H : interp _ _ |- _ ] => apply compileEqualities_post in H; auto
-             | [ H : _ |- vcs _ ] => apply H; pre
+             | [ H : _ |- vcs _ ] => apply H; pre; unfold inv
+             | [ H : interp _ (Postcondition (toCmd body _ _ _ _ _) _) |- _ ] =>
+               invoke1; unfold inv in *
            end; t.
 
   Definition Select : chunk.
@@ -587,3 +589,5 @@ Section Select.
       _ _); abstract (wrap0; abstract q).
   Defined.
 End Select.
+
+Global Opaque inv.
