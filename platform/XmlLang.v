@@ -1,4 +1,4 @@
-Require Import Ascii AutoSep Wrap Malloc SinglyLinkedList Bags.
+Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags.
 Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps.
 Require Import RelDb RelDbSelect RelDbInsert.
 
@@ -72,11 +72,10 @@ Inductive action :=
 | SelectOutput (tab : string) (cond : condition) (xm : xml)
 | Seq (a1 a2 : action).
 
-(* A full program: find all matches of a pattern, running an action for each. *)
-Record program := {
-  Pattern : pat;
-  Action : action
-}.
+(* A full program *)
+Inductive program :=
+| Rule (p : pat) (a : action)
+| PSeq (pr1 pr2 : program).
 
 
 (** * Our versions of the auxiliary functions from XmlSearch *)
@@ -214,12 +213,12 @@ Fixpoint afreeVar (a : action) (x : string) : Prop :=
     | Seq a1 a2 => afreeVar a1 x \/ afreeVar a2 x
   end.
 
-Record wf (ts : tables) (pr : program) := {
-  PatternWf : pwf (Pattern pr);
-  ActionWf : awf ts (Action pr);
-  Closed : forall x, afreeVar (Action pr) x
-    -> freeVar (Pattern pr) x
-}.
+Fixpoint wf (ts : tables) (pr : program) : Prop :=
+  match pr with
+    | Rule p a => pwf p /\ awf ts a
+      /\ (forall x, afreeVar a x -> freeVar p x)
+    | PSeq pr1 pr2 => wf ts pr1 /\ wf ts pr2
+  end.
 
 Fixpoint allCdatas_both (p : pat) : list string :=
   match p with
@@ -228,6 +227,24 @@ Fixpoint allCdatas_both (p : pat) : list string :=
     | Tag _ inner => allCdatas_both inner
     | Both p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
     | Ordered p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
+  end.
+
+Fixpoint member (s : string) (ss : list string) : bool :=
+  match ss with
+    | nil => false
+    | s0 :: ss => string_eq s s0 || member s ss
+  end.
+
+Fixpoint addTo (ss1 ss2 : list string) : list string :=
+  match ss1 with
+    | nil => ss2
+    | s :: ss1 => addTo ss1 (if member s ss2 then ss2 else s :: ss2)
+  end.
+
+Fixpoint cdatasOf (pr : program) : list string :=
+  match pr with
+    | Rule p _ => allCdatas_both p
+    | PSeq pr1 pr2 => addTo (cdatasOf pr1) (cdatasOf pr2)
   end.
 
 Fixpoint underscore_free (s : string) : Prop :=
@@ -405,13 +422,13 @@ Section compileProgram.
   Variable ts : tables.
   Variable pr : program.
 
-  Definition numCdatas := length (allCdatas_both (Pattern pr)).
+  Definition numCdatas := length (cdatasOf pr).
   Definition reserved := numCdatas + 26.
 
   Definition preLvars := "lex" :: "res" :: "opos" :: "overflowed"
     :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: "tmp"
     :: "ibuf" :: "row" :: "ilen" :: "ipos" :: "data"
-    :: allCdatas_both (Pattern pr).
+    :: cdatasOf pr.
   Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: "dummy" :: preLvars.
 
   Definition db := starL (fun t => RelDb.table (Schema t) (Address t)).
@@ -428,8 +445,34 @@ Section compileProgram.
 
   Hypothesis wellFormed : wf ts pr.
 
-  Let distinct : NoDup (allCdatas (Pattern pr)).
-    destruct wellFormed; intros; apply wf_NoDup; auto.
+  Lemma string_eq_true : forall s1 s2,
+    string_eq s1 s2 = false -> s1 <> s2.
+    intros; intro; subst; rewrite string_eq_true in *; discriminate.
+  Qed.
+
+  Lemma member_means : forall x ls,
+    if member x ls then In x ls else ~In x ls.
+    induction ls; simpl; intuition.
+    generalize (@string_eq_false x a), (@string_eq_true x a).
+    destruct (string_eq x a); simpl; intuition.
+    destruct (member x ls); eauto.
+    destruct (string_dec x a); subst; auto.
+    apply H in n; discriminate.
+    destruct (member x ls); eauto.
+    intuition.
+  Qed.
+
+  Hint Constructors NoDup.
+
+  Lemma NoDup_addTo : forall ls1 ls2, NoDup ls2
+    -> NoDup (addTo ls1 ls2).
+    induction ls1; simpl; intuition.
+    generalize (member_means a ls2); destruct (member a ls2); intuition.
+  Qed.    
+
+  Let distinct : NoDup (cdatasOf pr).
+    induction pr; simpl in *; intuition
+      auto using allCdatas_NoDup, wf_NoDup, NoDup_addTo.
   Qed.
 
   Ltac xomega := unfold preLvars, reserved, numCdatas; simpl; omega.
@@ -585,7 +628,7 @@ Section compileProgram.
           | [ H : XmlOutput.freeVar _ _, H' : forall start len : string, _ |- _ ] =>
             apply H' in H; post; subst
         end;
-    solve [ hnf; simpl; intuition (subst; try congruence;
+    solve [ hnf; simpl in *; intuition (subst; try congruence;
       eauto using freeVar_compile', freeVar_start, freeVar_len) ].
 
   Ltac pre := try destruct wellFormed;
@@ -1206,11 +1249,162 @@ Section compileProgram.
     Defined.
   End compileAction.
 
+  Section compileProgram.
+    Definition cpinv :=
+      Al bsI, Al bsO, Al ls,
+      PRE[V] db ts * array8 bsI (V "buf") * array8 bsO (V "obuf")
+        * [| length bsI = wordToNat (V "len") |]
+        * [| length bsO = wordToNat (V "olen") |]
+        * row nil (V "dummy") * sll ls (V "stack") * mallocHeap 0
+        * xmlp (V "len") (V "lex")
+        * [| V "opos" <= V "olen" |] * [| stackOk ls (V "len") |]
+      POST[R] db ts * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
+        * [| length bsO' = length bsO |]
+        * row nil (V "dummy")
+        * [| R <= V "olen" |] * mallocHeap 0.
+
+    Infix ";;" := SimpleSeq : SP_scope.    
+
+    Fixpoint compileProgram' (pr : program) : chunk :=
+      match pr with
+        | Rule p a =>
+          Pat (fun bsO V => db ts * array8 bsO (V "obuf")
+            * [| length bsO = wordToNat (V "olen") |]
+            * row nil (V "dummy")
+            * [| V "opos" <= V "olen" |]%word)%Sep
+          (fun bsO V R => db ts * Ex bsO', array8 bsO' (V "obuf")
+            * [| length bsO' = length bsO |]
+            * row nil (V "dummy")
+            * [| R <= V "olen" |]%word)%Sep
+          (compilePat p)
+          (compileAction p a)
+        | PSeq pr1 pr2 =>
+          compileProgram' pr1;;
+          compileProgram' pr2
+      end%SP.
+
+    Lemma compileProgram_post : forall im mn (H : importsGlobal im)
+      ns res pr0 pre,
+      (forall specs st,
+        interp specs (pre st)
+        -> interp specs (cpinv true (fun x : W => x) ns res st))
+      -> wf ts pr0
+      -> forall specs st, interp specs (Postcondition
+        (toCmd (compileProgram' pr0) mn H ns res pre) st)
+      -> interp specs (cpinv true (fun x : W => x) ns res st).
+      induction pr0; simpl; intros; repeat (invoke1; post); t.
+    Qed.
+
+    Lemma In_addTo2 : forall x ls1 ls2,
+      In x ls2
+      -> In x (addTo ls1 ls2).
+      induction ls1; simpl; intuition.
+      destruct (member a ls2).
+      eauto.
+      apply IHls1.
+      simpl; tauto.
+    Qed.
+
+    Lemma In_addTo1 : forall x ls1 ls2,
+      In x ls1
+      -> In x (addTo ls1 ls2).
+      induction ls1; simpl; intuition.
+      generalize (member_means a ls2); destruct (member a ls2); intuition.
+      subst; eauto using In_addTo2.
+      subst; apply In_addTo2; simpl; tauto.
+    Qed.
+
+    Hint Immediate In_addTo1 In_addTo2.
+
+    Lemma compileProgram_vcs : forall im mn (H : importsGlobal im) ns res,
+      ~In "rp" ns
+      -> In "obuf" ns
+      -> In "olen" ns
+      -> In "opos" ns
+      -> In "overflowed" ns
+      -> In "tmp" ns
+      -> In "buf" ns
+      -> In "ibuf" ns
+      -> In "row" ns
+      -> In "ilen" ns
+      -> In "ipos" ns
+      -> In "len" ns
+      -> In "data" ns
+      -> In "dummy" ns
+      -> In "matched" ns
+      -> In "res" ns
+      -> incl ("buf" :: "len" :: "lex" :: "res"
+        :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
+      ns
+      -> (res >= 11)%nat
+      -> "array8"!"copy" ~~ im ~~> copyS
+      -> "array8"!"equal" ~~ im ~~> equalS
+      -> "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
+      -> "malloc"!"malloc" ~~ im ~~> mallocS
+      -> "xml_lex"!"next" ~~ im ~~> nextS
+      -> "xml_lex"!"position" ~~ im ~~> positionS
+      -> "xml_lex"!"setPosition" ~~ im ~~> setPositionS
+      -> "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
+      -> "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
+      -> "malloc"!"free" ~~ im ~~> freeS
+      -> "sys"!"abort" ~~ im ~~> abortS
+      -> forall pr0 pre,
+        (forall specs st,
+          interp specs (pre st)
+          -> interp specs (cpinv true (fun x : W => x) ns res st))
+        -> wf ts pr0
+        -> incl (cdatasOf pr0) ns
+        -> vcs (VerifCond (toCmd (compileProgram' pr0) mn H ns res pre)).
+      induction pr0; wrap0;
+        repeat match goal with
+                 | [ |- vcs (_ :: _) ] => wrap0
+                 | [ H : _ |- vcs _ ] => apply H;
+                   try apply compileProgram_post
+               end; t.
+    Qed.
+
+    Hint Resolve compileProgram_post compileProgram_vcs.
+
+    Notation CompileVcs pr := (fun im ns res =>
+      (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
+      :: In "tmp" ns :: In "buf" ns :: In "ibuf" ns :: In "row" ns :: In "ilen" ns
+      :: In "ipos" ns :: In "len" ns :: In "data" ns :: In "dummy" ns
+      :: In "matched" ns :: In "res" ns
+      :: incl ("buf" :: "len" :: "lex" :: "res"
+        :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
+      ns
+      :: (res >= 11)%nat
+      :: "array8"!"copy" ~~ im ~~> copyS
+      :: "array8"!"equal" ~~ im ~~> equalS
+      :: "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
+      :: "malloc"!"malloc" ~~ im ~~> mallocS
+      :: "xml_lex"!"next" ~~ im ~~> nextS
+      :: "xml_lex"!"position" ~~ im ~~> positionS
+      :: "xml_lex"!"setPosition" ~~ im ~~> setPositionS
+      :: "xml_lex"!"tokenStart" ~~ im ~~> tokenStartS
+      :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
+      :: "malloc"!"free" ~~ im ~~> freeS
+      :: "sys"!"abort" ~~ im ~~> abortS
+      :: wf ts pr
+      :: incl (cdatasOf pr) ns
+      :: nil).
+
+    Definition compileProgram : chunk.
+      refine (WrapC (compileProgram' pr)
+        cpinv
+        cpinv
+        (CompileVcs pr) _ _); abstract (
+          intros; repeat match goal with
+                           | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; intros; subst
+                         end; eauto).
+    Defined.
+  End compileProgram.
+
 
   (** Now, create a [vcgen] version that knows about [Pat] and others, with some shameless copy-and-paste. *)
 
-  Ltac vcgen_simp := cbv beta iota zeta delta [WrapC Wrap Pat Out compileAction
-    map app imps
+  Ltac vcgen_simp := cbv beta iota zeta delta [WrapC Wrap
+    compileProgram map app imps
     LabelMap.add Entry Blocks Postcondition VerifCond
     Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_
     Structured.If_ Structured.While_ Goto_ Structured.Call_ IGoto
@@ -1277,14 +1471,7 @@ Section compileProgram.
          "opos" <- 0;;
          "overflowed" <- 0;;
 
-         Pat (fun bsO V => db ts * array8 bsO (V "obuf") * [| length bsO = wordToNat (V "olen") |]
-           * row nil (V "dummy")
-           * [| V "opos" <= V "olen" |]%word)%Sep
-         (fun bsO V R => db ts * Ex bsO', array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
-           * row nil (V "dummy")
-           * [| R <= V "olen" |]%word)%Sep
-         (compilePat (Pattern pr))
-         (compileAction (Pattern pr) (Action pr));;
+         compileProgram;;
 
          Call "xml_lex"!"delete"("lex")
          [Al ls,
@@ -1312,25 +1499,41 @@ Section compileProgram.
       |}
     }}.
 
+  Lemma In_addTo_or : forall x ls1 ls2,
+    In x (addTo ls1 ls2)
+    -> In x ls1 \/ In x ls2.
+    clear; induction ls1; simpl; intuition.
+    generalize (member_means a ls2); destruct (member a ls2); intuition;
+      destruct (IHls1 _ H); simpl in *; intuition.
+  Qed.
+
+  Lemma rp_cdatasOf : forall pr0,
+    In "rp" (cdatasOf pr0)
+    -> False.
+    clear; induction pr0; simpl; intuition eauto.
+    apply In_addTo_or in H; destruct H; eauto.
+  Qed.
+
+  Hint Immediate rp_cdatasOf.
+
+  Lemma no_clash_cdatas : forall s pr0,
+    In s (cdatasOf pr0)
+    -> underscore_free s
+    -> False.
+    clear; induction pr0; simpl; intuition eauto.
+    apply In_addTo_or in H; destruct H; auto.
+  Qed.
+
+  Hint Resolve no_clash_cdatas.
+
   Theorem ok : moduleOk m.
-    destruct wellFormed; vcgen;
+    vcgen;
       (intros; try match goal with
                      | [ H : importsGlobal _ |- _ ] => clear H
                    end; pre).
 
     Ltac u := abstract t.
 
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
-    u.
     u.
     u.
     u.
