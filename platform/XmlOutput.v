@@ -692,8 +692,6 @@ Section Out.
         -> (forall specs st, interp specs (Postcondition (toCmd (Out' cdatas xm) mn H ns res pre) st)
           -> interp specs (invar cdatas true (fun x => x) ns res st))
         /\ vcs (VerifCond (toCmd (Out' cdatas xm) mn H ns res pre)).
-    Admitted.
-    (* Runs out of memory on my laptop :-(
       induction xm using xml_ind';
         abstract (post; try match goal with
                               | [ |- vcs (_ :: _) ] => wrap0; try discriminate
@@ -704,7 +702,7 @@ Section Out.
               | [ H : List.Forall _ _ |- _ ] =>
                 eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
             end; t ])).
-    Qed.*)
+    Qed.
   End Out_correct.
 
   Notation OutVcs cdatas xm := (fun im ns res =>
