@@ -545,8 +545,9 @@ Section compileProgram.
       try match goal with
             | [ _ : context[Binop (LvReg Rv) _ Plus (RvImm (natToW ?N))],
               _ : context[locals_call _ _ _ _ _ _ ?M] |- _ ] => replace N with M in * by (simpl; omega)
-          end; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *.
-
+          end; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *;
+      unfold lvalIn, regInL, immInR in *; prep_locals.
+  
   Ltac my_descend :=
     repeat match goal with
              | [ H : @In string _ _ |- _ ] => clear H
@@ -570,6 +571,7 @@ Section compileProgram.
   Ltac invoke1 :=
     match goal with
       | [ H : interp _ _, H' : _ |- _ ] => apply H' in H; clear H'
+      | [ H : LabelMap.find _ _ = Some _ |- _ ] => rewrite H; post
     end.
 
   Fixpoint findTable (tab : string) (ts : tables) : option table :=
@@ -1268,6 +1270,19 @@ Section compileProgram.
     Fixpoint compileProgram' (pr : program) : chunk :=
       match pr with
         | Rule p a =>
+          Call "xml_lex"!"setPosition"("lex", 0)
+          [Al bsI, Al bsO, Al ls,
+            PRE[V] db ts * array8 bsI (V "buf") * array8 bsO (V "obuf")
+              * [| length bsI = wordToNat (V "len") |]
+              * [| length bsO = wordToNat (V "olen") |]
+              * row nil (V "dummy") * sll ls (V "stack") * mallocHeap 0
+              * xmlp (V "len") (V "lex")
+              * [| V "opos" <= V "olen" |]%word * [| stackOk ls (V "len") |]
+            POST[R] db ts * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
+              * [| length bsO' = length bsO |]
+              * row nil (V "dummy")
+              * [| R <= V "olen" |]%word * mallocHeap 0];;
+
           Pat (fun bsO V => db ts * array8 bsO (V "obuf")
             * [| length bsO = wordToNat (V "olen") |]
             * row nil (V "dummy")
@@ -1333,6 +1348,7 @@ Section compileProgram.
       -> In "dummy" ns
       -> In "matched" ns
       -> In "res" ns
+      -> In "lex" ns
       -> incl ("buf" :: "len" :: "lex" :: "res"
         :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
       ns
@@ -1361,6 +1377,20 @@ Section compileProgram.
                  | [ H : _ |- vcs _ ] => apply H;
                    try apply compileProgram_post
                end; t.
+      unfold localsInvariant.
+      descend.
+      my_step.
+      my_step.
+      descend.
+      rewrite H1.
+      rewrite mult4_S in *.
+      rewrite wplus_wminus.
+      my_step.
+      my_step.
+      my_descend; my_step.
+      my_descend; my_step.
+      my_descend; my_step.
+      my_descend; my_step.
     Qed.
 
     Hint Resolve compileProgram_post compileProgram_vcs.
@@ -1369,7 +1399,7 @@ Section compileProgram.
       (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
       :: In "tmp" ns :: In "buf" ns :: In "ibuf" ns :: In "row" ns :: In "ilen" ns
       :: In "ipos" ns :: In "len" ns :: In "data" ns :: In "dummy" ns
-      :: In "matched" ns :: In "res" ns
+      :: In "matched" ns :: In "res" ns :: In "lex" ns
       :: incl ("buf" :: "len" :: "lex" :: "res"
         :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
       ns
@@ -1534,6 +1564,7 @@ Section compileProgram.
 
     Ltac u := abstract t.
 
+    u.
     u.
     u.
     u.

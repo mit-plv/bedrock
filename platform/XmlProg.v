@@ -374,7 +374,7 @@ Section boot.
   Definition m4 := link Malloc.m m3.
   Definition m5 := link ArrayOps.m m4.
 
-  Definition m := link (XmlLang.m wellFormed ND goodSchema
+  Definition m := link (XmlLang.m _ wellFormed ND goodSchema
     buf_size_lower' buf_size_upper') m5.
 
   Lemma ok1 : moduleOk m1.
@@ -398,7 +398,7 @@ Section boot.
   Qed.
 
   Lemma ok : moduleOk m.
-    link (XmlLang.ok wellFormed) ok5.
+    link (XmlLang.ok _ wellFormed) ok5.
   Qed.
   
   Variable stn : settings.

@@ -14,7 +14,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
            tests/WebServerDriver tests/EchoServerDriver \
-           ArrayOps StringOps RelDb RelDbSelect RelDbInsert \
+           NumOps ArrayOps StringOps RelDb RelDbSelect RelDbInsert \
            XmlLex XmlSearch XmlOutput XmlLang XmlProg Xml \
 	   tests/XmlTestDriver tests/XmlTest2Driver
 

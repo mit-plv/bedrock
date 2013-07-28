@@ -8,6 +8,7 @@ Infix "/" := XmlLang.Tag : pat_scope.
 Infix "&" := XmlLang.Both (at level 41, right associativity) : pat_scope.
 Infix ";;" := XmlLang.Ordered : pat_scope.
 Delimit Scope pat_scope with pat.
+Bind Scope pat_scope with pat.
 
 Coercion XCdata : string >-> xml.
 Notation "$ x" := (XVar x) : out_scope.
@@ -16,10 +17,12 @@ Definition xcons (x : xml) (xs : list xml) : list xml := x :: xs.
 Notation "<*> tag </> x1 , .. , xN </>" := (XTag tag (xcons x1 .. (xcons xN nil) ..))
   (tag at level 0) : out_scope.
 Delimit Scope out_scope with out.
+Bind Scope out_scope with xml.
 
 Coercion Const : string >-> exp.
 Notation "$ x" := (Input x) : exp_scope.
 Delimit Scope exp_scope with exp.
+Bind Scope exp_scope with exp.
 
 Notation "col = e" := ((col, e%exp) :: nil) : condition_scope.
 Infix "&&" := app : condition_scope.
@@ -34,8 +37,12 @@ Notation "'From' tab 'Where' cond 'Write' o" :=
   (at level 0, tab at level 0, cond at level 0, o at level 0) : action_scope.
 Infix ";;" := Seq : action_scope.
 Delimit Scope action_scope with action.
+Bind Scope action_scope with action.
 
-Notation "'Match' p 'Do' a 'end'" := {| Pattern := p%pat; Action := a%action |}.
+Notation "'Match' p 'Do' a 'end'" := (Rule p%pat a%action) : program_scope.
+Infix ";;" := PSeq : program_scope.
+Delimit Scope program_scope with program.
+Bind Scope program_scope with program.
 
 Ltac wf := split; simpl; intuition (try (congruence || reflexivity || NoDup));
   match goal with
