@@ -1,5 +1,5 @@
 Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc ArrayOps.
-Require Import RelDb RelDbSelect.
+Require Import RelDb RelDbCondition.
 
 Set Implicit Arguments.
 

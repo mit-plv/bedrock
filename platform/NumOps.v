@@ -4,7 +4,7 @@ Require Import AutoSep.
 Definition div4S := SPEC("n") reserving 1
   Al m,
   PRE[V] [| wordToNat (V "n") = m * 4 |]%nat
-  POST[R] [| R = m |].
+  POST[R] [| wordToNat R = m |].
 
 Definition m := bmodule "numops" {{
   bfunction "div4"("n", "acc") [div4S]
@@ -63,6 +63,21 @@ Section ok.
 
   Hint Immediate finish.
   Hint Rewrite <- plus_n_O : sepFormula.
+
+  Lemma switch_up : forall (w : W) n rv,
+    wordToNat w = n * 4
+    -> rv = natToW n
+    -> wordToNat rv = n.
+    intros; subst.
+    apply wordToNat_natToWord_idempotent.
+    change (goodSize n).
+    eapply goodSize_weaken.
+    instantiate (1 := wordToNat w).
+    eauto.
+    omega.
+  Qed.
+
+  Hint Immediate switch_up.
 
   Theorem ok : moduleOk m.
     vcgen; abstract (sep_auto; eauto).
