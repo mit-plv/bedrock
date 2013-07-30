@@ -25,7 +25,6 @@ Section CompileEqualities.
     :: wfEqualities ns sch cond
     :: (forall a V V',
         (forall x, x <> "ibuf" ->
-          x <> "row" ->
           x <> "ilen" ->
           x <> "tmp" ->
           x <> "ipos" ->
@@ -33,7 +32,6 @@ Section CompileEqualities.
         invPre a V ===> invPre a V')
     :: (forall a V V' R,
         (forall x, x <> "ibuf" ->
-          x <> "row" ->
           x <> "ilen" ->
           x <> "tmp" ->
           x <> "ipos" ->
@@ -223,12 +221,12 @@ Section Delete.
     :: incl baseVars ns :: In "res" ns
     :: (rw <> data)%type
     :: (forall a V V', (forall x, x <> rw -> x <> data
-      -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+      -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
       -> x <> "res" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V')
     :: (forall a V V' R, (forall x, x <> rw -> x <> data
-      -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+      -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
       -> x <> "res" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
@@ -242,7 +240,6 @@ Section Delete.
     :: ("matched" <> data)%type
     :: (data <> "ibuf")%type
     :: (data <> "overflowed")%type
-    :: (data <> "row")%type
     :: (data <> "ipos")%type
     :: (data <> "ilen")%type
     :: (data <> "tmp")%type
@@ -258,7 +255,6 @@ Section Delete.
     :: (rw <> "len")%type
     :: (rw <> "buf")%type
     :: (rw <> "overflowed")%type
-    :: (rw <> "row")%type
     :: (rw <> "res")%type
     :: goodSize (length sch)
     :: goodSize (2 + length sch + length sch)
@@ -491,7 +487,9 @@ Section Delete.
     pre.
     prep.
     evalu.
-    destruct H136; intuition idtac.
+    match goal with
+      | [ H : freeable8 _ _ |- _ ] => destruct H; intuition idtac
+    end.
     my_descend.
     my_step.
     eauto.
