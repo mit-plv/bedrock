@@ -130,11 +130,11 @@ Section Condition.
   Hypothesis reserved : (res >= 10)%nat.
   Hypothesis wellFormed : wfEqualities ns sch cond.
 
-  Hypothesis weakenPre : (forall a V V', (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+  Hypothesis weakenPre : (forall a V V', (forall x, x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
     -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
   -> invPre a V ===> invPre a V').
 
-  Hypothesis weakenPost : (forall a V V' R, (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+  Hypothesis weakenPost : (forall a V V' R, (forall x, x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
     -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
   -> invPost a V R = invPost a V' R).
 

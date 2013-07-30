@@ -1,6 +1,6 @@
 Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags.
 Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps.
-Require Import RelDb RelDbSelect RelDbInsert.
+Require Import RelDb RelDbCondition RelDbSelect RelDbInsert.
 
 Set Implicit Arguments.
 
@@ -1082,7 +1082,7 @@ Section compileProgram.
 
     Lemma inBounds_swizzle'' : forall V V' p,
       (forall x, x <> "row" -> x <> "data"
-        -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
         -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
         -> sel V x = sel V' x)
       -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V

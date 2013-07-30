@@ -101,11 +101,11 @@ Section Select.
     :: incl baseVars ns
     :: (rw <> data)%type
     :: (forall a V V', (forall x, x <> rw -> x <> data
-      -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+      -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
       -> invPre a V ===> invPre a V')
     :: (forall a V V' R, (forall x, x <> rw -> x <> data
-      -> x <> "ibuf" -> x <> "row" -> x <> "ilen" -> x <> "tmp"
+      -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
       -> x <> "ipos" -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
       -> invPost a V R = invPost a V' R)
     :: (forall pre mn H,
@@ -122,7 +122,6 @@ Section Select.
     :: ("matched" <> data)%type
     :: (data <> "ibuf")%type
     :: (data <> "overflowed")%type
-    :: (data <> "row")%type
     :: (data <> "ipos")%type
     :: (data <> "ilen")%type
     :: (data <> "tmp")%type
@@ -137,7 +136,6 @@ Section Select.
     :: (rw <> "len")%type
     :: (rw <> "buf")%type
     :: (rw <> "overflowed")%type
-    :: (rw <> "row")%type
     :: goodSize (length sch)
     :: noOverlapExps (exps cond)
     :: nil).
