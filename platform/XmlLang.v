@@ -1,6 +1,6 @@
-Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags.
+Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags NumOps Buffers.
 Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps.
-Require Import RelDb RelDbCondition RelDbSelect RelDbInsert.
+Require Import RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete.
 
 Set Implicit Arguments.
 
@@ -68,6 +68,7 @@ Definition condition := list equality.
 (* Language of actions to take for matched patterns *)
 Inductive action :=
 | Insert (tab : string) (es : list exp)
+| Delete (tab : string) (cond : condition)
 | Output (xm : xml)
 | SelectOutput (tab : string) (cond : condition) (xm : xml)
 | Seq (a1 a2 : action).
@@ -192,6 +193,8 @@ Fixpoint awf (ts : tables) (a : action) : Prop :=
   match a with
     | Insert tab es => exists t, In t ts /\ Name t = tab
       /\ length es = length (Schema t) /\ ewfs es
+    | Delete tab cond => exists t, In t ts /\ Name t = tab
+      /\ cwf (Schema t) cond
     | Output xm => xwf nil xm
     | SelectOutput tab cond xm => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond /\ xwf (Schema t) xm
@@ -207,6 +210,7 @@ Definition efreeVar (e : exp) (x : string) : Prop :=
 Fixpoint afreeVar (a : action) (x : string) : Prop :=
   match a with
     | Insert _ es => List.Exists (fun e => efreeVar e x) es
+    | Delete _ cond => List.Exists (fun e => efreeVar (snd e) x) cond
     | Output xm => xfreeVar xm x
     | SelectOutput _ cond xm => List.Exists (fun e => efreeVar (snd e) x) cond
       \/ xfreeVar xm x
@@ -745,6 +749,8 @@ Section compileProgram.
 
     Infix ";;" := SimpleSeq : SP_scope.
 
+    Print RelDbDelete.Delete.
+
     Fixpoint compileAction' (a : action) : chunk :=
       match a with
         | Insert tab es =>
@@ -762,6 +768,22 @@ Section compileProgram.
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
               (Address t) (Schema t) bufSize (compileExps es)
+          end
+        | Delete tab cond =>
+          match findTable tab ts with
+            | None => Fail
+            | Some t => RelDbDelete.Delete
+              (fun bsO V => db (removeTable tab ts) * array8 bsO (V "obuf")
+                * [| length bsO = wordToNat (V "olen") |]
+                * [| V "opos" <= V "olen" |]%word
+                * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
+                * xmlp (V "len") (V "lex") * row nil (V "dummy")
+                * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+              (fun bsO V R => row nil (V "dummy") * db ts
+                * [| R <= V "olen" |]%word * mallocHeap 0
+                * Ex bsO', array8 bsO' (V "obuf")
+                * [| length bsO' = length bsO |])%Sep
+              (Address t) (Schema t) "row" "data" (compileCondition cond)
           end
         | Output xm => 
           Out
@@ -1154,6 +1176,20 @@ Section compileProgram.
 
     Hint Resolve wfEqualities_compileCondition.
 
+    Lemma noOverlapExpS_compileExp : forall e,
+      RelDbSelect.noOverlapExp "row" "data" (compileExp e).
+      clear; induction e; simpl; intuition (eauto using underscore_discrim').
+    Qed.
+
+    Hint Immediate noOverlapExpS_compileExp.
+
+    Lemma noOverlapExpsS_compileCondition : forall cond,
+      RelDbSelect.noOverlapExps "row" "data" (exps (compileCondition cond)).
+      unfold RelDbSelect.noOverlapExps; induction cond; simpl; intuition.
+    Qed.
+
+    Hint Immediate noOverlapExpsS_compileCondition.
+
     Lemma noOverlapExp_compileExp : forall e,
       noOverlapExp "row" "data" (compileExp e).
       clear; induction e; simpl; intuition (eauto using underscore_discrim').
@@ -1186,6 +1222,26 @@ Section compileProgram.
           end; try (apply compileAction_post; auto))
       end).
 
+    Lemma inBounds_swizzle''' : forall V V' p,
+      (forall x, x <> "row" -> x <> "data"
+        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
+        -> x <> "res" -> sel V x = sel V' x)
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+      intros.
+      rewrite <- inBounds_sel.
+      rewrite <- inBounds_sel in H0.
+      eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
+      simpl; intuition; match goal with
+                          | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
+                        end.
+      repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
+      auto.
+    Qed.
+
+    Hint Immediate inBounds_swizzle'''.
+
     Lemma compileAction_vcs : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
       -> In "obuf" ns
@@ -1209,6 +1265,9 @@ Section compileProgram.
       -> "array8"!"equal" ~~ im ~~> equalS
       -> "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
       -> "malloc"!"malloc" ~~ im ~~> mallocS
+      -> "numops"!"div4" ~~ im ~~> div4S
+      -> "malloc"!"free" ~~ im ~~> freeS
+      -> "buffers"!"bfree" ~~ im ~~> bfreeS
       -> forall a pre,
         (forall specs st,
           interp specs (pre st)
@@ -1234,6 +1293,9 @@ Section compileProgram.
       :: "array8"!"equal" ~~ im ~~> equalS
       :: "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
       :: "malloc"!"malloc" ~~ im ~~> mallocS
+      :: "numops"!"div4" ~~ im ~~> div4S
+      :: "malloc"!"free" ~~ im ~~> freeS
+      :: "buffers"!"bfree" ~~ im ~~> bfreeS
       :: awf ts a
       :: (forall text, afreeVar a text -> In (text ++ "_start", text ++ "_len")%string
         (XmlSearch.allCdatas (compilePat p)))
@@ -1364,6 +1426,8 @@ Section compileProgram.
       -> "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
       -> "malloc"!"free" ~~ im ~~> freeS
       -> "sys"!"abort" ~~ im ~~> abortS
+      -> "numops"!"div4" ~~ im ~~> div4S
+      -> "buffers"!"bfree" ~~ im ~~> bfreeS
       -> forall pr0 pre,
         (forall specs st,
           interp specs (pre st)
@@ -1376,7 +1440,8 @@ Section compileProgram.
                  | [ |- vcs (_ :: _) ] => wrap0
                  | [ H : _ |- vcs _ ] => apply H;
                    try apply compileProgram_post
-               end; t.
+               end; try abstract t.
+      t.
       unfold localsInvariant.
       descend.
       my_step.
@@ -1415,6 +1480,8 @@ Section compileProgram.
       :: "xml_lex"!"tokenLength" ~~ im ~~> tokenLengthS
       :: "malloc"!"free" ~~ im ~~> freeS
       :: "sys"!"abort" ~~ im ~~> abortS
+      :: "numops"!"div4" ~~ im ~~> div4S
+      :: "buffers"!"bfree" ~~ im ~~> bfreeS
       :: wf ts pr
       :: incl (cdatasOf pr) ns
       :: nil).
@@ -1477,7 +1544,8 @@ Section compileProgram.
                             "malloc"!"free" @ [freeS], "sys"!"abort" @ [abortS], "sys"!"printInt" @ [printIntS],
                             "xml_lex"!"init" @ [initS], "xml_lex"!"delete" @ [deleteS],
                             "array8"!"copy" @ [copyS], "array8"!"equal" @ [equalS],
-                            "buffers"!"bmalloc" @ [Buffers.bmallocS] ]]
+                            "buffers"!"bmalloc" @ [Buffers.bmallocS], "buffers"!"bfree" @ [Buffers.bfreeS],
+                            "numops"!"div4" @ [div4S] ]]
 
     bmodule "xml_prog" {{
       {|
@@ -1564,6 +1632,8 @@ Section compileProgram.
 
     Ltac u := abstract t.
 
+    u.
+    u.
     u.
     u.
     u.

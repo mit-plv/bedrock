@@ -329,12 +329,15 @@ Section Out.
     unfold invar, localsInvariant; descend;
       simp; reger;
       try match goal with
-            | [ |- context[@fst ?A ?B ?U] ] =>
-              let x := fresh in let y := fresh in
-                evar (x : A); evar (y : B); let x' := eval unfold x in x in
-                  let y' := eval unfold y in y in equate U (x', y'); clear x y; simpl
+            | [ |- context[match ?U with pair _ _ => _ end] ] =>
+              match type of U with
+                | prod ?A ?B =>
+                  let x := fresh in let y := fresh in
+                    evar (x : A); evar (y : B); let x' := eval unfold x in x in
+                      let y' := eval unfold y in y in equate U (x', y'); clear x y; simpl
+              end
           end; autorewrite with sepFormula in *.
-
+  
   Ltac deSpec :=
     repeat match goal with
              | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
@@ -680,6 +683,49 @@ Section Out.
     Hint Extern 1 (_ + _ <= _)%nat =>
       eapply inBounds_selN; try eassumption; (cbv beta; congruence).
 
+    Ltac vcgen_simp :=
+      cbv beta iota zeta
+        delta [map app imps Entry Blocks Postcondition VerifCond
+          Straightline_ Seq_ Diverge_ Fail_ Skip_ Assert_ Structured.If_
+          Structured.While_ Goto_ Structured.Call_ IGoto setArgs Reserved
+          Formals Precondition importsMap fullImports buildLocals blocks union
+          N.add N.succ Datatypes.length N.of_nat fold_left ascii_lt string_lt
+          label'_lt LabelKey.compare' LabelKey.compare LabelKey.eq_dec
+          toCmd Seq Instr Diverge Fail Skip Assert_ If_ While_
+          Goto Call_ RvImm' Assign' localsInvariant localsInvariantCont regInL
+          lvalIn immInR labelIn string_eq ascii_eq andb Bool.eqb
+          qspecOut ICall_ Structured.ICall_ Assert_ Structured.Assert_
+          string_dec Ascii.ascii_dec string_rec string_rect
+          sumbool_rec sumbool_rect Ascii.ascii_rec Ascii.ascii_rect
+          Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym fst
+          snd Ascii.N_of_ascii Ascii.N_of_digits N.compare N.mul
+          Pos.compare Pos.compare_cont Pos.mul Pos.add
+          Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
+          ZArith_dec.Z_gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.max
+          ZArith_dec.Z_gt_dec Int.Z_as_Int._1 BinInt.Z.add
+          Int.Z_as_Int._0 Int.Z_as_Int._2 BinInt.Z.max ZArith_dec.Zcompare_rec
+          ZArith_dec.Z_ge_lt_dec BinInt.Z.compare ZArith_dec.Zcompare_rect
+          ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect COperand1 CTest
+          COperand2 Pos.succ makeVcs Note_ Note__ IGotoStar_ IGotoStar
+          AssertStar_ AssertStar Cond_ Cond
+          Wrap WrapC SimpleSeq StringWrite].
+
+    Ltac step1 := intros; split; unfold Out'; match goal with
+                                                | [ |- context[OutList] ] => simpl
+                                                | _ => vcgen_simp
+                                              end; refold;
+    fold (@length B); fold (@length string); fold (@length (W * W));
+      post; try match goal with
+                  | [ |- vcs (_ :: _) ] => wrap0; try discriminate
+                end.
+
+    Ltac step2 := abstract (deDouble; deSpec; intuition subst;
+      solve [ t | proveHimp |
+        match goal with
+          | [ H : List.Forall _ _ |- _ ] =>
+            eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
+        end; t ]).
+
     Lemma Out_correct : forall cdatas, cdatasGood cdatas
       -> "array8"!"copy" ~~ im ~~> copyS
       -> forall xm pre,
@@ -692,16 +738,45 @@ Section Out.
         -> (forall specs st, interp specs (Postcondition (toCmd (Out' cdatas xm) mn H ns res pre) st)
           -> interp specs (invar cdatas true (fun x => x) ns res st))
         /\ vcs (VerifCond (toCmd (Out' cdatas xm) mn H ns res pre)).
-      induction xm using xml_ind';
-        abstract (post; try match goal with
-                              | [ |- vcs (_ :: _) ] => wrap0; try discriminate
-                            end;
-        abstract (deDouble; deSpec; intuition subst;
-          solve [ t | proveHimp |
-            match goal with
-              | [ H : List.Forall _ _ |- _ ] =>
-                eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
-            end; t ])).
+      induction xm using xml_ind'; step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
     Qed.
   End Out_correct.
 
