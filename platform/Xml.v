@@ -31,6 +31,9 @@ Delimit Scope condition_scope with condition.
 Definition econs (x : exp) (xs : list exp) : list exp := x :: xs.
 Notation "'Insert' t ( e1 , .. , eN )" := (XmlLang.Insert t (econs e1%exp .. (econs eN%exp nil) ..))
   (at level 0, t at level 0) : action_scope.
+Notation "'Delete' tab 'Where' cond" :=
+  (Delete tab cond%condition)
+  (at level 0, tab at level 0, cond at level 0) : action_scope.
 Notation "'Write' o" := (Output o%out) (at level 0, o at level 0) : action_scope.
 Notation "'From' tab 'Where' cond 'Write' o" :=
   (SelectOutput tab cond%condition o%out)
