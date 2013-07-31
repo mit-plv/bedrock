@@ -93,6 +93,47 @@ Module M.
           </>
         </>
       </>
+    end;;
+    Match
+      "methodCall"/(
+        "methodName"/"delete"
+        & "params"/(
+          "param"/(
+            "value"/(
+              "string"/$"key"
+            )
+          )
+        )
+      )
+    Do
+      Delete "params" Where ("key" = $"key");;
+      Write <*> "methodResponse" </>
+        <*> "params" </>
+          <*> "param" </>
+            <*> "value" </>
+              <*> "array" </>
+                <*> "data" </>
+                  <*> "value" </>
+                    <*> "int" </>
+                      "1"
+                    </>
+                  </>,
+                  <*> "value" </>
+                    <*> "string" </>
+                      "OK"
+                    </>
+                  </>,
+                  <*> "value" </>
+                    <*> "int" </>
+                      "1"
+                    </>
+                  </>
+                </>
+              </>
+            </>
+          </>
+        </>
+      </>
     end
   )%program.
 

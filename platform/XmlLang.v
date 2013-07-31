@@ -749,8 +749,6 @@ Section compileProgram.
 
     Infix ";;" := SimpleSeq : SP_scope.
 
-    Print RelDbDelete.Delete.
-
     Fixpoint compileAction' (a : action) : chunk :=
       match a with
         | Insert tab es =>
