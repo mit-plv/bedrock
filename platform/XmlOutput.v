@@ -1,5 +1,5 @@
-Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc ArrayOps.
-Require Import RelDb RelDbCondition.
+Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc ArrayOps Bags.
+Require Import RelDb RelDbCondition RelDbSelect.
 
 Set Implicit Arguments.
 
@@ -10,7 +10,8 @@ Inductive xml :=
 | Cdata (const : string)
 | Var (start len : string)
 | Tag (tag : string) (inner : list xml)
-| Column (data : string) (sch : schema) (col : string).
+| Column (data : string) (col : string)
+| Select (tab rw data : string) (cond : condition) (inner : xml).
 
 Section ForallR.
   Variable A : Type.
@@ -45,12 +46,69 @@ Section ForallR.
   Qed.
 End ForallR.
 
-Fixpoint wf (xm : xml) : Prop :=
+Record table := {
+  Name : string;
+  Address : W;
+  Schema : schema
+}.
+
+Record avail := {
+  Table : table;
+  Row : string;
+  Data : string
+}.
+
+Definition twf (t : table) := goodSize (2 + length (Schema t) + length (Schema t)).
+
+Definition tables := list table.
+Definition twfs : tables -> Prop := List.Forall twf.
+
+Definition ewf (ns : list string) (cdatas : list (string * string)) (e : exp) : Prop :=
+  match e with
+    | Const s => goodSize (String.length s)
+    | Input pos len => In pos ns /\ In len ns /\ ~ In pos baseVars /\ ~ In len baseVars
+      /\ In (pos, len) cdatas
+  end.
+
+Definition eqwf ns (sch : schema) cdatas (e : equality) : Prop :=
+  In (fst e) sch /\ ewf ns cdatas (snd e).
+
+Definition cwf ns sch cdatas : condition -> Prop := List.Forall (eqwf ns sch cdatas).
+
+Fixpoint removeTable (tab : string) (ts : tables) : tables :=
+  match ts with
+    | nil => nil
+    | t :: ts => if string_dec tab (Name t) then removeTable tab ts else t :: removeTable tab ts
+  end.
+
+Definition cvars := "rp" :: "ibuf" :: "overflowed" :: "ipos" :: "ilen"
+  :: "opos" :: "tmp" :: "len" :: "buf":: "matched" :: "res" :: "obuf" :: "olen" :: nil.
+
+Definition dontTouch rw data :=
+  ForallR (fun p : string * string => fst p <> rw /\ snd p <> rw /\ fst p <> data /\ snd p <> data).
+
+Definition dontReuse rw data :=
+  ForallR (fun av => Row av <> rw /\ Row av <> data /\ Data av <> rw /\ Data av <> data).
+
+Fixpoint wf ns (cdatas : list (string * string)) (avs : list avail) (ts : list table) (xm : xml) : Prop :=
   match xm with
     | Cdata const => goodSize (String.length const)
     | Var _ _ => True
-    | Tag tag inner => goodSize (String.length tag + 3) /\ ForallR wf inner
-    | Column _ sch col => goodSize (length sch) /\ In col sch
+    | Tag tag inner => goodSize (String.length tag + 3) /\ ForallR (wf ns cdatas avs ts) inner
+    | Column data col => exists av, In av avs /\ Data av = data /\ In col (Schema (Table av))
+    | Select tab rw data cond inner =>
+      rw <> data /\ ~In rw cvars /\ ~In data cvars
+      /\ dontTouch rw data cdatas /\ dontReuse rw data avs
+      /\ exists t, In t ts /\ Name t = tab /\ cwf ns (Schema t) cdatas cond
+        /\ wf ns cdatas ({| Table := t; Row := rw; Data := data |} :: avs)
+        (removeTable tab ts) inner
+  end.
+
+
+Definition efreeVar (e : exp) (xs : string * string) : Prop :=
+  match e with
+    | Const _ => False
+    | Input pos len => xs = (pos, len)
   end.
 
 Fixpoint freeVar (xm : xml) (xs : string * string) : Prop :=
@@ -58,15 +116,18 @@ Fixpoint freeVar (xm : xml) (xs : string * string) : Prop :=
     | Cdata _ => False
     | Var start len => xs = (start, len)
     | Tag _ inner => ExistsR (fun xm' => freeVar xm' xs) inner
-    | Column _ _ _ => False
+    | Column _ _ => False
+    | Select _ _ _ cond inner => List.Exists (fun e => efreeVar (snd e) xs) cond
+      \/ freeVar inner xs
   end.
 
-Fixpoint freeRowVar (xm : xml) (xs : string * schema) : Prop :=
+Fixpoint bindsRowVar (xm : xml) (xs : string * string) : Prop :=
   match xm with
     | Cdata _ => False
     | Var _ _ => False
-    | Tag _ inner => ExistsR (fun xm' => freeRowVar xm' xs) inner
-    | Column data sch _ => xs = (data, sch)
+    | Tag _ inner => ExistsR (fun xm' => bindsRowVar xm' xs) inner
+    | Column _ _ => False
+    | Select _ rw data _ inner => xs = (rw, data) \/ bindsRowVar inner xs
   end.
 
 Section xml_ind'.
@@ -78,7 +139,10 @@ Section xml_ind'.
 
   Hypothesis H_Tag : forall tag inner, List.Forall P inner -> P (Tag tag inner).
 
-  Hypothesis H_Column : forall data sch col, P (Column data sch col).
+  Hypothesis H_Column : forall tab col, P (Column tab col).
+
+  Hypothesis H_Select : forall tab rw data cond inner, P inner
+    -> P (Select tab rw data cond inner).
 
   Fixpoint xml_ind' (xm : xml) : P xm :=
     match xm with
@@ -89,7 +153,8 @@ Section xml_ind'.
           | nil => Forall_nil _
           | xm :: xms' => Forall_cons _ (xml_ind' xm) (xmls_ind xms')
         end) inner)
-      | Column data sch col => H_Column data sch col
+      | Column tab col => H_Column tab col
+      | Select tab rw data cond inner => H_Select tab rw data cond (xml_ind' inner)
     end.
 End xml_ind'.
 
@@ -99,7 +164,101 @@ Definition inBounds (cdatas : list (string * string)) (V : vals) :=
   List.Forall (fun p => wordToNat (V (fst p)) + wordToNat (V (snd p)) <= wordToNat (V "len"))%nat
   cdatas.
 
-Require Import Bags.
+Definition db := starL (fun t => RelDb.table (Schema t) (Address t)).
+Definition cursor (V : vals) (av : avail) := (
+  row (Schema (Table av)) (V (Data av))
+  * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
+)%Sep.
+Definition cursors (V : vals) := starL (cursor V).
+
+Fixpoint findTable (tab : string) (ts : tables) : option table :=
+  match ts with
+    | nil => None
+    | t :: ts => if string_dec tab (Name t) then Some t else findTable tab ts
+  end.
+
+Fixpoint findCursor (tab : string) (avs : list avail) : option avail :=
+  match avs with
+    | nil => None
+    | av :: avs => if string_dec tab (Name (Table av)) then Some av else findCursor tab avs
+  end.
+
+Fixpoint findCol (sch : schema) (s : string) : nat :=
+  match sch with
+    | nil => O
+    | s' :: sch' => if string_dec s s' then O else S (findCol sch' s)
+  end.
+
+Fixpoint removeCursor (tab : string) (avs : list avail) : list avail :=
+  match avs with
+    | nil => nil
+    | av :: avs => if string_dec tab (Name (Table av)) then removeCursor tab avs
+      else av :: removeCursor tab avs
+  end.
+
+Ltac ift := match goal with
+              | [ |- context[if ?E then _ else _] ] => destruct E; intuition
+            end.
+
+Definition Names := map Name.
+
+Lemma findTable_good : forall tab t ts0,
+  NoDup (Names ts0)
+  -> In t ts0
+  -> Name t = tab
+  -> findTable tab ts0 = Some t.
+  induction ts0; simpl; inversion 1; intuition subst; ift.
+  exfalso; eapply H2.
+  rewrite <- e.
+  apply in_map; auto.
+Qed.
+
+Lemma removeTable_irrel_fwd : forall x ts,
+  ~In x (Names ts)
+  -> db ts ===> db (removeTable x ts).
+  induction ts; simpl; intuition subst; try ift; sepLemma.
+Qed.
+
+Lemma removeTable_irrel_bwd : forall x ts,
+  ~In x (Names ts)
+  -> db (removeTable x ts) ===> db ts.
+  induction ts; simpl; intuition subst; try ift; sepLemma.
+Qed.
+
+Hint Immediate removeTable_irrel_fwd removeTable_irrel_bwd.
+
+Lemma removeTable_bwd : forall x ts,
+  NoDup (Names ts)
+  -> In x ts
+  -> RelDb.table (Schema x) (Address x) * db (removeTable (Name x) ts)
+  ===> db ts.
+  induction ts; inversion 1; simpl; intuition subst;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E; intuition
+    end.
+  apply Himp_star_frame; try apply Himp_refl; auto.
+  exfalso; apply H2; rewrite <- e; eapply in_map; auto.
+  simpl.
+
+  sepLemma.
+  etransitivity; [ | apply H6 ]; sepLemma.
+Qed.
+
+Lemma removeTable_fwd : forall x ts,
+  NoDup (Names ts)
+  -> In x ts
+  -> db ts ===> RelDb.table (Schema x) (Address x) * db (removeTable (Name x) ts).
+  induction ts; inversion 1; simpl; intuition subst;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E; intuition
+    end.
+  apply Himp_star_frame; try apply Himp_refl; auto.
+  exfalso; apply H2; rewrite <- e; eapply in_map; auto.
+  simpl.
+
+  sepLemma.
+  etransitivity; [ apply H6 | ]; sepLemma.
+Qed.
 
 
 (** * Compiling XML snippets into Bedrock chunks *)
@@ -109,16 +268,15 @@ Section Out.
   Variable invPre : A -> vals -> HProp.
   Variable invPost : A -> vals -> W -> HProp.
 
-  Variable data : string.
-  Variable sch : schema.
-
   (* Precondition and postcondition of generation *)
-  Definition invar cdatas :=
+  Definition invar cdatas avs ts :=
     Al a : A, Al bsI, Al bsO,
-    PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf") * row sch (V data)
+    PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
       * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-      * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |] * invPre a V
-    POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * [| length bsO' = length bsO |] * invPost a V R.
+      * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]
+      * cursors V avs * db ts * invPre a V
+    POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
+      * [| length bsO' = length bsO |] * invPost a V R.
 
   Infix ";;" := SimpleSeq : SP_scope.
 
@@ -132,22 +290,17 @@ Section Out.
       end%SP.
   End OutList.
 
-  Fixpoint findCol (sch : schema) (s : string) : nat :=
-    match sch with
-      | nil => O
-      | s' :: sch' => if string_dec s s' then O else S (findCol sch' s)
-    end.
-
   Inductive reveal_row : Prop := RevealRow.
   Hint Constructors reveal_row.
 
-  Fixpoint Out' (cdatas : list (string * string)) (xm : xml) : chunk :=
+  Fixpoint Out' (cdatas : list (string * string)) (avs : list avail) (ts : list table) (xm : xml) : chunk :=
     match xm with
       | Cdata const => StringWrite "obuf" "olen" "opos" "overflowed" const
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
-          * [| inBounds cdatas V |] * invPre (snd p) V * row sch (V data))%Sep
+          * [| inBounds cdatas V |] * invPre (snd p) V * cursors V avs * db ts)%Sep
         (fun _ (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
           * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
+
       | Var start len =>
         "tmp" <- "olen" - "opos";;
         If (len < "tmp") {
@@ -155,99 +308,147 @@ Section Out.
           [Al a : A, Al bsI, Al bsO,
             PRE[V] [| V len < V "olen" ^- V "opos" |]%word * array8 bsI (V "buf") * array8 bsO (V "obuf")
               * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V * row sch (V data)
+              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word
+              * invPre a V * cursors V avs * db ts
             POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
               * invPost a V R];;
           "opos" <- "opos" + len
         } else {
           "overflowed" <- 1
         }
+
       | Tag tag inner =>
         StringWrite "obuf" "olen" "opos" "overflowed" ("<" ++ tag ++ ">")
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
-          * invPre (snd p) V * [| inBounds cdatas V |] * row sch (V data))%Sep
+          * invPre (snd p) V * [| inBounds cdatas V |] * cursors V avs * db ts)%Sep
         (fun _ (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
           * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep;;
-        OutList (Out' cdatas) inner;;
+        OutList (Out' cdatas avs ts) inner;;
         StringWrite "obuf" "olen" "opos" "overflowed" ("</" ++ tag ++ ">")
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * [| length (fst p) = wordToNat (V "len") |]
-          * invPre (snd p) V * [| inBounds cdatas V |] * row sch (V data))%Sep
+          * invPre (snd p) V * [| inBounds cdatas V |] * cursors V avs * db ts)%Sep
         (fun _ (p : list B * A) V R => Ex bs', array8 bs' (V "obuf") * [| length bs' = wordToNat (V "olen") |]
           * array8 (fst p) (V "buf") * invPost (snd p) V R)%Sep
-      | Column data sch col =>
-        Note [reveal_row];;
 
-        Assert [Al a : A, Al bsI, Al bsO,
-          PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
-            * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-            * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
-            * Ex buf, Ex len, Ex cols, Ex bs,
-              (V data ==*> buf, len) * array (posl cols) (V data ^+ $8)
-              * array (lenl cols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 bs buf
-              * [| length bs = wordToNat len |] * [| length cols = length sch |] * [| RelDb.inBounds len cols |]
-              * [| V data <> 0 |] * [| freeable (V data) (2 + length sch + length sch) |]
-              * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
-              * [| natToW (findCol sch col) < natToW (length (lenl cols)) |]%word
-          POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
-            * [| length bsO' = length bsO |] * invPost a V R];;
+      | Column tab col =>
+        match findCursor tab avs with
+          | None => Fail
+          | Some av =>
+            Assert [Al a : A, Al bsI, Al bsO,
+              PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
+                * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+                * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word
+                * cursor V av * cursors V (removeCursor tab avs) * db ts * invPre a V
+              POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
+                * [| length bsO' = length bsO |] * invPost a V R];;
 
-        "matched" <- data + 8;;
-        "matched" <- "matched" + (length sch * 4)%nat;;
-        "matched" <-* "matched" + (4 * findCol sch col)%nat;;
+            Note [reveal_row];;
 
-        "tmp" <- "olen" - "opos";;
-        If ("matched" < "tmp") {
-          Assert [Al a : A, Al bsI, Al bsO,
-            PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
-              * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
-              * Ex buf, Ex len, Ex cols, Ex bs,
-                (V data ==*> buf, len) * array (posl cols) (V data ^+ $8)
-                * array (lenl cols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 bs buf
-                * [| length bs = wordToNat len |] * [| length cols = length sch |] * [| RelDb.inBounds len cols |]
-                * [| V data <> 0 |] * [| freeable (V data) (2 + length sch + length sch) |]
-                * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
-                * [| V "matched" = Array.selN (lenl cols) (findCol sch col) |]
-                * [| natToW (findCol sch col) < natToW (length (posl cols)) |]%word
-                * [| V "matched" < V "olen" ^- V "opos" |]%word
-            POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
-              * [| length bsO' = length bsO |] * invPost a V R];;
+            Assert [Al a : A, Al bsI, Al bsO,
+              PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
+                * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+                * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
+                * cursors V (removeCursor tab avs) * db ts
+                * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
+                * Ex buf, Ex len, Ex cols, Ex bs,
+                  (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
+                  * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                  * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
+                  * [| RelDb.inBounds len cols |]
+                  * [| V (Data av) <> 0 |]
+                  * [| freeable (V (Data av)) (2 + length (Schema (Table av)) + length (Schema (Table av))) |]
+                  * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
+                  * [| natToW (findCol (Schema (Table av)) col) < natToW (length (lenl cols)) |]%word
+              POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
+                * [| length bsO' = length bsO |] * invPost a V R];;
 
-          "tmp" <- data + 8;;
-          "tmp" <-* "tmp" + (4 * findCol sch col)%nat;;
+            "matched" <- Data av + 8;;
+            "matched" <- "matched" + (length (Schema (Table av)) * 4)%nat;;
+            "matched" <-* "matched" + (4 * findCol (Schema (Table av)) col)%nat;;
 
-          Assert [Al a : A, Al bsI, Al bsO,
-            PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
-              * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
-              * Ex buf, Ex len, Ex cols, Ex bs,
-                (V data ==*> buf, len) * array (posl cols) (V data ^+ $8)
-                * array (lenl cols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 bs buf
-                * [| length bs = wordToNat len |] * [| length cols = length sch |] * [| RelDb.inBounds len cols |]
-                * [| V data <> 0 |] * [| freeable (V data) (2 + length sch + length sch) |]
-                * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
-                * [| V "matched" = Array.selN (lenl cols) (findCol sch col) |]
-                * [| V "tmp" = Array.selN (posl cols) (findCol sch col) |]
-                * [| V "matched" < V "olen" ^- V "opos" |]%word
-            POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
-              * [| length bsO' = length bsO |] * invPost a V R];;
+            "tmp" <- "olen" - "opos";;
+            If ("matched" < "tmp") {
+              Assert [Al a : A, Al bsI, Al bsO,
+                PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
+                  * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+                  * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
+                  * cursors V (removeCursor tab avs) * db ts
+                  * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
+                  * Ex buf, Ex len, Ex cols, Ex bs,
+                    (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
+                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                    * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
+                    * [| RelDb.inBounds len cols |]
+                    * [| V (Data av) <> 0 |]
+                    * [| freeable (V (Data av)) (2 + length (Schema (Table av)) + length (Schema (Table av))) |]
+                    * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
+                    * [| V "matched" = Array.selN (lenl cols) (findCol (Schema (Table av)) col) |]
+                    * [| natToW (findCol (Schema (Table av)) col) < natToW (length (posl cols)) |]%word
+                    * [| V "matched" < V "olen" ^- V "opos" |]%word
+                POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
+                  * [| length bsO' = length bsO |] * invPost a V R];;
 
-          Note [reveal_row];;
-          "res" <-* data;;
+              "tmp" <- Data av + 8;;
+              "tmp" <-* "tmp" + (4 * findCol (Schema (Table av)) col)%nat;;
 
-          Call "array8"!"copy"("obuf", "opos", "res", "tmp", "matched")
-          [Al a : A, Al bsI, Al bsO,
-            PRE[V] [| V "matched" < V "olen" ^- V "opos" |]%word * array8 bsI (V "buf") * array8 bsO (V "obuf")
-              * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V * row sch (V data)
-            POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
-              * invPost a V R];;
-          "opos" <- "opos" + "matched"
-        } else {
-          Note [reveal_row];;
+              Assert [Al a : A, Al bsI, Al bsO,
+                PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
+                  * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+                  * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word * invPre a V
+                  * cursors V (removeCursor tab avs) * db ts
+                  * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
+                  * Ex buf, Ex len, Ex cols, Ex bs,
+                    (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
+                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                    * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
+                    * [| RelDb.inBounds len cols |]
+                    * [| V (Data av) <> 0 |]
+                    * [| freeable (V (Data av)) (2 + length (Schema (Table av)) + length (Schema (Table av))) |]
+                    * [| buf <> 0 |] * [| freeable8 buf (length bs) |]
+                    * [| V "matched" = Array.selN (lenl cols) (findCol (Schema (Table av)) col) |]
+                    * [| V "tmp" = Array.selN (posl cols) (findCol (Schema (Table av)) col) |]
+                    * [| V "matched" < V "olen" ^- V "opos" |]%word
+                POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
+                  * [| length bsO' = length bsO |] * invPost a V R];;
 
-          "overflowed" <- 1
-        }
+              Note [reveal_row];;
+              "res" <-* Data av;;
+
+              Call "array8"!"copy"("obuf", "opos", "res", "tmp", "matched")
+              [Al a : A, Al bsI, Al bsO,
+                PRE[V] [| V "matched" < V "olen" ^- V "opos" |]%word
+                  * array8 bsI (V "buf") * array8 bsO (V "obuf")
+                  * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
+                  * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word
+                  * invPre a V * cursors V avs * db ts
+                POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
+                  * invPost a V R];;
+              "opos" <- "opos" + "matched"
+            } else {
+              Note [reveal_row];;
+
+              "overflowed" <- 1
+            }
+        end
+
+      | Select tab rw data cond inner =>
+        match findTable tab ts with
+          | None => Fail
+          | Some t => RelDbSelect.Select
+            (fun (p : list B * A) V => cursors V avs
+              * db (removeTable tab ts)
+              * array8 (fst p) (V "obuf")
+              * [| length (fst p) = wordToNat (V "olen") |]
+              * [| inBounds cdatas V |] * [| V "opos" <= V "olen" |]%word
+              * invPre (snd p) V)%Sep
+            (fun p V R => Ex bsO', array8 bsO' (V "obuf") * [| length bsO' = length (fst p) |]
+              * invPost (snd p) V R)%Sep
+            (Address t) (Schema t) rw data cond
+            (Out' cdatas
+              ({| Table := t; Row := rw; Data := data |} :: avs)
+              (removeTable tab ts)
+              inner)
+        end
     end%SP.
 
   Opaque mult.
@@ -261,6 +462,14 @@ Section Out.
   Qed.
 
   Lemma inBounds_sel : forall cdatas V, inBounds cdatas (sel V) = inBounds cdatas V.
+    auto.
+  Qed.
+
+  Lemma cursors_sel : forall V av, cursors (sel V) av = cursors V av.
+    auto.
+  Qed.
+
+  Lemma cursor_sel : forall V av, cursor (sel V) av = cursor V av.
     auto.
   Qed.
 
@@ -282,6 +491,12 @@ Section Out.
              | [ |- context[invPost ?a (sel ?V) ?R] ] => rewrite (invPost_sel a V R)
              | [ H : context[inBounds ?x (sel ?V)] |- _ ] => rewrite (inBounds_sel x V) in H
              | [ |- context[inBounds ?x (sel ?V)] ] => rewrite (inBounds_sel x V)
+             | [ H : context[cursors (sel ?V) ?x] |- _ ] => rewrite (cursors_sel V x) in H
+             | [ |- context[cursors (sel ?V) ?x] ] => rewrite (cursors_sel V x)
+             | [ H : context[cursor (sel ?V) ?x] |- _ ] => rewrite (cursor_sel V x) in H
+             | [ |- context[cursor (sel ?V) ?x] ] => rewrite (cursor_sel V x)
+             | [ H : context[inputOk (sel ?V) ?x] |- _ ] => rewrite (inputOk_sel V x) in H
+             | [ |- context[inputOk (sel ?V) ?x] ] => rewrite (inputOk_sel V x)
            end; reger.
 
   Lemma mult4_S : forall n, 4 * S n = S (S (S (S (4 * n)))).
@@ -290,9 +505,9 @@ Section Out.
 
   Definition cdatasGood (cdatas : list (string * string)) :=
     List.Forall (fun p => fst p <> "opos" /\ fst p <> "overflowed" /\ fst p <> "tmp" /\ fst p <> "matched"
-      /\ fst p <> "res"
+      /\ fst p <> "res" /\ fst p <> "ibuf" /\ fst p <> "ilen" /\ fst p <> "ipos"
       /\ snd p <> "opos" /\ snd p <> "overflowed" /\ snd p <> "tmp" /\ snd p <> "matched"
-      /\ snd p <> "res") cdatas.
+      /\ snd p <> "res" /\ snd p <> "ibuf" /\ snd p <> "ilen" /\ snd p <> "ipos") cdatas.
 
   Ltac prepl := post; unfold lvalIn, regInL, immInR in *;
     repeat match goal with
@@ -320,8 +535,9 @@ Section Out.
              | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
              | [ H : evalCond _ _ _ _ _ = _ |- _ ] => clear H
              | [ H : In _ ?ls |- _ ] =>
-               match ls with
-                 | sch => fail 1
+               match type of ls with
+                 | schema => fail 1
+                 | list table => fail 1
                  | _ => clear H
                end
              | [ x : (_ * _)%type |- _ ] => destruct x; simpl in *
@@ -349,6 +565,44 @@ Section Out.
       | [ |- vcs (_ :: _) ] => wrap0; try discriminate
       | [ H : _ |- vcs _ ] => apply vcs_app_fwd || apply H
     end; post.
+
+  Lemma removeTable_bwd' : forall x ts P,
+    NoDup (Names ts)
+    -> In x ts
+    -> RelDb.table (Schema x) (Address x) * (db (removeTable (Name x) ts) * P)
+    ===> P * db ts.
+    intros; eapply Himp_trans; [ apply Himp_star_assoc' | ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_frame; try apply Himp_refl.
+    apply removeTable_bwd; auto.
+  Qed.
+
+  Lemma removeTable_fwd' : forall x ts P,
+    NoDup (Names ts)
+    -> In x ts
+    -> P * db ts
+    ===> RelDb.table (Schema x) (Address x) * (P * db (removeTable (Name x) ts)).
+    intros; eapply Himp_trans; [ | apply Himp_star_frame; [ | apply Himp_star_comm ] ].
+    intros; eapply Himp_trans; [ | apply Himp_star_assoc ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_frame; try apply Himp_refl.
+    apply removeTable_fwd; auto.
+    apply Himp_refl.
+  Qed.
+
+  Lemma make_cursor : forall specs t V rw data P,
+    himp specs (row (Schema t) (sel V data)
+      * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep
+    (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep.
+    sepLemma; apply himp_star_comm.
+  Qed.
+
+  Lemma unmake_cursor : forall specs t V rw data P,
+    himp specs (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep
+    (row (Schema t) (sel V data)
+      * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep.
+    sepLemma; apply himp_star_comm.
+  Qed.
 
   Ltac bash :=
     try match goal with
@@ -396,7 +650,10 @@ Section Out.
       | _ => weaken_invPre
       | [ _ : context[reveal_row] |- _ ] => try match_locals; step RelDb.hints
       | _ => try match_locals; step auto_ext
-    end.
+    end;
+    try (apply removeTable_bwd'; solve [ auto ]);
+    try (apply removeTable_fwd'; solve [ auto ]);
+    try apply make_cursor; try apply unmake_cursor.
 
   Ltac t := post; repeat invoke1; prep; propxFo;
     repeat invoke1; prepl;
@@ -408,7 +665,7 @@ Section Out.
   Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
 
   Section Out_correct.
-    Variables (im : LabelMap.t assert) (mn : string) (H : importsGlobal im) (ns : list string) (res : nat).
+    Variables (ns : list string) (res : nat).
 
     Hypothesis Hrp : ~In "rp" ns.
     Hypothesis Hobuf : In "obuf" ns.
@@ -419,24 +676,8 @@ Section Out.
     Hypothesis Hbuf : In "buf" ns.
     Hypothesis Hmatched : In "matched" ns.
     Hypothesis HresV : In "res" ns.
-    Hypothesis Hdata : In data ns.
 
-    Hypothesis Hnot_rp : data <> "rp".
-    Hypothesis Hnot_obuf : data <> "obuf".
-    Hypothesis Hnot_opos : data <> "opos".
-    Hypothesis Hnot_overflowed : data <> "overflowed".
-    Hypothesis Hnot_tmp : data <> "tmp".
-    Hypothesis Hnot_buf : data <> "buf".
-    Hypothesis Hnot_matched : data <> "matched".
-    Hypothesis Hnot_res : data <> "res".
-
-    Hypothesis HinvPre : forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
-      -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
-    -> invPre a V ===> invPre a V'.
-    Hypothesis HinvPost : forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
-      -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
-    -> invPost a V R = invPost a V' R.
-    Hypothesis Hres : (res >= 7)%nat.
+    Hypothesis Hres : (res >= 11)%nat.
 
     Ltac split_IH :=
       match goal with
@@ -453,7 +694,7 @@ Section Out.
             specialize (fun start len H' => H start len (or_intror _ H')); intro
       end.
 
-    Lemma OutList_correct : forall cdatas, cdatasGood cdatas
+    (*Lemma OutList_correct : forall cdatas, cdatasGood cdatas
       -> forall xms,
         List.Forall
         (fun xm => forall pre, wf xm
@@ -477,7 +718,7 @@ Section Out.
             -> interp specs (invar cdatas true (fun x => x) ns res st))
           /\ vcs (VerifCond (toCmd (OutList (Out' cdatas) xms) mn H ns res pre)).
       induction 2; post; intuition; repeat split_IH; t.
-    Qed.
+    Qed.*)
 
     Hint Constructors unit.
 
@@ -525,10 +766,15 @@ Section Out.
                    specialize (H _ _ eq_refl)
                | [ H : forall (data' : string) (sch' : schema), _ |- _ ] =>
                    specialize (H _ _ eq_refl)
+               | [ H : forall rw data : string, _ \/ _ -> _ |- _ ] =>
+                 generalize (H _ _ (or_introl _ eq_refl));
+                   specialize (fun x y H' => H x y (or_intror _ H')); intuition idtac
              end.
 
     Ltac clear_fancier :=
       repeat match goal with
+               | [ H : importsGlobal _ |- _ ] => clear dependent H
+               | [ H : wf _ _ _ _ _ |- _ ] => clear H
                | [ H : ForallR _ _ |- _ ] => clear H
                | [ H : List.Forall _ _ |- _ ] => clear H
              end; clear_fancy.
@@ -552,7 +798,7 @@ Section Out.
                       rewrite (H a V V') by intuition
                   end
               end
-          end; reflexivity || clear_fancier; sepLemma; eauto.
+          end; reflexivity || clear_fancier; sepLemma; eauto; apply himp_star_frame; eauto.
 
     Lemma convert : forall a b c : W,
       a < b ^- c
@@ -575,8 +821,8 @@ Section Out.
         | [ H : _ |- _ ] => apply H; solve [ descend; auto 1 ]
       end.
 
-    Hint Extern 1 (himp _ (invPost ?a ?b ?c) (invPost ?a ?b' ?c)) =>
-      rewrite (HinvPost a b b' c) by descend; reflexivity.
+    (*Hint Extern 1 (himp _ (invPost ?a ?b ?c) (invPost ?a ?b' ?c)) =>
+      rewrite (HinvPost a b b' c) by descend; reflexivity.*)
 
     Lemma convert' : forall (a b c : W) n,
       a < b ^- c
@@ -605,7 +851,7 @@ Section Out.
         end; intuition.
     Qed.
 
-    Lemma findCol_bound_natToW : forall col n,
+    Lemma findCol_bound_natToW : forall sch col n,
       In col sch
       -> goodSize (Datatypes.length sch)
       -> n = length sch
@@ -620,7 +866,7 @@ Section Out.
       apply findCol_bound in H; auto.
     Qed.
 
-    Lemma findCol_posl : forall col cols,
+    Lemma findCol_posl : forall sch col cols,
       In col sch
       -> goodSize (Datatypes.length sch)
       -> length cols = length sch
@@ -628,7 +874,7 @@ Section Out.
       intros; rewrite length_posl; eauto using findCol_bound_natToW.
     Qed.
 
-    Lemma findCol_lenl : forall col cols,
+    Lemma findCol_lenl : forall sch col cols,
       In col sch
       -> goodSize (Datatypes.length sch)
       -> length cols = length sch
@@ -638,7 +884,7 @@ Section Out.
 
     Hint Immediate findCol_posl findCol_lenl.
 
-    Lemma selN_col : forall col cols,
+    Lemma selN_col : forall sch col cols,
       In col sch
       -> goodSize (length sch)
       -> length cols = length sch
@@ -650,7 +896,7 @@ Section Out.
       apply findCol_bound in H; auto.
     Qed.
 
-    Lemma selN_posl : forall col cols,
+    Lemma selN_posl : forall sch col cols,
       In col sch
       -> goodSize (length sch)
       -> length cols = length sch
@@ -658,7 +904,7 @@ Section Out.
       intros; apply selN_col; auto; rewrite length_posl; auto.
     Qed.
 
-    Lemma selN_lenl : forall col cols,
+    Lemma selN_lenl : forall sch col cols,
       In col sch
       -> goodSize (length sch)
       -> length cols = length sch
@@ -668,7 +914,7 @@ Section Out.
 
     Hint Immediate selN_posl selN_lenl.
 
-    Lemma inBounds_selN : forall len cols,
+    Lemma inBounds_selN : forall sch len cols,
       RelDb.inBounds len cols
       -> forall col a b c, a = selN (posl cols) (findCol sch col)
         -> b = selN (lenl cols) (findCol sch col)
@@ -677,7 +923,7 @@ Section Out.
         -> length cols = length sch
         -> (wordToNat a + wordToNat b <= c)%nat.
       intros; eapply inBounds_selN; try eassumption.
-      rewrite H5; eapply findCol_bound; auto.
+      rewrite H4; eapply findCol_bound; auto.
     Qed.
 
     Hint Extern 1 (_ + _ <= _)%nat =>
@@ -720,25 +966,294 @@ Section Out.
                 end.
 
     Ltac step2 := abstract (deDouble; deSpec; intuition subst;
-      solve [ t | proveHimp |
+      solve [ t | proveHimp (*|
         match goal with
           | [ H : List.Forall _ _ |- _ ] =>
             eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
-        end; t ]).
+        end; t*) ]).
+
+    Definition goodCursors := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars).
+
+    Lemma weaken_cursors : forall specs V V',
+      (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
+      -> forall avs,
+        goodCursors avs
+        -> himp specs (cursors V avs) (cursors V' avs).
+      induction avs; inversion_clear 1; simpl; intuition.
+      apply himp_star_frame; auto.
+      unfold cvars in *; simpl in *; intuition idtac;
+        unfold cursor; apply himp_star_frame;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end;
+          try match goal with
+                | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
+              end; reflexivity.
+    Qed.
+
+    Hint Immediate weaken_cursors.
+
+    Lemma inBounds_inputOk : forall sch V cdatas,
+      inBounds cdatas V
+      -> forall cond, cwf ns sch cdatas cond
+        -> inputOk V (exps cond).
+      clear; induction 2; simpl; constructor; auto.
+      unfold eqwf in *; destruct x; simpl in *; intuition.
+      destruct e; simpl in *; intuition idtac.
+      eapply Forall_forall in H; [ | eauto ]; eauto.
+    Qed.
+
+    Hint Immediate inBounds_inputOk.
+
+    Lemma inBounds_weaken_dontTouch : forall cdatas V rw data V',
+      inBounds cdatas V
+      -> dontTouch rw data cdatas
+      -> cdatasGood cdatas
+      -> ~In rw cvars
+      -> ~In data cvars
+      -> (forall x, x <> rw -> x <> data
+        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
+        -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+      -> inBounds cdatas V'.
+      clear; intros; eapply Forall_impl3; [ apply H | apply ForallR_Forall; apply H0 | apply H1 | ].
+      simpl in *; intuition idtac.
+      match goal with
+        | [ H : (_ <= _)%nat |- _ ] => generalize dependent H;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end; intros
+      end.
+      repeat rewrite <- H4 by congruence.
+      assumption.
+    Qed.
+
+    Hint Extern 1 (inBounds _ _) => eapply inBounds_weaken_dontTouch; try eassumption;
+      [ | ]; (simpl; tauto).
+
+    Hint Extern 1 False =>
+      match goal with
+        | [ H : forall rw data : string, _ \/ _ -> _ |- _ ] =>
+          specialize (H _ _ (or_introl _ eq_refl)); tauto
+      end.
+
+    Lemma weaken_cursors' : forall rw data specs V V',
+      (forall x, x <> rw -> x <> data
+        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
+        -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+      -> forall avs,
+        goodCursors avs
+        -> dontReuse rw data avs
+        -> himp specs (cursors V avs) (cursors V' avs).
+      unfold dontReuse; induction avs; inversion_clear 1; simpl; intuition.
+      apply himp_star_frame; auto.
+      unfold cvars in *; simpl in *; intuition idtac;
+        unfold cursor; apply himp_star_frame;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end;
+          try match goal with
+                | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
+              end; reflexivity.
+    Qed.
+
+    Hint Immediate weaken_cursors'.
+
+    Lemma twfs_removeTable : forall x ts,
+      twfs ts
+      -> twfs (removeTable x ts).
+      unfold twfs; induction 1; simpl; intuition; ift.
+    Qed.
+
+    Hint Constructors NoDup.
+
+    Lemma In_removeTable : forall x y ts,
+      In x (Names (removeTable y ts))
+      -> In x (Names ts).
+      induction ts; simpl; intuition idtac;
+        match goal with
+          | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; simpl in *; tauto
+        end.
+    Qed.
+
+    Hint Immediate In_removeTable.
+
+    Lemma NoDup_removeTable : forall x ts,
+      NoDup (Names ts)
+      -> NoDup (Names (removeTable x ts)).
+      induction ts; inversion_clear 1; simpl; intuition;
+        match goal with
+          | [ |- context[if ?E then _ else _] ] => destruct E; simpl; eauto
+        end.
+    Qed.
+
+    Hint Immediate twfs_removeTable NoDup_removeTable.
+
+    Hint Extern 1 (goodCursors _) =>
+      apply Forall_cons; try assumption; simpl; tauto.
+
+    Hint Extern 1 (incl _ _) => hnf; simpl; intuition congruence.
+
+    Lemma cwf_wfEqualities : forall sch cdatas ns cond,
+      cwf ns sch cdatas cond
+      -> wfEqualities ns sch cond.
+      clear; unfold wfEqualities; induction 1; simpl; intuition.
+      constructor; auto.
+      unfold wfEquality, eqwf in *; destruct x as [ ? [ ] ]; simpl in *; tauto.
+    Qed.
+
+    Hint Immediate cwf_wfEqualities.
+
+    Lemma goodSize_base : forall t ts,
+      twfs ts
+      -> In t ts
+      -> goodSize (length (Schema t)).
+      intros ? ? H H0; eapply Forall_forall in H; [ | eassumption ]; unfold twf in *.
+      eapply goodSize_weaken; eauto.
+    Qed.
+
+    Hint Immediate goodSize_base.
+
+    Lemma cwf_noOverlapExps : forall rw data cdatas sch cond,
+      cwf ns sch cdatas cond
+      -> dontTouch rw data cdatas
+      -> noOverlapExps rw data (exps cond).
+      unfold dontTouch, noOverlapExps, noOverlapExp, eqwf; induction 1; simpl; intuition.
+      constructor; auto.
+      unfold eqwf in *; intuition.
+      destruct (snd x); unfold ewf in *; intuition subst;
+        (eapply ForallR_Forall in H1; eapply Forall_forall in H1; [ | eassumption ];
+          simpl in *; tauto).
+    Qed.
+
+    Hint Immediate cwf_noOverlapExps.
 
     Lemma Out_correct : forall cdatas, cdatasGood cdatas
-      -> "array8"!"copy" ~~ im ~~> copyS
-      -> forall xm pre,
-        wf xm
+      -> incl baseVars ns
+      -> forall xm avs ts pre im mn (H : importsGlobal im),
+        "array8"!"copy" ~~ im ~~> copyS
+        -> "array8"!"equal" ~~ im ~~> equalS
+        -> wf ns cdatas avs ts xm
         -> (forall start len, freeVar xm (start, len) -> In (start, len) cdatas)
         -> (forall start len, freeVar xm (start, len) -> In start ns /\ In len ns)
         -> (forall specs st, interp specs (pre st)
-          -> interp specs (invar cdatas true (fun x => x) ns res st))
-        -> (forall data' sch', freeRowVar xm (data', sch') -> data' = data /\ sch' = sch)
-        -> (forall specs st, interp specs (Postcondition (toCmd (Out' cdatas xm) mn H ns res pre) st)
-          -> interp specs (invar cdatas true (fun x => x) ns res st))
-        /\ vcs (VerifCond (toCmd (Out' cdatas xm) mn H ns res pre)).
-      induction xm using xml_ind'; step1.
+          -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+        -> (forall rw data, bindsRowVar xm (rw, data) -> In rw ns /\ In data ns)
+        -> goodCursors avs
+        -> twfs ts
+        -> NoDup (Names ts)
+        -> (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
+            -> x <> "matched" -> x <> "res"
+            -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf"
+            -> (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+            -> sel V x = sel V' x)
+          -> invPre a V ===> invPre a V')
+        -> (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
+            -> x <> "matched" -> x <> "res"
+            -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf"
+            -> (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+            -> sel V x = sel V' x)
+          -> invPost a V R = invPost a V' R)
+        -> (forall specs st, interp specs (Postcondition (toCmd (Out' cdatas avs ts xm) mn H ns res pre) st)
+          -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+        /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre)).
+      induction xm using xml_ind'.
+
+      Focus 5.
+      simpl; propxFo.
+
+      erewrite findTable_good in * by eauto.
+      t.
+
+      deDouble; intuition subst.
+      erewrite findTable_good in * by eauto.
+
+      wrap0.
+
+      post.
+      repeat invoke1.
+      prep.
+      propxFo.
+      repeat invoke1.
+      prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      3: my_descend; bash.
+      3: bash.
+      3: repeat (bash; my_descend).
+      eauto.
+      eauto.
+
+      deSpec; proveHimp.
+      deSpec; proveHimp.
+
+      match goal with
+        | [ IH : _ |- vcs _ ] => eapply IH; clear IH; eauto
+      end.
+
+      post.
+      repeat invoke1.
+      prep.
+      propxFo.
+      repeat invoke1.
+      prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      bash.
+      repeat (bash; my_descend).
+
+      match goal with
+        | [ IH : _, H : interp _ (Postcondition _ _) |- _ ] =>
+          apply IH in H; clear IH; eauto
+      end.
+
+      post.
+      repeat invoke1.
+      prep.
+      propxFo.
+      repeat invoke1.
+      prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      3: my_descend; bash.
+      3: bash.
+      3: repeat (bash; my_descend).
+      eauto.
+      eauto.
+
+      post.
+      repeat invoke1.
+      prep.
+      propxFo.
+      repeat invoke1.
+      prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      bash.
+      repeat (bash; my_descend).
+
+      eauto.
+      eauto.
+      eauto.
+
+      admit.
+      admit.
+      admit.
+      admit.
+
+      (*induction xm using xml_ind'; step1.
 
       step2.
       step2.
@@ -776,45 +1291,46 @@ Section Out.
       step2.
       step2.
       step2.
-      step2.
+      step2.*)
     Qed.
   End Out_correct.
 
-  Notation OutVcs cdatas xm := (fun im ns res =>
+  Notation OutVcs cdatas avs ts xm := (fun im ns res =>
     (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
-    :: In "tmp" ns :: In "buf" ns :: In "matched" ns :: In "res" ns :: In data ns
-    :: (data <> "rp")%type
-    :: (data <> "obuf")%type
-    :: (data <> "opos")%type
-    :: (data <> "overflowed")%type
-    :: (data <> "tmp")%type
-    :: (data <> "buf")%type
-    :: (data <> "matched")%type
-    :: (data <> "res")%type
+    :: In "tmp" ns :: In "buf" ns :: In "matched" ns :: In "res" ns
     :: (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
-      -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
-      -> invPre a V ===> invPre a V')
-    :: (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" ->
-         x <> "matched" -> x <> "res" -> sel V x = sel V' x)
-       -> invPost a V R = invPost a V' R)
-    :: (res >= 7)%nat
-    :: wf xm
+      -> x <> "matched" -> x <> "res"
+      -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf"
+      -> (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+      -> sel V x = sel V' x)
+    -> invPre a V ===> invPre a V')
+    :: (forall a V V' R, (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
+      -> x <> "matched" -> x <> "res"
+      -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf"
+      -> (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+      -> sel V x = sel V' x)
+    -> invPost a V R = invPost a V' R)
+    :: (res >= 11)%nat
+    :: wf ns cdatas avs ts xm
     :: (forall start len, freeVar xm (start, len) -> In (start, len) cdatas)
     :: (forall start len, freeVar xm (start, len) -> In start ns /\ In len ns)
-    :: (forall data' sch', freeRowVar xm (data', sch') -> data' = data /\ sch' = sch)
     :: cdatasGood cdatas
     :: "array8"!"copy" ~~ im ~~> copyS
+    :: "array8"!"equal" ~~ im ~~> equalS
+    :: incl baseVars ns
+    :: (forall rw data, bindsRowVar xm (rw, data) -> In rw ns /\ In data ns)
+    :: goodCursors avs
+    :: twfs ts%list
+    :: NoDup (Names ts)
     :: nil).
 
-  Definition Out (cdatas : list (string * string)) (xm : xml) : chunk.
-    refine (WrapC (Out' cdatas xm)
-      (invar cdatas)
-      (invar cdatas)
-      (OutVcs cdatas xm)
-      _ _); abstract (wrap0;
-        match goal with
-          | [ H : wf _ |- _ ] => eapply Out_correct in H; eauto
-        end; t).
+  Definition Out (cdatas : list (string * string)) (avs : list avail) (ts : tables) (xm : xml) : chunk.
+    refine (WrapC (Out' cdatas avs ts xm)
+      (invar cdatas avs ts)
+      (invar cdatas avs ts)
+      (OutVcs cdatas avs ts xm)
+      _ _); abstract (intros; repeat match goal with
+                                       | [ H : vcs (_ :: _) |- _ ] => inversion_clear H; subst
+                                     end; eapply Out_correct; eauto).
   Defined.
-
 End Out.

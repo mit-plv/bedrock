@@ -113,7 +113,9 @@ Section Select.
         -> interp specs (spost true (fun w => w) ns res st))
       -> vcs (VerifCond (toCmd body mn (im := im) H ns res pre)))
     :: (forall specs pre mn H st,
-      interp specs (Postcondition (toCmd body mn (im := im) H ns res pre) st)
+      (forall specs st, interp specs (pre st)
+        -> interp specs (spost true (fun w => w) ns res st))
+      -> interp specs (Postcondition (toCmd body mn (im := im) H ns res pre) st)
       -> interp specs (spost true (fun w => w) ns res st))
     :: "array8"!"equal" ~~ im ~~> ArrayOps.equalS
     :: (res >= 10)%nat
@@ -173,6 +175,12 @@ Section Select.
                apply compileEqualities_post in H; auto; intros;
                  try match goal with
                        | [ H : interp x y |- _ ] => clear H
+                     end;
+                 try match goal with
+                       | [ |- context[_ ===> _] ] => intros;
+                         match goal with
+                           | [ H : importsGlobal _ |- _ ] => clear dependent H
+                         end
                      end;
                  pre; prep; evalu;
                  try match goal with
