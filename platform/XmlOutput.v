@@ -604,16 +604,22 @@ Section Out.
     sepLemma; apply himp_star_comm.
   Qed.
 
+  Theorem matchup : forall P Q R P' Q',
+    P ===> P'
+    -> Q ===> Q'
+    -> P * (Q * R) ===> R * (P' * Q').
+    sepLemma; eapply Himp_star_frame; eauto.
+  Qed.
+
+  Theorem matchup2 : forall P Q R Q' R',
+    Q ===> Q'
+    -> R ===> R'
+    -> P * (Q * R) ===> P * (Q' * R').
+    sepLemma; eapply Himp_star_frame; eauto.
+  Qed.
+
   Ltac bash :=
     try match goal with
-          | [ _ : inBounds ?cdatas _ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
-            match post with
-              | context[locals ?ns _ _ _] =>
-                match pre with
-                  | context[locals ns ?vs _ _] =>
-                    assert (inBounds cdatas vs) by eauto
-                end
-            end
           | [ H : context[invPost] |- ?P = ?Q ] =>
             match P with
               | context[invPost ?a ?V _] =>
@@ -647,13 +653,39 @@ Section Out.
         end;
 
     match goal with
+      | [ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
+        match post with
+          | context[locals ?ns ?vs ?avail _] =>
+            match pre with
+              | context[excessStack _ ns avail ?ns' ?avail'] =>
+                match avail' with
+                  | avail => fail 1
+                  | _ =>
+                    match pre with
+                      | context[locals ns ?vs' 0 ?sp] =>
+                        match goal with
+                          | [ _ : _ = sp |- _ ] => fail 1
+                          | _ => equate vs vs';
+                            let offset := eval simpl in (4 * List.length ns) in
+                              rewrite (create_locals_return ns' avail' ns avail offset);
+                                assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                  simpl; omega
+                                  | reflexivity ] ); autorewrite with sepFormula;
+                                cancel auto_ext
+                        end
+                    end
+                end
+            end
+        end
       | _ => weaken_invPre
       | [ _ : context[reveal_row] |- _ ] => try match_locals; step RelDb.hints
       | _ => try match_locals; step auto_ext
     end;
     try (apply removeTable_bwd'; solve [ auto ]);
     try (apply removeTable_fwd'; solve [ auto ]);
-    try apply make_cursor; try apply unmake_cursor.
+    try apply make_cursor; try apply unmake_cursor;
+    try (apply matchup; solve [ auto ]);
+    try (apply matchup2; solve [ auto ]).
 
   Ltac t := post; repeat invoke1; prep; propxFo;
     repeat invoke1; prepl;
@@ -821,8 +853,16 @@ Section Out.
         | [ H : _ |- _ ] => apply H; solve [ descend; auto 1 ]
       end.
 
-    (*Hint Extern 1 (himp _ (invPost ?a ?b ?c) (invPost ?a ?b' ?c)) =>
-      rewrite (HinvPost a b b' c) by descend; reflexivity.*)
+    Hint Extern 1 (invPre _ _ ===> invPre _ _) =>
+      match goal with
+        | [ H : _ |- _ ] => apply H; solve [ descend; auto 1 ]
+      end.
+
+    Hint Extern 1 (himp _ (invPost ?a ?b ?c) (invPost ?a ?b' ?c)) =>
+      match goal with
+        | [ HinvPost : context[invPost] |- _ ] =>
+          rewrite (HinvPost a b b' c) by descend; reflexivity
+      end.
 
     Lemma convert' : forall (a b c : W) n,
       a < b ^- c
@@ -992,7 +1032,9 @@ Section Out.
     Definition goodCursors := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars).
 
     Lemma weaken_cursors : forall specs V V',
-      (forall x, x <> "overflowed" -> x <> "opos" -> sel V x = sel V' x)
+      (forall x, x <> "overflowed" -> x <> "opos"
+        -> x <> "tmp" -> x <> "matched" -> x <> "res"
+        -> sel V x = sel V' x)
       -> forall avs,
         goodCursors avs
         -> himp specs (cursors V avs) (cursors V' avs).
@@ -1011,7 +1053,19 @@ Section Out.
               end; reflexivity.
     Qed.
 
-    Hint Immediate weaken_cursors.
+    Hint Resolve weaken_cursors.
+
+    Lemma Weaken_cursors : forall V V',
+      (forall x, x <> "overflowed" -> x <> "opos"
+        -> x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
+      -> forall avs,
+        goodCursors avs
+        -> cursors V avs ===> cursors V' avs.
+      intros; hnf; intros; apply weaken_cursors; auto.
+    Qed.
+
+    Hint Extern 1 (cursors _ _ ===> cursors _ _) =>
+      apply Weaken_cursors; try assumption; [ descend ].
 
     Lemma inBounds_inputOk : forall sch V cdatas,
       inBounds cdatas V
@@ -1082,7 +1136,7 @@ Section Out.
               end; reflexivity.
     Qed.
 
-    Hint Immediate weaken_cursors'.
+    Hint Resolve weaken_cursors'.
 
     Lemma twfs_removeTable : forall x ts,
       twfs ts
@@ -1190,7 +1244,15 @@ Section Out.
       step2.
       step2.
 
-      admit.
+      step1.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
 
       admit.
 
