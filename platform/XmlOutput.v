@@ -956,14 +956,31 @@ Section Out.
           AssertStar_ AssertStar Cond_ Cond
           Wrap WrapC SimpleSeq StringWrite].
 
-    Ltac step1 := intros; split; unfold Out'; match goal with
-                                                | [ |- context[OutList] ] => simpl
-                                                | _ => vcgen_simp
-                                              end; refold;
-    fold (@length B); fold (@length string); fold (@length (W * W));
-      post; try match goal with
-                  | [ |- vcs (_ :: _) ] => wrap0; try discriminate
-                end.
+    Ltac step1 :=
+      match goal with
+        | [ |- context[Select] ] =>
+          simpl; propxFo; erewrite findTable_good in * by eauto;
+            deDouble; intuition subst;
+              try match goal with
+                    | [ |- vcs _ ] => wrap0
+                  end; (*try (deSpec; proveHimp);*) eauto;
+              try match goal with
+                    | [ IH : _ |- vcs _ ] =>
+                      eapply IH; clear IH; eauto
+                    | [ IH : _, H : interp _ (Postcondition _ _) |- _ ] =>
+                      apply IH in H; clear IH; eauto
+                  end
+        | _ =>
+          intros; split; unfold Out'; match goal with
+                                        | [ |- context[OutList] ] => simpl
+                                        | [ |- context[Select] ] => simpl
+                                        | _ => vcgen_simp
+                                      end; refold;
+          fold (@length B); fold (@length string); fold (@length (W * W));
+            post; try match goal with
+                        | [ |- vcs (_ :: _) ] => wrap0; try discriminate
+                      end
+      end.
 
     Ltac step2 := abstract (deDouble; deSpec; intuition subst;
       solve [ t | proveHimp (*|
@@ -1167,94 +1184,19 @@ Section Out.
         /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre)).
       induction xm using xml_ind'.
 
-      Focus 5.
-      simpl; propxFo.
-
-      erewrite findTable_good in * by eauto.
-      t.
-
-      deDouble; intuition subst.
-      erewrite findTable_good in * by eauto.
-
-      wrap0.
-
-      post.
-      repeat invoke1.
-      prep.
-      propxFo.
-      repeat invoke1.
-      prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      3: my_descend; bash.
-      3: bash.
-      3: repeat (bash; my_descend).
-      eauto.
-      eauto.
-
-      deSpec; proveHimp.
-      deSpec; proveHimp.
-
-      match goal with
-        | [ IH : _ |- vcs _ ] => eapply IH; clear IH; eauto
-      end.
-
-      post.
-      repeat invoke1.
-      prep.
-      propxFo.
-      repeat invoke1.
-      prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      bash.
-      repeat (bash; my_descend).
-
-      match goal with
-        | [ IH : _, H : interp _ (Postcondition _ _) |- _ ] =>
-          apply IH in H; clear IH; eauto
-      end.
-
-      post.
-      repeat invoke1.
-      prep.
-      propxFo.
-      repeat invoke1.
-      prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      3: my_descend; bash.
-      3: bash.
-      3: repeat (bash; my_descend).
-      eauto.
-      eauto.
-
-      post.
-      repeat invoke1.
-      prep.
-      propxFo.
-      repeat invoke1.
-      prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      bash.
-      repeat (bash; my_descend).
-
-      eauto.
-      eauto.
-      eauto.
+      step1.
+      step2.
+      step2.
+      step2.
+      step2.
 
       admit.
-      admit.
-      admit.
+
       admit.
 
-      (*induction xm using xml_ind'; step1.
+      admit.
 
+      step1.
       step2.
       step2.
       step2.
@@ -1262,36 +1204,6 @@ Section Out.
       step2.
       step2.
       step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.*)
     Qed.
   End Out_correct.
 
