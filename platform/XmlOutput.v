@@ -95,7 +95,8 @@ Fixpoint wf ns (cdatas : list (string * string)) (avs : list avail) (ts : list t
     | Cdata const => goodSize (String.length const)
     | Var _ _ => True
     | Tag tag inner => goodSize (String.length tag + 3) /\ ForallR (wf ns cdatas avs ts) inner
-    | Column data col => exists av, In av avs /\ Data av = data /\ In col (Schema (Table av))
+    | Column tab col => exists av, In av avs /\ Name (Table av) = tab /\ In col (Schema (Table av))
+      /\ In (Data av) ns
     | Select tab rw data cond inner =>
       rw <> data /\ ~In rw cvars /\ ~In data cvars
       /\ dontTouch rw data cdatas /\ dontReuse rw data avs
@@ -477,7 +478,10 @@ Section Out.
     clear_fancy; repeat match goal with
                           | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H
                           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
-                        end.
+                        end;
+    try match goal with
+          | [ _ : context[reveal_row] |- _ ] => unfold cursor, row in *
+        end.
 
   Ltac reger := repeat match goal with
                          | [ H : Regs _ _ = _ |- _ ] => rewrite H
@@ -538,6 +542,7 @@ Section Out.
                match type of ls with
                  | schema => fail 1
                  | list table => fail 1
+                 | list avail => fail 1
                  | _ => clear H
                end
              | [ x : (_ * _)%type |- _ ] => destruct x; simpl in *
@@ -618,6 +623,120 @@ Section Out.
     sepLemma; eapply Himp_star_frame; eauto.
   Qed.
 
+  Definition ANames := map (fun av => Name (Table av)).
+
+  Lemma cursors_irrel : forall V av avs,
+    ~In (Name (Table av)) (ANames avs)
+    -> cursors V (removeCursor (Name (Table av)) avs) ===> cursors V avs.
+    induction avs; simpl; intuition; try ift; sepLemma.
+  Qed.
+
+  Theorem grab_cursor : forall V av avs,
+    In av avs
+    -> NoDup (ANames avs)
+    -> (cursors V (removeCursor (Name (Table av)) avs)
+      * inv (Address (Table av)) (Schema (Table av))
+      (sel V (Row av)) (sel V (Data av))
+      * row (Schema (Table av)) (sel V (Data av)))
+    ===> cursors V avs.
+    clear; induction avs; inversion_clear 2; simpl in *; intuition subst.
+    ift.
+    unfold cursor.
+    repeat match goal with
+             | [ |- context[V ?x] ] => change (V x) with (sel V x)
+           end.
+    sepLemma.
+    apply cursors_irrel; auto.
+    ift.
+    exfalso; apply H1.
+    rewrite <- e.
+    apply (in_map (fun av => Name (Table av))); auto.
+    simpl.
+    sepLemma.
+    etransitivity; [ | apply H3 ].
+    sepLemma.
+  Qed.
+
+  Lemma cursors_irrel' : forall V av avs,
+    ~In (Name (Table av)) (ANames avs)
+    -> cursors V avs ===> cursors V (removeCursor (Name (Table av)) avs).
+    induction avs; simpl; intuition; try ift; sepLemma.
+  Qed.
+
+  Theorem release_cursor : forall V av avs,
+    In av avs
+    -> NoDup (ANames avs)
+    -> cursors V avs
+    ===> cursor V av * cursors V (removeCursor (Name (Table av)) avs).
+    clear; induction avs; inversion_clear 2; simpl in *; intuition subst; ift.
+    sepLemma.
+    apply cursors_irrel'; auto.
+    exfalso; apply H1.
+    rewrite <- e.
+    apply (in_map (fun av => Name (Table av))); auto.
+    sepLemma.
+    etransitivity; [ | apply himp_star_comm ]; auto.
+  Qed.
+
+  Definition goodCursors avs := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars
+    /\ goodSize (length (Schema (Table av)))) avs.
+
+  Lemma weaken_cursors : forall specs V V',
+    (forall x, x <> "overflowed" -> x <> "opos"
+      -> x <> "tmp" -> x <> "matched" -> x <> "res"
+      -> sel V x = sel V' x)
+    -> forall avs,
+      goodCursors avs
+      -> himp specs (cursors V avs) (cursors V' avs).
+    induction avs; inversion_clear 1; simpl; intuition.
+    apply himp_star_frame; auto.
+    unfold cvars in *; simpl in *; intuition idtac;
+      unfold cursor; apply himp_star_frame;
+        repeat match goal with
+                 | [ V : vals |- _ ] =>
+                   progress repeat match goal with
+                                     | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                   end
+               end;
+        try match goal with
+              | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
+            end; reflexivity.
+  Qed.
+
+  Hint Resolve weaken_cursors.
+
+  Lemma cursor_expand : forall V' V P Q avs av,
+    In av avs
+    -> NoDup (ANames avs)
+    -> goodCursors avs
+    -> (forall x, x <> "overflowed" -> x <> "opos" ->
+      x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
+    -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
+    * inv (Address (Table av)) (Schema (Table av))
+    (sel V' (Row av)) (sel V' (Data av))
+    * row (Schema (Table av)) (sel V' (Data av)) ===> P * (Q * cursors V avs).
+    sepLemma.
+    etransitivity; [ | eapply weaken_cursors ]; try eassumption.
+    etransitivity; [ | apply grab_cursor ]; eauto.
+    sepLemma.
+  Qed.
+
+  Lemma cursor_expand' : forall V' V P Q avs av,
+    In av avs
+    -> NoDup (ANames avs)
+    -> goodCursors avs
+    -> (forall x, x <> "overflowed" -> x <> "opos" ->
+      x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
+    -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
+    * inv (Address (Table av)) (Schema (Table av))
+    (sel V' (Row av)) (sel V' (Data av))
+    * row (Schema (Table av)) (sel V' (Data av)) ===> P * (cursors V avs * Q).
+    sepLemma.
+    etransitivity; [ | eapply weaken_cursors ]; try eassumption.
+    etransitivity; [ | apply grab_cursor ]; eauto.
+    sepLemma.
+  Qed.
+
   Ltac bash :=
     try match goal with
           | [ H : context[invPost] |- ?P = ?Q ] =>
@@ -685,16 +804,30 @@ Section Out.
     try (apply removeTable_fwd'; solve [ auto ]);
     try apply make_cursor; try apply unmake_cursor;
     try (apply matchup; solve [ auto ]);
-    try (apply matchup2; solve [ auto ]).
+    try (apply matchup2; solve [ auto ]);
+    try (etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; try reflexivity;
+      apply release_cursor; eauto);
+    try (etransitivity; [ | (apply cursor_expand || apply cursor_expand'); try eassumption ];
+      match goal with
+        | [ |- himp _ _ _ ] => unfold row; simpl; bash
+        | _ => descend; eauto
+      end).
+
+  Ltac desc := my_descend;
+    [ try match goal with
+            | [ _ : context[reveal_row], H : goodCursors _, H' : In _ _ |- _ ] =>
+              destruct (proj1 (Forall_forall _ _) H _ H');
+                simpl in *; intuition idtac
+          end | .. ].
 
   Ltac t := post; repeat invoke1; prep; propxFo;
-    repeat invoke1; prepl;
-      match goal with
-        | [ _ : context[reveal_row] |- _ ] => evaluate RelDb.hints
-        | _ => evaluate auto_ext
-      end; my_descend; (repeat (bash; my_descend); eauto).
+    repeat invoke1; prepl; evaluate auto_ext;
+      desc; (repeat (bash; my_descend); eauto).
 
   Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
+
+  Definition NoDups (avs : list avail) (ts : tables) :=
+    NoDup (map (fun av => Name (Table av)) avs ++ Names ts).
 
   Section Out_correct.
     Variables (ns : list string) (res : nat).
@@ -726,31 +859,66 @@ Section Out.
             specialize (fun start len H' => H start len (or_intror _ H')); intro
       end.
 
-    (*Lemma OutList_correct : forall cdatas, cdatasGood cdatas
+    Lemma OutList_correct : forall cdatas, cdatasGood cdatas
       -> forall xms,
         List.Forall
-        (fun xm => forall pre, wf xm
+        (fun xm => forall avs ts pre im mn (H : importsGlobal im),
+          "array8"!"copy" ~~ im ~~> copyS
+          -> "array8"!"equal" ~~ im ~~> equalS
+          -> wf ns cdatas avs ts xm
           -> (forall start len, freeVar xm (start, len) -> In (start, len) cdatas)
           -> (forall start len, freeVar xm (start, len) -> In start ns /\ In len ns)
           -> (forall specs st, interp specs (pre st)
-            -> interp specs (invar cdatas true (fun x => x) ns res st))
-          -> (forall data' sch', freeRowVar xm (data', sch') -> data' = data /\ sch' = sch)
+            -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+          -> (forall rw data, bindsRowVar xm (rw, data) -> In rw ns /\ In data ns)
+          -> goodCursors avs
+          -> twfs ts
+          -> NoDups avs ts
+          -> (forall a V V',
+            (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" -> x <> "matched" ->
+              x <> "res" -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf" ->
+              (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+              -> sel V x = sel V' x) -> invPre a V ===> invPre a V')
+          -> (forall a V V' R,
+            (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" -> x <> "matched" ->
+              x <> "res" -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf" ->
+              (forall rw data, bindsRowVar xm (rw, data) -> x <> rw /\ x <> data)
+              -> sel V x = sel V' x) -> invPost a V R = invPost a V' R)
           -> (forall specs st,
-            interp specs (Postcondition (toCmd (Out' cdatas xm) mn H ns res pre) st)
-            -> interp specs (invar cdatas true (fun x => x) ns res st))
-          /\ vcs (VerifCond (toCmd (Out' cdatas xm) mn H ns res pre))) xms
-        -> ForallR wf xms
-        -> forall pre,
-          (forall start len, ExistsR (fun xm => freeVar xm (start, len)) xms -> In (start, len) cdatas)
+            interp specs (Postcondition (toCmd (Out' cdatas avs ts xm) mn H ns res pre) st)
+            -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+          /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre))) xms
+        -> forall avs ts, ForallR (wf ns cdatas avs ts) xms
+        -> forall pre im mn (H : importsGlobal im),
+          "array8"!"copy" ~~ im ~~> copyS
+          -> "array8"!"equal" ~~ im ~~> equalS
+          -> (forall start len, ExistsR (fun xm => freeVar xm (start, len)) xms -> In (start, len) cdatas)
           -> (forall start len, ExistsR (fun xm => freeVar xm (start, len)) xms -> In start ns /\ In len ns)
           -> (forall specs st, interp specs (pre st)
-            -> interp specs (invar cdatas true (fun x => x) ns res st))
-          -> (forall data' sch', ExistsR (fun xm => freeRowVar xm (data', sch')) xms -> data' = data /\ sch' = sch)
-          -> (forall specs st, interp specs (Postcondition (toCmd (OutList (Out' cdatas) xms) mn H ns res pre) st)
-            -> interp specs (invar cdatas true (fun x => x) ns res st))
-          /\ vcs (VerifCond (toCmd (OutList (Out' cdatas) xms) mn H ns res pre)).
-      induction 2; post; intuition; repeat split_IH; t.
-    Qed.*)
+            -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+          -> (forall rw data, ExistsR (fun xm => bindsRowVar xm (rw, data)) xms -> In rw ns /\ In data ns)
+          -> goodCursors avs
+          -> twfs ts
+          -> NoDups avs ts
+          -> (forall a V V',
+            (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" -> x <> "matched" ->
+              x <> "res" -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf" ->
+              (forall rw data, ExistsR (fun xm => bindsRowVar xm (rw, data)) xms -> x <> rw /\ x <> data)
+              -> sel V x = sel V' x) -> invPre a V ===> invPre a V')
+          -> (forall a V V' R,
+            (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp" -> x <> "matched" ->
+              x <> "res" -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf" ->
+              (forall rw data, ExistsR (fun xm => bindsRowVar xm (rw, data)) xms -> x <> rw /\ x <> data)
+              -> sel V x = sel V' x) -> invPost a V R = invPost a V' R)
+          -> (forall specs st, interp specs (Postcondition (toCmd (OutList (Out' cdatas avs ts ) xms) mn H ns res pre) st)
+            -> interp specs (invar cdatas avs ts true (fun x => x) ns res st))
+          /\ vcs (VerifCond (toCmd (OutList (Out' cdatas avs ts) xms) mn H ns res pre)).
+      induction 2; simpl; intuition auto 1; split; intros; try apply vcs_app_fwd;
+        repeat match goal with
+                 | [ H : _ |- vcs _ ] => eapply H; eauto; intros
+                 | [ H : _ |- _ ] => eapply H; [ .. | eassumption ]; eauto; intros
+               end.
+    Qed.
 
     Hint Constructors unit.
 
@@ -994,7 +1162,10 @@ Section Out.
           ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect COperand1 CTest
           COperand2 Pos.succ makeVcs Note_ Note__ IGotoStar_ IGotoStar
           AssertStar_ AssertStar Cond_ Cond
-          Wrap WrapC SimpleSeq StringWrite].
+          Wrap WrapC SimpleSeq StringWrite];
+        refold;
+        fold (@length B) in *; fold (@length string) in *;
+          fold (@length (W * W)) in *; fold (@length W) in *.
 
     Ltac step1 :=
       match goal with
@@ -1003,7 +1174,7 @@ Section Out.
             deDouble; intuition subst;
               try match goal with
                     | [ |- vcs _ ] => wrap0
-                  end; (*try (deSpec; proveHimp);*) eauto;
+                  end; eauto;
               try match goal with
                     | [ IH : _ |- vcs _ ] =>
                       eapply IH; clear IH; eauto
@@ -1015,45 +1186,18 @@ Section Out.
                                         | [ |- context[OutList] ] => simpl
                                         | [ |- context[Select] ] => simpl
                                         | _ => vcgen_simp
-                                      end; refold;
-          fold (@length B); fold (@length string); fold (@length (W * W));
+                                      end;
             post; try match goal with
                         | [ |- vcs (_ :: _) ] => wrap0; try discriminate
-                      end
+                      end;
+            try match goal with
+                  | _ => apply OutList_correct; auto
+                  | [ H : _ |- _ ] => apply OutList_correct in H; auto
+                end
       end.
 
     Ltac step2 := abstract (deDouble; deSpec; intuition subst;
-      solve [ t | proveHimp (*|
-        match goal with
-          | [ H : List.Forall _ _ |- _ ] =>
-            eapply OutList_correct in H; [ destruct H; eauto | auto | auto | auto | auto | | auto ]
-        end; t*) ]).
-
-    Definition goodCursors := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars).
-
-    Lemma weaken_cursors : forall specs V V',
-      (forall x, x <> "overflowed" -> x <> "opos"
-        -> x <> "tmp" -> x <> "matched" -> x <> "res"
-        -> sel V x = sel V' x)
-      -> forall avs,
-        goodCursors avs
-        -> himp specs (cursors V avs) (cursors V' avs).
-      induction avs; inversion_clear 1; simpl; intuition.
-      apply himp_star_frame; auto.
-      unfold cvars in *; simpl in *; intuition idtac;
-        unfold cursor; apply himp_star_frame;
-          repeat match goal with
-                   | [ V : vals |- _ ] =>
-                     progress repeat match goal with
-                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
-                                     end
-                 end;
-          try match goal with
-                | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
-              end; reflexivity.
-    Qed.
-
-    Hint Resolve weaken_cursors.
+      solve [ t | proveHimp ]).
 
     Lemma Weaken_cursors : forall V V',
       (forall x, x <> "overflowed" -> x <> "opos"
@@ -1065,7 +1209,7 @@ Section Out.
     Qed.
 
     Hint Extern 1 (cursors _ _ ===> cursors _ _) =>
-      apply Weaken_cursors; try assumption; [ descend ].
+      apply Weaken_cursors; eauto 1; [ descend ].
 
     Lemma inBounds_inputOk : forall sch V cdatas,
       inBounds cdatas V
@@ -1187,7 +1331,7 @@ Section Out.
       twfs ts
       -> In t ts
       -> goodSize (length (Schema t)).
-      intros ? ? H H0; eapply Forall_forall in H; [ | eassumption ]; unfold twf in *.
+      intros ? ? H H0; eapply Forall_forall in H; [ | eassumption ]; unfold twf in *; intuition idtac.
       eapply goodSize_weaken; eauto.
     Qed.
 
@@ -1207,6 +1351,39 @@ Section Out.
 
     Hint Immediate cwf_noOverlapExps.
 
+    Lemma findCursor_good : forall tab av avs,
+      NoDup (map (fun av => Name (Table av)) avs)
+      -> In av avs
+      -> Name (Table av) = tab
+      -> findCursor tab avs = Some av.
+      induction avs; simpl; inversion 1; intuition subst; ift.
+      exfalso; eapply H2.
+      rewrite <- e.
+      eapply (in_map (fun av => Name (Table av)) _ _ H6).
+    Qed.
+
+    Lemma NoDups_ts : forall avs ts,
+      NoDups avs ts
+      -> NoDup (Names ts).
+      intros; eapply NoDup_unapp2; eauto.
+    Qed.
+
+    Lemma NoDups_avs : forall avs ts,
+      NoDups avs ts
+      -> NoDup (map (fun av => Name (Table av)) avs).
+      intros; eapply NoDup_unapp1; eauto.
+    Qed.
+
+    Hint Immediate NoDups_ts NoDups_avs.
+
+    Lemma goodCursors_removeCursor : forall tab avs,
+      goodCursors avs
+      -> goodCursors (removeCursor tab avs).
+      unfold goodCursors; induction 1; simpl; intuition; ift.
+    Qed.
+
+    Hint Immediate goodCursors_removeCursor.
+
     Lemma Out_correct : forall cdatas, cdatasGood cdatas
       -> incl baseVars ns
       -> forall xm avs ts pre im mn (H : importsGlobal im),
@@ -1220,7 +1397,7 @@ Section Out.
         -> (forall rw data, bindsRowVar xm (rw, data) -> In rw ns /\ In data ns)
         -> goodCursors avs
         -> twfs ts
-        -> NoDup (Names ts)
+        -> NoDups avs ts
         -> (forall a V V', (forall x, x <> "overflowed" -> x <> "opos" -> x <> "tmp"
             -> x <> "matched" -> x <> "res"
             -> x <> "ipos" -> x <> "ilen" -> x <> "ibuf"
@@ -1238,25 +1415,198 @@ Section Out.
         /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre)).
       induction xm using xml_ind'.
 
-      step1.
+      Focus 4.
+      simpl; intros.
+      match goal with
+        | [ H : Logic.ex _ |- _ ] => destruct H as [ ? [ ? [ ] ] ]
+      end.
+      erewrite findCursor_good by eauto.
+      vcgen_simp.
+      post; try match goal with
+                  | [ |- vcs (_ :: _) ] => wrap0; try discriminate
+                end.
+
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      auto.
+      bash; my_descend.
+
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
       step2.
       step2.
       step2.
       step2.
+      step2.
+
+      assert reveal_row by constructor.
+      (* This is the case right after ["tmp" <- "olen" - "opos"]. *)
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      step2.
+      step2.
+
+      assert reveal_row by constructor.
+      (* This is after ["tmp" <-* "tmp" + (4 * findCol (Schema (Table av)) col)%nat]. *)
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      step2.
+      step2.
+
+      deDouble; deSpec; intuition subst.
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      desc.
+      bash.
+      4: my_descend; bash.
+      eauto.
+      eauto.
+      eauto.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      step2.
+      step2.
+
 
       step1.
       step2.
       step2.
       step2.
       step2.
+
+
+      step1.
+      step2.
+      step2.
+      step2.
+      step2.
       step2.
       step2.
       step2.
       step2.
 
-      admit.
 
-      admit.
+      step1.
+      step2.
+      step2.
+      step2.
+
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      2: my_descend; bash.
+      auto.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
+      step2.
+      step2.
+      step2.
+
+      apply OutList_correct in H5; auto.
+
+      post; repeat invoke1; prep; propxFo.
+      repeat invoke1; prepl.
+      evaluate auto_ext.
+      my_descend.
+      bash.
+      2: my_descend; bash.
+      auto.
+      bash.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+      bash; my_descend.
+
 
       step1.
       step2.
