@@ -1135,8 +1135,8 @@ Section Out.
       | [ _ : context[reveal_row] |- _ ] => try match_locals; step RelDb.hints
       | _ => try match_locals; step auto_ext
     end;
-    try (apply removeTable_bwd'; solve [ auto ]);
-    try (apply removeTable_fwd'; solve [ auto ]);
+    try (apply removeTable_bwd'; solve [ eauto ]);
+    try (apply removeTable_fwd'; solve [ eauto ]);
     try apply make_cursor; try apply unmake_cursor;
     try (apply matchup; solve [ auto ]);
     try (apply matchup2; solve [ auto ]);
@@ -1549,7 +1549,7 @@ Section Out.
     :: (forall rw data, bindsRowVar xm (rw, data) -> In rw ns /\ In data ns)
     :: goodCursors avs
     :: twfs ts%list
-    :: NoDup (Names ts)
+    :: NoDups avs ts%list
     :: nil).
 
   Definition Out (cdatas : list (string * string)) (avs : list avail) (ts : tables) (xm : xml) : chunk.
