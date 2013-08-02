@@ -23,12 +23,21 @@ Inductive pat :=
 (* Match one pattern and then another in the part of the XML tree right after the match of the first. *)
 | Ordered (p1 p2 : pat).
 
+(* Expressions for data queries and updates *)
+Inductive exp :=
+| Const (s : string)
+| Input (text : string).
+
+Definition equality := (string * exp)%type.
+Definition condition := list equality.
+
 (* Language for generating XML code *)
 Inductive xml :=
 | XCdata (const : string)
 | XVar (text : string)
 | XTag (tag : string) (inner : list xml)
-| XColumn (col : string).
+| XColumn (tab col : string)
+| XSelect (tab : string) (cond : condition) (inner : xml).
 
 Section xml_ind'.
   Variable P : xml -> Prop.
@@ -39,7 +48,9 @@ Section xml_ind'.
 
   Hypothesis H_Tag : forall tag inner, List.Forall P inner -> P (XTag tag inner).
 
-  Hypothesis H_Column : forall col, P (XColumn col).
+  Hypothesis H_Column : forall tab col, P (XColumn tab col).
+
+  Hypothesis H_Select : forall tab cond inner, P inner -> P (XSelect tab cond inner).
 
   Fixpoint xml_ind' (xm : xml) : P xm :=
     match xm with
@@ -50,27 +61,18 @@ Section xml_ind'.
           | nil => Forall_nil _
           | xm :: xms' => Forall_cons _ (xml_ind' xm) (xmls_ind xms')
         end) inner)
-      | XColumn col => H_Column col
+      | XColumn tab col => H_Column tab col
+      | XSelect tab cond inner => H_Select tab cond (xml_ind' inner)
     end.
 End xml_ind'.
 
 Opaque xml_ind'.
-
-
-(* Expressions for data queries and updates *)
-Inductive exp :=
-| Const (s : string)
-| Input (text : string).
-
-Definition equality := (string * exp)%type.
-Definition condition := list equality.
 
 (* Language of actions to take for matched patterns *)
 Inductive action :=
 | Insert (tab : string) (es : list exp)
 | Delete (tab : string) (cond : condition)
 | Output (xm : xml)
-| SelectOutput (tab : string) (cond : condition) (xm : xml)
 | Seq (a1 a2 : action).
 
 (* A full program *)
@@ -111,13 +113,36 @@ Fixpoint allCdatas (p : pat) : list string :=
 
 (** * Our versions of the auxiliary functions from XmlOutput *)
 
-Fixpoint xwf (sch : schema) (xm : xml) : Prop :=
+Definition ewf (e : exp) : Prop :=
+  match e with
+    | Const s => goodSize (String.length s)
+    | Input _ => True
+  end.
+
+Definition ewfs := List.Forall ewf.
+
+Definition eqwf (sch : schema) (e : equality) : Prop :=
+  In (fst e) sch /\ ewf (snd e).
+
+Definition cwf sch : condition -> Prop := List.Forall (eqwf sch).
+
+Fixpoint xwf (avs ts : tables) (xm : xml) : Prop :=
   match xm with
     | XCdata const => goodSize (String.length const)
     | XVar _ => True
     | XTag tag inner => goodSize (String.length tag + 3)
-      /\ ForallR (xwf sch) inner
-    | XColumn col => In col sch
+      /\ ForallR (xwf avs ts) inner
+    | XColumn tab col => exists t, In t avs /\ Name t = tab
+      /\ In col (Schema t)
+    | XSelect tab cond inner => exists t, In t ts /\ Name t = tab
+      /\ cwf (Schema t) cond
+      /\ xwf (t :: avs) (removeTable tab ts) inner
+  end.
+
+Definition efreeVar (e : exp) (x : string) : Prop :=
+  match e with
+    | Const _ => False
+    | Input text => x = text
   end.
 
 Fixpoint xfreeVar (xm : xml) (x : string) : Prop :=
@@ -125,7 +150,18 @@ Fixpoint xfreeVar (xm : xml) (x : string) : Prop :=
     | XCdata _ => False
     | XVar text => x = text
     | XTag _ inner => ExistsR (fun xm' => xfreeVar xm' x) inner
-    | XColumn _ => False
+    | XColumn _ _ => False
+    | XSelect _ cond inner => List.Exists (fun e => efreeVar (snd e) x) cond
+      \/ xfreeVar inner x
+  end.
+
+Fixpoint xbindsRowVar (xm : xml) (x : string) : Prop :=
+  match xm with
+    | XCdata _ => False
+    | XVar _ => False
+    | XTag _ inner => ExistsR (fun xm' => xbindsRowVar xm' x) inner
+    | XColumn _ _ => False
+    | XSelect tab _ inner => x = tab \/ xbindsRowVar inner x
   end.
 
 
@@ -138,14 +174,6 @@ Fixpoint compilePat (p : pat) : XmlSearch.pat :=
     | Tag tag inner => XmlSearch.Tag tag (compilePat inner)
     | Both p1 p2 => XmlSearch.Both (compilePat p1) (compilePat p2)
     | Ordered p1 p2 => XmlSearch.Ordered (compilePat p1) (compilePat p2)
-  end.
-
-Fixpoint compileXml (sch : schema) (p : xml) : XmlOutput.xml :=
-  match p with
-    | XCdata const => XmlOutput.Cdata const
-    | XVar text => XmlOutput.Var (text ++ "_start") (text ++ "_len")
-    | XTag tag inner => XmlOutput.Tag tag (map (compileXml sch) inner)
-    | XColumn col => XmlOutput.Column "data" sch col
   end.
 
 Definition compileExp (e : exp) : RelDb.exp :=
@@ -162,49 +190,28 @@ Definition compileEquality (e : equality) : RelDb.equality :=
 Definition compileCondition : condition -> RelDb.condition :=
   map compileEquality.
 
+Fixpoint compileXml (p : xml) : XmlOutput.xml :=
+  match p with
+    | XCdata const => XmlOutput.Cdata const
+    | XVar text => XmlOutput.Var (text ++ "_start") (text ++ "_len")
+    | XTag tag inner => XmlOutput.Tag tag (map compileXml inner)
+    | XColumn tab col => XmlOutput.Column tab col
+    | XSelect tab cond inner => XmlOutput.Select tab
+      (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
+      (compileXml inner)
+  end.
+
 
 (** * Combined well-formedness and related lemmas *)
 
-Record table := {
-  Name : string;
-  Address : W;
-  Schema : schema
-}.
-
-Definition twf (t : table) := goodSize (2 + length (Schema t) + length (Schema t)).
-
-Definition tables := list table.
-Definition twfs : tables -> Prop := List.Forall twf.
-
-Definition ewf (e : exp) : Prop :=
-  match e with
-    | Const s => goodSize (String.length s)
-    | Input _ => True
-  end.
-
-Definition ewfs := List.Forall ewf.
-
-Definition eqwf (sch : schema) (e : equality) : Prop :=
-  In (fst e) sch /\ ewf (snd e).
-
-Definition cwf sch : condition -> Prop := List.Forall (eqwf sch).
-
-Fixpoint awf (ts : tables) (a : action) : Prop :=
+Fixpoint awf (avs ts : tables) (a : action) : Prop :=
   match a with
     | Insert tab es => exists t, In t ts /\ Name t = tab
       /\ length es = length (Schema t) /\ ewfs es
     | Delete tab cond => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond
-    | Output xm => xwf nil xm
-    | SelectOutput tab cond xm => exists t, In t ts /\ Name t = tab
-      /\ cwf (Schema t) cond /\ xwf (Schema t) xm
-    | Seq a1 a2 => awf ts a1 /\ awf ts a2
-  end.
-
-Definition efreeVar (e : exp) (x : string) : Prop :=
-  match e with
-    | Const _ => False
-    | Input text => x = text
+    | Output xm => xwf avs ts xm
+    | Seq a1 a2 => awf avs ts a1 /\ awf avs ts a2
   end.
 
 Fixpoint afreeVar (a : action) (x : string) : Prop :=
@@ -212,14 +219,12 @@ Fixpoint afreeVar (a : action) (x : string) : Prop :=
     | Insert _ es => List.Exists (fun e => efreeVar e x) es
     | Delete _ cond => List.Exists (fun e => efreeVar (snd e) x) cond
     | Output xm => xfreeVar xm x
-    | SelectOutput _ cond xm => List.Exists (fun e => efreeVar (snd e) x) cond
-      \/ xfreeVar xm x
     | Seq a1 a2 => afreeVar a1 x \/ afreeVar a2 x
   end.
 
 Fixpoint wf (ts : tables) (pr : program) : Prop :=
   match pr with
-    | Rule p a => pwf p /\ awf ts a
+    | Rule p a => pwf p /\ awf nil ts a
       /\ (forall x, afreeVar a x -> freeVar p x)
     | PSeq pr1 pr2 => wf ts pr1 /\ wf ts pr2
   end.
@@ -419,35 +424,57 @@ Lemma wf_NoDup : forall p,
   induction p; simpl; intuition; try NoDup; eauto using NoDup_app.
 Qed.
 
+Fixpoint allCursors_both' (xm : xml) : list string :=
+  match xm with
+    | XCdata _ => nil
+    | XVar _ => nil
+    | XTag _ inners => fold_left (fun ls xm => addTo (allCursors_both' xm) ls) inners nil
+    | XColumn _ _ => nil
+    | XSelect tab _ inner => (tab ++ "_row")%string :: (tab ++ "_data")%string
+      :: allCursors_both' inner
+  end.
+
+Fixpoint allCursors_both (a : action) : list string :=
+  match a with
+    | Insert _ _ => nil
+    | Delete tab _ => (tab ++ "_row")%string :: (tab ++ "_data")%string :: nil
+    | Output xm => allCursors_both' xm
+    | Seq a1 a2 => addTo (allCursors_both a1) (allCursors_both a2)
+  end.
+
+Fixpoint cursorsOf (pr : program) : list string :=
+  match pr with
+    | Rule _ a => allCursors_both a
+    | PSeq pr1 pr2 => addTo (cursorsOf pr1) (cursorsOf pr2)
+  end.
+
 
 (** * Compiling programs *)
 
 Section compileProgram.
-  Variable ts : tables.
   Variable pr : program.
 
   Definition numCdatas := length (cdatasOf pr).
-  Definition reserved := numCdatas + 26.
+  Definition numCursors := length (cursorsOf pr).
+  Definition reserved := numCdatas + numCursors + 25.
 
   Definition preLvars := "lex" :: "res" :: "opos" :: "overflowed"
     :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: "tmp"
-    :: "ibuf" :: "row" :: "ilen" :: "ipos" :: "data"
-    :: cdatasOf pr.
-  Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: "dummy" :: preLvars.
+    :: "ibuf" :: "row" :: "ilen" :: "ipos"
+    :: cdatasOf pr ++ cursorsOf pr.
+  Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: preLvars.
 
   Definition db := starL (fun t => RelDb.table (Schema t) (Address t)).
 
-  Definition mainS := SPEC("buf", "len", "obuf", "olen", "dummy") reserving reserved
+  Definition mainS ts := SPEC("buf", "len", "obuf", "olen", "dummy") reserving reserved
     Al bsI, Al bsO,
-    PRE[V] db ts * row nil (V "dummy")
+    PRE[V] db ts
       * array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0
       * [| length bsI = wordToNat (V "len") |]
       * [| length bsO = wordToNat (V "olen") |]
-    POST[R] db ts * row nil (V "dummy")
+    POST[R] db ts
       * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
       * [| length bsO' = length bsO |] * [| R <= V "olen" |].
-
-  Hypothesis wellFormed : wf ts pr.
 
   Lemma string_eq_true : forall s1 s2,
     string_eq s1 s2 = false -> s1 <> s2.
@@ -474,9 +501,148 @@ Section compileProgram.
     generalize (member_means a ls2); destruct (member a ls2); intuition.
   Qed.    
 
-  Let distinct : NoDup (cdatasOf pr).
+  Hint Immediate NoDup_addTo.
+
+  Lemma cdatas_distinct : forall ts, wf ts pr
+    -> NoDup (cdatasOf pr).
     induction pr; simpl in *; intuition
-      auto using allCdatas_NoDup, wf_NoDup, NoDup_addTo.
+      eauto using allCdatas_NoDup, wf_NoDup, NoDup_addTo.
+  Qed.
+
+  Lemma In_addTo_or : forall x ls1 ls2,
+    In x (addTo ls1 ls2)
+    -> In x ls1 \/ In x ls2.
+    clear; induction ls1; simpl; intuition.
+    generalize (member_means a ls2); destruct (member a ls2); intuition;
+      destruct (IHls1 _ H); simpl in *; intuition.
+  Qed.
+
+  Lemma append_underscore_free : forall suff suff' tab tab0,
+    underscore_free tab
+    -> underscore_free tab0
+    -> (tab0 ++ String "_" suff)%string = (tab ++ String "_" suff')%string
+    -> tab0 = tab.
+    induction tab; destruct tab0; simpl; intuition.
+    injection H1; clear H1; intros; subst.
+    f_equal; eauto.
+  Qed.
+
+  Lemma Forall_removeTable : forall P tab ts,
+    List.Forall P ts
+    -> List.Forall P (removeTable tab ts).
+    induction 1; simpl; intuition; ift.
+  Qed.
+
+  Hint Immediate Forall_removeTable.
+
+  Hint Immediate NoDup_unapp1 NoDup_unapp2.
+
+  Definition NoDups avs ts := NoDup (Names avs ++ Names ts).
+
+  Lemma NoDups_descend : forall tab t avs ts,
+    NoDups avs ts
+    -> In t ts
+    -> Name t = tab
+    -> NoDups (t :: avs) (removeTable tab ts).
+    clear; unfold NoDups; simpl; intros; subst.
+    constructor.
+    intro.
+    apply in_app_or in H1; intuition eauto using removeTable_contra.
+    eapply NoDups_unapp_cross in H; eauto.
+    apply H.
+    apply in_map; auto.
+    apply NoDups_app; eauto using NoDup_removeTable.
+    intros.
+    intro.
+    eapply NoDups_unapp_cross in H; eauto.
+  Qed.
+
+  Hint Immediate NoDups_descend.
+
+  Lemma Forall_removeTable' : forall P tab ts,
+    List.Forall P ts
+    -> List.Forall (fun t => Name t <> tab /\ P t) (removeTable tab ts).
+    clear; induction 1; simpl; intuition; ift.
+  Qed.
+
+  Hint Immediate Forall_removeTable'.
+  
+  Lemma unusedTable : forall tab suff, underscore_free tab
+    -> forall xm avs ts,
+      xwf avs ts xm
+      -> NoDups avs ts
+      -> List.Forall (fun t => Name t <> tab /\ underscore_free (Name t))%type ts
+      -> In (tab ++ String "_" suff)%string (allCursors_both' xm)
+      -> False.
+    clear; induction xm using xml_ind'; simpl; intuition.
+    assert (~In (tab ++ String "_" suff)%string nil) by (simpl; tauto).
+    generalize dependent (@nil string); induction H0; simpl in *; intuition.
+    eapply H6.
+    eauto.
+    intros.
+    apply In_addTo_or in H10; intuition eauto.
+
+    eapply append_underscore_free in H4; eauto.
+    subst.
+    destruct H0; intuition.
+    eapply Forall_forall in H2; [ | eassumption ]; tauto.
+    destruct H0; intuition.
+    eapply Forall_forall in H2; [ | eassumption ]; intuition congruence.
+
+    eapply append_underscore_free in H3; eauto.
+    subst.
+    destruct H0; intuition.
+    eapply Forall_forall in H2; [ | eassumption ]; tauto.
+    destruct H0; intuition.
+    eapply Forall_forall in H2; [ | eassumption ]; intuition congruence.
+
+    destruct H0; intuition eauto.
+  Qed.
+
+  Lemma allCursors'_both_NoDup : forall xm avs ts,
+    xwf avs ts xm
+    -> NoDups avs ts
+    -> List.Forall (fun t => underscore_free (Name t)) ts
+    -> NoDup (allCursors_both' xm).
+    clear; induction xm using xml_ind'; simpl; intuition.
+    generalize (NoDup_nil string); generalize dependent (@nil string);
+      induction H; simpl in *; intuition.
+    destruct H; intuition.
+
+    constructor.
+    simpl; intuition.
+    apply append_inj in H6; discriminate.
+    eapply unusedTable; eauto.
+    eapply Forall_forall in H1; [ | eassumption ]; eauto.
+
+    constructor.
+    simpl; intuition.
+    eapply unusedTable; eauto.
+    eapply Forall_forall in H1; [ | eassumption ]; eauto.
+
+    eauto.
+  Qed.
+
+  Hint Immediate allCursors'_both_NoDup.
+
+  Lemma allCursors_both_NoDup : forall a avs ts,
+    awf avs ts a
+    -> NoDups avs ts
+    -> List.Forall (fun t => underscore_free (Name t)) ts
+    -> NoDup (allCursors_both a).
+    clear; induction a; simpl; intuition eauto using NoDup_addTo.
+    repeat constructor; simpl; intuition.
+    apply append_inj in H3; discriminate.
+  Qed.
+
+  Hint Immediate allCursors_both_NoDup.
+
+  Lemma cursorsOf_NoDup : forall ts p,
+    wf ts p
+    -> NoDup (Names ts)
+    -> List.Forall (fun t => underscore_free (Name t)) ts
+    -> NoDup (cursorsOf p).
+    induction p; simpl; intuition eauto.
   Qed.
 
   Ltac xomega := unfold preLvars, reserved, numCdatas; simpl; omega.
@@ -504,11 +670,26 @@ Section compileProgram.
     change (Sp + n)%loc with (Sp + variablePosition ("rp" :: lvars) s)%loc in *;
       assert (In s ("rp" :: lvars)) by (simpl; tauto).
 
+  Definition avout := map (fun av => {| Table := av; Row := Name av ++ "_row";
+    Data := Name av ++ "_data" |}).
+
+  Definition cursors V avs := cursors V (avout avs).
+
+  Lemma cursors_sel : forall V avs, cursors (sel V) avs = cursors V avs.
+    auto.
+  Qed.
+
   Ltac prep :=
     post;
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end;
+    repeat match goal with
+             | [ H : context[cursors (sel ?V) ?x] |- _ ] => rewrite (cursors_sel V x) in H
+             | [ |- context[cursors (sel ?V) ?x] ] => rewrite (cursors_sel V x)
+             | [ H : context[XmlOutput.cursors (sel ?V) ?x] |- _ ] => rewrite (XmlOutput.cursors_sel V x) in H
+             | [ |- context[XmlOutput.cursors (sel ?V) ?x] ] => rewrite (XmlOutput.cursors_sel V x)
+           end;
     fold (@length string) in *; varer 52 "stack"; varer 8 "len"; varer 24 "lex"; varer 32 "opos";
       varer 36 "overflowed";
       try match goal with
@@ -559,7 +740,13 @@ Section compileProgram.
     try match goal with
           | [ st : (settings * state)%type |- _ ] => destruct st; simpl in *
         end;
-    descend; reger; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *.
+    descend; reger; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *;
+      repeat match goal with
+               | [ H : context[cursors (sel ?V) ?x] |- _ ] => rewrite (cursors_sel V x) in H
+               | [ |- context[cursors (sel ?V) ?x] ] => rewrite (cursors_sel V x)
+               | [ H : context[XmlOutput.cursors (sel ?V) ?x] |- _ ] => rewrite (XmlOutput.cursors_sel V x) in H
+               | [ |- context[XmlOutput.cursors (sel ?V) ?x] ] => rewrite (XmlOutput.cursors_sel V x)
+             end.
 
   Ltac clear_fancier :=
     repeat match goal with
@@ -577,29 +764,6 @@ Section compileProgram.
       | [ H : interp _ _, H' : _ |- _ ] => apply H' in H; clear H'
       | [ H : LabelMap.find _ _ = Some _ |- _ ] => rewrite H; post
     end.
-
-  Fixpoint findTable (tab : string) (ts : tables) : option table :=
-    match ts with
-      | nil => None
-      | t :: ts => if string_dec tab (Name t) then Some t else findTable tab ts
-    end.
-
-  Definition Names := map Name.
-
-  Ltac ift := match goal with
-                | [ |- context[if ?E then _ else _] ] => destruct E; intuition
-              end.
-
-  Lemma findTable_good : forall tab t ts0,
-    NoDup (Names ts0)
-    -> In t ts0
-    -> Name t = tab
-    -> findTable tab ts0 = Some t.
-    induction ts0; simpl; inversion 1; intuition subst; ift.
-    exfalso; eapply H2.
-    rewrite <- e.
-    apply in_map; auto.
-  Qed.
 
   Ltac post := PreAutoSep.post;
     try match goal with
@@ -637,7 +801,7 @@ Section compileProgram.
     solve [ hnf; simpl in *; intuition (subst; try congruence;
       eauto using freeVar_compile', freeVar_start, freeVar_len) ].
 
-  Ltac pre := try destruct wellFormed;
+  Ltac pre :=
     repeat match goal with
              | [ |- context[vcs] ] => wrap0
            end.
@@ -667,6 +831,35 @@ Section compileProgram.
 
   Hint Immediate inBounds_swizzle.
 
+  Lemma underscore_discrim : forall s1 s2,
+    s1 = s2
+    -> ~underscore_free s1
+    -> underscore_free s2
+    -> False.
+    intros; congruence.
+  Qed.
+
+  Lemma underscore_free_app_contra : forall s1 s2,
+    underscore_free (s1 ++ String "_" s2)
+    -> False.
+    clear; induction s1; simpl; intuition eauto.
+  Qed.
+
+  Lemma underscore_mid_discrim : forall s2 s2',
+    underscore_free s2
+    -> underscore_free s2'
+    -> forall s1 s1', (s1 ++ String "_" s2)%string = (s1' ++ String "_" s2')%string
+      -> s2 = s2'.
+    clear; induction s1; destruct s1'; simpl; intuition;
+      injection H1; clear H1; intros; subst; simpl in *; eauto;
+        exfalso; eauto using underscore_free_app_contra.
+  Qed.
+
+  Ltac und := congruence
+    || (intro Ho; apply underscore_mid_discrim in Ho; auto; discriminate)
+    || (intro; eapply underscore_discrim; try eassumption; solve [ eauto ])
+    || (intro; eapply underscore_discrim; try (symmetry; eassumption); eauto).
+
   Ltac prove_irrel := clear_fancier;
     repeat match goal with
              | [ V : vals |- _ ] =>
@@ -678,7 +871,7 @@ Section compileProgram.
       | [ H : forall x : string, _ |- _ ] =>
         match type of H with
           | context[sel] =>
-            repeat rewrite H by intuition (congruence || eauto)
+            repeat rewrite H by und
         end
     end; reflexivity || cancel auto_ext; solve [ eauto ].
 
@@ -715,15 +908,214 @@ Section compileProgram.
     induction 1; simpl; auto.
   Qed.
 
-  Lemma output_wf : forall sch xm,
-    xwf sch xm
-    -> goodSize (length sch)
-    -> XmlOutput.wf (compileXml sch xm).
-    induction xm using xml_ind'; simpl; intuition.
-    apply Forall_ForallR; apply Forall_map; eapply Forall_impl2; [
-      eassumption
-      | apply ForallR_Forall; eassumption
-      | auto ].
+  Fixpoint cdatasOf' (pr : program) : list string :=
+    match pr with
+      | Rule p _ => allCdatas p
+      | PSeq pr1 pr2 => addTo (cdatasOf' pr1) (cdatasOf' pr2)
+    end.
+
+  Definition cdataify := map (fun s => (s ++ "_start", s ++ "_len"))%string.
+
+  Lemma dontTouch_cdataify : forall tab cds,
+    dontTouch (tab ++ "_row") (tab ++ "_data") (cdataify cds).
+    clear; induction cds; simpl; intuition;
+      apply underscore_mid_discrim in H; intuition.
+  Qed.
+
+  Hint Immediate dontTouch_cdataify.
+
+  Lemma NoDups_dontReuse : forall x ts avs,
+    NoDups avs ts
+    -> In x ts
+    -> dontReuse (Name x ++ "_row") (Name x ++ "_data") (avout avs).
+    clear; induction avs; simpl; intuition.
+
+    apply append_inj' in H1.
+    hnf in H; simpl in H.
+    inversion_clear H.
+    apply H2.
+    rewrite H1.
+    eapply in_or_app; right.
+    apply in_map; auto.
+
+    apply underscore_mid_discrim in H1; simpl; intuition.
+    apply underscore_mid_discrim in H1; simpl; intuition.
+
+    apply append_inj' in H1.
+    hnf in H; simpl in H.
+    inversion_clear H.
+    apply H2.
+    rewrite H1.
+    eapply in_or_app; right.
+    apply in_map; auto.
+
+    inversion_clear H.
+    eauto.
+  Qed.
+
+  Hint Immediate NoDups_dontReuse.
+
+  Lemma wfExp_compileExp : forall ns e,
+    ewf e
+    -> (forall text, efreeVar e text
+      -> In (text ++ "_start")%string ns)
+    -> (forall text, efreeVar e text
+      -> In (text ++ "_len")%string ns)
+    -> wfExp ns (compileExp e).
+    destruct e; simpl; intuition eauto 4 using underscore_discrim.
+  Qed.
+
+  Hint Resolve wfExp_compileExp.
+
+  Lemma allCdatas_start : forall x p,
+    In x (allCdatas p)
+    -> In (x ++ "_start")%string (allCdatas_both p).
+    induction p; simpl; intuition;
+      apply in_app_or in H; intuition.
+  Qed.
+
+  Hint Immediate allCdatas_start.
+
+  Lemma In_addTo2 : forall x ls1 ls2,
+    In x ls2
+    -> In x (addTo ls1 ls2).
+    induction ls1; simpl; intuition.
+    destruct (member a ls2).
+    eauto.
+    apply IHls1.
+    simpl; tauto.
+  Qed.
+
+  Lemma In_addTo1 : forall x ls1 ls2,
+    In x ls1
+    -> In x (addTo ls1 ls2).
+    induction ls1; simpl; intuition.
+    generalize (member_means a ls2); destruct (member a ls2); intuition.
+    subst; eauto using In_addTo2.
+    subst; apply In_addTo2; simpl; tauto.
+  Qed.
+
+  Hint Immediate In_addTo1 In_addTo2.
+
+  Lemma cdatasOf'_start : forall x p,
+    In x (cdatasOf' p)
+    -> In (x ++ "_start")%string (cdatasOf p).
+    induction p; simpl; eauto.
+    intros.
+    apply In_addTo_or in H; intuition.
+  Qed.
+
+  Hint Resolve cdatasOf'_start in_or_app.
+
+  Lemma allCdatas_len : forall x p,
+    In x (allCdatas p)
+    -> In (x ++ "_len")%string (allCdatas_both p).
+    induction p; simpl; intuition;
+      apply in_app_or in H; intuition.
+  Qed.
+
+  Hint Immediate allCdatas_len.
+
+  Lemma cdatasOf'_len : forall x p,
+    In x (cdatasOf' p)
+    -> In (x ++ "_len")%string (cdatasOf p).
+    induction p; simpl; eauto.
+    intros.
+    apply In_addTo_or in H; intuition.
+  Qed.
+
+  Hint Resolve cdatasOf'_len.
+
+  Lemma In_cdataify : forall text cds,
+    In text cds
+    -> In ((text ++ "_start")%string, (text ++ "_len")%string) (cdataify cds).
+    clear; induction cds; simpl; intuition.
+  Qed.
+
+  Hint Resolve In_cdataify.
+
+  Lemma exp_wf : forall ns cds e,
+    ewf e
+    -> (forall x, efreeVar e x -> In (x ++ "_start")%string ns)
+    -> (forall x, efreeVar e x -> In (x ++ "_len")%string ns)
+    -> (forall x, efreeVar e x -> In (x ++ "_start", x ++ "_len")%string cds)
+    -> XmlOutput.ewf ns cds (compileExp e).
+    clear; destruct e; simpl; intuition (eauto 4 using underscore_discrim; eauto).
+  Qed.
+
+  Lemma eq_wf : forall ns sch cds x,
+    eqwf sch x
+    -> (forall y, efreeVar (snd x) y -> In (y ++ "_start")%string ns)
+    -> (forall y, efreeVar (snd x) y -> In (y ++ "_len")%string ns)
+    -> (forall y, efreeVar (snd x) y -> In (y ++ "_start", y ++ "_len")%string cds)
+    -> XmlOutput.eqwf ns sch cds (compileEquality x).
+    intros; hnf in *; intuition; apply exp_wf; auto.
+  Qed.
+
+  Hint Resolve eq_wf.
+
+  Lemma cond_wf : forall ns cds sch cond,
+    cwf sch cond
+    -> (forall x, List.Exists (fun e => efreeVar (snd e) x) cond -> In (x ++ "_start")%string ns)
+    -> (forall x, List.Exists (fun e => efreeVar (snd e) x) cond -> In (x ++ "_len")%string ns)
+    -> (forall x, List.Exists (fun e => efreeVar (snd e) x) cond
+      -> In (x ++ "_start", x ++ "_len")%string cds)
+    -> XmlOutput.cwf ns sch cds (compileCondition cond).
+    clear; unfold cwf, XmlOutput.cwf; induction 1; simpl; intuition.
+  Qed.
+
+  Hint Resolve cond_wf.
+
+  Lemma In_removeTable' : forall x y ts,
+    In x (removeTable y ts)
+    -> In x ts.
+    clear; induction ts; simpl; intuition.
+    destruct (string_dec y (Name a)); subst; simpl in *; intuition.
+  Qed.
+
+  Hint Immediate In_removeTable'.
+
+  Fixpoint abindsRowVar (a : action) (x : string) : Prop :=
+    match a with
+      | Insert _ _ => False
+      | Delete tab _ => x = tab
+      | Output xm => xbindsRowVar xm x
+      | Seq a1 a2 => abindsRowVar a1 x \/ abindsRowVar a2 x
+    end.
+
+  Fixpoint bindsRowVar (pr : program) (x : string) : Prop :=
+    match pr with
+      | Rule _ a => abindsRowVar a x
+      | PSeq pr1 pr2 => bindsRowVar pr1 x \/ bindsRowVar pr2 x
+    end.
+
+  Lemma output_wf : forall ns cds xm avs ts,
+    xwf avs ts xm
+    -> NoDups avs ts
+    -> (forall x, xfreeVar xm x -> In (x ++ "_start")%string ns)
+    -> (forall x, xfreeVar xm x -> In (x ++ "_len")%string ns)
+    -> (forall t, In t avs -> In (Name t ++ "_data")%string ns)
+    -> (forall tab, xbindsRowVar xm tab -> In (tab ++ "_data")%string ns)
+    -> (forall x, xfreeVar xm x -> In (x ++ "_start", x ++ "_len")%string (cdataify cds))
+    -> XmlOutput.wf ns (cdataify cds) (avout avs) ts (compileXml xm).
+    induction xm using xml_ind'; simpl; intuition idtac;
+      try match goal with
+            | [ H : _ |- _ ] => apply append_inj in H; discriminate
+          end; eauto 4 using underscore_discrim.
+
+    induction H; simpl in *; intuition.
+
+    destruct H; intuition subst.
+    do 2 esplit.
+    eapply in_map in H6; eauto.
+    simpl; intuition eauto using in_or_app.
+
+    destruct H; intuition (subst; eauto).
+
+    destruct H; intuition subst.
+    descend; eauto 8.
+    eapply IHxm in H9; eauto;
+      (simpl; intuition (subst; eauto)).
   Qed.
 
   Hint Immediate output_wf.
@@ -731,16 +1123,8 @@ Section compileProgram.
 
   (** ** Action compilation *)
 
-  Fixpoint removeTable (tab : string) (ts : tables) : tables :=
-    match ts with
-      | nil => nil
-      | t :: ts => if string_dec tab (Name t) then removeTable tab ts else t :: removeTable tab ts
-    end.
-
   Variable bufSize : W.
 
-  Hypothesis ND : NoDup (Names ts).
-  Hypothesis goodSchema : twfs ts.
   Hypothesis buf_size_lower : bufSize >= natToW 2.
   Hypothesis buf_size_upper : goodSize (4 * wordToNat bufSize).
 
@@ -749,19 +1133,19 @@ Section compileProgram.
 
     Infix ";;" := SimpleSeq : SP_scope.
 
-    Fixpoint compileAction' (a : action) : chunk :=
+    Fixpoint compileAction' (avs ts ts' : tables) (a : action) : chunk :=
       match a with
         | Insert tab es =>
           match findTable tab ts with
             | None => Fail
             | Some t => RelDbInsert.Insert
-              (fun bsO V => db (removeTable tab ts) * array8 bsO (V "obuf")
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
                 * [| length bsO = wordToNat (V "olen") |]
                 * [| V "opos" <= V "olen" |]%word
                 * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
-                * xmlp (V "len") (V "lex") * row nil (V "dummy")
+                * xmlp (V "len") (V "lex")
                 * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => row nil (V "dummy") * db ts
+              (fun bsO V R => db ts'
                 * [| R <= V "olen" |]%word * mallocHeap 0
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
@@ -771,133 +1155,83 @@ Section compileProgram.
           match findTable tab ts with
             | None => Fail
             | Some t => RelDbDelete.Delete
-              (fun bsO V => db (removeTable tab ts) * array8 bsO (V "obuf")
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
                 * [| length bsO = wordToNat (V "olen") |]
                 * [| V "opos" <= V "olen" |]%word
                 * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
-                * xmlp (V "len") (V "lex") * row nil (V "dummy")
+                * xmlp (V "len") (V "lex")
                 * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => row nil (V "dummy") * db ts
+              (fun bsO V R => db ts'
                 * [| R <= V "olen" |]%word * mallocHeap 0
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
-              (Address t) (Schema t) "row" "data" (compileCondition cond)
+              (Address t) (Schema t) (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
           end
         | Output xm => 
           Out
-          (fun (_ : unit) V => db ts * mallocHeap 0 * xmlp (V "len") (V "lex")
+          (fun (_ : unit) V => mallocHeap 0 * xmlp (V "len") (V "lex")
             * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-          (fun _ V R => row nil (V "dummy") * db ts
+          (fun _ V R => db ts'
             * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
-          "dummy" nil
           (XmlSearch.allCdatas (compilePat p))
-          (compileXml nil xm)
-        | SelectOutput tab cond xm =>
-          match findTable tab ts with
-            | None => Fail
-            | Some t => Select
-              (fun bsO V => db (removeTable tab ts) * array8 bsO (V "obuf")
-                * [| length bsO = wordToNat (V "olen") |]
-                * [| V "opos" <= V "olen" |]%word
-                * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
-                * xmlp (V "len") (V "lex") * row nil (V "dummy")
-                * mallocHeap 0
-                * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => row nil (V "dummy") * db ts
-                * [| R <= V "olen" |]%word * mallocHeap 0
-                * Ex bsO', array8 bsO' (V "obuf")
-                * [| length bsO' = length bsO |])%Sep
-              (Address t) (Schema t) "row" "data" (compileCondition cond)
-              (Out
-                (fun (_ : unit) V =>
-                  RelDbSelect.inv (Address t) (Schema t) (V "row") (V "data")
-                  * db (removeTable (Name t) ts) * mallocHeap 0
-                  * xmlp (V "len") (V "lex") * row nil (V "dummy")
-                  * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-                (fun _ V R => row nil (V "dummy") * db ts
-                  * [| R <= V "olen" |]%word
-                  * mallocHeap 0)%Sep
-                "data" (Schema t)
-                (XmlSearch.allCdatas (compilePat p))
-                (compileXml (Schema t) xm))
-          end
+          (avout avs) ts
+          (compileXml xm)
         | Seq a1 a2 =>
-          compileAction' a1;;
-          compileAction' a2
+          compileAction' avs ts ts' a1;;
+          compileAction' avs ts ts' a2
       end%SP.
 
-    Definition ainv :=
-      XmlSearch.inv (fun bsO V => row nil (V "dummy") * db ts
+    Definition ainv avs ts ts' :=
+      XmlSearch.inv (fun bsO V => cursors V avs * db ts
         * array8 bsO (V "obuf")
         * [| length bsO = wordToNat (V "olen") |]
         * [| V "opos" <= V "olen" |]%word)%Sep
-      (fun bsO V R => row nil (V "dummy") * db ts
+      (fun bsO V R => db ts'
         * Ex bsO', array8 bsO' (V "obuf")
         * [| length bsO' = length bsO |]
         * [| R <= V "olen" |]%word)%Sep
       (XmlSearch.allCdatas (compilePat p)).
 
-    Lemma removeTable_irrel_fwd : forall x ts0,
-      ~In x (Names ts0)
-      -> db ts0 ===> db (removeTable x ts0).
-      induction ts0; simpl; intuition subst; try ift; sepLemma.
+    Lemma removeTable_bwd' : forall x ts P,
+      NoDup (Names ts)
+      -> In x ts
+      -> RelDb.table (Schema x) (Address x) * (db (removeTable (Name x) ts) * P)
+      ===> P * db ts.
+      sepLemma; etransitivity; [ | apply removeTable_bwd ]; eauto; sepLemma.
     Qed.
 
-    Lemma removeTable_irrel_bwd : forall x ts0,
-      ~In x (Names ts0)
-      -> db (removeTable x ts0) ===> db ts0.
-      induction ts0; simpl; intuition subst; try ift; sepLemma.
-    Qed.
-
-    Hint Immediate removeTable_irrel_fwd removeTable_irrel_bwd.
-
-    Lemma removeTable_bwd : forall x ts0,
-      NoDup (Names ts0)
-      -> In x ts0
-      -> RelDb.table (Schema x) (Address x) * db (removeTable (Name x) ts0)
-      ===> db ts0.
-      induction ts0; inversion 1; simpl; intuition subst;
-        match goal with
-          | [ |- context[if ?E then _ else _] ] => destruct E; intuition
-        end.
-      apply Himp_star_frame; try apply Himp_refl; auto.
-      exfalso; apply H2; rewrite <- e; eapply in_map; auto.
-      simpl.
-
-      sepLemma.
-      etransitivity; [ | apply H6 ]; sepLemma.
-    Qed.
-
-    Lemma removeTable_fwd : forall x ts0,
-      NoDup (Names ts0)
-      -> In x ts0
-      -> db ts0 ===> RelDb.table (Schema x) (Address x) * db (removeTable (Name x) ts0).
-      induction ts0; inversion 1; simpl; intuition subst;
-        match goal with
-          | [ |- context[if ?E then _ else _] ] => destruct E; intuition
-        end.
-      apply Himp_star_frame; try apply Himp_refl; auto.
-      exfalso; apply H2; rewrite <- e; eapply in_map; auto.
-      simpl.
-
-      sepLemma.
-      etransitivity; [ apply H6 | ]; sepLemma.
+    Lemma removeTable_fwd' : forall x ts P,
+      NoDup (Names ts)
+      -> In x ts
+      -> db ts * P
+      ===> P * (RelDb.table (Schema x) (Address x) * db (removeTable (Name x) ts)).
+      sepLemma; etransitivity; [ apply removeTable_fwd | ]; eauto; sepLemma.
     Qed.
 
     Ltac cap := abstract (t;
-      (etransitivity; [ | apply himp_star_frame; [ | apply removeTable_bwd ] ]; assumption || my_step)
+      ((apply removeTable_bwd' || apply removeTable_fwd'); eauto)
+      || apply himp_star_comm
+      || (etransitivity; [ | apply himp_star_frame; [ | apply removeTable_bwd ] ]; assumption || my_step)
       || (etransitivity; [ apply himp_star_frame; [ apply removeTable_fwd | ] | ]; eassumption || my_step)
       || my_step).
 
-    Lemma compileAction_post : forall im mn (H : importsGlobal im) ns res a pre,
+    Lemma compileAction_post : forall im mn (H : importsGlobal im) ns res a avs ts ts' pre,
       (forall specs st,
         interp specs (pre st)
-        -> interp specs (ainv true (fun x : W => x) ns res st))
-      -> awf ts a
-      -> forall specs st, interp specs (Postcondition (toCmd (compileAction' a) mn H ns res pre) st)
-        -> interp specs (ainv true (fun x : W => x) ns res st).
-      induction a; cap.
-    Qed.
+        -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st))
+      -> awf avs ts a
+      -> NoDups avs ts
+      -> forall specs st, interp specs (Postcondition (toCmd
+        (compileAction' avs ts ts' a) mn H ns res pre) st)
+        -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st).
+    Admitted.
+      (*induction a.
+
+      cap.
+      cap.
+      cap.
+      cap.
+    Qed.*)
 
     Lemma Exists_map : forall A B (f : A -> B) (P : B -> Prop) ls,
       List.Exists P (map f ls)
@@ -924,8 +1258,43 @@ Section compileProgram.
 
     Hint Immediate In_ExistsR.
 
-    Lemma compileXml_freeVar : forall sch start len xm,
-      XmlOutput.freeVar (compileXml sch xm) (start, len)
+    Lemma compile_efreeVar' : forall e text,
+      XmlOutput.efreeVar (compileExp e) (text ++ "_start", text ++ "_len")%string
+      -> efreeVar e text.
+      clear; destruct e; simpl; intuition.
+      injection H; clear H; intros.
+      apply append_inj' in H; tauto.
+    Qed.
+
+    Lemma compile_efreeVar : forall e start len,
+      XmlOutput.efreeVar (compileExp e) (start, len)
+      -> exists text, efreeVar e text /\ start = (text ++ "_start")%string
+        /\ len = (text ++ "_len")%string.
+      clear; destruct e; simpl; intuition.
+      injection H; eauto.
+    Qed.
+
+    Lemma Exists_impl : forall A (P P' : A -> Prop) ls,
+      List.Exists P ls
+      -> (forall x, P x -> P' x)
+      -> List.Exists P' ls.
+      induction 1; simpl; intuition.
+    Qed.
+
+    Lemma Exists_exists : forall A B (P : A -> B -> Prop) ls,
+      List.Exists (fun x => exists y, P x y) ls
+      -> exists y, List.Exists (fun x => P x y) ls.
+      clear; induction 1; simp; eauto.
+    Qed.
+
+    Lemma Exists_conj2 : forall A (P : A -> Prop) Q R ls,
+      List.Exists (fun x => P x /\ Q /\ R) ls
+      -> List.Exists P ls /\ Q /\ R.
+      clear; induction 1; simp; eauto.
+    Qed.
+
+    Lemma compileXml_freeVar : forall start len xm,
+      XmlOutput.freeVar (compileXml xm) (start, len)
       -> exists text, xfreeVar xm text
         /\ start = (text ++ "_start")%string
         /\ len = (text ++ "_len")%string.
@@ -933,19 +1302,22 @@ Section compileProgram.
         try match goal with
               | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst
             end; eauto.
+
       apply ExistsR_Exists in H0; apply Exists_map in H0.
       eapply Forall_Exists in H; eauto.
       destruct H; intuition; match goal with
                                | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
                              end.
-    Qed.
 
-    Lemma underscore_discrim : forall s1 s2,
-      s1 = s2
-      -> ~underscore_free s1
-      -> underscore_free s2
-      -> False.
-      intros; congruence.
+      unfold compileCondition in H0.
+      eapply Exists_map in H0.
+      eapply (@Exists_impl _ _ (fun x => exists text, efreeVar (snd x) text
+        /\ start = (text ++ "_start")%string /\ len = (text ++ "_len")%string)) in H0; [
+          | auto using compile_efreeVar ].
+      apply Exists_exists in H0; destruct H0.
+      apply Exists_conj2 in H; intuition eauto.
+
+      post; eauto.
     Qed.
 
     Lemma compilePat_cdatas : forall p0,
@@ -990,8 +1362,9 @@ Section compileProgram.
 
     Hint Immediate inBounds_swizzle'.
 
-    Lemma goodSize_more : forall t,
-      In t ts
+    Lemma goodSize_more : forall t ts,
+      twfs ts
+      -> In t ts
       -> goodSize (S (S (length (Schema t) + length (Schema t)))).
       intros; eapply Forall_forall in H; eauto; eassumption.
     Qed.
@@ -1006,22 +1379,12 @@ Section compileProgram.
       intros; congruence.
     Qed.
 
-    Lemma wfExp_compileExp : forall ns e,
-      ewf e
-      -> (forall text, efreeVar e text
-        -> In (text ++ "_start")%string ns /\ In (text ++ "_len")%string ns)
-      -> wfExp ns (compileExp e).
-      destruct e; simpl; intuition (solve [ eapply proj1; eauto
-        | eapply proj2; eauto
-        | eapply underscore_discrim'; eauto ]).
-    Qed.
-
-    Hint Resolve wfExp_compileExp.
-
     Lemma wfExps_compileExps : forall ns es,
       ewfs es
       -> (forall text, List.Exists (fun e => efreeVar e text) es
-        -> In (text ++ "_start")%string ns /\ In (text ++ "_len")%string ns)
+        -> In (text ++ "_start")%string ns)
+      -> (forall text, List.Exists (fun e => efreeVar e text) es
+        -> In (text ++ "_len")%string ns)
       -> wfExps ns (compileExps es).
       unfold wfExps; induction 1; simpl; intuition.
     Qed.
@@ -1034,10 +1397,11 @@ Section compileProgram.
 
     Hint Rewrite length_compileExps : sepFormula.
 
-    Lemma goodSize_base : forall t,
-      In t ts
+    Lemma goodSize_base : forall ts t,
+      twfs ts
+      -> In t ts
       -> goodSize (length (Schema t)).
-      intros; eapply goodSize_weaken; [ apply goodSize_more | ]; eauto.
+      intros; eapply goodSize_weaken; [ eapply goodSize_more | ]; eauto.
     Qed.
 
     Hint Immediate goodSize_base.
@@ -1046,42 +1410,6 @@ Section compileProgram.
       :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil).
 
     Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
-
-    Lemma output_wf0 : forall xm,
-      xwf nil xm
-      -> XmlOutput.wf (compileXml nil xm).
-      intros; apply output_wf; auto.
-    Qed.
-
-    Hint Immediate output_wf0.
-
-    Lemma good0 : forall data' sch' xm,
-      xwf nil xm
-      -> freeRowVar (compileXml nil xm) (data', sch')
-      -> False.
-      induction xm using xml_ind'; simpl; intuition.
-      apply ExistsR_Exists in H1; apply Exists_exists in H1.
-      destruct H1; intuition idtac.
-      eapply in_map_iff in H1; destruct H1; intuition subst.
-      eapply Forall_forall in H; eauto.
-      apply ForallR_Forall in H3; eapply Forall_forall in H3; eauto.
-    Qed.
-
-    Lemma good_data0 : forall data' sch' xm,
-      xwf nil xm
-      -> freeRowVar (compileXml nil xm) (data', sch')
-      -> data' = "dummy".
-      intros; exfalso; eauto using good0.
-    Qed.
-
-    Lemma good_schema0 : forall data' sch' xm,
-      xwf nil xm
-      -> freeRowVar (compileXml nil xm) (data', sch')
-      -> sch' = nil.
-      intros; exfalso; eauto using good0.
-    Qed.
-
-    Hint Immediate good_data0 good_schema0.
 
     Lemma inputOk_compileCondition : forall V cdatas cond,
       XmlOutput.inBounds cdatas V
@@ -1101,7 +1429,7 @@ Section compileProgram.
     Hint Resolve inputOk_compileCondition.
 
     Lemma inBounds_swizzle'' : forall V V' p,
-      (forall x, x <> "row" -> x <> "data"
+      (forall x, x <> "row"
         -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
         -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
         -> sel V x = sel V' x)
@@ -1120,109 +1448,81 @@ Section compileProgram.
 
     Hint Immediate inBounds_swizzle''.
 
-    Lemma output_wf' : forall t xm,
-      xwf (Schema t) xm
-      -> In t ts
-      -> twfs ts
-      -> XmlOutput.wf (compileXml (Schema t) xm).
-      intros.
-      eapply Forall_forall in H1; eauto.
-      eapply output_wf; eauto.
-    Qed.
-
-    Hint Immediate output_wf'.
-
-    Lemma good_data : forall sch data' sch' xm,
-      xwf sch xm
-      -> freeRowVar (compileXml sch xm) (data', sch')
-      -> data' = "data".
-      induction xm using xml_ind'; simpl; intuition.
-      apply ExistsR_Exists in H1; apply Exists_exists in H1.
-      destruct H1; intuition idtac.
-      eapply in_map_iff in H1; destruct H1; intuition subst.
-      eapply Forall_forall in H; eauto.
-      apply ForallR_Forall in H3; eapply Forall_forall in H3; eauto.
-    Qed.
-
-    Lemma good_schema : forall sch data' sch' xm,
-      xwf sch xm
-      -> freeRowVar (compileXml sch xm) (data', sch')
-      -> sch' = sch.
-      induction xm using xml_ind'; simpl; intuition.
-      apply ExistsR_Exists in H1; apply Exists_exists in H1.
-      destruct H1; intuition idtac.
-      eapply in_map_iff in H1; destruct H1; intuition subst.
-      eapply Forall_forall in H; eauto.
-      apply ForallR_Forall in H3; eapply Forall_forall in H3; eauto.
-    Qed.
-
-    Hint Resolve good_data good_schema.
-
     Lemma wfEqualities_compileCondition : forall ns sch cond,
       cwf sch cond
       -> (forall text,
         List.Exists (fun e => efreeVar (snd e) text) cond ->
-        In (text ++ "_start")%string ns
-        /\ In (text ++ "_len")%string ns)
+        In (text ++ "_start")%string ns)
+      -> (forall text,
+        List.Exists (fun e => efreeVar (snd e) text) cond ->
+        In (text ++ "_len")%string ns)
       -> wfEqualities ns sch (compileCondition cond).
       unfold wfEqualities; induction 1; simpl; auto.
       constructor; auto.
       hnf; simpl.
       hnf in H.
-      intuition eauto.
+      intuition eauto 6.
     Qed.
 
     Hint Resolve wfEqualities_compileCondition.
 
-    Lemma noOverlapExpS_compileExp : forall e,
-      RelDbSelect.noOverlapExp "row" "data" (compileExp e).
-      clear; induction e; simpl; intuition (eauto using underscore_discrim').
-    Qed.
-
-    Hint Immediate noOverlapExpS_compileExp.
-
-    Lemma noOverlapExpsS_compileCondition : forall cond,
-      RelDbSelect.noOverlapExps "row" "data" (exps (compileCondition cond)).
-      unfold RelDbSelect.noOverlapExps; induction cond; simpl; intuition.
-    Qed.
-
-    Hint Immediate noOverlapExpsS_compileCondition.
-
-    Lemma noOverlapExp_compileExp : forall e,
-      noOverlapExp "row" "data" (compileExp e).
-      clear; induction e; simpl; intuition (eauto using underscore_discrim').
-    Qed.
-
-    Hint Immediate noOverlapExp_compileExp.
-
-    Lemma noOverlapExps_compileCondition : forall cond,
-      noOverlapExps "row" "data" (exps (compileCondition cond)).
-      unfold noOverlapExps; induction cond; simpl; intuition.
-    Qed.
-
-    Hint Immediate noOverlapExps_compileCondition.
-
-    Ltac cav := abstract (wrap0;
+    Ltac step1 := wrap0;
       try match goal with
             | [ |- context[findTable] ] => post; post; erewrite findTable_good by eauto; wrap0
           end;
       try match goal with
             | [ |- vcs (_ :: _) ] => wrap0
-          end;
+          end.
+
+    Ltac discrim :=
       match goal with
+        | _ => eapply underscore_discrim; solve [ eauto ]
+        | _ => eapply underscore_discrim; try symmetry; solve [ eauto ]
+        | [ H : _ |- _ ] => apply append_inj in H; discriminate
+        | [ H : _ |- _ ] => apply underscore_mid_discrim in H; try discriminate; solve [ eauto ]
+      end.
+
+    Lemma compileXml_bindsRowVar : forall rw data xm,
+      XmlOutput.bindsRowVar (compileXml xm) (rw, data)
+      -> exists tab, xbindsRowVar xm tab
+        /\ rw = (tab ++ "_row")%string
+        /\ data = (tab ++ "_data")%string.
+      induction xm using xml_ind'; simpl; intuition;
+        try match goal with
+              | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst
+            end; eauto.
+
+      apply ExistsR_Exists in H0; apply Exists_map in H0.
+      eapply Forall_Exists in H; eauto.
+      destruct H; intuition; match goal with
+                               | [ H : Logic.ex _ |- _ ] => destruct H; intuition eauto
+                             end.
+
+      post; eauto.
+    Qed.
+
+    Ltac step2 :=
+      match goal with
+        | [ |- False ] => discrim
+        | _ => solve [ subst; eauto ]
         | [ H : _ |- _ ] =>
           apply compileXml_freeVar in H; post; subst; solve [
             eauto | eapply proj1; eauto | eapply proj2; eauto ]
+        | [ H : _ |- _ ] =>
+          apply compileXml_freeVar in H; post; subst; solve [ eauto ]
+        | [ H : _ |- _ ] =>
+          apply compileXml_bindsRowVar in H; post; subst; solve [ eauto ]
         | _ => cap
         | _ => repeat (post; intuition idtac;
           match goal with
             | [ H : _ |- _ ] => apply H; auto
           end; try (apply compileAction_post; auto))
-      end).
+      end.
+
+    Ltac cav := abstract (step1; step2).
 
     Lemma inBounds_swizzle''' : forall V V' p,
-      (forall x, x <> "row" -> x <> "data"
-        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
+      (forall x, x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
         -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
         -> x <> "res" -> sel V x = sel V' x)
       -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
@@ -1240,6 +1540,177 @@ Section compileProgram.
 
     Hint Immediate inBounds_swizzle'''.
 
+    Lemma Weaken_cursors : forall V V',
+      (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen"
+        -> x <> "tmp" -> x <> "ipos" -> x <> "overflowed"
+        -> x <> "opos" -> x <> "matched" -> x <> "res"
+        -> sel V x = sel V' x)
+      -> forall avs, cursors V avs ===> cursors V' avs.
+      unfold cursors; clear; induction avs; simpl; intuition.
+      sepLemma.
+      apply Himp_star_frame; auto.
+      unfold cvars in *; simpl in *; intuition idtac;
+        unfold cursor; apply Himp_star_frame;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end;
+          try match goal with
+                | [ H : forall x : string, _ |- _ ] => repeat rewrite H
+                  by eauto 4 using underscore_discrim
+              end; apply Himp_refl.
+    Qed.
+
+    Hint Extern 1 (himp _ (cursors _ _) (cursors _ _)) => apply Weaken_cursors.
+
+    Lemma xall_underscore' : forall p,
+      List.Forall (fun p => exists tab, p = (tab ++ "_start", tab ++ "_len")%string)
+      (XmlSearch.allCdatas (compilePat p)).
+      clear; induction p; simpl; intuition eauto.
+    Qed.
+
+    Lemma inBounds_swizzle'''' : forall V V' p tab,
+      (forall x, x <> (tab ++ "_row")%string -> x <> (tab ++ "_data")%string
+        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos" -> x <> "overflowed"
+        -> x <> "matched" -> x <> "res"
+        -> sel V x = sel V' x)
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+      intros.
+      rewrite <- inBounds_sel.
+      rewrite <- inBounds_sel in H0.
+      eapply Forall_impl2; [ apply H0 | apply xall_underscore' | ].
+      post; subst; simpl in *.
+      repeat rewrite H in * by und.
+      auto.
+    Qed.
+
+    Hint Immediate inBounds_swizzle''''.
+    
+    Lemma Weaken_cursors_eauto : forall V V' t,
+      (forall x, x <> (Name t ++ "_row")%string
+        -> x <> (Name t ++ "_data")%string
+        -> x <> "ibuf" -> x <> "ilen"
+        -> x <> "tmp" -> x <> "ipos" -> x <> "overflowed"
+        -> x <> "matched" -> x <> "res"
+        -> sel V x = sel V' x)
+      -> forall ts avs, NoDups avs ts
+        -> In t ts
+        -> cursors V avs ===> cursors V' avs.
+      unfold cursors; clear; induction avs; simpl; intuition.
+      sepLemma.
+
+      inversion_clear H0.
+      assert ((Name a ++ "_data")%string <> (Name t ++ "_data")%string).
+      intro.
+      apply append_inj' in H0.
+      apply H2.
+      rewrite H0.
+      apply in_or_app; right.
+      apply in_map; auto.
+
+      assert ((Name a ++ "_row")%string <> (Name t ++ "_row")%string).
+      intro.
+      apply append_inj' in H4.
+      apply H2.
+      rewrite H4.
+      apply in_or_app; right.
+      apply in_map; auto.
+
+      apply Himp_star_frame; auto.
+      unfold cvars in *; simpl in *; intuition idtac;
+        unfold cursor; apply Himp_star_frame; simpl;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end;
+          try match goal with
+                | [ H : forall x : string, _ |- _ ] => repeat rewrite H by und
+              end; apply Himp_refl.
+    Qed.
+
+    Hint Extern 1 (himp _ (cursors _ _) (cursors _ _)) => eapply Weaken_cursors_eauto.
+
+    Hint Extern 1 (incl (_ :: _) _) => hnf; simpl; intuition subst;
+      match goal with
+        | [ H : _ |- _ ] => apply H
+      end.
+
+    Lemma noOverlapExps_compileCondition : forall tab cond,
+      noOverlapExps (tab ++ "_row") (tab ++ "_data")
+      (exps (compileCondition cond)).
+      unfold noOverlapExps, noOverlapExp; induction cond; simpl; intuition.
+      constructor; auto.
+      destruct (snd a); simpl; auto.
+      intuition discrim.
+    Qed.
+
+    Hint Immediate noOverlapExps_compileCondition.
+
+    Lemma cdataify_app : forall ls1 ls2,
+      cdataify (ls1 ++ ls2) = cdataify ls1 ++ cdataify ls2.
+      induction ls1; simpl; intuition.
+    Qed.
+
+    Lemma cdataify_pat : forall p,
+      XmlSearch.allCdatas (compilePat p) = cdataify (allCdatas p).
+      clear; induction p; simpl; intuition;
+        rewrite cdataify_app; congruence.
+    Qed.        
+
+    Lemma allCdatas_cdataify : forall x p,
+      In x (XmlSearch.allCdatas (compilePat p))
+      -> In x (cdataify (allCdatas p)).
+      clear; induction p; simpl; intuition; rewrite cdataify_app;
+        apply in_app_or in H; intuition.
+    Qed.
+
+    Hint Resolve allCdatas_cdataify.
+
+    Lemma output_wf' : forall ns p xm avs ts,
+      xwf avs ts xm
+      -> NoDups avs ts
+      -> (forall x, xfreeVar xm x -> In (x ++ "_start")%string ns)
+      -> (forall x, xfreeVar xm x -> In (x ++ "_len")%string ns)
+      -> (forall t, In t avs -> In (Name t ++ "_data")%string ns)
+      -> (forall tab, xbindsRowVar xm tab -> In (tab ++ "_data")%string ns)
+      -> (forall x, xfreeVar xm x -> In (x ++ "_start", x ++ "_len")%string
+        (XmlSearch.allCdatas (compilePat p)))
+      -> XmlOutput.wf ns (XmlSearch.allCdatas (compilePat p)) (avout avs) ts (compileXml xm).
+      intros; rewrite cdataify_pat; eauto using output_wf.
+    Qed.
+
+    Hint Resolve output_wf'.
+
+    Lemma goodCursors_avout : forall avs,
+      twfs avs
+      -> goodCursors (avout avs).
+      unfold goodCursors; clear; induction 1; simpl; intuition.
+      constructor; simpl; auto.
+      intuition (try discrim; eauto).
+    Qed.
+
+    Hint Immediate goodCursors_avout.
+
+    Lemma map_avout : forall avs,
+      map (fun av => Name (Table av)) (avout avs) = Names avs.
+      induction avs; simpl; intuition.
+    Qed.
+
+    Lemma NoDups_avout : forall avs ts,
+      NoDups avs ts
+      -> XmlOutput.NoDups (avout avs) ts.
+      intros; hnf in *.
+      eapply NoDup_app; try rewrite map_avout; eauto.
+      eapply NoDups_unapp_cross; auto.
+    Qed.
+
+    Hint Immediate NoDups_avout.
+
     Lemma compileAction_vcs : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
       -> In "obuf" ns
@@ -1253,12 +1724,10 @@ Section compileProgram.
       -> In "ilen" ns
       -> In "ipos" ns
       -> In "len" ns
-      -> In "data" ns
-      -> In "dummy" ns
       -> In "matched" ns
       -> In "res" ns
       -> incl baseVars ns
-      -> (res >= 10)%nat
+      -> (res >= 11)%nat
       -> "array8"!"copy" ~~ im ~~> copyS
       -> "array8"!"equal" ~~ im ~~> equalS
       -> "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -1266,16 +1735,80 @@ Section compileProgram.
       -> "numops"!"div4" ~~ im ~~> div4S
       -> "malloc"!"free" ~~ im ~~> freeS
       -> "buffers"!"bfree" ~~ im ~~> bfreeS
-      -> forall a pre,
+      -> forall a avs ts ts' pre,
         (forall specs st,
           interp specs (pre st)
-          -> interp specs (ainv true (fun x : W => x) ns res st))
-        -> awf ts a
+          -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st))
+        -> awf avs ts a
+        -> NoDups avs ts
+        -> twfs avs
+        -> twfs ts
         -> (forall text, afreeVar a text -> In (text ++ "_start", text ++ "_len")%string
           (XmlSearch.allCdatas (compilePat p)))
-        -> (forall text, afreeVar a text -> In (text ++ "_start") ns /\ In (text ++ "_len") ns)%string
-        -> vcs (VerifCond (toCmd (compileAction' a) mn H ns res pre)).
-      induction a; cav.
+        -> (forall text, afreeVar a text -> In (text ++ "_start") ns)%string
+        -> (forall text, afreeVar a text -> In (text ++ "_len") ns)%string
+        -> (forall tab, abindsRowVar a tab -> In (tab ++ "_row") ns)%string
+        -> (forall tab, abindsRowVar a tab -> In (tab ++ "_data") ns)%string
+        -> (forall t, In t avs -> In (Name t ++ "_row")%string ns)
+        -> (forall t, In t avs -> In (Name t ++ "_data")%string ns)
+        -> vcs (VerifCond (toCmd (compileAction' avs ts ts' a) mn H ns res pre)).
+      induction a.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      admit.
+      admit.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
     Qed.
 
     Hint Resolve compileAction_post compileAction_vcs.
@@ -1286,7 +1819,7 @@ Section compileProgram.
       :: In "ipos" ns :: In "len" ns :: In "data" ns :: In "dummy" ns
       :: In "matched" ns :: In "res" ns
       :: incl baseVars ns
-      :: (res >= 10)%nat
+      :: (res >= 11)%nat
       :: "array8"!"copy" ~~ im ~~> copyS
       :: "array8"!"equal" ~~ im ~~> equalS
       :: "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -1369,27 +1902,6 @@ Section compileProgram.
       -> interp specs (cpinv true (fun x : W => x) ns res st).
       induction pr0; simpl; intros; repeat (invoke1; post); t.
     Qed.
-
-    Lemma In_addTo2 : forall x ls1 ls2,
-      In x ls2
-      -> In x (addTo ls1 ls2).
-      induction ls1; simpl; intuition.
-      destruct (member a ls2).
-      eauto.
-      apply IHls1.
-      simpl; tauto.
-    Qed.
-
-    Lemma In_addTo1 : forall x ls1 ls2,
-      In x ls1
-      -> In x (addTo ls1 ls2).
-      induction ls1; simpl; intuition.
-      generalize (member_means a ls2); destruct (member a ls2); intuition.
-      subst; eauto using In_addTo2.
-      subst; apply In_addTo2; simpl; tauto.
-    Qed.
-
-    Hint Immediate In_addTo1 In_addTo2.
 
     Lemma compileProgram_vcs : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
@@ -1482,6 +1994,8 @@ Section compileProgram.
       :: "buffers"!"bfree" ~~ im ~~> bfreeS
       :: wf ts pr
       :: incl (cdatasOf pr) ns
+      :: NoDup (Names ts)
+      :: twfs ts
       :: nil).
 
     Definition compileProgram : chunk.
@@ -1594,14 +2108,6 @@ Section compileProgram.
          }))%SP
       |}
     }}.
-
-  Lemma In_addTo_or : forall x ls1 ls2,
-    In x (addTo ls1 ls2)
-    -> In x ls1 \/ In x ls2.
-    clear; induction ls1; simpl; intuition.
-    generalize (member_means a ls2); destruct (member a ls2); intuition;
-      destruct (IHls1 _ H); simpl in *; intuition.
-  Qed.
 
   Lemma rp_cdatasOf : forall pr0,
     In "rp" (cdatasOf pr0)
