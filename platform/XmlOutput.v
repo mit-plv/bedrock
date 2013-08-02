@@ -261,6 +261,537 @@ Lemma removeTable_fwd : forall x ts,
   etransitivity; [ apply H6 | ]; sepLemma.
 Qed.
 
+Lemma mult4_S : forall n, 4 * S n = S (S (S (S (4 * n)))).
+  simpl; intros; omega.
+Qed.
+
+Definition cdatasGood (cdatas : list (string * string)) :=
+  List.Forall (fun p => fst p <> "opos" /\ fst p <> "overflowed" /\ fst p <> "tmp" /\ fst p <> "matched"
+    /\ fst p <> "res" /\ fst p <> "ibuf" /\ fst p <> "ilen" /\ fst p <> "ipos"
+    /\ snd p <> "opos" /\ snd p <> "overflowed" /\ snd p <> "tmp" /\ snd p <> "matched"
+    /\ snd p <> "res" /\ snd p <> "ibuf" /\ snd p <> "ilen" /\ snd p <> "ipos") cdatas.
+
+Lemma removeTable_bwd' : forall x ts P,
+  NoDup (Names ts)
+  -> In x ts
+  -> RelDb.table (Schema x) (Address x) * (db (removeTable (Name x) ts) * P)
+  ===> P * db ts.
+  intros; eapply Himp_trans; [ apply Himp_star_assoc' | ].
+  eapply Himp_trans; [ | apply Himp_star_comm ].
+  apply Himp_star_frame; try apply Himp_refl.
+  apply removeTable_bwd; auto.
+Qed.
+
+Lemma removeTable_fwd' : forall x ts P,
+  NoDup (Names ts)
+  -> In x ts
+  -> P * db ts
+  ===> RelDb.table (Schema x) (Address x) * (P * db (removeTable (Name x) ts)).
+  intros; eapply Himp_trans; [ | apply Himp_star_frame; [ | apply Himp_star_comm ] ].
+  intros; eapply Himp_trans; [ | apply Himp_star_assoc ].
+  eapply Himp_trans; [ apply Himp_star_comm | ].
+  apply Himp_star_frame; try apply Himp_refl.
+  apply removeTable_fwd; auto.
+  apply Himp_refl.
+Qed.
+
+Lemma make_cursor : forall specs t V rw data P,
+  himp specs (row (Schema t) (sel V data)
+    * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep
+  (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep.
+sepLemma; apply himp_star_comm.
+Qed.
+
+Lemma unmake_cursor : forall specs t V rw data P,
+  himp specs (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep
+  (row (Schema t) (sel V data)
+    * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep.
+sepLemma; apply himp_star_comm.
+Qed.
+
+Theorem matchup : forall P Q R P' Q',
+  P ===> P'
+  -> Q ===> Q'
+  -> P * (Q * R) ===> R * (P' * Q').
+  sepLemma; eapply Himp_star_frame; eauto.
+Qed.
+
+Theorem matchup2 : forall P Q R Q' R',
+  Q ===> Q'
+  -> R ===> R'
+  -> P * (Q * R) ===> P * (Q' * R').
+  sepLemma; eapply Himp_star_frame; eauto.
+Qed.
+
+Definition ANames := map (fun av => Name (Table av)).
+
+Lemma cursors_irrel : forall V av avs,
+  ~In (Name (Table av)) (ANames avs)
+  -> cursors V (removeCursor (Name (Table av)) avs) ===> cursors V avs.
+  induction avs; simpl; intuition; try ift; sepLemma.
+Qed.
+
+Theorem grab_cursor : forall V av avs,
+  In av avs
+  -> NoDup (ANames avs)
+  -> (cursors V (removeCursor (Name (Table av)) avs)
+    * inv (Address (Table av)) (Schema (Table av))
+    (sel V (Row av)) (sel V (Data av))
+    * row (Schema (Table av)) (sel V (Data av)))
+  ===> cursors V avs.
+  clear; induction avs; inversion_clear 2; simpl in *; intuition subst.
+  ift.
+  unfold cursor.
+  repeat match goal with
+           | [ |- context[V ?x] ] => change (V x) with (sel V x)
+         end.
+  sepLemma.
+  apply cursors_irrel; auto.
+  ift.
+  exfalso; apply H1.
+  rewrite <- e.
+  apply (in_map (fun av => Name (Table av))); auto.
+  simpl.
+  sepLemma.
+  etransitivity; [ | apply H3 ].
+  sepLemma.
+Qed.
+
+Lemma cursors_irrel' : forall V av avs,
+  ~In (Name (Table av)) (ANames avs)
+  -> cursors V avs ===> cursors V (removeCursor (Name (Table av)) avs).
+  induction avs; simpl; intuition; try ift; sepLemma.
+Qed.
+
+Theorem release_cursor : forall V av avs,
+  In av avs
+  -> NoDup (ANames avs)
+  -> cursors V avs
+  ===> cursor V av * cursors V (removeCursor (Name (Table av)) avs).
+  clear; induction avs; inversion_clear 2; simpl in *; intuition subst; ift.
+  sepLemma.
+  apply cursors_irrel'; auto.
+  exfalso; apply H1.
+  rewrite <- e.
+  apply (in_map (fun av => Name (Table av))); auto.
+  sepLemma.
+  etransitivity; [ | apply himp_star_comm ]; auto.
+Qed.
+
+Definition goodCursors avs := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars
+  /\ goodSize (length (Schema (Table av)))) avs.
+
+Lemma weaken_cursors : forall specs V V',
+  (forall x, x <> "overflowed" -> x <> "opos"
+    -> x <> "tmp" -> x <> "matched" -> x <> "res"
+    -> sel V x = sel V' x)
+  -> forall avs,
+    goodCursors avs
+    -> himp specs (cursors V avs) (cursors V' avs).
+  induction avs; inversion_clear 1; simpl; intuition.
+  apply himp_star_frame; auto.
+  unfold cvars in *; simpl in *; intuition idtac;
+    unfold cursor; apply himp_star_frame;
+      repeat match goal with
+               | [ V : vals |- _ ] =>
+                 progress repeat match goal with
+                                   | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                 end
+             end;
+      try match goal with
+            | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
+          end; reflexivity.
+Qed.
+
+Hint Resolve weaken_cursors.
+
+Lemma Weaken_cursors : forall V V',
+  (forall x, x <> "overflowed" -> x <> "opos"
+    -> x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
+  -> forall avs,
+    goodCursors avs
+    -> cursors V avs ===> cursors V' avs.
+  intros; hnf; intros; apply weaken_cursors; auto.
+Qed.
+
+Hint Extern 1 (cursors _ _ ===> cursors _ _) =>
+  apply Weaken_cursors; eauto 1; [ descend ].
+
+Lemma cursor_expand : forall V' V P Q avs av,
+  In av avs
+  -> NoDup (ANames avs)
+  -> goodCursors avs
+  -> (forall x, x <> "overflowed" -> x <> "opos" ->
+    x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
+  -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
+  * inv (Address (Table av)) (Schema (Table av))
+  (sel V' (Row av)) (sel V' (Data av))
+  * row (Schema (Table av)) (sel V' (Data av)) ===> P * (Q * cursors V avs).
+  sepLemma.
+  etransitivity; [ | eapply weaken_cursors ]; try eassumption.
+  etransitivity; [ | apply grab_cursor ]; eauto.
+  sepLemma.
+Qed.
+
+Lemma cursor_expand' : forall V' V P Q avs av,
+  In av avs
+  -> NoDup (ANames avs)
+  -> goodCursors avs
+  -> (forall x, x <> "overflowed" -> x <> "opos" ->
+    x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
+  -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
+  * inv (Address (Table av)) (Schema (Table av))
+  (sel V' (Row av)) (sel V' (Data av))
+  * row (Schema (Table av)) (sel V' (Data av)) ===> P * (cursors V avs * Q).
+  sepLemma.
+  etransitivity; [ | eapply weaken_cursors ]; try eassumption.
+  etransitivity; [ | apply grab_cursor ]; eauto.
+  sepLemma.
+Qed.
+
+Hint Constructors unit.
+
+Lemma length_append : forall s1 s2, String.length (s1 ++ s2) = String.length s1 + String.length s2.
+  induction s1; simpl; intuition.
+Qed.
+
+Hint Rewrite length_append : sepFormula.
+
+Lemma Forall_impl2 : forall A (P Q R : A -> Prop) ls,
+  List.Forall P ls
+  -> List.Forall Q ls
+  -> (forall x, P x -> Q x -> R x)
+  -> List.Forall R ls.
+  induction 1; inversion 1; eauto.
+Qed.
+
+Lemma wplus_wminus : forall u v : W, u ^+ v ^- v = u.
+  intros; words.
+Qed.
+
+Hint Rewrite wplus_wminus mult4_S : sepFormula.
+
+Lemma findCol_bound : forall s col,
+  In col s
+  -> (findCol s col < length s)%nat.
+  clear; induction s; simpl; intuition subst;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E
+    end; intuition.
+Qed.
+
+Lemma findCol_bound_natToW : forall sch col n,
+  In col sch
+  -> goodSize (Datatypes.length sch)
+  -> n = length sch
+  -> natToW (findCol sch col) < natToW n.
+  clear; intros; subst.
+  pre_nomega.
+  rewrite wordToNat_natToWord_idempotent.
+  rewrite wordToNat_natToWord_idempotent.
+  eauto using findCol_bound.
+  apply findCol_bound in H; congruence.
+  change (goodSize (findCol sch col)); eapply goodSize_weaken; eauto.
+  apply findCol_bound in H; auto.
+Qed.
+
+Lemma findCol_posl : forall sch col cols,
+  In col sch
+  -> goodSize (Datatypes.length sch)
+  -> length cols = length sch
+  -> natToW (findCol sch col) < natToW (length (posl cols)).
+  intros; rewrite length_posl; eauto using findCol_bound_natToW.
+Qed.
+
+Lemma findCol_lenl : forall sch col cols,
+  In col sch
+  -> goodSize (Datatypes.length sch)
+  -> length cols = length sch
+  -> natToW (findCol sch col) < natToW (length (lenl cols)).
+  intros; rewrite length_lenl; eauto using findCol_bound_natToW.
+Qed.
+
+Hint Immediate findCol_posl findCol_lenl.
+
+Lemma selN_col : forall sch col cols,
+  In col sch
+  -> goodSize (length sch)
+  -> length cols = length sch
+  -> Array.sel cols (natToW (findCol sch col)) = selN cols (findCol sch col).
+  clear; unfold Array.sel; intros; f_equal.
+  apply wordToNat_natToWord_idempotent.
+  change (goodSize (findCol sch col)).
+  eapply goodSize_weaken; eauto.
+  apply findCol_bound in H; auto.
+Qed.
+
+Lemma selN_posl : forall sch col cols,
+  In col sch
+  -> goodSize (length sch)
+  -> length cols = length sch
+  -> Array.sel (posl cols) (natToW (findCol sch col)) = selN (posl cols) (findCol sch col).
+  intros; apply selN_col; auto; rewrite length_posl; auto.
+Qed.
+
+Lemma selN_lenl : forall sch col cols,
+  In col sch
+  -> goodSize (length sch)
+  -> length cols = length sch
+  -> Array.sel (lenl cols) (natToW (findCol sch col)) = selN (lenl cols) (findCol sch col).
+  intros; apply selN_col; auto; rewrite length_lenl; auto.
+Qed.
+
+Hint Immediate selN_posl selN_lenl.
+
+Lemma inBounds_selN : forall sch len cols,
+  RelDb.inBounds len cols
+  -> forall col a b c, a = selN (posl cols) (findCol sch col)
+    -> b = selN (lenl cols) (findCol sch col)
+    -> c = wordToNat len
+    -> In col sch
+    -> length cols = length sch
+    -> (wordToNat a + wordToNat b <= c)%nat.
+  intros; eapply inBounds_selN; try eassumption.
+  rewrite H4; eapply findCol_bound; auto.
+Qed.
+
+Hint Extern 1 (_ + _ <= _)%nat =>
+  eapply inBounds_selN; try eassumption; (cbv beta; congruence).
+
+Lemma findCursor_good : forall tab av avs,
+  NoDup (map (fun av => Name (Table av)) avs)
+  -> In av avs
+  -> Name (Table av) = tab
+  -> findCursor tab avs = Some av.
+  induction avs; simpl; inversion 1; intuition subst; ift.
+  exfalso; eapply H2.
+  rewrite <- e.
+  eapply (in_map (fun av => Name (Table av)) _ _ H6).
+Qed.
+
+Lemma inBounds_inputOk : forall ns sch V cdatas,
+  inBounds cdatas V
+  -> forall cond, cwf ns sch cdatas cond
+    -> inputOk V (exps cond).
+  clear; induction 2; simpl; constructor; auto.
+  unfold eqwf in *; destruct x; simpl in *; intuition.
+  destruct e; simpl in *; intuition idtac.
+  eapply Forall_forall in H; [ | eauto ]; eauto.
+Qed.
+
+Hint Immediate inBounds_inputOk.
+
+Lemma inBounds_weaken_dontTouch : forall cdatas V rw data V',
+  inBounds cdatas V
+  -> dontTouch rw data cdatas
+  -> cdatasGood cdatas
+  -> ~In rw cvars
+  -> ~In data cvars
+  -> (forall x, x <> rw -> x <> data
+    -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
+    -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+  -> inBounds cdatas V'.
+  clear; intros; eapply Forall_impl3; [ apply H | apply ForallR_Forall; apply H0 | apply H1 | ].
+  simpl in *; intuition idtac.
+  match goal with
+    | [ H : (_ <= _)%nat |- _ ] => generalize dependent H;
+      repeat match goal with
+               | [ V : vals |- _ ] =>
+                 progress repeat match goal with
+                                   | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                 end
+             end; intros
+  end.
+  repeat rewrite <- H4 by congruence.
+  assumption.
+Qed.
+
+Hint Extern 1 (inBounds _ _) => eapply inBounds_weaken_dontTouch; try eassumption;
+  [ | ]; (simpl; tauto).
+
+Hint Extern 1 False =>
+  match goal with
+    | [ H : forall rw data : string, _ \/ _ -> _ |- _ ] =>
+      specialize (H _ _ (or_introl _ eq_refl)); tauto
+  end.
+
+Lemma weaken_cursors' : forall rw data specs V V',
+  (forall x, x <> rw -> x <> data
+    -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
+    -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
+  -> forall avs,
+    goodCursors avs
+    -> dontReuse rw data avs
+    -> himp specs (cursors V avs) (cursors V' avs).
+  unfold dontReuse; induction avs; inversion_clear 1; simpl; intuition.
+  apply himp_star_frame; auto.
+  unfold cvars in *; simpl in *; intuition idtac;
+    unfold cursor; apply himp_star_frame;
+      repeat match goal with
+               | [ V : vals |- _ ] =>
+                 progress repeat match goal with
+                                   | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                 end
+             end;
+      try match goal with
+            | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
+          end; reflexivity.
+Qed.
+
+Hint Resolve weaken_cursors'.
+
+Lemma twfs_removeTable : forall x ts,
+  twfs ts
+  -> twfs (removeTable x ts).
+  unfold twfs; induction 1; simpl; intuition; ift.
+Qed.
+
+Hint Constructors NoDup.
+
+Lemma In_removeTable : forall x y ts,
+  In x (Names (removeTable y ts))
+  -> In x (Names ts).
+  induction ts; simpl; intuition idtac;
+    match goal with
+      | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; simpl in *; tauto
+    end.
+Qed.
+
+Hint Immediate In_removeTable.
+
+Lemma NoDup_removeTable : forall x ts,
+  NoDup (Names ts)
+  -> NoDup (Names (removeTable x ts)).
+  induction ts; inversion_clear 1; simpl; intuition;
+    match goal with
+      | [ |- context[if ?E then _ else _] ] => destruct E; simpl; eauto
+    end.
+Qed.
+
+Hint Immediate twfs_removeTable NoDup_removeTable.
+
+Hint Extern 1 (goodCursors _) =>
+  apply Forall_cons; try assumption; simpl; tauto.
+
+Hint Extern 1 (incl _ _) => hnf; simpl; intuition congruence.
+
+Lemma cwf_wfEqualities : forall sch cdatas ns cond,
+  cwf ns sch cdatas cond
+  -> wfEqualities ns sch cond.
+  clear; unfold wfEqualities; induction 1; simpl; intuition.
+  constructor; auto.
+  unfold wfEquality, eqwf in *; destruct x as [ ? [ ] ]; simpl in *; tauto.
+Qed.
+
+Hint Immediate cwf_wfEqualities.
+
+Lemma goodSize_base : forall t ts,
+  twfs ts
+  -> In t ts
+  -> goodSize (length (Schema t)).
+  intros ? ? H H0; eapply Forall_forall in H; [ | eassumption ]; unfold twf in *; intuition idtac.
+  eapply goodSize_weaken; eauto.
+Qed.
+
+Hint Immediate goodSize_base.
+
+Lemma cwf_noOverlapExps : forall ns rw data cdatas sch cond,
+  cwf ns sch cdatas cond
+  -> dontTouch rw data cdatas
+  -> noOverlapExps rw data (exps cond).
+  unfold dontTouch, noOverlapExps, noOverlapExp, eqwf; induction 1; simpl; intuition.
+  constructor; auto.
+  unfold eqwf in *; intuition.
+  destruct (snd x); unfold ewf in *; intuition subst;
+    (eapply ForallR_Forall in H1; eapply Forall_forall in H1; [ | eassumption ];
+      simpl in *; tauto).
+Qed.
+
+Hint Immediate cwf_noOverlapExps.
+
+Definition NoDups (avs : list avail) (ts : tables) :=
+  NoDup (map (fun av => Name (Table av)) avs ++ Names ts).
+
+Lemma NoDups_ts : forall avs ts,
+  NoDups avs ts
+  -> NoDup (Names ts).
+  intros; eapply NoDup_unapp2; eauto.
+Qed.
+
+Lemma NoDups_avs : forall avs ts,
+  NoDups avs ts
+  -> NoDup (map (fun av => Name (Table av)) avs).
+  intros; eapply NoDup_unapp1; eauto.
+Qed.
+
+Hint Immediate NoDups_ts NoDups_avs.
+
+Lemma goodCursors_removeCursor : forall tab avs,
+  goodCursors avs
+  -> goodCursors (removeCursor tab avs).
+  unfold goodCursors; induction 1; simpl; intuition; ift.
+Qed.
+
+Hint Immediate goodCursors_removeCursor.
+
+Lemma goodCursors_cons : forall t rw data avs,
+  goodCursors avs
+  -> ~In rw cvars
+  -> ~In data cvars
+  -> goodSize (length (Schema t))
+  -> goodCursors ({| Table := t; Row := rw; Data := data |} :: avs).
+  clear; intros; constructor; intuition.
+Qed.
+
+Hint Extern 1 (goodCursors (_ :: _)) => eapply goodCursors_cons; eauto 2; (simpl; tauto).
+
+Lemma NoDups_app : forall A (ls1 ls2 : list A),
+  NoDup ls1
+  -> NoDup ls2
+  -> (forall x, In x ls1 -> ~In x ls2)
+  -> NoDup (ls1 ++ ls2).
+  clear; induction 1; simpl; intuition.
+  constructor; eauto.
+  intro.
+  apply in_app_or in H4; intuition eauto.
+Qed.
+
+Lemma NoDups_unapp_cross : forall A (ls1 ls2 : list A),
+  NoDup (ls1 ++ ls2)
+  -> (forall x, In x ls1 -> ~In x ls2).
+  clear; induction ls1; inversion_clear 1; simpl; intuition eauto.
+  subst.
+  apply H0.
+  apply in_or_app; tauto.
+Qed.
+
+Lemma removeTable_contra : forall tab ts,
+  NoDup (Names ts)
+  -> In tab (Names (removeTable tab ts))
+  -> False.
+  clear; induction ts; inversion_clear 1; simpl; intuition.
+  destruct (string_dec tab (Name a)); subst; simpl in *; intuition.
+Qed.
+
+Lemma NoDups_move : forall avs ts t rw data,
+  In t ts
+  -> NoDups avs ts
+  -> NoDups ({| Table := t; Row := rw; Data := data |} :: avs) (removeTable (Name t) ts).
+  clear; unfold NoDups; intros; simpl.
+  constructor.
+  intro.
+  apply in_app_or in H1; intuition eauto using removeTable_contra.
+  specialize (NoDups_unapp_cross _ _ H0 _ H2); intro.
+  apply H1.
+  apply in_map; auto.
+  apply NoDups_app; eauto using NoDup_removeTable.
+  intros.
+  intro.
+  eapply NoDups_unapp_cross in H0; eauto.
+Qed.
+
+Hint Immediate NoDups_move.
+
 
 (** * Compiling XML snippets into Bedrock chunks *)
 
@@ -368,6 +899,7 @@ Section Out.
             "matched" <-* "matched" + (4 * findCol (Schema (Table av)) col)%nat;;
 
             "tmp" <- "olen" - "opos";;
+            Note [reveal_row];;
             If ("matched" < "tmp") {
               Assert [Al a : A, Al bsI, Al bsO,
                 PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
@@ -391,6 +923,7 @@ Section Out.
 
               "tmp" <- Data av + 8;;
               "tmp" <-* "tmp" + (4 * findCol (Schema (Table av)) col)%nat;;
+              Note [reveal_row];;
 
               Assert [Al a : A, Al bsI, Al bsO,
                 PRE[V] array8 bsI (V "buf") * array8 bsO (V "obuf")
@@ -503,16 +1036,6 @@ Section Out.
              | [ |- context[inputOk (sel ?V) ?x] ] => rewrite (inputOk_sel V x)
            end; reger.
 
-  Lemma mult4_S : forall n, 4 * S n = S (S (S (S (4 * n)))).
-    simpl; intros; omega.
-  Qed.
-
-  Definition cdatasGood (cdatas : list (string * string)) :=
-    List.Forall (fun p => fst p <> "opos" /\ fst p <> "overflowed" /\ fst p <> "tmp" /\ fst p <> "matched"
-      /\ fst p <> "res" /\ fst p <> "ibuf" /\ fst p <> "ilen" /\ fst p <> "ipos"
-      /\ snd p <> "opos" /\ snd p <> "overflowed" /\ snd p <> "tmp" /\ snd p <> "matched"
-      /\ snd p <> "res" /\ snd p <> "ibuf" /\ snd p <> "ilen" /\ snd p <> "ipos") cdatas.
-
   Ltac prepl := post; unfold lvalIn, regInL, immInR in *;
     repeat match goal with
              | [ H : ForallR _ _ |- _ ] => clear H
@@ -571,172 +1094,6 @@ Section Out.
       | [ H : _ |- vcs _ ] => apply vcs_app_fwd || apply H
     end; post.
 
-  Lemma removeTable_bwd' : forall x ts P,
-    NoDup (Names ts)
-    -> In x ts
-    -> RelDb.table (Schema x) (Address x) * (db (removeTable (Name x) ts) * P)
-    ===> P * db ts.
-    intros; eapply Himp_trans; [ apply Himp_star_assoc' | ].
-    eapply Himp_trans; [ | apply Himp_star_comm ].
-    apply Himp_star_frame; try apply Himp_refl.
-    apply removeTable_bwd; auto.
-  Qed.
-
-  Lemma removeTable_fwd' : forall x ts P,
-    NoDup (Names ts)
-    -> In x ts
-    -> P * db ts
-    ===> RelDb.table (Schema x) (Address x) * (P * db (removeTable (Name x) ts)).
-    intros; eapply Himp_trans; [ | apply Himp_star_frame; [ | apply Himp_star_comm ] ].
-    intros; eapply Himp_trans; [ | apply Himp_star_assoc ].
-    eapply Himp_trans; [ apply Himp_star_comm | ].
-    apply Himp_star_frame; try apply Himp_refl.
-    apply removeTable_fwd; auto.
-    apply Himp_refl.
-  Qed.
-
-  Lemma make_cursor : forall specs t V rw data P,
-    himp specs (row (Schema t) (sel V data)
-      * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep
-    (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep.
-    sepLemma; apply himp_star_comm.
-  Qed.
-
-  Lemma unmake_cursor : forall specs t V rw data P,
-    himp specs (P * cursor V {| Table := t; Row := rw; Data := data |})%Sep
-    (row (Schema t) (sel V data)
-      * (inv (Address t) (Schema t) (sel V rw) (sel V data) * P))%Sep.
-    sepLemma; apply himp_star_comm.
-  Qed.
-
-  Theorem matchup : forall P Q R P' Q',
-    P ===> P'
-    -> Q ===> Q'
-    -> P * (Q * R) ===> R * (P' * Q').
-    sepLemma; eapply Himp_star_frame; eauto.
-  Qed.
-
-  Theorem matchup2 : forall P Q R Q' R',
-    Q ===> Q'
-    -> R ===> R'
-    -> P * (Q * R) ===> P * (Q' * R').
-    sepLemma; eapply Himp_star_frame; eauto.
-  Qed.
-
-  Definition ANames := map (fun av => Name (Table av)).
-
-  Lemma cursors_irrel : forall V av avs,
-    ~In (Name (Table av)) (ANames avs)
-    -> cursors V (removeCursor (Name (Table av)) avs) ===> cursors V avs.
-    induction avs; simpl; intuition; try ift; sepLemma.
-  Qed.
-
-  Theorem grab_cursor : forall V av avs,
-    In av avs
-    -> NoDup (ANames avs)
-    -> (cursors V (removeCursor (Name (Table av)) avs)
-      * inv (Address (Table av)) (Schema (Table av))
-      (sel V (Row av)) (sel V (Data av))
-      * row (Schema (Table av)) (sel V (Data av)))
-    ===> cursors V avs.
-    clear; induction avs; inversion_clear 2; simpl in *; intuition subst.
-    ift.
-    unfold cursor.
-    repeat match goal with
-             | [ |- context[V ?x] ] => change (V x) with (sel V x)
-           end.
-    sepLemma.
-    apply cursors_irrel; auto.
-    ift.
-    exfalso; apply H1.
-    rewrite <- e.
-    apply (in_map (fun av => Name (Table av))); auto.
-    simpl.
-    sepLemma.
-    etransitivity; [ | apply H3 ].
-    sepLemma.
-  Qed.
-
-  Lemma cursors_irrel' : forall V av avs,
-    ~In (Name (Table av)) (ANames avs)
-    -> cursors V avs ===> cursors V (removeCursor (Name (Table av)) avs).
-    induction avs; simpl; intuition; try ift; sepLemma.
-  Qed.
-
-  Theorem release_cursor : forall V av avs,
-    In av avs
-    -> NoDup (ANames avs)
-    -> cursors V avs
-    ===> cursor V av * cursors V (removeCursor (Name (Table av)) avs).
-    clear; induction avs; inversion_clear 2; simpl in *; intuition subst; ift.
-    sepLemma.
-    apply cursors_irrel'; auto.
-    exfalso; apply H1.
-    rewrite <- e.
-    apply (in_map (fun av => Name (Table av))); auto.
-    sepLemma.
-    etransitivity; [ | apply himp_star_comm ]; auto.
-  Qed.
-
-  Definition goodCursors avs := List.Forall (fun av => ~In (Row av) cvars /\ ~In (Data av) cvars
-    /\ goodSize (length (Schema (Table av)))) avs.
-
-  Lemma weaken_cursors : forall specs V V',
-    (forall x, x <> "overflowed" -> x <> "opos"
-      -> x <> "tmp" -> x <> "matched" -> x <> "res"
-      -> sel V x = sel V' x)
-    -> forall avs,
-      goodCursors avs
-      -> himp specs (cursors V avs) (cursors V' avs).
-    induction avs; inversion_clear 1; simpl; intuition.
-    apply himp_star_frame; auto.
-    unfold cvars in *; simpl in *; intuition idtac;
-      unfold cursor; apply himp_star_frame;
-        repeat match goal with
-                 | [ V : vals |- _ ] =>
-                   progress repeat match goal with
-                                     | [ |- context[V ?x] ] => change (V x) with (sel V x)
-                                   end
-               end;
-        try match goal with
-              | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
-            end; reflexivity.
-  Qed.
-
-  Hint Resolve weaken_cursors.
-
-  Lemma cursor_expand : forall V' V P Q avs av,
-    In av avs
-    -> NoDup (ANames avs)
-    -> goodCursors avs
-    -> (forall x, x <> "overflowed" -> x <> "opos" ->
-      x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
-    -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
-    * inv (Address (Table av)) (Schema (Table av))
-    (sel V' (Row av)) (sel V' (Data av))
-    * row (Schema (Table av)) (sel V' (Data av)) ===> P * (Q * cursors V avs).
-    sepLemma.
-    etransitivity; [ | eapply weaken_cursors ]; try eassumption.
-    etransitivity; [ | apply grab_cursor ]; eauto.
-    sepLemma.
-  Qed.
-
-  Lemma cursor_expand' : forall V' V P Q avs av,
-    In av avs
-    -> NoDup (ANames avs)
-    -> goodCursors avs
-    -> (forall x, x <> "overflowed" -> x <> "opos" ->
-      x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V' x = sel V x)
-    -> P * Q * cursors V' (removeCursor (Name (Table av)) avs)
-    * inv (Address (Table av)) (Schema (Table av))
-    (sel V' (Row av)) (sel V' (Data av))
-    * row (Schema (Table av)) (sel V' (Data av)) ===> P * (cursors V avs * Q).
-    sepLemma.
-    etransitivity; [ | eapply weaken_cursors ]; try eassumption.
-    etransitivity; [ | apply grab_cursor ]; eauto.
-    sepLemma.
-  Qed.
-
   Ltac bash :=
     try match goal with
           | [ H : context[invPost] |- ?P = ?Q ] =>
@@ -745,28 +1102,6 @@ Section Out.
                 match Q with
                   | context[invPost a ?V' _] =>
                     rewrite (H a V V') by intuition; reflexivity
-                end
-            end
-        end;
-
-    try match goal with
-          | [ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>
-            match post with
-              | context[locals ?ns _ _ _] =>
-                match pre with
-                  | context[locals ns ?vs _ _] =>
-                    match pre with
-                      | context[invPre ?a ?vs'] =>
-                        assert (unit -> invPre a vs' ===> invPre a vs) by
-                          match goal with
-                            | [ H : _ |- _ ] => intro; apply H; intuition descend
-                          end
-                      | context[invPost ?a ?vs' ?r] =>
-                        assert (unit -> invPost a vs' r = invPost a vs r) by
-                          match goal with
-                            | [ H : _ |- _ ] => intro; apply H; intuition descend
-                          end
-                    end
                 end
             end
         end;
@@ -789,7 +1124,7 @@ Section Out.
                               rewrite (create_locals_return ns' avail' ns avail offset);
                                 assert (ok_return ns ns' avail avail' offset)%nat by (split; [
                                   simpl; omega
-                                  | reflexivity ] ); autorewrite with sepFormula;
+                                  | reflexivity ] ); autorewrite with sepFormula in *;
                                 cancel auto_ext
                         end
                     end
@@ -825,9 +1160,6 @@ Section Out.
       desc; (repeat (bash; my_descend); eauto).
 
   Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Precondition s None)) (at level 0).
-
-  Definition NoDups (avs : list avail) (ts : tables) :=
-    NoDup (map (fun av => Name (Table av)) avs ++ Names ts).
 
   Section Out_correct.
     Variables (ns : list string) (res : nat).
@@ -920,23 +1252,7 @@ Section Out.
                end.
     Qed.
 
-    Hint Constructors unit.
-
-    Lemma length_append : forall s1 s2, String.length (s1 ++ s2) = String.length s1 + String.length s2.
-      induction s1; simpl; intuition.
-    Qed.
-
-    Hint Rewrite length_append : sepFormula.
-
     Hint Extern 1 (goodSize _) => eapply goodSize_weaken; [ eassumption | omega ].
-
-    Lemma Forall_impl2 : forall A (P Q R : A -> Prop) ls,
-      List.Forall P ls
-      -> List.Forall Q ls
-      -> (forall x, P x -> Q x -> R x)
-      -> List.Forall R ls.
-      induction 1; inversion 1; eauto.
-    Qed.
 
     Lemma inBounds_weaken : forall cdatas V V',
       cdatasGood cdatas
@@ -1044,99 +1360,6 @@ Section Out.
 
     Hint Immediate convert'.
 
-    Lemma wplus_wminus : forall u v : W, u ^+ v ^- v = u.
-      intros; words.
-    Qed.
-
-    Hint Rewrite wplus_wminus mult4_S : sepFormula.
-
-    Lemma findCol_bound : forall s col,
-      In col s
-      -> (findCol s col < length s)%nat.
-      clear; induction s; simpl; intuition subst;
-        match goal with
-          | [ |- context[if ?E then _ else _] ] => destruct E
-        end; intuition.
-    Qed.
-
-    Lemma findCol_bound_natToW : forall sch col n,
-      In col sch
-      -> goodSize (Datatypes.length sch)
-      -> n = length sch
-      -> natToW (findCol sch col) < natToW n.
-      clear; intros; subst.
-      pre_nomega.
-      rewrite wordToNat_natToWord_idempotent.
-      rewrite wordToNat_natToWord_idempotent.
-      eauto using findCol_bound.
-      apply findCol_bound in H; congruence.
-      change (goodSize (findCol sch col)); eapply goodSize_weaken; eauto.
-      apply findCol_bound in H; auto.
-    Qed.
-
-    Lemma findCol_posl : forall sch col cols,
-      In col sch
-      -> goodSize (Datatypes.length sch)
-      -> length cols = length sch
-      -> natToW (findCol sch col) < natToW (length (posl cols)).
-      intros; rewrite length_posl; eauto using findCol_bound_natToW.
-    Qed.
-
-    Lemma findCol_lenl : forall sch col cols,
-      In col sch
-      -> goodSize (Datatypes.length sch)
-      -> length cols = length sch
-      -> natToW (findCol sch col) < natToW (length (lenl cols)).
-      intros; rewrite length_lenl; eauto using findCol_bound_natToW.
-    Qed.
-
-    Hint Immediate findCol_posl findCol_lenl.
-
-    Lemma selN_col : forall sch col cols,
-      In col sch
-      -> goodSize (length sch)
-      -> length cols = length sch
-      -> Array.sel cols (natToW (findCol sch col)) = selN cols (findCol sch col).
-      clear; unfold Array.sel; intros; f_equal.
-      apply wordToNat_natToWord_idempotent.
-      change (goodSize (findCol sch col)).
-      eapply goodSize_weaken; eauto.
-      apply findCol_bound in H; auto.
-    Qed.
-
-    Lemma selN_posl : forall sch col cols,
-      In col sch
-      -> goodSize (length sch)
-      -> length cols = length sch
-      -> Array.sel (posl cols) (natToW (findCol sch col)) = selN (posl cols) (findCol sch col).
-      intros; apply selN_col; auto; rewrite length_posl; auto.
-    Qed.
-
-    Lemma selN_lenl : forall sch col cols,
-      In col sch
-      -> goodSize (length sch)
-      -> length cols = length sch
-      -> Array.sel (lenl cols) (natToW (findCol sch col)) = selN (lenl cols) (findCol sch col).
-      intros; apply selN_col; auto; rewrite length_lenl; auto.
-    Qed.
-
-    Hint Immediate selN_posl selN_lenl.
-
-    Lemma inBounds_selN : forall sch len cols,
-      RelDb.inBounds len cols
-      -> forall col a b c, a = selN (posl cols) (findCol sch col)
-        -> b = selN (lenl cols) (findCol sch col)
-        -> c = wordToNat len
-        -> In col sch
-        -> length cols = length sch
-        -> (wordToNat a + wordToNat b <= c)%nat.
-      intros; eapply inBounds_selN; try eassumption.
-      rewrite H4; eapply findCol_bound; auto.
-    Qed.
-
-    Hint Extern 1 (_ + _ <= _)%nat =>
-      eapply inBounds_selN; try eassumption; (cbv beta; congruence).
-
     Ltac vcgen_simp :=
       cbv beta iota zeta
         delta [map app imps Entry Blocks Postcondition VerifCond
@@ -1181,10 +1404,17 @@ Section Out.
                     | [ IH : _, H : interp _ (Postcondition _ _) |- _ ] =>
                       apply IH in H; clear IH; eauto
                   end
+        | [ |- context[Column] ] =>
+          simpl; intros;
+            match goal with
+              | [ H : Logic.ex _ |- _ ] => destruct H as [ ? [ ? [ ] ] ]
+            end; erewrite findCursor_good by eauto; vcgen_simp;
+            post; try match goal with
+                        | [ |- vcs (_ :: _) ] => wrap0; try discriminate
+                      end
         | _ =>
           intros; split; unfold Out'; match goal with
                                         | [ |- context[OutList] ] => simpl
-                                        | [ |- context[Select] ] => simpl
                                         | _ => vcgen_simp
                                       end;
             post; try match goal with
@@ -1198,191 +1428,6 @@ Section Out.
 
     Ltac step2 := abstract (deDouble; deSpec; intuition subst;
       solve [ t | proveHimp ]).
-
-    Lemma Weaken_cursors : forall V V',
-      (forall x, x <> "overflowed" -> x <> "opos"
-        -> x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
-      -> forall avs,
-        goodCursors avs
-        -> cursors V avs ===> cursors V' avs.
-      intros; hnf; intros; apply weaken_cursors; auto.
-    Qed.
-
-    Hint Extern 1 (cursors _ _ ===> cursors _ _) =>
-      apply Weaken_cursors; eauto 1; [ descend ].
-
-    Lemma inBounds_inputOk : forall sch V cdatas,
-      inBounds cdatas V
-      -> forall cond, cwf ns sch cdatas cond
-        -> inputOk V (exps cond).
-      clear; induction 2; simpl; constructor; auto.
-      unfold eqwf in *; destruct x; simpl in *; intuition.
-      destruct e; simpl in *; intuition idtac.
-      eapply Forall_forall in H; [ | eauto ]; eauto.
-    Qed.
-
-    Hint Immediate inBounds_inputOk.
-
-    Lemma inBounds_weaken_dontTouch : forall cdatas V rw data V',
-      inBounds cdatas V
-      -> dontTouch rw data cdatas
-      -> cdatasGood cdatas
-      -> ~In rw cvars
-      -> ~In data cvars
-      -> (forall x, x <> rw -> x <> data
-        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
-        -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
-      -> inBounds cdatas V'.
-      clear; intros; eapply Forall_impl3; [ apply H | apply ForallR_Forall; apply H0 | apply H1 | ].
-      simpl in *; intuition idtac.
-      match goal with
-        | [ H : (_ <= _)%nat |- _ ] => generalize dependent H;
-          repeat match goal with
-                   | [ V : vals |- _ ] =>
-                     progress repeat match goal with
-                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
-                                     end
-                 end; intros
-      end.
-      repeat rewrite <- H4 by congruence.
-      assumption.
-    Qed.
-
-    Hint Extern 1 (inBounds _ _) => eapply inBounds_weaken_dontTouch; try eassumption;
-      [ | ]; (simpl; tauto).
-
-    Hint Extern 1 False =>
-      match goal with
-        | [ H : forall rw data : string, _ \/ _ -> _ |- _ ] =>
-          specialize (H _ _ (or_introl _ eq_refl)); tauto
-      end.
-
-    Lemma weaken_cursors' : forall rw data specs V V',
-      (forall x, x <> rw -> x <> data
-        -> x <> "ibuf" -> x <> "ilen" -> x <> "tmp" -> x <> "ipos"
-        -> x <> "overflowed" -> x <> "matched" -> sel V x = sel V' x)
-      -> forall avs,
-        goodCursors avs
-        -> dontReuse rw data avs
-        -> himp specs (cursors V avs) (cursors V' avs).
-      unfold dontReuse; induction avs; inversion_clear 1; simpl; intuition.
-      apply himp_star_frame; auto.
-      unfold cvars in *; simpl in *; intuition idtac;
-        unfold cursor; apply himp_star_frame;
-          repeat match goal with
-                   | [ V : vals |- _ ] =>
-                     progress repeat match goal with
-                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
-                                     end
-                 end;
-          try match goal with
-                | [ H : forall x : string, _ |- _ ] => repeat rewrite H by congruence
-              end; reflexivity.
-    Qed.
-
-    Hint Resolve weaken_cursors'.
-
-    Lemma twfs_removeTable : forall x ts,
-      twfs ts
-      -> twfs (removeTable x ts).
-      unfold twfs; induction 1; simpl; intuition; ift.
-    Qed.
-
-    Hint Constructors NoDup.
-
-    Lemma In_removeTable : forall x y ts,
-      In x (Names (removeTable y ts))
-      -> In x (Names ts).
-      induction ts; simpl; intuition idtac;
-        match goal with
-          | [ _ : context[if ?E then _ else _] |- _ ] => destruct E; simpl in *; tauto
-        end.
-    Qed.
-
-    Hint Immediate In_removeTable.
-
-    Lemma NoDup_removeTable : forall x ts,
-      NoDup (Names ts)
-      -> NoDup (Names (removeTable x ts)).
-      induction ts; inversion_clear 1; simpl; intuition;
-        match goal with
-          | [ |- context[if ?E then _ else _] ] => destruct E; simpl; eauto
-        end.
-    Qed.
-
-    Hint Immediate twfs_removeTable NoDup_removeTable.
-
-    Hint Extern 1 (goodCursors _) =>
-      apply Forall_cons; try assumption; simpl; tauto.
-
-    Hint Extern 1 (incl _ _) => hnf; simpl; intuition congruence.
-
-    Lemma cwf_wfEqualities : forall sch cdatas ns cond,
-      cwf ns sch cdatas cond
-      -> wfEqualities ns sch cond.
-      clear; unfold wfEqualities; induction 1; simpl; intuition.
-      constructor; auto.
-      unfold wfEquality, eqwf in *; destruct x as [ ? [ ] ]; simpl in *; tauto.
-    Qed.
-
-    Hint Immediate cwf_wfEqualities.
-
-    Lemma goodSize_base : forall t ts,
-      twfs ts
-      -> In t ts
-      -> goodSize (length (Schema t)).
-      intros ? ? H H0; eapply Forall_forall in H; [ | eassumption ]; unfold twf in *; intuition idtac.
-      eapply goodSize_weaken; eauto.
-    Qed.
-
-    Hint Immediate goodSize_base.
-
-    Lemma cwf_noOverlapExps : forall rw data cdatas sch cond,
-      cwf ns sch cdatas cond
-      -> dontTouch rw data cdatas
-      -> noOverlapExps rw data (exps cond).
-      unfold dontTouch, noOverlapExps, noOverlapExp, eqwf; induction 1; simpl; intuition.
-      constructor; auto.
-      unfold eqwf in *; intuition.
-      destruct (snd x); unfold ewf in *; intuition subst;
-        (eapply ForallR_Forall in H1; eapply Forall_forall in H1; [ | eassumption ];
-          simpl in *; tauto).
-    Qed.
-
-    Hint Immediate cwf_noOverlapExps.
-
-    Lemma findCursor_good : forall tab av avs,
-      NoDup (map (fun av => Name (Table av)) avs)
-      -> In av avs
-      -> Name (Table av) = tab
-      -> findCursor tab avs = Some av.
-      induction avs; simpl; inversion 1; intuition subst; ift.
-      exfalso; eapply H2.
-      rewrite <- e.
-      eapply (in_map (fun av => Name (Table av)) _ _ H6).
-    Qed.
-
-    Lemma NoDups_ts : forall avs ts,
-      NoDups avs ts
-      -> NoDup (Names ts).
-      intros; eapply NoDup_unapp2; eauto.
-    Qed.
-
-    Lemma NoDups_avs : forall avs ts,
-      NoDups avs ts
-      -> NoDup (map (fun av => Name (Table av)) avs).
-      intros; eapply NoDup_unapp1; eauto.
-    Qed.
-
-    Hint Immediate NoDups_ts NoDups_avs.
-
-    Lemma goodCursors_removeCursor : forall tab avs,
-      goodCursors avs
-      -> goodCursors (removeCursor tab avs).
-      unfold goodCursors; induction 1; simpl; intuition; ift.
-    Qed.
-
-    Hint Immediate goodCursors_removeCursor.
 
     Lemma Out_correct : forall cdatas, cdatasGood cdatas
       -> incl baseVars ns
@@ -1415,200 +1460,59 @@ Section Out.
         /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre)).
       induction xm using xml_ind'.
 
-      Focus 4.
-      simpl; intros.
-      match goal with
-        | [ H : Logic.ex _ |- _ ] => destruct H as [ ? [ ? [ ] ] ]
-      end.
-      erewrite findCursor_good by eauto.
-      vcgen_simp.
-      post; try match goal with
-                  | [ |- vcs (_ :: _) ] => wrap0; try discriminate
-                end.
-
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      auto.
-      bash; my_descend.
-
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
+      step1.
 
       step2.
       step2.
       step2.
       step2.
-      step2.
-
-      assert reveal_row by constructor.
-      (* This is the case right after ["tmp" <- "olen" - "opos"]. *)
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      step2.
-      step2.
-
-      assert reveal_row by constructor.
-      (* This is after ["tmp" <-* "tmp" + (4 * findCol (Schema (Table av)) col)%nat]. *)
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      step2.
-      step2.
-
-      deDouble; deSpec; intuition subst.
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      desc.
-      bash.
-      4: my_descend; bash.
-      eauto.
-      eauto.
-      eauto.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      step2.
-      step2.
-
 
       step1.
-      step2.
-      step2.
-      step2.
-      step2.
-
-
-      step1.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.
-
-
-      step1.
-      step2.
-      step2.
-      step2.
-
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      2: my_descend; bash.
-      auto.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
 
       step2.
       step2.
       step2.
-
-      apply OutList_correct in H5; auto.
-
-      post; repeat invoke1; prep; propxFo.
-      repeat invoke1; prepl.
-      evaluate auto_ext.
-      my_descend.
-      bash.
-      2: my_descend; bash.
-      auto.
-      bash.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-      bash; my_descend.
-
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
 
       step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
       step2.
       step2.
       step2.
