@@ -38,5 +38,6 @@ examples/x86/factorial.s
 examples/comparison/*data.*
 examples/comparison/bedrock_server.s
 
-platform/tests/*.gen.s
+*.gen.s
+*.gen.ml
 platform/tests/echotest

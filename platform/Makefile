@@ -35,7 +35,15 @@ clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
 
-tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
+tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
+	cat tests/ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		>>$@
+	cat tests/printCode.ml >>$@
+
+tests/%.gen.s: tests/%.gen.ml tests/%.txt
 	echo "	.data" >$@
 	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
@@ -44,13 +52,7 @@ tests/%.gen.s: tests/%AMD64.v tests/%Driver.vo tests/%.txt
 	echo "	.text" >>$@
 	echo "	.global main_main" >>$@
 	echo >>$@
-	$(COQC) $< \
-		| sed 's/^.*:: nil//' \
-		| sed 's/^.*:: *//' \
-		| sed 's/^.*: list string//' \
-		| sed 's/^.*= "//' \
-		| sed 's/^.*"//' \
-		>>$@
+	ocaml -w -x $< >>$@
 
 tests/%.exe: tests/%.gen.o tests/sys.o tests/driver.o
 	cc $^ -o $@
@@ -60,3 +62,5 @@ tests/pages.gen.s:
 
 tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/driver.o
 	cc $^ -o $@
+
+.PRECIOUS: tests/%.gen.ml tests/%.gen.s

@@ -168,8 +168,12 @@ Definition blockS (b : block) : string :=
   let (is, j) := b in
     fold_right (fun i s => instrS i ++ s) (jmpS j) is.
 
-Definition moduleS (m : module) : list string :=
-  map (fun bl => let '(lab, (_, b)) := bl in
-    labelS lab ++ ":" ++ nl ++ blockS b) (LabelMap.elements m.(Blocks)).
+Definition moduleS (m : module) : LabelMap.t string :=
+  LabelMap.mapi (fun lab (bl : assert * block) => let (_, b) := bl in
+    labelS lab ++ ":" ++ nl ++ blockS b) m.(Blocks).
 
 Global Transparent natToWord.
+Require Export Coq.extraction.ExtrOcamlString.
+Extract Inductive list => "list" [ "[]" "(::)" ].
+Extract Inductive bool => "bool" [ "true" "false" ].
+Extract Inductive sumbool => "bool" [ "true" "false" ].
