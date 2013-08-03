@@ -1,6 +1,9 @@
 Require Import Bedrock Xml XmlProg.
 
 Module M.
+  Definition buf_size := 1024%N.
+  Definition heapSize := (1024 * 1024)%N.
+
   Definition ts := {| Name := "params";
     Address := ((1024 * 1024 + 50) * 4)%N;
     Schema := "key" :: "value" :: nil
@@ -19,34 +22,34 @@ Module M.
         )
       )
     Do
-      From "params" Where ("key" = $"key")
-        Write <*> "methodResponse" </>
-          <*> "params" </>
-            <*> "param" </>
-              <*> "value" </>
-                <*> "array" </>
-                  <*> "data" </>
-                    <*> "value" </>
-                      <*> "int" </>
-                        "1"
-                      </>
-                    </>,
-                    <*> "value" </>
-                      <*> "string" </>
-                        "Value is"
-                      </>
-                    </>,
-                    <*> "value" </>
-                      <*> "string" </>
-                        ^"value"
-                      </>
+      Write <*> "methodResponse" </>
+        <*> "params" </>
+          <*> "param" </>
+            <*> "value" </>
+              <*> "array" </>
+                <*> "data" </>
+                  <*> "value" </>
+                    <*> "int" </>
+                      "1"
                     </>
+                  </>,
+                  <*> "value" </>
+                    <*> "string" </>
+                      "Value is"
+                    </>
+                  </>,
+                  <*> "value" </>
+                    From "params" Where ("key" = $"key") Write
+                      <*> "string" </>
+                        "params"#"value"
+                      </>
                   </>
                 </>
               </>
             </>
           </>
         </>
+      </>
     end;;
     Match
       "methodCall"/(
@@ -137,32 +140,8 @@ Module M.
     end
   )%program.
 
-  Theorem wellFormed : wf ts pr.
+  Theorem Wf : wf ts pr buf_size.
     wf.
-  Qed.
-
-  Theorem notTooGreedy : (reserved pr <= 38)%nat.
-    compute; omega.
-  Qed.
-
-  Definition buf_size := 1024%N.
-
-  Theorem buf_size_lower : (buf_size >= 2)%N.
-    discriminate.
-  Qed.
-    
-  Theorem buf_size_upper : (buf_size * 4 < Npow2 32)%N.
-    reflexivity.
-  Qed.
-
-  Definition heapSize := (1024 * 1024)%N.
-
-  Theorem ND : NoDup (Names ts).
-    NoDup.
-  Qed.
-
-  Theorem goodSchema : twfs ts.
-    goodSchema.
   Qed.
 End M.
 
