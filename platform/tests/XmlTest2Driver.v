@@ -2,10 +2,10 @@ Require Import Bedrock Xml XmlProg.
 
 Module M.
   Definition buf_size := 1024%N.
-  Definition heapSize := (1024 * 1024)%N.
+  Definition heapSize := (1024 * 1024 * 25)%N.
 
   Definition ts := {| Name := "params";
-    Address := ((1024 * 1024 + 50) * 4)%N;
+    Address := ((1024 * 1024 + 50 + 2) * 4)%N;
     Schema := "key" :: "value" :: nil
   |} :: nil.
 
@@ -143,6 +143,9 @@ Module M.
   Theorem Wf : wf ts pr buf_size.
     wf.
   Qed.
+
+  Definition port : W := 8080%N.
+  Definition numWorkers : W := 10.
 End M.
 
 Module E := Make(M).

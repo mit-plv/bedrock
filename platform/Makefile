@@ -11,12 +11,13 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/LinkTest tests/Abort tests/PrintInt tests/ArrayTest tests/Echo tests/Echo2 \
            tests/AbortDriver tests/PrintIntDriver tests/ArrayTestDriver tests/EchoDriver tests/Echo2Driver \
            tests/BabyThread tests/Yield tests/Spawn tests/ListBuilder tests/SharedList tests/Echo3 \
-           Buffers tests/Io tests/StringDb tests/EchoServer tests/WebServer \
+           Buffers Io tests/StringDb tests/EchoServer tests/WebServer \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver \
            tests/WebServerDriver tests/EchoServerDriver \
            NumOps ArrayOps StringOps RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete \
-           XmlLex XmlSearch XmlOutput XmlLang XmlProg Xml \
-	   tests/XmlTestDriver tests/XmlTest2Driver
+           XmlLex XmlSearch XmlOutput XmlLang Http XmlProg Xml \
+	   tests/XmlTestDriver tests/XmlTest2Driver \
+           tests/Ros tests/RosMasterDriver
 
 VS      := $(MODULES:%=%.v)
 

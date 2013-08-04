@@ -29,6 +29,9 @@ Delimit Scope out_scope with out.
 Notation "'From' tab 'Where' cond 'Write' o" :=
   (XSelect tab cond%condition o%out)
   (at level 0, tab at level 0, cond at level 0, o at level 0) : out_scope.
+Notation "'From' tab 'Write' o" :=
+  (XSelect tab nil o%out)
+  (at level 0, tab at level 0, o at level 0) : out_scope.
 Bind Scope out_scope with xml.
 
 Definition econs (x : exp) (xs : list exp) : list exp := x :: xs.
