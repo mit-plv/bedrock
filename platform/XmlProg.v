@@ -96,10 +96,10 @@ Definition hints : TacPackage.
 Defined.
 
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
-                            "sys"!"write" @ [Sys.writeS],
                             "xml_prog"!"main" @ [XmlLang.mainS pr ts],
                             "malloc"!"malloc" @ [mallocS],
                             "http"!"readRequest" @ [MyHttp.readRequestS],
+                            "http"!"writeResponse" @ [MyHttp.writeResponseS],
                             "scheduler"!"init" @ [T.Q''.initS], "scheduler"!"listen" @ [T.Q''.listenS],
                             "scheduler"!"accept" @ [T.Q''.acceptS], "scheduler"!"close" @ [T.Q''.closeS],
                             "scheduler"!"spawn" @ [T.Q''.spawnS], "scheduler"!"exit" @ [T.Q''.exitS] ]]
@@ -146,38 +146,20 @@ Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [a
             * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
             * V "outbuf" =?>8 bsize
-            * [| R <= natToW bsize |]%word * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
+            * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
           Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
             * buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
-            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
 
           Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
             * V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
 
-          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
-            * V "inbuf" =?>8 bsize
-            * buffer_splitAt (wordToNat (V "tmp")) (V "outbuf") bsize * mallocHeap 0
-            * [| wordToNat (V "tmp") <= bsize |]%nat ];;
-
-          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
-            * V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 wordToNat (V "tmp")
-            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
-            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
-
-          Call "sys"!"write"(1, "outbuf", "tmp")
+          Call "http"!"writeResponse"("fr", "outbuf", "tmp", bsize)
           [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
             * V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 wordToNat (V "tmp")
-            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
-            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
-
-          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
-            * V "inbuf" =?>8 bsize
-            * buffer_joinAt (wordToNat (V "tmp")) (V "outbuf") bsize
-            * mallocHeap 0]
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ]
         };;
 
         Call "scheduler"!"close"("fr")
@@ -483,7 +465,7 @@ Section boot.
     (WellFormed _ _ _ Wf) (ND _ _ _ Wf)
     (GoodSchema _ _ _ Wf)) m8.
 
-  (*Lemma ok1 : moduleOk m1.
+  Lemma ok1 : moduleOk m1.
     link okb ok0.
   Qed.
 
@@ -513,7 +495,7 @@ Section boot.
 
   Lemma ok8 : moduleOk m8.
     link T.ok ok7.
-  Qed.*)
+  Qed.
 
   Lemma ok : moduleOk m.
     link (XmlLang.ok _ buf_size_lower' buf_size_upper' (WellFormed _ _ _ Wf)) ok8;
