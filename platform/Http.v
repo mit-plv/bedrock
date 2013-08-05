@@ -120,8 +120,8 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
     with bfunction "itoa"("n", "buf", "pos", "len", "exp", "pow", "i", "j") [itoaS]
       (* Find lowest power of 10 that is > n. *)
 
-      "exp" <- 0;;
-      "pow" <- 1;;
+      "exp" <- 1;;
+      "pow" <- 10;;
       [PRE[V] V "buf" =?>8 wordToNat (V "len")
         POST[R] V "buf" =?>8 wordToNat (V "len")]
       While ("pow" <= "n") {
@@ -129,20 +129,12 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
         "pow" <- "pow" * 10
       };;
 
-      If ("exp" = 0) {
-        (* Hm... seems to be a strangely low number. *)
-        Return "pos"
-      } else {
-        Skip
-      };;
-
-      "exp" <- "exp" + 1;;
       (* Loop over outputting digits. *)
       [PRE[V] V "buf" =?>8 wordToNat (V "len")
         POST[R] V "buf" =?>8 wordToNat (V "len")]
       While ("exp" > 0) {
         (* Construct the corresponding power of 10. *)
-        "i" <- 0;;
+        "i" <- 1;;
         "pow" <- 1;;
         [PRE[V] V "buf" =?>8 wordToNat (V "len")
           POST[R] V "buf" =?>8 wordToNat (V "len")]
