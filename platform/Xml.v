@@ -42,6 +42,9 @@ Notation "'Delete' tab 'Where' cond" :=
   (at level 0, tab at level 0, cond at level 0) : action_scope.
 Notation "'Write' o" := (Output o%out) (at level 0, o at level 0) : action_scope.
 Infix ";;" := Seq : action_scope.
+Notation "'IfHas' tab 'Where' cond 'then' a1 'else' a2 'end'" :=
+  (IfExists tab cond%condition a1 a2)
+  (at level 0, tab at level 0, cond at level 0, a1 at level 0, a2 at level 0) : action_scope.
 Delimit Scope action_scope with action.
 Bind Scope action_scope with action.
 

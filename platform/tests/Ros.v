@@ -106,6 +106,12 @@ Notation "!int x" := (rint x%out) (at level 0, x at level 0) : out_scope.
 Notation "!boolean x" := (rboolean x%out) (at level 0, x at level 0) : out_scope.
 Notation "!string x" := (rstring x%out) (at level 0, x at level 0) : out_scope.
 
+Definition rtrue := rboolean "true".
+Definition rfalse := rboolean "false".
+
+Notation "!true" := rtrue : out_scope.
+Notation "!false" := rfalse : out_scope.
+
 Notation "'ArrayFrom' tab 'Where' cond 'Write' o" :=
   (afrom tab cond%condition o%out)
   (at level 0, tab at level 0, cond at level 0, o at level 0) : out_scope.
