@@ -5,6 +5,10 @@ Definition atoiS := SPEC("buf", "pos", "len") reserving 2
   PRE[V] V "buf" =?>8 wordToNat (V "len")
   POST[R] V "buf" =?>8 wordToNat (V "len").
 
+Definition itoaS := SPEC("n", "buf", "pos", "len") reserving 4
+  PRE[V] V "buf" =?>8 wordToNat (V "len")
+  POST[R] V "buf" =?>8 wordToNat (V "len").
+
 Section specs.
   Variables sched globalInv : bag -> HProp.
 
@@ -12,6 +16,13 @@ Section specs.
     Al fs,
     PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
       * sched fs * globalInv fs * mallocHeap 0
+    POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+      * sched fs' * globalInv fs' * mallocHeap 0.
+
+  Definition writeResponseGS := SPEC("fr", "buf", "pos", "len") reserving 49
+    Al fs,
+    PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+      * sched fs * globalInv fs * mallocHeap 0 * [| goodSize (wordToNat (V "len")) |]
     POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
       * sched fs' * globalInv fs' * mallocHeap 0.
 End specs.
@@ -24,11 +35,19 @@ Module Make(M : S).
 Import M.
 
 Definition readRequestS := readRequestGS sched globalInv.
+Definition writeResponseS := writeResponseGS sched globalInv.
 
 Coercion ascii_of_nat : nat >-> ascii.
 
 Definition endOfHeaders := String 13 (String 10 (String 13 (String 10 ""))).
 Definition contentLength := "Content-Length: ".
+
+Definition nl := String 13 (String 10 "").
+Definition preResponse := ("HTTP/1.1 200 OK" ++ nl
+  ++ "Connection: close" ++ nl
+  ++ "Content-Type: text/xml" ++ nl
+  ++ "Server: Bedrock" ++ nl
+  ++ "Content-Length: ")%string.
 
 Inductive reveal_buffers : Prop := RevealBuffers.
 Local Hint Constructors reveal_buffers.
@@ -67,7 +86,8 @@ Ltac vcgen :=
   autorewrite with sepFormula in *; simpl in *;
     unfold SepIL.starB, hvarB, hpropB in *; fold hprop in *; refold.
 
-Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv] ]]
+Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
+                           "io"!"writeAll" @ [writeAllGS sched globalInv] ]]
   bmodule "http" {{
     bfunction "atoi"("buf", "pos", "len", "acc", "tmp") [atoiS]
       "acc" <- 0;;
@@ -96,6 +116,71 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv] ]]
       };;
 
       Return 0
+    end
+    with bfunction "itoa"("n", "buf", "pos", "len", "exp", "pow", "i", "j") [itoaS]
+      (* Find lowest power of 10 that is > n. *)
+
+      "exp" <- 0;;
+      "pow" <- 1;;
+      [PRE[V] V "buf" =?>8 wordToNat (V "len")
+        POST[R] V "buf" =?>8 wordToNat (V "len")]
+      While ("pow" <= "n") {
+        "exp" <- "exp" + 1;;
+        "pow" <- "pow" * 10
+      };;
+
+      If ("exp" = 0) {
+        (* Hm... seems to be a strangely low number. *)
+        Return "pos"
+      } else {
+        Skip
+      };;
+
+      "exp" <- "exp" + 1;;
+      (* Loop over outputting digits. *)
+      [PRE[V] V "buf" =?>8 wordToNat (V "len")
+        POST[R] V "buf" =?>8 wordToNat (V "len")]
+      While ("exp" > 0) {
+        (* Construct the corresponding power of 10. *)
+        "i" <- 0;;
+        "pow" <- 1;;
+        [PRE[V] V "buf" =?>8 wordToNat (V "len")
+          POST[R] V "buf" =?>8 wordToNat (V "len")]
+        While ("i" < "exp") {
+          "pow" <- "pow" * 10;;
+          "i" <- "i" + 1
+        };;
+
+        (* Find the highest multiple with [0,9] that is <= n. *)
+        "i" <- 9;;
+        "j" <- "pow" * 9;;
+        [PRE[V] V "buf" =?>8 wordToNat (V "len")
+          POST[R] V "buf" =?>8 wordToNat (V "len")]
+        While ("j" > "n") {
+          "i" <- "i" - 1;;
+          "j" <- "pow" * "i"
+        };;
+
+        "i" <- "i" + 48;;
+        "n" <- "n" - "j";;
+        "exp" <- "exp" - 1;;
+
+        Note [reveal_buffers];;
+        If ("pos" < "len") {
+          Assert [Al bs,
+            PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
+              * [| V "pos" < natToW (length bs) |]%word
+            POST[R] V "buf" =?>8 wordToNat (V "len")];;
+
+          "buf" + "pos" *<-8 "i";;
+          "pos" <- "pos" + 1;;
+          Note [reveal_buffers]
+        } else {
+          Skip
+        }
+      };;
+
+      Return "pos"
     end
     with bfunction "readRequest"("fr", "buf", "len", "pos", "tmp", "endHeaders", "clen", "matched") [readRequestS]
       "pos" <- 0;;
@@ -244,6 +329,79 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv] ]]
 
       Return 0
     end
+    with bfunction "writeResponse"("fr", "buf", "pos", "len", "opos", "overflowed") [writeResponseS]
+      (* We will use the _end_ of the buffer to store the headers, to avoid copying payload. *)
+
+      "opos" <- "pos";;
+      If ("opos" > "len") {
+        Return 0
+      } else {
+        Skip
+      };;
+
+      Note [reveal_buffers];;
+      StringWrite "buf" "len" "opos" "overflowed" preResponse
+      (fun fs V => [| V "fr" %in fs |] * sched fs * globalInv fs * mallocHeap 0
+        * [| goodSize (wordToNat (V "len")) |])%Sep
+      (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+        * sched fs' * globalInv fs' * mallocHeap 0)%Sep;;
+      Note [reveal_buffers];;
+
+      "opos" <-- Call "http"!"itoa"("pos", "buf", "opos", "len")
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+          * [| goodSize (wordToNat (V "len")) |]
+        POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      If ("opos" > "len") {
+        Return 0
+      } else {
+        Skip
+      };;
+
+      Note [reveal_buffers];;
+      StringWrite "buf" "len" "opos" "overflowed" endOfHeaders
+      (fun fs V => [| V "fr" %in fs |] * sched fs * globalInv fs * mallocHeap 0
+        * [| goodSize (wordToNat (V "len")) |])%Sep
+      (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+        * sched fs' * globalInv fs' * mallocHeap 0)%Sep;;
+      Note [reveal_buffers];;
+
+      If ("overflowed" = 1) {
+        Return 0
+      } else {
+        (* Write headers. *)
+        If ("opos" < "pos") {
+          (* Shouldn't be possible. :( *)
+          Return 0
+        } else {
+          "opos" <- "opos" - "pos";;
+          Call "io"!"writeAll"("fr", "buf", "pos", "opos")
+          [Al fs,
+            PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs * globalInv fs * mallocHeap 0
+              * [| goodSize (wordToNat (V "len")) |]
+            POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs' * globalInv fs' * mallocHeap 0];;
+
+          If ("len" < "pos") {
+            (* Shouldn't be possible. :( *)
+            Return 0
+          } else {
+            Call "io"!"writeAll"("fr", "buf", 0, "pos")
+            [Al fs,
+              PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+                * sched fs * globalInv fs * mallocHeap 0
+                * [| goodSize (wordToNat (V "len")) |]
+              POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+                * sched fs' * globalInv fs' * mallocHeap 0];;
+            Return 0
+          }
+        }
+      }
+    end
   }}.
 
 Lemma in_bounds : forall (pos len : W) n,
@@ -253,7 +411,7 @@ Lemma in_bounds : forall (pos len : W) n,
   intros; subst; rewrite natToW_wordToNat; auto.
 Qed.
 
-Hint Immediate in_bounds.
+Local Hint Immediate in_bounds.
 
 Lemma simplify_arith : forall pos len : W,
   (exists clen : W, pos < clen
@@ -273,6 +431,17 @@ Qed.
 Hint Rewrite simplify_arith' using assumption : sepFormula.
 
 Hint Resolve incl_mem.
+
+Lemma size_ok : forall n (opos len : W),
+  n = wordToNat len
+  -> opos <= len
+  -> (wordToNat opos <= n)%nat.
+  intros; nomega.
+Qed.
+
+Local Hint Immediate size_ok.
+
+Local Hint Extern 1 (goodSize _) => cbv beta; congruence.
 
 Ltac easy := intuition congruence.
 
@@ -297,14 +466,14 @@ Ltac t' :=
       end;
   try match goal with
         | [ _ : context[match ?st with pair _ _ => _ end] |- _ ] => destruct st; simpl in *
-      end; sep_auto; eauto.
+      end; try solve [ sep_auto; eauto ];
+  post; evaluate auto_ext; descend;
+  try match_locals; repeat (step auto_ext; descend); eauto.
 
 Ltac t := easy || prove_irrel || t'.
-Ltac u := abstract t.
 
 Theorem ok : moduleOk m.
-Admitted.
-(*  vcgen; u.
-Qed.*)
+  vcgen; abstract t.
+Qed.
 
 End Make.

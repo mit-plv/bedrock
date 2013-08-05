@@ -91,9 +91,9 @@ Definition bsize := nat_of_N (buf_size * 4)%N.
 Inductive unfold_here := UnfoldHere.
 Local Hint Constructors unfold_here.
 
-(*Definition hints : TacPackage.
+Definition hints : TacPackage.
   prepare buffer_split_tagged buffer_join_tagged.
-Defined.*)
+Defined.
 
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
                             "sys"!"write" @ [Sys.writeS],
@@ -300,9 +300,8 @@ Ltac t :=
       end; try solve [ t0 ]; t1.
 
 Theorem ok0 : moduleOk m0.
-Admitted.
-(*  vcgen; abstract t.
-Qed.*)
+  vcgen; abstract t.
+Qed.
 
 Section boot.
   Definition heapSize' := Hide.to_nat heapSize.
@@ -450,9 +449,8 @@ Section boot.
     genesis; rewrite natToW_plus; reflexivity.
 
   Theorem okb : moduleOk boot.
-  Admitted.
-    (*unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
-  Qed.*)
+    unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
+  Qed.
 
   Global Opaque heapSize'.
 
@@ -518,10 +516,9 @@ Section boot.
   Qed.*)
 
   Lemma ok : moduleOk m.
-  Admitted.
-    (*link (XmlLang.ok _ buf_size_lower' buf_size_upper' (WellFormed _ _ _ Wf)) ok8;
+    link (XmlLang.ok _ buf_size_lower' buf_size_upper' (WellFormed _ _ _ Wf)) ok8;
     apply (UF _ _ _ Wf).
-  Qed.*)
+  Qed.
   
   Variable stn : settings.
   Variable prog : IL.program.
@@ -553,13 +550,12 @@ Section boot.
   Import Safety.
 
   Theorem safe : sys_safe stn prog (w, st).
-  Admitted.
-    (*eapply safety; try eassumption; [
+    eapply safety; try eassumption; [
       link_simp; unfold labelSys, labelSys'; simpl; tauto
       | apply ok
       | apply LabelMap.find_2; link_simp; reflexivity
       | auto ].
-  Qed.*)
+  Qed.
 End boot.
 
 End Make.
