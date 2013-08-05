@@ -10,6 +10,15 @@ Module M.
   |} :: nil.
 
   Definition pr := (
+    RosCommand "deleteParam"(!string $"caller_id", !string $"key")
+    Do
+      Delete "params" Where ("key" = $"key");;
+      Response Success
+        Message "Parameter deleted."
+        Body ignore
+      end
+    end;;
+
     RosCommand "setParam"(!string $"caller_id", !string $"key", !string $"value")
     Do
       Delete "params" Where ("key" = $"key");;
@@ -27,6 +36,38 @@ Module M.
       Response Success
         Message "Parameter set."
         Body ignore
+      end
+    end;;
+
+    RosCommand "getParam"(!string $"caller_id", !string $"key")
+    Do
+      IfHas "params" Where ("key" = $"key") then
+        Response Success
+          Message "Parameter value is:"
+          Body
+            From "params" Where ("key" = $"key") Write
+              !string "params"#"value"
+        end
+      else
+        Response UserError
+          Message "Parameter not found."
+          Body ignore
+        end
+      end
+    end;;
+
+    RosCommand "hasParam"(!string $"caller_id", !string $"key")
+    Do
+      IfHas "params" Where ("key" = $"key") then
+        Response Success
+          Message "Parameter is set."
+          Body !true
+        end
+      else
+        Response Success
+          Message "Parameter is not set."
+          Body !false
+        end
       end
     end;;
 
