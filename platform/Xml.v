@@ -53,19 +53,29 @@ Infix ";;" := PSeq : program_scope.
 Delimit Scope program_scope with program.
 Bind Scope program_scope with program.
 
-Ltac wf := constructor; try (split || discriminate); simpl;
-  intuition (try (congruence || reflexivity || NoDup));
-    repeat match goal with
-             | [ |- Logic.ex _ ] =>
-               match goal with
-                 | [ |- context[?e = _] ] => exists e
-               end; unfold ewfs; simpl; intuition;
-               repeat match goal with
-                        | [ |- List.Forall _ _ ] => constructor
-                      end; simpl; auto
-             | _ =>
-               repeat match goal with
-                        | [ H : List.Exists _ _ |- _ ] => inversion H; clear H; subst
-                      end; simpl in *; tauto
-             | _ => constructor
-           end.
+Ltac wf'' :=
+  match goal with
+    | [ |- exists t, _ /\ Name t = ?s /\ _ ] =>
+      match goal with
+        | [ |- context[{| Name := s; Address := ?a; Schema := ?sch |}] ] =>
+          exists {| Name := s; Address := a; Schema := sch |}; simpl; intuition
+      end
+    | _ =>
+      repeat match goal with
+               | [ H : List.Exists _ _ |- _ ] => inversion H; clear H; subst
+             end; simpl in *; tauto
+    | _ => constructor
+  end.
+
+Ltac wf' :=
+  match goal with
+    | [ |- (_ <= _)%nat ] => compute; omega
+    | [ |- (_ >= _)%N ] => discriminate
+    | [ |- (_ < _)%N ] => reflexivity
+    | [ |- NoDup _ ] => NoDup
+    | [ |- twfs _ ] => repeat constructor
+    | [ |- uf _ ] => repeat (constructor; simpl; intuition (try congruence))
+    | _ => simpl; intuition (try (congruence || reflexivity || NoDup)); repeat wf''
+  end.
+
+Ltac wf := constructor; wf'.

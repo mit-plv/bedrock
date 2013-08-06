@@ -24,7 +24,7 @@ End Hide.
 
 Record wf (ts : tables) (pr : program) (buf_size : N) : Prop := {
   WellFormed : XmlLang.wf ts pr;
-  NotTooGreedy : (reserved pr <= 40)%nat;
+  NotTooGreedy : (reserved pr <= 88)%nat;
 
   Buf_size_lower : (buf_size >= 2)%N;
   Buf_size_upper : (buf_size * 4 < Npow2 32)%N;
@@ -280,6 +280,8 @@ Ltac t :=
   try match goal with
         | [ |- context[unfold_here] ] => unfold buffer; generalize (NotTooGreedy _ _ _ Wf)
       end; try solve [ t0 ]; t1.
+
+Ltac u := abstract t.
 
 Theorem ok0 : moduleOk m0.
   vcgen; abstract t.
