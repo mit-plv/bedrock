@@ -88,9 +88,23 @@ Definition rarray (body : xml) : xml := (
   </>
 )%out.
 
-Definition afrom tab cond body := (
-  rarray From tab Where cond Write body
+Definition rarrayL (body : list xml) : xml := (
+  <*> "array" </>
+    XTag "data" (map (fun xm => XTag "value" (xm :: nil)) body)
+  </>
 )%out.
+
+Definition afrom tab cond body := (
+  rarray From tab Where cond Write (<*> "value" </> body </>)
+)%out.
+
+Notation "'Array' x1 , .. , xN 'end'" :=
+  (rarrayL (cons x1%out .. (cons xN%out nil) ..))
+  (at level 0) : out_scope.
+
+Notation "'Array' 'end'" :=
+  (rarrayL nil)
+  (at level 0) : out_scope.
 
 Definition rtype (name : string) (body : xml) := (
   <*> name </>
