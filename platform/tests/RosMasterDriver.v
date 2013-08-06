@@ -38,7 +38,7 @@ Module M.
     Insert "nodes" ($"caller_id", $"caller_api")
   )%action.
 
-  Definition pr := (
+  Definition pr := ROS (
     (** * Parameter server <http://www.ros.org/wiki/ROS/Parameter_Server_API> *)
 
     (* Remove a parameter setting. *)
@@ -382,7 +382,7 @@ Module M.
 
     (* Terminate the server. *)
     Unimplemented "shutdown"(!string $"caller_id", !string $"msg")
-  )%program.
+  ).
 
   Theorem Wf : wf ts pr buf_size.
     wf.

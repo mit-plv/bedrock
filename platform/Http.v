@@ -191,7 +191,7 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
             * sched fs * globalInv fs * mallocHeap 0 * [| V "pos" <= V "len" |]%word
           POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
             * sched fs' * globalInv fs' * mallocHeap 0]
-        While ("endHeaders" < "len") {
+        While ("endHeaders" < "pos") {
           Note [reveal_buffers];;
 
           StringEq "buf" "len" "endHeaders" "matched" endOfHeaders
@@ -213,7 +213,7 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
                 * sched fs * globalInv fs * mallocHeap 0 * [| V "pos" <= V "len" |]%word
               POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
                 * sched fs' * globalInv fs' * mallocHeap 0]
-            While ("clen" < "len") {
+            While ("clen" < "pos") {
               Note [reveal_buffers];;
 
               StringEq "buf" "len" "clen" "matched" contentLength
@@ -262,10 +262,14 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
                     POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
                       * sched fs' * globalInv fs' * mallocHeap 0];;
 
-                  If ("tmp" <= "matched") {
-                    "pos" <- "pos" + "tmp"
+                  If ("tmp" = 0) {
+                    Return 0
                   } else {
-                    Skip
+                    If ("tmp" <= "matched") {
+                      "pos" <- "pos" + "tmp"
+                    } else {
+                      Skip
+                    }
                   }
                 };;
 
@@ -434,6 +438,15 @@ Qed.
 Local Hint Immediate size_ok.
 
 Local Hint Extern 1 (goodSize _) => cbv beta; congruence.
+
+Lemma lt_le_trans : forall a b c : W,
+  a < b
+  -> b <= c
+  -> a <= c.
+  intros; nomega.
+Qed.
+
+Hint Immediate lt_le_trans.
 
 Ltac easy := intuition congruence.
 
