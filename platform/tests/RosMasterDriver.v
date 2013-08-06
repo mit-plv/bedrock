@@ -19,6 +19,18 @@ Module M.
       Address := dbaddr 2;
       Schema := "service" :: "service_api" :: nil
     |}
+    :: {| Name := "topics";
+      Address := dbaddr 3;
+      Schema := "topic" :: "topic_type" :: nil |}
+    :: {| Name := "publishers";
+      Address := dbaddr 4;
+      Schema := "topic" :: "publisher_api" :: nil |}
+    :: {| Name := "subscribers";
+      Address := dbaddr 5;
+      Schema := "topic" :: "subscriber_api" :: nil |}
+    :: {| Name := "topicsWithPublishers";
+      Address := dbaddr 6;
+      Schema := "topic" :: "topic_type" :: nil |}
     :: nil.
 
   Definition registerNode := (
@@ -156,25 +168,174 @@ Module M.
       end
     end;;
 
+    (* Subscribe to a topic. *)
+    RosCommand "registerSubscriber"(!string $"caller_id", !string $"topic",
+      !string $"topic_type", !string $"caller_api")
+    Do
+      IfHas "topics" Where (("topic" = $"topic") && ("topic_type" = $"topic_type")) then
+        IfHas "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api")) then
+          Response UserError
+            Message "You are already subscribed to that topic."
+            Body ignore
+          end
+        else
+          Insert "subscribers" ($"topic", $"caller_api");;
+          Response Success
+            Message "You are now subscribed.  Publishers are:"
+            Body
+              ArrayFrom "publishers" Where ("topic" = $"topic") Write
+                !string "publishers"#"publisher_api"
+          end
+        end
+      else
+        IfHas "topics" Where ("topic" = $"topic") then
+          Response UserError
+            Message "That topic exists but with a different type."
+            Body ignore
+          end
+        else
+          Insert "topics" ($"topic", $"topic_type");;
+          Insert "subscribers" ($"topic", $"caller_api");;
+          Response Success
+            Message "You are now subscribed.  Publishers are:"
+            Body Array end
+          end
+        end
+      end
+    end;;
+
+    (* Unsubscribe from a topic. *)
+    RosCommand "unregisterSubscriber"(!string $"caller_id", !string $"topic",
+      !string $"caller_api")
+    Do
+      IfHas "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api")) then
+        Delete "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api"));;
+        Response Success
+          Message "You are now unsubscribed."
+          Body !int "1"
+        end
+      else
+        Response Success
+          Message "You weren't subscribed to begin with."
+          Body !int "0"
+        end
+      end
+    end;;
+
     (* Register intent to publish on a topic. *)
-    Unimplemented "registerPublisher"(!string $"caller_id", !string $"topic",
-      !string $"topic_type", !string $"caller_api");;
+    RosCommand "registerPublisher"(!string $"caller_id", !string $"topic",
+      !string $"topic_type", !string $"caller_api")
+    Do
+      IfHas "topics" Where (("topic" = $"topic") && ("topic_type" = $"topic_type")) then
+        IfHas "publishers" Where (("topic" = $"topic") && ("publisher_api" = $"caller_api")) then
+          Response UserError
+            Message "You are already publishing to that topic."
+            Body ignore
+          end
+        else
+          Insert "publishers" ($"topic", $"caller_api");;
+          IfHas "topicsWithPublishers" Where ("topic" = $"topic") then
+            Write ""
+          else
+            Insert "topicsWithPublishers" ($"topic", $"topic_type")
+          end;;
+          Response Success
+            Message "You are now publishing.  Subscribers are:"
+            Body
+              ArrayFrom "subscribers" Where ("topic" = $"topic") Write
+                !string "subscribers"#"subscriber_api"
+          end
+        end
+      else
+        IfHas "topics" Where ("topic" = $"topic") then
+          Response UserError
+            Message "That topic exists but with a different type."
+            Body ignore
+          end
+        else
+          Insert "topics" ($"topic", $"topic_type");;
+          Insert "topicsWithPublishers" ($"topic", $"topic_type");;
+          Insert "publishers" ($"topic", $"caller_api");;
+          Response Success
+            Message "You are now publishing.  Subscribers are:"
+            Body Array end
+          end
+        end
+      end
+    end;;
 
     (* Unregister intent to publish on a topic. *)
-    Unimplemented "unregisterPublisher"(!string $"caller_id", !string $"topic",
-      !string $"caller_api");;
+    RosCommand "unregisterPublisher"(!string $"caller_id", !string $"topic",
+      !string $"caller_api")
+    Do
+      IfHas "publishers" Where (("topic" = $"topic") && ("publisher_api" = $"caller_api")) then
+        Delete "publishers" Where (("topic" = $"topic") && ("publisher_api" = $"caller_api"));;
+        IfHas "publishers" Where ("topic" = $"topic") then
+          Write ""
+        else
+          Delete "topicsWithPublishers" Where ("topic" = $"topic")
+        end;;
+        Response Success
+          Message "You are now unregistered."
+          Body !int "1"
+        end
+      else
+        Response Success
+          Message "You weren't publishing to begin with."
+          Body !int "0"
+        end
+      end
+    end;;
 
-
+                               
     (** ** Name service and system state *)
 
     (* Get the XML-RPC URI for a node name. *)
-    Unimplemented "lookupNode"(!string $"caller_id", !string $"node_name");;
+    RosCommand "lookupNode"(!string $"caller_id", !string $"node_name")
+    Do
+      IfHas "nodes" Where ("caller_id" = $"node_name") then
+        Response Success
+          Message "Node URI is:"
+          Body
+            From "nodes" Where ("caller_id" = $"node_name") Write
+              !string "nodes"#"caller_api"
+        end
+      else
+        Response UserError
+          Message "Node not found."
+          Body ignore
+        end
+      end
+    end;;
 
     (* List published topics in a particular namespace. *)
-    Unimplemented "getPublishedTopics"(!string $"caller_id", !string $"subgraph");;
+    (* [Currently ignores the namespace.] *)
+    RosCommand "getPublishedTopics"(!string $"caller_id", !string $"subgraph")
+    Do
+      Response Success
+        Message "Topics with publishers are:"
+        Body
+          ArrayFrom "topicsWithPublishers" Write
+            Array
+              !string "topicsWithPublishers"#"topic",
+              !string "topicsWithPublishers"#"topic_type"
+            end
+      end
+    end;;
 
     (* List all known topic types. *)
-    Unimplemented "getTopicTypes"(!string $"caller_id");;
+    RosCommand "getTopicTypes"(!string $"caller_id")
+    Do
+      Response Success
+        Message "Topics are:"
+        Body
+          ArrayFrom "topics" Write
+            Array
+              !string "topics"#"topic",
+              !string "topics"#"topic_type"
+            end
+      end
+    end;;
 
     (* Dump of all relevant service/topic state. *)
     Unimplemented "getSystemState"(!string $"caller_id");;
@@ -204,7 +365,23 @@ Module M.
           Body ignore
         end
       end
-    end
+    end;;
+
+
+    (** ** Master methods not documented on the ROS wiki *)
+
+    (* Return an arbitrary number (which is clearly not what the designers intended,
+     * but which works fine, and which extends to systems without UNIX-style PIDs). *)
+    RosCommand "getPid"(!string $"caller_id")
+    Do
+      Response Success
+        Message "Here's a fake PID for you."
+        Body !string "0"
+      end
+    end;;
+
+    (* Terminate the server. *)
+    Unimplemented "shutdown"(!string $"caller_id", !string $"msg")
   )%program.
 
   Theorem Wf : wf ts pr buf_size.
