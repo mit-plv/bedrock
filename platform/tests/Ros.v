@@ -155,3 +155,102 @@ Notation "'Unimplemented' cmd ( p1 , .. , pN )" := (
   end%action
 )%program
 (at level 0, cmd at level 0) : program_scope.
+
+
+
+(** * Instrumenting programs to support XML-RPC multicall *)
+
+Fixpoint makeMulticallParams (p : pat) : pat :=
+  match p with
+    | Tag "param" p' => p'
+    | Ordered p1 p2 => Ordered (makeMulticallParams p1) (makeMulticallParams p2)
+    | _ => p
+  end.
+
+Fixpoint makeMulticallAction (a : action) : action :=
+  match a with
+    | Seq a1 a2 =>
+      Seq (makeMulticallAction a1) (makeMulticallAction a2)
+
+    | IfExists tab cond _then _else =>
+      IfExists tab cond (makeMulticallAction _then) (makeMulticallAction _else)
+
+    | Output (XTag "methodResponse"
+        (XTag "params"
+          (XTag "param"
+            (xm :: nil) :: nil) :: nil)) =>
+      Output (XTag "value"
+        (XTag "array"
+          (XTag "data"
+            (xm :: nil) :: nil) :: nil))
+
+    | _ => a
+  end.
+
+Fixpoint makeMulticall (pr : program) : program :=
+  match pr with
+    | PSeq pr1 pr2 => PSeq (makeMulticall pr1) (makeMulticall pr2)
+    | Rule ("methodCall"/(
+              "methodName"/methodName
+            & "params"/ps))%pat a =>
+      Match
+        "methodCall"/(
+          "methodName"/"system.multicall"
+          & "params"/(
+            "param"/(
+              "value"/(
+                "array"/(
+                  "data"/(
+                    "value"/(
+                      "struct"/(
+                        "member"/(
+                          "name"/"params"
+                          & "value"/(
+                            "array"/(
+                              "data"/(
+                                makeMulticallParams ps
+                              )
+                            )
+                          )
+                        )
+                        & "member"/(
+                          "name"/"methodName"
+                          & "value"/(
+                              "string"/methodName
+                            )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      Do
+        makeMulticallAction a
+      end
+    | Rule p _ => Rule p (Write "")%action
+  end%program.
+
+Definition addMulticall (pr : program) : program := (
+  Match
+    "methodCall"/(
+      "methodName"/"system.multicall"
+    )
+  Do
+    Write "<methodResponse><params><param><value><array><data>"
+  end;;
+  pr;;
+  makeMulticall pr;;
+  Match
+    "methodCall"/(
+      "methodName"/"system.multicall"
+    )
+  Do
+    Write "</data></array></value></param></params></methodResponse>"
+  end
+)%program.
+
+Notation "'ROS' pr" := (addMulticall pr%program)
+  (at level 0, pr at level 0).
