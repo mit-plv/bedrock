@@ -132,3 +132,12 @@ Notation "'RosCommand' cmd () 'Do' a 'end'" :=
 Notation "'RosCommand' cmd ( p1 , .. , pN ) 'Do' a 'end'" :=
   (Rule (request cmd (cons p1%pat .. (cons pN%pat nil) ..)) a%action)
   (at level 0, cmd at level 0) : program_scope.
+
+Notation "'Unimplemented' cmd ( p1 , .. , pN )" := (
+  Rule (request cmd (cons p1%pat .. (cons pN%pat nil) ..))
+  Response UserError
+    Message "Command not implemented yet."
+    Body ignore
+  end%action
+)%program
+(at level 0, cmd at level 0) : program_scope.

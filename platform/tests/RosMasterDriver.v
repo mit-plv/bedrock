@@ -10,6 +10,7 @@ Module M.
   |} :: nil.
 
   Definition pr := (
+    (* Remove a parameter setting. *)
     RosCommand "deleteParam"(!string $"caller_id", !string $"key")
     Do
       Delete "params" Where ("key" = $"key");;
@@ -19,6 +20,7 @@ Module M.
       end
     end;;
 
+    (* Set the value of a parameter. *)
     RosCommand "setParam"(!string $"caller_id", !string $"key", !string $"value")
     Do
       Delete "params" Where ("key" = $"key");;
@@ -39,6 +41,7 @@ Module M.
       end
     end;;
 
+    (* Get the value of a parameter. *)
     RosCommand "getParam"(!string $"caller_id", !string $"key")
     Do
       IfHas "params" Where ("key" = $"key") then
@@ -56,6 +59,16 @@ Module M.
       end
     end;;
 
+    (* Search for a parameter name relative to the caller's namespace. *)
+    Unimplemented "searchParam"(!string $"caller_id", !string $"key");;
+
+    (* Sign up to receive notifications when a parameter value changes. *)
+    Unimplemented "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+
+    (* Cancel a subscription. *)
+    Unimplemented "unsubscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+
+    (* Check if a parameter has a value. *)
     RosCommand "hasParam"(!string $"caller_id", !string $"key")
     Do
       IfHas "params" Where ("key" = $"key") then
@@ -71,6 +84,7 @@ Module M.
       end
     end;;
 
+    (* List all parameters that are set. *)
     RosCommand "getParamNames"(!string $"caller_id")
     Do
       Response Success
