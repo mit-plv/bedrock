@@ -109,6 +109,7 @@ Section OpSem.
       :: ("printInt", printIntS)
       :: ("listen", listenS)
       :: ("accept", acceptS)
+      :: ("connect", connectS)
       :: ("read", readS)
       :: ("write", writeS)
       :: ("declare", declareS)
@@ -1125,6 +1126,7 @@ Section OpSem.
             solve [ exists (st#Rp, snd st); eauto
               | exists (st#Rp, snd st);
                 match goal with
+                  | [ _ : context["connect"] |- _ ] => eapply Connect
                   | [ _ : context["read"] |- _ ] => eapply Read
                   | _ => eapply Write
                 end; eauto;
@@ -1222,14 +1224,22 @@ Section OpSem.
         | [ H : interp (specs _ ?stn) (![?P] (_, snd ?st))%PropX |- _ ] =>
           match P with
             | context[locals _ ?V _ _] =>
-              eapply ILTacCommon.interp_interp_himp in H; [ | apply comeOnOut ];
+              (eapply ILTacCommon.interp_interp_himp in H; [ | apply comeOnOut ];
                 eapply ILTacCommon.interp_interp_himp; [ | apply goOnIn ];
                   eapply tickle_bytes; eauto;
                     assert (ReadWord stn (IL.Mem (snd st)) (st#Sp ^+ $8)
                       = Some (sel V "buffer")) by prove_ReadWord;
                     assert (ReadWord stn (IL.Mem (snd st)) (st#Sp ^+ $12)
                       = Some (sel V "size")) by prove_ReadWord;
-                    cbv beta in *; simpl; congruence
+                    cbv beta in *; simpl; congruence)
+              || (eapply ILTacCommon.interp_interp_himp in H; [ | apply comeOnOut ];
+                eapply ILTacCommon.interp_interp_himp; [ | apply goOnIn ];
+                  eapply tickle_bytes; eauto;
+                    assert (ReadWord stn (IL.Mem (snd st)) (st#Sp ^+ $4)
+                      = Some (sel V "address")) by prove_ReadWord;
+                    assert (ReadWord stn (IL.Mem (snd st)) (st#Sp ^+ $8)
+                      = Some (sel V "size")) by prove_ReadWord;
+                    cbv beta in *; simpl; congruence)
           end
       end.
   Qed.
