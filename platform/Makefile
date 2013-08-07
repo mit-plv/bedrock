@@ -21,7 +21,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 
 VS      := $(MODULES:%=%.v)
 
-.PHONY: coq clean
+.PHONY: coq clean master
+.PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
@@ -55,6 +56,25 @@ tests/%.gen.s: tests/%.gen.ml tests/%.txt
 	echo >>$@
 	ocaml -w -x $< >>$@
 
+tests/%32.gen.ml: tests/%I386.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
+	cat tests/ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		>>$@
+	cat tests/printCode.ml >>$@
+
+tests/%32.gen.s: tests/%32.gen.ml tests/%.txt
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
+	echo >>$@
+	ocaml -w -x $< >>$@
+
 tests/%.exe: tests/%.gen.o tests/sys.o tests/driver.o
 	cc $^ -o $@
 
@@ -64,4 +84,11 @@ tests/pages.gen.s:
 tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/driver.o
 	cc $^ -o $@
 
-.PRECIOUS: tests/%.gen.ml tests/%.gen.s
+master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
+	mkdir -p /tmp/master
+	rm /tmp/master/*
+	cp tests/sys.c /tmp/master
+	cp tests/driver32.s /tmp/master/driver.s
+	cp tests/RosMaster32.gen.s /tmp/master/RosMaster.s
+	cp Makefile.ros /tmp/master/Makefile
+	cd /tmp ; tar zcf master.tgz master
