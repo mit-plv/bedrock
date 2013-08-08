@@ -46,10 +46,10 @@ sys_accept:
         jmp     _sys_accept
 
 sys_connect:
+	pushq	%rsi
         movl	bedrock_heap+4(%rbx), %edi
        	addl	$bedrock_heap, %edi
         movl	bedrock_heap+8(%rbx), %esi
-	pushq	%rsi
         pushq   $sys_ret
         jmp     _sys_connect
 

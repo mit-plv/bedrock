@@ -13,5 +13,5 @@ Qed.
 
 Require Import AMD64_gas.
 
-Set Printing Depth 999999.
-Eval compute in moduleS program.
+Definition compiled := moduleS program.
+Recursive Extraction compiled.
