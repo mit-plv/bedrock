@@ -3,6 +3,86 @@ Require Import SemanticsExprLemmas.
 Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import Arith.
 
+Section Safe_coind.
+  Variable R : Statement -> st -> Prop.
+
+  Import WMake.
+
+  Hypothesis ReadAtCase : forall var arr idx vs arrs, R (Syntax.ReadAt var arr idx) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
+
+  Hypothesis WriteAtCase : forall arr idx val vs arrs, R (Syntax.WriteAt arr idx val) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
+
+  Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo functions a v v' -> R b v'.
+
+  Hypothesis ConditionalCase : forall cond t f v, R (Syntax.Conditional cond t f) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R t v) \/ (wneb (exprDenote cond (fst v)) $0 = false /\ R f v).
+
+  Hypothesis LoopCase : forall cond body v, R (Syntax.Loop cond body) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R body v /\ (forall v', RunsTo functions body v v' -> R (Loop cond body) v')) \/ (wneb (exprDenote cond (fst v)) $0 = false).
+
+  Hypothesis MallocCase : forall var size vs arrs, R (Syntax.Malloc var size) (vs, arrs) -> goodSize (wordToNat (exprDenote size vs) + 2).
+
+  Hypothesis FreeCase : forall arr vs arrs, R (Syntax.Free arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
+
+  Hypothesis LenCase : forall var arr vs arrs, R (Syntax.Len var arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
+
+  Hypothesis ForeignCallCase : forall vs arrs f arg,
+    R (Syntax.Call f arg) (vs, arrs)
+    -> (exists spec arrs', functions (exprDenote f vs) = Some (Foreign spec)
+      /\ spec {| Arg := exprDenote arg vs; InitialHeap := arrs; FinalHeap := arrs' |}) \/
+    (exists body, functions (exprDenote f vs) = Some (Internal body) /\ forall vs_arg, Locals.sel vs_arg "__arg" = exprDenote arg vs -> R body (vs_arg, arrs)).
+
+  Hint Constructors Safe.
+
+  Ltac openhyp := 
+    repeat match goal with
+             | H : _ /\ _ |- _  => destruct H
+             | H : _ \/ _ |- _ => destruct H
+             | H : exists x, _ |- _ => destruct H
+           end.
+
+  Ltac break_pair :=
+    match goal with
+      V : (_ * _)%type |- _ => destruct V
+    end.
+
+  Theorem Safe_coind : forall c v, R c v -> Safe c v.
+    cofix; unfold st; intros; break_pair; destruct c.
+
+    eauto.
+    Guarded.
+
+    eapply ReadAtCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply WriteAtCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply SeqCase in H; openhyp; eauto.
+    Guarded.
+
+    eauto.
+    Guarded.
+
+    eapply ConditionalCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply LoopCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply MallocCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply FreeCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply LenCase in H; openhyp; eauto.
+    Guarded.
+
+    eapply ForeignCallCase in H; openhyp; eauto.
+    Guarded.
+  Qed.
+
+End Safe_coind.
+
 Fixpoint footprint (statement : Statement) :=
   match statement with
     | Syntax.Assignment var val => var :: varsIn val
