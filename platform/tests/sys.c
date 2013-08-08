@@ -89,6 +89,11 @@ unsigned _sys_accept(unsigned sock) {
   return new_sock;
 }
 
+unsigned _sys_connect(char *address, unsigned size) {
+  fprintf(stderr, "connect() not yet implemented.\n");
+  exit(1);
+}
+
 unsigned _sys_read(unsigned sock, void *buf, unsigned count) {
   ssize_t n = read(sock, buf, count);
 

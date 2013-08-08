@@ -7,6 +7,7 @@
         .globl _sys_printInt, sys_printInt
 	.global _sys_listen, sys_listen
 	.global _sys_accept, sys_accept
+     	.global _sys_connect, sys_connect
 	.globl _sys_read, sys_read
 	.globl _sys_write, sys_write
         .global _sys_declare, sys_declare
@@ -43,6 +44,14 @@ sys_accept:
 	pushq	%rsi
         pushq   $sys_ret
         jmp     _sys_accept
+
+sys_connect:
+        movl	bedrock_heap+4(%rbx), %edi
+       	addl	$bedrock_heap, %edi
+        movl	bedrock_heap+8(%rbx), %esi
+	pushq	%rsi
+        pushq   $sys_ret
+        jmp     _sys_connect
 
 sys_read:
 	pushq	%rsi

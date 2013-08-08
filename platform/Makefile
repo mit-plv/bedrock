@@ -40,6 +40,7 @@ clean:: Makefile.coq
 tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
 	cat tests/ignoreFail.ml >$@
 	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
 		| sed 's/   allWords_def/   fun _ -> []/' \
 		| sed 's/   N.to_nat$$/   fun _ -> O/' \
 		>>$@
@@ -59,6 +60,7 @@ tests/%.gen.s: tests/%.gen.ml tests/%.txt
 tests/%32.gen.ml: tests/%I386.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
 	cat tests/ignoreFail.ml >$@
 	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
 		| sed 's/   allWords_def/   fun _ -> []/' \
 		| sed 's/   N.to_nat$$/   fun _ -> O/' \
 		>>$@
@@ -86,7 +88,7 @@ tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/d
 
 master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 	mkdir -p /tmp/master
-	rm /tmp/master/*
+	-rm /tmp/master/*
 	cp tests/sys.c /tmp/master
 	cp tests/driver32.s /tmp/master/driver.s
 	cp tests/RosMaster32.gen.s /tmp/master/RosMaster.s
