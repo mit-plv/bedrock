@@ -3,13 +3,8 @@ Import DefineStructured.
 Require Import ExprLemmas.
 Require Import VariableLemmas.
 Require Import GeneralTactics.
-Require Import CompileExpr.
 Require Import SyntaxExpr SemanticsExpr.
 Require Import Syntax Semantics.
-Require Import SemanticsExprLemmas SemanticsLemmas.
-Require Import MyMalloc MyFree.
-Require Import Malloc.
-Import WMake.
 Import Safety.
 
 Set Implicit Arguments.
@@ -18,26 +13,1040 @@ Infix ";:" := Syntax.Seq (left associativity, at level 110).
 
 Infix "<-" := Syntax.Assignment (at level 90, no associativity).
 
-Local Notation edepth := CompileExpr.depth.
+Require DepthExpr.
+
+Local Notation edepth := DepthExpr.depth.
 
 Fixpoint depth statement :=
   match statement with
-    | Syntax.Assignment _ expr => edepth expr
-    | Syntax.Seq a b => max (depth a) (depth b) 
     | Syntax.Skip => 0
+    | Syntax.Seq a b => max (depth a) (depth b) 
     | Conditional cond t f => max (edepth cond) (max (depth t) (depth f))
     | Loop cond body => max (edepth cond) (depth body)
-    | Syntax.ReadAt var arr idx => max (edepth arr) (1 + edepth idx) 
-    | Syntax.WriteAt arr idx val => max (edepth val) (max (1 + edepth arr) (2 + edepth idx))
-    | Syntax.Malloc var size => max (edepth size) 1
-    | Syntax.Free arr => max (edepth arr) 1
-    | Syntax.Len var arr => edepth arr
-    | Syntax.Call f arg => max (edepth f) (max (1 + edepth arg) 2)
+    | Syntax.Assignment _ expr => edepth expr
+    | Syntax.Call _ f args => 0 (*max (edepth f) (max (1 + edepth arg) 2)*)
+    | Syntax.CallMethod _ obj f args => 0                                
   end.
 
-Definition array_ptr lists p : HProp := array_with_size (lists p) p.
+Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := [| True |]%PropX.
+(*
+(
+  (Al i : W, Al P : callTransition -> Prop, [| fs i = Some (Foreign P) |]
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
+      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
+      /\ [| res = wordToNat (vs "__reserved") /\ exists a', P {| Arg := sel vs "__arg"; InitialHeap := a; FinalHeap := a' |} |]
+      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
+        [| st'#Sp = st#Sp |]
+        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
+        /\ [| P {| Arg := vs "__arg"; InitialHeap := a; FinalHeap := a' |} |] ))) 
+  /\
+  (Al i : W, Al body, [| fs i = Some (Internal body) |]
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
+      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
+      /\ [| res = wordToNat (vs "__reserved")
+        /\ Safe fs body (vs, a) |]
+      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
+        [| st'#Sp = st#Sp |]
+        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
+        /\ [| exists vs'', RunsTo fs body (vs, a) (vs'', a') |] )))
+)%PropX.
+*)
 
-Definition heap (arrs : arrays) : HProp := let (ptrs, lists) := arrs in (starS (array_ptr lists) ptrs)%Sep.
+Definition MIN_RESERVED := 10.
+
+Definition starD (f : W -> ADTValue -> HProp) (d : heap) : HProp.
+  admit.
+Defined.
+
+Definition is_heap layout (adts : heap) : HProp := starD (fun w adt => layout (TheType adt) w) adts.
+
+Require Import Malloc.
+
+Definition RunsToRelax fs s v v_new := 
+  exists v', RunsTo fs s v v' 
+    /\ changed_in (fst v') (fst v_new) (tempVars (depth s))
+    /\ snd v_new = snd v'.
+
+Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
+
+Definition inv layout vars s : assert := 
+  st ~> Ex fs, funcsOk (fst st) fs
+  /\ ExX, Ex v, Ex res,
+  ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
+  /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
+  /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
+    [| st'#Sp = st#Sp |]
+    /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+    /\ [| RunsToRelax fs s v v' |]).
+
+Require Import Footprint.
+
+Definition vars_require vars s := 
+  List.incl (footprint s) ("__arg" :: vars)
+  /\ List.incl (tempVars (depth s)) (vars)
+  /\ disjoint (footprint s) (tempVars (depth s))
+  /\ ~ In "rp" vars
+  /\ ~ In "__reserved" vars
+  /\ ~ In "__arg" vars.
+
+Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+
+Section Compiler.
+
+  Variable layout : ADT -> W -> HProp.
+  Variable vars : list string.
+
+  Section Specifications.
+
+    Variable s k : Statement.
+
+    Definition precond := inv layout vars (s;: k).
+
+    Definition postcond := inv layout vars k.
+
+    Definition verifCond pre := imply pre precond :: vars_require vars (s;: k) :: nil.
+
+  End Specifications.
+
+  Variable imports : LabelMap.t assert.
+  Variable imports_global : importsGlobal imports.
+  Variable modName : string.
+
+  Definition vars_ex := "__reserved" :: "__arg" :: vars.
+
+  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
+
+  Definition Seq2 := @Seq_ _ imports_global modName.
+
+  Definition Strline := Straightline_ imports modName.
+
+  Definition Skip := Straightline_ imports modName nil.
+
+  Fixpoint Seq ls :=
+    match ls with
+      | nil => Skip
+      | a :: ls' => Seq2 a (Seq ls')
+    end.
+
+  Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
+
+  Definition loop_inv cond body k : assert := 
+    let s := Loop cond body;: k in
+    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
+    ![^[locals ("rp" :: vars_ex) (fst v) res st#Sp * heap (snd v) * mallocHeap 0] * #0] st
+    /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
+    /\ [| st#Rv = v[(cond)] |]
+    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
+      [| st'#Sp = st#Sp |]
+      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ [| RunsToRelax fs s v v' |]).
+
+  Inductive exposeArray : Prop := ExposeArray.
+  Hint Constructors exposeArray.
+
+  Definition afterCall k : assert :=
+    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
+    let old_sp := st#Sp ^- natToW (4 * (1 + length vars_ex)) in
+    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * heap (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs k v |] ] * #0] st
+    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
+      [| st'#Sp = old_sp |]
+      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ [| RunsToRelax fs k v v' |]).
+
+  Fixpoint compile s k :=
+    match s with
+      | Syntax.Assignment var expr => Seq (
+          exprCmd expr 0 ::
+          SaveRv var :: 
+          nil)
+      | Syntax.Skip => Skip
+      | Syntax.Seq a b => Seq2 
+          (compile a (Syntax.Seq b k))
+          (compile b k)
+      | Conditional cond t f => Seq2
+        (exprCmd cond 0)
+        (Structured.If_ imports_global 
+          (RvLval (LvReg Rv)) IL.Ne (RvImm $0) 
+          (compile t k) 
+          (compile f k)) 
+      | Loop cond body => Seq2
+        (exprCmd cond 0)
+        (Structured.While_ imports_global 
+          (loop_inv cond body k)
+          (RvLval (LvReg Rv)) IL.Ne (RvImm $0)
+          (Seq2
+            (compile body (Syntax.Seq (Syntax.Loop cond body) k))
+            (exprCmd cond 0)))
+      | Syntax.ReadAt var arr idx => Seq (
+          Note_ _ _ exposeArray ::
+          exprCmd arr 0 ::
+          SaveRv (tempOf 0) ::
+          exprCmd idx 1 ::
+          Strline (
+            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
+            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 0) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
+          Strline (
+            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
+      | Syntax.WriteAt arr idx val =>  Seq (
+          Note_ _ _ exposeArray ::
+          exprCmd val 0 ::
+          SaveRv (tempOf 0) ::
+          exprCmd arr 1 ::
+          SaveRv (tempOf 1) ::
+          exprCmd idx 2 ::
+          Strline (
+            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
+            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 1) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
+          Strline (
+            Assign (LvMem (Reg Rv)) (RvLval (variableSlot (tempOf 0) vars_ex)) :: nil) :: nil)
+      | Syntax.Malloc var size => 
+          CompileMalloc.compile vars var size k imports_global modName
+      | Syntax.Free ptr => 
+          CompileFree.compile vars ptr k imports_global modName
+      | Syntax.Len var arr => Seq (
+          Note_ _ _ exposeArray ::
+          exprCmd arr 0 ::
+          Strline (
+            IL.Binop (LvReg Rv) (RvLval (LvReg Rv)) Minus (RvImm $4) :: nil) ::
+          Strline (
+            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
+      | Syntax.Call f arg => Seq (
+        exprCmd f 0
+        :: SaveRv (tempOf 0)
+        :: exprCmd arg 1
+        :: SaveRv (tempOf 1)
+        :: Strline (
+          IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars_ex)))
+          :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot "__reserved" vars_ex)) Minus (RvImm $3)
+          :: Assign (LvMem (Indir Rv $8)) (RvLval (variableSlot (tempOf 1) vars_ex))
+          :: Assign Rv (RvLval (variableSlot (tempOf 0) vars_ex))
+          :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars_ex))) 
+          :: nil)
+        :: Structured.ICall_ _ _ Rv (afterCall k)
+        :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars_ex))) :: nil)
+        :: nil)
+    end.
+
+Require Import CompileExpr.
+Require Import SemanticsExprLemmas SemanticsLemmas.
+Require Import MyMalloc MyFree.
+Import WMake.
+
+  Opaque heap.
+
+  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars_ex, MIN_RESERVED in *.
+
+  Lemma add_remove : forall a v, v %in fst a -> a %%= add_arr (remove_arr a v) v (get_arr a v).
+    intros; hnf; simpl; intuition (unfold WDict.upd);
+      try match goal with
+            | [ |- context[if ?E then _ else _] ] => destruct E; subst
+          end; auto using WMake.equiv_symm, del_add.
+  Qed.
+
+  Hint Immediate add_remove.
+
+  Lemma add_remove' : forall a v i, safe_access a v i -> a %%= add_arr (remove_arr a v) v (get_arr a v).
+    inversion 1; eauto.
+  Qed.
+
+  Hint Immediate add_remove'.
+
+  Lemma Safe_skip : forall fs k v a,
+    Safe fs (skip;: k) (v, a)
+    -> Safe fs k (v, a).
+    inversion 1; auto.
+  Qed.
+
+  Hint Immediate Safe_skip.
+
+  Hint Extern 1 (agree_in _ _ _) => progress simpl.
+
+  Lemma Safe_loop_false : forall fs e b v k,
+    Safe fs (Loop e b;: k) v ->
+    wneb (v[(e)]) $0 = false ->
+    Safe fs k v.
+    intros; inv_Safe; eauto.
+  Qed.
+
+  Hint Resolve Safe_loop_false.
+
+  Ltac changed_in_inv_vars := 
+    match goal with
+      H : disjoint ?A ?B, H2 : List.incl ?A ?VARS |- _ = _ => eapply changed_in_inv with (vars := VARS)
+    end.
+
+  Ltac incl_arg_vars_solver :=
+    match goal with
+      H : List.incl ?FP ("__arg" :: ?VARS) |- List.incl (?S :: nil) ("__arg" :: ?VARS) => 
+        match FP with
+          context [S] => eapply incl_tran; [ | eassumption ]
+        end
+    end.
+
+  Ltac temp_solver :=
+    match goal with
+      | H : List.incl (tempVars ?N) _ |- List.incl (tempChunk _ _) _ => eapply incl_tran with (m := tempVars N); [eapply incl_tempChunk2; simpl | ]
+      | H : List.incl (tempVars ?N) _ |- List.incl (tempOf _ :: nil) _ => eapply incl_tran with (m := tempVars N)
+    end.
+
+  Ltac sel_eq_solver :=
+    match goal with
+      |- sel _ ?V = sel _ ?V => symmetry; changed_in_inv_vars; iter_changed; try temp_solver; try eapply in_tran_not; try incl_arg_vars_solver
+    end.
+
+  Ltac le_eq_reserved_solver :=
+    match goal with
+      | |- _ <= wordToNat (sel _ "__reserved") => replace_reserved; [ omega | sel_eq_solver ]
+      | |- _ = wordToNat (sel _ "__reserved") => replace_reserved; [ omega | sel_eq_solver ]
+    end.
+
+  Ltac change_rp' :=
+    try eassumption;     
+      match goal with
+        H : ?SPECS (sel ?VS1 "rp") = Some _ |- ?SPECS (sel ?VS2 "rp") = Some _ =>
+          replace (sel VS2 "rp") with (sel VS1 "rp"); [ | symmetry; changed_in_inv_disjoint; [ | eapply in_tran_not; [ | eauto ] ] ]; [ | iter_changed; try (apply incl_tempChunk2; simpl) | ]
+      end.
+
+  Ltac decide_cond t f :=
+    match goal with
+      | H : _ = Some true |- _ => t
+      | H : _ = Some false |- _ => f
+    end.
+
+  Ltac decide_cond_safe := decide_cond ltac:(eapply Safe_cond_true_k) ltac:(eapply Safe_cond_false_k).
+
+  Ltac Safe_cond_solver :=
+    match goal with
+      H : Safe _ (Conditional _ _ _;: _) (?ST1, _) |- Safe _ _ _ =>
+        eapply Safe_immune with (vs1 := ST1); [ decide_cond_safe | use_changed_unchanged; simpl; eapply disjoint_trans_lr]
+    end.
+
+  Ltac Safe_loop_solver :=
+    match goal with
+      |- Safe _ (_ ;: (Loop _ _ ;: _)) _ => decide_cond ltac:(eapply Safe_loop_true_k) ltac:(eapply Safe_loop_false)
+    end.
+
+  Ltac pre_eauto2 := try first [
+    ok_call_solver |
+    use_Safe_immune2 |
+    (format_solver; incl_app_solver) |
+    equiv_solver |
+    vars_require_solver |
+    RunsToRelax_solver | 
+    rp_upd_solver |
+    change_rp' |
+    rv_solver' |
+    Safe_cond_solver |
+    RunsToRelax_seq_solver |
+    RunsToRelax_assign_solver |
+    Safe_assign_solver | 
+    RunsToRelax_Read_Write_solver |
+    freeable_goodSize_solver |
+    changed_unchanged_disjoint |
+    himp_length_solver |
+    equiv_solver2' |
+    use_Safe_immune' |
+    sel_eq_solver |
+    tempOf_in_ext_solver |
+    le_eq_reserved_solver | 
+    Safe_loop_solver
+    ].
+
+  Ltac smack := to_tempOf; pre_eauto2; info_eauto 7.
+
+  Ltac var_solver :=
+    try apply unchanged_in_upd_same; smack; try apply changed_in_upd_same;
+      try (upd_chain_solver2; simpl; incl_app_solver); try (apply incl_tempChunk2; simpl); info_eauto 8.
+
+  Ltac do_prep_rp H VARS :=
+    match VARS with
+      | context ["__reserved"] => fail 1
+      | _ => eapply aug_rp_not_in in H
+    end.
+
+  Ltac prep_rp :=
+    match goal with 
+      | H : In "rp" ?VARS -> False |- _ => do_prep_rp H VARS
+      | H : ~ In "rp" ?VARS |- _ => do_prep_rp H VARS
+    end.
+
+  Ltac old_eval_step hints := eval_step hints.
+
+  Ltac eval_step hints := try prep_rp; old_eval_step hints.
+
+  Ltac pick_vs :=
+    (*try match goal with
+          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+        end;*)
+    match goal with
+      H : interp ?SPECS (![?P] ?ST) |- context [ (![_] ?ST)%PropX ] =>
+        match P with
+          context [ locals _ ?VS _ _ ] => let a := fresh in evar (a : arrays); (exists (VS, a)); unfold a in *; clear a
+        end
+    end.
+
+  Ltac preamble := 
+    wrap0; unfold_eval; unfold_copy_vars_require; myPost;
+    repeat eval_step hints;
+      repeat match goal with
+               | [ |- vcs _ ] => wrap0;
+                 try match goal with
+                       | [ x : (settings * state)%type |- _ ] => destruct x
+                     end; try eval_step hints;
+                 try match goal with
+                       | [ H : context[expr_runs_to] |- _ ] =>
+                         unfold expr_runs_to, runs_to_generic in H; simpl in H
+                     end; try eval_step hints
+             end; smack;
+      match goal with
+        | [ x : (vals * arrays)%type |- _ ] => destruct x; simpl in *
+        | [ x : st |- _ ] => destruct x; simpl in *
+      end;
+      myPost; try (unfold_eval; clear_imports; eval_step auto_ext; var_solver);
+        try match goal with
+              | [ fs : W -> option Callee
+                  |- exists x : W -> option Callee, _ ] =>
+                exists fs;
+                  match goal with
+                    | [ |- _ /\ _ ] => split; [ split; assumption | ]
+                  end
+            end;
+        try match goal with
+              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
+            end;
+        pick_vs; descend; try (pick_Safe || (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]));
+          clear_or.
+
+  Ltac middle :=
+    match goal with
+      | [ |- context[heap ?a] ] => set_heap_goal;
+        match goal with
+          | [ _ : exposeArray |- context[heap ?a] ] =>
+            assert (trigger a) by constructor; replace_reserved; [ clear_or;
+              hiding ltac:(step hints_array_access_bwd); (simpl; eauto); smack; hiding ltac:(step auto_ext) | ]
+          | [ _ : exposeArray, t1 := _ |- context[heap ?a] ] =>
+            assert (trigger a) by constructor; clear_or;
+              hiding ltac:(step hints_array_access_bwd); (simpl; eauto; try subst t1; subst;
+                try match goal with
+                      | [ |- context[match ?E with pair x _ => x end] ] =>
+                        change (match E with pair x _ => x end) with (fst E)
+                    end;
+                match goal with
+                  | _ => apply add_remove
+                  | [ H : _ |- _ ] => apply Safe_write_k in H; simpl in H;
+                    match type of H with
+                      | Safe _ _ (_, ?a) => instantiate (1 := a)
+                    end;
+                    repeat match goal with
+                             | [ x := _ |- _ ] => subst x
+                           end;
+                    unfold add_arr, remove_arr, equiv, get_arr; simpl; split; [
+                      var_solver
+                      | intros;
+                        repeat (erewrite changed_in_inv; [ | eassumption | var_solver ]; descend); fail ]
+                  | _ => eauto
+                end)
+        end; try reflexivity
+      | [ |- interp _ (![_] _) ] => clear_imports; replace_reserved; [ repeat hiding ltac:(step auto_ext) | .. ]
+      | _ => var_solver
+    end.
+
+  Ltac do_step := descend; try clear_imports;
+    try match goal with
+          | [ H : _ ~:~ _ ~~ _ ~~> _ |- interp _ (![_] _ ---> ![_] _)%PropX ] => clear H
+        end;
+    try match goal with
+          | [ |- himp _ ?pre ?post ] =>
+            match pre with
+              | context[locals _ _ _ ?sp1] =>
+                match post with
+                  | context[locals _ _ _ ?sp2] =>
+                    replace sp2 with sp1 by words
+                end
+            end
+        end;
+    hiding ltac:(step auto_ext).
+
+  Ltac stepper := try replace_reserved; [ clear_or; repeat do_step | .. ].
+
+  Ltac solver :=
+    match goal with
+      | [ _ : exposeArray |- _ ] => do_RunsToRelax_Read_Write_solver; (simpl; eauto); var_solver
+      | _ => RunsToRelax_Stuff_solver
+      | _ => smack
+    end.
+
+  Ltac finale := stepper; solver.
+
+  Ltac t := preamble; middle; finale.
+
+  Opaque mult.
+
+  Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
+    (x : settings * state),
+    vcs (verifCond s k imports pre) ->
+    interp specs (Postcondition (compile s k pre) x) ->
+    interp specs (postcond k x).
+    unfold verifCond, imply; induction s.
+
+    (* assignment *)
+    abstract t.
+
+    (* ReadAt *)
+    abstract t.
+
+    (* WriteAt *)
+    abstract t.
+
+    (* seq *)
+    abstract t.
+
+    (* skip *)
+    abstract t.
+
+    (* conditional *)
+    abstract t.
+
+    (* loop *)
+    abstract t.
+
+    (* malloc *)
+    abstract t.
+
+    (* free *)
+    abstract t.
+
+    (* len *)
+    abstract t.
+
+    (* call *)
+    abstract t.
+  Qed.
+
+  Ltac unfold_wrap0 := unfold verifCond, imply, CompileExpr.expr_verifCond in *.
+
+  Ltac clear_himp :=
+    match goal with
+      | [ H : _ ~:~ _ ~~ _ ~~> _ |- interp _ (![_] _ ---> ![_] _)%PropX ] => clear H
+    end.
+
+  Ltac stepper' := 
+    match goal with
+      |- context [locals _ _ _ _] => try replace_reserved; [ clear_or; descend; try clear_imports; try clear_himp; repeat hiding ltac:(step auto_ext) | .. ]
+    end.
+
+  Ltac destruct_st :=
+    match goal with
+      | [ x : (vals * arrays)%type |- _ ] => destruct x; simpl in *
+      | [ x : st |- _ ] => destruct x; simpl in *
+    end;
+    try match goal with
+          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+        end.
+
+  Ltac smack2 := pre_eauto2; simpl; info_eauto 8.
+
+  Ltac eval_step2 hints :=
+    match goal with
+      | Hinterp : interp _ (![ ?P ] (_, ?ST)), Heval : evalInstrs _ ?ST ?INSTRS = _ |- _ =>
+        match INSTRS with
+          | context [ IL.Binop _ (RvLval (LvReg Sp)) Plus _ ] =>
+            change_locals ("rp" :: "__reserved" :: "__arg" :: nil) 0; [ clear Heval |repeat rewrite <- mult_plus_distr_l in *; change_sp; generalize_sp; eval_step hints ]
+        end
+      | _ => eval_step hints
+    end.
+
+  Lemma verifCond_ok : forall s k (pre : assert),
+    vcs (verifCond s k imports pre) -> vcs (VerifCond (compile s k pre)).
+
+    unfold verifCond, imply; induction s.
+
+    (* assignment *)
+    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* ReadAt *)
+    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* WriteAt *)
+    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* seq *)
+    wrap0.
+    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    auto_apply; wrap0; pre_eauto2; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* skip *)
+    wrap0; clear_imports; evaluate auto_ext.
+
+    (* conditional *)
+    wrap0.
+    unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
+    clear_imports; evaluate auto_ext.
+
+    (* true case *)
+    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
+
+    (* false case *)
+    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
+
+    (* loop *)
+    wrap0.
+    unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
+
+    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; smack2.
+
+    clear_imports; unfold evalCond in *; unfold evalRvalue in *; intuition.
+
+    auto_apply_in post_ok.
+    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper' | .. ]; try stepper'; smack2.
+
+    unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+
+    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+
+    unfold_wrap0 ; wrap0; auto_apply_in post_ok.
+    unfold_eval; clear_imports; post; try stepper'; solver.
+
+    unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+
+    (* malloc *)
+    wrap0; unfold CompileMalloc.verifCond; wrap0.
+
+    (* free *)
+    wrap0; unfold CompileFree.verifCond; wrap0.
+
+    (* len *)
+    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* call *)
+    wrap0.
+
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+
+    unfold_eval; clear_imports; unfold_copy_vars_require; myPost.
+    eval_step2 auto_ext.
+    eval_step2 auto_ext.
+    eval_step2 auto_ext.
+    2: solver.
+    solver.
+    2: solver.
+    eval_step2 auto_ext.
+    2: solver.
+    eval_step2 auto_ext.
+    solver.
+
+    change (locals ("rp" :: "__reserved" :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7 (Regs x0 Sp))
+      with (locals_call ("rp" :: "__reserved" :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7
+        (Regs x0 Sp)
+        ("rp" :: "__reserved" :: "__arg" :: nil) (x7 - 3)
+        (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))) in *.
+    assert (ok_call ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
+      x7 (x7 - 3)
+      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))%nat.
+    split.
+    simpl; omega.
+    split.
+    simpl; omega.
+    split.
+    NoDup.
+    simpl; omega.
+    
+    rename H15 into Hi.
+    rename H16 into H15.
+    rename H17 into H16.
+    rename H18 into H17.
+    rename H19 into H18.
+    rename H20 into H19.
+    rename H21 into H20.
+    rename H22 into H21.
+    rename H23 into H22.
+    rename H24 into H23.
+    rename H25 into H24.
+    rename H26 into H25.
+    rename H27 into H26.
+    rename H28 into H27.
+    rename H29 into H28.
+    rename H30 into H29.
+    rename H31 into H30.
+    rename H32 into H31.
+
+    inversion H18; clear H18; subst.
+    inversion H34; clear H34; subst.
+    specialize (Imply_sound (H3 _ _) (Inj_I _ _ H32)); propxFo.
+    repeat match goal with
+             | [ H : context[exprDenote] |- _ ] => generalize dependent H
+             | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
+             | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
+           end.
+    change (string -> W) with vals in *.
+    generalize dependent H31.
+    simpl in H25.
+    evaluate auto_ext.
+    intro.
+
+    Lemma fold_4S' : forall n, S (S (S (S (S (S (S (S (S (S (S (S (4 * n)))))))))))) = 4 * S (S (S n)).
+      intros; omega.
+    Qed.
+    
+    rewrite fold_4S' in *.
+
+    cond_gen.
+    solver.
+    let P := fresh "P" in
+      match goal with
+        | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
+      end.
+    assert (~In "rp" ("__reserved" :: "__arg" :: vars)) by (simpl; intuition).
+    prep_locals.
+    replace (Regs x0 Sp) with (Regs x Sp) in * by congruence.
+    generalize dependent H31.
+    intro.
+    generalize dependent x1.
+    evaluate auto_ext.
+    intros; descend.
+    rewrite H9.
+    descend.
+    erewrite changed_in_inv by solver.
+    descend.
+    rewrite H41.
+    simpl.
+    eauto.
+    step auto_ext.
+    simpl fst in *.
+    assert (sel vs "__reserved" = sel x10 "__reserved") by solver.
+    simpl in H17.
+    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
+    transitivity (x9 [e0]).
+    symmetry; eapply sameDenote; try eassumption.
+    generalize H4; clear; intros; solver.
+    symmetry; eapply sameDenote.
+    instantiate (1 := tempVars 1).
+    generalize H4; clear; intros; solver.
+    eapply changedVariables_upd'.
+    eauto.
+    solver.
+    descend.
+
+    generalize H7 H14; repeat match goal with
+                                | [ H : _ |- _ ] => clear H
+                              end; intros.
+    step auto_ext.
+    unfold upd; simpl.
+    rewrite wordToNat_wminus.
+    do 2 f_equal; auto.
+    rewrite <- H43.
+    simpl in H5.
+    pre_nomega.
+    change (wordToNat (natToW 3)) with 3; omega.
+    unfold sel, upd; simpl.
+    rewrite H39.
+    unfold arg_v in H37.
+    rewrite H44 in H37.
+    eassumption.
+    step auto_ext.
+    eapply existsR.
+    apply andR.
+    apply andR.
+    apply Imply_I; apply interp_weaken;
+      do 2 (apply Forall_I; intro); eauto.
+    apply Imply_I; apply interp_weaken;
+      do 2 (apply Forall_I; intro); eauto.
+    change (fst (vs, arrs)) with vs in *.
+    descend.
+    clear Hi H35 H37 H25.
+    repeat match goal with
+             | [ H : _ \/ _ |- _ ] => clear H
+             | [ H : not _ |- _ ] => clear H
+             | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
+           end.
+    step auto_ext.
+    rewrite (create_locals_return ("rp" :: "__reserved" :: "__arg" :: nil)
+      (wordToNat (sel vs "__reserved") - 3) ("rp" :: "__reserved" :: "__arg" :: vars)
+      (wordToNat (sel vs "__reserved"))
+      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))).
+    assert (ok_return ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
+      (wordToNat (sel vs "__reserved")) (wordToNat (sel vs "__reserved") - 3)
+      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))
+      by (split; simpl; omega).
+    assert (Safe x4 k (upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0]), x13)).
+    eapply Safe_immune.
+    apply H36.
+    econstructor.
+    eauto.
+    unfold upd in H12; simpl in H12; congruence.
+
+    Lemma agree_in_upd : forall vs vs' ls x v,
+      agree_in vs vs' ls
+      -> ~In x ls
+      -> agree_in vs (upd vs' x v) ls.
+      unfold agree_in; intros.
+      destruct (string_dec x x0); subst; descend; eauto.
+    Qed.
+
+    apply agree_in_upd.
+    solver.
+    apply changedVariables_symm.
+    eapply ChangeVar_tran'.
+    apply changedVariables_symm; eassumption.
+    apply changedVariables_symm; eassumption.
+    solver.
+    solver.
+    solver.
+    intro Hin.
+    specialize (H4 _ (in_or_app _ _ _ (or_intror _ Hin))).
+    apply H4.
+    solver.
+
+    generalize dependent (Safe x4 k); intros.
+    clear H12 H32 H33 H40.
+    instantiate (2 := (_, _)); simpl.
+    rewrite fold_4S' in *.
+    instantiate (3 := upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0])).
+    hiding ltac:(step auto_ext).
+    congruence.
+    repeat match goal with
+             | [ H : Regs _ _ = _ |- _ ] => rewrite H
+           end.
+    repeat (rewrite wminus_wplus || rewrite wplus_wminus).
+    hiding ltac:(step auto_ext).
+    descend.
+    replace (sel x10 "rp") with (sel vs "rp").
+    eauto.
+    erewrite <- (@changed_in_inv x10).
+    2: apply changedVariables_symm; eassumption.
+    descend.
+    eapply changed_in_inv.
+    apply changedVariables_symm; eassumption.
+
+    Lemma rp_tempOf : forall n, tempOf n = "rp"
+      -> False.
+      induction n; simpl; intuition.
+    Qed.
+
+    Lemma rp_tempChunk : forall k n,
+      ~In "rp" (tempChunk n k).
+      induction k; simpl; intuition.
+      apply in_app_or in H; intuition idtac.
+      eauto.
+      simpl in *; intuition.
+      eapply rp_tempOf; eauto.
+    Qed.
+
+    eauto using rp_tempChunk.
+    eauto using rp_tempChunk.
+    descend; step auto_ext.
+    descend; step auto_ext.
+    descend; step auto_ext.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end; apply wplus_wminus.
+    clear H15 H12 H40 H32 H33.
+    descend; step auto_ext.
+    eapply RunsToRelax_seq_bwd; [ | eauto | eauto ].
+    eexists (_, _).
+    split.
+    econstructor.
+    eauto.
+    eauto.
+    unfold upd in H12; simpl in H12.
+    rewrite H39 in H12; rewrite <- H44 in H12; eauto.
+    simpl.
+    split; auto.
+    solver.
+
+    eapply changedVariables_upd'.
+    2: solver.
+    apply changedVariables_symm.
+    eapply ChangeVar_tran'.
+    apply changedVariables_symm; eassumption.
+    apply changedVariables_symm; eassumption.
+    solver.
+    solver.
+    solver.
+
+    (* Switch to case for internal function calls. *)
+    
+    specialize (Imply_sound (Hi _ _) (Inj_I _ _ H32)); propxFo.
+    repeat match goal with
+             | [ H : context[exprDenote] |- _ ] => generalize dependent H
+             | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
+             | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
+           end.
+    change (string -> W) with vals in *.
+    generalize dependent H31.
+    simpl in H25.
+    evaluate auto_ext.
+    intro.
+    rewrite fold_4S' in *.
+
+    cond_gen.
+    solver.
+    let P := fresh "P" in
+      match goal with
+        | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
+      end.
+    assert (~In "rp" ("__reserved" :: "__arg" :: vars)) by (simpl; intuition).
+    prep_locals.
+    replace (Regs x0 Sp) with (Regs x Sp) in * by congruence.
+    generalize dependent H31.
+    intro.
+    generalize dependent x1.
+    evaluate auto_ext.
+    intros; descend.
+    rewrite H9.
+    descend.
+    erewrite changed_in_inv by solver.
+    descend.
+    rewrite H41.
+    simpl.
+    eauto.
+    step auto_ext.
+    simpl fst in *.
+    assert (sel vs "__reserved" = sel x10 "__reserved") by solver.
+    simpl in H17.
+    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
+    transitivity (x9 [e0]).
+    symmetry; eapply sameDenote; try eassumption.
+    generalize H4; clear; intros; solver.
+    symmetry; eapply sameDenote.
+    instantiate (1 := tempVars 1).
+    generalize H4; clear; intros; solver.
+    eapply changedVariables_upd'.
+    eauto.
+    solver.
+    descend.
+
+    generalize H7 H14; repeat match goal with
+                                | [ H : _ |- _ ] => clear H
+                              end; intros.
+    step auto_ext.
+    unfold upd; simpl.
+    rewrite wordToNat_wminus.
+    do 2 f_equal; auto.
+    rewrite <- H43.
+    simpl in H5.
+    pre_nomega.
+    change (wordToNat (natToW 3)) with 3; omega.
+    apply H35.
+    unfold sel, upd; simpl.
+    unfold arg_v; congruence.
+    step auto_ext.
+    eapply existsR.
+    apply andR.
+    apply andR.
+    apply Imply_I; apply interp_weaken;
+      do 2 (apply Forall_I; intro); eauto.
+    apply Imply_I; apply interp_weaken;
+      do 2 (apply Forall_I; intro); eauto.
+    change (fst (vs, arrs)) with vs in *.
+    descend.
+    clear Hi H35 H37 H25.
+    repeat match goal with
+             | [ H : _ \/ _ |- _ ] => clear H
+             | [ H : not _ |- _ ] => clear H
+             | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
+           end.
+    step auto_ext.
+    destruct H12.
+    rewrite (create_locals_return ("rp" :: "__reserved" :: "__arg" :: nil)
+      (wordToNat (sel vs "__reserved") - 3) ("rp" :: "__reserved" :: "__arg" :: vars)
+      (wordToNat (sel vs "__reserved"))
+      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))).
+    assert (ok_return ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
+      (wordToNat (sel vs "__reserved")) (wordToNat (sel vs "__reserved") - 3)
+      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))
+      by (split; simpl; omega).
+    assert (Safe x4 k (upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0]), x13)).
+    eapply Safe_immune.
+    apply H36.
+    econstructor 14.
+    eauto.
+    2: eauto.
+    unfold sel, upd; simpl.
+    congruence.
+
+    apply agree_in_upd.
+    solver.
+    apply changedVariables_symm.
+    eapply ChangeVar_tran'.
+    apply changedVariables_symm; eassumption.
+    apply changedVariables_symm; eassumption.
+    solver.
+    solver.
+    solver.
+    intro Hin.
+    specialize (H4 _ (in_or_app _ _ _ (or_intror _ Hin))).
+    apply H4.
+    solver.
+
+    generalize dependent (Safe x4 k); intros.
+    clear H12 H40 H32 H33.
+    instantiate (2 := (_, _)); simpl.
+    rewrite fold_4S' in *.
+    instantiate (3 := upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0])).
+    hiding ltac:(step auto_ext).
+    congruence.
+    repeat match goal with
+             | [ H : Regs _ _ = _ |- _ ] => rewrite H
+           end.
+    repeat (rewrite wminus_wplus || rewrite wplus_wminus).
+    hiding ltac:(step auto_ext).
+    simpl.
+    descend.
+    replace (sel x10 "rp") with (sel vs "rp").
+    eauto.
+    erewrite <- (@changed_in_inv x10).
+    2: apply changedVariables_symm; eassumption.
+    descend.
+    eapply changed_in_inv.
+    apply changedVariables_symm; eassumption.
+
+    eauto using rp_tempChunk.
+    eauto using rp_tempChunk.
+
+    descend; step auto_ext.
+    descend; step auto_ext.
+    descend; step auto_ext.
+    descend; step auto_ext.
+    repeat match goal with
+             | [ H : _ = _ |- _ ] => rewrite H
+           end; apply wplus_wminus.
+    clear H15 H12 H40 H32 H33.
+    descend; step auto_ext.
+
+    eapply RunsToRelax_seq_bwd; [ | eauto | eauto ].
+    eexists (_, _).
+    split.
+    econstructor 14.
+    eauto.
+    2: eauto.
+    unfold sel, upd; simpl; congruence.
+    split; auto.
+    solver.
+
+    simpl.
+    eapply changedVariables_upd'.
+    2: solver.
+    apply changedVariables_symm.
+    eapply ChangeVar_tran'.
+    apply changedVariables_symm; eassumption.
+    apply changedVariables_symm; eassumption.
+    solver.
+    solver.
+    solver.
+  Qed.
+
+  Definition statementCmd (s k : Statement) := Wrap imports imports_global modName (compile s k) (fun _ => postcond k) (verifCond s k imports) (@post_ok s k) (@verifCond_ok s k).
+
+End Compiler.
+Definition array_ptr lists p : HProp := array_with_size (lists p) p.
 
 Lemma star_diff_ptrs : forall specs st other p1 p2, interp specs (![p1 =?>1 * p2 =?> 1 * other] st) -> p1 <> p2.
   rewrite sepFormula_eq.
@@ -73,13 +1082,6 @@ Lemma star_diff_ptrs : forall specs st other p1 p2, interp specs (![p1 =?>1 * p2
 Qed.
 
 Hint Resolve star_diff_ptrs.
-
-Definition RunsToRelax fs s v v_new := 
-  exists v', RunsTo fs s v v' 
-    /\ changed_in (fst v') (fst v_new) (tempVars (depth s))
-    /\ snd v_new = snd v'.
-
-Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
 
 Ltac hiding tac :=
   (let P := fresh "P" in
@@ -1238,8 +2240,6 @@ Lemma equiv_refl : forall a, a %%= a.
 Qed.
 Hint Resolve equiv_refl.
 
-Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
-
 Hint Resolve in_not_in_ne.
 
 Local Notation delete := Syntax.Free.
@@ -1349,47 +2349,6 @@ Defined.
 Definition hints : TacPackage.
   prepare (heap_fwd, heap_fwd_access, array_with_size_fwd) tt.
 Defined.
-
-Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := (
-  (Al i : W, Al P : callTransition -> Prop, [| fs i = Some (Foreign P) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs "__reserved") /\ exists a', P {| Arg := sel vs "__arg"; InitialHeap := a; FinalHeap := a' |} |]
-      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
-        [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
-        /\ [| P {| Arg := vs "__arg"; InitialHeap := a; FinalHeap := a' |} |] ))) 
-  /\
-  (Al i : W, Al body, [| fs i = Some (Internal body) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs "__reserved")
-        /\ Safe fs body (vs, a) |]
-      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
-        [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
-        /\ [| exists vs'', RunsTo fs body (vs, a) (vs'', a') |] )))
-)%PropX.
-
-Definition MIN_RESERVED := 10.
-
-Definition inv vars s : assert := 
-  st ~> Ex fs, funcsOk (fst st) fs
-  /\ ExX, Ex v, Ex res,
-  ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v) res st#Sp * heap (snd v) * mallocHeap 0] * #0] st
-  /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
-  /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-    [| st'#Sp = st#Sp |]
-    /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
-    /\ [| RunsToRelax fs s v v' |]).
-
-Definition vars_require vars s := 
-  List.incl (footprint s) ("__arg" :: vars)
-  /\ List.incl (tempVars (depth s)) (vars)
-  /\ disjoint (footprint s) (tempVars (depth s))
-  /\ ~ In "rp" vars
-  /\ ~ In "__reserved" vars
-  /\ ~ In "__arg" vars.
 
 Hint Resolve in_tran_not.
 
@@ -2279,955 +3238,3 @@ Section CompileFree.
 End CompileFree.
 End CompileFree.
 
-Section Compiler.
-
-  Variable vars : list string.
-
-  Section Specifications.
-
-    Variable s k : Statement.
-
-    Definition precond := inv vars (s;: k).
-
-    Definition postcond := inv vars k.
-
-    Definition verifCond imports pre :=
-      (LabelMap.find (elt:=assert) ("my_malloc"!"malloc")%SP imports = Some (Precondition my_mallocS None))
-      :: (LabelMap.find (elt:=assert) ("my_free"!"free")%SP imports = Some (Precondition my_freeS None))
-      :: imply pre precond :: vars_require vars (s;: k) :: nil.
-
-  End Specifications.
-
-  Variable imports : LabelMap.t assert.
-  Variable imports_global : importsGlobal imports.
-  Variable modName : string.
-
-  Definition vars_ex := "__reserved" :: "__arg" :: vars.
-
-  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
-
-  Definition Seq2 := @Seq_ _ imports_global modName.
-
-  Definition Strline := Straightline_ imports modName.
-
-  Definition Skip := Straightline_ imports modName nil.
-
-  Fixpoint Seq ls :=
-    match ls with
-      | nil => Skip
-      | a :: ls' => Seq2 a (Seq ls')
-    end.
-
-  Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
-
-  Definition loop_inv cond body k : assert := 
-    let s := Loop cond body;: k in
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
-    ![^[locals ("rp" :: vars_ex) (fst v) res st#Sp * heap (snd v) * mallocHeap 0] * #0] st
-    /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
-    /\ [| st#Rv = v[(cond)] |]
-    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-      [| st'#Sp = st#Sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
-      /\ [| RunsToRelax fs s v v' |]).
-
-  Inductive exposeArray : Prop := ExposeArray.
-  Hint Constructors exposeArray.
-
-  Definition afterCall k : assert :=
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
-    let old_sp := st#Sp ^- natToW (4 * (1 + length vars_ex)) in
-    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * heap (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs k v |] ] * #0] st
-    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-      [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
-      /\ [| RunsToRelax fs k v v' |]).
-
-  Fixpoint compile s k :=
-    match s with
-      | Syntax.Assignment var expr => Seq (
-          exprCmd expr 0 ::
-          SaveRv var :: 
-          nil)
-      | Syntax.Skip => Skip
-      | Syntax.Seq a b => Seq2 
-          (compile a (Syntax.Seq b k))
-          (compile b k)
-      | Conditional cond t f => Seq2
-        (exprCmd cond 0)
-        (Structured.If_ imports_global 
-          (RvLval (LvReg Rv)) IL.Ne (RvImm $0) 
-          (compile t k) 
-          (compile f k)) 
-      | Loop cond body => Seq2
-        (exprCmd cond 0)
-        (Structured.While_ imports_global 
-          (loop_inv cond body k)
-          (RvLval (LvReg Rv)) IL.Ne (RvImm $0)
-          (Seq2
-            (compile body (Syntax.Seq (Syntax.Loop cond body) k))
-            (exprCmd cond 0)))
-      | Syntax.ReadAt var arr idx => Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd arr 0 ::
-          SaveRv (tempOf 0) ::
-          exprCmd idx 1 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
-            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 0) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
-          Strline (
-            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
-      | Syntax.WriteAt arr idx val =>  Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd val 0 ::
-          SaveRv (tempOf 0) ::
-          exprCmd arr 1 ::
-          SaveRv (tempOf 1) ::
-          exprCmd idx 2 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
-            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 1) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
-          Strline (
-            Assign (LvMem (Reg Rv)) (RvLval (variableSlot (tempOf 0) vars_ex)) :: nil) :: nil)
-      | Syntax.Malloc var size => 
-          CompileMalloc.compile vars var size k imports_global modName
-      | Syntax.Free ptr => 
-          CompileFree.compile vars ptr k imports_global modName
-      | Syntax.Len var arr => Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd arr 0 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvLval (LvReg Rv)) Minus (RvImm $4) :: nil) ::
-          Strline (
-            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
-      | Syntax.Call f arg => Seq (
-        exprCmd f 0
-        :: SaveRv (tempOf 0)
-        :: exprCmd arg 1
-        :: SaveRv (tempOf 1)
-        :: Strline (
-          IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars_ex)))
-          :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot "__reserved" vars_ex)) Minus (RvImm $3)
-          :: Assign (LvMem (Indir Rv $8)) (RvLval (variableSlot (tempOf 1) vars_ex))
-          :: Assign Rv (RvLval (variableSlot (tempOf 0) vars_ex))
-          :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars_ex))) 
-          :: nil)
-        :: Structured.ICall_ _ _ Rv (afterCall k)
-        :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars_ex))) :: nil)
-        :: nil)
-    end.
-
-  Opaque heap.
-
-  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars_ex, MIN_RESERVED in *.
-
-  Lemma add_remove : forall a v, v %in fst a -> a %%= add_arr (remove_arr a v) v (get_arr a v).
-    intros; hnf; simpl; intuition (unfold WDict.upd);
-      try match goal with
-            | [ |- context[if ?E then _ else _] ] => destruct E; subst
-          end; auto using WMake.equiv_symm, del_add.
-  Qed.
-
-  Hint Immediate add_remove.
-
-  Lemma add_remove' : forall a v i, safe_access a v i -> a %%= add_arr (remove_arr a v) v (get_arr a v).
-    inversion 1; eauto.
-  Qed.
-
-  Hint Immediate add_remove'.
-
-  Lemma Safe_skip : forall fs k v a,
-    Safe fs (skip;: k) (v, a)
-    -> Safe fs k (v, a).
-    inversion 1; auto.
-  Qed.
-
-  Hint Immediate Safe_skip.
-
-  Hint Extern 1 (agree_in _ _ _) => progress simpl.
-
-  Lemma Safe_loop_false : forall fs e b v k,
-    Safe fs (Loop e b;: k) v ->
-    wneb (v[(e)]) $0 = false ->
-    Safe fs k v.
-    intros; inv_Safe; eauto.
-  Qed.
-
-  Hint Resolve Safe_loop_false.
-
-  Ltac changed_in_inv_vars := 
-    match goal with
-      H : disjoint ?A ?B, H2 : List.incl ?A ?VARS |- _ = _ => eapply changed_in_inv with (vars := VARS)
-    end.
-
-  Ltac incl_arg_vars_solver :=
-    match goal with
-      H : List.incl ?FP ("__arg" :: ?VARS) |- List.incl (?S :: nil) ("__arg" :: ?VARS) => 
-        match FP with
-          context [S] => eapply incl_tran; [ | eassumption ]
-        end
-    end.
-
-  Ltac temp_solver :=
-    match goal with
-      | H : List.incl (tempVars ?N) _ |- List.incl (tempChunk _ _) _ => eapply incl_tran with (m := tempVars N); [eapply incl_tempChunk2; simpl | ]
-      | H : List.incl (tempVars ?N) _ |- List.incl (tempOf _ :: nil) _ => eapply incl_tran with (m := tempVars N)
-    end.
-
-  Ltac sel_eq_solver :=
-    match goal with
-      |- sel _ ?V = sel _ ?V => symmetry; changed_in_inv_vars; iter_changed; try temp_solver; try eapply in_tran_not; try incl_arg_vars_solver
-    end.
-
-  Ltac le_eq_reserved_solver :=
-    match goal with
-      | |- _ <= wordToNat (sel _ "__reserved") => replace_reserved; [ omega | sel_eq_solver ]
-      | |- _ = wordToNat (sel _ "__reserved") => replace_reserved; [ omega | sel_eq_solver ]
-    end.
-
-  Ltac change_rp' :=
-    try eassumption;     
-      match goal with
-        H : ?SPECS (sel ?VS1 "rp") = Some _ |- ?SPECS (sel ?VS2 "rp") = Some _ =>
-          replace (sel VS2 "rp") with (sel VS1 "rp"); [ | symmetry; changed_in_inv_disjoint; [ | eapply in_tran_not; [ | eauto ] ] ]; [ | iter_changed; try (apply incl_tempChunk2; simpl) | ]
-      end.
-
-  Ltac decide_cond t f :=
-    match goal with
-      | H : _ = Some true |- _ => t
-      | H : _ = Some false |- _ => f
-    end.
-
-  Ltac decide_cond_safe := decide_cond ltac:(eapply Safe_cond_true_k) ltac:(eapply Safe_cond_false_k).
-
-  Ltac Safe_cond_solver :=
-    match goal with
-      H : Safe _ (Conditional _ _ _;: _) (?ST1, _) |- Safe _ _ _ =>
-        eapply Safe_immune with (vs1 := ST1); [ decide_cond_safe | use_changed_unchanged; simpl; eapply disjoint_trans_lr]
-    end.
-
-  Ltac Safe_loop_solver :=
-    match goal with
-      |- Safe _ (_ ;: (Loop _ _ ;: _)) _ => decide_cond ltac:(eapply Safe_loop_true_k) ltac:(eapply Safe_loop_false)
-    end.
-
-  Ltac pre_eauto2 := try first [
-    ok_call_solver |
-    use_Safe_immune2 |
-    (format_solver; incl_app_solver) |
-    equiv_solver |
-    vars_require_solver |
-    RunsToRelax_solver | 
-    rp_upd_solver |
-    change_rp' |
-    rv_solver' |
-    Safe_cond_solver |
-    RunsToRelax_seq_solver |
-    RunsToRelax_assign_solver |
-    Safe_assign_solver | 
-    RunsToRelax_Read_Write_solver |
-    freeable_goodSize_solver |
-    changed_unchanged_disjoint |
-    himp_length_solver |
-    equiv_solver2' |
-    use_Safe_immune' |
-    sel_eq_solver |
-    tempOf_in_ext_solver |
-    le_eq_reserved_solver | 
-    Safe_loop_solver
-    ].
-
-  Ltac smack := to_tempOf; pre_eauto2; info_eauto 7.
-
-  Ltac var_solver :=
-    try apply unchanged_in_upd_same; smack; try apply changed_in_upd_same;
-      try (upd_chain_solver2; simpl; incl_app_solver); try (apply incl_tempChunk2; simpl); info_eauto 8.
-
-  Ltac do_prep_rp H VARS :=
-    match VARS with
-      | context ["__reserved"] => fail 1
-      | _ => eapply aug_rp_not_in in H
-    end.
-
-  Ltac prep_rp :=
-    match goal with 
-      | H : In "rp" ?VARS -> False |- _ => do_prep_rp H VARS
-      | H : ~ In "rp" ?VARS |- _ => do_prep_rp H VARS
-    end.
-
-  Ltac old_eval_step hints := eval_step hints.
-
-  Ltac eval_step hints := try prep_rp; old_eval_step hints.
-
-  Ltac pick_vs :=
-    (*try match goal with
-          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
-        end;*)
-    match goal with
-      H : interp ?SPECS (![?P] ?ST) |- context [ (![_] ?ST)%PropX ] =>
-        match P with
-          context [ locals _ ?VS _ _ ] => let a := fresh in evar (a : arrays); (exists (VS, a)); unfold a in *; clear a
-        end
-    end.
-
-  Ltac preamble := 
-    wrap0; unfold_eval; unfold_copy_vars_require; myPost;
-    repeat eval_step hints;
-      repeat match goal with
-               | [ |- vcs _ ] => wrap0;
-                 try match goal with
-                       | [ x : (settings * state)%type |- _ ] => destruct x
-                     end; try eval_step hints;
-                 try match goal with
-                       | [ H : context[expr_runs_to] |- _ ] =>
-                         unfold expr_runs_to, runs_to_generic in H; simpl in H
-                     end; try eval_step hints
-             end; smack;
-      match goal with
-        | [ x : (vals * arrays)%type |- _ ] => destruct x; simpl in *
-        | [ x : st |- _ ] => destruct x; simpl in *
-      end;
-      myPost; try (unfold_eval; clear_imports; eval_step auto_ext; var_solver);
-        try match goal with
-              | [ fs : W -> option Callee
-                  |- exists x : W -> option Callee, _ ] =>
-                exists fs;
-                  match goal with
-                    | [ |- _ /\ _ ] => split; [ split; assumption | ]
-                  end
-            end;
-        try match goal with
-              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
-            end;
-        pick_vs; descend; try (pick_Safe || (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]));
-          clear_or.
-
-  Ltac middle :=
-    match goal with
-      | [ |- context[heap ?a] ] => set_heap_goal;
-        match goal with
-          | [ _ : exposeArray |- context[heap ?a] ] =>
-            assert (trigger a) by constructor; replace_reserved; [ clear_or;
-              hiding ltac:(step hints_array_access_bwd); (simpl; eauto); smack; hiding ltac:(step auto_ext) | ]
-          | [ _ : exposeArray, t1 := _ |- context[heap ?a] ] =>
-            assert (trigger a) by constructor; clear_or;
-              hiding ltac:(step hints_array_access_bwd); (simpl; eauto; try subst t1; subst;
-                try match goal with
-                      | [ |- context[match ?E with pair x _ => x end] ] =>
-                        change (match E with pair x _ => x end) with (fst E)
-                    end;
-                match goal with
-                  | _ => apply add_remove
-                  | [ H : _ |- _ ] => apply Safe_write_k in H; simpl in H;
-                    match type of H with
-                      | Safe _ _ (_, ?a) => instantiate (1 := a)
-                    end;
-                    repeat match goal with
-                             | [ x := _ |- _ ] => subst x
-                           end;
-                    unfold add_arr, remove_arr, equiv, get_arr; simpl; split; [
-                      var_solver
-                      | intros;
-                        repeat (erewrite changed_in_inv; [ | eassumption | var_solver ]; descend); fail ]
-                  | _ => eauto
-                end)
-        end; try reflexivity
-      | [ |- interp _ (![_] _) ] => clear_imports; replace_reserved; [ repeat hiding ltac:(step auto_ext) | .. ]
-      | _ => var_solver
-    end.
-
-  Ltac do_step := descend; try clear_imports;
-    try match goal with
-          | [ H : _ ~:~ _ ~~ _ ~~> _ |- interp _ (![_] _ ---> ![_] _)%PropX ] => clear H
-        end;
-    try match goal with
-          | [ |- himp _ ?pre ?post ] =>
-            match pre with
-              | context[locals _ _ _ ?sp1] =>
-                match post with
-                  | context[locals _ _ _ ?sp2] =>
-                    replace sp2 with sp1 by words
-                end
-            end
-        end;
-    hiding ltac:(step auto_ext).
-
-  Ltac stepper := try replace_reserved; [ clear_or; repeat do_step | .. ].
-
-  Ltac solver :=
-    match goal with
-      | [ _ : exposeArray |- _ ] => do_RunsToRelax_Read_Write_solver; (simpl; eauto); var_solver
-      | _ => RunsToRelax_Stuff_solver
-      | _ => smack
-    end.
-
-  Ltac finale := stepper; solver.
-
-  Ltac t := preamble; middle; finale.
-
-  Opaque mult.
-
-  Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
-    (x : settings * state),
-    vcs (verifCond s k imports pre) ->
-    interp specs (Postcondition (compile s k pre) x) ->
-    interp specs (postcond k x).
-    unfold verifCond, imply; induction s.
-
-    (* assignment *)
-    abstract t.
-
-    (* ReadAt *)
-    abstract t.
-
-    (* WriteAt *)
-    abstract t.
-
-    (* seq *)
-    abstract t.
-
-    (* skip *)
-    abstract t.
-
-    (* conditional *)
-    abstract t.
-
-    (* loop *)
-    abstract t.
-
-    (* malloc *)
-    abstract t.
-
-    (* free *)
-    abstract t.
-
-    (* len *)
-    abstract t.
-
-    (* call *)
-    abstract t.
-  Qed.
-
-  Ltac unfold_wrap0 := unfold verifCond, imply, CompileExpr.expr_verifCond in *.
-
-  Ltac clear_himp :=
-    match goal with
-      | [ H : _ ~:~ _ ~~ _ ~~> _ |- interp _ (![_] _ ---> ![_] _)%PropX ] => clear H
-    end.
-
-  Ltac stepper' := 
-    match goal with
-      |- context [locals _ _ _ _] => try replace_reserved; [ clear_or; descend; try clear_imports; try clear_himp; repeat hiding ltac:(step auto_ext) | .. ]
-    end.
-
-  Ltac destruct_st :=
-    match goal with
-      | [ x : (vals * arrays)%type |- _ ] => destruct x; simpl in *
-      | [ x : st |- _ ] => destruct x; simpl in *
-    end;
-    try match goal with
-          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
-        end.
-
-  Ltac smack2 := pre_eauto2; simpl; info_eauto 8.
-
-  Ltac eval_step2 hints :=
-    match goal with
-      | Hinterp : interp _ (![ ?P ] (_, ?ST)), Heval : evalInstrs _ ?ST ?INSTRS = _ |- _ =>
-        match INSTRS with
-          | context [ IL.Binop _ (RvLval (LvReg Sp)) Plus _ ] =>
-            change_locals ("rp" :: "__reserved" :: "__arg" :: nil) 0; [ clear Heval |repeat rewrite <- mult_plus_distr_l in *; change_sp; generalize_sp; eval_step hints ]
-        end
-      | _ => eval_step hints
-    end.
-
-  Lemma verifCond_ok : forall s k (pre : assert),
-    vcs (verifCond s k imports pre) -> vcs (VerifCond (compile s k pre)).
-
-    unfold verifCond, imply; induction s.
-
-    (* assignment *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* ReadAt *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* WriteAt *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* seq *)
-    wrap0.
-    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    auto_apply; wrap0; pre_eauto2; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* skip *)
-    wrap0; clear_imports; evaluate auto_ext.
-
-    (* conditional *)
-    wrap0.
-    unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
-    clear_imports; evaluate auto_ext.
-
-    (* true case *)
-    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
-
-    (* false case *)
-    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
-
-    (* loop *)
-    wrap0.
-    unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
-
-    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; smack2.
-
-    clear_imports; unfold evalCond in *; unfold evalRvalue in *; intuition.
-
-    auto_apply_in post_ok.
-    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper' | .. ]; try stepper'; smack2.
-
-    unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
-
-    auto_apply; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
-
-    unfold_wrap0 ; wrap0; auto_apply_in post_ok.
-    unfold_eval; clear_imports; post; try stepper'; solver.
-
-    unfold_wrap0; wrap0; pre_eauto2; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
-
-    (* malloc *)
-    wrap0; unfold CompileMalloc.verifCond; wrap0.
-
-    (* free *)
-    wrap0; unfold CompileFree.verifCond; wrap0.
-
-    (* len *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* call *)
-    wrap0.
-
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost.
-    eval_step2 auto_ext.
-    eval_step2 auto_ext.
-    eval_step2 auto_ext.
-    2: solver.
-    solver.
-    2: solver.
-    eval_step2 auto_ext.
-    2: solver.
-    eval_step2 auto_ext.
-    solver.
-
-    change (locals ("rp" :: "__reserved" :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7 (Regs x0 Sp))
-      with (locals_call ("rp" :: "__reserved" :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7
-        (Regs x0 Sp)
-        ("rp" :: "__reserved" :: "__arg" :: nil) (x7 - 3)
-        (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))) in *.
-    assert (ok_call ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
-      x7 (x7 - 3)
-      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))%nat.
-    split.
-    simpl; omega.
-    split.
-    simpl; omega.
-    split.
-    NoDup.
-    simpl; omega.
-    
-    rename H15 into Hi.
-    rename H16 into H15.
-    rename H17 into H16.
-    rename H18 into H17.
-    rename H19 into H18.
-    rename H20 into H19.
-    rename H21 into H20.
-    rename H22 into H21.
-    rename H23 into H22.
-    rename H24 into H23.
-    rename H25 into H24.
-    rename H26 into H25.
-    rename H27 into H26.
-    rename H28 into H27.
-    rename H29 into H28.
-    rename H30 into H29.
-    rename H31 into H30.
-    rename H32 into H31.
-
-    inversion H18; clear H18; subst.
-    inversion H34; clear H34; subst.
-    specialize (Imply_sound (H3 _ _) (Inj_I _ _ H32)); propxFo.
-    repeat match goal with
-             | [ H : context[exprDenote] |- _ ] => generalize dependent H
-             | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
-             | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
-           end.
-    change (string -> W) with vals in *.
-    generalize dependent H31.
-    simpl in H25.
-    evaluate auto_ext.
-    intro.
-
-    Lemma fold_4S' : forall n, S (S (S (S (S (S (S (S (S (S (S (S (4 * n)))))))))))) = 4 * S (S (S n)).
-      intros; omega.
-    Qed.
-    
-    rewrite fold_4S' in *.
-
-    cond_gen.
-    solver.
-    let P := fresh "P" in
-      match goal with
-        | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
-      end.
-    assert (~In "rp" ("__reserved" :: "__arg" :: vars)) by (simpl; intuition).
-    prep_locals.
-    replace (Regs x0 Sp) with (Regs x Sp) in * by congruence.
-    generalize dependent H31.
-    intro.
-    generalize dependent x1.
-    evaluate auto_ext.
-    intros; descend.
-    rewrite H9.
-    descend.
-    erewrite changed_in_inv by solver.
-    descend.
-    rewrite H41.
-    simpl.
-    eauto.
-    step auto_ext.
-    simpl fst in *.
-    assert (sel vs "__reserved" = sel x10 "__reserved") by solver.
-    simpl in H17.
-    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
-    transitivity (x9 [e0]).
-    symmetry; eapply sameDenote; try eassumption.
-    generalize H4; clear; intros; solver.
-    symmetry; eapply sameDenote.
-    instantiate (1 := tempVars 1).
-    generalize H4; clear; intros; solver.
-    eapply changedVariables_upd'.
-    eauto.
-    solver.
-    descend.
-
-    generalize H7 H14; repeat match goal with
-                                | [ H : _ |- _ ] => clear H
-                              end; intros.
-    step auto_ext.
-    unfold upd; simpl.
-    rewrite wordToNat_wminus.
-    do 2 f_equal; auto.
-    rewrite <- H43.
-    simpl in H5.
-    pre_nomega.
-    change (wordToNat (natToW 3)) with 3; omega.
-    unfold sel, upd; simpl.
-    rewrite H39.
-    unfold arg_v in H37.
-    rewrite H44 in H37.
-    eassumption.
-    step auto_ext.
-    eapply existsR.
-    apply andR.
-    apply andR.
-    apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
-    apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
-    change (fst (vs, arrs)) with vs in *.
-    descend.
-    clear Hi H35 H37 H25.
-    repeat match goal with
-             | [ H : _ \/ _ |- _ ] => clear H
-             | [ H : not _ |- _ ] => clear H
-             | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
-           end.
-    step auto_ext.
-    rewrite (create_locals_return ("rp" :: "__reserved" :: "__arg" :: nil)
-      (wordToNat (sel vs "__reserved") - 3) ("rp" :: "__reserved" :: "__arg" :: vars)
-      (wordToNat (sel vs "__reserved"))
-      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))).
-    assert (ok_return ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
-      (wordToNat (sel vs "__reserved")) (wordToNat (sel vs "__reserved") - 3)
-      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))
-      by (split; simpl; omega).
-    assert (Safe x4 k (upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0]), x13)).
-    eapply Safe_immune.
-    apply H36.
-    econstructor.
-    eauto.
-    unfold upd in H12; simpl in H12; congruence.
-
-    Lemma agree_in_upd : forall vs vs' ls x v,
-      agree_in vs vs' ls
-      -> ~In x ls
-      -> agree_in vs (upd vs' x v) ls.
-      unfold agree_in; intros.
-      destruct (string_dec x x0); subst; descend; eauto.
-    Qed.
-
-    apply agree_in_upd.
-    solver.
-    apply changedVariables_symm.
-    eapply ChangeVar_tran'.
-    apply changedVariables_symm; eassumption.
-    apply changedVariables_symm; eassumption.
-    solver.
-    solver.
-    solver.
-    intro Hin.
-    specialize (H4 _ (in_or_app _ _ _ (or_intror _ Hin))).
-    apply H4.
-    solver.
-
-    generalize dependent (Safe x4 k); intros.
-    clear H12 H32 H33 H40.
-    instantiate (2 := (_, _)); simpl.
-    rewrite fold_4S' in *.
-    instantiate (3 := upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0])).
-    hiding ltac:(step auto_ext).
-    congruence.
-    repeat match goal with
-             | [ H : Regs _ _ = _ |- _ ] => rewrite H
-           end.
-    repeat (rewrite wminus_wplus || rewrite wplus_wminus).
-    hiding ltac:(step auto_ext).
-    descend.
-    replace (sel x10 "rp") with (sel vs "rp").
-    eauto.
-    erewrite <- (@changed_in_inv x10).
-    2: apply changedVariables_symm; eassumption.
-    descend.
-    eapply changed_in_inv.
-    apply changedVariables_symm; eassumption.
-
-    Lemma rp_tempOf : forall n, tempOf n = "rp"
-      -> False.
-      induction n; simpl; intuition.
-    Qed.
-
-    Lemma rp_tempChunk : forall k n,
-      ~In "rp" (tempChunk n k).
-      induction k; simpl; intuition.
-      apply in_app_or in H; intuition idtac.
-      eauto.
-      simpl in *; intuition.
-      eapply rp_tempOf; eauto.
-    Qed.
-
-    eauto using rp_tempChunk.
-    eauto using rp_tempChunk.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-           end; apply wplus_wminus.
-    clear H15 H12 H40 H32 H33.
-    descend; step auto_ext.
-    eapply RunsToRelax_seq_bwd; [ | eauto | eauto ].
-    eexists (_, _).
-    split.
-    econstructor.
-    eauto.
-    eauto.
-    unfold upd in H12; simpl in H12.
-    rewrite H39 in H12; rewrite <- H44 in H12; eauto.
-    simpl.
-    split; auto.
-    solver.
-
-    eapply changedVariables_upd'.
-    2: solver.
-    apply changedVariables_symm.
-    eapply ChangeVar_tran'.
-    apply changedVariables_symm; eassumption.
-    apply changedVariables_symm; eassumption.
-    solver.
-    solver.
-    solver.
-
-    (* Switch to case for internal function calls. *)
-    
-    specialize (Imply_sound (Hi _ _) (Inj_I _ _ H32)); propxFo.
-    repeat match goal with
-             | [ H : context[exprDenote] |- _ ] => generalize dependent H
-             | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
-             | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
-           end.
-    change (string -> W) with vals in *.
-    generalize dependent H31.
-    simpl in H25.
-    evaluate auto_ext.
-    intro.
-    rewrite fold_4S' in *.
-
-    cond_gen.
-    solver.
-    let P := fresh "P" in
-      match goal with
-        | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
-      end.
-    assert (~In "rp" ("__reserved" :: "__arg" :: vars)) by (simpl; intuition).
-    prep_locals.
-    replace (Regs x0 Sp) with (Regs x Sp) in * by congruence.
-    generalize dependent H31.
-    intro.
-    generalize dependent x1.
-    evaluate auto_ext.
-    intros; descend.
-    rewrite H9.
-    descend.
-    erewrite changed_in_inv by solver.
-    descend.
-    rewrite H41.
-    simpl.
-    eauto.
-    step auto_ext.
-    simpl fst in *.
-    assert (sel vs "__reserved" = sel x10 "__reserved") by solver.
-    simpl in H17.
-    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
-    transitivity (x9 [e0]).
-    symmetry; eapply sameDenote; try eassumption.
-    generalize H4; clear; intros; solver.
-    symmetry; eapply sameDenote.
-    instantiate (1 := tempVars 1).
-    generalize H4; clear; intros; solver.
-    eapply changedVariables_upd'.
-    eauto.
-    solver.
-    descend.
-
-    generalize H7 H14; repeat match goal with
-                                | [ H : _ |- _ ] => clear H
-                              end; intros.
-    step auto_ext.
-    unfold upd; simpl.
-    rewrite wordToNat_wminus.
-    do 2 f_equal; auto.
-    rewrite <- H43.
-    simpl in H5.
-    pre_nomega.
-    change (wordToNat (natToW 3)) with 3; omega.
-    apply H35.
-    unfold sel, upd; simpl.
-    unfold arg_v; congruence.
-    step auto_ext.
-    eapply existsR.
-    apply andR.
-    apply andR.
-    apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
-    apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
-    change (fst (vs, arrs)) with vs in *.
-    descend.
-    clear Hi H35 H37 H25.
-    repeat match goal with
-             | [ H : _ \/ _ |- _ ] => clear H
-             | [ H : not _ |- _ ] => clear H
-             | [ H : evalInstrs _ _ _ = _ |- _ ] => clear H
-           end.
-    step auto_ext.
-    destruct H12.
-    rewrite (create_locals_return ("rp" :: "__reserved" :: "__arg" :: nil)
-      (wordToNat (sel vs "__reserved") - 3) ("rp" :: "__reserved" :: "__arg" :: vars)
-      (wordToNat (sel vs "__reserved"))
-      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))).
-    assert (ok_return ("rp" :: "__reserved" :: "__arg" :: vars) ("rp" :: "__reserved" :: "__arg" :: nil)
-      (wordToNat (sel vs "__reserved")) (wordToNat (sel vs "__reserved") - 3)
-      (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars))))))))))))))
-      by (split; simpl; omega).
-    assert (Safe x4 k (upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0]), x13)).
-    eapply Safe_immune.
-    apply H36.
-    econstructor 14.
-    eauto.
-    2: eauto.
-    unfold sel, upd; simpl.
-    congruence.
-
-    apply agree_in_upd.
-    solver.
-    apply changedVariables_symm.
-    eapply ChangeVar_tran'.
-    apply changedVariables_symm; eassumption.
-    apply changedVariables_symm; eassumption.
-    solver.
-    solver.
-    solver.
-    intro Hin.
-    specialize (H4 _ (in_or_app _ _ _ (or_intror _ Hin))).
-    apply H4.
-    solver.
-
-    generalize dependent (Safe x4 k); intros.
-    clear H12 H40 H32 H33.
-    instantiate (2 := (_, _)); simpl.
-    rewrite fold_4S' in *.
-    instantiate (3 := upd x10 "!." (upd x9 "." (Regs x2 Rv) [e0])).
-    hiding ltac:(step auto_ext).
-    congruence.
-    repeat match goal with
-             | [ H : Regs _ _ = _ |- _ ] => rewrite H
-           end.
-    repeat (rewrite wminus_wplus || rewrite wplus_wminus).
-    hiding ltac:(step auto_ext).
-    simpl.
-    descend.
-    replace (sel x10 "rp") with (sel vs "rp").
-    eauto.
-    erewrite <- (@changed_in_inv x10).
-    2: apply changedVariables_symm; eassumption.
-    descend.
-    eapply changed_in_inv.
-    apply changedVariables_symm; eassumption.
-
-    eauto using rp_tempChunk.
-    eauto using rp_tempChunk.
-
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    repeat match goal with
-             | [ H : _ = _ |- _ ] => rewrite H
-           end; apply wplus_wminus.
-    clear H15 H12 H40 H32 H33.
-    descend; step auto_ext.
-
-    eapply RunsToRelax_seq_bwd; [ | eauto | eauto ].
-    eexists (_, _).
-    split.
-    econstructor 14.
-    eauto.
-    2: eauto.
-    unfold sel, upd; simpl; congruence.
-    split; auto.
-    solver.
-
-    simpl.
-    eapply changedVariables_upd'.
-    2: solver.
-    apply changedVariables_symm.
-    eapply ChangeVar_tran'.
-    apply changedVariables_symm; eassumption.
-    apply changedVariables_symm; eassumption.
-    solver.
-    solver.
-    solver.
-  Qed.
-
-  Definition statementCmd (s k : Statement) := Wrap imports imports_global modName (compile s k) (fun _ => postcond k) (verifCond s k imports) (@post_ok s k) (@verifCond_ok s k).
-
-End Compiler.

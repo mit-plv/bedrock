@@ -83,21 +83,6 @@ Section Safe_coind.
 
 End Safe_coind.
 
-Fixpoint footprint (statement : Statement) :=
-  match statement with
-    | Syntax.Assignment var val => var :: varsIn val
-    | Syntax.Seq a b => footprint a ++ footprint b
-    | Syntax.Skip => nil
-    | Syntax.Conditional cond t f => varsIn cond ++ footprint t ++ footprint f
-    | Syntax.Loop cond body => varsIn cond ++ footprint body
-    | Syntax.ReadAt var arr idx => var :: varsIn arr ++ varsIn idx 
-    | Syntax.WriteAt arr idx val => varsIn arr ++ varsIn idx ++ varsIn val
-    | Syntax.Malloc var size => var :: varsIn size
-    | Syntax.Free arr => varsIn arr
-    | Syntax.Len var arr => var :: varsIn arr
-    | Syntax.Call f arg => varsIn f ++ varsIn arg
-  end.
-
 Ltac pattern_r := 
   match goal with
     |- _ = ?A => pattern A

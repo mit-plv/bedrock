@@ -1,7 +1,8 @@
 BEDROCK := ../..
 
 MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
-	SemanticsExprLemmas Dict Syntax Semantics SemanticsLemmas \
+	DepthExpr FootprintExpr \
+	SemanticsExprLemmas Syntax Dict Semantics Footprint SemanticsLemmas \
 	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
 	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
