@@ -8,7 +8,7 @@ Set Implicit Arguments.
 
 Record ADT := {
   Model : Set;
-  Methods : string -> option (Model -> list W -> Model -> W -> Prop)
+  Name : string
 }.
 
 Record ADTValue := {
@@ -31,15 +31,23 @@ Definition heap := Heap.dict.
 
 Definition st := (vals * heap)%type.
 
+Inductive ArgSignature := 
+  | ASWord
+  | ASADT.
+
+Definition ArgValue := (ADTValue + W)%type.
+
 Record callTransition := {
-  Args : list W;
-  Ret : W;
-  InitialHeap : heap;
-  FinalHeap : heap
+  Signature : list ArgSignature * ArgSignature;
+  Args : list ArgValue;
+  Ret : ArgValue;
+  After : list ArgValue
 }.
 
+Definition ForeignFuncSpec := callTransition -> Prop.
+
 Inductive Callee := 
-  | Foreign : (callTransition -> Prop) -> Callee
+  | Foreign : ForeignFuncSpec -> Callee
   | Internal : Statement -> Callee.
 
 Definition upd_option vs var value :=
@@ -87,12 +95,6 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let v := (vs, adts) in
       let value_v := exprDenote value vs in
       RunsTo (Syntax.Assignment var value) v (Locals.upd vs var value_v, adts)
-  | CallForeign : forall vs adts var f args spec ret adts',
-      let v := (vs, adts) in
-      let args_v := map (fun e => exprDenote e vs) args in
-      functions (exprDenote f vs) = Some (Foreign spec)
-      -> spec {| Args := args_v; Ret := ret; InitialHeap := adts; FinalHeap := adts' |}
-      -> RunsTo (Syntax.Call var f args) v (upd_option vs var ret, adts')
   | CallInternal : forall vs adts f adts' body arg vs_arg vs',
       let v := (vs, adts) in
       let arg_v := exprDenote arg vs in
@@ -100,13 +102,12 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> Locals.sel vs_arg "__arg" = arg_v
       -> RunsTo body (vs_arg, adts) (vs', adts')
       -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
-  | CallMethod : forall vs adts var obj f args obj_adt spec new_value ret,
+  | CallForeign : forall vs adts var f args spec ret adts',
+      let v := (vs, adts) in
       let args_v := map (fun e => exprDenote e vs) args in
-      let obj_v := exprDenote obj vs in
-      Heap.sel adts obj_v = Some obj_adt
-      -> Methods (TheType obj_adt) f = Some spec
-      -> spec (Value obj_adt) args_v new_value ret
-      -> RunsTo (Syntax.CallMethod var obj f args) (vs, adts) (upd_option vs var ret, Heap.upd adts obj_v (set_value obj_adt new_value)).
+      functions (exprDenote f vs) = Some (Foreign spec)
+      -> spec {| Args := args_v; Ret := ret; After := adts' |}
+      -> RunsTo (Syntax.Call var f args) v (upd_option vs var ret, adts').
 
 End functions.
 
