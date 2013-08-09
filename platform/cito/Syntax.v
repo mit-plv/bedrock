@@ -7,4 +7,4 @@ Inductive Statement : Set :=
   | Seq : Statement -> Statement -> Statement
   | Conditional : Expr -> Statement -> Statement -> Statement
   | Loop : Expr -> Statement -> Statement
-  | Call : string -> Expr -> list Expr -> Statement.
+  | Call : option string -> Expr -> list Expr -> Statement.
