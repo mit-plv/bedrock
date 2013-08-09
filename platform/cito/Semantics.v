@@ -7,20 +7,35 @@ Require Import Dict.
 Set Implicit Arguments.
 
 Record ADT := {
-  DataType : Set;
-  Value : DataType;
-  Methods : string -> option (DataType -> list W -> DataType -> W -> Prop)
+  Model : Set;
+  Methods : string -> option (Model -> list W -> Model -> W -> Prop)
 }.
 
-Definition ADTs := W -> option ADT.
+Record ADTValue := {
+  TheType : ADT;
+  Value : Model TheType
+}.
+                    
+Module MKey : KEY with Definition key := W.
+  Definition key := W.
+  Definition eq_dec := @weq 32.
+End MKey.
 
-Definition st := (vals * ADTs)%type.
+Module MData : DATA with Definition data := ADTValue.
+  Definition data := ADTValue.
+End MData.
+
+Module Heap := Dict.Dict MKey MData.
+
+Definition heap := Heap.dict.
+
+Definition st := (vals * heap)%type.
 
 Record callTransition := {
   Args : list W;
   Ret : W;
-  InitialHeap : ADTs;
-  FinalHeap : ADTs
+  InitialHeap : heap;
+  FinalHeap : heap
 }.
 
 Inductive Callee := 
@@ -33,7 +48,7 @@ Definition upd_option vs var value :=
     | Some x => Locals.upd vs x value
   end.
 
-Definition set_value adt value := {| DataType := DataType adt; Value := value; Methods := Methods adt |}.
+Definition set_value adt_value value := {| TheType := TheType adt_value; Value := value |}.
 
 Definition upd A (m : W -> A) k v k' :=
   if weq k' k then v else m k'.
@@ -86,13 +101,12 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> RunsTo body (vs_arg, adts) (vs', adts')
       -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
   | CallMethod : forall vs adts var obj f args obj_adt spec new_value ret,
-      let v := (vs, adts) in
       let args_v := map (fun e => exprDenote e vs) args in
       let obj_v := exprDenote obj vs in
-      adts obj_v = Some obj_adt
-      -> Methods obj_adt f = Some spec
+      Heap.sel adts obj_v = Some obj_adt
+      -> Methods (TheType obj_adt) f = Some spec
       -> spec (Value obj_adt) args_v new_value ret
-      -> RunsTo (Syntax.CallMethod var obj f args) v (upd_option vs var ret, upd adts obj_v (Some (set_value obj_adt new_value))).
+      -> RunsTo (Syntax.CallMethod var obj f args) (vs, adts) (upd_option vs var ret, Heap.upd adts obj_v (set_value obj_adt new_value)).
 
 End functions.
 
@@ -127,43 +141,24 @@ CoInductive Safe : Statement -> st -> Prop :=
       Safe (Loop cond body) v
   | Assignment : forall var value v,
       Safe (Syntax.Assignment var value) v
-  | CallForeign : forall vs adts f arg spec adts',
-      let arg_v := exprDenote arg vs in
+  | CallForeign : forall vs adts var f args spec ret adts',
+      let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> spec {| Arg := arg_v; InitialHeap := adts; FinalHeap := adts' |}
-      -> Safe (Syntax.Call f arg) (vs, adts)
+      -> spec {| Args := args_v; Ret := ret; InitialHeap := adts; FinalHeap := adts' |}
+      -> Safe (Syntax.Call var f args) (vs, adts)
   | CallInternal : forall vs adts f arg body,
       let arg_v := exprDenote arg vs in
       functions (exprDenote f vs) = Some (Internal body)
       -> (forall vs_arg, Locals.sel vs_arg "__arg" = arg_v -> Safe body (vs_arg, adts))
-      -> Safe (Syntax.Call f arg) (vs, adts).
-
-  | ReadAt : forall var arr idx vs (adts : arrays),
-      let v := (vs, adts) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access adts arr_v idx_v -> 
-      Safe (Syntax.ReadAt var arr idx) v
-  | WriteAt : forall arr idx value vs (adts : arrays), 
-      let v := (vs, adts) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access adts arr_v idx_v ->
-      Safe (Syntax.WriteAt arr idx value) v
-  | Malloc : forall var size vs (adts : arrays),
-      let size_v := exprDenote size vs in
-      goodSize (wordToNat size_v + 2) ->
-      Safe (Syntax.Malloc var size) (vs, adts)
-  | Free : forall arr vs (adts : arrays),
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst adts ->
-      Safe (Syntax.Free arr) (vs, adts)
-  | Len : forall var arr vs (adts : arrays),
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst adts ->
-      Safe (Syntax.Len var arr) (vs, adts)
+      -> Safe (Syntax.Call None f (arg :: nil)) (vs, adts)
+  | CallMethod : forall vs adts var obj f args obj_adt spec new_value ret,
+      let args_v := map (fun e => exprDenote e vs) args in
+      let obj_v := exprDenote obj vs in
+      Heap.sel adts obj_v = Some obj_adt
+      -> Methods (TheType obj_adt) f = Some spec
+      -> spec (Value obj_adt) args_v new_value ret
+      -> Safe (Syntax.CallMethod var obj f args) (vs, adts).
 
 End functions'.
-
 
 End Safety.

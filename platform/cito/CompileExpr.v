@@ -2,26 +2,10 @@ Require Import AutoSep Wrap Arith.
 Import DefineStructured.
 Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import SyntaxExpr SemanticsExpr.
+Require Import DepthExpr FootprintExpr.
 
 Set Printing Coercions.
 Set Implicit Arguments. 
-
-(* The depth of stack actually used by compileExpr *)
-Fixpoint depth expr := 
-  match expr with
-    | Var _ => 0
-    | Const _ => 0
-    | Binop _ a b => max (depth a) (S (depth b))
-    | TestE _ a b => max (depth a) (S (depth b))
-  end.
-
-Fixpoint varsIn expr:=
-  match expr with
-    |Var s => s :: nil
-    |Const w => nil
-    |Binop op a b => varsIn a ++ varsIn b
-    |TestE te a b => varsIn a ++ varsIn b
-  end.
 
 Ltac clear_imports :=
   match goal with
