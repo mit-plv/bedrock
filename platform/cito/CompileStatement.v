@@ -58,7 +58,7 @@ Definition starD (f : W -> ADTValue -> HProp) (d : heap) : HProp.
   admit.
 Defined.
 
-Definition is_heap layout (adts : heap) : HProp := starD (fun w adt => layout (TheType adt) w) adts.
+Definition is_heap layout (adts : heap) : HProp := starD (fun w adt => layout adt w) adts.
 
 Require Import Malloc.
 
@@ -93,7 +93,7 @@ Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -
 
 Section Compiler.
 
-  Variable layout : ADT -> W -> HProp.
+  Variable layout : ADTValue -> W -> HProp.
   Variable vars : list string.
 
   Section Specifications.
@@ -113,6 +113,8 @@ Section Compiler.
   Variable modName : string.
 
   Definition vars_ex := "__reserved" :: "__arg" :: vars.
+
+  Require Import CompileExpr.
 
   Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
 
@@ -227,7 +229,6 @@ Section Compiler.
         :: nil)
     end.
 
-Require Import CompileExpr.
 Require Import SemanticsExprLemmas SemanticsLemmas.
 Require Import MyMalloc MyFree.
 Import WMake.
