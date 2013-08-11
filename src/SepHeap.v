@@ -1547,10 +1547,10 @@ Module SepHeapFacts (SH : SepHeap).
         simpl in *. rewrite starred_cons in *.
         rewrite ST.heq_star_comm with (P := sexprD funcs preds U G (SH.impuresD pcT stT impures)).
         simpl in *.
-        repeat rewrite ST.heq_star_assoc with (P := match exprD funcs U G a tvProp with
-                                                   | Some p => ST.inj [|p|]
-                                                   | None => ST.inj [|BadInj a|]
-                                                 end).
+        repeat rewrite (ST.heq_star_assoc _ (match exprD funcs U G a tvProp with
+                                                | Some p => ST.inj [|p|]
+                                                | None => ST.inj [|BadInj a|]
+                                              end)).
         unfold himp, Provable in *.
         destruct (exprD funcs U G a tvProp).
         { eapply ST.himp_star_pure_c. intros.

@@ -1,4 +1,5 @@
 Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
+Require Import RelDb XmlOutput Bags Io Http Thread.
 
 
 Module Type HIDE.
@@ -21,24 +22,69 @@ Module Hide : HIDE.
   Qed.
 End Hide.
 
+Record wf (ts : tables) (pr : program) (buf_size : N) : Prop := {
+  WellFormed : XmlLang.wf ts pr;
+  NotTooGreedy : (reserved pr <= 88)%nat;
+
+  Buf_size_lower : (buf_size >= 2)%N;
+  Buf_size_upper : (buf_size * 4 < Npow2 32)%N;
+
+  ND : NoDup (Names ts);
+  GoodSchema : twfs ts;
+  UF : uf ts
+}.
 
 Module Type S.
+  Parameter ts : tables.
   Parameter pr : program.
-  Axiom wellFormed : wf pr.
-  Axiom notTooGreedy : (reserved pr <= 40)%nat.
-
   Parameter buf_size : N.
-  Axiom buf_size_lower : (buf_size >= 2)%N.
-  Axiom buf_size_upper : (buf_size * 4 < Npow2 32)%N.
-
   Parameter heapSize : N.
+
+  Axiom Wf : wf ts pr buf_size.
+
+  Parameters port numWorkers : W.
 End S.
 
 Module Make(M : S).
 Import M.
 
+Module Locations.
+  Definition globalSched : W := ((heapSize + 50) * 4)%N.
+  Definition globalSock : W := globalSched ^+ $4.
+End Locations.
+
+Import Locations.
+
+Module M'''.
+  Definition globalSched := globalSched.
+
+  Local Open Scope Sep_scope.
+
+  Definition globalInv (fs : files) : HProp :=
+    db ts * Ex fr, globalSock =*> fr * [| fr %in fs |].
+End M'''.
+
+Module T := Thread.Make(M''').
+
+Import T M'''.
+Export T M'''.
+
+Module MyM.
+  Definition sched := sched.
+  Definition globalInv := globalInv.
+End MyM.
+
+Ltac unf := unfold MyM.sched, MyM.globalInv, M'''.globalSched, M'''.globalInv in *.
+
+Module MyIo := Io.Make(MyM).
+Module MyHttp := Http.Make(MyM).
+
 Definition mainS := SPEC reserving 49
-  PREonly[_] mallocHeap 0.
+  PREmain[_] globalSched =?> 1 * globalSock =?> 1 * db ts * mallocHeap 0.
+
+Definition handlerS := SPEC reserving 99
+  Al fs,
+  PREmain[_] sched fs * globalInv fs * mallocHeap 0.
 
 Definition bsize := nat_of_N (buf_size * 4)%N.
 
@@ -50,74 +96,101 @@ Definition hints : TacPackage.
 Defined.
 
 Definition m0 := bimport [[ "buffers"!"bmalloc" @ [bmallocS], "sys"!"abort" @ [abortS],
-                            "sys"!"read" @ [Sys.readS], "sys"!"write" @ [Sys.writeS],
-                            "xml_prog"!"main" @ [XmlLang.mainS pr] ]]
+                            "xml_prog"!"main" @ [XmlLang.mainS pr ts],
+                            "malloc"!"malloc" @ [mallocS],
+                            "http"!"readRequest" @ [MyHttp.readRequestS],
+                            "http"!"writeResponse" @ [MyHttp.writeResponseS],
+                            "scheduler"!"init" @ [T.Q''.initS], "scheduler"!"listen" @ [T.Q''.listenS],
+                            "scheduler"!"accept" @ [T.Q''.acceptS], "scheduler"!"close" @ [T.Q''.closeS],
+                            "scheduler"!"spawn" @ [T.Q''.spawnS], "scheduler"!"exit" @ [T.Q''.exitS] ]]
   bmodule "xml_driver" {{
-    bfunctionNoRet "main"("inbuf", "len", "outbuf", "tmp") [mainS]
+    bfunctionNoRet "handler"("fr", "inbuf", "len", "outbuf", "tmp", "tmp2") [handlerS]
       "inbuf" <-- Call "buffers"!"bmalloc"(buf_size)
-      [PREonly[_, R] R =?>8 bsize * mallocHeap 0];;
+      [Al fs, PREmain[_, R] sched fs * globalInv fs * R =?>8 bsize * mallocHeap 0];;
 
       "outbuf" <-- Call "buffers"!"bmalloc"(buf_size)
-      [PREonly[V, R] V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
+      [Al fs, PREmain[V, R] sched fs * globalInv fs * V "inbuf" =?>8 bsize * R =?>8 bsize * mallocHeap 0];;
 
-      [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
+      [Al fs, PREmain[V] sched fs * globalInv fs
+        * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
       While (1 = 1) {
-        "len" <-- Call "sys"!"read"(0, "inbuf", bsize)
-        [PREonly[V] V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
+        "fr" <-- Call "scheduler"!"accept"($[globalSock])
+        [Al fs, PREmain[V, R] [| R %in fs |] * sched fs * globalInv fs
+          * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
+
+        "len" <-- Call "http"!"readRequest"("fr", "inbuf", bsize)
+        [Al fs, PREmain[V, R] [| V "fr" %in fs |] * sched fs * globalInv fs
+          * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0];;
 
         If ("len" > bsize) {
           Call "sys"!"abort"()
           [PREonly[_] [| False |] ];;
           Fail
         } else {
-          Assert [PREonly[V] buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
+          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * buffer_splitAt (wordToNat (V "len")) (V "inbuf") bsize
             * V "outbuf" =?>8 bsize * mallocHeap 0
             * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 wordToNat (V "len")
+          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
             * V "outbuf" =?>8 bsize * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
           Note [unfold_here];;
 
-          "tmp" <-- Call "xml_prog"!"main"("inbuf", "len", "outbuf", bsize)
-          [PREonly[V, R] V "inbuf" =?>8 wordToNat (V "len")
+          "tmp" <- "inbuf" + "len";;
+          "tmp2" <- bsize - "len";;
+          "tmp" <-- Call "xml_prog"!"main"("tmp", "tmp2", "outbuf", bsize)
+          [Al fs, PREmain[V, R] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * V "inbuf" =?>8 wordToNat (V "len")
             * (V "inbuf" ^+ natToW (wordToNat (V "len"))) =?>8 (bsize - wordToNat (V "len"))
             * V "outbuf" =?>8 bsize
-            * [| R <= natToW bsize |]%word * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
+            * mallocHeap 0 * [| wordToNat (V "len") <= bsize |]%nat ];;
 
-          Assert [PREonly[V] buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
-            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * buffer_joinAt (wordToNat (V "len")) (V "inbuf") bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 bsize * mallocHeap 0 * [| V "tmp" <= natToW bsize |]%word ];;
+          Assert [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * V "inbuf" =?>8 bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ];;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
-            * buffer_splitAt (wordToNat (V "tmp")) (V "outbuf") bsize * mallocHeap 0
-            * [| wordToNat (V "tmp") <= bsize |]%nat ];;
+          Call "http"!"writeResponse"("fr", "outbuf", "tmp", bsize)
+          [Al fs, PREmain[V] [| V "fr" %in fs |] * sched fs * globalInv fs
+            * V "inbuf" =?>8 bsize
+            * V "outbuf" =?>8 bsize * mallocHeap 0 ]
+        };;
 
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 wordToNat (V "tmp")
-            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
-            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
-
-          Call "sys"!"write"(1, "outbuf", "tmp")
-          [PREonly[V] V "inbuf" =?>8 bsize
-            * V "outbuf" =?>8 wordToNat (V "tmp")
-            * (V "outbuf" ^+ natToW (wordToNat (V "tmp"))) =?>8 (bsize - wordToNat (V "tmp"))
-            * mallocHeap 0 * [| wordToNat (V "tmp") <= bsize |]%nat ];;
-
-          Assert [PREonly[V] V "inbuf" =?>8 bsize
-            * buffer_joinAt (wordToNat (V "tmp")) (V "outbuf") bsize
-            * mallocHeap 0]
-        }
+        Call "scheduler"!"close"("fr")
+        [Al fs, PREmain[V] sched fs * globalInv fs
+          * V "inbuf" =?>8 bsize * V "outbuf" =?>8 bsize * mallocHeap 0]
       }
+    end with bfunctionNoRet "main"("fr", "x") [mainS]
+      Init
+      [Al fs, Al v, PREmain[_] sched fs * globalSock =*> v * db ts * mallocHeap 0];;
+
+      "fr" <- 0;;
+      [Al fs, PREmain[_] sched fs * globalSock =?> 1 * db ts * mallocHeap 0]
+      While ("fr" < numWorkers) {
+        Spawn("xml_driver"!"handler", 100)
+        [Al fs, PREmain[_] sched fs * globalSock =?> 1 * db ts * mallocHeap 0];;
+        "fr" <- "fr" + 1
+      };;
+
+      "fr" <-- Call "scheduler"!"listen"(port)
+      [Al fs, Al v, PREmain[_, R] [| R %in fs |] * sched fs * globalSock =*> v
+        * db ts * mallocHeap 0];;
+
+      globalSock *<- "fr";;
+
+      Exit 50
     end
   }}.
 
 Lemma buf_size_lower'' : (buf_size < Npow2 32)%N.
-  eapply Nlt_trans; [ | apply buf_size_upper ].
-  specialize buf_size_lower; intros.
+  eapply Nlt_trans; [ | apply (Buf_size_upper _ _ _ Wf) ].
+  specialize (Buf_size_lower _ _ _ Wf); intros.
   pre_nomega.
   rewrite N2Nat.inj_mul.
   simpl.
@@ -132,14 +205,15 @@ Lemma buf_size_lower' : natToW 2 <= NToW buf_size.
   rewrite NToWord_nat.
   pre_nomega.
   rewrite wordToNat_natToWord_idempotent.
-  change (wordToNat (natToW 2)) with (nat_of_N 2).
-  apply Nge_out.
-  apply buf_size_lower.
+  generalize (Buf_size_lower _ _ _ Wf).
+  intros; nomega.
   rewrite N2Nat.id.
   apply buf_size_lower''.
 Qed.
 
 Local Hint Immediate buf_size_lower'.
+
+Close Scope Sep_scope.
 
 Lemma bsize_in : (wordToNat (NToW buf_size) * 4) = bsize.
   unfold NToW, bsize.
@@ -155,16 +229,59 @@ Lemma bsize_roundTrip : wordToNat (natToW bsize) = bsize.
   apply wordToNat_natToWord_idempotent.
   unfold bsize.
   rewrite N2Nat.id.
-  apply buf_size_upper.
+  apply (Buf_size_upper _ _ _ Wf).
 Qed.
 
 Hint Rewrite bsize_in bsize_roundTrip : sepFormula.
 Hint Rewrite bsize_roundTrip : N.
 
+Hint Extern 1 (_ ?X = 0) =>
+  match type of X with
+    | list ?A => equate X (@nil A); reflexivity
+  end.
+
+Lemma inBounds_nil : forall n, RelDb.inBounds n nil.
+  constructor.
+Qed.
+
+Hint Immediate inBounds_nil.
+
+Lemma freeable8_8 : forall p n,
+  n = 8
+  -> freeable p 2
+  -> freeable8 p n.
+  intros; subst; eexists; split; eauto; eauto.
+Qed.
+
+Hint Immediate freeable8_8.
+
+Lemma arrays_begone : forall specs P p q,
+  himp specs P (P * (array nil p * array nil q))%Sep.
+  unfold array; sepLemma.
+Qed.
+
+Hint Immediate arrays_begone.
+
+Lemma bsize_bound : forall w : W,
+  w <= natToW bsize
+  -> (wordToNat w <= bsize)%nat.
+  intros.
+  nomega.
+Qed.
+
+Hint Immediate bsize_bound.
+
+Ltac t0 := sep unf hints; eauto.
+
+Ltac t1 := unf; unfold localsInvariantMain; post; evaluate hints; descend;
+  try match_locals; sep unf hints; eauto.
+
 Ltac t :=
   try match goal with
-        | [ |- context[unfold_here] ] => unfold buffer; generalize notTooGreedy
-      end; sep hints; auto; nomega.
+        | [ |- context[unfold_here] ] => unfold buffer; generalize (NotTooGreedy _ _ _ Wf)
+      end; try solve [ t0 ]; t1.
+
+Ltac u := abstract t.
 
 Theorem ok0 : moduleOk m0.
   vcgen; abstract t.
@@ -180,7 +297,7 @@ Section boot.
     assert (heapSize >= 3)%N by (apply N.le_ge; apply heapSizeLowerBound); nomega.
   Qed.
 
-  Definition size := heapSize' + 50 + 0.
+  Definition size := heapSize' + 50 + 2 + length ts.
 
   Hypothesis mem_size : goodSize (size * 4)%nat.
 
@@ -216,7 +333,7 @@ Section boot.
   Definition bootS := {|
     Reserved := 49;
     Formals := nil;
-    Precondition := fun _ => st ~> ![ 0 =?> (heapSize' + 50 + 0) ] st
+    Precondition := fun _ => st ~> ![ 0 =?> (heapSize' + 50 + 2) * db ts ] st
   |}.
 
   Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "xml_driver"!"main" @ [mainS] ]]
@@ -224,10 +341,10 @@ Section boot.
       bfunctionNoRet "main"() [bootS]
         Sp <- (heapSize * 4)%N;;
 
-        Assert [PREonly[_] 0 =?> heapSize' ];;
+        Assert [PREmain[_] globalSched =?> 2 * 0 =?> heapSize' * db ts];;
 
         Call "malloc"!"init"(0, heapSize)
-        [PREonly[_] mallocHeap 0];;
+        [PREmain[_] globalSock =?> 1 * globalSched =?> 1 * mallocHeap 0 * db ts];;
 
         Goto "xml_driver"!"main"
       end
@@ -245,6 +362,10 @@ Section boot.
     sp = (heapSize' * 4)%nat
     -> freeable sp 50.
     intros; eapply bootstrap_Sp_freeable; try eassumption; eauto.
+    instantiate (1 := 2).
+    unfold size in mem_size.
+    eapply goodSize_weaken; try apply mem_size.
+    omega.
   Qed.
 
   Lemma noWrap : noWrapAround 4 (wordToNat (NToW heapSize) - 1).
@@ -288,7 +409,28 @@ Section boot.
 
   Hint Rewrite break times4 wordToNat_heapSize : sepFormula.
 
-  Ltac t := genesis; rewrite natToW_plus; reflexivity.
+  Lemma globalSched_plus4 :
+    Locations.globalSched ^+ natToW 4 = natToW ((heapSize' + 50) * 4 + 4).
+    unfold Locations.globalSched, heapSize'.
+    rewrite wplus_alt; unfold wplusN, wordBinN.
+    unfold NToW; rewrite NToWord_nat by auto.
+    rewrite N2Nat.inj_mul; auto.
+    rewrite Hide.to_nat_eq; rewrite N2Nat.inj_add; auto.
+    change (wordToNat (natToW 4)) with 4.
+    change (N.to_nat 4) with 4.
+    rewrite wordToNat_natToWord_idempotent.
+    reflexivity.
+    eapply goodSize_weaken; try apply mem_size.
+    unfold size, heapSize'.
+    rewrite Hide.to_nat_eq.
+    change (N.to_nat 50) with 50.
+    omega.
+  Qed.
+
+  Hint Rewrite globalSched_plus4 : sepFormula.
+
+  Ltac t := unfold M'''.globalSched, Locations.globalSched, Locations.globalSock, localsInvariantMain;
+    genesis; rewrite natToW_plus; reflexivity.
 
   Theorem okb : moduleOk boot.
     unfold boot; rewrite <- Hide.heapSize4_eq; vcgen; abstract t.
@@ -296,12 +438,34 @@ Section boot.
 
   Global Opaque heapSize'.
 
+  Lemma buf_size_upper' : goodSize (4 * wordToNat (NToWord 32 buf_size)).
+    red.
+    rewrite Nat2N.inj_mul.
+    rewrite NToWord_nat.
+    rewrite wordToNat_natToWord_idempotent.
+    rewrite N2Nat.id.
+    rewrite Nmult_comm.
+    apply (Buf_size_upper _ _ _ Wf).
+    rewrite N2Nat.id.
+    clear; generalize (Buf_size_upper _ _ _ Wf).
+    generalize (Npow2 32).
+    Hint Rewrite N2Nat.inj_mul : N.
+    intros; nomega.
+  Qed.
+
   Definition m1 := link boot m0.
   Definition m2 := link Buffers.m m1.
   Definition m3 := link XmlLex.m m2.
-  Definition m4 := link Malloc.m m3.
-  Definition m5 := link ArrayOps.m m4.
-  Definition m := link (XmlLang.m pr) m5.
+  Definition m4 := link ArrayOps.m m3.
+  Definition m5 := link NumOps.m m4.
+  Definition m6 := link MyIo.m m5.
+  Definition m7 := link MyHttp.m m6.
+  Definition m8 := link T.m m7.
+
+  Definition m := link (XmlLang.m _
+    buf_size_lower' buf_size_upper'
+    (WellFormed _ _ _ Wf) (ND _ _ _ Wf)
+    (GoodSchema _ _ _ Wf)) m8.
 
   Lemma ok1 : moduleOk m1.
     link okb ok0.
@@ -316,15 +480,28 @@ Section boot.
   Qed.
 
   Lemma ok4 : moduleOk m4.
-    link Malloc.ok ok3.
+    link ArrayOps.ok ok3.
   Qed.
 
   Lemma ok5 : moduleOk m5.
-    link ArrayOps.ok ok4.
+    link NumOps.ok ok4.
+  Qed.
+
+  Lemma ok6 : moduleOk m6.
+    link MyIo.ok ok5.
+  Qed.
+
+  Lemma ok7 : moduleOk m7.
+    link MyHttp.ok ok6.
+  Qed.
+
+  Lemma ok8 : moduleOk m8.
+    link T.ok ok7.
   Qed.
 
   Lemma ok : moduleOk m.
-    link (XmlLang.ok wellFormed) ok5.
+    link (XmlLang.ok _ buf_size_lower' buf_size_upper' (WellFormed _ _ _ Wf)) ok8;
+    apply (UF _ _ _ Wf).
   Qed.
   
   Variable stn : settings.

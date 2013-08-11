@@ -3,8 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
@@ -87,6 +89,97 @@ unsigned _sys_accept(unsigned sock) {
 #endif
 
   return new_sock;
+}
+
+unsigned _sys_connect(char *address, unsigned size) {
+  int i;
+  char *addr = malloc(size+1), *host, *port;
+  struct addrinfo hints, *res;
+  int sockfd;
+  memcpy(addr, address, size);
+
+  if (size == 0) {
+    fprintf(stderr, "Empty connect() string\n");
+    exit(1);
+  }
+
+  // Find last printing character, which we'll treat as the end of the port string.
+  i = size-1;
+  while (1) {
+    if (isprint(addr[i])) {
+      addr[i+1] = 0;
+      break;
+    }
+
+    if (i <= 0) {
+      fprintf(stderr, "Bad connect() string [1]\n");
+      exit(1);
+    }
+
+    --i;
+  }
+
+  // Find a ':' beforehand, to mark the beginning of the port.
+  while (1) {
+    if (addr[i] == ':') {
+      addr[i] = 0;
+      port = addr + (i+1);
+      --i;
+      break;
+    }
+
+    if (i <= 0) {
+      fprintf(stderr, "Bad connect() string [2]\n");
+      exit(1);
+    }
+
+    --i;
+  }
+
+  if (i < 0) {
+    fprintf(stderr, "Bad connect() string [3]\n");
+    exit(1);
+  }
+
+  // Find the beginning of the host part of the string.
+  while (1) {
+    if (!isalnum(addr[i]) && addr[i] != '.' && addr[i] != '-' && addr[i] != '_') {
+      host = addr + (i+1);
+      break;
+    }
+
+    if (i <= 0) {
+      host = addr;
+      break;
+    }
+
+    --i;
+  }
+
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  if (getaddrinfo(host, port, &hints, &res)) {
+    perror("getaddrinfo");
+    exit(1);
+  }
+
+  sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+  if (sockfd == -1) {
+    perror("socket");
+    exit(1);
+  }
+
+  i = connect(sockfd, res->ai_addr, res->ai_addrlen);
+
+  if (i && errno != EINPROGRESS) {
+    perror("connect");
+    exit(1);
+  }
+
+  return sockfd;
 }
 
 unsigned _sys_read(unsigned sock, void *buf, unsigned count) {

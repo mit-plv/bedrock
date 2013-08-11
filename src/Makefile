@@ -21,7 +21,7 @@ MODULES    := Reflection Tactics ListFacts \
 	CancelIL \
 	ILTacCommon ILTac \
 	Bedrock \
-	AMD64_gas
+	AMD64_gas I386_gas
 
 TESTS := UnfolderTests
 VS         := $(MODULES:%=%.v)

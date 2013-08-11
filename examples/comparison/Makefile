@@ -36,18 +36,21 @@ COQC = coqc -q -I .. -R ../../src Bedrock
 Server.vo: Server.v ../AutoSep.vo ../SinglyLinkedList.vo ../Malloc.vo
 	$(COQC) Server
 
-bedrock_server.s Combined.vo: Combined.v Server.vo
+bedrock_server.ml Combined.vo: Combined.v Server.vo
+	cat ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		>>$@
+	cat printCode.ml >>$@
+
+bedrock_server.s: bedrock_server.ml
 	echo ".global bedrock_heap" >$@
 	echo ".comm bedrock_heap,4*(100*1024*1024+3+1024)" >>$@
 	echo ".global m_main" >>$@
 	echo >>$@
-	$(COQC) $< \
-		| sed 's/^.*:: nil//' \
-		| sed 's/^.*:: *//' \
-		| sed 's/^.*: list string//' \
-		| sed 's/^.*= "//' \
-		| sed 's/^.*"//' \
-		>>$@
+	ocaml -w -x $< >>$@
 
 bedrock.exe: bedrock_server.o bedrock_data.o bedrock_driver.o
 	cc bedrock_server.o bedrock_data.o bedrock_driver.o -o bedrock.exe

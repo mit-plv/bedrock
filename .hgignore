@@ -37,6 +37,8 @@ timing/
 examples/x86/factorial.s
 examples/comparison/*data.*
 examples/comparison/bedrock_server.s
+examples/comparison/bedrock_server.ml
 
-platform/tests/*.gen.s
+*.gen.s
+*.gen.ml
 platform/tests/echotest

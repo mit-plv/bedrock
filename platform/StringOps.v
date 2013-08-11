@@ -12,7 +12,7 @@ Section Params.
 
   Variable A : Type. (* Type for a single unified [Al] quantifier in the block spec *)
   Variable precondition : A -> vals -> HProp.
-  Variable postcondition : A -> vals -> W -> HProp.
+  Variable postcondition : list B -> A -> vals -> W -> HProp.
 
   Lemma himp_refl : forall specs (P Q : HProp),
     P = Q
@@ -31,7 +31,7 @@ Section Params.
     auto.
   Qed.
 
-  Lemma postcondition_sel : forall a V, postcondition a (sel V) = postcondition a V.
+  Lemma postcondition_sel : forall bs a V, postcondition bs a (sel V) = postcondition bs a V.
     auto.
   Qed.
 
@@ -115,7 +115,7 @@ Section Params.
       Al bs, Al x : A,
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
       * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
-      POST[R] array8 bs (V str) * postcondition x V R.
+      POST[R] postcondition bs x V R.
 
     Notation StringEqVcs := (fun _ ns _ => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
       :: not (str = len) :: not (str = pos) :: not (str = output)
@@ -124,9 +124,9 @@ Section Params.
       :: (forall a V V',
         (forall x, x <> output -> sel V x = sel V' x)
         -> precondition a V ===> precondition a V')
-      :: (forall a V V' r,
+      :: (forall bs a V V' r,
         (forall x, x <> output -> sel V x = sel V' x)
-        -> postcondition a V r = postcondition a V' r)
+        -> postcondition bs a V r = postcondition bs a V' r)
       :: goodSize (String.length const)
       :: nil).
 
@@ -154,7 +154,7 @@ Section Params.
       Al bs, Al x : A,
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
       * [| V pos <= V len |]
-      POST[R] array8 bs (V str) * postcondition x V R.
+      POST[R] postcondition bs x V R.
 
     Definition StringEq : chunk.
       refine (WrapC (
@@ -200,7 +200,7 @@ Section Params.
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
         * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
         (** [| V len ^- V pos >= natToW (offset + String.length const) |]%word*)
-      POST[R] postcondition x V R.
+      POST[R] postcondition bs x V R.
 
     Notation StringWriteVcs := (fun _ ns _ => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
       :: not (str = len) :: not (str = pos) :: not (str = output)
@@ -209,9 +209,9 @@ Section Params.
       :: (forall a V V',
         (forall x, x <> output -> x <> pos -> sel V x = sel V' x)
         -> precondition a V ===> precondition a V')
-      :: (forall a V V' r,
+      :: (forall bs bs' a V V' r,
         (forall x, x <> output -> x <> pos -> sel V x = sel V' x)
-        -> postcondition a V r = postcondition a V' r)
+        -> postcondition bs a V r = postcondition bs' a V' r)
       :: goodSize (String.length const)
       :: nil).
 
@@ -239,7 +239,7 @@ Section Params.
       Al bs, Al x : A,
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
         * [| V pos <= V len |]
-      POST[R] postcondition x V R.
+      POST[R] postcondition bs x V R.
 
     Lemma simplify_inc : forall (u v : W) w,
       (wordToNat v + 0 + w <= wordToNat u)%nat
