@@ -10,6 +10,7 @@ MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 VS      := $(MODULES:%=%.v)
 
 .PHONY: coq clean
+.PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 coq: Makefile.coq
 	COQC='time coqc -verbose' $(MAKE) -f Makefile.coq
@@ -27,7 +28,19 @@ clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
 
-%.gen.s: %AMD64.v %Driver.vo
+LIB := $(BEDROCK)/platform/tests
+
+tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
+	cat $(LIB)/ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		| sed 's/let rec nuke/type set = unit\n\nlet rec nuke/' \
+		>>$@
+	cat $(LIB)/printCode.ml >>$@
+
+tests/%.gen.s: tests/%.gen.ml
 	echo "	.data" >$@
 	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
@@ -36,13 +49,7 @@ clean:: Makefile.coq
 	echo "	.text" >>$@
 	echo "	.global main_main" >>$@
 	echo >>$@
-	$(COQC) $< \
-		| sed 's/^.*:: nil//' \
-		| sed 's/^.*:: *//' \
-		| sed 's/^.*: list string//' \
-		| sed 's/^.*= "//' \
-		| sed 's/^.*"//' \
-		>>$@
+	ocaml -w -x $< >>$@
 
-%.exe: %.gen.o $(BEDROCK)/platform/tests/sys.o $(BEDROCK)/platform/tests/driver.o
+%.exe: %.gen.o $(LIB)/sys.o $(LIB)/driver.o
 	cc $^ -o $@

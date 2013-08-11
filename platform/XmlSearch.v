@@ -139,7 +139,7 @@ Section Pat.
             StringEq "buf" "len" "tagStart" "matched" const
             (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
               * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
-            (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
+            (fun bs a V R => array8 bs (V "buf") * mallocHeap 0 * invPost a V R)%Sep;;
 
             If ("matched" = 0) {
               (* Nope, not equal. *)
@@ -213,7 +213,7 @@ Section Pat.
                 StringEq "buf" "len" "tagStart" "matched" tag
                 (fun a V => Ex ls, xmlp (V "len") (V "lex") * sll ls (V "stack") * mallocHeap 0
                   * [| inBounds cdatas V |] * [| stackOk ls (V "len") |] * invPre a V)%Sep
-                (fun a V R => mallocHeap 0 * invPost a V R)%Sep;;
+                (fun bs a V R => array8 bs (V "buf") * mallocHeap 0 * invPost a V R)%Sep;;
 
                 If ("matched" = 0) {
                   (* Nope, not equal. *)
@@ -594,9 +594,17 @@ Section Pat.
                   | context[invPost ?a ?V _] =>
                     match Q with
                       | context[invPost a ?V' _] =>
-                        rewrite (H a V V') by intuition; reflexivity
+                        rewrite (H a V V') by intuition
                     end
-                end
+                end;
+                match goal with
+                  | [ H : forall x : string, _ -> sel ?V _ = sel ?V' _ |- _ ] =>
+                    repeat match goal with
+                             | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                             | [ |- context[V' ?x] ] => change (V' x) with (sel V' x)
+                           end;
+                    repeat rewrite H by intuition congruence
+                end; reflexivity
             end;
         try match goal with
               | [ |- interp _ (![?pre] _ ---> ![?post] _)%PropX ] =>

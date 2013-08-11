@@ -1,7 +1,7 @@
-Require Import Bedrock SharedListDriver AMD64_gas.
+Require Import Bedrock ConnectDriver AMD64_gas.
 
 Module M.
-  Definition heapSize := 1024.
+  Definition heapSize := 1024 * 10.
 End M.
 
 Module E := Make(M).

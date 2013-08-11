@@ -139,7 +139,7 @@ Definition jmpS (j : jmp) : string :=
       tab ++ "jmp " ++ labelS lab ++ nl
     | Uncond rv =>
       rvalueSinto rv edx
-      ++ tab ++ "jmp *%rdx" ++ nl
+      ++ tab ++ "jmp *%edx" ++ nl
     | Cond rv1 t rv2 lab1 lab2 =>
       let '(rv1, t, rv2, lab1, lab2) :=
         if rvalueIsMem rv2

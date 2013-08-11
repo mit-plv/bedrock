@@ -24,6 +24,10 @@ Definition buffer (p : W) (size : nat) : HProp :=
 Infix "=?>8" := buffer (at level 39) : Sep_scope.
 Notation "buf =?>8 size" := (Body (buf =?>8 size)%Sep) : qspec_scope.
 
+Definition connectS := SPEC("address", "size") reserving 0
+  PRE[V] V "address" =?>8 wordToNat (V "size")
+  POST[bytesRead] V "address" =?>8 wordToNat (V "size").
+
 Definition readS := SPEC("stream", "buffer", "size") reserving 0
   PRE[V] V "buffer" =?>8 wordToNat (V "size")
   POST[bytesRead] V "buffer" =?>8 wordToNat (V "size").
@@ -85,6 +89,15 @@ Section OpSem.
     -> mapped (Regs (snd st) Sp) 8 (Mem (snd st))
     -> Regs st' Sp = Regs (snd st) Sp
     -> Mem st' = Mem (snd st)
+    -> sys_step st (Regs (snd st) Rp, st')
+  | Connect : forall st address size st',
+    Labels stn ("sys", Global "connect") = Some (fst st)
+    -> mapped (Regs (snd st) Sp) 12 (Mem (snd st))
+    -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $4) = Some address
+    -> ReadWord stn (Mem (snd st)) (Regs (snd st) Sp ^+ $8) = Some size
+    -> mapped address (wordToNat size) (Mem (snd st))
+    -> Regs st' Sp = Regs (snd st) Sp
+    -> onlyChange address (wordToNat size) (Mem (snd st)) (Mem st')
     -> sys_step st (Regs (snd st) Rp, st')
   | Read : forall st buffer size st',
     Labels stn ("sys", Global "read") = Some (fst st)
