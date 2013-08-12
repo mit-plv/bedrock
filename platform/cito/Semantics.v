@@ -2,120 +2,135 @@ Require Import IL Memory String Word Locals.
 Require Import Sets.
 Require Import Syntax.
 Require Import SemanticsExpr.
-Require Import Dict.
-Require Import DataStruct.
 
 Set Implicit Arguments.
 
-Record ADT := {
-  Model : Set;
-  Name : string
-}.
+Module WKey : S with Definition A := W.
+  Definition A := W.
+  Definition eq_dec := @weq 32.
+End WKey.
+
+Module WSet := Make WKey.
+Import WSet.
+
+Section models.
+
+Variables models : string -> option Set.
+
+Definition get_model s :=
+  match models s with
+    | None => unit
+    | Some t => t
+  end.
 
 Record ADTValue := {
-  TheType : ADT;
-  Value : Model TheType
+  TypeName : string;
+  Value : get_model TypeName
 }.
                     
-Module MKey : KEY with Definition key := W.
-  Definition key := W.
-  Definition eq_dec := @weq 32.
-End MKey.
+Definition Heap := (set * (W -> ADTValue))%type.
 
-Module MData : DATA with Definition data := ADTValue.
-  Definition data := ADTValue.
-End MData.
+Definition upd_arrow A (m : W -> A) k v k' :=
+  if weq k' k then v else m k'.
 
-Module Heap := Dict.Dict MKey MData.
+Definition heap_in w (heap : Heap) := WSet.mem w (fst heap).
 
-Definition heap := Heap.dict.
+Definition heap_sel (heap : Heap) w := snd heap w.
 
-Definition st := (vals * heap)%type.
+Definition heap_upd (heap : Heap) w v : Heap := (WSet.add (fst heap) w, upd_arrow (snd heap) w v).
+
+Definition st := (vals * Heap)%type.
 
 Inductive ArgSignature := 
   | SigWord : ArgSignature
-  | SigADT : ADT -> bool -> ArgSignature.
+  | SigADT : string -> ArgSignature.
 
-Fixpoint ArgType sig : Set :=
-  match sig with
-    | SigWord => W
-    | SigADT adt _ => Model adt
-  end.
+Definition ArgType := (W + ADTValue)%type.
 
-Fixpoint ResultType sig : Set :=
-  match sig with
-    | SigWord => W
-    | SigADT adt true => Model adt
-    | SigADT adt false => unit
-  end.
+Definition RetType := (W * option ADTValue)%type.
 
-Inductive ReturnSignature :=
-  | RetWord : ReturnSignature
-  | RetADT : ADT -> ReturnSignature
-  | RetNone : ReturnSignature.
-
-Fixpoint ReturnType sig : Set :=
-  match sig with
-    | RetWord => W
-    | RetADT adt => Model adt
-    | RetNone => unit
-  end.
-
-Record callTransition sig := {
-  Args : hlist ArgType (fst sig);
-  Ret : ReturnType (snd sig);
-  After : hlist ResultType (fst sig)
+Record callTransition := {
+  Args : list ArgType;
+  Ret : RetType;
+  After : list ArgType
 }.
 
 Record ForeignFuncSpec := {
-  Signature : list ArgSignature * ReturnSignature;
-  Pred : callTransition Signature -> Prop
+  Signature : list ArgSignature * ArgSignature;
+  Pred : callTransition -> Prop
 }.
 
 Inductive Callee := 
   | Foreign : ForeignFuncSpec -> Callee
   | Internal : Statement -> Callee.
 
+Definition set_value adt_value value := {| TypeName := TypeName adt_value; Value := value |}.
+
+Definition match_sig heap w t : Prop := 
+  match t with
+    | SigWord => True
+    | SigADT adt => heap_in w heap /\ TypeName (heap_sel heap w) = adt
+  end.
+
+Definition match_signature heap := Forall2 (match_sig heap).
+
+Definition match_result := Forall2 (fun (v : ArgType) t =>
+  match t with
+    | SigWord => if v then True else False
+    | SigADT adt => 
+      match v with
+        | inl _ => False
+        | inr adt_value => TypeName adt_value = adt
+      end
+  end).                                       
+
+Definition good_return heap ret sig :=
+  match sig with
+    | SigWord => True
+    | SigADT adt =>                    
+      match snd ret with
+        | None => False
+        | Some adt_value => ~ heap_in (fst ret) heap /\ TypeName adt_value = adt
+      end
+  end.
+
+Fixpoint get_args heap args sig : list ArgType :=
+  match args, sig with
+    | w :: ws, t :: ts => 
+      match t with
+        | SigWord => inl w :: get_args heap ws ts
+        | SigADT _ => inr (heap_sel heap w) :: get_args heap ws ts
+      end
+    | _, _ => nil
+  end.
+                
 Definition upd_option vs var value :=
   match var with
     | None => vs
     | Some x => Locals.upd vs x value
   end.
 
-Definition set_value adt_value value := {| TheType := TheType adt_value; Value := value |}.
-
-Definition upd A (m : W -> A) k v k' :=
-  if weq k' k then v else m k'.
-
-(* Semantics *)
-
-Definition match_sig heap w t : Prop := 
-  match t with
-    | SigWord => True
-    | SigADT adt _ => exists v, Heap.sel heap w = Some v /\ TheType v = adt
+Fixpoint store_result (heap : Heap) ptrs (result : list ArgType) : Heap :=
+  match ptrs, result with
+    | w :: ws, v :: vs =>
+      match v with
+        | inl _ => store_result heap ws vs
+        | inr adt_value => store_result (heap_upd heap w adt_value) ws vs
+      end
+    | _, _ => heap
   end.
 
-Definition match_signature heap := Forall2 (match_sig heap).
+Definition store_return (heap : Heap) ret :=
+  match snd ret with
+    | None => heap
+    | Some adt_value => heap_upd heap (fst ret) adt_value
+  end.
 
-Require Import CpdtTactics.
+Definition update_heap heap ptrs result ret := store_return (store_result heap ptrs result) ret.
 
-Inductive get_args heap args : list ArgSignature -> match_signature heap args sig -> hlist ArgType sig
-  match args with
-    | nil => fun sig =>
-               match sig with
-                 | nil => fun p =>
-  inversion p.
-  induction sig.
-  unfold match_signature in *.
-  induction args.
-  dep_destruct p.
-  unfold Forall2 in *.
-  simpl in *.
+Definition upd_st (v : st) var ptrs result ret : st := let (vs, adts) := v in (upd_option vs var (fst ret), update_heap adts ptrs result ret).
 
-
-Inductive match_signature heap : list W -> list ArgSignature -> Prop := 
-  | MatchNil : match_signature heap nil nil
-  | MatchCons : forall x y xs ys, match_sig heap x y -> match_signature heap xs ys -> match_signature heap (x :: xs) (y :: ys).
+(* Semantics *)
 
 Section functions.
 
@@ -156,14 +171,17 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> Locals.sel vs_arg "__arg" = arg_v
       -> RunsTo body (vs_arg, adts) (vs', adts')
       -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
-  | CallForeign : forall vs adts var f args spec ret adts',
+  | CallForeign : forall vs adts var f args spec ret result,
       let v := (vs, adts) in
       let args_v := map (fun e => exprDenote e vs) args in
+      let sig := Signature spec in
+      let (args_sig, ret_sig) := sig in 
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> forall (p : match_signature adts args_v (Signature spec))
-                (pr : match_return var (Signature spec)),
-      Pred spec {| Args := get_args p; Ret := ret; After := adts' |}
-      -> RunsTo (Syntax.Call var f args) v (upd_return vs ret pr, upd_heap adts' p).
+      -> match_signature adts args_v args_sig
+      -> match_result result args_sig             
+      -> good_return adts ret ret_sig             
+      -> Pred spec {| Args := get_args adts args_v args_sig; Ret := ret; After := result |}
+      -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
 End functions.
 
