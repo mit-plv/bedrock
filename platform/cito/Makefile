@@ -2,6 +2,7 @@ BEDROCK := ../..
 
 MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	DepthExpr FootprintExpr \
+	CpdtTactics DataStruct \
 	SemanticsExprLemmas Syntax Dict Semantics Footprint SemanticsLemmas \
 	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
 	Compiler Wf WritingPrograms Compile Recall \

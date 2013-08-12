@@ -3,6 +3,7 @@ Require Import Sets.
 Require Import Syntax.
 Require Import SemanticsExpr.
 Require Import Dict.
+Require Import DataStruct.
 
 Set Implicit Arguments.
 
@@ -32,19 +33,44 @@ Definition heap := Heap.dict.
 Definition st := (vals * heap)%type.
 
 Inductive ArgSignature := 
-  | ASWord
-  | ASADT.
+  | SigWord : ArgSignature
+  | SigADT : ADT -> bool -> ArgSignature.
 
-Definition ArgValue := (ADTValue + W)%type.
+Fixpoint ArgType sig : Set :=
+  match sig with
+    | SigWord => W
+    | SigADT adt _ => Model adt
+  end.
 
-Record callTransition := {
-  Signature : list ArgSignature * ArgSignature;
-  Args : list ArgValue;
-  Ret : ArgValue;
-  After : list ArgValue
+Fixpoint ResultType sig : Set :=
+  match sig with
+    | SigWord => W
+    | SigADT adt true => Model adt
+    | SigADT adt false => unit
+  end.
+
+Inductive ReturnSignature :=
+  | RetWord : ReturnSignature
+  | RetADT : ADT -> ReturnSignature
+  | RetNone : ReturnSignature.
+
+Fixpoint ReturnType sig : Set :=
+  match sig with
+    | RetWord => W
+    | RetADT adt => Model adt
+    | RetNone => unit
+  end.
+
+Record callTransition sig := {
+  Args : hlist ArgType (fst sig);
+  Ret : ReturnType (snd sig);
+  After : hlist ResultType (fst sig)
 }.
 
-Definition ForeignFuncSpec := callTransition -> Prop.
+Record ForeignFuncSpec := {
+  Signature : list ArgSignature * ReturnSignature;
+  Pred : callTransition Signature -> Prop
+}.
 
 Inductive Callee := 
   | Foreign : ForeignFuncSpec -> Callee
@@ -62,6 +88,34 @@ Definition upd A (m : W -> A) k v k' :=
   if weq k' k then v else m k'.
 
 (* Semantics *)
+
+Definition match_sig heap w t : Prop := 
+  match t with
+    | SigWord => True
+    | SigADT adt _ => exists v, Heap.sel heap w = Some v /\ TheType v = adt
+  end.
+
+Definition match_signature heap := Forall2 (match_sig heap).
+
+Require Import CpdtTactics.
+
+Inductive get_args heap args : list ArgSignature -> match_signature heap args sig -> hlist ArgType sig
+  match args with
+    | nil => fun sig =>
+               match sig with
+                 | nil => fun p =>
+  inversion p.
+  induction sig.
+  unfold match_signature in *.
+  induction args.
+  dep_destruct p.
+  unfold Forall2 in *.
+  simpl in *.
+
+
+Inductive match_signature heap : list W -> list ArgSignature -> Prop := 
+  | MatchNil : match_signature heap nil nil
+  | MatchCons : forall x y xs ys, match_sig heap x y -> match_signature heap xs ys -> match_signature heap (x :: xs) (y :: ys).
 
 Section functions.
 
@@ -106,8 +160,10 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let v := (vs, adts) in
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> spec {| Args := args_v; Ret := ret; After := adts' |}
-      -> RunsTo (Syntax.Call var f args) v (upd_option vs var ret, adts').
+      -> forall (p : match_signature adts args_v (Signature spec))
+                (pr : match_return var (Signature spec)),
+      Pred spec {| Args := get_args p; Ret := ret; After := adts' |}
+      -> RunsTo (Syntax.Call var f args) v (upd_return vs ret pr, upd_heap adts' p).
 
 End functions.
 
