@@ -2,48 +2,38 @@ Require Import IL Memory String Word Locals.
 Require Import Sets.
 Require Import Syntax.
 Require Import SemanticsExpr.
+Require Import Dict.
 
 Set Implicit Arguments.
 
-Module WKey : S with Definition A := W.
-  Definition A := W.
-  Definition eq_dec := @weq 32.
-End WKey.
-
-Module WSet := Make WKey.
-Import WSet.
-
-Section models.
-
-Variables models : string -> option Set.
-
-Definition get_model s :=
-  match models s with
-    | None => unit
-    | Some t => t
-  end.
+Record ADT := {
+  Model : Set;
+  Name : string
+}.
 
 Record ADTValue := {
-  TypeName : string;
-  Value : get_model TypeName
+  TheType : ADT;
+  Value : Model TheType
 }.
                     
-Definition Heap := (set * (W -> ADTValue))%type.
+Module MKey : KEY with Definition key := W.
+  Definition key := W.
+  Definition eq_dec := @weq 32.
+End MKey.
 
-Definition upd_arrow A (m : W -> A) k v k' :=
-  if weq k' k then v else m k'.
+Module MData : DATA with Definition data := ADTValue.
+  Definition data := ADTValue.
+End MData.
 
-Definition heap_in w (heap : Heap) := WSet.mem w (fst heap).
+Module MHeap := Dict.Dict MKey MData.
 
-Definition heap_sel (heap : Heap) w := snd heap w.
-
-Definition heap_upd (heap : Heap) w v : Heap := (WSet.add (fst heap) w, upd_arrow (snd heap) w v).
+Definition Heap := MHeap.dict.
 
 Definition st := (vals * Heap)%type.
 
 Inductive ArgSignature := 
   | SigWord : ArgSignature
-  | SigADT : string -> ArgSignature.
+  | SigADT : ADT -> ArgSignature.
 
 Definition ArgType := (W + ADTValue)%type.
 
@@ -64,23 +54,22 @@ Inductive Callee :=
   | Foreign : ForeignFuncSpec -> Callee
   | Internal : Statement -> Callee.
 
-Definition set_value adt_value value := {| TypeName := TypeName adt_value; Value := value |}.
+Definition set_value adt_value value := {| TheType := TheType adt_value; Value := value |}.
 
-Definition match_sig heap w t : Prop := 
-  match t with
-    | SigWord => True
-    | SigADT adt => heap_in w heap /\ TypeName (heap_sel heap w) = adt
-  end.
+Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
+  match v with
+    | inl _ => True
+    | inr adt_value => MHeap.sel heap w = Some adt_value
+  end
+).
 
-Definition match_signature heap := Forall2 (match_sig heap).
-
-Definition match_result := Forall2 (fun (v : ArgType) t =>
+Definition match_signature := Forall2 (fun (v : ArgType) t =>
   match t with
     | SigWord => if v then True else False
     | SigADT adt => 
       match v with
         | inl _ => False
-        | inr adt_value => TypeName adt_value = adt
+        | inr adt_value => TheType adt_value = adt
       end
   end).                                       
 
@@ -90,20 +79,10 @@ Definition good_return heap ret sig :=
     | SigADT adt =>                    
       match snd ret with
         | None => False
-        | Some adt_value => ~ heap_in (fst ret) heap /\ TypeName adt_value = adt
+        | Some adt_value => MHeap.sel heap (fst ret) = None /\ TheType adt_value = adt
       end
   end.
 
-Fixpoint get_args heap args sig : list ArgType :=
-  match args, sig with
-    | w :: ws, t :: ts => 
-      match t with
-        | SigWord => inl w :: get_args heap ws ts
-        | SigADT _ => inr (heap_sel heap w) :: get_args heap ws ts
-      end
-    | _, _ => nil
-  end.
-                
 Definition upd_option vs var value :=
   match var with
     | None => vs
@@ -115,7 +94,7 @@ Fixpoint store_result (heap : Heap) ptrs (result : list ArgType) : Heap :=
     | w :: ws, v :: vs =>
       match v with
         | inl _ => store_result heap ws vs
-        | inr adt_value => store_result (heap_upd heap w adt_value) ws vs
+        | inr adt_value => store_result (MHeap.upd heap w adt_value) ws vs
       end
     | _, _ => heap
   end.
@@ -123,7 +102,7 @@ Fixpoint store_result (heap : Heap) ptrs (result : list ArgType) : Heap :=
 Definition store_return (heap : Heap) ret :=
   match snd ret with
     | None => heap
-    | Some adt_value => heap_upd heap (fst ret) adt_value
+    | Some adt_value => MHeap.upd heap (fst ret) adt_value
   end.
 
 Definition update_heap heap ptrs result ret := store_return (store_result heap ptrs result) ret.
@@ -171,16 +150,17 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> Locals.sel vs_arg "__arg" = arg_v
       -> RunsTo body (vs_arg, adts) (vs', adts')
       -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
-  | CallForeign : forall vs adts var f args spec ret result,
-      let v := (vs, adts) in
+  | CallForeign : forall vs heap var f args adt_values spec ret result,
+      let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       let sig := Signature spec in
       let (args_sig, ret_sig) := sig in 
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> match_signature adts args_v args_sig
-      -> match_result result args_sig             
-      -> good_return adts ret ret_sig             
-      -> Pred spec {| Args := get_args adts args_v args_sig; Ret := ret; After := result |}
+      -> match_heap heap args_v adt_values
+      -> match_signature adt_values args_sig                        
+      -> match_signature result args_sig             
+      -> good_return heap ret ret_sig             
+      -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
 End functions.
