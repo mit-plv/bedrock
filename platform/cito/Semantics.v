@@ -150,16 +150,15 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> Locals.sel vs_arg "__arg" = arg_v
       -> RunsTo body (vs_arg, adts) (vs', adts')
       -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
-  | CallForeign : forall vs heap var f args adt_values spec ret result,
+  | CallForeign : forall vs heap var f args spec adt_values ret result,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       let sig := Signature spec in
-      let (args_sig, ret_sig) := sig in 
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> match_signature adt_values args_sig                        
-      -> match_signature result args_sig             
-      -> good_return heap ret ret_sig             
+      -> match_signature adt_values (fst sig)
+      -> match_signature result (fst sig)
+      -> good_return heap ret (snd sig)
       -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
@@ -196,23 +195,22 @@ CoInductive Safe : Statement -> st -> Prop :=
       Safe (Loop cond body) v
   | Assignment : forall var value v,
       Safe (Syntax.Assignment var value) v
-  | CallForeign : forall vs adts var f args spec ret adts',
-      let args_v := map (fun e => exprDenote e vs) args in
-      functions (exprDenote f vs) = Some (Foreign spec)
-      -> spec {| Args := args_v; Ret := ret; InitialHeap := adts; FinalHeap := adts' |}
-      -> Safe (Syntax.Call var f args) (vs, adts)
   | CallInternal : forall vs adts f arg body,
       let arg_v := exprDenote arg vs in
       functions (exprDenote f vs) = Some (Internal body)
       -> (forall vs_arg, Locals.sel vs_arg "__arg" = arg_v -> Safe body (vs_arg, adts))
       -> Safe (Syntax.Call None f (arg :: nil)) (vs, adts)
-  | CallMethod : forall vs adts var obj f args obj_adt spec new_value ret,
+  | CallForeign : forall vs heap var f args spec adt_values ret result,
+      let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
-      let obj_v := exprDenote obj vs in
-      Heap.sel adts obj_v = Some obj_adt
-      -> Methods (TheType obj_adt) f = Some spec
-      -> spec (Value obj_adt) args_v new_value ret
-      -> Safe (Syntax.CallMethod var obj f args) (vs, adts).
+      let sig := Signature spec in
+      functions (exprDenote f vs) = Some (Foreign spec)
+      -> match_heap heap args_v adt_values
+      -> match_signature adt_values (fst sig)
+      -> match_signature result (fst sig)
+      -> good_return heap ret (snd sig)
+      -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
+      -> Safe (Syntax.Call var f args) v.
 
 End functions'.
 

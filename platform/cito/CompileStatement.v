@@ -25,7 +25,6 @@ Fixpoint depth statement :=
     | Loop cond body => max (edepth cond) (depth body)
     | Syntax.Assignment _ expr => edepth expr
     | Syntax.Call _ f args => 0 (*max (edepth f) (max (1 + edepth arg) 2)*)
-    | Syntax.CallMethod _ obj f args => 0                                
   end.
 
 Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := [| True |]%PropX.
@@ -54,11 +53,11 @@ Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (setting
 
 Definition MIN_RESERVED := 10.
 
-Definition starD (f : W -> ADTValue -> HProp) (d : heap) : HProp.
+Definition starD (f : W -> ADTValue -> HProp) (d : Heap) : HProp.
   admit.
 Defined.
 
-Definition is_heap layout (adts : heap) : HProp := starD (fun w adt => layout adt w) adts.
+Definition is_heap layout (adts : Heap) : HProp := starD (fun w adt => layout adt w) adts.
 
 Require Import Malloc.
 
@@ -132,15 +131,17 @@ Section Compiler.
 
   Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
 
+  Local Notation "v [( e )]" := (exprDenote e (fst v)) (no associativity, at level 60).
+  
   Definition loop_inv cond body k : assert := 
     let s := Loop cond body;: k in
     st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
-    ![^[locals ("rp" :: vars_ex) (fst v) res st#Sp * heap (snd v) * mallocHeap 0] * #0] st
+    ![^[locals ("rp" :: vars_ex) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
     /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
     /\ [| st#Rv = v[(cond)] |]
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = st#Sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs s v v' |]).
 
   Inductive exposeArray : Prop := ExposeArray.
@@ -149,18 +150,27 @@ Section Compiler.
   Definition afterCall k : assert :=
     st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
     let old_sp := st#Sp ^- natToW (4 * (1 + length vars_ex)) in
-    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * heap (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs k v |] ] * #0] st
+    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * is_heap layout (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs k v |] ] * #0] st
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs k v v' |]).
+
+  Fixpoint compile_exprs exprs base :=
+    match exprs with
+      | nil => nil
+      | x :: xs => exprCmd x base :: SaveRv (tempOf base) :: compile_exprs xs (S base)
+    end.
+
+  Fixpoint put_args base target n :=
+    match n with
+      | 0 => nil
+      | S n' => Assign (LvMem (Indir Rv (natToW target))) (RvLval (variableSlot (tempOf base) vars_ex)) 
+                :: put_args (1 + base) (4 + target) n'
+    end.
 
   Fixpoint compile s k :=
     match s with
-      | Syntax.Assignment var expr => Seq (
-          exprCmd expr 0 ::
-          SaveRv var :: 
-          nil)
       | Syntax.Skip => Skip
       | Syntax.Seq a b => Seq2 
           (compile a (Syntax.Seq b k))
@@ -179,54 +189,30 @@ Section Compiler.
           (Seq2
             (compile body (Syntax.Seq (Syntax.Loop cond body) k))
             (exprCmd cond 0)))
-      | Syntax.ReadAt var arr idx => Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd arr 0 ::
-          SaveRv (tempOf 0) ::
-          exprCmd idx 1 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
-            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 0) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
-          Strline (
-            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
-      | Syntax.WriteAt arr idx val =>  Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd val 0 ::
-          SaveRv (tempOf 0) ::
-          exprCmd arr 1 ::
-          SaveRv (tempOf 1) ::
-          exprCmd idx 2 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvImm $4) Times (RvLval (LvReg Rv)) ::
-            IL.Binop (LvReg Rv) (RvLval (variableSlot (tempOf 1) vars_ex)) Plus (RvLval (LvReg Rv)) :: nil) ::
-          Strline (
-            Assign (LvMem (Reg Rv)) (RvLval (variableSlot (tempOf 0) vars_ex)) :: nil) :: nil)
-      | Syntax.Malloc var size => 
-          CompileMalloc.compile vars var size k imports_global modName
-      | Syntax.Free ptr => 
-          CompileFree.compile vars ptr k imports_global modName
-      | Syntax.Len var arr => Seq (
-          Note_ _ _ exposeArray ::
-          exprCmd arr 0 ::
-          Strline (
-            IL.Binop (LvReg Rv) (RvLval (LvReg Rv)) Minus (RvImm $4) :: nil) ::
-          Strline (
-            Assign (variableSlot var vars_ex) (RvLval (LvMem (Reg Rv))) :: nil) :: nil)
-      | Syntax.Call f arg => Seq (
+      | Syntax.Assignment var expr => Seq (
+          exprCmd expr 0 ::
+          SaveRv var :: 
+          nil)
+      | Syntax.Call var f args => Seq (
         exprCmd f 0
         :: SaveRv (tempOf 0)
-        :: exprCmd arg 1
-        :: SaveRv (tempOf 1)
-        :: Strline (
+        :: nil
+        ++ compile_exprs args 1
+        ++ Strline (
           IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars_ex)))
           :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot "__reserved" vars_ex)) Minus (RvImm $3)
-          :: Assign (LvMem (Indir Rv $8)) (RvLval (variableSlot (tempOf 1) vars_ex))
-          :: Assign Rv (RvLval (variableSlot (tempOf 0) vars_ex))
+          :: nil
+          ++ put_args 1 8 (length args)
+          ++ Assign Rv (RvLval (variableSlot (tempOf 0) vars_ex))
           :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars_ex))) 
           :: nil)
         :: Structured.ICall_ _ _ Rv (afterCall k)
         :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars_ex))) :: nil)
-        :: nil)
+        :: match var with
+             | None => nil
+             | Some x => SaveRv x :: nil
+           end
+        )
     end.
 
 Require Import SemanticsExprLemmas SemanticsLemmas.
@@ -1573,8 +1559,6 @@ Ltac RunsTo_Malloc :=
     |- RunsTo _ (Syntax.Malloc _ _) _ _ => econstructor
   end.
 
-Local Notation "v [( e )]" := (exprDenote e (fst v)) (no associativity, at level 60).
-  
 Lemma RunsToRelax_loop_false : forall fs e b k v1 v2, 
   fs ~:~ v1 ~~ k ~~> v2 -> 
   wneb (v1[(e)]) $0 = false -> 
