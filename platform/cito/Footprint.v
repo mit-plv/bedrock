@@ -8,6 +8,5 @@ Fixpoint footprint (statement : Statement) :=
     | Syntax.Loop cond body => varsIn cond ++ footprint body
     | Syntax.Assignment var val => var :: varsIn val
     | Syntax.Call var f args => nil (*varsIn f ++ varsIn arg*)
-    | Syntax.CallMethod var obj f args => nil                                  
   end.
 
