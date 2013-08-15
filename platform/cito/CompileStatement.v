@@ -27,32 +27,6 @@ Fixpoint depth statement :=
     | Syntax.Call _ f args => 0 (*max (edepth f) (max (1 + edepth arg) 2)*)
   end.
 
-Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := [| True |]%PropX.
-(*
-(
-  (Al i : W, Al P : callTransition -> Prop, [| fs i = Some (Foreign P) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs "__reserved") /\ exists a', P {| Arg := sel vs "__arg"; InitialHeap := a; FinalHeap := a' |} |]
-      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
-        [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
-        /\ [| P {| Arg := vs "__arg"; InitialHeap := a; FinalHeap := a' |} |] ))) 
-  /\
-  (Al i : W, Al body, [| fs i = Some (Internal body) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs "__reserved")
-        /\ Safe fs body (vs, a) |]
-      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
-        [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
-        /\ [| exists vs'', RunsTo fs body (vs, a) (vs'', a') |] )))
-)%PropX.
-*)
-
-Definition MIN_RESERVED := 10.
-
 Definition starD (f : W -> ADTValue -> HProp) (d : Heap) : HProp.
   admit.
 Defined.
@@ -60,6 +34,32 @@ Defined.
 Definition is_heap layout (adts : Heap) : HProp := starD (fun w adt => layout adt w) adts.
 
 Require Import Malloc.
+
+Definition arg_names fspec := tempVars (length (fst (Signature fspec))).
+
+Definition S_RESERVED := "!reserved".
+
+Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
+(
+  (Al i : W, Al fspec, [| fs i = Some (Foreign fspec) |]
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
+      ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
+      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
+        [| st'#Sp = st#Sp |]
+        /\ ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
+        /\ [| exists args args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |] ))) 
+  /\
+  (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
+      ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      /\ [| res = wordToNat (vs S_RESERVED)
+        /\ Safe fs (Body ispec) (vs, a) |]
+      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
+        [| st'#Sp = st#Sp |]
+        /\ ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
+        /\ [| exists vs'', RunsTo fs (Body ispec) (vs, a) (vs'', a') /\ st'#Rv = sel vs'' (snd (InOutVars ispec)) |] )))
+)%PropX.
 
 Definition RunsToRelax fs s v v_new := 
   exists v', RunsTo fs s v v' 
@@ -69,24 +69,25 @@ Definition RunsToRelax fs s v v_new :=
 Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
 
 Definition inv layout vars s : assert := 
-  st ~> Ex fs, funcsOk (fst st) fs
+  st ~> Ex fs, funcsOk layout (fst st) fs
   /\ ExX, Ex v, Ex res,
-  ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
-  /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
+  ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
+  /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
   /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
     [| st'#Sp = st#Sp |]
-    /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+    /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
     /\ [| RunsToRelax fs s v v' |]).
 
 Require Import Footprint.
 
+Definition well_formatted_cito_name name := prefix name "!" = false.
+
 Definition vars_require vars s := 
-  List.incl (footprint s) ("__arg" :: vars)
-  /\ List.incl (tempVars (depth s)) (vars)
-  /\ disjoint (footprint s) (tempVars (depth s))
+  List.incl (footprint s) vars
+  /\ List.incl (tempVars (depth s)) vars
+  /\ List.Forall well_formatted_cito_name (footprint s)
   /\ ~ In "rp" vars
-  /\ ~ In "__reserved" vars
-  /\ ~ In "__arg" vars.
+  /\ nth_error vars 0 = Some S_RESERVED.
 
 Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
@@ -111,11 +112,9 @@ Section Compiler.
   Variable imports_global : importsGlobal imports.
   Variable modName : string.
 
-  Definition vars_ex := "__reserved" :: "__arg" :: vars.
-
   Require Import CompileExpr.
 
-  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
+  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars.
 
   Definition Seq2 := @Seq_ _ imports_global modName.
 
@@ -129,31 +128,31 @@ Section Compiler.
       | a :: ls' => Seq2 a (Seq ls')
     end.
 
-  Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
+  Definition SaveRv var := Strline (Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
 
   Local Notation "v [( e )]" := (exprDenote e (fst v)) (no associativity, at level 60).
   
   Definition loop_inv cond body k : assert := 
     let s := Loop cond body;: k in
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
-    ![^[locals ("rp" :: vars_ex) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
-    /\ [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s v |]
+    st ~> Ex fs, funcsOk layout (fst st) fs /\ ExX, Ex v, Ex res,
+    ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
+    /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
     /\ [| st#Rv = v[(cond)] |]
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = st#Sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs s v v' |]).
 
   Inductive exposeArray : Prop := ExposeArray.
   Hint Constructors exposeArray.
 
   Definition afterCall k : assert :=
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
-    let old_sp := st#Sp ^- natToW (4 * (1 + length vars_ex)) in
-    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * is_heap layout (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs k v |] ] * #0] st
+    st ~> Ex fs, funcsOk layout (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
+    let old_sp := st#Sp ^- natToW (4 * (1 + length vars)) in
+    ![^[locals ("rp" :: vars) (fst v) res old_sp * is_heap layout (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs k v |] ] * #0] st
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs k v v' |]).
 
   Fixpoint compile_exprs exprs base :=
@@ -165,8 +164,19 @@ Section Compiler.
   Fixpoint put_args base target n :=
     match n with
       | 0 => nil
-      | S n' => Assign (LvMem (Indir Rv (natToW target))) (RvLval (variableSlot (tempOf base) vars_ex)) 
-                :: put_args (1 + base) (4 + target) n'
+      | S n' => Assign (LvMem (Indir Rv (natToW target))) (RvLval (variableSlot (tempOf base) vars)) :: put_args (1 + base) (4 + target) n'
+    end.
+
+  Definition CheckStack n cmd :=
+    Structured.If_ imports_global 
+      (RvImm (natToW n)) IL.Le (RvLval (variableSlot S_RESERVED vars))
+      cmd
+      (Structured.Diverge_ imports modName).
+
+  Definition SaveRet var :=
+    match var with
+      | None => Skip
+      | Some x => SaveRv x
     end.
 
   Fixpoint compile s k :=
@@ -193,26 +203,24 @@ Section Compiler.
           exprCmd expr 0 ::
           SaveRv var :: 
           nil)
-      | Syntax.Call var f args => Seq (
+      | Syntax.Call var f args => CheckStack (2 + length args) (Seq (
         exprCmd f 0
         :: SaveRv (tempOf 0)
         :: nil
         ++ compile_exprs args 1
         ++ Strline (
-          IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars_ex)))
-          :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot "__reserved" vars_ex)) Minus (RvImm $3)
+          IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars)))
+          :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot S_RESERVED vars)) Minus (RvImm $3)
           :: nil
           ++ put_args 1 8 (length args)
-          ++ Assign Rv (RvLval (variableSlot (tempOf 0) vars_ex))
-          :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars_ex))) 
+          ++ Assign Rv (RvLval (variableSlot (tempOf 0) vars))
+          :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars))) 
           :: nil)
         :: Structured.ICall_ _ _ Rv (afterCall k)
-        :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars_ex))) :: nil)
-        :: match var with
-             | None => nil
-             | Some x => SaveRv x :: nil
-           end
-        )
+        :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars))) :: nil)
+        :: SaveRet var
+        :: nil
+        ))
     end.
 
 Require Import SemanticsExprLemmas SemanticsLemmas.
@@ -221,7 +229,7 @@ Import WMake.
 
   Opaque heap.
 
-  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars_ex, MIN_RESERVED in *.
+  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars, MIN_RESERVED in *.
 
   Lemma add_remove : forall a v, v %in fst a -> a %%= add_arr (remove_arr a v) v (get_arr a v).
     intros; hnf; simpl; intuition (unfold WDict.upd);
@@ -2778,16 +2786,16 @@ Section CompileMalloc.
   (* cope with an [evaluate] failure *)
   Definition length_require A ls vs := @length A ls = wordToNat (vs[size]).
 
-  Definition vars_ex := "__reserved" :: "__arg" :: vars.
+  Definition vars := "__reserved" :: "__arg" :: vars.
 
   Definition afterCall : assert :=
     st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex ls, Ex res,
     let old_sp := st#Sp ^- natToW (4 * 3 + 4 * length vars) in
     let addr := st#Rv in
-    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * heap (snd v) * mallocHeap 0 * array_with_size ls addr * [| length_require ls (fst v) /\ res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s_k v |] ] * #0] st
+    ![^[locals ("rp" :: vars) (fst v) res old_sp * heap (snd v) * mallocHeap 0 * array_with_size ls addr * [| length_require ls (fst v) /\ res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s_k v |] ] * #0] st
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs s_k v v' |]).
 
   Variable imports : LabelMap.t assert.
@@ -2810,16 +2818,16 @@ Section CompileMalloc.
       | a :: ls' => Seq2 a (Seq ls')
     end.
 
-  Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
+  Definition SaveRv var := Strline (Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
 
-  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
+  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars.
 
   Definition body := Seq (
     exprCmd size 0
     :: SaveRv (tempOf 0)
       :: Strline (
         IL.Binop Rv Sp Plus (natToW (4 * 3 + 4 * List.length vars))
-        :: Assign (LvMem (Indir Rv (natToW 4))) (RvLval (variableSlot (tempOf 0) vars_ex))
+        :: Assign (LvMem (Indir Rv (natToW 4))) (RvLval (variableSlot (tempOf 0) vars))
         :: IL.Binop Sp Sp Plus (natToW (4 * 3 + 4 * List.length vars))
         :: nil)
       :: Structured.Call_ imports_global modName ("my_malloc"!"malloc")%SP afterCall
@@ -2835,7 +2843,7 @@ Section CompileMalloc.
 
   Opaque heap.
 
-  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars_ex, MIN_RESERVED in *.
+  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars, MIN_RESERVED in *.
 
   Lemma post_ok : forall (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
@@ -2948,7 +2956,7 @@ Section CompileMalloc.
     instantiate (3 := upd x7 "." (v[size])).
     hiding ltac:(step auto_ext).
     Focus 4.
-    unfold vars_ex in *.
+    unfold vars in *.
     step_himp_helper.
     unfold MIN_RESERVED in *.
     replace_reserved.
@@ -3020,16 +3028,16 @@ Section CompileFree.
 
   Definition precond := inv vars s_k.
 
-  Definition vars_ex := "__reserved" :: "__arg" :: vars.
+  Definition vars := "__reserved" :: "__arg" :: vars.
 
   Definition afterCall : assert :=
     st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
-    let old_sp := st#Sp ^- natToW (4 * (1 + length vars_ex)) in
+    let old_sp := st#Sp ^- natToW (4 * (1 + length vars)) in
     let ptr_v := v[(ptr)] in
-    ![^[locals ("rp" :: vars_ex) (fst v) res old_sp * heap (remove_arr (snd v) ptr_v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s_k v |] ] * #0] st
+    ![^[locals ("rp" :: vars) (fst v) res old_sp * heap (remove_arr (snd v) ptr_v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) "__reserved") /\ MIN_RESERVED <= res /\ Safe fs s_k v |] ] * #0] st
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars_ex) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * heap (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs s_k v v' |]).
 
   Variable imports : LabelMap.t assert.
@@ -3052,21 +3060,21 @@ Section CompileFree.
       | a :: ls' => Seq2 a (Seq ls')
     end.
 
-  Definition SaveRv var := Strline (Assign (variableSlot var vars_ex) (RvLval (LvReg Rv)) :: nil).
+  Definition SaveRv var := Strline (Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
 
-  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars_ex.
+  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars.
 
   Definition body := Seq (
     exprCmd ptr 0
     :: SaveRv (tempOf 0)
     :: Strline (
-      IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars_ex)))
-      :: Assign (LvMem (Indir Rv (natToW 4))) (RvLval (variableSlot (tempOf 0) vars_ex))
-      :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars_ex)))
+      IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars)))
+      :: Assign (LvMem (Indir Rv (natToW 4))) (RvLval (variableSlot (tempOf 0) vars))
+      :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars)))
       :: nil)
     :: Structured.Call_ imports_global modName ("my_free"!"free")%SP afterCall
     :: Strline (
-      IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars_ex)))
+      IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars)))
       :: nil)
     :: nil).
 
@@ -3093,7 +3101,7 @@ Section CompileFree.
 
   Hint Immediate Safe_s_k_second.
 
-  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars_ex, MIN_RESERVED in *.
+  Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic, vars, MIN_RESERVED in *.
 
   Lemma post_ok : forall (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
