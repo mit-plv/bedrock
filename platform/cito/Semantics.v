@@ -41,8 +41,8 @@ Definition RetType := (W * option ADTValue)%type.
 
 Record callTransition := {
   Args : list ArgType;
-  Ret : RetType;
-  After : list ArgType
+  After : list ArgType;
+  Ret : RetType
 }.
 
 Record ForeignFuncSpec := {
@@ -50,9 +50,14 @@ Record ForeignFuncSpec := {
   Pred : callTransition -> Prop
 }.
 
+Record InternalFuncSpec := {
+  InOutVars : list string * string;
+  Body : Statement
+}.
+
 Inductive Callee := 
   | Foreign : ForeignFuncSpec -> Callee
-  | Internal : Statement -> Callee.
+  | Internal : InternalFuncSpec -> Callee.
 
 Definition set_value adt_value value := {| TheType := TheType adt_value; Value := value |}.
 
@@ -109,6 +114,8 @@ Definition update_heap heap ptrs result ret := store_return (store_result heap p
 
 Definition upd_st (v : st) var ptrs result ret : st := let (vs, adts) := v in (upd_option vs var (fst ret), update_heap adts ptrs result ret).
 
+Definition sels vs xs := map (fun x => Locals.sel vs x) xs.
+
 (* Semantics *)
 
 Section functions.
@@ -143,13 +150,13 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let v := (vs, adts) in
       let value_v := exprDenote value vs in
       RunsTo (Syntax.Assignment var value) v (Locals.upd vs var value_v, adts)
-  | CallInternal : forall vs adts f adts' body arg vs_arg vs',
-      let v := (vs, adts) in
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Internal body)
-      -> Locals.sel vs_arg "__arg" = arg_v
-      -> RunsTo body (vs_arg, adts) (vs', adts')
-      -> RunsTo (Syntax.Call None f (arg :: nil)) v (vs, adts')
+  | CallInternal : forall vs heap var f args spec vs_arg vs_arg' heap',
+      let v := (vs, heap) in
+      let args_v := map (fun e => exprDenote e vs) args in
+      functions (exprDenote f vs) = Some (Internal spec)
+      -> sels vs_arg (fst (InOutVars spec)) = args_v
+      -> RunsTo (Body spec) (vs_arg, heap) (vs_arg', heap')
+      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (Locals.sel vs_arg' (snd (InOutVars spec))), heap')
   | CallForeign : forall vs heap var f args spec adt_values ret result,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
@@ -195,11 +202,12 @@ CoInductive Safe : Statement -> st -> Prop :=
       Safe (Loop cond body) v
   | Assignment : forall var value v,
       Safe (Syntax.Assignment var value) v
-  | CallInternal : forall vs adts f arg body,
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Internal body)
-      -> (forall vs_arg, Locals.sel vs_arg "__arg" = arg_v -> Safe body (vs_arg, adts))
-      -> Safe (Syntax.Call None f (arg :: nil)) (vs, adts)
+  | CallInternal : forall vs heap var f args spec,
+      let v := (vs, heap) in
+      let args_v := map (fun e => exprDenote e vs) args in
+      functions (exprDenote f vs) = Some (Internal spec)
+      -> (forall vs_arg, sels vs_arg (fst (InOutVars spec)) = args_v -> Safe (Body spec) (vs_arg, heap))
+      -> Safe (Syntax.Call var f args) v
   | CallForeign : forall vs heap var f args spec adt_values ret result,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in

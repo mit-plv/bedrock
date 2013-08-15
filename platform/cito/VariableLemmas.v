@@ -70,14 +70,20 @@ Notation "'disjoint'" := disj.
 Section variables.
   
   (*Make a temporal variable, of length n, with n consecutive '!' and  a "."*)
-  Fixpoint tempOf n:= 
+  Fixpoint tempOf n := 
     match n with
-      | O => "."
-      | S n' => ("!" ++ (tempOf n'))%string
+      | O => "!"
+      | S n' => ("!" ++ tempOf n')%string
     end.
 
+  Lemma tempOf_not_empty : forall n, tempOf n <> "".
+    induction n; simpl; intuition.
+  Qed.
+  
+  Hint Resolve tempOf_not_empty.
+
   Lemma tempOf_inj: (forall n m: nat, tempOf n = tempOf m -> n = m)%nat.
-    induction n; induction m; simpl; intuition.
+    induction n; induction m; try solve [simpl; intuition]; intros; inversion H; contradict H1; eauto.
   Qed.
 
   Local Hint Resolve tempOf_inj.
@@ -96,12 +102,9 @@ Section variables.
   Definition tempVars length := tempChunk 0 length.
 
   (* test *)
-  Goal tempVars 4 = "." :: "!." :: "!!." :: "!!!." :: nil.
+  Goal tempVars 4 = "!" :: "!!" :: "!!!" :: "!!!!" :: nil.
     auto.
   Qed.
-
-
-
 
   (* Lemmas about In. In_lemmas*) 
   (*Formerly temp_in_array_offset'*)
