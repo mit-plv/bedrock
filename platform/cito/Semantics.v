@@ -33,20 +33,24 @@ Definition st := (vals * Heap)%type.
 
 Inductive ArgSignature := 
   | SigWord : ArgSignature
-  | SigADT : ADT -> ArgSignature.
+  | SigADT : ADT -> bool -> ArgSignature.
 
 Definition ArgType := (W + ADTValue)%type.
+
+Inductive RetSignature :=
+  | RetWord : RetSignature
+  | RetADT : ADT -> RetSignature.
 
 Definition RetType := (W * option ADTValue)%type.
 
 Record callTransition := {
   Args : list ArgType;
-  After : list ArgType;
+  After : list (option ArgType);
   Ret : RetType
 }.
 
 Record ForeignFuncSpec := {
-  Signature : list ArgSignature * ArgSignature;
+  Signature : list ArgSignature * RetSignature;
   Pred : callTransition -> Prop
 }.
 
@@ -71,17 +75,40 @@ Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
 Definition match_signature := Forall2 (fun (v : ArgType) t =>
   match t with
     | SigWord => if v then True else False
-    | SigADT adt => 
+    | SigADT adt _ => 
       match v with
         | inl _ => False
         | inr adt_value => TheType adt_value = adt
       end
   end).                                       
 
+Definition match_result := Forall2 (fun (v : option ArgType) t =>
+  match t with
+    | SigWord => 
+      match v with
+        | None => False
+        | Some v' => if v' then True else False
+      end
+    | SigADT adt false => 
+        match v with
+          | None => False
+          | Some v' =>
+            match v' with
+              | inl _ => False
+              | inr adt_value => TheType adt_value = adt
+            end
+        end
+    | SigADT adt true =>
+        match v with
+          | None => True
+          | Some _ => False
+        end
+  end).                                       
+
 Definition good_return heap ret sig :=
   match sig with
-    | SigWord => True
-    | SigADT adt =>                    
+    | RetWord => True
+    | RetADT adt =>                    
       match snd ret with
         | None => False
         | Some adt_value => MHeap.sel heap (fst ret) = None /\ TheType adt_value = adt
@@ -94,12 +121,16 @@ Definition upd_option vs var value :=
     | Some x => Locals.upd vs x value
   end.
 
-Fixpoint store_result (heap : Heap) ptrs (result : list ArgType) : Heap :=
+Fixpoint store_result (heap : Heap) ptrs (result : list (option ArgType)) : Heap :=
   match ptrs, result with
     | w :: ws, v :: vs =>
-      match v with
-        | inl _ => store_result heap ws vs
-        | inr adt_value => store_result (MHeap.upd heap w adt_value) ws vs
+      match v with 
+        | None => store_result (MHeap.remove heap w) ws vs
+        | Some v' =>
+          match v' with
+            | inl _ => store_result heap ws vs
+            | inr adt_value => store_result (MHeap.upd heap w adt_value) ws vs
+          end
       end
     | _, _ => heap
   end.
@@ -164,9 +195,9 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
       -> match_signature adt_values (fst sig)
-      -> match_signature result (fst sig)
+      -> match_result result (fst sig)
       -> good_return heap ret (snd sig)
-      -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
+      -> Pred spec {| Args := adt_values; After := result; Ret := ret |}
       -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
 End functions.
@@ -215,7 +246,7 @@ CoInductive Safe : Statement -> st -> Prop :=
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
       -> match_signature adt_values (fst sig)
-      -> match_signature result (fst sig)
+      -> match_result result (fst sig)
       -> good_return heap ret (snd sig)
       -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> Safe (Syntax.Call var f args) v.
