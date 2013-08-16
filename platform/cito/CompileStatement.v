@@ -27,9 +27,7 @@ Fixpoint depth statement :=
     | Syntax.Call _ f args => 0 (*max (edepth f) (max (1 + edepth arg) 2)*)
   end.
 
-Definition starD (f : W -> ADTValue -> HProp) (d : Heap) : HProp.
-  admit.
-Defined.
+Definition starD (f : W -> ADTValue -> HProp) (d : Heap) := MHeap.MSet.starS (fun p => f p (MHeap.sel d p)) (MHeap.keys d).
 
 Definition is_heap layout (adts : Heap) : HProp := starD (fun w adt => layout adt w) adts.
 
@@ -223,9 +221,10 @@ Section Compiler.
         ))
     end.
 
-Require Import SemanticsExprLemmas SemanticsLemmas.
-Require Import MyMalloc MyFree.
-Import WMake.
+  Require Import SemanticsExprLemmas.
+  Require Import SemanticsLemmas.
+  Require Import MyMalloc MyFree.
+  Import WMake.
 
   Opaque heap.
 
@@ -479,7 +478,7 @@ Import WMake.
 
   Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
-    vcs (verifCond s k imports pre) ->
+    vcs (verifCond s k pre) ->
     interp specs (Postcondition (compile s k pre) x) ->
     interp specs (postcond k x).
     unfold verifCond, imply; induction s.
