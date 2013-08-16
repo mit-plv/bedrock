@@ -42,23 +42,22 @@ Definition S_RESERVED := "!reserved".
 Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
 (
   (Al i : W, Al fspec, [| fs i = Some (Foreign fspec) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res,
       ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
-      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
+      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
+      /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a', Ex args', Ex ret,
         [| st'#Sp = st#Sp |]
         /\ ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
-        /\ [| exists args args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |] ))) 
+        /\ [| a' = update_heap a (sels vs (arg_names fspec)) args' ret /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
   /\
   (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
       ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs S_RESERVED)
-        /\ Safe fs (Body ispec) (vs, a) |]
+      /\ [| res = wordToNat (vs S_RESERVED) /\ Safe fs (Body ispec) (vs, a) |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
         [| st'#Sp = st#Sp |]
         /\ ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
-        /\ [| exists vs'', RunsTo fs (Body ispec) (vs, a) (vs'', a') /\ st'#Rv = sel vs'' (snd (InOutVars ispec)) |] )))
+        /\ [| RunsTo fs (Body ispec) (vs, a) (vs', a') /\ st'#Rv = sel vs' (snd (InOutVars ispec)) |] )))
 )%PropX.
 
 Definition RunsToRelax fs s v v_new := 
@@ -203,23 +202,24 @@ Section Compiler.
           exprCmd expr 0 ::
           SaveRv var :: 
           nil)
-      | Syntax.Call var f args => CheckStack (2 + length args) (Seq (
-        exprCmd f 0
-        :: SaveRv (tempOf 0)
-        :: nil
-        ++ compile_exprs args 1
-        ++ Strline (
-          IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars)))
-          :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot S_RESERVED vars)) Minus (RvImm $3)
+      | Syntax.Call var f args => let init_frame := 2 + length args in 
+        CheckStack init_frame (Seq (
+          exprCmd f 0
+          :: SaveRv (tempOf 0)
           :: nil
-          ++ put_args 1 8 (length args)
-          ++ Assign Rv (RvLval (variableSlot (tempOf 0) vars))
-          :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars))) 
-          :: nil)
-        :: Structured.ICall_ _ _ Rv (afterCall k)
-        :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars))) :: nil)
-        :: SaveRet var
-        :: nil
+          ++ compile_exprs args 1
+          ++ Strline (
+            IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars)))
+            :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot S_RESERVED vars)) Minus (RvImm (natToW init_frame))
+            :: nil
+            ++ put_args 1 8 (length args)
+            ++ Assign Rv (RvLval (variableSlot (tempOf 0) vars))
+            :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars))) 
+            :: nil)
+          :: Structured.ICall_ _ _ Rv (afterCall k)
+          :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars))) :: nil)
+          :: SaveRet var
+          :: nil
         ))
     end.
 
