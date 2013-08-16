@@ -4,13 +4,9 @@ Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import Arith.
 
 Section Safe_coind.
+
+  Variable functions : W -> option Callee.
   Variable R : Statement -> st -> Prop.
-
-  Import WMake.
-
-  Hypothesis ReadAtCase : forall var arr idx vs arrs, R (Syntax.ReadAt var arr idx) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
-
-  Hypothesis WriteAtCase : forall arr idx val vs arrs, R (Syntax.WriteAt arr idx val) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
 
   Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo functions a v v' -> R b v'.
 
@@ -18,48 +14,35 @@ Section Safe_coind.
 
   Hypothesis LoopCase : forall cond body v, R (Syntax.Loop cond body) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R body v /\ (forall v', RunsTo functions body v v' -> R (Loop cond body) v')) \/ (wneb (exprDenote cond (fst v)) $0 = false).
 
-  Hypothesis MallocCase : forall var size vs arrs, R (Syntax.Malloc var size) (vs, arrs) -> goodSize (wordToNat (exprDenote size vs) + 2).
+  Hypothesis CallCase : forall vs heap var f args,
+    let args_v := map (fun e => exprDenote e vs) args in
+    R (Syntax.Call var f args) (vs, heap)
+    -> (exists spec adt_values result ret, 
+      functions (exprDenote f vs) = Some (Foreign spec)
+      /\ match_heap heap args_v adt_values
+      /\ match_signature adt_values (fst (Signature spec))
+      /\ match_result result (fst (Signature spec))
+      /\ good_return heap ret (snd (Signature spec))
+      /\ Pred spec {| Args := adt_values; Ret := ret; After := result |})
+    \/ (exists spec, functions (exprDenote f vs) = Some (Internal spec) 
+      /\ (forall vs_arg, sels vs_arg (fst (InOutVars spec)) = args_v -> R (Body spec) (vs_arg, heap))).
 
-  Hypothesis FreeCase : forall arr vs arrs, R (Syntax.Free arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
-
-  Hypothesis LenCase : forall var arr vs arrs, R (Syntax.Len var arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
-
-  Hypothesis ForeignCallCase : forall vs arrs f arg,
-    R (Syntax.Call f arg) (vs, arrs)
-    -> (exists spec arrs', functions (exprDenote f vs) = Some (Foreign spec)
-      /\ spec {| Arg := exprDenote arg vs; InitialHeap := arrs; FinalHeap := arrs' |}) \/
-    (exists body, functions (exprDenote f vs) = Some (Internal body) /\ forall vs_arg, Locals.sel vs_arg "__arg" = exprDenote arg vs -> R body (vs_arg, arrs)).
-
+  Import Safety.
   Hint Constructors Safe.
-
-  Ltac openhyp := 
-    repeat match goal with
-             | H : _ /\ _ |- _  => destruct H
-             | H : _ \/ _ |- _ => destruct H
-             | H : exists x, _ |- _ => destruct H
-           end.
 
   Ltac break_pair :=
     match goal with
       V : (_ * _)%type |- _ => destruct V
     end.
 
-  Theorem Safe_coind : forall c v, R c v -> Safe c v.
+  Theorem Safe_coind : forall c v, R c v -> Safe functions c v.
     cofix; unfold st; intros; break_pair; destruct c.
 
+    (* skip *)
     eauto.
-    Guarded.
-
-    eapply ReadAtCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply WriteAtCase in H; openhyp; eauto.
     Guarded.
 
     eapply SeqCase in H; openhyp; eauto.
-    Guarded.
-
-    eauto.
     Guarded.
 
     eapply ConditionalCase in H; openhyp; eauto.
@@ -68,16 +51,11 @@ Section Safe_coind.
     eapply LoopCase in H; openhyp; eauto.
     Guarded.
 
-    eapply MallocCase in H; openhyp; eauto.
+    (* assignment *)
+    eauto.
     Guarded.
 
-    eapply FreeCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply LenCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply ForeignCallCase in H; openhyp; eauto.
+    eapply CallCase in H; openhyp; eauto.
     Guarded.
   Qed.
 
@@ -316,10 +294,13 @@ Section HintsSection.
 
   Hint Resolve exprDenote_disjoint.
 
+  Require Import Footprint.
+
   Lemma RunsTo_footprint : forall statement vs1 vs2,
     RunsTo functions statement vs1 vs2 ->
     changed_in (fst vs1) (fst vs2) (footprint statement).
     induction 1; intros; simpl in *; clear_inv; pre_eauto; eauto.
+    (* here *)
   Qed.
 
   Hint Resolve RunsTo_footprint.
