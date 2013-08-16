@@ -68,7 +68,7 @@ Definition set_value adt_value value := {| TheType := TheType adt_value; Value :
 Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
   match v with
     | inl _ => True
-    | inr adt_value => MHeap.sel heap w = Some adt_value
+    | inr adt_value => MHeap.mem heap w /\ MHeap.sel heap w = adt_value
   end
 ).
 
@@ -111,7 +111,7 @@ Definition good_return heap ret sig :=
     | RetADT adt =>                    
       match snd ret with
         | None => False
-        | Some adt_value => MHeap.sel heap (fst ret) = None /\ TheType adt_value = adt
+        | Some adt_value => ~ MHeap.mem heap (fst ret) /\ TheType adt_value = adt
       end
   end.
 
