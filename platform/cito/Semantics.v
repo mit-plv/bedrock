@@ -31,26 +31,19 @@ Definition Heap := MHeap.dict.
 
 Definition st := (vals * Heap)%type.
 
-Inductive ArgSignature := 
-  | SigWord : ArgSignature
-  | SigADT : ADT -> bool -> ArgSignature.
-
 Definition ArgType := (W + ADTValue)%type.
 
-Inductive RetSignature :=
-  | RetWord : RetSignature
-  | RetADT : ADT -> RetSignature.
+Definition ResultType := (W + option ADTValue)%type.
 
 Definition RetType := (W * option ADTValue)%type.
 
 Record callTransition := {
   Args : list ArgType;
-  After : list (option ArgType);
+  After : list ResultType;
   Ret : RetType
 }.
 
 Record ForeignFuncSpec := {
-  Signature : list ArgSignature * RetSignature;
   Pred : callTransition -> Prop
 }.
 
@@ -63,8 +56,6 @@ Inductive Callee :=
   | Foreign : ForeignFuncSpec -> Callee
   | Internal : InternalFuncSpec -> Callee.
 
-Definition set_value adt_value value := {| TheType := TheType adt_value; Value := value |}.
-
 Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
   match v with
     | inl _ => True
@@ -72,47 +63,10 @@ Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
   end
 ).
 
-Definition match_signature := Forall2 (fun (v : ArgType) t =>
-  match t with
-    | SigWord => if v then True else False
-    | SigADT adt _ => 
-      match v with
-        | inl _ => False
-        | inr adt_value => TheType adt_value = adt
-      end
-  end).                                       
-
-Definition match_result := Forall2 (fun (v : option ArgType) t =>
-  match t with
-    | SigWord => 
-      match v with
-        | None => False
-        | Some v' => if v' then True else False
-      end
-    | SigADT adt false => 
-        match v with
-          | None => False
-          | Some v' =>
-            match v' with
-              | inl _ => False
-              | inr adt_value => TheType adt_value = adt
-            end
-        end
-    | SigADT adt true =>
-        match v with
-          | None => True
-          | Some _ => False
-        end
-  end).                                       
-
-Definition good_return heap ret sig :=
-  match sig with
-    | RetWord => True
-    | RetADT adt =>                    
-      match snd ret with
-        | None => False
-        | Some adt_value => ~ MHeap.mem heap (fst ret) /\ TheType adt_value = adt
-      end
+Definition good_return heap ret :=
+  match snd ret with
+    | None => False
+    | Some adt_value => ~ heap_in (fst ret) heap
   end.
 
 Definition upd_option vs var value :=
@@ -121,15 +75,15 @@ Definition upd_option vs var value :=
     | Some x => Locals.upd vs x value
   end.
 
-Fixpoint store_result (heap : Heap) ptrs (result : list (option ArgType)) : Heap :=
+Fixpoint store_result (heap : Heap) ptrs (result : list ResultType) : Heap :=
   match ptrs, result with
     | w :: ws, v :: vs =>
       match v with 
-        | None => store_result (MHeap.remove heap w) ws vs
-        | Some v' =>
+        | inl _ => store_result heap ws vs
+        | inr v' => 
           match v' with
-            | inl _ => store_result heap ws vs
-            | inr adt_value => store_result (MHeap.upd heap w adt_value) ws vs
+            | None => store_result (MHeap.remove heap w) ws vs
+            | Some adt_value => store_result (MHeap.upd heap w adt_value) ws vs
           end
       end
     | _, _ => heap
@@ -191,12 +145,8 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
   | CallForeign : forall vs heap var f args spec adt_values result ret,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
-      let sig := Signature spec in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> match_signature adt_values (fst sig)
-      -> match_result result (fst sig)
-      -> good_return heap ret (snd sig)
       -> Pred spec {| Args := adt_values; After := result; Ret := ret |}
       -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
@@ -242,12 +192,8 @@ CoInductive Safe : Statement -> st -> Prop :=
   | CallForeign : forall vs heap var f args spec adt_values result ret,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
-      let sig := Signature spec in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> match_signature adt_values (fst sig)
-      -> match_result result (fst sig)
-      -> good_return heap ret (snd sig)
       -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> Safe (Syntax.Call var f args) v.
 
