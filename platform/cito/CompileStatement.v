@@ -33,20 +33,18 @@ Definition is_heap layout (adts : Heap) : HProp := starD (fun w adt => layout ad
 
 Require Import Malloc.
 
-Definition arg_names fspec := tempVars (length (fst (Signature fspec))).
-
 Definition S_RESERVED := "!reserved".
 
 Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
 (
   (Al i : W, Al fspec, [| fs i = Some (Foreign fspec) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res,
-      ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args' ret, match_heap a (sels vs (arg_names fspec)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res, Ex narg,
+      ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args' ret, match_heap a (sels vs (tempVars narg)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a', Ex args', Ex ret,
         [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: S_RESERVED :: arg_names fspec) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
-        /\ [| a' = update_heap a (sels vs (arg_names fspec)) args' ret /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
+        /\ ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
+        /\ [| a' = update_heap a (sels vs (tempVars narg)) args' ret /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
   /\
   (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
