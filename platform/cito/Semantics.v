@@ -63,10 +63,10 @@ Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
   end
 ).
 
-Definition good_return heap ret :=
+Definition good_return (heap : Heap) (ret : RetType) :=
   match snd ret with
-    | None => False
-    | Some adt_value => ~ heap_in (fst ret) heap
+    | None => True
+    | Some adt_value => ~ MHeap.mem heap (fst ret)
   end.
 
 Definition upd_option vs var value :=
@@ -147,6 +147,7 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
+      -> good_return heap ret
       -> Pred spec {| Args := adt_values; After := result; Ret := ret |}
       -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
 
@@ -194,6 +195,7 @@ CoInductive Safe : Statement -> st -> Prop :=
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
+      -> good_return heap ret
       -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> Safe (Syntax.Call var f args) v.
 
