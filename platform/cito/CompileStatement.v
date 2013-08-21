@@ -11,7 +11,7 @@ Set Implicit Arguments.
 
 Infix ";:" := Syntax.Seq (left associativity, at level 110).
 
-Infix "<-" := Syntax.Assignment (at level 90, no associativity).
+Infix "<-" := Syntax.Assign (at level 90, no associativity).
 
 Require DepthExpr.
 
@@ -21,15 +21,21 @@ Fixpoint depth statement :=
   match statement with
     | Syntax.Skip => 0
     | Syntax.Seq a b => max (depth a) (depth b) 
-    | Conditional cond t f => max (edepth cond) (max (depth t) (depth f))
-    | Loop cond body => max (edepth cond) (depth body)
-    | Syntax.Assignment _ expr => edepth expr
+    | Syntax.If cond t f => max (edepth cond) (max (depth t) (depth f))
+    | While cond body => max (edepth cond) (depth body)
+    | Syntax.Assign _ expr => edepth expr
     | Syntax.Call _ f args => 0 (*max (edepth f) (max (1 + edepth arg) 2)*)
   end.
 
 Definition starD (f : W -> ADTValue -> HProp) (d : Heap) := MHeap.MSet.starS (fun p => f p (MHeap.sel d p)) (MHeap.keys d).
 
-Definition is_heap layout (adts : Heap) : HProp := starD (fun w adt => layout adt w) adts.
+Definition is_heap layout (heap : Heap) : HProp := starD (fun w adt_value => layout adt_value w) heap.
+
+Definition is_return layout (ret : RetType) : HProp :=
+  match snd ret with
+    | None => ([| True |])%Sep
+    | Some adt_value => layout adt_value (fst ret)
+  end.
 
 Require Import Malloc.
 
@@ -38,13 +44,13 @@ Definition S_RESERVED := "!reserved".
 Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
 (
   (Al i : W, Al fspec, [| fs i = Some (Foreign fspec) |]
-    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res, Ex narg,
+    ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res, let narg := length args in
       ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs S_RESERVED) /\ exists args' ret, match_heap a (sels vs (tempVars narg)) args /\ Pred fspec {| Args := args; After := args'; Ret := ret |} |]
+      /\ [| res = wordToNat (vs S_RESERVED) /\ match_heap a (sels vs (tempVars narg)) args /\ exists args' ret, Pred fspec {| Args := args; After := args'; Ret := ret |} |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a', Ex args', Ex ret,
         [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
-        /\ [| a' = update_heap a (sels vs (tempVars narg)) args' ret /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
+        /\ ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs' res st'#Sp * is_heap layout a' * is_return layout ret * mallocHeap 0] * #1] st'
+        /\ [| a' = store_result a (sels vs (tempVars narg)) args' /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
   /\
   (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
@@ -75,12 +81,12 @@ Definition inv layout vars s : assert :=
 
 Require Import Footprint.
 
-Definition well_formatted_cito_name name := prefix name "!" = false.
+Definition good_name name := prefix name "!" = false.
 
 Definition vars_require vars s := 
   List.incl (footprint s) vars
   /\ List.incl (tempVars (depth s)) vars
-  /\ List.Forall well_formatted_cito_name (footprint s)
+  /\ List.Forall good_name (footprint s)
   /\ ~ In "rp" vars
   /\ nth_error vars 0 = Some S_RESERVED.
 

@@ -63,10 +63,10 @@ Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
   end
 ).
 
-Definition good_return (heap : Heap) (ret : RetType) :=
+Definition new_return (heap : Heap) (ret : RetType) :=
   match snd ret with
     | None => True
-    | Some adt_value => ~ MHeap.mem heap (fst ret)
+    | Some _ => ~ MHeap.mem heap (fst ret)
   end.
 
 Definition upd_option vs var value :=
@@ -95,10 +95,6 @@ Definition store_return (heap : Heap) ret :=
     | Some adt_value => MHeap.upd heap (fst ret) adt_value
   end.
 
-Definition update_heap heap ptrs result ret := store_return (store_result heap ptrs result) ret.
-
-Definition upd_st (v : st) var ptrs result ret : st := let (vs, adts) := v in (upd_option vs var (fst ret), update_heap adts ptrs result ret).
-
 Definition sels vs xs := map (fun x => Locals.sel vs x) xs.
 
 (* Semantics *)
@@ -114,27 +110,27 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       RunsTo a v v' -> 
       RunsTo b v' v'' -> 
       RunsTo (Syntax.Seq a b) v v''
-  | ConditionalTrue : forall v v' cond t f, 
+  | IfTrue : forall v v' cond t f, 
       wneb (exprDenote cond (fst v)) $0 = true -> 
       RunsTo t v v' -> 
-      RunsTo (Conditional cond t f) v v'
-  | ConditionFalse : forall v v' cond t f, 
+      RunsTo (Syntax.If cond t f) v v'
+  | IfFalse : forall v v' cond t f, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
       RunsTo f v v' -> 
-      RunsTo (Conditional cond t f) v v'
-  | LoopTrue : forall v v' v'' cond body, 
-      let statement := Loop cond body in
+      RunsTo (Syntax.If cond t f) v v'
+  | WhileTrue : forall v v' v'' cond body, 
+      let statement := While cond body in
       wneb (exprDenote cond (fst v)) $0 = true -> 
       RunsTo body v v' -> 
       RunsTo statement v' v'' -> 
       RunsTo statement v v''
-  | LoopFalse : forall v cond body, 
+  | WhileFalse : forall v cond body, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
-      RunsTo (Loop cond body) v v
-  | Assignment : forall var value vs adts, 
+      RunsTo (While cond body) v v
+  | Assign : forall var value vs adts, 
       let v := (vs, adts) in
       let value_v := exprDenote value vs in
-      RunsTo (Syntax.Assignment var value) v (Locals.upd vs var value_v, adts)
+      RunsTo (Assign var value) v (Locals.upd vs var value_v, adts)
   | CallInternal : forall vs heap var f args spec vs_arg vs_arg' heap',
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
@@ -147,9 +143,10 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> good_return heap ret
       -> Pred spec {| Args := adt_values; After := result; Ret := ret |}
-      -> RunsTo (Syntax.Call var f args) v (upd_st v var args_v result ret).
+      -> let heap' := store_result heap args_v result in
+         new_return heap' ret
+      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (fst ret), store_return heap' ret).
 
 End functions.
 
@@ -165,25 +162,25 @@ CoInductive Safe : Statement -> st -> Prop :=
       Safe a v ->
       (forall v', RunsTo functions a v v' -> Safe b v') -> 
       Safe (Syntax.Seq a b) v
-  | ConditionalTrue : forall v cond t f, 
+  | IfTrue : forall v cond t f, 
       wneb (exprDenote cond (fst v)) $0 = true -> 
       Safe t v -> 
-      Safe (Conditional cond t f) v
-  | ConditionFalse : forall v cond t f, 
+      Safe (Syntax.If cond t f) v
+  | IfFalse : forall v cond t f, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
       Safe f v -> 
-      Safe (Conditional cond t f) v
-  | LoopTrue : forall v cond body, 
-      let statement := Loop cond body in
+      Safe (Syntax.If cond t f) v
+  | WhileTrue : forall v cond body, 
+      let statement := While cond body in
       wneb (exprDenote cond (fst v)) $0 = true -> 
       Safe body v ->
       (forall v', RunsTo functions body v v' -> Safe statement v') -> 
       Safe statement v
-  | LoopFalse : forall v cond body, 
+  | WhileFalse : forall v cond body, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
-      Safe (Loop cond body) v
-  | Assignment : forall var value v,
-      Safe (Syntax.Assignment var value) v
+      Safe (While cond body) v
+  | Assign : forall var value v,
+      Safe (Syntax.Assign var value) v
   | CallInternal : forall vs heap var f args spec,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
@@ -195,7 +192,6 @@ CoInductive Safe : Statement -> st -> Prop :=
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> good_return heap ret
       -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
       -> Safe (Syntax.Call var f args) v.
 
