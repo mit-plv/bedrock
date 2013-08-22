@@ -48,7 +48,8 @@ Record ForeignFuncSpec := {
 }.
 
 Record InternalFuncSpec := {
-  InOutVars : list string * string;
+  ArgVars : list string;
+  RetVar : string;
   Body : Statement
 }.
 
@@ -135,9 +136,9 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Internal spec)
-      -> sels vs_arg (fst (InOutVars spec)) = args_v
+      -> sels vs_arg (ArgVars spec) = args_v
       -> RunsTo (Body spec) (vs_arg, heap) (vs_arg', heap')
-      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (Locals.sel vs_arg' (snd (InOutVars spec))), heap')
+      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (Locals.sel vs_arg' (RetVar spec)), heap')
   | CallForeign : forall vs heap var f args spec adt_values result ret,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
@@ -185,7 +186,7 @@ CoInductive Safe : Statement -> st -> Prop :=
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Internal spec)
-      -> (forall vs_arg, sels vs_arg (fst (InOutVars spec)) = args_v -> Safe (Body spec) (vs_arg, heap))
+      -> (forall vs_arg, sels vs_arg (ArgVars spec) = args_v -> Safe (Body spec) (vs_arg, heap))
       -> Safe (Syntax.Call var f args) v
   | CallForeign : forall vs heap var f args spec adt_values result ret,
       let v := (vs, heap) in

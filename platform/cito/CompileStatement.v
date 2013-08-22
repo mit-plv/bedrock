@@ -54,12 +54,12 @@ Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (
   /\
   (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
       /\ [| res = wordToNat (vs S_RESERVED) /\ Safe fs (Body ispec) (vs, a) |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
         [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: S_RESERVED :: fst (InOutVars ispec)) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
-        /\ [| RunsTo fs (Body ispec) (vs, a) (vs', a') /\ st'#Rv = sel vs' (snd (InOutVars ispec)) |] )))
+        /\ ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
+        /\ [| RunsTo fs (Body ispec) (vs, a) (vs', a') /\ st'#Rv = sel vs' (RetVar ispec) |] )))
 )%PropX.
 
 Definition RunsToRelax fs s v v_new := 
