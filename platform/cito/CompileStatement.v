@@ -716,44 +716,9 @@ Section Compiler.
     Safe fs (Syntax.If e t f;: k) v ->
     wneb (v[(e)]) $0 = true ->
     Safe fs (t;: k) v.
-    inversion 1; intros; econstructor.
-(*here*)
-eapply Safe_seq_first.
- apply Safety.Seq.
-  eapply Safe_cond_true.
-   exact H2.
-   exact H5.
-   intro.
-   intro.
-   apply Assign.
-
-eapply Safe_seq_first.
-
- apply Safety.Seq.
-
-  eapply Safe_cond_true.
-
-   exact H2.
-
-   exact H5.
-
-   intro.
-
-   exact H5.
-
-   intro.
-
-   intro.
-
-   apply Assign.
-
-
-  eapply Safe_cond_true.
-
-   exact H2.
-
-   exact H5.
-
+    inversion 1; intros; econstructor; eauto.
+    Grab Existential Variables.
+    eauto.
     eauto.
   Qed.
   Hint Resolve Safe_cond_true_k.
@@ -897,10 +862,10 @@ eapply Safe_seq_first.
     clear; intros; inv_Safe; subst; inversion H; subst; econstructor; [ | intros; econstructor ].
     eauto.
     eauto.
-    info_eauto.
+    eauto.
     Grab Existential Variables.
-    eauto.
-    eauto.
+    exact (Const 1).
+    exact ("").
   Qed.
   Ltac true_not_false :=
     match goal with
@@ -917,6 +882,9 @@ eapply Safe_seq_first.
     rewrite <- H2 in *.
     eauto.
     eauto.
+    Grab Existential Variables.
+    exact (Const 1).
+    exact ("").
   Qed.
   Hint Resolve Safe_loop_true.
   Lemma RunsTo_loop_true : forall fs e b v1 v2,
@@ -1092,6 +1060,8 @@ eapply Safe_seq_first.
 
   Hint Resolve Safe_assoc_left.
 
+  Local Notation skip := Syntax.Skip.
+
   Lemma RunsToRelax_skip : forall fs s v1 v2,
     fs ~:~ v1 ~~ s ~~> v2 ->
     fs ~:~ v1 ~~ skip;: s ~~> v2.
@@ -1160,7 +1130,7 @@ eapply Safe_seq_first.
           end
         | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
           match P with
-            context [ heap ?HEAP ] => 
+            context [ is_heap _ ?HEAP ] => 
             match goal with
               H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
             end
@@ -1197,30 +1167,6 @@ eapply Safe_seq_first.
     eauto.
   Qed.
 
-  Lemma Safe_ReadAt_safe_access : forall fs var arr idx v, 
-    Safe fs (Syntax.ReadAt var arr idx) v ->
-    safe_access (snd v) (exprDenote arr (fst v)) (exprDenote idx (fst v)).
-    intros; inv_Safe_clear; eauto.
-  Qed.
-
-  Lemma Safe_WriteAt_safe_access : forall fs arr idx val v, 
-    Safe fs (Syntax.WriteAt arr idx val) v ->
-    safe_access (snd v) (exprDenote arr (fst v)) (exprDenote idx (fst v)).
-    intros; inv_Safe_clear; eauto.
-  Qed.
-
-  Lemma Safe_ReadAt_k_safe_access : forall fs var arr idx v k, 
-    Safe fs (Syntax.ReadAt var arr idx;: k) v ->
-    safe_access (snd v) (exprDenote arr (fst v)) (exprDenote idx (fst v)).
-    intros; eapply Safe_seq_first in H; inv_Safe_clear; eauto.
-  Qed.
-
-  Lemma Safe_WriteAt_k_safe_access : forall fs arr idx val v k, 
-    Safe fs (Syntax.WriteAt arr idx val;: k) v ->
-    safe_access (snd v) (exprDenote arr (fst v)) (exprDenote idx (fst v)).
-    intros; eapply Safe_seq_first in H; inv_Safe_clear; eauto.
-  Qed.
-
   Ltac not_exist t :=
     match goal with
       | H : t |- _ => fail 1
@@ -1231,7 +1177,7 @@ eapply Safe_seq_first.
 
   Ltac assert_new_as t name := not_exist t; assert t as name.
 
-  Definition heap_tag arrs (_ _ : W) := heap arrs.
+  Definition heap_tag layout arrs (_ _ : W) := is_heap layout arrs.
 
   Ltac set_all t := let name := fresh "t" in set (name := t) in *.
 
@@ -1242,12 +1188,6 @@ eapply Safe_seq_first.
         | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
         | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
       end.
-
-  Lemma Safe_Len_k_in : forall fs var ptr v k, 
-    Safe fs (Syntax.Len var ptr;: k) v ->
-    fst v[ptr] %in fst (snd v).
-    intros; eapply Safe_seq_first in H; inv_Safe_clear; eauto.
-  Qed.
 
   Ltac simpl_interp :=
     match goal with
@@ -1264,7 +1204,7 @@ eapply Safe_seq_first.
 
   Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
 
-  Definition heap_to_split arrs (_ : W) := heap arrs.
+  Definition heap_to_split layout arrs (_ : W) := is_heap layout arrs.
 
   Ltac cond_gen := try
     match goal with
@@ -1272,8 +1212,8 @@ eapply Safe_seq_first.
         match INST with
           | context [variablePosition ?vars ?s] => assert_new (In s vars)
           | context [variableSlot ?s ?vars] => assert_new (In s vars)
-          | context [ LvMem (Reg Rv) ] =>
-            match goal with
+          | context [ LvMem (Reg Rv) ] => idtac
+(*            match goal with
               | H : safe_access ?ARRS ?ARR ?IDX, H_rv : Regs ST Rv = _ |- _ =>
                 assert_new (Regs ST Rv = ARR ^+ $4 ^* IDX); [ | clear H_rv; replace (heap ARRS) with (heap_tag ARRS ARR IDX) in * by eauto; set_all ARR; set_all IDX ]
               | H : ?ARR %in fst ?ARRS, H_rv : Regs ST Rv = _ |- _ =>
@@ -1283,9 +1223,11 @@ eapply Safe_seq_first.
               | H : Safe _ (Syntax.ReadAt _ ?ARR ?IDX;: _) ?ST |- _ => generalize H; eapply Safe_ReadAt_k_safe_access in H; simpl in H
               | H : Safe _ (Syntax.WriteAt ?ARR ?IDX _;: _) ?ST |- _ => generalize H; eapply Safe_WriteAt_k_safe_access in H; simpl in H
               | H : Safe _ (Syntax.Len _ ?ARR;: _) ?ST |- _ => generalize H; eapply Safe_Len_k_in in H; simpl in H
-            end
+            end*)
         end; [ clear H_eval .. | cond_gen ]
     end.
+
+(*here*)
 
   Definition get_arr (arrs : arrays) addr := snd arrs addr.
 
@@ -1929,8 +1871,6 @@ eapply Safe_seq_first.
   Ltac eval_statement := pre_eval_statement; transit; open_hyp; try_post.
 
   Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
-
-  Local Notation skip := Syntax.Skip.
 
   Lemma Safe_skip : forall fs k v a,
     Safe fs (skip;: k) (v, a)
