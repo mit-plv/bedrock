@@ -233,6 +233,8 @@ Local Hint Extern 2 (_ <= _)%nat => try erewrite wordToNat_wplus' by eassumption
 
 Hint Rewrite wordToNat_wminus using nomega : sepFormula.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 Theorem ok : moduleOk m.
   vcgen; abstract t.
 Qed.

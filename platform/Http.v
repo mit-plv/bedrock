@@ -477,6 +477,8 @@ Ltac t' :=
 
 Ltac t := easy || prove_irrel || t'.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 Theorem ok : moduleOk m.
   vcgen; abstract t.
 Qed.
