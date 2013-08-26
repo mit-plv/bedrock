@@ -3,6 +3,9 @@ Require Import SinglyLinkedList ListSegment RelDb.
 
 Set Implicit Arguments.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
+
 (** * Inserting into a table *)
 
 Opaque mult.
