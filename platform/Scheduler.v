@@ -2,6 +2,8 @@ Require Import AutoSep Malloc Bags ThreadQueue ThreadQueues SinglyLinkedList Mor
 Import W_Bag.
 Export AutoSep Malloc W_Bag.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 Module Type S.
   Parameter globalSched : W.
 
