@@ -111,4 +111,4 @@ Ltac match_locals :=
     | [ _ : context[locals ?NS ?X _ _] |- context[locals ?NS ?Y _ _] ] => equate X Y
   end; descend.
 
-Hint Extern 1 (@eq W _ _) => words.
+Local Hint Extern 1 (@eq W _ _) => words.

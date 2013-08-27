@@ -1,5 +1,7 @@
 Require Import AutoSep Malloc MoreArrays.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 (** Basic token-level XML parsing *)
 
