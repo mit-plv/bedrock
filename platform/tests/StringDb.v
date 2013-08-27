@@ -1,6 +1,8 @@
 Require Import AutoSep Malloc Bags Arrays8 MoreArrays.
 Import Bags.W_Bag.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 Inductive shape :=
 | Leaf : shape

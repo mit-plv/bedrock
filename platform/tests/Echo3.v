@@ -1,5 +1,7 @@
 Require Import Thread Arrays8 MoreArrays.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 Module Type S.
   Variables globalSched globalSock : W.
