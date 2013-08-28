@@ -4,8 +4,8 @@ MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	DepthExpr FootprintExpr \
 	CpdtTactics DataStruct \
 	SemanticsExprLemmas Syntax Dict Semantics Footprint SemanticsLemmas \
-	Depth SyntaxNotations \
-	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
+	Depth SyntaxNotations RunsToRelax \
+	CompileExpr SepLemmas CompileStatement \
 	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
