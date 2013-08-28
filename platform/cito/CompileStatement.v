@@ -4,7 +4,9 @@ Require Import VariableLemmas.
 Require Import GeneralTactics.
 Require Import SyntaxExpr SemanticsExpr.
 Require Import Syntax Semantics.
-Require Import SyntaxNotations
+Require Import SyntaxNotations.
+Require Import RunsToRelax.
+Require Import Footprint Depth.
 Import DefineStructured.
 Import Safety.
 
@@ -174,10 +176,6 @@ Section Compiler.
           (Seq2
             (compile body (Syntax.Seq (Syntax.While cond body) k))
             (exprCmd cond 0)))
-      | Syntax.Assign var expr => Seq (
-          exprCmd expr 0 ::
-          SaveRv var :: 
-          nil)
       | Syntax.Call var f args => let init_frame := 2 + length args in 
         CheckStack init_frame (Seq (
           exprCmd f 0
@@ -290,59 +288,9 @@ Section Compiler.
   Hint Resolve plus_le.
   Hint Resolve lt_le_S plus_lt.
 
-  Lemma le_max_l_trans : forall a b c, (a <= b -> a <= max b c)%nat.
-    intros; eapply le_trans.
-    2: eapply Max.le_max_l.
-    eauto.
-  Qed.
   Hint Resolve le_max_l_trans.
-
-  Lemma le_max_r_trans : forall a b c, (a <= c -> a <= max b c)%nat.
-    intros; eapply le_trans.
-    2: eapply Max.le_max_r.
-    eauto.
-  Qed.
   Hint Resolve le_max_r_trans.
-
-  Ltac max_le_solver :=
-    repeat 
-      match goal with
-        | |- ?A <= ?A => eapply le_n
-        | |- max ?A ?B <= _ => eapply Max.max_lub
-        | |- ?S <= max ?A _ =>
-          match A with
-            context [ S ] => eapply le_max_l_trans
-          end
-        | |- ?S <= max _ ?B =>
-          match B with
-            context [ S ] => eapply le_max_r_trans
-          end
-      end.
   Hint Extern 0 (_ <= _) => progress max_le_solver.
-
-  Ltac incl_app_solver :=
-    repeat 
-      match goal with
-        | |- List.incl ?A ?A => eapply List.incl_refl
-        | |- List.incl (?A ++ ?B) _ => eapply incl_app
-        | |- List.incl (?A :: ?B) _ => eapply List.incl_cons
-        | |- List.incl ?S (?A ++ _) =>
-          match A with
-            context [ S ] => eapply incl_appl
-          end
-        | |- List.incl ?S (_ ++ ?B) =>
-          match B with
-            context [ S ] => eapply incl_appr
-          end
-        | |- List.incl ?S (?A :: _) =>
-          match A with
-            context [ S ] => eapply (@incl_appl _ _ _ (_ :: nil))
-          end
-        | |- List.incl ?S (?A :: ?B) =>
-          match B with
-            context [ S ] => eapply (@incl_appr _ _ (_ :: nil))
-          end
-      end.
   Hint Extern 0 (List.incl _ _) => progress incl_app_solver.
 
   Hint Resolve in_eq In_incl.
@@ -383,21 +331,7 @@ Section Compiler.
     end.
   Hint Extern 12 => use_unchanged_exprDenote.
 
-  Lemma incl_tempChunk2 : forall b n m, b + n <= m -> List.incl (tempChunk b n) (tempVars m).
-    intros; eapply incl_tempChunk; eauto.
-  Qed.
-
   Hint Resolve incl_tempChunk2.
-
-  Ltac auto_apply_in t :=
-    match goal with
-      H : _ |- _ => eapply t in H
-    end.
-
-  Ltac apply_in_all t :=
-    repeat match goal with
-             H : _ |- _ => eapply t in H
-           end.
 
   Ltac inv_Safe :=
     match goal with
@@ -427,14 +361,6 @@ Section Compiler.
 
   Lemma disjoint_disj : forall A (a : list A) b, disjoint a b -> disj a b.
     unfold disj, disj; eauto.
-  Qed.
-
-  Lemma changed_trans_l : forall vs1 vs2 vs3 a c, 
-    changedVariables vs1 vs2 a -> 
-    changedVariables vs2 vs3 c ->
-    List.incl a c ->
-    changedVariables vs1 vs3 c.
-    eauto.
   Qed.
 
   Lemma del_not_in : forall s e, ~ e %in s %- e.
@@ -574,12 +500,6 @@ Section Compiler.
         eapply (@LoopPartialStep _ _ _ _ _ V'' H)
     end.
 
-  Ltac use_changed_in_eval :=
-    match goal with
-      H : VariableLemmas.equiv ?V (merge _ _ _) |- changed_in ?V _ _ =>
-        apply_in_all RunsTo_footprint; eapply changed_in_eval; [eassumption | ..]
-    end.
-
   Ltac pre_descend := first [change_RunsTo | auto_apply_in runs_loop_partially_finish; [change_RunsTo | ..] ]; open_hyp; break_st.
 
   Ltac arrays_eq_solver :=
@@ -685,9 +605,6 @@ Section Compiler.
     wneb (v[(e)]) $0 = true ->
     Safe fs (t;: k) v.
     inversion 1; intros; econstructor; eauto.
-    Grab Existential Variables.
-    eauto.
-    eauto.
   Qed.
   Hint Resolve Safe_cond_true_k.
   Lemma Safe_cond_false_k : forall fs e t f k v, 
@@ -695,25 +612,9 @@ Section Compiler.
     wneb (v[(e)]) $0 = false ->
     Safe fs (f;: k) v.
     inversion 1; intros; econstructor; eauto.
-    Grab Existential Variables.
-    eauto.
-    eauto.
   Qed.
   Hint Resolve Safe_cond_false_k.
 
-  Ltac use_disjoint_trans'' := 
-    match goal with
-      | H : disjoint ?A ?B |- disjoint ?C _ =>
-        match A with context [ C ] =>
-          eapply (@disjoint_trans_lr _ A B C _ H)
-        end 
-      | H : disjoint ?A ?B |- disjoint (?C1 ++ ?C2) _ =>
-        match A with context [ C1 ] =>
-          match A with context [ C2 ] =>
-            eapply (@disjoint_trans_lr _ A B (C1 ++ C2) _ H)
-          end
-        end 
-    end.
   Hint Extern 1 => use_disjoint_trans''.
 
   Ltac change_rp :=
@@ -723,32 +624,14 @@ Section Compiler.
     end.
   Local Notation "'tmps' s" := (tempVars (depth s)) (at level 60).
   Local Notation "'etmps' s" := (tempVars (edepth s)) (at level 60).
-  Ltac change_RunsTo_for_goal :=
-    match goal with
-      H : RunsTo _ ?S ?VS1 _ |- context [ RunsTo _ ?S ?VS1' _ ] => generalize H; eapply RunsTo_immune with (vs1' := VS1') in H; intros
-    end.
-
   Local Notation agree_in := unchanged_in.
   Local Notation agree_except := changed_in.
-  Definition st_agree_except (v1 v2 : st) vars := agree_except (fst v1) (fst v2) vars /\ snd v1 = snd v2.
   Local Notation "b [ vars => c ]" := (merge c b vars) (no associativity, at level 60).
   Infix "==" := VariableLemmas.equiv.
   Local Notation "v1 =~= v2 [^ except ]" := (st_agree_except v1 v2 except) (no associativity, at level 60).
 
-  Lemma st_agree_except_symm : forall v1 v2 ex, v1 =~= v2 [^ex] -> v2 =~= v1 [^ex].
-    unfold st_agree_except; intuition.
-  Qed.
-
-  Ltac change_RunsTo_to t :=
-    match goal with
-      H : RunsTo _ ?S ?VS1 _ |- _ => generalize H; eapply RunsTo_immune with (vs1' := t) in H; intros
-    end.
-
   Local Notation "fs -:- v1 -- s --> v2" := (RunsTo fs s v1 v2) (no associativity, at level 60).
 
-  Lemma inversion_RunsTo_seq : forall fs a b v1 v2, fs -:- v1 -- a;: b --> v2 -> exists v, fs -:- v1 -- a --> v /\ fs -:- v -- b --> v2.
-    inversion 1; eauto.
-  Qed.
   Hint Resolve Max.max_lub.
 
   Lemma st_agree_except_refl : forall v ex, v =~= v [^ex].
@@ -763,29 +646,15 @@ Section Compiler.
   Hint Unfold st_agree_except.
 
   Local Notation "v [ e ]" := (exprDenote e v) (no associativity, at level 60).
-  Lemma Safe_assign : forall fs var e k vs arrs,
-    Safe fs (var <- e;: k) (vs, arrs)
-    -> Safe fs k (upd vs var (vs[e]), arrs).
-    inversion 1; eauto.
-  Qed.
   Lemma in_not_in_ne : forall A ls (a b : A), In a ls -> ~ In b ls -> a <> b.
     intuition.
   Qed.
-
-  Fixpoint denote_sem s (v : st) := 
-    match s with
-      | var <- e => (upd (fst v) var (fst v[e]), snd v)
-      | _ => v
-    end.
 
   Lemma Safe_assoc_left : forall fs a b c v, Safe fs (a;: b;: c) v -> Safe fs (a;: (b;: c)) v.
     clear; intros; inv_Safe; subst; inversion H; subst; econstructor; [ | intros; econstructor ].
     eauto.
     eauto.
     eauto.
-    Grab Existential Variables.
-    exact (Const 1).
-    exact ("").
   Qed.
   Ltac true_not_false :=
     match goal with
@@ -802,17 +671,8 @@ Section Compiler.
     rewrite <- H2 in *.
     eauto.
     eauto.
-    Grab Existential Variables.
-    exact (Const 1).
-    exact ("").
   Qed.
   Hint Resolve Safe_loop_true.
-  Lemma RunsTo_loop_true : forall fs e b v1 v2,
-    fs -:- v1 -- b;: While e b --> v2 ->
-    wneb (v1[(e)]) $0 = true ->
-    fs -:- v1 -- While e b --> v2.
-    clear; intros; eapply inversion_RunsTo_seq in H; openhyp; eauto.
-  Qed.
   Hint Resolve RunsTo_loop_true.
   Lemma Safe_loop_true_k : forall fs e b k v, 
     Safe fs (While e b;: k) v ->
@@ -831,45 +691,6 @@ Section Compiler.
   Qed.
   Hint Resolve Safe_loop_true_k.
   Local Notation agree_except_trans := changedVariables_trans.
-  Definition tmps_diff big small := tempChunk (depth small) (depth big - depth small).
-  Lemma agree_except_app_comm : forall vs1 vs2 a b,
-    agree_except vs1 vs2 (a ++ b) ->
-    agree_except vs1 vs2 (b ++ a).
-    intros; eauto.
-  Qed.
-  Lemma merge_comm : forall v vars1 v1 vars2 v2,
-    disjoint vars1 vars2 ->
-    v [vars1 => v1] [vars2 => v2] == v [vars2 => v2] [vars1 => v1].
-    intros.
-    unfold VariableLemmas.equiv, changedVariables.
-    intros.
-    contradict H0.
-    destruct (In_dec string_dec x vars1).
-    destruct (In_dec string_dec x vars2).
-    unfold disj in *.
-    contradict H.
-    eauto.
-    rewrite sel_merge by eauto.
-    rewrite sel_merge_outside by eauto.
-    rewrite sel_merge by eauto.
-    eauto.
-    destruct (In_dec string_dec x vars2).
-    rewrite sel_merge_outside by eauto.
-    rewrite sel_merge by eauto.
-    rewrite sel_merge by eauto.
-    eauto.
-    rewrite sel_merge_outside by eauto.
-    rewrite sel_merge_outside by eauto.
-    rewrite sel_merge_outside by eauto.
-    rewrite sel_merge_outside by eauto.
-    eauto.
-  Qed.
-
-  Lemma equiv_merge_equiv : forall v1 v2 vars v,
-    v1 == v2 ->
-    v1 [vars => v] == v2 [vars => v].
-    intros; eapply two_merge_equiv; eauto.
-  Qed.
 
   Hint Resolve RunsToRelax_seq_bwd.
 
@@ -1202,18 +1023,6 @@ Section Compiler.
       | H:_ = Regs ?ST Rv |- _ = Regs ?ST Rv => pattern_r; rewriter_r
     end.
 
-  Ltac RunsToRelax_assign_solver :=
-    match goal with
-      H : _ ~:~ _ ~~ ?K ~~> _ |- _ ~:~ _ ~~ _ <- _;: ?K ~~> _ =>
-        eapply RunsToRelax_assign; [ eassumption | unfold st_agree_except | ]; simpl
-    end.
-
-  Ltac Safe_assign_solver :=
-    match goal with
-      H : Safe _ (_ <- _;: ?K) _ |- Safe _ ?K _ =>
-        eapply Safe_immune; [ eapply Safe_assign; eassumption | eapply changed_unchanged; [ rewriter; use_changed_in_upd_same | ] ]
-    end.
-
   Ltac rp_upd_solver :=
     match goal with
       |- ?A = Some _ =>
@@ -1246,12 +1055,6 @@ Section Compiler.
     match goal with
       |- _ %%= MHeap.upd _ _ _ =>
       equiv_solver2; [ | unfold MHeap.sel; symmetry; eapply upd_sel_equiv ]
-    end.
-
-  Ltac pick_Safe := 
-    match goal with
-      | H : Safe _ (Syntax.Assign _ _;: ?K) _ |- Safe _ ?K _ =>    
-        eapply Safe_assign in H; eapply Safe_immune; [ eassumption | ]
     end.
 
   Ltac pre_eauto := try first [
@@ -1364,8 +1167,6 @@ Section Compiler.
     rv_solver' |
     Safe_cond_solver |
     RunsToRelax_seq_solver |
-    RunsToRelax_assign_solver |
-    Safe_assign_solver | 
     freeable_goodSize_solver |
     changed_unchanged_disjoint |
     equiv_solver2' |
@@ -1499,8 +1300,6 @@ Section Compiler.
     rv_solver' |
     Safe_cond_solver2 |
     RunsToRelax_seq_solver |
-    RunsToRelax_assign_solver |
-    Safe_assign_solver | 
     freeable_goodSize_solver |
     changed_unchanged_disjoint |
     equiv_solver2' |
@@ -1558,7 +1357,7 @@ Section Compiler.
         try match goal with
               | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
             end;
-        pick_vs; descend; try (pick_Safe || (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]));
+        pick_vs; descend; try (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]);
           clear_or.
 
   Ltac middle :=

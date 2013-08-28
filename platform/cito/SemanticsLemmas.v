@@ -48,10 +48,6 @@ Section Safe_coind.
     eapply WhileCase in H; openhyp; eauto.
     Guarded.
 
-    (* assign *)
-    eauto.
-    Guarded.
-
     eapply CallCase in H; openhyp; eauto.
     Guarded.
   Qed.
