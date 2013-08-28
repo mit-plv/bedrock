@@ -75,10 +75,6 @@ Definition ewf (ns : list string) (cdatas : list (string * string)) (e : exp) : 
 Definition eqwf ns (sch : schema) cdatas (e : equality) : Prop :=
   In (fst e) sch /\ ewf ns cdatas (snd e).
 
-
-
-Print condition.
-
 Definition cwf ns sch cdatas : condition -> Prop := List.Forall (eqwf ns sch cdatas).
 
 Fixpoint removeTable (tab : string) (ts : tables) : tables :=
