@@ -1,9 +1,5 @@
 Require Import AutoSep Wrap StringOps SinglyLinkedList Malloc ArrayOps Bags.
 Require Import RelDb RelDbCondition RelDbSelect.
-Print HintDb core.
-
-Require Import RelDb RelDbCondition RelDbSelect.
-Print HintDb core.
 
 
 Set Implicit Arguments.
@@ -78,6 +74,10 @@ Definition ewf (ns : list string) (cdatas : list (string * string)) (e : exp) : 
 
 Definition eqwf ns (sch : schema) cdatas (e : equality) : Prop :=
   In (fst e) sch /\ ewf ns cdatas (snd e).
+
+
+
+Print condition.
 
 Definition cwf ns sch cdatas : condition -> Prop := List.Forall (eqwf ns sch cdatas).
 
@@ -565,7 +565,7 @@ Lemma selN_lenl : forall sch col cols,
   intros; apply selN_col; auto; rewrite length_lenl; auto.
 Qed.
 
-Hint Immediate selN_posl selN_lenl.
+Hint Resolve selN_posl selN_lenl.
 
 Lemma inBounds_selN : forall sch len cols,
   RelDb.inBounds len cols
@@ -578,6 +578,8 @@ Lemma inBounds_selN : forall sch len cols,
   intros; eapply inBounds_selN; try eassumption.
   rewrite H4; eapply findCol_bound; auto.
 Qed.
+
+Hint Resolve inBounds_selN.
 
 Hint Extern 1 (_ + _ <= _)%nat =>
   eapply inBounds_selN; try eassumption; (cbv beta; congruence).
@@ -815,8 +817,6 @@ Lemma NoDups_move : forall avs ts t rw data,
 Qed.
 
 Hint Immediate NoDups_move.
-
-Check toCmd.
 
 Module Type TO_CMD.
   Parameter toCmd' : chunk ->
@@ -1144,7 +1144,6 @@ Section Out.
               "tmp" <- "tmp" + (length (Schema (Table av2)) * 4)%nat;;
               "tmp" <-* "tmp" + (4 * findCol (Schema (Table av2)) col2)%nat;;
 
-              "tmp" <- "olen" - "opos";;
               Note [reveal_row];;
               If ("matched" = "tmp") {
                 Assert [Al a : A, Al bsI, Al bsO,
@@ -1193,7 +1192,7 @@ Section Out.
                         (findCol (Schema (Table av2)) col2) |]
                       * [| natToW (findCol (Schema (Table av2)) col2)
                         < natToW (length (posl cols2)) |]%word)
-                    * [| V "matched" = V "tmp" |]%word
+                    * [| V "matched" = V "tmp"|]%word
                   POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
                     * [| length bsO' = length bsO |] * invPost a V R];;
 
@@ -1242,11 +1241,10 @@ Section Out.
                         + length (Schema (Table av2))
                         + length (Schema (Table av2))) |]
                       * [| buf2 <> 0 |] * [| freeable8 buf2 (length bs2) |]
-                      * [| V "tmp" = Array.selN (lenl cols2)
+                      * [| V "matched" = Array.selN (lenl cols2)
                         (findCol (Schema (Table av2)) col2) |]
                       * [| natToW (findCol (Schema (Table av2)) col2)
                         < natToW (length (posl cols2)) |]%word)
-                    * [| V "matched" = V "tmp" |]%word
                   POST[R] Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf")
                     * [| length bsO' = length bsO |] * invPost a V R];;
 
@@ -1304,8 +1302,8 @@ Section Out.
                     * [| length bsO' = length bsO |] * invPost a V R];;
 
                 Note [reveal_row];;
-                "overflowed" <-* Data av1;;
                 Rp <-* Data av2;;
+                "overflowed" <-* Data av1;;
 
                 "res" <-- Call "array8"!"equal"("overflowed", "tmp", Rp, "res", "matched")
                 [Al a : A, Al bsI, Al bsO,
@@ -1447,6 +1445,18 @@ Section Out.
       | [ H : _ |- vcs _ ] => apply vcs_app_fwd || apply H
     end; post.
 
+  Lemma cursor_wiggle : forall V' V P avs a,
+    goodCursors avs
+    -> (forall x, x <> "overflowed" -> x <> "opos" ->
+      x <> "tmp" -> x <> "matched" -> x <> "res" -> sel V x = sel V' x)
+    -> invPre a V ===> invPre a V'
+    -> invPre a V * (cursors V avs * P)
+    ===> P * (invPre a V' * cursors V' avs).
+    clear; sepLemma; apply himp_star_frame.
+    apply weaken_cursors; auto.
+    auto.
+  Qed.
+
   Ltac bash :=
     try match goal with
           | [ H : context[invPost] |- ?P = ?Q ] =>
@@ -1493,6 +1503,7 @@ Section Out.
     try apply make_cursor; try apply unmake_cursor;
     try (apply matchup; solve [ auto ]);
     try (apply matchup2; solve [ auto ]);
+    try (apply cursor_wiggle; solve [ descend; try apply goodCursors_removeCursor; auto ]);
     try (etransitivity; [ apply himp_star_comm | ]; apply himp_star_frame; try reflexivity;
       apply release_cursor; eauto);
     try (etransitivity; [ | (apply cursor_expand || apply cursor_expand'); try eassumption ];
@@ -1763,6 +1774,30 @@ Section Out.
             post; try match goal with
                         | [ |- vcs (_ :: _) ] => wrap0; try discriminate
                       end
+        | [ |- context[IfEqual] ] =>
+          simpl; propxFo;
+            do 2 erewrite findCursor_good in * by eauto;
+              try match goal with
+                    | [ H : interp _ _ |- _ ] =>
+                      generalize dependent H; vcgen_simp; propxFo
+                  end;
+              match goal with
+                | [ |- vcs _ ] =>
+                  vcgen_simp; wrap0;
+                  try match goal with
+                        | [ |- vcs _] => fold (@app Prop); wrap0;
+                          rewrite toCmd'_eq; match goal with
+                                               | [ IH : _ |- _ ] => apply IH; eauto
+                                             end
+                      end
+                | _ => deDouble; intuition subst;
+                  match goal with
+                    | [ H : interp _ _, IH : _ |- _ ] =>
+                      rewrite toCmd'_eq in H;
+                        apply IH in H; eauto; [ | clear H ]; (deSpec; t)
+                  end
+                | _ => idtac
+              end
         | _ =>
           intros; split; unfold Out'; match goal with
                                         | [ |- context[OutList] ] => simpl
@@ -1833,6 +1868,25 @@ Section Out.
 
     Hint Immediate goodSize_goodCursors.
 
+    Lemma sel_upd_Data : forall av x vs v,
+      (exists avs, goodCursors avs /\ In av avs)
+      -> In x cvars
+      -> sel (upd vs x v) (Data av) = sel vs (Data av).
+      clear; destruct 1; intros; apply sel_upd_ne; intuition.
+      eapply Forall_forall in H2; eauto; intuition.
+    Qed.
+
+    Lemma sel_upd_Row : forall av x vs v,
+      (exists avs, goodCursors avs /\ In av avs)
+      -> In x cvars
+      -> sel (upd vs x v) (Row av) = sel vs (Row av).
+      clear; destruct 1; intros; apply sel_upd_ne; intuition.
+      eapply Forall_forall in H2; eauto; intuition.
+    Qed.
+
+    Hint Rewrite sel_upd_Data sel_upd_Row
+      using ((simpl; tauto) || (do 2 esplit; eassumption)) : sepFormula.
+
     Lemma Out_correct : forall cdatas, cdatasGood cdatas
       -> incl baseVars ns
       -> forall xm avs ts pre im mn (H : importsGlobal im),
@@ -1864,412 +1918,6 @@ Section Out.
         /\ vcs (VerifCond (toCmd (Out' cdatas avs ts xm) mn H ns res pre)).
       induction xm using xml_ind'.
 
-      Focus 6.
-      match goal with
-        | [ |- context[IfEqual] ] =>
-          simpl; propxFo;
-            do 2 erewrite findCursor_good in * by eauto(*;
-              try match goal with
-                    | [ H : interp _ _ |- _ ] =>
-                      generalize dependent H; vcgen_simp; propxFo
-                  end*)
-      end.
-
-      admit.
-      (*deDouble; intuition subst;
-        match goal with
-          | [ H : interp _ _ |- _ ] =>
-            rewrite toCmd'_eq in H;
-              apply IHxm in H; eauto; [ | clear H ]; (deSpec; t)
-        end.
-
-      step2.
-      step2.
-      step2.*)
-
-      vcgen_simp; wrap0.
-
-      admit. admit. admit. admit. admit. admit.
-      (*step2.
-      step2.
-      step2.
-      step2.
-      step2.
-      step2.*)
-
-      deDouble; deSpec; intuition subst.
-      post.
-      repeat invoke1.
-      prep.
-      propxFo.
-      repeat invoke1.
-      prepl.
-      evaluate auto_ext.
-
-      desc.
-      sep_canceller ltac:ILTacCommon.isConst auto_ext
-      ltac:(hints_ext_simplifier auto_ext).
-      (*sep_easy.*)
-      repeat
-        match goal with
-          | H:Logic.ex _ |- _ => destruct H
-          | H:_ /\ _ |- _ => destruct H
-          | |- Logic.ex _ => sep_easy; eexists
-          | |- _ /\ _ => split
-          | |- forall x, _ => intro
-          | |- _ = _ => reflexivity
-          | |- himp _ _ _ =>
-            reflexivity ||
-              (apply frame_reflexivity;
-                try match goal with
-                      | |- _ = ?X => instantiate ( 1 := X ) 
-                    end; apply eq_refl)
-        end.
-
-      sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      2: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      3: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      3: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      3: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      4: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      5: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      6: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      7: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      8: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      8: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      Focus 8.
-      instantiate (1 := x15).
-
-      Print HintDb core.
-      
-      words.
-      debug auto with contradiction.
-      8: sep_easy; autorewrite with sepFormula ; rereg; try subst.
-      
-      
-      
-
-   sep_firstorder; clear_junk
-      Print Ltac cancel.
-      cancel auto_ext.
-
-      assert (   exists
-     (x18 : A) (x19 x20 : list B) (a0 : ST.settings * smem ->
-                                        PropX W (settings * state)) 
-   (x21 : vals),
-     simplify specs
-       (![^[(Ex buf1 : W,
-              (Ex len1 : W,
-               (Ex cols1 : list (W * W),
-                (Ex bs1 : list B,
-                 sel x21 (Data x0) =*> buf1 *
-                 (sel x21 (Data x0) ^+ $ (4)) =*> len1 *
-                 array (posl cols1) (sel x21 (Data x0) ^+ $ (8)) *
-                 array (lenl cols1)
-                   (sel x21 (Data x0) ^+ $ (8)
-                    ^+ $ (Datatypes.length (Schema (Table x0)) * 4)) *
-                 array8 bs1 buf1 * [|Datatypes.length bs1 = wordToNat len1|] *
-                 [|Datatypes.length cols1 =
-                   Datatypes.length (Schema (Table x0))|] *
-                 [|RelDb.inBounds len1 cols1|] *
-                 [|sel x21 (Data x0) = 0 -> False|] *
-                 [|freeable (sel x21 (Data x0))
-                     (S
-                        (S
-                           (Datatypes.length (Schema (Table x0)) +
-                            Datatypes.length (Schema (Table x0)))))|] *
-                 [|buf1 = 0 -> False|] *
-                 [|freeable8 buf1 (Datatypes.length bs1)|] *
-                 [|sel x21 "matched" =
-                   selN (lenl cols1) (findCol (Schema (Table x0)) col1)|]))))] * 
-          #0] (a, b))
-       (SCons (ST.settings * smem) nil a0 (SNil W (settings * state)))).
-
-      desc.
-      step auto_ext.
-      Print Ltac step.
-
-      assert (   exists
-     (x18 : A) (x19 x20 : list B) (a0 : ST.settings * smem ->
-                                        PropX W (settings * state)) 
-   (x21 : vals),
-     simplify specs
-       (![^[locals ("rp" :: ns) x21 res (Regs b Sp) *
-            (array8 x19 (sel x21 "buf") * array8 x20 (sel x21 "obuf") *
-             [|Datatypes.length x19 = wordToNat (sel x21 "len")|] *
-             [|Datatypes.length x20 = wordToNat (sel x21 "olen")|] *
-             [|inBounds cdatas (sel x21)|] *
-             [|sel x21 "olen" < sel x21 "opos" -> False|] *
-             invPre x18 (sel x21) *
-             cursors (sel x21)
-               (removeCursor (Name (Table x))
-                  (removeCursor (Name (Table x0)) avs)) * 
-             db ts *
-             inv (Address (Table x0)) (Schema (Table x0)) 
-               (sel x21 (Row x0)) (sel x21 (Data x0)) *
-             inv (Address (Table x)) (Schema (Table x)) 
-               (sel x21 (Row x)) (sel x21 (Data x)) *
-             (Ex buf1 : W,
-              (Ex len1 : W,
-               (Ex cols1 : list (W * W),
-                (Ex bs1 : list B,
-                 sel x21 (Data x0) =*> buf1 *
-                 (sel x21 (Data x0) ^+ $ (4)) =*> len1 *
-                 array (posl cols1) (sel x21 (Data x0) ^+ $ (8)) *
-                 array (lenl cols1)
-                   (sel x21 (Data x0) ^+ $ (8)
-                    ^+ $ (Datatypes.length (Schema (Table x0)) * 4)) *
-                 array8 bs1 buf1 * [|Datatypes.length bs1 = wordToNat len1|] *
-                 [|Datatypes.length cols1 =
-                   Datatypes.length (Schema (Table x0))|] *
-                 [|RelDb.inBounds len1 cols1|] *
-                 [|sel x21 (Data x0) = 0 -> False|] *
-                 [|freeable (sel x21 (Data x0))
-                     (S
-                        (S
-                           (Datatypes.length (Schema (Table x0)) +
-                            Datatypes.length (Schema (Table x0)))))|] *
-                 [|buf1 = 0 -> False|] *
-                 [|freeable8 buf1 (Datatypes.length bs1)|] *
-                 [|sel x21 "matched" =
-                   selN (lenl cols1) (findCol (Schema (Table x0)) col1)|])))) *
-             (Ex buf2 : W,
-              (Ex len2 : W,
-               (Ex cols2 : list (W * W),
-                (Ex bs2 : list B,
-                 sel x21 (Data x) =*> buf2 *
-                 (sel x21 (Data x) ^+ $ (4)) =*> len2 *
-                 array (posl cols2) (sel x21 (Data x) ^+ $ (8)) *
-                 array (lenl cols2)
-                   (sel x21 (Data x) ^+ $ (8)
-                    ^+ $ (Datatypes.length (Schema (Table x)) * 4)) *
-                 array8 bs2 buf2 * [|Datatypes.length bs2 = wordToNat len2|] *
-                 [|Datatypes.length cols2 =
-                   Datatypes.length (Schema (Table x))|] *
-                 [|RelDb.inBounds len2 cols2|] *
-                 [|sel x21 (Data x) = 0 -> False|] *
-                 [|freeable (sel x21 (Data x))
-                     (S
-                        (S
-                           (Datatypes.length (Schema (Table x)) +
-                            Datatypes.length (Schema (Table x)))))|] *
-                 [|buf2 = 0 -> False|] *
-                 [|freeable8 buf2 (Datatypes.length bs2)|] *
-                 [|findCol (Schema (Table x)) col2 <
-                   Datatypes.length (lenl cols2)|]%nat)))))] * 
-          #0] (a, b))
-       (SCons (ST.settings * smem) nil a0 (SNil W (settings * state))) /\
-     (exists a1 : ST.settings * state -> PropX W (settings * state),
-        specs (sel x21 "rp") = Some (fun x22 : settings * state => a1 x22) /\
-        (forall x22 : state,
-         interp specs
-           (([|Regs x22 Sp = Regs b Sp|] /\
-             (Ex x23 : vals,
-              (Ex x24 : list B,
-               subst (G := ((settings * state)%type : Type) :: nil)
-                 (subst (G := ((settings * state)%type : Type)
-                   :: ((settings * smem)%type : Type) :: nil)
-                    (![^[locals ("rp" :: ns) x23 res (Regs b Sp) *
-                         (array8 x19 (sel x21 "buf") *
-                          array8 x24 (sel x21 "obuf") *
-                          [|Datatypes.length x24 = Datatypes.length x20|] *
-                          invPost x18 (sel x21) (Regs x22 Rv))] * 
-                       #1] (a, x22)) a0) a1)))%PropX ---> 
-            a1 (a, x22))))).
-
-      desc.
-
-      match goal with
-        | [ _ : context[locals _ ?V _ _] |- _ ] =>
-          instantiate (2 := V)
-      end.
-      descend.
-      step auto_ext.
-
-      assert (interp specs (![ Emp ] (a, b))) by admit; clear H38.
-      clear Hrp Hres H H0 IHxm H5 H6 H7 H8 H9 H10 H11 H12 H13 H29.
-      clear H17 H16 H18 H19 H21 H28 H14 H24 H36 H36 H74 H75 H76 H77 H37
-        H78 H79 H80 H81 H82 H83 H84 H85 H86 H87 H88 H89 H90 H91 H92 H93.
-
-
-      assert (interp specs
-          (![(fun (stn : ST.settings) (sm : smem) => x7 (stn, sm)) *
-             SEP.ST.star
-               (inv (Address (Table x0)) (Schema (Table x0))
-                  (sel x8 (Row x0)) (sel x8 (Data x0)))
-               (SEP.ST.star
-                  (inv (Address (Table x)) (Schema (Table x))
-                     (sel x8 (Row x)) (sel x8 (Data x)))
-                  (SEP.ST.star (db ts)
-                     (SEP.ST.star
-                        (cursors x8
-                           (removeCursor (Name (Table x))
-                              (removeCursor (Name (Table x0)) avs)))
-                        (SEP.ST.star (invPre x4 x8)
-                           (SEP.ST.star (array8 x5 (sel x8 "buf"))
-                              (SEP.ST.star (array8 x6 (sel x8 "obuf"))
-                                 (SEP.ST.star (array8 x14 x17)
-                                    (SEP.ST.star (array8 x10 x13)
-                                       (SEP.ST.star
-                                          (locals ("rp" :: ns)
-                                             (upd
-                                                (upd
-                                                  (upd x8 "matched"
-                                                  (sel x8 (Data x0) ^+ natToW 8))
-                                                  "matched"
-                                                  (sel x8 (Data x0) ^+ natToW 8
-                                                  ^+ 
-                                                  natToW (Datatypes.length
-                                                  (Schema (Table x0)) * 4)%nat))
-                                                "matched"
-                                                (Array.sel 
-                                                  (lenl x15)
-                                                  (findCol
-                                                  (Schema (Table x0)) col1)))
-                                             res (Regs x3 Sp))
-                                          (SEP.ST.star
-                                             (array 
-                                                (posl x15)
-                                                (sel x8 (Data x0) ^+ natToW 8))
-                                             (SEP.ST.star
-                                                (array 
-                                                  (lenl x15)
-                                                  (sel x8 (Data x0) ^+ natToW 8
-                                                  ^+ 
-                                                  natToW (Datatypes.length
-                                                  (Schema (Table x0)) * 4)%nat))
-                                                (SEP.ST.star
-                                                  (array 
-                                                  (posl x11)
-                                                  (sel x8 (Data x) ^+ natToW 8))
-                                                  (SEP.ST.star
-                                                  (array 
-                                                  (lenl x11)
-                                                  (sel x8 (Data x) ^+ natToW 8
-                                                  ^+ 
-                                                  natToW (Datatypes.length
-                                                  (Schema (Table x)) * 4)%nat))
-                                                  (SEP.ST.star
-                                                  (sel x8 (Data x0) =*> x17)
-                                                  (SEP.ST.star
-                                                  ((sel x8 (Data x0) ^+ natToW 4) =*>
-                                                  x16)
-                                                  (SEP.ST.star
-                                                  (sel x8 (Data x) =*> x13)
-                                                  (SEP.ST.star
-                                                  ((sel x8 (Data x) ^+ natToW 4) =*>
-                                                  x12)
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x5 =
-                                                  wordToNat (sel x8 "len")|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x6 =
-                                                  wordToNat (sel x8 "olen")|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|inBounds cdatas x8|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  sel x8 "opos" <=
-                                                  sel x8 "olen"|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x14 =
-                                                  wordToNat x16|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x15 =
-                                                  Datatypes.length
-                                                  (Schema (Table x0))|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|RelDb.inBounds x16 x15|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|sel x8 (Data x0) <> 0|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  freeable 
-                                                  (sel x8 (Data x0))
-                                                  (S
-                                                  (S
-                                                  (Datatypes.length
-                                                  (Schema (Table x0)) +
-                                                  Datatypes.length
-                                                  (Schema (Table x0)))))|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj [|x17 <> 0|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  freeable8 x17
-                                                  (Datatypes.length x14)|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  findCol 
-                                                  (Schema (Table x0)) col1 <
-                                                  Datatypes.length (lenl x15)|]%PropX%nat)
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x10 =
-                                                  wordToNat x12|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  Datatypes.length x11 =
-                                                  Datatypes.length
-                                                  (Schema (Table x))|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|RelDb.inBounds x12 x11|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|sel x8 (Data x) <> 0|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  freeable 
-                                                  (sel x8 (Data x))
-                                                  (S
-                                                  (S
-                                                  (Datatypes.length
-                                                  (Schema (Table x)) +
-                                                  Datatypes.length
-                                                  (Schema (Table x)))))|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj [|x13 <> 0|])
-                                                  (SEP.ST.star
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  freeable8 x13
-                                                  (Datatypes.length x10)|])
-                                                  (SEP.ST.inj
-                                                  [|
-                                                  findCol 
-                                                  (Schema (Table x)) col2 <
-                                                  Datatypes.length (lenl x11)|]%PropX%nat)))))))))))))))))))))))))))))))))))))]
-             (a, b))).
-
-      bash.
-      my_descend.
-      eauto.
-      bash.
-      repeat (bash; my_descend); eauto.
-      
-
-
-
-
       step1.
 
       step2.
@@ -2323,6 +1971,37 @@ Section Out.
 
       step1.
 
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
       step2.
       step2.
       step2.
