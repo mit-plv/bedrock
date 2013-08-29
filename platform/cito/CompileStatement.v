@@ -1207,13 +1207,13 @@ Section Compiler.
 
   Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
 
-  Lemma Safe_skip : forall fs k v a,
-    Safe fs (skip;: k) (v, a)
-    -> Safe fs k (v, a).
+  Lemma Safe_skip : forall fs k v,
+    Safe fs (skip;: k) v
+    -> Safe fs k v.
     inversion 1; auto.
   Qed.
 
-  Hint Immediate Safe_skip.
+  Hint Resolve Safe_skip.
 
   Hint Extern 1 (agree_in _ _ _) => progress simpl.
 
@@ -1396,6 +1396,7 @@ Section Compiler.
   Ltac t := preamble; middle; finale.
 
   Opaque mult.
+  Opaque is_heap.
 
   Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
@@ -1404,34 +1405,140 @@ Section Compiler.
     interp specs (postcond k x).
     unfold verifCond, imply; induction s.
 
-    (* assignment *)
-    abstract t.
-
-    (* ReadAt *)
-    abstract t.
-
-    (* WriteAt *)
-    abstract t.
-
-    (* seq *)
-    abstract t.
+    Ltac discharge_fs :=
+      match goal with
+        | [ fs : W -> option Callee
+            |- exists x : W -> option Callee, _ ] =>
+          exists fs;
+            match goal with
+              | [ |- _ /\ _ ] => split; [ split; assumption | ]
+            end
+                 end;
+            match goal with
+              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
+            end.
 
     (* skip *)
-    abstract t.
+    wrap0.
+    unfold_eval.
+    myPost.
+    eval_step auto_ext.
+    set (is_heap layout _) in *.
+    eval_step auto_ext.
+    myPost.
+    discharge_fs.
+    descend.
+    unfold h in *; clear h.
+    instantiate (2 := x3).
+    simpl in *.
+    instantiate (2 := x4).
+    rewrite <- H0 in H10.
+    instantiate (1 := x2).
+    generalize H10; clear; intro.
+    set (is_heap layout _) in *.
+    step auto_ext.
+
+    simpl in *.
+    eauto.
+
+    solver.
+
+    simpl in *.
+    eauto.
+
+    step auto_ext.
+    step auto_ext.
+
+    solver.
+
+    instantiate (2 := x7).
+    set (is_heap layout (snd x7)) in *.
+    step auto_ext.
+
+    solver.
+
+    (* seq *)
+    wrap0.
+    unfold_eval.
+    myPost.
+    eval_step auto_ext.
+    wrap0.
+    eval_step auto_ext.
+    wrap0.
+    eval_step auto_ext.
+
+(*here*)
+
+    set (is_heap layout _) in *.
+    eval_step auto_ext.
+    myPost.
+    discharge_fs.
+    descend.
+    unfold h in *; clear h.
+    instantiate (2 := x3).
+    simpl in *.
+    instantiate (2 := x4).
+    rewrite <- H0 in H10.
+    instantiate (1 := x2).
+    generalize H10; clear; intro.
+    set (is_heap layout _) in *.
+    step auto_ext.
+
+    simpl in *.
+    eauto.
+
+    solver.
+
+    simpl in *.
+    eauto.
+
+    step auto_ext.
+    step auto_ext.
+
+    solver.
+
+    instantiate (2 := x7).
+    set (is_heap layout (snd x7)) in *.
+    step auto_ext.
+
+    solver.
+
+
+    wrap0; unfold_eval; unfold_copy_vars_require; myPost;
+    repeat eval_step hints;
+      repeat match goal with
+               | [ |- vcs _ ] => wrap0;
+                 try match goal with
+                       | [ x : (settings * state)%type |- _ ] => destruct x
+                     end; try eval_step hints;
+                 try match goal with
+                       | [ H : context[expr_runs_to] |- _ ] =>
+                         unfold expr_runs_to, runs_to_generic in H; simpl in H
+                     end; try eval_step hints
+             end; smack;
+      match goal with
+        | [ x : (vals * Heap)%type |- _ ] => destruct x; simpl in *
+        | [ x : st |- _ ] => destruct x; simpl in *
+      end;
+      myPost; try (unfold_eval; clear_imports; eval_step auto_ext; var_solver);
+        try match goal with
+              | [ fs : W -> option Callee
+                  |- exists x : W -> option Callee, _ ] =>
+                exists fs;
+                  match goal with
+                    | [ |- _ /\ _ ] => split; [ split; assumption | ]
+                  end
+            end;
+        try match goal with
+              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
+            end;
+        pick_vs; descend; try (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]);
+          clear_or.
 
     (* conditional *)
     abstract t.
 
     (* loop *)
-    abstract t.
-
-    (* malloc *)
-    abstract t.
-
-    (* free *)
-    abstract t.
-
-    (* len *)
     abstract t.
 
     (* call *)
