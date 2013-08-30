@@ -37,7 +37,8 @@ Inductive xml :=
 | XVar (text : string)
 | XTag (tag : string) (inner : list xml)
 | XColumn (tab col : string)
-| XSelect (tab : string) (cond : condition) (inner : xml).
+| XSelect (tab : string) (cond : condition) (inner : xml)
+| XIfEqual (tab1 col1 tab2 col2 : string) (inner : xml).
 
 Section xml_ind'.
   Variable P : xml -> Prop.
@@ -52,6 +53,8 @@ Section xml_ind'.
 
   Hypothesis H_Select : forall tab cond inner, P inner -> P (XSelect tab cond inner).
 
+  Hypothesis H_IfEqual : forall tab1 col1 tab2 col2 inner, P inner -> P (XIfEqual tab1 col1 tab2 col2 inner).
+
   Fixpoint xml_ind' (xm : xml) : P xm :=
     match xm with
       | XCdata const => H_Cdata const
@@ -63,6 +66,7 @@ Section xml_ind'.
         end) inner)
       | XColumn tab col => H_Column tab col
       | XSelect tab cond inner => H_Select tab cond (xml_ind' inner)
+      | XIfEqual tab1 col1 tab2 col2 inner => H_IfEqual tab1 col1 tab2 col2 (xml_ind' inner)
     end.
 End xml_ind'.
 
@@ -74,7 +78,9 @@ Inductive action :=
 | Delete (tab : string) (cond : condition)
 | Output (xm : xml)
 | Seq (a1 a2 : action)
-| IfExists (tab : string) (cond : condition) (_then _else : action).
+| IfExists (tab : string) (cond : condition) (_then _else : action)
+| Halt
+| Select (tab : string) (cond : condition) (inner : action).
 
 (* A full program *)
 Inductive program :=
@@ -138,6 +144,12 @@ Fixpoint xwf (avs ts : tables) (xm : xml) : Prop :=
     | XSelect tab cond inner => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond
       /\ xwf (t :: avs) (removeTable tab ts) inner
+    | XIfEqual tab1 col1 tab2 col2 inner => tab1 <> tab2
+      /\ (exists t, In t avs /\ Name t = tab1
+        /\ In col1 (Schema t))
+      /\ (exists t, In t avs /\ Name t = tab2
+        /\ In col2 (Schema t))
+      /\ xwf avs ts inner
   end.
 
 Definition efreeVar (e : exp) (x : string) : Prop :=
@@ -154,6 +166,7 @@ Fixpoint xfreeVar (xm : xml) (x : string) : Prop :=
     | XColumn _ _ => False
     | XSelect _ cond inner => List.Exists (fun e => efreeVar (snd e) x) cond
       \/ xfreeVar inner x
+    | XIfEqual _ _ _ _ inner => xfreeVar inner x
   end.
 
 Fixpoint xbindsRowVar (xm : xml) (x : string) : Prop :=
@@ -163,6 +176,7 @@ Fixpoint xbindsRowVar (xm : xml) (x : string) : Prop :=
     | XTag _ inner => ExistsR (fun xm' => xbindsRowVar xm' x) inner
     | XColumn _ _ => False
     | XSelect tab _ inner => x = tab \/ xbindsRowVar inner x
+    | XIfEqual _ _ _ _ inner => xbindsRowVar inner x
   end.
 
 
@@ -200,6 +214,8 @@ Fixpoint compileXml (p : xml) : XmlOutput.xml :=
     | XSelect tab cond inner => XmlOutput.Select tab
       (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
       (compileXml inner)
+    | XIfEqual tab1 col1 tab2 col2 inner =>
+      XmlOutput.IfEqual tab1 col1 tab2 col2 (compileXml inner)
   end.
 
 
@@ -216,6 +232,10 @@ Fixpoint awf (avs ts : tables) (a : action) : Prop :=
     | IfExists tab cond _then _else => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond
       /\ awf avs ts _then /\ awf avs ts _else
+    | Halt => True
+    | Select tab cond inner => exists t, In t ts /\ Name t = tab
+      /\ cwf (Schema t) cond
+      /\ awf (t :: avs) (removeTable tab ts) inner
   end.
 
 Fixpoint afreeVar (a : action) (x : string) : Prop :=
@@ -226,6 +246,9 @@ Fixpoint afreeVar (a : action) (x : string) : Prop :=
     | Seq a1 a2 => afreeVar a1 x \/ afreeVar a2 x
     | IfExists _ cond _then _else => List.Exists (fun e => efreeVar (snd e) x) cond
       \/ afreeVar _then x \/ afreeVar _else x
+    | Halt => False
+    | Select _ cond inner => List.Exists (fun e => efreeVar (snd e) x) cond
+      \/ afreeVar inner x
   end.
 
 Fixpoint wf (ts : tables) (pr : program) : Prop :=
@@ -438,6 +461,7 @@ Fixpoint allCursors_both' (xm : xml) : list string :=
     | XColumn _ _ => nil
     | XSelect tab _ inner => (tab ++ "_row")%string :: (tab ++ "_data")%string
       :: allCursors_both' inner
+    | XIfEqual _ _ _ _ inner => allCursors_both' inner
   end.
 
 Fixpoint allCursors_both (a : action) : list string :=
@@ -449,6 +473,9 @@ Fixpoint allCursors_both (a : action) : list string :=
     | IfExists tab _ _then _else =>
       addTo ((tab ++ "_row")%string :: (tab ++ "_data")%string :: nil)
       (addTo (allCursors_both _then) (allCursors_both _else))
+    | Halt => nil
+    | Select tab _ inner => addTo ((tab ++ "_row")%string :: (tab ++ "_data")%string :: nil)
+      (allCursors_both inner)
   end.
 
 Fixpoint cursorsOf (pr : program) : list string :=
@@ -606,6 +633,8 @@ Section compileProgram.
     eapply Forall_forall in H2; [ | eassumption ]; intuition congruence.
 
     destruct H0; intuition eauto.
+
+    destruct H0, H5; intuition eauto.
   Qed.
 
   Lemma allCursors'_both_NoDup : forall xm avs ts,
@@ -630,6 +659,8 @@ Section compileProgram.
     eapply Forall_forall in H1; [ | eassumption ]; eauto.
 
     eauto.
+
+    destruct H, H3; eauto.
   Qed.
 
   Hint Immediate allCursors'_both_NoDup.
@@ -644,6 +675,12 @@ Section compileProgram.
     simpl; intuition eauto using NoDup_addTo.
     repeat constructor; simpl; intuition.
     apply append_inj in H3; discriminate.
+
+    intros.
+    unfold allCursors_both; fold allCursors_both.
+    repeat apply NoDup_addTo.
+    do 2 post.
+    eauto.
 
     intros.
     unfold allCursors_both; fold allCursors_both.
@@ -1160,6 +1197,8 @@ Section compileProgram.
       | Seq a1 a2 => abindsRowVar a1 x \/ abindsRowVar a2 x
       | IfExists tab _ _then _else => x = tab
         \/ abindsRowVar _then x \/ abindsRowVar _else x
+      | Halt => False
+      | Select tab cond inner => x = tab \/ abindsRowVar inner x
     end.
 
   Fixpoint bindsRowVar (pr : program) (x : string) : Prop :=
@@ -1195,6 +1234,16 @@ Section compileProgram.
     descend; eauto 8.
     eapply IHxm in H9; eauto;
       (simpl; intuition (subst; eauto)).
+
+    destruct H; intuition subst.
+    do 2 esplit.
+    eapply in_map in H8; eauto.
+    simpl; intuition eauto using in_or_app.
+
+    destruct H7; intuition subst.
+    do 2 esplit.
+    eapply in_map in H8; eauto.
+    simpl; intuition eauto using in_or_app.
   Qed.
 
   Hint Immediate output_wf.
@@ -1292,6 +1341,29 @@ Section compileProgram.
                 compileAction' avs ts ts' _else
               }
           end
+        | Halt =>
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ];;
+          Fail
+        | Select tab cond inner =>
+          match findTable tab ts with
+            | None => Fail
+            | Some t =>
+              RelDbSelect.Select
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
+                * [| length bsO = wordToNat (V "olen") |]
+                * [| V "opos" <= V "olen" |]%word
+                * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
+                * xmlp (V "len") (V "lex") * mallocHeap 0
+                * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+              (fun bsO V R => db ts'
+                * [| R <= V "olen" |]%word * mallocHeap 0
+                * Ex bsO', array8 bsO' (V "obuf")
+                * [| length bsO' = length bsO |])%Sep
+              (Address t) (Schema t) (tab ++ "_row") (tab ++ "_data")
+              (compileCondition cond)
+              (compileAction' (t :: avs) (removeTable tab ts) ts' inner)
+          end
       end%SP.
 
     Definition ainv avs ts ts' :=
@@ -1321,12 +1393,42 @@ Section compileProgram.
       sepLemma; etransitivity; [ apply removeTable_fwd | ]; eauto; sepLemma.
     Qed.
 
-    Ltac cap := abstract (t;
-      ((apply removeTable_bwd' || apply removeTable_fwd'); eauto)
+    Lemma cursors_intro : forall V av avs P,
+      row (Schema av) (sel V (Name av ++ "_data"))
+      * (inv (Address av) (Schema av) (sel V (Name av ++ "_row"))
+        (sel V (Name av ++ "_data"))
+        * (cursors V avs * P))
+      ===> P * (cursors V (av :: avs)).
+      clear; sepLemma.
+      unfold cursors; simpl; unfold cursor; simpl.
+      repeat match goal with
+               | [ |- context[V ?x] ] => change (V x) with (sel V x)
+             end.
+      sepLemma.
+    Qed.
+
+    Lemma cursors_elim : forall V av avs P,
+      cursors V (av :: avs) * P
+      ===> P * (inv (Address av) (Schema av) (sel V (Name av ++ "_row"))
+        (sel V (Name av ++ "_data"))
+        * (row (Schema av) (sel V (Name av ++ "_data")) * cursors V avs)).
+      clear; sepLemma.
+      unfold cursors; simpl; unfold cursor; simpl.
+      repeat match goal with
+               | [ |- context[V ?x] ] => change (V x) with (sel V x)
+             end.
+      sepLemma.
+    Qed.
+
+    Ltac cap' :=
+      ((apply removeTable_bwd' || apply removeTable_fwd'
+        || apply cursors_intro || apply cursors_elim); eauto)
       || apply himp_star_comm
       || (etransitivity; [ | apply himp_star_frame; [ | apply removeTable_bwd ] ]; assumption || my_step)
       || (etransitivity; [ apply himp_star_frame; [ apply removeTable_fwd | ] | ]; eassumption || my_step)
-      || my_step).
+      || my_step.
+
+    Ltac cap := abstract (t; cap').
 
     Lemma compileAction_post : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
@@ -1342,6 +1444,8 @@ Section compileProgram.
         -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st).
       induction a.
 
+      cap.
+      cap.
       cap.
       cap.
       cap.
@@ -1583,6 +1687,9 @@ Section compileProgram.
         repeat (my_step; my_descend); eauto.
 
     Ltac step2 :=
+      try match goal with
+            | [ H : interp _ _ |- _ ] => apply compileAction_post in H; auto
+          end;
       match goal with
         | [ |- False ] => discrim
         | _ => solve [ subst; eauto ]
@@ -1597,7 +1704,8 @@ Section compileProgram.
         | _ => abstract t''
         | _ => repeat (post; intuition idtac;
           match goal with
-            | [ H : _ |- _ ] => apply H; auto
+            | [ H : _ |- _ ] => apply H; auto;
+              try solve [ simpl; intuition subst; eauto ]
           end; try (apply compileAction_post; auto)); cap
       end.
 
@@ -1885,7 +1993,18 @@ Section compileProgram.
 
     Hint Immediate rdb_noOverlapExps.
 
-    Lemma compileAction_vcs : forall im mn (H : importsGlobal im) ns res,
+    Lemma twfs_cons : forall avs av ts,
+      twfs avs
+      -> In av ts
+      -> twfs ts
+      -> twfs (av :: avs).
+      clear; constructor; auto.
+      eapply Forall_forall in H1; eauto.
+    Qed.
+
+    Hint Immediate twfs_cons.
+
+    Lemma compileAction_vcs : forall im ns res,
       ~In "rp" ns
       -> In "obuf" ns
       -> In "olen" ns
@@ -1909,7 +2028,8 @@ Section compileProgram.
       -> "numops"!"div4" ~~ im ~~> div4S
       -> "malloc"!"free" ~~ im ~~> freeS
       -> "buffers"!"bfree" ~~ im ~~> bfreeS
-      -> forall a avs ts ts' pre,
+      -> "sys"!"abort" ~~ im ~~> abortS
+      -> forall a avs ts ts' pre mn (H : importsGlobal im),
         (forall specs st,
           interp specs (pre st)
           -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st))
@@ -2015,6 +2135,42 @@ Section compileProgram.
       step2.
       step2.
       step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
     Qed.
 
     Hint Resolve compileAction_post compileAction_vcs.
@@ -2033,6 +2189,7 @@ Section compileProgram.
       :: "numops"!"div4" ~~ im ~~> div4S
       :: "malloc"!"free" ~~ im ~~> freeS
       :: "buffers"!"bfree" ~~ im ~~> bfreeS
+      :: "sys"!"abort" ~~ im ~~> abortS
       :: awf avs%list ts%list a%string
       :: NoDups avs ts
       :: twfs avs%list
@@ -2118,12 +2275,12 @@ Section compileProgram.
       induction pr0; simpl; intros; repeat (invoke1; post); t.
     Qed.
 
-    Lemma cursors_intro : forall P V specs,
+    Lemma cursors_intro' : forall P V specs,
       himp specs P (P * cursors V nil)%Sep.
       sepLemma.
     Qed.
 
-    Hint Immediate cursors_intro.
+    Hint Immediate cursors_intro'.
 
     Lemma xbindsRowVar_row : forall tab xm,
       xbindsRowVar xm tab
@@ -2158,6 +2315,10 @@ Section compileProgram.
       apply In_addTo1; simpl; tauto.
       eauto using In_addTo1, In_addTo2.
       eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst.
+      apply In_addTo1; simpl; tauto.
+      eauto using In_addTo1, In_addTo2.
     Qed.
 
     Lemma abindsRowVar_data : forall tab a,
@@ -2168,6 +2329,10 @@ Section compileProgram.
       simpl in H; destruct H as [ | [ | ] ]; subst.
       apply In_addTo1; simpl; tauto.
       eauto using In_addTo1, In_addTo2.
+      eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst.
+      apply In_addTo1; simpl; tauto.
       eauto using In_addTo1, In_addTo2.
     Qed.
 
@@ -2206,6 +2371,7 @@ Section compileProgram.
       -> "sys"!"abort" ~~ im ~~> abortS
       -> "numops"!"div4" ~~ im ~~> div4S
       -> "buffers"!"bfree" ~~ im ~~> bfreeS
+      -> "sys"!"abort" ~~ im ~~> abortS
       -> forall pr0 pre,
         (forall specs st,
           interp specs (pre st)
@@ -2258,6 +2424,7 @@ Section compileProgram.
       :: "sys"!"abort" ~~ im ~~> abortS
       :: "numops"!"div4" ~~ im ~~> div4S
       :: "buffers"!"bfree" ~~ im ~~> bfreeS
+      :: "sys"!"abort" ~~ im ~~> abortS
       :: incl (cdatasOf pr) ns
       :: incl (cursorsOf pr) ns
       :: nil).
@@ -2416,6 +2583,10 @@ Section compileProgram.
       apply In_addTo_or in H; destruct H.
       simpl in *; intuition discrim.
       apply In_addTo_or in H; destruct H; eauto.
+      unfold allCursors_both; fold allCursors_both; intros.
+      apply In_addTo_or in H; destruct H.
+      simpl in *; intuition discrim.
+      tauto.
     Qed.
 
     Hint Immediate no_clash_allCursors_both.
@@ -2499,6 +2670,10 @@ Section compileProgram.
     apply In_addTo_or in H; destruct H.
     simpl in *; intuition eauto.
     apply In_addTo_or in H; destruct H; eauto.
+    unfold allCursors_both; fold allCursors_both; intros.
+    apply In_addTo_or in H; destruct H.
+    simpl in *; intuition eauto.
+    tauto.
   Qed.
 
   Hint Immediate In_allCursors_both.
@@ -2533,6 +2708,7 @@ Section compileProgram.
 
     Ltac u := abstract t.
 
+    u.
     u.
     u.
     u.
