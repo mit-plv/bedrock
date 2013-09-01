@@ -24,6 +24,8 @@ timing/
 *.cmi
 *.o
 *.ml4.d
+*.ml.d
+*.mli.d
 
 *.html
 *.v.tex
