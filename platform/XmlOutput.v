@@ -1312,6 +1312,8 @@ Section Out.
                     * array8 bsO' (V "obuf") * [| length bsO' = length bsO |]
                     * invPost a V R];;
 
+                "overflowed" <- 0;;
+
                 If ("res" = 1) {
                   clarify (Out' cdatas avs ts inner)
                 } else {
@@ -1977,6 +1979,7 @@ Section Out.
 
       step1.
 
+      step2.
       step2.
       step2.
       step2.
