@@ -13,7 +13,6 @@ Fixpoint footprint (statement : Statement) :=
     | Syntax.Seq a b => footprint a ++ footprint b
     | Syntax.If cond t f => varsIn cond ++ footprint t ++ footprint f
     | Syntax.While cond body => varsIn cond ++ footprint body
-    | Syntax.Assign var val => var :: varsIn val
     | Syntax.Call var f args => footprint_optional var ++ varsIn f ++ fold_left (fun acc arg => acc ++ varsIn arg) args nil
   end.
 
