@@ -98,12 +98,20 @@ Definition afrom tab cond body := (
   rarray From tab Where cond Write (<*> "value" </> body </>)
 )%out.
 
+Definition afrom' tab cond body := (
+  rarray From tab Where cond Write body
+)%out.
+
 Notation "'Array' x1 , .. , xN 'end'" :=
   (rarrayL (cons x1%out .. (cons xN%out nil) ..))
   (at level 0) : out_scope.
 
 Notation "'Array' 'end'" :=
   (rarrayL nil)
+  (at level 0) : out_scope.
+
+Notation "'Value' body 'end'" :=
+  (<*> "value" </> body </>)%out
   (at level 0) : out_scope.
 
 Definition rtype (name : string) (body : xml) := (
@@ -132,6 +140,14 @@ Notation "'ArrayFrom' tab 'Where' cond 'Write' o" :=
 
 Notation "'ArrayFrom' tab 'Write' o" :=
   (afrom tab nil o%out)
+  (at level 0, tab at level 0, o at level 0) : out_scope.
+
+Notation "'ArrayFromOpt' tab 'Where' cond 'Write' o" :=
+  (afrom' tab cond%condition o%out)
+  (at level 0, tab at level 0, cond at level 0, o at level 0) : out_scope.
+
+Notation "'ArrayFromOpt' tab 'Write' o" :=
+  (afrom' tab nil o%out)
   (at level 0, tab at level 0, o at level 0) : out_scope.
 
 Definition ignore := ""%out.

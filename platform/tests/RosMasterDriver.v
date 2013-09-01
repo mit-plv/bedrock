@@ -1,7 +1,7 @@
 Require Import Ros XmlProg.
 
 Module M.
-  Definition buf_size := 1024%N.
+  Definition buf_size := (100 * 1024)%N.
   Definition heapSize := (1024 * 1024 * 25)%N.
 
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
@@ -15,19 +15,21 @@ Module M.
       Address := dbaddr 1;
       Schema := "caller_id" :: "caller_api" :: nil
     |}
+
     :: {| Name := "services";
       Address := dbaddr 2;
-      Schema := "service" :: "service_api" :: nil
+      Schema := "service" :: "node_id" :: "service_api" :: nil
     |}
+
     :: {| Name := "topics";
       Address := dbaddr 3;
       Schema := "topic" :: "topic_type" :: nil |}
     :: {| Name := "publishers";
       Address := dbaddr 4;
-      Schema := "topic" :: "publisher_api" :: nil |}
+      Schema := "topic" :: "node_id" :: "publisher_api" :: nil |}
     :: {| Name := "subscribers";
       Address := dbaddr 5;
-      Schema := "topic" :: "subscriber_api" :: nil |}
+      Schema := "topic" :: "node_id" :: "subscriber_api" :: nil |}
     :: {| Name := "topicsWithPublishers";
       Address := dbaddr 6;
       Schema := "topic" :: "topic_type" :: nil |}
@@ -142,7 +144,7 @@ Module M.
         end
       else
         registerNode;;
-        Insert "services" ($"service", $"service_api");;
+        Insert "services" ($"service", $"caller_id", $"service_api");;
         Response Success
           Message "Service registered."
           Body ignore
@@ -179,7 +181,8 @@ Module M.
             Body ignore
           end
         else
-          Insert "subscribers" ($"topic", $"caller_api");;
+          registerNode;;
+          Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now subscribed.  Publishers are:"
             Body
@@ -194,8 +197,9 @@ Module M.
             Body ignore
           end
         else
+          registerNode;;
           Insert "topics" ($"topic", $"topic_type");;
-          Insert "subscribers" ($"topic", $"caller_api");;
+          Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now subscribed.  Publishers are:"
             Body Array end
@@ -233,7 +237,8 @@ Module M.
             Body ignore
           end
         else
-          Insert "publishers" ($"topic", $"caller_api");;
+          registerNode;;
+          Insert "publishers" ($"topic", $"caller_id", $"caller_api");;
           IfHas "topicsWithPublishers" Where ("topic" = $"topic") then
             Write ""
           else
@@ -253,9 +258,10 @@ Module M.
             Body ignore
           end
         else
+          registerNode;;
           Insert "topics" ($"topic", $"topic_type");;
           Insert "topicsWithPublishers" ($"topic", $"topic_type");;
-          Insert "publishers" ($"topic", $"caller_api");;
+          Insert "publishers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now publishing.  Subscribers are:"
             Body Array end
@@ -338,8 +344,43 @@ Module M.
     end;;
 
     (* Dump of all relevant service/topic state. *)
-    Unimplemented "getSystemState"(!string $"caller_id");;
+    RosCommand "getSystemState"(!string $"caller_id")
+    Do
+      Response Success
+        Message "System state is:"
+        Body
+          Array
+            ArrayFrom "topics" Write
+              Array
+                !string "topics"#"topic",
+                ArrayFromOpt "publishers" Write
+                  Join "publishers"#"topic" to "topics"#"topic";;;
+                  Value
+                    !string "publishers"#"node_id"
+                  end
+              end,
 
+            ArrayFrom "topics" Write
+              Array
+                !string "topics"#"topic",
+                ArrayFromOpt "subscribers" Write
+                  Join "subscribers"#"topic" to "topics"#"topic";;;
+                  Value
+                    !string "subscribers"#"node_id"
+                  end
+              end,
+
+            ArrayFrom "services" Write
+              Array
+                !string "services"#"service",
+                Array
+                  !string "services"#"node_id"
+                end
+              end
+          end
+      end
+    end;;
+  
     (* Get the master's URI. *)
     RosCommand "getUri"(!string $"caller_id")
     Do
@@ -381,7 +422,10 @@ Module M.
     end;;
 
     (* Terminate the server. *)
-    Unimplemented "shutdown"(!string $"caller_id", !string $"msg")
+    RosCommand "shutdown"(!string $"caller_id", !string $"msg")
+    Do
+      Halt
+    end
   ).
 
   Theorem Wf : wf ts pr buf_size.
