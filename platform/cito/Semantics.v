@@ -128,10 +128,6 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
   | WhileFalse : forall v cond body, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
       RunsTo (While cond body) v v
-  | Assign : forall var value vs adts, 
-      let v := (vs, adts) in
-      let value_v := exprDenote value vs in
-      RunsTo (Assign var value) v (Locals.upd vs var value_v, adts)
   | CallInternal : forall vs heap var f args spec vs_arg vs_arg' heap',
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
@@ -180,8 +176,6 @@ CoInductive Safe : Statement -> st -> Prop :=
   | WhileFalse : forall v cond body, 
       wneb (exprDenote cond (fst v)) $0 = false -> 
       Safe (While cond body) v
-  | Assign : forall var value v,
-      Safe (Syntax.Assign var value) v
   | CallInternal : forall vs heap var f args spec,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
