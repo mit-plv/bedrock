@@ -441,8 +441,6 @@ Section Compiler.
 
   Hint Extern 1 => tempOf_solver.
 
-  Opaque tempVars.
-
   Ltac incl_tran_tempVars :=
     match goal with
       H : List.incl (tempVars _) ?VARS |- List.incl (tempVars _) ?VARS => eapply incl_tran with (2 := H)
@@ -711,7 +709,7 @@ Section Compiler.
   Ltac eapply_cancel h specs st := let HP := fresh in let Hnew := fresh in
     evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
       [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP; 
-        [ solve [try clear_imports; hiding ltac:(step auto_ext) ] | .. ].
+        [ solve [try clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
 
   Ltac transit := 
     match goal with
@@ -1418,6 +1416,26 @@ Section Compiler.
               | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
             end.
 
+    Lemma vars_require_disjoint : forall vars s b n, vars_require vars s -> disjoint (footprint s) (tempChunk b n).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_disjoint.
+
+    Lemma vars_require_seq_assoc_left : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s1 ;: (s2 ;: k)).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_seq_assoc_left.
+
+    Lemma vars_require_seq_part : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s2 ;: k).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_seq_part.
+
+    Hint Resolve RunsToRelax_assoc_left.
+
     (* skip *)
     wrap0.
     unfold_eval.
@@ -1425,37 +1443,20 @@ Section Compiler.
     eval_step auto_ext.
     set (is_heap layout _) in *.
     eval_step auto_ext.
-    myPost.
+    unfold h in *; clear h.
     discharge_fs.
     descend.
-    unfold h in *; clear h.
     instantiate (2 := x3).
-    simpl in *.
-    instantiate (2 := x4).
-    rewrite <- H0 in H10.
-    instantiate (1 := x2).
-    generalize H10; clear; intro.
     set (is_heap layout _) in *.
-    step auto_ext.
+    hiding ltac:(step auto_ext).
 
-    simpl in *.
     eauto.
 
-    solver.
-
-    simpl in *.
     eauto.
 
-    step auto_ext.
-    step auto_ext.
+    eauto.
 
-    solver.
-
-    instantiate (2 := x7).
-    set (is_heap layout (snd x7)) in *.
-    step auto_ext.
-
-    solver.
+    repeat hiding ltac:(step auto_ext); eauto.
 
     (* seq *)
     wrap0.
@@ -1467,41 +1468,107 @@ Section Compiler.
     wrap0.
     eval_step auto_ext.
 
-(*here*)
-
-    set (is_heap layout _) in *.
-    eval_step auto_ext.
-    myPost.
     discharge_fs.
     descend.
-    unfold h in *; clear h.
-    instantiate (2 := x3).
-    simpl in *.
     instantiate (2 := x4).
-    rewrite <- H0 in H10.
-    instantiate (1 := x2).
-    generalize H10; clear; intro.
     set (is_heap layout _) in *.
-    step auto_ext.
+    hiding ltac:(step auto_ext).
 
-    simpl in *.
     eauto.
 
-    solver.
+    eauto.
 
+    eauto.
+
+    repeat hiding ltac:(step auto_ext).
+
+    Lemma vars_require_disjoint_tempVars : forall vars s n, vars_require vars s -> disjoint (footprint s) (tempVars n).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_disjoint_tempVars.
+
+    eauto.
+
+    eauto.
+
+    (* conditional *)
+    wrap0.
+    unfold_eval.
+    myPost.
+    eval_step auto_ext.
+    wrap0.
+    eval_step auto_ext.
+    unfold_eval.
+    set (is_heap layout _) in *.
+    eval_step auto_ext.
+
+    Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
+      intuition.
+    Qed.
+
+    unfold h in *; clear h.
     simpl in *.
+    rewrite pack_pair in *.
+    discharge_fs.
+    descend.
+    instantiate (2 := (x7, snd x4)).
+    set (is_heap layout _) in *.
+    hiding ltac:(step auto_ext).
+
+    post_step.
+    simpl.
+    f_equal.
+    solver.
+    symmetry.
+    eapply changed_in_inv.
+    eauto.
+    
+    Lemma reserved_not_in_tempChunk : forall b n, ~ In S_RESERVED (tempChunk b n).
+      admit.
+    Qed.
+
+    Hint Resolve reserved_not_in_tempChunk.
+
+    eauto.
+
+    eapply Safe_immune.
+    eapply Safe_cond_true_k.
+    Lemma Safe_pair : forall fs s p, Safe fs s p -> Safe fs s (fst p, snd p).
+      admit.
+    Qed.
+
+    Hint Resolve Safe_pair.
+
+    eauto.
+    simpl.
+    eauto.
+    eapply changed_unchanged.
+    eauto.
+
+    eapply vars_require_disjoint.
+
+    Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_if_part_true.
+
+    eauto.
+
+    simpl.
+    (*here*)
+    replace_reserved.
+    solver.
     eauto.
 
     step auto_ext.
     step auto_ext.
 
-    solver.
-
-    instantiate (2 := x7).
-    set (is_heap layout (snd x7)) in *.
+    instantiate (2 := x8).
+    set (is_heap layout (snd x8)) in *.
     step auto_ext.
 
-    solver.
 
 
     wrap0; unfold_eval; unfold_copy_vars_require; myPost;
@@ -1534,9 +1601,6 @@ Section Compiler.
             end;
         pick_vs; descend; try (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]);
           clear_or.
-
-    (* conditional *)
-    abstract t.
 
     (* loop *)
     abstract t.
