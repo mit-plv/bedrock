@@ -1492,7 +1492,55 @@ Section Compiler.
 
     eauto.
 
-    (* conditional *)
+    Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
+      intuition.
+    Qed.
+
+    Lemma Safe_pair : forall fs s p, Safe fs s p -> Safe fs s (fst p, snd p).
+      admit.
+    Qed.
+
+    Hint Resolve Safe_pair.
+
+    Lemma reserved_not_in_tempChunk : forall b n, ~ In S_RESERVED (tempChunk b n).
+      admit.
+    Qed.
+
+    Hint Resolve reserved_not_in_tempChunk.
+
+    Lemma rp_not_in_tempChunk : forall b n, ~ In "rp" (tempChunk b n).
+      admit.
+    Qed.
+
+    Hint Resolve rp_not_in_tempChunk.
+
+    Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_if_part_true.
+
+    Lemma vars_require_if_part_false : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (f ;: k).
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_if_part_false.
+
+    Lemma vars_require_if_cond : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> e_vars_require vars e 0.
+      admit.
+    Qed.
+
+    Hint Resolve vars_require_if_cond.
+
+    Ltac replace_sel := try eassumption;     
+      match goal with
+        H : context [sel ?VS1 ?V] |- context [sel ?VS2 ?V] =>
+          not_eq VS1 VS2; replace (sel VS2 V) with (sel VS1 V) in *; try symmetry
+      end.
+
+    Hint Resolve changed_in_inv.
+
+    (* if-true *)
     wrap0.
     unfold_eval.
     myPost.
@@ -1502,10 +1550,6 @@ Section Compiler.
     unfold_eval.
     set (is_heap layout _) in *.
     eval_step auto_ext.
-
-    Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
-      intuition.
-    Qed.
 
     unfold h in *; clear h.
     simpl in *.
@@ -1517,93 +1561,71 @@ Section Compiler.
     hiding ltac:(step auto_ext).
 
     post_step.
-    simpl.
-    f_equal.
-    solver.
-    symmetry.
-    eapply changed_in_inv.
-    eauto.
+    simpl; replace_sel; eauto.
     
-    Lemma reserved_not_in_tempChunk : forall b n, ~ In S_RESERVED (tempChunk b n).
-      admit.
-    Qed.
+    eapply Safe_immune; eauto.
 
-    Hint Resolve reserved_not_in_tempChunk.
+    simpl; replace_sel; eauto.
+
+    repeat hiding ltac:(step auto_ext).
+
+    eauto 6.
+    eauto.
+    eauto.
+
+    (* if-false *)
+    wrap0.
+    unfold_eval.
+    myPost.
+    eval_step auto_ext.
+    wrap0.
+    eval_step auto_ext.
+    unfold_eval.
+    set (is_heap layout _) in *.
+    eval_step auto_ext.
+
+    unfold h in *; clear h.
+    simpl in *.
+    rewrite pack_pair in *.
+    discharge_fs.
+    descend.
+    instantiate (2 := (x7, snd x4)).
+    set (is_heap layout _) in *.
+    hiding ltac:(step auto_ext).
+
+    post_step.
+    simpl; replace_sel; eauto.
+    
+    eapply Safe_immune; eauto.
+
+    simpl; replace_sel; eauto.
+
+    repeat hiding ltac:(step auto_ext).
+
+    eauto 6.
+    eauto.
+    eauto.
+
+    (* while *)
+    wrap0.
+    unfold_eval.
+    myPost.
+
+    discharge_fs.
+    descend.
+    instantiate (2 := x2).
+    set (is_heap layout _) in *.
+    hiding ltac:(step auto_ext).
 
     eauto.
 
-    eapply Safe_immune.
-    eapply Safe_cond_true_k.
-    Lemma Safe_pair : forall fs s p, Safe fs s p -> Safe fs s (fst p, snd p).
-      admit.
-    Qed.
-
-    Hint Resolve Safe_pair.
-
     eauto.
-    simpl.
-    eauto.
-    eapply changed_unchanged.
-    eauto.
-
-    eapply vars_require_disjoint.
-
-    Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_if_part_true.
 
     eauto.
 
-    simpl.
-    (*here*)
-    replace_reserved.
-    solver.
+    repeat hiding ltac:(step auto_ext).
+
     eauto.
-
-    step auto_ext.
-    step auto_ext.
-
-    instantiate (2 := x8).
-    set (is_heap layout (snd x8)) in *.
-    step auto_ext.
-
-
-
-    wrap0; unfold_eval; unfold_copy_vars_require; myPost;
-    repeat eval_step hints;
-      repeat match goal with
-               | [ |- vcs _ ] => wrap0;
-                 try match goal with
-                       | [ x : (settings * state)%type |- _ ] => destruct x
-                     end; try eval_step hints;
-                 try match goal with
-                       | [ H : context[expr_runs_to] |- _ ] =>
-                         unfold expr_runs_to, runs_to_generic in H; simpl in H
-                     end; try eval_step hints
-             end; smack;
-      match goal with
-        | [ x : (vals * Heap)%type |- _ ] => destruct x; simpl in *
-        | [ x : st |- _ ] => destruct x; simpl in *
-      end;
-      myPost; try (unfold_eval; clear_imports; eval_step auto_ext; var_solver);
-        try match goal with
-              | [ fs : W -> option Callee
-                  |- exists x : W -> option Callee, _ ] =>
-                exists fs;
-                  match goal with
-                    | [ |- _ /\ _ ] => split; [ split; assumption | ]
-                  end
-            end;
-        try match goal with
-              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
-            end;
-        pick_vs; descend; try (eauto 2; try solve [ eapply Safe_immune; [ eauto 2 | eauto 8 ] ]);
-          clear_or.
-
-    (* loop *)
-    abstract t.
 
     (* call *)
     abstract t.
