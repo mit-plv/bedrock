@@ -292,8 +292,8 @@ Section HintsSection.
   Lemma RunsTo_footprint : forall statement vs1 vs2,
     RunsTo functions statement vs1 vs2 ->
     changed_in (fst vs1) (fst vs2) (footprint statement).
-    admit.
-(*    induction 1; intros; simpl in *; clear_inv; pre_eauto; eauto.*)
+    induction 1; intros; simpl in *; clear_inv; pre_eauto; eauto.
+    
   Qed.
 
   Hint Resolve RunsTo_footprint.
