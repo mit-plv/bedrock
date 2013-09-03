@@ -17,9 +17,13 @@ Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associati
 
 Definition starD (f : W -> ADTValue -> HProp) (d : Heap) := MHeap.MSet.starS (fun p => f p (MHeap.sel d p)) (MHeap.keys d).
 
-Definition is_heap layout (heap : Heap) : HProp := starD (fun w adt_value => layout adt_value w) heap.
+Section LayoutSection.
 
-Definition is_return layout (ret : RetType) : HProp :=
+Variable layout : ADTValue -> W -> HProp.
+
+Definition is_heap (heap : Heap) : HProp := starD (fun w adt_value => layout adt_value w) heap.
+
+Definition is_return (ret : RetType) : HProp :=
   match snd ret with
     | None => ([| True |])%Sep
     | Some adt_value => layout adt_value (fst ret)
@@ -29,35 +33,35 @@ Require Import Malloc.
 
 Definition S_RESERVED := "!reserved".
 
-Definition funcsOk layout (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
+Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
 (
   (Al i : W, Al fspec, [| fs i = Some (Foreign fspec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex args, Ex res, let narg := length args in
-      ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs res st#Sp * is_heap a * mallocHeap 0] * #0] st
       /\ [| res = wordToNat (vs S_RESERVED) /\ match_heap a (sels vs (tempVars narg)) args /\ exists args' ret, Pred fspec {| Args := args; After := args'; Ret := ret |} |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a', Ex args', Ex ret,
         [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs' res st'#Sp * is_heap layout a' * is_return layout ret * mallocHeap 0] * #1] st'
+        /\ ![^[locals ("rp" :: S_RESERVED :: tempVars narg) vs' res st'#Sp * is_heap a' * is_return ret * mallocHeap 0] * #1] st'
         /\ [| a' = store_result a (sels vs (tempVars narg)) args' /\ Pred fspec {| Args := args; After := args'; Ret := ret |} /\ st'#Rv = fst ret |] ))) 
   /\
   (Al i : W, Al ispec, [| fs i = Some (Internal ispec) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
-      ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs res st#Sp * is_heap layout a * mallocHeap 0] * #0] st
+      ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs res st#Sp * is_heap a * mallocHeap 0] * #0] st
       /\ [| res = wordToNat (vs S_RESERVED) /\ Safe fs (Body ispec) (vs, a) |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
         [| st'#Sp = st#Sp |]
-        /\ ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs' res st'#Sp * is_heap layout a' * mallocHeap 0] * #1] st'
+        /\ ![^[locals ("rp" :: S_RESERVED :: ArgVars ispec) vs' res st'#Sp * is_heap a' * mallocHeap 0] * #1] st'
         /\ [| RunsTo fs (Body ispec) (vs, a) (vs', a') /\ st'#Rv = sel vs' (RetVar ispec) |] )))
 )%PropX.
 
-Definition inv layout vars s : assert := 
-  st ~> Ex fs, funcsOk layout (fst st) fs
+Definition inv vars s : assert := 
+  st ~> Ex fs, funcsOk (fst st) fs
   /\ ExX, Ex v, Ex res,
-  ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
+  ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap (snd v) * mallocHeap 0] * #0] st
   /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
   /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
     [| st'#Sp = st#Sp |]
-    /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+    /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
     /\ [| RunsToRelax fs s v v' |]).
 
 Definition good_name name := prefix name "!" = false.
@@ -73,16 +77,15 @@ Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -
 
 Section Compiler.
 
-  Variable layout : ADTValue -> W -> HProp.
   Variable vars : list string.
 
   Section Specifications.
 
     Variable s k : Statement.
 
-    Definition precond := inv layout vars (s;: k).
+    Definition precond := inv vars (s;: k).
 
-    Definition postcond := inv layout vars k.
+    Definition postcond := inv vars k.
 
     Definition verifCond pre := imply pre precond :: vars_require vars (s;: k) :: nil.
 
@@ -114,22 +117,22 @@ Section Compiler.
   
   Definition loop_inv cond body k : assert := 
     let s := While cond body;: k in
-    st ~> Ex fs, funcsOk layout (fst st) fs /\ ExX, Ex v, Ex res,
-    ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap layout (snd v) * mallocHeap 0] * #0] st
+    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
+    ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap (snd v) * mallocHeap 0] * #0] st
     /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
     /\ [| st#Rv = v[(cond)] |]
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = st#Sp |]
-      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs s v v' |]).
 
   Definition afterCall k : assert :=
-    st ~> Ex fs, funcsOk layout (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
+    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
     let old_sp := st#Sp ^- natToW (4 * (1 + length vars)) in
-    ![^[locals ("rp" :: vars) (fst v) res old_sp * is_heap layout (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs k v |] ] * #0] st
+    ![^[locals ("rp" :: vars) (fst v) res old_sp * is_heap (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs k v |] ] * #0] st
     /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
       [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap layout (snd v') * mallocHeap 0] * #1] st'
+      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
       /\ [| RunsToRelax fs k v v' |]).
 
   Fixpoint compile_exprs exprs base :=
@@ -1396,6 +1399,93 @@ Section Compiler.
   Opaque mult.
   Opaque is_heap.
 
+  Ltac discharge_fs :=
+    match goal with
+      | [ fs : W -> option Callee
+          |- exists x : W -> option Callee, _ ] =>
+        exists fs;
+          match goal with
+            | [ |- _ /\ _ ] => split; [ split; assumption | ]
+          end
+               end;
+          match goal with
+            | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
+          end.
+
+  Lemma vars_require_disjoint : forall vars s b n, vars_require vars s -> disjoint (footprint s) (tempChunk b n).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_disjoint.
+
+  Lemma vars_require_seq_assoc_left : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s1 ;: (s2 ;: k)).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_seq_assoc_left.
+
+  Lemma vars_require_seq_part : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s2 ;: k).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_seq_part.
+
+  Hint Resolve RunsToRelax_assoc_left.
+
+  Lemma vars_require_disjoint_tempVars : forall vars s n, vars_require vars s -> disjoint (footprint s) (tempVars n).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_disjoint_tempVars.
+
+  Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
+    intuition.
+  Qed.
+
+  Lemma Safe_pair : forall fs s p, Safe fs s p -> Safe fs s (fst p, snd p).
+    admit.
+  Qed.
+
+  Hint Resolve Safe_pair.
+
+  Lemma reserved_not_in_tempChunk : forall b n, ~ In S_RESERVED (tempChunk b n).
+    admit.
+  Qed.
+
+  Hint Resolve reserved_not_in_tempChunk.
+
+  Lemma rp_not_in_tempChunk : forall b n, ~ In "rp" (tempChunk b n).
+    admit.
+  Qed.
+
+  Hint Resolve rp_not_in_tempChunk.
+
+  Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_if_part_true.
+
+  Lemma vars_require_if_part_false : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (f ;: k).
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_if_part_false.
+
+  Lemma vars_require_if_cond : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> e_vars_require vars e 0.
+    admit.
+  Qed.
+
+  Hint Resolve vars_require_if_cond.
+
+  Ltac replace_sel := try eassumption;     
+    match goal with
+      H : context [sel ?VS1 ?V] |- context [sel ?VS2 ?V] =>
+        not_eq VS1 VS2; replace (sel VS2 V) with (sel VS1 V) in *; try symmetry
+    end.
+
+  Hint Resolve changed_in_inv.
+
   Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
     vcs (verifCond s k pre) ->
@@ -1403,172 +1493,41 @@ Section Compiler.
     interp specs (postcond k x).
     unfold verifCond, imply; induction s.
 
-    Ltac discharge_fs :=
-      match goal with
-        | [ fs : W -> option Callee
-            |- exists x : W -> option Callee, _ ] =>
-          exists fs;
-            match goal with
-              | [ |- _ /\ _ ] => split; [ split; assumption | ]
-            end
-                 end;
-            match goal with
-              | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
-            end.
-
-    Lemma vars_require_disjoint : forall vars s b n, vars_require vars s -> disjoint (footprint s) (tempChunk b n).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_disjoint.
-
-    Lemma vars_require_seq_assoc_left : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s1 ;: (s2 ;: k)).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_seq_assoc_left.
-
-    Lemma vars_require_seq_part : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s2 ;: k).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_seq_part.
-
-    Hint Resolve RunsToRelax_assoc_left.
-
     (* skip *)
     wrap0.
     unfold_eval.
     myPost.
-    eval_step auto_ext.
-    set (is_heap layout _) in *.
-    eval_step auto_ext.
-    unfold h in *; clear h.
-    discharge_fs.
-    descend.
-    instantiate (2 := x3).
-    set (is_heap layout _) in *.
-    hiding ltac:(step auto_ext).
+    repeat eval_step auto_ext.
 
-    eauto.
-
-    eauto.
-
-    eauto.
-
-    repeat hiding ltac:(step auto_ext); eauto.
+    discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
 
     (* seq *)
     wrap0.
     unfold_eval.
     myPost.
-    eval_step auto_ext.
-    wrap0.
-    eval_step auto_ext.
-    wrap0.
-    eval_step auto_ext.
+    repeat (eval_step auto_ext; try wrap0).
 
-    discharge_fs.
-    descend.
-    instantiate (2 := x4).
-    set (is_heap layout _) in *.
-    hiding ltac:(step auto_ext).
-
+    discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
     eauto.
-
-    eauto.
-
-    eauto.
-
-    repeat hiding ltac:(step auto_ext).
-
-    Lemma vars_require_disjoint_tempVars : forall vars s n, vars_require vars s -> disjoint (footprint s) (tempVars n).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_disjoint_tempVars.
-
-    eauto.
-
-    eauto.
-
-    Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
-      intuition.
-    Qed.
-
-    Lemma Safe_pair : forall fs s p, Safe fs s p -> Safe fs s (fst p, snd p).
-      admit.
-    Qed.
-
-    Hint Resolve Safe_pair.
-
-    Lemma reserved_not_in_tempChunk : forall b n, ~ In S_RESERVED (tempChunk b n).
-      admit.
-    Qed.
-
-    Hint Resolve reserved_not_in_tempChunk.
-
-    Lemma rp_not_in_tempChunk : forall b n, ~ In "rp" (tempChunk b n).
-      admit.
-    Qed.
-
-    Hint Resolve rp_not_in_tempChunk.
-
-    Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_if_part_true.
-
-    Lemma vars_require_if_part_false : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (f ;: k).
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_if_part_false.
-
-    Lemma vars_require_if_cond : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> e_vars_require vars e 0.
-      admit.
-    Qed.
-
-    Hint Resolve vars_require_if_cond.
-
-    Ltac replace_sel := try eassumption;     
-      match goal with
-        H : context [sel ?VS1 ?V] |- context [sel ?VS2 ?V] =>
-          not_eq VS1 VS2; replace (sel VS2 V) with (sel VS1 V) in *; try symmetry
-      end.
-
-    Hint Resolve changed_in_inv.
 
     (* if-true *)
-    wrap0.
-    unfold_eval.
-    myPost.
-    eval_step auto_ext.
-    wrap0.
-    eval_step auto_ext.
-    unfold_eval.
-    set (is_heap layout _) in *.
-    eval_step auto_ext.
+    wrap0; unfold_eval; 
+    repeat eval_step auto_ext;
+      repeat match goal with
+               | [ |- vcs _ ] => wrap0; try eval_step auto_ext;
+                 try match goal with
+                       | [ H : context[expr_runs_to] |- _ ] =>
+                         unfold expr_runs_to, runs_to_generic in H; simpl in H
+                     end; try eval_step auto_ext
+             end.
 
-    unfold h in *; clear h.
-    simpl in *.
-    rewrite pack_pair in *.
     discharge_fs.
-    descend.
-    instantiate (2 := (x7, snd x4)).
-    set (is_heap layout _) in *.
-    hiding ltac:(step auto_ext).
-
-    post_step.
+    rewrite pack_pair in *.
+    pick_vs.
+    descend; try clear_imports; repeat hiding ltac:(step auto_ext); post_step.
     simpl; replace_sel; eauto.
-    
     eapply Safe_immune; eauto.
-
     simpl; replace_sel; eauto.
-
-    repeat hiding ltac:(step auto_ext).
-
     eauto 6.
     eauto.
     eauto.
@@ -1591,17 +1550,13 @@ Section Compiler.
     descend.
     instantiate (2 := (x7, snd x4)).
     set (is_heap layout _) in *.
-    hiding ltac:(step auto_ext).
-
+    try clear_imports; hiding ltac:(step auto_ext).
     post_step.
     simpl; replace_sel; eauto.
-    
     eapply Safe_immune; eauto.
-
     simpl; replace_sel; eauto.
 
-    repeat hiding ltac:(step auto_ext).
-
+    try clear_imports; repeat hiding ltac:(step auto_ext).
     eauto 6.
     eauto.
     eauto.
@@ -1615,20 +1570,17 @@ Section Compiler.
     descend.
     instantiate (2 := x2).
     set (is_heap layout _) in *.
-    hiding ltac:(step auto_ext).
-
+    try clear_imports; hiding ltac:(step auto_ext).
+    eauto.
+    eauto.
     eauto.
 
-    eauto.
-
-    eauto.
-
-    repeat hiding ltac:(step auto_ext).
-
+    try clear_imports; repeat hiding ltac:(step auto_ext).
     eauto.
 
     (* call *)
-    abstract t.
+    admit.
+
   Qed.
 
   Ltac unfold_wrap0 := unfold verifCond, imply, CompileExpr.expr_verifCond in *.
