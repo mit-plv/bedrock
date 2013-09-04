@@ -1527,50 +1527,22 @@ Section Compiler.
     eauto.
 
     (* if-false *)
-    wrap0.
-    unfold_eval.
-    myPost.
-    eval_step auto_ext.
-    wrap0.
-    eval_step auto_ext.
-    unfold_eval.
-    set (is_heap layout _) in *.
-    eval_step auto_ext.
-
-    unfold h in *; clear h.
-    simpl in *.
-    rewrite pack_pair in *.
+    wrap0; unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
     discharge_fs.
-    descend.
-    instantiate (2 := (x7, snd x4)).
-    set (is_heap layout _) in *.
-    try clear_imports; hiding ltac:(step auto_ext).
-    post_step.
+    rewrite pack_pair in *.
+    pick_vs.
+    descend; try clear_imports; repeat hiding ltac:(step auto_ext); post_step.
     simpl; replace_sel; eauto.
     eapply Safe_immune; eauto.
     simpl; replace_sel; eauto.
-
-    try clear_imports; repeat hiding ltac:(step auto_ext).
     eauto 6.
     eauto.
     eauto.
 
     (* while *)
-    wrap0.
-    unfold_eval.
+    wrap0; unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
     myPost.
-
-    discharge_fs.
-    descend.
-    instantiate (2 := x2).
-    set (is_heap layout _) in *.
-    try clear_imports; hiding ltac:(step auto_ext).
-    eauto.
-    eauto.
-    eauto.
-
-    try clear_imports; repeat hiding ltac:(step auto_ext).
-    eauto.
+    discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
 
     (* call *)
     admit.
