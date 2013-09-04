@@ -1486,41 +1486,35 @@ Section Compiler.
 
   Hint Resolve changed_in_inv.
 
+  Ltac do_wrap :=
+    match goal with
+      | [ |- vcs _ ] => wrap0
+    end.
+
+  Ltac do_unfold_eval :=
+    match goal with
+      | [ H : context[expr_runs_to] |- _ ] => unfold_eval
+    end.
+
   Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
     vcs (verifCond s k pre) ->
     interp specs (Postcondition (compile s k pre) x) ->
     interp specs (postcond k x).
+
     unfold verifCond, imply; induction s.
 
     (* skip *)
-    wrap0.
-    unfold_eval.
-    myPost.
-    repeat eval_step auto_ext.
-
+    wrap0; unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
     discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
 
     (* seq *)
-    wrap0.
-    unfold_eval.
-    myPost.
-    repeat (eval_step auto_ext; try wrap0).
-
+    wrap0; unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
     discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
     eauto.
 
     (* if-true *)
-    wrap0; unfold_eval; 
-    repeat eval_step auto_ext;
-      repeat match goal with
-               | [ |- vcs _ ] => wrap0; try eval_step auto_ext;
-                 try match goal with
-                       | [ H : context[expr_runs_to] |- _ ] =>
-                         unfold expr_runs_to, runs_to_generic in H; simpl in H
-                     end; try eval_step auto_ext
-             end.
-
+    wrap0; unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
     discharge_fs.
     rewrite pack_pair in *.
     pick_vs.
