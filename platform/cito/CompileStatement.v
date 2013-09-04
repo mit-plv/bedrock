@@ -1563,7 +1563,7 @@ Section Compiler.
 
   Ltac destruct_st :=
     match goal with
-      | [ x : (vals * arrays)%type |- _ ] => destruct x; simpl in *
+      | [ x : (vals * Heap)%type |- _ ] => destruct x; simpl in *
       | [ x : st |- _ ] => destruct x; simpl in *
     end;
     try match goal with
@@ -1583,29 +1583,23 @@ Section Compiler.
     end.
 
   Lemma verifCond_ok : forall s k (pre : assert),
-    vcs (verifCond s k imports pre) -> vcs (VerifCond (compile s k pre)).
+    vcs (verifCond s k pre) -> vcs (VerifCond (compile s k pre)).
 
     unfold verifCond, imply; induction s.
-
-    (* assignment *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* ReadAt *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* WriteAt *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    (* seq *)
-    wrap0.
-    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
-
-    auto_apply; wrap0; pre_eauto3; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
 
     (* skip *)
     wrap0; clear_imports; evaluate auto_ext.
 
-    (* conditional *)
+    (* seq *)
+    wrap0.
+    auto_apply; wrap0; unfold_eval; clear_imports.
+    repeat eval_step auto_ext.
+(*here*)
+    try stepper'; solver.
+
+    auto_apply; wrap0; pre_eauto3; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+
+    (* if *)
     wrap0.
     unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
     clear_imports; evaluate auto_ext.
@@ -1616,7 +1610,7 @@ Section Compiler.
     (* false case *)
     auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
 
-    (* loop *)
+    (* while *)
     wrap0.
     unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
 
