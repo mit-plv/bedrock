@@ -31,16 +31,15 @@ Definition Heap := MHeap.dict.
 
 Definition st := (vals * Heap)%type.
 
-Definition ArgType := (W + ADTValue)%type.
+Definition ArgValue := (W + ADTValue)%type.
 
-Definition ResultType := (W + option ADTValue)%type.
+Definition ResultValue := option (W + ADTValue).
 
-Definition RetType := (W * option ADTValue)%type.
+Definition RetValue := option (W + ADTValue).
 
 Record callTransition := {
-  Args : list ArgType;
-  After : list ResultType;
-  Ret : RetType
+  Args : list (ArgValue * ResultValue);
+  Ret : RetValue
 }.
 
 Record ForeignFuncSpec := {
@@ -57,18 +56,12 @@ Inductive Callee :=
   | Foreign : ForeignFuncSpec -> Callee
   | Internal : InternalFuncSpec -> Callee.
 
-Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgType) =>
+Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgValue) =>
   match v with
     | inl _ => True
     | inr adt_value => MHeap.mem heap w /\ MHeap.sel heap w = adt_value
   end
 ).
-
-Definition new_return (heap : Heap) (ret : RetType) :=
-  match snd ret with
-    | None => True
-    | Some _ => ~ MHeap.mem heap (fst ret)
-  end.
 
 Definition upd_option vs var value :=
   match var with
@@ -76,24 +69,15 @@ Definition upd_option vs var value :=
     | Some x => Locals.upd vs x value
   end.
 
-Fixpoint store_result (heap : Heap) ptrs (result : list ResultType) : Heap :=
+Fixpoint store_result (heap : Heap) ptrs (result : list ResultValue) : Heap :=
   match ptrs, result with
     | w :: ws, v :: vs =>
       match v with 
-        | inl _ => store_result heap ws vs
-        | inr v' => 
-          match v' with
-            | None => store_result (MHeap.remove heap w) ws vs
-            | Some adt_value => store_result (MHeap.upd heap w adt_value) ws vs
-          end
+        | None => store_result (MHeap.remove heap w) ws vs
+        | Some (inl _) => store_result heap ws vs
+        | Some (inr adt_value) => store_result (MHeap.upd heap w adt_value) ws vs
       end
     | _, _ => heap
-  end.
-
-Definition store_return (heap : Heap) ret :=
-  match snd ret with
-    | None => heap
-    | Some adt_value => MHeap.upd heap (fst ret) adt_value
   end.
 
 Definition sels vs xs := map (fun x => Locals.sel vs x) xs.
@@ -140,7 +124,7 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
       -> match_heap heap args_v adt_values
-      -> Pred spec {| Args := adt_values; After := result; Ret := ret |}
+      -> Pred spec {| Args := adt_values; Ret := ret |}
       -> let heap' := store_result heap args_v result in
          new_return heap' ret
       -> RunsTo (Syntax.Call var f args) v (upd_option vs var (fst ret), store_return heap' ret).
