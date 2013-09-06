@@ -142,8 +142,6 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
 
 Hint Extern 1 (@eq W _ _) => words.
 
-Print Ltac match_locals.
-
 Ltac match_locals :=
   match goal with
     | [ |- interp _ (?P ---> ?Q)%PropX ] =>
