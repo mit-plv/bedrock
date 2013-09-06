@@ -82,6 +82,12 @@ Fixpoint store_result (heap : Heap) ptrs (result : list ResultValue) : Heap :=
 
 Definition sels vs xs := map (fun x => Locals.sel vs x) xs.
 
+Definition new_return (heap : Heap) addr (ret : RetValue) :=
+  match ret with
+    | None => True
+    | Some _ => ~ MHeap.mem heap (fst ret)
+  end.
+
 (* Semantics *)
 
 Section functions.
@@ -119,15 +125,15 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> sels vs_arg (ArgVars spec) = args_v
       -> RunsTo (Body spec) (vs_arg, heap) (vs_arg', heap')
       -> RunsTo (Syntax.Call var f args) v (upd_option vs var (Locals.sel vs_arg' (RetVar spec)), heap')
-  | CallForeign : forall vs heap var f args spec adt_values result ret,
+  | CallForeign : forall vs heap var f args spec adt_values ret addr,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> match_heap heap args_v adt_values
+      -> match_heap heap args_v (map fst adt_values)
       -> Pred spec {| Args := adt_values; Ret := ret |}
-      -> let heap' := store_result heap args_v result in
-         new_return heap' ret
-      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (fst ret), store_return heap' ret).
+      -> let heap' := store_result heap args_v (map snd adt_values) in
+         new_return heap' addr ret
+      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (fst ret), store_return heap' addr ret).
 
 End functions.
 
