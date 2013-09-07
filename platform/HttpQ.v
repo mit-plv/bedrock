@@ -8,6 +8,9 @@ Module Type S.
 
   Axiom buf_size_lower : (nat_of_N buf_size >= 2)%nat.
   Axiom buf_size_upper : goodSize (4 * nat_of_N buf_size).
+
+  Axiom globalInv_monotone : forall fs fs', fs %<= fs'
+    -> globalInv fs ===> globalInv fs'.
 End S.
 
 Module Make(Import M : S).
@@ -70,11 +73,17 @@ Definition saveS := SPEC("q", "buf", "len") reserving 12
   PRE[V] httpq (V "q") * V "buf" =?>8 wordToNat len * [| V "len" <= len |] * mallocHeap 0
   POST[R] httpq R * V "buf" =?>8 wordToNat len * mallocHeap 0.
 
-Definition sendGS := SPEC("q") reserving 0
+Definition sendS := SPEC("q") reserving 0
   Al fs,
   PRE[V] [| V "fr" %in fs |] * httpq (V "q")
     * sched fs * globalInv fs * mallocHeap 0
   POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0.
+
+(* This one probably shouldn't be called from other modules. *)
+Definition send1S := SPEC("buf") reserving 52
+  Al fs,
+  PRE[V] onebuf (V "buf") * sched fs * globalInv fs * mallocHeap 0
+  POST[_] Ex fs', onebuf (V "buf") * [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0.
 
 Coercion ascii_of_nat : nat >-> ascii.
 
@@ -87,17 +96,22 @@ Definition preRequest := ("POST / HTTP/1.0 HTTP/1.1 200 OK" ++ nl
   ++ "Content-Length: ")%string.
 
 Definition hints : TacPackage.
-  prepare (httpq_fwd, onebuf_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd)
-  (httpq_bwd, httpq_split, onebuf_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd).
+  prepare (httpq_fwd, onebuf_fwd, SinglyLinkedList.nil_fwd, SinglyLinkedList.cons_fwd,
+  buffer_split_tagged)
+  (httpq_bwd, httpq_split, onebuf_bwd, SinglyLinkedList.nil_bwd, SinglyLinkedList.cons_bwd,
+  buffer_join_tagged).
 Defined.
 
 Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
-                           "array8"!"copy" @ [ArrayOps.copyS],
+                           "array8"!"copy" @ [ArrayOps.copyS], "buffers"!"contains" @ [containsS],
                            "http"!"itoa" @ [itoaS], "sys"!"abort" @ [abortS],
                            "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
-                           "buffers"!"bmalloc" @ [bmallocS], "buffers"!"bfree" @ [bfreeS] ]]
+                           "buffers"!"bmalloc" @ [bmallocS], "buffers"!"bfree" @ [bfreeS],
+                           "scheduler"!"connect" @ [Scheduler.connectGS sched],
+                           "scheduler"!"connected" @ [Scheduler.connectedGS sched globalInv],
+                           "scheduler"!"close" @ [Scheduler.closeGS sched] ]]
   bmodule "httpq" {{
-    bfunction "save"("q", "buf", "len", "newbuf", "node") [saveS]
+    (*bfunction "save"("q", "buf", "len", "newbuf", "node") [saveS]
       If ("len" >= bsize) {
         (* Well, shucks.  It doesn't fit. *)
         Call "sys"!"abort"()
@@ -137,6 +151,132 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
 
         Return "node"
       }
+    end with*) bfunction "send1"("buf", "pos", "fr", "len", "opos", "overflowed") [send1S]
+      "pos" <-- Call "buffers"!"contains"("buf", bsize, 0)
+      [Al fs,
+        PRE[V] onebuf (V "buf") * sched fs * globalInv fs * mallocHeap 0
+        POST[_] onebuf (V "buf") * Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      If ("pos" >= bsize) {
+        (* No '\0' character to separate hostname and payload?  How troubling. :-( *)
+        Call "sys"!"abort"()
+        [PREonly[_] [| False |] ];;
+        Fail
+      } else {
+        Skip
+      };;
+
+      (* Let's rearrange the logical view to expose the hostname and payload separately. *)
+      Assert [Al fs,
+        PRE[V] [| wordToNat (V "pos") < bsize |]%nat * [| wordToNat (V "pos") <= bsize |]%nat
+          * buffer_splitAt (wordToNat (V "pos")) (V "buf") bsize
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] buffer_joinAt (wordToNat (V "pos")) (V "buf") bsize
+          * Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      "fr" <-- Call "scheduler"!"connect"("buf", "pos")
+      [Al fs,
+        PRE[V, R] [| R %in fs |] * [| 1 <= bsize - wordToNat (V "pos") |]%nat
+          * buffer_splitAt 1 (V "buf" ^+ V "pos") (bsize - wordToNat (V "pos"))
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] buffer_joinAt 1 (V "buf" ^+ V "pos") (bsize - wordToNat (V "pos"))
+          * Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      "len" <- "pos" + 1;;
+      "buf" <- "buf" + "len";;
+      "len" <- bsize - "pos";;
+      "len" <- "len" - 1;;
+
+      Call "scheduler"!"connected"("fr")
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] V "buf" =?>8 wordToNat (V "len")
+          * Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      "pos" <-- Call "buffers"!"contains"("buf", "len", 0)
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+        POST[_] V "buf" =?>8 wordToNat (V "len")
+          * Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      If ("pos" >= "len") {
+        (* No '\0' character to mark end of payload?  How troubling. :-( *)
+        Call "sys"!"abort"()
+        [PREonly[_] [| False |] ];;
+        Fail
+      } else {
+        Skip
+      };;
+
+      "opos" <- "pos";;
+      Note [reveal_buffers];;
+      StringWrite "buf" "len" "opos" "overflowed" preRequest
+      (fun fs V => [| V "fr" %in fs |] * sched fs * globalInv fs * mallocHeap 0
+        * [| V "pos" < V "len" |]%word)%Sep
+      (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+        * sched fs' * globalInv fs' * mallocHeap 0)%Sep;;
+      Note [reveal_buffers];;
+
+      "opos" <-- Call "http"!"itoa"("pos", "buf", "opos", "len")
+      [Al fs,
+        PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs * globalInv fs * mallocHeap 0
+          * [| V "pos" < V "len" |]%word
+        POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+          * sched fs' * globalInv fs' * mallocHeap 0];;
+
+      If ("opos" > "len") {
+        Call "sys"!"abort"()
+        [PREonly[_] [| False |] ];;
+        Fail
+      } else {
+        Skip
+      };;
+
+      Note [reveal_buffers];;
+      StringWrite "buf" "len" "opos" "overflowed" endOfHeaders
+      (fun fs V => [| V "fr" %in fs |] * sched fs * globalInv fs * mallocHeap 0
+        * [| V "pos" < V "len" |]%word)%Sep
+      (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+        * sched fs' * globalInv fs' * mallocHeap 0)%Sep;;
+      Note [reveal_buffers];;
+
+      If ("overflowed" = 1) {
+        Call "sys"!"abort"()
+        [PREonly[_] [| False |] ];;
+        Fail
+      } else {
+        (* Write headers. *)
+        If ("opos" < "pos") {
+          (* Shouldn't be possible. :( *)
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ];;
+          Fail
+        } else {
+          "opos" <- "opos" - "pos";;
+          Call "io"!"writeAll"("fr", "buf", "pos", "opos")
+          [Al fs,
+            PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs * globalInv fs * mallocHeap 0
+              * [| V "pos" < V "len" |]%word
+            POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs' * globalInv fs' * mallocHeap 0];;
+
+          Call "io"!"writeAll"("fr", "buf", 0, "pos")
+          [Al fs,
+            PRE[V] [| V "fr" %in fs |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs * globalInv fs * mallocHeap 0
+            POST[_] Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+              * sched fs' * globalInv fs' * mallocHeap 0];;
+
+          Call "scheduler"!"close"("fr")
+          [PRE[_] Emp
+           POST[_] Emp];;
+          Return 0
+        }
+      }
     end
   }}.
 
@@ -158,6 +298,11 @@ Ltac match_locals :=
     | _ => MoreArrays.match_locals
   end.
 
+Lemma globalInv_wiggle : forall P Q fs fs', fs %<= fs'
+  -> P * (globalInv fs * Q) ===> P * (globalInv fs' * Q).
+  sepLemma; apply globalInv_monotone; auto.
+Qed.
+
 Ltac t' :=
   try match goal with
         | [ |- context[reveal_buffers] ] => post; unfold buffer, httpqSplitMe in *
@@ -166,7 +311,9 @@ Ltac t' :=
         | [ _ : context[match ?st with pair _ _ => _ end] |- _ ] => destruct st; simpl in *
       end; try solve [ sep_auto; eauto ];
   post; evaluate hints; descend;
-  repeat (try match_locals; step hints; descend); eauto.
+  repeat (try match_locals; step hints; descend); eauto;
+    try (etransitivity; [ | apply globalInv_wiggle; eassumption ]; unfold buffer_splitAt);
+      (descend; step hints).
 
 Ltac t := easy || prove_irrel || t'.
 
@@ -240,9 +387,150 @@ Qed.
 
 Local Hint Immediate lt_le le_le bsize_wordToNat.
 
+Hint Rewrite bsize_simp natToW_wordToNat : sepFormula.
+
+Lemma bsize_re : forall w : W,
+  w < natToW bsize
+  -> (wordToNat w < bsize)%nat.
+  intros; pre_nomega.
+  autorewrite with sepFormula in *.
+  auto.
+Qed.
+
+Local Hint Immediate bsize_re.
+
+Hint Rewrite bsize_simp : N.
+
+Lemma multisub : forall w,
+  (1 <= bsize - wordToNat w)%nat
+  -> wordToNat (natToW bsize ^- w ^- natToW 1) = (bsize - wordToNat w - 1).
+  intros.
+  rewrite wordToNat_wminus.
+  rewrite wordToNat_wminus.
+  autorewrite with sepFormula; auto.
+  nomega.
+  pre_nomega.
+  rewrite wordToNat_wminus; nomega.
+Qed.
+
+Lemma assoc1 : forall u v : W,
+  u ^+ (v ^+ natToW 1) = u ^+ v ^+ natToW 1.
+  intros; words.
+Qed.
+
+Hint Rewrite multisub assoc1 using assumption : sepFormula.
+
+Lemma goodSize_wordToNat' : forall n (w : W),
+  n = wordToNat w
+  -> goodSize n.
+  intros; subst; eauto.
+Qed.
+
+Lemma lt_le' : forall u v : W,
+  u < v
+  -> (wordToNat u <= wordToNat v)%nat.
+  intros; nomega.
+Qed.
+
+Local Hint Immediate goodSize_wordToNat' lt_le'.
+
+Ltac u := abstract t.
+
 Theorem ok : moduleOk m.
   vcgen.
 
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+  u.
+
+  (*t.
   t.
   t.
   t.
@@ -263,8 +551,7 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-  t.
-  t.
+  t.*)
 Qed.
 
 End Make.
