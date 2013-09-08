@@ -13,6 +13,15 @@ Module Type S.
     -> globalInv fs ===> globalInv fs'.
 End S.
 
+Section specs.
+  Variable httpq : W -> HProp.
+
+  Definition saveGS := SPEC("q", "buf", "len") reserving 12
+    Al len : W,
+    PRE[V] httpq (V "q") * V "buf" =?>8 wordToNat len * [| V "len" <= len |] * mallocHeap 0
+    POST[R] httpq R * V "buf" =?>8 wordToNat len * mallocHeap 0.
+End specs.
+
 Module Make(Import M : S).
 
 Definition bsize := nat_of_N (buf_size * 4)%N.
@@ -68,15 +77,11 @@ End Httpq.
 Import Httpq.
 Export Httpq.
 
-Definition saveS := SPEC("q", "buf", "len") reserving 12
-  Al len : W,
-  PRE[V] httpq (V "q") * V "buf" =?>8 wordToNat len * [| V "len" <= len |] * mallocHeap 0
-  POST[R] httpq R * V "buf" =?>8 wordToNat len * mallocHeap 0.
+Definition saveS := saveGS httpq.
 
-Definition sendS := SPEC("q") reserving 0
+Definition sendS := SPEC("q") reserving 56
   Al fs,
-  PRE[V] [| V "fr" %in fs |] * httpq (V "q")
-    * sched fs * globalInv fs * mallocHeap 0
+  PRE[V] httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
   POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0.
 
 (* This one probably shouldn't be called from other modules. *)
@@ -111,7 +116,7 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
                            "scheduler"!"connected" @ [Scheduler.connectedGS sched globalInv],
                            "scheduler"!"close" @ [Scheduler.closeGS sched] ]]
   bmodule "httpq" {{
-    (*bfunction "save"("q", "buf", "len", "newbuf", "node") [saveS]
+    bfunction "save"("q", "buf", "len", "newbuf", "node") [saveS]
       If ("len" >= bsize) {
         (* Well, shucks.  It doesn't fit. *)
         Call "sys"!"abort"()
@@ -151,7 +156,7 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
 
         Return "node"
       }
-    end with*) bfunction "send1"("buf", "pos", "fr", "len", "opos", "overflowed") [send1S]
+    end with bfunction "send1"("buf", "pos", "fr", "len", "opos", "overflowed") [send1S]
       "pos" <-- Call "buffers"!"contains"("buf", bsize, 0)
       [Al fs,
         PRE[V] onebuf (V "buf") * sched fs * globalInv fs * mallocHeap 0
@@ -277,6 +282,34 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
           Return 0
         }
       }
+    end with bfunction "send"("q", "tmp", "buf") [sendS]
+      [Al fs,
+        PRE[V] httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
+        POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0]
+      While ("q" <> 0) {
+        "tmp" <- "q";;
+        "buf" <-* "q";;
+        "q" <-* "q"+4;;
+
+        Call "httpq"!"send1"("buf")
+        [Al fs,
+          PRE[V] onebuf (V "buf") * V "tmp" =?> 2 * [| V "tmp" <> 0 |] * [| freeable (V "tmp") 2 |]
+            * httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
+          POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+        Call "buffers"!"bfree"("buf", buf_size)
+        [Al fs,
+          PRE[V] V "tmp" =?> 2 * [| V "tmp" <> 0 |] * [| freeable (V "tmp") 2 |]
+            * httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
+          POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0];;
+
+        Call "malloc"!"free"(0, "tmp", 2)
+        [Al fs,
+          PRE[V] httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
+          POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0]
+      };;
+      
+      Return 0
     end
   }}.
 
@@ -309,11 +342,11 @@ Ltac t' :=
       end;
   try match goal with
         | [ _ : context[match ?st with pair _ _ => _ end] |- _ ] => destruct st; simpl in *
-      end; try solve [ sep_auto; eauto ];
-  post; evaluate hints; descend;
+      end; try solve [ sep hints; eauto ];
+  post; evaluate hints; subst; simpl in *; descend;
   repeat (try match_locals; step hints; descend); eauto;
-    try (etransitivity; [ | apply globalInv_wiggle; eassumption ]; unfold buffer_splitAt);
-      (descend; step hints).
+    try (try (etransitivity; [ | apply globalInv_wiggle; eassumption ]; unfold buffer_splitAt);
+      descend; step hints).
 
 Ltac t := easy || prove_irrel || t'.
 
@@ -434,124 +467,14 @@ Qed.
 
 Local Hint Immediate goodSize_wordToNat' lt_le'.
 
-Ltac u := abstract t.
+Lemma bsize_unexpand : N.to_nat buf_size * 4 = bsize.
+  unfold bsize; rewrite N2Nat.inj_mul; auto.
+Qed.
+
+Hint Rewrite buf_size_simp bsize_unexpand : sepFormula.
 
 Theorem ok : moduleOk m.
-  vcgen.
-
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-  u.
-
-  (*t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.*)
+  vcgen; abstract t.
 Qed.
 
 End Make.
