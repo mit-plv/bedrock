@@ -16,7 +16,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/WebServerDriver tests/EchoServerDriver \
            NumOps ArrayOps StringOps RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete \
            XmlLex XmlSearch XmlOutput XmlLang Http HttpQ XmlProg Xml \
-	   tests/XmlTestDriver tests/XmlTest2Driver \
+	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/RosMasterDriver
 
 VS      := $(MODULES:%=%.v)

@@ -1471,7 +1471,8 @@ Section compileProgram.
               * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
               * [| length bsO' = length bsO |] * [| R <= V "olen" |]%word ];;
 
-          "q" *<- "res"
+          "q" *<- "res";;
+          "opos" <- 0
       end%SP.
 
     Definition ainv avs ts ts' :=
@@ -2323,6 +2324,7 @@ Section compileProgram.
 
       step1.
 
+      step2.
       step2.
       step2.
       step2.
