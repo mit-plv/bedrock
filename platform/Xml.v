@@ -59,6 +59,9 @@ Notation "'From' tab 'Where' cond 'Write' o" :=
   (XmlLang.Select tab cond%condition o%out) : action_scope.
 Notation "'From' tab 'Write' o" :=
   (XmlLang.Select tab nil o%out) : action_scope.
+Notation "'Send' x1 'Value' x2" :=
+  (XmlLang.SendTo x1%out x2%out) (at level 0, x1 at level 0, x2 at level 0) : action_scope.
+
 Delimit Scope action_scope with action.
 Bind Scope action_scope with action.
 
