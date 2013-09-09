@@ -1593,10 +1593,35 @@ Section compileProgram.
 
     Hint Immediate inBounds_post.
 
+    Lemma inBounds_swizzle_post : forall V V' p,
+      (forall x, x <> "res" -> x <> "opos" -> sel V x = sel V' x)
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+      intros.
+      rewrite <- inBounds_sel.
+      rewrite <- inBounds_sel in H0.
+      eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
+      simpl; intuition; match goal with
+                          | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
+                        end.
+      repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
+      auto.
+    Qed.
+
+    Lemma inBounds_post' : forall V v v',
+      XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p))
+      (upd (upd V "res" v) "opos" v').
+      intros; eapply inBounds_swizzle_post; [ | eauto ]; descend.
+    Qed.
+
+    Hint Immediate inBounds_post'.
+
     Lemma compileAction_post : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
       -> In "res" ns
       -> In "q" ns
+      -> In "opos" ns
       -> forall a avs ts ts' pre,
         (forall specs st,
           interp specs (pre st)
