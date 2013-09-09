@@ -95,7 +95,7 @@ Coercion ascii_of_nat : nat >-> ascii.
 Module H := Http.Make(M).
 Import H.
 
-Definition preRequest := ("POST / HTTP/1.0 200 OK" ++ nl
+Definition preRequest := ("POST / HTTP/1.0" ++ nl
   ++ "Content-Type: text/xml" ++ nl
   ++ "User-Agent: Bedrock" ++ nl
   ++ "Content-Length: ")%string.
