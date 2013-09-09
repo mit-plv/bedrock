@@ -34,6 +34,10 @@ Module M.
     :: {| Name := "topicsWithPublishers";
       Address := dbaddr 6;
       Schema := "topic" :: "topic_type" :: nil |}
+
+    :: {| Name := "paramSubscribers";
+      Address := dbaddr 7;
+      Schema := "key" :: "subscriber_api" :: nil |}
     :: nil.
 
   Definition registerNode := (
@@ -59,6 +63,11 @@ Module M.
     Do
       Delete "params" Where ("key" = $"key");;
       Insert "params" ($"key", $"value");;
+
+      From "paramSubscribers" Where ("key" = $"key") Do
+        Callback "paramSubscribers"#"subscriber_api"
+        Command "paramUpdate"(!string "/master", !string $"key", !string "value");;
+
       Response Success
         Message "Parameter set."
         Body ignore
@@ -69,6 +78,11 @@ Module M.
     Do
       Delete "params" Where ("key" = $"key");;
       Insert "params" ($"key", $"value");;
+
+      From "paramSubscribers" Where ("key" = $"key") Do
+        Callback "paramSubscribers"#"subscriber_api"
+        Command "paramUpdate"(!string "/master", !string $"key", !int "value");;
+
       Response Success
         Message "Parameter set."
         Body ignore
@@ -97,10 +111,41 @@ Module M.
     Unimplemented "searchParam"(!string $"caller_id", !string $"key");;
 
     (* Sign up to receive notifications when a parameter value changes. *)
-    Unimplemented "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+    RosCommand "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
+    Do
+      IfHas "params" Where ("key" = $"key") then
+        registerNode;;
+        Insert "paramSubscribers" ($"key", $"caller_api");;
+        Response Success
+          Message "Parameter value is:"
+          Body
+            From "params" Where ("key" = $"key") Write
+              !string "params"#"value"
+        end
+      else
+        Response UserError
+          Message "Parameter not found."
+          Body ignore
+        end
+      end
+    end;;
 
     (* Cancel a subscription. *)
-    Unimplemented "unsubscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+    RosCommand "unsubscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
+    Do
+      IfHas "paramSubscribers" Where (("key" = $"key") && ("subscriber_api" = $"caller_api")) then
+        Delete "paramSubscribers" Where (("key" = $"key") && ("subscriber_api" = $"caller_api"));;
+        Response Success
+          Message "You are now unsubscribed."
+          Body !int "1"
+        end
+      else
+        Response Success
+          Message "You weren't subscribed to begin with."
+          Body !int "0"
+        end
+      end
+    end;;
 
     (* Check if a parameter has a value. *)
     RosCommand "hasParam"(!string $"caller_id", !string $"key")
