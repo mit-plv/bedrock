@@ -55,14 +55,15 @@ Infix ";;" := Seq : action_scope.
 Notation "'IfHas' tab 'Where' cond 'then' a1 'else' a2 'end'" :=
   (IfExists tab cond%condition a1 a2)
   (at level 0, tab at level 0, cond at level 0, a1 at level 0, a2 at level 0) : action_scope.
-Notation "'From' tab 'Where' cond 'Write' o" :=
-  (XmlLang.Select tab cond%condition o%out) : action_scope.
-Notation "'From' tab 'Write' o" :=
-  (XmlLang.Select tab nil o%out) : action_scope.
+Delimit Scope action_scope with action.
+Notation "'From' tab 'Where' cond 'Do' a" :=
+  (XmlLang.Select tab cond%condition a%action)
+  (at level 0, tab at level 0, cond at level 0, a at level 0) : action_scope.
+Notation "'From' tab 'Do' a" :=
+  (XmlLang.Select tab nil a%action)
+  (at level 0, tab at level 0, a at level 0) : action_scope.
 Notation "'Send' x1 'Value' x2" :=
   (XmlLang.SendTo x1%out x2%out) (at level 0, x1 at level 0, x2 at level 0) : action_scope.
-
-Delimit Scope action_scope with action.
 Bind Scope action_scope with action.
 
 Notation "'Match' p 'Do' a 'end'" := (Rule p%pat a%action) : program_scope.

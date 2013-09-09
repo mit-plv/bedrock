@@ -2,7 +2,7 @@ Require Import Ros XmlProg.
 
 Module M.
   Definition buf_size := (100 * 1024)%N.
-  Definition outbuf_size := 2%N.
+  Definition outbuf_size := 1024%N.
   Definition heapSize := (1024 * 1024 * 25)%N.
 
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
@@ -245,6 +245,13 @@ Module M.
           else
             Insert "topicsWithPublishers" ($"topic", $"topic_type")
           end;;
+
+          From "subscribers" Where ("topic" = $"topic") Do
+            Callback "subscribers"#"subscriber_api"
+            Command "publisherUpdate"(!string "/master", !string $"topic",
+              ArrayFrom "publishers" Where ("topic" = $"topic") Write
+                !string "publishers"#"publisher_api");;
+
           Response Success
             Message "You are now publishing.  Subscribers are:"
             Body
@@ -430,9 +437,8 @@ Module M.
   ).
 
   Theorem Wf : wf ts pr buf_size outbuf_size.
-  Admitted.
-    (*wf.
-  Qed.*)
+    wf.
+  Qed.
 
   Definition port : W := 11311%N.
   Definition numWorkers : W := 10.

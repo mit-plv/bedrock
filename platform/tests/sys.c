@@ -106,7 +106,7 @@ unsigned _sys_connect(char *address, unsigned size) {
   // Find last printing character, which we'll treat as the end of the port string.
   i = size-1;
   while (1) {
-    if (isprint(addr[i])) {
+    if (isprint(addr[i]) && addr[i] != '/') {
       addr[i+1] = 0;
       break;
     }
@@ -160,8 +160,9 @@ unsigned _sys_connect(char *address, unsigned size) {
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
 
-  if (getaddrinfo(host, port, &hints, &res)) {
-    perror("getaddrinfo");
+  i = getaddrinfo(host, port, &hints, &res);
+  if (i) {
+    fprintf(stderr, "getaddrinfo(%s:%s): %s\n", host, port, gai_strerror(i));
     exit(1);
   }
 
