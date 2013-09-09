@@ -153,6 +153,22 @@ Notation "'ArrayFromOpt' tab 'Write' o" :=
 Definition ignore := ""%out.
 
 
+(** * Actions *)
+
+Definition commandRequest (methodName : xml) (ps : list xml) : xml :=
+  <*> "methodCall" </>
+    <*> "methodName" </>
+      methodName
+    </>,
+    XTag "params"
+      (map (fun p => <*> "param" </> <*> "value" </> p </> </>) ps)
+  </>%out.
+
+Notation "'Callback' url 'Command' cmd ( p1 , .. , pN )" :=
+  (SendTo url%out (commandRequest cmd%out (cons p1%out .. (cons pN%out nil) ..)))
+  (at level 0, url at level 0, cmd at level 0) : action_scope.
+
+
 (** * Combined notation *)
 
 Notation "'RosCommand' cmd () 'Do' a 'end'" :=
