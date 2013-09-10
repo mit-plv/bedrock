@@ -8,36 +8,41 @@ Module M.
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
 
   Definition ts :=
-    {| Name := "params";
+    {| Name := "stringParams";
       Address := dbaddr 0;
       Schema := "key" :: "value" :: nil
     |}
-    :: {| Name := "nodes";
+    :: {| Name := "intParams";
       Address := dbaddr 1;
+      Schema := "key" :: "value" :: nil
+    |}
+    :: {| Name := "paramSubscribers";
+      Address := dbaddr 2;
+      Schema := "key" :: "subscriber_api" :: nil |}
+
+    :: {| Name := "nodes";
+      Address := dbaddr 3;
       Schema := "caller_id" :: "caller_api" :: nil
     |}
 
     :: {| Name := "services";
-      Address := dbaddr 2;
+      Address := dbaddr 4;
       Schema := "service" :: "node_id" :: "service_api" :: nil
     |}
 
     :: {| Name := "topics";
-      Address := dbaddr 3;
+      Address := dbaddr 5;
       Schema := "topic" :: "topic_type" :: nil |}
     :: {| Name := "publishers";
-      Address := dbaddr 4;
+      Address := dbaddr 6;
       Schema := "topic" :: "node_id" :: "publisher_api" :: nil |}
     :: {| Name := "subscribers";
-      Address := dbaddr 5;
+      Address := dbaddr 7;
       Schema := "topic" :: "node_id" :: "subscriber_api" :: nil |}
     :: {| Name := "topicsWithPublishers";
-      Address := dbaddr 6;
+      Address := dbaddr 8;
       Schema := "topic" :: "topic_type" :: nil |}
-
-    :: {| Name := "paramSubscribers";
-      Address := dbaddr 7;
-      Schema := "key" :: "subscriber_api" :: nil |}
+    
     :: nil.
 
   Definition registerNode := (
@@ -51,18 +56,20 @@ Module M.
     (* Remove a parameter setting. *)
     RosCommand "deleteParam"(!string $"caller_id", !string $"key")
     Do
-      Delete "params" Where ("key" = $"key");;
+      Delete "stringParams" Where ("key" = $"key");;
+      Delete "intParams" Where ("key" = $"key");;
       Response Success
         Message "Parameter deleted."
         Body ignore
       end
     end;;
 
-    (* Set the value of a parameter. *)
+    (* Set the (string) value of a parameter. *)
     RosCommand "setParam"(!string $"caller_id", !string $"key", !string $"value")
     Do
-      Delete "params" Where ("key" = $"key");;
-      Insert "params" ($"key", $"value");;
+      Delete "stringParams" Where ("key" = $"key");;
+      Delete "intParams" Where ("key" = $"key");;
+      Insert "stringParams" ($"key", $"value");;
 
       From "paramSubscribers" Where ("key" = $"key") Do
         Callback "paramSubscribers"#"subscriber_api"
@@ -74,14 +81,16 @@ Module M.
       end
     end;;
 
+    (* Set the (int) value of a parameter. *)
     RosCommand "setParam"(!string $"caller_id", !string $"key", !int $"value")
     Do
-      Delete "params" Where ("key" = $"key");;
-      Insert "params" ($"key", $"value");;
+      Delete "stringParams" Where ("key" = $"key");;
+      Delete "intParams" Where ("key" = $"key");;
+      Insert "intParams" ($"key", $"value");;
 
       From "paramSubscribers" Where ("key" = $"key") Do
         Callback "paramSubscribers"#"subscriber_api"
-        Command "paramUpdate"(!string "/master", !string $"key", !int "value");;
+        Command "paramUpdate"(!string "/master", !string $"key", !string "value");;
 
       Response Success
         Message "Parameter set."
@@ -92,17 +101,26 @@ Module M.
     (* Get the value of a parameter. *)
     RosCommand "getParam"(!string $"caller_id", !string $"key")
     Do
-      IfHas "params" Where ("key" = $"key") then
+      IfHas "stringParams" Where ("key" = $"key") then
         Response Success
           Message "Parameter value is:"
           Body
-            From "params" Where ("key" = $"key") Write
-              !string "params"#"value"
+            From "stringParams" Where ("key" = $"key") Write
+              !string "stringParams"#"value"
         end
       else
-        Response UserError
-          Message "Parameter not found."
-          Body ignore
+        IfHas "intParams" Where ("key" = $"key") then
+          Response Success
+            Message "Parameter value is:"
+            Body
+              From "intParams" Where ("key" = $"key") Write
+                !int "intParams"#"value"
+          end
+        else
+          Response UserError
+            Message "Parameter not found."
+            Body ignore
+          end
         end
       end
     end;;
@@ -113,19 +131,30 @@ Module M.
     (* Sign up to receive notifications when a parameter value changes. *)
     RosCommand "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
     Do
-      IfHas "params" Where ("key" = $"key") then
+      IfHas "stringParams" Where ("key" = $"key") then
         registerNode;;
         Insert "paramSubscribers" ($"key", $"caller_api");;
         Response Success
           Message "Parameter value is:"
           Body
-            From "params" Where ("key" = $"key") Write
-              !string "params"#"value"
+            From "stringParams" Where ("key" = $"key") Write
+              !string "stringParams"#"value"
         end
       else
-        Response UserError
-          Message "Parameter not found."
-          Body ignore
+        IfHas "intParams" Where ("key" = $"key") then
+          registerNode;;
+          Insert "paramSubscribers" ($"key", $"caller_api");;
+          Response Success
+            Message "Parameter value is:"
+            Body
+              From "intParams" Where ("key" = $"key") Write
+                !int "intParams"#"value"
+          end
+        else
+          Response UserError
+            Message "Parameter not found."
+            Body ignore
+          end
         end
       end
     end;;
@@ -150,15 +179,22 @@ Module M.
     (* Check if a parameter has a value. *)
     RosCommand "hasParam"(!string $"caller_id", !string $"key")
     Do
-      IfHas "params" Where ("key" = $"key") then
+      IfHas "stringParams" Where ("key" = $"key") then
         Response Success
           Message "Parameter is set."
           Body !true
         end
       else
-        Response Success
-          Message "Parameter is not set."
-          Body !false
+        IfHas "intParams" Where ("key" = $"key") then
+          Response Success
+            Message "Parameter is set."
+            Body !true
+          end
+        else
+          Response Success
+            Message "Parameter is not set."
+            Body !false
+          end
         end
       end
     end;;
@@ -169,11 +205,14 @@ Module M.
       Response Success
         Message "Parameter names are:"
         Body
-          ArrayFrom "params" Write
-            !string "params"#"key"
+          Array*
+            From "stringParams" Write
+              Value !string "stringParams"#"key" end,
+            From "intParams" Write
+              Value !string "intParams"#"key" end
+          end
       end
     end;;
-
 
     (** * Master <http://www.ros.org/wiki/ROS/Master_API> *)
 
