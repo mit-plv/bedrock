@@ -33,9 +33,9 @@ Definition st := (vals * Heap)%type.
 
 Definition ArgValue := (W + ADTValue)%type.
 
-Definition ResultValue := option (W + ADTValue).
+Definition ResultValue := option ADTValue.
 
-Definition RetValue := option (W + ADTValue).
+Definition RetValue := (W + ADTValue)%type.
 
 Record callTransition := {
   Args : list (ArgValue * ResultValue);
@@ -63,10 +63,16 @@ Definition match_heap (heap : Heap):= Forall2 (fun w (v : ArgValue) =>
   end
 ).
 
-Definition upd_option vs var value :=
-  match var with
+Definition upd_lhs vs lhs addr (ret : RetValue) :=
+  match lhs with
     | None => vs
-    | Some x => Locals.upd vs x value
+    | Some x => 
+      let rhs :=
+          match ret with
+            | inr _ => addr
+            | inl w => w
+          end in
+      Locals.upd vs x rhs
   end.
 
 Fixpoint store_result (heap : Heap) ptrs (result : list ResultValue) : Heap :=
@@ -74,8 +80,7 @@ Fixpoint store_result (heap : Heap) ptrs (result : list ResultValue) : Heap :=
     | w :: ws, v :: vs =>
       match v with 
         | None => store_result (MHeap.remove heap w) ws vs
-        | Some (inl _) => store_result heap ws vs
-        | Some (inr adt_value) => store_result (MHeap.upd heap w adt_value) ws vs
+        | Some adt_value => store_result (MHeap.upd heap w adt_value) ws vs
       end
     | _, _ => heap
   end.
@@ -84,8 +89,20 @@ Definition sels vs xs := map (fun x => Locals.sel vs x) xs.
 
 Definition new_return (heap : Heap) addr (ret : RetValue) :=
   match ret with
-    | None => True
-    | Some _ => ~ MHeap.mem heap (fst ret)
+    | inr _ => ~ MHeap.mem heap addr
+    | _ => True
+  end.
+
+Definition store_return (heap : Heap) addr (ret : RetValue) :=
+  match ret with
+    | inr adt_value => MHeap.upd heap addr adt_value
+    | _ => heap
+  end.
+
+Definition upd_option vs var value :=
+  match var with
+    | None => vs
+    | Some x => Locals.upd vs x value
   end.
 
 (* Semantics *)
@@ -133,7 +150,7 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       -> Pred spec {| Args := adt_values; Ret := ret |}
       -> let heap' := store_result heap args_v (map snd adt_values) in
          new_return heap' addr ret
-      -> RunsTo (Syntax.Call var f args) v (upd_option vs var (fst ret), store_return heap' addr ret).
+      -> RunsTo (Syntax.Call var f args) v (upd_lhs vs var addr ret, store_return heap' addr ret).
 
 End functions.
 
@@ -172,12 +189,12 @@ CoInductive Safe : Statement -> st -> Prop :=
       functions (exprDenote f vs) = Some (Internal spec)
       -> (forall vs_arg, sels vs_arg (ArgVars spec) = args_v -> Safe (Body spec) (vs_arg, heap))
       -> Safe (Syntax.Call var f args) v
-  | CallForeign : forall vs heap var f args spec adt_values result ret,
+  | CallForeign : forall vs heap var f args spec adt_values ret,
       let v := (vs, heap) in
       let args_v := map (fun e => exprDenote e vs) args in
       functions (exprDenote f vs) = Some (Foreign spec)
-      -> match_heap heap args_v adt_values
-      -> Pred spec {| Args := adt_values; Ret := ret; After := result |}
+      -> match_heap heap args_v (map fst adt_values)
+      -> Pred spec {| Args := adt_values; Ret := ret |}
       -> Safe (Syntax.Call var f args) v.
 
 End functions'.
