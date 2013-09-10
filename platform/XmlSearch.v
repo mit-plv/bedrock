@@ -660,7 +660,18 @@ Section Pat.
                               end
                         end
                     end
-                end
+                end;
+                try match goal with
+                      | [ _ : context[Var ?start ?len] |- _ ] =>
+                        match post with
+                          | context[locals ?ns _ _ _] =>
+                            match pre with
+                              | context[locals ns ?vs _ _] =>
+                                assert (wordToNat (sel vs start) + wordToNat (sel vs len)
+                                  <= wordToNat (sel vs "len"))%nat by descend
+                            end
+                        end
+                    end
             end;
         step SinglyLinkedList.hints;
         try match goal with
@@ -781,6 +792,26 @@ Section Pat.
 
   Hint Immediate stackOk_hd stackOk_tl.
 
+  Lemma inBounds_easy : forall start len cdatas V k,
+    inBounds ((start, len) :: cdatas) V
+    -> noConflict (Var start len) cdatas
+    -> "res" <> start
+    -> "res" <> len
+    -> inBounds ((start, len) :: cdatas) (upd V "res" k).
+    intros.
+    rewrite <- inBounds_sel in *.
+    inversion_clear H.
+    constructor.
+    descend; assumption.
+    eapply Forall_impl2.
+    apply H4.
+    apply H0.
+    simpl; intuition idtac.
+    descend.
+  Qed.
+
+  Hint Immediate inBounds_easy.
+
   Theorem PatR_correct : forall im mn H ns res,
     ~In "rp" ns
     -> incl baseVars ns
@@ -814,85 +845,6 @@ Section Pat.
           (im := im) mn H ns res pre).(Postcondition) st)
           -> interp specs (inv cdatas true (fun x => x) ns res st))
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
-    induction p.
-
-    admit.
-    2: admit.
-    2: admit.
-    2: admit.
-
-    repeat split_IH; wrap0; deDouble; propxFo; repeat invoke1;
-      deSpec; simp; repeat invoke1.
-
-    Ltac z :=
-      try prep_call;
-        evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
-
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-    solve [ z ].
-
-    try prep_call.
-    evalu; try tauto.
-    descend; try set_env.
-    bash.
-    bash.
-    bash.
-    bash.
-    bash.
-    admit.
-    bash.
-    bash.
-    bash.
-    bash.
-    bash.
-    eauto.
-    bash.
-    bash.
-
-    solve [ z ].
-    solve [ z ].
-
-    try prep_call.
-    evalu; try tauto.
-    descend; try set_env.
-    bash.
-    bash.
-    bash.
-    bash.
-    bash.
-    admit.
-    bash.
-    bash.
-    bash.
-    bash.
-    bash.
-    eauto.
-    bash.
-    bash.
-
     induction p; abstract PatR.
   Qed.
 
