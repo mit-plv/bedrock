@@ -14,7 +14,7 @@ Definition pstring := ptype "string".
 
 Notation "!int x" := (pint x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!boolean x" := (pboolean x%pat) (at level 0, x at level 0) : pat_scope.
-Notation "!string x" := (pstring x%pat) (at level 0, x at level 0) : pat_scope.
+Notation "!string x" := ("value"/x%pat)%pat (at level 0, x at level 0) : pat_scope.
 
 Fixpoint params' (ps : list pat) : pat :=
   match ps with
@@ -94,6 +94,12 @@ Definition rarrayL (body : list xml) : xml := (
   </>
 )%out.
 
+Definition rarrayStar (body : list xml) : xml := (
+  <*> "array" </>
+    XTag "data" body
+  </>
+)%out.
+
 Definition afrom tab cond body := (
   rarray From tab Where cond Write (<*> "value" </> body </>)
 )%out.
@@ -108,6 +114,10 @@ Notation "'Array' x1 , .. , xN 'end'" :=
 
 Notation "'Array' 'end'" :=
   (rarrayL nil)
+  (at level 0) : out_scope.
+
+Notation "Array* x1 , .. , xN 'end'" :=
+  (rarrayStar (cons x1%out .. (cons xN%out nil) ..))
   (at level 0) : out_scope.
 
 Notation "'Value' body 'end'" :=

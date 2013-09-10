@@ -1353,7 +1353,8 @@ Section compileProgram.
               (Address t) (Schema t) (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
           end
 
-        | Output xm => 
+        | Output xm =>
+          "opos" <- 0;;
           Out
           (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
             * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
@@ -2264,6 +2265,7 @@ Section compileProgram.
 
       step1.
 
+      step2.
       step2.
       step2.
       step2.

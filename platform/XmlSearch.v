@@ -125,6 +125,16 @@ Section Pat.
         "res" <-- Call "xml_lex"!"next"("buf", "lex")
         [inv cdatas];;
 
+        (* Now here's a gross hack to support XML-RPC, which has some positions where
+         * "blah" and "<string>blah</string>" are equivalent. *)
+        If ("res" = 1) {
+          "level" <- (level + 1)%nat;;
+          "res" <-- Call "xml_lex"!"next"("buf", "lex")
+          [inv cdatas]
+        } else {
+          "level" <- level
+        };;
+
         (* What type of token is it? *)
         If ("res" = 2) {
           (* We may have a match!  First, grab the boundaries of the matching string. *)
@@ -146,6 +156,13 @@ Section Pat.
               Skip
             } else {
               (* Equal! *)
+              If ("level" = level) {
+                Skip
+              } else {
+                "level" <- level;;
+                "res" <-- Call "xml_lex"!"next"("buf", "lex")
+                [inv cdatas]
+              };;
               onSuccess
             }
           } else {
@@ -162,6 +179,16 @@ Section Pat.
         "res" <-- Call "xml_lex"!"next"("buf", "lex")
         [inv cdatas];;
 
+        (* Now here's a gross hack to support XML-RPC, which has some positions where
+         * "blah" and "<string>blah</string>" are equivalent. *)
+        If ("res" = 1) {
+          "level" <- (level + 1)%nat;;
+          "res" <-- Call "xml_lex"!"next"("buf", "lex")
+          [inv cdatas]
+        } else {
+          "level" <- level
+        };;
+
         (* What type of token is it? *)
         If ("res" = 2) {
           (* This is indeed CDATA!  Save the position and signal success. *)
@@ -170,6 +197,14 @@ Section Pat.
 
           len <-- Call "xml_lex"!"tokenLength"("lex")
           [invL cdatas start];;
+
+          If ("level" = level) {
+            Skip
+          } else {
+            "level" <- level;;
+            "res" <-- Call "xml_lex"!"next"("buf", "lex")
+            [inv ((start, len) :: cdatas)]
+          };;
 
           onSuccess
         } else {
@@ -779,6 +814,85 @@ Section Pat.
           (im := im) mn H ns res pre).(Postcondition) st)
           -> interp specs (inv cdatas true (fun x => x) ns res st))
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
+    induction p.
+
+    admit.
+    2: admit.
+    2: admit.
+    2: admit.
+
+    repeat split_IH; wrap0; deDouble; propxFo; repeat invoke1;
+      deSpec; simp; repeat invoke1.
+
+    Ltac z :=
+      try prep_call;
+        evalu; try tauto; descend; try set_env; repeat bash; inBounds || eauto.
+
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+    solve [ z ].
+
+    try prep_call.
+    evalu; try tauto.
+    descend; try set_env.
+    bash.
+    bash.
+    bash.
+    bash.
+    bash.
+    admit.
+    bash.
+    bash.
+    bash.
+    bash.
+    bash.
+    eauto.
+    bash.
+    bash.
+
+    solve [ z ].
+    solve [ z ].
+
+    try prep_call.
+    evalu; try tauto.
+    descend; try set_env.
+    bash.
+    bash.
+    bash.
+    bash.
+    bash.
+    admit.
+    bash.
+    bash.
+    bash.
+    bash.
+    bash.
+    eauto.
+    bash.
+    bash.
+
     induction p; abstract PatR.
   Qed.
 
