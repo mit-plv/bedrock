@@ -13,6 +13,9 @@ Inductive pat :=
 (* Record CDATA at this position via two variables. *)
 | Var (start len : string)
 
+| TreeVar (start len : string)
+(* Like [Var], but grabs a whole XML tree *)
+
 (* Match a specific tag at this level in the XML tree, then continue into its children. *)
 | Tag (tag : string) (inner : pat)
 
@@ -27,6 +30,7 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
   match p with
     | Cdata _ => False
     | Var start len => x = start \/ x = len
+    | TreeVar start len => x = start \/ x = len
     | Tag _ inner => freeVar inner x
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
     | Ordered p1 p2 => freeVar p1 x \/ freeVar p2 x
@@ -39,6 +43,7 @@ Fixpoint wf (p : pat) : Prop :=
   match p with
     | Cdata const => goodSize (String.length const)
     | Var start len => start <> len
+    | TreeVar start len => start <> len
     | Tag tag inner => goodSize (String.length tag) /\ wf inner
     | Both p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
     | Ordered p1 p2 => wf p1 /\ wf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
@@ -49,6 +54,7 @@ Fixpoint allCdatas (p : pat) : list (string * string) :=
   match p with
     | Cdata _ => nil
     | Var start len => (start, len) :: nil
+    | TreeVar start len => (start, len) :: nil
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
     | Ordered p1 p2 => allCdatas p2 ++ allCdatas p1
@@ -210,6 +216,72 @@ Section Pat.
         } else {
           (* It's not CDATA.  Pattern doesn't match. *)
           Skip
+        }
+
+      | TreeVar start len =>
+        start <-- Call "xml_lex"!"position"("lex")
+        [inv cdatas];;
+
+        (* Read next token. *)
+        "res" <-- Call "xml_lex"!"next"("buf", "lex")
+        [inv cdatas];;
+
+        (* What type of token is it? *)
+        If ("res" = 2) {
+          (* This is the easy case: just CDATA.  Do like for [Var]. *)
+          start <-- Call "xml_lex"!"tokenStart"("lex")
+          [invP cdatas];;
+
+          len <-- Call "xml_lex"!"tokenLength"("lex")
+          [invL cdatas start];;
+
+          onSuccess
+        } else {
+          If ("res" = 1) {
+            (* It's an open tag, so we should keep lexing until encountering the matching closer. *)
+
+            "level" <- level;;
+
+            [inv cdatas]
+            While ("level" >= level) {
+              "res" <-- Call "xml_lex"!"next"("buf", "lex")
+              [inv cdatas];;
+
+              If ("res" = 1) {
+                (* Open tag *)
+                "level" <- "level" + 1
+              } else {
+                If ("res" = 3) {
+                  (* Close tag *)
+                  "level" <- "level" - 1
+                } else {
+                  Skip
+                }
+              }
+            };;
+
+            "level" <- level;;
+
+            "res" <-- Call "xml_lex"!"position"("lex")
+            [inv cdatas];;
+
+            If (start > "res") {
+              (* Shouldn't be possible, but we can't prove it ATM. *)
+              Skip
+            } else {
+              len <- "res" - start;;
+
+              If ("res" > "len") {
+                (* Again, shouldn't be possible. *)
+                Skip
+              } else {
+                onSuccess
+              }
+            }
+          } else {
+            (* This is not going to be a valid tree. *)
+            Skip
+          }
         }
 
       | Tag tag inner =>
@@ -811,6 +883,32 @@ Section Pat.
   Qed.
 
   Hint Immediate inBounds_easy.
+
+  Lemma inBounds_easyTree : forall start len cdatas V k w q,
+    inBounds cdatas V
+    -> noConflict (TreeVar start len) cdatas
+    -> "res" <> start
+    -> "res" <> len
+    -> "len" <> len
+    -> start <> len
+    -> sel (upd (upd V "res" w) len q) "res" <= sel (upd (upd V "res" w) len q) "len"
+    -> sel (upd V "res" w) start <= w
+    -> inBounds ((start, len) :: cdatas) (upd (upd V "res" k) len (w ^- sel V start)).
+    intros.
+    autorewrite with sepFormula in *.
+    rewrite <- inBounds_sel in *.
+    constructor.
+    descend.
+    simpl in *.
+    nomega.
+    eapply Forall_impl2.
+    apply H.
+    apply H0.
+    simpl; intuition idtac.
+    descend.
+  Qed.
+
+  Hint Immediate inBounds_easyTree.
 
   Theorem PatR_correct : forall im mn H ns res,
     ~In "rp" ns
