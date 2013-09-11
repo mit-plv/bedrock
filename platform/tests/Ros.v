@@ -9,10 +9,12 @@ Definition ptype (name : string) (p : pat) : pat := (
 )%pat.
 
 Definition pint := ptype "int".
+Definition pi4 := ptype "i4".
 Definition pboolean := ptype "boolean".
 Definition pstring := ptype "string".
 
 Notation "!int x" := (pint x%pat) (at level 0, x at level 0) : pat_scope.
+Notation "!i4 x" := (pi4 x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!boolean x" := (pboolean x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!string x" := ("value"/x%pat)%pat (at level 0, x at level 0) : pat_scope.
 
@@ -138,8 +140,8 @@ Notation "!int x" := (rint x%out) (at level 0, x at level 0) : out_scope.
 Notation "!boolean x" := (rboolean x%out) (at level 0, x at level 0) : out_scope.
 Notation "!string x" := (rstring x%out) (at level 0, x at level 0) : out_scope.
 
-Definition rtrue := rboolean "true".
-Definition rfalse := rboolean "false".
+Definition rtrue := rboolean "1".
+Definition rfalse := rboolean "0".
 
 Notation "!true" := rtrue : out_scope.
 Notation "!false" := rfalse : out_scope.
