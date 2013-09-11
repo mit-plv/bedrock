@@ -536,9 +536,8 @@ Module M.
   ).
 
   Theorem Wf : wf ts pr buf_size outbuf_size.
-  Admitted.
-    (*wf.
-  Qed.*)
+    wf.
+  Qed.
 
   Definition port : W := 11311%N.
   Definition numWorkers : W := 10.
