@@ -1354,7 +1354,6 @@ Section compileProgram.
           end
 
         | Output xm =>
-          "opos" <- 0;;
           Out
           (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
             * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
