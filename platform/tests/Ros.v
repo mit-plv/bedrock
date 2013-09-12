@@ -17,6 +17,7 @@ Notation "!int x" := (pint x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!i4 x" := (pi4 x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!boolean x" := (pboolean x%pat) (at level 0, x at level 0) : pat_scope.
 Notation "!string x" := ("value"/x%pat)%pat (at level 0, x at level 0) : pat_scope.
+Notation "!any x" := ("value"/x%pat)%pat (at level 0, x at level 0) : pat_scope.
 
 Fixpoint params' (ps : list pat) : pat :=
   match ps with
