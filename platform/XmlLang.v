@@ -14,6 +14,9 @@ Inductive pat :=
 (* Record CDATA at this position via a variable. *)
 | Var (text : string)
 
+(* Like [Var], but for an XML subtree *)
+| TreeVar (text : string)
+
 (* Match a specific tag at this level in the XML tree, then continue into its children. *)
 | Tag (tag : string) (inner : pat)
 
@@ -95,6 +98,7 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
   match p with
     | Cdata _ => False
     | Var text => x = text
+    | TreeVar text => x = text
     | Tag _ inner => freeVar inner x
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
     | Ordered p1 p2 => freeVar p1 x \/ freeVar p2 x
@@ -104,6 +108,7 @@ Fixpoint pwf (p : pat) : Prop :=
   match p with
     | Cdata const => goodSize (String.length const)
     | Var _ => True
+    | TreeVar _ => True
     | Tag tag inner => goodSize (String.length tag) /\ pwf inner
     | Both p1 p2 => pwf p1 /\ pwf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
     | Ordered p1 p2 => pwf p1 /\ pwf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
@@ -113,6 +118,7 @@ Fixpoint allCdatas (p : pat) : list string :=
   match p with
     | Cdata _ => nil
     | Var text => text :: nil
+    | TreeVar text => text :: nil
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
     | Ordered p1 p2 => allCdatas p2 ++ allCdatas p1
@@ -187,6 +193,7 @@ Fixpoint compilePat (p : pat) : XmlSearch.pat :=
   match p with
     | Cdata const => XmlSearch.Cdata const
     | Var text => XmlSearch.Var (text ++ "_start") (text ++ "_len")
+    | TreeVar text => XmlSearch.TreeVar (text ++ "_start") (text ++ "_len")
     | Tag tag inner => XmlSearch.Tag tag (compilePat inner)
     | Both p1 p2 => XmlSearch.Both (compilePat p1) (compilePat p2)
     | Ordered p1 p2 => XmlSearch.Ordered (compilePat p1) (compilePat p2)
@@ -265,6 +272,7 @@ Fixpoint allCdatas_both (p : pat) : list string :=
   match p with
     | Cdata _ => nil
     | Var text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
+    | TreeVar text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
     | Tag _ inner => allCdatas_both inner
     | Both p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
     | Ordered p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
@@ -1718,6 +1726,7 @@ Section compileProgram.
       cdatasGood (XmlSearch.allCdatas (compilePat p0)).
       unfold cdatasGood; induction p0; simpl; intuition.
       constructor; auto; simpl; intuition (eapply underscore_discrim; eauto).
+      constructor; auto; simpl; intuition (eapply underscore_discrim; eauto).
     Qed.
 
     Hint Immediate compilePat_cdatas.
@@ -2264,7 +2273,6 @@ Section compileProgram.
 
       step1.
 
-      step2.
       step2.
       step2.
       step2.
