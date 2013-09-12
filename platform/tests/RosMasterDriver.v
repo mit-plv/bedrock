@@ -38,6 +38,9 @@ Module M.
     :: {| Name := "topicsWithPublishers";
       Address := dbaddr 7;
       Schema := "topic" :: "topic_type" :: nil |}
+    :: {| Name := "topicsWithSubscribers";
+      Address := dbaddr 8;
+      Schema := "topic" :: "topic_type" :: nil |}
     
     :: nil.
 
@@ -60,7 +63,7 @@ Module M.
     end;;
 
     (* Set the value of a parameter. *)
-    RosCommand "setParam"(!string $"caller_id", !string $"key", $$"value")
+    RosCommand "setParam"(!string $"caller_id", !string $"key", !any $$"value")
     Do
       Delete "params" Where ("key" = $"key");;
       Insert "params" ($"key", $"value");;
@@ -214,6 +217,11 @@ Module M.
         else
           registerNode;;
           Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
+          IfHas "topicsWithSubscribers" Where ("topic" = $"topic") then
+            Write ""
+          else
+            Insert "topicsWithSubscribers" ($"topic", $"topic_type")
+          end;;
           Response Success
             Message "You are now subscribed.  Publishers are:"
             Body
@@ -230,6 +238,7 @@ Module M.
         else
           registerNode;;
           Insert "topics" ($"topic", $"topic_type");;
+          Insert "topicsWithSubscribers" ($"topic", $"topic_type");;
           Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now subscribed.  Publishers are:"
@@ -245,6 +254,11 @@ Module M.
     Do
       IfHas "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api")) then
         Delete "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api"));;
+        IfHas "subscribers" Where ("topic" = $"topic") then
+          Write ""
+        else
+          Delete "topicsWithSubscribers" Where ("topic" = $"topic")
+        end;;
         Response Success
           Message "You are now unsubscribed."
           Body !int "1"
@@ -388,21 +402,21 @@ Module M.
         Message "System state is:"
         Body
           Array
-            ArrayFrom "topics" Write
+            ArrayFrom "topicsWithPublishers" Write
               Array
-                !string "topics"#"topic",
+                !string "topicsWithPublishers"#"topic",
                 ArrayFromOpt "publishers" Write
-                  Join "publishers"#"topic" to "topics"#"topic";;;
+                  Join "publishers"#"topic" to "topicsWithPublishers"#"topic";;;
                   Value
                     !string "publishers"#"node_id"
                   end
               end,
 
-            ArrayFrom "topics" Write
+            ArrayFrom "topicsWithSubscribers" Write
               Array
-                !string "topics"#"topic",
+                !string "topicsWithSubscribers"#"topic",
                 ArrayFromOpt "subscribers" Write
-                  Join "subscribers"#"topic" to "topics"#"topic";;;
+                  Join "subscribers"#"topic" to "topicsWithSubscribers"#"topic";;;
                   Value
                     !string "subscribers"#"node_id"
                   end
