@@ -4,6 +4,7 @@ Export XmlOutput XmlLang.
 
 Coercion XmlLang.Cdata : string >-> XmlLang.pat.
 Notation "$ x" := (XmlLang.Var x) (at level 0) : pat_scope.
+Notation "$$ x" := (XmlLang.TreeVar x) (at level 0) : pat_scope.
 Infix "/" := XmlLang.Tag : pat_scope.
 Infix "&" := XmlLang.Both (at level 41, right associativity) : pat_scope.
 Infix ";;" := XmlLang.Ordered : pat_scope.
