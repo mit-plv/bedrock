@@ -3,7 +3,7 @@ Require Import Ros XmlProg.
 Module M.
   Definition buf_size := (100 * 1024)%N.
   Definition outbuf_size := (100 * 1024)%N.
-  Definition heapSize := (1024 * 1024 * 25)%N.
+  Definition heapSize := (1024 * 1024 * 200)%N.
 
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
 
