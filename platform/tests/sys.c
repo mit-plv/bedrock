@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 __attribute__((noreturn)) void sys_abort() {
   puts("Bedrock program terminated.");
@@ -20,10 +21,16 @@ void _sys_printInt(unsigned n) {
   printf("Bedrock> %u\n", n);
 }
 
+static void ignoreSigpipe() {
+  signal(SIGPIPE, SIG_IGN);
+}
+
 unsigned _sys_listen(unsigned port) {
 #ifdef DEBUG
   fprintf(stderr, "listen(%u)\n", port);
 #endif
+
+  ignoreSigpipe();
 
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   struct sockaddr_in sa;
@@ -92,6 +99,8 @@ unsigned _sys_accept(unsigned sock) {
 }
 
 unsigned _sys_connect(char *address, unsigned size) {
+  ignoreSigpipe();
+
   int i;
   char *addr = malloc(size+1), *host, *port;
   struct addrinfo hints, *res;
@@ -206,8 +215,13 @@ unsigned _sys_write(unsigned sock, void *buf, unsigned count) {
   ssize_t n = write(sock, buf, count);
 
   if (n == -1) {
-    perror("write");
-    exit(1);
+    if (errno == EPIPE)
+      n = count;
+      // To make verification simpler, let's pretend writes to a closed socket all succeed in full.
+    else {
+      perror("write");
+      exit(1);
+    }
   }
 
 #ifdef DEBUG
