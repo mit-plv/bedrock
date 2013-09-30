@@ -193,7 +193,7 @@ end
 (** [match_as_equation ?context goal c] try to decompose c as a
     relation applied to two terms. An optionnal rel_context can be
     provided to ensure that the term remains typable *)
-val match_as_equation  : ?context:Term.rel_context -> goal_sigma -> Term.constr -> (Term.constr * Term.constr * Relation.t) option
+val match_as_equation  : ?context:Context.rel_context -> goal_sigma -> Term.constr -> (Term.constr * Term.constr * Relation.t) option
 
 (** {2 Some tacticials}  *)
 

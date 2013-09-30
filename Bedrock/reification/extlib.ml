@@ -11,15 +11,15 @@ let contrib_name = "bedrock"
 (* Getting constrs (primitive Coq terms) from existing Coq
    libraries. *)
 let find_constant contrib dir s =
-  Libnames.constr_of_global (Coqlib.find_reference contrib dir s)
+  Universes.constr_of_global (Coqlib.find_reference contrib dir s)
 
 let init_constant dir s = find_constant contrib_name dir s
 
 (* A clause specifying that the [let] should not try to fold anything
    in the goal *)
 let nowhere =
-  { Tacexpr.onhyps = Some [];
-    Tacexpr.concl_occs = false, []
+  { Locus.onhyps = Some [];
+    Locus.concl_occs = Locus.NoOccurrences
   }
 
 let cps_mk_letin
@@ -43,7 +43,7 @@ let goal_update (goal : goal_sigma) evar_map : goal_sigma=
 let fresh_evar goal ty : constr * goal_sigma =
   let env = Tacmach.pf_env goal in
   let evar_map = Tacmach.project goal in
-  let (em,x) = Evarutil.new_evar evar_map env ty in
+  let (em,x) = Evarutil.new_evar env evar_map ty in
     x,( goal_update goal em)
      
 let resolve_one_typeclass goal ty : constr*goal_sigma=
@@ -61,8 +61,8 @@ let cps_resolve_one_typeclass ?error : Term.types -> (Term.constr  -> Proof_type
 		  try Typeclasses.resolve_one_typeclass env em t
 		  with Not_found ->
 		    begin match error with
-		      | None -> Util.anomaly  "Cannot resolve a typeclass : please report"
-		      | Some x -> Util.error x
+		      | None -> Errors.anomaly (Pp.str "Cannot resolve a typeclass : please report")
+		      | Some x -> Errors.error x
 		    end
 		in
 		Tacticals.tclTHENLIST [Refiner.tclEVARS em; k c] goal
@@ -76,28 +76,28 @@ let nf_evar goal c : Term.constr=
 let evar_unit (gl : goal_sigma) (x : constr) : constr * goal_sigma =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
-  let (em,x) = Evarutil.new_evar evar_map env x in
+  let (em,x) = Evarutil.new_evar env evar_map x in
     x,(goal_update gl em)
      
 let evar_binary (gl: goal_sigma) (x : constr) =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
   let ty = mkArrow x (mkArrow x x) in
-  let (em,x) = Evarutil.new_evar evar_map env  ty in
+  let (em,x) = Evarutil.new_evar env evar_map ty in
     x,( goal_update gl em)
 
 let evar_relation (gl: goal_sigma) (x: constr) =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
   let ty = mkArrow x (mkArrow x (mkSort prop_sort)) in
-  let (em,r) = Evarutil.new_evar evar_map env  ty in
+  let (em,r) = Evarutil.new_evar env evar_map ty in
     r,( goal_update gl em)
 
 let cps_evar_relation (x: constr) k = fun goal -> 
   Tacmach.pf_apply
     (fun env em ->
       let ty = mkArrow x (mkArrow x (mkSort prop_sort)) in
-      let (em,r) = Evarutil.new_evar em env  ty in 	
+      let (em,r) = Evarutil.new_evar env em ty in 	
       Tacticals.tclTHENLIST [Refiner.tclEVARS em; k r] goal
     )	goal
 
@@ -305,11 +305,11 @@ module List = struct
 	  args.(1) :: aux args.(2)
 	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _nil) -> 
 	  []
-	| _ -> Util.anomaly "parsing an ill-formed list "
+	| _ -> Errors.anomaly (Pp.str "parsing an ill-formed list ")
     in 
     let ty = match decomp_term e with 
 	Term.App (_, args) -> args.(0)
-      | _ -> Util.anomaly "parsing an ill-formed list "
+      | _ -> Errors.anomaly (Pp.str "parsing an ill-formed list ")
     in
     aux e, ty	
 end
@@ -405,7 +405,7 @@ end
 (**[ match_as_equation goal eqt] see [eqt] as an equation. An
    optionnal rel_context can be provided to ensure taht the term
    remains typable*)
-let match_as_equation ?(context = Term.empty_rel_context) goal equation : (constr*constr* Std.Relation.t) option  =
+let match_as_equation ?(context = Context.empty_rel_context) goal equation : (constr*constr* Std.Relation.t) option  =
   let env = Tacmach.pf_env goal in
   let env =  Environ.push_rel_context context env in
   let evar_map = Tacmach.project goal in
@@ -445,10 +445,10 @@ let tclPRINT  tac = fun gl ->
 (* functions to handle the failures of our tactic. Some should be
    reported [anomaly], some are on behalf of the user [user_error]*)
 let anomaly msg =
-  Util.anomaly ("[aac_tactics] " ^ msg)
+  Errors.anomaly ~label:"aac_tactics" (Pp.str msg)
 
 let user_error msg =
-  Util.error ("[aac_tactics] " ^ msg)
+  Errors.errorlabstrm "aac_tactics" (Pp.str msg)
 
 let warning msg =
   Pp.msg_warning (Pp.str ("[aac_tactics]" ^ msg))

@@ -1,6 +1,8 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
+DECLARE PLUGIN "Bedrock"
+
 let debug = false
 
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
@@ -30,14 +32,14 @@ let debug s = if debug then Format.printf s else Format.ifprintf (Format.std_for
 let unifies gl a b = Tacmach.pf_conv_x gl a b
 
 (** Building tactics that accept other tactics as arguments  *)
-let dummy_loc = Util.dummy_loc
+let dummy_loc = Loc.ghost
 (* Calling a global tactic *)
 let ltac_call tac (args:Tacexpr.glob_tactic_arg list) =
-  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Glob_term.ArgArg(dummy_loc, Lazy.force tac),args))
+  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Misctypes.ArgArg(dummy_loc, Lazy.force tac),args))
 
 (* Calling a locally bound tactic *)
 let ltac_lcall tac args =
-  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Glob_term.ArgVar(dummy_loc, Names.id_of_string tac),args))
+  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Misctypes.ArgVar(dummy_loc, Names.id_of_string tac),args))
 
 let ltac_letin (x, e1) e2 =
   Tacexpr.TacLetIn(false,[(dummy_loc,Names.id_of_string x),e1],e2)
@@ -52,20 +54,20 @@ let carg c = Tacexpr.TacDynamic(dummy_loc,Pretyping.constr_in c)
 
 (** [recompose_prod C args f t] assumes that [f : C,t] and [args : C] *)
 let recompose_prod
-    (context : Term.rel_context) (args : Term.constr array) (c : Term.constr) return_type=
+    (context : Context.rel_context) (args : Term.constr array) (c : Term.constr) return_type=
   let subst_rel_context k cstr ctx =
     let (_, ctx') =
       List.fold_left (fun (k, ctx') (id, b, t) -> (succ k, (id, Option.map
-	(Term.substnl [cstr] k) b, Term.substnl [cstr] k t) :: ctx')) (k, [])
+	(Vars.substnl [cstr] k) b, Vars.substnl [cstr] k t) :: ctx')) (k, [])
 	ctx in List.rev ctx'
   in
   let rec depend_on k ctx =
     match ctx with
-      | [] -> not (Term.noccurn k return_type)
+      | [] -> not (Vars.noccurn k return_type)
       | (id,Some b,t) :: ctx ->
-	not (Term.noccurn k b)	|| not (Term.noccurn k t) || depend_on (succ k) ctx
+	not (Vars.noccurn k b)	|| not (Vars.noccurn k t) || depend_on (succ k) ctx
       | (id,None,t) :: ctx ->
-	not (Term.noccurn k t) || depend_on (succ k) ctx
+	not (Vars.noccurn k t) || depend_on (succ k) ctx
   in
   let len = List.length context in
   let args = Array.to_list args in
@@ -85,7 +87,7 @@ let recompose_prod
       | [] ->
 	List.rev app, List.rev ctxt, List.rev rest
       | l when  not (dependent sign) ->
-	List.rev (List.map (Term.lift (- (List.length sign))) app),
+	List.rev (List.map (Vars.lift (- (List.length sign))) app),
 	List.rev ctxt ,
 	List.rev (rest) @ args
       | decl :: sign ->
@@ -96,7 +98,7 @@ let recompose_prod
 	      assert (0 <= n - 1);
 	      let term = List.hd args  in
 	      aux (subst_rel_context 0 term sign) (pred n) (succ next)
-		(term::List.map (Term.lift (-1)) app) ctxt rest (List.tl args)
+		(term::List.map (Vars.lift (-1)) app) ctxt rest (List.tl args)
 	    end
 	  else  raise Not_found 	(* non-dependent *)
 	with  _ ->
@@ -216,12 +218,12 @@ let (@@) f l = Extlib.lapp f l
 	match Extlib.decomp_term t, l with
 	  | Term.App (hd, args), (hd',ar,k) :: q when Term.eq_constr hd hd' ->
 	    if not (Array.length args = ar)
-	    then Util.anomaly "Incorrect arity of an application in reification";
+	    then Errors.anomaly (Pp.str "Incorrect arity of an application in reification");
 	    k args
 	  | _ , _ :: q -> shallow_match t q
 	  | _ ,[] ->
 	    Format.printf "Unable to reify %a" pp_constr t;
-	    Util.anomaly "Unable to reify"
+	    Errors.anomaly (Pp.str "Unable to reify")
 
     end
 
@@ -397,7 +399,7 @@ module Bedrock = struct
 	end
       with
 	| Length n -> raise (Length n)
-	| Util.UserError (func, e) ->
+	| Errors.UserError (func, e) ->
 	  debug "exists exception function %s has failed with message : %s\n%!" func
 	    (Pp.string_of_ppcmds e);
 	  raise (Length (List.length l))
@@ -433,7 +435,7 @@ module Bedrock = struct
     let add_func env evar renv (f : Term.constr) (types : Term.types list) (return : Term.types):
 	t * int =
       debug "Call add_func %a\n" pp_constr f;
-      (* if not (Term.closed0 f) then  Util.error "Unable to reify higher-order existentials" *)
+      (* if not (Term.closed0 f) then  Error.error "Unable to reify higher-order existentials" *)
       (* else *)
 	try renv, exists env evar (fun (f,_,_) -> f) f renv.funcs
 	with Length n ->
@@ -444,11 +446,11 @@ module Bedrock = struct
 	  )  types (renv,[]) in
 	  let renv, returni = add_type env evar renv return in
  	  {renv with funcs = renv.funcs @ [f, types, (return,returni)]}, n
-	  | e -> Format.printf "add_func exception %s\n%!" (Printexc.to_string e); Util.anomaly "should not happen"
+	  | e -> Format.printf "add_func exception %s\n%!" (Printexc.to_string e); Errors.anomaly (Pp.str "should not happen")
 
     let add_pred env evar renv (f : Term.constr) (types : Term.types list) :
 	t * int =
-      (* if not (Term.closed0 f) then  Util.error "Unable to reify higher-order existentials" *)
+      (* if not (Term.closed0 f) then  Errors.error "Unable to reify higher-order existentials" *)
       (* else *)
 	try renv, exists env evar fst f renv.preds
 	with Length n ->
@@ -620,11 +622,11 @@ module Bedrock = struct
 	    end
 	  | _ ->
 	    let s = Termops.free_rels e in
-	    if Util.Intset.cardinal s <> 0 then
+	    if Int.Set.cardinal s <> 0 then
 	      (* the term is not closed (like [if ?1 then x else ?2]) *)
 	      let s =
-		List.map (fun x -> x, Term.lookup_rel x (Environ.rel_context env))
-		  (Util.Intset.elements s) in
+		List.map (fun x -> x, Context.lookup_rel x (Environ.rel_context env))
+		  (Int.Set.elements s) in
 	      (* [findi i l] returns [n,x] if x is associated to i in [l] at position n *)
 	      let findi i l =
 		let rec findi i n = function
@@ -652,7 +654,7 @@ module Bedrock = struct
 	      ) args ([],renv) in
 	      begin renv, match f with
 		| Func (f, args') -> Func (f, args'@args)
-		| _ -> Util.anomaly "Trying to reify an expression applied to an expression"
+		| _ -> Errors.anomaly (Pp.str "Trying to reify an expression applied to an expression")
 	      end
 	    else  			(* The term is closed *)
 	      (
@@ -1140,7 +1142,7 @@ module Bedrock = struct
 	  ]
       in
       let l = match Extlib.decomp_term l with
-	| Term.Const c -> Environ.constant_value env c
+	| Term.Const (c,u) -> fst (Environ.constant_value env (c,u))
 	| _ -> l
       in
       let renv = aux renv l in
@@ -1153,9 +1155,11 @@ module Bedrock = struct
     let parse_types (types : Term.constr) =
       let impl = Extlib.init_constant ["Bedrock"; "Expr"] "Impl" in
       let types,_ = Extlib.List.of_constr types in
-       List.map (fun x ->
-	 let t = Term.mkApp (impl, [|x|]) in
-	 Reduction.whd_betaiota t, x) types
+      List.map (fun x ->
+		let t = Term.mkApp (impl, [|x|]) in
+		(* Reduction.whd_betaiota
+		 (* pirbo : if I understand correctly t is in betaiota wnf *) *)
+		t, x) types
 
     let parse_funcs env evar renv types (funcs : Term.constr) =
       try
@@ -1175,7 +1179,7 @@ module Bedrock = struct
 	  renv
 	) funcs renv in
 	renv
-      with e -> Format.printf "exception %s\n%!" (Printexc.to_string e); Util.anomaly "should not happen"
+      with e -> Format.printf "exception %s\n%!" (Printexc.to_string e); Errors.anomaly (Pp.str "should not happen")
 
     let parse_preds env evar renv types  preds : Renv.t =
       let pcT = mk_tvar (Some 0) in
@@ -1199,7 +1203,7 @@ module Bedrock = struct
  	  {renv with Renv.preds = renv.Renv.preds @ [f, types ]}
 	) preds renv in
 	renv
-      with e -> Format.printf "exception %s\n%!" (Printexc.to_string e); Util.anomaly "should not happen"
+      with e -> Format.printf "exception %s\n%!" (Printexc.to_string e); Errors.anomaly (Pp.str "should not happen")
 
   (* types and funcs  *)
     let sym_eval_nosep gl (types : Term.constr) (funcs : Term.constr) preds (pures : Term.constr)
@@ -1324,17 +1328,19 @@ let reify_application gl term k =
   let evar = Tacmach.project gl in
   match reify_application env evar term with
     | Some (f, types, args, _) ->
-      let t  = Termops.new_Type () in
-      let types = List.map (fun x -> (Term.mkCast (x, Term.DEFAULTcast ,t)))  types   in
+      let evar,t  = Evd.new_sort_variable Evd.univ_rigid evar in
+      let t = Term.mkSort t in
+      let gl = { gl with Evd.sigma = evar } in
+      let types = List.map (fun x -> (Term.mkCast (x, Term.DEFAULTcast, t)))  types   in
       let args =  fst (Extlib.Tuple.of_list (List.combine args types)) in
       let types = Extlib.List.of_list t types in
       begin
 	try
 	  ltac_apply k [carg f; carg types; carg args] gl
 	with
-	    _ -> Util.anomaly "ltac apply failed"
+	    _ -> Errors.anomaly (Pp.str "ltac apply failed")
       end
-    | None -> Util.anomaly "reify_application failed"
+    | None -> Errors.anomaly (Pp.str "reify_application failed")
 
 
 TACTIC EXTEND start_timer
