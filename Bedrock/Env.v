@@ -8,7 +8,7 @@ Set Strict Implicit.
 (* Some tactics for automation of later proofs *)
 Ltac caseDestruct t := destruct t; try solve [ simpl in *; discriminate ].
 
-Ltac dintuition := repeat (intuition;
+Ltac dointuition := repeat (intuition;
   match goal with
     | [ H : exists _, _ |- _ ] => destruct H
   end).
@@ -22,7 +22,7 @@ Ltac hypRewriter := repeat match goal with
                               | [ H1 : ?x = _, H2 : context [ ?x ] |- _ ] => rewrite H1 in H2
                             end.
 
-Ltac loop := repeat (repeat (hypRewriter; autorewrite with provers in *); simpl in *; subst; dintuition).
+Ltac loop := repeat (repeat (hypRewriter; autorewrite with provers in *); simpl in *; subst; dointuition).
 
 Ltac provers := intuition; loop; unlet; loop; try congruence; firstorder.
 
