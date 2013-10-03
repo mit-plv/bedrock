@@ -5,12 +5,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <signal.h>
+#include <fcntl.h>
 
 __attribute__((noreturn)) void sys_abort() {
   puts("Bedrock program terminated.");
@@ -98,6 +100,21 @@ unsigned _sys_accept(unsigned sock) {
   return new_sock;
 }
 
+static int fake_fd = -1;
+
+static unsigned fake_connect() {
+  if (fake_fd == -1) {
+    fake_fd = open("/dev/null", O_RDWR);
+
+    if (fake_fd < 0) {
+      perror("open");
+      exit(1);
+    }
+  }
+
+  return fake_fd;
+}
+
 unsigned _sys_connect(char *address, unsigned size) {
   ignoreSigpipe();
 
@@ -109,7 +126,8 @@ unsigned _sys_connect(char *address, unsigned size) {
 
   if (size == 0) {
     fprintf(stderr, "Empty connect() string\n");
-    exit(1);
+    free(addr);
+    return fake_connect();
   }
 
   // Find last printing character, which we'll treat as the end of the port string.
@@ -122,7 +140,8 @@ unsigned _sys_connect(char *address, unsigned size) {
 
     if (i <= 0) {
       fprintf(stderr, "Bad connect() string [1]\n");
-      exit(1);
+      free(addr);
+      return fake_connect();
     }
 
     --i;
@@ -139,7 +158,8 @@ unsigned _sys_connect(char *address, unsigned size) {
 
     if (i <= 0) {
       fprintf(stderr, "Bad connect() string [2]\n");
-      exit(1);
+      free(addr);
+      return fake_connect();
     }
 
     --i;
@@ -147,7 +167,8 @@ unsigned _sys_connect(char *address, unsigned size) {
 
   if (i < 0) {
     fprintf(stderr, "Bad connect() string [3]\n");
-    exit(1);
+    free(addr);
+    return fake_connect();
   }
 
   // Find the beginning of the host part of the string.
@@ -172,27 +193,35 @@ unsigned _sys_connect(char *address, unsigned size) {
   i = getaddrinfo(host, port, &hints, &res);
   if (i) {
     fprintf(stderr, "getaddrinfo(%s:%s): %s\n", host, port, gai_strerror(i));
-    exit(1);
+    free(addr);
+    return fake_connect();
   }
 
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
   if (sockfd == -1) {
     perror("socket");
-    exit(1);
+    free(addr);
+    return fake_connect();
   }
 
   i = connect(sockfd, res->ai_addr, res->ai_addrlen);
 
   if (i && errno != EINPROGRESS) {
     perror("connect");
-    exit(1);
+    close(sockfd);
+    free(addr);
+    return fake_connect();
   }
 
+  free(addr);
   return sockfd;
 }
 
 unsigned _sys_read(unsigned sock, void *buf, unsigned count) {
+  if (fake_fd != -1 && sock == fake_fd)
+    return 0;
+
   ssize_t n = read(sock, buf, count);
 
   if (n == -1) {
@@ -212,6 +241,9 @@ unsigned _sys_read(unsigned sock, void *buf, unsigned count) {
 }
 
 unsigned _sys_write(unsigned sock, void *buf, unsigned count) {
+  if (fake_fd != -1 && sock == fake_fd)
+    return count;
+
   ssize_t n = write(sock, buf, count);
 
   if (n == -1) {
@@ -247,7 +279,18 @@ static void init_epoll() {
   }
 }
 
+static int fake_reads, fake_writes;
+
 unsigned _sys_declare(unsigned sock, unsigned mode) {
+  if (fake_fd != -1 && sock == fake_fd) {
+    if (mode)
+      ++fake_writes;
+    else
+      ++fake_reads;
+
+    return 2 * fake_fd + (mode ? 1 : 0);
+  }
+
   init_epoll();
 
   if (sock >= num_fds) {
@@ -290,6 +333,14 @@ unsigned _sys_declare(unsigned sock, unsigned mode) {
 }
 
 unsigned _sys_wait(unsigned blocking) {
+  if (fake_reads > 0) {
+    --fake_reads;
+    return 2 * fake_fd;
+  } else if (fake_writes > 0) {
+    --fake_writes;
+    return 2 * fake_fd + 1;
+  }
+
   if (num_outstanding == 0)
     return UINT_MAX;
 
@@ -331,6 +382,9 @@ unsigned _sys_wait(unsigned blocking) {
 }
 
 void _sys_close(unsigned fd) {
+  if (fake_fd != -1 && fd == fake_fd)
+    return;
+
   if (fd < num_fds && fds[fd]) {
     fds[fd] = 0;
     --num_outstanding;
