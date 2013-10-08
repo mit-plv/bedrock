@@ -48,7 +48,11 @@ Definition bisimilar_callee (s f : option Callee) :=
 Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_fs w) (tgt_fs w).
 
 Theorem correct_RunsTo : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v v', RunsTo sfs s v v' -> RunsTo tfs t v v'.
-  admit.
+  intros.
+  unfold bisimilar in *.
+  Require Import GeneralTactics.
+  openhyp.
+
 Qed.
 
 Theorem correct_Safe : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
