@@ -37,27 +37,33 @@ Definition bisimulation (R : Statement -> Statement -> Prop) :=
 Definition bisimilar s t := exists R, bisimulation R /\ R s t.
 
 (* each function can be optimized by different optimizors, hence using different bisimulations *)
-Definition bisimilar_callee (s f : option Callee) :=
-  match s, f with
-    | Some (Foreign a), Some (Foreign b) => forall x, a x <-> b x
-    | Some (Internal a), Some (Internal b) => bisimilar a b                                      
-    | None, None => True
-    | _, _ => False
-  end.
+Inductive bisimilar_callee : Callee -> Callee -> Prop :=
+  | BothForeign : forall a b, (* forall x, a x <-> b x *) a = b -> bisimilar_callee (Foreign a) (Foreign b)
+  | BothInternal : forall a b, (* bisimilar a b *) a = b -> bisimilar_callee (Internal a) (Internal b).
 
-(* Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_fs w) (tgt_fs w). *)
-
-Definition bisimilar_fs (src_fs tgt_fs : W -> option Callee) := src_fs = tgt_fs.
+Definition bisimilar_fs a b := 
+  forall (w : W), 
+    (a w = None /\ b w = None) \/
+    exists x y,
+      a w = Some x /\ b w = Some y /\
+      bisimilar_callee x y.
 
 Section Functions.
 
   Variable fs : W -> option Callee.
 
-  Definition transition_by_call f x (v v' : st) : Prop :=
-    match f with
-      | Foreign spec => spec {| Arg := x; InitialHeap := snd v; FinalHeap := snd v' |}
-      | Internal body => exists vs_arg, Locals.sel vs_arg "__arg" = x /\ RunsTo fs body (vs_arg, snd v) v
-    end.
+  Inductive transition_by_call f x (v : st) : option st -> Prop :=
+    | ByForeign : 
+        forall spec v', 
+          fs f = Some (Foreign spec) -> 
+          spec {| Arg := x; InitialHeap := snd v; FinalHeap := snd v' |} ->
+          transition_by_call f x v (Some v')
+    | ByInternal :
+        forall body vs_arg v',
+          fs f = Some (Internal body) -> 
+          Locals.sel vs_arg "__arg" = x ->
+          RunsTo fs body (vs_arg, snd v) v' ->
+          transition_by_call f x v (Some v').
 
   Inductive Small : Statement -> st -> st -> Prop :=
     | NoCall :
@@ -65,21 +71,20 @@ Section Functions.
           RunsToF s v (Done v') ->
           Small s v v'
     | HasCall :
-      forall s v f x s' v' callee v'' v''',
+      forall s v f x s' v' v'' v''',
         RunsToF s v (ToCall f x s' v') ->
-        fs f = Some callee ->
-        transition_by_call callee x v' v'' ->
+        transition_by_call f x v' (Some v'') ->
         Small s' v'' v''' ->
         Small s v v'''.
 
 End Functions.
 
+Require Import GeneralTactics.
+
 Theorem RunsTo_Small_equiv : forall fs s v v', RunsTo fs s v v' <-> Small fs s v v'.
   admit.
 Qed.
 Hint Resolve RunsTo_Small_equiv.
-
-Require Import GeneralTactics.
 
 Lemma RunsToF_deterministic : forall s v v1 v2, RunsToF s v v1 -> RunsToF s v v2 -> v1 = v2.
   admit.
@@ -88,23 +93,26 @@ Qed.
 Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
   induction 1; simpl; intuition.
 
-  unfold bisimilar, bisimulation in *.
-  openhyp.
-  eapply H0 in H2.
-  openhyp.
+  unfold bisimilar, bisimulation in *; openhyp.
+  eapply H0 in H2; openhyp.
   econstructor.
   eapply RunsToF_deterministic in H2; [ | eapply H]; injection H2; intros; subst.
   eauto.
   eapply RunsToF_deterministic in H2; [ | eapply H]; discriminate.
 
-  unfold bisimilar_fs in *.
-  subst.
-  unfold bisimilar, bisimulation in H3.
+  generalize H3; intro.
+  unfold bisimilar, bisimulation in H3; openhyp.
+  generalize H4; intro.
+  unfold bisimilar_fs in H4; openhyp.
+  specialize (H4 f).
   openhyp.
-  eapply H3 in H4.
-  openhyp.
-  eapply RunsToF_deterministic in H4; [ | eapply H]; discriminate.
-  eapply RunsToF_deterministic in H4; [ | eapply H]; injection H4; intros; subst.
+(*here*)
+  rewrite H0 in *; discriminate.
+  rewrite H0 in *; injection H4; intros; subst.
+  inversion H9; subst.
+  eapply H3 in H6; openhyp.
+  eapply RunsToF_deterministic in H6; [ | eapply H]; discriminate.
+  eapply RunsToF_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
   econstructor 2.
   eauto.
   eauto.
