@@ -81,18 +81,9 @@ Hint Resolve RunsTo_Small_equiv.
 
 Require Import GeneralTactics.
 
-Lemma Done_deterministic : forall s v v1 v2, RunsToF s v (Done v1) -> RunsToF s v (Done v2) -> v1 = v2.
+Lemma RunsToF_deterministic : forall s v v1 v2, RunsToF s v v1 -> RunsToF s v v2 -> v1 = v2.
   admit.
 Qed.
-
-Lemma ToCall_deterministic : forall s v f1 f2 x1 x2 s1 s2 v1 v2, RunsToF s v (ToCall f1 x1 s1 v1) -> RunsToF s v (ToCall f2 x2 s2 v2) -> f1 = f2 /\ x1 = x2 /\ s1 = s2 /\ v1 = v2.
-  admit.
-Qed.
-
-Lemma Done_ToCall_disjoint : forall s v v1 f x s' v2, RunsToF s v (Done v1) -> RunsToF s v (ToCall f x s' v2) -> False.
-  admit.
-Qed.
-Hint Resolve Done_ToCall_disjoint.
 
 Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
   induction 1; simpl; intuition.
@@ -102,12 +93,9 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eapply H0 in H2.
   openhyp.
   econstructor.
-  replace v' with x0.
+  eapply RunsToF_deterministic in H2; [ | eapply H]; injection H2; intros; subst.
   eauto.
-  eapply Done_deterministic.
-  eapply H2.
-  eauto.
-  exfalso; eauto.
+  eapply RunsToF_deterministic in H2; [ | eapply H]; discriminate.
 
   unfold bisimilar_fs in *.
   subst.
@@ -115,11 +103,8 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   openhyp.
   eapply H3 in H4.
   openhyp.
-  exfalso; eauto.
-  eapply ToCall_deterministic in H4.
-  2 : eapply H.
-  openhyp.
-  subst.
+  eapply RunsToF_deterministic in H4; [ | eapply H]; discriminate.
+  eapply RunsToF_deterministic in H4; [ | eapply H]; injection H4; intros; subst.
   econstructor 2.
   eauto.
   eauto.
