@@ -86,11 +86,6 @@ Lemma RunsToF_deterministic : forall s v v1 v2, RunsToF s v v1 -> RunsToF s v v2
   admit.
 Qed.
 
-Lemma bisimilar_fs_Small : forall afs s v v', Small afs s v v' -> forall bfs, bisimilar_fs afs bfs -> Small bfs s v v'.
-  admit.
-Qed.
-Hint Resolve bisimilar_fs_Small.
-
 Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
   induction 1; simpl; intuition.
 
