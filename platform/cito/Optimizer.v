@@ -47,12 +47,43 @@ Definition bisimilar_callee (s f : option Callee) :=
 
 Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_fs w) (tgt_fs w).
 
+Section Functions.
+
+  Variable fs : W -> option Callee.
+(*here*)
+  Inductive RunsToI : nat -> Statement -> st -> st -> Prop :=
+  | SeqI : 
+      forall v v' v'' a b n1 n2,
+        RunsToI n1 a v v' -> 
+        RunsToI n2 b v' v'' -> 
+        RunsToI (n1 + n2) (Syntax.Seq a b) v v''
+  | SkipI : 
+      forall v, RunsToI 0 Syntax.Skip v v
+  | CallForeignI : 
+      forall vs arrs f arrs' spec arg,
+        let v := (vs, arrs) in
+        let arg_v := exprDenote arg vs in
+        functions (exprDenote f vs) = Some (Foreign spec)
+        -> spec {| Arg := arg_v; InitialHeap := arrs; FinalHeap := arrs' |}
+        -> RunsToI 1 (Syntax.Call f arg) v (vs, arrs')
+  | CallInternalI : 
+      forall vs arrs f arrs' body arg vs_arg vs' n,
+        let v := (vs, arrs) in
+        let arg_v := exprDenote arg vs in
+        functions (exprDenote f vs) = Some (Internal body)
+        -> Locals.sel vs_arg "__arg" = arg_v
+        -> RunsToI n body (vs_arg, arrs) (vs', arrs')
+        -> RunsToI (1 + n) (Syntax.Call f arg) v (vs, arrs').
+
+End Functions.
+
 Theorem correct_RunsTo : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v v', RunsTo sfs s v v' -> RunsTo tfs t v v'.
   intros.
   unfold bisimilar in *.
   Require Import GeneralTactics.
   openhyp.
-
+  
+  admit.
 Qed.
 
 Theorem correct_Safe : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
