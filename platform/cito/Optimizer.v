@@ -50,8 +50,13 @@ Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_f
 Section Functions.
 
   Variable fs : W -> option Callee.
-(*here*)
-  Inductive RunsToI : nat -> Statement -> st -> st -> Prop :=
+
+  Inductive Small : Statement -> st -> st -> Prop :=
+    | NoCall :
+        forall s v v',
+          RunsToF s v (Done v') ->
+          Small s v v'.
+
   | SeqI : 
       forall v v' v'' a b n1 n2,
         RunsToI n1 a v v' -> 
