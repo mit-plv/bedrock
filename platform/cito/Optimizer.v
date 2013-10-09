@@ -52,28 +52,24 @@ Section Functions.
 
   Variable fs : W -> option Callee.
 
-  Inductive transition_by_call f x (v : st) : option st -> Prop :=
-    | ByForeign : 
-        forall spec v', 
-          fs f = Some (Foreign spec) -> 
-          spec {| Arg := x; InitialHeap := snd v; FinalHeap := snd v' |} ->
-          transition_by_call f x v (Some v')
-    | ByInternal :
-        forall body vs_arg v',
-          fs f = Some (Internal body) -> 
-          Locals.sel vs_arg "__arg" = x ->
-          RunsTo fs body (vs_arg, snd v) v' ->
-          transition_by_call f x v (Some v').
-
   Inductive Small : Statement -> st -> st -> Prop :=
     | NoCall :
         forall s v v',
           RunsToF s v (Done v') ->
           Small s v v'
-    | HasCall :
-      forall s v f x s' v' v'' v''',
+    | HasForeign :
+      forall s v f x s' v' spec v'' v''',
         RunsToF s v (ToCall f x s' v') ->
-        transition_by_call f x v' (Some v'') ->
+        fs f = Some (Foreign spec) -> 
+        spec {| Arg := x; InitialHeap := snd v'; FinalHeap := snd v'' |} ->
+        Small s' v'' v''' ->
+        Small s v v'''
+    | HasInternal :
+      forall s v f x s' v' body vs_arg v'' v''',
+        RunsToF s v (ToCall f x s' v') ->
+        fs f = Some (Internal body) -> 
+        Locals.sel vs_arg "__arg" = x ->
+        Small body (vs_arg, snd v') v'' ->
         Small s' v'' v''' ->
         Small s v v'''.
 
@@ -89,6 +85,11 @@ Hint Resolve RunsTo_Small_equiv.
 Lemma RunsToF_deterministic : forall s v v1 v2, RunsToF s v v1 -> RunsToF s v v2 -> v1 = v2.
   admit.
 Qed.
+
+Lemma bisimilar_fs_Small : forall afs s v v', Small afs s v v' -> forall bfs, bisimilar_fs afs bfs -> Small bfs s v v'.
+  admit.
+Qed.
+Hint Resolve bisimilar_fs_Small.
 
 Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
   induction 1; simpl; intuition.
@@ -106,7 +107,6 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   unfold bisimilar_fs in H4; openhyp.
   specialize (H4 f).
   openhyp.
-(*here*)
   rewrite H0 in *; discriminate.
   rewrite H0 in *; injection H4; intros; subst.
   inversion H9; subst.
@@ -118,6 +118,28 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eauto.
   eauto.
   eapply IHSmall; eauto.
+  unfold bisimilar.
+  exists x0.
+  eauto.
+
+  generalize H4; intro.
+  unfold bisimilar, bisimulation in H4; openhyp.
+  generalize H5; intro.
+  unfold bisimilar_fs in H5; openhyp.
+  specialize (H5 f).
+  openhyp.
+  rewrite H0 in *; discriminate.
+  rewrite H0 in *; injection H5; intros; subst.
+  inversion H10; subst.
+  eapply H4 in H7; openhyp.
+  eapply RunsToF_deterministic in H1; [ | eapply H]; discriminate.
+  eapply RunsToF_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
+  econstructor 3.
+  eauto.
+  eauto.
+  eauto.
+  eauto.
+  eapply IHSmall2; eauto.
   unfold bisimilar.
   exists x0.
   eauto.
