@@ -45,50 +45,97 @@ Definition bisimilar_callee (s f : option Callee) :=
     | _, _ => False
   end.
 
-Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_fs w) (tgt_fs w).
+(* Definition bisimilar_fs src_fs tgt_fs := forall (w : W), bisimilar_callee (src_fs w) (tgt_fs w). *)
+
+Definition bisimilar_fs (src_fs tgt_fs : W -> option Callee) := src_fs = tgt_fs.
 
 Section Functions.
 
   Variable fs : W -> option Callee.
 
+  Definition transition_by_call f x (v v' : st) : Prop :=
+    match f with
+      | Foreign spec => spec {| Arg := x; InitialHeap := snd v; FinalHeap := snd v' |}
+      | Internal body => exists vs_arg, Locals.sel vs_arg "__arg" = x /\ RunsTo fs body (vs_arg, snd v) v
+    end.
+
   Inductive Small : Statement -> st -> st -> Prop :=
     | NoCall :
         forall s v v',
           RunsToF s v (Done v') ->
-          Small s v v'.
-
-  | SeqI : 
-      forall v v' v'' a b n1 n2,
-        RunsToI n1 a v v' -> 
-        RunsToI n2 b v' v'' -> 
-        RunsToI (n1 + n2) (Syntax.Seq a b) v v''
-  | SkipI : 
-      forall v, RunsToI 0 Syntax.Skip v v
-  | CallForeignI : 
-      forall vs arrs f arrs' spec arg,
-        let v := (vs, arrs) in
-        let arg_v := exprDenote arg vs in
-        functions (exprDenote f vs) = Some (Foreign spec)
-        -> spec {| Arg := arg_v; InitialHeap := arrs; FinalHeap := arrs' |}
-        -> RunsToI 1 (Syntax.Call f arg) v (vs, arrs')
-  | CallInternalI : 
-      forall vs arrs f arrs' body arg vs_arg vs' n,
-        let v := (vs, arrs) in
-        let arg_v := exprDenote arg vs in
-        functions (exprDenote f vs) = Some (Internal body)
-        -> Locals.sel vs_arg "__arg" = arg_v
-        -> RunsToI n body (vs_arg, arrs) (vs', arrs')
-        -> RunsToI (1 + n) (Syntax.Call f arg) v (vs, arrs').
+          Small s v v'
+    | HasCall :
+      forall s v f x s' v' callee v'' v''',
+        RunsToF s v (ToCall f x s' v') ->
+        fs f = Some callee ->
+        transition_by_call callee x v' v'' ->
+        Small s' v'' v''' ->
+        Small s v v'''.
 
 End Functions.
 
+Theorem RunsTo_Small_equiv : forall fs s v v', RunsTo fs s v v' <-> Small fs s v v'.
+  admit.
+Qed.
+Hint Resolve RunsTo_Small_equiv.
+
+Require Import GeneralTactics.
+
+Lemma Done_deterministic : forall s v v1 v2, RunsToF s v (Done v1) -> RunsToF s v (Done v2) -> v1 = v2.
+  admit.
+Qed.
+
+Lemma ToCall_deterministic : forall s v f1 f2 x1 x2 s1 s2 v1 v2, RunsToF s v (ToCall f1 x1 s1 v1) -> RunsToF s v (ToCall f2 x2 s2 v2) -> f1 = f2 /\ x1 = x2 /\ s1 = s2 /\ v1 = v2.
+  admit.
+Qed.
+
+Lemma Done_ToCall_disjoint : forall s v v1 f x s' v2, RunsToF s v (Done v1) -> RunsToF s v (ToCall f x s' v2) -> False.
+  admit.
+Qed.
+Hint Resolve Done_ToCall_disjoint.
+
+Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
+  induction 1; simpl; intuition.
+
+  unfold bisimilar, bisimulation in *.
+  openhyp.
+  eapply H0 in H2.
+  openhyp.
+  econstructor.
+  replace v' with x0.
+  eauto.
+  eapply Done_deterministic.
+  eapply H2.
+  eauto.
+  exfalso; eauto.
+
+  unfold bisimilar_fs in *.
+  subst.
+  unfold bisimilar, bisimulation in H3.
+  openhyp.
+  eapply H3 in H4.
+  openhyp.
+  exfalso; eauto.
+  eapply ToCall_deterministic in H4.
+  2 : eapply H.
+  openhyp.
+  subst.
+  econstructor 2.
+  eauto.
+  eauto.
+  eauto.
+  eapply IHSmall; eauto.
+  unfold bisimilar.
+  exists x0.
+  eauto.
+Qed.
+Hint Resolve correct_Small.
+
 Theorem correct_RunsTo : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v v', RunsTo sfs s v v' -> RunsTo tfs t v v'.
   intros.
-  unfold bisimilar in *.
-  Require Import GeneralTactics.
-  openhyp.
-  
-  admit.
+  eapply RunsTo_Small_equiv in H1.
+  eapply RunsTo_Small_equiv.
+  eauto.
 Qed.
 
 Theorem correct_Safe : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
