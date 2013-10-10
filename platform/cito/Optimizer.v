@@ -38,8 +38,8 @@ Definition bisimilar s t := exists R, bisimulation R /\ R s t.
 
 (* each function can be optimized by different optimizors, hence using different bisimulations *)
 Inductive bisimilar_callee : Callee -> Callee -> Prop :=
-  | BothForeign : forall a b, (* forall x, a x <-> b x *) a = b -> bisimilar_callee (Foreign a) (Foreign b)
-  | BothInternal : forall a b, bisimilar a b (* a = b *) -> bisimilar_callee (Internal a) (Internal b).
+  | BothForeign : forall a b, (forall x, a x <-> b x) -> bisimilar_callee (Foreign a) (Foreign b)
+  | BothInternal : forall a b, bisimilar a b -> bisimilar_callee (Internal a) (Internal b).
 
 Definition bisimilar_fs a b := 
   forall (w : W), 
@@ -111,6 +111,7 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eapply RunsToF_deterministic in H6; [ | eapply H]; discriminate.
   eapply RunsToF_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
   econstructor 2; eauto.
+  firstorder.
 
   generalize H4; intro.
   unfold bisimilar, bisimulation in H4; openhyp.
