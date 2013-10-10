@@ -57,37 +57,37 @@ Section Functions.
 
   Variable fs : W -> option Callee.
 
-  Inductive Small : Statement -> st -> st -> Prop :=
+  Inductive StepsTo : Statement -> st -> st -> Prop :=
     | NoCall :
         forall s v v',
           Step s v (Done v') ->
-          Small s v v'
+          StepsTo s v v'
     | HasForeign :
       forall s v f x s' v' spec v'' v''',
         Step s v (ToCall f x s' v') ->
         fs f = Some (Foreign spec) -> 
         spec {| Arg := x; InitialHeap := snd v'; FinalHeap := snd v'' |} ->
-        Small s' v'' v''' ->
-        Small s v v'''
+        StepsTo s' v'' v''' ->
+        StepsTo s v v'''
     | HasInternal :
       forall s v f x s' v' body vs_arg v'' v''',
         Step s v (ToCall f x s' v') ->
         fs f = Some (Internal body) -> 
         Locals.sel vs_arg "__arg" = x ->
-        Small body (vs_arg, snd v') v'' ->
-        Small s' v'' v''' ->
-        Small s v v'''.
+        StepsTo body (vs_arg, snd v') v'' ->
+        StepsTo s' v'' v''' ->
+        StepsTo s v v'''.
 
 End Functions.
 
-Theorem RunsTo_Small_equiv : forall fs s v v', RunsTo fs s v v' <-> Small fs s v v'.
+Theorem RunsTo_StepsTo_equiv : forall fs s v v', RunsTo fs s v v' <-> StepsTo fs s v v'.
   admit.
 Qed.
-Hint Resolve RunsTo_Small_equiv.
+Hint Resolve RunsTo_StepsTo_equiv.
 
 Hint Unfold bisimilar.
 
-Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
+Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> StepsTo tfs t v v'.
   induction 1; simpl; intuition.
 
   unfold bisimilar, bisimulation in *; openhyp.
@@ -126,12 +126,12 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eapply Step_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
   econstructor 3; eauto.
 Qed.
-Hint Resolve correct_Small.
+Hint Resolve correct_StepsTo.
 
 Theorem correct_RunsTo : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v v', RunsTo sfs s v v' -> RunsTo tfs t v v'.
   intros.
-  eapply RunsTo_Small_equiv in H1.
-  eapply RunsTo_Small_equiv.
+  eapply RunsTo_StepsTo_equiv in H1.
+  eapply RunsTo_StepsTo_equiv.
   eauto.
 Qed.
 
