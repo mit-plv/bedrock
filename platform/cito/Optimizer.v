@@ -150,13 +150,26 @@ Qed.
 Hint Resolve correct_RunsTo correct_Safe.
 
 Lemma bisimilar_symm : forall a b, bisimilar a b -> bisimilar b a.
-  admit.
+  intros; eapply (bisimilar_coind (fun a b => bisimilar b a)); eauto; intros.
+  inversion H0; subst; specialize (H1 v); openhyp.
+  left; eauto.
+  right; do 5 eexists; eauto.
 Qed.
 
 Hint Resolve bisimilar_symm.
 
+Hint Constructors bisimilar_callee.
+
+Lemma bisimilar_callee_symm : forall a b, bisimilar_callee a b -> bisimilar_callee b a.
+  induction 1; simpl; intuition; econstructor; firstorder.
+Qed.
+
+Hint Resolve bisimilar_callee_symm.
+
 Lemma bisimilar_fs_symm : forall a b, bisimilar_fs a b -> bisimilar_fs b a.
-  admit.
+  unfold bisimilar_fs; intros; specialize (H w); openhyp.
+  left; eauto.
+  right; eexists; eauto.
 Qed.
 
 Hint Resolve bisimilar_fs_symm.
