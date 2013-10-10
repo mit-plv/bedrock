@@ -43,7 +43,7 @@ Section bisimilar_coind.
 
   Variable R : Statement -> Statement -> Prop.
 
-  Hypothesis R_is_bisimulation :
+  Hypothesis is_bisimulation :
     forall s t, 
       R s t -> 
       forall v, 
@@ -58,7 +58,7 @@ Section bisimilar_coind.
   Hint Constructors bisimilar.
 
   Theorem bisimilar_coind : forall s t, R s t -> bisimilar s t.
-    cofix; intros; econstructor; intros; specialize (R_is_bisimulation _ _ H v); destruct R_is_bisimulation; clear R_is_bisimulation.
+    cofix; intros; econstructor; intros; specialize (is_bisimulation _ _ H v); destruct is_bisimulation; clear is_bisimulation.
     left; eauto.
     right; openhyp; do 5 eexists; eauto.
   Qed.
