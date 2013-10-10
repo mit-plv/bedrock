@@ -2,6 +2,7 @@ Require Import Syntax.
 Require Import Semantics.
 Import SemanticsExpr.
 Import Safety.
+Require Import GeneralTactics.
 
 Inductive Outcome := 
   | Done : st -> Outcome
@@ -78,8 +79,6 @@ Section Functions.
         Small s v v'''.
 
 End Functions.
-
-Require Import GeneralTactics.
 
 Theorem RunsTo_Small_equiv : forall fs s v v', RunsTo fs s v v' <-> Small fs s v v'.
   admit.
