@@ -28,16 +28,15 @@ Lemma Step_deterministic : forall s v v1 v2, Step s v v1 -> Step s v v2 -> v1 = 
 Qed.
 
 CoInductive bisimilar s t : Prop :=
-  | BothDone : 
-      (forall v, exists v', 
-         Step s v (Done v') /\
-         Step t v (Done v')) ->
-      bisimilar s t
-  | BothToCall : 
-      (forall v, exists f x s' t' v',
-         Step s v (ToCall f x s' v') /\ 
-         Step t v (ToCall f x t' v') /\ 
-         bisimilar s' t') ->
+  | Bisimilar : 
+      (forall v, 
+         (exists v', 
+            Step s v (Done v') /\
+            Step t v (Done v')) \/
+         (exists f x s' t' v',
+            Step s v (ToCall f x s' v') /\ 
+            Step t v (ToCall f x t' v') /\ 
+            bisimilar s' t')) ->
       bisimilar s t.
 
 Section bisimilar_coind.
@@ -47,20 +46,21 @@ Section bisimilar_coind.
   Hypothesis R_is_bisimulation :
     forall s t, 
       R s t -> 
-      (forall v, exists v', 
-         Step s v (Done v') /\ 
-         Step t v (Done v')) \/ 
-      (forall v, exists f x s' t' v', 
-         Step s v (ToCall f x s' v') /\ 
-         Step t v (ToCall f x t' v') /\ 
-         R s' t').
+      forall v, 
+        (exists v', 
+           Step s v (Done v') /\ 
+           Step t v (Done v')) \/ 
+        (exists f x s' t' v', 
+           Step s v (ToCall f x s' v') /\ 
+           Step t v (ToCall f x t' v') /\ 
+           R s' t').
 
   Hint Constructors bisimilar.
 
   Theorem bisimilar_coind : forall s t, R s t -> bisimilar s t.
-    cofix; intros; generalize H; intro; eapply R_is_bisimulation in H; openhyp.
-    econstructor 1; eauto.
-    econstructor 2; intro; specialize (H v); openhyp; repeat eexists; eauto.
+    cofix; intros; econstructor; intros; specialize (R_is_bisimulation _ _ H v); destruct R_is_bisimulation; clear R_is_bisimulation.
+    left; eauto.
+    right; openhyp; do 5 eexists; eauto.
   Qed.
 
 End bisimilar_coind.
