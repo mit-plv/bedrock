@@ -86,6 +86,8 @@ Lemma RunsToF_deterministic : forall s v v1 v2, RunsToF s v v1 -> RunsToF s v v2
   admit.
 Qed.
 
+Hint Unfold bisimilar.
+
 Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> Small tfs t v v'.
   induction 1; simpl; intuition.
 
@@ -108,14 +110,7 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eapply H3 in H6; openhyp.
   eapply RunsToF_deterministic in H6; [ | eapply H]; discriminate.
   eapply RunsToF_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
-  econstructor 2.
-  eauto.
-  eauto.
-  eauto.
-  eapply IHSmall; eauto.
-  unfold bisimilar.
-  exists x0.
-  eauto.
+  econstructor 2; eauto.
 
   generalize H4; intro.
   unfold bisimilar, bisimulation in H4; openhyp.
@@ -129,15 +124,7 @@ Lemma correct_Small : forall sfs s v v', Small sfs s v v' -> forall tfs t, bisim
   eapply H4 in H7; openhyp.
   eapply RunsToF_deterministic in H1; [ | eapply H]; discriminate.
   eapply RunsToF_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
-  econstructor 3.
-  eauto.
-  eauto.
-  eauto.
-  eauto.
-  eapply IHSmall2; eauto.
-  unfold bisimilar.
-  exists x0.
-  eauto.
+  econstructor 3; eauto.
 Qed.
 Hint Resolve correct_Small.
 
