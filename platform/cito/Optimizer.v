@@ -27,21 +27,45 @@ Lemma Step_deterministic : forall s v v1 v2, Step s v v1 -> Step s v v2 -> v1 = 
   admit.
 Qed.
 
-Definition bisimulation (R : Statement -> Statement -> Prop) := 
-  forall s t, 
-    R s t -> 
-    forall v, 
-      (exists v', 
+CoInductive bisimilar s t : Prop :=
+  | BothDone : 
+      (forall v, exists v', 
+         Step s v (Done v') /\
+         Step t v (Done v')) ->
+      bisimilar s t
+  | BothToCall : 
+      (forall v, exists f x s' t' v',
+         Step s v (ToCall f x s' v') /\ 
+         Step t v (ToCall f x t' v') /\ 
+         bisimilar s' t') ->
+      bisimilar s t.
+
+Section bisimilar_coind.
+
+  Variable R : Statement -> Statement -> Prop.
+
+  Hypothesis bisimulation :
+    forall s t, 
+      R s t -> 
+      (forall v, exists v', 
          Step s v (Done v') /\ 
          Step t v (Done v')) \/ 
-      (exists f x s' t' v', 
+      (forall v, exists f x s' t' v', 
          Step s v (ToCall f x s' v') /\ 
          Step t v (ToCall f x t' v') /\ 
          R s' t').
 
-Definition bisimilar s t := exists R, bisimulation R /\ R s t.
+  Hint Constructors bisimilar.
 
-(* each function can be optimized by different optimizors, hence using different bisimulations *)
+  Theorem bisimilar_coind : forall s t, R s t -> bisimilar s t.
+    cofix; intros; generalize H; intro; eapply bisimulation in H; openhyp.
+    econstructor 1; eauto.
+    econstructor 2; intro; specialize (H v); openhyp; repeat eexists; eauto.
+  Qed.
+
+End bisimilar_coind.
+
+(* each function can be optimized by different optimizors, using different bisimulations *)
 Inductive bisimilar_callee : Callee -> Callee -> Prop :=
   | BothForeign : forall a b, (forall x, a x <-> b x) -> bisimilar_callee (Foreign a) (Foreign b)
   | BothInternal : forall a b, bisimilar a b -> bisimilar_callee (Internal a) (Internal b).
@@ -83,46 +107,30 @@ End Functions.
 Theorem RunsTo_StepsTo_equiv : forall fs s v v', RunsTo fs s v v' <-> StepsTo fs s v v'.
   admit.
 Qed.
-Hint Resolve RunsTo_StepsTo_equiv.
 
-Hint Unfold bisimilar.
+Hint Constructors bisimilar.
 
 Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> StepsTo tfs t v v'.
   induction 1; simpl; intuition.
 
-  unfold bisimilar, bisimulation in *; openhyp.
-  eapply H0 in H2; openhyp.
-  econstructor.
-  eapply Step_deterministic in H2; [ | eapply H]; injection H2; intros; subst.
-  eauto.
+  inversion H0; subst; specialize (H2 v); openhyp.
+  econstructor; eapply Step_deterministic in H2; [ | eapply H]; injection H2; intros; subst; eauto.
   eapply Step_deterministic in H2; [ | eapply H]; discriminate.
 
-  generalize H3; intro.
-  unfold bisimilar, bisimulation in H3; openhyp.
-  generalize H4; intro.
-  unfold bisimilar_fs in H4; openhyp.
-  specialize (H4 f).
-  openhyp.
+  inversion H3; subst; specialize (H5 v); openhyp.
+  eapply Step_deterministic in H5; [ | eapply H]; discriminate.
+  generalize H4; intro; specialize (H4 f); openhyp.
   rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H4; intros; subst.
-  inversion H9; subst.
-  eapply H3 in H6; openhyp.
-  eapply Step_deterministic in H6; [ | eapply H]; discriminate.
-  eapply Step_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
+  rewrite H0 in *; injection H4; intros; subst; inversion H10; subst.
+  eapply Step_deterministic in H5; [ | eapply H]; injection H5; intros; subst.
   econstructor 2; eauto.
-  firstorder.
+  eapply H12; eauto.
 
-  generalize H4; intro.
-  unfold bisimilar, bisimulation in H4; openhyp.
-  generalize H5; intro.
-  unfold bisimilar_fs in H5; openhyp.
-  specialize (H5 f).
-  openhyp.
-  rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H5; intros; subst.
-  inversion H10; subst.
-  eapply H4 in H7; openhyp.
+  inversion H4; subst; specialize (H6 v); openhyp.
   eapply Step_deterministic in H1; [ | eapply H]; discriminate.
+  generalize H5; intro; specialize (H5 f); openhyp.
+  rewrite H0 in *; discriminate.
+  rewrite H0 in *; injection H5; intros; subst; inversion H10; subst.
   eapply Step_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
   econstructor 3; eauto.
 Qed.
