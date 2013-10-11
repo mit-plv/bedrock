@@ -179,8 +179,27 @@ Lemma RunsTo_StepsTo : forall fs s v v', RunsTo fs s v v' -> StepsTo fs s v v'.
   unfold v, arg_v in *; econstructor 3; eauto; simpl in *; eauto.
 Qed.
 
+Hint Constructors RunsTo.
+
+Lemma Done_RunsTo : forall fs s v out, Step s v out -> forall v', out = Done v' -> RunsTo fs s v v'.
+  induction 1; simpl; intros; try discriminate; subst; try solve [intuition eauto]; intros.
+  injection H; intros; subst; eauto.
+  injection H0; intros; subst; eauto.
+  econstructor; eauto.
+  injection H; intros; subst; econstructor; eauto.
+  injection H0; intros; subst; econstructor; eauto.
+  injection H0; intros; subst; econstructor; eauto.
+  injection H0; intros; subst; econstructor; eauto.
+  injection H0; intros; subst; econstructor; eauto.
+  injection H2; intros; subst; econstructor; eauto.
+Qed.
+Hint Resolve Done_RunsTo.
+
 Lemma StepsTo_RunsTo : forall fs s v v', StepsTo fs s v v' -> RunsTo fs s v v'.
-  admit.
+  induction 1; simpl; intuition eauto.
+  (*here*)
+
+
 Qed.
 
 Hint Resolve RunsTo_StepsTo StepsTo_RunsTo.
