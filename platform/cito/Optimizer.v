@@ -84,59 +84,35 @@ Inductive Step : Statement -> st -> Outcome -> Prop :=
       Step (Syntax.Free arr) v (Done (vs, (fst arrs %- arr_v, snd arrs)))
 .
 
+Definition is_bisimulation (R : Statement -> Statement -> Prop) : Prop :=
+  forall s t, 
+    R s t -> 
+    (forall v v',
+       Step s v (Done v') -> Step t v (Done v')) /\
+    (forall v v',
+       Step t v (Done v') -> Step s v (Done v')) /\
+    (forall v f x v' s', 
+       Step s v (ToCall f x s' v') -> 
+       exists t', 
+         Step t v (ToCall f x t' v') /\ 
+         R s' t') /\
+    (forall v f x v' t', 
+       Step t v (ToCall f x t' v') -> 
+       exists s', 
+         Step s v (ToCall f x s' v') /\ 
+         R s' t') /\
+    (forall v r x v' s',
+       Step s v (ToMalloc r x s' v') ->
+       exists t',
+         Step t v (ToMalloc r x t' v') /\
+         R s' t') /\
+    (forall v r x v' t',
+       Step t v (ToMalloc r x t' v') ->
+       exists s',
+         Step s v (ToMalloc r x s' v') /\
+         R s' t').
 
-Lemma Step_deterministic : forall s v v1 v2, Step s v v1 -> Step s v v2 -> v1 = v2.
-  admit.
-Qed.
-
-CoInductive bisimilar s t : Prop :=
-  | Bisimilar : 
-      (forall v, 
-         (exists v', 
-            Step s v (Done v') /\
-            Step t v (Done v')) \/
-         (exists f x s' t' v',
-            Step s v (ToCall f x s' v') /\ 
-            Step t v (ToCall f x t' v') /\ 
-            bisimilar s' t') \/
-         (exists r x s' t' v',
-            Step s v (ToMalloc r x s' v') /\
-            Step t v (ToMalloc r x s' v') /\
-            bisimilar s' t')) ->
-      bisimilar s t.
-
-Section bisimilar_coind.
-
-  Variable R : Statement -> Statement -> Prop.
-
-  Hypothesis is_bisimulation :
-    forall s t, 
-      R s t -> 
-      forall v, 
-        (exists v', 
-           Step s v (Done v') /\ 
-           Step t v (Done v')) \/ 
-        (exists f x s' t' v', 
-           Step s v (ToCall f x s' v') /\ 
-           Step t v (ToCall f x t' v') /\ 
-           R s' t') \/
-        (exists r x s' t' v',
-           Step s v (ToMalloc r x s' v') /\
-           Step t v (ToMalloc r x s' v') /\
-           R s' t').
-
-  Hint Constructors bisimilar.
-
-  Theorem bisimilar_coind : forall s t, R s t -> bisimilar s t.
-    cofix; intros; econstructor; intros; specialize (is_bisimulation H v).
-    destruct is_bisimulation; clear is_bisimulation.
-    left; eauto.
-    openhyp.
-    right; left; openhyp; do 5 eexists; eauto.
-    right; right; openhyp; do 5 eexists; eauto.
-  Qed.
-
-End bisimilar_coind.
+Definition bisimilar s t := exists R, is_bisimulation R /\ R s t.
 
 (* each function can be optimized by different optimizors, using different bisimulations *)
 Inductive bisimilar_callee : Callee -> Callee -> Prop :=
@@ -193,49 +169,50 @@ Theorem RunsTo_StepsTo_equiv : forall fs s v v', RunsTo fs s v v' <-> StepsTo fs
   admit.
 Qed.
 
-Hint Constructors bisimilar.
+Hint Unfold bisimilar is_bisimulation.
 
-Lemma bisimilar_refl : forall s, bisimilar s s.
-  admit.
-Qed.
-Hint Resolve bisimilar_refl.
+Hint Constructors Step.
 
 Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> StepsTo tfs t v v'.
   induction 1; simpl; intuition.
 
-  inversion H0; subst; specialize (H2 v); openhyp.
-  econstructor; eapply Step_deterministic in H2; [ | eapply H]; injection H2; intros; subst; eauto.
-  eapply Step_deterministic in H2; [ | eapply H]; discriminate.
-  eapply Step_deterministic in H2; [ | eapply H]; discriminate.
+  destruct H0.
+  openhyp.
+  eapply H0 in H2.
+  openhyp.
+  econstructor; eauto.
 
-  inversion H3; subst; specialize (H5 v); openhyp.
-  eapply Step_deterministic in H5; [ | eapply H]; discriminate.
+  destruct H3.
+  openhyp.
+  eapply H3 in H5.
+  openhyp.
+  eapply H7 in H.
+  openhyp.
   generalize H4; intro; specialize (H4 f); openhyp.
   rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H4; intros; subst; inversion H10; subst.
-  eapply Step_deterministic in H5; [ | eapply H]; injection H5; intros; subst.
+  rewrite H0 in *; injection H4; intros; subst.
+  inversion H14; subst.
   econstructor 2; eauto.
-  eapply H12; eauto.
+  eapply H16; eauto.
 
-  eapply Step_deterministic in H5; [ | eapply H]; discriminate.
-
-  inversion H4; subst; specialize (H6 v); openhyp.
-  eapply Step_deterministic in H1; [ | eapply H]; discriminate.
+  destruct H4.
+  openhyp.
+  eapply H4 in H6.
+  openhyp.
+  eapply H8 in H.
+  openhyp.
   generalize H5; intro; specialize (H5 f); openhyp.
   rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H5; intros; subst; inversion H10; subst.
-  eapply Step_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
+  rewrite H0 in *; injection H5; intros; subst.
+  inversion H15; subst.
   econstructor 3; eauto.
 
-  eapply Step_deterministic in H1; [ | eapply H]; discriminate.
-
-  inversion H4; subst; specialize (H6 v); openhyp.
-  eapply Step_deterministic in H6; [ | eapply H]; discriminate.
-  eapply Step_deterministic in H6; [ | eapply H]; discriminate.
-  unfold v'' in *; clear v''.
-  unfold vs in *; clear vs.
-  unfold arrs in *; clear arrs.
-  eapply Step_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
+  destruct H4.
+  openhyp.
+  eapply H4 in H6.
+  openhyp.
+  eapply H10 in H.
+  openhyp.
   econstructor 4; eauto.
 Qed.
 Hint Resolve correct_StepsTo.
@@ -254,11 +231,31 @@ Qed.
 Hint Resolve correct_RunsTo correct_Safe.
 
 Lemma bisimilar_symm : forall a b, bisimilar a b -> bisimilar b a.
-  intros; eapply (bisimilar_coind (fun a b => bisimilar b a)); eauto; intros.
-  inversion H0; subst; specialize (H1 v); openhyp.
-  left; eauto.
-  (*here*)
-  right; do 5 eexists; eauto.
+  exists (fun a b => bisimilar b a).
+  intuition.
+  unfold is_bisimulation.
+  intros.
+  destruct H0.
+  openhyp.
+  eapply H0 in H1.
+  openhyp.
+  intuition.
+
+  eapply H4 in H7.
+  openhyp.
+  eexists; intuition eauto.
+
+  eapply H3 in H7.
+  openhyp.
+  eexists; intuition eauto.
+
+  eapply H6 in H7.
+  openhyp.
+  eexists; intuition eauto.
+
+  eapply H5 in H7.
+  openhyp.
+  eexists; intuition eauto.
 Qed.
 
 Hint Resolve bisimilar_symm.
