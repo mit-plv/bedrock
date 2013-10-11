@@ -84,27 +84,15 @@ Inductive Step : Statement -> st -> Outcome -> Prop :=
       Step (Syntax.Free arr) v (Done (vs, (fst arrs %- arr_v, snd arrs)))
 .
 
-Definition is_bisimulation (R : Statement -> Statement -> Prop) : Prop :=
+Definition is_backward_simulation (R : Statement -> Statement -> Prop) : Prop :=
   forall s t, 
     R s t -> 
     (forall v v',
-       Step s v (Done v') -> Step t v (Done v')) /\
-    (forall v v',
        Step t v (Done v') -> Step s v (Done v')) /\
-    (forall v f x v' s', 
-       Step s v (ToCall f x s' v') -> 
-       exists t', 
-         Step t v (ToCall f x t' v') /\ 
-         R s' t') /\
     (forall v f x v' t', 
        Step t v (ToCall f x t' v') -> 
        exists s', 
          Step s v (ToCall f x s' v') /\ 
-         R s' t') /\
-    (forall v r x v' s',
-       Step s v (ToMalloc r x s' v') ->
-       exists t',
-         Step t v (ToMalloc r x t' v') /\
          R s' t') /\
     (forall v r x v' t',
        Step t v (ToMalloc r x t' v') ->
@@ -112,19 +100,25 @@ Definition is_bisimulation (R : Statement -> Statement -> Prop) : Prop :=
          Step s v (ToMalloc r x s' v') /\
          R s' t').
 
-Definition bisimilar s t := exists R, is_bisimulation R /\ R s t.
+Definition is_backward_similar s t := exists R, is_backward_simulation R /\ R s t.
 
-(* each function can be optimized by different optimizors, using different bisimulations *)
-Inductive bisimilar_callee : Callee -> Callee -> Prop :=
-  | BothForeign : forall a b, (forall x, a x <-> b x) -> bisimilar_callee (Foreign a) (Foreign b)
-  | BothInternal : forall a b, bisimilar a b -> bisimilar_callee (Internal a) (Internal b).
+(* each function can be optimized by different optimizors *)
+Inductive is_backward_similar_callee : Callee -> Callee -> Prop :=
+  | BothForeign : 
+      forall spec1 spec2 : callTransition -> Prop, 
+        (forall x, spec2 x -> spec1 x) -> 
+        is_backward_similar_callee (Foreign spec1) (Foreign spec2)
+  | BothInternal : 
+      forall body1 body2, 
+        is_backward_similar body1 body2 -> 
+        is_backward_similar_callee (Internal body1) (Internal body2).
 
-Definition bisimilar_fs a b := 
-  forall (w : W), 
-    (a w = None /\ b w = None) \/
-    exists x y,
-      a w = Some x /\ b w = Some y /\
-      bisimilar_callee x y.
+Definition is_backward_similar_fs fs1 fs2 := 
+  forall (w : W) callee2,
+    fs2 w = Some callee2 ->
+    exists callee1,
+      fs1 w = Some callee1 /\
+      is_backward_similar_callee callee1 callee2.
 
 Section Functions.
 
@@ -169,11 +163,9 @@ Theorem RunsTo_StepsTo_equiv : forall fs s v v', RunsTo fs s v v' <-> StepsTo fs
   admit.
 Qed.
 
-Hint Unfold bisimilar is_bisimulation.
+Hint Unfold is_backward_similar is_backward_simulation.
 
-Hint Constructors Step.
-
-Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> StepsTo tfs t v v'.
+Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall sfs s, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> StepsTo sfs s v v'.
   induction 1; simpl; intuition.
 
   destruct H0.
@@ -186,14 +178,24 @@ Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, b
   openhyp.
   eapply H3 in H5.
   openhyp.
+  eapply H6 in H.
+  openhyp.
+  eapply H4 in H0.
+  openhyp.
+  inversion H9; subst.
+  econstructor 2; eauto.
+  eapply H12; eauto.
+
+  destruct H4.
+  openhyp.
+  eapply H4 in H6.
+  openhyp.
   eapply H7 in H.
   openhyp.
-  generalize H4; intro; specialize (H4 f); openhyp.
-  rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H4; intros; subst.
-  inversion H14; subst.
-  econstructor 2; eauto.
-  eapply H16; eauto.
+  eapply H5 in H0.
+  openhyp.
+  inversion H10; subst.
+  econstructor 3; eauto.
 
   destruct H4.
   openhyp.
@@ -201,81 +203,23 @@ Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, b
   openhyp.
   eapply H8 in H.
   openhyp.
-  generalize H5; intro; specialize (H5 f); openhyp.
-  rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H5; intros; subst.
-  inversion H15; subst.
-  econstructor 3; eauto.
-
-  destruct H4.
-  openhyp.
-  eapply H4 in H6.
-  openhyp.
-  eapply H10 in H.
-  openhyp.
   econstructor 4; eauto.
 Qed.
 Hint Resolve correct_StepsTo.
 
-Theorem correct_RunsTo : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v v', RunsTo sfs s v v' -> RunsTo tfs t v v'.
+Theorem correct_RunsTo : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v v', RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intros.
   eapply RunsTo_StepsTo_equiv in H1.
   eapply RunsTo_StepsTo_equiv.
   eauto.
 Qed.
 
-Theorem correct_Safe : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
+Theorem correct_Safe : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
   admit.
 Qed.
 
 Hint Resolve correct_RunsTo correct_Safe.
 
-Lemma bisimilar_symm : forall a b, bisimilar a b -> bisimilar b a.
-  exists (fun a b => bisimilar b a).
-  intuition.
-  unfold is_bisimulation.
-  intros.
-  destruct H0.
-  openhyp.
-  eapply H0 in H1.
-  openhyp.
-  intuition.
-
-  eapply H4 in H7.
-  openhyp.
-  eexists; intuition eauto.
-
-  eapply H3 in H7.
-  openhyp.
-  eexists; intuition eauto.
-
-  eapply H6 in H7.
-  openhyp.
-  eexists; intuition eauto.
-
-  eapply H5 in H7.
-  openhyp.
-  eexists; intuition eauto.
-Qed.
-
-Hint Resolve bisimilar_symm.
-
-Hint Constructors bisimilar_callee.
-
-Lemma bisimilar_callee_symm : forall a b, bisimilar_callee a b -> bisimilar_callee b a.
-  induction 1; simpl; intuition; econstructor; firstorder.
-Qed.
-
-Hint Resolve bisimilar_callee_symm.
-
-Lemma bisimilar_fs_symm : forall a b, bisimilar_fs a b -> bisimilar_fs b a.
-  unfold bisimilar_fs; intros; specialize (H w); openhyp.
-  left; eauto.
-  right; eexists; eauto.
-Qed.
-
-Hint Resolve bisimilar_fs_symm.
-
-Theorem correct : forall sfs s tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> forall v, (Safe sfs s v <-> Safe tfs t v) /\ forall v', RunsTo sfs s v v' <-> RunsTo tfs t v v'.
+Theorem correct : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v, (Safe sfs s v -> Safe tfs t v) /\ forall v', RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intuition eauto.
 Qed.
