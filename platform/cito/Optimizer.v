@@ -195,6 +195,11 @@ Qed.
 
 Hint Constructors bisimilar.
 
+Lemma bisimilar_refl : forall s, bisimilar s s.
+  admit.
+Qed.
+Hint Resolve bisimilar_refl.
+
 Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, bisimilar s t -> bisimilar_fs sfs tfs -> StepsTo tfs t v v'.
   induction 1; simpl; intuition.
 
@@ -227,13 +232,11 @@ Lemma correct_StepsTo : forall sfs s v v', StepsTo sfs s v v' -> forall tfs t, b
   inversion H4; subst; specialize (H6 v); openhyp.
   eapply Step_deterministic in H6; [ | eapply H]; discriminate.
   eapply Step_deterministic in H6; [ | eapply H]; discriminate.
-(*here*)
-  generalize H5; intro; specialize (H5 f); openhyp.
-  rewrite H0 in *; discriminate.
-  rewrite H0 in *; injection H5; intros; subst; inversion H10; subst.
-  eapply Step_deterministic in H1; [ | eapply H]; injection H1; intros; subst.
-  econstructor 3; eauto.
-
+  unfold v'' in *; clear v''.
+  unfold vs in *; clear vs.
+  unfold arrs in *; clear arrs.
+  eapply Step_deterministic in H6; [ | eapply H]; injection H6; intros; subst.
+  econstructor 4; eauto.
 Qed.
 Hint Resolve correct_StepsTo.
 
@@ -254,6 +257,7 @@ Lemma bisimilar_symm : forall a b, bisimilar a b -> bisimilar b a.
   intros; eapply (bisimilar_coind (fun a b => bisimilar b a)); eauto; intros.
   inversion H0; subst; specialize (H1 v); openhyp.
   left; eauto.
+  (*here*)
   right; do 5 eexists; eauto.
 Qed.
 
