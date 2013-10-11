@@ -168,41 +168,28 @@ Hint Unfold is_backward_similar is_backward_simulation.
 Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall sfs s, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> StepsTo sfs s v v'.
   induction 1; simpl; intuition.
 
-  destruct H0.
-  openhyp.
-  eapply H0 in H2.
-  openhyp.
+  destruct H0; openhyp.
+  eapply H0 in H2; openhyp.
   econstructor; eauto.
 
-  destruct H3.
-  openhyp.
-  eapply H3 in H5.
-  openhyp.
-  eapply H6 in H.
-  openhyp.
-  eapply H4 in H0.
-  openhyp.
+  destruct H3; openhyp.
+  eapply H3 in H5; openhyp.
+  eapply H6 in H; openhyp.
+  eapply H4 in H0; openhyp.
   inversion H9; subst.
   econstructor 2; eauto.
   eapply H12; eauto.
 
-  destruct H4.
-  openhyp.
-  eapply H4 in H6.
-  openhyp.
-  eapply H7 in H.
-  openhyp.
-  eapply H5 in H0.
-  openhyp.
+  destruct H4; openhyp.
+  eapply H4 in H6; openhyp.
+  eapply H7 in H; openhyp.
+  eapply H5 in H0; openhyp.
   inversion H10; subst.
   econstructor 3; eauto.
 
-  destruct H4.
-  openhyp.
-  eapply H4 in H6.
-  openhyp.
-  eapply H8 in H.
-  openhyp.
+  destruct H4; openhyp.
+  eapply H4 in H6; openhyp.
+  eapply H8 in H; openhyp.
   econstructor 4; eauto.
 Qed.
 Hint Resolve correct_StepsTo.
