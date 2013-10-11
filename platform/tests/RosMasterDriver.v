@@ -114,7 +114,7 @@ Module M.
       else
         Response Success
           Message "Parameter not set yet."
-          Body "<struct></struct>"
+          Body !unit
         end
       end
     end;;

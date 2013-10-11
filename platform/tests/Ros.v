@@ -147,6 +147,10 @@ Definition rfalse := rboolean "0".
 Notation "!true" := rtrue : out_scope.
 Notation "!false" := rfalse : out_scope.
 
+Definition runit := XTag "struct" nil.
+
+Notation "!unit" := runit : out_scope.
+
 Notation "'ArrayFrom' tab 'Where' cond 'Write' o" :=
   (afrom tab cond%condition o%out)
   (at level 0, tab at level 0, cond at level 0, o at level 0) : out_scope.
