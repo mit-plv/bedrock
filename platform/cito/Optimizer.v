@@ -10,8 +10,7 @@ Set Implicit Arguments.
 
 Inductive Outcome := 
   | Done : st -> Outcome
-  | ToCall : W -> W -> Statement -> st -> Outcome
-  | ToMalloc : string -> W -> Statement -> st -> Outcome.
+  | ToCall : W -> W -> Statement -> st -> Outcome.
                    
 Inductive Step : Statement -> st -> Outcome -> Prop :=
   | Skip : forall v, Step Syntax.Skip v (Done v)
@@ -27,10 +26,6 @@ Inductive Step : Statement -> st -> Outcome -> Prop :=
       let f_v := exprDenote f vs in
       let arg_v := exprDenote arg vs in
       Step (Syntax.Call f arg) v (ToCall f_v arg_v Syntax.Skip v)
-  | Malloc : forall var size vs arrs,
-      let v := (vs, arrs) in
-      let size_v := exprDenote size vs in
-      Step (Syntax.Malloc var size) v (ToMalloc var size_v Syntax.Skip v)
   | IfTrue : forall v v' cond t f, 
       wneb (exprDenote cond (fst v)) $0 = true -> 
       Step t v v' -> 
@@ -82,6 +77,13 @@ Inductive Step : Statement -> st -> Outcome -> Prop :=
       let arr_v := exprDenote arr vs in
       arr_v %in fst arrs ->
       Step (Syntax.Free arr) v (Done (vs, (fst arrs %- arr_v, snd arrs)))
+  | Malloc : forall var size vs arrs addr ls,
+      let v := (vs, arrs) in
+      ~ (addr %in fst arrs) ->
+      let size_v := wordToNat (exprDenote size vs) in
+      goodSize (size_v + 2) ->
+      length ls = size_v ->
+      Step (Syntax.Malloc var size) v (Done (Locals.upd vs var addr, (fst arrs %+ addr, upd (snd arrs) addr ls)))
 .
 
 Definition is_backward_simulation (R : Statement -> Statement -> Prop) : Prop :=
@@ -93,11 +95,6 @@ Definition is_backward_simulation (R : Statement -> Statement -> Prop) : Prop :=
        Step t v (ToCall f x t' v') -> 
        exists s', 
          Step s v (ToCall f x s' v') /\ 
-         R s' t') /\
-    (forall v r x v' t',
-       Step t v (ToMalloc r x t' v') ->
-       exists s',
-         Step s v (ToMalloc r x s' v') /\
          R s' t').
 
 Definition is_backward_similar s t := exists R, is_backward_simulation R /\ R s t.
@@ -142,25 +139,44 @@ Section Functions.
         fs f = Some (Internal body) -> 
         Locals.sel vs_arg "__arg" = x ->
         StepsTo body (vs_arg, snd v') v'' ->
-        StepsTo s' v'' v''' ->
-        StepsTo s v v'''
-  | HasMalloc : 
-      forall s v var x s' v' addr ls v''',
-        Step s v (ToMalloc var x s' v') ->
-        let vs := fst v' in
-        let arrs := snd v' in
-        ~ (addr %in fst arrs) ->
-        let size_v := wordToNat x in
-        goodSize (size_v + 2) ->
-        length ls = size_v ->
-        let v'' := (Locals.upd vs var addr, (fst arrs %+ addr, upd (snd arrs) addr ls)) in
-        StepsTo s' v'' v''' ->
+        StepsTo s' (fst v', snd v'') v''' ->
         StepsTo s v v'''.
 
 End Functions.
 
+Hint Constructors StepsTo Step.
+
+Lemma StepsTo_Seq : forall fs a v v', StepsTo fs a v v' -> forall b v'', StepsTo fs b v' v'' -> StepsTo fs (Syntax.Seq a b) v v''.
+  induction 1; simpl; intuition eauto; inversion H0; subst; eauto.
+Qed.
+Hint Resolve StepsTo_Seq.
+
 Lemma RunsTo_StepsTo : forall fs s v v', RunsTo fs s v v' -> StepsTo fs s v v'.
-  admit.
+  induction 1; simpl; try solve [intuition eauto].
+
+  unfold v, value_v in *; eauto.
+
+  unfold v, arr_v, idx_v, value_v in *; econstructor; econstructor; eauto.
+
+  unfold v, arr_v, idx_v, value_v, new_arr in *; econstructor; econstructor; eauto.
+  
+  inversion IHRunsTo; subst; eauto.
+
+  inversion IHRunsTo; subst; eauto.
+
+  unfold statement in *.
+  inversion IHRunsTo1; subst; eauto.
+  inversion IHRunsTo2; subst; eauto.
+  
+  unfold v, size_v in *; econstructor; econstructor; eauto.
+
+  unfold v, arr_v in *; econstructor; econstructor; eauto.
+
+  unfold v, arr_v, len in *; econstructor; econstructor; eauto.
+
+  unfold v, arg_v in *; econstructor 2; eauto; simpl in *; eauto.
+
+  unfold v, arg_v in *; econstructor 3; eauto; simpl in *; eauto.
 Qed.
 
 Lemma StepsTo_RunsTo : forall fs s v v', StepsTo fs s v v' -> RunsTo fs s v v'.
@@ -182,21 +198,16 @@ Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall sfs s, i
   eapply H3 in H5; openhyp.
   eapply H6 in H; openhyp.
   eapply H4 in H0; openhyp.
-  inversion H9; subst.
+  inversion H8; subst.
   econstructor 2; eauto.
-  eapply H12; eauto.
+  eapply H11; eauto.
 
   destruct H4; openhyp.
   eapply H4 in H6; openhyp.
   eapply H7 in H; openhyp.
   eapply H5 in H0; openhyp.
-  inversion H10; subst.
+  inversion H9; subst.
   econstructor 3; eauto.
-
-  destruct H4; openhyp.
-  eapply H4 in H6; openhyp.
-  eapply H8 in H; openhyp.
-  econstructor 4; eauto.
 Qed.
 Hint Resolve correct_StepsTo.
 
