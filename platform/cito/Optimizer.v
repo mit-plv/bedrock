@@ -127,11 +127,11 @@ Section Functions.
         Step s v (Done v') ->
         StepsTo s v v'
   | HasForeign :
-      forall s v f x s' v' spec v'' v''',
+      forall s v f x s' v' spec arrs v''',
         Step s v (ToCall f x s' v') ->
         fs f = Some (Foreign spec) -> 
-        spec {| Arg := x; InitialHeap := snd v'; FinalHeap := snd v'' |} ->
-        StepsTo s' v'' v''' ->
+        spec {| Arg := x; InitialHeap := snd v'; FinalHeap := arrs |} ->
+        StepsTo s' (fst v', arrs) v''' ->
         StepsTo s v v'''
   | HasInternal :
       forall s v f x s' v' body vs_arg v'' v''',
@@ -195,11 +195,26 @@ Lemma Done_RunsTo : forall fs s v out, Step s v out -> forall v', out = Done v' 
 Qed.
 Hint Resolve Done_RunsTo.
 
+Lemma ToCall_Foreign_RunsTo : forall s v out, Step s v out -> forall f x s' v', out = ToCall f x s' v' -> forall fs spec, fs f = Some (Foreign spec) -> forall arrs, spec {| Arg := x; InitialHeap := snd v'; FinalHeap := arrs |} -> forall v''', RunsTo fs s' (fst v', arrs) v''' -> RunsTo fs s v v'''.
+  induction 1; simpl; intros; try discriminate; subst; try solve [intuition eauto]; intros.
+  injection H0; intros; subst; inversion H3; subst; econstructor; eauto.
+  injection H; intros; subst; inversion H2; subst; econstructor; eauto.
+  econstructor; eauto.
+  injection H1; intros; subst; inversion H4; subst; econstructor; eauto.
+Qed.
+Hint Resolve ToCall_Foreign_RunsTo.
+
+Lemma ToCall_Internal_RunsTo : forall s v out, Step s v out -> forall f x s' v', out = ToCall f x s' v' -> forall fs body, fs f = Some (Internal body) -> forall vs_arg v'', sel vs_arg "__arg" = x -> RunsTo fs body (vs_arg, snd v') v'' -> forall v''', RunsTo fs s' (fst v', snd v'') v''' -> RunsTo fs s v v'''.
+  induction 1; simpl; intros; try discriminate; subst; try solve [intuition eauto]; intros.
+  injection H0; intros; subst; inversion H4; subst; econstructor; eauto.
+  destruct v''; injection H; intros; subst; inversion H3; subst; econstructor 14; eauto.
+  econstructor; eauto.
+  injection H1; intros; subst; inversion H5; subst; econstructor; eauto.
+Qed.
+Hint Resolve ToCall_Internal_RunsTo.
+
 Lemma StepsTo_RunsTo : forall fs s v v', StepsTo fs s v v' -> RunsTo fs s v v'.
   induction 1; simpl; intuition eauto.
-  (*here*)
-
-
 Qed.
 
 Hint Resolve RunsTo_StepsTo StepsTo_RunsTo.
