@@ -248,20 +248,3 @@ Hint Resolve correct_StepsTo.
 Theorem correct_RunsTo : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v v', RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intuition eauto.
 Qed.
-
-Theorem correct_Safe : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v, Safe sfs s v -> Safe tfs t v.
-  admit.
-Qed.
-
-Hint Resolve correct_RunsTo correct_Safe.
-
-Theorem correct : 
-  forall sfs s tfs t, 
-    is_backward_similar s t -> 
-    is_backward_similar_fs sfs tfs -> 
-    forall v, 
-      (Safe sfs s v -> Safe tfs t v) /\ 
-      forall v', 
-        RunsTo tfs t v v' -> RunsTo sfs s v v'.
-  intuition eauto.
-Qed.
