@@ -221,7 +221,7 @@ Hint Resolve RunsTo_StepsTo StepsTo_RunsTo.
 
 Hint Unfold is_backward_similar is_backward_simulation.
 
-Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall sfs s, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> StepsTo sfs s v v'.
+Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall s, is_backward_similar s t -> forall sfs, is_backward_similar_fs sfs tfs -> StepsTo sfs s v v'.
   induction 1; simpl; intuition.
 
   destruct H0; openhyp.
@@ -247,4 +247,153 @@ Hint Resolve correct_StepsTo.
 
 Theorem correct_RunsTo : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v v', RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intuition eauto.
+Qed.
+
+Module Safety.
+
+CoInductive StepSafe : Statement -> st -> Prop :=
+  | Skip : 
+      forall v, StepSafe Syntax.Skip v
+  | Seq : 
+      forall a b v, 
+        StepSafe a v ->
+        (forall v', Step a v (Done v') -> StepSafe b v') -> 
+        StepSafe (Syntax.Seq a b) v
+  | CallForeign : 
+      forall v f arg,
+        StepSafe (Syntax.Call f arg) v
+  | CallInternal : 
+      forall v f arg,
+        StepSafe (Syntax.Call f arg) v
+  | IfTrue : 
+      forall v cond t f, 
+        wneb (exprDenote cond (fst v)) $0 = true -> 
+        StepSafe t v -> 
+        StepSafe (Conditional cond t f) v
+  | IfFalse : 
+      forall v cond t f, 
+        wneb (exprDenote cond (fst v)) $0 = false -> 
+        StepSafe f v -> 
+        StepSafe (Conditional cond t f) v
+  | WhileFalse : 
+      forall v cond body, 
+        wneb (exprDenote cond (fst v)) $0 = false -> 
+        StepSafe (Loop cond body) v
+  | WhileTrue : 
+      forall v cond body, 
+        let loop := Loop cond body in
+        wneb (exprDenote cond (fst v)) $0 = true -> 
+        StepSafe body v ->
+        (forall v', Step body v (Done v') -> StepSafe loop v') -> 
+        StepSafe loop v
+  | Assign : forall var value v,
+      StepSafe (Syntax.Assignment var value) v
+  | Read : forall var arr idx vs (arrs : arrays),
+      let v := (vs, arrs) in
+      let arr_v := exprDenote arr vs in
+      let idx_v := exprDenote idx vs in
+      safe_access arrs arr_v idx_v -> 
+      StepSafe (Syntax.ReadAt var arr idx) v
+  | Write : forall arr idx value vs (arrs : arrays), 
+      let v := (vs, arrs) in
+      let arr_v := exprDenote arr vs in
+      let idx_v := exprDenote idx vs in
+      safe_access arrs arr_v idx_v ->
+      StepSafe (Syntax.WriteAt arr idx value) v
+  | Len : forall var arr vs (arrs : arrays),
+      let arr_v := exprDenote arr vs in
+      arr_v %in fst arrs ->
+      StepSafe (Syntax.Len var arr) (vs, arrs)
+  | Malloc : forall var size vs (arrs : arrays),
+      let size_v := exprDenote size vs in
+      goodSize (wordToNat size_v + 2) ->
+      StepSafe (Syntax.Malloc var size) (vs, arrs)
+  | Free : forall arr vs (arrs : arrays),
+      let arr_v := exprDenote arr vs in
+      arr_v %in fst arrs ->
+      StepSafe (Syntax.Free arr) (vs, arrs).
+
+Definition is_safety_preserving (R : Statement -> Statement -> Prop) : Prop :=
+  forall s t,
+    R s t ->
+    (forall v,
+      StepSafe s v ->
+      StepSafe t v) /\
+    (forall v f x t' v',
+       Step t v (ToCall f x t' v') ->
+       exists s',
+         Step s v (ToCall f x s' v') /\
+         R s' t').
+
+Definition preserves_safety s t := exists R, is_safety_preserving R /\ R s t.
+
+Definition callable (spec : callTransition -> Prop) x a := exists a', spec {| Arg := x; InitialHeap := a; FinalHeap := a' |}.
+
+Inductive callee_preserves_safety : Callee -> Callee -> Prop :=
+  | BothForeign : 
+      forall spec1 spec2 : callTransition -> Prop, 
+        (forall x a, callable spec1 x a <-> callable spec2 x a) -> 
+        callee_preserves_safety (Foreign spec1) (Foreign spec2)
+  | BothInternal : 
+      forall body1 body2, 
+        preserves_safety body1 body2 -> 
+        callee_preserves_safety (Internal body1) (Internal body2).
+
+Definition fs_preserves_safety fs1 fs2 := 
+  forall (w : W) callee1,
+    fs1 w = Some callee1 ->
+    exists callee2,
+      fs2 w = Some callee2 /\
+      callee_preserves_safety callee1 callee2.
+
+Section Functions.
+
+  Variable fs : W -> option Callee.
+
+  CoInductive StepsSafe : Statement -> st -> Prop :=
+    | FromStep :
+        forall s v,
+          StepSafe s v ->
+          (forall f x s' v',
+             Step s v (ToCall f x s' v') ->
+             (forall spec,
+                fs f = Some (Foreign spec) ->
+                callable spec x (snd v') /\
+                forall a',
+                  spec {| Arg := x; InitialHeap := snd v'; FinalHeap := a' |} ->
+                  StepsSafe s' (fst v', a')) /\
+             (forall body,
+                fs f = Some (Internal body) ->
+                forall vs_arg,
+                  Locals.sel vs_arg "__arg" = x ->
+                  StepsSafe body (vs_arg, snd v') /\
+                  forall v'',
+                    StepsTo fs body (vs_arg, snd v') v'' ->
+                    StepsSafe s' (fst v', snd v'')))
+            -> StepsSafe s v.
+
+End Functions.
+
+Lemma Safe_StepsSafe : forall fs s v, Safe fs s v <-> StepsSafe fs s v.
+  admit.
+Qed.
+
+Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v <-> Safe fs s v.
+  admit.
+Qed.
+
+Hint Resolve Safe_StepsSafe StepsSafe_Safe.
+
+Lemma correct_StepsSafe : forall sfs s v, StepsSafe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> StepsSafe tfs t v.
+  admit.
+Qed.
+
+Hint Resolve correct_StepsSafe.
+
+Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> Safe tfs t v.
+  intros.
+  eapply StepsSafe_Safe.
+  eapply correct_StepsSafe; eauto.
+  eapply Safe_StepsSafe.
+  eauto.
 Qed.
