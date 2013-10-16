@@ -313,6 +313,92 @@ CoInductive StepSafe : Statement -> st -> Prop :=
       arr_v %in fst arrs ->
       StepSafe (Syntax.Free arr) (vs, arrs).
 
+Section Functions.
+
+  Variable fs : W -> option Callee.
+
+  CoInductive StepsSafe : Statement -> st -> Prop :=
+    | FromStep :
+        forall s v,
+          StepSafe s v ->
+          (forall f x s' v',
+             Step s v (ToCall f x s' v') ->
+             (exists spec,
+                fs f = Some (Foreign spec) /\
+                ForeignSafe spec x (snd v') /\
+                forall a',
+                  spec {| Arg := x; InitialHeap := snd v'; FinalHeap := a' |} ->
+                  StepsSafe s' (fst v', a')) \/
+             (exists body,
+                fs f = Some (Internal body) /\
+                forall vs_arg,
+                  Locals.sel vs_arg "__arg" = x ->
+                  StepsSafe body (vs_arg, snd v') /\
+                  forall v'',
+                    StepsTo fs body (vs_arg, snd v') v'' ->
+                    StepsSafe s' (fst v', snd v'')))
+            -> StepsSafe s v.
+
+End Functions.
+
+Section StepsSafe_coind.
+
+  Variable R : (W -> option Callee) -> Statement -> st -> Prop.
+
+  Hypothesis FromStep_case : 
+    forall fs s v,
+      R fs s v ->
+      StepSafe s v /\
+      (forall f x s' v',
+         Step s v (ToCall f x s' v') ->
+         (exists spec,
+            fs f = Some (Foreign spec) /\
+            ForeignSafe spec x (snd v') /\
+            forall a',
+              spec {| Arg := x; InitialHeap := snd v'; FinalHeap := a' |} ->
+              R fs s' (fst v', a')) \/
+         (exists body,
+            fs f = Some (Internal body) /\
+            forall vs_arg,
+              Locals.sel vs_arg "__arg" = x ->
+              R fs body (vs_arg, snd v') /\
+              forall v'',
+                StepsTo fs body (vs_arg, snd v') v'' ->
+                R fs s' (fst v', snd v''))).
+
+  Hint Constructors StepsSafe.
+
+  Theorem StepsSafe_coind : forall fs s v, R fs s v -> StepsSafe fs s v.
+    cofix.
+    intros.
+    eapply FromStep_case in H; openhyp.
+    econstructor.
+    eauto.
+    intros.
+    eapply H0 in H1; openhyp.
+    left.
+    eexists; intuition eauto.
+    Guarded.
+    right.
+    eexists; intuition eauto.
+    eapply H2 in H3; openhyp.
+    eauto.
+    eapply H2 in H3; openhyp.
+    eauto.
+  Qed.
+
+End StepsSafe_coind.
+
+Lemma Safe_StepsSafe : forall fs s v, Safe fs s v <-> StepsSafe fs s v.
+  admit.
+Qed.
+
+Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v <-> Safe fs s v.
+  admit.
+Qed.
+
+Hint Resolve Safe_StepsSafe StepsSafe_Safe.
+
 Definition is_safety_preserving (R : Statement -> Statement -> Prop) : Prop :=
   forall s t,
     R s t ->
@@ -327,12 +413,10 @@ Definition is_safety_preserving (R : Statement -> Statement -> Prop) : Prop :=
 
 Definition preserves_safety s t := exists R, is_safety_preserving R /\ R s t.
 
-Definition callable (spec : callTransition -> Prop) x a := exists a', spec {| Arg := x; InitialHeap := a; FinalHeap := a' |}.
-
 Inductive callee_preserves_safety : Callee -> Callee -> Prop :=
   | BothForeign : 
       forall spec1 spec2 : callTransition -> Prop, 
-        (forall x a, callable spec1 x a <-> callable spec2 x a) -> 
+        (forall x a, ForeignSafe spec1 x a -> ForeignSafe spec2 x a) -> 
         callee_preserves_safety (Foreign spec1) (Foreign spec2)
   | BothInternal : 
       forall body1 body2, 
@@ -346,51 +430,77 @@ Definition fs_preserves_safety fs1 fs2 :=
       fs2 w = Some callee2 /\
       callee_preserves_safety callee1 callee2.
 
-Section Functions.
+Hint Unfold preserves_safety fs_preserves_safety.
 
-  Variable fs : W -> option Callee.
+Lemma correct_StepsSafe : 
+  forall sfs s v, 
+    StepsSafe sfs s v -> 
+    forall t, 
+      preserves_safety s t -> 
+      forall tfs, 
+        fs_preserves_safety sfs tfs -> 
+        is_backward_similar_fs sfs tfs -> 
+        StepsSafe tfs t v.
+  intros.
+  eapply (
+      StepsSafe_coind (
+          fun tfs t v => 
+            exists sfs s, 
+              StepsSafe sfs s v /\ 
+              preserves_safety s t /\
+              fs_preserves_safety sfs tfs /\
+              is_backward_similar_fs sfs tfs
+    )).
+  2 : do 3 eexists; intuition eauto.
+  intros.
+  openhyp.
 
-  CoInductive StepsSafe : Statement -> st -> Prop :=
-    | FromStep :
-        forall s v,
-          StepSafe s v ->
-          (forall f x s' v',
-             Step s v (ToCall f x s' v') ->
-             (forall spec,
-                fs f = Some (Foreign spec) ->
-                callable spec x (snd v') /\
-                forall a',
-                  spec {| Arg := x; InitialHeap := snd v'; FinalHeap := a' |} ->
-                  StepsSafe s' (fst v', a')) /\
-             (forall body,
-                fs f = Some (Internal body) ->
-                forall vs_arg,
-                  Locals.sel vs_arg "__arg" = x ->
-                  StepsSafe body (vs_arg, snd v') /\
-                  forall v'',
-                    StepsTo fs body (vs_arg, snd v') v'' ->
-                    StepsSafe s' (fst v', snd v'')))
-            -> StepsSafe s v.
+  split.
+  inversion H3; subst.
+  destruct H4; openhyp.
+  eapply H4 in H9; openhyp.
+  eauto.
 
-End Functions.
+  intros.
+  inversion H3; subst.
+  destruct H4; openhyp.
+  eapply H4 in H10; openhyp.
+  eapply H11 in H7; openhyp.
+  eapply H9 in H7; openhyp.
 
-Lemma Safe_StepsSafe : forall fs s v, Safe fs s v <-> StepsSafe fs s v.
-  admit.
-Qed.
+  left.
+  generalize H7; intro.
+  eapply H5 in H7; openhyp.
+  inversion H16; subst.
+  eexists; intuition eauto.
+  eapply H6 in H7; openhyp.
+  inversion H19; subst.
+  rewrite H15 in H7; injection H7; intros; subst.
+  do 2 eexists; intuition eauto.
 
-Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v <-> Safe fs s v.
-  admit.
-Qed.
+  right.
+  generalize H7; intro.
+  eapply H5 in H7; openhyp.
+  inversion H15; subst.
+  eexists; intuition eauto.
 
-Hint Resolve Safe_StepsSafe StepsSafe_Safe.
+  eapply H6 in H7; openhyp.
+  inversion H18; subst.
+  rewrite H14 in H7; injection H7; intros; subst.
+  edestruct H13; eauto.
+  do 2 eexists; intuition eauto.
 
-Lemma correct_StepsSafe : forall sfs s v, StepsSafe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> StepsSafe tfs t v.
-  admit.
+  eapply H6 in H7; openhyp.
+  inversion H19; subst.
+  rewrite H14 in H7; injection H7; intros; subst.
+  edestruct H13; eauto.
+  do 2 eexists; intuition eauto.
+
 Qed.
 
 Hint Resolve correct_StepsSafe.
 
-Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> Safe tfs t v.
+Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> is_backward_similar_fs sfs tfs -> Safe tfs t v.
   intros.
   eapply StepsSafe_Safe.
   eapply correct_StepsSafe; eauto.
