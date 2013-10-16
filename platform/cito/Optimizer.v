@@ -507,3 +507,18 @@ Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safet
   eapply Safe_StepsSafe.
   eauto.
 Qed.
+
+Hint Resolve correct_RunsTo correct_Safe.
+
+Theorem correct : 
+  forall sfs s tfs t, 
+    is_backward_similar s t -> 
+    preserves_safety s t ->
+    is_backward_similar_fs sfs tfs -> 
+    fs_preserves_safety sfs tfs ->
+    forall v, 
+      (Safe sfs s v -> Safe tfs t v) /\ 
+      forall v', 
+        RunsTo tfs t v v' -> RunsTo sfs s v v'.
+  intuition eauto.
+Qed.
