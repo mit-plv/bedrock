@@ -313,6 +313,8 @@ CoInductive StepSafe : Statement -> st -> Prop :=
       arr_v %in fst arrs ->
       StepSafe (Syntax.Free arr) (vs, arrs).
 
+Definition ForeignSafe (spec : callTransition -> Prop) x a := exists a', spec {| Arg := x; InitialHeap := a; FinalHeap := a' |}.
+
 Section Functions.
 
   Variable fs : W -> option Callee.
@@ -522,3 +524,17 @@ Theorem correct :
         RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intuition eauto.
 Qed.
+
+Theorem is_backward_similar_trans : forall a b c, is_backward_similar a b -> is_backward_similar b c -> is_backward_similar a c.
+  intros.
+  destruct H; openhyp.
+  destruct H0; openhyp.
+  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
+  unfold is_backward_simulation in *.
+  intros.
+  openhyp.
+  split.
+  intros.
+  eapply H in H3; openhyp.
+  eapply H0 in H2; openhyp.
+  intuition eauto.
