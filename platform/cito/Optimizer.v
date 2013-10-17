@@ -97,6 +97,23 @@ Definition is_backward_simulation (R : Statement -> Statement -> Prop) : Prop :=
          Step s v (ToCall f x s' v') /\ 
          R s' t').
 
+(* an extended one supposed to be used later *)
+Definition is_backward_simulation_ext (R : Statement -> Statement -> Prop) (Rstate : vals -> vals -> Prop) : Prop :=
+  forall vs s vt t, 
+    R s t -> 
+    Rstate vs vt ->
+    (forall heap vt',
+       Step t (vt, heap) (Done vt') -> 
+       exists vs',
+         Step s (vs, heap) (Done vs') /\
+         Rstate (fst vs') (fst vt')) /\
+    (forall heap f x vt' t', 
+       Step t (vt, heap) (ToCall f x t' vt') -> 
+       exists s' vs', 
+         Step s (vs, heap) (ToCall f x s' vs') /\ 
+         R s' t' /\
+         Rstate (fst vs') (fst vt')).
+
 Definition is_backward_similar s t := exists R, is_backward_simulation R /\ R s t.
 
 (* each function can be optimized by different optimizors *)
@@ -396,44 +413,44 @@ Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
 Qed.
 
 Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
-  intros.
-  eapply (Safe_coind (fun s v => StepsSafe fs s v)); simpl in *; intuition.
+  (* intros. *)
+  (* eapply (Safe_coind (fun s v => StepsSafe fs s v)); simpl in *; intuition. *)
 
-  inversion H0; subst.
-  inversion H1.
-  eauto.
+  (* inversion H0; subst. *)
+  (* inversion H1. *)
+  (* eauto. *)
 
-  inversion H0; subst.
-  inversion H1.
-  eauto.
+  (* inversion H0; subst. *)
+  (* inversion H1. *)
+  (* eauto. *)
 
-  Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
-    intros.
-    eapply (StepsSafe_coind (fun fs a v => exists b, StepsSafe fs (Syntax.Seq a b) v)); simpl; intuition.
-    openhyp.
-    inversion H0; subst.
-    inversion H1; subst.
-    eauto.
+  (* Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v. *)
+  (*   intros. *)
+  (*   eapply (StepsSafe_coind (fun fs a v => exists b, StepsSafe fs (Syntax.Seq a b) v)); simpl; intuition. *)
+  (*   openhyp. *)
+  (*   inversion H0; subst. *)
+  (*   inversion H1; subst. *)
+  (*   eauto. *)
 
-    openhyp.
-    inversion H0; subst.
-    edestruct H3.
-    econstructor 3; eauto.
+  (*   openhyp. *)
+  (*   inversion H0; subst. *)
+  (*   edestruct H3. *)
+  (*   econstructor 3; eauto. *)
  
-    left; openhyp; eexists; intuition eauto.
-    right; openhyp.
-    eexists; intuition eauto.
-    eexists; intuition eauto.
+  (*   left; openhyp; eexists; intuition eauto. *)
+  (*   right; openhyp. *)
+  (*   eexists; intuition eauto. *)
+  (*   eexists; intuition eauto. *)
 
-  Qed.
-  Hint Resolve StepsSafe_Seq.
+  (* Qed. *)
+  (* Hint Resolve StepsSafe_Seq. *)
 
-  eauto.
+  (* eauto. *)
 
-  inversion H0; subst.
-  inversion H1; subst.
-  econstructor; eauto.
-  intros.
+  (* inversion H0; subst. *)
+  (* inversion H1; subst. *)
+  (* econstructor; eauto. *)
+  (* intros. *)
 
   admit.
 Qed.
