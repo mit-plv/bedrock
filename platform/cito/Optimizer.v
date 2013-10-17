@@ -412,89 +412,70 @@ Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
   admit.
 Qed.
 
+Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
+  intros.
+  eapply (StepsSafe_coind (fun fs a v => StepsSafe fs a v \/ exists b, StepsSafe fs (Syntax.Seq a b) v)).
+  clear.
+  intros.
+  openhyp.
+  simpl; intuition.
+  inversion H; subst.
+  eauto.
+
+  inversion H; subst.
+  eapply H2 in H0; openhyp.
+  left.
+  eexists; intuition eauto.
+  right.
+  eexists; intuition eauto.
+  eapply H3 in H4; openhyp.
+  left; eauto.
+  eapply H3 in H4; openhyp.
+  left; eauto.
+
+  simpl; intuition.
+  inversion H; subst.
+  inversion H0; subst.
+  eauto.
+
+  inversion H; subst.
+  edestruct H2.
+  econstructor 3; eauto.
+  
+  left; openhyp; eexists; intuition eauto.
+  right; openhyp.
+  eexists; intuition eauto.
+  eapply H4 in H5; openhyp.
+  left; eauto.
+  eapply H4 in H5; openhyp.
+  right; eexists; eauto.
+
+  right; eexists; eauto.
+Qed.
+Hint Resolve StepsSafe_Seq.
+
 Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   intros.
-  eapply (Safe_coind (fun s v => StepsSafe fs s v)); simpl in *; intuition.
+  eapply (Safe_coind (fun s v => StepsSafe fs s v)).
 
-  inversion H0; subst.
-  inversion H1.
+  clear; intros.
+  inversion H; subst.
+  inversion H0.
   eauto.
 
-  inversion H0; subst.
-  inversion H1.
+  clear; intros.
+  inversion H; subst.
+  inversion H0.
   eauto.
 
-  Lemma StepSafe_Seq_Skip : forall s v, StepSafe s v -> StepSafe (Syntax.Seq s Syntax.Skip) v.
-    intros; econstructor; eauto; intros; econstructor.
-  Qed.
-  Hint Resolve StepSafe_Seq_Skip.
-
-  Lemma StepsSafe_Seq_Skip : forall fs s v, StepsSafe fs s v -> StepsSafe fs (Syntax.Seq s Syntax.Skip) v.
+  intros.
+  split.
+  eauto.
+  intros.
+  eapply RunsTo_StepsTo in H1.
+  Lemma StepsSafe_Seq_StepsTo : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> forall v', StepsTo fs a v v' -> StepsSafe fs b v'.
     intros.
-    eapply (StepsSafe_coind (fun fs s' v => StepsSafe fs s' v \/ exists s, s' = Syntax.Seq s Syntax.Skip /\ StepsSafe fs s v)); simpl; intuition eauto.
-    inversion H1; subst.
-    eauto.
-    inversion H1; subst.
-    eapply H3 in H0; openhyp.
-    left.
-    eexists; intuition eauto.
-    right.
-    eexists; intuition eauto.
-    eapply H4 in H5; openhyp.
-    left.
-    eauto.
-    eapply H4 in H5; openhyp.
-    left.
-    eauto.
 
-    openhyp.
-    inversion H1; subst.
-    eauto.
-    openhyp.
-    subst.
-    inversion H0; subst.
-    inversion H7; subst.
-    inversion H2; subst.
-    eapply H3 in H5; openhyp.
-    left.
-    eexists; intuition eauto.
-    right.
-    eexists; intuition eauto.
-    eapply H5 in H6; openhyp.
-    left.
-    eauto.
-    eapply H5 in H6; openhyp.
-    right.
-    eexists; eauto.
-  Qed.
-  Hint Resolve StepsSafe_Seq_Skip.
-
-  Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
-    intros.
-    eapply (StepsSafe_coind (fun fs a v => exists b, StepsSafe fs (Syntax.Seq a b) v)); simpl; intuition.
-    openhyp.
-    inversion H0; subst.
-    inversion H1; subst.
-    eauto.
-
-    openhyp.
-    inversion H0; subst.
-    edestruct H3.
-    econstructor 3; eauto.
- 
-    left; openhyp; eexists; intuition eauto.
-    right; openhyp.
-    eexists; intuition eauto.
-    eapply H5 in H6; openhyp.
-    eexists; eauto.
-    eapply H5 in H6; openhyp.
-    eexists; eauto.
-
-    eexists; eauto.
-  Qed.
-  Hint Resolve StepsSafe_Seq.
-
-  eauto.
 
   admit.
   admit.
