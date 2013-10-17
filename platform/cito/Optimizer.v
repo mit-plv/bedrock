@@ -535,6 +535,14 @@ Theorem is_backward_similar_trans : forall a b c, is_backward_similar a b -> is_
   openhyp.
   split.
   intros.
+  eapply H0 in H4; openhyp.
   eapply H in H3; openhyp.
-  eapply H0 in H2; openhyp.
+  eauto.
+
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H6 in H5; openhyp.
+  eapply H in H3; openhyp.
+  eapply H8 in H5; openhyp.
   intuition eauto.
+Qed.
