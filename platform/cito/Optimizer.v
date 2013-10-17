@@ -391,11 +391,11 @@ Section StepsSafe_coind.
 
 End StepsSafe_coind.
 
-Lemma Safe_StepsSafe : forall fs s v, Safe fs s v <-> StepsSafe fs s v.
+Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
   admit.
 Qed.
 
-Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v <-> Safe fs s v.
+Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   admit.
 Qed.
 
@@ -433,6 +433,50 @@ Definition fs_preserves_safety fs1 fs2 :=
       callee_preserves_safety callee1 callee2.
 
 Hint Unfold preserves_safety fs_preserves_safety.
+
+Theorem is_backward_similar_trans : forall a b c, is_backward_similar a b -> is_backward_similar b c -> is_backward_similar a c.
+  intros.
+  destruct H; openhyp.
+  destruct H0; openhyp.
+  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
+  unfold is_backward_simulation in *.
+  intros.
+  openhyp.
+  split.
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H in H3; openhyp.
+  eauto.
+
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H6 in H5; openhyp.
+  eapply H in H3; openhyp.
+  eapply H8 in H5; openhyp.
+  intuition eauto.
+Qed.
+
+Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves_safety b c -> preserves_safety a c.
+  intros.
+  destruct H; openhyp.
+  destruct H0; openhyp.
+  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
+  unfold is_safety_preserving in *.
+  intros.
+  openhyp.
+  split.
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H in H3; openhyp.
+  eauto.
+
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H6 in H5; openhyp.
+  eapply H in H3; openhyp.
+  eapply H8 in H5; openhyp.
+  intuition eauto.
+Qed.
 
 Lemma correct_StepsSafe : 
   forall sfs s v, 
@@ -503,10 +547,6 @@ Qed.
 Hint Resolve correct_StepsSafe.
 
 Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> is_backward_similar_fs sfs tfs -> Safe tfs t v.
-  intros.
-  eapply StepsSafe_Safe.
-  eapply correct_StepsSafe; eauto.
-  eapply Safe_StepsSafe.
   eauto.
 Qed.
 
@@ -522,27 +562,5 @@ Theorem correct :
       (Safe sfs s v -> Safe tfs t v) /\ 
       forall v', 
         RunsTo tfs t v v' -> RunsTo sfs s v v'.
-  intuition eauto.
-Qed.
-
-Theorem is_backward_similar_trans : forall a b c, is_backward_similar a b -> is_backward_similar b c -> is_backward_similar a c.
-  intros.
-  destruct H; openhyp.
-  destruct H0; openhyp.
-  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
-  unfold is_backward_simulation in *.
-  intros.
-  openhyp.
-  split.
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H in H3; openhyp.
-  eauto.
-
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H6 in H5; openhyp.
-  eapply H in H3; openhyp.
-  eapply H8 in H5; openhyp.
   intuition eauto.
 Qed.
