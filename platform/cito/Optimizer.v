@@ -425,19 +425,34 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   eauto.
 
   Lemma StepSafe_Seq_Skip : forall s v, StepSafe s v -> StepSafe (Syntax.Seq s Syntax.Skip) v.
-    admit.
+    intros; econstructor; eauto; intros; econstructor.
   Qed.
   Hint Resolve StepSafe_Seq_Skip.
 
   Lemma StepsSafe_Seq_Skip : forall fs s v, StepsSafe fs s v -> StepsSafe fs (Syntax.Seq s Syntax.Skip) v.
     intros.
-    eapply (StepsSafe_coind (fun fs s' v => exists s, s' = Syntax.Seq s Syntax.Skip /\ StepsSafe fs s v)); simpl; intuition eauto.
+    eapply (StepsSafe_coind (fun fs s' v => StepsSafe fs s' v \/ exists s, s' = Syntax.Seq s Syntax.Skip /\ StepsSafe fs s v)); simpl; intuition eauto.
+    inversion H1; subst.
+    eauto.
+    inversion H1; subst.
+    eapply H3 in H0; openhyp.
+    left.
+    eexists; intuition eauto.
+    right.
+    eexists; intuition eauto.
+    eapply H4 in H5; openhyp.
+    left.
+    eauto.
+    eapply H4 in H5; openhyp.
+    left.
+    eauto.
+
     openhyp.
     inversion H1; subst.
     eauto.
     openhyp.
     subst.
-    inversion H1; subst.
+    inversion H0; subst.
     inversion H7; subst.
     inversion H2; subst.
     eapply H3 in H5; openhyp.
@@ -445,11 +460,12 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
     eexists; intuition eauto.
     right.
     eexists; intuition eauto.
-    (*here*)
-
-
-    admit.
-    admit.
+    eapply H5 in H6; openhyp.
+    left.
+    eauto.
+    eapply H5 in H6; openhyp.
+    right.
+    eexists; eauto.
   Qed.
   Hint Resolve StepsSafe_Seq_Skip.
 
