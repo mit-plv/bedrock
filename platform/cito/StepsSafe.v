@@ -242,57 +242,108 @@ Lemma StepsSafe_Seq :
   intuition eauto.
 Qed.
 
+Lemma StepsSafe_While1 :
+  forall fs e b v,
+    StepsSafe fs (Syntax.Loop e b) v ->
+    wneb (exprDenote e (fst v)) $0 = true -> 
+    StepsSafe fs b v.
+Proof.
+  intros.
+  inversion H; subst.
+  inversion H1.
+  subst.
+  replace (wneb _ _) with true in H6; discriminate.
+
+  unfold loop0, loop1 in *; clear loop0 loop1.
+  subst.
+  econstructor; eauto.
+  intros.
+  edestruct H2.
+  econstructor 9; eauto.
+  openhyp.
+  left; eexists; intuition eauto.
+  openhyp.
+  right; eexists; intuition.
+  eauto.
+  eapply H7 in H9; openhyp.
+  eauto.
+  eapply H7 in H9; openhyp.
+  eauto.
+Qed.
+Hint Resolve StepsSafe_While1.
+
+Lemma StepsSafe_While2 : 
+  forall fs b v v', 
+    StepsTo fs b v v' -> 
+    forall e, 
+      wneb (exprDenote e (fst v)) $0 = true -> 
+      let loop := Syntax.Loop e b in
+      StepsSafe fs loop v -> 
+      StepsSafe fs loop v'.
+Proof.
+  induction 1; simpl; intuition.
+
+  inversion H1; subst.
+  inversion H2.
+  subst.
+  replace (wneb _ _) with true in H7; discriminate.
+
+  unfold loop0, loop1 in *; clear loop0 loop1.
+  subst.
+
+  econstructor.
+  eauto.
+  intros.
+  edestruct H3.
+  econstructor; eauto.
+  left; eauto.
+  right; eauto.
+
+  inversion H4; subst.
+  edestruct H6.
+  econstructor 9; eauto.
+  openhyp.
+  rewrite H0 in H7; injection H7; intros; subst.
+  eapply H9 in H1.
+  eapply StepsSafe_Seq in H1; openhyp.
+  eauto.
+
+  openhyp.
+  rewrite H0 in H7; discriminate.
+
+  inversion H5; subst.
+  edestruct H7.
+  econstructor 9; eauto.
+  openhyp.
+  rewrite H0 in H1; discriminate.
+
+  openhyp.
+  rewrite H0 in H1; injection H1; intros; subst.
+  edestruct H8.
+  eauto.
+  eapply StepsSafe_Seq in H10.
+  2 : eauto.
+  openhyp.
+  eauto.
+Qed.
+Hint Resolve StepsSafe_While2.
+
 Lemma StepsSafe_While : 
   forall fs e b v,
     let loop := Syntax.Loop e b in
     StepsSafe fs loop v ->
     wneb (exprDenote e (fst v)) $0 = false \/
     wneb (exprDenote e (fst v)) $0 = true /\
-    StepsSafe fs (Syntax.Seq b loop) v.
-(*  inversion H0; subst.
-  inversion H1.
-  subst.
-  right; intuition.
-
-  left.
-  unfold loop0, loop1 in *; clear loop0 loop1.
-  subst.
-  intuition.
-
-  econstructor; eauto.
+    StepsSafe fs b v /\
+    forall v',
+      StepsTo fs b v v' ->
+      StepsSafe fs loop v'.
+Proof.
   intros.
-  edestruct H2.
-  econstructor 9; eauto.
-  openhyp.
-  left; eexists; intuition eauto.
-  openhyp.
-  right; eexists; intuition.
-  eauto.
-  eapply H7 in H9; openhyp.
-  eauto.
-  eapply H7 in H9; openhyp.
-  eauto.
-
-  eapply RunsTo_StepsTo in H3.
-  econstructor; eauto.
-  inversion H3; subst.
-  eauto.
-  econstructor 8; eauto.
-
-  intros.
-  edestruct H2.
-  econstructor 9; eauto.
-  openhyp.
-  left; eexists; intuition eauto.
-  openhyp.
-  right; eexists; intuition.
-  eauto.
-  eapply H7 in H8; openhyp.
-  eauto.
-  eapply H7 in H8; openhyp.
-  eauto.*)
-(*here*)
-  admit.
+  unfold loop in *; clear loop.
+  destruct (Sumbool.sumbool_of_bool (wneb (exprDenote e (fst v)) $0)).
+  right; intuition eauto.
+  left; eauto.
 Qed.
 
 Hint Resolve RunsTo_StepsTo StepsTo_RunsTo.
@@ -327,10 +378,7 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   eapply StepsSafe_While in H0.
   openhyp.
   intuition.
-  eapply StepsSafe_Seq in H1.
-  openhyp.
   intuition eauto.
-
 
   admit.
   admit.
