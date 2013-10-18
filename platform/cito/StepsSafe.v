@@ -107,26 +107,51 @@ Section StepsSafe_coind.
       let arr_v := exprDenote arr vs in
       let idx_v := exprDenote idx vs in
       safe_access arrs arr_v idx_v.
-(*here*)
-| Write : forall arr idx value vs (arrs : arrays), 
-    let v := (vs, arrs) in
-    let arr_v := exprDenote arr vs in
-    let idx_v := exprDenote idx vs in
-    safe_access arrs arr_v idx_v ->
-    StepSafe (Syntax.WriteAt arr idx value) v
-| Len : forall var arr vs (arrs : arrays),
-    let arr_v := exprDenote arr vs in
-    arr_v %in fst arrs ->
-    StepSafe (Syntax.Len var arr) (vs, arrs)
-| Malloc : forall var size vs (arrs : arrays),
-    let size_v := exprDenote size vs in
-    goodSize (wordToNat size_v + 2) ->
-    StepSafe (Syntax.Malloc var size) (vs, arrs)
-| Free : forall arr vs (arrs : arrays),
-    let arr_v := exprDenote arr vs in
-    arr_v %in fst arrs ->
-    StepSafe (Syntax.Free arr) (vs, arrs).
 
+  Hypothesis Write_case : 
+    forall arr idx value vs (arrs : arrays), 
+      let v := (vs, arrs) in
+      R (Syntax.WriteAt arr idx value) v ->
+      let arr_v := exprDenote arr vs in
+      let idx_v := exprDenote idx vs in
+      safe_access arrs arr_v idx_v.
+
+  Hypothesis Len_case : 
+    forall var arr vs (arrs : arrays),
+      R (Syntax.Len var arr) (vs, arrs) ->
+      let arr_v := exprDenote arr vs in
+      arr_v %in fst arrs.
+
+  Hypothesis Malloc_case : 
+    forall var size vs (arrs : arrays),
+      R (Syntax.Malloc var size) (vs, arrs) ->
+      let size_v := exprDenote size vs in
+      goodSize (wordToNat size_v + 2).
+
+  Hypothesis Free_case : 
+    forall arr vs (arrs : arrays),
+      R (Syntax.Free arr) (vs, arrs) ->
+      let arr_v := exprDenote arr vs in
+      arr_v %in fst arrs.
+
+  Hint Constructors StepSafe.
+
+  Theorem StepSafe_coind : forall s v, R s v -> StepSafe s v.
+    cofix.
+    intros.
+    destruct v; destruct s.
+
+    eauto.
+    Guarded.
+
+    econstructor.
+    eapply Read_case; eauto.
+    Guarded.
+
+    econstructor.
+    eapply Write_case; eauto.
+    Guarded.
+(*here*)
 
 
 
