@@ -412,7 +412,7 @@ Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
   admit.
 Qed.
 
-Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
+Lemma StepsSafe_Seq1 : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
   intros.
   eapply (StepsSafe_coind (fun fs a v => StepsSafe fs a v \/ exists b, StepsSafe fs (Syntax.Seq a b) v)).
   clear.
@@ -452,7 +452,107 @@ Lemma StepsSafe_Seq : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsS
 
   right; eexists; eauto.
 Qed.
-Hint Resolve StepsSafe_Seq.
+Hint Resolve StepsSafe_Seq1.
+
+Lemma StepsSafe_Seq2 : forall fs a v v', StepsTo fs a v v' -> forall b, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs b v'.
+  induction 1; simpl; intuition.
+
+  inversion H0; subst.
+  inversion H1; subst.
+  econstructor.
+  eauto.
+  intros.
+  edestruct H2.
+  econstructor; eauto.
+  left; eauto.
+  right; eauto.
+
+  eapply IHStepsTo.
+  inversion H3; subst.
+  edestruct H5.
+  econstructor 3; eauto.
+  openhyp.
+  rewrite H0 in H6; injection H6; intros; subst.
+  eauto.
+  openhyp.
+  rewrite H0 in H6; discriminate.
+
+  eapply IHStepsTo2.
+  inversion H4; subst.
+  edestruct H6.
+  econstructor 3; eauto.
+  openhyp.
+  rewrite H0 in H1; discriminate.
+  openhyp.
+  rewrite H0 in H1; injection H1; intros; subst.
+  edestruct H7.
+  eauto.
+  eauto.
+Qed.
+Hint Resolve StepsSafe_Seq2.
+
+Lemma StepsSafe_Seq : 
+  forall fs a b v, 
+    StepsSafe fs (Syntax.Seq a b) v -> 
+    StepsSafe fs a v /\
+    forall v',
+      StepsTo fs a v v' ->
+      StepsSafe fs b v'.
+  intuition eauto.
+Qed.
+
+Lemma StepsSafe_While : 
+  forall fs e b v,
+    let loop := Syntax.Loop e b in
+    StepsSafe fs loop v ->
+    wneb (exprDenote e (fst v)) $0 = false \/
+    wneb (exprDenote e (fst v)) $0 = true /\
+    StepsSafe fs (Syntax.Seq b loop) v.
+  (* inversion H0; subst. *)
+  (* inversion H1. *)
+  (* subst. *)
+  (* right; intuition. *)
+
+  (* left. *)
+  (* unfold loop0, loop1 in *; clear loop0 loop1. *)
+  (* subst. *)
+  (* intuition. *)
+
+  (* econstructor; eauto. *)
+  (* intros. *)
+  (* edestruct H2. *)
+  (* econstructor 9; eauto. *)
+  (* openhyp. *)
+  (* left; eexists; intuition eauto. *)
+  (* openhyp. *)
+  (* right; eexists; intuition. *)
+  (* eauto. *)
+  (* eapply H7 in H9; openhyp. *)
+  (* eauto. *)
+  (* eapply H7 in H9; openhyp. *)
+  (* eauto. *)
+
+  (* eapply RunsTo_StepsTo in H3. *)
+  (* econstructor; eauto. *)
+  (* inversion H3; subst. *)
+  (* eauto. *)
+  (* econstructor 8; eauto. *)
+
+  (* intros. *)
+  (* edestruct H2. *)
+  (* econstructor 9; eauto. *)
+  (* openhyp. *)
+  (* left; eexists; intuition eauto. *)
+  (* openhyp. *)
+  (* right; eexists; intuition. *)
+  (* eauto. *)
+  (* eapply H7 in H8; openhyp. *)
+  (* eauto. *)
+  (* eapply H7 in H8; openhyp. *)
+  (* eauto. *)
+(*here*)
+  admit.
+Qed.
 
 Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   intros.
@@ -472,13 +572,23 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   split.
   eauto.
   intros.
-  eapply RunsTo_StepsTo in H1.
-  Lemma StepsSafe_Seq_StepsTo : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> forall v', StepsTo fs a v v' -> StepsSafe fs b v'.
-    intros.
+  eauto.
+
+  intros.
+  inversion H0; subst.
+  inversion H1; subst.
+  left; intuition; econstructor; eauto.
+  right; intuition; econstructor; eauto.
+
+  intros.
+  eapply StepsSafe_While in H0.
+  openhyp.
+  intuition.
+  eapply StepsSafe_Seq in H1.
+  openhyp.
+  intuition eauto.
 
 
-  admit.
-  admit.
   admit.
   admit.
   admit.
