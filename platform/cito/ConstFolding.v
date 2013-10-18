@@ -4,13 +4,6 @@ Require Import SyntaxExpr.
 
 Definition VarToW := string -> option W.
 
-Definition Vars := string -> Prop.
-
-Open Scope type_scope.
-
-(* Info: vars with know value * assigned vars *)
-Definition Info := VarToW * Vars.
-
 Fixpoint const_folding_expr (e : Expr) (env : VarToW) : Expr :=
   match e with
     | Var var =>
@@ -35,7 +28,12 @@ Fixpoint const_folding_expr (e : Expr) (env : VarToW) : Expr :=
       end
   end.
 
-Definition empty_VarToW : VarToW := fun _ => None.
+Definition Vars := string -> Prop.
+
+Open Scope type_scope.
+
+(* Info: vars with know value * assigned vars *)
+Definition Info := VarToW * Vars.
 
 Definition empty_Vars : Vars := fun _ => False.
 
@@ -85,6 +83,7 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
         | c' =>
           let (t', info_t) := const_folding t (fst info, empty_Vars) in
           let (f', info_f) := const_folding f (fst info, empty_Vars) in
+          (* assigned vars in branches will no longer have known values *)
           let vars_with_known_value := fst info - snd info_t - snd info_f in
           let assigned_vars := snd info + snd info_t + snd info_f in
           (Conditional c' t' f', (vars_with_known_value, assigned_vars))
@@ -95,6 +94,7 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
             (Skip, info)
         | NotZero c' =>
           let (b', info_b) := const_folding b (fst info, empty_Vars) in
+          (* assigned vars in loop body will no longer have known values *)
           let vars_with_know_value := fst info - snd info_b in
           let assigned_vars := snd info + snd info_b in
           (Loop c' b', (vars_with_know_value, assigned_vars))
