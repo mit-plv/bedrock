@@ -71,6 +71,65 @@ CoInductive StepSafe : Statement -> st -> Prop :=
       arr_v %in fst arrs ->
       StepSafe (Syntax.Free arr) (vs, arrs).
 
+Section StepsSafe_coind.
+
+  Variable R : Statement -> st -> Prop.
+
+  Hypothesis Seq_case : 
+    forall a b v, 
+      R (Syntax.Seq a b) v ->
+      R a v /\
+      forall v', Step a v (Done v') -> R b v'.
+        
+  Hypothesis If_case : 
+    forall v cond t f, 
+      R (Conditional cond t f) v ->
+      wneb (exprDenote cond (fst v)) $0 = true /\
+      R t v \/
+      wneb (exprDenote cond (fst v)) $0 = false /\ 
+      R f v.
+
+  Hypothesis While_case : 
+    forall v cond body, 
+      let loop := Loop cond body in
+      R loop v ->
+      wneb (exprDenote cond (fst v)) $0 = false \/
+      wneb (exprDenote cond (fst v)) $0 = true /\
+      R body v /\
+      forall v', 
+        Step body v (Done v') -> 
+        R loop v'.
+
+  Hypothesis Read_case : 
+    forall var arr idx vs (arrs : arrays),
+      let v := (vs, arrs) in
+      R (Syntax.ReadAt var arr idx) v ->
+      let arr_v := exprDenote arr vs in
+      let idx_v := exprDenote idx vs in
+      safe_access arrs arr_v idx_v.
+(*here*)
+| Write : forall arr idx value vs (arrs : arrays), 
+    let v := (vs, arrs) in
+    let arr_v := exprDenote arr vs in
+    let idx_v := exprDenote idx vs in
+    safe_access arrs arr_v idx_v ->
+    StepSafe (Syntax.WriteAt arr idx value) v
+| Len : forall var arr vs (arrs : arrays),
+    let arr_v := exprDenote arr vs in
+    arr_v %in fst arrs ->
+    StepSafe (Syntax.Len var arr) (vs, arrs)
+| Malloc : forall var size vs (arrs : arrays),
+    let size_v := exprDenote size vs in
+    goodSize (wordToNat size_v + 2) ->
+    StepSafe (Syntax.Malloc var size) (vs, arrs)
+| Free : forall arr vs (arrs : arrays),
+    let arr_v := exprDenote arr vs in
+    arr_v %in fst arrs ->
+    StepSafe (Syntax.Free arr) (vs, arrs).
+
+
+
+
 Definition ForeignSafe (spec : callTransition -> Prop) x a := exists a', spec {| Arg := x; InitialHeap := a; FinalHeap := a' |}.
 
 Section Functions.
@@ -406,6 +465,15 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
 Qed.
 
 Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
+  intros.
+  eapply (StepsSafe_coind (fun fs s v => Safe fs s v)).
+  clear; intros.
+  split.
+  Lemma Safe_StepSafe : forall fs s v, Safe fs s v -> StepSafe s v.
+    inversion 1; subst.
+    econstructor.
+
+
   admit.
 Qed.
 
