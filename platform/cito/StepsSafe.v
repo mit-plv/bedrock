@@ -71,7 +71,7 @@ CoInductive StepSafe : Statement -> st -> Prop :=
       arr_v %in fst arrs ->
       StepSafe (Syntax.Free arr) (vs, arrs).
 
-Section StepsSafe_coind.
+Section StepSafe_coind.
 
   Variable R : Statement -> st -> Prop.
 
@@ -151,9 +151,43 @@ Section StepsSafe_coind.
     econstructor.
     eapply Write_case; eauto.
     Guarded.
-(*here*)
 
+    eapply Seq_case in H; openhyp.
+    econstructor; eauto.
+    Guarded.
 
+    eauto.
+    Guarded.
+
+    eapply If_case in H; openhyp.
+    econstructor; eauto.
+    Guarded.
+    econstructor 6; eauto.
+    Guarded.
+
+    eapply While_case in H; openhyp.
+    econstructor; eauto.
+    Guarded.
+    econstructor 8; eauto.
+    Guarded.
+
+    econstructor.
+    eapply Malloc_case; eauto.
+    Guarded.
+
+    econstructor.
+    eapply Free_case; eauto.
+    Guarded.
+
+    econstructor.
+    eapply Len_case; eauto.
+    Guarded.
+
+    eauto.
+    Guarded.
+  Qed.
+
+End StepSafe_coind.
 
 Definition ForeignSafe (spec : callTransition -> Prop) x a := exists a', spec {| Arg := x; InitialHeap := a; FinalHeap := a' |}.
 
@@ -489,16 +523,139 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   eauto.
 Qed.
 
-Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
+Lemma Safe_StepSafe : forall fs s v, Safe fs s v -> StepSafe s v.
   intros.
-  eapply (StepsSafe_coind (fun fs s v => Safe fs s v)).
+  eapply (StepSafe_coind (fun s v => Safe fs s v)).
+
   clear; intros.
-  split.
-  Lemma Safe_StepSafe : forall fs s v, Safe fs s v -> StepSafe s v.
-    inversion 1; subst.
-    econstructor.
+  inversion H; subst.
+  intuition.
 
+  clear; intros.
+  inversion H; subst.
+  left; intuition.
+  right; intuition.
 
-  admit.
+  clear; intros.
+  unfold loop in *; clear loop.
+  inversion H.
+  unfold statement0, statement1 in *; clear statement0 statement1.
+  subst.
+  right; intuition.
+  left; intuition.
+
+  clear; intros.
+  inversion H.
+  intuition.
+
+  clear; intros.
+  inversion H.
+  intuition.
+
+  clear; intros.
+  inversion H.
+  intuition.
+
+  clear; intros.
+  inversion H.
+  intuition.
+
+  clear; intros.
+  inversion H.
+  intuition.
+
+  eauto.
 Qed.
+Hint Resolve Safe_StepSafe.
 
+Hint Constructors Safe.
+
+Lemma Safe_Step_ToCall : 
+  forall s v tocall, 
+    Step s v tocall ->
+    forall f x s' v',
+      tocall = ToCall f x s' v' ->
+      forall fs,
+        Safe fs s v ->
+        (exists spec,
+           fs f = Some (Foreign spec) /\
+           ForeignSafe spec x (snd v') /\
+           forall a',
+             spec {| Arg := x; InitialHeap := snd v'; FinalHeap := a' |} ->
+             Safe fs s' (fst v', a')) \/
+        (exists body,
+           fs f = Some (Internal body) /\
+           forall vs_arg,
+             Locals.sel vs_arg "__arg" = x ->
+             Safe fs body (vs_arg, snd v') /\
+             forall v'',
+               StepsTo fs body (vs_arg, snd v') v'' ->
+               Safe fs s' (fst v', snd v'')).
+Proof.
+  induction 1; simpl; try discriminate; try solve [intuition].
+
+  intros.
+  inversion H2; subst.
+  eauto.
+
+  intros.
+  injection H0; intros; subst.
+  inversion H1; subst.
+  edestruct IHStep; eauto.
+  openhyp.
+  left; eexists; intuition eauto; econstructor; eauto.
+  openhyp.
+  right; eexists; intuition eauto.
+  eapply H3 in H5; openhyp.
+  eauto.
+  generalize H5; intro.
+  eapply H3 in H5; openhyp.
+  econstructor; eauto.
+
+  intros.
+  unfold v, f_v, arg_v in *; clear v f_v arg_v.
+  symmetry in H; injection H; intros; subst.
+  inversion H0; subst.
+  left; eexists; intuition eauto; eexists; eauto.
+  right; eexists; intuition eauto.
+
+  intros.
+  inversion H2; subst.
+  eapply IHStep; eauto.
+  rewrite H in H7; discriminate.
+
+  intros.
+  inversion H2; subst.
+  rewrite H in H7; discriminate.
+  eapply IHStep; eauto.
+
+  intros.
+  inversion H3.
+  unfold statement0, statement1 in *; clear statement0 statement1.
+  subst.
+  eapply IHStep2; eauto.
+  rewrite H in H7; discriminate.
+
+  intros.
+  unfold loop in *; clear loop.
+  symmetry in H1; injection H1; intros; subst.
+  inversion H2.
+  unfold statement0, statement1 in *; clear statement0 statement1.
+  subst.
+  edestruct IHStep; eauto.
+  openhyp.
+  left; eexists; intuition eauto.
+  openhyp.
+  right; eexists; intuition eauto.
+  eapply H4 in H7; openhyp.
+  eauto.
+  generalize H7; intro.
+  eapply H4 in H7; openhyp.
+  econstructor; eauto.
+  rewrite H in H6; discriminate.
+Qed.
+Hint Resolve Safe_Step_ToCall.
+
+Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
+  intros; eapply (StepsSafe_coind (fun fs s v => Safe fs s v)); eauto.
+Qed.
