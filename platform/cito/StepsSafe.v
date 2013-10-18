@@ -149,10 +149,6 @@ Section StepsSafe_coind.
 
 End StepsSafe_coind.
 
-Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
-  admit.
-Qed.
-
 Lemma StepsSafe_Seq1 : forall fs a b v, StepsSafe fs (Syntax.Seq a b) v -> StepsSafe fs a v.
   intros.
   eapply (StepsSafe_coind (fun fs a v => StepsSafe fs a v \/ exists b, StepsSafe fs (Syntax.Seq a b) v)).
@@ -380,9 +376,36 @@ Lemma StepsSafe_Safe : forall fs s v, StepsSafe fs s v -> Safe fs s v.
   intuition.
   intuition eauto.
 
-  admit.
-  admit.
-  admit.
-  admit.
+  clear; intros.
+  inversion H; subst.
+  inversion H0.
+  eauto.
+
+  clear; intros.
+  inversion H; subst.
+  inversion H0.
+  eauto.
+
+  clear; intros.
+  inversion H; subst.
+  inversion H0.
+  eauto.
+
+  clear; intros.
+  inversion H; subst.
+  edestruct H1.
+  eauto.
+  openhyp.
+  destruct H3.
+  left; do 2 eexists; intuition eauto.
+  openhyp.
+  right; do 2 eexists; intuition eauto.
+  edestruct H3; eauto.
+
+  eauto.
+Qed.
+
+Lemma Safe_StepsSafe : forall fs s v, Safe fs s v -> StepsSafe fs s v.
   admit.
 Qed.
+
