@@ -251,3 +251,5 @@ Theorem correct :
         RunsTo tfs t v v' -> RunsTo sfs s v v'.
   intuition eauto.
 Qed.
+
+Print Assumptions correct.
