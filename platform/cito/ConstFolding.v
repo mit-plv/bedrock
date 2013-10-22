@@ -1,5 +1,5 @@
 Require Import Optimizer.
-Require Import Syntax.
+Require Import Syntax Semantics.
 Require Import SyntaxExpr.
 
 Definition VarToW := string -> option W.
@@ -28,14 +28,14 @@ Fixpoint const_folding_expr (e : Expr) (env : VarToW) : Expr :=
       end
   end.
 
-Definition Vars := string -> Prop.
+Definition Vars := list string.
 
 Open Scope type_scope.
 
 (* Info: vars with know value * assigned vars *)
 Definition Info := VarToW * Vars.
 
-Definition empty_Vars : Vars := fun _ => False.
+Definition empty_Vars : Vars := nil.
 
 Variable subtract : VarToW -> Vars -> VarToW.
 Infix "-" := subtract.
@@ -54,25 +54,25 @@ Infix "%%-" := VarToW_del (at level 60).
 
 Inductive IsZeroResult := 
   | IsZero : IsZeroResult
-  | NotZero : Expr -> IsZeroResult.
+  | NotAlwaysZero : Expr -> IsZeroResult.
 
 Definition const_folding_expr_is_zero e env : IsZeroResult :=
   match const_folding_expr e env with
     | Const w =>
       if wneb w $0 then
-        NotZero (Const w)
+        NotAlwaysZero (Const w)
       else
         IsZero
-    | c' => NotZero c'
+    | c' => NotAlwaysZero c'
   end.
 
 Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
   match s with
-    | Skip => (s, info)
-    | Seq a b => 
+    | Syntax.Skip => (s, info)
+    | Syntax.Seq a b => 
       let (a', info') := const_folding a info in
       let (b', info'') := const_folding b info' in
-      (Seq a' b', info'')
+      (Syntax.Seq a' b', info'')
     | Conditional c t f =>
       match const_folding_expr c (fst info) with
         | Const w =>
@@ -91,45 +91,66 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
     | Loop c b =>
       match const_folding_expr_is_zero c (fst info) with
         | IsZero =>
-            (Skip, info)
-        | NotZero c' =>
+            (Syntax.Skip, info)
+        | NotAlwaysZero c' =>
           let (b', info_b) := const_folding b (fst info, empty_Vars) in
           (* assigned vars in loop body will no longer have known values *)
           let vars_with_know_value := fst info - snd info_b in
           let assigned_vars := snd info + snd info_b in
           (Loop c' b', (vars_with_know_value, assigned_vars))
       end          
-    | Assignment var e =>
+    | Syntax.Assignment var e =>
       let assigned_vars := snd info %+ var in
       match const_folding_expr e (fst info) with
         | Const w =>
           let vars_with_known_value := fst info %%+ (var, w) in
-          (Assignment var (Const w), (vars_with_known_value, assigned_vars))
+          (Syntax.Assignment var (Const w), (vars_with_known_value, assigned_vars))
         | e' =>
           let vars_with_known_value := fst info %%- var in
-          (Assignment var e', (vars_with_known_value, assigned_vars))
+          (Syntax.Assignment var e', (vars_with_known_value, assigned_vars))
       end
-    | ReadAt var arr idx =>
+    | Syntax.ReadAt var arr idx =>
       let arr' := const_folding_expr arr (fst info) in
       let idx' := const_folding_expr idx (fst info) in
-      (ReadAt var arr' idx', (fst info %%- var, snd info %+ var))
-    | WriteAt arr idx e =>
+      (Syntax.ReadAt var arr' idx', (fst info %%- var, snd info %+ var))
+    | Syntax.WriteAt arr idx e =>
       let arr' := const_folding_expr arr (fst info) in
       let idx' := const_folding_expr idx (fst info) in
       let e' := const_folding_expr e (fst info) in
-      (WriteAt arr' idx' e', info)
-    | Len var arr =>
+      (Syntax.WriteAt arr' idx' e', info)
+    | Syntax.Len var arr =>
       let arr' := const_folding_expr arr (fst info) in
-      (Len var arr', (fst info %%- var, snd info %+ var))
-    | Malloc var size =>
+      (Syntax.Len var arr', (fst info %%- var, snd info %+ var))
+    | Syntax.Malloc var size =>
       let size' := const_folding_expr size (fst info) in
-      (Malloc var size', (fst info %%- var, snd info %+ var))
-    | Free arr =>
+      (Syntax.Malloc var size', (fst info %%- var, snd info %+ var))
+    | Syntax.Free arr =>
       let arr' := const_folding_expr arr (fst info) in
-      (Free arr', info)
+      (Syntax.Free arr', info)
     | Syntax.Call f x =>
       let f' := const_folding_expr f (fst info) in
       let x' := const_folding_expr x (fst info) in
       (Syntax.Call f' x', info)
   end.
+
+Definition agree_with_mapping (v : vals) (m : VarToW) :=
+  forall x w,
+    m x = Some w ->
+    v x = w.
+
+Theorem const_folding_is_back_simulation : 
+  forall map, 
+    is_backward_simulation_ext (
+        fun vs s vt t => 
+          t = fst (const_folding s (map, empty_Vars)) /\
+          vt = vs /\
+          agree_with_mapping vs map
+).
+  unfold is_backward_simulation_ext.
+  induction s; simpl; intuition.
+  
+Definition empty_VarToW : VarToW := fun _ => None.
+
+Definition constant_folding s := fst (const_folding s (empty_VarToW, empty_Vars)).
+
 
