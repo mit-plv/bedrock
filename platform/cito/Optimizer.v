@@ -6,45 +6,32 @@ Import Safety.
 
 Set Implicit Arguments.
 
-Definition is_backward_simulation (R : Statement -> Statement -> Prop) : Prop :=
-  forall s t, 
-    R s t -> 
-    (forall v v',
-       Step t v (Done v') -> Step s v (Done v')) /\
-    (forall v f x v' t', 
-       Step t v (ToCall f x t' v') -> 
-       exists s', 
-         Step s v (ToCall f x s' v') /\ 
-         R s' t').
-
-(* an extended one supposed to be used later *)
-Definition is_backward_simulation_ext (R : Statement -> Statement -> Prop) (Rstate : vals -> vals -> Prop) : Prop :=
+Definition is_backward_simulation (R : vals -> Statement -> vals -> Statement -> Prop) : Prop :=
   forall vs s vt t, 
-    R s t -> 
-    Rstate vs vt ->
-    (forall heap vt',
-       Step t (vt, heap) (Done vt') -> 
+    R vs s vt t -> 
+    (forall heap vt' heap',
+       Step t (vt, heap) (Done (vt', heap')) -> 
        exists vs',
-         Step s (vs, heap) (Done vs') /\
-         Rstate (fst vs') (fst vt')) /\
-    (forall heap f x vt' t', 
-       Step t (vt, heap) (ToCall f x t' vt') -> 
+         Step s (vs, heap) (Done (vs', heap')) /\
+         R vs' Syntax.Skip vt' Syntax.Skip) /\
+    (forall heap f x t' vt' heap', 
+       Step t (vt, heap) (ToCall f x t' (vt', heap')) -> 
        exists s' vs', 
-         Step s (vs, heap) (ToCall f x s' vs') /\ 
-         R s' t' /\
-         Rstate (fst vs') (fst vt')).
+         Step s (vs, heap) (ToCall f x s' (vs', heap')) /\ 
+         R vs' s' vt' t').
 
-Definition is_backward_similar s t := exists R, is_backward_simulation R /\ R s t.
+Definition is_backward_similar vs s vt t := exists R, is_backward_simulation R /\ R vs s vt t.
 
 (* each function can be optimized by different optimizors *)
 Inductive is_backward_similar_callee : Callee -> Callee -> Prop :=
-  | BothForeign : 
-      forall spec1 spec2 : callTransition -> Prop, 
-        (forall x, spec2 x -> spec1 x) -> 
+  | BothForeign :
+      forall spec1 spec2 : callTransition -> Prop,
+        (forall x, spec2 x -> spec1 x) ->
         is_backward_similar_callee (Foreign spec1) (Foreign spec2)
-  | BothInternal : 
-      forall body1 body2, 
-        is_backward_similar body1 body2 -> 
+  | BothInternal :
+      forall body1 body2 R,
+        is_backward_simulation R ->
+        (forall v, R v body1 v body2) ->
         is_backward_similar_callee (Internal body1) (Internal body2).
 
 Definition is_backward_similar_fs fs1 fs2 := 
@@ -58,35 +45,119 @@ Hint Resolve RunsTo_StepsTo StepsTo_RunsTo.
 
 Hint Unfold is_backward_similar is_backward_simulation.
 
-Lemma correct_StepsTo : forall tfs t v v', StepsTo tfs t v v' -> forall s, is_backward_similar s t -> forall sfs, is_backward_similar_fs sfs tfs -> StepsTo sfs s v v'.
+Lemma correct_StepsTo : 
+  forall tfs t v v',
+    StepsTo tfs t v v' ->
+    forall vt heap vt' heap',
+      v = (vt, heap) ->
+      v' = (vt', heap') ->
+      forall R, 
+        is_backward_simulation R -> 
+        forall s vs, 
+          R vs s vt t -> 
+          forall sfs, 
+            is_backward_similar_fs sfs tfs -> 
+            exists vs', 
+              StepsTo sfs s (vs, heap) (vs', heap') /\ 
+              R vs' Syntax.Skip vt' Syntax.Skip.
+Proof.
   induction 1; simpl; intuition.
 
-  destruct H0; openhyp.
-  eapply H0 in H2; openhyp.
+  subst.
+  eapply H2 in H3; openhyp.
+  eapply H0 in H; openhyp.
   econstructor; eauto.
 
-  destruct H3; openhyp.
-  eapply H3 in H5; openhyp.
-  eapply H6 in H; openhyp.
-  eapply H4 in H0; openhyp.
+  subst.
+  destruct v'; simpl in *.
+  eapply H5 in H6; openhyp.
+  eapply H4 in H; openhyp.
+  eapply H7 in H0; openhyp.
   inversion H8; subst.
+  edestruct IHStepsTo; eauto.
+  openhyp.
+  eexists.
+  split.
   econstructor 2; eauto.
   eapply H11; eauto.
+  eauto.
 
-  destruct H4; openhyp.
-  eapply H4 in H6; openhyp.
-  eapply H7 in H; openhyp.
-  eapply H5 in H0; openhyp.
-  inversion H9; subst.
+  subst.
+  destruct v'; simpl in *.
+  destruct v''; simpl in *.
+  eapply H6 in H7; openhyp.
+  eapply H4 in H; openhyp.
+  eapply H8 in H0; openhyp.
+  inversion H7; subst.
+  edestruct IHStepsTo1; eauto.
+  eauto.
+  openhyp.
+  edestruct IHStepsTo2.
+  eauto.
+  eauto.
+  2 : eauto.
+  eauto.
+  eauto.
+  openhyp.
+  eexists.
+  split.
   econstructor 3; eauto.
+  eauto.
 Qed.
 Hint Resolve correct_StepsTo.
 
-Theorem correct_RunsTo : forall sfs s tfs t, is_backward_similar s t -> is_backward_similar_fs sfs tfs -> forall v v', RunsTo tfs t v v' -> RunsTo sfs s v v'.
-  intuition eauto.
+Theorem correct_RunsTo : 
+  forall tfs t v v',
+    RunsTo tfs t v v' ->
+    forall vt heap vt' heap',
+      v = (vt, heap) ->
+      v' = (vt', heap') ->
+      forall R, 
+        is_backward_simulation R -> 
+        forall s vs, 
+          R vs s vt t -> 
+          forall sfs, 
+            is_backward_similar_fs sfs tfs -> 
+            exists vs', 
+              RunsTo sfs s (vs, heap) (vs', heap') /\ 
+              R vs' Syntax.Skip vt' Syntax.Skip.
+Proof.
+  intros; edestruct correct_StepsTo; intuition eauto.
 Qed.
 
-Hint Resolve Safe_StepsSafe StepsSafe_Safe.
+Theorem is_backward_similar_trans : 
+  forall va a vb b vc c, 
+    is_backward_similar va a vb b -> 
+    is_backward_similar vb b vc c -> 
+    is_backward_similar va a vc c.
+Proof.
+  intros.
+  destruct H; openhyp.
+  destruct H0; openhyp.
+  exists (fun va a vc c => exists vb b, x va a vb b /\ x0 vb b vc c); intuition eauto.
+  unfold is_backward_simulation in *.
+  intros.
+  openhyp.
+  split.
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H in H3; openhyp.
+  eapply H4 in H5; openhyp.
+  eapply H3 in H5; openhyp.
+  eexists; intuition eauto.
+
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H6 in H5; openhyp.
+  eapply H in H3; openhyp.
+  eapply H8 in H5; openhyp.
+  do 2 eexists; intuition eauto.
+Qed.
+
+
+(*here*)
+
+(* Safety part *)
 
 Definition is_safety_preserving (R : Statement -> Statement -> Prop) : Prop :=
   forall s t,
@@ -119,29 +190,9 @@ Definition fs_preserves_safety fs1 fs2 :=
       fs2 w = Some callee2 /\
       callee_preserves_safety callee1 callee2.
 
+Hint Resolve Safe_StepsSafe StepsSafe_Safe.
+
 Hint Unfold preserves_safety fs_preserves_safety.
-
-Theorem is_backward_similar_trans : forall a b c, is_backward_similar a b -> is_backward_similar b c -> is_backward_similar a c.
-  intros.
-  destruct H; openhyp.
-  destruct H0; openhyp.
-  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
-  unfold is_backward_simulation in *.
-  intros.
-  openhyp.
-  split.
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H in H3; openhyp.
-  eauto.
-
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H6 in H5; openhyp.
-  eapply H in H3; openhyp.
-  eapply H8 in H5; openhyp.
-  intuition eauto.
-Qed.
 
 Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves_safety b c -> preserves_safety a c.
   intros.
