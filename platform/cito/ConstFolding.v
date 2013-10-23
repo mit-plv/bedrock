@@ -54,6 +54,14 @@ Infix "%%+" := VarToW_add (at level 60).
 Variable VarToW_del : VarToW -> string -> VarToW.
 Infix "%%-" := VarToW_del (at level 60).
 
+Hypothesis sel_remove_eq : forall m x, (m %%- x) x = None.
+
+Hypothesis sel_remove_ne : forall m x x', x <> x' -> (m %%- x) x' = m x'.
+
+Hypothesis sel_add_eq : forall m x w, (m %%+ (x, w)) x = Some w.
+
+Hypothesis sel_add_ne : forall m x w x', x <> x' -> (m %%+ (x, w)) x' = m x'.
+
 Inductive IsZeroResult := 
   | IsZero : IsZeroResult
   | NotAlwaysZero : Expr -> IsZeroResult.
@@ -138,7 +146,7 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
 Definition agree_with (v : vals) (m : VarToW) :=
   forall x w,
     m x = Some w ->
-    v x = w.
+    sel v x = w.
 
 Definition const_folding_rel vs s vt t := 
   exists info,
@@ -168,19 +176,102 @@ Proof.
   right; right; right; do 3 eexists; intuition eauto.
 Qed.
 
-Lemma const_folding_expr_correct : forall e e' m local, e' = const_folding_expr e m -> agree_with local m -> exprDenote e' local = exprDenote e local.
-  admit.
-Qed.
-
 Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
-  admit.
+  unfold agree_with; intros; destruct (string_dec x x0).
+  subst; rewrite sel_remove_eq in *; discriminate.
+  rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
 Qed.
 Hint Resolve agree_with_remove.
 
 Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
-  admit.
+  unfold agree_with; intros; destruct (string_dec x x0).
+  subst.
+  rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
+  rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
 Qed.
 Hint Resolve agree_with_add.
+
+Definition sel_dec : forall (m : VarToW) x, {w | m x = Some w} + {m x = None}.
+  intros; destruct (m x); intuition eauto.
+Defined.
+
+Ltac my_f_equal :=
+  match goal with
+    | |- (if ?E1 then _ else _) = (if ?E2 then _ else _) => replace E2 with E1; try reflexivity
+  end.
+
+Lemma const_folding_expr_correct : 
+  forall e e' m local, 
+    e' = const_folding_expr e m -> 
+    agree_with local m -> 
+    exprDenote e' local = exprDenote e local.
+Proof.
+  induction e; try solve [simpl; intuition]; intros.
+  simpl in *.
+  destruct (sel_dec m s).
+  destruct s0.
+  subst; rewrite e.
+  simpl.
+  unfold agree_with in *.
+  symmetry.
+  eauto.
+  subst; rewrite e.
+  eauto.
+
+  simpl in *.
+  subst.
+  eauto.
+  
+  simpl in *.
+  specialize (expr_dec (const_folding_expr e1 m)); intros; openhyp; subst; rewrite H1 in *.
+
+  simpl in *; f_equal.
+  replace (local x) with (exprDenote x local); eauto.
+  eauto.
+
+  specialize (expr_dec (const_folding_expr e2 m)); intros; openhyp; subst; rewrite H in *; simpl in *; (f_equal; [ replace x with (exprDenote x local); eauto | ]).
+  replace (local x0) with (exprDenote x0 local); eauto.
+  replace x0 with (exprDenote x0 local); eauto.
+  replace (evalBinop _ _ _) with (exprDenote (Binop x0 x1 x2) local); eauto.
+  match goal with
+    | |- ?E = _ => replace E with (exprDenote (TestE x0 x1 x2) local)
+  end; eauto.
+
+  simpl in *; f_equal.
+  replace (evalBinop _ _ _) with (exprDenote (Binop x x0 x1) local); eauto.
+  eauto.
+
+  simpl in *; f_equal.
+  match goal with
+    | |- ?E = _ => replace E with (exprDenote (TestE x x0 x1) local)
+  end; eauto.
+  eauto.
+
+  simpl in *.
+  specialize (expr_dec (const_folding_expr e1 m)); intros; openhyp; subst; rewrite H1 in *.
+
+  simpl in *; my_f_equal; f_equal.
+  replace (local x) with (exprDenote x local); eauto.
+  eauto.
+
+  specialize (expr_dec (const_folding_expr e2 m)); intros; openhyp; subst; rewrite H in *; simpl in *; (my_f_equal; f_equal; [ replace x with (exprDenote x local); eauto | ]).
+  replace (local x0) with (exprDenote x0 local); eauto.
+  replace x0 with (exprDenote x0 local); eauto.
+  replace (evalBinop _ _ _) with (exprDenote (Binop x0 x1 x2) local); eauto.
+  match goal with
+    | |- ?E = _ => replace E with (exprDenote (TestE x0 x1 x2) local)
+  end; eauto.
+
+  simpl in *; my_f_equal; f_equal.
+  replace (evalBinop _ _ _) with (exprDenote (Binop x x0 x1) local); eauto.
+  eauto.
+
+  simpl in *; my_f_equal; f_equal.
+  match goal with
+    | |- ?E = _ => replace E with (exprDenote (TestE x x0 x1) local)
+  end; eauto.
+  eauto.
+Qed.
 
 Lemma assign_done : 
   forall x e info local heap local' heap', 
@@ -208,16 +299,41 @@ Proof.
   intros until s.
   generalize dependent vs.
   induction s; try solve [simpl; intuition]; intros.
+
   split.
+
   intros.
-  unfold const_folding_rel in *.
-  openhyp.
-  subst.
+  unfold const_folding_rel in *; openhyp; subst.
   eexists; intuition eauto.
   2 : eexists; intuition eauto.
   eapply assign_done in H0; eauto; openhyp; eauto.
   eapply assign_done in H0; eauto; openhyp; eauto.
-  Admitted.
+
+  intros.
+  unfold const_folding_rel in *; openhyp; subst.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
+
+  split.
+
+  intros.
+  unfold const_folding_rel in *; openhyp; subst.
+  simpl in *.
+(*here*)
+  inversion H0.
+  unfold 
+  subst.
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
 
