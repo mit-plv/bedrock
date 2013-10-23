@@ -273,6 +273,18 @@ Proof.
   eauto.
 Qed.
 
+Lemma const_folding_expr_correct' : 
+  forall e m local, 
+    agree_with local m -> 
+    exprDenote (const_folding_expr e m) local = exprDenote e local.
+  intros; erewrite const_folding_expr_correct; eauto.
+Qed.
+
+Ltac unfold_all :=
+  repeat match goal with
+           | H := _ |- _ => unfold H in *; clear H
+         end.
+
 Lemma assign_done : 
   forall x e info local heap local' heap', 
     let s := x <- e in
@@ -285,7 +297,7 @@ Proof.
   intros.
   unfold result, s in *; clear result s.
   simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H; unfold value_v, v0, v1 in *; clear value_v v0 v1; subst; split; try erewrite const_folding_expr_correct; eauto.
+  specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H; unfold_all; subst; split; try erewrite const_folding_expr_correct; eauto.
   erewrite <- const_folding_expr_correct.
   2 : symmetry; eauto.
   simpl.
@@ -306,6 +318,7 @@ Proof.
   unfold const_folding_rel in *; openhyp; subst.
   eexists; intuition eauto.
   2 : eexists; intuition eauto.
+
   eapply assign_done in H0; eauto; openhyp; eauto.
   eapply assign_done in H0; eauto; openhyp; eauto.
 
@@ -318,13 +331,34 @@ Proof.
   intros.
   unfold const_folding_rel in *; openhyp; subst.
   simpl in *.
-(*here*)
-  inversion H0.
-  unfold 
-  subst.
+  inversion H0; unfold_all; subst.
+  eexists; intuition.
+  2 : eexists; intuition eauto.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  eauto.
+  instantiate (1 := (_, _)).
+  eapply agree_with_add.
+  eauto.
 
-  admit.
-  admit.
+  intros.
+  unfold const_folding_rel in *; openhyp; subst.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
+
+  split.
+
+  intros.
+  unfold const_folding_rel in *; openhyp; subst.
+  simpl in *.
+  inversion H0; unfold_all; subst.
+  eexists; intuition.
+  2 : eexists; intuition eauto.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  eauto.
+
+  intros.
+  unfold const_folding_rel in *; openhyp; subst.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
+
   admit.
   admit.
   admit.
