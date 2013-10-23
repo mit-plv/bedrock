@@ -154,24 +154,23 @@ Proof.
   do 2 eexists; intuition eauto.
 Qed.
 
-
-(*here*)
-
 (* Safety part *)
 
-Definition is_safety_preserving (R : Statement -> Statement -> Prop) : Prop :=
-  forall s t,
-    R s t ->
-    (forall v,
-      StepSafe s v ->
-      StepSafe t v) /\
-    (forall v f x t' v',
-       Step t v (ToCall f x t' v') ->
-       exists s',
-         Step s v (ToCall f x s' v') /\
-         R s' t').
+Definition is_safety_preserving (R : vals -> Statement -> vals -> Statement -> Prop) : Prop :=
+  forall vs s vt t,
+    R vs s vt t ->
+    (forall heap,
+       StepSafe s (vs, heap) -> 
+       StepSafe t (vt, heap)) /\
+    (forall heap f x t' vt' heap',
+       Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
+       exists s' vs',
+         Step s (vs, heap) (ToCall f x s' (vs', heap')) /\
+         R vs' s' vt' t').
 
-Definition preserves_safety s t := exists R, is_safety_preserving R /\ R s t.
+Definition preserves_safety vs s vt t := exists R, is_safety_preserving R /\ R vs s vt t.
+
+Variable some_relation : Statement -> Statement -> Prop.
 
 Inductive callee_preserves_safety : Callee -> Callee -> Prop :=
   | SafeBothForeign : 
@@ -180,7 +179,7 @@ Inductive callee_preserves_safety : Callee -> Callee -> Prop :=
         callee_preserves_safety (Foreign spec1) (Foreign spec2)
   | SafeBothInternal : 
       forall body1 body2, 
-        preserves_safety body1 body2 -> 
+        some_relation body1 body2 -> 
         callee_preserves_safety (Internal body1) (Internal body2).
 
 Definition fs_preserves_safety fs1 fs2 := 
@@ -194,51 +193,31 @@ Hint Resolve Safe_StepsSafe StepsSafe_Safe.
 
 Hint Unfold preserves_safety fs_preserves_safety.
 
-Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves_safety b c -> preserves_safety a c.
-  intros.
-  destruct H; openhyp.
-  destruct H0; openhyp.
-  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
-  unfold is_safety_preserving in *.
-  intros.
-  openhyp.
-  split.
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H in H3; openhyp.
-  eauto.
-
-  intros.
-  eapply H0 in H4; openhyp.
-  eapply H6 in H5; openhyp.
-  eapply H in H3; openhyp.
-  eapply H8 in H5; openhyp.
-  intuition eauto.
-Qed.
-
 Lemma correct_StepsSafe : 
-  forall sfs s v, 
-    StepsSafe sfs s v -> 
-    forall t, 
-      preserves_safety s t -> 
+  forall sfs s vs heap, 
+    StepsSafe sfs s (vs, heap) -> 
+    forall t vt, 
+      preserves_safety vs s vt t -> 
       forall tfs, 
         fs_preserves_safety sfs tfs -> 
         is_backward_similar_fs sfs tfs -> 
-        StepsSafe tfs t v.
+        StepsSafe tfs t (vt, heap).
   intros.
   eapply (
       StepsSafe_coind (
           fun tfs t v => 
-            exists sfs s, 
-              StepsSafe sfs s v /\ 
-              preserves_safety s t /\
+            exists sfs s vt heap vs, 
+              v = (vt, heap) /\
+              StepsSafe sfs s (vs, heap) /\ 
+              preserves_safety vs s vt t /\
               fs_preserves_safety sfs tfs /\
               is_backward_similar_fs sfs tfs
     )).
-  2 : do 3 eexists; intuition eauto.
+  2 : do 5 eexists; intuition eauto.
   intros.
   openhyp.
-
+  subst.
+(*here*)
   split.
   inversion H3; subst.
   destruct H4; openhyp.
@@ -286,6 +265,28 @@ Hint Resolve correct_StepsSafe.
 
 Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> is_backward_similar_fs sfs tfs -> Safe tfs t v.
   eauto.
+Qed.
+
+Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves_safety b c -> preserves_safety a c.
+  intros.
+  destruct H; openhyp.
+  destruct H0; openhyp.
+  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
+  unfold is_safety_preserving in *.
+  intros.
+  openhyp.
+  split.
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H in H3; openhyp.
+  eauto.
+
+  intros.
+  eapply H0 in H4; openhyp.
+  eapply H6 in H5; openhyp.
+  eapply H in H3; openhyp.
+  eapply H8 in H5; openhyp.
+  intuition eauto.
 Qed.
 
 Hint Resolve correct_RunsTo correct_Safe.
