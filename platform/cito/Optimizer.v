@@ -203,6 +203,7 @@ Lemma correct_StepsSafe :
         fs_preserves_safety sfs tfs -> 
         is_backward_similar_fs sfs tfs -> 
         StepsSafe tfs t (vt, heap).
+Proof.
   intros.
   eapply (
       StepsSafe_coind (
@@ -274,22 +275,38 @@ Lemma correct_StepsSafe :
   eauto.
   intuition eauto.
   destruct v''; simpl in *.
-  eapply H17.
-  (*here*)
+  edestruct correct_StepsTo; eauto.
+  eapply H20.
+  openhyp.
+  eapply H17 in H19.
   eauto.
 Qed.
 
 Hint Resolve correct_StepsSafe.
 
-Theorem correct_Safe : forall sfs s v, Safe sfs s v -> forall t, preserves_safety s t -> forall tfs, fs_preserves_safety sfs tfs -> is_backward_similar_fs sfs tfs -> Safe tfs t v.
+Theorem correct_Safe : 
+  forall sfs s vs heap, 
+    Safe sfs s (vs, heap) -> 
+    forall t vt, 
+      preserves_safety vs s vt t -> 
+      forall tfs, 
+        fs_preserves_safety sfs tfs -> 
+        is_backward_similar_fs sfs tfs -> 
+        Safe tfs t (vt, heap).
+Proof.
   eauto.
 Qed.
 
-Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves_safety b c -> preserves_safety a c.
+Theorem preserves_safety_trans : 
+  forall va a vb b vc c, 
+    preserves_safety va a vb b -> 
+    preserves_safety vb b vc c -> 
+    preserves_safety va a vc c.
+Proof.
   intros.
   destruct H; openhyp.
   destruct H0; openhyp.
-  exists (fun a c => exists b, x a b /\ x0 b c); intuition eauto.
+  exists (fun va a vc c => exists vb b, x va a vb b /\ x0 vb b vc c); intuition eauto.
   unfold is_safety_preserving in *.
   intros.
   openhyp.
@@ -304,21 +321,25 @@ Theorem preserves_safety_trans : forall a b c, preserves_safety a b -> preserves
   eapply H6 in H5; openhyp.
   eapply H in H3; openhyp.
   eapply H8 in H5; openhyp.
-  intuition eauto.
+  do 2 eexists; intuition eauto.
 Qed.
 
 Hint Resolve correct_RunsTo correct_Safe.
 
 Theorem correct : 
-  forall sfs s tfs t, 
-    is_backward_similar s t -> 
-    preserves_safety s t ->
+  forall R sfs s vs tfs t vt heap, 
+    is_backward_simulation R ->
+    R vs s vt t -> 
+    preserves_safety vs s vt t ->
     is_backward_similar_fs sfs tfs -> 
     fs_preserves_safety sfs tfs ->
-    forall v, 
-      (Safe sfs s v -> Safe tfs t v) /\ 
-      forall v', 
-        RunsTo tfs t v v' -> RunsTo sfs s v v'.
+    (Safe sfs s (vs, heap) -> 
+     Safe tfs t (vt, heap)) /\ 
+    forall vt' heap', 
+      RunsTo tfs t (vt, heap) (vt', heap') -> 
+      exists vs',
+        RunsTo sfs s (vs, heap) (vs', heap') /\
+        R vs' Syntax.Skip vt' Syntax.Skip.
   intuition eauto.
 Qed.
 
