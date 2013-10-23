@@ -178,8 +178,9 @@ Inductive callee_preserves_safety : Callee -> Callee -> Prop :=
         (forall x a, ForeignSafe spec1 x a -> ForeignSafe spec2 x a) -> 
         callee_preserves_safety (Foreign spec1) (Foreign spec2)
   | SafeBothInternal : 
-      forall body1 body2, 
-        some_relation body1 body2 -> 
+      forall body1 body2 R, 
+        is_safety_preserving R ->
+        (forall v, R v body1 v body2) -> 
         callee_preserves_safety (Internal body1) (Internal body2).
 
 Definition fs_preserves_safety fs1 fs2 := 
@@ -214,51 +215,68 @@ Lemma correct_StepsSafe :
               is_backward_similar_fs sfs tfs
     )).
   2 : do 5 eexists; intuition eauto.
+  clear.
   intros.
   openhyp.
   subst.
-(*here*)
+
   split.
-  inversion H3; subst.
-  destruct H4; openhyp.
-  eapply H4 in H9; openhyp.
+  inversion H0; subst.
+  destruct H1; openhyp.
+  eapply H1 in H5; openhyp.
   eauto.
 
   intros.
-  inversion H3; subst.
-  destruct H4; openhyp.
-  eapply H4 in H10; openhyp.
-  eapply H11 in H7; openhyp.
-  eapply H9 in H7; openhyp.
+  inversion H0; subst.
+  destruct H1; openhyp.
+  eapply H1 in H6; openhyp.
+  destruct v'; simpl in *.
+  eapply H7 in H; openhyp.
+  eapply H5 in H; openhyp.
+  simpl in *.
 
   left.
-  generalize H7; intro.
-  eapply H5 in H7; openhyp.
-  inversion H16; subst.
+  generalize H; intro.
+  eapply H2 in H; openhyp.
+  inversion H12; subst.
   eexists; intuition eauto.
-  eapply H6 in H7; openhyp.
-  inversion H19; subst.
-  rewrite H15 in H7; injection H7; intros; subst.
-  do 2 eexists; intuition eauto.
+  eapply H3 in H; openhyp.
+  inversion H15; subst.
+  rewrite H11 in H; injection H; intros; subst.
+  do 5 eexists; intuition eauto.
 
   right.
-  generalize H7; intro.
-  eapply H5 in H7; openhyp.
-  inversion H15; subst.
+  generalize H; intro.
+  eapply H2 in H; openhyp.
+  inversion H11; subst.
   eexists; intuition eauto.
 
-  eapply H6 in H7; openhyp.
-  inversion H18; subst.
-  rewrite H14 in H7; injection H7; intros; subst.
-  edestruct H13; eauto.
-  do 2 eexists; intuition eauto.
+  eapply H3 in H; openhyp.
+  inversion H15; subst.
+  rewrite H10 in H; injection H; intros; subst.
+  edestruct H9; eauto.
+  do 5 eexists; intuition eauto.
+  eexists; intuition eauto.
 
-  eapply H6 in H7; openhyp.
-  inversion H19; subst.
-  rewrite H14 in H7; injection H7; intros; subst.
-  edestruct H13; eauto.
-  do 2 eexists; intuition eauto.
-
+  eapply H3 in H; openhyp.
+  inversion H16; subst.
+  rewrite H10 in H; injection H; intros; subst.
+  edestruct H9; eauto.
+  do 5 eexists.
+  split.
+  eauto.
+  split.
+  Focus 2.
+  split.
+  eexists.
+  split.
+  2 : eauto.
+  eauto.
+  intuition eauto.
+  destruct v''; simpl in *.
+  eapply H17.
+  (*here*)
+  eauto.
 Qed.
 
 Hint Resolve correct_StepsSafe.
