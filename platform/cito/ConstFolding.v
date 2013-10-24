@@ -1,6 +1,10 @@
 Require Import Optimizer.
 Require Import Syntax Semantics.
 Require Import SyntaxExpr.
+Require Import GeneralTactics.
+Require Import StepsTo.
+Require Import WritingPrograms.
+Require Import SemanticsExpr.
 
 Set Implicit Arguments.
 
@@ -148,19 +152,32 @@ Definition agree_with (v : vals) (m : VarToW) :=
     m x = Some w ->
     sel v x = w.
 
+Variable less_informative : Info -> Info -> Prop.
+
+Infix "%<=" := less_informative (at level 60).
+
+Inductive is_optimization_of : Statement -> Statement -> Info -> Prop :=
+  | OptFull : 
+      forall s info, 
+        is_optimization_of (fst (const_folding s info)) s info
+  | OptLess :
+      forall t s info info',
+        is_optimization_of t s info ->
+        info %<= info' ->
+        is_optimization_of t s info'
+  | OptSeq : 
+      forall t1 t2 s1 s2 info,
+        is_optimization_of t1 s1 info ->
+        is_optimization_of t2 s2 (snd (const_folding s1 info)) ->
+        is_optimization_of (t1 ;; t2) (s1 ;; s2) info.
+
 Definition const_folding_rel vs s vt t := 
   exists info,
-    t = fst (const_folding s info) /\
+    is_optimization_of t s info /\
     vt = vs /\
     agree_with vs (fst info).
 
-Require Import GeneralTactics.
-Require Import StepsTo.
-
 Hint Unfold const_folding_rel.
-
-Require Import WritingPrograms.
-Require Import SemanticsExpr.
 
 Lemma expr_dec : 
   forall e, 
@@ -311,23 +328,30 @@ Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
   intros; destruct p; eauto.
 Qed.
 
+Lemma less_informative_refl : forall info, info %<= info.
+  admit.
+Qed.
+Hint Resolve less_informative_refl.
+
 Lemma const_folding_rel_is_backward_simulation' :
   forall s vt t info,
-    t = fst (const_folding s info) ->
+    is_optimization_of t s info ->
     agree_with vt (fst info) ->
     (forall heap vt' heap',
        Step t (vt, heap) (Done (vt', heap')) ->
        Step s (vt, heap) (Done (vt', heap')) /\
-       agree_with vt' (fst (snd (const_folding s info))) (* /\ *)
-       (* agree_except vt vt' (snd (snd (const_folding s info))) *)) /\
+       exists info',
+         agree_with vt' (fst info') /\
+         info' %<= snd (const_folding s info) (* /\ *)
+         (* agree_except vt vt' (snd (snd (const_folding s info))) *)) /\
     (forall heap f x t' vt' heap',
        Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
        exists s',
          Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-         exists info' : Info,
-           t' = fst (const_folding s' info') /\
+         exists info',
+           is_optimization_of t' s' info' /\
            agree_with vt' (fst info') /\
-           snd (const_folding s info) = snd (const_folding s' info')).
+           snd (const_folding s info) %<= snd (const_folding s' info')).
 Proof.
   induction s; try solve [simpl; intuition]; intros; subst.
 
@@ -335,7 +359,11 @@ Proof.
   split.
 
   intros.
-  eauto.
+  inversion H; subst.
+  eapply assign_done in H1; eauto; openhyp.
+  intuition.
+  eexists; intuition eauto.
+(*here*)
 
   intros.
   simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
@@ -455,6 +483,11 @@ Proof.
   admit.
 Qed.
 
+Lemma is_optimization_of_refl : forall s info, is_optimization_of s s info.
+  admit.
+Qed.
+Hint Resolve is_optimization_of_refl.
+
 Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
 Proof.
   unfold is_backward_simulation, const_folding_rel.
@@ -464,10 +497,10 @@ Proof.
   openhyp.
   split.
   intros.
-  eapply H in H1; openhyp.
+  eapply H0 in H2; openhyp.
   eexists; intuition eauto.
   intros.
-  eapply H0 in H1; openhyp.
+  eapply H1 in H2; openhyp.
   do 2 eexists; intuition eauto.
 Qed.
 
@@ -484,8 +517,13 @@ Lemma everything_agree_with_empty_map : forall v, agree_with v empty_VarToW.
 Qed.
 Hint Resolve everything_agree_with_empty_map.
 
+Lemma constant_folding_always_is_optimization_of : forall s info, is_optimization_of (constant_folding s) s info.
+  admit.
+Qed.
+Hint Resolve constant_folding_always_is_optimization_of.
+
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
-  unfold const_folding_rel; intros; eexists; intuition eauto.
+  unfold const_folding_rel; intros; exists empty_info; simpl in *; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_backward_similar_callee : 
