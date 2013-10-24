@@ -152,33 +152,6 @@ Definition agree_with (v : vals) (m : VarToW) :=
     m x = Some w ->
     sel v x = w.
 
-Variable less_informative : Info -> Info -> Prop.
-
-Infix "%<=" := less_informative (at level 60).
-
-Inductive is_optimization_of : Statement -> Statement -> Info -> Prop :=
-  | OptFull : 
-      forall s info, 
-        is_optimization_of (fst (const_folding s info)) s info
-  | OptLess :
-      forall t s info info',
-        is_optimization_of t s info ->
-        info %<= info' ->
-        is_optimization_of t s info'
-  | OptSeq : 
-      forall t1 t2 s1 s2 info,
-        is_optimization_of t1 s1 info ->
-        is_optimization_of t2 s2 (snd (const_folding s1 info)) ->
-        is_optimization_of (t1 ;; t2) (s1 ;; s2) info.
-
-Definition const_folding_rel vs s vt t := 
-  exists info,
-    is_optimization_of t s info /\
-    vt = vs /\
-    agree_with vs (fst info).
-
-Hint Unfold const_folding_rel.
-
 Lemma expr_dec : 
   forall e, 
     (exists x, e = Var x) \/
@@ -328,38 +301,70 @@ Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
   intros; destruct p; eauto.
 Qed.
 
+Variable less_informative : Info -> Info -> Prop.
+
+Infix "%<=" := less_informative (at level 60).
+
+Inductive FoldConst : (Statement * Info) -> (Statement * Info) -> Prop :=
+  | OptFull : 
+      forall s info, 
+        FoldConst (s, info) (const_folding s info)
+  | OptLess :
+      forall s info_in t info_out info_in' info_out',
+        FoldConst (s, info_in) (t, info_out) ->
+        info_in %<= info_in' ->
+        info_out' %<= info_out ->
+        FoldConst (s, info_in') (t, info_out')
+  | OptSeq : 
+      forall t1 t2 s1 s2 info info' info'',
+        FoldConst (s1, info) (t1, info') ->
+        FoldConst (s2, info') (t2, info'') ->
+        FoldConst (s1;;s2, info) (t1;;t2, info'') .
+
+Definition const_folding_rel vs s vt t := 
+  exists info info',
+    FoldConst (s, info) (t, info') /\
+    vt = vs /\
+    agree_with vs (fst info).
+
+Hint Unfold const_folding_rel.
+
 Lemma less_informative_refl : forall info, info %<= info.
   admit.
 Qed.
 Hint Resolve less_informative_refl.
 
+Require Import VariableLemmas.
+
+Definition agree_except := changedVariables.
+
 Lemma const_folding_rel_is_backward_simulation' :
-  forall s vt t info,
-    is_optimization_of t s info ->
+  forall s vt t info info',
+    FoldConst (s, info) (t, info') ->
     agree_with vt (fst info) ->
     (forall heap vt' heap',
        Step t (vt, heap) (Done (vt', heap')) ->
        Step s (vt, heap) (Done (vt', heap')) /\
-       exists info',
-         agree_with vt' (fst info') /\
-         info' %<= snd (const_folding s info) (* /\ *)
-         (* agree_except vt vt' (snd (snd (const_folding s info))) *)) /\
+       agree_with vt' (fst info') /\
+       agree_except vt vt' (snd info')) /\
     (forall heap f x t' vt' heap',
        Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
        exists s',
          Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-         exists info',
-           is_optimization_of t' s' info' /\
+         exists info_k info_k',
+           FoldConst (s', info_k) (t', info_k') /\
            agree_with vt' (fst info') /\
-           snd (const_folding s info) %<= snd (const_folding s' info')).
+           info' %<= info_k').
 Proof.
-  induction s; try solve [simpl; intuition]; intros; subst.
+  induction s; try solve [simpl; intuition]; intros.
 
   (* assign *)
   split.
 
   intros.
+  Opaque const_folding.
   inversion H; subst.
+  erewrite 
   eapply assign_done in H1; eauto; openhyp.
   intuition.
   eexists; intuition eauto.
@@ -483,10 +488,10 @@ Proof.
   admit.
 Qed.
 
-Lemma is_optimization_of_refl : forall s info, is_optimization_of s s info.
+Lemma FoldConst_refl : forall s info, FoldConst s s info.
   admit.
 Qed.
-Hint Resolve is_optimization_of_refl.
+Hint Resolve FoldConst_refl.
 
 Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
 Proof.
@@ -517,10 +522,10 @@ Lemma everything_agree_with_empty_map : forall v, agree_with v empty_VarToW.
 Qed.
 Hint Resolve everything_agree_with_empty_map.
 
-Lemma constant_folding_always_is_optimization_of : forall s info, is_optimization_of (constant_folding s) s info.
+Lemma constant_folding_always_FoldConst : forall s info, FoldConst (constant_folding s) s info.
   admit.
 Qed.
-Hint Resolve constant_folding_always_is_optimization_of.
+Hint Resolve constant_folding_always_FoldConst.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
   unfold const_folding_rel; intros; exists empty_info; simpl in *; intuition eauto.
