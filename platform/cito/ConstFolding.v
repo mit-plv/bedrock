@@ -305,68 +305,131 @@ Proof.
   eauto.
 Qed.
 
+Hint Resolve assign_done.
+
+Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
+  intros; destruct p; eauto.
+Qed.
+
+Lemma const_folding_rel_is_backward_simulation' :
+  forall s vt t info,
+    t = fst (const_folding s info) ->
+    agree_with vt (fst info) ->
+    (forall heap vt' heap',
+       Step t (vt, heap) (Done (vt', heap')) ->
+       Step s (vt, heap) (Done (vt', heap')) /\
+       agree_with vt' (fst (snd (const_folding s info)))) /\
+    (forall heap f x t' vt' heap',
+       Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
+       exists s',
+         Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
+         exists info' : Info,
+           t' = fst (const_folding s' info') /\
+           agree_with vt' (fst info') /\
+           snd (const_folding s info) = snd (const_folding s' info')).
+Proof.
+  induction s; try solve [simpl; intuition]; intros; subst.
+
+  (* assign *)
+  split.
+
+  intros.
+  eauto.
+
+  intros.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
+
+  Focus 3.
+  (* seq *)
+  split.
+
+  intros.
+  simpl in *.
+  erewrite (break_pair (const_folding s1 info)) in *.
+  erewrite (break_pair (const_folding s2 (snd (const_folding s1 info)))) in *.
+  simpl in *.
+  inversion H; subst.
+  destruct v'; simpl in *.
+  eapply IHs1 in H3; eauto; openhyp.
+  eapply IHs2 in H6; eauto; openhyp.
+  intuition eauto.
+
+  intros.
+  simpl in *.
+  erewrite (break_pair (const_folding s1 info)) in *.
+  erewrite (break_pair (const_folding s2 (snd (const_folding s1 info)))) in *.
+  simpl in *.
+  inversion H; subst.
+
+  destruct v'; simpl in *.
+  eapply IHs1 in H3; eauto; openhyp.
+  eapply IHs2 in H6; eauto; openhyp; subst.
+  eexists; intuition eauto.
+
+  eapply IHs1 in H0; eauto; openhyp.
+  eapply H1 in H4; openhyp; subst.
+  eexists; intuition eauto.
+  eexists; intuition eauto.
+  simpl.
+  erewrite (break_pair (const_folding x0 x1)) in *.
+  erewrite (break_pair (const_folding s2 (snd (const_folding x0 x1)))) in *.
+  simpl in *.
+  do 3 f_equal.
+  eauto.
+  simpl.
+  erewrite (break_pair (const_folding x0 x1)) in *.
+  erewrite (break_pair (const_folding s2 (snd (const_folding x0 x1)))) in *.
+  simpl in *.
+  do 2 f_equal.
+  eauto.
+
+  (* read *)
+  split.
+
+  intros.
+  simpl in *.
+  inversion H; unfold_all; subst.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  intuition.
+
+  intros.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
+
+  (* write *)
+  split.
+
+  intros.
+  simpl in *.
+  inversion H; unfold_all; subst.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  intuition.
+
+  intros.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+Qed.
+
 Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
 Proof.
-  unfold is_backward_simulation.
-  intros until s.
-  generalize dependent vs.
-  induction s; try solve [simpl; intuition]; intros.
-
-  split.
-
+  unfold is_backward_simulation, const_folding_rel.
   intros.
-  unfold const_folding_rel in *; openhyp; subst.
+  openhyp; subst.
+  eapply const_folding_rel_is_backward_simulation' in H1; eauto.
+  openhyp.
+  split.
+  intros.
+  eapply H in H1; openhyp.
   eexists; intuition eauto.
-  2 : eexists; intuition eauto.
-
-  eapply assign_done in H0; eauto; openhyp; eauto.
-  eapply assign_done in H0; eauto; openhyp; eauto.
-
   intros.
-  unfold const_folding_rel in *; openhyp; subst.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
-
-  split.
-
-  intros.
-  unfold const_folding_rel in *; openhyp; subst.
-  simpl in *.
-  inversion H0; unfold_all; subst.
-  eexists; intuition.
-  2 : eexists; intuition eauto.
-  repeat erewrite const_folding_expr_correct' in * by eauto.
-  eauto.
-  instantiate (1 := (_, _)).
-  eapply agree_with_add.
-  eauto.
-
-  intros.
-  unfold const_folding_rel in *; openhyp; subst.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
-
-  split.
-
-  intros.
-  unfold const_folding_rel in *; openhyp; subst.
-  simpl in *.
-  inversion H0; unfold_all; subst.
-  eexists; intuition.
-  2 : eexists; intuition eauto.
-  repeat erewrite const_folding_expr_correct' in * by eauto.
-  eauto.
-
-  intros.
-  unfold const_folding_rel in *; openhyp; subst.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H0.
-
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
+  eapply H0 in H1; openhyp.
+  do 2 eexists; intuition eauto.
 Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
