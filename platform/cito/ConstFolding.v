@@ -305,25 +305,25 @@ Variable less_informative : Info -> Info -> Prop.
 
 Infix "%<=" := less_informative (at level 60).
 
-Inductive FoldConst : (Statement * Info) -> (Statement * Info) -> Prop :=
+Inductive FoldConst : Statement -> Info -> Statement -> Info -> Prop :=
   | OptFull : 
       forall s info, 
-        FoldConst (s, info) (const_folding s info)
+        FoldConst s info (fst (const_folding s info)) (snd (const_folding s info))
   | OptLess :
       forall s info_in t info_out info_in' info_out',
-        FoldConst (s, info_in) (t, info_out) ->
+        FoldConst s info_in t info_out ->
         info_in %<= info_in' ->
         info_out' %<= info_out ->
-        FoldConst (s, info_in') (t, info_out')
+        FoldConst s info_in' t info_out'
   | OptSeq : 
       forall t1 t2 s1 s2 info info' info'',
-        FoldConst (s1, info) (t1, info') ->
-        FoldConst (s2, info') (t2, info'') ->
-        FoldConst (s1;;s2, info) (t1;;t2, info'') .
+        FoldConst s1 info t1 info' ->
+        FoldConst s2 info' t2 info'' ->
+        FoldConst (s1;;s2) info (t1;;t2) info''.
 
 Definition const_folding_rel vs s vt t := 
   exists info info',
-    FoldConst (s, info) (t, info') /\
+    FoldConst s info t info' /\
     vt = vs /\
     agree_with vs (fst info).
 
@@ -338,23 +338,84 @@ Require Import VariableLemmas.
 
 Definition agree_except := changedVariables.
 
+Hint Constructors FoldConst.
+
+Ltac descend :=
+  repeat match goal with
+           | [ |- exists x, _ ] => eexists
+         end.
+
+Lemma less_informative_trans : forall a b c, a %<= b -> b %<= c -> a %<= c.
+  admit.
+Qed.
+
+Opaque const_folding.
+
+Lemma FoldConst_assign' : 
+  forall s info_in t info_out, 
+    FoldConst s info_in t info_out -> 
+    forall x e,
+      s = (x <- e) ->
+      exists info_in' info_out', 
+        (t, info_out') = const_folding (x <- e) info_in' /\ 
+        info_in' %<= info_in /\ 
+        info_out %<= info_out'.
+Proof.
+  induction 1; simpl; intuition; subst.
+  descend; intuition; rewrite <- break_pair; eauto.
+  edestruct IHFoldConst; eauto; openhyp; subst.
+  descend; intuition eauto; eauto using less_informative_trans.
+Qed.
+
+Lemma FoldConst_assign : 
+  forall x e info_in t info_out, 
+    FoldConst (x <- e) info_in t info_out -> 
+    exists info_in' info_out', 
+      t = fst (const_folding (x <- e) info_in') /\ 
+      info_out' = snd (const_folding (x <- e) info_in') /\ 
+      info_in' %<= info_in /\ 
+      info_out %<= info_out'.
+  intros.
+  eapply FoldConst_assign' in H; eauto; openhyp.
+  erewrite (break_pair (const_folding _ _)) in H.
+  injection H; intros; subst.
+  descend; eauto.
+Qed.
+
+Variable less_informative_map : VarToW -> VarToW -> Prop.
+
+Infix "%%<=" := less_informative_map (at level 60).
+
+Lemma less_informative_less_informative_map : forall a b, a %<= b -> fst a %%<= fst b.
+  admit.
+Qed.
+Hint Resolve less_informative_less_informative_map.
+
+Lemma agree_with_less_informative_map : forall local info info', agree_with local info -> info' %%<= info -> agree_with local info'.
+  admit.
+Qed.
+Hint Resolve agree_with_less_informative_map.
+
+Transparent const_folding.
+
 Lemma const_folding_rel_is_backward_simulation' :
-  forall s vt t info info',
-    FoldConst (s, info) (t, info') ->
-    agree_with vt (fst info) ->
-    (forall heap vt' heap',
-       Step t (vt, heap) (Done (vt', heap')) ->
-       Step s (vt, heap) (Done (vt', heap')) /\
-       agree_with vt' (fst info') /\
-       agree_except vt vt' (snd info')) /\
-    (forall heap f x t' vt' heap',
-       Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
-       exists s',
-         Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-         exists info_k info_k',
-           FoldConst (s', info_k) (t', info_k') /\
-           agree_with vt' (fst info') /\
-           info' %<= info_k').
+  forall s t info info',
+    FoldConst s info t info' ->
+    forall vt,
+      agree_with vt (fst info) ->
+      (forall heap vt' heap',
+         Step t (vt, heap) (Done (vt', heap')) ->
+         Step s (vt, heap) (Done (vt', heap')) /\
+         agree_with vt' (fst info') (* /\ *)
+      (* agree_except vt vt' (snd info') *)) /\
+      (forall heap f x t' vt' heap',
+         Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
+         exists s',
+           Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
+           exists info_k info_k',
+             FoldConst s' info_k t' info_k' /\
+             agree_with vt' (fst info_k) /\
+             info' %<= info_k').
 Proof.
   induction s; try solve [simpl; intuition]; intros.
 
@@ -362,16 +423,150 @@ Proof.
   split.
 
   intros.
-  Opaque const_folding.
-  inversion H; subst.
-  erewrite 
+  eapply FoldConst_assign in H; eauto; openhyp; subst.
   eapply assign_done in H1; eauto; openhyp.
-  intuition.
-  eexists; intuition eauto.
-(*here*)
+  eauto.
 
   intros.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
+  eapply FoldConst_assign in H; eauto; openhyp; subst.
+  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H1.
+
+  Lemma FoldConst_seq : 
+    forall s1 s2 info t info', 
+      FoldConst (s1;;s2) info t info' ->
+      exists t1 t2 info'',
+        t = (t1 ;; t2) /\
+        FoldConst s1 info t1 info'' /\
+        FoldConst s2 info'' t2 info'.
+    admit.
+  Qed.
+
+  Focus 3.
+  (* seq *)
+  split.
+
+  intros.
+  eapply FoldConst_seq in H; eauto; openhyp; subst.
+  inversion H1; subst.
+  destruct v'; simpl in *.
+  eapply IHs1 in H5; eauto; openhyp.
+  eapply IHs2 in H8; eauto; openhyp.
+  intuition eauto.
+
+  intros.
+  eapply FoldConst_seq in H; eauto; openhyp; subst.
+  inversion H1; subst.
+
+  destruct v'; simpl in *.
+  eapply IHs1 in H5; eauto; openhyp.
+  eapply IHs2 in H8; eauto; openhyp.
+  eexists; intuition eauto.
+
+  eapply IHs1 in H6; eauto; openhyp.
+  eexists; intuition eauto.
+  descend; intuition eauto.
+
+  Lemma FoldConst_if : 
+  forall e tt ff info_in t info_out, 
+    FoldConst (If e {tt} else {ff}) info_in t info_out -> 
+    exists info_in' info_out', 
+      t = fst (const_folding (If e {tt} else {ff}) info_in') /\ 
+      info_out' = snd (const_folding (If e {tt} else {ff}) info_in') /\ 
+      info_in' %<= info_in /\ 
+      info_out %<= info_out'.
+    admit.
+  Qed.
+
+  Lemma const_folding_information_bound :
+    forall s map,
+      let info' := snd (const_folding s (map, empty_Vars)) in
+      map - snd info' %%<= fst info'.
+    admit.
+  Qed.
+
+  Infix "%%%<=" := List.incl (at level 60).
+
+  Lemma less_informative_map_less_informative : forall a b, fst a %%<= fst b -> snd b %%%<= snd a -> a %<= b.
+    admit.
+  Qed.
+
+  Lemma subtract_less_information_map : forall a b, a - b %%<= a.
+    admit.
+  Qed.
+
+  Lemma union_less_3_1 : forall a b c, b %%%<= a + b + c.
+    admit.
+  Qed.
+
+  Lemma less_informative_map_trans : forall a b c, a %%<= b -> b %%<= c -> a %%<= c.
+    admit.
+  Qed.
+
+  Focus 4.
+  (* if *)
+  split.
+
+  intros.
+  eapply FoldConst_if in H; eauto; openhyp; subst.
+  simpl in *.
+  specialize (expr_dec (const_folding_expr e (fst x))); intros; openhyp; rewrite H in *; simpl in *.
+  erewrite (break_pair (const_folding s1 (fst x, empty_Vars))) in *.
+  erewrite (break_pair (const_folding s2 (fst x, empty_Vars))) in *.
+  simpl in *.
+  inversion H1; subst.
+  rewrite <- H in H9.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  simpl in *.
+  eapply IHs1 in H10; eauto; openhyp; subst.
+  2 : simpl; eauto.
+  descend; intuition eauto.
+  eapply agree_with_less_informative_map.
+  eauto.
+  eapply less_informative_less_informative_map.
+  eapply less_informative_trans.
+  eapply H4.
+  eapply less_informative_map_less_informative; simpl.
+  2 : eapply union_less_3_1.
+  eapply less_informative_map_trans.
+  2 : eapply const_folding_information_bound.
+  eapply subtract_less_information_map.
+
+  admit.
+  admit.
+  admit.
+  admit.
+
+  intros.
+  eapply FoldConst_if in H; eauto; openhyp; subst.
+  simpl in *.
+  specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *.
+  erewrite (break_pair (const_folding s1 (fst x0, empty_Vars))) in *.
+  erewrite (break_pair (const_folding s2 (fst x0, empty_Vars))) in *.
+  simpl in *.
+  inversion H1; subst.
+  rewrite <- H in H9.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  simpl in *.
+  eapply IHs1 in H10; eauto; openhyp; subst.
+  2 : simpl; eauto.
+  descend; intuition eauto.
+  descend; intuition eauto.
+  eapply less_informative_trans.
+  eapply H4.
+  eapply less_informative_trans.
+  Focus 2.
+  eapply H7.
+  eapply less_informative_map_less_informative; simpl.
+  2 : eapply union_less_3_1.
+  eapply less_informative_map_trans.
+  2 : eapply const_folding_information_bound.
+  eapply subtract_less_information_map.
+
+  admit.
+  admit.
+  admit.
+  admit.
+(*here*)
 
   (* read *)
   split.
@@ -397,87 +592,12 @@ Proof.
   intros.
   simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
 
-  (* seq *)
-  split.
-
-  intros.
-  simpl in *.
-  erewrite (break_pair (const_folding s1 info)) in *.
-  erewrite (break_pair (const_folding s2 (snd (const_folding s1 info)))) in *.
-  simpl in *.
-  inversion H; subst.
-  destruct v'; simpl in *.
-  eapply IHs1 in H3; eauto; openhyp.
-  eapply IHs2 in H6; eauto; openhyp.
-  intuition eauto.
-
-  intros.
-  simpl in *.
-  erewrite (break_pair (const_folding s1 info)) in *.
-  erewrite (break_pair (const_folding s2 (snd (const_folding s1 info)))) in *.
-  simpl in *.
-  inversion H; subst.
-
-  destruct v'; simpl in *.
-  eapply IHs1 in H3; eauto; openhyp.
-  eapply IHs2 in H6; eauto; openhyp; subst.
-  eexists; intuition eauto.
-
-  eapply IHs1 in H0; eauto; openhyp.
-  eapply H1 in H4; openhyp; subst.
-  eexists; intuition eauto.
-  eexists; intuition eauto.
-  simpl.
-  erewrite (break_pair (const_folding x0 x1)) in *.
-  erewrite (break_pair (const_folding s2 (snd (const_folding x0 x1)))) in *.
-  simpl in *.
-  do 3 f_equal.
-  eauto.
-  simpl.
-  erewrite (break_pair (const_folding x0 x1)) in *.
-  erewrite (break_pair (const_folding s2 (snd (const_folding x0 x1)))) in *.
-  simpl in *.
-  do 2 f_equal.
-  eauto.
-
   (* skip *)
   split.
 
   intros; simpl in *; inversion H; subst; eauto.
 
   intros; simpl in *; inversion H; subst.
-
-  (* if *)
-  split.
-
-  Focus 2.
-
-  intros.
-  simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *.
-  erewrite (break_pair (const_folding s1 (fst info, empty_Vars))) in *.
-  erewrite (break_pair (const_folding s2 (fst info, empty_Vars))) in *.
-  simpl in *.
-  inversion H; subst.
-  rewrite <- H1 in H7.
-  repeat erewrite const_folding_expr_correct' in * by eauto.
-  eapply IHs1 in H8; eauto; openhyp; subst.
-  eexists; intuition eauto.
-  eexists; intuition eauto.
-  rewrite <- H5.
-
-  intros.
-  simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *.
-  erewrite (break_pair (const_folding s1 (fst info, empty_Vars))) in *.
-  erewrite (break_pair (const_folding s2 (fst info, empty_Vars))) in *.
-  simpl in *.
-  inversion H; subst.
-  rewrite <- H1 in H7.
-  repeat erewrite const_folding_expr_correct' in * by eauto.
-  eapply IHs1 in H8; eauto; openhyp.
-  split.
-  econstructor; eauto.
 
   admit.
   admit.
@@ -488,7 +608,7 @@ Proof.
   admit.
 Qed.
 
-Lemma FoldConst_refl : forall s info, FoldConst s s info.
+Lemma FoldConst_refl : forall s info, FoldConst (s, info) (s, info).
   admit.
 Qed.
 Hint Resolve FoldConst_refl.
@@ -522,13 +642,12 @@ Lemma everything_agree_with_empty_map : forall v, agree_with v empty_VarToW.
 Qed.
 Hint Resolve everything_agree_with_empty_map.
 
-Lemma constant_folding_always_FoldConst : forall s info, FoldConst (constant_folding s) s info.
+Lemma constant_folding_always_FoldConst : forall s info, exists info', FoldConst (s, info) (constant_folding s, info').
   admit.
 Qed.
-Hint Resolve constant_folding_always_FoldConst.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
-  unfold const_folding_rel; intros; exists empty_info; simpl in *; intuition eauto.
+  unfold const_folding_rel; intros; exists empty_info; simpl in *; edestruct constant_folding_always_FoldConst; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_backward_similar_callee : 
