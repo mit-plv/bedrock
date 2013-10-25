@@ -66,18 +66,22 @@ Hypothesis sel_add_eq : forall m x w, (m %%+ (x, w)) x = Some w.
 
 Hypothesis sel_add_ne : forall m x w x', x <> x' -> (m %%+ (x, w)) x' = m x'.
 
-Inductive IsZeroResult := 
-  | IsZero : IsZeroResult
-  | NotAlwaysZero : Expr -> IsZeroResult.
+Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
+  intros; destruct e; solve[ right; intuition; openhyp; intuition | left; eauto ].
+Qed.
 
-Definition const_folding_expr_is_zero e env : IsZeroResult :=
-  match const_folding_expr e env with
+Inductive IsConstZero := 
+  | IsConstZeroYes : IsConstZero
+  | IsConstZeroNo : Expr -> IsConstZero.
+
+Definition is_zero e : IsConstZero :=
+  match e with
     | Const w =>
       if wneb w $0 then
-        NotAlwaysZero (Const w)
+        IsConstZeroNo (Const w)
       else
-        IsZero
-    | c' => NotAlwaysZero c'
+        IsConstZeroYes
+    | c' => IsConstZeroNo c'
   end.
 
 Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
@@ -88,13 +92,14 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
       let (b', info'') := const_folding b info' in
       (Syntax.Seq a' b', info'')
     | Conditional c t f =>
-      match const_folding_expr c (fst info) with
-        | Const w =>
+      let c' := const_folding_expr c (fst info) in 
+      match const_dec c' with
+        | inleft (exist w _) =>
           if wneb w $0 then
             const_folding t info
           else
             const_folding f info
-        | c' =>
+        | inright _ =>
           let (t', info_t) := const_folding t (fst info, empty_Vars) in
           let (f', info_f) := const_folding f (fst info, empty_Vars) in
           (* assigned vars in branches will no longer have known values *)
@@ -103,10 +108,10 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
           (Conditional c' t' f', (vars_with_known_value, assigned_vars))
       end
     | Loop c b =>
-      match const_folding_expr_is_zero c (fst info) with
-        | IsZero =>
+      match is_zero (const_folding_expr c (fst info)) with
+        | IsConstZeroYes =>
             (Syntax.Skip, info)
-        | NotAlwaysZero c' =>
+        | IsConstZeroNo c' =>
           let (b', info_b) := const_folding b (fst info, empty_Vars) in
           (* assigned vars in loop body will no longer have known values *)
           let vars_with_know_value := fst info - snd info_b in
@@ -502,6 +507,14 @@ Proof.
     admit.
   Qed.
 
+  Lemma union_less_3_3 : forall a b c, c %%%<= a + b + c.
+    admit.
+  Qed.
+
+  Lemma subtract_reorder_less : forall a b c, a - b - c %%<= a - c - b.
+    admit.
+  Qed.
+
   Focus 4.
   (* if *)
   split.
@@ -509,15 +522,16 @@ Proof.
   intros.
   eapply FoldConst_if in H; eauto; openhyp; subst.
   simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst x))); intros; openhyp; rewrite H in *; simpl in *.
+  destruct (const_dec _).
+  Focus 2.
   erewrite (break_pair (const_folding s1 (fst x, empty_Vars))) in *.
   erewrite (break_pair (const_folding s2 (fst x, empty_Vars))) in *.
   simpl in *.
   inversion H1; subst.
-  rewrite <- H in H9.
+  (* true *)
   repeat erewrite const_folding_expr_correct' in * by eauto.
   simpl in *.
-  eapply IHs1 in H10; eauto; openhyp; subst.
+  eapply IHs1 in H9; eauto; openhyp; subst.
   2 : simpl; eauto.
   descend; intuition eauto.
   eapply agree_with_less_informative_map.
@@ -530,24 +544,40 @@ Proof.
   eapply less_informative_map_trans.
   2 : eapply const_folding_information_bound.
   eapply subtract_less_information_map.
+  (* false *)
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  simpl in *.
+  eapply IHs2 in H9; eauto; openhyp; subst.
+  2 : simpl; eauto.
+  descend; intuition eauto.
+  eapply agree_with_less_informative_map.
+  eauto.
+  eapply less_informative_less_informative_map.
+  eapply less_informative_trans.
+  eapply H4.
+  eapply less_informative_map_less_informative; simpl.
+  2 : eapply union_less_3_3.
+  eapply less_informative_map_trans.
+  eapply subtract_reorder_less.
+  eapply less_informative_map_trans.
+  eapply subtract_less_information_map.
+  eapply const_folding_information_bound.
 
-  admit.
-  admit.
-  admit.
-  admit.
+  Focus 2.
 
   intros.
   eapply FoldConst_if in H; eauto; openhyp; subst.
   simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *.
+  destruct (const_dec _).
+  Focus 2.
   erewrite (break_pair (const_folding s1 (fst x0, empty_Vars))) in *.
   erewrite (break_pair (const_folding s2 (fst x0, empty_Vars))) in *.
   simpl in *.
   inversion H1; subst.
-  rewrite <- H in H9.
+  (* true *)
   repeat erewrite const_folding_expr_correct' in * by eauto.
   simpl in *.
-  eapply IHs1 in H10; eauto; openhyp; subst.
+  eapply IHs1 in H9; eauto; openhyp; subst.
   2 : simpl; eauto.
   descend; intuition eauto.
   descend; intuition eauto.
@@ -555,20 +585,64 @@ Proof.
   eapply H4.
   eapply less_informative_trans.
   Focus 2.
-  eapply H7.
+  eapply H6.
   eapply less_informative_map_less_informative; simpl.
   2 : eapply union_less_3_1.
   eapply less_informative_map_trans.
   2 : eapply const_folding_information_bound.
   eapply subtract_less_information_map.
+  (* false *)
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  simpl in *.
+  eapply IHs2 in H9; eauto; openhyp; subst.
+  2 : simpl; eauto.
+  descend; intuition eauto.
+  descend; intuition eauto.
+  eapply less_informative_trans.
+  eapply H4.
+  eapply less_informative_trans.
+  Focus 2.
+  eapply H6.
+  eapply less_informative_map_less_informative; simpl.
+  2 : eapply union_less_3_3.
+  eapply less_informative_map_trans.
+  eapply subtract_reorder_less.
+  eapply less_informative_map_trans.
+  eapply subtract_less_information_map.
+  eapply const_folding_information_bound.
 
-  admit.
-  admit.
-  admit.
-  admit.
-(*here*)
+  Unfocus.
+
+  destruct s.
+  destruct (Sumbool.sumbool_of_bool (wneb x0 $0)); erewrite e1 in *.
+  eapply IHs1 in H1; eauto; openhyp.
+  replace x0 with (exprDenote x0 vt) in e1 by eauto.
+  rewrite <- e0 in e1.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  intuition eauto.
+  eapply IHs2 in H1; eauto; openhyp.
+  replace x0 with (exprDenote x0 vt) in e1 by eauto.
+  rewrite <- e0 in e1.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  intuition eauto.
+
+  destruct s.
+  destruct (Sumbool.sumbool_of_bool (wneb x1 $0)); erewrite e1 in *.
+  eapply IHs1 in H1; eauto; openhyp.
+  replace x1 with (exprDenote x1 vt) in e1 by eauto.
+  rewrite <- e0 in e1.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  descend; intuition eauto.
+  descend; intuition eauto using less_informative_trans.
+  eapply IHs2 in H1; eauto; openhyp.
+  replace x1 with (exprDenote x1 vt) in e1 by eauto.
+  rewrite <- e0 in e1.
+  repeat erewrite const_folding_expr_correct' in * by eauto.
+  descend; intuition eauto.
+  descend; intuition eauto using less_informative_trans.
 
   (* read *)
+(*here*)
   split.
 
   intros.
