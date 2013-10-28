@@ -508,31 +508,40 @@ Proof.
   inversion H1; unfold_all; subst.
   repeat erewrite const_folding_expr_correct' in * by eauto.
   intuition.
-  (*here*)
+  simpl in *.
+  eapply agree_with_less_informative_map.
+  2 : eauto.
+  simpl; eauto.
 
   intros.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
-
+  eapply FoldConst_read in H; eauto; openhyp; subst.
+  simpl in *.
+  inversion H1.
+  
   (* write *)
   split.
 
   intros.
-  simpl in *.
-  inversion H; unfold_all; subst.
+  Lemma FoldConst_write : 
+    forall arr idx e info_in t info_out, 
+      FoldConst (arr[idx] <== e) info_in t info_out -> 
+      exists info_in' info_out', 
+        t = fst (const_folding (arr[idx] <== e) info_in') /\ 
+        info_out' = snd (const_folding (arr[idx] <== e) info_in') /\ 
+        info_in' %<= info_in /\ 
+        info_out %<= info_out'.
+    admit.
+  Qed.
+  eapply FoldConst_write in H; eauto; openhyp; subst.
+  inversion H1; unfold_all; subst.
   repeat erewrite const_folding_expr_correct' in * by eauto.
-  intuition.
+  intuition; eauto.
 
   intros.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H.
-
-  (* skip *)
-  split.
-
-  intros; simpl in *; inversion H; subst; eauto.
-
-  intros; simpl in *; inversion H; subst.
-
-  Focus 3.
+  eapply FoldConst_write in H; eauto; openhyp; subst.
+  simpl in *.
+  inversion H1.
+  
   (* seq *)
   split.
 
@@ -557,7 +566,21 @@ Proof.
   eexists; intuition eauto.
   descend; intuition eauto.
 
-  Focus 4.
+  (* skip *)
+  split.
+
+  Lemma FoldConst_skip : 
+    forall info_in t info_out, 
+      FoldConst Syntax.Skip info_in t info_out -> 
+      t = Syntax.Skip /\ 
+      info_out %<= info_in.
+    admit.
+  Qed.
+
+  intros; eapply FoldConst_skip in H; eauto; openhyp; subst; inversion H1; subst; eauto.
+
+  intros; eapply FoldConst_skip in H; eauto; openhyp; subst; inversion H1; subst; eauto.
+
   (* if *)
   split.
 
@@ -679,8 +702,6 @@ Proof.
   eapply subtract_less_information_map.
   eapply const_folding_information_bound.
 
-  admit.
-  admit.
   admit.
   admit.
   admit.
