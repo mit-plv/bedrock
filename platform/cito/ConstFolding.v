@@ -436,6 +436,24 @@ Lemma FoldConst_assign :
   intros; unfold_all; eapply FoldConst_assign'; eauto.
 Qed.
 
+Transparent const_folding.
+
+Lemma FoldConst_seq' : 
+  forall s map t map', 
+    FoldConst s map t map' ->
+    forall s1 s2,
+      s = (s1 ;; s2) ->
+      exists t1 t2 map'',
+        t = (t1 ;; t2) /\
+        FoldConst s1 map t1 map'' /\
+        FoldConst s2 map'' t2 map'.
+Proof.
+  induction 1; simpl; intuition; unfold_all; subst.
+  simpl; descend; intuition.
+  edestruct IHFoldConst; eauto; openhyp; subst; descend; eauto.
+  injection H1; intros; subst; descend; eauto.
+Qed.
+
 Lemma FoldConst_seq : 
   forall s1 s2 map t map', 
     FoldConst (s1 ;; s2) map t map' ->
@@ -443,7 +461,26 @@ Lemma FoldConst_seq :
       t = (t1 ;; t2) /\
       FoldConst s1 map t1 map'' /\
       FoldConst s2 map'' t2 map'.
-  admit.
+Proof.
+  intros; eapply FoldConst_seq'; eauto.
+Qed.
+
+Lemma FoldConst_if' : 
+  forall s map_in t map_out, 
+    FoldConst s map_in t map_out -> 
+    forall e tt ff,
+      s = (If e {tt} else {ff}) ->
+      exists map_in',
+        let result := fst (const_folding s map_in') in
+        let s' := fst result in
+        let map_out' := snd result in
+        t = s' /\ 
+        map_in' %<= map_in /\ 
+        map_out %<= map_out'.
+Proof.
+  induction 1; simpl; intuition; unfold_all; subst.
+  simpl; descend; eauto.
+  edestruct IHFoldConst; eauto; openhyp; subst; descend; intuition eauto using submap_trans.
 Qed.
 
 Lemma FoldConst_if : 
@@ -457,7 +494,8 @@ Lemma FoldConst_if :
       t = s' /\ 
       map_in' %<= map_in /\ 
       map_out %<= map_out'.
-  admit.
+Proof.
+  intros; eapply FoldConst_if'; unfold_all; eauto.
 Qed.
 
 Lemma FoldConst_read : 
