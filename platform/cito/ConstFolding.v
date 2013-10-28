@@ -312,6 +312,10 @@ Lemma agree_with_submap : forall local map map', agree_with local map -> map' %<
 Qed.
 Hint Resolve agree_with_submap.
 
+Lemma submap_trans : forall a b c, a %<= b -> b %<= c -> a %<= c.
+  admit.
+Qed.
+
 Lemma submap_refl : forall map, map %<= map.
   admit.
 Qed.
@@ -327,9 +331,15 @@ Lemma subtract_reorder_submap : forall a b c, a - b - c %<= a - c - b.
 Qed.
 Hint Resolve subtract_reorder_submap.
 
-Lemma submap_trans : forall a b c, a %<= b -> b %<= c -> a %<= c.
+Lemma submap_add : forall m x w, m %<= (m %%+ (x, w)).
   admit.
 Qed.
+Hint Resolve submap_add.
+
+Lemma subtract_remove_submap : forall m s, m - (s :: nil) %<= (m %%- s).
+  admit.
+Qed.
+Hint Resolve subtract_remove_submap.
 
 Lemma map_bound :
   forall s map,
@@ -337,7 +347,13 @@ Lemma map_bound :
     let map' := snd (fst result) in
     let written := snd result in
     map - written %<= map'.
-  admit.
+Proof.
+  induction s; simpl; intuition.
+
+  destruct (const_dec _); [ destruct s0 | ]; simpl in *; eauto using submap_trans.
+  simpl in *.
+  (*here*)
+  eauto using submap_trans.
 Qed.
 Hint Resolve map_bound.
 
