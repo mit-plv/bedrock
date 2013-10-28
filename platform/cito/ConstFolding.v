@@ -91,6 +91,17 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
       let (a', info') := const_folding a info in
       let (b', info'') := const_folding b info' in
       (Syntax.Seq a' b', info'')
+    | Syntax.Assignment var e =>
+      let e' := const_folding_expr e (fst info) in 
+      let assigned_vars := snd info %+ var in
+      match const_dec e' with
+        | inleft (exist w _) =>
+          let vars_with_known_value := fst info %%+ (var, w) in
+          (Syntax.Assignment var (Const w), (vars_with_known_value, assigned_vars))
+        | inright _ =>
+          let vars_with_known_value := fst info %%- var in
+          (Syntax.Assignment var e', (vars_with_known_value, assigned_vars))
+      end
     | Conditional c t f =>
       let c' := const_folding_expr c (fst info) in 
       match const_dec c' with
@@ -118,16 +129,6 @@ Fixpoint const_folding (s : Statement) (info : Info) : Statement * Info :=
           let assigned_vars := snd info + snd info_b in
           (Loop c' b', (vars_with_know_value, assigned_vars))
       end          
-    | Syntax.Assignment var e =>
-      let assigned_vars := snd info %+ var in
-      match const_folding_expr e (fst info) with
-        | Const w =>
-          let vars_with_known_value := fst info %%+ (var, w) in
-          (Syntax.Assignment var (Const w), (vars_with_known_value, assigned_vars))
-        | e' =>
-          let vars_with_known_value := fst info %%- var in
-          (Syntax.Assignment var e', (vars_with_known_value, assigned_vars))
-      end
     | Syntax.ReadAt var arr idx =>
       let arr' := const_folding_expr arr (fst info) in
       let idx' := const_folding_expr idx (fst info) in
@@ -289,15 +290,11 @@ Lemma assign_done :
     Step s (local, heap) (Done (local', heap')) /\
     agree_with local' (fst (snd result)).
 Proof.
-  intros.
-  unfold result, s in *; clear result s.
-  simpl in *.
-  specialize (expr_dec (const_folding_expr e (fst info))); intros; openhyp; rewrite H1 in *; simpl in *; inversion H; unfold_all; subst; split; try erewrite const_folding_expr_correct; eauto.
+  intros; unfold result, s in *; clear result s; simpl in *; destruct (const_dec _); [ destruct s | ]; simpl in *; inversion H; unfold_all; subst; [ rewrite <- e0 in H | ]; erewrite const_folding_expr_correct in * by eauto; intuition.
   erewrite <- const_folding_expr_correct.
   2 : symmetry; eauto.
-  simpl.
-  eauto.
-  eauto.
+  2 : eauto.
+  simpl; eauto.
 Qed.
 
 Hint Resolve assign_done.
@@ -487,8 +484,7 @@ Proof.
   eauto.
 
   intros.
-  eapply FoldConst_assign in H; eauto; openhyp; subst.
-  simpl in *; specialize (expr_dec (const_folding_expr e (fst x0))); intros; openhyp; rewrite H in *; simpl in *; inversion H1.
+  eapply FoldConst_assign in H; eauto; openhyp; subst; simpl in *; destruct (const_dec _); [ destruct s0 | ]; simpl in *; inversion H1.
 
   (* read *)
   split.
