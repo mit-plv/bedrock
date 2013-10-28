@@ -341,6 +341,16 @@ Lemma subtract_remove_submap : forall m s, m - (s :: nil) %<= (m %%- s).
 Qed.
 Hint Resolve subtract_remove_submap.
 
+Lemma subtract_union_submap : forall a b c, a - (b + c) %<= a - b - c.
+  admit.
+Qed.
+Hint Resolve subtract_union_submap.
+
+Lemma submap_subtract_submap : forall a b a', a %<= a' -> a - b %<= a' - b.
+  admit.
+Qed.
+Hint Resolve submap_subtract_submap.
+
 Lemma map_bound :
   forall s map,
     let result := const_folding s map in
@@ -351,9 +361,9 @@ Proof.
   induction s; simpl; intuition.
 
   destruct (const_dec _); [ destruct s0 | ]; simpl in *; eauto using submap_trans.
-  simpl in *.
-  (*here*)
-  eauto using submap_trans.
+  simpl in *; eauto using submap_trans.
+  destruct (const_dec _); [ destruct s; destruct (Sumbool.sumbool_of_bool (wneb x $0)); erewrite e1 in * | ]; simpl in *; eauto using submap_trans.
+  destruct (const_zero_dec _); simpl in *; eauto using submap_trans.
 Qed.
 Hint Resolve map_bound.
 
@@ -523,7 +533,7 @@ Proof.
   split; intros; eapply FoldConst_seq in H; eauto; openhyp; subst; inversion H1; subst;
   solve [
       destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto |
-      eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; intuition; eauto ].
+      eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; eauto ].
 
   (* skip *)
   split; intros; eapply FoldConst_skip in H; eauto; openhyp; subst; inversion H1; subst; eauto.
