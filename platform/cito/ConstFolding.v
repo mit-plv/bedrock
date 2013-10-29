@@ -471,6 +471,98 @@ Ltac filter_case :=
     | |- _ => idtac
   end.
 
+Ltac openhyp' :=
+  repeat match goal with
+           | H : context [const_dec ?E] |- _ => destruct (const_dec E)
+           | H : context [const_zero_dec ?E] |- _ => destruct (const_zero_dec E)
+           | H : context [ { _ | _ } ] |- _ => destruct H
+         end.
+
+Lemma while_case:
+  forall t v v',
+    Step t v v' ->
+    forall s map map',
+      FoldConst s map t map' ->
+      forall c b,
+        s = Syntax.Loop c b ->
+        forall vt,
+          agree_with vt map ->
+          forall heap,
+            v = (vt, heap) ->
+            (let s := b in
+
+             forall (t : Statement) (map map' : VarToW),
+               FoldConst s map t map' ->
+               forall vt : vals,
+                 agree_with vt map ->
+                 (forall (heap : arrays) (vt' : vals) (heap' : arrays),
+                    Step t (vt, heap) (Done (vt', heap')) ->
+                    Step s (vt, heap) (Done (vt', heap')) /\ agree_with vt' map') /\
+                 (forall (heap : arrays) (f x : W) (t' : Statement) 
+                         (vt' : vals) (heap' : arrays),
+                    Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
+                    exists s' : Statement,
+                      Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
+                      (exists map_k map_k' : VarToW,
+                         FoldConst s' map_k t' map_k' /\
+                         agree_with vt' map_k /\ map' %<= map_k'))
+
+
+            ) ->
+            (forall vt' heap',
+               v' = Done (vt', heap') ->
+               Step s (vt, heap) (Done (vt', heap')) /\
+               agree_with vt' map') /\
+            (forall f x t' vt' heap',
+               v' = ToCall f x t' (vt', heap') ->
+               exists s',
+                 Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
+                 exists map_k map_k',
+                   FoldConst s' map_k t' map_k' /\
+                   agree_with vt' map_k /\
+                   map' %<= map_k').
+Proof.
+  induction 1; simpl; intros; unfold_all; subst.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  split; intros; subst.
+  eapply FoldConst_NotSeq_elim in H2; simpl in *; eauto; openhyp; subst; destruct (const_zero_dec _); simpl in *.
+
+  intuition.
+  
+  injection H2; intros; subst.
+  destruct v'; simpl in *.
+  eapply H6 in H0; eauto; openhyp.
+  repeat erewrite const_folding_expr_correct in * by eauto.
+  edestruct IHStep2.
+  5 : eauto.
+  2 : eauto.
+  3 : eauto.
+  Focus 3.
+  edestruct H8; eauto.
+  replace (While (const_folding_expr c x) {{fst (fst (const_folding b x))}}) with (fst (fst (const_folding (While (c) {{b}} ) x))).
+  Focus 2.
+  simpl.
+  destruct (const_zero_dec _).
+  contradiction.
+  simpl.
+  eauto.
+  econstructor 2.
+  econstructor 1.
+  Focus 2.
+  simpl.
+  destruct (const_zero_dec _).
+  contradiction.
+  simpl.
+  eauto.
+(*here*)
+Admitted.
+
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map',
     FoldConst s map t map' ->
@@ -515,8 +607,8 @@ Proof.
 
   simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto; descend; intuition eauto using submap_trans.
 
-  admit.
-
+  (* while *)
+  intros; split; intros; eapply while_case in H1; eauto; openhyp; eauto.
 Qed.
 
 Lemma FoldConst_refl : forall s map, FoldConst s map s map.
