@@ -77,6 +77,8 @@ Notation skip := Syntax.Skip.
 
 Notation delete := Syntax.Free.
 
+Definition empty_map : VarToW := fun _ => None.
+
 Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Vars :=
   match s with
     | Syntax.Skip => (skip, map, nil)
@@ -120,11 +122,11 @@ Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Var
           (Conditional c' t' f', map', written_t + written_f)
       end
     | Loop c b =>
-      let c' := const_folding_expr c map in
-      if const_zero_dec c' then
+      if const_zero_dec (const_folding_expr c map) then
         (skip, map, nil)
       else
-        let result_b := const_folding b map in
+        let c' := const_folding_expr c empty_map in
+        let result_b := const_folding b empty_map in
         let b' := fst (fst result_b) in
         let written_b := snd result_b in
         (* written vars in loop body will no longer have known values *)
@@ -478,6 +480,11 @@ Ltac openhyp' :=
            | H : context [ { _ | _ } ] |- _ => destruct H
          end.
 
+Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
+  unfold agree_with, empty_map; intuition.
+Qed.
+Hint Resolve everything_agree_with_empty_map.
+
 Lemma while_case:
   forall t v v',
     Step t v v' ->
@@ -490,7 +497,7 @@ Lemma while_case:
           forall heap,
             v = (vt, heap) ->
             (let s := b in
-
+             (* the induction hypothesis from Lemma const_folding_is_backward_simulation' *)
              forall (t : Statement) (map map' : VarToW),
                FoldConst s map t map' ->
                forall vt : vals,
@@ -506,8 +513,6 @@ Lemma while_case:
                       (exists map_k map_k' : VarToW,
                          FoldConst s' map_k t' map_k' /\
                          agree_with vt' map_k /\ map' %<= map_k'))
-
-
             ) ->
             (forall vt' heap',
                v' = Done (vt', heap') ->
@@ -535,32 +540,48 @@ Proof.
 
   intuition.
   
+  Lemma not_const_zero_empty_map : forall e m, const_folding_expr e m <> Const $0 -> const_folding_expr e empty_map <> Const $0.
+    admit.
+  Qed.
+  Hint Resolve not_const_zero_empty_map.
+
+  Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 -> m' %<= m -> const_folding_expr e m' <> Const $0.
+    admit.
+  Qed.
+  Hint Resolve not_const_zero_submap.
+
   injection H2; intros; subst.
   destruct v'; simpl in *.
   eapply H6 in H0; eauto; openhyp.
   repeat erewrite const_folding_expr_correct in * by eauto.
-  edestruct IHStep2.
-  5 : eauto.
-  2 : eauto.
+  edestruct IHStep2; try reflexivity.
   3 : eauto.
-  Focus 3.
-  edestruct H8; eauto.
-  replace (While (const_folding_expr c x) {{fst (fst (const_folding b x))}}) with (fst (fst (const_folding (While (c) {{b}} ) x))).
+  2 : eauto.
+  2 : edestruct H8; eauto.
+  replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (x - snd (const_folding b empty_map))))).
   Focus 2.
   simpl.
   destruct (const_zero_dec _).
-  contradiction.
+  contradict e; eauto.
   simpl.
   eauto.
   econstructor 2.
   econstructor 1.
+(*here*)
+  eauto.
   Focus 2.
   simpl.
   destruct (const_zero_dec _).
-  contradiction.
+  contradict e; eauto.
   simpl.
   eauto.
-(*here*)
+  Lemma empty_map_submap : forall m, empty_map %<= m.
+    admit.
+  Qed.
+  Hint Resolve empty_map_submap.
+  eauto.
+  simpl.
+  eauto.
 Admitted.
 
 Lemma const_folding_rel_is_backward_simulation' :
@@ -634,21 +655,14 @@ Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
 
-Definition empty_VarToW : VarToW := fun _ => None.
-
-Definition constant_folding s := fst (fst (const_folding s empty_VarToW)).
-
-Lemma everything_agree_with_empty_map : forall v, agree_with v empty_VarToW.
-  unfold agree_with, empty_VarToW; intuition.
-Qed.
-Hint Resolve everything_agree_with_empty_map.
+Definition constant_folding s := fst (fst (const_folding s empty_map)).
 
 Lemma constant_folding_always_FoldConst : forall s map, exists map', FoldConst s map (constant_folding s) map'.
   admit.
 Qed.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
-  unfold const_folding_rel; intros; exists empty_VarToW; simpl in *; edestruct constant_folding_always_FoldConst; intuition eauto.
+  unfold const_folding_rel; intros; exists empty_map; simpl in *; edestruct constant_folding_always_FoldConst; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_backward_similar_callee : 
