@@ -485,6 +485,11 @@ Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
 Qed.
 Hint Resolve everything_agree_with_empty_map.
 
+Lemma empty_map_submap : forall m, empty_map %<= m.
+  admit.
+Qed.
+Hint Resolve empty_map_submap.
+
 Lemma while_case:
   forall t v v',
     Step t v v' ->
@@ -568,7 +573,7 @@ Proof.
   econstructor 2.
   econstructor 1.
 (*here*)
-  eauto.
+(*  eauto.
   Focus 2.
   simpl.
   destruct (const_zero_dec _).
@@ -581,7 +586,7 @@ Proof.
   Hint Resolve empty_map_submap.
   eauto.
   simpl.
-  eauto.
+  eauto.*)
 Admitted.
 
 Lemma const_folding_rel_is_backward_simulation' :
@@ -620,7 +625,7 @@ Proof.
 
   destruct s; destruct (Sumbool.sumbool_of_bool (wneb x0 $0)); erewrite e1 in *; [ eapply IHs1 in H1 | eapply IHs2 in H1 ]; eauto; openhyp; replace x0 with (exprDenote x0 vt) in e1 by eauto; rewrite <- e0 in e1; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
 
-  simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto using submap_trans.
+  simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto.
 
   intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
 
@@ -632,11 +637,6 @@ Proof.
   intros; split; intros; eapply while_case in H1; eauto; openhyp; eauto.
 Qed.
 
-Lemma FoldConst_refl : forall s map, FoldConst s map s map.
-  admit.
-Qed.
-Hint Resolve FoldConst_refl.
-
 Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
 Proof.
   unfold is_backward_simulation, const_folding_rel.
@@ -647,10 +647,13 @@ Proof.
   split.
   intros.
   eapply H0 in H2; openhyp.
-  eexists; intuition eauto.
+  descend; intuition eauto.
+  descend; split.
+  2 : eauto.
+  eauto.
   intros.
   eapply H1 in H2; openhyp.
-  do 2 eexists; intuition eauto.
+  descend; intuition eauto.
 Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
@@ -658,7 +661,7 @@ Hint Resolve const_folding_rel_is_backward_simulation.
 Definition constant_folding s := fst (fst (const_folding s empty_map)).
 
 Lemma constant_folding_always_FoldConst : forall s map, exists map', FoldConst s map (constant_folding s) map'.
-  admit.
+  unfold constant_folding; intros; descend; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
