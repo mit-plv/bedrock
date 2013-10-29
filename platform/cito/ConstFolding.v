@@ -73,7 +73,9 @@ Qed.
 
 Notation "{ x }" := (x :: nil).
 
-Notation "'skip'" := Syntax.Skip.
+Notation skip := Syntax.Skip.
+
+Notation delete := Syntax.Free.
 
 Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Vars :=
   match s with
@@ -401,44 +403,7 @@ Ltac descend :=
            | [ |- exists x, _ ] => eexists
          end.
 
-Opaque const_folding.
-
-Lemma FoldConst_assign' : 
-  forall s map_in t map_out, 
-    FoldConst s map_in t map_out -> 
-    forall x e,
-      s = (x <- e) ->
-      exists map_in', 
-        let result := fst (const_folding s map_in') in
-        let s' := fst result in
-        let map_out' := snd result in
-        t = s' /\
-        map_in' %<= map_in /\ 
-        map_out %<= map_out'.
-Proof.
-  induction 1; simpl; intuition; unfold_all; subst.
-  descend; intuition.
-  edestruct IHFoldConst; eauto; openhyp; subst.
-  descend; intuition eauto; eauto using submap_trans.
-Qed.
-
-Lemma FoldConst_assign : 
-  forall x e map_in t map_out, 
-    let s := x <- e in
-    FoldConst s map_in t map_out -> 
-    exists map_in', 
-      let result := fst (const_folding s map_in') in
-      let s' := fst result in
-      let map_out' := snd result in
-      t = s' /\
-      map_in' %<= map_in /\ 
-      map_out %<= map_out'.
-  intros; unfold_all; eapply FoldConst_assign'; eauto.
-Qed.
-
-Transparent const_folding.
-
-Lemma FoldConst_seq' : 
+Lemma FoldConst_Seq_elim : 
   forall s map t map', 
     FoldConst s map t map' ->
     forall s1 s2,
@@ -454,87 +419,57 @@ Proof.
   injection H1; intros; subst; descend; eauto.
 Qed.
 
-Lemma FoldConst_seq : 
-  forall s1 s2 map t map', 
-    FoldConst (s1 ;; s2) map t map' ->
-    exists t1 t2 map'',
-      t = (t1 ;; t2) /\
-      FoldConst s1 map t1 map'' /\
-      FoldConst s2 map'' t2 map'.
-Proof.
-  intros; eapply FoldConst_seq'; eauto.
-Qed.
+Inductive NotSeq : Statement -> Prop :=
+  | IsSkip : NotSeq skip
+  | IsIf : forall c t f, NotSeq (If c {t} else {f})
+  | IsWhile : forall c b, NotSeq (While (c) {{b}})
+  | IsAssign : forall x e, NotSeq (x <- e)
+  | IsRead : forall x arr idx, NotSeq (x <== arr[idx])
+  | IsWrite : forall arr idx e, NotSeq (arr[idx] <== e)
+  | IsMalloc : forall x size, NotSeq (x <- new size)
+  | IsFree : forall arr, NotSeq (delete arr)
+  | IsLen : forall x arr, NotSeq (Syntax.Len x arr)
+  | IsCall : forall f x, NotSeq (Syntax.Call f x)
+.
 
-Lemma FoldConst_if' : 
+Hint Constructors NotSeq.
+
+Lemma FoldConst_NotSeq_elim : 
   forall s map_in t map_out, 
     FoldConst s map_in t map_out -> 
-    forall e tt ff,
-      s = (If e {tt} else {ff}) ->
-      exists map_in',
-        let result := fst (const_folding s map_in') in
-        let s' := fst result in
-        let map_out' := snd result in
-        t = s' /\ 
-        map_in' %<= map_in /\ 
-        map_out %<= map_out'.
-Proof.
-  induction 1; simpl; intuition; unfold_all; subst.
-  simpl; descend; eauto.
-  edestruct IHFoldConst; eauto; openhyp; subst; descend; intuition eauto using submap_trans.
-Qed.
-
-Lemma FoldConst_if : 
-  forall e tt ff map_in t map_out, 
-    let s := If e {tt} else {ff} in
-    FoldConst s map_in t map_out -> 
-    exists map_in',
+    NotSeq s ->
+    exists map_in', 
       let result := fst (const_folding s map_in') in
       let s' := fst result in
       let map_out' := snd result in
-      t = s' /\ 
+      t = s' /\
       map_in' %<= map_in /\ 
       map_out %<= map_out'.
 Proof.
-  intros; eapply FoldConst_if'; unfold_all; eauto.
+  induction 1; simpl; intuition; unfold_all; subst.
+  inversion H; subst; simpl; descend; eauto.
+  openhyp; subst; descend; intuition eauto using submap_trans.
+  inversion H1.
 Qed.
 
-Lemma FoldConst_read : 
-  forall x arr idx map_in t map_out, 
-    let s := x <== arr[idx] in
-    FoldConst s map_in t map_out -> 
-    exists map_in', 
-      let result := fst (const_folding s map_in') in
-      let s' := fst result in
-      let map_out' := snd result in
-      t = s' /\ 
-      map_in' %<= map_in /\ 
-      map_out %<= map_out'.
-  admit.
+Lemma FoldConst_skip : forall map map', map' %<= map -> FoldConst skip map skip map'.
+  intros.
+  econstructor 2.
+  econstructor 1.
+  eauto.
+  simpl.
+  eauto.
 Qed.
+Hint Resolve FoldConst_skip.
 
-Lemma FoldConst_write : 
-  forall arr idx e map_in t map_out, 
-    let s := arr[idx] <== e in
-    FoldConst s map_in t map_out -> 
-    exists map_in', 
-      let result := fst (const_folding s map_in') in
-      let s' := fst result in
-      let map_out' := snd result in
-      t = s' /\ 
-      map_in' %<= map_in /\ 
-      map_out %<= map_out'.
-  admit.
-Qed.
-
-Lemma FoldConst_skip : 
-  forall map_in t map_out, 
-    FoldConst skip map_in t map_out -> 
-    t = skip /\ 
-    map_out %<= map_in.
-  admit.
-Qed.
-
-Transparent const_folding.
+Ltac filter_case :=
+  match goal with
+    | H : context [Syntax.Assignment] |- _ => fail 1
+    | H : context [Syntax.Seq] |- _ => fail 1
+    | H : context [Syntax.Conditional] |- _ => fail 1
+    | H : context [Syntax.Loop] |- _ => fail 1
+    | |- _ => idtac
+  end.
 
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map',
@@ -554,48 +489,34 @@ Lemma const_folding_rel_is_backward_simulation' :
              agree_with vt' map_k /\
              map' %<= map_k').
 Proof.
-  induction s; try solve [simpl; intuition]; intros.
+  induction s; try solve [simpl; intuition]; intros; try solve [ filter_case; split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; subst; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition; descend; intuition eauto ].
 
   (* assign *)
-  split; intros; eapply FoldConst_assign in H; simpl in *; eauto; openhyp; subst.
-  eapply assign_done in H1; eauto; openhyp; eauto.
-  destruct (const_dec _); [ destruct s0 | ]; simpl in *; inversion H1.
-
-  (* read *)
-  split; intros; eapply FoldConst_read in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
-
-  (* write *)
-  split; intros; eapply FoldConst_write in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
+  split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; [ eapply assign_done in H1; eauto; openhyp; eauto | destruct (const_dec _); [ destruct s0 | ]; simpl in *; inversion H1 ].
 
   (* seq *)
-  split; intros; eapply FoldConst_seq in H; eauto; openhyp; subst; inversion H1; subst;
+  split; intros; eapply FoldConst_Seq_elim in H; eauto; openhyp; subst; inversion H1; subst;
   solve [
       destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto |
       eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; eauto ].
 
-  (* skip *)
-  split; intros; eapply FoldConst_skip in H; eauto; openhyp; subst; inversion H1; subst; eauto.
-
   (* if *)
   split.
 
-  intros; eapply FoldConst_if in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
+  intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
 
   destruct s; destruct (Sumbool.sumbool_of_bool (wneb x0 $0)); erewrite e1 in *; [ eapply IHs1 in H1 | eapply IHs2 in H1 ]; eauto; openhyp; replace x0 with (exprDenote x0 vt) in e1 by eauto; rewrite <- e0 in e1; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
 
   simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto using submap_trans.
 
-  intros; eapply FoldConst_if in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
+  intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
 
   destruct s; destruct (Sumbool.sumbool_of_bool (wneb x1 $0)); erewrite e1 in *; [ eapply IHs1 in H1 | eapply IHs2 in H1 ]; eauto; openhyp; replace x1 with (exprDenote x1 vt) in e1 by eauto; rewrite <- e0 in e1; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition eauto; descend; intuition eauto using submap_trans.
 
   simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto; descend; intuition eauto using submap_trans.
 
   admit.
-  admit.
-  admit.
-  admit.
-  admit.
+
 Qed.
 
 Lemma FoldConst_refl : forall s map, FoldConst s map s map.
