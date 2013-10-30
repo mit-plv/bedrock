@@ -503,12 +503,12 @@ Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 
   admit.
 Qed.
 Hint Resolve not_const_zero_submap.
-(*
+
 Lemma while_case:
   forall t v v',
     Step t v v' ->
-    forall s map map',
-      FoldConst s map t map' ->
+    forall s map map' written,
+      FoldConst s map t map' written ->
       forall c b,
         s = Syntax.Loop c b ->
         forall vt,
@@ -517,8 +517,8 @@ Lemma while_case:
             v = (vt, heap) ->
             (let s := b in
              (* the induction hypothesis from Lemma const_folding_is_backward_simulation' *)
-             forall (t : Statement) (map map' : VarToW),
-               FoldConst s map t map' ->
+             forall (t : Statement) (map map' : VarToW) written,
+               FoldConst s map t map' written ->
                forall vt : vals,
                  agree_with vt map ->
                  (forall (heap : arrays) (vt' : vals) (heap' : arrays),
@@ -529,8 +529,8 @@ Lemma while_case:
                     Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
                     exists s' : Statement,
                       Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-                      (exists map_k map_k' : VarToW,
-                         FoldConst s' map_k t' map_k' /\
+                      (exists (map_k map_k' : VarToW) written_k,
+                         FoldConst s' map_k t' map_k' written_k /\
                          agree_with vt' map_k /\ map' %<= map_k'))
             ) ->
             (forall vt' heap',
@@ -541,8 +541,8 @@ Lemma while_case:
                v' = ToCall f x t' (vt', heap') ->
                exists s',
                  Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-                 exists map_k map_k',
-                   FoldConst s' map_k t' map_k' /\
+                 exists map_k map_k' written_k,
+                   FoldConst s' map_k t' map_k' written_k /\
                    agree_with vt' map_k /\
                    map' %<= map_k').
 Proof.
@@ -569,6 +569,7 @@ Proof.
   3 : eauto.
   2 : eauto.
   2 : edestruct H8; eauto.
+  instantiate (1 := nil).
   admit.
 (*  replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (x - snd (const_folding b empty_map))))).
   Focus 2.
@@ -605,6 +606,8 @@ Proof.
   Focus 2.
   edestruct H9; eauto; openhyp.
   descend; intuition eauto.
+  descend; intuition eauto.
+  instantiate (1 := nil).
   admit.
 
   split; intros; subst.
@@ -623,6 +626,7 @@ Proof.
   descend; intuition eauto.
   econstructor 3.
   eauto.
+  instantiate (1 := nil).
   admit.
 
   admit.
@@ -632,7 +636,7 @@ Proof.
   admit.
   admit.
 Qed.
-*)
+
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map' written,
     FoldConst s map t map' written ->
@@ -641,7 +645,7 @@ Lemma const_folding_rel_is_backward_simulation' :
       (forall heap vt' heap',
          Step t (vt, heap) (Done (vt', heap')) ->
          Step s (vt, heap) (Done (vt', heap')) /\
-         agree_with vt' (map - written)) /\
+         agree_with vt' map') /\
       (forall heap f x t' vt' heap',
          Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
          exists s',
@@ -649,18 +653,23 @@ Lemma const_folding_rel_is_backward_simulation' :
            exists map_k map_k' written_k,
              FoldConst s' map_k t' map_k' written_k /\
              agree_with vt' map_k /\
-             (map - written) %<= map_k').
+             map' %<= map_k').
 Proof.
   induction s; try solve [simpl; intuition]; intros; try solve [ filter_case; split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; subst; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition; descend; eauto ].
 
   (* assign *)
   split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; inversion H1; unfold_all; subst; [ rewrite <- e0 | ]; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
+  erewrite <- const_folding_expr_correct'.
+  2 : symmetry; eauto.
+  2 : eauto.
+  simpl; eauto.
+
 
   (* seq *)
   split; intros; eapply FoldConst_Seq_elim in H; eauto; openhyp; subst; inversion H1; subst.
-  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto.
-
-      eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; eauto ].
+  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; eauto.
 
   (* if *)
   split.
@@ -698,18 +707,19 @@ Proof.
   intros.
   eapply H1 in H2; openhyp.
   descend; intuition eauto.
+  descend; intuition eauto.
 Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
 
 Definition constant_folding s := fst (fst (const_folding s empty_map)).
 
-Lemma constant_folding_always_FoldConst : forall s map, exists map', FoldConst s map (constant_folding s) map'.
+Lemma constant_folding_always_FoldConst : forall s map, exists map' written, FoldConst s map (constant_folding s) map' written.
   unfold constant_folding; intros; descend; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
-  unfold const_folding_rel; intros; exists empty_map; simpl in *; edestruct constant_folding_always_FoldConst; intuition eauto.
+  unfold const_folding_rel; intros; exists empty_map; simpl in *; edestruct constant_folding_always_FoldConst; openhyp; descend; intuition eauto.
 Qed.
 
 Theorem constant_folding_is_backward_similar_callee : 
