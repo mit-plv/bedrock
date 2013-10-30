@@ -710,13 +710,28 @@ Lemma while_case:
                    written_k %%<= written).
 Proof.
   induction 1; simpl; intros; unfold_all; subst.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
+
+  eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition; injection H4; intros; subst; eauto.
+  econstructor 7.
+  erewrite <- const_folding_expr_correct'.
+  2 : symmetry; eauto.
+  simpl; eauto.
+  simpl; eauto.
+
+  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+
+  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+
+  eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+
+  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+
+  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+
+  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition; injection H5; intros; subst; eauto.
+  injection H0; intros; subst.
+  repeat erewrite const_folding_expr_correct in * by eauto.
+  eauto.
 
   split; intros; subst.
 
