@@ -8,12 +8,14 @@ Require Import SemanticsExpr.
 
 Set Implicit Arguments.
 
-Definition VarToW := string -> option W.
+Variable PartialMap : Set.
 
-Fixpoint const_folding_expr (e : Expr) (env : VarToW) : Expr :=
+Variable sel : PartialMap -> string -> option W.
+
+Fixpoint const_folding_expr (e : Expr) (env : PartialMap) : Expr :=
   match e with
     | Var var =>
-      match env var with
+      match sel env var with
         | Some w => Const w
         | None => e
       end
@@ -34,34 +36,32 @@ Fixpoint const_folding_expr (e : Expr) (env : VarToW) : Expr :=
       end
   end.
 
-Definition Vars := list string.
+Variable SET : Set.
 
 Open Scope type_scope.
 
-Definition empty_Vars : Vars := nil.
-
-Variable subtract : VarToW -> Vars -> VarToW.
+Variable subtract : PartialMap -> SET -> PartialMap.
 Infix "-" := subtract.
 
-Variable union : Vars -> Vars -> Vars.
+Variable union : SET -> SET -> SET.
 Infix "+" := union.
 
-Variable add : Vars -> string -> Vars.
+Variable add : SET -> string -> SET.
 Infix "%+" := add (at level 60).
 
-Variable VarToW_add : VarToW -> string * W -> VarToW.
-Infix "%%+" := VarToW_add (at level 60).
+Variable PartialMap_add : PartialMap -> string * W -> PartialMap.
+Infix "%%+" := PartialMap_add (at level 60).
 
-Variable VarToW_del : VarToW -> string -> VarToW.
-Infix "%%-" := VarToW_del (at level 60).
+Variable PartialMap_del : PartialMap -> string -> PartialMap.
+Infix "%%-" := PartialMap_del (at level 60).
 
-Hypothesis sel_remove_eq : forall m x, (m %%- x) x = None.
+Hypothesis sel_remove_eq : forall m x, sel (m %%- x) x = None.
 
-Hypothesis sel_remove_ne : forall m x x', x <> x' -> (m %%- x) x' = m x'.
+Hypothesis sel_remove_ne : forall m x x', x <> x' -> sel (m %%- x) x' = sel m x'.
 
-Hypothesis sel_add_eq : forall m x w, (m %%+ (x, w)) x = Some w.
+Hypothesis sel_add_eq : forall m x w, sel (m %%+ (x, w)) x = Some w.
 
-Hypothesis sel_add_ne : forall m x w x', x <> x' -> (m %%+ (x, w)) x' = m x'.
+Hypothesis sel_add_ne : forall m x w x', x <> x' -> sel (m %%+ (x, w)) x' = sel m x'.
 
 Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
   intros; destruct e; solve [ right; intuition; openhyp; intuition | left; eauto ].
@@ -71,17 +71,25 @@ Definition const_zero_dec : forall e, {e = Const $0} + {e <> Const $0}.
   intros; destruct e; solve [right; intuition | destruct (weq w $0); intuition ].
 Qed.
 
-Notation "{ x }" := (x :: nil).
+Variable empty_set : SET.
+
+Notation "{}" := empty_set.
+
+Variable singleton_set : string -> SET.
+
+Notation "{ x }" := (singleton_set x).
 
 Notation skip := Syntax.Skip.
 
 Notation delete := Syntax.Free.
 
-Definition empty_map : VarToW := fun _ => None.
+Variable empty_map : PartialMap.
 
-Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Vars :=
+Notation "[]" := empty_map.
+
+Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialMap * SET :=
   match s with
-    | Syntax.Skip => (skip, map, nil)
+    | Syntax.Skip => (skip, map, {})
     | a ;; b => 
       let result_a := const_folding a map in
       let map' := snd (fst result_a) in
@@ -123,10 +131,10 @@ Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Var
       end
     | Loop c b =>
       if const_zero_dec (const_folding_expr c map) then
-        (skip, map, nil)
+        (skip, map, {})
       else
-        let c' := const_folding_expr c empty_map in
-        let result_b := const_folding b empty_map in
+        let c' := const_folding_expr c [] in
+        let result_b := const_folding b [] in
         let b' := fst (fst result_b) in
         let written_b := snd result_b in
         (* written vars in loop body will no longer have known values *)
@@ -140,7 +148,7 @@ Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Var
       let arr' := const_folding_expr arr map in
       let idx' := const_folding_expr idx map in
       let e' := const_folding_expr e map in
-      (arr'[idx'] <== e', map, nil)
+      (arr'[idx'] <== e', map, {})
     | Syntax.Len x arr =>
       let arr' := const_folding_expr arr map in
       (Syntax.Len x arr', map %%- x, {x})
@@ -149,20 +157,20 @@ Fixpoint const_folding (s : Statement) (map : VarToW) : Statement * VarToW * Var
       (x <- new size', map %%- x, {x})
     | Syntax.Free arr =>
       let arr' := const_folding_expr arr map in
-      (Syntax.Free arr', map, nil)
+      (Syntax.Free arr', map, {})
     | Syntax.Call f x =>
       let f' := const_folding_expr f map in
       let x' := const_folding_expr x map in
-      (Syntax.Call f' x', map, nil)
+      (Syntax.Call f' x', map, {})
   end.
 
-Definition agree_with (v : vals) (m : VarToW) :=
+Definition agree_with (v : vals) (m : PartialMap) :=
   forall x w,
-    m x = Some w ->
-    sel v x = w.
+    sel m x = Some w ->
+    Locals.sel v x = w.
 
-Definition sel_dec : forall (m : VarToW) x, {w | m x = Some w} + {m x = None}.
-  intros; destruct (m x); intuition eauto.
+Definition sel_dec : forall (m : PartialMap) x, {w | sel m x = Some w} + {sel m x = None}.
+  intros; destruct (sel m x); intuition eauto.
 Defined.
 
 Ltac my_f_equal :=
@@ -288,7 +296,7 @@ Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
   intros; destruct p; eauto.
 Qed.
 
-Variable submap : VarToW -> VarToW -> Prop.
+Variable submap : PartialMap -> PartialMap -> Prop.
 
 Infix "%<=" := submap (at level 60).
 
@@ -321,7 +329,7 @@ Lemma subtract_reorder_submap : forall a b c, a - b - c %<= a - c - b.
 Qed.
 Hint Resolve subtract_reorder_submap.
 
-Lemma subtract_remove_submap : forall m s, m - (s :: nil) %<= (m %%- s).
+Lemma subtract_remove_submap : forall m s, m - singleton_set s %<= (m %%- s).
   admit.
 Qed.
 Hint Resolve subtract_remove_submap.
@@ -352,11 +360,11 @@ Proof.
 Qed.
 Hint Resolve out_map_lower_bound.
 
-Variable disjoint : VarToW -> Vars -> Prop.
+Variable disjoint : PartialMap -> SET -> Prop.
 
 Infix "%*" := disjoint (at level 60).
 
-Inductive FoldConst : Statement -> VarToW -> Statement -> VarToW -> Vars -> Prop :=
+Inductive FoldConst : Statement -> PartialMap -> Statement -> PartialMap -> SET -> Prop :=
   | OptFull : 
       forall s map, 
         let result := const_folding s map in
@@ -469,7 +477,7 @@ Definition const_folding_rel vs s vt t :=
 
 Hint Unfold const_folding_rel.
 
-Lemma FoldConst_skip : forall map map', map' %<= map -> FoldConst skip map skip map' nil.
+Lemma FoldConst_skip : forall map map', map' %<= map -> FoldConst skip map skip map' {}.
   intros.
   econstructor 2.
   econstructor 1.
@@ -496,7 +504,7 @@ Ltac openhyp' :=
          end.
 
 Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
-  unfold agree_with, empty_map; intuition.
+  admit.
 Qed.
 Hint Resolve everything_agree_with_empty_map.
 
@@ -528,7 +536,7 @@ Lemma while_case:
             v = (vt, heap) ->
             (let s := b in
              (* the induction hypothesis from Lemma const_folding_is_backward_simulation' *)
-             forall (t : Statement) (map map' : VarToW) written,
+             forall (t : Statement) (map map' : PartialMap) written,
                FoldConst s map t map' written ->
                forall vt : vals,
                  agree_with vt map ->
@@ -540,7 +548,7 @@ Lemma while_case:
                     Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
                     exists s' : Statement,
                       Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-                      (exists (map_k map_k' : VarToW) written_k,
+                      (exists (map_k map_k' : PartialMap) written_k,
                          FoldConst s' map_k t' map_k' written_k /\
                          agree_with vt' map_k /\ map' %<= map_k'))
             ) ->
@@ -649,14 +657,14 @@ Proof.
 Qed.
 *)
 
-Variable agree_except : vals -> vals -> Vars -> Prop.
+Variable agree_except : vals -> vals -> SET -> Prop.
 
 Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
   admit.
 Qed.
 Hint Resolve agree_except_upd.
 
-Lemma agree_except_same : forall local, agree_except local local nil.
+Lemma agree_except_same : forall local, agree_except local local {}.
   admit.
 Qed.
 Hint Resolve agree_except_same.
@@ -681,7 +689,9 @@ Lemma out_map_upper_bound : forall s map_in t map_out written, FoldConst s map_i
 Qed.
 Hint Resolve out_map_upper_bound.
 
-Infix "%%<=" := List.incl (at level 60).
+Variable subset : SET -> SET -> Prop.
+
+Infix "%%<=" := subset (at level 60).
 
 Lemma subset_union_left : forall a b c, a %%<= b -> a %%<= c + b.
   admit.
@@ -693,9 +703,73 @@ Lemma subset_union_right_both : forall a b c, a %%<= b -> a + c %%<= b + c.
 Qed.
 Hint Resolve subset_union_right_both.
 
-Variable upds : VarToW -> VarToW -> VarToW.
+Variable upds : PartialMap -> PartialMap -> PartialMap.
 
-Variable compatible : VarToW -> VarToW -> Prop.
+Variable compatible : PartialMap -> PartialMap -> Prop.
+
+Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
+  admit.
+Qed.
+Hint Resolve agree_except_incl.
+
+Lemma subset_union_2 : forall a b, a %%<= a + b.
+  admit.
+Qed.
+Hint Resolve subset_union_2.
+
+Lemma compatible_upds_enlarge1 : forall v1 v2, compatible v1 v2 -> v1 %<= upds v1 v2.
+  admit.
+Qed.
+Hint Resolve compatible_upds_enlarge1.
+
+Lemma compatible_upds_enlarge2 : forall v1 v2, compatible v1 v2 -> v2 %<= upds v1 v2.
+  admit.
+Qed.
+Hint Resolve compatible_upds_enlarge2.
+
+Lemma disjoint_upds_compatible : forall v1 v2 s, compatible (v1 - s) v2 -> v2 %* s -> compatible v1 v2.
+  admit.
+Qed.
+Hint Resolve disjoint_upds_compatible.
+
+Lemma both_submap_compatible : forall v1 v2 v3, v1 %<= v3 -> v2 %<= v3 -> compatible v1 v2.
+  admit.
+Qed.
+Hint Resolve both_submap_compatible.
+
+Lemma subset_disjoint : forall m s s', m %* s -> s' %%<= s -> m %* s'.
+  admit.
+Qed.
+Hint Resolve subset_disjoint.
+
+Lemma compatible_agree_with_both : forall v m1 m2, agree_with v m1 -> agree_with v m2 -> compatible m1 m2 -> agree_with v (upds m1 m2).
+  admit.
+Qed.
+Hint Resolve compatible_agree_with_both.
+
+Lemma upds_subtract_1 : forall m1 m2 s, upds m1 m2 - s %<= upds (m1 - s) m2.
+  admit.
+Qed.
+
+Lemma both_submap_upds_submap : forall m1 m2 m, m1 %<= m -> m2 %<= m -> upds m1 m2 %<= m.
+  admit.
+Qed.
+Hint Resolve both_submap_upds_submap.
+
+Lemma subset_union_1 : forall a b, a %%<= b + a.
+  admit.
+Qed.
+Hint Resolve subset_union_1.
+
+Lemma subset_union_right : forall a b c, a %%<= b -> a %%<= b + c.
+  admit.
+Qed.
+Hint Resolve subset_union_right.
+
+Lemma subset_refl : forall s, s %%<= s.
+  admit.
+Qed.
+Hint Resolve subset_refl.
 
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map' written,
@@ -733,16 +807,6 @@ Proof.
   destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
   destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
   destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
-  Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
-    admit.
-  Qed.
-  Hint Resolve agree_except_incl.
-
-  Lemma subset_union_2 : forall a b, a %%<= a + b.
-    admit.
-  Qed.
-  Hint Resolve subset_union_2.
-
   eapply IHs1 in H6; eauto; openhyp; descend; intuition eauto; eexists; exists map'; descend; intuition eauto using submap_trans.  
   destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
   eapply IHs1 in H9; eauto; openhyp; descend; intuition eauto.
@@ -750,43 +814,13 @@ Proof.
   econstructor 4.
   eauto.
   eauto.
-  Lemma compatible_upds_enlarge1 : forall v1 v2, compatible v1 v2 -> v1 %<= upds v1 v2.
-    admit.
-  Qed.
-  Hint Resolve compatible_upds_enlarge1.
-
-  Lemma compatible_upds_enlarge2 : forall v1 v2, compatible v1 v2 -> v2 %<= upds v1 v2.
-    admit.
-  Qed.
-  Hint Resolve compatible_upds_enlarge2.
-
-  Lemma disjoint_upds_compatible : forall v1 v2 s, compatible (v1 - s) v2 -> v2 %* s -> compatible v1 v2.
-    admit.
-  Qed.
-  Hint Resolve disjoint_upds_compatible.
-
-  Lemma both_submap_compatible : forall v1 v2 v3, v1 %<= v3 -> v2 %<= v3 -> compatible v1 v2.
-    admit.
-  Qed.
-  Hint Resolve both_submap_compatible.
-
   eapply compatible_upds_enlarge1.
   2 : eapply compatible_upds_enlarge2.
 
   eauto using submap_trans.
   eauto using submap_trans.
   
-  Lemma subset_disjoint : forall m s s', m %* s -> s' %%<= s -> m %* s'.
-    admit.
-  Qed.
-  Hint Resolve subset_disjoint.
-
   eauto.
-
-  Lemma compatible_agree_with_both : forall v m1 m2, agree_with v m1 -> agree_with v m2 -> compatible m1 m2 -> agree_with v (upds m1 m2).
-    admit.
-  Qed.
-  Hint Resolve compatible_agree_with_both.
 
   eapply compatible_agree_with_both.
   eauto.
@@ -800,17 +834,8 @@ Proof.
   eapply subtract_union_submap.
   eapply submap_trans.
   eapply subtract_submap.
-  Lemma upds_subtract_1 : forall m1 m2 s, upds m1 m2 - s %<= upds (m1 - s) m2.
-    admit.
-  Qed.
-
   eapply submap_trans.
   eapply upds_subtract_1.
-  Lemma both_submap_upds_submap : forall m1 m2 m, m1 %<= m -> m2 %<= m -> upds m1 m2 %<= m.
-    admit.
-  Qed.
-  Hint Resolve both_submap_upds_submap.
-
   eauto using submap_trans.
   eauto.
   eauto.
@@ -831,7 +856,8 @@ Proof.
   simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto; descend; intuition eauto using submap_trans.
 
   (* while *)
-  intros; split; intros; eapply while_case in H1; eauto; openhyp; eauto.
+  admit.
+  (* intros; split; intros; eapply while_case in H1; eauto; openhyp; eauto. *)
 Qed.
 
 Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
