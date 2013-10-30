@@ -284,25 +284,6 @@ Ltac unfold_all :=
            | H := _ |- _ => unfold H in *; clear H
          end.
 
-Lemma assign_done : 
-  forall x e map local heap local' heap', 
-    let s := x <- e in
-    let result := const_folding s map in
-    let s' := fst (fst result) in
-    let map' := snd (fst result) in
-    Step s' (local, heap) (Done (local', heap')) ->
-    agree_with local map ->
-    Step s (local, heap) (Done (local', heap')) /\
-    agree_with local' map'.
-Proof.
-  intros; unfold result, s in *; clear result s; simpl in *; destruct (const_dec _); [ destruct s | ]; simpl in *; inversion H; unfold_all; subst; [ rewrite <- e0 in H | ]; erewrite const_folding_expr_correct' in * by eauto; intuition.
-  erewrite <- const_folding_expr_correct'.
-  2 : symmetry; eauto.
-  2 : eauto.
-  simpl; eauto.
-Qed.
-Hint Resolve assign_done.
-
 Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
   intros; destruct p; eauto.
 Qed.
@@ -371,6 +352,10 @@ Proof.
 Qed.
 Hint Resolve map_bound.
 
+Variable disjoint : VarToW -> Vars -> Prop.
+
+Infix "%*" := disjoint (at level 60).
+
 Inductive FoldConst : Statement -> VarToW -> Statement -> VarToW -> Vars -> Prop :=
   | OptFull : 
       forall s map, 
@@ -386,18 +371,22 @@ Inductive FoldConst : Statement -> VarToW -> Statement -> VarToW -> Vars -> Prop
         map_out' %<= map_out ->
         FoldConst s map_in' t map_out' written
   | OptSeq : 
-      forall t1 t2 s1 s2 written1 written2 map map' map'',
+      forall s1 s2 t1 t2 written1 written2 map map' map'',
         FoldConst s1 map t1 map' written1 ->
         FoldConst s2 map' t2 map'' written2 ->
-        FoldConst (s1;;s2) map (t1;;t2) map'' (written1 + written2).
-
-Definition const_folding_rel vs s vt t := 
-  exists map map' written,
-    FoldConst s map t map' written /\
-    vt = vs /\
-    agree_with vs map.
-
-Hint Unfold const_folding_rel.
+        FoldConst (s1;;s2) map (t1;;t2) map'' (written1 + written2)
+  | OptConsumeBefore :
+      forall s1 s2 t1 t2 written1 written2 map map' map'',
+        FoldConst s1 map t1 map' written1 ->
+        FoldConst s2 map t2 map'' written2 ->
+        map %* written1 ->
+        FoldConst (s1;;s2) map (t1;;t2) map'' (written1 + written2)
+  | OptConsumeAfter :
+      forall s1 s2 t1 t2 written1 written2 map map' map'',
+        FoldConst s1 map t1 map' written1 ->
+        FoldConst s2 map' t2 map'' written2 ->
+        map' %* written2 ->
+        FoldConst (s1;;s2) map (t1;;t2) map' (written1 + written2).
 
 Hint Constructors FoldConst.
 
@@ -407,20 +396,33 @@ Ltac descend :=
          end.
 
 Lemma FoldConst_Seq_elim : 
-  forall s map t map' written, 
-    FoldConst s map t map' written ->
+  forall s map_in t map_out written, 
+    FoldConst s map_in t map_out written ->
     forall s1 s2,
       s = (s1 ;; s2) ->
-      exists t1 t2 map'' written1 written2,
+      exists t1 t2 map map' map'' written1 written2,
         t = (t1 ;; t2) /\
-        FoldConst s1 map t1 map'' written1 /\
-        FoldConst s2 map'' t2 map' written2 /\
-        written = written1 + written2.
+        written = written1 + written2 /\
+        map %<= map_in /\
+        map_out %<= map' /\
+        ((FoldConst s1 map t1 map'' written1 /\
+          FoldConst s2 map'' t2 map' written2) \/
+         (FoldConst s1 map t1 map'' written1 /\
+          FoldConst s2 map t2 map' written2 /\
+          map %* written1) \/
+         (FoldConst s1 map t1 map' written1 /\
+          FoldConst s2 map' t2 map'' written2 /\
+          map' %* written2)).
 Proof.
   induction 1; simpl; intuition; unfold_all; subst.
   simpl; descend; intuition.
-  edestruct IHFoldConst; eauto; openhyp; subst; descend; intuition eauto.
-  injection H1; intros; subst; descend; eauto.
+  edestruct IHFoldConst; eauto; openhyp; subst.
+  descend; intuition eauto.
+  descend; repeat split; [ .. | right; left; eauto ]; eauto using submap_trans.
+  descend; repeat split; [ .. | right; right; eauto ]; eauto using submap_trans.
+  injection H1; intros; subst; descend; intuition eauto.
+  injection H2; intros; subst; descend; intuition eauto.
+  injection H2; intros; subst; descend; intuition eauto.
 Qed.
 
 Inductive NotSeq : Statement -> Prop :=
@@ -456,7 +458,17 @@ Proof.
   inversion H; subst; simpl; descend; eauto.
   openhyp; subst; descend; intuition eauto using submap_trans.
   inversion H1.
+  inversion H2.
+  inversion H2.
 Qed.
+
+Definition const_folding_rel vs s vt t := 
+  exists map map' written,
+    FoldConst s map t map' written /\
+    vt = vs /\
+    agree_with vs map.
+
+Hint Unfold const_folding_rel.
 
 Lemma FoldConst_skip : forall map map', map' %<= map -> FoldConst skip map skip map' nil.
   intros.
@@ -503,7 +515,7 @@ Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 
   admit.
 Qed.
 Hint Resolve not_const_zero_submap.
-
+(*
 Lemma while_case:
   forall t v v',
     Step t v v' ->
@@ -636,6 +648,21 @@ Proof.
   admit.
   admit.
 Qed.
+*)
+
+Variable agree_except : vals -> vals -> Vars -> Prop.
+
+Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+  admit.
+Qed.
+Hint Resolve agree_except_upd.
+
+Lemma agree_except_same : forall local, agree_except local local nil.
+  admit.
+Qed.
+Hint Resolve agree_except_same.
+
+Infix "%%<=" := List.incl (at level 60).
 
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map' written,
@@ -645,7 +672,8 @@ Lemma const_folding_rel_is_backward_simulation' :
       (forall heap vt' heap',
          Step t (vt, heap) (Done (vt', heap')) ->
          Step s (vt, heap) (Done (vt', heap')) /\
-         agree_with vt' map') /\
+         agree_with vt' map' /\ 
+         agree_except vt vt' written) /\
       (forall heap f x t' vt' heap',
          Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
          exists s',
@@ -653,7 +681,8 @@ Lemma const_folding_rel_is_backward_simulation' :
            exists map_k map_k' written_k,
              FoldConst s' map_k t' map_k' written_k /\
              agree_with vt' map_k /\
-             map' %<= map_k').
+             map' %<= map_k' /\ 
+             written_k %%<= written).
 Proof.
   induction s; try solve [simpl; intuition]; intros; try solve [ filter_case; split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; subst; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition; descend; eauto ].
 
@@ -664,12 +693,39 @@ Proof.
   2 : eauto.
   simpl; eauto.
 
+  Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
+    admit.
+  Qed.
+  Hint Resolve agree_except_trans.
+  
+  Lemma agree_with_agree_except_disjoint : forall local1 local2 m s, agree_with local1 m -> m %* s -> agree_except local1 local2 s -> agree_with local2 m.
+    admit.
+  Qed.
+  Hint Resolve agree_with_agree_except_disjoint.
 
   (* seq *)
   split; intros; eapply FoldConst_Seq_elim in H; eauto; openhyp; subst; inversion H1; subst.
-  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
-  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
-  eapply IHs1 in H6; eauto; openhyp; descend; intuition; descend; eauto.
+  destruct v'; simpl in *; eapply IHs1 in H7; eauto; openhyp; eapply IHs2 in H10; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  Lemma subset_union_left : forall a b c, a %%<= b -> a %%<= c + b.
+    admit.
+  Qed.
+  Hint Resolve subset_union_left.
+  
+  destruct v'; simpl in *; eapply IHs1 in H7; eauto; openhyp; eapply IHs2 in H10; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  Lemma subset_union_right_both : forall a b c, a %%<= b -> a + c %%<= b + c.
+    admit.
+  Qed.
+  Hint Resolve subset_union_right_both.
+
+  eapply IHs1 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  eapply IHs1 in H9; eauto; openhyp; descend; intuition eauto.
+  descend; repeat split.
+(*here*)
+  econstructor 4.
+  2 : eauto.
 
   (* if *)
   split.
