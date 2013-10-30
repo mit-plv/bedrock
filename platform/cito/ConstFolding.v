@@ -336,7 +336,7 @@ Lemma submap_subtract_submap : forall a b a', a %<= a' -> a - b %<= a' - b.
 Qed.
 Hint Resolve submap_subtract_submap.
 
-Lemma map_bound :
+Lemma out_map_lower_bound :
   forall s map,
     let result := const_folding s map in
     let map' := snd (fst result) in
@@ -350,15 +350,11 @@ Proof.
   destruct (const_dec _); [ destruct s; destruct (Sumbool.sumbool_of_bool (wneb x $0)); erewrite e1 in * | ]; simpl in *; eauto using submap_trans.
   destruct (const_zero_dec _); simpl in *; eauto using submap_trans.
 Qed.
-Hint Resolve map_bound.
+Hint Resolve out_map_lower_bound.
 
 Variable disjoint : VarToW -> Vars -> Prop.
 
 Infix "%*" := disjoint (at level 60).
-
-Variable upds : VarToW -> VarToW -> VarToW.
-
-Variable compatible : VarToW -> VarToW -> Prop.
 
 Inductive FoldConst : Statement -> VarToW -> Statement -> VarToW -> Vars -> Prop :=
   | OptFull : 
@@ -380,18 +376,18 @@ Inductive FoldConst : Statement -> VarToW -> Statement -> VarToW -> Vars -> Prop
         FoldConst s2 map' t2 map'' written2 ->
         FoldConst (s1;;s2) map (t1;;t2) map'' (written1 + written2)
   | OptConsumeBefore :
-      forall s1 s2 t1 t2 written1 written2 map1 map1' map2 map2',
+      forall s1 s2 t1 t2 written1 written2 map1 map1' map2 map2' map_in,
         FoldConst s1 map1 t1 map1' written1 ->
         FoldConst s2 map2 t2 map2' written2 ->
-        compatible map1 map2 ->
+        map1 %<= map_in ->
+        map2 %<= map_in ->
         map2 %* written1 ->
-        FoldConst (s1;;s2) (upds map2 map1) (t1;;t2) map2' (written1 + written2)
+        FoldConst (s1;;s2) map_in (t1;;t2) map2' (written1 + written2)
   | OptConsumeAfter :
       forall s1 s2 t1 t2 written1 written2 map map' map'',
         FoldConst s1 map t1 map' written1 ->
         FoldConst s2 map' t2 map'' written2 ->
         FoldConst (s1;;s2) map (t1;;t2) (map' - written2) (written1 + written2).
-(*here*)
 
 Hint Constructors FoldConst.
 
@@ -405,41 +401,39 @@ Lemma FoldConst_Seq_elim :
     FoldConst s map_in t map_out written ->
     forall s1 s2,
       s = (s1 ;; s2) ->
-      exists t1 t2 map map_in' map_out' written1 written2,
+      exists t1 t2 written1 written2,
         t = (t1 ;; t2) /\
         written = written1 + written2 /\
-        map_in' %<= map_in /\
-        map_out %<= map_out' /\
-        ((exists map',
-            FoldConst s1 map_in' t1 map' written1 /\
-            FoldConst s2 map' t2 map_out' written2) \/
+        ((exists map,
+            FoldConst s1 map_in t1 map written1 /\
+            FoldConst s2 map t2 map_out written2) \/
          (exists map1 map1' map2,
             FoldConst s1 map1 t1 map1' written1 /\
-            FoldConst s2 map2 t2 map_out' written2 /\
-            map1 - written1 %<= map2 /\
-            map2 %* written1 /\
-            map_in' = upds map2 map1 /\
-            map %* written1) \/
+            FoldConst s2 map2 t2 map_out written2 /\
+            map1 %<= map_in /\
+            map2 %<= map_in /\
+            map2 %* written1) \/
          (exists map' map'',
-           FoldConst s1 map_in' t1 map' written1 /\
+           FoldConst s1 map_in t1 map' written1 /\
            FoldConst s2 map' t2 map'' written2 /\
-           map_out' = map' - written2)).
+           map_out %<= map' - written2)).
 Proof.
   induction 1; simpl; intuition; unfold_all; subst.
   simpl; descend; intuition; left; descend; intuition.
   edestruct IHFoldConst; eauto; openhyp; subst.
   descend; intuition eauto.
-  descend; repeat split; [ .. | right; left; descend; intuition eauto ]; eauto using submap_trans.
+  descend; repeat split.
+  right; left; descend.
+  repeat split.
+  5 : eauto.
+  eauto.
+  eauto.
+  eauto using submap_trans.
+  eauto using submap_trans.
   descend; repeat split; [ .. | right; right; descend; intuition eauto ]; eauto using submap_trans.
   injection H1; intros; subst; descend; intuition eauto.
-  injection H3; intros; subst; descend; intuition eauto; right; left; descend; intuition eauto.
+  injection H4; intros; subst; descend; intuition eauto; right; left; descend; intuition eauto.
   injection H1; intros; subst; descend; intuition eauto; right; right; descend; intuition eauto.
-  Grab Existential Variables.
-  exact (empty_map).
-  exact (empty_map).
-  exact (empty_map).
-  exact (empty_map).
-  exact (empty_map).
 Qed.
 
 Inductive NotSeq : Statement -> Prop :=
@@ -475,7 +469,7 @@ Proof.
   inversion H; subst; simpl; descend; eauto.
   openhyp; subst; descend; intuition eauto using submap_trans.
   inversion H1.
-  inversion H3.
+  inversion H4.
   inversion H1.
 Qed.
 
@@ -701,6 +695,10 @@ Lemma subset_union_right_both : forall a b c, a %%<= b -> a + c %%<= b + c.
 Qed.
 Hint Resolve subset_union_right_both.
 
+Variable upds : VarToW -> VarToW -> VarToW.
+
+Variable compatible : VarToW -> VarToW -> Prop.
+
 Lemma const_folding_rel_is_backward_simulation' :
   forall s t map map' written,
     FoldConst s map t map' written ->
@@ -733,44 +731,92 @@ Proof.
 
   (* seq *)
   split; intros; eapply FoldConst_Seq_elim in H; eauto; openhyp; subst; inversion H1; subst.
-  destruct v'; simpl in *; eapply IHs1 in H7; eauto; openhyp; eapply IHs2 in H10; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
-  Lemma upds_disjoint_enlarge1 : forall v1 v2 s, v2 - s %<= v1 -> v1 %* s -> v1 %<= upds v1 v2.
-    admit.
-  Qed.
-  Hint Resolve upds_disjoint_enlarge1.
-
-  Lemma upds_disjoint_enlarge2 : forall v1 v2 s, v2 - s %<= v1 -> v1 %* s -> v2 %<= upds v1 v2.
-    admit.
-  Qed.
-  Hint Resolve upds_disjoint_enlarge2.
-
-  destruct v'; simpl in *; eapply IHs1 in H9; eauto; openhyp; eapply IHs2 in H13; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
+  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
   Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
     admit.
   Qed.
   Hint Resolve agree_with_agree_except_subtract.
 
-  destruct v'; simpl in *; eapply IHs1 in H7; eauto; openhyp; eapply IHs2 in H10; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  destruct v'; simpl in *; eapply IHs1 in H6; eauto; openhyp; eapply IHs2 in H9; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
   Lemma out_map_upper_bound : forall s map_in t map_out written, FoldConst s map_in t map_out written -> map_out - written %<= map_in.
     admit.
   Qed.
   Hint Resolve out_map_upper_bound.
 
-  destruct v'; simpl in *; eapply IHs1 in H7; eauto; openhyp; eapply IHs2 in H10; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
-  eapply IHs1 in H8; eauto; openhyp; descend; intuition eauto; eexists; exists x4; descend; intuition eauto using submap_trans.  
-  destruct v'; simpl in *; eapply IHs1 in H9; eauto; openhyp; eapply IHs2 in H13; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  eapply IHs1 in H6; eauto; openhyp; descend; intuition eauto; eexists; exists map'; descend; intuition eauto using submap_trans.  
+  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
+  eapply IHs1 in H9; eauto; openhyp; descend; intuition eauto.
+  descend; repeat split.
+  econstructor 4.
+  eauto.
+  eauto.
+  Lemma compatible_upds_enlarge1 : forall v1 v2, compatible v1 v2 -> v1 %<= upds v1 v2.
+    admit.
+  Qed.
+  Hint Resolve compatible_upds_enlarge1.
+
+  Lemma compatible_upds_enlarge2 : forall v1 v2, compatible v1 v2 -> v2 %<= upds v1 v2.
+    admit.
+  Qed.
+  Hint Resolve compatible_upds_enlarge2.
+
+  Lemma disjoint_upds_compatible : forall v1 v2 s, compatible (v1 - s) v2 -> v2 %* s -> compatible v1 v2.
+    admit.
+  Qed.
+  Hint Resolve disjoint_upds_compatible.
+
+  Lemma both_submap_compatible : forall v1 v2 v3, v1 %<= v3 -> v2 %<= v3 -> compatible v1 v2.
+    admit.
+  Qed.
+  Hint Resolve both_submap_compatible.
+
+  eapply compatible_upds_enlarge1.
+  2 : eapply compatible_upds_enlarge2.
+
+  eauto using submap_trans.
+  eauto using submap_trans.
+  
+  Lemma subset_disjoint : forall m s s', m %* s -> s' %%<= s -> m %* s'.
+    admit.
+  Qed.
+  Hint Resolve subset_disjoint.
+
+  eauto.
+
+  Lemma compatible_agree_with_both : forall v m1 m2, agree_with v m1 -> agree_with v m2 -> compatible m1 m2 -> agree_with v (upds m1 m2).
+    admit.
+  Qed.
+  Hint Resolve compatible_agree_with_both.
+
+  eapply compatible_agree_with_both.
+  eauto.
+  2 : eauto using submap_trans.
+  eapply agree_with_agree_except_disjoint.
+  eauto using submap_trans.
+  eauto.
+  admit.
   eapply submap_trans.
   eapply subtract_union_submap.
   eapply submap_trans.
-  eapply subtract_reorder_submap.
-  eapply submap_trans.
   eapply subtract_submap.
+  Lemma upds_subtract_1 : forall m1 m2 s, upds m1 m2 - s %<= upds (m1 - s) m2.
+    admit.
+  Qed.
+
+  eapply submap_trans.
+  eapply upds_subtract_1.
+  Lemma both_submap_upds_submap : forall m1 m2 m, m1 %<= m -> m2 %<= m -> upds m1 m2 %<= m.
+    admit.
+  Qed.
+  Hint Resolve both_submap_upds_submap.
+
   eauto using submap_trans.
-  eapply IHs1 in H11; eauto; openhyp; descend; intuition eauto.
-  descend; repeat split.
-  econstructor 4.
-  2 : eauto.
-  2 : eauto.
+  eauto.
+  eauto.
+
+  destruct v'; simpl in *; eapply IHs1 in H6; eauto; openhyp; eapply IHs2 in H9; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
 
   (* if *)
   split.
