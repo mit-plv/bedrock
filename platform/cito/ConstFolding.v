@@ -971,6 +971,8 @@ Proof.
   eapply H1 in H2; openhyp.
   descend; intuition eauto.
   descend; intuition eauto.
+  Grab Existential Variables.
+  eauto.
 Qed.
 
 Hint Resolve const_folding_rel_is_backward_simulation.
@@ -979,6 +981,8 @@ Definition constant_folding s := fst (fst (const_folding s empty_map)).
 
 Lemma constant_folding_always_FoldConst : forall s map, exists map' written, FoldConst s map (constant_folding s) map' written.
   unfold constant_folding; intros; descend; intuition eauto.
+  Grab Existential Variables.
+  eauto.
 Qed.
 
 Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
