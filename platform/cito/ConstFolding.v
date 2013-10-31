@@ -499,7 +499,9 @@ Ltac filter_case :=
 Ltac openhyp' :=
   repeat match goal with
            | H : context [const_dec ?E] |- _ => destruct (const_dec E)
+           | |- context [const_dec ?E] => destruct (const_dec E)
            | H : context [const_zero_dec ?E] |- _ => destruct (const_zero_dec E)
+           | |- context [const_zero_dec ?E] => destruct (const_zero_dec E)
            | H : context [ { _ | _ } ] |- _ => destruct H
          end.
 
@@ -549,11 +551,6 @@ Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> ag
   admit.
 Qed.
 Hint Resolve agree_with_agree_except_subtract.
-
-Lemma out_map_upper_bound : forall s map_in t map_out written, FoldConst s map_in t map_out written -> map_out - written %<= map_in.
-  admit.
-Qed.
-Hint Resolve out_map_upper_bound.
 
 Variable subset : SET -> SET -> Prop.
 
@@ -655,6 +652,45 @@ Hint Resolve subtract_disjoint.
 Lemma subset_trans : forall a b c, a %%<= b -> b %%<= c -> a %%<= c.
   admit.
 Qed.
+
+Lemma add_remove_submap : forall m x w, (m %%+ (x, w)) %%- x %<= m.
+  admit.
+Qed.
+Hint Resolve add_remove_submap.
+
+Lemma remove_submap : forall m x, m %%- x %<= m.
+  admit.
+Qed.
+Hint Resolve remove_submap.
+
+Lemma out_map_upper_bound' : 
+  forall s map_in,
+    let result := const_folding s map_in in
+    let t := fst (fst result) in
+    let map_out := snd (fst result) in 
+    let written := snd result in
+    map_out - written %<= map_in.
+Proof.
+  induction s; simpl; intuition.
+
+  openhyp'; simpl in *; eauto using submap_trans.
+  simpl in *; eauto using submap_trans.
+  simpl in *; eauto using submap_trans.
+  openhyp'; [ destruct (Sumbool.sumbool_of_bool (wneb x $0)); erewrite e1 in * | ]; simpl in *; eauto using submap_trans.
+  openhyp'; simpl in *; eauto using submap_trans.
+  simpl in *; eauto using submap_trans.
+  simpl in *; eauto using submap_trans.
+Qed.
+Hint Resolve out_map_upper_bound'.
+
+Lemma out_map_upper_bound : 
+  forall s map_in t map_out written, 
+    FoldConst s map_in t map_out written -> 
+    map_out - written %<= map_in.
+Proof.
+  induction 1; intros; unfold_all; simpl in *; intuition; eauto using submap_trans.
+Qed.
+Hint Resolve out_map_upper_bound.
 
 Lemma while_case:
   forall t v v',
