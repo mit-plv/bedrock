@@ -852,6 +852,33 @@ Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer 
   eapply const_folding_is_backward_simulation in H; openhyp; eauto.
 Qed.
 
+Import Semantics.Safety.
+
+Lemma const_folding_is_safety_preservation : 
+  forall fs s vs heap m, 
+    let result := const_folding s m in
+    let s' := fst (fst result) in
+    Safe fs s (vs, heap) ->
+    agree_with vs m ->
+    Safe fs s' (vs, heap).
+Proof.
+  induction s; simpl; intros.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  inversion H; unfold_all; subst; rewrite_expr.
+(*here*)
+  econstructor.
+
+  ; eauto.
+
+  inversion H; unfold_all; subst; rewrite_expr; eauto.
+
+  intros; unfold_all.
+  eapply (Safe_coind (fun s' v => exists s m, s' = fst (fst (const_folding s m)) /\ Safe fs s v /\ agree_with (fst v) m)); intros; openhyp.
+  
+  inversion H2; unfold_all; subst.
+
 Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
   admit.
 Qed.
