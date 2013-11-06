@@ -14,23 +14,15 @@ Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : Cfuncs_scope.
 Delimit Scope Cfuncs_scope with Cfuncs.
 
-Notation optimizer := ConstFolding.constant_folding.
+Definition optimizer := ConstFolding.constant_folding.
 
-Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
-  admit.
-Qed.
+Definition optimizer_footprint := ConstFolding.optimizer_footprint.
 
-Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
-  admit.
-Qed.
+Definition optimizer_depth := ConstFolding.optimizer_depth.
 
-Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
-  admit.
-Qed.
+Definition optimizer_is_backward_simulation := ConstFolding.optimizer_is_backward_simulation.
 
-Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
-  admit.
-Qed.
+Definition optimizer_is_safety_preservation := ConstFolding.optimizer_is_safety_preservation.
 
 Notation "'cmodule' name fs" := (Compiler.compile optimizer name fs%Cfuncs)
   (no associativity, at level 95, name at level 0, only parsing).
