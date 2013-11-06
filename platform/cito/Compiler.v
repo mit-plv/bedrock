@@ -362,14 +362,22 @@ Section Compiler.
 
     specialize (WellScoped _ H); simpl.
     unfold incl; intros.
-    (*here*)
+    Lemma optimize_footprint : forall s a, In a (SemanticsLemmas.footprint (optimize s)) -> In a (SemanticsLemmas.footprint s).
+      admit.
+    Qed.
+    eapply optimize_footprint in H1.
     apply H0 in H1; simpl in *; intuition.
     unfold funcVars; eauto.
 
     rewrite Max.max_0_r.
+    Lemma optimize_depth : forall s, depth (optimize s) <= depth s.
+      admit.
+    Qed.
+    Hint Resolve optimize_depth.
     apply incl_appr; auto.
 
     hnf; intuition.
+    eapply optimize_footprint in H0.
     apply WellScoped in H0; auto.
     simpl in *; intuition; subst.
     apply In_tempChunk in H1; tauto.
