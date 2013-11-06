@@ -2,7 +2,6 @@ Require Import AutoSep.
 
 Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
-Require Import Optimizer.
 Require Import GeneralTactics.
 
 Record func := {

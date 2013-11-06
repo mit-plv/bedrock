@@ -997,3 +997,20 @@ Theorem constant_folding_is_backward_similar_callee :
   forall s, is_backward_similar_callee (Internal s) (Internal (constant_folding s)).
   intros; econstructor; eauto; eapply constant_folding_is_congruence.
 Qed.
+
+Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
+  admit.
+Qed.
+
+Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
+  admit.
+Qed.
+
+Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
+  admit.
+Qed.
+
+Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+  admit.
+Qed.
+
