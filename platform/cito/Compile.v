@@ -3,7 +3,7 @@ Export WritingPrograms CompileStatement Compiler.
 Require Import Malloc MyMalloc MyFree Bootstrap.
 Export Malloc.
 Require Export AutoSep Semantics.
-
+Require ConstFolding.
 
 Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
   {| Name := name;
@@ -14,13 +14,31 @@ Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : Cfuncs_scope.
 Delimit Scope Cfuncs_scope with Cfuncs.
 
-Notation "'cmodule' name fs" := (Compiler.compile name fs%Cfuncs)
+Notation optimizer := ConstFolding.constant_folding.
+
+Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
+  admit.
+Qed.
+
+Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
+  admit.
+Qed.
+
+Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
+  admit.
+Qed.
+
+Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+  admit.
+Qed.
+
+Notation "'cmodule' name fs" := (Compiler.compile optimizer name fs%Cfuncs)
   (no associativity, at level 95, name at level 0, only parsing).
 
 Ltac Forall := repeat (apply Forall_cons || apply Forall_nil).
 
 Ltac compile :=
-  apply compileOk; [ Forall | NoDup ]; constructor; auto;
+  apply (compileOk optimizer optimizer_footprint optimizer_depth optimizer_is_backward_simulation optimizer_is_safety_preservation); [ Forall | NoDup ]; constructor; auto;
     (NoDup || (Forall; hnf; tauto)
       || (eapply Wf.prove_NoUninitializedSafe; try eassumption; [ simpl; tauto ])
         || (eapply Wf.prove_NoUninitializedRunsTo; try eassumption; [ simpl; tauto ])
