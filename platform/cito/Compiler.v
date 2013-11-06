@@ -3,6 +3,7 @@ Require Import AutoSep.
 Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
 Require Import Optimizer.
+Require Import GeneralTactics.
 
 Record func := {
   Name : string;
@@ -26,9 +27,32 @@ Section Compiler.
   Variable moduleName : string.
   Definition modName := ("Cito_" ++ moduleName)%string.
 
-  Variable optimizers : list (Statement -> Statement).
+  Variable optimizer : Statement -> Statement.
 
-  Definition optimize := fold_left (fun s opt => opt s) optimizers.
+  Hypothesis optimizer_footprint : forall s a, In a (SemanticsLemmas.footprint (optimizer s)) -> In a (SemanticsLemmas.footprint s).
+
+  Hypothesis optimizer_depth : forall s, depth (optimizer s) <= depth s.
+  Hint Resolve optimizer_depth.
+
+  Hypothesis optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
+
+  Hypothesis optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+
+  (* Lemma optimizer_preserves_safety : forall s v, preserves_safety v s v (optimizer s). *)
+  (*   admit. *)
+  (* Qed. *)
+
+  (* Lemma same_fs_preserves_safety : forall fs, fs_preserves_safety fs fs. *)
+  (*   admit. *)
+  (* Qed. *)
+
+  (* Lemma same_fs_is_backward_similar_fs : forall fs, is_backward_similar_fs fs fs. *)
+  (*   admit. *)
+  (* Qed. *)
+
+  (* Lemma optimizer_is_backward_simulation : is_backward_simulation (fun vs s vt t => vs = vt /\ t = optimizer s). *)
+  (*   admit. *)
+  (* Qed. *)
 
   Definition funcBody f : forall imports, importsGlobal imports -> cmd imports modName := fun imports H =>
     Seq_ H
@@ -45,7 +69,7 @@ Section Compiler.
           (Straightline_ _ _
             (Binop (LvMem (Indir Sp 4)) Rv Minus (length (funcVars f))
               :: nil))
-          (statementCmd (funcVars f) H _ (optimize (Body f)) Syntax.Skip))
+          (statementCmd (funcVars f) H _ (optimizer (Body f)) Syntax.Skip))
         (Seq_ H
           (Straightline_ _ _
             (Assign Rp (LvMem (Indir Sp 0))
@@ -303,22 +327,7 @@ Section Compiler.
     nomega.
     fold (@length string); descend.
     constructor; [ | intros; constructor ].
-    eapply correct_Safe.
-    Focus 2.
-    Lemma optimizer_preserves_safety : forall s v, preserves_safety v s v (optimize s).
-      admit.
-    Qed.
-    eapply optimizer_preserves_safety.
-    Focus 2.
-    Lemma same_fs_preserves_safety : forall fs, fs_preserves_safety fs fs.
-      admit.
-    Qed.
-    eapply same_fs_preserves_safety.
-    Focus 2.
-    Lemma same_fs_is_backward_similar_fs : forall fs, is_backward_similar_fs fs fs.
-      admit.
-    Qed.
-    eapply same_fs_is_backward_similar_fs.
+    eapply optimizer_is_safety_preservation.
     eapply NoUninitializedSafe; eauto.
     step auto_ext.
     step auto_ext.
@@ -342,42 +351,22 @@ Section Compiler.
     inversion H17; clear H17; subst.
     inversion H24; clear H24; subst.
     destruct x11; simpl in *; subst.
-    specialize (correct_RunsTo H21); intros.
-    edestruct H7.
-    eauto.
-    eauto.
-    Lemma optimize_is_backward_simulation : is_backward_simulation (fun vs s vt t => vs = vt /\ t = optimize s).
-      admit.
-    Qed.
-    eapply optimize_is_backward_simulation.
-    simpl.
-    eauto.
-    eapply same_fs_is_backward_similar_fs.
-    simpl in *.
-    Require Import GeneralTactics.
-    openhyp; subst.
+    eapply optimizer_is_backward_simulation in H21.
     eauto using NoUninitializedRunsTo.
 
     hnf; simpl; intuition (try rewrite app_nil_r).
 
     specialize (WellScoped _ H); simpl.
     unfold incl; intros.
-    Lemma optimize_footprint : forall s a, In a (SemanticsLemmas.footprint (optimize s)) -> In a (SemanticsLemmas.footprint s).
-      admit.
-    Qed.
-    eapply optimize_footprint in H1.
+    eapply optimizer_footprint in H1.
     apply H0 in H1; simpl in *; intuition.
     unfold funcVars; eauto.
 
     rewrite Max.max_0_r.
-    Lemma optimize_depth : forall s, depth (optimize s) <= depth s.
-      admit.
-    Qed.
-    Hint Resolve optimize_depth.
     apply incl_appr; auto.
 
     hnf; intuition.
-    eapply optimize_footprint in H0.
+    eapply optimizer_footprint in H0.
     apply WellScoped in H0; auto.
     simpl in *; intuition; subst.
     apply In_tempChunk in H1; tauto.
