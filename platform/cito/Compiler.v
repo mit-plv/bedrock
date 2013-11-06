@@ -24,9 +24,6 @@ Definition funcSpec f : assert := st ~> Ex fs, funcsOk (fst st) fs
 Definition funcVars f := Vars f ++ tempChunk 0 (depth (Body f)).
 
 Section Compiler.
-  Variable moduleName : string.
-  Definition modName := ("Cito_" ++ moduleName)%string.
-
   Variable optimizer : Statement -> Statement.
 
   Hypothesis optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
@@ -37,6 +34,9 @@ Section Compiler.
   Hypothesis optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
 
   Hypothesis optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+
+  Variable moduleName : string.
+  Definition modName := ("Cito_" ++ moduleName)%string.
 
   Definition funcBody f : forall imports, importsGlobal imports -> cmd imports modName := fun imports H =>
     Seq_ H
