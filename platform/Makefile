@@ -5,6 +5,7 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            AutoSep Misc \
            Sys Safety \
            Malloc \
+           Depl \
            Bags Sets Queue ThreadQueue ThreadQueues SinglyLinkedList ListSegment Scheduler Thread \
            Bootstrap Arrays8 MoreArrays \
            tests/Thread0 \
