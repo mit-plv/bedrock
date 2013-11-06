@@ -29,7 +29,7 @@ Section Compiler.
 
   Variable optimizer : Statement -> Statement.
 
-  Hypothesis optimizer_footprint : forall s a, In a (SemanticsLemmas.footprint (optimizer s)) -> In a (SemanticsLemmas.footprint s).
+  Hypothesis optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
 
   Hypothesis optimizer_depth : forall s, depth (optimizer s) <= depth s.
   Hint Resolve optimizer_depth.
@@ -37,22 +37,6 @@ Section Compiler.
   Hypothesis optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
 
   Hypothesis optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
-
-  (* Lemma optimizer_preserves_safety : forall s v, preserves_safety v s v (optimizer s). *)
-  (*   admit. *)
-  (* Qed. *)
-
-  (* Lemma same_fs_preserves_safety : forall fs, fs_preserves_safety fs fs. *)
-  (*   admit. *)
-  (* Qed. *)
-
-  (* Lemma same_fs_is_backward_similar_fs : forall fs, is_backward_similar_fs fs fs. *)
-  (*   admit. *)
-  (* Qed. *)
-
-  (* Lemma optimizer_is_backward_simulation : is_backward_simulation (fun vs s vt t => vs = vt /\ t = optimizer s). *)
-  (*   admit. *)
-  (* Qed. *)
 
   Definition funcBody f : forall imports, importsGlobal imports -> cmd imports modName := fun imports H =>
     Seq_ H
