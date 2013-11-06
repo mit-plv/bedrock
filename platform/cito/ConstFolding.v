@@ -8,6 +8,10 @@ Require Import SemanticsExpr.
 
 Set Implicit Arguments.
 
+Definition option_dec : forall A (x : option A), {a | x = Some a} + {x = None}.
+  destruct x; intuition eauto.
+Qed.
+
 Variable PartialMap : Set.
 
 Variable sel : PartialMap -> string -> option W.
@@ -515,15 +519,15 @@ Lemma empty_map_submap : forall m, empty_map %<= m.
 Qed.
 Hint Resolve empty_map_submap.
 
-Lemma not_const_zero_empty_map : forall e m, const_folding_expr e m <> Const $0 -> const_folding_expr e empty_map <> Const $0.
-  admit.
-Qed.
-Hint Resolve not_const_zero_empty_map.
-
 Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 -> m' %<= m -> const_folding_expr e m' <> Const $0.
   admit.
 Qed.
 Hint Resolve not_const_zero_submap.
+
+Lemma not_const_zero_empty_map : forall e m, const_folding_expr e m <> Const $0 -> const_folding_expr e empty_map <> Const $0.
+  eauto.
+Qed.
+Hint Resolve not_const_zero_empty_map.
 
 Variable agree_except : vals -> vals -> SET -> Prop.
 

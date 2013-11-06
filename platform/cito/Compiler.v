@@ -2,7 +2,7 @@ Require Import AutoSep.
 
 Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
-
+Require Import Optimizer.
 
 Record func := {
   Name : string;
@@ -26,6 +26,10 @@ Section Compiler.
   Variable moduleName : string.
   Definition modName := ("Cito_" ++ moduleName)%string.
 
+  Variable optimizers : list (Statement -> Statement).
+
+  Definition optimize := fold_left (fun s opt => opt s) optimizers.
+
   Definition funcBody f : forall imports, importsGlobal imports -> cmd imports modName := fun imports H =>
     Seq_ H
     (Straightline_ _ _
@@ -41,13 +45,13 @@ Section Compiler.
           (Straightline_ _ _
             (Binop (LvMem (Indir Sp 4)) Rv Minus (length (funcVars f))
               :: nil))
-          (statementCmd (funcVars f) H _ (Body f) Syntax.Skip))
+          (statementCmd (funcVars f) H _ (optimize (Body f)) Syntax.Skip))
         (Seq_ H
           (Straightline_ _ _
             (Assign Rp (LvMem (Indir Sp 0))
               :: nil))
           (IGoto _ _ Rp)))).
-  
+
   Definition compileFunc (f : func) : StructuredModule.function modName :=
     (Name f, funcSpec f, funcBody f).
 
@@ -299,6 +303,22 @@ Section Compiler.
     nomega.
     fold (@length string); descend.
     constructor; [ | intros; constructor ].
+    eapply correct_Safe.
+    Focus 2.
+    Lemma optimizer_preserves_safety : forall s v, preserves_safety v s v (optimize s).
+      admit.
+    Qed.
+    eapply optimizer_preserves_safety.
+    Focus 2.
+    Lemma same_fs_preserves_safety : forall fs, fs_preserves_safety fs fs.
+      admit.
+    Qed.
+    eapply same_fs_preserves_safety.
+    Focus 2.
+    Lemma same_fs_is_backward_similar_fs : forall fs, is_backward_similar_fs fs fs.
+      admit.
+    Qed.
+    eapply same_fs_is_backward_similar_fs.
     eapply NoUninitializedSafe; eauto.
     step auto_ext.
     step auto_ext.
@@ -322,12 +342,27 @@ Section Compiler.
     inversion H17; clear H17; subst.
     inversion H24; clear H24; subst.
     destruct x11; simpl in *; subst.
+    specialize (correct_RunsTo H21); intros.
+    edestruct H7.
+    eauto.
+    eauto.
+    Lemma optimize_is_backward_simulation : is_backward_simulation (fun vs s vt t => vs = vt /\ t = optimize s).
+      admit.
+    Qed.
+    eapply optimize_is_backward_simulation.
+    simpl.
+    eauto.
+    eapply same_fs_is_backward_similar_fs.
+    simpl in *.
+    Require Import GeneralTactics.
+    openhyp; subst.
     eauto using NoUninitializedRunsTo.
 
     hnf; simpl; intuition (try rewrite app_nil_r).
 
     specialize (WellScoped _ H); simpl.
     unfold incl; intros.
+    (*here*)
     apply H0 in H1; simpl in *; intuition.
     unfold funcVars; eauto.
 
