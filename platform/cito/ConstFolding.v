@@ -12,6 +12,18 @@ Open Scope mapset_scope.
 
 Section HintsSection.
 
+  Hint Resolve empty_map_empty.
+  Hint Resolve subset_correct.
+  Hint Resolve submap_correct.
+  Hint Resolve subtract_none.
+  Hint Resolve singleton_mem.
+  Hint Resolve subset_union_2.
+  Hint Resolve subset_union_1.
+  Hint Resolve subset_refl.
+  Hint Resolve union_same_subset.
+  Hint Resolve empty_map_submap.
+  Hint Resolve subtract_submap.
+
   Definition agree_with (v : vals) (m : PartialMap) :=
     forall x w,
       sel m x = Some w ->
@@ -32,11 +44,6 @@ Section HintsSection.
   Qed.
   Hint Resolve agree_with_add.
 
-  Lemma empty_map_empty : forall x, sel [] x = None.
-    admit.
-  Qed.
-  Hint Resolve empty_map_empty.
-
   Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
     unfold agree_with.
     intros.
@@ -48,11 +55,6 @@ Section HintsSection.
   Definition agree_except (a b : vals) (s : SET) := 
     forall x,
       Locals.sel a x <> Locals.sel b x -> x %in s.
-
-  Lemma singleton_mem : forall x, x %in singleton_set x.
-    admit.
-  Qed.
-  Hint Resolve singleton_mem.
 
   Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
     unfold agree_except.
@@ -70,11 +72,6 @@ Section HintsSection.
     intuition.
   Qed.
   Hint Resolve agree_except_same.
-
-  Lemma subset_correct : forall a b, a %<= b -> forall x, x %in a -> x %in b.
-    admit.
-  Qed.
-  Hint Resolve subset_correct.
 
   Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %<= s' -> agree_except v1 v2 s'.
     unfold agree_except; eauto.
@@ -98,9 +95,11 @@ Section HintsSection.
     destruct (weq (Locals.sel v1 x) (Locals.sel v2 x)).
     rewrite <- e.
     eapply H.
-    
     eauto.
-
+    eapply H0 in n.
+    eapply subtract_none with (m := m) in n.
+    erewrite H1 in n.
+    intuition.
   Qed.
   Hint Resolve agree_with_agree_except_subtract.
 
