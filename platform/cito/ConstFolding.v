@@ -7,45 +7,9 @@ Require Import SemanticsExpr.
 
 Set Implicit Arguments.
 
-Definition option_dec : forall A (x : option A), {a | x = Some a} + {x = None}.
-  destruct x; intuition eauto.
-Qed.
-
-Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
-  intros; destruct e; solve [ right; intuition; openhyp; intuition | left; eauto ].
-Qed.
-
-Definition const_zero_dec : forall e, {e = Const $0} + {e <> Const $0}.
-  intros; destruct e; solve [right; intuition | destruct (weq w $0); intuition ].
-Qed.
-
 Variable PartialMap : Set.
 
 Variable sel : PartialMap -> string -> option W.
-
-Fixpoint const_folding_expr (e : Expr) (env : PartialMap) : Expr :=
-  match e with
-    | Var var =>
-      match option_dec (sel env var) with
-        | inleft (exist w _) => Const w
-        | _ => e
-      end
-    | Const w => e
-    | Binop op a b =>
-      let a' := const_folding_expr a env in
-      let b' := const_folding_expr b env in
-      match const_dec a', const_dec b' with
-        | inleft (exist wa _),  inleft (exist wb _) => Const (evalBinop op wa wb)
-        | _, _ => Binop op a' b'
-      end
-    | TestE op a b =>
-      let a' := const_folding_expr a env in
-      let b' := const_folding_expr b env in
-      match const_dec a', const_dec b' with
-        | inleft (exist wa _),  inleft (exist wb _) => Const (if evalTest op wa wb then $1 else $0)
-        | _, _ => TestE op a' b'
-      end
-  end.
 
 Variable SET : Set.
 
@@ -89,6 +53,132 @@ Notation delete := Syntax.Free.
 Variable empty_map : PartialMap.
 
 Notation "[]" := empty_map.
+
+Definition agree_with (v : vals) (m : PartialMap) :=
+  forall x w,
+    sel m x = Some w ->
+    Locals.sel v x = w.
+
+Definition submap (a b : PartialMap) := forall x w, sel a x = Some w -> sel b x = Some w.
+
+Infix "%<=" := submap (at level 60).
+
+Lemma empty_map_submap : forall m, empty_map %<= m.
+  admit.
+Qed.
+Hint Resolve empty_map_submap.
+
+Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
+  unfold agree_with; intros; destruct (string_dec x x0).
+  subst; rewrite sel_remove_eq in *; discriminate.
+  rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
+Qed.
+Hint Resolve agree_with_remove.
+
+Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
+  unfold agree_with; intros; destruct (string_dec x x0).
+  subst.
+  rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
+  rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
+Qed.
+Hint Resolve agree_with_add.
+
+Lemma subtract_submap : forall a b, a - b %<= a.
+  admit.
+Qed.
+Hint Resolve subtract_submap.
+
+Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
+  admit.
+Qed.
+Hint Resolve everything_agree_with_empty_map.
+
+Variable agree_except : vals -> vals -> SET -> Prop.
+
+Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+  admit.
+Qed.
+Hint Resolve agree_except_upd.
+
+Lemma agree_except_same : forall local s, agree_except local local s.
+  admit.
+Qed.
+Hint Resolve agree_except_same.
+
+Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
+  admit.
+Qed.
+Hint Resolve agree_except_trans.
+
+Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
+  admit.
+Qed.
+Hint Resolve agree_with_agree_except_subtract.
+
+Variable subset : SET -> SET -> Prop.
+
+Infix "%%<=" := subset (at level 60).
+
+Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
+  admit.
+Qed.
+Hint Resolve agree_except_incl.
+
+Lemma subset_union_2 : forall a b, a %%<= a + b.
+  admit.
+Qed.
+Hint Resolve subset_union_2.
+
+Lemma subset_union_1 : forall a b, a %%<= b + a.
+  admit.
+Qed.
+Hint Resolve subset_union_1.
+
+Lemma subset_refl : forall s, s %%<= s.
+  admit.
+Qed.
+Hint Resolve subset_refl.
+
+Lemma union_same_subset : forall s, s + s %%<= s.
+  admit.
+Qed.
+Hint Resolve union_same_subset.
+
+Definition option_dec : forall A (x : option A), {a | x = Some a} + {x = None}.
+  destruct x; intuition eauto.
+Qed.
+
+Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
+  intros; destruct e; solve [ right; intuition; openhyp; intuition | left; eauto ].
+Qed.
+
+Definition const_zero_dec : forall e, {e = Const $0} + {e <> Const $0}.
+  intros; destruct e; solve [right; intuition | destruct (weq w $0); intuition ].
+Qed.
+
+Fixpoint const_folding_expr (e : Expr) (env : PartialMap) : Expr :=
+  match e with
+    | Var var =>
+      match option_dec (sel env var) with
+        | inleft (exist w _) => Const w
+        | _ => e
+      end
+    | Const w => e
+    | Binop op a b =>
+      let a' := const_folding_expr a env in
+      let b' := const_folding_expr b env in
+      match const_dec a', const_dec b' with
+        | inleft (exist wa _),  inleft (exist wb _) => Const (evalBinop op wa wb)
+        | _, _ => Binop op a' b'
+      end
+    | TestE op a b =>
+      let a' := const_folding_expr a env in
+      let b' := const_folding_expr b env in
+      match const_dec a', const_dec b' with
+        | inleft (exist wa _),  inleft (exist wb _) => Const (if evalTest op wa wb then $1 else $0)
+        | _, _ => TestE op a' b'
+      end
+  end.
 
 Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialMap * SET :=
   match s with
@@ -167,11 +257,6 @@ Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialM
       (Syntax.Call f' x', map, {})
   end.
 
-Definition agree_with (v : vals) (m : PartialMap) :=
-  forall x w,
-    sel m x = Some w ->
-    Locals.sel v x = w.
-
 Ltac f_equal' :=
   match goal with
     | |- (if ?E1 then _ else _) = (if ?E2 then _ else _) => replace E2 with E1; try reflexivity
@@ -227,10 +312,6 @@ Proof.
   intros; subst; eapply const_folding_expr_correct; eauto.
 Qed.
 
-Definition submap (a b : PartialMap) := forall x w, sel a x = Some w -> sel b x = Some w.
-
-Infix "%<=" := submap (at level 60).
-
 Ltac descend :=
   repeat match goal with
            | [ |- exists x, _ ] => eexists
@@ -283,30 +364,10 @@ Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 
 Qed.
 Hint Resolve not_const_zero_submap.
 
-Lemma empty_map_submap : forall m, empty_map %<= m.
-  admit.
-Qed.
-Hint Resolve empty_map_submap.
-
 Lemma not_const_zero_empty_map : forall e m, const_folding_expr e m <> Const $0 -> const_folding_expr e empty_map <> Const $0.
   eauto.
 Qed.
 Hint Resolve not_const_zero_empty_map.
-
-Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
-  unfold agree_with; intros; destruct (string_dec x x0).
-  subst; rewrite sel_remove_eq in *; discriminate.
-  rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
-Qed.
-Hint Resolve agree_with_remove.
-
-Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
-  unfold agree_with; intros; destruct (string_dec x x0).
-  subst.
-  rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
-  rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
-Qed.
-Hint Resolve agree_with_add.
 
 Ltac unfold_all :=
   repeat match goal with
@@ -316,140 +377,6 @@ Ltac unfold_all :=
 Lemma break_pair : forall A B (p : A * B), p = (fst p, snd p).
   intros; destruct p; eauto.
 Qed.
-
-Lemma agree_with_submap : forall local map map', agree_with local map -> map' %<= map -> agree_with local map'.
-  admit.
-Qed.
-Hint Resolve agree_with_submap.
-
-Lemma submap_trans : forall a b c, a %<= b -> b %<= c -> a %<= c.
-  admit.
-Qed.
-
-Lemma subtract_submap : forall a b, a - b %<= a.
-  admit.
-Qed.
-Hint Resolve subtract_submap.
-
-Lemma submap_add : forall m x w, m %<= (m %%+ (x, w)).
-  admit.
-Qed.
-Hint Resolve submap_add.
-
-Lemma submap_refl : forall map, map %<= map.
-  admit.
-Qed.
-Hint Resolve submap_refl.
-
-Lemma subtract_reorder_submap : forall a b c, a - b - c %<= a - c - b.
-  admit.
-Qed.
-Hint Resolve subtract_reorder_submap.
-
-Lemma subtract_remove_submap : forall m s, m - singleton_set s %<= (m %%- s).
-  admit.
-Qed.
-Hint Resolve subtract_remove_submap.
-
-Lemma subtract_union_submap : forall a b c, a - (b + c) %<= a - b - c.
-  admit.
-Qed.
-Hint Resolve subtract_union_submap.
-
-Lemma submap_subtract_submap : forall a b a', a %<= a' -> a - b %<= a' - b.
-  admit.
-Qed.
-Hint Resolve submap_subtract_submap.
-
-Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
-  admit.
-Qed.
-Hint Resolve everything_agree_with_empty_map.
-
-Variable agree_except : vals -> vals -> SET -> Prop.
-
-Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
-  admit.
-Qed.
-Hint Resolve agree_except_upd.
-
-Lemma agree_except_same : forall local s, agree_except local local s.
-  admit.
-Qed.
-Hint Resolve agree_except_same.
-
-Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
-  admit.
-Qed.
-Hint Resolve agree_except_trans.
-
-Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
-  admit.
-Qed.
-Hint Resolve agree_with_agree_except_subtract.
-
-Variable subset : SET -> SET -> Prop.
-
-Infix "%%<=" := subset (at level 60).
-
-Lemma subset_union_left : forall a b c, a %%<= b -> a %%<= c + b.
-  admit.
-Qed.
-Hint Resolve subset_union_left.
-
-Lemma subset_union_right_both : forall a b c, a %%<= b -> a + c %%<= b + c.
-  admit.
-Qed.
-Hint Resolve subset_union_right_both.
-
-Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
-  admit.
-Qed.
-Hint Resolve agree_except_incl.
-
-Lemma subset_union_2 : forall a b, a %%<= a + b.
-  admit.
-Qed.
-Hint Resolve subset_union_2.
-
-Lemma subset_union_1 : forall a b, a %%<= b + a.
-  admit.
-Qed.
-Hint Resolve subset_union_1.
-
-Lemma subset_union_right : forall a b c, a %%<= b -> a %%<= b + c.
-  admit.
-Qed.
-Hint Resolve subset_union_right.
-
-Lemma subset_refl : forall s, s %%<= s.
-  admit.
-Qed.
-Hint Resolve subset_refl.
-
-Lemma submap_subtract_twice : forall a b, a - b %<= a - b - b.
-  admit.
-Qed.
-Hint Resolve submap_subtract_twice.
-
-Lemma union_same_subset : forall s, s + s %%<= s.
-  admit.
-Qed.
-Hint Resolve union_same_subset.
-
-Lemma subset_trans : forall a b c, a %%<= b -> b %%<= c -> a %%<= c.
-  admit.
-Qed.
-
-Lemma add_remove_submap : forall m x w, (m %%+ (x, w)) %%- x %<= m.
-  admit.
-Qed.
-Hint Resolve add_remove_submap.
-
-Lemma remove_submap : forall m x, m %%- x %<= m.
-  admit.
-Qed.
-Hint Resolve remove_submap.
 
 Ltac rewrite_expr := repeat erewrite const_folding_expr_correct in * by eauto.
 
@@ -575,7 +502,7 @@ Proof.
   destruct v'; simpl in *.
   eapply IHs1 in H3; eauto; openhyp.
   eapply IHs2 in H6; eauto; openhyp.
-  eauto using submap_trans.
+  eauto.
 
   inversion H; unfold_all; subst; rewrite_expr; eauto.
 
@@ -869,4 +796,18 @@ Qed.
 
 Lemma optimizer_depth : forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s.
   unfold optimizer, constant_folding; intros; eapply const_folding_depth.
+Qed.
+
+Definition is_good_optimizer optimizer :=
+  (forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v') /\ 
+  (forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v) /\
+  (forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s)) /\
+  (forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s).
+
+Lemma constant_folding_is_good_optimizer : is_good_optimizer optimizer.
+  repeat split.
+  eapply optimizer_is_backward_simulation.
+  eapply optimizer_is_safety_preservation.
+  eapply optimizer_footprint.
+  eapply optimizer_depth.
 Qed.
