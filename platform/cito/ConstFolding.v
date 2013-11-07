@@ -854,6 +854,11 @@ Qed.
 
 Import Semantics.Safety.
 
+(* forall (vs : vals) (heap : arrays) (m : PartialMap), *)
+(*         let result := const_folding s m in *)
+(*         let s' := fst (fst result) in *)
+(*         Safe fs s (vs, heap) -> agree_with vs m -> Safe fs s' (vs, heap) *)
+
 Lemma const_folding_is_safety_preservation : 
   forall fs s vs heap m, 
     let result := const_folding s m in
@@ -862,332 +867,241 @@ Lemma const_folding_is_safety_preservation :
     agree_with vs m ->
     Safe fs s' (vs, heap).
 Proof.
-  induction s; simpl; intros.
+  induction s.
+
+  Focus 7.
+  intros.
+  unfold_all.
+  eapply 
+    (Safe_coind 
+       (fun s' v =>
+          (exists c b m,
+             let s := While (c) {{b}} in
+             Safe fs s v /\
+             agree_with (fst v) m /\
+             (let s := b in
+              forall (vs : vals) (heap : arrays) (m : PartialMap),
+                Safe fs s (vs, heap) ->
+                agree_with vs m -> Safe fs (fst (fst (const_folding s m))) (vs, heap)
+             ) /\
+             s' = fst (fst (const_folding s m))) \/
+          Safe fs s' v
+    )); [ .. | left; descend; intuition eauto ]; clear; simpl; intros; openhyp.
 
   simpl in *; openhyp'; simpl in *; intuition.
 
-  inversion H; unfold_all; subst; rewrite_expr.
-(*here*)
+  eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  intuition eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  inversion H; subst.
+  intuition eauto.
+  right; intuition eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+  injection H2; intros; subst.
+  rewrite_expr.
+  inversion H; unfold_all; subst.
+  destruct v; simpl in *.
+  left.
+  repeat split.
+  eauto.
+  right.
+  eauto.
+
+  intros.
+  left.
+  destruct v'; simpl in *.
+  eapply const_folding_is_backward_simulation in H3; eauto; openhyp.
+  descend; intuition.
+  simpl in *; openhyp'; [ contradict e; eauto | ]; simpl in *.
+  eauto.
+
+  right.
+  eauto.
+
+  inversion H; unfold_all; subst.
+  intuition eauto.
+  right.
+  intuition eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  eauto.
+
+  simpl in *; openhyp'; simpl in *; intuition.
+
+  inversion H; unfold_all; subst.
+  intuition eauto.
+  intuition eauto.
+
+  simpl; intros; simpl in *; openhyp'; simpl in *; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst.
   econstructor.
+  eauto.
+  intros.
+  destruct v'; simpl in *.
+  eapply const_folding_is_backward_simulation in H1.
+  openhyp.
+  eauto.
+  eauto.
 
-  ; eauto.
+  eauto.
 
-  inversion H; unfold_all; subst; rewrite_expr; eauto.
+  simpl; intros; openhyp'.
 
-  intros; unfold_all.
-  eapply (Safe_coind (fun s' v => exists s m, s' = fst (fst (const_folding s m)) /\ Safe fs s v /\ agree_with (fst v) m)); intros; openhyp.
-  
-  inversion H2; unfold_all; subst.
+  destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
+  inversion H; subst.
+  eauto.
+  erewrite <- const_folding_expr_correct' in H5.
+  2 : symmetry; eauto.
+  simpl in *.
+  intuition.
+  eauto.
+  inversion H; subst.
+  erewrite <- const_folding_expr_correct' in H5.
+  2 : symmetry; eauto.
+  simpl in *.
+  intuition.
+  eauto.
+  eauto.
+
+  simpl in *.
+  inversion H; subst.
+  econstructor.
+  rewrite_expr.
+  eauto.
+  eauto.
+  econstructor 5.
+  rewrite_expr.
+  eauto.
+  eauto.
+
+  simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+
+  simpl; intros; inversion H; unfold_all; subst.
+
+  econstructor; rewrite_expr; eauto.
+
+  econstructor 14; rewrite_expr; eauto.
+
+  Grab Existential Variables.
+  exact "".
+  eauto.
+Qed.
 
 Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
-  admit.
+  intros.
+  unfold optimizer, constant_folding in *.
+  destruct v.
+  eapply const_folding_is_safety_preservation in H; openhyp; eauto.
+Qed.
+
+Lemma const_folding_expr_footprint : forall e m, List.incl (SemanticsExprLemmas.varsIn (const_folding_expr e m)) (SemanticsExprLemmas.varsIn e).
+Proof.
+  induction e; simpl; intuition.
+
+  openhyp'; simpl in *; eauto.
+  openhyp'; simpl in *.
+  eauto.
+  CompileStatement.incl_app_solver.
+  eauto.
+  eauto.
+  CompileStatement.incl_app_solver.
+  eauto.
+  eauto.
+  openhyp'; simpl in *.
+  eauto.
+  CompileStatement.incl_app_solver.
+  eauto.
+  eauto.
+  CompileStatement.incl_app_solver.
+  eauto.
+  eauto.
+Qed.
+Hint Resolve const_folding_expr_footprint.
+
+Lemma const_folding_footprint : forall s m, List.incl (SemanticsLemmas.footprint (fst (fst (const_folding s m)))) (SemanticsLemmas.footprint s).
+Proof.
+  induction s; simpl; intuition.
+
+  openhyp'; simpl in *; eauto.
+  openhyp'; simpl in *.
+  destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
+  eauto.
+  eauto.
+  CompileStatement.incl_app_solver.
+  eauto.
+  eauto.
+  eauto.
+  openhyp'; simpl in *; eauto.
 Qed.
 
 Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
-  admit.
+  unfold optimizer, constant_folding; intros; eapply const_folding_footprint.
 Qed.
 
-Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
-  admit.
+Open Scope nat.
+
+Lemma both_le : forall a b a' b', a <= a' -> b <= b' -> max a b <= max a' b'.
+  intros; CompileStatement.max_le_solver; eauto.
 Qed.
 
-Lemma while_case:
-  forall t v v',
-    Step t v v' ->
-    forall s map map' written,
-      FoldConst s map t map' written ->
-      forall c b,
-        s = Syntax.Loop c b ->
-        forall vt,
-          agree_with vt map ->
-          forall heap,
-            v = (vt, heap) ->
-            (let s := b in
-             (* the induction hypothesis from Lemma const_folding_is_backward_simulation' *)
-
-             forall (t : Statement) (map map' : PartialMap) (written : SET),
-               FoldConst s map t map' written ->
-               forall vt : vals,
-                 agree_with vt map ->
-                 (forall (heap : arrays) (vt' : vals) (heap' : arrays),
-                    Step t (vt, heap) (Done (vt', heap')) ->
-                    Step s (vt, heap) (Done (vt', heap')) /\
-                    agree_with vt' map' /\ agree_except vt vt' written) /\
-                 (forall (heap : arrays) (f x : W) (t' : Statement) 
-                         (vt' : vals) (heap' : arrays),
-                    Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
-                    exists s' : Statement,
-                      Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-                      (exists (map_k map_k' : PartialMap) (written_k : SET),
-                         FoldConst s' map_k t' map_k' written_k /\
-                         agree_with vt' map_k /\
-                         agree_except vt vt' written /\
-                         map_k - written %<= map /\
-                         map' %<= map_k' /\ 
-                         written_k %%<= written))
-
-            ) ->
-            (forall vt' heap',
-               v' = Done (vt', heap') ->
-               Step s (vt, heap) (Done (vt', heap')) /\
-               agree_with vt' map' /\ 
-               agree_except vt vt' written) /\
-            (forall f x t' vt' heap',
-               v' = ToCall f x t' (vt', heap') ->
-               exists s',
-                 Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-                 exists map_k map_k' written_k,
-                   FoldConst s' map_k t' map_k' written_k /\
-                   agree_with vt' map_k /\
-                   agree_except vt vt' written /\
-                   map_k - written %<= map /\
-                   map' %<= map_k' /\ 
-                   written_k %%<= written).
+Lemma const_folding_expr_depth : forall e m, CompileExpr.depth (const_folding_expr e m) <= CompileExpr.depth e.
 Proof.
-  induction 1; simpl; intros; unfold_all; subst.
-
-  eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition; injection H4; intros; subst; eauto.
-  econstructor 7.
-  erewrite <- const_folding_expr_correct'.
-  2 : symmetry; eauto.
-  simpl; eauto.
-  simpl; eauto.
-
-  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition; injection H5; intros; subst; eauto.
-  injection H0; intros; subst.
-  repeat erewrite const_folding_expr_correct in * by eauto.
-  eauto.
-
-  split; intros; subst.
-
-  eapply FoldConst_NotSeq_elim in H2; simpl in *; eauto; openhyp; subst; destruct (const_zero_dec _); simpl in *.
-
-  intuition.
-  
-  injection H2; intros; subst.
-  destruct v'; simpl in *.
-  eapply H6 in H0; eauto; openhyp.
-  repeat erewrite const_folding_expr_correct in * by eauto.
-  edestruct IHStep2; try reflexivity.
-  3 : eauto.
-  replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (x - snd (const_folding b []))))) by (simpl in *; destruct (const_zero_dec _); [contradict e; eauto | simpl; eauto ]).
-  eauto.
-  eauto.
-  edestruct H9; eauto; openhyp.
-  simpl in *; openhyp'; [ contradict e; eauto | ].
-  simpl in *.
-  intuition eauto using submap_trans.
-
-  eapply FoldConst_NotSeq_elim in H2; simpl in *; eauto; openhyp; subst; destruct (const_zero_dec _); simpl in *.
-
-  intuition.
-  
-  injection H2; intros; subst.
-  destruct v'; simpl in *.
-  eapply H6 in H0; eauto; openhyp.
-  repeat erewrite const_folding_expr_correct in * by eauto.
-  edestruct IHStep2; try reflexivity.
-  3 : eauto.
-  replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (x0 - snd (const_folding b []))))) by (simpl in *; destruct (const_zero_dec _); [contradict e; eauto | simpl; eauto ]).
-  eauto.
-  eauto.
-  edestruct H10; eauto; openhyp.
-  simpl in *; openhyp'; [ contradict e; eauto | ].
-  simpl in *.
-  descend; intuition eauto; descend; intuition eauto using submap_trans.
-
-  split; intros; subst.
-
-  intuition.
-
-  eapply FoldConst_NotSeq_elim in H1; simpl in *; eauto; openhyp; subst; destruct (const_zero_dec _); simpl in *.
-
-  intuition.
-
-  injection H1; intros; subst.
-  injection H2; intros; subst.
-  eapply H5 in H0; eauto; openhyp.
-  repeat erewrite const_folding_expr_correct in * by eauto.
-  descend; intuition eauto.
-  descend; repeat split.
-  econstructor 4.
-  eauto.
-  replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (x1 - snd (const_folding b []))))) by (simpl in *; destruct (const_zero_dec _); [contradict e; eauto | simpl; eauto ]).
-  eauto.
-  eapply compatible_upds_enlarge1.
-  2 : eapply compatible_upds_enlarge2.
-
-  eauto using submap_trans.
-  eauto using submap_trans.
-  eauto using submap_trans.
-
-  eapply compatible_agree_with_both.
-  eauto.
-  2 : eauto using submap_trans.
-  eapply agree_with_agree_except_disjoint.
-  eauto using submap_trans.
-  eauto.
-  eauto.
-  eauto.
-  eapply submap_trans.
-  eapply upds_subtract_1.
-  eauto using submap_trans.
-  simpl in *; destruct (const_zero_dec _); [contradict e; eauto | simpl; eauto ].
-  eauto using submap_trans.
-  simpl in *; destruct (const_zero_dec _); [contradict e; eauto | simpl; eauto ].
-
-  eauto using subset_trans.
-
-  eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H0; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
-
-  eapply FoldConst_NotSeq_elim in H2; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; intuition.
+  induction e; simpl; intuition; openhyp'; simpl in *; eauto.
 Qed.
+Hint Resolve const_folding_expr_depth.
 
-Lemma const_folding_rel_is_backward_simulation' :
-  forall s t map map' written,
-    FoldConst s map t map' written ->
-    forall vt,
-      agree_with vt map ->
-      (forall heap vt' heap',
-         Step t (vt, heap) (Done (vt', heap')) ->
-         Step s (vt, heap) (Done (vt', heap')) /\
-         agree_with vt' map' /\ 
-         agree_except vt vt' written) /\
-      (forall heap f x t' vt' heap',
-         Step t (vt, heap) (ToCall f x t' (vt', heap')) ->
-         exists s',
-           Step s (vt, heap) (ToCall f x s' (vt', heap')) /\
-           exists map_k map_k' written_k,
-             FoldConst s' map_k t' map_k' written_k /\
-             agree_with vt' map_k /\
-             agree_except vt vt' written /\
-             map_k - written %<= map /\
-             map' %<= map_k' /\ 
-             written_k %%<= written).
+Lemma const_folding_depth : forall s m, CompileStatement.depth (fst (fst (const_folding s m))) <= CompileStatement.depth s.
 Proof.
-  induction s; try solve [simpl; intuition]; intros; try solve [ filter_case; split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; inversion H1; unfold_all; subst; subst; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition; descend; intuition eauto using submap_trans ].
+  induction s; simpl; intuition.
 
-  Focus 4.
-
-  (* while *)
-  intros; split; intros; eapply while_case in H; eauto; openhyp; eauto.
-
-  (* assign *)
-  split; intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; openhyp'; simpl in *; inversion H1; unfold_all; subst; [ rewrite <- e0 | ]; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
-  erewrite <- const_folding_expr_correct'.
-  2 : symmetry; eauto.
-  2 : eauto.
-  simpl; eauto.
-
-  (* seq *)
-  split; intros; eapply FoldConst_Seq_elim in H; eauto; openhyp; subst; inversion H1; subst.
-  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto.
-  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
-  destruct v'; simpl in *; eapply IHs1 in H5; eauto; openhyp; eapply IHs2 in H8; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
-  eapply IHs1 in H6; eauto; openhyp; descend; intuition eauto; eexists; exists map'; descend; intuition eauto using submap_trans.  
-  destruct v'; simpl in *; eapply IHs1 in H8; eauto; openhyp; eapply IHs2 in H11; eauto; openhyp; descend; intuition eauto; descend; intuition eauto using submap_trans.
-  eapply IHs1 in H9; eauto; openhyp; descend; intuition eauto.
-  descend; repeat split.
-  econstructor 4.
+  openhyp'; simpl in *; eauto.
+  eapply both_le.
   eauto.
-  eauto.
-  eapply compatible_upds_enlarge1.
-  2 : eapply compatible_upds_enlarge2.
-
-  eauto using submap_trans.
-  eauto using submap_trans.
-  
+  eapply Le.le_n_S.
   eauto.
 
-  eapply compatible_agree_with_both.
-  eauto.
-  2 : eauto using submap_trans.
-  eapply agree_with_agree_except_disjoint.
-  eauto using submap_trans.
+  openhyp'; simpl in *; eauto.
+  destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
   eauto.
   eauto.
-  eauto.
-  eapply submap_trans.
-  eapply subtract_union_submap.
-  eapply submap_trans.
-  eapply subtract_submap.
-  eapply submap_trans.
-  eapply upds_subtract_1.
-  eauto using submap_trans.
+  eapply both_le.
   eauto.
   eauto.
 
-  (* if *)
-  split.
-
-  intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
-
-  destruct s; destruct (Sumbool.sumbool_of_bool (wneb x0 $0)); erewrite e1 in *; [ eapply IHs1 in H1 | eapply IHs2 in H1 ]; eauto; openhyp; replace x0 with (exprDenote x0 vt) in e1 by eauto; rewrite <- e0 in e1; repeat erewrite const_folding_expr_correct in * by eauto; intuition eauto.
-
-  simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto.
-
-  intros; eapply FoldConst_NotSeq_elim in H; simpl in *; eauto; openhyp; subst; destruct (const_dec _).
-
-  destruct s; destruct (Sumbool.sumbool_of_bool (wneb x1 $0)); erewrite e1 in *; [ eapply IHs1 in H1 | eapply IHs2 in H1 ]; eauto; openhyp; replace x1 with (exprDenote x1 vt) in e1 by eauto; rewrite <- e0 in e1; repeat erewrite const_folding_expr_correct in * by eauto; descend; intuition eauto; descend; intuition eauto using submap_trans.
-
-  simpl in *; inversion H1; subst; repeat erewrite const_folding_expr_correct in * by eauto; simpl in *; [ eapply IHs1 in H9 | eapply IHs2 in H9 ]; eauto; openhyp; subst; descend; intuition eauto; descend; intuition eauto using submap_trans.
-
-Qed.
-
-Theorem const_folding_rel_is_backward_simulation : is_backward_simulation const_folding_rel.
-Proof.
-  unfold is_backward_simulation, const_folding_rel.
-  intros.
-  openhyp; subst.
-  eapply const_folding_rel_is_backward_simulation' in H1; eauto.
-  openhyp.
-  split.
-  intros.
-  eapply H0 in H2; openhyp.
-  descend; intuition eauto.
-  descend; split.
-  2 : eauto.
+  openhyp'; simpl in *; eauto.
+  eapply both_le.
   eauto.
-  intros.
-  eapply H1 in H2; openhyp.
-  descend; intuition eauto.
-  descend; intuition eauto.
-  Grab Existential Variables.
   eauto.
 Qed.
 
-Hint Resolve const_folding_rel_is_backward_simulation.
-
-Lemma constant_folding_always_FoldConst : forall s map, exists map' written, FoldConst s map (constant_folding s) map' written.
-  unfold constant_folding; intros; descend; intuition eauto.
-  Grab Existential Variables.
-  eauto.
+Lemma optimizer_depth : forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s.
+  unfold optimizer, constant_folding; intros; eapply const_folding_depth.
 Qed.
-
-Theorem constant_folding_is_congruence : forall s v, const_folding_rel v s v (constant_folding s).
-  unfold const_folding_rel; intros; exists empty_map; simpl in *; edestruct constant_folding_always_FoldConst; openhyp; descend; intuition eauto.
-Qed.
-
-Theorem constant_folding_is_backward_similar_callee : 
-  forall s, is_backward_similar_callee (Internal s) (Internal (constant_folding s)).
-  intros; econstructor; eauto; eapply constant_folding_is_congruence.
-Qed.
-
