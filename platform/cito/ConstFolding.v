@@ -71,20 +71,38 @@ Section HintsSection.
   Qed.
   Hint Resolve agree_except_same.
 
-  Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
+  Lemma subset_correct : forall a b, a %<= b -> forall x, x %in a -> x %in b.
     admit.
+  Qed.
+  Hint Resolve subset_correct.
+
+  Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %<= s' -> agree_except v1 v2 s'.
+    unfold agree_except; eauto.
+  Qed.
+  Hint Resolve agree_except_incl.
+
+  Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
+    unfold agree_except.
+    intros.
+    destruct (weq (Locals.sel m1 x) (Locals.sel m2 x)).
+    destruct (weq (Locals.sel m2 x) (Locals.sel m3 x)).
+    intuition.
+    eauto.
+    eauto.
   Qed.
   Hint Resolve agree_except_trans.
 
   Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
-    admit.
+    unfold agree_with, agree_except.
+    intros.
+    destruct (weq (Locals.sel v1 x) (Locals.sel v2 x)).
+    rewrite <- e.
+    eapply H.
+    
+    eauto.
+
   Qed.
   Hint Resolve agree_with_agree_except_subtract.
-
-  Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %<= s' -> agree_except v1 v2 s'.
-    admit.
-  Qed.
-  Hint Resolve agree_except_incl.
 
 End HintsSection.
 
