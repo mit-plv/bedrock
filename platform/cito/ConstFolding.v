@@ -67,7 +67,7 @@ Section HintsSection.
   Hint Resolve agree_except_upd.
 
   Lemma agree_except_same : forall local s, agree_except local local s.
-    admit.
+    intuition.
   Qed.
   Hint Resolve agree_except_same.
 
