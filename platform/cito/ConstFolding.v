@@ -4,69 +4,23 @@ Require Import GeneralTactics.
 Require Import StepsTo.
 Require Import WritingPrograms.
 Require Import SemanticsExpr.
+Require Import MapSet.
 
 Set Implicit Arguments.
 
-Variable PartialMap : Set.
+Hint Resolve subset_union_2.
+Hint Resolve subset_union_1.
+Hint Resolve subset_refl.
+Hint Resolve union_same_subset.
+Hint Resolve empty_map_submap.
+Hint Resolve subtract_submap.
 
-Variable sel : PartialMap -> string -> option W.
-
-Variable SET : Set.
-
-Open Scope type_scope.
-
-Variable subtract : PartialMap -> SET -> PartialMap.
-Infix "-" := subtract.
-
-Variable union : SET -> SET -> SET.
-Infix "+" := union.
-
-Variable add : SET -> string -> SET.
-Infix "%+" := add (at level 60).
-
-Variable PartialMap_add : PartialMap -> string * W -> PartialMap.
-Infix "%%+" := PartialMap_add (at level 60).
-
-Variable PartialMap_del : PartialMap -> string -> PartialMap.
-Infix "%%-" := PartialMap_del (at level 60).
-
-Hypothesis sel_remove_eq : forall m x, sel (m %%- x) x = None.
-
-Hypothesis sel_remove_ne : forall m x x', x <> x' -> sel (m %%- x) x' = sel m x'.
-
-Hypothesis sel_add_eq : forall m x w, sel (m %%+ (x, w)) x = Some w.
-
-Hypothesis sel_add_ne : forall m x w x', x <> x' -> sel (m %%+ (x, w)) x' = sel m x'.
-
-Variable empty_set : SET.
-
-Notation "{}" := empty_set.
-
-Variable singleton_set : string -> SET.
-
-Notation "{ x }" := (singleton_set x).
-
-Notation skip := Syntax.Skip.
-
-Notation delete := Syntax.Free.
-
-Variable empty_map : PartialMap.
-
-Notation "[]" := empty_map.
+Open Scope mapset_scope.
 
 Definition agree_with (v : vals) (m : PartialMap) :=
   forall x w,
     sel m x = Some w ->
     Locals.sel v x = w.
-
-Definition submap (a b : PartialMap) := forall x w, sel a x = Some w -> sel b x = Some w.
-
-Infix "%<=" := submap (at level 60).
-
-Lemma empty_map_submap : forall m, empty_map %<= m.
-  admit.
-Qed.
-Hint Resolve empty_map_submap.
 
 Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
   unfold agree_with; intros; destruct (string_dec x x0).
@@ -82,11 +36,6 @@ Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd
   rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
 Qed.
 Hint Resolve agree_with_add.
-
-Lemma subtract_submap : forall a b, a - b %<= a.
-  admit.
-Qed.
-Hint Resolve subtract_submap.
 
 Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
   admit.
@@ -115,34 +64,13 @@ Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> ag
 Qed.
 Hint Resolve agree_with_agree_except_subtract.
 
-Variable subset : SET -> SET -> Prop.
-
-Infix "%%<=" := subset (at level 60).
-
 Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
   admit.
 Qed.
 Hint Resolve agree_except_incl.
 
-Lemma subset_union_2 : forall a b, a %%<= a + b.
-  admit.
-Qed.
-Hint Resolve subset_union_2.
 
-Lemma subset_union_1 : forall a b, a %%<= b + a.
-  admit.
-Qed.
-Hint Resolve subset_union_1.
 
-Lemma subset_refl : forall s, s %%<= s.
-  admit.
-Qed.
-Hint Resolve subset_refl.
-
-Lemma union_same_subset : forall s, s + s %%<= s.
-  admit.
-Qed.
-Hint Resolve union_same_subset.
 
 Definition option_dec : forall A (x : option A), {a | x = Some a} + {x = None}.
   destruct x; intuition eauto.
@@ -179,6 +107,10 @@ Fixpoint const_folding_expr (e : Expr) (env : PartialMap) : Expr :=
         | _, _ => TestE op a' b'
       end
   end.
+
+Notation skip := Syntax.Skip.
+
+Notation delete := Syntax.Free.
 
 Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialMap * SET :=
   match s with
