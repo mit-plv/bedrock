@@ -32,8 +32,16 @@ Section HintsSection.
   Qed.
   Hint Resolve agree_with_add.
 
-  Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
+  Lemma empty_map_empty : forall x, sel [] x = None.
     admit.
+  Qed.
+  Hint Resolve empty_map_empty.
+
+  Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
+    unfold agree_with.
+    intros.
+    rewrite empty_map_empty in H.
+    intuition.
   Qed.
   Hint Resolve everything_agree_with_empty_map.
 
@@ -41,8 +49,20 @@ Section HintsSection.
     forall x,
       Locals.sel a x <> Locals.sel b x -> x %in s.
 
-  Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+  Lemma singleton_mem : forall x, x %in singleton_set x.
     admit.
+  Qed.
+  Hint Resolve singleton_mem.
+
+  Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+    unfold agree_except.
+    intros.
+    destruct (string_dec x x0).
+    subst.
+    eauto.
+    rewrite sel_upd_ne in H.
+    intuition.
+    eauto.
   Qed.
   Hint Resolve agree_except_upd.
 
