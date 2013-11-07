@@ -1,4 +1,3 @@
-Require Import Optimizer.
 Require Import Syntax Semantics.
 Require Import SyntaxExpr.
 Require Import GeneralTactics.
@@ -362,153 +361,6 @@ Lemma submap_subtract_submap : forall a b a', a %<= a' -> a - b %<= a' - b.
 Qed.
 Hint Resolve submap_subtract_submap.
 
-Lemma out_map_lower_bound :
-  forall s map,
-    let result := const_folding s map in
-    let map' := snd (fst result) in
-    let written := snd result in
-    map - written %<= map'.
-Proof.
-  induction s; simpl; intuition.
-
-  destruct (const_dec _); [ destruct s0 | ]; simpl in *; eauto using submap_trans.
-  simpl in *; eauto using submap_trans.
-  destruct (const_dec _); [ destruct s; destruct (Sumbool.sumbool_of_bool (wneb x $0)); erewrite e1 in * | ]; simpl in *; eauto using submap_trans.
-  destruct (const_zero_dec _); simpl in *; eauto using submap_trans.
-Qed.
-Hint Resolve out_map_lower_bound.
-
-Variable disjoint : PartialMap -> SET -> Prop.
-
-Infix "%*" := disjoint (at level 60).
-
-Inductive FoldConst : Statement -> PartialMap -> Statement -> PartialMap -> SET -> Prop :=
-  | OptFull : 
-      forall s map, 
-        let result := const_folding s map in
-        let s' := fst (fst result) in
-        let map' := snd (fst result) in
-        let written := snd result in
-        FoldConst s map s' map' written
-  | OptLess :
-      forall s map_in t map_out written map_in' map_out',
-        FoldConst s map_in t map_out written ->
-        map_in %<= map_in' ->
-        map_out' %<= map_out ->
-        FoldConst s map_in' t map_out' written
-  | OptSeq : 
-      forall s1 s2 t1 t2 written1 written2 map map' map'',
-        FoldConst s1 map t1 map' written1 ->
-        FoldConst s2 map' t2 map'' written2 ->
-        FoldConst (s1;;s2) map (t1;;t2) map'' (written1 + written2)
-  | OptConsumeBefore :
-      forall s1 s2 t1 t2 written1 written2 map1 map1' map2 map2' map_in,
-        FoldConst s1 map1 t1 map1' written1 ->
-        FoldConst s2 map2 t2 map2' written2 ->
-        map1 %<= map_in ->
-        map2 %<= map_in ->
-        map2 %* written1 ->
-        FoldConst (s1;;s2) map_in (t1;;t2) map2' (written1 + written2).
-
-Hint Constructors FoldConst.
-
-Lemma FoldConst_Seq_elim : 
-  forall s map_in t map_out written, 
-    FoldConst s map_in t map_out written ->
-    forall s1 s2,
-      s = (s1 ;; s2) ->
-      exists t1 t2 written1 written2,
-        t = (t1 ;; t2) /\
-        written = written1 + written2 /\
-        ((exists map,
-            FoldConst s1 map_in t1 map written1 /\
-            FoldConst s2 map t2 map_out written2) \/
-         (exists map1 map1' map2,
-            FoldConst s1 map1 t1 map1' written1 /\
-            FoldConst s2 map2 t2 map_out written2 /\
-            map1 %<= map_in /\
-            map2 %<= map_in /\
-            map2 %* written1)).
-Proof.
-  induction 1; simpl; intuition; unfold_all; subst.
-  simpl; descend; intuition; left; descend; intuition.
-  edestruct IHFoldConst; eauto; openhyp; subst.
-  descend; intuition eauto.
-  descend; repeat split.
-  right; descend.
-  repeat split.
-  5 : eauto.
-  eauto.
-  eauto.
-  eauto using submap_trans.
-  eauto using submap_trans.
-  injection H1; intros; subst; descend; intuition eauto.
-  injection H4; intros; subst; descend; intuition eauto; right; descend; intuition eauto.
-Qed.
-
-Inductive NotSeq : Statement -> Prop :=
-  | IsSkip : NotSeq skip
-  | IsIf : forall c t f, NotSeq (If c {t} else {f})
-  | IsWhile : forall c b, NotSeq (While (c) {{b}})
-  | IsAssign : forall x e, NotSeq (x <- e)
-  | IsRead : forall x arr idx, NotSeq (x <== arr[idx])
-  | IsWrite : forall arr idx e, NotSeq (arr[idx] <== e)
-  | IsMalloc : forall x size, NotSeq (x <- new size)
-  | IsFree : forall arr, NotSeq (delete arr)
-  | IsLen : forall x arr, NotSeq (Syntax.Len x arr)
-  | IsCall : forall f x, NotSeq (Syntax.Call f x)
-.
-
-Hint Constructors NotSeq.
-
-Lemma FoldConst_NotSeq_elim : 
-  forall s map_in t map_out written, 
-    FoldConst s map_in t map_out written -> 
-    NotSeq s ->
-    exists map_in', 
-      let result := const_folding s map_in' in
-      let s' := fst (fst result) in
-      let map_out' := snd (fst result) in
-      let written' := snd result in
-      t = s' /\
-      map_in' %<= map_in /\ 
-      map_out %<= map_out' /\
-      written = written'.
-Proof.
-  induction 1; simpl; intuition; unfold_all; subst.
-  inversion H; subst; simpl; descend; eauto.
-  openhyp; subst; descend; intuition eauto using submap_trans.
-  inversion H1.
-  inversion H4.
-Qed.
-
-Definition const_folding_rel vs s vt t := 
-  exists map map' written,
-    FoldConst s map t map' written /\
-    vt = vs /\
-    agree_with vs map.
-
-Hint Unfold const_folding_rel.
-
-Lemma FoldConst_skip : forall map map', map' %<= map -> FoldConst skip map skip map' {}.
-  intros.
-  econstructor 2.
-  econstructor 1.
-  eauto.
-  simpl.
-  eauto.
-Qed.
-Hint Resolve FoldConst_skip.
-
-Ltac filter_case :=
-  match goal with
-    | H : context [Syntax.Assignment] |- _ => fail 1
-    | H : context [Syntax.Seq] |- _ => fail 1
-    | H : context [Syntax.Conditional] |- _ => fail 1
-    | H : context [Syntax.Loop] |- _ => fail 1
-    | |- _ => idtac
-  end.
-
 Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
   admit.
 Qed.
@@ -531,11 +383,6 @@ Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree
 Qed.
 Hint Resolve agree_except_trans.
 
-Lemma agree_with_agree_except_disjoint : forall local1 local2 m s, agree_with local1 m -> m %* s -> agree_except local1 local2 s -> agree_with local2 m.
-  admit.
-Qed.
-Hint Resolve agree_with_agree_except_disjoint.
-
 Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
   admit.
 Qed.
@@ -555,10 +402,6 @@ Lemma subset_union_right_both : forall a b c, a %%<= b -> a + c %%<= b + c.
 Qed.
 Hint Resolve subset_union_right_both.
 
-Variable upds : PartialMap -> PartialMap -> PartialMap.
-
-Variable compatible : PartialMap -> PartialMap -> Prop.
-
 Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
   admit.
 Qed.
@@ -568,45 +411,6 @@ Lemma subset_union_2 : forall a b, a %%<= a + b.
   admit.
 Qed.
 Hint Resolve subset_union_2.
-
-Lemma compatible_upds_enlarge1 : forall v1 v2, compatible v1 v2 -> v1 %<= upds v1 v2.
-  admit.
-Qed.
-Hint Resolve compatible_upds_enlarge1.
-
-Lemma compatible_upds_enlarge2 : forall v1 v2, compatible v1 v2 -> v2 %<= upds v1 v2.
-  admit.
-Qed.
-Hint Resolve compatible_upds_enlarge2.
-
-Lemma disjoint_upds_compatible : forall v1 v2 s, compatible (v1 - s) v2 -> v2 %* s -> compatible v1 v2.
-  admit.
-Qed.
-Hint Resolve disjoint_upds_compatible.
-
-Lemma both_submap_compatible : forall v1 v2 v3, v1 %<= v3 -> v2 %<= v3 -> compatible v1 v2.
-  admit.
-Qed.
-Hint Resolve both_submap_compatible.
-
-Lemma subset_disjoint : forall m s s', m %* s -> s' %%<= s -> m %* s'.
-  admit.
-Qed.
-Hint Resolve subset_disjoint.
-
-Lemma compatible_agree_with_both : forall v m1 m2, agree_with v m1 -> agree_with v m2 -> compatible m1 m2 -> agree_with v (upds m1 m2).
-  admit.
-Qed.
-Hint Resolve compatible_agree_with_both.
-
-Lemma upds_subtract_1 : forall m1 m2 s, upds m1 m2 - s %<= upds (m1 - s) m2.
-  admit.
-Qed.
-
-Lemma both_submap_upds_submap : forall m1 m2 m, m1 %<= m -> m2 %<= m -> upds m1 m2 %<= m.
-  admit.
-Qed.
-Hint Resolve both_submap_upds_submap.
 
 Lemma subset_union_1 : forall a b, a %%<= b + a.
   admit.
@@ -633,11 +437,6 @@ Lemma union_same_subset : forall s, s + s %%<= s.
 Qed.
 Hint Resolve union_same_subset.
 
-Lemma subtract_disjoint : forall m s, (m - s) %* s.
-  admit.
-Qed.
-Hint Resolve subtract_disjoint.
-
 Lemma subset_trans : forall a b c, a %%<= b -> b %%<= c -> a %%<= c.
   admit.
 Qed.
@@ -651,35 +450,6 @@ Lemma remove_submap : forall m x, m %%- x %<= m.
   admit.
 Qed.
 Hint Resolve remove_submap.
-
-Lemma out_map_upper_bound' : 
-  forall s map_in,
-    let result := const_folding s map_in in
-    let t := fst (fst result) in
-    let map_out := snd (fst result) in 
-    let written := snd result in
-    map_out - written %<= map_in.
-Proof.
-  induction s; simpl; intuition.
-
-  openhyp'; simpl in *; eauto using submap_trans.
-  simpl in *; eauto using submap_trans.
-  simpl in *; eauto using submap_trans.
-  openhyp'; [ destruct (Sumbool.sumbool_of_bool (wneb x $0)); erewrite e1 in * | ]; simpl in *; eauto using submap_trans.
-  openhyp'; simpl in *; eauto using submap_trans.
-  simpl in *; eauto using submap_trans.
-  simpl in *; eauto using submap_trans.
-Qed.
-Hint Resolve out_map_upper_bound'.
-
-Lemma out_map_upper_bound : 
-  forall s map_in t map_out written, 
-    FoldConst s map_in t map_out written -> 
-    map_out - written %<= map_in.
-Proof.
-  induction 1; intros; unfold_all; simpl in *; intuition; eauto using submap_trans.
-Qed.
-Hint Resolve out_map_upper_bound.
 
 Ltac rewrite_expr := repeat erewrite const_folding_expr_correct in * by eauto.
 
@@ -853,11 +623,6 @@ Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer 
 Qed.
 
 Import Semantics.Safety.
-
-(* forall (vs : vals) (heap : arrays) (m : PartialMap), *)
-(*         let result := const_folding s m in *)
-(*         let s' := fst (fst result) in *)
-(*         Safe fs s (vs, heap) -> agree_with vs m -> Safe fs s' (vs, heap) *)
 
 Lemma const_folding_is_safety_preservation : 
   forall fs s vs heap m, 
