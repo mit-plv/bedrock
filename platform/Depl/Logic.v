@@ -301,7 +301,7 @@ Proof.
   eapply Himp_trans; [ apply SubstsH_star_fwd | ].
   unfold normalD; simpl.
   
-  Lemma addQuants_app : forall G (s : subs _ _ G) qs2 f qs1 fE,
+  Lemma addQuants_app_bwd : forall G (s : subs _ _ G) qs2 f qs1 fE,
     SubstsH s (addQuants qs1 (addQuants qs2 f) fE) ===> SubstsH s (addQuants (qs1 ++ qs2) f fE).
   Proof.
     induction qs1; simpl; intuition.
@@ -312,7 +312,7 @@ Proof.
     apply Himp_ex; eauto.
   Qed.
 
-  eapply Himp_trans; [ | apply addQuants_app ].
+  eapply Himp_trans; [ | apply addQuants_app_bwd ].
 
   Lemma addQuants_monotone : forall G (s : subs _ _ G) f g qs fE,
     (forall fE', (forall x, (forall T, ~In (x, T) qs) -> fE' x = fE x)
@@ -693,4 +693,258 @@ Proof.
   eauto using in_or_app.
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply split_star.
+Qed.
+
+Theorem normalize_sound_bwd : forall p fvs bvs G (hE : ho_env G) fE s,
+  wellScoped fvs p
+  -> boundVars p = Some bvs
+  -> (forall x, In x fvs -> ~In x bvs)
+  -> SubstsH s (normalD (normalize p) hE fE) ===> SubstsH s (predD p hE fE).
+Proof.
+  induction p; simpl.
+
+  unfold normalD; simpl; intros.
+  apply Himp_refl.
+
+  Focus 3.
+  unfold normalD; simpl; intros.
+  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply SubstsH_emp_fwd ] | ].
+  eapply Himp_trans; [ apply Himp_star_comm | ].
+  apply Himp_star_Emp.
+
+  Focus 2.
+  unfold normalD; simpl; intros.
+  eapply Himp_trans; [ apply SubstsH_ex_fwd | ].
+  eapply Himp_trans; [ | apply SubstsH_ex_bwd ].
+  apply Himp_ex; intro.
+  case_eq (boundVars p); [ intros ? Heq | intro Heq ]; rewrite Heq in *; try discriminate.
+  case_eq (notInList x l); intro Heq'; rewrite Heq' in *; try discriminate.
+  injection H0; clear H0; intros; subst.
+  eapply IHp; eauto.
+  intro x0; specialize (H1 x0); simpl in *; intuition (subst; eauto).
+
+  intros.
+  case_eq (boundVars p1); [ intros ? Heq1 | intro Heq1 ]; rewrite Heq1 in *; try discriminate.
+  case_eq (boundVars p2); [ intros ? Heq2 | intro Heq2 ]; rewrite Heq2 in *; try discriminate.
+  case_eq (notsInList l l0); intro Heq3; rewrite Heq3 in *; try discriminate.
+  injection H0; clear H0; intros; intuition subst.
+  eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+  unfold normalD; simpl.
+  
+  Lemma addQuants_app_fwd : forall G (s : subs _ _ G) qs2 f qs1 fE,
+    SubstsH s (addQuants (qs1 ++ qs2) f fE) ===> SubstsH s (addQuants qs1 (addQuants qs2 f) fE).
+  Proof.
+    induction qs1; simpl; intuition.
+    apply Himp_refl.
+
+    eapply Himp_trans; [ apply SubstsH_ex_fwd | ].
+    eapply Himp_trans; [ | apply SubstsH_ex_bwd ].
+    apply Himp_ex; eauto.
+  Qed.
+
+  eapply Himp_trans; [ apply addQuants_app_fwd | ].
+  eapply Himp_trans; [ apply addQuants_monotone | ].
+  Focus 2.
+
+  Lemma addQuants_push_fwd' : forall G (s : subs _ _ G) f p2 qs fE,
+    SubstsH s (addQuants qs (fun fE' : fo_env => f fE' * p2) fE) ===>
+    SubstsH s (addQuants qs f fE) * SubstsH s p2.
+  Proof.
+    induction qs; simpl; intuition.
+
+    apply SubstsH_star_fwd.
+
+    eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_ex_bwd | apply Himp_refl ] ].
+    eapply Himp_trans; [ apply SubstsH_ex_fwd | ].
+    apply Himp'_ex; intro.
+    eapply Himp_trans; [ apply IHqs | ].
+    apply Himp_star_frame.
+    apply Himp_ex_c; exists x; apply Himp_refl.
+    apply Himp_refl.
+  Qed.
+
+  Lemma addQuants_push_fwd : forall G (s : subs _ _ G) p1 f qs fE p2,
+    SubstsH s (addQuants qs f fE) ===> SubstsH s p1
+    -> SubstsH s (addQuants qs (fun fE' => f fE' * p2) fE) ===>
+    SubstsH s p1 * SubstsH s p2.
+  Proof.
+    induction qs; simpl; intuition.
+
+    eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+    apply Himp_star_frame; auto; apply Himp_refl.
+
+    eapply Himp_trans; [ apply SubstsH_ex_fwd | ].
+    apply Himp'_ex; intro.
+    apply IHqs.
+    eapply Himp_trans; [ | apply H ].
+    eapply Himp_trans; [ | apply SubstsH_ex_bwd ].
+    apply Himp_ex_c; eexists; apply Himp_refl.
+  Qed.
+
+  apply addQuants_push_fwd.
+  eapply IHp1; eauto using in_or_app.
+  simpl; intros.
+  eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+  eapply Himp_trans; [ apply addQuants_monotone | ].
+  Focus 2.
+  eapply Himp_trans; [ | apply Himp_star_comm ].
+  apply addQuants_push_fwd.
+  eapply Himp_trans; [ eapply IHp2 | eapply weaken_predD ]; simpl; eauto using in_or_app.
+  intros.
+  apply H; intros; intro.
+  eapply normalize_boundVars in H4.
+  2: eauto.
+  eauto using in_or_app.
+  simpl; intros.
+
+  Lemma join_star : forall P1 P2 G (s : subs _ _ G) hE fE ps2 ps1,
+    SubstsH s (fold_left (fun hp p => (predD p hE fE * hp)%Sep)
+      (ps1 ++ ps2)
+      match
+        match P1 with
+          | Some P1 =>
+            match P2 with
+              | Some P2 => Some (fun Ge => P1 Ge /\ P2 Ge)%type
+              | None => Some P1
+            end
+          | None => P2
+        end
+        with
+        | Some P => [|P fE|]%Sep
+        | None => Emp%Sep
+      end) ===>
+    SubstsH s (fold_left (fun hp p => (predD p hE fE * hp)%Sep)
+      ps1 match P1 with
+            | Some P => [|P fE|]%Sep
+            | None => Emp%Sep
+          end)
+    * SubstsH s (fold_left (fun hp p => (predD p hE fE * hp)%Sep)
+      ps2 match P2 with
+            | Some P => [|P fE|]%Sep
+            | None => Emp%Sep
+          end).
+  Proof.
+    induction ps1; simpl; intuition.
+
+    destruct P1.
+    eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_inj_bwd | apply Himp_refl ] ].
+    eapply Himp_trans; [ apply multistar_weaken | ].
+    instantiate (1 := ([|P fE|] *
+      match
+        match P2 with
+          | Some P0 => Some (fun Ge : fo_env => P Ge /\ P0 Ge)
+          | None => Some P
+        end with
+        | Some P0 => [|P0 fE|]
+        | None => Emp
+      end)%Sep).
+    destruct P2.
+    eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+    eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+    eapply Himp_trans; [ | apply Himp_star_frame; apply SubstsH_inj_bwd ].
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_pure_c; intro.
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    apply Himp_star_frame.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+    eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+    eapply Himp_trans; [ | apply Himp_star_frame; apply SubstsH_inj_bwd ].    
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_pure_c; intro.    
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    apply Himp_star_frame.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ apply star_out_fwd | ].
+    eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+    apply Himp_star_frame.
+    eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+    apply Himp_refl.
+    destruct P2; apply multistar_weaken.
+    eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+    eapply Himp_trans; [ | apply SubstsH_inj_bwd ].
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_pure_c; intro.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+    eapply Himp_trans; [ | apply SubstsH_inj_bwd ].
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_pure_c; intro.
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; apply Himp_refl || tauto.
+    eapply Himp_trans; [ | eapply Himp_star_frame; [ apply SubstsH_emp_bwd | apply Himp_refl ] ].
+    apply Himp_star_Emp'.
+
+    eapply Himp_trans; [ apply star_out_fwd | ].
+    eapply Himp_trans; [ | apply Himp_star_frame; [ apply star_out_bwd | apply Himp_refl ] ].
+    eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_star_bwd | apply Himp_refl ] ].
+    eapply Himp_trans; [ | apply Himp_star_assoc' ].
+    eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+    apply Himp_star_frame.
+    apply Himp_refl.
+    eauto.
+  Qed.
+
+  eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl | apply multistar_weaken ] ].
+  Focus 2.
+  instantiate (1 := match NPure (normalize p1) with
+                      | Some P => [|P fE'0|]
+                      | None => Emp
+                    end%Sep).
+  eapply wellScoped_NPure in H2.
+  destruct (NPure (normalize p1)).
+  rewrite H2.
+  apply Himp_refl.
+  apply Himp_refl.
+  eauto.
+  eauto using in_or_app.
+  intuition eauto using in_or_app.
+  apply H0; intros.
+  eapply normalize_boundVars in H4.
+  2: eauto.
+  eauto using in_or_app.
+  apply H0; intros.
+  eapply normalize_boundVars in H4.
+  2: eauto.
+  eauto using notsInList_true.
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl | apply multistar_weaken'' ] ].
+  3: apply Himp_refl.
+  instantiate (1 := (fun hp p => predD p hE fE'0 * hp)%Sep).
+  Focus 2.
+  simpl.
+  apply Forall_forall; intros.
+  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+  eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+  apply Himp_star_frame; auto.
+  erewrite NImpure_wellScoped; try apply H4 || apply Himp_refl; eauto.
+  intuition eauto using in_or_app.
+  apply H0.
+  intros.
+  eapply normalize_boundVars in H6; eauto using notsInList_true.
+  apply H0.
+  intros.
+  eapply normalize_boundVars in H6.
+  2: eauto.
+  eauto using in_or_app.
+  eapply Himp_trans; [ | apply Himp_star_comm ].
+  apply join_star.
 Qed.

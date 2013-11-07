@@ -8,7 +8,7 @@ VS      := $(MODULES:%=%.v)
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
-COQARGS := -R $(ROOT)/src Bedrock -I ..
+COQARGS := -R $(ROOT)/src Bedrock -I .. -R . Depl
 
 Makefile.coq: Makefile $(VS)
 	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
