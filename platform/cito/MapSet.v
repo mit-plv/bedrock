@@ -32,9 +32,9 @@ Notation "[]" := empty_map : mapset_scope.
 
 Definition submap (a b : PartialMap) := forall x w, sel a x = Some w -> sel b x = Some w.
 
-Infix "%<=" := submap (at level 60).
+Infix "%%<=" := submap (at level 60) : mapset_scope.
 
-Lemma empty_map_submap : forall m, empty_map %<= m.
+Lemma empty_map_submap : forall m, empty_map %%<= m.
   admit.
 Qed.
 Hint Resolve empty_map_submap.
@@ -43,11 +43,11 @@ Hint Resolve empty_map_submap.
 
 Variable SET : Set.
 
-Variable union : SET -> SET -> SET.
-Infix "+" := union.
+Variable mem : string -> SET -> Prop.
+Infix "%in" := mem (at level 60): mapset_scope.
 
-Variable add : SET -> string -> SET.
-Infix "%+" := add (at level 60).
+Variable union : SET -> SET -> SET.
+Infix "+" := union : mapset_scope.
 
 Variable empty_set : SET.
 
@@ -59,24 +59,24 @@ Notation "{ x }" := (singleton_set x) : mapset_scope.
 
 Variable subset : SET -> SET -> Prop.
 
-Infix "%%<=" := subset (at level 60).
+Infix "%<=" := subset (at level 60) : mapset_scope.
 
-Lemma subset_union_2 : forall a b, a %%<= a + b.
+Lemma subset_union_2 : forall a b, a %<= a + b.
   admit.
 Qed.
 Hint Resolve subset_union_2.
 
-Lemma subset_union_1 : forall a b, a %%<= b + a.
+Lemma subset_union_1 : forall a b, a %<= b + a.
   admit.
 Qed.
 Hint Resolve subset_union_1.
 
-Lemma subset_refl : forall s, s %%<= s.
+Lemma subset_refl : forall s, s %<= s.
   admit.
 Qed.
 Hint Resolve subset_refl.
 
-Lemma union_same_subset : forall s, s + s %%<= s.
+Lemma union_same_subset : forall s, s + s %<= s.
   admit.
 Qed.
 Hint Resolve union_same_subset.
@@ -84,10 +84,9 @@ Hint Resolve union_same_subset.
 (* subtract *)
 
 Variable subtract : PartialMap -> SET -> PartialMap.
-Infix "-" := subtract.
+Infix "-" := subtract : mapset_scope.
 
-Lemma subtract_submap : forall a b, a - b %<= a.
+Lemma subtract_submap : forall a b, a - b %%<= a.
   admit.
 Qed.
 Hint Resolve subtract_submap.
-

@@ -8,6 +8,66 @@ Require Import MapSet.
 
 Set Implicit Arguments.
 
+Open Scope mapset_scope.
+
+Section HintsSection.
+
+  Definition agree_with (v : vals) (m : PartialMap) :=
+    forall x w,
+      sel m x = Some w ->
+      Locals.sel v x = w.
+
+  Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
+    unfold agree_with; intros; destruct (string_dec x x0).
+    subst; rewrite sel_remove_eq in *; discriminate.
+    rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
+  Qed.
+  Hint Resolve agree_with_remove.
+
+  Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
+    unfold agree_with; intros; destruct (string_dec x x0).
+    subst.
+    rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
+    rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
+  Qed.
+  Hint Resolve agree_with_add.
+
+  Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
+    admit.
+  Qed.
+  Hint Resolve everything_agree_with_empty_map.
+
+  Definition agree_except (a b : vals) (s : SET) := 
+    forall x,
+      Locals.sel a x <> Locals.sel b x -> x %in s.
+
+  Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+    admit.
+  Qed.
+  Hint Resolve agree_except_upd.
+
+  Lemma agree_except_same : forall local s, agree_except local local s.
+    admit.
+  Qed.
+  Hint Resolve agree_except_same.
+
+  Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
+    admit.
+  Qed.
+  Hint Resolve agree_except_trans.
+
+  Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
+    admit.
+  Qed.
+  Hint Resolve agree_with_agree_except_subtract.
+
+  Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %<= s' -> agree_except v1 v2 s'.
+    admit.
+  Qed.
+  Hint Resolve agree_except_incl.
+
+End HintsSection.
+
 Hint Resolve subset_union_2.
 Hint Resolve subset_union_1.
 Hint Resolve subset_refl.
@@ -15,61 +75,14 @@ Hint Resolve union_same_subset.
 Hint Resolve empty_map_submap.
 Hint Resolve subtract_submap.
 
-Open Scope mapset_scope.
-
-Definition agree_with (v : vals) (m : PartialMap) :=
-  forall x w,
-    sel m x = Some w ->
-    Locals.sel v x = w.
-
-Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
-  unfold agree_with; intros; destruct (string_dec x x0).
-  subst; rewrite sel_remove_eq in *; discriminate.
-  rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
-Qed.
 Hint Resolve agree_with_remove.
-
-Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
-  unfold agree_with; intros; destruct (string_dec x x0).
-  subst.
-  rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
-  rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
-Qed.
 Hint Resolve agree_with_add.
-
-Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
-  admit.
-Qed.
 Hint Resolve everything_agree_with_empty_map.
-
-Variable agree_except : vals -> vals -> SET -> Prop.
-
-Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
-  admit.
-Qed.
 Hint Resolve agree_except_upd.
-
-Lemma agree_except_same : forall local s, agree_except local local s.
-  admit.
-Qed.
 Hint Resolve agree_except_same.
-
-Lemma agree_except_trans : forall m1 m2 m3 s1 s2, agree_except m1 m2 s1 -> agree_except m2 m3 s2 -> agree_except m1 m3 (s1 + s2).
-  admit.
-Qed.
 Hint Resolve agree_except_trans.
-
-Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
-  admit.
-Qed.
 Hint Resolve agree_with_agree_except_subtract.
-
-Lemma agree_except_incl : forall v1 v2 s s', agree_except v1 v2 s -> s %%<= s' -> agree_except v1 v2 s'.
-  admit.
-Qed.
 Hint Resolve agree_except_incl.
-
-
 
 
 Definition option_dec : forall A (x : option A), {a | x = Some a} + {x = None}.
@@ -249,7 +262,7 @@ Ltac descend :=
            | [ |- exists x, _ ] => eexists
          end.
 
-Lemma const_folding_expr_submap_const : forall e m w, const_folding_expr e m = Const w -> forall m', m %<= m' -> const_folding_expr e m' = Const w.
+Lemma const_folding_expr_submap_const : forall e m w, const_folding_expr e m = Const w -> forall m', m %%<= m' -> const_folding_expr e m' = Const w.
   induction e; simpl; intuition; openhyp'; simpl in *; try discriminate.
 
   eapply H0 in e0.
@@ -291,7 +304,7 @@ Lemma const_folding_expr_submap_const : forall e m w, const_folding_expr e m = C
 Qed.
 Hint Resolve const_folding_expr_submap_const.
 
-Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 -> m' %<= m -> const_folding_expr e m' <> Const $0.
+Lemma not_const_zero_submap : forall e m m', const_folding_expr e m <> Const $0 -> m' %%<= m -> const_folding_expr e m' <> Const $0.
   intuition eauto.
 Qed.
 Hint Resolve not_const_zero_submap.
