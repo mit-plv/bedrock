@@ -3,6 +3,7 @@ Require Import AutoSep.
 Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
 Require Import GeneralTactics.
+Require Import GoodOptimizer.
 
 Record func := {
   Name : string;
@@ -25,14 +26,7 @@ Definition funcVars f := Vars f ++ tempChunk 0 (depth (Body f)).
 Section Compiler.
   Variable optimizer : Statement -> Statement.
 
-  Hypothesis optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
-
-  Hypothesis optimizer_depth : forall s, depth (optimizer s) <= depth s.
-  Hint Resolve optimizer_depth.
-
-  Hypothesis optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
-
-  Hypothesis optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+  Hypothesis optimizer_is_good_optimizer : is_good_optimizer optimizer.
 
   Variable moduleName : string.
   Definition modName := ("Cito_" ++ moduleName)%string.
@@ -251,10 +245,29 @@ Section Compiler.
 
   Hint Immediate goodFunc_NoDup.
 
+  Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
+  Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+  Hint Resolve optimizer_depth.
+
+  Lemma optimizer_is_backward_simulation : forall fs s v vs' heap', RunsTo fs (optimizer s) v (vs', heap') -> exists vs'', RunsTo fs s v (vs'', heap').
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
+  Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
   Lemma goodVcs : forall funcs,
     List.Forall goodFunc funcs
     -> NoDup (map Name funcs)
     -> vcs (makeVcs imports (map compileFunc functions) (map compileFunc funcs)).
+  Proof.
+    clear optimizer_is_good_optimizer.
     induction 1; simpl; intuition;
       match goal with
         | [ H : NoDup (_ :: _) |- _ ] => inversion H; clear H; subst
@@ -335,6 +348,7 @@ Section Compiler.
     inversion H24; clear H24; subst.
     destruct x11; simpl in *; subst.
     eapply optimizer_is_backward_simulation in H21.
+    openhyp.
     eauto using NoUninitializedRunsTo.
 
     hnf; simpl; intuition (try rewrite app_nil_r).
