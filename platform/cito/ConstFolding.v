@@ -1,11 +1,11 @@
 Require Import Syntax Semantics.
 Require Import SyntaxExpr.
 Require Import GeneralTactics.
-Require Import StepsTo.
 Require Import WritingPrograms.
 Require Import SemanticsExpr.
 Require Import SetModule PartialMap PartialMapSubtract.
 Require Import Equalities.
+Require Import GoodOptimizer.
 
 Set Implicit Arguments.
 
@@ -552,10 +552,10 @@ Definition constant_folding s := fst (fst (const_folding s empty_map)).
 
 Definition optimizer := constant_folding.
 
-Lemma optimizer_is_backward_simulation : forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v'.
+Lemma optimizer_is_backward_simulation : forall fs s v vs' heap', RunsTo fs (optimizer s) v (vs', heap') -> exists vs'', RunsTo fs s v (vs'', heap').
   intros.
   unfold optimizer, constant_folding in *.
-  destruct v; destruct v'.
+  destruct v.
   eapply const_folding_is_backward_simulation in H; openhyp; eauto.
 Qed.
 
@@ -807,12 +807,6 @@ Qed.
 Lemma optimizer_depth : forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s.
   unfold optimizer, constant_folding; intros; eapply const_folding_depth.
 Qed.
-
-Definition is_good_optimizer optimizer :=
-  (forall fs s v v', RunsTo fs (optimizer s) v v' -> RunsTo fs s v v') /\ 
-  (forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v) /\
-  (forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s)) /\
-  (forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s).
 
 Lemma constant_folding_is_good_optimizer : is_good_optimizer optimizer.
   repeat split.

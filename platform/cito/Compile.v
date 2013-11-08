@@ -16,13 +16,7 @@ Delimit Scope Cfuncs_scope with Cfuncs.
 
 Definition optimizer := ConstFolding.constant_folding.
 
-Definition optimizer_footprint := ConstFolding.optimizer_footprint.
-
-Definition optimizer_depth := ConstFolding.optimizer_depth.
-
-Definition optimizer_is_backward_simulation := ConstFolding.optimizer_is_backward_simulation.
-
-Definition optimizer_is_safety_preservation := ConstFolding.optimizer_is_safety_preservation.
+Definition optimizer_is_good_optimizer := ConstFolding.constant_folding_is_good_optimizer.
 
 Notation "'cmodule' name fs" := (Compiler.compile optimizer name fs%Cfuncs)
   (no associativity, at level 95, name at level 0, only parsing).
@@ -30,7 +24,7 @@ Notation "'cmodule' name fs" := (Compiler.compile optimizer name fs%Cfuncs)
 Ltac Forall := repeat (apply Forall_cons || apply Forall_nil).
 
 Ltac compile :=
-  apply (compileOk optimizer optimizer_footprint optimizer_depth optimizer_is_backward_simulation optimizer_is_safety_preservation); [ Forall | NoDup ]; constructor; auto;
+  apply (compileOk optimizer optimizer_is_good_optimizer); [ Forall | NoDup ]; constructor; auto;
     (NoDup || (Forall; hnf; tauto)
       || (eapply Wf.prove_NoUninitializedSafe; try eassumption; [ simpl; tauto ])
         || (eapply Wf.prove_NoUninitializedRunsTo; try eassumption; [ simpl; tauto ])
