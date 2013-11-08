@@ -35,8 +35,8 @@ Fixpoint elim_dead s used : Statement * set :=
     | Loop e body => 
       let result := elim_dead body (used + free_vars e + free_vars_stmt body) in
       let body := fst result in
-      let used := snd result in
-      (Loop e body, used + free_vars e)
+      let used' := snd result in
+      (Loop e body, used + used' + free_vars e)
     | x <- e =>
       if mem_dec x used then
         (s, used %- x + free_vars e)
