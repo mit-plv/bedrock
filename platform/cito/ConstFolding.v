@@ -20,11 +20,9 @@ End Data.
 
 Module MSet := ArrowSet Key.
 Module MMap := ArrowHasSubtract Key Data MSet.
-Module MMap' := SubtractSubmap Key Data MSet MMap.
 
 Import MSet.
 Import MMap.
-Import MMap'.
 
 Open Scope set_scope.
 Open Scope pmap_scope.
@@ -36,7 +34,7 @@ Definition empty_map := MMap.empty.
 Infix "%%+" := MMap.add (at level 60).
 Infix "%%-" := MMap.remove (at level 60).
 Infix "%<=" := subset (at level 60).
-Infix "%%<=" := Submap.submap (at level 60).
+Infix "%%<=" := submap (at level 60).
 Infix "+" := union.
 Infix "-" := subtract.
 
@@ -44,14 +42,14 @@ Section HintsSection.
 
   Hint Resolve empty_correct.
   Hint Resolve subset_correct.
-  Hint Resolve Submap.submap_correct.
+  Hint Resolve submap_correct.
   Hint Resolve subtract_none.
   Hint Resolve singleton_mem.
   Hint Resolve subset_union_2.
   Hint Resolve subset_union_1.
   Hint Resolve subset_refl.
   Hint Resolve union_same_subset.
-  Hint Resolve Submap.empty_submap.
+  Hint Resolve empty_submap.
   Hint Resolve subtract_submap.
 
   Definition agree_with (v : vals) (m : PartialMap) :=
@@ -139,7 +137,7 @@ Hint Resolve subset_union_2.
 Hint Resolve subset_union_1.
 Hint Resolve subset_refl.
 Hint Resolve union_same_subset.
-Hint Resolve Submap.empty_submap.
+Hint Resolve empty_submap.
 Hint Resolve subtract_submap.
 
 Hint Resolve agree_with_remove.

@@ -4,38 +4,36 @@ Set Implicit Arguments.
 
 Module Type PartialMap (Key : MiniDecidableType) (Data : Typ).
 
-  Delimit Scope pmap_scope with pmap.
-
-  Local Open Scope pmap_scope.
-
   Parameter pmap : Type.
 
   Parameter sel : pmap -> Key.t -> option Data.t.
 
   Parameter add : pmap -> Key.t * Data.t -> pmap.
-  Infix "+" := add : pmap_scope.
 
   Parameter remove : pmap -> Key.t -> pmap.
-  Infix "-" := remove : pmap_scope.
 
-  Parameter sel_remove_eq : forall m x, sel (m - x) x = None.
+  Parameter sel_remove_eq : forall m x, sel (remove m x) x = None.
 
-  Parameter sel_remove_ne : forall m x x', x <> x' -> sel (m - x) x' = sel m x'.
+  Parameter sel_remove_ne : forall m x x', x <> x' -> sel (remove m x) x' = sel m x'.
 
-  Parameter sel_add_eq : forall m x w, sel (m + (x, w)) x = Some w.
+  Parameter sel_add_eq : forall m x w, sel (add m (x, w)) x = Some w.
 
-  Parameter sel_add_ne : forall m x w x', x <> x' -> sel (m + (x, w)) x' = sel m x'.
+  Parameter sel_add_ne : forall m x w x', x <> x' -> sel (add m (x, w)) x' = sel m x'.
 
   Parameter empty : pmap.
-  Notation "[]" := empty : pmap_scope.
 
-  Parameter empty_correct : forall x, sel [] x = None.
+  Parameter empty_correct : forall x, sel empty x = None.
 
 End PartialMap.
 
-Module MakeSubmap (Key : MiniDecidableType) (Data : Typ) (M : PartialMap Key Data) <: PartialMap Key Data.
+Module Notations (Key : MiniDecidableType) (Data : Typ) (Import M : PartialMap Key Data).
+  Delimit Scope pmap_scope with pmap.
+  Infix "+" := add : pmap_scope.
+  Infix "-" := remove : pmap_scope.
+  Notation "[]" := empty : pmap_scope.
+End Notations.
 
-  Include M.
+Module Relations (Key : MiniDecidableType) (Data : Typ) (Import M : PartialMap Key Data).
 
   Definition submap (a b : pmap) := forall x w, sel a x = Some w -> sel b x = Some w.
   Infix "<=" := submap : pmap_scope.
@@ -48,7 +46,7 @@ Module MakeSubmap (Key : MiniDecidableType) (Data : Typ) (M : PartialMap Key Dat
     unfold submap; intros; rewrite empty_correct in H; discriminate.
   Qed.
 
-End MakeSubmap.
+End Relations.
 
 (* Implementations *)
 
@@ -93,5 +91,8 @@ Module ArrowPMap (Key : MiniDecidableType) (Data : Typ) <: PartialMap Key Data.
   Lemma empty_correct : forall x, sel empty x = None.
     eauto.
   Qed.
+
+  Include Notations Key Data.
+  Include Relations Key Data.
 
 End ArrowPMap.

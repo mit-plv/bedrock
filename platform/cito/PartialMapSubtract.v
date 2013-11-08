@@ -7,10 +7,10 @@ Module Type HasSubtract (Key : MiniDecidableType) (Data : Typ) (S : Set_ Key) <:
 
   Include PartialMap.PartialMap Key Data.
 
-  Local Open Scope pmap_scope.
-
   Parameter subtract : pmap -> S.set -> pmap.
   Infix "--" := subtract (at level 60) : pmap_scope.
+
+  Local Open Scope pmap_scope.
 
   Parameter subtract_none : forall m s x, S.mem x s -> sel (m -- s) x = None.
 
@@ -39,16 +39,8 @@ Module ArrowHasSubtract (Key : MiniDecidableType) (Data : Typ) (S : MembershipDe
     unfold subtract, sel; intros; destruct (S.mem_dec x s); intuition; discriminate.
   Qed.
 
-End ArrowHasSubtract.
-
-Module SubtractSubmap (Key : MiniDecidableType) (Data : Typ) (S : MembershipDecidableSet Key) (M : HasSubtract Key Data S) <: HasSubtract Key Data S.
-
-  Include M.
-
-  Module Submap := MakeSubmap Key Data M.
-
-  Lemma subtract_submap : forall (a : pmap) (b : S.set), Submap.submap (subtract a b) a.
-    unfold Submap.submap; intros; eapply subtract_in; eauto.
+  Lemma subtract_submap : forall (a : pmap) (b : S.set), submap (subtract a b) a.
+    unfold submap; intros; eapply subtract_in; eauto.
   Qed.
 
-End SubtractSubmap.
+End ArrowHasSubtract.
