@@ -4,7 +4,7 @@ Require Import GeneralTactics.
 Require Import StepsTo.
 Require Import WritingPrograms.
 Require Import SemanticsExpr.
-Require Import MapSet.
+Require Import SetModule PartialMap PartialMapSubtract.
 Require Import Equalities.
 
 Set Implicit Arguments.

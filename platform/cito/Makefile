@@ -3,7 +3,7 @@ BEDROCK := ../..
 MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	SemanticsExprLemmas Dict Syntax Semantics SemanticsLemmas \
 	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
-	StepsTo StepsSafe Optimizer MapSet ConstFolding \
+	StepsTo StepsSafe Optimizer SetModule PartialMap PartialMapSubtract ConstFolding \
 	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
