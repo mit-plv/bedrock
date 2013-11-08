@@ -5,23 +5,53 @@ Require Import StepsTo.
 Require Import WritingPrograms.
 Require Import SemanticsExpr.
 Require Import MapSet.
+Require Import Equalities.
 
 Set Implicit Arguments.
 
-Open Scope mapset_scope.
+Module Key <: MiniDecidableType.
+  Definition t := string.
+  Definition eq_dec := string_dec.
+End Key.
+
+Module Data <: Typ.
+  Definition t := W.
+End Data.
+
+Module MSet := ArrowSet Key.
+Module MMap := ArrowHasSubtract Key Data MSet.
+Module MMap' := SubtractSubmap Key Data MSet MMap.
+
+Import MSet.
+Import MMap.
+Import MMap'.
+
+Open Scope set_scope.
+Open Scope pmap_scope.
+
+Definition SET := set.
+Definition PartialMap := pmap.
+Definition empty_set := MSet.empty.
+Definition empty_map := MMap.empty.
+Infix "%%+" := MMap.add (at level 60).
+Infix "%%-" := MMap.remove (at level 60).
+Infix "%<=" := subset (at level 60).
+Infix "%%<=" := Submap.submap (at level 60).
+Infix "+" := union.
+Infix "-" := subtract.
 
 Section HintsSection.
 
-  Hint Resolve empty_map_empty.
+  Hint Resolve empty_correct.
   Hint Resolve subset_correct.
-  Hint Resolve submap_correct.
+  Hint Resolve Submap.submap_correct.
   Hint Resolve subtract_none.
   Hint Resolve singleton_mem.
   Hint Resolve subset_union_2.
   Hint Resolve subset_union_1.
   Hint Resolve subset_refl.
   Hint Resolve union_same_subset.
-  Hint Resolve empty_map_submap.
+  Hint Resolve Submap.empty_submap.
   Hint Resolve subtract_submap.
 
   Definition agree_with (v : vals) (m : PartialMap) :=
@@ -47,7 +77,7 @@ Section HintsSection.
   Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
     unfold agree_with.
     intros.
-    rewrite empty_map_empty in H.
+    rewrite empty_correct in H.
     intuition.
   Qed.
   Hint Resolve everything_agree_with_empty_map.
@@ -109,7 +139,7 @@ Hint Resolve subset_union_2.
 Hint Resolve subset_union_1.
 Hint Resolve subset_refl.
 Hint Resolve union_same_subset.
-Hint Resolve empty_map_submap.
+Hint Resolve Submap.empty_submap.
 Hint Resolve subtract_submap.
 
 Hint Resolve agree_with_remove.
