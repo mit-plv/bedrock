@@ -1,5 +1,6 @@
 Require Import Syntax.
-Require Import WritingPrograms.
+Import String Memory IL SyntaxExpr.
+Require Import Notations.
 
 Set Implicit Arguments.
 
@@ -13,17 +14,19 @@ Notation skip := Syntax.Skip.
 Variable union : set -> set -> set.
 Infix "+" := union.
 
+Open Scope stmnt.
+
 Fixpoint elim_dead s used : Statement * set :=
   match s with
     | skip => (s, used)
-    | a ;; b => 
+    | a ;: b => 
       let result := elim_dead b used in
       let b := fst result in
       let used := snd result in
       let result := elim_dead a used in
       let a := fst result in
       let used := snd result in
-      (a ;; b, used)
+      (a ;: b, used)
     | Conditional e t f => 
       let result := elim_dead t used in
       let t := fst result in
@@ -61,3 +64,19 @@ Fixpoint elim_dead s used : Statement * set :=
     | Call f[x] =>
       (s, used + free_vars f + free_vars x)
   end.
+
+Require Import Semantics.
+
+Variable agree_in : vals -> vals -> set -> Prop.
+
+Lemma elim_dead_is_bp : 
+  forall fs s used vs vt heap vt' heap', 
+    let result := elim_dead s used in
+    let t := fst result in
+    let used' := snd result in
+    RunsTo fs t (vt, heap) (vt', heap') ->
+    agree_in vs vt used' ->
+    exists vs',
+      RunsTo fs s (vs, heap) (vs', heap') /\
+      agree_in vs' vt' used.
+    
