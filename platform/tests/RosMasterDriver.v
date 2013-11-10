@@ -1,8 +1,8 @@
 Require Import Ros XmlProg.
 
 Module M.
-  Definition buf_size := (20 * 1024)%N.
-  Definition outbuf_size := (20 * 1024)%N.
+  Definition buf_size := (15 * 1024)%N.
+  Definition outbuf_size := (25 * 1024)%N.
   Definition heapSize := (1024 * 1024 * 200)%N.
 
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
@@ -102,9 +102,9 @@ Module M.
     (* Sign up to receive notifications when a parameter value changes. *)
     RosCommand "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
     Do
+      registerNode;;
+      Insert "paramSubscribers" ($"key", $"caller_api");;
       IfHas "params" Where ("key" = $"key") then
-        registerNode;;
-        Insert "paramSubscribers" ($"key", $"caller_api");;
         Response Success
           Message "Parameter value is:"
           Body
@@ -112,9 +112,9 @@ Module M.
               "params"#"value"
         end
       else
-        Response UserError
-          Message "Parameter not found."
-          Body ignore
+        Response Success
+          Message "Parameter not set yet."
+          Body !unit
         end
       end
     end;;
