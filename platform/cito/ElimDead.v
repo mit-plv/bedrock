@@ -16,17 +16,25 @@ End Key.
 Module MSet := ArrowSet Key.
 Import MSet.
 
-Variable used_vars : Expr -> set.
 Notation skip := Syntax.Skip.
 Notation free := Syntax.Free.
 Notation len := Syntax.Len.
+Notation eval := exprDenote.
 
 Open Scope stmnt.
 Open Scope set.
 
+Fixpoint used_vars e :=
+  match e with
+    | Const _ => 0
+    | Var x => !x
+    | Binop _ a b => used_vars a + used_vars b
+    | TestE _ a b => used_vars a + used_vars b
+  end.
+
 Fixpoint used_vars_stmt s :=
   match s with
-    | skip => {}
+    | skip => 0
     | a ;: b => used_vars_stmt a + used_vars_stmt b
     | Conditional e t f => used_vars e + used_vars_stmt t + used_vars_stmt f
     | Loop e body => used_vars e + used_vars_stmt body
@@ -38,11 +46,6 @@ Fixpoint used_vars_stmt s :=
     | len x e => used_vars e
     | Call f[x] => used_vars f + used_vars x
   end.
-
-Notation "%" := singleton.
-Variable diff : set -> set -> set.
-Infix "-" := diff.
-Notation eval := exprDenote.
 
 Fixpoint elim_dead s used : Statement * set :=
   match s with
@@ -70,24 +73,22 @@ Fixpoint elim_dead s used : Statement * set :=
       (Loop e body, used + used' + used_vars e)
     | x <- e =>
       if mem_dec x used then
-        (s, used - %x + used_vars e)
+        (s, used - !x + used_vars e)
       else
         (skip, used)
     | x <== arr[idx] =>
-      (s, used - %x + used_vars arr + used_vars idx)
+      (s, used - !x + used_vars arr + used_vars idx)
     | arr[idx] <== e =>
       (s, used + used_vars arr + used_vars idx + used_vars e)
     | x <- new e =>
-      (s, used - %x + used_vars e)
+      (s, used - !x + used_vars e)
     | free e =>
       (s, used + used_vars e)
     | len x e =>
-      (s, used - %x + used_vars e)
+      (s, used - !x + used_vars e)
     | Call f[x] =>
       (s, used + used_vars f + used_vars x)
   end.
-
-Definition agree_in a b s := forall x, x %in s -> Locals.sel a x = Locals.sel b x.
 
 Ltac openhyp' :=
   repeat match goal with
@@ -101,46 +102,7 @@ Ltac unfold_all :=
            | H := _ |- _ => unfold H in *; clear H
          end.
 
-Lemma eval_agree_in : forall e a b, agree_in a b (used_vars e) -> eval e a = eval e b.
-  admit.
-Qed.
-
-Lemma upd_same_agree_in : forall a b s x w, agree_in a b (s - %x) -> agree_in (upd a x w) (upd b x w) s.
-  admit.
-Qed.
-
-Lemma agree_in_subset : forall a b s s', agree_in a b s -> (s' <= s)%set -> agree_in a b s'.
-  admit.
-Qed.
-
-Lemma upd_out_agree_in : forall a b s x w, agree_in a b s -> ~ x %in s -> agree_in (upd a x w) b s.
-  admit.
-Qed.
-
-Hint Constructors RunsTo.
-Hint Resolve subset_union_1 subset_union_2.
-
 Open Scope set_scope.
-
-Lemma union_subset : forall (a b c : set), a <= c -> b <= c -> a + b <= c.
-  admit.
-Qed.
-
-Lemma subset_union_left : forall a b, a <= a + b.
-  admit.
-Qed.
-
-Lemma subset_union_right : forall a b, b <= a + b.
-  admit.
-Qed.
-
-Lemma subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
-  admit.
-Qed.
-
-Lemma diff_subset : forall a x, a - %x <= a.
-  admit.
-Qed.
 
 Ltac subset_solver :=
   repeat 
@@ -160,14 +122,42 @@ Ltac subset_solver :=
 
 Hint Extern 0 (subset _ _) => progress subset_solver.
 
+Definition agree_in a b s := forall x, x ^ s -> Locals.sel a x = Locals.sel b x.
+
+Lemma agree_in_symm : forall a b s, agree_in a b s -> agree_in b a s.
+  unfold agree_in; intros; symmetry; eauto.
+Qed.
+
+Lemma agree_in_subset : forall a b s s', agree_in a b s -> (s' <= s)%set -> agree_in a b s'.
+  unfold agree_in; intros; eapply subset_correct in H0; eauto.
+Qed.
+
+Lemma upd_same_agree_in : forall a b s x w, agree_in a b (s - !x) -> agree_in (upd a x w) (upd b x w) s.
+  unfold agree_in; intros.
+  destruct (string_dec x x0).
+  subst.
+  repeat rewrite sel_upd_eq; eauto.
+  repeat rewrite sel_upd_ne; eauto.
+  eapply H.
+  eapply diff_correct.
+  intuition.
+  eapply singleton_correct in H1.
+  intuition.
+Qed.
+
+Lemma upd_out_agree_in : forall a b s x w, agree_in a b s -> ~ x ^ s -> agree_in (upd a x w) b s.
+  unfold agree_in; intros.
+  destruct (string_dec x x0).
+  subst; intuition.
+  repeat rewrite sel_upd_ne; eauto.
+Qed.
+
+Hint Constructors RunsTo.
 Hint Resolve upd_same_agree_in.
 Hint Resolve agree_in_subset.
 Hint Resolve upd_out_agree_in.
-
-Lemma agree_in_symm : forall a b s, agree_in a b s -> agree_in b a s.
-  admit.
-Qed.
 Hint Resolve agree_in_symm.
+Hint Resolve subset_union_left subset_union_right.
 
 Lemma elim_dead_upper_bound : 
   forall s used,
@@ -179,6 +169,18 @@ Proof.
   openhyp'; simpl in *; eauto.
 Qed.
 Hint Resolve elim_dead_upper_bound.
+
+Ltac f_equal' :=
+  match goal with
+    | |- (if ?E1 then _ else _) = (if ?E2 then _ else _) => replace E2 with E1; try reflexivity
+  end.
+
+Lemma eval_agree_in : forall e a b, agree_in a b (used_vars e) -> eval e a = eval e b.
+  induction e; simpl; intuition.
+  eapply H; eapply singleton_correct; eauto.
+  f_equal; eauto.
+  f_equal'; f_equal; eauto.
+Qed.
 
 Lemma while_case :
   forall fs t v v',
@@ -359,3 +361,187 @@ Proof.
   eauto.
 
 Qed.
+
+Import Safety.
+
+Hint Constructors Safe.
+
+Lemma elim_dead_is_sp :
+  forall fs s used vs vt heap,
+    let result := elim_dead s used in
+    let t := fst result in
+    let used' := snd result in
+    Safe fs s (vs, heap) ->
+    agree_in vs vt used' ->
+    Safe fs t (vt, heap).
+Proof.
+  induction s.
+
+  Focus 7.
+  intros.
+  unfold_all.
+  eapply 
+    (Safe_coind 
+       (fun t v =>
+          (exists vs c b used,
+             let s := While (c) {{b}} in
+             let result := elim_dead s used in
+             let s' := fst result in
+             let used' := snd result in
+             let vt := fst v in
+             let heap := snd v in
+             Safe fs s (vs, heap) /\
+             agree_in vs vt used' /\
+             (let s := b in
+              forall (used : set) (vs vt : vals) (heap : arrays),
+                Safe fs s (vs, heap) ->
+                agree_in vs vt (snd (elim_dead s used)) ->
+                Safe fs (fst (elim_dead s used)) (vt, heap)
+             ) /\
+             t = s') \/
+          Safe fs t v
+    )); [ .. | left; descend; simpl in *; intuition eauto ]; clear; simpl; intros; openhyp.
+
+  intuition.
+
+  inversion H; unfold_all; subst; eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst; eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst; intuition eauto.
+
+  intuition.
+
+  inversion H; subst.
+  intuition eauto.
+  right; intuition eauto.
+
+  injection H2; intros; subst.
+  inversion H; unfold_all; subst.
+  destruct v; simpl in *.
+  left.
+  repeat split.
+  repeat erewrite (@eval_agree_in _ v x) by eauto.
+  eauto.
+  eauto.
+
+  intros.
+  left.
+  destruct v'; simpl in *.
+  eapply elim_dead_is_bp in H3; eauto; openhyp.
+  descend.
+  4 : eauto.
+  eauto.
+  eauto using subset_trans.
+  eauto.
+
+  simpl in *.
+  right.
+  destruct v; simpl in *.
+  repeat erewrite (@eval_agree_in _ v x) by eauto.
+  eauto.
+
+  inversion H; unfold_all; subst.
+  intuition eauto.
+  right.
+  intuition eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst; eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst; eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst; eauto.
+
+  intuition.
+
+  inversion H; unfold_all; subst.
+  intuition eauto.
+  intuition eauto.
+
+  (* end of while case *)
+
+  simpl; intros; openhyp'; simpl in *; eauto.
+
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  eauto.
+  intros.
+  destruct v'; simpl in *.
+  eapply elim_dead_is_bp in H1; eauto; openhyp.
+  eauto.
+
+  simpl; intros.
+  eauto.
+
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  simpl in *.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  eauto.
+
+  econstructor 5.
+  simpl in *.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  eauto.
+
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+
+  simpl; intros.
+  inversion H; unfold_all; subst.
+  econstructor.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+
+  econstructor 14.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+  repeat erewrite (@eval_agree_in _ vt vs) by eauto.
+  eauto.
+
+Qed.  
+  
+  
