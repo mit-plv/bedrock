@@ -35,7 +35,7 @@ Fixpoint used_vars e :=
 Fixpoint used_vars_stmt s :=
   match s with
     | skip => 0
-    | a ;: b => used_vars_stmt a + used_vars_stmt b
+    | a ;;; b => used_vars_stmt a + used_vars_stmt b
     | Conditional e t f => used_vars e + used_vars_stmt t + used_vars_stmt f
     | Loop e body => used_vars e + used_vars_stmt body
     | x <- e => used_vars e
@@ -50,14 +50,14 @@ Fixpoint used_vars_stmt s :=
 Fixpoint elim_dead s used : Statement * set :=
   match s with
     | skip => (s, used)
-    | a ;: b => 
+    | a ;;; b => 
       let result := elim_dead b used in
       let b := fst result in
       let used := snd result in
       let result := elim_dead a used in
       let a := fst result in
       let used := snd result in
-      (a ;: b, used)
+      (a ;;; b, used)
     | Conditional e t f => 
       let result := elim_dead t used in
       let t := fst result in
@@ -543,5 +543,45 @@ Proof.
   eauto.
 
 Qed.  
-  
-  
+
+Require Import SemanticsLemmas.
+Require Import CompileStatement.
+
+Lemma elim_dead_footprint : forall s m, List.incl (footprint (fst (elim_dead s m))) (footprint s).
+Proof.
+  induction s; simpl; intuition.
+  openhyp'; simpl in *; eauto.
+Qed.
+
+Open Scope nat.
+
+Lemma elim_dead_depth : forall s m, depth (fst (elim_dead s m)) <= depth s.
+Proof.
+  induction s; simpl; intuition.
+  openhyp'; simpl in *; eauto.
+Qed.
+
+Definition elim_dead_top s := fst (elim_dead s empty).
+
+Require Import GoodOptimizer.
+
+Lemma same_agree_in : forall a s, agree_in a a s.
+  unfold agree_in; intros; eauto.
+Qed.
+Hint Resolve same_agree_in.
+
+Lemma elim_dead_top_is_good_optimizer : is_good_optimizer elim_dead_top.
+  unfold is_good_optimizer, elim_dead_top.
+
+  descend.
+  destruct v; simpl in *.
+  eapply elim_dead_is_bp in H; eauto; openhyp.
+  descend; eauto.
+
+  destruct v; simpl in *.
+  eapply elim_dead_is_sp; eauto.
+
+  eapply elim_dead_footprint.
+
+  eapply elim_dead_depth.
+Qed.
