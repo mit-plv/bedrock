@@ -38,6 +38,10 @@ Infix "%%<=" := submap (at level 60).
 Infix "+" := union.
 Infix "-" := subtract.
 
+Lemma singleton_mem : forall x, mem x (singleton x).
+  intros; eapply singleton_correct; eauto.
+Qed.
+
 Section HintsSection.
 
   Hint Resolve empty_correct.
@@ -45,12 +49,13 @@ Section HintsSection.
   Hint Resolve submap_correct.
   Hint Resolve subtract_none.
   Hint Resolve singleton_mem.
-  Hint Resolve subset_union_2.
-  Hint Resolve subset_union_1.
+  Hint Resolve subset_union_left.
+  Hint Resolve subset_union_right.
   Hint Resolve subset_refl.
   Hint Resolve union_same_subset.
   Hint Resolve empty_submap.
   Hint Resolve subtract_submap.
+  Hint Resolve mem_union_left mem_union_right.
 
   Definition agree_with (v : vals) (m : PartialMap) :=
     forall x w,
@@ -82,9 +87,9 @@ Section HintsSection.
 
   Definition agree_except (a b : vals) (s : SET) := 
     forall x,
-      Locals.sel a x <> Locals.sel b x -> x %in s.
+      Locals.sel a x <> Locals.sel b x -> x ^ s.
 
-  Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) {x}.
+  Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) (!x).
     unfold agree_except.
     intros.
     destruct (string_dec x x0).
@@ -133,8 +138,8 @@ Section HintsSection.
 
 End HintsSection.
 
-Hint Resolve subset_union_2.
-Hint Resolve subset_union_1.
+Hint Resolve subset_union_left.
+Hint Resolve subset_union_right.
 Hint Resolve subset_refl.
 Hint Resolve union_same_subset.
 Hint Resolve empty_submap.
@@ -192,7 +197,7 @@ Notation delete := Syntax.Free.
 
 Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialMap * SET :=
   match s with
-    | Syntax.Skip => (skip, map, {})
+    | Syntax.Skip => (skip, map, 0)
     | a ;; b => 
       let result_a := const_folding a map in
       let map' := snd (fst result_a) in
@@ -208,10 +213,10 @@ Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialM
       match const_dec e' with
         | inleft (exist w _) =>
           let map' := map %%+ (x, w) in
-          (x <- w, map', {x})
+          (x <- w, map', !x)
         | inright _ =>
           let map' := map %%- x in
-          (x <- e', map', {x})
+          (x <- e', map', !x)
       end
     | Conditional c t f =>
       let c' := const_folding_expr c map in 
@@ -234,7 +239,7 @@ Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialM
       end
     | Loop c b =>
       if const_zero_dec (const_folding_expr c map) then
-        (skip, map, {})
+        (skip, map, 0)
       else
         let c' := const_folding_expr c [] in
         let result_b := const_folding b [] in
@@ -246,25 +251,25 @@ Fixpoint const_folding (s : Statement) (map : PartialMap) : Statement * PartialM
     | x <== arr[idx] =>
       let arr' := const_folding_expr arr map in
       let idx' := const_folding_expr idx map in
-      (x <== arr'[idx'], map %%- x, {x})
+      (x <== arr'[idx'], map %%- x, !x)
     | arr[idx] <== e =>
       let arr' := const_folding_expr arr map in
       let idx' := const_folding_expr idx map in
       let e' := const_folding_expr e map in
-      (arr'[idx'] <== e', map, {})
+      (arr'[idx'] <== e', map, 0)
     | Syntax.Len x arr =>
       let arr' := const_folding_expr arr map in
-      (Syntax.Len x arr', map %%- x, {x})
+      (Syntax.Len x arr', map %%- x, !x)
     | x <- new size =>
       let size' := const_folding_expr size map in
-      (x <- new size', map %%- x, {x})
+      (x <- new size', map %%- x, !x)
     | Syntax.Free arr =>
       let arr' := const_folding_expr arr map in
-      (Syntax.Free arr', map, {})
+      (Syntax.Free arr', map, 0)
     | Syntax.Call f x =>
       let f' := const_folding_expr f map in
       let x' := const_folding_expr x map in
-      (Syntax.Call f' x', map, {})
+      (Syntax.Call f' x', map, 0)
   end.
 
 Ltac f_equal' :=
