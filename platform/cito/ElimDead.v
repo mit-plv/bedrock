@@ -219,7 +219,7 @@ Lemma while_case :
             RunsTo fs s (vs, heap) (vs', heap') /\ agree_in vs' vt' used
       ) ->
       exists vs',
-        RunsTo fs s (vs, heap) (vs', heap) /\
+        RunsTo fs s (vs, heap) (vs', heap') /\
         agree_in vs' vt' used.
 Proof.
   induction 1; simpl; intros; unfold_all; subst; intuition.
@@ -234,8 +234,22 @@ Proof.
   eauto using subset_trans.
   openhyp.
   descend.
-(*here*)
+  econstructor.
+  simpl. 
+  repeat erewrite (@eval_agree_in _ vs w) by eauto.
   eauto.
+  eauto.
+  eauto.
+  eauto.
+
+  injection H0; intros; subst.
+  descend.
+  econstructor 9.
+  simpl.
+  repeat erewrite (@eval_agree_in _ vs (fst v)) by eauto.
+  eauto.
+  eauto.
+Qed.
 
 Lemma elim_dead_is_bp : 
   forall fs s used vs vt heap vt' heap', 
@@ -309,7 +323,7 @@ Proof.
   eauto.
   eauto.
 
-  admit.
+  eapply while_case in H; eauto.
 
   inversion H; unfold_all; subst.
   descend.
