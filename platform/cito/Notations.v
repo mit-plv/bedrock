@@ -26,7 +26,7 @@ Notation "'If' cond { trueStmnt } 'Else' { falseStmnt }" := (Conditional cond%ex
 Notation "'Call' f [ arg ]" := (Syntax.Call f arg)
   (no associativity, at level 95, f at level 0) : stmnt_scope.
 
-Notation "a ;: b" := (Syntax.Seq a b) (at level 95, b at level 95): stmnt_scope.
+Infix ";;;" := Syntax.Seq (at level 95): stmnt_scope.
 
 Notation "var <- expr " := (Syntax.Assignment var expr%expr) (at level 90, no associativity): stmnt_scope.
 Notation "var <- 'new' size" := (Syntax.Malloc var size%expr) (no associativity, at level 60): stmnt_scope.

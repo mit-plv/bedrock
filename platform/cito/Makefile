@@ -3,8 +3,8 @@ BEDROCK := ../..
 MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	SemanticsExprLemmas Dict Syntax Semantics SemanticsLemmas \
 	CompileExpr MyMalloc MyFree SepLemmas CompileStatement \
-	GoodOptimizer SetModule PartialMap PartialMapSubtract ConstFolding \
-	Compiler Wf WritingPrograms Compile Recall Notations \
+	GoodOptimizer SetModule PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
+	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)

@@ -3,7 +3,7 @@ Export WritingPrograms CompileStatement Compiler.
 Require Import Malloc MyMalloc MyFree Bootstrap.
 Export Malloc.
 Require Export AutoSep Semantics.
-Require ConstFolding.
+Require ConstFolding ElimDead.
 
 Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
   {| Name := name;
@@ -14,9 +14,9 @@ Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : Cfuncs_scope.
 Delimit Scope Cfuncs_scope with Cfuncs.
 
-Definition optimizer := ConstFolding.constant_folding.
+Definition optimizer := GoodOptimizer.compose ConstFolding.constant_folding ElimDead.elim_dead_top.
 
-Definition optimizer_is_good_optimizer := ConstFolding.constant_folding_is_good_optimizer.
+Definition optimizer_is_good_optimizer := GoodOptimizer.is_good_optimizer_trans ConstFolding.constant_folding_is_good_optimizer ElimDead.elim_dead_top_is_good_optimizer.
 
 Notation "'cmodule' name fs" := (Compiler.compile optimizer name fs%Cfuncs)
   (no associativity, at level 95, name at level 0, only parsing).
