@@ -2,6 +2,9 @@ Require Import Syntax.
 Import String Memory IL SyntaxExpr.
 Require Import Notations.
 Require Import Equalities SetModule.
+Require Import Semantics.
+Require Import GeneralTactics.
+Import SemanticsExpr.
 
 Set Implicit Arguments.
 
@@ -13,10 +16,10 @@ End Key.
 Module MSet := ArrowSet Key.
 Import MSet.
 
-Variable remove : set -> string -> set.
-Infix "%-" := remove (at level 20).
 Variable used_vars : Expr -> set.
 Notation skip := Syntax.Skip.
+Notation free := Syntax.Free.
+Notation len := Syntax.Len.
 
 Open Scope stmnt.
 Open Scope set.
@@ -31,10 +34,15 @@ Fixpoint used_vars_stmt s :=
     | x <== arr[idx] => used_vars arr + used_vars idx
     | arr[idx] <== e => used_vars arr + used_vars idx + used_vars e
     | x <- new e => used_vars e
-    | Free e => used_vars e
-    | Len x e => used_vars e
+    | free e => used_vars e
+    | len x e => used_vars e
     | Call f[x] => used_vars f + used_vars x
   end.
+
+Notation "%" := singleton.
+Variable diff : set -> set -> set.
+Infix "-" := diff.
+Notation eval := exprDenote.
 
 Fixpoint elim_dead s used : Statement * set :=
   match s with
@@ -62,24 +70,22 @@ Fixpoint elim_dead s used : Statement * set :=
       (Loop e body, used + used' + used_vars e)
     | x <- e =>
       if mem_dec x used then
-        (s, used %- x + used_vars e)
+        (s, used - %x + used_vars e)
       else
         (skip, used)
     | x <== arr[idx] =>
-      (s, used %- x + used_vars arr + used_vars idx)
+      (s, used - %x + used_vars arr + used_vars idx)
     | arr[idx] <== e =>
       (s, used + used_vars arr + used_vars idx + used_vars e)
     | x <- new e =>
-      (s, used %- x + used_vars e)
-    | Free e =>
+      (s, used - %x + used_vars e)
+    | free e =>
       (s, used + used_vars e)
-    | Len x e =>
-      (s, used %- x + used_vars e)
+    | len x e =>
+      (s, used - %x + used_vars e)
     | Call f[x] =>
       (s, used + used_vars f + used_vars x)
   end.
-
-Require Import Semantics.
 
 Definition agree_in a b s := forall x, x %in s -> Locals.sel a x = Locals.sel b x.
 
@@ -95,15 +101,11 @@ Ltac unfold_all :=
            | H := _ |- _ => unfold H in *; clear H
          end.
 
-Require Import GeneralTactics.
-Import SemanticsExpr.
-Notation eval := exprDenote.
-
 Lemma eval_agree_in : forall e a b, agree_in a b (used_vars e) -> eval e a = eval e b.
   admit.
 Qed.
 
-Lemma upd_same_agree_in : forall a b s x w, agree_in a b (s %- x) -> agree_in (upd a x w) (upd b x w) s.
+Lemma upd_same_agree_in : forall a b s x w, agree_in a b (s - %x) -> agree_in (upd a x w) (upd b x w) s.
   admit.
 Qed.
 
@@ -124,30 +126,19 @@ Lemma union_subset : forall (a b c : set), a <= c -> b <= c -> a + b <= c.
   admit.
 Qed.
 
-Variable add : set -> string -> set.
-Infix "%+" := add (at level 20).
-
-Lemma add_subset_union : forall a x, a %+ x <= a + singleton x.
+Lemma subset_union_left : forall a b, a <= a + b.
   admit.
 Qed.
 
-Lemma union_subset_add : forall a x, a + singleton x <= a %+ x.
+Lemma subset_union_right : forall a b, b <= a + b.
   admit.
 Qed.
 
-Definition subset_union_left : forall a b, a <= a + b.
+Lemma subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
   admit.
 Qed.
 
-Definition subset_union_right : forall a b, b <= a + b.
-  admit.
-Qed.
-
-Definition subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
-  admit.
-Qed.
-
-Definition remove_subset : forall a x, a %- x <= a.
+Lemma diff_subset : forall a x, a - %x <= a.
   admit.
 Qed.
 
@@ -164,9 +155,7 @@ Ltac subset_solver :=
         match B with
             context [ S ] => eapply subset_trans; [ .. | eapply subset_union_right]
         end
-      | |- _ %+ _ <= _ => eapply subset_trans; [ eapply add_subset_union | .. ]
-      | |- _ <= _ %+ _ => eapply subset_trans; [ .. | eapply union_subset_add ]
-      | |- _ %- _ <= _ => eapply subset_trans; [ eapply remove_subset | .. ]
+      | |- _ - _ <= _ => eapply subset_trans; [ eapply diff_subset | .. ]
       end.
 
 Hint Extern 0 (subset _ _) => progress subset_solver.
