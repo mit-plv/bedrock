@@ -349,6 +349,8 @@ Proof.
   eauto.
   repeat erewrite (@eval_agree_in _ vs vt') by eauto.
   eauto.
+  repeat erewrite (@eval_agree_in _ vs vt') by eauto.
+  eauto.
   eauto.
 
   descend.
