@@ -2865,7 +2865,7 @@ Section Compiler.
     inversion H18; clear H18; subst.
     inversion H34; clear H34; subst.
     (*here*)
-    specialize (Imply_sound (H3 _ _) (Inj_I _ _ H32)); propxFo.
+    specialize (Imply_sound (H3 _ _ _ ) (Inj_I _ _ H32)); propxFo.
     repeat match goal with
              | [ H : context[exprDenote] |- _ ] => generalize dependent H
              | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
@@ -2933,20 +2933,20 @@ Section Compiler.
     change (wordToNat (natToW 3)) with 3; omega.
     unfold sel, upd; simpl.
     rewrite H39.
-    unfold arg_v in H37.
-    rewrite H44 in H37.
+    unfold arg_v in H35.
+    rewrite H44 in H35.
     eassumption.
     step auto_ext.
     eapply existsR.
     apply andR.
     apply andR.
     apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
+      do 3 (apply Forall_I; intro); eauto.
     apply Imply_I; apply interp_weaken;
       do 2 (apply Forall_I; intro); eauto.
     change (fst (vs, arrs)) with vs in *.
     descend.
-    clear Hi H35 H37 H25.
+    clear Hi H37 H25.
     repeat match goal with
              | [ H : _ \/ _ |- _ ] => clear H
              | [ H : not _ |- _ ] => clear H
@@ -2965,6 +2965,7 @@ Section Compiler.
     eapply Safe_immune.
     apply H36.
     econstructor.
+    eauto.
     eauto.
     unfold upd in H12; simpl in H12; congruence.
 
@@ -3128,7 +3129,7 @@ Section Compiler.
     apply andR.
     apply andR.
     apply Imply_I; apply interp_weaken;
-      do 2 (apply Forall_I; intro); eauto.
+      do 3 (apply Forall_I; intro); eauto.
     apply Imply_I; apply interp_weaken;
       do 2 (apply Forall_I; intro); eauto.
     change (fst (vs, arrs)) with vs in *.
