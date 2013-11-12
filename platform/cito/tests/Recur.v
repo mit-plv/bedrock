@@ -179,8 +179,8 @@ Ltac myFuncs :=
                destruct E
            end; intuition congruence.
 
-Lemma myFuncs_foreign : forall stn pc P,
-  myFuncs stn pc = Some (Foreign P)
+Lemma myFuncs_foreign : forall stn pc precond P,
+  myFuncs stn pc = Some (Foreign precond P)
   -> False.
   myFuncs.
 Qed.
