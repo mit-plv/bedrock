@@ -1351,10 +1351,10 @@ Definition hints : TacPackage.
 Defined.
 
 Definition funcsOk (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := (
-  (Al i : W, Al P : callTransition -> Prop, [| fs i = Some (Foreign P) |]
+  (Al i : W, Al Precond, Al P : callTransition -> Prop, [| fs i = Some (Foreign Precond P) |]
     ---> (i, stn) @@@ (st ~> ExX, Ex vs, Ex a, Ex res,
       ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs res st#Sp * heap a * mallocHeap 0] * #0] st
-      /\ [| res = wordToNat (vs "__reserved") /\ exists a', P {| Arg := sel vs "__arg"; InitialHeap := a; FinalHeap := a' |} |]
+      /\ [| res = wordToNat (vs "__reserved") /\ Precond (sel vs "__arg") a |]
       /\ (st#Rp, stn) @@@ (st' ~> Ex vs', Ex a',
         [| st'#Sp = st#Sp |]
         /\ ![^[locals ("rp" :: "__reserved" :: "__arg" :: nil) vs' res st'#Sp * heap a' * mallocHeap 0] * #1] st'
@@ -2864,6 +2864,7 @@ Section Compiler.
 
     inversion H18; clear H18; subst.
     inversion H34; clear H34; subst.
+    (*here*)
     specialize (Imply_sound (H3 _ _) (Inj_I _ _ H32)); propxFo.
     repeat match goal with
              | [ H : context[exprDenote] |- _ ] => generalize dependent H

@@ -61,7 +61,7 @@ Record callTransition := {
 }.
 
 Inductive Callee := 
-  | Foreign : (callTransition -> Prop) -> Callee
+  | Foreign : (W -> arrays -> Prop) -> (callTransition -> Prop) -> Callee
   | Internal : Statement -> Callee.
 
 Section functions.
@@ -128,10 +128,11 @@ Inductive RunsTo : Statement -> st -> st -> Prop :=
       arr_v %in fst arrs ->
       let len := natToW (length (snd arrs arr_v)) in
       RunsTo (Syntax.Len var arr) v (Locals.upd vs var len, arrs)
-  | CallForeign : forall vs arrs f arrs' spec arg,
+  | CallForeign : forall vs arrs f arrs' precond spec arg,
       let v := (vs, arrs) in
       let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Foreign spec)
+      functions (exprDenote f vs) = Some (Foreign precond spec)
+      -> precond arg_v arrs
       -> spec {| Arg := arg_v; InitialHeap := arrs; FinalHeap := arrs' |}
       -> RunsTo (Syntax.Call f arg) v (vs, arrs')
   | CallInternal : forall vs arrs f arrs' body arg vs_arg vs',
@@ -198,10 +199,10 @@ CoInductive Safe : Statement -> st -> Prop :=
       let arr_v := exprDenote arr vs in
       arr_v %in fst arrs ->
       Safe (Syntax.Len var arr) (vs, arrs)
-  | CallForeign : forall vs arrs f arg spec arrs',
+  | CallForeign : forall vs arrs f arg precond spec,
       let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Foreign spec)
-      -> spec {| Arg := arg_v; InitialHeap := arrs; FinalHeap := arrs' |}
+      functions (exprDenote f vs) = Some (Foreign precond spec)
+      -> precond arg_v arrs
       -> Safe (Syntax.Call f arg) (vs, arrs)
   | CallInternal : forall vs arrs f arg body,
       let arg_v := exprDenote arg vs in
@@ -232,8 +233,8 @@ CoInductive Safe : Statement -> st -> Prop :=
 
     Hypothesis ForeignCallCase : forall vs arrs f arg,
       R (Syntax.Call f arg) (vs, arrs)
-      -> (exists spec arrs', functions (exprDenote f vs) = Some (Foreign spec)
-        /\ spec {| Arg := exprDenote arg vs; InitialHeap := arrs; FinalHeap := arrs' |}) \/
+      -> (exists precond spec, functions (exprDenote f vs) = Some (Foreign precond spec)
+        /\ precond (exprDenote arg vs) arrs) \/
       (exists body, functions (exprDenote f vs) = Some (Internal body) /\ forall vs_arg, Locals.sel vs_arg "__arg" = exprDenote arg vs -> R body (vs_arg, arrs)).
 
     Hint Constructors Safe.
