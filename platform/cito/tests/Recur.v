@@ -409,6 +409,11 @@ Theorem mainOk : moduleOk main.
   match goal with
     | [ H : myFuncs _ ?X = _ |- _ ] => change X with x5 in *
   end.
+
+  rename H25 into H29.
+  rename H33 into H_new.
+  rename H34 into H33.
+
   unfold myFuncs in H29; simpl in H29.
   rewrite H1 in H29; rewrite H7 in H29.
   destruct (weq x5 x5); congruence.
@@ -447,6 +452,11 @@ Theorem mainOk : moduleOk main.
   match goal with
     | [ H : myFuncs _ ?X = _ |- _ ] => change X with x2 in *
   end.
+
+  rename H24 into H25.
+  rename H29 into H_new.
+  rename H30 into H29.
+
   unfold myFuncs in H25; simpl in H25.
   rewrite H1 in H25; rewrite H7 in H25.
   destruct (weq x2 x5); try congruence.
@@ -503,6 +513,11 @@ Theorem mainOk : moduleOk main.
   match goal with
     | [ H : myFuncs _ ?X = _ |- _ ] => change X with x5 in *
   end.
+
+  rename H24 into H30.
+  rename H34 into H_new.
+  rename H36 into H34.
+
   unfold myFuncs in H30; simpl in H30.
   rewrite H1 in H30; rewrite H7 in H30.
   destruct (weq x5 x5); congruence.
@@ -581,6 +596,11 @@ Theorem mainOk : moduleOk main.
   match goal with
     | [ H : myFuncs _ ?X = _ |- _ ] => change X with x2 in *
   end.
+
+  rename H6 into H8.
+  rename H11 into H_new.
+  rename H12 into H11.
+
   unfold myFuncs in H8; simpl in H8.
   rewrite Hf in H8; rewrite Hg in H8.
   destruct (weq x2 x5); try congruence.
