@@ -1,4 +1,0 @@
-10/9/2013
-adt
-add getting pointers from function names (using a environment for constants)
-optimizer
