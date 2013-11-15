@@ -484,6 +484,7 @@ Module M.
   Admitted.
     (*wf.
   Qed.*)
+  (* This proof script requires particularly much memory, so uncomment if you're willing to use about 16 GB of RAM. *)
 
   Definition port : W := 12345%N.
   Definition numWorkers : W := 10.
