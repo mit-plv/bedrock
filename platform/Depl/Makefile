@@ -1,5 +1,5 @@
 ROOT    := ../..
-MODULES := Logic
+MODULES := Logic Cancel
 
 VS      := $(MODULES:%=%.v)
 
