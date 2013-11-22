@@ -39,7 +39,7 @@ Definition ho_env (G : list Type) := ho_var -> list dyn -> hpropB G.
 Inductive pred :=
 | Pure (P : fo_env -> Prop)
 | Star (p1 p2 : pred)
-| Exists (x : fo_var) (T : Type) (p1 : pred)
+| Exists (x : fo_var) (p1 : pred)
 | Named (X : ho_var) (es : list expr).
 
 (** Meanings of assertions *)
@@ -47,13 +47,13 @@ Fixpoint predD (p : pred) G (hE : ho_env G) (fE : fo_env) : hpropB G :=
   match p with
     | Pure P => injB _ (P fE)
     | Star p1 p2 => starB (predD p1 hE fE) (predD p2 hE fE)
-    | Exists x T p1 => exB (fun y : T => predD p1 hE (fo_set fE x (Dyn y)))
+    | Exists x p1 => exB (fun y => predD p1 hE (fo_set fE x y))
     | Named X es => hE X (map (fun e => exprD e fE) es)
   end.
 
 (** Assertion normal forms *)
 Record normal := {
-  NQuants : list (fo_var * Type);
+  NQuants : list fo_var;
   NPure : option (fo_env -> Prop);
   NImpure : list pred
 }.
@@ -63,10 +63,10 @@ Record normal := {
 Definition propX := propX W (settings * state).
 Definition PropX := propX nil.
 
-Fixpoint addQuants (qs : list (fo_var * Type)) G (f : fo_env -> hpropB G) (fE : fo_env) : hpropB G :=
+Fixpoint addQuants (qs : list fo_var) G (f : fo_env -> hpropB G) (fE : fo_env) : hpropB G :=
   match qs with
     | nil => f fE
-    | (x, T) :: qs' => exB (fun y : T => addQuants qs' f (fo_set fE x (Dyn y)))
+    | x :: qs' => exB (fun y => addQuants qs' f (fo_set fE x y))
   end.
 
 Definition normalD (n : normal) G (hE : ho_env G) (fE : fo_env) : hpropB G :=
@@ -91,9 +91,9 @@ Fixpoint normalize (p : pred) : normal :=
                      | v, None => v
                    end;
           NImpure := NImpure n1 ++ NImpure n2 |}
-    | Exists x T p1 =>
+    | Exists x p1 =>
       let n1 := normalize p1 in
-        {| NQuants := (x, T) :: NQuants n1;
+        {| NQuants := x :: NQuants n1;
           NPure := NPure n1;
           NImpure := NImpure n1 |}
     | Named X es =>
@@ -125,7 +125,7 @@ Fixpoint boundVars (p : pred) : option (list fo_var) :=
           if notsInList xs1 xs2 then Some (xs1 ++ xs2) else None
         | _, _ => None
       end
-    | Exists x T p1 =>
+    | Exists x p1 =>
       match boundVars p1 with
         | None => None
         | Some xs => if notInList x xs then Some (x :: xs) else None
@@ -153,7 +153,7 @@ Fixpoint wellScoped (xs : list fo_var) (p : pred) : Prop :=
   match p with
     | Pure f => forall fE fE', (forall x, In x xs -> fE x = fE' x) -> f fE = f fE'
     | Star p1 p2 => wellScoped xs p1 /\ wellScoped xs p2
-    | Exists x T p1 => wellScoped (x :: xs) p1
+    | Exists x p1 => wellScoped (x :: xs) p1
     | Named _ es => forall fE fE', (forall x, In x xs -> fE x = fE' x)
       -> forall e, In e es -> exprD e fE = exprD e fE'
   end.
@@ -315,7 +315,7 @@ Proof.
   eapply Himp_trans; [ | apply addQuants_app_bwd ].
 
   Lemma addQuants_monotone : forall G (s : subs _ _ G) f g qs fE,
-    (forall fE', (forall x, (forall T, ~In (x, T) qs) -> fE' x = fE x)
+    (forall fE', (forall x, ~In x qs -> fE' x = fE x)
       -> SubstsH s (f fE') ===> SubstsH s (g fE'))
     -> SubstsH s (addQuants qs f fE) ===> SubstsH s (addQuants qs g fE).
   Proof.
@@ -327,7 +327,7 @@ Proof.
     apply H; intros.
     rewrite H0; eauto.
     unfold fo_set.
-    destruct (string_dec x a0); subst; auto.
+    destruct (string_dec x a); subst; auto.
     exfalso; eauto.
   Qed.
 
@@ -373,9 +373,9 @@ Proof.
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply addQuants_push_bwd.
   
-  Lemma normalize_boundVars : forall x T p xs,
+  Lemma normalize_boundVars : forall x p xs,
     boundVars p = Some xs
-    -> In (x, T) (NQuants (normalize p))
+    -> In x (NQuants (normalize p))
     -> In x xs.
   Proof.
     induction p; simpl; intuition.
@@ -386,7 +386,7 @@ Proof.
     injection H; clear H; intros; subst.
     apply in_app_or in H0; intuition.
 
-    injection H1; clear H1; intros; subst.
+    subst.
     case_eq (boundVars p); [ intros ? Heq1 | intro Heq1 ]; rewrite Heq1 in *; try discriminate.
     case_eq (notInList x l); intro Heq3; rewrite Heq3 in *; try discriminate.
     injection H; clear H; intros; subst.
