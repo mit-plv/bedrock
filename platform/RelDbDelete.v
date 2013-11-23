@@ -3,6 +3,8 @@ Require Import SinglyLinkedList Buffers NumOps RelDb RelDbCondition.
 
 Set Implicit Arguments.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 (** * Iterating over matching rows of a table *)
 

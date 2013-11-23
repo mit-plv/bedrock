@@ -117,7 +117,7 @@ Ltac t :=
         | [ |- context[debufferize] ] => unfold buffer
       end; sep_auto; finish.
 
-Hint Extern 1 (@eq W _ _) => words.
+Local Hint Extern 1 (@eq W _ _) => words.
 
 Theorem ok : moduleOk m.
   vcgen; abstract t.

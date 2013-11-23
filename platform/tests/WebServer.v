@@ -4,6 +4,8 @@ Require Import Ascii.
 Definition W_of_ascii (ch : ascii) : W := N_of_ascii ch.
 Coercion W_of_ascii : ascii >-> W.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 Section strings.
   Open Scope Sep_scope.

@@ -3,6 +3,8 @@ Require Import SinglyLinkedList ListSegment.
 
 Set Implicit Arguments.
 
+Local Hint Extern 1 (@eq W _ _) => words.
+
 
 (** * Database schemas and query/command types *)
 

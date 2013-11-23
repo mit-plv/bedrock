@@ -1,5 +1,6 @@
 Require Import Thread0 Arrays8 MoreArrays Buffers.
 
+Local Hint Extern 1 (@eq W _ _) => words.
 
 
 Module Type S.

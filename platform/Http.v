@@ -41,6 +41,7 @@ Coercion ascii_of_nat : nat >-> ascii.
 
 Definition endOfHeaders := String 13 (String 10 (String 13 (String 10 ""))).
 Definition contentLength := "Content-Length: ".
+Definition contentLengthLower := "Content-length: ".
 
 Definition nl := String 13 (String 10 "").
 Definition preResponse := ("HTTP/1.1 200 OK" ++ nl
@@ -221,6 +222,18 @@ Definition m := bimport [[ "io"!"readSome" @ [readSomeGS sched globalInv],
                 * [| V "pos" <= V "len" |]%word)%Sep
               (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
                 * sched fs' * globalInv fs' * mallocHeap 0)%Sep;;
+
+              If ("matched" = 0) {
+                Note [reveal_buffers];;
+
+                StringEq "buf" "len" "clen" "matched" contentLengthLower
+                (fun fs V => [| V "fr" %in fs |] * sched fs * globalInv fs * mallocHeap 0
+                  * [| V "pos" <= V "len" |]%word)%Sep
+                (fun _ fs V _ => Ex fs', [| fs %<= fs' |] * V "buf" =?>8 wordToNat (V "len")
+                  * sched fs' * globalInv fs' * mallocHeap 0)%Sep
+              } else {
+                Skip
+              };;
 
               Note [reveal_buffers];;
 
@@ -471,11 +484,13 @@ Ltac t' :=
       end;
   try match goal with
         | [ _ : context[match ?st with pair _ _ => _ end] |- _ ] => destruct st; simpl in *
-      end; try solve [ sep_auto; eauto ];
-  post; evaluate auto_ext; descend;
+      end; try abstract (sep_auto; eauto);
+  post; evaluate auto_ext; try congruence; descend;
   try match_locals; repeat (step auto_ext; descend); eauto.
 
 Ltac t := easy || prove_irrel || t'.
+
+Local Hint Extern 1 (@eq W _ _) => words.
 
 Theorem ok : moduleOk m.
   vcgen; abstract t.
