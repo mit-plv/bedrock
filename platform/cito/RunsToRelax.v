@@ -1,11 +1,4 @@
-Require Import SyntaxExpr SemanticsExpr.
-Require Import Syntax Semantics SyntaxNotations.
-Require Import VariableLemmas.
-Require Import Depth Footprint.
-Require Import GeneralTactics.
-Require Import ExprLemmas.
-Require Import SemanticsLemmas.
-Require Import Arith.
+Set Implicit Arguments.
 
 Open Scope nat.
 
@@ -59,6 +52,15 @@ Ltac incl_app_solver :=
           context [ S ] => eapply (@incl_appr _ _ (_ :: nil))
         end
     end.
+
+Require Import SyntaxExpr SemanticsExpr.
+Require Import Syntax Semantics SyntaxNotations.
+Require Import VariableLemmas.
+Require Import Depth Footprint.
+Require Import GeneralTactics.
+Require Import ExprLemmas.
+Require Import SemanticsLemmas.
+Require Import Arith.
 
 Ltac change_RunsTo_for_goal :=
   match goal with
