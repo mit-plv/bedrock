@@ -30,12 +30,12 @@ Definition ArgIn := (W + ADTValue)%type.
 
 Definition ArgOut := option ADTValue.
 
-Definition Return := (W + ADTValue)%type.
+Definition Ret := (W + ADTValue)%type.
 
 Record ForeignFuncSpec := 
   {
     PreCond: list ArgIn -> Prop;
-    PostCond : list (ArgIn * ArgOut) -> Return -> Prop
+    PostCond : list (ArgIn * ArgOut) -> Ret -> Prop
   }.
 
 Record InternalFuncSpec := 
