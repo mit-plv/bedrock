@@ -2,12 +2,15 @@ BEDROCK := ../..
 
 MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics SafeCoind \
+	SetInterface SetNotations SetFunctors SetArrow \
+	FreeVarsExpr \
+	RunsToRelax CompileStatement \
 	ExprLemmas VariableLemmas \
-	DepthExpr FootprintExpr \
-	SemanticsExprLemmas Footprint SemanticsLemmas \
-	Depth SyntaxNotations RunsToRelax \
-	CompileExpr SepLemmas CompileStatement \
-	GoodOptimizer SetModule PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
+	DepthExpr FreeVarsExpr \
+	SemanticsExprLemmas FreeVars SemanticsLemmas \
+	Depth SyntaxNotations \
+	CompileExpr SepLemmas \
+	GoodOptimizer PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
 	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 

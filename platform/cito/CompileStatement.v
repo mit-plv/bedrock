@@ -1,18 +1,9 @@
-Require Import AutoSep Wrap Arith.
-Require Import ExprLemmas.
-Require Import VariableLemmas.
-Require Import GeneralTactics.
-Require Import SyntaxExpr SemanticsExpr.
-Require Import Syntax Semantics.
-Require Import SyntaxNotations.
-Require Import RunsToRelax.
-Require Import Footprint Depth.
-Import DefineStructured.
-Import Safety.
-
 Set Implicit Arguments.
 
+Require Import DepthExpr.
+
 Local Notation edepth := DepthExpr.depth.
+
 Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
 
 Definition starD (f : W -> ADTValue -> HProp) (d : Heap) := MHeap.MSet.starS (fun p => f p (MHeap.sel d p)) (MHeap.keys d).
@@ -29,6 +20,17 @@ Definition is_return (ret : RetType) : HProp :=
     | Some adt_value => layout adt_value (fst ret)
   end.
 
+Require Import AutoSep Wrap Arith.
+Require Import ExprLemmas.
+Require Import VariableLemmas.
+Require Import GeneralTactics.
+Require Import SyntaxExpr SemanticsExpr.
+Require Import Syntax Semantics.
+Require Import SyntaxNotations.
+Require Import RunsToRelax.
+Require Import Footprint Depth.
+Require Import DefineStructured.
+Require Import Safety.
 Require Import Malloc.
 
 Definition S_RESERVED := "!reserved".
