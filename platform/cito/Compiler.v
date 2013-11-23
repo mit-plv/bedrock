@@ -2,7 +2,8 @@ Require Import AutoSep.
 
 Require Import VariableLemmas Syntax Semantics CompileStatement.
 Require Import Malloc MyMalloc MyFree.
-
+Require Import GeneralTactics.
+Require Import GoodOptimizer.
 
 Record func := {
   Name : string;
@@ -23,6 +24,10 @@ Definition funcSpec f : assert := st ~> Ex fs, funcsOk (fst st) fs
 Definition funcVars f := Vars f ++ tempChunk 0 (depth (Body f)).
 
 Section Compiler.
+  Variable optimizer : Statement -> Statement.
+
+  Hypothesis optimizer_is_good_optimizer : is_good_optimizer optimizer.
+
   Variable moduleName : string.
   Definition modName := ("Cito_" ++ moduleName)%string.
 
@@ -41,13 +46,13 @@ Section Compiler.
           (Straightline_ _ _
             (Binop (LvMem (Indir Sp 4)) Rv Minus (length (funcVars f))
               :: nil))
-          (statementCmd (funcVars f) H _ (Body f) Syntax.Skip))
+          (statementCmd (funcVars f) H _ (optimizer (Body f)) Syntax.Skip))
         (Seq_ H
           (Straightline_ _ _
             (Assign Rp (LvMem (Indir Sp 0))
               :: nil))
           (IGoto _ _ Rp)))).
-  
+
   Definition compileFunc (f : func) : StructuredModule.function modName :=
     (Name f, funcSpec f, funcBody f).
 
@@ -240,10 +245,29 @@ Section Compiler.
 
   Hint Immediate goodFunc_NoDup.
 
+  Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
+  Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+  Hint Resolve optimizer_depth.
+
+  Lemma optimizer_is_backward_simulation : forall fs s v vs' heap', RunsTo fs (optimizer s) v (vs', heap') -> exists vs'', RunsTo fs s v (vs'', heap').
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
+  Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+    unfold is_good_optimizer in *; intuition.
+  Qed.
+
   Lemma goodVcs : forall funcs,
     List.Forall goodFunc funcs
     -> NoDup (map Name funcs)
     -> vcs (makeVcs imports (map compileFunc functions) (map compileFunc funcs)).
+  Proof.
+    clear optimizer_is_good_optimizer.
     induction 1; simpl; intuition;
       match goal with
         | [ H : NoDup (_ :: _) |- _ ] => inversion H; clear H; subst
@@ -299,6 +323,7 @@ Section Compiler.
     nomega.
     fold (@length string); descend.
     constructor; [ | intros; constructor ].
+    eapply optimizer_is_safety_preservation.
     eapply NoUninitializedSafe; eauto.
     step auto_ext.
     step auto_ext.
@@ -322,12 +347,15 @@ Section Compiler.
     inversion H17; clear H17; subst.
     inversion H24; clear H24; subst.
     destruct x11; simpl in *; subst.
+    eapply optimizer_is_backward_simulation in H21.
+    openhyp.
     eauto using NoUninitializedRunsTo.
 
     hnf; simpl; intuition (try rewrite app_nil_r).
 
     specialize (WellScoped _ H); simpl.
     unfold incl; intros.
+    eapply optimizer_footprint in H1.
     apply H0 in H1; simpl in *; intuition.
     unfold funcVars; eauto.
 
@@ -335,6 +363,7 @@ Section Compiler.
     apply incl_appr; auto.
 
     hnf; intuition.
+    eapply optimizer_footprint in H0.
     apply WellScoped in H0; auto.
     simpl in *; intuition; subst.
     apply In_tempChunk in H1; tauto.

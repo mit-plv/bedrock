@@ -4,6 +4,7 @@ Export XmlOutput XmlLang.
 
 Coercion XmlLang.Cdata : string >-> XmlLang.pat.
 Notation "$ x" := (XmlLang.Var x) (at level 0) : pat_scope.
+Notation "$$ x" := (XmlLang.TreeVar x) (at level 0) : pat_scope.
 Infix "/" := XmlLang.Tag : pat_scope.
 Infix "&" := XmlLang.Both (at level 41, right associativity) : pat_scope.
 Infix ";;" := XmlLang.Ordered : pat_scope.
@@ -32,6 +33,16 @@ Notation "'From' tab 'Where' cond 'Write' o" :=
 Notation "'From' tab 'Write' o" :=
   (XSelect tab nil o%out)
   (at level 0, tab at level 0, o at level 0) : out_scope.
+Definition forJoin (o : xml) :=
+  match o with
+    | XColumn tab col => (tab, col)
+    | _ => ("", "")
+  end.
+Notation "'Join' x1 'to' x2 ;;; o" :=
+  (let (tab1, col1) := forJoin x1 in
+    let (tab2, col2) := forJoin x2 in
+      XIfEqual tab1 col1 tab2 col2 o%out)
+  (at level 95, col1 at level 0, col2 at level 0, o at level 0) : out_scope.
 Bind Scope out_scope with xml.
 
 Definition econs (x : exp) (xs : list exp) : list exp := x :: xs.
@@ -46,6 +57,14 @@ Notation "'IfHas' tab 'Where' cond 'then' a1 'else' a2 'end'" :=
   (IfExists tab cond%condition a1 a2)
   (at level 0, tab at level 0, cond at level 0, a1 at level 0, a2 at level 0) : action_scope.
 Delimit Scope action_scope with action.
+Notation "'From' tab 'Where' cond 'Do' a" :=
+  (XmlLang.Select tab cond%condition a%action)
+  (at level 0, tab at level 0, cond at level 0, a at level 0) : action_scope.
+Notation "'From' tab 'Do' a" :=
+  (XmlLang.Select tab nil a%action)
+  (at level 0, tab at level 0, a at level 0) : action_scope.
+Notation "'Send' x1 'Value' x2" :=
+  (XmlLang.SendTo x1%out x2%out) (at level 0, x1 at level 0, x2 at level 0) : action_scope.
 Bind Scope action_scope with action.
 
 Notation "'Match' p 'Do' a 'end'" := (Rule p%pat a%action) : program_scope.

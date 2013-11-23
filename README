@@ -3,7 +3,7 @@ Mostly automated verification of higher-order programs with higher-order separat
 http://plv.csail.mit.edu/bedrock/
 
 
-This release requires Coq 8.4 (final released version, not a beta).
+This release requires Coq 8.4pl2.
 
 To build, run one of the following:
    make native

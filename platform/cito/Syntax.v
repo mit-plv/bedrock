@@ -1,9 +1,9 @@
 Require Import String.
 Require Import SyntaxExpr.
 
-Inductive Statement : Set := 
-  | Skip : Statement
-  | Seq : Statement -> Statement -> Statement
-  | If : Expr -> Statement -> Statement -> Statement
-  | While : Expr -> Statement -> Statement
-  | Call : option string -> Expr -> list Expr -> Statement.
+Inductive Stmt : Set := 
+  | Skip : Stmt
+  | Seq : Stmt -> Stmt -> Stmt
+  | If : Expr -> Stmt -> Stmt -> Stmt
+  | While : Expr -> Stmt -> Stmt
+  | Call : option string -> Expr -> list Expr -> Stmt.

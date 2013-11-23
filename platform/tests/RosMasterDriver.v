@@ -1,8 +1,9 @@
 Require Import Ros XmlProg.
 
 Module M.
-  Definition buf_size := 1024%N.
-  Definition heapSize := (1024 * 1024 * 25)%N.
+  Definition buf_size := (15 * 1024)%N.
+  Definition outbuf_size := (25 * 1024)%N.
+  Definition heapSize := (1024 * 1024 * 200)%N.
 
   Definition dbaddr (n : nat) := ((heapSize + 50 + 2 + N.of_nat n) * 4)%N.
 
@@ -11,26 +12,36 @@ Module M.
       Address := dbaddr 0;
       Schema := "key" :: "value" :: nil
     |}
-    :: {| Name := "nodes";
+    :: {| Name := "paramSubscribers";
       Address := dbaddr 1;
+      Schema := "key" :: "subscriber_api" :: nil |}
+
+    :: {| Name := "nodes";
+      Address := dbaddr 2;
       Schema := "caller_id" :: "caller_api" :: nil
     |}
+
     :: {| Name := "services";
-      Address := dbaddr 2;
-      Schema := "service" :: "service_api" :: nil
-    |}
-    :: {| Name := "topics";
       Address := dbaddr 3;
+      Schema := "service" :: "node_id" :: "service_api" :: nil
+    |}
+
+    :: {| Name := "topics";
+      Address := dbaddr 4;
       Schema := "topic" :: "topic_type" :: nil |}
     :: {| Name := "publishers";
-      Address := dbaddr 4;
-      Schema := "topic" :: "publisher_api" :: nil |}
-    :: {| Name := "subscribers";
       Address := dbaddr 5;
-      Schema := "topic" :: "subscriber_api" :: nil |}
-    :: {| Name := "topicsWithPublishers";
+      Schema := "topic" :: "node_id" :: "publisher_api" :: nil |}
+    :: {| Name := "subscribers";
       Address := dbaddr 6;
+      Schema := "topic" :: "node_id" :: "subscriber_api" :: nil |}
+    :: {| Name := "topicsWithPublishers";
+      Address := dbaddr 7;
       Schema := "topic" :: "topic_type" :: nil |}
+    :: {| Name := "topicsWithSubscribers";
+      Address := dbaddr 8;
+      Schema := "topic" :: "topic_type" :: nil |}
+    
     :: nil.
 
   Definition registerNode := (
@@ -52,20 +63,15 @@ Module M.
     end;;
 
     (* Set the value of a parameter. *)
-    RosCommand "setParam"(!string $"caller_id", !string $"key", !string $"value")
+    RosCommand "setParam"(!string $"caller_id", !string $"key", !any $$"value")
     Do
       Delete "params" Where ("key" = $"key");;
       Insert "params" ($"key", $"value");;
-      Response Success
-        Message "Parameter set."
-        Body ignore
-      end
-    end;;
 
-    RosCommand "setParam"(!string $"caller_id", !string $"key", !int $"value")
-    Do
-      Delete "params" Where ("key" = $"key");;
-      Insert "params" ($"key", $"value");;
+      From "paramSubscribers" Where ("key" = $"key") Do
+        Callback "paramSubscribers"#"subscriber_api"
+        Command "paramUpdate"(!string "/master", !string $"key", $"value");;
+
       Response Success
         Message "Parameter set."
         Body ignore
@@ -80,7 +86,7 @@ Module M.
           Message "Parameter value is:"
           Body
             From "params" Where ("key" = $"key") Write
-              !string "params"#"value"
+              "params"#"value"
         end
       else
         Response UserError
@@ -94,10 +100,41 @@ Module M.
     Unimplemented "searchParam"(!string $"caller_id", !string $"key");;
 
     (* Sign up to receive notifications when a parameter value changes. *)
-    Unimplemented "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+    RosCommand "subscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
+    Do
+      registerNode;;
+      Insert "paramSubscribers" ($"key", $"caller_api");;
+      IfHas "params" Where ("key" = $"key") then
+        Response Success
+          Message "Parameter value is:"
+          Body
+            From "params" Where ("key" = $"key") Write
+              "params"#"value"
+        end
+      else
+        Response Success
+          Message "Parameter not set yet."
+          Body !unit
+        end
+      end
+    end;;
 
     (* Cancel a subscription. *)
-    Unimplemented "unsubscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key");;
+    RosCommand "unsubscribeParam"(!string $"caller_id", !string $"caller_api", !string $"key")
+    Do
+      IfHas "paramSubscribers" Where (("key" = $"key") && ("subscriber_api" = $"caller_api")) then
+        Delete "paramSubscribers" Where (("key" = $"key") && ("subscriber_api" = $"caller_api"));;
+        Response Success
+          Message "You are now unsubscribed."
+          Body !int "1"
+        end
+      else
+        Response Success
+          Message "You weren't subscribed to begin with."
+          Body !int "0"
+        end
+      end
+    end;;
 
     (* Check if a parameter has a value. *)
     RosCommand "hasParam"(!string $"caller_id", !string $"key")
@@ -126,7 +163,6 @@ Module M.
       end
     end;;
 
-
     (** * Master <http://www.ros.org/wiki/ROS/Master_API> *)
 
     (** ** Register/unregister *)
@@ -142,7 +178,7 @@ Module M.
         end
       else
         registerNode;;
-        Insert "services" ($"service", $"service_api");;
+        Insert "services" ($"service", $"caller_id", $"service_api");;
         Response Success
           Message "Service registered."
           Body ignore
@@ -179,7 +215,13 @@ Module M.
             Body ignore
           end
         else
-          Insert "subscribers" ($"topic", $"caller_api");;
+          registerNode;;
+          Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
+          IfHas "topicsWithSubscribers" Where ("topic" = $"topic") then
+            Write ""
+          else
+            Insert "topicsWithSubscribers" ($"topic", $"topic_type")
+          end;;
           Response Success
             Message "You are now subscribed.  Publishers are:"
             Body
@@ -194,8 +236,10 @@ Module M.
             Body ignore
           end
         else
+          registerNode;;
           Insert "topics" ($"topic", $"topic_type");;
-          Insert "subscribers" ($"topic", $"caller_api");;
+          Insert "topicsWithSubscribers" ($"topic", $"topic_type");;
+          Insert "subscribers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now subscribed.  Publishers are:"
             Body Array end
@@ -210,6 +254,11 @@ Module M.
     Do
       IfHas "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api")) then
         Delete "subscribers" Where (("topic" = $"topic") && ("subscriber_api" = $"caller_api"));;
+        IfHas "subscribers" Where ("topic" = $"topic") then
+          Write ""
+        else
+          Delete "topicsWithSubscribers" Where ("topic" = $"topic")
+        end;;
         Response Success
           Message "You are now unsubscribed."
           Body !int "1"
@@ -233,12 +282,20 @@ Module M.
             Body ignore
           end
         else
-          Insert "publishers" ($"topic", $"caller_api");;
+          registerNode;;
+          Insert "publishers" ($"topic", $"caller_id", $"caller_api");;
           IfHas "topicsWithPublishers" Where ("topic" = $"topic") then
             Write ""
           else
             Insert "topicsWithPublishers" ($"topic", $"topic_type")
           end;;
+
+          From "subscribers" Where ("topic" = $"topic") Do
+            Callback "subscribers"#"subscriber_api"
+            Command "publisherUpdate"(!string "/master", !string $"topic",
+              ArrayFrom "publishers" Where ("topic" = $"topic") Write
+                !string "publishers"#"publisher_api");;
+
           Response Success
             Message "You are now publishing.  Subscribers are:"
             Body
@@ -253,9 +310,10 @@ Module M.
             Body ignore
           end
         else
+          registerNode;;
           Insert "topics" ($"topic", $"topic_type");;
           Insert "topicsWithPublishers" ($"topic", $"topic_type");;
-          Insert "publishers" ($"topic", $"caller_api");;
+          Insert "publishers" ($"topic", $"caller_id", $"caller_api");;
           Response Success
             Message "You are now publishing.  Subscribers are:"
             Body Array end
@@ -338,8 +396,43 @@ Module M.
     end;;
 
     (* Dump of all relevant service/topic state. *)
-    Unimplemented "getSystemState"(!string $"caller_id");;
+    RosCommand "getSystemState"(!string $"caller_id")
+    Do
+      Response Success
+        Message "System state is:"
+        Body
+          Array
+            ArrayFrom "topicsWithPublishers" Write
+              Array
+                !string "topicsWithPublishers"#"topic",
+                ArrayFromOpt "publishers" Write
+                  Join "publishers"#"topic" to "topicsWithPublishers"#"topic";;;
+                  Value
+                    !string "publishers"#"node_id"
+                  end
+              end,
 
+            ArrayFrom "topicsWithSubscribers" Write
+              Array
+                !string "topicsWithSubscribers"#"topic",
+                ArrayFromOpt "subscribers" Write
+                  Join "subscribers"#"topic" to "topicsWithSubscribers"#"topic";;;
+                  Value
+                    !string "subscribers"#"node_id"
+                  end
+              end,
+
+            ArrayFrom "services" Write
+              Array
+                !string "services"#"service",
+                Array
+                  !string "services"#"node_id"
+                end
+              end
+          end
+      end
+    end;;
+  
     (* Get the master's URI. *)
     RosCommand "getUri"(!string $"caller_id")
     Do
@@ -381,14 +474,19 @@ Module M.
     end;;
 
     (* Terminate the server. *)
-    Unimplemented "shutdown"(!string $"caller_id", !string $"msg")
+    RosCommand "shutdown"(!string $"caller_id", !string $"msg")
+    Do
+      Halt
+    end
   ).
 
-  Theorem Wf : wf ts pr buf_size.
-    wf.
-  Qed.
+  Theorem Wf : wf ts pr buf_size outbuf_size.
+  Admitted.
+    (*wf.
+  Qed.*)
+  (* This proof script requires particularly much memory, so uncomment if you're willing to use about 16 GB of RAM. *)
 
-  Definition port : W := 11311%N.
+  Definition port : W := 12345%N.
   Definition numWorkers : W := 10.
 End M.
 

@@ -199,7 +199,6 @@ Section Params.
       Al bs, Al x : A,
       PRE[V] precondition x V * array8 bs (V str) * [| length bs = wordToNat (V len) |]
         * [| wordToNat (V pos) + offset + String.length const <= wordToNat (V len) |]%nat
-        (** [| V len ^- V pos >= natToW (offset + String.length const) |]%word*)
       POST[R] postcondition bs x V R.
 
     Notation StringWriteVcs := (fun _ ns _ => (~In "rp" ns) :: In str ns :: In len ns :: In pos ns :: In output ns
@@ -253,12 +252,17 @@ Section Params.
 
     Definition StringWrite : chunk.
       refine (WrapC (
-        output <- len - pos;;
-        If (String.length const <= output) {
-          StringWrite'' O;;
-          pos <- pos + String.length const
+        If (output = 1) {
+          Skip
         } else {
-          output <- 1
+          output <- len - pos;;
+          If (String.length const <= output) {
+            StringWrite'' O;;
+            pos <- pos + String.length const;;
+            output <- 0
+          } else {
+            output <- 1
+          }
         })%SP
       StringWriteSpec
       StringWriteSpec
@@ -267,6 +271,7 @@ Section Params.
         (try app; simp;
           match goal with
             | [ H : evalInstrs _ _ _ = _ |- _ ] => evalu
+            | [ H : evalCond _ _ _ _ _ = _ |- _ ] => evalu
             | _ => idtac
           end; autorewrite with sepFormula in *; finish)).
     Defined.

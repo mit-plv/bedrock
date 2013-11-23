@@ -1,5 +1,5 @@
 Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags NumOps Buffers.
-Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps.
+Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps HttpQ.
 Require Import RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete.
 
 Set Implicit Arguments.
@@ -13,6 +13,9 @@ Inductive pat :=
 
 (* Record CDATA at this position via a variable. *)
 | Var (text : string)
+
+(* Like [Var], but for an XML subtree *)
+| TreeVar (text : string)
 
 (* Match a specific tag at this level in the XML tree, then continue into its children. *)
 | Tag (tag : string) (inner : pat)
@@ -37,7 +40,8 @@ Inductive xml :=
 | XVar (text : string)
 | XTag (tag : string) (inner : list xml)
 | XColumn (tab col : string)
-| XSelect (tab : string) (cond : condition) (inner : xml).
+| XSelect (tab : string) (cond : condition) (inner : xml)
+| XIfEqual (tab1 col1 tab2 col2 : string) (inner : xml).
 
 Section xml_ind'.
   Variable P : xml -> Prop.
@@ -52,6 +56,8 @@ Section xml_ind'.
 
   Hypothesis H_Select : forall tab cond inner, P inner -> P (XSelect tab cond inner).
 
+  Hypothesis H_IfEqual : forall tab1 col1 tab2 col2 inner, P inner -> P (XIfEqual tab1 col1 tab2 col2 inner).
+
   Fixpoint xml_ind' (xm : xml) : P xm :=
     match xm with
       | XCdata const => H_Cdata const
@@ -63,6 +69,7 @@ Section xml_ind'.
         end) inner)
       | XColumn tab col => H_Column tab col
       | XSelect tab cond inner => H_Select tab cond (xml_ind' inner)
+      | XIfEqual tab1 col1 tab2 col2 inner => H_IfEqual tab1 col1 tab2 col2 (xml_ind' inner)
     end.
 End xml_ind'.
 
@@ -74,7 +81,10 @@ Inductive action :=
 | Delete (tab : string) (cond : condition)
 | Output (xm : xml)
 | Seq (a1 a2 : action)
-| IfExists (tab : string) (cond : condition) (_then _else : action).
+| IfExists (tab : string) (cond : condition) (_then _else : action)
+| Halt
+| Select (tab : string) (cond : condition) (inner : action)
+| SendTo (url data : xml).
 
 (* A full program *)
 Inductive program :=
@@ -88,6 +98,7 @@ Fixpoint freeVar (p : pat) (x : string) : Prop :=
   match p with
     | Cdata _ => False
     | Var text => x = text
+    | TreeVar text => x = text
     | Tag _ inner => freeVar inner x
     | Both p1 p2 => freeVar p1 x \/ freeVar p2 x
     | Ordered p1 p2 => freeVar p1 x \/ freeVar p2 x
@@ -97,6 +108,7 @@ Fixpoint pwf (p : pat) : Prop :=
   match p with
     | Cdata const => goodSize (String.length const)
     | Var _ => True
+    | TreeVar _ => True
     | Tag tag inner => goodSize (String.length tag) /\ pwf inner
     | Both p1 p2 => pwf p1 /\ pwf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
     | Ordered p1 p2 => pwf p1 /\ pwf p2 /\ (forall x, freeVar p1 x -> ~freeVar p2 x)
@@ -106,6 +118,7 @@ Fixpoint allCdatas (p : pat) : list string :=
   match p with
     | Cdata _ => nil
     | Var text => text :: nil
+    | TreeVar text => text :: nil
     | Tag _ inner => allCdatas inner
     | Both p1 p2 => allCdatas p2 ++ allCdatas p1
     | Ordered p1 p2 => allCdatas p2 ++ allCdatas p1
@@ -138,6 +151,12 @@ Fixpoint xwf (avs ts : tables) (xm : xml) : Prop :=
     | XSelect tab cond inner => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond
       /\ xwf (t :: avs) (removeTable tab ts) inner
+    | XIfEqual tab1 col1 tab2 col2 inner => tab1 <> tab2
+      /\ (exists t, In t avs /\ Name t = tab1
+        /\ In col1 (Schema t))
+      /\ (exists t, In t avs /\ Name t = tab2
+        /\ In col2 (Schema t))
+      /\ xwf avs ts inner
   end.
 
 Definition efreeVar (e : exp) (x : string) : Prop :=
@@ -154,6 +173,7 @@ Fixpoint xfreeVar (xm : xml) (x : string) : Prop :=
     | XColumn _ _ => False
     | XSelect _ cond inner => List.Exists (fun e => efreeVar (snd e) x) cond
       \/ xfreeVar inner x
+    | XIfEqual _ _ _ _ inner => xfreeVar inner x
   end.
 
 Fixpoint xbindsRowVar (xm : xml) (x : string) : Prop :=
@@ -163,6 +183,7 @@ Fixpoint xbindsRowVar (xm : xml) (x : string) : Prop :=
     | XTag _ inner => ExistsR (fun xm' => xbindsRowVar xm' x) inner
     | XColumn _ _ => False
     | XSelect tab _ inner => x = tab \/ xbindsRowVar inner x
+    | XIfEqual _ _ _ _ inner => xbindsRowVar inner x
   end.
 
 
@@ -172,6 +193,7 @@ Fixpoint compilePat (p : pat) : XmlSearch.pat :=
   match p with
     | Cdata const => XmlSearch.Cdata const
     | Var text => XmlSearch.Var (text ++ "_start") (text ++ "_len")
+    | TreeVar text => XmlSearch.TreeVar (text ++ "_start") (text ++ "_len")
     | Tag tag inner => XmlSearch.Tag tag (compilePat inner)
     | Both p1 p2 => XmlSearch.Both (compilePat p1) (compilePat p2)
     | Ordered p1 p2 => XmlSearch.Ordered (compilePat p1) (compilePat p2)
@@ -200,6 +222,8 @@ Fixpoint compileXml (p : xml) : XmlOutput.xml :=
     | XSelect tab cond inner => XmlOutput.Select tab
       (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
       (compileXml inner)
+    | XIfEqual tab1 col1 tab2 col2 inner =>
+      XmlOutput.IfEqual tab1 col1 tab2 col2 (compileXml inner)
   end.
 
 
@@ -216,6 +240,11 @@ Fixpoint awf (avs ts : tables) (a : action) : Prop :=
     | IfExists tab cond _then _else => exists t, In t ts /\ Name t = tab
       /\ cwf (Schema t) cond
       /\ awf avs ts _then /\ awf avs ts _else
+    | Halt => True
+    | Select tab cond inner => exists t, In t ts /\ Name t = tab
+      /\ cwf (Schema t) cond
+      /\ awf (t :: avs) (removeTable tab ts) inner
+    | SendTo url data => xwf avs ts url /\ xwf avs ts data
   end.
 
 Fixpoint afreeVar (a : action) (x : string) : Prop :=
@@ -226,6 +255,10 @@ Fixpoint afreeVar (a : action) (x : string) : Prop :=
     | Seq a1 a2 => afreeVar a1 x \/ afreeVar a2 x
     | IfExists _ cond _then _else => List.Exists (fun e => efreeVar (snd e) x) cond
       \/ afreeVar _then x \/ afreeVar _else x
+    | Halt => False
+    | Select _ cond inner => List.Exists (fun e => efreeVar (snd e) x) cond
+      \/ afreeVar inner x
+    | SendTo url data => xfreeVar url x \/ xfreeVar data x
   end.
 
 Fixpoint wf (ts : tables) (pr : program) : Prop :=
@@ -239,6 +272,7 @@ Fixpoint allCdatas_both (p : pat) : list string :=
   match p with
     | Cdata _ => nil
     | Var text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
+    | TreeVar text => (text ++ "_start")%string :: (text ++ "_len")%string :: nil
     | Tag _ inner => allCdatas_both inner
     | Both p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
     | Ordered p1 p2 => allCdatas_both p2 ++ allCdatas_both p1
@@ -438,6 +472,7 @@ Fixpoint allCursors_both' (xm : xml) : list string :=
     | XColumn _ _ => nil
     | XSelect tab _ inner => (tab ++ "_row")%string :: (tab ++ "_data")%string
       :: allCursors_both' inner
+    | XIfEqual _ _ _ _ inner => allCursors_both' inner
   end.
 
 Fixpoint allCursors_both (a : action) : list string :=
@@ -449,6 +484,10 @@ Fixpoint allCursors_both (a : action) : list string :=
     | IfExists tab _ _then _else =>
       addTo ((tab ++ "_row")%string :: (tab ++ "_data")%string :: nil)
       (addTo (allCursors_both _then) (allCursors_both _else))
+    | Halt => nil
+    | Select tab _ inner => addTo ((tab ++ "_row")%string :: (tab ++ "_data")%string :: nil)
+      (allCursors_both inner)
+    | SendTo url data => addTo (allCursors_both' url) (allCursors_both' data)
   end.
 
 Fixpoint cursorsOf (pr : program) : list string :=
@@ -465,23 +504,26 @@ Section compileProgram.
 
   Definition numCdatas := length (cdatasOf pr).
   Definition numCursors := length (cursorsOf pr).
-  Definition reserved := numCdatas + numCursors + 25.
+  Definition reserved := numCdatas + numCursors + 30.
 
   Definition preLvars := "lex" :: "res" :: "opos" :: "overflowed"
     :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: "tmp"
     :: "ibuf" :: "row" :: "ilen" :: "ipos"
     :: cdatasOf pr ++ cursorsOf pr.
-  Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: preLvars.
+  Definition lvars := "buf" :: "len" :: "obuf" :: "olen" :: "q" :: preLvars.
 
   Definition db := starL (fun t => RelDb.table (Schema t) (Address t)).
 
-  Definition mainS ts := SPEC("buf", "len", "obuf", "olen") reserving reserved
+  Variable httpq : W -> HProp.
+  Notation http p := (Ex q, p =*> q * httpq q)%Sep.
+
+  Definition mainS ts := SPEC("buf", "len", "obuf", "olen", "q") reserving reserved
     Al bsI, Al bsO,
-    PRE[V] db ts
+    PRE[V] db ts * http (V "q")
       * array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0
       * [| length bsI = wordToNat (V "len") |]
       * [| length bsO = wordToNat (V "olen") |]
-    POST[R] db ts
+    POST[R] db ts * http (V "q")
       * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
       * [| length bsO' = length bsO |] * [| R <= V "olen" |].
 
@@ -606,6 +648,8 @@ Section compileProgram.
     eapply Forall_forall in H2; [ | eassumption ]; intuition congruence.
 
     destruct H0; intuition eauto.
+
+    destruct H0, H5; intuition eauto.
   Qed.
 
   Lemma allCursors'_both_NoDup : forall xm avs ts,
@@ -630,6 +674,8 @@ Section compileProgram.
     eapply Forall_forall in H1; [ | eassumption ]; eauto.
 
     eauto.
+
+    destruct H, H3; eauto.
   Qed.
 
   Hint Immediate allCursors'_both_NoDup.
@@ -644,6 +690,12 @@ Section compileProgram.
     simpl; intuition eauto using NoDup_addTo.
     repeat constructor; simpl; intuition.
     apply append_inj in H3; discriminate.
+
+    intros.
+    unfold allCursors_both; fold allCursors_both.
+    repeat apply NoDup_addTo.
+    do 2 post.
+    eauto.
 
     intros.
     unfold allCursors_both; fold allCursors_both.
@@ -708,8 +760,8 @@ Section compileProgram.
              | [ H : context[XmlOutput.cursors (sel ?V) ?x] |- _ ] => rewrite (XmlOutput.cursors_sel V x) in H
              | [ |- context[XmlOutput.cursors (sel ?V) ?x] ] => rewrite (XmlOutput.cursors_sel V x)
            end;
-    fold (@length string) in *; varer 48 "stack"; varer 8 "len"; varer 20 "lex"; varer 28 "opos";
-      varer 32 "overflowed"; varer 24 "res";
+    fold (@length string) in *; varer 52 "stack"; varer 8 "len"; varer 24 "lex"; varer 32 "opos";
+      varer 36 "overflowed"; varer 28 "res"; varer 24 "q";
       try match goal with
             | [ _ : context[Assign _ (RvLval (LvMem (Sp + natToW 0)%loc))] |- _ ] => varer 0 "rp"
           end;
@@ -719,7 +771,7 @@ Section compileProgram.
           end;
       try match goal with
             | [ H : context[locals _ _ ?X _] |- _ ] =>
-              replace X with 11 in * by xomega
+              replace X with 16 in * by xomega
           end;
       match goal with
         | [ H : context[locals ?ns ?vs ?avail ?p]
@@ -751,7 +803,7 @@ Section compileProgram.
           end; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *;
       unfold lvalIn, regInL, immInR in *; prep_locals.
   
-  Ltac my_descend :=
+  Ltac my_descend := unfold localsInvariant in *;
     repeat match goal with
              | [ H : @In string _ _ |- _ ] => clear H
            end;
@@ -775,7 +827,37 @@ Section compileProgram.
            end.
 
   Ltac my_evaluate := clear_fancier; evaluate SinglyLinkedList.hints.
-  Ltac my_step := step SinglyLinkedList.hints.
+
+  Ltac funcall :=
+    let considerImp pre post :=
+      match post with
+        | context[locals ?ns ?vs ?avail _] =>
+          match pre with
+            | context[excessStack _ ns avail ?ns' ?avail'] =>
+              match avail' with
+                | avail => fail 1
+                | _ =>
+                  match pre with
+                    | context[locals ns ?vs' 0 ?sp] =>
+                      match goal with
+                        | [ _ : _ = sp |- _ ] => fail 1
+                        | _ => equate vs vs';
+                          let offset := eval simpl in (4 * List.length ns) in
+                            rewrite (create_locals_return ns' avail' ns avail offset);
+                              assert (ok_return ns ns' avail avail' offset)%nat by (split; [
+                                simpl; omega
+                                | reflexivity ] ); autorewrite with sepFormula
+                      end
+                  end
+              end
+          end
+      end;
+      progress cancel SinglyLinkedList.hints in
+        match goal with
+          | [ |- interp _ (?pre ---> ?post)%PropX ] => considerImp pre post
+        end.
+
+  Ltac my_step := funcall || step SinglyLinkedList.hints.
 
   Ltac invoke1 :=
     match goal with
@@ -789,7 +871,15 @@ Section compileProgram.
             PreAutoSep.post; erewrite findTable_good in H by eauto; PreAutoSep.post
         end.
 
-  Ltac t' := post; repeat invoke1; prep; my_evaluate; my_descend; repeat (my_step; my_descend); eauto.
+  Ltac match_locals :=
+    MoreArrays.match_locals;
+      try match goal with
+            | [ _ : sel ?V "opos" <= sel ?V "olen" |- context[?U < sel ?V "opos" -> False] ] =>
+              equate U (sel V "olen")
+          end.
+
+  Ltac t' := post; repeat invoke1; prep; my_evaluate; my_descend; try match_locals;
+    repeat (my_step; my_descend); eauto.
 
   Lemma freeVar_compile' : forall x p,
     freeVar p x
@@ -1160,6 +1250,9 @@ Section compileProgram.
       | Seq a1 a2 => abindsRowVar a1 x \/ abindsRowVar a2 x
       | IfExists tab _ _then _else => x = tab
         \/ abindsRowVar _then x \/ abindsRowVar _else x
+      | Halt => False
+      | Select tab cond inner => x = tab \/ abindsRowVar inner x
+      | SendTo url data => xbindsRowVar url x \/ xbindsRowVar data x
     end.
 
   Fixpoint bindsRowVar (pr : program) (x : string) : Prop :=
@@ -1195,6 +1288,16 @@ Section compileProgram.
     descend; eauto 8.
     eapply IHxm in H9; eauto;
       (simpl; intuition (subst; eauto)).
+
+    destruct H; intuition subst.
+    do 2 esplit.
+    eapply in_map in H8; eauto.
+    simpl; intuition eauto using in_or_app.
+
+    destruct H7; intuition subst.
+    do 2 esplit.
+    eapply in_map in H8; eauto.
+    simpl; intuition eauto using in_or_app.
   Qed.
 
   Hint Immediate output_wf.
@@ -1226,59 +1329,66 @@ Section compileProgram.
           match findTable tab ts with
             | None => Fail
             | Some t => RelDbInsert.Insert
-              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * http (V "q")
+                * array8 bsO (V "obuf")
                 * [| length bsO = wordToNat (V "olen") |]
                 * [| V "opos" <= V "olen" |]%word
                 * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
                 * xmlp (V "len") (V "lex")
                 * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => db ts'
+              (fun bsO V R => db ts' * http (V "q")
                 * [| R <= V "olen" |]%word * mallocHeap 0
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
               (Address t) (Schema t) bufSize (compileExps es)
           end
+
         | Delete tab cond =>
           match findTable tab ts with
             | None => Fail
             | Some t => RelDbDelete.Delete
-              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * http (V "q")
+                * array8 bsO (V "obuf")
                 * [| length bsO = wordToNat (V "olen") |]
                 * [| V "opos" <= V "olen" |]%word
                 * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
                 * xmlp (V "len") (V "lex")
                 * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => db ts'
+              (fun bsO V R => db ts' * http (V "q")
                 * [| R <= V "olen" |]%word * mallocHeap 0
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
               (Address t) (Schema t) (tab ++ "_row") (tab ++ "_data") (compileCondition cond)
           end
-        | Output xm => 
+
+        | Output xm =>
           Out
-          (fun (_ : unit) V => mallocHeap 0 * xmlp (V "len") (V "lex")
+          (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
             * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-          (fun _ V R => db ts'
+          (fun _ V R => db ts' * http (V "q")
             * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
           (XmlSearch.allCdatas (compilePat p))
           (avout avs) ts
           (compileXml xm)
+
         | Seq a1 a2 =>
           compileAction' avs ts ts' a1;;
           compileAction' avs ts ts' a2
+
         | IfExists tab cond _then _else =>
           match findTable tab ts with
             | None => Fail
             | Some t =>
               "res" <- 0;;
               RelDbSelect.Select
-              (fun bsO V => cursors V avs * db (removeTable tab ts) * array8 bsO (V "obuf")
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * http (V "q")
+                * array8 bsO (V "obuf")
                 * [| length bsO = wordToNat (V "olen") |]
                 * [| V "opos" <= V "olen" |]%word
                 * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
                 * xmlp (V "len") (V "lex") * mallocHeap 0
                 * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
-              (fun bsO V R => db ts'
+              (fun bsO V R => db ts' * http (V "q")
                 * [| R <= V "olen" |]%word * mallocHeap 0
                 * Ex bsO', array8 bsO' (V "obuf")
                 * [| length bsO' = length bsO |])%Sep
@@ -1292,14 +1402,93 @@ Section compileProgram.
                 compileAction' avs ts ts' _else
               }
           end
+
+        | Halt =>
+          Call "sys"!"abort"()
+          [PREonly[_] [| False |] ];;
+          Fail
+
+        | Select tab cond inner =>
+          match findTable tab ts with
+            | None => Fail
+            | Some t =>
+              RelDbSelect.Select
+              (fun bsO V => cursors V avs * db (removeTable tab ts) * http (V "q")
+                * array8 bsO (V "obuf")
+                * [| length bsO = wordToNat (V "olen") |]
+                * [| V "opos" <= V "olen" |]%word
+                * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
+                * xmlp (V "len") (V "lex") * mallocHeap 0
+                * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+              (fun bsO V R => db ts' * http (V "q")
+                * [| R <= V "olen" |]%word * mallocHeap 0
+                * Ex bsO', array8 bsO' (V "obuf")
+                * [| length bsO' = length bsO |])%Sep
+              (Address t) (Schema t) (tab ++ "_row") (tab ++ "_data")
+              (compileCondition cond)
+              (compileAction' (t :: avs) (removeTable tab ts) ts' inner)
+          end
+
+        | SendTo url data =>
+          (* Reset output, since we'll produce a new one to send now. *)
+          "opos" <- 0;;
+
+          (* Next, write the target URL at the start. *)
+          Out
+          (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
+            * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+          (fun _ V R => db ts' * http (V "q")
+            * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
+          (XmlSearch.allCdatas (compilePat p))
+          (avout avs) ts
+          (compileXml url);;
+
+          (* Now write a '\0' character as a delimiter. *)
+          Out
+          (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
+            * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+          (fun _ V R => db ts' * http (V "q")
+            * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
+          (XmlSearch.allCdatas (compilePat p))
+          (avout avs) ts
+          (XmlOutput.Cdata (String (ascii_of_nat 0) ""));;
+
+          (* Finally, write the payload. *)
+          Out
+          (fun (_ : unit) V => http (V "q") * mallocHeap 0 * xmlp (V "len") (V "lex")
+            * Ex ls, sll ls (V "stack") * [| stackOk ls (V "len") |])%Sep
+          (fun _ V R => db ts' * http (V "q")
+            * [| R <= V "olen" |]%word * mallocHeap 0)%Sep
+          (XmlSearch.allCdatas (compilePat p))
+          (avout avs) ts
+          (compileXml data);;
+
+          (* Save this request in the HTTP queue. *)
+          "res" <-* "q";;
+          "res" <-- Call "httpq"!"save"("res", "obuf", "opos")
+          [Al bsI, Al bsO, Al ls,
+            PRE[V, R'] db ts * V "q" =?> 1 * httpq R'
+              * array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0
+              * xmlp (V "len") (V "lex") * cursors V avs
+              * sll ls (V "stack") * [| stackOk ls (V "len") |]
+              * [| length bsI = wordToNat (V "len") |]
+              * [| length bsO = wordToNat (V "olen") |]
+              * [| V "opos" <= V "olen" |]%word
+              * [| XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V |]
+            POST[R] db ts' * http (V "q")
+              * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+              * [| length bsO' = length bsO |] * [| R <= V "olen" |]%word ];;
+
+          "q" *<- "res";;
+          "opos" <- 0
       end%SP.
 
     Definition ainv avs ts ts' :=
-      XmlSearch.inv (fun bsO V => cursors V avs * db ts
+      XmlSearch.inv (fun bsO V => cursors V avs * db ts * http (V "q")
         * array8 bsO (V "obuf")
         * [| length bsO = wordToNat (V "olen") |]
         * [| V "opos" <= V "olen" |]%word)%Sep
-      (fun bsO V R => db ts'
+      (fun bsO V R => db ts' * http (V "q")
         * Ex bsO', array8 bsO' (V "obuf")
         * [| length bsO' = length bsO |]
         * [| R <= V "olen" |]%word)%Sep
@@ -1321,16 +1510,126 @@ Section compileProgram.
       sepLemma; etransitivity; [ apply removeTable_fwd | ]; eauto; sepLemma.
     Qed.
 
-    Ltac cap := abstract (t;
-      ((apply removeTable_bwd' || apply removeTable_fwd'); eauto)
+    Lemma cursors_intro : forall V av avs P,
+      row (Schema av) (sel V (Name av ++ "_data"))
+      * (inv (Address av) (Schema av) (sel V (Name av ++ "_row"))
+        (sel V (Name av ++ "_data"))
+        * (cursors V avs * P))
+      ===> P * (cursors V (av :: avs)).
+      clear; sepLemma.
+      unfold cursors; simpl; unfold cursor; simpl.
+      repeat match goal with
+               | [ |- context[V ?x] ] => change (V x) with (sel V x)
+             end.
+      sepLemma.
+    Qed.
+
+    Lemma cursors_elim : forall V av avs P,
+      cursors V (av :: avs) * P
+      ===> P * (inv (Address av) (Schema av) (sel V (Name av ++ "_row"))
+        (sel V (Name av ++ "_data"))
+        * (row (Schema av) (sel V (Name av ++ "_data")) * cursors V avs)).
+      clear; sepLemma.
+      unfold cursors; simpl; unfold cursor; simpl.
+      repeat match goal with
+               | [ |- context[V ?x] ] => change (V x) with (sel V x)
+             end.
+      sepLemma.
+    Qed.
+
+    Lemma Weaken_cursors : forall V V',
+      (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen"
+        -> x <> "tmp" -> x <> "ipos" -> x <> "overflowed"
+        -> x <> "opos" -> x <> "matched" -> x <> "res"
+        -> sel V x = sel V' x)
+      -> forall avs, cursors V avs ===> cursors V' avs.
+      unfold cursors; clear; induction avs; simpl; intuition.
+      sepLemma.
+      apply Himp_star_frame; auto.
+      unfold cvars in *; simpl in *; intuition idtac;
+        unfold cursor; apply Himp_star_frame;
+          repeat match goal with
+                   | [ V : vals |- _ ] =>
+                     progress repeat match goal with
+                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
+                                     end
+                 end;
+          try match goal with
+                | [ H : forall x : string, _ |- _ ] => repeat rewrite H
+                  by eauto 4 using underscore_discrim
+              end; apply Himp_refl.
+    Qed.
+
+    Hint Extern 1 (himp _ (cursors _ _) (cursors _ _)) => apply Weaken_cursors.
+
+    Ltac cap' :=
+      ((apply removeTable_bwd' || apply removeTable_fwd'
+        || apply cursors_intro || apply cursors_elim); eauto)
       || apply himp_star_comm
       || (etransitivity; [ | apply himp_star_frame; [ | apply removeTable_bwd ] ]; assumption || my_step)
       || (etransitivity; [ apply himp_star_frame; [ apply removeTable_fwd | ] | ]; eassumption || my_step)
-      || my_step).
+      || (apply himp_star_frame; try reflexivity; apply Weaken_cursors; solve [ descend ])
+      || my_step.
+
+    Ltac cap := abstract (t; cap').
+
+    Lemma inBounds_swizzle''' : forall V V' p,
+      (forall x, x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
+        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
+        -> x <> "res" -> sel V x = sel V' x)
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+      intros.
+      rewrite <- inBounds_sel.
+      rewrite <- inBounds_sel in H0.
+      eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
+      simpl; intuition; match goal with
+                          | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
+                        end.
+      repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
+      auto.
+    Qed.
+
+    Hint Immediate inBounds_swizzle'''.
+
+    Lemma inBounds_post : forall V v,
+      XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p))
+      (upd V "res" v).
+      intros; eapply inBounds_swizzle'''; [ | eauto ]; descend.
+    Qed.
+
+    Hint Immediate inBounds_post.
+
+    Lemma inBounds_swizzle_post : forall V V' p,
+      (forall x, x <> "res" -> x <> "opos" -> sel V x = sel V' x)
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
+      intros.
+      rewrite <- inBounds_sel.
+      rewrite <- inBounds_sel in H0.
+      eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
+      simpl; intuition; match goal with
+                          | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
+                        end.
+      repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
+      auto.
+    Qed.
+
+    Lemma inBounds_post' : forall V v v',
+      XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p))
+      (upd (upd V "res" v) "opos" v').
+      intros; eapply inBounds_swizzle_post; [ | eauto ]; descend.
+    Qed.
+
+    Hint Immediate inBounds_post'.
 
     Lemma compileAction_post : forall im mn (H : importsGlobal im) ns res,
       ~In "rp" ns
       -> In "res" ns
+      -> In "q" ns
+      -> In "opos" ns
       -> forall a avs ts ts' pre,
         (forall specs st,
           interp specs (pre st)
@@ -1342,6 +1641,9 @@ Section compileProgram.
         -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st).
       induction a.
 
+      cap.
+      cap.
+      cap.
       cap.
       cap.
       cap.
@@ -1423,6 +1725,7 @@ Section compileProgram.
     Lemma compilePat_cdatas : forall p0,
       cdatasGood (XmlSearch.allCdatas (compilePat p0)).
       unfold cdatasGood; induction p0; simpl; intuition.
+      constructor; auto; simpl; intuition (eapply underscore_discrim; eauto).
       constructor; auto; simpl; intuition (eapply underscore_discrim; eauto).
     Qed.
 
@@ -1582,7 +1885,10 @@ Section compileProgram.
             | simpl; intuition discriminate ]); cbv beta; descend);
         repeat (my_step; my_descend); eauto.
 
-    Ltac step2 :=
+    Ltac step2 := unfold saveGS, buffer in *;
+      try match goal with
+            | [ H : interp _ _ |- _ ] => apply compileAction_post in H; auto
+          end;
       match goal with
         | [ |- False ] => discrim
         | _ => solve [ subst; eauto ]
@@ -1597,55 +1903,12 @@ Section compileProgram.
         | _ => abstract t''
         | _ => repeat (post; intuition idtac;
           match goal with
-            | [ H : _ |- _ ] => apply H; auto
+            | [ H : _ |- _ ] => apply H; auto;
+              try solve [ simpl; intuition subst; eauto ]
           end; try (apply compileAction_post; auto)); cap
       end.
 
     Ltac cav := abstract (step1; step2).
-
-    Lemma inBounds_swizzle''' : forall V V' p,
-      (forall x, x <> "ibuf" -> x <> "ilen" -> x <> "tmp"
-        -> x <> "ipos" -> x <> "overflowed" -> x <> "matched"
-        -> x <> "res" -> sel V x = sel V' x)
-      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
-      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V'.
-      intros.
-      rewrite <- inBounds_sel.
-      rewrite <- inBounds_sel in H0.
-      eapply Forall_impl2; [ apply H0 | apply xall_underscore | ].
-      simpl; intuition; match goal with
-                          | [ x : (string * string)%type |- _ ] => destruct x; simpl in *
-                        end.
-      repeat rewrite H in * by (intro; subst; simpl in *; intuition congruence).
-      auto.
-    Qed.
-
-    Hint Immediate inBounds_swizzle'''.
-
-    Lemma Weaken_cursors : forall V V',
-      (forall x, x <> "ibuf" -> x <> "row" -> x <> "ilen"
-        -> x <> "tmp" -> x <> "ipos" -> x <> "overflowed"
-        -> x <> "opos" -> x <> "matched" -> x <> "res"
-        -> sel V x = sel V' x)
-      -> forall avs, cursors V avs ===> cursors V' avs.
-      unfold cursors; clear; induction avs; simpl; intuition.
-      sepLemma.
-      apply Himp_star_frame; auto.
-      unfold cvars in *; simpl in *; intuition idtac;
-        unfold cursor; apply Himp_star_frame;
-          repeat match goal with
-                   | [ V : vals |- _ ] =>
-                     progress repeat match goal with
-                                       | [ |- context[V ?x] ] => change (V x) with (sel V x)
-                                     end
-                 end;
-          try match goal with
-                | [ H : forall x : string, _ |- _ ] => repeat rewrite H
-                  by eauto 4 using underscore_discrim
-              end; apply Himp_refl.
-    Qed.
-
-    Hint Extern 1 (himp _ (cursors _ _) (cursors _ _)) => apply Weaken_cursors.
 
     Lemma xall_underscore' : forall p,
       List.Forall (fun p => exists tab, p = (tab ++ "_start", tab ++ "_len")%string)
@@ -1885,7 +2148,45 @@ Section compileProgram.
 
     Hint Immediate rdb_noOverlapExps.
 
-    Lemma compileAction_vcs : forall im mn (H : importsGlobal im) ns res,
+    Lemma twfs_cons : forall avs av ts,
+      twfs avs
+      -> In av ts
+      -> twfs ts
+      -> twfs (av :: avs).
+      clear; constructor; auto.
+      eapply Forall_forall in H1; eauto.
+    Qed.
+
+    Hint Immediate twfs_cons.
+
+    Lemma inBounds_opos : forall V v,
+      XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p)) V
+      -> XmlOutput.inBounds (XmlSearch.allCdatas (compilePat p))
+      (upd V "opos" v).
+      intros; eapply inBounds_swizzle; [ | eauto ]; descend.
+    Qed.
+
+    Hint Immediate inBounds_opos.
+
+    Lemma cursors_bleep : forall P V avs k,
+      cursors V avs * P ===> P * XmlOutput.cursors (upd V "opos" k) (avout avs).
+      sepLemma.
+      change (XmlOutput.cursors (upd V "opos" k) (avout avs)) with (cursors (upd V "opos" k) avs).
+      apply Weaken_cursors; descend.
+    Qed.
+
+    Hint Extern 1 (himp _ _ _) => apply cursors_bleep.
+
+    Lemma cursors_blop : forall P V avs k,
+      P * XmlOutput.cursors V (avout avs) ===> cursors (upd V "res" k) avs * P.
+      sepLemma.
+      change (XmlOutput.cursors V (avout avs)) with (cursors V avs).
+      apply Weaken_cursors; descend.
+    Qed.
+
+    Hint Extern 1 (himp _ _ _) => apply cursors_blop.
+
+    Lemma compileAction_vcs : forall im ns res,
       ~In "rp" ns
       -> In "obuf" ns
       -> In "olen" ns
@@ -1900,8 +2201,9 @@ Section compileProgram.
       -> In "len" ns
       -> In "matched" ns
       -> In "res" ns
+      -> In "q" ns
       -> incl baseVars ns
-      -> (res >= 11)%nat
+      -> (res >= 16)%nat
       -> "array8"!"copy" ~~ im ~~> copyS
       -> "array8"!"equal" ~~ im ~~> equalS
       -> "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -1909,7 +2211,9 @@ Section compileProgram.
       -> "numops"!"div4" ~~ im ~~> div4S
       -> "malloc"!"free" ~~ im ~~> freeS
       -> "buffers"!"bfree" ~~ im ~~> bfreeS
-      -> forall a avs ts ts' pre,
+      -> "sys"!"abort" ~~ im ~~> abortS
+      -> "httpq"!"save" ~~ im ~~> (saveGS httpq)
+      -> forall a avs ts ts' pre mn (H : importsGlobal im),
         (forall specs st,
           interp specs (pre st)
           -> interp specs (ainv avs ts ts' true (fun x : W => x) ns res st))
@@ -2015,6 +2319,71 @@ Section compileProgram.
       step2.
       step2.
       step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+
+      step1.
+
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
+      step2.
     Qed.
 
     Hint Resolve compileAction_post compileAction_vcs.
@@ -2023,9 +2392,9 @@ Section compileProgram.
       (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
       :: In "tmp" ns :: In "buf" ns :: In "ibuf" ns :: In "row" ns :: In "ilen" ns
       :: In "ipos" ns :: In "len" ns
-      :: In "matched" ns :: In "res" ns
+      :: In "matched" ns :: In "res" ns :: In "q" ns
       :: incl baseVars ns
-      :: (res >= 11)%nat
+      :: (res >= 16)%nat
       :: "array8"!"copy" ~~ im ~~> copyS
       :: "array8"!"equal" ~~ im ~~> equalS
       :: "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -2033,6 +2402,8 @@ Section compileProgram.
       :: "numops"!"div4" ~~ im ~~> div4S
       :: "malloc"!"free" ~~ im ~~> freeS
       :: "buffers"!"bfree" ~~ im ~~> bfreeS
+      :: "sys"!"abort" ~~ im ~~> abortS
+      :: "httpq"!"save" ~~ im ~~> (saveGS httpq)
       :: awf avs%list ts%list a%string
       :: NoDups avs ts
       :: twfs avs%list
@@ -2066,13 +2437,15 @@ Section compileProgram.
   Section compileProgram.
     Definition cpinv :=
       Al bsI, Al bsO, Al ls,
-      PRE[V] db ts * array8 bsI (V "buf") * array8 bsO (V "obuf")
+      PRE[V] db ts * http (V "q")
+        * array8 bsI (V "buf") * array8 bsO (V "obuf")
         * [| length bsI = wordToNat (V "len") |]
         * [| length bsO = wordToNat (V "olen") |]
         * sll ls (V "stack") * mallocHeap 0
         * xmlp (V "len") (V "lex")
         * [| V "opos" <= V "olen" |] * [| stackOk ls (V "len") |]
-      POST[R] db ts * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
+      POST[R] db ts * http (V "q")
+        * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
         * [| length bsO' = length bsO |]
         * [| R <= V "olen" |] * mallocHeap 0.
 
@@ -2083,20 +2456,24 @@ Section compileProgram.
         | Rule p a =>
           Call "xml_lex"!"setPosition"("lex", 0)
           [Al bsI, Al bsO, Al ls,
-            PRE[V] db ts * array8 bsI (V "buf") * array8 bsO (V "obuf")
+            PRE[V] db ts * http (V "q")
+              * array8 bsI (V "buf") * array8 bsO (V "obuf")
               * [| length bsI = wordToNat (V "len") |]
               * [| length bsO = wordToNat (V "olen") |]
               * sll ls (V "stack") * mallocHeap 0
               * xmlp (V "len") (V "lex")
               * [| V "opos" <= V "olen" |]%word * [| stackOk ls (V "len") |]
-            POST[R] db ts * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
+            POST[R] db ts * http (V "q")
+              * array8 bsI (V "buf") * Ex bsO', array8 bsO' (V "obuf")
               * [| length bsO' = length bsO |]
               * [| R <= V "olen" |]%word * mallocHeap 0];;
 
-          Pat (fun bsO V => db ts * array8 bsO (V "obuf")
+          Pat (fun bsO V => db ts * http (V "q")
+            * array8 bsO (V "obuf")
             * [| length bsO = wordToNat (V "olen") |]
             * [| V "opos" <= V "olen" |]%word)%Sep
-          (fun bsO V R => db ts * Ex bsO', array8 bsO' (V "obuf")
+          (fun bsO V R => db ts * http (V "q")
+            * Ex bsO', array8 bsO' (V "obuf")
             * [| length bsO' = length bsO |]
             * [| R <= V "olen" |]%word)%Sep
           (compilePat p)
@@ -2118,12 +2495,12 @@ Section compileProgram.
       induction pr0; simpl; intros; repeat (invoke1; post); t.
     Qed.
 
-    Lemma cursors_intro : forall P V specs,
+    Lemma cursors_intro' : forall P V specs,
       himp specs P (P * cursors V nil)%Sep.
       sepLemma.
     Qed.
 
-    Hint Immediate cursors_intro.
+    Hint Immediate cursors_intro'.
 
     Lemma xbindsRowVar_row : forall tab xm,
       xbindsRowVar xm tab
@@ -2158,6 +2535,13 @@ Section compileProgram.
       apply In_addTo1; simpl; tauto.
       eauto using In_addTo1, In_addTo2.
       eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst.
+      apply In_addTo1; simpl; tauto.
+      eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst;
+        eauto using In_addTo1, In_addTo2.
     Qed.
 
     Lemma abindsRowVar_data : forall tab a,
@@ -2169,6 +2553,13 @@ Section compileProgram.
       apply In_addTo1; simpl; tauto.
       eauto using In_addTo1, In_addTo2.
       eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst.
+      apply In_addTo1; simpl; tauto.
+      eauto using In_addTo1, In_addTo2.
+      unfold allCursors_both; fold allCursors_both; intros.
+      simpl in H; destruct H; subst;
+        eauto using In_addTo1, In_addTo2.
     Qed.
 
     Hint Immediate abindsRowVar_row abindsRowVar_data.
@@ -2189,10 +2580,11 @@ Section compileProgram.
       -> In "matched" ns
       -> In "res" ns
       -> In "lex" ns
+      -> In "q" ns
       -> incl ("buf" :: "len" :: "lex" :: "res"
         :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
       ns
-      -> (res >= 11)%nat
+      -> (res >= 16)%nat
       -> "array8"!"copy" ~~ im ~~> copyS
       -> "array8"!"equal" ~~ im ~~> equalS
       -> "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -2206,6 +2598,8 @@ Section compileProgram.
       -> "sys"!"abort" ~~ im ~~> abortS
       -> "numops"!"div4" ~~ im ~~> div4S
       -> "buffers"!"bfree" ~~ im ~~> bfreeS
+      -> "sys"!"abort" ~~ im ~~> abortS
+      -> "httpq"!"save" ~~ im ~~> (saveGS httpq)
       -> forall pr0 pre,
         (forall specs st,
           interp specs (pre st)
@@ -2220,18 +2614,6 @@ Section compileProgram.
                  | [ H : _ |- vcs _ ] => apply H;
                    try apply compileProgram_post
                end; try abstract t.
-      t.
-      unfold localsInvariant.
-      descend.
-      my_step.
-      my_step.
-      descend.
-      rewrite H1.
-      rewrite mult4_S in *.
-      rewrite wplus_wminus.
-      my_step.
-      my_step.
-      repeat (my_descend; my_step).
     Qed.
 
     Hint Resolve compileProgram_post compileProgram_vcs.
@@ -2240,11 +2622,11 @@ Section compileProgram.
       (~In "rp" ns) :: In "obuf" ns :: In "olen" ns :: In "opos" ns :: In "overflowed" ns
       :: In "tmp" ns :: In "buf" ns :: In "ibuf" ns :: In "row" ns :: In "ilen" ns
       :: In "ipos" ns :: In "len" ns
-      :: In "matched" ns :: In "res" ns :: In "lex" ns
+      :: In "matched" ns :: In "res" ns :: In "lex" ns :: In "q" ns
       :: incl ("buf" :: "len" :: "lex" :: "res"
         :: "tagStart" :: "tagLen" :: "matched" :: "stack" :: "level" :: nil)
       ns
-      :: (res >= 11)%nat
+      :: (res >= 16)%nat
       :: "array8"!"copy" ~~ im ~~> copyS
       :: "array8"!"equal" ~~ im ~~> equalS
       :: "buffers"!"bmalloc" ~~ im ~~> Buffers.bmallocS
@@ -2258,6 +2640,8 @@ Section compileProgram.
       :: "sys"!"abort" ~~ im ~~> abortS
       :: "numops"!"div4" ~~ im ~~> div4S
       :: "buffers"!"bfree" ~~ im ~~> bfreeS
+      :: "sys"!"abort" ~~ im ~~> abortS
+      :: "httpq"!"save" ~~ im ~~> (saveGS httpq)
       :: incl (cdatasOf pr) ns
       :: incl (cursorsOf pr) ns
       :: nil).
@@ -2321,13 +2705,13 @@ Section compileProgram.
                             "xml_lex"!"init" @ [initS], "xml_lex"!"delete" @ [deleteS],
                             "array8"!"copy" @ [copyS], "array8"!"equal" @ [equalS],
                             "buffers"!"bmalloc" @ [Buffers.bmallocS], "buffers"!"bfree" @ [Buffers.bfreeS],
-                            "numops"!"div4" @ [div4S] ]]
+                            "numops"!"div4" @ [div4S], "httpq"!"save" @ [saveGS httpq] ]]
 
     bmodule "xml_prog" {{
       {|
         FName := "main";
         FVars := lvars;
-        FReserved := 11;
+        FReserved := 16;
         FPrecondition := Precondition (mainS ts) None;
         FBody := Programming.Seq (Assign' ((fun _ => LvMem (Indir Sp O)):lvalue') Rp)
         (Programming.Seq (fun _ _ =>
@@ -2337,9 +2721,11 @@ Section compileProgram.
             (Precondition (mainS ts) (Some lvars))))
         ("lex" <-- Call "xml_lex"!"init"("len")
          [Al bsI, Al bsO,
-           PRE[V, R] db ts * array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0 * xmlp (V "len") R
+           PRE[V, R] db ts * http (V "q")
+             * array8 bsI (V "buf") * array8 bsO (V "obuf") * mallocHeap 0 * xmlp (V "len") R
              * [| length bsI = wordToNat (V "len") |] * [| length bsO = wordToNat (V "olen") |]
-           POST[R'] db ts * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
+           POST[R'] db ts * http (V "q")
+             * Ex bsO', array8 bsI (V "buf") * array8 bsO' (V "obuf") * mallocHeap 0
              * [| length bsO' = length bsO |] * [| R' <= V "olen" |]%word ];;
          "stack" <- 0;;
          "opos" <- 0;;
@@ -2349,20 +2735,20 @@ Section compileProgram.
 
          Call "xml_lex"!"delete"("lex")
          [Al ls,
-           PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
-           POST[R] [| R <= V "olen" |]%word * mallocHeap 0];;
+           PRE[V] http (V "q") * [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+           POST[R] http (V "q") * [| R <= V "olen" |]%word * mallocHeap 0];;
 
          [Al ls,
-           PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
-           POST[R] [| R <= V "olen" |]%word * mallocHeap 0]
+           PRE[V] http (V "q") * [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+           POST[R] http (V "q") * [| R <= V "olen" |]%word * mallocHeap 0]
          While ("stack" <> 0) {
            "lex" <- "stack";;
            "stack" <-* "stack"+4;;
 
            Call "malloc"!"free"(0, "lex", 2)
            [Al ls,
-             PRE[V] [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
-             POST[R] [| R <= V "olen" |]%word * mallocHeap 0]
+             PRE[V] http (V "q") * [| V "opos" <= V "olen" |]%word * mallocHeap 0 * sll ls (V "stack")
+             POST[R] http (V "q") * [| R <= V "olen" |]%word * mallocHeap 0]
          };;
 
          If ("overflowed" = 1) {
@@ -2416,6 +2802,10 @@ Section compileProgram.
       apply In_addTo_or in H; destruct H.
       simpl in *; intuition discrim.
       apply In_addTo_or in H; destruct H; eauto.
+      unfold allCursors_both; fold allCursors_both; intros.
+      apply In_addTo_or in H; destruct H.
+      simpl in *; intuition discrim.
+      tauto.
     Qed.
 
     Hint Immediate no_clash_allCursors_both.
@@ -2499,6 +2889,13 @@ Section compileProgram.
     apply In_addTo_or in H; destruct H.
     simpl in *; intuition eauto.
     apply In_addTo_or in H; destruct H; eauto.
+    unfold allCursors_both; fold allCursors_both; intros.
+    apply In_addTo_or in H; destruct H.
+    simpl in *; intuition eauto.
+    tauto.
+    unfold allCursors_both; fold allCursors_both; intros.
+    apply In_addTo_or in H; destruct H;
+      simpl in *; intuition eauto.
   Qed.
 
   Hint Immediate In_allCursors_both.
@@ -2533,6 +2930,9 @@ Section compileProgram.
 
     Ltac u := abstract t.
 
+    u.
+    u.
+    u.
     u.
     u.
     u.

@@ -2,10 +2,10 @@ BEDROCK := ../..
 
 MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
 	DepthExpr FootprintExpr \
-	CpdtTactics DataStruct \
-	SemanticsExprLemmas Syntax Dict Semantics Footprint SemanticsLemmas \
+	SemanticsExprLemmas Syntax Semantics Footprint SemanticsLemmas \
 	Depth SyntaxNotations RunsToRelax \
 	CompileExpr SepLemmas CompileStatement \
+	GoodOptimizer SetModule PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
 	Compiler Wf WritingPrograms Compile Recall \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 

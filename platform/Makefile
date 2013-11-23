@@ -15,8 +15,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/BabyThreadDriver tests/ListBuilderDriver tests/SharedListDriver tests/Echo3Driver tests/ConnectDriver \
            tests/WebServerDriver tests/EchoServerDriver \
            NumOps ArrayOps StringOps RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete \
-           XmlLex XmlSearch XmlOutput XmlLang Http XmlProg Xml \
-	   tests/XmlTestDriver tests/XmlTest2Driver \
+           XmlLex XmlSearch XmlOutput XmlLang Http HttpQ XmlProg Xml \
+	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/RosMasterDriver
 
 VS      := $(MODULES:%=%.v)
@@ -50,7 +50,7 @@ tests/%.gen.s: tests/%.gen.ml tests/%.txt
 	echo "	.data" >$@
 	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
-	echo "	.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
+	echo "	.fill 4*(1024*1024*200+50+`cat tests/$*.txt`),1,0" >>$@
 	echo >>$@
 	echo "	.text" >>$@
 	echo "	.global main_main" >>$@
@@ -70,7 +70,7 @@ tests/%32.gen.s: tests/%32.gen.ml tests/%.txt
 	echo "	.data" >$@
 	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
-	echo "	.fill 4*(1024*1024*25+50+`cat tests/$*.txt`),1,0" >>$@
+	echo "	.fill 4*(1024*1024*200+50+`cat tests/$*.txt`),1,0" >>$@
 	echo >>$@
 	echo "	.text" >>$@
 	echo "	.global main_main" >>$@
