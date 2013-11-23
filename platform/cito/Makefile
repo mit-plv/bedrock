@@ -1,8 +1,10 @@
 BEDROCK := ../..
 
-MODULES := GeneralTactics ExprLemmas VariableLemmas SyntaxExpr SemanticsExpr \
+MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
+	GeneralTactics SafeCoind \
+	ExprLemmas VariableLemmas \
 	DepthExpr FootprintExpr \
-	SemanticsExprLemmas Syntax Semantics Footprint SemanticsLemmas \
+	SemanticsExprLemmas Footprint SemanticsLemmas \
 	Depth SyntaxNotations RunsToRelax \
 	CompileExpr SepLemmas CompileStatement \
 	GoodOptimizer SetModule PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
