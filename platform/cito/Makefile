@@ -3,11 +3,13 @@ BEDROCK := ../..
 MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics SafeCoind \
 	SetInterface SetNotations SetFunctors SetArrow \
-	FreeVarsExpr \
+	FreeVarsExpr Option FreeVars \
+	ShowNat ReservedNames Range \
+	Inv \
 	RunsToRelax CompileStatement \
 	ExprLemmas VariableLemmas \
-	DepthExpr FreeVarsExpr \
-	SemanticsExprLemmas FreeVars SemanticsLemmas \
+	DepthExpr \
+	SemanticsExprLemmas SemanticsLemmas \
 	Depth SyntaxNotations \
 	CompileExpr SepLemmas \
 	GoodOptimizer PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
