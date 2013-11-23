@@ -3,57 +3,6 @@ Require Import SemanticsExprLemmas.
 Require Import ExprLemmas VariableLemmas GeneralTactics.
 Require Import Arith.
 
-Section Safe_coind.
-
-  Variable functions : W -> option Callee.
-  Variable R : Statement -> st -> Prop.
-
-  Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo functions a v v' -> R b v'.
-
-  Hypothesis IfCase : forall cond t f v, R (Syntax.If cond t f) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R t v) \/ (wneb (exprDenote cond (fst v)) $0 = false /\ R f v).
-
-  Hypothesis WhileCase : forall cond body v, R (Syntax.While cond body) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R body v /\ (forall v', RunsTo functions body v v' -> R (While cond body) v')) \/ (wneb (exprDenote cond (fst v)) $0 = false).
-
-  Hypothesis CallCase : forall vs heap var f args,
-    let args_v := map (fun e => exprDenote e vs) args in
-    R (Syntax.Call var f args) (vs, heap)
-    -> (exists spec adt_values ret, 
-      functions (exprDenote f vs) = Some (Foreign spec)
-      /\ match_heap heap args_v (map fst adt_values)
-      /\ Pred spec {| Args := adt_values; Ret := ret |})
-    \/ (exists spec, functions (exprDenote f vs) = Some (Internal spec) 
-      /\ (forall vs_arg, sels vs_arg (ArgVars spec) = args_v -> R (Body spec) (vs_arg, heap))).
-
-  Import Safety.
-  Hint Constructors Safe.
-
-  Ltac break_pair :=
-    match goal with
-      V : (_ * _)%type |- _ => destruct V
-    end.
-
-  Theorem Safe_coind : forall c v, R c v -> Safe functions c v.
-    cofix; unfold st; intros; break_pair; destruct c.
-
-    (* skip *)
-    eauto.
-    Guarded.
-
-    eapply SeqCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply IfCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply WhileCase in H; openhyp; eauto.
-    Guarded.
-
-    eapply CallCase in H; openhyp; eauto.
-    Guarded.
-  Qed.
-
-End Safe_coind.
-
 Ltac pattern_r := 
   match goal with
     |- _ = ?A => pattern A
