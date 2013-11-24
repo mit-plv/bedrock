@@ -92,16 +92,17 @@ Section layout.
                  st'#Rv = ret_w /\
                  st'#Sp = st#Sp |]))))%PropX.
 
-(*here*)
-  
-Definition inv vars s : assert := 
-  st ~> Ex fs, funcsOk (fst st) fs
-  /\ ExX, Ex v, Ex stack,
-  ![^[locals ("rp" :: vars) (fst v) stack st#Sp * is_heap (snd v) * mallocHeap 0] * #0] st
-  /\ [| stack = wordToNat (sel (fst v) STACK_CAPACITY) /\ Safe fs s v |]
-  /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-    [| st'#Sp = st#Sp |]
-    /\ ![^[locals ("rp" :: vars) (fst v') stack st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
-    /\ [| RunsToRelax fs s v v' |]).
+  Definition inv temp_vars vars s : assert := 
+    st ~> Ex fs, 
+    funcs_ok (fst st) fs /\
+    ExX, Ex v, Ex temp_vs,
+    ![^[is_state st#Sp temp_vars temp_vs vars v * mallocHeap 0] * #0] st /\
+    [| Safe fs s v |] /\
+    (sel (fst v) "rp", fst st) 
+      @@@ (
+        st' ~> Ex v', Ex temp_vs',
+        ![^[is_state st'#Sp temp_vars temp_vs' vars v * mallocHeap 0] * #1] st' /\
+        [| RunsTo fs s v v' /\
+           st'#Sp = st#Sp |]).
 
-
+End layout.
