@@ -1,41 +1,10 @@
+Require Import Inv.
+
 Set Implicit Arguments.
 
-Require Import DepthExpr.
+(*here*)
 
-Local Notation edepth := DepthExpr.depth.
-
-Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
-
-Definition starD (f : W -> ADTValue -> HProp) (d : Heap) := MHeap.MSet.starS (fun p => f p (MHeap.sel d p)) (MHeap.keys d).
-
-Section LayoutSection.
-
-Require Import AutoSep Wrap Arith.
-Require Import ExprLemmas.
-Require Import VariableLemmas.
-Require Import GeneralTactics.
-Require Import SyntaxExpr SemanticsExpr.
-Require Import Syntax Semantics.
-Require Import SyntaxNotations.
-Require Import RunsToRelax.
-Require Import Footprint Depth.
-Require Import DefineStructured.
-Require Import Safety.
-Require Import Malloc.
-
-Definition inv vars s : assert := 
-  st ~> Ex fs, funcsOk (fst st) fs
-  /\ ExX, Ex v, Ex res,
-  ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap (snd v) * mallocHeap 0] * #0] st
-  /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
-  /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-    [| st'#Sp = st#Sp |]
-    /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
-    /\ [| RunsToRelax fs s v v' |]).
-
-Definition good_name name := prefix name "!" = false.
-
-Definition vars_require vars s := 
+Definition vars_require temp_vars vars s := 
   List.incl (footprint s) vars
   /\ List.incl (tempVars (depth s)) vars
   /\ List.Forall good_name (footprint s)
@@ -168,6 +137,29 @@ Section Compiler.
           :: nil
         ))
     end.
+
+Require Import DepthExpr.
+
+Local Notation edepth := DepthExpr.depth.
+
+Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
+
+Section LayoutSection.
+
+Require Import AutoSep Wrap Arith.
+Require Import ExprLemmas.
+Require Import VariableLemmas.
+Require Import GeneralTactics.
+Require Import SyntaxExpr SemanticsExpr.
+Require Import Syntax Semantics.
+Require Import SyntaxNotations.
+Require Import RunsToRelax.
+Require Import Footprint Depth.
+Require Import DefineStructured.
+Require Import Safety.
+Require Import Malloc.
+
+Definition good_name name := prefix name "!" = false.
 
   Require Import SemanticsExprLemmas.
   Require Import SemanticsLemmas.

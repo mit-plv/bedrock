@@ -6,7 +6,7 @@ MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	FreeVarsExpr Option FreeVars \
 	ShowNat ReservedNames Range \
 	Inv \
-	RunsToRelax CompileStatement \
+	CompileStatement \
 	ExprLemmas VariableLemmas \
 	DepthExpr \
 	SemanticsExprLemmas SemanticsLemmas \
