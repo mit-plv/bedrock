@@ -6,15 +6,15 @@ MODULES := \
 	GeneralTactics SafeCoind \
 	FreeVarsExpr Option FreeVars \
 	ShowNat ReservedNames \
-	TempVarsList TempVars \
+	TempNamesList TempNames \
 	ValsStringList Inv \
-	CompileExpr CompileStatement \
+	CompileStmtSpec CompileExpr Notations CompileStmtImpl GoodVars PostOk VerifCondOk \
 	ExprLemmas VariableLemmas \
 	DepthExpr \
 	SemanticsExprLemmas SemanticsLemmas \
 	Depth SyntaxNotations \
 	CompileExpr SepLemmas \
-	GoodOptimizer PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
+	GoodOptimizer PartialMap PartialMapSubtract ConstFolding ElimDead \
 	Compiler Wf WritingPrograms Compile Recall \
 	SetInterface SetNotations SetFunctors SetArrow SetList \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver

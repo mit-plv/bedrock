@@ -1,45 +1,18 @@
-Require Import Inv.
+Require Import CompileStmtSpec CompileStmtImpl.
 
 Set Implicit Arguments.
 
-Require Import ReservedNames.
+Section Compile.
 
-Definition good_vars vars temp_vars := 
-  NoDup ("rp" :: STACK_CAPACITY :: vars ++ temp_vars).
-
-Require Import FreeVars.
-Require Import Depth.
-Require Import TempVars.
-Require Import StringSet.
-Require Import SetUtil.
-
-Definition in_scope vars temp_vars s := 
-  Subset (free_vars s) (to_set vars) /\
-  Subset (make_temp_vars (depth s)) (to_set temp_vars).
-
-Section Compiler.
+  Require Import Inv.
 
   Variable layout : Layout.
 
   Variable vars temp_vars : list string.
 
+  Require Import GoodVars.
+
   Hypothesis h_good_vars : good_vars vars temp_vars.
-
-  Section Specifications.
-
-    Require Import Syntax.
-
-    Variable s k : Stmt.
-
-    Definition precond := inv layout vars temp_vars (Seq s k).
-
-    Definition postcond := inv layout vars temp_vars k.
-
-    Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
-
-    Definition verifCond pre := imply pre precond :: in_scope vars temp_vars (Seq s k) :: nil.
-
-  End Specifications.
 
   Variable imports : LabelMap.t assert.
 
@@ -47,131 +20,35 @@ Section Compiler.
 
   Variable modName : string.
 
-  Require Import CompileExpr.
+  Require Import Syntax.
 
-  Definition compile_expr := CompileExpr.compile (* imports_global modName *) vars.
+  Variable s k : Stmt.
 
-  Definition Seq2 := @Seq_ _ imports_global modName.
+  Require Import Wrap.
 
-  Definition Strline := Straightline_ imports modName.
+  Definition compile : cmd imports modName.
+    refine (
+        Wrap imports imports_global modName 
+             (CompileStmtImpl.compile layout vars temp_vars imports_global modName s k) 
+             (fun _ => postcond layout vars temp_vars k) 
+             (verifCond layout vars temp_vars s k) 
+             _ _).
+    Require Import PostOk VerifCondOk.
+    eapply post_ok.
+    eapply verifCond_ok.
+  Defined.
 
-  Definition Skip := Straightline_ imports modName nil.
+End Compile.
 
-  Fixpoint Seq ls :=
-    match ls with
-      | nil => Skip
-      | a :: ls' => Seq2 a (Seq ls')
-    end.
 
-  Definition SaveRv var := Strline (IL.Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
-
-  Require Import SemanticsExpr.
-
-  Local Notation "v [( e )]" := (eval (fst v) e) (no associativity, at level 60).
-
-  Definition inv vars temp_vars s : assert := 
-    st ~> Ex fs, 
-    funcs_ok (fst st) fs /\
-    ExX, Ex v, Ex temp_vs,
-    ![^[is_state st#Sp vars v temp_vars temp_vs * mallocHeap 0] * #0] st /\
-    [| Safe fs s v |] /\
-    (sel (fst v) "rp", fst st) 
-      @@@ (
-        st' ~> Ex v', Ex temp_vs',
-        ![^[is_state st'#Sp vars v temp_vars temp_vs' * mallocHeap 0] * #1] st' /\
-        [| RunsTo fs s v v' /\
-           st'#Sp = st#Sp |]).
-
-  Definition loop_inv cond body k : assert := 
-    let s := While cond body;: k in
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
-    ![^[locals ("rp" :: vars) (fst v) res st#Sp * is_heap (snd v) * mallocHeap 0] * #0] st
-    /\ [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs s v |]
-    /\ [| st#Rv = v[(cond)] |]
-    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-      [| st'#Sp = st#Sp |]
-      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
-      /\ [| RunsToRelax fs s v v' |]).
-
-  Definition afterCall k : assert :=
-    st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v : Semantics.st, Ex res,
-    let old_sp := st#Sp ^- natToW (4 * (1 + length vars)) in
-    ![^[locals ("rp" :: vars) (fst v) res old_sp * is_heap (snd v) * mallocHeap 0 * [| res = wordToNat (sel (fst v) S_RESERVED) /\ Safe fs k v |] ] * #0] st
-    /\ (sel (fst v) "rp", fst st) @@@ (st' ~> Ex v',
-      [| st'#Sp = old_sp |]
-      /\ ![^[locals ("rp" :: vars) (fst v') res st'#Sp * is_heap (snd v') * mallocHeap 0] * #1] st'
-      /\ [| RunsToRelax fs k v v' |]).
-
-  Fixpoint compile_exprs exprs base :=
-    match exprs with
-      | nil => nil
-      | x :: xs => compile_expr x base :: SaveRv (tempOf base) :: compile_exprs xs (S base)
-    end.
-
-  Fixpoint put_args base target n :=
-    match n with
-      | 0 => nil
-      | S n' => IL.Assign (LvMem (Indir Rv (natToW target))) (RvLval (variableSlot (tempOf base) vars)) :: put_args (1 + base) (4 + target) n'
-    end.
-
-  Definition CheckStack n cmd :=
-    Structured.If_ imports_global 
-      (RvImm (natToW n)) IL.Le (RvLval (variableSlot S_RESERVED vars))
-      cmd
-      (Structured.Diverge_ imports modName).
-
-  Definition SaveRet var :=
-    match var with
-      | None => Skip
-      | Some x => SaveRv x
-    end.
-
-  Fixpoint compile s k :=
-    match s with
-      | Syntax.Skip => Skip
-      | Syntax.Seq a b => Seq2 
-          (compile a (Syntax.Seq b k))
-          (compile b k)
-      | Syntax.If cond t f => Seq2
-        (compile_expr cond 0)
-        (Structured.If_ imports_global 
-          (RvLval (LvReg Rv)) IL.Ne (RvImm $0) 
-          (compile t k) 
-          (compile f k)) 
-      | While cond body => Seq2
-        (compile_expr cond 0)
-        (Structured.While_ imports_global 
-          (loop_inv cond body k)
-          (RvLval (LvReg Rv)) IL.Ne (RvImm $0)
-          (Seq2
-            (compile body (Syntax.Seq (Syntax.While cond body) k))
-            (compile_expr cond 0)))
-      | Syntax.Call var f args => let init_frame := 2 + length args in 
-        CheckStack init_frame (Seq (
-          compile_expr f 0
-          :: SaveRv (tempOf 0)
-          :: nil
-          ++ compile_exprs args 1
-          ++ Strline (
-            IL.Binop Rv Sp Plus (natToW (4 * (1 + List.length vars)))
-            :: IL.Binop (LvMem (Indir Rv $4)) (RvLval (variableSlot S_RESERVED vars)) Minus (RvImm (natToW init_frame))
-            :: nil
-            ++ put_args 1 8 (length args)
-            ++ IL.Assign Rv (RvLval (variableSlot (tempOf 0) vars))
-            :: IL.Binop Sp Sp Plus (natToW (4 * (1 + List.length vars))) 
-            :: nil)
-          :: Structured.ICall_ _ _ Rv (afterCall k)
-          :: Strline (IL.Binop Sp Sp Minus (natToW (4 * (1 + List.length vars))) :: nil)
-          :: SaveRet var
-          :: nil
-        ))
-    end.
 
 Require Import DepthExpr.
 
 Local Notation edepth := DepthExpr.depth.
 
 Local Notation "fs ~:~ v1 ~~ s ~~> v2" := (RunsToRelax fs s v1 v2) (no associativity, at level 60).
+  Local Notation "v [( e )]" := (eval (fst v) e) (no associativity, at level 60).
+
 
 Section LayoutSection.
 
@@ -386,9 +263,9 @@ Definition good_name name := prefix name "!" = false.
   Hint Resolve temps_not_in_array.
   Hint Resolve true_false_contradict.
 
-  Ltac to_tempOf :=
-    replace "!!" with (tempOf 1) in * by eauto;
-      replace "!" with (tempOf 0) in * by eauto.
+  Ltac to_temp_var :=
+    replace "!!" with (temp_var 1) in * by eauto;
+      replace "!" with (temp_var 0) in * by eauto.
 
   Lemma del_add : forall s e, e %in s -> s %- e %+ e %= s.
     clear; intros.
@@ -426,13 +303,13 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Resolve Safe_immune.
 
-  Ltac tempOf_solver :=
+  Ltac temp_var_solver :=
     match goal with
-      H : List.incl (tempVars _) ?VARS |- In (tempOf ?N) ?VARS =>
+      H : List.incl (tempVars _) ?VARS |- In (temp_var ?N) ?VARS =>
         eapply In_incl; [eapply temp_in_array with (n := S N); omega | eapply incl_tran with (2 := H) ]
     end.
 
-  Hint Extern 1 => tempOf_solver.
+  Hint Extern 1 => temp_var_solver.
 
   Ltac incl_tran_tempVars :=
     match goal with
@@ -551,12 +428,12 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Extern 1 => max_2_plus.
 
-  Ltac tempOf_neq :=
+  Ltac temp_var_neq :=
     match goal with
-      |- ~ (tempOf _ = tempOf _) => discriminate
+      |- ~ (temp_var _ = temp_var _) => discriminate
     end.
 
-  Hint Extern 1 => tempOf_neq.
+  Hint Extern 1 => temp_var_neq.
 
   Ltac not_in_solver :=
     match goal with 
@@ -958,7 +835,7 @@ Definition good_name name := prefix name "!" = false.
 
   Ltac equiv_solver :=
     match goal with
-      |- _ %%= MHeap.upd ?ARRS _ _ => auto_unfold; no_question_mark; rewriter; unfold MHeap.upd, MHeap.remove, equiv; simpl; to_tempOf; split; [ | intros; repeat f_equal; erewrite changed_in_inv by eauto; rewrite sel_upd_ne by eauto; erewrite changed_in_inv by eauto; rewrite sel_upd_eq by eauto]
+      |- _ %%= MHeap.upd ?ARRS _ _ => auto_unfold; no_question_mark; rewriter; unfold MHeap.upd, MHeap.remove, equiv; simpl; to_temp_var; split; [ | intros; repeat f_equal; erewrite changed_in_inv by eauto; rewrite sel_upd_ne by eauto; erewrite changed_in_inv by eauto; rewrite sel_upd_eq by eauto]
     end.
 
   Ltac set_vs_hyp :=
@@ -968,7 +845,7 @@ Definition good_name name := prefix name "!" = false.
 
   Ltac equiv_solver2 :=
     match goal with
-      |- _ %%= MHeap.upd ?ARRS _ _ => auto_unfold; no_question_mark; rewriter; unfold MHeap.upd, MHeap.remove, equiv; simpl; to_tempOf; split; [ | intros; repeat f_equal]
+      |- _ %%= MHeap.upd ?ARRS _ _ => auto_unfold; no_question_mark; rewriter; unfold MHeap.upd, MHeap.remove, equiv; simpl; to_temp_var; split; [ | intros; repeat f_equal]
     end.
 
   Lemma upd_sel_equiv : forall d i i', MHeap.sel (MHeap.upd d i (MHeap.sel d i)) i' = MHeap.sel d i'.
@@ -1233,7 +1110,7 @@ Definition good_name name := prefix name "!" = false.
   Ltac temp_solver :=
     match goal with
       | H : List.incl (tempVars ?N) _ |- List.incl (tempChunk _ _) _ => eapply incl_tran with (m := tempVars N); [eapply incl_tempChunk2; simpl | ]
-      | H : List.incl (tempVars ?N) _ |- List.incl (tempOf _ :: nil) _ => eapply incl_tran with (m := tempVars N)
+      | H : List.incl (tempVars ?N) _ |- List.incl (temp_var _ :: nil) _ => eapply incl_tran with (m := tempVars N)
     end.
 
   Ltac sel_eq_solver2 :=
@@ -1300,7 +1177,7 @@ Definition good_name name := prefix name "!" = false.
     Safe_loop_solver
     ].
 
-  Ltac smack := to_tempOf; pre_eauto3; info_eauto 7.
+  Ltac smack := to_temp_var; pre_eauto3; info_eauto 7.
 
   Ltac var_solver :=
     try apply unchanged_in_upd_same; smack; try apply changed_in_upd_same;
@@ -1652,8 +1529,8 @@ Definition good_name name := prefix name "!" = false.
     eval_step2 auto_ext.
     solver.
 
-    change (locals ("rp" :: S_RESERVED :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7 (Regs x0 Sp))
-      with (locals_call ("rp" :: S_RESERVED :: "__arg" :: vars) (upd x10 (tempOf 1) (Regs x0 Rv)) x7
+    change (locals ("rp" :: S_RESERVED :: "__arg" :: vars) (upd x10 (temp_var 1) (Regs x0 Rv)) x7 (Regs x0 Sp))
+      with (locals_call ("rp" :: S_RESERVED :: "__arg" :: vars) (upd x10 (temp_var 1) (Regs x0 Rv)) x7
         (Regs x0 Sp)
         ("rp" :: S_RESERVED :: "__arg" :: nil) (x7 - 3)
         (S (S (S (S (S (S (S (S (S (S (S (S (4 * Datatypes.length vars)))))))))))))) in *.
@@ -1733,7 +1610,7 @@ Definition good_name name := prefix name "!" = false.
     simpl fst in *.
     assert (sel vs S_RESERVED = sel x10 S_RESERVED) by solver.
     simpl in H17.
-    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
+    assert (vs [e0] = upd x9 (temp_var 0) (Regs x2 Rv) [e0]).
     transitivity (x9 [e0]).
     symmetry; eapply sameDenote; try eassumption.
     generalize H4; clear; intros; solver.
@@ -1837,7 +1714,7 @@ Definition good_name name := prefix name "!" = false.
     eapply changed_in_inv.
     apply changedVariables_symm; eassumption.
 
-    Lemma rp_tempOf : forall n, tempOf n = "rp"
+    Lemma rp_temp_var : forall n, temp_var n = "rp"
       -> False.
       induction n; simpl; intuition.
     Qed.
@@ -1848,7 +1725,7 @@ Definition good_name name := prefix name "!" = false.
       apply in_app_or in H; intuition idtac.
       eauto.
       simpl in *; intuition.
-      eapply rp_tempOf; eauto.
+      eapply rp_temp_var; eauto.
     Qed.
 
     eauto using rp_tempChunk.
@@ -1923,7 +1800,7 @@ Definition good_name name := prefix name "!" = false.
     simpl fst in *.
     assert (sel vs S_RESERVED = sel x10 S_RESERVED) by solver.
     simpl in H17.
-    assert (vs [e0] = upd x9 (tempOf 0) (Regs x2 Rv) [e0]).
+    assert (vs [e0] = upd x9 (temp_var 0) (Regs x2 Rv) [e0]).
     transitivity (x9 [e0]).
     symmetry; eapply sameDenote; try eassumption.
     generalize H4; clear; intros; solver.
@@ -2055,7 +1932,5 @@ Definition good_name name := prefix name "!" = false.
     solver.
   Qed.
 
-  Definition statementCmd (s k : Stmt) := Wrap imports imports_global modName (compile s k) (fun _ => postcond k) (verifCond s k imports) (@post_ok s k) (@verifCond_ok s k).
-
-End Compiler.
+End Compile.
 

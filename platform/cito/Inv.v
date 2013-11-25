@@ -27,7 +27,7 @@ Section layout.
   Require Import Malloc.
   Require Import Safe.
   Require Import Basics.
-  Require Import TempVarsList.
+  Require Import TempNamesList.
 
   Definition decide_ret addr (ret : Ret) :=
     match ret with
@@ -70,7 +70,7 @@ Section layout.
           st ~> ExX, Ex v, Ex triples,
           let vs := fst v in
           let heap := snd v in
-          let vars := make_temp_vars_list (length triples) in
+          let vars := make_temp_names_list (length triples) in
           ![^[is_state st#Sp vars v empty empty_vs * mallocHeap 0] * #0] st /\
           [| map (sel vs) vars = map Ptr triples /\
              List.Forall (fun x => heap_match heap (Ptr x, Semantics.In x)) triples /\
@@ -89,17 +89,30 @@ Section layout.
                  st'#Rv = ret_w /\
                  st'#Sp = st#Sp |]))))%PropX.
 
-  Definition inv vars temp_vars s : assert := 
-    st ~> Ex fs, 
-    funcs_ok (fst st) fs /\
-    ExX, Ex v, Ex temp_vs,
-    ![^[is_state st#Sp vars v temp_vars temp_vs * mallocHeap 0] * #0] st /\
-    [| Safe fs s v |] /\
-    (sel (fst v) "rp", fst st) 
-      @@@ (
-        st' ~> Ex v', Ex temp_vs',
-        ![^[is_state st'#Sp vars v temp_vars temp_vs' * mallocHeap 0] * #1] st' /\
-        [| RunsTo fs s v v' /\
-           st'#Sp = st#Sp |]).
+  Section vars.
+
+    Variable vars temp_vars : list string.
+
+    Definition inv_template precond postcond : assert := 
+      st ~> Ex fs, 
+      funcs_ok (fst st) fs /\
+      ExX, Ex v, Ex temp_vs,
+      ![^[is_state st#Sp vars v temp_vars temp_vs * mallocHeap 0] * #0] st /\
+      [| precond fs v st |] /\
+      (sel (fst v) "rp", fst st) 
+        @@@ (
+          st' ~> Ex v', Ex temp_vs',
+          ![^[is_state st'#Sp vars v' temp_vars temp_vs' * mallocHeap 0] * #1] st' /\
+          [| postcond fs v st v' st' |]).
+
+    Definition inv s := 
+      inv_template
+        (fun fs v _ =>
+           Safe fs s v)
+        (fun fs v st v' st' =>
+           RunsTo fs s v v' /\
+           st'#Sp = st#Sp).
+    
+    End vars.
 
 End layout.

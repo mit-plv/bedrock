@@ -1,5 +1,6 @@
+Require Import AutoSep.
 Require Import Syntax.
-Import SyntaxExpr Memory IL String.
+Require Import SyntaxExpr Memory IL String.
 
 Set Implicit Arguments.
 
@@ -14,23 +15,21 @@ Infix "<>" := (TestE IL.Ne) : expr_scope.
 Infix "<" := (TestE IL.Lt) : expr_scope.
 Infix "<=" := (TestE IL.Le) : expr_scope.
 
-Notation "var <== a [ i ]" := (ReadAt var a%expr i%expr) (at level 60, a at level 0, i at level 0): stmnt_scope.
-Notation "'inCase' ( cond ) {{ trueStmnt }} 'else' {{ falseStmnt }}" := (Conditional cond%expr trueStmnt falseStmnt) (no associativity, at level 55, format 
- "'[hv' 'inCase'  ( cond )  {{ '/  ' trueStmnt '/' '}}' 'else' {{ '/  ' falseStmnt '/' }} ']'"): stmnt_scope.
-Notation "'While' ( cond ) {{ body }}" := (Loop cond%expr body) (no associativity, at level 55, format 
- "'[hv' 'While'  ( cond )  {{ '/  ' body '/' '}}' ']'"): stmnt_scope.
+Delimit Scope expr_scope with expr.
+Local Open Scope expr.
 
-Notation "'If' cond { trueStmnt } 'Else' { falseStmnt }" := (Conditional cond%expr trueStmnt falseStmnt) (at level 55)
-  : stmnt_scope.
+Notation "'While' ( cond ) {{ body }}" := (While cond%expr body) (no associativity, at level 55, format 
+ "'[hv' 'While'  ( cond )  {{ '/  ' body '/' '}}' ']'"): stmt_scope.
 
-Notation "'Call' f [ arg ]" := (Syntax.Call f arg)
-  (no associativity, at level 95, f at level 0) : stmnt_scope.
+Notation "'If' cond { trueStmt } 'else' { falseStmt }" := (Syntax.If cond%expr trueStmt falseStmt) : stmt_scope.
 
-Infix ";;;" := Syntax.Seq (at level 95): stmnt_scope.
+Notation "'Call' f [ arg ]" := (Syntax.Call None f arg)
+  (no associativity, at level 95, f at level 0) : stmt_scope.
 
-Notation "var <- expr " := (Syntax.Assignment var expr%expr) (at level 90, no associativity): stmnt_scope.
-Notation "var <- 'new' size" := (Syntax.Malloc var size%expr) (no associativity, at level 60): stmnt_scope.
-Notation "a [ i ] <== e" := (Syntax.WriteAt a%expr i%expr e%expr) (at level 60): stmnt_scope.
+Notation "x <- 'Call' f [ arg ]" := (Syntax.Call (Some x) f arg)
+  (no associativity, at level 95, f at level 0) : stmt_scope.
 
-Delimit Scope stmnt_scope with stmnt.
-Open Scope stmnt.
+Infix ";;" := Syntax.Seq : stmt_scope.
+
+Delimit Scope stmt_scope with stmt.
+Local Open Scope stmt.
