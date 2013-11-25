@@ -2,40 +2,54 @@ Require Import Inv.
 
 Set Implicit Arguments.
 
-(*here*)
+Require Import ReservedNames.
 
-Definition vars_require temp_vars vars s := 
-  List.incl (footprint s) vars
-  /\ List.incl (tempVars (depth s)) vars
-  /\ List.Forall good_name (footprint s)
-  /\ ~ In "rp" vars
-  /\ nth_error vars 0 = Some S_RESERVED.
+Definition good_vars vars temp_vars := 
+  NoDup ("rp" :: STACK_CAPACITY :: vars ++ temp_vars).
 
-Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+Require Import FreeVars.
+Require Import Depth.
+Require Import TempVars.
+Require Import StringSet.
+Require Import SetUtil.
+
+Definition in_scope vars temp_vars s := 
+  Subset (free_vars s) (to_set vars) /\
+  Subset (make_temp_vars (depth s)) (to_set temp_vars).
 
 Section Compiler.
 
-  Variable vars : list string.
+  Variable layout : Layout.
+
+  Variable vars temp_vars : list string.
+
+  Hypothesis h_good_vars : good_vars vars temp_vars.
 
   Section Specifications.
 
-    Variable s k : Statement.
+    Require Import Syntax.
 
-    Definition precond := inv vars (s;: k).
+    Variable s k : Stmt.
 
-    Definition postcond := inv vars k.
+    Definition precond := inv layout vars temp_vars (Seq s k).
 
-    Definition verifCond pre := imply pre precond :: vars_require vars (s;: k) :: nil.
+    Definition postcond := inv layout vars temp_vars k.
+
+    Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+
+    Definition verifCond pre := imply pre precond :: in_scope vars temp_vars (Seq s k) :: nil.
 
   End Specifications.
 
   Variable imports : LabelMap.t assert.
+
   Variable imports_global : importsGlobal imports.
+
   Variable modName : string.
 
   Require Import CompileExpr.
 
-  Definition exprCmd := CompileExpr.exprCmd imports_global modName vars.
+  Definition compile_expr := CompileExpr.compile (* imports_global modName *) vars.
 
   Definition Seq2 := @Seq_ _ imports_global modName.
 
@@ -51,7 +65,11 @@ Section Compiler.
 
   Definition SaveRv var := Strline (IL.Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
 
-  Local Notation "v [( e )]" := (exprDenote e (fst v)) (no associativity, at level 60).
+  Require Import SemanticsExpr.
+
+  Local Notation "v [( e )]" := (eval (fst v) e) (no associativity, at level 60).
+
+(*here*)
   
   Definition loop_inv cond body k : assert := 
     let s := While cond body;: k in
@@ -76,7 +94,7 @@ Section Compiler.
   Fixpoint compile_exprs exprs base :=
     match exprs with
       | nil => nil
-      | x :: xs => exprCmd x base :: SaveRv (tempOf base) :: compile_exprs xs (S base)
+      | x :: xs => compile_expr x base :: SaveRv (tempOf base) :: compile_exprs xs (S base)
     end.
 
   Fixpoint put_args base target n :=
@@ -104,22 +122,22 @@ Section Compiler.
           (compile a (Syntax.Seq b k))
           (compile b k)
       | Syntax.If cond t f => Seq2
-        (exprCmd cond 0)
+        (compile_expr cond 0)
         (Structured.If_ imports_global 
           (RvLval (LvReg Rv)) IL.Ne (RvImm $0) 
           (compile t k) 
           (compile f k)) 
       | While cond body => Seq2
-        (exprCmd cond 0)
+        (compile_expr cond 0)
         (Structured.While_ imports_global 
           (loop_inv cond body k)
           (RvLval (LvReg Rv)) IL.Ne (RvImm $0)
           (Seq2
             (compile body (Syntax.Seq (Syntax.While cond body) k))
-            (exprCmd cond 0)))
+            (compile_expr cond 0)))
       | Syntax.Call var f args => let init_frame := 2 + length args in 
         CheckStack init_frame (Seq (
-          exprCmd f 0
+          compile_expr f 0
           :: SaveRv (tempOf 0)
           :: nil
           ++ compile_exprs args 1
@@ -269,7 +287,7 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Constructors RunsTo.
   Hint Constructors runs_loop_partially.
-  Hint Resolve unchanged_exprDenote.
+  Hint Resolve unchanged_eval.
   Hint Resolve changedVariables_upd_bwd.
   Hint Resolve unchanged_incl.
   Hint Resolve two_merge_equiv.
@@ -284,16 +302,16 @@ Definition good_name name := prefix name "!" = false.
   Hint Extern 12 (changed_in _ _ _) => use_changed_in_symm.
 
   Hint Resolve runs_loop_partially_finish.
-  Hint Resolve exprDenote_disjoint.
+  Hint Resolve eval_disjoint.
   Hint Resolve RunsTo_footprint.
 
   Hint Extern 12 (_ = _) => condition_solver.
 
-  Ltac use_unchanged_exprDenote :=
+  Ltac use_unchanged_eval :=
     match goal with
-      |- exprDenote ?E _ = exprDenote ?E _ => eapply unchanged_exprDenote; solve [eauto]
+      |- eval ?E _ = eval ?E _ => eapply unchanged_eval; solve [eauto]
     end.
-  Hint Extern 12 => use_unchanged_exprDenote.
+  Hint Extern 12 => use_unchanged_eval.
 
   Hint Resolve incl_tempChunk2.
 
@@ -486,8 +504,8 @@ Definition good_name name := prefix name "!" = false.
 
   Ltac format_solver :=
     match goal with
-      |- _ = exprDenote _ _ ^+ $4 ^* exprDenote _ _ =>
-      rewriter; erewrite changed_in_inv by eauto; rewrite sel_upd_eq by eauto; rewriter; repeat (f_equal; try (eapply unchanged_exprDenote; choose_changed_unchanged; iter_changed))
+      |- _ = eval _ _ ^+ $4 ^* eval _ _ =>
+      rewriter; erewrite changed_in_inv by eauto; rewrite sel_upd_eq by eauto; rewriter; repeat (f_equal; try (eapply unchanged_eval; choose_changed_unchanged; iter_changed))
     end.
 
   Opaque List.incl.
@@ -607,7 +625,7 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Unfold st_agree_except.
 
-  Local Notation "v [ e ]" := (exprDenote e v) (no associativity, at level 60).
+  Local Notation "v [ e ]" := (eval e v) (no associativity, at level 60).
   Lemma in_not_in_ne : forall A ls (a b : A), In a ls -> ~ In b ls -> a <> b.
     intuition.
   Qed.
@@ -879,32 +897,32 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Resolve in_tran_not.
 
-  Lemma vars_require_imply : forall vars s1 s2, 
-    vars_require vars s1 -> 
+  Lemma good_vars_imply : forall vars s1 s2, 
+    good_vars vars s1 -> 
     List.incl (footprint s2) (footprint s1) ->
     depth s2 <= depth s1 ->
-    vars_require vars s2.
+    good_vars vars s2.
     admit.
-    (* clear; unfold vars_require; intros; openhyp; descend; eauto. *)
+    (* clear; unfold good_vars; intros; openhyp; descend; eauto. *)
   Qed.
 
-  Local Notation "'e_vars_require'" := CompileExpr.expr_vars_require.
+  Local Notation "'e_good_vars'" := CompileExpr.expr_good_vars.
 
-  Lemma vars_require_imply_e : forall vars s e base, vars_require vars s -> List.incl (varsIn e) (footprint s) -> (base + edepth e <= depth s)%nat -> e_vars_require vars e base.
+  Lemma good_vars_imply_e : forall vars s e base, good_vars vars s -> List.incl (varsIn e) (footprint s) -> (base + edepth e <= depth s)%nat -> e_good_vars vars e base.
     admit.
-    (* clear; unfold vars_require, CompileExpr.expr_vars_require; simpl; intuition; eauto. *)
+    (* clear; unfold good_vars, CompileExpr.expr_good_vars; simpl; intuition; eauto. *)
   Qed.
 
-  Ltac unfold_copy_vars_require :=
+  Ltac unfold_copy_good_vars :=
     match goal with
-      H : vars_require _ _ |- _ => generalize H; unfold vars_require in H; simpl in H; intro; openhyp
+      H : good_vars _ _ |- _ => generalize H; unfold good_vars in H; simpl in H; intro; openhyp
     end.
 
   Ltac protect_hyps :=
     repeat 
       match goal with
         | H : agree_except _ _ _ |- _ => generalize dependent H
-        | H : vars_require _ _ |- _ => generalize dependent H
+        | H : good_vars _ _ |- _ => generalize dependent H
         | H : Regs _ Rv = _ |- _ => generalize dependent H
         | H : _ %in _ |- _ => generalize dependent H
         | H : Safe _ _ _ |- _ => generalize dependent H
@@ -953,10 +971,10 @@ Definition good_name name := prefix name "!" = false.
       H1 : changed_in _ _ _, H2 : changed_in (upd _ _ _) _ _ |- changed_in _ _ _ => no_question_mark; simpl; iter_changed
     end.
 
-  Ltac vars_require_solver :=
+  Ltac good_vars_solver :=
     match goal with
-      | H : vars_require _ _ |- vars_require _ _ => eapply vars_require_imply; repeat (simpl; eauto)
-      | H : vars_require _ _ |- e_vars_require _ _ _ => eapply vars_require_imply_e; repeat (simpl; eauto)
+      | H : good_vars _ _ |- good_vars _ _ => eapply good_vars_imply; repeat (simpl; eauto)
+      | H : good_vars _ _ |- e_good_vars _ _ _ => eapply good_vars_imply_e; repeat (simpl; eauto)
     end.
 
   Ltac RunsToRelax_solver :=
@@ -1122,7 +1140,7 @@ Definition good_name name := prefix name "!" = false.
     use_Safe_immune2 |
     (format_solver; incl_app_solver) |
     equiv_solver |
-    vars_require_solver |
+    good_vars_solver |
     RunsToRelax_solver | 
     rp_upd_solver |
     change_rp' |
@@ -1255,7 +1273,7 @@ Definition good_name name := prefix name "!" = false.
     use_Safe_immune2 |
     (format_solver; incl_app_solver) |
     equiv_solver |
-    vars_require_solver |
+    good_vars_solver |
     RunsToRelax_solver | 
     rp_upd_solver |
     change_rp'' |
@@ -1291,7 +1309,7 @@ Definition good_name name := prefix name "!" = false.
   Ltac unfold_eval := unfold precond, postcond, inv, expr_runs_to, runs_to_generic in *.
 
   Ltac preamble := 
-    wrap0; unfold_eval; unfold_copy_vars_require; myPost;
+    wrap0; unfold_eval; unfold_copy_good_vars; myPost;
     repeat eval_step hints;
       repeat match goal with
                | [ |- vcs _ ] => wrap0;
@@ -1373,31 +1391,31 @@ Definition good_name name := prefix name "!" = false.
             | [ |- exists a0 : _ -> PropX _ _, _ ] => eexists
           end.
 
-  Lemma vars_require_disjoint : forall vars s b n, vars_require vars s -> disjoint (footprint s) (tempChunk b n).
+  Lemma good_vars_disjoint : forall vars s b n, good_vars vars s -> disjoint (footprint s) (tempChunk b n).
     admit.
   Qed.
 
-  Hint Resolve vars_require_disjoint.
+  Hint Resolve good_vars_disjoint.
 
-  Lemma vars_require_seq_assoc_left : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s1 ;: (s2 ;: k)).
+  Lemma good_vars_seq_assoc_left : forall vars s1 s2 k, good_vars vars (s1 ;: s2 ;: k) -> good_vars vars (s1 ;: (s2 ;: k)).
     admit.
   Qed.
 
-  Hint Resolve vars_require_seq_assoc_left.
+  Hint Resolve good_vars_seq_assoc_left.
 
-  Lemma vars_require_seq_part : forall vars s1 s2 k, vars_require vars (s1 ;: s2 ;: k) -> vars_require vars (s2 ;: k).
+  Lemma good_vars_seq_part : forall vars s1 s2 k, good_vars vars (s1 ;: s2 ;: k) -> good_vars vars (s2 ;: k).
     admit.
   Qed.
 
-  Hint Resolve vars_require_seq_part.
+  Hint Resolve good_vars_seq_part.
 
   Hint Resolve RunsToRelax_assoc_left.
 
-  Lemma vars_require_disjoint_tempVars : forall vars s n, vars_require vars s -> disjoint (footprint s) (tempVars n).
+  Lemma good_vars_disjoint_tempVars : forall vars s n, good_vars vars s -> disjoint (footprint s) (tempVars n).
     admit.
   Qed.
 
-  Hint Resolve vars_require_disjoint_tempVars.
+  Hint Resolve good_vars_disjoint_tempVars.
 
   Lemma pack_pair : forall A B (p : A * B), (fst p, snd p) = p.
     intuition.
@@ -1421,23 +1439,23 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Resolve rp_not_in_tempChunk.
 
-  Lemma vars_require_if_part_true : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (t ;: k).
+  Lemma good_vars_if_part_true : forall vars e t f k, good_vars vars (Syntax.If e t f ;: k) -> good_vars vars (t ;: k).
     admit.
   Qed.
 
-  Hint Resolve vars_require_if_part_true.
+  Hint Resolve good_vars_if_part_true.
 
-  Lemma vars_require_if_part_false : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> vars_require vars (f ;: k).
+  Lemma good_vars_if_part_false : forall vars e t f k, good_vars vars (Syntax.If e t f ;: k) -> good_vars vars (f ;: k).
     admit.
   Qed.
 
-  Hint Resolve vars_require_if_part_false.
+  Hint Resolve good_vars_if_part_false.
 
-  Lemma vars_require_if_cond : forall vars e t f k, vars_require vars (Syntax.If e t f ;: k) -> e_vars_require vars e 0.
+  Lemma good_vars_if_cond : forall vars e t f k, good_vars vars (Syntax.If e t f ;: k) -> e_good_vars vars e 0.
     admit.
   Qed.
 
-  Hint Resolve vars_require_if_cond.
+  Hint Resolve good_vars_if_cond.
 
   Ltac replace_sel := try eassumption;     
     match goal with
@@ -1457,7 +1475,7 @@ Definition good_name name := prefix name "!" = false.
       | [ H : context[expr_runs_to] |- _ ] => unfold_eval
     end.
 
-  Lemma post_ok : forall (s k : Statement) (pre : assert) (specs : codeSpec W (settings * state))
+  Lemma post_ok : forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
     (x : settings * state),
     vcs (verifCond s k pre) ->
     interp specs (Postcondition (compile s k pre) x) ->
@@ -1558,7 +1576,7 @@ Definition good_name name := prefix name "!" = false.
 (*here*)
     try stepper'; solver.
 
-    auto_apply; wrap0; pre_eauto3; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+    auto_apply; wrap0; pre_eauto3; auto_apply_in post_ok; wrap0; unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step hints; try stepper'; solver.
 
     (* if *)
     wrap0.
@@ -1566,30 +1584,30 @@ Definition good_name name := prefix name "!" = false.
     clear_imports; evaluate auto_ext.
 
     (* true case *)
-    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
+    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
 
     (* false case *)
-    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
+    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; solver.
 
     (* while *)
     wrap0.
     unfold_eval; clear_imports; repeat eval_step hints; try stepper'; solver.
 
-    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; smack2.
+    unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper | .. ]; try stepper'; smack2.
 
     clear_imports; unfold evalCond in *; unfold evalRvalue in *; intuition.
 
     auto_apply_in post_ok.
-    unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper' | .. ]; try stepper'; smack2.
+    unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step auto_ext; destruct_st; descend; [ propxFo | propxFo | instantiate (2 := (_, _)); simpl; stepper' | .. ]; try stepper'; smack2.
 
-    unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+    unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; post; descend; try stepper'; solver.
 
-    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+    auto_apply; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; post; descend; try stepper'; solver.
 
     unfold_wrap0 ; wrap0; auto_apply_in post_ok.
     unfold_eval; clear_imports; post; try stepper'; solver.
 
-    unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_vars_require; post; descend; try stepper'; solver.
+    unfold_wrap0; wrap0; pre_eauto3; unfold_eval; clear_imports; unfold_copy_good_vars; post; descend; try stepper'; solver.
 
     (* malloc *)
     wrap0; unfold CompileMalloc.verifCond; wrap0.
@@ -1598,20 +1616,20 @@ Definition good_name name := prefix name "!" = false.
     wrap0; unfold CompileFree.verifCond; wrap0.
 
     (* len *)
-    wrap0; unfold_eval; clear_imports; unfold_copy_vars_require; repeat eval_step hints; try stepper'; solver.
+    wrap0; unfold_eval; clear_imports; unfold_copy_good_vars; repeat eval_step hints; try stepper'; solver.
 
     (* call *)
     wrap0.
 
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
-    2: unfold_eval; clear_imports; unfold_copy_vars_require; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    2: unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
+    2: unfold_eval; clear_imports; unfold_copy_good_vars; myPost; repeat eval_step2 auto_ext; try stepper'; solver.
 
-    unfold_eval; clear_imports; unfold_copy_vars_require; myPost.
+    unfold_eval; clear_imports; unfold_copy_good_vars; myPost.
     eval_step2 auto_ext.
     eval_step2 auto_ext.
     eval_step2 auto_ext.
@@ -1663,7 +1681,7 @@ Definition good_name name := prefix name "!" = false.
     (*here*)
     specialize (Imply_sound (H3 _ _ _ ) (Inj_I _ _ H32)); propxFo.
     repeat match goal with
-             | [ H : context[exprDenote] |- _ ] => generalize dependent H
+             | [ H : context[eval] |- _ ] => generalize dependent H
              | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
              | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
            end.
@@ -1858,7 +1876,7 @@ Definition good_name name := prefix name "!" = false.
     
     specialize (Imply_sound (Hi _ _) (Inj_I _ _ H32)); propxFo.
     repeat match goal with
-             | [ H : context[exprDenote] |- _ ] => generalize dependent H
+             | [ H : context[eval] |- _ ] => generalize dependent H
              | [ H : context[Build_callTransition] |- _ ] => generalize dependent H
              | [ H : agree_except _ _ _ |- _ ] => generalize dependent H
            end.
@@ -2026,7 +2044,7 @@ Definition good_name name := prefix name "!" = false.
     solver.
   Qed.
 
-  Definition statementCmd (s k : Statement) := Wrap imports imports_global modName (compile s k) (fun _ => postcond k) (verifCond s k imports) (@post_ok s k) (@verifCond_ok s k).
+  Definition statementCmd (s k : Stmt) := Wrap imports imports_global modName (compile s k) (fun _ => postcond k) (verifCond s k imports) (@post_ok s k) (@verifCond_ok s k).
 
 End Compiler.
 

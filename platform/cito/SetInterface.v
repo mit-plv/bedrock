@@ -4,25 +4,25 @@ Set Implicit Arguments.
 
 Module Type Set_ (Key : MiniDecidableType).
 
-  Parameter set : Type.
+  Parameter t : Type.
 
-  Parameter mem : Key.t -> set -> Prop.
+  Parameter mem : Key.t -> t -> Prop.
 
-  Parameter union : set -> set -> set.
+  Parameter union : t -> t -> t.
 
-  Parameter union_correct : forall a b x, mem x (union a b) <-> mem x a \/ mem x b.
+  Parameter union_spec : forall a b x, mem x (union a b) <-> mem x a \/ mem x b.
 
-  Parameter diff : set -> set -> set.
+  Parameter diff : t -> t -> t.
 
-  Parameter diff_correct : forall a b x, mem x (diff a b) <-> mem x a /\ ~ mem x b.
+  Parameter diff_spec : forall a b x, mem x (diff a b) <-> mem x a /\ ~ mem x b.
 
-  Parameter empty : set.
+  Parameter empty : t.
 
-  Parameter empty_correct : forall x, ~ mem x empty.
+  Parameter empty_spec : forall x, ~ mem x empty.
 
-  Parameter singleton : Key.t -> set.
+  Parameter singleton : Key.t -> t.
 
-  Parameter singleton_correct : forall x x', mem x' (singleton x) <-> x' = x.
+  Parameter singleton_spec : forall x x', mem x' (singleton x) <-> x' = x.
 
 End Set_.
 
