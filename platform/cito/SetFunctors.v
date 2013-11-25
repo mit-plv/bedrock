@@ -5,10 +5,10 @@ Set Implicit Arguments.
 
 Module Relations (Key : MiniDecidableType) (Import S : Set_ Key).
 
-  Definition subset (a b : set) := forall x, mem x a -> mem x b.
+  Definition subset a b := forall x, mem x a -> mem x b.
   Infix "<=" := subset : set_scope.
 
-  Lemma subset_correct : forall a b, subset a b <-> forall x, mem x a -> mem x b.
+  Lemma subset_spec : forall a b, subset a b <-> forall x, mem x a -> mem x b.
     intuition.
   Qed.
 
@@ -21,15 +21,15 @@ Module Relations (Key : MiniDecidableType) (Import S : Set_ Key).
   Qed.
 
   Lemma subset_union_left : forall a b, subset a (union a b).
-    unfold subset; intros; eapply union_correct; eauto.
+    unfold subset; intros; eapply union_spec; eauto.
   Qed.
   
   Lemma subset_union_right : forall a b, subset b (union a b).
-    unfold subset; intros; eapply union_correct; eauto.
+    unfold subset; intros; eapply union_spec; eauto.
   Qed.
 
-  Lemma union_subset : forall (a b c : set), subset a c -> subset b c -> subset (union a b) c.
-    unfold subset; intros; eapply union_correct in H1; destruct H1; eauto.
+  Lemma union_subset : forall a b c, subset a c -> subset b c -> subset (union a b) c.
+    unfold subset; intros; eapply union_spec in H1; destruct H1; eauto.
   Qed.
 
   Lemma union_same_subset : forall s, subset (union s s) s.
@@ -41,19 +41,22 @@ Module Relations (Key : MiniDecidableType) (Import S : Set_ Key).
   Qed.
 
   Lemma diff_subset : forall a b, subset (diff a b) a.
-    unfold subset; intros; eapply diff_correct in H; intuition.
+    unfold subset; intros; eapply diff_spec in H; intuition.
   Qed.
+
+  Definition disjoint a b := forall x, mem x a -> mem x b -> False.
+  Infix "*" := disjoint : set_scope.
 
 End Relations.
 
 Module Util (Key : MiniDecidableType) (Import S : Set_ Key).
 
   Lemma union_elim : forall a b x, mem x (union a b) -> mem x a \/ mem x b.
-    intros; eapply union_correct in H; eauto.
+    intros; eapply union_spec in H; eauto.
   Qed.
 
   Lemma union_intro : forall a b x, mem x a \/ mem x b -> mem x (union a b).
-    intros; eapply union_correct; eauto.
+    intros; eapply union_spec; eauto.
   Qed.
 
   Lemma mem_union_left : forall a b x, mem x a -> mem x (union a b).
@@ -66,3 +69,21 @@ Module Util (Key : MiniDecidableType) (Import S : Set_ Key).
 
 End Util.
 
+Require Import Arith.
+
+Module NatKey <: MiniDecidableType.
+  Definition t := nat.
+  Definition eq_dec := eq_nat_dec.
+End NatKey.
+
+Module Range (Import S : Set_ NatKey).
+
+  Fixpoint range start length:=
+    match length with
+      | O => empty
+      | S n' => union (range start n') (singleton (start + n'))
+    end.
+
+  Definition range0 := range 0.
+
+End Range.

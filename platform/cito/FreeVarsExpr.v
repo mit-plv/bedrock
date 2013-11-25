@@ -1,16 +1,7 @@
 Require Import SyntaxExpr.
-Require Import SetArrow.
-Require Import Equalities String.
+Require Import StringSet.
 
 Set Implicit Arguments.
-
-Module Key <: MiniDecidableType.
-  Definition t := string.
-  Definition eq_dec := string_dec.
-End Key.
-
-Module MSet := SetArrow Key.
-Import MSet.
 
 Fixpoint free_vars expr:=
   match expr with

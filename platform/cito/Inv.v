@@ -7,8 +7,6 @@ Definition Layout := W -> ADTValue -> HProp.
 
 Variable is_heap : Layout -> Heap -> HProp.
 
-Definition agree_in a b := List.Forall (fun x => Locals.sel a x = Locals.sel b x).
-
 Definition empty_vs : vals := fun _ => $0.
 
 Section layout.
@@ -16,23 +14,20 @@ Section layout.
   Variable layout : Layout.
 
   Require Import ReservedNames.
+  Require Import ValsStringList.
 
-  Definition is_state sp temp_vars temp_vs vars (v : State) : HProp :=
+  Definition is_state sp vars (v : State) temp_vars temp_vs : HProp :=
     (Ex stack, Ex vs,
      locals ("rp" :: STACK_CAPACITY :: vars ++ temp_vars) vs stack sp * 
      is_heap layout (snd v) * 
      [| agree_in vs temp_vs temp_vars /\ 
+        agree_in vs (fst v) vars /\
         stack = wordToNat (Locals.sel vs STACK_CAPACITY) |])%Sep.
 
   Require Import Malloc.
   Require Import Safe.
-  Require Import Range.
   Require Import Basics.
-
-  Infix "*" := compose : program_scope.
-  Local Open Scope program_scope.
-
-  Definition make_temp_vars := map temp_var * range0.
+  Require Import TempVarsList.
 
   Definition decide_ret addr (ret : Ret) :=
     match ret with
@@ -52,17 +47,19 @@ Section layout.
       | None => m
     end.
 
+  Definition empty := @nil string.
+
   Definition funcs_ok (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
     ((Al i, Al spec, 
       [| fs i = Some (Internal spec) |] 
         ---> (i, stn) @@@ (
           st ~> ExX, Ex v,
-          ![^[is_state st#Sp nil empty_vs (ArgVars spec) v * mallocHeap 0] * #0] st /\
+          ![^[is_state st#Sp (ArgVars spec) v empty empty_vs * mallocHeap 0] * #0] st /\
           [| Safe fs (Body spec) v |] /\
           (st#Rp, stn) 
             @@@ (
               st' ~> Ex v',
-              ![^[ is_state st'#Sp nil empty_vs (ArgVars spec) v' * mallocHeap 0] * #1] st' /\
+              ![^[ is_state st'#Sp (ArgVars spec) v' empty empty_vs * mallocHeap 0] * #1] st' /\
               [| exists vs', 
                  RunsTo fs (Body spec) v (vs', snd v') /\ 
                  st'#Rv = sel vs' (RetVar spec) /\
@@ -73,11 +70,11 @@ Section layout.
           st ~> ExX, Ex v, Ex triples,
           let vs := fst v in
           let heap := snd v in
-          let vars := make_temp_vars (length triples) in
-          ![^[is_state st#Sp nil empty_vs vars v * mallocHeap 0] * #0] st /\
+          let vars := make_temp_vars_list (length triples) in
+          ![^[is_state st#Sp vars v empty empty_vs * mallocHeap 0] * #0] st /\
           [| map (sel vs) vars = map Ptr triples /\
-             List.Forall (fun x => heap_match heap (Ptr x, In x)) triples /\
-             PreCond spec (map In triples) |] /\
+             List.Forall (fun x => heap_match heap (Ptr x, Semantics.In x)) triples /\
+             PreCond spec (map Semantics.In triples) |] /\
           (st#Rp, stn) 
             @@@ (
               st' ~> Ex v', Ex addr, Ex ret,
@@ -86,22 +83,22 @@ Section layout.
               let ret_a := snd t in
               let heap := fold_left store_out triples heap in
               let heap := heap_upd_option heap addr ret_a in
-              ![^[is_state st#Sp nil empty_vs vars v' * layout_option addr ret_a * mallocHeap 0] * #1] st' /\
+              ![^[is_state st#Sp vars v' empty empty_vs * layout_option addr ret_a * mallocHeap 0] * #1] st' /\
               [| snd v' = heap /\ 
-                 PostCond spec (map (fun x => (In x, Out x)) triples) ret /\
+                 PostCond spec (map (fun x => (Semantics.In x, Out x)) triples) ret /\
                  st'#Rv = ret_w /\
                  st'#Sp = st#Sp |]))))%PropX.
 
-  Definition inv temp_vars vars s : assert := 
+  Definition inv vars temp_vars s : assert := 
     st ~> Ex fs, 
     funcs_ok (fst st) fs /\
     ExX, Ex v, Ex temp_vs,
-    ![^[is_state st#Sp temp_vars temp_vs vars v * mallocHeap 0] * #0] st /\
+    ![^[is_state st#Sp vars v temp_vars temp_vs * mallocHeap 0] * #0] st /\
     [| Safe fs s v |] /\
     (sel (fst v) "rp", fst st) 
       @@@ (
         st' ~> Ex v', Ex temp_vs',
-        ![^[is_state st'#Sp temp_vars temp_vs' vars v * mallocHeap 0] * #1] st' /\
+        ![^[is_state st'#Sp vars v temp_vars temp_vs' * mallocHeap 0] * #1] st' /\
         [| RunsTo fs s v v' /\
            st'#Sp = st#Sp |]).
 

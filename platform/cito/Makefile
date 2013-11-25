@@ -1,12 +1,14 @@
 BEDROCK := ../..
 
-MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
+MODULES := \
+	StringSet ValsStringSet SetUtil \
+	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics SafeCoind \
-	SetInterface SetNotations SetFunctors SetArrow \
 	FreeVarsExpr Option FreeVars \
-	ShowNat ReservedNames Range \
-	Inv \
-	CompileStatement \
+	ShowNat ReservedNames \
+	TempVarsList TempVars \
+	ValsStringList Inv \
+	CompileExpr CompileStatement \
 	ExprLemmas VariableLemmas \
 	DepthExpr \
 	SemanticsExprLemmas SemanticsLemmas \
@@ -14,6 +16,7 @@ MODULES := SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	CompileExpr SepLemmas \
 	GoodOptimizer PartialMap PartialMapSubtract Notations ConstFolding ElimDead \
 	Compiler Wf WritingPrograms Compile Recall \
+	SetInterface SetNotations SetFunctors SetArrow SetList \
 	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)

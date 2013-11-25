@@ -1,7 +1,7 @@
 Require Import FreeVarsExpr.
 Require Import Syntax.
+Require Import StringSet.
 Require Import Option.
-Import MSet.
 
 Set Implicit Arguments.
 
