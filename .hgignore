@@ -33,6 +33,7 @@ timing/
 *.sty
 *.pdf
 *.toc
+*.orig
 .dir-locals.el
 
 *.exe

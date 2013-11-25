@@ -69,8 +69,19 @@ Section Compiler.
 
   Local Notation "v [( e )]" := (eval (fst v) e) (no associativity, at level 60).
 
-(*here*)
-  
+  Definition inv vars temp_vars s : assert := 
+    st ~> Ex fs, 
+    funcs_ok (fst st) fs /\
+    ExX, Ex v, Ex temp_vs,
+    ![^[is_state st#Sp vars v temp_vars temp_vs * mallocHeap 0] * #0] st /\
+    [| Safe fs s v |] /\
+    (sel (fst v) "rp", fst st) 
+      @@@ (
+        st' ~> Ex v', Ex temp_vs',
+        ![^[is_state st'#Sp vars v temp_vars temp_vs' * mallocHeap 0] * #1] st' /\
+        [| RunsTo fs s v v' /\
+           st'#Sp = st#Sp |]).
+
   Definition loop_inv cond body k : assert := 
     let s := While cond body;: k in
     st ~> Ex fs, funcsOk (fst st) fs /\ ExX, Ex v, Ex res,
