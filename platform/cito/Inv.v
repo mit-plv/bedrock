@@ -14,15 +14,14 @@ Section layout.
   Variable layout : Layout.
 
   Require Import ReservedNames.
-  Require Import ValsStringList.
 
   Definition is_state sp vars (v : State) temp_vars temp_vs : HProp :=
-    (Ex stack, Ex vs,
-     locals ("rp" :: STACK_CAPACITY :: vars ++ temp_vars) vs stack sp * 
-     is_heap layout (snd v) * 
-     [| agree_in vs temp_vs temp_vars /\ 
-        agree_in vs (fst v) vars /\
-        stack = wordToNat (Locals.sel vs STACK_CAPACITY) |])%Sep.
+    (Ex stack,
+     sp =?> 1 *
+     (sp ^+ $4) =*> stack *
+     locals vars (fst v) 0 (sp ^+ $8) *
+     locals temp_vars temp_vs (wordToNat stack) (sp ^+ $8 ^+ $(length vars)) *
+     is_heap layout (snd v))%Sep.
 
   Require Import Malloc.
   Require Import Safe.

@@ -29,13 +29,12 @@ Section ExprComp.
 
   Section Specifications.
 
-    Require Import ValsStringList.
-
     Definition is_state sp vars vs temp_vars temp_vs : HProp :=
-      (Ex stack, Ex all_vs,
-       locals ("rp" :: vars ++ temp_vars) all_vs stack sp * 
-       [| agree_in all_vs temp_vs temp_vars /\ 
-          agree_in all_vs vs vars |])%Sep.
+      (Ex stack,
+       sp =?> 1 *
+       (sp ^+ $4) =*> stack *
+       locals vars vs 0 (sp ^+ $8) *
+       locals temp_vars temp_vs (wordToNat stack) (sp ^+ $8 ^+ $(length vars)))%Sep.
 
     Definition new_pre : assert := 
       x ~> ExX, Ex vs, Ex temp_vs,

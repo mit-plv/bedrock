@@ -7,8 +7,8 @@ MODULES := \
 	FreeVarsExpr Option FreeVars \
 	ShowNat ReservedNames \
 	TempNamesList TempNames \
-	ValsStringList Inv \
-	CompileStmtSpec CompileExpr Notations CompileStmtImpl GoodVars PostOk VerifCondOk \
+	Inv \
+	CompileStmtSpec CompileExpr Notations CompileStmtImpl GoodVars PostOk VerifCondOk CompileStmt \
 	ExprLemmas VariableLemmas \
 	DepthExpr \
 	SemanticsExprLemmas SemanticsLemmas \
