@@ -2,7 +2,7 @@ Require Import CompileStmtSpec CompileStmtImpl.
 
 Set Implicit Arguments.
 
-Section TopSection.
+Section Compile.
 
   Require Import Inv.
 
@@ -26,17 +26,16 @@ Section TopSection.
 
   Require Import Wrap.
 
-  Lemma post_ok : 
-    forall (pre : assert) (specs : codeSpec W (settings * state))
-           (x : settings * state),
-      vcs (verifCond layout vars temp_vars s k pre) ->
-      interp specs
-             (Postcondition
-                (compile layout vars temp_vars imports_global modName s k pre) x) ->
-      interp specs (postcond layout vars temp_vars k x).
-  Proof.
+  Definition compile : cmd imports modName.
+    refine (
+        Wrap imports imports_global modName 
+             (CompileStmtImpl.compile layout vars temp_vars imports_global modName s k) 
+             (fun _ => postcond layout vars temp_vars k) 
+             (verifCond layout vars temp_vars s k) 
+             _ _).
+    Require Import PostOk VerifCondOk.
+    eapply post_ok.
+    eapply verifCond_ok.
+  Defined.
 
-    admit.
-  Qed.
-
-End TopSection.
+End Compile.
