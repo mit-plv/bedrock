@@ -7,13 +7,13 @@ Definition good_vars vars temp_vars :=
 
 Require Import FreeVarsExpr.
 Require Import DepthExpr.
-Require Import TempVars.
+Require Import TempNames.
 Require Import StringSet.
 Require Import SetUtil.
 
 Definition in_scope vars temp_vars e b := 
   Subset (free_vars e) (to_set vars) /\
-  Subset (make_temp_vars_range b (depth e)) (to_set temp_vars).
+  Subset (make_temp_names_range b (depth e)) (to_set temp_vars).
 
 Section ExprComp.
 
@@ -51,7 +51,7 @@ Section ExprComp.
         exists temp_vs',
           interp specs (![is_state (Regs x Sp) vars vs temp_vars temp_vs' * other ] (fst x_pre, x)) /\
            Regs x Rv = eval vs expr /\
-           agree_except temp_vs temp_vs' (make_temp_vars_range base_mem (depth expr)).
+           agree_except temp_vs temp_vs' (make_temp_names_range base_mem (depth expr)).
 
     Definition post (pre : assert) := 
       st ~> Ex st_pre, 
@@ -87,13 +87,13 @@ Section ExprComp.
       | Const w => Strline (Assign (LvReg Rv) (RvImm w) :: nil)
       | Binop op a b => Seq (
         do_compile vars a base_mem :: 
-        Strline(Assign (variableSlot (temp_var base_mem) vars) (RvLval (LvReg Rv)) :: nil) :: 
+        Strline(Assign (variableSlot (temp_name base_mem) vars) (RvLval (LvReg Rv)) :: nil) :: 
         do_compile vars b (S base_mem) :: 
-        (Strline (IL.Binop (LvReg Rv) (RvLval (variableSlot (temp_var base_mem) vars )) op (RvLval (LvReg Rv)) :: nil)) :: nil)
+        (Strline (IL.Binop (LvReg Rv) (RvLval (variableSlot (temp_name base_mem) vars )) op (RvLval (LvReg Rv)) :: nil)) :: nil)
       | TestE te a b => Seq (do_compile vars a base_mem ::
-        Strline( Assign (variableSlot (temp_var base_mem) vars) (RvLval (LvReg Rv)) :: nil ) ::
+        Strline( Assign (variableSlot (temp_name base_mem) vars) (RvLval (LvReg Rv)) :: nil ) ::
         do_compile vars b (S base_mem) ::
-        Structured.If_ imports_global (RvLval (variableSlot (temp_var base_mem) vars )) te (RvLval (LvReg Rv))
+        Structured.If_ imports_global (RvLval (variableSlot (temp_name base_mem) vars )) te (RvLval (LvReg Rv))
         (Strline (Assign Rv (RvImm $1) :: nil))
         (Strline (Assign Rv (RvImm $0) :: nil))
         ::nil)
