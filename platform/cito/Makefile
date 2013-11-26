@@ -7,15 +7,15 @@ MODULES := \
 	FreeVarsExpr Option FreeVars \
 	Inv \
 	CompileStmtSpec CompileExpr Notations CompileStmtImpl PostOk VerifCondOk CompileStmt \
-	ExprLemmas VariableLemmas \
-	DepthExpr \
-	SemanticsExprLemmas SemanticsLemmas \
-	Depth SyntaxNotations \
-	CompileExpr SepLemmas \
-	GoodOptimizer PartialMap PartialMapSubtract ConstFolding ElimDead \
-	Compiler Wf WritingPrograms Compile Recall \
-	SetInterface SetNotations SetFunctors SetArrow SetList \
-	tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
+	# ExprLemmas VariableLemmas \
+	# DepthExpr \
+	# SemanticsExprLemmas SemanticsLemmas \
+	# Depth SyntaxNotations \
+	# CompileExpr SepLemmas \
+	# GoodOptimizer PartialMap PartialMapSubtract ConstFolding ElimDead \
+	# Compiler Wf WritingPrograms Compile Recall \
+	# SetInterface SetNotations SetFunctors SetArrow SetList \
+	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
 
