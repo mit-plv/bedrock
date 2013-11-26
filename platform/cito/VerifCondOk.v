@@ -8,11 +8,9 @@ Section TopSection.
 
   Variable layout : Layout.
 
-  Variable vars temp_vars : list string.
+  Variable vars : list string.
 
-  Require Import GoodVars.
-
-  Hypothesis h_good_vars : good_vars vars temp_vars.
+  Variable temp_size : nat.
 
   Variable imports : LabelMap.t assert.
 
@@ -28,9 +26,9 @@ Section TopSection.
 
   Lemma verifCond_ok : 
     forall pre : assert,
-      vcs (verifCond layout vars temp_vars s k pre) ->
+      vcs (verifCond layout vars temp_size s k pre) ->
       vcs
-        (VerifCond (compile layout vars temp_vars imports_global modName s k pre)).
+        (VerifCond (compile layout vars temp_size imports_global modName s k pre)).
     admit.
   Qed.
 

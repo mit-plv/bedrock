@@ -5,10 +5,8 @@ MODULES := \
 	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics SafeCoind \
 	FreeVarsExpr Option FreeVars \
-	ShowNat ReservedNames \
-	TempNamesList TempNames \
 	Inv \
-	CompileStmtSpec CompileExpr Notations CompileStmtImpl GoodVars PostOk VerifCondOk CompileStmt \
+	CompileStmtSpec CompileExpr Notations CompileStmtImpl PostOk VerifCondOk CompileStmt \
 	ExprLemmas VariableLemmas \
 	DepthExpr \
 	SemanticsExprLemmas SemanticsLemmas \
