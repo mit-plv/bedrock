@@ -33,12 +33,12 @@ Section TopSection.
                 (compile layout vars temp_size imports_global modName s k pre) x) ->
       interp specs (postcond layout vars temp_size k x).
   Proof.
-    (* unfold verifCond, imply; induction s. *)
+    unfold verifCond, imply; induction s.
 
-    (* (* skip *) *)
-    (* wrap0. *)
-    (* unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]). *)
-    (* discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto. *)
+    (* skip *)
+    wrap0.
+    unfold_eval; repeat (first [do_wrap | do_unfold_eval | eval_step auto_ext]).
+    discharge_fs; descend; try clear_imports; repeat hiding ltac:(step auto_ext); eauto.
 
     admit.
   Qed.
