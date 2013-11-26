@@ -303,3 +303,6 @@ Definition addMulticall (pr : program) : program := (
 
 Notation "'ROS' pr" := (addMulticall pr%program)
   (at level 0, pr at level 0).
+
+Notation "'SimpleROS' pr" := pr%program
+  (at level 0, pr at level 0).
