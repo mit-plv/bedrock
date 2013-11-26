@@ -1,67 +1,64 @@
 Require Import AutoSep.
+Require Import SyntaxExpr.
 
 Set Implicit Arguments. 
 
-Definition good_vars vars temp_vars := 
-  NoDup ("rp" :: vars ++ temp_vars).
-
-Require Import FreeVarsExpr.
-Require Import DepthExpr.
-Require Import TempNames.
-Require Import StringSet.
-Require Import SetUtil.
-
-Definition in_scope vars temp_vars e b := 
-  Subset (free_vars e) (to_set vars) /\
-  Subset (make_temp_names_range b (depth e)) (to_set temp_vars).
-
 Section ExprComp.
 
-  Variable vars temp_vars : list string.
+  Variable vars : list string.
 
-  Hypothesis h_good_vars : good_vars vars temp_vars.
-
-  Require Import SyntaxExpr.
+  Variable temp_size : nat.
 
   Variable expr : Expr.
 
-  Variable base_mem : nat.
+  Variable base : nat.
 
-  Section Specifications.
+  Definition is_state sp vs temps : HProp :=
+    (locals vars vs 0 (sp ^+ $8) *
+     array temps (sp ^+ $8 ^+ $(length vars)))%Sep.
 
-    Definition is_state sp vars vs temp_vars temp_vs : HProp :=
-      (Ex stack,
-       sp =?> 1 *
-       (sp ^+ $4) =*> stack *
-       locals vars vs 0 (sp ^+ $8) *
-       locals temp_vars temp_vs (wordToNat stack) (sp ^+ $8 ^+ $(length vars)))%Sep.
+  Definition new_pre : assert := 
+    x ~> ExX, Ex vs, Ex temps,
+    ![^[is_state x#Sp vs temps] * #0]x /\
+    [| length temps = temp_size |].
 
-    Definition new_pre : assert := 
-      x ~> ExX, Ex vs, Ex temp_vs,
-      ![^[is_state x#Sp vars vs temp_vars temp_vs] * #0]x.
+  Fixpoint upd_sublist big base small :=
+    match small with
+      | nil => big
+      | x :: xs => upd_sublist (updN big base x) (1 + base) xs
+    end.
 
-    Require Import ValsStringSet.
-    Require Import SemanticsExpr.
+  Require Import SemanticsExpr.
+  Require Import DepthExpr.
 
-    Definition runs_to x_pre x := 
-      forall specs other vs temp_vs,
-        interp specs (![is_state x_pre#Sp vars vs temp_vars temp_vs * other ] x_pre) ->
-        Regs x Sp = x_pre#Sp /\
-        exists temp_vs',
-          interp specs (![is_state (Regs x Sp) vars vs temp_vars temp_vs' * other ] (fst x_pre, x)) /\
-           Regs x Rv = eval vs expr /\
-           agree_except temp_vs temp_vs' (make_temp_names_range base_mem (depth expr)).
+  Definition runs_to x_pre x := 
+    forall specs other vs temps,
+      interp specs (![is_state x_pre#Sp vs temps * other ] x_pre) ->
+      length temps = temp_size /\
+      Regs x Sp = x_pre#Sp /\
+      exists changed,
+        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) * other ] (fst x_pre, x)) /\
+        length changed = (depth expr) /\
+        Regs x Rv = eval vs expr.
 
-    Definition post (pre : assert) := 
-      st ~> Ex st_pre, 
-      pre (fst st, st_pre) /\
-      [| runs_to (fst st, st_pre) (snd st) |].
+  Definition post (pre : assert) := 
+    st ~> Ex st_pre, 
+    pre (fst st, st_pre) /\
+    [| runs_to (fst st, st_pre) (snd st) |].
 
-    Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+  Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-    Definition verifCond pre := imply pre new_pre :: nil.
+  Require Import FreeVarsExpr.
+  Require Import StringSet.
+  Require Import SetUtil.
 
-  End Specifications.
+  Local Open Scope nat.
+
+  Definition in_scope := 
+    Subset (free_vars expr) (to_set vars) /\
+    base + depth expr <= temp_size.
+
+  Definition verifCond pre := imply pre new_pre :: in_scope :: nil.
 
   Variable imports : LabelMap.t assert.
 
@@ -70,35 +67,37 @@ Section ExprComp.
   Variable modName : string.
 
   Definition Seq2 := @Seq_ _ imports_global modName.
+
   Definition Skip := Straightline_ imports modName nil.
+
   Fixpoint Seq ls :=
     match ls with
       | nil => Skip
       | a :: ls' => Seq2 a (Seq ls')
     end.
+
   Definition Strline := Straightline_ imports modName.
 
-  Require Import ReservedNames.
-
-  Fixpoint do_compile vars expr base_mem:=
-    match expr with
+  Fixpoint do_compile (expr : Expr) (base : nat) :=
+    Skip.
+(*    match expr with
       | Var str => Strline (Assign (LvReg Rv) (RvLval (variableSlot str vars)) :: nil)
       | Const w => Strline (Assign (LvReg Rv) (RvImm w) :: nil)
       | Binop op a b => Seq (
-        do_compile vars a base_mem :: 
-        Strline(Assign (variableSlot (temp_name base_mem) vars) (RvLval (LvReg Rv)) :: nil) :: 
-        do_compile vars b (S base_mem) :: 
-        (Strline (IL.Binop (LvReg Rv) (RvLval (variableSlot (temp_name base_mem) vars )) op (RvLval (LvReg Rv)) :: nil)) :: nil)
-      | TestE te a b => Seq (do_compile vars a base_mem ::
-        Strline( Assign (variableSlot (temp_name base_mem) vars) (RvLval (LvReg Rv)) :: nil ) ::
-        do_compile vars b (S base_mem) ::
-        Structured.If_ imports_global (RvLval (variableSlot (temp_name base_mem) vars )) te (RvLval (LvReg Rv))
+        do_compile vars a base :: 
+        Strline(Assign (variableSlot (temp_name base) vars) (RvLval (LvReg Rv)) :: nil) :: 
+        do_compile vars b (S base) :: 
+        (Strline (IL.Binop (LvReg Rv) (RvLval (variableSlot (temp_name base) vars )) op (RvLval (LvReg Rv)) :: nil)) :: nil)
+      | TestE te a b => Seq (do_compile vars a base ::
+        Strline( Assign (variableSlot (temp_name base) vars) (RvLval (LvReg Rv)) :: nil ) ::
+        do_compile vars b (S base) ::
+        Structured.If_ imports_global (RvLval (variableSlot (temp_name base) vars )) te (RvLval (LvReg Rv))
         (Strline (Assign Rv (RvImm $1) :: nil))
         (Strline (Assign Rv (RvImm $0) :: nil))
         ::nil)
-    end.
+    end.*)
 
-  Definition body := do_compile vars expr base_mem.
+  Definition body := do_compile expr base.
 
   Require Import Wrap.
 
@@ -303,8 +302,8 @@ End ExprComp.
   Ltac one_step:= 
     first [ interpHyp; [ repeat openHyp | subgoal_crush] | interpHyp; post; variables | safe_eval; rewriter'].
 
-  Lemma expr_preserve: forall expr specs x pre base_mem,
-       interp specs (Postcondition (compile vars expr base_mem pre) x) ->
+  Lemma expr_preserve: forall expr specs x pre base,
+       interp specs (Postcondition (compile vars expr base pre) x) ->
    (forall (specs0 : codeSpec W (settings * state)) (x0 : settings * state),
     interp specs0 (pre x0) ->
     interp specs0
@@ -312,8 +311,8 @@ End ExprComp.
        (Ex vs : vals,
         (Ex stack : nat,
          [|incl (varsIn expr) vars /\
-           incl (tempChunk base_mem (depth expr)) vars /\
-           disj (varsIn expr) (tempChunk (base_mem) (depth expr)) /\
+           incl (tempChunk base (depth expr)) vars /\
+           disj (varsIn expr) (tempChunk (base) (depth expr)) /\
            (In "rp" vars -> False)|] /\
          ![^[locals ("rp" :: vars) vs stack (x0) # (Sp)] * #0] x0))%PropX)) ->
    exists x0 : state,
@@ -323,15 +322,15 @@ End ExprComp.
       interp specs0
         (![locals ("rp" :: vars) vs stack (Regs x0 Sp) * other] (fst x, x0)) ->
       incl (varsIn expr) vars /\
-      incl (tempChunk (base_mem) (depth expr)) vars /\
-      disj (varsIn expr) (tempChunk (base_mem) (depth expr)) /\
+      incl (tempChunk (base) (depth expr)) vars /\
+      disj (varsIn expr) (tempChunk (base) (depth expr)) /\
       (In "rp" vars -> False) ->
       (x) # (Sp) = Regs x0 Sp /\
       (exists vs_new : vals,
          interp specs0
            (![locals ("rp" :: vars) vs_new stack (x) # (Sp) * other] x) /\
          (x) # (Rv) = exprDenote expr vs /\
-         changed_in vs vs_new (tempChunk base_mem (depth expr)))).
+         changed_in vs vs_new (tempChunk base (depth expr)))).
     induction expr;
       wrap0;
       repeat openSS;
@@ -343,7 +342,7 @@ End ExprComp.
     match goal with
       | [H: interp _ (Postcondition _ _)|- _] =>  eapply expr_preserve in H
     end.
-  Lemma expr_progress: forall expr pre base_mem,
+  Lemma expr_progress: forall expr pre base,
     (forall (specs : codeSpec W (settings * state)) (x : settings * state),
     interp specs (pre x) ->
     interp specs
@@ -351,11 +350,11 @@ End ExprComp.
        (Ex vs : vals,
         (Ex stack : nat,
          [|incl (varsIn expr) vars /\
-           incl (tempChunk base_mem (depth expr)) vars /\
-           disj (varsIn expr) (tempChunk base_mem (depth expr)) /\
+           incl (tempChunk base (depth expr)) vars /\
+           disj (varsIn expr) (tempChunk base (depth expr)) /\
            (In "rp" vars -> False)|] /\
          ![^[locals ("rp" :: vars) vs stack (x) # (Sp)] * #0] x))%PropX)) ->
-   vcs (VerifCond (compile vars expr base_mem pre)).
+   vcs (VerifCond (compile vars expr base pre)).
     induction expr;
       wrap0; repeat use_indHyp; propxFo;
         try( show_preserve; post);

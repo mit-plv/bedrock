@@ -6,7 +6,9 @@ Section Body.
 
   Variable layout : Layout.
 
-  Variable vars temp_vars : list string.
+  Variable vars : list string.
+
+  Variable temp_size : nat.
 
   Variable imports : LabelMap.t assert.
 
@@ -21,7 +23,7 @@ Section Body.
 
   Definition loop_inv cond body k : assert := 
     let s := Syntax.Seq (Syntax.While cond body) k in
-    inv_template layout vars temp_vars
+    inv_template layout vars temp_size
       (fun fs v st => 
          Safe fs s v /\
          st#Rv = eval (fst v) cond)
@@ -29,16 +31,16 @@ Section Body.
          RunsTo fs s v v' /\
          st'#Sp = st#Sp).
 
-  Require Import ReservedNames.
-
-  Definition frame' := STACK_CAPACITY :: vars ++ temp_vars.
-  Definition frame := "rp" :: frame'.
-  Definition frame_len := length frame.
-  Definition frame_len_w := natToW (4 * frame_len).
-  Definition get_var x := variableSlot x frame'.
+  Definition vars_start := 4 * 2.
+  Definition temp_start := vars_start + 4 * length vars.
+  Definition get_stack_capacity := LvMem (Sp + 4)%loc.
+  Definition get_var x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
+  Definition get_temp n := LvMem (Sp + (temp_start + 4 * n)%nat)%loc.
+  Definition frame_len := temp_start + 4 * temp_size.
+  Definition frame_len_w := natToW frame_len.
 
   Definition afterCall ret k : assert :=
-    inv_template layout vars temp_vars
+    inv_template layout vars temp_size
       (fun fs v st => 
          Safe fs k v)
       (fun fs v st v' st' =>
@@ -49,7 +51,7 @@ Section Body.
 
   Require Import CompileExpr.
 
-  Definition compile_expr e n := CompileExpr.compile vars temp_vars e n imports_global modName.
+  Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
 
   Definition Seq2 := @Seq_ _ imports_global modName.
 
@@ -67,30 +69,30 @@ Section Body.
       | a :: ls' => Seq2 a (Seq ls')
     end.
 
-  Definition SaveRv var := Strline (IL.Assign (variableSlot var vars) (RvLval (LvReg Rv)) :: nil).
+  Definition SaveRv lv := Strline (IL.Assign lv (RvLval (LvReg Rv)) :: nil).
 
   Fixpoint compile_exprs exprs base :=
     match exprs with
       | nil => nil
-      | x :: xs => compile_expr x base :: SaveRv (temp_name base) :: compile_exprs xs (S base)
+      | x :: xs => compile_expr x base :: SaveRv (get_temp base) :: compile_exprs xs (S base)
     end.
 
   Fixpoint put_args base (target : nat) n :=
     match n with
       | 0 => nil
       | S n' =>
-        Assign (LvMem (Rv + target)%loc) (get_var (temp_name base))
+        Assign (LvMem (Rv + target)%loc) (get_temp base)
                :: put_args (1 + base) (4 + target) n'
     end.
 
   Definition CheckStack (n : nat) cmd :=
-    Structured.If_ imports_global n Le (get_var STACK_CAPACITY) cmd
+    Structured.If_ imports_global n Le get_stack_capacity cmd
                    (Diverge_ imports modName).
 
   Definition SaveRet var :=
     match var with
       | None => Skip
-      | Some x => SaveRv x
+      | Some x => SaveRv (get_var x)
     end.
 
   Require Import Notations.
@@ -113,18 +115,18 @@ Section Body.
                       (Seq2 (compile body (While (cond) {{body}};; k))
                             (compile_expr cond 0)))
       | Syntax.Call var f args =>
-        let init_frame := 2 + Datatypes.length args in
+        let init_frame_len := 2 + length args in
         CheckStack 
-          init_frame
+          init_frame_len
           (Seq
              ((compile_expr f 0) 
-                :: SaveRv (temp_name 0)
+                :: SaveRv (get_temp 0)
                 :: compile_exprs args 1 ++
                 Strline
                 ((Binop Rv Sp Plus frame_len_w)
-                   :: Binop (LvMem (Rv + $ (4))%loc) (get_var STACK_CAPACITY) Minus init_frame
-                   :: put_args 1 8 (Datatypes.length args) ++
-                   Assign Rv (get_var (temp_name 0))
+                   :: Binop (LvMem (Rv + $ (4))%loc) get_stack_capacity Minus init_frame_len
+                   :: put_args 1 8 (length args) ++
+                   Assign Rv (get_temp 0)
                    :: Binop Sp Sp Plus frame_len_w :: nil)
                 :: Structured.ICall_ imports modName Rv (afterCall var k)
                 :: Strline (Binop Sp Sp Minus frame_len_w :: nil)
