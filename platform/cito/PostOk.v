@@ -85,7 +85,17 @@ Section TopSection.
     eauto.
 
     try clear_imports.
-    repeat hiding ltac:(step auto_ext).
+    clear H3.
+    generalize dependent H7; clear; intros.
+    hiding ltac:(step auto_ext).
+    clear H7.
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    instantiate (1 := x3).
+    instantiate (1 := x).
+    clear.
+    hiding ltac:(step auto_ext).
+    admit.
     admit.
     admit.
     admit.
