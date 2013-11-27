@@ -37,19 +37,21 @@ Section TopSection.
     Require Import Safe.
 
     Ltac clear_imports :=
-      match goal with
-          Him : LabelMap.t assert |- _ =>
-          repeat match goal with
-                     H : context [ Him ] |- _ => clear H
-                 end; 
-            clear Him
-      end.
+      try match goal with
+              Him : LabelMap.t assert |- _ =>
+              repeat match goal with
+                         H : context [ Him ] |- _ => clear H
+                     end; 
+                clear Him
+          end.
 
     Ltac hiding tac :=
       (let P := fresh "P" in
        match goal with
          | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
          | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
+         | [ H : context [is_state ?layout _ _ _ _ _ ] |- _ ] => set (P := is_state layout) in *
+         | [ H : context [funcs_ok ?layout _ _ ] |- _ ] => set (P := funcs_ok layout) in *
        end;
        hiding tac;
        subst P) || tac.
@@ -66,7 +68,6 @@ Section TopSection.
     unfold precond in *.
     unfold inv in *.
     unfold inv_template in *.
-    try clear_imports.
     post.
     descend.
     eauto.
@@ -84,24 +85,9 @@ Section TopSection.
     eauto.
     eauto.
 
-    try clear_imports.
-    clear H3.
-    generalize dependent H7; clear; intros.
-    hiding ltac:(step auto_ext).
-    clear H7.
-    hiding ltac:(step auto_ext).
-    hiding ltac:(step auto_ext).
-    instantiate (1 := x3).
-    instantiate (1 := x).
-    clear.
-    hiding ltac:(step auto_ext).
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    (* admit. *)
-  Qed.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
     descend.
     
     Lemma RunsTo_Seq_Skip_intro : forall fs k v v', RunsTo fs k v v' -> RunsTo fs (skip ;; k) v v'.
@@ -110,15 +96,12 @@ Section TopSection.
 
     eapply RunsTo_Seq_Skip_intro; eauto.
     
-    admit.
-(*
     (* seq *)
     wrap0.
     eapply IHs2 in H0.
     unfold postcond in *.
     unfold inv in *.
     unfold inv_template in *.
-    try clear_imports.
     post.
 
     wrap0.
@@ -126,7 +109,6 @@ Section TopSection.
     unfold postcond in *.
     unfold inv in *.
     unfold inv_template in *.
-    try clear_imports.
     post.
 
     wrap0.
@@ -134,7 +116,6 @@ Section TopSection.
     unfold precond in *.
     unfold inv in *.
     unfold inv_template in *.
-    try clear_imports.
     post.
     descend.
     eauto.
@@ -148,7 +129,7 @@ Section TopSection.
 
     eauto.
     eauto.
-    try clear_imports.
+    clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
 
@@ -169,7 +150,7 @@ Section TopSection.
     Qed.
 
     eapply in_scope_Seq; eauto.
-*)
+
     admit.
     admit.
     admit.
