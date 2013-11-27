@@ -44,7 +44,7 @@ Ltac t := simpl; intuition;
                 | [ H' : notThisOne |- _ ] => clear H'
                 | _ => solve [ eauto ]
               end
-            | [ H : vcs (_ :: _) |- _ ] => inversion H; clear H; subst
+            | [ H : List.Forall _ (_ :: _) |- _ ] => inversion H; clear H; subst
             | [ H1 : vcs _ -> _, H2 : vcs (_ ++ _) |- _ ] =>
               specialize (H1 (vcs_app_bwd1 _ _ H2)) || specialize (H1 (vcs_app_bwd2 _ _ H2))
             | [ H : exists x, _ |- _ ] => destruct H; intuition
@@ -92,12 +92,25 @@ Fixpoint sub_exprs (s : fo_sub) (es : list expr) : option (list expr) :=
       end
   end.
 
-Lemma sub_exprs_monotone : forall s s',
-  (forall x e, s x = Some e -> s' x = Some e)
-  -> forall es es', sub_exprs s es = Some es'
-    -> sub_exprs s' es = Some es'.
+Lemma sub_exprs_monotone : forall s s' es,
+  (forall fE fE', (forall x, s x <> None -> fE x = fE' x)
+    -> map (fun e => exprD e fE) es = map (fun e => exprD e fE') es)
+  -> (forall x e, s x = Some e -> s' x = Some e)
+  -> forall es', sub_exprs s es = Some es'
+    -> exists es'', sub_exprs s' es = Some es''
+      /\ forall fE, map (fun e => exprD e fE) es' = map (fun e => exprD e fE) es''.
 Proof.
-  induction es; t; erewrite sub_expr_monotone; eauto.
+  induction es; t.
+  edestruct sub_expr_monotone; eauto.
+  intros.
+  specialize (H _ _ H1).
+  injection H; eauto.
+  t.
+  edestruct IHes; eauto.
+  intros.
+  specialize (H _ _ H1); congruence.
+  t.
+  exists (x :: x0); t.
 Qed.
 
 Definition sub_pred (s : fo_sub) (p : pred) : option pred :=
@@ -110,12 +123,23 @@ Definition sub_pred (s : fo_sub) (p : pred) : option pred :=
     | _ => None
   end.
 
-Lemma sub_pred_monotone : forall s s',
-  (forall x e, s x = Some e -> s' x = Some e)
-  -> forall p p', sub_pred s p = Some p'
-    -> sub_pred s' p = Some p'.
+Lemma sub_pred_monotone : forall G (hE : ho_env G) s s' p xs,
+  wellScoped xs p
+  -> (forall x, In x xs -> s x <> None)
+  -> (forall x e, s x = Some e -> s' x = Some e)
+  -> forall p', sub_pred s p = Some p'
+    -> exists p'', sub_pred s' p = Some p''
+      /\ forall fE, predD p' hE fE = predD p'' hE fE.
 Proof.
-  destruct p; t; erewrite sub_exprs_monotone; eauto.
+  destruct p; t.
+  edestruct sub_exprs_monotone; eauto.
+  generalize dependent l; induction es; simpl in *; intuition.
+  f_equal; simpl in *; eauto.
+  destruct (sub_expr s a); try discriminate.
+  destruct (sub_exprs s es); try discriminate.
+  eauto.
+  t.
+  repeat esplit; t.
 Qed.
 
 Fixpoint sub_preds (s : fo_sub) (ps : list pred) : option (list pred) :=
@@ -132,17 +156,25 @@ Fixpoint sub_preds (s : fo_sub) (ps : list pred) : option (list pred) :=
       end
   end.
 
-Lemma sub_preds_monotone : forall s s',
-  (forall x e, s x = Some e -> s' x = Some e)
-  -> forall es es', sub_preds s es = Some es'
-    -> sub_preds s' es = Some es'.
+Lemma sub_preds_monotone : forall G (hE : ho_env G) s s' ps xs,
+  List.Forall (wellScoped xs) ps
+  -> (forall x, In x xs -> s x <> None)
+  -> (forall x e, s x = Some e -> s' x = Some e)
+  -> forall ps', sub_preds s ps = Some ps'
+    -> exists ps'', sub_preds s' ps = Some ps''
+      /\ forall fE, map (fun p => predD p hE fE) ps' = map (fun p => predD p hE fE) ps''.
 Proof.
-  induction es; t; erewrite sub_pred_monotone; eauto.
+  induction ps; t.
+
+  edestruct sub_pred_monotone; eauto; t.
+  edestruct IHps; eauto; t.
+  repeat esplit; t.
 Qed.
 
 (** * Unification *)
 
-Definition unify_expr (s : fo_sub) (lhs rhs : expr) : option (fo_sub * list Prop) :=
+Definition unify_expr (s : fo_sub) (lhs rhs : expr)
+  : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
     | Var x, Var y =>
       match s y with
@@ -150,42 +182,48 @@ Definition unify_expr (s : fo_sub) (lhs rhs : expr) : option (fo_sub * list Prop
         | Some (Var x') => if string_dec x' x then Some (s, nil) else None
         | _ => None
       end
-    | Lift f, Lift g => Some (s, (forall fE, f fE = g fE) :: nil)
+    | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
+      match s' x with
+        | Some e => exprD e fE
+        | None => Dyn tt
+      end)) :: nil)
     | Lift f, Var y =>
       match s y with
         | None => Some (fos_set s y (Lift f), nil)
-        | Some (Lift f') => Some (s, (forall fE, f fE = f' fE) :: nil)
+        | Some (Lift f') => Some (s, (fun fE _ => f fE = f' fE) :: nil)
         | _ => None
       end
     | _, _ => None
   end.
 
-Theorem unify_expr_sound : forall fE s lhs rhs s' Ps,
-  unify_expr s lhs rhs = Some (s', Ps)
-  -> vcs Ps
+Theorem unify_expr_sound : forall fE s lhs rhs s' fs,
+  unify_expr s lhs rhs = Some (s', fs)
+  -> List.Forall (fun f : _ -> _ -> Prop =>
+    forall s'', (forall x v, s'' x = Some v -> s' x = Some v) -> f fE s'') fs
   -> exists rhs', sub_expr s' rhs = Some rhs'
     /\ exprD lhs fE = exprD rhs' fE.
 Proof.
   destruct lhs, rhs; t.
 Qed.
 
-Theorem unify_expr_monotone : forall s lhs rhs s' Ps,
-  unify_expr s lhs rhs = Some (s', Ps)
+Theorem unify_expr_monotone : forall s lhs rhs s' fs,
+  unify_expr s lhs rhs = Some (s', fs)
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   destruct lhs, rhs; t.
 Qed.
 
-Fixpoint unify_args (s : fo_sub) (lhs rhs : list expr) : option (fo_sub * list Prop) :=
+Fixpoint unify_args (s : fo_sub) (lhs rhs : list expr)
+  : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
     | nil, nil => Some (s, nil)
     | e1 :: lhs, e2 :: rhs =>
       match unify_expr s e1 e2 with
         | None => None
-        | Some (s, Ps) =>
+        | Some (s, fs) =>
           match unify_args s lhs rhs with
             | None => None
-            | Some (s, Ps') => Some (s, Ps ++ Ps')
+            | Some (s, fs') => Some (s, fs ++ fs')
           end
       end
     | _, _ => None
@@ -206,8 +244,6 @@ Qed.
 
 Local Hint Immediate map_nil map_cons.
 
-Local Hint Immediate vcs_app_bwd1 vcs_app_bwd2.
-
 Ltac unify_args := t;
   match goal with
     | [ _ : context[unify_args ?s ?lhs ?rhs], IH : forall rhs : list expr, _ |- _ ] =>
@@ -222,8 +258,8 @@ Ltac unify_args := t;
 
 Local Hint Resolve unify_expr_monotone.
 
-Theorem unify_args_monotone : forall lhs rhs s s' Ps,
-  unify_args s lhs rhs = Some (s', Ps)
+Theorem unify_args_monotone : forall lhs rhs s s' fs,
+  unify_args s lhs rhs = Some (s', fs)
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction lhs; destruct rhs; unify_args.
@@ -231,9 +267,24 @@ Qed.
 
 Local Hint Resolve unify_args_monotone.
 
-Theorem unify_args_sound : forall fE lhs rhs s s' Ps,
-  unify_args s lhs rhs = Some (s', Ps)
-  -> vcs Ps
+Lemma Forall_app_fwd1 : forall A (P : A -> Prop) ls2 ls1,
+  List.Forall P (ls1 ++ ls2)
+  -> List.Forall P ls1.
+Proof.
+  induction ls1; inversion_clear 1; eauto.
+Qed.
+
+Lemma Forall_app_fwd2 : forall A (P : A -> Prop) ls2 ls1,
+  List.Forall P (ls1 ++ ls2)
+  -> List.Forall P ls2.
+Proof.
+  induction ls1; simpl; try solve [ eauto ]; inversion_clear 1; eauto.
+Qed.
+
+Theorem unify_args_sound : forall fE lhs rhs s s' fs,
+  unify_args s lhs rhs = Some (s', fs)
+  -> List.Forall (fun f : _ -> _ -> Prop =>
+    forall s'', (forall x v, s'' x = Some v -> s' x = Some v) -> f fE s'') fs
   -> exists rhs', sub_exprs s' rhs = Some rhs'
     /\ map (fun e => exprD e fE) lhs = map (fun e => exprD e fE) rhs'.
 Proof.
@@ -241,8 +292,18 @@ Proof.
     match goal with
       | [ H : _ |- _ ] => specialize (unify_expr_sound fE _ _ _ _ _ H); t
     end;
-    repeat esplit; eauto;
-      erewrite sub_expr_monotone; [ eauto | | eauto ]; eauto.
+    repeat esplit; eauto.
+  specialize (Forall_app_fwd1 _ _ _ _ H0).
+  specialize (Forall_app_fwd2 _ _ _ _ H0).
+  t.
+  destruct H2.
+  eapply Forall_weaken; [ | eassumption ]; eauto.
+  t.
+  edestruct sub_expr_monotone.
+  Focus 4.
+  destruct H2.
+  rewrite H2.
+
 Qed.
 
 Definition unify_pred (s : fo_sub) (lhs rhs : pred) : option (fo_sub * list Prop) :=
