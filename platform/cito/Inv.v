@@ -3,7 +3,7 @@ Require Import Semantics.
 
 Set Implicit Arguments.
 
-Variable Layout : Type.
+Definition Layout := W -> ADTValue -> HProp.
 
 Variable is_heap : Layout -> Heap -> HProp.
 
@@ -32,10 +32,10 @@ Section layout.
       | inr a => (addr, Some a)
     end.
 
-  Definition layout_option (addr : W) (ret : option ADTValue) : HProp :=
+  Definition layout_option addr ret : HProp :=
     match ret with
-      | None  => [| True |]%Sep
-      | Some a => [| True |]%Sep (* layout addr a *)
+      | None  => ([| True |])%Sep
+      | Some a => layout addr a
     end.
 
   Definition heap_upd_option m k v :=
