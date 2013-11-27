@@ -6,7 +6,8 @@ MODULES := \
 	GeneralTactics SafeCoind \
 	FreeVarsExpr Option FreeVars \
 	Inv \
-	CompileStmtSpec CompileExpr Notations CompileStmtImpl PostOk VerifCondOk CompileStmt \
+	CompileStmtSpec CompileExpr Notations CompileStmtImpl \
+	# PostOk VerifCondOk CompileStmt \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
 	# SemanticsExprLemmas SemanticsLemmas \

@@ -24,6 +24,35 @@ Section TopSection.
 
   Definition compile := compile layout vars temp_size imports_global modName.
 
+  Require Import Semantics.
+  Require Import Safe.
+
+  Ltac clear_imports :=
+    try match goal with
+            Him : LabelMap.t assert |- _ =>
+            repeat match goal with
+                       H : context [ Him ] |- _ => clear H
+                   end; 
+              clear Him
+        end.
+
+  Ltac hiding tac :=
+    (let P := fresh "P" in
+     match goal with
+       | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
+       | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
+       | [ H : context [is_state ?layout _ _ _ _ _ ] |- _ ] => set (P := is_state layout) in *
+       | [ H : context [is_heap ?layout _ ] |- _ ] => set (P := is_heap layout) in *
+     end;
+     hiding tac;
+     subst P) || tac.
+
+  Require Import Notations.
+  Open Scope stmt.
+  Notation skip := Syntax.Skip.
+
+  Opaque funcs_ok.
+
   Lemma post_ok : 
     forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
            (x : settings * state),
@@ -33,32 +62,107 @@ Section TopSection.
                 (compile s k pre) x) ->
       interp specs (postcond layout vars temp_size k x).
   Proof.
-    Require Import Semantics.
-    Require Import Safe.
-
-    Ltac clear_imports :=
-      try match goal with
-              Him : LabelMap.t assert |- _ =>
-              repeat match goal with
-                         H : context [ Him ] |- _ => clear H
-                     end; 
-                clear Him
-          end.
-
-    Ltac hiding tac :=
-      (let P := fresh "P" in
-       match goal with
-         | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
-         | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
-         | [ H : context [is_state ?layout _ _ _ _ _ ] |- _ ] => set (P := is_state layout) in *
-         | [ H : context [funcs_ok ?layout _ _ ] |- _ ] => set (P := funcs_ok layout) in *
-       end;
-       hiding tac;
-       subst P) || tac.
-
     unfold verifCond, imply; induction s.
 
-    Opaque funcs_ok.
+    Focus 3.
+
+    (* if *)
+    wrap0.
+    eapply IHs1 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    Opaque mult.
+    post.
+
+    Opaque star. (* necessary to use eapply_cancel *)
+    Ltac eapply_cancel h specs st := 
+      let HP := fresh in 
+      let Hnew := fresh in
+      evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
+      [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP;
+      [ solve [clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
+
+    Ltac transit :=
+      match goal with
+        | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
+      end.
+
+    transit.
+
+    destruct x4; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)).
+    simpl.
+    destruct x0; simpl in *.
+    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    Lemma length_upd_sublist : forall a n b, length (CompileExpr.upd_sublist a n b) = length a.
+      admit.
+    Qed.
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    Require Import SemanticsExpr.
+
+    Ltac open_Some := 
+      match goal with
+          H : Some _ = Some _ |- _ => injection H; clear H; intros
+      end.
+
+    Require Import GeneralTactics.
+
+    Ltac cond_solver :=  
+      match goal with
+          H : evalCond _ _ _ _ _ = Some ?T |- wneb _ _ = ?T => 
+          unfold evalCond in *; simpl in *; open_Some; rewriter_r; f_equal
+      end.
+
+    Ltac find_cond :=
+      match goal with
+        | H1 : evalCond _ _ _ _ _ = Some ?b, H2 : _ = eval ?V ?E |- _ => assert (wneb (eval V E) $0 = b) by cond_solver
+      end.
+
+    find_cond.
+
+    Lemma Safe_Seq_If_true : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (t ;; k) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_If_true; eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+
+    Lemma RunsTo_Seq_If_true : forall fs e t f k v v', RunsTo fs (t ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.If e t f ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_If_true; eauto.
+    
+    Lemma in_scope_If_true : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (t ;; k).
+      admit.
+    Qed.
+
+    eapply in_scope_If_true; eauto.
+
+    admit.
 
     (* skip *)
 
@@ -72,10 +176,6 @@ Section TopSection.
     descend.
     eauto.
     eauto.
-
-    Require Import Notations.
-    Open Scope stmt.
-    Notation skip := Syntax.Skip.
 
     Lemma Safe_Seq_Skip_elim : forall fs k v, Safe fs (skip ;; k) v -> Safe fs k v.
       admit.
@@ -95,7 +195,7 @@ Section TopSection.
     Qed.
 
     eapply RunsTo_Seq_Skip_intro; eauto.
-    
+
     (* seq *)
     wrap0.
     eapply IHs2 in H0.
@@ -151,7 +251,6 @@ Section TopSection.
 
     eapply in_scope_Seq; eauto.
 
-    admit.
     admit.
     admit.
   Qed.
@@ -306,20 +405,6 @@ End TopSection.
           end.
 
     Ltac pre_eval_statement := intros; openhyp; try_post.
-
-    Opaque star. (* necessary to use eapply_cancel *)
-    Ltac eapply_cancel h specs st := 
-      let HP := fresh in 
-      let Hnew := fresh in
-      evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
-      [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP; 
-      [ solve [try clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
-
-    Ltac transit := 
-      match goal with
-        | H_interp : interp _ _, H : _ |- _ => eapply H in H_interp; clear H
-        | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; clear H H_interp
-      end.
 
     Ltac assert_new_as t name := not_exist t; assert t as name.
 
