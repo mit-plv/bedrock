@@ -64,27 +64,6 @@ Section TopSection.
   Proof.
     unfold verifCond, imply; induction s.
 
-    Focus 3.
-
-    (* if *)
-    wrap0.
-    eapply IHs1 in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
-
-    wrap0.
-    eapply H3 in H1.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold CompileExpr.runs_to in *.
-    unfold is_state in *.
-    unfold CompileExpr.is_state in *.
-    Opaque mult.
-    post.
-
     Opaque star. (* necessary to use eapply_cancel *)
     Ltac eapply_cancel h specs st := 
       let HP := fresh in 
@@ -98,22 +77,10 @@ Section TopSection.
         | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
       end.
 
-    transit.
-
-    destruct x4; simpl in *.
-    post.
-    descend.
-    eauto.
-    instantiate (4 := (_, _)).
-    simpl.
-    destruct x0; simpl in *.
-    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
     Lemma length_upd_sublist : forall a n b, length (CompileExpr.upd_sublist a n b) = length a.
       admit.
     Qed.
-    repeat rewrite length_upd_sublist.
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
+
     Require Import SemanticsExpr.
 
     Ltac open_Some := 
@@ -133,6 +100,42 @@ Section TopSection.
       match goal with
         | H1 : evalCond _ _ _ _ _ = Some ?b, H2 : _ = eval ?V ?E |- _ => assert (wneb (eval V E) $0 = b) by cond_solver
       end.
+
+    Opaque mult.
+
+    Focus 3.
+
+    (* if *)
+    wrap0.
+    eapply IHs1 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+
+    transit.
+
+    destruct x4; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)).
+    simpl.
+    destruct x0; simpl in *.
+    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
 
     find_cond.
 
@@ -162,7 +165,65 @@ Section TopSection.
 
     eapply in_scope_If_true; eauto.
 
-    admit.
+    (* false *)
+    wrap0.
+    eapply IHs2 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+
+    transit.
+
+    destruct x4; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)).
+    simpl.
+    destruct x0; simpl in *.
+    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    find_cond.
+
+    Lemma Safe_Seq_If_false : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs (f ;; k) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_If_false; eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+
+    Lemma RunsTo_Seq_If_false : forall fs e t f k v v', RunsTo fs (f ;; k) v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.If e t f ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_If_false; eauto.
+    
+    Lemma in_scope_If_false : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (f ;; k).
+      admit.
+    Qed.
+
+    eapply in_scope_If_false; eauto.
 
     (* skip *)
 
@@ -257,6 +318,8 @@ Section TopSection.
 
 End TopSection.
 
+
+(*
     Ltac not_exist t :=
       match goal with
         | H : t |- _ => fail 1
@@ -412,3 +475,4 @@ End TopSection.
 
     Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
 
+*)
