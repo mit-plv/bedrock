@@ -33,6 +33,140 @@ Section TopSection.
                 (compile s k pre) x) ->
       interp specs (postcond layout vars temp_size k x).
   Proof.
+    Require Import Semantics.
+    Require Import Safe.
+
+    Ltac clear_imports :=
+      match goal with
+          Him : LabelMap.t assert |- _ =>
+          repeat match goal with
+                     H : context [ Him ] |- _ => clear H
+                 end; 
+            clear Him
+      end.
+
+    Ltac hiding tac :=
+      (let P := fresh "P" in
+       match goal with
+         | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
+         | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
+       end;
+       hiding tac;
+       subst P) || tac.
+
+    unfold verifCond, imply; induction s.
+
+    Opaque funcs_ok.
+
+    (* skip *)
+
+    intros.
+    wrap0.
+    eapply H3 in H0.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    try clear_imports.
+    post.
+    descend.
+    eauto.
+    eauto.
+
+    Require Import Notations.
+    Open Scope stmt.
+    Notation skip := Syntax.Skip.
+
+    Lemma Safe_Seq_Skip_elim : forall fs k v, Safe fs (skip ;; k) v -> Safe fs k v.
+      admit.
+    Qed.
+    
+    eapply Safe_Seq_Skip_elim; eauto.
+    eauto.
+    eauto.
+
+    try clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+  Qed.
+    descend.
+    
+    Lemma RunsTo_Seq_Skip_intro : forall fs k v v', RunsTo fs k v v' -> RunsTo fs (skip ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_Skip_intro; eauto.
+    
+    admit.
+(*
+    (* seq *)
+    wrap0.
+    eapply IHs2 in H0.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    try clear_imports.
+    post.
+
+    wrap0.
+    eapply IHs1 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    try clear_imports.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    try clear_imports.
+    post.
+    descend.
+    eauto.
+    eauto.
+
+    Lemma Safe_Seq_assoc : forall fs a b c v, Safe fs ((a ;; b) ;; c) v -> Safe fs (a ;; b;; c) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_assoc; eauto.
+
+    eauto.
+    eauto.
+    try clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    descend.
+
+    Lemma RunsTo_Seq_assoc : forall fs a b c v v', RunsTo fs (a ;; b ;; c) v v' -> RunsTo fs ((a ;; b) ;; c) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_assoc; eauto.
+
+    Lemma in_scope_Seq_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (a ;; b ;; c).
+      admit.
+    Qed.
+    
+    eapply in_scope_Seq_Seq; eauto.
+
+    Lemma in_scope_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (b ;; c).
+      admit.
+    Qed.
+
+    eapply in_scope_Seq; eauto.
+*)
+    admit.
+    admit.
+    admit.
+  Qed.
+
+End TopSection.
+
     Ltac not_exist t :=
       match goal with
         | H : t |- _ => fail 1
@@ -48,17 +182,6 @@ Section TopSection.
             | context [variablePosition ?vars ?s] => assert_new (In s vars)
             | context [variableSlot ?s ?vars] => assert_new (In s vars)
           end; [ clear H_eval .. | cond_gen ]
-      end.
-
-    Require Import Safe.
-
-    Ltac clear_imports :=
-      match goal with
-          Him : LabelMap.t assert |- _ =>
-          repeat match goal with
-                     H : context [ Him ] |- _ => clear H
-                 end; 
-            clear Him
       end.
 
     Require Import GeneralTactics.
@@ -193,17 +316,6 @@ Section TopSection.
 
     Ltac pre_eval_statement := intros; openhyp; try_post.
 
-    Require Import Semantics.
-
-    Ltac hiding tac :=
-      (let P := fresh "P" in
-       match goal with
-         | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
-         | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
-       end;
-       hiding tac;
-       subst P) || tac.
-
     Opaque star. (* necessary to use eapply_cancel *)
     Ltac eapply_cancel h specs st := 
       let HP := fresh in 
@@ -224,107 +336,3 @@ Section TopSection.
 
     Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
 
-    unfold verifCond, imply; induction s.
-
-    Opaque funcs_ok.
-
-    (* skip *)
-
-    intros.
-    wrap0.
-    eapply H3 in H0.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    try clear_imports.
-    post.
-    descend.
-    eauto.
-    eauto.
-
-    Require Import Notations.
-    Open Scope stmt.
-    Notation skip := Syntax.Skip.
-
-    Lemma Safe_Seq_Skip_elim : forall fs k v, Safe fs (skip ;; k) v -> Safe fs k v.
-      admit.
-    Qed.
-    
-    eapply Safe_Seq_Skip_elim; eauto.
-    eauto.
-    eauto.
-
-    try clear_imports.
-    repeat hiding ltac:(step auto_ext).
-    descend.
-    
-    Lemma RunsTo_Seq_Skip_intro : forall fs k v v', RunsTo fs k v v' -> RunsTo fs (skip ;; k) v v'.
-      admit.
-    Qed.
-
-    eapply RunsTo_Seq_Skip_intro; eauto.
-
-    (* seq *)
-    wrap0.
-    eapply IHs2 in H0.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    try clear_imports.
-    post.
-
-    wrap0.
-    eapply IHs1 in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    try clear_imports.
-    post.
-
-    wrap0.
-    eapply H3 in H1.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    try clear_imports.
-    post.
-    descend.
-    eauto.
-    eauto.
-
-    Lemma Safe_Seq_assoc : forall fs a b c v, Safe fs ((a ;; b) ;; c) v -> Safe fs (a ;; b;; c) v.
-      admit.
-    Qed.
-
-    eapply Safe_Seq_assoc; eauto.
-
-    eauto.
-    eauto.
-    try clear_imports.
-    repeat hiding ltac:(step auto_ext).
-    descend.
-
-    Lemma RunsTo_Seq_assoc : forall fs a b c v v', RunsTo fs (a ;; b ;; c) v v' -> RunsTo fs ((a ;; b) ;; c) v v'.
-      admit.
-    Qed.
-
-    eapply RunsTo_Seq_assoc; eauto.
-
-    Lemma in_scope_Seq_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (a ;; b ;; c).
-      admit.
-    Qed.
-    
-    eapply in_scope_Seq_Seq; eauto.
-
-    Lemma in_scope_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (b ;; c).
-      admit.
-    Qed.
-
-    eapply in_scope_Seq; eauto.
-
-    admit.
-    admit.
-    admit.
-  Qed.
-
-End TopSection.
