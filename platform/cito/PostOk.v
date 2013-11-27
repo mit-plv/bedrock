@@ -100,7 +100,7 @@ Section TopSection.
     admit.
     admit.
     admit.
-    admit.
+    (* admit. *)
   Qed.
     descend.
     

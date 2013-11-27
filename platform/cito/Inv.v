@@ -3,7 +3,7 @@ Require Import Semantics.
 
 Set Implicit Arguments.
 
-Definition Layout := W -> ADTValue -> HProp.
+Variable Layout : Type.
 
 Variable is_heap : Layout -> Heap -> HProp.
 
@@ -18,8 +18,8 @@ Section layout.
      sp =*> rp *
      (sp ^+ $4) =*> stack *
      locals vars (fst v) 0 (sp ^+ $8) *
-     array temps (sp ^+ $8 ^+ $(length vars)) *
-     (sp ^+ $8 ^+ $(length vars + length temps)) =?> (wordToNat stack) *
+     array temps (sp ^+ $8 ^+ $(4 * length vars)) *
+     (sp ^+ $8 ^+ $(4 * (length vars + length temps))) =?> (wordToNat stack) *
      is_heap layout (snd v))%Sep.
 
   Require Import Malloc.
@@ -32,10 +32,10 @@ Section layout.
       | inr a => (addr, Some a)
     end.
 
-  Definition layout_option addr ret : HProp :=
+  Definition layout_option (addr : W) (ret : option ADTValue) : HProp :=
     match ret with
-      | None  => ([| True |])%Sep
-      | Some a => layout addr a
+      | None  => [| True |]%Sep
+      | Some a => [| True |]%Sep (* layout addr a *)
     end.
 
   Definition heap_upd_option m k v :=
