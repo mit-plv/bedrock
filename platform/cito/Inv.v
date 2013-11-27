@@ -13,9 +13,9 @@ Section layout.
 
   Variable layout : Layout.
 
-  Definition is_state sp vars (v : State) temps : HProp :=
+  Definition is_state sp rp vars (v : State) temps : HProp :=
     (Ex stack,
-     sp =?> 1 *
+     sp =*> rp *
      (sp ^+ $4) =*> stack *
      locals vars (fst v) 0 (sp ^+ $8) *
      array temps (sp ^+ $8 ^+ $(length vars)) *
@@ -48,13 +48,13 @@ Section layout.
     ((Al i, Al spec, 
       [| fs i = Some (Internal spec) |] 
         ---> (i, stn) @@@ (
-          st ~> ExX, Ex v,
-          ![^[is_state st#Sp (ArgVars spec) v nil * mallocHeap 0] * #0] st /\
+          st ~> ExX, Ex v, Ex rp,
+          ![^[is_state st#Sp rp (ArgVars spec) v nil * mallocHeap 0] * #0] st /\
           [| Safe fs (Body spec) v |] /\
           (st#Rp, stn) 
             @@@ (
-              st' ~> Ex v',
-              ![^[ is_state st'#Sp (ArgVars spec) v' nil * mallocHeap 0] * #1] st' /\
+              st' ~> Ex v', Ex rp',
+              ![^[ is_state st'#Sp rp' (ArgVars spec) v' nil * mallocHeap 0] * #1] st' /\
               [| exists vs', 
                  RunsTo fs (Body spec) v (vs', snd v') /\ 
                  st'#Rv = sel vs' (RetVar spec) /\
@@ -62,17 +62,17 @@ Section layout.
      (Al i, Al spec, 
       [| fs i = Some (Foreign spec) |] 
         ---> (i, stn) @@@ (
-          st ~> ExX, Ex heap, Ex triples,
-          ![^[is_state st#Sp nil (empty_vs, heap) (map Ptr triples) * mallocHeap 0] * #0] st /\
+          st ~> ExX, Ex heap, Ex triples, Ex rp,
+          ![^[is_state st#Sp rp nil (empty_vs, heap) (map Ptr triples) * mallocHeap 0] * #0] st /\
           [| List.Forall (fun x => heap_match heap (Ptr x, Semantics.In x)) triples /\
              PreCond spec (map Semantics.In triples) |] /\
           (st#Rp, stn) 
             @@@ (
-              st' ~> Ex args', Ex heap', Ex addr, Ex ret,
+              st' ~> Ex args', Ex heap', Ex addr, Ex ret, Ex rp',
               let t := decide_ret addr ret in
               let ret_w := fst t in
               let ret_a := snd t in
-              ![^[is_state st#Sp nil (empty_vs, heap') args' * layout_option addr ret_a * mallocHeap 0] * #1] st' /\
+              ![^[is_state st#Sp rp' nil (empty_vs, heap') args' * layout_option addr ret_a * mallocHeap 0] * #1] st' /\
               [| PostCond spec (map (fun x => (Semantics.In x, Out x)) triples) ret /\
                  length args' = length triples /\
                  let heap := fold_left store_out triples heap in
@@ -90,14 +90,14 @@ Section layout.
     Definition inv_template precond postcond : assert := 
       st ~> Ex fs, 
       funcs_ok (fst st) fs /\
-      ExX, Ex v, Ex temps,
-      ![^[is_state st#Sp vars v temps * mallocHeap 0] * #0] st /\
+      ExX, Ex v, Ex temps, Ex rp,
+      ![^[is_state st#Sp rp vars v temps * mallocHeap 0] * #0] st /\
       [| precond fs v st /\
          length temps = temp_size |] /\
-      (sel (fst v) "rp", fst st) 
+      (rp, fst st) 
         @@@ (
           st' ~> Ex v', Ex temps',
-          ![^[is_state st'#Sp vars v' temps' * mallocHeap 0] * #1] st' /\
+          ![^[is_state st'#Sp rp vars v' temps' * mallocHeap 0] * #1] st' /\
           [| postcond fs v st v' st' /\
              length temps' = temp_size |]).
 

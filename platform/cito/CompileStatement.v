@@ -61,15 +61,6 @@ Definition good_name name := prefix name "!" = false.
 
   Hint Resolve star_diff_ptrs.
 
-  Ltac hiding tac :=
-    (let P := fresh "P" in
-      match goal with
-        | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
-        | [ H : ?fs ~:~ _ ~~ _ ~~> _ |- _ ] => set (P := RunsToRelax fs) in *
-      end;
-      hiding tac;
-      subst P) || tac.
-
   Ltac rearrange_stars HEAD :=
     match goal with
       H : interp ?SPECS (![?P] ?ST) |- _ =>
@@ -530,147 +521,11 @@ Definition good_name name := prefix name "!" = false.
     intros; ring.
   Qed.
 
-  Opaque star. (* necessary to use eapply_cancel *)
-
-  Ltac eapply_cancel h specs st := let HP := fresh in let Hnew := fresh in
-    evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
-      [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP; 
-        [ solve [try clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
-
-  Ltac transit := 
-    match goal with
-      | H_interp : interp _ _, H : _ |- _ => eapply H in H_interp; clear H
-      | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; clear H H_interp
-    end.
-
-  Ltac try_post :=
-    try match goal with
-      H_interp : interp _ ?P |- _ =>
-        match P with
-          | context [ Exists ] => post
-        end
-    end.
-
-  Lemma pack_pair' : forall A B (x : A * B), (let (x, _) := x in x, let (_, y) := x in y) = x.
-    destruct x; simpl; intuition.
-  Qed.
-
-  Lemma fold_second : forall A B (p : A * B), (let (_, y) := p in y) = snd p.
-    destruct p; simpl; intuition.
-  Qed.
-
-  Lemma fold_first : forall A B (p : A * B), (let (x, _) := p in x) = fst p.
-    destruct p; simpl; intuition.
-  Qed.
-
-  Ltac post_step := repeat first [ rewrite pack_pair' in * | rewrite fold_second in * | rewrite fold_first in *].
-
-  Ltac not_mem_rv INST := 
-    match INST with
-      | context [LvMem ?LOC] =>
-        match LOC with
-          | context [Rv] => fail 2
-          | _ => idtac
-        end
-      | _ => idtac
-    end.
-
-  Ltac pre_eval_auto := 
-    repeat 
-      match goal with
-        | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-          match INST with
-            context [ Rv ] => 
-            match goal with
-              H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
-            end
-          end
-        | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-          match P with
-            context [ is_heap _ ?HEAP ] => 
-            match goal with
-              H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
-            end
-          end
-      end.
-
-  Ltac evaluate_hints hints :=
-    match goal with
-      H : evalInstrs _ ?ST _ = _ |- _ => generalize dependent H; evaluate hints; intro; evaluate auto_ext
-    end.
-
-  Ltac my_evaluate hints :=
-    match goal with
-      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST ?INST = _ |- _  =>
-        match INST with
-          | context [LvMem (Reg Rv) ] => evaluate_hints hints
-          | _ => pre_eval_auto; evaluate hints
-        end
-    end.
-
-  Ltac simpl_sp :=
-    repeat match goal with
-             H : (_, _) # Sp = _ |- _ => simpl in H
-           end.
-
-  Ltac fold_length := 
-    change (fix length (l : list string) : nat :=
-      match l with
-        | nil => 0
-        | _ :: l' => S (length l')
-      end) with (@length string) in *.
-
-  Lemma fold_4S : forall n, (S (S (S (S (4 * n))))) = (4 + (4 * n)).
-    eauto.
-  Qed.
-
-  Ltac not_exist t :=
-    match goal with
-      | H : t |- _ => fail 1
-      | |- _ => idtac
-    end.
-
-  Ltac assert_new t := not_exist t; assert t.
-
-  Ltac assert_new_as t name := not_exist t; assert t as name.
-
   Definition heap_tag layout arrs (_ _ : W) := is_heap layout arrs.
 
   Ltac set_all t := let name := fresh "t" in set (name := t) in *.
 
-  Ltac clear_bad H_interp s :=
-    repeat 
-      match goal with
-        | H : context [changed_in _ _ _] |- _ => generalize H; clear H
-        | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
-        | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
-      end.
-
-  Ltac simpl_interp :=
-    match goal with
-      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-        simpl in H; try rewrite fold_4S in H
-    end.
-
-  Ltac pre_eval :=
-    match goal with
-      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-        try clear_imports; HypothesisParty H; prep_locals; clear_bad H ST;
-          simpl_interp; simpl_sp; try rewrite fold_4S in *
-    end.
-
-  Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
-
   Definition heap_to_split layout arrs (_ : W) := is_heap layout arrs.
-
-  Ltac cond_gen := try
-    match goal with
-      | H_interp : interp _ (![_](_, ?ST)), H_eval : evalInstrs _ ?ST ?INST = _ |- _ =>
-        match INST with
-          | context [variablePosition ?vars ?s] => assert_new (In s vars)
-          | context [variableSlot ?s ?vars] => assert_new (In s vars)
-        end; [ clear H_eval .. | cond_gen ]
-    end.
 
   Lemma star_comm : forall a b, a * b ===> b * a.
     clear; intros; sepLemma.
@@ -1002,34 +857,12 @@ Definition good_name name := prefix name "!" = false.
     intros; omega.
   Qed.
 
-  Ltac eval_instrs hints :=
-    match goal with
-      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-        cond_gen; [ .. | let P := fresh "P" in
-          try match goal with
-                | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
-              end;
-          pre_eval;
-          try match goal with
-                | [ H : _ = Regs ?X Rv, H' : _ = Regs ?X Rv |- _ ] => generalize dependent H'
-              end;
-          my_evaluate hints;
-          try subst P;
-            post_eval; clear H_eval]
-    end.
-
   Ltac clear_specs :=
     repeat
       match goal with
         | H : interp ?SPECS_H _ |- context [simplify ?SPECS _ _] => not_eq SPECS_H SPECS; clear H
         | H : interp ?SPECS_H _ |- context [interp ?SPECS _] => not_eq SPECS_H SPECS; clear H
       end.
-
-  Ltac pre_eval_statement := intros; open_hyp; try_post.
-
-  Ltac eval_statement := pre_eval_statement; transit; open_hyp; try_post.
-
-  Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
 
   Lemma Safe_skip : forall fs k v,
     Safe fs (skip;: k) v
