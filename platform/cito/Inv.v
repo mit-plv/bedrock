@@ -13,14 +13,19 @@ Section layout.
 
   Variable layout : Layout.
 
-  Definition is_state sp rp vars (v : State) temps : HProp :=
+  Definition has_extra_stack sp offset :=
     (Ex stack,
-     sp =*> rp *
      (sp ^+ $4) =*> stack *
+     (sp ^+ $8 ^+ $(4 * offset)) =?> (wordToNat stack))%Sep.
+
+  Definition is_state sp rp vars (v : State) temps : HProp :=
+    (
      locals vars (fst v) 0 (sp ^+ $8) *
      array temps (sp ^+ $8 ^+ $(4 * length vars)) *
-     (sp ^+ $8 ^+ $(4 * (length vars + length temps))) =?> (wordToNat stack) *
-     is_heap layout (snd v))%Sep.
+     is_heap layout (snd v) *
+     sp =*> rp *
+     has_extra_stack sp (length vars + length temps)
+    )%Sep.
 
   Require Import Malloc.
   Require Import Safe.

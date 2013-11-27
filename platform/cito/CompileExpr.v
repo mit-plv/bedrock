@@ -15,7 +15,7 @@ Section ExprComp.
 
   Definition is_state sp vs temps : HProp :=
     (locals vars vs 0 (sp ^+ $8) *
-     array temps (sp ^+ $8 ^+ $(length vars)))%Sep.
+     array temps (sp ^+ $8 ^+ $(4 * length vars)))%Sep.
 
   Definition new_pre : assert := 
     x ~> ExX, Ex vs, Ex temps,

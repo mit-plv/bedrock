@@ -80,17 +80,6 @@ Definition good_name name := prefix name "!" = false.
       H : _ |- _ => eapply H
     end.
 
-  Ltac open_Some := 
-    match goal with
-      H : Some _ = Some _ |- _ => injection H; clear H; intros
-    end.
-
-  Ltac condition_solver :=  
-    match goal with
-      H : evalCond _ _ _ _ _ = Some ?T |- wneb _ _ = ?T => 
-      unfold evalCond in *; simpl in *; open_Some; rewriter_r; f_equal
-    end.
-
   Open Scope nat.
 
   Hint Rewrite sum_S : arith.
