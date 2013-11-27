@@ -7,7 +7,7 @@ MODULES := \
 	FreeVarsExpr Option FreeVars \
 	Inv \
 	CompileStmtSpec CompileExpr Notations CompileStmtImpl \
-	# PostOk VerifCondOk CompileStmt \
+	PostOk VerifCondOk CompileStmt \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
 	# SemanticsExprLemmas SemanticsLemmas \
