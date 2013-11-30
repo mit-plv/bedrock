@@ -103,128 +103,6 @@ Section TopSection.
 
     Opaque mult.
 
-    Focus 3.
-
-    (* if *)
-    wrap0.
-    eapply IHs1 in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
-
-    wrap0.
-    eapply H3 in H1.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold CompileExpr.runs_to in *.
-    unfold is_state in *.
-    unfold CompileExpr.is_state in *.
-    post.
-
-    transit.
-
-    destruct x4; simpl in *.
-    post.
-    descend.
-    eauto.
-    instantiate (4 := (_, _)).
-    simpl.
-    destruct x0; simpl in *.
-    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
-    repeat rewrite length_upd_sublist.
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-
-    find_cond.
-
-    Lemma Safe_Seq_If_true : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (t ;; k) v.
-      admit.
-    Qed.
-
-    eapply Safe_Seq_If_true; eauto.
-    rewrite length_upd_sublist; eauto.
-    eauto.
-
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-
-    descend.
-    find_cond.
-
-    Lemma RunsTo_Seq_If_true : forall fs e t f k v v', RunsTo fs (t ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.If e t f ;; k) v v'.
-      admit.
-    Qed.
-
-    eapply RunsTo_Seq_If_true; eauto.
-    
-    Lemma in_scope_If_true : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (t ;; k).
-      admit.
-    Qed.
-
-    eapply in_scope_If_true; eauto.
-
-    (* false *)
-    wrap0.
-    eapply IHs2 in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
-
-    wrap0.
-    eapply H3 in H1.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold CompileExpr.runs_to in *.
-    unfold is_state in *.
-    unfold CompileExpr.is_state in *.
-    post.
-
-    transit.
-
-    destruct x4; simpl in *.
-    post.
-    descend.
-    eauto.
-    instantiate (4 := (_, _)).
-    simpl.
-    destruct x0; simpl in *.
-    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
-    repeat rewrite length_upd_sublist.
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-
-    find_cond.
-
-    Lemma Safe_Seq_If_false : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs (f ;; k) v.
-      admit.
-    Qed.
-
-    eapply Safe_Seq_If_false; eauto.
-    rewrite length_upd_sublist; eauto.
-    eauto.
-
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-
-    descend.
-    find_cond.
-
-    Lemma RunsTo_Seq_If_false : forall fs e t f k v v', RunsTo fs (f ;; k) v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.If e t f ;; k) v v'.
-      admit.
-    Qed.
-
-    eapply RunsTo_Seq_If_false; eauto.
-    
-    Lemma in_scope_If_false : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (f ;; k).
-      admit.
-    Qed.
-
-    eapply in_scope_If_false; eauto.
-
     (* skip *)
 
     intros.
@@ -312,7 +190,152 @@ Section TopSection.
 
     eapply in_scope_Seq; eauto.
 
-    admit.
+    (* if - true *)
+    wrap0.
+    eapply IHs1 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+
+    transit.
+
+    destruct x4; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)).
+    simpl.
+    destruct x0; simpl in *.
+    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    find_cond.
+
+    Lemma Safe_Seq_If_true : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (t ;; k) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_If_true; eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+
+    Lemma RunsTo_Seq_If_true : forall fs e t f k v v', RunsTo fs (t ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.If e t f ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_If_true; eauto.
+    
+    Lemma in_scope_If_true : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (t ;; k).
+      admit.
+    Qed.
+
+    eapply in_scope_If_true; eauto.
+
+    (* if - false *)
+    wrap0.
+    eapply IHs2 in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    post.
+
+    wrap0.
+    eapply H3 in H1.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+
+    transit.
+
+    destruct x4; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)).
+    simpl.
+    destruct x0; simpl in *.
+    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    find_cond.
+
+    Lemma Safe_Seq_If_false : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs (f ;; k) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_If_false; eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+
+    Lemma RunsTo_Seq_If_false : forall fs e t f k v v', RunsTo fs (f ;; k) v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.If e t f ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_If_false; eauto.
+    
+    Lemma in_scope_If_false : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (f ;; k).
+      admit.
+    Qed.
+
+    eapply in_scope_If_false; eauto.
+
+    (* while *)
+    wrap0.
+    post.
+    descend.
+    eauto.
+    eauto.
+    find_cond.
+    Lemma Safe_Seq_While_false : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs k v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_While_false; eauto.
+    eauto.
+    eauto.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    descend.
+    find_cond.
+
+    Lemma RunsTo_Seq_While_false : forall fs e s k v v', RunsTo fs k v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.While e s ;; k) v v'.
+      admit.
+    Qed.
+
+    eapply RunsTo_Seq_While_false; eauto.
+
+    (* call *)
     admit.
   Qed.
 
