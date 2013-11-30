@@ -4,9 +4,10 @@ MODULES := \
 	StringSet ValsStringSet SetUtil \
 	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics SafeCoind \
-	FreeVarsExpr Option FreeVars \
+	FreeVarsExpr Option Union FreeVars \
 	Inv \
-	CompileStmtSpec CompileExpr Notations CompileStmtImpl \
+	DepthExpr Max Depth \
+	CompileStmtSpec CompileExpr Notations CompileExprs CompileStmtImpl \
 	# PostOk VerifCondOk CompileStmt \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \

@@ -103,6 +103,171 @@ Section TopSection.
 
     Opaque mult.
 
+    Focus 5.
+
+    (* call *)
+    destruct o.
+    wrap0.
+    post.
+
+    Ltac not_exist t :=
+      match goal with
+        | H : t |- _ => fail 1
+        | |- _ => idtac
+      end.
+
+    Ltac assert_new t := not_exist t; assert t.
+
+    Ltac cond_gen := try
+      match goal with
+        | H_interp : interp _ (![_](_, ?ST)), H_eval : evalInstrs _ ?ST ?INST = _ |- _ =>
+          match INST with
+            | context [variablePosition ?vars ?s] => assert_new (In s vars)
+            | context [variableSlot ?s ?vars] => assert_new (In s vars)
+          end; [ clear H_eval .. | cond_gen ]
+      end.
+
+    Ltac HypothesisParty H := 
+      match type of H with
+        | interp _ (![ _ ](_, ?x)) => 
+          repeat match goal with 
+                   | [H0: evalInstrs _ x _ = _, H1: evalInstrs _ _ _ = _ |- _] => not_eq H0 H1; generalize dependent H1
+                   | [H0: evalInstrs _ x _ = _, H1: interp _ _ |- _] => not_eq H H1; generalize dependent H1
+                 end
+      end.
+
+    Ltac clear_bad H_interp s :=
+      repeat 
+        match goal with
+          | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
+          | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
+        end.
+
+    Lemma fold_4S : forall n, (S (S (S (S (4 * n))))) = (4 + (4 * n)).
+      eauto.
+    Qed.
+
+    Ltac simpl_interp :=
+      match goal with
+        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
+          simpl in H; try rewrite fold_4S in H
+      end.
+
+    Ltac simpl_sp :=
+      repeat match goal with
+                 H : (_, _) # Sp = _ |- _ => simpl in H
+             end.
+
+    Ltac pre_eval :=
+      match goal with
+        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
+          try clear_imports; HypothesisParty H; prep_locals; clear_bad H ST;
+          simpl_interp; simpl_sp; try rewrite fold_4S in *
+      end.
+
+    Lemma pack_pair' : forall A B (x : A * B), (let (x, _) := x in x, let (_, y) := x in y) = x.
+      destruct x; simpl; intuition.
+    Qed.
+
+    Lemma fold_second : forall A B (p : A * B), (let (_, y) := p in y) = snd p.
+      destruct p; simpl; intuition.
+    Qed.
+
+    Lemma fold_first : forall A B (p : A * B), (let (x, _) := p in x) = fst p.
+      destruct p; simpl; intuition.
+    Qed.
+
+    Ltac post_step := repeat first [ rewrite pack_pair' in * | rewrite fold_second in * | rewrite fold_first in *].
+
+    Ltac fold_length := 
+      change (fix length (l : list string) : nat :=
+                match l with
+                  | nil => 0
+                  | _ :: l' => S (length l')
+                end) with (@length string) in *.
+
+    Ltac not_mem_rv INST := 
+      match INST with
+        | context [LvMem ?LOC] =>
+          match LOC with
+            | context [Rv] => fail 2
+            | _ => idtac
+          end
+        | _ => idtac
+      end.
+
+    Ltac pre_eval_auto := 
+      repeat 
+        match goal with
+          | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
+            match INST with
+                context [ Rv ] => 
+                match goal with
+                    H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
+                end
+            end
+          | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
+            match P with
+                context [ is_heap _ ?HEAP ] => 
+                match goal with
+                    H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
+                end
+            end
+        end.
+
+    Ltac evaluate_hints hints :=
+      match goal with
+          H : evalInstrs _ ?ST _ = _ |- _ => generalize dependent H; evaluate hints; intro; evaluate auto_ext
+      end.
+
+    Ltac my_evaluate hints :=
+      match goal with
+        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST ?INST = _ |- _  =>
+          match INST with
+            | context [LvMem (Reg Rv) ] => evaluate_hints hints
+            | _ => pre_eval_auto; evaluate hints
+          end
+      end.
+
+    Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
+
+    Ltac try_post :=
+      try match goal with
+              H_interp : interp _ ?P |- _ =>
+              match P with
+                | context [ Exists ] => post
+              end
+          end.
+
+    Ltac eval_instrs hints :=
+      match goal with
+        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
+          cond_gen; [ .. | let P := fresh "P" in
+            try match goal with
+                  | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
+                end;
+            pre_eval;
+            try match goal with
+                  | [ H : _ = Regs ?X Rv, H' : _ = Regs ?X Rv |- _ ] => generalize dependent H'
+                end;
+            my_evaluate hints;
+            try subst P;
+              post_eval; clear H_eval]
+      end.
+
+    eval_instrs auto_ext.
+    unfold is_state in *.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    assert (List.In s vars) by admit.
+    assert (
+        evalInstrs (fst x) x0
+                   (Assign (LvMem (Indir Sp ($8 ^+ $(variablePosition vars s)))) Rv
+                           :: nil) = Some (snd x)
+) by admit; clear H11.
+    eval_instrs auto_ext.
+    wrap0.
+
     (* skip *)
 
     intros.
@@ -335,160 +500,13 @@ Section TopSection.
 
     eapply RunsTo_Seq_While_false; eauto.
 
-    (* call *)
-    admit.
   Qed.
 
 End TopSection.
 
 
 (*
-    Ltac not_exist t :=
-      match goal with
-        | H : t |- _ => fail 1
-        | |- _ => idtac
-      end.
-
-    Ltac assert_new t := not_exist t; assert t.
-
-    Ltac cond_gen := try
-      match goal with
-        | H_interp : interp _ (![_](_, ?ST)), H_eval : evalInstrs _ ?ST ?INST = _ |- _ =>
-          match INST with
-            | context [variablePosition ?vars ?s] => assert_new (In s vars)
-            | context [variableSlot ?s ?vars] => assert_new (In s vars)
-          end; [ clear H_eval .. | cond_gen ]
-      end.
-
     Require Import GeneralTactics.
-
-    Ltac HypothesisParty H := 
-      match type of H with
-        | interp _ (![ _ ](_, ?x)) => 
-          repeat match goal with 
-                   | [H0: evalInstrs _ x _ = _, H1: evalInstrs _ _ _ = _ |- _] => not_eq H0 H1; generalize dependent H1
-                   | [H0: evalInstrs _ x _ = _, H1: interp _ _ |- _] => not_eq H H1; generalize dependent H1
-                 end
-      end.
-
-    Ltac clear_bad H_interp s :=
-      repeat 
-        match goal with
-          | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
-          | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
-        end.
-
-    Lemma fold_4S : forall n, (S (S (S (S (4 * n))))) = (4 + (4 * n)).
-      eauto.
-    Qed.
-
-    Ltac simpl_interp :=
-      match goal with
-        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-          simpl in H; try rewrite fold_4S in H
-      end.
-
-    Ltac simpl_sp :=
-      repeat match goal with
-                 H : (_, _) # Sp = _ |- _ => simpl in H
-             end.
-
-    Ltac pre_eval :=
-      match goal with
-        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-          try clear_imports; HypothesisParty H; prep_locals; clear_bad H ST;
-          simpl_interp; simpl_sp; try rewrite fold_4S in *
-      end.
-
-    Lemma pack_pair' : forall A B (x : A * B), (let (x, _) := x in x, let (_, y) := x in y) = x.
-      destruct x; simpl; intuition.
-    Qed.
-
-    Lemma fold_second : forall A B (p : A * B), (let (_, y) := p in y) = snd p.
-      destruct p; simpl; intuition.
-    Qed.
-
-    Lemma fold_first : forall A B (p : A * B), (let (x, _) := p in x) = fst p.
-      destruct p; simpl; intuition.
-    Qed.
-
-    Ltac post_step := repeat first [ rewrite pack_pair' in * | rewrite fold_second in * | rewrite fold_first in *].
-
-    Ltac fold_length := 
-      change (fix length (l : list string) : nat :=
-                match l with
-                  | nil => 0
-                  | _ :: l' => S (length l')
-                end) with (@length string) in *.
-
-    Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
-
-    Ltac not_mem_rv INST := 
-      match INST with
-        | context [LvMem ?LOC] =>
-          match LOC with
-            | context [Rv] => fail 2
-            | _ => idtac
-          end
-        | _ => idtac
-      end.
-
-    Ltac pre_eval_auto := 
-      repeat 
-        match goal with
-          | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-            match INST with
-                context [ Rv ] => 
-                match goal with
-                    H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
-                end
-            end
-          | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-            match P with
-                context [ is_heap _ ?HEAP ] => 
-                match goal with
-                    H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
-                end
-            end
-        end.
-
-    Ltac evaluate_hints hints :=
-      match goal with
-          H : evalInstrs _ ?ST _ = _ |- _ => generalize dependent H; evaluate hints; intro; evaluate auto_ext
-      end.
-
-    Ltac my_evaluate hints :=
-      match goal with
-        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST ?INST = _ |- _  =>
-          match INST with
-            | context [LvMem (Reg Rv) ] => evaluate_hints hints
-            | _ => pre_eval_auto; evaluate hints
-          end
-      end.
-
-    Ltac eval_instrs hints :=
-      match goal with
-        | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-          cond_gen; [ .. | let P := fresh "P" in
-            try match goal with
-                  | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
-                end;
-            pre_eval;
-            try match goal with
-                  | [ H : _ = Regs ?X Rv, H' : _ = Regs ?X Rv |- _ ] => generalize dependent H'
-                end;
-            my_evaluate hints;
-            try subst P;
-              post_eval; clear H_eval]
-      end.
-
-    Ltac try_post :=
-      try match goal with
-              H_interp : interp _ ?P |- _ =>
-              match P with
-                | context [ Exists ] => post
-              end
-          end.
 
     Ltac pre_eval_statement := intros; openhyp; try_post.
 

@@ -31,6 +31,8 @@ Section ExprComp.
   Require Import SemanticsExpr.
   Require Import DepthExpr.
 
+  Local Open Scope nat.
+
   Definition runs_to x_pre x := 
     forall specs other vs temps,
       interp specs (![is_state x_pre#Sp vs temps * other ] x_pre) ->
@@ -38,7 +40,7 @@ Section ExprComp.
       Regs x Sp = x_pre#Sp /\
       exists changed,
         interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) * other ] (fst x_pre, x)) /\
-        length changed = (depth expr) /\
+        length changed <= depth expr /\
         Regs x Rv = eval vs expr.
 
   Definition post (pre : assert) := 
@@ -51,8 +53,6 @@ Section ExprComp.
   Require Import FreeVarsExpr.
   Require Import StringSet.
   Require Import SetUtil.
-
-  Local Open Scope nat.
 
   Definition in_scope := 
     Subset (free_vars expr) (to_set vars) /\

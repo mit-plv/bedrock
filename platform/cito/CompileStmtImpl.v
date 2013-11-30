@@ -31,15 +31,17 @@ Section Body.
          RunsTo fs s v v' /\
          st'#Sp = st#Sp).
 
+  Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
   Definition vars_start := 4 * 2.
   Definition temp_start := vars_start + 4 * length vars.
-  Definition get_stack_capacity := LvMem (Sp + 4)%loc.
-  Definition get_var x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
-  Definition get_temp n := LvMem (Sp + (temp_start + 4 * n)%nat)%loc.
+  Definition var_slot x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
+  Definition temp_slot n := LvMem (Sp + (temp_start + 4 * n)%nat)%loc.
   Definition frame_len := temp_start + 4 * temp_size.
   Definition frame_len_w := natToW frame_len.
+  Definition callee_stack_start := frame_len.
+  Definition callee_stack_slot n := LvMem (Sp + (callee_stack_start + 4 * n)%nat)%loc.
 
-  Definition afterCall ret k : assert :=
+  Definition after_call ret k : assert :=
     inv_template layout vars temp_size
       (fun fs v st => 
          Safe fs k v)
@@ -49,9 +51,7 @@ Section Body.
          let old_sp := st#Sp ^- frame_len_w in
          st'#Sp = old_sp).
 
-  Require Import CompileExpr.
-
-  Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
+  Require CompileExpr.
 
   Definition Seq2 := @Seq_ _ imports_global modName.
 
@@ -71,29 +71,21 @@ Section Body.
 
   Definition SaveRv lv := Strline (IL.Assign lv (RvLval (LvReg Rv)) :: nil).
 
-  Fixpoint compile_exprs exprs base :=
-    match exprs with
-      | nil => nil
-      | x :: xs => compile_expr x base :: SaveRv (get_temp base) :: compile_exprs xs (S base)
-    end.
-
-  Fixpoint put_args base (target : nat) n :=
-    match n with
-      | 0 => nil
-      | S n' =>
-        Assign (LvMem (Rv + target)%loc) (get_temp base)
-               :: put_args (1 + base) (4 + target) n'
-    end.
-
-  Definition CheckStack (n : nat) cmd :=
-    Structured.If_ imports_global n Le get_stack_capacity cmd
+  Definition CheckExtraStack (n : nat) cmd :=
+    Structured.If_ imports_global n Le (stack_slot 1) cmd
                    (Diverge_ imports modName).
 
   Definition SaveRet var :=
     match var with
       | None => Skip
-      | Some x => SaveRv (get_var x)
+      | Some x => SaveRv (var_slot x)
     end.
+
+  Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
+
+  Require CompileExprs.
+
+  Definition compile_exprs es n dst := CompileExprs.compile vars temp_size es n dst imports_global modName.
 
   Require Import Notations.
   Local Open Scope stmt.
@@ -115,20 +107,18 @@ Section Body.
                       (Seq2 (compile body (While (cond) {{body}};; k))
                             (compile_expr cond 0)))
       | Syntax.Call var f args =>
-        let init_frame_len := 2 + length args in
-        CheckStack 
-          init_frame_len
+        let callee_frame_len := 2 + length args in
+        CheckExtraStack 
+          callee_frame_len
           (Seq
-             ((compile_expr f 0) 
-                :: SaveRv (get_temp 0)
-                :: compile_exprs args 1 ++
-                Strline
-                ((Binop Rv Sp Plus frame_len_w)
-                   :: Binop (LvMem (Rv + $ (4))%loc) get_stack_capacity Minus init_frame_len
-                   :: put_args 1 8 (length args) ++
-                   Assign Rv (get_temp 0)
+             (compile_exprs 
+                args 0 (callee_stack_start + 2)
+                :: compile_expr f 0
+                :: Strline
+                (Binop 
+                   (callee_stack_slot 1) (stack_slot 1) Minus callee_frame_len
                    :: Binop Sp Sp Plus frame_len_w :: nil)
-                :: Structured.ICall_ imports modName Rv (afterCall var k)
+                :: Structured.ICall_ imports modName Rv (after_call var k)
                 :: Strline (Binop Sp Sp Minus frame_len_w :: nil)
                 :: SaveRet var :: nil))
     end.
