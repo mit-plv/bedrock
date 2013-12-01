@@ -586,15 +586,14 @@ Proof.
   apply SubstsH_inj_fwd.
   apply SubstsH_emp_fwd.
   apply Himp_star_pure_c; intro.
-  assert (SubstsH S
+  (*assert (SubstsH S
     (fold_left (fun (hp : hpropB G) (p : pred) => predD p hE fE' * hp) x Emp) ===>
     SubstsH S
     (addQuants (NQuants rhs)
       (fun fE0 : fo_env =>
         fold_left (fun (hp : hpropB G) (p : pred) => predD p hE fE0 * hp)
         (NImpure rhs)
-        Emp) fE)).
-  2: admit.
+        Emp) fE)).*)
 
   Lemma sub_expr_agrees : forall fE fE' s,
     (forall x v, s x = Some v -> fE x = exprD v fE')
@@ -723,6 +722,9 @@ Proof.
     autorewrite with core; auto.
     specialize (H3 _ _ H6); tauto.
   Qed.
+
+  destruct (NPure rhs).
+  Focus 2.
 
   eapply choose_existentials; eauto.
   eapply Forall_forall; eauto.
@@ -880,4 +882,65 @@ Proof.
   edestruct findMatchings_adds; eauto.
   congruence.
   tauto.
+
+  Lemma choose_existentials' : forall G (hE : ho_env G) S s ps' ps (P : _ -> Prop),
+    sub_preds s ps = Some ps'
+    -> forall qs, List.Forall (fun x => s x <> None)%type qs
+      -> forall qs' fE fE', List.Forall (fun x => s x <> None)%type qs'
+        -> (forall x v, s x = Some v -> fE x = exprD v fE' \/ In x qs)
+        -> List.Forall (wellScoped (qs' ++ qs)) ps
+        -> (forall fE1 fE2, (forall x, s x <> None -> fE1 x = fE2 x)
+          -> P fE1 = P fE2)
+        -> P (fun x => match s x with
+                         | Some e => exprD e fE'
+                         | None => Dyn tt
+                       end)
+        -> SubstsH S (fold_left (fun hp p => predD p hE fE' * hp) ps' Emp)
+        ===> SubstsH S (addQuants qs
+          (fun fE0 => fold_left (fun hp p => predD p hE fE0 * hp) ps [| P fE0 |]) fE).
+  Proof.
+    induction 2; simpl; intuition.
+
+    rewrite <- app_nil_end in *.
+    eapply Himp_trans; [ | apply multistar_weaken ].
+    2: eapply Himp_trans; [ apply SubstsH_emp_fwd | ].
+    eapply sub_preds_agrees; eauto.
+    firstorder.
+    eapply Himp_trans; [ | apply SubstsH_inj_bwd ].
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_cc; try apply Himp_refl.
+    erewrite H3.
+    eauto.
+    simpl; intros.
+    specialize (H1 x).
+    destruct (s x); firstorder.
+
+    eapply Himp_trans; [ | eapply SubstsH_ex_bwd ].
+    apply Himp_ex_c.
+    case_eq (s x); intuition idtac.
+    exists (exprD e fE').
+    rewrite <- DepList.pf_list_simpl in H4.
+    eapply IHForall; try apply H4.
+    eauto using Forall_app.
+    intros.
+    destruct (string_dec x x0); subst.
+    rewrite H7 in H8; injection H8; clear H8; intros; subst.
+    autorewrite with core; auto.
+    autorewrite with core; auto.
+    specialize (H3 _ _ H8); tauto.
+    eauto.
+    eauto.
+  Qed.
+
+  eapply choose_existentials'; eauto.
+  eapply Forall_forall; eauto.
+  intros.
+  edestruct findMatchings_adds; eauto.
+  congruence.
+  tauto.
+  destruct (NPure lhs); intuition idtac.
+  destruct (NPure lhs); intuition idtac.
+  erewrite H7; eauto.
+  erewrite H7; eauto.
 Qed.
