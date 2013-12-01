@@ -262,11 +262,13 @@ Section TopSection.
     assert (List.In s vars) by admit.
     assert (
         evalInstrs (fst x) x0
-                   (Assign (LvMem (Indir Sp ($8 ^+ $(variablePosition vars s)))) Rv
+                   (Assign (LvMem (Imm ((Regs x1 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
                            :: nil) = Some (snd x)
 ) by admit; clear H11.
     eval_instrs auto_ext.
-    wrap0.
+    destruct x; simpl in *.
+    destruct x4; simpl in *.
+    (*here*)
 
     (* skip *)
 
