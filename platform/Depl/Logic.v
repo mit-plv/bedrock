@@ -27,6 +27,8 @@ Definition exprD (e : expr) : fo_env -> dyn :=
     | Lift f => f
   end.
 
+Definition fo_empty : fo_env := fun _ => Dyn tt.
+
 (** Setting a value in a valuation *)
 Definition fo_set (E : fo_env) (x : fo_var) (v : dyn) : fo_env := 
   fun y => if string_dec y x then v else E y.
@@ -947,4 +949,41 @@ Proof.
   eauto using in_or_app.
   eapply Himp_trans; [ | apply Himp_star_comm ].
   apply join_star.
+Qed.
+
+Theorem wellScoped_weaken : forall p xs1 xs2,
+  wellScoped xs1 p
+  -> (forall x, In x xs1 -> In x xs2)
+  -> wellScoped xs2 p.
+Proof.
+  induction p; simpl; intuition eauto.
+  eapply IHp; eauto.
+  simpl; intuition.
+Qed.
+
+Lemma normalize_wellScoped_NImpure' : forall p fvs,
+  wellScoped fvs p
+  -> List.Forall (wellScoped (NQuants (normalize p) ++ fvs)) (NImpure (normalize p)).
+Proof.
+  induction p; simpl; intuition.
+
+  apply Folds.Forall_app.
+  rewrite <- app_assoc; auto.
+  apply IHp1.
+  eapply wellScoped_weaken; eauto using in_or_app.
+  eapply Forall_weaken; [ | apply IHp2; eauto ].
+  intros; eapply wellScoped_weaken; eauto.
+  intros ? Hin; eapply in_app_or in Hin; intuition eauto using in_or_app.
+
+  eapply Forall_weaken; [ | apply IHp; eauto ].
+  intros; eapply wellScoped_weaken; eauto.
+  intros ? Hin; eapply in_app_or in Hin; simpl in *; intuition eauto using in_or_app.
+Qed.
+
+Theorem normalize_wellScoped_NImpure : forall p,
+  wellScoped nil p
+  -> List.Forall (wellScoped (NQuants (normalize p))) (NImpure (normalize p)).
+Proof.
+  intros; rewrite (app_nil_end (NQuants (normalize p))).
+  eauto using normalize_wellScoped_NImpure'.
 Qed.

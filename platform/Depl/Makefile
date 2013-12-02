@@ -1,5 +1,5 @@
 ROOT    := ../..
-MODULES := Logic Cancel
+MODULES := Logic Cancel PtsToEntail
 
 VS      := $(MODULES:%=%.v)
 
