@@ -44,3 +44,11 @@ Qed.
 Lemma RunsTo_Seq_While_false : forall fs e s k v v', RunsTo fs k v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.While e s ;; k) v v'.
   admit.
 Qed.
+
+Lemma Safe_Seq_While_true : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (s ;; Syntax.While e s ;; k) v.
+  admit.
+Qed.
+
+Lemma RunsTo_Seq_While_true : forall fs e s k v v', RunsTo fs (s ;; Syntax.While e s ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.While e s ;; k) v v'.
+  admit.
+Qed.

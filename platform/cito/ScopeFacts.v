@@ -24,3 +24,17 @@ Qed.
 Lemma in_scope_If_false : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (f ;; k).
   admit.
 Qed.
+
+Require CompileExpr.
+
+Lemma in_scope_If_e : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> CompileExpr.in_scope vars temp_size e 0.
+  admit.
+Qed.
+
+Lemma in_scope_While_e : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> CompileExpr.in_scope vars temp_size e 0.
+  admit.
+Qed.
+
+Lemma in_scope_While : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> in_scope vars temp_size (s ;; Syntax.While e s ;; k).
+  admit.
+Qed.

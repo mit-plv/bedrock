@@ -122,11 +122,6 @@ Section TopSection.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
     eauto.
-
-    Lemma in_scope_If_e : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> CompileExpr.in_scope vars temp_size e 0.
-      admit.
-    Qed.
-
     eapply in_scope_If_e; eauto.
 
     clear_imports.
@@ -218,11 +213,6 @@ Section TopSection.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
     eauto.
-
-    Lemma in_scope_While_e : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> CompileExpr.in_scope vars temp_size e 0.
-      admit.
-    Qed.
-
     eapply in_scope_While_e; eauto.
 
     eapply H2 in H0.
@@ -294,11 +284,6 @@ Section TopSection.
     eauto.
     eauto.
     find_cond.
-    Require Import SemanticsExpr.
-    Lemma Safe_Seq_While_true : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (s ;; Syntax.While e s ;; k) v.
-      admit.
-    Qed.
-
     eapply Safe_Seq_While_true; eauto.
     eauto.
     eauto.
@@ -307,18 +292,8 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
 
     descend.
-
-    Lemma RunsTo_Seq_While_true : forall fs e s k v v', RunsTo fs (s ;; Syntax.While e s ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.While e s ;; k) v v'.
-      admit.
-    Qed.
-
     find_cond.
     eapply RunsTo_Seq_While_true; eauto.
-
-    Lemma in_scope_While : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> in_scope vars temp_size (s ;; Syntax.While e s ;; k).
-      admit.
-    Qed.
-
     eapply in_scope_While; eauto.
 
     eapply IHs.
