@@ -31,5 +31,7 @@ Notation "x <- 'Call' f [ arg ]" := (Syntax.Call (Some x) f arg)
 
 Infix ";;" := Syntax.Seq : stmt_scope.
 
+Notation "'skip'" := Syntax.Skip : stmt_scope.
+
 Delimit Scope stmt_scope with stmt.
 Local Open Scope stmt.

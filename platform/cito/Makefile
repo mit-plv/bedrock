@@ -9,7 +9,9 @@ MODULES := \
 	DepthExpr Max Depth \
 	CompileStmtSpec CompileExpr Notations CompileExprs CompileStmtImpl \
 	SetFacts ScopeFacts SemanticsFacts ListFacts \
-	# PostOk VerifCondOk CompileStmt \
+	CompileStmtTactics \
+	PostOk \
+	# VerifCondOk CompileStmt \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
 	# SemanticsExprLemmas SemanticsLemmas \
