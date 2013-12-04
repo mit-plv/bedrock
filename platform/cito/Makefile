@@ -11,7 +11,8 @@ MODULES := \
 	SetFacts ScopeFacts SemanticsFacts ListFacts \
 	CompileStmtTactics \
 	PostOk \
-	# VerifCondOk CompileStmt \
+	VerifCondOk \
+	# CompileStmt \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
