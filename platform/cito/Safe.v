@@ -14,27 +14,16 @@ Section fs.
         Safe a v ->
         (forall v', RunsTo fs a v v' -> Safe b v') -> 
         Safe (Syntax.Seq a b) v
-  | IfTrue : 
+  | If : 
       forall cond t f v, 
-        wneb (eval (fst v) cond) $0 = true -> 
-        Safe t v -> 
+        let b := wneb (eval (fst v) cond) $0 in
+        b = true /\ Safe t v \/ b = false /\ Safe f v ->
         Safe (Syntax.If cond t f) v
-  | IfFalse : 
-      forall cond t f v, 
-        wneb (eval (fst v) cond) $0 = false -> 
-        Safe f v -> 
-        Safe (Syntax.If cond t f) v
-  | WhileTrue : 
+  | While : 
       forall cond body v, 
-        let statement := While cond body in
-        wneb (eval (fst v) cond) $0 = true -> 
-        Safe body v ->
-        (forall v', RunsTo fs body v v' -> Safe statement v') -> 
-        Safe statement v
-  | WhileFalse : 
-      forall cond body v, 
-        wneb (eval (fst v) cond) $0 = false -> 
-        Safe (While cond body) v
+        let loop := While cond body in
+        Safe (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v ->
+        Safe loop v
   | CallInternal : 
       forall var f args v spec,
         let vs := fst v in
