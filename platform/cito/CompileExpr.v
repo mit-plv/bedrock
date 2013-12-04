@@ -22,14 +22,9 @@ Section ExprComp.
     ![^[is_state x#Sp vs temps] * #0]x /\
     [| length temps = temp_size |].
 
-  Fixpoint upd_sublist big base small :=
-    match small with
-      | nil => big
-      | x :: xs => upd_sublist (updN big base x) (1 + base) xs
-    end.
-
   Require Import SemanticsExpr.
   Require Import DepthExpr.
+  Require Import ListFacts.
 
   Local Open Scope nat.
 

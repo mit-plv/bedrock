@@ -8,6 +8,7 @@ MODULES := \
 	Inv \
 	DepthExpr Max Depth \
 	CompileStmtSpec CompileExpr Notations CompileExprs CompileStmtImpl \
+	SetFacts ScopeFacts SemanticsFacts ListFacts \
 	# PostOk VerifCondOk CompileStmt \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \

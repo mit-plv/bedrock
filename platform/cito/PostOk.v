@@ -77,10 +77,6 @@ Section TopSection.
         | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
       end.
 
-    Lemma length_upd_sublist : forall a n b, length (CompileExpr.upd_sublist a n b) = length a.
-      admit.
-    Qed.
-
     Require Import SemanticsExpr.
 
     Ltac open_Some := 
@@ -102,6 +98,11 @@ Section TopSection.
       end.
 
     Opaque mult.
+
+    Require Import SemanticsFacts.
+    Require Import ScopeFacts.
+    Require Import ListFacts.
+    Require Import SetFacts.
 
     Focus 5.
 
@@ -251,6 +252,21 @@ Section TopSection.
               post_eval; clear H_eval]
       end.
 
+    Hint Resolve Subset_in_scope_In.
+
+    Require Import StringSet.
+
+    Hint Extern 0 (Subset _ _) => progress subset_solver.
+
+    Hint Extern 0 (Subset _ _) => progress simpl.
+
+    Lemma replace_it : forall w n, w ^+ $(8) ^+ $(n) = w ^+ natToW (4 * 2 + n).
+      intros.
+      rewrite natToW_plus.
+      rewrite wplus_assoc.
+      eauto.
+    Qed.
+
     destruct o.
 
     wrap0.
@@ -266,72 +282,7 @@ Section TopSection.
     unfold var_slot in *.
     unfold vars_start in *.
     repeat rewrite <- H in H5.
-    assert (List.In s vars).
-    Require Import FreeVars.
-    Require Import StringSet.
-
-    Lemma Subset_in_scope_In : forall x vars temp_size s, in_scope vars temp_size s -> Subset (singleton x) (free_vars s) -> List.In x vars.
-      admit.
-    Qed.
-
-    eapply Subset_in_scope_In.
-    eauto.
-    simpl.
-
-    Infix "+" := union : set_scope.
-    Infix "<=" := Subset : set_scope.
-    Open Scope set_scope.
-
-    Lemma subset_refl : forall s, s <= s.
-      admit.
-    Qed.
-
-    Lemma union_subset : forall a b c, a <= c -> b <= c -> a + b <= c.
-      admit.
-    Qed.
-
-    Lemma subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
-      admit.
-    Qed.
-
-    Lemma subset_union_left : forall a b c, a <= b -> a <= b + c.
-      admit.
-    Qed.
-
-    Lemma subset_union_right : forall a b c, a <= c -> a <= b + c.
-      admit.
-    Qed.
-
-    Ltac subset_solver :=
-      repeat
-        match goal with
-          | |- ?A <= ?A => eapply subset_refl
-          | |- _ + _ <= _ => eapply union_subset
-          | |- ?S <= ?A + _ =>
-            match A with
-                context [ S ] => eapply subset_trans; [ | eapply subset_union_left]
-            end
-          | |- ?S <= _ + ?B =>
-            match B with
-                context [ S ] => eapply subset_trans; [ .. | eapply subset_union_right]
-            end
-        end.
-
-    subset_solver.
-(*here*)
-    eapply subset_trans.
-    2 : eapply subset_union_left.
-    [ | eapply subset_union_left].
-    eapply subset_trans
-
-    Close Scope set_scope.
-
-    Hint Extern 0 (subset _ _) => progress subset_solver.
-
-
-
-
-
+    assert (List.In s vars) by eauto.
     assert (
         evalInstrs (fst x) x0
                    (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
@@ -340,12 +291,6 @@ Section TopSection.
     rewrite <- H11.
     Transparent evalInstrs.
     simpl.
-    Lemma replace_it : forall w n, w ^+ $(8) ^+ $(n) = w ^+ natToW (4 * 2 + n).
-      intros.
-      rewrite natToW_plus.
-      rewrite wplus_assoc.
-      eauto.
-    Qed.
     rewrite replace_it.
     eauto.
     Opaque evalInstrs.
@@ -417,11 +362,7 @@ Section TopSection.
     eauto.
     eauto.
 
-    Lemma Safe_Seq_Skip_elim : forall fs k v, Safe fs (skip ;; k) v -> Safe fs k v.
-      admit.
-    Qed.
-    
-    eapply Safe_Seq_Skip_elim; eauto.
+    eapply Safe_Seq_Skip; eauto.
     eauto.
     eauto.
 
@@ -429,12 +370,7 @@ Section TopSection.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
-    
-    Lemma RunsTo_Seq_Skip_intro : forall fs k v v', RunsTo fs k v v' -> RunsTo fs (skip ;; k) v v'.
-      admit.
-    Qed.
-
-    eapply RunsTo_Seq_Skip_intro; eauto.
+    eapply RunsTo_Seq_Skip; eauto.
 
     (* seq *)
     wrap0.
@@ -460,11 +396,6 @@ Section TopSection.
     descend.
     eauto.
     eauto.
-
-    Lemma Safe_Seq_assoc : forall fs a b c v, Safe fs ((a ;; b) ;; c) v -> Safe fs (a ;; b;; c) v.
-      admit.
-    Qed.
-
     eapply Safe_Seq_assoc; eauto.
 
     eauto.
@@ -472,23 +403,8 @@ Section TopSection.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
-
-    Lemma RunsTo_Seq_assoc : forall fs a b c v v', RunsTo fs (a ;; b ;; c) v v' -> RunsTo fs ((a ;; b) ;; c) v v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_assoc; eauto.
-
-    Lemma in_scope_Seq_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (a ;; b ;; c).
-      admit.
-    Qed.
-    
     eapply in_scope_Seq_Seq; eauto.
-
-    Lemma in_scope_Seq : forall vars temp_size a b c, in_scope vars temp_size ((a ;; b) ;; c) -> in_scope vars temp_size (b ;; c).
-      admit.
-    Qed.
-
     eapply in_scope_Seq; eauto.
 
     (* if - true *)
@@ -518,17 +434,12 @@ Section TopSection.
     instantiate (4 := (_, _)).
     simpl.
     destruct x0; simpl in *.
-    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    instantiate (5 := upd_sublist x5 0 x4).
     repeat rewrite length_upd_sublist.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
-
-    Lemma Safe_Seq_If_true : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (t ;; k) v.
-      admit.
-    Qed.
-
     eapply Safe_Seq_If_true; eauto.
     rewrite length_upd_sublist; eauto.
     eauto.
@@ -538,17 +449,7 @@ Section TopSection.
 
     descend.
     find_cond.
-
-    Lemma RunsTo_Seq_If_true : forall fs e t f k v v', RunsTo fs (t ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.If e t f ;; k) v v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_If_true; eauto.
-    
-    Lemma in_scope_If_true : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (t ;; k).
-      admit.
-    Qed.
-
     eapply in_scope_If_true; eauto.
 
     (* if - false *)
@@ -578,17 +479,12 @@ Section TopSection.
     instantiate (4 := (_, _)).
     simpl.
     destruct x0; simpl in *.
-    instantiate (5 := CompileExpr.upd_sublist x5 0 x4).
+    instantiate (5 := upd_sublist x5 0 x4).
     repeat rewrite length_upd_sublist.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
-
-    Lemma Safe_Seq_If_false : forall fs e t f k v, Safe fs (Syntax.If e t f ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs (f ;; k) v.
-      admit.
-    Qed.
-
     eapply Safe_Seq_If_false; eauto.
     rewrite length_upd_sublist; eauto.
     eauto.
@@ -598,17 +494,7 @@ Section TopSection.
 
     descend.
     find_cond.
-
-    Lemma RunsTo_Seq_If_false : forall fs e t f k v v', RunsTo fs (f ;; k) v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.If e t f ;; k) v v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_If_false; eauto.
-    
-    Lemma in_scope_If_false : forall vars temp_size e t f k, in_scope vars temp_size (Syntax.If e t f ;; k) -> in_scope vars temp_size (f ;; k).
-      admit.
-    Qed.
-
     eapply in_scope_If_false; eauto.
 
     (* while *)
@@ -618,10 +504,6 @@ Section TopSection.
     eauto.
     eauto.
     find_cond.
-    Lemma Safe_Seq_While_false : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = false -> Safe fs k v.
-      admit.
-    Qed.
-
     eapply Safe_Seq_While_false; eauto.
     eauto.
     eauto.
@@ -629,11 +511,6 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
     descend.
     find_cond.
-
-    Lemma RunsTo_Seq_While_false : forall fs e s k v v', RunsTo fs k v v' -> wneb (eval (fst v) e) $0 = false -> RunsTo fs (Syntax.While e s ;; k) v v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_While_false; eauto.
 
   Qed.
