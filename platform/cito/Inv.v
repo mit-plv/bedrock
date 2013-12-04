@@ -92,27 +92,26 @@ Section layout.
     
     Variable temp_size : nat.
 
-    Definition inv_template precond postcond : assert := 
+    Definition inv_template precond postcond get_sp : assert := 
       st ~> Ex fs, 
       funcs_ok (fst st) fs /\
       ExX, Ex v, Ex temps, Ex rp,
-      ![^[is_state st#Sp rp vars v temps * mallocHeap 0] * #0] st /\
+      ![^[is_state (get_sp st) rp vars v temps * mallocHeap 0] * #0] st /\
       [| precond fs v st /\
          length temps = temp_size |] /\
       (rp, fst st) 
         @@@ (
           st' ~> Ex v', Ex temps',
           ![^[is_state st'#Sp rp vars v' temps' * mallocHeap 0] * #1] st' /\
-          [| postcond fs v st v' st' /\
-             length temps' = temp_size |]).
+          [| postcond fs v st v' /\
+             length temps' = temp_size /\
+             st'#Sp = get_sp st |]).
 
     Definition inv s := 
       inv_template
-        (fun fs v _ =>
-           Safe fs s v)
-        (fun fs v st v' st' =>
-           RunsTo fs s v v' /\
-           st'#Sp = st#Sp).
+        (fun fs v _ => Safe fs s v)
+        (fun fs v _ v' => RunsTo fs s v v')
+        (fun st => st#Sp).
     
     End vars.
 

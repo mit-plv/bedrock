@@ -21,16 +21,6 @@ Section Body.
   Require Import Semantics.
   Require Import Safe.
 
-  Definition loop_inv cond body k : assert := 
-    let s := Syntax.Seq (Syntax.While cond body) k in
-    inv_template layout vars temp_size
-      (fun fs v st => 
-         Safe fs s v /\
-         st#Rv = eval (fst v) cond)
-      (fun fs v st v' st' =>
-         RunsTo fs s v v' /\
-         st'#Sp = st#Sp).
-
   Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
   Definition vars_start := 4 * 2.
   Definition temp_start := vars_start + 4 * length vars.
@@ -41,15 +31,25 @@ Section Body.
   Definition callee_stack_start := frame_len.
   Definition callee_stack_slot n := LvMem (Sp + (callee_stack_start + 4 * n)%nat)%loc.
 
+  Definition loop_inv cond body k : assert := 
+    let s := Syntax.Seq (Syntax.While cond body) k in
+    inv_template layout vars temp_size
+      (fun fs v st => 
+         Safe fs s v /\
+         st#Rv = eval (fst v) cond)
+      (fun fs v st v' =>
+         RunsTo fs s v v')
+      (fun st => st#Sp).
+
   Definition after_call ret k : assert :=
     inv_template layout vars temp_size
       (fun fs v st => 
-         Safe fs k v)
-      (fun fs v st v' st' =>
          let v := (upd_option (fst v) ret st#Rv, snd v) in
-         RunsTo fs k v v' /\
-         let old_sp := st#Sp ^- frame_len_w in
-         st'#Sp = old_sp).
+         Safe fs k v)
+      (fun fs v st v' =>
+         let v := (upd_option (fst v) ret st#Rv, snd v) in
+         RunsTo fs k v v')
+      (fun st => st#Sp ^- frame_len_w).
 
   Require CompileExpr.
 

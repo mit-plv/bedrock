@@ -106,10 +106,6 @@ Section TopSection.
     Focus 5.
 
     (* call *)
-    destruct o.
-    wrap0.
-    post.
-
     Ltac not_exist t :=
       match goal with
         | H : t |- _ => fail 1
@@ -255,20 +251,81 @@ Section TopSection.
               post_eval; clear H_eval]
       end.
 
+    destruct o.
+
+    wrap0.
+    post.
+    clear_imports.
+    set (P := is_state _) in *.
     eval_instrs auto_ext.
+    subst P.
     unfold is_state in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
     unfold var_slot in *.
     unfold vars_start in *.
+    repeat rewrite <- H in H5.
     assert (List.In s vars) by admit.
     assert (
         evalInstrs (fst x) x0
-                   (Assign (LvMem (Imm ((Regs x1 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
+                   (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
                            :: nil) = Some (snd x)
 ) by admit; clear H11.
+    clear_imports.
+    set (P := is_heap _) in *.
     eval_instrs auto_ext.
+    subst P.
     destruct x; simpl in *.
     destruct x4; simpl in *.
-    (*here*)
+    rewrite <- H in H1.
+    repeat rewrite H1.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)); simpl.
+    instantiate (6 := upd v s (Regs x0 Rv)).
+    instantiate (4 := h).
+    instantiate (4 := x5).
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    rewrite H14.
+    eauto.
+    eauto.
+    eauto.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    descend.
+    descend.
+
+    wrap0.
+    post.
+    clear_imports.
+    set (P := is_state _) in *.
+    eval_instrs auto_ext.
+    subst P.
+    unfold is_state in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    repeat rewrite <- H in H9.
+    destruct x; simpl in *.
+    destruct x3; simpl in *.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)); simpl.
+    instantiate (6 := v).
+    instantiate (4 := h).
+    instantiate (4 := x4).
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
+    eauto.
+    eauto.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    descend.
 
     (* skip *)
 
