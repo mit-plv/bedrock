@@ -129,6 +129,7 @@ Section TopSection.
 
     eapply in_scope_If_e; eauto.
 
+    clear_imports.
     evaluate auto_ext.
 
     (* true *)
@@ -202,8 +203,184 @@ Section TopSection.
     eapply in_scope_If_false; eauto.
 
     (* while *)
+    wrap0.
+    unfold CompileExpr.imply in *.
+    unfold CompileExpr.new_pre in *.
+    unfold CompileExpr.is_state in *.
+    intros.
+    eapply H2 in H.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold is_state in *.
+    post.
+    descend.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
 
-    
+    Lemma in_scope_While_e : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> CompileExpr.in_scope vars temp_size e 0.
+      admit.
+    Qed.
+
+    eapply in_scope_While_e; eauto.
+
+    eapply H2 in H0.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold is_state in *.
+    unfold CompileExpr.runs_to in *.
+    unfold CompileExpr.is_state in *.
+    post.
+    transit.
+    destruct x2; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)); simpl.
+    instantiate (5 := upd_sublist x3 0 x2).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
+    eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+
+    unfold evalCond in *.
+    simpl in *.
+    discriminate H0.
+
+    unfold TopSection.compile in H0.
+    eapply post_ok in H0.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold is_state in *.
+    unfold CompileExpr.runs_to in *.
+    unfold CompileExpr.is_state in *.
+    post.
+    transit.
+    destruct x2; simpl in *.
+    post.
+    descend.
+    eauto.
+    instantiate (4 := (_, _)); simpl.
+    instantiate (5 := upd_sublist x3 0 x2).
+    repeat rewrite length_upd_sublist.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
+    eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+
+    unfold verifCond in *.
+    unfold imply in *.
+    wrap0.
+    post.
+    descend.
+    eauto.
+    eauto.
+    find_cond.
+    Require Import SemanticsExpr.
+    Lemma Safe_Seq_While_true : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (s ;; Syntax.While e s ;; k) v.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_While_true; eauto.
+    eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+
+    Lemma RunsTo_Seq_While_true : forall fs e s k v v', RunsTo fs (s ;; Syntax.While e s ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.While e s ;; k) v v'.
+      admit.
+    Qed.
+
+    find_cond.
+    eapply RunsTo_Seq_While_true; eauto.
+
+    Lemma in_scope_While : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> in_scope vars temp_size (s ;; Syntax.While e s ;; k).
+      admit.
+    Qed.
+
+    eapply in_scope_While; eauto.
+
+    eapply IHs.
+    wrap0.
+    post.
+    descend.
+    eauto.
+    eauto.
+    find_cond.
+    eapply Safe_Seq_While_true; eauto.
+    eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+    eapply RunsTo_Seq_While_true; eauto.
+    eapply in_scope_While; eauto.
+
+    unfold CompileExpr.verifCond in *.
+    unfold CompileExpr.imply in *.
+    wrap0.
+    unfold TopSection.compile in H.
+    eapply post_ok in H.
+    unfold postcond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+    descend.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
+
+    unfold verifCond in *.
+    unfold imply in *.
+    wrap0.
+    post.
+    descend.
+    eauto.
+    eauto.
+    find_cond.
+    eapply Safe_Seq_While_true; eauto.
+    eauto.
+    eauto.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    find_cond.
+    eapply RunsTo_Seq_While_true; eauto.
+    eapply in_scope_While; eauto.
+
+    eapply in_scope_While_e; eauto.
+
+    (* call *)
+    admit.
+
   Qed.
 
 End TopSection.

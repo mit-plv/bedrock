@@ -3,7 +3,7 @@ BEDROCK := ../..
 MODULES := \
 	StringSet ValsStringSet SetUtil \
 	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
-	GeneralTactics SafeCoind \
+	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
 	Inv \
 	DepthExpr Max Depth \
@@ -12,6 +12,7 @@ MODULES := \
 	CompileStmtTactics \
 	PostOk \
 	# VerifCondOk CompileStmt \
+	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
 	# SemanticsExprLemmas SemanticsLemmas \

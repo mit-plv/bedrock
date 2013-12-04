@@ -99,27 +99,16 @@ Section fs.
         RunsTo a v v' -> 
         RunsTo b v' v'' -> 
         RunsTo (Syntax.Seq a b) v v''
-  | IfTrue : 
+  | If : 
       forall cond t f v v', 
-        wneb (eval (fst v) cond) $0 = true -> 
-        RunsTo t v v' -> 
+        let b := wneb (eval (fst v) cond) $0 in
+        b = true /\ RunsTo t v v' \/ b = false /\ RunsTo f v v' ->
         RunsTo (Syntax.If cond t f) v v'
-  | IfFalse : 
-      forall cond t f v v', 
-        wneb (eval (fst v) cond) $0 = false -> 
-        RunsTo f v v' -> 
-        RunsTo (Syntax.If cond t f) v v'
-  | WhileTrue : 
-      forall cond body v v' v'', 
-        let statement := While cond body in
-        wneb (eval (fst v) cond) $0 = true -> 
-        RunsTo body v v' -> 
-        RunsTo statement v' v'' -> 
-        RunsTo statement v v''
-  | WhileFalse : 
-      forall cond body v, 
-        wneb (eval (fst v) cond) $0 = false -> 
-        RunsTo (While cond body) v v
+  | While : 
+      forall cond body v v', 
+        let loop := While cond body in
+        RunsTo (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v v' ->
+        RunsTo loop v v'
   | CallInternal : 
       forall var f args v spec vs_callee vs_callee' heap',
         let vs := fst v in
