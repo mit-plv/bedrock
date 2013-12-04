@@ -4,7 +4,6 @@ Require Import SemanticsExpr.
 Require Import Notations.
 
 Local Open Scope stmt.
-Local Notation skip := Syntax.Skip.
 
 Lemma Safe_Seq_Skip : forall fs k v, Safe fs (skip ;; k) v -> Safe fs k v.
   admit.
