@@ -266,12 +266,89 @@ Section TopSection.
     unfold var_slot in *.
     unfold vars_start in *.
     repeat rewrite <- H in H5.
-    assert (List.In s vars) by admit.
+    assert (List.In s vars).
+    Require Import FreeVars.
+    Require Import StringSet.
+
+    Lemma Subset_in_scope_In : forall x vars temp_size s, in_scope vars temp_size s -> Subset (singleton x) (free_vars s) -> List.In x vars.
+      admit.
+    Qed.
+
+    eapply Subset_in_scope_In.
+    eauto.
+    simpl.
+
+    Infix "+" := union : set_scope.
+    Infix "<=" := Subset : set_scope.
+    Open Scope set_scope.
+
+    Lemma subset_refl : forall s, s <= s.
+      admit.
+    Qed.
+
+    Lemma union_subset : forall a b c, a <= c -> b <= c -> a + b <= c.
+      admit.
+    Qed.
+
+    Lemma subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
+      admit.
+    Qed.
+
+    Lemma subset_union_left : forall a b c, a <= b -> a <= b + c.
+      admit.
+    Qed.
+
+    Lemma subset_union_right : forall a b c, a <= c -> a <= b + c.
+      admit.
+    Qed.
+
+    Ltac subset_solver :=
+      repeat
+        match goal with
+          | |- ?A <= ?A => eapply subset_refl
+          | |- _ + _ <= _ => eapply union_subset
+          | |- ?S <= ?A + _ =>
+            match A with
+                context [ S ] => eapply subset_trans; [ | eapply subset_union_left]
+            end
+          | |- ?S <= _ + ?B =>
+            match B with
+                context [ S ] => eapply subset_trans; [ .. | eapply subset_union_right]
+            end
+        end.
+
+    subset_solver.
+(*here*)
+    eapply subset_trans.
+    2 : eapply subset_union_left.
+    [ | eapply subset_union_left].
+    eapply subset_trans
+
+    Close Scope set_scope.
+
+    Hint Extern 0 (subset _ _) => progress subset_solver.
+
+
+
+
+
     assert (
         evalInstrs (fst x) x0
                    (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
                            :: nil) = Some (snd x)
-) by admit; clear H11.
+) ; [ | clear H11 ].
+    rewrite <- H11.
+    Transparent evalInstrs.
+    simpl.
+    Lemma replace_it : forall w n, w ^+ $(8) ^+ $(n) = w ^+ natToW (4 * 2 + n).
+      intros.
+      rewrite natToW_plus.
+      rewrite wplus_assoc.
+      eauto.
+    Qed.
+    rewrite replace_it.
+    eauto.
+    Opaque evalInstrs.
     clear_imports.
     set (P := is_heap _) in *.
     eval_instrs auto_ext.
