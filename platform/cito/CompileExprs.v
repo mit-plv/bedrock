@@ -31,6 +31,7 @@ Section TopLevel.
   Definition depth := max_list (map depth exprs) 0.
 
   Require CompileExpr.
+  Require Import ListFacts.
 
   Local Open Scope nat.
 
@@ -41,7 +42,7 @@ Section TopLevel.
       length result = length exprs /\
       Regs x Sp = x_pre#Sp /\
       exists changed,
-        interp specs (![is_state (Regs x Sp) vs (CompileExpr.upd_sublist temps base changed) (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
+        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
         length changed <= depth.
 
   Definition post (pre : assert) := 
