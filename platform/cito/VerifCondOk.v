@@ -39,6 +39,7 @@ Section TopSection.
     Require Import StringSet.
     Require Import SetFacts.
     Require Import CompileStmtTactics.
+    Require Import PostOk.
 
     Open Scope stmt.
 
@@ -50,6 +51,34 @@ Section TopSection.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
 
     unfold verifCond, imply; induction s.
+
+    Focus 5.
+
+    (* call *)
+    wrap0.
+    unfold stack_slot in *.
+    eapply H2 in H.
+    unfold precond, inv, inv_template, is_state in *.
+    unfold has_extra_stack in *.
+    post.
+    replace (4 * 1) with 4 in * by eauto.
+    Ltac evaluate' hints :=
+      match goal with
+        | [ H : Safe _ _ _ |- _ ] =>
+          generalize dependent H; clear_imports; evaluate hints; intro
+      end.
+
+    evaluate' auto_ext.
+
+    unfold CompileExprs.imply in *.
+    unfold CompileExprs.new_pre in *.
+    unfold CompileExprs.is_state in *.
+    post.
+    eapply H2 in H0.
+    unfold precond, inv, inv_template, is_state in *.
+    post.
+
+    admit.
 
     (* skip *)
     wrap0.
@@ -77,7 +106,6 @@ Section TopSection.
 
     eapply IHs2.
     wrap0.
-    Require Import PostOk.
     unfold TopSection.compile in H.
     eapply post_ok in H.
     unfold postcond in *.
@@ -352,9 +380,6 @@ Section TopSection.
     eapply in_scope_While; eauto.
 
     eapply in_scope_While_e; eauto.
-
-    (* call *)
-    admit.
 
   Qed.
 
