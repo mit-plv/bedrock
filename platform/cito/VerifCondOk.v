@@ -113,9 +113,21 @@ Section TopSection.
 ) by admit; clear H10.
     assert ($0 < natToW (wordToNat x7 - 2)) by admit.
     assert (
-        evalInstrs s s0 (Assign Rv (LvMem (Imm (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) = Some s0
+        evalInstrs s s0 (Assign Rv (LvMem (Imm (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) = Some x0
       ) by admit.
+    assert False.
+    generalize H13 H10 H14; clear; intros.
     eval_instrs auto_ext.
+    assert (
+        interp specs
+          (![(fun (stn : ST.settings) (sm : smem) => x2 (stn, sm)) *
+             (Ex ls : list W,
+                    array ls
+                      (Regs s0 Sp
+                       ^+ $ (callee_stack_start vars temp_size + 8)) *
+                    [|Datatypes.length ls = wordToNat x7 - 2|])] 
+             (s, s0))
+      ) by admit; clear H13.
     post.
     evaluate' auto_ext.
 
