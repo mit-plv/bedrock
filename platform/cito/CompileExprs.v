@@ -13,16 +13,16 @@ Section TopLevel.
 
   Variable base dst : nat.
 
-  Definition is_state sp vs temps result : HProp :=
+  Definition is_state sp vs temps dst_buf : HProp :=
     (locals vars vs 0 (sp ^+ $8) *
      array temps (sp ^+ $8 ^+ $(length vars)) *
-     array result (sp ^+ $ dst))%Sep.
+     array dst_buf (sp ^+ $ dst))%Sep.
 
   Definition new_pre : assert := 
-    x ~> ExX, Ex vs, Ex temps, Ex result,
-    ![^[is_state x#Sp vs temps result] * #0]x /\
+    x ~> ExX, Ex vs, Ex temps, Ex dst_buf,
+    ![^[is_state x#Sp vs temps dst_buf] * #0]x /\
     [| length temps = temp_size /\
-       length result = length exprs |].
+       length exprs <= length dst_buf |].
 
   Require Import SemanticsExpr.
   Require Import DepthExpr.
@@ -36,13 +36,13 @@ Section TopLevel.
   Local Open Scope nat.
 
   Definition runs_to x_pre x := 
-    forall specs other vs temps result,
-      interp specs (![is_state x_pre#Sp vs temps result * other ] x_pre) ->
+    forall specs other vs temps dst_buf,
+      interp specs (![is_state x_pre#Sp vs temps dst_buf * other ] x_pre) ->
       length temps = temp_size /\
-      length result = length exprs /\
+      length exprs <= length dst_buf /\
       Regs x Sp = x_pre#Sp /\
       exists changed,
-        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
+        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (upd_sublist dst_buf 0 (map (eval vs) exprs)) * other ] (fst x_pre, x)) /\
         length changed <= depth.
 
   Definition post (pre : assert) := 
