@@ -76,60 +76,7 @@ Section TopSection.
     unfold has_extra_stack in *.
     post.
     evaluate' auto_ext.
-
-    unfold expose_callee_stack in *.
-    destruct (Compare_dec.zerop (Datatypes.length l)).
-    wrap0.
-    wrap0.
-    eapply H2 in H3.
-    unfold precond, inv, inv_template, is_state in *.
-    unfold has_extra_stack in *.
-    post.
-    unfold stack_slot in *.
-    replace (4 * 1) with 4 in * by eauto.
-    eval_instrs auto_ext.
-    Set Printing Coercions.
-    assert (
-        interp specs
-         (![SEP.ST.star (fun (stn : ST.settings) (sm : smem) => x1 (stn, sm))
-              (SEP.ST.star (Malloc.FreeList.mallocHeap (natToW 0))
-                 (SEP.ST.star
-                    ((Ex ls, array ls (Regs st Sp ^+ $(callee_stack_start vars temp_size + 8)) *
-                     [| length ls = wordToNat x6 - 2 |]) *
-                     (Regs x Sp ^+ $(callee_stack_start vars temp_size)) =?> 2)
-                    (SEP.ST.star (is_heap layout (snd x2))
-                       (SEP.ST.star
-                          (locals vars (fst x2) 0 (Regs x Sp ^+ natToW 8))
-                          (SEP.ST.star
-                             (array x3
-                                (Regs x Sp ^+ natToW 8
-                                 ^+ natToW (4 * Datatypes.length vars)))
-                             (SEP.ST.star (Regs x Sp =*> x4)
-                                ((Regs x Sp ^+ natToW 4) =*> x6)))))))]
-            (stn, st))
-      ) by admit; clear H3.
-    assert ($0 < natToW (wordToNat x6 - 2)) by admit.
-    assert (
-        evalInstrs stn st
-          (Assign (LvReg Rv)
-             (RvLval
-                (LvMem
-                   (Imm (Regs st Sp ^+ $(callee_stack_start vars temp_size + 8)))))
-           :: nil) = None
-      ) by admit; clear H13.
-    admit.
-    (* eval_instrs auto_ext. *)
     
-    unfold expose_callee_stack in *.
-    destruct (Compare_dec.zerop (Datatypes.length l)).
-    Lemma length_0_nil : forall A (ls : list A), length ls = 0 -> ls = nil.
-      admit.
-    Qed.
-    eapply length_0_nil in e0.
-    subst.
-    simpl in *.
-    admit.
-
     unfold CompileExprs.imply in *.
     unfold CompileExprs.new_pre in *.
     unfold CompileExprs.is_state in *.
@@ -140,56 +87,10 @@ Section TopSection.
     post.
     unfold stack_slot in *.
     replace (4 * 1) with 4 in * by eauto.
-    eval_instrs auto_ext.
+    evaluate' auto_ext.
+    destruct x3; simpl in *.
     destruct x; simpl in *.
-    assert (
-        interp specs
-         (![SEP.ST.star (fun (stn : ST.settings) (sm : smem) => x3 (stn, sm))
-              (SEP.ST.star (Malloc.FreeList.mallocHeap (natToW 0))
-                 (SEP.ST.star
-                    ((Ex ls, array ls (Regs x0 Sp ^+ $(callee_stack_start vars temp_size + 8)) * 
-                            [| length ls = wordToNat x8 - 2 |]) *
-                     (Regs x0 Sp ^+ $(callee_stack_start vars temp_size)) =?> 2)
-                    (SEP.ST.star (is_heap layout (snd x4))
-                       (SEP.ST.star
-                          (locals vars (fst x4) 0 (Regs x1 Sp ^+ natToW 8))
-                          (SEP.ST.star
-                             (array x5
-                                (Regs x1 Sp ^+ natToW 8
-                                 ^+ natToW (4 * Datatypes.length vars)))
-                             (SEP.ST.star (Regs x1 Sp =*> x6)
-                                ((Regs x1 Sp ^+ natToW 4) =*> x8)))))))]
-            (s, x0))
-) by admit; clear H3.
-    assert ($0 < natToW (wordToNat x8 - 2)) by admit.
-    assert (
-        evalInstrs s x0 (Assign Rv (LvMem (Imm (Regs x0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) = Some s0
-      ) by admit; clear H13.
-    destruct x4; simpl in *.
-    generalize H5 H14 H3; clear; intros.
-    assert (
-        interp specs
-         (![SEP.ST.star (fun (stn : ST.settings) (sm : smem) => x3 (stn, sm))
-                    ((Ex ls : list W,
-                      array ls
-                        (Regs x0 Sp
-                         ^+ $ (callee_stack_start vars temp_size + 8)) *
-                      [|Datatypes.length ls = wordToNat x8 - 2|]))]
-            (s, x0))
-      ) by admit; clear H5.
-    assert False.
-    set (wordToNat x8 - 2) in *.
-    set ($(callee_stack_start vars temp_size + 8)) in *.
-    post.
-    generalize H14 H3 H; clear; intros.
-    assert (0 < n)%nat by admit.
-    evaluate auto_ext.
-    eval_instrs auto_ext.
-
-
-
-
-
+    Set Printing Coercions.
     assert (
         interp specs
           (![SEP.ST.star
@@ -212,7 +113,7 @@ Section TopSection.
 ) by admit; clear H10.
     assert ($0 < natToW (wordToNat x7 - 2)) by admit.
     assert (
-        evalInstrs s s0 (Assign Rv (LvMem (Imm (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) <> None
+        evalInstrs s s0 (Assign Rv (LvMem (Imm (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) = Some s0
       ) by admit.
     eval_instrs auto_ext.
     post.
