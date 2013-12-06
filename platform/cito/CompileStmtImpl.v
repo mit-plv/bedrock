@@ -72,8 +72,10 @@ Section Body.
   Definition SaveRv lv := Strline (IL.Assign lv (RvLval (LvReg Rv)) :: nil).
 
   Definition CheckExtraStack (n : nat) cmd :=
-    Structured.If_ imports_global n Le (stack_slot 1) cmd
-                   (Diverge_ imports modName).
+    Seq2 
+      (Strline (IL.Assign Rv (stack_slot 1) :: nil))
+      (Structured.If_ imports_global n Le Rv cmd
+                      (Diverge_ imports modName)).
 
   Definition SaveRet var :=
     match var with
@@ -90,6 +92,12 @@ Section Body.
   Require Import Notations.
   Local Open Scope stmt.
   Local Open Scope nat.
+
+  Definition expose_callee_stack (args : list SyntaxExpr.Expr) :=
+    if Compare_dec.zerop (List.length args) then
+      Skip
+    else
+      Strline (IL.Assign Rv (LvMem (Sp + (callee_stack_start + 8)%nat)%loc) :: nil).
 
   Fixpoint compile s k :=
     match s with
@@ -111,8 +119,8 @@ Section Body.
         CheckExtraStack 
           callee_frame_len
           (Seq
-             (compile_exprs 
-                args 0 (callee_stack_start + 2)
+             (expose_callee_stack args
+                :: compile_exprs args 0 (callee_stack_start + 8)
                 :: compile_expr f 0
                 :: Strline
                 (Binop 
