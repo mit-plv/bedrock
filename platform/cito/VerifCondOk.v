@@ -182,8 +182,11 @@ Section TopSection.
     set ($(callee_stack_start vars temp_size + 8)) in *.
     post.
     generalize H14 H3 H; clear; intros.
-    assert (0 < n)%nat by admit.
-    (* here *)
+    assert (
+        evalInstrs s x0
+          (Assign (LvReg Rv) (RvLval (LvMem (Imm (Regs x0 Sp ^+ w ^+ $0)))) :: nil) =
+        Some s0
+      ) by admit; clear H14.
     evaluate auto_ext.
     eval_instrs auto_ext.
 
