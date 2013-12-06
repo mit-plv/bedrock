@@ -187,8 +187,12 @@ Section TopSection.
           (Assign (LvReg Rv) (RvLval (LvMem (Imm (Regs x0 Sp ^+ w ^+ $0)))) :: nil) =
         Some s0
       ) by admit; clear H14.
+    generalize dependent H0.
     evaluate auto_ext.
-    eval_instrs auto_ext.
+    fold (@length W) in *.
+    assert ($0 < natToW (length x)) by admit.
+    intros.
+    evaluate auto_ext.
 
 
 
