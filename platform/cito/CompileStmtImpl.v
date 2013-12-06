@@ -93,6 +93,12 @@ Section Body.
   Local Open Scope stmt.
   Local Open Scope nat.
 
+  Definition expose_callee_stack (args : list SyntaxExpr.Expr) :=
+    if Compare_dec.zerop (List.length args) then
+      Skip
+    else
+      Strline (IL.Assign Rv (LvMem (Sp + (callee_stack_start + 8)%nat)%loc) :: nil).
+
   Fixpoint compile s k :=
     match s with
       | Syntax.Skip => 
@@ -113,8 +119,8 @@ Section Body.
         CheckExtraStack 
           callee_frame_len
           (Seq
-             (compile_exprs 
-                args 0 (callee_stack_start + 8)
+             (expose_callee_stack args
+                :: compile_exprs args 0 (callee_stack_start + 8)
                 :: compile_expr f 0
                 :: Strline
                 (Binop 
