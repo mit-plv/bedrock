@@ -49,6 +49,12 @@ Section layout.
       | None => m
     end.
 
+  Fixpoint make_triples pairs outs :=
+    match pairs, outs with
+      | p :: ps, o :: os => {| Ptr := fst p; In := snd p; Out := o |} :: make_triples ps os
+      | _, _ => nil
+    end.
+
   Definition funcs_ok (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
     ((Al i, Al spec, 
       [| fs i = Some (Internal spec) |] 
@@ -67,18 +73,20 @@ Section layout.
      (Al i, Al spec, 
       [| fs i = Some (Foreign spec) |] 
         ---> (i, stn) @@@ (
-          st ~> ExX, Ex heap, Ex triples, Ex rp,
-          ![^[is_state st#Sp rp nil (empty_vs, heap) (map Ptr triples) * mallocHeap 0] * #0] st /\
-          [| List.Forall (fun x => heap_match heap (Ptr x, Semantics.In x)) triples /\
-             PreCond spec (map Semantics.In triples) |] /\
+          st ~> ExX, Ex heap, Ex pairs, Ex rp,
+          ![^[is_state st#Sp rp nil (empty_vs, heap) (map fst pairs) * mallocHeap 0] * #0] st /\
+          [| List.Forall (heap_match heap) pairs /\
+             PreCond spec (map snd pairs) |] /\
           (st#Rp, stn) 
             @@@ (
-              st' ~> Ex args', Ex heap', Ex addr, Ex ret, Ex rp',
+              st' ~> Ex args', Ex heap', Ex addr, Ex ret, Ex rp', Ex outs,
               let t := decide_ret addr ret in
               let ret_w := fst t in
               let ret_a := snd t in
               ![^[is_state st#Sp rp' nil (empty_vs, heap') args' * layout_option addr ret_a * mallocHeap 0] * #1] st' /\
-              [| PostCond spec (map (fun x => (Semantics.In x, Out x)) triples) ret /\
+              [| length outs = length pairs /\
+                 let triples := make_triples pairs outs in
+                 PostCond spec (map (fun x => (Semantics.In x, Out x)) triples) ret /\
                  length args' = length triples /\
                  let heap := fold_left store_out triples heap in
                  let heap := heap_upd_option heap addr ret_a in
