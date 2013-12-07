@@ -57,6 +57,7 @@ Section TopSection.
 
     (* call *)
     wrap0.
+    (* vc 1 *)
     unfold stack_slot in *.
     replace (4 * 1) with 4 in * by eauto.
     eapply H2 in H.
@@ -71,6 +72,7 @@ Section TopSection.
 
     evaluate' auto_ext.
 
+    (* vc 2 *)
     unfold stack_slot in *.
     replace (4 * 1) with 4 in * by eauto.
     eapply H2 in H3.
@@ -79,6 +81,7 @@ Section TopSection.
     post.
     evaluate' auto_ext.
 
+    (* vc 3 *)
     unfold CompileExprs.imply in *.
     unfold CompileExprs.new_pre in *.
     unfold CompileExprs.is_state in *.
@@ -98,6 +101,221 @@ Section TopSection.
     Require Import SepHints.
     evaluate' hints_buf_2_fwd.
     evaluate' hints_array.
+    intros.
+    descend.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    post.
+    rewrite H in *.
+    rewrite H8 in *.
+    Lemma replace_it : forall (a : W) b c, a ^+ $(4 * 2 + 4 * b + 4 * c +8) = a ^+ $8 ^+ $(4 * (b + c)) ^+ $8.
+      admit.
+    Qed.
+    rewrite replace_it.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    eauto.
+    rewrite H23.
+    admit. (* length l <= wordToNat x7 - 2 *)
+
+    (* vc 4*)
+    Lemma in_scope_Call_args : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExprs.in_scope vars temp_size args 0.
+      admit.
+    Qed.
+
+    eapply in_scope_Call_args; eauto.
+
+    (* vc 5*)
+    unfold CompileExpr.imply in *.
+    unfold CompileExpr.new_pre in *.
+    unfold CompileExpr.is_state in *.
+    post.
+    eapply H2 in H0.
+    unfold precond, inv, inv_template, is_state in *.
+    unfold has_extra_stack in *.
+    post.
+    unfold stack_slot in *.
+    replace (4 * 1) with 4 in * by eauto.
+    evaluate' auto_ext.
+    destruct x4; simpl in *.
+    destruct x; simpl in *.
+    unfold CompileExprs.post in *.
+    unfold CompileExprs.runs_to in *.
+    unfold CompileExprs.is_state in *.
+    generalize dependent H5.
+    assert (2 <= wordToNat x8) by admit.
+    evaluate' hints_buf_2_fwd.
+    evaluate' hints_array.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite <- H in *.
+    rewrite H9 in *.
+    rewrite replace_it in *.
+    transit.
+    post.
+    descend.
+    instantiate (2 := upd_sublist x5 0 x10).
+    instantiate (2 := v).
+    set (upd_sublist x5 _ _) in *.
+    set (upd_sublist x9 _ _) in *.
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+    rewrite length_upd_sublist; eauto.
+    
+    (* vc 6 *)
+    Lemma in_scope_Call_f : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExpr.in_scope vars temp_size f 0.
+      admit.
+    Qed.
+
+    eapply in_scope_Call_f; eauto.
+
+    Ltac hide_evalInstrs :=
+      repeat match goal with
+               | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
+             end.
+
+    Lemma replace_it2 : forall (a : W) b c, a ^+ $8 ^+ $(4 * (b + c)) ^+ $4 = a ^+ $(4 * 2 + 4 * b + 4 * c + 4 * 1).
+      admit.
+    Qed.
+
+    Ltac clear_all :=
+      repeat match goal with
+               | H : _ |- _ => clear H
+             end.
+
+    (* vc 7 *)
+    eapply H2 in H3.
+    unfold precond, inv, inv_template, is_state in *.
+    unfold has_extra_stack in *.
+    post.
+    unfold stack_slot in *.
+    replace (4 * 1) with 4 in * by eauto.
+    evaluate' auto_ext.
+    destruct x4; simpl in *.
+    unfold CompileExprs.runs_to in *.
+    unfold CompileExprs.is_state in *.
+    simpl in *.
+    hide_evalInstrs.
+    assert (2 <= wordToNat x8) by admit.
+    evaluate' hints_buf_2_fwd.
+    evaluate' hints_array.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite <- H in *.
+    rewrite H11 in *.
+    rewrite replace_it in *.
+    transit.
+    post.
+    unfold CompileExpr.runs_to in *.
+    unfold CompileExpr.is_state in *.
+    simpl in *.
+    set (upd_sublist x5 _ _) in *.
+    set (upd_sublist x10 _ _) in *.
+    transit.
+    post.
+    unfold callee_stack_slot in *.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite replace_it2 in *.
+    rewrite <- H17 in *.
+    rewrite <- H19 in *.
+    generalize dependent H21.
+    generalize dependent H5.
+    clear_all.
+    intros.
+    eval_instrs auto_ext.
+
+    (* vc 8 *)
+    eapply H2 in H3.
+    unfold precond, inv, inv_template, is_state in *.
+    unfold has_extra_stack in *.
+    post.
+    unfold stack_slot in *.
+    replace (4 * 1) with 4 in * by eauto.
+    evaluate' auto_ext.
+    Ltac destruct_st :=
+      repeat 
+        match goal with
+          | [ x : (vals * Heap)%type |- _ ] => destruct x; simpl in *
+          | [ x : st |- _ ] => destruct x; simpl in *
+          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+        end.
+
+    destruct x4; simpl in *.
+    unfold CompileExprs.runs_to in *.
+    unfold CompileExprs.is_state in *.
+    simpl in *.
+    hide_evalInstrs.
+    assert (2 <= wordToNat x8) by admit.
+    evaluate' hints_buf_2_fwd.
+    evaluate' hints_array.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite <- H in *.
+    rewrite H11 in *.
+    rewrite replace_it in *.
+    transit.
+    post.
+    unfold CompileExpr.runs_to in *.
+    unfold CompileExpr.is_state in *.
+    simpl in *.
+    set (upd_sublist x5 _ _) in *.
+    set (upd_sublist x10 _ _) in *.
+    transit.
+    post.
+    unfold callee_stack_slot in *.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite replace_it2 in *.
+    rewrite <- H17 in *.
+    rewrite <- H19 in *.
+    generalize dependent H21.
+    generalize dependent H5.
+    clear_all.
+    intros.
+    eval_instrs auto_ext.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     (*here*)
 
     assert (
