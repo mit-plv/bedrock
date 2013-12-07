@@ -55,8 +55,147 @@ Section TopSection.
 
     Set Printing Coercions.
 
+    Require Import SemanticsExpr.
+    Require Import SepHints.
+    Require Import GeneralTactics.
+
+    Open Scope nat.
+
+    Lemma replace_it : forall (a : W) b c, a ^+ $(4 * 2 + 4 * b + 4 * c +8) = a ^+ $8 ^+ $(4 * (b + c)) ^+ $8.
+      admit.
+    Qed.
+
+    Lemma replace_it2 : forall (a : W) b c, a ^+ $8 ^+ $(4 * (b + c)) ^+ $4 = a ^+ $(4 * 2 + 4 * b + 4 * c + 4 * 1).
+      admit.
+    Qed.
+
+    Ltac evaluate' hints :=
+      match goal with
+        | [ H : Safe _ _ _ |- _ ] =>
+          generalize dependent H; clear_imports; evaluate hints; intro
+      end.
+
+    Ltac hide_evalInstrs :=
+      repeat match goal with
+               | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
+             end.
+
+    Ltac clear_all :=
+      repeat match goal with
+               | H : _ |- _ => clear H
+             end.
+
+    Ltac destruct_state :=
+      repeat 
+        match goal with
+          | [ x : State |- _ ] => destruct x; simpl in *
+          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+        end.
+
+    Ltac hide_all_eq_except H1 :=
+      repeat match goal with
+               | H : _ = _ |- _ => not_eq H H1; generalize dependent H
+             end.
+
+    Ltac unfold_all :=
+      repeat match goal with
+               | H := _ |- _ => unfold H in *; clear H
+             end.
+
     (* call *)
     wrap0.
+
+    Focus 8.
+
+    (* vc 8 *)
+    eapply H2 in H3.
+    unfold precond, inv, inv_template, is_state in *.
+    unfold has_extra_stack in *.
+    post.
+    unfold stack_slot in *.
+    replace (4 * 1) with 4 in * by eauto.
+    evaluate' auto_ext.
+    destruct_state.
+    unfold CompileExprs.runs_to in *.
+    unfold CompileExprs.is_state in *.
+    simpl in *.
+    hide_evalInstrs.
+    assert (2 <= wordToNat x9) by admit.
+    evaluate' hints_buf_2_fwd.
+    evaluate' hints_array.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite <- H in *.
+    rewrite H12 in *.
+    rewrite replace_it in *.
+    transit.
+    post.
+    unfold CompileExpr.runs_to in *.
+    unfold CompileExpr.is_state in *.
+    simpl in *.
+    set (upd_sublist x6 _ _) in *.
+    set (upd_sublist x11 _ _) in *.
+    transit.
+    post.
+    unfold callee_stack_slot in *.
+    unfold callee_stack_start in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    rewrite replace_it2 in *.
+    rewrite <- H18 in *.
+    rewrite <- H20 in *.
+    hide_all_eq_except H6.
+    eval_instrs auto_ext.
+
+    inversion H16; clear H16; subst.
+    inversion H29; clear H29; subst.
+    Focus 2.
+
+    (* foreign *)
+    unfold_all.
+    simpl in *.
+    Transparent funcs_ok.
+    unfold funcs_ok in H7.
+    simpl in *.
+    post.
+    specialize (Imply_sound (H12 _ _) (Inj_I _ _ H18)); propxFo.
+    descend.
+    rewrite H2.
+    rewrite H26.
+    eauto.
+    step auto_ext.
+    descend.
+    clear H29.
+    clear H12.
+    clear H6.
+    clear H5 H13.
+    repeat match goal with
+               | H : evalInstrs _ _ _ = _ |- _ => clear H
+           end.
+    
+    instantiate (2 := pairs).
+    rewrite <- H28.
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    simpl in *.
+    rewrite H.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    (* here *)
+
+    step auto_ext.
+
+
+
+
+
+
+
     (* vc 1 *)
     unfold stack_slot in *.
     replace (4 * 1) with 4 in * by eauto.
@@ -64,12 +203,6 @@ Section TopSection.
     unfold precond, inv, inv_template, is_state in *.
     unfold has_extra_stack in *.
     post.
-    Ltac evaluate' hints :=
-      match goal with
-        | [ H : Safe _ _ _ |- _ ] =>
-          generalize dependent H; clear_imports; evaluate hints; intro
-      end.
-
     evaluate' auto_ext.
 
     (* vc 2 *)
@@ -96,9 +229,7 @@ Section TopSection.
     destruct x3; simpl in *.
     destruct x; simpl in *.
     generalize dependent H4.
-    Open Scope nat.
     assert (2 <= wordToNat x7) by admit.
-    Require Import SepHints.
     evaluate' hints_buf_2_fwd.
     evaluate' hints_array.
     intros.
@@ -110,9 +241,6 @@ Section TopSection.
     post.
     rewrite H in *.
     rewrite H8 in *.
-    Lemma replace_it : forall (a : W) b c, a ^+ $(4 * 2 + 4 * b + 4 * c +8) = a ^+ $8 ^+ $(4 * (b + c)) ^+ $8.
-      admit.
-    Qed.
     rewrite replace_it.
     clear_imports.
     repeat hiding ltac:(step auto_ext).
@@ -173,20 +301,6 @@ Section TopSection.
 
     eapply in_scope_Call_f; eauto.
 
-    Ltac hide_evalInstrs :=
-      repeat match goal with
-               | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
-             end.
-
-    Lemma replace_it2 : forall (a : W) b c, a ^+ $8 ^+ $(4 * (b + c)) ^+ $4 = a ^+ $(4 * 2 + 4 * b + 4 * c + 4 * 1).
-      admit.
-    Qed.
-
-    Ltac clear_all :=
-      repeat match goal with
-               | H : _ |- _ => clear H
-             end.
-
     (* vc 7 *)
     eapply H2 in H3.
     unfold precond, inv, inv_template, is_state in *.
@@ -233,59 +347,6 @@ Section TopSection.
     intros.
     eval_instrs auto_ext.
 
-    (* vc 8 *)
-    eapply H2 in H3.
-    unfold precond, inv, inv_template, is_state in *.
-    unfold has_extra_stack in *.
-    post.
-    unfold stack_slot in *.
-    replace (4 * 1) with 4 in * by eauto.
-    evaluate' auto_ext.
-    Ltac destruct_st :=
-      repeat 
-        match goal with
-          | [ x : (vals * Heap)%type |- _ ] => destruct x; simpl in *
-          | [ x : st |- _ ] => destruct x; simpl in *
-          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
-        end.
-
-    destruct x4; simpl in *.
-    unfold CompileExprs.runs_to in *.
-    unfold CompileExprs.is_state in *.
-    simpl in *.
-    hide_evalInstrs.
-    assert (2 <= wordToNat x8) by admit.
-    evaluate' hints_buf_2_fwd.
-    evaluate' hints_array.
-    unfold callee_stack_start in *.
-    unfold frame_len in *.
-    unfold temp_start in *.
-    unfold vars_start in *.
-    rewrite <- H in *.
-    rewrite H11 in *.
-    rewrite replace_it in *.
-    transit.
-    post.
-    unfold CompileExpr.runs_to in *.
-    unfold CompileExpr.is_state in *.
-    simpl in *.
-    set (upd_sublist x5 _ _) in *.
-    set (upd_sublist x10 _ _) in *.
-    transit.
-    post.
-    unfold callee_stack_slot in *.
-    unfold callee_stack_start in *.
-    unfold frame_len in *.
-    unfold temp_start in *.
-    unfold vars_start in *.
-    rewrite replace_it2 in *.
-    rewrite <- H17 in *.
-    rewrite <- H19 in *.
-    generalize dependent H21.
-    generalize dependent H5.
-    clear_all.
-    intros.
-    eval_instrs auto_ext.
 
 
 
@@ -294,130 +355,13 @@ Section TopSection.
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    (*here*)
-
-    assert (
-        interp specs
-         (![SEP.ST.star (fun (stn : ST.settings) (sm : smem) => x3 (stn, sm))
-              (SEP.ST.star (Malloc.FreeList.mallocHeap (natToW 0))
-                 (SEP.ST.star
-                    ((Ex ls, array ls (Regs x0 Sp ^+ $(callee_stack_start vars temp_size + 8)) * 
-                            [| length ls = wordToNat x8 - 2 |]) *
-                     (Regs x0 Sp ^+ $(callee_stack_start vars temp_size)) =?> 2)
-                    (SEP.ST.star (is_heap layout (snd x4))
-                       (SEP.ST.star
-                          (locals vars (fst x4) 0 (Regs x1 Sp ^+ natToW 8))
-                          (SEP.ST.star
-                             (array x5
-                                (Regs x1 Sp ^+ natToW 8
-                                 ^+ natToW (4 * Datatypes.length vars)))
-                             (SEP.ST.star (Regs x1 Sp =*> x6)
-                                ((Regs x1 Sp ^+ natToW 4) =*> x8)))))))]
-            (s, x0))
-) by admit; clear H3.
-    assert ($0 < natToW (wordToNat x8 - 2)) by admit.
-    assert (
-        evalInstrs s x0 (Assign Rv (LvMem (Imm (Regs x0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) = Some s0
-      ) by admit; clear H13.
-    destruct x4; simpl in *.
-    generalize H5 H14 H3; clear; intros.
-    assert (
-        interp specs
-         (![SEP.ST.star (fun (stn : ST.settings) (sm : smem) => x3 (stn, sm))
-                    ((Ex ls : list W,
-                      array ls
-                        (Regs x0 Sp
-                         ^+ $ (callee_stack_start vars temp_size + 8)) *
-                      [|Datatypes.length ls = wordToNat x8 - 2|]))]
-            (s, x0))
-      ) by admit; clear H5.
-    assert False.
-    set (wordToNat x8 - 2) in *.
-    set ($(callee_stack_start vars temp_size + 8)) in *.
-    post.
-    generalize H14 H3 H; clear; intros.
-    assert (
-        evalInstrs s x0
-          (Assign (LvReg Rv) (RvLval (LvMem (Imm (Regs x0 Sp ^+ w ^+ $0)))) :: nil) =
-        Some s0
-      ) by admit; clear H14.
-    generalize dependent H0.
-    evaluate auto_ext.
-    fold (@length W) in *.
-    assert ($0 < natToW (length x)) by admit.
-    intros.
-    evaluate auto_ext.
-
-
-
-
-
-    assert (
-        interp specs
-          (![SEP.ST.star
-               (fun (stn : ST.settings) (sm : smem) => x2 (stn, sm))
-               (SEP.ST.star (Malloc.FreeList.mallocHeap (natToW 0))
-                  (SEP.ST.star
-                     ((Ex ls, array ls (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)) * [| length ls = wordToNat x7 - 2 |]) *
-                      (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)) =?> 2
-                     )
-                     (SEP.ST.star (is_heap layout h)
-                        (SEP.ST.star
-                           (locals vars v 0 (Regs x0 Sp ^+ natToW 8))
-                           (SEP.ST.star
-                              (array x4
-                                 (Regs x0 Sp ^+ natToW 8
-                                  ^+ natToW (4 * Datatypes.length vars)))
-                              (SEP.ST.star (Regs x0 Sp =*> x5)
-                                 ((Regs x0 Sp ^+ natToW 4) =*> x7)))))))]
-             (s, s0))
-) by admit; clear H10.
-    assert ($0 < natToW (wordToNat x7 - 2)) by admit.
-    assert (
-        evalInstrs s s0 (Assign Rv (LvMem (Imm (Regs s0 Sp ^+ $(callee_stack_start vars temp_size + 8)))) :: nil) <> None
-      ) by admit.
-    eval_instrs auto_ext.
-    post.
-    evaluate' auto_ext.
-
-    post.
-
-
-    descend.
-
-    le_wordToN
-
-
-    admit.
-
-    Require Import PostOk.
 
     (* skip *)
     wrap0.
 
     (* seq *)
+    Require Import PostOk.
+
     wrap0.
     eapply IHs1.
     wrap0.
