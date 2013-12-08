@@ -392,12 +392,6 @@ Section TopSection.
 
     Focus 2.
 
-    Fixpoint heap_upd_option h addr a :=
-      match a with
-        | None => h
-        | Some v => heap_upd h addr v
-      end.
-
     rewrite fold_second in *.
     set (snd (decide_ret _ _)) in *.
     destruct_state.
@@ -413,8 +407,9 @@ Section TopSection.
 
     hiding ltac:(step auto_ext).
 
-    admit. (* himp specs (layout_option layout x17 y * is_heap layout h0)%Sep
-     (is_heap layout (heap_upd_option h0 x17 y)) *)
+    Require Import SepLemmas.
+
+    eapply is_heap_upd_option_bwd.
 
     simpl in *.
 
