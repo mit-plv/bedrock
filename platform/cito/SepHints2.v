@@ -15,6 +15,17 @@ Lemma array_split : forall ls p pos, splittable ls pos -> array_to_split ls p po
   admit.
 Qed.
 
+Definition to_elim (_ : list W) := True.
+
+Lemma array_elim : forall ls p, to_elim ls -> array ls p ===> p =?> length ls.
+  admit.
+Qed.
+
 Definition hints_array_split : TacPackage.
   prepare array_split tt.
 Defined.
+
+Definition hints_array_elim : TacPackage.
+  prepare array_elim tt.
+Defined.
+

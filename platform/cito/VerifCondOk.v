@@ -120,7 +120,7 @@ Section TopSection.
     unfold CompileExprs.is_state in *.
     simpl in *.
     hide_evalInstrs.
-    assert (2 <= wordToNat x9) by admit.
+    assert (2 <= x8) by admit.
     evaluate' hints_buf_2_fwd.
     evaluate' hints_array.
     unfold callee_stack_start in *.
@@ -158,10 +158,12 @@ Section TopSection.
     unfold_all.
     simpl in *.
     Transparent funcs_ok.
+    generalize H7; intro is_funcs_ok.
     unfold funcs_ok in H7.
+    Opaque funcs_ok.
     simpl in *.
     post.
-    specialize (Imply_sound (H12 _ _) (Inj_I _ _ H18)); propxFo.
+    specialize (Imply_sound (H12 _ _) (Inj_I _ _ H28)); propxFo.
     descend.
     rewrite H2.
     rewrite H26.
@@ -177,15 +179,15 @@ Section TopSection.
            end.
     
     instantiate (2 := pairs).
-    rewrite <- H28.
     unfold is_state in *.
     unfold has_extra_stack in *.
-    simpl in *.
-    rewrite H.
     unfold frame_len_w in *.
     unfold frame_len in *.
     unfold temp_start in *.
     unfold vars_start in *.
+    simpl in *.
+    rewrite H.
+    rewrite <- H30.
     Ltac hide_upd_sublist :=
       repeat match goal with
                | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
@@ -195,16 +197,16 @@ Section TopSection.
 
     Require Import SepHints2.
 
-    clear H32.
     clear H33.
+    clear H34.
     Ltac hide_all_eq :=
       repeat match goal with
                | H : _ = _ |- _ => generalize dependent H
              end.
 
     hide_all_eq.
-    rewrite (@replace_array_to_split l1 _ (length l)) in H3.
-    assert (splittable l1 (length l)) by admit.
+    rewrite (@replace_array_to_split l2 _ (length l)) in H3.
+    assert (splittable l2 (length l)) by admit.
     evaluate hints_array_split.
     fold (@firstn W) in *.
     fold (@skipn W) in *.
@@ -224,16 +226,6 @@ Section TopSection.
 
     erewrite skipn_upd_sublist in * by eauto.
 
-    Definition to_elim (_ : list W) := True.
-
-    Lemma array_elim : forall ls p, to_elim ls -> array ls p ===> p =?> length ls.
-      admit.
-    Qed.
-
-    Definition hints_array_elim : TacPackage.
-      prepare array_elim tt.
-    Defined.
-
     set (skipn _ _) in *.
     hide_all_eq.
     hide_upd_sublist.
@@ -243,7 +235,7 @@ Section TopSection.
     unfold_all.
     erewrite CancelIL.skipn_length in *.
     rewrite H27 in *.
-    Lemma replace_it3 : forall (w : W) n, wordToNat w - 2 - n = wordToNat (w ^- $(2 + n)).
+    Lemma replace_it3 : forall a b, $(a) ^- $(S (S b)) = natToW (a - 2 - b).
       admit.
     Qed.
 
@@ -270,13 +262,20 @@ Section TopSection.
     generalize dependent H6; clear_all; intros.
     hide_upd_sublist.
     set (map _ _) in *.
-    set (Regs x1 Rv ^- _) in *.
+    set (x8 - _ - _) in *.
 
     set (locals nil _ _ _) in *.
     unfold locals in h0.
     unfold array in h0.
     simpl in h0.
     subst h0.
+    rewrite (@Plus.plus_comm 8) in *.
+    rewrite (@Plus.plus_comm 8) in *.
+    Lemma replace6 : forall a b, 4 * a + 4 * b + 8 = 4 * a + 8 + 4 * b.
+      admit.
+    Qed.
+
+    rewrite replace6 in *.
 
     clear_imports.
     repeat hiding ltac:(step auto_ext).
@@ -285,11 +284,108 @@ Section TopSection.
     eauto.
     eauto.
 
+    (* post call *)
+    eapply existsR.
+    apply andR.
+    apply Imply_I.
+    apply interp_weaken.
+    eauto.
 
+    descend.
+    clear H13 H5 H3.
+    clear H6 H12 H29.
+    hide_upd_sublist.
 
+    clear_imports.
+    hiding ltac:(step auto_ext).
 
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    simpl in *.
+    rewrite H13 in *.
+    rewrite H in *.
+    Lemma wplus_wminus_same : forall a b : W, a ^+ b ^- b = a.
+      admit.
+    Qed.
 
+    rewrite wplus_wminus_same in *.
+    set (locals nil _ _ _) in *.
+    unfold locals in h0.
+    unfold array in h0.
+    simpl in h0.
+    subst h0.
+    rewrite Mult.mult_0_r in *.
+    rewrite wplus_0 in *.
+    replace (4 * 2) with 8 in * by omega.
+    repeat rewrite replace4 in *.
+    rewrite Mult.mult_plus_distr_l in *.
+    replace (4 * 1) with 4 in * by eauto.
+    repeat rewrite (@Plus.plus_comm 8) in *.
+    rewrite replace6 in *.
 
+    instantiate (6 := (_, _)); simpl in *.
+    instantiate (8 := v).
+    instantiate (7 := upd_sublist l0 0 x13).
+    
+    subst l0.
+    rewrite length_upd_sublist in *.
+    rewrite length_upd_sublist in *.
+    set (upd_sublist x6 _ _) in *.
+    set (upd_sublist l0 _ _) in *.
+    assert (length x15 = length l) by admit.
+    generalize H29 H4 H14 H27.
+    clear_all.
+    intros.
+
+    hiding ltac:(step auto_ext).
+    assert (to_elim x15) by (unfold to_elim; eauto).
+    hiding ltac:(step hints_array_elim).
+    rewrite H29 in *.
+    set (4 * _ + _ + 4 * _) in *.
+    Lemma replace7 : forall (a : W) b c, a ^+ $(b + c) = a ^+ $(b) ^+ $(c).
+      admit.
+    Qed.
+
+    repeat rewrite replace7 in *.
+    set (Regs x Sp ^+ _) in *.
+
+    set (length l) in *.
+    set (x8 - _ - _) in *.
+
+    Definition buf_to_split p len (_ : nat) := (p =?> len)%Sep.
+
+    Definition buf_splittable (len pos : nat) := pos <= len.
+
+    Lemma buf_split_bwd : forall p len pos, buf_splittable len pos -> p =?> pos * (p ^+ $(4 * pos)) =?> (len - pos) ===> buf_to_split p len pos.
+      admit.
+    Qed.
+
+    Definition hints_buf_split_bwd : TacPackage.
+      prepare tt buf_split_bwd.
+    Defined.
+
+    replace (w =?> x8)%Sep with (buf_to_split w x8 2) by (unfold buf_to_split; eauto).
+    assert (buf_splittable x8 2) by admit.
+    hiding ltac:(step hints_buf_split_bwd).
+    post.
+    hiding ltac:(step auto_ext).
+
+    replace (4 * 2) with 8 in * by omega.
+
+    set (w ^+ _) in *.
+    set (x8 - _) in *.
+    subst n1.
+    set (length l) in *.
+    replace (w0 =?> n0)%Sep with (buf_to_split w0 n0 n1) by (unfold buf_to_split; eauto).
+    assert (buf_splittable n0 n1) by admit.
+    hiding ltac:(step hints_buf_split_bwd).
+
+    simpl in *.
+    (* here *)
 
 
     (* vc 1 *)
