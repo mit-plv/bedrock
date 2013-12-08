@@ -10,8 +10,8 @@ MODULES := \
 	CompileStmtSpec CompileExpr Notations CompileExprs CompileStmtImpl \
 	SetFacts ScopeFacts SemanticsFacts ListFacts \
 	CompileStmtTactics \
-	PostOk \
-	SepHints \
+	SepHints SepHints2 \
+	# PostOk \
 	# VerifCondOk \
 	# CompileStmt \
 	# SafeCoind \

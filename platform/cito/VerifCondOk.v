@@ -186,9 +186,105 @@ Section TopSection.
     unfold frame_len in *.
     unfold temp_start in *.
     unfold vars_start in *.
-    (* here *)
+    Ltac hide_upd_sublist :=
+      repeat match goal with
+               | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
+             end.
 
-    step auto_ext.
+    hide_upd_sublist.
+
+    Require Import SepHints2.
+
+    clear H32.
+    clear H33.
+    Ltac hide_all_eq :=
+      repeat match goal with
+               | H : _ = _ |- _ => generalize dependent H
+             end.
+
+    hide_all_eq.
+    rewrite (@replace_array_to_split l1 _ (length l)) in H3.
+    assert (splittable l1 (length l)) by admit.
+    evaluate hints_array_split.
+    fold (@firstn W) in *.
+    fold (@skipn W) in *.
+    intros.
+    unfold_all.
+    Hint Resolve map_length.
+
+    Lemma firstn_upd_sublist : forall a b n, n = length b -> firstn n (upd_sublist a 0 b) = b.
+      admit.
+    Qed.
+    
+    erewrite firstn_upd_sublist in * by eauto.
+
+    Lemma skipn_upd_sublist : forall a b n, n = length b -> skipn n (upd_sublist a 0 b) = skipn n a.
+      admit.
+    Qed.
+
+    erewrite skipn_upd_sublist in * by eauto.
+
+    Definition to_elim (_ : list W) := True.
+
+    Lemma array_elim : forall ls p, to_elim ls -> array ls p ===> p =?> length ls.
+      admit.
+    Qed.
+
+    Definition hints_array_elim : TacPackage.
+      prepare array_elim tt.
+    Defined.
+
+    set (skipn _ _) in *.
+    hide_all_eq.
+    hide_upd_sublist.
+    set (map _ _) in H5.
+    assert (to_elim l0) by (unfold to_elim; eauto); evaluate hints_array_elim.
+    intros.
+    unfold_all.
+    erewrite CancelIL.skipn_length in *.
+    rewrite H27 in *.
+    Lemma replace_it3 : forall (w : W) n, wordToNat w - 2 - n = wordToNat (w ^- $(2 + n)).
+      admit.
+    Qed.
+
+    rewrite replace_it3 in *.
+    rewrite Mult.mult_0_r in *.
+    Lemma wplus_0 : forall w : W, w ^+ $0 = w.
+      intros; rewrite wplus_comm; eapply wplus_unit.
+    Qed.
+    rewrite wplus_0 in *.
+    replace (4 * 2) with 8 in * by omega.
+    Lemma replace4 : forall (a : W) b c, a ^+ $(b) ^+ $(c) = a ^+ $(b + c).
+      admit.
+    Qed.
+    rewrite replace4 in *.
+    rewrite replace4 in *.
+    rewrite map_length in *.
+    Lemma replace5 : forall n, $4 ^* $(n) = natToW (4 * n).
+      admit.
+    Qed.
+
+    rewrite replace5 in *.
+    rewrite Mult.mult_plus_distr_l in *.
+    replace (4 * 1) with 4 in * by eauto.
+    generalize dependent H6; clear_all; intros.
+    hide_upd_sublist.
+    set (map _ _) in *.
+    set (Regs x1 Rv ^- _) in *.
+
+    set (locals nil _ _ _) in *.
+    unfold locals in h0.
+    unfold array in h0.
+    simpl in h0.
+    subst h0.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    eauto.
+    eauto.
+    eauto.
+
 
 
 
