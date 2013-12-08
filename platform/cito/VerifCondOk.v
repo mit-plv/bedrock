@@ -292,7 +292,7 @@ Section TopSection.
     eauto.
 
     descend.
-    clear H13 H5 H3.
+    clear H5 H3.
     clear H6 H12 H29.
     hide_upd_sublist.
 
@@ -306,7 +306,7 @@ Section TopSection.
     unfold temp_start in *.
     unfold vars_start in *.
     simpl in *.
-    rewrite H13 in *.
+    rewrite H29 in *.
     rewrite H in *.
     Lemma wplus_wminus_same : forall a b : W, a ^+ b ^- b = a.
       admit.
@@ -337,14 +337,17 @@ Section TopSection.
     set (upd_sublist x6 _ _) in *.
     set (upd_sublist l0 _ _) in *.
     assert (length x15 = length l) by admit.
-    generalize H29 H4 H14 H27.
+    generalize H32 H27 H13.
+    repeat match goal with
+               | H : _ <= _ |- _ => generalize dependent H
+           end.
     clear_all.
     intros.
 
     hiding ltac:(step auto_ext).
     assert (to_elim x15) by (unfold to_elim; eauto).
     hiding ltac:(step hints_array_elim).
-    rewrite H29 in *.
+    rewrite H32 in *.
     set (4 * _ + _ + 4 * _) in *.
     Lemma replace7 : forall (a : W) b c, a ^+ $(b + c) = a ^+ $(b) ^+ $(c).
       admit.
@@ -384,7 +387,45 @@ Section TopSection.
     assert (buf_splittable n0 n1) by admit.
     hiding ltac:(step hints_buf_split_bwd).
 
+    Focus 2.
+    eauto.
+
+    Focus 2.
+
+    Fixpoint heap_upd_option h addr a :=
+      match a with
+        | None => h
+        | Some v => heap_upd h addr v
+      end.
+
+    rewrite fold_second in *.
+    set (snd (decide_ret _ _)) in *.
+    destruct_state.
+
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    instantiate (2 := (_, _)); simpl in *.
+    instantiate (2 := heap_upd_option h0 x17 y).
+    clear_all.
+
+    hiding ltac:(step auto_ext).
+
+    admit. (* himp specs (layout_option layout x17 y * is_heap layout h0)%Sep
+     (is_heap layout (heap_upd_option h0 x17 y)) *)
+
     simpl in *.
+
+    descend.
+    Focus 2.
+    rewrite H36.
+    rewrite H29.
+    rewrite H.
+    rewrite wplus_wminus_same.
+    eauto.
+
     (* here *)
 
 
