@@ -8,10 +8,10 @@ MODULES := \
 	Inv \
 	DepthExpr Max Depth \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	SetFacts ScopeFacts SemanticsFacts ListFacts WordFacts \
+	SetFacts ScopeFacts SemanticsFacts ListFacts WordFacts InvFacts \
 	CompileStmtTactics \
-	SepHints SepHints2 SepLemmas SepHints3 \
-	# PostOk \
+	SepHints SepHints2 SepLemmas SepHints3 SepHints4 \
+	PostOk \
 	# VerifCondOk \
 	# CompileStmt \
 	# SafeCoind \
