@@ -65,6 +65,28 @@ Section TopLevel.
     refine (Wrap imports imports_global modName body post verifCond _ _).
     admit.
     admit.
+(*
+
+    repeat rewrite <- H in H5.
+    assert (List.In s vars) by eauto.
+    assert (
+        evalInstrs (fst x) x0
+                   (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
+                           :: nil) = Some (snd x)
+) ; [ | clear H11 ].
+    rewrite <- H11.
+    Transparent evalInstrs.
+    simpl.
+    rewrite replace_it.
+    eauto.
+    Opaque evalInstrs.
+    clear_imports.
+    set (P := is_heap _) in *.
+    eval_instrs auto_ext.
+    subst P.
+    destruct x; simpl in *.
+    destruct x4; simpl in *.
+*)
  Defined.
 
 End TopLevel.  

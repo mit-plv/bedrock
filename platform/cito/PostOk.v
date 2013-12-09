@@ -69,73 +69,42 @@ Section TopSection.
     unfold temp_start in *.
     unfold var_slot in *.
     unfold vars_start in *.
-    repeat rewrite <- H in H5.
-    assert (List.In s vars) by eauto.
-    assert (
-        evalInstrs (fst x) x0
-                   (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
-                           :: nil) = Some (snd x)
-) ; [ | clear H11 ].
-    rewrite <- H11.
-    Transparent evalInstrs.
-    simpl.
-    rewrite replace_it.
-    eauto.
-    Opaque evalInstrs.
-    clear_imports.
-    set (P := is_heap _) in *.
-    eval_instrs auto_ext.
-    subst P.
-    destruct x; simpl in *.
-    destruct x4; simpl in *.
-    rewrite <- H in H1.
-    repeat rewrite H1.
+    destruct_state.
+    unfold SaveRet.runs_to in *.
+    unfold SaveRet.is_state in *.
+    simpl in *.
+    transit.
+    Require Import GeneralTactics.
+    openhyp.
     descend.
     eauto.
-    instantiate (4 := (_, _)); simpl.
-    instantiate (6 := upd v s (Regs x0 Rv)).
-    instantiate (4 := h).
-    instantiate (4 := x5).
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-    rewrite H14.
-    eauto.
-    eauto.
-    eauto.
-    clear_imports.
-    repeat hiding ltac:(step auto_ext).
-    descend.
-    descend.
+    instantiate (5 := (_, _)); simpl.
+    rewrite <- H in *.
+    rewrite <- H1 in *.
+    instantiate (5 := heap_upd_option h x8 x9).
+    set (upd_option _ _ _) in H4.
 
-    wrap0.
-    post.
-    clear_imports.
-    set (P := is_state _) in *.
-    eval_instrs auto_ext.
-    subst P.
-    unfold is_state in *.
-    unfold frame_len_w in *.
-    unfold frame_len in *.
-    unfold temp_start in *.
-    unfold var_slot in *.
-    unfold vars_start in *.
-    repeat rewrite <- H in H9.
-    destruct x; simpl in *.
-    destruct x3; simpl in *.
-    descend.
-    eauto.
-    instantiate (4 := (_, _)); simpl.
-    instantiate (6 := v).
-    instantiate (4 := h).
-    instantiate (4 := x4).
+    Set Printing Coercions.
+
     clear_imports.
     repeat hiding ltac:(step auto_ext).
+    instantiate (1 := x3).
+    hiding ltac:(step auto_ext).
+    Require Import SepLemmas.
+    eapply is_heap_upd_option_bwd.
+
+    rewrite H5 in *.
+    eapply H6.
+    admit. (* separated *)
     eauto.
     eauto.
     eauto.
+
     clear_imports.
     repeat hiding ltac:(step auto_ext).
+
     descend.
+    admit. (* separated *)
 
     (* skip *)
 
