@@ -134,7 +134,258 @@ Section TopSection.
 
     inversion H16; clear H16; subst.
     inversion H29; clear H29; subst.
-    Focus 2.
+
+    Hint Resolve map_length.
+
+    Lemma firstn_upd_sublist : forall a b n, n = length b -> firstn n (upd_sublist a 0 b) = b.
+      admit.
+    Qed.
+    
+    Lemma skipn_upd_sublist : forall a b n, n = length b -> skipn n (upd_sublist a 0 b) = skipn n a.
+      admit.
+    Qed.
+
+    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
+      intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
+    Qed.
+
+    (* internal *)
+    unfold_all.
+    simpl in *.
+    Transparent funcs_ok.
+    generalize H7; intro is_funcs_ok.
+    unfold funcs_ok in H7.
+    Opaque funcs_ok.
+    simpl in *.
+    repeat rewrite wplus_assoc in *.
+    post.
+    specialize (Imply_sound (H6 _ _) (Inj_I _ _ H30)); propxFo.
+    descend.
+    rewrite H2.
+    rewrite H26.
+    eauto.
+    step auto_ext.
+    hide_upd_sublist.
+    Require Import SepHints2.
+    rewrite (@replace_array_to_split l2 _ (length l)) in H3.
+    assert (splittable l2 (length l)) by admit.
+    evaluate hints_array_split.
+    fold (@firstn W) in *.
+    fold (@skipn W) in *.
+    rewrite fold_4_mult in *.
+    unfold_all.
+    erewrite firstn_upd_sublist in * by eauto.
+    erewrite skipn_upd_sublist in * by eauto.
+
+    set (map _ _) in *.
+    set (ArgVars _) in *.
+    Require Import SepHints3.
+    rewrite (@replace_array_to_locals l0 _ l1) in H34.
+    assert (array_to_locals_ok l0 l1) by admit.
+    evaluate hints_array_to_locals.
+    fold (@skipn W) in *.
+    unfold_all.
+
+    set (skipn _ _) in *.
+    set (map _ _) in *.
+    assert (to_elim l0) by (unfold to_elim; eauto); evaluate hints_array_elim.
+    unfold_all.
+    erewrite CancelIL.skipn_length in *.
+
+    descend.
+    clear_Imply.
+    clear_evalInstrs.
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    simpl in *.
+    rewrite H.
+    rewrite fold_4_mult_2 in *.
+    rewrite_natToW_plus.
+    repeat rewrite wplus_assoc in *.
+    clear_Forall_PreCond.
+
+    set (array nil _) in *.
+    unfold array in h0.
+    simpl in h0.
+    subst h0.
+
+    instantiate (5 := (_, _)); simpl.
+
+    rewrite H27 in *.
+    replace (length (ArgVars spec)) with (length l) in * by admit.
+
+    Require Import Arith.
+    rewrite replace_it3 in * by eauto.
+    rewrite plus_0_r in *.
+    rewrite_natToW_plus.
+    repeat rewrite wplus_assoc in *.
+
+    hide_upd_sublist.
+    set (map _ _) in *.
+    set (ArgVars _) in *.
+    set (x8 - _ - _) in *.
+    generalize dependent H35; clear_all; intros.
+
+    clear_imports.
+    repeat hiding ltac:(step auto_ext).
+
+    eapply H32.
+    unfold toArray in *.
+    eauto.
+    eauto.
+
+    (* post call *)
+    eapply existsR.
+    apply andR.
+    apply Imply_I.
+    apply interp_weaken.
+    eauto.
+
+    descend.
+    generalize H13.
+    clear_Imply.
+
+    hide_upd_sublist.
+    intros.
+
+    clear_imports.
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+
+    instantiate (2 := None).
+    simpl.
+
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold vars_start in *.
+    simpl in *.
+    openhyp.
+    rewrite H10 in *.
+    rewrite H in *.
+    rewrite wplus_wminus in *.
+
+    set (array nil _) in *.
+    unfold array in h0.
+    simpl in h0.
+    subst h0.
+
+    instantiate (8 := (_, _)); simpl in *.
+    instantiate (7 := l0).
+    unfold_all.
+    repeat rewrite length_upd_sublist in *.
+
+    rewrite plus_0_r in *.
+    rewrite fold_4_mult_2 in *.
+    repeat rewrite Mult.mult_plus_distr_l in *.
+    rewrite_natToW_plus.
+    set (4 * length vars) in *.
+    set (4 * length x6) in *.
+    set (Regs x Sp ^+ $8) in *.
+    replace (_ ^+ natToW (n + n0)) with (w ^+ $(n) ^+ $(n0)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
+    unfold_all.
+    repeat rewrite wplus_assoc in *.
+
+    hide_upd_sublist.
+    hide_le.
+    replace (length (ArgVars spec)) with (length l) in * by admit.
+    clear_all.
+    intros.
+
+    hiding ltac:(step auto_ext).
+
+    rewrite fold_first in *.
+    set (Regs _ _ ^+ _ ^+ _ ^+ _) in *.
+    set (length l) in *.
+    set (x8 - _ - _) in *.
+
+    replace (w =?> x8)%Sep with (buf_to_split w x8 2) by (unfold buf_to_split; eauto).
+    assert (buf_splittable x8 2) by admit.
+    hiding ltac:(step hints_buf_split_bwd).
+    post.
+    hiding ltac:(step auto_ext).
+
+    rewrite fold_first in *.
+    set (w ^+ _) in *.
+    set (x8 - _) in *.
+    subst n0.
+    set (length l) in *.
+    replace (w0 =?> n1)%Sep with (buf_to_split w0 n1 n0) by (unfold buf_to_split; eauto).
+    assert (buf_splittable n1 n0) by admit.
+    hiding ltac:(step hints_buf_split_bwd).
+
+    rewrite fold_first in *.
+    rewrite fold_4_mult in *.
+    hiding ltac:(step auto_ext).
+
+    rewrite fold_first in *.
+
+    Definition locals_to_elim (_ : list string) := True.
+
+    Lemma elim_locals : forall vars vs p, locals_to_elim vars -> locals vars vs 0 p ===> p =?> length vars.
+      admit.
+    Qed.
+
+    Definition hints_elim_locals : TacPackage.
+      prepare elim_locals tt.
+    Defined.
+
+    set (ArgVars _) in *.
+    assert (locals_to_elim l0) by (unfold locals_to_elim; eauto).
+    hiding ltac:(step hints_elim_locals).
+    subst l0.
+    subst n0.
+    replace (length (ArgVars spec)) with (length l) in * by admit.
+    hiding ltac:(step auto_ext).
+
+    rewrite fold_second in *.
+    simpl in *.
+    openhyp.
+    descend.
+    rewrite H6.
+    eapply H31.
+    econstructor; simpl in *.
+    eauto.
+    rewrite <- H55.
+    unfold toArray in *.
+    reflexivity.
+    eauto.
+    unfold_all.
+    repeat rewrite length_upd_sublist in *; eauto.
+    eauto.
+
+    destruct_state.
+
+    unfold is_state in *.
+    unfold has_extra_stack in *.
+    simpl in *.
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    instantiate (2 := (_, _)); simpl in *.
+    clear_all.
+
+    hiding ltac:(step auto_ext).
+
+    descend.
+    2 : words.
+
+    econstructor.
+    2 : eauto.
+    rewrite H5.
+    econstructor; simpl in *.
+    eauto.
+    rewrite <- H55.
+    unfold toArray in *.
+    reflexivity.
+    eauto.
 
     (* foreign *)
     unfold_all.
@@ -167,9 +418,7 @@ Section TopSection.
     rewrite <- H30.
     rewrite map_length in *.
     hide_upd_sublist.
-
     Require Import SepHints2.
-
     clear_Forall_PreCond.
     hide_all_eq.
     rewrite (@replace_array_to_split l2 _ (length l)) in H3.
@@ -180,18 +429,7 @@ Section TopSection.
     rewrite fold_4_mult in *.
     intros.
     unfold_all.
-    Hint Resolve map_length.
-
-    Lemma firstn_upd_sublist : forall a b n, n = length b -> firstn n (upd_sublist a 0 b) = b.
-      admit.
-    Qed.
-    
     erewrite firstn_upd_sublist in * by eauto.
-
-    Lemma skipn_upd_sublist : forall a b n, n = length b -> skipn n (upd_sublist a 0 b) = skipn n a.
-      admit.
-    Qed.
-
     erewrite skipn_upd_sublist in * by eauto.
 
     set (skipn _ _) in *.
@@ -203,11 +441,6 @@ Section TopSection.
     unfold_all.
     erewrite CancelIL.skipn_length in *.
     rewrite H27 in *.
-
-    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
-      intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
-    Qed.
-
     rewrite replace_it3 in * by eauto.
     rewrite Mult.mult_0_r in *.
     rewrite wplus_0 in *.
@@ -377,9 +610,6 @@ Section TopSection.
     rewrite make_triples_ADTIn; eauto.
     eauto.
     eauto.
-
-    (* internal *)
-
 
     (* vc 1 *)
     unfold stack_slot in *.

@@ -268,3 +268,14 @@ Ltac unfold_all :=
   repeat match goal with
            | H := _ |- _ => unfold H in *; clear H
          end.
+
+Ltac rearrange_stars HEAD :=
+  match goal with
+      H : interp ?SPECS (![?P] ?ST) |- _ =>
+      let OTHER := fresh in 
+      evar (OTHER : HProp); 
+        assert (interp SPECS (![HEAD * OTHER] ST));
+        unfold OTHER in *; clear OTHER;
+        [ hiding ltac:(step auto_ext) | .. ]
+  end.
+
