@@ -57,15 +57,6 @@ Section TopSection.
     Focus 5.
 
     (* call *)
-    Lemma replace_it : forall w n, w ^+ $(8) ^+ $(n) = w ^+ natToW (4 * 2 + n).
-      intros.
-      rewrite natToW_plus.
-      rewrite wplus_assoc.
-      eauto.
-    Qed.
-
-    destruct o.
-
     wrap0.
     post.
     clear_imports.

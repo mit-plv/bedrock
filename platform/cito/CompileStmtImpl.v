@@ -23,8 +23,8 @@ Section Body.
 
   Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
   Definition vars_start := 4 * 2.
-  Definition temp_start := vars_start + 4 * length vars.
   Definition var_slot x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
+  Definition temp_start := vars_start + 4 * length vars.
   Definition temp_slot n := LvMem (Sp + (temp_start + 4 * n)%nat)%loc.
   Definition frame_len := temp_start + 4 * temp_size.
   Definition frame_len_w := natToW frame_len.
@@ -90,18 +90,13 @@ Section Body.
       (Structured.If_ imports_global n Le Rv cmd
                       (Diverge_ imports modName)).
 
-  Definition SaveRet var :=
-    match var with
-      | None => Skip
-      | Some x => SaveRv (var_slot x)
-    end.
-
   Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
 
   Require CompileExprs.
 
   Definition compile_exprs es n dst := CompileExprs.compile vars temp_size es n dst imports_global modName.
 
+  Require SaveRet.
   Require Import Notations.
   Local Open Scope stmt.
   Local Open Scope nat.
@@ -135,7 +130,7 @@ Section Body.
                    :: Binop Sp Sp Plus frame_len_w :: nil)
                 :: Structured.ICall_ imports modName Rv (after_call var k)
                 :: Strline (Binop Sp Sp Minus frame_len_w :: nil)
-                :: SaveRet var :: nil))
+                :: SaveRet.compile vars var imports_global modName :: nil))
     end.
 
 End Body.

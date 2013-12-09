@@ -7,8 +7,8 @@ MODULES := \
 	FreeVarsExpr Option Union FreeVars \
 	Inv \
 	DepthExpr Max Depth \
-	CompileStmtSpec CompileExpr Notations CompileExprs CompileStmtImpl \
-	SetFacts ScopeFacts SemanticsFacts ListFacts \
+	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
+	SetFacts ScopeFacts SemanticsFacts ListFacts WordFacts \
 	CompileStmtTactics \
 	SepHints SepHints2 SepLemmas \
 	# PostOk \

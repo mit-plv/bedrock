@@ -6,7 +6,7 @@ Ltac clear_imports :=
           repeat match goal with
                      H : context [ Him ] |- _ => clear H
                  end; 
-          clear Him
+            clear Him
       end.
 
 Require Import Semantics.
@@ -211,5 +211,60 @@ Ltac eval_instrs hints :=
             post_eval; clear H_eval]
   end.
 
+Ltac clear_all :=
+  repeat match goal with
+           | H : _ |- _ => clear H
+         end.
 
+Ltac clear_Imply :=
+  repeat match goal with
+           | H : context [ (_ ---> _)%PropX ] |- _ => clear H
+         end.
 
+Ltac clear_evalInstrs :=
+  repeat match goal with
+           | H : evalInstrs _ _ _ = _ |- _ => clear H
+         end.
+
+Ltac clear_Forall_PreCond :=
+  repeat match goal with
+           | H : List.Forall _ _ |- _ => clear H
+           | H : PreCond _ _ |- _ => clear H
+         end.
+
+Ltac hide_evalInstrs :=
+  repeat match goal with
+           | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
+         end.
+
+Ltac hide_all_eq :=
+  repeat match goal with
+           | H : _ = _ |- _ => generalize dependent H
+         end.
+
+Ltac hide_all_eq_except H1 :=
+  repeat match goal with
+           | H : _ = _ |- _ => not_eq H H1; generalize dependent H
+         end.
+
+Ltac hide_le :=
+  repeat match goal with
+           | H : (_ <= _)%nat |- _ => generalize dependent H
+         end.
+
+Ltac hide_Safe :=
+  repeat match goal with
+           | H : Safe _ _ _ |- _ => generalize dependent H
+         end.
+
+Ltac destruct_state :=
+  repeat 
+    match goal with
+      | [ x : State |- _ ] => destruct x; simpl in *
+      | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+    end.
+
+Ltac unfold_all :=
+  repeat match goal with
+           | H := _ |- _ => unfold H in *; clear H
+         end.
