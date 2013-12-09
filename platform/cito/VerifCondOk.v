@@ -58,69 +58,14 @@ Section TopSection.
     Require Import SemanticsExpr.
     Require Import SepHints.
     Require Import GeneralTactics.
+    Require Import WordFacts.
 
     Open Scope nat.
 
-    Ltac evaluate' hints :=
-      match goal with
-        | [ H : Safe _ _ _ |- _ ] =>
-          generalize dependent H; clear_imports; evaluate hints; intro
-      end.
-
-    Ltac hide_evalInstrs :=
+    Ltac hide_upd_sublist :=
       repeat match goal with
-               | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
+               | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
              end.
-
-    Ltac clear_all :=
-      repeat match goal with
-               | H : _ |- _ => clear H
-             end.
-
-    Ltac destruct_state :=
-      repeat 
-        match goal with
-          | [ x : State |- _ ] => destruct x; simpl in *
-          | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
-        end.
-
-    Ltac hide_all_eq_except H1 :=
-      repeat match goal with
-               | H : _ = _ |- _ => not_eq H H1; generalize dependent H
-             end.
-
-    Ltac unfold_all :=
-      repeat match goal with
-               | H := _ |- _ => unfold H in *; clear H
-             end.
-
-    Require Import Arith.
-
-    Lemma fold_4_mult : forall n, n + (n + (n + (n + 0))) = 4 * n.
-      intros; ring.
-    Qed.
-
-    Lemma fold_4_mult_2 : 4 * 2 = 8.
-      eauto.
-    Qed.
-    
-    Lemma fold_4_mult_1 : 4 * 1 = 4.
-      eauto.
-    Qed.
-
-    Lemma wplus_0 : forall w : W, w ^+ $0 = w.
-      intros; rewrite wplus_comm; eapply wplus_unit.
-    Qed.
-
-    Ltac rewrite_natToW_plus :=
-      repeat match goal with
-               | H : context [ natToW (_ + _) ] |- _ => rewrite natToW_plus in H
-               | |- context [ natToW (_ + _) ] => rewrite natToW_plus
-             end.
-
-    Lemma wplus_wminus : forall (a b : W), a ^+ b ^- b = a.
-      intros; words.
-    Qed.
 
     (* call *)
     wrap0.
@@ -134,15 +79,19 @@ Section TopSection.
     post.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
-    evaluate' auto_ext.
+    hide_Safe.
+    clear_imports.
+    evaluate auto_ext.
     destruct_state.
     unfold CompileExprs.runs_to in *.
     unfold CompileExprs.is_state in *.
     simpl in *.
     hide_evalInstrs.
     assert (2 <= x8) by admit.
-    evaluate' hints_buf_2_fwd.
-    evaluate' hints_array.
+    hide_Safe.
+    clear_imports.
+    evaluate hints_buf_2_fwd.
+    evaluate hints_array.
     unfold callee_stack_start in *.
     unfold frame_len in *.
     unfold temp_start in *.
@@ -204,17 +153,8 @@ Section TopSection.
     eauto.
     step auto_ext.
     descend.
-    Ltac clear_Imply :=
-      repeat match goal with
-               | H : context [ (_ ---> _)%PropX ] |- _ => clear H
-             end.
-
     clear_Imply.
-
-    repeat match goal with
-               | H : evalInstrs _ _ _ = _ |- _ => clear H
-           end.
-    
+    clear_evalInstrs.
     instantiate (2 := pairs).
     unfold is_state in *.
     unfold has_extra_stack in *.
@@ -226,25 +166,11 @@ Section TopSection.
     rewrite H.
     rewrite <- H30.
     rewrite map_length in *.
-    Ltac hide_upd_sublist :=
-      repeat match goal with
-               | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
-             end.
-
     hide_upd_sublist.
 
     Require Import SepHints2.
 
-    repeat match goal with
-             | H : List.Forall _ _ |- _ => clear H
-             | H : PreCond _ _ |- _ => clear H
-           end.
-
-    Ltac hide_all_eq :=
-      repeat match goal with
-               | H : _ = _ |- _ => generalize dependent H
-             end.
-
+    clear_Forall_PreCond.
     hide_all_eq.
     rewrite (@replace_array_to_split l2 _ (length l)) in H3.
     assert (splittable l2 (length l)) by admit.
@@ -360,9 +286,7 @@ Section TopSection.
     hide_upd_sublist.
     assert (length x15 = length l) by admit.
     generalize H35.
-    repeat match goal with
-               | H : _ <= _ |- _ => generalize dependent H
-           end.
+    hide_le.
     clear_all.
     intros.
 
