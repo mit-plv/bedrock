@@ -61,14 +61,6 @@ Section TopSection.
 
     Open Scope nat.
 
-    Lemma replace_it : forall (a : W) b c, a ^+ $(4 * 2 + 4 * b + 4 * c +8) = a ^+ $8 ^+ $(4 * (b + c)) ^+ $8.
-      admit.
-    Qed.
-
-    Lemma replace_it2 : forall (a : W) b c, a ^+ $8 ^+ $(4 * (b + c)) ^+ $4 = a ^+ $(4 * 2 + 4 * b + 4 * c + 4 * 1).
-      admit.
-    Qed.
-
     Ltac evaluate' hints :=
       match goal with
         | [ H : Safe _ _ _ |- _ ] =>
@@ -102,6 +94,34 @@ Section TopSection.
                | H := _ |- _ => unfold H in *; clear H
              end.
 
+    Require Import Arith.
+
+    Lemma fold_4_mult : forall n, n + (n + (n + (n + 0))) = 4 * n.
+      intros; ring.
+    Qed.
+
+    Lemma fold_4_mult_2 : 4 * 2 = 8.
+      eauto.
+    Qed.
+    
+    Lemma fold_4_mult_1 : 4 * 1 = 4.
+      eauto.
+    Qed.
+
+    Lemma wplus_0 : forall w : W, w ^+ $0 = w.
+      intros; rewrite wplus_comm; eapply wplus_unit.
+    Qed.
+
+    Ltac rewrite_natToW_plus :=
+      repeat match goal with
+               | H : context [ natToW (_ + _) ] |- _ => rewrite natToW_plus in H
+               | |- context [ natToW (_ + _) ] => rewrite natToW_plus
+             end.
+
+    Lemma wplus_wminus : forall (a b : W), a ^+ b ^- b = a.
+      intros; words.
+    Qed.
+
     (* call *)
     wrap0.
 
@@ -113,7 +133,7 @@ Section TopSection.
     unfold has_extra_stack in *.
     post.
     unfold stack_slot in *.
-    replace (4 * 1) with 4 in * by eauto.
+    rewrite fold_4_mult_1 in *.
     evaluate' auto_ext.
     destruct_state.
     unfold CompileExprs.runs_to in *.
@@ -127,9 +147,13 @@ Section TopSection.
     unfold frame_len in *.
     unfold temp_start in *.
     unfold vars_start in *.
-    rewrite <- H in *.
-    rewrite H12 in *.
-    rewrite replace_it in *.
+    rewrite H in *.
+    rewrite <- H9 in *.
+    rewrite fold_4_mult_2 in *.
+    rewrite Mult.mult_plus_distr_l in *.
+    rewrite_natToW_plus.
+    repeat rewrite natToW_plus in H6.
+    repeat rewrite wplus_assoc in *.
     transit.
     post.
     unfold CompileExpr.runs_to in *.
@@ -144,9 +168,18 @@ Section TopSection.
     unfold frame_len in *.
     unfold temp_start in *.
     unfold vars_start in *.
-    rewrite replace_it2 in *.
+    rewrite fold_4_mult_1 in *.
+    rewrite fold_4_mult_2 in *.
+    rewrite_natToW_plus.
+    repeat rewrite wplus_assoc in *.
     rewrite <- H18 in *.
     rewrite <- H20 in *.
+    Lemma replace1 : forall a b c d e : W, a ^+ b ^+ c ^+ d ^+ e = a ^+ (b ^+ c ^+ d ^+ e).
+      intros; repeat rewrite wplus_assoc in *; eauto.
+    Qed.
+
+    repeat rewrite replace1 in H22.
+
     hide_all_eq_except H6.
     eval_instrs auto_ext.
 
@@ -162,18 +195,22 @@ Section TopSection.
     unfold funcs_ok in H7.
     Opaque funcs_ok.
     simpl in *.
+    repeat rewrite wplus_assoc in *.
     post.
-    specialize (Imply_sound (H12 _ _) (Inj_I _ _ H28)); propxFo.
+    specialize (Imply_sound (H10 _ _) (Inj_I _ _ H28)); propxFo.
     descend.
     rewrite H2.
     rewrite H26.
     eauto.
     step auto_ext.
     descend.
-    clear H29.
-    clear H12.
-    clear H6.
-    clear H5 H13.
+    Ltac clear_Imply :=
+      repeat match goal with
+               | H : context [ (_ ---> _)%PropX ] |- _ => clear H
+             end.
+
+    clear_Imply.
+
     repeat match goal with
                | H : evalInstrs _ _ _ = _ |- _ => clear H
            end.
@@ -188,6 +225,7 @@ Section TopSection.
     simpl in *.
     rewrite H.
     rewrite <- H30.
+    rewrite map_length in *.
     Ltac hide_upd_sublist :=
       repeat match goal with
                | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
@@ -197,8 +235,11 @@ Section TopSection.
 
     Require Import SepHints2.
 
-    clear H33.
-    clear H34.
+    repeat match goal with
+             | H : List.Forall _ _ |- _ => clear H
+             | H : PreCond _ _ |- _ => clear H
+           end.
+
     Ltac hide_all_eq :=
       repeat match goal with
                | H : _ = _ |- _ => generalize dependent H
@@ -210,12 +251,6 @@ Section TopSection.
     evaluate hints_array_split.
     fold (@firstn W) in *.
     fold (@skipn W) in *.
-    Require Import Arith.
-
-    Lemma fold_4_mult : forall n, n + (n + (n + (n + 0))) = 4 * n.
-      intros; ring.
-    Qed.
-
     rewrite fold_4_mult in *.
     intros.
     unfold_all.
@@ -242,36 +277,15 @@ Section TopSection.
     unfold_all.
     erewrite CancelIL.skipn_length in *.
     rewrite H27 in *.
-    rewrite map_length in *.
 
     Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
       intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
     Qed.
 
     rewrite replace_it3 in * by eauto.
-    Lemma fold_4_mult_2 : 4 * 2 = 8.
-      eauto.
-    Qed.
-    
-    Lemma fold_4_mult_1 : 4 * 1 = 4.
-      eauto.
-    Qed.
-
-    Lemma wplus_0 : forall w : W, w ^+ $0 = w.
-      intros; rewrite wplus_comm; eapply wplus_unit.
-    Qed.
-
-    Ltac rewrite_natToW_plus :=
-      repeat match goal with
-               | H : context [ natToW (_ + _) ] |- _ => rewrite natToW_plus in H
-               | |- context [ natToW (_ + _) ] => rewrite natToW_plus
-             end.
-
     rewrite Mult.mult_0_r in *.
     rewrite wplus_0 in *.
-    rewrite fold_4_mult_1 in *.
     rewrite fold_4_mult_2 in *.
-    rewrite Mult.mult_plus_distr_l in *.
     rewrite_natToW_plus.
     repeat rewrite wplus_assoc in *.
 
@@ -301,9 +315,11 @@ Section TopSection.
     eauto.
 
     descend.
-    clear H5 H3.
-    clear H6 H12 H29.
+    generalize H13.
+    clear_Imply.
+
     hide_upd_sublist.
+    intros.
 
     clear_imports.
     hiding ltac:(step auto_ext).
@@ -315,27 +331,22 @@ Section TopSection.
     unfold temp_start in *.
     unfold vars_start in *.
     simpl in *.
-    rewrite H29 in *.
+    rewrite H32 in *.
     rewrite H in *.
-    Lemma wplus_wminus_same : forall a b : W, a ^+ b ^- b = a.
-      admit.
-    Qed.
+    rewrite wplus_wminus in *.
 
-    rewrite wplus_wminus_same in *.
     set (locals nil _ _ _) in *.
     unfold locals in h0.
     unfold array in h0.
     simpl in h0.
     subst h0.
 
-    instantiate (7 := upd_sublist l0 0 x13).
-    subst l0.
-    rewrite length_upd_sublist in *.
-    rewrite length_upd_sublist in *.
+    instantiate (8 := (_, _)); simpl in *.
+    instantiate (9 := upd_sublist (upd_sublist x6 0 x12) 0 x13).
+    repeat rewrite length_upd_sublist in *.
 
     rewrite Mult.mult_0_r in *.
     rewrite wplus_0 in *.
-    try rewrite fold_4_mult_1 in *.
     rewrite fold_4_mult_2 in *.
     rewrite Mult.mult_plus_distr_l in *.
     rewrite_natToW_plus.
@@ -346,13 +357,9 @@ Section TopSection.
     unfold_all.
     repeat rewrite wplus_assoc in *.
 
-    instantiate (6 := (_, _)); simpl in *.
-    instantiate (6 := v).
-    
-    set (upd_sublist x6 _ _) in *.
-    set (upd_sublist l0 _ _) in *.
+    hide_upd_sublist.
     assert (length x15 = length l) by admit.
-    generalize H32 H27 H13.
+    generalize H35.
     repeat match goal with
                | H : _ <= _ |- _ => generalize dependent H
            end.
@@ -362,7 +369,7 @@ Section TopSection.
     hiding ltac:(step auto_ext).
     assert (to_elim x15) by (unfold to_elim; eauto).
     hiding ltac:(step hints_array_elim).
-    rewrite H32 in *.
+    rewrite H35 in *.
     set (Regs _ _ ^+ _ ^+ _ ^+ _) in *.
     set (length l) in *.
     set (x8 - _ - _) in *.
@@ -380,44 +387,74 @@ Section TopSection.
     replace (w0 =?> n)%Sep with (buf_to_split w0 n n0) by (unfold buf_to_split; eauto).
     assert (buf_splittable n n0) by admit.
     hiding ltac:(step hints_buf_split_bwd).
-    rewrite fold_4_mult in *.
-    hiding ltac:(step auto_ext).
 
-    Focus 2.
+    rewrite fold_first in *.
+    rewrite fold_second in *.
+    simpl in *.
+    descend.
+    rewrite H29.
+    rewrite H10 in *.
+    eapply H31.
+    econstructor; simpl in *.
+    eauto.
+    rewrite H30.
+    Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map Word (make_triples pairs outs) = map fst pairs.
+      admit.
+    Qed.
+
+    rewrite make_triples_Word; eauto.
+
+    Lemma make_triples_Forall_pair : forall pairs outs f, length outs = length pairs -> List.Forall f pairs -> List.Forall (fun x => f (Word x, ADTIn x)) (make_triples pairs outs).
+      admit.
+    Qed.
+
+    eapply make_triples_Forall_pair; eauto.
+
+    Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map ADTIn (make_triples pairs outs) = map snd pairs.
+      admit.
+    Qed.
+
+    rewrite make_triples_ADTIn; eauto.
+    eauto.
     eauto.
 
-    Focus 2.
+    unfold_all.
+    repeat rewrite length_upd_sublist in *; eauto.
 
-    rewrite fold_second in *.
-    set (snd (decide_ret _ _)) in *.
+    eauto.
+
     destruct_state.
 
-    hiding ltac:(step auto_ext).
-    hiding ltac:(step auto_ext).
-    hiding ltac:(step auto_ext).
     unfold is_state in *.
     unfold has_extra_stack in *.
+    simpl in *.
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
     instantiate (2 := (_, _)); simpl in *.
-    instantiate (2 := heap_upd_option h0 x17 y).
     clear_all.
 
     hiding ltac:(step auto_ext).
 
-    Require Import SepLemmas.
-
-    eapply is_heap_upd_option_bwd.
-
+    rewrite fold_first in *.
+    rewrite fold_second in *.
     simpl in *.
-
     descend.
-    Focus 2.
-    rewrite H36.
+    2 : words.
+
+    econstructor.
+    2 : eauto.
     rewrite H29.
-    rewrite H.
-    rewrite wplus_wminus_same.
+    econstructor; simpl in *.
+    eauto.
+    rewrite H30.
+    rewrite make_triples_Word; eauto.
+    eapply make_triples_Forall_pair; eauto.
+    rewrite make_triples_ADTIn; eauto.
+    eauto.
     eauto.
 
-    (* here *)
+    (* internal *)
 
 
     (* vc 1 *)
