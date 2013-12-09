@@ -16,10 +16,11 @@ Require Import Inv.
 Ltac hiding tac :=
   (let P := fresh "P" in
    match goal with
-     | [ H : Safe ?fs _ _ |- _ ] => set (P := Safe fs) in *
-     | [ H : RunsTo ?fs _ _ _ |- _ ] => set (P := RunsTo fs) in *
-     | [ H : context [is_state ?layout _ _ _ _ _ ] |- _ ] => set (P := is_state layout) in *
-     | [ H : context [is_heap ?layout _ ] |- _ ] => set (P := is_heap layout) in *
+     | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
+     | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
+     | H : context [is_state ?layout _ _ _ _ _ _ ] |- _ => set (P := is_state layout) in *
+     | H : context [is_heap ?layout _ ] |- _ => set (P := is_heap layout) in *
+     | H : context [layout_option ?layout _ _ ] |- _ => set (P := layout_option layout) in *
    end;
    hiding tac;
    subst P) || tac.

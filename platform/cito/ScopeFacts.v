@@ -38,3 +38,14 @@ Qed.
 Lemma in_scope_While : forall vars temp_size e s k, in_scope vars temp_size (Syntax.While e s ;; k) -> in_scope vars temp_size (s ;; Syntax.While e s ;; k).
   admit.
 Qed.
+
+Lemma in_scope_Call_f : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExpr.in_scope vars temp_size f 0.
+  admit.
+Qed.
+
+Require CompileExprs.
+
+Lemma in_scope_Call_args : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExprs.in_scope vars temp_size args 0.
+  admit.
+Qed.
+

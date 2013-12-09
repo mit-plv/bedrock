@@ -59,6 +59,8 @@ Section TopSection.
     Require Import SepHints.
     Require Import GeneralTactics.
     Require Import WordFacts.
+    Require Import Arith.
+    Require Import InvFacts.
 
     Open Scope nat.
 
@@ -66,6 +68,16 @@ Section TopSection.
       repeat match goal with
                | H : context [ upd_sublist ?L _ _ ] |- _ => set (upd_sublist L _ _) in *
              end.
+
+    Hint Resolve map_length.
+
+    Lemma replace1 : forall a b c d e : W, a ^+ b ^+ c ^+ d ^+ e = a ^+ (b ^+ c ^+ d ^+ e).
+      intros; repeat rewrite wplus_assoc in *; eauto.
+    Qed.
+
+    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
+      intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
+    Qed.
 
     (* call *)
     wrap0.
@@ -123,31 +135,12 @@ Section TopSection.
     repeat rewrite wplus_assoc in *.
     rewrite <- H18 in *.
     rewrite <- H20 in *.
-    Lemma replace1 : forall a b c d e : W, a ^+ b ^+ c ^+ d ^+ e = a ^+ (b ^+ c ^+ d ^+ e).
-      intros; repeat rewrite wplus_assoc in *; eauto.
-    Qed.
-
     repeat rewrite replace1 in H22.
-
     hide_all_eq_except H6.
     eval_instrs auto_ext.
 
     inversion H16; clear H16; subst.
     inversion H29; clear H29; subst.
-
-    Hint Resolve map_length.
-
-    Lemma firstn_upd_sublist : forall a b n, n = length b -> firstn n (upd_sublist a 0 b) = b.
-      admit.
-    Qed.
-    
-    Lemma skipn_upd_sublist : forall a b n, n = length b -> skipn n (upd_sublist a 0 b) = skipn n a.
-      admit.
-    Qed.
-
-    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
-      intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
-    Qed.
 
     (* internal *)
     unfold_all.
@@ -218,7 +211,6 @@ Section TopSection.
     rewrite H27 in *.
     replace (length (ArgVars spec)) with (length l) in * by admit.
 
-    Require Import Arith.
     rewrite replace_it3 in * by eauto.
     rewrite plus_0_r in *.
     rewrite_natToW_plus.
@@ -326,17 +318,8 @@ Section TopSection.
 
     rewrite fold_first in *.
 
-    Definition locals_to_elim (_ : list string) := True.
-
-    Lemma elim_locals : forall vars vs p, locals_to_elim vars -> locals vars vs 0 p ===> p =?> length vars.
-      admit.
-    Qed.
-
-    Definition hints_elim_locals : TacPackage.
-      prepare elim_locals tt.
-    Defined.
-
     set (ArgVars _) in *.
+    Require Import SepHints4.
     assert (locals_to_elim l0) by (unfold locals_to_elim; eauto).
     hiding ltac:(step hints_elim_locals).
     subst l0.
@@ -555,22 +538,8 @@ Section TopSection.
     econstructor; simpl in *.
     eauto.
     rewrite H30.
-    Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map Word (make_triples pairs outs) = map fst pairs.
-      admit.
-    Qed.
-
     rewrite make_triples_Word; eauto.
-
-    Lemma make_triples_Forall_pair : forall pairs outs f, length outs = length pairs -> List.Forall f pairs -> List.Forall (fun x => f (Word x, ADTIn x)) (make_triples pairs outs).
-      admit.
-    Qed.
-
     eapply make_triples_Forall_pair; eauto.
-
-    Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map ADTIn (make_triples pairs outs) = map snd pairs.
-      admit.
-    Qed.
-
     rewrite make_triples_ADTIn; eauto.
     eauto.
     eauto.
@@ -664,10 +633,6 @@ Section TopSection.
     admit. (* length l <= wordToNat x7 - 2 *)
 
     (* vc 4*)
-    Lemma in_scope_Call_args : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExprs.in_scope vars temp_size args 0.
-      admit.
-    Qed.
-
     eapply in_scope_Call_args; eauto.
 
     (* vc 5*)
@@ -710,10 +675,6 @@ Section TopSection.
     rewrite length_upd_sublist; eauto.
     
     (* vc 6 *)
-    Lemma in_scope_Call_f : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> CompileExpr.in_scope vars temp_size f 0.
-      admit.
-    Qed.
-
     eapply in_scope_Call_f; eauto.
 
     (* vc 7 *)
