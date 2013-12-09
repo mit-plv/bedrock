@@ -52,6 +52,8 @@ Section TopSection.
     Hint Resolve Subset_in_scope_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
 
+    Set Printing Coercions.
+
     unfold verifCond, imply; induction s.
 
     Focus 5.
@@ -84,8 +86,6 @@ Section TopSection.
     instantiate (5 := heap_upd_option h x8 x9).
     set (upd_option _ _ _) in H4.
 
-    Set Printing Coercions.
-
     clear_imports.
     repeat hiding ltac:(step auto_ext).
     instantiate (1 := x3).
@@ -95,7 +95,8 @@ Section TopSection.
 
     rewrite H5 in *.
     eapply H6.
-    admit. (* separated *)
+    rearrange_stars (is_heap layout h * layout_option layout x8 x9)%Sep.
+    eapply star_separated; eauto.
     eauto.
     eauto.
     eauto.
@@ -104,7 +105,8 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
 
     descend.
-    admit. (* separated *)
+    rearrange_stars (is_heap layout h * layout_option layout x8 x9)%Sep.
+    eapply star_separated; eauto.
 
     (* skip *)
 

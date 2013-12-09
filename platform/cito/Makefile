@@ -10,7 +10,7 @@ MODULES := \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
 	SetFacts ScopeFacts SemanticsFacts ListFacts WordFacts \
 	CompileStmtTactics \
-	SepHints SepHints2 SepLemmas \
+	SepHints SepHints2 SepLemmas SepHints3 \
 	# PostOk \
 	# VerifCondOk \
 	# CompileStmt \
