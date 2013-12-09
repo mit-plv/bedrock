@@ -1,4 +1,7 @@
 Require Import Inv.
+Require Import Semantics.
+
+Set Implicit Arguments.
 
 Lemma is_heap_upd_option_bwd : forall layout h addr a, layout_option layout addr a * is_heap layout h ===> is_heap layout (heap_upd_option h addr a).
   admit.
