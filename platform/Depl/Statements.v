@@ -35,6 +35,27 @@ Record fncn := {
   (** Holds upon function return (with spec variable "result" available). *)
 }.
 
+(** ** Syntactic validity *)
+
+Section validity.
+  Variable variables : list pr_var.
+
+  Definition exprV (e : expr) :=
+    match e with
+      | Const _ => True
+      | Var x => In x variables
+    end.
+
+  Fixpoint stmtV (s : stmt) :=
+    match s with
+      | Assign x e => In x variables /\ exprV e
+      | Seq s1 s2 => stmtV s1 /\ stmtV s2
+      | Ret e => exprV e
+    end.
+End validity.
+
+Definition fncnV (f : fncn) := stmtV (LocalVariables f) (Body f).
+
 
 (** * Semantics *)
 
