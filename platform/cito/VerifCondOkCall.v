@@ -55,6 +55,42 @@ Section TopSection.
 
   Open Scope nat.
 
+  Lemma replace1 : forall a b c d e : W, a ^+ b ^+ c ^+ d ^+ e = a ^+ (b ^+ c ^+ d ^+ e).
+    intros; repeat rewrite wplus_assoc in *; eauto.
+  Qed.
+
+  Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
+    intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
+  Qed.
+
+  Ltac inversion_Safe :=
+    repeat match goal with
+             | H : Safe _ _ _ |- _ => inversion H; clear H; subst
+           end.
+
+  Transparent funcs_ok.
+  Ltac unfold_funcs_ok :=
+    match goal with 
+      | H : interp _ (funcs_ok _ _ _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
+    end.
+  Opaque funcs_ok.
+
+  Ltac specialize_funcs_ok :=
+    match goal with
+      | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
+        specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
+    end.
+
+  Ltac hide_map :=
+    repeat match goal with
+             | H : context [ map ?A _ ] |- _ => set (map A _) in *
+           end.
+
+  Ltac auto_apply :=
+    match goal with
+        H : _ |- _ => eapply H
+    end.
+
   Lemma verifCond_ok : 
     forall o e l k (pre : assert),
       let s := Syntax.Call o e l in
@@ -101,8 +137,18 @@ Section TopSection.
     destruct_state.
     hide_evalInstrs.
     match goal with
-      | H : context [ (_ =?> ?n)%Sep ] |- _ => assert (2 <= n) by admit
+      | H : context [ (_ =?> ?n)%Sep ] |- _ => assert (2 <= n)
     end.
+
+    Lemma wordToNat_natToW_le : forall n, wordToNat (natToW n) <= n.
+      admit.
+    Qed.
+
+    Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> a <= b.
+      intros; eapply le_wordToN in H; eauto; eapply le_trans; eauto; eapply wordToNat_natToW_le.
+    Qed.
+
+    (*here*)
     hiding ltac:(evaluate hints_buf_2_fwd).
     hiding ltac:(evaluate hints_array).
     intros.
