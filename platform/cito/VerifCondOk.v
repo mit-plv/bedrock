@@ -79,6 +79,38 @@ Section TopSection.
       intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
     Qed.
 
+    Ltac inversion_Safe :=
+      repeat match goal with
+               | H : Safe _ _ _ |- _ => inversion H; clear H; subst
+             end.
+    
+    Transparent funcs_ok.
+    Ltac unfold_funcs_ok :=
+      match goal with 
+        | H : interp _ (funcs_ok _ _ _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
+      end.
+    Opaque funcs_ok.
+
+    Ltac specialize_funcs_ok :=
+      match goal with
+        | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
+          specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
+      end.
+
+    Lemma map_eq_length_eq : forall A B C (f1 : A -> B) ls1 (f2 : C -> B) ls2, map f1 ls1 = map f2 ls2 -> length ls1 = length ls2.
+      intros; assert (length (map f1 ls1) = length (map f2 ls2)) by congruence; repeat rewrite map_length in *; eauto.
+    Qed.
+
+    Ltac hide_map :=
+      repeat match goal with
+               | H : context [ map ?A _ ] |- _ => set (map A _) in *
+             end.
+
+    Ltac auto_apply :=
+      match goal with
+          H : _ |- _ => eapply H
+      end.
+
     (* call *)
     wrap0.
 
@@ -92,8 +124,7 @@ Section TopSection.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
     hide_Safe.
-    clear_imports.
-    evaluate auto_ext.
+    hiding ltac:(evaluate auto_ext).
     destruct_state.
     unfold CompileExprs.runs_to in *.
     unfold CompileExprs.is_state in *.
@@ -101,9 +132,8 @@ Section TopSection.
     hide_evalInstrs.
     assert (2 <= x8) by admit.
     hide_Safe.
-    clear_imports.
-    evaluate hints_buf_2_fwd.
-    evaluate hints_array.
+    hiding ltac:(evaluate hints_buf_2_fwd).
+    hiding ltac:(evaluate hints_array).
     unfold callee_stack_start in *.
     unfold frame_len in *.
     unfold temp_start in *.
@@ -137,32 +167,29 @@ Section TopSection.
     rewrite <- H20 in *.
     repeat rewrite replace1 in H22.
     hide_all_eq_except H6.
-    eval_instrs auto_ext.
-
-    inversion H16; clear H16; subst.
-    inversion H29; clear H29; subst.
+    hiding ltac:(evaluate auto_ext).
+    intros.
+    inversion_Safe.
 
     (* internal *)
     unfold_all.
     simpl in *.
     Transparent funcs_ok.
-    generalize H7; intro is_funcs_ok.
-    unfold funcs_ok in H7.
+    unfold_funcs_ok.
     Opaque funcs_ok.
     simpl in *.
     repeat rewrite wplus_assoc in *.
     post.
-    specialize (Imply_sound (H6 _ _) (Inj_I _ _ H30)); propxFo.
+    specialize_funcs_ok.
     descend.
-    rewrite H2.
-    rewrite H26.
+    rewriter.
     eauto.
-    step auto_ext.
+    hiding ltac:(step auto_ext).
     hide_upd_sublist.
     Require Import SepHints2.
-    rewrite (@replace_array_to_split l2 _ (length l)) in H3.
+    rewrite (@replace_array_to_split l2 _ (length l)) in H7.
     assert (splittable l2 (length l)) by admit.
-    evaluate hints_array_split.
+    hiding ltac:(evaluate hints_array_split).
     fold (@firstn W) in *.
     fold (@skipn W) in *.
     rewrite fold_4_mult in *.
@@ -173,15 +200,15 @@ Section TopSection.
     set (map _ _) in *.
     set (ArgVars _) in *.
     Require Import SepHints3.
-    rewrite (@replace_array_to_locals l0 _ l1) in H34.
+    rewrite (@replace_array_to_locals l0 _ l1) in H35.
     assert (array_to_locals_ok l0 l1) by admit.
-    evaluate hints_array_to_locals.
+    hiding ltac:(evaluate hints_array_to_locals).
     fold (@skipn W) in *.
     unfold_all.
 
     set (skipn _ _) in *.
     set (map _ _) in *.
-    assert (to_elim l0) by (unfold to_elim; eauto); evaluate hints_array_elim.
+    assert (to_elim l0) by (unfold to_elim; eauto); hiding ltac:(evaluate hints_array_elim).
     unfold_all.
     erewrite CancelIL.skipn_length in *.
 
@@ -208,8 +235,11 @@ Section TopSection.
 
     instantiate (5 := (_, _)); simpl.
 
-    rewrite H27 in *.
-    replace (length (ArgVars spec)) with (length l) in * by admit.
+    match goal with
+      | H : length _ = _ - 2 |- _ => rewrite H in *
+    end.
+    unfold toArray in *.
+    erewrite (map_eq_length_eq _ (ArgVars _)) in * by eauto.
 
     rewrite replace_it3 in * by eauto.
     rewrite plus_0_r in *.
@@ -217,16 +247,14 @@ Section TopSection.
     repeat rewrite wplus_assoc in *.
 
     hide_upd_sublist.
-    set (map _ _) in *.
+    hide_map.
     set (ArgVars _) in *.
     set (x8 - _ - _) in *.
-    generalize dependent H35; clear_all; intros.
+    generalize dependent H36; clear_all; intros.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
-    eapply H32.
-    unfold toArray in *.
+    auto_apply.
     eauto.
     eauto.
 
@@ -244,11 +272,11 @@ Section TopSection.
     hide_upd_sublist.
     intros.
 
-    clear_imports.
     hiding ltac:(step auto_ext).
     hiding ltac:(step auto_ext).
 
     instantiate (2 := None).
+    instantiate (2 := $0).
     simpl.
 
     unfold is_state in *.
@@ -259,7 +287,9 @@ Section TopSection.
     unfold vars_start in *.
     simpl in *.
     openhyp.
-    rewrite H10 in *.
+    match goal with
+      | H : Regs x15 Sp = _ |- _ => rewrite H in *
+    end.
     rewrite H in *.
     rewrite wplus_wminus in *.
 
@@ -277,20 +307,32 @@ Section TopSection.
     rewrite fold_4_mult_2 in *.
     repeat rewrite Mult.mult_plus_distr_l in *.
     rewrite_natToW_plus.
-    set (4 * length vars) in *.
-    set (4 * length x6) in *.
-    set (Regs x Sp ^+ $8) in *.
-    replace (_ ^+ natToW (n + n0)) with (w ^+ $(n) ^+ $(n0)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
+    set (len1 := 4 * length vars) in *.
+    set (len2 := 4 * length x6) in *.
+    set (w := Regs x Sp ^+ $8) in *.
+    replace (_ ^+ natToW (len1 + len2)) with (w ^+ $(len1) ^+ $(len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
     unfold_all.
     repeat rewrite wplus_assoc in *.
 
     hide_upd_sublist.
     hide_le.
-    replace (length (ArgVars spec)) with (length l) in * by admit.
+    unfold toArray in *.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => eapply map_eq_length_eq in H
+    end.
+
+    match goal with
+      | H : length (ArgVars _) = _ |- _ => rewrite H in *
+    end.
+
+    match goal with
+      | H : length (ArgVars _) = _ |- _ => generalize dependent H
+    end.
+
     clear_all.
     intros.
 
-    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext). (* causing universe inconsistency *)
 
     rewrite fold_first in *.
     set (Regs _ _ ^+ _ ^+ _ ^+ _) in *.
@@ -304,12 +346,12 @@ Section TopSection.
     hiding ltac:(step auto_ext).
 
     rewrite fold_first in *.
-    set (w ^+ _) in *.
-    set (x8 - _) in *.
-    subst n0.
-    set (length l) in *.
-    replace (w0 =?> n1)%Sep with (buf_to_split w0 n1 n0) by (unfold buf_to_split; eauto).
-    assert (buf_splittable n1 n0) by admit.
+    unfold_all.
+    set (w := Regs _ _ ^+ _ ^+ _ ^+ _ ^+ _) in *.
+    set (big := x8 - _) in *.
+    set (small := length l) in *.
+    replace (w =?> big)%Sep with (buf_to_split w big small) by (unfold buf_to_split; eauto).
+    assert (buf_splittable big small) by admit.
     hiding ltac:(step hints_buf_split_bwd).
 
     rewrite fold_first in *.
@@ -317,30 +359,35 @@ Section TopSection.
     hiding ltac:(step auto_ext).
 
     rewrite fold_first in *.
-
     set (ArgVars _) in *.
     Require Import SepHints4.
     assert (locals_to_elim l0) by (unfold locals_to_elim; eauto).
     hiding ltac:(step hints_elim_locals).
-    subst l0.
-    subst n0.
-    replace (length (ArgVars spec)) with (length l) in * by admit.
+    unfold_all.
+    match goal with
+      | H : length (ArgVars _) = _ |- _ => rewrite H in *
+    end.
     hiding ltac:(step auto_ext).
 
     rewrite fold_second in *.
     simpl in *.
     openhyp.
     descend.
-    rewrite H6.
-    eapply H31.
+    match goal with
+      | H : Regs _ Rv = _ |- _ => rewrite H
+    end.
+    auto_apply.
     econstructor; simpl in *.
     eauto.
-    rewrite <- H55.
     unfold toArray in *.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => rewrite <- H
+    end.
     reflexivity.
     eauto.
     unfold_all.
     repeat rewrite length_upd_sublist in *; eauto.
+
     eauto.
 
     destruct_state.
@@ -362,13 +409,35 @@ Section TopSection.
 
     econstructor.
     2 : eauto.
-    rewrite H5.
+    match goal with
+      | H : Regs _ Rv = _ |- _ => rewrite H
+    end.
     econstructor; simpl in *.
     eauto.
-    rewrite <- H55.
     unfold toArray in *.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => rewrite <- H
+    end.
     reflexivity.
     eauto.
+
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+  Qed.
+(*here*)
 
     (* foreign *)
     unfold_all.
@@ -406,7 +475,7 @@ Section TopSection.
     hide_all_eq.
     rewrite (@replace_array_to_split l2 _ (length l)) in H3.
     assert (splittable l2 (length l)) by admit.
-    evaluate hints_array_split.
+    hiding ltac:(evaluate hints_array_split).
     fold (@firstn W) in *.
     fold (@skipn W) in *.
     rewrite fold_4_mult in *.
@@ -419,7 +488,7 @@ Section TopSection.
     hide_all_eq.
     hide_upd_sublist.
     set (map _ _) in H5.
-    assert (to_elim l0) by (unfold to_elim; eauto); evaluate hints_array_elim.
+    assert (to_elim l0) by (unfold to_elim; eauto); hiding ltac:(evaluate hints_array_elim).
     intros.
     unfold_all.
     erewrite CancelIL.skipn_length in *.
@@ -442,7 +511,6 @@ Section TopSection.
     simpl in h0.
     subst h0.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     eauto.
@@ -463,7 +531,6 @@ Section TopSection.
     hide_upd_sublist.
     intros.
 
-    clear_imports.
     hiding ltac:(step auto_ext).
 
     unfold is_state in *.
@@ -626,7 +693,6 @@ Section TopSection.
     rewrite H in *.
     rewrite H8 in *.
     rewrite replace_it.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     eauto.
     rewrite H23.
@@ -670,7 +736,6 @@ Section TopSection.
     instantiate (2 := v).
     set (upd_sublist x5 _ _) in *.
     set (upd_sublist x9 _ _) in *.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     rewrite length_upd_sublist; eauto.
     
