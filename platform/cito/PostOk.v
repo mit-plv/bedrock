@@ -75,7 +75,6 @@ Section TopSection.
     eauto.
     eauto.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
     eapply RunsTo_Seq_Skip; eauto.
@@ -109,7 +108,6 @@ Section TopSection.
     eauto.
     eauto.
     eauto.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
     eapply RunsTo_Seq_assoc; eauto.
@@ -145,7 +143,6 @@ Section TopSection.
     destruct x0; simpl in *.
     instantiate (6 := upd_sublist x5 0 x4).
     repeat rewrite length_upd_sublist.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
@@ -154,7 +151,6 @@ Section TopSection.
     eauto.
     eauto.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     descend.
@@ -191,7 +187,6 @@ Section TopSection.
     destruct x0; simpl in *.
     instantiate (6 := upd_sublist x5 0 x4).
     repeat rewrite length_upd_sublist.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
@@ -200,7 +195,6 @@ Section TopSection.
     eauto.
     eauto.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     descend.
@@ -219,7 +213,6 @@ Section TopSection.
     eauto.
     eauto.
     eauto.
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     descend.
     find_cond.
@@ -254,7 +247,6 @@ Section TopSection.
     instantiate (5 := heap_upd_option h x8 x9).
     set (upd_option _ _ _) in H4.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
     instantiate (1 := x3).
     hiding ltac:(step auto_ext).
@@ -271,7 +263,6 @@ Section TopSection.
     eauto.
     eauto.
 
-    clear_imports.
     repeat hiding ltac:(step auto_ext).
 
     descend.
@@ -283,15 +274,3 @@ Section TopSection.
   Qed.
 
 End TopSection.
-
-
-(*
-    Ltac pre_eval_statement := intros; openhyp; try_post.
-
-    Ltac assert_new_as t name := not_exist t; assert t as name.
-
-    Ltac eval_statement := pre_eval_statement; transit; openhyp; try_post.
-
-    Ltac eval_step hints := first[eval_statement | try clear_imports; eval_instrs hints].
-
-*)
