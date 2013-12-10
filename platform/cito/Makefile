@@ -12,8 +12,8 @@ MODULES := \
 	CompileStmtTactics \
 	SepHints SepHints2 SepLemmas SepHints3 SepHints4 \
 	PostOk \
-	# VerifCondOk \
-	# CompileStmt \
+	VerifCondOk \
+	CompileStmt \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
