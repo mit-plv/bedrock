@@ -12,6 +12,7 @@ MODULES := \
 	CompileStmtTactics \
 	SepHints SepHints2 SepLemmas SepHints3 SepHints4 \
 	PostOk \
+	VerifCondOkTactics VerifCondOkCall VerifCondOkNonCall \
 	VerifCondOk \
 	CompileStmt \
 	# SafeCoind \
