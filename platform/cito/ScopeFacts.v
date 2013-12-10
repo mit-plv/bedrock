@@ -49,3 +49,8 @@ Lemma in_scope_Call_args : forall vars temp_size x f args k, in_scope vars temp_
   admit.
 Qed.
 
+Require SaveRet.
+
+Lemma in_scope_Call_ret : forall vars temp_size x f args k, in_scope vars temp_size (Syntax.Call x f args ;; k) -> SaveRet.in_scope vars x.
+  admit.
+Qed.

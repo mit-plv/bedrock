@@ -15,3 +15,6 @@ Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map 
   admit.
 Qed.
 
+Lemma make_triples_length : forall pairs outs, length outs = length pairs -> length (make_triples pairs outs) = length pairs.
+  admit.
+Qed.
