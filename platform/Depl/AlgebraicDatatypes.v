@@ -2,7 +2,7 @@
 
 Require Import AutoSep.
 
-Require Import Depl.Logic Depl.Cancel.
+Require Import Depl.Logic.
 
 
 (** * Syntax of algebraic datatype definitions *)
