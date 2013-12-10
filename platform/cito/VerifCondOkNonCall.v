@@ -46,11 +46,7 @@ Section TopSection.
   Set Printing Coercions.
 
   Require Import SemanticsExpr.
-  Require Import SepHints.
   Require Import GeneralTactics.
-  Require Import WordFacts.
-  Require Import Arith.
-  Require Import InvFacts.
   Require Import VerifCondOkTactics.
 
   Open Scope nat.
