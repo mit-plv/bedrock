@@ -332,7 +332,7 @@ Section TopSection.
     clear_all.
     intros.
 
-    hiding ltac:(step auto_ext). (* causing universe inconsistency *)
+    hiding ltac:(step auto_ext).
 
     rewrite fold_first in *.
     set (Regs _ _ ^+ _ ^+ _ ^+ _) in *.
@@ -421,38 +421,18 @@ Section TopSection.
     reflexivity.
     eauto.
 
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-  Qed.
-(*here*)
-
     (* foreign *)
     unfold_all.
     simpl in *.
     Transparent funcs_ok.
-    generalize H7; intro is_funcs_ok.
-    unfold funcs_ok in H7.
+    unfold_funcs_ok.
     Opaque funcs_ok.
     simpl in *.
     repeat rewrite wplus_assoc in *.
     post.
-    specialize (Imply_sound (H10 _ _) (Inj_I _ _ H28)); propxFo.
+    specialize_funcs_ok.
     descend.
-    rewrite H2.
-    rewrite H26.
+    rewriter.
     eauto.
     step auto_ext.
     descend.
@@ -467,13 +447,15 @@ Section TopSection.
     unfold vars_start in *.
     simpl in *.
     rewrite H.
-    rewrite <- H30.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => rewrite <- H
+    end.
     rewrite map_length in *.
     hide_upd_sublist.
     Require Import SepHints2.
     clear_Forall_PreCond.
     hide_all_eq.
-    rewrite (@replace_array_to_split l2 _ (length l)) in H3.
+    rewrite (@replace_array_to_split l2 _ (length l)) in H7.
     assert (splittable l2 (length l)) by admit.
     hiding ltac:(evaluate hints_array_split).
     fold (@firstn W) in *.
@@ -487,12 +469,14 @@ Section TopSection.
     set (skipn _ _) in *.
     hide_all_eq.
     hide_upd_sublist.
-    set (map _ _) in H5.
+    hide_map.
     assert (to_elim l0) by (unfold to_elim; eauto); hiding ltac:(evaluate hints_array_elim).
     intros.
     unfold_all.
     erewrite CancelIL.skipn_length in *.
-    rewrite H27 in *.
+    match goal with
+      | H : length _ = _ - 2 |- _ => rewrite H in *
+    end.
     rewrite replace_it3 in * by eauto.
     rewrite Mult.mult_0_r in *.
     rewrite wplus_0 in *.
@@ -540,7 +524,9 @@ Section TopSection.
     unfold temp_start in *.
     unfold vars_start in *.
     simpl in *.
-    rewrite H32 in *.
+    match goal with
+      | H : Regs x14 Sp = _ |- _ => rewrite H in *
+    end.
     rewrite H in *.
     rewrite wplus_wminus in *.
 
@@ -551,7 +537,9 @@ Section TopSection.
     subst h0.
 
     instantiate (8 := (_, _)); simpl in *.
-    instantiate (9 := upd_sublist (upd_sublist x6 0 x12) 0 x13).
+    hide_upd_sublist.
+    instantiate (9 := l1).
+    unfold_all.
     repeat rewrite length_upd_sublist in *.
 
     rewrite Mult.mult_0_r in *.
@@ -559,16 +547,26 @@ Section TopSection.
     rewrite fold_4_mult_2 in *.
     rewrite Mult.mult_plus_distr_l in *.
     rewrite_natToW_plus.
-    set (4 * length vars) in *.
-    set (4 * length x6) in *.
-    set (Regs x Sp ^+ $8) in *.
-    replace (_ ^+ natToW (n + n0)) with (w ^+ $(n) ^+ $(n0)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
+    set (len1 := 4 * length vars) in *.
+    set (len2 := 4 * length x6) in *.
+    set (w := Regs x Sp ^+ $8) in *.
+    replace (_ ^+ natToW (len1 + len2)) with (w ^+ $(len1) ^+ $(len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
     unfold_all.
     repeat rewrite wplus_assoc in *.
 
     hide_upd_sublist.
-    assert (length x15 = length l) by admit.
-    generalize H35.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => generalize H; eapply map_eq_length_eq in H; intro
+    end.
+    Lemma make_triples_length : forall pairs outs, length outs = length pairs -> length (make_triples pairs outs) = length pairs.
+      admit.
+    Qed.
+
+    rewrite make_triples_length in * by eauto.
+    assert (length x15 = length l) by (rewriter; eauto).
+    repeat match goal with
+             | H : length _ = length l |- _ => generalize dependent H
+           end.
     hide_le.
     clear_all.
     intros.
@@ -576,7 +574,9 @@ Section TopSection.
     hiding ltac:(step auto_ext).
     assert (to_elim x15) by (unfold to_elim; eauto).
     hiding ltac:(step hints_array_elim).
-    rewrite H35 in *.
+    match goal with
+      | H : length _ = length l |- _ => rewrite H in *
+    end.
     set (Regs _ _ ^+ _ ^+ _ ^+ _) in *.
     set (length l) in *.
     set (x8 - _ - _) in *.
@@ -587,24 +587,30 @@ Section TopSection.
     post.
     hiding ltac:(step auto_ext).
 
-    set (w ^+ _) in *.
-    set (x8 - _) in *.
-    subst n0.
-    set (length l) in *.
-    replace (w0 =?> n)%Sep with (buf_to_split w0 n n0) by (unfold buf_to_split; eauto).
-    assert (buf_splittable n n0) by admit.
+    unfold_all.
+    set (w := Regs _ _ ^+ _ ^+ _ ^+ _ ^+ _) in *.
+    set (big := x8 - _) in *.
+    set (small := length l) in *.
+    replace (w =?> big)%Sep with (buf_to_split w big small) by (unfold buf_to_split; eauto).
+    assert (buf_splittable big small) by admit.
     hiding ltac:(step hints_buf_split_bwd).
 
     rewrite fold_first in *.
     rewrite fold_second in *.
     simpl in *.
     descend.
-    rewrite H29.
-    rewrite H10 in *.
-    eapply H31.
+    match goal with
+      | H : Regs _ Rv = _ |- _ => rewrite H
+    end.
+    match goal with
+      | H : _ = fold_left store_out _ _ |- _ => rewrite H in *
+    end.
+    auto_apply.
     econstructor; simpl in *.
     eauto.
-    rewrite H30.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => rewrite H
+    end.
     rewrite make_triples_Word; eauto.
     eapply make_triples_Forall_pair; eauto.
     rewrite make_triples_ADTIn; eauto.
@@ -637,15 +643,35 @@ Section TopSection.
 
     econstructor.
     2 : eauto.
-    rewrite H29.
+    match goal with
+      | H : Regs _ Rv = _ |- _ => rewrite H
+    end.
     econstructor; simpl in *.
     eauto.
-    rewrite H30.
+    match goal with
+      | H : map _ _ = map _ _ |- _ => rewrite H
+    end.
     rewrite make_triples_Word; eauto.
     eapply make_triples_Forall_pair; eauto.
     rewrite make_triples_ADTIn; eauto.
     eauto.
     eauto.
+
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+  Qed.
 
     (* vc 1 *)
     unfold stack_slot in *.
