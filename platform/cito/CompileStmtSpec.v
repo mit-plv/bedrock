@@ -30,6 +30,11 @@ Section Spec.
     Subset (free_vars s) (to_set vars) /\
     depth s <= temp_size.
 
-  Definition verifCond pre := imply pre precond :: in_scope (Seq s k) :: nil.
+  Require Import WellFormed.
+
+  (* syntactic_requirement *)
+  Definition syn_req s := in_scope s /\ wellformed s.
+
+  Definition verifCond pre := imply pre precond :: syn_req (Seq s k) :: nil.
 
 End Spec.

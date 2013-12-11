@@ -49,11 +49,11 @@ Section ExprComp.
   Require Import StringSet.
   Require Import SetUtil.
 
-  Definition in_scope := 
+  Definition syn_req := 
     Subset (free_vars expr) (to_set vars) /\
     base + depth expr <= temp_size.
 
-  Definition verifCond pre := imply pre new_pre :: in_scope :: nil.
+  Definition verifCond pre := imply pre new_pre :: syn_req :: nil.
 
   Variable imports : LabelMap.t assert.
 

@@ -30,13 +30,13 @@ Section TopLevel.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-  Definition in_scope := 
+  Definition syn_req := 
     match var with
       | Some x => List.In x vars
       | None => True
     end.
 
-  Definition verifCond pre := imply pre new_pre :: in_scope :: nil.
+  Definition verifCond pre := imply pre new_pre :: syn_req :: nil.
 
   Variable imports : LabelMap.t assert.
 

@@ -24,6 +24,10 @@ Variable heap_upd : Heap -> W -> ADTValue -> Heap.
 
 Variable heap_remove : Heap -> W -> Heap.
 
+Variable heap_empty : Heap.
+
+Variable heap_merge : Heap -> Heap -> Heap.
+
 Definition State := (vals * Heap)%type.
 
 Definition ArgIn := (W + ADTValue)%type.
@@ -41,6 +45,7 @@ Record ForeignFuncSpec :=
 Record InternalFuncSpec := 
   {
     ArgVars : list string;
+    ArgVarsGood : NoDup ArgVars;
     RetVar : string;
     Body : Stmt
   }.
@@ -49,13 +54,27 @@ Inductive Callee :=
   | Foreign : ForeignFuncSpec -> Callee
   | Internal : InternalFuncSpec -> Callee.
 
-Definition heap_match (heap : Heap) p :=
+Definition word_adt_match (heap : Heap) p :=
   let word := fst p in
   let in_ := snd p in
   match in_ with
     | inl w => word = w
     | inr a => heap_sel heap word = Some a
   end.
+
+Definition is_adt (a : ArgIn) :=
+  match a with
+    | inl _ => false
+    | inr _ => true
+  end.
+
+Definition disjoint_ptrs (pairs : list (W * ArgIn)) := 
+  let pairs := filter (fun p => is_adt (snd p)) pairs in
+  NoDup (map fst pairs).
+
+Definition good_inputs heap pairs := 
+  Forall (word_adt_match heap) pairs /\
+  disjoint_ptrs pairs.
 
 Record ArgTriple :=
   {
@@ -132,7 +151,7 @@ Section fs.
         let heap := snd v in
         fs (eval vs f) = Some (Foreign spec) ->
         map (eval vs) args = map Word triples ->
-        Forall (fun x => heap_match heap (Word x, ADTIn x)) triples ->
+        good_inputs heap (map (fun x => (Word x, ADTIn x)) triples) ->
         PreCond spec (map ADTIn triples) ->
         PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret ->
         let heap := fold_left store_out triples heap in

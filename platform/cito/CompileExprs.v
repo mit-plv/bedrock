@@ -22,7 +22,7 @@ Section TopLevel.
     x ~> ExX, Ex vs, Ex temps, Ex dst_buf,
     ![^[is_state x#Sp vs temps dst_buf] * #0]x /\
     [| length temps = temp_size /\
-       length exprs <= length dst_buf |].
+       length exprs = length dst_buf |].
 
   Require Import SemanticsExpr.
   Require Import DepthExpr.
@@ -39,10 +39,10 @@ Section TopLevel.
     forall specs other vs temps dst_buf,
       interp specs (![is_state x_pre#Sp vs temps dst_buf * other ] x_pre) ->
       length temps = temp_size /\
-      length exprs <= length dst_buf /\
+      length exprs = length dst_buf /\
       Regs x Sp = x_pre#Sp /\
       exists changed,
-        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (upd_sublist dst_buf 0 (map (eval vs) exprs)) * other ] (fst x_pre, x)) /\
+        interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
         length changed <= depth.
 
   Definition post (pre : assert) := 
@@ -57,11 +57,11 @@ Section TopLevel.
   Require Import SetUtil.
   Require Import Union.
 
-  Definition in_scope := 
+  Definition syn_req := 
     Subset (union_list (map free_vars exprs)) (to_set vars) /\
     base + depth <= temp_size.
 
-  Definition verifCond pre := imply pre new_pre :: in_scope :: nil.
+  Definition verifCond pre := imply pre new_pre :: syn_req :: nil.
 
   Variable imports : LabelMap.t assert.
 

@@ -29,6 +29,7 @@ Section fs.
         let vs := fst v in
         let heap := snd v in
         fs (eval vs f) = Some (Internal spec) ->
+        length (ArgVars spec) = length args ->
         (forall vs_arg, 
            map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
            -> Safe (Body spec) (vs_arg, heap)) ->
@@ -39,7 +40,7 @@ Section fs.
         let heap := snd v in
         fs (eval vs f) = Some (Foreign spec) ->
         map (eval vs) args = map fst pairs ->
-        Forall (heap_match heap) pairs ->
+        good_inputs heap pairs ->
         PreCond spec (map snd pairs) ->
         Safe (Syntax.Call var f args) v.
 
