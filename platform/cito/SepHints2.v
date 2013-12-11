@@ -5,7 +5,7 @@ Set Implicit Arguments.
 
 Local Open Scope nat.
 
-Variable splittable : forall A, list A -> nat -> Prop.
+Definition splittable A (ls : list A) pos := pos <= length ls.
 
 Definition array_to_split ls p (_ : nat) := array ls p.
 

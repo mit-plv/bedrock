@@ -42,6 +42,14 @@ Section layout.
       | _, _ => nil
     end.
 
+  Definition store_pair heap (p : W * ArgIn) :=
+    match snd p with
+      | inl _ => heap
+      | inr a => heap_upd heap (fst p) a
+    end.
+
+  Fixpoint make_heap pairs := fold_left store_pair pairs heap_empty.
+
   Definition funcs_ok (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
     ((Al i, Al spec, 
       [| fs i = Some (Internal spec) |] 
@@ -60,23 +68,23 @@ Section layout.
      (Al i, Al spec, 
       [| fs i = Some (Foreign spec) |] 
         ---> (i, stn) @@@ (
-          st ~> ExX, Ex heap, Ex pairs, Ex rp, Ex e_stack,
+          st ~> ExX, Ex pairs, Ex rp, Ex e_stack,
+          let heap := make_heap pairs in
           ![^[is_state st#Sp rp e_stack nil (empty_vs, heap) (map fst pairs) * mallocHeap 0] * #0] st /\
-          [| List.Forall (heap_match heap) pairs /\
+          [| disjoint_ptrs pairs /\
              PreCond spec (map snd pairs) |] /\
           (st#Rp, stn) 
             @@@ (
-              st' ~> Ex args', Ex heap', Ex addr, Ex ret, Ex rp', Ex outs,
+              st' ~> Ex args', Ex addr, Ex ret, Ex rp', Ex outs,
               let t := decide_ret addr ret in
               let ret_w := fst t in
               let ret_a := snd t in
-              ![^[is_state st#Sp rp' e_stack nil (empty_vs, heap') args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
+              let triples := make_triples pairs outs in
+              let heap := fold_left store_out triples heap in
+              ![^[is_state st#Sp rp' e_stack nil (empty_vs, heap) args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
               [| length outs = length pairs /\
-                 let triples := make_triples pairs outs in
                  PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
                  length args' = length triples /\
-                 let heap := fold_left store_out triples heap in
-                 heap' = heap /\ 
                  st'#Rv = ret_w /\
                  st'#Sp = st#Sp |]))))%PropX.
 

@@ -40,26 +40,24 @@ Section Body.
   Definition after_call ret k : assert :=
     st ~> Ex fs, 
     funcs_ok layout (fst st) fs /\
-    ExX, Ex v, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
+    ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
     let old_sp := st#Sp ^- frame_len_w in
-    ![^[is_state layout old_sp rp e_stack vars v temps * layout_option layout ret_w ret_a * mallocHeap 0] * #0] st /\
-    [| let vs := fst v in
-       let heap0 := snd v in
-       let vs := upd_option vs ret st#Rv in
-       let heap := heap_upd_option heap0 ret_w ret_a in
+    ![^[is_state layout old_sp rp e_stack vars (vs, heap1) temps * is_heap layout heap2 * layout_option layout ret_w ret_a * mallocHeap 0] * #0] st /\
+    [| let vs := upd_option vs ret st#Rv in
+       let heap12 := heap_merge heap1 heap2 in
+       let heap := heap_upd_option heap12 ret_w ret_a in
        let v := (vs, heap) in
-       (separated heap0 ret_w ret_a -> Safe fs k v) /\
+       (separated heap12 ret_w ret_a -> Safe fs k v) /\
        length temps = temp_size |] /\
     (rp, fst st) 
       @@@ (
         st' ~> Ex v', Ex temps',
         ![^[is_state layout st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
-        [| let vs := fst v in
-           let heap0 := snd v in
-           let vs := upd_option vs ret st#Rv in
-           let heap := heap_upd_option heap0 ret_w ret_a in
+        [| let vs := upd_option vs ret st#Rv in
+           let heap12 := heap_merge heap1 heap2 in
+           let heap := heap_upd_option heap12 ret_w ret_a in
            let v := (vs, heap) in
-           separated heap0 ret_w ret_a /\
+           separated heap12 ret_w ret_a /\
            RunsTo fs k v v' /\
            length temps' = temp_size /\
            st'#Sp = old_sp |]).

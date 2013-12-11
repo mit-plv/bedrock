@@ -7,13 +7,14 @@ MODULES := \
 	FreeVarsExpr Option Union FreeVars \
 	Inv \
 	DepthExpr Max Depth \
+	WellFormed \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	SetFacts ScopeFacts SemanticsFacts ListFacts WordFacts InvFacts \
+	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts \
 	CompileStmtTactics \
 	SepHints SepHints2 SepLemmas SepHints3 SepHints4 \
-	PostOk \
 	VerifCondOkTactics \
-	VerifCondOkNonCall \
+	# PostOk \
+	# VerifCondOkNonCall \
 	# VerifCondOkCall \
 	# VerifCondOk \
 	# CompileStmt \

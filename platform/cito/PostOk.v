@@ -57,6 +57,55 @@ Section TopSection.
 
     unfold verifCond, imply; induction s.
 
+    Focus 5.
+    (* call *)
+    wrap0.
+    post.
+    destruct_state.
+    hiding ltac:(evaluate auto_ext).
+    unfold is_state in *.
+    unfold frame_len_w in *.
+    unfold frame_len in *.
+    unfold temp_start in *.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    unfold SaveRet.runs_to in *.
+    unfold SaveRet.is_state in *.
+    simpl in *.
+    transit.
+    openhyp.
+    descend.
+    eauto.
+    instantiate (5 := (_, _)); simpl.
+    rewrite <- H in *.
+    rewrite <- H1 in *.
+    instantiate (5 := heap_upd_option h x8 x9).
+    set (upd_option _ _ _) in H11.
+
+    repeat hiding ltac:(step auto_ext).
+    instantiate (1 := x3).
+    hiding ltac:(step auto_ext).
+    Require Import SepLemmas.
+    eapply is_heap_upd_option_bwd.
+
+    rewrite H5 in *.
+    eapply H6.
+    set (is_heap _) in *.
+    set (layout_option _) in *.
+    rearrange_stars (h0 h * h1 x8 x9)%Sep.
+    eapply star_separated; eauto.
+    eauto.
+    eauto.
+    eauto.
+
+    repeat hiding ltac:(step auto_ext).
+
+    descend.
+    set (is_heap _) in *.
+    set (layout_option _) in *.
+    rearrange_stars (h0 h * h1 x8 x9)%Sep.
+    eapply star_separated; eauto.
+
     (* skip *)
 
     intros.
@@ -217,59 +266,6 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_While_false; eauto.
-
-    (* call *)
-    wrap0.
-    post.
-    clear_imports.
-    set (P := is_state _) in *.
-    set (P1 := layout_option _) in *.
-    eval_instrs auto_ext.
-    subst P.
-    subst P1.
-    unfold is_state in *.
-    unfold frame_len_w in *.
-    unfold frame_len in *.
-    unfold temp_start in *.
-    unfold var_slot in *.
-    unfold vars_start in *.
-    destruct_state.
-    unfold SaveRet.runs_to in *.
-    unfold SaveRet.is_state in *.
-    simpl in *.
-    transit.
-    openhyp.
-    descend.
-    eauto.
-    instantiate (5 := (_, _)); simpl.
-    rewrite <- H in *.
-    rewrite <- H1 in *.
-    instantiate (5 := heap_upd_option h x8 x9).
-    set (upd_option _ _ _) in H4.
-
-    repeat hiding ltac:(step auto_ext).
-    instantiate (1 := x3).
-    hiding ltac:(step auto_ext).
-    Require Import SepLemmas.
-    eapply is_heap_upd_option_bwd.
-
-    rewrite H5 in *.
-    eapply H6.
-    set (is_heap _) in *.
-    set (layout_option _) in *.
-    rearrange_stars (h0 h * h1 x8 x9)%Sep.
-    eapply star_separated; eauto.
-    eauto.
-    eauto.
-    eauto.
-
-    repeat hiding ltac:(step auto_ext).
-
-    descend.
-    set (is_heap _) in *.
-    set (layout_option _) in *.
-    rearrange_stars (h0 h * h1 x8 x9)%Sep.
-    eapply star_separated; eauto.
 
   Qed.
 
