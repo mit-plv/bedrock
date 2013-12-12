@@ -54,3 +54,7 @@ Require SaveRet.
 Lemma syn_req_Call_ret : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> SaveRet.syn_req vars x.
   admit.
 Qed.
+
+Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> goodSize (2 + length args).
+  admit.
+Qed.

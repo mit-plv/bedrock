@@ -1,6 +1,10 @@
 Require Import AutoSep.
 Require Import Arith.
 
+Set Implicit Arguments.
+
+Local Open Scope nat.
+
 Lemma fold_4_mult : forall n, n + (n + (n + (n + 0))) = 4 * n.
   intros; ring.
 Qed.
@@ -25,4 +29,12 @@ Ltac rewrite_natToW_plus :=
 
 Lemma wplus_wminus : forall (a b : W), a ^+ b ^- b = a.
   intros; words.
+Qed.
+
+Lemma wordToNat_natToW_le : forall n, wordToNat (natToW n) <= n.
+  admit.
+Qed.
+
+Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> a <= b.
+  intros; eapply le_wordToN in H; eauto; eapply le_trans; eauto; eapply wordToNat_natToW_le.
 Qed.
