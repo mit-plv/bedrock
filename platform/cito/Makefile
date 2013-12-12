@@ -11,10 +11,10 @@ MODULES := \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
 	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts HeapFacts \
 	CompileStmtTactics \
-	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 \
+	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
 	VerifCondOkTactics \
 	VerifCondOkCall \
-	# PostOk \
+	PostOk \
 	# VerifCondOkNonCall \
 	# VerifCondOk \
 	# CompileStmt \

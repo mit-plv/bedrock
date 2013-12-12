@@ -6,8 +6,6 @@ Section TopSection.
 
   Require Import Inv.
 
-  Variable layout : Layout.
-
   Variable vars : list string.
 
   Variable temp_size : nat.
@@ -21,23 +19,23 @@ Section TopSection.
   Require Import Syntax.
   Require Import Wrap.
 
-  Definition compile := compile layout vars temp_size imports_global modName.
+  Definition compile := compile vars temp_size imports_global modName.
 
   Lemma post_ok : 
     forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
            (x : settings * state),
-      vcs (verifCond layout vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k pre) ->
       interp specs
              (Postcondition
                 (compile s k pre) x) ->
-      interp specs (postcond layout vars temp_size k x).
+      interp specs (postcond vars temp_size k x).
   Proof.
 
     Require Import Semantics.
     Require Import Safe.
     Require Import Notations.
     Require Import SemanticsFacts.
-    Require Import ScopeFacts.
+    Require Import SynReqFacts.
     Require Import ListFacts.
     Require Import StringSet.
     Require Import SetFacts.
@@ -50,10 +48,15 @@ Section TopSection.
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
 
-    Hint Resolve Subset_in_scope_In.
+    Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
 
     Set Printing Coercions.
+
+    Ltac auto_apply :=
+      match goal with
+          H : _ |- _ => eapply H
+      end.
 
     unfold verifCond, imply; induction s.
 
@@ -79,21 +82,26 @@ Section TopSection.
     instantiate (5 := (_, _)); simpl.
     rewrite <- H in *.
     rewrite <- H1 in *.
-    instantiate (5 := heap_upd_option h x8 x9).
+    instantiate (5 := heap_upd_option (heap_merge x5 x6) x10 x11).
     set (upd_option _ _ _) in H11.
 
     repeat hiding ltac:(step auto_ext).
-    instantiate (1 := x3).
-    hiding ltac:(step auto_ext).
-    Require Import SepLemmas.
-    eapply is_heap_upd_option_bwd.
 
-    rewrite H5 in *.
-    eapply H6.
-    set (is_heap _) in *.
-    set (layout_option _) in *.
-    rearrange_stars (h0 h * h1 x8 x9)%Sep.
-    eapply star_separated; eauto.
+    Require Import LayoutHints3.
+    set (h := heap_merge _ _) in *.
+    replace (is_heap (heap_upd_option _ _ _)) with (is_heap_upd_option h x10 x11) by (unfold is_heap_upd_option; eauto).
+    hiding ltac:(step hints_heap_upd_option).
+    unfold_all.
+
+    replace (is_heap (heap_merge _ _)) with (is_heap_merge x5 x6) by (unfold is_heap_merge; eauto).
+    hiding ltac:(step hints_heap_merge).
+
+    match goal with
+      | H : Regs _ Rv = _ |- _ => rewrite H in *
+    end.
+    auto_apply.
+    rearrange_stars (is_heap x5 * is_heap x6 * layout_option x10 x11)%Sep.
+    eapply star_merge_separated; eauto.
     eauto.
     eauto.
     eauto.
@@ -101,10 +109,8 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
 
     descend.
-    set (is_heap _) in *.
-    set (layout_option _) in *.
-    rearrange_stars (h0 h * h1 x8 x9)%Sep.
-    eapply star_separated; eauto.
+    rearrange_stars (is_heap x5 * is_heap x6 * layout_option x10 x11)%Sep.
+    eapply star_merge_separated; eauto.
 
     (* skip *)
 
@@ -160,8 +166,8 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
     descend.
     eapply RunsTo_Seq_assoc; eauto.
-    eapply in_scope_Seq_Seq; eauto.
-    eapply in_scope_Seq; eauto.
+    eapply syn_req_Seq_Seq; eauto.
+    eapply syn_req_Seq; eauto.
 
     (* if - true *)
     wrap0.
@@ -183,15 +189,14 @@ Section TopSection.
 
     transit.
 
-    destruct x4; simpl in *.
+    destruct_state.
     post.
     descend.
     eauto.
     instantiate (5 := (_, _)).
     simpl.
-    destruct x0; simpl in *.
-    instantiate (6 := upd_sublist x5 0 x4).
-    repeat rewrite length_upd_sublist.
+    instantiate (6 := upd_sublist _ _ _).
+    rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
@@ -205,7 +210,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_If_true; eauto.
-    eapply in_scope_If_true; eauto.
+    eapply syn_req_If_true; eauto.
 
     (* if - false *)
     wrap0.
@@ -227,15 +232,14 @@ Section TopSection.
 
     transit.
 
-    destruct x4; simpl in *.
+    destruct_state.
     post.
     descend.
     eauto.
     instantiate (5 := (_, _)).
     simpl.
-    destruct x0; simpl in *.
-    instantiate (6 := upd_sublist x5 0 x4).
-    repeat rewrite length_upd_sublist.
+    instantiate (6 := upd_sublist _ _ _).
+    rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
 
     find_cond.
@@ -249,7 +253,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_If_false; eauto.
-    eapply in_scope_If_false; eauto.
+    eapply syn_req_If_false; eauto.
 
     (* while *)
     wrap0.
