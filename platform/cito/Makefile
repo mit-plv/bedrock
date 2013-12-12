@@ -18,6 +18,9 @@ MODULES := \
 	VerifCondOkNonCall \
 	VerifCondOk \
 	CompileStmt \
+	SyntaxFunc SyntaxModule \
+	CompileFunc \
+	CompileModule \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
