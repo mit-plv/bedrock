@@ -27,7 +27,24 @@ Section TopSection.
   Hypothesis good_optimizer : GoodOptimizer.
 
   Require Import Inv.
-  Definition spec := Inv.inv (ArgVars func) 0 (SyntaxFunc.Body func).
+  Require Import Malloc.
+  Require Import Semantics Safe.
+  Definition inv vars temp_size s : assert := 
+    st ~> Ex fs, 
+    funcs_ok (fst st) fs /\
+    ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
+    ![^[is_state st#Sp rp e_stack vars v temps * mallocHeap 0] * #0] st /\
+    [| Safe fs s v /\
+       length temps = temp_size |] /\
+    (st#Rp(*the only difference from Inv.inv*), fst st) 
+      @@@ (
+        st' ~> Ex v', Ex temps',
+        ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
+        [| RunsTo fs s v v' /\
+           length temps' = temp_size /\
+           st'#Sp = st#Sp |]).
+
+  Definition spec := inv (SyntaxFunc.ArgVars func) 0 (SyntaxFunc.Body func).
 
   Section Body.
 
@@ -55,7 +72,7 @@ Section TopSection.
         (Structured.If_ imports_global n Le Rv cmd
                         (Diverge_ imports module_name)).
 
-    Definition vars := ArgVars func ++ Vars func.
+    Definition vars := SyntaxFunc.ArgVars func ++ Vars func.
 
     Require Import Depth.
     Definition temp_size := depth (SyntaxFunc.Body func).
