@@ -6,8 +6,6 @@ Section TopSection.
 
   Require Import Inv.
 
-  Variable layout : Layout.
-
   Variable vars : list string.
 
   Variable temp_size : nat.
@@ -21,13 +19,13 @@ Section TopSection.
   Require Import Syntax.
   Require Import Wrap.
 
-  Definition compile := compile layout vars temp_size imports_global modName.
+  Definition compile := compile vars temp_size imports_global modName.
 
   Require Import Semantics.
   Require Import Safe.
   Require Import Notations.
   Require Import SemanticsFacts.
-  Require Import ScopeFacts.
+  Require Import SynReqFacts.
   Require Import ListFacts.
   Require Import StringSet.
   Require Import SetFacts.
@@ -39,7 +37,7 @@ Section TopSection.
   Opaque mult.
   Opaque star. (* necessary to use eapply_cancel *)
 
-  Hint Resolve Subset_in_scope_In.
+  Hint Resolve Subset_syn_req_In.
   Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
   Hint Resolve map_length.
 
@@ -54,7 +52,7 @@ Section TopSection.
   Lemma verifCond_ok_skip : 
     forall k (pre : assert),
       let s := skip in
-      vcs (verifCond layout vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -73,20 +71,20 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond layout vars temp_size s1 k x))
-                          :: in_scope vars temp_size (s1;; k) :: nil) ->
+                           interp specs (precond vars temp_size s1 k x))
+                          :: syn_req vars temp_size (s1;; k) :: nil) ->
                      vcs (VerifCond (compile s1 k pre)))
            (IHs2 : forall (k : Stmt) (pre : assert),
                      vcs
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond layout vars temp_size s2 k x))
-                          :: in_scope vars temp_size (s2;; k) :: nil) ->
+                           interp specs (precond vars temp_size s2 k x))
+                          :: syn_req vars temp_size (s2;; k) :: nil) ->
                      vcs (VerifCond (compile s2 k pre)))
            k (pre : assert),
       let s := s1 ;; s2 in
-      vcs (verifCond layout vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -110,7 +108,7 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
     descend.
     eapply RunsTo_Seq_assoc; eauto.
-    eapply in_scope_Seq_Seq; eauto.
+    eapply syn_req_Seq_Seq; eauto.
 
     eapply IHs2.
     wrap0.
@@ -134,8 +132,8 @@ Section TopSection.
     repeat hiding ltac:(step auto_ext).
     descend.
     eapply RunsTo_Seq_assoc; eauto.
-    eapply in_scope_Seq_Seq; eauto.
-    eapply in_scope_Seq; eauto.
+    eapply syn_req_Seq_Seq; eauto.
+    eapply syn_req_Seq; eauto.
 
   Qed.
 
@@ -146,20 +144,20 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond layout vars temp_size s1 k x))
-                          :: in_scope vars temp_size (s1;; k) :: nil) ->
+                           interp specs (precond vars temp_size s1 k x))
+                          :: syn_req vars temp_size (s1;; k) :: nil) ->
                      vcs (VerifCond (compile s1 k pre)))
            (IHs2 : forall (k : Stmt) (pre : assert),
                      vcs
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond layout vars temp_size s2 k x))
-                          :: in_scope vars temp_size (s2;; k) :: nil) ->
+                           interp specs (precond vars temp_size s2 k x))
+                          :: syn_req vars temp_size (s2;; k) :: nil) ->
                      vcs (VerifCond (compile s2 k pre)))
            k (pre : assert),
            let s := Syntax.If e s1 s2 in
-      vcs (verifCond layout vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -182,11 +180,9 @@ Section TopSection.
     descend.
     repeat hiding ltac:(step auto_ext).
     eauto.
-    eapply in_scope_If_e; eauto.
+    eapply syn_req_If_e; eauto.
 
-    unfold evalCond in *.
-    simpl in *.
-    discriminate H0.
+    hiding ltac:(evaluate auto_ext).
 
     (* true *)
     eapply IHs1.
@@ -220,7 +216,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_If_true; eauto.
-    eapply in_scope_If_true; eauto.
+    eapply syn_req_If_true; eauto.
 
     (* false *)
     eapply IHs2.
@@ -254,7 +250,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_If_false; eauto.
-    eapply in_scope_If_false; eauto.
+    eapply syn_req_If_false; eauto.
 
   Qed.
 
@@ -265,12 +261,12 @@ Section TopSection.
                       ((forall (specs : codeSpec W (settings * state))
                                (x : settings * state),
                           interp specs (pre x) ->
-                          interp specs (precond layout vars temp_size s k x))
-                         :: in_scope vars temp_size (s;; k) :: nil) ->
+                          interp specs (precond vars temp_size s k x))
+                         :: syn_req vars temp_size (s;; k) :: nil) ->
                     vcs (VerifCond (compile s k pre)))
            k (pre : assert),
       let s := Syntax.While e s in
-      vcs (verifCond layout vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -293,7 +289,7 @@ Section TopSection.
     descend.
     repeat hiding ltac:(step auto_ext).
     eauto.
-    eapply in_scope_While_e; eauto.
+    eapply syn_req_While_e; eauto.
 
     eapply H2 in H0.
     unfold precond in *.
@@ -322,9 +318,7 @@ Section TopSection.
 
     descend.
 
-    unfold evalCond in *.
-    simpl in *.
-    discriminate H0.
+    hiding ltac:(evaluate auto_ext).
 
     unfold TopSection.compile in H0.
     eapply PostOk.post_ok in H0.
@@ -367,7 +361,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_While_true; eauto.
-    eapply in_scope_While; eauto.
+    eapply syn_req_While; eauto.
 
     eapply IHs.
     wrap0.
@@ -381,7 +375,7 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_While_true; eauto.
-    eapply in_scope_While; eauto.
+    eapply syn_req_While; eauto.
 
     unfold CompileExpr.verifCond in *.
     unfold CompileExpr.imply in *.
@@ -411,9 +405,9 @@ Section TopSection.
     descend.
     find_cond.
     eapply RunsTo_Seq_While_true; eauto.
-    eapply in_scope_While; eauto.
+    eapply syn_req_While; eauto.
 
-    eapply in_scope_While_e; eauto.
+    eapply syn_req_While_e; eauto.
 
   Qed.
 
