@@ -15,9 +15,9 @@ MODULES := \
 	VerifCondOkTactics \
 	VerifCondOkCall \
 	PostOk \
-	# VerifCondOkNonCall \
-	# VerifCondOk \
-	# CompileStmt \
+	VerifCondOkNonCall \
+	VerifCondOk \
+	CompileStmt \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \

@@ -6,8 +6,6 @@ Section Compile.
 
   Require Import Inv.
 
-  Variable layout : Layout.
-
   Variable vars : list string.
 
   Variable temp_size : nat.
@@ -27,9 +25,9 @@ Section Compile.
   Definition compile : cmd imports modName.
     refine (
         Wrap imports imports_global modName 
-             (CompileStmtImpl.compile layout vars temp_size imports_global modName s k) 
-             (fun _ => postcond layout vars temp_size k) 
-             (verifCond layout vars temp_size s k) 
+             (CompileStmtImpl.compile vars temp_size imports_global modName s k) 
+             (fun _ => postcond vars temp_size k) 
+             (verifCond vars temp_size s k) 
              _ _).
     Require Import PostOk VerifCondOk.
     eapply post_ok.
