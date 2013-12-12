@@ -28,6 +28,10 @@ Variable heap_empty : Heap.
 
 Variable heap_merge : Heap -> Heap -> Heap.
 
+Variable heap_elements : Heap -> list (W * ADTValue).
+
+Variable heap_diff : Heap -> Heap -> Heap.
+
 Definition State := (vals * Heap)%type.
 
 Definition ArgIn := (W + ADTValue)%type.

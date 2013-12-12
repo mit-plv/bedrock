@@ -5,17 +5,17 @@ MODULES := \
 	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
 	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
-	Inv \
+	Layout Inv \
 	DepthExpr Max Depth \
 	WellFormed \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts \
+	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts HeapFacts \
 	CompileStmtTactics \
-	SepHints SepHints2 SepLemmas SepHints3 SepHints4 \
+	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 \
 	VerifCondOkTactics \
+	VerifCondOkCall \
 	# PostOk \
 	# VerifCondOkNonCall \
-	# VerifCondOkCall \
 	# VerifCondOk \
 	# CompileStmt \
 	# SafeCoind \

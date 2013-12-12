@@ -1,17 +1,16 @@
 Require Import AutoSep.
-Require Import Semantics.
 
 Set Implicit Arguments.
 
-Definition Layout := W -> ADTValue -> HProp.
+Require Import Layout.
+Require Import Bags.
+Require Import Semantics.
 
-Variable is_heap : Layout -> Heap -> HProp.
+Definition is_heap (h : Heap) : HProp := starL (fun p => layout (fst p) (snd p)) (heap_elements h).
 
 Definition empty_vs : vals := fun _ => $0.
 
-Section layout.
-
-  Variable layout : Layout.
+Section TopSection.
 
   Definition has_extra_stack sp offset e_stack :=
     ((sp ^+ $4) =*> $(e_stack) *
@@ -21,7 +20,7 @@ Section layout.
     (
      locals vars (fst v) 0 (sp ^+ $8) *
      array temps (sp ^+ $8 ^+ $(4 * length vars)) *
-     is_heap layout (snd v) *
+     is_heap (snd v) *
      sp =*> rp *
      has_extra_stack sp (length vars + length temps) e_stack
     )%Sep.
@@ -114,4 +113,4 @@ Section layout.
     
     End vars.
 
-End layout.
+End TopSection.

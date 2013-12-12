@@ -4,8 +4,6 @@ Set Implicit Arguments.
 
 Section Body.
 
-  Variable layout : Layout.
-
   Variable vars : list string.
 
   Variable temp_size : nat.
@@ -33,16 +31,16 @@ Section Body.
 
   Definition loop_inv cond body k : assert := 
     let s := Syntax.Seq (Syntax.While cond body) k in
-    inv_template layout vars temp_size (fun rv v => rv = eval (fst v) cond) s.
+    inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) s.
 
   Require Import Malloc.
 
   Definition after_call ret k : assert :=
     st ~> Ex fs, 
-    funcs_ok layout (fst st) fs /\
+    funcs_ok (fst st) fs /\
     ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
     let old_sp := st#Sp ^- frame_len_w in
-    ![^[is_state layout old_sp rp e_stack vars (vs, heap1) temps * is_heap layout heap2 * layout_option layout ret_w ret_a * mallocHeap 0] * #0] st /\
+    ![^[is_state old_sp rp e_stack vars (vs, heap1) temps * is_heap heap2 * layout_option ret_w ret_a * mallocHeap 0] * #0] st /\
     [| let vs := upd_option vs ret st#Rv in
        let heap12 := heap_merge heap1 heap2 in
        let heap := heap_upd_option heap12 ret_w ret_a in
@@ -52,7 +50,7 @@ Section Body.
     (rp, fst st) 
       @@@ (
         st' ~> Ex v', Ex temps',
-        ![^[is_state layout st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
+        ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
         [| let vs := upd_option vs ret st#Rv in
            let heap12 := heap_merge heap1 heap2 in
            let heap := heap_upd_option heap12 ret_w ret_a in
