@@ -23,6 +23,8 @@ Inductive stmt :=
 
 (** Function definitions *)
 Record fncn := {
+  ArgumentVariables : list pr_var;
+  (** Function formal arguments *)
   LocalVariables : list pr_var;
   (** These variables are available as scratch space. *)
   SpecVariables : list fo_var;
@@ -54,7 +56,7 @@ Section validity.
     end.
 End validity.
 
-Definition fncnV (f : fncn) := stmtV (LocalVariables f) (Body f).
+Definition fncnV (f : fncn) := stmtV (ArgumentVariables f ++ LocalVariables f) (Body f).
 
 
 (** * Semantics *)
