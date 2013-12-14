@@ -9,7 +9,7 @@ Record Func :=
     Name : string;
     ArgVars : list string;
     RetVar : string;
-    Vars : list string;
+    LocalVars : list string;
     Body : Stmt
   }.
 
