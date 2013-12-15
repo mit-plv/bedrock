@@ -31,22 +31,23 @@ Section TopSection.
   Require Import Inv.
   Require Import Malloc.
   Require Import Semantics Safe.
-  Definition inv vars temp_size s : assert := 
+  Definition inv vars temp_size s ret_var : assert := 
     st ~> Ex fs, 
     funcs_ok (fst st) fs /\
     ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
     ![^[is_state st#Sp rp e_stack vars v temps * mallocHeap 0] * #0] st /\
     [| Safe fs s v /\
        length temps = temp_size |] /\
-    (st#Rp(*the only difference from Inv.inv*), fst st) 
+    (st#Rp, fst st) 
       @@@ (
         st' ~> Ex v', Ex temps',
         ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
         [| RunsTo fs s v v' /\
            length temps' = temp_size /\
-           st'#Sp = st#Sp |]).
+           st'#Sp = st#Sp /\
+           st'#Rv = sel (fst v') ret_var |]).
 
-  Definition spec := inv (SyntaxFunc.ArgVars func) 0 (SyntaxFunc.Body func).
+  Definition spec := inv (SyntaxFunc.ArgVars func) 0 (SyntaxFunc.Body func) (SyntaxFunc.RetVar func).
 
   Section Body.
 
@@ -54,7 +55,14 @@ Section TopSection.
 
   Variable imports_global : importsGlobal imports.
 
+  Definition vars := SyntaxFunc.ArgVars func ++ LocalVars func.
+
+  Require Import Depth.
+  Definition temp_size := depth (SyntaxFunc.Body func).
+
   Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
+  Definition vars_start := 8.
+  Definition var_slot x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
 
   Definition Seq2 := @Seq_ _ imports_global module_name.
 
@@ -74,11 +82,6 @@ Section TopSection.
       (Structured.If_ imports_global n Le Rv cmd
                       (Diverge_ imports module_name)).
 
-  Definition vars := SyntaxFunc.ArgVars func ++ LocalVars func.
-
-  Require Import Depth.
-  Definition temp_size := depth (SyntaxFunc.Body func).
-
   Require CompileStmt.
   Definition compile_stmt s := CompileStmt.compile vars temp_size imports_global module_name s Syntax.Skip.
 
@@ -96,7 +99,8 @@ Section TopSection.
              Assign (stack_slot 0) Rp /\ nil) /\
           compile_stmt body_stmt /\
           Strline 
-            (Assign Rp (stack_slot 0) /\ nil) /\
+            (Assign Rv (var_slot (SyntaxFunc.RetVar func)) /\ 
+             Assign Rp (stack_slot 0) /\ nil) /\
           IGoto _ _ Rp /\ nil)).
   Close Scope tmp_scope.
 
@@ -173,16 +177,7 @@ Section TopSection.
     hiding ltac:(evaluate hints_split_buf).
     fold (@length string) in *.
     rewrite fold_4_mult in *.
-    Definition to_intro_array (_ : W) := True.
-
-    Lemma intro_array : forall len p, to_intro_array p -> p =?> len ===> Ex ls, [| length ls = len |] * array ls p.
-      admit.
-    Qed.
-
-    Definition hints_intro_array : TacPackage.
-      prepare intro_array tt.
-    Defined.
-
+    Require Import SepHints6.
     assert (to_intro_array w) by (unfold to_intro_array; eauto).
     hiding ltac:(evaluate hints_intro_array).
     fold (@length string) in *.
@@ -228,6 +223,10 @@ Section TopSection.
 
     replace (natToW _ ^- _) with (natToW extra) in * by (unfold_all; rewrite <- minus_plus_two; rewrite natToW_minus; [rewrite natToW_plus | ]; eauto).
 
+    match goal with
+      | H : GoodFunc _ |- _ => generalize dependent H
+    end.
+
     generalize H20; clear_all; intros.
 
     repeat hiding ltac:(step auto_ext).
@@ -235,40 +234,116 @@ Section TopSection.
     fold (@length string) in *.
     fold (@app string) in *.
 
-    Definition combined_locals vars1 vars2 vs1 vs2 p  := locals (vars1 ++ vars2) (merge vs1 vs2 vars1) 0 p.
-
-    Definition locals_combinable A (vars vars2 : list A) := NoDup (vars ++ vars2).
-
-    Lemma combine_locals : forall vars1 vars2 vs1 vs2 p, locals vars1 vs1 0 p * locals vars2 vs2 0 (p ^+ $(4 * length vars1)) ===> combined_locals vars1 vars2 vs1 vs2 p.
+    Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> NoDup (SyntaxFunc.ArgVars f ++ LocalVars f).
       admit.
     Qed.
-
-    Definition hints_combine_locals : TacPackage.
-      prepare tt combine_locals.
-    Defined.
 
     instantiate (1 := merge v x9 (SyntaxFunc.ArgVars func)).
     set (avars := SyntaxFunc.ArgVars _) in *.
     set (lvars := SyntaxFunc.LocalVars _) in *.
     rewrite wplus_0 in *.
     set (w := Regs _ _ ^+ natToW 8) in *.
-    Lemma fold_combined_locals : forall vars1 vars2 vs1 vs2 p, locals (vars1 ++ vars2) (merge vs1 vs2 vars1) 0 p = combined_locals vars1 vars2 vs1 vs2 p.
-      eauto.
-    Qed.
-
     rewrite fold_combined_locals.
+    assert (locals_combinable avars lvars) by (unfold locals_combinable; eapply GoodFunc_NoDup_vars; eauto).
 
-    assert (locals_combinable avars lvars).
-    unfold locals_combinable.
-    Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> NoDup (SyntaxFunc.ArgVars f ++ LocalVars f).
+    hiding ltac:(step hints_combine_locals).
+    rewrite fold_4_mult in *.
+    repeat hiding ltac:(step auto_ext).
+
+    Require Import Notations.
+    Open Scope stmt.
+    Lemma Safe_Seq_Skip_Safe : forall fs s v, Safe fs s v -> Safe fs (s ;; skip) v.
       admit.
     Qed.
 
-    eapply GoodFunc_NoDup_vars; eauto.
-    admit.
+    Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> Safe fs (opt s) v.
+      admit.
+    Qed.
 
-    repeat hiding ltac:(step hints_combine_locals).
-    (*here*)
+    Definition agree_in vs vs' vars := List.Forall (fun x => sel vs x = sel vs' x) vars.
+
+    Lemma GoodFunc_Safe : forall f, GoodFunc f -> let s := SyntaxFunc.Body f in forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' (SyntaxFunc.ArgVars f) -> Safe fs s (vs', h).
+      admit.
+    Qed.
+
+    Lemma agree_in_merge : forall vs vs' vars, agree_in vs (merge vs vs' vars) vars.
+      admit.
+    Qed.
+
+    eapply Safe_Seq_Skip_Safe.
+    unfold body_stmt.
+    eapply GoodOptimizer_Safe; eauto.
+    eapply GoodFunc_Safe; eauto.
+    eapply agree_in_merge.
+    
+    eauto.
+    eauto.
+    eauto.
+
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+    hiding ltac:(step auto_ext).
+
+    instantiate (1 := nil).
+
+    set (array nil _) in *.
+    unfold array in h0.
+    simpl in h0.
+    subst h0.
+    
+    simpl. 
+    rewrite plus_0_r in *.
+
+    Require Import SepHints7.
+    rewrite fold_locals_to_split.
+
+    hiding ltac:(step hints_split_locals).
+    fold (@length string) in *.
+    fold (@app string) in *.
+    rewrite fold_first in *.
+
+    repeat rewrite app_length in *.
+    repeat rewrite Mult.mult_plus_distr_l in *.
+    rewrite_natToW_plus.
+    repeat rewrite wplus_assoc in *.
+    
+    match goal with
+      | H : _ = Regs x1 Sp |- _ => rewrite <- H in *
+    end.
+    match goal with
+      | H : _ = Regs s0 Sp |- _ => rewrite <- H in *
+    end.
+
+    Require Import SepHints2.
+    set (w := Regs _ _ ^+ _ ^+ _) in *.
+    set (len_lvars := length (LocalVars _)) in *.
+    replace (w =?> x7)%Sep with (buf_to_split w x7 (len_lvars + temp_size)) by (unfold buf_to_split; eauto).
+    assert (buf_splittable x7 (len_lvars + temp_size)) by (unfold buf_splittable; eauto).
+    hiding ltac:(step hints_buf_split_bwd).
+    rewrite fold_4_mult in *.
+    rewrite fold_first in *.
+
+    unfold extra.
+    rewrite minus_plus_two.
+    match goal with
+      | H : length x12 = _ |- _ => rewrite H
+    end.
+    repeat rewrite Mult.mult_plus_distr_l in *.
+    rewrite_natToW_plus.
+    repeat rewrite wplus_assoc in *.
+    hiding ltac:(step auto_ext).
+    fold (@length string) in *.
+    fold (@app string) in *.
+    rewrite fold_first in *.
+
+
+
+    Require Import SepHints4.
+    set (lvars := LocalVars func) in *.
+    assert (locals_to_elim lvars) by (unfold locals_to_elim; eauto).
+    clear_all.
+    hiding ltac:(step hints_elim_locals).
+    rewrite fold_first in *.
 
 
     (* vc 1 *)

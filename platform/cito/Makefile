@@ -19,7 +19,7 @@ MODULES := \
 	VerifCondOk \
 	CompileStmt \
 	SyntaxFunc SyntaxModule \
-	SepHints5 \
+	SepHints5 SepHints6 SepHints7 \
 	# CompileFunc \
 	# CompileModule \
 	# SafeCoind \
