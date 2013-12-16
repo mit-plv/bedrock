@@ -117,8 +117,13 @@ Hint Rewrite vars_ok_sel.
 Ltac pre_implies :=
   match goal with
     | [ H : interp _ _, H' : forall specs0 : codeSpec _ _, _ |- _ ] =>
-      apply H' in H; clear H'; post
+      apply H' in H; clear H'; post; intuition idtac; autorewrite with core in *
   end.
+
+Ltac rewriteall :=
+  repeat match goal with
+           | [ H : _ |- _ ] => rewrite H in *
+         end.
 
 (* Case-split on an [option] being [match]ed in conclusion. *)
 Ltac case_option :=
@@ -127,6 +132,11 @@ Ltac case_option :=
       match E with
         | context[match _ with None => _ | _ => _ end] => fail 1
         | _ => case_eq E; post
+      end
+    | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
+      match E with
+        | context[match _ with None => _ | _ => _ end] => fail 1
+        | _ => case_eq E; post; rewriteall
       end
   end; autorewrite with core in *.
 
@@ -137,6 +147,11 @@ Ltac case_outcome :=
       match E with
         | context[match _ with Error => _ | _ => _ end] => fail 1
         | _ => case_eq E; post
+      end
+    | [ _ : context[match ?E with Error => _ | _ => _ end] |- _ ] =>
+      match E with
+        | context[match _ with Error => _ | _ => _ end] => fail 1
+        | _ => case_eq E; post; rewriteall
       end
   end; autorewrite with core in *.
 
@@ -186,10 +201,10 @@ Ltac exprC_correct :=
           end
   end.
 
-Lemma determine_rvalue : forall stn st lv rv st' w,
-  evalInstrs stn st (IL.Assign lv rv :: nil) = Some st'
+Lemma determine_rvalue : forall stn st lv rv st' w is,
+  evalInstrs stn st (IL.Assign lv rv :: is) = st'
   -> evalRvalue stn st rv = Some w
-  -> evalInstrs stn st (IL.Assign lv w :: nil) = Some st'.
+  -> evalInstrs stn st (IL.Assign lv w :: is) = st'.
 Proof.
   Transparent evalInstrs.
   simpl; intros.
@@ -200,7 +215,7 @@ Qed.
 (* Use a previous conclusion of [exprC_correct] to simplify an [evalInstrs] hypothesis. *)
 Ltac determine_rvalue :=
   match goal with
-    | [ H1 : evalInstrs _ _ _ = Some _, H2 : evalRvalue _ _ _ = Some _ |- _ ] =>
+    | [ H1 : evalInstrs _ _ _ = _, H2 : evalRvalue _ _ _ = Some _ |- _ ] =>
       eapply determine_rvalue in H1; [ clear H2 | exact H2 ]
   end.
 
@@ -214,7 +229,14 @@ Ltac evalu :=
     repeat match goal with
              | [ H : _ _ = Some _ |- _ ] => generalize dependent H
              | [ H : _ _ = None -> False |- _ ] => generalize dependent H
-           end; clear_fancy; evaluate auto_ext; intros.
+           end; clear_fancy;
+  (* Extra simplification for function return *)
+  try match goal with
+        | [ _ : context[locals ("rp" :: ?ns) _ _ _], H : context[natToW 0] |- _ ] =>
+          assert (In "rp" ("rp" :: ns)) by (simpl; tauto);
+            change (natToW 0) with (natToW (variablePosition ("rp" :: ns) "rp")) in H
+      end;
+  evaluate auto_ext; intros.
 
 Ltac my_descend := descend; autorewrite with core.
 Hint Rewrite sel_upd_ne using (intro; subst; tauto).
@@ -352,6 +374,59 @@ Qed.
 
 Local Hint Immediate Stmt_post.
 
+Lemma Stmt_vc : forall post im mn (H : importsGlobal im) ns res xs,
+  ~In "rp" ns
+  -> (forall x, In x xs -> In x ns)
+  -> forall s pre pre0 vs,
+    (forall specs0 st0,
+      interp specs0 (pre0 st0)
+      -> interp specs0 (precond vs pre post true (fun x => x) ns res st0))
+    -> stmtV xs s
+    -> (forall x, In x xs -> vs x <> None)
+    -> stmtD vs s <> Error
+    -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
+Proof.
+  induction s.
+
+  wrap0.
+  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac;
+    try (pre_evalu; exprC_correct); evalu.
+
+  simpl; wrap0.
+
+  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
+  eapply IHs1; eauto; (cbv beta; congruence).
+  eapply IHs1; eauto; (cbv beta; congruence).
+
+  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
+  eapply IHs2; [ intros;
+    match goal with
+      | [ H : interp _ (Structured.Postcondition _ _) |- _ ] =>
+        eapply Stmt_post in H; [ simplify_postcond | .. ]
+    end | .. ]; eauto.
+  (* Remaining sequencing case *)
+  admit.
+
+  simpl; wrap0.
+  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
+  pre_evalu.
+  exprC_correct.
+  evalu.
+
+  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
+  pre_evalu.
+  exprC_correct.
+  evalu.
+  my_descend.
+  step auto_ext.
+  step auto_ext.
+  my_descend; step auto_ext.
+  (* Oh.  [stmtD] needs to generate VCs, too, or we can't prove pre->post at return points! *)
+  admit.
+Qed.
+
+Local Hint Immediate Stmt_vc.
+
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
   (xs : list pr_var)
@@ -374,10 +449,9 @@ Proof.
       :: (~In "rp" ns)
       :: stmtV xs s
       :: (forall x, In x xs -> vs x <> None)
-      :: nil)).
-
-  wrap0; eauto.
-
-  wrap0.
-  admit.
+      :: (stmtD vs s <> Error)%type
+      :: nil)); abstract (wrap0; eauto).
 Defined.
+
+(* It actually seems problematic here to pass [vs] as an argument to [Stmt].
+ * E.g., on entry to a function, we won't know this value at compile time. *)
