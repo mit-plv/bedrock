@@ -1,6 +1,7 @@
 Require Import SyntaxModule.
 Require Import List.
 Require CompileFunc.
+Require Import GoodFunc GoodOptimizer.
 
 Set Implicit Arguments.
 
