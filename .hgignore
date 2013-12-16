@@ -8,6 +8,7 @@ Makefile.coq
 *.vo
 *.glob
 *.v.d
+*.ml.d
 deps.dot
 deps.pdf
 src/ILTac.v
