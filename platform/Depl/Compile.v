@@ -225,6 +225,42 @@ Qed.
 
 Local Hint Resolve vars_ok_upd.
 
+Lemma stmtD_monotone' : forall x s vs vs',
+  vs x <> None
+  -> stmtD vs s = Success vs'
+  -> vs' x <> None.
+Proof.
+  induction s; simpl; intuition.
+
+  repeat match goal with
+           | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
+             match E with
+               | context[match _ with None => _ | _ => _ end] => fail 1
+               | _ => destruct E
+             end
+         end; intuition.
+  injection H0; clear H0; intros; subst.
+  apply H.
+  unfold vars_set in H1.
+  destruct (string_dec x x0); congruence.
+
+  specialize (IHs1 vs).
+  destruct (stmtD vs s1); intuition eauto.
+
+  destruct (exprD vs e); discriminate.
+Qed.
+
+(** Let's restate that to be friendlier to [eauto]. *)
+Lemma stmtD_monotone : forall x s vs vs',
+  vs x <> None
+  -> stmtD vs s = Success vs'
+  -> vs' x = None -> False.
+Proof.
+  generalize stmtD_monotone'; eauto.
+Qed.
+
+Local Hint Resolve stmtD_monotone.
+
 Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res,
   ~In "rp" ns
   -> forall s st pre pre0 specs vs,
@@ -251,11 +287,26 @@ Proof.
         end
     end; autorewrite with core in *.
 
-  case_outcome.
-  case_outcome.
-  eapply IHs2 in H4; eauto.
+  repeat (pre_implies || case_outcome).
+  eapply IHs2 in H4.
+  3: auto.
+
   Focus 2.
   intros.
+  eapply IHs1 in H8.
+  unfold postcond in H8.
+  generalize H8; clear H8.
+  instantiate (4 := vs).
+  rewrite H2.
+  eauto.
+  eauto.
+  auto.
+  auto.
+
+  2: eauto.
+  unfold postcond in H4.
+  rewrite H7 in H4.
+  post.
 Admitted.
 
 (*
