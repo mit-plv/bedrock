@@ -282,6 +282,36 @@ Proof.
   induction s; simpl; post; eauto.
 Qed.
 
+(** Use what we know about the result of executing a statement to simplify a [postcond] hyp. *)
+Ltac simplify_postcond :=
+  match goal with
+    | [ H : interp _ (postcond _ _ _ _ _ _ _ _ _) |- _ ] => unfold postcond in H;
+      match type of H with
+        | context[stmtD ?vs ?s] =>
+          match goal with
+            | [ H' : stmtD ?vs' s = _ |- _ ] =>
+              equate vs vs'; rewrite H' in H; eauto
+          end
+      end
+  end.
+
+(** Use all induction hypotheses cleverly. *)
+Ltac Stmt_post_IH' :=
+  try match goal with
+        | [ IH : forall st : settings * state, _, H : interp _ (Structured.Postcondition _ _) |- _ ] =>
+          eapply IH in H; clear IH; try auto;
+            try match goal with
+                  | [ |- forall specs : codeSpec _ _, _ ] =>
+                    intros; Stmt_post_IH'
+                end; eauto; try simplify_postcond; post
+      end.
+
+Ltac Stmt_post_IH := try solve [ Stmt_post_IH'
+  | exfalso; eapply preserve_unsat; eauto;
+    intros; Stmt_post_IH'; match goal with
+                             | [ H : importsGlobal _ |- _ ] => clear dependent H
+                           end; pre_evalu; tauto ].
+
 Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res,
   ~In "rp" ns
   -> forall s st pre pre0 specs vs,
@@ -293,67 +323,10 @@ Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res,
     -> interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
     -> interp specs (postcond vs pre post s true (fun x => x) ns res st).
 Proof.
-  induction s; repeat post; intuition; unfold postcond; post.
-
-  repeat (pre_implies || use_In || case_option);
-    try (pre_evalu; exprC_correct); evalu;
-      my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend)).
-
-  repeat (pre_implies || case_outcome).
-  eapply IHs2 in H4.
-  3: auto.
-
-  Focus 2.
-  intros.
-  eapply IHs1 in H8.
-  unfold postcond in H8.
-  generalize H8; clear H8.
-  instantiate (4 := vs).
-  rewrite H2.
-  eauto.
-  eauto.
-  auto.
-  auto.
-
-  2: eauto.
-  unfold postcond in H4.
-  rewrite H7 in H4.
-  post.
-
-  eapply IHs2 in H4.
-  3: auto.
-  
-  Focus 2.
-  intros.
-  eapply IHs1 in H8.
-  unfold postcond in H8.
-  generalize H8; clear H8.
-  instantiate (4 := vs).
-  rewrite H2.
-  eauto.
-  eauto.
-  auto.
-  auto.
-
-  2: eauto.
-  unfold postcond in H4.
-  rewrite H7 in H4.
-  post.
-
-  exfalso.
-  eapply preserve_unsat; eauto.
-  intros.
-  eapply IHs1 in H7.
-  3: auto.
-  2: eauto.
-  2: eauto.
-  unfold postcond in H7.
-  rewrite H2 in H7.
-  post.
-  match goal with
-    | [ H : importsGlobal _ |- _ ] => clear dependent H
-  end.
-  pre_evalu; tauto.
+  induction s; repeat post; intuition; (unfold postcond; post;
+    repeat (pre_implies || use_In || case_option || case_outcome); Stmt_post_IH;
+      try (pre_evalu; exprC_correct); evalu;
+        my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
 Qed.
 
 (*
