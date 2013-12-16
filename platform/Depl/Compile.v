@@ -143,7 +143,7 @@ Ltac case_outcome :=
 (* Use a hypothesis about some fact olding for all members of a list. *)
 Ltac use_In :=
   match goal with
-    | [ H : forall x, In x ?xs -> _, H' : In _ ?xs |- _ ] =>
+    | [ H : forall x, In x ?xs -> _ -> False, H' : In _ ?xs |- _ ] =>
       specialize (H _ H')
   end.
 
@@ -180,7 +180,7 @@ Ltac cancl :=
 (* Apply the [exprC_correct] lemma, using cancelation to prove one of its premises. *)
 Ltac exprC_correct :=
   match goal with
-    | [ H : exprD _ _ = Some _ |- _ ] => eapply exprC_correct in H; eauto; try cancl;
+    | [ H : exprD _ _ = Some _ |- _ ] => eapply exprC_correct in H; try cancl; eauto;
       try match goal with
             | [ H : exists x, _ /\ _ |- _ ] => destruct H as [ ? [ ] ]
           end
@@ -206,13 +206,15 @@ Ltac determine_rvalue :=
 
 (* Full symbolic evaluation *)
 Ltac evalu :=
-  try determine_rvalue; simp;
+  try determine_rvalue;
+    try match goal with
+          | [ H : In _ _, H' : forall x, In x _ -> In x _ |- _ ] =>
+            apply H' in H
+        end; simp;
     repeat match goal with
              | [ H : _ _ = Some _ |- _ ] => generalize dependent H
              | [ H : _ _ = None -> False |- _ ] => generalize dependent H
            end; clear_fancy; evaluate auto_ext; intros.
-
-
 
 Ltac my_descend := descend; autorewrite with core.
 Hint Rewrite sel_upd_ne using (intro; subst; tauto).
@@ -312,14 +314,33 @@ Ltac Stmt_post_IH := try solve [ Stmt_post_IH'
                              | [ H : importsGlobal _ |- _ ] => clear dependent H
                            end; pre_evalu; tauto ].
 
-Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res,
+Lemma exprV_weaken : forall xs xs',
+  (forall x, In x xs -> In x xs')
+  -> forall e, exprV xs e -> exprV xs' e.
+Proof.
+  destruct e; simpl; intuition.
+Qed.
+
+Local Hint Resolve exprV_weaken.
+
+Lemma stmtV_weaken : forall xs xs',
+  (forall x, In x xs -> In x xs')
+  -> forall s, stmtV xs s -> stmtV xs' s.
+Proof.
+  induction s; simpl; intuition eauto.
+Qed.
+
+Local Hint Resolve stmtV_weaken.
+
+Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res xs,
   ~In "rp" ns
+  -> (forall x, In x xs -> In x ns)
   -> forall s st pre pre0 specs vs,
     (forall specs0 st0,
       interp specs0 (pre0 st0)
       -> interp specs0 (precond vs pre post true (fun x => x) ns res st0))
-    -> stmtV ns s
-    -> (forall x, In x ns -> vs x <> None)
+    -> stmtV xs s
+    -> (forall x, In x xs -> vs x <> None)
     -> interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
     -> interp specs (postcond vs pre post s true (fun x => x) ns res st).
 Proof.
@@ -329,7 +350,8 @@ Proof.
         my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
 Qed.
 
-(*
+Local Hint Immediate Stmt_post.
+
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
   (xs : list pr_var)
@@ -341,12 +363,21 @@ Definition Stmt
   (s : stmt)
   (* The statement to compile *)
   : chunk.
+Proof.
   apply (WrapC (stmtC s)
     (precond vs pre post)
     (postcond vs pre post s)
 
     (* VERIFICATION CONDITION *)
-    (fun _ xs' _ =>
-      incl xs xs'
+    (fun _ ns _ =>
+      incl xs ns
+      :: (~In "rp" ns)
+      :: stmtV xs s
+      :: (forall x, In x xs -> vs x <> None)
       :: nil)).
-*)
+
+  wrap0; eauto.
+
+  wrap0.
+  admit.
+Defined.
