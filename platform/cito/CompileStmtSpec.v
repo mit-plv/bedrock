@@ -11,9 +11,11 @@ Section Spec.
 
   Variable s k : Stmt.
 
-  Definition precond := inv vars temp_size (Seq s k).
+  Variable rv_postcond : W -> Semantics.State -> Prop.
 
-  Definition postcond := inv vars temp_size k.
+  Definition precond := inv vars temp_size rv_postcond (Seq s k).
+
+  Definition postcond := inv vars temp_size rv_postcond k.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 

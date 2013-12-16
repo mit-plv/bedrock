@@ -93,7 +93,7 @@ Section TopSection.
     
     Variable temp_size : nat.
 
-    Definition inv_template rv_precond s : assert := 
+    Definition inv_template rv_precond rv_postcond s : assert := 
       st ~> Ex fs, 
       funcs_ok (fst st) fs /\
       ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
@@ -107,7 +107,8 @@ Section TopSection.
           ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
           [| RunsTo fs s v v' /\
              length temps' = temp_size /\
-             st'#Sp = st#Sp |]).
+             st'#Sp = st#Sp /\
+             rv_postcond st'#Rv v' |]).
 
     Definition inv := inv_template (fun _ _ => True).
     

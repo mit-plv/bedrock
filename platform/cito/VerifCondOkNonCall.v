@@ -19,7 +19,9 @@ Section TopSection.
   Require Import Syntax.
   Require Import Wrap.
 
-  Definition compile := compile vars temp_size imports_global modName.
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
+  Definition compile := compile vars temp_size imports_global modName rv_postcond.
 
   Require Import Semantics.
   Require Import Safe.
@@ -52,7 +54,7 @@ Section TopSection.
   Lemma verifCond_ok_skip : 
     forall k (pre : assert),
       let s := skip in
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -71,7 +73,7 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond vars temp_size s1 k x))
+                           interp specs (precond vars temp_size s1 k rv_postcond x))
                           :: syn_req vars temp_size (s1;; k) :: nil) ->
                      vcs (VerifCond (compile s1 k pre)))
            (IHs2 : forall (k : Stmt) (pre : assert),
@@ -79,12 +81,12 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond vars temp_size s2 k x))
+                           interp specs (precond vars temp_size s2 k rv_postcond x))
                           :: syn_req vars temp_size (s2;; k) :: nil) ->
                      vcs (VerifCond (compile s2 k pre)))
            k (pre : assert),
       let s := s1 ;; s2 in
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -144,7 +146,7 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond vars temp_size s1 k x))
+                           interp specs (precond vars temp_size s1 k rv_postcond x))
                           :: syn_req vars temp_size (s1;; k) :: nil) ->
                      vcs (VerifCond (compile s1 k pre)))
            (IHs2 : forall (k : Stmt) (pre : assert),
@@ -152,12 +154,12 @@ Section TopSection.
                        ((forall (specs : codeSpec W (settings * state))
                                 (x : settings * state),
                            interp specs (pre x) ->
-                           interp specs (precond vars temp_size s2 k x))
+                           interp specs (precond vars temp_size s2 k rv_postcond x))
                           :: syn_req vars temp_size (s2;; k) :: nil) ->
                      vcs (VerifCond (compile s2 k pre)))
            k (pre : assert),
            let s := Syntax.If e s1 s2 in
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.
@@ -261,12 +263,12 @@ Section TopSection.
                       ((forall (specs : codeSpec W (settings * state))
                                (x : settings * state),
                           interp specs (pre x) ->
-                          interp specs (precond vars temp_size s k x))
+                          interp specs (precond vars temp_size s k rv_postcond x))
                          :: syn_req vars temp_size (s;; k) :: nil) ->
                     vcs (VerifCond (compile s k pre)))
            k (pre : assert),
       let s := Syntax.While e s in
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.

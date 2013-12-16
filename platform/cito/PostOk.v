@@ -19,16 +19,18 @@ Section TopSection.
   Require Import Syntax.
   Require Import Wrap.
 
-  Definition compile := compile vars temp_size imports_global modName.
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
+  Definition compile := compile vars temp_size imports_global modName rv_postcond.
 
   Lemma post_ok : 
     forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
            (x : settings * state),
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       interp specs
              (Postcondition
                 (compile s k pre) x) ->
-      interp specs (postcond vars temp_size k x).
+      interp specs (postcond vars temp_size k rv_postcond x).
   Proof.
 
     Require Import Semantics.

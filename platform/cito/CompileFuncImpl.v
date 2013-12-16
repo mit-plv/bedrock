@@ -75,7 +75,7 @@ Section TopSection.
                       (Diverge_ imports module_name)).
 
   Require CompileStmt.
-  Definition compile_stmt s := CompileStmt.compile vars temp_size imports_global module_name s Syntax.Skip.
+  Definition compile_stmt (s : Stmt) := CompileStmt.compile vars temp_size imports_global module_name (fun rv v => rv = sel (fst v) (RetVar func)) s Syntax.Skip.
 
   Definition len_local_vars := length local_vars.
 
@@ -348,23 +348,43 @@ Section TopSection.
     assert (locals_to_elim local_vars) by (unfold locals_to_elim; eauto).
     hiding ltac:(step hints_elim_locals).
     
-    admit.
+    Require Import Semantics.
+    Require Import SyntaxFunc.
+    Lemma RunsTo_Seq_Skip_RunsTo : forall fs s v v', RunsTo fs (s ;; skip) v v' -> RunsTo fs s v v'.
+      admit.
+    Qed.
 
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-  Qed.
-  (*
+    Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall fs s v v', RunsTo fs (opt s) v v' -> RunsTo fs s v v'.
+      admit.
+    Qed.
+
+    Lemma GoodFunc_RunsTo : forall f, GoodFunc f -> let s := Body f in forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' (ArgVars f) -> RunsTo fs s (vs', h) v'.
+      admit.
+    Qed.
+
+    Lemma agree_in_comm : forall vs vs' vars, agree_in vs vs' vars -> agree_in vs' vs vars.
+      admit.
+    Qed.
+
+    Ltac auto_apply_in t :=
+      match goal with
+          H : _ |- _ => eapply t in H
+      end.
+
+    descend.
+    auto_apply_in RunsTo_Seq_Skip_RunsTo.
+    unfold body_stmt in *.
+    auto_apply_in GoodOptimizer_RunsTo.
+    eapply GoodFunc_RunsTo; eauto.
+    eapply agree_in_comm.
+    eapply agree_in_merge.
+    eauto.
+
     (* vc 1 *)
     eapply H2 in H.
     unfold spec in *.
     unfold inv in *.
-    unfold inv_template in *.
     unfold is_state in *.
-    unfold has_extra_stack in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
     post.
@@ -374,9 +394,7 @@ Section TopSection.
     eapply H2 in H1.
     unfold spec in *.
     unfold inv in *.
-    unfold inv_template in *.
     unfold is_state in *.
-    unfold has_extra_stack in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
     post.
@@ -386,24 +404,105 @@ Section TopSection.
     eapply H2 in H1.
     unfold spec in *.
     unfold inv in *.
-    unfold inv_template in *.
     unfold is_state in *.
-    unfold has_extra_stack in *.
     unfold stack_slot in *.
     post.
     rewrite fold_4_mult_1 in *.
     rewrite mult_0_r in *.
     hiding ltac:(evaluate auto_ext).
 
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
+    (* vc 4 *)
+    Lemma GoodFunc_GoodOptimizer_syn_req : 
+      forall f, 
+        GoodFunc f -> 
+        forall opt, 
+          GoodOptimizer opt -> 
+          let s := opt (Body f) in
+          CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
+      admit.
+    Qed.
+
+    eapply GoodFunc_GoodOptimizer_syn_req; eauto.
+
+    (* vc 5 *)
+    post.
+    unfold Inv.is_state in *.
+    unfold Inv.has_extra_stack in *.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    unfold stack_slot in *.
+    rewrite mult_0_r in *.
+    repeat rewrite Mult.mult_plus_distr_l in *.
+    rewrite_natToW_plus.
+    set (ret := RetVar _) in *.
+    Lemma ret_in_vars : forall arg_vars s r, List.In r (arg_vars ++ get_local_vars s arg_vars r).
+      admit.
+    Qed.
+
+    assert (List.In ret vars) by (eapply ret_in_vars).
+    assert (
+        evalInstrs stn st
+                   (Assign (LvReg Rv)
+                           (RvLval
+                              (LvMem
+                                 (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars ret)))))
+                           :: Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
+        None
+) ; [ | clear H0 ].
+    rewrite <- H0.
+    Transparent evalInstrs.
+    simpl.
+    repeat rewrite wplus_assoc in *.
+    eauto.
+    Opaque evalInstrs.
+    destruct_state.
+    hiding ltac:(evaluate auto_ext).
+
+  (* vc 6 *)
+    post.
+    unfold Inv.is_state in *.
+    unfold Inv.has_extra_stack in *.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    unfold stack_slot in *.
+    rewrite mult_0_r in *.
+    rewrite_natToW_plus.
+    set (ret := RetVar _) in *.
+    assert (List.In ret vars) by (eapply ret_in_vars).
+    assert (
+        evalInstrs stn x
+                   (Assign (LvReg Rv)
+                           (RvLval
+                              (LvMem
+                                 (Imm (Regs x Sp ^+ $8 ^+ $(variablePosition vars ret)))))
+                           :: Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
+        Some st
+) ; [ | clear H1 ].
+    rewrite <- H1.
+    Transparent evalInstrs.
+    simpl.
+    repeat rewrite wplus_assoc in *.
+    eauto.
+    Opaque evalInstrs.
+    destruct_state.
+    hiding ltac:(evaluate auto_ext).
+    fold (@length string) in *.
+    descend.
+    eauto.
+
+    hiding ltac:(step auto_ext).
+    descend.
+    instantiate (2 := (_, _)); simpl.
+    match goal with
+      | H : Regs st Sp = _ |- _ => rewrite <- H in *
+    end.
+    repeat hiding ltac:(step auto_ext).
+
+    econstructor; eauto.
+    eauto.
+    eauto.
+
   Qed.
-   *)
 
   Definition body : cmd imports module_name.
     refine (
