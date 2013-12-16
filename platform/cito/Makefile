@@ -19,9 +19,11 @@ MODULES := \
 	VerifCondOk \
 	CompileStmt \
 	SyntaxFunc SyntaxModule \
-	SepHints5 SepHints6 SepHints7 \
-	# CompileFunc \
-	# CompileModule \
+	CompileFuncSpec \
+	SepHints5 \
+	CompileFuncImpl \
+	CompileFunc \
+	CompileModule \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \

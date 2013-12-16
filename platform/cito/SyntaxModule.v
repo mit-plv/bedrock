@@ -7,6 +7,5 @@ Set Implicit Arguments.
 Record CitoModule :=
   {
     ModuleName : string;
-    Imports : list (string * string);
     Functions : list Func
   }.
