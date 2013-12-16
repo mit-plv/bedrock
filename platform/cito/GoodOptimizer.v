@@ -1,3 +1,53 @@
+Set Implicit Arguments.
+
+Require Import Semantics Safe.
+Require Import Syntax.
+
+Definition Optimizer := Stmt -> Stmt.
+
+Definition GoodOptimizer : Optimizer -> Prop.
+  admit.
+Qed.
+
+Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> Safe fs (opt s) v.
+  admit.
+Qed.
+
+Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall fs s v v', RunsTo fs (opt s) v v' -> RunsTo fs s v v'.
+  admit.
+Qed.
+
+Require Import GoodFunc.
+Require Import GetLocalVars.
+Require Import Depth.
+Require Import SyntaxFunc.
+Lemma GoodFunc_GoodOptimizer_goodSize : 
+  forall f opt, 
+    GoodFunc f -> 
+    GoodOptimizer opt -> 
+    let s := opt (Body f) in
+    goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
+  admit.
+Qed.
+
+Require Import Notations.
+Local Open Scope stmt.
+Require Import CompileStmtSpec.
+Lemma GoodFunc_GoodOptimizer_syn_req : 
+  forall f, 
+    GoodFunc f -> 
+    forall opt, 
+      GoodOptimizer opt -> 
+      let s := opt (Body f) in
+      CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
+  admit.
+Qed.
+
+
+
+
+
+(*
 Require Import Syntax Semantics.
 Require Import CompileStatement.
 Require Import GeneralTactics.
@@ -32,3 +82,4 @@ Proof.
 
   eauto using Le.le_trans.
 Qed.
+ *)

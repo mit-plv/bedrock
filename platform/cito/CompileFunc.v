@@ -1,6 +1,7 @@
 Require Import CompileFuncImpl.
 Require Import SyntaxFunc.
 Require Import String.
+Require Import GoodFunc GoodOptimizer.
 
 Set Implicit Arguments.
 

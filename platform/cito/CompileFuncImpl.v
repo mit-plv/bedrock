@@ -2,6 +2,7 @@ Require Import CompileFuncSpec.
 Require Import SyntaxFunc.
 Require Import String.
 Require Import List.
+Require Import GetLocalVars GoodFunc GoodOptimizer.
 
 Set Implicit Arguments.
 
@@ -11,37 +12,15 @@ Section TopSection.
 
   Variable module_name : string.
 
-  Definition WellFormed : Stmt -> Prop.
-    admit.
-  Qed.
-
-  Definition GoodFunc f := 
-    NoDup (ArgVars f) /\ 
-    WellFormed (Body f).
-
   Hypothesis good_func : GoodFunc func.
 
-  Definition Optimizer := Stmt -> Stmt.
-
   Variable optimizer : Optimizer.
-
-  Definition GoodOptimizer : Optimizer -> Prop.
-    admit.
-  Qed.
 
   Hypothesis good_optimizer : GoodOptimizer optimizer.
 
   Variable imports : LabelMap.t assert.
 
   Variable imports_global : importsGlobal imports.
-
-  Require Import FreeVars.
-  Require Import StringSet.
-  Definition get_local_vars stmt arg_vars ret_var := 
-    let vars := free_vars stmt in
-    let vars := add ret_var vars in
-    let vars := List.fold_left (fun acc x => remove x acc) arg_vars vars in
-    elements vars.
 
   Definition body_stmt := optimizer (Body func).
 
@@ -107,10 +86,16 @@ Section TopSection.
     Require Import WordFacts.
     Require Import CompileStmtTactics.
     Require Import Arith.
+    Require Import SemanticsFacts2 StringSetFacts.
 
     Open Scope nat.
 
     Set Printing Coercions.
+
+    Ltac auto_apply_in t :=
+      match goal with
+          H : _ |- _ => eapply t in H
+      end.
 
     unfold verifCond, imply; wrap0.
 
@@ -132,15 +117,6 @@ Section TopSection.
     fold (@length string) in *.
     rewrite_natToW_plus.
     repeat rewrite wplus_assoc in *.
-    Lemma GoodFunc_GoodOptimizer_goodSize : 
-      forall f opt, 
-        GoodFunc f -> 
-        GoodOptimizer opt -> 
-        let s := opt (Body f) in
-        goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
-      admit.
-    Qed.
-
     Ltac gen_le :=
       match goal with
         | H : (natToW ?a ^+ natToW ?b <= natToW ?c)%word |- _ => assert (a + b <= c) by (eapply wle_goodSize_le; [rewrite_natToW_plus | eapply GoodFunc_GoodOptimizer_goodSize]; eauto); assert (a <= c) by omega; assert (b <= c - a) by omega
@@ -175,13 +151,9 @@ Section TopSection.
     fold (@length string) in *.
     fold (@length W) in *.
 
-    Lemma NoDup_local_vars : forall s, NoDup (elements s).
-      admit.
-    Qed.
-    
     Require Import SepHints3.
     rewrite (@replace_array_to_locals x4 _ local_vars) in H19.
-    assert (array_to_locals_ok x4 local_vars) by (unfold_all; unfold array_to_locals_ok; descend; eauto; eapply NoDup_local_vars; eauto).
+    assert (array_to_locals_ok x4 local_vars) by (unfold_all; unfold array_to_locals_ok; descend; eauto; eapply NoDup_elements; eauto).
     hiding ltac:(evaluate hints_array_to_locals).
     fold (@length W) in *.
 
@@ -224,10 +196,6 @@ Section TopSection.
     fold (@app string) in *.
     fold (@length W) in *.
 
-    Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> forall s r, NoDup (ArgVars f ++ get_local_vars s (ArgVars f) r).
-      admit.
-    Qed.
-
     instantiate (1 := merge v x7 (ArgVars func)).
     set (avars := ArgVars _) in *.
     rewrite wplus_0 in *.
@@ -238,27 +206,6 @@ Section TopSection.
     hiding ltac:(step hints_combine_locals).
     rewrite fold_4_mult in *.
     repeat hiding ltac:(step auto_ext).
-
-    Require Import Notations.
-    Open Scope stmt.
-    Require Import Safe.
-    Lemma Safe_Seq_Skip_Safe : forall fs s v, Safe fs s v -> Safe fs (s ;; skip) v.
-      admit.
-    Qed.
-
-    Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> Safe fs (opt s) v.
-      admit.
-    Qed.
-
-    Definition agree_in vs vs' vars := List.Forall (fun x => sel vs x = sel vs' x) vars.
-
-    Lemma GoodFunc_Safe : forall f, GoodFunc f -> let s := Body f in forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' (ArgVars f) -> Safe fs s (vs', h).
-      admit.
-    Qed.
-
-    Lemma agree_in_merge : forall vs vs' vars, agree_in vs (merge vs vs' vars) vars.
-      admit.
-    Qed.
 
     eapply Safe_Seq_Skip_Safe.
     unfold body_stmt.
@@ -315,6 +262,7 @@ Section TopSection.
     repeat rewrite wplus_assoc in *.
     unfold len_local_vars.
     hiding ltac:(step auto_ext).
+    Require Import StringSet.
     fold (@length elt) in *.
     rewrite fold_first in *.
 
@@ -348,29 +296,6 @@ Section TopSection.
     assert (locals_to_elim local_vars) by (unfold locals_to_elim; eauto).
     hiding ltac:(step hints_elim_locals).
     
-    Require Import Semantics.
-    Require Import SyntaxFunc.
-    Lemma RunsTo_Seq_Skip_RunsTo : forall fs s v v', RunsTo fs (s ;; skip) v v' -> RunsTo fs s v v'.
-      admit.
-    Qed.
-
-    Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall fs s v v', RunsTo fs (opt s) v v' -> RunsTo fs s v v'.
-      admit.
-    Qed.
-
-    Lemma GoodFunc_RunsTo : forall f, GoodFunc f -> let s := Body f in forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' (ArgVars f) -> RunsTo fs s (vs', h) v'.
-      admit.
-    Qed.
-
-    Lemma agree_in_comm : forall vs vs' vars, agree_in vs vs' vars -> agree_in vs' vs vars.
-      admit.
-    Qed.
-
-    Ltac auto_apply_in t :=
-      match goal with
-          H : _ |- _ => eapply t in H
-      end.
-
     descend.
     auto_apply_in RunsTo_Seq_Skip_RunsTo.
     unfold body_stmt in *.
@@ -412,16 +337,6 @@ Section TopSection.
     hiding ltac:(evaluate auto_ext).
 
     (* vc 4 *)
-    Lemma GoodFunc_GoodOptimizer_syn_req : 
-      forall f, 
-        GoodFunc f -> 
-        forall opt, 
-          GoodOptimizer opt -> 
-          let s := opt (Body f) in
-          CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
-      admit.
-    Qed.
-
     eapply GoodFunc_GoodOptimizer_syn_req; eauto.
 
     (* vc 5 *)
@@ -435,10 +350,6 @@ Section TopSection.
     repeat rewrite Mult.mult_plus_distr_l in *.
     rewrite_natToW_plus.
     set (ret := RetVar _) in *.
-    Lemma ret_in_vars : forall arg_vars s r, List.In r (arg_vars ++ get_local_vars s arg_vars r).
-      admit.
-    Qed.
-
     assert (List.In ret vars) by (eapply ret_in_vars).
     assert (
         evalInstrs stn st
@@ -458,7 +369,7 @@ Section TopSection.
     destruct_state.
     hiding ltac:(evaluate auto_ext).
 
-  (* vc 6 *)
+    (* vc 6 *)
     post.
     unfold Inv.is_state in *.
     unfold Inv.has_extra_stack in *.
