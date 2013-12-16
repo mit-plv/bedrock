@@ -158,7 +158,7 @@ Ltac pre_evalu :=
   try match goal with
         | [ _ : interp _ (![_] (fst ?st, _)) |- _ ] =>
           destruct st; simpl in *
-      end; evaluate auto_ext; intros.
+      end; clear_fancy; evaluate auto_ext; intros.
 
 (* Clear hypotheses that will confuse Bedrock automation. *)
 Ltac cancl_clear :=
@@ -210,7 +210,7 @@ Ltac evalu :=
     repeat match goal with
              | [ H : _ _ = Some _ |- _ ] => generalize dependent H
              | [ H : _ _ = None -> False |- _ ] => generalize dependent H
-           end; evaluate auto_ext; intros.
+           end; clear_fancy; evaluate auto_ext; intros.
 
 
 
@@ -350,8 +350,10 @@ Proof.
   unfold postcond in H7.
   rewrite H2 in H7.
   post.
-  pre_evalu.
-  tauto.
+  match goal with
+    | [ H : importsGlobal _ |- _ ] => clear dependent H
+  end.
+  pre_evalu; tauto.
 Qed.
 
 (*
