@@ -16,11 +16,13 @@ Section TopSection.
 
   Variable modName : string.
 
-  Definition compile := compile vars temp_size imports_global modName.
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
+  Definition compile := compile vars temp_size imports_global modName rv_postcond.
 
   Lemma verifCond_ok : 
     forall s k (pre : assert),
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.

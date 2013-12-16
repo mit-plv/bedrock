@@ -19,7 +19,9 @@ Section TopSection.
   Require Import Syntax.
   Require Import Wrap.
 
-  Definition compile := compile vars temp_size imports_global modName.
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
+  Definition compile := compile vars temp_size imports_global modName rv_postcond.
 
   Require Import Semantics.
   Require Import Safe.
@@ -103,7 +105,7 @@ Section TopSection.
   Lemma verifCond_ok : 
     forall o e l k (pre : assert),
       let s := Syntax.Call o e l in
-      vcs (verifCond vars temp_size s k pre) ->
+      vcs (verifCond vars temp_size s k rv_postcond pre) ->
       vcs
         (VerifCond (compile s k pre)).
   Proof.

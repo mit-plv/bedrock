@@ -29,9 +29,11 @@ Section Body.
   Definition callee_stack_start := frame_len.
   Definition callee_stack_slot n := LvMem (Sp + (callee_stack_start + 4 * n)%nat)%loc.
 
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
   Definition loop_inv cond body k : assert := 
     let s := Syntax.Seq (Syntax.While cond body) k in
-    inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) s.
+    inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) rv_postcond s.
 
   Require Import Malloc.
 
@@ -58,7 +60,8 @@ Section Body.
            separated heap12 ret_w ret_a /\
            RunsTo fs k v v' /\
            length temps' = temp_size /\
-           st'#Sp = old_sp |]).
+           st'#Sp = old_sp /\
+           rv_postcond st'#Rv v' |]).
 
   Require CompileExpr.
 

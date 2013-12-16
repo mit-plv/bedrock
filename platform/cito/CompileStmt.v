@@ -18,16 +18,17 @@ Section Compile.
 
   Require Import Syntax.
 
+  Variable rv_postcond : W -> Semantics.State -> Prop.
+
   Variable s k : Stmt.
 
   Require Import Wrap.
-
   Definition compile : cmd imports modName.
     refine (
         Wrap imports imports_global modName 
-             (CompileStmtImpl.compile vars temp_size imports_global modName s k) 
-             (fun _ => postcond vars temp_size k) 
-             (verifCond vars temp_size s k) 
+             (CompileStmtImpl.compile vars temp_size imports_global modName rv_postcond s k) 
+             (fun _ => postcond vars temp_size k rv_postcond) 
+             (verifCond vars temp_size s k rv_postcond) 
              _ _).
     Require Import PostOk VerifCondOk.
     eapply post_ok.
