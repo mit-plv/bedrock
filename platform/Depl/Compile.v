@@ -130,6 +130,16 @@ Ltac case_option :=
       end
   end; autorewrite with core in *.
 
+(* Ditto, for the [outcome] type *)
+Ltac case_outcome :=
+  match goal with
+    | [ |- context[match ?E with Error => _ | _ => _ end] ] =>
+      match E with
+        | context[match _ with Error => _ | _ => _ end] => fail 1
+        | _ => case_eq E; post
+      end
+  end; autorewrite with core in *.
+
 (* Use a hypothesis about some fact olding for all members of a list. *)
 Ltac use_In :=
   match goal with
@@ -202,6 +212,8 @@ Ltac evalu :=
              | [ H : _ _ = None -> False |- _ ] => generalize dependent H
            end; evaluate auto_ext; intros.
 
+
+
 Ltac my_descend := descend; autorewrite with core.
 Hint Rewrite sel_upd_ne using (intro; subst; tauto).
 
@@ -261,6 +273,15 @@ Qed.
 
 Local Hint Resolve stmtD_monotone.
 
+(** When starting in an unsatisfiable precondition, the postcondition is also unsatisfiable. *)
+Lemma preserve_unsat : forall im mn (H : importsGlobal im) ns res specs s stn st pre,
+  interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre) (stn, st))
+  -> (forall stn st, interp specs (pre (stn, st)) -> False)
+  -> False.
+Proof.
+  induction s; simpl; post; eauto.
+Qed.
+
 Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res,
   ~In "rp" ns
   -> forall s st pre pre0 specs vs,
@@ -277,15 +298,6 @@ Proof.
   repeat (pre_implies || use_In || case_option);
     try (pre_evalu; exprC_correct); evalu;
       my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend)).
-
-  Ltac case_outcome :=
-    match goal with
-      | [ |- context[match ?E with Error => _ | _ => _ end] ] =>
-        match E with
-          | context[match _ with Error => _ | _ => _ end] => fail 1
-          | _ => case_eq E; post
-        end
-    end; autorewrite with core in *.
 
   repeat (pre_implies || case_outcome).
   eapply IHs2 in H4.
@@ -307,7 +319,40 @@ Proof.
   unfold postcond in H4.
   rewrite H7 in H4.
   post.
-Admitted.
+
+  eapply IHs2 in H4.
+  3: auto.
+  
+  Focus 2.
+  intros.
+  eapply IHs1 in H8.
+  unfold postcond in H8.
+  generalize H8; clear H8.
+  instantiate (4 := vs).
+  rewrite H2.
+  eauto.
+  eauto.
+  auto.
+  auto.
+
+  2: eauto.
+  unfold postcond in H4.
+  rewrite H7 in H4.
+  post.
+
+  exfalso.
+  eapply preserve_unsat; eauto.
+  intros.
+  eapply IHs1 in H7.
+  3: auto.
+  2: eauto.
+  2: eauto.
+  unfold postcond in H7.
+  rewrite H2 in H7.
+  post.
+  pre_evalu.
+  tauto.
+Qed.
 
 (*
 (** Main statement compiler/combinator/macro *)
