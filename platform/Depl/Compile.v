@@ -280,13 +280,17 @@ Ltac use_error_message :=
   end.
 
 (* Use the induction hypotheses (recursively) in the proof below. *)
+Ltac Stmt_use_IH' :=
+  eauto; repeat post; my_descend; post; my_descend;
+    repeat (my_descend; cancl || (step auto_ext; my_descend)).
+
 Ltac Stmt_use_IH :=
   match goal with
     | [ IH : forall pre0 : _ -> _, _, H : interp _ (Structured.Postcondition _ _) |- _ ] =>
       eapply IH in H; clear IH; auto;
         try match goal with
               | [ |- forall specs : codeSpec _ _, _ ] => intros; Stmt_use_IH
-            end; eauto; repeat post; my_descend; post; my_descend
+            end; Stmt_use_IH'
   end.
 
 Lemma Stmt_post : forall pre post im mn (H : importsGlobal im) ns res xs,
@@ -311,73 +315,39 @@ Proof.
           my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
 Qed.
 
-(*Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
+Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
   ~In "rp" ns
   -> (forall x, In x xs -> In x ns)
-  -> forall s pre0 vs k,
-    (forall specs0 st0,
-      interp specs0 (pre0 st0)
-      -> interp specs0 (precond vs pre post true (fun x => x) ns res st0))
+  -> forall s pre0 k,
+    (forall specs st,
+      interp specs (pre0 st)
+      -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
+        /\ stmtD pre post vs s k
+        /\ forall x, In x xs -> vs x <> None)
     -> stmtV xs s
-    -> (forall x, In x xs -> vs x <> None)
-    -> stmtD pre post vs s k
     -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
 Proof.
   induction s.
 
-  wrap0.
-  repeat (pre_implies || use_In || case_option); intuition idtac;
-    try (pre_evalu; exprC_correct); evalu.
+  Ltac t := wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
+    try (pre_evalu; exprC_correct); try evalu;
+      try match goal with
+            | [ IH : _ |- _ ] => eapply IH; eauto; intros;
+              match goal with
+                | [ H : interp _ _ |- _ ] => eapply Stmt_post in H;
+                  Stmt_use_IH'; (cbv beta in *; eauto)
+              end
+          end.
 
-  wrap0.
-  simpl in *; intuition eauto.
-  simpl in *; intuition eauto.
-  eapply IHs2; auto.
-  intros.
-  
+  t.
 
+  t.
 
-
-
-
-  wrap0.
-  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac;
-    try (pre_evalu; exprC_correct); evalu.
-
-  simpl; wrap0.
-
-  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
-  eapply IHs1; eauto; (cbv beta; congruence).
-  eapply IHs1; eauto; (cbv beta; congruence).
-
-  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
-  eapply IHs2; [ intros;
-    match goal with
-      | [ H : interp _ (Structured.Postcondition _ _) |- _ ] =>
-        eapply Stmt_post in H; [ simplify_postcond | .. ]
-    end | .. ]; eauto.
-  (* Remaining sequencing case *)
-  admit.
-
-  simpl; wrap0.
-  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
-  pre_evalu.
-  exprC_correct.
-  evalu.
-
-  repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac.
-  pre_evalu.
-  exprC_correct.
-  evalu.
-  my_descend.
-  step auto_ext.
-  step auto_ext.
-  my_descend; step auto_ext.
-  (* Oh.  [stmtD] needs to generate VCs, too, or we can't prove pre->post at return points! *)
+  wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
+    try (pre_evalu; exprC_correct); try evalu.
+  (* Here we need some reasoning about the correctness of entailment. *)
   admit.
 Qed.
-
-Local Hint Immediate Stmt_vc.*)
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
@@ -410,5 +380,5 @@ Proof.
         abstract (wrap0; match goal with
                            | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; post
                          end)
-        | admit ].
+        | abstract (wrap0; eapply Stmt_vc; eauto) ].
 Defined.
