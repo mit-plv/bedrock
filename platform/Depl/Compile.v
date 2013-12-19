@@ -67,6 +67,8 @@ Fixpoint stmtC (s : stmt) : chunk :=
 (** Version of [Logic.predD] specialized to predicates with no free higher-order variables *)
 Definition predD (p : pred) (fE : fo_env) : HProp :=
   predD p (fun _ _ => Emp)%Sep fE.
+Definition normalD (p : normal) (fE : fo_env) : HProp :=
+  normalD p (fun _ _ => Emp)%Sep fE.
 
 (** Helper to copy formal parameter values from a [vals] to a [fo_env] *)
 Fixpoint formals (V : vals) (xs : list pr_var) (fE : fo_env) : fo_env :=
@@ -76,32 +78,18 @@ Fixpoint formals (V : vals) (xs : list pr_var) (fE : fo_env) : fo_env :=
   end.
 
 (** Generic precondition of a statement, translated to base Bedrock from Depl-speak *)
-Definition precond (vs : vars) (pre post : pred) :=
+Definition precond (vs : vars) (pre post : normal) :=
   (* First, quantify over a context assigning values to specification variables. *)
   Al fE,
     (* Naturally, we rely on the malloc() data structures being around. *)
     PRE[V] mallocHeap 0
       (* We also need the Depl precondition, of course. *)
-      * predD pre fE
+      * normalD pre fE
       (* Finally, the symbolic variable valuation should be accurate. *)
       * [| vars_ok fE V vs |]
     POST[R] mallocHeap 0
       (* The postcondition holds, in an [fo_env] that lets it mention the return value. *)
-      * predD post (fo_set fE "result" (Dyn R)).
-
-(** Generic postcondition of a statement *)
-Definition postcond (vs : vars) (pre post : pred) (s : stmt) :=
-  match stmtD vs s with
-    | Error =>
-      (* It's going to crash.  No guarantees! *)
-      fun _ _ _ _ => st ~> [| True |]
-    | Returned _ =>
-      (* We returned already.  Unreachable! *)
-      PREonly[_] [| False |]
-    | Success vs' =>
-      (* Still executing. *)
-      precond vs' pre post
-  end.
+      * normalD post (fo_set fE "result" (Dyn R)).
 
 (** * Key lemmas to pass to Wrap *)
 
@@ -140,26 +128,15 @@ Ltac case_option :=
       end
   end; autorewrite with core in *.
 
-(* Ditto, for the [outcome] type *)
-Ltac case_outcome :=
-  match goal with
-    | [ |- context[match ?E with Error => _ | _ => _ end] ] =>
-      match E with
-        | context[match _ with Error => _ | _ => _ end] => fail 1
-        | _ => case_eq E; post
-      end
-    | [ _ : context[match ?E with Error => _ | _ => _ end] |- _ ] =>
-      match E with
-        | context[match _ with Error => _ | _ => _ end] => fail 1
-        | _ => case_eq E; post; rewriteall
-      end
-  end; autorewrite with core in *.
-
-(* Use a hypothesis about some fact olding for all members of a list. *)
+(* Use a hypothesis about some fact holding for all members of a list. *)
 Ltac use_In :=
   match goal with
     | [ H : forall x, In x ?xs -> _ -> False, H' : In _ ?xs |- _ ] =>
-      specialize (H _ H')
+      let T := type of (H _ H') in
+        match goal with
+          | [ _ : T |- _ ] => fail 1
+          | _ => generalize (H _ H'); intro
+        end
   end.
 
 (* Use [evaluate] to get pure facts in a precondition into the normal proof context. *)
@@ -178,9 +155,11 @@ Ltac pre_evalu :=
 (* Clear hypotheses that will confuse Bedrock automation. *)
 Ltac cancl_clear :=
   repeat match goal with
+           | [ H : importsGlobal _ |- _ ] => clear dependent H
            | [ H : _ _ = Some _ |- _ ] => clear H
            | [ H : (_ _ <> None)%type |- _ ] => clear H
            | [ H : _ _ = None -> False |- _ ] => clear H
+           | [ H : stmtD _ _ _ _ _ |- _ ] => clear H
          end.
 
 (* Use separation logic entailment from a hypothesis to conclusion. *)
@@ -188,6 +167,8 @@ Ltac cancl :=
   match goal with
     | [ _ : interp ?specs1 (![_] (?s1, ?x1)) |- interp ?specs2 (![_] (?s2, ?x2)) ] =>
       equate specs1 specs2; equate s1 s2; equate x1 x2;
+      cancl_clear; cancel auto_ext
+    | [ _ : interp ?specs (![_] ?s) |- interp ?specs (![_] ?s) ] =>
       cancl_clear; cancel auto_ext
     | [ |- interp _  (![_]%PropX _ ---> ![_]%PropX _) ] => cancl_clear; cancel auto_ext
   end.
@@ -238,7 +219,7 @@ Ltac evalu :=
       end;
   evaluate auto_ext; intros.
 
-Ltac my_descend := descend; autorewrite with core.
+Ltac my_descend := descend; autorewrite with core in *.
 Hint Rewrite sel_upd_ne using (intro; subst; tauto).
 
 Lemma string_eq_complete : forall s1 s2,
@@ -261,81 +242,6 @@ Qed.
 
 Local Hint Resolve vars_ok_upd.
 
-Lemma stmtD_monotone' : forall x s vs vs',
-  vs x <> None
-  -> stmtD vs s = Success vs'
-  -> vs' x <> None.
-Proof.
-  induction s; simpl; intuition.
-
-  repeat match goal with
-           | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
-             match E with
-               | context[match _ with None => _ | _ => _ end] => fail 1
-               | _ => destruct E
-             end
-         end; intuition.
-  injection H0; clear H0; intros; subst.
-  apply H.
-  unfold vars_set in H1.
-  destruct (string_dec x x0); congruence.
-
-  specialize (IHs1 vs).
-  destruct (stmtD vs s1); intuition eauto.
-
-  destruct (exprD vs e); discriminate.
-Qed.
-
-(** Let's restate that to be friendlier to [eauto]. *)
-Lemma stmtD_monotone : forall x s vs vs',
-  vs x <> None
-  -> stmtD vs s = Success vs'
-  -> vs' x = None -> False.
-Proof.
-  generalize stmtD_monotone'; eauto.
-Qed.
-
-Local Hint Resolve stmtD_monotone.
-
-(** When starting in an unsatisfiable precondition, the postcondition is also unsatisfiable. *)
-Lemma preserve_unsat : forall im mn (H : importsGlobal im) ns res specs s stn st pre,
-  interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre) (stn, st))
-  -> (forall stn st, interp specs (pre (stn, st)) -> False)
-  -> False.
-Proof.
-  induction s; simpl; post; eauto.
-Qed.
-
-(** Use what we know about the result of executing a statement to simplify a [postcond] hyp. *)
-Ltac simplify_postcond :=
-  match goal with
-    | [ H : interp _ (postcond _ _ _ _ _ _ _ _ _) |- _ ] => unfold postcond in H;
-      match type of H with
-        | context[stmtD ?vs ?s] =>
-          match goal with
-            | [ H' : stmtD ?vs' s = _ |- _ ] =>
-              equate vs vs'; rewrite H' in H; eauto
-          end
-      end
-  end.
-
-(** Use all induction hypotheses cleverly. *)
-Ltac Stmt_post_IH' :=
-  try match goal with
-        | [ IH : forall st : settings * state, _, H : interp _ (Structured.Postcondition _ _) |- _ ] =>
-          eapply IH in H; clear IH; try auto;
-            try match goal with
-                  | [ |- forall specs : codeSpec _ _, _ ] =>
-                    intros; Stmt_post_IH'
-                end; eauto; try simplify_postcond; post
-      end.
-
-Ltac Stmt_post_IH := try solve [ Stmt_post_IH'
-  | exfalso; eapply preserve_unsat; eauto;
-    intros; Stmt_post_IH'; match goal with
-                             | [ H : importsGlobal _ |- _ ] => clear dependent H
-                           end; pre_evalu; tauto ].
-
 Lemma exprV_weaken : forall xs xs',
   (forall x, In x xs -> In x xs')
   -> forall e, exprV xs e -> exprV xs' e.
@@ -354,39 +260,85 @@ Qed.
 
 Local Hint Resolve stmtV_weaken.
 
-Lemma Stmt_post : forall post im mn (H : importsGlobal im) ns res xs,
-  ~In "rp" ns
-  -> (forall x, In x xs -> In x ns)
-  -> forall s st pre pre0 specs vs,
-    (forall specs0 st0,
-      interp specs0 (pre0 st0)
-      -> interp specs0 (precond vs pre post true (fun x => x) ns res st0))
-    -> stmtV xs s
-    -> (forall x, In x xs -> vs x <> None)
-    -> interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
-    -> interp specs (postcond vs pre post s true (fun x => x) ns res st).
+Lemma vars_set_contra : forall vs x v x' v',
+  vars_set vs x v x' = None
+  -> vs x = Some v'
+  -> (vs x' = None -> False)
+  -> False.
 Proof.
-  induction s; repeat post; intuition; (unfold postcond; post;
-    repeat (pre_implies || use_In || case_option || case_outcome); Stmt_post_IH;
-      try (pre_evalu; exprC_correct); evalu;
-        my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
+  unfold vars_set; intros;
+    destruct (string_dec x' x); subst; eauto; discriminate.
 Qed.
 
-Local Hint Immediate Stmt_post.
+Local Hint Resolve vars_set_contra.
 
-Lemma Stmt_vc : forall post im mn (H : importsGlobal im) ns res xs,
+(* VC generation uses some empty marker predicates to indicate failure.
+ * Try to find one to invert on, proving the goal trivially. *)
+Ltac use_error_message :=
+  match goal with
+    | [ H : bad_assignment_rhs _ |- _ ] => inversion H
+  end.
+
+(* Use the induction hypotheses (recursively) in the proof below. *)
+Ltac Stmt_use_IH :=
+  match goal with
+    | [ IH : forall pre0 : _ -> _, _, H : interp _ (Structured.Postcondition _ _) |- _ ] =>
+      eapply IH in H; clear IH; auto;
+        try match goal with
+              | [ |- forall specs : codeSpec _ _, _ ] => intros; Stmt_use_IH
+            end; eauto; repeat post; my_descend; post; my_descend
+  end.
+
+Lemma Stmt_post : forall pre post im mn (H : importsGlobal im) ns res xs,
   ~In "rp" ns
   -> (forall x, In x xs -> In x ns)
-  -> forall s pre pre0 vs,
+  -> forall s pre0 k,
+    (forall specs st,
+      interp specs (pre0 st)
+      -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
+        /\ stmtD pre post vs s k
+        /\ forall x, In x xs -> vs x <> None)
+    -> stmtV xs s
+    -> forall specs st, interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
+      -> exists vs', k vs'
+        /\ interp specs (precond vs' pre post true (fun x => x) ns res st)
+        /\ forall x, In x xs -> vs' x <> None.
+Proof.
+  induction s; (repeat post; intuition;
+    repeat (pre_implies || use_In || case_option); try use_error_message; try Stmt_use_IH;
+      try (pre_evalu; exprC_correct); evalu;
+        my_descend; eauto; propxFo;
+          my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
+Qed.
+
+(*Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
+  ~In "rp" ns
+  -> (forall x, In x xs -> In x ns)
+  -> forall s pre0 vs k,
     (forall specs0 st0,
       interp specs0 (pre0 st0)
       -> interp specs0 (precond vs pre post true (fun x => x) ns res st0))
     -> stmtV xs s
     -> (forall x, In x xs -> vs x <> None)
-    -> stmtD vs s <> Error
+    -> stmtD pre post vs s k
     -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
 Proof.
   induction s.
+
+  wrap0.
+  repeat (pre_implies || use_In || case_option); intuition idtac;
+    try (pre_evalu; exprC_correct); evalu.
+
+  wrap0.
+  simpl in *; intuition eauto.
+  simpl in *; intuition eauto.
+  eapply IHs2; auto.
+  intros.
+  
+
+
+
+
 
   wrap0.
   repeat (pre_implies || use_In || case_option || case_outcome); intuition idtac;
@@ -425,7 +377,7 @@ Proof.
   admit.
 Qed.
 
-Local Hint Immediate Stmt_vc.
+Local Hint Immediate Stmt_vc.*)
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
@@ -439,9 +391,13 @@ Definition Stmt
   (* The statement to compile *)
   : chunk.
 Proof.
+  pose (pre' := normalize pre).
+  pose (post' := normalize post).
   apply (WrapC (stmtC s)
-    (precond vs pre post)
-    (postcond vs pre post s)
+    (precond vs pre' post')
+    (fun _ _ _ _ _ => [| False |])%PropX
+    (* Unsatisfiable postcondition, since we won't allow running off the end of
+     * a function body without returning *)
 
     (* VERIFICATION CONDITION *)
     (fun _ ns _ =>
@@ -449,9 +405,10 @@ Proof.
       :: (~In "rp" ns)
       :: stmtV xs s
       :: (forall x, In x xs -> vs x <> None)
-      :: (stmtD vs s <> Error)%type
-      :: nil)); abstract (wrap0; eauto).
+      :: stmtD pre' post' vs s (fun _ => False)
+      :: nil)); [
+        abstract (wrap0; match goal with
+                           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; post
+                         end)
+        | admit ].
 Defined.
-
-(* It actually seems problematic here to pass [vs] as an argument to [Stmt].
- * E.g., on entry to a function, we won't know this value at compile time. *)

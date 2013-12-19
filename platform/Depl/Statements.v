@@ -2,7 +2,7 @@
 
 Require Import AutoSep.
 
-Require Import Depl.Logic Depl.AlgebraicDatatypes.
+Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes.
 
 
 (** * Syntax *)
@@ -83,32 +83,74 @@ Definition exprD (vs : vars) (e : expr) : option Logic.expr :=
     | Var x => vs x
   end.
 
-(** Outcomes of symbolic execution *)
-Inductive outcome :=
-| Error
-| Success (vs : vars)
-| Returned (e : Logic.expr).
+Inductive result :=
+| ProveThis (P : Prop)
+| Failed (P : Prop).
 
-(** Symbolic execution of statements *)
-Fixpoint stmtD (vs : vars) (s : stmt) : outcome :=
-  match s with
-    | Assign x e =>
-      match exprD vs e with
-        | None => Error
-        | Some e' =>
-          match vs x with
-            | None => Error
-            | Some _ => Success (vars_set vs x e')
-          end
-      end
-    | Seq s1 s2 =>
-      match stmtD vs s1 with
-        | Success vs' => stmtD vs' s2
-        | o => o
-      end
-    | Ret e =>
-      match exprD vs e with
-        | None => Error
-        | Some e' => Returned e'
-      end
+Inductive lhs_remains (p : list pred) := .
+
+(** Strict entailment between normalized formulas,
+  * where there may be no conjuncts left uncanceled on either side *)
+Definition sentail (lhs rhs : normal) :=
+  match cancel lhs rhs with
+    | Success nil P => ProveThis P
+    | Success lhs' _ => Failed (lhs_remains lhs')
+    | Failure P => Failed P
   end.
+
+Inductive bad_assignment_rhs (e : expr) := .
+Inductive bad_assignment_lhs (x : pr_var) := .
+Inductive bad_return_expr (e : expr) := .
+Inductive result_already_used_at_return := .
+Inductive entailment_failed_at_return (P : Prop) := .
+
+(** Add a pure conjunct to a normalized predicate. *)
+Definition addPure (n : normal) (P : fo_env -> Prop) : normal := {|
+  NQuants := NQuants n;
+  NPure := match NPure n with
+             | None => Some P
+             | Some P' => Some (fun fE => P' fE /\ P fE)
+           end;
+  NImpure := NImpure n
+|}.
+
+(** An axiomatic semantics for statements, via symbolic execution. *)
+Section stmtD.
+  Variable pre : normal.
+  (** Precondition; holds throughout execution, since it describes the heap,
+    * and there aren't yet heap-manipulating statements. *)
+  Variable post : normal.
+  (** Postcondition; check it at return points. *)
+
+  (** Return a verification condition implying spec conformance. *)
+  Fixpoint stmtD (vs : vars) (s : stmt)
+    (k : vars -> Prop) (* Continuation; call when control falls through. *) : Prop :=
+    match s with
+      | Assign x e =>
+        match exprD vs e with
+          | None => bad_assignment_rhs e
+          | Some e' =>
+            match vs x with
+              | None => bad_assignment_lhs x
+              | Some _ => k (vars_set vs x e')
+            end
+        end
+      | Seq s1 s2 =>
+        stmtD vs s1 (fun vs' => stmtD vs' s2 k)
+      | Ret e =>
+        match exprD vs e with
+          | None => bad_return_expr e
+          | Some e' =>
+            if In_dec string_dec "result" (NQuants pre)
+              then result_already_used_at_return
+              else
+                (** Build an extended precondition that records the return value. *)
+                let pre' := addPure pre (fun fE => fE "result" = Logic.exprD e' fE) in
+
+                match sentail pre' post with
+                  | ProveThis P => P
+                  | Failed P => entailment_failed_at_return P
+                end
+        end
+    end.
+End stmtD.
