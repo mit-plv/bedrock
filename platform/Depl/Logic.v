@@ -987,3 +987,362 @@ Proof.
   intros; rewrite (app_nil_end (NQuants (normalize p))).
   eauto using normalize_wellScoped_NImpure'.
 Qed.
+
+(** Let's define well-formedness of normalized predicates. *)
+
+Record normalWf (fvs : list fo_var) (n : normal) := {
+  WellScoped : List.Forall (wellScoped (NQuants n ++ fvs)) (NImpure n);
+  NoClash : List.Forall (fun p => exists bvs, boundVars p = Some bvs
+    /\ forall x, In x bvs -> ~In x (fvs ++ NQuants n)) (NImpure n);
+  GoodPure : match NPure n with
+               | None => True
+               | Some P => 
+                 forall fE fE', (forall x, In x fvs \/ In x (NQuants n)
+                   -> fE x = fE' x) -> P fE = P fE'
+             end
+}.
+
+(** Some tactics to do case analysis based on [match]es in hyps *)
+
+Ltac case_eq' E := case_eq E; intros;
+  try match goal with
+        | [ H : _ = _ |- _ ] => rewrite H in *
+      end.
+
+Ltac caser0 :=
+  match goal with
+    | [ _ : context[match ?E with None => _ | _ => _ end] |- _ ] =>
+      match E with
+        | context[match _ with None => _ | _ => _ end] => fail 1
+        | context[if _ then _ else _] => fail 1
+        | _ => case_eq' E
+      end
+    | [ _ : context[if ?E then _ else _] |- _ ] =>
+      match E with
+        | context[match _ with None => _ | _ => _ end] => fail 1
+        | context[if _ then _ else _] => fail 1
+        | _ => case_eq' E
+      end
+  end.
+
+Ltac caser := repeat caser0; try congruence;
+  repeat match goal with
+           | [ H : Some _ = Some _ |- _ ] =>
+             injection H; clear H; intros; subst
+         end; simpl in *.
+
+Theorem normalize_wf : forall fvs bvs p,
+  wellScoped fvs p
+  -> boundVars p = Some bvs
+  -> (forall x, In x bvs -> ~In x fvs)
+  -> normalWf fvs (normalize p).
+Proof.
+  split.
+  auto using normalize_wellScoped_NImpure'.
+
+  generalize dependent fvs.
+  generalize dependent bvs.
+  induction p; simpl; intuition; caser.
+
+  apply Forall_app.
+
+  eapply Forall_impl; [ | eapply IHp1 ].
+  simpl; intuition.
+  destruct H0 as [it]; exists it; intuition.
+  eapply H7; eauto.
+  eapply in_or_app.
+  eapply in_app_or in H8; intuition.
+  left; apply in_or_app.
+  eauto.
+  apply in_app_or in H9; intuition.
+  left; eapply in_or_app; eauto.
+  eauto.
+  eapply wellScoped_weaken; eauto.
+  eauto using in_or_app.
+  intros.
+  eapply in_app_or in H6; intuition eauto using in_or_app.
+  eapply normalize_boundVars in H7; eauto.
+  eauto using notsInList_true.
+
+  eapply Forall_impl; [ | eapply IHp2 ].
+  simpl; intuition.
+  destruct H0 as [it]; exists it; intuition.
+  eapply H7; eauto.
+  eapply in_or_app.
+  eapply in_app_or in H8; intuition.
+  left; apply in_or_app.
+  eauto.
+  apply in_app_or in H9; intuition.
+  left; eapply in_or_app; eauto.
+  eauto.
+  eapply wellScoped_weaken; eauto.
+  eauto using in_or_app.
+  intros.
+  eapply in_app_or in H6; intuition eauto using in_or_app.
+  eapply normalize_boundVars in H7; eauto.
+  eauto using notsInList_true.
+
+  eapply Forall_impl; [ | eapply IHp ].
+  simpl; intuition.
+  destruct H0 as [it]; exists it; intuition.
+  eapply H5; eauto.
+  eapply in_or_app.
+  eapply in_app_or in H6; intuition.
+  instantiate (1 := x :: fvs).
+  simpl; eauto.
+  simpl in H7; intuition subst.
+  simpl; tauto.
+  eauto.
+  auto.
+  simpl; intuition subst; eauto.
+
+  constructor; [ | constructor ].
+  simpl; eauto.
+
+  (* The pure part *)
+  generalize dependent fvs.
+  generalize dependent bvs.
+  induction p; simpl; intuition; caser; intuition.
+
+  f_equal.
+  eapply IHp1; intuition eauto using in_or_app.
+  eapply IHp2; intuition eauto using in_or_app.
+  eapply IHp2; intuition eauto using in_or_app.
+  eapply IHp1; intuition eauto using in_or_app.
+  eapply IHp; intuition (simpl in *; eauto using in_or_app).
+  intuition (subst; eauto).
+  intuition (subst; eauto).
+Qed.
+
+
+(** * Extensionality of various syntactic categories,
+  *   to avoid depending on functional extensionality axioms *)
+
+Definition exprExt (e : expr) :=
+  match e with
+    | Var _ => True
+    | Lift f => forall fE1 fE2,
+      (forall x, fE1 x = fE2 x)
+      -> f fE1 = f fE2
+  end.
+
+Fixpoint predExt (p : pred) :=
+  match p with
+    | Pure P => forall fE1 fE2,
+      (forall x, fE1 x = fE2 x)
+      -> P fE1 = P fE2
+    | Star p1 p2 => predExt p1 /\ predExt p2
+    | Exists _ p1 => predExt p1
+    | Named _ es => List.Forall exprExt es
+  end.
+
+Theorem exprExt_sound : forall fE1 fE2,
+  (forall x, fE1 x = fE2 x)
+  -> forall e, exprExt e
+    -> exprD e fE1 = exprD e fE2.
+Proof.
+  destruct e; simpl; intuition.
+Qed.
+
+(** Finally, some tactics to automate basic [SubstsH] simplification *)
+Ltac Himp_fwd e := eapply Himp_trans; [ apply e | ].
+Ltac Himp_bwd e := eapply Himp_trans; [ | apply e ].
+Ltac Himp0 := Himp_fwd SubstsH_inj_fwd || Himp_bwd SubstsH_inj_bwd
+  || Himp_fwd SubstsH_star_fwd || Himp_bwd SubstsH_star_bwd
+  || Himp_fwd SubstsH_ex_fwd || Himp_bwd SubstsH_ex_bwd.
+Ltac Himp := repeat Himp0.
+
+Section predExt_sound.
+  Variable G : list Type.
+  Variable hE : ho_env G.
+  Variable s : subs W (settings * state) G.
+
+  Theorem predExt_sound : forall p fE1 fE2, predExt p
+    -> (forall x, fE1 x = fE2 x)
+    -> SubstsH s (predD p hE fE1) ===> SubstsH s (predD p hE fE2).
+  Proof.
+    induction p; simpl; intuition; Himp.
+
+    erewrite H; try apply Himp_refl; auto.
+
+    apply Himp_star_frame; auto.
+
+    apply Himp_ex; intro.
+    apply IHp; auto.
+    intros.
+    specialize (H0 x0).
+    unfold fo_set.
+    destruct (string_dec x0 x); congruence.
+
+    apply Himp_refl'.
+    do 2 f_equal.
+    induction H; simpl; intuition.
+    f_equal; auto.
+    apply exprExt_sound; auto.
+  Qed.
+End predExt_sound.
+
+
+(** * Substitution for variables within normalized predicates *)
+
+Section subst.
+  Variable x : fo_var.
+  Variable e : expr.
+  (* Replace [x] with [e]. *)
+
+  Definition esubst (e' : expr) : expr :=
+    match e' with
+      | Var y => if string_dec y x then e else Var y
+      | Lift f => Lift (fun fE => f (fo_set fE x (exprD e fE)))
+    end.
+
+  Fixpoint psubst (p : pred) : pred :=
+    match p with
+      | Pure f => Pure (fun fE => f (fo_set fE x (exprD e fE)))
+      | Star p1 p2 => Star (psubst p1) (psubst p2)
+      | Exists x p1 => Exists x (psubst p1)
+      | Named X es => Named X (map esubst es)
+    end.
+
+  Definition nsubst (n : normal) : normal := {|
+    NQuants := NQuants n;
+    NPure := match NPure n with
+               | None => None
+               | Some f => Some (fun fE => f (fo_set fE x (exprD e fE)))
+             end;
+    NImpure := map psubst (NImpure n)
+  |}.
+
+  (** When can we conclude something about an [nsubst]ed predicate,
+    * given something we know about the original predicate? *)
+
+  Theorem esubst_correct : forall e' fE,
+    fE x = exprD e fE
+    -> exprExt e'
+    -> exprD (esubst e') fE = exprD e' fE.
+  Proof.
+    destruct e'; simpl; intuition.
+    destruct (string_dec x0 x); simpl; congruence.
+    apply H0; intros.
+    unfold fo_set.
+    destruct (string_dec x0 x); congruence.
+  Qed.
+
+  Variable G : list Type.
+  Variable hE : ho_env G.
+  Variable s : subs W (settings * state) G.
+
+  Hint Resolve in_or_app.
+
+  Theorem psubst_fwd : forall fvs,
+    (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+      -> exprD e fE1 = exprD e fE2)
+    -> forall p fE bvs,
+      fE x = exprD e fE
+      -> boundVars p = Some bvs
+      -> (forall x, In x fvs -> ~In x bvs)
+      -> ~In x bvs
+      -> predExt p
+      -> SubstsH s (predD p hE fE) ===> SubstsH s (predD (psubst p) hE fE).
+  Proof.
+    induction p; simpl; intuition; Himp.
+
+    erewrite H4.
+    apply Himp_refl.
+    intro; unfold fo_set.
+    destruct (string_dec x0 x); congruence.
+
+    caser; apply Himp_star_frame; eauto 10.
+
+    caser; apply Himp_ex; intro.
+    eapply IHp; eauto.
+    unfold fo_set at 1.
+    destruct (string_dec x x0); subst; intuition.
+    erewrite H; eauto.
+    intros; unfold fo_set.
+    destruct (string_dec x1 x0); subst; auto.
+    exfalso; eauto.
+
+    apply Himp_refl'.
+    do 2 f_equal.
+    induction H4; simpl; intuition.
+    f_equal; auto.
+    symmetry; apply esubst_correct; auto.
+  Qed.
+
+  Theorem psubst_bwd : forall fvs,
+    (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+      -> exprD e fE1 = exprD e fE2)
+    -> forall p fE bvs,
+      fE x = exprD e fE
+      -> boundVars p = Some bvs
+      -> (forall x, In x fvs -> ~In x bvs)
+      -> ~In x bvs
+      -> predExt p
+      -> SubstsH s (predD (psubst p) hE fE) ===> SubstsH s (predD p hE fE).
+  Proof.
+    induction p; simpl; intuition; Himp.
+
+    erewrite H4.
+    apply Himp_refl.
+    intro; unfold fo_set.
+    destruct (string_dec x0 x); congruence.
+
+    caser; apply Himp_star_frame; eauto 10.
+
+    caser; apply Himp_ex; intro.
+    eapply IHp; eauto.
+    unfold fo_set at 1.
+    destruct (string_dec x x0); subst; intuition.
+    erewrite H; eauto.
+    intros; unfold fo_set.
+    destruct (string_dec x1 x0); subst; auto.
+    exfalso; eauto.
+
+    apply Himp_refl'.
+    do 2 f_equal.
+    induction H4; simpl; intuition.
+    f_equal; auto.
+    apply esubst_correct; auto.
+  Qed.
+
+  Lemma multistar_weaken_map : forall fE f ps,
+    List.Forall (fun p => SubstsH s (predD p hE fE) ===>
+      SubstsH s (predD (f p) hE fE)) ps
+    -> forall acc acc',
+      SubstsH s acc ===> SubstsH s acc'
+      -> SubstsH s (fold_left (fun hp p => predD p hE fE * hp) ps acc)
+      ===> SubstsH s (fold_left (fun hp p => predD p hE fE * hp) (map f ps) acc').
+  Proof.
+    induction 1; simpl; intuition.
+    apply IHForall; Himp.
+    apply Himp_star_frame; auto.
+  Qed.
+
+  Lemma Forall_impl2 : forall A (P Q R : A -> Prop),
+    (forall a : A, P a -> Q a -> R a)
+    -> forall l, List.Forall P l
+      -> List.Forall Q l
+      -> List.Forall R l.
+  Proof.
+    induction 2; inversion 1; auto.
+  Qed.
+
+  Theorem nsubst_fwd : forall fvs n fE,
+    normalWf fvs n
+    -> fE x = exprD e fE
+    -> SubstsH s (normalD n hE fE) ===> SubstsH s (normalD (nsubst n) hE fE).
+  Proof.
+    unfold normalD; simpl; intros.
+    eapply addQuants_monotone; intros.
+    apply multistar_weaken_map.
+
+    Check Forall_impl.
+
+    SearchAbout List.Forall.
+    eapply Forall_impl2; [ | apply WellScoped; eauto
+      | apply NoClash; eauto ].
+    simpl; intros.
+    destruct H3 as [ ? [ ] ].
+    eapply psubst_fwd; eauto.
+
