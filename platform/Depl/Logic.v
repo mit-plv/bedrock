@@ -1323,7 +1323,7 @@ Section subst.
     apply esubst_correct; auto.
   Qed.
 
-  Lemma multistar_weaken_map : forall fE f ps,
+  Lemma multistar_weaken_map_fwd : forall fE f ps,
     List.Forall (fun p => SubstsH s (predD p hE fE) ===>
       SubstsH s (predD (f p) hE fE)) ps
     -> forall acc acc',
@@ -1364,7 +1364,6 @@ Section subst.
   Theorem nsubst_fwd : forall fvs n fE,
     normalWf fvs n
     -> fE x = exprD e fE
-    -> ~In x (NQuants n)
     -> (forall y, In y fvs -> ~In y (NQuants n))
     -> (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
       -> exprD e fE1 = exprD e fE2)
@@ -1373,14 +1372,14 @@ Section subst.
   Proof.
     unfold normalD; simpl; intros.
     eapply addQuants_monotone; intros.
-    apply multistar_weaken_map.
+    apply multistar_weaken_map_fwd.
     eapply Forall_impl2; [ apply WellScoped; eauto |
       | apply NoClash; eauto ].
     simpl; intros.
-    destruct H7 as [ ? [ ] ].
+    destruct H6 as [ ? [ ] ].
     eapply psubst_fwd; eauto.
-    rewrite H5 by auto.
-    erewrite H3; eauto.
+    rewrite H4 by auto.
+    erewrite H2; eauto.
     unfold not in *; eauto.
     unfold not in *; eauto.
     eapply Forall_forall; [ eapply Extensional; eauto | auto ].
@@ -1389,14 +1388,65 @@ Section subst.
     destruct (NPure n); try apply Himp_refl.
     Himp.
     apply pure_Himp.
-    erewrite H6; eauto.
+    erewrite H5; eauto.
     destruct 1.
     unfold fo_set.
     destruct (string_dec x0 x); subst; auto.
-    rewrite H5 by auto.
-    erewrite H3; eauto.
+    rewrite H4 by auto.
+    erewrite H2; eauto.
     unfold fo_set.
     destruct (string_dec x0 x); subst; auto.
-    tauto.
+    unfold not in *; exfalso; eauto.
+  Qed.
+
+  Lemma multistar_weaken_map_bwd : forall fE f ps,
+    List.Forall (fun p => SubstsH s (predD (f p) hE fE) ===>
+      SubstsH s (predD p hE fE)) ps
+    -> forall acc acc',
+      SubstsH s acc ===> SubstsH s acc'
+      -> SubstsH s (fold_left (fun hp p => predD p hE fE * hp) (map f ps) acc)
+      ===> SubstsH s (fold_left (fun hp p => predD p hE fE * hp) ps acc').
+  Proof.
+    induction 1; simpl; intuition.
+    apply IHForall; Himp.
+    apply Himp_star_frame; auto.
+  Qed.
+
+  Theorem nsubst_bwd : forall fvs n fE,
+    normalWf fvs n
+    -> fE x = exprD e fE
+    -> (forall y, In y fvs -> ~In y (NQuants n))
+    -> (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+      -> exprD e fE1 = exprD e fE2)
+    -> In x fvs
+    -> SubstsH s (normalD (nsubst n) hE fE) ===> SubstsH s (normalD n hE fE).
+  Proof.
+    unfold normalD; simpl; intros.
+    eapply addQuants_monotone; intros.
+    apply multistar_weaken_map_bwd.
+    eapply Forall_impl2; [ apply WellScoped; eauto |
+      | apply NoClash; eauto ].
+    simpl; intros.
+    destruct H6 as [ ? [ ] ].
+    eapply psubst_bwd; eauto.
+    rewrite H4 by auto.
+    erewrite H2; eauto.
+    unfold not in *; eauto.
+    unfold not in *; eauto.
+    eapply Forall_forall; [ eapply Extensional; eauto | auto ].
+
+    generalize (GoodPure H); intro.
+    destruct (NPure n); try apply Himp_refl.
+    Himp.
+    apply pure_Himp.
+    erewrite H5; eauto.
+    destruct 1.
+    unfold fo_set.
+    destruct (string_dec x0 x); subst; auto.
+    rewrite H4 by auto.
+    erewrite H2; eauto.
+    unfold fo_set.
+    destruct (string_dec x0 x); subst; auto.
+    unfold not in *; exfalso; eauto.
   Qed.
 End subst.
