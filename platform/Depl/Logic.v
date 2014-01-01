@@ -988,10 +988,40 @@ Proof.
   eauto using normalize_wellScoped_NImpure'.
 Qed.
 
+(** * Extensionality of various syntactic categories,
+  *   to avoid depending on functional extensionality axioms *)
+
+Definition exprExt (e : expr) :=
+  match e with
+    | Var _ => True
+    | Lift f => forall fE1 fE2,
+      (forall x, fE1 x = fE2 x)
+      -> f fE1 = f fE2
+  end.
+
+Fixpoint predExt (p : pred) :=
+  match p with
+    | Pure P => forall fE1 fE2,
+      (forall x, fE1 x = fE2 x)
+      -> P fE1 = P fE2
+    | Star p1 p2 => predExt p1 /\ predExt p2
+    | Exists _ p1 => predExt p1
+    | Named _ es => List.Forall exprExt es
+  end.
+
+Theorem exprExt_sound : forall fE1 fE2,
+  (forall x, fE1 x = fE2 x)
+  -> forall e, exprExt e
+    -> exprD e fE1 = exprD e fE2.
+Proof.
+  destruct e; simpl; intuition.
+Qed.
+
 (** Let's define well-formedness of normalized predicates. *)
 
 Record normalWf (fvs : list fo_var) (n : normal) := {
   WellScoped : List.Forall (wellScoped (NQuants n ++ fvs)) (NImpure n);
+  Extensional : List.Forall predExt (NImpure n);
   NoClash : List.Forall (fun p => exists bvs, boundVars p = Some bvs
     /\ forall x, In x bvs -> ~In x (fvs ++ NQuants n)) (NImpure n);
   GoodPure : match NPure n with
@@ -1031,15 +1061,29 @@ Ltac caser := repeat caser0; try congruence;
              injection H; clear H; intros; subst
          end; simpl in *.
 
+Lemma normalize_predExt : forall p,
+  predExt p
+  -> List.Forall predExt (NImpure (normalize p)).
+Proof.
+  induction p; simpl; intuition auto using Forall_app.
+Qed.
+
 Theorem normalize_wf : forall fvs bvs p,
   wellScoped fvs p
   -> boundVars p = Some bvs
   -> (forall x, In x bvs -> ~In x fvs)
+  -> predExt p
   -> normalWf fvs (normalize p).
 Proof.
   split.
+
+  (* WellScoped *)
   auto using normalize_wellScoped_NImpure'.
 
+  (* Extensional *)
+  auto using normalize_predExt.
+
+  (* NoClash *)
   generalize dependent fvs.
   generalize dependent bvs.
   induction p; simpl; intuition; caser.
@@ -1048,49 +1092,51 @@ Proof.
 
   eapply Forall_impl; [ | eapply IHp1 ].
   simpl; intuition.
-  destruct H0 as [it]; exists it; intuition.
-  eapply H7; eauto.
+  destruct H9 as [it]; exists it; intuition.
+  eapply H11; eauto.
   eapply in_or_app.
-  eapply in_app_or in H8; intuition.
+  eapply in_app_or in H12; intuition.
   left; apply in_or_app.
   eauto.
-  apply in_app_or in H9; intuition.
+  apply in_app_or in H13; intuition.
   left; eapply in_or_app; eauto.
+  tauto.
   eauto.
   eapply wellScoped_weaken; eauto.
   eauto using in_or_app.
   intros.
-  eapply in_app_or in H6; intuition eauto using in_or_app.
-  eapply normalize_boundVars in H7; eauto.
+  eapply in_app_or in H7; intuition eauto using in_or_app.
+  eapply normalize_boundVars in H5; eauto.
   eauto using notsInList_true.
 
   eapply Forall_impl; [ | eapply IHp2 ].
   simpl; intuition.
-  destruct H0 as [it]; exists it; intuition.
-  eapply H7; eauto.
+  destruct H9 as [it]; exists it; intuition.
+  eapply H11; eauto.
   eapply in_or_app.
-  eapply in_app_or in H8; intuition.
+  eapply in_app_or in H12; intuition.
   left; apply in_or_app.
   eauto.
-  apply in_app_or in H9; intuition.
+  apply in_app_or in H13; intuition.
   left; eapply in_or_app; eauto.
+  tauto.
   eauto.
   eapply wellScoped_weaken; eauto.
   eauto using in_or_app.
   intros.
-  eapply in_app_or in H6; intuition eauto using in_or_app.
-  eapply normalize_boundVars in H7; eauto.
+  eapply in_app_or in H7; intuition eauto using in_or_app.
+  eapply normalize_boundVars in H; eauto.
   eauto using notsInList_true.
 
-  eapply Forall_impl; [ | eapply IHp ].
+  eapply Forall_impl; [ | eapply H ].
   simpl; intuition.
   destruct H0 as [it]; exists it; intuition.
-  eapply H5; eauto.
+  eapply H7; eauto.
   eapply in_or_app.
-  eapply in_app_or in H6; intuition.
+  eapply in_app_or in H8; intuition.
   instantiate (1 := x :: fvs).
   simpl; eauto.
-  simpl in H7; intuition subst.
+  simpl in H9; intuition subst.
   simpl; tauto.
   eauto.
   auto.
@@ -1099,50 +1145,21 @@ Proof.
   constructor; [ | constructor ].
   simpl; eauto.
 
-  (* The pure part *)
+  (* GoodPure *)
   generalize dependent fvs.
   generalize dependent bvs.
   induction p; simpl; intuition; caser; intuition.
 
   f_equal.
-  eapply IHp1; intuition eauto using in_or_app.
-  eapply IHp2; intuition eauto using in_or_app.
-  eapply IHp2; intuition eauto using in_or_app.
-  eapply IHp1; intuition eauto using in_or_app.
-  eapply IHp; intuition (simpl in *; eauto using in_or_app).
+  eapply H2; intuition eauto using in_or_app.
+  eapply H11; intuition eauto using in_or_app.
+  eapply H11; intuition eauto using in_or_app.
+  eapply H2; intuition eauto using in_or_app.
+  eapply H; intuition (simpl in *; eauto using in_or_app).
   intuition (subst; eauto).
   intuition (subst; eauto).
 Qed.
 
-
-(** * Extensionality of various syntactic categories,
-  *   to avoid depending on functional extensionality axioms *)
-
-Definition exprExt (e : expr) :=
-  match e with
-    | Var _ => True
-    | Lift f => forall fE1 fE2,
-      (forall x, fE1 x = fE2 x)
-      -> f fE1 = f fE2
-  end.
-
-Fixpoint predExt (p : pred) :=
-  match p with
-    | Pure P => forall fE1 fE2,
-      (forall x, fE1 x = fE2 x)
-      -> P fE1 = P fE2
-    | Star p1 p2 => predExt p1 /\ predExt p2
-    | Exists _ p1 => predExt p1
-    | Named _ es => List.Forall exprExt es
-  end.
-
-Theorem exprExt_sound : forall fE1 fE2,
-  (forall x, fE1 x = fE2 x)
-  -> forall e, exprExt e
-    -> exprD e fE1 = exprD e fE2.
-Proof.
-  destruct e; simpl; intuition.
-Qed.
 
 (** Finally, some tactics to automate basic [SubstsH] simplification *)
 Ltac Himp_fwd e := eapply Himp_trans; [ apply e | ].
@@ -1320,29 +1337,66 @@ Section subst.
   Qed.
 
   Lemma Forall_impl2 : forall A (P Q R : A -> Prop),
-    (forall a : A, P a -> Q a -> R a)
-    -> forall l, List.Forall P l
+    forall l, List.Forall P l
+      -> (forall a : A, P a -> Q a -> In a l -> R a)
       -> List.Forall Q l
       -> List.Forall R l.
   Proof.
-    induction 2; inversion 1; auto.
+    induction 1; inversion 2; auto.
+    subst; simpl in *.
+    constructor; eauto.
+  Qed.
+
+  Lemma pure_Himp : forall P Q : Prop,
+    (P -> Q)
+    -> [| P |] ===> [| Q |].
+  Proof.
+    intros.
+    eapply Himp_trans; [ apply Himp_star_Emp' | ].
+    eapply Himp_trans; [ | apply Himp_star_Emp ].
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    eapply Himp_trans; [ | apply Himp_star_comm ].
+    apply Himp_star_pure_c; intro.
+    apply Himp_star_pure_cc; auto.
+    apply Himp_refl.
   Qed.
 
   Theorem nsubst_fwd : forall fvs n fE,
     normalWf fvs n
     -> fE x = exprD e fE
+    -> ~In x (NQuants n)
+    -> (forall y, In y fvs -> ~In y (NQuants n))
+    -> (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+      -> exprD e fE1 = exprD e fE2)
+    -> In x fvs
     -> SubstsH s (normalD n hE fE) ===> SubstsH s (normalD (nsubst n) hE fE).
   Proof.
     unfold normalD; simpl; intros.
     eapply addQuants_monotone; intros.
     apply multistar_weaken_map.
-
-    Check Forall_impl.
-
-    SearchAbout List.Forall.
-    eapply Forall_impl2; [ | apply WellScoped; eauto
+    eapply Forall_impl2; [ apply WellScoped; eauto |
       | apply NoClash; eauto ].
     simpl; intros.
-    destruct H3 as [ ? [ ] ].
+    destruct H7 as [ ? [ ] ].
     eapply psubst_fwd; eauto.
+    rewrite H5 by auto.
+    erewrite H3; eauto.
+    unfold not in *; eauto.
+    unfold not in *; eauto.
+    eapply Forall_forall; [ eapply Extensional; eauto | auto ].
 
+    generalize (GoodPure H); intro.
+    destruct (NPure n); try apply Himp_refl.
+    Himp.
+    apply pure_Himp.
+    erewrite H6; eauto.
+    destruct 1.
+    unfold fo_set.
+    destruct (string_dec x0 x); subst; auto.
+    rewrite H5 by auto.
+    erewrite H3; eauto.
+    unfold fo_set.
+    destruct (string_dec x0 x); subst; auto.
+    tauto.
+  Qed.
+End subst.
