@@ -14,15 +14,18 @@ Definition exprC (e : expr) : rvalue' :=
   end.
 (** The above looks like a bit of magic.  It's all in the coercions (from main Bedrock library). *)
 
-Theorem exprC_correct : forall specs P stn st xs V vs fE e e' res,
+Theorem exprC_correct : forall specs P stn st xs V vs fE e e' res fvs,
   vars_ok fE V vs
   -> exprD vs e = Some e'
   -> exprV xs e
   -> ~In "rp" xs
   -> interp specs (![locals ("rp" :: xs) V res (Regs st Sp) * P] (stn, st))
+  -> (forall x e0, vs x = Some e0
+    -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y) -> Logic.exprD e0 fE1 = Logic.exprD e0 fE2)
   -> exists w,
     evalRvalue stn st (exprC e xs) = Some w
-    /\ Logic.exprD e' fE = Dyn w.
+    /\ Logic.exprD e' fE = Dyn w
+    /\ (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y) -> Logic.exprD e' fE1 = Logic.exprD e' fE2).
 Proof.
   destruct e; simpl; intuition.
 
@@ -47,7 +50,7 @@ Proof.
   end.
   specialize (Hsome _ eq_refl); simpl in *.
   rewrite rupd_eq in Hsome; subst.
-  eauto.
+  eauto 10.
 Qed.
 
 
@@ -178,7 +181,7 @@ Ltac exprC_correct :=
   match goal with
     | [ H : exprD _ _ = Some _ |- _ ] => eapply exprC_correct in H; try cancl; eauto;
       try match goal with
-            | [ H : exists x, _ /\ _ |- _ ] => destruct H as [ ? [ ] ]
+            | [ H : exists x, _ /\ _ |- _ ] => destruct H as [ ? [ ? [ ] ] ]
           end
   end.
 
@@ -293,64 +296,160 @@ Ltac Stmt_use_IH :=
             end; Stmt_use_IH'
   end.
 
-Lemma Stmt_post : forall pre post im mn (H : importsGlobal im) ns res xs,
-  ~In "rp" ns
-  -> (forall x, In x xs -> In x ns)
-  -> forall s pre0 k,
-    (forall specs st,
-      interp specs (pre0 st)
-      -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-        /\ stmtD pre post vs s k
-        /\ forall x, In x xs -> vs x <> None)
-    -> stmtV xs s
-    -> forall specs st, interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
-      -> exists vs', k vs'
-        /\ interp specs (precond vs' pre post true (fun x => x) ns res st)
-        /\ forall x, In x xs -> vs' x <> None.
+Lemma addQuants_Emp : forall G (S : subs _ _ G) qs fE,
+  SubstsH S (addQuants qs (fun _ : fo_env => Emp) fE) ===> Emp.
 Proof.
-  induction s; (repeat post; intuition;
-    repeat (pre_implies || use_In || case_option); try use_error_message; try Stmt_use_IH;
-      try (pre_evalu; exprC_correct); evalu;
-        my_descend; eauto; propxFo;
-          my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
+  induction qs; simpl; intros; Himp.
+
+  apply Himp_refl.
+
+  apply Himp'_ex; auto.
 Qed.
 
-Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
-  ~In "rp" ns
-  -> (forall x, In x xs -> In x ns)
-  -> forall s pre0 k,
-    (forall specs st,
-      interp specs (pre0 st)
-      -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-        /\ stmtD pre post vs s k
-        /\ forall x, In x xs -> vs x <> None)
-    -> stmtV xs s
-    -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
+Theorem sentail_sound : forall fE S lhs rhs P,
+  sentail lhs rhs = ProveThis P
+  -> P
+  -> List.Forall (wellScoped (NQuants rhs)) (NImpure rhs)
+  -> SubstsH S (normalD lhs fE)
+  ===> SubstsH S (normalD rhs fE).
 Proof.
-  induction s.
-
-  Ltac t := wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
-    try (pre_evalu; exprC_correct); try evalu;
-      try match goal with
-            | [ IH : _ |- _ ] => eapply IH; eauto; intros;
-              match goal with
-                | [ H : interp _ _ |- _ ] => eapply Stmt_post in H;
-                  Stmt_use_IH'; (cbv beta in *; eauto)
-              end
-          end.
-
-  t.
-
-  t.
-
-  wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
-    try (pre_evalu; exprC_correct); try evalu.
-  (* Here we need some reasoning about the correctness of entailment. *)
-  admit.
+  unfold sentail; intros.
+  case_eq (cancel lhs rhs); intros.
+  Focus 2.
+  rewrite H2 in *; discriminate.
+  rewrite H2 in *.
+  destruct NewLhs; try discriminate.
+  injection H; clear H; intros; subst.
+  specialize (cancel_sound fE nil (fun _ _ => Emp%Sep) S _ _ _ _ H2 H0 H1).
+  unfold Logic.normalD at 3; simpl.
+  intros.
+  unfold normalD.
+  eapply Himp_trans; try apply H; clear H.
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | ] | ].
+  apply addQuants_Emp.
+  eapply Himp_trans; [ apply Himp_star_comm | ].
+  apply Himp_star_Emp.
 Qed.
+
+Section fvs.
+  Variable fvs : list fo_var.
+
+  Lemma use_hygiene : forall vs x x' e0 e2 fE1 fE2,
+    (forall x e, vs x = Some e
+      -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+        -> Logic.exprD e fE1 = Logic.exprD e fE2)
+    -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+      -> Logic.exprD e0 fE1 = Logic.exprD e0 fE2)
+    -> vars_set vs x e0 x' = Some e2
+    -> (forall y, In y fvs -> fE1 y = fE2 y)
+    -> Logic.exprD e2 fE1 = Logic.exprD e2 fE2.
+  Proof.
+    unfold vars_set; intros.
+    destruct (string_dec x' x); subst; eauto.
+    injection H1; clear H1; intros; subst; eauto.
+  Qed.
+
+  Hint Immediate use_hygiene.
+
+  Lemma Stmt_post : forall pre post im mn (H : importsGlobal im) ns res xs,
+    ~In "rp" ns
+    -> (forall x, In x xs -> In x ns)
+    -> forall s pre0 k,
+      (forall specs st,
+        interp specs (pre0 st)
+        -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
+          /\ stmtD pre post vs s k
+          /\ (forall x, In x xs -> vs x <> None)
+          /\ (forall x e, vs x = Some e
+            -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+              -> Logic.exprD e fE1 = Logic.exprD e fE2))
+      -> stmtV xs s
+      -> forall specs st, interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
+        -> exists vs', k vs'
+          /\ interp specs (precond vs' pre post true (fun x => x) ns res st)
+          /\ (forall x, In x xs -> vs' x <> None)
+          /\ (forall x e, vs' x = Some e
+            -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+              -> Logic.exprD e fE1 = Logic.exprD e fE2).
+  Proof.
+    induction s; (repeat post; intuition;
+      repeat (pre_implies || use_In || case_option); try use_error_message; try Stmt_use_IH;
+        try (pre_evalu; exprC_correct); evalu;
+          my_descend; eauto; propxFo;
+            my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
+  Qed.
+
+  Definition normalWf' := normalWf.
+
+  Lemma nsubst_irrel : forall fE x e v,
+    ~In x fvs
+    -> forall p, normalWf' fvs p
+      -> normalD p fE ===> normalD (nsubst x e p) (fo_set fE x v).
+  Admitted.
+
+  Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
+    ~In "rp" ns
+    -> (forall x, In x xs -> In x ns)
+    -> normalWf' fvs pre
+    -> ~In "result" fvs
+    -> forall s pre0 k,
+      (forall specs st,
+        interp specs (pre0 st)
+        -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
+          /\ stmtD pre post vs s k
+          /\ (forall x, In x xs -> vs x <> None)
+          /\ (forall x e, vs x = Some e
+            -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+              -> Logic.exprD e fE1 = Logic.exprD e fE2))
+      -> stmtV xs s
+      -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
+  Proof.
+    induction s.
+
+    Ltac t := wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
+      try (pre_evalu; exprC_correct); try evalu;
+        try match goal with
+              | [ IH : _ |- _ ] => eapply IH; eauto; intros;
+                match goal with
+                  | [ H : interp _ _ |- _ ] => eapply Stmt_post in H;
+                    Stmt_use_IH'; (cbv beta in *; eauto)
+                end
+            end.
+
+    t.
+
+    t.
+
+    wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
+      try (pre_evalu; exprC_correct); try evalu.
+
+    destruct (in_dec string_dec "result" (NQuants pre)).
+    inversion H4.
+    case_eq (sentail (nsubst "result" e0 pre) post); intros.
+    Focus 2.
+    rewrite H17 in *; inversion H4.
+    rewrite H17 in *.
+    descend.
+    step auto_ext.
+    step auto_ext.
+    descend.
+    cancl.
+    specialize (sentail_sound (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H17); intuition.
+    unfold SubstsH in *; simpl in *.
+    eapply Himp_trans; [ | apply H16 ].
+    eapply Himp_trans; [ apply nsubst_irrel | ]; eauto.
+    do 3 intro.
+    apply Imply_refl.
+    admit. (* Something about quantifier scoping in [post] *)
+  Qed.
+End fvs.
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
+  (fvs : list fo_var)
+  (* Logical variables available to mention *)
+  (bvs : list fo_var)
+  (* Logical variables bound within [pre] *)
   (xs : list pr_var)
   (* Program variables available to mention *)
   (vs : vars)
@@ -376,9 +475,17 @@ Proof.
       :: stmtV xs s
       :: (forall x, In x xs -> vs x <> None)
       :: stmtD pre' post' vs s (fun _ => False)
-      :: nil)); [
+      :: (forall x e, vs x = Some e
+        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD e fE1 = Logic.exprD e fE2)
+      :: wellScoped fvs pre
+      :: (boundVars pre = Some bvs)
+      :: (forall x, In x bvs -> ~In x fvs)
+      :: (~In "result" fvs)
+      :: predExt pre
+      :: nil)); [ 
         abstract (wrap0; match goal with
-                           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; post
-                         end)
-        | abstract (wrap0; eapply Stmt_vc; eauto) ].
+           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
+         end; post)
+        | abstract (wrap0; eapply Stmt_vc; eauto 6; eapply normalize_wf; eauto) ].
 Defined.

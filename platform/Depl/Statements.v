@@ -122,6 +122,9 @@ Section stmtD.
   Variable post : normal.
   (** Postcondition; check it at return points. *)
 
+  Variable fvs : list fo_var.
+  (** Logical variables legal to mention in specs (e.g., [pre]) *)
+
   (** Return a verification condition implying spec conformance. *)
   Fixpoint stmtD (vs : vars) (s : stmt)
     (k : vars -> Prop) (* Continuation; call when control falls through. *) : Prop :=
@@ -145,7 +148,7 @@ Section stmtD.
               then result_already_used_at_return
               else
                 (** Build an extended precondition that records the return value. *)
-                let pre' := addPure pre (fun fE => fE "result" = Logic.exprD e' fE) in
+                let pre' := nsubst "result" e' pre in
 
                 match sentail pre' post with
                   | ProveThis P => P
