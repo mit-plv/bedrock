@@ -382,20 +382,36 @@ Section fvs.
 
   Definition normalWf' := normalWf.
 
-  Lemma nsubst_irrel : forall fE x e v,
-    ~In x fvs
-    -> forall p, normalWf' fvs p
-      -> normalD p fE ===> normalD (nsubst x e p) (fo_set fE x v).
-  Admitted.
-
   Definition scopey post := List.Forall (wellScoped (NQuants post ++ "result" :: fvs)).
+  Definition scopey' x := List.Forall (fun p => exists bvs, boundVars p = Some bvs /\ ~In x bvs).
+
+  Lemma nsubst_irrel : forall fvs fE x e v p,
+    normalWf' fvs p
+    -> ~In x fvs
+    -> ~In x (NQuants p)
+    -> scopey' x (NImpure p)
+    -> normalD p fE
+    ===> normalD (nsubst x e p) (fo_set fE x v).
+  Proof.
+    intros.
+    change (normalD p fE) with (SubstsH (SNil _ _) (normalD p fE)).
+    change (normalD (nsubst x e p) (fo_set fE x v)) with
+      (SubstsH (SNil _ _) (normalD (nsubst x e p) (fo_set fE x v))).
+    eapply nsubst_irrel.
+    apply H0.
+    eauto.
+    eauto.
+    eauto.
+  Qed.
 
   Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
-    ~In "rp" ns
+    normalWf' fvs pre
+    -> ~In "rp" ns
     -> (forall x, In x xs -> In x ns)
-    -> normalWf' fvs pre
     -> ~In "result" fvs
+    -> ~In "result" (NQuants pre)
     -> scopey post (NImpure post)
+    -> scopey' "result" (NImpure pre)
     -> (forall x, In x fvs -> ~In x (NQuants pre))
     -> forall s pre0 k,
       (forall specs st,
@@ -428,21 +444,19 @@ Section fvs.
     wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
       try (pre_evalu; exprC_correct); try evalu.
 
-    destruct (in_dec string_dec "result" (NQuants pre)).
-    inversion H6.
     case_eq (sentail ("result" :: fvs) (nsubst "result" e0 pre) post); intros.
     Focus 2.
-    rewrite H19 in *; inversion H6.
-    rewrite H19 in *.
+    rewrite H21 in *; inversion H8.
+    rewrite H21 in *.
     descend.
     step auto_ext.
     step auto_ext.
     descend.
     cancl.
-    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H19); intuition.
+    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H21); intuition.
     unfold SubstsH in *; simpl in *.
-    eapply Himp_trans; [ | apply H16 ].
-    eapply Himp_trans; [ apply nsubst_irrel | ]; eauto.
+    eapply Himp_trans; [ | apply H18 ].
+    eapply Himp_trans; [ eapply nsubst_irrel | ]; eauto.
     do 3 intro.
     apply Imply_refl.
     intuition (subst; eauto).
@@ -463,6 +477,30 @@ Qed.
 
 Local Hint Immediate scopey_normalize.
 Local Hint Resolve normalize_boundVars.
+
+Lemma normalize_NImpure_keeps : forall p fvs bvs,
+  wellScoped fvs p
+  -> boundVars p = Some bvs
+  -> (forall x, In x bvs -> ~In x fvs)
+  -> predExt p
+  -> ~In "result" bvs
+  -> scopey' "result" (NImpure (normalize p)).
+Proof.
+  unfold scopey'; induction p; simpl; intuition eauto.
+
+  caser.
+  apply Forall_app; eauto 10 using in_or_app.
+
+  caser.
+  eapply IHp.
+  eauto.
+  eauto.
+  2: eauto.
+  2: eauto.
+  simpl; intuition (subst; eauto using In_notInList).
+Qed.
+
+Local Hint Immediate normalize_NImpure_keeps.
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
@@ -505,11 +543,16 @@ Proof.
       :: (forall x, In x bvs -> ~In x fvs)
       :: (forall x, In x bvs' -> ~In x ("result" :: fvs))
       :: (~In "result" fvs)
+      :: (~In "result" bvs)
       :: predExt pre
       :: predExt post
-      :: nil)); [ 
+      :: nil)); [
         abstract (wrap0; match goal with
-           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
-         end; post)
-        | abstract (wrap0; eapply Stmt_vc; eauto 6; eapply normalize_wf; eauto) ].
+                           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
+                         end; post)
+        | abstract (wrap0; match goal with
+                             | [ H : wellScoped _ _ |- _ ] =>
+                               solve [ eapply Stmt_vc; [ eapply normalize_wf; try apply H; eauto 2 | .. ];
+                                 eauto 6 ]
+                           end) ].
 Defined.

@@ -740,22 +740,6 @@ Proof.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
   intros.
 
-  Definition dyn1 := Dyn tt.
-  Definition dyn2 := Dyn false.
-
-  Theorem dyn_disc : dyn1 <> dyn2.
-  Proof.
-    intro.
-    apply (f_equal Ty) in H.
-    simpl in H.
-    assert (exists x : unit, forall y, x = y).
-    exists tt; destruct y; auto.
-    rewrite H in H0.
-    destruct H0.
-    specialize (H0 (negb x)).
-    destruct x; discriminate.
-  Qed.
-
   Lemma unify_expr_adds : forall fvs xs s lhs rhs s' Ps,
     unify_expr fvs s lhs rhs = Some (s', Ps)
     -> (forall fE fE', (forall x, In x xs -> fE x = fE' x)

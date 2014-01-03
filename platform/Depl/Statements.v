@@ -101,7 +101,6 @@ Definition sentail (fvs : list fo_var) (lhs rhs : normal) :=
 Inductive bad_assignment_rhs (e : expr) := .
 Inductive bad_assignment_lhs (x : pr_var) := .
 Inductive bad_return_expr (e : expr) := .
-Inductive result_already_used_at_return := .
 Inductive entailment_failed_at_return (P : Prop) := .
 
 (** Add a pure conjunct to a normalized predicate. *)
@@ -144,16 +143,13 @@ Section stmtD.
         match exprD vs e with
           | None => bad_return_expr e
           | Some e' =>
-            if In_dec string_dec "result" (NQuants pre)
-              then result_already_used_at_return
-              else
-                (** Build an extended precondition that records the return value. *)
-                let pre' := nsubst "result" e' pre in
+            (** Build an extended precondition that records the return value. *)
+            let pre' := nsubst "result" e' pre in
 
-                match sentail ("result" :: fvs) pre' post with
-                  | ProveThis P => P
-                  | Failed P => entailment_failed_at_return P
-                end
+            match sentail ("result" :: fvs) pre' post with
+              | ProveThis P => P
+              | Failed P => entailment_failed_at_return P
+            end
         end
     end.
 End stmtD.
