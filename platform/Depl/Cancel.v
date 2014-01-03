@@ -188,31 +188,35 @@ Qed.
 
 (** * Unification *)
 
-Definition unify_expr (s : fo_sub) (lhs rhs : expr)
+Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
   : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
     | Var x, Var y =>
-      match s y with
-        | None => Some (fos_set s y (Var x), nil)
-        | Some (Var x') => if string_dec x' x then Some (s, nil) else None
-        | _ => None
-      end
+      if in_dec string_dec y fvs
+        then match s y with
+               | None => Some (fos_set s y (Var x), nil)
+               | Some (Var x') => if string_dec x' x then Some (s, nil) else None
+               | _ => None
+             end
+        else None
     | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
       match s' x with
         | Some e => exprD e fE
         | None => Dyn tt
       end)) :: nil)
     | Lift f, Var y =>
-      match s y with
-        | None => Some (fos_set s y (Lift f), nil)
-        | Some (Lift f') => Some (s, (fun fE _ => f fE = f' fE) :: nil)
-        | _ => None
-      end
+      if in_dec string_dec y fvs
+        then match s y with
+               | None => Some (fos_set s y (Lift f), nil)
+               | Some (Lift f') => Some (s, (fun fE _ => f fE = f' fE) :: nil)
+               | _ => None
+             end
+        else None
     | _, _ => None
   end.
 
-Theorem unify_expr_sound : forall fE s s'' lhs rhs s' fs,
-  unify_expr s lhs rhs = Some (s', fs)
+Theorem unify_expr_sound : forall fvs fE s s'' lhs rhs s' fs,
+  unify_expr fvs s lhs rhs = Some (s', fs)
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_expr s'' rhs = Some rhs'
@@ -227,22 +231,22 @@ Proof.
   t.
 Qed.
 
-Theorem unify_expr_monotone : forall s lhs rhs s' fs,
-  unify_expr s lhs rhs = Some (s', fs)
+Theorem unify_expr_monotone : forall fvs s lhs rhs s' fs,
+  unify_expr fvs s lhs rhs = Some (s', fs)
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   destruct lhs, rhs; t.
 Qed.
 
-Fixpoint unify_args (s : fo_sub) (lhs rhs : list expr)
+Fixpoint unify_args (fvs : list fo_var) (s : fo_sub) (lhs rhs : list expr)
   : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
     | nil, nil => Some (s, nil)
     | e1 :: lhs, e2 :: rhs =>
-      match unify_expr s e1 e2 with
+      match unify_expr fvs s e1 e2 with
         | None => None
         | Some (s, fs) =>
-          match unify_args s lhs rhs with
+          match unify_args fvs s lhs rhs with
             | None => None
             | Some (s, fs') => Some (s, fs ++ fs')
           end
@@ -267,8 +271,8 @@ Local Hint Immediate map_nil map_cons.
 
 Local Hint Resolve unify_expr_monotone.
 
-Theorem unify_args_monotone : forall lhs rhs s s' fs,
-  unify_args s lhs rhs = Some (s', fs)
+Theorem unify_args_monotone : forall fvs lhs rhs s s' fs,
+  unify_args fvs s lhs rhs = Some (s', fs)
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction lhs; destruct rhs; t.
@@ -292,8 +296,8 @@ Qed.
 
 Local Hint Immediate Forall_app_fwd1 Forall_app_fwd2.
 
-Theorem unify_args_sound : forall fE s'' lhs rhs s s' fs,
-  unify_args s lhs rhs = Some (s', fs)
+Theorem unify_args_sound : forall fvs fE s'' lhs rhs s s' fs,
+  unify_args fvs s lhs rhs = Some (s', fs)
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_exprs s'' rhs = Some rhs'
@@ -304,22 +308,23 @@ Proof.
   edestruct IHlhs; eauto; t.
 Qed.
 
-Definition unify_pred (s : fo_sub) (lhs rhs : pred) : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
+Definition unify_pred (fvs : list fo_var) (s : fo_sub) (lhs rhs : pred)
+  : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
     | Named X1 es1, Named X2 es2 =>
-      if string_dec X1 X2 then unify_args s es1 es2 else None
+      if string_dec X1 X2 then unify_args fvs s es1 es2 else None
     | _, _ => None
   end.
 
-Theorem unify_pred_monotone : forall lhs rhs s s' fs,
-  unify_pred s lhs rhs = Some (s', fs)
+Theorem unify_pred_monotone : forall fvs lhs rhs s s' fs,
+  unify_pred fvs s lhs rhs = Some (s', fs)
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   destruct lhs, rhs; t.
 Qed.
 
-Theorem unify_pred_sound : forall G (hE : ho_env G) fE s'' lhs rhs s s' fs,
-  unify_pred s lhs rhs = Some (s', fs)
+Theorem unify_pred_sound : forall fvs G (hE : ho_env G) fE s'' lhs rhs s s' fs,
+  unify_pred fvs s lhs rhs = Some (s', fs)
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_pred s'' rhs = Some rhs'
@@ -346,14 +351,14 @@ Inductive result1 :=
 Inductive noMatchFor (rhs : pred) := .
 
 (** Find a LHS match for a single RHS predicate. *)
-Fixpoint findMatching (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
+Fixpoint findMatching (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
   match lhs with
     | nil => Failure1 (noMatchFor rhs)
     | p :: lhs =>
-      match unify_pred s p rhs with
+      match unify_pred fvs s p rhs with
         | Some (s, fs) => Success1 s lhs fs
         | None =>
-          match findMatching s lhs rhs with
+          match findMatching fvs s lhs rhs with
             | Success1 s lhs fs => Success1 s (p :: lhs) fs
             | x => x
           end
@@ -362,8 +367,8 @@ Fixpoint findMatching (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
 
 Local Hint Resolve unify_pred_monotone.
 
-Theorem findMatching_monotone : forall rhs lhs s s' lhs' fs,
-  findMatching s lhs rhs = Success1 s' lhs' fs
+Theorem findMatching_monotone : forall fvs rhs lhs s s' lhs' fs,
+  findMatching fvs s lhs rhs = Success1 s' lhs' fs
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction lhs; t.
@@ -371,14 +376,14 @@ Proof.
   injection H; clear H; intros; subst; eauto.
 
   specialize (IHlhs s).
-  destruct (findMatching s lhs rhs); try discriminate.
+  destruct (findMatching fvs s lhs rhs); try discriminate.
   injection H; clear H; intros; subst; eauto.
 Qed.
 
 Local Hint Resolve findMatching_monotone.
 
-Theorem findMatching_sound : forall G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
-  findMatching s lhs rhs = Success1 s' lhs' fs
+Theorem findMatching_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
+  findMatching fvs s lhs rhs = Success1 s' lhs' fs
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_pred s'' rhs = Some rhs'
@@ -397,8 +402,8 @@ Proof.
   apply SubstsH_star_fwd.
 
   match goal with
-    | [ _ : context[findMatching ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
-      let Heq := fresh in specialize (IH s); case_eq (findMatching s lhs rhs);
+    | [ _ : context[findMatching ?fvs ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
+      let Heq := fresh in specialize (IH s); case_eq (findMatching fvs s lhs rhs);
         [ intros ? ? ? Heq; rewrite Heq in *; specialize (IH _ _ _ eq_refl)
           | intros ? Heq; rewrite Heq in *; try discriminate ]
   end.
@@ -419,13 +424,13 @@ Proof.
 Qed.
 
 (** Find LHS matches for all RHS predicates. *)
-Fixpoint findMatchings (s : fo_sub) (lhs rhs : list pred) : result1 :=
+Fixpoint findMatchings (fvs : list fo_var) (s : fo_sub) (lhs rhs : list pred) : result1 :=
   match rhs with
     | nil => Success1 s lhs nil
     | p :: rhs =>
-      match findMatching s lhs p with
+      match findMatching fvs s lhs p with
         | Success1 s lhs fs =>
-          match findMatchings s lhs rhs with
+          match findMatchings fvs s lhs rhs with
             | Success1 s lhs fs' => Success1 s lhs (fs ++ fs')
             | x => x
           end
@@ -433,16 +438,16 @@ Fixpoint findMatchings (s : fo_sub) (lhs rhs : list pred) : result1 :=
       end
   end.
 
-Theorem findMatchings_monotone : forall rhs lhs s s' lhs' fs,
-  findMatchings s lhs rhs = Success1 s' lhs' fs
+Theorem findMatchings_monotone : forall fvs rhs lhs s s' lhs' fs,
+  findMatchings fvs s lhs rhs = Success1 s' lhs' fs
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction rhs; t.
 
-  case_eq (findMatching s lhs a); intros.
+  case_eq (findMatching fvs s lhs a); intros.
   rewrite H1 in *.
   specialize (IHrhs NewLhs NewSub).
-  destruct (findMatchings NewSub NewLhs rhs); try discriminate.
+  destruct (findMatchings fvs NewSub NewLhs rhs); try discriminate.
   injection H; clear H; intros; subst.
   eauto.
 
@@ -451,8 +456,8 @@ Qed.
 
 Local Hint Resolve findMatchings_monotone.
 
-Theorem findMatchings_sound : forall G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
-  findMatchings s lhs rhs = Success1 s' lhs' fs
+Theorem findMatchings_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
+  findMatchings fvs s lhs rhs = Success1 s' lhs' fs
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_preds s'' rhs = Some rhs'
@@ -468,13 +473,13 @@ Proof.
   apply Himp_star_Emp'.
 
   match goal with
-    | [ _ : context[findMatching ?s ?lhs ?rhs] |- _ ] =>
-      let Heq := fresh in case_eq (findMatching s lhs rhs); [ intros ? ? ? Heq | intros ? Heq ];
+    | [ _ : context[findMatching _ ?s ?lhs ?rhs] |- _ ] =>
+      let Heq := fresh in case_eq (findMatching fvs s lhs rhs); [ intros ? ? ? Heq | intros ? Heq ];
         rewrite Heq in *; try discriminate
   end.
   match goal with
-    | [ _ : context[findMatchings ?s ?lhs ?rhs], IH : forall s'' : fo_sub, _ |- _ ] =>
-      let Heq := fresh in specialize (IH s'' lhs s); case_eq (findMatchings s lhs rhs);
+    | [ _ : context[findMatchings _ ?s ?lhs ?rhs], IH : forall s'' : fo_sub, _ |- _ ] =>
+      let Heq := fresh in specialize (IH s'' lhs s); case_eq (findMatchings fvs s lhs rhs);
         [ intros ? ? ? Heq; rewrite Heq in *; specialize (IH _ _ _ eq_refl)
           | intros ? Heq; rewrite Heq in *; try discriminate ]
   end.
@@ -493,8 +498,10 @@ Proof.
 Qed.
 
 (** Overall cancellation *)
-Definition cancel (lhs rhs : normal) : result :=
-  match findMatchings fos_empty (NImpure lhs) (NImpure rhs) with
+Definition cancel (fvs : list fo_var) (lhs rhs : normal) : result :=
+  match findMatchings (NQuants rhs)
+    (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
+    (NImpure lhs) (NImpure rhs) with
     | Failure1 msg => Failure msg
     | Success1 s lhs' fs => Success lhs' (
       (forall x, In x (NQuants rhs) -> s x <> None)
@@ -516,10 +523,11 @@ Definition cancel (lhs rhs : normal) : result :=
          end)
   end.
 
-Theorem cancel_sound : forall fE G (hE : ho_env G) S lhs rhs lhs' P,
-  cancel lhs rhs = Success lhs' P
+Theorem cancel_sound : forall fvs fE G (hE : ho_env G) S lhs rhs lhs' P,
+  cancel fvs lhs rhs = Success lhs' P
   -> P
-  -> List.Forall (wellScoped (NQuants rhs)) (NImpure rhs)
+  -> List.Forall (wellScoped (NQuants rhs ++ fvs)) (NImpure rhs)
+  -> (forall x, In x fvs -> ~In x (NQuants lhs))
   -> SubstsH S (normalD lhs hE fE)
   ===> SubstsH S (normalD rhs hE fE)
   * SubstsH S (normalD {| NQuants := NQuants lhs;
@@ -528,11 +536,13 @@ Theorem cancel_sound : forall fE G (hE : ho_env G) S lhs rhs lhs' P,
 Proof.
   unfold cancel; intros.
   
-  case_eq (findMatchings fos_empty (NImpure lhs) (NImpure rhs)); intros.
+  case_eq (findMatchings (NQuants rhs)
+    (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
+    (NImpure lhs) (NImpure rhs)); intros.
   Focus 2.
-  rewrite H2 in *; discriminate.
+  rewrite H3 in *; discriminate.
 
-  rewrite H2 in *.
+  rewrite H3 in *.
   injection H; clear H; intros; subst; intuition.
 
   eapply Himp_trans; [ | apply Himp_star_comm ].
@@ -569,12 +579,12 @@ Proof.
   apply Himp_star_Emp'.
   eapply Himp_trans; [ apply star_out_fwd | ].
   eapply Himp_trans; [ apply SubstsH_star_fwd | ].
-  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H7 ] | ].
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H8 ] | ].
   eapply Himp_trans; [ | apply SubstsH_star_bwd ].
   eapply Himp_trans; [ apply Himp_star_assoc' | ].
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply Himp_star_frame; try apply Himp_refl.
-  clear H7.
+  clear H8.
 
   unfold normalD.
   eapply Himp_trans; [ apply Himp_star_frame; [ | apply Himp_refl ] | ].
@@ -586,14 +596,6 @@ Proof.
   apply SubstsH_inj_fwd.
   apply SubstsH_emp_fwd.
   apply Himp_star_pure_c; intro.
-  (*assert (SubstsH S
-    (fold_left (fun (hp : hpropB G) (p : pred) => predD p hE fE' * hp) x Emp) ===>
-    SubstsH S
-    (addQuants (NQuants rhs)
-      (fun fE0 : fo_env =>
-        fold_left (fun (hp : hpropB G) (p : pred) => predD p hE fE0 * hp)
-        (NImpure rhs)
-        Emp) fE)).*)
 
   Lemma sub_expr_agrees : forall fE fE' s,
     (forall x v, s x = Some v -> fE x = exprD v fE')
@@ -726,8 +728,16 @@ Proof.
   destruct (NPure rhs).
   Focus 2.
 
-  eapply choose_existentials; eauto.
+  eapply choose_existentials.
+  eauto.
   eapply Forall_forall; eauto.
+  instantiate (1 := fvs).
+  apply Forall_forall; intros.
+  eapply findMatchings_monotone in H3.
+  generalize dependent H3.
+  instantiate (2 := x0).
+  congruence.
+  destruct (in_dec string_dec x0 fvs); eauto; tauto.
   intros.
 
   Definition dyn1 := Dyn tt.
@@ -746,14 +756,15 @@ Proof.
     destruct x; discriminate.
   Qed.
 
-  Lemma unify_expr_adds : forall xs s lhs rhs s' Ps,
-    unify_expr s lhs rhs = Some (s', Ps)
+  Lemma unify_expr_adds : forall fvs xs s lhs rhs s' Ps,
+    unify_expr fvs s lhs rhs = Some (s', Ps)
     -> (forall fE fE', (forall x, In x xs -> fE x = fE' x)
       -> exprD rhs fE = exprD rhs fE')
-      -> forall x, s' x <> None -> s x <> None \/ In x xs.
+      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
   Proof.
     destruct lhs, rhs; simpl; intuition idtac; try discriminate.
 
+    destruct (in_dec string_dec x0 fvs); try discriminate.
     destruct (s x0).
     destruct e; try discriminate.
     destruct (string_dec x2 x); subst; try discriminate.
@@ -775,6 +786,7 @@ Proof.
     intuition idtac.
     destruct (dyn_disc H2).
 
+    destruct (in_dec string_dec x fvs).
     destruct (s x); try discriminate.
     destruct e; try discriminate.
     injection H; clear H; intros; subst; tauto.
@@ -795,25 +807,26 @@ Proof.
     intuition idtac.
     destruct (dyn_disc H2).
     
+    discriminate.
     injection H; clear H; intros; subst; tauto.
   Qed.
 
-  Lemma unify_args_adds : forall xs lhs rhs s s' Ps,
-    unify_args s lhs rhs = Some (s', Ps)
+  Lemma unify_args_adds : forall fvs xs lhs rhs s s' Ps,
+    unify_args fvs s lhs rhs = Some (s', Ps)
     -> (forall fE fE', (forall x, In x xs -> fE x = fE' x)
       -> forall e, In e rhs -> exprD e fE = exprD e fE')
-      -> forall x, s' x <> None -> s x <> None \/ In x xs.
+      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; destruct rhs; simpl; intuition idtac; try discriminate.
 
     injection H; clear H; intros; subst; tauto.
     
-    case_eq (unify_expr s a e); intros.
+    case_eq (unify_expr fvs s a e); intros.
     Focus 2.
     rewrite H2 in *; discriminate.
     rewrite H2 in *.
     destruct p.
-    case_eq (unify_args f lhs rhs); intros.
+    case_eq (unify_args fvs f lhs rhs); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
     rewrite H3 in *.
@@ -823,33 +836,33 @@ Proof.
     edestruct unify_expr_adds; try apply H2; eauto.
   Qed.
 
-  Lemma unify_pred_adds : forall xs rhs s,
+  Lemma unify_pred_adds : forall fvs xs rhs s,
     wellScoped xs rhs
-    -> forall lhs s' Ps, unify_pred s lhs rhs = Some (s', Ps)
-      -> forall x, s' x <> None -> s x <> None \/ In x xs.
+    -> forall lhs s' Ps, unify_pred fvs s lhs rhs = Some (s', Ps)
+      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
   Proof.
     destruct lhs, rhs; simpl in *; intuition idtac; try discriminate.
     destruct (string_dec X X0); subst; try discriminate.
     edestruct unify_args_adds; eauto.
   Qed.    
 
-  Lemma findMatching_adds : forall xs rhs s,
+  Lemma findMatching_adds : forall fvs xs rhs s,
     wellScoped xs rhs
-    -> forall lhs s' lhs' Ps, findMatching s lhs rhs = Success1 s' lhs' Ps
-      -> forall x, s' x <> None -> s x <> None \/ In x xs.
+    -> forall lhs s' lhs' Ps, findMatching fvs s lhs rhs = Success1 s' lhs' Ps
+      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; simpl; intuition idtac.
 
     discriminate.
 
-    case_eq (unify_pred s a rhs); intros.
+    case_eq (unify_pred fvs s a rhs); intros.
     rewrite H2 in *.
     destruct p.
     injection H0; clear H0; intros; subst.
     edestruct unify_pred_adds; eauto.
 
     rewrite H2 in *.
-    case_eq (findMatching s lhs rhs); intros.
+    case_eq (findMatching fvs s lhs rhs); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
     rewrite H3 in *.
@@ -857,20 +870,20 @@ Proof.
     eauto.
   Qed.
 
-  Lemma findMatchings_adds : forall xs rhs,
+  Lemma findMatchings_adds : forall fvs xs rhs,
     List.Forall (wellScoped xs) rhs
-    -> forall lhs s s' lhs' Ps, findMatchings s lhs rhs = Success1 s' lhs' Ps
-      -> forall x, s' x <> None -> s x <> None \/ In x xs.
+    -> forall lhs s s' lhs' Ps, findMatchings fvs s lhs rhs = Success1 s' lhs' Ps
+      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
   Proof.
     induction 1; simpl; intuition idtac.
 
     injection H; clear H; intros; subst; tauto.
 
-    case_eq (findMatching s lhs x); intros.
+    case_eq (findMatching fvs s lhs x); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
     rewrite H3 in *.
-    case_eq (findMatchings NewSub NewLhs l); intros.
+    case_eq (findMatchings fvs NewSub NewLhs l); intros.
     Focus 2.
     rewrite H4 in H1; discriminate.
     rewrite H4 in H1.
@@ -879,9 +892,27 @@ Proof.
     edestruct findMatching_adds; eauto.
   Qed.
 
-  edestruct findMatchings_adds; eauto.
+  edestruct findMatchings_adds.
+  2: eauto.
+  eauto.
+  instantiate (1 := x0).
   congruence.
-  tauto.
+  2: tauto.
+  simpl in *.
+  destruct (in_dec string_dec x0 fvs); try tauto.
+  eapply findMatchings_monotone in H3.
+  Focus 2.
+  instantiate (2 := x0).
+  destruct (in_dec string_dec x0 fvs); tauto.
+  rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  simpl.
+  left; symmetry; apply H4.
+  eauto.
+  eapply Forall_weaken; try eassumption.
+  intros; eapply wellScoped_weaken; eauto.
+  intros.
+  apply in_app_or in H9; apply in_or_app; tauto.
+
 
   Lemma choose_existentials' : forall G (hE : ho_env G) S s ps' ps (P : _ -> Prop),
     sub_preds s ps = Some ps'
@@ -933,14 +964,35 @@ Proof.
     eauto.
   Qed.
 
-  eapply choose_existentials'; eauto.
+  eapply choose_existentials'.
+  eauto.
   eapply Forall_forall; eauto.
+  instantiate (1 := fvs).
+  apply Forall_forall; intros.
+  eapply findMatchings_monotone in H3.
+  generalize dependent H3.
+  instantiate (2 := x0).
+  congruence.
+  destruct (in_dec string_dec x0 fvs); eauto; tauto.
   intros.
   edestruct findMatchings_adds; eauto.
+  instantiate (1 := x0).
   congruence.
-  tauto.
+  2: tauto.
+  simpl in *.
+  destruct (in_dec string_dec x0 fvs); try tauto.
+  eapply findMatchings_monotone in H3.
+  2: instantiate (2 := x0); destruct (in_dec string_dec x0 fvs); tauto.
+  rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  simpl.
+  left; symmetry; apply H4.
+  eauto.
+  eapply Forall_weaken; try eassumption.
+  intros; eapply wellScoped_weaken; eauto.
+  intros.
+  apply in_app_or in H9; apply in_or_app; tauto.
   destruct (NPure lhs); intuition idtac.
   destruct (NPure lhs); intuition idtac.
-  erewrite H7; eauto.
-  erewrite H7; eauto.
+  erewrite H8; eauto.
+  erewrite H8; eauto.
 Qed.

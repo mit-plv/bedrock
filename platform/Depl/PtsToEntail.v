@@ -172,7 +172,7 @@ Inductive lhs_remains (p : list pred) := .
 Definition entail (lhs rhs : ppred) :=
   let lhs' := normalize (ppredX lhs) in
   let rhs' := normalize (ppredX rhs) in
-    match cancel lhs' rhs' with
+    match cancel nil lhs' rhs' with
       | Success lhs'' P =>
         match lhs'' with
           | nil => ProveThis P
@@ -204,13 +204,14 @@ Theorem entail_correct : forall lhs rhs bl br P,
   -> pimpl lhs rhs.
 Proof.
   unfold entail; intros.
-  case_eq (cancel (normalize (ppredX lhs)) (normalize (ppredX rhs))); intros.
+  case_eq (cancel nil (normalize (ppredX lhs)) (normalize (ppredX rhs))); intros.
   Focus 2.
   rewrite H5 in *; discriminate.
   rewrite H5 in *.
   destruct NewLhs; try discriminate.
   injection H; clear H; intros; subst.
-  specialize (cancel_sound fo_empty _ hE S _ _ _ _ H5); intuition.
+  specialize (cancel_sound nil fo_empty _ hE S _ _ _ _ H5); intuition.
+  rewrite <- app_nil_end in *.
   match type of H6 with
     | ?P -> _ => assert P by eauto; intuition
   end.
@@ -221,6 +222,7 @@ Proof.
   eapply Himp_trans; [ | apply ppredX_backward ].
   eapply Himp_trans; [ | eapply normalize_sound_bwd; eauto ].
   eapply Himp_trans; [ apply H7 | ].
+  simpl; intuition.
   unfold normalD at 2; simpl.
   eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply addQuants_Emp_fwd ] | ].
   eapply Himp_trans; [ apply Himp_star_comm | ].

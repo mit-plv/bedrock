@@ -91,8 +91,8 @@ Inductive lhs_remains (p : list pred) := .
 
 (** Strict entailment between normalized formulas,
   * where there may be no conjuncts left uncanceled on either side *)
-Definition sentail (lhs rhs : normal) :=
-  match cancel lhs rhs with
+Definition sentail (fvs : list fo_var) (lhs rhs : normal) :=
+  match cancel fvs lhs rhs with
     | Success nil P => ProveThis P
     | Success lhs' _ => Failed (lhs_remains lhs')
     | Failure P => Failed P
@@ -150,7 +150,7 @@ Section stmtD.
                 (** Build an extended precondition that records the return value. *)
                 let pre' := nsubst "result" e' pre in
 
-                match sentail pre' post with
+                match sentail ("result" :: fvs) pre' post with
                   | ProveThis P => P
                   | Failed P => entailment_failed_at_return P
                 end

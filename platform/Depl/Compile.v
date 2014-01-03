@@ -306,25 +306,26 @@ Proof.
   apply Himp'_ex; auto.
 Qed.
 
-Theorem sentail_sound : forall fE S lhs rhs P,
-  sentail lhs rhs = ProveThis P
+Theorem sentail_sound : forall fvs fE S lhs rhs P,
+  sentail fvs lhs rhs = ProveThis P
   -> P
-  -> List.Forall (wellScoped (NQuants rhs)) (NImpure rhs)
+  -> List.Forall (wellScoped (NQuants rhs ++ fvs)) (NImpure rhs)
+  -> (forall x, In x fvs -> ~In x (NQuants lhs))
   -> SubstsH S (normalD lhs fE)
   ===> SubstsH S (normalD rhs fE).
 Proof.
   unfold sentail; intros.
-  case_eq (cancel lhs rhs); intros.
+  case_eq (cancel fvs lhs rhs); intros.
   Focus 2.
-  rewrite H2 in *; discriminate.
-  rewrite H2 in *.
+  rewrite H3 in *; discriminate.
+  rewrite H3 in *.
   destruct NewLhs; try discriminate.
   injection H; clear H; intros; subst.
-  specialize (cancel_sound fE nil (fun _ _ => Emp%Sep) S _ _ _ _ H2 H0 H1).
+  specialize (cancel_sound fvs fE nil (fun _ _ => Emp%Sep) S _ _ _ _ H3 H0 H1).
   unfold Logic.normalD at 3; simpl.
   intros.
   unfold normalD.
-  eapply Himp_trans; try apply H; clear H.
+  eapply Himp_trans; try apply H; clear H; auto.
   eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | ] | ].
   apply addQuants_Emp.
   eapply Himp_trans; [ apply Himp_star_comm | ].
@@ -358,7 +359,7 @@ Section fvs.
       (forall specs st,
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-          /\ stmtD pre post vs s k
+          /\ stmtD pre post fvs vs s k
           /\ (forall x, In x xs -> vs x <> None)
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
@@ -387,16 +388,20 @@ Section fvs.
       -> normalD p fE ===> normalD (nsubst x e p) (fo_set fE x v).
   Admitted.
 
+  Definition scopey post := List.Forall (wellScoped (NQuants post ++ "result" :: fvs)).
+
   Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
     ~In "rp" ns
     -> (forall x, In x xs -> In x ns)
     -> normalWf' fvs pre
     -> ~In "result" fvs
+    -> scopey post (NImpure post)
+    -> (forall x, In x fvs -> ~In x (NQuants pre))
     -> forall s pre0 k,
       (forall specs st,
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-          /\ stmtD pre post vs s k
+          /\ stmtD pre post fvs vs s k
           /\ (forall x, In x xs -> vs x <> None)
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
@@ -424,32 +429,47 @@ Section fvs.
       try (pre_evalu; exprC_correct); try evalu.
 
     destruct (in_dec string_dec "result" (NQuants pre)).
-    inversion H4.
-    case_eq (sentail (nsubst "result" e0 pre) post); intros.
+    inversion H6.
+    case_eq (sentail ("result" :: fvs) (nsubst "result" e0 pre) post); intros.
     Focus 2.
-    rewrite H17 in *; inversion H4.
-    rewrite H17 in *.
+    rewrite H19 in *; inversion H6.
+    rewrite H19 in *.
     descend.
     step auto_ext.
     step auto_ext.
     descend.
     cancl.
-    specialize (sentail_sound (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H17); intuition.
+    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H19); intuition.
     unfold SubstsH in *; simpl in *.
     eapply Himp_trans; [ | apply H16 ].
     eapply Himp_trans; [ apply nsubst_irrel | ]; eauto.
     do 3 intro.
     apply Imply_refl.
-    admit. (* Something about quantifier scoping in [post] *)
+    intuition (subst; eauto).
   Qed.
 End fvs.
+
+Lemma scopey_normalize : forall fvs post post' bvs',
+  post' = normalize post
+  -> wellScoped ("result" :: fvs) post
+  -> boundVars post = Some bvs'
+  -> (forall x, In x bvs' -> ~In x ("result" :: fvs))
+  -> predExt post
+  -> scopey fvs post' (NImpure post').
+Proof.
+  intros; subst.
+  eapply normalize_wf in H0; eauto; intuition.
+Qed.
+
+Local Hint Immediate scopey_normalize.
+Local Hint Resolve normalize_boundVars.
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
   (fvs : list fo_var)
   (* Logical variables available to mention *)
-  (bvs : list fo_var)
-  (* Logical variables bound within [pre] *)
+  (bvs bvs' : list fo_var)
+  (* Logical variables bound within [pre] and [post] *)
   (xs : list pr_var)
   (* Program variables available to mention *)
   (vs : vars)
@@ -474,15 +494,19 @@ Proof.
       :: (~In "rp" ns)
       :: stmtV xs s
       :: (forall x, In x xs -> vs x <> None)
-      :: stmtD pre' post' vs s (fun _ => False)
+      :: stmtD pre' post' fvs vs s (fun _ => False)
       :: (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> Logic.exprD e fE1 = Logic.exprD e fE2)
       :: wellScoped fvs pre
+      :: wellScoped ("result" :: fvs) post
       :: (boundVars pre = Some bvs)
+      :: (boundVars post = Some bvs')
       :: (forall x, In x bvs -> ~In x fvs)
+      :: (forall x, In x bvs' -> ~In x ("result" :: fvs))
       :: (~In "result" fvs)
       :: predExt pre
+      :: predExt post
       :: nil)); [ 
         abstract (wrap0; match goal with
            | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
