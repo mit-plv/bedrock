@@ -1,6 +1,6 @@
 ROOT    := ../..
 MODULES := Logic Cancel PtsToEntail \
-	AlgebraicDatatypes Statements Compile
+	AlgebraicDatatypes Statements Compile CompileModule
 
 VS      := $(MODULES:%=%.v)
 

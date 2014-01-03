@@ -73,13 +73,6 @@ Definition predD (p : pred) (fE : fo_env) : HProp :=
 Definition normalD (p : normal) (fE : fo_env) : HProp :=
   normalD p (fun _ _ => Emp)%Sep fE.
 
-(** Helper to copy formal parameter values from a [vals] to a [fo_env] *)
-Fixpoint formals (V : vals) (xs : list pr_var) (fE : fo_env) : fo_env :=
-  match xs with
-    | nil => fE
-    | x :: xs => fo_set (formals V xs fE) x (Dyn (sel V x))
-  end.
-
 (** Generic precondition of a statement, translated to base Bedrock from Depl-speak *)
 Definition precond (vs : vars) (pre post : normal) :=
   (* First, quantify over a context assigning values to specification variables. *)
