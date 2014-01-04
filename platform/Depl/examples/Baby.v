@@ -79,7 +79,7 @@ Qed.
 Definition const := dmodule "m" {{
   dfunction "f" [
     ARGS()
-    PRE Emp * Emp
+    PRE Emp
     POST |^fE, fE "result" = !(natToW 0)|
   ]
     Return 0
@@ -87,6 +87,24 @@ Definition const := dmodule "m" {{
 }}.
 
 Theorem constOk : moduleOk const.
+Proof.
+  depl.
+Qed.
+
+
+(** * Return value dependent on actual arguments *)
+
+Definition ident := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x")
+    PRE Emp
+    POST |^fE, fE "result" = fE "x0"|
+  ]
+    Return "x"
+  end
+}}.
+
+Theorem identOk : moduleOk ident.
 Proof.
   depl.
 Qed.

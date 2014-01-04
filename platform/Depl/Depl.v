@@ -135,13 +135,49 @@ Ltac depl_cbv := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.F
   Logic.normalize Statements.stmtD CompileModule.Precondition app
   CompileModule.Locals Statements.sentail Statements.exprV Statements.exprD
   Cancel.cancel Cancel.findMatchings Logic.NQuants Logic.NImpure Logic.NPure
-  Logic.nsubst CompileModule.SpecVars Cancel.findMatching Logic.predExt].
+  Logic.nsubst CompileModule.SpecVars Cancel.findMatching Logic.predExt Var' Var''
+  CompileModule.vars0 Logic.exprD].
+
+Lemma fo_set_eq : forall fE x v x',
+  x' = x
+  -> fo_set fE x v x' = v.
+Proof.
+  unfold fo_set; intros.
+  destruct (string_dec x' x); tauto.
+Qed.
+
+Lemma fo_set_ne : forall fE x v x',
+  x' <> x
+  -> fo_set fE x v x' = fE x'.
+Proof.
+  unfold fo_set; intros.
+  destruct (string_dec x' x); tauto.
+Qed.
+
+Hint Rewrite fo_set_eq fo_set_ne using congruence : fo_set.
+
+Ltac isConst E :=
+  match E with
+    | Ascii.Ascii _ _ _ _ _ _ _ _ => idtac
+    | "" => idtac
+    | String ?a ?ls => isConst a; isConst ls
+    | @nil _ => idtac
+    | ?a :: ?ls => isConst a; isConst ls
+  end.
+
+Ltac simplifier :=
+  repeat (autorewrite with fo_set in *;
+    repeat match goal with
+             | [ |- context[in_dec string_dec ?x ?y] ] =>
+               isConst x; isConst y;
+               let E := eval hnf in (in_dec string_dec x y) in
+                 change (in_dec string_dec x y) with E; depl_cbv; intuition
+           end).
 
 Ltac depl_wf :=
   match goal with
     | [ H : forall x : Logic.fo_var, _ -> _ x = _ x |- _ ] =>
-      unfold Logic.fo_set; simpl;
-        repeat rewrite H by (discriminate || (simpl; tauto)); reflexivity
+      repeat rewrite H by (discriminate || (simpl; tauto)); reflexivity
   end.
 
 Ltac depl := apply CompileModule.compileModule_ok; [
@@ -150,4 +186,4 @@ Ltac depl := apply CompileModule.compileModule_ok; [
   | depl_cbv;
     match goal with
       | [ |- vcs ?Ps ] => apply (vcsImp_correct Ps)
-    end; intuition; try depl_wf; unfold Logic.fo_set; simpl ].
+    end; intuition; simplifier; try depl_wf ].

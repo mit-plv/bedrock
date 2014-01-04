@@ -188,6 +188,8 @@ Qed.
 
 (** * Unification *)
 
+(** We redefine [in_dec] to help control delta reduction later on. *)
+
 Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
   : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
@@ -760,7 +762,7 @@ Proof.
       (fun x => if string_dec x x0 then dyn2 else dyn1)).
     simpl in H0.
     destruct (string_dec x0 x0); try tauto.
-    destruct (In_dec string_dec x0 xs); intuition idtac.
+    destruct (in_dec string_dec x0 xs); intuition idtac.
     match type of H0 with
       | ?P -> _ => assert P
     end.
@@ -781,7 +783,7 @@ Proof.
     unfold fos_set in H1.
     destruct (string_dec x x); try tauto.
     destruct (string_dec x0 x); subst; intuition idtac.
-    destruct (In_dec string_dec x xs); intuition idtac.
+    destruct (in_dec string_dec x xs); intuition idtac.
     match type of H0 with
       | ?P -> _ => assert P
     end.

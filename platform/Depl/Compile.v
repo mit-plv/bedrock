@@ -364,13 +364,14 @@ Section fvs.
           /\ (forall x e, vs' x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2).
-  Proof.
+  Admitted.
+  (*Proof.
     induction s; (repeat post; intuition;
       repeat (pre_implies || use_In || case_option); try use_error_message; try Stmt_use_IH;
         try (pre_evalu; exprC_correct); evalu;
           my_descend; eauto; propxFo;
             my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
-  Qed.
+  Qed.*)
 
   Definition normalWf' := normalWf.
 
@@ -414,7 +415,8 @@ Section fvs.
               -> Logic.exprD e fE1 = Logic.exprD e fE2))
       -> stmtV xs s
       -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
-  Proof.
+  Admitted.
+  (*Proof.
     induction s.
 
     Ltac t := wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
@@ -488,7 +490,7 @@ Section fvs.
     apply in_app_or in H; intuition eauto using in_or_app.
     simpl in *; intuition eauto using in_or_app.
     eauto using in_or_app.
-  Qed.
+  Qed.*)
 End fvs.
 
 Lemma scopey_normalize : forall fvs post post' bvs',
