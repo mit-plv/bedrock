@@ -272,6 +272,7 @@ Local Hint Resolve vars_set_contra.
  * Try to find one to invert on, proving the goal trivially. *)
 Ltac use_error_message :=
   match goal with
+    | [ H : bad_assignment_lhs _ |- _ ] => inversion H
     | [ H : bad_assignment_rhs _ |- _ ] => inversion H
   end.
 
@@ -353,7 +354,6 @@ Section fvs.
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
           /\ stmtD pre post fvs vs s k
-          /\ (forall x, In x xs -> vs x <> None)
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2))
@@ -361,7 +361,6 @@ Section fvs.
       -> forall specs st, interp specs (Structured.Postcondition (toCmd (stmtC s) mn H ns res pre0) st)
         -> exists vs', k vs'
           /\ interp specs (precond vs' pre post true (fun x => x) ns res st)
-          /\ (forall x, In x xs -> vs' x <> None)
           /\ (forall x e, vs' x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2).
@@ -411,7 +410,6 @@ Section fvs.
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
           /\ stmtD pre post fvs vs s k
-          /\ (forall x, In x xs -> vs x <> None)
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2))
@@ -439,16 +437,16 @@ Section fvs.
 
     case_eq (sentail ("result" :: fvs) (nsubst "result" e0 pre) post); intros.
     Focus 2.
-    rewrite H21 in *; inversion H8.
-    rewrite H21 in *.
+    rewrite H20 in *; inversion H8.
+    rewrite H20 in *.
     descend.
     step auto_ext.
     step auto_ext.
     descend.
     cancl.
-    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H21); intuition.
+    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H20); intuition.
     unfold SubstsH in *; simpl in *.
-    eapply Himp_trans; [ | apply H18 ].
+    eapply Himp_trans; [ | apply H17 ].
     eapply Himp_trans; [ eapply nsubst_irrel | ]; eauto.
     do 3 intro.
     apply Imply_refl.
@@ -524,7 +522,6 @@ Proof.
       incl xs ns
       :: (~In "rp" ns)
       :: stmtV xs s
-      :: (forall x, In x xs -> vs x <> None)
       :: stmtD pre' post' fvs vs s (fun _ => False)
       :: (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
