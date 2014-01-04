@@ -108,3 +108,23 @@ Theorem identOk : moduleOk ident.
 Proof.
   depl.
 Qed.
+
+
+(** * Return value dependent on actual arguments, with an intermediate variable *)
+
+Definition identTmp := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x")
+    PRE Emp
+    POST |^fE, fE "result" = fE "x0"|
+  ]
+    Locals "y" in
+    "y" <- "x";;
+    Return "y"
+  end
+}}.
+
+Theorem identTmpOk : moduleOk identTmp.
+Proof.
+  depl.
+Qed.

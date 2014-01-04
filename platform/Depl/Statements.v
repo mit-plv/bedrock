@@ -64,8 +64,14 @@ Definition fncnV (f : fncn) := stmtV (ArgumentVariables f ++ LocalVariables f) (
 (** Symbolic state, mapping program variables to logical expressions *)
 Definition vars := pr_var -> option Logic.expr.
 
+(** Alternative [string_dec] that we will feel free to unfold all the time *)
+Definition string_dec' : forall x y : string, {x = y} + {x <> y}.
+Proof.
+  decide equality; apply Ascii.ascii_dec.
+Defined.
+
 Definition vars_set (vs : vars) (x : pr_var) (e : Logic.expr) : vars := 
-  fun y => if string_dec y x then Some e else vs y.
+  fun y => if string_dec' y x then Some e else vs y.
 
 (** When does a [vars] agree with a [vals] (from the main Bedrock library)? *)
 Definition vars_ok (fE : fo_env) (V : vals) (vs : vars) :=
@@ -119,6 +125,9 @@ Section stmtD.
   Variable fvs : list fo_var.
   (** Logical variables legal to mention in specs (e.g., [pre]) *)
 
+  Variable ns : list pr_var.
+  (** Program variables that are legal to assign to *)
+
   (** Return a verification condition implying spec conformance. *)
   Fixpoint stmtD (vs : vars) (s : stmt)
     (k : vars -> Prop) (* Continuation; call when control falls through. *) : Prop :=
@@ -127,10 +136,9 @@ Section stmtD.
         match exprD vs e with
           | None => bad_assignment_rhs e
           | Some e' =>
-            match vs x with
-              | None => bad_assignment_lhs x
-              | Some _ => k (vars_set vs x e')
-            end
+            if in_dec string_dec x ns
+              then k (vars_set vs x e')
+              else bad_assignment_lhs x
         end
       | Seq s1 s2 =>
         stmtD vs s1 (fun vs' => stmtD vs' s2 k)

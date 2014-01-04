@@ -122,6 +122,8 @@ Ltac case_option :=
         | context[match _ with None => _ | _ => _ end] => fail 1
         | _ => case_eq E; post; rewriteall
       end
+    | [ _ : context[if in_dec string_dec ?x ?y then _ else _] |- _ ] =>
+      destruct (in_dec string_dec x y); post
   end; autorewrite with core in *.
 
 (* Use a hypothesis about some fact holding for all members of a list. *)
@@ -233,7 +235,7 @@ Lemma vars_ok_upd : forall fE V vs x w e,
 Proof.
   unfold vars_ok, sel, upd, vars_set; intros.
   generalize (string_eq_complete x0 x).
-  destruct (string_eq x0 x), (string_dec x0 x); intuition.
+  destruct (string_eq x0 x), (string_dec' x0 x); intuition.
 Qed.
 
 Local Hint Resolve vars_ok_upd.
@@ -263,7 +265,7 @@ Lemma vars_set_contra : forall vs x v x' v',
   -> False.
 Proof.
   unfold vars_set; intros;
-    destruct (string_dec x' x); subst; eauto; discriminate.
+    destruct (string_dec' x' x); subst; eauto; discriminate.
 Qed.
 
 Local Hint Resolve vars_set_contra.
@@ -340,7 +342,7 @@ Section fvs.
     -> Logic.exprD e2 fE1 = Logic.exprD e2 fE2.
   Proof.
     unfold vars_set; intros.
-    destruct (string_dec x' x); subst; eauto.
+    destruct (string_dec' x' x); subst; eauto.
     injection H1; clear H1; intros; subst; eauto.
   Qed.
 
@@ -353,7 +355,7 @@ Section fvs.
       (forall specs st,
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-          /\ stmtD pre post fvs vs s k
+          /\ stmtD pre post fvs xs vs s k
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2))
@@ -364,14 +366,13 @@ Section fvs.
           /\ (forall x e, vs' x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2).
-  Admitted.
-  (*Proof.
+  Proof.
     induction s; (repeat post; intuition;
       repeat (pre_implies || use_In || case_option); try use_error_message; try Stmt_use_IH;
         try (pre_evalu; exprC_correct); evalu;
           my_descend; eauto; propxFo;
             my_descend; repeat (my_descend; cancl || (step auto_ext; my_descend))).
-  Qed.*)
+  Qed.
 
   Definition normalWf' := normalWf.
 
@@ -409,14 +410,13 @@ Section fvs.
       (forall specs st,
         interp specs (pre0 st)
         -> exists vs, interp specs (precond vs pre post true (fun x => x) ns res st)
-          /\ stmtD pre post fvs vs s k
+          /\ stmtD pre post fvs xs vs s k
           /\ (forall x e, vs x = Some e
             -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
               -> Logic.exprD e fE1 = Logic.exprD e fE2))
       -> stmtV xs s
       -> vcs (VerifCond (toCmd (stmtC s) mn H ns res pre0)).
-  Admitted.
-  (*Proof.
+  Proof.
     induction s.
 
     Ltac t := wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
@@ -490,7 +490,7 @@ Section fvs.
     apply in_app_or in H; intuition eauto using in_or_app.
     simpl in *; intuition eauto using in_or_app.
     eauto using in_or_app.
-  Qed.*)
+  Qed.
 End fvs.
 
 Lemma scopey_normalize : forall fvs post post' bvs',
@@ -561,7 +561,7 @@ Proof.
       incl xs ns
       :: (~In "rp" ns)
       :: stmtV xs s
-      :: stmtD pre' post' fvs vs s (fun _ => False)
+      :: stmtD pre' post' fvs xs vs s (fun _ => False)
       :: (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> Logic.exprD e fE1 = Logic.exprD e fE2)

@@ -139,7 +139,7 @@ Definition functionVc (f : function) : list Prop :=
   let fvs := map (fun s => s ++ "0")%string xs ++ SpecVars f in
     stmtV xs (Body f)
     :: stmtD (normalize (Precondition f))
-    (normalize (Postcondition f)) fvs (vars0 (Formals f)) (Body f) (fun _ => False)
+    (normalize (Postcondition f)) fvs xs (vars0 (Formals f)) (Body f) (fun _ => False)
     :: wellScoped fvs (Precondition f)
     :: wellScoped ("result" :: fvs) (Postcondition f)
     :: predExt (Precondition f)

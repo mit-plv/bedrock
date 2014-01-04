@@ -93,7 +93,7 @@ Notation "'dfunction' name [ p ] b 'end'" := {|
   Body_ := b%stmt
 |} (no associativity, at level 95, name at level 0, only parsing) : func_scope.
 
-Notation "'dfunction' name [ p ] 'Locals' x1 , .. , xN ;; b 'end'" := {|
+Notation "'dfunction' name [ p ] 'Locals' x1 , .. , xN 'in' b 'end'" := {|
   Name_ := name;
   Spec_ := p%spec;
   Locals_ := cons x1 (.. (cons xN nil) ..);
@@ -136,7 +136,10 @@ Ltac depl_cbv := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.F
   CompileModule.Locals Statements.sentail Statements.exprV Statements.exprD
   Cancel.cancel Cancel.findMatchings Logic.NQuants Logic.NImpure Logic.NPure
   Logic.nsubst CompileModule.SpecVars Cancel.findMatching Logic.predExt Var' Var''
-  CompileModule.vars0 Logic.exprD].
+  CompileModule.vars0 Logic.exprD Statements.vars_set
+  Statements.string_dec' string_rec string_rect
+  Ascii.ascii_dec Ascii.ascii_rec Ascii.ascii_rect sumbool_rec sumbool_rect
+  Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym].
 
 Lemma fo_set_eq : forall fE x v x',
   x' = x
