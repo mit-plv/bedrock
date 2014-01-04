@@ -377,34 +377,33 @@ Section fvs.
   Definition scopey post := List.Forall (wellScoped (NQuants post ++ "result" :: fvs)).
   Definition scopey' x := List.Forall (fun p => exists bvs, boundVars p = Some bvs /\ ~In x bvs).
 
-  Lemma nsubst_irrel : forall fvs fE x e v p,
-    normalWf' fvs p
-    -> ~In x fvs
-    -> ~In x (NQuants p)
-    -> scopey' x (NImpure p)
-    -> normalD p fE
-    ===> normalD (nsubst x e p) (fo_set fE x v).
+  Theorem nsubst_bwd : forall x e fvs n fE,
+    normalWf fvs n
+    -> fE x = Logic.exprD e fE
+    -> (forall y, In y fvs -> ~In y (NQuants n))
+    -> (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+      -> Logic.exprD e fE1 = Logic.exprD e fE2)
+    -> In x fvs
+    -> normalD (nsubst x e n) fE ===> normalD n fE.
   Proof.
     intros.
-    change (normalD p fE) with (SubstsH (SNil _ _) (normalD p fE)).
-    change (normalD (nsubst x e p) (fo_set fE x v)) with
-      (SubstsH (SNil _ _) (normalD (nsubst x e p) (fo_set fE x v))).
-    eapply nsubst_irrel.
-    apply H0.
-    eauto.
-    eauto.
-    eauto.
+    change (normalD (nsubst x e n) fE) with (SubstsH (SNil _ _) (normalD (nsubst x e n) fE)).
+    change (normalD n fE) with (SubstsH (SNil _ _) (normalD n fE)).
+    eapply nsubst_bwd; eauto.
   Qed.
 
   Lemma Stmt_vc : forall pre post im mn (H : importsGlobal im) ns res xs,
     normalWf' fvs pre
+    -> normalWf' ("result" :: fvs) post
     -> ~In "rp" ns
     -> (forall x, In x xs -> In x ns)
     -> ~In "result" fvs
     -> ~In "result" (NQuants pre)
+    -> ~In "result" (NQuants post)
     -> scopey post (NImpure post)
     -> scopey' "result" (NImpure pre)
     -> (forall x, In x fvs -> ~In x (NQuants pre))
+    -> (forall x, In x fvs -> ~In x (NQuants post))
     -> forall s pre0 k,
       (forall specs st,
         interp specs (pre0 st)
@@ -435,22 +434,60 @@ Section fvs.
     wrap0; repeat (pre_implies || use_In || case_option); simpl in *; intuition eauto;
       try (pre_evalu; exprC_correct); try evalu.
 
-    case_eq (sentail ("result" :: fvs) (nsubst "result" e0 pre) post); intros.
+    case_eq (sentail fvs pre (nsubst "result" e0 post)); intros.
     Focus 2.
-    rewrite H20 in *; inversion H8.
-    rewrite H20 in *.
+    rewrite H23 in *; inversion H11.
+    rewrite H23 in *.
     descend.
     step auto_ext.
     step auto_ext.
     descend.
     cancl.
-    specialize (sentail_sound ("result" :: fvs) (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H20); intuition.
+    specialize (sentail_sound fvs (fo_set x1 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H23); intuition.
     unfold SubstsH in *; simpl in *.
-    eapply Himp_trans; [ | apply H17 ].
-    eapply Himp_trans; [ eapply nsubst_irrel | ]; eauto.
-    do 3 intro.
-    apply Imply_refl.
-    intuition (subst; eauto).
+    eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
+    eapply Himp_trans; [ | apply H22 ].
+
+    Lemma weaken_normalD : forall n xs fE fE',
+      normalWf xs n
+      -> (forall x, In x xs -> fE x = fE' x)
+      -> normalD n fE ===> normalD n fE'.
+    Admitted.
+
+    eapply weaken_normalD; eauto.
+    intros.
+    unfold fo_set.
+    destruct (string_dec x5 "result"); subst; tauto.
+    2: eauto.
+    3: simpl; unfold not; intuition (subst; eauto).
+    4: simpl; tauto.
+
+    Focus 2.
+    unfold fo_set at 1; simpl.
+    etransitivity; try (symmetry; apply H13).
+    apply H14.
+    unfold fo_set; intros.
+    destruct (string_dec y "result"); subst; eauto; exfalso; eauto.
+
+    2: simpl; eauto.
+
+    eapply Forall_forall; intros.
+    eapply in_map_iff in H20; destruct H20; intuition subst.
+    eapply Forall_forall in H25; try apply H7.
+
+    Lemma wellScoped_psubst : forall x e p fvs,
+      wellScoped (x :: fvs) p
+      -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+        -> Logic.exprD e fE1 = Logic.exprD e fE2)
+      -> wellScoped fvs (psubst x e p).
+    Admitted.
+
+    eapply wellScoped_psubst.
+    eapply wellScoped_weaken; eauto.
+    simpl; intuition idtac.
+    apply in_app_or in H; intuition eauto using in_or_app.
+    simpl in *; intuition eauto using in_or_app.
+    eauto using in_or_app.
   Qed.
 End fvs.
 
@@ -534,6 +571,7 @@ Proof.
       :: (forall x, In x bvs' -> ~In x ("result" :: fvs))
       :: (~In "result" fvs)
       :: (~In "result" bvs)
+      :: (~In "result" bvs')
       :: predExt pre
       :: predExt post
       :: nil)); [
@@ -542,7 +580,9 @@ Proof.
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply Stmt_vc; [ eapply normalize_wf; try apply H; eauto 2 | .. ];
-                                 eauto 6 ]
+                               solve [ eapply Stmt_vc; [ eapply normalize_wf; try apply H; eauto 2
+                                 | eapply normalize_wf; eauto
+                                 | .. ];
+                               eauto 6 ]
                            end) ].
 Defined.

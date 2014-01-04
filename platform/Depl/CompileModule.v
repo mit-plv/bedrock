@@ -127,7 +127,9 @@ Definition functionWf (f : function) : bool :=
          | Some bvs, Some bvs' =>
            if in_dec string_dec "result" bvs
              then false
-             else notsInList bvs fvs && notsInList bvs' ("result" :: fvs)
+           else if in_dec string_dec "result" bvs'
+             then false
+           else notsInList bvs fvs && notsInList bvs' ("result" :: fvs)
          | _, _ => false
        end.
 
@@ -361,7 +363,7 @@ Proof.
   simpl; intuition (subst; eauto).
   unfold fo_set.
   destruct (string_dec x6 "result"); subst; auto.
-  symmetry; auto.
+  symmetry; auto.  
 
 
   post.
@@ -415,6 +417,7 @@ Proof.
   step auto_ext.
   eapply normalize_sound_bwd; eauto using notsInList_true.
 
+
   hnf; auto.
 
   unfold vars0 in *.
@@ -425,10 +428,31 @@ Proof.
   apply in_map_iff; eauto using in_or_app.
 
   eauto using notsInList_true.
-  subst.
-  eapply notsInList_true in H7; intuition; auto.
-  eapply notsInList_true in H7; eauto.
-  subst; simpl; tauto.
+
+  subst; tauto.
+
+  apply in_app_or in H14; intuition idtac.
+  apply in_map_iff in H1; destruct H1; intuition subst.
+  apply in_app_or in H16; intuition idtac.
+  eapply notsInList_true in H7.
+  tauto.
+  apply H.
+  right.
+  apply in_or_app; left.
+  apply in_map_iff.
+  eauto using in_or_app.
+  eapply notsInList_true in H7.
+  tauto.
+  apply H.
+  right.
+  apply in_or_app; left.
+  apply in_map_iff.
+  eauto using in_or_app.
+  eapply notsInList_true in H7.
+  tauto.
+  apply H.
+  right.
+  apply in_or_app; auto.
 Qed.
 
 

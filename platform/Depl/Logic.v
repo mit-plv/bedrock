@@ -1498,7 +1498,7 @@ Proof.
   destruct x; discriminate.
 Qed.
 
-Lemma nsubst_irrel'' : forall qs fvs G (hE : ho_env G) S x e pr fE fE',
+Lemma nsubst_irrel_fwd'' : forall qs fvs G (hE : ho_env G) S x e pr fE fE',
   ~In x fvs
   -> ~In x qs
   -> match pr with
@@ -1629,7 +1629,7 @@ Proof.
   auto.
 Qed.
 
-Lemma nsubst_irrel''0 : forall fvs G (hE : ho_env G) S x e pr fE fE',
+Lemma nsubst_irrel_fwd''0 : forall fvs G (hE : ho_env G) S x e pr fE fE',
   ~In x fvs
   -> match pr with
        | Some P =>
@@ -1661,10 +1661,10 @@ Lemma nsubst_irrel''0 : forall fvs G (hE : ho_env G) S x e pr fE fE',
         | None => Emp
       end).
 Proof.
-  intros; eapply (nsubst_irrel'' nil); eauto.
+  intros; eapply (nsubst_irrel_fwd'' nil); eauto.
 Qed.
 
-Lemma nsubst_irrel' : forall G (hE : ho_env G) S x e ps pr qs fvs fE fE',
+Lemma nsubst_irrel_fwd' : forall G (hE : ho_env G) S x e ps pr qs fvs fE fE',
   ~In x fvs    
   -> ~In x qs
   -> NoDup qs
@@ -1702,7 +1702,7 @@ Lemma nsubst_irrel' : forall G (hE : ho_env G) S x e ps pr qs fvs fE fE',
 Proof.
   induction qs; simpl; intuition.
 
-  eauto using nsubst_irrel''0.
+  eauto using nsubst_irrel_fwd''0.
 
   Himp.
   apply Himp_ex; intro.
@@ -1729,7 +1729,7 @@ Proof.
   apply in_app_or in H12; simpl in *; intuition eauto using in_or_app.
 Qed.
 
-Lemma nsubst_irrel : forall fvs G (hE : ho_env G) S fE x e v,
+Lemma nsubst_irrel_fwd : forall fvs G (hE : ho_env G) S fE x e v,
   ~In x fvs
   -> forall p, normalWf fvs p
     -> ~In x (NQuants p)
@@ -1739,7 +1739,214 @@ Lemma nsubst_irrel : forall fvs G (hE : ho_env G) S fE x e v,
 Proof.
   unfold normalD; simpl; intros.
   destruct H0.
-  eapply nsubst_irrel'; try apply H; eauto.
+  eapply nsubst_irrel_fwd'; try apply H; eauto.
+  intros; unfold fo_set.
+  destruct (string_dec y x); tauto.
+Qed.
+
+Lemma nsubst_irrel_bwd'' : forall qs fvs G (hE : ho_env G) S x e pr fE fE',
+  ~In x fvs
+  -> ~In x qs
+  -> match pr with
+       | Some P =>
+         forall fE fE', (forall x, In x fvs \/ In x qs -> fE x = fE' x)
+           -> P fE = P fE'
+       | None => True
+     end
+  -> forall ps, List.Forall (wellScoped (qs ++ fvs)) ps
+    -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
+      /\ forall x, In x bvs -> ~In x (qs ++ fvs)) ps
+    -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
+      /\ ~In x bvs) ps
+    -> (forall y, y <> x -> fE' y = fE y)
+    -> SubstsH S
+    (fold_left (fun hp p0 => predD p0 hE fE' * hp) (map (psubst x e) ps)
+      match
+        match pr with
+          | Some f =>
+            Some (fun fE1 => f (fo_set fE1 x (exprD e fE1)))
+          | None => None
+        end
+        with
+        | Some P => [|P fE'|]
+        | None => Emp
+      end)
+    ===> SubstsH S (fold_left (fun hp p0 => predD p0 hE fE * hp) ps
+      match pr with
+        | Some P => [|P fE|]
+        | None => Emp
+      end).
+Proof.
+  induction 4; simpl; intuition.
+
+  destruct pr; try apply Himp_refl.
+  Himp; apply pure_Himp.
+  erewrite H1; eauto.
+  unfold fo_set; intuition idtac; destruct (string_dec x0 x); subst; intuition idtac.
+  eauto.
+  eauto.
+
+  inversion_clear H4.
+  inversion_clear H5.
+  destruct H4, H7; intuition idtac.
+  rewrite H5 in H7; injection H7; clear H7; intros; subst.
+  eapply Himp_trans; [ apply star_out_fwd | ].
+  eapply Himp_trans; [ | apply star_out_bwd ].
+  Himp.
+  apply Himp_star_frame; auto.
+  
+  Lemma psubst_irrel_fwd : forall G (hE : ho_env G) S x e p fvs bvs fE fE',
+    wellScoped fvs p
+    -> boundVars p = Some bvs
+    -> (forall x, In x fvs -> ~In x bvs)
+    -> ~In x fvs
+    -> ~In x bvs
+    -> (forall y, y <> x -> fE' y = fE y)
+    -> SubstsH S (predD (psubst x e p) hE fE') ===> SubstsH S (predD p hE fE).
+  Proof.
+    induction p; simpl; intuition; Himp.
+
+    apply pure_Himp.
+    erewrite H; eauto.
+    intros.
+    unfold fo_set.
+    destruct (string_dec x0 x); subst; intuition.
+
+    caser.
+    apply Himp_star_frame; eauto 10 using in_or_app.
+
+    caser.
+    apply Himp_ex; intro.
+    eapply IHp; eauto; (simpl; intuition (subst; eauto)).
+    unfold fo_set.
+    destruct (string_dec y x0); subst; auto.
+    
+    apply Himp_refl'.
+    do 2 f_equal.
+    symmetry; eauto using esubsts_irrel.
+  Qed.
+
+  eapply psubst_irrel_fwd.
+  eauto.
+  eauto.
+  unfold not in *; eauto using in_or_app, in_app_or.
+  intuition idtac.
+  apply in_app_or in H7; intuition eauto.
+  auto.
+  auto.
+Qed.
+
+Lemma nsubst_irrel_bwd''0 : forall fvs G (hE : ho_env G) S x e pr fE fE',
+  ~In x fvs
+  -> match pr with
+       | Some P =>
+         forall fE fE', (forall x, In x fvs \/ False -> fE x = fE' x)
+           -> P fE = P fE'
+       | None => True
+     end
+  -> forall ps, List.Forall (wellScoped fvs) ps
+    -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
+      /\ forall x, In x bvs -> ~In x fvs) ps
+    -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
+      /\ ~In x bvs) ps
+    -> (forall y, y <> x -> fE' y = fE y)
+    -> SubstsH S
+    (fold_left (fun hp p0 => predD p0 hE fE' * hp) (map (psubst x e) ps)
+      match
+        match pr with
+          | Some f =>
+            Some (fun fE1 => f (fo_set fE1 x (exprD e fE1)))
+          | None => None
+        end
+        with
+        | Some P => [|P fE'|]
+        | None => Emp
+      end)
+    ===> SubstsH S (fold_left (fun hp p0 => predD p0 hE fE * hp) ps
+      match pr with
+        | Some P => [|P fE|]
+        | None => Emp
+      end).
+Proof.
+  intros; eapply (nsubst_irrel_bwd'' nil); eauto.
+Qed.
+
+Lemma nsubst_irrel_bwd' : forall G (hE : ho_env G) S x e ps pr qs fvs fE fE',
+  ~In x fvs    
+  -> ~In x qs
+  -> NoDup qs
+  -> match pr with
+       | Some P =>
+         forall fE fE', (forall x, In x fvs \/ In x qs -> fE x = fE' x)
+           -> P fE = P fE'
+       | None => True
+     end
+  -> (forall y, y <> x -> fE' y = fE y)
+  -> (forall y, In y fvs -> ~In y qs)
+  -> List.Forall (wellScoped (qs ++ fvs)) ps
+  -> List.Forall (fun p => exists bvs,
+    boundVars p = Some bvs /\
+    (forall x0, In x0 bvs -> ~In x0 (qs ++ fvs))) ps
+  -> List.Forall (fun p => exists bvs, boundVars p = Some bvs /\ ~In x bvs) ps
+  -> SubstsH S (addQuants qs (fun fE0 =>
+    fold_left (fun hp p0 => predD p0 hE fE0 * hp) (map (psubst x e) ps)
+    match
+      match pr with
+        | Some f =>
+          Some (fun fE1 => f (fo_set fE1 x (exprD e fE1)))
+        | None => None
+      end
+      with
+      | Some P => [|P fE0|]
+      | None => Emp
+    end) fE')
+  ===> SubstsH S (addQuants qs (fun fE0 =>
+    fold_left (fun hp p0 => predD p0 hE fE0 * hp) ps
+    match pr with
+      | Some P => [|P fE0|]
+      | None => Emp
+    end) fE).
+Proof.
+  induction qs; simpl; intuition.
+
+  eauto using nsubst_irrel_bwd''0.
+
+  Himp.
+  apply Himp_ex; intro.
+  apply IHqs with (a :: fvs); eauto.
+  simpl; intuition.
+  inversion H1; auto.
+  destruct pr; intuition eauto.
+  simpl in *; intuition.
+  intros; unfold fo_set.
+  destruct (string_dec y a); subst; auto.
+  inversion_clear H1.
+  simpl; intuition (subst; eauto).
+  eapply Forall_impl; [ | apply H5 ].
+  intros; eapply wellScoped_weaken.
+  eauto.
+  simpl; intuition subst.
+  apply in_or_app; simpl; tauto.
+  apply in_app_or in H11; intuition.
+  eapply Forall_impl; [ | apply H6 ].
+  simpl; intros.
+  destruct H0 as [bvs]; intuition idtac.
+  exists bvs; intuition.
+  eapply H11; eauto.
+  apply in_app_or in H12; simpl in *; intuition eauto using in_or_app.
+Qed.
+
+Lemma nsubst_irrel_bwd : forall fvs G (hE : ho_env G) S fE x e v,
+  ~In x fvs
+  -> forall p, normalWf fvs p
+    -> ~In x (NQuants p)
+    -> List.Forall (fun p => exists bvs, boundVars p = Some bvs /\ ~In x bvs) (NImpure p)
+    -> SubstsH S (normalD (nsubst x e p) hE (fo_set fE x v))
+    ===> SubstsH S (normalD p hE fE).
+Proof.
+  unfold normalD; simpl; intros.
+  destruct H0.
+  eapply nsubst_irrel_bwd'; try apply H; eauto.
   intros; unfold fo_set.
   destruct (string_dec y x); tauto.
 Qed.

@@ -72,3 +72,21 @@ Theorem assumOk : moduleOk assum.
 Proof.
   depl.
 Qed.
+
+
+(** * A first test of reasoning about return values *)
+
+Definition const := dmodule "m" {{
+  dfunction "f" [
+    ARGS()
+    PRE Emp * Emp
+    POST |^fE, fE "result" = !(natToW 0)|
+  ]
+    Return 0
+  end
+}}.
+
+Theorem constOk : moduleOk const.
+Proof.
+  depl.
+Qed.

@@ -71,11 +71,6 @@ Definition vars_set (vs : vars) (x : pr_var) (e : Logic.expr) : vars :=
 Definition vars_ok (fE : fo_env) (V : vals) (vs : vars) :=
   forall x e, vs x = Some e -> exprD e fE = Dyn (sel V x).
 
-(** Initial symbolic state for the start of a function.
-  * Each variable "x" is mapped to logical variable "x0". *)
-Definition vars0 (locals : list pr_var) : vars :=
-  fun x => if In_dec string_dec x locals then Some (Logic.Var (x ++ "0")%string) else None.
-
 (** Translating program expressions to logical expressions *)
 Definition exprD (vs : vars) (e : expr) : option Logic.expr :=
   match e with
@@ -143,10 +138,10 @@ Section stmtD.
         match exprD vs e with
           | None => bad_return_expr e
           | Some e' =>
-            (** Build an extended precondition that records the return value. *)
-            let pre' := nsubst "result" e' pre in
+            (** Build an extended postcondition that records the return value. *)
+            let post' := nsubst "result" e' post in
 
-            match sentail ("result" :: fvs) pre' post with
+            match sentail fvs pre post' with
               | ProveThis P => P
               | Failed P => entailment_failed_at_return P
             end

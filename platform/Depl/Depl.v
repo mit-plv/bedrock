@@ -2,6 +2,8 @@
 
 Require Import Depl.Logic.
 
+Notation "!" := Dyn.
+
 Definition Var' : string -> expr := Var.
 Coercion Var' : string >-> expr.
 
@@ -133,12 +135,13 @@ Ltac depl_cbv := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.F
   Logic.normalize Statements.stmtD CompileModule.Precondition app
   CompileModule.Locals Statements.sentail Statements.exprV Statements.exprD
   Cancel.cancel Cancel.findMatchings Logic.NQuants Logic.NImpure Logic.NPure
-  Logic.nsubst CompileModule.SpecVars Cancel.findMatching].
+  Logic.nsubst CompileModule.SpecVars Cancel.findMatching Logic.predExt].
 
 Ltac depl_wf :=
   match goal with
     | [ H : forall x : Logic.fo_var, _ -> _ x = _ x |- _ ] =>
-      repeat rewrite H by (discriminate || (simpl; tauto)); reflexivity
+      unfold Logic.fo_set; simpl;
+        repeat rewrite H by (discriminate || (simpl; tauto)); reflexivity
   end.
 
 Ltac depl := apply CompileModule.compileModule_ok; [
@@ -147,4 +150,4 @@ Ltac depl := apply CompileModule.compileModule_ok; [
   | depl_cbv;
     match goal with
       | [ |- vcs ?Ps ] => apply (vcsImp_correct Ps)
-    end; intuition; try depl_wf ].
+    end; intuition; try depl_wf; unfold Logic.fo_set; simpl ].
