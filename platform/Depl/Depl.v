@@ -61,7 +61,7 @@ Notation "'PRE' pre 'POST' post" := {| SpecVars_ := nil;
 
 Notation "'ARGS' () s" := s (at level 89) : spec_scope.
 
-Notation "'ARGS' ( x1 , .. , xN ) s" := {| SpecVars_ := nil;
+Notation "'ARGS' ( x1 , .. , xN ) s" := {| SpecVars_ := SpecVars_ s;
   Formals_ := cons x1 (.. (cons xN nil) ..);
   Precondition_ := Precondition_ s;
   Postcondition_ := Postcondition_ s
@@ -139,7 +139,7 @@ Ltac depl_cbv := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.F
   CompileModule.vars0 Logic.exprD Statements.vars_set
   Statements.string_dec' string_rec string_rect
   Ascii.ascii_dec Ascii.ascii_rec Ascii.ascii_rect sumbool_rec sumbool_rect
-  Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym].
+  Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym append].
 
 Lemma fo_set_eq : forall fE x v x',
   x' = x

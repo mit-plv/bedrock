@@ -128,3 +128,76 @@ Theorem identTmpOk : moduleOk identTmp.
 Proof.
   depl.
 Qed.
+
+
+(** * Generalization of the above *)
+
+Definition identTmp' := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x")
+    PRE Emp
+    POST |^fE, fE "result" = fE "x0"|
+  ]
+    Locals "y", "z" in
+    "y" <- "x";;
+    "z" <- "y";;
+    Return "z"
+  end
+}}.
+
+Theorem identTmp'Ok : moduleOk identTmp'.
+Proof.
+  depl.
+Qed.
+
+
+(** * Some star+pure tests *)
+
+Definition starPure1 := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x", "y", "z")
+    PRE |^fE, fE "x0" = fE "y0"| * |^fE, fE "y0" = fE "z0"|
+    POST |^fE, fE "result" = fE "z0"| * |^fE, fE "z0" = fE "x0"|
+  ]
+    Return "y"
+  end
+}}.
+
+Theorem starPure1Ok : moduleOk starPure1.
+Proof.
+  depl.
+Qed.
+
+Definition starPure2 := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x", "y", "z")
+    PRE (|^fE, fE "x0" = !(natToW 0)| * |^fE, fE "y0" = !(natToW 1)|) * |^fE, fE "z0" = !(natToW 2)|
+    POST |^fE, fE "z0" = !(natToW 2)| * (|^fE, fE "y0" = !(natToW 1)| * |^fE, fE "x0" = !(natToW 0)|)
+  ]
+    Return 0
+  end
+}}.
+
+Theorem starPure2Ok : moduleOk starPure2.
+Proof.
+  depl.
+Qed.
+
+
+(** * Use an assumption about spec variables to reason about return value. *)
+
+Definition assumRet := dmodule "m" {{
+  dfunction "f" [
+    ARGS("x")
+    AL "y",
+    PRE |^fE, fE "x0" = fE "y"|
+    POST |^fE, fE "result" = fE "y"|
+  ]
+    Return "x"
+  end
+}}.
+
+Theorem assumRetOk : moduleOk assumRet.
+Proof.
+  depl.
+Qed.
