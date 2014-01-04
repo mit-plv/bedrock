@@ -1,3 +1,76 @@
+Definition mainS :=
+  PRE[] True
+  POST[R] R = 10.
+
+Definition prog := namespace "Recur" {{
+  function "f"("a")
+    If ("a" = 0) {
+      Return 7
+    } else {
+      "ret" <- Call "g"("a" - 1);;
+      Return "ret" + 1
+    }
+  end with
+  function "g"("a")
+    If ("a" = 0) {
+      Return 8
+    } else {
+      "ret" <- Call "f"("a" - 1);;
+      Return "a" + 2
+    }
+  end with
+  namespace "Test" {{
+    [mainS]                                              
+    function "main"()
+      "ret" <- Call "f"(2);;       
+      Return "ret"
+    end
+  }}
+}}.
+
+Definition prog_o := CompileProg.compile prog.
+
+Definition driverS := SPEC reserving 49
+  PREonly[V] mallocHeap 0.
+
+Definition driver := bimport [[ spec prog_o "Recur"!!"Test"!!"main",
+                              "sys"!"printInt" @ [printIntS], "sys"!"abort" @ [abortS],
+                              ]]
+  bmodule "test" {{
+   bfunction "main"("ret") [dirverS]
+      "ret" <-- CallCito "Recur"!!"Test"!!"main"[46]()
+      [PREonly[_, R] R = 10 * mallocHeap 0];;
+
+      Call "sys"!"printInt"("ret")
+      [PREonly[_] Emp ];;
+
+      Call "sys"!"abort"()
+      [PREonly[_] [| False |] ];;
+
+      Fail
+    end
+  }}.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(*
+
 Require Import Compile Recall.
 
 Definition f := cfunction "f"("a", "b")
@@ -720,3 +793,4 @@ Theorem mainOk : moduleOk main.
   t.
   t.
 Qed.
+*)
