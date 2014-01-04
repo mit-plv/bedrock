@@ -1,9 +1,13 @@
 (** Compiling the deeply embedded programming language *)
 
+Require Import Bool.
+
 Require Import AutoSep Wrap Malloc.
 
 Require Import Depl.Logic Depl.Statements Depl.Compile.
 
+
+(** * Functions *)
 
 (** Type of one function in a Depl module *)
 Record function := {
@@ -47,6 +51,10 @@ Definition function0 name : Programming.function := {|
   FBody := Skip
 |}.
 
+(** Initial symbolic variable assignment *)
+Definition vars0 (xs : list pr_var) : vars := 
+  fun x => if in_dec string_dec x xs then Some (Logic.Var (x ++ "0")%string) else None.
+
 (** Generating one Bedrock function *)
 Definition compileFunction (f : function) : Programming.function :=
   let xs := Formals f ++ Locals f in
@@ -61,11 +69,108 @@ Definition compileFunction (f : function) : Programming.function :=
           Structured nil (fun im mn _ => Structured.Assert_ im mn
             (precond (Formals f) (Locals f) (Precondition f) (Postcondition f) true)));;
         (Stmt (map (fun s => s ++ "0")%string xs ++ SpecVars f)
-          bvs bvs' xs (fun x => if in_dec string_dec x xs then Some (Logic.Var (x ++ "0")%string) else None)
+          bvs bvs' xs (vars0 xs)
           (Precondition f) (Postcondition f) (Body f)))%SP
     |}
     | _, _ => function0 (Name f)
   end.
+
+(** A computable syntactic well-formedness check... *)
+Definition functionWf (f : function) : bool :=
+  let xs := Formals f ++ Locals f in
+  let fvs := map (fun s => s ++ "0")%string xs ++ SpecVars f in
+  if in_dec string_dec "rp" xs
+    then false
+  else if in_dec string_dec "result" fvs
+    then false
+  else match boundVars (Precondition f), boundVars (Postcondition f) with
+         | Some bvs, Some bvs' =>
+           if in_dec string_dec "result" bvs
+             then false
+             else notsInList bvs fvs && notsInList bvs' ("result" :: fvs)
+         | _, _ => false
+       end.
+
+(** ...and a residual part, for what we ask the user to prove *)
+Definition functionVc (f : function) : list Prop :=
+  let xs := Formals f ++ Locals f in
+  let fvs := map (fun s => s ++ "0")%string xs ++ SpecVars f in
+    stmtV xs (Body f)
+    :: stmtD (normalize (Precondition f)) (normalize (Postcondition f)) fvs (vars0 xs) (Body f) (fun _ => False)
+    :: wellScoped fvs (Precondition f)
+    :: wellScoped ("result" :: fvs) (Postcondition f)
+    :: predExt (Precondition f)
+    :: predExt (Postcondition f)
+    :: nil.
+
+(** Combined syntactic check for all functions *)
+Fixpoint functionsWf (fs : list function) : bool :=
+  match fs with
+    | nil => true
+    | f :: fs' => functionWf f && functionsWf fs'
+  end.
+
+(** Combine the VCs of all functions. *)
+Fixpoint makeVcs (fs : list function) : list Prop :=
+  match fs with
+    | nil => nil
+    | f :: fs' => functionVc f ++ makeVcs fs'
+  end.
+
+(** Relate the above definitions to what [StructuredModule] wants. *)
+Theorem makeVcs_correct : forall mn fs0 fs, functionsWf fs = true
+  -> vcs (makeVcs fs)
+  -> vcs (StructuredModule.makeVcs nil fs0
+    (map (fun p => match p with
+                     | {| FName := f; FVars := ns; FReserved := res;
+                       FPrecondition := pre; FBody := ch |} =>
+                     (f, pre, fun im' H => toCmd ch mn H ns res)
+                   end)
+    (map compileFunction fs))).
+Proof.
+  induction fs; simpl; intuition.
+  apply andb_prop in H; intuition.
+  unfold functionWf in H1.
+  unfold compileFunction at 1.
+  repeat match goal with
+           | [ H : context[if ?E then _ else _] |- _ ] => destruct E; try discriminate
+           | [ H : context[match ?E with None => _ | _ => _ end] |- _ ] => case_eq E; intros;
+             match goal with
+               | [ H' : _ = _ |- _ ] => rewrite H' in *
+             end; try discriminate
+         end.
+  apply andb_prop in H1; intuition idtac.
+  repeat match goal with
+           | [ H : vcs (_ :: _) |- _ ] => inversion_clear H
+         end.
+  repeat constructor; simpl; auto.
+
+  propxFo.
+
+  (* Some function prelude execution *)
+  admit.
+  admit.
+  admit.
+
+  hnf; auto.
+
+  unfold vars0; intros.
+  destruct (in_dec string_dec x (Formals a ++ Locals a)); auto; congruence.
+
+  unfold vars0; intros.
+  destruct (in_dec string_dec x (Formals a ++ Locals a)); try discriminate.
+  inversion_clear H11.
+  simpl.
+  apply H13.
+  apply in_or_app; left.
+  apply in_map_iff; eauto.
+
+  eauto using notsInList_true.
+  eauto using notsInList_true.
+Qed.
+
+
+(** * Modules *)
 
 (** A named group of functions *)
 Record module := {
@@ -148,6 +253,9 @@ Section compileModule.
       | None => False
       | Some _ => True
     end.
+
+  Hypothesis FuncsWf : functionsWf (Functions m) = true.
+  Hypothesis FuncsVcs : vcs (makeVcs (Functions m)).
   
   (** Final correctness theorem *)
   Theorem compileModule_ok : moduleOk compileModule.
@@ -156,6 +264,6 @@ Section compileModule.
 
     apply NoDupFunc_out; auto.
 
-    admit.
+    apply makeVcs_correct; auto.
   Qed.
 End compileModule.
