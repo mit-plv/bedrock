@@ -65,11 +65,11 @@ Notation "'ARGS' ( x1 , .. , xN ) s" := {| SpecVars_ := nil;
   Postcondition_ := Postcondition_ s
 |} (at level 89) : spec_scope.
 
-Notation "'Al' x , s" := {| SpecVars_ := x :: SpecVars_ s;
+Notation "'AL' x , s" := {| SpecVars_ := x :: SpecVars_ s;
   Formals_ := Formals_ s;
   Precondition_ := Precondition_ s;
   Postcondition_ := Postcondition_ s
-|} : spec_scope.
+|} (at level 89, x at level 0) : spec_scope.
 
 Delimit Scope spec_scope with spec.
 Bind Scope spec_scope with fspec.
@@ -135,10 +135,16 @@ Ltac depl_cbv := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.F
   Cancel.cancel Cancel.findMatchings Logic.NQuants Logic.NImpure Logic.NPure
   Logic.nsubst CompileModule.SpecVars Cancel.findMatching].
 
+Ltac depl_wf :=
+  match goal with
+    | [ H : forall x : Logic.fo_var, _ -> _ x = _ x |- _ ] =>
+      repeat rewrite H by (discriminate || (simpl; tauto)); reflexivity
+  end.
+
 Ltac depl := apply CompileModule.compileModule_ok; [
   constructor
   | reflexivity
-  | depl_cbv; simpl;
+  | depl_cbv;
     match goal with
       | [ |- vcs ?Ps ] => apply (vcsImp_correct Ps)
-    end; intuition ].
+    end; intuition; try depl_wf ].
