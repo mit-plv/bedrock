@@ -41,7 +41,7 @@ Definition precond (frmls lcls : list pr_var) (pre post : pred) (inBody : bool) 
   (Al fE,
     PRE[V] mallocHeap 0 * predD pre (formals V frmls fE)
     POST[R] mallocHeap 0 * predD post (fo_set (formals V frmls fE) "result" (Dyn R)))
-  false (fun w => w) (if inBody then frmls ++ lcls else frmls) (if inBody then 0 else length lcls).
+  inBody (fun w => w) (if inBody then frmls ++ lcls else frmls) (if inBody then 0 else length lcls).
 
 (** A default function, for when things go horribly wrong *)
 Definition function0 name : Programming.function := {|
@@ -407,7 +407,6 @@ Proof.
   Qed.
 
   apply vars_ok_formals.
-  replace (sel x1 "rp") with (st#Rp) by admit.
   step auto_ext.
   step auto_ext.
   descend; step auto_ext.
