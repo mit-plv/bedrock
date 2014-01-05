@@ -39,6 +39,10 @@ Section TopSection.
     Require Import VerifCondOkCall.
     eapply verifCond_ok; eauto.
 
+    Require Import VerifCondOkNonCall2.
+    eapply verifCond_ok_label; eauto.
+    eapply verifCond_ok_assign; eauto.
+
   Qed.
 
 End TopSection.
