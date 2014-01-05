@@ -43,6 +43,9 @@ Section TopSection.
     Require Import SetFacts.
     Require Import CompileStmtTactics.
     Require Import GeneralTactics.
+    Require Import WordFacts.
+    Require Import SemanticsFacts3.
+    Require Import SynReqFacts2.
 
     Open Scope stmt.
 
@@ -87,12 +90,7 @@ Section TopSection.
     auto_apply_in ex_up.
     openhyp.
     simpl in *.
-    Require Import WordFacts.
     rewrite_natToW_plus.
-    Lemma syn_req_Label_in : forall vars temp_size x lbl k, syn_req vars temp_size (Syntax.Label x lbl ;; k) -> List.In x vars.
-      admit.
-    Qed.
-
     assert (List.In s vars) by (eapply syn_req_Label_in; eauto).
     assert (
         evalInstrs s0 x0
@@ -124,14 +122,6 @@ Section TopSection.
 
     repeat hiding ltac:(step auto_ext).
     descend.
-    Lemma RunsTo_Seq_Label : 
-      forall lbls fs x lbl k vs h v' w, 
-        lbls lbl = Some w ->
-        RunsTo (lbls, fs) k (Locals.upd vs x w, h) v' ->
-        RunsTo (lbls, fs) (Syntax.Label x lbl ;; k) (vs, h) v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_Label; eauto.
 
     Focus 6.
@@ -152,10 +142,6 @@ Section TopSection.
     unfold var_slot in *.
     unfold vars_start in *.
     rewrite_natToW_plus.
-    Lemma syn_req_Assign_in : forall vars temp_size x e k, syn_req vars temp_size (Syntax.Assign x e ;; k) -> List.In x vars.
-      admit.
-    Qed.
-
     assert (List.In s vars) by (eapply syn_req_Assign_in; eauto).
     assert (
         evalInstrs s0 x0
@@ -192,13 +178,6 @@ Section TopSection.
 
     repeat hiding ltac:(step auto_ext).
     descend.
-    Lemma RunsTo_Seq_Assign : 
-      forall env x e k vs h v', 
-        RunsTo env k (Locals.upd vs x (SemanticsExpr.eval vs e), h) v' ->
-        RunsTo env (Syntax.Assign x e ;; k) (vs, h) v'.
-      admit.
-    Qed.
-
     eapply RunsTo_Seq_Assign; eauto.
 
     Focus 5.

@@ -14,8 +14,11 @@ MODULES := \
 	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
 	VerifCondOkTactics \
 	VerifCondOkCall \
+	SemanticsFacts3 SynReqFacts2 \
 	PostOk \
 	VerifCondOkNonCall \
+	SynReqFacts3 \
+	VerifCondOkNonCall2 \
 	VerifCondOk \
 	CompileStmt \
 	SyntaxFunc SyntaxModule \

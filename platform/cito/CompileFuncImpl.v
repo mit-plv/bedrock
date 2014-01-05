@@ -67,11 +67,11 @@ Section TopSection.
       (Seq
          (Strline 
             (Binop (stack_slot 1) (stack_slot 1) Minus stack_needed /\
-             Assign (stack_slot 0) Rp /\ nil) /\
+             IL.Assign (stack_slot 0) Rp /\ nil) /\
           compile_stmt body_stmt /\
           Strline 
-            (Assign Rv (var_slot (RetVar func)) /\ 
-             Assign Rp (stack_slot 0) /\ nil) /\
+            (IL.Assign Rv (var_slot (RetVar func)) /\ 
+             IL.Assign Rp (stack_slot 0) /\ nil) /\
           IGoto _ _ Rp /\ nil)).
   Close Scope tmp_scope.
   Require Import Wrap.
@@ -353,11 +353,11 @@ Section TopSection.
     assert (List.In ret vars) by (eapply ret_in_vars).
     assert (
         evalInstrs stn st
-                   (Assign (LvReg Rv)
+                   (IL.Assign (LvReg Rv)
                            (RvLval
                               (LvMem
                                  (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars ret)))))
-                           :: Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
+                           :: IL.Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
         None
 ) ; [ | clear H0 ].
     rewrite <- H0.
@@ -382,11 +382,11 @@ Section TopSection.
     assert (List.In ret vars) by (eapply ret_in_vars).
     assert (
         evalInstrs stn x
-                   (Assign (LvReg Rv)
+                   (IL.Assign (LvReg Rv)
                            (RvLval
                               (LvMem
                                  (Imm (Regs x Sp ^+ $8 ^+ $(variablePosition vars ret)))))
-                           :: Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
+                           :: IL.Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
         Some st
 ) ; [ | clear H1 ].
     rewrite <- H1.
