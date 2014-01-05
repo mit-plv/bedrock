@@ -2,8 +2,8 @@ Definition mainS :=
   PRE[] True
   POST[R] R = 10.
 
-Definition prog := namespace "Recur" {{
-  function "f"("a")
+Definition prog := cmodule "Recur" {{
+  cfunction "f"("a")
     If ("a" = 0) {
       Return 7
     } else {
@@ -11,29 +11,27 @@ Definition prog := namespace "Recur" {{
       Return "ret" + 1
     }
   end with
-  function "g"("a")
+  cfunction "g"("a")
     If ("a" = 0) {
       Return 8
     } else {
       "ret" <- Call "f"("a" - 1);;
       Return "a" + 2
     }
-  end with
-  namespace "Test" {{
-    [mainS]                                              
-    function "main"()
-      "ret" <- Call "f"(2);;       
-      Return "ret"
-    end
-  }}
+  end with 
+  [mainS] 
+  function "main"()
+    "ret" <- Call "f"(2);;       
+    Return "ret"
+  end
 }}.
 
 Definition prog_o := CompileProg.compile prog.
 
-Definition driverS := SPEC reserving 49
+Definition wrapperS := SPEC reserving 49
   PREonly[V] mallocHeap 0.
 
-Definition driver := bimport [[ spec prog_o "Recur"!!"Test"!!"main",
+Definition wrapper := bimport [[ spec prog_o "Recur"!"main",
                               "sys"!"printInt" @ [printIntS], "sys"!"abort" @ [abortS],
                               ]]
   bmodule "test" {{
