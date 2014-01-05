@@ -134,23 +134,72 @@ Section TopSection.
 
     eapply RunsTo_Seq_Label; eauto.
 
+    Focus 6.
+    wrap0.
+    eapply H3 in H0.
+    unfold precond in *.
+    unfold inv in *.
+    unfold inv_template in *.
+    unfold CompileExpr.runs_to in *.
+    unfold is_state in *.
+    unfold CompileExpr.is_state in *.
+    post.
+
+    transit.
+
+    destruct_state.
+    post.
+    unfold var_slot in *.
+    unfold vars_start in *.
+    rewrite_natToW_plus.
+    Lemma syn_req_Assign_in : forall vars temp_size x e k, syn_req vars temp_size (Syntax.Assign x e ;; k) -> List.In x vars.
+      admit.
+    Qed.
+
+    assert (List.In s vars) by (eapply syn_req_Assign_in; eauto).
     assert (
         evalInstrs s0 x0
                    (IL.Assign 
-                      Rv
-                      (RvLabel l) :: nil) =
+                      (LvMem (Imm (Regs x0 Sp ^+ $8 ^+ $(variablePosition vars s))))
+                      Rv :: nil) =
         Some s1
-) ; [ | clear H6 ].
-    admit.
+) ; [ | clear H1 ].
+    rewrite <- H1.
+    Transparent evalInstrs.
+    simpl.
+    repeat rewrite wplus_assoc in *.
+    eauto.
+    Opaque evalInstrs.
+    hiding ltac:(evaluate auto_ext).
+    descend.
+    eauto.
+    instantiate (5 := (_, _)); simpl.
+    instantiate (6 := upd_sublist _ _ _).
+    rewrite length_upd_sublist.
+    match goal with
+      | H : Regs s1 Sp = _ |- _ => rewrite H in *
+    end.
+    match goal with
+      | H : Regs x0 Sp = _ |- _ => rewrite H in *
+    end.
+    repeat hiding ltac:(step auto_ext).
+    inversion_Safe.
+    auto_apply.
+    econstructor; simpl; eauto.
+    rewrite length_upd_sublist; eauto.
+    eauto.
+    eauto.
 
-    assert False.
-    assert (interp specs (![Emp] (s0, x0))); [ | clear H4].
-    admit.
-    generalize H H1 H6; clear_all; intros.
+    repeat hiding ltac:(step auto_ext).
+    descend.
+    Lemma RunsTo_Seq_Assign : 
+      forall env x e k vs h v', 
+        RunsTo env k (Locals.upd vs x (SemanticsExpr.eval vs e), h) v' ->
+        RunsTo env (Syntax.Assign x e ;; k) (vs, h) v'.
+      admit.
+    Qed.
 
-
-
-
+    eapply RunsTo_Seq_Assign; eauto.
 
     Focus 5.
     (* call *)
