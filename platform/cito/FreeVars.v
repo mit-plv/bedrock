@@ -20,5 +20,7 @@ Fixpoint free_vars (s : Syntax.Stmt) :=
            (default empty (option_map singleton var)) 
            (e_free_vars f)) 
         (union_list (List.map e_free_vars args))
+    | Syntax.Label x lbl => singleton x
+    | Syntax.Assign x e => union (singleton x) (e_free_vars e)
   end.
 

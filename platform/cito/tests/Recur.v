@@ -20,7 +20,7 @@ Definition prog := cmodule "Recur" {{
     }
   end with 
   [mainS] 
-  function "main"()
+  cfunction "main"()
     "ret" <- Call "f"(2);;       
     Return "ret"
   end

@@ -39,7 +39,9 @@ Section Body.
 
   Definition after_call ret k : assert :=
     st ~> Ex fs, 
-    funcs_ok (fst st) fs /\
+    let stn := fst st in
+    let env := (Labels stn, fs) in
+    funcs_ok stn fs /\
     ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
     let old_sp := st#Sp ^- frame_len_w in
     ![^[is_state old_sp rp e_stack vars (vs, heap1) temps * is_heap heap2 * layout_option ret_w ret_a * mallocHeap 0] * #0] st /\
@@ -47,9 +49,9 @@ Section Body.
        let heap12 := heap_merge heap1 heap2 in
        let heap := heap_upd_option heap12 ret_w ret_a in
        let v := (vs, heap) in
-       (separated heap12 ret_w ret_a -> Safe fs k v) /\
+       (separated heap12 ret_w ret_a -> Safe env k v) /\
        length temps = temp_size |] /\
-    (rp, fst st) 
+    (rp, stn) 
       @@@ (
         st' ~> Ex v', Ex temps',
         ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
@@ -58,7 +60,7 @@ Section Body.
            let heap := heap_upd_option heap12 ret_w ret_a in
            let v := (vs, heap) in
            separated heap12 ret_w ret_a /\
-           RunsTo fs k v v' /\
+           RunsTo env k v v' /\
            length temps' = temp_size /\
            st'#Sp = old_sp /\
            rv_postcond st'#Rv v' |]).
@@ -130,6 +132,11 @@ Section Body.
                 :: Structured.ICall_ imports modName Rv (after_call var k)
                 :: Strline (Binop Sp Sp Minus frame_len_w :: nil)
                 :: SaveRet.compile vars var imports_global modName :: nil))
+      | Syntax.Label x lbl =>
+        Strline (IL.Assign (var_slot x) lbl :: nil)
+      | Syntax.Assign x e =>
+        Seq2 (compile_expr e 0)
+             (SaveRv (var_slot x))
     end.
 
 End Body.

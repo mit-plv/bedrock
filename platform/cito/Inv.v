@@ -50,18 +50,19 @@ Section TopSection.
   Fixpoint make_heap pairs := fold_left store_pair pairs heap_empty.
 
   Definition funcs_ok (stn : settings) (fs : W -> option Callee) : PropX W (settings * state) := 
+    let env := (Labels stn, fs) in
     ((Al i, Al spec, 
       [| fs i = Some (Internal spec) |] 
         ---> (i, stn) @@@ (
           st ~> ExX, Ex v, Ex rp, Ex e_stack,
           ![^[is_state st#Sp rp e_stack (ArgVars spec) v nil * mallocHeap 0] * #0] st /\
-          [| Safe fs (Body spec) v |] /\
+          [| Safe env (Body spec) v |] /\
           (st#Rp, stn) 
             @@@ (
               st' ~> Ex v', Ex rp',
               ![^[ is_state st'#Sp rp' e_stack (ArgVars spec) v' nil * mallocHeap 0] * #1] st' /\
               [| exists vs', 
-                 RunsTo fs (Body spec) v (vs', snd v') /\ 
+                 RunsTo env (Body spec) v (vs', snd v') /\ 
                  st'#Rv = sel vs' (RetVar spec) /\
                  st'#Sp = st#Sp |]))) /\
      (Al i, Al spec, 
@@ -95,17 +96,19 @@ Section TopSection.
 
     Definition inv_template rv_precond rv_postcond s : assert := 
       st ~> Ex fs, 
-      funcs_ok (fst st) fs /\
+      let stn := fst st in
+      let env := (Labels stn, fs) in
+      funcs_ok stn fs /\
       ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
       ![^[is_state st#Sp rp e_stack vars v temps * mallocHeap 0] * #0] st /\
-      [| Safe fs s v /\
+      [| Safe env s v /\
          length temps = temp_size /\
          rv_precond st#Rv v |] /\
-      (rp, fst st) 
+      (rp, stn) 
         @@@ (
           st' ~> Ex v', Ex temps',
           ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
-          [| RunsTo fs s v v' /\
+          [| RunsTo env s v v' /\
              length temps' = temp_size /\
              st'#Sp = st#Sp /\
              rv_postcond st'#Rv v' |]).
