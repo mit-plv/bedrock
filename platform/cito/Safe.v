@@ -2,9 +2,9 @@ Require Import Semantics.
 Require Import Syntax SemanticsExpr.
 Require Import Memory IL List.
 
-Section fs.
+Section Env.
 
-  Variable fs : W -> option Callee.
+  Variable env : (label -> option W) * (W -> option Callee).
 
   CoInductive Safe : Stmt -> State -> Prop :=
   | Skip : 
@@ -12,7 +12,7 @@ Section fs.
   | Seq : 
       forall a b v, 
         Safe a v ->
-        (forall v', RunsTo fs a v v' -> Safe b v') -> 
+        (forall v', RunsTo env a v v' -> Safe b v') -> 
         Safe (Syntax.Seq a b) v
   | If : 
       forall cond t f v, 
@@ -28,6 +28,7 @@ Section fs.
       forall var f args v spec,
         let vs := fst v in
         let heap := snd v in
+        let fs := snd env in
         fs (eval vs f) = Some (Internal spec) ->
         length (ArgVars spec) = length args ->
         (forall vs_arg, 
@@ -38,10 +39,18 @@ Section fs.
       forall var f args v spec pairs,
         let vs := fst v in
         let heap := snd v in
+        let fs := snd env in
         fs (eval vs f) = Some (Foreign spec) ->
         map (eval vs) args = map fst pairs ->
         good_inputs heap pairs ->
         PreCond spec (map snd pairs) ->
-        Safe (Syntax.Call var f args) v.
+        Safe (Syntax.Call var f args) v
+  | Label :
+      forall x lbl v,
+        fst env lbl <> None ->
+        Safe (Syntax.Label x lbl) v
+  | Assign :
+      forall x e v,
+        Safe (Syntax.Assign x e) v.
 
-End fs.
+End Env.

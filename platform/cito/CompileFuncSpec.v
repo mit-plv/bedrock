@@ -19,15 +19,17 @@ Section TopSection.
 
   Definition inv vars s ret_var : assert := 
     st ~> Ex fs, 
-    funcs_ok (fst st) fs /\
+    let stn := fst st in
+    let env := (Labels stn, fs) in
+    funcs_ok stn fs /\
     ExX, Ex v, Ex e_stack,
     ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
-    [| Safe fs s v |] /\
-    (st#Rp, fst st) 
+    [| Safe env s v |] /\
+    (st#Rp, stn) 
       @@@ (
         st' ~> Ex v', Ex e_stack',
         ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
-        [| RunsTo fs s v v' /\
+        [| RunsTo env s v v' /\
            st'#Sp = st#Sp /\
            st'#Rv = sel (fst v') ret_var |]).
 

@@ -117,10 +117,9 @@ Definition upd_option vs x value :=
 
 (* Semantics *)
 
-Section fs.
+Section Env.
 
-  (* Map foreign function addresses to specifications. *)
-  Variable fs : W -> option Callee.
+  Variable env : (label -> option W) * (W -> option Callee).
 
   Inductive RunsTo : Stmt -> State -> State -> Prop :=
   | Skip : forall v, RunsTo Syntax.Skip v v
@@ -143,6 +142,7 @@ Section fs.
       forall var f args v spec vs_callee vs_callee' heap',
         let vs := fst v in
         let heap := snd v in
+        let fs := snd env in
         fs (eval vs f) = Some (Internal spec) ->
         map (Locals.sel vs_callee) (ArgVars spec) = map (eval vs) args ->
         RunsTo (Body spec) (vs_callee, heap) (vs_callee', heap') ->
@@ -153,6 +153,7 @@ Section fs.
       forall var f args v spec triples addr ret,
         let vs := fst v in
         let heap := snd v in
+        let fs := snd env in
         fs (eval vs f) = Some (Foreign spec) ->
         map (eval vs) args = map Word triples ->
         good_inputs heap (map (fun x => (Word x, ADTIn x)) triples) ->
@@ -165,6 +166,14 @@ Section fs.
         separated heap ret_w ret_a ->
         let heap := heap_upd_option heap ret_w ret_a in
         let vs := upd_option vs var ret_w in
-        RunsTo (Syntax.Call var f args) v (vs, heap).
+        RunsTo (Syntax.Call var f args) v (vs, heap)
+  | Label : 
+      forall x lbl v w,
+        fst env lbl = Some w ->
+        RunsTo (Syntax.Label x lbl) v (Locals.upd (fst v) x w, snd v)
+  | Assign :
+      forall x e v,
+        let vs := fst v in
+        RunsTo (Syntax.Assign x e) v (Locals.upd vs x (eval vs e), snd v).
 
-End fs.
+End Env.
