@@ -64,14 +64,8 @@ Definition fncnV (f : fncn) := stmtV (ArgumentVariables f ++ LocalVariables f) (
 (** Symbolic state, mapping program variables to logical expressions *)
 Definition vars := pr_var -> option Logic.expr.
 
-(** Alternative [string_dec] that we will feel free to unfold all the time *)
-Definition string_dec' : forall x y : string, {x = y} + {x <> y}.
-Proof.
-  decide equality; apply Ascii.ascii_dec.
-Defined.
-
 Definition vars_set (vs : vars) (x : pr_var) (e : Logic.expr) : vars := 
-  fun y => if string_dec' y x then Some e else vs y.
+  fun y => if string_dec y x then Some e else vs y.
 
 (** When does a [vars] agree with a [vals] (from the main Bedrock library)? *)
 Definition vars_ok (fE : fo_env) (V : vals) (vs : vars) :=

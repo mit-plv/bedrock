@@ -188,7 +188,9 @@ Qed.
 
 (** * Unification *)
 
-(** We redefine [in_dec] to help control delta reduction later on. *)
+(* Here's a sneaky marker predicate that we'll use to avoid excessive reduction
+ * in terms that have free variables blocking reduction. *)
+Definition hide_sub (s : fo_sub) := s.
 
 Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
   : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
@@ -202,7 +204,7 @@ Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
              end
         else None
     | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
-      match s' x with
+      match hide_sub s' x with
         | Some e => exprD e fE
         | None => Dyn tt
       end)) :: nil)
@@ -506,12 +508,12 @@ Definition cancel (fvs : list fo_var) (lhs rhs : normal) : result :=
     (NImpure lhs) (NImpure rhs) with
     | Failure1 msg => Failure msg
     | Success1 s lhs' fs => Success lhs' (
-      (forall x, In x (NQuants rhs) -> s x <> None)
-      /\ (forall fE, List.Forall (fun f => f fE s) fs)
+      (forall x, In x (NQuants rhs) -> hide_sub s x <> None)
+      /\ (forall fE, List.Forall (fun f => f fE (hide_sub s)) fs)
       /\ match NPure rhs with
            | None => True
            | Some P =>
-             (forall fE1 fE2, (forall x, s x <> None -> fE1 x = fE2 x)
+             (forall fE1 fE2, (forall x, hide_sub s x <> None -> fE1 x = fE2 x)
                -> P fE1 = P fE2)
              /\ (forall fE,
                let fE' := (fun x => match s x with
@@ -738,7 +740,7 @@ Proof.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
-  congruence.
+  unfold hide_sub in *; congruence.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
   intros.
 
@@ -882,7 +884,7 @@ Proof.
   2: eauto.
   eauto.
   instantiate (1 := x0).
-  congruence.
+  unfold hide_sub in *; congruence.
   2: tauto.
   simpl in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
@@ -890,7 +892,7 @@ Proof.
   Focus 2.
   instantiate (2 := x0).
   destruct (in_dec string_dec x0 fvs); tauto.
-  rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  unfold hide_sub in *; rewrite H8 in H3; injection H3; clear H3; intros; subst.
   simpl.
   left; symmetry; apply H4.
   eauto.
@@ -958,18 +960,18 @@ Proof.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
-  congruence.
+  unfold hide_sub in *; congruence.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
   intros.
   edestruct findMatchings_adds; eauto.
   instantiate (1 := x0).
-  congruence.
+  unfold hide_sub in *; congruence.
   2: tauto.
   simpl in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
   eapply findMatchings_monotone in H3.
   2: instantiate (2 := x0); destruct (in_dec string_dec x0 fvs); tauto.
-  rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  unfold hide_sub in *; rewrite H8 in H3; injection H3; clear H3; intros; subst.
   simpl.
   left; symmetry; apply H4.
   eauto.

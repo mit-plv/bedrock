@@ -15,7 +15,7 @@ Definition nada := dmodule "m" {{
 
 Theorem nadaOk : moduleOk nada.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -33,7 +33,7 @@ Definition pure := dmodule "m" {{
 
 Theorem pureOk : moduleOk pure.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -51,7 +51,7 @@ Definition contra := dmodule "m" {{
 
 Theorem contraOk : moduleOk contra.
 Proof.
-  depl.
+  depl; tauto.
 Qed.
 
 
@@ -70,7 +70,7 @@ Definition assum := dmodule "m" {{
 
 Theorem assumOk : moduleOk assum.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -88,7 +88,7 @@ Definition const := dmodule "m" {{
 
 Theorem constOk : moduleOk const.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -106,7 +106,7 @@ Definition ident := dmodule "m" {{
 
 Theorem identOk : moduleOk ident.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -126,7 +126,7 @@ Definition identTmp := dmodule "m" {{
 
 Theorem identTmpOk : moduleOk identTmp.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -147,7 +147,7 @@ Definition identTmp' := dmodule "m" {{
 
 Theorem identTmp'Ok : moduleOk identTmp'.
 Proof.
-  depl.
+  depl; auto.
 Qed.
 
 
@@ -165,7 +165,7 @@ Definition starPure1 := dmodule "m" {{
 
 Theorem starPure1Ok : moduleOk starPure1.
 Proof.
-  depl.
+  depl; intuition.
 Qed.
 
 Definition starPure2 := dmodule "m" {{
@@ -180,7 +180,7 @@ Definition starPure2 := dmodule "m" {{
 
 Theorem starPure2Ok : moduleOk starPure2.
 Proof.
-  depl.
+  depl; tauto.
 Qed.
 
 
@@ -199,5 +199,5 @@ Definition assumRet := dmodule "m" {{
 
 Theorem assumRetOk : moduleOk assumRet.
 Proof.
-  depl.
+  depl; auto.
 Qed.

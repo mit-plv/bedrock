@@ -235,7 +235,7 @@ Lemma vars_ok_upd : forall fE V vs x w e,
 Proof.
   unfold vars_ok, sel, upd, vars_set; intros.
   generalize (string_eq_complete x0 x).
-  destruct (string_eq x0 x), (string_dec' x0 x); intuition.
+  destruct (string_eq x0 x), (string_dec x0 x); intuition.
 Qed.
 
 Local Hint Resolve vars_ok_upd.
@@ -265,7 +265,7 @@ Lemma vars_set_contra : forall vs x v x' v',
   -> False.
 Proof.
   unfold vars_set; intros;
-    destruct (string_dec' x' x); subst; eauto; discriminate.
+    destruct (string_dec x' x); subst; eauto; discriminate.
 Qed.
 
 Local Hint Resolve vars_set_contra.
@@ -342,7 +342,7 @@ Section fvs.
     -> Logic.exprD e2 fE1 = Logic.exprD e2 fE2.
   Proof.
     unfold vars_set; intros.
-    destruct (string_dec' x' x); subst; eauto.
+    destruct (string_dec x' x); subst; eauto.
     injection H1; clear H1; intros; subst; eauto.
   Qed.
 
