@@ -1950,3 +1950,133 @@ Proof.
   intros; unfold fo_set.
   destruct (string_dec y x); tauto.
 Qed.
+
+
+(** * Moved from Compile *)
+
+Lemma addSubstsH : forall P Q,
+  SubstsH (SNil _ _) P ===> SubstsH (SNil _ _) Q
+  -> P ===> Q.
+Proof.
+  auto.
+Qed.
+
+Lemma multistar_weaken0 : forall G (s : subs _ _ G) (f f' : hpropB G -> pred -> hpropB G) ps,
+  (forall a a', SubstsH s a ===> SubstsH s a'
+    -> forall p, In p ps
+      -> SubstsH s (f a p) ===> SubstsH s (f' a' p))
+  -> forall acc acc',
+    SubstsH s acc ===> SubstsH s acc'
+    -> SubstsH s (fold_left f ps acc)
+    ===> SubstsH s (fold_left f' ps acc').
+Proof.
+  induction ps; simpl; intuition.
+Qed.
+
+Lemma weaken_normalD : forall n xs (hE : ho_env nil) fE fE',
+  normalWf xs n
+  -> (forall x, In x xs -> fE x = fE' x)
+  -> normalD n hE fE ===> normalD n hE fE'.
+Proof.
+  unfold normalD; simpl; intros.
+  destruct H.
+  generalize dependent fE.
+  generalize dependent fE'.
+  generalize dependent xs.
+  induction NoDupQuant0; simpl in *; intuition.
+  apply addSubstsH; apply multistar_weaken0; unfold SubstsH; simpl; intros.
+  simpl in *; eapply Forall_forall in WellScoped0; [ | eauto ].
+  apply Himp_star_frame; auto.
+  apply addSubstsH; eapply weaken_predD; eauto.
+  destruct (NPure n); try apply Himp_refl.
+  erewrite GoodPure0; try apply Himp_refl.
+  intuition.
+
+  apply Himp_ex; intro.
+  eapply IHNoDupQuant0.
+  eapply Forall_impl; [ | apply WellScoped0 ].
+  intros; eapply wellScoped_weaken; eauto.
+  instantiate (1 := x :: xs).
+  simpl; intuition (subst; eauto using in_or_app).
+  apply in_or_app; simpl; tauto.
+  apply in_app_or in H3; intuition eauto using in_or_app.
+  apply in_or_app; simpl; tauto.
+  eapply Forall_impl; [ | apply NoClash0 ].
+  simpl; intros.
+  destruct H1; intuition.
+  do 2 esplit; eauto.
+  intros.
+  apply H3 in H1; intuition idtac.
+  apply in_app_or in H4; intuition (subst; simpl in *; eauto using in_or_app).
+  intuition subst; eauto using in_or_app.
+  destruct (NPure n); intuition idtac.
+  apply GoodPure0; intuition (subst; simpl in *; eauto using in_or_app).
+  simpl; intuition (subst; eauto using in_or_app).
+  simpl; intuition (subst; eauto using in_or_app).
+  unfold fo_set.
+  destruct (string_dec x0 x0); tauto.
+  unfold fo_set.
+  destruct (string_dec x0 x); eauto.
+Qed.
+
+Lemma wellScoped_exprExt : forall e fvs,
+  (forall fE fE', (forall x, In x fvs -> fE x = fE' x)
+    -> exprD e fE = exprD e fE')
+  -> exprExt e.
+Proof.
+  induction e; simpl; intuition.
+Qed.
+
+Lemma wellScoped_predExt : forall p fvs,
+  wellScoped fvs p
+  -> predExt p.
+Proof.
+  induction p; simpl; intuition eauto.
+  apply Forall_forall; intros.
+  eauto using wellScoped_exprExt.
+Qed.
+
+Theorem esubst_correct' : forall x e e' fE,
+  exprD (esubst x e e') fE = exprD e' (fo_set fE x (exprD e fE)).
+Proof.
+  induction e'; simpl; intuition.
+
+  destruct (string_dec x0 x); subst.
+  unfold fo_set.
+  destruct (string_dec x x); tauto.
+  unfold fo_set.
+  destruct (string_dec x0 x); tauto.
+Qed.
+
+Lemma wellScoped_psubst : forall x e p fvs,
+  wellScoped (x :: fvs) p
+  -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+    -> exprD e fE1 = exprD e fE2)
+  -> wellScoped fvs (psubst x e p).
+Proof.
+  induction p; simpl; intuition.
+
+  apply H; intuition (subst; eauto).
+  unfold fo_set.
+  destruct (string_dec x0 x0); intuition.
+  unfold fo_set.
+  destruct (string_dec x0 x); eauto.
+
+  apply IHp.
+  eapply wellScoped_weaken; eauto.
+  simpl; tauto.
+  simpl; auto.
+
+  apply in_map_iff in H2; destruct H2; intuition subst.
+  generalize H4; intro Hin.
+  eapply H in Hin.
+
+  rewrite esubst_correct'.
+  rewrite esubst_correct'.
+  eassumption.
+  intuition subst.
+  unfold fo_set.
+  destruct (string_dec x1 x1); eauto; tauto.
+  unfold fo_set.
+  destruct (string_dec x1 x); subst; eauto.
+Qed.      

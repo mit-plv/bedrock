@@ -138,12 +138,10 @@ Definition functionVc (f : function) : list Prop :=
   let xs := Formals f ++ Locals f in
   let fvs := map (fun s => s ++ "0")%string xs ++ SpecVars f in
     stmtV xs (Body f)
-    :: stmtD (normalize (Precondition f))
-    (normalize (Postcondition f)) fvs xs (vars0 (Formals f)) (Body f) (fun _ => False)
     :: wellScoped fvs (Precondition f)
     :: wellScoped ("result" :: fvs) (Postcondition f)
-    :: predExt (Precondition f)
-    :: predExt (Postcondition f)
+    :: stmtD (normalize (Precondition f))
+    (normalize (Postcondition f)) fvs xs (vars0 (Formals f)) (Body f) (fun _ => False)
     :: nil.
 
 (** Combined syntactic check for all functions *)
@@ -253,7 +251,7 @@ Proof.
     (Formals a) x0 x).
   intros.
   apply in_app_or in H; intuition idtac.
-  apply in_map_iff in H18; destruct H18; intuition subst.
+  apply in_map_iff in H16; destruct H16; intuition subst.
 
   Lemma append0_invert : forall x y,
     (x ++ "0" = y ++ "0")%string
@@ -278,7 +276,7 @@ Proof.
   Qed.
 
   apply formals_switch.
-  apply in_app_or in H19; intuition idtac.
+  apply in_app_or in H17; intuition idtac.
   rewrite sel_upd_ne.
   symmetry; apply sel_merge.
   simpl; tauto.
@@ -328,7 +326,7 @@ Proof.
 
   generalize dependent (map (fun s : string => (s ++ "0")%string) (Formals a ++ Locals a) ++ SpecVars a); intros.
   clear_fancier.
-  clear H8.
+  clear H11.
   change (locals ("rp" :: Formals a) x2 (length (Locals a)) (Regs x Sp))
     with (locals_in ("rp" :: Formals a) x2 (length (Locals a)) (Regs x Sp)
       (Locals a) ("rp" :: Formals a ++ Locals a) 0) in *.
@@ -338,7 +336,7 @@ Proof.
   simpl; constructor; auto.
   assert (In "rp" ("rp" :: Formals a ++ Locals a)) by (simpl; tauto).
   change (sel x2) with x2 in *.
-  unfold lvalIn, regInL in *; simpl in H14.
+  unfold lvalIn, regInL in *; simpl in H12.
   change (LvMem (Indir Sp (natToW O))) with (LvMem (Indir Sp (variablePosition ("rp" :: Formals a ++ Locals a) "rp"))) in *.
   evaluate auto_ext.
   fold (@app pr_var) in *.
@@ -369,7 +367,7 @@ Proof.
   post.
   generalize dependent (map (fun s : string => (s ++ "0")%string) (Formals a ++ Locals a) ++ SpecVars a); intros.
   clear_fancier.
-  clear H8.
+  clear H11.
   descend.
   repeat rewrite sel_eta in *.
   step auto_ext.
@@ -431,9 +429,9 @@ Proof.
 
   subst; tauto.
 
-  apply in_app_or in H14; intuition idtac.
+  apply in_app_or in H12; intuition idtac.
   apply in_map_iff in H1; destruct H1; intuition subst.
-  apply in_app_or in H16; intuition idtac.
+  apply in_app_or in H14; intuition idtac.
   eapply notsInList_true in H7.
   tauto.
   apply H.

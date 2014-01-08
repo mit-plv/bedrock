@@ -450,12 +450,6 @@ Section fvs.
     eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
     eapply Himp_trans; [ | apply H22 ].
 
-    Lemma weaken_normalD : forall n xs fE fE',
-      normalWf xs n
-      -> (forall x, In x xs -> fE x = fE' x)
-      -> normalD n fE ===> normalD n fE'.
-    Admitted.
-
     eapply weaken_normalD; eauto.
     intros.
     unfold fo_set.
@@ -477,13 +471,6 @@ Section fvs.
     eapply in_map_iff in H20; destruct H20; intuition subst.
     eapply Forall_forall in H25; try apply H7.
 
-    Lemma wellScoped_psubst : forall x e p fvs,
-      wellScoped (x :: fvs) p
-      -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-        -> Logic.exprD e fE1 = Logic.exprD e fE2)
-      -> wellScoped fvs (psubst x e p).
-    Admitted.
-
     eapply wellScoped_psubst.
     eapply wellScoped_weaken; eauto.
     simpl; intuition idtac.
@@ -493,12 +480,13 @@ Section fvs.
   Qed.
 End fvs.
 
+Local Hint Immediate wellScoped_predExt.
+
 Lemma scopey_normalize : forall fvs post post' bvs',
   post' = normalize post
   -> wellScoped ("result" :: fvs) post
   -> boundVars post = Some bvs'
   -> (forall x, In x bvs' -> ~In x ("result" :: fvs))
-  -> predExt post
   -> scopey fvs post' (NImpure post').
 Proof.
   intros; subst.
@@ -512,7 +500,6 @@ Lemma normalize_NImpure_keeps : forall p fvs bvs,
   wellScoped fvs p
   -> boundVars p = Some bvs
   -> (forall x, In x bvs -> ~In x fvs)
-  -> predExt p
   -> ~In "result" bvs
   -> scopey' "result" (NImpure (normalize p)).
 Proof.
@@ -525,7 +512,6 @@ Proof.
   eapply IHp.
   eauto.
   eauto.
-  2: eauto.
   2: eauto.
   simpl; intuition (subst; eauto using In_notInList).
 Qed.
@@ -561,7 +547,6 @@ Proof.
       incl xs ns
       :: (~In "rp" ns)
       :: stmtV xs s
-      :: stmtD pre' post' fvs xs vs s (fun _ => False)
       :: (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -574,8 +559,7 @@ Proof.
       :: (~In "result" fvs)
       :: (~In "result" bvs)
       :: (~In "result" bvs')
-      :: predExt pre
-      :: predExt post
+      :: stmtD pre' post' fvs xs vs s (fun _ => False)
       :: nil)); [
         abstract (wrap0; match goal with
                            | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
