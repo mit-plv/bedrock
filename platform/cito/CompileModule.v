@@ -5,42 +5,37 @@ Require Import GoodFunc GoodOptimizer.
 
 Set Implicit Arguments.
 
+Definition GoodFunc := { f | GoodFunc.GoodFunc f }.
+
+Require Import Semantics.
+Record GoodModule :=
+  {
+    Name : string;
+    Imports : LabelMap.t Callee;
+    Funcs : list GoodFunc
+  }.
+    
 Section TopSection.
 
-  Variable module : CitoModule.
-
-  Require Import CompileFuncImpl.
-  Record GoodModule module := 
-    {
-      NoDupFuncNames : NoDup (map Name (Functions module));
-      GoodFuncs : List.Forall GoodFunc (Functions module)
-    }.
-
-  Hypothesis good_module : GoodModule module.
+  Variable module : GoodModule.
 
   Require Import StructuredModule.
-  Variable imports : list import.
+  Definition imports : list import.
+    admit.
+  Qed.
 
   Variable optimizer : Optimizer.
 
   Hypothesis good_optimizer : GoodOptimizer optimizer.
 
-  Definition to_prod_list : forall A P (ls : list A), List.Forall P ls -> list { x | P x }.
-    induction ls.
-    econstructor 1.
-    econstructor 2.
-    econstructor; inversion H; subst; eauto.
-    eapply IHls; inversion H; subst; eauto.
-  Defined.
+  Definition compile_func' f (good_func : GoodFunc.GoodFunc f) := CompileFunc.compile (Name module) good_func good_optimizer.
 
-  Definition compile_func' f (good_func : GoodFunc f) := CompileFunc.compile (ModuleName module) good_func good_optimizer.
-
-  Definition compile_func (p : { f | GoodFunc f }) :=
+  Definition compile_func (p : GoodFunc) :=
     match p with
       | exist _ good_func => compile_func' good_func
     end.
 
-  Definition compiled_funcs := map compile_func (to_prod_list (GoodFuncs good_module)).
+  Definition compiled_funcs := map compile_func (Funcs module).
 
   Require Import Structured.
   Require Import Wrap.
