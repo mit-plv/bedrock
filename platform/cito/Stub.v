@@ -1,3 +1,5 @@
+Require Import CompileFuncSpec.
+
 Set Implicit Arguments.
 
 Section TopSection.
@@ -6,12 +8,49 @@ Section TopSection.
   Variable modules : list CitoModule.
 
   Require Import Semantics.
-  Require Import CompileFuncSpec.
-  Definition fs : settings -> W -> option Callee.
-    admit.
-  Defined.
+  Variable imports : list (label * ForeignFuncSpec).
 
   Definition stub_mod_name s := ("stub_" ++ s)%string.
+
+  Definition make_stub_label (lbl : label) : label := (stub_mod_name (fst lbl), snd lbl).
+
+  Definition exports_impl : LabelMap.t InternalFuncSpec.
+    admit.
+  Qed.
+
+  Section env.
+
+    Variable stn : settings.
+
+    Definition export_label_to_W : LabelMap.t W :=
+      LabelMap.fold (
+          fun lbl _ m => 
+            match Labels stn (make_stub_label lbl) with
+              | Some w => LabelMap.add lbl w m
+              | None => m
+            end
+        ) exports_impl (LabelMap.empty W).
+
+    Definition W_to_export_label := invert_map export_label_to_W.
+
+    Definition labels (lbl : label) : option W :=
+      if LabelMap.mem lbl exports_impl then
+        Labels stn 
+      else
+        Labels stn lbl.
+
+    Definition fs (stn : settings) (p : W) : option Callee :=
+      labelMap.fold (
+          fun (lbl, spec) res =>
+            match res with
+              | Some _ => res
+              | None =>
+                match labels stn lbl with
+                  |
+                  if weq p ()
+        ) tgts None
+    admit.
+  Defined.
 
   Section f.
 
@@ -21,9 +60,9 @@ Section TopSection.
     Require Import Safe.
     Require Import SyntaxFunc.
     Definition spec f : assert := 
-      st ~> Ex fs, 
+      st ~> 
       let stn := fst st in
-      let env := (Labels stn, fs stn) in
+      let env := env stn in
       let vars := ArgVars f in
       let s := Body f in
       let ret_var := RetVar f in
