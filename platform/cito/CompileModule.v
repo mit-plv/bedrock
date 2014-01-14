@@ -51,10 +51,7 @@ Section TopSection.
 
   Definition compile_func' f (good_func : GoodFunc f) := CompileFunc.compile mod_name good_func good_optimizer.
 
-  Definition compile_func (p : { f | GoodFunc f }) :=
-    match p with
-      | exist _ good_func => compile_func' good_func
-    end.
+  Definition compile_func (p : GoodFunction.GoodFunction) := compile_func' (GoodFunction.to_func_good p).
 
   Definition compiled_funcs := map compile_func (Functions module).
 

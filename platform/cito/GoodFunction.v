@@ -22,6 +22,13 @@ Definition to_good_function f : GoodFunc f -> GoodFunction.
     eauto.
 Defined.
 
+Lemma to_good_function_name : forall f (H : GoodFunc.GoodFunc f), Name (to_good_function H) = SyntaxFunc.Name f.
+  intros.
+  destruct H.
+  unfold to_good_function.
+  eauto.
+Qed.
+
 Definition to_func (f : GoodFunction) : SyntaxFunc.Func :=
   {|
     SyntaxFunc.Name := Name f;
