@@ -14,15 +14,14 @@ Section TopSection.
   Require Import Semantics.
   Variable imports : LabelMap.t ForeignFuncSpec.
 
-  Definition to_internal_func_spec : GoodFunction -> InternalFuncSpec.
-    intros.
-    destruct H.
-    destruct g.
-    econstructor.
-    eauto.
-    eapply (SyntaxFunc.Name x).
-    eapply (SyntaxFunc.Body x).
-  Defined.
+  Require Import GoodFunction.
+  Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
+    {|
+      Semantics.ArgVars := ArgVars f;
+      Semantics.ArgVarsGood := NoDupArgVars f;
+      Semantics.RetVar := RetVar f;
+      Semantics.Body := Body f
+    |}.
 
   Fixpoint flatten A (ls : list (list A)) :=
     match ls with
@@ -42,12 +41,9 @@ Section TopSection.
             (fun m =>
                List.map 
                  (fun f =>
-                    ((Name m, Name (proj1_sig f)), to_internal_func_spec f)
+                    ((GoodModule.Name m, GoodFunction.Name f), to_internal_func_spec f)
                  ) (Functions m)
             ) modules)).
-      
-    admit.
-  Qed.
 
   Section fs.
 
@@ -91,73 +87,95 @@ Section TopSection.
       end.
 
   End fs.
-  
-  Section f.
 
-    Variable f : Func.
+  Section module.
 
-    Require Import Malloc.
-    Require Import Safe.
-    Require Import SyntaxFunc.
-    Definition spec f : assert := 
-      st ~> 
-      let stn := fst st in
-      let env := (labels stn, fs stn) in
-      let vars := ArgVars f in
-      let s := Body f in
-      let ret_var := RetVar f in
-      ExX, Ex v, Ex e_stack,
-      ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
-      [| Safe env s v |] /\
-      (st#Rp, stn) 
-        @@@ (
-          st' ~> Ex v', Ex e_stack',
-          ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
-          [| RunsTo env s v v' /\
-             st'#Sp = st#Sp /\
-             st'#Rv = sel (fst v') ret_var |]).
+      Variable m : GoodModule.
 
-    Section body.
-      
-      Variable m : CitoModule.
+      Section f.
 
-      Variable im : LabelMap.t assert.
+        Variable f : GoodFunction.
 
-      Variable im_g : importsGlobal im.
+        Require Import Malloc.
+        Require Import Safe.
+        Definition spec : assert := 
+          st ~> 
+             let stn := fst st in
+             let env := (Labels stn, fs stn) in
+             let vars := ArgVars f in
+             let s := Body f in
+             let ret_var := RetVar f in
+             ExX, Ex v, Ex e_stack,
+             ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
+             [| Safe env s v |] /\
+             (st#Rp, stn) 
+               @@@ (
+                 st' ~> Ex v', Ex e_stack',
+                 ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
+                 [| RunsTo env s v v' /\
+                    st'#Sp = st#Sp /\
+                    st'#Rv = sel (fst v') ret_var |]).
 
-      Definition tgt := ((ModuleName m)!(Name f))%SP.
+        Section body.
+          
+          Variable im : LabelMap.LabelMap.t assert.
 
-      Definition body := Goto_ im_g (stub_mod_name ((ModuleName m))) tgt.
+          Variable im_g : importsGlobal im.
 
-    End body.
+          Require Import NameDecoration.
+          Definition tgt := ((impl_module_name (GoodModule.Name m))!(Name f))%SP.
 
-    Require Import StructuredModule.
-    Definition make_stub m : function (stub_mod_name (ModuleName m)) :=
-      (Name f, spec f, body m).
+          Definition body := Goto_ im_g (GoodModule.Name m) tgt.
 
-  End f.
+        End body.
 
-  Definition spec_foreign : ForeignFuncSpec -> assert.
+        Require Import StructuredModule.
+        Definition make_stub : function (GoodModule.Name m) :=
+          (Name f, spec, body).
+
+      End f.
+
+      Definition spec_foreign : ForeignFuncSpec -> assert.
+        admit.
+      Qed.
+
+      Definition bimports : list import := 
+        List.map 
+          (fun (p : label * ForeignFuncSpec) => 
+             let (lbl, spec) := p in
+             (fst lbl, snd lbl, spec_foreign spec)) 
+          (LabelMap.elements imports).
+
+      Definition stubs := map make_stub (Functions m).
+
+      Definition make_module := StructuredModule.bmodule_ bimports stubs.
+
+      Theorem make_module_ok : XCAP.moduleOk make_module.
+        eapply bmoduleOk.
+        admit.
+        admit.
+        Require Import Wrap.
+        wrap0.
+        admit.
+      Qed.
+
+  End module.
+
+  Definition ms := map make_module modules.
+
+  Definition empty_module := @StructuredModule.bmodule_ nil "empty_module" nil.
+
+  Fixpoint link_all ls := 
+    match ls with
+      | nil => empty_module
+      | x :: nil => x
+      | x :: xs => link x (link_all xs)
+    end.
+
+  Definition m := link_all ms.
+
+  Theorem ok : moduleOk m.
     admit.
-  Qed.
-
-  Definition get_func_name : label -> string.
-    admit.
-  Qed.
-
-  Definition bimports : list import := 
-    List.map 
-      (fun (p : label * ForeignFuncSpec) => 
-         let (lbl, spec) := p in
-         (fst lbl, get_func_name lbl, spec_foreign spec)) 
-      (LabelMap.elements imports).
-
-  (* todo: changed label to string*string, or add importsGlobal hypothesis *)
-  (* todo: put all stubs under one module *)
-
-  Definition m := StructuredModule.bmodule_ imports stubs.
-
-  Theorem ok : XCAP.moduleOk m.
   Qed.
 
 End TopSection.
