@@ -4,6 +4,8 @@ Require Import AutoSep.
 
 Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes.
 
+Set Implicit Arguments.
+
 
 (** * Syntax *)
 
@@ -19,7 +21,10 @@ Inductive expr :=
 Inductive stmt :=
 | Assign (x : pr_var) (e : expr)
 | Seq (s1 s2 : stmt)
-| Ret (e : expr).
+| Ret (e : expr)
+
+(* Allocate an algebraic datatype value with a specific constructor and arguments. *)
+| Allocate (x : pr_var) (conName : string) (args : list expr).
 
 (** Function definitions *)
 Record fncn := {
@@ -39,24 +44,48 @@ Record fncn := {
 
 (** ** Syntactic validity *)
 
+Section ForallF.
+  Variable A : Type.
+  Variable P : A -> Prop.
+
+  Fixpoint ForallF (ls : list A) : Prop :=
+    match ls with
+      | nil => True
+      | x :: ls' => P x /\ ForallF ls'
+    end.
+
+  Fixpoint ExistsF (ls : list A) : Prop :=
+    match ls with
+      | nil => False
+      | x :: ls' => P x \/ ExistsF ls'
+    end.
+End ForallF.
+
 Section validity.
-  Variable variables : list pr_var.
+  Variable dts : list ndatatype.
 
-  Definition exprV (e : expr) :=
-    match e with
-      | Const _ => True
-      | Var x => In x variables
-    end.
+  Section variables.
+    Variable variables : list pr_var.
 
-  Fixpoint stmtV (s : stmt) :=
-    match s with
-      | Assign x e => In x variables /\ exprV e
-      | Seq s1 s2 => stmtV s1 /\ stmtV s2
-      | Ret e => exprV e
-    end.
+    Definition exprV (e : expr) :=
+      match e with
+        | Const _ => True
+        | Var x => In x variables
+      end.
+
+    Fixpoint stmtV (s : stmt) :=
+      match s with
+        | Assign x e => In x variables /\ exprV e
+        | Seq s1 s2 => stmtV s1 /\ stmtV s2
+        | Ret e => exprV e
+        | Allocate x conName args => In x variables
+          /\ ExistsF (fun dt => ExistsF (fun c => NName c = conName) (snd dt)) dts
+          /\ ForallF exprV args
+      end.
+  End variables.
+
+  Definition fncnV (f : fncn) := stmtV (ArgumentVariables f ++ LocalVariables f) (Body f).
 End validity.
-
-Definition fncnV (f : fncn) := stmtV (ArgumentVariables f ++ LocalVariables f) (Body f).
 
 
 (** * Semantics *)
@@ -97,6 +126,7 @@ Inductive bad_assignment_rhs (e : expr) := .
 Inductive bad_assignment_lhs (x : pr_var) := .
 Inductive bad_return_expr (e : expr) := .
 Inductive entailment_failed_at_return (P : Prop) := .
+Inductive unbound_constructor (s : string) := .
 
 (** Add a pure conjunct to a normalized predicate. *)
 Definition addPure (n : normal) (P : fo_env -> Prop) : normal := {|
@@ -108,8 +138,29 @@ Definition addPure (n : normal) (P : fo_env -> Prop) : normal := {|
   NImpure := NImpure n
 |}.
 
+(** Find the datatype and definition corresponding to a constructor name. *)
+
+Fixpoint lookupCon' (s : string) (cs : list ncon) : option ncon :=
+  match cs with
+    | nil => None
+    | c :: cs' => if string_eq s (NName c) then Some c else lookupCon' s cs'
+  end.
+
+Fixpoint lookupCon (s : string) (dts : list ndatatype) : option (string * ncon) :=
+  match dts with
+    | nil => None
+    | dt :: dts' =>
+      match lookupCon' s (snd dt) with
+        | None => lookupCon s dts'
+        | Some c => Some (fst dt, c)
+      end
+  end.
+
 (** An axiomatic semantics for statements, via symbolic execution. *)
 Section stmtD.
+  Variable dts : list ndatatype.
+  (** Definitions of algebraic datatypes that may be referenced *)
+
   Variable pre : normal.
   (** Precondition; holds throughout execution, since it describes the heap,
     * and there aren't yet heap-manipulating statements. *)
@@ -147,6 +198,12 @@ Section stmtD.
               | ProveThis P => P
               | Failed P => entailment_failed_at_return P
             end
+        end
+
+      | Allocate x conName args =>
+        match lookupCon conName dts with
+          | None => unbound_constructor conName
+          | Some (dtName, c) => True
         end
     end.
 End stmtD.
