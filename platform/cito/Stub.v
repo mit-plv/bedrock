@@ -2,31 +2,58 @@ Require Import CompileFuncSpec.
 
 Set Implicit Arguments.
 
+Require Import Label.
+Definition to_lbl (l : label) : Labels.label := (fst l, Global (snd l)).
+Coercion to_lbl : label >-> Labels.label.
+
 Section TopSection.
 
-  Require Import SyntaxModule.
-  Variable modules : list CitoModule.
+  Require Import GoodModule.
+  Variable modules : list GoodModule.
 
   Require Import Semantics.
   Variable imports : LabelMap.t ForeignFuncSpec.
 
-  Definition stub_mod_name s := ("stub_" ++ s)%string.
+  Definition to_internal_func_spec : GoodFunction -> InternalFuncSpec.
+    intros.
+    destruct H.
+    destruct g.
+    econstructor.
+    eauto.
+    eapply (SyntaxFunc.Name x).
+    eapply (SyntaxFunc.Body x).
+  Defined.
 
-  Definition make_stub_label (lbl : label) : label := (stub_mod_name (fst lbl), snd lbl).
+  Fixpoint flatten A (ls : list (list A)) :=
+    match ls with
+      | nil => nil
+      | x :: xs => x ++ flatten xs
+    end.
 
-  Definition exports_real : LabelMap.t InternalFuncSpec.
+  Definition to_map B ls :=
+    List.fold_left
+      (fun m p => LabelMap.add (fst p) (snd p) m)
+      ls (LabelMap.empty B).
+
+  Definition exports : LabelMap.t InternalFuncSpec :=
+    to_map
+      (flatten 
+         (List.map 
+            (fun m =>
+               List.map 
+                 (fun f =>
+                    ((Name m, Name (proj1_sig f)), to_internal_func_spec f)
+                 ) (Functions m)
+            ) modules)).
+      
     admit.
   Qed.
 
-  Section env.
+  Section fs.
 
     Variable stn : settings.
 
-    Definition labels (lbl : label) : option W :=
-      if LabelMap.mem lbl exports_real then
-        Labels stn (make_stub_label lbl)
-      else
-        Labels stn lbl.
+    Definition labels (lbl : label) : option W := Labels stn lbl.
 
     Definition is_label_map_to_word lbl p :=
       match labels lbl with
@@ -40,16 +67,16 @@ Section TopSection.
 
     Definition pair_recur A B C f (p : A * B) : C := f (fst p) (snd p).
 
-    Definition find_f A f (m : LabelMap.t A) : option (label * A) :=
+    Definition map_find A f (m : LabelMap.t A) : option (label * A) :=
       List.find (pair_recur f) (LabelMap.elements m).
 
     Definition find_by_word A (m : LabelMap.t A) (p : W) :=
-      match find_f (fun lbl _ => is_label_map_to_word lbl p) m with
+      match map_find (fun lbl _ => is_label_map_to_word lbl p) m with
         | Some (_, a) => Some a
         | None => None
       end.
 
-    Definition is_export := find_by_word exports_real.
+    Definition is_export := find_by_word exports.
 
     Definition is_import := find_by_word imports.
 
@@ -63,8 +90,8 @@ Section TopSection.
           end
       end.
 
-  End env.
-
+  End fs.
+  
   Section f.
 
     Variable f : Func.

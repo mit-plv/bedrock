@@ -27,6 +27,8 @@ MODULES := \
 	GetLocalVars GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
 	CompileFuncImpl \
 	CompileFunc \
+	GoodFunction GoodModule \
+	Label NameDecoration \
 	CompileModule \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \

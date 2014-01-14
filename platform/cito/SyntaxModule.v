@@ -4,8 +4,8 @@ Export SyntaxFunc.
 
 Set Implicit Arguments.
 
-Record CitoModule :=
+Record Module :=
   {
-    ModuleName : string;
+    Name : string;
     Functions : list Func
   }.
