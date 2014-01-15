@@ -178,16 +178,6 @@ Section TopSection.
 
       Require Import LabelMap.
 
-      Lemma fs_funcs_ok : 
-        forall stn specs, 
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
-          interp specs (Inv.funcs_ok stn (fs stn)).
-        intros.
-        repeat step auto_ext.
-        admit.
-        admit.
-      Qed.
-
       Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
         induction ls; simpl; eauto.
         Require Import Wrap.
@@ -206,23 +196,25 @@ Section TopSection.
         unfold to_internal_func_spec; simpl.
         eauto.
 
-(*
         Transparent funcs_ok.
         Transparent inv'.
-        repeat step auto_ext.
-        descend.
+        unfold funcs_ok.
+        simpl.
+        post; descend.
+
+        apply injL; intro.
+
+        post; descend.
         instantiate 
           (1 := 
              st ~> 
                 let stn := fst st in
                 CompileFuncSpec.inv' (Semantics.ArgVars x0) (Semantics.Body x0) (Semantics.RetVar x0) (fs stn) st).
         admit.
-        unfold inv'.
-        repeat step auto_ext.
-        post.
-        apply andR; [ eapply existsR; apply injR; eauto | ]. *)
+        post; descend.
+        simpl.
+        (*here*)
 
-        eapply fs_funcs_ok; eauto.
       Qed.
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
