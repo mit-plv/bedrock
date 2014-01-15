@@ -30,6 +30,7 @@ MODULES := \
 	GoodFunction GoodModule \
 	Label NameDecoration NameVC \
 	CompileModule \
+	Stub \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
