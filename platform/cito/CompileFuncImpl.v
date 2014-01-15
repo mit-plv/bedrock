@@ -106,7 +106,7 @@ Section TopSection.
     post.
     eapply H2 in H0.
     unfold spec in *.
-    unfold inv in *.
+    unfold inv, inv' in *.
     post.
     unfold is_state in *.
     unfold stack_slot in *.
@@ -308,7 +308,7 @@ Section TopSection.
     (* vc 1 *)
     eapply H2 in H.
     unfold spec in *.
-    unfold inv in *.
+    unfold inv, inv' in *.
     unfold is_state in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
@@ -318,7 +318,7 @@ Section TopSection.
     (* vc 2 *)
     eapply H2 in H1.
     unfold spec in *.
-    unfold inv in *.
+    unfold inv, inv' in *.
     unfold is_state in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
@@ -328,7 +328,7 @@ Section TopSection.
     (* vc 3 *)
     eapply H2 in H1.
     unfold spec in *.
-    unfold inv in *.
+    unfold inv, inv' in *.
     unfold is_state in *.
     unfold stack_slot in *.
     post.

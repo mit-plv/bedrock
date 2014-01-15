@@ -86,6 +86,10 @@ Section TopSection.
           end
       end.
 
+    Lemma fs_funcs_ok : forall specs, interp specs (Inv.funcs_ok stn fs).
+      admit.
+    Qed.
+
   End fs.
 
   Section module.
@@ -101,6 +105,10 @@ Section TopSection.
         Definition spec : assert := 
           st ~> 
              let stn := fst st in
+             CompileFuncSpec.inv' (ArgVars f) (Body f) (RetVar f) (fs stn) st.
+
+(*          st ~> 
+             let stn := fst st in
              let env := (Labels stn, fs stn) in
              let vars := ArgVars f in
              let s := Body f in
@@ -114,7 +122,7 @@ Section TopSection.
                  ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
                  [| RunsTo env s v v' /\
                     st'#Sp = st#Sp /\
-                    st'#Rv = sel (fst v') ret_var |]).
+                    st'#Rv = sel (fst v') ret_var |]).*)
 
         Section body.
           
@@ -135,28 +143,86 @@ Section TopSection.
 
       End f.
 
-      Definition spec_foreign : ForeignFuncSpec -> assert.
-        admit.
-      Qed.
+      Definition to_func (spec : InternalFuncSpec) : SyntaxFunc.Func :=
+        {|
+          SyntaxFunc.Name := "";
+          SyntaxFunc.ArgVars := Semantics.ArgVars spec;
+          SyntaxFunc.RetVar := Semantics.RetVar spec;
+          SyntaxFunc.Body := Semantics.Body spec
+        |}.
+
+      Definition spec_internal (spec : InternalFuncSpec) : assert :=
+        CompileFuncSpec.inv (Semantics.ArgVars spec) (Semantics.Body spec) (Semantics.RetVar spec).
+
+      Require Import Inv.
+      Definition spec_foreign (spec : ForeignFuncSpec) : assert := 
+        (st ~> ExX, Ex pairs, Ex rp, Ex e_stack,
+         let stn := fst st in
+         let heap := make_heap pairs in
+         ![^[is_state st#Sp rp e_stack nil (empty_vs, heap) (map fst pairs) * mallocHeap 0] * #0] st /\
+         [| disjoint_ptrs pairs /\
+            PreCond spec (map snd pairs) |] /\
+         (st#Rp, stn) 
+           @@@ (
+             st' ~> Ex args', Ex addr, Ex ret, Ex rp', Ex outs,
+             let t := decide_ret addr ret in
+             let ret_w := fst t in
+             let ret_a := snd t in
+             let triples := make_triples pairs outs in
+             let heap := fold_left store_out triples heap in
+             ![^[is_state st#Sp rp' e_stack nil (empty_vs, heap) args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
+             [| length outs = length pairs /\
+                PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
+                length args' = length triples /\
+                st'#Rv = ret_w /\
+                st'#Sp = st#Sp |]))%PropX.
 
       Definition bimports : list import := 
         List.map 
           (fun (p : label * ForeignFuncSpec) => 
              let (lbl, spec) := p in
              (fst lbl, snd lbl, spec_foreign spec)) 
-          (LabelMap.elements imports).
+          (LabelMap.elements imports) 
+          ++
+          List.map 
+          (fun (p : label * InternalFuncSpec) =>
+             let (lbl, spec) := p in
+             (impl_module_name (fst lbl), snd lbl, spec_internal spec))
+          (LabelMap.elements exports).
+          
 
       Definition stubs := map make_stub (Functions m).
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
+      Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
+        induction ls; simpl; eauto.
+        Require Import Wrap.
+        wrap0.
+        Require Import LabelMap.
+        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec_internal (to_internal_func_spec a))).
+        unfold spec.
+        unfold spec_internal.
+        unfold to_internal_func_spec; simpl.
+        unfold CompileFuncSpec.inv.
+        intros.
+        destruct stn_st.
+        simpl in *.
+        Opaque funcs_ok.
+        Opaque inv'.
+        step auto_ext.
+        descend.
+        instantiate (1 := fs s).
+        eapply fs_funcs_ok.
+        eauto.
+        admit.
+      Qed.
+
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
         admit.
         admit.
-        Require Import Wrap.
-        wrap0.
-        admit.
+        eapply good_vcs.
       Qed.
 
   End module.

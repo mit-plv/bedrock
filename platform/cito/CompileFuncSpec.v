@@ -17,13 +17,12 @@ Section TopSection.
      (sp ^+ $8 ^+ $(4 * length vars)) =?> e_stack_real
     )%Sep.
 
-  Definition inv vars s ret_var : assert := 
-    st ~> Ex fs, 
-    let stn := fst st in
-    let env := (Labels stn, fs) in
-    funcs_ok stn fs /\
+  Definition inv' vars s ret_var fs : assert := 
+    st ~> 
     ExX, Ex v, Ex e_stack,
     ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
+    let stn := fst st in
+    let env := (Labels stn, fs) in
     [| Safe env s v |] /\
     (st#Rp, stn) 
       @@@ (
@@ -32,6 +31,12 @@ Section TopSection.
         [| RunsTo env s v v' /\
            st'#Sp = st#Sp /\
            st'#Rv = sel (fst v') ret_var |]).
+
+  Definition inv vars s ret_var : assert := 
+    st ~> Ex fs, 
+    let stn := fst st in
+    funcs_ok stn fs /\ 
+    inv' vars s ret_var fs st.
 
   Definition spec := inv (SyntaxFunc.ArgVars func) (SyntaxFunc.Body func) (SyntaxFunc.RetVar func).
 
