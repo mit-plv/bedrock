@@ -28,7 +28,7 @@ MODULES := \
 	CompileFuncImpl \
 	CompileFunc \
 	GoodFunction GoodModule \
-	Label NameDecoration \
+	Label NameDecoration NameVC \
 	CompileModule \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
