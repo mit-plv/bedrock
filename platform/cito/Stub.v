@@ -3,8 +3,6 @@ Require Import CompileFuncSpec.
 Set Implicit Arguments.
 
 Require Import Label.
-Definition to_lbl (l : label) : Labels.label := (fst l, Global (snd l)).
-Coercion to_lbl : label >-> Labels.label.
 
 Section TopSection.
 
@@ -14,14 +12,9 @@ Section TopSection.
   Require Import Semantics.
   Variable imports : LabelMap.t ForeignFuncSpec.
 
-  Require Import GoodFunction.
-  Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
-    {|
-      Semantics.ArgVars := ArgVars f;
-      Semantics.ArgVarsGood := NoDupArgVars f;
-      Semantics.RetVar := RetVar f;
-      Semantics.Body := Body f
-    |}.
+  Definition FName := SyntaxFunc.Name.
+
+  Definition MName := GoodModule.Name.
 
   Fixpoint flatten A (ls : list (list A)) :=
     match ls with
@@ -34,14 +27,23 @@ Section TopSection.
       (fun m p => LabelMap.add (fst p) (snd p) m)
       ls (LabelMap.empty B).
 
+  Require Import GoodFunction.
+  Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
+    {|
+      Semantics.Fun := f;
+      Semantics.NoDupArgVars := NoDupArgVars f
+    |}.
+
+  Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.
+
   Definition exports : LabelMap.t InternalFuncSpec :=
     to_map
       (flatten 
          (List.map 
             (fun m =>
                List.map 
-                 (fun f =>
-                    ((GoodModule.Name m, GoodFunction.Name f), to_internal_func_spec f)
+                 (fun (f : GoodFunction) =>
+                    ((MName m, FName f), f : InternalFuncSpec)
                  ) (Functions m)
             ) modules)).
 
@@ -51,6 +53,7 @@ Section TopSection.
 
     Variable stn : settings.
 
+    Require Import ConvertLabel Label.
     Definition labels (lbl : label) : option W := Labels stn lbl.
 
     Definition is_label_map_to_word lbl p :=
@@ -98,77 +101,47 @@ Section TopSection.
 
         Variable f : GoodFunction.
 
-        Require Import Malloc.
-        Require Import Safe.
-        Definition spec : assert := 
-          st ~> 
-             let stn := fst st in
-             CompileFuncSpec.inv' (ArgVars f) (Body f) (RetVar f) (fs stn) st.
-
         Section body.
           
           Variable im : LabelMap.LabelMap.t assert.
 
           Variable im_g : importsGlobal im.
 
-          Definition mod_name := GoodModule.Name m.
+          Definition mod_name := MName m.
 
           Require Import NameDecoration.
-          Definition tgt := ((impl_module_name mod_name)!(Name f))%SP.
+          Definition tgt := ((impl_module_name mod_name)!(FName f))%SP.
 
-          Definition spec' : assert :=
-            CompileFuncSpec.inv (ArgVars f) (Body f) (RetVar f).
-
+          Require Import AutoSep.
           Definition body := 
             @Seq_ _ im_g mod_name
-                 (AssertStar_ im mod_name accessible_labels spec')
+                 (AssertStar_ im mod_name accessible_labels (spec f))
                  (Goto_ im_g mod_name tgt).
 
         End body.
 
         Require Import StructuredModule.
         Definition make_stub : function (GoodModule.Name m) :=
-          (Name f, spec, body).
+          (FName f, spec_without_funcs_ok f fs, body).
 
       End f.
 
-      Definition spec_internal (spec : InternalFuncSpec) : assert :=
-        CompileFuncSpec.inv (Semantics.ArgVars spec) (Semantics.Body spec) (Semantics.RetVar spec).
-
       Require Import Inv.
-      Definition spec_foreign (spec : ForeignFuncSpec) : assert := 
-        (st ~> ExX, Ex pairs, Ex rp, Ex e_stack,
-         let stn := fst st in
-         let heap := make_heap pairs in
-         ![^[is_state st#Sp rp e_stack nil (empty_vs, heap) (map fst pairs) * mallocHeap 0] * #0] st /\
-         [| disjoint_ptrs pairs /\
-            PreCond spec (map snd pairs) |] /\
-         (st#Rp, stn) 
-           @@@ (
-             st' ~> Ex args', Ex addr, Ex ret, Ex rp', Ex outs,
-             let t := decide_ret addr ret in
-             let ret_w := fst t in
-             let ret_a := snd t in
-             let triples := make_triples pairs outs in
-             let heap := fold_left store_out triples heap in
-             ![^[is_state st#Sp rp' e_stack nil (empty_vs, heap) args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
-             [| length outs = length pairs /\
-                PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
-                length args' = length triples /\
-                st'#Rv = ret_w /\
-                st'#Sp = st#Sp |]))%PropX.
+
+      Definition foreign_spec spec : assert := 
+        st ~> ExX, Inv.foreign_spec _ spec st.
 
       Definition bimports : list import := 
         List.map 
           (fun (p : label * ForeignFuncSpec) => 
              let (lbl, spec) := p in
-             (fst lbl, snd lbl, spec_foreign spec)) 
+             (fst lbl, snd lbl, foreign_spec spec)) 
           (LabelMap.elements imports) 
           ++
           List.map 
           (fun (p : label * InternalFuncSpec) =>
              let (lbl, spec) := p in
-             (impl_module_name (fst lbl), snd lbl, spec_internal spec))
+             (impl_module_name (fst lbl), snd lbl, CompileFuncSpec.spec spec))
           (LabelMap.elements exports).
           
 
@@ -182,41 +155,43 @@ Section TopSection.
         induction ls; simpl; eauto.
         Require Import Wrap.
         Opaque funcs_ok.
-        Opaque inv'.
+        Opaque spec_without_funcs_ok.
         wrap0.
         descend.
-        instantiate (1 := fs a0).
+        instantiate (1 := fs).
 
         2 : eauto.
 
         Focus 2.
-        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec_internal (to_internal_func_spec a))) by admit.
-        unfold spec'.
-        unfold spec_internal.
-        unfold to_internal_func_spec; simpl.
+        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec a)) by admit.
         eauto.
 
         Transparent funcs_ok.
-        Transparent inv'.
+        Transparent spec_without_funcs_ok.
         unfold funcs_ok.
-        simpl.
         post; descend.
 
         apply injL; intro.
-
+        Opaque internal_spec.
         post; descend.
-        instantiate 
-          (1 := 
-             st ~> 
-                let stn := fst st in
-                CompileFuncSpec.inv' (Semantics.ArgVars x0) (Semantics.Body x0) (Semantics.RetVar x0) (fs stn) st).
+        instantiate (1 := spec_without_funcs_ok x1 fs).
         admit.
-        post; descend.
-        simpl.
-        (*here*)
-        admit.
-        admit.
+        unfold spec_without_funcs_ok at 2.
+        step auto_ext.
+        Transparent internal_spec.
+        step auto_ext.
+        rewrite sepFormula_eq; apply Imply_refl.
 
+        apply injL; intro.
+        Opaque Inv.foreign_spec.
+        post; descend.
+        instantiate (1 := foreign_spec x1).
+        admit.
+        unfold foreign_spec.
+        step auto_ext.
+        Transparent Inv.foreign_spec.
+        step auto_ext.
+        rewrite sepFormula_eq; apply Imply_refl.
       Qed.
 
       Theorem make_module_ok : XCAP.moduleOk make_module.

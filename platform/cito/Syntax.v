@@ -1,6 +1,7 @@
 Require Import String.
 Require Import SyntaxExpr.
-Require Import Labels.
+Require Import Label.
+Export SyntaxExpr.
 
 Inductive Stmt : Set := 
   | Skip : Stmt

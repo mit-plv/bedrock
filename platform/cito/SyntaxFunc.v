@@ -1,14 +1,15 @@
+Set Implicit Arguments.
+
 Require Import Syntax.
 Require Import String.
-Export Syntax.
-
-Set Implicit Arguments.
+Require Import FuncCore.
+Export Syntax FuncCore.
 
 Record Func := 
   {
     Name : string;
-    ArgVars : list string;
-    RetVar : string;
-    Body : Stmt
+    Core : FuncCore
   }.
+
+Coercion Core : Func >-> FuncCore.
 

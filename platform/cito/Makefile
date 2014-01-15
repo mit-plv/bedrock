@@ -2,7 +2,8 @@ BEDROCK := ../..
 
 MODULES := \
 	StringSet ValsStringSet SetUtil \
-	SyntaxExpr Syntax SemanticsExpr Semantics Safe \
+	Label ConvertLabel \
+	SyntaxExpr Syntax SemanticsExpr FuncCore Semantics Safe \
 	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
 	Layout Inv \
@@ -28,7 +29,7 @@ MODULES := \
 	CompileFuncImpl \
 	CompileFunc \
 	GoodFunction GoodModule \
-	Label NameDecoration NameVC \
+	NameDecoration NameVC \
 	CompileModule \
 	Stub \
 	# SafeCoind \

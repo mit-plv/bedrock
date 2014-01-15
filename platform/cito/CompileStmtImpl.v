@@ -39,12 +39,12 @@ Section Body.
 
   Definition after_call ret k : assert :=
     st ~> Ex fs, 
-    let stn := fst st in
-    let env := (Labels stn, fs) in
-    funcs_ok stn fs /\
+    funcs_ok fs /\
     ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
     let old_sp := st#Sp ^- frame_len_w in
-    ![^[is_state old_sp rp e_stack vars (vs, heap1) temps * is_heap heap2 * layout_option ret_w ret_a * mallocHeap 0] * #0] st /\
+    ![^[is_state old_sp rp e_stack e_stack vars (vs, heap1) temps * is_heap heap2 * layout_option ret_w ret_a * mallocHeap 0] * #0] st /\
+    let stn := fst st in
+    let env := (ConvertLabel.from_bedrock_label_map (Labels stn), fs stn) in
     [| let vs := upd_option vs ret st#Rv in
        let heap12 := heap_merge heap1 heap2 in
        let heap := heap_upd_option heap12 ret_w ret_a in
@@ -54,7 +54,7 @@ Section Body.
     (rp, stn) 
       @@@ (
         st' ~> Ex v', Ex temps',
-        ![^[is_state st'#Sp rp e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
+        ![^[is_state st'#Sp rp e_stack e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
         [| let vs := upd_option vs ret st#Rv in
            let heap12 := heap_merge heap1 heap2 in
            let heap := heap_upd_option heap12 ret_w ret_a in
@@ -102,6 +102,7 @@ Section Body.
   Local Open Scope stmt.
   Local Open Scope nat.
 
+  Require Import ConvertLabel.
   Fixpoint compile s k :=
     match s with
       | Syntax.Skip => 
@@ -126,11 +127,11 @@ Section Body.
                 args 0 (callee_stack_start + 8)
                 :: compile_expr f 0
                 :: Strline
-                (Binop 
+                (IL.Binop 
                    (callee_stack_slot 1) (stack_slot 1) Minus callee_frame_len
-                   :: Binop Sp Sp Plus frame_len_w :: nil)
+                   :: IL.Binop Sp Sp Plus frame_len_w :: nil)
                 :: Structured.ICall_ imports modName Rv (after_call var k)
-                :: Strline (Binop Sp Sp Minus frame_len_w :: nil)
+                :: Strline (IL.Binop Sp Sp Minus frame_len_w :: nil)
                 :: SaveRet.compile vars var imports_global modName :: nil))
       | Syntax.Label x lbl =>
         Strline (IL.Assign (var_slot x) lbl :: nil)

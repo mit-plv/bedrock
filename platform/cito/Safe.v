@@ -1,6 +1,7 @@
 Require Import Semantics.
 Require Import Syntax SemanticsExpr.
 Require Import Memory IL List.
+Require Import Label.
 
 Section Env.
 
