@@ -45,6 +45,8 @@ Section TopSection.
                  ) (Functions m)
             ) modules)).
 
+  Definition accessible_labels := map fst (LabelMap.elements imports) ++ map fst (LabelMap.elements exports).
+
   Section fs.
 
     Variable stn : settings.
@@ -86,10 +88,6 @@ Section TopSection.
           end
       end.
 
-    Lemma fs_funcs_ok : forall specs, interp specs (Inv.funcs_ok stn fs).
-      admit.
-    Qed.
-
   End fs.
 
   Section module.
@@ -107,33 +105,24 @@ Section TopSection.
              let stn := fst st in
              CompileFuncSpec.inv' (ArgVars f) (Body f) (RetVar f) (fs stn) st.
 
-(*          st ~> 
-             let stn := fst st in
-             let env := (Labels stn, fs stn) in
-             let vars := ArgVars f in
-             let s := Body f in
-             let ret_var := RetVar f in
-             ExX, Ex v, Ex e_stack,
-             ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
-             [| Safe env s v |] /\
-             (st#Rp, stn) 
-               @@@ (
-                 st' ~> Ex v', Ex e_stack',
-                 ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
-                 [| RunsTo env s v v' /\
-                    st'#Sp = st#Sp /\
-                    st'#Rv = sel (fst v') ret_var |]).*)
-
         Section body.
           
           Variable im : LabelMap.LabelMap.t assert.
 
           Variable im_g : importsGlobal im.
 
-          Require Import NameDecoration.
-          Definition tgt := ((impl_module_name (GoodModule.Name m))!(Name f))%SP.
+          Definition mod_name := GoodModule.Name m.
 
-          Definition body := Goto_ im_g (GoodModule.Name m) tgt.
+          Require Import NameDecoration.
+          Definition tgt := ((impl_module_name mod_name)!(Name f))%SP.
+
+          Definition spec' : assert :=
+            CompileFuncSpec.inv (ArgVars f) (Body f) (RetVar f).
+
+          Definition body := 
+            @Seq_ _ im_g mod_name
+                 (AssertStar_ im mod_name accessible_labels spec')
+                 (Goto_ im_g mod_name tgt).
 
         End body.
 
@@ -142,14 +131,6 @@ Section TopSection.
           (Name f, spec, body).
 
       End f.
-
-      Definition to_func (spec : InternalFuncSpec) : SyntaxFunc.Func :=
-        {|
-          SyntaxFunc.Name := "";
-          SyntaxFunc.ArgVars := Semantics.ArgVars spec;
-          SyntaxFunc.RetVar := Semantics.RetVar spec;
-          SyntaxFunc.Body := Semantics.Body spec
-        |}.
 
       Definition spec_internal (spec : InternalFuncSpec) : assert :=
         CompileFuncSpec.inv (Semantics.ArgVars spec) (Semantics.Body spec) (Semantics.RetVar spec).
@@ -195,27 +176,53 @@ Section TopSection.
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
+      Require Import LabelMap.
+
+      Lemma fs_funcs_ok : 
+        forall stn specs, 
+          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          interp specs (Inv.funcs_ok stn (fs stn)).
+        intros.
+        repeat step auto_ext.
+        admit.
+        admit.
+      Qed.
+
       Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
         induction ls; simpl; eauto.
         Require Import Wrap.
-        wrap0.
-        Require Import LabelMap.
-        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec_internal (to_internal_func_spec a))).
-        unfold spec.
-        unfold spec_internal.
-        unfold to_internal_func_spec; simpl.
-        unfold CompileFuncSpec.inv.
-        intros.
-        destruct stn_st.
-        simpl in *.
         Opaque funcs_ok.
         Opaque inv'.
-        step auto_ext.
+        wrap0.
         descend.
-        instantiate (1 := fs s).
-        eapply fs_funcs_ok.
+        instantiate (1 := fs a0).
+
+        2 : eauto.
+
+        Focus 2.
+        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec_internal (to_internal_func_spec a))) by admit.
+        unfold spec'.
+        unfold spec_internal.
+        unfold to_internal_func_spec; simpl.
         eauto.
+
+(*
+        Transparent funcs_ok.
+        Transparent inv'.
+        repeat step auto_ext.
+        descend.
+        instantiate 
+          (1 := 
+             st ~> 
+                let stn := fst st in
+                CompileFuncSpec.inv' (Semantics.ArgVars x0) (Semantics.Body x0) (Semantics.RetVar x0) (fs stn) st).
         admit.
+        unfold inv'.
+        repeat step auto_ext.
+        post.
+        apply andR; [ eapply existsR; apply injR; eauto | ]. *)
+
+        eapply fs_funcs_ok; eauto.
       Qed.
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
