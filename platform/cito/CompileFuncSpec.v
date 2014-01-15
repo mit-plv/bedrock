@@ -6,39 +6,15 @@ Set Implicit Arguments.
 
 Section TopSection.
 
-  Variable func : Func.
+  Variable func : FuncCore.
 
-  Definition is_state sp e_stack e_stack_real vars (v : State) : HProp :=
-    (
-     locals vars (fst v) 0 (sp ^+ $8) *
-     is_heap (snd v) *
-     sp =?> 1 *
-     (sp ^+ $4) =*> $(e_stack) *
-     (sp ^+ $8 ^+ $(4 * length vars)) =?> e_stack_real
-    )%Sep.
+  Definition spec_without_funcs_ok fs : assert := 
+    st ~> ExX, internal_spec _ fs func st.
 
-  Definition inv' vars s ret_var fs : assert := 
-    st ~> 
-    ExX, Ex v, Ex e_stack,
-    ![^[is_state st#Sp e_stack e_stack vars v * mallocHeap 0] * #0] st /\
-    let stn := fst st in
-    let env := (Labels stn, fs) in
-    [| Safe env s v |] /\
-    (st#Rp, stn) 
-      @@@ (
-        st' ~> Ex v', Ex e_stack',
-        ![^[is_state st'#Sp e_stack' e_stack vars v' * mallocHeap 0] * #1] st' /\
-        [| RunsTo env s v v' /\
-           st'#Sp = st#Sp /\
-           st'#Rv = sel (fst v') ret_var |]).
-
-  Definition inv vars s ret_var : assert := 
+  Definition spec : assert := 
     st ~> Ex fs, 
-    let stn := fst st in
-    funcs_ok stn fs /\ 
-    inv' vars s ret_var fs st.
-
-  Definition spec := inv (SyntaxFunc.ArgVars func) (SyntaxFunc.Body func) (SyntaxFunc.RetVar func).
+    funcs_ok fs /\ 
+    spec_without_funcs_ok fs st.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 

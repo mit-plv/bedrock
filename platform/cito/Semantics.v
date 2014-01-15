@@ -1,11 +1,12 @@
 Require Import Syntax SemanticsExpr.
 Require Import IL Memory String Word Locals List.
+Require Import Label.
 
 Set Implicit Arguments.
 
 Record ADT := 
   {
-    Model : Set
+    Model : Type
   }.
 
 Record ADTValue := 
@@ -46,13 +47,15 @@ Record ForeignFuncSpec :=
     PostCond : list (ArgIn * ArgOut) -> Ret -> Prop
   }.
 
+Require Import FuncCore.
+Export FuncCore.
 Record InternalFuncSpec := 
   {
-    ArgVars : list string;
-    ArgVarsGood : NoDup ArgVars;
-    RetVar : string;
-    Body : Stmt
+    Fun : FuncCore;
+    NoDupArgVars : NoDup (ArgVars Fun)
   }.
+
+Coercion Fun : InternalFuncSpec >-> FuncCore.
 
 Inductive Callee := 
   | Foreign : ForeignFuncSpec -> Callee
