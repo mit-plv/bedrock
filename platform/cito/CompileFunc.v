@@ -17,7 +17,7 @@ Section TopSection.
 
   Hypothesis good_optimizer : GoodOptimizer optimizer.
 
-  Definition body := body module_name good_func good_optimizer.
+  Definition body := body func module_name good_func good_optimizer.
 
   Require Import CompileFuncSpec.
   Require Import StructuredModule.

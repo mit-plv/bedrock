@@ -21,9 +21,10 @@ Section TopSection.
   Require Import NameDecoration.
   Definition mod_name := impl_module_name (Name module).
 
-  Definition compile_func' f (good_func : GoodFunc f) := CompileFunc.compile mod_name good_func good_optimizer.
+  Definition compile_func' (f : Func) (good_func : GoodFunc f) := CompileFunc.compile mod_name f good_func good_optimizer.
 
-  Definition compile_func (p : GoodFunction.GoodFunction) := compile_func' (GoodFunction.to_func_good p).
+  Require Import GoodFunction.
+  Definition compile_func (f : GoodFunction) := compile_func' f (to_func_good f).
 
   Definition compiled_funcs := map compile_func (Functions module).
 

@@ -103,13 +103,16 @@ Section TopSection.
     Transparent evalInstrs.
     simpl.
     repeat rewrite wplus_assoc in *.
+    Require Import ConvertLabel.
+    unfold from_bedrock_label_map in *.
     rewrite H.
     eauto.
     Opaque evalInstrs.
+    unfold from_bedrock_label_map in *.
     hiding ltac:(evaluate auto_ext).
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
+    instantiate (6 := (_, _)); simpl.
     match goal with
       | H : Regs s1 Sp = _ |- _ => rewrite H in *
     end.
@@ -159,8 +162,8 @@ Section TopSection.
     hiding ltac:(evaluate auto_ext).
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
-    instantiate (6 := upd_sublist _ _ _).
+    instantiate (6 := (_, _)); simpl.
+    instantiate (7 := upd_sublist _ _ _).
     rewrite length_upd_sublist.
     match goal with
       | H : Regs s1 Sp = _ |- _ => rewrite H in *
@@ -199,10 +202,10 @@ Section TopSection.
     openhyp.
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
+    instantiate (6 := (_, _)); simpl.
     rewrite <- H in *.
     rewrite <- H1 in *.
-    instantiate (5 := heap_upd_option (heap_merge x5 x6) x10 x11).
+    instantiate (6 := heap_upd_option (heap_merge x5 x6) x10 x11).
     set (upd_option _ _ _) in H11.
 
     repeat hiding ltac:(step auto_ext).
@@ -313,9 +316,9 @@ Section TopSection.
     post.
     descend.
     eauto.
-    instantiate (5 := (_, _)).
+    instantiate (6 := (_, _)).
     simpl.
-    instantiate (6 := upd_sublist _ _ _).
+    instantiate (7 := upd_sublist _ _ _).
     rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
 
@@ -356,9 +359,9 @@ Section TopSection.
     post.
     descend.
     eauto.
-    instantiate (5 := (_, _)).
+    instantiate (6 := (_, _)).
     simpl.
-    instantiate (6 := upd_sublist _ _ _).
+    instantiate (7 := upd_sublist _ _ _).
     rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
 
