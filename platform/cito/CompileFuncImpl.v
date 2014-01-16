@@ -22,7 +22,7 @@ Section TopSection.
 
   Variable imports_global : importsGlobal imports.
 
-  Definition body_stmt := optimizer (Body func).
+  Definition body_stmt := optimizer (Body func) (RetVar func).
 
   Definition local_vars := get_local_vars body_stmt (ArgVars func) (RetVar func).
 
@@ -299,16 +299,18 @@ Section TopSection.
     hiding ltac:(step hints_elim_locals).
 
     destruct_state.
-    descend.
     auto_apply_in RunsTo_Seq_Skip_RunsTo.
-    unfold body_stmt in *.
     auto_apply_in GoodOptimizer_RunsTo.
-    destruct_state.
+    2 : eauto.
+    Require Import GeneralTactics.
+    openhyp.
+    simpl in *.
+    descend.
+    unfold body_stmt in *.
     eapply GoodFunc_RunsTo; eauto.
     eapply agree_in_comm.
     eapply agree_in_merge.
-    eauto.
-    eauto.
+    congruence.
 
     (* vc 1 *)
     eapply H2 in H.
