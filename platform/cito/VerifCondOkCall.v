@@ -72,14 +72,14 @@ Section TopSection.
   Transparent funcs_ok.
   Ltac unfold_funcs_ok :=
     match goal with 
-      | H : interp _ (funcs_ok _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
+      | H : interp _ (funcs_ok _ _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
     end.
   Opaque funcs_ok.
 
   Ltac specialize_funcs_ok :=
     match goal with
       | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
-        specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
+        specialize (Imply_sound (H _ _ _) (Inj_I _ _ H2)); propxFo
     end.
 
   Ltac hide_map :=
@@ -394,7 +394,7 @@ Section TopSection.
     Ltac specialize_funcs_ok' :=
       match goal with
         | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
-          specialize (Imply_sound (H _ _ _) (Inj_I _ _ H2)); propxFo
+          specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
       end.
 
     specialize_funcs_ok'.

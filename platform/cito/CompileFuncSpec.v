@@ -13,7 +13,8 @@ Section TopSection.
 
   Definition spec : assert := 
     st ~> Ex fs, 
-    funcs_ok fs /\ 
+    let stn := fst st in
+    funcs_ok stn fs /\ 
     spec_without_funcs_ok fs st.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).

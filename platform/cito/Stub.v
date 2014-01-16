@@ -36,18 +36,17 @@ Section TopSection.
 
   Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.
 
-  Definition exports : LabelMap.t InternalFuncSpec :=
-    to_map
-      (flatten 
-         (List.map 
-            (fun m =>
-               List.map 
-                 (fun (f : GoodFunction) =>
-                    ((MName m, FName f), f : InternalFuncSpec)
-                 ) (Functions m)
-            ) modules)).
+  Definition exports : list (label * InternalFuncSpec) :=
+    flatten 
+      (List.map 
+         (fun m =>
+            List.map 
+              (fun (f : GoodFunction) =>
+                 ((MName m, FName f), f : InternalFuncSpec)
+              ) (Functions m)
+         ) modules).
 
-  Definition accessible_labels := map fst (LabelMap.elements imports) ++ map fst (LabelMap.elements exports).
+  Definition accessible_labels := map fst (LabelMap.elements imports) ++ map fst exports.
 
   Section fs.
 
@@ -68,18 +67,18 @@ Section TopSection.
 
     Definition pair_recur A B C f (p : A * B) : C := f (fst p) (snd p).
 
-    Definition map_find A f (m : LabelMap.t A) : option (label * A) :=
-      List.find (pair_recur f) (LabelMap.elements m).
+    Definition find_pair A f m : option (label * A) :=
+      List.find (pair_recur f) m.
 
-    Definition find_by_word A (m : LabelMap.t A) (p : W) :=
-      match map_find (fun lbl _ => is_label_map_to_word lbl p) m with
+    Definition find_by_word A m (p : W) : option A :=
+      match find_pair (fun lbl _ => is_label_map_to_word lbl p) m with
         | Some (_, a) => Some a
         | None => None
       end.
 
     Definition is_export := find_by_word exports.
 
-    Definition is_import := find_by_word imports.
+    Definition is_import := find_by_word (LabelMap.elements imports).
 
     Definition fs (p : W) : option Callee :=
       match is_export p with
@@ -142,7 +141,7 @@ Section TopSection.
           (fun (p : label * InternalFuncSpec) =>
              let (lbl, spec) := p in
              (impl_module_name (fst lbl), snd lbl, CompileFuncSpec.spec spec))
-          (LabelMap.elements exports).
+          exports.
           
 
       Definition stubs := map make_stub (Functions m).
@@ -154,7 +153,7 @@ Section TopSection.
       Lemma fs_funcs_ok : 
         forall specs stn,
           augment (fullImports bimports stubs) specs stn accessible_labels ->
-          interp specs (funcs_ok fs).
+          interp specs (funcs_ok stn fs).
       Proof.
         unfold funcs_ok.
         post; descend.
@@ -162,7 +161,11 @@ Section TopSection.
         apply injL; intro.
         Opaque internal_spec.
         post; descend.
-        instantiate (1 := spec_without_funcs_ok x1 fs).
+        instantiate (1 := spec_without_funcs_ok x0 fs).
+(*         Lemma specs_internal : *)
+(*           forall specs stn p spec, *)
+(*             augment (fullImports bimports stubs) specs stn accessible_labels *)
+(* fs x0 x = Some (Internal x1) *)
         admit.
         unfold spec_without_funcs_ok at 2.
         step auto_ext.
@@ -173,7 +176,7 @@ Section TopSection.
         apply injL; intro.
         Opaque Inv.foreign_spec.
         post; descend.
-        instantiate (1 := foreign_spec x1).
+        instantiate (1 := foreign_spec x0).
         admit.
         unfold foreign_spec.
         step auto_ext.

@@ -99,11 +99,11 @@ Section TopSection.
      Al st : state, AlX : settings * smem,
      a (stn, st) ---> #1 (stn, st))%PropX.
     
-  Definition funcs_ok (fs : settings -> W -> option Callee) : PropX W (settings * state) := 
-    ((Al i, Al stn, Al spec,
+  Definition funcs_ok stn (fs : settings -> W -> option Callee) : PropX W (settings * state) := 
+    ((Al i, Al spec,
       [| fs stn i = Some (Internal spec) |] 
         ---> cptr_AlX i stn (internal_spec _ fs spec)) /\
-     (Al i, Al stn, Al spec, 
+     (Al i, Al spec, 
       [| fs stn i = Some (Foreign spec) |] 
         ---> cptr_AlX i stn (foreign_spec _ spec)))%PropX.
 
@@ -115,10 +115,10 @@ Section TopSection.
 
     Definition inv_template rv_precond rv_postcond s : assert := 
       st ~> Ex fs, 
-      funcs_ok fs /\
+      let stn := fst st in
+      funcs_ok stn fs /\
       ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
       ![^[is_state st#Sp rp e_stack e_stack vars v temps * mallocHeap 0] * #0] st /\
-      let stn := fst st in
       let env := (from_bedrock_label_map (Labels stn), fs stn) in
       [| Safe env s v /\
          length temps = temp_size /\
