@@ -151,23 +151,11 @@ Section TopSection.
 
       Require Import LabelMap.
 
-      Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
-        induction ls; simpl; eauto.
-        Require Import Wrap.
-        Opaque funcs_ok.
-        Opaque spec_without_funcs_ok.
-        wrap0.
-        descend.
-        instantiate (1 := fs).
-
-        2 : eauto.
-
-        Focus 2.
-        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec a)) by admit.
-        eauto.
-
-        Transparent funcs_ok.
-        Transparent spec_without_funcs_ok.
+      Lemma fs_funcs_ok : 
+        forall specs stn,
+          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          interp specs (funcs_ok fs).
+      Proof.
         unfold funcs_ok.
         post; descend.
 
@@ -193,6 +181,22 @@ Section TopSection.
         step auto_ext.
         rewrite sepFormula_eq; apply Imply_refl.
       Qed.
+
+      Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
+        induction ls; simpl; eauto.
+        Require Import Wrap.
+        Opaque funcs_ok.
+        Opaque spec_without_funcs_ok.
+        wrap0.
+        descend.
+
+        eapply fs_funcs_ok; eauto.
+
+        eauto.
+
+        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec a)) by admit.
+        eauto.
+      Qed.        
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
