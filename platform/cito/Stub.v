@@ -65,13 +65,8 @@ Section TopSection.
         | None => false
       end.
 
-    Definition pair_recur A B C f (p : A * B) : C := f (fst p) (snd p).
-
-    Definition find_pair A f m : option (label * A) :=
-      List.find (pair_recur f) m.
-
     Definition find_by_word A m (p : W) : option A :=
-      match find_pair (fun lbl _ => is_label_map_to_word lbl p) m with
+      match find (fun x => is_label_map_to_word (fst x) p) m with
         | Some (_, a) => Some a
         | None => None
       end.
@@ -150,6 +145,55 @@ Section TopSection.
 
       Require Import LabelMap.
 
+      Definition find_as_map B k (ls : list (label * B)) : option B :=
+        match find (fun p => if Label.Key.eq_dec k (fst p) then true else false) ls with
+          | Some (_, v) => Some v
+          | None => None
+        end.
+
+      Lemma fs_internal : 
+        forall stn p spec, 
+          fs stn p = Some (Internal spec) -> 
+          exists lbl, 
+            find_as_map lbl exports = Some spec /\ 
+            Labels stn lbl = Some p.
+        admit.
+      Qed.
+
+      Lemma augment_elim : 
+        forall imps specs stn lbls (l : label) p spec,
+          augment imps specs stn lbls ->
+          List.In l lbls ->
+          Labels stn l = Some p ->
+          LabelMap.find (l : Labels.label) imps = Some spec ->
+          specs p = Some spec.
+        admit.
+      Qed.
+
+      Lemma exports_accessible_labels : forall l, find_as_map l exports <> None -> In l accessible_labels.
+        admit.
+      Qed.
+      
+      Lemma exports_fullImports : forall l spec, find_as_map l exports = Some spec -> LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
+        admit.
+      Qed.
+
+      Lemma specs_internal :
+        forall specs stn p spec,
+          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          fs stn p = Some (Internal spec) ->
+          specs p = Some (spec_without_funcs_ok spec fs).
+      Proof.
+        intros.
+        eapply fs_internal in H0.
+        Require Import GeneralTactics.
+        openhyp.
+        eapply augment_elim in H; eauto.
+        eapply exports_accessible_labels.
+        intuition.
+        eapply exports_fullImports; eauto.
+      Qed.
+
       Lemma fs_funcs_ok : 
         forall specs stn,
           augment (fullImports bimports stubs) specs stn accessible_labels ->
@@ -161,12 +205,8 @@ Section TopSection.
         apply injL; intro.
         Opaque internal_spec.
         post; descend.
-        instantiate (1 := spec_without_funcs_ok x0 fs).
-(*         Lemma specs_internal : *)
-(*           forall specs stn p spec, *)
-(*             augment (fullImports bimports stubs) specs stn accessible_labels *)
-(* fs x0 x = Some (Internal x1) *)
-        admit.
+        erewrite specs_internal; eauto.
+
         unfold spec_without_funcs_ok at 2.
         step auto_ext.
         Transparent internal_spec.
@@ -178,6 +218,7 @@ Section TopSection.
         post; descend.
         instantiate (1 := foreign_spec x0).
         admit.
+
         unfold foreign_spec.
         step auto_ext.
         Transparent Inv.foreign_spec.
