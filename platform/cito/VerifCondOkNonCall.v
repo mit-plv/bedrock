@@ -203,8 +203,8 @@ Section TopSection.
     hide_upd_sublist.
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
-    instantiate (6 := l).
+    instantiate (6 := (_, _)); simpl.
+    instantiate (7 := l).
     unfold_all; repeat rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
     find_cond.
@@ -237,8 +237,8 @@ Section TopSection.
     hide_upd_sublist.
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
-    instantiate (6 := l).
+    instantiate (6 := (_, _)); simpl.
+    instantiate (7 := l).
     unfold_all; repeat rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
     find_cond.
@@ -307,8 +307,8 @@ Section TopSection.
     hide_upd_sublist.
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
-    instantiate (6 := l).
+    instantiate (6 := (_, _)); simpl.
+    instantiate (7 := l).
     unfold_all; repeat rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
     eauto.
@@ -337,8 +337,8 @@ Section TopSection.
     hide_upd_sublist.
     descend.
     eauto.
-    instantiate (5 := (_, _)); simpl.
-    instantiate (6 := l).
+    instantiate (6 := (_, _)); simpl.
+    instantiate (7 := l).
     unfold_all; repeat rewrite length_upd_sublist.
     repeat hiding ltac:(step auto_ext).
     eauto.

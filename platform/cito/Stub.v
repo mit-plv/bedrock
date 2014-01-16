@@ -31,7 +31,7 @@ Section TopSection.
   Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
     {|
       Semantics.Fun := f;
-      Semantics.NoDupArgVars := NoDupArgVars f
+      Semantics.NoDupArgVars := proj1 (IsGoodFunc f)
     |}.
 
   Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.

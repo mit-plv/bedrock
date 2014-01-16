@@ -72,7 +72,7 @@ Section TopSection.
   Transparent funcs_ok.
   Ltac unfold_funcs_ok :=
     match goal with 
-      | H : interp _ (funcs_ok _ _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
+      | H : interp _ (funcs_ok _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
     end.
   Opaque funcs_ok.
 
@@ -391,18 +391,26 @@ Section TopSection.
     simpl in *.
     repeat rewrite wplus_assoc in *.
     post.
-    specialize_funcs_ok.
+    Ltac specialize_funcs_ok' :=
+      match goal with
+        | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
+          specialize (Imply_sound (H _ _ _) (Inj_I _ _ H2)); propxFo
+      end.
+
+    specialize_funcs_ok'.
     descend.
     rewriter.
     eauto.
+    eapply Imply_sound.
+    eauto.
     hiding ltac:(step auto_ext).
-
+    
     hide_upd_sublist.
     set (arr := map _ _) in *.
     set (avars := ArgVars _) in *.
     Require Import SepHints3.
     rewrite (@replace_array_to_locals arr _ avars) in H7.
-    assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply (ArgVarsGood _) ]).
+    assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply (NoDupArgVars _) ]).
     hiding ltac:(evaluate hints_array_to_locals).
     fold (@skipn W) in *.
 
@@ -633,11 +641,14 @@ Section TopSection.
     simpl in *.
     repeat rewrite wplus_assoc in *.
     post.
-    specialize_funcs_ok.
+    specialize_funcs_ok'.
     descend.
     rewriter.
     eauto.
-    step auto_ext.
+    eapply Imply_sound.
+    eauto.
+    hiding ltac:(step auto_ext).
+
     descend.
     clear_Imply.
     clear_evalInstrs.

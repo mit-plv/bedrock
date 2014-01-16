@@ -7,29 +7,25 @@ Export SyntaxFunc.
 Record GoodFunction := 
   {
     Fun : Func;
-    NoDupArgVars : NoDup (ArgVars Fun);
-    WellFormedBody : WellFormed (Body Fun)
+    IsGoodFunc : GoodFunc Fun
   }.
 
 Coercion Fun : GoodFunction >-> Func.
     
 Definition to_good_function (f : Func) : GoodFunc f -> GoodFunction.
-    intros.
-    destruct H.
-    econstructor.
-    eauto.
-    eauto.
+  intros.
+  econstructor.
+  eauto.
 Defined.
 
-Lemma to_good_function_name : forall (f : Func) (H : GoodFunc f), Name (to_good_function f H) = SyntaxFunc.Name f.
-  intros.
-  destruct H.
-  unfold to_good_function.
+Lemma to_good_function_fun : forall (f : Func) (H : GoodFunc f), Fun (to_good_function f H) = f.
+  eauto.
+Qed.
+
+Lemma to_good_function_name : forall (f : Func) (H : GoodFunc f), Name (to_good_function f H) = Name f.
   eauto.
 Qed.
 
 Lemma to_func_good : forall (f : GoodFunction), GoodFunc f.
-  intros.
-  destruct f.
-  split; simpl; eauto.
+  intros; destruct f; eauto.
 Qed.    

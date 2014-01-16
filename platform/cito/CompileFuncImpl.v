@@ -66,7 +66,7 @@ Section TopSection.
       stack_needed
       (Seq
          (Strline 
-            (Binop (stack_slot 1) (stack_slot 1) Minus stack_needed /\
+            (IL.Binop (stack_slot 1) (stack_slot 1) Minus stack_needed /\
              IL.Assign (stack_slot 0) Rp /\ nil) /\
           compile_stmt body_stmt /\
           Strline 
@@ -78,9 +78,9 @@ Section TopSection.
 
   Lemma verifCond_ok : forall pre : assert, vcs (verifCond func pre) -> vcs (VerifCond (body' pre)).
   Proof.
-    Require Inv.
+    Require Import Inv.
 
-    Opaque Inv.funcs_ok.
+    Opaque funcs_ok.
     Opaque mult.
 
     Require Import WordFacts.
@@ -106,13 +106,17 @@ Section TopSection.
     post.
     eapply H2 in H0.
     unfold spec in *.
-    unfold inv, inv' in *.
+    unfold spec_without_funcs_ok in *.
+    unfold internal_spec in *.
     post.
     unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold stack_slot in *.
+    destruct_state.
+    simpl in *.
     rewrite fold_4_mult_1 in *.
     rewrite mult_0_r in *.
-    destruct_state.
+    rewrite plus_0_r in *.
     hiding ltac:(evaluate auto_ext).
     fold (@length string) in *.
     rewrite_natToW_plus.
@@ -126,15 +130,15 @@ Section TopSection.
     Require Import SepHints2.
     set (len_args := length (ArgVars func)) in *.
     set (w := Regs x1 _ ^+ _ ^+ _) in *.
-    replace (w =?> x5)%Sep with (buf_to_split w x5 len_local_vars) in * by (unfold buf_to_split; eauto).
-    assert (buf_splittable x5 len_local_vars) by (unfold buf_splittable; eauto).
+    replace (w =?> x6)%Sep with (buf_to_split w x6 len_local_vars) in * by (unfold buf_to_split; eauto).
+    assert (buf_splittable x6 len_local_vars) by (unfold buf_splittable; eauto).
     Require Import SepHints5.
     hiding ltac:(evaluate hints_split_buf).
     rewrite fold_4_mult in *.
 
     unfold_all.
     set (w := Regs x1 _ ^+ _ ^+ _ ^+ _) in *.
-    set (buf := x5 - _) in *.
+    set (buf := x6 - _) in *.
     replace (w =?> buf)%Sep with (buf_to_split w buf temp_size) in * by (unfold buf_to_split; eauto).
     assert (buf_splittable buf temp_size) by (unfold buf_splittable; eauto).
     hiding ltac:(evaluate hints_split_buf).
@@ -196,7 +200,7 @@ Section TopSection.
     fold (@app string) in *.
     fold (@length W) in *.
 
-    instantiate (1 := merge v x7 (ArgVars func)).
+    instantiate (1 := merge v x5 (ArgVars func)).
     set (avars := ArgVars _) in *.
     rewrite wplus_0 in *.
     set (w := Regs _ _ ^+ natToW 8) in *.
@@ -205,6 +209,7 @@ Section TopSection.
 
     hiding ltac:(step hints_combine_locals).
     rewrite fold_4_mult in *.
+    unfold len_local_vars.
     repeat hiding ltac:(step auto_ext).
 
     eapply Safe_Seq_Skip_Safe.
@@ -220,9 +225,6 @@ Section TopSection.
     hiding ltac:(step auto_ext).
     hiding ltac:(step auto_ext).
     hiding ltac:(step auto_ext).
-
-    unfold Inv.is_state in *.
-    unfold Inv.has_extra_stack in *.
 
     rewrite fold_locals_to_split.
 
@@ -245,8 +247,8 @@ Section TopSection.
     end.
 
     set (w := Regs _ _ ^+ _ ^+ _) in *.
-    replace (w =?> x5)%Sep with (buf_to_split w x5 (len_local_vars + temp_size)) by (unfold buf_to_split; eauto).
-    assert (buf_splittable x5 (len_local_vars + temp_size)) by (unfold buf_splittable; eauto).
+    replace (w =?> x6)%Sep with (buf_to_split w x6 (len_local_vars + temp_size)) by (unfold buf_to_split; eauto).
+    assert (buf_splittable x6 (len_local_vars + temp_size)) by (unfold buf_splittable; eauto).
     hiding ltac:(step hints_buf_split_bwd).
     fold (@length string) in *.
     rewrite fold_4_mult in *.
@@ -295,21 +297,26 @@ Section TopSection.
     clear_all.
     assert (locals_to_elim local_vars) by (unfold locals_to_elim; eauto).
     hiding ltac:(step hints_elim_locals).
-    
+
+    destruct_state.
     descend.
     auto_apply_in RunsTo_Seq_Skip_RunsTo.
     unfold body_stmt in *.
     auto_apply_in GoodOptimizer_RunsTo.
+    destruct_state.
     eapply GoodFunc_RunsTo; eauto.
     eapply agree_in_comm.
     eapply agree_in_merge.
+    eauto.
     eauto.
 
     (* vc 1 *)
     eapply H2 in H.
     unfold spec in *.
-    unfold inv, inv' in *.
+    unfold spec_without_funcs_ok in *.
+    unfold internal_spec in *.
     unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
     post.
@@ -318,8 +325,10 @@ Section TopSection.
     (* vc 2 *)
     eapply H2 in H1.
     unfold spec in *.
-    unfold inv, inv' in *.
+    unfold spec_without_funcs_ok in *.
+    unfold internal_spec in *.
     unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold stack_slot in *.
     rewrite fold_4_mult_1 in *.
     post.
@@ -328,8 +337,10 @@ Section TopSection.
     (* vc 3 *)
     eapply H2 in H1.
     unfold spec in *.
-    unfold inv, inv' in *.
+    unfold spec_without_funcs_ok in *.
+    unfold internal_spec in *.
     unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold stack_slot in *.
     post.
     rewrite fold_4_mult_1 in *.
@@ -341,8 +352,8 @@ Section TopSection.
 
     (* vc 5 *)
     post.
-    unfold Inv.is_state in *.
-    unfold Inv.has_extra_stack in *.
+    unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold var_slot in *.
     unfold vars_start in *.
     unfold stack_slot in *.
@@ -371,8 +382,8 @@ Section TopSection.
 
     (* vc 6 *)
     post.
-    unfold Inv.is_state in *.
-    unfold Inv.has_extra_stack in *.
+    unfold is_state in *.
+    unfold has_extra_stack in *.
     unfold var_slot in *.
     unfold vars_start in *.
     unfold stack_slot in *.

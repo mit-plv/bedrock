@@ -100,9 +100,12 @@ Section TopSection.
     Transparent evalInstrs.
     simpl.
     repeat rewrite wplus_assoc in *.
+    Require Import ConvertLabel.
+    unfold from_bedrock_label_map in *.
     rewrite H.
     eauto.
     Opaque evalInstrs.
+    unfold from_bedrock_label_map in *.
     hiding ltac:(evaluate auto_ext).
   Qed.
 
