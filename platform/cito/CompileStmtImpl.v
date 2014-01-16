@@ -39,11 +39,11 @@ Section Body.
 
   Definition after_call ret k : assert :=
     st ~> Ex fs, 
-    funcs_ok fs /\
+    let stn := fst st in
+    funcs_ok stn fs /\
     ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
     let old_sp := st#Sp ^- frame_len_w in
     ![^[is_state old_sp rp e_stack e_stack vars (vs, heap1) temps * is_heap heap2 * layout_option ret_w ret_a * mallocHeap 0] * #0] st /\
-    let stn := fst st in
     let env := (ConvertLabel.from_bedrock_label_map (Labels stn), fs stn) in
     [| let vs := upd_option vs ret st#Rv in
        let heap12 := heap_merge heap1 heap2 in
