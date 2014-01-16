@@ -3,17 +3,19 @@ Set Implicit Arguments.
 Require Import Semantics Safe.
 Require Import Syntax.
 
-Definition Optimizer := Stmt -> Stmt.
+Require Import String.
+
+Definition Optimizer := Stmt -> string -> Stmt.
 
 Definition GoodOptimizer : Optimizer -> Prop.
   admit.
 Qed.
 
-Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> Safe fs (opt s) v.
+Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
   admit.
 Qed.
 
-Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall fs s v v', RunsTo fs (opt s) v v' -> RunsTo fs s v v'.
+Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall ret fs s v v', RunsTo fs (opt s ret) v v' -> exists vs', RunsTo fs s v (vs', snd v') /\ Locals.sel vs' ret = Locals.sel (fst v') ret.
   admit.
 Qed.
 
@@ -25,7 +27,7 @@ Lemma GoodFunc_GoodOptimizer_goodSize :
   forall f opt, 
     GoodFunc f -> 
     GoodOptimizer opt -> 
-    let s := opt (Body f) in
+    let s := opt (Body f) (RetVar f) in
     goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
   admit.
 Qed.
@@ -38,7 +40,7 @@ Lemma GoodFunc_GoodOptimizer_syn_req :
     GoodFunc f -> 
     forall opt, 
       GoodOptimizer opt -> 
-      let s := opt (Body f) in
+      let s := opt (Body f) (RetVar f) in
       CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
   admit.
 Qed.
