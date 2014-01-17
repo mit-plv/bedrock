@@ -160,13 +160,46 @@ Section TopSection.
         admit.
       Qed.
 
+      Require Import GeneralTactics.
+
+      Set Printing Coercions.
+
       Lemma augment_elim : 
-        forall imps specs stn lbls (l : label) p spec,
+        forall imps specs stn (lbls : list label),
           augment imps specs stn lbls ->
-          List.In l lbls ->
-          Labels stn l = Some p ->
-          LabelMap.find (l : Labels.label) imps = Some spec ->
-          specs p = Some spec.
+          (forall x, In x lbls -> LabelMap.find (x : Labels.label) imps <> None) ->
+          forall l p spec,
+            List.In l lbls ->
+            Labels stn l = Some p ->
+            LabelMap.find (l : Labels.label) imps = Some spec ->
+            specs p = Some spec.
+      Proof.
+        induction lbls; simpl; intros.
+        intuition.
+        destruct H1.
+        subst.
+        destruct l.
+        unfold to_bedrock_label in *.
+        simpl in *.
+        rewrite H3 in H.
+        openhyp.
+        congruence.
+        generalize H0; specialize (H0 a); intro.
+        eapply ex_up in H0.
+        openhyp.
+        destruct a.
+        unfold to_bedrock_label in *.
+        simpl in *.
+        rewrite H0 in H.
+        openhyp.
+        eauto.
+        eauto.
+      Qed.
+
+      Lemma accessible_labels_subset_fullImports :
+        forall x : label, 
+          In x accessible_labels ->
+          LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
         admit.
       Qed.
 
@@ -178,6 +211,10 @@ Section TopSection.
         admit.
       Qed.
 
+      Lemma tgt_fullImports : forall m, In m modules -> forall f, In f (Functions m) -> LabelMap.find (tgt f) (fullImports bimports stubs) = Some (spec f).
+        admit.
+      Qed.
+
       Lemma specs_internal :
         forall specs stn p spec,
           augment (fullImports bimports stubs) specs stn accessible_labels ->
@@ -186,9 +223,9 @@ Section TopSection.
       Proof.
         intros.
         eapply fs_internal in H0.
-        Require Import GeneralTactics.
         openhyp.
         eapply augment_elim in H; eauto.
+        eapply accessible_labels_subset_fullImports.
         eapply exports_accessible_labels.
         intuition.
         eapply exports_fullImports; eauto.
@@ -226,7 +263,9 @@ Section TopSection.
         rewrite sepFormula_eq; apply Imply_refl.
       Qed.
 
-      Lemma good_vcs : forall ls, vcs (makeVcs bimports stubs (map make_stub ls)).
+      Hypothesis in_modules : In m modules.
+
+      Lemma good_vcs : forall ls, (forall x, In x ls -> In x (Functions m)) -> vcs (makeVcs bimports stubs (map make_stub ls)).
         induction ls; simpl; eauto.
         Require Import Wrap.
         Opaque funcs_ok.
@@ -238,15 +277,14 @@ Section TopSection.
 
         eauto.
 
-        replace (LabelMap.find (elt:=assert) (tgt a) (fullImports bimports stubs)) with (Some (spec a)) by admit.
-        eauto.
+        erewrite tgt_fullImports; eauto.
       Qed.        
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
         admit.
         admit.
-        eapply good_vcs.
+        eapply good_vcs; eauto.
       Qed.
 
   End module.
