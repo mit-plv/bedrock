@@ -87,6 +87,26 @@ Section TopSection.
 
   End fs.
 
+  Require Import Inv.
+
+  Definition foreign_spec spec : assert := 
+    st ~> ExX, foreign_spec _ spec st.
+
+  Definition bimports_base : list import := 
+    List.map 
+      (fun (p : label * ForeignFuncSpec) => 
+         let lbl := fst p in
+         let spec := snd p in
+         (lbl, foreign_spec spec)) 
+      (LabelMap.elements imports) 
+      ++
+      List.map 
+      (fun (p : label * InternalFuncSpec) =>
+         let lbl := fst p in
+         let spec := snd p in
+         (lbl, spec_without_funcs_ok spec fs))
+      exports.
+  
   Section module.
 
       Variable m : GoodModule.
@@ -104,7 +124,10 @@ Section TopSection.
           Definition mod_name := MName m.
 
           Require Import NameDecoration.
-          Definition tgt := ((impl_module_name mod_name)!(FName f))%SP.
+
+          Definition impl_label mod_name f_name : label := (impl_module_name mod_name, f_name).
+
+          Definition tgt := impl_label mod_name (FName f).
 
           Require Import AutoSep.
           Definition body := 
@@ -120,36 +143,27 @@ Section TopSection.
 
       End f.
 
-      Require Import Inv.
-
-      Definition foreign_spec spec : assert := 
-        st ~> ExX, Inv.foreign_spec _ spec st.
-
       Definition bimports : list import := 
-        List.map 
-          (fun (p : label * ForeignFuncSpec) => 
-             let lbl := fst p in
-             let spec := snd p in
-             (lbl, foreign_spec spec)) 
-          (LabelMap.elements imports) 
+        bimports_base
           ++
           List.map 
-          (fun (p : label * InternalFuncSpec) =>
-             let lbl := fst p in
-             let spec := snd p in
-             (impl_module_name (fst lbl), snd lbl, CompileFuncSpec.spec spec))
-          exports.
+          (fun (f : GoodFunction) =>
+             (impl_label (MName m) (FName f), CompileFuncSpec.spec f))
+          (Functions m).
           
 
       Definition stubs := map make_stub (Functions m).
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
+      Definition eqb x y := if Label.Key.eq_dec x y then true else false.
+
       Definition find_as_map B k (ls : list (label * B)) : option B :=
-        match find (fun p => if Label.Key.eq_dec k (fst p) then true else false) ls with
-          | Some (_, v) => Some v
-          | None => None
-        end.
+        SetoidList.findA (eqb k) ls.
+
+      Lemma In_find_as_map : forall B (ls : list (label * B)) k, In k (map fst ls) <-> find_as_map k ls <> None.
+        admit.
+      Qed.
 
       Lemma fs_internal : 
         forall stn p spec, 
@@ -196,9 +210,16 @@ Section TopSection.
         eauto.
       Qed.
 
-      Lemma imports_bimports : forall x, In x (map fst (LabelMap.elements imports)) -> In x (map fst bimports).
-        unfold bimports.
+      Lemma imports_bimports : forall k v, LabelMap.find k imports = Some v -> find_as_map k bimports = Some (foreign_spec v).
+        admit.
+      Qed.
+
+      Corollary in_imports_in_bimports : forall x, In x (map fst (LabelMap.elements imports)) -> In x (map fst bimports).
+        unfold bimports, bimports_base.
         intros.
+        erewrite map_app.
+        eapply in_or_app.
+        left.
         erewrite map_app.
         eapply in_or_app.
         left.
@@ -207,9 +228,36 @@ Section TopSection.
         eauto.
       Qed.
 
-      Lemma imports_fullImports : forall mn (imps : list import) (x : label), In x (map fst imps) -> forall exps, LabelMap.LabelMap.find (x : Labels.label) (fullImports (modName := mn) imps exps) <> None.
-      Proof.
+      Lemma exports_bimports : forall k v, find_as_map k exports = Some v -> find_as_map k bimports = Some (spec_without_funcs_ok v fs).
         admit.
+      Qed.
+
+      Corollary in_exports_in_bimports : forall x, In x (map fst exports) -> In x (map fst bimports).
+        unfold bimports, bimports_base.
+        intros.
+        erewrite map_app.
+        eapply in_or_app.
+        left.
+        erewrite map_app.
+        eapply in_or_app.
+        right.
+        erewrite map_map.
+        simpl.
+        eauto.
+      Qed.
+
+      Lemma fullImports_eq_bimports : forall (k : label) v, LabelMap.LabelMap.find (k : Labels.label) (fullImports bimports stubs) = Some v <-> find_as_map k bimports = Some v.
+        admit.
+      Qed.
+
+      Corollary bimports_fullImports : forall (x : label), In x (map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
+      Proof.
+        intros.
+        eapply In_find_as_map in H.
+        eapply ex_up in H.
+        openhyp.
+        eapply fullImports_eq_bimports in H.
+        intuition.
       Qed.
 
       Lemma accessible_labels_subset_fullImports :
@@ -221,23 +269,44 @@ Section TopSection.
         intros.
         eapply in_app_or in H.
         destruct H.
-        eapply imports_bimports in H.
-        eapply imports_fullImports; eauto.
+        eapply in_imports_in_bimports in H.
+        eapply bimports_fullImports; eauto.
 
-        Lemma exports_stubs : forall x, In x (map fst exports) -> In x (map (fun f => fst (fst f)) stubs).
-        admit.
+        eapply in_exports_in_bimports in H.
+        eapply bimports_fullImports; eauto.
       Qed.
 
       Lemma exports_accessible_labels : forall l, find_as_map l exports <> None -> In l accessible_labels.
         admit.
       Qed.
       
-      Lemma exports_fullImports : forall l spec, find_as_map l exports = Some spec -> LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
+      Lemma exports_fullImports : forall l spec, find_as_map l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
+        intros.
+        eapply fullImports_eq_bimports.
+        eapply exports_bimports; eauto.
+      Qed.
+
+      Lemma tgt_fullImports : forall m, In m modules -> forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports stubs) = Some (spec f).
         admit.
       Qed.
 
-      Lemma tgt_fullImports : forall m, In m modules -> forall f, In f (Functions m) -> LabelMap.find (tgt f) (fullImports bimports stubs) = Some (spec f).
+      Lemma fs_foreign :
+        forall stn p spec, 
+          fs stn p = Some (Foreign spec) -> 
+          exists lbl : label, 
+            LabelMap.find lbl imports = Some spec /\ 
+            Labels stn lbl = Some p.
         admit.
+      Qed.
+
+      Lemma imports_accessible_labels : forall l, LabelMap.find l imports <> None -> In l accessible_labels.
+        admit.
+      Qed.
+      
+      Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (foreign_spec spec).
+        intros.
+        eapply fullImports_eq_bimports.
+        eapply imports_bimports; eauto.
       Qed.
 
       Lemma specs_internal :
@@ -254,6 +323,22 @@ Section TopSection.
         eapply exports_accessible_labels.
         intuition.
         eapply exports_fullImports; eauto.
+      Qed.
+
+      Lemma specs_foreign :
+        forall specs stn p spec,
+          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          fs stn p = Some (Foreign spec) ->
+          specs p = Some (foreign_spec spec).
+      Proof.
+        intros.
+        eapply fs_foreign in H0.
+        openhyp.
+        eapply augment_elim in H; eauto.
+        eapply accessible_labels_subset_fullImports.
+        eapply imports_accessible_labels.
+        intuition.
+        eapply imports_fullImports; eauto.
       Qed.
 
       Lemma fs_funcs_ok : 
@@ -279,7 +364,7 @@ Section TopSection.
         Opaque Inv.foreign_spec.
         post; descend.
         instantiate (1 := foreign_spec x0).
-        admit.
+        erewrite specs_foreign; eauto.
 
         unfold foreign_spec.
         step auto_ext.
