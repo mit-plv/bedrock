@@ -141,15 +141,11 @@ Section TopSection.
 
       End f.
 
-      Definition bimports : list import := 
-        bimports_base
-          ++
-          List.map 
-          (fun (f : GoodFunction) =>
-             (impl_label (MName m) (FName f), CompileFuncSpec.spec f))
-          (Functions m).
-          
+      Definition Func_to_import (f : GoodFunction) := (impl_label (MName m) (FName f), CompileFuncSpec.spec f).
 
+      Definition bimports : list import := 
+        bimports_base ++ List.map Func_to_import (Functions m).
+          
       Definition stubs := map make_stub (Functions m).
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
@@ -207,7 +203,55 @@ Section TopSection.
           rewrite e in H; eapply IHls in H; openhyp; eauto]).
       Qed.
       
+      Definition NoDupKey A := SetoidList.NoDupA (@LabelMap.eq_key A).
+
       Lemma In_find : forall A k (v : A) m, In (k, v) (LabelMap.elements m) <-> LabelMap.find k m = Some v.
+        admit.
+      Qed.
+
+      Lemma NoDup_app_find_as_map : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m1 = Some v -> find_as_map k (m1 ++ m2) = Some v.
+        admit.
+      Qed.
+
+      Lemma NoDup_app_find_as_map_2 : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m2 = Some v -> find_as_map k (m1 ++ m2) = Some v.
+        admit.
+      Qed.
+
+      Lemma NoDup_bimports : NoDupKey bimports.
+        admit.
+      Qed.
+
+      Lemma NoDup_incl : forall A a b, @NoDupKey A b -> incl a b -> NoDupKey a.
+        admit.
+      Qed.
+
+      Lemma find_as_map_elements : forall A k (m : LabelMap.t A), find_as_map k (LabelMap.elements m) = LabelMap.find k m.
+        admit.
+      Qed.
+
+      Lemma In_In_keys : forall A k (m : LabelMap.t A), LabelMap.In k m <-> In k (keys m).
+        admit.
+      Qed.
+
+      Lemma map_3 : forall A B (f : A -> B) k m, LabelMap.In k m -> LabelMap.In k (LabelMap.map f m).
+        admit.
+      Qed.
+
+      Lemma find_In : forall A k (m : LabelMap.t A), LabelMap.find k m <> None -> LabelMap.In k m.
+        admit.
+      Qed.
+
+      Lemma In_find_as_map_Some : forall A k (v : A) m, NoDupKey m -> In (k, v) m -> find_as_map k m = Some v.
+        admit.
+      Qed.
+
+      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
+
+      Lemma fullImports_no_effect : forall imps mn (fns : list (function mn)), NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
+        admit.
+      Qed.
+
+      Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
         admit.
       Qed.
 
@@ -286,36 +330,6 @@ Section TopSection.
         eauto.
       Qed.
 
-      Definition NoDupKey A := SetoidList.NoDupA (@LabelMap.eq_key A).
-
-      Lemma NoDup_app_find_as_map : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m1 = Some v -> find_as_map k (m1 ++ m2) = Some v.
-        admit.
-      Qed.
-
-      Lemma NoDup_app_find_as_map_2 : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m2 = Some v -> find_as_map k (m1 ++ m2) = Some v.
-        admit.
-      Qed.
-
-      Lemma NoDup_bimports : NoDupKey bimports.
-        admit.
-      Qed.
-
-      Lemma NoDup_incl : forall A a b, @NoDupKey A b -> incl a b -> NoDupKey a.
-        admit.
-      Qed.
-
-      Lemma find_as_map_elements : forall A k (m : LabelMap.t A), find_as_map k (LabelMap.elements m) = LabelMap.find k m.
-        admit.
-      Qed.
-
-      Lemma In_In_keys : forall A k (m : LabelMap.t A), LabelMap.In k m <-> In k (keys m).
-        admit.
-      Qed.
-
-      Lemma map_3 : forall A B (f : A -> B) k m, LabelMap.In k m -> LabelMap.In k (LabelMap.map f m).
-        admit.
-      Qed.
-
       Lemma find_map : forall A B (f : A -> B) k v m, LabelMap.find k m = Some v -> LabelMap.find k (LabelMap.map f m) = Some (f v).
         intros.
         eapply LabelMap.find_2 in H.
@@ -378,16 +392,6 @@ Section TopSection.
         eapply map_3; eauto.
       Qed.
 
-      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
-
-      Lemma fullImports_no_effect : forall imps mn (fns : list (function mn)), NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
-        admit.
-      Qed.
-
-      Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
-        admit.
-      Qed.
-
       Lemma fullImports_eq_bimports : forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports bimports stubs) = find_as_map k bimports.
         intros.
         eapply fullImports_no_effect.
@@ -425,8 +429,12 @@ Section TopSection.
       Qed.
 
       Lemma exports_accessible_labels : forall l, LabelMap.find l exports <> None -> In l accessible_labels.
-        (*here*)
-        admit.
+        unfold accessible_labels.
+        intros.
+        eapply in_or_app.
+        right.
+        eapply In_In_keys.
+        eapply find_In; eauto.
       Qed.
       
       Lemma exports_fullImports : forall (l : label) spec, LabelMap.find l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
@@ -435,8 +443,22 @@ Section TopSection.
         eapply exports_bimports; eauto.
       Qed.
 
-      Lemma tgt_fullImports : forall m, In m modules -> forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports stubs) = Some (spec f).
-        admit.
+      Lemma tgt_fullImports : forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports stubs) = Some (spec f).
+        intros.
+        rewrite fullImports_eq_bimports. 
+        unfold bimports, bimports_base.
+        eapply NoDup_app_find_as_map_2.
+        eapply NoDup_bimports.
+        unfold tgt.
+        unfold mod_name.
+        eapply In_find_as_map_Some.
+        eapply NoDup_incl.
+        eapply NoDup_bimports.
+        unfold bimports, bimports_base.
+        intuition.
+        unfold Func_to_import in *; simpl in *.
+        eapply in_map with (f := fun x => Func_to_import x) in H.
+        eauto.
       Qed.
 
       Lemma fs_foreign :
@@ -445,11 +467,53 @@ Section TopSection.
           exists lbl : label, 
             LabelMap.find lbl imports = Some spec /\ 
             Labels stn lbl = Some p.
-        admit.
+      Proof.
+        intros.
+        unfold fs in *.
+        destruct (option_dec (is_export stn p)).
+        destruct s.
+        rewrite e in H.
+        intuition.
+        rewrite e in H.
+        destruct (option_dec (is_import stn p)).
+        destruct s.
+        rewrite e0 in H.
+        injection H; intros; subst.
+        unfold is_import in *.
+        unfold find_by_word in *.
+        destruct (option_dec (find (is_label_map_to_word' stn p) (LabelMap.elements imports))).
+        destruct s.
+        destruct x.
+        rewrite e1 in e0.
+        injection e0; intros; subst.
+        eapply find_spec in e1.
+        openhyp.
+        unfold is_label_map_to_word', is_label_map_to_word in *.
+        simpl in *.
+        destruct (option_dec (labels stn l)).
+        destruct s.
+        rewrite e1 in H0.
+        destruct (weq p x).
+        subst.
+        unfold labels in *.
+        exists l.
+        split.
+        eapply In_find; eauto.
+        eauto.
+        intuition.
+        rewrite e1 in H0; intuition.
+        rewrite e1 in e0; intuition.
+        rewrite e0 in H.
+        intuition.
       Qed.
 
       Lemma imports_accessible_labels : forall l, LabelMap.find l imports <> None -> In l accessible_labels.
-        admit.
+        unfold accessible_labels.
+        intros.
+        eapply in_or_app.
+        left.
+        eapply In_In_keys.
+        eapply find_In; eauto.
       Qed.
       
       Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (foreign_spec spec).
