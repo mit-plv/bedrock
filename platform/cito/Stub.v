@@ -336,8 +336,35 @@ Section TopSection.
 
       Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
 
-      Lemma fullImports_no_effect : forall imps mn (fns : list (function mn)), NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
-        admit.
+      Lemma fullImports_no_effect : forall mn (fns : list (function mn)) imps, NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
+      Proof.
+        induction fns; simpl; intros.
+        unfold fullImports.
+        simpl.
+        Lemma find_importsMap_find_as_map : forall imps (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_as_map k imps.
+          Definition importsMap' (imports : list import) base :=
+            List.fold_left 
+              (fun m p => 
+                 let '(modl, f, pre) := p in
+                 LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
+
+          Lemma find_importsMap_find_as_map' : 
+            forall imps2 imps1 base, 
+              NoDupKey (imps1 ++ imps2) -> 
+              (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) base = find_as_map k imps1) ->
+              forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap' imps2 base) = find_as_map k (imps1 ++ imps2).
+            induction imps2; simpl.
+            intros.
+            rewrite app_nil_r.
+            eauto.
+            intros.
+            rewrite <- DepList.pf_list_simpl.
+            eapply IHimps2.
+            rewrite DepList.pf_list_simpl.
+            eauto.
+            destruct a; simpl.
+            destruct k0; simpl.
+            (*here*)
       Qed.
 
       Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
