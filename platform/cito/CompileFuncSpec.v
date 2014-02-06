@@ -4,21 +4,27 @@ Require Import Inv Malloc Semantics Safe.
 
 Set Implicit Arguments.
 
-Section TopSection.
+Module Make (Import M : RepInv.RepInv).
 
-  Variable func : FuncCore.
+  Module Import InvMake := Inv.Make M.
 
-  Definition spec_without_funcs_ok fs : assert := 
-    st ~> ExX, internal_spec _ fs func st.
+  Section TopSection.
 
-  Definition spec : assert := 
-    st ~> Ex fs, 
-    let stn := fst st in
-    funcs_ok stn fs /\ 
-    spec_without_funcs_ok fs st.
+    Variable func : FuncCore.
 
-  Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+    Definition spec_without_funcs_ok fs : assert := 
+      st ~> ExX, internal_spec _ fs func st.
 
-  Definition verifCond pre := imply pre spec :: nil.
+    Definition spec : assert := 
+      st ~> Ex fs, 
+      let stn := fst st in
+      funcs_ok stn fs /\ 
+      spec_without_funcs_ok fs st.
 
-End TopSection.
+    Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
+
+    Definition verifCond pre := imply pre spec :: nil.
+
+  End TopSection.
+
+End Make.

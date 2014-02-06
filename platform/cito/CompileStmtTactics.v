@@ -149,132 +149,137 @@ Ltac not_mem_rv INST :=
     | _ => idtac
   end.
 
-Ltac pre_eval_auto := 
-  repeat 
-    match goal with
-      | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-        match INST with
-            context [ Rv ] => 
-            match goal with
-                H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
-            end
-        end
-      | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
-        match P with
-            context [ is_heap _ ?HEAP ] => 
-            match goal with
-                H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
-            end
-        end
-    end.
+Module Make (Import M : RepInv.RepInv).
 
-Ltac evaluate_hints hints :=
-  match goal with
-      H : evalInstrs _ ?ST _ = _ |- _ => generalize dependent H; evaluate hints; intro; evaluate auto_ext
-  end.
+  Module Import InvMake := Inv.Make M.
 
-Ltac my_evaluate hints :=
-  match goal with
-    | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST ?INST = _ |- _  =>
-      match INST with
-        | context [LvMem (Reg Rv) ] => evaluate_hints hints
-        | _ => pre_eval_auto; evaluate hints
-      end
-  end.
-
-Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
-
-Ltac try_post :=
-  try match goal with
-          H_interp : interp _ ?P |- _ =>
+  Ltac pre_eval_auto := 
+    repeat 
+      match goal with
+        | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
+          match INST with
+              context [ Rv ] => 
+              match goal with
+                  H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
+              end
+          end
+        | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
           match P with
-            | context [ Exists ] => post
+              context [ is_heap _ ?HEAP ] => 
+              match goal with
+                  H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
+              end
           end
       end.
 
-Ltac eval_instrs hints :=
-  match goal with
-    | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-      cond_gen; 
-        [ .. | 
-          let P := fresh "P" in
-          try match goal with
-                | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
-              end;
-            pre_eval;
-            try match goal with
-                  | [ H : _ = Regs ?X Rv, H' : _ = Regs ?X Rv |- _ ] => generalize dependent H'
-                end;
-            my_evaluate hints;
-            try subst P;
-            post_eval; clear H_eval]
-  end.
-
-Ltac clear_all :=
-  repeat match goal with
-           | H : _ |- _ => clear H
-         end.
-
-Ltac clear_Imply :=
-  repeat match goal with
-           | H : context [ (_ ---> _)%PropX ] |- _ => clear H
-         end.
-
-Ltac clear_evalInstrs :=
-  repeat match goal with
-           | H : evalInstrs _ _ _ = _ |- _ => clear H
-         end.
-
-Ltac clear_Forall_PreCond :=
-  repeat match goal with
-           | H : List.Forall _ _ |- _ => clear H
-           | H : PreCond _ _ |- _ => clear H
-         end.
-
-Ltac hide_evalInstrs :=
-  repeat match goal with
-           | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
-         end.
-
-Ltac hide_all_eq :=
-  repeat match goal with
-           | H : _ = _ |- _ => generalize dependent H
-         end.
-
-Ltac hide_all_eq_except H1 :=
-  repeat match goal with
-           | H : _ = _ |- _ => not_eq H H1; generalize dependent H
-         end.
-
-Ltac hide_le :=
-  repeat match goal with
-           | H : (_ <= _)%nat |- _ => generalize dependent H
-         end.
-
-Ltac hide_Safe :=
-  repeat match goal with
-           | H : Safe _ _ _ |- _ => generalize dependent H
-         end.
-
-Ltac destruct_state :=
-  repeat 
+  Ltac evaluate_hints hints :=
     match goal with
-      | [ x : State |- _ ] => destruct x; simpl in *
-      | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+        H : evalInstrs _ ?ST _ = _ |- _ => generalize dependent H; evaluate hints; intro; evaluate auto_ext
     end.
 
-Ltac unfold_all :=
-  repeat match goal with
-           | H := _ |- _ => unfold H in *; clear H
-         end.
+  Ltac my_evaluate hints :=
+    match goal with
+      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST ?INST = _ |- _  =>
+        match INST with
+          | context [LvMem (Reg Rv) ] => evaluate_hints hints
+          | _ => pre_eval_auto; evaluate hints
+        end
+    end.
 
-Ltac rearrange_stars HEAD :=
-  match goal with
-      H : interp ?SPECS (![?P] ?ST) |- _ =>
-      let OTHER := fresh in 
-      evar (OTHER : HProp); 
-        assert (interp SPECS (![HEAD * OTHER] ST));
-        unfold OTHER in *; clear OTHER;
-        [ hiding ltac:(step auto_ext) | .. ]
-  end.
+  Ltac post_eval := intros; try fold (@length W) in *; post_step; try fold_length; try rewrite fold_4S in *.
 
+  Ltac try_post :=
+    try match goal with
+            H_interp : interp _ ?P |- _ =>
+            match P with
+              | context [ Exists ] => post
+            end
+        end.
+
+  Ltac eval_instrs hints :=
+    match goal with
+      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
+        cond_gen; 
+          [ .. | 
+            let P := fresh "P" in
+            try match goal with
+                  | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
+                end;
+              pre_eval;
+              try match goal with
+                    | [ H : _ = Regs ?X Rv, H' : _ = Regs ?X Rv |- _ ] => generalize dependent H'
+                  end;
+              my_evaluate hints;
+              try subst P;
+              post_eval; clear H_eval]
+    end.
+
+  Ltac clear_all :=
+    repeat match goal with
+             | H : _ |- _ => clear H
+           end.
+
+  Ltac clear_Imply :=
+    repeat match goal with
+             | H : context [ (_ ---> _)%PropX ] |- _ => clear H
+           end.
+
+  Ltac clear_evalInstrs :=
+    repeat match goal with
+             | H : evalInstrs _ _ _ = _ |- _ => clear H
+           end.
+
+  Ltac clear_Forall_PreCond :=
+    repeat match goal with
+             | H : List.Forall _ _ |- _ => clear H
+             | H : PreCond _ _ |- _ => clear H
+           end.
+
+  Ltac hide_evalInstrs :=
+    repeat match goal with
+             | H : evalInstrs _ _ _ = _ |- _ => generalize dependent H
+           end.
+
+  Ltac hide_all_eq :=
+    repeat match goal with
+             | H : _ = _ |- _ => generalize dependent H
+           end.
+
+  Ltac hide_all_eq_except H1 :=
+    repeat match goal with
+             | H : _ = _ |- _ => not_eq H H1; generalize dependent H
+           end.
+
+  Ltac hide_le :=
+    repeat match goal with
+             | H : (_ <= _)%nat |- _ => generalize dependent H
+           end.
+
+  Ltac hide_Safe :=
+    repeat match goal with
+             | H : Safe _ _ _ |- _ => generalize dependent H
+           end.
+
+  Ltac destruct_state :=
+    repeat 
+      match goal with
+        | [ x : State |- _ ] => destruct x; simpl in *
+        | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
+      end.
+
+  Ltac unfold_all :=
+    repeat match goal with
+             | H := _ |- _ => unfold H in *; clear H
+           end.
+
+  Ltac rearrange_stars HEAD :=
+    match goal with
+        H : interp ?SPECS (![?P] ?ST) |- _ =>
+        let OTHER := fresh in 
+        evar (OTHER : HProp); 
+          assert (interp SPECS (![HEAD * OTHER] ST));
+          unfold OTHER in *; clear OTHER;
+          [ hiding ltac:(step auto_ext) | .. ]
+    end.
+
+End Make.

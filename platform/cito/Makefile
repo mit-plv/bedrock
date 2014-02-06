@@ -6,7 +6,7 @@ MODULES := \
 	SyntaxExpr Syntax SemanticsExpr FuncCore Semantics Safe \
 	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
-	Layout Inv \
+	RepInv Inv \
 	DepthExpr Max Depth \
 	WellFormed \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
