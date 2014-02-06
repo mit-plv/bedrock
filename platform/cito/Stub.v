@@ -176,6 +176,10 @@ Section TopSection.
         admit.
       Qed.
 
+      Lemma find_as_map_neq : forall A k (v : A) k' ls, NoDupKey ls -> k' <> k -> find_as_map k' ls = find_as_map k' (ls ++ (k, v) :: nil).
+        admit.
+      Qed.
+
       Lemma NoDup_bimports : NoDupKey bimports.
         admit.
       Qed.
@@ -334,37 +338,126 @@ Section TopSection.
         eauto.
       Qed.
 
+      Lemma add_4 : forall A m x y (e : A), x <> y -> LabelMap.LabelMap.find y (LabelMap.LabelMap.add x e m) = LabelMap.LabelMap.find y m.
+        admit.
+      Qed.
+
       Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
 
-      Lemma fullImports_no_effect : forall mn (fns : list (function mn)) imps, NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
+      Definition importsMap' (imports : list import) base :=
+        List.fold_left 
+          (fun m p => 
+             let '(modl, f, pre) := p in
+             LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
+
+      Lemma find_importsMap_find_as_map' : 
+        forall imps2 imps1 base, 
+          NoDupKey (imps1 ++ imps2) -> 
+          (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) base = find_as_map k imps1) ->
+          forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap' imps2 base) = find_as_map k (imps1 ++ imps2).
+        induction imps2; simpl.
+        intros.
+        rewrite app_nil_r.
+        eauto.
+        intros.
+        rewrite <- DepList.pf_list_simpl.
+        eapply IHimps2.
+        rewrite DepList.pf_list_simpl.
+        eauto.
+        destruct a; simpl.
+        destruct k0; simpl.
+        intros.
+        destruct (LabelMap.LabelKey.eq_dec (k0 : Labels.label) (s, Global s0)).
+        unfold LabelKey.eq in *.
+        erewrite LabelMap.LabelMap.find_1.
+        Focus 2.
+        eapply LabelMap.LabelMap.add_1.
+        eauto.
+        destruct k0.
+        injection e; intros; subst.
+        erewrite In_find_as_map_Some_left.
+        eauto.
+        eapply NoDup_incl.
+        eauto.
+        set (_ ++ _ :: nil) in *.
+        rewrite <- DepList.pf_list_simpl.
+        unfold l in *.
+        intuition.
+        intuition.
+        unfold LabelKey.eq in *.
+        erewrite add_4.
+        rewrite H0.
+        erewrite find_as_map_neq.
+        eauto.
+        eapply NoDup_incl.
+        eauto.
+        intuition.
+        intuition.
+        destruct k0.
+        injection H1; intros; subst; intuition.
+        eauto.
+      Qed.
+
+      Lemma find_importsMap_find_as_map : forall imps (k : label), NoDupKey imps -> LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_as_map k imps.
+        intros.
+        unfold importsMap.
+        erewrite find_importsMap_find_as_map'.
+        erewrite app_nil_l; eauto.
+        erewrite app_nil_l; eauto.
+        intros.
+        unfold find_as_map.
+        eauto.
+      Qed.        
+
+      Definition fullImports' impsMap modName (functions : list (function modName)) : LabelMap.LabelMap.t assert :=
+        List.fold_left 
+          (fun m p => 
+             let '(f, pre, _) := p in
+             LabelMap.LabelMap.add (modName, Global f) pre m) functions impsMap.
+
+      Lemma fullImports_no_effect' : 
+        forall mn (fns : list (function mn)) imps impsMap, 
+          NoDupKey imps -> 
+          incl (map (@func_to_import _) fns) imps -> 
+          (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) impsMap = find_as_map k imps) ->
+          forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports' impsMap fns) = find_as_map k imps.
       Proof.
         induction fns; simpl; intros.
-        unfold fullImports.
-        simpl.
-        Lemma find_importsMap_find_as_map : forall imps (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_as_map k imps.
-          Definition importsMap' (imports : list import) base :=
-            List.fold_left 
-              (fun m p => 
-                 let '(modl, f, pre) := p in
-                 LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
+        eauto.
+        unfold fullImports'.
+        destruct a.
+        destruct p.
+        eapply IHfns.
+        eauto.
+        eapply incl_tran.
+        2 : eauto.
+        intuition.
+        intros.
+        destruct (LabelMap.LabelKey.eq_dec (k0 : Labels.label) (mn, Global s)); unfold LabelKey.eq in *.
+        erewrite LabelMap.LabelMap.find_1.
+        Focus 2.
+        eapply LabelMap.LabelMap.add_1.
+        eauto.
+        symmetry.
+        eapply In_find_as_map_Some.
+        eauto.
+        destruct k0.
+        injection e; intros; subst.
+        unfold func_to_import in *; simpl in *.
+        intuition.
+        erewrite add_4.
+        eauto.
+        eauto.
+      Qed.
 
-          Lemma find_importsMap_find_as_map' : 
-            forall imps2 imps1 base, 
-              NoDupKey (imps1 ++ imps2) -> 
-              (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) base = find_as_map k imps1) ->
-              forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap' imps2 base) = find_as_map k (imps1 ++ imps2).
-            induction imps2; simpl.
-            intros.
-            rewrite app_nil_r.
-            eauto.
-            intros.
-            rewrite <- DepList.pf_list_simpl.
-            eapply IHimps2.
-            rewrite DepList.pf_list_simpl.
-            eauto.
-            destruct a; simpl.
-            destruct k0; simpl.
-            (*here*)
+      Lemma fullImports_no_effect : forall mn (fns : list (function mn)) imps, NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_as_map k imps.
+        intros.
+        unfold fullImports.
+        specialize fullImports_no_effect'; intros.
+        unfold fullImports' in *.
+        eapply H1; eauto.
+        intros.
+        eapply find_importsMap_find_as_map; eauto.
       Qed.
 
       Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
