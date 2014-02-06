@@ -2,415 +2,425 @@ Require Import CompileStmtSpec CompileStmtImpl.
 
 Set Implicit Arguments.
 
-Section TopSection.
+Module Make (Import M : RepInv.RepInv).
 
-  Require Import Inv.
-
-  Variable vars : list string.
-
-  Variable temp_size : nat.
-
-  Variable imports : LabelMap.t assert.
-
-  Variable imports_global : importsGlobal imports.
-
-  Variable modName : string.
-
-  Require Import Syntax.
-  Require Import Wrap.
-
-  Variable rv_postcond : W -> Semantics.State -> Prop.
-
-  Definition compile := compile vars temp_size imports_global modName rv_postcond.
-
-  Require Import Semantics.
-  Require Import Safe.
-  Require Import Notations.
-  Require Import SemanticsFacts.
-  Require Import SynReqFacts.
-  Require Import ListFacts.
-  Require Import StringSet.
-  Require Import SetFacts.
+  Module Import InvMake := Inv.Make M.
+  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
+  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
   Require Import CompileStmtTactics.
+  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
+  Require Import PostOk.
+  Module Import PostOkMake := PostOk.Make M.
 
-  Open Scope stmt.
+  Import CompileStmtSpecMake.InvMake.
 
-  Opaque funcs_ok.
-  Opaque mult.
-  Opaque star. (* necessary to use eapply_cancel *)
+  Section TopSection.
 
-  Hint Resolve Subset_syn_req_In.
-  Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
-  Hint Resolve map_length.
+    Variable vars : list string.
 
-  Set Printing Coercions.
+    Variable temp_size : nat.
 
-  Require Import SemanticsExpr.
-  Require Import GeneralTactics.
-  Require Import VerifCondOkTactics.
+    Variable imports : LabelMap.t assert.
 
-  Open Scope nat.
+    Variable imports_global : importsGlobal imports.
 
-  Lemma verifCond_ok_skip : 
-    forall k (pre : assert),
-      let s := skip in
-      vcs (verifCond vars temp_size s k rv_postcond pre) ->
-      vcs
-        (VerifCond (compile s k pre)).
-  Proof.
+    Variable modName : string.
 
-    unfold verifCond, imply.
+    Require Import Syntax.
+    Require Import Wrap.
 
-    (* skip *)
-    wrap0.
+    Variable rv_postcond : W -> Semantics.State -> Prop.
 
-  Qed.
+    Definition compile := compile vars temp_size imports_global modName rv_postcond.
 
-  Lemma verifCond_ok_seq : 
-    forall s1 s2
-           (IHs1 : forall (k : Stmt) (pre : assert),
-                     vcs
-                       ((forall (specs : codeSpec W (settings * state))
-                                (x : settings * state),
-                           interp specs (pre x) ->
-                           interp specs (precond vars temp_size s1 k rv_postcond x))
-                          :: syn_req vars temp_size (s1;; k) :: nil) ->
-                     vcs (VerifCond (compile s1 k pre)))
-           (IHs2 : forall (k : Stmt) (pre : assert),
-                     vcs
-                       ((forall (specs : codeSpec W (settings * state))
-                                (x : settings * state),
-                           interp specs (pre x) ->
-                           interp specs (precond vars temp_size s2 k rv_postcond x))
-                          :: syn_req vars temp_size (s2;; k) :: nil) ->
-                     vcs (VerifCond (compile s2 k pre)))
-           k (pre : assert),
-      let s := s1 ;; s2 in
-      vcs (verifCond vars temp_size s k rv_postcond pre) ->
-      vcs
-        (VerifCond (compile s k pre)).
-  Proof.
+    Require Import Semantics.
+    Require Import Safe.
+    Require Import Notations.
+    Require Import SemanticsFacts.
+    Require Import SynReqFacts.
+    Require Import ListFacts.
+    Require Import StringSet.
+    Require Import SetFacts.
 
-    unfold verifCond, imply.
-    intros.
+    Open Scope stmt.
 
-    (* seq *)
-    Require PostOk.
+    Opaque funcs_ok.
+    Opaque mult.
+    Opaque star. (* necessary to use eapply_cancel *)
 
-    wrap0.
-    eapply IHs1.
-    wrap0.
-    eapply H2 in H.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
-    descend; eauto.
-    eapply Safe_Seq_assoc; eauto.
-    repeat hiding ltac:(step auto_ext).
-    descend.
-    eapply RunsTo_Seq_assoc; eauto.
-    eapply syn_req_Seq_Seq; eauto.
+    Hint Resolve Subset_syn_req_In.
+    Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
+    Hint Resolve map_length.
 
-    eapply IHs2.
-    wrap0.
-    unfold TopSection.compile in H.
-    eapply PostOk.post_ok in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
+    Set Printing Coercions.
 
-    unfold verifCond in *.
-    unfold imply in *.
-    wrap0.
-    eapply H2 in H0.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    post.
-    descend; eauto.
-    eapply Safe_Seq_assoc; eauto.
-    repeat hiding ltac:(step auto_ext).
-    descend.
-    eapply RunsTo_Seq_assoc; eauto.
-    eapply syn_req_Seq_Seq; eauto.
-    eapply syn_req_Seq; eauto.
+    Require Import SemanticsExpr.
+    Require Import GeneralTactics.
+    Require Import VerifCondOkTactics.
 
-  Qed.
+    Open Scope nat.
 
-  Lemma verifCond_ok_if : 
-    forall e s1 s2
-           (IHs1 : forall (k : Stmt) (pre : assert),
-                     vcs
-                       ((forall (specs : codeSpec W (settings * state))
-                                (x : settings * state),
-                           interp specs (pre x) ->
-                           interp specs (precond vars temp_size s1 k rv_postcond x))
-                          :: syn_req vars temp_size (s1;; k) :: nil) ->
-                     vcs (VerifCond (compile s1 k pre)))
-           (IHs2 : forall (k : Stmt) (pre : assert),
-                     vcs
-                       ((forall (specs : codeSpec W (settings * state))
-                                (x : settings * state),
-                           interp specs (pre x) ->
-                           interp specs (precond vars temp_size s2 k rv_postcond x))
-                          :: syn_req vars temp_size (s2;; k) :: nil) ->
-                     vcs (VerifCond (compile s2 k pre)))
-           k (pre : assert),
-           let s := Syntax.If e s1 s2 in
-      vcs (verifCond vars temp_size s k rv_postcond pre) ->
-      vcs
-        (VerifCond (compile s k pre)).
-  Proof.
+    Lemma verifCond_ok_skip : 
+      forall k (pre : assert),
+        let s := skip in
+        vcs (verifCond vars temp_size s k rv_postcond pre) ->
+        vcs
+          (VerifCond (compile s k pre)).
+    Proof.
 
-    unfold verifCond, imply.
-    intros.
+      unfold verifCond, imply.
 
-    (* if *)
-    wrap0.
-    unfold CompileExpr.imply in *.
-    unfold CompileExpr.new_pre in *.
-    unfold CompileExpr.is_state in *.
-    intros.
-    eapply H2 in H.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    post.
-    descend.
-    repeat hiding ltac:(step auto_ext).
-    eauto.
-    eapply syn_req_If_e; eauto.
+      (* skip *)
+      wrap0.
 
-    hiding ltac:(evaluate auto_ext).
+    Qed.
 
-    (* true *)
-    eapply IHs1.
-    wrap0.
-    eapply H2 in H0.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    unfold CompileExpr.runs_to in *.
-    unfold CompileExpr.is_state in *.
-    post.
-    transit.
-    destruct_state.
-    post.
-    hide_upd_sublist.
-    descend.
-    eauto.
-    instantiate (6 := (_, _)); simpl.
-    instantiate (7 := l).
-    unfold_all; repeat rewrite length_upd_sublist.
-    repeat hiding ltac:(step auto_ext).
-    find_cond.
-    eapply Safe_Seq_If_true; eauto.
-    unfold_all; rewrite length_upd_sublist; eauto.
-    eauto.
-    eauto.
+    Lemma verifCond_ok_seq : 
+      forall s1 s2
+             (IHs1 : forall (k : Stmt) (pre : assert),
+                       vcs
+                         ((forall (specs : codeSpec W (settings * state))
+                                  (x : settings * state),
+                             interp specs (pre x) ->
+                             interp specs (precond vars temp_size s1 k rv_postcond x))
+                            :: syn_req vars temp_size (s1;; k) :: nil) ->
+                       vcs (VerifCond (compile s1 k pre)))
+             (IHs2 : forall (k : Stmt) (pre : assert),
+                       vcs
+                         ((forall (specs : codeSpec W (settings * state))
+                                  (x : settings * state),
+                             interp specs (pre x) ->
+                             interp specs (precond vars temp_size s2 k rv_postcond x))
+                            :: syn_req vars temp_size (s2;; k) :: nil) ->
+                       vcs (VerifCond (compile s2 k pre)))
+             k (pre : assert),
+        let s := s1 ;; s2 in
+        vcs (verifCond vars temp_size s k rv_postcond pre) ->
+        vcs
+          (VerifCond (compile s k pre)).
+    Proof.
 
-    repeat hiding ltac:(step auto_ext).
+      unfold verifCond, imply.
+      intros.
 
-    descend.
-    find_cond.
-    eapply RunsTo_Seq_If_true; eauto.
-    eapply syn_req_If_true; eauto.
+      (* seq *)
+      wrap0.
+      eapply IHs1.
+      wrap0.
+      eapply H2 in H.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      post.
+      descend; eauto.
+      eapply Safe_Seq_assoc; eauto.
+      repeat hiding ltac:(step auto_ext).
+      descend.
+      eapply RunsTo_Seq_assoc; eauto.
+      eapply syn_req_Seq_Seq; eauto.
 
-    (* false *)
-    eapply IHs2.
-    wrap0.
-    eapply H2 in H0.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    unfold CompileExpr.runs_to in *.
-    unfold CompileExpr.is_state in *.
-    post.
-    transit.
-    destruct_state.
-    post.
-    hide_upd_sublist.
-    descend.
-    eauto.
-    instantiate (6 := (_, _)); simpl.
-    instantiate (7 := l).
-    unfold_all; repeat rewrite length_upd_sublist.
-    repeat hiding ltac:(step auto_ext).
-    find_cond.
-    eapply Safe_Seq_If_false; eauto.
-    unfold_all; rewrite length_upd_sublist; eauto.
-    eauto.
-    eauto.
+      eapply IHs2.
+      wrap0.
+      unfold TopSection.compile in H.
+      eapply post_ok in H.
+      unfold postcond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      post.
 
-    repeat hiding ltac:(step auto_ext).
+      unfold verifCond in *.
+      unfold imply in *.
+      wrap0.
+(*here*)
+      eapply H2 in H0.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      post.
+      descend; eauto.
+      eapply Safe_Seq_assoc; eauto.
+      repeat hiding ltac:(step auto_ext).
+      descend.
+      eapply RunsTo_Seq_assoc; eauto.
+      eapply syn_req_Seq_Seq; eauto.
+      eapply syn_req_Seq; eauto.
 
-    descend.
-    find_cond.
-    eapply RunsTo_Seq_If_false; eauto.
-    eapply syn_req_If_false; eauto.
+    Qed.
 
-  Qed.
+    Lemma verifCond_ok_if : 
+      forall e s1 s2
+             (IHs1 : forall (k : Stmt) (pre : assert),
+                       vcs
+                         ((forall (specs : codeSpec W (settings * state))
+                                  (x : settings * state),
+                             interp specs (pre x) ->
+                             interp specs (precond vars temp_size s1 k rv_postcond x))
+                            :: syn_req vars temp_size (s1;; k) :: nil) ->
+                       vcs (VerifCond (compile s1 k pre)))
+             (IHs2 : forall (k : Stmt) (pre : assert),
+                       vcs
+                         ((forall (specs : codeSpec W (settings * state))
+                                  (x : settings * state),
+                             interp specs (pre x) ->
+                             interp specs (precond vars temp_size s2 k rv_postcond x))
+                            :: syn_req vars temp_size (s2;; k) :: nil) ->
+                       vcs (VerifCond (compile s2 k pre)))
+             k (pre : assert),
+        let s := Syntax.If e s1 s2 in
+        vcs (verifCond vars temp_size s k rv_postcond pre) ->
+        vcs
+          (VerifCond (compile s k pre)).
+    Proof.
 
-  Lemma verifCond_ok_while : 
-    forall e s
-           (IHs : forall (k : Stmt) (pre : assert),
-                    vcs
-                      ((forall (specs : codeSpec W (settings * state))
-                               (x : settings * state),
-                          interp specs (pre x) ->
-                          interp specs (precond vars temp_size s k rv_postcond x))
-                         :: syn_req vars temp_size (s;; k) :: nil) ->
-                    vcs (VerifCond (compile s k pre)))
-           k (pre : assert),
-      let s := Syntax.While e s in
-      vcs (verifCond vars temp_size s k rv_postcond pre) ->
-      vcs
-        (VerifCond (compile s k pre)).
-  Proof.
+      unfold verifCond, imply.
+      intros.
 
-    unfold verifCond, imply.
-    intros.
+      (* if *)
+      wrap0.
+      unfold CompileExpr.imply in *.
+      unfold CompileExpr.new_pre in *.
+      unfold CompileExpr.is_state in *.
+      intros.
+      eapply H2 in H.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      post.
+      descend.
+      repeat hiding ltac:(step auto_ext).
+      eauto.
+      eapply syn_req_If_e; eauto.
 
-    (* while *)
-    wrap0.
-    unfold CompileExpr.imply in *.
-    unfold CompileExpr.new_pre in *.
-    unfold CompileExpr.is_state in *.
-    intros.
-    eapply H2 in H.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    post.
-    descend.
-    repeat hiding ltac:(step auto_ext).
-    eauto.
-    eapply syn_req_While_e; eauto.
+      hiding ltac:(evaluate auto_ext).
 
-    eapply H2 in H0.
-    unfold precond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    unfold CompileExpr.runs_to in *.
-    unfold CompileExpr.is_state in *.
-    post.
-    transit.
-    destruct_state.
-    post.
-    hide_upd_sublist.
-    descend.
-    eauto.
-    instantiate (6 := (_, _)); simpl.
-    instantiate (7 := l).
-    unfold_all; repeat rewrite length_upd_sublist.
-    repeat hiding ltac:(step auto_ext).
-    eauto.
-    unfold_all; rewrite length_upd_sublist; eauto.
-    eauto.
-    eauto.
+      (* true *)
+      eapply IHs1.
+      wrap0.
+      eapply H2 in H0.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      unfold CompileExpr.runs_to in *.
+      unfold CompileExpr.is_state in *.
+      post.
+      transit.
+      destruct_state.
+      post.
+      hide_upd_sublist.
+      descend.
+      eauto.
+      instantiate (6 := (_, _)); simpl.
+      instantiate (7 := l).
+      unfold_all; repeat rewrite length_upd_sublist.
+      repeat hiding ltac:(step auto_ext).
+      find_cond.
+      eapply Safe_Seq_If_true; eauto.
+      unfold_all; rewrite length_upd_sublist; eauto.
+      eauto.
+      eauto.
 
-    repeat hiding ltac:(step auto_ext).
+      repeat hiding ltac:(step auto_ext).
 
-    descend.
+      descend.
+      find_cond.
+      eapply RunsTo_Seq_If_true; eauto.
+      eapply syn_req_If_true; eauto.
 
-    hiding ltac:(evaluate auto_ext).
+      (* false *)
+      eapply IHs2.
+      wrap0.
+      eapply H2 in H0.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      unfold CompileExpr.runs_to in *.
+      unfold CompileExpr.is_state in *.
+      post.
+      transit.
+      destruct_state.
+      post.
+      hide_upd_sublist.
+      descend.
+      eauto.
+      instantiate (6 := (_, _)); simpl.
+      instantiate (7 := l).
+      unfold_all; repeat rewrite length_upd_sublist.
+      repeat hiding ltac:(step auto_ext).
+      find_cond.
+      eapply Safe_Seq_If_false; eauto.
+      unfold_all; rewrite length_upd_sublist; eauto.
+      eauto.
+      eauto.
 
-    unfold TopSection.compile in H0.
-    eapply PostOk.post_ok in H0.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    unfold CompileExpr.runs_to in *.
-    unfold CompileExpr.is_state in *.
-    post.
-    transit.
-    destruct_state.
-    post.
-    hide_upd_sublist.
-    descend.
-    eauto.
-    instantiate (6 := (_, _)); simpl.
-    instantiate (7 := l).
-    unfold_all; repeat rewrite length_upd_sublist.
-    repeat hiding ltac:(step auto_ext).
-    eauto.
-    unfold_all; rewrite length_upd_sublist; eauto.
-    eauto.
-    eauto.
+      repeat hiding ltac:(step auto_ext).
 
-    repeat hiding ltac:(step auto_ext).
+      descend.
+      find_cond.
+      eapply RunsTo_Seq_If_false; eauto.
+      eapply syn_req_If_false; eauto.
 
-    descend.
+    Qed.
 
-    unfold verifCond in *.
-    unfold imply in *.
-    wrap0.
-    post.
-    descend; eauto.
-    find_cond.
-    eapply Safe_Seq_While_true; eauto.
+    Lemma verifCond_ok_while : 
+      forall e s
+             (IHs : forall (k : Stmt) (pre : assert),
+                      vcs
+                        ((forall (specs : codeSpec W (settings * state))
+                                 (x : settings * state),
+                            interp specs (pre x) ->
+                            interp specs (precond vars temp_size s k rv_postcond x))
+                           :: syn_req vars temp_size (s;; k) :: nil) ->
+                      vcs (VerifCond (compile s k pre)))
+             k (pre : assert),
+        let s := Syntax.While e s in
+        vcs (verifCond vars temp_size s k rv_postcond pre) ->
+        vcs
+          (VerifCond (compile s k pre)).
+    Proof.
 
-    repeat hiding ltac:(step auto_ext).
+      unfold verifCond, imply.
+      intros.
 
-    descend.
-    find_cond.
-    eapply RunsTo_Seq_While_true; eauto.
-    eapply syn_req_While; eauto.
+      (* while *)
+      wrap0.
+      unfold CompileExpr.imply in *.
+      unfold CompileExpr.new_pre in *.
+      unfold CompileExpr.is_state in *.
+      intros.
+      eapply H2 in H.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      post.
+      descend.
+      repeat hiding ltac:(step auto_ext).
+      eauto.
+      eapply syn_req_While_e; eauto.
 
-    eapply IHs.
-    wrap0.
-    post.
-    descend; eauto.
-    find_cond.
-    eapply Safe_Seq_While_true; eauto.
+      eapply H2 in H0.
+      unfold precond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      unfold CompileExpr.runs_to in *.
+      unfold CompileExpr.is_state in *.
+      post.
+      transit.
+      destruct_state.
+      post.
+      hide_upd_sublist.
+      descend.
+      eauto.
+      instantiate (6 := (_, _)); simpl.
+      instantiate (7 := l).
+      unfold_all; repeat rewrite length_upd_sublist.
+      repeat hiding ltac:(step auto_ext).
+      eauto.
+      unfold_all; rewrite length_upd_sublist; eauto.
+      eauto.
+      eauto.
 
-    repeat hiding ltac:(step auto_ext).
+      repeat hiding ltac:(step auto_ext).
 
-    descend.
-    find_cond.
-    eapply RunsTo_Seq_While_true; eauto.
-    eapply syn_req_While; eauto.
+      descend.
 
-    unfold CompileExpr.verifCond in *.
-    unfold CompileExpr.imply in *.
-    wrap0.
-    unfold TopSection.compile in H.
-    eapply PostOk.post_ok in H.
-    unfold postcond in *.
-    unfold inv in *.
-    unfold inv_template in *.
-    unfold is_state in *.
-    unfold CompileExpr.is_state in *.
-    post.
-    descend.
-    repeat hiding ltac:(step auto_ext).
-    eauto.
+      hiding ltac:(evaluate auto_ext).
 
-    unfold verifCond in *.
-    unfold imply in *.
-    wrap0.
-    post.
-    descend; eauto.
-    find_cond.
-    eapply Safe_Seq_While_true; eauto.
+      unfold TopSection.compile in H0.
+      eapply PostOk.post_ok in H0.
+      unfold postcond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      unfold CompileExpr.runs_to in *.
+      unfold CompileExpr.is_state in *.
+      post.
+      transit.
+      destruct_state.
+      post.
+      hide_upd_sublist.
+      descend.
+      eauto.
+      instantiate (6 := (_, _)); simpl.
+      instantiate (7 := l).
+      unfold_all; repeat rewrite length_upd_sublist.
+      repeat hiding ltac:(step auto_ext).
+      eauto.
+      unfold_all; rewrite length_upd_sublist; eauto.
+      eauto.
+      eauto.
 
-    repeat hiding ltac:(step auto_ext).
+      repeat hiding ltac:(step auto_ext).
 
-    descend.
-    find_cond.
-    eapply RunsTo_Seq_While_true; eauto.
-    eapply syn_req_While; eauto.
+      descend.
 
-    eapply syn_req_While_e; eauto.
+      unfold verifCond in *.
+      unfold imply in *.
+      wrap0.
+      post.
+      descend; eauto.
+      find_cond.
+      eapply Safe_Seq_While_true; eauto.
 
-  Qed.
+      repeat hiding ltac:(step auto_ext).
 
-End TopSection.
+      descend.
+      find_cond.
+      eapply RunsTo_Seq_While_true; eauto.
+      eapply syn_req_While; eauto.
+
+      eapply IHs.
+      wrap0.
+      post.
+      descend; eauto.
+      find_cond.
+      eapply Safe_Seq_While_true; eauto.
+
+      repeat hiding ltac:(step auto_ext).
+
+      descend.
+      find_cond.
+      eapply RunsTo_Seq_While_true; eauto.
+      eapply syn_req_While; eauto.
+
+      unfold CompileExpr.verifCond in *.
+      unfold CompileExpr.imply in *.
+      wrap0.
+      unfold TopSection.compile in H.
+      eapply PostOk.post_ok in H.
+      unfold postcond in *.
+      unfold inv in *.
+      unfold inv_template in *.
+      unfold is_state in *.
+      unfold CompileExpr.is_state in *.
+      post.
+      descend.
+      repeat hiding ltac:(step auto_ext).
+      eauto.
+
+      unfold verifCond in *.
+      unfold imply in *.
+      wrap0.
+      post.
+      descend; eauto.
+      find_cond.
+      eapply Safe_Seq_While_true; eauto.
+
+      repeat hiding ltac:(step auto_ext).
+
+      descend.
+      find_cond.
+      eapply RunsTo_Seq_While_true; eauto.
+      eapply syn_req_While; eauto.
+
+      eapply syn_req_While_e; eauto.
+
+    Qed.
+
+  End TopSection.
+
+End Make.

@@ -6,17 +6,37 @@ Require Import RepInv.
 Require Import Bags.
 Require Import Semantics.
 
+Definition empty_vs : vals := fun _ => $0.
+
+Definition has_extra_stack sp offset e_stack e_stack_real :=
+  ((sp ^+ $4) =*> $(e_stack) *
+   (sp ^+ $8 ^+ $(4 * offset)) =?> e_stack_real)%Sep.
+
+Fixpoint make_triples pairs outs :=
+  match pairs, outs with
+    | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
+    | _, _ => nil
+  end.
+
+Definition store_pair heap (p : W * ArgIn) :=
+  match snd p with
+    | inl _ => heap
+    | inr a => heap_upd heap (fst p) a
+  end.
+
+Fixpoint make_heap pairs := fold_left store_pair pairs heap_empty.
+
+Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
+  (ExX, 
+   Cptr p #0 /\
+   Al st : state, AlX : settings * smem,
+                        a (stn, st) ---> #1 (stn, st))%PropX.
+
 Module Make (Import M : RepInv).
 
   Definition is_heap (h : Heap) : HProp := starL (fun p => rep_inv (fst p) (snd p)) (heap_elements h).
 
-  Definition empty_vs : vals := fun _ => $0.
-
   Section TopSection.
-
-    Definition has_extra_stack sp offset e_stack e_stack_real :=
-      ((sp ^+ $4) =*> $(e_stack) *
-       (sp ^+ $8 ^+ $(4 * offset)) =?> e_stack_real)%Sep.
 
     Definition is_state sp rp e_stack e_stack_real vars (v : State) temps : HProp :=
       (
@@ -36,20 +56,6 @@ Module Make (Import M : RepInv).
         | None  => ([| True |])%Sep
         | Some a => rep_inv addr a
       end.
-
-    Fixpoint make_triples pairs outs :=
-      match pairs, outs with
-        | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
-        | _, _ => nil
-      end.
-
-    Definition store_pair heap (p : W * ArgIn) :=
-      match snd p with
-        | inl _ => heap
-        | inr a => heap_upd heap (fst p) a
-      end.
-
-    Fixpoint make_heap pairs := fold_left store_pair pairs heap_empty.
 
     Open Scope type.
 
@@ -95,12 +101,6 @@ Module Make (Import M : RepInv).
               st'#Rv = ret_w /\
               st'#Sp = st#Sp |]))%PropX.
 
-    Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
-      (ExX, 
-       Cptr p #0 /\
-       Al st : state, AlX : settings * smem,
-                            a (stn, st) ---> #1 (stn, st))%PropX.
-    
     Definition funcs_ok stn (fs : settings -> W -> option Callee) : PropX W (settings * state) := 
       ((Al i, Al spec,
         [| fs stn i = Some (Internal spec) |] 
