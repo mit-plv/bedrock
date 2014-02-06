@@ -162,42 +162,57 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eauto.
     Qed.
 
-    (*here*)
+    Definition InKey k ls := exists v, InPair (k, v) ls.
 
     Lemma In_fst_InKey : forall ls k, InA E.eq k (List.map (@fst _ _) ls) <-> InKey k ls.
+(*      induction ls; simpl; split; intros.
+      eapply InA_nil in H; intuition.
+      unfold InKey in *.
+      openhyp.
+      eapply InA_nil in H; intuition.
+      split; intros.*)
+      admit.
+    Qed.
 
-    Lemma In_find_list_not_None_left : forall ls k, In k (map fst ls) -> find_list k ls <> None.
+    Lemma In_find_list_not_None_left : forall ls k, InA E.eq k (List.map (@fst _ _) ls) -> find_list k ls <> None.
+    Proof.
+      induction ls; simpl; intros.
+      eapply InA_nil in H; intuition.
+      inversion H; subst.
+      unfold find_list in *; destruct a; simpl in *.
+      unfold eqb in *.
+      destruct (eq_dec k k0); intuition.
+      discriminate.
+      eapply IHls in H1.
+      unfold find_list in *; destruct a; simpl in *.
+      destruct (eqb k k0); intuition.
+      discriminate.
+    Qed.
+
+    Lemma In_find_list_not_None_right : forall ls k, find_list k ls <> None -> InA E.eq k (List.map (@fst _ _) ls).
     Proof.
       induction ls; simpl; intros.
       intuition.
-      destruct H.
       unfold find_list in *; destruct a; simpl in *.
       unfold eqb in *.
-      destruct (Key.eq_dec k l); intuition.
-      eapply IHls in H.
-      unfold find_list in *; destruct a; simpl in *.
-      destruct (eqb k l); intuition.
+      destruct (eq_dec k k0); intuition.
     Qed.
 
-    Lemma In_find_list_not_None_right : forall B (ls : list (label * B)) k, find_list k ls <> None -> In k (map fst ls).
-    Proof.
-      induction ls; simpl; intros.
-      intuition.
-      unfold find_list in *; destruct a; simpl in *.
-      unfold eqb in *.
-      destruct (Key.eq_dec k l); intuition.
-    Qed.
-
-    Lemma In_find_list_not_None : forall B (ls : list (label * B)) k, In k (map fst ls) <-> find_list k ls <> None.
+    Lemma In_find_list_not_None : forall ls k, InA E.eq k (List.map (@fst _ _) ls) <-> find_list k ls <> None.
       intros.
       split.
       eapply In_find_list_not_None_left.
       eapply In_find_list_not_None_right.
     Qed.
 
-    Lemma In_find_not_None : forall A k (m : t A), find k m <> None <-> In k m.
+    Lemma ex_up : forall A (e : option A),
+                    (e = None -> False)
+                    -> exists (v : A), e = Some v.
+      destruct e; intuition eauto.
+    Qed.
+
+    Lemma In_find_not_None : forall k m, find k m <> None <-> In k m.
       unfold In.
-      unfold Raw.PX.In.
       split; intros.
       eapply ex_up in H.
       openhyp.
@@ -206,10 +221,12 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
 
       openhyp.
       eapply find_1 in H.
+      rewrite H.
       intuition.
+      discriminate.
     Qed.
 
-    Lemma In_In_keys : forall A k (m : t A), In k m <-> In k (keys m).
+    Lemma In_In_keys : forall k m, In k m <-> In k (keys m).
       split; intros.
       eapply In_find_not_None in H.
       eapply In_find_list_not_None.
