@@ -22,11 +22,6 @@ Section TopSection.
       | x :: xs => x ++ flatten xs
     end.
 
-  Definition to_map B ls :=
-    List.fold_left
-      (fun m p => LabelMap.add (fst p) (snd p) m)
-      ls (LabelMap.empty B).
-
   Require Import GoodFunction.
   Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
     {|
@@ -46,8 +41,6 @@ Section TopSection.
                     ((MName m, FName f), f : InternalFuncSpec)
                  ) (Functions m)
             ) modules)).
-
-  Definition keys A (m : LabelMap.t A) := map fst (LabelMap.elements m).
 
   Definition accessible_labels := keys imports ++ keys exports.
 
@@ -150,199 +143,9 @@ Section TopSection.
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
-      Definition eqb x y := if Label.Key.eq_dec x y then true else false.
-
-      Definition find_as_map B k (ls : list (label * B)) : option B :=
-        SetoidList.findA (eqb k) ls.
-
-      Definition option_dec A (x : option A) : {a | x = Some a} + {x = None}.
-        destruct x.
-        left.
-        exists a.
-        eauto.
-        right.
-        eauto.
-      Qed.
-
-      Require Import GeneralTactics.
-
-      Definition NoDupKey A := SetoidList.NoDupA (@LabelMap.eq_key A).
-
-      Lemma NoDup_app_find_as_map : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m1 = Some v -> find_as_map k (m1 ++ m2) = Some v.
-        admit.
-      Qed.
-
-      Lemma NoDup_app_find_as_map_2 : forall A m1 m2 k (v : A), NoDupKey (m1 ++ m2) -> find_as_map k m2 = Some v -> find_as_map k (m1 ++ m2) = Some v.
-        admit.
-      Qed.
-
-      Lemma find_as_map_neq : forall A k (v : A) k' ls, NoDupKey ls -> k' <> k -> find_as_map k' ls = find_as_map k' (ls ++ (k, v) :: nil).
-        admit.
-      Qed.
-
       Lemma NoDup_bimports : NoDupKey bimports.
         admit.
       Qed.
-
-      Lemma NoDup_incl : forall A a b, @NoDupKey A b -> incl a b -> NoDupKey a.
-        admit.
-      Qed.
-
-      Lemma NoDup_cons : forall A ls k1 (v1 : A) k2 v2, NoDupKey ((k1, v1) :: ls) -> In (k2, v2) ls -> k1 <> k2.
-        admit.
-      Qed.
-
-      Lemma InA_In : forall A p ls, SetoidList.InA (LabelMap.eq_key_elt (elt := A)) p ls <-> In p ls.
-        admit.
-      Qed.
-
-      Lemma In_find_as_map_Some_left : forall A k (v : A) ls, NoDupKey ls -> In (k, v) ls -> find_as_map k ls = Some v.
-      Proof.
-        induction ls; simpl; intros.
-        intuition.
-        destruct H0.
-        unfold find_as_map in *; destruct a; simpl in *.
-        injection H0; intros; subst.
-        unfold eqb in *.
-        destruct (Key.eq_dec k k); intuition.
-        destruct a; simpl in *.
-        generalize H0; eapply NoDup_cons in H0; eauto; intro.
-        eapply IHls in H1.
-        unfold find_as_map in *; simpl in *.
-        unfold eqb in *.
-        destruct (Key.eq_dec k k0); intuition.
-        eapply NoDup_incl.
-        eauto.
-        intuition.
-      Qed.
-
-      Lemma In_find_as_map_Some_right : forall A k (v : A) ls, NoDupKey ls -> find_as_map k ls = Some v -> In (k, v) ls.
-      Proof.
-        induction ls; simpl; intros.
-        unfold find_as_map in *; simpl in *.
-        intuition.
-        unfold find_as_map in *; destruct a; simpl in *.
-        unfold eqb in *.
-        destruct (Key.eq_dec k k0); intuition.
-        injection H0; intros; subst.
-        eauto.
-        right.
-        eapply IHls.
-        eapply NoDup_incl.
-        eauto.
-        intuition.
-        eauto.
-      Qed.
-
-      Lemma In_find_as_map_Some : forall A k (v : A) ls, NoDupKey ls -> (In (k, v) ls <-> find_as_map k ls = Some v).
-        split; intros.
-        eapply In_find_as_map_Some_left; eauto.
-        eapply In_find_as_map_Some_right; eauto.
-      Qed.
-
-      Lemma In_find_Some : forall A k (v : A) m, In (k, v) (LabelMap.elements m) <-> LabelMap.find k m = Some v.
-        split; intros.
-        eapply LabelMap.find_1.
-        eapply LabelMap.elements_2.
-        eapply InA_In; eauto.
-        eapply LabelMap.find_2 in H.
-        eapply LabelMap.elements_1 in H.
-        eapply InA_In; eauto.
-      Qed.
-
-      Lemma None_not_Some : forall A (a : option A), a = None <-> ~ exists v, a = Some v.
-        split; intros.
-        intuition.
-        openhyp.
-        intuition.
-        destruct (option_dec a); eauto.
-        destruct s.
-        contradict H.
-        eexists; eauto.
-      Qed.
-
-      Lemma find_as_map_elements : forall A k (m : LabelMap.t A), find_as_map k (LabelMap.elements m) = LabelMap.find k m.
-        intros.
-        destruct (option_dec (LabelMap.find k m0)).
-        destruct s.
-        rewrite e.
-        eapply In_find_Some in e.
-        eapply In_find_as_map_Some in e.
-        eauto.
-        eapply LabelMap.elements_3w.
-        rewrite e.
-        eapply None_not_Some in e.
-        eapply None_not_Some.
-        intuition.
-        contradict e.
-        openhyp.
-        eapply In_find_as_map_Some in H.
-        eapply In_find_Some in H.
-        eexists; eauto.
-        eapply LabelMap.elements_3w.
-      Qed.
-
-      Lemma In_find_as_map_not_None_left : forall B (ls : list (label * B)) k, In k (map fst ls) -> find_as_map k ls <> None.
-      Proof.
-        induction ls; simpl; intros.
-        intuition.
-        destruct H.
-        unfold find_as_map in *; destruct a; simpl in *.
-        unfold eqb in *.
-        destruct (Key.eq_dec k l); intuition.
-        eapply IHls in H.
-        unfold find_as_map in *; destruct a; simpl in *.
-        destruct (eqb k l); intuition.
-      Qed.
-
-      Lemma In_find_as_map_not_None_right : forall B (ls : list (label * B)) k, find_as_map k ls <> None -> In k (map fst ls).
-      Proof.
-        induction ls; simpl; intros.
-        intuition.
-        unfold find_as_map in *; destruct a; simpl in *.
-        unfold eqb in *.
-        destruct (Key.eq_dec k l); intuition.
-      Qed.
-
-      Lemma In_find_as_map_not_None : forall B (ls : list (label * B)) k, In k (map fst ls) <-> find_as_map k ls <> None.
-        intros.
-        split.
-        eapply In_find_as_map_not_None_left.
-        eapply In_find_as_map_not_None_right.
-      Qed.
-
-      Lemma In_find_not_None : forall A k (m : LabelMap.t A), LabelMap.find k m <> None <-> LabelMap.In k m.
-        unfold LabelMap.In.
-        unfold LabelMap.Raw.PX.In.
-        split; intros.
-        eapply ex_up in H.
-        openhyp.
-        eapply LabelMap.find_2 in H.
-        eexists; eauto.
-
-        openhyp.
-        eapply LabelMap.find_1 in H.
-        intuition.
-      Qed.
-
-      Lemma In_In_keys : forall A k (m : LabelMap.t A), LabelMap.In k m <-> In k (keys m).
-        split; intros.
-        eapply In_find_not_None in H.
-        eapply In_find_as_map_not_None.
-        rewrite find_as_map_elements.
-        eauto.
-        eapply In_find_not_None.
-        unfold keys in *.
-        eapply In_find_as_map_not_None in H.
-        rewrite find_as_map_elements in H.
-        eauto.
-      Qed.
-
-      Lemma add_4 : forall A m x y (e : A), x <> y -> LabelMap.LabelMap.find y (LabelMap.LabelMap.add x e m) = LabelMap.LabelMap.find y m.
-        admit.
-      Qed.
-
-      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
 
       Definition importsMap' (imports : list import) base :=
         List.fold_left 
@@ -415,6 +218,8 @@ Section TopSection.
              let '(f, pre, _) := p in
              LabelMap.LabelMap.add (modName, Global f) pre m) functions impsMap.
 
+      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
+
       Lemma fullImports_no_effect' : 
         forall mn (fns : list (function mn)) imps impsMap, 
           NoDupKey imps -> 
@@ -462,17 +267,6 @@ Section TopSection.
 
       Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
         admit.
-      Qed.
-
-      Lemma map_3 : forall A B (f : A -> B) k m, LabelMap.In k m -> LabelMap.In k (LabelMap.map f m).
-      Proof.
-        intros.
-        unfold LabelMap.In in *.
-        unfold LabelMap.Raw.PX.In in *.
-        openhyp.
-        eapply LabelMap.map_1 in H.
-        eexists.
-        eauto.
       Qed.
 
       Require Import Sumbool.
@@ -556,13 +350,6 @@ Section TopSection.
         openhyp.
         eauto.
         eauto.
-      Qed.
-
-      Lemma find_map : forall A B (f : A -> B) k v m, LabelMap.find k m = Some v -> LabelMap.find k (LabelMap.map f m) = Some (f v).
-        intros.
-        eapply LabelMap.find_2 in H.
-        eapply LabelMap.find_1.
-        eapply LabelMap.map_1; eauto.
       Qed.
 
       Lemma imports_bimports : forall k v, LabelMap.find k imports = Some v -> find_as_map k bimports = Some (foreign_spec v).
