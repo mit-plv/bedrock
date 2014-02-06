@@ -31,7 +31,7 @@ MODULES := \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
-	Stub \
+	# Stub \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \
 	# DepthExpr \
