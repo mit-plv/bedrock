@@ -225,7 +225,7 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       intuition.
       discriminate.
     Qed.
-
+(*here*)
     Lemma In_In_keys : forall k m, In k m <-> In k (keys m).
       split; intros.
       eapply In_find_not_None in H.
