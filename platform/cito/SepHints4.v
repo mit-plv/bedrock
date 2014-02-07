@@ -3,13 +3,16 @@ Require Import List.
 
 Set Implicit Arguments.
 
-Definition locals_to_elim (_ : list string) := True.
+Section TopSection.
 
-Lemma elim_locals : forall vars vs p, locals_to_elim vars -> locals vars vs 0 p ===> p =?> length vars.
-  admit.
-Qed.
+  Definition locals_to_elim (_ : list string) := True.
 
-Definition hints_elim_locals : TacPackage.
-  prepare elim_locals tt.
-Defined.
+  Lemma elim_locals : forall vars vs p, locals_to_elim vars -> locals vars vs 0 p ===> p =?> length vars.
+    admit.
+  Qed.
 
+  Definition hints_elim_locals : TacPackage.
+    prepare elim_locals tt.
+  Defined.
+
+End TopSection.

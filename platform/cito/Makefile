@@ -3,7 +3,9 @@ BEDROCK := ../..
 MODULES := \
 	StringSet ValsStringSet SetUtil \
 	Label ConvertLabel \
-	SyntaxExpr Syntax SemanticsExpr FuncCore Semantics Safe \
+	SyntaxExpr Syntax SemanticsExpr FuncCore \
+	ADT Heap \
+	Semantics Safe \
 	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
 	RepInv Inv \

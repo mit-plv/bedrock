@@ -3,43 +3,46 @@ Require Import List.
 
 Set Implicit Arguments.
 
-Local Open Scope nat.
+Section TopSection.
 
-Definition splittable A (ls : list A) pos := pos <= length ls.
+  Local Open Scope nat.
 
-Definition array_to_split ls p (_ : nat) := array ls p.
+  Definition splittable A (ls : list A) pos := pos <= length ls.
 
-Lemma replace_array_to_split : forall ls p pos, array ls p = array_to_split ls p pos.
-  eauto.
-Qed.
+  Definition array_to_split ls p (_ : nat) := array ls p.
 
-Lemma array_split : forall ls p pos, splittable ls pos -> array_to_split ls p pos ===> array (firstn pos ls) p * array (skipn pos ls) (p ^+ $(4 * pos)).
-  admit.
-Qed.
+  Lemma replace_array_to_split : forall ls p pos, array ls p = array_to_split ls p pos.
+    eauto.
+  Qed.
 
-Definition to_elim (_ : list W) := True.
+  Lemma array_split : forall ls p pos, splittable ls pos -> array_to_split ls p pos ===> array (firstn pos ls) p * array (skipn pos ls) (p ^+ $(4 * pos)).
+    admit.
+  Qed.
 
-Lemma array_elim : forall ls p, to_elim ls -> array ls p ===> p =?> length ls.
-  admit.
-Qed.
+  Definition to_elim (_ : list W) := True.
 
-Definition buf_to_split p len (_ : nat) := (p =?> len)%Sep.
+  Lemma array_elim : forall ls p, to_elim ls -> array ls p ===> p =?> length ls.
+    admit.
+  Qed.
 
-Definition buf_splittable (len pos : nat) := pos <= len.
+  Definition buf_to_split p len (_ : nat) := (p =?> len)%Sep.
 
-Lemma buf_split_bwd : forall p len pos, buf_splittable len pos -> p =?> pos * (p ^+ $(4 * pos)) =?> (len - pos) ===> buf_to_split p len pos.
-  admit.
-Qed.
+  Definition buf_splittable (len pos : nat) := pos <= len.
 
-Definition hints_array_split : TacPackage.
-  prepare array_split tt.
-Defined.
+  Lemma buf_split_bwd : forall p len pos, buf_splittable len pos -> p =?> pos * (p ^+ $(4 * pos)) =?> (len - pos) ===> buf_to_split p len pos.
+    admit.
+  Qed.
 
-Definition hints_array_elim : TacPackage.
-  prepare array_elim tt.
-Defined.
+  Definition hints_array_split : TacPackage.
+    prepare array_split tt.
+  Defined.
 
-Definition hints_buf_split_bwd : TacPackage.
-  prepare tt buf_split_bwd.
-Defined.
+  Definition hints_array_elim : TacPackage.
+    prepare array_elim tt.
+  Defined.
 
+  Definition hints_buf_split_bwd : TacPackage.
+    prepare tt buf_split_bwd.
+  Defined.
+
+End TopSection.

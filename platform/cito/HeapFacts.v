@@ -1,5 +1,14 @@
-Require Import Semantics.
+Set Implicit Arguments.
 
-Lemma heap_merge_empty : forall h, heap_merge h heap_empty = h.
-  admit.
-Qed.
+Require Import ADT.
+
+Module Make (Import E : ADT).
+
+  Require Import Heap.
+  Module Import HeapMake := Heap.Make E.
+
+  Lemma heap_merge_empty : forall h, heap_merge h heap_empty = h.
+    admit.
+  Qed.
+
+End Make.
