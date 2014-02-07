@@ -1,9 +1,10 @@
-Require Import AutoSep.
-Require Import Semantics.
-
 Set Implicit Arguments.
 
-Module Type RepInv.
+Require Import ADT.
+
+Module Type RepInv (Import E : ADT).
+
+  Require Import AutoSep.
 
   Definition RepInv := W -> ADTValue -> HProp.
 
