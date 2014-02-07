@@ -1,13 +1,13 @@
-Require Import S.
+Require Import ADT.
 
-Module Make (E : S).
+Module Make (E : ADT).
 
   Require Import A.
-  Module Import AMake := Make E.
+  Module AMake := Make E.
   Require Import B.
-  Module Import BMake := Make E.
+  Module BMake := Make E.
 
-  Lemma foo : AMake.FMake.t = BMake.FMake.t.
+  Lemma foo : AMake.FMake.HeapMake.Heap = BMake.FMake.HeapMake.Heap.
     reflexivity.
   Qed.
 

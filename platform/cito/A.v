@@ -1,8 +1,8 @@
-Require Import S.
+Require Import ADT.
 
-Module Make (E : S).
+Module Make (E : ADT).
 
-  Require Import F.
+  Require Import Semantics.
   Module Import FMake := Make E.
 
 End Make.
