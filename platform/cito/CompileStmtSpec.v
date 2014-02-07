@@ -1,10 +1,11 @@
-Require Import Inv.
 Require Import Syntax.
 
 Set Implicit Arguments.
 
 (* syntactic_requirement *)
 Section SynReq.
+
+  Require Import String.
 
   Variable vars : list string.
 
@@ -29,9 +30,15 @@ Section SynReq.
 
 End SynReq.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import Inv.
+  Module Import InvMake := Make E.
+  Module Import InvMake2 := Make M.
+  Import SafeMake.SemanticsMake.
 
   Section Spec.
 
@@ -41,15 +48,15 @@ Module Make (Import M : RepInv.RepInv).
 
     Variable s k : Stmt.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
-    Definition precond := inv vars temp_size rv_postcond (Seq s k).
+    Definition precond := inv vars temp_size rv_postcond (Syntax.Seq s k).
 
     Definition postcond := inv vars temp_size rv_postcond k.
 
     Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-    Definition verifCond pre := imply pre precond :: syn_req vars temp_size (Seq s k) :: nil.
+    Definition verifCond pre := imply pre precond :: syn_req vars temp_size (Syntax.Seq s k) :: nil.
 
   End Spec.
 

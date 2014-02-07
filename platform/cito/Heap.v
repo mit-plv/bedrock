@@ -1,5 +1,6 @@
 Set Implicit Arguments.
 
+(*
 Require Import Equalities.
 
 Module Key' <: MiniDecidableType.
@@ -15,12 +16,69 @@ Module Key' <: MiniDecidableType.
 End Key'.
 
 Module Key := Make_UDT Key'.
+*)
+
+Require Import OrderedType.
+
+Module Key' <: MiniOrderedType.
+
+  Require Import Memory.
+
+  Definition t := W.
+
+  Require Import Word.
+
+  Definition eq := @eq t.
+
+  Local Open Scope nat.
+
+  Definition lt (x y : t) := wordToNat x < wordToNat y.
+
+  Lemma eq_refl : forall x : t, eq x x.
+    unfold eq; eauto.
+  Qed.
+
+  Lemma eq_sym : forall x y : t, eq x y -> eq y x.
+    unfold eq; eauto.
+  Qed.
+
+  Lemma eq_trans : forall x y z : t, eq x y -> eq y z -> eq x z.
+    unfold eq; intuition.
+    congruence.
+  Qed.
+
+  Lemma lt_trans : forall x y z : t, lt x y -> lt y z -> lt x z.
+    unfold lt; intros; omega.
+  Qed.
+
+  Lemma lt_not_eq : forall x y : t, lt x y -> ~ eq x y.
+    unfold lt; unfold eq; intuition.
+    subst.
+    omega.
+  Qed.
+
+  Require Import WordFacts.
+
+  Definition compare : forall x y : t, Compare lt eq x y.
+    unfold lt; unfold eq.
+    intros.
+    destruct (Compare_dec.lt_eq_lt_dec (wordToNat x) (wordToNat y)).
+    destruct s.
+    econstructor 1; eauto.
+    econstructor 2; eauto.
+    eapply wordToNat_eq_eq; eauto.
+    econstructor 3; eauto.
+  Defined.
+
+End Key'.
+
+Module Key := MOT_to_OT Key'.
 
 Require Import ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import FMapWeakList.
+  Require Import FMapAVL.
 
   Module Import M := Make Key.
 

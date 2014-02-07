@@ -1,4 +1,5 @@
 Require Import AutoSep.
+Require Import GeneralTactics.
 
 Ltac clear_imports :=
   try match goal with
@@ -9,40 +10,10 @@ Ltac clear_imports :=
             clear Him
       end.
 
-Require Import Semantics.
-Require Import Safe.
-Require Import Inv.
-
-Ltac hiding tac :=
-  clear_imports;
-  ((let P := fresh "P" in
-   match goal with
-     | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
-     | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
-   end;
-   hiding tac;
-   subst P) || tac).
-
-(* transit *)
-
-Ltac eapply_cancel h specs st := 
-  let HP := fresh in 
-  let Hnew := fresh in
-  evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
-  [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP;
-  [ solve [clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
-
-Ltac transit :=
-  match goal with
-    | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
-  end.
-
 Ltac open_Some := 
   match goal with
       H : Some _ = Some _ |- _ => injection H; clear H; intros
   end.
-
-Require Import GeneralTactics.
 
 Ltac cond_solver :=  
   match goal with
@@ -56,8 +27,6 @@ Ltac find_cond :=
   match goal with
     | H1 : evalCond _ _ _ _ _ = Some ?b, H2 : _ = eval ?V ?E |- _ => assert (wneb (eval V E) $0 = b) by cond_solver
   end.
-
-(* eval_instrs *)
 
 Ltac not_exist t :=
   match goal with
@@ -87,13 +56,6 @@ Ltac HypothesisParty H :=
         end
   end.
 
-Ltac clear_bad H_interp s :=
-  repeat 
-    match goal with
-      | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
-      | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
-    end.
-
 Lemma fold_4S : forall n, (S (S (S (S (4 * n))))) = (4 + (4 * n)).
   eauto.
 Qed.
@@ -110,13 +72,6 @@ Ltac simpl_sp :=
          end.
 
 Require Import Wrap.
-
-Ltac pre_eval :=
-  match goal with
-    | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-      try clear_imports; HypothesisParty H; prep_locals; clear_bad H ST;
-      simpl_interp; simpl_sp; try rewrite fold_4S in *
-  end.
 
 Lemma pack_pair' : forall A B (x : A * B), (let (x, _) := x in x, let (_, y) := x in y) = x.
   destruct x; simpl; intuition.
@@ -149,9 +104,58 @@ Ltac not_mem_rv INST :=
     | _ => idtac
   end.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import Inv.
+  Module Import InvMake := Make E.
+  Import SafeMake.
+  Import SemanticsMake.
+  Import HeapMake.
+
+  Ltac hiding tac :=
+    clear_imports;
+    ((let P := fresh "P" in
+      match goal with
+        | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
+        | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
+      end;
+      hiding tac;
+      subst P) || tac).
+
+  (* transit *)
+
+  Ltac eapply_cancel h specs st := 
+    let HP := fresh in 
+    let Hnew := fresh in
+    evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
+    [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP;
+    [ solve [clear_imports; repeat hiding ltac:(step auto_ext) ] | .. ].
+
+  Ltac transit :=
+    match goal with
+      | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
+    end.
+
+  (* eval_instrs *)
+
+  Ltac clear_bad H_interp s :=
+    repeat 
+      match goal with
+        | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
+        | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
+      end.
+
+  Ltac pre_eval :=
+    match goal with
+      | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
+        try clear_imports; HypothesisParty H; prep_locals; clear_bad H ST;
+        simpl_interp; simpl_sp; try rewrite fold_4S in *
+    end.
+
+  Module Import InvMake2 := Make M.
 
   Ltac pre_eval_auto := 
     repeat 
