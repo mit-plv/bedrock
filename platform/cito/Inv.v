@@ -11,8 +11,9 @@ Definition has_extra_stack sp offset e_stack e_stack_real :=
 Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
   (ExX, 
    Cptr p #0 /\
-   Al st : state, AlX : settings * smem,
-                        a (stn, st) ---> #1 (stn, st))%PropX.
+   Al st : state, 
+           AlX : settings * smem,
+                 a (stn, st) ---> #1 (stn, st))%PropX.
 
 Require Import ADT.
 
@@ -70,6 +71,7 @@ Module Make (Import E : ADT).
       Require Import ConvertLabel.
       Import Semantics.
       (* universe inconsistency *)
+      Set Printing Universes.
       Definition internal_spec G fs spec st : propX _ _ (settings * smem :: G) :=
         (Ex v, Ex rp, Ex e_stack,
          ![^[is_state st#Sp rp e_stack e_stack (ArgVars spec) v nil * mallocHeap 0] * #0] st /\
@@ -151,3 +153,5 @@ Module Make (Import E : ADT).
     End TopSection.
 
   End Make.
+
+End Make.

@@ -1,22 +1,24 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
-  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
-  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import CompileStmtImpl.
+  Module Import CompileStmtImplMake := Make E M.
   Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
+  Module Import CompileStmtTacticsMake := Make E M.
   Require Import LayoutHints3.
-  Module Import LayoutHints3Make := LayoutHints3.Make M.
-
-  Import CompileStmtSpecMake.InvMake.
+  Module Import LayoutHints3Make := Make E M.
+  Require Import CompileStmtSpec.
+  Module Import CompileStmtSpecMake := Make E M.
+  Import InvMake.
+  Import SafeMake.
+  Import SemanticsMake.
+  Import InvMake2.
 
   Section TopSection.
-
-    Require Import Inv.
 
     Variable vars : list string.
 
@@ -31,9 +33,12 @@ Module Make (Import M : RepInv.RepInv).
     Require Import Syntax.
     Require Import Wrap.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
+
+    Lemma ttt : CompileStmtImplMake.InvMake.SafeMake.SemanticsMake.State = State.
+      reflexivity.
 
     Lemma post_ok : 
       forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))

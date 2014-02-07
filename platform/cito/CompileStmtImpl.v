@@ -15,9 +15,6 @@ Section Body.
 
   Require Import SemanticsExpr.
 
-  Require Import Semantics.
-  Require Import Safe.
-
   Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
   Definition vars_start := 4 * 2.
   Definition var_slot x := LvMem (Sp + (vars_start + variablePosition vars x)%nat)%loc.
@@ -103,25 +100,32 @@ Section Body.
 
 End Body.
 
-Require Import Inv.
+Require Import ADT.
+Require Import RepInv.
 
-Module Make (Import M : RepInv.RepInv).
+Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Module Import InvMake := Inv.Make M.
+  Require Import Inv.
+  Module Import InvMake := Make E.
+  Import SafeMake.
+  Import SemanticsMake.
+  Import HeapMake.
+  Module Import InvMake2 := Make M.
 
-  Section Make.
+  Section TopSection.
 
     Variable vars : list string.
 
     Variable temp_size : nat.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Definition loop_inv cond body k : assert := 
       let s := Syntax.Seq (Syntax.While cond body) k in
       inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) rv_postcond s.
 
     Require Import Malloc.
+    Require Import Semantics.
 
     Definition after_call ret k : assert :=
       st ~> Ex fs, 
@@ -167,6 +171,6 @@ Module Make (Import M : RepInv.RepInv).
 
     Definition compile := cmp vars temp_size imports_global loop_inv after_call compile_expr compile_exprs.
 
-  End Make.
+  End TopSection.
 
 End Make.

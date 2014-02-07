@@ -38,3 +38,12 @@ Qed.
 Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> a <= b.
   intros; eapply le_wordToN in H; eauto; eapply le_trans; eauto; eapply wordToNat_natToW_le.
 Qed.
+
+Lemma wordToNat_eq_eq : forall x y : W, wordToNat x = wordToNat y -> x = y.
+  intros.
+  assert (natToW (wordToNat x) = natToW (wordToNat y)).
+  congruence.
+  unfold natToW in *.
+  repeat erewrite natToWord_wordToNat in *.
+  eauto.
+Qed.

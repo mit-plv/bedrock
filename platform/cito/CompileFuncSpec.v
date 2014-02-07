@@ -1,12 +1,17 @@
-Require Import SyntaxFunc.
-Require Import String.
-Require Import Inv Malloc Semantics Safe.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import Inv.
+  Module Import InvMake := Make E.
+  Module Import InvMake2 := Make M.
+
+  Require Import SyntaxFunc.
+  Require Import String.
+  Require Import Malloc.
 
   Section TopSection.
 
