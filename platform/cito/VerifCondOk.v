@@ -2,47 +2,55 @@ Require Import CompileStmtSpec CompileStmtImpl.
 
 Set Implicit Arguments.
 
-Section TopSection.
+Module Make (Import M : RepInv.RepInv).
 
-  Require Import Inv.
+  Require Import VerifCondOkNonCall.
+  Module Import VerifCondOkNonCallMake := VerifCondOkNonCall.Make M.
+  Require Import VerifCondOkNonCall2.
+  Module Import VerifCondOkNonCall2Make := VerifCondOkNonCall2.Make M.
+  Require Import VerifCondOkCall.
+  Module Import VerifCondOkCallMake := VerifCondOkCall.Make M.
+  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
+  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
+  Module Import InvMake := Inv.Make M.
 
-  Variable vars : list string.
+  Section TopSection.
 
-  Variable temp_size : nat.
+    Variable vars : list string.
 
-  Variable imports : LabelMap.t assert.
+    Variable temp_size : nat.
 
-  Variable imports_global : importsGlobal imports.
+    Variable imports : LabelMap.t assert.
 
-  Variable modName : string.
+    Variable imports_global : importsGlobal imports.
 
-  Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable modName : string.
 
-  Definition compile := compile vars temp_size imports_global modName rv_postcond.
+    Variable rv_postcond : W -> Semantics.State -> Prop.
 
-  Lemma verifCond_ok : 
-    forall s k (pre : assert),
-      vcs (verifCond vars temp_size s k rv_postcond pre) ->
-      vcs
-        (VerifCond (compile s k pre)).
-  Proof.
+    Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
-    unfold verifCond, imply; induction s.
+    Lemma verifCond_ok : 
+      forall s k (pre : assert),
+        vcs (verifCond vars temp_size s k rv_postcond pre) ->
+        vcs
+          (VerifCond (do_compile s k pre)).
+    Proof.
 
-    Require Import VerifCondOkNonCall.
+      unfold verifCond, imply; induction s.
 
-    eapply verifCond_ok_skip; eauto.
-    eapply verifCond_ok_seq; eauto.
-    eapply verifCond_ok_if; eauto.
-    eapply verifCond_ok_while; eauto.
+      eapply verifCond_ok_skip; eauto.
+      eapply verifCond_ok_seq; eauto.
+      eapply verifCond_ok_if; eauto.
+      eapply verifCond_ok_while; eauto.
 
-    Require Import VerifCondOkCall.
-    eapply verifCond_ok; eauto.
+      eapply verifCond_ok; eauto.
 
-    Require Import VerifCondOkNonCall2.
-    eapply verifCond_ok_label; eauto.
-    eapply verifCond_ok_assign; eauto.
+      eapply verifCond_ok_label; eauto.
+      eapply verifCond_ok_assign; eauto.
 
-  Qed.
+    Qed.
 
-End TopSection.
+  End TopSection.
+
+End Make.

@@ -33,7 +33,7 @@ Module Make (Import M : RepInv.RepInv).
 
     Variable rv_postcond : W -> Semantics.State -> Prop.
 
-    Definition compile := compile vars temp_size imports_global modName rv_postcond.
+    Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
     Lemma post_ok : 
       forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
@@ -41,7 +41,7 @@ Module Make (Import M : RepInv.RepInv).
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         interp specs
                (Postcondition
-                  (compile s k pre) x) ->
+                  (do_compile s k pre) x) ->
         interp specs (postcond vars temp_size k rv_postcond x).
     Proof.
 
