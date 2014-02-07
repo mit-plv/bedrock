@@ -69,6 +69,7 @@ Module Make (Import E : ADT).
 
       Require Import ConvertLabel.
       Import Semantics.
+      (* universe inconsistency *)
       Definition internal_spec G fs spec st : propX _ _ (settings * smem :: G) :=
         (Ex v, Ex rp, Ex e_stack,
          ![^[is_state st#Sp rp e_stack e_stack (ArgVars spec) v nil * mallocHeap 0] * #0] st /\
