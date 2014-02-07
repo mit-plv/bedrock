@@ -4,14 +4,12 @@ Set Implicit Arguments.
 
 Module Make (Import M : RepInv.RepInv).
 
-  Module Import InvMake := Inv.Make M.
-  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
-  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
-  Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
   Require Import PostOk.
   Module Import PostOkMake := PostOk.Make M.
+  Require Import CompileStmtTactics.
+  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
 
+  Import CompileStmtSpecMake.
   Import CompileStmtSpecMake.InvMake.
 
   Section TopSection.
@@ -31,7 +29,7 @@ Module Make (Import M : RepInv.RepInv).
 
     Variable rv_postcond : W -> Semantics.State -> Prop.
 
-    Definition compile := compile vars temp_size imports_global modName rv_postcond.
+    Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
     Require Import Semantics.
     Require Import Safe.
@@ -47,6 +45,7 @@ Module Make (Import M : RepInv.RepInv).
     Opaque funcs_ok.
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
+    Opaque CompileStmtImplMake.InvMake.funcs_ok.
 
     Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
@@ -65,7 +64,7 @@ Module Make (Import M : RepInv.RepInv).
         let s := skip in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs
-          (VerifCond (compile s k pre)).
+          (VerifCond (do_compile s k pre)).
     Proof.
 
       unfold verifCond, imply.
@@ -84,7 +83,7 @@ Module Make (Import M : RepInv.RepInv).
                              interp specs (pre x) ->
                              interp specs (precond vars temp_size s1 k rv_postcond x))
                             :: syn_req vars temp_size (s1;; k) :: nil) ->
-                       vcs (VerifCond (compile s1 k pre)))
+                       vcs (VerifCond (do_compile s1 k pre)))
              (IHs2 : forall (k : Stmt) (pre : assert),
                        vcs
                          ((forall (specs : codeSpec W (settings * state))
@@ -92,12 +91,12 @@ Module Make (Import M : RepInv.RepInv).
                              interp specs (pre x) ->
                              interp specs (precond vars temp_size s2 k rv_postcond x))
                             :: syn_req vars temp_size (s2;; k) :: nil) ->
-                       vcs (VerifCond (compile s2 k pre)))
+                       vcs (VerifCond (do_compile s2 k pre)))
              k (pre : assert),
         let s := s1 ;; s2 in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs
-          (VerifCond (compile s k pre)).
+          (VerifCond (do_compile s k pre)).
     Proof.
 
       unfold verifCond, imply.
@@ -121,7 +120,6 @@ Module Make (Import M : RepInv.RepInv).
 
       eapply IHs2.
       wrap0.
-      unfold TopSection.compile in H.
       eapply post_ok in H.
       unfold postcond in *.
       unfold inv in *.
@@ -131,7 +129,6 @@ Module Make (Import M : RepInv.RepInv).
       unfold verifCond in *.
       unfold imply in *.
       wrap0.
-(*here*)
       eapply H2 in H0.
       unfold precond in *.
       unfold inv in *.
@@ -156,7 +153,7 @@ Module Make (Import M : RepInv.RepInv).
                              interp specs (pre x) ->
                              interp specs (precond vars temp_size s1 k rv_postcond x))
                             :: syn_req vars temp_size (s1;; k) :: nil) ->
-                       vcs (VerifCond (compile s1 k pre)))
+                       vcs (VerifCond (do_compile s1 k pre)))
              (IHs2 : forall (k : Stmt) (pre : assert),
                        vcs
                          ((forall (specs : codeSpec W (settings * state))
@@ -164,12 +161,12 @@ Module Make (Import M : RepInv.RepInv).
                              interp specs (pre x) ->
                              interp specs (precond vars temp_size s2 k rv_postcond x))
                             :: syn_req vars temp_size (s2;; k) :: nil) ->
-                       vcs (VerifCond (compile s2 k pre)))
+                       vcs (VerifCond (do_compile s2 k pre)))
              k (pre : assert),
         let s := Syntax.If e s1 s2 in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs
-          (VerifCond (compile s k pre)).
+          (VerifCond (do_compile s k pre)).
     Proof.
 
       unfold verifCond, imply.
@@ -273,12 +270,12 @@ Module Make (Import M : RepInv.RepInv).
                             interp specs (pre x) ->
                             interp specs (precond vars temp_size s k rv_postcond x))
                            :: syn_req vars temp_size (s;; k) :: nil) ->
-                      vcs (VerifCond (compile s k pre)))
+                      vcs (VerifCond (do_compile s k pre)))
              k (pre : assert),
         let s := Syntax.While e s in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs
-          (VerifCond (compile s k pre)).
+          (VerifCond (do_compile s k pre)).
     Proof.
 
       unfold verifCond, imply.
@@ -301,6 +298,10 @@ Module Make (Import M : RepInv.RepInv).
       eauto.
       eapply syn_req_While_e; eauto.
 
+      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
       eapply H2 in H0.
       unfold precond in *.
       unfold inv in *.
@@ -330,8 +331,11 @@ Module Make (Import M : RepInv.RepInv).
 
       hiding ltac:(evaluate auto_ext).
 
-      unfold TopSection.compile in H0.
-      eapply PostOk.post_ok in H0.
+      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      eapply post_ok in H0.
       unfold postcond in *.
       unfold inv in *.
       unfold inv_template in *.
@@ -390,8 +394,7 @@ Module Make (Import M : RepInv.RepInv).
       unfold CompileExpr.verifCond in *.
       unfold CompileExpr.imply in *.
       wrap0.
-      unfold TopSection.compile in H.
-      eapply PostOk.post_ok in H.
+      eapply post_ok in H.
       unfold postcond in *.
       unfold inv in *.
       unfold inv_template in *.

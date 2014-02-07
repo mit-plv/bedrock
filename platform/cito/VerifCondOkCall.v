@@ -35,7 +35,7 @@ Module Make (Import M : RepInv.RepInv).
 
     Variable rv_postcond : W -> Semantics.State -> Prop.
 
-    Definition compile := compile vars temp_size imports_global modName rv_postcond.
+    Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
     Require Import Semantics.
     Require Import Safe.
@@ -121,7 +121,7 @@ Module Make (Import M : RepInv.RepInv).
         let s := Syntax.Call o e l in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs
-          (VerifCond (compile s k pre)).
+          (VerifCond (do_compile s k pre)).
     Proof.
 
       unfold verifCond, imply.
