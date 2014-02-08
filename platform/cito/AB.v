@@ -1,3 +1,39 @@
+(* Fixpoint doesn't have problem *)
+Module Type Foo.
+  Parameter t : Type.
+  Parameter empty : t.
+  Parameter inc : t -> t.
+End Foo.
+
+Module Make (F : Foo).
+  Fixpoint t (n : nat) :=
+    match n with
+      | 0 => F.empty
+      | S n' => F.inc (t n')
+    end.
+End Make.
+
+Module Make1 (F : Foo).
+  Module M := Make F.
+  Definition t := M.t.
+End Make1.
+
+Module Make2 (F : Foo).
+  Module M := Make F.
+  Definition t := M.t.
+End Make2.
+
+Module Global (F : Foo).
+  Module M1 := Make1 F.
+  Module M2 := Make2 F.
+
+  Lemma bar : M1.M.t = M2.M.t.
+    reflexivity. (* fail here*)
+  Qed.
+End Global.
+
+
+
 (* problem *)
 Module Type Foo.
 End Foo.
