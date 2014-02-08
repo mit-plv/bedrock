@@ -1,39 +1,38 @@
 BEDROCK := ../..
 
 MODULES := \
-	S F A B AB \
-	# StringSet ValsStringSet SetUtil \
-	# Label ConvertLabel \
-	# SyntaxExpr Syntax SemanticsExpr FuncCore \
-	# ADT Heap \
-	# Semantics Safe \
-	# GeneralTactics \
-	# FreeVarsExpr Option Union FreeVars \
-	# RepInv Inv \
-	# DepthExpr Max Depth \
-	# WellFormed \
-	# CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	# SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts HeapFacts \
-	# CompileStmtTactics \
-	# SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
-	# VerifCondOkTactics \
-	# VerifCondOkCall \
-	# SemanticsFacts3 SynReqFacts2 \
-	# PostOk \
-	# VerifCondOkNonCall \
-	# SynReqFacts3 \
-	# VerifCondOkNonCall2 \
-	# VerifCondOk \
-	# CompileStmt \
-	# SyntaxFunc SyntaxModule \
-	# CompileFuncSpec \
-	# SepHints5 \
-	# GetLocalVars GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
-	# CompileFuncImpl \
-	# CompileFunc \
-	# GoodFunction GoodModule \
-	# NameDecoration NameVC \
-	# CompileModule \
+	StringSet ValsStringSet SetUtil \
+	Label ConvertLabel \
+	SyntaxExpr Syntax SemanticsExpr FuncCore \
+	ADT WordMap \
+	Semantics \
+	GeneralTactics \
+	FreeVarsExpr Option Union FreeVars \
+	RepInv Inv \
+	DepthExpr Max Depth \
+	WellFormed \
+	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
+	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts HeapFacts \
+	CompileStmtTactics \
+	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
+	VerifCondOkTactics \
+	VerifCondOkCall \
+	SemanticsFacts3 SynReqFacts2 \
+	PostOk \
+	VerifCondOkNonCall \
+	SynReqFacts3 \
+	VerifCondOkNonCall2 \
+	VerifCondOk \
+	CompileStmt \
+	SyntaxFunc SyntaxModule \
+	CompileFuncSpec \
+	SepHints5 \
+	GetLocalVars GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
+	CompileFuncImpl \
+	CompileFunc \
+	GoodFunction GoodModule \
+	NameDecoration NameVC \
+	CompileModule \
 	# Stub \
 	# SafeCoind \
 	# ExprLemmas VariableLemmas \

@@ -1,20 +1,24 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
-  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
-  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
-  Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import CompileStmtSpec.
+  Module Import CompileStmtSpecMake := Make E M.
+  Require Import CompileStmtImpl.
+  Module Import CompileStmtImplMake := Make E M.
   Require Import LayoutHints.
-  Module Import LayoutHintsMake := LayoutHints.Make M.
+  Module Import LayoutHintsMake := LayoutHints.Make E M.
   Require Import LayoutHints2.
-  Module Import LayoutHints2Make := LayoutHints2.Make M.
-
-  Import CompileStmtSpecMake.InvMake.
+  Module Import LayoutHints2Make := LayoutHints2.Make E M.
+  Require Import CompileStmtTactics.
+  Module Import CompileStmtTacticsMake := Make E M.
+  Import InvMake.
+  Import Semantics.
+  Import SemanticsMake.
+  Import InvMake2.
 
   Section TopSection.
 
@@ -33,12 +37,10 @@ Module Make (Import M : RepInv.RepInv).
     Require Import Syntax.
     Require Import Wrap.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Semantics.
-    Require Import Safe.
     Require Import Notations.
     Require Import SemanticsFacts.
     Require Import SynReqFacts.
@@ -111,10 +113,11 @@ Module Make (Import M : RepInv.RepInv).
         | H : (natToW (2 + length ?ls) <= natToW (?n))%word |- _ => assert (2 + length ls <= n) by (eapply wle_goodSize_le; eauto; eapply syn_req_goodSize; eauto); assert (2 <= n) by omega; assert (length ls <= n - 2) by omega
       end.
 
-    Opaque funcs_ok.
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
-    Opaque CompileStmtImplMake.InvMake.funcs_ok.
+    Opaque funcs_ok.
+    Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
+    Opaque CompileStmtImplMake.InvMake2.funcs_ok.
 
     Lemma verifCond_ok : 
       forall o e l k (pre : assert),
@@ -133,10 +136,14 @@ Module Make (Import M : RepInv.RepInv).
       unfold stack_slot in *.
       rewrite fold_4_mult_1 in *.
       eapply H2 in H.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       hiding ltac:(evaluate auto_ext).
+
+(*here*)
 
       (* vc 2 *)
       unfold stack_slot in *.

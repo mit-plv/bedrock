@@ -16,11 +16,11 @@ Module Key' <: MiniDecidableType.
 End Key'.
 
 Module Key := Make_UDT Key'.
-*)
+ *)
 
 Require Import OrderedType.
 
-Module Key' <: MiniOrderedType.
+Module W_as_MOT <: MiniOrderedType.
 
   Require Import Memory.
 
@@ -70,17 +70,24 @@ Module Key' <: MiniOrderedType.
     econstructor 3; eauto.
   Defined.
 
-End Key'.
+End W_as_MOT.
 
-Module Key := MOT_to_OT Key'.
+Module W_as_OT := MOT_to_OT W_as_MOT.
 
+Require Import FMapAVL.
+
+Module Import WordMap := Make W_as_OT.
+
+Require Import FMapFacts.
+
+Module Import Facts := WFacts_fun W_as_OT WordMap.
+Module Import Properties := WProperties_fun W_as_OT WordMap.
+
+
+(*
 Require Import ADT.
 
 Module Make (Import E : ADT).
-
-  Require Import FMapAVL.
-
-  Module Import M := Make Key.
 
   Definition elt := ADTValue.
 
@@ -113,3 +120,4 @@ Module Make (Import E : ADT).
   Definition heap_diff := @diff elt.
 
 End Make.
+ *)

@@ -37,8 +37,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import Inv.
   Module Import InvMake := Make E.
+  Import SemanticsMake.
   Module Import InvMake2 := Make M.
-  Import SafeMake.SemanticsMake.
 
   Section Spec.
 

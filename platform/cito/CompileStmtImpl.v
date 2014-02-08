@@ -107,9 +107,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import Inv.
   Module Import InvMake := Make E.
-  Import SafeMake.
   Import SemanticsMake.
-  Import HeapMake.
   Module Import InvMake2 := Make M.
 
   Section TopSection.

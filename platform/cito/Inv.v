@@ -19,12 +19,10 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Safe.
-  Module Import SafeMake := Safe.Make E.
-  Import SemanticsMake.
-  Import HeapMake.
+  Require Import Semantics.
+  Module Import SemanticsMake := Semantics.Make E.
 
-  Fixpoint make_triples pairs outs :=
+  Fixpoint make_triples pairs (outs : list ArgOut) :=
     match pairs, outs with
       | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
       | _, _ => nil
@@ -69,7 +67,6 @@ Module Make (Import E : ADT).
       Open Scope type.
 
       Require Import ConvertLabel.
-      Import Semantics.
       (* universe inconsistency *)
       Set Printing Universes.
       Definition internal_spec G fs spec st : propX _ _ (settings * smem :: G) :=

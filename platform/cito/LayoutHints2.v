@@ -8,9 +8,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Inv.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
-  Import SafeMake.SemanticsMake.
-  Import HeapMake.
-
+  Import SemanticsMake.
+  
   Section TopSection.
 
     Definition heap_to_split h (_ : list (W * ArgIn)) := is_heap h.

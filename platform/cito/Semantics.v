@@ -18,14 +18,15 @@ Record InternalFuncSpec :=
 
 Coercion Fun : InternalFuncSpec >-> FuncCore.
 
-Require Import ADT.
+Require Import Syntax SemanticsExpr.
+Require Import Label.
+Require Import WordMap.
 
-Module Make (Import E : ADT).
+Section ADTValue.
 
-  Require Import Syntax SemanticsExpr.
-  Require Import Label.
-  Require Import Heap.
-  Module Import HeapMake := Heap.Make E.
+  Variable ADTValue : Type.
+
+  Definition Heap := WordMap.t ADTValue.
 
   Definition State := (vals * Heap)%type.
 
@@ -50,7 +51,7 @@ Module Make (Import E : ADT).
     let in_ := snd p in
     match in_ with
       | inl w => word = w
-      | inr a => heap_sel heap word = Some a
+      | inr a => WordMap.find word heap = Some a
     end.
 
   Definition is_adt (a : ArgIn) :=
@@ -61,7 +62,7 @@ Module Make (Import E : ADT).
 
   Definition disjoint_ptrs (pairs : list (W * ArgIn)) := 
     let pairs := filter (fun p => is_adt (snd p)) pairs in
-    NoDup (map fst pairs).
+    NoDup (List.map fst pairs).
 
   Definition good_inputs heap pairs := 
     Forall (word_adt_match heap) pairs /\
@@ -77,8 +78,8 @@ Module Make (Import E : ADT).
   Fixpoint store_out (heap : Heap) t :=
     match ADTIn t, ADTOut t with 
       | inl _, _ => heap
-      | inr _, None => heap_remove heap (Word t)
-      | inr _, Some a => heap_upd heap (Word t) a
+      | inr _, None => WordMap.remove (Word t) heap
+      | inr _, Some a => WordMap.add (Word t) a heap
     end.
 
   Definition decide_ret addr (ret : Ret) :=
@@ -88,11 +89,11 @@ Module Make (Import E : ADT).
     end.
 
   Definition separated heap ret_w (ret_a : option ADTValue) := 
-    ret_a = None \/ ~ heap_mem ret_w heap.
+    ret_a = None \/ ~ @WordMap.In ADTValue ret_w heap.
 
-  Definition heap_upd_option m k v :=
+  Definition heap_upd_option m k (v : option ADTValue) :=
     match v with
-      | Some x => heap_upd m k x
+      | Some x => WordMap.add k x m
       | None => m
     end.
 
@@ -103,23 +104,23 @@ Module Make (Import E : ADT).
     Variable env : (label -> option W) * (W -> option Callee).
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
-    | Skip : forall v, RunsTo Syntax.Skip v v
-    | Seq : 
+    | RunsToSkip : forall v, RunsTo Syntax.Skip v v
+    | RunsToSeq : 
         forall a b v v' v'',
           RunsTo a v v' -> 
           RunsTo b v' v'' -> 
           RunsTo (Syntax.Seq a b) v v''
-    | If : 
+    | RunsToIf : 
         forall cond t f v v', 
           let b := wneb (eval (fst v) cond) $0 in
           b = true /\ RunsTo t v v' \/ b = false /\ RunsTo f v v' ->
           RunsTo (Syntax.If cond t f) v v'
-    | While : 
+    | RunsToWhile : 
         forall cond body v v', 
           let loop := While cond body in
           RunsTo (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v v' ->
           RunsTo loop v v'
-    | CallInternal : 
+    | RunsToCallInternal : 
         forall var f args v spec vs_callee vs_callee' heap',
           let vs := fst v in
           let heap := snd v in
@@ -130,7 +131,7 @@ Module Make (Import E : ADT).
           let vs := upd_option vs var (Locals.sel vs_callee' (RetVar spec)) in
           let heap := heap' in
           RunsTo (Syntax.Call var f args) v (vs, heap)
-    | CallForeign : 
+    | RunsToCallForeign : 
         forall var f args v spec triples addr ret,
           let vs := fst v in
           let heap := snd v in
@@ -148,15 +149,133 @@ Module Make (Import E : ADT).
           let heap := heap_upd_option heap ret_w ret_a in
           let vs := upd_option vs var ret_w in
           RunsTo (Syntax.Call var f args) v (vs, heap)
-    | Label : 
+    | RunsToLabel : 
         forall x lbl v w,
           fst env lbl = Some w ->
           RunsTo (Syntax.Label x lbl) v (Locals.upd (fst v) x w, snd v)
-    | Assign :
+    | RunsToAssign :
         forall x e v,
           let vs := fst v in
           RunsTo (Syntax.Assign x e) v (Locals.upd vs x (eval vs e), snd v).
 
+    CoInductive Safe : Stmt -> State -> Prop :=
+    | SafeSkip : 
+        forall v, Safe Syntax.Skip v
+    | SafeSeq : 
+        forall a b v, 
+          Safe a v ->
+          (forall v', RunsTo a v v' -> Safe b v') -> 
+          Safe (Syntax.Seq a b) v
+    | SafeIf : 
+        forall cond t f v, 
+          let b := wneb (eval (fst v) cond) $0 in
+          b = true /\ Safe t v \/ b = false /\ Safe f v ->
+          Safe (Syntax.If cond t f) v
+    | SafeWhile : 
+        forall cond body v, 
+          let loop := While cond body in
+          Safe (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v ->
+          Safe loop v
+    | SafeCallInternal : 
+        forall var f args v spec,
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Internal spec) ->
+          length (ArgVars spec) = length args ->
+          (forall vs_arg, 
+             map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+             -> Safe (Body spec) (vs_arg, heap)) ->
+          Safe (Syntax.Call var f args) v
+    | SafeCallForeign : 
+        forall var f args v spec pairs,
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Foreign spec) ->
+          map (eval vs) args = map fst pairs ->
+          good_inputs heap pairs ->
+          PreCond spec (map snd pairs) ->
+          Safe (Syntax.Call var f args) v
+    | SafeLabel :
+        forall x lbl v,
+          fst env lbl <> None ->
+          Safe (Syntax.Label x lbl) v
+    | SafeAssign :
+        forall x e v,
+          Safe (Syntax.Assign x e) v.
+
   End Env.
+
+End ADTValue.
+
+Require Import ADT.
+
+Module Make (Import E : ADT).
+
+  Definition RunsTo := @RunsTo ADTValue.
+
+  Definition Safe := @Safe ADTValue.
+
+  Definition Heap := @Heap ADTValue.
+
+  Definition State := @State ADTValue.
+
+  Definition ArgIn := @ArgIn ADTValue.
+
+  Definition ArgOut := @ArgOut ADTValue.
+
+  Definition Ret := @Ret ADTValue.
+
+  Definition ForeignFuncSpec := @ForeignFuncSpec ADTValue.
+
+  Definition Callee := @Callee ADTValue.
+
+  Definition ArgTriple := @ArgTriple ADTValue.
+
+  Definition word_adt_match := @word_adt_match ADTValue.
+
+  Definition is_adt := @is_adt ADTValue.
+
+  Definition disjoint_ptrs := @disjoint_ptrs ADTValue.
+
+  Definition good_inputs := @good_inputs ADTValue.
+
+  Definition store_out := @store_out ADTValue.
+
+  Definition decide_ret := @decide_ret ADTValue.
+
+  Definition separated := @separated ADTValue.
+
+  Definition heap_upd_option := @heap_upd_option ADTValue.
+
+  Definition Foreign := @Foreign ADTValue.
+
+  Definition Internal := @Internal ADTValue.
+
+  (* some shorthands for heap operations *)
+  Import WordMap Facts Properties.
+  Definition elt := ADTValue.
+
+  Implicit Types m h : Heap.
+  Implicit Types x y z k p w : key.
+  Implicit Types e v a : elt.
+  Implicit Types ls : list (key * elt).
+
+  Definition heap_sel h p := find p h.
+
+  Definition heap_mem := @In elt.
+
+  Definition heap_upd h p v := add p v h.
+
+  Definition heap_remove h p := remove p h.
+
+  Definition heap_empty := @empty elt.
+
+  Definition heap_merge := @update elt.
+
+  Definition heap_elements := @elements elt.
+
+  Definition heap_diff := @diff elt.
 
 End Make.
