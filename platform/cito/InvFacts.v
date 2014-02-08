@@ -6,10 +6,10 @@ Module Make (Import E : ADT).
 
   Require Import Inv.
   Module Import InvMake := Make E.
-  Import SafeMake.SemanticsMake.
-  Import HeapMake.
+  Import Semantics.
+  Import SemanticsMake.
 
-  Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map Word (make_triples pairs outs) = map fst pairs.
+  Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map (@Word _) (make_triples pairs outs) = map fst pairs.
     admit.
   Qed.
 
@@ -17,7 +17,7 @@ Module Make (Import E : ADT).
     admit.
   Qed.
 
-  Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map ADTIn (make_triples pairs outs) = map snd pairs.
+  Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map (@ADTIn _) (make_triples pairs outs) = map snd pairs.
     admit.
   Qed.
 

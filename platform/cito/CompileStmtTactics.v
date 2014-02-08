@@ -111,9 +111,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import Inv.
   Module Import InvMake := Make E.
-  Import SafeMake.
   Import SemanticsMake.
-  Import HeapMake.
 
   Ltac hiding tac :=
     clear_imports;
@@ -236,7 +234,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac clear_Forall_PreCond :=
     repeat match goal with
              | H : List.Forall _ _ |- _ => clear H
-             | H : PreCond _ _ |- _ => clear H
+             | H : Semantics.PreCond _ _ |- _ => clear H
            end.
 
   Ltac hide_evalInstrs :=
