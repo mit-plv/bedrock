@@ -1,20 +1,25 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
+
+Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import VerifCondOkNonCall.
-  Module Import VerifCondOkNonCallMake := VerifCondOkNonCall.Make M.
+  Module Import VerifCondOkNonCallMake := Make E M.
   Require Import VerifCondOkNonCall2.
-  Module Import VerifCondOkNonCall2Make := VerifCondOkNonCall2.Make M.
+  Module Import VerifCondOkNonCall2Make := Make E M.
   Require Import VerifCondOkCall.
-  Module Import VerifCondOkCallMake := VerifCondOkCall.Make M.
-  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
-  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
-  Module Import InvMake := Inv.Make M.
+  Module Import VerifCondOkCallMake := Make E M.
+  Import CompileStmtSpecMake.
+  Import InvMake.
+  Import Semantics.
+  Import SemanticsMake.
+  Import InvMake2.
 
   Section TopSection.
+
+    Require Import AutoSep.
 
     Variable vars : list string.
 
@@ -26,7 +31,7 @@ Module Make (Import M : RepInv.RepInv).
 
     Variable modName : string.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 

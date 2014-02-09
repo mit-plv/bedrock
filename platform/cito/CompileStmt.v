@@ -1,38 +1,54 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Section Compile.
+Require Import ADT.
+Require Import RepInv.
 
-  Require Import Inv.
+Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Variable vars : list string.
+  Require Import PostOk.
+  Module Import PostOkMake := Make E M.
+  Require Import VerifCondOk.
+  Module Import VerifCondOkMake := Make E M.
+  Import CompileStmtSpecMake.
+  Import InvMake.
+  Import Semantics.
+  Import SemanticsMake.
+  Import InvMake2.
 
-  Variable temp_size : nat.
+  Section TopSection.
 
-  Variable imports : LabelMap.t assert.
+    Require Import AutoSep.
 
-  Variable imports_global : importsGlobal imports.
+    Variable vars : list string.
 
-  Variable modName : string.
+    Variable temp_size : nat.
 
-  Require Import Syntax.
+    Variable imports : LabelMap.t assert.
 
-  Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable imports_global : importsGlobal imports.
 
-  Variable s k : Stmt.
+    Variable modName : string.
 
-  Require Import Wrap.
-  Definition compile : cmd imports modName.
-    refine (
-        Wrap imports imports_global modName 
-             (CompileStmtImpl.compile vars temp_size imports_global modName rv_postcond s k) 
-             (fun _ => postcond vars temp_size k rv_postcond) 
-             (verifCond vars temp_size s k rv_postcond) 
-             _ _).
-    Require Import PostOk VerifCondOk.
-    eapply post_ok.
-    eapply verifCond_ok.
-  Defined.
+    Require Import Syntax.
 
-End Compile.
+    Variable rv_postcond : W -> State -> Prop.
+
+    Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
+
+    Variable s k : Stmt.
+
+    Require Import Wrap.
+    Definition compile : cmd imports modName.
+      refine (
+          Wrap imports imports_global modName 
+               (do_compile s k) 
+               (fun _ => postcond vars temp_size k rv_postcond) 
+               (verifCond vars temp_size s k rv_postcond) 
+               _ _).
+      eapply post_ok.
+      eapply verifCond_ok.
+    Defined.
+
+  End TopSection.
+
+End Make.
