@@ -1,4 +1,3 @@
-Require Import Safe.
 Require Import Syntax Semantics SemanticsExpr.
 Require Import IL Memory List.
 

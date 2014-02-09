@@ -4,7 +4,6 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Safe.
   Module Import SafeMake := Safe.Make E.
   Import SafeMake.SemanticsMake.
 
