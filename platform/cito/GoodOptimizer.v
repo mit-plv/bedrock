@@ -12,42 +12,49 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
-  Definition GoodOptimizer : Optimizer -> Prop.
-    admit.
-  Qed.
+  Definition PreserveSafe (opt : Optimizer) := forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
 
-  Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
-    admit.
-  Qed.
-
-  Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> forall ret fs s v v', RunsTo fs (opt s ret) v v' -> exists vs', RunsTo fs s v (vs', snd v') /\ Locals.sel vs' ret = Locals.sel (fst v') ret.
-    admit.
-  Qed.
+  Definition PreserveRunsTo (opt : Optimizer) :=  forall ret fs s v v', RunsTo fs (opt s ret) v v' -> exists vs', RunsTo fs s v (vs', snd v') /\ Locals.sel vs' ret = Locals.sel (fst v') ret.
 
   Require Import GoodFunc.
   Require Import GetLocalVars.
   Require Import Depth.
   Require Import SyntaxFunc.
-  Lemma GoodFunc_GoodOptimizer_goodSize : 
-    forall f opt, 
+  Definition PreserveGoodSize (opt : Optimizer) :=
+    forall f, 
       GoodFunc f -> 
-      GoodOptimizer opt -> 
       let s := opt (Body f) (RetVar f) in
       goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
-    admit.
-  Qed.
 
   Require Import Notations.
   Local Open Scope stmt.
   Require Import CompileStmtSpec.
-  Lemma GoodFunc_GoodOptimizer_syn_req : 
+  Definition PreserveSynReq (opt : Optimizer) :=
     forall f, 
       GoodFunc f -> 
-      forall opt, 
-        GoodOptimizer opt -> 
-        let s := opt (Body f) (RetVar f) in
-        CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
-    admit.
+      let s := opt (Body f) (RetVar f) in
+      CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
+
+  Definition GoodOptimizer opt := 
+    PreserveSafe opt /\ 
+    PreserveRunsTo opt /\
+    PreserveGoodSize opt /\
+    PreserveSynReq opt.
+
+  Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> PreserveSafe opt.
+    unfold GoodOptimizer; intuition.
+  Qed.
+
+  Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> PreserveRunsTo opt.
+    unfold GoodOptimizer; intuition.
+  Qed.
+
+  Lemma GoodFunc_GoodOptimizer_goodSize : forall opt, GoodOptimizer opt -> PreserveGoodSize opt.
+    unfold GoodOptimizer; intuition.
+  Qed.
+
+  Lemma GoodFunc_GoodOptimizer_syn_req : forall opt, GoodOptimizer opt -> PreserveSynReq opt.
+    unfold GoodOptimizer; intuition.
   Qed.
 
 End Make.
