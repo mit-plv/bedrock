@@ -1,16 +1,23 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
+
+Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import PostOk.
-  Module Import PostOkMake := PostOk.Make M.
-  Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
-
+  Module Import PostOkMake := Make E M.
+  Require Import CompileStmtSpec.
   Import CompileStmtSpecMake.
-  Import CompileStmtSpecMake.InvMake.
+  Require Import CompileStmtTactics.
+  Module Import CompileStmtTacticsMake := Make E M.
+  Import InvMake.
+  Import Semantics.
+  Import SemanticsMake.
+  Import InvMake2.
+
+  Require Import SemanticsFacts.
+  Module Import SemanticsFactsMake := Make E.
 
   Section TopSection.
 
@@ -27,14 +34,11 @@ Module Make (Import M : RepInv.RepInv).
     Require Import Syntax.
     Require Import Wrap.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Semantics.
-    Require Import Safe.
     Require Import Notations.
-    Require Import SemanticsFacts.
     Require Import SynReqFacts.
     Require Import ListFacts.
     Require Import StringSet.
@@ -42,10 +46,11 @@ Module Make (Import M : RepInv.RepInv).
 
     Open Scope stmt.
 
-    Opaque funcs_ok.
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
-    Opaque CompileStmtImplMake.InvMake.funcs_ok.
+    Opaque funcs_ok.
+    Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
+    Opaque CompileStmtImplMake.InvMake2.funcs_ok.
 
     Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
@@ -180,6 +185,7 @@ Module Make (Import M : RepInv.RepInv).
       intros.
       eapply H2 in H.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -194,8 +200,23 @@ Module Make (Import M : RepInv.RepInv).
       (* true *)
       eapply IHs1.
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H2 in H0.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -228,8 +249,23 @@ Module Make (Import M : RepInv.RepInv).
       (* false *)
       eapply IHs2.
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H2 in H0.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -289,6 +325,7 @@ Module Make (Import M : RepInv.RepInv).
       intros.
       eapply H2 in H.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -298,12 +335,25 @@ Module Make (Import M : RepInv.RepInv).
       eauto.
       eapply syn_req_While_e; eauto.
 
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H2 in H0.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -329,14 +379,43 @@ Module Make (Import M : RepInv.RepInv).
 
       descend.
 
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       hiding ltac:(evaluate auto_ext).
 
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply post_ok in H0.
       unfold postcond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -370,6 +449,22 @@ Module Make (Import M : RepInv.RepInv).
       find_cond.
       eapply Safe_Seq_While_true; eauto.
 
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       repeat hiding ltac:(step auto_ext).
 
       descend.
@@ -384,6 +479,22 @@ Module Make (Import M : RepInv.RepInv).
       find_cond.
       eapply Safe_Seq_While_true; eauto.
 
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       repeat hiding ltac:(step auto_ext).
 
       descend.
@@ -396,6 +507,7 @@ Module Make (Import M : RepInv.RepInv).
       wrap0.
       eapply post_ok in H.
       unfold postcond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -413,6 +525,22 @@ Module Make (Import M : RepInv.RepInv).
       find_cond.
       eapply Safe_Seq_While_true; eauto.
 
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       repeat hiding ltac:(step auto_ext).
 
       descend.
