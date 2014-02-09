@@ -1,16 +1,23 @@
-Require Import CompileStmtSpec CompileStmtImpl.
-
 Set Implicit Arguments.
 
-Module Make (Import M : RepInv.RepInv).
+Require Import ADT.
+Require Import RepInv.
 
-  Module Import InvMake := Inv.Make M.
-  Module Import CompileStmtSpecMake := CompileStmtSpec.Make M.
-  Module Import CompileStmtImplMake := CompileStmtImpl.Make M.
+Module Make (Import E : ADT) (Import M : RepInv E).
+
+  Require Import CompileStmtSpec.
+  Module Import CompileStmtSpecMake := Make E M.
+  Require Import CompileStmtImpl.
+  Module Import CompileStmtImplMake := Make E M.
   Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := CompileStmtTactics.Make M.
+  Module Import CompileStmtTacticsMake := Make E M.
+  Import InvMake.
+  Import Semantics.
+  Import SemanticsMake.
+  Import InvMake2.
 
-  Import CompileStmtSpecMake.InvMake.
+  Require Import SemanticsFacts.
+  Module Import SemanticsFactsMake := Make E.
 
   Section TopSection.
 
@@ -27,14 +34,11 @@ Module Make (Import M : RepInv.RepInv).
     Require Import Syntax.
     Require Import Wrap.
 
-    Variable rv_postcond : W -> Semantics.State -> Prop.
+    Variable rv_postcond : W -> State -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Semantics.
-    Require Import Safe.
     Require Import Notations.
-    Require Import SemanticsFacts.
     Require Import SynReqFacts.
     Require Import ListFacts.
     Require Import StringSet.
@@ -42,9 +46,11 @@ Module Make (Import M : RepInv.RepInv).
 
     Open Scope stmt.
 
-    Opaque funcs_ok.
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
+    Opaque funcs_ok.
+    Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
+    Opaque CompileStmtImplMake.InvMake2.funcs_ok.
 
     Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
@@ -73,6 +79,7 @@ Module Make (Import M : RepInv.RepInv).
       wrap0.
       eapply H2 in H.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -82,7 +89,8 @@ Module Make (Import M : RepInv.RepInv).
       destruct_state.
       Ltac inversion_Safe :=
         repeat match goal with
-                 | H : Safe _ _ _ |- _ => inversion H; clear H; subst
+                 | H : Safe _ _ _ |- _ => unfold Safe in H
+                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
                end.
 
       inversion_Safe.
@@ -132,6 +140,7 @@ Module Make (Import M : RepInv.RepInv).
       intros.
       eapply H2 in H.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -143,6 +152,7 @@ Module Make (Import M : RepInv.RepInv).
 
       eapply H2 in H3.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold CompileExpr.runs_to in *.
