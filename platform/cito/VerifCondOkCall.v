@@ -20,6 +20,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import SemanticsMake.
   Import InvMake2.
 
+  Require Import FMapFacts2.
+  Module Import Facts2 := WFacts_fun WordMap.W_as_OT WordMap.WordMap.
+  Require Import InvFacts.
+  Module Import InvFactsMake := Make E.
+
   Section TopSection.
 
     Require Import Inv.
@@ -47,7 +52,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import ListFacts.
     Require Import StringSet.
     Require Import SetFacts.
-    Require Import HeapFacts.
 
     Open Scope stmt.
 
@@ -62,7 +66,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import GeneralTactics.
     Require Import WordFacts.
     Require Import Arith.
-    Require Import InvFacts.
     Require Import VerifCondOkTactics.
 
     Open Scope nat.
@@ -143,13 +146,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       post.
       hiding ltac:(evaluate auto_ext).
 
-(*here*)
-
       (* vc 2 *)
       unfold stack_slot in *.
       rewrite fold_4_mult_1 in *.
       eapply H2 in H3.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       hiding ltac:(evaluate auto_ext).
@@ -160,7 +163,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold CompileExprs.is_state in *.
       post.
       eapply H2 in H0.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       unfold stack_slot in *.
@@ -210,7 +215,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold CompileExpr.is_state in *.
       post.
       eapply H2 in H0.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       unfold stack_slot in *.
@@ -260,7 +267,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* vc 7 *)
       eapply H2 in H3.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       unfold stack_slot in *.
@@ -332,7 +341,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* vc 8 *)
       eapply H2 in H3.
-      unfold precond, inv, inv_template, is_state in *.
+      unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
+      unfold inv, inv_template, is_state in *.
       unfold has_extra_stack in *.
       post.
       unfold stack_slot in *.
@@ -401,7 +412,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
       intros.
-      inversion_Safe.
+      Ltac inversion_Safe' :=
+        repeat match goal with
+                 | H : Safe _ _ _ |- _ => unfold Safe in H
+                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
+               end.
+
+      inversion_Safe'.
 
       (* internal *)
       unfold_all.
@@ -490,10 +507,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* post call *)
       eapply existsR.
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
       apply andR.
       apply Imply_I.
       apply interp_weaken.
@@ -620,7 +640,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | H : map _ _ = map _ _ |- _ => rewrite <- H
       end.
       reflexivity.
-      rewrite heap_merge_empty; eauto.
+      unfold heap_merge in *.
+      rewrite update_with_empty; eauto.
       unfold_all; repeat rewrite length_upd_sublist in *; eauto.
 
       eauto.
@@ -654,7 +675,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | H : map _ _ = map _ _ |- _ => rewrite <- H
       end.
       reflexivity.
-      rewrite heap_merge_empty; eauto.
+      unfold heap_merge in *; rewrite update_with_empty; eauto.
 
       (* foreign *)
       unfold_all.
@@ -720,7 +741,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       repeat match goal with
                | H : interp _ _ |- _ => generalize dependent H
-               | H : good_inputs _ _ |- _ => generalize dependent H
+               | H : Semantics.good_inputs _ _ |- _ => generalize dependent H
              end.
       clear_all; intros.
 
@@ -728,17 +749,22 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       replace (is_heap h) with (heap_to_split h pairs) by (unfold heap_to_split; eauto).
       hiding ltac:(step hints_split_heap).
-      unfold good_inputs in *; openhyp; eauto.
+      unfold Semantics.good_inputs in *; openhyp; eauto.
       eauto.
       eauto.
 
       (* post call *)
       eapply existsR.
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
-      change InvMake.is_heap with is_heap in *.
+      change LayoutHints2Make.InvMake2.is_heap with is_heap in *.
+      change LayoutHints2Make.InvMake.SemanticsMake.heap_diff with heap_diff in *.
+      change LayoutHints2Make.InvMake.make_heap with make_heap in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
       apply andR.
       apply Imply_I.
       apply interp_weaken.
@@ -897,10 +923,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       (* vc 10 *)
       unfold SaveRet.imply in *.
       wrap0.
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
       post.
       destruct_state.
       hiding ltac:(evaluate auto_ext).

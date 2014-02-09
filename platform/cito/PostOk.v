@@ -5,18 +5,23 @@ Require Import RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import CompileStmtImpl.
-  Module Import CompileStmtImplMake := Make E M.
-  Require Import CompileStmtTactics.
-  Module Import CompileStmtTacticsMake := Make E M.
-  Require Import LayoutHints3.
-  Module Import LayoutHints3Make := Make E M.
   Require Import CompileStmtSpec.
   Module Import CompileStmtSpecMake := Make E M.
+  Require Import CompileStmtImpl.
+  Module Import CompileStmtImplMake := Make E M.
+  Require Import LayoutHints3.
+  Module Import LayoutHints3Make := Make E M.
+  Require Import CompileStmtTactics.
+  Module Import CompileStmtTacticsMake := Make E M.
   Import InvMake.
-  Import SafeMake.
+  Import Semantics.
   Import SemanticsMake.
   Import InvMake2.
+
+  Require Import SemanticsFacts.
+  Module Import SemanticsFactsMake := Make E.
+  Require Import SemanticsFacts3.
+  Module Import SemanticsFacts3Make := Make E.
 
   Section TopSection.
 
@@ -37,9 +42,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Lemma ttt : CompileStmtImplMake.InvMake.SafeMake.SemanticsMake.State = State.
-      reflexivity.
-
     Lemma post_ok : 
       forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
              (x : settings * state),
@@ -50,17 +52,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         interp specs (postcond vars temp_size k rv_postcond x).
     Proof.
 
-      Require Import Semantics.
-      Require Import Safe.
       Require Import Notations.
-      Require Import SemanticsFacts.
       Require Import SynReqFacts.
       Require Import ListFacts.
       Require Import StringSet.
       Require Import SetFacts.
       Require Import GeneralTactics.
       Require Import WordFacts.
-      Require Import SemanticsFacts3.
       Require Import SynReqFacts2.
 
       Open Scope stmt.
@@ -75,20 +73,31 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             H : _ |- _ => eapply H
         end.
 
-      Opaque funcs_ok.
       Opaque mult.
       Opaque star. (* necessary to use eapply_cancel *)
-      Opaque CompileStmtImplMake.InvMake.funcs_ok.
+      Opaque funcs_ok.
+      Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
+      Opaque CompileStmtImplMake.InvMake2.funcs_ok.
 
       unfold verifCond, imply; induction s.
 
       Focus 5.
       (* call *)
       wrap0.
-      change CompileStmtImplMake.InvMake.funcs_ok with funcs_ok in *.
-      change CompileStmtImplMake.InvMake.is_state with is_state in *.
-      change CompileStmtImplMake.InvMake.is_heap with is_heap in *.
-      change CompileStmtImplMake.InvMake.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       post.
       destruct_state.
       hiding ltac:(evaluate auto_ext).
@@ -136,12 +145,28 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       descend.
       rearrange_stars (is_heap x5 * is_heap x6 * layout_option x10 x11)%Sep.
       eapply star_merge_separated; eauto.
+      rewrite <- H10; eapply H12.
 
       Focus 5.
       (* label *)
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H3 in H0.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold is_state in *.
@@ -151,7 +176,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct_state.
       Ltac inversion_Safe :=
         repeat match goal with
-                 | H : Safe _ _ _ |- _ => inversion H; clear H; subst
+                 | H : Safe _ _ _ |- _ => unfold Safe in H
+                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
                end.
 
       inversion_Safe.
@@ -203,8 +229,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Focus 5.
       (* assign *)
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H3 in H0.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold CompileExpr.runs_to in *.
@@ -323,8 +364,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       post.
 
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H3 in H1.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold CompileExpr.runs_to in *.
@@ -366,8 +422,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       post.
 
       wrap0.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
+      change CompileStmtImplMake.InvMake2.is_state with is_state in *.
+      change CompileStmtImplMake.InvMake2.is_heap with is_heap in *.
+      change CompileStmtImplMake.InvMake2.layout_option with layout_option in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.heap_merge with heap_merge in *.
+      change CompileStmtImplMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Callee with Callee in *.
+      change CompileStmtSpecMake.InvMake2.funcs_ok with funcs_ok in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.State with State in *.
+      change CompileStmtSpecMake.InvMake2.is_state with is_state in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.Safe with Safe in *.
+      change CompileStmtSpecMake.InvMake.SemanticsMake.RunsTo with RunsTo in *.
       eapply H3 in H1.
       unfold precond in *.
+      change CompileStmtSpecMake.InvMake2.inv with inv in *.
       unfold inv in *.
       unfold inv_template in *.
       unfold CompileExpr.runs_to in *.
