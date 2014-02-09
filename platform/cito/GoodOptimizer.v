@@ -9,8 +9,8 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
-  Module Import SafeMake := Make E.
-  Import SemanticsMake.
+  Require Import Semantics.
+  Module Import SemanticsMake := Semantics.Make E.
 
   Definition GoodOptimizer : Optimizer -> Prop.
     admit.
