@@ -1,27 +1,40 @@
-Require Import CompileFuncImpl.
-Require Import SyntaxFunc.
-Require Import String.
-Require Import GoodFunc GoodOptimizer.
-
 Set Implicit Arguments.
 
-Section TopSection.
+Require Import ADT.
+Require Import RepInv.
 
-  Variable module_name : string.
+Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Variable func : Func.
+  Require Import CompileFuncImpl.
+  Module Import CompileFuncImplMake := Make E M.
+  Import CompileFuncSpecMake.
+  Require Import GoodOptimizer.
+  Import GoodOptimizerMake.
 
-  Hypothesis good_func : GoodFunc func.
+  Require Import GoodFunc.
 
-  Variable optimizer : Optimizer.
+  Require Import SyntaxFunc.
+  Require Import String.
 
-  Hypothesis good_optimizer : GoodOptimizer optimizer.
+  Section TopSection.
 
-  Definition body := body func module_name good_func good_optimizer.
+    Variable module_name : string.
 
-  Require Import CompileFuncSpec.
-  Require Import StructuredModule.
-  Definition compile : function module_name :=
-    (Name func, spec func, body).
+    Variable func : Func.
 
-End TopSection.
+    Hypothesis good_func : GoodFunc func.
+
+    Variable optimizer : Optimizer.
+
+    Hypothesis good_optimizer : GoodOptimizer optimizer.
+
+    Definition body := body func module_name good_func good_optimizer.
+
+    Require Import CompileFuncSpec.
+    Require Import StructuredModule.
+    Definition compile : function module_name :=
+      (Name func, CompileFuncSpecMake.spec func, body).
+
+  End TopSection.
+
+End Make.
