@@ -730,3 +730,5 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
   End TopSection.
+
+End Make.
