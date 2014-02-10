@@ -17,7 +17,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import LabelMap.
   Module Import BLMF := WFacts_fun LabelKey LabelMap.
   Require Import Label.
-  Module Import FMapFacts1LabelMapMake := WFacts_fun Key' LabelMap.
+  Module Import LMF := WFacts_fun Key' LabelMap.
+  Module Import LMFU := UWFacts_fun Key' LabelMap.
 
   Require Import AutoSep.
   Require Import StructuredModule.
@@ -167,61 +168,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
              let '(modl, f, pre) := p in
              LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
 
-      Require Import SetoidList.
-      Require Import GeneralTactics.
-      Lemma InA_eq_List_In : forall elt ls x, InA (@eq elt) x ls <-> List.In x ls.
-        induction ls; simpl; intros.
-        intuition.
-        eapply InA_nil in H; eauto.
-        split; intros.
-        inversion H; subst.
-        eauto.
-        right.
-        eapply IHls.
-        eauto.
-        destruct H.
-        subst.
-        econstructor 1.
-        eauto.
-        econstructor 2.
-        eapply IHls.
-        eauto.
-      Qed.
-
-      Definition equiv_2 A B p1 p2 := forall (a : A) (b : B), p1 a b <-> p2 a b.
-
-      Lemma equiv_2_trans : forall A B a b c, @equiv_2 A B a b -> equiv_2 b c -> equiv_2 a c.
-        unfold equiv_2; intros; split; intros.
-        eapply H0; eapply H; eauto.
-        eapply H; eapply H0; eauto.
-      Qed.
-
-      Lemma eq_key_elt_eq : forall elt, equiv_2 (@LabelMap.eq_key_elt elt) eq.
-        split; intros.
-        unfold LabelMap.eq_key_elt in *.
-        unfold LabelMap.Raw.PX.eqke in *.
-        openhyp.
-        destruct a; destruct b; simpl in *; subst; eauto.
-        subst.
-        unfold LabelMap.eq_key_elt in *.
-        unfold LabelMap.Raw.PX.eqke in *.
-        eauto.
-      Qed.
-
-      Lemma equiv_InA : forall elt (eq1 eq2 : elt -> elt -> Prop), equiv_2 eq1 eq2 -> equiv_2 (InA eq1) (InA eq2).
-        unfold equiv_2; split; intros; eapply InA_weaken; eauto; intros; eapply H; eauto.
-      Qed.
-
-      Lemma InA_eq_key_elt_InA_eq : forall elt, equiv_2 (InA (@LabelMap.eq_key_elt elt)) (InA eq).
-        intros; eapply equiv_InA; eapply eq_key_elt_eq.
-      Qed.
-
-      Lemma InA_eq_key_elt_List_In : forall elt ls x, InA (@LabelMap.eq_key_elt elt) x ls <-> List.In x ls.
-        intros; eapply equiv_2_trans.
-        eapply InA_eq_key_elt_InA_eq.
-        unfold equiv_2; intros; eapply InA_eq_List_In.
-      Qed.
-
       Lemma find_importsMap_find_list' : 
         forall imps2 imps1 base, 
           NoDupKey (imps1 ++ imps2) -> 
@@ -337,6 +283,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
         admit.
       Qed.
+
+      Require Import GeneralTactics.
 
       Lemma find_spec : forall A f (ls : list A) a, find f ls = Some a -> f a = true /\ In a ls.
         induction ls; simpl; intuition;
