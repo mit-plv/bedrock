@@ -49,7 +49,7 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       admit.
     Qed.
 
-    Lemma find_list_neq : forall k v k' ls, NoDupKey ls -> k' <> k -> find_list k' ls = find_list k' (ls ++ (k, v) :: nil).
+    Lemma find_list_neq : forall k v k' ls, NoDupKey ls -> ~ E.eq k' k -> find_list k' ls = find_list k' (ls ++ (k, v) :: nil).
       admit.
     Qed.
 
@@ -162,18 +162,6 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eauto.
     Qed.
 
-    Definition InKey k ls := exists v, InPair (k, v) ls.
-
-    Lemma In_fst_InKey : forall ls k, InA E.eq k (List.map (@fst _ _) ls) <-> InKey k ls.
-      (*      induction ls; simpl; split; intros.
-      eapply InA_nil in H; intuition.
-      unfold InKey in *.
-      openhyp.
-      eapply InA_nil in H; intuition.
-      split; intros.*)
-      admit.
-    Qed.
-
     Lemma In_find_list_not_None_left : forall ls k, InA E.eq k (List.map (@fst _ _) ls) -> find_list k ls <> None.
     Proof.
       induction ls; simpl; intros.
@@ -239,8 +227,16 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eauto.
     Qed.
 
-    Lemma add_4 : forall m x y e, x <> y -> find y (add x e m) = find y m.
-      admit.
+    Lemma add_4 : forall m x y e, ~ E.eq x y -> find y (add x e m) = find y m.
+      intros.
+      eapply option_univalence.
+      split; intros.
+      eapply find_1.
+      eapply add_3; eauto.
+      eapply find_2; eauto.
+      eapply find_1.
+      eapply add_2; eauto.
+      eapply find_2; eauto.
     Qed.
 
     Lemma map_3 : forall B (f : elt -> B) k m, In k m -> In k (map f m).
