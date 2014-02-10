@@ -34,15 +34,6 @@ MODULES := \
 	NameDecoration NameVC \
 	CompileModule \
 	# Stub \
-	# SafeCoind \
-	# ExprLemmas VariableLemmas \
-	# DepthExpr \
-	# SemanticsExprLemmas SemanticsLemmas \
-	# Depth SyntaxNotations \
-	# CompileExpr SepLemmas \
-	# GoodOptimizer PartialMap PartialMapSubtract ConstFolding ElimDead \
-	# Compiler Wf WritingPrograms Compile Recall \
-	# SetInterface SetNotations SetFunctors SetArrow SetList \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
