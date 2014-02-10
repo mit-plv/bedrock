@@ -165,7 +165,7 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Definition InKey k ls := exists v, InPair (k, v) ls.
 
     Lemma In_fst_InKey : forall ls k, InA E.eq k (List.map (@fst _ _) ls) <-> InKey k ls.
-(*      induction ls; simpl; split; intros.
+      (*      induction ls; simpl; split; intros.
       eapply InA_nil in H; intuition.
       unfold InKey in *.
       openhyp.
@@ -263,3 +263,70 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
   End Elt.
 
 End WFacts_fun.
+
+Require Import DecidableTypeEx.
+
+Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
+
+  Lemma InA_eq_List_In : forall elt ls x, InA (@eq elt) x ls <-> List.In x ls.
+    induction ls; simpl; intros.
+    intuition.
+    eapply InA_nil in H; eauto.
+    split; intros.
+    inversion H; subst.
+    eauto.
+    right.
+    eapply IHls.
+    eauto.
+    destruct H.
+    subst.
+    econstructor 1.
+    eauto.
+    econstructor 2.
+    eapply IHls.
+    eauto.
+  Qed.
+
+  Definition equiv_2 A B p1 p2 := forall (a : A) (b : B), p1 a b <-> p2 a b.
+
+  Lemma equiv_2_trans : forall A B a b c, @equiv_2 A B a b -> equiv_2 b c -> equiv_2 a c.
+    unfold equiv_2; intros; split; intros.
+    eapply H0; eapply H; eauto.
+    eapply H; eapply H0; eauto.
+  Qed.
+
+  Require Import GeneralTactics.
+
+  Lemma eq_key_elt_eq : forall elt, equiv_2 (@eq_key_elt elt) eq.
+    split; intros.
+    unfold eq_key_elt in *.
+    openhyp.
+    destruct a; destruct b; simpl in *; subst; eauto.
+    subst.
+    unfold eq_key_elt in *.
+    eauto.
+  Qed.
+
+  Theorem InA_weaken : forall A (P : A -> A -> Prop) (x : A) (ls : list A),
+                         SetoidList.InA P x ls
+                         -> forall (P' : A -> A -> Prop) x',
+                              (forall y, P x y -> P' x' y)
+                              -> SetoidList.InA P' x' ls.
+    induction 1; simpl; intuition.
+  Qed.
+  
+  Lemma equiv_InA : forall elt (eq1 eq2 : elt -> elt -> Prop), equiv_2 eq1 eq2 -> equiv_2 (InA eq1) (InA eq2).
+    unfold equiv_2; split; intros; eapply InA_weaken; eauto; intros; eapply H; eauto.
+  Qed.
+
+  Lemma InA_eq_key_elt_InA_eq : forall elt, equiv_2 (InA (@eq_key_elt elt)) (InA eq).
+    intros; eapply equiv_InA; eapply eq_key_elt_eq.
+  Qed.
+
+  Lemma InA_eq_key_elt_List_In : forall elt ls x, InA (@eq_key_elt elt) x ls <-> List.In x ls.
+    intros; eapply equiv_2_trans.
+    eapply InA_eq_key_elt_InA_eq.
+    unfold equiv_2; intros; eapply InA_eq_List_In.
+  Qed.
+
+End UWFacts_fun.
