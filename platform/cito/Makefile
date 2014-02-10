@@ -33,7 +33,8 @@ MODULES := \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
-	# Stub \
+	FMapFacts1 \
+	Stub \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
