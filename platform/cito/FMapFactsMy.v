@@ -225,8 +225,8 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       intuition.
       discriminate.
     Qed.
-(*here*)
-    Lemma In_In_keys : forall k m, In k m <-> In k (keys m).
+
+    Lemma In_In_keys : forall k m, In k m <-> InA E.eq k (keys m).
       split; intros.
       eapply In_find_not_None in H.
       eapply In_find_list_not_None.
@@ -239,25 +239,27 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eauto.
     Qed.
 
-    Lemma add_4 : forall A m x y (e : A), x <> y -> find y (add x e m) = find y m.
+    Lemma add_4 : forall m x y e, x <> y -> find y (add x e m) = find y m.
       admit.
     Qed.
 
-    Lemma map_3 : forall A B (f : A -> B) k m, In k m -> In k (map f m).
+    Lemma map_3 : forall B (f : elt -> B) k m, In k m -> In k (map f m).
     Proof.
       intros.
       unfold In in *.
-      unfold Raw.PX.In in *.
       openhyp.
       eapply map_1 in H.
       eexists.
       eauto.
     Qed.
 
-    Lemma find_map : forall A B (f : A -> B) k v m, find k m = Some v -> find k (map f m) = Some (f v).
+    Lemma find_map : forall B (f : elt -> B) k v m, find k m = Some v -> find k (map f m) = Some (f v).
       intros.
       eapply find_2 in H.
       eapply find_1.
       eapply map_1; eauto.
     Qed.
 
+  End Elt.
+
+End WFacts_fun.
