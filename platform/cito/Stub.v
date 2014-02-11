@@ -166,7 +166,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       
       Definition stubs := map make_stub (Functions m).
 
-      Definition make_module := StructuredModule.bmodule_ bimports stubs.
+      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
+
+      Definition bexports := map (@func_to_import _) stubs.
+
+      Definition diff : forall A, list A -> list A -> list A.
+        admit.
+      Defined.
+
+      Definition bimports_diff_bexports := diff bimports bexports.
+
+      Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
 
       Lemma In_exports : forall l, LabelMap.In l exports -> exists m f, In m modules /\ In f (Functions m) /\ l = (MName m, FName f).
         intros.
@@ -394,8 +404,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
              let '(f, pre, _) := p in
              LabelMap.LabelMap.add (modName, Global f) pre m) functions impsMap.
 
-      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
-
       Lemma fullImports_no_effect' : 
         forall mn (fns : list (function mn)) imps impsMap, 
           NoDupKey imps -> 
@@ -439,6 +447,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply H1; eauto.
         intros.
         eapply find_importsMap_find_list; eauto.
+      Qed.
+
+      Lemma fullImports_spec :
+        forall (imps : list import) mn (fns : list (function mn)) (k : label),
+          let fns' := map (@func_to_import _) fns in
+          let whole := imps ++ fns' in
+          NoDupKey whole ->
+          LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_list k whole.
+        admit.
       Qed.
 
       Lemma NoDup_flatten : 
@@ -503,8 +520,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite map_app; f_equal; eauto.
       Qed.
 
-      Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
-        unfold incl, stubs.
+      Lemma incl_stubs_bimports : incl bexports bimports.
+        unfold incl, bexports, stubs.
         intros.
         rewrite map_map in H.
         unfold func_to_import, make_stub in *.
@@ -684,14 +701,33 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply map_3; eauto.
       Qed.
 
-      Lemma fullImports_eq_bimports : forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports bimports stubs) = find_list k bimports.
-        intros.
-        eapply fullImports_no_effect.
-        eapply NoDup_bimports.
-        eapply incl_stubs_bimports.
+      Definition Equal A ls1 ls2 := forall x : A, In x ls1 <-> In x ls2.
+      Definition Equal_list elt ls1 ls2 := forall k, @find_list elt k ls1 = find_list k ls2.
+
+      Lemma Equal_find_list : forall elt ls1 ls2, @NoDupKey elt ls1 -> NoDupKey ls2 -> Equal ls1 ls2 -> Equal_list ls1 ls2.
+        admit.
+      Qed.
+      
+      Lemma NoDup_union : NoDupKey (bimports_diff_bexports ++ bexports).
+        admit.
       Qed.
 
-      Corollary bimports_fullImports : forall (x : label), In x (map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
+
+      Lemma Equal_union_bimports : Equal (bimports_diff_bexports ++ bexports) bimports.
+        admit.
+      Qed.
+
+      Lemma fullImports_eq_bimports : forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports bimports_diff_bexports stubs) = find_list k bimports.
+        intros.
+        erewrite fullImports_spec.
+        eapply Equal_find_list.
+        eapply NoDup_union.
+        eapply NoDup_bimports.
+        eapply Equal_union_bimports.
+        eapply NoDup_union.
+      Qed.
+
+      Corollary bimports_fullImports : forall (x : label), In x (map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports_diff_bexports stubs) <> None.
       Proof.
         intros.
         specialize In_find_list_not_None; intros.
@@ -706,7 +742,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma accessible_labels_subset_fullImports :
         forall x : label, 
           In x accessible_labels ->
-          LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
+          LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports_diff_bexports stubs) <> None.
       Proof.
         unfold accessible_labels.
         intros.
@@ -731,13 +767,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply In_find_not_None; eauto.
       Qed.
       
-      Lemma exports_fullImports : forall (l : label) spec, LabelMap.find l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
+      Lemma exports_fullImports : forall (l : label) spec, LabelMap.find l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports_diff_bexports stubs) = Some (spec_without_funcs_ok spec fs).
         intros.
         rewrite fullImports_eq_bimports.
         eapply exports_bimports; eauto.
       Qed.
 
-      Lemma tgt_fullImports : forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports stubs) = Some (CompileFuncSpecMake.spec f).
+      Lemma tgt_fullImports : forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports_diff_bexports stubs) = Some (CompileFuncSpecMake.spec f).
         intros.
         rewrite fullImports_eq_bimports. 
         unfold bimports, bimports_base.
@@ -814,7 +850,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply In_find_not_None; eauto.
       Qed.
       
-      Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (foreign_spec spec).
+      Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports_diff_bexports stubs) = Some (foreign_spec spec).
         intros.
         rewrite fullImports_eq_bimports.
         eapply imports_bimports; eauto.
@@ -822,7 +858,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma specs_internal :
         forall specs stn p spec,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels ->
           fs stn p = Some (Internal spec) ->
           specs p = Some (spec_without_funcs_ok spec fs).
       Proof.
@@ -838,7 +874,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma specs_foreign :
         forall specs stn p spec,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels ->
           fs stn p = Some (Foreign spec) ->
           specs p = Some (foreign_spec spec).
       Proof.
@@ -854,7 +890,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma fs_funcs_ok : 
         forall specs stn,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels ->
           interp specs (funcs_ok stn fs).
       Proof.
         unfold funcs_ok.
@@ -884,7 +920,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite sepFormula_eq; apply Imply_refl.
       Qed.
 
-      Lemma good_vcs : forall ls, (forall x, In x ls -> In x (Functions m)) -> vcs (makeVcs bimports stubs (map make_stub ls)).
+      Lemma good_vcs : forall ls, (forall x, In x ls -> In x (Functions m)) -> vcs (makeVcs bimports_diff_bexports stubs (map make_stub ls)).
         induction ls; simpl; eauto.
         Opaque funcs_ok.
         Opaque spec_without_funcs_ok.
@@ -899,7 +935,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.        
 
       Require Import NameVC.
-      Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports.
+      Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports_diff_bexports.
         (* unfold NameNotInImports; eauto. *)
         admit.
       Qed.
