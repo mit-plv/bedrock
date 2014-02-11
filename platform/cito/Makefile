@@ -14,7 +14,7 @@ MODULES := \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
 	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts FMapFacts2 \
 	CompileStmtTactics \
-	SepHints SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
+	SepHints SepHintsUtil SepHints2 SepHints3 SepHints4 LayoutHints LayoutHints2 LayoutHints3 \
 	VerifCondOkTactics \
 	VerifCondOkCall \
 	SemanticsFacts3 SynReqFacts2 \
