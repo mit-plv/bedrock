@@ -602,8 +602,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       erewrite map_app.
       eapply in_or_app.
       left.
-      eapply InA_eq_List_In.
-      specialize In_In_keys; intros; unfold keys in *; eapply H0.
+      eapply In_fst_elements_In.
       eapply map_3; eauto.
       Qed.
 
@@ -631,8 +630,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       erewrite map_app.
       eapply in_or_app.
       right.
-      eapply InA_eq_List_In.
-      specialize In_In_keys; intros; unfold keys in *; eapply H0.
+      eapply In_fst_elements_In.
       eapply map_3; eauto.
       Qed.
 
@@ -665,15 +663,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply in_app_or in H.
         destruct H.
 
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In in H.
-        eapply H0 in H.
+        unfold keys in *; eapply In_fst_elements_In in H.
         eapply in_imports_in_bimports in H.
         eapply bimports_fullImports; eauto.
 
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In in H.
-        eapply H0 in H.
+        unfold keys in *; eapply In_fst_elements_In in H.
         eapply in_exports_in_bimports in H.
         eapply bimports_fullImports; eauto.
       Qed.
@@ -683,9 +677,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         eapply in_or_app.
         right.
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In.
-        eapply H0.
+        unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
       
@@ -768,9 +760,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         eapply in_or_app.
         left.
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In.
-        eapply H0.
+        unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
       
