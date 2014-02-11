@@ -20,6 +20,10 @@ Section TopSection.
     admit.
   Qed.
 
+  Lemma In_flatten_intro : forall lsls ls e, In e ls -> In ls lsls -> In e (flatten lsls).
+    admit.
+  Qed.
+
   Lemma incl_map : forall f ls1 ls2, incl ls1 ls2 -> incl (map f ls1) (map f ls2).
     admit.
   Qed.
@@ -45,6 +49,10 @@ Section TopSection.
   Definition IsInjection f := forall x y, x <> y -> f x <> f y.
 
   Lemma Injection_NoDup : forall f ls, IsInjection f -> NoDup ls -> NoDup (map f ls).
+    admit.
+  Qed.
+
+  Lemma NoDup_incl_2 : forall ls1 ls2, NoDup ls2 -> incl ls1 ls2 -> NoDup ls1.
     admit.
   Qed.
 
