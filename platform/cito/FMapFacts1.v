@@ -53,11 +53,11 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       admit.
     Qed.
 
-    Lemma NoDup_incl : forall ls1 ls2, NoDupKey ls2 -> incl ls1 ls2 -> NoDupKey ls1.
+    Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
       admit.
     Qed.
 
-    Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
+    Lemma NoDup_incl : forall ls1 ls2, NoDupKey ls2 -> incl ls1 ls2 -> NoDupKey ls1.
       admit.
     Qed.
 
@@ -240,13 +240,11 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Qed.
 
     Lemma map_3 : forall B (f : elt -> B) k m, In k m -> In k (map f m).
-    Proof.
-      intros.
-      unfold In in *.
-      openhyp.
-      eapply map_1 in H.
-      eexists.
-      eauto.
+      intros; eapply map_in_iff; eauto.
+    Qed.
+
+    Lemma map_4 : forall B (f : elt -> B) k m, In k (map f m) -> In k m.
+      intros; eapply map_in_iff; eauto.
     Qed.
 
     Lemma find_map : forall B (f : elt -> B) k v m, find k m = Some v -> find k (map f m) = Some (f v).
@@ -254,6 +252,10 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eapply find_2 in H.
       eapply find_1.
       eapply map_1; eauto.
+    Qed.
+
+    Lemma MapsTo_In : forall k v m, MapsTo k v m -> In k m.
+      intros; eexists; eauto.
     Qed.
 
   End Elt.
@@ -323,6 +325,24 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     intros; eapply equiv_2_trans.
     eapply InA_eq_key_elt_InA_eq.
     unfold equiv_2; intros; eapply InA_eq_List_In.
+  Qed.
+
+  Module Import WFacts := WFacts_fun E M.
+
+  Lemma In_fst_elements_In : forall elt m k, List.In k (List.map (@fst _ _) (elements m)) <-> @In elt k m.
+    split; intros.
+    eapply InA_eq_List_In in H.
+    eapply In_In_keys in H; eauto.
+    eapply InA_eq_List_In.
+    specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
+  Qed.
+
+  Lemma NoDupKey_NoDup_fst : forall elt ls, @NoDupKey elt ls <-> NoDup (List.map (@fst _ _) ls).
+    admit.
+  Qed.
+
+  Lemma In_to_map : forall elt ls k, @In elt k (to_map ls) <-> List.In k (List.map (@fst _ _) ls).
+    admit.
   Qed.
 
 End UWFacts_fun.
