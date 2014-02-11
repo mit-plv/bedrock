@@ -328,6 +328,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
   Qed.
 
   Module Import WFacts := WFacts_fun E M.
+  Import F P.
 
   Lemma In_fst_elements_In : forall elt m k, List.In k (List.map (@fst _ _) (elements m)) <-> @In elt k m.
     split; intros.
@@ -337,12 +338,83 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
   Qed.
 
+  Lemma InA_eqk_elim : forall elt ls k v, InA (@eq_key elt) (k, v) ls -> exists v', InA (@eq_key_elt elt) (k, v') ls.
+    induction ls; simpl; intros.
+    eapply InA_nil in H; intuition.
+    destruct a; simpl in *.
+    inversion H; subst.
+    unfold eq_key in *; simpl in *.
+    subst.
+    eexists.
+    econstructor.
+    unfold eq_key_elt; simpl in *.
+    eauto.
+    eapply IHls in H1.
+    openhyp.
+    eexists.
+    econstructor 2.
+    eauto.
+  Qed.
+
   Lemma NoDupKey_NoDup_fst : forall elt ls, @NoDupKey elt ls <-> NoDup (List.map (@fst _ _) ls).
-    admit.
+    induction ls; simpl; intros.
+    split; intros; econstructor.
+    destruct a; simpl in *.
+    split; intros.
+    inversion H; subst.
+    econstructor.
+    intuition.
+    contradict H2.
+    eapply in_map_iff in H0.
+    openhyp.
+    destruct x; simpl in *.
+    subst.
+    eapply InA_eqke_eqk.
+    eauto.
+    eapply InA_eq_key_elt_List_In.
+    eauto.
+    eapply IHls.
+    eauto.
+
+    inversion H; subst.
+    econstructor.
+    intuition.
+    contradict H2.
+    eapply InA_eqk_elim in H0.
+    openhyp.
+    eapply InA_eq_key_elt_List_In in H0.
+    eapply in_map_iff.
+    eexists.
+    split.
+    2 : eauto.
+    eauto.
+    eapply IHls; eauto.
+  Qed.
+
+  Lemma MapsTo_to_map : forall elt k (v : elt) ls, NoDupKey ls -> List.In (k, v) ls -> MapsTo k v (to_map ls).
+    unfold to_map; intros.
+    eapply of_list_1.
+    eauto.
+    eapply InA_eq_key_elt_List_In; eauto.
   Qed.
 
   Lemma In_to_map : forall elt ls k, @In elt k (to_map ls) <-> List.In k (List.map (@fst _ _) ls).
-    admit.
+    unfold to_map.
+    induction ls; simpl; intros.
+    eapply empty_in_iff.
+    unfold uncurry in *.
+    destruct a; simpl in *.
+    split; intros.
+    eapply add_in_iff in H.
+    openhyp.
+    eauto.
+    right.
+    eapply IHls; eauto.
+    eapply add_in_iff.
+    openhyp.
+    eauto.
+    right.
+    eapply IHls; eauto.
   Qed.
 
 End UWFacts_fun.

@@ -441,10 +441,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply find_importsMap_find_list; eauto.
       Qed.
 
-      Lemma NoDup_incl_2 : forall A ls1 ls2, @NoDup A ls2 -> incl ls1 ls2 -> NoDup ls1.
-        admit.
-      Qed.
-
       Lemma NoDup_flatten : 
         forall ls : list GoodModule, 
           NoDup (map MName ls) -> 
@@ -502,17 +498,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Lemma MapsTo_to_map : forall elt k (v : elt) ls, NoDupKey ls -> List.In (k, v) ls -> LabelMap.MapsTo k v (to_map ls).
-        admit.
-      Qed.
-
       Lemma map_flatten : forall A B (f : A -> B) lsls, map f (flatten lsls) = flatten (map (fun ls => map f ls) lsls).
         induction lsls; simpl; intros; eauto.
         rewrite map_app; f_equal; eauto.
-      Qed.
-
-      Lemma In_flatten_intro : forall A lsls ls (e : A), In e ls -> In ls lsls -> In e (flatten lsls).
-        admit.
       Qed.
 
       Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
@@ -910,10 +898,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         erewrite tgt_fullImports; eauto.
       Qed.        
 
+      Require Import NameVC.
+      Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports.
+        (* unfold NameNotInImports; eauto. *)
+        admit.
+      Qed.
+
+      Lemma no_dup_func_names : NoDupFuncNames stubs.
+        eapply NoDup_NoDupFuncNames.
+        unfold stubs.
+        rewrite map_map.
+        unfold make_stub; simpl in *.
+        destruct m; simpl in *.
+        eauto.
+      Qed.
+      
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
-        admit.
-        admit.
+        eapply module_name_not_in_imports.
+        eapply no_dup_func_names.
         eapply good_vcs; eauto.
       Qed.
 
