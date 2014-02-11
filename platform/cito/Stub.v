@@ -449,13 +449,73 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply find_importsMap_find_list; eauto.
       Qed.
 
+      Lemma fullImports_spec' : 
+        forall mn (fns : list (function mn)) imps impsMap, 
+          let fns' := map (@func_to_import _) fns in
+          let whole := imps ++ fns' in
+          NoDupKey whole ->
+          (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) impsMap = find_list k imps) ->
+          forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports' impsMap fns) = find_list k whole.
+      Proof.
+        unfold fullImports'.
+        unfold func_to_import.
+        induction fns; simpl; intros.
+        rewrite app_nil_r in *.
+        eauto.
+        rewrite <- DepList.pf_list_simpl.
+        eapply IHfns.
+        rewrite DepList.pf_list_simpl.
+        eauto.
+        destruct a; simpl.
+        destruct p; simpl.
+        intros.
+        destruct (LabelMap.LabelKey.eq_dec (k0 : Labels.label) (mn, Global s)).
+        unfold LabelKey.eq in *.
+        erewrite LabelMap.LabelMap.find_1.
+        Focus 2.
+        eapply LabelMap.LabelMap.add_1.
+        eauto.
+        destruct k0.
+        injection e; intros; subst.
+        erewrite In_find_list_Some_left.
+        eauto.
+        eapply NoDup_incl.
+        eauto.
+        set (_ ++ _ :: nil) in *.
+        rewrite <- DepList.pf_list_simpl.
+        unfold l in *.
+        intuition.
+        eapply InA_eq_key_elt_List_In; intuition.
+        unfold LabelKey.eq in *.
+        erewrite BLMF.add_4.
+        rewrite H0.
+        erewrite find_list_neq.
+        eauto.
+        eapply NoDup_incl.
+        eauto.
+        intuition.
+        intuition.
+        destruct k0.
+        injection H1; intros; subst; intuition.
+        eauto.
+      Qed.
+
       Lemma fullImports_spec :
         forall (imps : list import) mn (fns : list (function mn)) (k : label),
           let fns' := map (@func_to_import _) fns in
           let whole := imps ++ fns' in
           NoDupKey whole ->
           LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_list k whole.
-        admit.
+      Proof.
+        unfold fullImports.
+        specialize fullImports_spec'; intros.
+        unfold fullImports' in *.
+        eapply H; eauto.
+        intros.
+        eapply find_importsMap_find_list; eauto.
+        eapply NoDup_incl.
+        eauto.
+        intuition.
       Qed.
 
       Lemma NoDup_flatten : 
