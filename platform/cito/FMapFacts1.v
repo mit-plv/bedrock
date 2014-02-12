@@ -53,11 +53,11 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       admit.
     Qed.
 
-    Lemma NoDup_incl : forall ls1 ls2, NoDupKey ls2 -> incl ls1 ls2 -> NoDupKey ls1.
+    Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
       admit.
     Qed.
 
-    Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
+    Lemma NoDup_incl : forall ls1 ls2, NoDupKey ls2 -> incl ls1 ls2 -> NoDupKey ls1.
       admit.
     Qed.
 
@@ -240,13 +240,11 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Qed.
 
     Lemma map_3 : forall B (f : elt -> B) k m, In k m -> In k (map f m).
-    Proof.
-      intros.
-      unfold In in *.
-      openhyp.
-      eapply map_1 in H.
-      eexists.
-      eauto.
+      intros; eapply map_in_iff; eauto.
+    Qed.
+
+    Lemma map_4 : forall B (f : elt -> B) k m, In k (map f m) -> In k m.
+      intros; eapply map_in_iff; eauto.
     Qed.
 
     Lemma find_map : forall B (f : elt -> B) k v m, find k m = Some v -> find k (map f m) = Some (f v).
@@ -254,6 +252,10 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eapply find_2 in H.
       eapply find_1.
       eapply map_1; eauto.
+    Qed.
+
+    Lemma MapsTo_In : forall k v m, MapsTo k v m -> In k m.
+      intros; eexists; eauto.
     Qed.
 
   End Elt.
@@ -323,6 +325,96 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     intros; eapply equiv_2_trans.
     eapply InA_eq_key_elt_InA_eq.
     unfold equiv_2; intros; eapply InA_eq_List_In.
+  Qed.
+
+  Module Import WFacts := WFacts_fun E M.
+  Import F P.
+
+  Lemma In_fst_elements_In : forall elt m k, List.In k (List.map (@fst _ _) (elements m)) <-> @In elt k m.
+    split; intros.
+    eapply InA_eq_List_In in H.
+    eapply In_In_keys in H; eauto.
+    eapply InA_eq_List_In.
+    specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
+  Qed.
+
+  Lemma InA_eqk_elim : forall elt ls k v, InA (@eq_key elt) (k, v) ls -> exists v', InA (@eq_key_elt elt) (k, v') ls.
+    induction ls; simpl; intros.
+    eapply InA_nil in H; intuition.
+    destruct a; simpl in *.
+    inversion H; subst.
+    unfold eq_key in *; simpl in *.
+    subst.
+    eexists.
+    econstructor.
+    unfold eq_key_elt; simpl in *.
+    eauto.
+    eapply IHls in H1.
+    openhyp.
+    eexists.
+    econstructor 2.
+    eauto.
+  Qed.
+
+  Lemma NoDupKey_NoDup_fst : forall elt ls, @NoDupKey elt ls <-> NoDup (List.map (@fst _ _) ls).
+    induction ls; simpl; intros.
+    split; intros; econstructor.
+    destruct a; simpl in *.
+    split; intros.
+    inversion H; subst.
+    econstructor.
+    intuition.
+    contradict H2.
+    eapply in_map_iff in H0.
+    openhyp.
+    destruct x; simpl in *.
+    subst.
+    eapply InA_eqke_eqk.
+    eauto.
+    eapply InA_eq_key_elt_List_In.
+    eauto.
+    eapply IHls.
+    eauto.
+
+    inversion H; subst.
+    econstructor.
+    intuition.
+    contradict H2.
+    eapply InA_eqk_elim in H0.
+    openhyp.
+    eapply InA_eq_key_elt_List_In in H0.
+    eapply in_map_iff.
+    eexists.
+    split.
+    2 : eauto.
+    eauto.
+    eapply IHls; eauto.
+  Qed.
+
+  Lemma MapsTo_to_map : forall elt k (v : elt) ls, NoDupKey ls -> List.In (k, v) ls -> MapsTo k v (to_map ls).
+    unfold to_map; intros.
+    eapply of_list_1.
+    eauto.
+    eapply InA_eq_key_elt_List_In; eauto.
+  Qed.
+
+  Lemma In_to_map : forall elt ls k, @In elt k (to_map ls) <-> List.In k (List.map (@fst _ _) ls).
+    unfold to_map.
+    induction ls; simpl; intros.
+    eapply empty_in_iff.
+    unfold uncurry in *.
+    destruct a; simpl in *.
+    split; intros.
+    eapply add_in_iff in H.
+    openhyp.
+    eauto.
+    right.
+    eapply IHls; eauto.
+    eapply add_in_iff.
+    openhyp.
+    eauto.
+    right.
+    eapply IHls; eauto.
   Qed.
 
 End UWFacts_fun.

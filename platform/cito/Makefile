@@ -33,6 +33,7 @@ MODULES := \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
+	ListFacts2 \
 	FMapFacts1 \
 	Stub \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
