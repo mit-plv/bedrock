@@ -35,6 +35,7 @@ MODULES := \
 	CompileModule \
 	ListFacts2 \
 	FMapFacts1 \
+	StructuredModuleFacts \
 	Stub \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
