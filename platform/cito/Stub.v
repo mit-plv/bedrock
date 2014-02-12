@@ -28,22 +28,30 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import NameDecoration.
   Require Import Sumbool.
   Require Import Wrap.
+  Require Import GeneralTactics.
+  Require Import ListFacts2.
 
   Section TopSection.
 
+    (* modules to be exported *)
     Variable modules : list GoodModule.
-
-    Variable imports : LabelMap.t ForeignFuncSpec.
 
     Definition FName := SyntaxFunc.Name.
 
     Definition MName := GoodModule.Name.
 
-    Fixpoint flatten A (ls : list (list A)) :=
-      match ls with
-        | nil => nil
-        | x :: xs => x ++ flatten xs
-      end.
+    Definition module_names := map MName modules.
+
+    Hypothesis NoDupModuleNames : NoDup module_names.
+
+    (* imported specs *)
+    Variable imports : LabelMap.t ForeignFuncSpec.
+
+    Definition imported_module_names := map (fun x => fst (fst x)) (LabelMap.elements imports).
+
+    Hypothesis NoSelfImport : Disjoint module_names imported_module_names.
+
+    Hypotheses ImportsGoodModuleName : forall l, LabelMap.In l imports -> IsGoodModuleName (fst l).
 
     Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
       {|
@@ -53,16 +61,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.
 
+    Definition get_module_exports (module : GoodModule) := 
+      List.map 
+        (fun (f : GoodFunction) =>
+           ((MName module, FName f), f : InternalFuncSpec)
+        ) (Functions module).
+
     Definition exports :=
       to_map
         (flatten 
-           (List.map 
-              (fun m =>
-                 List.map 
-                   (fun (f : GoodFunction) =>
-                      ((MName m, FName f), f : InternalFuncSpec)
-                   ) (Functions m)
-              ) modules)).
+           (List.map get_module_exports modules)).
 
     Definition accessible_labels := keys imports ++ keys exports.
 
@@ -121,6 +129,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Variable m : GoodModule.
 
+      Hypothesis in_modules : In m modules.
+
       Section f.
 
         Variable f : GoodFunction.
@@ -144,7 +154,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         End body.
 
-        Definition make_stub : function (GoodModule.Name m) :=
+        Definition make_stub : function (MName m) :=
           (FName f, spec_without_funcs_ok f fs, body).
 
       End f.
@@ -156,10 +166,171 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       
       Definition stubs := map make_stub (Functions m).
 
-      Definition make_module := StructuredModule.bmodule_ bimports stubs.
+      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
+
+      Definition bexports := map (@func_to_import _) stubs.
+
+      Definition diff : forall A, list A -> list A -> list A.
+        admit.
+      Defined.
+
+      Definition bimports_diff_bexports := diff bimports bexports.
+
+      Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
+
+      Lemma In_exports : forall l, LabelMap.In l exports -> exists m f, In m modules /\ In f (Functions m) /\ l = (MName m, FName f).
+        intros.
+        unfold exports in *.
+        eapply In_to_map in H.
+        eapply in_map_iff in H.
+        openhyp.
+        rewrite <- H in *.
+        clear H.
+        rename H0 into H.
+        eapply In_flatten in H.
+        openhyp.
+        eapply in_map_iff in H0.
+        openhyp.
+        rewrite <- H0 in *.
+        unfold get_module_exports in *.
+        eapply in_map_iff in H.
+        openhyp.
+        rewrite <- H in *.
+        unfold MName; simpl in *.
+        descend.
+        eauto.
+        eauto.
+        eauto.
+      Qed.
+
+      Lemma NoDup_bimports_base : NoDup (map fst bimports_base).
+        unfold bimports_base.
+        erewrite map_app.
+        eapply NoDup_app.
+        eapply NoDupKey_NoDup_fst.
+        eapply LabelMap.elements_3w.
+        eapply NoDupKey_NoDup_fst.
+        eapply LabelMap.elements_3w.
+        eapply Disjoint_map with (f := fst).
+        eapply Disjoint_symm.
+        eapply Disjoint_incl.
+        eauto.
+
+        unfold incl.
+        unfold module_names in *.
+        intros.
+        eapply in_map_iff in H.
+        openhyp.
+        rewrite <- H in *.
+        clear H.
+        rename H0 into H.
+        eapply In_fst_elements_In in H.
+        eapply map_4 in H.
+        eapply In_exports in H.
+        openhyp.
+        rewrite H1 in *; simpl in *.
+        unfold MName; simpl in *.
+        eapply in_map_iff.
+        eexists.
+        eauto.
+
+        unfold incl.
+        intros.
+        unfold imported_module_names in *.
+        rewrite <- map_map.
+        eapply incl_map in H.
+        eauto.
+        unfold incl.
+        intros.
+        eapply In_fst_elements_In.
+        eapply In_fst_elements_In in H0.
+        eapply F.map_in_iff; eauto.
+      Qed.
+
+      Lemma impl_label_is_injection : forall mn, IsInjection (impl_label mn).
+        unfold IsInjection, impl_label; intuition.
+      Qed.
+
+      Lemma IsGoodModuleName_not_impl_module_name : forall s, IsGoodModuleName s -> ~ exists s', impl_module_name s' = s.
+        unfold IsGoodModuleName, impl_module_name.
+        intros.
+        intuition.
+        openhyp.
+        rewrite <- H0 in *.
+        simpl in *.
+        intuition.
+      Qed.
+
+      Lemma GoodModule_GoodName : forall m : GoodModule, IsGoodModuleName (MName m).
+        intros; destruct m0; simpl; eauto.
+      Qed.
+
+      Lemma In_bimports_base_fst : forall x, In x bimports_base ->  LabelMap.In (fst x) imports \/ exists m f, In m modules /\ In f (Functions m) /\ fst x = (MName m, FName f).
+        intros.
+        unfold bimports_base in *.
+        eapply in_app_or in H.
+        openhyp.
+        left.
+        destruct x.
+        simpl.
+        eapply InA_eq_key_elt_List_In in H.
+        eapply LabelMap.elements_2 in H.
+        eapply F.map_in_iff.
+        eexists.
+        eauto.
+        right.
+        destruct x.
+        simpl.
+        eapply InA_eq_key_elt_List_In in H.
+        eapply LabelMap.elements_2 in H.
+        eapply MapsTo_In in H.
+        eapply map_4 in H.
+        eapply In_exports; eauto.
+      Qed.
+
+      Lemma bimports_base_good_names : forall x, In x bimports_base -> IsGoodModuleName (fst (fst x)).
+        intros.
+        eapply In_bimports_base_fst in H.
+        openhyp.
+        eauto.
+        rewrite H1 in *.
+        simpl.
+        eapply GoodModule_GoodName.
+      Qed.
 
       Lemma NoDup_bimports : NoDupKey bimports.
-        admit.
+        eapply NoDupKey_NoDup_fst.
+        unfold bimports.
+        erewrite map_app.
+        eapply NoDup_app.
+        eapply NoDup_bimports_base.
+        erewrite map_map.
+        unfold Func_to_import.
+        simpl.
+        unfold FName.
+        erewrite <- map_map.
+        eapply Injection_NoDup.
+        eapply impl_label_is_injection.
+        eapply NoDupFuncNames.
+        unfold Disjoint.
+        intuition.
+        erewrite map_map in H1.
+        unfold Func_to_import in *.
+        simpl in *.
+        eapply in_map_iff in H1.
+        openhyp.
+        rewrite <- H in *.
+        eapply in_map_iff in H0.
+        openhyp.
+        eapply f_equal with (f := fst) in H0.
+        unfold impl_label in *.
+        simpl in *.
+        eapply bimports_base_good_names in H2.
+        eapply IsGoodModuleName_not_impl_module_name in H2.
+        contradict H2.
+        eexists.
+        symmetry.
+        eauto.
       Qed.
 
       Definition importsMap' (imports : list import) base :=
@@ -168,7 +339,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
              let '(modl, f, pre) := p in
              LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
 
-      Lemma find_importsMap_find_list' : 
+      Lemma importsMap_spec' : 
         forall imps2 imps1 base, 
           NoDupKey (imps1 ++ imps2) -> 
           (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) base = find_list k imps1) ->
@@ -216,10 +387,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Lemma find_importsMap_find_list : forall imps (k : label), NoDupKey imps -> LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_list k imps.
+      Lemma importsMap_spec : forall imps (k : label), NoDupKey imps -> LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_list k imps.
         intros.
         unfold importsMap.
-        erewrite find_importsMap_find_list'.
+        erewrite importsMap_spec'.
         erewrite app_nil_l; eauto.
         erewrite app_nil_l; eauto.
         intros.
@@ -233,58 +404,178 @@ Module Make (Import E : ADT) (Import M : RepInv E).
              let '(f, pre, _) := p in
              LabelMap.LabelMap.add (modName, Global f) pre m) functions impsMap.
 
-      Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
-
-      Lemma fullImports_no_effect' : 
+      Lemma fullImports_spec' : 
         forall mn (fns : list (function mn)) imps impsMap, 
-          NoDupKey imps -> 
-          incl (map (@func_to_import _) fns) imps -> 
+          let fns' := map (@func_to_import _) fns in
+          let whole := imps ++ fns' in
+          NoDupKey whole ->
           (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) impsMap = find_list k imps) ->
-          forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports' impsMap fns) = find_list k imps.
+          forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports' impsMap fns) = find_list k whole.
       Proof.
-        induction fns; simpl; intros.
-        eauto.
         unfold fullImports'.
-        destruct a.
-        destruct p.
-        eapply IHfns.
+        unfold func_to_import.
+        induction fns; simpl; intros.
+        rewrite app_nil_r in *.
         eauto.
-        eapply incl_tran.
-        2 : eauto.
-        intuition.
+        rewrite <- DepList.pf_list_simpl.
+        eapply IHfns.
+        rewrite DepList.pf_list_simpl.
+        eauto.
+        destruct a; simpl.
+        destruct p; simpl.
         intros.
-        destruct (LabelMap.LabelKey.eq_dec (k0 : Labels.label) (mn, Global s)); unfold LabelKey.eq in *.
+        destruct (LabelMap.LabelKey.eq_dec (k0 : Labels.label) (mn, Global s)).
+        unfold LabelKey.eq in *.
         erewrite LabelMap.LabelMap.find_1.
         Focus 2.
         eapply LabelMap.LabelMap.add_1.
         eauto.
-        symmetry.
-        eapply In_find_list_Some.
-        eauto.
         destruct k0.
         injection e; intros; subst.
-        unfold func_to_import in *; simpl in *.
+        erewrite In_find_list_Some_left.
+        eauto.
+        eapply NoDup_incl.
+        eauto.
+        set (_ ++ _ :: nil) in *.
+        rewrite <- DepList.pf_list_simpl.
+        unfold l in *.
+        intuition.
         eapply InA_eq_key_elt_List_In; intuition.
+        unfold LabelKey.eq in *.
         erewrite BLMF.add_4.
+        rewrite H0.
+        erewrite find_list_neq.
         eauto.
+        eapply NoDup_incl.
+        eauto.
+        intuition.
+        intuition.
+        destruct k0.
+        injection H1; intros; subst; intuition.
         eauto.
       Qed.
 
-      Lemma fullImports_no_effect : forall mn (fns : list (function mn)) imps, NoDupKey imps -> incl (map (@func_to_import _) fns) imps -> forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_list k imps.
-        intros.
+      Lemma fullImports_spec :
+        forall (imps : list import) mn (fns : list (function mn)) (k : label),
+          let fns' := map (@func_to_import _) fns in
+          let whole := imps ++ fns' in
+          NoDupKey whole ->
+          LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_list k whole.
+      Proof.
         unfold fullImports.
-        specialize fullImports_no_effect'; intros.
+        specialize fullImports_spec'; intros.
         unfold fullImports' in *.
-        eapply H1; eauto.
+        eapply H; eauto.
         intros.
-        eapply find_importsMap_find_list; eauto.
+        eapply importsMap_spec; eauto.
+        eapply NoDup_incl.
+        eauto.
+        intuition.
       Qed.
 
-      Lemma incl_stubs_bimports : incl (map (@func_to_import _) stubs) bimports.
-        admit.
+      Lemma NoDup_flatten : 
+        forall ls : list GoodModule, 
+          NoDup (map MName ls) -> 
+          NoDup
+            (flatten
+               (map (fun x0 : GoodModule => map fst (get_module_exports x0)) ls)).
+        clear.
+        induction ls; simpl; intros.
+        econstructor.
+        eapply NoDup_app.
+        unfold get_module_exports.
+        rewrite map_map.
+        simpl.
+        destruct a; simpl in *.
+        unfold FName.
+        eauto.
+        generalize NoDupFuncNames; intro HH.
+        eapply Injection_NoDup with (f := fun s => (Name, s)) in HH.
+        rewrite map_map in HH.
+        eauto.
+        unfold IsInjection; intuition.
+        eapply IHls.
+        eapply NoDup_incl_2.
+        eauto.
+        intuition.
+        unfold Disjoint.
+        intros.
+        intuition.
+        eapply in_map_iff in H1.
+        openhyp.
+        rewrite <- H0 in *.
+        clear H0.
+        eapply In_flatten in H2.
+        openhyp.
+        eapply in_map_iff in H2.
+        openhyp.
+        rewrite <- H2 in *.
+        clear H2.
+        eapply in_map_iff in H0.
+        openhyp.
+        destruct x; destruct x2; simpl in *.
+        subst.
+        unfold get_module_exports in *.
+        eapply in_map_iff in H1.
+        openhyp.
+        injection H0; intros; subst.
+        eapply in_map_iff in H2.
+        openhyp.
+        injection H2; intros; subst.
+        rewrite <- H7 in *; clear H7.
+        inversion H; subst.
+        contradict H8.
+        eapply in_map_iff.
+        eexists.
+        eauto.
       Qed.
 
-      Require Import GeneralTactics.
+      Lemma map_flatten : forall A B (f : A -> B) lsls, map f (flatten lsls) = flatten (map (fun ls => map f ls) lsls).
+        induction lsls; simpl; intros; eauto.
+        rewrite map_app; f_equal; eauto.
+      Qed.
+
+      Lemma incl_stubs_bimports : incl bexports bimports.
+        unfold incl, bexports, stubs.
+        intros.
+        rewrite map_map in H.
+        unfold func_to_import, make_stub in *.
+        simpl in *.
+        eapply in_map_iff in H.
+        openhyp.
+        rewrite <- H in *.
+        clear H.
+        unfold bimports.
+        eapply in_or_app.
+        left.
+        unfold bimports_base.
+        eapply in_or_app.
+        right.
+        eapply InA_eq_key_elt_List_In.
+        eapply LabelMap.elements_1.
+        unfold spec_without_funcs_ok_fs.
+        eapply LabelMap.find_2.
+        erewrite find_map.
+        f_equal.
+        instantiate (1 := x).
+        reflexivity.
+        eapply LabelMap.find_1.
+        eapply MapsTo_to_map.
+        eapply NoDupKey_NoDup_fst.
+        rewrite map_flatten.
+        rewrite map_map.
+        unfold module_names in *.
+        eapply NoDup_flatten; eauto.
+        eapply In_flatten_intro.
+        Focus 2.
+        eapply in_map_iff.
+        eexists.
+        eauto.
+        unfold get_module_exports.
+        eapply in_map_iff.
+        eexists.
+        eauto.
+      Qed.
 
       Lemma find_spec : forall A f (ls : list A) a, find f ls = Some a -> f a = true /\ In a ls.
         induction ls; simpl; intuition;
@@ -393,8 +684,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       erewrite map_app.
       eapply in_or_app.
       left.
-      eapply InA_eq_List_In.
-      specialize In_In_keys; intros; unfold keys in *; eapply H0.
+      eapply In_fst_elements_In.
       eapply map_3; eauto.
       Qed.
 
@@ -422,19 +712,40 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       erewrite map_app.
       eapply in_or_app.
       right.
-      eapply InA_eq_List_In.
-      specialize In_In_keys; intros; unfold keys in *; eapply H0.
+      eapply In_fst_elements_In.
       eapply map_3; eauto.
       Qed.
 
-      Lemma fullImports_eq_bimports : forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports bimports stubs) = find_list k bimports.
-        intros.
-        eapply fullImports_no_effect.
-        eapply NoDup_bimports.
-        eapply incl_stubs_bimports.
+      Definition Equal A ls1 ls2 := forall x : A, In x ls1 <-> In x ls2.
+      Definition Equal_list elt ls1 ls2 := forall k, @find_list elt k ls1 = find_list k ls2.
+
+      Lemma Equal_find_list : forall elt ls1 ls2, @NoDupKey elt ls1 -> NoDupKey ls2 -> Equal ls1 ls2 -> Equal_list ls1 ls2.
+        admit.
+      Qed.
+      
+      Lemma NoDup_union : NoDupKey (bimports_diff_bexports ++ bexports).
+        admit.
       Qed.
 
-      Corollary bimports_fullImports : forall (x : label), In x (map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
+
+      Lemma Equal_union_bimports : Equal (bimports_diff_bexports ++ bexports) bimports.
+        admit.
+      Qed.
+
+      Definition full_imports := fullImports bimports_diff_bexports stubs.
+
+      Lemma fullImports_eq_bimports : forall (k : label), LabelMap.LabelMap.find (k : Labels.label) full_imports = find_list k bimports.
+        intros.
+        unfold full_imports in *.
+        erewrite fullImports_spec.
+        eapply Equal_find_list.
+        eapply NoDup_union.
+        eapply NoDup_bimports.
+        eapply Equal_union_bimports.
+        eapply NoDup_union.
+      Qed.
+
+      Corollary bimports_fullImports : forall (x : label), In x (map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) full_imports <> None.
       Proof.
         intros.
         specialize In_find_list_not_None; intros.
@@ -449,22 +760,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma accessible_labels_subset_fullImports :
         forall x : label, 
           In x accessible_labels ->
-          LabelMap.LabelMap.find (x : Labels.label) (fullImports bimports stubs) <> None.
+          LabelMap.LabelMap.find (x : Labels.label) full_imports <> None.
       Proof.
         unfold accessible_labels.
         intros.
         eapply in_app_or in H.
         destruct H.
 
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In in H.
-        eapply H0 in H.
+        unfold keys in *; eapply In_fst_elements_In in H.
         eapply in_imports_in_bimports in H.
         eapply bimports_fullImports; eauto.
 
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In in H.
-        eapply H0 in H.
+        unfold keys in *; eapply In_fst_elements_In in H.
         eapply in_exports_in_bimports in H.
         eapply bimports_fullImports; eauto.
       Qed.
@@ -474,19 +781,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         eapply in_or_app.
         right.
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In.
-        eapply H0.
+        unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
       
-      Lemma exports_fullImports : forall (l : label) spec, LabelMap.find l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (spec_without_funcs_ok spec fs).
+      Lemma exports_fullImports : forall (l : label) spec, LabelMap.find l exports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) full_imports = Some (spec_without_funcs_ok spec fs).
         intros.
         rewrite fullImports_eq_bimports.
         eapply exports_bimports; eauto.
       Qed.
 
-      Lemma tgt_fullImports : forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) (fullImports bimports stubs) = Some (CompileFuncSpecMake.spec f).
+      Lemma tgt_fullImports : forall f, In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) full_imports = Some (CompileFuncSpecMake.spec f).
         intros.
         rewrite fullImports_eq_bimports. 
         unfold bimports, bimports_base.
@@ -559,13 +864,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         eapply in_or_app.
         left.
-        specialize In_In_keys; intros; unfold keys in *.
-        eapply InA_eq_List_In.
-        eapply H0.
+        unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
       
-      Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) (fullImports bimports stubs) = Some (foreign_spec spec).
+      Lemma imports_fullImports : forall (l : label) spec, LabelMap.find l imports = Some spec -> LabelMap.LabelMap.find (l : Labels.label) full_imports = Some (foreign_spec spec).
         intros.
         rewrite fullImports_eq_bimports.
         eapply imports_bimports; eauto.
@@ -573,7 +876,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma specs_internal :
         forall specs stn p spec,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment full_imports specs stn accessible_labels ->
           fs stn p = Some (Internal spec) ->
           specs p = Some (spec_without_funcs_ok spec fs).
       Proof.
@@ -589,7 +892,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma specs_foreign :
         forall specs stn p spec,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment full_imports specs stn accessible_labels ->
           fs stn p = Some (Foreign spec) ->
           specs p = Some (foreign_spec spec).
       Proof.
@@ -605,7 +908,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma fs_funcs_ok : 
         forall specs stn,
-          augment (fullImports bimports stubs) specs stn accessible_labels ->
+          augment full_imports specs stn accessible_labels ->
           interp specs (funcs_ok stn fs).
       Proof.
         unfold funcs_ok.
@@ -635,9 +938,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite sepFormula_eq; apply Imply_refl.
       Qed.
 
-      Hypothesis in_modules : In m modules.
-
-      Lemma good_vcs : forall ls, (forall x, In x ls -> In x (Functions m)) -> vcs (makeVcs bimports stubs (map make_stub ls)).
+      Lemma good_vcs : forall ls, (forall x, In x ls -> In x (Functions m)) -> vcs (makeVcs bimports_diff_bexports stubs (map make_stub ls)).
         induction ls; simpl; eauto.
         Opaque funcs_ok.
         Opaque spec_without_funcs_ok.
@@ -651,10 +952,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         erewrite tgt_fullImports; eauto.
       Qed.        
 
+      Require Import NameVC.
+      Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports_diff_bexports.
+        (* unfold NameNotInImports; eauto. *)
+        admit.
+      Qed.
+
+      Lemma no_dup_func_names : NoDupFuncNames stubs.
+        eapply NoDup_NoDupFuncNames.
+        unfold stubs.
+        rewrite map_map.
+        unfold make_stub; simpl in *.
+        destruct m; simpl in *.
+        eauto.
+      Qed.
+      
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
-        admit.
-        admit.
+        eapply module_name_not_in_imports.
+        eapply no_dup_func_names.
         eapply good_vcs; eauto.
       Qed.
 
