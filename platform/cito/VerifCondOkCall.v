@@ -176,13 +176,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       gen_le.
       hiding ltac:(evaluate hints_buf_2_fwd).
       hiding ltac:(evaluate hints_array).
-      Require Import SepHints2.
+      Require Import SepHints2 SepHintsUtil.
       rewrite (@replace_array_to_split x8 _ (length l)) in H17.
       assert (splittable x8 (length l)) by (unfold splittable; omega).
       hiding ltac:(evaluate hints_array_split).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       intros.
       descend.
       unfold callee_stack_start in *.
@@ -236,7 +236,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(evaluate hints_array_split).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       unfold callee_stack_start in *.
       unfold frame_len in *.
       unfold temp_start in *.
@@ -288,7 +288,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(evaluate hints_array_split).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       unfold callee_stack_start in *.
       unfold frame_len in *.
       unfold temp_start in *.
@@ -362,7 +362,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(evaluate hints_array_split).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       unfold callee_stack_start in *.
       unfold frame_len in *.
       unfold temp_start in *.
@@ -609,7 +609,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_buf_split_bwd).
 
       rewrite fold_first in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       hiding ltac:(step auto_ext).
 
       rewrite fold_first in *.

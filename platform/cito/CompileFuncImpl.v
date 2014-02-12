@@ -241,7 +241,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (locals_combinable avars local_vars) by (unfold locals_combinable; eapply GoodFunc_NoDup_vars; eauto).
 
       hiding ltac:(step hints_combine_locals).
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       unfold len_local_vars.
       repeat hiding ltac:(step auto_ext).
 
@@ -265,7 +265,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       fold (@length string) in *.
       fold (@app string) in *.
       rewrite fold_first in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
 
       repeat rewrite app_length in *.
       repeat rewrite Mult.mult_plus_distr_l in *.
@@ -284,7 +284,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (buf_splittable x6 (len_local_vars + temp_size)) by (unfold buf_splittable; eauto).
       hiding ltac:(step hints_buf_split_bwd).
       fold (@length string) in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
       rewrite fold_first in *.
 
       unfold extra.
@@ -306,7 +306,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_buf_split_bwd).
       fold (@length elt) in *.
       rewrite fold_first in *.
-      rewrite fold_4_mult in *.
+      (*rewrite fold_4_mult in *.*)
 
       unfold_all.
       match goal with
