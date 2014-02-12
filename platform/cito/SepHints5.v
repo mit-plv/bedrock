@@ -1,4 +1,4 @@
-Require Import SepHints2.
+Require Import SepHintsUtil SepHints2.
 
 Set Implicit Arguments.
 
@@ -69,8 +69,26 @@ Section TopSection.
 
   Definition locals_combinable A (vars vars2 : list A) := NoDup (vars ++ vars2).
 
-  Lemma combine_locals : forall vars1 vars2 vs1 vs2 p, locals vars1 vs1 0 p * locals vars2 vs2 0 (p ^+ $(4 * length vars1)) ===> combined_locals vars1 vars2 vs1 vs2 p.
-    admit.
+  Opaque mult.
+
+  Lemma combine_locals : forall vars1 vars2 vs1 vs2 p,
+    locals_combinable vars1 vars2
+    -> locals vars1 vs1 0 p * locals vars2 vs2 0 (p ^+ $(4 * length vars1)) ===> combined_locals vars1 vars2 vs1 vs2 p.
+    unfold locals, locals_combinable; sepLemma.
+    unfold combined_locals, locals.
+    sepLemma.
+    eapply Himp_trans; [ | apply ptsto32m'_out ].
+    eapply Himp_trans; [ | apply ptsto32m'_merge ].
+    2: auto.
+    eapply Himp_trans; [ apply Himp_star_frame; apply SepHintsUtil.ptsto32m'_in | ].
+    apply Himp_star_frame.
+    apply Himp_refl.
+    eapply Himp_trans; [ | eapply ptsto32m'_shift_base ].
+    instantiate (2 := 4 * length vars1).
+    replace (0 + 4 * length vars1 - 4 * length vars1) with 0 by omega.
+    apply Himp_refl.
+    omega.
+    apply agree_on_refl.
   Qed.
 
   Definition hints_intro_array : TacPackage.
@@ -88,7 +106,19 @@ Section TopSection.
   Qed.
 
   Lemma split_locals : forall vars1 vars2 vs p, locals_to_split vars1 vars2 vs p ===> locals vars1 vs 0 p * locals vars2 vs 0 (p ^+ $(4 * length vars1)).
-    admit.
+    unfold locals_to_split, locals; intros.
+    sepLemma.
+    eauto using NoDup_unapp1.
+    eauto using NoDup_unapp2.
+    eapply Himp_trans; [ apply SepHintsUtil.ptsto32m'_in | ].
+    eapply Himp_trans; [ | apply Himp_star_frame; apply SepHintsUtil.ptsto32m'_out ].
+    eapply Himp_trans; [ apply ptsto32m'_split | ].
+    apply Himp_star_frame; try apply Himp_refl.
+    eapply Himp_trans; [ apply ptsto32m'_shift_base' | ].
+    Focus 2.
+    apply Himp_refl'; f_equal.
+    omega.
+    omega.
   Qed.
 
   Definition hints_split_locals : TacPackage.
