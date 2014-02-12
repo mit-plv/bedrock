@@ -894,6 +894,28 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply inkey_app_or in H.
         unfold Func_to_import in *.
         openhyp.
+        unfold bimports_base in *.
+        eapply inkey_app_or in H.
+        openhyp.
+        admit.
+        eapply In_fst_elements_In in H.
+        eapply map_4 in H.
+        unfold exports in *.
+        eapply In_to_map in H.
+        unfold bexports.
+        unfold func_to_import.
+        unfold stubs.
+        unfold make_stub.
+        rewrite map_map.
+        simpl in *.
+        rewrite map_flatten in H.
+        unfold get_module_exports in *.
+        rewrite map_map in H.
+        simpl in *.
+        unfold InKey.
+
+
+
         Lemma InKey_bimports_base : forall l, InKey l bimports_base ->  LabelMap.In l imports \/ exists m f, In m modules /\ In f (Functions m) /\ l = (MName m, FName f).
           unfold InKey in *.
           intros.
