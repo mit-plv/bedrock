@@ -4,10 +4,10 @@ Require Import List.
 
 Section TopSection.
 
-  Fixpoint flatten A (ls : list (list A)) :=
+  Fixpoint app_all A (ls : list (list A)) :=
     match ls with
       | nil => nil
-      | x :: xs => x ++ flatten xs
+      | x :: xs => x ++ app_all xs
     end.
 
   Definition Disjoint A (ls1 ls2 : list A) := forall e : A, ~ (In e ls1 /\ In e ls2).
@@ -21,7 +21,7 @@ Section TopSection.
   Implicit Types f : t -> B.
   Implicit Types x y e a : t.
 
-  Lemma map_flatten : forall f lsls, map f (flatten lsls) = flatten (map (fun ls => map f ls) lsls).
+  Lemma map_app_all : forall f lsls, map f (app_all lsls) = app_all (map (fun ls => map f ls) lsls).
     induction lsls; simpl; intros; eauto.
     rewrite map_app; f_equal; eauto.
   Qed.
@@ -36,7 +36,7 @@ Section TopSection.
       rewrite e in H; eapply IHls in H; openhyp; eauto]).
   Qed.
 
-  Lemma In_flatten_intro : forall lsls ls e, In e ls -> In ls lsls -> In e (flatten lsls).
+  Lemma In_app_all_intro : forall lsls ls e, In e ls -> In ls lsls -> In e (app_all lsls).
     induction lsls; simpl; intros.
     eauto.
     openhyp.
@@ -48,7 +48,7 @@ Section TopSection.
     eauto.
   Qed.
 
-  Lemma In_flatten_elim : forall lsls x, In x (flatten lsls) -> exists ls, In x ls /\ In ls lsls.
+  Lemma In_app_all_elim : forall lsls x, In x (app_all lsls) -> exists ls, In x ls /\ In ls lsls.
     induction lsls; simpl; intros.
     intuition.
     eapply in_app_or in H.
