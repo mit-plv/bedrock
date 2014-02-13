@@ -33,6 +33,7 @@ MODULES := \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
+	NatFacts StringFacts \
 	ListFacts2 \
 	FMapFacts1 \
 	StructuredModuleFacts \

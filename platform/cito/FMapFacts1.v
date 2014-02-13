@@ -7,10 +7,11 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
 
   Require Import FMapFacts.
 
-  Module Import F := WFacts_fun E M.
   Module Import P := WProperties_fun E M.
+  Import F.
 
   Section Elt.
+
     Variable elt:Type.
 
     Implicit Types m : t elt.
@@ -258,173 +259,460 @@ End WFacts_fun.
 
 Require Import DecidableTypeEx.
 
+Definition equiv_2 A B p1 p2 := forall (a : A) (b : B), p1 a b <-> p2 a b.
+
+Lemma equiv_2_trans : forall A B a b c, @equiv_2 A B a b -> equiv_2 b c -> equiv_2 a c.
+  unfold equiv_2; intros; split; intros.
+  eapply H0; eapply H; eauto.
+  eapply H; eapply H0; eauto.
+Qed.
+
+Lemma InA_eq_List_In : forall elt (ls : list elt) (x : elt), InA eq x ls <-> List.In x ls.
+  induction ls; simpl; intros.
+  intuition.
+  eapply InA_nil in H; eauto.
+  split; intros.
+  inversion H; subst.
+  eauto.
+  right.
+  eapply IHls.
+  eauto.
+  destruct H.
+  subst.
+  econstructor 1.
+  eauto.
+  econstructor 2.
+  eapply IHls.
+  eauto.
+Qed.
+
+Lemma InA_weaken : 
+  forall A (P : A -> A -> Prop) (x : A) (ls : list A),
+    InA P x ls ->
+    forall (P' : A -> A -> Prop) x',
+      (forall y, P x y -> P' x' y) ->
+      InA P' x' ls.
+  induction 1; simpl; intuition.
+Qed.
+
+Lemma equiv_InA : forall elt (eq1 eq2 : elt -> elt -> Prop), equiv_2 eq1 eq2 -> equiv_2 (InA eq1) (InA eq2).
+  unfold equiv_2; split; intros; eapply InA_weaken; eauto; intros; eapply H; eauto.
+Qed.
+
+Definition sumbool_to_bool A B (x : {A} + {B}) := if x then true else false.
+
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
-  Lemma InA_eq_List_In : forall elt ls x, InA (@eq elt) x ls <-> List.In x ls.
-    induction ls; simpl; intros.
-    intuition.
-    eapply InA_nil in H; eauto.
-    split; intros.
-    inversion H; subst.
-    eauto.
-    right.
-    eapply IHls.
-    eauto.
-    destruct H.
-    subst.
-    econstructor 1.
-    eauto.
-    econstructor 2.
-    eapply IHls.
-    eauto.
-  Qed.
-
-  Definition equiv_2 A B p1 p2 := forall (a : A) (b : B), p1 a b <-> p2 a b.
-
-  Lemma equiv_2_trans : forall A B a b c, @equiv_2 A B a b -> equiv_2 b c -> equiv_2 a c.
-    unfold equiv_2; intros; split; intros.
-    eapply H0; eapply H; eauto.
-    eapply H; eapply H0; eauto.
-  Qed.
-
-  Require Import GeneralTactics.
-
-  Lemma eq_key_elt_eq : forall elt, equiv_2 (@eq_key_elt elt) eq.
-    split; intros.
-    unfold eq_key_elt in *.
-    openhyp.
-    destruct a; destruct b; simpl in *; subst; eauto.
-    subst.
-    unfold eq_key_elt in *.
-    eauto.
-  Qed.
-
-  Theorem InA_weaken : forall A (P : A -> A -> Prop) (x : A) (ls : list A),
-                         SetoidList.InA P x ls
-                         -> forall (P' : A -> A -> Prop) x',
-                              (forall y, P x y -> P' x' y)
-                              -> SetoidList.InA P' x' ls.
-    induction 1; simpl; intuition.
-  Qed.
-  
-  Lemma equiv_InA : forall elt (eq1 eq2 : elt -> elt -> Prop), equiv_2 eq1 eq2 -> equiv_2 (InA eq1) (InA eq2).
-    unfold equiv_2; split; intros; eapply InA_weaken; eauto; intros; eapply H; eauto.
-  Qed.
-
-  Lemma InA_eq_key_elt_InA_eq : forall elt, equiv_2 (InA (@eq_key_elt elt)) (InA eq).
-    intros; eapply equiv_InA; eapply eq_key_elt_eq.
-  Qed.
-
-  Lemma InA_eq_key_elt_List_In : forall elt ls x, InA (@eq_key_elt elt) x ls <-> List.In x ls.
-    intros; eapply equiv_2_trans.
-    eapply InA_eq_key_elt_InA_eq.
-    unfold equiv_2; intros; eapply InA_eq_List_In.
-  Qed.
-
   Module Import WFacts := WFacts_fun E M.
-  Import F P.
+  Import P.
+  Import F.
 
-  Lemma In_fst_elements_In : forall elt m k, List.In k (List.map (@fst _ _) (elements m)) <-> @In elt k m.
-    split; intros.
-    eapply InA_eq_List_In in H.
-    eapply In_In_keys in H; eauto.
-    eapply InA_eq_List_In.
-    specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
-  Qed.
+  Section Elt.
 
-  Lemma InA_eqk_elim : forall elt ls k v, InA (@eq_key elt) (k, v) ls -> exists v', InA (@eq_key_elt elt) (k, v') ls.
-    induction ls; simpl; intros.
-    eapply InA_nil in H; intuition.
-    destruct a; simpl in *.
-    inversion H; subst.
-    unfold eq_key in *; simpl in *.
-    subst.
-    eexists.
-    econstructor.
-    unfold eq_key_elt; simpl in *.
-    eauto.
-    eapply IHls in H1.
-    openhyp.
-    eexists.
-    econstructor 2.
-    eauto.
-  Qed.
+    Variable elt:Type.
 
-  Lemma NoDupKey_NoDup_fst : forall elt ls, @NoDupKey elt ls <-> NoDup (List.map (@fst _ _) ls).
-    induction ls; simpl; intros.
-    split; intros; econstructor.
-    destruct a; simpl in *.
-    split; intros.
-    inversion H; subst.
-    econstructor.
-    intuition.
-    contradict H2.
-    eapply in_map_iff in H0.
-    openhyp.
-    destruct x; simpl in *.
-    subst.
-    eapply InA_eqke_eqk.
-    eauto.
-    eapply InA_eq_key_elt_List_In.
-    eauto.
-    eapply IHls.
-    eauto.
+    Implicit Types m : t elt.
+    Implicit Types x y z k : key.
+    Implicit Types e v : elt.
+    Implicit Types ls : list (key * elt).
 
-    inversion H; subst.
-    econstructor.
-    intuition.
-    contradict H2.
-    eapply InA_eqk_elim in H0.
-    openhyp.
-    eapply InA_eq_key_elt_List_In in H0.
-    eapply in_map_iff.
-    eexists.
-    split.
-    2 : eauto.
-    eauto.
-    eapply IHls; eauto.
-  Qed.
+    Notation eqke := (@eq_key_elt elt).
+    Notation eqk := (@eq_key elt).
+    
+    Require Import GeneralTactics.
 
-  Lemma MapsTo_to_map : forall elt k (v : elt) ls, NoDupKey ls -> List.In (k, v) ls -> MapsTo k v (to_map ls).
-    unfold to_map; intros.
-    eapply of_list_1.
-    eauto.
-    eapply InA_eq_key_elt_List_In; eauto.
-  Qed.
+    Lemma eqke_eq : equiv_2 eqke eq.
+      split; intros.
+      unfold eq_key_elt in *.
+      openhyp.
+      destruct a; destruct b; simpl in *; subst; eauto.
+      subst.
+      unfold eq_key_elt in *.
+      eauto.
+    Qed.
 
-  Lemma MapsTo_to_map_elim : forall elt k (v : elt) ls, NoDupKey ls -> MapsTo k v (to_map ls) -> List.In (k, v) ls.
-    unfold to_map; intros.
-    eapply InA_eq_key_elt_List_In; eauto.
-    eapply of_list_1.
-    eauto.
-    eauto.
-  Qed.
+    Lemma InA_eqke_InA_eq : equiv_2 (InA eqke) (InA eq).
+      intros; eapply equiv_InA; eapply eqke_eq.
+    Qed.
 
-  Lemma In_to_map : forall elt ls k, @In elt k (to_map ls) <-> List.In k (List.map (@fst _ _) ls).
-    unfold to_map.
-    induction ls; simpl; intros.
-    eapply empty_in_iff.
-    unfold uncurry in *.
-    destruct a; simpl in *.
-    split; intros.
-    eapply add_in_iff in H.
-    openhyp.
-    eauto.
-    right.
-    eapply IHls; eauto.
-    eapply add_in_iff.
-    openhyp.
-    eauto.
-    right.
-    eapply IHls; eauto.
-  Qed.
+    Lemma InA_eqke_In : forall ls p, InA eqke p ls <-> List.In p ls.
+      intros; eapply equiv_2_trans.
+      eapply InA_eqke_InA_eq.
+      unfold equiv_2; intros; eapply InA_eq_List_In.
+    Qed.
 
-  Lemma NoDupKey_unapp1 : forall elt ls1 ls2, @NoDupKey elt (ls1 ++ ls2) -> NoDupKey ls1.
-    admit.
-  Qed.
+    Notation fst := (@fst _ _).
 
-  Lemma NoDupKey_unapp2 : forall elt ls1 ls2, @NoDupKey elt (ls1 ++ ls2) -> NoDupKey ls2.
-    admit.
-  Qed.
+    Lemma In_fst_elements_In : forall m k, List.In k (List.map fst (elements m)) <-> In k m.
+      split; intros.
+      eapply InA_eq_List_In in H.
+      eapply In_In_keys in H; eauto.
+      eapply InA_eq_List_In.
+      specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
+    Qed.
+
+    Lemma InA_eqk_elim : forall ls k v, InA eqk (k, v) ls -> exists v', InA eqke (k, v') ls.
+      induction ls; simpl; intros.
+      eapply InA_nil in H; intuition.
+      destruct a; simpl in *.
+      inversion H; subst.
+      unfold eq_key in *; simpl in *.
+      subst.
+      eexists.
+      econstructor.
+      unfold eq_key_elt; simpl in *.
+      eauto.
+      eapply IHls in H1.
+      openhyp.
+      eexists.
+      econstructor 2.
+      eauto.
+    Qed.
+
+    Lemma NoDupKey_NoDup_fst : forall ls, NoDupKey ls <-> NoDup (List.map fst ls).
+      induction ls; simpl; intros.
+      split; intros; econstructor.
+      destruct a; simpl in *.
+      split; intros.
+      inversion H; subst.
+      econstructor.
+      intuition.
+      contradict H2.
+      eapply in_map_iff in H0.
+      openhyp.
+      destruct x; simpl in *.
+      subst.
+      eapply InA_eqke_eqk.
+      eauto.
+      eapply InA_eqke_In.
+      eauto.
+      eapply IHls.
+      eauto.
+
+      inversion H; subst.
+      econstructor.
+      intuition.
+      contradict H2.
+      eapply InA_eqk_elim in H0.
+      openhyp.
+      eapply InA_eqke_In in H0.
+      eapply in_map_iff.
+      eexists.
+      split.
+      2 : eauto.
+      eauto.
+      eapply IHls; eauto.
+    Qed.
+
+    Lemma MapsTo_to_map : forall k v ls, NoDupKey ls -> List.In (k, v) ls -> MapsTo k v (to_map ls).
+      unfold to_map; intros.
+      eapply of_list_1.
+      eauto.
+      eapply InA_eqke_In; eauto.
+    Qed.
+
+    Lemma MapsTo_to_map_elim : forall k v ls, NoDupKey ls -> MapsTo k v (to_map ls) -> List.In (k, v) ls.
+      unfold to_map; intros.
+      eapply InA_eqke_In; eauto.
+      eapply of_list_1.
+      eauto.
+      eauto.
+    Qed.
+
+    Definition InKey k ls := List.In k (List.map fst ls).
+
+    Lemma In_to_map : forall ls k, In k (to_map ls) <-> InKey k ls.
+      unfold to_map.
+      unfold InKey.
+      induction ls; simpl; intros.
+      eapply empty_in_iff.
+      unfold uncurry in *.
+      destruct a; simpl in *.
+      split; intros.
+      eapply add_in_iff in H.
+      openhyp.
+      eauto.
+      right.
+      eapply IHls; eauto.
+      eapply add_in_iff.
+      openhyp.
+      eauto.
+      right.
+      eapply IHls; eauto.
+    Qed.
+
+    Lemma NoDupKey_unapp1 : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> NoDupKey ls1.
+      admit.
+    Qed.
+
+    Lemma NoDupKey_unapp2 : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> NoDupKey ls2.
+      admit.
+    Qed.
+
+    Lemma inkey_app_or : forall k ls1 ls2, InKey k (ls1 ++ ls2) <-> InKey k ls1 \/ InKey k ls2.
+      unfold InKey.
+      split; intros.
+      eapply in_map_iff in H.
+      openhyp.
+      eapply in_app_or in H0.
+      openhyp.
+      left.
+      eapply in_map_iff; eexists; eauto.
+      right.
+      eapply in_map_iff; eexists; eauto.
+      openhyp.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      eapply in_map_iff; eexists; intuition.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      eapply in_map_iff; eexists; intuition.
+    Qed.
+
+    Definition DisjointKey ls1 ls2 := forall k, ~ (InKey k ls1 /\ InKey k ls2).
+
+    Lemma NoDupKey_app : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 -> DisjointKey ls1 ls2 -> NoDupKey (ls1 ++ ls2).
+      admit.
+    Qed.
+
+    Definition InKey_dec k ls : {InKey k ls} + {~ InKey k ls}.
+      unfold InKey.
+      eapply in_dec.
+      eapply E.eq_dec.
+    Defined.
+
+    Definition diff_map ls1 ls2 :=
+      let f p := negb (sumbool_to_bool (InKey_dec (fst p) ls2)) in
+      List.filter f ls1.
+
+    Lemma diff_NoDupKey : forall ls1 ls2, NoDupKey ls1 -> NoDupKey (diff_map ls1 ls2).
+      unfold diff_map.
+      induction ls1; simpl; intros.
+      eauto.
+      unfold sumbool_to_bool in *.
+      destruct a; simpl in *.
+      destruct (InKey_dec k ls2) in *.
+      simpl in *.
+      eapply IHls1; inversion H; subst; eauto.
+      simpl in *.
+      econstructor.
+      2 : eapply IHls1; inversion H; subst; eauto.
+      intuition.
+      inversion H; subst.
+      contradict H3.
+      eapply filter_InA in H0.
+      openhyp.
+      eauto.
+      eauto.
+      unfold Proper; unfold respectful; intros.
+      destruct x; destruct y; unfold eq_key in *; simpl in *; subst; eauto.
+    Qed.
+    
+    Lemma diff_In : forall ls1 ls2 x, InKey x (diff_map ls1 ls2) -> InKey x ls1 /\ ~ InKey x ls2.
+      unfold InKey.
+      unfold diff_map.
+      intros.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      eapply filter_In in H0.
+      openhyp.
+      split.
+      eapply in_map_iff.
+      eexists; eauto.
+      unfold sumbool_to_bool in *.
+      destruct (InKey_dec _ _); simpl in *.
+      intuition.
+      intuition.
+    Qed.
+
+    Lemma diff_DisjointKey : forall ls1 ls2, DisjointKey (diff_map ls1 ls2) ls2.
+      unfold DisjointKey.
+      intros.
+      intuition.
+      eapply diff_In in H0.
+      openhyp.
+      intuition.
+    Qed.
+
+    Definition Equal_map ls1 ls2 := forall k, find_list k ls1 = find_list k ls2.
+
+    Lemma NoDupKey_diff_union : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 -> NoDupKey (diff_map ls1 ls2 ++ ls2).
+      intros.
+      eapply NoDupKey_app.
+      eapply diff_NoDupKey.
+      eauto.
+      eauto.
+      eapply diff_DisjointKey.
+    Qed.
+
+    Lemma of_list_app : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> Equal (of_list (ls1 ++ ls2)) (update (of_list ls1) (of_list ls2)).
+      admit.
+    Qed.
+
+    Lemma In_of_list : forall k ls, NoDupKey ls -> (In k (of_list ls) <-> InKey k ls).
+      unfold InKey, In.
+      split; intros.
+      openhyp.
+      eapply of_list_1 in H0; eauto.
+      eapply InA_eqke_In in H0.
+      eapply in_map_iff.
+      eexists; intuition.
+      2 : eauto.
+      eauto.
+      eapply in_map_iff in H0.
+      openhyp.
+      subst.
+      destruct x; simpl in *.
+      eapply InA_eqke_In in H1.
+      eapply of_list_1 in H1; eauto.
+    Qed.
+
+    Lemma of_list_diff : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 -> Equal (of_list (diff_map ls1 ls2)) (diff (of_list ls1) (of_list ls2)).
+      induction ls1; simpl; intros.
+      unfold Equal.
+      intros.
+      rewrite empty_o.
+      symmetry.
+      eapply not_find_in_iff.
+      intuition.
+      eapply diff_in_iff in H1.
+      openhyp.
+      eapply empty_in_iff; eauto.
+      unfold sumbool_to_bool.
+      unfold uncurry.
+      destruct (InKey_dec (fst a) ls2); simpl.
+      erewrite IHls1; eauto.
+      Focus 2.
+      inversion H; subst; eauto.
+      destruct a; simpl in *.
+      unfold Equal.
+      intros.
+      eapply option_univalence.
+      split; intros.
+      eapply find_2 in H1.
+      generalize H1; intro.
+      eapply MapsTo_In in H1.
+      eapply diff_in_iff in H1.
+      openhyp.
+      destruct (eq_dec y k).
+      subst.
+      inversion H; subst.
+      contradict H6.
+      unfold In in H1.
+      openhyp.
+      eapply of_list_1 in H1; eauto.
+      eapply InA_eqke_eqk; eauto.
+      eapply find_1.
+      eapply diff_mapsto_iff in H2.
+      openhyp.
+      eapply diff_mapsto_iff.
+      split.
+      2 : eauto.
+      eapply add_2.
+      intuition.
+      eauto.
+      eapply find_2 in H1.
+      eapply diff_mapsto_iff in H1.
+      openhyp.
+      eapply add_mapsto_iff in H1.
+      openhyp.
+      subst.
+      contradict H2.
+      eapply In_of_list; eauto.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      eauto.
+      unfold uncurry.
+      unfold Equal.
+      intros.
+      destruct a; simpl in *.
+      destruct (eq_dec y k).
+      subst.
+      erewrite add_eq_o; eauto.
+      symmetry.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      split.
+      eapply add_1; eauto.
+      Ltac not_not :=
+        match goal with
+          | H : ~ _ |- ~ _ => unfold not; intro; contradict H
+        end.
+
+      not_not.
+      eapply In_of_list; eauto.
+      erewrite add_neq_o; eauto.
+      erewrite IHls1; eauto.
+      eapply option_univalence.
+      split; intros.
+      eapply find_2 in H1.
+      generalize H1; intro.
+      eapply diff_mapsto_iff in H1.
+      openhyp.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      split; eauto.
+      eapply add_2; eauto.
+(*here*)
+    Qed.
+
+    Lemma diff_union : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 ->  incl ls2 ls1 -> Equal_map (diff_map ls1 ls2 ++ ls2) ls1.
+      unfold Equal_map.
+      intros.
+      unfold find_list.
+      erewrite <- of_list_1b.
+      erewrite <- of_list_1b.
+      2 : eauto.
+      2 : eapply NoDupKey_diff_union; eauto.
+      erewrite of_list_app.
+      2 : eapply NoDupKey_diff_union; eauto.
+      eapply option_univalence.
+      split; intros.
+      eapply find_2 in H2.
+      eapply update_mapsto_iff in H2.
+      openhyp.
+      eapply of_list_1 in H2; eauto.
+      eapply find_1.
+      eapply of_list_1; eauto.
+      eapply InA_eqke_In in H2.
+      eapply InA_eqke_In.
+      eauto.
+      eapply find_1 in H2.
+      rewrite of_list_diff in H2; eauto.
+      eapply find_2 in H2.
+      eapply diff_mapsto_iff in H2.
+      openhyp.
+      eapply find_1.
+      eauto.
+      eapply find_1.
+      eapply update_mapsto_iff.
+      destruct (In_dec (of_list ls2) k).
+      unfold In in i.
+      openhyp.
+      generalize H3; intro.
+      eapply of_list_1 in H3; eauto.
+      eapply InA_eqke_In in H3.
+      eapply H1 in H3.
+      eapply InA_eqke_In in H3.
+      eapply of_list_1 in H3; eauto.
+      eapply find_1 in H3.
+      rewrite H3 in H2.
+      injection H2; intro; subst.
+      eauto.
+      right.
+      split.
+      2 : eauto.
+      eapply find_2.
+      rewrite of_list_diff; eauto.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      eapply find_2 in H2.
+      eauto.
+    Qed.
+
+  End Elt.
 
 End UWFacts_fun.

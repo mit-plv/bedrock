@@ -9,6 +9,22 @@ Definition NameNotInImports name imports :=
        (b || (if string_dec m name then true else false))%bool)
     imports false = false.
 
+Definition fst_2 A B C (x : A * B * C) := fst (fst x).
+Notation fst2 := (@fst_2 _ _ _).
+
+Lemma NotIn_NameNotInImports : forall imps mn, ~ In mn (map fst2 imps) -> NameNotInImports mn imps.
+  clear.
+  unfold NameNotInImports.
+  induction imps; simpl; intros.
+  eauto.
+  destruct a; destruct p; simpl in *.
+  destruct (string_dec s mn).
+  contradict H.
+  eauto.
+  eapply IHimps.
+  intuition.
+Qed.
+
 Definition f mod_name (mOpt : option (LabelMap.t unit))
            (p : string * assert *
                 (forall imports : LabelMap.t assert,
