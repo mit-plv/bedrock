@@ -38,6 +38,7 @@ MODULES := \
 	FMapFacts1 \
 	StructuredModuleFacts \
 	Stub \
+	Stubs \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
