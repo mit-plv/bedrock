@@ -1,5 +1,10 @@
 Set Implicit Arguments.
 
+Ltac not_not :=
+  match goal with
+    | H : ~ _ |- ~ _ => unfold not; intro; contradict H
+  end.
+
 Require Import DecidableType.
 Require Import FMapInterface.
 
@@ -42,20 +47,21 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Definition NoDupKey := NoDupA eqk.
     Definition InPair := InA eqke.
 
-    Lemma NoDup_app_find_list : forall ls1 ls2 k v, NoDupKey (ls1 ++ ls2) -> find_list k ls1 = Some v -> find_list k (ls1 ++ ls2) = Some v.
-      admit.
-    Qed.
-
-    Lemma NoDup_app_find_list_2 : forall ls1 ls2 k v, NoDupKey (ls1 ++ ls2) -> find_list k ls2 = Some v -> find_list k (ls1 ++ ls2) = Some v.
-      admit.
-    Qed.
-
-    Lemma find_list_neq : forall k v k' ls, NoDupKey ls -> ~ E.eq k' k -> find_list k' ls = find_list k' (ls ++ (k, v) :: nil).
-      admit.
-    Qed.
-
     Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
-      admit.
+      unfold InPair.
+      intros.
+      inversion H; subst.
+      not_not.
+      eapply InA_eqA.
+      eapply eqk_equiv.
+      Focus 2.
+      eapply InA_eqke_eqk.
+      2 : eauto.
+      eauto.
+      unfold eq_key.
+      eauto.
+      Grab Existential Variables.
+      eauto.
     Qed.
 
     Lemma In_find_list_Some_left : forall k v ls, NoDupKey ls -> InPair (k, v) ls -> find_list k ls = Some v.
@@ -442,11 +448,21 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Qed.
 
     Lemma NoDupKey_unapp1 : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> NoDupKey ls1.
-      admit.
+      induction ls1; simpl; intuition.
+      econstructor.
+      econstructor.
+      inversion H; subst.
+      not_not.
+      intuition.
+      eapply InA_app_iff; eauto.
+      eapply IHls1.
+      inversion H; subst; eauto.
     Qed.
 
     Lemma NoDupKey_unapp2 : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> NoDupKey ls2.
-      admit.
+      induction ls1; simpl; intuition.
+      eapply IHls1.
+      inversion H; subst; eauto.
     Qed.
 
     Lemma inkey_app_or : forall k ls1 ls2, InKey k (ls1 ++ ls2) <-> InKey k ls1 \/ InKey k ls2.
@@ -474,7 +490,34 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Definition DisjointKey ls1 ls2 := forall k, ~ (InKey k ls1 /\ InKey k ls2).
 
     Lemma NoDupKey_app : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 -> DisjointKey ls1 ls2 -> NoDupKey (ls1 ++ ls2).
-      admit.
+      unfold DisjointKey.
+      induction ls1; simpl; intros.
+      eauto.
+      econstructor.
+      intuition.
+      eapply InA_app in H2.
+      openhyp.
+      inversion H; subst.
+      contradiction.
+      destruct a; simpl in *.
+      eapply H1.
+      unfold InKey.
+      simpl.
+      split; eauto.
+      eapply InA_eqk_elim in H2.
+      openhyp.
+      eapply InA_eqke_In in H2.
+      eapply in_map_iff.
+      eexists; intuition.
+      2 : eauto.
+      eauto.
+      eauto.
+      eapply IHls1.
+      inversion H; subst.
+      eauto.
+      eauto.
+      intros.
+      firstorder.
     Qed.
 
     Definition InKey_dec k ls : {InKey k ls} + {~ InKey k ls}.
@@ -548,10 +591,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_DisjointKey.
     Qed.
 
-    Lemma of_list_app : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> Equal (of_list (ls1 ++ ls2)) (update (of_list ls1) (of_list ls2)).
-      admit.
-    Qed.
-
     Lemma In_of_list : forall k ls, NoDupKey ls -> (In k (of_list ls) <-> InKey k ls).
       unfold InKey, In.
       split; intros.
@@ -568,6 +607,75 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       destruct x; simpl in *.
       eapply InA_eqke_In in H1.
       eapply of_list_1 in H1; eauto.
+    Qed.
+
+    Lemma of_list_app : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> Equal (of_list (ls1 ++ ls2)) (update (of_list ls1) (of_list ls2)).
+      induction ls1; simpl; intros.
+      unfold Equal.
+      intros.
+      eapply option_univalence.
+      split; intros.
+      eapply find_1.
+      eapply update_mapsto_iff.
+      left.
+      eapply find_2; eauto.
+      eapply find_2 in H0.
+      eapply update_mapsto_iff in H0.
+      openhyp.
+      eapply find_1; eauto.
+      eapply empty_mapsto_iff in H0.
+      intuition.
+      unfold uncurry.
+      destruct a; simpl in *.
+      unfold Equal.
+      intros.
+      destruct (eq_dec y k).
+      subst.
+      erewrite add_eq_o; eauto.
+      symmetry.
+      eapply find_1.
+      eapply update_mapsto_iff.
+      right.
+      split.
+      eapply add_1; eauto.
+      inversion H; subst.
+      not_not.
+      eapply In_of_list in H0.
+      unfold InKey in *.
+      eapply in_map_iff in H0.
+      openhyp.
+      subst.
+      destruct x; simpl in *.
+      eapply InA_eqke_eqk; eauto.
+      eapply InA_eqke_In.
+      instantiate (1 := e0).
+      intuition.
+      eapply NoDupKey_unapp2; eauto.
+      erewrite add_neq_o; eauto.
+      erewrite IHls1.
+      eapply option_univalence.
+      split; intros.
+      eapply find_2 in H0.
+      eapply update_mapsto_iff in H0.
+      eapply find_1.
+      openhyp.
+      eapply update_mapsto_iff.
+      eauto.
+      eapply update_mapsto_iff.
+      right.
+      split; eauto.
+      eapply add_2; eauto.
+      eapply find_2 in H0.
+      eapply update_mapsto_iff in H0.
+      eapply find_1.
+      openhyp.
+      eapply update_mapsto_iff.
+      eauto.
+      eapply update_mapsto_iff.
+      right.
+      split; eauto.
+      eapply add_3 in H0; eauto.
+      inversion H; subst; eauto.
     Qed.
 
     Lemma of_list_diff : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 -> Equal (of_list (diff_map ls1 ls2)) (diff (of_list ls1) (of_list ls2)).
@@ -637,11 +745,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_mapsto_iff.
       split.
       eapply add_1; eauto.
-      Ltac not_not :=
-        match goal with
-          | H : ~ _ |- ~ _ => unfold not; intro; contradict H
-        end.
-
       not_not.
       eapply In_of_list; eauto.
       erewrite add_neq_o; eauto.
@@ -656,7 +759,13 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_mapsto_iff.
       split; eauto.
       eapply add_2; eauto.
-(*here*)
+      eapply find_2 in H1.
+      eapply diff_mapsto_iff in H1.
+      openhyp.
+      eapply add_3 in H1; eauto.
+      eapply find_1.
+      eapply diff_mapsto_iff; eauto.
+      inversion H; subst; eauto.
     Qed.
 
     Lemma diff_union : forall ls1 ls2, NoDupKey ls1 -> NoDupKey ls2 ->  incl ls2 ls1 -> Equal_map (diff_map ls1 ls2 ++ ls2) ls1.
@@ -711,6 +820,91 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_mapsto_iff.
       eapply find_2 in H2.
       eauto.
+    Qed.
+
+    Lemma InKey_InA_eqk : forall k v ls, InKey k ls <-> InA eqk (k, v) ls.
+      unfold InKey.
+      split; intros.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      destruct x; simpl in *.
+      eapply InA_eqke_In in H0.
+      eapply InA_eqke_eqk; eauto.
+      eapply InA_eqk_elim in H.
+      openhyp.
+      eapply InA_eqke_In in H.
+      eapply in_map_iff.
+      eexists; intuition.
+      2 : eauto.
+      eauto.
+    Qed.
+
+    Lemma NoDupKey_app_DisjointKey : forall ls1 ls2, NoDupKey (ls1 ++ ls2) -> DisjointKey ls1 ls2.
+      unfold DisjointKey.
+      unfold InKey.
+      induction ls1; simpl; intuition.
+      subst.
+      simpl in *.
+      inversion H; subst.
+      contradict H3.
+      eapply InKey_InA_eqk.
+      unfold InKey.
+      rewrite map_app.
+      eapply in_or_app.
+      eauto.
+      eapply IHls1.
+      inversion H; subst; eauto.
+      eauto.
+    Qed.
+    
+    Lemma NoDup_app_find_list : forall ls1 ls2 k v, NoDupKey (ls1 ++ ls2) -> find_list k ls1 = Some v -> find_list k (ls1 ++ ls2) = Some v.
+      unfold find_list.
+      intros.
+      erewrite <- of_list_1b.
+      erewrite <- of_list_1b in H0.
+      erewrite of_list_app; eauto.
+      eapply find_1.
+      eapply find_2 in H0.
+      eapply update_mapsto_iff.
+      right.
+      split; eauto.
+      generalize H; intros.
+      eapply NoDupKey_app_DisjointKey in H.
+      unfold DisjointKey in *.
+      intuition.
+      eapply In_of_list in H2.
+      eapply MapsTo_In in H0.
+      eapply In_of_list in H0.
+      eauto.
+      eapply NoDupKey_unapp1; eauto.
+      eapply NoDupKey_unapp2; eauto.
+      eapply NoDupKey_unapp1; eauto.
+      eauto.
+    Qed.
+
+    Lemma NoDup_app_find_list_2 : forall ls1 ls2 k v, NoDupKey (ls1 ++ ls2) -> find_list k ls2 = Some v -> find_list k (ls1 ++ ls2) = Some v.
+      unfold find_list.
+      intros.
+      erewrite <- of_list_1b; eauto.
+      erewrite <- of_list_1b in H0.
+      erewrite of_list_app; eauto.
+      eapply find_1.
+      eapply find_2 in H0.
+      eapply update_mapsto_iff.
+      eauto.
+      eapply NoDupKey_unapp2; eauto.
+    Qed.
+
+    Lemma find_list_neq : forall ls k v k', NoDupKey ls -> ~ E.eq k' k -> find_list k' ls = find_list k' (ls ++ (k, v) :: nil).
+      unfold E.eq.
+      unfold find_list.
+      unfold eqb.
+      induction ls; simpl; intuition.
+      destruct (eq_dec _ _); intuition.
+      destruct (eq_dec _ _); eauto.
+      eapply IHls; eauto.
+      inversion H; subst; eauto.
     Qed.
 
   End Elt.

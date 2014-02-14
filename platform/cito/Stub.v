@@ -177,6 +177,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         unfold exports in *.
         eapply In_to_map in H.
+        unfold InKey in *.
         eapply in_map_iff in H.
         openhyp.
         rewrite <- H in *.
@@ -197,6 +198,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
         eauto.
       Qed.
+
+      Import P.
+      Import F.
 
       Lemma NoDupKey_bimports_base : NoDupKey bimports_base.
         eapply NoDupKey_NoDup_fst.
@@ -240,7 +244,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         eapply In_fst_elements_In.
         eapply In_fst_elements_In in H0.
-        eapply F.map_in_iff; eauto.
+        eapply map_in_iff; eauto.
       Qed.
 
       Lemma impl_label_is_injection : forall mn, IsInjection (impl_label mn).
@@ -269,7 +273,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         left.
         destruct x.
         simpl.
-        eapply InA_eq_key_elt_List_In in H.
+        eapply InA_eqke_In in H.
         eapply LabelMap.elements_2 in H.
         eapply F.map_in_iff.
         eexists.
@@ -277,7 +281,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         right.
         destruct x.
         simpl.
-        eapply InA_eq_key_elt_List_In in H.
+        eapply InA_eqke_In in H.
         eapply LabelMap.elements_2 in H.
         eapply MapsTo_In in H.
         eapply map_4 in H.
@@ -403,7 +407,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold bimports_base.
         eapply in_or_app.
         right.
-        eapply InA_eq_key_elt_List_In.
+        eapply InA_eqke_In.
         eapply LabelMap.elements_1.
         unfold spec_without_funcs_ok_fs.
         eapply LabelMap.find_2.
@@ -460,7 +464,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         exists l.
         split.
         eapply In_find_Some; eauto.
-        eapply InA_eq_key_elt_List_In; intuition.
+        eapply InA_eqke_In; intuition.
         intuition.
         intuition.
         rewrite e0 in H0; intuition.
@@ -582,6 +586,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold bimports_diff_bexports.
         eapply diff_union.
         eapply NoDupKey_bimports.
+        eapply NoDupKey_bexports.
         eapply incl_bexports_bimports.
       Qed.
 
@@ -656,7 +661,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intuition.
         unfold Func_to_import in *; simpl in *.
         eapply in_map with (f := fun x => Func_to_import x) in H.
-        eapply InA_eq_key_elt_List_In.
+        eapply InA_eqke_In.
         eauto.
       Qed.
 
@@ -699,7 +704,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         exists l.
         split.
         eapply In_find_Some; eauto.
-        eapply InA_eq_key_elt_List_In.
+        eapply InA_eqke_In.
         eauto.
         intuition.
         intuition.
@@ -855,6 +860,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Require Import StringFacts.
 
+      Require Import NameVC.
+
       Lemma module_name_not_in_bimports_diff_bexports : ~ In (MName m) (map fst2 bimports_diff_bexports).
         intuition.
         unfold fst_2 in *.
@@ -864,7 +871,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         destruct x; simpl in *.
         subst.
         unfold bimports_diff_bexports in *.
-        eapply In_diff in H0.
+        eapply diff_In in H0.
         openhyp.
         contradict H0.
         unfold bimports in *.
@@ -913,8 +920,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply prefix_neq.
         intuition.
       Qed.
-
-      Require Import NameVC.
 
       Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports_diff_bexports.
         eapply NotIn_NameNotInImports.

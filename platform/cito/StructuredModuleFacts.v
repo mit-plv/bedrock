@@ -46,7 +46,7 @@ Lemma importsMap_spec' :
   rewrite <- DepList.pf_list_simpl in H.
   eapply NoDupKey_unapp1.
   eauto.
-  eapply InA_eq_key_elt_List_In; intuition.
+  eapply InA_eqke_In; intuition.
   unfold LabelKey.eq in *.
   erewrite BLMF.add_4.
   rewrite H0.
@@ -113,7 +113,7 @@ Proof.
   rewrite <- DepList.pf_list_simpl in H.
   eapply NoDupKey_unapp1.
   eauto.
-  eapply InA_eq_key_elt_List_In; intuition.
+  eapply InA_eqke_In; intuition.
   unfold LabelKey.eq in *.
   erewrite BLMF.add_4.
   rewrite H0.
