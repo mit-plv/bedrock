@@ -946,19 +946,81 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition ms := map make_module modules.
 
-    Definition empty_module := @StructuredModule.bmodule_ nil "empty_module" nil.
+    Definition empty_module_name := "__empty_module".
+
+    Definition empty_module := @StructuredModule.bmodule_ nil empty_module_name nil.
 
     Fixpoint link_all ls := 
       match ls with
         | nil => empty_module
-        | x :: nil => x
         | x :: xs => link x (link_all xs)
       end.
 
     Definition m := link_all ms.
 
-    Theorem ok : moduleOk m.
+    Import StringSet.StringSet.
+    Import StringSet.StringFacts.
+
+    Definition of_list ls := List.fold_left (fun s e => add e s) ls empty.
+
+    Definition Equal_map_2 elt (m1 : LabelMap.LabelMap.t elt) (m2 : LabelMap.t elt) := forall (k : label) v, LabelMap.LabelMap.MapsTo (k : Labels.label) v m1 <-> LabelMap.MapsTo k v m2.
+
+    Definition get_module_Exports (module : GoodModule) := 
+      List.map 
+        (fun (f : GoodFunction) =>
+           ((MName module, FName f), spec_without_funcs_ok_fs f)
+        ) (Functions module).
+
+    Lemma link_all_ok : 
+      forall (ms : list GoodModule), 
+        incl ms modules ->
+        let module_names := map MName ms in
+        NoDup module_names ->
+        let whole := link_all (map make_module ms) in
+        moduleOk whole /\
+        Equal (Modules whole) (of_list (empty_module_name :: module_names)) /\
+        Equal_map_2 (Exports whole) (to_map (app_all (List.map get_module_Exports ms))).
+      induction ms0; simpl; intros.
+      descend.
+      vcgen.
+      unfold of_list.
+      simpl.
+      unfold Equal.
+      split; intros.
+      eapply singleton_iff in H1.
+      eapply add_iff; eauto.
+      eapply singleton_iff.
+      eapply add_iff in H1.
+      openhyp.
+      eauto.
+      eapply empty_iff in H1.
+      intuition.
+      unfold Equal_map_2; split; intros.
+      eapply BLMF.P.F.empty_mapsto_iff in H1; intuition.
+      eapply P.F.empty_mapsto_iff in H1; intuition.
+      
+      descend.
+      eapply linkOk.
+      eapply make_module_ok.
+      intuition.
+      eapply IHms0.
+      eapply incl_tran.
+      2 : eauto.
+      intuition.
+      inversion H0; subst; eauto.
       admit.
+      (*here*)
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+    Qed.
+
+    Theorem ok : moduleOk m.
+      unfold m.
+      unfold ms.
+      eapply link_all_ok; intuition.
     Qed.
 
   End TopSection.
