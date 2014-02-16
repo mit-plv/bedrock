@@ -34,7 +34,7 @@ Module Make (Import E : ADT).
       | inr a => heap_upd heap (fst p) a
     end.
 
-  Fixpoint make_heap pairs := fold_left store_pair pairs heap_empty.
+  Definition make_heap pairs := fold_left store_pair pairs heap_empty.
 
   Require Import RepInv.
 
