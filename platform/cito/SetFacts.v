@@ -1,4 +1,5 @@
 Require Import StringSet.
+Import StringSet.
 
 Infix "+" := union : set_scope.
 Infix "<=" := Subset : set_scope.

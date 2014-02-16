@@ -1,7 +1,7 @@
 BEDROCK := ../..
 
 MODULES := \
-	StringSet ValsStringSet SetUtil \
+	ValsStringSet SetUtil \
 	Label ConvertLabel \
 	SyntaxExpr Syntax SemanticsExpr FuncCore \
 	ADT WordMap \

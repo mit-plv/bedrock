@@ -1,4 +1,5 @@
 Require Import StringSet.
+Import StringSet.
 
 Set Implicit Arguments.
 

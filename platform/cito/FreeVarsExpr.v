@@ -1,5 +1,6 @@
 Require Import SyntaxExpr.
 Require Import StringSet.
+Import StringSet.
 
 Set Implicit Arguments.
 

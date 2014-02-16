@@ -1,5 +1,6 @@
 Require Import CompileStmtSpec.
 Require Import StringSet.
+Import StringSet.
 Require Import FreeVars.
 Require Import Notations.
 
