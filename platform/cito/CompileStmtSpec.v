@@ -16,6 +16,7 @@ Section SynReq.
   Require Import FreeVars.
   Require Import Depth.
   Require Import StringSet.
+  Import StringSet.
   Require Import SetUtil.
 
   Local Open Scope nat.

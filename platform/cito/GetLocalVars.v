@@ -2,6 +2,7 @@ Set Implicit Arguments.
 
 Require Import FreeVars.
 Require Import StringSet.
+Import StringSet.
 
 Definition get_local_vars stmt arg_vars ret_var := 
   let vars := free_vars stmt in

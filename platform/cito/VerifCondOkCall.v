@@ -51,6 +51,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import SynReqFacts.
     Require Import ListFacts.
     Require Import StringSet.
+    Import StringSet.
     Require Import SetFacts.
 
     Open Scope stmt.

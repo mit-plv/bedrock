@@ -1,5 +1,6 @@
 Require Import Locals.
 Require Import StringSet.
+Import StringSet.
 
 Set Implicit Arguments.
 
