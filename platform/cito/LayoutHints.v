@@ -13,7 +13,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Section TopSection.
 
     Lemma heap_empty_bwd : Emp ===> is_heap heap_empty.
-      admit.
+      unfold is_heap, heap_empty, heap_elements.
+      rewrite WordMap.Properties.elements_empty.
+      apply Himp_refl.
     Qed.
 
     Definition hints_heap_empty_bwd : TacPackage.
