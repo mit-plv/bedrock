@@ -54,6 +54,7 @@ Section TopLevel.
 
   Require Import FreeVarsExpr.
   Require Import StringSet.
+  Import StringSet.
   Require Import SetUtil.
   Require Import Union.
 

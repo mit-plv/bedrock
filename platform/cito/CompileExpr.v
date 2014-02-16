@@ -47,6 +47,7 @@ Section ExprComp.
 
   Require Import FreeVarsExpr.
   Require Import StringSet.
+  Import StringSet.
   Require Import SetUtil.
 
   Definition syn_req := 
