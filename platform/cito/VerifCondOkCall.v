@@ -755,9 +755,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* post call *)
       eapply existsR.
-      change LayoutHints2Make.InvMake2.is_heap with is_heap in *.
-      change LayoutHints2Make.InvMake.SemanticsMake.heap_diff with heap_diff in *.
-      change LayoutHints2Make.InvMake.make_heap with make_heap in *.
+      change U.InvMake2.is_heap with is_heap in *.
+      change U.InvMake.SemanticsMake.heap_diff with heap_diff in *.
+      change U.InvMake.make_heap with make_heap in *.
       change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
       change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
       change CompileStmtImplMake.InvMake2.is_state with is_state in *.
@@ -828,7 +828,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       clear_all.
       intros.
       set (fold_left _ _ _) in *.
-      set (heap_diff _ _) in *.
+      set (U.Sem.heap_diff _ _) in *.
       hiding ltac:(step auto_ext).
       assert (to_elim x15) by (unfold to_elim; eauto).
       hiding ltac:(step hints_array_elim).
