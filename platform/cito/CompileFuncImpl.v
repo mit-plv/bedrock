@@ -40,6 +40,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import SepHints5.
   Require Import SepHints3.
   Require Import StringSet.
+  Import StringSet.
   Require Import SepHints4.
   Require Import GeneralTactics.
 

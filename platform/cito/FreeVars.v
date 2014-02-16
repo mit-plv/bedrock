@@ -3,6 +3,7 @@ Require Import Syntax.
 Require Import StringSet.
 Require Import Option.
 Require Import Union.
+Import StringSet.
 
 Set Implicit Arguments.
 
