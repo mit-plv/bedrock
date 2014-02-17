@@ -98,14 +98,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         (List.map 
            (Func_to_import module)
            (Functions module)).
-(*
+
     Definition foreign_imports := map StubMake.foreign_spec imports.
 
-    Definition final_imports := update (update_all (List.map get_module_impl_Imports modules)) (map StubMake.foreign_spec imports).
-*)
-    Definition final_imports := map StubMake.foreign_spec imports.
+    Definition total_exports := update_all (List.map get_module_Exports modules).
 
-    Definition total_imports := update (update_all (List.map get_module_Exports modules)) final_imports.
+    Definition total_impls := update_all (List.map get_module_impl_Imports modules).
+
+    Definition final_imports := update total_impls foreign_imports.
+
+    (* Definition final_imports := map StubMake.foreign_spec imports. *)
+
+    Definition total_imports := update total_exports final_imports.
 
     Definition do_make_module := make_module modules imports.
 
@@ -195,7 +199,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold get_module_Exports.
       reflexivity.
     Qed.
-
+(*
     Lemma bimports_Equal_total_imports : forall m, List.In m modules -> of_list (bimports modules imports m) == total_imports.
 (*      intros.
       unfold bimports.
@@ -212,9 +216,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 *)
       admit.
     Qed.
+*)
 
-    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === diff total_imports (get_module_Exports m).
-      intros.
+    Definition module_imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
+
+    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === module_imports m.
+(*      intros.
       unfold do_make_module, make_module, bmodule_, Imports.
       rewrite importsMap_of_list.
       eapply to_blm_Equal.
@@ -226,7 +233,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply NoDupKey_bimports; eauto.
       eapply NoDupKey_bexports; eauto.
       eapply diff_NoDupKey.
-      eapply NoDupKey_bimports; eauto.
+      eapply NoDupKey_bimports; eauto.*)
+      admit.
     Qed.
 
     Lemma make_module_Exports : forall m, List.In m modules -> Exports (do_make_module m) === get_module_Exports m.
