@@ -93,7 +93,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               ((MName module, FName f), spec_without_funcs_ok_fs modules imports f))
            (Functions module)).
 
-    Definition total_imports := update (update_all (List.map get_module_Exports modules)) (map StubMake.foreign_spec imports).
+    Definition foreign_imports := (map StubMake.foreign_spec imports).
+
+    Definition total_imports := update (update_all (List.map get_module_Exports modules)) foreign_imports.
 
     Definition do_make_module := make_module modules imports.
 
@@ -133,23 +135,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       admit.
     Qed.
 
-    (* main lemmas *)
-    Lemma compat_imports_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (update_all (List.map get_module_Exports ms)).
-      admit.
-    Qed.
-
-    Lemma compat_exports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (diff total_imports (update_all (List.map get_module_Exports ms))).
-      admit.
-    Qed.
-
-    Lemma compat_imports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (diff total_imports (update_all (List.map get_module_Exports ms))).
-      admit.
-    Qed.
-
-    Lemma Disjoint_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Disjoint (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
-      admit.
-    Qed.
-
     Require Import SetoidList.
     Hint Constructors NoDupA.
     Hint Unfold NoDupKey.
@@ -162,6 +147,164 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
+
+    Existing Instance to_blm_Equal_m_Proper.
+    Existing Instance BLMFU3.Compat_m_Proper.
+    Existing Instance CompatReflSym_Symmetric.
+    Existing Instance CompatReflSym_Reflexive.
+    Existing Instance Compat_m_Proper.
+
+    (* main lemmas *)
+    Lemma Compat_diff : forall elt m1 m2 m, @Compat elt m1 m2 -> @Compat elt (m1 - m) m2.
+      admit.
+    Qed.
+
+    Lemma Compat_empty : forall elt m, @Compat elt m {}.
+      admit.
+    Qed.
+
+    Lemma Compat_update : forall elt m1 m2 m3, @Compat elt m1 m2 -> Compat m1 m3 -> Compat m1 (m2 + m3).
+      admit.
+    Qed.
+
+    Lemma Compat_update_all : forall elt ms m, List.Forall (Compat m) ms -> @Compat elt m (update_all ms).
+      induction ms; simpl; intros.
+      unfold update_all; simpl.
+      eapply Compat_empty.
+      rewrite update_all_cons.
+      inversion H; subst.
+      eapply Compat_update; eauto.
+    Qed.
+
+    Lemma Disjoint_empty : forall elt m, @Disjoint elt m {}.
+      admit.
+    Qed.
+
+    Lemma Disjoint_update : forall elt m1 m2 m3, @Disjoint elt m1 m2 -> Disjoint m1 m3 -> Disjoint m1 (m2 + m3).
+      admit.
+    Qed.
+
+    Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
+      admit.
+    Qed.
+
+    Lemma In_MapsTo : forall elt k m, @In elt k m -> exists v, MapsTo k v m.
+      unfold In, Raw.PX.In; eauto.
+    Qed.
+
+    Lemma MapsTo_exports_module_name : forall m k v, MapsTo k v (get_module_Exports m) -> fst k = MName m.
+      unfold get_module_Exports.
+      admit.
+    Qed.
+
+    Lemma MName_neq_Disjoint : forall m1 m2, MName m1 <> MName m2 -> Disjoint (get_module_Exports m1) (get_module_Exports m2).
+      unfold Disjoint.
+      intros.
+      not_not.
+      openhyp.
+      eapply In_MapsTo in H.
+      eapply In_MapsTo in H0.
+      openhyp.
+      eapply MapsTo_exports_module_name in H.
+      eapply MapsTo_exports_module_name in H0.
+      congruence.
+    Qed.
+
+    Lemma Disjoint_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Disjoint (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
+      induction ms; simpl; intros.
+      unfold update_all; simpl.
+      eapply Disjoint_empty.
+      rewrite update_all_cons.
+      eapply Disjoint_update.
+      eapply NoDup_cons_cons in H0.
+      eapply MName_neq_Disjoint; eauto.
+      eapply IHms.
+      incl_tran_cons.
+      simpl.
+      inversion H0; subst.
+      inversion H4; subst.
+      econstructor; eauto.
+      intuition.
+    Qed.
+
+    Lemma Disjoint_Compat : forall elt m1 m2, @Disjoint elt m1 m2 -> Compat m1 m2.
+      admit.
+    Qed.
+
+    Lemma NoDup_cons_elim : forall A (e : A) ls, List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
+      admit.
+    Qed.
+
+    Lemma total_imports_Compat_exports' : forall ms m, List.In m ms -> incl ms modules -> List.NoDup (List.map MName ms) -> Compat (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
+      induction ms; simpl; intros.
+      intuition.
+      openhyp.
+      subst.
+      rewrite update_all_cons.
+      eapply Compat_update.
+      econstructor.
+      eapply Disjoint_Compat.
+      eapply Disjoint_exports; eauto.
+      rewrite update_all_cons.
+      eapply Compat_update.
+      eapply Disjoint_Compat.
+      eapply MName_neq_Disjoint.
+      eapply NoDup_cons_elim in H1; eauto.
+      eapply in_map; eauto.
+      eapply IHms; eauto.
+      incl_tran_cons.
+      inversion H1; subst; eauto.
+    Qed.
+
+    Lemma Disjoint_exports_foreign_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) foreign_imports.
+      unfold imported_module_names in *.
+      admit.
+    Qed.
+
+    Lemma total_imports_Compat_exports : forall m, List.In m modules -> Compat total_imports (get_module_Exports m).
+      unfold total_imports.
+      symmetry.
+      eapply Compat_update.
+      eapply total_imports_Compat_exports'; eauto.
+      intuition.
+      eapply Disjoint_Compat.
+      eapply Disjoint_exports_foreign_imports; eauto.
+    Qed.
+
+    Lemma total_imports_Compat_many_exports : forall ms, incl ms modules -> Compat total_imports (update_all (List.map get_module_Exports ms)).
+      intros.
+      eapply Compat_update_all.
+      eapply Forall_forall.
+      intros.
+      eapply in_map_iff in H0.
+      openhyp.
+      subst.
+      eapply total_imports_Compat_exports.
+      intuition.
+    Qed.
+
+    Lemma compat_imports_exports : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (update_all (List.map get_module_Exports ms)).
+      intros.
+      eapply Compat_diff.
+      eapply total_imports_Compat_many_exports.
+      incl_tran_cons.
+    Qed.
+
+    Lemma compat_exports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (diff total_imports (update_all (List.map get_module_Exports ms))).
+      intros.
+      symmetry.
+      eapply Compat_diff.
+      eapply total_imports_Compat_exports.
+      intuition.
+    Qed.
+
+    Lemma compat_imports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (diff total_imports (update_all (List.map get_module_Exports ms))).
+      intros.
+      eapply Compat_diff.
+      symmetry.
+      eapply Compat_diff.
+      reflexivity.
+    Qed.
 
     Lemma link_all_ok : 
       forall (ms : list GoodModule), 
@@ -185,7 +328,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold update_all; simpl.
       eapply to_blm_empty.
       rewrite importsMap_of_list.
-      Existing Instance to_blm_Equal_m_Proper.
       rewrite of_list_empty.
       rewrite diff_empty.
       reflexivity.
@@ -212,7 +354,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       not_not.
       eapply of_list_spec; eauto.
       eapply importsOk_Compat.
-      Existing Instance BLMFU3.Compat_m_Proper.
       rewrite H3.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
@@ -221,7 +362,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H4.
       rewrite make_module_Exports by intuition.
       eapply to_blm_Compat.
-      Existing Instance CompatReflSym_Symmetric.
       symmetry.
       eapply compat_exports_imports; eauto.
       eapply importsOk_Compat.
