@@ -254,7 +254,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite_natToW_plus.
       repeat rewrite natToW_plus in H3.
       repeat rewrite wplus_assoc in *.
+
+      Lemma firstn_length : forall A B (l : list A) (l' : list B),
+        length l <= length l'
+        -> length l = length (firstn (length l) l').
+        induction l; destruct l'; simpl; intuition.
+      Qed.
+
+      Hint Extern 1 (length _ = length _) => apply firstn_length.
+
       transit.
+
       fold (@skipn W) in *.
       post.
       descend.
@@ -314,7 +324,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl in *.
       hide_upd_sublist.
       hide_map.
+
+      Hint Extern 1 (length ?L = _) => subst L; rewrite length_upd_sublist; assumption.
+
       transit.
+
       fold (@firstn W) in *.
       fold (@skipn W) in *.
       post.
@@ -334,7 +348,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite_natToW_plus.
       repeat rewrite wplus_assoc in *.
       repeat rewrite replace1 in *.
-      generalize dependent H24.
+      generalize dependent H20.
       hide_evalInstrs.
       clear_all.
       intros.
@@ -498,7 +512,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hide_map.
       set (ArgVars _) in *.
       set (_ - _ - _) in *.
-      generalize dependent H39; clear_all; intros.
+      generalize dependent H37; clear_all; intros.
 
       repeat hiding ltac:(step auto_ext).
 
@@ -800,7 +814,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       subst h0.
 
       hide_upd_sublist.
-      instantiate (10 := l1).
+      instantiate (10 := l0).
       unfold_all.
       repeat rewrite length_upd_sublist in *.
 
