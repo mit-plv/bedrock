@@ -63,32 +63,81 @@ Section TopLevel.
 
   Definition compile : cmd imports modName.
     refine (Wrap imports imports_global modName body post verifCond _ _).
-    admit.
-    admit.
-(*
 
-    repeat rewrite <- H in H5.
-    assert (List.In s vars) by eauto.
-    assert (
-        evalInstrs (fst x) x0
-                   (Assign (LvMem (Imm ((Regs x0 Sp ^+ $8) ^+ $(variablePosition vars s)))) Rv
-                           :: nil) = Some (snd x)
-) ; [ | clear H11 ].
-    rewrite <- H11.
-    Transparent evalInstrs.
-    simpl.
-    rewrite replace_it.
-    eauto.
-    Opaque evalInstrs.
-    clear_imports.
-    set (P := is_heap _) in *.
-    eval_instrs auto_ext.
-    subst P.
-    destruct x; simpl in *.
-    destruct x4; simpl in *.
-*)
+    Lemma postOk : forall specs pre x,
+      interp specs (Postcondition (body pre) x)
+      -> imply pre new_pre
+      -> syn_req
+      -> exists x0, interp specs (pre (fst x, x0))
+        /\ runs_to (fst x, x0) (snd x).
+      intros.
+      unfold syn_req, body, runs_to in *.
+      destruct var; simpl in *; post.
+
+      Focus 2.
+      Transparent evalInstrs.
+      simpl in H2.
+      Opaque evalInstrs.
+      injection H2; clear H2; intros; subst.
+      descend; eauto.
+
+      Opaque mult.
+
+      Lemma evalInstrs_write_var : forall sm x s,
+        evalInstrs sm x (Assign (var_slot s) Rv :: nil)
+        = evalInstrs sm x (Assign (LvMem (Imm ((Regs x Sp ^+ natToW vars_start) ^+ natToW (variablePosition vars s)))) Rv :: nil).
+        Transparent evalInstrs.
+        simpl.
+        intros.
+        replace (Regs x Sp ^+ natToW (vars_start + variablePosition vars s))
+          with (Regs x Sp ^+ natToW vars_start ^+ natToW (variablePosition vars s)); auto.
+        rewrite natToW_plus.
+        words.
+        Opaque evalInstrs.
+      Qed.
+
+      rewrite evalInstrs_write_var in *.
+      generalize H2; intro Hs.
+      apply H0 in Hs; clear H0; post.
+      clear_fancy.
+      unfold vars_start in H3.
+      change (4 * 2) with 8 in *.
+      descend.
+      eauto.
+      clear H.
+      unfold is_state in H0.
+      evaluate auto_ext.
+      destruct x; simpl in *.
+      intuition.
+      unfold is_state.
+      step auto_ext.
+    Qed.
+
+    abstract (unfold verifCond; wrap0;
+      match goal with
+        | [ H : interp _ _ |- _ ] =>
+          apply postOk in H; post; descend; eauto
+      end).
+
+    Lemma verifCondOk : forall pre,
+      imply pre new_pre
+      -> syn_req
+      -> vcs (VerifCond (body pre)).
+      unfold syn_req, body; intros.
+      destruct var; wrap0.
+      rewrite evalInstrs_write_var in *.
+      apply H in H1; clear H; post.
+      unfold is_state in H.
+      unfold vars_start in *.
+      change (4 * 2) with 8 in *.
+      clear_fancy.
+      evaluate auto_ext.
+      Transparent evalInstrs.
+      discriminate.
+      Opaque evalInstrs.
+    Qed.
+
+    abstract (unfold verifCond; wrap0; eauto using verifCondOk).
  Defined.
 
 End TopLevel.  
-
-
