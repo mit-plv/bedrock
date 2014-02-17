@@ -86,6 +86,43 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       admit.
     Qed.
 
+    Lemma Compat_diff : forall m1 m2 m, Compat m1 m2 -> Compat (m1 - m) m2.
+      admit.
+    Qed.
+
+    Lemma Compat_empty : forall m, Compat m {}.
+      admit.
+    Qed.
+
+    Lemma Compat_update : forall m1 m2 m3, Compat m1 m2 -> Compat m1 m3 -> Compat m1 (m2 + m3).
+      admit.
+    Qed.
+
+    Lemma Compat_update_all : forall ms m, List.Forall (Compat m) ms -> Compat m (update_all ms).
+      induction ms; simpl; intros.
+      unfold update_all; simpl.
+      eapply Compat_empty.
+      rewrite update_all_cons.
+      inversion H; subst.
+      eapply Compat_update; eauto.
+    Qed.
+
+    Lemma Disjoint_empty : forall m, Disjoint m {}.
+      admit.
+    Qed.
+
+    Lemma Disjoint_update : forall m1 m2 m3, Disjoint m1 m2 -> Disjoint m1 m3 -> Disjoint m1 (m2 + m3).
+      admit.
+    Qed.
+
+    Lemma In_MapsTo : forall k m, In k m -> exists v, MapsTo k v m.
+      unfold In; eauto.
+    Qed.
+
+    Lemma Disjoint_Compat : forall m1 m2, Disjoint m1 m2 -> Compat m1 m2.
+      admit.
+    Qed.
+
   End Elt.
 
 End UWFacts_fun.

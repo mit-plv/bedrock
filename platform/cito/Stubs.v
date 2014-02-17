@@ -154,44 +154,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Existing Instance CompatReflSym_Reflexive.
     Existing Instance Compat_m_Proper.
 
-    (* main lemmas *)
-    Lemma Compat_diff : forall elt m1 m2 m, @Compat elt m1 m2 -> @Compat elt (m1 - m) m2.
-      admit.
-    Qed.
-
-    Lemma Compat_empty : forall elt m, @Compat elt m {}.
-      admit.
-    Qed.
-
-    Lemma Compat_update : forall elt m1 m2 m3, @Compat elt m1 m2 -> Compat m1 m3 -> Compat m1 (m2 + m3).
-      admit.
-    Qed.
-
-    Lemma Compat_update_all : forall elt ms m, List.Forall (Compat m) ms -> @Compat elt m (update_all ms).
-      induction ms; simpl; intros.
-      unfold update_all; simpl.
-      eapply Compat_empty.
-      rewrite update_all_cons.
-      inversion H; subst.
-      eapply Compat_update; eauto.
-    Qed.
-
-    Lemma Disjoint_empty : forall elt m, @Disjoint elt m {}.
-      admit.
-    Qed.
-
-    Lemma Disjoint_update : forall elt m1 m2 m3, @Disjoint elt m1 m2 -> Disjoint m1 m3 -> Disjoint m1 (m2 + m3).
-      admit.
-    Qed.
-
-    Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
-      admit.
-    Qed.
-
-    Lemma In_MapsTo : forall elt k m, @In elt k m -> exists v, MapsTo k v m.
-      unfold In, Raw.PX.In; eauto.
-    Qed.
-
     Lemma MapsTo_exports_module_name : forall m k v, MapsTo k v (get_module_Exports m) -> fst k = MName m.
       unfold get_module_Exports.
       intros.
@@ -219,6 +181,24 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       congruence.
     Qed.
 
+    Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
+      intros.
+      inversion H.
+      not_not.
+      subst.
+      intuition.
+    Qed.
+
+    Lemma NoDup_cons_elim : forall A ls (e : A), List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
+      induction ls; simpl; intuition.
+      subst.
+      eapply NoDup_cons_cons in H.
+      intuition.
+      subst.
+      inversion H; subst.
+      intuition.
+    Qed.
+
     Lemma Disjoint_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Disjoint (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
       induction ms; simpl; intros.
       unfold update_all; simpl.
@@ -234,14 +214,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       inversion H4; subst.
       econstructor; eauto.
       intuition.
-    Qed.
-
-    Lemma Disjoint_Compat : forall elt m1 m2, @Disjoint elt m1 m2 -> Compat m1 m2.
-      admit.
-    Qed.
-
-    Lemma NoDup_cons_elim : forall A (e : A) ls, List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
-      admit.
     Qed.
 
     Lemma total_imports_Compat_exports' : forall ms m, List.In m ms -> incl ms modules -> List.NoDup (List.map MName ms) -> Compat (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
