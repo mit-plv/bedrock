@@ -28,7 +28,7 @@ MODULES := \
 	SyntaxFunc SyntaxModule \
 	CompileFuncSpec \
 	SepHints5 \
-	GetLocalVars GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
+	GetLocalVars Wf GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
 	CompileFuncImpl \
 	CompileFunc \
 	GoodFunction GoodModule \
