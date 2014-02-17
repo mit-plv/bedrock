@@ -194,7 +194,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Lemma MapsTo_exports_module_name : forall m k v, MapsTo k v (get_module_Exports m) -> fst k = MName m.
       unfold get_module_Exports.
-      admit.
+      intros.
+      eapply MapsTo_In in H.
+      eapply In_to_map in H.
+      unfold InKey in *.
+      rewrite map_map in H.
+      simpl in *.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      eauto.
     Qed.
 
     Lemma MName_neq_Disjoint : forall m1 m2, MName m1 <> MName m2 -> Disjoint (get_module_Exports m1) (get_module_Exports m2).
@@ -257,8 +266,31 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma Disjoint_exports_foreign_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) foreign_imports.
+      intros.
       unfold imported_module_names in *.
-      admit.
+      unfold foreign_imports.
+      unfold Disjoint.
+      intros.
+      unfold LF.Disjoint in *.
+      specialize (NoSelfImport (fst k)).
+      not_not.
+      openhyp.
+      eapply In_MapsTo in H0.
+      openhyp.
+      eapply MapsTo_exports_module_name in H0.
+      rewrite H0 in *.
+      unfold module_names.
+      split.
+      eapply in_map; eauto.
+      eapply map_4 in H1.
+      eapply In_MapsTo in H1.
+      openhyp.
+      eapply in_map_iff.
+      exists (k, x0).
+      split.
+      eauto.
+      eapply InA_eqke_In.
+      eapply elements_1; eauto.
     Qed.
 
     Lemma total_imports_Compat_exports : forall m, List.In m modules -> Compat total_imports (get_module_Exports m).
