@@ -352,9 +352,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       incl_tran_cons.
       inversion H1; subst; eauto.
     Qed.
-
+(*
     Lemma Disjoint_exports_final_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) final_imports.
-(*      intros.
+      intros.
       unfold imported_module_names in *.
       unfold final_imports.
       unfold Disjoint.
@@ -378,7 +378,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       split.
       eauto.
       eapply InA_eqke_In.
-      eapply elements_1; eauto.*)
+      eapply elements_1; eauto.
       admit.
     Qed.
 
@@ -403,28 +403,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply total_imports_Compat_exports.
       intuition.
     Qed.
-
-    Lemma compat_imports_exports : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (update_all (List.map get_module_Exports ms)).
-      intros.
-      eapply Compat_diff.
-      eapply total_imports_Compat_many_exports.
-      incl_tran_cons.
+*)
+    Lemma compat_imports_exports : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Exports ms)).
+      admit.
     Qed.
 
-    Lemma compat_exports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (diff total_imports (update_all (List.map get_module_Exports ms))).
-      intros.
-      symmetry.
-      eapply Compat_diff.
-      eapply total_imports_Compat_exports.
-      intuition.
+    Lemma compat_exports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (update_all (List.map get_module_Imports ms)).
+      admit.
     Qed.
 
-    Lemma compat_imports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (diff total_imports (get_module_Exports m)) (diff total_imports (update_all (List.map get_module_Exports ms))).
-      intros.
-      eapply Compat_diff.
-      symmetry.
-      eapply Compat_diff.
-      reflexivity.
+    Lemma compat_imports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Imports ms)).
+      admit.
+    Qed.
+
+    Lemma combine_imports_exports : 
+      forall m ms, 
+        incl (m :: ms) modules -> 
+        List.NoDup (List.map MName (m :: ms)) -> 
+        update_all (List.map get_module_Imports ms) - get_module_Exports m +
+        (get_module_Imports m - update_all (List.map get_module_Exports ms)) ==
+        get_module_Imports m + update_all (List.map get_module_Imports ms).
+      admit.
     Qed.
 
     Lemma link_all_ok : 
@@ -479,35 +478,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H3.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
-      Lemma compat_imports_exports' : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Exports ms)).
-        admit.
-      Qed.
-      eapply compat_imports_exports'; eauto.
+      eapply compat_imports_exports; eauto.
       eapply importsOk_Compat.
       rewrite H4.
       rewrite make_module_Exports by intuition.
       eapply to_blm_Compat.
       symmetry.
-      Lemma compat_exports_imports' : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (update_all (List.map get_module_Imports ms)).
-        admit.
-      Qed.
-      eapply compat_exports_imports'; eauto.
+      eapply compat_exports_imports; eauto.
       eapply importsOk_Compat.
       rewrite H4.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
-      Lemma compat_imports_imports' : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Imports ms)).
-        admit.
-      Qed.
-      eapply compat_imports_imports'; eauto.
+      eapply compat_imports_imports; eauto.
       
       rewrite H2.
       rewrite make_module_Modules by intuition.
       repeat rewrite of_list_cons.
-      Import StringSet.MSet.
-      change StringSet.StringSet.union with union in *.
-      eapply Equal_Subset_iff; split.
-      subset_solver.
+      eapply Equal_Subset_iff; split; subset_solver.
       rewrite XCAP_union_update.
       rewrite update_all_cons.
       rewrite Disjoint_update_sym.
@@ -527,9 +514,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       change ConvertLabelMap.LMF.P.update with update in *.
       change ConvertLabelMap.LMF.P.diff with diff in *.
       rewrite update_all_cons.
-      rewrite diff_update.
-      rewrite diff_diff_sym.
-      rewrite update_same; reflexivity.
+      eapply combine_imports_exports; eauto.
     Qed.
 
     Definition ms := List.map do_make_module modules.
