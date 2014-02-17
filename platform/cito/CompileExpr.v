@@ -134,7 +134,23 @@ Section ExprComp.
       assert (In s (singleton s)).
       apply StringFacts.singleton_iff; auto.
       apply H in H5.
-      assert (List.In s vars) by admit.
+
+      Lemma In_to_set' : forall s ls acc,
+        In s (fold_left (fun s0 e => add e s0) ls acc)
+        -> In s acc \/ List.In s ls.
+        induction ls; simpl; intuition.
+        apply IHls in H; intuition.
+        apply StringFacts.add_iff in H0; intuition.
+      Qed.
+
+      Lemma In_to_set : forall s vars,
+        In s (to_set vars)
+        -> List.In s vars.
+        intros; apply In_to_set' in H; intuition.
+        apply StringFacts.empty_iff in H0; tauto.
+      Qed.
+
+      assert (List.In s vars) by eauto using In_to_set.
       rewrite evalInstrs_read_var in H3.
       unfold vars_start in H3.
       change (4 * 2) with 8 in *.
@@ -324,45 +340,63 @@ Section ExprComp.
         apply H0; omega.
       Qed.
 
-      Lemma get_changed' : forall n a' a base,
+      Lemma get_changed' : forall limit n a' a base,
         length a - base = n
         -> length a' = length a
+        -> base <= limit
         -> (forall p, p < base -> Array.selN a' p = Array.selN a p)
-        -> exists changed, a' = upd_sublist a base changed.
+        -> (forall p, p >= limit -> Array.selN a' p = Array.selN a p)
+        -> exists changed, a' = upd_sublist a base changed
+          /\ length changed <= limit - base.
         induction n; simpl; intros.
 
         exists nil.
-        simpl.
+        simpl; split.
         apply array_extensional; auto.
+        auto.
 
+        Require Import Arith.
+        destruct (eq_nat_dec limit base); subst.
+
+        (* We've reached the point where [a'] and [a] always agree, so no more updating is required. *)
+        exists nil; intuition.
+        unfold upd_sublist.
+        apply array_extensional; intros; auto.
+        destruct (le_lt_dec base p); auto.
+
+        (* The current element is still allowed to change.  Keep inducting. *)
         assert (length (updN a base (selN a' base)) - S base = n)
           by (rewrite updN_length; omega).
-        eapply IHn in H2.
+        eapply IHn in H4.
         Focus 2.
         instantiate (1 := a').
         rewrite updN_length; auto.
+        2: omega.
         Focus 2.
         intros.
-        Require Import Arith.
         destruct (eq_nat_dec p base); subst.
         symmetry; apply selN_updN_eq.
         rewrite updN_length in H.
         omega.
         rewrite selN_updN_ne; auto.
 
-        destruct H2.
+        destruct H4.
         exists (selN a' base :: x).
-        rewrite H2; clear H2.
-        simpl.
-        do 2 f_equal.
-        rewrite upd_sublist_unchanged by omega.
-        symmetry; apply selN_updN_eq; omega.
+        intuition idtac.
+        simpl; omega.
+
+        intros.
+        rewrite selN_updN_ne; auto.
+        omega.
       Qed.
 
-      Lemma get_changed : forall a' a base,
+      Lemma get_changed : forall a' a base limit,
         length a' = length a
+        -> base <= limit
         -> (forall p, p < base -> Array.selN a' p = Array.selN a p)
-        -> exists changed, a' = upd_sublist a base changed.
+        -> (forall p, p >= limit -> Array.selN a' p = Array.selN a p)
+        -> exists changed, a' = upd_sublist a base changed
+          /\ length changed <= limit - base.
         intros; eapply get_changed'; eauto.
       Qed.
 
@@ -376,11 +410,14 @@ Section ExprComp.
       destruct H22.
       eexists; intuition idtac.
       unfold is_state.
-      rewrite <- H22.
+      rewrite <- H23.
       step auto_ext.
       replace (Regs x0 Sp) with (Regs st Sp) by congruence.
       step auto_ext.
-      admit.
+      Focus 2.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
       intros.
       rewrite upd_sublist_unchanged by omega.
       unfold Array.upd.
@@ -398,6 +435,29 @@ Section ExprComp.
       rewrite upd_length.
       rewrite length_upd_sublist.
       omega.
+      intros.
+
+      Lemma upd_sublist_unchanged_high : forall p ws a base,
+        p >= base + length ws
+        -> Array.selN (upd_sublist a base ws) p = Array.selN a p.
+        induction ws; simpl; intuition.
+        rewrite IHws by omega.
+        apply selN_updN_ne; omega.
+      Qed.
+
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H23.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
       apply lt_goodSize'; auto.
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
@@ -420,70 +480,6 @@ Section ExprComp.
       repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
       omega.
 
-      assert (natToW base < natToW (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)))%word.
-      rewrite length_upd_sublist; rewrite upd_length; assumption.
-      clear H12; unfold is_state in H16.
-      evaluate auto_ext.
-      intuition idtac.
-      congruence.
-      rewrite sublist_irrel in H20.
-      rewrite sel_upd_eq in H20.
-      simpl.
-      assert (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
-        (S base) x5) = length temps).
-      rewrite length_upd_sublist.
-      rewrite upd_length.
-      apply length_upd_sublist.
-      eapply get_changed in H22.
-      destruct H22.
-      eexists; intuition idtac.
-      unfold is_state.
-      rewrite <- H22.
-      step auto_ext.
-      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
-      step auto_ext.
-      admit.
-      intros.
-      rewrite upd_sublist_unchanged by omega.
-      unfold Array.upd.
-      rewrite selN_updN_ne.
-      apply upd_sublist_unchanged; auto.
-      intro; subst.
-      rewrite wordToNat_natToWord_idempotent in H23.
-      omega.
-      change (goodSize base).
-      apply goodSize_weaken with (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)).
-      eauto.
-      rewrite length_upd_sublist.
-      rewrite upd_length.
-      rewrite length_upd_sublist.
-      omega.
-      apply lt_goodSize'; auto.
-      apply goodSize_weaken with (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.
-      rewrite length_upd_sublist.
-      rewrite upd_length.
-      rewrite length_upd_sublist.
-      omega.
-      apply goodSize_weaken with (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.
-      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
-      apply goodSize_weaken with (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.
-      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
-      apply goodSize_weaken with (length (upd_sublist
-        (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.
-      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
-      omega.
 
       assert (natToW base < natToW (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
@@ -506,11 +502,14 @@ Section ExprComp.
       destruct H22.
       eexists; intuition idtac.
       unfold is_state.
-      rewrite <- H22.
+      rewrite <- H23.
       step auto_ext.
       replace (Regs x0 Sp) with (Regs st Sp) by congruence.
       step auto_ext.
-      admit.
+      Focus 2.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
       intros.
       rewrite upd_sublist_unchanged by omega.
       unfold Array.upd.
@@ -528,6 +527,103 @@ Section ExprComp.
       rewrite upd_length.
       rewrite length_upd_sublist.
       omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H23.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      apply lt_goodSize'; auto.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      repeat (rewrite length_upd_sublist || rewrite upd_length); omega.
+      omega.
+
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H16.
+      evaluate auto_ext.
+      intuition idtac.
+      congruence.
+      rewrite sublist_irrel in H20.
+      rewrite sel_upd_eq in H20.
+      simpl.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H22.
+      destruct H22.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H23.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 2.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H23.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H23.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
       apply lt_goodSize'; auto.
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
