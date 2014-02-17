@@ -1586,16 +1586,235 @@ Section ExprComp.
       rewrite upd_length.
       rewrite length_upd_sublist; assumption.
 
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
+      apply postOk in H2.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      post.
+      post.
+      apply postOk in H4.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      destruct H4; intuition idtac.
+      apply H in H4; clear H.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      post.
+      apply H7 in H2; clear H7.
+      post.
+      rewrite evalInstrs_write_temp in *.
+      unfold is_state in H7.
+      assert (natToW base < natToW (length (upd_sublist x4 base x5)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      evaluate auto_ext.
+      assert (interp specs (![is_state (Regs x Sp) x3
+        (Array.upd (upd_sublist x4 base x5) base (eval x3 expr1))* (fun stn sm => x2 (stn, sm))] (stn, x))).
+      unfold is_state.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs x Sp) by congruence.
+      step auto_ext.
+      apply H5 in H13.
+      rewrite upd_length in H13.
+      rewrite length_upd_sublist in H13.
+      post.
+      rewrite evalInstrs_binop_temp in *.
+      destruct b.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      Transparent evalInstrs.
+      simpl in H3.
+      discriminate.
+      Opaque evalInstrs.
+
+      apply IHexpr1; auto.
+      hnf; intros.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+
+      apply postOk in H2.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      post.
+      apply H in H4; clear H; post.
+      rewrite evalInstrs_write_temp in *.
+      unfold is_state in H2.
+      assert (natToW base < natToW (length x2))%word.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length x2); eauto.
+      eauto.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      evaluate auto_ext.
+      assert (interp specs (![is_state (Regs x Sp) x1 x2 * (fun stn sm => x0 (stn, sm))] (stn, x))).
+      unfold is_state.
+      step auto_ext.
+      apply H5 in H2.
+      post.
+      assert (natToW base < natToW (length (upd_sublist x2 base x3)))%word.
+      rewrite length_upd_sublist; assumption.
+      clear H8; unfold is_state in H7.
+      evaluate auto_ext.
+
+      apply IHexpr2; auto.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      hnf; post.
+      apply postOk in H3.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      post.
+      apply H in H3; clear H; post.
+      apply H5 in H2; clear H5; post.
+      rewrite evalInstrs_write_temp in *.
+      unfold is_state in H5.
+      assert (natToW base < natToW (length (upd_sublist x4 base x5)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist; auto.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist; auto.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      evaluate auto_ext.
+      destruct x; simpl in *.
+      descend.
+      unfold is_state.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs s0 Sp) by congruence.
+      step auto_ext.
+      rewrite upd_length.
+      rewrite length_upd_sublist; auto.
+
+      apply postOk in H2.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      post.
+      post.
+      apply postOk in H4.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      destruct H4; intuition idtac.
+      apply H in H4; clear H.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      post.
+      apply H7 in H2; clear H7.
+      post.
+      rewrite evalInstrs_write_temp in *.
+      unfold is_state in H7.
+      assert (natToW base < natToW (length (upd_sublist x4 base x5)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      evaluate auto_ext.
+      assert (interp specs (![is_state (Regs x Sp) x3
+        (Array.upd (upd_sublist x4 base x5) base (eval x3 expr1))* (fun stn sm => x2 (stn, sm))] (stn, x))).
+      unfold is_state.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs x Sp) by congruence.
+      step auto_ext.
+      apply H5 in H13.
+      rewrite upd_length in H13.
+      rewrite length_upd_sublist in H13.
+      post.
+      rewrite evalCond_temp in *.
+      destruct t0.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist x4 base x5) base
+          (eval x3 expr1)) (S base) x6)))%word.
+      rewrite length_upd_sublist; rewrite upd_length; assumption.
+      clear H12; unfold is_state in H15.
+      evaluate auto_ext.
+
+      Transparent evalInstrs.
+      discriminate.
+      discriminate.
+      discriminate.
+      discriminate.
+      Opaque evalInstrs.
     Qed.
 
     abstract (apply verifCondOk; auto).
