@@ -1484,7 +1484,121 @@ Section ExprComp.
           destruct x; eapply postOk in H; auto; destruct H; intuition; descend; eauto
       end).
 
-    admit.
+    unfold verifCond, syn_req; wrap0.    
+
+    Lemma verifCondOk : forall expr base pre,
+      imply pre new_pre
+      -> Subset (free_vars expr) (to_set vars)
+      -> base + depth expr <= temp_size
+      -> vcs (VerifCond (body expr base pre)).
+      induction expr; wrap0; simpl in *.
+
+      apply H in H2; clear H; post.
+      unfold is_state in H2.
+      rewrite evalInstrs_read_var in *.
+      unfold vars_start in *.
+      change (4 * 2) with 8 in *.
+      unfold natToW in H3.
+      assert (List.In s vars).
+      apply In_to_set.
+      apply H0.
+      apply StringFacts.singleton_iff; auto.
+      clear_fancy.
+      evaluate auto_ext.
+
+      clear_fancy.
+      clear H.
+      evaluate auto_ext.
+
+      apply IHexpr1; auto.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.      
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+
+      apply postOk in H2.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      destruct H2 as [ ? [ ? ] ].
+      apply H in H2; clear H.
+      post.
+      apply H4 in H2; intuition idtac.
+      simpl in *.
+      destruct H6; intuition idtac.
+      unfold is_state in H6.
+      rewrite evalInstrs_write_temp in *.
+      assert (natToW base < natToW (length (upd_sublist x2 base x3)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x2 base x3)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x2 base x3)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      evaluate auto_ext.
+
+      apply IHexpr2.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      hnf; propxFo.
+      apply postOk in H3.
+      Focus 2.
+      do 2 intro.
+      apply H0.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
+      destruct H3; intuition idtac.
+      apply H in H3; clear H; post.
+      apply H5 in H2; clear H5; intuition idtac; simpl in *.
+      destruct H5; intuition idtac.
+      clear IHexpr1 IHexpr2; clear_fancy.
+      rewrite evalInstrs_write_temp in *.
+      unfold is_state in H5.
+      assert (natToW base < natToW (length (upd_sublist x4 base x5)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      apply goodSize_weaken with (length (upd_sublist x4 base x5)); eauto.
+      rewrite length_upd_sublist.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r; omega.
+      evaluate auto_ext.
+      destruct x; simpl in *.
+      descend.
+      unfold is_state.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs s0 Sp) by congruence.
+      step auto_ext.
+      rewrite upd_length.
+      rewrite length_upd_sublist; assumption.
+
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+    Qed.
+
+    abstract (apply verifCondOk; auto).
   Defined.
 
 End ExprComp.
