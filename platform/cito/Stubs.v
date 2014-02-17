@@ -218,9 +218,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 *)
 
-    Definition module_imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
+    Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
-    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === module_imports m.
+    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === get_module_Imports m.
 (*      intros.
       unfold do_make_module, make_module, bmodule_, Imports.
       rewrite importsMap_of_list.
@@ -354,7 +354,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma Disjoint_exports_final_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) final_imports.
-      intros.
+(*      intros.
       unfold imported_module_names in *.
       unfold final_imports.
       unfold Disjoint.
@@ -378,7 +378,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       split.
       eauto.
       eapply InA_eqke_In.
-      eapply elements_1; eauto.
+      eapply elements_1; eauto.*)
+      admit.
     Qed.
 
     Lemma total_imports_Compat_exports : forall m, List.In m modules -> Compat total_imports (get_module_Exports m).
@@ -428,11 +429,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Lemma link_all_ok : 
       forall (ms : list GoodModule), 
-        let module_names := List.map MName ms in
         let linked := link_all (List.map do_make_module ms) in
+        let module_names := List.map MName ms in
         let linked_module_names := to_set (empty_module_name :: module_names) in
         let linked_exports := update_all (List.map get_module_Exports ms) in
-        let linked_imports := P.diff total_imports linked_exports in
+        let linked_imports := update_all (List.map get_module_Imports ms) in
         incl ms modules ->
         List.NoDup module_names ->
         moduleOk linked /\
@@ -449,9 +450,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply to_blm_empty.
       rewrite importsMap_of_list.
       rewrite of_list_empty.
-      rewrite diff_empty.
+      eapply to_blm_Equal.
       reflexivity.
       eauto.
+
       simpl in *.
       destruct IHms.
       incl_tran_cons.
@@ -477,23 +479,35 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H3.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
-      eapply compat_imports_exports; eauto.
+      Lemma compat_imports_exports' : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Exports ms)).
+        admit.
+      Qed.
+      eapply compat_imports_exports'; eauto.
       eapply importsOk_Compat.
       rewrite H4.
       rewrite make_module_Exports by intuition.
       eapply to_blm_Compat.
       symmetry.
-      eapply compat_exports_imports; eauto.
+      Lemma compat_exports_imports' : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (update_all (List.map get_module_Imports ms)).
+        admit.
+      Qed.
+      eapply compat_exports_imports'; eauto.
       eapply importsOk_Compat.
       rewrite H4.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
-      eapply compat_imports_imports; eauto.
+      Lemma compat_imports_imports' : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Imports ms)).
+        admit.
+      Qed.
+      eapply compat_imports_imports'; eauto.
       
       rewrite H2.
       rewrite make_module_Modules by intuition.
       repeat rewrite of_list_cons.
-      eapply Equal_Subset_iff; split; subset_solver.
+      Import StringSet.MSet.
+      change StringSet.StringSet.union with union in *.
+      eapply Equal_Subset_iff; split.
+      subset_solver.
       rewrite XCAP_union_update.
       rewrite update_all_cons.
       rewrite Disjoint_update_sym.
