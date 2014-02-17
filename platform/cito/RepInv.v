@@ -10,6 +10,6 @@ Module Type RepInv (Import E : ADT).
 
   Parameter rep_inv : RepInv.
 
-  Hypothesis rep_inv_ptr : forall p a spec st, interp spec (![rep_inv p a] st) -> exists other, interp spec (![p =?> 1 * other] st).
+  Hypothesis rep_inv_ptr : forall p a, rep_inv p a ===> p =?> 1 * any.
 
 End RepInv.
