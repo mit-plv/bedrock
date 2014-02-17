@@ -394,6 +394,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Lemma Compat_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Compat (get_module_Exports m1) (get_module_impl_Imports m2).
       intros.
+      eapply Disjoint_Compat.
+      unfold get_module_Exports.
+      unfold get_module_impl_Imports.
+      unfold Disjoint.
+      intros.
+      intuition.
       admit.
     Qed.
 

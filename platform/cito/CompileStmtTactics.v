@@ -134,7 +134,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Ltac transit :=
     match goal with
-      | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; [ clear H H_interp ]
+      | H_interp : interp ?SPECS (![_] ?ST), H : context [interp _ (![_] ?ST) -> _] |- _ => eapply_cancel H SPECS ST; clear H H_interp; auto; []
     end.
 
   (* eval_instrs *)
