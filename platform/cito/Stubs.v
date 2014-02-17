@@ -405,7 +405,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 *)
     Lemma compat_imports_exports : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Exports ms)).
-      admit.
+      intros.
+      unfold get_module_Imports.
+      eapply Compat_diff.
+      symmetry.
+      repeat eapply Compat_update.
+      Lemma Compat_exports_total_exports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) total_exports.
+        admit.
+      Qed.
+      eapply Compat_exports_total_exports.
+      incl_tran_cons.
+      Lemma Compat_exports_foreign_imports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) foreign_imports.
+        admit.
+      Qed.
+      eapply Compat_exports_foreign_imports.
+      incl_tran_cons.
+      Lemma Compat_exports_impl_imports : forall ms m, incl (m :: ms) modules -> Compat (update_all (List.map get_module_Exports ms)) (get_module_impl_Imports m).
+        admit.
+      Qed.
+      eapply Compat_exports_impl_imports; eauto.
     Qed.
 
     Lemma compat_exports_imports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Exports m) (update_all (List.map get_module_Imports ms)).
