@@ -39,6 +39,7 @@ MODULES := \
 	FMapFacts1 \
 	StructuredModuleFacts \
 	Stub \
+	FSetFacts1 FMapFacts3 ConvertLabelMap \
 	Stubs \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
