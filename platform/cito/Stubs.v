@@ -199,25 +199,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold get_module_Exports.
       reflexivity.
     Qed.
-(*
-    Lemma bimports_Equal_total_imports : forall m, List.In m modules -> of_list (bimports modules imports m) == total_imports.
-(*      intros.
-      unfold bimports.
-      unfold bimports_base.
-      repeat rewrite of_list_app.
-      unfold total_imports.
-      unfold final_imports.
-
-      Lemma bimports_base_Equal_update_all : of_list (bimports_base modules imports) == update_all (List.map get_module_Exports modules).
-        admit.
-      Qed.
-      rewrite bimports_base_Equal_update_all.
-      Lemma imports_Equal_final_imports : of_list (List.map (Func_to_import m) (Functions m)) == final_imports.
-*)
-      admit.
-    Qed.
-*)
-
     Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
     Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === get_module_Imports m.
@@ -352,58 +333,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       incl_tran_cons.
       inversion H1; subst; eauto.
     Qed.
-(*
-    Lemma Disjoint_exports_final_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) final_imports.
-      intros.
-      unfold imported_module_names in *.
-      unfold final_imports.
-      unfold Disjoint.
-      intros.
-      unfold LF.Disjoint in *.
-      specialize (NoSelfImport (fst k)).
-      not_not.
-      openhyp.
-      eapply In_MapsTo in H0.
-      openhyp.
-      eapply MapsTo_exports_module_name in H0.
-      rewrite H0 in *.
-      unfold module_names.
-      split.
-      eapply in_map; eauto.
-      eapply map_4 in H1.
-      eapply In_MapsTo in H1.
-      openhyp.
-      eapply in_map_iff.
-      exists (k, x0).
-      split.
-      eauto.
-      eapply InA_eqke_In.
-      eapply elements_1; eauto.
-      admit.
-    Qed.
-
-    Lemma total_imports_Compat_exports : forall m, List.In m modules -> Compat total_imports (get_module_Exports m).
-      unfold total_imports.
-      symmetry.
-      eapply Compat_update.
-      eapply Compat_exports_many_exports; eauto.
-      intuition.
-      eapply Disjoint_Compat.
-      eapply Disjoint_exports_final_imports; eauto.
-    Qed.
-
-    Lemma total_imports_Compat_many_exports : forall ms, incl ms modules -> Compat total_imports (update_all (List.map get_module_Exports ms)).
-      intros.
-      eapply Compat_update_all.
-      eapply Forall_forall.
-      intros.
-      eapply in_map_iff in H0.
-      openhyp.
-      subst.
-      eapply total_imports_Compat_exports.
-      intuition.
-    Qed.
-*)
 
     Lemma Disjoint_diff_update_comm : forall elt m1 m2 m3, @Disjoint elt m2 m3 -> m1 - m2 + m3 = m1 + m3 - m2.
       admit.
@@ -428,6 +357,53 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Add Parametric Relation elt : (t elt) (@Disjoint elt)
         symmetry proved by (@Disjoint_sym elt)
           as Disjoint_m.
+
+    Lemma Disjoint_exports_foreign_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) foreign_imports.
+      intros.
+      unfold imported_module_names in *.
+      unfold foreign_imports.
+      unfold Disjoint.
+      intros.
+      unfold LF.Disjoint in *.
+      specialize (NoSelfImport (fst k)).
+      not_not.
+      openhyp.
+      eapply In_MapsTo in H0.
+      openhyp.
+      eapply MapsTo_exports_module_name in H0.
+      rewrite H0 in *.
+      unfold module_names.
+      split.
+      eapply in_map; eauto.
+      eapply map_4 in H1.
+      eapply In_MapsTo in H1.
+      openhyp.
+      eapply in_map_iff.
+      exists (k, x0).
+      split.
+      eauto.
+      eapply InA_eqke_In.
+      eapply elements_1; eauto.
+    Qed.
+
+    Lemma Compat_exports_foreign_imports : forall m, List.In m modules -> Compat (get_module_Exports m) foreign_imports.
+      intros.
+      eapply Disjoint_Compat.
+      eapply Disjoint_exports_foreign_imports; eauto.
+    Qed.
+
+    Lemma Compat_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Compat (get_module_Exports m1) (get_module_impl_Imports m2).
+      intros.
+      admit.
+    Qed.
+
+    Lemma Compat_impl_imports_foreign_imports : forall m, List.In m modules -> Compat (get_module_impl_Imports m) foreign_imports.
+      admit.
+    Qed.
+
+    Lemma Compat_impl_imports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_impl_Imports m1) (get_module_impl_Imports m2).
+      admit.
+    Qed.
 
     Lemma Disjoint_exports_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) (get_module_Imports m).
       intros.
@@ -454,14 +430,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       subst.
       symmetry.
       eapply Compat_exports_total_exports; eauto.
-    Qed.
-
-    Lemma Compat_exports_foreign_imports : forall m, List.In m modules -> Compat (get_module_Exports m) foreign_imports.
-      admit.
-    Qed.
-
-    Lemma Compat_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Compat (get_module_Exports m1) (get_module_impl_Imports m2).
-      admit.
     Qed.
 
     Lemma Compat_many_exports_foreign_imports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) foreign_imports.
@@ -511,14 +479,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros.
       unfold total_exports.
       eapply Compat_many_exports_impl_imports; intuition.
-    Qed.
-
-    Lemma Compat_impl_imports_foreign_imports : forall m, List.In m modules -> Compat (get_module_impl_Imports m) foreign_imports.
-      admit.
-    Qed.
-
-    Lemma Compat_impl_imports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_impl_Imports m1) (get_module_impl_Imports m2).
-      admit.
     Qed.
 
     Lemma Compat_imports_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_Imports m1) (get_module_Imports m2).
