@@ -37,10 +37,10 @@ Section TopLevel.
 
   Definition runs_to x_pre x := 
     forall specs other vs temps dst_buf,
-      interp specs (![is_state x_pre#Sp vs temps dst_buf * other ] x_pre) ->
-      length temps = temp_size /\
-      length exprs = length dst_buf /\
-      Regs x Sp = x_pre#Sp /\
+      interp specs (![is_state x_pre#Sp vs temps dst_buf * other ] x_pre)
+      -> length temps = temp_size
+      -> length exprs = length dst_buf
+      -> Regs x Sp = x_pre#Sp /\
       exists changed,
         interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
         length changed <= depth.
@@ -86,14 +86,15 @@ Section TopLevel.
 
   Definition stack_slot (n : nat) := LvMem (Sp + n)%loc.
 
-  Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
+  Print CompileExpr.compile.
+  
+  Definition compile_expr e n := CompileExpr.compile vars temp_size imports_global modName e n.
 
   Fixpoint do_compile exprs base dst :=
     match exprs with
       | nil => nil
       | x :: xs => 
-        compile_expr 
-          x base 
+        compile_expr x base 
           :: SaveRv (stack_slot dst) 
           :: do_compile xs base (4 + dst)
     end.

@@ -161,7 +161,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require CompileExpr.
 
-    Definition compile_expr e n := CompileExpr.compile vars temp_size e n imports_global modName.
+    Definition compile_expr e n := CompileExpr.compile vars temp_size imports_global modName e n.
 
     Require CompileExprs.
 
