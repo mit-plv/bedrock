@@ -652,9 +652,830 @@ Section ExprComp.
       assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r.
       omega.
 
-      admit.
 
-      admit.
+      apply IHexpr2 in H1; clear IHexpr2.
+      Focus 2.
+      do 2 intro.
+      apply H.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r.
+      omega.
+      destruct H1; propxFo.
+      apply IHexpr1 in H2; clear IHexpr1.
+      Focus 2.
+      do 2 intro.
+      apply H.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l.
+      omega.
+      destruct H2; intuition idtac.
+      do 2 esplit; eauto.
+      hnf; simpl; intros.
+      apply H8 in H1; clear H8.
+      generalize H9; intro Hs.
+      apply H1 in Hs; clear H1.
+      simpl in Hs; destruct Hs as [ ? [ ? [ ? [ ] ] ] ].
+      rewrite evalInstrs_write_temp in *.
+
+      Lemma evalCond_temp : forall sm x base' t0,
+        evalCond (temp_slot base') t0 Rv sm x
+        = evalCond (LvMem (Imm (Regs x Sp ^+ $8 ^+ $(4 * length vars) ^+ $4 ^* natToW base'))) t0 Rv sm x.
+        unfold evalCond; simpl; intros.
+        replace (Regs x Sp ^+ natToW (temp_start + 4 * base'))
+          with (Regs x Sp ^+ $ (8) ^+ $(4 * length vars) ^+ $4 ^* natToW base'); auto.
+        rewrite natToW_plus.
+        unfold temp_start, vars_start.
+        change (4 * 2) with 8.
+        rewrite natToW_plus.
+        unfold natToW.
+        rewrite (Mult.mult_comm 4 base').
+        change (natToWord 32 (base' * 4)) with (natToW (base' * 4)).
+        rewrite (natToW_times4 base').
+        unfold natToW.
+        words.
+      Qed.
+      
+      rewrite evalCond_temp in *.
+      clear_fancy.
+      generalize dependent H3; generalize dependent H4; generalize dependent H5.
+      unfold is_state in H8.
+      assert (natToW base < natToW (length (upd_sublist temps base x4)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize; auto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      apply goodSize_weaken with (length (upd_sublist temps base x4)); eauto.
+      rewrite length_upd_sublist; auto.
+      apply goodSize_weaken with (length (upd_sublist temps base x4)); eauto.
+      rewrite length_upd_sublist; auto.
+      evaluate auto_ext.
+      intros.
+      assert (interp specs0 (![is_state ((sm, x1)) # (Sp) vs
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))* other] (sm, x1))).
+      unfold is_state; simpl.
+      clear_fancy; step auto_ext.
+      replace (Regs x2 Sp) with (Regs x1 Sp) by words.
+      step auto_ext.
+      clear H12; apply H6 in H16.
+      rewrite upd_length in H16.
+      rewrite length_upd_sublist in H16.
+      generalize H9; intro Hs.
+      apply H16 in Hs; clear H16.
+      simpl in Hs; destruct Hs as [ ? [ ? [ ? [ ] ] ] ].
+      unfold is_state in H16; simpl in H16.
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1)) (S base) x5)))%word.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      apply lt_goodSize; auto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5)); eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.      
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5)); eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      auto.
+      generalize dependent H14.
+      destruct t0; simpl.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      generalize (weqb_true_iff (eval vs expr1) (eval vs expr2)).
+      unfold weqb.
+      destruct (Word.weqb (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wneb.
+      destruct (weq (eval vs expr1) (eval vs expr2)); auto.
+      exfalso; eauto.
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wltb.
+      destruct (wlt_dec (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wleb.
+      destruct (weq (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      destruct (wlt_dec (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      apply le_neq_lt in n; tauto.
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+
+      apply IHexpr2 in H1; clear IHexpr2.
+      Focus 2.
+      do 2 intro.
+      apply H.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= S (depth expr2)) by apply Max.le_max_r.
+      omega.
+      destruct H1; propxFo.
+      apply IHexpr1 in H2; clear IHexpr1.
+      Focus 2.
+      do 2 intro.
+      apply H.
+      apply StringFacts.union_iff; auto.
+      Focus 2.
+      assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l.
+      omega.
+      destruct H2; intuition idtac.
+      do 2 esplit; eauto.
+      hnf; simpl; intros.
+      apply H8 in H1; clear H8.
+      generalize H9; intro Hs.
+      apply H1 in Hs; clear H1.
+      simpl in Hs; destruct Hs as [ ? [ ? [ ? [ ] ] ] ].
+      rewrite evalInstrs_write_temp in *.
+      rewrite evalCond_temp in *.
+      clear_fancy.
+      generalize dependent H3; generalize dependent H4; generalize dependent H5.
+      unfold is_state in H8.
+      assert (natToW base < natToW (length (upd_sublist temps base x4)))%word.
+      rewrite length_upd_sublist.
+      apply lt_goodSize; auto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      apply goodSize_weaken with (length (upd_sublist temps base x4)); eauto.
+      rewrite length_upd_sublist; auto.
+      apply goodSize_weaken with (length (upd_sublist temps base x4)); eauto.
+      rewrite length_upd_sublist; auto.
+      evaluate auto_ext.
+      intros.
+      assert (interp specs0 (![is_state ((sm, x1)) # (Sp) vs
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))* other] (sm, x1))).
+      unfold is_state; simpl.
+      clear_fancy; step auto_ext.
+      replace (Regs x2 Sp) with (Regs x1 Sp) by words.
+      step auto_ext.
+      clear H12; apply H6 in H16.
+      rewrite upd_length in H16.
+      rewrite length_upd_sublist in H16.
+      generalize H9; intro Hs.
+      apply H16 in Hs; clear H16.
+      simpl in Hs; destruct Hs as [ ? [ ? [ ? [ ] ] ] ].
+      unfold is_state in H16; simpl in H16.
+      assert (natToW base < natToW (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1)) (S base) x5)))%word.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      apply lt_goodSize; auto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5)); eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.      
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5)); eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      auto.
+      generalize dependent H14.
+      destruct t0; simpl.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      generalize (weqb_true_iff (eval vs expr1) (eval vs expr2)).
+      unfold weqb.
+      destruct (Word.weqb (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wneb.
+      destruct (weq (eval vs expr1) (eval vs expr2)); auto.
+      exfalso; eauto.
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wltb.
+      destruct (wlt_dec (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+
+      evaluate auto_ext.
+      intros; evaluate auto_ext.
+      intuition.
+      assert (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
+        (S base) x5) = length temps).
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      apply length_upd_sublist.
+      eapply get_changed in H24.
+      destruct H24.
+      eexists; intuition idtac.
+      unfold is_state.
+      rewrite <- H25.
+      step auto_ext.
+      replace (Regs x0 Sp) with (Regs st Sp) by congruence.
+      step auto_ext.
+      Focus 3.
+      instantiate (1 := base + max (depth expr1) (S (depth expr2))).
+      omega.
+      omega.
+      unfold Array.sel in H22.
+      rewrite upd_sublist_unchanged in H22.
+      unfold Array.upd in H22.
+      rewrite selN_updN_eq in H22.
+      unfold wleb.
+      destruct (weq (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      rewrite e in H22.
+      exfalso; eapply wlt_not_refl; eauto.
+      destruct (wlt_dec (eval vs expr1) (eval vs expr2)); intuition (try discriminate).
+      apply lt_le in w.
+      exfalso; apply w; auto.
+      rewrite length_upd_sublist.
+      rewrite wordToNat_natToWord_idempotent.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      rewrite wordToNat_natToWord_idempotent.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.      
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      intros.
+      rewrite upd_sublist_unchanged by omega.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged; auto.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)).
+      eauto.
+      rewrite length_upd_sublist.
+      rewrite upd_length.
+      rewrite length_upd_sublist.
+      omega.
+      intros.
+      rewrite upd_sublist_unchanged_high.
+      unfold Array.upd.
+      rewrite selN_updN_ne.
+      apply upd_sublist_unchanged_high.
+      generalize (Max.le_max_l (depth expr1) (S (depth expr2))); omega.
+      intro; subst.
+      rewrite wordToNat_natToWord_idempotent in H25.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      change (goodSize base).
+      apply goodSize_weaken with (length (upd_sublist
+        (Array.upd (upd_sublist temps base x4) base
+          (eval vs expr1)) (S base) x5)); eauto.
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
+      (* Sorry for all that copying and pasting. ;-) *)
     Qed.
 
     abstract (unfold verifCond, syn_req; wrap0;
