@@ -27,7 +27,8 @@ Section TopSection.
   Require Import Morphisms.
 
   Lemma Forall2_map : forall A B (f1 f2 : A -> B) R ls, pointwise_relation _ R f1 f2 -> Forall2 R (List.map f1 ls) (List.map f2 ls).
-    admit.
+    unfold pointwise_relation.
+    induction ls; simpl; intuition.
   Qed.
 
 End TopSection.
