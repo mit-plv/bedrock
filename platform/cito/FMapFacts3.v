@@ -23,6 +23,8 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Variable elt:Type.
 
+    Definition update_all A maps := List.fold_left (fun acc m => update acc m) maps (@empty A).
+
     Implicit Types m : t elt.
     Implicit Types x y z k : key.
     Implicit Types e v : elt.
@@ -63,8 +65,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         reflexivity proved by Compat_refl
         symmetry proved by Compat_sym
           as CompatReflSym.
-
-    Definition update_all maps := List.fold_left (fun acc m => update acc m) maps (@empty elt).
 
     Lemma update_all_cons : forall m ms, update_all (m :: ms) == update m (update_all ms).
       admit.
@@ -120,6 +120,48 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Qed.
 
     Lemma Disjoint_Compat : forall m1 m2, Disjoint m1 m2 -> Compat m1 m2.
+      admit.
+    Qed.
+
+    Lemma Disjoint_diff_update_comm : forall m1 m2 m3, Disjoint m2 m3 -> m1 - m2 + m3 = m1 + m3 - m2.
+      admit.
+    Qed.
+
+    Lemma update_diff_same : forall m1 m2 m3, m1 - m3 + (m2 - m3) = m1 + m2 - m3.
+      admit.
+    Qed.
+
+    Lemma Compat_update_sym : forall m1 m2, Compat m1 m2 -> m1 + m2 = m2 + m1.
+      admit.
+    Qed.
+
+    Lemma Disjoint_diff : forall m1 m2 m3, Disjoint m1 m2 -> Disjoint m1 (m2 - m3).
+      admit.
+    Qed.
+
+    Lemma Disjoint_after_diff : forall m1 m2, Disjoint (m1 - m2) m2.
+      admit.
+    Qed.
+
+    Add Parametric Relation : (t elt) (@Disjoint elt)
+        symmetry proved by (@Disjoint_sym elt)
+          as Disjoint_m.
+
+    Require Import ListFacts2.
+
+    Lemma app_all_update_all : forall lsls, @NoDupKey elt (app_all lsls) -> of_list (app_all lsls) == update_all (List.map (@of_list _) lsls).
+      admit.
+    Qed.
+
+    Lemma map_update_all_comm : forall B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
+      admit.
+    Qed.
+
+    Lemma update_all_Equal : forall ms1 ms2, List.Forall2 (@Equal elt) ms1 ms2 -> update_all ms1 == update_all ms2.
+      admit.
+    Qed.
+
+    Lemma map_of_list : forall B (f : elt -> B) ls, map f (of_list ls) == of_list (List.map (fun p => (fst p, f (snd p))) ls).
       admit.
     Qed.
 
