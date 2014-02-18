@@ -219,11 +219,130 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       forall mn (fns : list (function mn)),
         let fns' := List.map (@func_to_import _) fns in
         exps fns === of_list fns'.
-      admit.
+      induction fns; simpl; intros.
+      eapply to_blm_empty.
+      simpl in *.
+      destruct a; simpl in *.
+      destruct p; simpl in *.
+      unfold uncurry; simpl in *.
+      rewrite IHfns.
+      Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
+        admit.
+      Qed.
+      rewrite to_blm_add.
+      eapply BLMF.P.F.add_m; eauto.
+      reflexivity.
+    Qed.
+
+    Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> BLMFU3.Compat m1 m2.
+      intros.
+      unfold BLMFU3.Compat.
+      intros.
+      eapply BLMFU3.In_MapsTo in H0.
+      openhyp.
+      eapply BLMFU3.In_MapsTo in H1.
+      openhyp.
+      assert (x = x0).
+      eapply use_importsOk; eauto.
+      eapply BLM.find_1; eauto.
+      subst.
+      eapply BLM.find_1 in H1.
+      eapply BLM.find_1 in H0.
+      congruence.
+    Qed.
+
+    Lemma importsOk_f_Proper : 
+      forall m,
+        Proper (Logic.eq ==> Logic.eq ==> iff ==> iff)
+               (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
+                  match LabelMap.LabelMap.find (elt:=assert) l m with
+                    | Some pre' => pre = pre' /\ P
+                    | None => P
+                  end).
+      intros.
+      unfold Proper.
+      unfold respectful.
+      intros.
+      subst.
+      destruct (BLM.find y m); intuition.
+    Qed.
+
+    Lemma importsOk_f_transpose_neqkey :
+      forall m,
+        BLMF.P.transpose_neqkey 
+          iff
+          (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
+             match LabelMap.LabelMap.find (elt:=assert) l m with
+               | Some pre' => pre = pre' /\ P
+               | None => P
+             end).
+      unfold BLMF.P.transpose_neqkey.
+      intros.
+      destruct (BLM.find k m); destruct (BLM.find k' m); intuition.
+    Qed.
+
+    Add Morphism importsOk
+        with signature BLM.Equal ==> Logic.eq ==> iff as importsOk_m.
+      intros.
+      unfold importsOk.
+      eapply BLMF.P.fold_Equal; eauto.
+      intuition.
+      eapply importsOk_f_Proper.
+      eapply importsOk_f_transpose_neqkey.
+    Qed.
+
+    Lemma Compat_add_not_In : forall elt k (v : elt) m1 m2, BLMFU3.Compat (BLM.add k v m1) m2 -> ~ BLM.In k m1 -> BLMFU3.Compat m1 m2.
+      intros.
+      unfold BLMFU3.Compat in *.
+      intros.
+      erewrite <- H.
+      eapply BLM.find_1.
+      eapply BLMF.P.F.add_mapsto_iff.
+      eauto.
+      eapply BLMF.P.F.add_in_iff.
+      eauto.
+    Qed.
+
+    Lemma importsOk_Compat_right : forall m1 m2, BLMFU3.Compat m1 m2 -> importsOk m1 m2.
+      induction m1 using BLMF.P.map_induction_bis.
+      intros.
+      rewrite <- H in H0.
+      rewrite <- H.
+      eauto.
+      intros.
+      unfold importsOk.
+      rewrite BLM.fold_1.
+      simpl.
+      eauto.
+      intros.
+      unfold importsOk.
+      rewrite BLMF.P.fold_add; eauto.
+      destruct (option_dec (BLM.find (elt:=assert) x m2)).
+      destruct s.
+      rewrite e0.
+      Lemma Compat_eq : forall elt k (v1 v2 : elt) m1 m2, BLMFU3.Compat m1 m2 -> BLM.find k m1 = Some v1 -> BLM.find k m2 = Some v2 -> v1 = v2.
+        admit.
+      Qed.
+      split.
+      eapply Compat_eq; eauto.
+      eapply BLM.find_1.
+      eapply BLMF.P.F.add_mapsto_iff.
+      eauto.
+      eapply IHm1.
+
+      unfold BLMFU3.Compat in H0.
+      rewrite H2.
+      split; eauto.
+      eapply IHm1; eauto.
+      intuition.
+      eapply importsOk_f_Proper.
+      eapply importsOk_f_transpose_neqkey.
     Qed.
 
     Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> BLMFU3.Compat m1 m2.
-      admit.
+      split; intros.
+      eapply importsOk_Compat_left; eauto.
+      eapply importsOk_Compat_right; eauto.
     Qed.
 
     Lemma XCAP_union_update : forall elt m1 m2, BLM.Equal (@XCAP.union elt m1 m2) (BLMF.P.update m2 m1).
