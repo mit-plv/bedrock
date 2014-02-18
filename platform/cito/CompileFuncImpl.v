@@ -336,12 +336,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       2 : eauto.
       openhyp.
       simpl in *.
+      eapply GoodFunc_RunsTo in H16.
+      destruct H16 as [ ? [ ] ]; simpl in *.
       descend.
       unfold body_stmt in *.
-      eapply GoodFunc_RunsTo; eauto.
+      eauto.
+      congruence.
+      auto.
       eapply agree_in_comm.
       eapply agree_in_merge.
-      congruence.
+      
 
       (* vc 1 *)
       eapply H2 in H.
