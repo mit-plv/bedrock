@@ -46,7 +46,7 @@ Qed.
 
 Require CompileExprs.
 
-Lemma syn_req_Call_args : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> CompileExprs.syn_req vars temp_size args 0.
+Lemma syn_req_Call_args : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> CompileExprs.syn_req vars temp_size args args 0.
   admit.
 Qed.
 
