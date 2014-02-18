@@ -1,6 +1,52 @@
 (* This file gives a syntactic condition for semantic good behavior of a function body,
  * with respect to not reading uninitialized variables. *)
 
+Set Implicit Arguments.
+
+Section TopSection.
+
+  Require Import Syntax.
+  Require Import Locals.
+  Require Import String.
+
+  Definition NoUninitialized : list string -> Stmt -> Prop.
+    admit.
+  Qed.
+
+  Definition agree_in vs vs' vars := List.Forall (fun x => sel vs x = sel vs' x) vars.
+
+  Lemma agree_in_merge : forall vs vs' vars, agree_in vs (merge vs vs' vars) vars.
+    admit.
+  Qed.
+
+  Lemma agree_in_comm : forall vs vs' vars, agree_in vs vs' vars -> agree_in vs' vs vars.
+    admit.
+  Qed.
+
+End TopSection.
+
+Require Import ADT.
+
+Module Make (Import E : ADT).
+
+  Require Import Semantics.
+  Module Import SemanticsMake := Semantics.Make E.
+
+  Section TopSection.
+
+    Lemma NoUninitialized_Safe : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' arg_vars -> Safe fs s (vs', h).
+      admit.
+    Qed.
+
+    Lemma NoUninitialized_RunsTo : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' arg_vars -> RunsTo fs s (vs', h) v'.
+      admit.
+    Qed.
+    
+  End TopSection.
+
+End Make.
+
+(*
 Require Import Bool.
 Require Import VariableLemmas SyntaxExpr SemanticsExpr Syntax Semantics.
 
@@ -286,3 +332,4 @@ Theorem prove_NoUninitializedSafe : forall s,
   eapply prove_NoUninitializedSafe' in H0; eauto.
   firstorder.
 Qed.
+ *)
