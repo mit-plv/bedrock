@@ -14,7 +14,7 @@ Section TopSection.
 
   Definition GoodFunc f := 
     NoDup (ArgVars f) /\ 
-    NoUninitialized (ArgVars f) (Body f) /\
+    NoUninitialized (ArgVars f) (RetVar f) (Body f) /\
     let s := Body f in 
     CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
 
@@ -43,10 +43,10 @@ Module Make (Import E : ADT).
       destruct H; openhyp; eauto.
     Qed.
 
-    Lemma GoodFunc_RunsTo : forall f, GoodFunc f -> let s := Body f in forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' (ArgVars f) -> RunsTo fs s (vs', h) v'.
+    Lemma GoodFunc_RunsTo : forall f, GoodFunc f -> let s := Body f in forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' (ArgVars f) -> exists vs'', RunsTo fs s (vs', h) (vs'', snd v') /\ sel vs'' (RetVar f) = sel (fst v') (RetVar f).
       intros.
-      eapply NoUninitialized_RunsTo; eauto.
-      destruct H; openhyp; eauto.
+      eapply NoUninitialized_RunsTo in H0; eauto.
+      destruct H; intuition.
     Qed.
     
   End TopSection.

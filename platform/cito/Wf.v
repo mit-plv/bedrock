@@ -283,18 +283,23 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Theorem prove_NoUninitializedRunsTo : forall arg_vars s,
+  Theorem prove_NoUninitializedRunsTo : forall arg_vars rvar s,
     (forall x, ~reads (fun s => ~In s arg_vars) s x)
+    -> writes s rvar
     -> forall fs vs a vs' a', RunsTo (ADTValue := ADTValue) fs s (vs, a) (vs', a')
       -> forall vs'', agree_on vs vs'' arg_vars
-        -> exists vs''', RunsTo fs s (vs'', a) (vs''', a').
+        -> exists vs''', RunsTo fs s (vs'', a) (vs''', a') /\ sel vs''' rvar = sel vs' rvar.
     intros.
-    eapply prove_NoUninitializedRunsTo' in H0; eauto.
+    eapply prove_NoUninitializedRunsTo' in H1; eauto.
     Focus 2.
     instantiate (1 := vs''); simpl in *.
     unfold not; intros.
-    eapply Forall_forall in H1; eauto.
-    firstorder.
+    eapply Forall_forall in H2; eauto.
+    post.
+    descend.
+    eauto.
+    destruct (weq (sel x rvar) (sel vs' rvar)); auto.
+    apply H4 in n; tauto.
   Qed.
 
   Local Hint Constructors Safe.
@@ -396,17 +401,20 @@ Section TopSection.
   Require Import Locals.
   Require Import String.
 
-  Definition NoUninitialized (arg_vars : list string) (s : Stmt) :=
-    forall x, ~reads (fun s => ~In s arg_vars) s x.
+  Definition NoUninitialized (arg_vars : list string) (rvar : string) (s : Stmt) :=
+    (forall x, ~reads (fun s => ~In s arg_vars) s x) /\ writes s rvar.
 
   Definition agree_in vs vs' vars := List.Forall (fun x => sel vs x = sel vs' x) vars.
 
   Lemma agree_in_merge : forall vs vs' vars, agree_in vs (merge vs vs' vars) vars.
-    admit.
+    intros.
+    generalize (merge_agree vs vs' vars).
+    unfold agree_on, agree_in.
+    apply Forall_weaken; auto.
   Qed.
 
   Lemma agree_in_comm : forall vs vs' vars, agree_in vs vs' vars -> agree_in vs' vs vars.
-    admit.
+    do 3 intro; apply Forall_weaken; auto.
   Qed.
 
 End TopSection.
@@ -420,15 +428,17 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
-    Lemma NoUninitialized_Safe : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' arg_vars -> Safe fs s (vs', h).
+    Lemma NoUninitialized_Safe : forall arg_vars rvar s, NoUninitialized arg_vars rvar s -> forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' arg_vars -> Safe fs s (vs', h).
       intros.
       eapply prove_NoUninitializedSafe in H0; eauto.
+      destruct H; auto.
     Qed.
 
-    Lemma NoUninitialized_RunsTo : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' arg_vars ->
-      exists vs'', RunsTo fs s (vs', h) (vs'', snd v').
+    Lemma NoUninitialized_RunsTo : forall arg_vars rvar s, NoUninitialized arg_vars rvar s -> forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' arg_vars ->
+      exists vs'', RunsTo fs s (vs', h) (vs'', snd v') /\ sel vs'' rvar = sel (fst v') rvar.
       intros.
       destruct v'; simpl.
+      destruct H.
       eapply prove_NoUninitializedRunsTo in H0; eauto.
     Qed.
     
