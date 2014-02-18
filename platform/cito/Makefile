@@ -36,10 +36,12 @@ MODULES := \
 	CompileModule \
 	NatFacts StringFacts \
 	ListFacts2 \
+	GeneralTactics2 \
 	FMapFacts1 \
 	StructuredModuleFacts \
 	Stub \
 	FSetFacts1 FMapFacts3 ConvertLabelMap \
+	ListFacts3 \
 	Stubs \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 

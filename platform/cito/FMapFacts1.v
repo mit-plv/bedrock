@@ -1,10 +1,5 @@
 Set Implicit Arguments.
 
-Ltac not_not :=
-  match goal with
-    | H : ~ _ |- ~ _ => unfold not; intro; contradict H
-  end.
-
 Require Import DecidableType.
 Require Import FMapInterface.
 
@@ -43,6 +38,7 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Qed.
 
     Require Import GeneralTactics.
+    Require Import GeneralTactics2.
 
     Definition NoDupKey := NoDupA eqk.
     Definition InPair := InA eqke.
@@ -326,6 +322,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Notation eqk := (@eq_key elt).
     
     Require Import GeneralTactics.
+    Require Import GeneralTactics2.
 
     Lemma eqke_eq : equiv_2 eqke eq.
       split; intros.

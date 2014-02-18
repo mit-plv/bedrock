@@ -19,3 +19,10 @@ Lemma prefix_neq : forall (s1 s2 : string), s1 <> "" -> (s1 ++ s2)%string <> s2.
   destruct s1; simpl in *; intuition.
   discriminate.
 Qed.
+
+Lemma append_inj_2 : forall a b c, (a ++ b = a ++ c -> b = c)%string.
+  induction a; simpl; intuition.
+  injection H; intros.
+  eauto.
+Qed.
+

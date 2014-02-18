@@ -14,6 +14,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import NameDecoration.
   Require Import Wrap.
   Require Import GeneralTactics.
+  Require Import GeneralTactics2.
+  Require Import StringFacts.
 
   Require Import Stub.
   Module Import StubMake := Make E M.
@@ -50,6 +52,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import ListFacts2.
   Module LF := ListFacts2.
   Module Import LFL := Make Label_as_UDT.
+  Require Import ListFacts3.
 
   Module Import SS := StringSet.StringSet.
   Module Import SSF := StringSet.StringFacts.
@@ -132,58 +135,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Existing Instance CompatReflSym_Symmetric.
     Existing Instance CompatReflSym_Reflexive.
     Existing Instance Compat_m_Proper.
-
-    Lemma Disjoint_diff_update_comm : forall elt m1 m2 m3, @Disjoint elt m2 m3 -> m1 - m2 + m3 = m1 + m3 - m2.
-      admit.
-    Qed.
-
-    Lemma update_diff_same : forall elt (m1 m2 m3 : t elt), m1 - m3 + (m2 - m3) = m1 + m2 - m3.
-      admit.
-    Qed.
-
-    Lemma Compat_update_sym : forall elt m1 m2, @Compat elt m1 m2 -> m1 + m2 = m2 + m1.
-      admit.
-    Qed.
-
-    Lemma Disjoint_diff : forall elt m1 m2 m3, @Disjoint elt m1 m2 -> Disjoint m1 (m2 - m3).
-      admit.
-    Qed.
-
-    Lemma Disjoint_after_diff : forall elt m1 m2, @Disjoint elt (m1 - m2) m2.
-      admit.
-    Qed.
-
-    Add Parametric Relation elt : (t elt) (@Disjoint elt)
-        symmetry proved by (@Disjoint_sym elt)
-          as Disjoint_m.
-
-    Lemma to_blm_spec : forall elt (k : label) m, @BLM.find elt (k : Labels.label) (to_blm m) = find k m.
-      admit.
-    Qed.
-
-    Lemma to_blm_no_local : forall elt s1 s2 m, @BLM.find elt (s1, Local s2) (to_blm m) = None.
-      admit.
-    Qed.
-
-    Lemma app_all_update_all : forall elt lsls, @NoDupKey elt (app_all lsls) -> of_list (app_all lsls) == update_all (List.map (@of_list _) lsls).
-      admit.
-    Qed.
-
-    Lemma map_update_all_comm : forall elt B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
-      admit.
-    Qed.
-
-    Lemma update_all_Equal : forall elt ms1 ms2, List.Forall2 Equal ms1 ms2 -> @update_all elt ms1 == update_all ms2.
-      admit.
-    Qed.
-
-    Lemma Forall2_map : forall A B (f1 f2 : A -> B) R ls, pointwise_relation _ R f1 f2 -> Forall2 R (List.map f1 ls) (List.map f2 ls).
-      admit.
-    Qed.
-
-    Lemma map_of_list : forall elt B (f : elt -> B) ls, map f (of_list ls) == of_list (List.map (fun p => (fst p, f (snd p))) ls).
-      admit.
-    Qed.
+    Existing Instance Disjoint_m_Symmetric.
 
     (* some reinterpretation of Bedrock facilities *)
 
@@ -213,10 +165,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       discriminate.
       rewrite to_blm_no_local in H1.
       discriminate.
-    Qed.
-
-    Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
-      admit.
     Qed.
 
     Lemma exps_spec :
@@ -402,6 +350,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
 
 
+
     Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = MName m.
       unfold get_module_Exports.
       intros.
@@ -423,24 +372,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_exports_module_name in H.
       eapply In_exports_module_name in H0.
       congruence.
-    Qed.
-
-    Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
-      intros.
-      inversion H.
-      not_not.
-      subst.
-      intuition.
-    Qed.
-
-    Lemma NoDup_cons_elim : forall A ls (e : A), List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
-      induction ls; simpl; intuition.
-      subst.
-      eapply NoDup_cons_cons in H.
-      intuition.
-      subst.
-      inversion H; subst.
-      intuition.
     Qed.
 
     Lemma Disjoint_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Disjoint (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
@@ -575,10 +506,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       openhyp.
       subst.
       eauto.
-    Qed.
-
-    Lemma append_inj_2 : forall a b c, (a ++ b = a ++ c -> b = c)%string.
-      induction a; simpl; intuition.
     Qed.
 
     Lemma impl_module_name_is_injection : forall s1 s2, impl_module_name s1 = impl_module_name s2 -> s1 = s2.
