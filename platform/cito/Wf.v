@@ -297,31 +297,29 @@ Section ADTValue.
     firstorder.
   Qed.
 
-  (*Local Hint Constructors Safety.Safe.
+  Local Hint Constructors Safe.
 
   Lemma prove_NoUninitializedSafe' : forall s unwritten,
     (forall x, ~reads unwritten s x)
-    -> forall fs vs a, Safety.Safe fs s (vs, a)
+    -> forall fs vs a, Safe (ADTValue := ADTValue) fs s (vs, a)
       -> forall vs', (forall x, sel vs' x <> sel vs x -> unwritten x)
-        -> Safety.Safe fs s (vs', a).
-    intros; apply (@Safety.Safe_coind fs (fun s st =>
+        -> Safe fs s (vs', a).
+    intros; apply (@Safe_coind _ fs (fun s st =>
       exists unwritten,
         (forall x, ~reads unwritten s x)
-        /\ exists vs, Safety.Safe fs s (vs, snd st)
+        /\ exists vs, Safe fs s (vs, snd st)
           /\ (forall x, sel (fst st) x <> sel vs x -> unwritten x)));
     intuition idtac;
       repeat match goal with
                | [ H : Logic.ex _ |- _ ] => destruct H; intuition idtac
              end; simpl in *;
       match goal with
-        | [ H : Safety.Safe _ _ _ |- _ ] => inversion H; clear H;
+        | [ H : Safe _ _ _ |- _ ] => inversion H; clear H;
           repeat match goal with
                    | [ x : _ |- _ ] => subst x
                  end; simpl in *; cbv beta; intuition idtac
       end.
 
-    repeat irrel; auto.
-    repeat irrel; auto.
     eauto 10.
 
     eapply prove_NoUninitializedRunsTo' in H3; eauto.
@@ -335,82 +333,61 @@ Section ADTValue.
 
     right; repeat irrel; eauto 10.
 
-    left; repeat irrel; intuition idtac.
-    eauto 10.
-    eapply prove_NoUninitializedRunsTo' in H2; eauto.
-    destruct H2; intuition idtac.
-    repeat esplit; eauto.
-    firstorder.
-    firstorder.
-
-    repeat irrel; eauto.
-
-    repeat irrel; auto.
-
-    repeat irrel; auto.
-
-    repeat irrel; auto.
-
-    repeat irrel; eauto.
-
-    right; repeat irrel.
-    repeat esplit.
+    do 2 esplit.
+    Focus 2.
     eauto.
-    3: instantiate (2 := vs_arg).
-    3: tauto.
-    2: eauto.
+    intuition eauto.
+    eapply H3; left; use expReads_weaken.
+    eapply H3; right; use reads_weaken.
 
-    Lemma expReads_trivial : forall x e unwritten,
-      (forall x, ~unwritten x)
-      -> expReads unwritten e x
-      -> False.
-      induction e; simpl; intuition eauto.
-    Qed.
-
-    Hint Resolve expReads_trivial.
-
-    Lemma reads_trivial' : forall x s unwritten,
-      (forall x, ~unwritten x)
-      -> ~reads unwritten s x.
-      induction s; simpl; intuition; eauto.
-      eapply IHs2.
-      2: eauto.
-      simpl; intuition eauto.
-    Qed.
-
-    Lemma reads_trivial : forall x s,
-      ~reads (fun _ => False) s x.
-      intros; apply reads_trivial'; auto.
-    Qed.
-
+    repeat irrel.
+    left.
+    do 2 esplit.
+    eauto.
+    esplit; eauto.
     intros.
-    apply reads_trivial in H4; tauto.
+    do 2 esplit.
+    Focus 2.
+    do 2 esplit.
+    erewrite <- map_eval_irrel in H2.
+    eauto.
+    eauto.
+    eauto.
+    tauto.
+    instantiate (1 := fun _ => False).
+    intro; apply reads_trivial.
 
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-    eauto 6.
-  Qed.    
+    repeat irrel.
+    right.
+    do 2 esplit.
+    split.
+    eauto.
+    split.
+    erewrite <- map_eval_irrel; eauto.
+    eauto.
 
-  Theorem prove_NoUninitializedSafe : forall s,
-    (forall x, ~reads (fun s => s <> "__arg")%type s x)
-    -> forall fs vs a, Safety.Safe fs s (vs, a)
-      -> forall vs', sel vs' "__arg" = sel vs "__arg"
-        -> Safety.Safe fs s (vs', a).
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+    eauto 10.
+  Qed.
+
+  Theorem prove_NoUninitializedSafe : forall arg_vars s,
+    (forall x, ~reads (fun s => ~In s arg_vars) s x)
+    -> forall fs vs a, Safe (ADTValue := ADTValue) fs s (vs, a)
+      -> forall vs', agree_on vs vs' arg_vars
+        -> Safe fs s (vs', a).
     intros.
     eapply prove_NoUninitializedSafe' in H0; eauto.
-    firstorder.
-  Qed.*)
+    simpl; intros.
+    intro.
+    eapply Forall_forall in H1; eauto.
+  Qed.
 End ADTValue.
 
 Section TopSection.
@@ -444,7 +421,8 @@ Module Make (Import E : ADT).
   Section TopSection.
 
     Lemma NoUninitialized_Safe : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h, Safe fs s (vs, h) -> forall vs', agree_in vs vs' arg_vars -> Safe fs s (vs', h).
-      admit.
+      intros.
+      eapply prove_NoUninitializedSafe in H0; eauto.
     Qed.
 
     Lemma NoUninitialized_RunsTo : forall arg_vars s, NoUninitialized arg_vars s -> forall fs vs h v', RunsTo fs s (vs, h) v' -> forall vs', agree_in vs vs' arg_vars ->
