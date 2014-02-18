@@ -45,15 +45,39 @@ Section TopSection.
   Import FMapNotations.
   Open Scope fmap.
 
-  Lemma to_blm_empty : forall elt, BLM.empty elt === {}.
+  Require Import Setoid.
+  Require Import SetoidList.
+  Require Import GeneralTactics.
+
+  Lemma to_blm_spec : forall elt (k : label) m, @BLM.find elt (k : Labels.label) (to_blm m) = find k m.
+    unfold to_blm, to_bl_pair, BLMF.to_map.
+    intros.
+    eapply option_univalence; split; intros.
+    eapply BLM.find_2 in H.
+    eapply BLMF.P.of_list_1 in H.
+    eapply BLMFU.InA_eqke_In in H.
+    eapply in_map_iff in H.
+    openhyp.
+    Set Printing Coercions.
+    destruct x; simpl in *.
+    unfold to_bedrock_label in *.
+    destruct l; simpl in *.
+    destruct k; simpl in *.
+    injection H; intros; subst.
+    eapply InA_eqke_In in H0.
+    eapply elements_mapsto_iff in H0.
+    eapply find_1; eauto.
+    admit.
+    admit.
+  Qed.
+
+  Lemma to_blm_no_local : forall elt s1 s2 m, @BLM.find elt (s1, Labels.Local s2) (to_blm m) = None.
     admit.
   Qed.
 
   Lemma to_blm_Equal : forall elt m1 m2, @BLM.Equal elt (to_blm m1) (to_blm m2) <-> m1 == m2.
     admit.
   Qed.
-
-  Require Import Setoid.
 
   Add Parametric Morphism elt : (@to_blm elt)
       with signature Equal ==> BLM.Equal as to_blm_Equal_m.
@@ -69,19 +93,15 @@ Section TopSection.
     intros; eapply to_blm_Compat; eauto.
   Qed.
 
+  Lemma to_blm_empty : forall elt, BLM.empty elt === {}.
+    admit.
+  Qed.
+
   Lemma to_blm_update : forall elt m1 m2, @BLM.Equal elt (to_blm (update m1 m2)) (BLMF.P.update (to_blm m1) (to_blm m2)).
     admit.
   Qed.
 
   Lemma to_blm_diff : forall elt m1 m2, @BLM.Equal elt (to_blm (diff m1 m2)) (BLMF.P.diff (to_blm m1) (to_blm m2)).
-    admit.
-  Qed.
-
-  Lemma to_blm_spec : forall elt (k : label) m, @BLM.find elt (k : Labels.label) (to_blm m) = find k m.
-    admit.
-  Qed.
-
-  Lemma to_blm_no_local : forall elt s1 s2 m, @BLM.find elt (s1, Labels.Local s2) (to_blm m) = None.
     admit.
   Qed.
 
