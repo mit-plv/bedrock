@@ -344,7 +344,120 @@ Section TopLevel.
         | [ H : interp _ _ |- _ ] => eapply postOk in H; post; descend; eauto
       end).
 
-    admit.
+    Lemma verifCondOk : forall exprs base dst pre,
+      imply pre (x ~> ExX, Ex vs, Ex temps, Ex dst_buf,
+        ![^[is_state x#Sp vs temps dst dst_buf] * #0]x /\
+        [| length temps = temp_size /\
+          length exprs = length dst_buf |])
+      -> syn_req exprs base
+      -> vcs (VerifCond (Seq (do_compile exprs base dst) pre)).
+      induction exprs0; wrap0.
+
+      Transparent evalInstrs.
+      discriminate.
+      Opaque evalInstrs.
+
+      clear IHexprs0; clear_fancy.
+      hnf; post.
+      apply H in H1; clear H; post.
+      unfold is_state, CompileExpr.is_state in *.
+      assert (interp specs
+        (![locals vars x1 0 ((x) # (Sp) ^+ $ (8)) *
+          array x2 ((x) # (Sp) ^+ $ (8) ^+ $ (4 * Datatypes.length vars)) *
+          (array x3 ((x) # (Sp) ^+ $ (dst0)) *
+          ![fun m : ST.settings * smem => x0 m]) ] x)).
+      step auto_ext.
+      clear H1.
+      descend.
+      step auto_ext.
+      auto.
+
+      unfold syn_req, CompileExpr.syn_req in *; intuition.
+      hnf; intros.
+      apply H1.
+      simpl.
+      unfold union_list.
+      simpl.
+
+      Lemma In_union_list_preserve : forall x ls acc,
+        In x acc
+        -> In x (fold_left union ls acc).
+        induction ls; simpl; intuition.
+        apply IHls.
+        apply StringFacts.union_iff; auto.
+      Qed.
+
+      apply In_union_list_preserve.
+      apply StringFacts.union_iff; auto.
+      inversion H3; omega.
+
+      clear IHexprs0; clear_fancy.
+      apply H in H3; clear H; post.
+      unfold is_state in H1.
+      assert (interp specs
+        (![locals vars x1 0 (Regs x Sp ^+ $ (8)) *
+          array x2 (Regs x Sp ^+ $ (8) ^+ $ (4 * Datatypes.length vars)) *
+          (array x3 (Regs x Sp ^+ $ (dst0)) *
+          ![fun m : ST.settings * smem => x0 m]) ] (stn, x))).
+      step auto_ext.
+      clear H1.
+      apply H4 in H3; clear H4; post.
+      eapply change_hyp in H4.
+      Focus 2.
+      apply Himp_star_frame; [ apply Himp_refl | ].
+      apply Himp_star_frame; [ | apply Himp_refl ].
+      apply array_out; omega.
+      destruct x3; simpl in *; try discriminate.
+      unfold stack_slot in *.
+      evaluate auto_ext.
+
+      apply IHexprs0; clear IHexprs0; clear_fancy.
+      Focus 2.
+      unfold syn_req in *; intuition.
+      hnf; intros.
+      apply H1.
+      simpl.
+      unfold union_list; simpl.
+      eapply In_union_list; eauto.
+      hnf; intros.
+      apply StringFacts.empty_iff in H4; tauto.
+      inversion H3; auto.
+      hnf; post.
+      apply H in H2; clear H; post.
+      unfold is_state in H1.
+      assert (interp specs
+        (![CompileExpr.is_state vars (Regs x1 Sp) x3 x4
+          * (array x5 (Regs x1 Sp ^+ $ (dst0)) * ![fun m : ST.settings * smem => x2 m]) ] 
+        (fst x, x1))).
+      unfold CompileExpr.is_state.
+      step auto_ext.
+      clear H1.
+      apply H4 in H2; clear H4; post.
+      eapply change_hyp in H4.
+      Focus 2.
+      apply Himp_star_frame; [ apply Himp_refl | ].
+      apply Himp_star_frame; [ | apply Himp_refl ].
+      apply array_out; omega.
+      destruct x5; simpl in *; try discriminate.
+      unfold stack_slot in *.
+      evaluate auto_ext.
+      destruct x; simpl in *.
+      descend.
+      rewrite H4.
+      rewrite <- H2.
+      unfold is_state.
+      unfold CompileExpr.is_state in H9.
+      step auto_ext.
+      rewrite <- H2.
+      rewrite <- wplus_assoc.
+      rewrite <- natToWord_plus.
+      replace (dst0 + 4) with (S (S (S (S dst0)))) by omega.
+      step auto_ext.
+      rewrite length_upd_sublist; auto.
+      congruence.
+    Qed.
+
+    abstract (unfold verifCond; wrap0; eauto using verifCondOk).
   Defined.
 
 End TopLevel.
