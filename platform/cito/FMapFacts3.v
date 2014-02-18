@@ -21,9 +21,18 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Section Elt.
 
-    Variable elt:Type.
+    Require Import GeneralTactics.
+    Import ListNotations.
+    Import FMapNotations.
+    Open Scope fmap_scope.
 
-    Definition update_all A maps := List.fold_left (fun acc m => update acc m) maps (@empty A).
+    Definition update_all elt maps := List.fold_left (fun acc m => update acc m) maps (@empty elt).
+
+    Lemma update_all_cons : forall elt m ms, @update_all elt (m :: ms) == update m (update_all ms).
+      admit.
+    Qed.
+
+    Variable elt:Type.
 
     Implicit Types m : t elt.
     Implicit Types x y z k : key.
@@ -33,10 +42,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Notation eqke := (@eq_key_elt elt).
     Notation eqk := (@eq_key elt).
     
-    Require Import GeneralTactics.
-    Import ListNotations.
-    Import FMapNotations.
-    Open Scope fmap_scope.
+    Hint Extern 1 => reflexivity.
 
     Lemma of_list_empty : of_list [] == @empty elt.
       admit.
@@ -65,10 +71,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         reflexivity proved by Compat_refl
         symmetry proved by Compat_sym
           as CompatReflSym.
-
-    Lemma update_all_cons : forall m ms, update_all (m :: ms) == update m (update_all ms).
-      admit.
-    Qed.
 
     Lemma Disjoint_update_sym : forall m1 m2, Disjoint m1 m2 -> update m1 m2 == update m2 m1.
       admit.
@@ -149,20 +151,58 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Require Import ListFacts2.
 
-    Lemma app_all_update_all : forall lsls, @NoDupKey elt (app_all lsls) -> of_list (app_all lsls) == update_all (List.map (@of_list _) lsls).
+    Lemma map_empty : forall B (f : elt -> B), map f {} == {}.
+      admit.
+    Qed.
+
+    Lemma map_add : forall B (f : _ -> B) k v m, map f (add k v m) == add k (f v) (map f m).
+      admit.
+    Qed.
+
+    Lemma update_all_nil : forall elt, @update_all elt [] == {}.
+      eauto.
+    Qed.
+
+    Lemma map_update : forall B (f : _ -> B) m1 m2, map f (m1 + m2) == map f m1 + map f m2.
       admit.
     Qed.
 
     Lemma map_update_all_comm : forall B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
-      admit.
+      induction ms; simpl; intros.
+      repeat rewrite update_all_nil.
+      rewrite map_empty.
+      eauto.
+      repeat rewrite update_all_cons.
+      rewrite map_update.
+      rewrite IHms.
+      eauto.
     Qed.
 
     Lemma update_all_Equal : forall ms1 ms2, List.Forall2 (@Equal elt) ms1 ms2 -> update_all ms1 == update_all ms2.
-      admit.
+      induction 1; simpl; intros.
+      eauto.
+      repeat rewrite update_all_cons.
+      rewrite H.
+      rewrite IHForall2.
+      eauto.
     Qed.
 
     Lemma map_of_list : forall B (f : elt -> B) ls, map f (of_list ls) == of_list (List.map (fun p => (fst p, f (snd p))) ls).
-      admit.
+      induction ls; simpl; intros.
+      eapply map_empty.
+      unfold uncurry; simpl in *.
+      rewrite <- IHls.
+      destruct a; simpl in *.
+      eapply map_add.
+    Qed.
+
+    Lemma app_all_update_all : forall lsls, @NoDupKey elt (app_all lsls) -> of_list (app_all lsls) == update_all (List.map (@of_list _) lsls).
+      induction lsls; simpl; intros.
+      eauto.
+      rewrite update_all_cons.
+      rewrite of_list_app; eauto.
+      rewrite IHlsls; eauto.
+      eapply NoDupKey_unapp2; eauto.
     Qed.
 
   End Elt.
