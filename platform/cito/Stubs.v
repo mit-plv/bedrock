@@ -215,6 +215,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       discriminate.
     Qed.
 
+    Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
+      admit.
+    Qed.
+
     Lemma exps_spec :
       forall mn (fns : list (function mn)),
         let fns' := List.map (@func_to_import _) fns in
@@ -226,9 +230,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct p; simpl in *.
       unfold uncurry; simpl in *.
       rewrite IHfns.
-      Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
-        admit.
-      Qed.
       rewrite to_blm_add.
       eapply BLMF.P.F.add_m; eauto.
       reflexivity.
@@ -295,12 +296,22 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros.
       unfold BLMFU3.Compat in *.
       intros.
-      erewrite <- H.
-      eapply BLM.find_1.
-      eapply BLMF.P.F.add_mapsto_iff.
-      eauto.
-      eapply BLMF.P.F.add_in_iff.
-      eauto.
+      erewrite <- H; eauto.
+      rewrite BLMF.P.F.add_neq_o; eauto.
+      not_not.
+      subst; eauto.
+      eapply BLMF.P.F.add_in_iff; eauto.
+    Qed.
+
+    Lemma Compat_eq : forall elt k (v1 v2 : elt) m1 m2, BLMFU3.Compat m1 m2 -> BLM.find k m1 = Some v1 -> BLM.find k m2 = Some v2 -> v1 = v2.
+      intros.
+      unfold BLMFU3.Compat in *.
+      erewrite H in H0.
+      congruence.
+      eapply BLM.find_2 in H0.
+      eapply BLMF.MapsTo_In; eauto.
+      eapply BLM.find_2 in H1.
+      eapply BLMF.MapsTo_In; eauto.
     Qed.
 
     Lemma importsOk_Compat_right : forall m1 m2, BLMFU3.Compat m1 m2 -> importsOk m1 m2.
@@ -320,20 +331,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct (option_dec (BLM.find (elt:=assert) x m2)).
       destruct s.
       rewrite e0.
-      Lemma Compat_eq : forall elt k (v1 v2 : elt) m1 m2, BLMFU3.Compat m1 m2 -> BLM.find k m1 = Some v1 -> BLM.find k m2 = Some v2 -> v1 = v2.
-        admit.
-      Qed.
       split.
       eapply Compat_eq; eauto.
       eapply BLM.find_1.
       eapply BLMF.P.F.add_mapsto_iff.
       eauto.
       eapply IHm1.
-
-      unfold BLMFU3.Compat in H0.
-      rewrite H2.
-      split; eauto.
-      eapply IHm1; eauto.
+      eapply Compat_add_not_In; eauto.
+      rewrite e0.
+      eapply IHm1.
+      eapply Compat_add_not_In; eauto.
       intuition.
       eapply importsOk_f_Proper.
       eapply importsOk_f_transpose_neqkey.
