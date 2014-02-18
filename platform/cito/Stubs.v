@@ -14,6 +14,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import NameDecoration.
   Require Import Wrap.
   Require Import GeneralTactics.
+  Require Import GeneralTactics2.
+  Require Import StringFacts.
 
   Require Import Stub.
   Module Import StubMake := Make E M.
@@ -50,6 +52,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import ListFacts2.
   Module LF := ListFacts2.
   Module Import LFL := Make Label_as_UDT.
+  Require Import ListFacts3.
 
   Module Import SS := StringSet.StringSet.
   Module Import SSF := StringSet.StringFacts.
@@ -86,6 +89,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | x :: xs => link x (link_all xs)
       end.
     
+    Import ListNotations.
+    Import FMapNotations.
+    Open Scope fmap.
+
     Definition get_module_Exports (module : GoodModule) := 
       to_map 
         (List.map 
@@ -99,15 +106,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
            (Func_to_import module)
            (Functions module)).
 
+    Definition total_exports := update_all (List.map get_module_Exports modules).
+
     Definition foreign_imports := map StubMake.foreign_spec imports.
 
-    Definition total_exports := update_all (List.map get_module_Exports modules).
+    Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
     Definition total_impls := update_all (List.map get_module_impl_Imports modules).
 
     Definition final_imports := update total_impls foreign_imports.
-
-    (* Definition final_imports := map StubMake.foreign_spec imports. *)
 
     Definition total_imports := update total_exports final_imports.
 
@@ -122,31 +129,175 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import SetFacts.
     
     Notation to_set := SSUF.of_list.
-    Import ListNotations.
-    Import FMapNotations.
-    Open Scope fmap.
 
     Existing Instance to_blm_Equal_m_Proper.
     Existing Instance BLMFU3.Compat_m_Proper.
     Existing Instance CompatReflSym_Symmetric.
     Existing Instance CompatReflSym_Reflexive.
     Existing Instance Compat_m_Proper.
+    Existing Instance Disjoint_m_Symmetric.
 
     (* some reinterpretation of Bedrock facilities *)
 
     Lemma importsMap_of_list : forall ls, NoDupKey ls -> importsMap ls === of_list ls.
-      admit.
+      intros.
+      unfold BLM.Equal.
+      intros.
+      change ConvertLabelMap.BLM.find with LabelMap.LabelMap.find in *.
+      destruct y.
+      destruct l.
+      specialize importsMap_spec; intros.
+      unfold to_bedrock_label in *.
+      erewrite H0 with (k := (s, s0)); eauto.
+      change StructuredModuleFacts.LMF.find_list with find_list in *.
+      unfold find_list.
+      rewrite <- of_list_1b; eauto.
+      symmetry.
+      rewrite <- to_blm_spec; eauto.
+      specialize importsMapGlobal; intros.
+      unfold importsGlobal in *.
+      eapply option_univalence.
+      split; intros.
+      eapply BLM.find_2 in H1.
+      eapply H0 in H1.
+      openhyp.
+      simpl in *.
+      discriminate.
+      rewrite to_blm_no_local in H1.
+      discriminate.
     Qed.
 
     Lemma exps_spec :
       forall mn (fns : list (function mn)),
         let fns' := List.map (@func_to_import _) fns in
         exps fns === of_list fns'.
-      admit.
+      induction fns; simpl; intros.
+      eapply to_blm_empty.
+      simpl in *.
+      destruct a; simpl in *.
+      destruct p; simpl in *.
+      unfold uncurry; simpl in *.
+      rewrite IHfns.
+      rewrite to_blm_add.
+      eapply BLMF.P.F.add_m; eauto.
+      reflexivity.
+    Qed.
+
+    Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> BLMFU3.Compat m1 m2.
+      intros.
+      unfold BLMFU3.Compat.
+      intros.
+      eapply BLMFU3.In_MapsTo in H0.
+      openhyp.
+      eapply BLMFU3.In_MapsTo in H1.
+      openhyp.
+      assert (x = x0).
+      eapply use_importsOk; eauto.
+      eapply BLM.find_1; eauto.
+      subst.
+      eapply BLM.find_1 in H1.
+      eapply BLM.find_1 in H0.
+      congruence.
+    Qed.
+
+    Lemma importsOk_f_Proper : 
+      forall m,
+        Proper (Logic.eq ==> Logic.eq ==> iff ==> iff)
+               (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
+                  match LabelMap.LabelMap.find (elt:=assert) l m with
+                    | Some pre' => pre = pre' /\ P
+                    | None => P
+                  end).
+      intros.
+      unfold Proper.
+      unfold respectful.
+      intros.
+      subst.
+      destruct (BLM.find y m); intuition.
+    Qed.
+
+    Lemma importsOk_f_transpose_neqkey :
+      forall m,
+        BLMF.P.transpose_neqkey 
+          iff
+          (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
+             match LabelMap.LabelMap.find (elt:=assert) l m with
+               | Some pre' => pre = pre' /\ P
+               | None => P
+             end).
+      unfold BLMF.P.transpose_neqkey.
+      intros.
+      destruct (BLM.find k m); destruct (BLM.find k' m); intuition.
+    Qed.
+
+    Add Morphism importsOk
+        with signature BLM.Equal ==> Logic.eq ==> iff as importsOk_m.
+      intros.
+      unfold importsOk.
+      eapply BLMF.P.fold_Equal; eauto.
+      intuition.
+      eapply importsOk_f_Proper.
+      eapply importsOk_f_transpose_neqkey.
+    Qed.
+
+    Lemma Compat_add_not_In : forall elt k (v : elt) m1 m2, BLMFU3.Compat (BLM.add k v m1) m2 -> ~ BLM.In k m1 -> BLMFU3.Compat m1 m2.
+      intros.
+      unfold BLMFU3.Compat in *.
+      intros.
+      erewrite <- H; eauto.
+      rewrite BLMF.P.F.add_neq_o; eauto.
+      not_not.
+      subst; eauto.
+      eapply BLMF.P.F.add_in_iff; eauto.
+    Qed.
+
+    Lemma Compat_eq : forall elt k (v1 v2 : elt) m1 m2, BLMFU3.Compat m1 m2 -> BLM.find k m1 = Some v1 -> BLM.find k m2 = Some v2 -> v1 = v2.
+      intros.
+      unfold BLMFU3.Compat in *.
+      erewrite H in H0.
+      congruence.
+      eapply BLM.find_2 in H0.
+      eapply BLMF.MapsTo_In; eauto.
+      eapply BLM.find_2 in H1.
+      eapply BLMF.MapsTo_In; eauto.
+    Qed.
+
+    Lemma importsOk_Compat_right : forall m1 m2, BLMFU3.Compat m1 m2 -> importsOk m1 m2.
+      induction m1 using BLMF.P.map_induction_bis.
+      intros.
+      rewrite <- H in H0.
+      rewrite <- H.
+      eauto.
+      intros.
+      unfold importsOk.
+      rewrite BLM.fold_1.
+      simpl.
+      eauto.
+      intros.
+      unfold importsOk.
+      rewrite BLMF.P.fold_add; eauto.
+      destruct (option_dec (BLM.find (elt:=assert) x m2)).
+      destruct s.
+      rewrite e0.
+      split.
+      eapply Compat_eq; eauto.
+      eapply BLM.find_1.
+      eapply BLMF.P.F.add_mapsto_iff.
+      eauto.
+      eapply IHm1.
+      eapply Compat_add_not_In; eauto.
+      rewrite e0.
+      eapply IHm1.
+      eapply Compat_add_not_In; eauto.
+      intuition.
+      eapply importsOk_f_Proper.
+      eapply importsOk_f_transpose_neqkey.
     Qed.
 
     Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> BLMFU3.Compat m1 m2.
-      admit.
+      split; intros.
+      eapply importsOk_Compat_left; eauto.
+      eapply importsOk_Compat_right; eauto.
     Qed.
 
     Lemma XCAP_union_update : forall elt m1 m2, BLM.Equal (@XCAP.union elt m1 m2) (BLMF.P.update m2 m1).
@@ -186,77 +337,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply BLM.elements_3w.
     Qed.
 
-    (* make_module interface *)
-
-    Lemma bexports_Equal_exports : forall m, List.In m modules -> of_list (bexports modules imports m) == get_module_Exports m.
-      intros.
-      unfold bexports.
-      unfold stubs.
-      unfold make_stub.
-      rewrite map_map.
-      unfold func_to_import.
-      simpl.
-      unfold get_module_Exports.
-      reflexivity.
-    Qed.
-(*
-    Lemma bimports_Equal_total_imports : forall m, List.In m modules -> of_list (bimports modules imports m) == total_imports.
-(*      intros.
-      unfold bimports.
-      unfold bimports_base.
-      repeat rewrite of_list_app.
-      unfold total_imports.
-      unfold final_imports.
-
-      Lemma bimports_base_Equal_update_all : of_list (bimports_base modules imports) == update_all (List.map get_module_Exports modules).
-        admit.
-      Qed.
-      rewrite bimports_base_Equal_update_all.
-      Lemma imports_Equal_final_imports : of_list (List.map (Func_to_import m) (Functions m)) == final_imports.
-*)
-      admit.
-    Qed.
-*)
-
-    Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
-
-    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === get_module_Imports m.
-(*      intros.
-      unfold do_make_module, make_module, bmodule_, Imports.
-      rewrite importsMap_of_list.
-      eapply to_blm_Equal.
-      unfold bimports_diff_bexports.
-      rewrite of_list_diff.
-      rewrite bimports_Equal_total_imports by eauto.
-      rewrite bexports_Equal_exports by eauto.
-      reflexivity.
-      eapply NoDupKey_bimports; eauto.
-      eapply NoDupKey_bexports; eauto.
-      eapply diff_NoDupKey.
-      eapply NoDupKey_bimports; eauto.*)
-      admit.
-    Qed.
-
-    Lemma make_module_Exports : forall m, List.In m modules -> Exports (do_make_module m) === get_module_Exports m.
-      intros.
-      unfold do_make_module, make_module, bmodule_, Imports; simpl.
-      rewrite exps_spec.
-      eapply to_blm_Equal.
-      unfold stubs.
-      unfold make_stub.
-      rewrite map_map.
-      unfold func_to_import.
-      simpl.
-      unfold get_module_Exports.
-      reflexivity.
-    Qed.
-
-    Lemma make_module_Modules : forall m, List.In m modules -> SS.Equal (Modules (do_make_module m)) (singleton (MName m)).
-      intros.
-      unfold do_make_module, make_module, bmodule_, Modules.
-      reflexivity.
-    Qed.
-
     Lemma GoodModule_Name_neq_empty_module_name : forall m : GoodModule, MName m <> empty_module_name.
       intros.
       destruct m; simpl in *.
@@ -270,10 +350,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
 
 
-    Lemma MapsTo_exports_module_name : forall m k v, MapsTo k v (get_module_Exports m) -> fst k = MName m.
+
+    Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = MName m.
       unfold get_module_Exports.
       intros.
-      eapply MapsTo_In in H.
       eapply In_to_map in H.
       unfold InKey in *.
       rewrite map_map in H.
@@ -289,30 +369,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros.
       not_not.
       openhyp.
-      eapply In_MapsTo in H.
-      eapply In_MapsTo in H0.
-      openhyp.
-      eapply MapsTo_exports_module_name in H.
-      eapply MapsTo_exports_module_name in H0.
+      eapply In_exports_module_name in H.
+      eapply In_exports_module_name in H0.
       congruence.
-    Qed.
-
-    Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
-      intros.
-      inversion H.
-      not_not.
-      subst.
-      intuition.
-    Qed.
-
-    Lemma NoDup_cons_elim : forall A ls (e : A), List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
-      induction ls; simpl; intuition.
-      subst.
-      eapply NoDup_cons_cons in H.
-      intuition.
-      subst.
-      inversion H; subst.
-      intuition.
     Qed.
 
     Lemma Disjoint_exports : forall m ms, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Disjoint (get_module_Exports m) (update_all (List.map get_module_Exports ms)).
@@ -352,20 +411,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       incl_tran_cons.
       inversion H1; subst; eauto.
     Qed.
-(*
-    Lemma Disjoint_exports_final_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) final_imports.
+
+    Lemma Disjoint_exports_foreign_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) foreign_imports.
       intros.
       unfold imported_module_names in *.
-      unfold final_imports.
+      unfold foreign_imports.
       unfold Disjoint.
       intros.
       unfold LF.Disjoint in *.
       specialize (NoSelfImport (fst k)).
       not_not.
       openhyp.
-      eapply In_MapsTo in H0.
-      openhyp.
-      eapply MapsTo_exports_module_name in H0.
+      eapply In_exports_module_name in H0.
       rewrite H0 in *.
       unfold module_names.
       split.
@@ -374,60 +431,101 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_MapsTo in H1.
       openhyp.
       eapply in_map_iff.
-      exists (k, x0).
+      exists (k, x).
       split.
       eauto.
       eapply InA_eqke_In.
       eapply elements_1; eauto.
-      admit.
     Qed.
 
-    Lemma total_imports_Compat_exports : forall m, List.In m modules -> Compat total_imports (get_module_Exports m).
-      unfold total_imports.
-      symmetry.
-      eapply Compat_update.
-      eapply Compat_exports_many_exports; eauto.
-      intuition.
+    Lemma Compat_exports_foreign_imports : forall m, List.In m modules -> Compat (get_module_Exports m) foreign_imports.
+      intros.
       eapply Disjoint_Compat.
-      eapply Disjoint_exports_final_imports; eauto.
+      eapply Disjoint_exports_foreign_imports; eauto.
     Qed.
 
-    Lemma total_imports_Compat_many_exports : forall ms, incl ms modules -> Compat total_imports (update_all (List.map get_module_Exports ms)).
+    Lemma Compat_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Compat (get_module_Exports m1) (get_module_impl_Imports m2).
       intros.
-      eapply Compat_update_all.
-      eapply Forall_forall.
+      eapply Disjoint_Compat.
+      unfold get_module_impl_Imports.
+      unfold Disjoint.
       intros.
-      eapply in_map_iff in H0.
+      intuition.
+      eapply In_exports_module_name in H2.
+      eapply In_to_map in H3.
+      unfold InKey in *.
+      unfold Func_to_import in *.
+      rewrite map_map in H3.
+      simpl in *.
+      eapply in_map_iff in H3.
       openhyp.
       subst.
-      eapply total_imports_Compat_exports.
+      unfold impl_label in *.
+      simpl in *.
+      eapply IsGoodModuleName_not_impl_module_name.
+      eapply GoodModule_GoodName.
+      eexists; eauto.
+    Qed.
+
+    Lemma Compat_impl_imports_foreign_imports : forall m, List.In m modules -> Compat (get_module_impl_Imports m) foreign_imports.
+      intros.
+      eapply Disjoint_Compat.
+      unfold get_module_impl_Imports.
+      unfold Disjoint.
+      intros.
       intuition.
-    Qed.
-*)
-
-    Lemma Disjoint_diff_update_comm : forall elt m1 m2 m3, @Disjoint elt m2 m3 -> m1 - m2 + m3 = m1 + m3 - m2.
-      admit.
-    Qed.
-
-    Lemma update_diff_same : forall elt (m1 m2 m3 : t elt), m1 - m3 + (m2 - m3) = m1 + m2 - m3.
-      admit.
-    Qed.
-
-    Lemma Compat_update_sym : forall elt m1 m2, @Compat elt m1 m2 -> m1 + m2 = m2 + m1.
-      admit.
-    Qed.
-
-    Lemma Disjoint_diff : forall elt m1 m2 m3, @Disjoint elt m1 m2 -> Disjoint m1 (m2 - m3).
-      admit.
-    Qed.
-
-    Lemma Disjoint_after_diff : forall elt m1 m2, @Disjoint elt (m1 - m2) m2.
-      admit.
+      unfold foreign_imports in *.
+      eapply map_4 in H2.
+      eapply In_to_map in H1.
+      unfold InKey in *.
+      unfold Func_to_import in *.
+      rewrite map_map in H1.
+      simpl in *.
+      eapply in_map_iff in H1.
+      openhyp.
+      subst.
+      unfold impl_label in *.
+      eapply IsGoodModuleName_not_impl_module_name.
+      eapply ImportsGoodModuleName.
+      eauto.
+      eexists.
+      simpl.
+      eauto.
     Qed.
 
-    Add Parametric Relation elt : (t elt) (@Disjoint elt)
-        symmetry proved by (@Disjoint_sym elt)
-          as Disjoint_m.
+    Lemma In_impl_imports_module_name : forall k m, In k (get_module_impl_Imports m) -> fst k = impl_module_name (MName m).
+      unfold get_module_impl_Imports.
+      intros.
+      eapply In_to_map in H.
+      unfold InKey in *.
+      rewrite map_map in H.
+      unfold Func_to_import in *.
+      unfold impl_label in *.
+      simpl in *.
+      eapply in_map_iff in H.
+      openhyp.
+      subst.
+      eauto.
+    Qed.
+
+    Lemma impl_module_name_is_injection : forall s1 s2, impl_module_name s1 = impl_module_name s2 -> s1 = s2.
+      intros.
+      unfold impl_module_name in *.
+      eapply append_inj_2; eauto.
+    Qed.
+
+    Lemma Compat_impl_imports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_impl_Imports m1) (get_module_impl_Imports m2).
+      intros.
+      eapply Disjoint_Compat.
+      unfold Disjoint.
+      intros.
+      not_not.
+      openhyp.
+      eapply In_impl_imports_module_name in H1.
+      eapply In_impl_imports_module_name in H2.
+      rewrite H1 in H2.
+      eapply impl_module_name_is_injection; eauto.
+    Qed.
 
     Lemma Disjoint_exports_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) (get_module_Imports m).
       intros.
@@ -454,14 +552,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       subst.
       symmetry.
       eapply Compat_exports_total_exports; eauto.
-    Qed.
-
-    Lemma Compat_exports_foreign_imports : forall m, List.In m modules -> Compat (get_module_Exports m) foreign_imports.
-      admit.
-    Qed.
-
-    Lemma Compat_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Compat (get_module_Exports m1) (get_module_impl_Imports m2).
-      admit.
     Qed.
 
     Lemma Compat_many_exports_foreign_imports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) foreign_imports.
@@ -513,12 +603,103 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_many_exports_impl_imports; intuition.
     Qed.
 
-    Lemma Compat_impl_imports_foreign_imports : forall m, List.In m modules -> Compat (get_module_impl_Imports m) foreign_imports.
-      admit.
+    (* make_module interface *)
+
+    Lemma bexports_Equal_exports : forall m, List.In m modules -> of_list (bexports modules imports m) == get_module_Exports m.
+      intros.
+      unfold bexports.
+      unfold stubs.
+      unfold make_stub.
+      rewrite map_map.
+      unfold func_to_import.
+      simpl.
+      unfold get_module_Exports.
+      reflexivity.
     Qed.
 
-    Lemma Compat_impl_imports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_impl_Imports m1) (get_module_impl_Imports m2).
-      admit.
+    Lemma Equal_get_module_Exports : forall m, map (spec_without_funcs_ok_fs modules imports) (of_list (get_module_exports m)) == get_module_Exports m.
+      intros.
+      unfold get_module_Exports.
+      unfold to_map.
+      unfold get_module_exports.
+      rewrite map_of_list.
+      rewrite map_map.
+      simpl.
+      reflexivity.
+    Qed.
+
+    Lemma exports_Equal_total_exports : map (spec_without_funcs_ok_fs modules imports) (exports modules) == total_exports.
+      unfold exports.
+      unfold total_exports.
+      change StubMake.LMF.to_map with to_map in *.
+      unfold to_map.
+      rewrite app_all_update_all.
+      rewrite map_update_all_comm.
+      rewrite map_map.
+      rewrite map_map.
+      eapply update_all_Equal.
+      eapply Forall2_map.
+      unfold pointwise_relation.
+      eapply Equal_get_module_Exports.
+      eapply NoDupKey_app_all; eauto.
+    Qed.
+
+    Lemma bimports_base_Equal_update : of_list (bimports_base modules imports) == total_exports + foreign_imports.
+      intros.
+      rewrite Compat_update_sym by (eapply Compat_total_exports_foreign_imports).
+      unfold bimports_base.
+      rewrite of_list_app.
+      rewrite of_list_3.
+      rewrite of_list_3.
+      rewrite exports_Equal_total_exports.
+      reflexivity.
+      eapply NoDupKey_bimports_base; eauto.
+    Qed.
+
+    Lemma bimports_Equal_update_update : forall m, List.In m modules -> of_list (bimports modules imports m) == total_exports + foreign_imports + get_module_impl_Imports m.
+      intros.
+      unfold bimports.
+      rewrite of_list_app.
+      rewrite bimports_base_Equal_update.
+      reflexivity.
+      eapply NoDupKey_bimports; eauto.
+    Qed.
+
+    Lemma make_module_Imports : forall m, List.In m modules -> Imports (do_make_module m) === get_module_Imports m.
+      intros.
+      unfold do_make_module, make_module, bmodule_, Imports.
+      rewrite importsMap_of_list.
+      eapply to_blm_Equal.
+      unfold bimports_diff_bexports.
+      rewrite of_list_diff.
+      unfold get_module_Imports.
+      rewrite bimports_Equal_update_update by eauto.
+      rewrite bexports_Equal_exports by eauto.
+      reflexivity.
+      eapply NoDupKey_bimports; eauto.
+      eapply NoDupKey_bexports; eauto.
+      eapply diff_NoDupKey.
+      eapply NoDupKey_bimports; eauto.
+    Qed.
+
+    Lemma make_module_Exports : forall m, List.In m modules -> Exports (do_make_module m) === get_module_Exports m.
+      intros.
+      unfold do_make_module, make_module, bmodule_, Imports; simpl.
+      rewrite exps_spec.
+      eapply to_blm_Equal.
+      unfold stubs.
+      unfold make_stub.
+      rewrite map_map.
+      unfold func_to_import.
+      simpl.
+      unfold get_module_Exports.
+      reflexivity.
+    Qed.
+
+    Lemma make_module_Modules : forall m, List.In m modules -> SS.Equal (Modules (do_make_module m)) (singleton (MName m)).
+      intros.
+      unfold do_make_module, make_module, bmodule_, Modules.
+      reflexivity.
     Qed.
 
     Lemma Compat_imports_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_Imports m1) (get_module_Imports m2).

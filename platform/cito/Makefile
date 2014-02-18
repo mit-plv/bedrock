@@ -28,7 +28,7 @@ MODULES := \
 	SyntaxFunc SyntaxModule \
 	CompileFuncSpec \
 	SepHints5 \
-	GetLocalVars GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
+	GetLocalVars Wf GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
 	CompileFuncImpl \
 	CompileFunc \
 	GoodFunction GoodModule \
@@ -36,10 +36,12 @@ MODULES := \
 	CompileModule \
 	NatFacts StringFacts \
 	ListFacts2 \
+	GeneralTactics2 \
 	FMapFacts1 \
 	StructuredModuleFacts \
 	Stub \
 	FSetFacts1 FMapFacts3 ConvertLabelMap \
+	ListFacts3 \
 	Stubs \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 

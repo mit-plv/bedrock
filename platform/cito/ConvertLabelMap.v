@@ -2,6 +2,8 @@ Set Implicit Arguments.
 
 Require Import FMapFacts3.
 
+Require Import List.
+
 Require LabelMap.
 Module BLM := LabelMap.LabelMap.
 Module BLK := LabelMap.LabelKey.
@@ -39,7 +41,6 @@ Section TopSection.
 
   Import Notations.
   Open Scope clm_scope.
-  Require Import List.
   Import ListNotations.
   Import FMapNotations.
   Open Scope fmap.
@@ -73,6 +74,18 @@ Section TopSection.
   Qed.
 
   Lemma to_blm_diff : forall elt m1 m2, @BLM.Equal elt (to_blm (diff m1 m2)) (BLMF.P.diff (to_blm m1) (to_blm m2)).
+    admit.
+  Qed.
+
+  Lemma to_blm_spec : forall elt (k : label) m, @BLM.find elt (k : Labels.label) (to_blm m) = find k m.
+    admit.
+  Qed.
+
+  Lemma to_blm_no_local : forall elt s1 s2 m, @BLM.find elt (s1, Labels.Local s2) (to_blm m) = None.
+    admit.
+  Qed.
+
+  Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
     admit.
   Qed.
 
