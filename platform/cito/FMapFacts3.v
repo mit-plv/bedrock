@@ -28,10 +28,102 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Import FMapNotations.
     Open Scope fmap_scope.
 
+    Hint Extern 1 => reflexivity.
+
     Definition update_all elt maps := List.fold_left (fun acc m => update acc m) maps (@empty elt).
 
-    Lemma update_all_cons : forall elt m ms, @update_all elt (m :: ms) == update m (update_all ms).
-      admit.
+    Lemma update_all_nil : forall elt, @update_all elt [] == {}.
+      eauto.
+    Qed.
+
+    Lemma update_all_cons : forall elt ms m, @update_all elt (m :: ms) == m + (update_all ms).
+      induction ms; simpl; intros.
+      rewrite update_all_nil.
+      Lemma update_all_single : forall elt m, @update_all elt [m] == m.
+        intros.
+        unfold update_all; simpl.
+        Lemma update_empty_1 : forall elt (m : t elt), {} + m == m.
+          admit.
+        Qed.
+        eapply update_empty_1.
+      Qed.
+      rewrite update_all_single.
+      Lemma update_empty_2 : forall elt (m : t elt), m + {} == m.
+        admit.
+      Qed.
+      rewrite update_empty_2.
+      eauto.
+      unfold update_all in *.
+      simpl in *.
+      rewrite IHms.
+      Lemma update_assoc : forall elt (m1 m2 m3 : t elt), m1 + m2 + m3 == m1 + (m2 + m3).
+        intros.
+        unfold Equal.
+        intros.
+        eapply option_univalence.
+        split; intros.
+        eapply find_2 in H.
+        eapply update_mapsto_iff in H.
+        openhyp.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        left.
+        eapply update_mapsto_iff.
+        eauto.
+        eapply update_mapsto_iff in H.
+        openhyp.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        left.
+        eapply update_mapsto_iff.
+        eauto.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        right.
+        split; eauto.
+        Require Import GeneralTactics2.
+        not_not.
+        eapply update_in_iff in H2.
+        intuition.
+
+        eapply find_2 in H.
+        eapply update_mapsto_iff in H.
+        openhyp.
+        eapply update_mapsto_iff in H.
+        openhyp.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        eauto.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        right.
+        split; eauto.
+        eapply update_mapsto_iff.
+        eauto.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        right.
+        split.
+        eapply update_mapsto_iff.
+        right.
+        split; eauto.
+        not_not.
+        eapply update_in_iff.
+        eauto.
+        not_not.
+        eapply update_in_iff.
+        eauto.
+      Qed.
+      Add Parametric Morphism elt : (t elt) fold_left
+          with signature Equal ==> Equal ==> iff as Compat_m.
+        admit.
+      Qed.
+
+
+      setoid_rewrite update_assoc.
+      rewrite IHms.
+      rewrite update_assoc.
+      eauto.
     Qed.
 
     Variable elt:Type.
@@ -44,8 +136,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Notation eqke := (@eq_key_elt elt).
     Notation eqk := (@eq_key elt).
     
-    Hint Extern 1 => reflexivity.
-
     Lemma of_list_empty : of_list [] == @empty elt.
       admit.
     Qed.
@@ -157,16 +247,54 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       admit.
     Qed.
 
-    Lemma update_all_nil : forall elt, @update_all elt [] == {}.
-      eauto.
-    Qed.
-
     Lemma map_update : forall B (f : _ -> B) m1 m2, map f (m1 + m2) == map f m1 + map f m2.
       admit.
     Qed.
 
     Lemma update_diff_same : forall m1 m2 m3, m1 - m3 + (m2 - m3) == m1 + m2 - m3.
-      admit.
+      intros.
+      unfold Equal.
+      intros.
+      eapply option_univalence.
+      split; intros.
+      eapply find_2 in H.
+      eapply update_mapsto_iff in H.
+      openhyp.
+      eapply diff_mapsto_iff in H.
+      openhyp.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      split; eauto.
+      eapply update_mapsto_iff.
+      eauto.
+      eapply diff_mapsto_iff in H.
+      openhyp.
+      eapply find_1.
+      eapply diff_mapsto_iff.
+      split; eauto.
+      eapply update_mapsto_iff.
+      right.
+      split; eauto.
+      not_not.
+      eapply diff_in_iff; eauto.
+      
+      eapply find_2 in H.
+      eapply diff_mapsto_iff in H.
+      openhyp.
+      eapply update_mapsto_iff in H.
+      openhyp.
+      eapply find_1.
+      eapply update_mapsto_iff.
+      left.
+      eapply diff_mapsto_iff; eauto.
+      eapply find_1.
+      eapply update_mapsto_iff.
+      right.
+      split.
+      eapply diff_mapsto_iff; eauto.
+      not_not.
+      eapply diff_in_iff in H2.
+      intuition.
     Qed.
 
     Lemma Disjoint_diff_update_comm : forall m1 m2 m3, Disjoint m2 m3 -> m1 - m2 + m3 == m1 + m3 - m2.
