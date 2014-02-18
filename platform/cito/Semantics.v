@@ -110,10 +110,15 @@ Section ADTValue.
           RunsTo a v v' -> 
           RunsTo b v' v'' -> 
           RunsTo (Syntax.Seq a b) v v''
-    | RunsToIf : 
+    | RunsToIfTrue : 
         forall cond t f v v', 
-          let b := wneb (eval (fst v) cond) $0 in
-          b = true /\ RunsTo t v v' \/ b = false /\ RunsTo f v v' ->
+          wneb (eval (fst v) cond) $0 = true ->
+          RunsTo t v v' ->
+          RunsTo (Syntax.If cond t f) v v'
+    | RunsToIfFalse : 
+        forall cond t f v v', 
+          wneb (eval (fst v) cond) $0 = false ->
+          RunsTo f v v' ->
           RunsTo (Syntax.If cond t f) v v'
     | RunsToWhile : 
         forall cond body v v', 
