@@ -210,6 +210,78 @@ Section ADTValue.
         forall x e v,
           Safe (Syntax.Assign x e) v.
 
+    Section Safe_coind.
+      Variable R : Stmt -> State -> Prop.
+
+      Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo a v v' -> R b v'.
+
+      Hypothesis IfCase : forall cond t f v, R (Syntax.If cond t f) v -> (wneb (eval (fst v) cond) $0 = true /\ R t v) \/ (wneb (eval (fst v) cond) $0 = false /\ R f v).
+
+      Hypothesis WhileCase : forall cond body v, R (Syntax.While cond body) v -> R (Syntax.If cond (Syntax.Seq body (Syntax.While cond body)) Syntax.Skip) v.
+
+      Hypothesis CallCase : forall var f args v,
+        R (Syntax.Call var f args) v
+        -> (exists spec, let vs := fst v in
+          let heap := snd v in
+            let fs := snd env in
+              fs (eval vs f) = Some (Internal spec) /\
+              length (ArgVars spec) = length args /\
+              (forall vs_arg, 
+                map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+                -> R (Body spec) (vs_arg, heap)))
+        \/ (exists spec, exists pairs, let vs := fst v in
+          let heap := snd v in
+            let fs := snd env in
+              fs (eval vs f) = Some (Foreign spec) /\
+              map (eval vs) args = map fst pairs /\
+              good_inputs heap pairs /\
+              PreCond spec (map snd pairs)).
+          
+      Hypothesis LabelCase : forall x lbl v,
+        R (Syntax.Label x lbl) v
+        -> fst env lbl <> None.
+
+      Hint Constructors Safe.
+
+      Ltac openhyp := 
+        repeat match goal with
+                 | H : _ /\ _ |- _  => destruct H
+                 | H : _ \/ _ |- _ => destruct H
+                 | H : exists x, _ |- _ => destruct H
+               end.
+
+      Ltac break_pair :=
+        match goal with
+          V : (_ * _)%type |- _ => destruct V
+        end.
+
+      Theorem Safe_coind : forall c v, R c v -> Safe c v.
+        cofix; unfold State; intros; break_pair; destruct c.
+
+        eauto.
+        Guarded.
+
+        eapply SeqCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply IfCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply WhileCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply CallCase in H; openhyp; simpl in *; intuition eauto.
+        Guarded.
+
+        eapply LabelCase in H; openhyp; eauto.
+        Guarded.
+
+        eauto.
+        Guarded.
+      Qed.
+
+    End Safe_coind.
+
   End Env.
 
 End ADTValue.
