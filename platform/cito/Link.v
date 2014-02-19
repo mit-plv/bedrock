@@ -16,7 +16,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GeneralTactics.
   Require Import GeneralTactics2.
   Require Import StringFacts.
-  
+
+  Require Import LinkModuleImpls.
+  Module Import LinkModuleImplsMake := Make E M.
   Require Import Stubs.
   Module Import StubsMake := Make E M.
   Require Import Stub.
@@ -28,6 +30,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Semantics.
   Import SemanticsMake.
   Import InvMake2.
+  Require Import GoodOptimizer.
+  Module Import GoodOptimizerMake := Make E.
 
   Require Import FMapFacts1.
   Require Import FMapFacts3.
@@ -84,3 +88,160 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
+    (* optimizer *)
+
+    Variable optimizer : Optimizer.
+
+    Hypothesis IsGoodOptimizer : GoodOptimizer optimizer.
+
+    Import ListNotations.
+    Import FMapNotations.
+    Open Scope fmap.
+    Notation to_set := SSUF.of_list.
+
+    Hint Extern 1 => reflexivity.
+
+    Require Import Setoid.
+    Existing Instance to_blm_Equal_m_Proper.
+    Existing Instance CompatReflSym_Symmetric.
+    Existing Instance CompatReflSym_Reflexive.
+    Existing Instance Compat_m_Proper.
+    Existing Instance Disjoint_m_Symmetric.
+    Existing Instance BLMFU3.Compat_m_Proper.
+
+    Lemma total_impls_Equal_total_exports : total_impls modules == LinkModuleImplsMake.total_exports modules.
+      eauto.
+    Qed.
+
+    Lemma diff_same : forall elt (m : t elt), m - m == {}.
+      unfold Equal; intros.
+      eapply option_univalence; split; intros.
+      eapply find_2 in H; eapply diff_mapsto_iff in H; openhyp.
+      eapply MapsTo_In in H; intuition.
+      eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
+    Qed.
+
+    Lemma Disjoint_MNames_impl_MNames : SSUF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
+      unfold SSUF.Disjoint.
+      intros.
+      nintro.
+      openhyp.
+      eapply of_list_spec in H.
+      eapply of_list_spec in H0.
+      eapply in_map_iff in H; openhyp; subst.
+      eapply in_map_iff in H0; openhyp; subst.
+      unfold impl_MName in *.
+      eapply IsGoodModuleName_not_impl_module_name.
+      eapply GoodModule_GoodName.
+      eexists; eauto.
+    Qed.
+
+    Lemma final_imports_Compat_total_exports : Compat (final_imports modules imports) (LinkModuleImplsMake.total_exports modules).
+      unfold final_imports.
+      rewrite <- total_impls_Equal_total_exports.
+      symmetry.
+      eapply Compat_update.
+      eapply Disjoint_Compat.
+      symmetry.
+      eapply foreign_imports_Disjoint_total_impls; eauto.
+      eauto.
+    Qed.
+
+    Lemma final_imports_diff_total_exports : final_imports modules imports - LinkModuleImplsMake.total_exports modules == foreign_imports imports.
+      unfold final_imports.
+      rewrite <- total_impls_Equal_total_exports.
+      rewrite <- update_diff_same.
+      rewrite diff_same.
+      rewrite update_empty_2.
+      eapply Disjoint_diff_no_effect.
+      eapply foreign_imports_Disjoint_total_impls; eauto.
+    Qed.
+
+    Definition impls := LinkModuleImplsMake.m modules IsGoodOptimizer.
+
+    Definition stubs := StubsMake.m modules imports.
+
+    Definition output := link impls stubs.
+
+    (* Interface *)
+
+    Theorem output_ok : moduleOk output.
+      unfold output.
+      eapply linkOk.
+      eapply LinkModuleImplsMake.module_ok; eauto.
+      eapply StubsMake.module_ok; eauto.
+      eapply inter_is_empty_iff.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_module_names; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_module_names; eauto.
+      unfold module_names.
+      eapply Disjoint_MNames_impl_MNames.
+      eapply importsOk_Compat.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_imports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_exports; eauto.
+      eapply to_blm_Compat.
+      symmetry.
+      eapply Compat_empty.
+      eapply importsOk_Compat.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_exports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_imports; eauto.
+      eapply to_blm_Compat.
+      eapply final_imports_Compat_total_exports.
+      eapply importsOk_Compat.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_imports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_imports; eauto.
+      eapply to_blm_Compat.
+      symmetry.
+      eapply Compat_empty.
+    Qed.
+
+    Theorem output_imports : Imports output === foreign_imports imports.
+      simpl.
+      rewrite XCAP_union_update.
+      repeat rewrite XCAP_diff_diff.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_imports; eauto.
+      rewrite LinkModuleImplsMake.module_exports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_imports; eauto.
+      rewrite StubsMake.module_exports; eauto.
+      repeat rewrite <- to_blm_diff.
+      rewrite <- to_blm_update.
+      eapply to_blm_Equal.
+      change ConvertLabelMap.LMF.P.update with update in *.
+      change ConvertLabelMap.LMF.P.diff with diff in *.
+      repeat rewrite empty_diff.
+      rewrite update_empty_2.
+      eapply final_imports_diff_total_exports.
+    Qed.
+
+    Theorem output_exports : Exports output === total_exports modules imports + LinkModuleImplsMake.total_exports modules.
+      simpl.
+      rewrite XCAP_union_update.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_exports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_exports; eauto.
+      rewrite <- to_blm_update.
+      eapply to_blm_Equal.
+      eauto.
+    Qed.
+
+    Theorem output_module_names : SS.Equal (Modules output) (union (to_set (List.map impl_MName modules)) (to_set (List.map MName modules))).
+      simpl.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_module_names; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_module_names; eauto.
+    Qed.
+
+  End TopSection.
+
+End Make.

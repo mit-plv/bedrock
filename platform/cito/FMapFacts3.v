@@ -331,6 +331,17 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply NoDupKey_unapp2; eauto.
       Qed.
 
+      Lemma update_all_elim : forall ms k v, MapsTo k v (update_all ms) -> exists m, List.In m ms /\ MapsTo k v m.
+        induction ms; simpl; intros.
+        rewrite update_all_nil in H.
+        eapply empty_mapsto_iff in H; intuition.
+        rewrite update_all_cons in H.
+        eapply update_mapsto_iff in H; openhyp.
+        eapply IHms in H; openhyp.
+        eexists; split; eauto.
+        eexists; split; eauto.
+      Qed.
+
       (* diff *)
 
       Lemma diff_empty : forall m, diff m {} == m.
@@ -342,6 +353,14 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply find_1.
         eapply diff_mapsto_iff; split; eauto.
         intuition; eapply empty_in_iff; eauto.
+      Qed.
+
+      Lemma empty_diff : forall m, {} - m == {}.
+        unfold Equal; intros.
+        eapply option_univalence; split; intros.
+        eapply find_2 in H; eapply diff_mapsto_iff in H; openhyp.
+        eapply empty_mapsto_iff in H; intuition.
+        eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
       Qed.
 
       Lemma diff_update : forall m1 m2 m3, m1 - (m2 + m3) == m1 - m2 - m3.
@@ -443,15 +462,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply update_in_iff in H2; intuition.
       Qed.
 
-      Lemma Compat_update_all : forall ms m, List.Forall (Compat m) ms -> Compat m (update_all ms).
-        induction ms; simpl; intros.
-        unfold update_all; simpl.
-        eapply Compat_empty.
-        rewrite update_all_cons.
-        inversion H; subst.
-        eapply Compat_update; eauto.
-      Qed.
-
       Lemma Compat_update_sym : forall m1 m2, Compat m1 m2 -> m1 + m2 == m2 + m1.
         unfold Compat; intros.
         unfold Equal; intros.
@@ -470,8 +480,68 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         repeat rewrite not_in_find; eauto.
       Qed.
 
-      Lemma Disjoint_Compat : forall m1 m2, Disjoint m1 m2 -> Compat m1 m2.
-        unfold Disjoint, Compat; intros; firstorder.
+      Lemma Compat_update_all : forall ms m, List.Forall (Compat m) ms -> Compat m (update_all ms).
+        induction ms; simpl; intros.
+        unfold update_all; simpl.
+        eapply Compat_empty.
+        rewrite update_all_cons.
+        inversion H; subst.
+        eapply Compat_update; eauto.
+      Qed.
+
+      Lemma Compat_add_not_In : forall k v m1 m2, Compat (add k v m1) m2 -> ~ In k m1 -> Compat m1 m2.
+        intros.
+        unfold Compat in *.
+        intros.
+        erewrite <- H; eauto.
+        rewrite add_neq_o; eauto.
+        not_not.
+        subst; eauto.
+        eapply add_in_iff; eauto.
+      Qed.
+
+      Lemma Compat_eq : forall k v1 v2 m1 m2, Compat m1 m2 -> find k m1 = Some v1 -> find k m2 = Some v2 -> v1 = v2.
+        intros.
+        unfold Compat in *.
+        erewrite H in H0.
+        congruence.
+        eapply find_2 in H0.
+        eapply MapsTo_In; eauto.
+        eapply find_2 in H1.
+        eapply MapsTo_In; eauto.
+      Qed.
+
+      Lemma Compat_MapsTo : forall m1 m2, Compat m1 m2 -> forall k v1 v2, MapsTo k v1 m1 -> MapsTo k v2 m2 -> v1 = v2.
+        intros.
+        generalize H0; intro.
+        generalize H1; intro.
+        eapply find_1 in H0.
+        eapply find_1 in H1.
+        rewrite H in H0.
+        rewrite H0 in H1.
+        injection H1; intros; eauto.
+        eapply MapsTo_In; eauto.
+        eapply MapsTo_In; eauto.
+      Qed.
+
+      Definition AllCompat := ForallOrdPairs Compat.
+
+      Lemma update_all_intro : forall ms, AllCompat ms -> forall k v m, List.In m ms -> MapsTo k v m -> MapsTo k v (update_all ms).
+        induction 1; simpl; intros.
+        intuition.
+        openhyp.
+        subst.
+        rewrite update_all_cons.
+        destruct (In_dec (update_all l) k).
+        eapply In_MapsTo in i.
+        openhyp.
+        eapply Compat_update_all in H.
+        eapply Compat_MapsTo in H; eauto.
+        subst.
+        eapply update_mapsto_iff; eauto.
+        eapply update_mapsto_iff; eauto.
+        rewrite update_all_cons.
+        eapply update_mapsto_iff; eauto.
       Qed.
 
       (* Disjoint *)
@@ -479,6 +549,10 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       Add Parametric Relation : (t elt) (@Disjoint elt)
           symmetry proved by (@Disjoint_sym elt)
             as Disjoint_m.
+
+      Lemma Disjoint_Compat : forall m1 m2, Disjoint m1 m2 -> Compat m1 m2.
+        unfold Disjoint, Compat; intros; firstorder.
+      Qed.
 
       Lemma Disjoint_empty : forall m, Disjoint m {}.
         unfold Disjoint; intros.
@@ -508,6 +582,26 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         unfold Disjoint; intros.
         intuition.
         eapply diff_in_iff in H0; firstorder.
+      Qed.
+
+      Lemma Disjoint_diff_no_effect : forall m1 m2, Disjoint m1 m2 -> m1 - m2 == m1.
+        unfold Equal; intros.
+        eapply option_univalence; split; intros.
+        eapply find_2 in H0; eapply diff_mapsto_iff in H0; openhyp.
+        eapply find_1; eauto.
+        eapply find_2 in H0.
+        eapply find_1; eapply diff_mapsto_iff; split; eauto.
+        intuition; eapply H; split; eauto.
+        eapply MapsTo_In; eauto.
+      Qed.
+
+      Lemma Disjoint_update_all : forall ms m, List.Forall (Disjoint m) ms -> Disjoint m (update_all ms).
+        induction ms; simpl; intros.
+        unfold update_all; simpl.
+        eapply Disjoint_empty.
+        rewrite update_all_cons.
+        inversion H; subst.
+        eapply Disjoint_update; eauto.
       Qed.
 
       (* map *)
@@ -584,92 +678,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         rewrite <- IHls.
         destruct a; simpl in *.
         eapply map_add.
-      Qed.
-
-      Lemma Disjoint_update_all : forall ms m, List.Forall (Disjoint m) ms -> Disjoint m (update_all ms).
-        induction ms; simpl; intros.
-        unfold update_all; simpl.
-        eapply Disjoint_empty.
-        rewrite update_all_cons.
-        inversion H; subst.
-        eapply Disjoint_update; eauto.
-      Qed.
-
-      Lemma Disjoint_diff_no_effect : forall m1 m2, Disjoint m1 m2 -> m1 - m2 == m1.
-        unfold Equal; intros.
-        eapply option_univalence; split; intros.
-        eapply find_2 in H0; eapply diff_mapsto_iff in H0; openhyp.
-        eapply find_1; eauto.
-        eapply find_2 in H0.
-        eapply find_1; eapply diff_mapsto_iff; split; eauto.
-        intuition; eapply H; split; eauto.
-        eapply MapsTo_In; eauto.
-      Qed.
-
-      Lemma update_all_elim : forall ms k v, MapsTo k v (update_all ms) -> exists m, List.In m ms /\ MapsTo k v m.
-        induction ms; simpl; intros.
-        rewrite update_all_nil in H.
-        eapply empty_mapsto_iff in H; intuition.
-        rewrite update_all_cons in H.
-        eapply update_mapsto_iff in H; openhyp.
-        eapply IHms in H; openhyp.
-        eexists; split; eauto.
-        eexists; split; eauto.
-      Qed.
-
-      Definition AllCompat := ForallOrdPairs Compat.
-
-      Lemma Compat_MapsTo : forall m1 m2, Compat m1 m2 -> forall k v1 v2, MapsTo k v1 m1 -> MapsTo k v2 m2 -> v1 = v2.
-        intros.
-        generalize H0; intro.
-        generalize H1; intro.
-        eapply find_1 in H0.
-        eapply find_1 in H1.
-        rewrite H in H0.
-        rewrite H0 in H1.
-        injection H1; intros; eauto.
-        eapply MapsTo_In; eauto.
-        eapply MapsTo_In; eauto.
-      Qed.
-
-      Lemma update_all_intro : forall ms, AllCompat ms -> forall k v m, List.In m ms -> MapsTo k v m -> MapsTo k v (update_all ms).
-        induction 1; simpl; intros.
-        intuition.
-        openhyp.
-        subst.
-        rewrite update_all_cons.
-        destruct (In_dec (update_all l) k).
-        eapply In_MapsTo in i.
-        openhyp.
-        eapply Compat_update_all in H.
-        eapply Compat_MapsTo in H; eauto.
-        subst.
-        eapply update_mapsto_iff; eauto.
-        eapply update_mapsto_iff; eauto.
-        rewrite update_all_cons.
-        eapply update_mapsto_iff; eauto.
-      Qed.
-
-      Lemma Compat_add_not_In : forall k v m1 m2, Compat (add k v m1) m2 -> ~ In k m1 -> Compat m1 m2.
-        intros.
-        unfold Compat in *.
-        intros.
-        erewrite <- H; eauto.
-        rewrite add_neq_o; eauto.
-        not_not.
-        subst; eauto.
-        eapply add_in_iff; eauto.
-      Qed.
-
-      Lemma Compat_eq : forall k v1 v2 m1 m2, Compat m1 m2 -> find k m1 = Some v1 -> find k m2 = Some v2 -> v1 = v2.
-        intros.
-        unfold Compat in *.
-        erewrite H in H0.
-        congruence.
-        eapply find_2 in H0.
-        eapply MapsTo_In; eauto.
-        eapply find_2 in H1.
-        eapply MapsTo_In; eauto.
       Qed.
 
     End Elt.

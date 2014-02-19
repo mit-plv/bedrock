@@ -199,14 +199,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
     Qed.
 
-    Lemma empty_diff : forall elt (m : t elt), {} - m == {}.
-      unfold Equal; intros.
-      eapply option_univalence; split; intros.
-      eapply find_2 in H; eapply diff_mapsto_iff in H; openhyp.
-      eapply empty_mapsto_iff in H; intuition.
-      eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
-    Qed.
-
     Lemma NoDup_MName_NoDup_impl_Name : forall ms, List.NoDup (List.map MName ms) -> List.NoDup (List.map impl_MName modules).
       intros.
       unfold impl_MName.
@@ -346,7 +338,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Theorem module_exports : Exports m === update_all (List.map get_module_Exports modules).
+    Definition total_exports := update_all (List.map get_module_Exports modules).
+
+    Theorem module_exports : Exports m === total_exports.
       edestruct link_all_ok; eauto.
       intuition.
       eapply NoDup_MName_NoDup_impl_Name; eauto.
