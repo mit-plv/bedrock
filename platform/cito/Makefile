@@ -44,6 +44,7 @@ MODULES := \
 	ListFacts3 \
 	Stubs \
 	LinkModuleImpls \
+	Link \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
