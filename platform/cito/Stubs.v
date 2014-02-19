@@ -550,10 +550,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_exports_total_exports; eauto.
     Qed.
 
-    Lemma Disjoint_update_all : forall elt ms m, List.Forall (@Disjoint elt m) ms -> Disjoint m (update_all ms).
-      admit.
-    Qed.
-
     Lemma Disjoint_many_exports_foreign_imports : forall ms, incl ms modules -> Disjoint (update_all (List.map get_module_Exports ms)) foreign_imports.
       intros.
       symmetry.
@@ -743,8 +739,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_impl_imports_impl_imports; eauto.
     Qed.
 
-    (* main lemmas *)
-
     Lemma compat_imports_exports : forall ms m, incl (m :: ms) modules -> List.NoDup (List.map MName (m :: ms)) -> Compat (get_module_Imports m) (update_all (List.map get_module_Exports ms)).
       intros.
       unfold get_module_Imports.
@@ -835,26 +829,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition final_imports := foreign_imports + total_impls.
 
-    (* Definition total_imports := total_exports + final_imports. *)
-
     Lemma not_nil_cons : forall A ls, ls <> @nil A -> exists x xs, ls = x :: xs.
       destruct ls; intuition eauto.
-    Qed.
-
-    Lemma Disjoint_diff_no_effect : forall elt m1 m2, @Disjoint elt m1 m2 -> m1 - m2 == m1.
-      admit.
-    Qed.
-
-    Definition Uncompat elt m1 m2 := ~@Compat elt m1 m2.
-
-    Definition AllCompat elt := NoDupA (@Uncompat elt).
-
-    Lemma update_all_elim : forall elt k v ms, @MapsTo elt k v (update_all ms) -> exists m, List.In m ms /\ MapsTo k v m.
-      admit.
-    Qed.
-
-    Lemma update_all_intro : forall elt ms, @AllCompat elt ms -> forall k v m, List.In m ms -> MapsTo k v m -> MapsTo k v (update_all ms).
-      admit.
     Qed.
 
     Lemma foreign_imports_Disjoint_total_impls : Disjoint foreign_imports total_impls.
@@ -869,17 +845,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Disjoint_impl_imports_foreign_imports; eauto.
     Qed.
 
-    Lemma not_InA_Uncompat : forall elt ms m, List.Forall (Compat m) ms -> ~ InA (@Uncompat elt) m ms.
-      induction 1; simpl; intros.
-      nintro.
-      eapply InA_nil in H; intuition.
-      not_not.
-      inversion H1; subst.
-      unfold Uncompat in *.
-      intuition.
-      eauto.
-    Qed.
-
     Lemma neq_sym : forall A (a b : A), a <> b -> b <> a.
       intuition.
     Qed.
@@ -888,7 +853,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       induction ms; simpl; intros.
       econstructor.
       econstructor.
-      eapply not_InA_Uncompat.
       eapply Forall_forall.
       intros.
       eapply in_map_iff in H1; openhyp; subst.
@@ -913,7 +877,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       induction ms; simpl; intros.
       econstructor.
       econstructor.
-      eapply not_InA_Uncompat.
       eapply Forall_forall.
       intros.
       eapply in_map_iff in H1; openhyp; subst.
@@ -960,9 +923,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply in_map; eauto.
       eapply update_mapsto_iff in H.
       openhyp.
-      (*        Lemma Compat_update_mapsto_iff : forall elt m1 m2, @Compat elt m1 m2 -> forall k v, MapsTo k v (m1 + m2) <-> MapsTo k v m1 \/ MapsTo k v m2.
-          admit.
-        Qed.*)
       eapply find_1.
       eapply update_mapsto_iff.
       right.
@@ -1060,16 +1020,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
       destruct ms; simpl in *.
 
-(*      vcgen.
-      symmetry; eapply of_list_singleton.
-      unfold update_all; simpl.
-      eapply to_blm_empty.
-      rewrite importsMap_of_list.
-      rewrite of_list_empty.
-      eapply to_blm_Equal.
-      reflexivity.
-      eauto.*)
-
       descend.
       eapply make_module_ok; eauto.
       intuition.
@@ -1120,24 +1070,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H4.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
-(*      rewrite update_all_cons.
-      eapply Compat_update.
-      symmetry.
-      eapply Compat_exports_imports.
-      intuition.
-      intuition.
-      eapply neq_sym.
-      eapply NoDup_cons_cons; eauto.*)
       eapply compat_imports_exports with (ms := g :: ms); eauto.
-(*      incl_tran_cons.
-      simpl.
-      Lemma NoDup_cons_cons_remove : forall A (a b : A) ls, List.NoDup (a :: b :: ls) -> List.NoDup (a :: ls).
-        intros.
-        inversion H; subst.
-        inversion H3; subst.
-        econstructor; intuition.
-      Qed.
-      eapply NoDup_cons_cons_remove; eauto.*)
       eapply importsOk_Compat.
       rewrite H5.
       rewrite make_module_Exports by intuition.
