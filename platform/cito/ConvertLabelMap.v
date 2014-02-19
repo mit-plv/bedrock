@@ -115,6 +115,12 @@ Section TopSection.
     eapply NoDupKey_to_bl_pair_elements.
   Qed.
 
+  Lemma to_blm_local_not_in : forall elt s1 s2 m, ~ @BLM.In elt (s1, Labels.Local s2) (to_blm m).
+    intros.
+    eapply BLMF.P.F.not_find_in_iff.
+    rewrite to_blm_no_local; eauto.
+  Qed.
+
   Lemma to_blm_Equal : forall elt m1 m2, @BLM.Equal elt (to_blm m1) (to_blm m2) <-> m1 == m2.
     unfold Equal, BLM.Equal.
     intuition.
@@ -174,19 +180,93 @@ Section TopSection.
     intuition.
   Qed.
 
+  Require Import GeneralTactics2.
+
   Lemma to_blm_update : forall elt m1 m2, @BLM.Equal elt (to_blm (update m1 m2)) (BLMF.P.update (to_blm m1) (to_blm m2)).
     unfold Equal, BLM.Equal.
     intros.
-    (*here*)
-    admit.
+    destruct y.
+    destruct l; simpl.
+    replace ((s, Labels.Global s0)) with (to_bedrock_label (s, s0)) by eauto.
+    repeat erewrite to_blm_spec.
+    destruct (In_dec m2 (s, s0)).
+    rewrite update_o_2 by eauto.
+    rewrite BLMFU3.update_o_2.
+    repeat erewrite to_blm_spec.
+    eauto.
+    eapply to_blm_In; eauto.
+    rewrite update_o_1 by eauto.
+    rewrite BLMFU3.update_o_1.
+    repeat erewrite to_blm_spec.
+    eauto.
+    not_not.
+    eapply to_blm_In; eauto.
+    repeat rewrite to_blm_no_local.
+    symmetry.
+    eapply BLMFU3.not_in_find.
+    intuition.
+    eapply BLMF.P.update_in_iff in H.
+    openhyp.
+    eapply to_blm_local_not_in; eauto.
+    eapply to_blm_local_not_in; eauto.
   Qed.
 
   Lemma to_blm_diff : forall elt m1 m2, @BLM.Equal elt (to_blm (diff m1 m2)) (BLMF.P.diff (to_blm m1) (to_blm m2)).
-    admit.
+    unfold Equal, BLM.Equal.
+    intros.
+    destruct y.
+    destruct l; simpl.
+    replace ((s, Labels.Global s0)) with (to_bedrock_label (s, s0)) by eauto.
+    repeat erewrite to_blm_spec.
+    destruct (In_dec m2 (s, s0)).
+    rewrite diff_o_none by eauto.
+    rewrite BLMFU3.diff_o_none.
+    eauto.
+    eapply to_blm_In; eauto.
+    rewrite diff_o by eauto.
+    rewrite BLMFU3.diff_o.
+    repeat erewrite to_blm_spec.
+    eauto.
+    not_not.
+    eapply to_blm_In; eauto.
+    repeat rewrite to_blm_no_local.
+    symmetry.
+    eapply BLMFU3.not_in_find.
+    intuition.
+    eapply BLMF.P.diff_in_iff in H.
+    openhyp.
+    eapply to_blm_local_not_in; eauto.
   Qed.
 
   Lemma to_blm_add : forall elt (k : label) v m, @BLM.Equal elt (to_blm (add k v m)) (BLM.add (k : Labels.label) v (to_blm m)).
-    admit.
+    unfold Equal, BLM.Equal.
+    intros.
+    destruct y.
+    destruct l; simpl.
+    replace ((s, Labels.Global s0)) with (to_bedrock_label (s, s0)) by eauto.
+    repeat erewrite to_blm_spec.
+    rewrite add_o.
+    destruct (eq_dec k (s, s0)).
+    subst.
+    symmetry.
+    rewrite BLMF.P.F.add_eq_o; eauto.
+    rewrite BLMF.P.F.add_neq_o.
+    repeat erewrite to_blm_spec; eauto.
+    not_not.
+    unfold to_bedrock_label in *.
+    destruct k; simpl in *.
+    injection H; intros; subst.
+    eauto.
+    repeat rewrite to_blm_no_local.
+    symmetry.
+    eapply BLMFU3.not_in_find.
+    intuition.
+    eapply BLMF.P.F.add_in_iff in H.
+    unfold to_bedrock_label in *.
+    destruct k; simpl in *.
+    openhyp.
+    discriminate.
+    eapply to_blm_local_not_in; eauto.
   Qed.
 
 End TopSection.
