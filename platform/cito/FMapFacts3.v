@@ -650,6 +650,28 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply update_mapsto_iff; eauto.
       Qed.
 
+      Lemma Compat_add_not_In : forall k v m1 m2, Compat (add k v m1) m2 -> ~ In k m1 -> Compat m1 m2.
+        intros.
+        unfold Compat in *.
+        intros.
+        erewrite <- H; eauto.
+        rewrite add_neq_o; eauto.
+        not_not.
+        subst; eauto.
+        eapply add_in_iff; eauto.
+      Qed.
+
+      Lemma Compat_eq : forall k v1 v2 m1 m2, Compat m1 m2 -> find k m1 = Some v1 -> find k m2 = Some v2 -> v1 = v2.
+        intros.
+        unfold Compat in *.
+        erewrite H in H0.
+        congruence.
+        eapply find_2 in H0.
+        eapply MapsTo_In; eauto.
+        eapply find_2 in H1.
+        eapply MapsTo_In; eauto.
+      Qed.
+
     End Elt.
 
     Lemma map_update_all_comm : forall elt B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
