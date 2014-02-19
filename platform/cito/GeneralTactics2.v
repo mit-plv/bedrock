@@ -5,3 +5,5 @@ Ltac not_not :=
     | H : ~ _ |- ~ _ => unfold not; intro; contradict H
   end.
 
+Ltac nintro := unfold not; intros.
+
