@@ -363,6 +363,14 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
       Qed.
 
+      Lemma diff_same : forall m, m - m == {}.
+        unfold Equal; intros.
+        eapply option_univalence; split; intros.
+        eapply find_2 in H; eapply diff_mapsto_iff in H; openhyp.
+        eapply MapsTo_In in H; intuition.
+        eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
+      Qed.
+
       Lemma diff_update : forall m1 m2 m3, m1 - (m2 + m3) == m1 - m2 - m3.
         unfold Equal; intros.
         eapply option_univalence; split; intros.
