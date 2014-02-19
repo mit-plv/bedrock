@@ -43,6 +43,7 @@ MODULES := \
 	FSetFacts1 FMapFacts3 ConvertLabelMap \
 	ListFacts3 \
 	Stubs \
+	LinkModuleImpls \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)

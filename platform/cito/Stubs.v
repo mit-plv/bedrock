@@ -1,14 +1,5 @@
 Set Implicit Arguments.
 
-Require Import List.
-
-Fixpoint fold_right_2 A (f : A -> A -> A) def ls := 
-  match ls with
-    | nil => def
-    | x :: nil => x
-    | x :: xs => f x (fold_right_2 f def xs)
-  end.
-    
 Require Import ADT.
 Require Import RepInv.
 
