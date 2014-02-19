@@ -384,6 +384,14 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply find_1; eapply diff_mapsto_iff; split; eauto.
       Qed.
 
+      Lemma diff_o_none : forall k m1 m2, In k m2 -> find k (m1 - m2) = None.
+        intros.
+        eapply not_in_find.
+        intuition.
+        eapply diff_in_iff in H0.
+        intuition.
+      Qed.
+
       (* Compat *)
 
       Definition Compat m1 m2 := forall k, In k m1 -> In k m2 -> find k m1 = find k m2.
