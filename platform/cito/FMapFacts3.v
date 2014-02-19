@@ -586,6 +586,70 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply map_add.
       Qed.
 
+      Lemma Disjoint_update_all : forall ms m, List.Forall (Disjoint m) ms -> Disjoint m (update_all ms).
+        induction ms; simpl; intros.
+        unfold update_all; simpl.
+        eapply Disjoint_empty.
+        rewrite update_all_cons.
+        inversion H; subst.
+        eapply Disjoint_update; eauto.
+      Qed.
+
+      Lemma Disjoint_diff_no_effect : forall m1 m2, Disjoint m1 m2 -> m1 - m2 == m1.
+        unfold Equal; intros.
+        eapply option_univalence; split; intros.
+        eapply find_2 in H0; eapply diff_mapsto_iff in H0; openhyp.
+        eapply find_1; eauto.
+        eapply find_2 in H0.
+        eapply find_1; eapply diff_mapsto_iff; split; eauto.
+        intuition; eapply H; split; eauto.
+        eapply MapsTo_In; eauto.
+      Qed.
+
+      Lemma update_all_elim : forall ms k v, MapsTo k v (update_all ms) -> exists m, List.In m ms /\ MapsTo k v m.
+        induction ms; simpl; intros.
+        rewrite update_all_nil in H.
+        eapply empty_mapsto_iff in H; intuition.
+        rewrite update_all_cons in H.
+        eapply update_mapsto_iff in H; openhyp.
+        eapply IHms in H; openhyp.
+        eexists; split; eauto.
+        eexists; split; eauto.
+      Qed.
+
+      Definition AllCompat := ForallOrdPairs Compat.
+
+      Lemma Compat_MapsTo : forall m1 m2, Compat m1 m2 -> forall k v1 v2, MapsTo k v1 m1 -> MapsTo k v2 m2 -> v1 = v2.
+        intros.
+        generalize H0; intro.
+        generalize H1; intro.
+        eapply find_1 in H0.
+        eapply find_1 in H1.
+        rewrite H in H0.
+        rewrite H0 in H1.
+        injection H1; intros; eauto.
+        eapply MapsTo_In; eauto.
+        eapply MapsTo_In; eauto.
+      Qed.
+
+      Lemma update_all_intro : forall ms, AllCompat ms -> forall k v m, List.In m ms -> MapsTo k v m -> MapsTo k v (update_all ms).
+        induction 1; simpl; intros.
+        intuition.
+        openhyp.
+        subst.
+        rewrite update_all_cons.
+        destruct (In_dec (update_all l) k).
+        eapply In_MapsTo in i.
+        openhyp.
+        eapply Compat_update_all in H.
+        eapply Compat_MapsTo in H; eauto.
+        subst.
+        eapply update_mapsto_iff; eauto.
+        eapply update_mapsto_iff; eauto.
+        rewrite update_all_cons.
+        eapply update_mapsto_iff; eauto.
+      Qed.
+
     End Elt.
 
     Lemma map_update_all_comm : forall elt B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
