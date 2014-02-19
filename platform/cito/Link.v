@@ -113,14 +113,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Lemma diff_same : forall elt (m : t elt), m - m == {}.
-      unfold Equal; intros.
-      eapply option_univalence; split; intros.
-      eapply find_2 in H; eapply diff_mapsto_iff in H; openhyp.
-      eapply MapsTo_In in H; intuition.
-      eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
-    Qed.
-
     Lemma Disjoint_MNames_impl_MNames : SSUF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
       unfold SSUF.Disjoint.
       intros.
