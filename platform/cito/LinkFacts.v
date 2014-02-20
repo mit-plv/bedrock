@@ -109,22 +109,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Existing Instance Disjoint_m_Symmetric.
     Existing Instance BLMFU3.Compat_m_Proper.
 
+    Definition injective A B (f : A -> B) := forall x1 x2, f x1 = f x2 -> x1 = x2.
+
     Notation fs' := (fs modules imports).
 
     Lemma fs_Some : 
       forall stn p spec, 
-        fs' stn p = Some spec <-> 
-        exists lbl : label,
-          Labels stn lbl = Some p /\
-          ((exists ispec m f,
-              spec = Internal ispec /\
-              List.In m modules /\
-              List.In f (Functions m) /\
-              ispec = f /\ 
-              lbl = (MName m, FName f)) \/
-           (exists fspec,
-              spec = Foreign fspec /\
-              find lbl imports = Some fspec)).
+        injective (Labels stn) ->
+        (fs' stn p = Some spec <-> 
+         exists lbl : label,
+           Labels stn lbl = Some p /\
+           ((exists ispec m f,
+               spec = Internal ispec /\
+               List.In m modules /\
+               List.In f (Functions m) /\
+               ispec = f /\ 
+               lbl = (MName m, FName f)) \/
+            (exists fspec,
+               spec = Foreign fspec /\
+               find lbl imports = Some fspec))).
     Proof.
       split; intros.
       destruct spec0.
