@@ -32,7 +32,11 @@ Lemma wplus_wminus : forall (a b : W), a ^+ b ^- b = a.
 Qed.
 
 Lemma wordToNat_natToW_le : forall n, wordToNat (natToW n) <= n.
-  admit.
+  unfold natToW; intros.
+  edestruct wordToNat_natToWord as [ ? [ ] ].
+  rewrite H.
+  generalize dependent (x * pow2 32); intros.
+  omega.
 Qed.
 
 Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> a <= b.
