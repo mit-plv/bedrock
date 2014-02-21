@@ -61,7 +61,7 @@ Section TopLevel.
   Definition syn_req exprs base := 
     Subset (union_list (map free_vars exprs)) (to_set vars) /\
     base + depth <= temp_size /\
-    List.Forall (fun e => DepthExpr.depth e < depth) exprs.
+    List.Forall (fun e => DepthExpr.depth e <= depth) exprs.
 
   Definition verifCond base pre := imply pre new_pre :: syn_req exprs base :: nil.
 
