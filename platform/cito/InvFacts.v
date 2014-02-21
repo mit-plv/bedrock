@@ -10,19 +10,22 @@ Module Make (Import E : ADT).
   Import SemanticsMake.
 
   Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map (@Word _) (make_triples pairs outs) = map fst pairs.
-    admit.
+    induction pairs; destruct outs; simpl; intuition.
+    f_equal; auto.
   Qed.
 
   Lemma make_triples_Word_ADTIn : forall pairs outs, length outs = length pairs -> map (fun x => (Word x, ADTIn x)) (make_triples pairs outs) = pairs.
-    admit.
+    induction pairs; destruct outs; simpl; intuition.
+    f_equal; auto.
   Qed.
 
   Lemma make_triples_ADTIn : forall pairs outs, length outs = length pairs -> map (@ADTIn _) (make_triples pairs outs) = map snd pairs.
-    admit.
+    induction pairs; destruct outs; simpl; intuition.
+    f_equal; auto.
   Qed.
 
   Lemma make_triples_length : forall pairs outs, length outs = length pairs -> length (make_triples pairs outs) = length pairs.
-    admit.
+    induction pairs; destruct outs; simpl; intuition.
   Qed.
 
   Lemma heap_merge_store_out : 
