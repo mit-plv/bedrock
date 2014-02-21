@@ -5,24 +5,29 @@ Infix "+" := union : set_scope.
 Infix "<=" := Subset : set_scope.
 Local Open Scope set_scope.
 
+Ltac t := unfold Subset; intuition.
+
 Lemma subset_refl : forall s, s <= s.
-  admit.
+  t.
 Qed.
 
 Lemma union_subset : forall a b c, a <= c -> b <= c -> a + b <= c.
-  admit.
+  t.
+  apply StringFacts.union_iff in H1; intuition.
 Qed.
 
 Lemma subset_trans : forall a b c, a <= b -> b <= c -> a <= c.
-  admit.
+  t.
 Qed.
 
 Lemma subset_union_left : forall a b, a <= a + b.
-  admit.
+  t.
+  apply StringFacts.union_iff; auto.
 Qed.
 
 Lemma subset_union_right : forall a b, b <= a + b.
-  admit.
+  t.
+  apply StringFacts.union_iff; auto.
 Qed.
 
 Ltac subset_solver :=
