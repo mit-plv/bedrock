@@ -22,7 +22,10 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
     Notation eqk := (@eq_key elt).
     
     Lemma update_with_empty : forall m, update m (@empty _) = m.
-      admit.
+      unfold update; intros.
+      rewrite fold_1.
+      rewrite elements_empty.
+      reflexivity.
     Qed.
 
   End Elt.
