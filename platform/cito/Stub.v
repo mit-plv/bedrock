@@ -1106,24 +1106,43 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Require Import ListFacts3.
       Require Import Morphisms.
-(*here*)
-      Lemma Equal_get_module_Exports : forall m, map spec_without_funcs_ok_fs (of_list (get_module_exports m)) == get_module_Exports m.
+
+      Definition func_spec_IFS (lbl : label) (spec : InternalFuncSpec) := func_spec (snd lbl) spec.
+
+      Lemma Equal_get_module_Exports : forall m, mapi func_spec_IFS (of_list (get_module_exports m)) == get_module_Exports m.
         intros.
         unfold get_module_Exports.
         unfold to_map.
         unfold get_module_exports.
-        rewrite map_of_list.
+        Lemma mapi_of_list :
+          forall (elt B : Type) (f : Make.LM.key -> elt -> B) (ls : list (Make.LM.key * elt)),
+            Make.LM.mapi f (UWFacts.WFacts.P.of_list ls) ==
+            UWFacts.WFacts.P.of_list
+              (List.map (fun p : Make.LM.key * elt => (fst p, f (fst p) (snd p))) ls).
+          admit.
+        Qed.
+        rewrite mapi_of_list.
         rewrite map_map.
         simpl.
         reflexivity.
       Qed.
 
-      Lemma exports_Equal_total_exports : map spec_without_funcs_ok_fs exports == total_exports.
+      Lemma exports_Equal_total_exports : mapi func_spec_IFS exports == total_exports.
         unfold exports.
         unfold total_exports.
         unfold to_map.
-        rewrite app_all_update_all.
-        rewrite map_update_all_comm.
+        Require Import Setoid.
+        Add Parametric Morphism elt elt' : (@mapi elt elt')
+            with signature Logic.eq ==> Equal ==> Equal as mapi_m.
+          admit.
+        Qed.
+        setoid_rewrite app_all_update_all.
+        Lemma mapi_update_all_comm :
+forall (elt B : Type) (f : Make.LM.key -> elt -> B) (ms : list (Make.LM.t elt)),
+Make.LM.mapi f (update_all ms) == update_all (List.map (Make.LM.mapi f) ms).
+          admit.
+        Qed.
+        rewrite mapi_update_all_comm.
         rewrite map_map.
         rewrite map_map.
         eapply update_all_Equal.

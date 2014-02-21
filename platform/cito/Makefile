@@ -39,12 +39,12 @@ MODULES := \
 	GeneralTactics2 \
 	FMapFacts1 \
 	StructuredModuleFacts \
-	Stub \
 	FSetFacts1 FMapFacts3 ConvertLabelMap \
 	ListFacts3 \
-	Stubs \
 	LinkModuleImpls \
-	Link \
+	# Stub \
+	# Stubs \
+	# Link \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
