@@ -17,14 +17,20 @@ Module Make (Import E : ADT).
         lbls lbl = Some w ->
         RunsTo (lbls, fs) k (Locals.upd vs x w, h) v' ->
         RunsTo (lbls, fs) (Syntax.Label x lbl ;; k) (vs, h) v'.
-      admit.
+      intros.
+      econstructor.
+      econstructor; eauto.
+      eauto.
     Qed.
 
     Lemma RunsTo_Seq_Assign : 
       forall env x e k vs h v', 
         RunsTo env k (Locals.upd vs x (SemanticsExpr.eval vs e), h) v' ->
         RunsTo env (Syntax.Assign x e ;; k) (vs, h) v'.
-      admit.
+      intros.
+      econstructor.
+      econstructor; eauto.
+      eauto.
     Qed.
 
   End TopSection.
