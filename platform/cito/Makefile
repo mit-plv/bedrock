@@ -12,7 +12,7 @@ MODULES := \
 	DepthExpr Max Depth \
 	WellFormed \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	SetFacts SynReqFacts SemanticsFacts ListFacts WordFacts InvFacts FMapFacts2 \
+	SetFacts SynReqFactsUtil SynReqFacts SemanticsFacts ListFactsNew WordFacts InvFacts FMapFacts2 \
 	CompileStmtTactics \
 	SepHints SepHintsUtil SepHints2 SepHints3 SepHints4 \
 	LayoutHints LayoutHintsUtil LayoutHints2 LayoutHints3 \
@@ -34,7 +34,7 @@ MODULES := \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
-	NatFacts StringFacts \
+	NatFacts StringFacts2 \
 	ListFacts2 \
 	GeneralTactics2 \
 	FMapFacts1 \

@@ -40,7 +40,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Notations.
     Require Import SynReqFacts.
-    Require Import ListFacts.
+    Require Import ListFactsNew.
     Require Import StringSet.
     Import StringSet.
     Require Import SetFacts.
