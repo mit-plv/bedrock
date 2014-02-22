@@ -121,6 +121,24 @@ Section TopSection.
     rewrite to_blm_no_local; eauto.
   Qed.
 
+  Lemma to_blm_mapsto_iff : forall elt k (v : elt) m, BLM.MapsTo k v (to_blm m) <-> exists k' : label, MapsTo k' v m /\ k = (k' : Labels.label).
+    split; intros.
+    destruct k.
+    destruct l.
+    replace ((s, Labels.Global s0)) with (to_bedrock_label (s, s0)) in * by eauto.
+    eapply BLM.find_1 in H.
+    rewrite to_blm_spec in H.
+    eapply find_2 in H.
+    eexists; eauto.
+    eapply BLMF.MapsTo_In in H.
+    eapply to_blm_local_not_in in H; intuition.
+    openhyp.
+    subst.
+    eapply BLM.find_2.
+    rewrite to_blm_spec.
+    eapply find_1; eauto.
+  Qed.
+
   Lemma to_blm_Equal : forall elt m1 m2, @BLM.Equal elt (to_blm m1) (to_blm m2) <-> m1 == m2.
     unfold Equal, BLM.Equal.
     intuition.
