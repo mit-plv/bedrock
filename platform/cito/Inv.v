@@ -141,7 +141,7 @@ Module Make (Import E : ADT).
               [| RunsTo env s v v' /\
                  length temps' = temp_size /\
                  st'#Sp = st#Sp /\
-                 rv_postcond st'#Rv v' |]).
+                 rv_postcond st'#Rv (fst v') |]).
 
         Definition inv := inv_template (fun _ _ => True).
         

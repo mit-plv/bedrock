@@ -49,7 +49,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable s k : Stmt.
 
-    Variable rv_postcond : W -> State -> Prop.
+    Variable rv_postcond : W -> vals -> Prop.
 
     Definition precond := inv vars temp_size rv_postcond (Syntax.Seq s k).
 

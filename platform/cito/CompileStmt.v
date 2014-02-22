@@ -31,7 +31,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Syntax.
 
-    Variable rv_postcond : W -> State -> Prop.
+    Variable rv_postcond : W -> vals -> Prop.
 
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
