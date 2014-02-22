@@ -170,7 +170,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_exports_module_name in H2.
       eapply In_to_map in H3.
       unfold InKey in *.
-      unfold Func_to_import in *.
+      unfold Func_to_impl_import in *.
       rewrite map_map in H3.
       simpl in *.
       eapply in_map_iff in H3.
@@ -196,10 +196,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros.
       intuition.
       unfold StubMake.foreign_imports in *.
-      eapply map_4 in H2.
+      eapply mapi_in_iff with (m := imports) in H2.
       eapply In_to_map in H1.
       unfold InKey in *.
-      unfold Func_to_import in *.
+      unfold Func_to_impl_import in *.
       rewrite map_map in H1.
       simpl in *.
       eapply in_map_iff in H1.
@@ -226,7 +226,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_to_map in H.
       unfold InKey in *.
       rewrite map_map in H.
-      unfold Func_to_import in *.
+      unfold Func_to_impl_import in *.
       unfold impl_label in *.
       simpl in *.
       eapply in_map_iff in H.
