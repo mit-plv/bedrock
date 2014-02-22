@@ -90,7 +90,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         (Structured.If_ imports_global n Le Rv cmd
                         (Diverge_ imports module_name)).
 
-    Definition compile_stmt (s : Stmt) := CompileStmtMake.compile vars temp_size imports_global module_name (fun rv v => rv = sel (fst v) (RetVar func)) s Syntax.Skip.
+    Definition compile_stmt (s : Stmt) := CompileStmtMake.compile vars temp_size imports_global module_name (fun rv v => rv = sel v (RetVar func)) s Syntax.Skip.
 
     Definition len_local_vars := length local_vars.
 
