@@ -24,6 +24,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import Facts2 := WFacts_fun WordMap.W_as_OT WordMap.WordMap.
   Require Import InvFacts.
   Module Import InvFactsMake := Make E.
+  Module Inner := InvFactsMake.Make(M).
 
   Section TopSection.
 
@@ -42,7 +43,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Syntax.
     Require Import Wrap.
 
-    Variable rv_postcond : W -> State -> Prop.
+    Variable rv_postcond : W -> vals -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
@@ -933,7 +934,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eassumption.
       Unfocus.
 
-      assert (Hheap : is_heap h0 ===> is_heap x18) by admit.
+      Definition are_the_same h0 x18 := is_heap h0 ===> is_heap x18.
+      assert (Hheap : are_the_same h0 x18) by (apply Inner.is_heap_Equal; assumption).
       generalize Hheap; clear_all.
       intros; hiding ltac:(step auto_ext).
       hiding ltac:(step auto_ext).
@@ -941,9 +943,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       words.
       words.
       eauto.
-      (* Here we need to know that [rv_postcond] actually ignores the heap
-       * (which it does, in later instantiation). *)
-      admit.
       apply heap_upd_option_Equal.
       apply heap_merge_store_out; eauto.
 
@@ -978,7 +977,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* vc 11 *)
       eapply syn_req_Call_ret; eauto.
-
     Qed.
 
   End TopSection.

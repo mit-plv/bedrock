@@ -116,7 +116,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable temp_size : nat.
 
-    Variable rv_postcond : W -> State -> Prop.
+    Variable rv_postcond : W -> vals -> Prop.
 
     Definition loop_inv cond body k : assert := 
       let s := Syntax.Seq (Syntax.While cond body) k in
@@ -151,7 +151,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
              RunsTo env k v v' /\
              length temps' = temp_size /\
              st'#Sp = old_sp /\
-             rv_postcond st'#Rv v' |]).
+             rv_postcond st'#Rv (fst v') |]).
 
     Variable imports : LabelMap.t assert.
 
