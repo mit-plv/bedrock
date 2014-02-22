@@ -36,6 +36,22 @@ Section TopSection.
       rewrite e in H; eapply IHls in H; openhyp; eauto]).
   Qed.
 
+  Lemma find_spec_None : forall (f : t -> bool) ls, List.find f ls = None -> ~ exists a, List.In a ls /\ f a = true.
+    induction ls; simpl; intuition.
+    openhyp; intuition.
+    openhyp.
+    subst.
+    rewrite H1 in H.
+    intuition.
+    eapply IHls.
+    discriminate.
+    discriminate.
+    destruct (f a); intuition.
+    discriminate.
+    eapply H2.
+    eexists; split; eauto.
+  Qed.
+
   Lemma In_app_all_intro : forall lsls ls e, In e ls -> In ls lsls -> In e (app_all lsls).
     induction lsls; simpl; intros.
     eauto.
