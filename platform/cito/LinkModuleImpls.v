@@ -15,7 +15,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Wrap.
   Require Import GeneralTactics.
   Require Import GeneralTactics2.
-  Require Import StringFacts.
+  Require Import StringFacts2.
 
   Require Import CompileModule.
   Module Import CompileModuleMake := Make E M.

@@ -25,7 +25,7 @@ Section ExprComp.
 
   Require Import SemanticsExpr.
   Require Import DepthExpr.
-  Require Import ListFacts.
+  Require Import ListFactsNew.
 
   Local Open Scope nat.
 

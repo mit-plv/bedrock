@@ -954,7 +954,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Require Import StringFacts.
+      Require Import StringFacts2.
 
       Require Import NameVC.
 
