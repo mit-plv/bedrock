@@ -688,6 +688,153 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eapply map_add.
       Qed.
 
+      (* mapi *)
+
+      Add Parametric Morphism elt' : (@mapi elt elt')
+          with signature Logic.eq ==> Equal ==> Equal as mapi_m.
+        intros; subst; eauto.
+        unfold Equal; intros.
+        repeat rewrite mapi_o.
+        rewrite H; eauto.
+        intros; subst; eauto.
+        intros; subst; eauto.
+      Qed.
+
+      Lemma find_mapi :
+        forall B (f : _ -> _ -> B) k v m,
+          find k m = Some v ->
+          find k (mapi f m) = Some (f k v).
+        intros.
+        rewrite mapi_o.
+        rewrite H.
+        eauto.
+        intros; subst; eauto.
+      Qed.
+
+      Lemma mapi_empty : forall B (f : _ -> elt -> B), mapi f {} == {}.
+        unfold Equal; intros.
+        rewrite mapi_o.
+        repeat rewrite empty_o.
+        eauto.
+        intros.
+        subst.
+        eauto.
+      Qed.
+
+      Lemma mapi_add : forall B (f : _ -> _ -> B) k v m, mapi f (add k v m) == add k (f k v) (mapi f m).
+        unfold Equal; intros.
+        rewrite mapi_o.
+        repeat rewrite add_o.
+        destruct (eq_dec k y).
+        subst.
+        eauto.
+        rewrite mapi_o.
+        eauto.
+        intros; subst; eauto.
+        intros; subst; eauto.
+      Qed.
+
+      Lemma mapi_of_list : forall B (f : _ -> _ -> B) ls, mapi f (of_list ls) == of_list (List.map (fun p => (fst p, f (fst p) (snd p))) ls).
+        induction ls; simpl; intros.
+        eapply mapi_empty.
+        unfold uncurry; simpl in *.
+        rewrite <- IHls.
+        destruct a; simpl in *.
+        eapply mapi_add.
+      Qed.
+
+      Lemma mapi_update : forall B (f : _ -> _ -> B) m1 m2, mapi f (m1 + m2) == mapi f m1 + mapi f m2.
+        unfold Equal; intros.
+        eapply option_univalence.
+        split; intros.
+        eapply find_2 in H.
+        eapply mapi_mapsto_iff in H.
+        openhyp.
+        subst.
+        eapply update_mapsto_iff in H0.
+        openhyp.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        left.
+        eapply mapi_mapsto_iff.
+        intros; subst; eauto.
+        eexists; eauto.
+        eapply find_1.
+        eapply update_mapsto_iff.
+        right.
+        split.
+        eapply mapi_mapsto_iff.
+        intros; subst; eauto.
+        eexists; eauto.
+        not_not.
+        eapply mapi_in_iff; eauto.
+        intros; subst; eauto.
+
+        eapply find_2 in H.
+        eapply update_mapsto_iff in H.
+        openhyp.
+        eapply mapi_mapsto_iff in H.
+        openhyp.
+        subst.
+        eapply find_1.
+        eapply mapi_mapsto_iff.
+        intros; subst; eauto.
+        eexists; split; eauto.
+        eapply update_mapsto_iff.
+        eauto.
+        intros; subst; eauto.
+        eapply mapi_mapsto_iff in H.
+        openhyp.
+        subst.
+        eapply find_1.
+        eapply mapi_mapsto_iff.
+        intros; subst; eauto.
+        eexists; split; eauto.
+        eapply update_mapsto_iff.
+        right.
+        split; eauto.
+        not_not.
+        eapply mapi_in_iff; eauto.
+        intros; subst; eauto.
+      Qed.
+
+      Lemma NoDupKey_app_all_elim : forall lsls, NoDupKey (app_all lsls) -> forall ls, List.In ls lsls -> NoDupKey ls.
+        induction lsls; simpl; intuition.
+        subst.
+        eapply NoDupKey_unapp1; eauto.
+        eapply IHlsls; eauto.
+        eapply NoDupKey_unapp2; eauto.
+      Qed.
+
+      Lemma NoDupKey_app_all_AllCompat : forall lsls, NoDupKey (app_all lsls) -> AllCompat (List.map (@of_list _) lsls).
+        induction lsls; simpl; intuition.
+        econstructor.
+        econstructor.
+        eapply Forall_forall.
+        intros.
+        eapply in_map_iff in H0; openhyp; subst.
+        eapply Disjoint_Compat.
+        unfold Disjoint.
+        intros.
+        nintro.
+        openhyp.
+        eapply In_of_list in H0.
+        eapply In_of_list in H2.
+        generalize H; intros.
+        eapply NoDupKey_app_DisjointKey in H.
+        eapply H.
+        split; eauto.
+        unfold InKey in *.
+        rewrite map_app_all.
+        eapply In_app_all_intro; eauto.
+        eapply in_map; eauto.
+        eapply NoDupKey_unapp2 in H.
+        eapply NoDupKey_app_all_elim; eauto.
+        eapply NoDupKey_unapp1; eauto.
+        eapply IHlsls.
+        eapply NoDupKey_unapp2; eauto.
+      Qed.
+
     End Elt.
 
     Lemma map_update_all_comm : forall elt B (f : elt -> B) ms, map f (update_all ms) == update_all (List.map (map f) ms).
@@ -697,6 +844,19 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eauto.
       repeat rewrite update_all_cons.
       rewrite map_update.
+      rewrite IHms.
+      eauto.
+    Qed.
+
+    Existing Instance mapi_m_Proper.
+
+    Lemma mapi_update_all_comm : forall elt B (f : _ -> elt -> B) ms, mapi f (update_all ms) == update_all (List.map (mapi f) ms).
+      induction ms; simpl; intros.
+      repeat rewrite update_all_nil.
+      rewrite mapi_empty; eauto.
+      eauto.
+      repeat rewrite update_all_cons.
+      rewrite mapi_update.
       rewrite IHms.
       eauto.
     Qed.
