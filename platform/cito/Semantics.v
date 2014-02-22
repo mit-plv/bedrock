@@ -75,7 +75,7 @@ Section ADTValue.
       ADTOut : ArgOut
     }.
 
-  Fixpoint store_out (heap : Heap) t :=
+  Definition store_out (heap : Heap) t :=
     match ADTIn t, ADTOut t with 
       | inl _, _ => heap
       | inr _, None => WordMap.remove (Word t) heap

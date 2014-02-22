@@ -871,12 +871,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite fold_first in *.
       rewrite fold_second in *.
       simpl in *.
-      rewrite heap_merge_store_out in * by eauto.
 
       descend.
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H
       end.
+      eapply Safe_Equal; eauto.
       auto_apply.
       econstructor; simpl in *.
       eauto.
@@ -887,6 +887,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite make_triples_Word_ADTIn; eauto.
       rewrite make_triples_ADTIn; eauto.
       eauto.
+      eapply separated_Equal; eauto.
+      apply heap_merge_store_out; eauto.
+      apply heap_upd_option_Equal.
+      apply F.Equal_sym; apply heap_merge_store_out; eauto.
       eauto.
 
       unfold_all; repeat rewrite length_upd_sublist in *; eauto.
@@ -912,13 +916,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       descend.
       2 : words.
 
+      eapply RunsTo_Equal in H36.
+      simpl in H36; destruct H36; intuition idtac.
       econstructor.
-      2 : eauto.
-      match goal with
+      (*2 : eauto.*)
+      (*match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H
       end.
-      rewrite heap_merge_store_out in * by eauto.
-      econstructor; simpl in *.
+      rewrite heap_merge_store_out in * by eauto.*)
+      eapply RunsToCallForeign; simpl in *.
       eauto.
       match goal with
         | H : map _ _ = map _ _ |- _ => rewrite H
@@ -927,7 +933,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite make_triples_Word_ADTIn; eauto.
       rewrite make_triples_ADTIn; eauto.
       eauto.
-      eauto.
+      eapply separated_Equal; eauto.
+      apply heap_merge_store_out; eauto.
+      simpl.
+      match goal with
+        | H : Regs _ Rv = _ |- _ => rewrite H in H41
+      end.
+      Focus 2.
+      simpl.
+      apply heap_upd_option_Equal.
+      apply heap_merge_store_out; eauto.
+      admit.
 
       (* vc 9 *)
       post.
