@@ -904,26 +904,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl in *.
       hiding ltac:(step auto_ext).
       hiding ltac:(step auto_ext).
+      eapply RunsTo_Equal in H36.
+      simpl in H36; destruct H36; intuition idtac.
       hiding ltac:(step auto_ext).
-      instantiate (2 := (_, _)); simpl in *.
-      clear_all.
-
       hiding ltac:(step auto_ext).
 
+      Focus 2.
       rewrite fold_first in *.
       rewrite fold_second in *.
       simpl in *.
       descend.
-      2 : words.
-
-      eapply RunsTo_Equal in H36.
-      simpl in H36; destruct H36; intuition idtac.
       econstructor.
-      (*2 : eauto.*)
-      (*match goal with
-        | H : Regs _ Rv = _ |- _ => rewrite H
-      end.
-      rewrite heap_merge_store_out in * by eauto.*)
       eapply RunsToCallForeign; simpl in *.
       eauto.
       match goal with
@@ -939,11 +930,22 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H in H41
       end.
-      Focus 2.
-      simpl.
+      eassumption.
+      Unfocus.
+
+      assert (Hheap : is_heap h0 ===> is_heap x18) by admit.
+      generalize Hheap; clear_all.
+      intros; hiding ltac:(step auto_ext).
+      hiding ltac:(step auto_ext).
+
+      words.
+      words.
+      eauto.
+      (* Here we need to know that [rv_postcond] actually ignores the heap
+       * (which it does, in later instantiation). *)
+      admit.
       apply heap_upd_option_Equal.
       apply heap_merge_store_out; eauto.
-      admit.
 
       (* vc 9 *)
       post.
