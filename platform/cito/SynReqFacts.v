@@ -99,3 +99,10 @@ Qed.
 Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> goodSize (2 + length args).
   t.
 Qed.
+
+Require SetFacts.
+
+Lemma syn_req_Seq_Skip : forall vars temp_size s, syn_req vars temp_size s -> syn_req vars temp_size (s ;; skip).
+  t.
+  SetFacts.subset_solver; eauto.
+Qed.

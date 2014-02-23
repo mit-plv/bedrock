@@ -30,10 +30,16 @@ Lemma subset_union_right : forall a b, b <= a + b.
   apply StringFacts.union_iff; auto.
 Qed.
 
+Lemma empty_subset : forall s, empty <= s.
+  t.
+  eapply StringFacts.empty_iff in H; intuition.
+Qed.
+
 Ltac subset_solver :=
   repeat
     match goal with
       | |- ?A <= ?A => eapply subset_refl
+      | |- empty <= _ => eapply empty_subset
       | |- _ + _ <= _ => eapply union_subset
       | |- ?S <= ?A + _ =>
         match A with
