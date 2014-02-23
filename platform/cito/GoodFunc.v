@@ -13,10 +13,13 @@ Section TopSection.
   Require Import Depth.
 
   Definition GoodFunc f := 
+    let body := Body f in 
+    let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
+    let all_vars := ArgVars f ++ local_vars in
     NoDup (ArgVars f) /\ 
-    NoUninitialized (ArgVars f) (RetVar f) (Body f) /\
-    let s := Body f in 
-    CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
+    NoUninitialized (ArgVars f) (RetVar f) body /\
+    CompileStmtSpec.syn_req all_vars (depth body) body /\
+    goodSize (length local_vars + depth body).
 
   Hint Constructors NoDup.
 

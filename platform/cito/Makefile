@@ -45,6 +45,7 @@ MODULES := \
 	Stub \
 	Stubs \
 	Link \
+	optimizers/Identity \
 	examples/ExampleADT \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
