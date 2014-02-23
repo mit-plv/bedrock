@@ -45,6 +45,7 @@ MODULES := \
 	Stub \
 	Stubs \
 	Link \
+	examples/ExampleADT \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
