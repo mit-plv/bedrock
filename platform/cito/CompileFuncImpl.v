@@ -43,6 +43,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import StringSet.
   Require Import SepHints4.
   Require Import GeneralTactics.
+  Require Import SynReqFacts.
 
   Section TopSection.
 
@@ -394,6 +395,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(evaluate auto_ext).
 
       (* vc 4 *)
+      eapply syn_req_Seq_Skip.
       eapply GoodFunc_GoodOptimizer_syn_req; eauto.
 
       (* vc 5 *)

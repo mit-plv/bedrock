@@ -33,7 +33,7 @@ Module Make (Import E : ADT).
     forall f, 
       GoodFunc f -> 
       let s := opt (Body f) (RetVar f) in
-      CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) (s ;; skip).
+      CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
 
   Definition GoodOptimizer opt := 
     PreserveSafe opt /\ 
