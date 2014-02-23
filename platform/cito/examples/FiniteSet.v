@@ -45,22 +45,24 @@ Require Import Link.
 Module Import LinkMake := Make ExampleADT ExampleRepInv.
 
 Import StubsMake StubMake ConvertLabelMap GoodModule GoodOptimizer.
-Import ListNotations.
 
-Definition addS := foreign_func_spec_FFS ("fset", "add") addSpec.
+Definition addS := foreign_func_spec ("fset", "add") addSpec.
 
-Definition add : StructuredModule.function "fset" := ("add", addS, fun im im_g => Goto_ im_g "fset" ("fset_impl"!"add")%SP).
+
+
+Definition add_wrapper : StructuredModule.function "fset" := ("add", addS, fun im im_g => Goto_ im_g "fset" ("fset_impl"!"add")%SP).
 
 Require Import Malloc.
+Import ListNotations.
 
 Definition addS_impl := SPEC("extra_stack", "s", "a") reserving 0
   Al s,
   PRE[V] is_fset (V "s") s * mallocHeap 0
   POST[_] is_fset (V "s") (WordSet.add (V "a") s) * mallocHeap 0.
 
-Definition fset := StructuredModule.bmodule_ [ ("fset_impl"!"add" @ [addS_impl])%SPimps ] [add].
+Definition fset_wrapper := StructuredModule.bmodule_ [ ("fset_impl"!"add" @ [addS_impl])%SPimps ] [add_wrapper].
 
-Theorem fset_ok : moduleOk fset.
+Theorem fset_wrapper_ok : moduleOk fset_wrapper.
   vcgen.
   post.
   post.
@@ -75,3 +77,5 @@ bmodule "fset_impl" {{
     Return 0
   end
 }}.
+
+Definition fset := link fset_wrapper fset_impl.
