@@ -72,30 +72,50 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [newS]
     ffunction "SimpleCell_new" reserving 8 [SimpleCell_newSpec] := "SimpleCell"!"new"
   }}.
 
-Theorem ok : moduleOk m.
-  vcgen.
+Lemma pure_split : forall P Q R,
+  (forall specs sm m, interp specs (P sm m ---> [|Q|]))%PropX
+  -> P ===> R
+  -> P ===> [|Q|] * R.
+  intros; do 3 intro.
+  apply existsR with smem_emp.
+  apply existsR with m0.
+  apply andR.
+  apply injR.
+  apply split_a_semp_a.
+  apply andR.
+  eapply Imply_trans; [ apply H | ].
+  apply injL; propxFo.
+  reflexivity.
+  apply H0.
+Qed.
 
-  sep_auto.
+Lemma pure_extend : forall P Q R,
+  P ===> [|Q|] * any
+  -> [|Q|] * P ===> R
+  -> P ===> R.
+  intros; do 3 intro.
+  eapply Imply_trans; [ | apply H0 ].
+  apply pure_split; try apply Himp_refl; intros.
+  unfold Himp, himp, injB, inj in H.
+  eapply Imply_trans; [ apply H | ].
+  do 2 (apply existsL; intro).
+  repeat (apply andL || (apply injL; intro)).
+  apply Inj_I; auto.
+Qed.
 
-  Opaque mult.
+Definition map_fst A B := map (@fst A B).
 
-  Definition map_fst A B := map (@fst A B).
+Lemma make_map_fst : forall A B, map (@fst A B) = @map_fst A B.
+  auto.
+Qed.
 
-  Lemma make_map_fst : forall A B, map (@fst A B) = @map_fst A B.
-    auto.
-  Qed.
+Ltac fwrap := unfold CompileFuncSpecMake.InvMake2.is_state, Inv.has_extra_stack in *;
+  simpl in *; rewrite make_map_fst in *;
+    repeat match goal with
+             | [ H : context[map] |- _ ] => clear H
+           end.
 
-  Ltac fwrap := unfold CompileFuncSpecMake.InvMake2.is_state, Inv.has_extra_stack in *;
-    simpl in *; rewrite make_map_fst in *;
-      repeat match goal with
-               | [ H : context[map] |- _ ] => clear H
-             end.
-
-  post.
-  fwrap.
-  evaluate auto_ext.
-
-  post.
+Section scary.
   Import CompileFuncSpecMake.InvMake2 Inv Malloc CompileFuncSpecMake.InvMake SemanticsMake.
 
   Fixpoint zip_vals (args : list string) (pairs : list (W * ArgIn)) : vals :=
@@ -129,6 +149,8 @@ Theorem ok : moduleOk m.
 
   Hint Rewrite unzip using assumption : sepFormula.
 
+  Opaque mult.
+
   Theorem is_state_out : forall sp rp e_stack args pairs,
     NoDup args
     -> ~In "rp" args
@@ -136,7 +158,7 @@ Theorem ok : moduleOk m.
     -> length args = length pairs
     -> is_state sp rp e_stack e_stack nil (empty_vs, make_heap pairs) (map fst pairs)
     ===> Ex vs, locals ("rp" :: "extra_stack" :: args) vs (wordToNat (sel vs "extra_stack")) sp
-    * is_heap (make_heap pairs) * [| sel vs "extra_stack" = e_stack |].
+    * is_heap (make_heap pairs) * [| e_stack = wordToNat (sel vs "extra_stack") |].
     unfold is_state, locals, has_extra_stack; simpl.
     intros.
     apply Himp_ex_c.
@@ -151,8 +173,50 @@ Theorem ok : moduleOk m.
     simpl.
     generalize (map fst pairs); intro.
     unfold array at 1; simpl.
+    apply pure_extend with (goodSize e_stack).
+
+    Lemma zig : forall P Q R,
+      P ===> R * any
+      -> P * Q ===> R * any.
+      intros.
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].      
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      apply Himp_star_frame; try apply Himp_refl.
+      apply any_easy.
+    Qed.
+
+    Lemma zag : forall P Q R,
+      Q ===> R * any
+      -> P * Q ===> R * any.
+      intros.
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc' | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      apply Himp_star_frame; try apply Himp_refl.
+      apply any_easy.
+    Qed.
+
+    do 2 apply zag.
+    do 3 intro.
+    eapply existsR with smem_emp; apply existsR with m.
+    apply andR.
+    apply injR.
+    apply split_a_semp_a.
+    apply andR.
+    apply andR.
+    eapply Imply_trans; [ apply SepHints.behold_the_array_ls | ].
+    do 3 (apply existsL; intro).
+    repeat (apply andL || (apply injL; intro)).
+    rewrite <- H4.
+    apply containsArray_goodSizex'; eauto.
+    apply injR; reflexivity.
+    apply any_easy.
+    apply Himp_star_pure_c; intro; subst.
+
     sepLemma.
     repeat constructor; simpl; intuition.
+    symmetry; apply wordToNat_natToWord_idempotent; auto.
     etransitivity; [ apply himp_star_comm | ].
     apply himp_star_frame.
     etransitivity; [ | apply Arrays.ptsto32m'_in ].
@@ -166,56 +230,8 @@ Theorem ok : moduleOk m.
     auto.
     rewrite <- wplus_assoc.
     rewrite <- natToWord_plus.
-
-    Lemma pure_split : forall P Q R,
-      (forall specs sm m, interp specs (P sm m ---> [|Q|]))%PropX
-      -> P ===> R
-      -> P ===> [|Q|] * R.
-      intros; do 3 intro.
-      apply existsR with smem_emp.
-      apply existsR with m.
-      apply andR.
-      apply injR.
-      apply split_a_semp_a.
-      apply andR.
-      eapply Imply_trans; [ apply H | ].
-      apply injL; propxFo.
-      reflexivity.
-      apply H0.
-    Qed.
-
-    Lemma pure_extend : forall P Q R,
-      P ===> [|Q|] * any
-      -> [|Q|] * P ===> R
-      -> P ===> R.
-      intros; do 3 intro.
-      eapply Imply_trans; [ | apply H0 ].
-      apply pure_split; try apply Himp_refl; intros.
-      unfold Himp, himp, injB, inj in H.
-      eapply Imply_trans; [ apply H | ].
-      do 2 (apply existsL; intro).
-      repeat (apply andL || (apply injL; intro)).
-      apply Inj_I; auto.
-    Qed.
-
-    apply pure_extend with (goodSize e_stack).
-    eapply Himp_trans; [ apply SepHints.behold_the_array_ls | ].
-    apply Himp'_ex; intro.
-    apply Himp_star_pure_c; intro; subst.
-    do 3 intro.
-    eapply existsR with smem_emp; apply existsR with m.
-    apply andR.
-    apply injR.
-    apply split_a_semp_a.
-    apply andR.
-    apply andR.
-    apply containsArray_goodSizex'; eauto.
-    apply injR; reflexivity.
-    apply any_easy.
-
-    apply Himp_star_pure_c; intro; subst.
-    rewrite wordToNat_natToWord_idempotent by assumption.
-    apply Himp_refl.
+    rewrite wordToNat_natToWord_idempotent by auto.
+    sepLemma.
   Qed.
 
   Lemma locals_for_abort : forall res (k : nat) vars vs sp,
@@ -235,46 +251,143 @@ Theorem ok : moduleOk m.
     apply any_easy.
   Qed.
 
-  Theorem is_state_out_abort : forall sp rp e_stack args pairs (k : nat),
-    NoDup args
-    -> ~In "rp" args
-    -> ~In "extra_stack" args
-    -> length args = length pairs
-    -> natToW e_stack < natToW k
-    -> is_state sp rp e_stack e_stack nil (empty_vs, make_heap pairs) (map fst pairs)
-    ===> Ex vs, locals ("rp" :: nil) vs 0 sp * any.
-    intros.
-    eapply Himp_trans; [ apply is_state_out; eauto | ].
-    apply Himp'_ex; intro.
-    eapply Himp_trans; [ apply Himp_star_comm | ].
-    apply Himp_star_pure_c; intro.
-    rewrite H4.
-    eapply Himp_trans; [ apply Himp_star_frame; [ | apply Himp_refl ]; eapply locals_for_abort; eauto | ].
-    apply Himp_ex_c; eexists.
-    eapply Himp_trans; [ apply Himp_star_assoc | ].
-    apply Himp_star_frame; try apply Himp_refl.
-    apply any_easy.
+  Lemma locals_for_method : forall res (k : nat) vars vs sp,
+    natToW k <= res
+    -> goodSize k
+    -> locals vars vs (wordToNat res) sp
+    ===> locals vars vs k sp * (sp ^+ $((length vars + k) * 4)) =?> (wordToNat res - k).
+    unfold locals; simpl.
+    sepLemma.
+    etransitivity; [ eapply allocated_split | sepLemma ].
+    nomega.
+    eapply allocated_shift_base; auto.
+    rewrite <- wplus_assoc.
+    rewrite <- natToWord_plus.
+    replace (length vars * 4 + 4 * k) with ((length vars + k) * 4) by omega.
+    unfold natToW.
+    words.
   Qed.
 
+  Theorem is_state_in : forall vs sp args pairs e_stack,
+    length args = length pairs
+    -> locals ("rp" :: "extra_stack" :: args) vs e_stack sp
+      * is_heap (make_heap pairs)
+    ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack")) e_stack nil
+    (vs, make_heap pairs) (toArray args vs).
+    unfold is_state, locals, has_extra_stack; simpl.
+    intros.
+    change (vs "rp") with (sel vs "rp").
+    change (vs "extra_stack") with (sel vs "extra_stack").
+    replace (S (S (length args)) * 4) with (8 + 4 * length args) by omega.
+    rewrite natToWord_plus.
+    rewrite length_toArray.
+    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]);
+      apply Himp_star_frame; [ apply Himp_refl | apply Arrays.ptsto32m'_in ] | ].
+    simpl.
+    unfold array at 1; simpl.
+    sepLemma.
+    rewrite <- wplus_assoc.
+    rewrite <- natToWord_plus.    
+    unfold natToW; rewrite natToWord_wordToNat.
+    sepLemma.
+    etransitivity; [ apply ptsto32m'_out | ].
+    unfold array; etransitivity; [ apply ptsto32m_shift_base' | ].
+    instantiate (1 := 8); auto.
+    simpl.
+    change (4 * 0) with 0.
+    sepLemma.
+  Qed.
+
+  (*Theorem is_state_in : forall sp args pairs vs,
+    length args = length pairs
+    -> locals ("rp" :: "extra_stack" :: args) vs (wordToNat (sel vs "extra_stack")) sp
+      * is_heap (make_heap pairs)
+    ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack"))
+    (wordToNat (sel vs "extra_stack")) nil
+    (vs, make_heap pairs) (toArray args vs).
+    unfold is_state, locals, has_extra_stack; simpl.
+    intros.
+    change (vs "rp") with (sel vs "rp").
+    change (vs "extra_stack") with (sel vs "extra_stack").
+    replace (S (S (length args)) * 4) with (8 + 4 * length args) by omega.
+    rewrite natToWord_plus.
+    rewrite length_toArray.
+    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]);
+      apply Himp_star_frame; [ apply Himp_refl | apply Arrays.ptsto32m'_in ] | ].
+    simpl.
+    unfold array at 1; simpl.
+    sepLemma.
+    rewrite <- wplus_assoc.
+    rewrite <- natToWord_plus.    
+    unfold natToW; rewrite natToWord_wordToNat.
+    sepLemma.
+    etransitivity; [ apply ptsto32m'_out | ].
+    unfold array; etransitivity; [ apply ptsto32m_shift_base' | ].
+    instantiate (1 := 8); auto.
+    simpl.
+    change (4 * 0) with 0.
+    sepLemma.
+  Qed.*)
+End scary.
+
+Theorem ok : moduleOk m.
+  vcgen.
+
+  sep_auto.
+
   post.
-  eapply CompileExprs.change_hyp in H2.
-  Focus 2.
-  apply Himp_star_frame.
-  apply Himp_star_frame.
-  apply is_state_out.
-  instantiate (1 := nil).
-  auto.
-  simpl; tauto.
-  simpl; tauto.
-  destruct x0; auto; discriminate.
-  apply Himp_refl.
-  apply Himp_refl.
-  clear H5.
+  fwrap.
   evaluate auto_ext.
 
-  eapply CompileExprs.change_hyp in H7.
-  Focus 2.
-  do 3 (apply Himp_star_frame; [ apply Himp_refl | ]).
-  apply Himp_star_frame; [ eapply locals_for_abort; eassumption | apply Himp_refl ].
-  descend.
+  Ltac do_abort argNames :=
+    post; repeat match goal with
+                   | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
+                 end;
+    match goal with
+      | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+        do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; tauto) ]
+    end;
+    evaluate auto_ext;
+    match goal with
+      | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+        do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
+          apply Himp_star_frame; [ eapply locals_for_abort; eassumption | apply Himp_refl ] ]
+    end; descend; step auto_ext.
+
+  do_abort (@nil string).
+
+  post; repeat match goal with
+                 | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
+               end;
+  match goal with
+    | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+      do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
+        apply is_state_out; [ instantiate (1 := nil); auto | .. ]; (simpl; tauto) ]
+  end;
+  evaluate auto_ext;
+  match goal with
+    | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+      do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
+        apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
+  end; descend; step auto_ext.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply (@is_state_in x6); auto ] ].
+  2: instantiate (1 := nil); auto.
+  2: simpl; intuition; instantiate (1 := nil); auto.
+  simpl.
+  change (let (Regs, _) := x5 in Regs) with (Regs x5).
   step auto_ext.
+
+  Lemma extra_back_in : forall k sp res vars vs,
+    natToW k <= res
+    -> (sp ^+ natToW ((k + 2) * 4)) =?> (wordToNat res - k) * locals vars vs k sp
+    ===> locals vars vs (wordToNat res) sp.
+    unfold locals; sepLemma.
+    etransitivity; [ | eapply allocated_join ]; sepLemma.
+  Admitted.
+
+  apply (@extra_back_in 8); auto.
+Qed.
