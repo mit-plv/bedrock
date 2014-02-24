@@ -67,26 +67,19 @@ Module Make (Import E : ADT).
       t.
     Qed.
 
+    Lemma RunsTo_Seq_While_true : forall fs e s k v v', RunsTo fs (s ;; Syntax.While e s ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.While e s ;; k) v v'.
+      t.
+    Qed.
+
     Lemma Safe_Seq_While_true : forall fs e s k v, Safe fs (Syntax.While e s ;; k) v -> wneb (eval (fst v) e) $0 = true -> Safe fs (s ;; Syntax.While e s ;; k) v.
       intros.
       invert.
       inversion H1; clear H1; intros.
       subst loop0 loop1; subst.
-      invert.
-      eapply Safe_Seq_assoc.
       econstructor; eauto.
-    Qed.
-
-    Lemma RunsTo_Seq_While_true : forall fs e s k v v', RunsTo fs (s ;; Syntax.While e s ;; k) v v' -> wneb (eval (fst v) e) $0 = true -> RunsTo fs (Syntax.While e s ;; k) v v'.
       intros.
-      invert.
-      invert.
-      econstructor.
-      econstructor.
-      econstructor.
-      eauto.
       econstructor; eauto.
-      auto.
+      rewrite H5 in H0; intuition.
     Qed.
 
   End TopSection.
