@@ -65,16 +65,15 @@ Section TopSection.
   Definition Map := t W.
   Definition empty_set := SS.empty.
   Definition empty_map := empty W.
-  Notation "m %%+ p" := (add (fst p) (snd p) m) (at level 60).
   Notation "m %%- k" := (remove k m) (at level 60).
   Infix "%<=" := Subset (at level 60).
-  Definition Submap elt m1 m2 := forall k v, @MapsTo elt k v m1 -> MapsTo k v m2.
+  Definition Submap elt m1 m2 := forall k v, @find elt k m1 = Some v -> find k m2 = Some v.
   Infix "%%<=" := Submap (at level 60).
   Infix "+" := union.
   Definition map_diff_set elt m s := @filter elt (fun k _ => negb (SS.mem k s)) m.
   Infix "-" := map_diff_set.
   Notation "! x" := (singleton x) (at level 100).
-  Notation "[]" := empty_map.
+  Notation "[]" := (@empty _).
   Open Scope stmt_scope.
   Infix "<-" := Syntax.Assign.
 
@@ -149,7 +148,7 @@ Section TopSection.
         let e' := const_folding_expr e map in 
         match const_dec e' with
           | inleft (exist w _) =>
-            let map' := map %%+ (x, w) in
+            let map' := add x w map  in
             (x <- w, map', !x)
           | inright _ =>
             let map' := map %%- x in
@@ -170,19 +169,32 @@ Section TopSection.
         end
     end.
 
+  Lemma subtract_none : forall elt (m : t elt) s x, SS.In x s -> find x (m - s) = None.
+    admit.
+  Qed.
+  Lemma union_same_subset : forall s, s + s %<= s.
+    admit.
+  Qed.
+  Lemma empty_submap : forall elt (m : t elt), [] %%<= m.
+    admit.
+  Qed.
+  Lemma subtract_submap : forall elt (m : t elt) s, m - s %%<= m.
+    admit.
+  Qed.
+
   Section HintsSection.
 
     Hint Resolve empty_iff.
     Hint Unfold Subset.
     Hint Unfold Submap.
-    (* Hint Resolve subtract_none. *)
+    Hint Resolve subtract_none.
     Hint Resolve singleton_iff.
     Hint Resolve subset_union_left.
     Hint Resolve subset_union_right.
     Hint Immediate subset_refl.
-    (* Hint Resolve union_same_subset. *)
-    (* Hint Resolve empty_submap. *)
-    (* Hint Resolve subtract_submap. *)
+    Hint Resolve union_same_subset.
+    Hint Resolve empty_submap.
+    Hint Resolve subtract_submap.
     Hint Resolve union_iff union_1 union_2 union_3.
 
     Definition agree_with (v : vals) (m : Map) :=
@@ -198,7 +210,7 @@ Section TopSection.
     Qed.
     Hint Resolve agree_with_remove.
 
-    Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (m %%+ (x, w)).
+    Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (add x w m).
       (*      unfold agree_with; intros; destruct (string_dec x x0).
       subst.
       rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
@@ -274,9 +286,9 @@ Section TopSection.
   Hint Resolve subset_union_left.
   Hint Resolve subset_union_right.
   Hint Immediate subset_refl.
-  (* Hint Resolve union_same_subset. *)
-  (* Hint Resolve empty_submap. *)
-  (* Hint Resolve subtract_submap. *)
+  Hint Resolve union_same_subset.
+  Hint Resolve empty_submap.
+  Hint Resolve subtract_submap.
 
   Hint Resolve agree_with_remove.
   Hint Resolve agree_with_add.
@@ -329,7 +341,7 @@ Section TopSection.
   Qed.
 
   Lemma const_folding_expr_submap_const : forall e m w, const_folding_expr e m = Const w -> forall m', m %%<= m' -> const_folding_expr e m' = Const w.
-    (*    induction e; simpl; intuition; openhyp'; simpl in *; try discriminate.
+    induction e; simpl; intuition; openhyp'; simpl in *; try discriminate.
 
     eapply H0 in e0.
     rewrite e0 in e.
@@ -367,7 +379,7 @@ Section TopSection.
     contradict n.
     descend.
     eauto.
-     *)admit.
+
   Qed.
   Hint Resolve const_folding_expr_submap_const.
 
@@ -377,8 +389,9 @@ Section TopSection.
   Hint Resolve not_const_zero_submap.
 
   Lemma not_const_zero_empty_map : forall e m, const_folding_expr e m <> Const $0 -> const_folding_expr e empty_map <> Const $0.
-    (*    eauto.
-     *)admit.
+    intros.
+    eapply not_const_zero_submap; eauto.
+    eapply empty_submap.
   Qed.
   Hint Resolve not_const_zero_empty_map.
 
@@ -390,6 +403,16 @@ End TopSection.
 
 Ltac rewrite_expr := repeat erewrite const_folding_expr_correct in * by eauto.
 
+Lemma const_folding_expr_correct_list : 
+  forall es m local, 
+    agree_with local m -> 
+    List.map (fun e => eval local (const_folding_expr e m)) es = List.map (eval local) es.
+Proof.
+  induction es; simpl; intuition; rewrite_expr; f_equal; eauto.
+Qed.
+
+Ltac rewrite_expr_list := repeat erewrite map_map in *; repeat erewrite const_folding_expr_correct_list in * by eauto.
+
 Require Import ADT.
 
 Module Make (Import E : ADT).
@@ -399,12 +422,28 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
+    Definition SET := SS.t.
+    Definition Map := t W.
+    Definition empty_set := SS.empty.
+    Definition empty_map := empty W.
+    Notation "m %%- k" := (remove k m) (at level 60).
+    Infix "%<=" := Subset (at level 60).
+    Definition Submap elt m1 m2 := forall k v, @MapsTo elt k v m1 -> MapsTo k v m2.
+    Infix "%%<=" := Submap (at level 60).
+    Infix "+" := union.
+    Definition map_diff_set elt m s := @filter elt (fun k _ => negb (SS.mem k s)) m.
+    Infix "-" := map_diff_set.
+    Notation "! x" := (singleton x) (at level 100).
+    Notation "[]" := empty_map.
+    Open Scope stmt_scope.
+    Infix "<-" := Syntax.Assign.
+
     Hint Resolve subset_union_left.
     Hint Resolve subset_union_right.
     Hint Immediate subset_refl.
-    (* Hint Resolve union_same_subset. *)
-    (* Hint Resolve empty_submap. *)
-    (* Hint Resolve subtract_submap. *)
+    Hint Resolve union_same_subset.
+    Hint Resolve empty_submap.
+    Hint Resolve subtract_submap.
 
     Hint Resolve agree_with_remove.
     Hint Resolve agree_with_add.
@@ -414,6 +453,11 @@ Module Make (Import E : ADT).
     Hint Resolve agree_except_trans.
     Hint Resolve agree_with_agree_except_subtract.
     Hint Resolve agree_except_incl.
+
+    Hint Unfold RunsTo.
+    Hint Constructors Semantics.RunsTo.
+    Hint Unfold Safe.
+    Hint Constructors Semantics.Safe.
 
     Lemma while_case :
       forall fs t v v',
@@ -446,27 +490,30 @@ Module Make (Import E : ADT).
           agree_with (fst v') m' /\
           agree_except (fst v) (fst v') written.
     Proof.
-(*      induction 1; simpl; intros; unfold_all; subst.
+      induction 1; simpl; intros; unfold_all; subst.
 
+      (* skip *)
       simpl in *; openhyp'; simpl in *; intuition.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-      econstructor 9.
+      econstructor 6.
       erewrite <- const_folding_expr_correct'.
       2 : symmetry; eauto.
       simpl; eauto.
       simpl; eauto.
+      econstructor.
 
+      (* seq *)
       simpl in *; openhyp'; simpl in *; intuition.
 
+      (* seq *)
       simpl in *; openhyp'; simpl in *; intuition.
 
+      (* if *)
+      simpl in *; openhyp'; simpl in *; intuition.
+
+      (* if *)
+      simpl in *; openhyp'; simpl in *; intuition.
+
+      (* while *)
       simpl in *; openhyp'; simpl in *; try discriminate.
       injection H3; intros; subst.
       destruct v; simpl in *.
@@ -475,33 +522,37 @@ Module Make (Import E : ADT).
       destruct v''; simpl in *.
       edestruct IHRunsTo2; try reflexivity.
       3 : eauto.
-      replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (m - snd (const_folding b []))))) by (simpl in *; openhyp'; [contradict e; eauto | simpl; eauto ]).
+      replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (m - snd (const_folding b []))))).
+      Focus 2.
+      simpl in *; openhyp'; [contradict e; eauto | simpl; eauto ].
+      eapply not_const_zero_submap; eauto.
       eauto.
       eauto.
       openhyp.
       simpl in *; openhyp'; [ contradict e; eauto | ]; simpl in *.
+      eapply not_const_zero_submap; eauto.
       rewrite_expr.
       intuition eauto.
 
+      (* while *)
       simpl in *; openhyp'; simpl in *; try discriminate.
       injection H1; intros; subst.
       rewrite_expr.
       intuition eauto.
 
+      (* call *)
       simpl in *; openhyp'; simpl in *; intuition.
 
+      (* call *)
       simpl in *; openhyp'; simpl in *; intuition.
 
+      (* label *)
       simpl in *; openhyp'; simpl in *; intuition.
 
+      (* assign *)
       simpl in *; openhyp'; simpl in *; intuition.
 
-      simpl in *; openhyp'; simpl in *; intuition.
-*)admit.
     Qed.
-
-    Hint Unfold RunsTo.
-    Hint Constructors Semantics.RunsTo.
 
     Lemma const_folding_is_backward_simulation : 
       forall fs s vs heap vs' heap' m, 
@@ -563,7 +614,7 @@ Module Make (Import E : ADT).
       rewrite <- e0.
       rewrite_expr.
       econstructor; eauto.
-      admit.
+      eauto.
 
       split.
       rewrite_expr.
@@ -571,10 +622,53 @@ Module Make (Import E : ADT).
       eauto.
 
       (* call *)
-      admit.
+      destruct o; openhyp'; simpl in *; inversion H; unfold_all; subst; simpl in *.
+      split.
+      rewrite_expr.
+      rewrite_expr_list.
+      specialize RunsToCallInternal; intros.
+      simpl in *.
+      specialize (H1 _ fs (Some s)).
+      simpl in *.
+      eapply H1; eauto.
+      eauto.
 
+      split.
+      rewrite_expr.
+      rewrite_expr_list.
+      specialize RunsToCallForeign; intros.
+      simpl in *.
+      specialize (H1 _ fs (Some s)).
+      simpl in *.
+      eapply H1; eauto.
+      eauto.
+      
+      split.
+      rewrite_expr.
+      rewrite_expr_list.
+      specialize RunsToCallInternal; intros.
+      simpl in *.
+      specialize (H1 _ fs None).
+      simpl in *.
+      eapply H1; eauto.
+      eauto.
+      
+      split.
+      rewrite_expr.
+      rewrite_expr_list.
+      specialize RunsToCallForeign; intros.
+      simpl in *.
+      specialize (H1 _ fs None).
+      simpl in *.
+      eapply H1; eauto.
+      eauto.
+      
       (* label *)
-      admit.
+      openhyp'; simpl in *; inversion H; unfold_all; subst; simpl in *.
+      split.
+      rewrite_expr.
+      econstructor; eauto.
+      eauto.
     Qed.
 
     Definition constant_folding s := fst (fst (const_folding s empty_map)).
@@ -588,8 +682,6 @@ Module Make (Import E : ADT).
       eapply const_folding_is_backward_simulation in H; openhyp; eauto.
     Qed.
 
-    Import Semantics.Safety.
-
     Lemma const_folding_is_safety_preservation : 
       forall fs s vs heap m, 
         let result := const_folding s m in
@@ -600,7 +692,7 @@ Module Make (Import E : ADT).
     Proof.
       induction s.
 
-      Focus 7.
+      Focus 4.
       intros.
       unfold_all.
       eapply 
@@ -611,7 +703,7 @@ Module Make (Import E : ADT).
                  Safe fs s v /\
                  agree_with (fst v) m /\
                  (let s := b in
-                  forall (vs : vals) (heap : arrays) (m : Map),
+                  forall (vs : vals) (heap : Heap) (m : Map),
                     Safe fs s (vs, heap) ->
                     agree_with vs m -> Safe fs (fst (fst (const_folding s m))) (vs, heap)
                  ) /\
@@ -619,24 +711,21 @@ Module Make (Import E : ADT).
               Safe fs s' v
         )); [ .. | left; descend; intuition eauto ]; clear; simpl; intros; openhyp.
 
+      (* seq *)
       simpl in *; openhyp'; simpl in *; intuition.
 
-      eauto.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      eauto.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
+      inversion_clear H.
       intuition eauto.
 
+      (* if *)
       simpl in *; openhyp'; simpl in *; intuition.
 
       inversion H; subst.
+      openhyp.
       intuition eauto.
       right; intuition eauto.
 
+      (* while *)
       simpl in *; openhyp'; simpl in *; intuition.
       injection H2; intros; subst.
       rewrite_expr.
@@ -654,6 +743,7 @@ Module Make (Import E : ADT).
       eapply const_folding_is_backward_simulation in H3; eauto; openhyp.
       descend; intuition.
       simpl in *; openhyp'; [ contradict e; eauto | ]; simpl in *.
+      eapply not_const_zero_empty_map; eauto.
       eauto.
 
       right.
@@ -666,52 +756,49 @@ Module Make (Import E : ADT).
 
       simpl in *; openhyp'; simpl in *; intuition.
 
-      eauto.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      eauto.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
-      eauto.
-
-      simpl in *; openhyp'; simpl in *; intuition.
-
       inversion H; unfold_all; subst.
+      left.
+      descend.
       intuition eauto.
+      right.
+      descend.
       intuition eauto.
 
-      simpl; intros; simpl in *; openhyp'; simpl in *; eauto.
+      simpl in *; openhyp'; simpl in *; intuition.
+      inversion_clear H; eauto.
 
-      simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+      (* skip *)
+      eauto.
 
-      simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
-
+      (* seq *)
       simpl; intros; inversion H; unfold_all; subst.
       econstructor.
-      eauto.
+      simpl in *.
+      eapply IHs1; eauto.
       intros.
       destruct v'; simpl in *.
       eapply const_folding_is_backward_simulation in H1.
       openhyp.
-      eauto.
-      eauto.
-
+      eapply IHs2; eauto.
       eauto.
 
+      (* if *)
       simpl; intros; openhyp'.
 
       destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
       inversion H; subst.
+      unfold_all.
+      openhyp.
       eauto.
-      erewrite <- const_folding_expr_correct' in H5.
+      erewrite <- const_folding_expr_correct' in H1.
       2 : symmetry; eauto.
       simpl in *.
       intuition.
       eauto.
       inversion H; subst.
-      erewrite <- const_folding_expr_correct' in H5.
+      unfold_all.
+      openhyp.
+      erewrite <- const_folding_expr_correct' in H1.
       2 : symmetry; eauto.
       simpl in *.
       intuition.
@@ -720,108 +807,117 @@ Module Make (Import E : ADT).
 
       simpl in *.
       inversion H; subst.
+      unfold_all.
+      openhyp.
       econstructor.
+      left.
       rewrite_expr.
-      eauto.
-      eauto.
-      econstructor 5.
+      intuition eauto.
+      eapply IHs1; eauto.
+      econstructor.
+      right.
       rewrite_expr.
-      eauto.
-      eauto.
+      intuition eauto.
+      eapply IHs2; eauto.
 
-      simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+      (* call *)
+      destruct o; simpl; intros; inversion H; unfold_all; subst.
 
-      simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+      econstructor; rewrite_expr; rewrite_expr_list; eauto.
+      rewrite map_length; eauto.
 
-      simpl; intros; inversion H; unfold_all; subst; econstructor; rewrite_expr; eauto.
+      eapply SafeCallForeign; rewrite_expr; eauto; rewrite_expr_list; eauto.
 
-      simpl; intros; inversion H; unfold_all; subst.
+      econstructor; rewrite_expr; rewrite_expr_list; eauto.
+      rewrite map_length; eauto.
 
-      econstructor; rewrite_expr; eauto.
+      eapply SafeCallForeign; rewrite_expr; eauto; rewrite_expr_list; eauto.
 
-      econstructor 14; rewrite_expr; eauto.
+      (* assign *)
+      simpl; intros; simpl in *; openhyp'; simpl in *; eauto.
 
-      Grab Existential Variables.
-      exact "".
-      eauto.
+      (* label *)
+      simpl; intros; simpl in *; openhyp'; simpl in *; eauto.
+
     Qed.
 
-    Lemma optimizer_is_safety_preservation : forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v.
+    Lemma optimizer_is_safety_preservation : forall fs s v, Safe fs s v -> Safe fs (optimizer s) v.
       intros.
       unfold optimizer, constant_folding in *.
       destruct v.
       eapply const_folding_is_safety_preservation in H; openhyp; eauto.
     Qed.
 
-    Lemma const_folding_expr_footprint : forall e m, List.incl (SemanticsExprLemmas.varsIn (const_folding_expr e m)) (SemanticsExprLemmas.varsIn e).
-    Proof.
-      induction e; simpl; intuition.
+    Require Import FreeVarsExpr.
 
-      openhyp'; simpl in *; eauto.
-      openhyp'; simpl in *.
-      eauto.
-      CompileStatement.incl_app_solver.
-      eauto.
-      eauto.
-      CompileStatement.incl_app_solver.
-      eauto.
-      eauto.
-      openhyp'; simpl in *.
-      eauto.
-      CompileStatement.incl_app_solver.
-      eauto.
-      eauto.
-      CompileStatement.incl_app_solver.
-      eauto.
-      eauto.
+    Lemma const_folding_expr_footprint : forall e m, SS.Subset (free_vars (const_folding_expr e m)) (free_vars e).
+    Proof.
+      induction e; simpl; intuition; openhyp'; simpl in *; subset_solver; eauto using subset_trans.
     Qed.
     Hint Resolve const_folding_expr_footprint.
 
-    Lemma const_folding_footprint : forall s m, List.incl (SemanticsLemmas.footprint (fst (fst (const_folding s m)))) (SemanticsLemmas.footprint s).
+    Lemma const_folding_expr_footprint_list : forall es m, SS.Subset (Union.union_list (List.map free_vars (List.map (fun e => const_folding_expr e m) es))) (Union.union_list (List.map free_vars es)).
     Proof.
-      induction s; simpl; intuition.
-
-      openhyp'; simpl in *; eauto.
-      openhyp'; simpl in *.
-      destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
-      eauto.
-      eauto.
-      CompileStatement.incl_app_solver.
-      eauto.
-      eauto.
-      eauto.
-      openhyp'; simpl in *; eauto.
+      unfold Union.union_list.
+      induction es; simpl; intuition eauto.
+      subset_solver; eauto using subset_trans.
     Qed.
 
-    Lemma optimizer_footprint : forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s).
+    Hint Resolve const_folding_expr_footprint_list.
+
+    Require Import FreeVars.
+
+    Lemma const_folding_footprint : forall s m, SS.Subset (free_vars (fst (fst (const_folding s m)))) (free_vars s).
+    Proof.
+      induction s; simpl; intuition; openhyp'; simpl in *; subset_solver.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      eauto using subset_trans.
+      destruct o; simpl in *.
+      subset_solver; eauto using subset_trans.
+      subset_solver; eauto using subset_trans.
+      eauto using subset_trans.
+    Qed.
+
+    Lemma optimizer_footprint : forall s, SS.Subset (free_vars (optimizer s)) (free_vars s).
       unfold optimizer, constant_folding; intros; eapply const_folding_footprint.
     Qed.
 
     Open Scope nat.
 
     Lemma both_le : forall a b a' b', a <= a' -> b <= b' -> max a b <= max a' b'.
+(*
       intros; CompileStatement.max_le_solver; eauto.
+*)
+      admit.
     Qed.
 
-    Lemma const_folding_expr_depth : forall e m, CompileExpr.depth (const_folding_expr e m) <= CompileExpr.depth e.
+    Hint Resolve both_le Le.le_n_S.
+
+    Require Import DepthExpr.
+
+    Lemma const_folding_expr_depth : forall e m, depth (const_folding_expr e m) <= depth e.
     Proof.
       induction e; simpl; intuition; openhyp'; simpl in *; eauto.
     Qed.
     Hint Resolve const_folding_expr_depth.
 
-    Lemma const_folding_depth : forall s m, CompileStatement.depth (fst (fst (const_folding s m))) <= CompileStatement.depth s.
+    Require Import Depth.
+
+    Lemma const_folding_depth : forall s m, depth (fst (fst (const_folding s m))) <= depth s.
     Proof.
-      induction s; simpl; intuition.
+      induction s; simpl; intuition; openhyp'; simpl in *; eauto.
 
-      openhyp'; simpl in *; eauto.
-      eapply both_le.
-      eauto.
-      eapply Le.le_n_S.
-      eauto.
-
-      openhyp'; simpl in *; eauto.
       destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
-      eauto.
+      eauto using Le.le_trans.
+      (* here *)
       eauto.
       eapply both_le.
       eauto.

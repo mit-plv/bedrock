@@ -158,6 +158,16 @@ Section ADTValue.
     intros; apply reads_trivial'; auto.
   Qed.
 
+  Lemma map_eval_irrel : forall unwritten vs vs' es,
+    (forall x, ~ExistsR (fun e => expReads unwritten e x) es)
+    -> (forall x, sel vs' x <> sel vs x -> unwritten x)
+    -> map (eval vs) es = map (eval vs') es.
+    induction es; simpl; intuition.
+    f_equal.
+    eapply eval_irrel; eauto.
+    eauto.
+  Qed.
+
   Lemma prove_NoUninitializedRunsTo' : forall fs s st st', RunsTo (ADTValue := ADTValue) fs s st st'
   -> forall unwritten vs'', (forall x, ~reads unwritten s x)
     -> (forall x, sel vs'' x <> sel (fst st) x -> unwritten x)
@@ -184,24 +194,26 @@ Section ADTValue.
     eapply RunsToIfFalse; repeat irrel; eauto.
     firstorder.
 
-    edestruct IHRunsTo.
-    Focus 3.
-    intuition.
-    eexists; split.
-    eauto.
-    intros.
-    apply H4 in H2.
-    destruct H2; split.
-    apply H2.
-    auto.
-    simpl; intuition eauto.
-    eapply H0.
-    left.
+    edestruct IHRunsTo1; clear IHRunsTo1; eauto; intuition idtac.
+    edestruct (IHRunsTo2 (fun x => unwritten x /\ ~writes body x)); clear IHRunsTo2; eauto; intuition idtac.
+    simpl in *; intuition.
+    eapply H2; left.
     use expReads_weaken.
-    eapply H0.
-    right.
+    eapply H2; right.
     use reads_weaken.
-    auto.
+    eexists; split.
+    eapply RunsToWhileTrue.
+    simpl.
+    irrel; auto.
+    eauto.
+    eauto.
+    firstorder.
+
+    eexists; split.
+    eapply RunsToWhileFalse.
+    simpl.
+    irrel; auto.
+    intuition.
 
     edestruct IHRunsTo.
     Focus 3.
@@ -210,17 +222,6 @@ Section ADTValue.
     econstructor.
     simpl; irrel; eauto.
     simpl.
-
-    Lemma map_eval_irrel : forall unwritten vs vs' es,
-      (forall x, ~ExistsR (fun e => expReads unwritten e x) es)
-      -> (forall x, sel vs' x <> sel vs x -> unwritten x)
-      -> map (eval vs) es = map (eval vs') es.
-      induction es; simpl; intuition.
-      f_equal.
-      eapply eval_irrel; eauto.
-      eauto.
-    Qed.
-
     erewrite <- map_eval_irrel; eauto.
     eauto.
     simpl.
@@ -315,19 +316,25 @@ Section ADTValue.
         (forall x, ~reads unwritten s x)
         /\ exists vs, Safe fs s (vs, snd st)
           /\ (forall x, sel (fst st) x <> sel vs x -> unwritten x)));
-    intuition idtac;
+    intuition idtac.
+
+    Ltac dont_go_crazy H := (inversion H; []) || (inversion H; [ | ]).
+
+    Ltac hammer :=
       repeat match goal with
                | [ H : Logic.ex _ |- _ ] => destruct H; intuition idtac
              end; simpl in *;
       match goal with
-        | [ H : Safe _ _ _ |- _ ] => inversion H; clear H;
+        | [ H : Safe _ _ _ |- _ ] => dont_go_crazy H; clear H;
           repeat match goal with
                    | [ x : _ |- _ ] => subst x
                  end; simpl in *; cbv beta; intuition idtac
       end.
 
+    hammer.
     eauto 10.
 
+    hammer.
     eapply prove_NoUninitializedRunsTo' in H3; eauto.
     destruct H3; intuition idtac.
     repeat esplit; eauto.
@@ -335,17 +342,34 @@ Section ADTValue.
     apply (H5 _ (not_eq_sym H2)).
     eauto.
 
+    hammer.
     left; repeat irrel; eauto 10.
-
     right; repeat irrel; eauto 10.
 
+    intros.
+    hammer.
+    irrel.
+    left; intuition idtac.
+    eauto 10.
+    eapply prove_NoUninitializedRunsTo' in H2; eauto.
+    destruct H2; intuition idtac.
+    apply H10 in H4.
     do 2 esplit.
     Focus 2.
+    do 2 esplit.
     eauto.
-    intuition eauto.
-    eapply H3; left; use expReads_weaken.
-    eapply H3; right; use reads_weaken.
+    intros; apply H6.
+    eauto.
+    intuition idtac.
+    eapply H3; left.
+    use expReads_weaken.
+    eapply H3; right.
+    use reads_weaken.
+    eauto.
 
+    irrel; tauto.
+
+    hammer.
     repeat irrel.
     left.
     do 2 esplit.
@@ -372,14 +396,8 @@ Section ADTValue.
     erewrite <- map_eval_irrel; eauto.
     eauto.
 
-    eauto 10.
-    eauto 10.
-    eauto 10.
-    eauto 10.
-    eauto 10.
-    eauto 10.
-    eauto 10.
-    eauto 10.
+    hammer.
+
     eauto 10.
   Qed.
 
@@ -394,6 +412,7 @@ Section ADTValue.
     intro.
     eapply Forall_forall in H1; eauto.
   Qed.
+
 End ADTValue.
 
 Section TopSection.

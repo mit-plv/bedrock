@@ -320,22 +320,15 @@ Section TopLevel.
       unfold union_list.
       simpl.
 
-      Lemma In_union_list : forall x exprs0 acc acc',
-        In x (fold_left union (map free_vars exprs0) acc)
-        -> Subset acc acc'
-        -> In x (fold_left union (map free_vars exprs0) acc').
-        induction exprs0; simpl; intros.
-        apply H0; auto.
-        eapply IHexprs0; eauto.
-        hnf; intros.
-        apply StringFacts.union_iff.
-        apply StringFacts.union_iff in H1.
-        intuition.
+      Lemma In_union_list : forall x exprs0,
+        In x (fold_right union empty (map free_vars exprs0))
+        -> In x (fold_right union empty (map free_vars exprs0)).
+        induction exprs0; simpl; intuition.
       Qed.
 
-      eapply In_union_list; eauto.
-      hnf; intros.
-      apply StringFacts.empty_iff in H5; tauto.
+      eapply In_union_list with (exprs0 := a :: exprs0); eauto.
+      simpl.
+      eapply StringFacts.union_iff; eauto.
       inversion H4; auto.
     Qed.
 
@@ -379,15 +372,6 @@ Section TopLevel.
       unfold union_list.
       simpl.
 
-      Lemma In_union_list_preserve : forall x ls acc,
-        In x acc
-        -> In x (fold_left union ls acc).
-        induction ls; simpl; intuition.
-        apply IHls.
-        apply StringFacts.union_iff; auto.
-      Qed.
-
-      apply In_union_list_preserve.
       apply StringFacts.union_iff; auto.
       inversion H3; omega.
 
@@ -418,9 +402,8 @@ Section TopLevel.
       apply H1.
       simpl.
       unfold union_list; simpl.
-      eapply In_union_list; eauto.
-      hnf; intros.
-      apply StringFacts.empty_iff in H4; tauto.
+      eapply In_union_list with (exprs0 := a :: exprs0); eauto.
+      apply StringFacts.union_iff; eauto.
       inversion H3; auto.
       hnf; post.
       apply H in H2; clear H; post.

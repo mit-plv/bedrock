@@ -95,8 +95,10 @@ Module Make (Import E : ADT).
     t.
     t.
     t.
+    t.
 
     t.
+    simpl in *.
     descend; eauto.
     change (fst v) with (fst (fst v, h)) at 2.
     eapply RunsToCallInternal; eauto.
@@ -149,10 +151,25 @@ Module Make (Import E : ADT).
     eauto.
     eauto.
 
+    intros.
+    destruct H1; intuition.
     inversion H3; clear H3.
+
     subst loop0 loop1.
     subst.
+    left; intuition.
     eauto.
+    simpl in *.
+    eapply RunsTo_Equal in H1.
+    destruct H1; intuition idtac.
+    apply H8 in H4.
+    descend; eauto.
+    apply Properties.F.Equal_sym; auto.
+    apply Properties.F.Equal_sym; auto.
+
+    subst loop0 loop1.
+    subst.
+    right; intuition.
 
     inversion_clear H3; simpl in *.
     subst vs0 heap fs.
