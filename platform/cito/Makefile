@@ -47,6 +47,8 @@ MODULES := \
 	Link \
 	optimizers/Identity \
 	examples/ExampleADT \
+	examples/Cell examples/SimpleCell \
+	examples/ExampleImpl \
 	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
 
 VS      := $(MODULES:%=%.v)
