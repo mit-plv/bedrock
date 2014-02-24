@@ -892,11 +892,29 @@ Module Make (Import E : ADT).
 
     Open Scope nat.
 
+    Require Import Le.
+    Require Import Arith.Max.
+
+    Ltac max_solver :=
+      repeat
+        match goal with
+          | |- ?A <= ?A => eapply le_n
+          | |- 0 <= _ => eapply le_0_n
+          | |- max _ _ <= _ => eapply max_lub
+          | |- ?S <= max ?A _ =>
+            match A with
+                context [ S ] => eapply le_trans; [ | eapply le_max_l]
+            end
+          | |- ?S <= max _ ?B =>
+            match B with
+                context [ S ] => eapply le_trans; [ .. | eapply le_max_r]
+            end
+        end.
+
     Lemma both_le : forall a b a' b', a <= a' -> b <= b' -> max a b <= max a' b'.
-(*
-      intros; CompileStatement.max_le_solver; eauto.
-*)
-      admit.
+      intros; max_solver; eauto.
+      eapply le_trans; [ | eapply le_max_l]; eauto.
+      eapply le_trans; [ | eapply le_max_r]; eauto.
     Qed.
 
     Hint Resolve both_le Le.le_n_S.
@@ -909,13 +927,35 @@ Module Make (Import E : ADT).
     Qed.
     Hint Resolve const_folding_expr_depth.
 
+    Lemma const_folding_expr_footprint_list : forall es m, SS.Subset (Union.union_list (List.map free_vars (List.map (fun e => const_folding_expr e m) es))) (Union.union_list (List.map free_vars es)).
+    Proof.
+      unfold Union.union_list.
+      induction es; simpl; intuition eauto.
+      subset_solver; eauto using subset_trans.
+    Qed.
+
+    Hint Resolve const_folding_expr_footprint_list.
+
     Require Import Depth.
+
+    (* Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver). *)
+    Hint Extern 0 (le _ _) => progress (simpl; max_solver).
 
     Lemma const_folding_depth : forall s m, depth (fst (fst (const_folding s m))) <= depth s.
     Proof.
       induction s; simpl; intuition; openhyp'; simpl in *; eauto.
 
       destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
+      eauto using le_trans.
+      eauto using le_trans.
+      destruct o; simpl in *.
+      max_solver; eauto using le_trans.
+
+      
+      eapply le_trans.
+      eauto.
+      max_solver.
+      
       eauto using Le.le_trans.
       (* here *)
       eauto.
