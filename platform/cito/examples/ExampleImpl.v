@@ -136,7 +136,7 @@ Theorem ok : moduleOk m.
     -> length args = length pairs
     -> is_state sp rp e_stack e_stack nil (empty_vs, make_heap pairs) (map fst pairs)
     ===> Ex vs, locals ("rp" :: "extra_stack" :: args) vs (wordToNat (sel vs "extra_stack")) sp
-    * is_heap (make_heap pairs).
+    * is_heap (make_heap pairs) * [| sel vs "extra_stack" = e_stack |].
     unfold is_state, locals, has_extra_stack; simpl.
     intros.
     apply Himp_ex_c.
@@ -146,7 +146,7 @@ Theorem ok : moduleOk m.
     rewrite map_length.
     rewrite <- H2.
     rewrite natToWord_plus.
-    eapply Himp_trans; [ | do 2 (apply Himp_star_frame; [ | apply Himp_refl ]);
+    eapply Himp_trans; [ | do 3 (apply Himp_star_frame; [ | apply Himp_refl ]);
       apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
     simpl.
     generalize (map fst pairs); intro.
@@ -166,9 +166,97 @@ Theorem ok : moduleOk m.
     auto.
     rewrite <- wplus_assoc.
     rewrite <- natToWord_plus.
-    (* This step just needs to use the fact that only a [goodSize] may appear after [=?>]. *)
-  Admitted.
 
+    Lemma pure_split : forall P Q R,
+      (forall specs sm m, interp specs (P sm m ---> [|Q|]))%PropX
+      -> P ===> R
+      -> P ===> [|Q|] * R.
+      intros; do 3 intro.
+      apply existsR with smem_emp.
+      apply existsR with m.
+      apply andR.
+      apply injR.
+      apply split_a_semp_a.
+      apply andR.
+      eapply Imply_trans; [ apply H | ].
+      apply injL; propxFo.
+      reflexivity.
+      apply H0.
+    Qed.
+
+    Lemma pure_extend : forall P Q R,
+      P ===> [|Q|] * any
+      -> [|Q|] * P ===> R
+      -> P ===> R.
+      intros; do 3 intro.
+      eapply Imply_trans; [ | apply H0 ].
+      apply pure_split; try apply Himp_refl; intros.
+      unfold Himp, himp, injB, inj in H.
+      eapply Imply_trans; [ apply H | ].
+      do 2 (apply existsL; intro).
+      repeat (apply andL || (apply injL; intro)).
+      apply Inj_I; auto.
+    Qed.
+
+    apply pure_extend with (goodSize e_stack).
+    eapply Himp_trans; [ apply SepHints.behold_the_array_ls | ].
+    apply Himp'_ex; intro.
+    apply Himp_star_pure_c; intro; subst.
+    do 3 intro.
+    eapply existsR with smem_emp; apply existsR with m.
+    apply andR.
+    apply injR.
+    apply split_a_semp_a.
+    apply andR.
+    apply andR.
+    apply containsArray_goodSizex'; eauto.
+    apply injR; reflexivity.
+    apply any_easy.
+
+    apply Himp_star_pure_c; intro; subst.
+    rewrite wordToNat_natToWord_idempotent by assumption.
+    apply Himp_refl.
+  Qed.
+
+  Lemma locals_for_abort : forall res (k : nat) vars vs sp,
+    res < natToW k
+    -> locals ("rp" :: vars) vs (wordToNat res) sp
+    ===> locals ("rp" :: nil) vs 0 sp * any.
+    unfold locals; simpl.
+    intros.
+
+    apply Himp_trans with ([|NoDup ("rp" :: vars)|] * ptsto32m' _ sp 0 (vs "rp" :: toArray vars vs) *
+      (sp ^+ $ (S (Datatypes.length vars) * 4)) =?> wordToNat res)%Sep.
+    repeat (apply Himp_star_frame; try apply Himp_refl).
+    apply Arrays.ptsto32m'_in.
+    unfold array; simpl.
+    change (vs "rp") with (sel vs "rp").
+    sepLemma.
+    apply any_easy.
+  Qed.
+
+  Theorem is_state_out_abort : forall sp rp e_stack args pairs (k : nat),
+    NoDup args
+    -> ~In "rp" args
+    -> ~In "extra_stack" args
+    -> length args = length pairs
+    -> natToW e_stack < natToW k
+    -> is_state sp rp e_stack e_stack nil (empty_vs, make_heap pairs) (map fst pairs)
+    ===> Ex vs, locals ("rp" :: nil) vs 0 sp * any.
+    intros.
+    eapply Himp_trans; [ apply is_state_out; eauto | ].
+    apply Himp'_ex; intro.
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_pure_c; intro.
+    rewrite H4.
+    eapply Himp_trans; [ apply Himp_star_frame; [ | apply Himp_refl ]; eapply locals_for_abort; eauto | ].
+    apply Himp_ex_c; eexists.
+    eapply Himp_trans; [ apply Himp_star_assoc | ].
+    apply Himp_star_frame; try apply Himp_refl.
+    apply any_easy.
+  Qed.
+
+  post.
   eapply CompileExprs.change_hyp in H2.
   Focus 2.
   apply Himp_star_frame.
@@ -183,5 +271,10 @@ Theorem ok : moduleOk m.
   apply Himp_refl.
   clear H5.
   evaluate auto_ext.
+
+  eapply CompileExprs.change_hyp in H7.
+  Focus 2.
+  do 3 (apply Himp_star_frame; [ apply Himp_refl | ]).
+  apply Himp_star_frame; [ eapply locals_for_abort; eassumption | apply Himp_refl ].
   descend.
-  (* Here, need to split [locals] to indicate an unused free space. *)
+  step auto_ext.
