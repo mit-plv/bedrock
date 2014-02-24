@@ -45,6 +45,7 @@ MODULES := \
 	Stub \
 	Stubs \
 	Link \
+	MakeADT \
 	optimizers/Identity \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
