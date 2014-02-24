@@ -145,6 +145,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     End fs.
 
+    Definition stn_good_to_use (stn : settings ) :=
+      forall lbl : label,
+        ((exists m f,
+            List.In m modules /\
+            List.In f (Functions m) /\
+            lbl = (MName m, FName f)) \/
+         In lbl imports) ->
+        Labels stn lbl <> None.
+
     Definition fs_good_to_use (stn : settings) :=
       forall p spec, 
         fs stn p = Some spec <-> 
@@ -162,7 +171,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition name_marker (id : label) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
 
-    Definition func_spec (id : label) f : assert := (st ~> name_marker id /\ [| fs_good_to_use (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
+    Definition func_spec (id : label) f : assert := (st ~> name_marker id /\ [| stn_good_to_use (fst st) /\ fs_good_to_use (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
 
     Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
 
@@ -1602,6 +1611,82 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
+      Lemma Some_not_None : forall A o, o <> None <-> exists a : A, o = Some a.
+        split; intros.
+        eapply ex_up; eauto.
+        openhyp.
+        nintro.
+        rewrite H0 in H; intuition.
+      Qed.
+
+      Lemma augment_elim_2 : 
+        forall imps specs stn (lbls : list label),
+          augment imps specs stn lbls ->
+          (forall x, List.In x lbls -> BLM.find (x : Labels.label) imps <> None) ->
+          forall l,
+            List.In l lbls ->
+            Labels stn l <> None.
+      Proof.
+        induction lbls; simpl; intros.
+        intuition.
+        destruct H1.
+        subst.
+        destruct l.
+        unfold to_bedrock_label in *.
+        simpl in *.
+        destruct (option_dec (LabelMap.LabelMap.find (elt:=assert) (s, Global s0) imps)).
+        destruct s1.
+        rewrite e in H.
+        openhyp.
+        eapply Some_not_None; eexists; eauto.
+        generalize H0; specialize (H0 (s, s0)); intro; simpl in *.
+        rewrite e in H0.
+        intuition.
+
+        destruct a.
+        unfold to_bedrock_label in *.
+        simpl in *.
+        destruct (option_dec (LabelMap.LabelMap.find (elt:=assert) (s, Global s0) imps)).
+        destruct s1.
+        rewrite e in H.
+        openhyp.
+        eauto.
+        generalize H0; specialize (H0 (s, s0)); intro; simpl in *.
+        rewrite e in H0.
+        intuition.
+      Qed.
+
+      Lemma augment_stn_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_good_to_use stn.
+      Proof.
+        unfold stn_good_to_use.
+        intros.
+        openhyp.
+
+        (* in exports *)
+        assert (In lbl exports).
+        subst.
+        eapply MapsTo_In.
+        eapply exports_mapsto_iff.
+        descend; eauto.
+        subst.
+        eapply augment_elim_2 in H.
+        2 : eapply accessible_labels_subset_fullImports.
+        Focus 2.
+        eapply exports_accessible_labels.
+        eapply in_find_iff.
+        eauto.
+        eauto.
+
+        (* in imports *)
+        eapply augment_elim_2 in H.
+        2 : eapply accessible_labels_subset_fullImports.
+        Focus 2.
+        eapply imports_accessible_labels.
+        eapply in_find_iff.
+        eauto.
+        eauto.
+      Qed.
+
       Lemma good_vcs : forall ls, (forall x, List.In x ls -> List.In x (Functions m)) -> vcs (makeVcs bimports_diff_bexports stubs (List.map make_stub ls)).
         induction ls; simpl; eauto.
         Opaque funcs_ok.
@@ -1616,6 +1701,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         step auto_ext.
         descend; eauto.
         simpl in *.
+        eapply augment_stn_good_to_use; eauto.
         eapply augment_fs_good_to_use; eauto.
 
         erewrite tgt_fullImports; eauto.
