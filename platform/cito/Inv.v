@@ -102,8 +102,8 @@ Module Make (Import E : ADT).
              let triples := make_triples pairs outs in
              let heap := fold_left store_out triples heap in
              (* the callee needn't have the right extra stack size recorded in the end, but the extra stack should be there *)
-             Ex e_stack',
-             ![^[is_state st#Sp rp' e_stack' e_stack nil (empty_vs, heap) args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
+             Ex vs, Ex e_stack',
+             ![^[is_state st#Sp rp' e_stack' e_stack nil (vs, heap) args' * layout_option ret_w ret_a * mallocHeap 0] * #1] st' /\
              [| length outs = length pairs /\
                 PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
                 length args' = length triples /\
