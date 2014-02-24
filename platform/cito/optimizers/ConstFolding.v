@@ -417,8 +417,9 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
+  Module Import GoodOptimizerMake := GoodOptimizer.Make E.
   Require Import Semantics.
-  Module Import SemanticsMake := Semantics.Make E.
+  Import SemanticsMake.
 
   Section TopSection.
 
@@ -927,14 +928,13 @@ Module Make (Import E : ADT).
     Qed.
     Hint Resolve const_folding_expr_depth.
 
-    Lemma const_folding_expr_footprint_list : forall es m, SS.Subset (Union.union_list (List.map free_vars (List.map (fun e => const_folding_expr e m) es))) (Union.union_list (List.map free_vars es)).
+    Lemma const_folding_expr_depth_list : forall es m, le (Max.max_list 0 (List.map depth (List.map (fun e => const_folding_expr e m) es))) (Max.max_list 0 (List.map depth es)).
     Proof.
-      unfold Union.union_list.
+      unfold Max.max_list.
       induction es; simpl; intuition eauto.
-      subset_solver; eauto using subset_trans.
     Qed.
 
-    Hint Resolve const_folding_expr_footprint_list.
+    Hint Resolve const_folding_expr_depth_list.
 
     Require Import Depth.
 
@@ -950,30 +950,18 @@ Module Make (Import E : ADT).
       eauto using le_trans.
       destruct o; simpl in *.
       max_solver; eauto using le_trans.
-
-      
-      eapply le_trans.
-      eauto.
-      max_solver.
-      
-      eauto using Le.le_trans.
-      (* here *)
-      eauto.
-      eapply both_le.
-      eauto.
-      eauto.
-
-      openhyp'; simpl in *; eauto.
-      eapply both_le.
-      eauto.
-      eauto.
+      max_solver; eauto using le_trans.
     Qed.
 
-    Lemma optimizer_depth : forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s.
+    Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
       unfold optimizer, constant_folding; intros; eapply const_folding_depth.
     Qed.
 
-    Lemma constant_folding_is_good_optimizer : is_good_optimizer optimizer.
+    Definition opt : Optimizer := fun s _ => optimizer s.
+
+    Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
+      unfold GoodOptimizer.
+      (*here*)
       repeat split.
       eapply optimizer_is_backward_simulation.
       eapply optimizer_is_safety_preservation.
