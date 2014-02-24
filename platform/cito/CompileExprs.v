@@ -28,7 +28,7 @@ Section TopLevel.
   Require Import DepthExpr.
   Require Import Max.
 
-  Definition depth := max_list (map depth exprs) 0.
+  Definition depth := max_list 0 (map depth exprs).
 
   Require CompileExpr.
   Require Import ListFactsNew.
