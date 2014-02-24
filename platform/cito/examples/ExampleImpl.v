@@ -298,36 +298,20 @@ Section scary.
     sepLemma.
   Qed.
 
-  (*Theorem is_state_in : forall sp args pairs vs,
-    length args = length pairs
-    -> locals ("rp" :: "extra_stack" :: args) vs (wordToNat (sel vs "extra_stack")) sp
-      * is_heap (make_heap pairs)
-    ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack"))
-    (wordToNat (sel vs "extra_stack")) nil
-    (vs, make_heap pairs) (toArray args vs).
-    unfold is_state, locals, has_extra_stack; simpl.
-    intros.
-    change (vs "rp") with (sel vs "rp").
-    change (vs "extra_stack") with (sel vs "extra_stack").
-    replace (S (S (length args)) * 4) with (8 + 4 * length args) by omega.
-    rewrite natToWord_plus.
-    rewrite length_toArray.
-    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]);
-      apply Himp_star_frame; [ apply Himp_refl | apply Arrays.ptsto32m'_in ] | ].
-    simpl.
-    unfold array at 1; simpl.
-    sepLemma.
-    rewrite <- wplus_assoc.
-    rewrite <- natToWord_plus.    
-    unfold natToW; rewrite natToWord_wordToNat.
-    sepLemma.
-    etransitivity; [ apply ptsto32m'_out | ].
-    unfold array; etransitivity; [ apply ptsto32m_shift_base' | ].
-    instantiate (1 := 8); auto.
-    simpl.
-    change (4 * 0) with 0.
-    sepLemma.
-  Qed.*)
+  Lemma extra_back_in : forall k vars sp res vs,
+    natToW k <= res
+    -> goodSize k
+    -> (sp ^+ natToW ((k + length vars) * 4)) =?> (wordToNat res - k) * locals vars vs k sp
+    ===> locals vars vs (wordToNat res) sp.
+    unfold locals; sepLemma.
+    etransitivity; [ | eapply allocated_join ]; sepLemma.
+    eapply allocated_shift_base; auto.
+    repeat rewrite <- wplus_assoc.
+    repeat rewrite <- natToWord_plus.
+    do 2 f_equal.
+    omega.
+    nomega.
+  Qed.
 End scary.
 
 Theorem ok : moduleOk m.
@@ -357,37 +341,39 @@ Theorem ok : moduleOk m.
 
   do_abort (@nil string).
 
-  post; repeat match goal with
-                 | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
-               end;
-  match goal with
-    | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
-      do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
-        apply is_state_out; [ instantiate (1 := nil); auto | .. ]; (simpl; tauto) ]
-  end;
-  evaluate auto_ext;
-  match goal with
-    | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
-      do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
-        apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
-  end; descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  descend; step auto_ext.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply (@is_state_in x6); auto ] ].
-  2: instantiate (1 := nil); auto.
-  2: simpl; intuition; instantiate (1 := nil); auto.
-  simpl.
-  change (let (Regs, _) := x5 in Regs) with (Regs x5).
-  step auto_ext.
+  Lemma Regs_back : forall s : state, (let (Regs, _) := s in Regs) = Regs s.
+    auto.
+  Qed.
 
-  Lemma extra_back_in : forall k sp res vars vs,
-    natToW k <= res
-    -> (sp ^+ natToW ((k + 2) * 4)) =?> (wordToNat res - k) * locals vars vs k sp
-    ===> locals vars vs (wordToNat res) sp.
-    unfold locals; sepLemma.
-    etransitivity; [ | eapply allocated_join ]; sepLemma.
-  Admitted.
+  Ltac do_delegate1 argNames :=
+    post; repeat match goal with
+                   | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
+                 end;
+    match goal with
+      | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+        do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; tauto) ]
+    end;
+    evaluate auto_ext;
+    match goal with
+      | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
+        do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
+          apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
+    end; repeat (descend; step auto_ext); [
+      match goal with
+        | [ |- context[locals _ ?vs _ _] ] =>
+          etransitivity; [ | apply himp_star_frame; [ reflexivity | apply (@is_state_in vs); auto ] ];
+          [ | instantiate (1 := argNames); auto ]
+      end | ].
 
-  apply (@extra_back_in 8); auto.
+  Ltac do_delegate2 argNames :=
+    simpl; rewrite Regs_back; step auto_ext;
+      match goal with
+        | [ _ : natToW ?k <= _ |- _ ] => apply (@extra_back_in k ("rp" :: "extra_stack" :: argNames)); auto
+      end.
+
+  Ltac do_delegate argNames tac :=
+    do_delegate1 argNames; [ | tac ]; cbv beta; do_delegate2 argNames.
+
+  do_delegate (@nil string) ltac:(simpl; intuition; instantiate (1 := nil); auto).
 Qed.
