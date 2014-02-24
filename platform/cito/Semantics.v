@@ -120,11 +120,18 @@ Section ADTValue.
           wneb (eval (fst v) cond) $0 = false ->
           RunsTo f v v' ->
           RunsTo (Syntax.If cond t f) v v'
-    | RunsToWhile : 
-        forall cond body v v', 
+    | RunsToWhileTrue : 
+        forall cond body v v' v'', 
           let loop := While cond body in
-          RunsTo (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v v' ->
-          RunsTo loop v v'
+          wneb (eval (fst v) cond) $0 = true ->
+          RunsTo body v v' ->
+          RunsTo loop v' v'' ->
+          RunsTo loop v v''
+    | RunsToWhileFalse : 
+        forall cond body v, 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = false ->
+          RunsTo loop v v
     | RunsToCallInternal : 
         forall var f args v spec vs_callee vs_callee' heap',
           let vs := fst v in
@@ -176,10 +183,17 @@ Section ADTValue.
           let b := wneb (eval (fst v) cond) $0 in
           b = true /\ Safe t v \/ b = false /\ Safe f v ->
           Safe (Syntax.If cond t f) v
-    | SafeWhile : 
+    | SafeWhileTrue : 
         forall cond body v, 
           let loop := While cond body in
-          Safe (Syntax.If cond (Syntax.Seq body loop) Syntax.Skip) v ->
+          wneb (eval (fst v) cond) $0 = true ->
+          Safe body v ->
+          (forall v', RunsTo body v v' -> Safe loop v') ->
+          Safe loop v
+    | SafeWhileFalse : 
+        forall cond body v, 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = false ->
           Safe loop v
     | SafeCallInternal : 
         forall var f args v spec,
@@ -217,7 +231,12 @@ Section ADTValue.
 
       Hypothesis IfCase : forall cond t f v, R (Syntax.If cond t f) v -> (wneb (eval (fst v) cond) $0 = true /\ R t v) \/ (wneb (eval (fst v) cond) $0 = false /\ R f v).
 
-      Hypothesis WhileCase : forall cond body v, R (Syntax.While cond body) v -> R (Syntax.If cond (Syntax.Seq body (Syntax.While cond body)) Syntax.Skip) v.
+      Hypothesis WhileCase : 
+        forall cond body v, 
+          let loop := Syntax.While cond body in 
+          R loop v -> 
+          (wneb (eval (fst v) cond) $0 = true /\ R body v /\ (forall v', RunsTo body v v' -> R loop v')) \/ 
+          (wneb (eval (fst v) cond) $0 = false).
 
       Hypothesis CallCase : forall var f args v,
         R (Syntax.Call var f args) v
