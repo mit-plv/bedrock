@@ -98,6 +98,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Opaque mult.
 
+  Fixpoint saved_vars vs args (pairs : list (W * ArgIn)) :=
+    match args, pairs with
+      | arg :: args, (w, _) :: pairs => sel vs arg = w /\ saved_vars vs args pairs
+      | _, _ => True
+    end.
+
   Theorem is_state_out : forall sp rp e_stack args pairs,
     NoDup args
     -> ~In "rp" args
@@ -105,7 +111,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     -> length args = length pairs
     -> is_state sp rp e_stack e_stack nil (empty_vs, make_heap pairs) (map fst pairs)
     ===> Ex vs, locals ("rp" :: "extra_stack" :: args) vs (wordToNat (sel vs "extra_stack")) sp
-    * is_heap (make_heap pairs) * [| e_stack = wordToNat (sel vs "extra_stack") |].
+    * is_heap (make_heap pairs) * [| e_stack = wordToNat (sel vs "extra_stack") |]
+    * [| saved_vars vs args pairs |].
     unfold is_state, locals, has_extra_stack; simpl.
     intros.
     apply Himp_ex_c.
@@ -115,7 +122,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     rewrite map_length.
     rewrite <- H2.
     rewrite natToWord_plus.
-    eapply Himp_trans; [ | do 3 (apply Himp_star_frame; [ | apply Himp_refl ]);
+    eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
       apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
     simpl.
     generalize (map fst pairs); intro.
@@ -164,6 +171,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
     repeat constructor; simpl; intuition.
     symmetry; apply wordToNat_natToWord_idempotent; auto.
+    
+    Lemma saved_vars_irrel : forall x v args pairs vs,
+      saved_vars vs args pairs
+      -> ~In x args
+      -> saved_vars (upd vs x v) args pairs.
+      induction args; destruct pairs; simpl; intuition.
+      rewrite sel_upd_ne; auto.
+    Qed.
+
+    do 2 (apply saved_vars_irrel; auto).
+
+    Lemma saved_vars_zip_vars : forall args,
+      NoDup args
+      -> forall pairs, saved_vars (zip_vals args pairs) args pairs.
+      induction 1; destruct pairs; simpl; intuition.
+      apply sel_upd_eq; auto.
+      apply saved_vars_irrel; auto.
+    Qed.
+
+    eauto using saved_vars_zip_vars.
+
     etransitivity; [ apply himp_star_comm | ].
     apply himp_star_frame.
     etransitivity; [ | apply Arrays.ptsto32m'_in ].
@@ -215,12 +243,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     words.
   Qed.
 
-  Theorem is_state_in : forall vs sp args pairs e_stack,
-    length args = length pairs
-    -> locals ("rp" :: "extra_stack" :: args) vs e_stack sp
-    * is_heap (make_heap pairs)
+  Theorem is_state_in : forall vs sp args e_stack h,
+    locals ("rp" :: "extra_stack" :: args) vs e_stack sp
+    * is_heap h
     ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack")) e_stack nil
-    (vs, make_heap pairs) (toArray args vs).
+    (vs, h) (toArray args vs).
     unfold is_state, locals, has_extra_stack; simpl.
     intros.
     change (vs "rp") with (sel vs "rp").
@@ -245,6 +272,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
   Qed.
 
+  Module Hints := InvFacts.Make(E).
+  Module Export Inner := Hints.Make(M).
+
   Lemma extra_back_in : forall k vars sp res vs,
     natToW k <= res
     -> goodSize k
@@ -260,14 +290,129 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     nomega.
   Qed.
 
+  Lemma store_pair_inl_fwd : forall h w v,
+    is_heap (store_pair h (w, inl v)) ===> is_heap h.
+    intros; apply Himp_refl.
+  Qed.
+
+  Lemma store_pair_inl_bwd : forall h w v,
+    is_heap h ===> is_heap (store_pair h (w, inl v)).
+    intros; apply Himp_refl.
+  Qed.
+
+  Import WordMap LayoutHintsUtil.
+
+  Lemma store_pair_inr_fwd : forall h w v,
+    ~WordMap.In w h
+    -> is_heap (store_pair h (w, inr v)) ===> rep_inv w v * is_heap h.
+    unfold store_pair; simpl.
+    intros.
+    unfold is_heap at 1.
+    assert (In (w, v) (heap_elements (heap_upd h w v))).
+    apply InA_In.
+    apply WordMap.elements_1.
+    apply Properties.F.add_mapsto_iff; auto.
+    eapply starL_out in H0; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+    destruct H0; intuition idtac.
+    eapply Himp_trans; [ apply H1 | ]; clear H1.
+    simpl.
+    apply Himp_star_frame; try apply Himp_refl.
+    apply starL_permute; auto.
+    apply NoDupA_NoDup; apply WordMap.elements_3w.
+    intuition.
+    apply H3 in H1; intuition idtac.
+    apply In_InA' in H4.
+    apply WordMap.elements_2 in H4.
+    apply Properties.F.add_mapsto_iff in H4; intuition subst.
+    tauto.
+    apply InA_In; apply WordMap.elements_1; auto.
+    apply H3.
+    intuition.
+    injection H2; clear H2; intros; subst.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    apply H.
+    eexists; eauto.
+    apply InA_In.
+    apply WordMap.elements_1.
+    apply WordMap.add_2; auto.
+    intro; subst.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    apply H; eexists; eauto.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    auto.
+  Qed.
+
+  Lemma store_pair_inr_bwd : forall h w v,
+    ~WordMap.In w h
+    -> rep_inv w v * is_heap h ===> is_heap (store_pair h (w, inr v)).
+    unfold store_pair; simpl.
+    intros.
+    unfold is_heap at 2.
+    assert (In (w, v) (heap_elements (heap_upd h w v))).
+    apply InA_In.
+    apply WordMap.elements_1.
+    apply Properties.F.add_mapsto_iff; auto.
+    eapply starL_in in H0; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+    destruct H0; intuition idtac.
+    eapply Himp_trans; [ | apply H1 ]; clear H1.
+    simpl.
+    apply Himp_star_frame; try apply Himp_refl.
+    apply starL_permute; auto.
+    apply NoDupA_NoDup; apply WordMap.elements_3w.
+    intuition.
+    apply H3; intuition.
+    injection H2; clear H2; intros; subst.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    apply H; eexists; eauto.
+    apply InA_In.
+    apply WordMap.elements_1.
+    apply WordMap.add_2; auto.
+    intro; subst.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    apply H; eexists; eauto.
+    apply In_InA' in H1.
+    apply WordMap.elements_2 in H1.
+    auto.
+    apply H3 in H1; intuition.
+    apply In_InA' in H4.
+    apply WordMap.elements_2 in H4.
+    apply Properties.F.add_mapsto_iff in H4; intuition subst.
+    tauto.
+    apply InA_In; apply WordMap.elements_1; auto.    
+  Qed.
+
+  Lemma not_in_empty : forall w,
+    ~WordMap.In w heap_empty.
+    do 2 intro.
+    apply Facts.empty_in_iff in H; tauto.
+  Qed.
+
+  Lemma not_in_heap_upd : forall w h w' v,
+    w' <> w
+    -> ~WordMap.In w h
+    -> ~WordMap.In w (heap_upd h w' v).
+    intros; intro.
+    apply Facts.add_in_iff in H1; intuition idtac.
+  Qed.
+
+  Ltac prove_not_in := repeat (congruence || apply not_in_empty || apply not_in_heap_upd).
+
   Ltac do_abort argNames :=
     post; repeat match goal with
+                   | [ H : nil = nil |- _ ] => clear H
+                   | [ H : _ :: _ = _ :: _ |- _ ] => injection H; clear H; intros; subst
+                   | [ H : snd ?E = _ |- _ ] => destruct E; simpl in *; subst
                    | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
                  end;
     match goal with
       | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
         do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
-          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; tauto) ]
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; intuition congruence) ]
     end;
     evaluate auto_ext;
     match goal with
@@ -280,32 +425,61 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     auto.
   Qed.
 
-  Ltac do_delegate1 argNames :=
+  Ltac add_side_conditions' E :=
+    match E with
+      | store_pair ?h (?k, ?v) =>
+        assert (~WordMap.In k h) by prove_not_in; add_side_conditions' h
+      | _ => idtac
+    end.
+
+  Ltac add_side_conditions :=
+    match goal with
+      | [ |- himp _ ?lhs ?rhs ] =>
+        try match lhs with
+              | context[is_heap ?h] => add_side_conditions' h
+            end;
+        try match rhs with
+              | context[is_heap ?h] => add_side_conditions' h
+            end
+    end.
+
+  Ltac do_delegate1 argNames hints :=
     post; repeat match goal with
+                   | [ H : nil = nil |- _ ] => clear H
+                   | [ H : _ :: _ = _ :: _ |- _ ] => injection H; clear H; intros; subst
+                   | [ H : snd ?E = _ |- _ ] => destruct E; simpl in *; subst
                    | [ H : map snd ?X = _ |- _ ] => destruct X; simpl in *; try discriminate
                  end;
     match goal with
       | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
         do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
-          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; tauto) ]
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; intuition congruence) ]
     end;
     evaluate auto_ext;
     match goal with
       | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
         do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
           apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
-    end; repeat (descend; step auto_ext); [
-      match goal with
-        | [ |- context[locals _ ?vs _ _] ] =>
-          etransitivity; [ | apply himp_star_frame; [ reflexivity | apply (@is_state_in vs); auto ] ];
-          [ | instantiate (1 := argNames); auto ]
-      end | ].
+    end; simpl in *; intuition subst;
+    descend; [ step auto_ext; unfold make_heap; simpl; add_side_conditions; step hints | .. ];
+    (simpl; step auto_ext).
+
+  Ltac make_toArray argNames :=
+    match goal with
+      | [ |- context[locals _ ?vs _ _] ] =>
+        match goal with
+          | [ |- context[is_state _ _ _ _ _ _ ?ls ] ] =>
+            replace ls with (toArray argNames vs) by reflexivity
+        end
+    end.
 
   Ltac do_delegate2 argNames :=
-    simpl; rewrite Regs_back; step auto_ext;
+    simpl; try rewrite Regs_back; step auto_ext;
       match goal with
         | [ _ : natToW ?k <= _ |- _ ] => apply (@extra_back_in k ("rp" :: "extra_stack" :: argNames)); auto
       end.
+
+  Ltac unfolder := unfold store_out, Semantics.store_out, make_heap, store_pair; simpl.
 
   Ltac do_delegate argNames tac :=
     do_delegate1 argNames; [ | tac ]; cbv beta; do_delegate2 argNames.
@@ -314,4 +488,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     do_abort argNames || do_delegate argNames tac.
 
   Ltac wrapper argNames tac := vcgen; wrapper1 argNames tac.
+
+  Ltac returnScalar1 :=
+    match goal with
+      | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
+        instantiate (1 := inl _); instantiate (2 := Regs a b); reflexivity
+    end.
+
+  Ltac returnScalar := intuition; (cbv beta; simpl;
+    repeat match goal with
+             | [ |- @length ?A ?ls = O ] => equate ls (@nil A); reflexivity
+             | [ |- @length ?A ?ls = S _ ] =>
+               let x := fresh in let y := fresh in evar (x : A); evar (y : list A);
+                 equate ls (x :: y); subst x y; simpl; f_equal
+           end); (cbv beta; returnScalar1 || eauto).
 End Make.
