@@ -20,8 +20,6 @@ Module SK_as_UDT := Make_UDT StringKey.
 Require Import FSetFacts1.
 Module Import SF1 := UWFacts_fun SK_as_UDT SS.
 Import P FM.
-Require Import FSetProperties.
-Module Import SSP := Properties SS.
 
 Require Import FMapFacts3.
 Module Import SMF3 := UWFacts_fun SK_as_UDT StringMap.
@@ -177,6 +175,8 @@ Section TopSection.
   Qed.
 
   Require Import GeneralTactics2.
+  Require Import Bool.
+  Require Import Morphisms.
 
   Lemma subtract_none : forall elt (m : t elt) s x, SS.In x s -> find x (m - s) = None.
     unfold subtract; intros.
@@ -904,7 +904,7 @@ Module Make (Import E : ADT).
 
     Lemma const_folding_expr_footprint : forall e m, SS.Subset (free_vars (const_folding_expr e m)) (free_vars e).
     Proof.
-      induction e; simpl; intuition; openhyp'; simpl in *; subset_solver; eauto using subset_trans.
+      induction e; simpl; intros; openhyp'; simpl in *; subset_solver; eauto using subset_trans.
     Qed.
     Hint Resolve const_folding_expr_footprint.
 
@@ -921,7 +921,7 @@ Module Make (Import E : ADT).
 
     Lemma const_folding_footprint : forall s m, SS.Subset (free_vars (fst (fst (const_folding s m)))) (free_vars s).
     Proof.
-      induction s; simpl; intuition; openhyp'; simpl in *; subset_solver.
+      induction s; simpl; intros; openhyp'; simpl in *; subset_solver.
       eauto using subset_trans.
       eauto using subset_trans.
       destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
@@ -946,28 +946,7 @@ Module Make (Import E : ADT).
 
     Require Import Le.
     Require Import Arith.Max.
-
-    Ltac max_solver :=
-      repeat
-        match goal with
-          | |- ?A <= ?A => eapply le_n
-          | |- 0 <= _ => eapply le_0_n
-          | |- max _ _ <= _ => eapply max_lub
-          | |- ?S <= max ?A _ =>
-            match A with
-                context [ S ] => eapply le_trans; [ | eapply le_max_l]
-            end
-          | |- ?S <= max _ ?B =>
-            match B with
-                context [ S ] => eapply le_trans; [ .. | eapply le_max_r]
-            end
-        end.
-
-    Lemma both_le : forall a b a' b', a <= a' -> b <= b' -> max a b <= max a' b'.
-      intros; max_solver; eauto.
-      eapply le_trans; [ | eapply le_max_l]; eauto.
-      eapply le_trans; [ | eapply le_max_r]; eauto.
-    Qed.
+    Require Import MaxFacts.
 
     Hint Resolve both_le Le.le_n_S.
 
@@ -989,7 +968,6 @@ Module Make (Import E : ADT).
 
     Require Import Depth.
 
-    (* Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver). *)
     Hint Extern 0 (le _ _) => progress (simpl; max_solver).
 
     Lemma const_folding_depth : forall s m, depth (fst (fst (const_folding s m))) <= depth s.
@@ -1010,43 +988,20 @@ Module Make (Import E : ADT).
 
     Import NPeano.Nat.
     Require Import GetLocalVars.
+    Require Import GetLocalVarsFacts.
 
     Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
       unfold PreserveGoodSize, opt; intros.
-      destruct H.
-      openhyp.
       eapply goodSize_weaken; eauto.
       eapply add_le_mono.
       2 : eapply optimizer_depth.
-      unfold get_local_vars.
-      repeat rewrite <- SS.cardinal_1.
-      eapply subset_cardinal.
-      eapply diff_s_m.
-      eapply add_s_m; eauto.
-      eapply optimizer_footprint.
-      unfold flip.
-      eauto.
+      eapply get_local_vars_cardinal.
+      eapply optimizer_footprint; eauto.
     Qed.
 
     Require Import CompileStmtSpec.
     Require Import SetoidListFacts.
     Require Import GeneralTactics2.
-
-    Lemma get_local_vars_subset : forall stmt argvars retvar, free_vars stmt %<= SSP.of_list (argvars ++ get_local_vars stmt argvars retvar).
-      unfold get_local_vars.
-      unfold Subset; intros.
-      eapply of_list_spec.
-      destruct (List.In_dec string_dec a argvars).
-      eapply in_or_app; eauto.
-      eapply in_or_app; right.
-      eapply InA_eq_List_In.
-      eapply elements_iff.
-      eapply diff_iff.
-      split.
-      eapply add_iff; eauto.
-      not_not.
-      eapply of_list_spec; eauto.
-    Qed.
 
     Require Import WellFormed.
 
@@ -1061,8 +1016,6 @@ Module Make (Import E : ADT).
 
     Lemma PreserveSynReq_opt : PreserveSynReq opt.
       unfold PreserveSynReq, opt; intros.
-      destruct H.
-      openhyp.
       unfold syn_req in *.
       unfold in_scope in *.
       openhyp.
@@ -1074,9 +1027,9 @@ Module Make (Import E : ADT).
     Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
       unfold GoodOptimizer.
       split.
-      eapply PreserveSafe_opt.
-      split.
       eapply PreserveRunsTo_opt.
+      split.
+      eapply PreserveSafe_opt.
       split.
       eapply PreserveGoodSize_opt.
       eapply PreserveSynReq_opt.

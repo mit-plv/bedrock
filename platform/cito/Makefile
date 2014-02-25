@@ -47,7 +47,8 @@ MODULES := \
 	Stubs \
 	Link \
 	MakeADT \
-	optimizers/Identity optimizers/ConstFolding \
+	MaxFacts GetLocalVarsFacts \
+	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
 	examples/ExampleImpl \
