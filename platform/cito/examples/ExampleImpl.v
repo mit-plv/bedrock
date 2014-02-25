@@ -127,7 +127,7 @@ Lemma get_rval : forall specs st P (Q : Prop) R S T Z,
   apply injL; auto.
 Qed.
 
-Definition m := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [newS],
+Definition m0 := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [newS],
                            "SimpleCell"!"delete" @ [deleteS], "SimpleCell"!"read" @ [readS] ]]
   fmodule "ADT" {{
     ffunction "SimpleCell_new" reserving 8 [SimpleCell_newSpec] := "SimpleCell"!"new"
@@ -135,7 +135,7 @@ Definition m := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [newS]
     with ffunction "SimpleCell_read" reserving 0 [SimpleCell_readSpec] := "SimpleCell"!"read"
   }}.
 
-Theorem ok : moduleOk m.
+Theorem ok0 : moduleOk m0.
   vcgen.
 
   do_abort (@nil string).
@@ -187,4 +187,15 @@ Theorem ok : moduleOk m.
 
   Grab Existential Variables.
   exact 0.
+Qed.
+
+Definition m1 := link SimpleCell.m m0.
+Definition m := link Malloc.m m1.
+
+Theorem ok1 : moduleOk m1.
+  link SimpleCell.ok ok0.
+Qed.
+
+Theorem ok : moduleOk m.
+  link Malloc.ok ok1.
 Qed.
