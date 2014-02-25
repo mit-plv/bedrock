@@ -12,88 +12,128 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
-  Definition PreserveSafe (opt : Optimizer) := forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
+  Section TopSection.
 
-  Definition PreserveRunsTo (opt : Optimizer) :=  forall ret fs s v v', RunsTo fs (opt s ret) v v' -> exists vs', RunsTo fs s v (vs', snd v') /\ Locals.sel vs' ret = Locals.sel (fst v') ret.
+    Definition PreserveRunsTo (opt : Optimizer) :=  forall ret fs s v v', RunsTo fs (opt s ret) v v' -> exists vs', RunsTo fs s v (vs', snd v') /\ Locals.sel vs' ret = Locals.sel (fst v') ret.
 
-  Require Import GoodFunc.
-  Require Import GetLocalVars.
-  Require Import Depth.
-  Require Import SyntaxFunc.
-  Definition PreserveGoodSize (opt : Optimizer) :=
-    forall f, 
-      GoodFunc f -> 
-      let s := opt (Body f) (RetVar f) in
-      goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
+    Definition PreserveSafe (opt : Optimizer) := forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
 
-  Require Import Notations.
-  Local Open Scope stmt.
-  Require Import CompileStmtSpec.
-  Definition PreserveSynReq (opt : Optimizer) :=
-    forall f, 
-      GoodFunc f -> 
-      let s := opt (Body f) (RetVar f) in
-      CompileStmtSpec.syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
+    Require Import GetLocalVars.
+    Require Import Depth.
+    Require Import IL.
 
-  Definition GoodOptimizer opt := 
-    PreserveSafe opt /\ 
-    PreserveRunsTo opt /\
-    PreserveGoodSize opt /\
-    PreserveSynReq opt.
+    Definition PreserveGoodSize (opt : Optimizer) :=
+      forall stmt argvars retvar, 
+        let size s := List.length (get_local_vars s argvars retvar) + depth s in
+        goodSize (size stmt) -> 
+        goodSize (size (opt stmt retvar)).
 
-  Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> PreserveSafe opt.
-    unfold GoodOptimizer; intuition.
-  Qed.
+    Require Import Notations.
+    Local Open Scope stmt.
+    Require Import CompileStmtSpec.
 
-  Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> PreserveRunsTo opt.
-    unfold GoodOptimizer; intuition.
-  Qed.
+    Definition PreserveSynReq (opt : Optimizer) :=
+      forall stmt argvars retvar, 
+        let vars s := argvars ++ get_local_vars s argvars retvar in
+        let stmt' := opt stmt retvar in
+        syn_req (vars stmt) (depth stmt) stmt ->
+        syn_req (vars stmt') (depth stmt') stmt'.
 
-  Lemma GoodFunc_GoodOptimizer_goodSize : forall opt, GoodOptimizer opt -> PreserveGoodSize opt.
-    unfold GoodOptimizer; intuition.
-  Qed.
+    Definition GoodOptimizer opt := 
+      PreserveRunsTo opt /\
+      PreserveSafe opt /\ 
+      PreserveGoodSize opt /\
+      PreserveSynReq opt.
 
-  Lemma GoodFunc_GoodOptimizer_syn_req : forall opt, GoodOptimizer opt -> PreserveSynReq opt.
-    unfold GoodOptimizer; intuition.
-  Qed.
+    Require Import GoodFunc.
+    Require Import SyntaxFunc.
+    Definition PreserveGoodSize' (opt : Optimizer) :=
+      forall f, 
+        GoodFunc f -> 
+        let s := opt (Body f) (RetVar f) in
+        goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
+
+    Definition PreserveSynReq' (opt : Optimizer) :=
+      forall f, 
+        GoodFunc f -> 
+        let s := opt (Body f) (RetVar f) in
+        syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
+
+    Lemma GoodOptimizer_Safe : forall opt, GoodOptimizer opt -> PreserveSafe opt.
+      unfold GoodOptimizer; intuition.
+    Qed.
+
+    Lemma GoodOptimizer_RunsTo : forall opt, GoodOptimizer opt -> PreserveRunsTo opt.
+      unfold GoodOptimizer; intuition.
+    Qed.
+
+    Require Import GeneralTactics.
+
+    Lemma GoodFunc_GoodOptimizer_goodSize : forall opt, GoodOptimizer opt -> PreserveGoodSize' opt.
+      unfold GoodOptimizer.
+      intros.
+      openhyp.
+      unfold PreserveGoodSize'.
+      unfold PreserveGoodSize in *.
+      intros.
+      simpl in *.
+      eapply H1; eauto.
+      destruct H3; openhyp; eauto.
+    Qed.
+
+    Lemma GoodFunc_GoodOptimizer_syn_req : forall opt, GoodOptimizer opt -> PreserveSynReq' opt.
+      unfold GoodOptimizer.
+      intros.
+      openhyp.
+      unfold PreserveSynReq'.
+      unfold PreserveSynReq in *.
+      intros.
+      simpl in *.
+      eapply H2; eauto.
+      destruct H3; openhyp; eauto.
+    Qed.
+
+    Definition compose (f g : Optimizer) : Optimizer := fun s r => g (f s r) r.
+
+    Lemma PreserveRunsTo_trans : forall a b, PreserveRunsTo a -> PreserveRunsTo b -> PreserveRunsTo (compose a b).
+      unfold PreserveRunsTo, compose; intros.
+      eapply H0 in H1; eauto; openhyp.
+      eapply H in H1; eauto; openhyp.
+      descend; intuition eauto.
+    Qed.
+
+    Lemma PreserveSafe_trans : forall a b, PreserveSafe a -> PreserveSafe b -> PreserveSafe (compose a b).
+      unfold PreserveSafe, compose; intros.
+      eauto.
+    Qed.
+
+    Lemma PreserveGoodSize_trans : forall a b, PreserveGoodSize a -> PreserveGoodSize b -> PreserveGoodSize (compose a b).
+      unfold PreserveGoodSize, compose; intros.
+      eauto.
+    Qed.
+
+    Lemma PreserveSynReq_trans : forall a b, PreserveSynReq a -> PreserveSynReq b -> PreserveSynReq (compose a b).
+      unfold PreserveSynReq, compose; intros.
+      eauto.
+    Qed.
+
+    Lemma GoodOptimizer_trans : 
+      forall a b,
+        GoodOptimizer a ->
+        GoodOptimizer b ->
+        GoodOptimizer (compose a b).
+    Proof.
+      unfold GoodOptimizer; intros.
+      openhyp.
+      split.
+      eapply PreserveRunsTo_trans; eauto.
+      split.
+      eapply PreserveSafe_trans; eauto.
+      split.
+      eapply PreserveGoodSize_trans; eauto.
+      eapply PreserveSynReq_trans; eauto.
+    Qed.
+
+  End TopSection.
 
 End Make.
-
-
-
-  (*
-Require Import Syntax Semantics.
-Require Import CompileStatement.
-Require Import GeneralTactics.
-
-Set Implicit Arguments.
-
-Definition is_good_optimizer optimizer :=
-  (forall fs s v vs' heap', RunsTo fs (optimizer s) v (vs', heap') -> exists vs'', RunsTo fs s v (vs'', heap')) /\ 
-  (forall fs s v, Safety.Safe fs s v -> Safety.Safe fs (optimizer s) v) /\
-  (forall s, List.incl (SemanticsLemmas.footprint (optimizer s)) (SemanticsLemmas.footprint s)) /\
-  (forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s).
-
-Definition compose A B C (g : B -> C) (f : A -> B) x := g (f x).
-
-Lemma is_good_optimizer_trans : 
-  forall a b,
-    is_good_optimizer a ->
-    is_good_optimizer b ->
-    is_good_optimizer (compose a b).
-Proof.
-  unfold is_good_optimizer, compose; intros.
-
-  openhyp.
-  repeat split.
-  intros.
-  eapply H in H7; eauto; openhyp.
-  eapply H0 in H7; eauto; openhyp.
-
-  eauto.
-
-  eauto.
-
-  eauto using Le.le_trans.
-Qed.
-   *)

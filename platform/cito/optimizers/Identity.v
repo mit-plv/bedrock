@@ -14,11 +14,6 @@ Module Make (Import E : ADT).
 
   Lemma id_opt_good : GoodOptimizer id_opt.
     unfold GoodOptimizer.
-    split.
-    unfold PreserveSafe.
-    intros.
-    unfold id_opt in *.
-    eauto.
 
     split.
     unfold PreserveRunsTo.
@@ -29,19 +24,20 @@ Module Make (Import E : ADT).
     split; eauto.
 
     split.
+    unfold PreserveSafe.
+    intros.
+    unfold id_opt in *.
+    eauto.
+
+    split.
     unfold PreserveGoodSize.
     intros.
     unfold id_opt in *.
-    destruct H.
-    Require Import GeneralTactics.
-    openhyp; simpl in *.
     eauto.
 
     unfold PreserveSynReq.
     intros.
     unfold id_opt in *.
-    destruct H.
-    openhyp; simpl in *.
     eauto.
   Qed.
 
