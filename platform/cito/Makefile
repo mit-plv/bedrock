@@ -37,6 +37,7 @@ MODULES := \
 	NatFacts StringFacts2 \
 	ListFacts2 \
 	GeneralTactics2 \
+	SetoidListFacts \
 	FMapFacts1 \
 	StructuredModuleFacts \
 	FSetFacts1 FMapFacts3 ConvertLabelMap \

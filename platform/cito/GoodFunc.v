@@ -47,41 +47,24 @@ Section TopSection.
     induction 1; intuition auto using In_InA.
   Qed.
 
-  Lemma InA_In : forall A (x : A) ls,
-    SetoidList.InA (@Logic.eq A) x ls
-    -> List.In x ls.
-    induction 1; simpl; intuition.
-  Qed.
-
-  Lemma got_em_all : forall x to_remove acc,
-    In x to_remove \/ ~StringSet.StringSet.In x acc
-    -> ~In x
-    (StringSet.StringSet.elements
-      (fold_left
-        (fun (acc : StringSet.StringSet.t) (x0 : StringSet.StringSet.elt) =>
-          StringSet.StringSet.remove x0 acc) to_remove
-        acc)).
-    induction to_remove; simpl; intuition (subst; eauto).
-    apply In_InA in H0.
-    apply StringSet.StringSet.elements_2 in H0.
-    tauto.
-    apply IHto_remove in H0.
-    tauto.
-    right; intuition.
-    apply StringSet.StringFacts.remove_iff in H; tauto.
-    apply IHto_remove in H0; intuition.
-    right; intuition.
-    apply StringSet.StringFacts.remove_iff in H; tauto.
-  Qed.
-
   Require Import GetLocalVars.
+  Require Import GeneralTactics2.
+  Require Import SetoidListFacts.
+  Require Import GeneralTactics.
   Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> forall s r, NoDup (ArgVars f ++ get_local_vars s (ArgVars f) r).
     unfold GoodFunc; intuition.
     apply NoDup_app; auto.
     apply NoDupA_NoDup.
     apply StringSet.StringSet.elements_3w.
     intros.
-    apply got_em_all; auto.
+    nintro.
+    unfold get_local_vars in H4.
+    eapply InA_eq_List_In in H4.
+    eapply StringSet.StringSet.elements_2 in H4.
+    eapply StringSet.StringFacts.diff_iff in H4.
+    openhyp.
+    contradict H5.
+    eapply SF1.of_list_spec; eauto.
   Qed.
 
 End TopSection.
