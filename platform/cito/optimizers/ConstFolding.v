@@ -20,6 +20,8 @@ Module SK_as_UDT := Make_UDT StringKey.
 Require Import FSetFacts1.
 Module Import SF1 := UWFacts_fun SK_as_UDT SS.
 Import F.
+Require Import FSetProperties.
+Module Import SSP := Properties SS.
 
 Require Import FMapFacts3.
 Module Import SMF3 := UWFacts_fun SK_as_UDT StringMap.
@@ -676,10 +678,12 @@ Module Make (Import E : ADT).
 
     Definition optimizer := constant_folding.
 
-    Lemma optimizer_is_backward_simulation : forall fs s v vs' heap', RunsTo fs (optimizer s) v (vs', heap') -> exists vs'', RunsTo fs s v (vs'', heap').
-      intros.
-      unfold optimizer, constant_folding in *.
+    Definition opt : Optimizer := fun s _ => optimizer s.
+
+    Lemma PreserveRunsTo_opt : PreserveRunsTo opt.
+      unfold PreserveRunsTo, opt, optimizer, constant_folding; intros.
       destruct v.
+      destruct v'; simpl in *.
       eapply const_folding_is_backward_simulation in H; openhyp; eauto.
     Qed.
 
@@ -842,9 +846,8 @@ Module Make (Import E : ADT).
 
     Qed.
 
-    Lemma optimizer_is_safety_preservation : forall fs s v, Safe fs s v -> Safe fs (optimizer s) v.
-      intros.
-      unfold optimizer, constant_folding in *.
+    Lemma PreserveSafe_opt : PreserveSafe opt.
+      unfold PreserveSafe, opt, optimizer, constant_folding; intros.
       destruct v.
       eapply const_folding_is_safety_preservation in H; openhyp; eauto.
     Qed.
@@ -957,10 +960,45 @@ Module Make (Import E : ADT).
       unfold optimizer, constant_folding; intros; eapply const_folding_depth.
     Qed.
 
-    Definition opt : Optimizer := fun s _ => optimizer s.
-
     Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
       unfold GoodOptimizer.
+      split.
+      eapply PreserveSafe_opt.
+      split.
+      eapply PreserveRunsTo_opt.
+      split.
+      Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
+        unfold PreserveGoodSize, opt; intros.
+        destruct H.
+        openhyp.
+        eapply goodSize_weaken; eauto.
+        Import NPeano.Nat.
+        eapply add_le_mono.
+        2 : eapply optimizer_depth.
+        unfold GetLocalVars.get_local_vars.
+        repeat rewrite <- SS.cardinal_1.
+        eapply subset_cardinal.
+        eapply diff_s_m.
+        eapply add_s_m; eauto.
+        eapply optimizer_footprint.
+        unfold flip.
+        eauto.
+      Qed.
+      eapply PreserveGoodSize_opt.
+      Lemma PreserveSynReq_opt : PreserveSynReq opt.
+        unfold PreserveSynReq, opt; intros.
+        Require Import CompileStmtSpec.
+        destruct H.
+        openhyp.
+        unfold syn_req in *.
+        unfold in_scope in *.
+        openhyp.
+        repeat split.
+        eapply subset_trans.
+        eapply optimizer_footprint.
+
+
+
       (*here*)
       repeat split.
       eapply optimizer_is_backward_simulation.

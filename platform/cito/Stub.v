@@ -694,6 +694,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply NoDup_union.
       Qed.
 
+      Require Import SetoidListFacts.
+
       Corollary bimports_fullImports : forall (x : label), List.In x (List.map fst bimports) -> LabelMap.LabelMap.find (x : Labels.label) full_imports <> None.
       Proof.
         intros.
