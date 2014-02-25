@@ -52,35 +52,12 @@ Lemma is_heap_eat : forall w v,
   apply Properties.F.add_mapsto_iff in H1; intuition.
 Qed.
 
-Definition hints : TacPackage.
-  prepare (store_pair_inl_fwd, store_pair_inr_fwd)
-  (store_pair_inl_bwd, store_pair_inr_bwd).
-Defined.
-
-Definition SimpleCell_newSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => args = nil;
-    PostCond := fun args ret => args = nil /\ ret = inr (Cell 0)
-  |}.
-
-Definition SimpleCell_deleteSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
-    PostCond := fun args _ => exists n, args = (inr (Cell n), None) :: nil
-  |}.
-
-Definition SimpleCell_readSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
-    PostCond := fun args ret => exists n, ret = inl n /\ args = (inr (Cell n), Some (Cell n)) :: nil
-  |}.
-
-Lemma readd : forall c rv,
-  cell rv c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (Cell rv) (heap_upd heap_empty c (Cell rv))).
+Lemma readd : forall c rv rv',
+  cell rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (Cell rv') (heap_upd heap_empty c (Cell rv))).
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, Cell rv) (heap_elements (WordMap.add c (Cell rv) (heap_upd heap_empty c (Cell rv))))).
+  assert (List.In (c, Cell rv') (heap_elements (WordMap.add c (Cell rv') (heap_upd heap_empty c (Cell rv))))).
   Import LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
@@ -127,12 +104,44 @@ Lemma get_rval : forall specs st P (Q : Prop) R S T Z,
   apply injL; auto.
 Qed.
 
-Definition m0 := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [newS],
-                           "SimpleCell"!"delete" @ [deleteS], "SimpleCell"!"read" @ [readS] ]]
+Definition hints : TacPackage.
+  prepare (store_pair_inl_fwd, store_pair_inr_fwd)
+  (store_pair_inl_bwd, store_pair_inr_bwd).
+Defined.
+
+Definition SimpleCell_newSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => args = nil;
+    PostCond := fun args ret => args = nil /\ ret = inr (Cell 0)
+  |}.
+
+Definition SimpleCell_deleteSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
+    PostCond := fun args _ => exists n, args = (inr (Cell n), None) :: nil
+  |}.
+
+Definition SimpleCell_readSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
+    PostCond := fun args ret => exists n, ret = inl n /\ args = (inr (Cell n), Some (Cell n)) :: nil
+  |}.
+
+Definition SimpleCell_writeSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists n n', args = inr (Cell n) :: inl n' :: nil;
+    PostCond := fun args _ => exists n n', args = (inr (Cell n), Some (Cell n')) :: (inl n', None) :: nil
+  |}.
+
+Definition m0 := bimport [[ "sys"!"abort" @ [abortS], "SimpleCell"!"new" @ [SimpleCell.newS],
+                           "SimpleCell"!"delete" @ [SimpleCell.deleteS],
+                           "SimpleCell"!"read" @ [SimpleCell.readS],
+                           "SimpleCell"!"write" @ [SimpleCell.writeS] ]]
   fmodule "ADT" {{
     ffunction "SimpleCell_new" reserving 8 [SimpleCell_newSpec] := "SimpleCell"!"new"
     with ffunction "SimpleCell_delete" reserving 6 [SimpleCell_deleteSpec] := "SimpleCell"!"delete"
     with ffunction "SimpleCell_read" reserving 0 [SimpleCell_readSpec] := "SimpleCell"!"read"
+    with ffunction "SimpleCell_write" reserving 0 [SimpleCell_writeSpec] := "SimpleCell"!"write"
   }}.
 
 Theorem ok0 : moduleOk m0.
@@ -184,6 +193,26 @@ Theorem ok0 : moduleOk m0.
   unfolder.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd ] ].
   do_delegate2 ("c" :: nil).
+
+  do_abort ("c" :: "n" :: nil).
+  do_abort ("c" :: "n" :: nil).
+  do_abort ("c" :: "n" :: nil).
+
+  do_delegate1 ("c" :: "n" :: nil) hints.
+  add_side_conditions.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("c" :: "n" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd ] ].
+  do_delegate2 ("c" :: "n" :: nil).
 
   Grab Existential Variables.
   exact 0.
