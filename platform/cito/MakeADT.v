@@ -402,6 +402,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Ltac prove_not_in := repeat (congruence || apply not_in_empty || apply not_in_heap_upd).
 
+  Hint Extern 1 (~In _ _) => simpl; intuition congruence.
+
   Ltac do_abort argNames :=
     post; repeat match goal with
                    | [ H : nil = nil |- _ ] => clear H
@@ -412,7 +414,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     match goal with
       | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
         do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
-          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; intuition congruence) ]
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; solve [ auto ] ]
     end;
     evaluate auto_ext;
     match goal with
@@ -443,6 +445,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             end
     end.
 
+  Ltac use_arg_facts :=
+    unfold disjoint_ptrs, Semantics.disjoint_ptrs, good_scalars, word_scalar_match in *;
+      simpl in *;
+        repeat (match goal with
+                  | [ H : NoDup _ |- _ ] => inversion_clear H
+                  | [ H : List.Forall _ _ |- _ ] => inversion_clear H
+                end; simpl in *; intuition subst);
+        repeat match goal with
+                 | [ H : True |- _ ] => clear H
+                 | [ H : False -> False |- _ ] => clear H
+                 | [ H : ?x = ?x |- _ ] => clear H
+               end.
+
   Ltac do_delegate1 argNames hints :=
     post; repeat match goal with
                    | [ H : nil = nil |- _ ] => clear H
@@ -453,7 +468,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     match goal with
       | [ H : interp _ _ |- _ ] => eapply CompileExprs.change_hyp in H; [ |
         do 2 (eapply Himp_star_frame; [ | apply Himp_refl ]);
-          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; (simpl; intuition congruence) ]
+          apply is_state_out; [ instantiate (1 := argNames); auto | .. ]; solve [ auto ] ]
     end;
     evaluate auto_ext;
     match goal with
@@ -462,7 +477,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
     end; simpl in *; intuition subst;
     descend; [ step auto_ext; unfold make_heap; simpl; add_side_conditions; step hints | .. ];
-    (simpl; step auto_ext).
+    (simpl; step auto_ext); use_arg_facts.
 
   Ltac make_toArray argNames :=
     match goal with
@@ -473,7 +488,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         end
     end.
 
-  Ltac do_delegate2 argNames :=
+  Ltac do_delegate2 argNames := use_arg_facts;
     simpl; try rewrite Regs_back; step auto_ext;
       match goal with
         | [ _ : natToW ?k <= _ |- _ ] => apply (@extra_back_in k ("rp" :: "extra_stack" :: argNames)); auto
