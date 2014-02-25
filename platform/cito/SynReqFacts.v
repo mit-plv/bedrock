@@ -75,15 +75,17 @@ Qed.
 
 Local Hint Resolve max_more.
 
-Lemma args_bound' : forall x args acc,
-  In x args \/ (DepthExpr.depth x <= acc)%nat
-  -> (DepthExpr.depth x <= fold_left max (map DepthExpr.depth args) acc)%nat.
+Lemma args_bound' : forall x args,
+  In x args
+  -> (DepthExpr.depth x <= fold_right max 0 (map DepthExpr.depth args))%nat.
   induction args; simpl; intuition (subst; auto).
+  eapply Le.le_trans; [ | eapply Max.le_max_r]; eauto.
 Qed.
 
 Lemma args_bound : forall args,
   List.Forall (fun e => (DepthExpr.depth e <= CompileExprs.depth args)%nat) args.
-  intros; apply Forall_forall; intros; apply args_bound'; auto.
+  intros; apply Forall_forall; intros.
+  apply args_bound'; auto.
 Qed.
 
 Local Hint Resolve args_bound.

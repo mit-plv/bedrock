@@ -417,8 +417,9 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
+  Module Import GoodOptimizerMake := GoodOptimizer.Make E.
   Require Import Semantics.
-  Module Import SemanticsMake := Semantics.Make E.
+  Import SemanticsMake.
 
   Section TopSection.
 
@@ -892,11 +893,29 @@ Module Make (Import E : ADT).
 
     Open Scope nat.
 
+    Require Import Le.
+    Require Import Arith.Max.
+
+    Ltac max_solver :=
+      repeat
+        match goal with
+          | |- ?A <= ?A => eapply le_n
+          | |- 0 <= _ => eapply le_0_n
+          | |- max _ _ <= _ => eapply max_lub
+          | |- ?S <= max ?A _ =>
+            match A with
+                context [ S ] => eapply le_trans; [ | eapply le_max_l]
+            end
+          | |- ?S <= max _ ?B =>
+            match B with
+                context [ S ] => eapply le_trans; [ .. | eapply le_max_r]
+            end
+        end.
+
     Lemma both_le : forall a b a' b', a <= a' -> b <= b' -> max a b <= max a' b'.
-(*
-      intros; CompileStatement.max_le_solver; eauto.
-*)
-      admit.
+      intros; max_solver; eauto.
+      eapply le_trans; [ | eapply le_max_l]; eauto.
+      eapply le_trans; [ | eapply le_max_r]; eauto.
     Qed.
 
     Hint Resolve both_le Le.le_n_S.
@@ -909,31 +928,40 @@ Module Make (Import E : ADT).
     Qed.
     Hint Resolve const_folding_expr_depth.
 
+    Lemma const_folding_expr_depth_list : forall es m, le (Max.max_list 0 (List.map depth (List.map (fun e => const_folding_expr e m) es))) (Max.max_list 0 (List.map depth es)).
+    Proof.
+      unfold Max.max_list.
+      induction es; simpl; intuition eauto.
+    Qed.
+
+    Hint Resolve const_folding_expr_depth_list.
+
     Require Import Depth.
+
+    (* Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver). *)
+    Hint Extern 0 (le _ _) => progress (simpl; max_solver).
 
     Lemma const_folding_depth : forall s m, depth (fst (fst (const_folding s m))) <= depth s.
     Proof.
       induction s; simpl; intuition; openhyp'; simpl in *; eauto.
 
       destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *.
-      eauto using Le.le_trans.
-      (* here *)
-      eauto.
-      eapply both_le.
-      eauto.
-      eauto.
-
-      openhyp'; simpl in *; eauto.
-      eapply both_le.
-      eauto.
-      eauto.
+      eauto using le_trans.
+      eauto using le_trans.
+      destruct o; simpl in *.
+      max_solver; eauto using le_trans.
+      max_solver; eauto using le_trans.
     Qed.
 
-    Lemma optimizer_depth : forall s, CompileStatement.depth (optimizer s) <= CompileStatement.depth s.
+    Lemma optimizer_depth : forall s, depth (optimizer s) <= depth s.
       unfold optimizer, constant_folding; intros; eapply const_folding_depth.
     Qed.
 
-    Lemma constant_folding_is_good_optimizer : is_good_optimizer optimizer.
+    Definition opt : Optimizer := fun s _ => optimizer s.
+
+    Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
+      unfold GoodOptimizer.
+      (*here*)
       repeat split.
       eapply optimizer_is_backward_simulation.
       eapply optimizer_is_safety_preservation.
