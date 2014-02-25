@@ -64,6 +64,16 @@ Module Make (Import E : ADT).
           | Some a => rep_inv addr a
         end.
 
+      Definition word_scalar_match (p : W * ArgIn) :=
+        let word := fst p in
+        let in_ := snd p in
+        match in_ with
+          | inl w => word = w
+          | _ => True
+        end.
+
+      Definition good_scalars pairs := List.Forall word_scalar_match pairs.
+
       Open Scope type.
 
       Require Import ConvertLabel.
@@ -92,6 +102,7 @@ Module Make (Import E : ADT).
          ![^[is_state st#Sp rp e_stack e_stack nil (empty_vs, heap) (map fst pairs) * mallocHeap 0] * #0] st /\
          let stn := fst st in
          [| disjoint_ptrs pairs /\
+            good_scalars pairs /\
             PreCond spec (map snd pairs) |] /\
          (st#Rp, stn) 
            @@@ (
