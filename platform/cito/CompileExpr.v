@@ -1,6 +1,11 @@
 Require Import AutoSep.
 Require Import SyntaxExpr.
 
+Require Import StringSet.
+Import StringSet.
+Require Import FSetProperties.
+Module Import SSP := Properties StringSet.
+
 Set Implicit Arguments. 
 
 Section ExprComp.
@@ -47,12 +52,9 @@ Section ExprComp.
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
   Require Import FreeVarsExpr.
-  Require Import StringSet.
-  Import StringSet.
-  Require Import SetUtil.
 
   Definition syn_req expr base := 
-    Subset (free_vars expr) (to_set vars) /\
+    Subset (free_vars expr) (of_list vars) /\
     base + depth expr <= temp_size.
 
   Definition verifCond expr base pre := imply pre new_pre :: syn_req expr base :: nil.
@@ -105,7 +107,7 @@ Section ExprComp.
     Opaque mult.
 
     Lemma postOk : forall specs sm expr base pre st,
-      Subset (free_vars expr) (to_set vars)
+      Subset (free_vars expr) (of_list vars)
       -> base + depth expr <= temp_size
       -> interp specs (Postcondition (do_compile expr base pre) (sm, st))
       -> exists st', interp specs (pre (sm, st')) /\ runs_to expr base (sm, st') st.
@@ -135,19 +137,15 @@ Section ExprComp.
       apply StringFacts.singleton_iff; auto.
       apply H in H5.
 
-      Lemma In_to_set' : forall s ls acc,
-        In s (fold_left (fun s0 e => add e s0) ls acc)
-        -> In s acc \/ List.In s ls.
-        induction ls; simpl; intuition.
-        apply IHls in H; intuition.
-        apply StringFacts.add_iff in H0; intuition.
-      Qed.
+      Require Import SetoidListFacts.
 
-      Lemma In_to_set : forall s vars,
-        In s (to_set vars)
-        -> List.In s vars.
-        intros; apply In_to_set' in H; intuition.
-        apply StringFacts.empty_iff in H0; tauto.
+      Lemma In_to_set : 
+        forall x ls,
+          StringSet.In x (SSP.of_list ls)
+          -> List.In x ls.
+        intros.
+        eapply SSP.of_list_1 in H.
+        eapply InA_eq_List_In; eauto.
       Qed.
 
       assert (List.In s vars) by eauto using In_to_set.
@@ -1488,7 +1486,7 @@ Section ExprComp.
 
     Lemma verifCondOk : forall expr base pre,
       imply pre new_pre
-      -> Subset (free_vars expr) (to_set vars)
+      -> Subset (free_vars expr) (of_list vars)
       -> base + depth expr <= temp_size
       -> vcs (VerifCond (body expr base pre)).
       induction expr; wrap0; simpl in *.

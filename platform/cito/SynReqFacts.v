@@ -106,5 +106,4 @@ Require SetFacts.
 
 Lemma syn_req_Seq_Skip : forall vars temp_size s, syn_req vars temp_size s -> syn_req vars temp_size (s ;; skip).
   t.
-  SetFacts.subset_solver; eauto.
 Qed.

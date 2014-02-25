@@ -7,7 +7,7 @@ Require Import Equalities.
 Module SK_as_UDT := Make_UDT StringKey.
 Require Import FSetFacts1.
 Module Import SF1 := UWFacts_fun SK_as_UDT StringSet.
-Import F.
+Import P FM.
 
 Definition get_local_vars stmt arg_vars ret_var := 
   elements (diff (add ret_var (free_vars stmt)) (of_list arg_vars)).

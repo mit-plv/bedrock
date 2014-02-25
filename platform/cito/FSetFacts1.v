@@ -5,43 +5,31 @@ Require Import FSetInterface.
 
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
   
-  Require Import FSetFacts.
-  Module Import F := WFacts_fun E M.
-
-  Definition of_list ls := List.fold_left (fun s e => add e s) ls empty.
+  Require Import FSetProperties.
+  Module Import P := WProperties_fun E M.
+  Import FM.
 
   Definition Disjoint a b := forall x, ~ (In x a /\ In x b).
 
   Import ListNotations.
   Require Import GeneralTactics.
 
-  Lemma of_list_fwd' : forall e ls acc,
-    In e (List.fold_left (fun s e => add e s) ls acc)
-    -> List.In e ls \/ In e acc.
-    induction ls; simpl; intuition.
-    apply IHls in H; intuition.
-    apply add_iff in H0; intuition.
-  Qed.
+  Require Import SetoidListFacts.
 
   Lemma of_list_fwd : forall e ls,
     In e (of_list ls)
     -> List.In e ls.
     intros.
-    apply of_list_fwd' in H; intuition.
-    apply empty_iff in H0; tauto.
-  Qed.
-
-  Lemma of_list_bwd' : forall e ls acc,
-    List.In e ls \/ In e acc
-    -> In e (List.fold_left (fun s e => add e s) ls acc).
-    induction ls; simpl; intuition.
+    eapply of_list_1 in H.
+    eapply InA_eq_List_In; eauto.
   Qed.
 
   Lemma of_list_bwd : forall e ls,
     List.In e ls
     -> In e (of_list ls).
     intros.
-    apply of_list_bwd'; auto.
+    eapply of_list_1.
+    eapply InA_eq_List_In; eauto.
   Qed.
 
   Local Hint Resolve of_list_fwd of_list_bwd.
@@ -68,14 +56,16 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Lemma of_list_cons : forall e ls, Equal (of_list (e :: ls)) (union (singleton e) (of_list ls)).
     unfold Equal; intuition.
-    unfold of_list in H; simpl in H.
-    apply of_list_fwd' in H; intuition.
-    apply add_iff in H0; intuition (subst; eauto).
+    simpl in *.
+    apply add_iff in H; intuition (subst; eauto).
     apply union_iff; left; apply singleton_iff; auto.
-    apply empty_iff in H; tauto.
-    unfold of_list; simpl.
+    eapply union_iff; eauto.
+    simpl.
     apply union_iff in H.
-    apply of_list_bwd'; intuition.
+    openhyp.
+    eapply singleton_iff in H.
+    eapply add_iff; eauto.
+    eapply add_iff; eauto.
   Qed.
 
   Add Morphism Disjoint with signature Equal ==> Equal ==> iff as Disjoint_m.

@@ -67,7 +67,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import SSUF := UWFacts_fun SSK_as_UDT SS.
 
   Import LM.
-  Import P.
+  Import LMF.P.
   Import F.
 
   Section TopSection.
@@ -107,7 +107,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSUF.of_list.
+    Notation to_set := SSUF.P.of_list.
 
     Hint Extern 1 => reflexivity.
 
@@ -234,9 +234,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       descend.
       eapply CompileModuleMake.compileOk.
-      rewrite of_list_singleton.
       rewrite compile_module_Modules.
-      eauto.
+      rewrite P.add_union_singleton.
+      eapply Equal_Subset_iff; split; subset_solver.
       rewrite compile_module_Exports.
       rewrite update_all_single.
       eauto.
@@ -257,7 +257,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       eapply inter_is_empty_iff.
       rewrite H3.
-      rewrite of_list_cons.
+      rewrite P.add_union_singleton.
       rewrite compile_module_Modules.
       eapply Disjoint_union.
       split.
@@ -291,6 +291,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H3.
       rewrite compile_module_Modules.
       repeat rewrite of_list_cons.
+      repeat rewrite P.add_union_singleton.
       eapply Equal_Subset_iff; split; subset_solver.
       rewrite XCAP_union_update.
       rewrite H4.
