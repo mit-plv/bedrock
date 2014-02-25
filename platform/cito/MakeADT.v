@@ -462,7 +462,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
     end; simpl in *; intuition subst;
     descend; [ step auto_ext; unfold make_heap; simpl; add_side_conditions; step hints | .. ];
-    (simpl; step auto_ext); do 2 (descend; step auto_ext).
+    (simpl; step auto_ext).
 
   Ltac make_toArray argNames :=
     match goal with
