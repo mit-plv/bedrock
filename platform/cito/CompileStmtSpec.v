@@ -2,6 +2,11 @@ Require Import Syntax.
 
 Set Implicit Arguments.
 
+Require Import StringSet.
+Import StringSet.
+Require Import FSetProperties.
+Module Import SSP := Properties StringSet.
+
 (* syntactic_requirement *)
 Section SynReq.
 
@@ -15,14 +20,11 @@ Section SynReq.
 
   Require Import FreeVars.
   Require Import Depth.
-  Require Import StringSet.
-  Import StringSet.
-  Require Import SetUtil.
 
   Local Open Scope nat.
 
   Definition in_scope := 
-    Subset (free_vars s) (to_set vars) /\
+    Subset (free_vars s) (of_list vars) /\
     depth s <= temp_size.
 
   Require Import WellFormed.

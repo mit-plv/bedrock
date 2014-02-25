@@ -1,6 +1,11 @@
 Require Import AutoSep.
 Require Import SyntaxExpr.
 
+Require Import StringSet.
+Import StringSet.
+Require Import FSetProperties.
+Module Import SSP := Properties StringSet.
+
 Set Implicit Arguments. 
 
 Section TopLevel.
@@ -53,13 +58,10 @@ Section TopLevel.
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
   Require Import FreeVarsExpr.
-  Require Import StringSet.
-  Import StringSet.
-  Require Import SetUtil.
   Require Import Union.
 
   Definition syn_req exprs base := 
-    Subset (union_list (map free_vars exprs)) (to_set vars) /\
+    Subset (union_list (map free_vars exprs)) (of_list vars) /\
     base + depth <= temp_size /\
     List.Forall (fun e => DepthExpr.depth e <= depth) exprs.
 

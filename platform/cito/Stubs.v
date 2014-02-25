@@ -55,15 +55,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import ListFacts3.
 
-  Module Import SS := StringSet.StringSet.
-  Module Import SSF := StringSet.StringFacts.
-  Module SSK := StringSet.StringKey.
+  Import SS.
+  Import SSF.
   Require Import FSetFacts1.
-  Module SSK_as_UDT := Make_UDT SSK.
-  Module Import SSUF := UWFacts_fun SSK_as_UDT SS.
+  Import SSUF.
 
   Import LM.
-  Import P.
+  Import LMF.P.
   Import F.
 
   Section TopSection.
@@ -94,7 +92,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import SetFacts.
     
-    Notation to_set := SSUF.of_list.
+    Notation to_set := SSUF.P.of_list.
 
     Existing Instance to_blm_Equal_m_Proper.
     Existing Instance CompatReflSym_Symmetric.
@@ -636,7 +634,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
       unfold do_make_module.
       rewrite make_module_Modules by intuition.
-      rewrite of_list_singleton.
+      setoid_rewrite of_list_singleton.
       Hint Extern 1 => reflexivity.
       eauto.
       unfold do_make_module.
@@ -666,7 +664,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       eapply inter_is_empty_iff.
       rewrite H3.
-      rewrite of_list_cons.
+      setoid_rewrite of_list_cons.
       unfold do_make_module.
       rewrite make_module_Modules by intuition.
       eapply Disjoint_union.
@@ -705,7 +703,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H3.
       unfold do_make_module.
       rewrite make_module_Modules by intuition.
-      repeat rewrite of_list_cons.
+      repeat setoid_rewrite of_list_cons.
+      repeat setoid_rewrite P.add_union_singleton.
       eapply Equal_Subset_iff; split; subset_solver.
       rewrite XCAP_union_update.
       rewrite H4.

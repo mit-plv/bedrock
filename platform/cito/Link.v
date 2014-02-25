@@ -69,7 +69,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import SSUF := UWFacts_fun SSK_as_UDT SS.
 
   Import LM.
-  Import P.
+  Import LMF.P.
   Import F.
 
   Section TopSection.
@@ -97,7 +97,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSUF.of_list.
+    Notation to_set := SSUF.P.of_list.
 
     Hint Extern 1 => reflexivity.
 

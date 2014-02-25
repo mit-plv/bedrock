@@ -1,7 +1,7 @@
 BEDROCK := ../..
 
 MODULES := \
-	ValsStringSet SetUtil \
+	ValsStringSet \
 	Label ConvertLabel \
 	SyntaxExpr Syntax SemanticsExpr FuncCore \
 	ADT WordMap \
@@ -47,7 +47,7 @@ MODULES := \
 	Stubs \
 	Link \
 	MakeADT \
-	optimizers/Identity \
+	optimizers/Identity optimizers/ConstFolding \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
 	examples/ExampleImpl \

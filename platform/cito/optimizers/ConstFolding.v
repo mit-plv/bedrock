@@ -19,7 +19,7 @@ Require Import FSetFacts1.
 Module SK_as_UDT := Make_UDT StringKey.
 Require Import FSetFacts1.
 Module Import SF1 := UWFacts_fun SK_as_UDT SS.
-Import F.
+Import P FM.
 Require Import FSetProperties.
 Module Import SSP := Properties SS.
 
@@ -61,19 +61,20 @@ Ltac unfold_all :=
            | H := _ |- _ => unfold H in *; clear H
          end.
 
+Definition SET := SS.t.
+Definition Map := t W.
+Definition empty_set := SS.empty.
+Definition empty_map := empty W.
+Definition Submap elt m1 m2 := forall k v, @find elt k m1 = Some v -> find k m2 = Some v.
+Definition subtract elt m s := @filter elt (fun k _ => negb (SS.mem k s)) m.
+
 Section TopSection.
 
-  Definition SET := SS.t.
-  Definition Map := t W.
-  Definition empty_set := SS.empty.
-  Definition empty_map := empty W.
   Notation "m %%- k" := (remove k m) (at level 60).
   Infix "%<=" := Subset (at level 60).
-  Definition Submap elt m1 m2 := forall k v, @find elt k m1 = Some v -> find k m2 = Some v.
   Infix "%%<=" := Submap (at level 60).
   Infix "+" := union.
-  Definition map_diff_set elt m s := @filter elt (fun k _ => negb (SS.mem k s)) m.
-  Infix "-" := map_diff_set.
+  Infix "-" := subtract.
   Notation "! x" := (singleton x) (at level 100).
   Notation "[]" := (@empty _).
   Open Scope stmt_scope.
@@ -171,17 +172,61 @@ Section TopSection.
         end
     end.
 
-  Lemma subtract_none : forall elt (m : t elt) s x, SS.In x s -> find x (m - s) = None.
-    admit.
-  Qed.
   Lemma union_same_subset : forall s, s + s %<= s.
-    admit.
+    intros; subset_solver.
   Qed.
+
+  Require Import GeneralTactics2.
+
+  Lemma subtract_none : forall elt (m : t elt) s x, SS.In x s -> find x (m - s) = None.
+    unfold subtract; intros.
+    eapply not_find_in_iff.
+    nintro.
+    eapply In_MapsTo in H0; openhyp.
+    eapply filter_iff in H0; openhyp.
+    eapply negb_true_iff in H1.
+    eapply not_mem_iff in H1; intuition.
+    unfold Proper.
+    unfold respectful.
+    intros; subst; eauto.
+  Qed.
+
   Lemma empty_submap : forall elt (m : t elt), [] %%<= m.
-    admit.
+    unfold Submap; intros.
+    eapply find_2 in H; eapply empty_mapsto_iff in H; intuition.
   Qed.
+
   Lemma subtract_submap : forall elt (m : t elt) s, m - s %%<= m.
-    admit.
+    unfold subtract, Submap.
+    intros.
+    eapply find_2 in H.
+    eapply filter_iff in H.
+    openhyp.
+    eapply find_1; eauto.
+    unfold Proper.
+    unfold respectful.
+    intros; subst; eauto.
+  Qed.
+
+  Lemma subtract_mapsto_iff : forall elt m s k v, @MapsTo elt k v (m - s) <-> (MapsTo k v m /\ ~ SS.In k s).
+    unfold subtract.
+    split; intros.
+    eapply filter_iff in H.
+    openhyp.
+    split; eauto.
+    eapply negb_true_iff in H0.
+    eapply not_mem_iff; eauto.
+    unfold Proper.
+    unfold respectful.
+    intros; subst; eauto.
+    openhyp.
+    eapply filter_iff.
+    unfold Proper.
+    unfold respectful.
+    intros; subst; eauto.
+    split; eauto.
+    eapply negb_true_iff.
+    eapply not_mem_iff; eauto.
   Qed.
 
   Section HintsSection.
@@ -205,28 +250,36 @@ Section TopSection.
         Locals.sel v x = w.
 
     Lemma agree_with_remove : forall local m x e, agree_with local m -> agree_with (upd local x e) (m %%- x).
-      (*      unfold agree_with; intros; destruct (string_dec x x0).
-      subst; rewrite sel_remove_eq in *; discriminate.
-      rewrite sel_remove_ne in *; eauto; rewrite sel_upd_ne; eauto.
-       *)admit.
+      unfold agree_with; intros; destruct (string_dec x x0).
+      subst.
+      eapply find_2 in H0; eapply remove_mapsto_iff in H0; intuition.
+      eapply find_2 in H0; eapply remove_mapsto_iff in H0; openhyp.
+      rewrite sel_upd_ne.
+      eapply H; eauto.
+      eapply find_1; eauto.
+      eauto.
     Qed.
     Hint Resolve agree_with_remove.
 
     Lemma agree_with_add : forall local m x w, agree_with local m -> agree_with (upd local x w) (add x w m).
-      (*      unfold agree_with; intros; destruct (string_dec x x0).
+      unfold agree_with; intros; destruct (string_dec x x0).
       subst.
-      rewrite sel_add_eq in *; eauto; injection H0; intros; subst; rewrite sel_upd_eq in *; eauto.
-      rewrite sel_add_ne in *; eauto; rewrite sel_upd_ne; eauto.
-       *)admit.
+      rewrite sel_upd_eq in *.
+      eapply find_2 in H0; eapply add_mapsto_iff in H0; openhyp; intuition.
+      eauto.
+      rewrite sel_upd_ne in *.
+      eapply H; eauto.
+      eapply find_1.
+      eapply find_2 in H0; eapply add_mapsto_iff in H0; openhyp; intuition.
+      eauto.
     Qed.
     Hint Resolve agree_with_add.
 
     Lemma everything_agree_with_empty_map : forall v, agree_with v empty_map.
-      (*      unfold agree_with.
+      unfold agree_with.
       intros.
-      rewrite empty_correct in H.
+      eapply find_2 in H; eapply empty_mapsto_iff in H.
       intuition.
-       *)admit.
     Qed.
     Hint Resolve everything_agree_with_empty_map.
 
@@ -235,15 +288,14 @@ Section TopSection.
         Locals.sel a x <> Locals.sel b x -> SS.In x s.
 
     Lemma agree_except_upd : forall local x w, agree_except local (upd local x w) (!x).
-      (*      unfold agree_except.
+      unfold agree_except.
       intros.
       destruct (string_dec x x0).
       subst.
-      eauto.
+      eapply singleton_iff; eauto.
       rewrite sel_upd_ne in H.
       intuition.
       eauto.
-       *)admit.
     Qed.
     Hint Resolve agree_except_upd.
 
@@ -269,17 +321,19 @@ Section TopSection.
     Hint Resolve agree_except_trans.
 
     Lemma agree_with_agree_except_subtract : forall v1 v2 m s, agree_with v1 m -> agree_except v1 v2 s -> agree_with v2 (m - s).
-      (*      unfold agree_with, agree_except.
+      unfold agree_with, agree_except.
       intros.
       destruct (weq (Locals.sel v1 x) (Locals.sel v2 x)).
       rewrite <- e.
       eapply H.
-      eauto.
+      eapply find_2 in H1.
+      eapply subtract_mapsto_iff in H1.
+      openhyp.
+      eapply find_1; eauto.
       eapply H0 in n.
       eapply subtract_none with (m := m) in n.
       erewrite H1 in n.
       intuition.
-       *)admit.
     Qed.
     Hint Resolve agree_with_agree_except_subtract.
 
@@ -425,17 +479,11 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
-    Definition SET := SS.t.
-    Definition Map := t W.
-    Definition empty_set := SS.empty.
-    Definition empty_map := empty W.
     Notation "m %%- k" := (remove k m) (at level 60).
     Infix "%<=" := Subset (at level 60).
-    Definition Submap elt m1 m2 := forall k v, @MapsTo elt k v m1 -> MapsTo k v m2.
     Infix "%%<=" := Submap (at level 60).
     Infix "+" := union.
-    Definition map_diff_set elt m s := @filter elt (fun k _ => negb (SS.mem k s)) m.
-    Infix "-" := map_diff_set.
+    Infix "-" := subtract.
     Notation "! x" := (singleton x) (at level 100).
     Notation "[]" := empty_map.
     Open Scope stmt_scope.
@@ -960,6 +1008,69 @@ Module Make (Import E : ADT).
       unfold optimizer, constant_folding; intros; eapply const_folding_depth.
     Qed.
 
+    Import NPeano.Nat.
+    Require Import GetLocalVars.
+
+    Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
+      unfold PreserveGoodSize, opt; intros.
+      destruct H.
+      openhyp.
+      eapply goodSize_weaken; eauto.
+      eapply add_le_mono.
+      2 : eapply optimizer_depth.
+      unfold get_local_vars.
+      repeat rewrite <- SS.cardinal_1.
+      eapply subset_cardinal.
+      eapply diff_s_m.
+      eapply add_s_m; eauto.
+      eapply optimizer_footprint.
+      unfold flip.
+      eauto.
+    Qed.
+
+    Require Import CompileStmtSpec.
+    Require Import SetoidListFacts.
+    Require Import GeneralTactics2.
+
+    Lemma get_local_vars_subset : forall stmt argvars retvar, free_vars stmt %<= SSP.of_list (argvars ++ get_local_vars stmt argvars retvar).
+      unfold get_local_vars.
+      unfold Subset; intros.
+      eapply of_list_spec.
+      destruct (List.In_dec string_dec a argvars).
+      eapply in_or_app; eauto.
+      eapply in_or_app; right.
+      eapply InA_eq_List_In.
+      eapply elements_iff.
+      eapply diff_iff.
+      split.
+      eapply add_iff; eauto.
+      not_not.
+      eapply of_list_spec; eauto.
+    Qed.
+
+    Require Import WellFormed.
+
+    Hint Constructors args_not_too_long.
+
+    Lemma const_folding_wellformed : forall s m, wellformed s -> wellformed (fst (fst (const_folding s m))).
+      unfold wellformed.
+      induction s; simpl; intuition; openhyp'; inversion_clear H; simpl in *; eauto.
+      destruct (Sumbool.sumbool_of_bool (wneb x $0)); rewrite e1 in *; simpl in *; eauto.
+      destruct o; simpl in *; eauto; econstructor; eauto; rewrite map_length; eauto.
+    Qed.
+
+    Lemma PreserveSynReq_opt : PreserveSynReq opt.
+      unfold PreserveSynReq, opt; intros.
+      destruct H.
+      openhyp.
+      unfold syn_req in *.
+      unfold in_scope in *.
+      openhyp.
+      repeat split; eauto.
+      eapply get_local_vars_subset; eauto.
+      eapply const_folding_wellformed; eauto.
+    Qed.
+
     Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
       unfold GoodOptimizer.
       split.
@@ -967,44 +1078,8 @@ Module Make (Import E : ADT).
       split.
       eapply PreserveRunsTo_opt.
       split.
-      Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
-        unfold PreserveGoodSize, opt; intros.
-        destruct H.
-        openhyp.
-        eapply goodSize_weaken; eauto.
-        Import NPeano.Nat.
-        eapply add_le_mono.
-        2 : eapply optimizer_depth.
-        unfold GetLocalVars.get_local_vars.
-        repeat rewrite <- SS.cardinal_1.
-        eapply subset_cardinal.
-        eapply diff_s_m.
-        eapply add_s_m; eauto.
-        eapply optimizer_footprint.
-        unfold flip.
-        eauto.
-      Qed.
       eapply PreserveGoodSize_opt.
-      Lemma PreserveSynReq_opt : PreserveSynReq opt.
-        unfold PreserveSynReq, opt; intros.
-        Require Import CompileStmtSpec.
-        destruct H.
-        openhyp.
-        unfold syn_req in *.
-        unfold in_scope in *.
-        openhyp.
-        repeat split.
-        eapply subset_trans.
-        eapply optimizer_footprint.
-
-
-
-      (*here*)
-      repeat split.
-      eapply optimizer_is_backward_simulation.
-      eapply optimizer_is_safety_preservation.
-      eapply optimizer_footprint.
-      eapply optimizer_depth.
+      eapply PreserveSynReq_opt.
     Qed.
 
   End TopSection.
