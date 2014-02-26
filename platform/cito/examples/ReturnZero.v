@@ -11,7 +11,7 @@ Open Scope stmt_scope.
 
 Notation "$ n" := (natToW n).
 
-Definition body := 
+Definition return_zero_body := 
   "ret" <- $0.
 
 Require Import SyntaxFunc.
@@ -24,7 +24,7 @@ Definition return_zero : Func :=
       {|
         ArgVars := nil;
         RetVar := "ret";
-        Body := body
+        Body := return_zero_body
       |}
   |}.
 
@@ -106,7 +106,7 @@ Lemma return_zero_good_module : IsGoodModule return_zero_m.
   split.
   econstructor.
   unfold compose, return_zero; simpl.
-  unfold GoodFunc, body; simpl.
+  unfold GoodFunc, return_zero_body; simpl.
   repeat split; simpl; intuition eauto.
   Import SSUF.
   Import P.
@@ -155,7 +155,7 @@ Require Import CompileStmtTactics.
 
 Lemma body_safe : forall env v, Safe env (Body return_zero) v.
   intros.
-  unfold return_zero, Top.body.
+  unfold return_zero, return_zero_body.
   econstructor; eauto.
 Qed.
 
