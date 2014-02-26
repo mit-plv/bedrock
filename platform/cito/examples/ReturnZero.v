@@ -53,36 +53,39 @@ Definition IsGoodModule (m : Module) :=
   List.Forall (GoodFunc * Core) (Funcs m) /\
   List.NoDup (List.map FName (Funcs m)).
 
+Require Import GeneralTactics.
+Require Import GoodFunction.
+
+Definition to_good_functions (ls : list Func) : List.Forall (GoodFunc * Core) ls -> list GoodFunction.
+  induction ls; simpl; intros.
+  eapply nil.
+  eapply cons.
+  econstructor.
+  instantiate (1 := a).
+  eapply Forall_forall in H; intuition.
+  unfold compose in *.
+  eauto.
+  eapply IHls.
+  eapply Forall_forall.
+  intros.
+  eapply Forall_forall with (l := a :: ls) in H.
+  eauto.
+  intuition.
+Defined.
+
+Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls), map (fun f : GoodFunction => FName f) (to_good_functions h) = map FName ls.
+  induction ls; simpl; intros.
+  eauto.
+  f_equal; eauto.
+Qed.
+
 Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
   intros.
   unfold IsGoodModule in *.
-  Require Import GeneralTactics.
   openhyp.
   econstructor.
   eauto.
-  Require Import GoodFunction.
-  Definition to_good_functions (ls : list Func) : List.Forall (GoodFunc * Core) ls -> list GoodFunction.
-    induction ls; simpl; intros.
-    eapply nil.
-    eapply cons.
-    econstructor.
-    instantiate (1 := a).
-    eapply Forall_forall in H; intuition.
-    unfold compose in *.
-    eauto.
-    eapply IHls.
-    eapply Forall_forall.
-    intros.
-    eapply Forall_forall with (l := a :: ls) in H.
-    eauto.
-    intuition.
-  Defined.
   instantiate (1 := to_good_functions H0).
-  Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls), map (fun f : GoodFunction => FName f) (to_good_functions h) = map FName ls.
-    induction ls; simpl; intros.
-    eauto.
-    f_equal; eauto.
-  Qed.
   rewrite to_good_functions_name.
   eauto.
 Defined.
@@ -378,44 +381,133 @@ Definition return_zero_impl := output (return_zero_gm :: nil) (empty _) opt_good
 
 Definition return_zero_all := link return_zero_top return_zero_impl.
 
+Lemma disjoint_imports : LinkMake.LF.Disjoint (module_names (return_zero_gm :: nil))
+                                              (imported_module_names (empty ForeignFuncSpec)).
+  unfold imported_module_names.
+  simpl.
+  unfold LinkMake.LF.Disjoint; intros.
+  intuition.
+Qed.
+
+Require Import GeneralTactics2.
+
+Import LinkMake.LMF.P.F.
+Import LinkModuleImplsMake.
+Import StubMake.
+
+Lemma to_good_module_name : forall (m : Module) (h : IsGoodModule m), GoodModule.Name (to_good_module h) = SyntaxModule.Name m.
+  intros.
+  destruct h.
+  openhyp.
+  unfold to_good_module; simpl in *.
+  eauto.
+Qed.
+
+Import SSUF.P.FM.
+Require Import StructuredModuleFacts.
+Existing Instance BLMFU3.Compat_m_Proper.
+Require Import ConvertLabelMap.
+Import LMFU.
+Import LMF.P.
+Import LMFU3.
+
+Close Scope nat.
+
+Lemma to_good_functions_in : forall (ls : list Func) (h : List.Forall (GoodFunc * Core) ls) (f : Func), List.In f ls -> exists gf : GoodFunction, List.In gf (to_good_functions h) /\ (gf : Func)  = f.
+  induction ls; simpl; intros.
+  intuition.
+  openhyp.
+  subst.
+  descend; split.
+  left.
+  eauto.
+  simpl; eauto.
+  eapply IHls in H.
+  openhyp.
+  descend; split.
+  right.
+  eauto.
+  eauto.
+Qed.
+
+Lemma to_good_module_functions_in : forall (m : Module) (h : IsGoodModule m) (f : Func), List.In f (Funcs m) -> exists gf : GoodFunction, List.In gf (Functions (to_good_module h)) /\ (gf : Func) = f.
+  intros.
+  destruct h.
+  openhyp.
+  unfold to_good_module; simpl.
+  assert (GoodFunc f).
+  eapply Forall_forall in f0.
+  2 : eauto.
+  unfold Basics.compose in *.
+  eauto.
+  eapply to_good_functions_in in H.
+  openhyp.
+  descend; split; eauto.
+Qed.
+
+Import LF.
+
+Lemma GoodModule_NoDup_impl_labels : forall (m : GoodModule) (mn : string), NoDup (List.map (fun f : GoodFunction => impl_label mn (FName f)) (Functions m)).
+  intros.
+  erewrite <- map_map.
+  eapply Injection_NoDup.
+  eapply impl_label_is_injection.
+  destruct m0; simpl in *.
+  eapply NoDupFuncNames.
+Qed.
+
+Lemma not_in_impls : forall modules lbl, IsGoodModuleName (fst lbl) -> ~ In lbl (LinkModuleImplsMake.total_exports modules).
+  intros.
+  nintro.
+  unfold LinkModuleImplsMake.total_exports in *.
+  eapply In_MapsTo in H0.
+  openhyp.
+  eapply update_all_elim in H0.
+  openhyp.
+  eapply in_map_iff in H0; openhyp; subst.
+  unfold LinkModuleImplsMake.get_module_Exports in *.
+  unfold LinkModuleImplsMake.LMF.to_map in *.
+  eapply of_list_1 in H1.
+  eapply InA_eqke_In in H1.
+  eapply in_map_iff in H1; openhyp; subst.
+  injection H0; intros; subst.
+  simpl in *.
+  unfold NameDecoration.impl_module_name in *.
+  unfold IsGoodModuleName in *.
+  simpl in *.
+  intuition.
+  eapply NoDupKey_NoDup_fst.
+  rewrite map_map; simpl.
+  eapply GoodModule_NoDup_impl_labels.
+Qed.
+
+Existing Instance to_blm_Equal_m_Proper.
+Existing Instance CompatReflSym_Symmetric.
+Existing Instance CompatReflSym_Reflexive.
+Existing Instance Compat_m_Proper.
+Existing Instance Disjoint_m_Symmetric.
+Existing Instance mapi_m_Proper.
+Existing Instance BLMFU3.CompatReflSym_Symmetric.
+
 Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply linkOk.
   eapply return_zero_top_ok.
   eapply output_ok.
   intuition.
   NoDup.
-  Lemma disjoint_imports : LinkMake.LF.Disjoint (module_names (return_zero_gm :: nil))
-     (imported_module_names (empty ForeignFuncSpec)).
-    unfold imported_module_names.
-    simpl.
-    unfold LinkMake.LF.Disjoint; intros.
-    intuition.
-  Qed.
-  Require Import GeneralTactics2.
   eapply disjoint_imports.
-  Import LinkMake.LMF.P.F.
   intros; eapply empty_in_iff in H; intuition.
   eapply inter_is_empty_iff.
   setoid_rewrite output_module_names.
   simpl.
-  Import LinkModuleImplsMake.
-  Import StubMake.
-  Lemma to_good_module_name : forall (m : Module) (h : IsGoodModule m), GoodModule.Name (to_good_module h) = SyntaxModule.Name m.
-    intros.
-    destruct h.
-    openhyp.
-    unfold to_good_module; simpl in *.
-    eauto.
-  Qed.
   unfold return_zero_gm.
   unfold impl_MName.
   repeat rewrite to_good_module_name.
   unfold return_zero_m; simpl.
   unfold NameDecoration.impl_module_name.
-  unfold Disjoint; intros.
+  unfold LinkMake.SSUF.Disjoint; intros.
   nintro.
   openhyp.
-  Import SSUF.P.FM.
   eapply singleton_iff in H.
   subst.
   eapply union_iff in H0; openhyp.
@@ -429,19 +521,13 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   NoDup.
   eapply disjoint_imports.
   intros; eapply empty_in_iff in H; intuition.
-  Require Import StructuredModuleFacts.
   eapply importsOk_Compat.
-  Existing Instance BLMFU3.Compat_m_Proper.
   setoid_rewrite output_exports.
   unfold Imports, return_zero_top; simpl.
   rewrite importsMap_of_list.
-  Require Import ConvertLabelMap.
   eapply to_blm_Compat.
   unfold LMFU3.Compat.
   intros.
-  Import LMFU.
-  Import LMF.P.
-  Import LMFU3.
   eapply In_MapsTo in H.
   openhyp.
   generalize H; intro.
@@ -473,37 +559,6 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply GoodModule_NoDup_labels.
   eapply InA_eqke_In.
   eapply in_map_iff.
-  Lemma to_good_module_functions_in : forall (m : Module) (h : IsGoodModule m) (f : Func), List.In f (Funcs m) -> exists gf : GoodFunction, List.In gf (Functions (to_good_module h)) /\ (gf : Func) = f.
-    intros.
-    destruct h.
-    openhyp.
-    unfold to_good_module; simpl.
-    assert (GoodFunc f).
-    eapply Forall_forall in f0.
-    2 : eauto.
-    unfold Basics.compose in *.
-    eauto.
-    Close Scope nat.
-    Lemma to_good_functions_in : forall (ls : list Func) (h : List.Forall (GoodFunc * Core) ls) (f : Func), List.In f ls -> exists gf : GoodFunction, List.In gf (to_good_functions h) /\ (gf : Func)  = f.
-      induction ls; simpl; intros.
-      intuition.
-      openhyp.
-      subst.
-      descend; split.
-      left.
-      eauto.
-      simpl; eauto.
-      eapply IHls in H.
-      openhyp.
-      descend; split.
-      right.
-      eauto.
-      eauto.
-    Qed.
-    eapply to_good_functions_in in H.
-    openhyp.
-    descend; split; eauto.
-  Qed.
   edestruct to_good_module_functions_in.
   instantiate (2 := return_zero).
   instantiate (1 := return_zero_m).
@@ -519,39 +574,6 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   eauto.
   unfold return_zero_gm in *.
   eauto.
-  Lemma not_in_impls : forall modules lbl, IsGoodModuleName (fst lbl) -> ~ In lbl (LinkModuleImplsMake.total_exports modules).
-    intros.
-    nintro.
-    unfold LinkModuleImplsMake.total_exports in *.
-    eapply In_MapsTo in H0.
-    openhyp.
-    eapply update_all_elim in H0.
-    openhyp.
-    eapply in_map_iff in H0; openhyp; subst.
-    unfold LinkModuleImplsMake.get_module_Exports in *.
-    unfold LinkModuleImplsMake.LMF.to_map in *.
-    eapply of_list_1 in H1.
-    eapply InA_eqke_In in H1.
-    eapply in_map_iff in H1; openhyp; subst.
-    injection H0; intros; subst.
-    simpl in *.
-    unfold NameDecoration.impl_module_name in *.
-    unfold IsGoodModuleName in *.
-    simpl in *.
-    intuition.
-    eapply NoDupKey_NoDup_fst.
-    rewrite map_map; simpl.
-    Lemma GoodModule_NoDup_impl_labels : forall (m : GoodModule) (mn : string), NoDup (List.map (fun f : GoodFunction => impl_label mn (FName f)) (Functions m)).
-      intros.
-      erewrite <- map_map.
-      Import LF.
-      eapply Injection_NoDup.
-      eapply impl_label_is_injection.
-      destruct m0; simpl in *.
-      eapply NoDupFuncNames.
-    Qed.
-    eapply GoodModule_NoDup_impl_labels.
-  Qed.
   eapply not_in_impls.
   unfold IsGoodModuleName; simpl.
   eauto.
@@ -564,13 +586,6 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply importsOk_Compat.
   setoid_rewrite output_imports.
   unfold foreign_imports.
-  Existing Instance to_blm_Equal_m_Proper.
-  Existing Instance CompatReflSym_Symmetric.
-  Existing Instance CompatReflSym_Reflexive.
-  Existing Instance Compat_m_Proper.
-  Existing Instance Disjoint_m_Symmetric.
-  Existing Instance mapi_m_Proper.
-  Existing Instance BLMFU3.CompatReflSym_Symmetric.
   setoid_rewrite mapi_empty.
   setoid_rewrite <- to_blm_empty.
   symmetry.
