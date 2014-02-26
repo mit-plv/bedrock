@@ -278,10 +278,32 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
   Transparent allocated.
   simpl.
 
-  clear H11.
+  Ltac hiding tac :=
+    clear_imports;
+    ((let P := fresh "P" in
+      match goal with
+        | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
+        | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
+      end;
+      hiding tac;
+      subst P) || tac).
+
   hiding ltac:(step auto_ext).
 
-  admit.
+  Lemma body_runsto : forall env v v', RunsTo env Top.body v v' -> sel (fst v') (RetVar return_zero) = 0 /\ snd v' = snd v.
+    intros.
+    inversion_clear H.
+    subst vs.
+    simpl.
+    split.
+    rewrite sel_upd_eq; eauto.
+    eauto.
+  Qed.
+
+  eapply body_runsto in H11.
+  openhyp.
+  unfold return_zero in *; simpl in *.
+  congruence.
 
   unfold locals, array.
   simpl.
@@ -291,10 +313,40 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
   replace (upd (upd x1 "rp" x7) "es" x8 "rp") with x7.
   replace (upd (upd x1 "rp" x7) "es" x8 "es") with ($ x8).
 
-  step auto_ext.
+  hiding ltac:(step auto_ext).
 
   NoDup.
   sep_auto.
   sep_auto.
 
+  unfold excessStack, reserved.
+  Opaque allocated.
+  simpl.
+  replace (4 * 4) with (8 + 8) by eauto.
+  rewrite natToW_plus in *.
+  rewrite wplus_assoc in *.
   eauto.
+
+  eapply body_runsto in H11.
+  openhyp.
+  simpl in *.
+  eauto.
+
+  eauto.
+
+  repeat hiding ltac:(step auto_ext).
+
+  words.
+
+  eapply body_runsto in H11.
+  openhyp.
+  unfold return_zero in *; simpl in *.
+  congruence.
+
+  post; sep_auto.
+  post; sep_auto.
+  post; sep_auto.
+
+  Grab Existential Variables.
+  eauto.
+Qed.
