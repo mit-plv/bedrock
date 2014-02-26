@@ -17,21 +17,13 @@ Module Import BLMF := WFacts.
 
 Require Import Label.
 Module LM := LabelMap.
-Module Label_as_UDT := Key'.
+Module Label_as_UDT := Make_UDT Label_as_OT.
 Module Import LMFU3 := FMapFacts3.UWFacts_fun Label_as_UDT LM.
 Module Import LMFU := UWFacts.
 Module Import LMF := WFacts.
 Require Import ListFacts2.
 Module LF := ListFacts2.
 Module Import LFL := Make Label_as_UDT.
-
-(*
-Require Import FMapFacts1.
-Module Import BLMF := WFacts_fun LabelKey LabelMap.
-Require Import Label.
-Module Import LMF := WFacts_fun Key' LabelMap.
-Module Import LMFU := UWFacts_fun Key' LabelMap.
- *)
 
 Section TopSection.
 

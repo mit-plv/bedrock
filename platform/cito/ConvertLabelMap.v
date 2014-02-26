@@ -15,7 +15,7 @@ Module Import BLMF := WFacts.
 
 Require Import Label.
 Module LM := LabelMap.
-Module Label_as_UDT := Key'.
+Module Label_as_UDT := Make_UDT Label_as_OT.
 Module Import LMFU3 := FMapFacts3.UWFacts_fun Label_as_UDT LM.
 Module Import LMFU := UWFacts.
 Module Import LMF := WFacts.
