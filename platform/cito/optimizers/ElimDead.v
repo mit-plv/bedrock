@@ -106,6 +106,8 @@ Section TopSection.
         (s, used - (default empty (option_map singleton x)) + used_vars f + union_list (List.map used_vars args))
     end.
 
+  Definition opt s retvar := fst (elim_dead s (!retvar)).
+
   Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
   Hint Resolve subset_union_left subset_union_right.
   Hint Resolve diff_subset.
@@ -578,8 +580,6 @@ Module Make (Import E : ADT).
       induction s; simpl; intros; openhyp'; simpl in *; max_solver; eauto using le_trans.
     Qed.
 
-    Definition opt s retvar := fst (elim_dead s (!retvar)).
-
     Require Import GoodOptimizer.
 
     Lemma same_agree_in : forall a s, agree_in a a s.
@@ -645,7 +645,7 @@ Module Make (Import E : ADT).
       eapply opt_wellformed; eauto.
     Qed.
 
-    Lemma elim_dead_is_good_optimizer : GoodOptimizer opt.
+    Lemma good_optimizer : GoodOptimizer opt.
       unfold GoodOptimizer.
       split.
       eapply PreserveRunsTo_opt.
