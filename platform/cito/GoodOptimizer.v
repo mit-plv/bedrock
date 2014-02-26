@@ -5,6 +5,8 @@ Require Import String.
 
 Definition Optimizer := Stmt -> string -> Stmt.
 
+Definition compose (f g : Optimizer) : Optimizer := fun s r => g (f s r) r.
+
 Require Import ADT.
 
 Module Make (Import E : ADT).
@@ -92,8 +94,6 @@ Module Make (Import E : ADT).
       eapply H2; eauto.
       destruct H3; openhyp; eauto.
     Qed.
-
-    Definition compose (f g : Optimizer) : Optimizer := fun s r => g (f s r) r.
 
     Lemma PreserveRunsTo_trans : forall a b, PreserveRunsTo a -> PreserveRunsTo b -> PreserveRunsTo (compose a b).
       unfold PreserveRunsTo, compose; intros.

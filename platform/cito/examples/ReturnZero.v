@@ -96,7 +96,23 @@ Definition to_module (m : GoodModule) : Module :=
 Coercion to_module : GoodModule >-> Module.
 
 Lemma return_zero_good_module : IsGoodModule return_zero_m.
-  admit.
+  unfold IsGoodModule, return_zero_m; simpl.
+  split.
+  unfold IsGoodModuleName.
+  simpl; eauto.
+  split.
+  econstructor.
+  unfold compose, return_zero; simpl.
+  unfold GoodFunc, body; simpl.
+  repeat split; simpl; intuition eauto.
+  Import SSUF.
+  Import P.
+  rewrite add_union_singleton.
+  Require Import SetFacts.
+  subset_solver.
+  econstructor.
+  econstructor.
+  NoDup.
 Qed.
 
 Definition return_zero_gm := to_good_module return_zero_good_module.
@@ -159,6 +175,112 @@ Ltac hiding tac :=
     end;
     hiding tac;
     subst P) || tac).
+
+Require Import GoodOptimizer ConstFolding ElimDead.
+Module Import GoodOptimizerMake := GoodOptimizer.Make ExampleADT.
+Module Import ConstFoldingMake := ConstFolding.Make ExampleADT.
+Module Import ElimDeadMake := ElimDead.Make ExampleADT.
+
+Definition opt := GoodOptimizerMake.compose ConstFolding.opt ElimDead.opt.
+
+Lemma opt_good : GoodOptimizer opt.
+  unfold opt.
+  eapply GoodOptimizer_trans.
+  eapply constant_folding_is_good_optimizer.
+  eapply elim_dead_is_good_optimizer.
+Qed.
+
+Definition return_zero_impl := output (return_zero_gm :: nil) (empty _) opt_good.
+
+Definition return_zero_all := link return_zero_top return_zero_impl.
+
+Theorem return_zero_all_ok : moduleOk return_zero_all.
+  eapply linkOk.
+  admit.
+  eapply output_ok.
+  intuition.
+  NoDup.
+  Lemma disjoint_imports : LinkMake.LF.Disjoint (module_names (return_zero_gm :: nil))
+     (imported_module_names (empty ForeignFuncSpec)).
+    unfold imported_module_names.
+    simpl.
+    unfold LinkMake.LF.Disjoint; intros.
+    intuition.
+  Qed.
+  Require Import GeneralTactics2.
+  eapply disjoint_imports.
+  Import LinkMake.LMF.P.F.
+  intros; eapply empty_in_iff in H; intuition.
+  eapply inter_is_empty_iff.
+  setoid_rewrite output_module_names.
+  simpl.
+  Import LinkModuleImplsMake.
+  Import StubMake.
+  Lemma to_good_module_name : forall (m : Module) (h : IsGoodModule m), GoodModule.Name (to_good_module h) = SyntaxModule.Name m.
+    intros.
+    destruct h.
+    openhyp.
+    unfold to_good_module; simpl in *.
+    eauto.
+  Qed.
+  unfold return_zero_gm.
+  unfold impl_MName.
+  repeat rewrite to_good_module_name.
+  unfold return_zero_m; simpl.
+  unfold NameDecoration.impl_module_name.
+  unfold Disjoint; intros.
+  nintro.
+  openhyp.
+  Import SSUF.P.FM.
+  eapply singleton_iff in H.
+  subst.
+  eapply union_iff in H0; openhyp.
+  eapply add_iff in H; openhyp.
+  simpl in *; intuition.
+  eapply empty_iff in H; intuition.
+  eapply add_iff in H; openhyp.
+  simpl in *; intuition.
+  eapply empty_iff in H; intuition.
+  intuition.
+  NoDup.
+  eapply disjoint_imports.
+  intros; eapply empty_in_iff in H; intuition.
+  Require Import StructuredModuleFacts.
+  eapply importsOk_Compat.
+  Existing Instance BLMFU3.Compat_m_Proper.
+  setoid_rewrite output_exports.
+  unfold Imports, return_zero_top; simpl.
+  rewrite importsMap_of_list.
+  Require Import ConvertLabelMap.
+  eapply to_blm_Compat.
+  unfold LMFU3.Compat.
+  intros.
+  Import LMFU.
+  Import LMF.P.
+  Import LMFU3.
+  eapply In_MapsTo in H.
+  openhyp.
+  generalize H; intro.
+  eapply find_1 in H1.
+  rewrite H1.
+  symmetry.
+  eapply of_list_1 in H.
+  eapply InA_eqke_In in H.
+  simpl in H.
+  openhyp.
+  2 : intuition.
+  injection H; intros; subst.
+  eapply find_1.
+  eapply update_mapsto_iff.
+  right.
+  split.
+  unfold total_exports; simpl.
+  unfold StubMake.LMFU3.update_all.
+  simpl.
+  eapply update_mapsto_iff.
+  left.
+  unfold get_module_Exports.
+  (*here*)
 
 Theorem return_zero_top_ok : moduleOk return_zero_top.
   vcgen.

@@ -170,6 +170,12 @@ Section TopSection.
         end
     end.
 
+  Definition constant_folding s := fst (fst (const_folding s empty_map)).
+
+  Definition optimizer := constant_folding.
+
+  Definition opt : Optimizer := fun s _ => optimizer s.
+
   Lemma union_same_subset : forall s, s + s %<= s.
     intros; subset_solver.
   Qed.
@@ -722,12 +728,6 @@ Module Make (Import E : ADT).
       eauto.
     Qed.
 
-    Definition constant_folding s := fst (fst (const_folding s empty_map)).
-
-    Definition optimizer := constant_folding.
-
-    Definition opt : Optimizer := fun s _ => optimizer s.
-
     Lemma PreserveRunsTo_opt : PreserveRunsTo opt.
       unfold PreserveRunsTo, opt, optimizer, constant_folding; intros.
       destruct v.
@@ -1024,7 +1024,7 @@ Module Make (Import E : ADT).
       eapply const_folding_wellformed; eauto.
     Qed.
 
-    Lemma constant_folding_is_good_optimizer : GoodOptimizer opt.
+    Lemma good_optimizer : GoodOptimizer opt.
       unfold GoodOptimizer.
       split.
       eapply PreserveRunsTo_opt.
