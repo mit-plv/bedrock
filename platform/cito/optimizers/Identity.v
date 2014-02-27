@@ -42,6 +42,3 @@ Module Make (Import E : ADT).
   Qed.
 
 End Make.
-    
-
-

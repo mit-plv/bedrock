@@ -33,44 +33,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GoodOptimizer.
   Module Import GoodOptimizerMake := Make E.
 
-  Require Import FMapFacts1.
-  Require Import FMapFacts3.
+  Require Import ListFacts1.
+  Require Import ListFacts2.
+
+  Require Import StringSet.
+  Module Import SS := StringSet.
+  Require Import StringSetFacts.
+  Module SSF := StringSetFacts.
+
+  Require Import Labels.
+  Require Import LabelMap.
+  Module LM := LabelMap.
+  Require LabelMapFacts.
+  Module LMF := LabelMapFacts.
+  Require Import GLabel.
+  Require Import GLabelMap.
+  Import GLabelMap.
+  Require Import GLabelMapFacts.
 
   Require Import ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
-
-  Require LabelMap.
-  Module BLM := LabelMap.LabelMap.
-  Module BLK := LabelMap.LabelKey.
-  Require Import Equalities.
-  Module BLK_as_UDT := Make_UDT BLK.
-  Module Import BLMFU3 := FMapFacts3.UWFacts_fun BLK_as_UDT BLM.
-  Module Import BLMFU := UWFacts.
-  Module Import BLMF := WFacts.
-
-  Require Import Label.
-  Module LM := LabelMap.
-  Module Label_as_UDT := Make_UDT Label_as_OT.
-  Module Import LMFU3 := FMapFacts3.UWFacts_fun Label_as_UDT LM.
-  Module Import LMFU := UWFacts.
-  Module Import LMF := WFacts.
-  Require Import ListFacts2.
-  Module LF := ListFacts2.
-  Module Import LFL := Make Label_as_UDT.
-
-  Require Import ListFacts3.
-
-  Module Import SS := StringSet.StringSet.
-  Module Import SSF := StringSet.StringFacts.
-  Module SSK := StringSet.StringKey.
-  Require Import FSetFacts1.
-  Module SSK_as_UDT := Make_UDT SSK.
-  Module Import SSUF := UWFacts_fun SSK_as_UDT SS.
-
-  Import LM.
-  Import LMF.P.
-  Import F.
 
   Section TopSection.
 
@@ -84,7 +67,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     (* imported specs *)
     Variable imports : t ForeignFuncSpec.
 
-    Hypothesis NoSelfImport : LF.Disjoint (module_names modules) (imported_module_names imports).
+    Hypothesis NoSelfImport : ListFacts1.Disjoint (module_names modules) (imported_module_names imports).
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
@@ -97,7 +80,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSUF.P.of_list.
+    Notation to_set := SSF.of_list.
 
     Hint Extern 1 => reflexivity.
 
@@ -107,14 +90,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Existing Instance CompatReflSym_Reflexive.
     Existing Instance Compat_m_Proper.
     Existing Instance Disjoint_m_Symmetric.
-    Existing Instance BLMFU3.Compat_m_Proper.
+    Existing Instance LMF.Compat_m_Proper.
 
     Lemma total_impls_Equal_total_exports : total_impls modules == LinkModuleImplsMake.total_exports modules.
       eauto.
     Qed.
 
-    Lemma Disjoint_MNames_impl_MNames : SSUF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
-      unfold SSUF.Disjoint.
+    Lemma Disjoint_MNames_impl_MNames : SSF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
+      unfold SSF.Disjoint.
       intros.
       nintro.
       openhyp.

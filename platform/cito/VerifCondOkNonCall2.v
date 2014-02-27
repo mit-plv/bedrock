@@ -43,7 +43,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import ListFactsNew.
     Require Import StringSet.
     Import StringSet.
-    Require Import SetFacts.
+    Require Import StringSetTactics.
 
     Open Scope stmt.
 

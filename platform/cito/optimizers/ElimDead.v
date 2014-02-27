@@ -7,17 +7,12 @@ Require Import Semantics.
 Require Import GeneralTactics.
 Import SemanticsExpr.
 
-Require Import Equalities.
 Require Import StringSet.
-Module Import SS := StringSet.
-Require Import SetFacts.
-Require Import FSetFacts1.
-Module SK_as_UDT := Make_UDT StringKey.
-Require Import FSetFacts1.
-Module Import SF1 := UWFacts_fun SK_as_UDT SS.
-Import P FM.
+Import StringSet.
+Require Import StringSetFacts.
+Require Import StringSetTactics.
 
-Definition SET := SS.t.
+Definition SET := t.
 
 Ltac openhyp' :=
   repeat match goal with
@@ -109,7 +104,8 @@ Section TopSection.
   Definition opt s retvar := fst (elim_dead s (!retvar)).
 
   Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
-  Hint Resolve subset_union_left subset_union_right.
+  Hint Resolve union_subset_1.
+  Hint Resolve union_subset_2.
   Hint Resolve diff_subset.
 
   Definition agree_in a b s := forall x, In x s -> Locals.sel a x = Locals.sel b x.
@@ -210,7 +206,8 @@ Module Make (Import E : ADT).
     Infix "<-" := Syntax.Assign.
 
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
-    Hint Resolve subset_union_left subset_union_right.
+    Hint Resolve union_subset_1.
+    Hint Resolve union_subset_2.
     Hint Resolve diff_subset.
     Hint Resolve agree_in_symm.
     Hint Resolve agree_in_subset.
