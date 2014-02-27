@@ -8,6 +8,10 @@ Module Make (Import E : ADT).
   Module Import InvMake := Make E.
   Import Semantics.
   Import SemanticsMake.
+  Require Import WordMap.
+  Require Import FMapFacts.
+  Module Properties := Properties WordMap.
+  Module Facts := Facts WordMap.
 
   Lemma make_triples_Word : forall pairs outs, length outs = length pairs -> map (@Word _) (make_triples pairs outs) = map fst pairs.
     induction pairs; destruct outs; simpl; intuition.
@@ -245,7 +249,7 @@ Module Make (Import E : ADT).
   Qed.
 
   Lemma foldp_bwd : forall k ls h,
-    WordMap.In k h \/ (exists v, In (k, inr v) ls)
+    WordMap.In k h \/ (exists v, List.In (k, inr v) ls)
     -> WordMap.In k (fold_left store_pair ls h).
     induction ls; simpl; intuition.
     firstorder.
@@ -270,7 +274,7 @@ Module Make (Import E : ADT).
 
   Lemma foldp_fwd : forall k ls h,
     WordMap.In k (fold_left store_pair ls h)
-    -> WordMap.In k h \/ (exists v, In (k, inr v) ls).
+    -> WordMap.In k h \/ (exists v, List.In (k, inr v) ls).
     induction ls; simpl; intuition.
     apply IHls in H; clear IHls; intuition.
     unfold store_pair in H0; simpl in H0.
@@ -332,7 +336,7 @@ Module Make (Import E : ADT).
 
     Lemma In_make_heap' : forall k pairs h,
       WordMap.In (elt:=ADTValue) k (fold_left store_pair pairs h)
-      -> WordMap.In k h \/ exists a, In (k, inr a) pairs.
+      -> WordMap.In k h \/ exists a, List.In (k, inr a) pairs.
       induction pairs; simpl; intuition.
       apply IHpairs in H; intuition.
       unfold store_pair in H0; simpl in H0.
@@ -346,7 +350,7 @@ Module Make (Import E : ADT).
 
     Lemma In_make_heap : forall k pairs,
       WordMap.In (elt:=ADTValue) k (make_heap pairs)
-      -> exists a, In (k, inr a) pairs.
+      -> exists a, List.In (k, inr a) pairs.
       intros.
       apply In_make_heap' in H; intuition eauto.
       apply Properties.F.empty_in_iff in H0; tauto.
@@ -391,7 +395,7 @@ Module Make (Import E : ADT).
 
     Lemma get_pair : forall k x e pairs outs h,
       Semantics.disjoint_ptrs pairs
-      -> In {| Word := k; ADTIn := inr x; ADTOut := Some e |} (make_triples pairs outs)
+      -> List.In {| Word := k; ADTIn := inr x; ADTOut := Some e |} (make_triples pairs outs)
       -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
       induction pairs; destruct outs; simpl; intuition.
       simpl in *; intuition.
@@ -400,7 +404,7 @@ Module Make (Import E : ADT).
       unfold store_out, Semantics.store_out; simpl.
       apply WordMap.add_1; auto.
       generalize dependent (store_out h {| Word := k; ADTIn := inr x; ADTOut := Some e |}).
-      assert (forall v, ~In (k, inr v) pairs).
+      assert (forall v, ~List.In (k, inr v) pairs).
       intuition.
       hnf in H.
       simpl in H.
@@ -440,7 +444,7 @@ Module Make (Import E : ADT).
     Lemma get_pair' : forall k e pairs outs h,
       Semantics.disjoint_ptrs pairs
       -> WordMap.MapsTo k e h
-      -> (forall a o, ~In {| Word := k; ADTIn := inr a; ADTOut := o |} (make_triples pairs outs))
+      -> (forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} (make_triples pairs outs))
       -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
       induction pairs; destruct outs; simpl; intuition.
       apply IHpairs.
@@ -473,7 +477,7 @@ Module Make (Import E : ADT).
     unfold make_heap.
 
     Lemma grab_it : forall k x pairs h,
-      In (k, inr x) pairs
+      List.In (k, inr x) pairs
       -> Semantics.disjoint_ptrs pairs
       -> WordMap.MapsTo k x (fold_left store_pair pairs h).
       induction pairs; simpl; intuition.
@@ -512,7 +516,7 @@ Module Make (Import E : ADT).
     apply H4; clear H4.
 
     Lemma i_didn't_do_it : forall k ls h,
-      (forall a o, ~In {| Word := k; ADTIn := inr a; ADTOut := o |} ls)
+      (forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} ls)
       -> WordMap.In k (fold_left store_out ls h)
       -> WordMap.In k h.
       induction ls; simpl; intuition.

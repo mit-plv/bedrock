@@ -102,8 +102,6 @@ Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_siz
   t.
 Qed.
 
-Require SetFacts.
-
 Lemma syn_req_Seq_Skip : forall vars temp_size s, syn_req vars temp_size s -> syn_req vars temp_size (s ;; skip).
   t.
 Qed.

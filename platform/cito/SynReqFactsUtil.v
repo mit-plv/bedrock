@@ -23,7 +23,7 @@ Lemma In_to_set : forall x ls,
   -> StringSet.In x (SSP.of_list ls).
   intros.
   eapply SSP.of_list_1.
-  eapply InA_eq_List_In; eauto.
+  eapply InA_eq_In_iff; eauto.
 Qed.
 
 Local Hint Resolve In_to_set.
@@ -33,7 +33,7 @@ Lemma to_set_In : forall x ls,
   -> In x ls.
   intros.
   eapply SSP.of_list_1 in H.
-  eapply InA_eq_List_In; eauto.
+  eapply InA_eq_In_iff; eauto.
 Qed.
 
 Local Hint Resolve to_set_In.

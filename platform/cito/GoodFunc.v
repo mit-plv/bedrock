@@ -59,7 +59,7 @@ Section TopSection.
     intros.
     nintro.
     unfold get_local_vars in H4.
-    eapply InA_eq_List_In in H4.
+    eapply InA_eq_In_iff in H4.
     eapply StringSet.StringSet.elements_2 in H4.
     eapply StringSet.StringFacts.diff_iff in H4.
     openhyp.

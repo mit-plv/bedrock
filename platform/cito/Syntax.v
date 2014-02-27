@@ -1,6 +1,6 @@
 Require Import String.
 Require Import SyntaxExpr.
-Require Import Label.
+Require Import GLabel.
 Export SyntaxExpr.
 
 Inductive Stmt : Set := 
@@ -9,5 +9,5 @@ Inductive Stmt : Set :=
   | If : Expr -> Stmt -> Stmt -> Stmt
   | While : Expr -> Stmt -> Stmt
   | Call : option string -> Expr -> list Expr -> Stmt
-  | Label : string -> label -> Stmt
+  | Label : string -> glabel -> Stmt
   | Assign : string -> Expr -> Stmt.

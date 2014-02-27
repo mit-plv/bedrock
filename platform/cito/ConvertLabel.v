@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
 Require Import Labels.
-Require Import Label.
+Require Import GLabel.
 
-Definition to_bedrock_label (l : label) : Labels.label := (fst l, Global (snd l)).
+Definition to_bedrock_label (l : glabel) : label := (fst l, Global (snd l)).
 
-Coercion to_bedrock_label : label >-> Labels.label.
+Coercion to_bedrock_label : glabel >-> label.
 
-Definition from_bedrock_label_map A (f : Labels.label -> A) (lbl : Label.label) := f lbl.
+Definition from_bedrock_label_map A (f : label -> A) (lbl : glabel) := f lbl.
 

@@ -4,160 +4,39 @@ Require Import List.
 
 Section TopSection.
 
-  Fixpoint app_all A (ls : list (list A)) :=
-    match ls with
-      | nil => nil
-      | x :: xs => x ++ app_all xs
-    end.
+  Require Import GeneralTactics2.
 
-  Definition Disjoint A (ls1 ls2 : list A) := forall e : A, ~ (In e ls1 /\ In e ls2).
-
-  Definition IsInjection A B (f : A -> B) := forall x y, x <> y -> f x <> f y.
-
-  Variable t : Type.
-  Variable B : Type.
-
-  Implicit Types ls : list t.
-  Implicit Types f : t -> B.
-  Implicit Types x y e a : t.
-
-  Lemma map_app_all : forall f lsls, map f (app_all lsls) = app_all (map (fun ls => map f ls) lsls).
-    induction lsls; simpl; intros; eauto.
-    rewrite map_app; f_equal; eauto.
+  Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
+    intros.
+    inversion H.
+    not_not.
+    subst.
+    intuition.
   Qed.
 
-  Require Import Sumbool.
-  Require Import GeneralTactics.
-
-  Lemma find_spec : forall (f : t -> bool) ls a, find f ls = Some a -> f a = true /\ In a ls.
-    induction ls; simpl; intuition; try discriminate;
-    (destruct (sumbool_of_bool (f a)); 
-     [rewrite e in H; injection H; intros; subst; eauto | 
-      rewrite e in H; eapply IHls in H; openhyp; eauto]).
-  Qed.
-
-  Lemma find_spec_None : forall (f : t -> bool) ls, List.find f ls = None -> ~ exists a, List.In a ls /\ f a = true.
+  Lemma NoDup_cons_elim : forall A ls (e : A), List.NoDup (e :: ls) -> forall e', List.In e' ls -> e' <> e.
     induction ls; simpl; intuition.
-    openhyp; intuition.
-    openhyp.
     subst.
-    rewrite H1 in H.
+    eapply NoDup_cons_cons in H.
     intuition.
-    eapply IHls.
-    discriminate.
-    discriminate.
-    destruct (f a); intuition.
-    discriminate.
-    eapply H2.
-    eexists; split; eauto.
-  Qed.
-
-  Lemma In_app_all_intro : forall lsls ls e, In e ls -> In ls lsls -> In e (app_all lsls).
-    induction lsls; simpl; intros.
-    eauto.
-    openhyp.
     subst.
-    eapply in_or_app.
-    eauto.
-    eapply in_or_app.
-    right.
-    eauto.
-  Qed.
-
-  Lemma In_app_all_elim : forall lsls x, In x (app_all lsls) -> exists ls, In x ls /\ In ls lsls.
-    induction lsls; simpl; intros.
-    intuition.
-    eapply in_app_or in H.
-    openhyp.
-    eexists.
-    eauto.
-    eapply IHlsls in H.
-    openhyp.
-    eexists; eauto.
-  Qed.
-
-  Lemma Disjoint_symm : forall ls1 ls2, Disjoint ls1 ls2 -> Disjoint ls2 ls1.
-    unfold Disjoint; intros; firstorder.
-  Qed.
-
-  Lemma Disjoint_incl : forall ls1 ls2 ls1' ls2', Disjoint ls1 ls2 -> incl ls1' ls1 -> incl ls2' ls2 -> Disjoint ls1' ls2'.
-    unfold Disjoint, incl; intros; firstorder.
-  Qed.
-
-  Lemma incl_map : forall f ls1 ls2, incl ls1 ls2 -> incl (map f ls1) (map f ls2).
-    unfold incl.
-    intros.
-    eapply in_map_iff in H0.
-    openhyp.
-    subst.
-    eapply H in H1.
-    eapply in_map_iff.
-    eexists.
-    eauto.
-  Qed.
-
-  Lemma Disjoint_map : forall f ls1 ls2, Disjoint (map f ls1) (map f ls2) -> Disjoint ls1 ls2.
-    unfold Disjoint; intros.
-    intuition.
-    eapply H.
-    split; eapply in_map; eauto.
-  Qed.
-
-  Lemma Injection_NoDup : forall f ls, IsInjection f -> NoDup ls -> NoDup (map f ls).
-    unfold IsInjection.
-    induction ls; simpl; intros.
-    econstructor.
-    inversion H0; subst.
-    econstructor.
-    intuition.
-    contradict H3. 
-    eapply in_map_iff in H1.
-    openhyp.
-    eapply H in H1.
-    intuition.
-    intros.
-    subst.
-    inversion H0; subst.
-    contradiction.
-    eapply IHls.
-    eauto.
-    eauto.
-  Qed.
-
-  Lemma NoDup_app : forall ls1 ls2, NoDup ls1 -> NoDup ls2 -> Disjoint ls1 ls2 -> NoDup (ls1 ++ ls2).
-    unfold Disjoint.
-    induction ls1; simpl; intros.
-    eauto.
-    econstructor.
-    intuition.
-    eapply in_app_or in H2.
-    openhyp.
     inversion H; subst.
-    contradiction.
-    eapply H1.
-    eauto.
-    eapply IHls1.
-    inversion H; subst.
-    eauto.
-    eauto.
-    intros.
-    firstorder.
+    intuition.
   Qed.
 
+  Require Import Morphisms.
+
+  Lemma Forall2_map : forall A B (f1 f2 : A -> B) R ls, pointwise_relation _ R f1 f2 -> Forall2 R (List.map f1 ls) (List.map f2 ls).
+    unfold pointwise_relation.
+    induction ls; simpl; intuition.
+  Qed.
+
+  Fixpoint fold_right_2 A (f : A -> A -> A) def ls := 
+    match ls with
+      | nil => def
+      | x :: nil => x
+      | x :: xs => f x (fold_right_2 f def xs)
+    end.
+  
 End TopSection.
 
-Require Import Equalities.
-
-Module Make (Import E : MiniDecidableType).
-
-  Section TopSection.
-
-    Variable B : Type.
-
-    Implicit Types ls : list t.
-    Implicit Types f : t -> B.
-    Implicit Types x y e a : t.
-    
-  End TopSection.
-
-End Make.

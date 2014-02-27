@@ -1,14 +1,12 @@
 Set Implicit Arguments.
 
-Require Import WordMap.
-Require Import OrdersAlt.
-
-Module W_as_OT' := Update_OT W_as_OT.
+Require Import WordKey.
 
 Require Import MSetRBT.
-Module WordSet := Make W_as_OT'.
+Module WordSet := Make W_as_OT_new.
 
 Require Import Memory.
+Require Import WordMap.
 
 Inductive ADTValue :=
 | FSet : WordSet.t -> ADTValue
