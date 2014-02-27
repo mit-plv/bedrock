@@ -80,7 +80,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     eapply add_iff; eauto.
   Qed.
 
-  Add Morphism Disjoint with signature Equal ==> Equal ==> iff as Disjoint_m.
+  Global Add Morphism Disjoint with signature Equal ==> Equal ==> iff as Disjoint_m.
     unfold Equal, Disjoint; firstorder.
   Qed.
 

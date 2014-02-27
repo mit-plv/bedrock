@@ -1,13 +1,13 @@
 Set Implicit Arguments.
 
 Require Import StringSet.
-Require Import StringSetFacts.
 Import StringSet.
 Require Import FSetProperties.
 Module Import Properties := Properties StringSet.
 Import FM.
 
-Local Open Scope fset_scope.
+Local Infix "+" := union.
+Local Infix "<=" := Subset.
 
 Ltac subset_solver :=
   repeat
@@ -24,5 +24,3 @@ Ltac subset_solver :=
             context [ S ] => eapply subset_trans; [ .. | eapply union_subset_2]
         end
     end.
-
-Local Close Scope fset_scope.
