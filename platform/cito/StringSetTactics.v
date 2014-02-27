@@ -3,7 +3,9 @@ Set Implicit Arguments.
 Require Import StringSet.
 Require Import StringSetFacts.
 Import StringSet.
-Import FSetNotations.
+Require Import FSetProperties.
+Module Import Properties := Properties StringSet.
+Import FM.
 
 Local Open Scope fset_scope.
 

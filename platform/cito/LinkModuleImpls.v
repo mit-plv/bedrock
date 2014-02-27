@@ -77,16 +77,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition compile m := CompileModuleMake.compile m IsGoodOptimizer.
 
-    Definition impl_label mod_name f_name : glabel := (impl_module_name mod_name, f_name).
-
-    Definition Func_to_import m (f : GoodFunction) := (impl_label (MName m) (FName f), CompileFuncSpecMake.spec f).
-
-    Definition get_module_Exports (module : GoodModule) := 
-      to_map 
-        (List.map 
-           (Func_to_import module)
-           (Functions module)).
-
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
@@ -321,8 +311,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       openhyp.
       eauto.
     Qed.
-
-    Definition total_exports := update_all (List.map get_module_Exports modules).
 
     Theorem module_exports : Exports m === total_exports.
       edestruct link_all_ok; eauto.

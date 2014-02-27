@@ -67,14 +67,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
-    Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
-      {|
-        Semantics.Fun := f;
-        Semantics.NoDupArgVars := proj1 (IsGoodFunc f)
-      |}.
-
-    Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.
-
     Definition get_module_exports (module : GoodModule) := 
       List.map 
         (fun (f : GoodFunction) =>
@@ -128,40 +120,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     End fs.
 
-    Definition stn_good_to_use (stn : settings) :=
-      forall lbl : glabel,
-        ((exists m f,
-            List.In m modules /\
-            List.In f (Functions m) /\
-            lbl = (MName m, FName f)) \/
-         In lbl imports) ->
-        Labels stn lbl <> None.
-
-    Definition fs_good_to_use (stn : settings) :=
-      forall p spec, 
-        fs stn p = Some spec <-> 
-        exists lbl : glabel,
-          Labels stn lbl = Some p /\
-          ((exists ispec m f,
-              spec = Internal ispec /\
-              List.In m modules /\
-              List.In f (Functions m) /\
-              ispec = f /\ 
-              lbl = (MName m, FName f)) \/
-           (exists fspec,
-              spec = Foreign fspec /\
-              find lbl imports = Some fspec)).
-
-    Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
-
-    Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| stn_good_to_use (fst st) /\ fs_good_to_use (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
-
     Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
 
-    Definition foreign_func_spec id spec : assert := 
-      st ~> name_marker id /\ ExX, foreign_spec _ spec st.
-
-    Definition foreign_func_spec_FFS id (spec : ForeignFuncSpec) := foreign_func_spec id spec.
+    (* Definition foreign_func_spec_FFS id (spec : ForeignFuncSpec) := foreign_func_spec id spec. *)
 
     Definition bimports_base : list import := 
       elements 
@@ -173,14 +134,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import FMapNotations.
     Open Scope fmap.
 
-    Definition get_module_Exports (module : GoodModule) := 
-      to_map 
-        (List.map 
-           (fun (f : GoodFunction) =>
-              let lbl := (MName module, FName f) in
-              (lbl, func_spec lbl f))
-           (Functions module)).
-
     Definition impl_label mod_name f_name : glabel := (impl_module_name mod_name, f_name).
 
     Definition Func_to_impl_import m (f : GoodFunction) := (impl_label (MName m) (FName f), CompileFuncSpecMake.spec f).
@@ -190,10 +143,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         (List.map 
            (Func_to_impl_import module)
            (Functions module)).
-
-    Definition total_exports := update_all (List.map get_module_Exports modules).
-
-    Definition foreign_imports := mapi foreign_func_spec_FFS imports.
 
     Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
