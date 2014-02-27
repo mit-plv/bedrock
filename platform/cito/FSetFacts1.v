@@ -9,6 +9,12 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
   Module Import P := WProperties_fun E M.
   Import FM.
 
+  Module FSetNotations.
+    Infix "+" := union : fset_scope.
+    Infix "<=" := Subset : fset_scope.
+    Delimit Scope fset_scope with fset.
+  End FSetNotations.
+
   Definition Disjoint a b := forall x, ~ (In x a /\ In x b).
 
   Import ListNotations.
@@ -16,12 +22,18 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Require Import SetoidListFacts.
 
+  Lemma NoDup_elements : forall s, List.NoDup (elements s).
+    intros.
+    apply NoDupA_NoDup.
+    apply elements_3w.
+  Qed.
+
   Lemma of_list_fwd : forall e ls,
     In e (of_list ls)
     -> List.In e ls.
     intros.
     eapply of_list_1 in H.
-    eapply InA_eq_List_In; eauto.
+    eapply InA_eq_In_iff; eauto.
   Qed.
 
   Lemma of_list_bwd : forall e ls,
@@ -29,7 +41,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     -> In e (of_list ls).
     intros.
     eapply of_list_1.
-    eapply InA_eq_List_In; eauto.
+    eapply InA_eq_In_iff; eauto.
   Qed.
 
   Local Hint Resolve of_list_fwd of_list_bwd.

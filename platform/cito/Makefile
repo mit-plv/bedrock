@@ -1,10 +1,18 @@
 BEDROCK := ../..
 
 MODULES := \
+	ListFacts1 ListFacts2 \
+	SetoidListFacts \
+	FSetFacts1 \
+	StringSetFacts StringSetTactics \
+	FMapFacts1 FMapFacts2 \
+	GLabel GLabelKey GLabelMap GLabelMapFacts \
+	LabelMapFacts \
+	WordKey WordMap WordMapFacts \
+	ConvertLabel \
 	ValsStringSet \
-	Label ConvertLabel \
 	SyntaxExpr Syntax SemanticsExpr FuncCore \
-	ADT WordMap \
+	ADT \
 	Semantics \
 	GeneralTactics \
 	FreeVarsExpr Option Union FreeVars \
@@ -12,7 +20,7 @@ MODULES := \
 	DepthExpr Max Depth \
 	WellFormed \
 	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
-	SetFacts SynReqFactsUtil SynReqFacts SemanticsFacts ListFactsNew WordFacts InvFacts FMapFacts2 \
+	SynReqFactsUtil SynReqFacts SemanticsFacts ListFactsNew WordFacts InvFacts \
 	CompileStmtTactics \
 	SepHints SepHintsUtil SepHints2 SepHints3 SepHints4 \
 	LayoutHints LayoutHintsUtil LayoutHints2 LayoutHints3 \
@@ -28,20 +36,16 @@ MODULES := \
 	SyntaxFunc SyntaxModule \
 	CompileFuncSpec \
 	SepHints5 \
-	GetLocalVars Wf GoodFunc GoodOptimizer SemanticsFacts2 StringSetFacts \
+	GetLocalVars Wf GoodFunc GoodOptimizer SemanticsFacts2 \
 	CompileFuncImpl \
 	CompileFunc \
 	GoodFunction GoodModule \
 	NameDecoration NameVC \
 	CompileModule \
 	NatFacts StringFacts2 \
-	ListFacts2 \
 	GeneralTactics2 \
-	SetoidListFacts \
-	FMapFacts1 \
 	StructuredModuleFacts \
-	FSetFacts1 FMapFacts3 ConvertLabelMap \
-	ListFacts3 \
+	ConvertLabelMap \
 	LinkModuleImpls \
 	Stub \
 	Stubs \

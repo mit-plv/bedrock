@@ -145,7 +145,7 @@ Section ExprComp.
           -> List.In x ls.
         intros.
         eapply SSP.of_list_1 in H.
-        eapply InA_eq_List_In; eauto.
+        eapply InA_eq_In_iff; eauto.
       Qed.
 
       assert (List.In s vars) by eauto using In_to_set.

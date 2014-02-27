@@ -3,27 +3,18 @@ Set Implicit Arguments.
 Require Import AutoSep.
 Require Import StructuredModule.
 
-Require Import FMapFacts1.
-Require Import FMapFacts3.
-
-Require LabelMap.
-Module BLM := LabelMap.LabelMap.
-Module BLK := LabelMap.LabelKey.
-Require Import Equalities.
-Module BLK_as_UDT := Make_UDT BLK.
-Module Import BLMFU3 := FMapFacts3.UWFacts_fun BLK_as_UDT BLM.
-Module Import BLMFU := UWFacts.
-Module Import BLMF := WFacts.
-
-Require Import Label.
+Require Import Labels.
+Require Import LabelMap.
 Module LM := LabelMap.
-Module Label_as_UDT := Make_UDT Label_as_OT.
-Module Import LMFU3 := FMapFacts3.UWFacts_fun Label_as_UDT LM.
-Module Import LMFU := UWFacts.
-Module Import LMF := WFacts.
+Require LabelMapFacts.
+Module LMF := LabelMapFacts.
+Require Import GLabel.
+Require Import GLabelMap.
+Import GLabelMap.
+Require Import GLabelMapFacts.
+
+Require Import ListFacts1.
 Require Import ListFacts2.
-Module LF := ListFacts2.
-Module Import LFL := Make Label_as_UDT.
 
 Section TopSection.
 
@@ -38,8 +29,8 @@ Section TopSection.
   Lemma importsMap_spec' : 
     forall imps2 imps1 base, 
       NoDupKey (imps1 ++ imps2) -> 
-      (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) base = find_list k imps1) ->
-      forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (importsMap' imps2 base) = find_list k (imps1 ++ imps2).
+      (forall (k : glabel), LabelMap.LabelMap.find (k : label) base = find_list k imps1) ->
+      forall (k : glabel), LabelMap.LabelMap.find (k : label) (importsMap' imps2 base) = find_list k (imps1 ++ imps2).
     induction imps2; simpl.
     intros.
     rewrite app_nil_r.
@@ -67,7 +58,7 @@ Section TopSection.
     eauto.
     eapply InA_eqke_In; intuition.
     unfold LabelKey.eq in *.
-    erewrite BLMF.add_4.
+    erewrite LabelMapFacts.add_4.
     rewrite H0.
     erewrite find_list_neq.
     eauto.
@@ -79,7 +70,7 @@ Section TopSection.
     eauto.
   Qed.
 
-  Lemma importsMap_spec : forall imps (k : label), NoDupKey imps -> LabelMap.LabelMap.find (k : Labels.label) (importsMap imps) = find_list k imps.
+  Lemma importsMap_spec : forall imps (k : glabel), NoDupKey imps -> LabelMap.LabelMap.find (k : label) (importsMap imps) = find_list k imps.
     intros.
     unfold importsMap.
     erewrite importsMap_spec'.
@@ -100,11 +91,11 @@ Section TopSection.
 
   Lemma fullImports_spec' : 
     forall mn (fns : list (function mn)) imps impsMap, 
-      let fns' := map (@func_to_import _) fns in
+      let fns' := List.map (@func_to_import _) fns in
       let whole := imps ++ fns' in
       NoDupKey whole ->
-      (forall (k : label), LabelMap.LabelMap.find (k : Labels.label) impsMap = find_list k imps) ->
-      forall (k : label), LabelMap.LabelMap.find (k : Labels.label) (fullImports' impsMap fns) = find_list k whole.
+      (forall (k : glabel), LabelMap.LabelMap.find (k : label) impsMap = find_list k imps) ->
+      forall (k : glabel), LabelMap.LabelMap.find (k : label) (fullImports' impsMap fns) = find_list k whole.
   Proof.
     unfold fullImports'.
     unfold func_to_import.
@@ -134,7 +125,7 @@ Section TopSection.
     eauto.
     eapply InA_eqke_In; intuition.
     unfold LabelKey.eq in *.
-    erewrite BLMF.add_4.
+    erewrite LabelMapFacts.add_4.
     rewrite H0.
     erewrite find_list_neq.
     eauto.
@@ -147,11 +138,11 @@ Section TopSection.
   Qed.
 
   Lemma fullImports_spec :
-    forall (imps : list import) mn (fns : list (function mn)) (k : label),
-      let fns' := map (@func_to_import _) fns in
+    forall (imps : list import) mn (fns : list (function mn)) (k : glabel),
+      let fns' := List.map (@func_to_import _) fns in
       let whole := imps ++ fns' in
       NoDupKey whole ->
-      LabelMap.LabelMap.find (k : Labels.label) (fullImports imps fns) = find_list k whole.
+      LabelMap.LabelMap.find (k : label) (fullImports imps fns) = find_list k whole.
   Proof.
     unfold fullImports.
     specialize fullImports_spec'; intros.
@@ -169,15 +160,11 @@ Section TopSection.
 
   Require Import GeneralTactics.
   
-  Import LM.
-  Import P.
-  Import F.
-
   Lemma importsMap_of_list : forall ls, NoDupKey ls -> importsMap ls === of_list ls.
     intros.
-    unfold BLM.Equal.
+    unfold LM.Equal.
     intros.
-    change ConvertLabelMap.BLM.find with LabelMap.LabelMap.find in *.
+    change ConvertLabelMap.LM.find with LabelMap.LabelMap.find in *.
     destruct y.
     destruct l.
     specialize importsMap_spec; intros.
@@ -191,7 +178,7 @@ Section TopSection.
     unfold importsGlobal in *.
     eapply option_univalence.
     split; intros.
-    eapply BLM.find_2 in H1.
+    eapply LM.find_2 in H1.
     eapply H0 in H1.
     openhyp.
     simpl in *.
@@ -212,24 +199,24 @@ Section TopSection.
     unfold uncurry; simpl in *.
     rewrite IHfns.
     rewrite to_blm_add.
-    eapply BLMF.P.F.add_m; eauto.
+    eapply LMF.add_m; eauto.
     reflexivity.
   Qed.
 
-  Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> BLMFU3.Compat m1 m2.
+  Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> LMF.Compat m1 m2.
     intros.
-    unfold BLMFU3.Compat.
+    unfold LMF.Compat.
     intros.
-    eapply BLMFU3.In_MapsTo in H0.
+    eapply LMF.In_MapsTo in H0.
     openhyp.
-    eapply BLMFU3.In_MapsTo in H1.
+    eapply LMF.In_MapsTo in H1.
     openhyp.
     assert (x = x0).
     eapply use_importsOk; eauto.
-    eapply BLM.find_1; eauto.
+    eapply LM.find_1; eauto.
     subst.
-    eapply BLM.find_1 in H1.
-    eapply BLM.find_1 in H0.
+    eapply LM.find_1 in H1.
+    eapply LM.find_1 in H0.
     congruence.
   Qed.
 
@@ -249,87 +236,87 @@ Section TopSection.
     unfold respectful.
     intros.
     subst.
-    destruct (BLM.find y m); intuition.
+    destruct (LM.find y m); intuition.
   Qed.
 
   Lemma importsOk_f_transpose_neqkey :
     forall m,
-      BLMF.P.transpose_neqkey 
+      LMF.transpose_neqkey 
         iff
         (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
            match LabelMap.LabelMap.find (elt:=assert) l m with
              | Some pre' => pre = pre' /\ P
              | None => P
            end).
-    unfold BLMF.P.transpose_neqkey.
+    unfold LMF.transpose_neqkey.
     intros.
-    destruct (BLM.find k m); destruct (BLM.find k' m); intuition.
+    destruct (LM.find k m); destruct (LM.find k' m); intuition.
   Qed.
 
   Add Morphism importsOk
-      with signature BLM.Equal ==> Logic.eq ==> iff as importsOk_m.
+      with signature LM.Equal ==> Logic.eq ==> iff as importsOk_m.
     intros.
     unfold importsOk.
-    eapply BLMF.P.fold_Equal; eauto.
+    eapply LMF.fold_Equal; eauto.
     intuition.
     eapply importsOk_f_Proper.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
-  Existing Instance BLMFU3.Compat_m_Proper.
+  Existing Instance LMF.Compat_m_Proper.
 
-  Lemma importsOk_Compat_right : forall m1 m2, BLMFU3.Compat m1 m2 -> importsOk m1 m2.
-    induction m1 using BLMF.P.map_induction_bis.
+  Lemma importsOk_Compat_right : forall m1 m2, LMF.Compat m1 m2 -> importsOk m1 m2.
+    induction m1 using LMF.map_induction_bis.
     intros.
     rewrite <- H in H0.
     rewrite <- H.
     eauto.
     intros.
     unfold importsOk.
-    rewrite BLM.fold_1.
+    rewrite LM.fold_1.
     simpl.
     eauto.
     intros.
     unfold importsOk.
-    rewrite BLMF.P.fold_add; eauto.
-    destruct (option_dec (BLM.find (elt:=assert) x m2)).
+    rewrite LMF.fold_add; eauto.
+    destruct (option_dec (LM.find (elt:=assert) x m2)).
     destruct s.
     rewrite e0.
     split.
-    eapply BLMFU3.Compat_eq; eauto.
-    eapply BLM.find_1.
-    eapply BLMF.P.F.add_mapsto_iff.
+    eapply LMF.Compat_eq; eauto.
+    eapply LM.find_1.
+    eapply LMF.add_mapsto_iff.
     eauto.
     eapply IHm1.
-    eapply BLMFU3.Compat_add_not_In; eauto.
+    eapply LMF.Compat_add_not_In; eauto.
     rewrite e0.
     eapply IHm1.
-    eapply BLMFU3.Compat_add_not_In; eauto.
+    eapply LMF.Compat_add_not_In; eauto.
     intuition.
     eapply importsOk_f_Proper.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
-  Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> BLMFU3.Compat m1 m2.
+  Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> LMF.Compat m1 m2.
     split; intros.
     eapply importsOk_Compat_left; eauto.
     eapply importsOk_Compat_right; eauto.
   Qed.
 
-  Lemma XCAP_union_update : forall elt m1 m2, BLM.Equal (@XCAP.union elt m1 m2) (BLMF.P.update m2 m1).
+  Lemma XCAP_union_update : forall elt m1 m2, LM.Equal (@XCAP.union elt m1 m2) (LMF.update m2 m1).
     unfold XCAP.union.
-    unfold BLMF.P.update.
+    unfold LMF.update.
     intros.
     reflexivity.
   Qed.
 
-  Lemma XCAP_diff_diff : forall elt m1 m2, @BLM.Equal elt (XCAP.diff m1 m2) (BLMF.P.diff m1 m2).
+  Lemma XCAP_diff_diff : forall elt m1 m2, @LM.Equal elt (XCAP.diff m1 m2) (LMF.diff m1 m2).
     intros.
-    unfold BLM.Equal.
+    unfold LM.Equal.
     intros.
     eapply option_univalence.
     split; intros.
-    eapply BLM.find_2 in H.
+    eapply LM.find_2 in H.
     eapply MapsTo_diff in H.
     Focus 2.
     instantiate (1 := @StructuredModule.bmodule_ nil "" nil).
@@ -337,19 +324,19 @@ Section TopSection.
     simpl.
     unfold importsMap.
     simpl.
-    rewrite BLM.fold_1.
+    rewrite LM.fold_1.
     simpl.
     eauto.
     openhyp.
-    eapply BLM.find_1.
-    eapply BLMF.P.diff_mapsto_iff.
+    eapply LM.find_1.
+    eapply LMF.diff_mapsto_iff.
     eauto.
-    eapply BLM.find_2 in H.
-    eapply BLMF.P.diff_mapsto_iff in H.
+    eapply LM.find_2 in H.
+    eapply LMF.diff_mapsto_iff in H.
     openhyp.
-    eapply BLM.find_1.
+    eapply LM.find_1.
     eapply MapsTo_diffr; eauto.
-    eapply BLM.elements_3w.
+    eapply LM.elements_3w.
   Qed.
 
 End TopSection.

@@ -1,14 +1,12 @@
 Set Implicit Arguments.
 
-Require Import String.
-
-Definition label := (string * string)%type.
-
 Require Import OrderedType.
 
-Module Label_as_MOT <: MiniOrderedType.
+Module GLabel_as_MOT <: MiniOrderedType.
 
-  Definition t := label.
+  Require Import GLabel.
+
+  Definition t := glabel.
 
   Definition eq := @eq t.
 
@@ -59,11 +57,10 @@ Module Label_as_MOT <: MiniOrderedType.
     econstructor 3; eauto.
   Defined.
 
-End Label_as_MOT.
+End GLabel_as_MOT.
 
-Module Label_as_OT := MOT_to_OT Label_as_MOT.
-
-Require Import FMapAVL.
-Module LabelMap := Make Label_as_OT.
-
-
+Module GLabel_as_OT := MOT_to_OT GLabel_as_MOT.
+Require Import OrdersAlt.
+Module GLabel_as_OT_new := Update_OT GLabel_as_OT.
+Require Import Equalities.
+Module GLabel_as_UDT := Make_UDT GLabel_as_OT.

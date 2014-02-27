@@ -20,8 +20,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import FMapFacts2.
-  Module Import Facts2 := WFacts_fun WordMap.W_as_OT WordMap.WordMap.
+  Require Import WordMapFacts.
   Require Import InvFacts.
   Module Import InvFactsMake := Make E.
   Module Inner := InvFactsMake.Make(M).
@@ -53,7 +52,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import ListFactsNew.
     Require Import StringSet.
     Import StringSet.
-    Require Import SetFacts.
+    Require Import StringSetTactics.
 
     Open Scope stmt.
 

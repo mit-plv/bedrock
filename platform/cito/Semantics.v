@@ -19,7 +19,7 @@ Record InternalFuncSpec :=
 Coercion Fun : InternalFuncSpec >-> FuncCore.
 
 Require Import Syntax SemanticsExpr.
-Require Import Label.
+Require Import GLabel.
 Require Import WordMap.
 
 Section ADTValue.
@@ -101,7 +101,7 @@ Section ADTValue.
 
   Section Env.
 
-    Variable env : (label -> option W) * (W -> option Callee).
+    Variable env : (glabel -> option W) * (W -> option Callee).
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall v, RunsTo Syntax.Skip v v
@@ -350,7 +350,10 @@ Module Make (Import E : ADT).
   Definition Internal := @Internal ADTValue.
 
   (* some shorthands for heap operations *)
-  Import WordMap Facts Properties.
+  Require Import FMapFacts.
+  Module Import P := Properties WordMap.
+  Import F WordMap.
+
   Definition elt := ADTValue.
 
   Implicit Types m h : Heap.

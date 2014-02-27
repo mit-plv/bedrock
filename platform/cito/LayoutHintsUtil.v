@@ -145,6 +145,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
   Module Import Sem := Semantics.Make E.
+  Require Import WordMap.
+  Require Import FMapFacts.
+  Module Properties := Properties WordMap.
   
   Lemma preserve_store : forall k v pairs h,
     List.Forall (fun p => match snd p with

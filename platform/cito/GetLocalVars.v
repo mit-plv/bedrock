@@ -20,7 +20,7 @@ Lemma ret_in_vars : forall arg_vars s r, List.In r (arg_vars ++ get_local_vars s
   destruct (List.In_dec String.string_dec r arg_vars); try solve [intuition]; intros.
   right.
   unfold get_local_vars; simpl.
-  eapply InA_eq_List_In.
+  eapply InA_eq_In_iff.
   eapply elements_1.
   eapply diff_iff.
   split.

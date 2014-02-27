@@ -9,12 +9,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
   Import SemanticsMake.
+  Require Import WordMap.
+  Require Import FMapFacts.
+  Module Import P := Properties WordMap.
 
   Section TopSection.
 
     Lemma heap_empty_bwd : Emp ===> is_heap heap_empty.
       unfold is_heap, heap_empty, heap_elements.
-      rewrite WordMap.Properties.elements_empty.
+      rewrite elements_empty.
       apply Himp_refl.
     Qed.
 

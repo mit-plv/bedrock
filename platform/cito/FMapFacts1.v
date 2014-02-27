@@ -60,6 +60,13 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
       eauto.
     Qed.
 
+    Lemma update_with_empty : forall m, update m (@empty _) = m.
+      unfold update; intros.
+      rewrite fold_1.
+      rewrite elements_empty.
+      reflexivity.
+    Qed.
+
     Lemma In_find_list_Some_left : forall k v ls, NoDupKey ls -> InPair (k, v) ls -> find_list k ls = Some v.
     Proof.
       induction ls; simpl; intros.
@@ -303,16 +310,16 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Lemma InA_eqke_In : forall ls p, InA eqke p ls <-> List.In p ls.
       intros; eapply equiv_2_trans.
       eapply InA_eqke_InA_eq.
-      unfold equiv_2; intros; eapply InA_eq_List_In.
+      unfold equiv_2; intros; eapply InA_eq_In_iff.
     Qed.
 
     Notation fst := (@fst _ _).
 
     Lemma In_fst_elements_In : forall m k, List.In k (List.map fst (elements m)) <-> In k m.
       split; intros.
-      eapply InA_eq_List_In in H.
+      eapply InA_eq_In_iff in H.
       eapply In_In_keys in H; eauto.
-      eapply InA_eq_List_In.
+      eapply InA_eq_In_iff.
       specialize In_In_keys; intros; unfold keys in *; eapply H0; eauto.
     Qed.
 
