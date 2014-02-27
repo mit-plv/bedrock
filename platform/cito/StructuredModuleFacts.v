@@ -164,7 +164,6 @@ Section TopSection.
     intros.
     unfold LM.Equal.
     intros.
-    change ConvertLabelMap.LM.find with LabelMap.LabelMap.find in *.
     destruct y.
     destruct l.
     specialize importsMap_spec; intros.
@@ -263,7 +262,6 @@ Section TopSection.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
-  Existing Instance LMF.Compat_m_Proper.
 
   Lemma importsOk_Compat_right : forall m1 m2, LMF.Compat m1 m2 -> importsOk m1 m2.
     induction m1 using LMF.map_induction_bis.

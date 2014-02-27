@@ -31,6 +31,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GoodOptimizer.
   Import GoodOptimizerMake.
 
+  Require Import LinkSpec.
+  Module Import LinkSpecMake := Make E.
+  Module Import LinkSpecMake2 := Make M.
+
   Require Import ListFacts1.
   Require Import ListFacts2.
 
@@ -86,13 +90,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition impl_MName m := impl_module_name (MName m).
 
-    Existing Instance to_blm_Equal_m_Proper.
-    Existing Instance CompatReflSym_Symmetric.
-    Existing Instance CompatReflSym_Reflexive.
-    Existing Instance Compat_m_Proper.
-    Existing Instance Disjoint_m_Symmetric.
-    Existing Instance LMF.Compat_m_Proper.
-
     Require Import SetoidList.
     Hint Constructors NoDupA.
     Hint Unfold NoDupKey.
@@ -107,6 +104,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
         econstructor.
     Qed.
+
+    Notation get_module_Exports := module_impl_exports.
 
     Lemma compile_module_Exports : forall m, Exports (compile m) === get_module_Exports m.
         intros.
@@ -247,6 +246,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H4.
       rewrite compile_module_Imports.
       eapply to_blm_Compat.
+      Existing Instance Compat_rel_Symmetric.
       symmetry.
       eapply Compat_empty.
       eapply importsOk_Compat.
@@ -286,8 +286,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite <- to_blm_diff.
       rewrite <- to_blm_update.
       eapply to_blm_Equal.
-      change ConvertLabelMap.LMF.P.update with update in *.
-      change ConvertLabelMap.LMF.P.diff with diff in *.
       repeat rewrite empty_diff; eauto.
     Qed.
 
@@ -312,7 +310,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Theorem module_exports : Exports m === total_exports.
+    Theorem module_exports : Exports m === LinkSpecMake2.impl_exports modules.
       edestruct link_all_ok; eauto.
       intuition.
       eapply NoDup_MName_NoDup_impl_Name; eauto.

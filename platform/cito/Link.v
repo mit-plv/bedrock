@@ -33,6 +33,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GoodOptimizer.
   Module Import GoodOptimizerMake := Make E.
 
+  Require Import LinkSpec.
+  Module Import LinkSpecMake := Make E.
+  Module Import LinkSpecMake2 := Make M.
+
   Require Import ListFacts1.
   Require Import ListFacts2.
 
@@ -62,12 +66,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypothesis ModulesNotEmpty : modules <> nil.
 
-    Hypothesis NoDupModuleNames : List.NoDup (module_names modules).
+    Notation FName := SyntaxFunc.Name.
+    Notation MName := GoodModule.Name.
+    Notation module_names := (List.map MName modules).
+
+    Hypothesis NoDupModuleNames : List.NoDup module_names.
 
     (* imported specs *)
     Variable imports : t ForeignFuncSpec.
 
-    Hypothesis NoSelfImport : ListFacts1.Disjoint (module_names modules) (imported_module_names imports).
+    Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
+    Notation imported_module_names := (List.map fst2 (elements imports)).
+
+    Hypothesis NoSelfImport : ListFacts1.Disjoint module_names imported_module_names.
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
@@ -85,16 +96,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Hint Extern 1 => reflexivity.
 
     Require Import Setoid.
-    Existing Instance to_blm_Equal_m_Proper.
-    Existing Instance CompatReflSym_Symmetric.
-    Existing Instance CompatReflSym_Reflexive.
-    Existing Instance Compat_m_Proper.
-    Existing Instance Disjoint_m_Symmetric.
-    Existing Instance LMF.Compat_m_Proper.
-
-    Lemma total_impls_Equal_total_exports : total_impls modules == LinkModuleImplsMake.total_exports modules.
-      eauto.
-    Qed.
 
     Lemma Disjoint_MNames_impl_MNames : SSF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
       unfold SSF.Disjoint.
@@ -111,20 +112,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eexists; eauto.
     Qed.
 
-    Lemma final_imports_Compat_total_exports : Compat (final_imports modules imports) (LinkModuleImplsMake.total_exports modules).
+    Lemma final_imports_Compat_total_exports : Compat (final_imports modules imports) (LinkSpecMake2.impl_exports modules).
       unfold final_imports.
-      rewrite <- total_impls_Equal_total_exports.
+      Existing Instance Compat_rel_Symmetric.
       symmetry.
       eapply Compat_update.
       eapply Disjoint_Compat.
+      Existing Instance Disjoint_rel_Symmetric.
       symmetry.
       eapply foreign_imports_Disjoint_total_impls; eauto.
-      eauto.
+      Existing Instance Compat_rel_Reflexive.
+      reflexivity.
     Qed.
 
-    Lemma final_imports_diff_total_exports : final_imports modules imports - LinkModuleImplsMake.total_exports modules == foreign_imports imports.
+    Notation foreign_imports := LinkSpecMake2.imports.
+
+    Lemma final_imports_diff_total_exports : final_imports modules imports - LinkSpecMake2.impl_exports modules == foreign_imports imports.
       unfold final_imports.
-      rewrite <- total_impls_Equal_total_exports.
       rewrite <- update_diff_same.
       rewrite diff_same.
       rewrite update_empty_2.
@@ -150,7 +154,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite LinkModuleImplsMake.module_module_names; eauto.
       unfold stubs.
       rewrite StubsMake.module_module_names; eauto.
-      unfold module_names.
       eapply Disjoint_MNames_impl_MNames.
       eapply importsOk_Compat.
       unfold impls.
@@ -177,7 +180,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_empty.
     Qed.
 
-    Theorem output_imports : Imports output === foreign_imports imports.
+    Theorem output_imports : Imports output === LinkSpecMake2.imports imports.
       simpl.
       rewrite XCAP_union_update.
       repeat rewrite XCAP_diff_diff.
@@ -190,14 +193,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite <- to_blm_diff.
       rewrite <- to_blm_update.
       eapply to_blm_Equal.
-      change ConvertLabelMap.LMF.P.update with update in *.
-      change ConvertLabelMap.LMF.P.diff with diff in *.
       repeat rewrite empty_diff.
       rewrite update_empty_2.
       eapply final_imports_diff_total_exports.
     Qed.
 
-    Theorem output_exports : Exports output === total_exports modules imports + LinkModuleImplsMake.total_exports modules.
+    Notation fs := (StubMake.fs modules imports).
+
+    Theorem output_exports : Exports output === LinkSpecMake2.all_exports modules imports fs.
       simpl.
       rewrite XCAP_union_update.
       unfold impls.

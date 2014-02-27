@@ -1,10 +1,5 @@
 Set Implicit Arguments.
 
-Require Import Link.
-Require Import ExampleADT ExampleImpl.
-
-Module Import LinkMake := Link.Make ExampleADT ExampleRepInv.
-
 Require Import Notations2.
 
 Open Scope stmt_scope.
@@ -56,7 +51,7 @@ Definition IsGoodModule (m : Module) :=
 Require Import GeneralTactics.
 Require Import GoodFunction.
 
-Definition to_good_functions (ls : list Func) : List.Forall (GoodFunc * Core) ls -> list GoodFunction.
+Definition to_good_functions : forall (ls : list Func), List.Forall (GoodFunc * Core) ls -> list GoodFunction.
   induction ls; simpl; intros.
   eapply nil.
   eapply cons.
@@ -73,6 +68,17 @@ Definition to_good_functions (ls : list Func) : List.Forall (GoodFunc * Core) ls
   intuition.
 Defined.
 
+(*
+  Definition to_subtypes : forall A (P : A -> Prop) (ls : list A), List.Forall P ls -> list {x : A | P x}.
+    refine (
+        fix f A P ls h :=
+          match ls with
+            | nil => nil
+            | x :: xs => exist P x _ :: f A P xs _
+          end
+      ).
+ *)
+
 Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls), map (fun f : GoodFunction => FName f) (to_good_functions h) = map FName ls.
   induction ls; simpl; intros.
   eauto.
@@ -83,9 +89,13 @@ Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
   intros.
   unfold IsGoodModule in *.
   openhyp.
-  econstructor.
-  eauto.
-  instantiate (1 := to_good_functions H0).
+  refine 
+    ({|
+        GoodModule.Name := MName m;
+        GoodModuleName := H;
+        Functions := to_good_functions H0;
+        NoDupFuncNames := _
+      |}).
   rewrite to_good_functions_name.
   eauto.
 Defined.
@@ -108,8 +118,8 @@ Lemma return_zero_good_module : IsGoodModule return_zero_m.
   unfold compose, return_zero; simpl.
   unfold GoodFunc, return_zero_body; simpl.
   repeat split; simpl; intuition eauto.
-  Import SSF.
-  Import P.
+  econstructor.
+  Require Import StringSetFacts.
   rewrite add_union_singleton.
   Require Import StringSetTactics.
   subset_solver.
@@ -120,11 +130,12 @@ Qed.
 
 Definition return_zero_gm := to_good_module return_zero_good_module.
 
-Import StubsMake StubMake.
-Require Import GLabel.
-Require Import GLabelMap.
-Import GLabelMap.
+Require Import ExampleADT ExampleRepInv.
+Require Import LinkSpec.
+Module Import LinkSpecMake := Make ExampleADT.
+Module Import LinkSpecMake2 := Make ExampleRepInv.
 
+Notation fs := (LinkSpecMake.fs (return_zero_gm :: nil) (empty _)).
 Definition return_zero_func_spec := func_spec (return_zero_gm :: nil) (empty _) ("return_zero", "return_zero") return_zero.
 
 Notation extra_stack := 10.
@@ -132,8 +143,8 @@ Notation extra_stack := 10.
 Require Import Malloc.
 
 Definition return_zero_topS := SPEC reserving (3 + extra_stack)
-  PRE[_] mallocHeap 0
-  POST[R] [| R = 0 |] * mallocHeap 0.
+                                    PRE[_] mallocHeap 0
+                                    POST[R] [| R = 0 |] * mallocHeap 0.
 
 Definition return_zero_top := bimport [[ ("return_zero", "return_zero", return_zero_func_spec)]]
   bmodule "return_zero_top" {{
@@ -198,11 +209,11 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
 
   post.
   replace (locals _ _ _ _) with (locals_call ("rp" :: "R" :: nil) x1 12 
-              (Regs x Sp) ("rp" :: "es" :: nil) 0 8) in H1 by eauto.
+                                             (Regs x Sp) ("rp" :: "es" :: nil) 0 8) in H1 by eauto.
   assert (ok_call ("rp" :: "R" :: nil) ("rp" :: "es" :: nil) 12 0 8) by (split; [ simpl; omega
-                        | split; [ simpl; omega
-                          | split; [ NoDup
-                            | reflexivity ] ] ]).
+                                                                                | split; [ simpl; omega
+                                                                                         | split; [ NoDup
+                                                                                                  | reflexivity ] ] ]).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.
   hiding ltac:(step auto_ext).
@@ -363,6 +374,9 @@ Qed.
 
 (* linking *)
 
+Require Import Link.
+Module Import LinkMake := Link.Make ExampleADT ExampleRepInv.
+
 Require Import GoodOptimizer ConstFolding ElimDead.
 
 Definition opt := compose ConstFolding.opt ElimDead.opt.
@@ -383,7 +397,7 @@ Definition return_zero_impl := output (return_zero_gm :: nil) (empty _) opt_good
 Definition return_zero_all := link return_zero_top return_zero_impl.
 
 Lemma disjoint_imports : ListFacts1.Disjoint (module_names (return_zero_gm :: nil))
-                                              (imported_module_names (empty ForeignFuncSpec)).
+                                             (imported_module_names (empty ForeignFuncSpec)).
   unfold imported_module_names.
   simpl.
   unfold ListFacts1.Disjoint; intros.
@@ -406,7 +420,6 @@ Qed.
 
 Import SSF.
 Require Import StructuredModuleFacts.
-Existing Instance LMF.Compat_m_Proper.
 Require Import ConvertLabelMap.
 Import GLabelMapFacts.
 
@@ -481,13 +494,6 @@ Lemma not_in_impls : forall modules lbl, IsGoodModuleName (fst lbl) -> ~ In lbl 
   eapply GoodModule_NoDup_impl_labels.
 Qed.
 
-Existing Instance to_blm_Equal_m_Proper.
-Existing Instance CompatReflSym_Symmetric.
-Existing Instance CompatReflSym_Reflexive.
-Existing Instance Compat_m_Proper.
-Existing Instance Disjoint_m_Symmetric.
-Existing Instance mapi_m_Proper.
-Existing Instance LMF.CompatReflSym_Symmetric.
 
 Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply linkOk.
@@ -605,3 +611,5 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply disjoint_imports.
   intros; eapply empty_in_iff in H; intuition.
 Qed.
+
+

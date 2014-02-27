@@ -434,7 +434,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       Global Add Parametric Relation : (t elt) Compat
           reflexivity proved by Compat_refl
           symmetry proved by Compat_sym
-            as CompatReflSym.
+            as Compat_rel.
 
       Global Add Morphism Compat
           with signature Equal ==> Equal ==> iff as Compat_m.
@@ -556,7 +556,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
       Global Add Parametric Relation : (t elt) (@Disjoint elt)
           symmetry proved by (@Disjoint_sym elt)
-            as Disjoint_m.
+            as Disjoint_rel.
 
       Lemma Disjoint_Compat : forall m1 m2, Disjoint m1 m2 -> Compat m1 m2.
         unfold Disjoint, Compat; intros; firstorder.
@@ -848,7 +848,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eauto.
     Qed.
 
-    Existing Instance mapi_m_Proper.
 
     Lemma mapi_update_all_comm : forall elt B (f : _ -> elt -> B) ms, mapi f (update_all ms) == update_all (List.map (mapi f) ms).
       induction ms; simpl; intros.
