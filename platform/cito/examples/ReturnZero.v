@@ -108,10 +108,10 @@ Lemma return_zero_good_module : IsGoodModule return_zero_m.
   unfold compose, return_zero; simpl.
   unfold GoodFunc, return_zero_body; simpl.
   repeat split; simpl; intuition eauto.
-  Import SSUF.
+  Import SSF.
   Import P.
   rewrite add_union_singleton.
-  Require Import SetFacts.
+  Require Import StringSetTactics.
   subset_solver.
   econstructor.
   econstructor.
@@ -121,8 +121,9 @@ Qed.
 Definition return_zero_gm := to_good_module return_zero_good_module.
 
 Import StubsMake StubMake.
-Require Import Label.
-Import Label.LabelMap.
+Require Import GLabel.
+Require Import GLabelMap.
+Import GLabelMap.
 
 Definition return_zero_func_spec := func_spec (return_zero_gm :: nil) (empty _) ("return_zero", "return_zero") return_zero.
 
@@ -381,11 +382,11 @@ Definition return_zero_impl := output (return_zero_gm :: nil) (empty _) opt_good
 
 Definition return_zero_all := link return_zero_top return_zero_impl.
 
-Lemma disjoint_imports : LinkMake.LF.Disjoint (module_names (return_zero_gm :: nil))
+Lemma disjoint_imports : ListFacts1.Disjoint (module_names (return_zero_gm :: nil))
                                               (imported_module_names (empty ForeignFuncSpec)).
   unfold imported_module_names.
   simpl.
-  unfold LinkMake.LF.Disjoint; intros.
+  unfold ListFacts1.Disjoint; intros.
   intuition.
 Qed.
 
@@ -403,13 +404,11 @@ Lemma to_good_module_name : forall (m : Module) (h : IsGoodModule m), GoodModule
   eauto.
 Qed.
 
-Import SSUF.P.FM.
+Import SSF.
 Require Import StructuredModuleFacts.
-Existing Instance BLMFU3.Compat_m_Proper.
+Existing Instance LMF.Compat_m_Proper.
 Require Import ConvertLabelMap.
-Import LMFU.
-Import LMF.P.
-Import LMFU3.
+Import GLabelMapFacts.
 
 Close Scope nat.
 
@@ -445,11 +444,12 @@ Lemma to_good_module_functions_in : forall (m : Module) (h : IsGoodModule m) (f 
   descend; split; eauto.
 Qed.
 
-Import LF.
+Import GLabelMap.
 
 Lemma GoodModule_NoDup_impl_labels : forall (m : GoodModule) (mn : string), NoDup (List.map (fun f : GoodFunction => impl_label mn (FName f)) (Functions m)).
   intros.
   erewrite <- map_map.
+  Import ListFacts1.
   eapply Injection_NoDup.
   eapply impl_label_is_injection.
   destruct m0; simpl in *.
@@ -487,7 +487,7 @@ Existing Instance CompatReflSym_Reflexive.
 Existing Instance Compat_m_Proper.
 Existing Instance Disjoint_m_Symmetric.
 Existing Instance mapi_m_Proper.
-Existing Instance BLMFU3.CompatReflSym_Symmetric.
+Existing Instance LMF.CompatReflSym_Symmetric.
 
 Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply linkOk.
@@ -505,7 +505,7 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   repeat rewrite to_good_module_name.
   unfold return_zero_m; simpl.
   unfold NameDecoration.impl_module_name.
-  unfold LinkMake.SSUF.Disjoint; intros.
+  unfold SSF.Disjoint; intros.
   nintro.
   openhyp.
   eapply singleton_iff in H.
@@ -526,7 +526,7 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   unfold Imports, return_zero_top; simpl.
   rewrite importsMap_of_list.
   eapply to_blm_Compat.
-  unfold LMFU3.Compat.
+  unfold Compat.
   intros.
   eapply In_MapsTo in H.
   openhyp.
@@ -545,7 +545,7 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   right.
   split.
   unfold total_exports; simpl.
-  unfold StubMake.LMFU3.update_all.
+  unfold update_all.
   simpl.
   eapply update_mapsto_iff.
   left.
@@ -589,7 +589,7 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   setoid_rewrite mapi_empty.
   setoid_rewrite <- to_blm_empty.
   symmetry.
-  eapply BLMFU3.Compat_empty.
+  eapply LMF.Compat_empty.
   intuition.
   NoDup.
   eapply disjoint_imports.
@@ -599,7 +599,7 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   unfold foreign_imports.
   setoid_rewrite mapi_empty.
   setoid_rewrite <- to_blm_empty.
-  eapply BLMFU3.Compat_empty.
+  eapply LMF.Compat_empty.
   intuition.
   NoDup.
   eapply disjoint_imports.

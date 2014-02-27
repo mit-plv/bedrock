@@ -301,6 +301,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Import WordMap LayoutHintsUtil.
+  Require Import FMapFacts.
+  Module Properties := Properties WordMap.
+  Module Facts := Facts WordMap.
 
   Lemma store_pair_inr_fwd : forall h w v,
     ~WordMap.In w h

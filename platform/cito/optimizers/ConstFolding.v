@@ -7,23 +7,15 @@ Require Import Notations.
 Require Import SemanticsExpr.
 Require Import GoodOptimizer.
 
-Require Import Equalities.
 Require Import StringSet.
 Module Import SS := StringSet.
+Require Import StringSetFacts.
+Module SSF := StringSetFacts.
+Require Import StringSetTactics.
 
-Require Import FMapAVL.
-Module Import StringMap := Make StringKey.
-
-Require Import SetFacts.
-Require Import FSetFacts1.
-Module SK_as_UDT := Make_UDT StringKey.
-Require Import FSetFacts1.
-Module Import SF1 := UWFacts_fun SK_as_UDT SS.
-Import P FM.
-
-Require Import FMapFacts3.
-Module Import SMF3 := UWFacts_fun SK_as_UDT StringMap.
-Import UWFacts WFacts P F.
+Require Import StringMap.
+Import StringMap.
+Require Import StringMapFacts.
 
 Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
   intros; destruct e; solve [ right; intuition; openhyp; intuition | left; eauto ].
@@ -242,8 +234,8 @@ Section TopSection.
     Hint Unfold Submap.
     Hint Resolve subtract_none.
     Hint Resolve singleton_iff.
-    Hint Resolve subset_union_left.
-    Hint Resolve subset_union_right.
+    Hint Resolve union_subset_1.
+    Hint Resolve union_subset_2.
     Hint Immediate subset_refl.
     Hint Resolve union_same_subset.
     Hint Resolve empty_submap.
@@ -345,8 +337,8 @@ Section TopSection.
 
   End HintsSection.
 
-  Hint Resolve subset_union_left.
-  Hint Resolve subset_union_right.
+  Hint Resolve union_subset_1.
+  Hint Resolve union_subset_2.
   Hint Immediate subset_refl.
   Hint Resolve union_same_subset.
   Hint Resolve empty_submap.
@@ -361,7 +353,8 @@ Section TopSection.
   Hint Resolve agree_with_agree_except_subtract.
   Hint Resolve agree_except_incl.
 
-  Remove Hints WordMap.W_as_OT.eq_trans.
+  Remove Hints WordKey.W_as_OT.eq_trans.
+  Remove Hints WordKey.W_as_OT_new.eq_trans.
 
   Lemma const_folding_expr_correct : 
     forall e m local, 
@@ -495,8 +488,8 @@ Module Make (Import E : ADT).
     Open Scope stmt_scope.
     Infix "<-" := Syntax.Assign.
 
-    Hint Resolve subset_union_left.
-    Hint Resolve subset_union_right.
+    Hint Resolve union_subset_1.
+    Hint Resolve union_subset_2.
     Hint Immediate subset_refl.
     Hint Resolve union_same_subset.
     Hint Resolve empty_submap.

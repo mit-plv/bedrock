@@ -19,7 +19,7 @@ Ltac subset_solver :=
         end
       | |- ?S <= _ + ?B =>
         match B with
-            context [ S ] => eapply subset_trans; [ .. | eapply union_subset_1]
+            context [ S ] => eapply subset_trans; [ .. | eapply union_subset_2]
         end
     end.
 

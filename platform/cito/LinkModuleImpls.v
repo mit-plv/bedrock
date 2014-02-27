@@ -31,44 +31,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GoodOptimizer.
   Import GoodOptimizerMake.
 
-  Require Import FMapFacts1.
-  Require Import FMapFacts3.
+  Require Import ListFacts1.
+  Require Import ListFacts2.
+
+  Require Import StringSet.
+  Module Import SS := StringSet.
+  Require Import StringSetFacts.
+  Module SSF := StringSetFacts.
+
+  Require Import Labels.
+  Require Import LabelMap.
+  Module LM := LabelMap.
+  Require LabelMapFacts.
+  Module LMF := LabelMapFacts.
+  Require Import GLabel.
+  Require Import GLabelMap.
+  Import GLabelMap.
+  Require Import GLabelMapFacts.
 
   Require Import ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
-
-  Require LabelMap.
-  Module BLM := LabelMap.LabelMap.
-  Module BLK := LabelMap.LabelKey.
-  Require Import Equalities.
-  Module BLK_as_UDT := Make_UDT BLK.
-  Module Import BLMFU3 := FMapFacts3.UWFacts_fun BLK_as_UDT BLM.
-  Module Import BLMFU := UWFacts.
-  Module Import BLMF := WFacts.
-
-  Require Import Label.
-  Module LM := LabelMap.
-  Module Label_as_UDT := Make_UDT Label_as_OT.
-  Module Import LMFU3 := FMapFacts3.UWFacts_fun Label_as_UDT LM.
-  Module Import LMFU := UWFacts.
-  Module Import LMF := WFacts.
-  Require Import ListFacts2.
-  Module LF := ListFacts2.
-  Module Import LFL := Make Label_as_UDT.
-
-  Require Import ListFacts3.
-
-  Module Import SS := StringSet.StringSet.
-  Module Import SSF := StringSet.StringFacts.
-  Module SSK := StringSet.StringKey.
-  Require Import FSetFacts1.
-  Module SSK_as_UDT := Make_UDT SSK.
-  Module Import SSUF := UWFacts_fun SSK_as_UDT SS.
-
-  Import LM.
-  Import LMF.P.
-  Import F.
 
   Section TopSection.
 
@@ -94,7 +77,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition compile m := CompileModuleMake.compile m IsGoodOptimizer.
 
-    Definition impl_label mod_name f_name : label := (impl_module_name mod_name, f_name).
+    Definition impl_label mod_name f_name : glabel := (impl_module_name mod_name, f_name).
 
     Definition Func_to_import m (f : GoodFunction) := (impl_label (MName m) (FName f), CompileFuncSpecMake.spec f).
 
@@ -107,7 +90,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSUF.P.of_list.
+    Notation to_set := SSF.of_list.
 
     Hint Extern 1 => reflexivity.
 
@@ -118,7 +101,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Existing Instance CompatReflSym_Reflexive.
     Existing Instance Compat_m_Proper.
     Existing Instance Disjoint_m_Symmetric.
-    Existing Instance BLMFU3.Compat_m_Proper.
+    Existing Instance LMF.Compat_m_Proper.
 
     Require Import SetoidList.
     Hint Constructors NoDupA.
@@ -157,7 +140,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Ltac incl_tran_cons := eapply incl_tran; [ | eassumption ]; intuition.
 
-    Require Import SetFacts.
+    Require Import StringSetTactics.
 
     Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = impl_MName m.
       unfold get_module_Exports.
@@ -299,7 +282,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       set (_ + update_all _).
       rewrite Disjoint_update_sym.
       rewrite to_blm_update.
-      eapply BLMF.P.update_m; eauto.
+      eapply LMF.update_m; eauto.
       eapply compile_module_Exports.
       unfold t0; clear t0.
       rewrite <- update_all_cons.

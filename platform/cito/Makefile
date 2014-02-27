@@ -4,8 +4,9 @@ MODULES := \
 	ListFacts1 ListFacts2 \
 	SetoidListFacts \
 	FSetFacts1 \
-	StringSetFacts StringSetTactics \
 	FMapFacts1 FMapFacts2 \
+	StringSetFacts StringSetTactics \
+	StringMap StringMapFacts \
 	GLabel GLabelKey GLabelMap GLabelMapFacts \
 	LabelMapFacts \
 	WordKey WordMap WordMapFacts \
