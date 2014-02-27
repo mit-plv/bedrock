@@ -253,7 +253,7 @@ Section TopSection.
     destruct (LM.find k m); destruct (LM.find k' m); intuition.
   Qed.
 
-  Add Morphism importsOk
+  Global Add Morphism importsOk
       with signature LM.Equal ==> Logic.eq ==> iff as importsOk_m.
     intros.
     unfold importsOk.

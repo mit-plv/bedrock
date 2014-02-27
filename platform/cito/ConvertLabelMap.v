@@ -138,7 +138,7 @@ Section TopSection.
     eauto.
   Qed.
 
-  Add Parametric Morphism elt : (@to_blm elt)
+  Global Add Parametric Morphism elt : (@to_blm elt)
       with signature Equal ==> LabelMap.Equal as to_blm_Equal_m.
     intros; eapply to_blm_Equal; eauto.
   Qed.
@@ -173,7 +173,7 @@ Section TopSection.
     eauto.
   Qed.
 
-  Add Parametric Morphism elt : (@to_blm elt)
+  Global Add Parametric Morphism elt : (@to_blm elt)
       with signature (@Compat elt) ==> (@LabelMapFacts.Compat elt) as to_blm_Compat_m.
     intros; eapply to_blm_Compat; eauto.
   Qed.

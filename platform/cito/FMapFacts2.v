@@ -291,7 +291,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         eauto.
       Qed.
 
-      Add Morphism update_all'
+      Global Add Morphism update_all'
           with signature Equal ==> Logic.eq ==> Equal as update_all'_m.
         intros; eapply update_all'_m'; eauto.
       Qed.
@@ -431,12 +431,12 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         unfold Compat; intros; eauto.
       Qed.
 
-      Add Parametric Relation : (t elt) Compat
+      Global Add Parametric Relation : (t elt) Compat
           reflexivity proved by Compat_refl
           symmetry proved by Compat_sym
             as CompatReflSym.
 
-      Add Morphism Compat
+      Global Add Morphism Compat
           with signature Equal ==> Equal ==> iff as Compat_m.
         unfold Compat; intros.
         intuition.
@@ -554,7 +554,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
       (* Disjoint *)
 
-      Add Parametric Relation : (t elt) (@Disjoint elt)
+      Global Add Parametric Relation : (t elt) (@Disjoint elt)
           symmetry proved by (@Disjoint_sym elt)
             as Disjoint_m.
 
@@ -690,7 +690,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
       (* mapi *)
 
-      Add Parametric Morphism elt' : (@mapi elt elt')
+      Global Add Parametric Morphism elt' : (@mapi elt elt')
           with signature Logic.eq ==> Equal ==> Equal as mapi_m.
         intros; subst; eauto.
         unfold Equal; intros.
