@@ -27,6 +27,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import SemanticsMake.
   Import InvMake2.
 
+  Require Import LinkSpec.
+  Module Import LinkSpecMake := Make E.
+  Module Import LinkSpecMake2 := Make M.
+
   Require Import ListFacts1.
   Require Import ListFacts2.
 
@@ -54,12 +58,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     (* modules to be exported *)
     Variable modules : list GoodModule.
 
-    Hypothesis NoDupModuleNames : List.NoDup (module_names modules).
+    Notation FName := SyntaxFunc.Name.
+    Notation MName := GoodModule.Name.
+    Notation module_names := (List.map MName modules).
+
+    Hypothesis NoDupModuleNames : List.NoDup module_names.
 
     (* imported specs *)
     Variable imports : t ForeignFuncSpec.
 
-    Hypothesis NoSelfImport : ListFacts1.Disjoint (module_names modules) (imported_module_names imports).
+    Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
+    Notation imported_module_names := (List.map fst2 (elements imports)).
+
+    Hypothesis NoSelfImport : ListFacts1.Disjoint module_names imported_module_names.
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
@@ -67,7 +78,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import FMapNotations.
     Open Scope fmap.
 
-    Definition do_make_module := make_module modules imports.
+    Notation do_make_module := (make_module modules imports).
 
     Require Import SetoidList.
     Hint Constructors NoDupA.
@@ -79,16 +90,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     
     Notation to_set := SSF.of_list.
 
-    Existing Instance to_blm_Equal_m_Proper.
-    Existing Instance CompatReflSym_Symmetric.
-    Existing Instance CompatReflSym_Reflexive.
-    Existing Instance Compat_m_Proper.
-    Existing Instance Disjoint_m_Symmetric.
-
-    Notation get_module_Exports := (get_module_Exports modules imports).
-    Notation get_module_Imports := (get_module_Imports modules imports).
-    Notation foreign_imports := (foreign_imports imports).
-    Notation total_exports := (total_exports modules imports).
+    Notation fs := (StubMake.fs modules imports).
+    Notation get_module_Exports := (LinkSpecMake2.module_exports modules imports fs).
+    Notation foreign_imports := (LinkSpecMake2.imports imports).
+    Notation total_exports := (LinkSpecMake2.exports modules imports fs).
+    Notation get_module_Imports := (StubMake.get_module_Imports modules imports).
 
     Lemma MName_neq_Disjoint : forall m1 m2, MName m1 <> MName m2 -> Disjoint (get_module_Exports m1) (get_module_Exports m2).
       unfold Disjoint.
@@ -144,6 +150,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Disjoint_exports_foreign_imports; eauto.
     Qed.
 
+    Notation get_module_impl_Imports := module_impl_exports.
+
     Lemma Disjoint_exports_impl_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> Disjoint (get_module_Exports m1) (get_module_impl_Imports m2).
       intros.
       unfold get_module_impl_Imports.
@@ -153,7 +161,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_exports_module_name in H2.
       eapply In_to_map in H3.
       unfold InKey in *.
-      unfold Func_to_impl_import in *.
+      unfold func_impl_export in *.
       rewrite map_map in H3.
       simpl in *.
       eapply in_map_iff in H3.
@@ -178,11 +186,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold Disjoint.
       intros.
       intuition.
-      unfold StubMake.foreign_imports in *.
+      unfold LinkSpecMake2.imports in *.
       eapply mapi_in_iff with (m := imports) in H2.
       eapply In_to_map in H1.
       unfold InKey in *.
-      unfold Func_to_impl_import in *.
+      unfold func_impl_export in *.
       rewrite map_map in H1.
       simpl in *.
       eapply in_map_iff in H1.
@@ -209,7 +217,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply In_to_map in H.
       unfold InKey in *.
       rewrite map_map in H.
-      unfold Func_to_impl_import in *.
       unfold impl_label in *.
       simpl in *.
       eapply in_map_iff in H.
@@ -245,19 +252,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Lemma Disjoint_exports_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) (get_module_Imports m).
       intros.
       unfold StubMake.get_module_Imports.
+      Existing Instance Disjoint_rel_Symmetric.
       symmetry.
       eapply Disjoint_after_diff.
     Qed.
     
     Lemma Compat_exports_total_exports : forall m, List.In m modules -> Compat (get_module_Exports m) total_exports.
       intros.
-      unfold StubMake.total_exports.
       eapply Compat_exports_many_exports; eauto.
       intuition.
     Qed.
 
     Lemma Compat_many_exports_total_exports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) total_exports.
       intros.
+      Existing Instance Compat_rel_Symmetric.
       symmetry.
       eapply Compat_update_all.
       eapply Forall_forall.
@@ -301,19 +309,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma Disjoint_total_exports_foreign_imports : Disjoint total_exports foreign_imports.
-      unfold StubMake.total_exports.
       eapply Disjoint_many_exports_foreign_imports; intuition.
     Qed.
 
     Lemma Disjoint_total_exports_impl_imports : forall m, List.In m modules -> Disjoint total_exports (get_module_impl_Imports m).
       intros.
-      unfold StubMake.total_exports.
       eapply Disjoint_many_exports_impl_imports; intuition.
     Qed.
 
     Lemma Compat_total_exports_impl_imports : forall m, List.In m modules -> Compat total_exports (get_module_impl_Imports m).
       intros.
-      unfold StubMake.total_exports.
       eapply Compat_many_exports_impl_imports; intuition.
     Qed.
 
@@ -324,6 +329,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       symmetry.
       eapply Compat_diff.
       repeat eapply Compat_update; symmetry; repeat eapply Compat_update.
+      Existing Instance Compat_rel_Reflexive.
       reflexivity.
       eapply Compat_total_exports_foreign_imports; eauto.
       eapply Compat_total_exports_impl_imports; eauto.
@@ -419,7 +425,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypothesis ModulesNotEmpty : modules <> nil.
 
-    Definition total_impls := update_all (List.map get_module_impl_Imports modules).
+    Notation total_impls := (LinkSpecMake2.impl_exports modules).
 
     Definition final_imports := foreign_imports + total_impls.
 
@@ -428,7 +434,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma foreign_imports_Disjoint_total_impls : Disjoint foreign_imports total_impls.
-      unfold total_impls.
       eapply Disjoint_update_all.
       eapply Forall_forall.
       intros.
@@ -511,7 +516,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply find_1.
       eapply update_mapsto_iff.
       left.
-      unfold total_impls.
       eapply update_all_intro; eauto.
       eapply AllCompat_impls.
       eapply in_map; eauto.
@@ -531,7 +535,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply find_2 in H.
       eapply update_mapsto_iff in H.
       openhyp.
-      unfold total_impls in H.
       eapply update_all_elim in H.
       openhyp.
       eapply in_map_iff in H.
@@ -617,16 +620,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       descend.
       eapply make_module_ok; eauto.
       intuition.
-      unfold do_make_module.
       rewrite make_module_Modules by intuition.
       setoid_rewrite of_list_singleton.
       Hint Extern 1 => reflexivity.
       eauto.
-      unfold do_make_module.
       rewrite make_module_Exports by intuition.
       rewrite update_all_single.
       eauto.
-      unfold do_make_module.
       rewrite make_module_Imports by intuition.
       repeat rewrite update_all_single.
       rewrite Disjoint_diff_no_effect.
@@ -650,7 +650,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply inter_is_empty_iff.
       rewrite H3.
       setoid_rewrite of_list_cons.
-      unfold do_make_module.
       rewrite make_module_Modules by intuition.
       eapply Disjoint_union.
       split.
@@ -665,28 +664,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
 
       eapply importsOk_Compat.
-      Existing Instance LMF.Compat_m_Proper.
       rewrite H4.
-      unfold do_make_module.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
       eapply compat_imports_exports with (ms := g :: ms); eauto.
       eapply importsOk_Compat.
       rewrite H5.
-      unfold do_make_module.
       rewrite make_module_Exports by intuition.
       eapply to_blm_Compat.
       symmetry.
       eapply compat_exports_imports with (ms := g :: ms); eauto.
       eapply importsOk_Compat.
       rewrite H5.
-      unfold do_make_module.
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
       eapply compat_imports_imports with (ms := g :: ms); eauto.
       
       rewrite H3.
-      unfold do_make_module.
       rewrite make_module_Modules by intuition.
       repeat setoid_rewrite of_list_cons.
       repeat setoid_rewrite P.add_union_singleton.
@@ -706,14 +700,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite XCAP_diff_diff.
       rewrite H5.
       rewrite H4.
-      unfold do_make_module.
       rewrite make_module_Imports by intuition.
       rewrite make_module_Exports by intuition.
       repeat rewrite <- to_blm_diff.
       rewrite <- to_blm_update.
       eapply to_blm_Equal.
-      change ConvertLabelMap.LMF.P.update with update in *.
-      change ConvertLabelMap.LMF.P.diff with diff in *.
       repeat rewrite update_all_cons with (m := get_module_Imports a).
       repeat rewrite update_all_cons with (m := get_module_Exports a).
       eapply combine_imports_exports with (ms := g :: ms); eauto.
@@ -751,7 +742,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Theorem module_module_names : SS.Equal (Modules m) (to_set (module_names modules)).
+    Theorem module_module_names : SS.Equal (Modules m) (to_set module_names).
       edestruct link_all_ok; eauto.
       intuition.
       openhyp.

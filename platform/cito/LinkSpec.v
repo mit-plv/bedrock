@@ -3,7 +3,6 @@ Set Implicit Arguments.
 Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction NameDecoration.
 Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction NameDecoration.
 Import GLabelMap.
-Require Import AutoSep.
 
 Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
 
@@ -61,11 +60,11 @@ Module Make (Import E : ADT).
 
     Section TopSection.
 
-      Variable fs : settings -> W -> option Callee.
-
       Variable modules : list GoodModule.
 
       Variable imps : t ForeignFuncSpec.
+
+      Variable fs : settings -> W -> option Callee.
 
       Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| stn_good_to_use modules imps (fst st) /\ fs_good_to_use modules imps fs (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
 

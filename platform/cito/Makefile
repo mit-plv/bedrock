@@ -47,6 +47,7 @@ MODULES := \
 	GeneralTactics2 \
 	StructuredModuleFacts \
 	ConvertLabelMap \
+	LinkSpec \
 	LinkModuleImpls \
 	Stub \
 	Stubs \

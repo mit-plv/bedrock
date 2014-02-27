@@ -23,6 +23,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import SemanticsMake.
   Import InvMake2.
 
+  Require Import LinkSpec.
+  Module Import LinkSpecMake := Make E.
+  Module Import LinkSpecMake2 := Make M.
+
   Require Import ListFacts1.
   Require Import ListFacts2.
 
@@ -50,18 +54,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     (* modules to be exported *)
     Variable modules : list GoodModule.
 
-    Definition FName := SyntaxFunc.Name.
-
-    Definition MName := GoodModule.Name.
-
-    Definition module_names := List.map MName modules.
+    Notation FName := SyntaxFunc.Name.
+    Notation MName := GoodModule.Name.
+    Notation module_names := (List.map MName modules).
 
     Hypothesis NoDupModuleNames : List.NoDup module_names.
 
     (* imported specs *)
     Variable imports : t ForeignFuncSpec.
 
-    Definition imported_module_names := List.map (fun x => fst (fst x)) (elements imports).
+    Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
+    Notation imported_module_names := (List.map fst2 (elements imports)).
 
     Hypothesis NoSelfImport : ListFacts1.Disjoint module_names imported_module_names.
 
@@ -120,13 +123,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     End fs.
 
-    Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
+    Notation func_spec := (func_spec modules imports fs).
 
-    (* Definition foreign_func_spec_FFS id (spec : ForeignFuncSpec) := foreign_func_spec id spec. *)
+    Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
 
     Definition bimports_base : list import := 
       elements 
-        (mapi foreign_func_spec_FFS imports) ++ 
+        (mapi foreign_func_spec imports) ++ 
       elements 
         (mapi func_spec_IFS exports).
     
@@ -134,15 +137,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import FMapNotations.
     Open Scope fmap.
 
-    Definition impl_label mod_name f_name : glabel := (impl_module_name mod_name, f_name).
-
-    Definition Func_to_impl_import m (f : GoodFunction) := (impl_label (MName m) (FName f), CompileFuncSpecMake.spec f).
-
-    Definition get_module_impl_Imports (module : GoodModule) := 
-      to_map 
-        (List.map 
-           (Func_to_impl_import module)
-           (Functions module)).
+    Notation get_module_impl_Imports := module_impl_exports.
+    Notation total_exports := (LinkSpecMake2.exports modules imports fs).
+    Notation foreign_imports := (LinkSpecMake2.imports imports).
+    Notation get_module_Exports := (module_exports modules imports fs).
 
     Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
@@ -158,7 +156,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         Section body.
           
-          Variable im : LabelMap.LabelMap.t assert.
+          Variable im : LM.t assert.
 
           Variable im_g : importsGlobal im.
 
@@ -178,6 +176,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       End f.
 
+      Notation Func_to_impl_import := func_impl_export.
+
       Definition bimports : list import := 
         bimports_base ++ List.map (Func_to_impl_import m) (Functions m).
       
@@ -190,13 +190,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
 
       Require Import GeneralTactics2.
-
-      Existing Instance to_blm_Equal_m_Proper.
-      Existing Instance CompatReflSym_Symmetric.
-      Existing Instance CompatReflSym_Reflexive.
-      Existing Instance Compat_m_Proper.
-      Existing Instance Disjoint_m_Symmetric.
-      Existing Instance mapi_m_Proper.
 
       Hint Extern 1 => reflexivity.
 
@@ -243,7 +236,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
 
         unfold incl.
-        unfold module_names in *.
         intros.
         eapply in_map_iff in H.
         openhyp.
@@ -262,7 +254,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         unfold incl.
         intros.
-        unfold imported_module_names in *.
         rewrite <- map_map.
         eapply incl_map in H.
         eauto.
@@ -803,7 +794,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         post; descend.
         eauto.
 
-        unfold func_spec.
+        unfold LinkSpecMake2.func_spec.
         unfold name_marker.
         unfold spec_without_funcs_ok at 2.
         step auto_ext.
@@ -904,12 +895,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         openhyp.
         eapply In_fst_elements_In in H.
         eapply mapi_in_iff with (m := imports) in H.
-        unfold imported_module_names in *.
         unfold Disjoint in *.
         exfalso.
         eapply NoSelfImport with (e := MName m).
         split.
-        unfold module_names.
         eapply in_map; eauto.
 
         eapply In_fst_elements_In in H.
@@ -957,7 +946,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
       
       Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = MName m.
-        unfold get_module_Exports.
         intros.
         eapply In_to_map in H.
         unfold InKey in *.
@@ -971,8 +959,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma Disjoint_exports_foreign_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) foreign_imports.
         intros.
-        unfold imported_module_names in *.
-        unfold foreign_imports.
         unfold Disjoint.
         intros.
         unfold ListFacts1.Disjoint in *.
@@ -981,7 +967,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         openhyp.
         eapply In_exports_module_name in H0.
         rewrite H0 in *.
-        unfold module_names.
         split.
         eapply in_map; eauto.
         eapply mapi_in_iff with (m := imports) in H1.
@@ -997,6 +982,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma Disjoint_many_exports_foreign_imports : forall ms, incl ms modules -> Disjoint (update_all (List.map get_module_Exports ms)) foreign_imports.
         intros.
+        Existing Instance Disjoint_rel_Symmetric.
         symmetry.
         eapply Disjoint_update_all.
         eapply Forall_forall.
@@ -1015,12 +1001,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
 
       Lemma Disjoint_total_exports_foreign_imports : Disjoint total_exports foreign_imports.
-        unfold total_exports.
+        unfold LinkSpecMake2.exports.
         eapply Disjoint_many_exports_foreign_imports; intuition.
       Qed.
 
       Lemma Compat_total_exports_foreign_imports : Compat total_exports foreign_imports.
-        unfold total_exports.
+        unfold LinkSpecMake2.exports.
         eapply Compat_many_exports_foreign_imports; intuition.
       Qed.
 
@@ -1029,7 +1015,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma Equal_get_module_Exports : forall m, mapi func_spec_IFS (of_list (get_module_exports m)) == get_module_Exports m.
         intros.
-        unfold get_module_Exports.
+        unfold module_exports.
         unfold to_map.
         unfold get_module_exports.
         rewrite mapi_of_list.
@@ -1040,7 +1026,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma exports_Equal_total_exports : mapi func_spec_IFS exports == total_exports.
         unfold exports.
-        unfold total_exports.
+        unfold LinkSpecMake2.exports.
         unfold to_map.
         rewrite app_all_update_all.
         rewrite mapi_update_all_comm.
@@ -1084,7 +1070,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite map_map.
         unfold func_to_import.
         simpl.
-        unfold get_module_Exports.
+        unfold module_exports.
         reflexivity.
       Qed.
 
@@ -1185,7 +1171,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma func_spec_eq_id_eq : forall (stn : settings) l1 l2 f1 f2, func_spec l1 f1 = func_spec l2 f2 -> l1 = l2.
         intros.
-        unfold func_spec in *.
+        unfold LinkSpecMake2.func_spec in *.
         evar (st : (ST.settings * state)%type).
         apply (f_equal (fun f => f st)) in H.
         apply (f_equal (@proj_imply1 _ _ _)) in H; simpl in H.
@@ -1209,7 +1195,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma func_spec_neq_foreign_func_spec : forall (stn : settings) l1 l2 f1 f2, func_spec l1 f1 <> foreign_func_spec l2 f2.
         intros.
         nintro.
-        unfold func_spec, foreign_func_spec in H.
+        unfold LinkSpecMake2.func_spec, foreign_func_spec in H.
         evar (st : (ST.settings * state)%type).
         apply (f_equal (fun f => f st)) in H.
         discriminate.
@@ -1291,7 +1277,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         split.
         rewrite <- exports_Equal_total_exports.
         eapply mapi_in_iff; eauto.
-        unfold foreign_imports.
+        unfold LinkSpecMake2.imports.
         eapply mapi_in_iff; eauto.
       Qed.
 
@@ -1477,6 +1463,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         destruct (weq p p); intuition.
       Qed.
 
+      Notation fs_good_to_use := (LinkSpecMake.fs_good_to_use modules imports fs).
+
       Lemma augment_fs_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> fs_good_to_use stn.
         split; intros.
 
@@ -1589,9 +1577,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intuition.
       Qed.
 
+      Notation stn_good_to_use := (LinkSpecMake.stn_good_to_use modules imports).
+
       Lemma augment_stn_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_good_to_use stn.
       Proof.
-        unfold stn_good_to_use.
+        unfold LinkSpecMake.stn_good_to_use.
         intros.
         openhyp.
 
@@ -1676,7 +1666,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite map_map.
         unfold func_to_import.
         simpl.
-        unfold get_module_Exports.
+        unfold module_exports.
         reflexivity.
       Qed.
 
