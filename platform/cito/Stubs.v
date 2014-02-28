@@ -90,10 +90,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     
     Notation to_set := SSF.of_list.
 
-    Notation fs := (StubMake.fs modules imports).
-    Notation get_module_Exports := (LinkSpecMake2.module_exports modules imports fs).
+    Notation get_module_Exports := (LinkSpecMake2.module_exports modules imports).
     Notation foreign_imports := (LinkSpecMake2.imports imports).
-    Notation total_exports := (LinkSpecMake2.exports modules imports fs).
+    Notation total_exports := (LinkSpecMake2.exports modules imports).
     Notation get_module_Imports := (StubMake.get_module_Imports modules imports).
 
     Lemma MName_neq_Disjoint : forall m1 m2, MName m1 <> MName m2 -> Disjoint (get_module_Exports m1) (get_module_Exports m2).

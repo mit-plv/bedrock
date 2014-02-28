@@ -13,6 +13,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import LinkMake := Make E M.
 
   Import StubsMake StubMake ConvertLabelMap GoodModule GoodOptimizer.
+  Import LinkSpecMake LinkSpecMake2.
 
   Definition wrapper_module mname impls (fs : list (string * ForeignFuncSpec * nat * label)) :=
     StructuredModule.bmodule_ impls

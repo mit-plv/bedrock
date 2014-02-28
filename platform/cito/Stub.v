@@ -70,60 +70,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
-    Definition get_module_exports (module : GoodModule) := 
-      List.map 
-        (fun (f : GoodFunction) =>
-           ((MName module, FName f), f : InternalFuncSpec)
-        ) (Functions module).
-
-    Definition exports :=
-      to_map
-        (app_all 
-           (List.map get_module_exports modules)).
+    Notation exports := (LinkSpecMake.exports_IFS modules).
 
     Definition accessible_labels := keys imports ++ keys exports.
 
-    Section fs.
-
-      Variable stn : settings.
-
-      Definition labels (lbl : glabel) : option W := Labels stn lbl.
-
-      Definition is_label_map_to_word lbl p :=
-        match labels lbl with
-          | Some p' => 
-            if weq p p' then
-              true
-            else
-              false
-          | None => false
-        end.
-
-      Definition is_label_map_to_word' A p (x : glabel * A) := is_label_map_to_word (fst x) p.
-
-      Definition find_by_word A m (p : W) : option A :=
-        match List.find (is_label_map_to_word' p) m with
-          | Some (_, a) => Some a
-          | None => None
-        end.
-
-      Definition is_export := find_by_word (elements exports).
-
-      Definition is_import := find_by_word (elements imports).
-
-      Definition fs (p : W) : option Callee :=
-        match is_export p with
-          | Some spec => Some (Internal spec)
-          | None => 
-            match is_import p with
-              | Some spec => Some (Foreign spec)
-              | None => None
-            end
-        end.
-
-    End fs.
-
-    Notation func_spec := (func_spec modules imports fs).
+    Notation func_spec := (func_spec modules imports).
 
     Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
 
@@ -138,9 +89,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Open Scope fmap.
 
     Notation get_module_impl_Imports := module_impl_exports.
-    Notation total_exports := (LinkSpecMake2.exports modules imports fs).
+    Notation total_exports := (LinkSpecMake2.exports modules imports).
     Notation foreign_imports := (LinkSpecMake2.imports imports).
-    Notation get_module_Exports := (module_exports modules imports fs).
+    Notation get_module_Exports := (module_exports modules imports).
 
     Definition get_module_Imports m := total_exports + foreign_imports + get_module_impl_Imports m - get_module_Exports m.
 
@@ -197,7 +148,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma In_exports : forall l, In l exports -> exists m f, List.In m modules /\ List.In f (Functions m) /\ l = (MName m, FName f).
         intros.
-        unfold exports in *.
         eapply In_to_map in H.
         unfold InKey in *.
         eapply in_map_iff in H.
@@ -210,7 +160,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply in_map_iff in H0.
         openhyp.
         rewrite <- H0 in *.
-        unfold get_module_exports in *.
+        unfold module_exports_IFS in *.
         eapply in_map_iff in H.
         openhyp.
         rewrite <- H in *.
@@ -361,6 +311,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold IsInjection; intuition.
       Qed.
 
+      Notation get_module_exports := module_exports_IFS.
+
       Lemma NoDupKey_app_all : 
         forall ls : list GoodModule, 
           List.NoDup (List.map MName ls) -> 
@@ -446,6 +398,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
+      Notation fs := (LinkSpecMake.fs modules imports).
+      Notation is_export := (LinkSpecMake.is_export modules).
+      Notation is_import := (LinkSpecMake.is_import imports).
+
       Lemma fs_internal : 
         forall stn p spec, 
           fs stn p = Some (Internal spec) -> 
@@ -454,13 +410,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             Labels stn lbl = Some p.
       Proof.
         intros.
-        unfold fs in *.
+        unfold LinkSpecMake.fs in *.
         destruct (option_dec (is_export stn p)).
         destruct s.
         rewrite e in H.
         injection H; intros.
         subst.
-        unfold is_export in *.
+        unfold LinkSpecMake.is_export in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p) (elements exports))).
         destruct s.
@@ -692,7 +648,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             Labels stn lbl = Some p.
       Proof.
         intros.
-        unfold fs in *.
+        unfold LinkSpecMake.fs in *.
         destruct (option_dec (is_export stn p)).
         destruct s.
         rewrite e in H.
@@ -703,7 +659,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         destruct s.
         rewrite e0 in H.
         injection H; intros; subst.
-        unfold is_import in *.
+        unfold LinkSpecMake.is_import in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p) (elements imports))).
         destruct s.
@@ -909,7 +865,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         eapply In_fst_elements_In in H.
         eapply mapi_in_iff with (m := exports) in H.
-        unfold exports in *.
         eapply In_to_map in H.
         unfold bexports.
         unfold func_to_import.
@@ -1025,7 +980,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
 
       Lemma exports_Equal_total_exports : mapi func_spec_IFS exports == total_exports.
-        unfold exports.
+        unfold exports_IFS.
         unfold LinkSpecMake2.exports.
         unfold to_map.
         rewrite app_all_update_all.
@@ -1077,7 +1032,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Definition get_module_exports_map m := of_list (get_module_exports m).
 
       Lemma exports_alt : exports == update_all (List.map get_module_exports_map modules).
-        unfold exports.
+        unfold exports_IFS.
         unfold get_module_exports_map.
         rewrite app_all_update_all.
         rewrite map_map.
@@ -1322,7 +1277,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro.
         intro HH.
         split; intros.
-        unfold is_export in *.
+        unfold LinkSpecMake.is_export in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p)
                                         (elements exports))) in *.
@@ -1348,7 +1303,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite e in H; intuition.
 
         openhyp.
-        unfold is_export in *.
+        unfold LinkSpecMake.is_export in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p)
                                         (elements exports))) in *.
@@ -1395,7 +1350,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro.
         intro HH.
         split; intros.
-        unfold is_import in *.
+        unfold LinkSpecMake.is_import in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p)
                                         (elements imports))) in *.
@@ -1421,7 +1376,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite e in H; intuition.
 
         openhyp.
-        unfold is_import in *.
+        unfold LinkSpecMake.is_import in *.
         unfold find_by_word in *.
         destruct (option_dec (List.find (is_label_map_to_word' stn p)
                                         (elements imports))) in *.
@@ -1493,7 +1448,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         (* in exports *)
         subst.
-        unfold fs.
+        unfold LinkSpecMake.fs.
         assert (is_export stn p = Some (x2 : InternalFuncSpec)).
         eapply is_export_iff; eauto.
         descend; eauto.
@@ -1505,7 +1460,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         (* in imports *)
         subst.
-        unfold fs.
+        unfold LinkSpecMake.fs.
         destruct (option_dec (is_export stn p)).
         destruct s.
         rewrite e.

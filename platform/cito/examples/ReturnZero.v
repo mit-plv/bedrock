@@ -85,17 +85,27 @@ Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls),
   f_equal; eauto.
 Qed.
 
+Definition to_good_functions' (m : Module) : IsGoodModule m -> list GoodFunction.
+  intros.
+  refine
+    (@to_good_functions (Funcs m) _).
+  unfold IsGoodModule in *; openhyp.
+  eauto.
+Defined.
+
 Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
   intros.
-  unfold IsGoodModule in *.
-  openhyp.
   refine 
     ({|
         GoodModule.Name := MName m;
-        GoodModuleName := H;
-        Functions := to_good_functions H0;
+        GoodModuleName := _;
+        Functions := to_good_functions' H;
         NoDupFuncNames := _
       |}).
+  unfold IsGoodModule in *; openhyp.
+  eauto.
+  unfold IsGoodModule in *; openhyp.
+  unfold to_good_functions'.
   rewrite to_good_functions_name.
   eauto.
 Defined.
@@ -130,12 +140,16 @@ Qed.
 
 Definition return_zero_gm := to_good_module return_zero_good_module.
 
+Lemma test_compute : GoodModule.Name return_zero_gm = "return_zero".
+  simpl.
+  eauto.
+Qed.
+
 Require Import ExampleADT ExampleRepInv.
 Require Import LinkSpec.
 Module Import LinkSpecMake := Make ExampleADT.
 Module Import LinkSpecMake2 := Make ExampleRepInv.
 
-Notation fs := (LinkSpecMake.fs (return_zero_gm :: nil) (empty _)).
 Definition return_zero_func_spec := func_spec (return_zero_gm :: nil) (empty _) ("return_zero", "return_zero") return_zero.
 
 Notation extra_stack := 10.
@@ -156,11 +170,6 @@ Definition return_zero_top := bimport [[ ("return_zero", "return_zero", return_z
     end
   }}.
 
-Import CompileFuncSpecMake.
-Import InvMake.SemanticsMake.
-Import InvMake2.
-Import Inv.
-
 Require Import Arith.
 Require Import WordFacts.
 Require Import CompileStmtTactics.
@@ -180,6 +189,8 @@ Lemma body_runsto : forall env v v', RunsTo env (Body return_zero) v v' -> sel (
   rewrite sel_upd_eq; eauto.
   eauto.
 Qed.
+
+Import InvMake.SemanticsMake.
 
 Ltac hiding tac :=
   clear_imports;
@@ -221,12 +232,14 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
   post.
   descend.
   unfold is_state in *; simpl in *.
+  Require Import Inv.
   unfold has_extra_stack in *; simpl in *.
   Opaque mult.
   unfold excessStack, reserved in *.
   Opaque allocated.
   simpl in *.
   rewrite H1 in *.
+  clear H10.
   hiding ltac:(step auto_ext).
   rewrite wplus_0 in *.
   Open Scope nat.
@@ -255,6 +268,8 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
   subst h0.
 
   hiding ltac:(step auto_ext).
+
+  NoDup.
 
   rewrite mult_0_l in *.
   rewrite wplus_0 in *.
@@ -319,6 +334,7 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
   Transparent allocated.
   simpl.
 
+  clear H10.
   hiding ltac:(step auto_ext).
 
   eapply body_runsto in H11.
@@ -336,6 +352,7 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
 
   hiding ltac:(step auto_ext).
 
+  NoDup.
   sep_auto.
   sep_auto.
 
@@ -354,11 +371,12 @@ Theorem return_zero_top_ok : moduleOk return_zero_top.
 
   eauto.
 
+  clear H10.
   repeat hiding ltac:(step auto_ext).
 
   words.
 
-  eapply body_runsto in H11.
+  eapply body_runsto in H10.
   openhyp.
   unfold return_zero in *; simpl in *.
   congruence.
@@ -392,13 +410,12 @@ Lemma opt_good : GoodOptimizer opt.
   eapply ElimDeadMake.good_optimizer.
 Qed.
 
-Definition return_zero_impl := output (return_zero_gm :: nil) (empty _) opt_good.
+Definition return_zero_impl := result_module (return_zero_gm :: nil) (empty _) opt_good.
 
 Definition return_zero_all := link return_zero_top return_zero_impl.
 
-Lemma disjoint_imports : ListFacts1.Disjoint (module_names (return_zero_gm :: nil))
-                                             (imported_module_names (empty ForeignFuncSpec)).
-  unfold imported_module_names.
+Lemma disjoint_imports : ListFacts1.Disjoint (List.map GoodModule.Name (return_zero_gm :: nil))
+                                             (List.map (fun x => fst (fst x)) (elements (empty ForeignFuncSpec))).
   simpl.
   unfold ListFacts1.Disjoint; intros.
   intuition.
@@ -406,17 +423,8 @@ Qed.
 
 Require Import GeneralTactics2.
 
-Import LinkMake.LMF.P.F.
+Import LinkMake.LMF.
 Import LinkModuleImplsMake.
-Import StubMake.
-
-Lemma to_good_module_name : forall (m : Module) (h : IsGoodModule m), GoodModule.Name (to_good_module h) = SyntaxModule.Name m.
-  intros.
-  destruct h.
-  openhyp.
-  unfold to_good_module; simpl in *.
-  eauto.
-Qed.
 
 Import SSF.
 Require Import StructuredModuleFacts.
@@ -425,191 +433,51 @@ Import GLabelMapFacts.
 
 Close Scope nat.
 
-Lemma to_good_functions_in : forall (ls : list Func) (h : List.Forall (GoodFunc * Core) ls) (f : Func), List.In f ls -> exists gf : GoodFunction, List.In gf (to_good_functions h) /\ (gf : Func)  = f.
-  induction ls; simpl; intros.
-  intuition.
-  openhyp.
-  subst.
-  descend; split.
-  left.
-  eauto.
-  simpl; eauto.
-  eapply IHls in H.
-  openhyp.
-  descend; split.
-  right.
-  eauto.
-  eauto.
-Qed.
-
-Lemma to_good_module_functions_in : forall (m : Module) (h : IsGoodModule m) (f : Func), List.In f (Funcs m) -> exists gf : GoodFunction, List.In gf (Functions (to_good_module h)) /\ (gf : Func) = f.
-  intros.
-  destruct h.
-  openhyp.
-  unfold to_good_module; simpl.
-  assert (GoodFunc f).
-  eapply Forall_forall in f0.
-  2 : eauto.
-  unfold Basics.compose in *.
-  eauto.
-  eapply to_good_functions_in in H.
-  openhyp.
-  descend; split; eauto.
-Qed.
-
 Import GLabelMap.
 
-Lemma GoodModule_NoDup_impl_labels : forall (m : GoodModule) (mn : string), NoDup (List.map (fun f : GoodFunction => impl_label mn (FName f)) (Functions m)).
-  intros.
-  erewrite <- map_map.
-  Import ListFacts1.
-  eapply Injection_NoDup.
-  eapply impl_label_is_injection.
-  destruct m0; simpl in *.
-  eapply NoDupFuncNames.
-Qed.
-
-Lemma not_in_impls : forall modules lbl, IsGoodModuleName (fst lbl) -> ~ In lbl (LinkModuleImplsMake.total_exports modules).
-  intros.
-  nintro.
-  unfold LinkModuleImplsMake.total_exports in *.
-  eapply In_MapsTo in H0.
-  openhyp.
-  eapply update_all_elim in H0.
-  openhyp.
-  eapply in_map_iff in H0; openhyp; subst.
-  unfold LinkModuleImplsMake.get_module_Exports in *.
-  unfold LinkModuleImplsMake.LMF.to_map in *.
-  eapply of_list_1 in H1.
-  eapply InA_eqke_In in H1.
-  eapply in_map_iff in H1; openhyp; subst.
-  injection H0; intros; subst.
-  simpl in *.
-  unfold NameDecoration.impl_module_name in *.
-  unfold IsGoodModuleName in *.
-  simpl in *.
+Lemma return_zero_impl_ok : moduleOk return_zero_impl.
+  eapply result_module_ok.
   intuition.
-  eapply NoDupKey_NoDup_fst.
-  rewrite map_map; simpl.
-  eapply GoodModule_NoDup_impl_labels.
+  NoDup.
+  eapply disjoint_imports.
+  intros; eapply empty_in_iff in H; intuition.
 Qed.
-
 
 Theorem return_zero_all_ok : moduleOk return_zero_all.
   eapply linkOk.
   eapply return_zero_top_ok.
-  eapply output_ok.
-  intuition.
-  NoDup.
-  eapply disjoint_imports.
-  intros; eapply empty_in_iff in H; intuition.
-  eapply inter_is_empty_iff.
-  setoid_rewrite output_module_names.
+  eapply return_zero_impl_ok.
+
   simpl.
-  unfold return_zero_gm.
-  unfold impl_MName.
-  repeat rewrite to_good_module_name.
-  unfold return_zero_m; simpl.
-  unfold NameDecoration.impl_module_name.
-  unfold SSF.Disjoint; intros.
-  nintro.
-  openhyp.
-  eapply singleton_iff in H.
-  subst.
-  eapply union_iff in H0; openhyp.
-  eapply add_iff in H; openhyp.
-  simpl in *; intuition.
-  eapply empty_iff in H; intuition.
-  eapply add_iff in H; openhyp.
-  simpl in *; intuition.
-  eapply empty_iff in H; intuition.
-  intuition.
-  NoDup.
-  eapply disjoint_imports.
-  intros; eapply empty_in_iff in H; intuition.
-  eapply importsOk_Compat.
-  setoid_rewrite output_exports.
-  unfold Imports, return_zero_top; simpl.
-  rewrite importsMap_of_list.
-  eapply to_blm_Compat.
-  unfold Compat.
-  intros.
-  eapply In_MapsTo in H.
-  openhyp.
-  generalize H; intro.
-  eapply find_1 in H1.
-  rewrite H1.
-  symmetry.
-  eapply of_list_1 in H.
-  eapply InA_eqke_In in H.
-  simpl in H.
-  openhyp.
-  2 : intuition.
-  injection H; intros; subst.
-  eapply find_1.
-  eapply update_mapsto_iff.
-  right.
-  split.
-  unfold total_exports; simpl.
-  unfold update_all.
+  reflexivity.
+
   simpl.
-  eapply update_mapsto_iff.
-  left.
-  unfold get_module_Exports.
-  unfold return_zero_func_spec.
-  unfold StubMake.LMF.to_map.
-  eapply of_list_1.
-  eapply NoDupKey_NoDup_fst.
-  rewrite map_map.
+  unfold CompileModuleMake.mod_name.
+  unfold impl_module_name.
   simpl.
-  eapply GoodModule_NoDup_labels.
-  eapply InA_eqke_In.
-  eapply in_map_iff.
-  edestruct to_good_module_functions_in.
-  instantiate (2 := return_zero).
-  instantiate (1 := return_zero_m).
-  unfold return_zero_m; simpl.
+  link_simp.
   eauto.
-  openhyp.
-  exists x.
-  split.
-  rewrite H3 in *.
-  unfold return_zero_gm.
-  repeat rewrite to_good_module_name in *.
-  unfold return_zero_m; simpl.
+
+  simpl.
+  unfold CompileModuleMake.mod_name.
+  unfold impl_module_name.
+  simpl.
+  unfold StubsMake.StubMake.bimports_diff_bexports.
+  simpl.
+  unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export.
+  simpl.
+  unfold StubsMake.StubMake.LinkSpecMake2.impl_label.
+  unfold impl_module_name.
+  simpl.
+  unfold CompileModuleMake.imports.
+  simpl.
+
+  link_simp.
   eauto.
-  unfold return_zero_gm in *.
+
+  simpl.
+  link_simp.
   eauto.
-  eapply not_in_impls.
-  unfold IsGoodModuleName; simpl.
-  eauto.
-  eapply NoDupKey_NoDup_fst; simpl; NoDup.
-  eapply NoDupKey_NoDup_fst; simpl; NoDup.
-  intuition.
-  NoDup.
-  eapply disjoint_imports.
-  intros; eapply empty_in_iff in H; intuition.
-  eapply importsOk_Compat.
-  setoid_rewrite output_imports.
-  unfold foreign_imports.
-  setoid_rewrite mapi_empty.
-  setoid_rewrite <- to_blm_empty.
-  symmetry.
-  eapply LMF.Compat_empty.
-  intuition.
-  NoDup.
-  eapply disjoint_imports.
-  intros; eapply empty_in_iff in H; intuition.
-  eapply importsOk_Compat.
-  setoid_rewrite output_imports.
-  unfold foreign_imports.
-  setoid_rewrite mapi_empty.
-  setoid_rewrite <- to_blm_empty.
-  eapply LMF.Compat_empty.
-  intuition.
-  NoDup.
-  eapply disjoint_imports.
-  intros; eapply empty_in_iff in H; intuition.
 Qed.
 
 

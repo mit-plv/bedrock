@@ -47,6 +47,58 @@ Module Make (Import E : ADT).
               spec = Foreign fspec /\
               find lbl imports = Some fspec)).
 
+    Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
+        
+    Definition module_exports_IFS m := 
+      List.map (func_export_IFS m) (Functions m).
+
+    Require Import ListFacts1.
+
+    Definition exports_IFS :=
+      to_map
+        (app_all 
+           (List.map module_exports_IFS modules)).
+
+    Section fs.
+
+      Variable stn : settings.
+
+      Definition labels (lbl : glabel) : option W := Labels stn lbl.
+
+      Definition is_label_map_to_word lbl p :=
+        match labels lbl with
+          | Some p' => 
+            if weq p p' then
+              true
+            else
+              false
+          | None => false
+        end.
+
+      Definition is_label_map_to_word' A p (x : glabel * A) := is_label_map_to_word (fst x) p.
+
+      Definition find_by_word A m (p : W) : option A :=
+        match List.find (is_label_map_to_word' p) m with
+          | Some (_, a) => Some a
+          | None => None
+        end.
+
+      Definition is_export := find_by_word (elements exports_IFS).
+
+      Definition is_import := find_by_word (elements imports).
+
+      Definition fs (p : W) : option Callee :=
+        match is_export p with
+          | Some spec => Some (Internal spec)
+          | None => 
+            match is_import p with
+              | Some spec => Some (Foreign spec)
+              | None => None
+            end
+        end.
+
+    End fs.
+
   End TopSection.
 
   Require Import RepInv.
@@ -64,8 +116,8 @@ Module Make (Import E : ADT).
 
       Variable imps : t ForeignFuncSpec.
 
-      Variable fs : settings -> W -> option Callee.
-
+      Notation fs := (fs modules imps).
+      
       Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| stn_good_to_use modules imps (fst st) /\ fs_good_to_use modules imps fs (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
 
       Definition foreign_func_spec id spec : assert := 
