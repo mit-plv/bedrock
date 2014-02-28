@@ -55,6 +55,7 @@ MODULES := \
 	MakeADT \
 	MaxFacts GetLocalVarsFacts \
 	Notations2 \
+	IsGoodModule \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \

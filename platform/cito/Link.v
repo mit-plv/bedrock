@@ -140,12 +140,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition stubs := StubsMake.m modules imports.
 
-    Definition result_module := link impls stubs.
+    Definition result := link impls stubs.
 
     (* Interface *)
 
-    Theorem result_module_ok : moduleOk result_module.
-      unfold result_module.
+    Theorem result_ok : moduleOk result.
+      unfold result.
       eapply linkOk.
       eapply LinkModuleImplsMake.module_ok; eauto.
       eapply StubsMake.module_ok; eauto.
@@ -180,7 +180,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_empty.
     Qed.
 
-    Theorem result_module_imports : Imports result_module === LinkSpecMake2.imports imports.
+    Theorem result_imports : Imports result === LinkSpecMake2.imports imports.
       simpl.
       rewrite XCAP_union_update.
       repeat rewrite XCAP_diff_diff.
@@ -198,7 +198,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply final_imports_diff_total_exports.
     Qed.
 
-    Theorem result_module_exports : Exports result_module === LinkSpecMake2.all_exports modules imports.
+    Theorem result_exports : Exports result === LinkSpecMake2.all_exports modules imports.
       simpl.
       rewrite XCAP_union_update.
       unfold impls.
@@ -210,7 +210,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Theorem result_module_module_names : SS.Equal (Modules result_module) (union (to_set (List.map impl_MName modules)) (to_set (List.map MName modules))).
+    Theorem result_module_names : SS.Equal (Modules result) (union (to_set (List.map impl_MName modules)) (to_set (List.map MName modules))).
       simpl.
       unfold impls.
       rewrite LinkModuleImplsMake.module_module_names; eauto.
