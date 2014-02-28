@@ -43,80 +43,11 @@ Require Import Program.Basics.
 
 Infix "*" := compose.
 
-Definition IsGoodModule (m : Module) :=
-  IsGoodModuleName (MName m) /\
-  List.Forall (GoodFunc * Core) (Funcs m) /\
-  List.NoDup (List.map FName (Funcs m)).
-
 Require Import GeneralTactics.
 Require Import GoodFunction.
+Require Import IsGoodModule.
 
-Definition to_good_functions : forall (ls : list Func), List.Forall (GoodFunc * Core) ls -> list GoodFunction.
-  induction ls; simpl; intros.
-  eapply nil.
-  eapply cons.
-  econstructor.
-  instantiate (1 := a).
-  eapply Forall_forall in H; intuition.
-  unfold compose in *.
-  eauto.
-  eapply IHls.
-  eapply Forall_forall.
-  intros.
-  eapply Forall_forall with (l := a :: ls) in H.
-  eauto.
-  intuition.
-Defined.
-
-(*
-  Definition to_subtypes : forall A (P : A -> Prop) (ls : list A), List.Forall P ls -> list {x : A | P x}.
-    refine (
-        fix f A P ls h :=
-          match ls with
-            | nil => nil
-            | x :: xs => exist P x _ :: f A P xs _
-          end
-      ).
- *)
-
-Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls), map (fun f : GoodFunction => FName f) (to_good_functions h) = map FName ls.
-  induction ls; simpl; intros.
-  eauto.
-  f_equal; eauto.
-Qed.
-
-Definition to_good_functions' (m : Module) : IsGoodModule m -> list GoodFunction.
-  intros.
-  refine
-    (@to_good_functions (Funcs m) _).
-  unfold IsGoodModule in *; openhyp.
-  eauto.
-Defined.
-
-Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
-  intros.
-  refine 
-    ({|
-        GoodModule.Name := MName m;
-        GoodModuleName := _;
-        Functions := to_good_functions' H;
-        NoDupFuncNames := _
-      |}).
-  unfold IsGoodModule in *; openhyp.
-  eauto.
-  unfold IsGoodModule in *; openhyp.
-  unfold to_good_functions'.
-  rewrite to_good_functions_name.
-  eauto.
-Defined.
-
-Definition to_module (m : GoodModule) : Module := 
-  {|
-    SyntaxModule.Name := GoodModule.Name m;
-    SyntaxModule.Functions := map GoodFunction.Fun (GoodModule.Functions m)
-  |}.
-
-Coercion to_module : GoodModule >-> Module.
+(* Should have a decider here for automatic syntactic checking *)
 
 Lemma return_zero_good_module : IsGoodModule return_zero_m.
   unfold IsGoodModule, return_zero_m; simpl.
@@ -392,8 +323,13 @@ Qed.
 
 (* linking *)
 
-Require Import Link.
-Module Import LinkMake := Link.Make ExampleADT ExampleRepInv.
+(* should have a decider here too *)
+Lemma disjoint_imports : ListFacts1.Disjoint (List.map GoodModule.Name (return_zero_gm :: nil))
+                                             (List.map (fun x => fst (fst x)) (elements (empty ForeignFuncSpec))).
+  simpl.
+  unfold ListFacts1.Disjoint; intros.
+  intuition.
+Qed.
 
 Require Import GoodOptimizer ConstFolding ElimDead.
 
@@ -410,16 +346,12 @@ Lemma opt_good : GoodOptimizer opt.
   eapply ElimDeadMake.good_optimizer.
 Qed.
 
-Definition return_zero_impl := result_module (return_zero_gm :: nil) (empty _) opt_good.
+Require Import Link.
+Module Import LinkMake := Link.Make ExampleADT ExampleRepInv.
+
+Definition return_zero_impl := result (return_zero_gm :: nil) (empty _) opt_good.
 
 Definition return_zero_all := link return_zero_top return_zero_impl.
-
-Lemma disjoint_imports : ListFacts1.Disjoint (List.map GoodModule.Name (return_zero_gm :: nil))
-                                             (List.map (fun x => fst (fst x)) (elements (empty ForeignFuncSpec))).
-  simpl.
-  unfold ListFacts1.Disjoint; intros.
-  intuition.
-Qed.
 
 Require Import GeneralTactics2.
 
@@ -436,7 +368,7 @@ Close Scope nat.
 Import GLabelMap.
 
 Lemma return_zero_impl_ok : moduleOk return_zero_impl.
-  eapply result_module_ok.
+  eapply result_ok.
   intuition.
   NoDup.
   eapply disjoint_imports.
@@ -479,5 +411,3 @@ Theorem return_zero_all_ok : moduleOk return_zero_all.
   link_simp.
   eauto.
 Qed.
-
-
