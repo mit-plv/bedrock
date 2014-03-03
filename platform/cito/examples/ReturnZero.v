@@ -29,16 +29,20 @@ Definition fspec :=
 Notation extra_stack := 10.
 
 Definition topS := SPEC reserving (3 + extra_stack)
-  PRE[_] mallocHeap 0
-  POST[R] [| R = 0 |] * mallocHeap 0.
+  PREonly[_] mallocHeap 0.
 
-Definition top := bimport [[ ("return_zero"!"return_zero", fspec) ]]
+Definition top := bimport [[ ("return_zero"!"return_zero", fspec), "sys"!"printInt" @ [printIntS],
+                             "sys"!"abort" @ [abortS] ]]
   bmodule "top" {{
     bfunction "top"("R") [topS]
       "R" <-- Call "return_zero"!"return_zero"(extra_stack)
-      [PRE[_, R] [| R = 0 |]
-       POST[R'] [| R' = R |] ];;
-      Return "R"
+      [PREonly[_, R] [| R = 0 |] ];;
+
+      Call "sys"!"printInt"("R")
+      [PREonly[_] Emp ];;
+
+      Call "sys"!"abort"()
+      [PREonly[_] [| False |] ]
     end
   }}.
 
@@ -63,7 +67,6 @@ Theorem top_ok : moduleOk top.
   sep_auto.
   sep_auto.
   sep_auto.
-  prelude_out.
   sep_auto.
 
   post.
@@ -75,7 +78,7 @@ Theorem top_ok : moduleOk top.
   post.
   descend.
   eapply CompileExprs.change_hyp; [ |
-    change (@nil W) with (toArray nil (upd x3 "extra_stack" 10)); apply is_state_in' ].
+    change (@nil W) with (toArray nil (upd x2 "extra_stack" 10)); apply is_state_in' ].
   autorewrite with sepFormula.
   hiding ltac:(step auto_ext).
   apply body_safe.
@@ -87,19 +90,17 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply body_runsto in H11; simpl in H11; intuition subst.
+  apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
-  change 10 with (wordToNat (sel (upd x3 "extra_stack" 10) "extra_stack")).
+  change 10 with (wordToNat (sel (upd x2 "extra_stack" 10) "extra_stack")).
   apply is_state_out'.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  hiding ltac:(step auto_ext).
-  descend; hiding ltac:(step auto_ext).
-  descend; hiding ltac:(step auto_ext).
-  descend; hiding ltac:(step auto_ext).
-  words.
-  descend; hiding ltac:(step auto_ext).
 
+  sep_auto.
+  sep_auto.
+  sep_auto.
+  sep_auto.
   sep_auto.
   sep_auto.
   sep_auto.

@@ -60,8 +60,7 @@ MODULES := \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
 	examples/ExampleRepInv examples/ExampleImpl \
-	examples/ReturnZero \
-	# tests/Adder tests/AdderDriver tests/Recur tests/RecurDriver
+	examples/ReturnZero examples/ReturnZeroDriver
 
 VS      := $(MODULES:%=%.v)
 
