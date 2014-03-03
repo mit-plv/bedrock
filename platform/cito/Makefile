@@ -52,7 +52,7 @@ MODULES := \
 	Stub \
 	Stubs \
 	Link \
-	MakeADT \
+	MakeADT MakeWrapper \
 	MaxFacts GetLocalVarsFacts \
 	Notations2 \
 	IsGoodModule \
