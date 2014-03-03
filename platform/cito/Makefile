@@ -65,7 +65,7 @@ MODULES := \
 VS      := $(MODULES:%=%.v)
 
 .PHONY: coq clean
-.PRECIOUS: tests/%.gen.ml tests/%.gen.s
+.PRECIOUS: examples/%.gen.ml examples/%.gen.s
 
 coq: Makefile.coq
 	COQC='time coqc -verbose' $(MAKE) -f Makefile.coq
@@ -85,7 +85,7 @@ clean:: Makefile.coq
 
 LIB := $(BEDROCK)/platform/tests
 
-tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
+examples/%.gen.ml: examples/%AMD64.v examples/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
 	cat $(LIB)/ignoreFail.ml >$@
 	$(COQC) $< 2>/dev/null \
 		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
@@ -95,11 +95,11 @@ tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/prin
 		>>$@
 	cat $(LIB)/printCode.ml >>$@
 
-tests/%.gen.s: tests/%.gen.ml
+examples/%.gen.s: examples/%.gen.ml
 	echo "	.data" >$@
 	echo "	.global bedrock_heap" >>$@
 	echo "bedrock_heap:" >>$@
-	echo "	.fill 4*(1024*1024*25+50),1,0" >>$@
+	echo "	.fill 4*(1024+50),1,0" >>$@
 	echo >>$@
 	echo "	.text" >>$@
 	echo "	.global main_main" >>$@

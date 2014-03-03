@@ -3,6 +3,7 @@ Set Implicit Arguments.
 Require Import MakeWrapper ExampleADT ExampleRepInv.
 
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
+Export Wrp.
 
 
 Definition f := (
@@ -109,5 +110,5 @@ Qed.
 Definition all := link top (link_with_adts gm).
 
 Theorem all_ok : moduleOk all.
-  link top_ok.
+  link0 top_ok.
 Qed.

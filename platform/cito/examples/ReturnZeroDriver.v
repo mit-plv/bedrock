@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc ReturnZero Bootstrap.
+Require Import AutoSep Malloc Bootstrap ReturnZero.
 
 
 Module Type S.
@@ -48,55 +48,7 @@ Section boot.
   Qed.
 
   Lemma ok1 : moduleOk m1.
-    apply linkOk.
-    apply all_ok.
-    apply ok0.
-    reflexivity.
-
-    simpl Imports.
-    Import Wrp.LinkMake.LinkModuleImplsMake.
-    unfold CompileModuleMake.mod_name.
-    unfold impl_module_name.
-    simpl GName.
-    simpl append.
-    unfold CompileModuleMake.imports.
-    unfold Wrp.LinkMake.StubsMake.StubMake.bimports_diff_bexports.
-    unfold diff_map.
-    simpl List.filter.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label.
-    simpl GName.
-    unfold impl_module_name.
-    simpl append.
-    simpl IsGoodModule.FName.
-    link_simp.
-    auto.
-
-    simpl Exports.
-    unfold CompileModuleMake.mod_name.
-    unfold impl_module_name.
-    simpl GName.
-    simpl append.
-    link_simp.
-    tauto.
-
-    simpl Imports.
-    unfold CompileModuleMake.mod_name.
-    unfold impl_module_name.
-    simpl GName.
-    simpl append.
-    unfold CompileModuleMake.imports.
-    unfold Wrp.LinkMake.StubsMake.StubMake.bimports_diff_bexports.
-    unfold diff_map.
-    simpl List.filter.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label.
-    simpl GName.
-    unfold impl_module_name.
-    simpl append.
-    simpl IsGoodModule.FName.
-    link_simp.
-    auto.
+    link all_ok ok0.
   Qed.
 
   Variable stn : settings.
@@ -128,44 +80,7 @@ Section boot.
   Hypothesis mem_high : forall w, $(size * 4) <= w -> st.(Mem) w = None.
 
   Theorem safe : sys_safe stn prog (w, st).
-    eapply Safety.safety; try eassumption.
-
-    simpl Imports.
-    unfold CompileModuleMake.mod_name.
-    unfold impl_module_name.
-    simpl GName.
-    simpl append.
-    unfold CompileModuleMake.imports.
-    unfold Wrp.LinkMake.StubsMake.StubMake.bimports_diff_bexports.
-    unfold diff_map.
-    simpl List.filter.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export.
-    unfold Wrp.LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label.
-    simpl GName.
-    unfold impl_module_name.
-    simpl append.
-    simpl IsGoodModule.FName.
-    link_simp.
-    unfold Safety.labelSys, Safety.labelSys'.
-    simpl.
-    tauto.
-
-    apply ok1.
-
-    apply LabelMap.find_2.
-    simpl Exports.
-    unfold CompileModuleMake.mod_name.
-    unfold impl_module_name.
-    simpl GName.
-    simpl append.
-    link_simp.
-    reflexivity.
-
-    propxFo.
-    apply materialize_allocated.
-    assumption.
-    assumption.
-    assumption.
+    safety ok1.
   Qed.
 End boot.
 

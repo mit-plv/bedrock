@@ -270,7 +270,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   | [ H : _ |- _ ] => eapply empty_in_iff in H; tauto
                 end ].
 
-  Ltac link ok1 :=
+  Ltac link0 ok1 :=
     eapply linkOk; [ eapply ok1 | impl_ok
       | reflexivity
       | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
@@ -282,6 +282,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
                 link_simp; eauto
       | simpl; link_simp; eauto ].
+
+  Ltac ok_simpl :=
+    simpl Imports; simpl Exports; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+      simpl GName; simpl append; unfold CompileModuleMake.imports;
+        unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
+          unfold diff_map; simpl List.filter;
+            unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+              unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
+                simpl GName; unfold impl_module_name; simpl append; simpl IsGoodModule.FName; link_simp.
+
+  Ltac link m1 m2 :=
+    apply linkOk; [ apply m1 | apply m2 | exact (refl_equal true)
+      | ok_simpl; tauto | ok_simpl; tauto | ok_simpl; tauto ].
+
+  Require Import Safety Bootstrap.
+
+  Ltac safety ok := eapply Safety.safety; try eassumption; [
+    ok_simpl; unfold Safety.labelSys, Safety.labelSys'; simpl; tauto
+    | apply ok
+    | apply LabelMap.find_2; ok_simpl; reflexivity
+    | propxFo; apply materialize_allocated; assumption ].
 
   Export Notations2 IsGoodModule Malloc LinkSpecMake.SemanticsMake FuncCore LinkSpec.
   Export CompileFuncSpec LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake GeneralTactics.
