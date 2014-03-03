@@ -41,13 +41,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import StringSet.
   Module Import SS := StringSet.
   Require Import StringSetFacts.
-  Module SSF := StringSetFacts.
 
   Require Import Labels.
   Require Import LabelMap.
-  Module LM := LabelMap.
   Require LabelMapFacts.
-  Module LMF := LabelMapFacts.
   Require Import GLabel.
   Require Import GLabelMap.
   Import GLabelMap.
@@ -84,7 +81,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSF.of_list.
+    Notation to_set := StringSetFacts.of_list.
 
     Hint Extern 1 => reflexivity.
 
@@ -272,7 +269,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       set (_ + update_all _).
       rewrite Disjoint_update_sym.
       rewrite to_blm_update.
-      eapply LMF.update_m; eauto.
+      eapply LabelMapFacts.update_m; eauto.
       eapply compile_module_Exports.
       unfold t0; clear t0.
       rewrite <- update_all_cons.
