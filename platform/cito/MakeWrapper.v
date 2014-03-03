@@ -254,10 +254,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import GeneralTactics2.
 
-  Import LinkMake.LMF.
+  Import LabelMapFacts.
   Import LinkModuleImplsMake.
 
-  Import SSF.
+  Import StringSetFacts.
   Require Import StructuredModuleFacts.
   Require Import ConvertLabelMap.
   Import GLabelMapFacts.

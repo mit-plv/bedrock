@@ -33,13 +33,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import StringSet.
   Module Import SS := StringSet.
   Require Import StringSetFacts.
-  Module SSF := StringSetFacts.
 
   Require Import Labels.
   Require Import LabelMap.
-  Module LM := LabelMap.
   Require LabelMapFacts.
-  Module LMF := LabelMapFacts.
   Require Import GLabel.
   Require Import GLabelMap.
   Import GLabelMap.
@@ -107,7 +104,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         Section body.
           
-          Variable im : LM.t assert.
+          Variable im : LabelMap.t assert.
 
           Variable im_g : importsGlobal im.
 
@@ -1498,7 +1495,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma augment_elim_2 : 
         forall imps specs stn (lbls : list glabel),
           augment imps specs stn lbls ->
-          (forall x, List.In x lbls -> LM.find (x : Labels.label) imps <> None) ->
+          (forall x, List.In x lbls -> LabelMap.find (x : Labels.label) imps <> None) ->
           forall l,
             List.In l lbls ->
             Labels stn l <> None.

@@ -43,13 +43,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import StringSet.
   Module Import SS := StringSet.
   Require Import StringSetFacts.
-  Module SSF := StringSetFacts.
 
   Require Import Labels.
   Require Import LabelMap.
-  Module LM := LabelMap.
   Require LabelMapFacts.
-  Module LMF := LabelMapFacts.
   Require Import GLabel.
   Require Import GLabelMap.
   Import GLabelMap.
@@ -91,14 +88,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
-    Notation to_set := SSF.of_list.
+    Notation to_set := StringSetFacts.of_list.
 
     Hint Extern 1 => reflexivity.
 
     Require Import Setoid.
 
-    Lemma Disjoint_MNames_impl_MNames : SSF.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
-      unfold SSF.Disjoint.
+    Lemma Disjoint_MNames_impl_MNames : StringSetFacts.Disjoint (to_set (List.map impl_MName modules)) (to_set (List.map MName modules)).
+      unfold StringSetFacts.Disjoint.
       intros.
       nintro.
       openhyp.

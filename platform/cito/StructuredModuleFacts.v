@@ -5,9 +5,7 @@ Require Import StructuredModule.
 
 Require Import Labels.
 Require Import LabelMap.
-Module LM := LabelMap.
 Require LabelMapFacts.
-Module LMF := LabelMapFacts.
 Require Import GLabel.
 Require Import GLabelMap.
 Import GLabelMap.
@@ -162,7 +160,7 @@ Section TopSection.
   
   Lemma importsMap_of_list : forall ls, NoDupKey ls -> importsMap ls === of_list ls.
     intros.
-    unfold LM.Equal.
+    hnf.
     intros.
     destruct y.
     destruct l.
@@ -177,7 +175,7 @@ Section TopSection.
     unfold importsGlobal in *.
     eapply option_univalence.
     split; intros.
-    eapply LM.find_2 in H1.
+    eapply LabelMap.find_2 in H1.
     eapply H0 in H1.
     openhyp.
     simpl in *.
@@ -198,24 +196,24 @@ Section TopSection.
     unfold uncurry; simpl in *.
     rewrite IHfns.
     rewrite to_blm_add.
-    eapply LMF.add_m; eauto.
+    eapply LabelMapFacts.add_m; eauto.
     reflexivity.
   Qed.
 
-  Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> LMF.Compat m1 m2.
+  Lemma importsOk_Compat_left : forall m1 m2, importsOk m1 m2 -> LabelMapFacts.Compat m1 m2.
     intros.
-    unfold LMF.Compat.
+    unfold LabelMapFacts.Compat.
     intros.
-    eapply LMF.In_MapsTo in H0.
+    eapply LabelMapFacts.In_MapsTo in H0.
     openhyp.
-    eapply LMF.In_MapsTo in H1.
+    eapply LabelMapFacts.In_MapsTo in H1.
     openhyp.
     assert (x = x0).
     eapply use_importsOk; eauto.
-    eapply LM.find_1; eauto.
+    eapply LabelMap.find_1; eauto.
     subst.
-    eapply LM.find_1 in H1.
-    eapply LM.find_1 in H0.
+    eapply LabelMap.find_1 in H1.
+    eapply LabelMap.find_1 in H0.
     congruence.
   Qed.
 
@@ -235,86 +233,86 @@ Section TopSection.
     unfold respectful.
     intros.
     subst.
-    destruct (LM.find y m); intuition.
+    destruct (LabelMap.find y m); intuition.
   Qed.
 
   Lemma importsOk_f_transpose_neqkey :
     forall m,
-      LMF.transpose_neqkey 
+      LabelMapFacts.transpose_neqkey 
         iff
         (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
            match LabelMap.LabelMap.find (elt:=assert) l m with
              | Some pre' => pre = pre' /\ P
              | None => P
            end).
-    unfold LMF.transpose_neqkey.
+    unfold LabelMapFacts.transpose_neqkey.
     intros.
-    destruct (LM.find k m); destruct (LM.find k' m); intuition.
+    destruct (LabelMap.find k m); destruct (LabelMap.find k' m); intuition.
   Qed.
 
   Global Add Morphism importsOk
-      with signature LM.Equal ==> Logic.eq ==> iff as importsOk_m.
+      with signature LabelMap.Equal ==> Logic.eq ==> iff as importsOk_m.
     intros.
     unfold importsOk.
-    eapply LMF.fold_Equal; eauto.
+    eapply LabelMapFacts.fold_Equal; eauto.
     intuition.
     eapply importsOk_f_Proper.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
 
-  Lemma importsOk_Compat_right : forall m1 m2, LMF.Compat m1 m2 -> importsOk m1 m2.
-    induction m1 using LMF.map_induction_bis.
+  Lemma importsOk_Compat_right : forall m1 m2, LabelMapFacts.Compat m1 m2 -> importsOk m1 m2.
+    induction m1 using LabelMapFacts.map_induction_bis.
     intros.
     rewrite <- H in H0.
     rewrite <- H.
     eauto.
     intros.
     unfold importsOk.
-    rewrite LM.fold_1.
+    rewrite LabelMap.fold_1.
     simpl.
     eauto.
     intros.
     unfold importsOk.
-    rewrite LMF.fold_add; eauto.
-    destruct (option_dec (LM.find (elt:=assert) x m2)).
+    rewrite LabelMapFacts.fold_add; eauto.
+    destruct (option_dec (LabelMap.find (elt:=assert) x m2)).
     destruct s.
     rewrite e0.
     split.
-    eapply LMF.Compat_eq; eauto.
-    eapply LM.find_1.
-    eapply LMF.add_mapsto_iff.
+    eapply LabelMapFacts.Compat_eq; eauto.
+    eapply LabelMap.find_1.
+    eapply LabelMapFacts.add_mapsto_iff.
     eauto.
     eapply IHm1.
-    eapply LMF.Compat_add_not_In; eauto.
+    eapply LabelMapFacts.Compat_add_not_In; eauto.
     rewrite e0.
     eapply IHm1.
-    eapply LMF.Compat_add_not_In; eauto.
+    eapply LabelMapFacts.Compat_add_not_In; eauto.
     intuition.
     eapply importsOk_f_Proper.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
-  Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> LMF.Compat m1 m2.
+  Lemma importsOk_Compat : forall m1 m2, importsOk m1 m2 <-> LabelMapFacts.Compat m1 m2.
     split; intros.
     eapply importsOk_Compat_left; eauto.
     eapply importsOk_Compat_right; eauto.
   Qed.
 
-  Lemma XCAP_union_update : forall elt m1 m2, LM.Equal (@XCAP.union elt m1 m2) (LMF.update m2 m1).
+  Lemma XCAP_union_update : forall elt m1 m2, LabelMap.Equal (@XCAP.union elt m1 m2) (LabelMapFacts.update m2 m1).
     unfold XCAP.union.
-    unfold LMF.update.
+    unfold LabelMapFacts.update.
     intros.
     reflexivity.
   Qed.
 
-  Lemma XCAP_diff_diff : forall elt m1 m2, @LM.Equal elt (XCAP.diff m1 m2) (LMF.diff m1 m2).
+  Lemma XCAP_diff_diff : forall elt m1 m2, @LabelMap.Equal elt (XCAP.diff m1 m2) (LabelMapFacts.diff m1 m2).
     intros.
-    unfold LM.Equal.
+    unfold LabelMap.Equal.
     intros.
     eapply option_univalence.
     split; intros.
-    eapply LM.find_2 in H.
+    eapply LabelMap.find_2 in H.
     eapply MapsTo_diff in H.
     Focus 2.
     instantiate (1 := @StructuredModule.bmodule_ nil "" nil).
@@ -322,19 +320,19 @@ Section TopSection.
     simpl.
     unfold importsMap.
     simpl.
-    rewrite LM.fold_1.
+    rewrite LabelMap.fold_1.
     simpl.
     eauto.
     openhyp.
-    eapply LM.find_1.
-    eapply LMF.diff_mapsto_iff.
+    eapply LabelMap.find_1.
+    eapply LabelMapFacts.diff_mapsto_iff.
     eauto.
-    eapply LM.find_2 in H.
-    eapply LMF.diff_mapsto_iff in H.
+    eapply LabelMap.find_2 in H.
+    eapply LabelMapFacts.diff_mapsto_iff in H.
     openhyp.
-    eapply LM.find_1.
+    eapply LabelMap.find_1.
     eapply MapsTo_diffr; eauto.
-    eapply LM.elements_3w.
+    eapply LabelMap.elements_3w.
   Qed.
 
 End TopSection.

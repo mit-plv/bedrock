@@ -4,9 +4,7 @@ Require Import List.
 
 Require Import Labels.
 Require Import LabelMap.
-Module LabelMap := LabelMap.
 Require LabelMapFacts.
-Module LabelMapFacts := LabelMapFacts.
 Require Import GLabel.
 Require Import GLabelMap.
 Import GLabelMap.
