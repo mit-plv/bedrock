@@ -11,17 +11,36 @@ Section TopSection.
   Require CompileStmtSpec.
   Require Import GetLocalVars.
   Require Import Depth.
+  Require Import WellFormed.
 
   Definition GoodFunc f := 
     let body := Body f in 
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
-    let all_vars := ArgVars f ++ local_vars in
     NoDup (ArgVars f) /\ 
     NoUninitialized (ArgVars f) (RetVar f) body /\
-    CompileStmtSpec.syn_req all_vars (depth body) body /\
+    wellformed body /\
     goodSize (length local_vars + depth body).
 
   Hint Constructors NoDup.
+
+  Require Import GeneralTactics.
+  Require Import GetLocalVarsFacts.
+
+  Lemma GoodFunc_syn_req : 
+    forall f,
+      GoodFunc f ->
+      let body := Body f in 
+      let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
+      let all_vars := ArgVars f ++ local_vars in
+      CompileStmtSpec.syn_req all_vars (depth body) body.
+    simpl; intros.
+    unfold CompileStmtSpec.syn_req.
+    destruct H; openhyp.
+    split; eauto.
+    unfold CompileStmtSpec.in_scope.
+    split; eauto.
+    eapply get_local_vars_subset; eauto.
+  Qed.
 
   Lemma NoDup_app : forall A (ls2 ls1 : list A),
     NoDup ls1
