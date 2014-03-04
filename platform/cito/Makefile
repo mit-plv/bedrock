@@ -72,8 +72,7 @@ coq: Makefile.coq
 
 COQARGS := -R $(BEDROCK)/src Bedrock \
 	-R . Cito \
-	-I $(BEDROCK)/platform \
-	-I tests
+	-I $(BEDROCK)/platform
 COQC    := coqc $(COQARGS)
 
 Makefile.coq: Makefile $(VS)
