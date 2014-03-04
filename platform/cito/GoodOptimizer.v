@@ -92,7 +92,7 @@ Module Make (Import E : ADT).
       intros.
       simpl in *.
       eapply H2; eauto.
-      destruct H3; openhyp; eauto.
+      eapply GoodFunc_syn_req; eauto.
     Qed.
 
     Lemma PreserveRunsTo_trans : forall a b, PreserveRunsTo a -> PreserveRunsTo b -> PreserveRunsTo (compose a b).
