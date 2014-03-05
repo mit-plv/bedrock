@@ -137,44 +137,44 @@ Theorem ok0 : moduleOk m0.
   unfolder.
   do_delegate2 (@nil string).
 
-  do_abort ("c" :: nil).
-  do_abort ("c" :: nil).
-  do_abort ("c" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
 
-  do_delegate1 ("c" :: nil) hints.
+  do_delegate1 ("self" :: nil) hints.
   do 2 (descend; step auto_ext).
   2: returnScalar.
   simpl.
-  make_toArray ("c" :: nil).
+  make_toArray ("self" :: nil).
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
-  do_delegate2 ("c" :: nil).
+  do_delegate2 ("self" :: nil).
 
-  do_abort ("c" :: nil).
-  do_abort ("c" :: nil).
-  do_abort ("c" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
 
-  do_delegate1 ("c" :: nil) hints.
+  do_delegate1 ("self" :: nil) hints.
   descend; step auto_ext.
   repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
   apply get_rval; intro; subst.
   step auto_ext.
   2: returnScalar.
   simpl.
-  make_toArray ("c" :: nil).
+  make_toArray ("self" :: nil).
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd ] ].
-  do_delegate2 ("c" :: nil).
+  do_delegate2 ("self" :: nil).
 
-  do_abort ("c" :: "n" :: nil).
-  do_abort ("c" :: "n" :: nil).
-  do_abort ("c" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
 
-  do_delegate1 ("c" :: "n" :: nil) hints.
+  do_delegate1 ("self" :: "n" :: nil) hints.
   add_side_conditions.
   descend; step hints.
   simpl.
@@ -183,12 +183,12 @@ Theorem ok0 : moduleOk m0.
   descend; step auto_ext.
   2: returnScalar.
   simpl.
-  make_toArray ("c" :: "n" :: nil).
+  make_toArray ("self" :: "n" :: nil).
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd ] ].
-  do_delegate2 ("c" :: "n" :: nil).
+  do_delegate2 ("self" :: "n" :: nil).
 
   Grab Existential Variables.
   exact 0.

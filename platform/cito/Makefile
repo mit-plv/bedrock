@@ -59,6 +59,7 @@ MODULES := \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
+	examples/Seq examples/ArraySeq \
 	examples/ExampleRepInv examples/ExampleImpl \
 	examples/ReturnZero examples/ReturnZeroDriver
 

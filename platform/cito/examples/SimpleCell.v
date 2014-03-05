@@ -53,21 +53,21 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "x"
     end
 
-    with bfunction "delete"("extra_stack", "c") [deleteS]
-      Call "malloc"!"free"(0, "c", 2)
+    with bfunction "delete"("extra_stack", "self") [deleteS]
+      Call "malloc"!"free"(0, "self", 2)
       [PRE[_] Emp
        POST[_] Emp];;
 
       Return 0
     end
 
-    with bfunction "read"("extra_stack", "c") [readS]
-      "c" <-* "c";;
-      Return "c"
+    with bfunction "read"("extra_stack", "self") [readS]
+      "self" <-* "self";;
+      Return "self"
     end
 
-    with bfunction "write"("extra_stack", "c", "n") [writeS]
-      "c" *<- "n";;
+    with bfunction "write"("extra_stack", "self", "n") [writeS]
+      "self" *<- "n";;
       Return 0
     end
   }}.
