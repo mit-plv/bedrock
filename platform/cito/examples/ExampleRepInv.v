@@ -5,15 +5,13 @@ Require Import ExampleADT.
 Import ExampleADT.ExampleADT.
 Require Import RepInv.
 
-Parameter is_fset : W -> WordSet.t -> HProp.
-
-Require Import Cell SimpleCell Seq ArraySeq.
+Require Import Cell SimpleCell Seq ArraySeq FiniteSet ListSet.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
     | Cell v => cell v p
     | Arr ws => arr ws p
-    | FSet s => is_fset p s
+    | FSet s => lset s p
   end.
 
 Module ExampleRepInv <: RepInv ExampleADT.
@@ -26,7 +24,7 @@ Module ExampleRepInv <: RepInv ExampleADT.
     destruct a; simpl.
     eapply Himp_trans; [ apply cell_fwd | sepLemma ]; apply any_easy.
     eapply Himp_trans; [ apply arr_fwd | sepLemma ]; apply any_easy.
-    admit.
+    eapply Himp_trans; [ apply lset_fwd | sepLemma ]; apply any_easy.
   Qed.
 
 End ExampleRepInv.
