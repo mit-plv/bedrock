@@ -229,6 +229,125 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
   Qed.
 
+  Theorem is_state_in'' : forall vs sp args e_stack h, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack")) e_stack args (vs, h) nil.
+  Proof.
+    intros; sepLemma.
+    set (_ :: _ :: _).
+    set (_ * _)%Sep.
+    etransitivity.
+    instantiate (1 := (h0 * [| NoDup l |])%Sep).
+    subst h0 l.
+    unfold locals.
+    set (array _ _).
+    sepLemma.
+    subst h0 l.
+    sepLemma.
+    etransitivity.
+    etransitivity.
+    2 : eapply is_state_in.
+    sepLemma.
+    change LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
+    unfold is_state, Inv.has_extra_stack, locals, array.
+    sepLemma.
+    inversion_clear H.
+    inversion_clear H2.
+    eauto.
+    fold (@length W).
+    Require Import Mult.
+    rewrite mult_0_r.
+    Require Import WordFacts.
+    rewrite wplus_0.
+    rewrite plus_0_r.
+    rewrite length_toArray.
+    sepLemma.
+  Qed.
+
+  Theorem is_state_in''' : forall vs sp args e_stack F,
+                             locals ("rp" :: "extra_stack" :: args) vs e_stack sp
+                             * mallocHeap 0 * F
+                                                ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack")) e_stack args
+                                                (vs, heap_empty) nil * mallocHeap 0 * F.
+    intros; sepLemma.
+    etransitivity; [ | apply is_state_in'' ]; auto.
+    sepLemma.
+  Qed.
+
+  Lemma toArray_map_length : forall A vs f ls1 ls2, toArray ls1 vs = @List.map A _ f ls2 -> length ls1 = length ls2.
+    intros.
+    eapply f_equal with (f := @length _) in H.
+    rewrite length_toArray in *.
+    rewrite map_length in *.
+    eauto.
+  Qed.
+
+  Ltac clear_all :=
+    repeat match goal with
+             | H : _ |- _ => clear H
+           end.
+
+  Theorem is_state_out''' : forall sp rp args pairs vs e_stack e_stack',
+                              NoDup args
+                              -> ~List.In "rp" args
+                              -> ~List.In "extra_stack" args
+                              -> toArray args vs = List.map fst pairs
+                              -> is_state sp rp e_stack e_stack' args
+                                          (vs, make_heap pairs) nil
+                                          ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+                                                       * is_heap (make_heap pairs) * [| sel vs' "extra_stack" = e_stack |]
+                                                       * [| saved_vars vs' args pairs |].
+    unfold Himp; intros.
+    etransitivity.
+    2 : eapply is_state_out''; eauto.
+    2 : eapply toArray_map_length; eauto.
+    change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
+    change LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.make_heap with make_heap.
+    unfold is_state, locals, Inv.has_extra_stack; simpl.
+    rewrite H2.
+    rewrite mult_0_r.
+    rewrite wplus_0.
+    set (array (List.map _ _) _).
+    set (is_heap _).
+    rewrite map_length.
+    replace (length args) with (length pairs).
+    rewrite plus_0_r.
+    clear_all.
+    sepLemma.
+    symmetry; eapply toArray_map_length; eauto.
+    Grab Existential Variables.
+    eauto.
+  Qed.
+
+  Lemma make_heap_heap_empty : forall ls, make_heap (List.map (fun w : W => (w, inl w)) ls) = heap_empty.
+    induction ls; simpl; intuition.
+  Qed.
+
+  Lemma map_id : forall A ls, List.map (fun x : A => x) ls = ls.
+    induction ls; simpl; intuition.
+  Qed.
+
+  Theorem is_state_out'''' : forall vs sp rp F e_stack e_stack' args,
+                               NoDup args
+                               -> ~List.In "rp" args
+                               -> ~List.In "extra_stack" args
+                               -> (is_state sp rp e_stack e_stack' args
+                                            (vs, heap_empty) nil * mallocHeap 0) * F
+                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
+                                                                                                  * mallocHeap 0 * F.
+    intros.
+    assert (make_heap (List.map (fun w => (w, inl w)) (toArray args vs)) = heap_empty).
+    eapply make_heap_heap_empty.
+    rewrite <- H2.
+    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out''' | ]; eauto.
+    rewrite map_map; simpl.
+    symmetry; eapply map_id.
+    repeat rewrite H2.
+    set (_ :: _ :: _).
+    set (List.map _ _).
+    clear_all.
+    sepLemma.
+  Qed.
+
   Transparent mult.
 
   (* linking *)
