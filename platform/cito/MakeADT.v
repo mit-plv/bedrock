@@ -480,7 +480,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         do 3 (apply Himp_star_frame; [ apply Himp_refl | ]);
           apply Himp_star_frame; [ eapply locals_for_method; eassumption || reflexivity | apply Himp_refl ] ]
     end; simpl in *; intuition subst;
-    descend; [ step auto_ext; unfold make_heap; simpl; add_side_conditions; step hints | .. ];
+    descend; [ step auto_ext; try solve [ use_arg_facts; eauto ]; unfold make_heap; simpl; add_side_conditions; step hints | .. ];
     (simpl; step auto_ext); use_arg_facts.
 
   Ltac make_toArray argNames :=
@@ -511,14 +511,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac returnScalar1 :=
     match goal with
       | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
-        instantiate (1 := inl _); instantiate (2 := Regs a b); reflexivity
+        let w := fresh "w" in evar (w : W); let w' := eval unfold w in w in clear w;
+          equate X (Regs a b); equate Y (@inl _ ADTValue w'); reflexivity
     end.
 
-  Ltac returnScalar := intuition; (cbv beta; simpl;
+  Ltac returnAdt1 :=
+    match goal with
+      | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
+        let a := fresh "a" in evar (a : ADTValue); let a' := eval unfold a in a in clear a;
+          equate X (Regs a b); equate Y (@inr W _ a'); reflexivity
+    end.
+
+  Ltac returnSomething := intuition; (cbv beta; simpl;
     repeat match goal with
              | [ |- @length ?A ?ls = O ] => equate ls (@nil A); reflexivity
              | [ |- @length ?A ?ls = S _ ] =>
                let x := fresh in let y := fresh in evar (x : A); evar (y : list A);
                  equate ls (x :: y); subst x y; simpl; f_equal
-           end); (cbv beta; returnScalar1 || eauto).
+           end).
+
+  Ltac returnScalar := returnSomething; (cbv beta; returnScalar1 || eauto).
+  Ltac returnAdt := returnSomething; (cbv beta; returnAdt1 || eauto).
 End Make.
