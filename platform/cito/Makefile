@@ -56,6 +56,7 @@ MODULES := \
 	MaxFacts GetLocalVarsFacts \
 	Notations2 \
 	IsGoodModule GoodModuleDec \
+	Notations3 \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
