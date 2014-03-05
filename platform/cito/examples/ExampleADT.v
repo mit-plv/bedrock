@@ -1,9 +1,6 @@
 Set Implicit Arguments.
 
-Require Import WordKey.
-
-Require Import MSetRBT.
-Module WordSet := Make W_as_OT_new.
+Require Import FiniteSet.
 
 Import Memory.
 
