@@ -13,9 +13,9 @@ Module Make (Import E : ADT).
     Require Import AutoSep.
 
     (* shallow embedding *)
-    Definition assert := State -> Prop.
-    Definition interp (p : assert) (s : State) : Prop := p s.
-    Definition abs (f : State -> Prop) : assert := f.
+    Definition assert := State -> State -> Prop.
+    Definition interp (p : assert) (v v' : State) : Prop := p v v'.
+    Definition abs (f : State -> State-> Prop) : assert := f.
 
     Inductive StmtEx := 
     | SkipEx : StmtEx
@@ -25,9 +25,9 @@ Module Make (Import E : ADT).
     | AssignEx : string -> Expr -> StmtEx
     | AssertEx : assert -> StmtEx.
 
-    Definition and_lift (a b : assert) : assert := abs (fun s => interp a s /\ interp b s).
-    Definition or_lift (a b : assert) : assert := abs (fun s => interp a s \/ interp b s).
-    Definition imply_close (a b : assert) : Prop := forall s, interp a s -> interp b s.
+    Definition and_lift (a b : assert) : assert := abs (fun v v' => interp a v v' /\ interp b v v').
+    Definition or_lift (a b : assert) : assert := abs (fun v v' => interp a v v' \/ interp b v v').
+    Definition imply_close (a b : assert) : Prop := forall v v', interp a v v' -> interp b v v'.
 
     Infix "/\" := and_lift : assert_scope.
     Infix "\/" := or_lift : assert_scope.
@@ -37,8 +37,8 @@ Module Make (Import E : ADT).
 
     Close Scope equiv_scope.
 
-    Definition is_true e : assert := abs (fun s => eval (fst s) e <> $0).
-    Definition is_false e : assert := abs (fun s => eval (fst s) e = $0).
+    Definition is_true e : assert := abs (fun _ v' => eval (fst v') e <> $0).
+    Definition is_false e : assert := abs (fun _ v' => eval (fst v') e = $0).
 
     Open Scope assert_scope.
 
@@ -49,11 +49,11 @@ Module Make (Import E : ADT).
         | IfEx e t f => sp t (p /\ is_true e) \/ sp f (p /\ is_false e)
         | WhileEx inv e _ => inv /\ is_false e
         | AssignEx x e => 
-          abs (fun s => 
+          abs (fun v v' => 
                  exists w, 
-                   let s' := (upd (fst s) x w, snd s) in
-                   interp p s' /\
-                   sel (fst s) x = eval (fst s') e)%type
+                   let v'' := (upd (fst v') x w, snd v') in
+                   interp p v v'' /\
+                   sel (fst v') x = eval (fst v'') e)%type
         | AssertEx a => a
       end.
 
@@ -90,7 +90,7 @@ Module Make (Import E : ADT).
       eapply IHls1 in H1; openhyp; eauto.
     Qed.
 
-    Lemma is_true_intro : forall e v, wneb (eval (fst v) e) $0 = true -> interp (is_true e) v.
+    Lemma is_true_intro : forall e v v', wneb (eval (fst v') e) $0 = true -> interp (is_true e) v v'.
       intros.
       unfold is_true.
       unfold interp, abs.
@@ -100,7 +100,7 @@ Module Make (Import E : ADT).
 
     Hint Resolve is_true_intro.
 
-    Lemma is_false_intro : forall e v, wneb (eval (fst v) e) $0 = false -> interp (is_false e) v.
+    Lemma is_false_intro : forall e v v', wneb (eval (fst v') e) $0 = false -> interp (is_false e) v v'.
       intros.
       unfold is_false.
       unfold interp, abs.
@@ -110,7 +110,7 @@ Module Make (Import E : ADT).
 
     Hint Resolve is_false_intro.
 
-    Theorem sound' : forall env (s : Stmt) v v', RunsTo env s v v' -> forall s' : StmtEx, s = s' -> forall p, and_all (vc s' p) -> interp p v -> interp (sp s' p) v'.
+    Lemma sound_runsto' : forall env (s : Stmt) v v', RunsTo env s v v' -> forall s' : StmtEx, s = s' -> forall p, and_all (vc s' p) -> forall v0, interp p v0 v -> interp (sp s' p) v0 v'.
       induction 1; simpl; intros; destruct s'; try discriminate; simpl in *; try (injection H1; intros; subst).
 
       (* skip *)
@@ -166,9 +166,58 @@ Module Make (Import E : ADT).
       repeat rewrite sel_upd_ne by eauto; eauto.
     Qed.
 
-    Theorem sound : forall env (s : StmtEx) v v', RunsTo env s v v' -> forall p, and_all (vc s p) -> interp p v -> interp (sp s p) v'.
+    Theorem sound_runsto : forall env (s : StmtEx) v v' p v0, RunsTo env s v v' -> and_all (vc s p) -> interp p v0 v -> interp (sp s p) v0 v'.
       intros.
-      eapply sound'; eauto.
+      eapply sound_runsto'; eauto.
+    Qed.
+
+    Theorem sound_safe : forall env (s : StmtEx) v p v0, and_all (vc s p) -> interp p v0 v -> Safe env s v.
+      intros.
+      Close Scope assert_scope.
+      eapply (Safe_coind (fun s v => exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) /\ interp p v0 v)); [ .. | descend; eauto]; clear; intros; openhyp; destruct x; try discriminate; simpl in *; try (injection H; intros; subst).
+
+      (* seq *)
+      eapply and_all_app in H0; openhyp.
+      split.
+      descend; eauto.
+      intros.
+      eapply sound_runsto' with (p := x0) in H3; eauto.
+      descend; eauto.
+
+      (* if *)
+      eapply and_all_app in H0; openhyp.
+      unfold wneb.
+      destruct (weq (eval (fst v) e) $0) in *.
+      right.
+      descend; eauto.
+      split; eauto.
+      left.
+      descend; eauto.
+      split; eauto.
+
+      (* while *)
+      openhyp.
+      subst loop.
+      injection H; intros; subst.
+      unfold wneb.
+      destruct (weq (eval (fst v) e) $0) in *.
+      right.
+      eauto.
+      left.
+      descend; eauto.
+      split; eauto.
+      eapply sound_runsto' with (p := and_lift a (is_true e)) in H4; eauto.
+      descend.
+      instantiate (1 := WhileEx _ e x).
+      eauto.
+      2 : eauto.
+      simpl.
+      descend; eauto.
+      split; eauto.
+
+      destruct x0; try discriminate.
+      destruct x0; try discriminate.
+
     Qed.
 
   End TopSection.
