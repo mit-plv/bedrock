@@ -27,7 +27,7 @@ Notation "'While' ( cond ) {{ body }}" := (While cond%expr body) (no associativi
 
 Notation "'If' cond { trueStmt } 'else' { falseStmt }" := (Syntax.If cond%expr trueStmt falseStmt) : stmt_scope.
 
-Infix "<-" := Syntax.Assign : stmt_scope.
+Notation "x <- e" := (Syntax.Assign x e%expr) : stmt_scope.
 
 Delimit Scope stmt_scope with stmt.
 Local Open Scope stmt.
