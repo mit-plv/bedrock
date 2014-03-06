@@ -52,7 +52,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         interp specs (postcond vars temp_size k rv_postcond x).
     Proof.
 
-      Require Import Notations.
       Require Import SynReqFacts.
       Require Import ListFactsNew.
       Require Import StringSet.
@@ -61,8 +60,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Require Import GeneralTactics.
       Require Import WordFacts.
       Require Import SynReqFacts2.
-
-      Open Scope stmt.
 
       Hint Resolve Subset_syn_req_In.
       Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).

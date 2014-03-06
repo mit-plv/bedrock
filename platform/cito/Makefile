@@ -20,7 +20,7 @@ MODULES := \
 	RepInv Inv \
 	DepthExpr Max Depth \
 	WellFormed \
-	CompileStmtSpec CompileExpr Notations CompileExprs SaveRet CompileStmtImpl \
+	CompileStmtSpec CompileExpr CompileExprs SaveRet CompileStmtImpl \
 	SynReqFactsUtil SynReqFacts SemanticsFacts ListFactsNew WordFacts InvFacts \
 	CompileStmtTactics \
 	SepHints SepHintsUtil SepHints2 SepHints3 SepHints4 \
@@ -54,7 +54,6 @@ MODULES := \
 	Link \
 	MakeADT MakeWrapper \
 	MaxFacts GetLocalVarsFacts \
-	Notations2 \
 	IsGoodModule GoodModuleDec \
 	ProgramLogic \
 	Notations3 Notations4 \

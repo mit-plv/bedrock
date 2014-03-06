@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Notations2.
+Require Import Notations3.
 
 Notation "$ n" := (natToW n) : stmt_scope.
 
@@ -423,7 +423,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     | apply LabelMap.find_2; ok_simpl; reflexivity
     | propxFo; apply materialize_allocated; assumption ].
 
-  Export Notations2 IsGoodModule Malloc LinkSpecMake.SemanticsMake FuncCore LinkSpec.
+  Export Notations3 IsGoodModule Malloc LinkSpecMake.SemanticsMake FuncCore LinkSpec.
   Export CompileFuncSpec LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake GeneralTactics.
   Export LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
 End Make.

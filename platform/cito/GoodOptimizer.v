@@ -30,9 +30,8 @@ Module Make (Import E : ADT).
         goodSize (size stmt) -> 
         goodSize (size (opt stmt retvar)).
 
-    Require Import Notations.
-    Local Open Scope stmt.
     Require Import CompileStmtSpec.
+    Require Import List.
 
     Definition PreserveSynReq (opt : Optimizer) :=
       forall stmt argvars retvar, 

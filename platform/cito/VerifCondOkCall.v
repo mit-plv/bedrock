@@ -46,15 +46,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Notations.
     Require Import SemanticsFacts.
     Require Import SynReqFacts.
     Require Import ListFactsNew.
     Require Import StringSet.
     Import StringSet.
     Require Import StringSetTactics.
-
-    Open Scope stmt.
 
     Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).

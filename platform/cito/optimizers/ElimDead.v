@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Require Import Syntax.
 Import String Memory IL SyntaxExpr.
-Require Import Notations.
+Require Import Notations3.
 Require Import Semantics.
 Require Import GeneralTactics.
 Import SemanticsExpr.
@@ -420,7 +420,7 @@ Module Make (Import E : ADT).
         (Safe_coind 
            (fun t v =>
               (exists vs c b used,
-                 let s := While (c) {{b}} in
+                 let s := While c b in
                  let result := elim_dead s used in
                  let s' := fst result in
                  let used' := snd result in

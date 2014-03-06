@@ -1,8 +1,25 @@
 Set Implicit Arguments.
 
+Require Import MakeWrapper ExampleADT ExampleRepInv.
+
+Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
+Export Wrp.
+
+Require Import Notations4.
+Module Import Notations4Make := Make ExampleADT.
+
+Definition fact_partial_w (a b : W) : W := $0.
+
+(*
+    ([  ]
+    While (0 < "n") {
+      "ret" <- "ret" * "n" ;;
+      "n" <- "n" - 1                          
+    })%SP.
+
 Require Import AutoSep.
 
-Require Import Notations.
+Require Import Notations4.
 
 Definition s :=
 ([
@@ -16,33 +33,15 @@ Definition s :=
       "acc" <- "tmp2"
     })%SP.
 
-Require Import MakeWrapper ExampleADT ExampleRepInv.
+*)
 
-Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
-Export Wrp.
-
-Require Import Notations4.
-Module Import Notations4Make := Make ExampleADT.
-
-Definition fact_partial_w (a b : W) : W := $0.
-
-Open Scope stmtex.
-
-    ([  ]
-    While (0 < "n") {
-      "ret" <- "ret" * "n" ;;
-      "n" <- "n" - 1                          
-    })%SP.
-
-
-
-(* fun v => sel (fst v) "ret" = fact_partial_w (sel (fst v) "n") (sel (fst v) "n0") *)
+Import ProgramLogicMake.
 
 Definition f := (
   cfunction "fact"("n0") (
     "n" <- "n0" ;;
     "ret" <- 1 ;;
-    [  ]
+    [ fun v => sel (fst v) "ret" = fact_partial_w (sel (fst v) "n") (sel (fst v) "n0") ]
     While (0 < "n") {
       "ret" <- "ret" * "n" ;;
       "n" <- "n" - 1                          
@@ -77,6 +76,8 @@ Fixpoint fact n :=
     | S n' => (n * fact n')%nat
   end.
 
+Definition fact_w (w : W) := natToW (fact (wordToNat w)).
+
 Notation input := 5.
 
 Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIntS],
@@ -100,7 +101,11 @@ Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> 
   admit.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n0") /\ snd v' = snd v.
+  intros.
+  eapply sound in H1.
+  unfold f in *; simpl in *.
+
   admit.
 Qed.
 
@@ -118,7 +123,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 
   post.
-  call_cito 100 ("n" :: nil).
+  call_cito 100 ("n0" :: nil).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.
   hiding ltac:(step auto_ext).
@@ -127,7 +132,7 @@ Theorem top_ok : moduleOk top.
   descend.
   eapply CompileExprs.change_hyp.
   Focus 2.
-  apply (@is_state_in''' (upd (upd x2 "extra_stack" 100) "n" input)).
+  apply (@is_state_in''' (upd (upd x2 "extra_stack" 100) "n0" input)).
   autorewrite with sepFormula.
   hiding ltac:(step auto_ext).
   apply body_safe; eauto.
@@ -141,7 +146,7 @@ Theorem top_ok : moduleOk top.
   end.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
-  change 100 with (wordToNat (sel (upd (upd x2 "extra_stack" 100) "n" 5) "extra_stack")).
+  change 100 with (wordToNat (sel (upd (upd x2 "extra_stack" 100) "n0" 5) "extra_stack")).
   apply is_state_out''''.
   NoDup.
   NoDup.

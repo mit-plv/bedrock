@@ -9,8 +9,7 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
-    Require Import Notations.
-    Local Open Scope stmt.
+    Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 
     Lemma RunsTo_Seq_Label : 
       forall lbls fs x lbl k vs h v' w, 

@@ -50,8 +50,6 @@ Section Body.
                       (Diverge_ imports modName)).
 
   Require SaveRet.
-  Require Import Notations.
-  Local Open Scope stmt.
   Local Open Scope nat.
 
   Require Import ConvertLabel.
@@ -65,16 +63,16 @@ Section Body.
     match s with
       | Syntax.Skip => 
         Skip__
-      | a ;; b => 
-        Seq2 (cmp a (b;; k)) 
+      | Syntax.Seq a b => 
+        Seq2 (cmp a (Syntax.Seq b k)) 
              (cmp b k)
       | Syntax.If cond t f => 
         Seq2 (compile_expr cond 0)
              (If__ Rv Ne (natToW 0) (cmp t k) (cmp f k))
-      | While (cond) {{body}} =>
+      | Syntax.While cond body =>
         Seq2 (compile_expr cond 0)
              (While__ (loop_inv cond body k) Rv Ne (natToW 0)
-                      (Seq2 (cmp body (While (cond) {{body}};; k))
+                      (Seq2 (cmp body (Syntax.Seq (Syntax.While cond body) k))
                             (compile_expr cond 0)))
       | Syntax.Call var f args =>
         let callee_frame_len := 2 + length args in
