@@ -59,6 +59,45 @@ Lemma fact_partial_w_0 : forall w, fact_partial_w $0 w = fact_w w.
 Qed.
 
 Lemma fact_partial_w_same : forall w, fact_partial_w w w = 1.
+  intros.
+  unfold fact_partial_w.
+  f_equal.
+  unfold fact_partial.
+  rewrite minus_diag.
+  simpl; eauto.
+Qed.
+
+Lemma fact_partial_w_update : forall (a b : W), ($0 < a -> a <= b -> a ^* fact_partial_w a b = fact_partial_w (a ^- $1) b)%word.
+  unfold fact_partial_w.
+  intros.
+  Lemma fact_partial_update : forall a b, 0 < a -> a <= b -> a * fact_partial a b = fact_partial (a - 1) b.
+    intros.
+    unfold fact_partial.
+    Opaque mult.
+    simpl.
+    replace (b - (a - 1)) with (S (b - a)).
+    replace (S (a - 1)) with a.
+    simpl.
+    eauto.
+    omega.
+    omega.
+    Transparent mult.
+  Qed.
+  set (wordToNat a).
+  set (wordToNat (_ ^- _)).
+  replace a with (natToW (wordToNat a)).
+  Lemma wmult_natToW_comm : forall a b, $ a ^* $ b = natToW (a * b).
+    admit.
+  Qed.
+  rewrite wmult_natToW_comm.
+  f_equal.
+  subst n n0.
+  replace (wordToNat (_ ^- _)) with (wordToNat a - 1).
+  eapply fact_partial_update.
+  nomega.
+  nomega.
+  Focus 2.
+  eapply natToWord_wordToNat.
   admit.
 Qed.
 
@@ -183,7 +222,7 @@ Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) st
   split.
   rewrite H4.
   rewrite H3.
-  admit.
+
   eauto.
   eauto.
   unfold interp.
