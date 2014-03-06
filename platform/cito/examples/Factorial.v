@@ -9,11 +9,11 @@ Require Import Notations3.
 
 Definition f := (
   cfunction "fact"("n")
-    If ("n" = $0) {
-      "ret" <- $1
-    } else {
-      "ret" <-- DCall "fact"!"fact" ("n" - $1)
-    }
+    "ret" <- 1 ;;
+    While (0 < "n") {{
+      "ret" <- "ret" * "n" ;;
+      "n" <- "n" - 1                          
+    }}
   end
 )%Citofuncs.
 
