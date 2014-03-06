@@ -5,8 +5,6 @@ Export Wf.
 
 Section TopSection.
 
-  Require Import Notations.
-  Local Open Scope stmt.
   Require Import SyntaxFunc.
   Require CompileStmtSpec.
   Require Import GetLocalVars.

@@ -38,14 +38,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Notations.
     Require Import SynReqFacts.
     Require Import ListFactsNew.
     Require Import StringSet.
     Import StringSet.
     Require Import StringSetTactics.
 
-    Open Scope stmt.
+    Local Infix ";;" := Syntax.Seq.
+    Local Notation skip := Syntax.Skip.
 
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)

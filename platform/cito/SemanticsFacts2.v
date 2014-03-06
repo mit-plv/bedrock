@@ -9,8 +9,8 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
-    Require Import Notations.
-    Local Open Scope stmt.
+    Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
+    Local Notation skip := Syntax.Skip.
 
     Hint Constructors Semantics.Safe.
     Hint Unfold Safe.

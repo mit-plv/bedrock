@@ -1,10 +1,9 @@
 Require Import CompileStmtSpec.
 Require Import StringSet.
 Require Import FreeVars.
-Require Import Notations.
 Require Import SynReqFactsUtil.
 
-Local Open Scope stmt.
+Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 
 Lemma syn_req_Label_in : forall vars temp_size x lbl k, syn_req vars temp_size (Syntax.Label x lbl ;; k) -> List.In x vars.
   unfold syn_req, in_scope; simpl; intuition.

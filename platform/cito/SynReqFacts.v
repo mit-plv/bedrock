@@ -2,10 +2,9 @@ Require Import CompileStmtSpec.
 Require Import StringSet.
 Import StringSet.
 Require Import FreeVars.
-Require Import Notations.
 Require Import SynReqFactsUtil.
 
-Local Open Scope stmt.
+Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 
 Local Hint Resolve Subset_singleton.
 Local Hint Resolve In_to_set.
@@ -75,6 +74,8 @@ Qed.
 
 Local Hint Resolve max_more.
 
+Require Import List.
+
 Lemma args_bound' : forall x args,
   In x args
   -> (DepthExpr.depth x <= fold_right max 0 (map DepthExpr.depth args))%nat.
@@ -98,10 +99,12 @@ Lemma syn_req_Call_ret : forall vars temp_size x f args k, syn_req vars temp_siz
   t.
 Qed.
 
-Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> goodSize (2 + length args).
+Require Import AutoSep.
+
+Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> goodSize (2 + List.length args).
   t.
 Qed.
 
-Lemma syn_req_Seq_Skip : forall vars temp_size s, syn_req vars temp_size s -> syn_req vars temp_size (s ;; skip).
+Lemma syn_req_Seq_Skip : forall vars temp_size s, syn_req vars temp_size s -> syn_req vars temp_size (s ;; Syntax.Skip).
   t.
 Qed.

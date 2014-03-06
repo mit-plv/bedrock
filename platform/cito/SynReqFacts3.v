@@ -1,10 +1,9 @@
 Require Import CompileStmtSpec.
 Require Import StringSet.
 Require Import FreeVars.
-Require Import Notations.
 Require Import SynReqFactsUtil.
 
-Local Open Scope stmt.
+Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 
 Require CompileExpr.
 

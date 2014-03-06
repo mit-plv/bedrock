@@ -3,7 +3,7 @@ Set Implicit Arguments.
 Require Import Syntax.
 Require Import SyntaxExpr.
 Require Import GeneralTactics.
-Require Import Notations.
+Require Import Notations3.
 Require Import SemanticsExpr.
 Require Import GoodOptimizer.
 
@@ -572,7 +572,7 @@ Module Make (Import E : ADT).
       destruct v''; simpl in *.
       edestruct IHRunsTo2; try reflexivity.
       3 : eauto.
-      replace (While (const_folding_expr c _) {{fst (fst (const_folding b _))}}) with (fst (fst (const_folding (While (c) {{b}} ) (m - snd (const_folding b []))))).
+      replace (While (const_folding_expr c _) (fst (fst (const_folding b _)))) with (fst (fst (const_folding (While c b ) (m - snd (const_folding b []))))).
       Focus 2.
       simpl in *; openhyp'; [contradict e; eauto | simpl; eauto ].
       eapply not_const_zero_submap; eauto.
@@ -745,7 +745,7 @@ Module Make (Import E : ADT).
         (Safe_coind 
            (fun s' v =>
               (exists c b m,
-                 let s := While (c) {{b}} in
+                 let s := While c b in
                  Safe fs s v /\
                  agree_with (fst v) m /\
                  (let s := b in

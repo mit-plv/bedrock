@@ -22,9 +22,6 @@ Infix ";;" := Syntax.Seq : stmt_scope.
 
 Notation "'skip'" := Syntax.Skip : stmt_scope.
 
-Notation "'While' ( cond ) {{ body }}" := (While cond%expr body) (no associativity, at level 55, format 
- "'[hv' 'While'  ( cond )  {{ '/  ' body '/' '}}' ']'"): stmt_scope.
-
 Notation "'If' cond { trueStmt } 'else' { falseStmt }" := (Syntax.If cond%expr trueStmt falseStmt) : stmt_scope.
 
 Notation "x <- e" := (Syntax.Assign x e%expr) : stmt_scope.

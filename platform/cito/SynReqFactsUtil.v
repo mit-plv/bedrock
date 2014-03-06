@@ -2,9 +2,6 @@ Require Import CompileStmtSpec.
 Require Import StringSet.
 Import StringSet.
 Require Import FreeVars.
-Require Import Notations.
-
-Local Open Scope stmt.
 
 Lemma Subset_singleton : forall x s,
   Subset (singleton x) s
@@ -19,7 +16,7 @@ Local Hint Resolve Subset_singleton.
 Require Import SetoidListFacts.
 
 Lemma In_to_set : forall x ls,
-  In x ls
+  List.In x ls
   -> StringSet.In x (SSP.of_list ls).
   intros.
   eapply SSP.of_list_1.
@@ -30,7 +27,7 @@ Local Hint Resolve In_to_set.
 
 Lemma to_set_In : forall x ls,
   StringSet.In x (SSP.of_list ls)
-  -> In x ls.
+  -> List.In x ls.
   intros.
   eapply SSP.of_list_1 in H.
   eapply InA_eq_In_iff; eauto.

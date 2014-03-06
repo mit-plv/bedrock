@@ -10,12 +10,14 @@ Module Make (Import E : ADT).
   Section TopSection.
 
     Require Import SemanticsExpr.
-    Require Import Notations.
 
-    Local Open Scope stmt.
+    Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
+    Local Notation skip := Syntax.Skip.
 
     Hint Constructors Semantics.RunsTo.
     Hint Unfold Safe RunsTo.
+
+    Require Import AutoSep.
 
     Ltac invert :=
       match goal with
