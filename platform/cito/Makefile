@@ -56,7 +56,8 @@ MODULES := \
 	MaxFacts GetLocalVarsFacts \
 	Notations2 \
 	IsGoodModule GoodModuleDec \
-	Notations3 \
+	ProgramLogic \
+	Notations3 Notations4 \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/Cell examples/SimpleCell \
 	examples/Seq examples/ArraySeq \

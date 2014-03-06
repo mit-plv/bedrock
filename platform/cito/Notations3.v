@@ -45,7 +45,7 @@ Notation "x <-- 'DCall' f ()" := (DirectCall (Some x) f nil)
 
 Notation "x <-- 'DCall' f ( x1 , .. , xN )" := (DirectCall (Some x) f (cons x1 (.. (cons xN nil) ..))%expr) (no associativity, at level 95, f at level 0) : stmt_scope.
 
-Notation "a ! b" := (a, b) : stmt_scope.
+Notation "a ! b" := (a, b) (only parsing) : stmt_scope.
 
 Local Close Scope stmt.
 Local Close Scope expr.

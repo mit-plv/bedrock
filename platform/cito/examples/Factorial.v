@@ -1,19 +1,53 @@
 Set Implicit Arguments.
 
+Require Import AutoSep.
+
+Require Import Notations.
+
+Definition s :=
+([
+      PRE[V] Emp
+      POST[R] Emp ]
+    While ("x" <> 0) {
+      "tmp2" <- "x";;
+      "tmp1" <- "x" + 4;;
+      "x" <-* "tmp1";;
+      "tmp1" *<- "acc";;
+      "acc" <- "tmp2"
+    })%SP.
+
 Require Import MakeWrapper ExampleADT ExampleRepInv.
 
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
-Require Import Notations3.
+Require Import Notations4.
+Module Import Notations4Make := Make ExampleADT.
 
-Definition f := (
-  cfunction "fact"("n")
-    "ret" <- 1 ;;
-    While (0 < "n") {{
+Definition fact_partial_w (a b : W) : W := $0.
+
+Open Scope stmtex.
+
+    ([  ]
+    While (0 < "n") {
       "ret" <- "ret" * "n" ;;
       "n" <- "n" - 1                          
-    }}
+    })%SP.
+
+
+
+(* fun v => sel (fst v) "ret" = fact_partial_w (sel (fst v) "n") (sel (fst v) "n0") *)
+
+Definition f := (
+  cfunction "fact"("n0") (
+    "n" <- "n0" ;;
+    "ret" <- 1 ;;
+    [  ]
+    While (0 < "n") {
+      "ret" <- "ret" * "n" ;;
+      "n" <- "n" - 1                          
+    }
+  )%stmtex
   end
 )%Citofuncs.
 
@@ -66,7 +100,7 @@ Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> 
   admit.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = $ (fact (wordToNat (sel (fst v) "n"))) /\ snd v' = snd v.
+Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   admit.
 Qed.
 
