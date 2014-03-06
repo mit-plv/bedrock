@@ -7,7 +7,7 @@ Require Import RepInv MakeADT.
 
 Require Import AutoSep.
 
-Require Import SimpleCell ArraySeq.
+Require Import SimpleCell ArraySeq FiniteSet ListSet.
 Require Import ExampleRepInv.
 
 Module Import Made := MakeADT.Make(ExampleADT)(ExampleRepInv).
@@ -61,6 +61,33 @@ Lemma readd_Arr : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, Arr rv') (heap_elements (WordMap.add c (Arr rv') (heap_upd heap_empty c (Arr rv))))).
+  Import LayoutHintsUtil.
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H; intuition idtac.
+  eapply Himp_trans; [ | apply H0 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H2 in H1; intuition.
+  apply In_InA' in H4.
+  apply WordMap.elements_2 in H4.
+  apply Properties.F.add_mapsto_iff in H4; intuition.
+  apply Properties.F.add_mapsto_iff in H5; intuition.
+  apply Properties.F.empty_mapsto_iff in H6; tauto.
+Qed.
+
+Lemma readd_FSet : forall c rv rv',
+  lset rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (FSet rv') (heap_upd heap_empty c (FSet rv))).
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, FSet rv') (heap_elements (WordMap.add c (FSet rv') (heap_upd heap_empty c (FSet rv))))).
   Import LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
@@ -190,6 +217,31 @@ Definition ArraySeq_writeSpec : ForeignFuncSpec :=
       :: (inl n, None) :: (inl v, None) :: nil
   |}.
 
+Definition ListSet_newSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => args = nil;
+    PostCond := fun args ret => args = nil /\ ret = inr (FSet WordSet.empty)
+  |}.
+
+Definition ListSet_deleteSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists s, args = inr (FSet s) :: nil;
+    PostCond := fun args _ => exists s, args = (inr (FSet s), None) :: nil
+  |}.
+
+Definition ListSet_memSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
+    PostCond := fun args ret => exists s n, ret = inl (WordSet.mem n s : W)
+      /\ args = (inr (FSet s), Some (FSet s)) :: (inl n, None) :: nil
+  |}.
+
+Definition ListSet_addSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
+    PostCond := fun args _ => exists s n, args = (inr (FSet s), Some (FSet (WordSet.add n s)))
+      :: (inl n, None) :: nil
+  |}.
 
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "SimpleCell"!"new" @ [SimpleCell.newS],
@@ -199,7 +251,11 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "ArraySeq"!"new" @ [ArraySeq.newS],
                             "ArraySeq"!"delete" @ [ArraySeq.deleteS],
                             "ArraySeq"!"read" @ [ArraySeq.readS],
-                            "ArraySeq"!"write" @ [ArraySeq.writeS] ]]
+                            "ArraySeq"!"write" @ [ArraySeq.writeS],
+                            "ListSet"!"new" @ [ListSet.newS],
+                            "ListSet"!"delete" @ [ListSet.deleteS],
+                            "ListSet"!"mem" @ [ListSet.memS],
+                            "ListSet"!"add" @ [ListSet.addS] ]]
   fmodule "ADT" {{
     ffunction "SimpleCell_new" reserving 8 [SimpleCell_newSpec] := "SimpleCell"!"new"
     with ffunction "SimpleCell_delete" reserving 6 [SimpleCell_deleteSpec] := "SimpleCell"!"delete"
@@ -209,6 +265,10 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "ArraySeq_delete" reserving 7 [ArraySeq_deleteSpec] := "ArraySeq"!"delete"
     with ffunction "ArraySeq_read" reserving 0 [ArraySeq_readSpec] := "ArraySeq"!"read"
     with ffunction "ArraySeq_write" reserving 0 [ArraySeq_writeSpec] := "ArraySeq"!"write"
+    with ffunction "ListSet_new" reserving 8 [ListSet_newSpec] := "ListSet"!"new"
+    with ffunction "ListSet_delete" reserving 7 [ListSet_deleteSpec] := "ListSet"!"delete"
+    with ffunction "ListSet_mem" reserving 1 [ListSet_memSpec] := "ListSet"!"mem"
+    with ffunction "ListSet_add" reserving 9 [ListSet_addSpec] := "ListSet"!"add"
   }}.
 
 Theorem ok0 : moduleOk m0.
@@ -377,13 +437,97 @@ Theorem ok0 : moduleOk m0.
   do_delegate2 ("self" :: "n" :: "v" :: nil).
 
 
+  (* ListSet *)
+
+  (* new *)
+
+  do_abort (@nil string).
+  do_abort (@nil string).
+  do_abort (@nil string).
+
+  do_delegate1 (@nil string) hints.
+  do 2 (descend; step auto_ext).
+  2: returnAdt.
+  simpl.
+  make_toArray (@nil string).
+  step auto_ext.
+  etransitivity; [ | apply himp_star_frame; [ apply (@is_state_in x4) | reflexivity ] ].
+  unfolder.
+  do_delegate2 (@nil string).
+
+  (* delete *)
+  
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  do 2 (descend; step auto_ext).
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* mem *)
+
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+
+  do_delegate1 ("self" :: "n" :: nil) hints.
+  add_side_conditions.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval; intro.
+  step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "n" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_FSet ] ].
+  do_delegate2 ("self" :: "n" :: nil).
+
+  (* add *)
+
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+
+  do_delegate1 ("self" :: "n" :: nil) hints.
+  add_side_conditions.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "n" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_FSet ] ].
+  do_delegate2 ("self" :: "n" :: nil).
+
+
   Grab Existential Variables.
+  exact 0.
   exact 0.
 Qed.
 
 Definition m1 := link SimpleCell.m m0.
 Definition m2 := link ArraySeq.m m1.
-Definition m := link Malloc.m m2.
+Definition m3 := link ListSet.m m2.
+Definition m := link Malloc.m m3.
 
 Theorem ok1 : moduleOk m1.
   link SimpleCell.ok ok0.
@@ -393,6 +537,10 @@ Theorem ok2 : moduleOk m2.
   link ArraySeq.ok ok1.
 Qed.
 
+Theorem ok3 : moduleOk m3.
+  link ListSet.ok ok2.
+Qed.
+
 Theorem ok : moduleOk m.
-  link Malloc.ok ok2.
+  link Malloc.ok ok3.
 Qed.

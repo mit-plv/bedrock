@@ -58,10 +58,10 @@ MODULES := \
 	IsGoodModule GoodModuleDec \
 	Notations3 \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
-	examples/ExampleADT \
 	examples/Cell examples/SimpleCell \
 	examples/Seq examples/ArraySeq \
-	examples/ExampleRepInv examples/ExampleImpl \
+	examples/FiniteSet examples/ListSet \
+	examples/ExampleADT examples/ExampleRepInv examples/ExampleImpl \
 	examples/ReturnZero examples/ReturnZeroDriver
 
 VS      := $(MODULES:%=%.v)
