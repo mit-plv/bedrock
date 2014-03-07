@@ -11,11 +11,13 @@ Module Make (Import E : ADT).
 
     Require Import Syntax.
     Require Import AutoSep.
+    Require Import GLabel.
+
+    Definition Env := ((glabel -> option W) * (W -> option Callee))%type.
 
     (* shallow embedding *)
-    Definition assert := State -> State -> Prop.
-    Definition interp (p : assert) (v v' : State) : Prop := p v v'.
-    Definition abs (f : State -> State-> Prop) : assert := f.
+    Definition assert := Env -> State -> State -> Prop.
+    Definition interp (p : assert) (env : Env) (v v' : State) : Prop := p env v v'.
 
     Inductive StmtEx := 
     | SkipEx : StmtEx
@@ -23,11 +25,12 @@ Module Make (Import E : ADT).
     | IfEx : Expr -> StmtEx -> StmtEx -> StmtEx
     | WhileEx : assert -> Expr -> StmtEx -> StmtEx
     | AssignEx : string -> Expr -> StmtEx
-    | AssertEx : assert -> StmtEx.
+    | AssertEx : assert -> StmtEx
+    | CallEx : option string -> Expr -> list Expr -> StmtEx.
 
-    Definition and_lift (a b : assert) : assert := abs (fun v v' => interp a v v' /\ interp b v v').
-    Definition or_lift (a b : assert) : assert := abs (fun v v' => interp a v v' \/ interp b v v').
-    Definition imply_close (a b : assert) : Prop := forall v v', interp a v v' -> interp b v v'.
+    Definition and_lift (a b : assert) : assert := fun env v v' => interp a env v v' /\ interp b env v v'.
+    Definition or_lift (a b : assert) : assert := fun env v v' => interp a env v v' \/ interp b env v v'.
+    Definition imply_close (a b : assert) : Prop := forall env v v', interp a env v v' -> interp b env v v'.
 
     Infix "/\" := and_lift : assert_scope.
     Infix "\/" := or_lift : assert_scope.
@@ -37,8 +40,8 @@ Module Make (Import E : ADT).
 
     Close Scope equiv_scope.
 
-    Definition is_true e : assert := abs (fun _ v' => eval (fst v') e <> $0).
-    Definition is_false e : assert := abs (fun _ v' => eval (fst v') e = $0).
+    Definition is_true e : assert := fun _ _ v => eval (fst v) e <> $0.
+    Definition is_false e : assert := fun _ _ v => eval (fst v) e = $0.
 
     Open Scope assert_scope.
 
@@ -49,12 +52,17 @@ Module Make (Import E : ADT).
         | IfEx e t f => sp t (p /\ is_true e) \/ sp f (p /\ is_false e)
         | WhileEx inv e _ => inv /\ is_false e
         | AssignEx x e => 
-          abs (fun v v' => 
-                 exists w, 
-                   let v'' := (upd (fst v') x w, snd v') in
-                   interp p v v'' /\
-                   sel (fst v') x = eval (fst v'') e)%type
+          (fun env v0 v' => 
+             exists w, 
+               let v := (upd (fst v') x w, snd v') in
+               interp p env v0 v /\
+               sel (fst v') x = eval (fst v) e)%type
         | AssertEx a => a
+        | CallEx x f args =>
+          (fun env v0 v' =>
+             exists v,
+               interp p env v0 v /\
+               RunsTo env (Syntax.Call x f args) v v')%type
       end.
 
     Fixpoint vc stmt (p : assert) : list Prop :=
@@ -66,6 +74,7 @@ Module Make (Import E : ADT).
           (p --> inv) :: (sp body (inv /\ is_true e) --> inv) :: vc body (inv /\ is_true e)
         | AssignEx x e => nil
         | AssertEx a => (p --> a) :: nil
+        | CallEx x f args => (p --> (fun env _ v => Safe env (Syntax.Call x f args) v)) :: nil
       end.
     
     Fixpoint to_stmt s :=
@@ -76,6 +85,7 @@ Module Make (Import E : ADT).
         | WhileEx _ e b => Syntax.While e (to_stmt b)
         | AssignEx x e => Syntax.Assign x e
         | AssertEx _ => Syntax.Skip
+        | CallEx x f args => Syntax.Call x f args
       end.
 
     Coercion to_stmt : StmtEx >-> Stmt.
@@ -90,28 +100,43 @@ Module Make (Import E : ADT).
       eapply IHls1 in H1; openhyp; eauto.
     Qed.
 
-    Lemma is_true_intro : forall e v v', wneb (eval (fst v') e) $0 = true -> interp (is_true e) v v'.
+    Lemma is_true_intro : forall e env v v', wneb (eval (fst v') e) $0 = true -> interp (is_true e) env v v'.
       intros.
       unfold is_true.
-      unfold interp, abs.
+      unfold interp.
       unfold wneb in *.
       destruct (weq _ _) in *; intuition.
     Qed.
 
     Hint Resolve is_true_intro.
 
-    Lemma is_false_intro : forall e v v', wneb (eval (fst v') e) $0 = false -> interp (is_false e) v v'.
+    Lemma is_false_intro : forall e env v v', wneb (eval (fst v') e) $0 = false -> interp (is_false e) env v v'.
       intros.
       unfold is_false.
-      unfold interp, abs.
+      unfold interp.
       unfold wneb in *.
       destruct (weq _ _) in *; intuition.
     Qed.
 
     Hint Resolve is_false_intro.
 
-    Lemma sound_runsto' : forall env (s : Stmt) v v', RunsTo env s v v' -> forall s' : StmtEx, s = s' -> forall p, and_all (vc s' p) -> forall v0, interp p v0 v -> interp (sp s' p) v0 v'.
-      induction 1; simpl; intros; destruct s'; try discriminate; simpl in *; try (injection H1; intros; subst).
+    Hint Unfold RunsTo.
+    Hint Constructors Semantics.RunsTo.
+    Hint Unfold Safe.
+    Hint Constructors Semantics.Safe.
+
+    Ltac unfold_all :=
+      repeat match goal with
+               | H := _ |- _ => unfold H in *; clear H
+             end.
+
+    Ltac inject :=
+      match goal with
+        | H : _ = _ |- _ => unfold_all; injection H; intros; subst
+      end.
+
+    Lemma sound_runsto' : forall env (s : Stmt) v v', RunsTo env s v v' -> forall s' : StmtEx, s = s' -> forall p, and_all (vc s' p) -> forall v0, interp p env v0 v -> interp (sp s' p) env v0 v'.
+      induction 1; simpl; intros; destruct s'; try discriminate; simpl in *; try inject.
 
       (* skip *)
       eauto.
@@ -136,21 +161,16 @@ Module Make (Import E : ADT).
 
       (* while *)
       openhyp.
-      subst loop.
-      injection H2; intros; subst.
       eapply (IHRunsTo2 (WhileEx _ e s')); simpl in *; eauto.
       eapply IHRunsTo1; simpl in *; eauto.
       split; eauto.
 
       openhyp.
-      subst loop.
-      injection H0; intros; subst.
       split; eauto.
 
+      Focus 3.
       (* assign *)
-      subst vs.
-      injection H; intros; subst.
-      unfold interp, abs.
+      unfold interp.
       destruct v; simpl in *.
       eexists (sel v s).
       replace (upd _ _ _) with v in *.
@@ -164,41 +184,69 @@ Module Make (Import E : ADT).
       subst.
       repeat rewrite sel_upd_eq by eauto; eauto.
       repeat rewrite sel_upd_ne by eauto; eauto.
+
+      (* call *)
+      openhyp.
+      unfold interp.
+      descend; eauto.
+
+      openhyp.
+      unfold interp.
+      descend; eauto.
     Qed.
 
-    Theorem sound_runsto : forall env (s : StmtEx) v v' p v0, RunsTo env s v v' -> and_all (vc s p) -> interp p v0 v -> interp (sp s p) v0 v'.
+    Theorem sound_runsto : forall env (s : StmtEx) v v' p v0, RunsTo env s v v' -> and_all (vc s p) -> interp p env v0 v -> interp (sp s p) env v0 v'.
       intros.
       eapply sound_runsto'; eauto.
     Qed.
 
-    Theorem sound_safe : forall env (s : Stmt) (s' : StmtEx) v p v0, s = s' -> and_all (vc s' p) -> interp p v0 v -> Safe env s v.
+    Theorem sound_safe : forall env (s : Stmt) (s' : StmtEx) v p v0, s = s' -> and_all (vc s' p) -> interp p env v0 v -> Safe env s v.
       intros.
       Close Scope assert_scope.
-      eapply (Safe_coind (fun s v => exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) /\ interp p v0 v)); [ .. | descend; eauto]; clear; intros; openhyp; destruct x; try discriminate; simpl in *; try (injection H; intros; subst).
+      eapply (Safe_coind (fun s v => Safe env s v \/ exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) /\ interp p env v0 v)); [ .. | right; descend; eauto]; clear; intros; openhyp.
 
       (* seq *)
+      inversion H; subst.
+      descend; left; eauto.
+
+      destruct x; try discriminate; simpl in *; try inject.
       eapply and_all_app in H0; openhyp.
-      split.
-      descend; eauto.
+      descend.
+      right; descend; eauto.
       intros.
       eapply sound_runsto' with (p := x0) in H3; eauto.
-      descend; eauto.
+      right; descend; eauto.
 
       (* if *)
+      inversion H; subst.
+      openhyp; subst.
+      left; descend.
+      eauto.
+      left; eauto.
+      right; descend.
+      eauto.
+      left; eauto.
+
+      destruct x; try discriminate; simpl in *; try inject.
       eapply and_all_app in H0; openhyp.
       unfold wneb.
       destruct (weq (eval (fst v) e) $0) in *.
       right.
       descend; eauto.
+      right; descend; eauto.
       split; eauto.
       left.
       descend; eauto.
+      right; descend; eauto.
       split; eauto.
 
       (* while *)
+      inversion H; unfold_all; subst.
+      left; descend.
+      (*here*)
+
+
       openhyp.
-      subst loop.
-      injection H; intros; subst.
       unfold wneb.
       destruct (weq (eval (fst v) e) $0) in *.
       right.
@@ -214,6 +262,13 @@ Module Make (Import E : ADT).
       simpl.
       descend; eauto.
       split; eauto.
+
+      (* call *)
+      openhyp.
+      eapply H0 in H1.
+      unfold interp in *.
+      inversion H1; unfold_all; subst.
+
 
       destruct x0; try discriminate.
       destruct x0; try discriminate.
