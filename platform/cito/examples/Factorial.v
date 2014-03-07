@@ -67,28 +67,34 @@ Lemma fact_partial_w_same : forall w, fact_partial_w w w = 1.
   simpl; eauto.
 Qed.
 
+Lemma fact_partial_update : forall a b, 0 < a -> a <= b -> a * fact_partial a b = fact_partial (a - 1) b.
+  intros.
+  unfold fact_partial.
+  Opaque mult.
+  simpl.
+  replace (b - (a - 1)) with (S (b - a)).
+  replace (S (a - 1)) with a.
+  simpl.
+  eauto.
+  omega.
+  omega.
+  Transparent mult.
+Qed.
+
+Require Import WordFacts WordFacts2 WordFacts3 WordFacts4.
+Require Import GeneralTactics2.
+
+Lemma wmult_natToW_comm : forall a b, $ a ^* $ b = natToW (a * b).
+  symmetry.
+  eapply natToWord_mult.
+Qed.
+
 Lemma fact_partial_w_update : forall (a b : W), ($0 < a -> a <= b -> a ^* fact_partial_w a b = fact_partial_w (a ^- $1) b)%word.
   unfold fact_partial_w.
   intros.
-  Lemma fact_partial_update : forall a b, 0 < a -> a <= b -> a * fact_partial a b = fact_partial (a - 1) b.
-    intros.
-    unfold fact_partial.
-    Opaque mult.
-    simpl.
-    replace (b - (a - 1)) with (S (b - a)).
-    replace (S (a - 1)) with a.
-    simpl.
-    eauto.
-    omega.
-    omega.
-    Transparent mult.
-  Qed.
   set (wordToNat a).
   set (wordToNat (_ ^- _)).
   replace a with (natToW (wordToNat a)).
-  Lemma wmult_natToW_comm : forall a b, $ a ^* $ b = natToW (a * b).
-    admit.
-  Qed.
   rewrite wmult_natToW_comm.
   f_equal.
   subst n n0.
@@ -98,14 +104,23 @@ Lemma fact_partial_w_update : forall (a b : W), ($0 < a -> a <= b -> a ^* fact_p
   nomega.
   Focus 2.
   eapply natToWord_wordToNat.
-  admit.
+  rewrite wordToNat_wminus.
+  rewrite roundTrip_1.
+  eauto.
+  eapply non_zero_wge1.
+  nintro.
+  subst.
+  nomega.
 Qed.
 
 Import ProgramLogicMake.
 
 Definition body := (
     "ret" <- 1 ;;
-    [ fun v0 v => sel (fst v) "ret" = fact_partial_w (sel (fst v) "n") (sel (fst v0) "n") /\ snd v = snd v0 ]
+    [ fun v0 v => 
+        sel (fst v) "ret" = fact_partial_w (sel (fst v) "n") (sel (fst v0) "n") /\ 
+        (sel (fst v) "n" <= sel (fst v0) "n")%word /\
+        snd v = snd v0 ]
     While (0 < "n") {
       "ret" <- "ret" * "n" ;;
       "n" <- "n" - 1                          
@@ -157,10 +172,89 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
 
 Import LinkSpecMake.
 
+Open Scope word.
+
+Lemma wle_0_eq : forall w : W, w <= $0 -> w = $0.
+  intros.
+  unfold wlt in *.
+  destruct (N.eq_0_gt_0_cases (wordToN w)).
+  change (0)%N with (wordToN (natToW 0)) in H0.
+  eapply wordToN_inj in H0.
+  eauto.
+  change (wordToN ($ 0)) with 0%N in H.
+  intuition.
+Qed.
+
+Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+  intros; eapply sel_upd_eq; eauto.
+Qed.
+
+Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+  intros; eapply sel_upd_ne; eauto.
+Qed.
+
+Ltac sel_upd_simpl :=
+  repeat 
+    match goal with
+      | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+      | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+      | |- _ => rewrite sel_upd_eq by reflexivity
+      | |- _ => rewrite sel_upd_ne by discriminate
+      | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+      | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+      | |- _ => rewrite sel_upd_eq' by reflexivity
+      | |- _ => rewrite sel_upd_ne' by discriminate
+    end.
+
+Lemma is_true_0_lt : forall v v' (x : string), is_true (0 < x)%expr v v' -> $0 < sel (fst v') x.
+  intros.
+  unfold is_true, abs in *.
+  simpl in *.
+  unfold wltb in *.
+  destruct (wlt_dec _ _).
+  eauto.
+  intuition.
+Qed.
+
+Definition empty_precond : assert := fun v0 v => v0 = v.
+
+Lemma vcs_good : and_all (vc body empty_precond).
+  unfold body, empty_precond; simpl.
+  unfold imply_close, and_lift, interp, abs; simpl.
+  descend.
+  openhyp.
+  subst.
+  simpl.
+  split.
+  rewrite sel_upd_ne by eauto.
+  rewrite H0.
+  symmetry; eapply fact_partial_w_same.
+  eauto.
+  openhyp; simpl in *.
+  destruct v; destruct v'; simpl in *.
+  sel_upd_simpl.
+  subst.
+  eapply is_true_0_lt in H2.
+  simpl in *.
+  sel_upd_simpl.
+  split.
+  rewrite H1.
+  rewrite H0.
+  rewrite <- fact_partial_w_update.
+  words.
+  eauto.
+  eauto.
+  split.
+  rewrite H0.
+  nomega.
+  eauto.
+  eauto.
+Qed.
+
 Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   intros.
   unfold f in *; simpl in *.
-  eapply sound_runsto' with (p := fun v0 v => v0 = v) in H1.
+  eapply sound_runsto' with (p := empty_precond) in H1.
   2 : instantiate (1 := body); simpl; eauto.
   simpl in *.
   unfold and_lift, interp, abs in *.
@@ -173,64 +267,18 @@ Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) st
   unfold is_false, abs in *; simpl in *.
   unfold wltb in *.
   destruct wlt_dec; try discriminate.
-  Close Scope nat.
-  Lemma wle_0_eq : forall w : W, w <= $0 -> w = $0.
-    intros.
-    unfold wlt in *.
-    destruct (N.eq_0_gt_0_cases (wordToN w)).
-    change (0)%N with (wordToN (natToW 0)) in H0.
-    eapply wordToN_inj in H0.
-    eauto.
-    change (wordToN ($ 0)) with 0%N in H.
-    intuition.
-  Qed.
   symmetry.
   eapply wle_0_eq; eauto.
-  simpl in *.
-  unfold imply_close, and_lift, interp, abs.
-  descend.
-  openhyp.
-  subst.
-  simpl.
-  split.
-  rewrite sel_upd_ne by eauto.
-  rewrite H3.
-  symmetry; eapply fact_partial_w_same.
-  eauto.
-  openhyp; simpl in *.
-  destruct v0; destruct v'0; simpl in *.
-  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-    intros; eapply sel_upd_eq; eauto.
-  Qed.
-  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-    intros; eapply sel_upd_ne; eauto.
-  Qed.
-  Ltac sel_upd_simpl :=
-    repeat 
-      match goal with
-        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-        | |- _ => rewrite sel_upd_eq by reflexivity
-        | |- _ => rewrite sel_upd_ne by discriminate
-        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-        | |- _ => rewrite sel_upd_eq' by reflexivity
-        | |- _ => rewrite sel_upd_ne' by discriminate
-      end.
-  sel_upd_simpl.
-  subst.
-  split.
-  rewrite H4.
-  rewrite H3.
-
-  eauto.
-  eauto.
-  unfold interp.
-  eauto.
+  eapply vcs_good.
+  unfold interp, empty_precond; eauto.
 Qed.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  admit.
+  intros.
+  unfold f in *; simpl in *.
+  eapply sound_safe with (s := body) (p := empty_precond).
+  eapply vcs_good.
+  unfold interp, empty_precond; eauto.
 Qed.
 
 Require Import Inv.
@@ -247,7 +295,6 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 
   post.
-  Open Scope nat.
   call_cito 100 ("n" :: nil).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.

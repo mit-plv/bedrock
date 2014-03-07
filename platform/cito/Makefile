@@ -57,6 +57,7 @@ MODULES := \
 	IsGoodModule GoodModuleDec \
 	ProgramLogic \
 	Notations3 Notations4 \
+	WordFacts2 WordFacts3 WordFacts4 \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/Cell examples/SimpleCell \
 	examples/Seq examples/ArraySeq \
