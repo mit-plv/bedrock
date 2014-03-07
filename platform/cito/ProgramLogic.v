@@ -171,7 +171,7 @@ Module Make (Import E : ADT).
       eapply sound_runsto'; eauto.
     Qed.
 
-    Theorem sound_safe : forall env (s : StmtEx) v p v0, and_all (vc s p) -> interp p v0 v -> Safe env s v.
+    Theorem sound_safe : forall env (s : Stmt) (s' : StmtEx) v p v0, s = s' -> and_all (vc s' p) -> interp p v0 v -> Safe env s v.
       intros.
       Close Scope assert_scope.
       eapply (Safe_coind (fun s v => exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) /\ interp p v0 v)); [ .. | descend; eauto]; clear; intros; openhyp; destruct x; try discriminate; simpl in *; try (injection H; intros; subst).

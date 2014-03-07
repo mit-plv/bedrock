@@ -63,7 +63,8 @@ MODULES := \
 	examples/Seq examples/ArraySeq \
 	examples/FiniteSet examples/ListSet \
 	examples/ExampleADT examples/ExampleRepInv examples/ExampleImpl \
-	examples/ReturnZero examples/ReturnZeroDriver
+	examples/ReturnZero examples/ReturnZeroDriver \
+	examples/Factorial \
 
 VS      := $(MODULES:%=%.v)
 
