@@ -10,10 +10,6 @@ Module Import Notations4Make := Make ExampleADT.
 
 Open Scope nat.
 
-Require Import Arith.
-
-Definition fact_w (w : W) := natToW (fact (wordToNat w)).
-
 Fixpoint fact_partial' start n :=
   match n with
     | 0 => 1
@@ -24,94 +20,6 @@ Fixpoint fact_partial' start n :=
 Definition fact_partial (a b : nat) := fact_partial' (1 + a) (b - a).
 
 Definition fact_partial_w (a b : W) : W := natToW (fact_partial (wordToNat a) (wordToNat b)).
-
-Set Printing Coercions.
-
-Lemma fact_partial_0 : forall n, fact_partial 0 n = fact n.
-  unfold fact_partial.
-  induction n; simpl; intuition.
-  rewrite plus_0_r in *.
-  Require Import NPeano.
-  Import NPeano.Nat.
-  rewrite sub_0_r in *.
-  Lemma fact_partial'_inv : forall n start, fact_partial' start n * (n + start) = start * fact_partial' (1 + start) n.
-    Opaque mult.
-    induction n; simpl; intuition.
-    repeat rewrite <- IHn.
-    rewrite mult_assoc.
-    repeat rewrite <- IHn.
-    ring.
-    Transparent mult.
-  Qed.
-  specialize (fact_partial'_inv n 1); intro; simpl in *.
-  rewrite plus_0_r in *.
-  rewrite <- H.
-  rewrite IHn.
-  ring.
-Qed.
-
-Lemma fact_partial_w_0 : forall w, fact_partial_w $0 w = fact_w w.
-  intros.
-  unfold fact_partial_w, fact_w.
-  f_equal.
-  change (wordToNat $0) with 0.
-  eapply fact_partial_0.
-Qed.
-
-Lemma fact_partial_w_same : forall w, fact_partial_w w w = 1.
-  intros.
-  unfold fact_partial_w.
-  f_equal.
-  unfold fact_partial.
-  rewrite minus_diag.
-  simpl; eauto.
-Qed.
-
-Lemma fact_partial_update : forall a b, 0 < a -> a <= b -> a * fact_partial a b = fact_partial (a - 1) b.
-  intros.
-  unfold fact_partial.
-  Opaque mult.
-  simpl.
-  replace (b - (a - 1)) with (S (b - a)).
-  replace (S (a - 1)) with a.
-  simpl.
-  eauto.
-  omega.
-  omega.
-  Transparent mult.
-Qed.
-
-Require Import WordFacts WordFacts2 WordFacts3 WordFacts4.
-Require Import GeneralTactics2.
-
-Lemma wmult_natToW_comm : forall a b, $ a ^* $ b = natToW (a * b).
-  symmetry.
-  eapply natToWord_mult.
-Qed.
-
-Lemma fact_partial_w_update : forall (a b : W), ($0 < a -> a <= b -> a ^* fact_partial_w a b = fact_partial_w (a ^- $1) b)%word.
-  unfold fact_partial_w.
-  intros.
-  set (wordToNat a).
-  set (wordToNat (_ ^- _)).
-  replace a with (natToW (wordToNat a)).
-  rewrite wmult_natToW_comm.
-  f_equal.
-  subst n n0.
-  replace (wordToNat (_ ^- _)) with (wordToNat a - 1).
-  eapply fact_partial_update.
-  nomega.
-  nomega.
-  Focus 2.
-  eapply natToWord_wordToNat.
-  rewrite wordToNat_wminus.
-  rewrite roundTrip_1.
-  eauto.
-  eapply non_zero_wge1.
-  nintro.
-  subst.
-  nomega.
-Qed.
 
 Import ProgramLogicMake.
 
@@ -155,6 +63,8 @@ Definition topS := SPEC reserving (4 + extra_stack)
 
 Notation input := 5.
 
+Require Import Arith.
+
 Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIntS],
                              "sys"!"abort" @ [abortS] ]]
   bmodule "top" {{
@@ -171,19 +81,6 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
   }}.
 
 Import LinkSpecMake.
-
-Open Scope word.
-
-Lemma wle_0_eq : forall w : W, w <= $0 -> w = $0.
-  intros.
-  unfold wlt in *.
-  destruct (N.eq_0_gt_0_cases (wordToN w)).
-  change (0)%N with (wordToN (natToW 0)) in H0.
-  eapply wordToN_inj in H0.
-  eauto.
-  change (wordToN ($ 0)) with 0%N in H.
-  intuition.
-Qed.
 
 Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
   intros; eapply sel_upd_eq; eauto.
@@ -206,6 +103,8 @@ Ltac sel_upd_simpl :=
       | |- _ => rewrite sel_upd_ne' by discriminate
     end.
 
+Open Scope word.
+
 Lemma is_true_0_lt : forall v v' (x : string), is_true (0 < x)%expr v v' -> $0 < sel (fst v') x.
   intros.
   unfold is_true, abs in *.
@@ -214,6 +113,95 @@ Lemma is_true_0_lt : forall v v' (x : string), is_true (0 < x)%expr v v' -> $0 <
   destruct (wlt_dec _ _).
   eauto.
   intuition.
+Qed.
+
+Definition fact_w (w : W) := natToW (fact (wordToNat w)).
+
+Require Import NPeano.
+Import NPeano.Nat.
+
+Lemma fact_partial'_inv : forall n start, fact_partial' start n * (n + start) = start * fact_partial' (1 + start) n.
+  Opaque mult.
+  induction n; simpl; intuition.
+  repeat rewrite <- IHn.
+  rewrite mult_assoc.
+  repeat rewrite <- IHn.
+  ring.
+  Transparent mult.
+Qed.
+
+Lemma fact_partial_0 : forall n, fact_partial 0 n = fact n.
+  unfold fact_partial.
+  induction n; simpl; intuition.
+  rewrite plus_0_r in *.
+  rewrite sub_0_r in *.
+  specialize (fact_partial'_inv n 1); intro; simpl in *.
+  rewrite plus_0_r in *.
+  rewrite <- H.
+  rewrite IHn.
+  ring.
+Qed.
+
+Lemma fact_partial_w_0 : forall w, fact_partial_w $0 w = fact_w w.
+  intros.
+  unfold fact_partial_w, fact_w.
+  f_equal.
+  change (wordToNat $0) with 0.
+  eapply fact_partial_0.
+Qed.
+
+Lemma fact_partial_w_same : forall w, fact_partial_w w w = 1.
+  intros.
+  unfold fact_partial_w.
+  f_equal.
+  unfold fact_partial.
+  rewrite minus_diag.
+  simpl; eauto.
+Qed.
+
+Open Scope nat.
+
+Lemma fact_partial_update : forall a b, 0 < a -> a <= b -> a * fact_partial a b = fact_partial (a - 1) b.
+  intros.
+  unfold fact_partial.
+  Opaque mult.
+  simpl.
+  replace (b - (a - 1)) with (S (b - a)).
+  replace (S (a - 1)) with a.
+  simpl.
+  eauto.
+  omega.
+  omega.
+  Transparent mult.
+Qed.
+
+Require Import WordFacts WordFacts2 WordFacts3 WordFacts4 WordFacts5.
+Require Import GeneralTactics2.
+
+Open Scope word.
+
+Lemma fact_partial_w_update : forall (a b : W), $0 < a -> a <= b -> a ^* fact_partial_w a b = fact_partial_w (a ^- $1) b.
+  unfold fact_partial_w.
+  intros.
+  set (wordToNat a).
+  set (wordToNat (_ ^- _)).
+  replace a with (natToW (wordToNat a)).
+  rewrite wmult_natToW_comm.
+  f_equal.
+  subst n n0.
+  replace (wordToNat (_ ^- _)) with (wordToNat a - 1).
+  eapply fact_partial_update.
+  nomega.
+  nomega.
+  Focus 2.
+  eapply natToWord_wordToNat.
+  rewrite wordToNat_wminus.
+  rewrite roundTrip_1.
+  eauto.
+  eapply non_zero_wge1.
+  nintro.
+  subst.
+  nomega.
 Qed.
 
 Definition empty_precond : assert := fun v0 v => v0 = v.
