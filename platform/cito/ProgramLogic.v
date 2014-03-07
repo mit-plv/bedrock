@@ -49,11 +49,8 @@ Module Make (Import E : ADT).
         | IfEx e t f => sp t (p /\ is_true e) \/ sp f (p /\ is_false e)
         | WhileEx inv e _ => inv /\ is_false e
         | AssignEx x e => 
-          abs (fun v v' => 
-                 exists w, 
-                   let v'' := (upd (fst v') x w, snd v') in
-                   interp p v v'' /\
-                   sel (fst v') x = eval (fst v'') e)%type
+          abs (fun v v' =>
+            exists v'', p v v'' /\ v' = (upd (fst v'') x (eval (fst v'') e), snd v''))%type
         | AssertEx a => a
       end.
 
@@ -151,19 +148,7 @@ Module Make (Import E : ADT).
       subst vs.
       injection H; intros; subst.
       unfold interp, abs.
-      destruct v; simpl in *.
-      eexists (sel v s).
-      replace (upd _ _ _) with v in *.
-      split.
       eauto.
-      repeat rewrite sel_upd_eq by eauto; eauto.
-      Require Import FunctionalExtensionality.
-      extensionality x.
-      change (upd (upd v s (eval v e0)) s (sel v s) x) with (sel (upd (upd v s (eval v e0)) s (sel v s)) x).
-      destruct (string_dec x s).
-      subst.
-      repeat rewrite sel_upd_eq by eauto; eauto.
-      repeat rewrite sel_upd_ne by eauto; eauto.
     Qed.
 
     Theorem sound_runsto : forall env (s : StmtEx) v v' p v0, RunsTo env s v v' -> and_all (vc s p) -> interp p v0 v -> interp (sp s p) v0 v'.
