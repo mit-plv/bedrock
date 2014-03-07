@@ -276,7 +276,9 @@ Qed.
 Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   intros.
   unfold f in *; simpl in *.
-  eapply sound_safe with (s := body) (p := empty_precond).
+  eapply sound_safe with (p := empty_precond).
+  instantiate (1 := body).
+  eauto.
   eapply vcs_good.
   unfold interp, empty_precond; eauto.
 Qed.
