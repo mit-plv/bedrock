@@ -26,7 +26,8 @@ Module Make (Import E : ADT).
     | WhileEx : assert -> Expr -> StmtEx -> StmtEx
     | AssignEx : string -> Expr -> StmtEx
     | AssertEx : assert -> StmtEx
-    | CallEx : option string -> Expr -> list Expr -> StmtEx.
+    | CallEx : option string -> Expr -> list Expr -> StmtEx
+    | LabelEx : string -> glabel -> StmtEx.
 
     Definition and_lift (a b : assert) : assert := fun env v v' => interp a env v v' /\ interp b env v v'.
     Definition or_lift (a b : assert) : assert := fun env v v' => interp a env v v' \/ interp b env v v'.
@@ -45,38 +46,6 @@ Module Make (Import E : ADT).
 
     Open Scope assert_scope.
 
-    Fixpoint sp (stmt : StmtEx) (p : assert) : assert :=
-      match stmt with
-        | SkipEx => p
-        | SeqEx a b => sp b (sp a p)
-        | IfEx e t f => sp t (p /\ is_true e) \/ sp f (p /\ is_false e)
-        | WhileEx inv e _ => inv /\ is_false e
-        | AssignEx x e => 
-          (fun env v0 v' => 
-             exists w, 
-               let v := (upd (fst v') x w, snd v') in
-               interp p env v0 v /\
-               sel (fst v') x = eval (fst v) e)%type
-        | AssertEx a => a
-        | CallEx x f args =>
-          (fun env v0 v' =>
-             exists v,
-               interp p env v0 v /\
-               RunsTo env (Syntax.Call x f args) v v')%type
-      end.
-
-    Fixpoint vc stmt (p : assert) : list Prop :=
-      match stmt with
-        | SkipEx => nil
-        | SeqEx a b => vc a p ++ vc b (sp a p)
-        | IfEx e t f => vc t (p /\ is_true e) ++ vc f (p /\ is_false e)
-        | WhileEx inv e body => 
-          (p --> inv) :: (sp body (inv /\ is_true e) --> inv) :: vc body (inv /\ is_true e)
-        | AssignEx x e => nil
-        | AssertEx a => (p --> a) :: nil
-        | CallEx x f args => (p --> (fun env _ v => Safe env (Syntax.Call x f args) v)) :: nil
-      end.
-    
     Fixpoint to_stmt s :=
       match s with
         | SkipEx => Syntax.Skip
@@ -86,10 +55,37 @@ Module Make (Import E : ADT).
         | AssignEx x e => Syntax.Assign x e
         | AssertEx _ => Syntax.Skip
         | CallEx x f args => Syntax.Call x f args
+        | LabelEx x lbl => Syntax.Label x lbl
       end.
 
     Coercion to_stmt : StmtEx >-> Stmt.
 
+    Fixpoint sp (stmt : StmtEx) (p : assert) : assert :=
+      match stmt with
+        | SeqEx a b => sp b (sp a p)
+        | IfEx e t f => sp t (p /\ is_true e) \/ sp f (p /\ is_false e)
+        | WhileEx inv e _ => inv /\ is_false e
+        | AssertEx a => a
+        | SkipEx => p
+        | _ =>
+          (fun env v0 v' =>
+             exists v,
+               interp p env v0 v /\
+               RunsTo env stmt v v')%type
+      end.
+
+    Fixpoint vc stmt (p : assert) : list Prop :=
+      match stmt with
+        | SeqEx a b => vc a p ++ vc b (sp a p)
+        | IfEx e t f => vc t (p /\ is_true e) ++ vc f (p /\ is_false e)
+        | WhileEx inv e body => 
+          (p --> inv) :: (sp body (inv /\ is_true e) --> inv) :: vc body (inv /\ is_true e)
+        | AssertEx a => (p --> a) :: nil
+        | SkipEx => nil
+        | AssignEx _ _ => nil
+        | _ => (p --> (fun env _ v => Safe env stmt v)) :: nil
+      end.
+    
     Definition and_all := fold_right and True.
 
     Require Import GeneralTactics.
@@ -168,31 +164,17 @@ Module Make (Import E : ADT).
       openhyp.
       split; eauto.
 
-      Focus 3.
+      Focus 4.
       (* assign *)
-      unfold interp.
-      destruct v; simpl in *.
-      eexists (sel v s).
-      replace (upd _ _ _) with v in *.
-      split.
-      eauto.
-      repeat rewrite sel_upd_eq by eauto; eauto.
-      Require Import FunctionalExtensionality.
-      extensionality x.
-      change (upd (upd v s (eval v e0)) s (sel v s) x) with (sel (upd (upd v s (eval v e0)) s (sel v s)) x).
-      destruct (string_dec x s).
-      subst.
-      repeat rewrite sel_upd_eq by eauto; eauto.
-      repeat rewrite sel_upd_ne by eauto; eauto.
+      unfold interp; eauto.
+
+      Focus 3.
+      (* label *)
+      unfold interp; eauto.
 
       (* call *)
-      openhyp.
-      unfold interp.
-      descend; eauto.
-
-      openhyp.
-      unfold interp.
-      descend; eauto.
+      unfold interp; eauto.
+      unfold interp; eauto.
     Qed.
 
     Theorem sound_runsto : forall env (s : StmtEx) v v' p v0, RunsTo env s v v' -> and_all (vc s p) -> interp p env v0 v -> interp (sp s p) env v0 v'.
@@ -243,9 +225,12 @@ Module Make (Import E : ADT).
       (* while *)
       inversion H; unfold_all; subst.
       left; descend.
-      (*here*)
+      eauto.
+      left; eauto.
+      left; eauto.
+      right; eauto.
 
-
+      destruct x; try discriminate; simpl in *; try inject.
       openhyp.
       unfold wneb.
       destruct (weq (eval (fst v) e) $0) in *.
@@ -253,7 +238,10 @@ Module Make (Import E : ADT).
       eauto.
       left.
       descend; eauto.
+      right.
+      descend; eauto.
       split; eauto.
+      right.
       eapply sound_runsto' with (p := and_lift a (is_true e)) in H4; eauto.
       descend.
       instantiate (1 := WhileEx _ e x).
@@ -264,15 +252,27 @@ Module Make (Import E : ADT).
       split; eauto.
 
       (* call *)
+      inversion H; unfold_all; subst.
+      left; descend; eauto.
+      right; descend; eauto.
+
+      destruct x; try discriminate; simpl in *; try inject.
       openhyp.
       eapply H0 in H1.
       unfold interp in *.
       inversion H1; unfold_all; subst.
+      left; descend; eauto.
+      right; descend; eauto.
 
+      (* label *)
+      inversion H; unfold_all; subst.
+      eauto.
 
-      destruct x0; try discriminate.
-      destruct x0; try discriminate.
-
+      destruct x0; try discriminate; simpl in *; try inject.
+      eapply H0 in H1.
+      unfold interp in *.
+      inversion H1; unfold_all; subst.
+      eauto.
     Qed.
 
   End TopSection.
