@@ -90,7 +90,7 @@ Qed.
 
 Hint Rewrite fact_step using solve [ eauto 2 ] : sepFormula.
 
-Lemma vcs_good : and_all (vc body empty_precond).
+Lemma vcs_good : forall env, and_all (vc body empty_precond) env.
   unfold empty_precond; cito_vcs body; words.
 Qed.
 
@@ -112,10 +112,23 @@ Local Hint Resolve final.
 Import LinkSpecMake.
 
 Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+  Ltac cito_runsto f pre := intros;
+    match goal with
+      | [ H : _ _ _ _ _ |- _ ] => unfold f, Body, Core in H;
+        eapply sound_runsto' with (p := pre) (s := Body f) in H; 
+          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
+            auto; openhyp; subst; simpl in *; intuition auto; unfold and_lift in *; openhyp
+    end.
+
   cito_runsto f empty_precond; eauto.
 Qed.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  Ltac cito_safe f body pre := intros;
+    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | eauto | .. ];
+      simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
+        auto; openhyp; subst; simpl in *; intuition auto.
+
   cito_safe f body empty_precond.
 Qed.
 

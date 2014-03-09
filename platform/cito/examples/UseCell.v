@@ -61,7 +61,11 @@ Notation "name @ [ p ]" := (name%stmtex, p) (only parsing).
 Require Import ExampleImpl.
 
 Definition modules := [[ gm ]].
-Definition imports := of_list [[ "ADT"!"SimpleCell_new" @ [SimpleCell_newSpec] ]].
+Definition imports := of_list [[ 
+                                  "ADT"!"SimpleCell_new" @ [SimpleCell_newSpec],
+                                  "ADT"!"SimpleCell_write" @ [SimpleCell_writeSpec],
+                                  "ADT"!"SimpleCell_read" @ [SimpleCell_readSpec]
+                              ]].
 
 Definition fspec := func_spec modules imports ("use_cell"!"use_cell")%stmtex f.
 
@@ -92,13 +96,74 @@ Definition empty_precond : assert := fun _ v0 v => v0 = v.
 Require Import WordFacts2 WordFacts5.
 Import LinkSpecMake.
 
-(*
-Lemma vcs_good : and_all (vc body empty_precond).
-  unfold empty_precond; cito_vcs body; words.
+Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> and_all (vc body empty_precond) (from_bedrock_label_map (Labels stn), fs stn).
+  unfold empty_precond.
+  Ltac cito_vcs body := unfold body; simpl;
+    unfold imply_close, and_lift, interp; simpl(* ; *)
+      (* firstorder cito'; auto *).
+
+  cito_vcs body.
+  intros; descend; intros; openhyp.
+  cito'.
+  econstructor.
+  simpl.
+  unfold from_bedrock_label_map.
+  unfold stn_good_to_use in *.
+  eapply H.
+  unfold imports in *.
+  right.
+  eapply mem_in_iff.
+  reflexivity.
+
+  Ltac inversion_RunsTo :=
+    change ProgramLogicMake.SemanticsMake.RunsTo with RunsTo in *;
+    match goal with
+      | H : RunsTo _ _ _ _ |- _ => inversion H; unfold_all; subst;simpl in *; clear H
+    end.
+
+  Ltac cito' :=
+    repeat (subst; simpl; selify; autorewrite with sepFormula in *; repeat inversion_RunsTo;
+      repeat match goal with
+               | [ H : _ |- _ ] => rewrite H
+             end).
+
+  cito'.
+  eapply SafeCallForeign; simpl.
+  unfold from_bedrock_label_map in *.
+  unfold fs_good_to_use in *.
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  unfold imports.
+  reflexivity.
+  instantiate (1 := nil).
+  eauto.
+  Require Import Semantics.
+  unfold good_inputs; descend; unfold disjoint_ptrs; simpl; eauto.
+  simpl; eauto.
+  
+  cito'.
+  unfold from_bedrock_label_map in *.
+  (*here*)
+  unfold fs_good_to_use in *.
+  eapply H0 in H6.
+  openhyp.
+  subst.
+  unfold modules in *; simpl in *.
+  openhyp; intuition.
+  subst.
+  unfold gm in *; simpl in *.
+  openhyp; intuition.
+  subst; simpl in *.
+
 Qed.
 
 Local Hint Immediate vcs_good.
 
+(*
 Theorem final : forall n x r,
   ($0 >= n)%word
   -> x = r ^* fact_w n
@@ -120,6 +185,15 @@ Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> 
   cito_safe f body empty_precond.
 Qed.
 *)
+
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  admit.
+Qed.
+
+Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' = snd v.
+  admit.
+Qed.
+
 Require Import Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
@@ -147,9 +221,6 @@ Theorem top_ok : moduleOk top.
   autorewrite with sepFormula.
   clear H7 H8.
   hiding ltac:(step auto_ext).
-  Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-    admit.
-  Qed.
   apply body_safe; eauto.
   hiding ltac:(step auto_ext).
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
@@ -159,9 +230,6 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' = snd v.
-    admit.
-  Qed.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
   change 100 with (wordToNat (sel (upd x2 "extra_stack" 100) "extra_stack")).
@@ -183,9 +251,9 @@ Qed.
 
 Import LinkMake.
 
-Definition link_with_adts m imports := result (m :: nil) imports opt_good.
+Definition link_with_adts modules imports := result modules imports opt_good.
 
-Definition all := link top (link_with_adts gm imports).
+Definition all := link top (link_with_adts [[gm]] imports).
 
 Theorem all_ok : moduleOk all.
 
@@ -193,11 +261,10 @@ Theorem all_ok : moduleOk all.
   Module Import LinkFactsMake := Make ExampleADT.
 
   Ltac impl_ok :=
-    unfold link_with_adts;
     match goal with
-      | |- moduleOk (result ?M ?I _) =>
+      | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
         let H := fresh in
-        assert (GoodToLink_bool M I = true); 
+        assert (GoodToLink_bool Modules Imports = true); 
           [ unfold GoodToLink_bool; simpl |
             eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
           ; eauto
@@ -217,5 +284,4 @@ Theorem all_ok : moduleOk all.
                    ].
 
   link0 top_ok.
-
 Qed.
