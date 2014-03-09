@@ -1,7 +1,7 @@
 BEDROCK := ../..
 
 MODULES := \
-	ListFacts1 ListFacts2 \
+	ListFacts1 ListFacts2 ListFacts3 \
 	SetoidListFacts \
 	FSetFacts1 \
 	FMapFacts1 FMapFacts2 \
@@ -54,7 +54,8 @@ MODULES := \
 	Link \
 	MakeADT MakeWrapper \
 	MaxFacts GetLocalVarsFacts \
-	IsGoodModule GoodModuleDec \
+	IsGoodModule GoodModuleFacts GoodModuleDec \
+	LinkFacts \
 	ProgramLogic \
 	Notations3 Notations4 \
 	WordFacts2 WordFacts3 WordFacts4 WordFacts5 \

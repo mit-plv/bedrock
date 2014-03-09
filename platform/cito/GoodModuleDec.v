@@ -13,15 +13,7 @@ Section TopSection.
   Open Scope bool_scope.
   Notation "! b" := (negb b) (at level 35).
 
-  Definition GoodModuleName_bool s := ! (prefix "_" s).
-
   Require Import List.
-
-  Fixpoint NoDup_bool A (eqb : A -> A -> bool) (ls : list A) {struct ls} :=
-    match ls with
-      | nil => false
-      | x :: xs => forallb (fun e => ! (eqb e x)) xs && NoDup_bool eqb xs
-    end.
 
   Require Import SyntaxModule.
 
@@ -43,12 +35,14 @@ Section TopSection.
   Definition NoUninitialized_bool (f : FuncCore) := true.
 
   Require Import Depth.
+  Require Import GoodModuleFacts.
+  Require Import ListFacts3.
 
   Definition GoodFunc_bool f := 
     let body := Body f in 
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
     let all_vars := ArgVars f ++ local_vars in
-    NoDup_bool string_eq (ArgVars f) &&
+    NoDup_bool string_bool (ArgVars f) &&
     NoUninitialized_bool f &&
     wellformed_bool body &&
     goodSize_bool (length local_vars + depth body).
@@ -58,44 +52,14 @@ Section TopSection.
   Definition GoodModule_bool (m : Module) :=
     GoodModuleName_bool (MName m) &&
     GoodFuncs_bool (map Core (Funcs m)) &&
-    NoDup_bool string_eq (map FName (Funcs m)).
+    NoDup_bool string_bool (map FName (Funcs m)).
 
   Require Import Bool.
   Require Import GeneralTactics.
   Require Import GeneralTactics2.
 
-  Lemma GoodModuleName_bool_sound : forall s, GoodModuleName_bool s = true -> IsGoodModuleName s.
-    unfold IsGoodModuleName, GoodModuleName_bool.
-    intros.
-    eapply negb_true_iff in H; eauto.
-  Qed.
-
   Require Import Program.Basics.
   Require Import GoodFunc.
-
-  Lemma NoDup_bool_sound : forall A eqb, (forall a b : A, eqb a b = true <-> a = b) -> forall ls, NoDup_bool eqb ls = true -> NoDup ls.
-    induction ls; simpl; intros.
-    intuition.
-    eapply andb_true_iff in H0.
-    openhyp.
-    econstructor.
-    nintro.
-    eapply forallb_forall in H0; eauto.
-    eapply negb_true_iff in H0.
-    replace (eqb a a) with true in H0.
-    intuition.
-    symmetry; eapply H; eauto.
-    eauto.
-  Qed.
-
-  Lemma NoDup_bool_string_eq_sound : forall ls, NoDup_bool string_eq ls = true -> NoDup ls.
-    intros.
-    eapply NoDup_bool_sound.
-    2 : eauto.
-    split; intros.
-    eapply string_eq_correct; eauto.
-    subst; eapply string_eq_true; eauto.
-  Qed.
 
   Lemma NoUninitialized_bool_sound : forall f, NoUninitialized_bool f = true -> NoUninitialized (ArgVars f) (RetVar f) (Body f).
     admit.
