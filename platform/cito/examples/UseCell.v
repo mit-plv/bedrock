@@ -32,7 +32,8 @@ Notation value := 42.
 Definition body := (
   "c" <-- DCall "ADT"!"SimpleCell_new" ();;
   DCall "ADT"!"SimpleCell_write"("c", value);;
-  "ret" <-- DCall "ADT"!"SimpleCell_read"("c")
+  "ret" <-- DCall "ADT"!"SimpleCell_read"("c");;
+  DCall "ADT"!"SimpleCell_delete"("c")
   )%stmtex.
 
 Definition f := (
@@ -64,7 +65,8 @@ Definition modules := [[ gm ]].
 Definition imports := of_list [[ 
                                   "ADT"!"SimpleCell_new" @ [SimpleCell_newSpec],
                                   "ADT"!"SimpleCell_write" @ [SimpleCell_writeSpec],
-                                  "ADT"!"SimpleCell_read" @ [SimpleCell_readSpec]
+                                  "ADT"!"SimpleCell_read" @ [SimpleCell_readSpec],
+                                  "ADT"!"SimpleCell_delete" @ [SimpleCell_deleteSpec]
                               ]].
 
 Definition fspec := func_spec modules imports ("use_cell"!"use_cell")%stmtex f.
@@ -144,21 +146,95 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   Require Import Semantics.
   unfold good_inputs; descend; unfold disjoint_ptrs; simpl; eauto.
   simpl; eauto.
+
+  econstructor.
+  simpl.
+  unfold from_bedrock_label_map.
+  eapply H.
+  unfold imports in *.
+  right.
+  eapply mem_in_iff.
+  reflexivity.
   
-  cito'.
+  inversion H4; unfold_all; subst; simpl in *; clear H4.
   unfold from_bedrock_label_map in *.
-  (*here*)
-  unfold fs_good_to_use in *.
-  eapply H0 in H6.
+
+  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+    intros; eapply sel_upd_eq; eauto.
+  Qed.
+
+  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+    intros; eapply sel_upd_ne; eauto.
+  Qed.
+
+  Ltac sel_upd_simpl :=
+    repeat 
+      match goal with
+        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+        | |- _ => rewrite sel_upd_eq by reflexivity
+        | |- _ => rewrite sel_upd_ne by discriminate
+        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+        | |- _ => rewrite sel_upd_eq' by reflexivity
+        | |- _ => rewrite sel_upd_ne' by discriminate
+      end.
+
+  assert (fs0 stn w = Some (Foreign SimpleCell_newSpec)).
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  unfold imports.
+  reflexivity.
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
+  sel_upd_simpl.
+  rewrite H1 in H7; intuition.
+  sel_upd_simpl.
+  rewrite H1 in H7; injection H7; intros; subst.
+  cito'.
   openhyp.
   subst.
-  unfold modules in *; simpl in *.
-  openhyp; intuition.
-  subst.
-  unfold gm in *; simpl in *.
-  openhyp; intuition.
-  subst; simpl in *.
-
+  unfold decide_ret in *; simpl in *.
+  eapply SafeCallForeign; simpl in *.
+  sel_upd_simpl.
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  unfold imports.
+  reflexivity.
+  sel_upd_simpl.
+  instantiate (1 := [[ (addr, inr (Cell 0)), ($42, inl ($42)) ]]).
+  eauto.
+  unfold good_inputs.
+  split.
+  unfold word_adt_match.
+  econstructor.
+  simpl.
+  Require Import WordMapFacts.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  eauto.
+  econstructor.
+  simpl.
+  eauto.
+  econstructor.
+  unfold disjoint_ptrs.
+  simpl.
+  NoDup.
+  simpl.
+  descend; eauto.
+(*here*)
+  admit.
+  admit.
+  admit.
+  admit.
+  eauto.
 Qed.
 
 Local Hint Immediate vcs_good.
