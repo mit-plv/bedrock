@@ -35,30 +35,35 @@ Require Import WordMap.
 
 Infix "==" := WordMap.Equal.
 Notation addw := WordMap.add.
+Notation Inw := WordMap.In.
 
 Notation "'Assert' [ p ]" := (AssertEx p%stmtex_inv) : stmtex_scope.
+
+Definition disj_add elt h' k v h := h' == @addw elt k v h /\ ~ Inw k h.
+
+Notation "h1 === k --> v ** h" := (disj_add h1 k v h) (at level 60).
 
 Definition body := (
   "c" <-- DCall "ADT"!"SimpleCell_new" ();;
   Assert [
     BEFORE(V, h)
     AFTER(V', h')
-    h' == addw (V' "c") (Cell 0) h];;
+    h' === (V' "c") --> (Cell 0) ** h ];;
   DCall "ADT"!"SimpleCell_write"("c", value);;
   Assert [
     BEFORE(V, h)
     AFTER(V', h')
-    h' == addw (V' "c") (Cell value) h];;
+    h' === (V' "c") --> (Cell value) ** h];;
   "ret" <-- DCall "ADT"!"SimpleCell_read"("c");;
   Assert [
     BEFORE(V, h)
     AFTER(V', h')
-    h' == addw (V' "c") (Cell value) h /\ V "ret" = value];;
+    h' === (V' "c") --> (Cell value) ** h /\ V' "ret" = value];;
   DCall "ADT"!"SimpleCell_delete"("c");;
   Assert [
     BEFORE(V, h)
     AFTER(V', h')
-    h' == h /\ V "ret" = value]
+    h' == h /\ V' "ret" = value]
   )%stmtex.
 
 Definition f := (
@@ -206,7 +211,10 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   subst; simpl in *.
   assert (triples = nil) by (destruct triples; simpl in *; intuition).
   subst; simpl in *.
+  split.
   reflexivity.
+  unfold separated in *.
+  openhyp; intuition.
 
   econstructor.
   eapply H.
@@ -233,6 +241,7 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold word_adt_match.
   econstructor.
   simpl.
+  destruct H1.
   rewrite H1.
   Require Import WordMapFacts.
   eapply find_mapsto_iff.
@@ -266,20 +275,23 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
 
   unfold PostCond in *; simpl in *.
   openhyp.
+  subst; simpl in *.
   assert (x = 0) by admit.
   assert (x1 = 42) by admit.
   assert (triples = [[
                          {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 0); ADTOut := Some (Cell 42)|},
                          {| Word := 42; ADTIn := inl $42; ADTOut := None |}
          ]]) by admit.
-  assert (ret = inl $0) by admit.
   subst; simpl in *.
   unfold store_out; simpl.
+  destruct H1.
+  split.
   rewrite H1.
   Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
     admit.
   Qed.
   eapply map_add_same_key.
+  eauto.
 
   Require Import GLabelMapFacts.
   econstructor.
@@ -307,6 +319,7 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold word_adt_match.
   econstructor.
   simpl.
+  destruct H1.
   rewrite H1.
   Require Import WordMapFacts.
   eapply find_mapsto_iff.
@@ -318,24 +331,11 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   NoDup.
   simpl.
   descend; eauto.
-(*here*)
 
-  Require Import WordMapFacts.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  eauto.
-  econstructor.
-  unfold disjoint_ptrs.
-  simpl.
-  NoDup.
-  unfold PreCond.
-  simpl.
-  descend; eauto.
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
+  unfold from_bedrock_label_map in *.
 
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-
-  assert (fs0 stn w1 = Some (Foreign SimpleCell_readSpec)).
+  assert (fs0 stn w = Some (Foreign SimpleCell_readSpec)).
   eapply H0.
   descend.
   eauto.
@@ -343,6 +343,35 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   descend.
   eauto.
   reflexivity.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  sel_upd_simpl; rewrite H3 in H7; intuition.
+  sel_upd_simpl; rewrite H3 in H7; injection H7; intros; subst.
+
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  assert (x = 42) by admit.
+  assert (triples = [[
+                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 42); ADTOut := Some (Cell 42)|}
+         ]]) by admit.
+  subst; simpl in *.
+  split.
+  unfold store_out; simpl.
+  destruct H1.
+  split.
+  rewrite H1.
+  eapply map_add_same_key.
+  eauto.
+  eauto.
+
+  Require Import GLabelMapFacts.
+  econstructor.
+  eapply H.
+  right; eapply mem_in_iff; reflexivity.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  unfold from_bedrock_label_map in *.
 
   eapply SafeCallForeign; simpl in *.
   sel_upd_simpl.
@@ -355,16 +384,15 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   reflexivity.
 
   sel_upd_simpl.
-  instantiate (1 := [[ (addr, _) ]]).
+  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 42)) ]]).
   eauto.
   unfold good_inputs.
   split.
   unfold word_adt_match.
   econstructor.
   simpl.
-  instantiate (1 := inr (Cell 42)).
-  simpl.
-  unfold store_out; simpl.
+  destruct H1.
+  rewrite H1.
   Require Import WordMapFacts.
   eapply find_mapsto_iff.
   eapply add_mapsto_iff.
@@ -373,48 +401,65 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold disjoint_ptrs.
   simpl.
   NoDup.
-  unfold PreCond.
   simpl.
   descend; eauto.
 
-  admit.
-  admit.
-  admit.
-  admit.
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
+  unfold from_bedrock_label_map in *.
+
+  assert (fs0 stn w = Some (Foreign SimpleCell_deleteSpec)).
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  reflexivity.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  sel_upd_simpl; rewrite H3 in H8; intuition.
+  sel_upd_simpl; rewrite H3 in H8; injection H8; intros; subst.
+
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  assert (triples = [[
+                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 42); ADTOut := None |}
+         ]]) by admit.
+  subst; simpl in *.
+  split.
+  unfold store_out; simpl.
+  destruct H1.
+  rewrite H1.
+  Lemma add_remove : forall elt m k v, ~ @Inw elt k m -> WordMap.remove k (addw k v m) == m.
+    admit.
+  Qed.
+  eapply add_remove; eauto.
+  eauto.
   eauto.
 Qed.
 
 Local Hint Immediate vcs_good.
 
-(*
-Theorem final : forall n x r,
-  ($0 >= n)%word
-  -> x = r ^* fact_w n
-  -> r = x.
-  intros; subst.
-  assert (n = $0) by (apply wordToNat_inj; nomega).
-  subst.
-  change (fact_w $0) with (natToW 1).
-  words.
-Qed.
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  Ltac cito_safe f body pre := intros;
+    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | eauto | .. ];
+      simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
+        auto; openhyp; subst; simpl in *; intuition auto.
 
-Local Hint Resolve final.
-
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  cito_runsto f empty_precond; eauto.
-Qed.
-
-Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   cito_safe f body empty_precond.
 Qed.
-*)
 
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  admit.
-Qed.
+Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
+  Ltac cito_runsto f pre := intros;
+    match goal with
+      | [ H : _ |- _ ] => unfold f, Body, Core in H;
+        eapply sound_runsto' with (p := pre) (s := Body f) in H;
+          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
+            auto; openhyp; subst; simpl in *; intuition auto; unfold and_lift in *; openhyp
+    end.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' = snd v.
-  admit.
+  cito_runsto f empty_precond.
 Qed.
 
 Require Import Inv.
@@ -456,10 +501,52 @@ Theorem top_ok : moduleOk top.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
   change 100 with (wordToNat (sel (upd x2 "extra_stack" 100) "extra_stack")).
-  apply is_state_out''''.
+  Theorem is_state_out''''' : forall vs h sp rp F e_stack e_stack' args,
+                               NoDup args
+                               -> ~List.In "rp" args
+                               -> ~List.In "extra_stack" args
+                               -> h == heap_empty
+                               -> (is_state sp rp e_stack e_stack' args
+                                            (vs, h) nil * mallocHeap 0) * F
+                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
+                                                                                                  * mallocHeap 0 * F.
+    Opaque mult.
+    intros.
+    unfold is_state.
+    unfold is_heap.
+    simpl.
+    set (InvMake.SemanticsMake.heap_elements _).
+    unfold InvMake.SemanticsMake.heap_elements in l.
+    assert (l = nil).
+    Import WordMapFacts.
+    assert (WordMap.cardinal h = 0).
+    rewrite H2.
+    reflexivity.
+    rewrite WordMap.cardinal_1 in H3.
+    subst l.
+    Lemma length_nil : forall A ls, @length A ls = 0 -> ls = nil.
+      destruct ls; simpl in *; intuition.
+    Qed.
+    eapply length_nil; eauto.
+    subst l.
+    rewrite H3.
+    replace (_ * array _ _ * _ * _ * _)%Sep with (is_state sp0 rp e_stack e_stack' args (vs, heap_empty) [[]]).
+    Focus 2.
+    unfold is_state.
+    unfold is_heap.
+    sepLemma.
+    clear H2 H3.
+    eapply is_state_out''''; eauto.
+    Transparent mult.
+  Qed.
+
+  apply is_state_out'''''.
   NoDup.
   NoDup.
   NoDup.
+  eauto.
+  
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
 
