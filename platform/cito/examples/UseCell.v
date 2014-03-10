@@ -12,6 +12,8 @@ Require Import Arith.
 Import ProgramLogicMake.
 Open Scope nat.
 
+Require Import ExampleImpl.
+
 Definition DirectCall x f args := (LabelEx "_f" f ;; CallEx x "_f" args)%stmtex.
 
 Notation "'DCall' f ()" := (DirectCall None f nil)
@@ -29,11 +31,34 @@ Notation "a ! b" := (a, b) (only parsing) : stmtex_scope.
 
 Notation value := 42.
 
+Require Import WordMap.
+
+Infix "==" := WordMap.Equal.
+Notation addw := WordMap.add.
+
+Notation "'Assert' [ p ]" := (AssertEx p%stmtex_inv) : stmtex_scope.
+
 Definition body := (
   "c" <-- DCall "ADT"!"SimpleCell_new" ();;
+  Assert [
+    BEFORE(V, h)
+    AFTER(V', h')
+    h' == addw (V' "c") (Cell 0) h];;
   DCall "ADT"!"SimpleCell_write"("c", value);;
+  Assert [
+    BEFORE(V, h)
+    AFTER(V', h')
+    h' == addw (V' "c") (Cell value) h];;
   "ret" <-- DCall "ADT"!"SimpleCell_read"("c");;
-  DCall "ADT"!"SimpleCell_delete"("c")
+  Assert [
+    BEFORE(V, h)
+    AFTER(V', h')
+    h' == addw (V' "c") (Cell value) h /\ V "ret" = value];;
+  DCall "ADT"!"SimpleCell_delete"("c");;
+  Assert [
+    BEFORE(V, h)
+    AFTER(V', h')
+    h' == h /\ V "ret" = value]
   )%stmtex.
 
 Definition f := (
@@ -58,8 +83,6 @@ Notation " [[ ]] " := nil.
 Notation " [[ x , .. , y ]] " := (cons x .. (cons y nil) ..).
 
 Notation "name @ [ p ]" := (name%stmtex, p) (only parsing).
-
-Require Import ExampleImpl.
 
 Definition modules := [[ gm ]].
 Definition imports := of_list [[ 
@@ -98,6 +121,27 @@ Definition empty_precond : assert := fun _ v0 v => v0 = v.
 Require Import WordFacts2 WordFacts5.
 Import LinkSpecMake.
 
+Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+  intros; eapply sel_upd_eq; eauto.
+Qed.
+
+Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+  intros; eapply sel_upd_ne; eauto.
+Qed.
+
+Ltac sel_upd_simpl :=
+  repeat 
+    match goal with
+      | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+      | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+      | |- _ => rewrite sel_upd_eq by reflexivity
+      | |- _ => rewrite sel_upd_ne by discriminate
+      | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+      | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+      | |- _ => rewrite sel_upd_eq' by reflexivity
+      | |- _ => rewrite sel_upd_ne' by discriminate
+    end.
+
 Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> and_all (vc body empty_precond) (from_bedrock_label_map (Labels stn), fs stn).
   unfold empty_precond.
   Ltac cito_vcs body := unfold body; simpl;
@@ -108,14 +152,9 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   intros; descend; intros; openhyp.
   cito'.
   econstructor.
-  simpl.
-  unfold from_bedrock_label_map.
-  unfold stn_good_to_use in *.
+  unfold from_bedrock_label_map, stn_good_to_use in *; simpl in *.
   eapply H.
-  unfold imports in *.
-  right.
-  eapply mem_in_iff.
-  reflexivity.
+  right; eapply mem_in_iff; reflexivity.
 
   Ltac inversion_RunsTo :=
     change ProgramLogicMake.SemanticsMake.RunsTo with RunsTo in *;
@@ -132,14 +171,12 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   cito'.
   eapply SafeCallForeign; simpl.
   unfold from_bedrock_label_map in *.
-  unfold fs_good_to_use in *.
   eapply H0.
   descend.
   eauto.
   right.
   descend.
   eauto.
-  unfold imports.
   reflexivity.
   instantiate (1 := nil).
   eauto.
@@ -147,38 +184,9 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold good_inputs; descend; unfold disjoint_ptrs; simpl; eauto.
   simpl; eauto.
 
-  econstructor.
-  simpl.
-  unfold from_bedrock_label_map.
-  eapply H.
-  unfold imports in *.
-  right.
-  eapply mem_in_iff.
-  reflexivity.
-  
-  inversion H4; unfold_all; subst; simpl in *; clear H4.
+  subst.
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
   unfold from_bedrock_label_map in *.
-
-  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-    intros; eapply sel_upd_eq; eauto.
-  Qed.
-
-  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-    intros; eapply sel_upd_ne; eauto.
-  Qed.
-
-  Ltac sel_upd_simpl :=
-    repeat 
-      match goal with
-        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-        | |- _ => rewrite sel_upd_eq by reflexivity
-        | |- _ => rewrite sel_upd_ne by discriminate
-        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-        | |- _ => rewrite sel_upd_eq' by reflexivity
-        | |- _ => rewrite sel_upd_ne' by discriminate
-      end.
 
   assert (fs0 stn w = Some (Foreign SimpleCell_newSpec)).
   eapply H0.
@@ -187,17 +195,26 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   right.
   descend.
   eauto.
-  unfold imports.
   reflexivity.
-  inversion H3; unfold_all; subst; simpl in *; clear H3.
-  sel_upd_simpl.
-  rewrite H1 in H7; intuition.
-  sel_upd_simpl.
-  rewrite H1 in H7; injection H7; intros; subst.
-  cito'.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  sel_upd_simpl; rewrite H1 in H6; intuition.
+  sel_upd_simpl; rewrite H1 in H6; injection H6; intros; subst.
+
+  unfold PostCond in *; simpl in *.
   openhyp.
-  subst.
-  unfold decide_ret in *; simpl in *.
+  subst; simpl in *.
+  assert (triples = nil) by (destruct triples; simpl in *; intuition).
+  subst; simpl in *.
+  reflexivity.
+
+  econstructor.
+  eapply H.
+  right; eapply mem_in_iff; reflexivity.
+  
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  unfold from_bedrock_label_map in *.
+
   eapply SafeCallForeign; simpl in *.
   sel_upd_simpl.
   eapply H0.
@@ -206,16 +223,17 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   right.
   descend.
   eauto.
-  unfold imports.
   reflexivity.
+
   sel_upd_simpl.
-  instantiate (1 := [[ (addr, inr (Cell 0)), ($42, inl ($42)) ]]).
+  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 0)), ($42, inl ($42)) ]]).
   eauto.
   unfold good_inputs.
   split.
   unfold word_adt_match.
   econstructor.
   simpl.
+  rewrite H1.
   Require Import WordMapFacts.
   eapply find_mapsto_iff.
   eapply add_mapsto_iff.
@@ -229,7 +247,136 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   NoDup.
   simpl.
   descend; eauto.
+
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
+  unfold from_bedrock_label_map in *.
+
+  assert (fs0 stn w = Some (Foreign SimpleCell_writeSpec)).
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  reflexivity.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  sel_upd_simpl; rewrite H3 in H7; intuition.
+  sel_upd_simpl; rewrite H3 in H7; injection H7; intros; subst.
+
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  assert (x = 0) by admit.
+  assert (x1 = 42) by admit.
+  assert (triples = [[
+                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 0); ADTOut := Some (Cell 42)|},
+                         {| Word := 42; ADTIn := inl $42; ADTOut := None |}
+         ]]) by admit.
+  assert (ret = inl $0) by admit.
+  subst; simpl in *.
+  unfold store_out; simpl.
+  rewrite H1.
+  Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
+    admit.
+  Qed.
+  eapply map_add_same_key.
+
+  Require Import GLabelMapFacts.
+  econstructor.
+  eapply H.
+  right; eapply mem_in_iff; reflexivity.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  unfold from_bedrock_label_map in *.
+
+  eapply SafeCallForeign; simpl in *.
+  sel_upd_simpl.
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  reflexivity.
+
+  sel_upd_simpl.
+  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 42)) ]]).
+  eauto.
+  unfold good_inputs.
+  split.
+  unfold word_adt_match.
+  econstructor.
+  simpl.
+  rewrite H1.
+  Require Import WordMapFacts.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  eauto.
+  econstructor.
+  unfold disjoint_ptrs.
+  simpl.
+  NoDup.
+  simpl.
+  descend; eauto.
 (*here*)
+
+  Require Import WordMapFacts.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  eauto.
+  econstructor.
+  unfold disjoint_ptrs.
+  simpl.
+  NoDup.
+  unfold PreCond.
+  simpl.
+  descend; eauto.
+
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+
+  assert (fs0 stn w1 = Some (Foreign SimpleCell_readSpec)).
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  reflexivity.
+
+  eapply SafeCallForeign; simpl in *.
+  sel_upd_simpl.
+  eapply H0.
+  descend.
+  eauto.
+  right.
+  descend.
+  eauto.
+  reflexivity.
+
+  sel_upd_simpl.
+  instantiate (1 := [[ (addr, _) ]]).
+  eauto.
+  unfold good_inputs.
+  split.
+  unfold word_adt_match.
+  econstructor.
+  simpl.
+  instantiate (1 := inr (Cell 42)).
+  simpl.
+  unfold store_out; simpl.
+  Require Import WordMapFacts.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  eauto.
+  econstructor.
+  unfold disjoint_ptrs.
+  simpl.
+  NoDup.
+  unfold PreCond.
+  simpl.
+  descend; eauto.
+
   admit.
   admit.
   admit.
