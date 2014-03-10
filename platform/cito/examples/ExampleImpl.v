@@ -173,7 +173,7 @@ Definition SimpleCell_newSpec : ForeignFuncSpec :=
 Definition SimpleCell_deleteSpec : ForeignFuncSpec := 
   {|
     PreCond := fun args => exists n, args = inr (Cell n) :: nil;
-    PostCond := fun args _ => exists n, args = (inr (Cell n), None) :: nil
+    PostCond := fun args ret => exists n r, args = (inr (Cell n), None) :: nil /\ ret = inl r
   |}.
 
 Definition SimpleCell_readSpec : ForeignFuncSpec := 
@@ -185,7 +185,8 @@ Definition SimpleCell_readSpec : ForeignFuncSpec :=
 Definition SimpleCell_writeSpec : ForeignFuncSpec := 
   {|
     PreCond := fun args => exists n n', args = inr (Cell n) :: inl n' :: nil;
-    PostCond := fun args _ => exists n n', args = (inr (Cell n), Some (Cell n')) :: (inl n', None) :: nil
+    PostCond := fun args ret => exists n n' r, args = (inr (Cell n), Some (Cell n')) :: (inl n', None) :: nil
+      /\ ret = inl r
   |}.
 
 Definition ArraySeq_newSpec : ForeignFuncSpec := 
@@ -198,7 +199,7 @@ Definition ArraySeq_newSpec : ForeignFuncSpec :=
 Definition ArraySeq_deleteSpec : ForeignFuncSpec := 
   {|
     PreCond := fun args => exists ws, args = inr (Arr ws) :: nil;
-    PostCond := fun args _ => exists ws, args = (inr (Arr ws), None) :: nil
+    PostCond := fun args ret => exists ws r, args = (inr (Arr ws), None) :: nil /\ ret = inl r
   |}.
 
 Definition ArraySeq_readSpec : ForeignFuncSpec := 
@@ -213,8 +214,8 @@ Definition ArraySeq_writeSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists ws n v, args = inr (Arr ws) :: inl n :: inl v :: nil
       /\ n < natToW (length ws);
-    PostCond := fun args _ => exists ws n v, args = (inr (Arr ws), Some (Arr (Array.upd ws n v)))
-      :: (inl n, None) :: (inl v, None) :: nil
+    PostCond := fun args ret => exists ws n v r, args = (inr (Arr ws), Some (Arr (Array.upd ws n v)))
+      :: (inl n, None) :: (inl v, None) :: nil /\ ret = inl r
   |}.
 
 Definition ListSet_newSpec : ForeignFuncSpec := 
@@ -226,7 +227,7 @@ Definition ListSet_newSpec : ForeignFuncSpec :=
 Definition ListSet_deleteSpec : ForeignFuncSpec := 
   {|
     PreCond := fun args => exists s, args = inr (FSet s) :: nil;
-    PostCond := fun args _ => exists s, args = (inr (FSet s), None) :: nil
+    PostCond := fun args ret => exists s r, args = (inr (FSet s), None) :: nil /\ ret = inl r
   |}.
 
 Definition ListSet_memSpec : ForeignFuncSpec := 
@@ -239,8 +240,8 @@ Definition ListSet_memSpec : ForeignFuncSpec :=
 Definition ListSet_addSpec : ForeignFuncSpec := 
   {|
     PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
-    PostCond := fun args _ => exists s n, args = (inr (FSet s), Some (FSet (WordSet.add n s)))
-      :: (inl n, None) :: nil
+    PostCond := fun args ret => exists s n r, args = (inr (FSet s), Some (FSet (WordSet.add n s)))
+      :: (inl n, None) :: nil /\ ret = inl r
   |}.
 
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
@@ -427,7 +428,7 @@ Theorem ok0 : moduleOk m0.
   descend; step auto_ext.
   descend; step auto_ext.
   descend; step auto_ext.
-  2: returnScalar.
+  2: returnScalar; eauto 10.
   simpl.
   make_toArray ("self" :: "n" :: "v" :: nil).
   step auto_ext.
