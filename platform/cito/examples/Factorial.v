@@ -49,7 +49,7 @@ Definition fspec :=
   cmodules [[ gm ]]
   definition f.
 
-Notation extra_stack := 100.
+Notation extra_stack := 40.
 
 Definition topS := SPEC reserving (4 + extra_stack)
   PREonly[_] mallocHeap 0.
@@ -133,7 +133,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 
   post.
-  call_cito 100 ("n" :: nil).
+  call_cito 40 ("n" :: nil).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.
   hiding ltac:(step auto_ext).
@@ -142,7 +142,7 @@ Theorem top_ok : moduleOk top.
   descend.
   eapply CompileExprs.change_hyp.
   Focus 2.
-  apply (@is_state_in''' (upd (upd x2 "extra_stack" 100) "n" input)).
+  apply (@is_state_in''' (upd (upd x2 "extra_stack" 40) "n" input)).
   autorewrite with sepFormula.
   hiding ltac:(step auto_ext).
   apply body_safe; eauto.
@@ -156,7 +156,7 @@ Theorem top_ok : moduleOk top.
   end.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
-  change 100 with (wordToNat (sel (upd (upd x2 "extra_stack" 100) "n" 5) "extra_stack")).
+  change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
   apply is_state_out''''.
   NoDup.
   NoDup.
