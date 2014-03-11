@@ -348,6 +348,45 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
   Qed.
 
+  Require Import WordMap.
+
+  Theorem is_state_out''''' : forall vs h sp rp F e_stack e_stack' args,
+                               NoDup args
+                               -> ~List.In "rp" args
+                               -> ~List.In "extra_stack" args
+                               -> WordMap.Equal h heap_empty
+                               -> (is_state sp rp e_stack e_stack' args
+                                            (vs, h) nil * mallocHeap 0) * F
+                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
+                                                                                                  * mallocHeap 0 * F.
+    intros.
+    unfold is_state.
+    unfold is_heap.
+    simpl.
+    set (InvMake.SemanticsMake.heap_elements _).
+    unfold InvMake.SemanticsMake.heap_elements in l.
+    assert (l = nil).
+    assert (WordMap.cardinal h = 0).
+    rewrite H2.
+    reflexivity.
+    rewrite WordMap.cardinal_1 in H3.
+    subst l.
+    Lemma length_nil : forall A ls, @length A ls = 0 -> ls = nil.
+      destruct ls; simpl in *; intuition.
+    Qed.
+    eapply length_nil; eauto.
+    subst l.
+    rewrite H3.
+    replace (_ * array _ _ * _ * _ * _)%Sep with (is_state sp rp e_stack e_stack' args (vs, heap_empty) nil).
+    Focus 2.
+    unfold is_state.
+    unfold is_heap.
+    sepLemma.
+    clear H2 H3.
+    eapply is_state_out''''; eauto.
+  Qed.
+
   Transparent mult.
 
   (* linking *)
@@ -369,8 +408,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Link.
   Module Import LinkMake := Link.Make E M.
 
-  Definition link_with_adts m := result (m :: nil) (empty _) opt_good.
-
   Require Import GeneralTactics2.
 
   Import LabelMapFacts.
@@ -383,24 +420,31 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import GLabelMap.
 
+  Definition link_with_adts modules imports := result modules imports opt_good.
+
+  Require Import LinkFacts.
+  Module Import LinkFactsMake := Make E.
+
   Ltac impl_ok :=
-    eapply result_ok; [ intuition | NoDup | hnf; simpl; tauto
-      | intros; match goal with
-                  | [ H : _ |- _ ] => eapply empty_in_iff in H; tauto
-                end ].
+    match goal with
+      | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
+        let H := fresh in
+        assert (GoodToLink_bool Modules Imports = true); 
+          [ unfold GoodToLink_bool; simpl |
+            eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
+          ; eauto
+    end.
 
   Ltac link0 ok1 :=
     eapply linkOk; [ eapply ok1 | impl_ok
-      | reflexivity
-      | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-        simpl; link_simp; eauto
-      | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-        simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
-          simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-            simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
-              unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
-                link_simp; eauto
-      | simpl; link_simp; eauto ].
+                     | reflexivity
+                     | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+                       simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
+                       simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+                       simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
+                       unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
+                       link_simp; eauto ..
+                   ].
 
   Ltac ok_simpl :=
     simpl Imports; simpl Exports; unfold CompileModuleMake.mod_name; unfold impl_module_name;
