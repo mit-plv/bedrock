@@ -107,7 +107,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Definition all := link top (link_with_adts gm).
+Definition all := link top (link_with_adts (gm :: nil) (empty _)).
 
 Theorem all_ok : moduleOk all.
   link0 top_ok.

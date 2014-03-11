@@ -14,21 +14,6 @@ Open Scope nat.
 
 Require Import ExampleImpl.
 
-Definition DirectCall x f args := (LabelEx "_f" f ;; CallEx x "_f" args)%stmtex.
-
-Notation "'DCall' f ()" := (DirectCall None f nil)
-  (no associativity, at level 95, f at level 0) : stmtex_scope.
-
-Notation "'DCall' f ( x1 , .. , xN )" := (DirectCall None f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr)
-  (no associativity, at level 95, f at level 0) : stmtex_scope.
- 
-Notation "x <-- 'DCall' f ()" := (DirectCall (Some x) f nil)
-  (no associativity, at level 95, f at level 0) : stmtex_scope.
-
-Notation "x <-- 'DCall' f ( x1 , .. , xN )" := (DirectCall (Some x) f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr) (no associativity, at level 95, f at level 0) : stmtex_scope.
-
-Notation "a ! b" := (a, b) (only parsing) : stmtex_scope.
-
 Notation value := 42.
 
 Require Import WordMap.
@@ -36,8 +21,6 @@ Require Import WordMap.
 Infix "==" := WordMap.Equal.
 Notation addw := WordMap.add.
 Notation Inw := WordMap.In.
-
-Notation "'Assert' [ p ]" := (AssertEx p%stmtex_inv) : stmtex_scope.
 
 Definition disj_add elt h' k v h := h' == @addw elt k v h /\ ~ Inw k h.
 
@@ -125,27 +108,6 @@ Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
 Require Import WordFacts2 WordFacts5.
 Import LinkSpecMake.
-
-Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-  intros; eapply sel_upd_eq; eauto.
-Qed.
-
-Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-  intros; eapply sel_upd_ne; eauto.
-Qed.
-
-Ltac sel_upd_simpl :=
-  repeat 
-    match goal with
-      | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-      | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-      | |- _ => rewrite sel_upd_eq by reflexivity
-      | |- _ => rewrite sel_upd_ne by discriminate
-      | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-      | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-      | |- _ => rewrite sel_upd_eq' by reflexivity
-      | |- _ => rewrite sel_upd_ne' by discriminate
-    end.
 
 Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> and_all (vc body empty_precond) (from_bedrock_label_map (Labels stn), fs stn).
   unfold empty_precond.
@@ -473,23 +435,10 @@ Qed.
 Local Hint Immediate vcs_good.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  Ltac cito_safe f body pre := intros;
-    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | eauto | .. ];
-      simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
-        auto; openhyp; subst; simpl in *; intuition auto.
-
   cito_safe f body empty_precond.
 Qed.
 
 Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  Ltac cito_runsto f pre := intros;
-    match goal with
-      | [ H : _ |- _ ] => unfold f, Body, Core in H;
-        eapply sound_runsto' with (p := pre) (s := Body f) in H;
-          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
-            auto; openhyp; subst; simpl in *; intuition auto; unfold and_lift in *; openhyp
-    end.
-
   cito_runsto f empty_precond.
 Qed.
 
@@ -532,46 +481,6 @@ Theorem top_ok : moduleOk top.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
   change 100 with (wordToNat (sel (upd x2 "extra_stack" 100) "extra_stack")).
-  Theorem is_state_out''''' : forall vs h sp rp F e_stack e_stack' args,
-                               NoDup args
-                               -> ~List.In "rp" args
-                               -> ~List.In "extra_stack" args
-                               -> h == heap_empty
-                               -> (is_state sp rp e_stack e_stack' args
-                                            (vs, h) nil * mallocHeap 0) * F
-                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
-                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
-                                                                                                  * mallocHeap 0 * F.
-    Opaque mult.
-    intros.
-    unfold is_state.
-    unfold is_heap.
-    simpl.
-    set (InvMake.SemanticsMake.heap_elements _).
-    unfold InvMake.SemanticsMake.heap_elements in l.
-    assert (l = nil).
-    Import WordMapFacts.
-    assert (WordMap.cardinal h = 0).
-    rewrite H2.
-    reflexivity.
-    rewrite WordMap.cardinal_1 in H3.
-    subst l.
-    Lemma length_nil : forall A ls, @length A ls = 0 -> ls = nil.
-      destruct ls; simpl in *; intuition.
-    Qed.
-    eapply length_nil; eauto.
-    subst l.
-    rewrite H3.
-    replace (_ * array _ _ * _ * _ * _)%Sep with (is_state sp0 rp e_stack e_stack' args (vs, heap_empty) [[]]).
-    Focus 2.
-    unfold is_state.
-    unfold is_heap.
-    sepLemma.
-    clear H2 H3.
-    eapply is_state_out''''; eauto.
-    Transparent mult.
-  Qed.
-
   apply is_state_out'''''.
   NoDup.
   NoDup.
@@ -590,39 +499,9 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Import LinkMake.
-
-Definition link_with_adts modules imports := result modules imports opt_good.
-
 Definition all := link top (link_with_adts [[gm]] imports).
 
 Theorem all_ok : moduleOk all.
-
-  Require Import LinkFacts.
-  Module Import LinkFactsMake := Make ExampleADT.
-
-  Ltac impl_ok :=
-    match goal with
-      | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
-        let H := fresh in
-        assert (GoodToLink_bool Modules Imports = true); 
-          [ unfold GoodToLink_bool; simpl |
-            eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
-          ; eauto
-    end.
-
-  Import LinkModuleImplsMake.
-
-  Ltac link0 ok1 :=
-    eapply linkOk; [ eapply ok1 | impl_ok
-      | reflexivity
-      | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-        simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
-          simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-            simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
-              unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
-                link_simp; eauto ..
-                   ].
 
   link0 top_ok.
 Qed.

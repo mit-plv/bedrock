@@ -16,6 +16,8 @@ Module Make (Import E : ADT).
 
   Infix ";;" := SeqEx : stmtex_scope.
 
+  Delimit Scope stmtex_scope with stmtex.
+
   Notation "'skip'" := SkipEx : stmtex_scope.
 
   Notation "'BEFORE' ( vs , h ) 'AFTER' ( vs' , h' ) p" :=
@@ -30,10 +32,45 @@ Module Make (Import E : ADT).
 
   Notation "x <- e" := (AssignEx x e%expr) : stmtex_scope.
 
-  Delimit Scope stmtex_scope with stmtex.
+  Notation "'Assert' [ p ]" := (AssertEx p%stmtex_inv) : stmtex_scope.
+
+  Definition DirectCall x f args := (LabelEx "_f" f ;; CallEx x "_f" args)%stmtex.
+
+  Notation "'DCall' f ()" := (DirectCall None f nil)
+                               (no associativity, at level 95, f at level 0) : stmtex_scope.
+
+  Notation "'DCall' f ( x1 , .. , xN )" := (DirectCall None f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr)
+                                             (no associativity, at level 95, f at level 0) : stmtex_scope.
+
+  Notation "x <-- 'DCall' f ()" := (DirectCall (Some x) f nil)
+                                     (no associativity, at level 95, f at level 0) : stmtex_scope.
+
+  Notation "x <-- 'DCall' f ( x1 , .. , xN )" := (DirectCall (Some x) f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr) (no associativity, at level 95, f at level 0) : stmtex_scope.
+
+  Notation "a ! b" := (a, b) (only parsing) : stmtex_scope.
 
   Local Close Scope expr.
 
+  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+    intros; eapply sel_upd_eq; eauto.
+  Qed.
+
+  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+    intros; eapply sel_upd_ne; eauto.
+  Qed.
+
+  Ltac sel_upd_simpl :=
+    repeat 
+      match goal with
+        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+        | |- _ => rewrite sel_upd_eq by reflexivity
+        | |- _ => rewrite sel_upd_ne by discriminate
+        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+        | |- _ => rewrite sel_upd_eq' by reflexivity
+        | |- _ => rewrite sel_upd_ne' by discriminate
+      end.
  
   Ltac selify :=
     repeat match goal with
@@ -64,18 +101,18 @@ Module Make (Import E : ADT).
     unfold imply_close, and_lift, interp; simpl;
       firstorder cito'; auto.
 
-  Ltac cito_runsto f pre := intros;
-    match goal with
-      | [ H : _ _ _ _ _ |- _ ] => unfold f, Body, Core in H;
-        eapply sound_runsto with (p := pre) in H;
-          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
-            auto; openhyp; subst; simpl in *; intuition auto
-    end.
-
   Ltac cito_safe f body pre := intros;
-    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | .. ];
+    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | eauto | .. ];
       simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
         auto; openhyp; subst; simpl in *; intuition auto.
+
+  Ltac cito_runsto f pre := intros;
+    match goal with
+      | [ H : _ |- _ ] => unfold f, Body, Core in H;
+        eapply sound_runsto' with (p := pre) (s := Body f) in H;
+          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
+            auto; openhyp; subst; simpl in *; intuition auto; unfold and_lift in *; openhyp
+    end.
 
   Theorem lt0_false : forall (n : string) env v v',
     is_false (0 < n)%expr env v v'
