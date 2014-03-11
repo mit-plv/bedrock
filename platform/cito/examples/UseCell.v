@@ -82,7 +82,7 @@ Definition imports := of_list [[
 
 Definition fspec := func_spec modules imports ("use_cell"!"use_cell")%stmtex f.
 
-Notation extra_stack := 100.
+Notation extra_stack := 20.
 
 Definition topS := SPEC reserving (4 + extra_stack)
   PREonly[_] mallocHeap 0.
@@ -456,7 +456,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 
   post.
-  call_cito 100 (@nil string).
+  call_cito 20 (@nil string).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.
   hiding ltac:(step auto_ext).
@@ -465,7 +465,7 @@ Theorem top_ok : moduleOk top.
   descend.
   eapply CompileExprs.change_hyp.
   Focus 2.
-  apply (@is_state_in''' (upd x2 "extra_stack" 100)).
+  apply (@is_state_in''' (upd x2 "extra_stack" 20)).
   autorewrite with sepFormula.
   clear H7 H8.
   hiding ltac:(step auto_ext).
@@ -480,7 +480,7 @@ Theorem top_ok : moduleOk top.
   end.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
-  change 100 with (wordToNat (sel (upd x2 "extra_stack" 100) "extra_stack")).
+  change 20 with (wordToNat (sel (upd x2 "extra_stack" 20) "extra_stack")).
   apply is_state_out'''''.
   NoDup.
   NoDup.

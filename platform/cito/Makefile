@@ -65,8 +65,8 @@ MODULES := \
 	examples/FiniteSet examples/ListSet \
 	examples/ExampleADT examples/ExampleRepInv examples/ExampleImpl \
 	examples/ReturnZero examples/ReturnZeroDriver \
-	examples/Factorial \
-	examples/UseCell \
+	examples/Factorial examples/FactorialDriver \
+	examples/UseCell examples/UseCellDriver \
 
 VS      := $(MODULES:%=%.v)
 
