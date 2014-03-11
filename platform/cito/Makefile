@@ -66,6 +66,7 @@ MODULES := \
 	examples/ExampleADT examples/ExampleRepInv examples/ExampleImpl \
 	examples/ReturnZero examples/ReturnZeroDriver \
 	examples/Factorial \
+	examples/UseCell \
 
 VS      := $(MODULES:%=%.v)
 

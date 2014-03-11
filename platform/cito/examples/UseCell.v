@@ -276,19 +276,41 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  assert (x = 0) by admit.
-  assert (x1 = 42) by admit.
-  assert (triples = [[
-                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 0); ADTOut := Some (Cell 42)|},
-                         {| Word := 42; ADTIn := inl $42; ADTOut := None |}
-         ]]) by admit.
+  Import SemanticsMake.
+  Fixpoint make_triples_2 words (in_outs : list (ArgIn * ArgOut)) :=
+    match words, in_outs with
+      | p :: ps, o :: os => {| Word := p; ADTIn := fst o; ADTOut := snd o |} :: make_triples_2 ps os
+      | _, _ => nil
+    end.
+
+  Lemma triples_intro : forall triples words in_outs, words = List.map (@Word _) triples -> List.map (fun x => (ADTIn x, ADTOut x)) triples = in_outs -> triples = make_triples_2 words in_outs.
+    induction triples; destruct words; destruct in_outs; simpl in *; intuition.
+    f_equal; intuition.
+    destruct a; destruct p; simpl in *.
+    injection H; injection H0; intros; subst.
+    eauto.
+  Qed.
+
+  Import Semantics.
+  eapply triples_intro in H2; try eassumption.
+  subst; simpl in *.
+  unfold good_inputs in *.
+  openhyp.
+  unfold word_adt_match in *.
+  Ltac inversion_Forall :=
+    repeat match goal with
+             | H : List.Forall _ _ |- _ => inversion H; subst; clear H
+           end.
+  inversion_Forall; simpl in *.
   subst; simpl in *.
   unfold store_out; simpl.
   destruct H1.
   split.
   rewrite H1.
   Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
-    admit.
+    unfold WordMap.Equal; intros.
+    repeat rewrite add_o.
+    destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
   Qed.
   eapply map_add_same_key.
   eauto.
@@ -351,18 +373,24 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  assert (x = 42) by admit.
-  assert (triples = [[
-                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 42); ADTOut := Some (Cell 42)|}
-         ]]) by admit.
+  eapply triples_intro in H4; try eassumption.
+  subst; simpl in *.
+  unfold good_inputs in *.
+  openhyp.
+  unfold word_adt_match in *.
+  inversion_Forall; simpl in *.
+  destruct H1.
+  rewrite H1 in H11.
+  Import WordMapFacts.
+  eapply find_mapsto_iff in H11.
+  eapply add_mapsto_iff in H11.
+  openhyp; intuition.
+  injection H10; intros; subst.
   subst; simpl in *.
   split.
   unfold store_out; simpl.
-  destruct H1.
-  split.
   rewrite H1.
   eapply map_add_same_key.
-  eauto.
   eauto.
 
   Require Import GLabelMapFacts.
@@ -423,16 +451,19 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  assert (triples = [[
-                         {| Word := sel (fst x0) "c"; ADTIn := inr (Cell 42); ADTOut := None |}
-         ]]) by admit.
+  eapply triples_intro in H2; try eassumption.
   subst; simpl in *.
   split.
   unfold store_out; simpl.
   destruct H1.
   rewrite H1.
   Lemma add_remove : forall elt m k v, ~ @Inw elt k m -> WordMap.remove k (addw k v m) == m.
-    admit.
+    unfold WordMap.Equal; intros.
+    rewrite remove_o.
+    rewrite add_o.
+    destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
+    subst.
+    symmetry; eapply not_find_in_iff; eauto.
   Qed.
   eapply add_remove; eauto.
   eauto.
