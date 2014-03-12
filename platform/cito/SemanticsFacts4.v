@@ -54,8 +54,8 @@ Module Make (Import E : ADT).
               let ret_a := snd t in
               separated heap ret_w ret_a /\
               let heap := heap_upd_option heap ret_w ret_a in
-              let vs := upd vs rvar ret_w in
-              v' = (vs, heap).
+              snd v' = heap /\
+              sel (fst v') rvar = ret_w.
 
     Ltac unfold_all :=
       repeat match goal with
@@ -88,9 +88,9 @@ Module Make (Import E : ADT).
       eapply IHRunsTo in H3.
       eapply H7 in H3; clear H7.
       openhyp.
-      injection H11; intros; subst.
-      rewrite sel_upd_eq by reflexivity.
       simpl in *.
+      subst.
+      rewrite H12.
       eapply RunsToCallForeign; eauto.
       congruence.
 
