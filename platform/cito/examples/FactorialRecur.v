@@ -55,7 +55,7 @@ Definition imports := empty ForeignFuncSpec.
 
 Definition fspec := func_spec modules imports ("fact"!"fact")%stmtex f.
 
-Notation extra_stack := 100.
+Notation extra_stack := 20.
 
 Definition topS := SPEC reserving (4 + extra_stack)
   PREonly[_] mallocHeap 0.
@@ -184,12 +184,6 @@ Lemma change_fs_good : forall fs stn, fs_good_to_use modules imports fs stn -> f
   eapply empty_mapsto_iff in H2; intuition.
 Qed.
 
-Lemma map_length_eq : forall A B ls1 ls2 (f : A -> B), List.map f ls1 = ls2 -> length ls1 = length ls2.
-  intros.
-  eapply f_equal with (f := @length _) in H.
-  simpl in *; rewrite map_length in *; eauto.
-Qed.
-
 Lemma stn_good : forall stn, stn_good_to_use modules imports stn -> from_bedrock_label_map (Labels stn) ("fact", "fact") <> None.
   intros.
   eapply H.
@@ -309,31 +303,12 @@ Lemma body_runsto' : forall stn fs v v', stn_good_to_use modules imports stn -> 
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  Fixpoint make_triples_2 words (in_outs : list (ArgIn * ArgOut)) :=
-    match words, in_outs with
-      | p :: ps, o :: os => {| Word := p; ADTIn := fst o; ADTOut := snd o |} :: make_triples_2 ps os
-      | _, _ => nil
-    end.
-
-  Lemma triples_intro : forall triples words in_outs, words = List.map (@Word _) triples -> List.map (fun x => (ADTIn x, ADTOut x)) triples = in_outs -> triples = make_triples_2 words in_outs.
-    induction triples; destruct words; destruct in_outs; simpl in *; intuition.
-    f_equal; intuition.
-    destruct a; destruct p; simpl in *.
-    injection H; injection H0; intros; subst.
-    eauto.
-  Qed.
-
   eapply triples_intro in H3; try eassumption.
   subst; simpl in *.
   Import Semantics.
   unfold good_inputs in *.
   openhyp.
   unfold word_adt_match in *.
-  Ltac inversion_Forall :=
-    repeat match goal with
-             | H : List.Forall _ _ |- _ => inversion H; subst; clear H
-           end.
-
   inversion_Forall; simpl in *.
   subst.
   unfold store_out in *; simpl in *.
@@ -436,7 +411,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 
   post.
-  call_cito 100 ("n" :: nil).
+  call_cito 20 ("n" :: nil).
   hiding ltac:(evaluate auto_ext).
   unfold name_marker.
   hiding ltac:(step auto_ext).
@@ -445,7 +420,7 @@ Theorem top_ok : moduleOk top.
   descend.
   eapply CompileExprs.change_hyp.
   Focus 2.
-  apply (@is_state_in''' (upd (upd x2 "extra_stack" 100) "n" input)).
+  apply (@is_state_in''' (upd (upd x2 "extra_stack" 20) "n" input)).
   autorewrite with sepFormula.
   hiding ltac:(step auto_ext).
   apply body_safe; eauto.
@@ -459,7 +434,7 @@ Theorem top_ok : moduleOk top.
   end.
   apply body_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
-  change 100 with (wordToNat (sel (upd (upd x2 "extra_stack" 100) "n" 5) "extra_stack")).
+  change 20 with (wordToNat (sel (upd (upd x2 "extra_stack" 20) "n" 5) "extra_stack")).
   apply is_state_out''''.
   NoDup.
   NoDup.
