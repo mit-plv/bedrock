@@ -15,10 +15,15 @@ Open Scope nat.
 Definition fact_w (w : W) := natToW (fact (wordToNat w)).
 
 Definition body := (
-  If ("n" <= 0) {
-    "ret" <- 1
+  If (0 < "n") {
+    "ret" <-- DCall "fact"!"fact" ("n" - 1);;
+    (* Assert [ *)
+    (*   BEFORE(V, h) *)
+    (*   AFTER(V', h') *)
+    (*   V' "ret" = fact_w (V "n" ^- $1) /\ h' = h ];; *)
+    "ret" <- "n" * "ret"
   } else {
-    "ret" <-- DCall "fact"!"fact" ("n" - 1)
+    "ret" <- 1
   }
   )%stmtex.
 
@@ -74,42 +79,6 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
 
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
-Require Import WordFacts2 WordFacts5.
-
-Lemma fact_step : forall n,
-  ($0 < n)%word
-  -> fact_w n = n ^* fact_w (n ^- $1).
-  intros.
-  unfold fact_w.
-  rewrite wordToNat_positive by assumption.
-  unfold fact at 1; fold fact.
-  rewrite <- wordToNat_positive by assumption.
-  unfold natToW; rewrite natToWord_mult.
-  rewrite natToWord_wordToNat.
-  reflexivity.
-Qed.
-
-Hint Rewrite fact_step using solve [ eauto 2 ] : sepFormula.
-(*
-Lemma vcs_good : forall env, and_all (vc body empty_precond) env.
-  unfold empty_precond; cito_vcs body; words.
-Qed.
-
-Local Hint Immediate vcs_good.
-*)
-Theorem final : forall n x r,
-  ($0 >= n)%word
-  -> x = r ^* fact_w n
-  -> r = x.
-  intros; subst.
-  assert (n = $0) by (apply wordToNat_inj; nomega).
-  subst.
-  change (fact_w $0) with (natToW 1).
-  words.
-Qed.
-
-Local Hint Resolve final.
-
 Import LinkSpecMake.
 
 Require Import SemanticsFacts4.
@@ -138,11 +107,6 @@ Definition fs_good_to_use' specs (fs : settings -> W -> option Callee) (stn : se
 
 Definition specs := add ("fact", "fact") (Foreign fact_spec) (empty _).
 
-Lemma body_runsto' : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use' specs fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  admit.
-(* cito_runsto f empty_precond; eauto. *)
-Qed.
-
 Definition dummy_gf : GoodFunction.
   refine (to_good_function f _).
   good_module.
@@ -152,7 +116,8 @@ Definition spec_op := hd dummy_gf (Functions gm).
 
 Definition specs_op := add ("fact", "fact") (Internal spec_op) (empty _).
 
-Lemma fs_good_gm : forall fs stn, fs_good_to_use [[gm]] (empty _) fs stn -> fs_good_to_use' specs_op fs stn.
+Lemma fs_good : forall fs stn, fs_good_to_use modules imports fs stn -> fs_good_to_use' specs_op fs stn.
+  unfold modules, imports.
   intros.
   unfold fs_good_to_use, fs_good_to_use' in *.
   split; intros.
@@ -187,9 +152,10 @@ Lemma fs_good_gm : forall fs stn, fs_good_to_use [[gm]] (empty _) fs stn -> fs_g
   eapply empty_mapsto_iff in H2; intuition.
 Qed.
 
-Lemma change_fs_good : forall fs stn, fs_good_to_use [[gm]] (empty ForeignFuncSpec) fs stn -> fs_good_to_use' specs (change_fs fs) stn.
+Lemma change_fs_good : forall fs stn, fs_good_to_use modules imports fs stn -> fs_good_to_use' specs (change_fs fs) stn.
+  unfold modules, imports.
   intros.
-  eapply fs_good_gm in H.
+  eapply fs_good in H.
   unfold fs_good_to_use', change_fs in *.
   split; intros.
   destruct (option_dec (fs0 stn p)).
@@ -224,14 +190,172 @@ Lemma map_length_eq : forall A B ls1 ls2 (f : A -> B), List.map f ls1 = ls2 -> l
   simpl in *; rewrite map_length in *; eauto.
 Qed.
 
-Lemma body_safe' : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use' specs fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  admit.
+Lemma stn_good : forall stn, stn_good_to_use modules imports stn -> from_bedrock_label_map (Labels stn) ("fact", "fact") <> None.
+  intros.
+  eapply H.
+  left; descend.
+  left; eauto.
+  unfold gm, to_good_module; simpl; eauto.
+  unfold gm, to_good_module; simpl; eauto.
 Qed.
 
-Lemma change_fs_strengthen : forall fs stn, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use [[gm]] (empty ForeignFuncSpec) fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
+Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use' specs fs stn -> and_all (vc body empty_precond) (from_bedrock_label_map (Labels stn), fs stn).
+  Ltac cito_vcs body := unfold body; simpl;
+    unfold imply_close, and_lift, interp; simpl(* ; *)
+      (* firstorder cito'; auto *).
+
+  Ltac inversion_RunsTo :=
+    change ProgramLogicMake.SemanticsMake.RunsTo with RunsTo in *;
+    match goal with
+      | H : RunsTo _ _ _ _ |- _ => inversion H; unfold_all; subst;simpl in *; clear H
+    end.
+
+  Ltac cito' :=
+    repeat (subst; simpl; selify; autorewrite with sepFormula in *; repeat inversion_RunsTo;
+      repeat match goal with
+               | [ H : _ |- _ ] => rewrite H
+             end).
+
+  unfold empty_precond.
+
+  cito_vcs body.
+  intros; descend; intros; openhyp.
+  cito'.
+  econstructor; simpl.
+  eapply stn_good; eauto.
+
+  subst.
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  unfold from_bedrock_label_map in *.
+
+  eapply SafeCallForeign; simpl in *.
+  sel_upd_simpl.
+  eapply H0.
+  descend; eauto.
+  unfold specs; simpl.
+  reflexivity.
+
+  sel_upd_simpl.
+  instantiate (1 := [[ (sel (fst x) "n" ^- $1, inl (sel (fst x) "n" ^- $1)) ]]).
+  eauto.
+  repeat constructor.
+  unfold PreCond; simpl.
+  descend; eauto.
+
+  eauto.
+Qed.
+
+Local Hint Immediate vcs_good.
+
+Require Import WordFacts2 WordFacts5.
+
+Lemma fact_step : forall n,
+  ($0 < n)%word
+  -> fact_w n = n ^* fact_w (n ^- $1).
+  intros.
+  unfold fact_w.
+  rewrite wordToNat_positive by assumption.
+  unfold fact at 1; fold fact.
+  rewrite <- wordToNat_positive by assumption.
+  unfold natToW; rewrite natToWord_mult.
+  rewrite natToWord_wordToNat.
+  reflexivity.
+Qed.
+
+Hint Rewrite fact_step using solve [ eauto 2 ] : sepFormula.
+
+Theorem final : forall n,
+  ($0 >= n)%word
+  -> $1 = fact_w n.
+  intros; subst.
+  assert (n = $0) by (apply wordToNat_inj; nomega).
+  subst.
+  change (fact_w $0) with (natToW 1).
+  words.
+Qed.
+
+Local Hint Resolve final.
+
+Lemma body_runsto' : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use' specs fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+  unfold modules, imports.
+
+  Ltac cito_runsto f pre := intros;
+    match goal with
+      | [ H : _ |- _ ] => unfold f, Body, Core in H;
+        eapply sound_runsto' with (p := pre) (s := Body f) in H;
+          simpl in *; try eapply vcs_good; simpl in *;
+            auto; openhyp; subst; simpl in *; (* intuition auto;  *)unfold empty_precond, and_lift, or_lift in *; openhyp; [ .. | eauto ]
+    end.
+
+  cito_runsto f empty_precond.
+  Focus 2.
+  cito'; eauto.
+
+  subst.
+  inversion H4; unfold_all; subst; simpl in *; clear H4.
+  unfold from_bedrock_label_map in *.
+
+  assert (fs0 stn w = Some (Foreign fact_spec)).
+  eapply H0.
+  descend.
+  eauto.
+  unfold specs; simpl.
+  reflexivity.
+
+  inversion H3; unfold_all; subst; simpl in *; clear H3.
+  sel_upd_simpl; rewrite H1 in H8; discriminate.
+  sel_upd_simpl; rewrite H1 in H8; injection H8; intros; subst.
+
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  Fixpoint make_triples_2 words (in_outs : list (ArgIn * ArgOut)) :=
+    match words, in_outs with
+      | p :: ps, o :: os => {| Word := p; ADTIn := fst o; ADTOut := snd o |} :: make_triples_2 ps os
+      | _, _ => nil
+    end.
+
+  Lemma triples_intro : forall triples words in_outs, words = List.map (@Word _) triples -> List.map (fun x => (ADTIn x, ADTOut x)) triples = in_outs -> triples = make_triples_2 words in_outs.
+    induction triples; destruct words; destruct in_outs; simpl in *; intuition.
+    f_equal; intuition.
+    destruct a; destruct p; simpl in *.
+    injection H; injection H0; intros; subst.
+    eauto.
+  Qed.
+
+  eapply triples_intro in H3; try eassumption.
+  subst; simpl in *.
+  Import Semantics.
+  unfold good_inputs in *.
+  openhyp.
+  unfold word_adt_match in *.
+  Ltac inversion_Forall :=
+    repeat match goal with
+             | H : List.Forall _ _ |- _ => inversion H; subst; clear H
+           end.
+
+  inversion_Forall; simpl in *.
+  subst.
+  unfold store_out in *; simpl in *.
+
+  inversion H2; unfold_all; subst; simpl in *; clear H2.
+  sel_upd_simpl.
+  split.
+  symmetry; eapply fact_step; eauto.
+  eauto.
+
+Qed.
+
+Lemma body_safe' : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use' specs fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  unfold modules, imports.
+  cito_safe f body empty_precond.
+Qed.
+
+Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
+  unfold modules, imports.
   intros.
   generalize H0; intro.
-  eapply fs_good_gm in H0.
+  eapply fs_good in H0.
   unfold fs_good_to_use' in *.
   unfold strengthen.
   split.
@@ -282,7 +406,7 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use (gm :: nil) (empty _
   eauto.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   intros.
   eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
   eapply body_runsto'; eauto.
@@ -290,7 +414,7 @@ Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) st
   eapply change_fs_strengthen; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   intros.
   eapply strengthen_safe.
   eapply body_safe'; eauto.

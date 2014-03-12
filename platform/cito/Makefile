@@ -68,6 +68,7 @@ MODULES := \
 	examples/ReturnZero examples/ReturnZeroDriver \
 	examples/Factorial examples/FactorialDriver \
 	examples/UseCell examples/UseCellDriver \
+	examples/FactorialRecur \
 
 VS      := $(MODULES:%=%.v)
 
