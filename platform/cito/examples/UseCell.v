@@ -239,30 +239,12 @@ Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_t
   openhyp.
   subst; simpl in *.
   Import SemanticsMake.
-  Fixpoint make_triples_2 words (in_outs : list (ArgIn * ArgOut)) :=
-    match words, in_outs with
-      | p :: ps, o :: os => {| Word := p; ADTIn := fst o; ADTOut := snd o |} :: make_triples_2 ps os
-      | _, _ => nil
-    end.
-
-  Lemma triples_intro : forall triples words in_outs, words = List.map (@Word _) triples -> List.map (fun x => (ADTIn x, ADTOut x)) triples = in_outs -> triples = make_triples_2 words in_outs.
-    induction triples; destruct words; destruct in_outs; simpl in *; intuition.
-    f_equal; intuition.
-    destruct a; destruct p; simpl in *.
-    injection H; injection H0; intros; subst.
-    eauto.
-  Qed.
-
   Import Semantics.
   eapply triples_intro in H2; try eassumption.
   subst; simpl in *.
   unfold good_inputs in *.
   openhyp.
   unfold word_adt_match in *.
-  Ltac inversion_Forall :=
-    repeat match goal with
-             | H : List.Forall _ _ |- _ => inversion H; subst; clear H
-           end.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   unfold store_out; simpl.

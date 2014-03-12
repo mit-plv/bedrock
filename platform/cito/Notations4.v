@@ -135,4 +135,35 @@ Module Make (Import E : ADT).
   Qed.
 
   Hint Immediate lt0_false lt0_true.
+
+  Import List.
+
+  Lemma map_length_eq : forall A B ls1 ls2 (f : A -> B), List.map f ls1 = ls2 -> length ls1 = length ls2.
+    intros.
+    eapply f_equal with (f := @length _) in H.
+    simpl in *; rewrite map_length in *; eauto.
+  Qed.
+
+  Import Semantics.
+  Import SemanticsMake.
+
+  Fixpoint make_triples_2 words (in_outs : list (ArgIn * ArgOut)) :=
+    match words, in_outs with
+      | p :: ps, o :: os => {| Word := p; ADTIn := fst o; ADTOut := snd o |} :: make_triples_2 ps os
+      | _, _ => nil
+    end.
+
+  Lemma triples_intro : forall triples words in_outs, words = List.map (@Word _) triples -> List.map (fun x => (ADTIn x, ADTOut x)) triples = in_outs -> triples = make_triples_2 words in_outs.
+    induction triples; destruct words; destruct in_outs; simpl in *; intuition.
+    f_equal; intuition.
+    destruct a; destruct p; simpl in *.
+    injection H; injection H0; intros; subst.
+    eauto.
+  Qed.
+
+  Ltac inversion_Forall :=
+    repeat match goal with
+             | H : List.Forall _ _ |- _ => inversion H; subst; clear H
+           end.
+
 End Make.
