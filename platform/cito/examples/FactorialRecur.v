@@ -112,9 +112,89 @@ Local Hint Resolve final.
 
 Import LinkSpecMake.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Require Import SemanticsFacts4.
+Module Import SemanticsFacts4Make := Make ExampleADT.
+
+Definition fact_spec : ForeignFuncSpec :=
+  {|
+    PreCond := fun args => exists n, args = inl n :: nil;
+    PostCond := fun args ret => exists n, args = (inl n, None) :: nil
+                                          /\ ret = inl (fact_w n)
+  |}.
+
+Definition change_fs (fs : settings -> W -> option Callee) : settings -> W -> option Callee := 
+  fun stn w =>
+    match fs stn w with
+      | None => None
+      | Some _ => Some (Foreign fact_spec)
+    end.
+
+Definition fs_good_to_use' specs (fs : settings -> W -> option Callee) (stn : settings) :=
+  forall p spec, 
+    fs stn p = Some spec <-> 
+    exists lbl : glabel,
+      Labels stn lbl = Some p /\
+      find lbl specs = Some spec.
+
+Definition specs := add ("fact", "fact") (Foreign fact_spec) (empty _).
+
+Lemma body_runsto' : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use' specs fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   admit.
-  (* cito_runsto f empty_precond; eauto. *)
+(* cito_runsto f empty_precond; eauto. *)
+Qed.
+
+Lemma change_fs_good : forall fs stn, fs_good_to_use [[gm]] (empty ForeignFuncSpec) fs stn -> fs_good_to_use' specs (change_fs fs) stn.
+  admit.
+Qed.
+
+Lemma change_fs_strengthen : forall fs stn, fs_good_to_use [[gm]] (empty ForeignFuncSpec) fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
+  intros.
+  unfold fs_good_to_use in *.
+  unfold strengthen.
+  split.
+  eauto.
+  unfold change_fs.
+  simpl.
+  intros.
+  destruct (option_dec (fs0 stn w)); simpl in *.
+  destruct s; rewrite e in *; simpl in *.
+  eapply H in e.
+  openhyp.
+  Focus 2.
+  intuition.
+  Focus 2.
+  rewrite empty_o in H2.
+  intuition.
+  Focus 2.
+  rewrite e in *; simpl in *.
+  eauto.
+  subst.
+  Set Printing Coercions.
+  unfold to_internal_func_spec in *; simpl in *.
+  unfold gm in *; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst; simpl in *.
+  right; descend.
+  eauto.
+  eauto.
+  simpl.
+  descend.
+  unfold PreCond in *; simpl in *.
+  openhyp.
+  eapply f_equal with (f := @length _) in H1.
+  simpl in *.
+  rewrite map_length in *.
+  eauto.
+  (*here*)
+Qed.
+
+Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+  intros.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
+  eapply body_runsto'; eauto.
+  eapply change_fs_good; eauto.
+  eapply change_fs_strengthen; eauto.
 Qed.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
