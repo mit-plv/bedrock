@@ -56,6 +56,7 @@ MODULES := \
 	MaxFacts GetLocalVarsFacts \
 	IsGoodModule GoodModuleFacts GoodModuleDec \
 	LinkFacts \
+	GeneralTactics3 BedrockTactics Transit \
 	ProgramLogic ProgramLogic2 \
 	LinkSpecFacts \
 	Notations3 Notations4 \
