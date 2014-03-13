@@ -51,6 +51,16 @@ Module Make (Import E : ADT).
       eauto.
     Qed.
 
+    Lemma TransitTo_RunsTo : forall r f args env spec v v', let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall ret, TransitTo spec (List.map (eval (fst v)) args) (snd v) ret (snd v') -> fst v' = upd_option (fst v) r ret -> RunsTo env (Syntax.Call r f args) v v'.
+      simpl.
+      intros.
+      destruct v; destruct v'; simpl in *.
+      unfold TransitTo in *; simpl in *.
+      openhyp.
+      subst; simpl in *.
+      eapply RunsToCallForeign; eauto.
+    Qed.
+
     Definition TransitSafe spec args heap :=
       exists pairs,
         args = List.map fst pairs /\
@@ -62,6 +72,15 @@ Module Make (Import E : ADT).
       unfold TransitSafe in *.
       openhyp.
       eapply SafeCallForeign; simpl; eauto.
+    Qed.
+
+    Lemma Safe_TransitSafe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall r, Safe env (Syntax.Call r f args) v -> TransitSafe spec (List.map (eval (fst v)) args) (snd v).
+      simpl; intros.
+      inv_clear H0.
+      rewrite H in H4; discriminate.
+      rewrite H in H4; injection H4; intros; subst.
+      unfold TransitSafe in *.
+      descend; eauto.
     Qed.
 
   End TopSection.
