@@ -244,6 +244,13 @@ Definition ListSet_addSpec : ForeignFuncSpec :=
       :: (inl n, None) :: nil /\ ret = inl r
   |}.
 
+Definition ListSet_sizeSpec : ForeignFuncSpec := 
+  {|
+    PreCond := fun args => exists s, args = inr (FSet s) :: nil;
+    PostCond := fun args ret => exists s, ret = inl (WordSet.cardinal s : W)
+      /\ args = (inr (FSet s), Some (FSet s)) :: nil
+  |}.
+
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "SimpleCell"!"new" @ [SimpleCell.newS],
                             "SimpleCell"!"delete" @ [SimpleCell.deleteS],
@@ -256,7 +263,8 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "ListSet"!"new" @ [ListSet.newS],
                             "ListSet"!"delete" @ [ListSet.deleteS],
                             "ListSet"!"mem" @ [ListSet.memS],
-                            "ListSet"!"add" @ [ListSet.addS] ]]
+                            "ListSet"!"add" @ [ListSet.addS],
+                            "ListSet"!"size" @ [ListSet.sizeS] ]]
   fmodule "ADT" {{
     ffunction "SimpleCell_new" reserving 8 [SimpleCell_newSpec] := "SimpleCell"!"new"
     with ffunction "SimpleCell_delete" reserving 6 [SimpleCell_deleteSpec] := "SimpleCell"!"delete"
@@ -270,10 +278,12 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "ListSet_delete" reserving 7 [ListSet_deleteSpec] := "ListSet"!"delete"
     with ffunction "ListSet_mem" reserving 1 [ListSet_memSpec] := "ListSet"!"mem"
     with ffunction "ListSet_add" reserving 9 [ListSet_addSpec] := "ListSet"!"add"
+    with ffunction "ListSet_size" reserving 1 [ListSet_sizeSpec] := "ListSet"!"size"
   }}.
 
 Theorem ok0 : moduleOk m0.
   vcgen.
+
 
   (* SimpleCell *)
 
@@ -519,8 +529,29 @@ Theorem ok0 : moduleOk m0.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_FSet ] ].
   do_delegate2 ("self" :: "n" :: nil).
 
+  (* size *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval; intro.
+  step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_FSet ] ].
+  do_delegate2 ("self" :: nil).
+
 
   Grab Existential Variables.
+  exact 0.
   exact 0.
   exact 0.
 Qed.
