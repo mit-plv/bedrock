@@ -185,16 +185,16 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
   eapply empty_mapsto_iff in H3; intuition.
 Qed.
 
+Import ProgramLogicMake.SemanticsMake.
+
+Ltac destruct_state :=
+  repeat match goal with
+           | [ x : State |- _ ] => destruct x; simpl in *
+         end.
+
 Lemma vcs_good : and_all (vc body empty_precond) specs.
   Ltac cito_vcs body := unfold body; simpl;
     unfold imply_close, and_lift, interp; simpl.
-
-  Import ProgramLogicMake.SemanticsMake.
-
-  Ltac destruct_state :=
-    repeat match goal with
-             | [ x : State |- _ ] => destruct x; simpl in *
-           end.
 
   unfold empty_precond.
 
@@ -208,8 +208,9 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   simpl.
   intros.
   destruct_state.
-  unfold TransitSafe.
+  unfold ProgramLogicMake.TransitMake.TransitSafe.
   descend.
+  Require Import BedrockTactics.
   sel_upd_simpl.
   instantiate (1 := [[ (sel v "n" ^- $1, inl (sel v "n" ^- $1)) ]]).
   eauto.
@@ -262,13 +263,14 @@ Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (B
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
-  unfold TransitTo in *.
+  unfold ProgramLogicMake.TransitMake.TransitTo in *.
   openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
   eapply triples_intro in H5; try eassumption.
   subst; simpl in *.
+  Import ProgramLogicMake.TransitMake.SemanticsMake.
   unfold store_out, Semantics.store_out in *; simpl in *.
   unfold good_inputs, Semantics.good_inputs in *.
   openhyp.
@@ -316,14 +318,17 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   eauto.
   simpl in *.
   openhyp.
-  descend.
-  erewrite map_length_eq; eauto.
+  rewrite H3.
   eauto.
+  simpl in *.
   eapply body_safe'; eauto.
   eapply change_fs_agree; eauto.
   eapply body_runsto' in H3; eauto.
-  2 : eapply change_fs_agree; eauto.
+  Focus 2.
+  eapply change_fs_agree; eauto.
+  simpl.
   openhyp.
+  unfold TransitMake.TransitTo.
   descend.
   instantiate (1 := [[ {| Word := sel (fst v) "n"; ADTIn := inl (sel (fst v) "n"); ADTOut := None |} ]]).
   eauto.
@@ -332,10 +337,9 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   descend; eauto.
   repeat econstructor.
   simpl.
-  Import SemanticsMake.
+  Import TransitMake.SemanticsMake.
   unfold store_out, Semantics.store_out; simpl; eauto.
   unfold f in *; simpl in *.
-  rewrite H3.
   eauto.
   intuition.
   intuition.

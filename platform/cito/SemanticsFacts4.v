@@ -6,6 +6,8 @@ Module Make (Import E : ADT).
 
   Require Import AutoSep.
 
+  Require Import Transit.
+  Module Import TransitMake := Make E.
   Require Import Semantics.
   Module Import SemanticsMake := Make E.
 
@@ -30,42 +32,22 @@ Module Make (Import E : ADT).
           let args := ArgVars spec_op in
           let rvar := RetVar spec_op in
           let s := Body spec_op in
-          (forall pairs, 
-             PreCond spec_ax (map snd pairs) ->
-             length args = length pairs /\
-             (forall v,
-                let vs := fst v in
-                let heap := snd v in
-                map (sel vs) args = map fst pairs ->
-                good_inputs heap pairs ->
-                Safe env_ax s v)) /\
+          (forall ins, 
+             PreCond spec_ax ins ->
+             length args = length ins) /\
+          (forall v,
+             TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
+             Safe env_ax s v) /\
           forall v v', 
             RunsTo env_ax s v v' -> 
-            exists triples addr ret,
-              let vs := fst v in
-              let heap := snd v in
-              map (sel vs) args = map (@Word _) triples /\
-              good_inputs heap (map (fun x => (Word x, ADTIn x)) triples) /\
-              PreCond spec_ax (map (@ADTIn _) triples) /\
-              PostCond spec_ax (map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
-              let heap := fold_left store_out triples heap in
-              let t := decide_ret addr ret in
-              let ret_w := fst t in
-              let ret_a := snd t in
-              separated heap ret_w ret_a /\
-              let heap := heap_upd_option heap ret_w ret_a in
-              snd v' = heap /\
-              sel (fst v') rvar = ret_w.
-
-    Ltac unfold_all :=
-      repeat match goal with
-               | H := _ |- _ => unfold H in *; clear H
-             end.
+            TransitTo spec_ax (map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
 
     Hint Unfold RunsTo.
     Hint Constructors Semantics.RunsTo.
     Hint Unfold Safe.
     Hint Constructors Semantics.Safe.
+
+    Require Import GeneralTactics GeneralTactics3.
 
     Lemma strengthen_runsto : forall env_op s v v', RunsTo env_op s v v' -> forall env_ax, strengthen env_op env_ax -> RunsTo env_ax s v v'.
       induction 1; simpl; intros; unfold_all.
@@ -73,7 +55,6 @@ Module Make (Import E : ADT).
       Focus 7.
       (* call internal *)
       generalize H2; intro.
-      Require Import GeneralTactics.
       unfold strengthen in H2; openhyp.
       destruct (H4 (eval (fst v) f)); clear H4.
 
@@ -86,13 +67,14 @@ Module Make (Import E : ADT).
       destruct env_ax; destruct env_op; simpl in *.
       rewrite H in H4; injection H4; intros; subst.
       eapply IHRunsTo in H3.
-      eapply H7 in H3; clear H7.
-      openhyp.
+      eapply H8 in H3; clear H8.
       simpl in *.
-      subst.
-      rewrite H12.
-      eapply RunsToCallForeign; eauto.
-      congruence.
+      eapply TransitTo_RunsTo; eauto.
+      simpl in *.
+      rewrite <- H0.
+      eauto.
+      simpl.
+      eauto.
 
       Focus 7.
       (* call foreign *)
@@ -174,13 +156,14 @@ Module Make (Import E : ADT).
       rewrite H4 in H3; injection H3; intros; subst.
       left; descend; eauto.
       Focus 2.
-      eapply H6; simpl; eauto.
-      rewrite H10.
-      eauto.
+      eapply H9; simpl; eauto.
+      rewrite H11.
+      unfold TransitSafe.
+      descend; eauto.
+      erewrite H6; eauto.
       eapply f_equal with (f := @length _) in H5.
       repeat rewrite map_length in *.
-      rewrite H5.
-      eapply H6; eauto.
+      eauto.
       
       (* seq *)
       inversion H; unfold_all; subst.

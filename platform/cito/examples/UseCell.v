@@ -198,6 +198,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold SafeDCall.
   simpl.
   intros.
+  Import TransitMake.
   unfold TransitSafe.
   descend.
   instantiate (1 := nil).
@@ -223,8 +224,10 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   rewrite H0.
   subst.
   split.
+  Require Import BedrockTactics.
   sel_upd_simpl.
   reflexivity.
+  Import SemanticsMake.
   unfold separated, Semantics.separated in *.
   openhyp; intuition.
 
