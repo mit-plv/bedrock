@@ -73,18 +73,29 @@ Module Make (Import E : ADT).
     unfold imply_close, and_lift, interp; simpl;
       firstorder cito'; auto.
 
-  Ltac cito_safe f body pre := intros;
-    unfold f, body, Body, Core; eapply sound_safe with (p := pre); [ reflexivity | eauto | .. ];
-      simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
-        auto; openhyp; subst; simpl in *; intuition auto.
-
-  Ltac cito_runsto f pre := intros;
-    match goal with
-      | [ H : _ |- _ ] => unfold f, Body, Core in H;
-        eapply sound_runsto' with (p := pre) (s := Body f) in H;
-          simpl in *; try unfold pre in *; unfold imply_close, and_lift, interp in *; simpl in *;
-            auto; openhyp; subst; simpl in *; intuition auto; unfold and_lift in *; openhyp
+  Ltac solve_vcs vcs_good :=
+    match goal with 
+      | |- and_all _ _ => eapply vcs_good 
+      | |- _ => idtac 
     end.
+
+  Ltac cito_runsto f pre vcs_good := 
+    intros;
+    match goal with
+      | [ H : _ |- _ ] => 
+        unfold f, Body, Core in H;
+          eapply sound_runsto' with (p := pre) (s := Body f) in H; 
+          solve_vcs vcs_good
+          ; simpl in *;
+          auto; openhyp; subst; simpl in *; unfold pre, and_lift, or_lift in *; openhyp
+    end.
+
+  Ltac cito_safe f pre vcs_good := 
+    intros;
+    unfold f, Body, Core; eapply sound_safe with (p := pre); 
+    solve_vcs vcs_good
+    ; simpl in *; try unfold pre in *; unfold pre, imply_close, and_lift in *; simpl in *;
+    auto; openhyp; subst; simpl in *.
 
   Theorem lt0_false : forall (n : string) env v v',
     is_false (0 < n)%expr env v v'

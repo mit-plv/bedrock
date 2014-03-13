@@ -57,6 +57,7 @@ MODULES := \
 	IsGoodModule GoodModuleFacts GoodModuleDec \
 	LinkFacts \
 	ProgramLogic ProgramLogic2 \
+	LinkSpecFacts \
 	Notations3 Notations4 \
 	WordFacts2 WordFacts3 WordFacts4 WordFacts5 \
 	SemanticsFacts4 \

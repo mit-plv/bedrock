@@ -113,11 +113,58 @@ Definition spec_op := hd dummy_gf (Functions gm).
 
 Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign imports).
 
+Import LinkSpecMake.
+Require Import LinkSpecFacts.
+Module Import LinkSpecFactsMake := Make ExampleADT.
+Import Notations4Make.
+
+Lemma specs_good : specs_equal specs modules imports.
+  split; intros.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff in H.
+  eapply add_mapsto_iff in H.
+  openhyp.
+  subst; simpl in *.
+  left; descend; eauto.
+  unfold spec_op, gm; simpl; eauto.
+
+  eapply map_mapsto_iff in H0.
+  openhyp.
+  subst; simpl in *.
+  right; descend; eauto.
+  eapply find_mapsto_iff; eauto.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  openhyp.
+  subst; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst.
+  left.
+  unfold spec_op, gm, to_good_module in *; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst; simpl in *.
+  eauto.
+
+  subst; simpl in *.
+  right; descend; eauto.
+  Require Import GeneralTactics2.
+  nintro.
+  subst; simpl in *.
+  compute in H0.
+  intuition.
+  eapply map_mapsto_iff.
+  descend; eauto.
+  eapply find_mapsto_iff; eauto.
+Qed.
+
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
 Require Import WordFacts2 WordFacts5.
-Import LinkSpecMake.
-
 Require Import WordMapFacts.
 
 Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
@@ -335,134 +382,16 @@ Qed.
 
 Local Hint Immediate vcs_good.
 
-Definition imports_exports_mapsto lbl spec modules imports :=
-  (exists ispec m f,
-     spec = Internal ispec /\
-     List.In m modules /\
-     List.In f (Functions m) /\
-     ispec = f /\ 
-     lbl = (MName m, FName f)) \/
-  (exists fspec,
-     spec = Foreign fspec /\
-     find lbl imports = Some fspec).
-
-Definition imports_exports_in lbl modules (imports : t ForeignFuncSpec) :=
-  (exists m f,
-     List.In m modules /\
-     List.In f (Functions m) /\
-     lbl = (MName m, FName f)) \/
-  In lbl imports.
-
-Require Import GLabelMapFacts.
-
-Lemma imports_exports_mapsto_in : forall modules imports lbl spec, imports_exports_mapsto lbl spec modules imports -> imports_exports_in lbl modules imports.
-  unfold imports_exports_mapsto, imports_exports_in.
-  intros.
-  openhyp.
-  left; descend; eauto.
-  right; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-Qed.
-
-Definition specs_equal specs modules imports := forall lbl spec, find lbl specs = Some spec <-> imports_exports_mapsto lbl spec modules imports.
-
-Lemma specs_equal_agree : forall specs modules imports, specs_equal specs modules imports -> forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), fs stn).
-  intros.
-  split.
-
-  unfold labels_in_scope.
-  intros.
-  unfold from_bedrock_label_map in *; simpl in *.
-  eapply In_MapsTo in H2.
-  openhyp.
-  eapply H0.
-  eapply imports_exports_mapsto_in.
-  eapply H.
-  eapply find_mapsto_iff; eauto.
-
-  unfold specs_fs_agree.
-  unfold from_bedrock_label_map in *; simpl in *.
-  split; intros.
-
-  eapply H1 in H2.
-  destruct H2.
-  destruct H2.
-  descend.
-  eauto.
-  eapply H; eauto.
-
-  openhyp.
-  eapply H1.
-  eexists.
-  split.
-  eauto.
-  eapply H; eauto.
-Qed.
-
-Hint Resolve specs_equal_agree.
-
-Lemma specs_good : specs_equal specs modules imports.
-  split; intros.
-
-  unfold imports_exports_mapsto, specs in *.
-  eapply find_mapsto_iff in H.
-  eapply add_mapsto_iff in H.
-  openhyp.
-  subst; simpl in *.
-  left; descend; eauto.
-  unfold spec_op, gm; simpl; eauto.
-
-  eapply map_mapsto_iff in H0.
-  openhyp.
-  subst; simpl in *.
-  right; descend; eauto.
-  eapply find_mapsto_iff; eauto.
-
-  unfold imports_exports_mapsto, specs in *.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst.
-  left.
-  unfold spec_op, gm, to_good_module in *; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst; simpl in *.
-  eauto.
-
-  subst; simpl in *.
-  right; descend; eauto.
-  Require Import GeneralTactics2.
-  nintro.
-  subst; simpl in *.
-  compute in H0.
-  intuition.
-  eapply map_mapsto_iff.
-  descend; eauto.
-  eapply find_mapsto_iff; eauto.
-Qed.
-
 Hint Resolve specs_good.
 
 Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  Ltac cito_runsto f pre vcs_good := 
-    intros;
-    match goal with
-      | [ H : _ |- _ ] => 
-        unfold f, Body, Core in H;
-          eapply sound_runsto' with (p := pre) (s := Body f) in H; 
-          match goal with | |- and_all _ _ => eapply vcs_good | |- _ => idtac end
-          ; simpl in *;
-          auto; openhyp; subst; simpl in *; unfold empty_precond, and_lift, or_lift in *; openhyp
-    end.
-
   cito_runsto f empty_precond vcs_good; eauto.
+  eapply specs_equal_agree; eauto.
 Qed.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  cito_safe f body empty_precond.
+  cito_safe f empty_precond vcs_good; eauto.
+  eapply specs_equal_agree; eauto.
 Qed.
 
 Require Import Inv.
