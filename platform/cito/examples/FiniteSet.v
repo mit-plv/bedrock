@@ -27,4 +27,9 @@ Section adt.
     Al s,
     PRE[V] P s (V "self") * mallocHeap 0
     POST[_] P (WordSet.add (V "n") s) (V "self") * mallocHeap 0.
+
+  Definition sizeS := SPEC("extra_stack", "self") reserving res
+    Al s,
+    PRE[V] P s (V "self") * mallocHeap 0
+    POST[R] [| R = WordSet.cardinal s |] * P s (V "self") * mallocHeap 0.
 End adt.

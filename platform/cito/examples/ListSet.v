@@ -116,6 +116,7 @@ Definition newS := newS lset 8.
 Definition deleteS := deleteS lset 7.
 Definition memS := memS lset 1.
 Definition addS := addS lset 9.
+Definition sizeS := sizeS lset 1.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "ListSet" {{
@@ -192,6 +193,21 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
         "self" *<- "tmp";;
         Return 0
       }
+    end
+
+    with bfunction "size"("extra_stack", "self", "acc") [sizeS]
+      "self" <-* "self";;
+      "acc" <- 0;;
+
+      [Al s, Al n,
+        PRE[V] lset' s n (V "self")
+        POST[R] lset' s n (V "self") * [| R = natToW (WordSet.cardinal s) ^+ V "acc" |] ]
+      While ("self" <> 0) {
+        "acc" <- "acc" + 1;;
+        "self" <-* "self"+4
+      };;
+
+      Return "acc"
     end
   }}.
 
@@ -301,6 +317,41 @@ Qed.
 Local Hint Immediate add_remove.
 
 Local Hint Extern 1 (himp _ (lset' _ _ _) (lset' _ _ _)) => apply lset'_monotone.
+
+Require MSetProperties.
+Module Props := MSetProperties.WProperties(WordSet).
+
+Lemma length_step : forall w s n acc,
+  WordSet.In n s
+  -> w = natToW (WordSet.cardinal (WordSet.remove n s)) ^+ (acc ^+ natToW 1)
+  -> w = natToW (WordSet.cardinal s) ^+ acc.
+  intros; subst.
+  replace (WordSet.cardinal s) with (S (WordSet.cardinal (WordSet.remove n s))).
+  rewrite (natToW_S (WordSet.cardinal (WordSet.remove n s))); words.
+  apply Props.remove_cardinal_1; auto.
+Qed.
+
+Local Hint Immediate length_step.
+
+Lemma length_done : forall w acc s,
+  w = acc
+  -> s === WordSet.empty
+  -> w = natToW (WordSet.cardinal s) ^+ acc.
+  intros; subst.
+  rewrite WordSet.cardinal_spec.
+  specialize (WordSet.elements_spec1 s); intro.
+  case_eq (WordSet.elements s); simpl; intros.
+  words.
+  rewrite H1 in H.
+  exfalso; apply WordSet.empty_spec with e.
+  hnf in H0.
+  apply H0.
+  apply WordSet.elements_spec1.
+  rewrite H1.
+  auto.
+Qed.
+
+Local Hint Immediate length_done.
 
 Theorem ok : moduleOk m.
   vcgen; abstract (sep hints; eauto).
