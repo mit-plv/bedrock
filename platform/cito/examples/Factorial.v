@@ -90,7 +90,62 @@ Qed.
 
 Hint Rewrite fact_step using solve [ eauto 2 ] : sepFormula.
 
-Lemma vcs_good : forall env, and_all (vc body empty_precond) env.
+Definition dummy_gf : GoodFunction.
+  refine (to_good_function f _).
+  good_module.
+Defined.    
+
+Definition spec_op := hd dummy_gf (Functions gm).
+
+Definition specs := add ("fact", "fact") (Internal spec_op) (empty _).
+
+Definition modules := gm :: nil.
+Definition imports := empty ForeignFuncSpec.
+
+Import LinkSpecMake.
+Require Import LinkSpecFacts.
+Module Import LinkSpecFactsMake := Make ExampleADT.
+Import Notations4Make.
+
+Lemma specs_good : specs_equal specs modules imports.
+  split; intros.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff in H.
+  eapply add_mapsto_iff in H.
+  openhyp.
+  subst; simpl in *.
+  left; descend; eauto.
+  unfold spec_op, gm; simpl; eauto.
+
+  eapply empty_mapsto_iff in H0; intuition.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  openhyp.
+  subst; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst.
+  left.
+  unfold spec_op, gm, to_good_module in *; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst; simpl in *.
+  eauto.
+
+  subst; simpl in *.
+  right; descend; eauto.
+  Require Import GeneralTactics2.
+  nintro.
+  subst; simpl in *.
+  compute in H0.
+  intuition.
+  rewrite empty_o in H0; intuition.
+Qed.
+
+Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold empty_precond; cito_vcs body; words.
 Qed.
 
@@ -111,12 +166,16 @@ Local Hint Resolve final.
 
 Import LinkSpecMake.
 
+Hint Resolve specs_good.
+
 Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  cito_runsto f empty_precond; eauto.
+  cito_runsto f empty_precond vcs_good; eauto.
+  eapply specs_equal_agree; eauto.
 Qed.
 
 Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  cito_safe f body empty_precond.
+  cito_safe f empty_precond vcs_good.
+  eapply specs_equal_agree; eauto.
 Qed.
 
 Require Import Inv.
