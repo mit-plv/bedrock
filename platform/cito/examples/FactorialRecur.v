@@ -288,9 +288,6 @@ Lemma body_safe' : forall env v, specs_env_agree specs env -> Safe env (Body f) 
   cito_safe f empty_precond vcs_good.
 Qed.
 
-Require LinkSpecFacts.
-Module LinkSpecFactsMake := LinkSpecFacts.Make ExampleADT.
-
 Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
   unfold modules, imports.
   intros.
