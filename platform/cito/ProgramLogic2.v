@@ -6,30 +6,11 @@ Module Make (Import E : ADT).
 
   Require Import AutoSep.
 
+  Require Import Transit.
+  Module Import TransitMake := Make E.
   Require Import Semantics.
   Module Import SemanticsMake := Make E.
 
-  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-    intros; eapply sel_upd_eq; eauto.
-  Qed.
-
-  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-    intros; eapply sel_upd_ne; eauto.
-  Qed.
-
-  Ltac sel_upd_simpl :=
-    repeat 
-      match goal with
-        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-        | |- _ => rewrite sel_upd_eq by reflexivity
-        | |- _ => rewrite sel_upd_ne by discriminate
-        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-        | |- _ => rewrite sel_upd_eq' by reflexivity
-        | |- _ => rewrite sel_upd_ne' by discriminate
-      end.
-  
   Section TopSection.
 
     Require Import Syntax.
@@ -37,64 +18,7 @@ Module Make (Import E : ADT).
     Require Import GLabelMap.
     Import GLabelMap.
     Require Import SemanticsExpr.
-
-    Ltac unfold_all :=
-      repeat match goal with
-               | H := _ |- _ => unfold H in *; clear H
-             end.
-
-    Ltac inv_clear H := 
-      inversion H; unfold_all; subst; clear H.
-
-    Definition TransitTo spec args heap r heap' :=
-      exists triples addr ret,
-        args = List.map (@Word _) triples /\
-        good_inputs heap (List.map (fun x => (Word x, ADTIn x)) triples) /\
-        PreCond spec (List.map (@ADTIn _) triples) /\
-        PostCond spec (List.map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
-        let heap := fold_left store_out triples heap in
-        let t := decide_ret addr ret in
-        let ret_w := fst t in
-        let ret_a := snd t in
-        separated heap ret_w ret_a /\
-        heap' = heap_upd_option heap ret_w ret_a /\
-        r = ret_w.
-
-    Definition match_ret vs rvar rvalue :=
-      match rvar with 
-        | Some x => rvalue = sel vs x 
-        | None => True
-      end.
-
-    Lemma RunsTo_TransitTo : forall r f args env spec v v', let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call r f args) v v' -> exists ret, TransitTo spec (List.map (eval (fst v)) args) (snd v) ret (snd v') /\ match_ret (fst v') r ret.
-      simpl.
-      intros.
-      inv_clear H0.
-      rewrite H4 in H; discriminate.
-      rewrite H4 in H; injection H; intros; subst.
-      descend.
-      unfold TransitTo.
-      descend; eauto.
-      unfold match_ret.
-      destruct r; simpl in *.
-      sel_upd_simpl; eauto.
-      eauto.
-    Qed.
-
-    Definition TransitSafe spec args heap :=
-      exists pairs,
-        args = List.map fst pairs /\
-        good_inputs heap pairs /\
-        PreCond spec (List.map snd pairs).
-    
-    Require Import GeneralTactics.
-
-    Lemma TransitSafe_Safe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> TransitSafe spec (List.map (eval (fst v)) args) (snd v) -> forall r, Safe env (Syntax.Call r f args) v.
-      simpl; intros.
-      unfold TransitSafe in *.
-      openhyp.
-      eapply SafeCallForeign; simpl; eauto.
-    Qed.
+    Require Import GeneralTactics GeneralTactics2 GeneralTactics3 BedrockTactics.
 
     Definition Specs := t Callee.
 
