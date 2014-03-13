@@ -104,324 +104,365 @@ Definition top := bimport [[ ("use_cell"!"use_cell", fspec), "sys"!"printInt" @ 
     end
   }}.
 
+Definition dummy_gf : GoodFunction.
+  refine (to_good_function f _).
+  good_module.
+Defined.    
+
+Definition spec_op := hd dummy_gf (Functions gm).
+
+Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign imports).
+
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
 Require Import WordFacts2 WordFacts5.
 Import LinkSpecMake.
 
-Lemma vcs_good : forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> and_all (vc body empty_precond) (from_bedrock_label_map (Labels stn), fs stn).
-  unfold empty_precond.
-  Ltac cito_vcs body := unfold body; simpl;
-    unfold imply_close, and_lift, interp; simpl(* ; *)
-      (* firstorder cito'; auto *).
+Require Import WordMapFacts.
 
-  cito_vcs body.
-  intros; descend; intros; openhyp.
-  cito'.
-  econstructor.
-  unfold from_bedrock_label_map, stn_good_to_use in *; simpl in *.
-  eapply H.
-  right; eapply mem_in_iff; reflexivity.
+Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
+  unfold WordMap.Equal; intros.
+  repeat rewrite add_o.
+  destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
+Qed.
 
-  Ltac inversion_RunsTo :=
-    change ProgramLogicMake.SemanticsMake.RunsTo with RunsTo in *;
-    match goal with
-      | H : RunsTo _ _ _ _ |- _ => inversion H; unfold_all; subst;simpl in *; clear H
-    end.
+Lemma add_remove : forall elt m k v, ~ @Inw elt k m -> WordMap.remove k (addw k v m) == m.
+  unfold WordMap.Equal; intros.
+  rewrite remove_o.
+  rewrite add_o.
+  destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
+  subst.
+  symmetry; eapply not_find_in_iff; eauto.
+Qed.
 
-  Ltac cito' :=
-    repeat (subst; simpl; selify; autorewrite with sepFormula in *; repeat inversion_RunsTo;
-      repeat match goal with
-               | [ H : _ |- _ ] => rewrite H
-             end).
+Import ProgramLogicMake.SemanticsMake.
 
-  cito'.
-  eapply SafeCallForeign; simpl.
-  unfold from_bedrock_label_map in *.
-  eapply H0.
+Ltac destruct_state :=
+  repeat match goal with
+           | [ x : State |- _ ] => destruct x; simpl in *
+         end.
+
+Lemma vcs_good : and_all (vc body empty_precond) specs.
+  unfold empty_precond, body; simpl; unfold imply_close, and_lift; simpl.
+
+  split.
+  intros.
+  subst.
+  unfold SafeDCall.
+  simpl.
+  intros.
+  unfold TransitSafe.
   descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
   instantiate (1 := nil).
   eauto.
-  Require Import Semantics.
-  unfold good_inputs; descend; unfold disjoint_ptrs; simpl; eauto.
+  repeat econstructor.
   simpl; eauto.
 
+  split.
+  intros.
+  openhyp.
   subst.
-  inversion H3; unfold_all; subst; simpl in *; clear H3.
-  unfold from_bedrock_label_map in *.
-
-  assert (fs0 stn w = Some (Foreign SimpleCell_newSpec)).
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  sel_upd_simpl; rewrite H1 in H6; intuition.
-  sel_upd_simpl; rewrite H1 in H6; injection H6; intros; subst.
-
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  assert (triples = nil) by (destruct triples; simpl in *; intuition).
+  eapply triples_intro in H3; try eassumption.
   subst; simpl in *.
+  destruct v'; simpl in *.
+  rewrite H0.
+  subst.
   split.
+  sel_upd_simpl.
   reflexivity.
-  unfold separated in *.
+  unfold separated, Semantics.separated in *.
   openhyp; intuition.
 
-  econstructor.
-  eapply H.
-  right; eapply mem_in_iff; reflexivity.
-  
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  unfold from_bedrock_label_map in *.
-
-  eapply SafeCallForeign; simpl in *.
-  sel_upd_simpl.
-  eapply H0.
+  split.
+  intros.
+  unfold SafeDCall.
+  simpl.
+  intros.
+  destruct v'; simpl in *.
+  unfold TransitSafe.
   descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  sel_upd_simpl.
-  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 0)), ($42, inl ($42)) ]]).
+  instantiate (1 := [[ (sel v0 "c", inr (Cell 0)), ($42, inl ($42)) ]]).
   eauto.
   unfold good_inputs.
   split.
-  unfold word_adt_match.
-  econstructor.
+  unfold Semantics.word_adt_match.
+  repeat econstructor.
   simpl.
-  destruct H1.
-  rewrite H1.
-  Require Import WordMapFacts.
+  destruct H.
+  rewrite H.
   eapply find_mapsto_iff.
   eapply add_mapsto_iff.
   eauto.
-  econstructor.
-  simpl.
-  eauto.
-  econstructor.
-  unfold disjoint_ptrs.
-  simpl.
+  unfold Semantics.disjoint_ptrs.
   NoDup.
-  simpl.
   descend; eauto.
 
-  inversion H3; unfold_all; subst; simpl in *; clear H3.
-  unfold from_bedrock_label_map in *.
-
-  assert (fs0 stn w = Some (Foreign SimpleCell_writeSpec)).
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  sel_upd_simpl; rewrite H3 in H7; intuition.
-  sel_upd_simpl; rewrite H3 in H7; injection H7; intros; subst.
-
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  Import SemanticsMake.
-  Import Semantics.
-  eapply triples_intro in H2; try eassumption.
-  subst; simpl in *.
-  unfold good_inputs in *.
-  openhyp.
-  unfold word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  unfold store_out; simpl.
-  destruct H1.
   split.
-  rewrite H1.
-  Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
-    unfold WordMap.Equal; intros.
-    repeat rewrite add_o.
-    destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
-  Qed.
-  eapply map_add_same_key.
-  eauto.
-
-  Require Import GLabelMapFacts.
-  econstructor.
-  eapply H.
-  right; eapply mem_in_iff; reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  unfold from_bedrock_label_map in *.
-
-  eapply SafeCallForeign; simpl in *.
-  sel_upd_simpl.
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  sel_upd_simpl.
-  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 42)) ]]).
-  eauto.
-  unfold good_inputs.
-  split.
-  unfold word_adt_match.
-  econstructor.
-  simpl.
-  destruct H1.
-  rewrite H1.
-  Require Import WordMapFacts.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  eauto.
-  econstructor.
-  unfold disjoint_ptrs.
-  simpl.
-  NoDup.
-  simpl.
-  descend; eauto.
-
-  inversion H3; unfold_all; subst; simpl in *; clear H3.
-  unfold from_bedrock_label_map in *.
-
-  assert (fs0 stn w = Some (Foreign SimpleCell_readSpec)).
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  sel_upd_simpl; rewrite H3 in H7; intuition.
-  sel_upd_simpl; rewrite H3 in H7; injection H7; intros; subst.
-
+  intros.
+  openhyp.
+  destruct_state.
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
   eapply triples_intro in H4; try eassumption.
   subst; simpl in *.
-  unfold good_inputs in *.
+  unfold good_inputs, Semantics.good_inputs in *.
   openhyp.
-  unfold word_adt_match in *.
+  unfold Semantics.word_adt_match in *.
   inversion_Forall; simpl in *.
-  destruct H1.
-  rewrite H1 in H11.
-  Import WordMapFacts.
-  eapply find_mapsto_iff in H11.
-  eapply add_mapsto_iff in H11.
-  openhyp; intuition.
-  injection H10; intros; subst.
   subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  destruct H.
   split.
-  unfold store_out; simpl.
-  rewrite H1.
+  rewrite H.
   eapply map_add_same_key.
   eauto.
 
-  Require Import GLabelMapFacts.
-  econstructor.
-  eapply H.
-  right; eapply mem_in_iff; reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  unfold from_bedrock_label_map in *.
-
-  eapply SafeCallForeign; simpl in *.
-  sel_upd_simpl.
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  sel_upd_simpl.
-  instantiate (1 := [[ (sel (fst x) "c", inr (Cell 42)) ]]).
-  eauto.
-  unfold good_inputs.
   split.
-  unfold word_adt_match.
-  econstructor.
+  intros.
+  unfold SafeDCall.
   simpl.
-  destruct H1.
-  rewrite H1.
-  Require Import WordMapFacts.
+  intros.
+  destruct_state.
+  unfold TransitSafe.
+  descend.
+  sel_upd_simpl.
+  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
+  eauto.
+  split.
+  unfold Semantics.word_adt_match.
+  repeat econstructor.
+  simpl.
+  destruct H.
+  rewrite H.
   eapply find_mapsto_iff.
   eapply add_mapsto_iff.
   eauto.
-  econstructor.
-  unfold disjoint_ptrs.
-  simpl.
   NoDup.
-  simpl.
   descend; eauto.
 
-  inversion H3; unfold_all; subst; simpl in *; clear H3.
-  unfold from_bedrock_label_map in *.
-
-  assert (fs0 stn w = Some (Foreign SimpleCell_deleteSpec)).
-  eapply H0.
-  descend.
-  eauto.
-  right.
-  descend.
-  eauto.
-  reflexivity.
-
-  inversion H2; unfold_all; subst; simpl in *; clear H2.
-  sel_upd_simpl; rewrite H3 in H8; intuition.
-  sel_upd_simpl; rewrite H3 in H8; injection H8; intros; subst.
-
+  split.
+  intros.
+  openhyp.
+  destruct_state.
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  eapply triples_intro in H2; try eassumption.
+  eapply triples_intro in H8; try eassumption.
   subst; simpl in *.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  destruct H.
+  rewrite H in H7.
+  eapply find_mapsto_iff in H7.
+  eapply add_mapsto_iff in H7.
+  sel_upd_simpl.
+  openhyp; intuition.
+  injection H6; intros; subst.
   split.
-  unfold store_out; simpl.
-  destruct H1.
-  rewrite H1.
-  Lemma add_remove : forall elt m k v, ~ @Inw elt k m -> WordMap.remove k (addw k v m) == m.
-    unfold WordMap.Equal; intros.
-    rewrite remove_o.
-    rewrite add_o.
-    destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
-    subst.
-    symmetry; eapply not_find_in_iff; eauto.
-  Qed.
+  rewrite H.
+  eapply map_add_same_key.
+  eauto.
+
+  split.
+  intros.
+  unfold SafeDCall.
+  simpl.
+  intros.
+  destruct_state.
+  unfold TransitSafe.
+  descend.
+  sel_upd_simpl.
+  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
+  eauto.
+  split.
+  unfold Semantics.word_adt_match.
+  repeat econstructor.
+  simpl.
+  openhyp.
+  destruct H.
+  rewrite H.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  eauto.
+  NoDup.
+  descend; eauto.
+
+  split.
+  intros.
+  openhyp.
+  destruct_state.
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  eapply triples_intro in H5; try eassumption.
+  subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  destruct H.
+  split.
+  rewrite H.
   eapply add_remove; eauto.
   eauto.
+
   eauto.
 Qed.
 
 Local Hint Immediate vcs_good.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  cito_safe f body empty_precond.
+Definition imports_exports_mapsto lbl spec modules imports :=
+  (exists ispec m f,
+     spec = Internal ispec /\
+     List.In m modules /\
+     List.In f (Functions m) /\
+     ispec = f /\ 
+     lbl = (MName m, FName f)) \/
+  (exists fspec,
+     spec = Foreign fspec /\
+     find lbl imports = Some fspec).
+
+Definition imports_exports_in lbl modules (imports : t ForeignFuncSpec) :=
+  (exists m f,
+     List.In m modules /\
+     List.In f (Functions m) /\
+     lbl = (MName m, FName f)) \/
+  In lbl imports.
+
+Require Import GLabelMapFacts.
+
+Lemma imports_exports_mapsto_in : forall modules imports lbl spec, imports_exports_mapsto lbl spec modules imports -> imports_exports_in lbl modules imports.
+  unfold imports_exports_mapsto, imports_exports_in.
+  intros.
+  openhyp.
+  left; descend; eauto.
+  right; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
 Qed.
 
+Definition specs_equal specs modules imports := forall lbl spec, find lbl specs = Some spec <-> imports_exports_mapsto lbl spec modules imports.
+
+Lemma specs_equal_agree : forall specs modules imports, specs_equal specs modules imports -> forall stn fs, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), fs stn).
+  intros.
+  split.
+
+  unfold labels_in_scope.
+  intros.
+  unfold from_bedrock_label_map in *; simpl in *.
+  eapply In_MapsTo in H2.
+  openhyp.
+  eapply H0.
+  eapply imports_exports_mapsto_in.
+  eapply H.
+  eapply find_mapsto_iff; eauto.
+
+  unfold specs_fs_agree.
+  unfold from_bedrock_label_map in *; simpl in *.
+  split; intros.
+
+  eapply H1 in H2.
+  destruct H2.
+  destruct H2.
+  descend.
+  eauto.
+  eapply H; eauto.
+
+  openhyp.
+  eapply H1.
+  eexists.
+  split.
+  eauto.
+  eapply H; eauto.
+Qed.
+
+Hint Resolve specs_equal_agree.
+
+Lemma specs_good : specs_equal specs modules imports.
+  split; intros.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff in H.
+  eapply add_mapsto_iff in H.
+  openhyp.
+  subst; simpl in *.
+  left; descend; eauto.
+  unfold spec_op, gm; simpl; eauto.
+
+  eapply map_mapsto_iff in H0.
+  openhyp.
+  subst; simpl in *.
+  right; descend; eauto.
+  eapply find_mapsto_iff; eauto.
+
+  unfold imports_exports_mapsto, specs in *.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  openhyp.
+  subst; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst.
+  left.
+  unfold spec_op, gm, to_good_module in *; simpl in *.
+  openhyp.
+  2 : intuition.
+  subst; simpl in *.
+  eauto.
+
+  subst; simpl in *.
+  right; descend; eauto.
+  Require Import GeneralTactics2.
+  nintro.
+  subst; simpl in *.
+  compute in H0.
+  intuition.
+  eapply map_mapsto_iff.
+  descend; eauto.
+  eapply find_mapsto_iff; eauto.
+Qed.
+
+Hint Resolve specs_good.
+
 Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  cito_runsto f empty_precond.
+  Ltac cito_runsto f pre vcs_good := 
+    intros;
+    match goal with
+      | [ H : _ |- _ ] => 
+        unfold f, Body, Core in H;
+          eapply sound_runsto' with (p := pre) (s := Body f) in H; 
+          match goal with | |- and_all _ _ => eapply vcs_good | |- _ => idtac end
+          ; simpl in *;
+          auto; openhyp; subst; simpl in *; unfold empty_precond, and_lift, or_lift in *; openhyp
+    end.
+
+  cito_runsto f empty_precond vcs_good; eauto.
+Qed.
+
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  cito_safe f body empty_precond.
 Qed.
 
 Require Import Inv.
@@ -484,6 +525,5 @@ Qed.
 Definition all := link top (link_with_adts [[gm]] imports).
 
 Theorem all_ok : moduleOk all.
-
   link0 top_ok.
 Qed.

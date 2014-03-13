@@ -4,7 +4,7 @@ Require Import ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import ProgramLogic.
+  Require Import ProgramLogic2.
   Module Import ProgramLogicMake := Make E.
 
   Require Import AutoSep.
@@ -34,44 +34,21 @@ Module Make (Import E : ADT).
 
   Notation "'Assert' [ p ]" := (AssertEx p%stmtex_inv) : stmtex_scope.
 
-  Definition DirectCall x f args := (LabelEx "_f" f ;; CallEx x "_f" args)%stmtex.
-
-  Notation "'DCall' f ()" := (DirectCall None f nil)
+  Notation "'DCall' f ()" := (DCallEx None f nil)
                                (no associativity, at level 95, f at level 0) : stmtex_scope.
 
-  Notation "'DCall' f ( x1 , .. , xN )" := (DirectCall None f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr)
+  Notation "'DCall' f ( x1 , .. , xN )" := (DCallEx None f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr)
                                              (no associativity, at level 95, f at level 0) : stmtex_scope.
 
-  Notation "x <-- 'DCall' f ()" := (DirectCall (Some x) f nil)
+  Notation "x <-- 'DCall' f ()" := (DCallEx (Some x) f nil)
                                      (no associativity, at level 95, f at level 0) : stmtex_scope.
 
-  Notation "x <-- 'DCall' f ( x1 , .. , xN )" := (DirectCall (Some x) f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr) (no associativity, at level 95, f at level 0) : stmtex_scope.
+  Notation "x <-- 'DCall' f ( x1 , .. , xN )" := (DCallEx (Some x) f (@cons Expr x1 (.. (@cons Expr xN nil) ..))%expr) (no associativity, at level 95, f at level 0) : stmtex_scope.
 
   Notation "a ! b" := (a, b) (only parsing) : stmtex_scope.
 
   Local Close Scope expr.
 
-  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-    intros; eapply sel_upd_eq; eauto.
-  Qed.
-
-  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-    intros; eapply sel_upd_ne; eauto.
-  Qed.
-
-  Ltac sel_upd_simpl :=
-    repeat 
-      match goal with
-        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-        | |- _ => rewrite sel_upd_eq by reflexivity
-        | |- _ => rewrite sel_upd_ne by discriminate
-        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-        | |- _ => rewrite sel_upd_eq' by reflexivity
-        | |- _ => rewrite sel_upd_ne' by discriminate
-      end.
- 
   Ltac selify :=
     repeat match goal with
              | [ |- context[upd ?a ?b ?c ?d] ] => change (upd a b c d) with (sel (upd a b c) d)
@@ -83,13 +60,8 @@ Module Make (Import E : ADT).
              | H := _ |- _ => unfold H in *; clear H
            end.
 
-  Ltac inversion_Assign :=
-    match goal with
-      | H : context [Syntax.Assign] |- _ => inversion H; unfold_all; subst;simpl in *; clear H
-    end.
-
   Ltac cito' :=
-    repeat (subst; simpl; selify; autorewrite with sepFormula in *; repeat inversion_Assign;
+    repeat (subst; simpl; selify; autorewrite with sepFormula in *;
       repeat match goal with
                | [ H : _ |- _ ] => rewrite H
              end).
