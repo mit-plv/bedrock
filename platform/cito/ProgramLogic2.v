@@ -9,6 +9,27 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Make E.
 
+  Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+    intros; eapply sel_upd_eq; eauto.
+  Qed.
+
+  Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+    intros; eapply sel_upd_ne; eauto.
+  Qed.
+
+  Ltac sel_upd_simpl :=
+    repeat 
+      match goal with
+        | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+        | |- _ => rewrite sel_upd_eq by reflexivity
+        | |- _ => rewrite sel_upd_ne by discriminate
+        | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+        | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+        | |- _ => rewrite sel_upd_eq' by reflexivity
+        | |- _ => rewrite sel_upd_ne' by discriminate
+      end.
+  
   Section TopSection.
 
     Require Import Syntax.
@@ -17,27 +38,6 @@ Module Make (Import E : ADT).
     Import GLabelMap.
     Require Import SemanticsExpr.
 
-    Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
-      intros; eapply sel_upd_eq; eauto.
-    Qed.
-
-    Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
-      intros; eapply sel_upd_ne; eauto.
-    Qed.
-
-    Ltac sel_upd_simpl :=
-      repeat 
-        match goal with
-          | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
-          | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
-          | |- _ => rewrite sel_upd_eq by reflexivity
-          | |- _ => rewrite sel_upd_ne by discriminate
-          | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
-          | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
-          | |- _ => rewrite sel_upd_eq' by reflexivity
-          | |- _ => rewrite sel_upd_ne' by discriminate
-        end.
-    
     Ltac unfold_all :=
       repeat match goal with
                | H := _ |- _ => unfold H in *; clear H
@@ -237,7 +237,7 @@ Module Make (Import E : ADT).
       forall p spec, 
         fs p = Some spec <-> 
         exists (lbl : glabel),
-          labels lbl = Some p ->
+          labels lbl = Some p /\
           find lbl specs = Some spec.
 
     Definition labels_in_scope (specs : Specs) (labels : glabel -> option W) :=
