@@ -56,7 +56,7 @@ MODULES := \
 	MaxFacts GetLocalVarsFacts \
 	IsGoodModule GoodModuleFacts GoodModuleDec \
 	LinkFacts \
-	ProgramLogic \
+	ProgramLogic ProgramLogic2 \
 	Notations3 Notations4 \
 	WordFacts2 WordFacts3 WordFacts4 WordFacts5 \
 	SemanticsFacts4 \

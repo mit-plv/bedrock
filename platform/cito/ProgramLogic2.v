@@ -17,6 +17,35 @@ Module Make (Import E : ADT).
     Import GLabelMap.
     Require Import SemanticsExpr.
 
+    Lemma sel_upd_eq' : forall vs nm v nm', nm = nm' -> (upd vs nm v) nm' = v.
+      intros; eapply sel_upd_eq; eauto.
+    Qed.
+
+    Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs nm'.
+      intros; eapply sel_upd_ne; eauto.
+    Qed.
+
+    Ltac sel_upd_simpl :=
+      repeat 
+        match goal with
+          | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
+          | H : _ |- _ => rewrite sel_upd_ne in H by discriminate
+          | |- _ => rewrite sel_upd_eq by reflexivity
+          | |- _ => rewrite sel_upd_ne by discriminate
+          | H : _ |- _ => rewrite sel_upd_eq' in H by reflexivity
+          | H : _ |- _ => rewrite sel_upd_ne' in H by discriminate
+          | |- _ => rewrite sel_upd_eq' by reflexivity
+          | |- _ => rewrite sel_upd_ne' by discriminate
+        end.
+    
+    Ltac unfold_all :=
+      repeat match goal with
+               | H := _ |- _ => unfold H in *; clear H
+             end.
+
+    Ltac inv_clear H := 
+      inversion H; unfold_all; subst; clear H.
+
     Definition TransitTo spec args heap r heap' :=
       exists triples addr ret,
         args = List.map (@Word _) triples /\
@@ -31,21 +60,64 @@ Module Make (Import E : ADT).
         heap' = heap_upd_option heap ret_w ret_a /\
         r = ret_w.
 
+    Definition match_ret vs rvar rvalue :=
+      match rvar with 
+        | Some x => rvalue = sel vs x 
+        | None => True
+      end.
+
+    Lemma RunsTo_TransitTo : forall r f args env spec v v', let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call r f args) v v' -> exists ret, TransitTo spec (List.map (eval (fst v)) args) (snd v) ret (snd v') /\ match_ret (fst v') r ret.
+      simpl.
+      intros.
+      inv_clear H0.
+      rewrite H4 in H; discriminate.
+      rewrite H4 in H; injection H; intros; subst.
+      descend.
+      unfold TransitTo.
+      descend; eauto.
+      unfold match_ret.
+      destruct r; simpl in *.
+      sel_upd_simpl; eauto.
+      eauto.
+    Qed.
+
+    Definition TransitSafe spec args heap :=
+      exists pairs,
+        args = List.map fst pairs /\
+        good_inputs heap pairs /\
+        PreCond spec (List.map snd pairs).
+    
+    Require Import GeneralTactics.
+
+    Lemma TransitSafe_Safe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> TransitSafe spec (List.map (eval (fst v)) args) (snd v) -> forall r, Safe env (Syntax.Call r f args) v.
+      simpl; intros.
+      unfold TransitSafe in *.
+      openhyp.
+      eapply SafeCallForeign; simpl; eauto.
+    Qed.
+
+    Definition Specs := t Callee.
+
+    Definition f_var := "_f".
+
     Definition RunsToDCall specs retvar f args v v' :=
-      exists spec ret,
-        let vs := fst v in
-        find f specs = Some spec /\
-        TransitTo spec (List.map (eval vs) args) (snd v) ret (snd v') /\
-        fst v' = upd_option vs retvar ret.
+      match find f specs with
+        | Some (Semantics.Foreign spec) =>
+          exists ret f_w,
+            let vs := upd (fst v) f_var f_w in
+            TransitTo spec (List.map (eval vs) args) (snd v) ret (snd v') /\
+            fst v' = upd_option vs retvar ret
+        | _ => True
+      end.
 
     Definition SafeDCall specs f args v :=
-      exists spec pairs,
-        find f specs = Some spec /\
-        List.map (eval (fst v)) args = List.map fst pairs /\
-        good_inputs (snd v) pairs /\
-        PreCond spec (List.map snd pairs).
-
-    Definition Specs := t ForeignFuncSpec.
+      match find f specs with
+        | Some (Semantics.Foreign spec) =>
+          forall f_w,
+            let vs := upd (fst v) f_var f_w in
+            TransitSafe spec (List.map (eval vs) args) (snd v)
+        | _ => False
+      end.
 
     (* shallow embedding *)
     Definition assert := Specs -> State -> State -> Prop.
@@ -75,8 +147,6 @@ Module Make (Import E : ADT).
 
     Open Scope assert_scope.
     
-    Definition f_var := "_f".
-
     Fixpoint to_stmt s :=
       match s with
         | SkipEx => Syntax.Skip
@@ -123,8 +193,6 @@ Module Make (Import E : ADT).
     
     Definition and_all : list entailment -> entailment := fold_right (fun a b specs => a specs /\ b specs)%type (fun _ => True).
 
-    Require Import GeneralTactics.
-
     Lemma and_all_app : forall ls1 ls2 specs, and_all (ls1 ++ ls2) specs -> and_all ls1 specs /\ and_all ls2 specs.
       induction ls1; simpl; intuition.
       eapply IHls1 in H1; openhyp; eauto.
@@ -154,11 +222,6 @@ Module Make (Import E : ADT).
     Hint Unfold Safe.
     Hint Constructors Semantics.Safe.
 
-    Ltac unfold_all :=
-      repeat match goal with
-               | H := _ |- _ => unfold H in *; clear H
-             end.
-
     Ltac inject :=
       match goal with
         | H : _ = _ |- _ => unfold_all; injection H; intros; subst
@@ -173,12 +236,9 @@ Module Make (Import E : ADT).
       let fs := snd env in
       forall p spec, 
         fs p = Some spec <-> 
-        forall p spec, 
-          fs p = Some spec <-> 
-          exists spec_ax (lbl : glabel),
-            spec = Foreign spec_ax /\
-            labels lbl = Some p /\
-            find lbl specs = Some spec_ax.
+        exists (lbl : glabel),
+          labels lbl = Some p ->
+          find lbl specs = Some spec.
 
     Definition labels_in_scope (specs : Specs) (labels : glabel -> option W) :=
       forall lbl, In lbl specs -> labels lbl <> None.
@@ -187,8 +247,82 @@ Module Make (Import E : ADT).
       labels_in_scope specs (fst env) /\
       specs_fs_agree specs env.
 
+    Ltac eapply_in_any t :=
+      match goal with
+          H : _ |- _ => eapply t in H
+      end.
+    
+    Require Import GLabelMapFacts.
+
+    Lemma RunsTo_RunsToDCall : 
+      forall specs env r f args v v', 
+        specs_env_agree specs env -> 
+        RunsTo env (DCallEx r f args) v v' ->
+        RunsToDCall specs r f args v v'.
+    Proof.
+      intros.
+      simpl in *.
+      unfold RunsToDCall.
+      inv_clear H0.
+      inv_clear H3.
+      destruct (option_dec(find f specs)).
+      destruct s; unfold Callee in e; rewrite e; simpl in *.
+      destruct x; simpl in *.
+      destruct H; simpl in *.
+      destruct env; simpl in *.
+      assert (o0 w = Some (Foreign f0)).
+      eapply H0.
+      descend; eauto.
+      generalize H6; intro HH.
+      inv_clear H6; simpl in *.
+      sel_upd_simpl; rewrite H7 in H1; discriminate.
+      sel_upd_simpl; rewrite H7 in H1; injection H1; intros; subst.
+      eapply RunsTo_TransitTo in HH.
+      Focus 2.
+      simpl; sel_upd_simpl; eauto.
+      openhyp.
+      destruct r; simpl in *.
+      subst; simpl in *.
+      descend.
+      eauto.
+      sel_upd_simpl; eauto.
+      descend.
+      eauto.
+      eauto.
+      eauto.
+      unfold Callee in e; rewrite e; eauto.
+    Qed.
+
+    Lemma SafeDCall_Safe : 
+      forall specs env r f args v, 
+        specs_env_agree specs env -> 
+        SafeDCall specs f args v ->
+        Safe env (DCallEx r f args) v.
+    Proof.
+      intros.
+      destruct H.
+      destruct env; simpl in *.
+      unfold SafeDCall in *.
+      destruct (option_dec(find f specs)).
+      destruct s; unfold Callee in e; rewrite e in *; simpl in *.
+      destruct x.
+      econstructor.
+      econstructor.
+      eapply H.
+      eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+      intros.
+      inv_clear H2.
+      eapply TransitSafe_Safe; eauto.
+      specialize (H0 w); clear H.
+      sel_upd_simpl.
+      eapply H1.
+      descend; eauto.
+      intuition.
+      unfold Callee in e; rewrite e in *; eauto.
+      intuition.
+    Qed.
+
     Lemma sound_runsto' : forall env (s : Stmt) v v', RunsTo env s v v' -> forall s' : StmtEx, s = s' -> forall specs, specs_env_agree specs env -> forall p, and_all (vc s' p) specs -> forall v0, p specs v0 v -> (sp s' p) specs v0 v'.
-      (*here*)
       induction 1; simpl; intros; destruct s'; try discriminate; simpl in *; try inject.
 
       (* skip *)
@@ -198,16 +332,22 @@ Module Make (Import E : ADT).
       eauto.
 
       (* seq *)
-      eapply and_all_app in H2; openhyp.
+      eapply_in_any and_all_app; openhyp.
       eauto.
 
+      (* call *)
+      openhyp.
+      descend.
+      eauto.
+      eapply RunsTo_RunsToDCall; simpl; eauto.
+
       (* if *)
-      eapply and_all_app in H2; openhyp.
+      eapply_in_any and_all_app; openhyp.
       left.
       eapply IHRunsTo; eauto.
       split; eauto.
 
-      eapply and_all_app in H2; openhyp.
+      eapply_in_any and_all_app; openhyp.
       right.
       eapply IHRunsTo; eauto.
       split; eauto.
@@ -221,40 +361,44 @@ Module Make (Import E : ADT).
       openhyp.
       split; eauto.
 
-      Focus 4.
       (* assign *)
-      eauto.
-
-      Focus 3.
-      (* label *)
-      eauto.
-
-      (* call *)
-      eauto.
-      eauto.
+      descend; eauto.
     Qed.
 
-    Theorem sound_runsto : forall specs (s : StmtEx) v v' p v0, RunsTo specs s v v' -> and_all (vc s p) specs -> p specs v0 v -> (sp s p) specs v0 v'.
+    Theorem sound_runsto : forall env (s : StmtEx) v v' specs p, RunsTo env s v v' -> specs_env_agree specs env -> and_all (vc s p) specs -> p specs v v -> (sp s p) specs v v'.
       intros.
       eapply sound_runsto'; eauto.
     Qed.
 
-    Theorem sound_safe : forall specs (s : Stmt) (s' : StmtEx) v p v0, s = s' -> and_all (vc s' p) specs -> p specs v0 v -> Safe specs s v.
+    Close Scope assert_scope.
+
+    Theorem sound_safe : forall specs env (s : Stmt) (s' : StmtEx) v p v0, s = s' -> specs_env_agree specs env -> and_all (vc s' p) specs -> p specs v0 v -> Safe env s v.
       intros.
-      Close Scope assert_scope.
-      eapply (Safe_coind (fun s v => Safe specs s v \/ exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) specs /\ p specs v0 v)); [ .. | right; descend; eauto]; clear; intros; openhyp.
+      eapply (Safe_coind (fun s v => Safe env s v \/ exists (s' : StmtEx) p v0, s = s' /\ and_all (vc s' p) specs /\ p specs v0 v)); [ .. | right; descend; eauto]; generalize H0; clear; intros; openhyp.
 
       (* seq *)
       inversion H; subst.
       descend; left; eauto.
 
       destruct x; try discriminate; simpl in *; try inject.
-      eapply and_all_app in H0; openhyp.
+      eapply_in_any and_all_app; openhyp.
       descend.
       right; descend; eauto.
       intros.
-      eapply sound_runsto' with (p := x0) in H3; eauto.
+      eapply sound_runsto' with (p := x0) in H4; eauto.
       right; descend; eauto.
+
+      (* dcall *)
+
+      openhyp.
+      eapply H1 in H2.
+      eapply SafeDCall_Safe in H2; eauto.
+      simpl in *.
+      inv_clear H2.
+      split.
+      eauto.
+      intros.
+      eauto.
 
       (* if *)
       inversion H; subst.
@@ -267,7 +411,7 @@ Module Make (Import E : ADT).
       left; eauto.
 
       destruct x; try discriminate; simpl in *; try inject.
-      eapply and_all_app in H0; openhyp.
+      eapply_in_any and_all_app; openhyp.
       unfold wneb.
       destruct (weq (eval (fst v) e) $0) in *.
       right.
@@ -299,7 +443,7 @@ Module Make (Import E : ADT).
       descend; eauto.
       split; eauto.
       right.
-      eapply sound_runsto' with (p := and_lift a (is_true e)) in H4; eauto.
+      eapply sound_runsto' with (p := and_lift a (is_true e)) in H5; eauto.
       descend.
       instantiate (1 := WhileEx _ e x).
       eauto.
@@ -314,20 +458,12 @@ Module Make (Import E : ADT).
       right; descend; eauto.
 
       destruct x; try discriminate; simpl in *; try inject.
-      openhyp.
-      eapply H0 in H1.
-      inversion H1; unfold_all; subst.
-      left; descend; eauto.
-      right; descend; eauto.
 
       (* label *)
       inversion H; unfold_all; subst.
       eauto.
 
       destruct x0; try discriminate; simpl in *; try inject.
-      eapply H0 in H1.
-      inversion H1; unfold_all; subst.
-      eauto.
     Qed.
 
   End TopSection.
