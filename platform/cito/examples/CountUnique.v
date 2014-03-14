@@ -67,7 +67,7 @@ Definition main_body := (
       (h' === h ** (V' "arr" --> Arr arr)) /\ length arr = 3 ];;
     DCall "ADT"!"ArraySeq_write"("arr", 0, 10);;
     Assert [ BEFORE(V, h) AFTER(V', h') exists arr,
-      (h' === h ** (V' "arr" --> Arr arr)) /\ length arr = 3 /\ nth_error arr 0 = Some $10 ];;
+      (h' === h ** (V' "arr" --> Arr arr)) /\ length arr = 3 /\ Array.sel arr 0 = 10 ];;
     DCall "ADT"!"ArraySeq_write"("arr", 1, 20);;
     Assert [ BEFORE(V, h) AFTER(V', h') exists arr,
       (h' === h ** (V' "arr" --> Arr arr)) /\ exists w, arr = [[$10, $20, w]] ];;
@@ -114,7 +114,7 @@ Definition imports :=
         "ADT"!"ArraySeq_delete" @ [ArraySeq_deleteSpec],
         "ADT"!"ListSet_new" @ [ListSet_newSpec],
         "ADT"!"ListSet_add" @ [ListSet_addSpec],
-        (* "ADT"!"ListSet_size" @ [ListSet_sizeSpec], *)
+        "ADT"!"ListSet_size" @ [ListSet_sizeSpec],
         "ADT"!"ListSet_delete" @ [ListSet_deleteSpec]
     ]].
 
@@ -223,6 +223,152 @@ Require Import WordMapFacts.
 
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
+Import WordMap.
+Require Import GeneralTactics2.
+
+Lemma empty_mapsto_elim : forall P elt k v, MapsTo k v (empty elt) -> P.
+  intros.
+  eapply empty_mapsto_iff in H; intuition.
+Qed.
+Hint Extern 0 => (eapply empty_mapsto_elim; eassumption).
+Lemma empty_in_elim : forall P elt k, In k (empty elt) -> P.
+  intros.
+  eapply empty_in_iff in H; intuition.
+Qed.
+Hint Extern 0 => (eapply empty_in_elim; eassumption).
+Lemma singleton_mapsto_iff : forall elt k v k' v', @MapsTo elt k' v' (k --> v) <-> k' = k /\ v' = v.
+  split; intros.
+  eapply add_mapsto_iff in H; openhyp; eauto.
+  openhyp; eapply add_mapsto_iff; eauto.
+Qed.
+Lemma singleton_in_iff : forall elt k k' v, @In elt k' (k --> v) <-> k' = k.
+  split; intros.
+  eapply add_in_iff in H; openhyp; eauto.
+  openhyp; eapply add_in_iff; eauto.
+Qed.
+Lemma update_add : forall elt k v h, @update elt h (k --> v) == add k v h.
+  intros.
+  unfold Equal; intros.
+  eapply option_univalence.
+  split; intros.
+
+  eapply find_mapsto_iff in H.
+  eapply find_mapsto_iff.
+  eapply update_mapsto_iff in H.
+  openhyp.
+  eapply singleton_mapsto_iff in H.
+  openhyp; subst.
+  eapply add_mapsto_iff; eauto.
+  eapply add_mapsto_iff.
+  right.
+  split.
+  not_not.
+  subst.
+  eapply singleton_in_iff; eauto.
+  eauto.
+
+  eapply find_mapsto_iff in H.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff in H.
+  openhyp.
+  subst.
+  eapply update_mapsto_iff.
+  left.
+  eapply singleton_mapsto_iff; eauto.
+  eapply update_mapsto_iff.
+  right.
+  split.
+  eauto.
+  not_not.
+  eapply singleton_in_iff in H1; eauto.
+Qed.
+Lemma singleton_disj : forall elt k v h, ~ @In elt k h <-> Disjoint h (k --> v).
+  unfold Disjoint; split; intros.
+  not_not; openhyp.
+  eapply singleton_in_iff in H0; subst; eauto.
+  nintro.
+  specialize (H k).
+  contradict H.
+  split.
+  eauto.
+  eapply singleton_in_iff; eauto.
+Qed.
+Lemma separated_star : forall h k v, separated h k (Some v) -> add k v h === h ** k --> v.
+  intros.
+  unfold separated, Semantics.separated in *.
+  openhyp.
+  intuition.
+  split.
+  unfold update_all.
+  simpl.
+  rewrite update_add.
+  rewrite update_empty_1.
+  reflexivity.
+  repeat econstructor.
+  eapply singleton_disj; eauto.
+Qed.
+
+Require Import BedrockTactics.
+Lemma map_fst_combine : forall A B (a : list A) (b : list B), length a = length b -> a = List.map fst (List.combine a b).
+  induction a; destruct b; simpl; intuition.
+  f_equal; eauto.
+Qed.
+
+Ltac eapply_in_any t :=
+  match goal with
+      H : _ |- _ => eapply t in H
+  end.
+
+Lemma map_add_same_key : forall elt m k v1 v2, @add elt k v2 (add k v1 m) == add k v2 m.
+  unfold WordMap.Equal; intros.
+  repeat rewrite add_o.
+  destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
+Qed.
+
+Lemma add_remove : forall elt m k v, ~ @In elt k m -> WordMap.remove k (add k v m) == m.
+  unfold WordMap.Equal; intros.
+  rewrite remove_o.
+  rewrite add_o.
+  destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
+  subst.
+  symmetry; eapply not_find_in_iff; eauto.
+Qed.
+
+Fixpoint same_keys_ls elt (hs1 hs2 : list (t elt)) :=
+  match hs1, hs2 with
+    | h1 :: hs1', h2 :: hs2' => keys h1 = keys h2 /\ same_keys_ls hs1' hs2'
+    | nil, nil => True
+    | _ , _ => False
+  end.
+
+Lemma same_keys_all_disj : forall elt hs1 hs2, @AllDisjoint elt hs1 -> same_keys_ls hs1 hs2 -> AllDisjoint hs2.
+  unfold AllDisjoint; induction hs1; destruct hs2; simpl; intuition.
+  Require Import GeneralTactics3.
+  inv_clear H.
+  econstructor; eauto.
+  Lemma same_keys_forall_disj : forall elt hs1 hs2 h1 h2, List.Forall (@Disjoint elt h1) hs1 -> same_keys_ls hs1 hs2 -> keys h1 = keys h2 -> List.Forall (Disjoint h2) hs2.
+    induction hs1; destruct hs2; simpl; intuition.
+    inv_clear H.
+    econstructor; eauto.
+    Lemma same_keys_disj : forall elt (a b a' b' : t elt), Disjoint a b -> keys a = keys a' -> keys b = keys b' -> Disjoint a' b'.
+      unfold Disjoint; intros.
+      Lemma same_keys_in_iff : forall elt (m1 m2 : t elt), keys m1 = keys m2 -> forall k, In k m1 <-> In k m2.
+        split; intros.
+        eapply In_In_keys; rewrite <- H; eapply In_In_keys; eauto.
+        eapply In_In_keys; rewrite H; eapply In_In_keys; eauto.
+      Qed.
+      specialize (same_keys_in_iff _ _ H0); intros.
+      specialize (same_keys_in_iff _ _ H1); intros.
+      intuition.
+      eapply H; split.
+      eapply H2; eauto.
+      eapply H3; eauto.
+    Qed.
+    eapply same_keys_disj; eauto.
+  Qed.
+  eapply same_keys_forall_disj; eauto.
+Qed.
+
 Import ProgramLogicMake.SemanticsMake.
 
 Ltac destruct_state :=
@@ -230,13 +376,15 @@ Ltac destruct_state :=
            | [ x : State |- _ ] => destruct x; simpl in *
          end.
 
-Lemma vcs_good : and_all (vc main_body empty_precond) specs.
-  unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl.
-
+Ltac split_all :=
   repeat match goal with
            | |- _ /\ _ => split
          end.
 
+Lemma vcs_good : and_all (vc main_body empty_precond) specs.
+  unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
+
+  (* vc1 *)
   intros.
   subst.
   unfold SafeDCall.
@@ -253,6 +401,7 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   repeat econstructor.
   descend; eauto.
 
+  (* vc2 *)
   intros.
   destruct_state.
   openhyp.
@@ -275,92 +424,9 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   subst.
   unfold store_out, Semantics.store_out in *; simpl in *.
   descend; eauto.
-  Import WordMap.
-  Require Import GeneralTactics2.
-
-  Lemma empty_mapsto_elim : forall P elt k v, MapsTo k v (empty elt) -> P.
-    intros.
-    eapply empty_mapsto_iff in H; intuition.
-  Qed.
-  Hint Extern 0 => (eapply empty_mapsto_elim; eassumption).
-  Lemma empty_in_elim : forall P elt k, In k (empty elt) -> P.
-    intros.
-    eapply empty_in_iff in H; intuition.
-  Qed.
-  Hint Extern 0 => (eapply empty_in_elim; eassumption).
-  Lemma singleton_mapsto_iff : forall elt k v k' v', @MapsTo elt k' v' (k --> v) <-> k' = k /\ v' = v.
-    split; intros.
-    eapply add_mapsto_iff in H; openhyp; eauto.
-    openhyp; eapply add_mapsto_iff; eauto.
-  Qed.
-  Lemma singleton_in_iff : forall elt k k' v, @In elt k' (k --> v) <-> k' = k.
-    split; intros.
-    eapply add_in_iff in H; openhyp; eauto.
-    openhyp; eapply add_in_iff; eauto.
-  Qed.
-  Lemma update_add : forall elt k v h, @update elt h (k --> v) == add k v h.
-    intros.
-    unfold Equal; intros.
-    eapply option_univalence.
-    split; intros.
-
-    eapply find_mapsto_iff in H.
-    eapply find_mapsto_iff.
-    eapply update_mapsto_iff in H.
-    openhyp.
-    eapply singleton_mapsto_iff in H.
-    openhyp; subst.
-    eapply add_mapsto_iff; eauto.
-    eapply add_mapsto_iff.
-    right.
-    split.
-    not_not.
-    subst.
-    eapply singleton_in_iff; eauto.
-    eauto.
-
-    eapply find_mapsto_iff in H.
-    eapply find_mapsto_iff.
-    eapply add_mapsto_iff in H.
-    openhyp.
-    subst.
-    eapply update_mapsto_iff.
-    left.
-    eapply singleton_mapsto_iff; eauto.
-    eapply update_mapsto_iff.
-    right.
-    split.
-    eauto.
-    not_not.
-    eapply singleton_in_iff in H1; eauto.
-  Qed.
-  Lemma singleton_disj : forall elt k v h, ~ @In elt k h <-> Disjoint h (k --> v).
-    unfold Disjoint; split; intros.
-    not_not; openhyp.
-    eapply singleton_in_iff in H0; subst; eauto.
-    nintro.
-    specialize (H k).
-    contradict H.
-    split.
-    eauto.
-    eapply singleton_in_iff; eauto.
-  Qed.
-  Lemma separated_star : forall h k v, separated h k (Some v) -> add k v h === h ** k --> v.
-    intros.
-    unfold separated, Semantics.separated in *.
-    openhyp.
-    intuition.
-    split.
-    unfold update_all.
-    simpl.
-    rewrite update_add.
-    rewrite update_empty_1.
-    reflexivity.
-    repeat econstructor.
-    eapply singleton_disj; eauto.
-  Qed.
   eapply separated_star; eauto.
 
+  (* vc3 *)
   intros.
   unfold SafeDCall.
   simpl.
@@ -370,12 +436,7 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; rewrite update_add in *.
   unfold TransitSafe.
   descend.
-  Require Import BedrockTactics.
   sel_upd_simpl.
-  Lemma map_fst_combine : forall A B (a : list A) (b : list B), length a = length b -> a = List.map fst (List.combine a b).
-    induction a; destruct b; simpl; intuition.
-    f_equal; eauto.
-  Qed.
   eapply map_fst_combine.
   instantiate (1 := [[ _, _, _ ]]); eauto.
   split.
@@ -395,12 +456,11 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   rewrite H0.
   eauto.
 
-  (*here*)
-
-  split.
+  (* vc4 *)
   intros.
   openhyp.
   destruct_state.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
@@ -409,47 +469,67 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  eapply triples_intro in H4; try eassumption.
+  eapply_in_any triples_intro; try eassumption.
   subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
   unfold good_inputs, Semantics.good_inputs in *.
   openhyp.
   unfold Semantics.word_adt_match in *.
   inversion_Forall; simpl in *.
   subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
+  sel_upd_simpl.
+  rewrite H in H9.
+  Lemma add_o_eq : forall elt k v v' m, @find elt k (add k v m) = Some v' -> v = v'.
+    intros.
+    rewrite add_o in H.
+    destruct (eq_dec _ _); [ | intuition].
+    injection H; intros; subst; eauto.
+  Qed.
+  eapply_in_any add_o_eq; subst.
+  injection H9; intros; subst.
+  descend.
   split.
-  rewrite H.
+  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
-  eauto.
+  eapply same_keys_all_disj; eauto.
+  simpl; eauto.
+  rewrite upd_length; eauto.
+  eapply CompileExpr.sel_upd_eq; eauto.
+  rewrite H1; eauto.
 
-  split.
+  (* vc5 *)
   intros.
   unfold SafeDCall.
   simpl.
   intros.
   destruct_state.
+  openhyp.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold TransitSafe.
-  descend.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
-  eauto.
+  descend.
+  eapply map_fst_combine.
+  instantiate (1 := [[ _, _, _ ]]); eauto.
   split.
   unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
+  repeat econstructor; simpl.
+  instantiate (1 := inr (Arr x)); simpl in *.
+  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  instantiate (1 := inl $1); simpl in *.
   eauto.
+  instantiate (1 := inl $20); simpl in *.
+  eauto.
+  simpl.
+  unfold Semantics.disjoint_ptrs.
   NoDup.
   descend; eauto.
+  rewrite H0; eauto.
 
-  split.
+  (* vc6 *)
   intros.
   openhyp.
   destruct_state.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
@@ -458,53 +538,66 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  eapply triples_intro in H8; try eassumption.
+  eapply_in_any triples_intro; try eassumption.
   subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
   unfold good_inputs, Semantics.good_inputs in *.
   openhyp.
   unfold Semantics.word_adt_match in *.
   inversion_Forall; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
-  rewrite H in H7.
-  eapply find_mapsto_iff in H7.
-  eapply add_mapsto_iff in H7.
+  subst; simpl in *.
   sel_upd_simpl.
-  openhyp; intuition.
-  injection H6; intros; subst.
+  rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
+  destruct x5; simpl in *; try discriminate.
+  destruct x5; simpl in *; try discriminate.
+  destruct x5; simpl in *; try discriminate.
+  descend.
   split.
-  rewrite H.
+  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
+  eapply same_keys_all_disj; eauto.
+  simpl; eauto.
+  Transparent natToWord.
+  unfold Array.upd; simpl.
+  unfold Array.sel in H2; simpl in H2; subst.
+  repeat f_equal.
+  destruct x5; simpl in *; try discriminate.
   eauto.
+  Opaque natToWord.
 
-  split.
+  (* vc7 *)
   intros.
   unfold SafeDCall.
   simpl.
   intros.
   destruct_state.
+  openhyp.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold TransitSafe.
-  descend.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
-  eauto.
+  descend.
+  eapply map_fst_combine.
+  instantiate (1 := [[ _, _, _ ]]); eauto.
   split.
   unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  openhyp.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
+  repeat econstructor; simpl.
+  instantiate (1 := inr (Arr x)); simpl in *.
+  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  instantiate (1 := inl $2); simpl in *.
   eauto.
+  instantiate (1 := inl $10); simpl in *.
+  eauto.
+  simpl.
+  unfold Semantics.disjoint_ptrs.
   NoDup.
   descend; eauto.
+  rewrite H0; eauto.
 
-  split.
+  (* vc8 *)
   intros.
   openhyp.
   destruct_state.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
@@ -513,13 +606,137 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  eapply triples_intro in H5; try eassumption.
+  eapply_in_any triples_intro; try eassumption.
   subst; simpl in *.
   unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  subst; simpl in *.
+  sel_upd_simpl.
+  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
+  descend.
   split.
+  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+  eapply map_add_same_key.
+  eapply same_keys_all_disj; eauto.
+  simpl; eauto.
+  Transparent natToWord.
+  reflexivity.
+  Opaque natToWord.
+
+  (* vc9 *)
+  intros.
+  unfold SafeDCall.
+  simpl.
+  intros.
+  destruct_state.
+  openhyp.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+  unfold TransitSafe.
+  sel_upd_simpl.
+  descend.
+  eapply map_fst_combine.
+  instantiate (1 := [[ _, _ ]]); eauto.
+  split.
+  unfold Semantics.word_adt_match.
+  repeat econstructor; simpl.
+  instantiate (1 := inr (Arr x)); simpl in *.
+  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  instantiate (1 := inl $3); simpl in *.
+  eauto.
+  simpl.
+  unfold Semantics.disjoint_ptrs.
+  NoDup.
+  descend.
+  eauto.
+  rewrite H0; eauto.
+
+  (* vc10 *)
+  intros.
+  openhyp.
+  destruct_state.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  eapply_in_any triples_intro; try eassumption.
+  subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  subst; simpl in *.
+  sel_upd_simpl.
+  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
+  descend.
+  split.
+  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+  eapply map_add_same_key.
+  eapply same_keys_all_disj; eauto.
+  simpl; eauto.
+  reflexivity.
+
+  (* vc11 *)
+  intros.
+  unfold SafeDCall.
+  simpl.
+  intros.
+  destruct_state.
+  openhyp.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+  unfold TransitSafe.
+  sel_upd_simpl.
+  descend.
+  eapply map_fst_combine.
+  instantiate (1 := [[ _ ]]); eauto.
+  split.
+  unfold Semantics.word_adt_match.
+  repeat econstructor; simpl.
+  instantiate (1 := inr (Arr x)); simpl in *.
+  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  simpl.
+  unfold Semantics.disjoint_ptrs.
+  NoDup.
+  descend.
+  eauto.
+
+  (* vc12 *)
+  intros.
+  openhyp.
+  destruct_state.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+  unfold RunsToDCall in *.
+  simpl in *.
+  openhyp.
+  unfold TransitTo in *.
+  openhyp.
+  unfold PostCond in *; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  eapply_in_any triples_intro; try eassumption.
+  subst; simpl in *.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  subst; simpl in *.
+  sel_upd_simpl.
+  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
+  descend.
   rewrite H.
-  eapply add_remove; eauto.
+  eapply add_remove.
+  eapply singleton_disj.
+  inv_clear H2.
+  inversion_Forall.
   eauto.
 
   eauto.
