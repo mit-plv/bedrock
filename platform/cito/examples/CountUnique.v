@@ -253,8 +253,8 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   repeat econstructor.
   descend; eauto.
 
-(*here*)
   intros.
+  destruct_state.
   openhyp.
   subst.
   unfold RunsToDCall in *.
@@ -267,40 +267,135 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   subst; simpl in *.
   eapply triples_intro in H3; try eassumption.
   subst; simpl in *.
-  destruct v'; simpl in *.
-  rewrite H0.
-  subst.
-  split.
-  Require Import BedrockTactics.
-  sel_upd_simpl.
-  reflexivity.
   Import SemanticsMake.
-  unfold separated, Semantics.separated in *.
-  openhyp; intuition.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  subst.
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  descend; eauto.
+  Import WordMap.
+  Require Import GeneralTactics2.
 
-  split.
+  Lemma empty_mapsto_elim : forall P elt k v, MapsTo k v (empty elt) -> P.
+    intros.
+    eapply empty_mapsto_iff in H; intuition.
+  Qed.
+  Hint Extern 0 => (eapply empty_mapsto_elim; eassumption).
+  Lemma empty_in_elim : forall P elt k, In k (empty elt) -> P.
+    intros.
+    eapply empty_in_iff in H; intuition.
+  Qed.
+  Hint Extern 0 => (eapply empty_in_elim; eassumption).
+  Lemma singleton_mapsto_iff : forall elt k v k' v', @MapsTo elt k' v' (k --> v) <-> k' = k /\ v' = v.
+    split; intros.
+    eapply add_mapsto_iff in H; openhyp; eauto.
+    openhyp; eapply add_mapsto_iff; eauto.
+  Qed.
+  Lemma singleton_in_iff : forall elt k k' v, @In elt k' (k --> v) <-> k' = k.
+    split; intros.
+    eapply add_in_iff in H; openhyp; eauto.
+    openhyp; eapply add_in_iff; eauto.
+  Qed.
+  Lemma update_add : forall elt k v h, @update elt h (k --> v) == add k v h.
+    intros.
+    unfold Equal; intros.
+    eapply option_univalence.
+    split; intros.
+
+    eapply find_mapsto_iff in H.
+    eapply find_mapsto_iff.
+    eapply update_mapsto_iff in H.
+    openhyp.
+    eapply singleton_mapsto_iff in H.
+    openhyp; subst.
+    eapply add_mapsto_iff; eauto.
+    eapply add_mapsto_iff.
+    right.
+    split.
+    not_not.
+    subst.
+    eapply singleton_in_iff; eauto.
+    eauto.
+
+    eapply find_mapsto_iff in H.
+    eapply find_mapsto_iff.
+    eapply add_mapsto_iff in H.
+    openhyp.
+    subst.
+    eapply update_mapsto_iff.
+    left.
+    eapply singleton_mapsto_iff; eauto.
+    eapply update_mapsto_iff.
+    right.
+    split.
+    eauto.
+    not_not.
+    eapply singleton_in_iff in H1; eauto.
+  Qed.
+  Lemma singleton_disj : forall elt k v h, ~ @In elt k h <-> Disjoint h (k --> v).
+    unfold Disjoint; split; intros.
+    not_not; openhyp.
+    eapply singleton_in_iff in H0; subst; eauto.
+    nintro.
+    specialize (H k).
+    contradict H.
+    split.
+    eauto.
+    eapply singleton_in_iff; eauto.
+  Qed.
+  Lemma separated_star : forall h k v, separated h k (Some v) -> add k v h === h ** k --> v.
+    intros.
+    unfold separated, Semantics.separated in *.
+    openhyp.
+    intuition.
+    split.
+    unfold update_all.
+    simpl.
+    rewrite update_add.
+    rewrite update_empty_1.
+    reflexivity.
+    repeat econstructor.
+    eapply singleton_disj; eauto.
+  Qed.
+  eapply separated_star; eauto.
+
   intros.
   unfold SafeDCall.
   simpl.
   intros.
-  destruct v'; simpl in *.
+  destruct_state.
+  openhyp.
+  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; rewrite update_add in *.
   unfold TransitSafe.
   descend.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 0)), ($42, inl ($42)) ]]).
-  eauto.
-  unfold good_inputs.
+  Require Import BedrockTactics.
+  sel_upd_simpl.
+  Lemma map_fst_combine : forall A B (a : list A) (b : list B), length a = length b -> a = List.map fst (List.combine a b).
+    induction a; destruct b; simpl; intuition.
+    f_equal; eauto.
+  Qed.
+  eapply map_fst_combine.
+  instantiate (1 := [[ _, _, _ ]]); eauto.
   split.
   unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
+  repeat econstructor; simpl.
   eauto.
+  instantiate (1 := inr (Arr x)); simpl in *.
+  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  instantiate (1 := inl $0); simpl in *.
+  eauto.
+  instantiate (1 := inl $10); simpl in *.
+  eauto.
+  simpl.
   unfold Semantics.disjoint_ptrs.
   NoDup.
   descend; eauto.
+  rewrite H0.
+  eauto.
+
+  (*here*)
 
   split.
   intros.
