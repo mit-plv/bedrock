@@ -118,7 +118,15 @@ Definition imports :=
         "ADT"!"ListSet_delete" @ [ListSet_deleteSpec]
     ]].
 
-Definition main_spec_Bedrock := func_spec modules imports ("count"!"main")%stmtex f.
+Definition dummy_gf : GoodFunction.
+  refine (to_good_function (cfunction "dummy"() "ret" <- 0 end)%Citofuncs _).
+  good_module.
+Defined.    
+
+Definition count := nth 0 (Functions gm) dummy_gf.
+Definition main := nth 1 (Functions gm) dummy_gf.
+
+Definition main_spec_Bedrock := func_spec modules imports ("count"!"main")%stmtex main.
 
 Notation extra_stack := 40.
 
@@ -129,7 +137,7 @@ Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printIn
                              "sys"!"abort" @ [abortS] ]]
   bmodule "top" {{
     bfunction "top"("R") [topS]
-      "R" <-- Call "count"!"count"(extra_stack)
+      "R" <-- Call "count"!"main"(extra_stack)
       [PREonly[_, R] [| R = 2 |] ];;
 
       Call "sys"!"printInt"("R")
@@ -139,14 +147,6 @@ Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printIn
       [PREonly[_] [| False |] ]
     end
   }}.
-
-Definition dummy_gf : GoodFunction.
-  refine (to_good_function (cfunction "dummy"() "ret" <- 0 end)%Citofuncs _).
-  good_module.
-Defined.    
-
-Definition count := nth 0 (Functions gm) dummy_gf.
-Definition main := nth 1 (Functions gm) dummy_gf.
 
 Import Semantics.
 Import SemanticsMake.
@@ -174,7 +174,7 @@ Module Import LinkSpecFactsMake := Make ExampleADT.
 Import Notations4Make.
 
 Lemma specs_good : specs_equal specs modules imports.
-(*  split; intros.
+  split; intros.
 
   unfold imports_exports_mapsto, specs in *.
   eapply find_mapsto_iff in H.
@@ -214,7 +214,7 @@ Lemma specs_good : specs_equal specs modules imports.
   intuition.
   eapply map_mapsto_iff.
   descend; eauto.
-  eapply find_mapsto_iff; eauto.*)
+  eapply find_mapsto_iff; eauto.
   admit.
 Qed.
 
@@ -369,6 +369,13 @@ Lemma same_keys_all_disj : forall elt hs1 hs2, @AllDisjoint elt hs1 -> same_keys
   eapply same_keys_forall_disj; eauto.
 Qed.
 
+Lemma add_o_eq : forall elt k v v' m, @find elt k (add k v m) = Some v' -> v = v'.
+  intros.
+  rewrite add_o in H.
+  destruct (eq_dec _ _); [ | intuition].
+  injection H; intros; subst; eauto.
+Qed.
+
 Import ProgramLogicMake.SemanticsMake.
 
 Ltac destruct_state :=
@@ -381,7 +388,7 @@ Ltac split_all :=
            | |- _ /\ _ => split
          end.
 
-Lemma vcs_good : and_all (vc main_body empty_precond) specs.
+Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
 
   (* vc1 *)
@@ -479,12 +486,6 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   subst; simpl in *.
   sel_upd_simpl.
   rewrite H in H9.
-  Lemma add_o_eq : forall elt k v v' m, @find elt k (add k v m) = Some v' -> v = v'.
-    intros.
-    rewrite add_o in H.
-    destruct (eq_dec _ _); [ | intuition].
-    injection H; intros; subst; eauto.
-  Qed.
   eapply_in_any add_o_eq; subst.
   injection H9; intros; subst.
   descend.
@@ -742,17 +743,17 @@ Lemma vcs_good : and_all (vc main_body empty_precond) specs.
   eauto.
 Qed.
 
-Local Hint Immediate vcs_good.
+Local Hint Immediate main_vcs_good.
 
 Hint Resolve specs_good.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  cito_runsto f empty_precond vcs_good; eauto.
+Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
+  cito_runsto main empty_precond main_vcs_good; eauto.
   eapply specs_equal_agree; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  cito_safe f empty_precond vcs_good; eauto.
+Lemma main_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
+  cito_safe main empty_precond main_vcs_good; eauto.
   eapply specs_equal_agree; eauto.
 Qed.
 
@@ -783,7 +784,7 @@ Theorem top_ok : moduleOk top.
   autorewrite with sepFormula.
   clear H7 H8.
   hiding ltac:(step auto_ext).
-  apply body_safe; eauto.
+  apply main_safe; eauto.
   hiding ltac:(step auto_ext).
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
@@ -792,7 +793,7 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply body_runsto in H9; simpl in H9; intuition subst.
+  apply main_runsto in H9; simpl in H9; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd x2 "extra_stack" 40) "extra_stack")).
   apply is_state_out'''''.
@@ -813,8 +814,53 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Definition all := link top (link_with_adts [[gm]] imports).
+Definition all := link top (link_with_adts modules imports).
 
 Theorem all_ok : moduleOk all.
+  Import Wrp.LinkMake.
+  Import Wrp.LinkMake.LinkModuleImplsMake.
+
+  Ltac link0 ok1 :=
+    eapply linkOk; [ eapply ok1 | impl_ok
+                     | reflexivity
+                     | (* simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name; *)
+                       (* simpl; unfold StubsMake.StubMake.bimports_diff_bexports; *)
+                       (* simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export; *)
+                       (* simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label; *)
+                       (* unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl; *)
+                       (* link_simp; eauto *) ..
+                   ].
+
   link0 top_ok.
+
+  simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+  simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
+  simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+  simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
+  unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
+  link_simp.
+
+  eauto.
+
+  simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+  simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
+  simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+  simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
+  unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
+  link_simp.
+
+  eauto.
+
+  unfold modules, gm, to_good_module, imports, link_with_adts.
+  unfold to_good_functions', to_good_functions.
+  unfold CompileModuleMake.mod_name; unfold impl_module_name.
+  unfold StubsMake.StubMake.bimports_diff_bexports.
+  unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export.
+  unfold StubsMake.StubMake.LinkSpecMake2.impl_label.
+  unfold impl_module_name; unfold CompileModuleMake.imports.
+  simpl.
+  link_simp.
+(* stuck here*)
+  eauto.
+
 Qed.
