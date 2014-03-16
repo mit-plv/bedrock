@@ -435,25 +435,25 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           ; eauto
     end.
 
+  Ltac ok_simpl :=
+    simpl Imports; simpl Exports; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+      simpl GName; simpl append; unfold CompileModuleMake.imports;
+        unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports, StubsMake.StubMake.bimports_diff_bexports;
+          unfold diff_map, GLabelMapFacts.diff_map; simpl List.filter;
+            unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export, StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+              unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label, StubsMake.StubMake.LinkSpecMake2.impl_label;
+                simpl GName; unfold impl_module_name; simpl append; simpl IsGoodModule.FName; link_simp.
+
   Ltac link0 ok1 :=
     eapply linkOk; [ eapply ok1 | impl_ok
                      | reflexivity
-                     | simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+                     | ok_simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
                        simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
                        simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
                        simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
                        unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
                        link_simp; eauto ..
                    ].
-
-  Ltac ok_simpl :=
-    simpl Imports; simpl Exports; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-      simpl GName; simpl append; unfold CompileModuleMake.imports;
-        unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
-          unfold diff_map; simpl List.filter;
-            unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-              unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
-                simpl GName; unfold impl_module_name; simpl append; simpl IsGoodModule.FName; link_simp.
 
   Ltac link m1 m2 :=
     apply linkOk; [ apply m1 | apply m2 | exact (refl_equal true)

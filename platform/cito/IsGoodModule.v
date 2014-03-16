@@ -20,20 +20,11 @@ Definition IsGoodModule (m : Module) :=
   List.NoDup (List.map FName (Funcs m)).
 
 Definition to_good_functions : forall (ls : list Func), List.Forall (GoodFunc * Core) ls -> list GoodFunction.
-  induction ls; simpl; intros.
-  eapply nil.
-  eapply cons.
-  econstructor.
-  instantiate (1 := a).
-  eapply Forall_forall in H; intuition.
-  unfold compose in *.
-  eauto.
-  eapply IHls.
-  eapply Forall_forall.
-  intros.
-  eapply Forall_forall with (l := a :: ls) in H.
-  eauto.
-  intuition.
+  refine (fix F (ls : list Func) : List.Forall (GoodFunc * Core) ls -> list GoodFunction :=
+    match ls with
+      | nil => fun _ => nil
+      | a :: ls => fun H => {| Fun := a |} :: F ls _
+    end); clear F; abstract (inversion_clear H; auto).
 Defined.
 
 Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls), map (fun f : GoodFunction => FName f) (to_good_functions h) = map FName ls.
@@ -48,8 +39,8 @@ Definition to_good_functions' (m : Module) : IsGoodModule m -> list GoodFunction
   intros.
   refine
     (@to_good_functions (Funcs m) _).
-  unfold IsGoodModule in *; openhyp.
-  eauto.
+  abstract (unfold IsGoodModule in *; openhyp;
+    eauto).
 Defined.
 
 Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
@@ -61,12 +52,11 @@ Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
         Functions := to_good_functions' H;
         NoDupFuncNames := _
       |}).
-  unfold IsGoodModule in *; openhyp.
-  eauto.
-  unfold IsGoodModule in *; openhyp.
-  unfold to_good_functions'.
-  rewrite to_good_functions_name.
-  eauto.
+  abstract (unfold IsGoodModule in *; openhyp;
+    eauto).
+  abstract (unfold IsGoodModule in *; openhyp;
+    unfold to_good_functions';
+      rewrite to_good_functions_name; eauto).
 Defined.
 
 Definition to_module (m : GoodModule) : Module := 
