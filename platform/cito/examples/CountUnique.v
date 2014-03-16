@@ -172,6 +172,8 @@ Import GLabelMap.GLabelMap.
 
 Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
 
+Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports).
+(*
 Definition specs_change_table : t (InternalFuncSpec * ForeignFuncSpec) :=
   of_list
     [[
@@ -210,11 +212,6 @@ Qed.
 Lemma change_env_strength : forall sepcs specs_diff, strengthen_specs specs specs_diff -> forall env, strengthen env (change_env new_specs env).
 
 Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
-
-Import LinkSpecMake.
-Require Import LinkSpecFacts.
-Module Import LinkSpecFactsMake := Make ExampleADT.
-Import Notations4Make.
 
 Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
   intros.
@@ -364,6 +361,28 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   Grab Existential Variables.
   eauto.
 Qed.
+
+Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+  intros.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
+  eapply body_runsto'; eauto.
+  eapply change_fs_agree; eauto.
+  eapply change_fs_strengthen; eauto.
+Qed.
+
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  intros.
+  eapply strengthen_safe.
+  eapply body_safe'; eauto.
+  eapply change_fs_agree; eauto.
+  eapply change_fs_strengthen; eauto.
+Qed.
+
+*)
+Import LinkSpecMake.
+Require Import LinkSpecFacts.
+Module Import LinkSpecFactsMake := Make ExampleADT.
+Import Notations4Make.
 
 Lemma specs_good : specs_equal specs modules imports.
 (*  split; intros.
@@ -938,22 +957,6 @@ Qed.
 Local Hint Immediate main_vcs_good.
 
 Hint Resolve specs_good.
-
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
-  eapply body_runsto'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
-
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  intros.
-  eapply strengthen_safe.
-  eapply body_safe'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
 
 Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
   cito_runsto main empty_precond main_vcs_good; eauto.
