@@ -1028,50 +1028,5 @@ Qed.
 Definition all := link top (link_with_adts modules imports).
 
 Theorem all_ok : moduleOk all.
-  Import Wrp.LinkMake.
-  Import Wrp.LinkMake.LinkModuleImplsMake.
-
-  Ltac link0 ok1 :=
-    eapply linkOk; [ eapply ok1 | impl_ok
-                     | reflexivity
-                     | (* simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name; *)
-                       (* simpl; unfold StubsMake.StubMake.bimports_diff_bexports; *)
-                       (* simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export; *)
-                       (* simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label; *)
-                       (* unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl; *)
-                       (* link_simp; eauto *) ..
-                   ].
-
   link0 top_ok.
-
-  simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-  simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
-  simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-  simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
-  unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
-  link_simp.
-
-  eauto.
-
-  simpl; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-  simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
-  simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-  simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
-  unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
-  link_simp.
-
-  eauto.
-
-  unfold modules, gm, to_good_module, imports, link_with_adts.
-  unfold to_good_functions', to_good_functions.
-  unfold CompileModuleMake.mod_name; unfold impl_module_name.
-  unfold StubsMake.StubMake.bimports_diff_bexports.
-  unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export.
-  unfold StubsMake.StubMake.LinkSpecMake2.impl_label.
-  unfold impl_module_name; unfold CompileModuleMake.imports.
-  simpl.
-  link_simp.
-(* stuck here*)
-  eauto.
-
 Qed.

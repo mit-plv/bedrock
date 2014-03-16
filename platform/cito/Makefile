@@ -71,7 +71,7 @@ MODULES := \
 	examples/Factorial examples/FactorialDriver \
 	examples/UseCell examples/UseCellDriver \
 	examples/FactorialRecur examples/FactorialRecurDriver \
-	# examples/CountUnique \
+	examples/CountUnique \
 
 VS      := $(MODULES:%=%.v)
 
