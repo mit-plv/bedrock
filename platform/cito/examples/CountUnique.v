@@ -172,8 +172,8 @@ Import GLabelMap.GLabelMap.
 
 Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
 
-Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports).
-(*
+(* Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports). *)
+
 Definition specs_change_table : t (InternalFuncSpec * ForeignFuncSpec) :=
   of_list
     [[
@@ -203,15 +203,43 @@ Definition change_env new_specs (env : Env) : Env :=
        | None => fs w
      end).
 
-Definition same_domain elt (m1 m2 : t elt) := forall k, In k m1 <-> In k m2.
+Require Import SemanticsFacts4.
+Module Import SemanticsFacts4Make := Make ExampleADT.
+Import TransitMake.
 
-Lemma change_env_agree : forall specs new_specs, same_domain specs new_specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
+Definition strengthen_op_ax env_ax (spec_op : InternalFuncSpec) spec_ax :=
+  let args := ArgVars spec_op in
+  let rvar := RetVar spec_op in
+  let s := Body spec_op in
+  (forall ins, 
+     PreCond spec_ax ins ->
+     length args = length ins) /\
+  (forall v,
+     TransitSafe spec_ax (List.map (sel (fst v)) args) (snd v) ->
+     Safe env_ax s v) /\
+  forall v v', 
+    RunsTo env_ax s v v' -> 
+    TransitTo spec_ax (List.map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
+
+Definition sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forall k, In k m1 -> In k m2.
+Definition equal_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := sub_domain m1 m2 /\ sub_domain m2 m1.
+
+Lemma change_env_agree : forall specs new_specs, equal_domain new_specs specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
   admit.
 Qed.
 
-Lemma change_env_strength : forall sepcs specs_diff, strengthen_specs specs specs_diff -> forall env, strengthen env (change_env new_specs env).
+Definition apply_specs_diff specs specs_diff := update specs (map (fun v : InternalFuncSpec * _ => Foreign (snd v)) specs_diff).
 
-Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
+Definition strengthen_specs env_ax specs_diff :=
+  fold (fun k v a =>
+          strengthen_op_ax env_ax (fst v) (snd v) /\ a
+       ) specs_diff True.
+
+Lemma change_env_strength : forall specs specs_diff, sub_domain specs_diff specs -> forall env_op env_ax, specs_env_agree specs env_op -> specs_env_agree (apply_specs_diff specs specs_diff) env_ax -> strengthen_specs env_ax specs_diff -> strengthen env_op env_ax.
+  admit.
+Qed.
+
+(*here*)
 
 Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
   intros.
@@ -361,6 +389,8 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   Grab Existential Variables.
   eauto.
 Qed.
+
+Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
 
 Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   intros.
