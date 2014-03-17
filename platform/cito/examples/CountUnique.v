@@ -172,8 +172,8 @@ Import GLabelMap.GLabelMap.
 
 Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
 
-Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports).
-(*
+(* Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports). *)
+
 Definition specs_change_table : t (InternalFuncSpec * ForeignFuncSpec) :=
   of_list
     [[
@@ -181,7 +181,167 @@ Definition specs_change_table : t (InternalFuncSpec * ForeignFuncSpec) :=
         "count"!"main" @ [(main : InternalFuncSpec, main_spec)]
     ]]%stmtex.
 
-Definition is_pointer_of_label elt new_specs (stn : glabel -> option W) w : option elt :=
+Require Import SemanticsFacts4.
+Module Import SemanticsFacts4Make := Make ExampleADT.
+Import TransitMake.
+
+Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax env_ax :=
+  let args := ArgVars spec_op in
+  let rvar := RetVar spec_op in
+  let s := Body spec_op in
+  (forall ins, 
+     PreCond spec_ax ins ->
+     length args = length ins) /\
+  (forall v,
+     TransitSafe spec_ax (List.map (sel (fst v)) args) (snd v) ->
+     Safe env_ax s v) /\
+  forall v v', 
+    RunsTo env_ax s v v' -> 
+    TransitTo spec_ax (List.map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
+
+Definition strengthen_specs specs_op specs_ax env_ax :=
+  forall (lbl : glabel),
+    find lbl specs_op = find lbl specs_ax \/
+    exists spec_op spec_ax,
+      find lbl specs_op = Some (Internal spec_op) /\
+      find lbl specs_ax = Some (Foreign spec_ax) /\
+      strengthen_op_ax spec_op spec_ax env_ax.
+
+Lemma strengthen_specs_strengthen : forall specs_op specs_ax env_op env_ax, strengthen_specs specs_op specs_ax env_ax -> specs_env_agree specs_op env_op -> specs_env_agree specs_ax env_ax -> (forall lbl, fst env_op lbl = fst env_ax lbl) -> strengthen env_op env_ax.
+Proof.
+  split; intros.
+  eauto.
+  destruct (option_dec (fs_op w)).
+  destruct s.
+  destruct H0.
+  generalize e; intro.
+  eapply H3 in e.
+  openhyp.
+  edestruct (H x0).
+  left.
+  rewrite e0.
+  symmetry.
+  destruct H1.
+  eapply H7.
+  unfold Callee in H5.
+  rewrite H6 in H5; clear H6.
+  descend; eauto.
+  rewrite <- H2.
+  eauto.
+  openhyp.
+  unfold Callee in H5.
+  rewrite H6 in H5; injection H5; intros; subst.
+  assert (fs_ax w = Some (Foreign x2)).
+  destruct H1.
+  eapply H9.
+  descend; eauto.
+  rewrite <- H2; eauto.
+  right; descend; eauto.
+  destruct (option_dec (fs_ax w)).
+  destruct s.
+  destruct H1.
+  generalize e0; intro.
+  eapply H3 in e0.
+  openhyp.
+  edestruct (H x0).
+  assert (fs_op w = Some x).
+  destruct H0.
+  eapply H7.
+  descend; eauto.
+  rewrite H2; eauto.
+  unfold Callee.
+  rewrite H6.
+  eauto.
+  rewrite H7 in e; intuition.
+  openhyp.
+  assert (fs_op w = Some (Internal x1)).
+  destruct H0.
+  eapply H9.
+  descend; eauto.
+  rewrite H2; eauto.
+  rewrite H9 in e; intuition.
+  left; congruence.
+Qed.
+
+Definition apply_specs_diff specs specs_diff := update specs (map Foreign specs_diff).
+
+Definition strengthen_diff_f specs env_ax k v a :=
+  a /\
+  (find k specs = Some (Foreign v) \/
+   exists op, 
+     find k specs = Some (Internal op) /\
+     strengthen_op_ax op v env_ax).
+
+Definition strengthen_diff specs specs_diff env_ax :=
+  fold (strengthen_diff_f specs env_ax) specs_diff True.
+
+Require Import GeneralTactics2.
+
+Lemma strengthen_diff_elim : forall specs_diff env_ax specs, strengthen_diff specs specs_diff env_ax -> forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax.
+  do 3 intro.
+  eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => H -> forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax); simpl; intros.
+  eapply H0; eauto.
+  rewrite H; eauto.
+  rewrite empty_o in H0; intuition.
+  eapply find_mapsto_iff in H3.
+  eapply add_mapsto_iff in H3.
+  openhyp.
+  subst.
+  destruct H2.
+  openhyp.
+  eauto.
+  right; descend; eauto.
+  eapply H1.
+  destruct H2; eauto.
+  eapply find_mapsto_iff; eauto.
+Qed.
+
+Lemma strengthen_diff_strengthen_specs : forall specs specs_diff env_ax, strengthen_diff specs specs_diff env_ax -> strengthen_specs specs (apply_specs_diff specs specs_diff) env_ax.
+  intros.
+  unfold strengthen_specs.
+  intros.
+  destruct (option_dec (find lbl specs_diff)).
+  destruct s.
+  eapply strengthen_diff_elim in H; eauto.
+  openhyp.
+  left.
+  rewrite H.
+  symmetry.
+  eapply find_mapsto_iff.
+  eapply update_mapsto_iff.
+  left.
+  eapply find_mapsto_iff.
+  rewrite map_o.
+  rewrite e.
+  eauto.
+  right; descend; eauto.
+  eapply find_mapsto_iff.
+  eapply update_mapsto_iff.
+  left.
+  eapply find_mapsto_iff.
+  rewrite map_o.
+  rewrite e.
+  eauto.
+  left.
+  unfold apply_specs_diff.
+  rewrite update_o_1; eauto.
+  nintro.
+  eapply map_4 in H0.
+  eapply In_find_not_None in H0.
+  erewrite e in H0.
+  intuition.
+Qed.
+
+Lemma strengthen_diff_strenghthen : forall specs specs_diff env_op env_ax, strengthen_diff specs specs_diff env_ax -> specs_env_agree specs env_op -> specs_env_agree (apply_specs_diff specs specs_diff) env_ax -> (forall lbl, fst env_op lbl = fst env_ax lbl) -> strengthen env_op env_ax.
+  intros.
+  eapply strengthen_specs_strengthen; eauto.
+  eapply strengthen_diff_strengthen_specs; eauto.
+Qed.
+
+Definition sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forall k, In k m1 -> In k m2.
+Definition equal_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := sub_domain m1 m2 /\ sub_domain m2 m1.
+
+Definition is_pointer_of_label specs (stn : glabel -> option W) w : option Callee :=
   fold (fun k v res => 
           match res with
             | Some _ => res
@@ -191,7 +351,7 @@ Definition is_pointer_of_label elt new_specs (stn : glabel -> option W) w : opti
                 | None => None
               end
           end
-       ) new_specs None.
+       ) specs None.
 
 Definition change_env new_specs (env : Env) : Env :=
   let stn := fst env in
@@ -203,15 +363,152 @@ Definition change_env new_specs (env : Env) : Env :=
        | None => fs w
      end).
 
-Definition same_domain elt (m1 m2 : t elt) := forall k, In k m1 <-> In k m2.
+Definition stn_nodup (specs : t Callee) stn := forall lbl1 lbl2 (w : W), In lbl1 specs -> In lbl2 specs -> stn lbl1 = Some w -> stn lbl2 = Some w -> lbl1 = lbl2.
 
-Lemma change_env_agree : forall specs new_specs, same_domain specs new_specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
+Lemma sub_domain_stn_nodup : forall specs1 specs2 stn, stn_nodup specs1 stn -> sub_domain specs2 specs1 -> stn_nodup specs2 stn.
+  unfold stn_nodup, sub_domain; intros.
+  eapply H; eauto.
+Qed.
+
+Lemma add_stn_nodup : forall specs k v stn, stn_nodup (add k v specs) stn -> stn_nodup specs stn.
+  intros.
+  eapply sub_domain_stn_nodup; eauto.
+  unfold sub_domain; intros.
+  eapply add_in_iff; eauto.
+Qed.
+
+Lemma is_pointer_of_label_intro_elim : forall specs stn w, (forall v, is_pointer_of_label specs stn w = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v).
+  do 3 intro.
+  eapply fold_rec_bis with (P := fun specs a => (forall v, a = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> a = Some v)); simpl; intros.
+  unfold stn_nodup in *.
+  setoid_rewrite H in H0.
+  eapply H0; eauto.
+  split; intros.
+  intuition.
+  rewrite empty_o in H0; intuition.
+  openhyp.
+  split; intros.
+  destruct a.
+  injection H3; intros; subst.
+  edestruct H1; eauto.
+  openhyp.
+  descend; eauto.
+  eapply find_mapsto_iff; eapply add_mapsto_iff.
+  right.
+  split.
+  nintro; subst.
+  eapply find_mapsto_iff in H4; eapply MapsTo_In in H4.
+  contradiction.
+  eapply find_mapsto_iff; eauto.
+  destruct (option_dec (stn k)).
+  destruct s.
+  rewrite e0 in *.
+  destruct (weq w x).
+  subst.
+  injection H3; intros; subst.
+  descend; eauto.
+  eapply find_mapsto_iff; eapply add_mapsto_iff.
+  eauto.
+  intuition.
+  rewrite e0 in *; intuition.
+  destruct a.
+  edestruct H1; eauto.
+  openhyp.
+  eapply find_mapsto_iff in H4; eapply find_mapsto_iff in H6.
+  assert (lbl = x).
+  eapply H3; eauto.
+  eapply MapsTo_In; eauto.
+  eapply add_in_iff; right; eapply MapsTo_In; eauto.
+  subst.
+  eapply add_mapsto_iff in H4; openhyp.
+  subst.
+  eapply MapsTo_In in H6; contradiction.
+  eapply H2; eauto.
+  eapply add_stn_nodup; eauto.
+  eapply find_mapsto_iff; eauto.
+
+  eapply find_mapsto_iff in H4.
+  destruct (option_dec (stn k)).
+  destruct s.
+  rewrite e0 in *.
+  eapply add_mapsto_iff in H4; openhyp.
+  subst.
+  rewrite H5 in e0; injection e0; intros; subst.
+  destruct (weq x x); intuition.
+  destruct (weq w x).
+  subst.
+  contradict H4.
+  eapply H3; eauto.
+  eapply add_in_iff; eauto.
+  eapply add_in_iff; right; eapply MapsTo_In; eauto.
+  eapply H2; eauto.
+  eapply add_stn_nodup; eauto.
+  eapply find_mapsto_iff; eauto.
+  rewrite e0 in *.
+  eapply add_mapsto_iff in H4; openhyp.
+  subst.
+  rewrite H5 in e0; intuition.
+  eapply H2; eauto.
+  eapply add_stn_nodup; eauto.
+  eapply find_mapsto_iff; eauto.
+Qed.
+
+Lemma is_pointer_of_label_intro : forall specs stn w v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v.
+  eapply is_pointer_of_label_intro_elim; eauto.
+Qed.
+
+Lemma is_pointer_of_label_elim : forall specs stn w v, is_pointer_of_label specs stn w = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w.
+  eapply is_pointer_of_label_intro_elim; eauto.
+Qed.
+
+Lemma NoDup_stn_nodup : forall specs fs stn, List.NoDup (List.map snd (elements specs)) -> specs_fs_agree specs (stn, fs) -> forall new_specs, stn_nodup new_specs stn.
   admit.
 Qed.
 
-Lemma change_env_strength : forall sepcs specs_diff, strengthen_specs specs specs_diff -> forall env, strengthen env (change_env new_specs env).
+Lemma change_env_agree : forall specs new_specs, List.NoDup (List.map snd (elements specs)) -> equal_domain new_specs specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
+Proof.
+  unfold specs_env_agree.
+  intros.
+  openhyp.
+  simpl.
+  split.
+  unfold labels_in_scope in *.
+  intros.
+  eapply H1.
+  destruct H0.
+  eapply H0; eauto.
+  
+  unfold specs_fs_agree in *.
+  split; intros.
+  simpl in *.
+  destruct env in *; simpl in *.
+  destruct (option_dec (is_pointer_of_label new_specs o p)).
+  destruct s.
+  rewrite e in *.
+  injection H3; intros; subst.
+  eapply is_pointer_of_label_elim in e; openhyp.
+  descend; eauto.
+  rewrite e in *.
+  eapply H2 in H3; openhyp.
+  eapply find_mapsto_iff in H4; eapply MapsTo_In in H4.
+  destruct H0.
+  eapply H5 in H4.
+  eapply In_MapsTo in H4; openhyp.
+  assert (is_pointer_of_label new_specs o p = Some x0).
+  eapply is_pointer_of_label_intro; eauto.
+  eapply NoDup_stn_nodup; eauto.
+  eapply find_mapsto_iff; eauto.
+  rewrite e in H6; intuition.
+  openhyp.
+  simpl in *.
+  destruct env; simpl in *.
+  assert (is_pointer_of_label new_specs o p = Some spec0).
+  eapply is_pointer_of_label_intro; eauto.
+  eapply NoDup_stn_nodup; eauto.
+  rewrite H5; eauto.
+Qed.
 
-Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
+(*here*)
 
 Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
   intros.
@@ -361,6 +658,8 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   Grab Existential Variables.
   eauto.
 Qed.
+
+Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
 
 Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   intros.
