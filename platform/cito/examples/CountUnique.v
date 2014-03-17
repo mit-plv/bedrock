@@ -150,37 +150,8 @@ Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printIn
 
 Import Semantics.
 Import SemanticsMake.
-
-Import WordSet.
-
-Definition unique_count ls := cardinal (fold_right add empty ls).
-
-Definition count_spec : ForeignFuncSpec :=
-  {|
-    PreCond := fun args => exists arr len, args = inr (Arr arr) :: inl len :: nil /\ len = length arr;
-    PostCond := fun args ret => exists arr len, args = (inr (Arr arr), Some (Arr arr)) :: (inl len, None) :: nil /\ ret = inl (unique_count arr : W)
-  |}.
-
-Definition main_spec : ForeignFuncSpec :=
-  {|
-    PreCond := fun args => args = nil;
-    PostCond := fun _ ret => ret = inl $2
-  |}.
-
 Require Import GLabelMap.
 Import GLabelMap.GLabelMap.
-
-Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
-
-(* Definition specs := add ("count", "count") (Foreign count_spec) (make_specs modules imports). *)
-
-Definition specs_change_table : t (InternalFuncSpec * ForeignFuncSpec) :=
-  of_list
-    [[
-        "count"!"count" @ [(count : InternalFuncSpec, count_spec)],
-        "count"!"main" @ [(main : InternalFuncSpec, main_spec)]
-    ]]%stmtex.
-
 Require Import SemanticsFacts4.
 Module Import SemanticsFacts4Make := Make ExampleADT.
 Import TransitMake.
@@ -508,225 +479,34 @@ Proof.
   rewrite H5; eauto.
 Qed.
 
-(*here*)
+Import WordSet.
 
-Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
-  intros.
-  split.
-  simpl.
-  unfold labels_in_scope.
-  intros.
-  eapply H.
-  unfold specs in *.
-  eapply add_in_iff in H1.
-  openhyp.
-  subst; simpl in *.
-  left.
-  unfold gm, to_good_module in *; simpl in *.
-  descend.
-  eauto.
-  simpl; eauto.
-  simpl; eauto.
-  eapply empty_in_iff in H1; intuition.
+Definition unique_count ls := cardinal (fold_right add empty ls).
 
-  unfold specs_fs_agree; simpl in *.
-  unfold change_fs.
-  intros.
-  destruct (option_dec (fs0 stn p)).
-  destruct s; rewrite e in *.
-  destruct x; simpl in *.
-  eapply H0 in e.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  discriminate.
-  intuition.
-  intuition.
-  injection H2; intros; subst.
-  unfold imports in H3; simpl in *.
-  compute in H3; intuition.
-  split; intros.
-  injection H1; intros; subst.
-  eapply H0 in e.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  injection H3; intros; subst; simpl in *; clear H3.
-  descend.
-  eauto.
-  reflexivity.
-  intuition.
-  intuition.
-  compute in H4; intuition.
-  openhyp.
-  unfold specs in H2.
-  eapply find_mapsto_iff in H2.
-  eapply add_mapsto_iff in H2.
-  openhyp.
-  subst; eauto.
-  eapply empty_mapsto_iff in H3; intuition.
-  rewrite e in *.
-  split; intros.
-  discriminate.
-  openhyp.
-  unfold specs in H2.
-  eapply find_mapsto_iff in H2.
-  eapply add_mapsto_iff in H2.
-  openhyp.
-  subst; simpl in *.
-  contradict e.
-  Lemma Some_not_None : forall A o (v : A), o = Some v -> o <> None.
-    intuition.
-  Qed.
-  eapply Some_not_None.
-  eapply H0.
-  descend.
-  eauto.
-  left.
-  unfold gm, to_good_module in *; simpl in *.
-  descend.
-  eauto.
-  eauto.
-  simpl; eauto.
-  eauto.
-  simpl; eauto.
-  eapply empty_mapsto_iff in H3; intuition.
-Qed.
+Definition count_spec : ForeignFuncSpec :=
+  {|
+    PreCond := fun args => exists arr len, args = inr (Arr arr) :: inl len :: nil /\ len = length arr;
+    PostCond := fun args ret => exists arr len, args = (inr (Arr arr), Some (Arr arr)) :: (inl len, None) :: nil /\ ret = inl (unique_count arr : W)
+  |}.
 
-Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
-  unfold modules, imports.
-  intros.
-  generalize H0; intro.
-  unfold strengthen.
-  split.
-  eauto.
-  unfold change_fs at 1.
-  unfold change_fs at 1.
-  simpl.
-  intros.
-  destruct (option_dec (fs0 stn w)); simpl in *.
-  destruct s; rewrite e in *; simpl in *.
-  destruct x; simpl in *.
-  eauto.
-  eapply H0 in e.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  injection H3; intros; subst; simpl in *; clear H3.
-  right; descend.
-  eauto.
-  eauto.
-  simpl in *.
-  openhyp.
-  rewrite H3.
-  eauto.
-  simpl in *.
-  eapply body_safe'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply body_runsto' in H3; eauto.
-  Focus 2.
-  eapply change_fs_agree; eauto.
-  simpl.
-  openhyp.
-  unfold TransitMake.TransitTo.
-  descend.
-  instantiate (1 := [[ {| Word := sel (fst v) "n"; ADTIn := inl (sel (fst v) "n"); ADTOut := None |} ]]).
-  eauto.
-  repeat econstructor.
-  descend; eauto.
-  descend; eauto.
-  repeat econstructor.
-  simpl.
-  Import TransitMake.SemanticsMake.
-  unfold store_out, Semantics.store_out; simpl; eauto.
-  unfold f in *; simpl in *.
-  eauto.
-  intuition.
-  intuition.
-  rewrite empty_o in H4; intuition.
-  rewrite e in *.
-  eauto.
-  Grab Existential Variables.
-  eauto.
-Qed.
+Definition main_spec : ForeignFuncSpec :=
+  {|
+    PreCond := fun args => args = nil;
+    PostCond := fun _ ret => ret = inl $2
+  |}.
 
-Definition specs := update (make_specs modules imports) (map (fun e => Foreign (snd e)) specs_change_table).
+Import GLabelMap.GLabelMap.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
-  eapply body_runsto'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
+Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  intros.
-  eapply strengthen_safe.
-  eapply body_safe'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
+Definition specs_change_table :=
+  of_list
+    [[
+        "count"!"count" @ [count_spec],
+        "count"!"main" @ [main_spec]
+    ]]%stmtex.
 
-*)
-Import LinkSpecMake.
-Require Import LinkSpecFacts.
-Module Import LinkSpecFactsMake := Make ExampleADT.
-Import Notations4Make.
-
-Lemma specs_good : specs_equal specs modules imports.
-(*  split; intros.
-
-  unfold imports_exports_mapsto, specs in *.
-  eapply find_mapsto_iff in H.
-  eapply add_mapsto_iff in H.
-  openhyp.
-  subst; simpl in *.
-  left; descend; eauto.
-  unfold spec_op, gm; simpl; eauto.
-
-  eapply map_mapsto_iff in H0.
-  openhyp.
-  subst; simpl in *.
-  right; descend; eauto.
-  eapply find_mapsto_iff; eauto.
-
-  unfold imports_exports_mapsto, specs in *.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst.
-  left.
-  unfold spec_op, gm, to_good_module in *; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst; simpl in *.
-  eauto.
-
-  subst; simpl in *.
-  right; descend; eauto.
-  Require Import GeneralTactics2.
-  nintro.
-  subst; simpl in *.
-  compute in H0.
-  intuition.
-  eapply map_mapsto_iff.
-  descend; eauto.
-  eapply find_mapsto_iff; eauto.*)
-  admit.
-Qed.
+Definition specs := apply_specs_diff (make_specs modules imports) specs_change_table.
 
 Require Import WordFacts2 WordFacts5.
 Require Import WordMapFacts.
@@ -907,6 +687,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold SafeDCall.
   simpl.
   intros.
+  Import ProgramLogicMake.
   Import TransitMake.
   unfold TransitSafe.
   descend.
@@ -1255,16 +1036,121 @@ Qed.
 
 Local Hint Immediate main_vcs_good.
 
-Hint Resolve specs_good.
+Import LinkSpecMake.
+Require Import LinkSpecFacts.
+Module Import LinkSpecFactsMake := Make ExampleADT.
+Import Notations4Make.
+
+Lemma make_specs_equal : forall modules imports, specs_equal (make_specs modules imports) modules imports.
+  admit.
+Qed.
+
+Definition specs_op := make_specs modules imports.
+
+Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
+  admit.
+Qed.
+
+Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
+  admit.
+Qed.
+
+Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff (make_specs modules imports) specs_change_table env_ax.
+  intros.
+  unfold strengthen_diff, specs_change_table.
+  Opaque make_specs specs.
+  simpl.
+  unfold GLabelMapFacts.uncurry.
+  change GLabelMapFacts.M.add with GLabelMap.add.
+  Import GLabelKey.
+  cbv beta iota zeta
+      delta [
+        GLabelMap.fold 
+          GLabelMap.Raw.fold GLabelMap.this
+          fold_left GLabelMap.add GLabelMap.Raw.add GLabelMap.empty
+          GLabelMap.Raw.empty GLabel_as_MOT.compare GLabel_as_MOT.to_bl LabelKey.compare LabelKey.compare' string_lt fst
+          snd string_dec sumbool_rec sumbool_rect Ascii.N_of_ascii
+          Ascii.N_of_digits N.compare Pos.compare string_rec string_rect
+          Ascii.ascii_dec GLabelMap.find GLabelMap.Raw.find N.add N.mul
+          Pos.compare_cont Pos.add Pos.mul Ascii.ascii_rec Ascii.ascii_rect
+          Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
+          label'_lt label'_eq label'_rec label'_rect GLabelMap.Raw.bal
+          GLabelMap.Raw.create Int.Z_as_Int.gt_le_dec Int.Z_as_Int.plus
+          Int.Z_as_Int.ge_lt_dec GLabelMap.Raw.height ZArith_dec.Z_gt_le_dec
+          Int.Z_as_Int._0 BinInt.Z.add Int.Z_as_Int._1 Int.Z_as_Int._2
+          ZArith_dec.Z_gt_dec ZArith_dec.Z_ge_lt_dec Int.Z_as_Int.max
+          BinInt.Z.max BinInt.Z.compare XCAP.union ZArith_dec.Z_ge_dec
+          XCAP.diff GLabelMap.mem GLabelMap.Raw.mem GLabelMap.is_empty
+          GLabelMap.Raw.is_empty Pos.succ].
+  Transparent make_specs specs.
+  unfold strengthen_diff_f.
+  split_all.
+  eauto.
+  right.
+  eexists.
+  split.
+  reflexivity.
+  eapply count_strengthen; eauto.
+  right.
+  eexists.
+  split.
+  reflexivity.
+  eapply main_strengthen; eauto.
+Qed.
 
 Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
-  cito_runsto main empty_precond main_vcs_good; eauto.
+  intros.
+  eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H1.
+  cito_runsto main empty_precond main_vcs_good.
+  split; eauto.
+  eapply change_env_agree.
+  Focus 3.
   eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  admit. (* equal_domain *)
+  eauto.
+  eapply strengthen_diff_strenghthen.
+  Focus 2.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  Focus 2.
+  eapply change_env_agree.
+  Focus 3.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  admit. (* equal_domain *)
+  eapply specs_strengthen_diff.
+  eapply change_env_agree.
+  Focus 3.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  admit. (* equal_domain *)
+  intros; simpl.
+  eauto.
 Qed.
 
 Lemma main_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
   cito_safe main empty_precond main_vcs_good; eauto.
   eapply specs_equal_agree; eauto.
+Qed.
+
+Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+  intros.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
+  eapply body_runsto'; eauto.
+  eapply change_fs_agree; eauto.
+  eapply change_fs_strengthen; eauto.
+Qed.
+
+Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  intros.
+  eapply strengthen_safe.
+  eapply body_safe'; eauto.
+  eapply change_fs_agree; eauto.
+  eapply change_fs_strengthen; eauto.
 Qed.
 
 Require Import Inv.
