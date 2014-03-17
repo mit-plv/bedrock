@@ -184,53 +184,49 @@ Proof.
   eauto.
   destruct (option_dec (fs_op w)).
   destruct s.
-  destruct H0.
   generalize e; intro.
-  eapply H3 in e.
+  eapply H0 in e.
   openhyp.
   edestruct (H x0).
   left.
   rewrite e0.
   symmetry.
-  destruct H1.
-  eapply H7.
-  unfold Callee in H5.
-  rewrite H6 in H5; clear H6.
+  eapply H1.
+  unfold Callee in *.
+  rewrite H5 in H4; clear H5.
   descend; eauto.
   rewrite <- H2.
   eauto.
   openhyp.
-  unfold Callee in H5.
-  rewrite H6 in H5; injection H5; intros; subst.
+  unfold Callee in *.
+  rewrite H5 in H4; injection H4; intros; subst.
   assert (fs_ax w = Some (Foreign x2)).
-  destruct H1.
-  eapply H9.
+  eapply H1.
   descend; eauto.
   rewrite <- H2; eauto.
+  unfold strengthen_op_ax in *; openhyp.
   right; descend; eauto.
+  eapply H9; eauto.
   destruct (option_dec (fs_ax w)).
   destruct s.
-  destruct H1.
   generalize e0; intro.
-  eapply H3 in e0.
+  eapply H1 in e0.
   openhyp.
   edestruct (H x0).
   assert (fs_op w = Some x).
-  destruct H0.
-  eapply H7.
+  eapply H0.
   descend; eauto.
   rewrite H2; eauto.
   unfold Callee.
-  rewrite H6.
+  rewrite H5.
   eauto.
-  rewrite H7 in e; intuition.
+  rewrite H6 in e; intuition.
   openhyp.
   assert (fs_op w = Some (Internal x1)).
-  destruct H0.
-  eapply H9.
+  eapply H0.
   descend; eauto.
   rewrite H2; eauto.
-  rewrite H9 in e; intuition.
+  rewrite H8 in e; intuition.
   left; congruence.
 Qed.
 
@@ -334,24 +330,22 @@ Definition change_env new_specs (env : Env) : Env :=
        | None => fs w
      end).
 
-Definition stn_nodup (specs : t Callee) stn := forall lbl1 lbl2 (w : W), In lbl1 specs -> In lbl2 specs -> stn lbl1 = Some w -> stn lbl2 = Some w -> lbl1 = lbl2.
-
-Lemma sub_domain_stn_nodup : forall specs1 specs2 stn, stn_nodup specs1 stn -> sub_domain specs2 specs1 -> stn_nodup specs2 stn.
-  unfold stn_nodup, sub_domain; intros.
+Lemma sub_domain_specs_stn_injective : forall specs1 specs2 stn, specs_stn_injective specs1 stn -> sub_domain specs2 specs1 -> specs_stn_injective specs2 stn.
+  unfold specs_stn_injective, sub_domain; intros.
   eapply H; eauto.
 Qed.
 
-Lemma add_stn_nodup : forall specs k v stn, stn_nodup (add k v specs) stn -> stn_nodup specs stn.
+Lemma add_specs_stn_injective : forall specs k v stn, specs_stn_injective (add k v specs) stn -> specs_stn_injective specs stn.
   intros.
-  eapply sub_domain_stn_nodup; eauto.
+  eapply sub_domain_specs_stn_injective; eauto.
   unfold sub_domain; intros.
   eapply add_in_iff; eauto.
 Qed.
 
-Lemma is_pointer_of_label_intro_elim : forall specs stn w, (forall v, is_pointer_of_label specs stn w = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v).
+Lemma is_pointer_of_label_intro_elim : forall specs stn w, (forall v, is_pointer_of_label specs stn w = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, specs_stn_injective specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v).
   do 3 intro.
-  eapply fold_rec_bis with (P := fun specs a => (forall v, a = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> a = Some v)); simpl; intros.
-  unfold stn_nodup in *.
+  eapply fold_rec_bis with (P := fun specs a => (forall v, a = Some v -> exists lbl, find lbl specs = Some v /\ stn lbl = Some w) /\ (forall v lbl, specs_stn_injective specs stn -> find lbl specs = Some v -> stn lbl = Some w -> a = Some v)); simpl; intros.
+  unfold specs_stn_injective in *.
   setoid_rewrite H in H0.
   eapply H0; eauto.
   split; intros.
@@ -395,7 +389,7 @@ Lemma is_pointer_of_label_intro_elim : forall specs stn w, (forall v, is_pointer
   subst.
   eapply MapsTo_In in H6; contradiction.
   eapply H2; eauto.
-  eapply add_stn_nodup; eauto.
+  eapply add_specs_stn_injective; eauto.
   eapply find_mapsto_iff; eauto.
 
   eapply find_mapsto_iff in H4.
@@ -413,18 +407,18 @@ Lemma is_pointer_of_label_intro_elim : forall specs stn w, (forall v, is_pointer
   eapply add_in_iff; eauto.
   eapply add_in_iff; right; eapply MapsTo_In; eauto.
   eapply H2; eauto.
-  eapply add_stn_nodup; eauto.
+  eapply add_specs_stn_injective; eauto.
   eapply find_mapsto_iff; eauto.
   rewrite e0 in *.
   eapply add_mapsto_iff in H4; openhyp.
   subst.
   rewrite H5 in e0; intuition.
   eapply H2; eauto.
-  eapply add_stn_nodup; eauto.
+  eapply add_specs_stn_injective; eauto.
   eapply find_mapsto_iff; eauto.
 Qed.
 
-Lemma is_pointer_of_label_intro : forall specs stn w v lbl, stn_nodup specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v.
+Lemma is_pointer_of_label_intro : forall specs stn w v lbl, specs_stn_injective specs stn -> find lbl specs = Some v -> stn lbl = Some w -> is_pointer_of_label specs stn w = Some v.
   eapply is_pointer_of_label_intro_elim; eauto.
 Qed.
 
@@ -432,11 +426,16 @@ Lemma is_pointer_of_label_elim : forall specs stn w v, is_pointer_of_label specs
   eapply is_pointer_of_label_intro_elim; eauto.
 Qed.
 
-Lemma NoDup_stn_nodup : forall specs fs stn, List.NoDup (List.map snd (elements specs)) -> specs_fs_agree specs (stn, fs) -> forall new_specs, stn_nodup new_specs stn.
-  admit.
+Lemma equal_domain_specs_stn_injective : forall specs1 specs2 stn, equal_domain specs1 specs2 -> (specs_stn_injective specs1 stn <-> specs_stn_injective specs2 stn).
+  split; intros.
+  eapply sub_domain_specs_stn_injective; eauto; eapply H.
+  eapply sub_domain_specs_stn_injective; eauto; eapply H.
+Qed.
+Lemma equal_domain_sym : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), equal_domain m1 m2 -> equal_domain m2 m1.
+  unfold equal_domain; intuition.
 Qed.
 
-Lemma change_env_agree : forall specs new_specs, List.NoDup (List.map snd (elements specs)) -> equal_domain new_specs specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
+Lemma change_env_agree : forall specs new_specs, equal_domain new_specs specs -> forall env, specs_env_agree specs env -> specs_env_agree new_specs (change_env new_specs env).
 Proof.
   unfold specs_env_agree.
   intros.
@@ -445,10 +444,12 @@ Proof.
   split.
   unfold labels_in_scope in *.
   intros.
-  eapply H1.
-  destruct H0.
-  eapply H0; eauto.
-  
+  eapply H0.
+  eapply H; eauto.
+
+  split.
+  eapply equal_domain_specs_stn_injective; eauto.
+
   unfold specs_fs_agree in *.
   split; intros.
   simpl in *.
@@ -462,21 +463,22 @@ Proof.
   rewrite e in *.
   eapply H2 in H3; openhyp.
   eapply find_mapsto_iff in H4; eapply MapsTo_In in H4.
-  destruct H0.
-  eapply H5 in H4.
+  eapply H in H4.
   eapply In_MapsTo in H4; openhyp.
   assert (is_pointer_of_label new_specs o p = Some x0).
   eapply is_pointer_of_label_intro; eauto.
-  eapply NoDup_stn_nodup; eauto.
+  eapply equal_domain_specs_stn_injective; eauto.
+
   eapply find_mapsto_iff; eauto.
-  rewrite e in H6; intuition.
+  rewrite e in H5; intuition.
   openhyp.
   simpl in *.
   destruct env; simpl in *.
   assert (is_pointer_of_label new_specs o p = Some spec0).
   eapply is_pointer_of_label_intro; eauto.
-  eapply NoDup_stn_nodup; eauto.
+  eapply equal_domain_specs_stn_injective; eauto.
   rewrite H5; eauto.
+
 Qed.
 
 Import WordSet.
@@ -1042,9 +1044,88 @@ Require Import LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import Notations4Make.
 
-Lemma make_specs_equal : forall modules imports, specs_equal (make_specs modules imports) modules imports.
-  admit.
+Import GLabelMap.GLabelMap.
+Import GLabelMapFacts.
+Import LinkSpecMake.
+
+Lemma specs_op_equal : specs_equal specs_op modules imports.
+  split; intros.
+  unfold specs_equal, specs_op in *; simpl in *.
+  eapply find_mapsto_iff in H; eapply add_mapsto_iff in H; openhyp.
+  subst; simpl in *.
+  left; descend; eauto.
+  unfold gm, to_good_module; simpl; eauto.
+  eapply add_mapsto_iff in H0; openhyp.
+  subst; simpl in *.
+  left; descend; eauto.
+  unfold gm, to_good_module; simpl; eauto.
+  eapply map_mapsto_iff in H1; openhyp.
+  subst; simpl in *.
+  eapply find_mapsto_iff in H2.
+  right; descend; eauto.
+
+  unfold label_mapsto in *.
+  openhyp.
+  subst; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  openhyp.
+  subst; simpl in *.
+  reflexivity.
+  subst; simpl in *.
+  reflexivity.
+  intuition.
+  intuition.
+  subst; simpl in *.
+  assert (lbl <> ("count", "count") /\ lbl <> ("count", "main")).
+  split.
+  nintro.
+  subst; simpl in *.
+  compute in H0; intuition.
+  nintro.
+  subst; simpl in *.
+  compute in H0; intuition.
+  openhyp.
+  eapply find_mapsto_iff.
+  eapply add_mapsto_iff.
+  right.
+  split.
+  eauto.
+  eapply add_mapsto_iff.
+  right.
+  split.
+  eauto.
+  eapply find_mapsto_iff in H0.
+  eapply map_mapsto_iff.
+  descend; eauto.
 Qed.
+
+(*
+Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
+
+Lemma make_specs_equal : 
+  forall modules imports, 
+    List.NoDup (List.map GName modules) ->
+    ListFacts1.Disjoint (List.map GName modules) (List.map fst2 (elements imports)) ->
+    specs_equal (make_specs modules imports) modules imports.
+Proof.
+  unfold specs_equal.
+  induction modules0; simpl; split; intros.
+  eapply find_mapsto_iff in H1.
+  eapply map_mapsto_iff in H1; openhyp.
+  subst; simpl in *.
+  right; descend; eauto.
+  eapply find_mapsto_iff; eauto.
+  unfold label_mapsto in *.
+  openhyp.
+  intuition.
+  subst; simpl in *.
+  unfold ForeignFuncSpec in *.
+  rewrite map_o; rewrite H2; eauto.
+
+  simpl in *.
+Qed.
+*)
 
 Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
   admit.
@@ -1129,70 +1210,36 @@ Lemma specs_equal_domain : equal_domain specs specs_op.
   eapply equal_domain_dec_sound; reflexivity.
 Qed.
 
-Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
+Hint Resolve specs_op_equal specs_equal_domain.
+
+Lemma new_env_strengthen : forall stn fs, env_good_to_use modules imports stn fs -> strengthen (from_bedrock_label_map (Labels stn), fs stn) (change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
   intros.
-  eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H1.
-  cito_runsto main empty_precond main_vcs_good.
-  split; eauto.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  eauto.
   eapply strengthen_diff_strenghthen.
   Focus 2.
   eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
   Focus 2.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  eapply specs_strengthen_diff.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  intros; simpl.
-  eauto.
+  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
+  eapply specs_strengthen_diff; eauto.
+  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
+  intros; simpl; eauto.
 Qed.
 
-Lemma main_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
+Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
+  intros.
+  eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H0.
+  cito_runsto main empty_precond main_vcs_good.
+  split; eauto.
+  2 : eauto.
+  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
+  eapply new_env_strengthen; eauto.
+Qed.
+
+Lemma main_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
   intros.
   eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
   cito_safe main empty_precond main_vcs_good.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  eapply strengthen_diff_strenghthen.
-  Focus 2.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  Focus 2.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  eapply specs_strengthen_diff.
-  eapply change_env_agree.
-  Focus 3.
-  eapply specs_equal_agree; eauto.
-  eapply make_specs_equal.
-  admit. (* NoDup _ *)
-  eapply specs_equal_domain.
-  intros; simpl.
-  eauto.
+  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
+  eapply new_env_strengthen; eauto.
 Qed.
 
 Require Import Inv.
@@ -1220,7 +1267,7 @@ Theorem top_ok : moduleOk top.
   Focus 2.
   apply (@is_state_in''' (upd x2 "extra_stack" 40)).
   autorewrite with sepFormula.
-  clear H7 H8.
+  clear H7.
   hiding ltac:(step auto_ext).
   apply main_safe; eauto.
   hiding ltac:(step auto_ext).
@@ -1231,7 +1278,7 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply main_runsto in H9; simpl in H9; intuition subst.
+  eapply_in_any main_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd x2 "extra_stack" 40) "extra_stack")).
   apply is_state_out'''''.
@@ -1240,6 +1287,7 @@ Theorem top_ok : moduleOk top.
   NoDup.
   eauto.
   
+  clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
 

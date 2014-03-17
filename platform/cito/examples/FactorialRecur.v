@@ -96,7 +96,7 @@ Definition change_fs (fs : settings -> W -> option Callee) : settings -> W -> op
       | other => other
     end.
 
-Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
+Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
   intros.
   split.
   simpl.
@@ -104,7 +104,7 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
   intros.
   eapply H.
   unfold specs in *.
-  eapply add_in_iff in H1.
+  eapply add_in_iff in H0.
   openhyp.
   subst; simpl in *.
   left.
@@ -113,15 +113,18 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
   eauto.
   simpl; eauto.
   simpl; eauto.
-  eapply empty_in_iff in H1; intuition.
+  eapply empty_in_iff in H0; intuition.
 
+  split.
+  Focus 2.
   unfold specs_fs_agree; simpl in *.
   unfold change_fs.
   intros.
   destruct (option_dec (fs0 stn p)).
   destruct s; rewrite e in *.
   destruct x; simpl in *.
-  eapply H0 in e.
+  eapply H in e.
+  unfold label_mapsto in *.
   openhyp.
   subst; simpl in *.
   openhyp.
@@ -131,39 +134,40 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
   discriminate.
   intuition.
   intuition.
-  injection H2; intros; subst.
-  unfold imports in H3; simpl in *.
-  compute in H3; intuition.
-  split; intros.
   injection H1; intros; subst.
-  eapply H0 in e.
+  unfold imports in H2; simpl in *.
+  compute in H2; intuition.
+  split; intros.
+  injection H0; intros; subst.
+  eapply H in e.
+  unfold label_mapsto in *.
   openhyp.
   subst; simpl in *.
   openhyp.
   subst; simpl in *.
   openhyp.
   subst; simpl in *.
-  injection H3; intros; subst; simpl in *; clear H3.
+  injection H2; intros; subst; simpl in *; clear H2.
   descend.
   eauto.
   reflexivity.
   intuition.
   intuition.
-  compute in H4; intuition.
+  compute in H3; intuition.
   openhyp.
-  unfold specs in H2.
-  eapply find_mapsto_iff in H2.
-  eapply add_mapsto_iff in H2.
+  unfold specs in H1.
+  eapply find_mapsto_iff in H1.
+  eapply add_mapsto_iff in H1.
   openhyp.
   subst; eauto.
-  eapply empty_mapsto_iff in H3; intuition.
+  eapply empty_mapsto_iff in H2; intuition.
   rewrite e in *.
   split; intros.
   discriminate.
   openhyp.
-  unfold specs in H2.
-  eapply find_mapsto_iff in H2.
-  eapply add_mapsto_iff in H2.
+  unfold specs in H1.
+  eapply find_mapsto_iff in H1.
+  eapply add_mapsto_iff in H1.
   openhyp.
   subst; simpl in *.
   contradict e.
@@ -171,7 +175,7 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
     intuition.
   Qed.
   eapply Some_not_None.
-  eapply H0.
+  eapply H.
   descend.
   eauto.
   left.
@@ -182,7 +186,9 @@ Lemma change_fs_agree : forall fs stn, stn_good_to_use modules imports stn -> fs
   simpl; eauto.
   eauto.
   simpl; eauto.
-  eapply empty_mapsto_iff in H3; intuition.
+  eapply empty_mapsto_iff in H2; intuition.
+
+  admit. (* injective *)
 Qed.
 
 Import ProgramLogicMake.SemanticsMake.
@@ -290,10 +296,10 @@ Lemma body_safe' : forall env v, specs_env_agree specs env -> Safe env (Body f) 
   cito_safe f empty_precond vcs_good.
 Qed.
 
-Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
+Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn fs ->strengthen (from_bedrock_label_map (Labels stn), fs stn) (from_bedrock_label_map (Labels stn), change_fs fs stn).
   unfold modules, imports.
   intros.
-  generalize H0; intro.
+  generalize H; intro.
   unfold strengthen.
   split.
   eauto.
@@ -306,24 +312,25 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   destruct x; simpl in *.
   eauto.
   eapply H0 in e.
+  unfold label_mapsto in *.
   openhyp.
   subst; simpl in *.
   openhyp.
   subst; simpl in *.
   openhyp.
   subst; simpl in *.
-  injection H3; intros; subst; simpl in *; clear H3.
+  injection H2; intros; subst; simpl in *; clear H2.
   right; descend.
   eauto.
   eauto.
   simpl in *.
   openhyp.
-  rewrite H3.
+  rewrite H2.
   eauto.
   simpl in *.
   eapply body_safe'; eauto.
   eapply change_fs_agree; eauto.
-  eapply body_runsto' in H3; eauto.
+  eapply body_runsto' in H2; eauto.
   Focus 2.
   eapply change_fs_agree; eauto.
   simpl.
@@ -343,22 +350,22 @@ Lemma change_fs_strengthen : forall fs stn, stn_good_to_use modules imports stn 
   eauto.
   intuition.
   intuition.
-  rewrite empty_o in H4; intuition.
+  rewrite empty_o in H3; intuition.
   rewrite e in *.
   eauto.
   Grab Existential Variables.
   eauto.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H0.
   eapply body_runsto'; eauto.
   eapply change_fs_agree; eauto.
   eapply change_fs_strengthen; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   intros.
   eapply strengthen_safe.
   eapply body_safe'; eauto.
@@ -391,6 +398,7 @@ Theorem top_ok : moduleOk top.
   Focus 2.
   apply (@is_state_in''' (upd (upd x2 "extra_stack" 40) "n" input)).
   autorewrite with sepFormula.
+  clear H7.
   hiding ltac:(step auto_ext).
   apply body_safe; eauto.
   hiding ltac:(step auto_ext).
@@ -401,17 +409,21 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply body_runsto in H9; simpl in H9; intuition subst.
+  Require Import GeneralTactics3.
+  eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
   apply is_state_out''''.
   NoDup.
   NoDup.
   NoDup.
+  clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  rewrite H10.
-  rewrite H12.
+  Require Import BedrockTactics.
+  sel_upd_simpl.
+  rewrite H9.
+  rewrite H11.
   reflexivity.
 
   sep_auto.
