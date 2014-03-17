@@ -506,7 +506,8 @@ Definition specs_change_table :=
         "count"!"main" @ [main_spec]
     ]]%stmtex.
 
-Definition specs := apply_specs_diff (make_specs modules imports) specs_change_table.
+Definition specs_op := make_specs modules imports.
+Definition specs := apply_specs_diff specs_op specs_change_table.
 
 Require Import WordFacts2 WordFacts5.
 Require Import WordMapFacts.
@@ -1045,8 +1046,6 @@ Lemma make_specs_equal : forall modules imports, specs_equal (make_specs modules
   admit.
 Qed.
 
-Definition specs_op := make_specs modules imports.
-
 Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
   admit.
 Qed.
@@ -1083,13 +1082,13 @@ Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthe
   eapply ($0).
 Qed.
 
-Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff (make_specs modules imports) specs_change_table env_ax.
+Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
   intros.
   unfold strengthen_diff.
   rewrite GLabelMap.fold_1.
-  Opaque make_specs specs.
+  Opaque specs specs_op.
   simpl.
-  Transparent make_specs specs.
+  Transparent specs specs_op.
   unfold strengthen_diff_f.
   split_all.
   eauto.
