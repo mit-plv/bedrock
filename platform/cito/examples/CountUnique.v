@@ -1052,36 +1052,43 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
 Qed.
 
 Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
-  admit.
+  intros.
+  unfold strengthen_op_ax.
+  split_all.
+  intros.
+  simpl in *.
+  rewrite H0; simpl; eauto.
+  intros.
+  cito_safe main empty_precond main_vcs_good.
+  cito_runsto main empty_precond main_vcs_good.
+  2 : eauto.
+  Import SemanticsFacts4Make.TransitMake.
+  unfold TransitTo.
+  descend.
+  instantiate (1 := [[]]).
+  eauto.
+  simpl.
+  Import SemanticsMake.
+  repeat econstructor.
+  eauto.
+  eauto.
+  simpl.
+  repeat econstructor.
+  simpl.
+  admit. (* snd v' == snd v -> snd v' = snd v *)
+  unfold decide_ret, Semantics.decide_ret.
+  simpl.
+  eauto.
+  Grab Existential Variables.
+  eapply ($0).
 Qed.
 
 Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff (make_specs modules imports) specs_change_table env_ax.
   intros.
-  unfold strengthen_diff, specs_change_table.
+  unfold strengthen_diff.
+  rewrite GLabelMap.fold_1.
   Opaque make_specs specs.
   simpl.
-  unfold GLabelMapFacts.uncurry.
-  change GLabelMapFacts.M.add with GLabelMap.add.
-  Import GLabelKey.
-  cbv beta iota zeta
-      delta [
-        GLabelMap.fold 
-          GLabelMap.Raw.fold GLabelMap.this
-          fold_left GLabelMap.add GLabelMap.Raw.add GLabelMap.empty
-          GLabelMap.Raw.empty GLabel_as_MOT.compare GLabel_as_MOT.to_bl LabelKey.compare LabelKey.compare' string_lt fst
-          snd string_dec sumbool_rec sumbool_rect Ascii.N_of_ascii
-          Ascii.N_of_digits N.compare Pos.compare string_rec string_rect
-          Ascii.ascii_dec GLabelMap.find GLabelMap.Raw.find N.add N.mul
-          Pos.compare_cont Pos.add Pos.mul Ascii.ascii_rec Ascii.ascii_rect
-          Bool.bool_dec bool_rec bool_rect eq_rec_r eq_rec eq_rect eq_sym
-          label'_lt label'_eq label'_rec label'_rect GLabelMap.Raw.bal
-          GLabelMap.Raw.create Int.Z_as_Int.gt_le_dec Int.Z_as_Int.plus
-          Int.Z_as_Int.ge_lt_dec GLabelMap.Raw.height ZArith_dec.Z_gt_le_dec
-          Int.Z_as_Int._0 BinInt.Z.add Int.Z_as_Int._1 Int.Z_as_Int._2
-          ZArith_dec.Z_gt_dec ZArith_dec.Z_ge_lt_dec Int.Z_as_Int.max
-          BinInt.Z.max BinInt.Z.compare XCAP.union ZArith_dec.Z_ge_dec
-          XCAP.diff GLabelMap.mem GLabelMap.Raw.mem GLabelMap.is_empty
-          GLabelMap.Raw.is_empty Pos.succ].
   Transparent make_specs specs.
   unfold strengthen_diff_f.
   split_all.
@@ -1098,6 +1105,31 @@ Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> str
   eapply main_strengthen; eauto.
 Qed.
 
+Import GLabelMap.GLabelMap.
+Import GLabelMapFacts.
+Definition sub_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forallb (fun k => mem k m2) (keys m1).
+Lemma sub_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), sub_domain_dec m1 m2 = true -> sub_domain m1 m2.
+  intros.
+  unfold sub_domain_dec, sub_domain in *.
+  intros.
+  eapply forallb_forall in H.
+  eapply mem_in_iff; eauto.
+  Require Import SetoidListFacts.
+  eapply InA_In.
+  eapply In_In_keys; eauto.
+Qed.
+Definition equal_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := (sub_domain_dec m1 m2 && sub_domain_dec m2 m1)%bool.
+Lemma equal_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), equal_domain_dec m1 m2 = true -> equal_domain m1 m2.
+  unfold equal_domain_dec, equal_domain; intros.
+  eapply Bool.andb_true_iff in H; openhyp.
+  eapply sub_domain_dec_sound in H.
+  eapply sub_domain_dec_sound in H0.
+  eauto.
+Qed.
+Lemma specs_equal_domain : equal_domain specs specs_op.
+  eapply equal_domain_dec_sound; reflexivity.
+Qed.
+
 Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
   intros.
   eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H1.
@@ -1108,7 +1140,7 @@ Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> f
   eapply specs_equal_agree; eauto.
   eapply make_specs_equal.
   admit. (* NoDup _ *)
-  admit. (* equal_domain *)
+  eapply specs_equal_domain.
   eauto.
   eapply strengthen_diff_strenghthen.
   Focus 2.
@@ -1120,37 +1152,48 @@ Lemma main_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> f
   eapply specs_equal_agree; eauto.
   eapply make_specs_equal.
   admit. (* NoDup _ *)
-  admit. (* equal_domain *)
+  eapply specs_equal_domain.
   eapply specs_strengthen_diff.
   eapply change_env_agree.
   Focus 3.
   eapply specs_equal_agree; eauto.
   eapply make_specs_equal.
   admit. (* NoDup _ *)
-  admit. (* equal_domain *)
+  eapply specs_equal_domain.
   intros; simpl.
   eauto.
 Qed.
 
 Lemma main_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
-  cito_safe main empty_precond main_vcs_good; eauto.
+  intros.
+  eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
+  cito_safe main empty_precond main_vcs_good.
+  eapply change_env_agree.
+  Focus 3.
   eapply specs_equal_agree; eauto.
-Qed.
-
-Lemma body_runsto : forall stn fs v v', stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H1.
-  eapply body_runsto'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
-
-Lemma body_safe : forall stn fs v, stn_good_to_use modules imports stn -> fs_good_to_use modules imports fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  intros.
-  eapply strengthen_safe.
-  eapply body_safe'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  eapply specs_equal_domain.
+  eapply strengthen_diff_strenghthen.
+  Focus 2.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  Focus 2.
+  eapply change_env_agree.
+  Focus 3.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  eapply specs_equal_domain.
+  eapply specs_strengthen_diff.
+  eapply change_env_agree.
+  Focus 3.
+  eapply specs_equal_agree; eauto.
+  eapply make_specs_equal.
+  admit. (* NoDup _ *)
+  eapply specs_equal_domain.
+  intros; simpl.
+  eauto.
 Qed.
 
 Require Import Inv.
