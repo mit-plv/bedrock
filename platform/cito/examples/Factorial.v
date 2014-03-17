@@ -106,11 +106,12 @@ Import LinkSpecMake.
 Require Import LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import Notations4Make.
+Import LinkSpecMake.
 
 Lemma specs_good : specs_equal specs modules imports.
   split; intros.
 
-  unfold imports_exports_mapsto, specs in *.
+  unfold label_mapsto, specs in *.
   eapply find_mapsto_iff in H.
   eapply add_mapsto_iff in H.
   openhyp.
@@ -120,7 +121,7 @@ Lemma specs_good : specs_equal specs modules imports.
 
   eapply empty_mapsto_iff in H0; intuition.
 
-  unfold imports_exports_mapsto, specs in *.
+  unfold label_mapsto, specs in *.
   eapply find_mapsto_iff.
   eapply add_mapsto_iff.
   openhyp.
@@ -168,12 +169,12 @@ Import LinkSpecMake.
 
 Hint Resolve specs_good.
 
-Lemma body_runsto : forall stn fs v v', stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
   cito_runsto f empty_precond vcs_good; eauto.
   eapply specs_equal_agree; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, stn_good_to_use (gm :: nil) (empty _) stn -> fs_good_to_use (gm :: nil) (empty _) fs stn -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   cito_safe f empty_precond vcs_good.
   eapply specs_equal_agree; eauto.
 Qed.
@@ -203,6 +204,7 @@ Theorem top_ok : moduleOk top.
   Focus 2.
   apply (@is_state_in''' (upd (upd x2 "extra_stack" 40) "n" input)).
   autorewrite with sepFormula.
+  clear H7.
   hiding ltac:(step auto_ext).
   apply body_safe; eauto.
   hiding ltac:(step auto_ext).
@@ -213,17 +215,21 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply body_runsto in H9; simpl in H9; intuition subst.
+  Require Import GeneralTactics3.
+  eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
   apply is_state_out''''.
   NoDup.
   NoDup.
   NoDup.
+  clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  rewrite H10.
-  rewrite H12.
+  Require Import BedrockTactics.
+  sel_upd_simpl.
+  rewrite H9.
+  rewrite H11.
   reflexivity.
 
   sep_auto.
@@ -235,7 +241,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Definition all := link top (link_with_adts (gm :: nil) (empty _)).
+Definition all := link top (link_with_adts modules imports).
 
 Theorem all_ok : moduleOk all.
   link0 top_ok.

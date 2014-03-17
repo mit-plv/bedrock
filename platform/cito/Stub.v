@@ -1418,7 +1418,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation fs_good_to_use := (LinkSpecMake.fs_good_to_use modules imports fs).
 
       Lemma augment_fs_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> fs_good_to_use stn.
-        split; intros.
+        split; intros; unfold label_mapsto in *.
 
         (* elimination *)
         destruct spec0.
@@ -1534,6 +1534,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Lemma augment_stn_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_good_to_use stn.
       Proof.
         unfold LinkSpecMake.stn_good_to_use.
+        unfold label_in.
         intros.
         openhyp.
 
@@ -1562,6 +1563,55 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
+      Lemma augment_stn_injective : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_injective modules imports stn.
+      Proof.
+        unfold stn_injective.
+        intros.
+
+        unfold label_in in H0.
+        openhyp.
+        assert (In lbl1 exports).
+        subst.
+        eapply MapsTo_In.
+        eapply exports_mapsto_iff.
+        descend; eauto.
+
+        unfold label_in in H1.
+        openhyp.
+        assert (In lbl2 exports).
+        subst.
+        eapply MapsTo_In.
+        eapply exports_mapsto_iff.
+        descend; eauto.
+
+        eapply augment_injective_exports; eauto.
+
+        exfalso.
+        eapply augment_injective_exports_imports; eauto.
+
+        unfold label_in in H1.
+        openhyp.
+        assert (In lbl2 exports).
+        subst.
+        eapply MapsTo_In.
+        eapply exports_mapsto_iff.
+        descend; eauto.
+
+        exfalso.
+        eapply augment_injective_exports_imports; eauto.
+
+        eapply augment_injective_imports; eauto.
+      Qed.
+
+      Lemma augment_env_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> env_good_to_use modules imports stn fs.
+        intros.
+        split.
+        eapply augment_stn_good_to_use; eauto.
+        split.
+        eapply augment_stn_injective; eauto.
+        eapply augment_fs_good_to_use; eauto.
+      Qed.
+
       Lemma good_vcs : forall ls, (forall x, List.In x ls -> List.In x (Functions m)) -> vcs (makeVcs bimports_diff_bexports stubs (List.map make_stub ls)).
         induction ls; simpl; eauto.
         Opaque funcs_ok.
@@ -1576,8 +1626,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         step auto_ext.
         descend; eauto.
         simpl in *.
-        eapply augment_stn_good_to_use; eauto.
-        eapply augment_fs_good_to_use; eauto.
+        eapply augment_env_good_to_use; eauto.
 
         erewrite tgt_fullImports; eauto.
       Qed.        

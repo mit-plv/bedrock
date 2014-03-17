@@ -23,29 +23,48 @@ Module Make (Import E : ADT).
     Notation FName := SyntaxFunc.Name.
     Notation MName := GoodModule.Name.
 
+    Definition label_in (lbl : glabel) :=
+      (exists m f,
+         List.In m modules /\
+         List.In f (Functions m) /\
+         lbl = (MName m, FName f)) \/
+      In lbl imports.
+
+    Definition label_mapsto lbl spec :=
+      (exists ispec m f,
+         spec = Internal ispec /\
+         List.In m modules /\
+         List.In f (Functions m) /\
+         ispec = f /\ 
+         lbl = (MName m, FName f)) \/
+      (exists fspec,
+         spec = Foreign fspec /\
+         find lbl imports = Some fspec).
+
     Definition stn_good_to_use (stn : settings) :=
       forall lbl : glabel,
-        ((exists m f,
-            List.In m modules /\
-            List.In f (Functions m) /\
-            lbl = (MName m, FName f)) \/
-         In lbl imports) ->
+        label_in lbl ->
         Labels stn lbl <> None.
+
+    Definition stn_injective (stn : settings) :=
+      forall lbl1 lbl2 p, 
+        label_in lbl1 -> 
+        label_in lbl2 -> 
+        Labels stn lbl1 = Some p -> 
+        Labels stn lbl2 = Some p -> 
+        lbl1 = lbl2.
 
     Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
       forall p spec, 
         fs stn p = Some spec <-> 
         exists lbl : glabel,
           Labels stn lbl = Some p /\
-          ((exists ispec m f,
-              spec = Internal ispec /\
-              List.In m modules /\
-              List.In f (Functions m) /\
-              ispec = f /\ 
-              lbl = (MName m, FName f)) \/
-           (exists fspec,
-              spec = Foreign fspec /\
-              find lbl imports = Some fspec)).
+          label_mapsto lbl spec.
+
+    Definition env_good_to_use stn fs :=
+      stn_good_to_use stn /\
+      stn_injective stn /\
+      fs_good_to_use fs stn.
 
     Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
         
@@ -118,7 +137,7 @@ Module Make (Import E : ADT).
 
       Notation fs := (fs modules imps).
       
-      Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| stn_good_to_use modules imps (fst st) /\ fs_good_to_use modules imps fs (fst st) |] ---> spec_without_funcs_ok f fs st)%PropX.
+      Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| env_good_to_use modules imps (fst st) fs |] ---> spec_without_funcs_ok f fs st)%PropX.
 
       Definition foreign_func_spec id spec : assert := 
         st ~> name_marker id /\ ExX, foreign_spec _ spec st.

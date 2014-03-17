@@ -81,6 +81,7 @@ Theorem top_ok : moduleOk top.
   eapply CompileExprs.change_hyp; [ |
     change (@nil W) with (toArray nil (upd x2 "extra_stack" 10)); apply is_state_in' ].
   autorewrite with sepFormula.
+  clear H7.
   hiding ltac:(step auto_ext).
   apply body_safe.
   hiding ltac:(step auto_ext).
@@ -91,10 +92,11 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  apply body_runsto in H9; simpl in H9; intuition subst.
+  apply body_runsto in H8; simpl in H8; intuition subst.
   eapply replace_imp.
   change 10 with (wordToNat (sel (upd x2 "extra_stack" 10) "extra_stack")).
   apply is_state_out'.
+  clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
 

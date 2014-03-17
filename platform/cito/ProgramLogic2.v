@@ -167,15 +167,13 @@ Module Make (Import E : ADT).
     Definition labels_in_scope (specs : Specs) (labels : glabel -> option W) :=
       forall lbl, In lbl specs -> labels lbl <> None.
 
+    Definition specs_stn_injective (specs : Specs) stn := forall lbl1 lbl2 (w : W), In lbl1 specs -> In lbl2 specs -> stn lbl1 = Some w -> stn lbl2 = Some w -> lbl1 = lbl2.
+
     Definition specs_env_agree (specs : Specs) (env : Env) :=
       labels_in_scope specs (fst env) /\
+      specs_stn_injective specs (fst env) /\
       specs_fs_agree specs env.
 
-    Ltac eapply_in_any t :=
-      match goal with
-          H : _ |- _ => eapply t in H
-      end.
-    
     Require Import GLabelMapFacts.
 
     Lemma RunsTo_RunsToDCall : 
