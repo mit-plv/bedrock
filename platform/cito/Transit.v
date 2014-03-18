@@ -13,6 +13,8 @@ Module Make (Import E : ADT).
 
     Require Import Syntax.
     Require Import SemanticsExpr.
+    Require Import WordMap.
+    Infix "==" := WordMap.Equal.
 
     Definition TransitTo spec args heap r heap' :=
       exists triples addr ret,
@@ -25,7 +27,7 @@ Module Make (Import E : ADT).
         let ret_w := fst t in
         let ret_a := snd t in
         separated heap ret_w ret_a /\
-        heap' = heap_upd_option heap ret_w ret_a /\
+        heap' == heap_upd_option heap ret_w ret_a /\
         r = ret_w.
 
     Definition match_ret vs rvar rvalue :=

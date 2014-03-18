@@ -109,7 +109,6 @@ Module Make (Import E : ADT).
 
     t.
     descend; eauto.
-    Focus 2.
     change (fst v) with (fst (fst v, h)) at 2.
     eapply RunsToCallForeign; eauto.
     simpl; eapply good_inputs_Equal; eauto.

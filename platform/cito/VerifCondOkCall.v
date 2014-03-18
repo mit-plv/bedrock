@@ -898,8 +898,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply separated_Equal; eauto.
       apply heap_merge_store_out; eauto.
       apply heap_upd_option_Equal.
-      apply F.Equal_sym; apply heap_merge_store_out; eauto.
-      eauto.
+      2 : reflexivity.
+      eapply heap_merge_store_out; eauto.
 
       unfold_all; repeat rewrite length_upd_sublist in *; eauto.
 
@@ -934,6 +934,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
       eapply separated_Equal; eauto.
       apply heap_merge_store_out; eauto.
+      reflexivity.
       simpl.
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H in H41
@@ -951,7 +952,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       words.
       eauto.
       apply heap_upd_option_Equal.
-      apply heap_merge_store_out; eauto.
+      eapply heap_merge_store_out; eauto.
 
       (* vc 9 *)
       post.

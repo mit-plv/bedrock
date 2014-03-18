@@ -107,16 +107,16 @@ Module Make (Import E : ADT).
 
       Focus 7.
       (* call foreign *)
-      generalize H5; intro.
-      unfold strengthen, strengthen_op_ax in H5; openhyp.
-      destruct (H8 (eval (fst v) f)); clear H8.
+      generalize H6; intro.
+      unfold strengthen, strengthen_op_ax in H6; openhyp.
+      destruct (H9 (eval (fst v) f)); clear H9.
       eapply RunsToCallForeign; eauto.
       destruct env_ax; destruct env_op; simpl in *.
       congruence.
 
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
-      rewrite H in H8; discriminate.
+      rewrite H in H9; discriminate.
 
       (* skip *)
       eauto.
