@@ -176,16 +176,18 @@ Section allocatePre_sound.
     -> NoDup (Recursive c)
     -> (forall x, In x (Recursive c) -> ~In x bvs)
     -> (forall x, In x (Recursive c) -> ~In x fvs)
+    -> (forall x, In x (Nonrecursive c) -> ~In x bvs)
+    -> (forall x, In x (Nonrecursive c) -> ~In x fvs)
     -> forall args fE ws, length args = length (Nonrecursive c) + length (Recursive c)
     -> map (fun e => exprD e fE) args = map (@Dyn W) ws
-    -> (forall fE1 fE2, (forall x, ~In x (Recursive c) -> ~In x bvs -> fE1 x = fE2 x)
+    -> (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
       -> List.Forall (fun e => exprD e fE1 = exprD e fE2) args)
     -> normalD (allocatePre (fst dt) (normalizeCon c) args) hE fE
     ===> Ex sks, Ex rs, [| length rs = length (Recursive c) |]
     * children (datatypeD hE dt) sks rs
     * predD (Condition c) hE
     (make_fo (Recursive c ++ Nonrecursive c)
-      (models rs ++ dynify (firstn (length (Recursive c)) ws)) fE).
+      (models rs ++ dynify (firstn (length (Nonrecursive c)) ws)) fE).
   Proof.
     destruct c; simpl in *.
     clear Htag.
@@ -208,16 +210,17 @@ Section allocatePre_sound.
     destruct Nonrecursive0; simpl in *; intros.
 
     destruct Recursive0; simpl in *; try discriminate.
-    injection H5; clear H5; intros.
+    injection H7; clear H7; intros.
     unfold allocatePre in IHargs; simpl in IHargs.
-    specialize (IHargs Condition0 H H0 nil Recursive0); simpl in IHargs; intuition.
+    specialize (IHargs Condition0 H H0 nil); simpl in IHargs; intuition.
+    inversion_clear H2.
+    specialize (H11 Recursive0); simpl in H11; intuition.
     apply Himp'_ex; fold addQuants; simpl; intro r.
     eapply Himp_trans; [ apply addSubstsH; apply addQuants_monotone | ].
     intros.
     apply star_out_fwd.
     destruct ws; simpl in *; try discriminate.
-    injection H6; clear H6; intros.
-    inversion_clear H2.
+    injection H8; clear H8; intros.
 
     Lemma addQuants_push_fwdPlus : forall f p qs fE,
       (forall fE1 fE2, (forall x, ~In x qs -> fE1 x = fE2 x) -> p fE1 = p fE2)
@@ -241,27 +244,33 @@ Section allocatePre_sound.
     eapply Himp_trans; [ apply addQuants_push_fwdPlus | ].
     intros.
     do 2 f_equal.
-    apply H2; intro.
-    apply in_app_or in H11; intuition eauto using normalize_boundVars.
+    apply H13; intro.
+    apply in_app_or in H14; intuition eauto using normalize_boundVars.
     f_equal.
-    specialize (H7 fE1 fE2).
-    match type of H7 with
-      | ?P -> _ => assert P
-    end.
+    specialize (H9 fE1 fE2).
+
+    Ltac proveHyp H :=
+      match type of H with
+        | ?P -> _ => assert P; [ | intuition idtac ]
+      end.
+
+    proveHyp H9.
     intuition idtac.
-    apply H2; intro.
-    apply in_app_or in H12; intuition eauto using normalize_boundVars.
+    apply H13; intro.
+    apply in_app_or in H15; intuition eauto using normalize_boundVars.
     intuition idtac.
-    inversion H13; auto.
+    inversion H15; auto.
 
     simpl.
     assert (Hscoped : forall fE1 fE2,
-      (forall x, (s = x \/ In x Recursive0 -> False) ->
+      (forall x, In x fvs ->
         (In x bvs -> False) -> fE1 x = fE2 x)
        -> List.Forall (fun e => exprD e fE1 = exprD e fE2) args).
     intros.
-    specialize (H7 fE1 fE2); intuition idtac.
-    inversion H12; auto.
+    specialize (H9 fE1 fE2); intuition idtac.
+    proveHyp H9.
+    eauto.
+    inversion H15; auto.
 
     Theorem map_same : forall A B (f g : A -> B) ls,
       List.Forall (fun x => f x = g x) ls
@@ -270,17 +279,18 @@ Section allocatePre_sound.
       induction 1; simpl; intuition.
     Qed.
 
-    eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply IHargs; eauto ] | ].
+    eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | eapply H2; eauto ] | ].
     erewrite map_same.
     eassumption.
     simpl.
     eapply Forall_weaken; [ | apply Hscoped ].
     simpl; eauto; intros.
     intros; unfold fo_set.
-    destruct (string_dec x s); intuition subst; tauto.
+    destruct (string_dec x s); intuition subst.
+    exfalso; eauto.
 
     replace (exprD a (fo_set fE s r)) with (exprD a fE).
-    rewrite H8.
+    rewrite H11.
     eapply Himp_trans; [ apply Himp_star_frame; [ apply HhE_fwd | apply Himp_refl ] | ].
     eapply Himp_trans; [ apply Himp_ex_star | ].
     apply Himp'_ex; intro sk.
@@ -338,25 +348,103 @@ Section allocatePre_sound.
 
     apply make_fo_reorder; auto.
       
-    generalize H11; clear.
+    generalize H14; clear.
     generalize (datatypeD hE dt); intro.
     generalize (children h); intro.
     generalize (predD Condition0 hE); intro.
     sepLemma.
 
-    specialize (H7 fE (fo_set fE s r)).
-    match type of H7 with
+    specialize (H9 fE (fo_set fE s r)).
+    match type of H9 with
       | ?P -> _ => assert P
     end.
     intuition idtac.
     unfold fo_set.
-    destruct (string_dec x s); subst; auto; tauto.
+    destruct (string_dec x s); subst; auto.
+    exfalso; eauto.
     intuition idtac.
-    inversion H12; auto.
+    inversion H14; auto.
 
 
     (** Case where recursive args are exhausted and we start on the nonrecursives *)
-    admit.
+    destruct ws; simpl in *; try discriminate.
+    injection H8; clear H8; intros.
+    injection H7; clear H7; intros.
+    unfold allocatePre in IHargs; simpl in IHargs.
+    specialize (IHargs (psubst s a Condition0)).
+
+    proveHyp IHargs.
+    apply wellScoped_psubst.
+    eapply wellScoped_weaken; eauto; simpl; tauto.
+    intros.
+    specialize (H9 fE1 fE2); intuition.
+    inversion H12; auto.
+
+    Theorem boundVars_psubst : forall x e p,
+      boundVars (psubst x e p) = boundVars p.
+    Proof.
+      induction p; simpl; intuition idtac;
+        repeat match goal with
+                 | [ H : _ |- _ ] => rewrite H
+               end; auto.
+    Qed.
+
+    rewrite boundVars_psubst in *; intuition idtac.
+    specialize (H13 Nonrecursive0); intuition idtac.
+    proveHyp H13; eauto.
+    proveHyp H14; eauto.
+    specialize (H15 Recursive0); intuition idtac.
+    specialize (H14 fE ws); intuition idtac.
+    proveHyp H14.
+    intros.
+    apply H9 in H15.
+    inversion H15; auto.
+
+    Theorem normalize_psubst : forall x a p,
+      normalize (psubst x a p) = nsubst x a (normalize p).
+    Proof.
+      induction p; simpl; intuition idtac;
+        repeat match goal with
+                 | [ H : _ |- _ ] => rewrite H
+               end; auto.
+
+      unfold nsubst; simpl.
+      f_equal.
+      2: symmetry; apply map_app.
+      destruct (NPure (normalize p1)); auto.
+      destruct (NPure (normalize p2)); auto.
+    Qed.
+
+    rewrite normalize_psubst in *.
+    eapply Himp_trans; [ apply H16 | ]; clear H16.
+    do 2 (apply Himp_ex; intro).
+    eapply Himp_trans; [ apply Himp_star_assoc | ].
+    apply Himp_star_pure_c; intro.
+    eapply Himp_trans; [ | apply Himp_star_assoc' ].
+    apply Himp_star_pure_cc; auto.
+    apply Himp_star_frame; [ apply Himp_refl | ].
+
+    apply addSubstsH.
+    eapply psubst_irrel_fwd; eauto.
+    intros.
+
+    Lemma make_fo_irrel : forall xs2 vs2 x v y,
+      y <> x
+      -> forall xs1 vs1 fE,
+        length xs1 = length vs1
+        -> make_fo (xs1 ++ x :: xs2) (vs1 ++ v :: vs2) fE y
+        = make_fo (xs1 ++ xs2) (vs1 ++ vs2) fE y.
+      clear; induction xs1; destruct vs1; simpl; intuition.
+      unfold fo_set.
+      destruct (string_dec y x); tauto.
+      unfold fo_set.
+      destruct (string_dec y a); auto.
+    Qed.
+
+    symmetry; apply make_fo_irrel; auto.
+    unfold models.
+    rewrite map_length.
+    auto.
   Qed.
 
 End allocatePre_sound.
