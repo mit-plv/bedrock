@@ -55,8 +55,7 @@ Definition count_body := (
       V' "len" = length arr /\                                          
       (h' === h ** (V' "set" --> FSet empty_set)) /\
       V' "arr" = V "arr" /\
-      goodSize (length arr) /\
-      V "len" = length arr                                          
+      goodSize (length arr)
     ];;
     "i" <- 0;;
     [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -65,8 +64,7 @@ Definition count_body := (
        (h' === h ** (V' "set" --> FSet fset)) /\ 
        fset =s= to_set (firstn (V' "i") arr) /\
        V' "arr" = V "arr" /\
-       goodSize (length arr) /\
-       V "len" = length arr 
+       goodSize (length arr)
     ]
     While ("i" < "len") {
       "e" <-- DCall "ADT"!"ArraySeq_read" ("arr", "i");;
@@ -78,8 +76,7 @@ Definition count_body := (
          V' "i" < V' "len" /\
          V' "e" = Array.sel arr (V' "i") /\
          V' "arr" = V "arr" /\
-         goodSize (length arr) /\
-         V "len" = length arr 
+         goodSize (length arr)
       ];;
       DCall "ADT"!"ListSet_add"("set", "e");;
       Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -89,8 +86,7 @@ Definition count_body := (
          fset =s= to_set (firstn (1 + V' "i") arr) /\
          V' "i" < V' "len" /\
          V' "arr" = V "arr" /\
-         goodSize (length arr) /\
-         V "len" = length arr 
+         goodSize (length arr)
       ];;
       "i" <- "i" + 1
     };;
@@ -98,17 +94,13 @@ Definition count_body := (
     Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
        find (V "arr") h = Some (Arr arr) /\
        (h' === h ** (V' "set" --> FSet fset)) /\ 
-       V' "ret" = unique_count arr /\
-       goodSize (length arr) /\
-       V "len" = length arr                                         
+       V' "ret" = unique_count arr
     ];;
     DCall "ADT"!"ListSet_delete"("set");;
     Assert [BEFORE (V, h) AFTER (V', h') exists arr,
        find (V "arr") h = Some (Arr arr) /\
        h' == h /\
-       V' "ret" = unique_count arr /\
-       goodSize (length arr) /\
-       V "len" = length arr                                         
+       V' "ret" = unique_count arr
     ]
 )%stmtex.
 
@@ -463,7 +455,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eauto.
   reflexivity.
   eauto.
-  eauto.
 
   (* vc4 *)
   intros.
@@ -482,7 +473,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   erewrite <- next; eauto.
   rewrite plus_comm.
   reflexivity.
-  eauto.
   eauto.
 
   (* vc5 *)
@@ -571,15 +561,15 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H14.
+  rewrite H3 in H13.
   rewrite H5 in *.
   assert (sel v0 "set" <> sel v "arr").
   eapply in_alldisj_neq; eauto.
   eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-  rewrite add_neq_o in H14 by eauto.
+  rewrite add_neq_o in H13 by eauto.
   change ExampleADT.ADTValue with ADTValue in *.
   change M.find with find in *.
-  rewrite H14 in H; injection H; intros; subst.
+  rewrite H13 in H; injection H; intros; subst.
   descend.
   eauto.
   eauto.
@@ -591,7 +581,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
   Qed.
   eapply add_swap; eauto.
-  eauto.
   eauto.
   eauto.
   eauto.
@@ -644,7 +633,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H2 in H15; eapply_in_any add_o_eq; subst; injection H15; intros; subst.
+  rewrite H2 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
   descend.
   eauto.
   eauto.
@@ -701,7 +690,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold wnat.
   nomega.
   eauto.
-  eauto.
 
   (* vc9 *)
   intros.
@@ -748,7 +736,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
+  rewrite H3 in H13; eapply_in_any add_o_eq; subst; injection H13; intros; subst.
   descend.
   eauto.
   split.
@@ -768,8 +756,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   rewrite H2 in *.
   unfold wnat in *.
   nomega.
-  eauto.
-  eauto.
 
   (* vc11 *)
   intros.
@@ -792,8 +778,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   simpl.
   unfold Semantics.disjoint_ptrs.
   NoDup.
-  descend.
-  eauto.
+  descend; eauto.
 
   (* vc12 *)
   intros.
@@ -817,16 +802,14 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H1 in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
+  rewrite H1 in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
   descend.
   eauto.
   rewrite H1.
   eapply Top.add_remove.
   eapply singleton_disj.
-  inv_clear H5.
+  inv_clear H3.
   inversion_Forall.
-  eauto.
-  eauto.
   eauto.
   eauto.
 
@@ -858,9 +841,14 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
     induction ls; simpl; intuition.
     simpl; f_equal; eauto.
   Qed.
-  specialize (combine_fst_snd x); intros.
-  rewrite H2 in H3.
-  rewrite <- H0 in H3.
+  Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
+    intros.
+    specialize (combine_fst_snd ls); intros.
+    rewrite H0 in H1.
+    rewrite <- H in H1.
+    eauto.
+  Qed.
+  eapply_in_any combine_fst_snd'; try eassumption.
   subst; simpl in *.
   Import SemanticsMake.
   unfold good_inputs, Semantics.good_inputs in *.
@@ -871,6 +859,18 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
 
   cito_runsto count count_pre count_vcs_good.
   2 : split; eauto.
+  unfold TransitSafe in *.
+  openhyp.
+  simpl in *.
+  openhyp.
+  subst; simpl in *.
+  eapply_in_any combine_fst_snd'; try eassumption.
+  subst; simpl in *.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  rewrite H9 in H0; injection H0; intros; subst.
   unfold TransitTo.
   descend.
   instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := inr (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := inl (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
@@ -1320,6 +1320,28 @@ Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthe
   eapply ($0).
 Qed.
 
+Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
+  intros.
+  unfold strengthen_diff.
+  rewrite GLabelMap.fold_1.
+  Opaque specs specs_op.
+  simpl.
+  Transparent specs specs_op.
+  unfold strengthen_diff_f.
+  split_all.
+  eauto.
+  right.
+  eexists.
+  split.
+  reflexivity.
+  eapply count_strengthen; eauto.
+  right.
+  eexists.
+  split.
+  reflexivity.
+  eapply main_strengthen; eauto.
+Qed.
+
 Import LinkSpecMake.
 Require Import LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
@@ -1378,28 +1400,6 @@ Lemma specs_op_equal : specs_equal specs_op modules imports.
   eapply find_mapsto_iff in H0.
   eapply map_mapsto_iff.
   descend; eauto.
-Qed.
-
-Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
-  intros.
-  unfold strengthen_diff.
-  rewrite GLabelMap.fold_1.
-  Opaque specs specs_op.
-  simpl.
-  Transparent specs specs_op.
-  unfold strengthen_diff_f.
-  split_all.
-  eauto.
-  right.
-  eexists.
-  split.
-  reflexivity.
-  eapply count_strengthen; eauto.
-  right.
-  eexists.
-  split.
-  reflexivity.
-  eapply main_strengthen; eauto.
 Qed.
 
 Lemma specs_equal_domain : equal_domain specs specs_op.
