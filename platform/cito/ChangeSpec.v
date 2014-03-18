@@ -16,20 +16,6 @@ Module Make (Import E : ADT).
 
   Section TopSection.
 
-    Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax env_ax :=
-      let args := ArgVars spec_op in
-      let rvar := RetVar spec_op in
-      let s := Body spec_op in
-      (forall ins, 
-         PreCond spec_ax ins ->
-         length args = length ins) /\
-      (forall v,
-         TransitSafe spec_ax (List.map (sel (fst v)) args) (snd v) ->
-         Safe env_ax s v) /\
-      forall v v', 
-        RunsTo env_ax s v v' -> 
-        TransitTo spec_ax (List.map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
-
     Require Import GLabel.
     Require Import GLabelMap.
     Import GLabelMap.
@@ -65,6 +51,7 @@ Module Make (Import E : ADT).
       descend; eauto.
       rewrite <- H2.
       eauto.
+
       openhyp.
       unfold Callee in *.
       rewrite H5 in H4; injection H4; intros; subst.
@@ -72,10 +59,8 @@ Module Make (Import E : ADT).
       eapply H1.
       descend; eauto.
       rewrite <- H2; eauto.
-      unfold strengthen_op_ax in *; openhyp.
       right; descend; eauto.
-      eapply H9; eauto.
-      eapply H10; eauto.
+
       destruct (option_dec (fs_ax w)).
       destruct s.
       generalize e0; intro.
