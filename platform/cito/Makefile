@@ -61,7 +61,7 @@ MODULES := \
 	LinkSpecFacts \
 	Notations3 Notations4 \
 	WordFacts2 WordFacts3 WordFacts4 WordFacts5 \
-	SemanticsFacts4 \
+	SemanticsFacts4 ChangeSpec \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/Cell examples/SimpleCell \
 	examples/Seq examples/ArraySeq \
@@ -71,7 +71,7 @@ MODULES := \
 	examples/Factorial examples/FactorialDriver \
 	examples/UseCell examples/UseCellDriver \
 	examples/FactorialRecur examples/FactorialRecurDriver \
-	examples/CountUnique examples/CountUniqueDriver \
+	# examples/CountUnique examples/CountUniqueDriver \
 
 VS      := $(MODULES:%=%.v)
 
