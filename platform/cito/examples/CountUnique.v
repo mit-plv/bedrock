@@ -54,7 +54,8 @@ Definition count_body := (
       find (V "arr") h = Some (Arr arr) /\
       V' "len" = length arr /\                                          
       (h' === h ** (V' "set" --> FSet empty_set)) /\
-      V' "arr" = V "arr" 
+      V' "arr" = V "arr" /\
+      goodSize (length arr)
     ];;
     "i" <- 0;;
     [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -62,8 +63,8 @@ Definition count_body := (
        V' "len" = length arr /\                                          
        (h' === h ** (V' "set" --> FSet fset)) /\ 
        fset =s= to_set (firstn (V' "i") arr) /\
-       V' "i" <= V' "len" /\
-       V' "arr" = V "arr" 
+       V' "arr" = V "arr" /\
+       goodSize (length arr)
     ]
     While ("i" < "len") {
       "e" <-- DCall "ADT"!"ArraySeq_read" ("arr", "i");;
@@ -74,7 +75,8 @@ Definition count_body := (
          fset =s= to_set (firstn (V' "i") arr) /\
          V' "i" < V' "len" /\
          V' "e" = Array.sel arr (V' "i") /\
-         V' "arr" = V "arr" 
+         V' "arr" = V "arr" /\
+         goodSize (length arr)
       ];;
       DCall "ADT"!"ListSet_add"("set", "e");;
       Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -83,7 +85,8 @@ Definition count_body := (
          (h' === h ** (V' "set" --> FSet fset)) /\ 
          fset =s= to_set (firstn (1 + V' "i") arr) /\
          V' "i" < V' "len" /\
-         V' "arr" = V "arr" 
+         V' "arr" = V "arr" /\
+         goodSize (length arr)
       ];;
       "i" <- "i" + 1
     };;
@@ -93,7 +96,12 @@ Definition count_body := (
        (h' === h ** (V' "set" --> FSet fset)) /\ 
        V' "ret" = unique_count arr
     ];;
-    DCall "ADT"!"ListSet_delete"("set")
+    DCall "ADT"!"ListSet_delete"("set");;
+    Assert [BEFORE (V, h) AFTER (V', h') exists arr,
+       find (V "arr") h = Some (Arr arr) /\
+       h' == h /\
+       V' "ret" = unique_count arr
+    ]
 )%stmtex.
 
 Definition main_body := (
@@ -193,7 +201,7 @@ Import TransitMake.
 
 Definition count_spec : ForeignFuncSpec :=
   {|
-    PreCond := fun args => exists arr len, args = inr (Arr arr) :: inl len :: nil /\ len = length arr;
+    PreCond := fun args => exists arr len, args = inr (Arr arr) :: inl len :: nil /\ len = length arr /\ goodSize (length arr);
     PostCond := fun args ret => exists arr len, args = (inr (Arr arr), Some (Arr arr)) :: (inl len, None) :: nil /\ ret = inl (unique_count arr : W)
   |}.
 
@@ -387,7 +395,8 @@ Definition count_pre : assert :=
     let h := snd v in
     exists arr,
       find (vs "arr") h = Some (Arr arr) /\
-      vs "len" = length arr.
+      vs "len" = length arr /\
+      goodSize (length arr).
 
 Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold count_pre, count_body; simpl; unfold imply_close, and_lift; simpl; split_all.
@@ -445,7 +454,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eauto.
   eauto.
   reflexivity.
-  nomega.
+  eauto.
 
   (* vc4 *)
   intros.
@@ -464,11 +473,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   erewrite <- next; eauto.
   rewrite plus_comm.
   reflexivity.
-  Open Scope word.
-  Lemma wlt_wplus_1_le : forall (a b : W), a < b -> a ^+ $1 <= b.
-    intros; nomega.
-  Qed.
-  eapply wlt_wplus_1_le; eauto.
+  eauto.
 
   (* vc5 *)
   intros.
@@ -490,7 +495,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   instantiate (1 := inr (Arr x)); simpl in *.
   rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff.
   right.
-  rewrite H5 in *; clear H5.
+  rewrite H4 in *; clear H4.
   split.
   Lemma in_alldisj_neq : forall elt k1 k2 v2 h, @In elt k1 h -> AllDisjoint [[h, k2 --> v2]] -> k2 <> k1.
     intuition; subst.
@@ -557,7 +562,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
   rewrite H3 in H13.
-  rewrite H6 in *.
+  rewrite H5 in *.
   assert (sel v0 "set" <> sel v "arr").
   eapply in_alldisj_neq; eauto.
   eapply MapsTo_In; eapply find_mapsto_iff; eauto.
@@ -576,6 +581,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
   Qed.
   eapply add_swap; eauto.
+  eauto.
   eauto.
   eauto.
   eauto.
@@ -627,7 +633,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H2 in H13; eapply_in_any add_o_eq; subst; injection H13; intros; subst.
+  rewrite H2 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
   descend.
   eauto.
   eauto.
@@ -681,76 +687,9 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   simpl.
   rewrite singleton_equal_add.
   reflexivity.
-  pre_nomega.
   unfold wnat.
-  Set Printing Coercions.
-  Import Peano.
-  eapply lt_le_trans.
+  nomega.
   eauto.
-  eapply wordToNat_natToW_le.
-
-(*here*)
-
-  (* vc7 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $2); simpl in *.
-  eauto.
-  instantiate (1 := inl $10); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-  rewrite H0; eauto.
-
-  (* vc8 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
-  descend.
-  split.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  Transparent natToWord.
-  reflexivity.
-  Opaque natToWord.
 
   (* vc9 *)
   intros.
@@ -759,31 +698,26 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   intros.
   destruct_state.
   openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold TransitSafe.
   sel_upd_simpl.
+  destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
   descend.
   eapply map_fst_combine.
-  instantiate (1 := [[ _, _ ]]); eauto.
+  instantiate (1 := [[ _ ]]); eauto.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $3); simpl in *.
-  eauto.
+  instantiate (1 := inr (FSet x0)); simpl in *.
+  rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
   NoDup.
-  descend.
-  eauto.
-  rewrite H0; eauto.
+  simpl; eauto.
 
   (* vc10 *)
   intros.
   openhyp.
   destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
@@ -801,14 +735,27 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
+  destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+  rewrite H3 in H13; eapply_in_any add_o_eq; subst; injection H13; intros; subst.
   descend.
+  eauto.
   split.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+  rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
   simpl; eauto.
-  reflexivity.
+  unfold unique_count.
+  rewrite H4.
+  repeat f_equal.
+  Lemma firstn_whole : forall A (ls : list A) n, length ls <= n -> firstn n ls = ls.
+    induction ls; destruct n; simpl; intuition.
+    f_equal; eauto.
+  Qed.
+  eapply firstn_whole.
+  eapply lt_false in H1.
+  rewrite H2 in *.
+  unfold wnat in *.
+  nomega.
 
   (* vc11 *)
   intros.
@@ -817,7 +764,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   intros.
   destruct_state.
   openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+  destruct H0; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
   unfold TransitSafe.
   sel_upd_simpl.
   descend.
@@ -826,8 +773,8 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+  instantiate (1 := inr (FSet x0)); simpl in *.
+  rewrite H0; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
   NoDup.
@@ -838,7 +785,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   intros.
   openhyp.
   destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
@@ -856,19 +802,90 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
+  destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+  rewrite H1 in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
   descend.
-  rewrite H.
-  eapply add_remove.
+  eauto.
+  rewrite H1.
+  eapply Top.add_remove.
   eapply singleton_disj.
-  inv_clear H2.
+  inv_clear H3.
   inversion_Forall.
+  eauto.
   eauto.
 
   eauto.
 Qed.
 
 Local Hint Immediate count_vcs_good.
+
+Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
+  intros.
+  unfold strengthen_op_ax.
+  split_all.
+  intros.
+  simpl in *.
+  openhyp.
+  rewrite H0; simpl; eauto.
+  intros.
+  cito_safe count count_pre count_vcs_good.
+  split.
+  eauto.
+  Import ChangeSpecMake.ProgramLogicMake.TransitMake.
+  unfold TransitSafe in *.
+  openhyp.
+  simpl in *.
+  openhyp.
+  subst; simpl in *.
+  Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
+    induction ls; simpl; intuition.
+    simpl; f_equal; eauto.
+  Qed.
+  specialize (combine_fst_snd x); intros.
+  rewrite H2 in H3.
+  rewrite <- H0 in H3.
+  subst; simpl in *.
+  Import SemanticsMake.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  descend; eauto.
+
+  cito_runsto count count_pre count_vcs_good.
+  2 : split; eauto.
+  unfold TransitTo.
+  descend.
+  instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := inr (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := inl (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
+  split.
+  unfold Semantics.word_adt_match in *.
+  simpl.
+  repeat econstructor.
+  simpl; eauto.
+  unfold Semantics.disjoint_ptrs.
+  NoDup.
+  simpl.
+  descend.
+  eauto.
+
+  eapply map_fst_combine.
+  instantiate (1 := [[_, _]]).
+  eauto.
+  simpl.
+  Import SemanticsMake.
+  repeat econstructor.
+  eauto.
+  eauto.
+  simpl.
+  repeat econstructor.
+  simpl.
+  admit. (* snd v' == snd v -> snd v' = snd v *)
+  unfold decide_ret, Semantics.decide_ret.
+  simpl.
+  eauto.
+  Grab Existential Variables.
+  eapply ($0).
+Qed.
 
 Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
@@ -1292,10 +1309,6 @@ Lemma specs_op_equal : specs_equal specs_op modules imports.
   eapply find_mapsto_iff in H0.
   eapply map_mapsto_iff.
   descend; eauto.
-Qed.
-
-Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
-  admit.
 Qed.
 
 Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
