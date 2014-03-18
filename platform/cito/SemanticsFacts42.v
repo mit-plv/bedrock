@@ -106,36 +106,47 @@ Module Make (Import E : ADT).
       (* call foreign *)
       generalize H5; intro.
       unfold strengthen in H5; openhyp.
-      destruct (H7 (eval (fst v) f)); clear H7.
+      destruct (H8 (eval (fst v) f)); clear H8.
       eapply RunsToCallForeign; eauto.
       destruct env_ax; destruct env_op; simpl in *.
       congruence.
 
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
-      rewrite H in H7; discriminate.
+      rewrite H in H8; discriminate.
 
       (* skip *)
       eauto.
 
       (* seq *)
+      inv_clear H2.
       econstructor; eauto.
       eapply IHRunsTo1; eauto.
       eapply IHRunsTo2; eauto.
+      eapply H7; eapply IHRunsTo1; eauto.
 
       (* if true *)
+      inv_clear H2.
+      openhyp.
       eapply RunsToIfTrue; eauto.
       eapply IHRunsTo; eauto.
+      rewrite H2 in H; discriminate.
 
       (* if false *)
+      inv_clear H2.
+      openhyp.
+      rewrite H2 in H; discriminate.
       eapply RunsToIfFalse; eauto.
       eapply IHRunsTo; eauto.
 
       (* while true *)
+      inv_clear H3.
       eapply RunsToWhileTrue; eauto.
       eapply IHRunsTo1; eauto.
       eapply IHRunsTo2; eauto.
-
+      eapply H9; eapply IHRunsTo1; eauto.
+      rewrite H7 in H; discriminate.
+      
       (* while false *)
       eauto.
 

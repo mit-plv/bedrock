@@ -20,6 +20,21 @@ Module Make (Import E : ADT).
 
     Require Import SemanticsExpr.
   
+    Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax env_ax :=
+      let args := ArgVars spec_op in
+      let rvar := RetVar spec_op in
+      let s := Body spec_op in
+      (forall ins, 
+         PreCond spec_ax ins ->
+         length args = length ins) /\
+      (forall v,
+         TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
+         Safe env_ax s v) /\
+      forall v v', 
+        RunsTo env_ax s v v' -> 
+        TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
+        TransitTo spec_ax (map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
+
     Definition strengthen (env_op env_ax : Env) := 
       (forall lbl, fst env_op lbl = fst env_ax lbl) /\ 
       let fs_op := snd env_op in
@@ -29,18 +44,7 @@ Module Make (Import E : ADT).
         exists spec_op spec_ax,
           fs_op w = Some (Internal spec_op) /\
           fs_ax w = Some (Foreign spec_ax) /\
-          let args := ArgVars spec_op in
-          let rvar := RetVar spec_op in
-          let s := Body spec_op in
-          (forall ins, 
-             PreCond spec_ax ins ->
-             length args = length ins) /\
-          (forall v,
-             TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
-             Safe env_ax s v) /\
-          forall v v', 
-            RunsTo env_ax s v v' -> 
-            TransitTo spec_ax (map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
+          strengthen_op_ax spec_op spec_ax env_ax.
 
     Hint Unfold RunsTo.
     Hint Constructors Semantics.RunsTo.
@@ -49,25 +53,34 @@ Module Make (Import E : ADT).
 
     Require Import GeneralTactics GeneralTactics3.
 
-    Lemma strengthen_runsto : forall env_op s v v', RunsTo env_op s v v' -> forall env_ax, strengthen env_op env_ax -> RunsTo env_ax s v v'.
+    Lemma strengthen_runsto : forall env_op s v v', RunsTo env_op s v v' -> forall env_ax, strengthen env_op env_ax -> Safe env_ax s v -> RunsTo env_ax s v v'.
       induction 1; simpl; intros; unfold_all.
 
       Focus 7.
       (* call internal *)
       generalize H2; intro.
-      unfold strengthen in H2; openhyp.
-      destruct (H4 (eval (fst v) f)); clear H4.
+      unfold strengthen, strengthen_op_ax in H2; openhyp.
+      destruct (H5 (eval (fst v) f)); clear H5.
 
       eapply RunsToCallInternal; eauto.
       destruct env_ax; destruct env_op; simpl in *.
       congruence.
       eapply IHRunsTo; eauto.
 
+      destruct env_ax; destruct env_op; simpl in *.
+      inv_clear H3; simpl in *.
+      rewrite H6 in H.
+      rewrite H9 in H; injection H; intros; subst.
+      eapply H12.
+      eauto.
+      rewrite H6 in H.
+      rewrite H9 in H; discriminate.
+
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
-      rewrite H in H4; injection H4; intros; subst.
-      eapply IHRunsTo in H3.
-      eapply H8 in H3; clear H8.
+      rewrite H in H5; injection H5; intros; subst.
+      eapply IHRunsTo in H4.
+      eapply H9 in H4; clear H9.
       simpl in *.
       eapply TransitTo_RunsTo; eauto.
       simpl in *.
@@ -76,40 +89,67 @@ Module Make (Import E : ADT).
       simpl.
       eauto.
 
+      simpl in *.
+      rewrite H0.
+      eapply Safe_TransitSafe.
+      instantiate (2 := (_, _)).
+      simpl.
+      eauto.
+      eauto.
+      eapply H8.
+      simpl.
+      rewrite H0.
+      eapply Safe_TransitSafe.
+      instantiate (2 := (_, _)).
+      simpl.
+      eauto.
+      eauto.
+
       Focus 7.
       (* call foreign *)
       generalize H5; intro.
-      unfold strengthen in H5; openhyp.
-      destruct (H7 (eval (fst v) f)); clear H7.
+      unfold strengthen, strengthen_op_ax in H5; openhyp.
+      destruct (H8 (eval (fst v) f)); clear H8.
       eapply RunsToCallForeign; eauto.
       destruct env_ax; destruct env_op; simpl in *.
       congruence.
 
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
-      rewrite H in H7; discriminate.
+      rewrite H in H8; discriminate.
 
       (* skip *)
       eauto.
 
       (* seq *)
+      inv_clear H2.
       econstructor; eauto.
       eapply IHRunsTo1; eauto.
       eapply IHRunsTo2; eauto.
+      eapply H7; eapply IHRunsTo1; eauto.
 
       (* if true *)
+      inv_clear H2.
+      openhyp.
       eapply RunsToIfTrue; eauto.
       eapply IHRunsTo; eauto.
+      rewrite H2 in H; discriminate.
 
       (* if false *)
+      inv_clear H2.
+      openhyp.
+      rewrite H2 in H; discriminate.
       eapply RunsToIfFalse; eauto.
       eapply IHRunsTo; eauto.
 
       (* while true *)
+      inv_clear H3.
       eapply RunsToWhileTrue; eauto.
       eapply IHRunsTo1; eauto.
       eapply IHRunsTo2; eauto.
-
+      eapply H9; eapply IHRunsTo1; eauto.
+      rewrite H7 in H; discriminate.
+      
       (* while false *)
       eauto.
 
@@ -131,7 +171,7 @@ Module Make (Import E : ADT).
       inversion H; unfold_all; subst; simpl in *.
       (* call internal *)
       generalize H0; intro.
-      unfold strengthen in H0; openhyp.
+      unfold strengthen, strengthen_op_ax in H0; openhyp.
       destruct (H2 (eval (fst v) f)); clear H2.
       left; descend; eauto.
       destruct env_ax; destruct env_op; simpl in *.
@@ -144,7 +184,7 @@ Module Make (Import E : ADT).
 
       (* call foreign *)
       generalize H0; intro.
-      unfold strengthen in H0; openhyp.
+      unfold strengthen, strengthen_op_ax in H0; openhyp.
       destruct (H2 (eval (fst v) f)); clear H2.
       right; descend; eauto.
       destruct env_ax; destruct env_op; simpl in *.

@@ -843,11 +843,12 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   simpl in *.
   openhyp.
   rewrite H0; simpl; eauto.
+
   intros.
   cito_safe count count_pre count_vcs_good.
   split.
   eauto.
-  Import ChangeSpecMake.ProgramLogicMake.TransitMake.
+  Import Top.SemanticsFacts4Make.TransitMake.
   unfold TransitSafe in *.
   openhyp.
   simpl in *.
@@ -894,7 +895,7 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   unfold store_out, Semantics.store_out in *; simpl in *.
   assert (snd v' == WordMap.add (sel (fst v) "arr") (Arr x) (snd v)).
   Import WordMap.
-  rewrite H1.
+  rewrite H2.
   Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
     unfold Equal; intros.
     repeat rewrite add_o.
@@ -905,6 +906,21 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   unfold decide_ret, Semantics.decide_ret.
   simpl.
   eauto.
+
+  unfold TransitSafe in *.
+  openhyp.
+  simpl in *.
+  openhyp.
+  subst; simpl in *.
+  specialize (combine_fst_snd x); intros.
+  rewrite H3 in H4.
+  rewrite <- H1 in H4.
+  subst; simpl in *.
+  unfold good_inputs, Semantics.good_inputs in *.
+  openhyp.
+  unfold Semantics.word_adt_match in *.
+  inversion_Forall; simpl in *.
+  descend; eauto.
   Grab Existential Variables.
   eapply ($0).
 Qed.
@@ -933,11 +949,6 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
 
   (* vc2 *)
   intros.
-  Ltac destruct_state :=
-    repeat match goal with
-             | [ x : State |- _ ] => destruct x; simpl in *
-           end.
-
   destruct_state.
   openhyp.
   subst.
@@ -1181,6 +1192,8 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   descend.
   eauto.
   rewrite H0; eauto.
+  rewrite H0; simpl.
+  eauto.
 
   (* vc10 *)
   intros.
@@ -1262,7 +1275,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
   descend.
   rewrite H.
-  eapply add_remove.
+  eapply Top.add_remove.
   eapply singleton_disj.
   inv_clear H2.
   inversion_Forall.
@@ -1272,6 +1285,40 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
 Qed.
 
 Local Hint Immediate main_vcs_good.
+
+Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
+  intros.
+  unfold strengthen_op_ax.
+  split_all.
+  intros.
+  simpl in *.
+  rewrite H0; simpl; eauto.
+
+  intros.
+  cito_safe main empty_precond main_vcs_good.
+
+  cito_runsto main empty_precond main_vcs_good.
+  2 : eauto.
+  Import Top.SemanticsFacts4Make.TransitMake.
+  unfold TransitTo.
+  descend.
+  instantiate (1 := [[]]).
+  eauto.
+  simpl.
+  Import SemanticsMake.
+  repeat econstructor.
+  eauto.
+  eauto.
+  simpl.
+  repeat econstructor.
+  simpl.
+  admit. (* snd v' == snd v -> snd v' = snd v *)
+  unfold decide_ret, Semantics.decide_ret.
+  simpl.
+  eauto.
+  Grab Existential Variables.
+  eapply ($0).
+Qed.
 
 Import LinkSpecMake.
 Require Import LinkSpecFacts.
@@ -1333,38 +1380,6 @@ Lemma specs_op_equal : specs_equal specs_op modules imports.
   descend; eauto.
 Qed.
 
-Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
-  intros.
-  unfold strengthen_op_ax.
-  split_all.
-  intros.
-  simpl in *.
-  rewrite H0; simpl; eauto.
-  intros.
-  cito_safe main empty_precond main_vcs_good.
-  cito_runsto main empty_precond main_vcs_good.
-  2 : eauto.
-  Import ChangeSpecMake.ProgramLogicMake.TransitMake.
-  unfold TransitTo.
-  descend.
-  instantiate (1 := [[]]).
-  eauto.
-  simpl.
-  Import SemanticsMake.
-  repeat econstructor.
-  eauto.
-  eauto.
-  simpl.
-  repeat econstructor.
-  simpl.
-  admit. (* snd v' == snd v -> snd v' = snd v *)
-  unfold decide_ret, Semantics.decide_ret.
-  simpl.
-  eauto.
-  Grab Existential Variables.
-  eapply ($0).
-Qed.
-
 Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
   intros.
   unfold strengthen_diff.
@@ -1405,6 +1420,18 @@ Lemma new_env_strengthen : forall stn fs, env_good_to_use modules imports stn fs
   intros; simpl; eauto.
 Qed.
 
+Lemma main_safe' : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (change_env specs (from_bedrock_label_map (Labels stn), fs stn)) (Body main) v.
+  cito_safe main empty_precond main_vcs_good.
+  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
+Qed.
+
+Lemma main_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
+  intros.
+  eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
+  eapply main_safe'; eauto.
+  eapply new_env_strengthen; eauto.
+Qed.
+
 Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
   intros.
   eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H0.
@@ -1413,14 +1440,7 @@ Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -
   2 : eauto.
   eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
   eapply new_env_strengthen; eauto.
-Qed.
-
-Lemma main_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
-  intros.
-  eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
-  cito_safe main empty_precond main_vcs_good.
-  eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
-  eapply new_env_strengthen; eauto.
+  eapply main_safe'; eauto.
 Qed.
 
 Require Import Inv.
