@@ -60,9 +60,8 @@ Section TopSection.
 
   Require Import Program.Basics.
   Require Import GoodFunc.
-
+(*
   Lemma NoUninitialized_bool_sound : forall f, NoUninitialized_bool f = true -> NoUninitialized (ArgVars f) (RetVar f) (Body f).
-    admit.
   Qed.
 
   Require Import WellFormed.
@@ -122,5 +121,5 @@ Section TopSection.
     eapply GoodFuncs_bool_sound; eauto.
     eapply NoDup_bool_string_eq_sound; eauto.
   Qed.
-
+*)
 End TopSection.

@@ -103,17 +103,21 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold labels_in_scope.
   intros.
   eapply H.
-  unfold specs in *.
-  eapply add_in_iff in H0.
-  openhyp.
-  subst; simpl in *.
-  left.
-  unfold gm, to_good_module in *; simpl in *.
-  descend.
-  eauto.
-  simpl; eauto.
-  simpl; eauto.
-  eapply empty_in_iff in H0; intuition.
+  Lemma in_specs_label_in : forall lbl, In lbl specs -> label_in modules imports lbl.
+    intros.
+    unfold specs in *.
+    eapply add_in_iff in H.
+    openhyp.
+    subst; simpl in *.
+    left.
+    unfold gm, to_good_module in *; simpl in *.
+    descend.
+    eauto.
+    simpl; eauto.
+    simpl; eauto.
+    eapply empty_in_iff in H; intuition.
+  Qed.
+  eapply in_specs_label_in; eauto.
 
   split.
   Focus 2.
@@ -188,7 +192,12 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   simpl; eauto.
   eapply empty_mapsto_iff in H2; intuition.
 
-  admit. (* injective *)
+  unfold specs_stn_injective; simpl in *.
+  unfold change_fs.
+  intros.
+  eapply H; eauto.
+  eapply in_specs_label_in; eauto.
+  eapply in_specs_label_in; eauto.
 Qed.
 
 Import ProgramLogicMake.SemanticsMake.
@@ -257,11 +266,16 @@ Qed.
 
 Local Hint Resolve final.
 
-Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
+Infix "==" := WordMap.WordMap.Equal.
+
+Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' == snd v.
   cito_runsto f empty_precond vcs_good.
   3 : eauto.
   Focus 2.
-  subst; simpl in *; eauto.
+  subst; simpl in *.
+  split.
+  eauto.
+  reflexivity.
 
   subst; simpl in *.
   sel_upd_simpl.
@@ -300,7 +314,7 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   unfold modules, imports.
   intros.
   generalize H; intro.
-  unfold strengthen.
+  unfold strengthen, strengthen_op_ax.
   split.
   eauto.
   unfold change_fs at 1.
@@ -357,20 +371,22 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   eauto.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' = snd v.
-  intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H0.
-  eapply body_runsto'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply change_fs_strengthen; eauto.
-Qed.
-
 Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
   intros.
   eapply strengthen_safe.
   eapply body_safe'; eauto.
   eapply change_fs_agree; eauto.
   eapply change_fs_strengthen; eauto.
+Qed.
+
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' == snd v.
+  intros.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H0.
+  eapply body_runsto'; eauto.
+  eapply change_fs_agree; eauto.
+  eapply change_fs_strengthen; eauto.
+  eapply body_safe'; eauto.
+  eapply change_fs_agree; eauto.
 Qed.
 
 Require Import Inv.
@@ -413,10 +429,11 @@ Theorem top_ok : moduleOk top.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
-  apply is_state_out''''.
+  apply is_state_out'''''.
   NoDup.
   NoDup.
   NoDup.
+  eauto.
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
