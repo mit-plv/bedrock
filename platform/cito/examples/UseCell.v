@@ -227,7 +227,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   split.
   Require Import BedrockTactics.
   sel_upd_simpl.
-  reflexivity.
+  eauto.
   Import SemanticsMake.
   unfold separated, Semantics.separated in *.
   openhyp; intuition.
@@ -278,6 +278,8 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold store_out, Semantics.store_out in *; simpl in *.
   destruct H.
   split.
+  sel_upd_simpl.
+  rewrite H6.
   rewrite H.
   eapply map_add_same_key.
   eauto.
@@ -325,13 +327,14 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   inversion_Forall; simpl in *.
   unfold store_out, Semantics.store_out in *; simpl in *.
   destruct H.
-  rewrite H in H7.
-  eapply find_mapsto_iff in H7.
-  eapply add_mapsto_iff in H7.
+  rewrite H in H8.
+  eapply find_mapsto_iff in H8.
+  eapply add_mapsto_iff in H8.
   sel_upd_simpl.
   openhyp; intuition.
-  injection H6; intros; subst.
+  injection H7; intros; subst.
   split.
+  rewrite H6.
   rewrite H.
   eapply map_add_same_key.
   eauto.
@@ -377,6 +380,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold store_out, Semantics.store_out in *; simpl in *.
   destruct H.
   split.
+  rewrite H7.
   rewrite H.
   eapply add_remove; eauto.
   eauto.
@@ -388,13 +392,13 @@ Local Hint Immediate vcs_good.
 
 Hint Resolve specs_good.
 
-Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  cito_runsto f empty_precond vcs_good; eauto.
+Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
+  cito_safe f empty_precond vcs_good; eauto.
   eapply specs_equal_agree; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  cito_safe f empty_precond vcs_good; eauto.
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
+  cito_runsto f empty_precond vcs_good; eauto.
   eapply specs_equal_agree; eauto.
 Qed.
 
