@@ -1,296 +1,381 @@
-Require Import IL Memory String Word Locals.
-Require Import Sets.
-Require Import Syntax.
-Require Import SemanticsExpr.
-Require Import Dict.
-
 Set Implicit Arguments.
 
-Module WKey : S with Definition A := W.
+Require Import IL Memory String Locals List.
 
-  Definition A := W.
-  
-  Definition eq_dec := @weq 32.
-
-End WKey.
-
-Module StoKEY (MKey : S) : KEY with Definition key := MKey.A.
-
-  Definition key := MKey.A.
-
-  Definition eq_dec := MKey.eq_dec.
-
-End StoKEY.
-
-Module WMake := Make WKey.
-
-Import WMake.
-
-Module WKey2 := StoKEY WKey.
-
-Module ListWData : DATA with Definition data := list W.
-
-  Definition data := list W.
-
-End ListWData.
-
-Module WDict := Dict.Dict WKey2 ListWData.
-
-Import WDict.
-
-Definition arrays := (set * dict)%type.
-
-Definition st := (vals * arrays)%type.
-
-Definition safe_access (arrs : arrays) (arr_v idx_v : W) :=       
-  arr_v %in fst arrs /\
-  idx_v < natToW (length (snd arrs arr_v)).
-
-Fixpoint init_list A (value : A) size :=
-  match size with
-    | 0 => nil
-    | S n => value :: init_list value n
+Definition upd_option vs x value :=
+  match x with
+    | None => vs
+    | Some s => Locals.upd vs s value
   end.
 
-(* Semantics *)
+Require Import FuncCore.
+Export FuncCore.
+Record InternalFuncSpec := 
+  {
+    Fun : FuncCore;
+    NoDupArgVars : NoDup (ArgVars Fun)
+  }.
 
-Record callTransition := {
-  Arg : W;
-  InitialHeap : arrays;
-  FinalHeap : arrays
-}.
+Coercion Fun : InternalFuncSpec >-> FuncCore.
 
-Inductive Callee := 
-  | Foreign : (W -> arrays -> Prop) -> (callTransition -> Prop) -> Callee
-  | Internal : Statement -> Callee.
+Require Import Syntax SemanticsExpr.
+Require Import GLabel.
+Require Import WordMap.
 
-Section functions.
-Variable functions : W -> option Callee.
-(* Map foreign function addresses to specifications. *)
+Section ADTValue.
 
-Inductive RunsTo : Statement -> st -> st -> Prop :=
-  | Assignment : forall var value vs arrs, 
-      let v := (vs, arrs) in
-      let value_v := exprDenote value vs in
-      RunsTo (Syntax.Assignment var value) v (Locals.upd vs var value_v, arrs)
-  | ReadAt : forall var arr idx vs (arrs : arrays),
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access arrs arr_v idx_v -> 
-      let value_v := Array.sel (snd arrs arr_v) idx_v in  
-      RunsTo (Syntax.ReadAt var arr idx) v (Locals.upd vs var value_v, arrs)
-  | WriteAt : forall arr idx value vs (arrs : arrays), 
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access arrs arr_v idx_v ->
-      let value_v := exprDenote value vs in
-      let new_arr := Array.upd (snd arrs arr_v) idx_v value_v in
-      RunsTo (Syntax.WriteAt arr idx value) v (vs, (fst arrs, upd (snd arrs) arr_v new_arr))
-  | Seq : forall v v' v'' a b,
-      RunsTo a v v' -> 
-      RunsTo b v' v'' -> 
-      RunsTo (Syntax.Seq a b) v v''
-  | Skip : forall v, RunsTo Syntax.Skip v v
-  | ConditionalTrue : forall v v' cond t f, 
-      wneb (exprDenote cond (fst v)) $0 = true -> 
-      RunsTo t v v' -> 
-      RunsTo (Conditional cond t f) v v'
-  | ConditionFalse : forall v v' cond t f, 
-      wneb (exprDenote cond (fst v)) $0 = false -> 
-      RunsTo f v v' -> 
-      RunsTo (Conditional cond t f) v v'
-  | LoopTrue : forall v v' v'' cond body, 
-      let statement := Loop cond body in
-      wneb (exprDenote cond (fst v)) $0 = true -> 
-      RunsTo body v v' -> 
-      RunsTo statement v' v'' -> 
-      RunsTo statement v v''
-  | LoopFalse : forall v cond body, 
-      wneb (exprDenote cond (fst v)) $0 = false -> 
-      RunsTo (Loop cond body) v v
-  | Malloc : forall var size vs arrs addr ls,
-      let v := (vs, arrs) in
-      ~ (addr %in fst arrs) ->
-      let size_v := wordToNat (exprDenote size vs) in
-      goodSize (size_v + 2) ->
-      length ls = size_v ->
-      RunsTo (Syntax.Malloc var size) v (Locals.upd vs var addr, (fst arrs %+ addr, upd (snd arrs) addr ls))
-  | Free : forall arr vs (arrs : arrays),
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst arrs ->
-      RunsTo (Syntax.Free arr) v (vs, (fst arrs %- arr_v, snd arrs))
-  | Len : forall var arr vs arrs,
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst arrs ->
-      let len := natToW (length (snd arrs arr_v)) in
-      RunsTo (Syntax.Len var arr) v (Locals.upd vs var len, arrs)
-  | CallForeign : forall vs arrs f arrs' precond spec arg,
-      let v := (vs, arrs) in
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Foreign precond spec)
-      -> precond arg_v arrs
-      -> spec {| Arg := arg_v; InitialHeap := arrs; FinalHeap := arrs' |}
-      -> RunsTo (Syntax.Call f arg) v (vs, arrs')
-  | CallInternal : forall vs arrs f arrs' body arg vs_arg vs',
-      let v := (vs, arrs) in
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Internal body)
-      -> Locals.sel vs_arg "__arg" = arg_v
-      -> RunsTo body (vs_arg, arrs) (vs', arrs')
-      -> RunsTo (Syntax.Call f arg) v (vs, arrs').
+  Variable ADTValue : Type.
 
-End functions.
+  Definition Heap := WordMap.t ADTValue.
 
-Module Safety.
+  Definition State := (vals * Heap)%type.
 
-Section functions'.
-Variable functions : W -> option Callee.
+  Definition ArgIn := (W + ADTValue)%type.
 
-CoInductive Safe : Statement -> st -> Prop :=
-  | Seq : forall a b v, 
-      Safe a v ->
-      (forall v', RunsTo functions a v v' -> Safe b v') -> 
-      Safe (Syntax.Seq a b) v
-  | LoopTrue : forall v cond body, 
-      let statement := Loop cond body in
-      wneb (exprDenote cond (fst v)) $0 = true -> 
-      Safe body v ->
-      (forall v', RunsTo functions body v v' -> Safe statement v') -> 
-      Safe statement v
-  | LoopFalse : forall v cond body, 
-      wneb (exprDenote cond (fst v)) $0 = false -> 
-      Safe (Loop cond body) v
-  | ConditionalTrue : forall v cond t f, 
-      wneb (exprDenote cond (fst v)) $0 = true -> 
-      Safe t v -> 
-      Safe (Conditional cond t f) v
-  | ConditionFalse : forall v cond t f, 
-      wneb (exprDenote cond (fst v)) $0 = false -> 
-      Safe f v -> 
-      Safe (Conditional cond t f) v
-  | Assignment : forall var value v,
-      Safe (Syntax.Assignment var value) v
-  | ReadAt : forall var arr idx vs (arrs : arrays),
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access arrs arr_v idx_v -> 
-      Safe (Syntax.ReadAt var arr idx) v
-  | WriteAt : forall arr idx value vs (arrs : arrays), 
-      let v := (vs, arrs) in
-      let arr_v := exprDenote arr vs in
-      let idx_v := exprDenote idx vs in
-      safe_access arrs arr_v idx_v ->
-      Safe (Syntax.WriteAt arr idx value) v
-  | Skip : forall v, Safe Syntax.Skip v
-  | Malloc : forall var size vs (arrs : arrays),
-      let size_v := exprDenote size vs in
-      goodSize (wordToNat size_v + 2) ->
-      Safe (Syntax.Malloc var size) (vs, arrs)
-  | Free : forall arr vs (arrs : arrays),
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst arrs ->
-      Safe (Syntax.Free arr) (vs, arrs)
-  | Len : forall var arr vs (arrs : arrays),
-      let arr_v := exprDenote arr vs in
-      arr_v %in fst arrs ->
-      Safe (Syntax.Len var arr) (vs, arrs)
-  | CallForeign : forall vs arrs f arg precond spec,
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Foreign precond spec)
-      -> precond arg_v arrs
-      -> Safe (Syntax.Call f arg) (vs, arrs)
-  | CallInternal : forall vs arrs f arg body,
-      let arg_v := exprDenote arg vs in
-      functions (exprDenote f vs) = Some (Internal body)
-      -> (forall vs_arg, Locals.sel vs_arg "__arg" = arg_v -> Safe body (vs_arg, arrs))
-      -> Safe (Syntax.Call f arg) (vs, arrs).
+  Definition ArgOut := option ADTValue.
 
-  Section Safe_coind.
-    Variable R : Statement -> st -> Prop.
+  Definition Ret := (W + ADTValue)%type.
 
-    Import WMake.
+  Record ForeignFuncSpec := 
+    {
+      PreCond: list ArgIn -> Prop;
+      PostCond : list (ArgIn * ArgOut) -> Ret -> Prop
+    }.
 
-    Hypothesis ReadAtCase : forall var arr idx vs arrs, R (Syntax.ReadAt var arr idx) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
+  Inductive Callee := 
+  | Foreign : ForeignFuncSpec -> Callee
+  | Internal : InternalFuncSpec -> Callee.
 
-    Hypothesis WriteAtCase : forall arr idx val vs arrs, R (Syntax.WriteAt arr idx val) (vs, arrs) -> safe_access arrs (exprDenote arr vs) (exprDenote idx vs).
-    
-    Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo functions a v v' -> R b v'.
-    
-    Hypothesis ConditionalCase : forall cond t f v, R (Syntax.Conditional cond t f) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R t v) \/ (wneb (exprDenote cond (fst v)) $0 = false /\ R f v).
-    
-    Hypothesis LoopCase : forall cond body v, R (Syntax.Loop cond body) v -> (wneb (exprDenote cond (fst v)) $0 = true /\ R body v /\ (forall v', RunsTo functions body v v' -> R (Loop cond body) v')) \/ (wneb (exprDenote cond (fst v)) $0 = false).
-    
-    Hypothesis MallocCase : forall var size vs arrs, R (Syntax.Malloc var size) (vs, arrs) -> goodSize (wordToNat (exprDenote size vs) + 2).
-    
-    Hypothesis FreeCase : forall arr vs arrs, R (Syntax.Free arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
-    
-    Hypothesis LenCase : forall var arr vs arrs, R (Syntax.Len var arr) (vs, arrs) -> (exprDenote arr vs) %in (fst arrs).
+  Definition word_adt_match (heap : Heap) p :=
+    let word := fst p in
+    let in_ := snd p in
+    match in_ with
+      | inl w => word = w
+      | inr a => WordMap.find word heap = Some a
+    end.
 
-    Hypothesis ForeignCallCase : forall vs arrs f arg,
-      R (Syntax.Call f arg) (vs, arrs)
-      -> (exists precond spec, functions (exprDenote f vs) = Some (Foreign precond spec)
-        /\ precond (exprDenote arg vs) arrs) \/
-      (exists body, functions (exprDenote f vs) = Some (Internal body) /\ forall vs_arg, Locals.sel vs_arg "__arg" = exprDenote arg vs -> R body (vs_arg, arrs)).
+  Definition is_adt (a : ArgIn) :=
+    match a with
+      | inl _ => false
+      | inr _ => true
+    end.
 
-    Hint Constructors Safe.
+  Definition disjoint_ptrs (pairs : list (W * ArgIn)) := 
+    let pairs := filter (fun p => is_adt (snd p)) pairs in
+    NoDup (List.map fst pairs).
 
-    Ltac openhyp := 
-      repeat match goal with
-               | H : _ /\ _ |- _  => destruct H
-               | H : _ \/ _ |- _ => destruct H
-               | H : exists x, _ |- _ => destruct H
-             end.
+  Definition good_inputs heap pairs := 
+    Forall (word_adt_match heap) pairs /\
+    disjoint_ptrs pairs.
 
-    Ltac break_pair :=
-      match goal with
-        V : (_ * _)%type |- _ => destruct V
-      end.
+  Record ArgTriple :=
+    {
+      Word : W;
+      ADTIn : ArgIn;
+      ADTOut : ArgOut
+    }.
 
-    Theorem Safe_coind : forall c v, R c v -> Safe c v.
-      cofix; unfold st; intros; break_pair; destruct c.
+  Definition store_out (heap : Heap) t :=
+    match ADTIn t, ADTOut t with 
+      | inl _, _ => heap
+      | inr _, None => WordMap.remove (Word t) heap
+      | inr _, Some a => WordMap.add (Word t) a heap
+    end.
 
-      eauto.
-      Guarded.
+  Definition decide_ret addr (ret : Ret) :=
+    match ret with
+      | inl w => (w, None)
+      | inr a => (addr, Some a)
+    end.
 
-      eapply ReadAtCase in H; openhyp; eauto.
-      Guarded.
+  Definition separated heap ret_w (ret_a : option ADTValue) := 
+    ret_a = None \/ ~ @WordMap.In ADTValue ret_w heap.
 
-      eapply WriteAtCase in H; openhyp; eauto.
-      Guarded.
+  Definition heap_upd_option m k (v : option ADTValue) :=
+    match v with
+      | Some x => WordMap.add k x m
+      | None => m
+    end.
 
-      eapply SeqCase in H; openhyp; eauto.
-      Guarded.
+  (* Semantics *)
 
-      eauto.
-      Guarded.
+  Section Env.
 
-      eapply ConditionalCase in H; openhyp; eauto.
-      Guarded.
+    Variable env : (glabel -> option W) * (W -> option Callee).
 
-      eapply LoopCase in H; openhyp; eauto.
-      Guarded.
+    Inductive RunsTo : Stmt -> State -> State -> Prop :=
+    | RunsToSkip : forall v, RunsTo Syntax.Skip v v
+    | RunsToSeq : 
+        forall a b v v' v'',
+          RunsTo a v v' -> 
+          RunsTo b v' v'' -> 
+          RunsTo (Syntax.Seq a b) v v''
+    | RunsToIfTrue : 
+        forall cond t f v v', 
+          wneb (eval (fst v) cond) $0 = true ->
+          RunsTo t v v' ->
+          RunsTo (Syntax.If cond t f) v v'
+    | RunsToIfFalse : 
+        forall cond t f v v', 
+          wneb (eval (fst v) cond) $0 = false ->
+          RunsTo f v v' ->
+          RunsTo (Syntax.If cond t f) v v'
+    | RunsToWhileTrue : 
+        forall cond body v v' v'', 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = true ->
+          RunsTo body v v' ->
+          RunsTo loop v' v'' ->
+          RunsTo loop v v''
+    | RunsToWhileFalse : 
+        forall cond body v, 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = false ->
+          RunsTo loop v v
+    | RunsToCallInternal : 
+        forall var f args v spec vs_callee vs_callee' heap',
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Internal spec) ->
+          map (Locals.sel vs_callee) (ArgVars spec) = map (eval vs) args ->
+          RunsTo (Body spec) (vs_callee, heap) (vs_callee', heap') ->
+          let vs := upd_option vs var (Locals.sel vs_callee' (RetVar spec)) in
+          let heap := heap' in
+          RunsTo (Syntax.Call var f args) v (vs, heap)
+    | RunsToCallForeign : 
+        forall var f args v spec triples addr ret heap',
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Foreign spec) ->
+          map (eval vs) args = map Word triples ->
+          good_inputs heap (map (fun x => (Word x, ADTIn x)) triples) ->
+          PreCond spec (map ADTIn triples) ->
+          PostCond spec (map (fun x => (ADTIn x, ADTOut x)) triples) ret ->
+          let heap := fold_left store_out triples heap in
+          let t := decide_ret addr ret in
+          let ret_w := fst t in
+          let ret_a := snd t in
+          separated heap ret_w ret_a ->
+          let heap := heap_upd_option heap ret_w ret_a in
+          let vs := upd_option vs var ret_w in
+          WordMap.Equal heap' heap ->
+          RunsTo (Syntax.Call var f args) v (vs, heap')
+    | RunsToLabel : 
+        forall x lbl v w,
+          fst env lbl = Some w ->
+          RunsTo (Syntax.Label x lbl) v (Locals.upd (fst v) x w, snd v)
+    | RunsToAssign :
+        forall x e v,
+          let vs := fst v in
+          RunsTo (Syntax.Assign x e) v (Locals.upd vs x (eval vs e), snd v).
 
-      eapply MallocCase in H; openhyp; eauto.
-      Guarded.
+    CoInductive Safe : Stmt -> State -> Prop :=
+    | SafeSkip : 
+        forall v, Safe Syntax.Skip v
+    | SafeSeq : 
+        forall a b v, 
+          Safe a v ->
+          (forall v', RunsTo a v v' -> Safe b v') -> 
+          Safe (Syntax.Seq a b) v
+    | SafeIf : 
+        forall cond t f v, 
+          let b := wneb (eval (fst v) cond) $0 in
+          b = true /\ Safe t v \/ b = false /\ Safe f v ->
+          Safe (Syntax.If cond t f) v
+    | SafeWhileTrue : 
+        forall cond body v, 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = true ->
+          Safe body v ->
+          (forall v', RunsTo body v v' -> Safe loop v') ->
+          Safe loop v
+    | SafeWhileFalse : 
+        forall cond body v, 
+          let loop := While cond body in
+          wneb (eval (fst v) cond) $0 = false ->
+          Safe loop v
+    | SafeCallInternal : 
+        forall var f args v spec,
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Internal spec) ->
+          length (ArgVars spec) = length args ->
+          (forall vs_arg, 
+             map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+             -> Safe (Body spec) (vs_arg, heap)) ->
+          Safe (Syntax.Call var f args) v
+    | SafeCallForeign : 
+        forall var f args v spec pairs,
+          let vs := fst v in
+          let heap := snd v in
+          let fs := snd env in
+          fs (eval vs f) = Some (Foreign spec) ->
+          map (eval vs) args = map fst pairs ->
+          good_inputs heap pairs ->
+          PreCond spec (map snd pairs) ->
+          Safe (Syntax.Call var f args) v
+    | SafeLabel :
+        forall x lbl v,
+          fst env lbl <> None ->
+          Safe (Syntax.Label x lbl) v
+    | SafeAssign :
+        forall x e v,
+          Safe (Syntax.Assign x e) v.
 
-      eapply FreeCase in H; openhyp; eauto.
-      Guarded.
+    Section Safe_coind.
+      Variable R : Stmt -> State -> Prop.
 
-      eapply LenCase in H; openhyp; eauto.
-      Guarded.
+      Hypothesis SeqCase : forall a b v, R (Syntax.Seq a b) v -> R a v /\ forall v', RunsTo a v v' -> R b v'.
 
-      eapply ForeignCallCase in H; openhyp; eauto.
-      Guarded.
-    Qed.
+      Hypothesis IfCase : forall cond t f v, R (Syntax.If cond t f) v -> (wneb (eval (fst v) cond) $0 = true /\ R t v) \/ (wneb (eval (fst v) cond) $0 = false /\ R f v).
 
-  End Safe_coind.
+      Hypothesis WhileCase : 
+        forall cond body v, 
+          let loop := Syntax.While cond body in 
+          R loop v -> 
+          (wneb (eval (fst v) cond) $0 = true /\ R body v /\ (forall v', RunsTo body v v' -> R loop v')) \/ 
+          (wneb (eval (fst v) cond) $0 = false).
 
-End functions'.
+      Hypothesis CallCase : forall var f args v,
+        R (Syntax.Call var f args) v
+        -> (exists spec, let vs := fst v in
+          let heap := snd v in
+            let fs := snd env in
+              fs (eval vs f) = Some (Internal spec) /\
+              length (ArgVars spec) = length args /\
+              (forall vs_arg, 
+                map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+                -> R (Body spec) (vs_arg, heap)))
+        \/ (exists spec, exists pairs, let vs := fst v in
+          let heap := snd v in
+            let fs := snd env in
+              fs (eval vs f) = Some (Foreign spec) /\
+              map (eval vs) args = map fst pairs /\
+              good_inputs heap pairs /\
+              PreCond spec (map snd pairs)).
+          
+      Hypothesis LabelCase : forall x lbl v,
+        R (Syntax.Label x lbl) v
+        -> fst env lbl <> None.
 
+      Hint Constructors Safe.
 
-End Safety.
+      Ltac openhyp := 
+        repeat match goal with
+                 | H : _ /\ _ |- _  => destruct H
+                 | H : _ \/ _ |- _ => destruct H
+                 | H : exists x, _ |- _ => destruct H
+               end.
+
+      Ltac break_pair :=
+        match goal with
+          V : (_ * _)%type |- _ => destruct V
+        end.
+
+      Theorem Safe_coind : forall c v, R c v -> Safe c v.
+        cofix; unfold State; intros; break_pair; destruct c.
+
+        eauto.
+        Guarded.
+
+        eapply SeqCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply IfCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply WhileCase in H; openhyp; eauto.
+        Guarded.
+
+        eapply CallCase in H; openhyp; simpl in *; intuition eauto.
+        Guarded.
+
+        eapply LabelCase in H; openhyp; eauto.
+        Guarded.
+
+        eauto.
+        Guarded.
+      Qed.
+
+    End Safe_coind.
+
+  End Env.
+
+End ADTValue.
+
+Require Import ADT.
+
+Module Make (Import E : ADT).
+
+  Definition RunsTo := @RunsTo ADTValue.
+
+  Definition Safe := @Safe ADTValue.
+
+  Definition Heap := @Heap ADTValue.
+
+  Definition State := @State ADTValue.
+
+  Definition ArgIn := @ArgIn ADTValue.
+
+  Definition ArgOut := @ArgOut ADTValue.
+
+  Definition Ret := @Ret ADTValue.
+
+  Definition ForeignFuncSpec := @ForeignFuncSpec ADTValue.
+
+  Definition Callee := @Callee ADTValue.
+
+  Definition ArgTriple := @ArgTriple ADTValue.
+
+  Definition word_adt_match := @word_adt_match ADTValue.
+
+  Definition is_adt := @is_adt ADTValue.
+
+  Definition disjoint_ptrs := @disjoint_ptrs ADTValue.
+
+  Definition good_inputs := @good_inputs ADTValue.
+
+  Definition store_out := @store_out ADTValue.
+
+  Definition decide_ret := @decide_ret ADTValue.
+
+  Definition separated := @separated ADTValue.
+
+  Definition heap_upd_option := @heap_upd_option ADTValue.
+
+  Definition Foreign := @Foreign ADTValue.
+
+  Definition Internal := @Internal ADTValue.
+
+  (* some shorthands for heap operations *)
+  Require Import FMapFacts.
+  Module Import P := Properties WordMap.
+  Import F WordMap.
+
+  Definition elt := ADTValue.
+
+  Implicit Types m h : Heap.
+  Implicit Types x y z k p w : key.
+  Implicit Types e v a : elt.
+  Implicit Types ls : list (key * elt).
+
+  Definition heap_sel h p := find p h.
+
+  Definition heap_mem := @In elt.
+
+  Definition heap_upd h p v := add p v h.
+
+  Definition heap_remove h p := remove p h.
+
+  Definition heap_empty := @empty elt.
+
+  Definition heap_merge := @update elt.
+
+  Definition heap_elements := @elements elt.
+
+  Definition heap_diff := @diff elt.
+
+End Make.
