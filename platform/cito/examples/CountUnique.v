@@ -23,7 +23,8 @@ Infix "=s=" := WordSet.Equal (at level 60).
 
 Definition singleton_map elt k v := @add elt k v (empty _).
 
-Infix "-->" := (@singleton_map _) (at level 40).
+Require Import Morphisms Setoid.
+Infix "-->" := (@singleton_map _).
 
 Require Import WordMapFacts.
 
@@ -195,8 +196,9 @@ Import Semantics.
 Import SemanticsMake.
 Require Import GLabelMap.
 Import GLabelMap.GLabelMap.
-Require Import SemanticsFacts4.
-Module Import SemanticsFacts4Make := Make ExampleADT.
+Require Import ChangeSpec.
+Module Import ChangeSpecMake := Make ExampleADT.
+Import SemanticsFacts4Make.
 Import TransitMake.
 
 Definition count_spec : ForeignFuncSpec :=
@@ -219,9 +221,6 @@ Definition specs_change_table :=
         "count"!"count" @ [count_spec],
         "count"!"main" @ [main_spec]
     ]]%stmtex.
-
-Require Import ChangeSpec.
-Module Import ChangeSpecMake := Make ExampleADT.
 
 Definition specs_op := make_specs modules imports.
 Definition specs := apply_specs_diff specs_op specs_change_table.
@@ -332,7 +331,7 @@ Lemma map_add_same_key : forall elt m k v1 v2, @add elt k v2 (add k v1 m) == add
   destruct (UWFacts.WFacts.P.F.eq_dec k y); intuition.
 Qed.
 
-Lemma add_remove : forall elt m k v, ~ @In elt k m -> WordMap.remove k (add k v m) == m.
+Lemma not_in_add_remove : forall elt m k v, ~ @In elt k m -> WordMap.remove k (add k v m) == m.
   unfold WordMap.Equal; intros.
   rewrite remove_o.
   rewrite add_o.
@@ -440,6 +439,18 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eapply_in_any triples_intro; try eassumption.
   subst; simpl in *.
   descend; eauto.
+  Global Add Parametric Morphism elt : (@equal_disj_update_all elt)
+      with signature @Equal elt ==> Logic.eq ==> iff as equal_disj_update_all_m.
+  Proof.
+    unfold equal_disj_update_all.
+    split; intros; openhyp; split.
+    rewrite <- H; eauto.
+    eauto.
+    rewrite H; eauto.
+    eauto.
+  Qed.
+
+  rewrite H8.
   eapply separated_star; eauto.
 
   (* vc3 *)
@@ -561,19 +572,20 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H13.
+  rewrite H3 in H14.
   rewrite H5 in *.
   assert (sel v0 "set" <> sel v "arr").
   eapply in_alldisj_neq; eauto.
   eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-  rewrite add_neq_o in H13 by eauto.
+  rewrite add_neq_o in H14 by eauto.
   change ExampleADT.ADTValue with ADTValue in *.
   change M.find with find in *.
-  rewrite H13 in H; injection H; intros; subst.
+  rewrite H14 in H; injection H; intros; subst.
   descend.
   eauto.
   eauto.
   split.
+  rewrite H12.
   rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   Lemma add_swap : forall elt k1 v1 k2 v2 h, @find elt k1 h = Some v1 -> k2 <> k1 -> add k1 v1 (add k2 v2 h) == add k2 v2 h.
     intros; unfold Equal; intros.
@@ -633,11 +645,12 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H2 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
+  rewrite H2 in H15; eapply_in_any add_o_eq; subst; injection H15; intros; subst.
   descend.
   eauto.
   eauto.
   split.
+  rewrite H13.
   rewrite H2; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -736,10 +749,11 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H13; eapply_in_any add_o_eq; subst; injection H13; intros; subst.
+  rewrite H3 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
   descend.
   eauto.
   split.
+  rewrite H12.
   rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -802,11 +816,12 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H1 in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
+  rewrite H1 in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
   descend.
   eauto.
+  rewrite H8.
   rewrite H1.
-  eapply Top.add_remove.
+  eapply not_in_add_remove.
   eapply singleton_disj.
   inv_clear H3.
   inversion_Forall.
@@ -831,7 +846,7 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   cito_safe count count_pre count_vcs_good.
   split.
   eauto.
-  Import Top.SemanticsFacts4Make.TransitMake.
+  Import SemanticsFacts4Make.TransitMake.
   unfold TransitSafe in *.
   openhyp.
   simpl in *.
@@ -893,7 +908,6 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   repeat econstructor.
   simpl.
   unfold store_out, Semantics.store_out in *; simpl in *.
-  assert (snd v' == WordMap.add (sel (fst v) "arr") (Arr x) (snd v)).
   Import WordMap.
   rewrite H2.
   Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
@@ -902,7 +916,6 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
     destruct (eq_dec k y); subst; intuition.
   Qed.
   rewrite add_no_effect; eauto; reflexivity.
-  admit. (* snd v' == add ...  -> snd v' = add ... *)
   unfold decide_ret, Semantics.decide_ret.
   simpl.
   eauto.
@@ -970,6 +983,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   subst.
   unfold store_out, Semantics.store_out in *; simpl in *.
   descend; eauto.
+  rewrite H5.
   eapply separated_star; eauto.
 
   (* vc3 *)
@@ -1024,11 +1038,12 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H9.
+  rewrite H in H10.
   eapply_in_any add_o_eq; subst.
-  injection H9; intros; subst.
+  injection H10; intros; subst.
   descend.
   split.
+  rewrite H8.
   rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -1087,12 +1102,13 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
+  rewrite H in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
   destruct x5; simpl in *; try discriminate.
   destruct x5; simpl in *; try discriminate.
   destruct x5; simpl in *; try discriminate.
   descend.
   split.
+  rewrite H9.
   rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -1155,9 +1171,10 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
+  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
   descend.
   split.
+  rewrite H8.
   rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -1217,9 +1234,10 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H8; eapply_in_any add_o_eq; subst; injection H8; intros; subst.
+  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
   descend.
   split.
+  rewrite H8.
   rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
   eapply map_add_same_key.
   eapply same_keys_all_disj; eauto.
@@ -1272,10 +1290,11 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   inversion_Forall; simpl in *.
   subst; simpl in *.
   sel_upd_simpl.
-  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
+  rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
   descend.
+  rewrite H8.
   rewrite H.
-  eapply Top.add_remove.
+  eapply not_in_add_remove.
   eapply singleton_disj.
   inv_clear H2.
   inversion_Forall.
@@ -1299,7 +1318,7 @@ Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthe
 
   cito_runsto main empty_precond main_vcs_good.
   2 : eauto.
-  Import Top.SemanticsFacts4Make.TransitMake.
+  Import SemanticsFacts4Make.TransitMake.
   unfold TransitTo.
   descend.
   instantiate (1 := [[]]).
@@ -1312,7 +1331,7 @@ Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthe
   simpl.
   repeat econstructor.
   simpl.
-  admit. (* snd v' == snd v -> snd v' = snd v *)
+  eauto.
   unfold decide_ret, Semantics.decide_ret.
   simpl.
   eauto.

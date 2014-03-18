@@ -252,16 +252,17 @@ Section ADTValue.
     eauto.
     simpl.
     auto.
-    auto.
-    auto.
+    eauto.
+    eauto.
+    eauto.
     intros.
     destruct var; simpl in *.
     2: eauto.
     destruct (string_dec s x); subst.
     Focus 2.
-    repeat rewrite sel_upd_ne in H7 by auto.
+    repeat rewrite sel_upd_ne in H8 by auto.
     eauto.
-    repeat rewrite sel_upd_eq in H7 by reflexivity.
+    repeat rewrite sel_upd_eq in H8 by reflexivity.
     tauto.
 
     eexists; split.

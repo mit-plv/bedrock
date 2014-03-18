@@ -144,7 +144,7 @@ Section ADTValue.
           let heap := heap' in
           RunsTo (Syntax.Call var f args) v (vs, heap)
     | RunsToCallForeign : 
-        forall var f args v spec triples addr ret,
+        forall var f args v spec triples addr ret heap',
           let vs := fst v in
           let heap := snd v in
           let fs := snd env in
@@ -160,7 +160,8 @@ Section ADTValue.
           separated heap ret_w ret_a ->
           let heap := heap_upd_option heap ret_w ret_a in
           let vs := upd_option vs var ret_w in
-          RunsTo (Syntax.Call var f args) v (vs, heap)
+          WordMap.Equal heap' heap ->
+          RunsTo (Syntax.Call var f args) v (vs, heap')
     | RunsToLabel : 
         forall x lbl v w,
           fst env lbl = Some w ->
