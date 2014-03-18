@@ -79,6 +79,16 @@ Definition rvalueSnomem (rv : rvalue) (tmp : registerPair) : string * string :=
     | RvLabel lab => ("", "$" ++ labelS lab)
   end.
 
+Definition rvalueSnoimm (rv : rvalue) (tmp : registerPair) : string * string :=
+  match rv with
+    | RvLval (LvReg r) => ("", regS r)
+    | RvLval (LvMem l) => (tab ++ "movl " ++ locS l ++ ",%" ++ Name32 tmp ++ nl, "%" ++ Name32 tmp)
+    | RvLval (LvMem8 l) => (tab ++ "xorl %" ++ Name32 tmp ++ ",%" ++ Name32 tmp ++ nl
+      ++ tab ++ "mov " ++ locS l ++ ",%" ++ Name8 tmp ++ nl, "%" ++ Name32 tmp)
+    | RvImm w => (tab ++ "movl $" ++ binS w ++ ",%" ++ Name32 tmp ++ nl, "%" ++ Name32 tmp)
+    | RvLabel lab => (tab ++ "movl $" ++ labelS lab ++ ",%" ++ Name32 tmp ++ nl, "%" ++ Name32 tmp)
+  end.
+
 Definition rvalueSinto (rv : rvalue) (tmp : registerPair) : string :=
   match rv with
     | RvLval (LvReg r) => tab ++ "movl " ++ regS r ++ ",%" ++ Name32 tmp ++ nl
@@ -106,6 +116,13 @@ Definition lvalueIsMem (lv : lvalue) : bool :=
 Definition rvalueIsMem (rv : rvalue) : bool :=
   match rv with
     | RvLval lv => lvalueIsMem lv
+    | _ => false
+  end.
+
+Definition rvalueIsImm (rv : rvalue) : bool :=
+  match rv with
+    | RvImm _ => true
+    | RvLabel _ => true
     | _ => false
   end.
 
@@ -155,7 +172,7 @@ Definition jmpS (j : jmp) : string :=
           then tab ++ "jmp " ++ labelS lab1 ++ nl
           else tab ++ "jmp " ++ labelS lab2 ++ nl
         | _, _ =>
-          let (rv1I, rv1S) := rvalueS rv1 ecx in
+          let (rv1I, rv1S) := (if rvalueIsImm rv1 then rvalueSnoimm else rvalueS) rv1 ecx in
           let (rv2I, rv2S) := (if rvalueIsMem rv1 then rvalueSnomem else rvalueS) rv2 edx in
             rv1I ++ rv2I
             ++ tab ++ "cmpl " ++ rv2S ++ "," ++ rv1S ++ nl
