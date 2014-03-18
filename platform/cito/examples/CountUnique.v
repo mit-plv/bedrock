@@ -55,7 +55,8 @@ Definition count_body := (
       V' "len" = length arr /\                                          
       (h' === h ** (V' "set" --> FSet empty_set)) /\
       V' "arr" = V "arr" /\
-      goodSize (length arr)
+      goodSize (length arr) /\
+      V "len" = length arr                                          
     ];;
     "i" <- 0;;
     [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -64,7 +65,8 @@ Definition count_body := (
        (h' === h ** (V' "set" --> FSet fset)) /\ 
        fset =s= to_set (firstn (V' "i") arr) /\
        V' "arr" = V "arr" /\
-       goodSize (length arr)
+       goodSize (length arr) /\
+       V "len" = length arr 
     ]
     While ("i" < "len") {
       "e" <-- DCall "ADT"!"ArraySeq_read" ("arr", "i");;
@@ -76,7 +78,8 @@ Definition count_body := (
          V' "i" < V' "len" /\
          V' "e" = Array.sel arr (V' "i") /\
          V' "arr" = V "arr" /\
-         goodSize (length arr)
+         goodSize (length arr) /\
+         V "len" = length arr 
       ];;
       DCall "ADT"!"ListSet_add"("set", "e");;
       Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
@@ -86,7 +89,8 @@ Definition count_body := (
          fset =s= to_set (firstn (1 + V' "i") arr) /\
          V' "i" < V' "len" /\
          V' "arr" = V "arr" /\
-         goodSize (length arr)
+         goodSize (length arr) /\
+         V "len" = length arr 
       ];;
       "i" <- "i" + 1
     };;
@@ -94,13 +98,17 @@ Definition count_body := (
     Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
        find (V "arr") h = Some (Arr arr) /\
        (h' === h ** (V' "set" --> FSet fset)) /\ 
-       V' "ret" = unique_count arr
+       V' "ret" = unique_count arr /\
+       goodSize (length arr) /\
+       V "len" = length arr                                         
     ];;
     DCall "ADT"!"ListSet_delete"("set");;
     Assert [BEFORE (V, h) AFTER (V', h') exists arr,
        find (V "arr") h = Some (Arr arr) /\
        h' == h /\
-       V' "ret" = unique_count arr
+       V' "ret" = unique_count arr /\
+       goodSize (length arr) /\
+       V "len" = length arr                                         
     ]
 )%stmtex.
 
@@ -455,6 +463,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eauto.
   reflexivity.
   eauto.
+  eauto.
 
   (* vc4 *)
   intros.
@@ -473,6 +482,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   erewrite <- next; eauto.
   rewrite plus_comm.
   reflexivity.
+  eauto.
   eauto.
 
   (* vc5 *)
@@ -561,15 +571,15 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H13.
+  rewrite H3 in H14.
   rewrite H5 in *.
   assert (sel v0 "set" <> sel v "arr").
   eapply in_alldisj_neq; eauto.
   eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-  rewrite add_neq_o in H13 by eauto.
+  rewrite add_neq_o in H14 by eauto.
   change ExampleADT.ADTValue with ADTValue in *.
   change M.find with find in *.
-  rewrite H13 in H; injection H; intros; subst.
+  rewrite H14 in H; injection H; intros; subst.
   descend.
   eauto.
   eauto.
@@ -581,6 +591,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
   Qed.
   eapply add_swap; eauto.
+  eauto.
   eauto.
   eauto.
   eauto.
@@ -633,7 +644,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H2 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
+  rewrite H2 in H15; eapply_in_any add_o_eq; subst; injection H15; intros; subst.
   descend.
   eauto.
   eauto.
@@ -690,6 +701,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold wnat.
   nomega.
   eauto.
+  eauto.
 
   (* vc9 *)
   intros.
@@ -736,7 +748,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H13; eapply_in_any add_o_eq; subst; injection H13; intros; subst.
+  rewrite H3 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
   descend.
   eauto.
   split.
@@ -756,6 +768,8 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   rewrite H2 in *.
   unfold wnat in *.
   nomega.
+  eauto.
+  eauto.
 
   (* vc11 *)
   intros.
@@ -803,14 +817,16 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   subst; simpl in *.
   sel_upd_simpl.
   destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H1 in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
+  rewrite H1 in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
   descend.
   eauto.
   rewrite H1.
   eapply Top.add_remove.
   eapply singleton_disj.
-  inv_clear H3.
+  inv_clear H5.
   inversion_Forall.
+  eauto.
+  eauto.
   eauto.
   eauto.
 
@@ -867,19 +883,25 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   simpl.
   descend.
   eauto.
-
-  eapply map_fst_combine.
-  instantiate (1 := [[_, _]]).
-  eauto.
-  simpl.
-  Import SemanticsMake.
-  repeat econstructor.
   eauto.
   eauto.
   simpl.
+  descend; eauto.
+  simpl.
+  unfold store_out, Semantics.store_out in *; simpl in *.
   repeat econstructor.
   simpl.
-  admit. (* snd v' == snd v -> snd v' = snd v *)
+  unfold store_out, Semantics.store_out in *; simpl in *.
+  assert (snd v' == WordMap.add (sel (fst v) "arr") (Arr x) (snd v)).
+  Import WordMap.
+  rewrite H1.
+  Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
+    unfold Equal; intros.
+    repeat rewrite add_o.
+    destruct (eq_dec k y); subst; intuition.
+  Qed.
+  rewrite add_no_effect; eauto; reflexivity.
+  admit. (* snd v' == add ...  -> snd v' = add ... *)
   unfold decide_ret, Semantics.decide_ret.
   simpl.
   eauto.
