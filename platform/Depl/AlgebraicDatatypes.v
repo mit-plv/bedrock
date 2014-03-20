@@ -572,8 +572,8 @@ Section allocatePre_sound.
     destruct (string_dec x s); intuition.
   Qed.
 
-  Theorem allocatePre_sound : forall m p bvs argFvs,
-    wellScoped (Recursive c ++ Nonrecursive c) (Condition c)
+  Theorem allocatePre_sound : forall p bvs argFvs,
+    wellScoped ("this" :: Recursive c ++ Nonrecursive c) (Condition c)
     -> boundVars (Condition c) = Some bvs
     -> (forall x, In x (Nonrecursive c) -> ~In x bvs)
     -> (forall x, In x (Recursive c) -> ~In x bvs)
@@ -581,6 +581,9 @@ Section allocatePre_sound.
     -> (forall x, In x (Recursive c) -> ~In x argFvs)
     -> (forall x, In x (Recursive c) -> ~In x (Nonrecursive c))
     -> (forall x, In x argFvs -> ~In x bvs)
+    -> ~In "this" bvs
+    -> ~In "this" (Nonrecursive c)
+    -> ~In "this" (Recursive c)
     -> NoDup (Recursive c)
     -> forall (ns : list expr) rs fE nws rws, length ns = length (Nonrecursive c)
     -> length rs = length (Recursive c)
@@ -591,18 +594,20 @@ Section allocatePre_sound.
       -> List.Forall (fun e : expr => exprD e fE1 = exprD e fE2) (ns ++ rs))
     -> ptsto32m _ p O (natToW tag :: nws ++ rws)
     * normalD (allocatePre (fst dt) (normalizeCon c) (ns ++ rs)) hE fE
-    ===> Ex sk, datatypeD hE dt sk m p.
+    ===> Ex sk, datatypeD hE dt sk (fE "this") p.
   Proof.
     Opaque ptsto32m.
     intros.
     eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl |
-      eapply (@allocatePre_sound' argFvs (argFvs ++ Recursive c ++ Nonrecursive c));
+      eapply (@allocatePre_sound' argFvs (argFvs ++ "this" :: Recursive c ++ Nonrecursive c));
         intuition eauto using wellScoped_weaken, in_or_app] | ].
 
-    eapply in_app_or in H13; intuition eauto.
-    eapply in_app_or in H15; intuition eauto.
+    eapply in_app_or in H16; intuition eauto.
+    simpl in H18; intuition eauto.
+    subst; eauto.
+    eapply in_app_or in H16; intuition eauto.
     rewrite app_length; congruence.
-    rewrite map_app, H10, H11; rewrite <- map_app; eauto.
+    rewrite map_app, H13, H14; rewrite <- map_app; eauto.
 
     eapply Himp_trans; [ apply Himp_star_comm | ].
     eapply Himp_trans; [ apply Himp_ex_star | ].
@@ -631,7 +636,7 @@ Section allocatePre_sound.
       induction ls1; destruct ls2; simpl; intuition.
     Qed.
 
-    rewrite <- H8.
+    rewrite <- H11.
     erewrite (@map_len _ _ _ _ _ ns) by eauto.
     rewrite firstn_app1.
 
@@ -654,17 +659,11 @@ Section allocatePre_sound.
       induction ls1; simpl; intuition.
     Qed.
 
-    2: rewrite H13, skipn_app1; apply Himp_refl.
+    2: rewrite H16, skipn_app1; apply Himp_refl.
     simpl.
-    replace (fo_set
-      (make_fo (Recursive c ++ Nonrecursive c) (models rs' ++ dynify nws)
-        fo_empty) "this" m)
-    with (make_fo (Recursive c ++ Nonrecursive c) (models rs' ++ dynify nws) fo_empty) by admit.
-    (* This is obviously an unsound rewrite, but it's a useful placeholder
-     * while I figure out the right way to incorporate "this". *)
-
     apply addSubstsH.
     eapply weaken_predD; eauto.
+    intros.
 
     Lemma make_fo_overwritten : forall x xs vs fE1 fE2,
       In x xs
@@ -678,15 +677,42 @@ Section allocatePre_sound.
       destruct (string_dec x a); auto.
     Qed.
 
-    intros; eapply make_fo_overwritten; eauto.
+    Lemma redundant_fo_set : forall v x y fE,
+      v = fE x
+      -> fo_set fE x v y = fE y.
+    Proof.
+      intros; unfold fo_set.
+      destruct (string_dec y x); congruence.
+    Qed.
+
+    Lemma make_fo_skipall : forall x xs vs fE,
+      ~In x xs
+      -> make_fo xs vs fE x = fE x.
+    Proof.
+      induction xs; destruct vs; simpl; intuition.
+      unfold fo_set.
+      destruct (string_dec x a); subst; intuition.
+    Qed.
+
+    simpl in H17; intuition subst.
+    unfold fo_set.
+    simpl.
+    apply make_fo_skipall.
+    intuition idtac.
+    apply in_app_or in H17; tauto.
+
+    unfold fo_set.
+    destruct (string_dec x "this"); subst.
+    apply in_app_or in H18; intuition.
+    apply make_fo_overwritten; auto.
     repeat rewrite app_length.
-    apply map_len in H10.
-    apply map_len in H11.
+    apply map_len in H13.
+    apply map_len in H14.
     unfold models, dynify.
     repeat rewrite map_length.
-    rewrite skipn_app1 in H13; subst.
-    unfold addrs in H11.
-    rewrite map_length in H11.
+    rewrite skipn_app1 in H16; subst.
+    unfold addrs in H14.
+    rewrite map_length in H14.
     congruence.
   Qed.
 
