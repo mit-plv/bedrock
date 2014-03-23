@@ -79,7 +79,7 @@ VS      := $(MODULES:%=%.v)
 .PRECIOUS: examples/%.gen.ml examples/%.gen.s
 
 coq: Makefile.coq
-	COQC='time coqc' $(MAKE) -f Makefile.coq
+	COQC='coqc' $(MAKE) -f Makefile.coq
 
 COQARGS := -R $(BEDROCK)/src Bedrock \
 	-R . Cito \
