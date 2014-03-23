@@ -1,0 +1,29 @@
+ROOT    := ..
+
+MODULES := Conditional AutoSepExt PreAutoSep \
+	   Wrap \
+           Util \
+           AutoSep \
+           Sys Safety \
+           Malloc \
+           Bags Sets\
+           Bootstrap
+
+VS      := $(MODULES:%=%.v)
+
+.PHONY: coq clean
+
+coq: Makefile.coq
+	$(MAKE) -f Makefile.coq
+	$(MAKE) -C cito
+
+COQARGS := -R $(ROOT)/src Bedrock
+COQC    := coqc $(COQARGS)
+
+Makefile.coq: Makefile $(VS)
+	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+
+clean:: Makefile.coq
+	$(MAKE) -f Makefile.coq clean
+	rm -f Makefile.coq .depend
+	$(MAKE) -C cito clean

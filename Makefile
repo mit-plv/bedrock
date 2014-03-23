@@ -8,10 +8,18 @@ all:
 	$(MAKE) -C src
 	$(MAKE) -C examples
 
+cito:
+	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
+	$(MAKE) -C src/reification
+	$(MAKE) -C src
+	$(MAKE) -C platform -f Makefile.cito
+
 clean:
 	$(MAKE) -C src/reification clean
 	$(MAKE) -C src clean
 	$(MAKE) -C examples clean
+	$(MAKE) -C platform clean
+	$(MAKE) -C platform clean -f Makefile.cito
 
 native:
 	$(MAKE) -C src native
