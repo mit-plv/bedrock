@@ -27,8 +27,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl.
       eapply Himp_trans; [ apply Himp_star_comm | ].
 
-      Print is_heap.
-
       Lemma use_rep_inv_ptr' : forall addr a ls,
         rep_inv addr a * Bags.starL (fun p : W * ADTValue => rep_inv (fst p) (snd p)) ls
         ===> [|forall v, ~In (addr, v) ls|] * (rep_inv addr a

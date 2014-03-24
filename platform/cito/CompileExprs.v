@@ -89,8 +89,6 @@ Section TopLevel.
 
   Definition stack_slot (n : nat) := LvMem (Sp + n)%loc.
 
-  Print CompileExpr.compile.
-  
   Definition compile_expr e n := CompileExpr.compile vars temp_size imports_global modName e n.
 
   Fixpoint do_compile exprs base dst :=
