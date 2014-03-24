@@ -1,3 +1,25 @@
 Verified compositional compiler from language Cito to Bedrock.
 
-Run 'make' to make this compiler and all its dependences.
+(1) Build instructions:
+
+(1.1) First, build the Bedrock framework and the Cito compiler (see ../../README) by running these commands from ../.. :
+  make native
+  make cito
+
+(1.2) To build the example programs to native executables (only under AMD64 Linux), run this command from . :
+  make examples/<NAME>.exe
+
+For example:
+  make examples/CountUnique.exe
+
+(2) File Descriptions:
+Syntax.v :		The syntax of the source language Cito. See paper Section 2.
+Semantics.v :		Big-step operational semantics of Cito. It includes definitions of RunsTo, Safe. See paper Section 2.
+CompileStmt.v :		The core statement compiler. It and its includes definitions of Inv, funcsOk, statementCmd (named 'compile' in the paper). See paper Section 4 & 5 & 6.
+Compiler.v :	   	The function level compiler. It's a wrapper of the statement compiler. It takes a Cito function (consisting of a function name, local variable declarations, and a function body), and call the statement compiler to compile this function to Bedrock IL. It also adds a prologue and epilogue before and after the function body, to check stack capacity. See paper Section 8.
+ConstFolding.v :	The constant folding optimizer. See paper Section 7.
+ElimDead.v :   		The dead code elimination optimizer. See paper Section 7.
+Compile.v :		The top-level compiler interface. It defines some tactics to apply the compiler. To use the compiler to verify a program, import module Compile, and use the tactic 'compile', as the demos do.
+Recall.v :		Part of the 'stub trick'. See paper Section 8.
+tests/Adder.v :		An example program for adding two integers. See paper Section 8.
+tests/Recur.v :		An example program demonstrating two mutual recursive Cito functions and the ability to call foreign functions. See paper Section 8.
