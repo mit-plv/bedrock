@@ -17,8 +17,9 @@ Then, just run (one of the two):
    make
 and go take a break while it runs for an hour or so (if you're lucky enough to have a new-ish machine). ;)  Using the '-j' switch for parallel build is highly recommended.
 
-(2) Or run:
+(2) Or:
    make cito
 (no need to run "make" beforehand) to make the Cito compiler.
 
+To make executable Cito example programs, see 'platform/cito/README'.
 Also see the 'examples', 'platform' and 'platform/cito' directories and their READMEs.
