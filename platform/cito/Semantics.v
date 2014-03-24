@@ -279,25 +279,18 @@ Section ADTValue.
         cofix; unfold State; intros; break_pair; destruct c.
 
         eauto.
-        Guarded.
 
         eapply SeqCase in H; openhyp; eauto.
-        Guarded.
 
         eapply IfCase in H; openhyp; eauto.
-        Guarded.
 
         eapply WhileCase in H; openhyp; eauto.
-        Guarded.
 
         eapply CallCase in H; openhyp; simpl in *; intuition eauto.
-        Guarded.
 
         eapply LabelCase in H; openhyp; eauto.
-        Guarded.
 
         eauto.
-        Guarded.
       Qed.
 
     End Safe_coind.
