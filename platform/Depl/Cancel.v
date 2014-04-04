@@ -343,7 +343,7 @@ Qed.
 
 (** Result of cancelation *)
 Inductive result :=
-| Success (NewLhs : list pred) (ProveThis : Prop)
+| Success (NewSub : fo_sub) (NewLhs : list pred) (ProveThis : Prop)
 | Failure (Message : Prop).
 
 (** Result of canceling just one atomic predicate *)
@@ -502,13 +502,14 @@ Proof.
 Qed.
 
 (** Overall cancellation *)
-Definition cancel (fvs : list fo_var) (lhs rhs : normal) : result :=
-  match findMatchings (NQuants rhs)
+Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : result :=
+  match findMatchings (evs ++ NQuants rhs)
     (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
     (NImpure lhs) (NImpure rhs) with
     | Failure1 msg => Failure msg
-    | Success1 s lhs' fs => Success lhs' (
+    | Success1 s lhs' fs => Success s lhs' (
       (forall x, In x (NQuants rhs) -> hide_sub s x <> None)
+      /\ (forall x, In x evs -> hide_sub s x <> None)
       /\ (forall fE, List.Forall (fun f => f fE (hide_sub s)) fs)
       /\ match NPure rhs with
            | None => True
@@ -527,20 +528,42 @@ Definition cancel (fvs : list fo_var) (lhs rhs : normal) : result :=
          end)
   end.
 
-Theorem cancel_sound : forall fvs fE G (hE : ho_env G) S lhs rhs lhs' P,
-  cancel fvs lhs rhs = Success lhs' P
+Definition sub_normal (s : fo_sub) (n : normal) : option normal :=
+  match sub_preds s (NImpure n) with
+    | None => None
+    | Some ps => Some {|
+      NQuants := NQuants n;
+      NPure := match NPure n with
+                 | None => None
+                 | Some f => Some (fun fE => f (fun x => match s x with
+                                                           | None => Dyn tt
+                                                           | Some e => exprD e fE
+                                                         end))
+               end;
+      NImpure := ps
+    |}
+  end.
+
+Theorem cancel_sound : forall fvs evs fE G (hE : ho_env G) S lhs rhs s lhs' P
+  (Hfe : forall x, In x fvs -> ~In x evs),
+  cancel fvs evs lhs rhs = Success s lhs' P
   -> P
   -> List.Forall (wellScoped (NQuants rhs ++ fvs)) (NImpure rhs)
   -> (forall x, In x fvs -> ~In x (NQuants lhs))
-  -> SubstsH S (normalD lhs hE fE)
-  ===> SubstsH S (normalD rhs hE fE)
-  * SubstsH S (normalD {| NQuants := NQuants lhs;
-    NPure := None;
-    NImpure := lhs' |} hE fE).
+  -> (SubstsH S (normalD lhs hE fE)
+    ===> SubstsH S (normalD rhs hE (fun x => if in_dec string_dec x evs
+      then match s x with
+             | None => fE x
+             | Some e => exprD e fE
+           end
+      else fE x))
+    * SubstsH S (normalD {| NQuants := NQuants lhs;
+      NPure := None;
+      NImpure := lhs' |} hE fE)).
 Proof.
   unfold cancel; intros.
   
-  case_eq (findMatchings (NQuants rhs)
+  case_eq (findMatchings (evs ++ NQuants rhs)
     (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
     (NImpure lhs) (NImpure rhs)); intros.
   Focus 2.
@@ -583,12 +606,12 @@ Proof.
   apply Himp_star_Emp'.
   eapply Himp_trans; [ apply star_out_fwd | ].
   eapply Himp_trans; [ apply SubstsH_star_fwd | ].
-  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H8 ] | ].
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H9 ] | ].
   eapply Himp_trans; [ | apply SubstsH_star_bwd ].
   eapply Himp_trans; [ apply Himp_star_assoc' | ].
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply Himp_star_frame; try apply Himp_refl.
-  clear H8.
+  clear H9.
 
   unfold normalD.
   eapply Himp_trans; [ apply Himp_star_frame; [ | apply Himp_refl ] | ].
@@ -885,22 +908,24 @@ Proof.
   eauto.
   instantiate (1 := x0).
   unfold hide_sub in *; congruence.
-  2: tauto.
   simpl in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
   eapply findMatchings_monotone in H3.
   Focus 2.
   instantiate (2 := x0).
   destruct (in_dec string_dec x0 fvs); tauto.
-  unfold hide_sub in *; rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  unfold hide_sub in *; rewrite H9 in H3; injection H3; clear H3; intros; subst.
   simpl.
-  left; symmetry; apply H4.
-  eauto.
+  left; symmetry; rewrite H5 by eauto.
+  destruct (in_dec string_dec x0 evs); auto; exfalso; eauto.
+  intuition idtac.
+  apply in_app_or in H12; intuition idtac.
+  apply in_app_or in H11; intuition idtac.
+  exfalso; eauto.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.
-  apply in_app_or in H9; apply in_or_app; tauto.
-
+  apply in_app_or in H10; apply in_or_app; tauto.
 
   Lemma choose_existentials' : forall G (hE : ho_env G) S s ps' ps (P : _ -> Prop),
     sub_preds s ps = Some ps'
@@ -966,21 +991,27 @@ Proof.
   edestruct findMatchings_adds; eauto.
   instantiate (1 := x0).
   unfold hide_sub in *; congruence.
-  2: tauto.
+  (*2: tauto.*)
   simpl in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
   eapply findMatchings_monotone in H3.
   2: instantiate (2 := x0); destruct (in_dec string_dec x0 fvs); tauto.
-  unfold hide_sub in *; rewrite H8 in H3; injection H3; clear H3; intros; subst.
+  destruct (in_dec string_dec x0 evs); try solve [ exfalso; eauto ].
+  unfold hide_sub in H9.
+  rewrite H9 in H3; clear H9; injection H3; intros; subst.
   simpl.
-  left; symmetry; apply H4.
-  eauto.
+  left; symmetry; eauto.
+  intuition idtac.
+  apply in_app_or in H13; intuition idtac.
+  destruct (in_dec string_dec x0 evs); try tauto.
+  apply in_app_or in H6; intuition idtac.
+  exfalso; eauto.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.
-  apply in_app_or in H9; apply in_or_app; tauto.
+  apply in_app_or in H10; apply in_or_app; tauto.
   destruct (NPure lhs); intuition idtac.
   destruct (NPure lhs); intuition idtac.
-  erewrite H8; eauto.
-  erewrite H8; eauto.
+  erewrite H9; eauto.
+  erewrite H9; eauto.
 Qed.

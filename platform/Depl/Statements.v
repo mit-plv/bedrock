@@ -107,6 +107,17 @@ Definition exprD (vs : vars) (e : expr) : option Logic.expr :=
     | Var x => vs x
   end.
 
+(** Translating a sequence of expressions *)
+Fixpoint exprsD (vs : vars) (es : list expr) : option (list Logic.expr) :=
+  match es with
+    | nil => Some nil
+    | e :: es =>
+      match exprD vs e, exprsD vs es with
+        | Some e', Some es' => Some (e' :: es')
+        | _, _ => None
+      end
+  end.
+
 Inductive result :=
 | ProveThis (P : Prop)
 | Failed (P : Prop).
@@ -116,9 +127,9 @@ Inductive lhs_remains (p : list pred) := .
 (** Strict entailment between normalized formulas,
   * where there may be no conjuncts left uncanceled on either side *)
 Definition sentail (fvs : list fo_var) (lhs rhs : normal) :=
-  match cancel fvs lhs rhs with
-    | Success nil P => ProveThis P
-    | Success lhs' _ => Failed (lhs_remains lhs')
+  match cancel fvs nil lhs rhs with
+    | Success _ nil P => ProveThis P
+    | Success _ lhs' _ => Failed (lhs_remains lhs')
     | Failure P => Failed P
   end.
 
@@ -127,6 +138,10 @@ Inductive bad_assignment_lhs (x : pr_var) := .
 Inductive bad_return_expr (e : expr) := .
 Inductive entailment_failed_at_return (P : Prop) := .
 Inductive unbound_constructor (s : string) := .
+Inductive bad_constructor_argument (s : string) := .
+Inductive entailment_failed_at_allocation (P : Prop) := .
+Inductive couldn't_determine_model (x : pr_var) := .
+Inductive object_name_already_in_scope (x nextDt : pr_var) := .
 
 (** Add a pure conjunct to a normalized predicate. *)
 Definition addPure (n : normal) (P : fo_env -> Prop) : normal := {|
@@ -161,37 +176,40 @@ Section stmtD.
   Variable dts : list ndatatype.
   (** Definitions of algebraic datatypes that may be referenced *)
 
-  Variable pre : normal.
-  (** Precondition; holds throughout execution, since it describes the heap,
-    * and there aren't yet heap-manipulating statements. *)
-  Variable post : normal.
-  (** Postcondition; check it at return points. *)
-
-  Variable fvs : list fo_var.
-  (** Logical variables legal to mention in specs (e.g., [pre]) *)
-
   Variable ns : list pr_var.
   (** Program variables that are legal to assign to *)
 
   (** Return a verification condition implying spec conformance. *)
-  Fixpoint stmtD (vs : vars) (s : stmt)
-    (k : vars -> Prop) (* Continuation; call when control falls through. *) : Prop :=
+  Fixpoint stmtD (vs : vars)
+    (fvs : list fo_var)
+    (** Logical variables legal to mention in specs (e.g., [pre]) *)
+    (pre : normal)
+    (** Precondition; heap "right now" *)
+    (post : normal)
+    (** Postcondition; check it at return points. *)
+    (nextDt : string)
+    (** Next fresh name to use for a freshly allocated DT value *)
+    (s : stmt)
+    (k : vars -> list fo_var (* fvs *) -> normal (* pre *) -> normal (* post *)
+      -> string (* nextDt *) -> Prop)
+    (* Continuation; call when control falls through. *) : Prop :=
     match s with
       | Assign x e =>
         match exprD vs e with
           | None => bad_assignment_rhs e
           | Some e' =>
             if in_dec string_dec x ns
-              then k (vars_set vs x e')
+              then k (vars_set vs x e') fvs pre post nextDt
               else bad_assignment_lhs x
         end
       | Seq s1 s2 =>
-        stmtD vs s1 (fun vs' => stmtD vs' s2 k)
+        stmtD vs fvs pre post nextDt s1 (fun vs' fvs' pre' post' nextDt' =>
+          stmtD vs' fvs' pre' post' nextDt' s2 k)
       | Ret e =>
         match exprD vs e with
           | None => bad_return_expr e
           | Some e' =>
-            (** Build an extended postcondition that records the return value. *)
+            (* Build an extended postcondition that records the return value. *)
             let post' := nsubst "result" e' post in
 
             match sentail fvs pre post' with
@@ -201,9 +219,40 @@ Section stmtD.
         end
 
       | Allocate x conName args =>
+        (* Find the definition of this datatype constructor. *)
         match lookupCon conName dts with
           | None => unbound_constructor conName
-          | Some (dtName, c) => True
+          | Some (dtName, c) =>
+            (* Evaluate the constructor argument expressions. *)
+            match exprsD vs args with
+              | None => bad_constructor_argument conName
+              | Some args' =>
+                (* Find a memory chunk to be absorbed inside this
+                 * new DT object. *)
+                match cancel fvs ("this" :: nil)
+                  pre (allocatePre dtName c args') with
+                  | Failure P => entailment_failed_at_allocation P
+                  | Success s lhs P =>
+                    (* Look up the functional mode we've found. *)
+                    match s "this" with
+                      | None => couldn't_determine_model x
+                      | Some model =>
+                        (* Check if our chosen name for the new pointer
+                         * is already used. *)
+                        if in_dec string_dec nextDt fvs
+                          then object_name_already_in_scope x nextDt
+                          else
+                            (* Use [nextDt] as the name of the new DT pointer. *)
+                            k (vars_set vs x (Logic.Var nextDt))
+                            (nextDt :: fvs)
+                            {| NQuants := NQuants pre;
+                              NPure := NPure pre;
+                              NImpure := Named dtName (model :: Logic.Var nextDt
+                                :: nil) :: lhs |}
+                            post (nextDt ++ "'")%string
+                    end
+                end
+            end
         end
     end.
 End stmtD.

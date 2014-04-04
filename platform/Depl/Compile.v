@@ -60,12 +60,22 @@ Definition SimpleSeq (ch1 ch2 : chunk) : chunk := fun ns res =>
   Structured nil (fun im mn H => Seq_ H (toCmd ch1 mn H ns res) (toCmd ch2 mn H ns res)).
 Local Infix ";;" := SimpleSeq : SP_scope.
 
-Fixpoint stmtC (s : stmt) : chunk :=
-  match s with
-    | Assign x e => x <- exprC e
-    | Seq s1 s2 => stmtC s1;; stmtC s2
-    | Ret e => Return (exprC e)
-  end%SP.
+Fixpoint locateCon' (n : nat) (s : string) (cs : list ncon) : option (nat * ncon) :=
+  match cs with
+    | nil => None
+    | c :: cs' => if string_eq s (NName c) then Some (n, c)
+      else locateCon' (S n) s cs'
+  end.
+
+Fixpoint locateCon (s : string) (dts : list ndatatype) : option (string * nat * ncon) :=
+  match dts with
+    | nil => None
+    | dt :: dts' =>
+      match locateCon' O s (snd dt) with
+        | None => locateCon s dts'
+        | Some (n, c) => Some (fst dt, n, c)
+      end
+  end.
 
 (** Version of [Logic.predD] specialized to predicates with no free higher-order variables *)
 Definition predD (p : pred) (fE : fo_env) : HProp :=
@@ -86,6 +96,51 @@ Definition precond (vs : vars) (pre post : normal) :=
     POST[R] mallocHeap 0
       (* The postcondition holds, in an [fo_env] that lets it mention the return value. *)
       * normalD post (fo_set fE "result" (Dyn R)).
+
+Section stmtC.
+  Variable dts : list ndatatype.
+
+  Fixpoint stmtC (vs : vars) (fvs : list fo_var)
+    (pre post : normal) (nextDt : string) (s : stmt)
+    (k : vars -> list fo_var -> normal -> normal -> string -> chunk) : chunk :=
+    match s with
+      | Assign x e =>
+        match exprD vs e with
+          | None => Fail
+          | Some e' => x <- exprC e;; k (vars_set vs x e') fvs pre post nextDt
+        end
+      | Seq s1 s2 => stmtC vs fvs pre post nextDt s1
+        (fun vs' fvs' pre' post' nextDt' =>
+          stmtC vs' fvs' pre' post' nextDt' s2 k)
+      | Ret e => Return (exprC e)
+      | Allocate x conName args =>
+        match locateCon conName dts with
+          | None => Fail
+          | Some (dtName, tag, c) =>
+            match exprsD vs args with
+              | None => Fail
+              | Some args' =>
+                match cancel fvs ("this" :: nil)
+                  pre (allocatePre dtName c args') with
+                  | Failure _ => Fail
+                  | Success s lhs P =>
+                    match s "this" with
+                      | None => Fail
+                      | Some model =>
+                        let vs' := vars_set vs x (Logic.Var nextDt) in
+                        let pre' := {| NQuants := NQuants pre;
+                          NPure := NPure pre;
+                          NImpure := Named dtName (model :: Logic.Var nextDt
+                            :: nil) :: lhs |} in
+                        x <-- Call "malloc"!"malloc"(0, S (length args))
+                        [precond vs' pre' post];;
+                        k vs' (nextDt :: fvs) pre' post (nextDt ++ "'")%string
+                    end
+                end
+            end
+        end
+    end%SP.
+
 
 (** * Key lemmas to pass to Wrap *)
 
