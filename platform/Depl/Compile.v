@@ -484,7 +484,7 @@ Section stmtC.
     eapply nsubst_bwd; eauto.
   Qed.
 
-  Lemma Stmt_vc : forall im mn (H : importsGlobal im) ns res xs,
+  Lemma stmtC_vc : forall im mn (H : importsGlobal im) ns res xs,
     ~In "rp" ns
     -> (forall x, In x xs -> In x ns)
     -> forall s vs fvs pre post nextDt kC pre0 kD,
@@ -506,6 +506,15 @@ Section stmtC.
         -> interp specs (precond vs pre post true (fun x => x) ns res st))
       -> (forall vs fvs pre post nextDt pre0,
         kD vs fvs pre post nextDt
+        -> ~In "result" fvs
+        -> normalWf' fvs pre
+        -> normalWf' ("result" :: fvs) post
+        -> ~In "result" (NQuants pre)
+        -> ~In "result" (NQuants post)
+        -> scopey fvs post (NImpure post)
+        -> scopey' "result" (NImpure pre)
+        -> (forall x, In x fvs -> ~In x (NQuants pre))
+        -> (forall x, In x fvs -> ~In x (NQuants post))
         -> (forall x e, vs x = Some e
           -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
             -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -553,7 +562,9 @@ Section stmtC.
     rewriteall.
     use_error_message.
 
-    admit.
+    wrap0.
+    simpl in *; intuition idtac.
+    eapply IHs1; intuition eauto.
     
     admit.
 
