@@ -545,6 +545,7 @@ Section stmtC.
     cancl_clear.
     step auto_ext.
     descend; step auto_ext.
+    cancl_clear.
     descend; step auto_ext.
     descend; step auto_ext.
     descend; step auto_ext.
@@ -558,7 +559,7 @@ Section stmtC.
 
     admit.
   Qed.
-End fvs.
+End stmtC.
 
 (*
 Local Hint Immediate wellScoped_predExt.
