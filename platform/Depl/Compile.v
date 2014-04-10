@@ -527,6 +527,7 @@ Section stmtC.
   Proof.
     induction s.
 
+    (* Assign *)
     wrap0.
     simpl in *; intuition idtac.
     case_option.
@@ -562,11 +563,65 @@ Section stmtC.
     rewriteall.
     use_error_message.
 
+    (* Sequence *)
     wrap0.
     simpl in *; intuition idtac.
     eapply IHs1; intuition eauto.
-    
-    admit.
+
+    (* Return *)
+    wrap0.
+    pre_implies.
+    case_option; simpl in *; intuition eauto.
+    pre_evalu.
+    exprC_correct.
+    evalu.
+
+    pre_implies.
+    case_option; simpl in *; intuition eauto.
+    pre_evalu.
+    exprC_correct.
+    evalu.
+    case_eq (sentail fvs pre (nsubst "result" e0 post)); intros.
+    Focus 2.
+    rewrite H25 in *; inversion H11.
+    rewrite H25 in *.
+    descend.
+    step auto_ext.
+    step auto_ext.
+    descend.
+    cancl.
+    specialize (sentail_sound fvs (fo_set x0 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H25); intuition.
+    unfold SubstsH in *; simpl in *.
+    eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
+    eapply Himp_trans; [ | apply H22 ].
+
+    eapply weaken_normalD; eauto.
+    intros.
+    unfold fo_set.
+    destruct (string_dec x4 "result"); subst; tauto.
+    2: eauto.
+    3: simpl; unfold not; intuition (subst; eauto).
+    4: simpl; tauto.
+
+    Focus 2.
+    unfold fo_set at 1; simpl.
+    etransitivity; try (symmetry; apply H20).
+    apply H21.
+    unfold fo_set; intros.
+    destruct (string_dec y "result"); subst; eauto; exfalso; eauto.
+
+    2: simpl; eauto.
+
+    eapply Forall_forall; intros.
+    eapply in_map_iff in H16; destruct H16; intuition subst.
+    eapply Forall_forall in H24; try apply H7.
+
+    eapply wellScoped_psubst.
+    eapply wellScoped_weaken; eauto.
+    simpl; intuition idtac.
+    apply in_app_or in H; intuition eauto using in_or_app.
+    simpl in *; intuition eauto using in_or_app.
+    eauto using in_or_app.
 
     admit.
   Qed.
