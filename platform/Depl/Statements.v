@@ -1,6 +1,6 @@
 (** Statements of the deeply embedded programming language *)
 
-Require Import AutoSep.
+Require Import Arith AutoSep.
 
 Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes.
 
@@ -139,6 +139,7 @@ Inductive bad_return_expr (e : expr) := .
 Inductive entailment_failed_at_return (P : Prop) := .
 Inductive unbound_constructor (s : string) := .
 Inductive bad_constructor_argument (s : string) := .
+Inductive wrong_number_of_constructor_arguments (s : string) := .
 Inductive entailment_failed_at_allocation (P : Prop) := .
 Inductive couldn't_determine_model (x : pr_var) := .
 Inductive object_name_already_in_scope (x nextDt : pr_var) := .
@@ -223,36 +224,39 @@ Section stmtD.
         match lookupCon conName dts with
           | None => unbound_constructor conName
           | Some (dtName, c) =>
-            (* Evaluate the constructor argument expressions. *)
-            match exprsD vs args with
-              | None => bad_constructor_argument conName
-              | Some args' =>
-                (* Find a memory chunk to be absorbed inside this
-                 * new DT object. *)
-                match cancel fvs ("this" :: nil)
-                  pre (allocatePre dtName c args') with
-                  | Failure P => entailment_failed_at_allocation P
-                  | Success s lhs P =>
-                    (* Look up the functional mode we've found. *)
-                    match s "this" with
-                      | None => couldn't_determine_model x
-                      | Some model =>
-                        (* Check if our chosen name for the new pointer
-                         * is already used. *)
-                        if in_dec string_dec nextDt fvs
-                          then object_name_already_in_scope x nextDt
-                          else
-                            (* Use [nextDt] as the name of the new DT pointer. *)
-                            k (vars_set vs x (Logic.Var nextDt))
-                            (nextDt :: fvs)
-                            {| NQuants := NQuants pre;
-                              NPure := NPure pre;
-                              NImpure := Named dtName (model :: Logic.Var nextDt
-                                :: nil) :: lhs |}
-                            post (nextDt ++ "'")%string
-                    end
-                end
-            end
+            (* Check that the right number of arguments is passed. *)
+            if eq_nat_dec (length args) (length (NRecursive c) + length (NNonrecursive c)) then
+              (* Evaluate the constructor argument expressions. *)
+              match exprsD vs args with
+                | None => bad_constructor_argument conName
+                | Some args' =>
+                  (* Find a memory chunk to be absorbed inside this
+                   * new DT object. *)
+                  match cancel fvs ("this" :: nil)
+                    pre (allocatePre dtName c args') with
+                    | Failure P => entailment_failed_at_allocation P
+                    | Success s lhs P =>
+                      (* Look up the functional mode we've found. *)
+                      match s "this" with
+                        | None => couldn't_determine_model x
+                        | Some model =>
+                          (* Check if our chosen name for the new pointer
+                           * is already used. *)
+                          if in_dec string_dec nextDt fvs
+                            then object_name_already_in_scope x nextDt
+                            else
+                              (* Use [nextDt] as the name of the new DT pointer. *)
+                              k (vars_set vs x (Logic.Var nextDt))
+                              (nextDt :: fvs)
+                              {| NQuants := NQuants pre;
+                                NPure := NPure pre;
+                                NImpure := Named dtName (model :: Logic.Var nextDt
+                                  :: nil) :: lhs |}
+                              post (nextDt ++ "'")%string
+                      end
+                  end
+              end
+            else wrong_number_of_constructor_arguments conName
         end
     end.
 End stmtD.
