@@ -484,7 +484,8 @@ Section stmtC.
     eapply nsubst_bwd; eauto.
   Qed.
 
-  Lemma stmtC_vc : forall im mn (H : importsGlobal im) ns res xs,
+  Lemma stmtC_vc : forall im mn (H : importsGlobal im) ns res xs
+    (Hres : (res >= 3)%nat),
     ~In "rp" ns
     -> (forall x, In x xs -> In x ns)
     -> forall s vs fvs pre post nextDt kC pre0 kD,
@@ -623,6 +624,70 @@ Section stmtC.
     simpl in *; intuition eauto using in_or_app.
     eauto using in_or_app.
 
+    (* Allocate *)
+    wrap0.
+    simpl in *; intuition idtac.
+
+    Lemma lookupCon'_locateCon' : forall nm dts0 n,
+      match lookupCon' nm dts0 with
+        | Some c => exists tag, locateCon' n nm dts0 = Some (tag, c)
+        | None => locateCon' n nm dts0 = None
+      end.
+    Proof.
+      induction dts0; simpl; intuition.
+      destruct (string_eq nm (NName a)); subst; eauto.
+      apply IHdts0.
+    Qed.
+
+    Lemma lookupCon_locateCon : forall nm dtName c dts0,
+      lookupCon nm dts0 = Some (dtName, c)
+      -> exists tag, locateCon nm dts0 = Some (dtName, tag, c).
+    Proof.
+      induction dts0; simpl; intuition.
+      specialize (lookupCon'_locateCon' nm (snd a) 0).
+      destruct (lookupCon' nm (snd a)); firstorder.
+      injection H; clear H; intros; subst.
+      rewrite H0; eauto.
+      rewrite H0; eauto.
+    Qed.
+
+    case_eq (lookupCon conName dts); intros.
+    2: rewrite H17 in *; inversion H11.
+    rewrite H17 in *.
+    destruct p; simpl in *.
+    destruct (lookupCon_locateCon _ _ _ _ H17).
+    rewrite H19.
+    case_eq (exprsD vs args); intros.
+    2: rewrite H20 in *; inversion H11.
+    rewrite H20 in *.
+    case_eq (cancel fvs ("this" :: nil) pre (allocatePre s n l)); intros.
+    2: rewrite H21 in *; inversion H11.
+    rewrite H21 in *.
+    case_eq (NewSub "this"); intros.
+    2: rewrite H22 in *; inversion H11.
+    rewrite H22 in *.
+    destruct (in_dec string_dec nextDt fvs); try solve [ inversion H11 ].
+    Opaque mult.
+    wrap0.
+
+    pre_implies.
+    clear H21 H15 H18.
+    pre_evalu.
+    change (locals ("rp" :: ns) x3 res (Regs st Sp))
+      with (locals_call ("rp" :: ns) x3 res (Regs st Sp) ("rp" :: "base" :: "n" :: nil) (res - 3) (S (S (S (S 4 * length ns))))) in H14.
+    assert (ok_call ("rp" :: ns) ("rp" :: "base" :: "n" :: nil) res (res - 3)
+      (S (S (S (S (4 * length ns))))))
+    by (split; [ simpl; omega
+      | split; [ simpl; omega
+        | split; [ NoDup
+          | simpl; omega ] ] ] ).
+    replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) in H15 by omega.
+    evalu.
+
+    admit.
+    admit.
+    admit.
+    admit.
     admit.
   Qed.
 End stmtC.
@@ -694,7 +759,7 @@ Proof.
      * a function body without returning *)
 
     (* VERIFICATION CONDITION *)
-    (fun _ ns _ =>
+    (fun _ ns res =>
       incl xs ns
       :: (~In "rp" ns)
       :: stmtV dts' xs s
@@ -711,13 +776,14 @@ Proof.
       :: (~In "result" bvs)
       :: (~In "result" bvs')
       :: stmtD dts' xs vs fvs pre' post' "D" s (fun _ _ _ _ _ => False)
+      :: (res >= 3)%nat
       :: nil)); [
         abstract (wrap0; match goal with
                            | [ H : interp _ _ |- _ ] => eapply stmtC_post in H; eauto; repeat (post; eauto 6)
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply stmtC_vc; [ | | | eapply normalize_wf; try apply H; eauto 2
+                               solve [ eapply stmtC_vc; [ | | | | eapply normalize_wf; try apply H; eauto 2
                                  | eapply normalize_wf; eauto
                                  | .. ];
                                unfold pre', post'; eauto 6; cbv beta; tauto ]
