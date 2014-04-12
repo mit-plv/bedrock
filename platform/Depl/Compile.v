@@ -234,17 +234,6 @@ Section stmtC.
         destruct (in_dec string_dec x y); post
     end; autorewrite with core in *.
 
-  (* Use a hypothesis about some fact holding for all members of a list. *)
-  Ltac use_In :=
-    match goal with
-      | [ H : forall x, In x ?xs -> _ -> False, H' : In _ ?xs |- _ ] =>
-        let T := type of (H _ H') in
-          match goal with
-            | [ _ : T |- _ ] => fail 1
-            | _ => generalize (H _ H'); intro
-          end
-    end.
-
   (* Use [evaluate] to get pure facts in a precondition into the normal proof context. *)
   Ltac pre_evalu :=
     repeat match goal with
@@ -389,20 +378,6 @@ Section stmtC.
     match goal with
       | [ H : bad_assignment_lhs _ |- _ ] => inversion H
       | [ H : bad_assignment_rhs _ |- _ ] => inversion H
-    end.
-
-  (* Use the induction hypotheses (recursively) in the proof below. *)
-  Ltac Stmt_use_IH' :=
-    eauto; repeat post; my_descend; post; my_descend;
-      repeat (my_descend; cancl || (step auto_ext; my_descend)).
-
-  Ltac Stmt_use_IH :=
-    match goal with
-      | [ IH : forall pre0 : _ -> _, _, H : interp _ (Structured.Postcondition _ _) |- _ ] =>
-        eapply IH in H; clear IH; auto;
-          try match goal with
-                | [ |- forall specs : codeSpec _ _, _ ] => intros; Stmt_use_IH
-              end; Stmt_use_IH'
     end.
 
   Lemma addQuants_Emp : forall G (S : subs _ _ G) qs fE,
@@ -772,8 +747,45 @@ Section stmtC.
     rewrite wplus_wminus.
     apply Imply_refl.
 
-    admit.
-    admit.
+    post.
+    change (length ns + (length ns + (length ns + (length ns + 0))))
+      with (4 * length ns) in *.
+    assert (In x ("rp" :: ns)) by (simpl; eauto).
+    assert (x <> "rp") by (intro; subst; eauto).
+    prep_locals.
+    rewrite four_plus_variablePosition in * by eauto.
+    rewrite vars_ok_sel in H26.
+    generalize dependent ("rp" :: ns); intros.
+    clear H15 H18 H22 Hmalloc H11.
+    evalu.
+
+    post.
+    change (length ns + (length ns + (length ns + (length ns + 0))))
+      with (4 * length ns) in *.
+    assert (In x ("rp" :: ns)) by (simpl; eauto).
+    assert (x <> "rp") by (intro; subst; eauto).
+    unfold lvalIn in *.
+    prep_locals.
+    rewrite four_plus_variablePosition in * by eauto.
+    rewrite vars_ok_sel in H26.
+    generalize dependent ("rp" :: ns); intros.
+    clear H15 H18 H22 Hmalloc H11.
+    (*replace (Regs x1 Rv) with (sel (upd x4 x (Regs x1 Rv)) x) in H26
+      by (apply sel_upd_eq; auto).*)
+    unfold immInR, regInL in *.
+    change (IL.Assign Rv (LvMem (Sp + variablePosition l0 x)%loc)
+      :: IL.Assign (LvMem Rv) x0 :: nil)
+      with ((IL.Assign Rv (LvMem (Sp + variablePosition l0 x)%loc) :: nil)
+        ++ (IL.Assign (LvMem Rv) x0 :: nil)) in H25.
+    apply evalInstrs_app_fwd_None in H25.
+    destruct H25.
+    evalu.
+    destruct H11 as [ ? [ ] ].
+    generalize dependent H15.
+    evalu.
+    rewrite sel_upd_eq in H23 by auto.
+    evalu.
+
     admit.
     admit.
   Qed.
