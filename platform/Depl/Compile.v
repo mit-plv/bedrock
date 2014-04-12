@@ -627,14 +627,14 @@ Section stmtC.
   Qed.
 End stmtC.
 
-(*
+
 Local Hint Immediate wellScoped_predExt.
 
 Lemma scopey_normalize : forall fvs post post' bvs',
-  post' = normalize post
-  -> wellScoped ("result" :: fvs) post
+  wellScoped ("result" :: fvs) post
   -> boundVars post = Some bvs'
   -> (forall x, In x bvs' -> ~In x ("result" :: fvs))
+  -> post' = normalize post
   -> scopey fvs post' (NImpure post').
 Proof.
   intros; subst.
@@ -668,6 +668,8 @@ Local Hint Immediate normalize_NImpure_keeps.
 
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
+  (dts : list datatype)
+  (* Available algebraic datatypes *)
   (fvs : list fo_var)
   (* Logical variables available to mention *)
   (bvs bvs' : list fo_var)
@@ -682,9 +684,10 @@ Definition Stmt
   (* The statement to compile *)
   : chunk.
 Proof.
+  pose (dts' := map normalizeDatatype dts).
   pose (pre' := normalize pre).
   pose (post' := normalize post).
-  apply (WrapC (stmtC s)
+  apply (WrapC (stmtC dts' vs fvs pre' post' "D" s (fun _ _ _ _ _ => Fail))
     (precond vs pre' post')
     (fun _ _ _ _ _ => [| False |])%PropX
     (* Unsatisfiable postcondition, since we won't allow running off the end of
@@ -694,7 +697,7 @@ Proof.
     (fun _ ns _ =>
       incl xs ns
       :: (~In "rp" ns)
-      :: stmtV xs s
+      :: stmtV dts' xs s
       :: (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -707,17 +710,16 @@ Proof.
       :: (~In "result" fvs)
       :: (~In "result" bvs)
       :: (~In "result" bvs')
-      :: stmtD pre' post' fvs xs vs s (fun _ => False)
+      :: stmtD dts' xs vs fvs pre' post' "D" s (fun _ _ _ _ _ => False)
       :: nil)); [
         abstract (wrap0; match goal with
-                           | [ H : interp _ _ |- _ ] => eapply Stmt_post in H; eauto; repeat (post; eauto 6)
+                           | [ H : interp _ _ |- _ ] => eapply stmtC_post in H; eauto; repeat (post; eauto 6)
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply Stmt_vc; [ eapply normalize_wf; try apply H; eauto 2
+                               solve [ eapply stmtC_vc; [ | | | eapply normalize_wf; try apply H; eauto 2
                                  | eapply normalize_wf; eauto
                                  | .. ];
-                               eauto 6 ]
+                               unfold pre', post'; eauto 6; cbv beta; tauto ]
                            end) ].
 Defined.
-*)
