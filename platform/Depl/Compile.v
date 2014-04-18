@@ -115,8 +115,8 @@ Fixpoint initArgs (args : list expr) (base : fo_var) (pos : nat) : chunk :=
   match args with
   | nil => Skip
   | arg :: args =>
-    base + pos *<- exprC arg;;
-    initArgs args base (4 + pos)
+    base + (4 * pos)%nat *<- exprC arg;;
+    initArgs args base (S pos)
   end%SP.
 
 Section ForallF.
@@ -180,13 +180,15 @@ Section stmtC.
                           NPure := NPure pre;
                           NImpure := Named dtName (model :: Logic.Var nextDt
                             :: nil) :: lhs |} in
-                        x <-- Call "malloc"!"malloc"(0, S (length args))
-                        [Al fE,
-                          PRE[V, R] R =?> S (length args) * [| R <> 0 |] * [| freeable R (S (length args)) |]
+                        "_" <-- Call "malloc"!"malloc"(0, S (length args))
+                        [Al fE, Al ws,
+                          PRE[V, R] array ws R * [| length ws = S (length args) |]
+                            * [| R <> 0 |] * [| freeable R (S (length args)) |]
                             * mallocHeap 0 * normalD pre fE * [| vars_ok fE V vs |]
                           POST[R'] mallocHeap 0 * normalD post (fo_set fE "result" (Dyn R'))];;
-                        x *<- tag;;
-                        initArgs args x 4;;
+                        "_" *<- tag;;
+                        initArgs args "_" 1;;
+                        x <- "_";;
                         k vs' (nextDt :: fvs) pre' post (nextDt ++ "'")%string
                     end
                 end
@@ -239,11 +241,13 @@ Section stmtC.
     repeat match goal with
              | [ H : evalInstrs _ _ _ = _ |- _ ] => generalize dependent H
              | [ H : _ _ = Some _ |- _ ] => generalize dependent H
+             | [ H : _ _ = None |- _ ] => generalize dependent H
              | [ H : _ _ = None -> False |- _ ] => generalize dependent H
              | [ x : _ -> option Logic.expr |- _ ] => change vars in x
              | [ x : vars -> _ |- _ ] => generalize dependent x
-             | [ H : importsGlobal _ |- _ ] => generalize dependent H
+             | [ H : importsGlobal _ |- _ ] => generalize dependent H; clear dependent H
              | [ H : LabelMap.find _ _ = Some _ |- _ ] => clear H
+             | [ H : ForallF _ _ |- _ ] => generalize dependent H
            end;
     try match goal with
           | [ _ : interp _ (![_] (fst ?st, _)) |- _ ] =>
@@ -255,10 +259,12 @@ Section stmtC.
     repeat match goal with
              | [ H : importsGlobal _ |- _ ] => clear dependent H
              | [ H : _ _ = Some _ |- _ ] => clear H
+             | [ H : _ _ = None |- _ ] => clear H
              | [ H : (_ _ <> None)%type |- _ ] => clear H
              | [ H : _ _ = None -> False |- _ ] => clear H
              | [ H : stmtD _ _ _ _ _ |- _ ] => clear H
              | [ H : LabelMap.find _ _ = Some _ |- _ ] => clear H
+             | [ H : ForallF _ _ |- _ ] => clear H
            end.
 
   (* Use separation logic entailment from a hypothesis to conclusion. *)
@@ -308,8 +314,10 @@ Section stmtC.
           end; simp;
       repeat match goal with
                | [ H : _ _ = Some _ |- _ ] => generalize dependent H
+               | [ H : _ _ = None |- _ ] => generalize dependent H
                | [ H : _ _ = None -> False |- _ ] => generalize dependent H
-               | [ H : importsGlobal _ |- _ ] => generalize dependent H
+               | [ H : importsGlobal _ |- _ ] => generalize dependent H; clear dependent H
+               | [ H : ForallF _ _ |- _ ] => generalize dependent H
              end; clear_fancy;
     (* Extra simplification for function return *)
     try match goal with
@@ -477,12 +485,184 @@ Section stmtC.
     eapply nsubst_bwd; eauto.
   Qed.
 
-  Lemma stmtC_vc : forall im mn (H : importsGlobal im) ns res xs
-    (Hres : (res >= 7)%nat)
-    (Hmalloc : "malloc"!"malloc" ~~ im ~~> Malloc.mallocS),
-    ~In "rp" ns
-    -> (forall x, In x xs -> In x ns)
-    -> forall s vs fvs pre post nextDt kC pre0 kD,
+  Section chunk_params.
+    Variable im : LabelMap.t assert.
+    Variable mn : string.
+    Variable H : importsGlobal im.
+    Variable ns : list string.
+    Variable res : nat.
+    Variable xs : list string.
+
+    Hypothesis Hres : (res >= 7)%nat.
+    Hypothesis Hmalloc : "malloc"!"malloc" ~~ im ~~> Malloc.mallocS.
+    Hypothesis H0 : ~In "rp" ns.
+    Hypothesis H1 : forall x, In x xs -> In x ns.
+    Hypothesis H_ : In "_" ns.
+    Hypothesis H_not : ~In "_" xs.
+
+    Lemma initArgs_vc : forall vs fvs base,
+      ~In "result" fvs
+      -> (forall x e, vs x = Some e
+        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD e fE1 = Logic.exprD e fE2)
+      -> In base ns
+      -> forall args pos pre0 ws',
+           exprsD vs args = Some ws'
+           -> ForallF (exprV ns) args
+           -> (forall specs st,
+            interp specs (pre0 st)
+            -> exists fE V ws F,
+                 interp specs (![ locals ("rp" :: ns) V res st#Sp * array ws (sel V base)
+                                  * [| vars_ok fE V vs |] * F ] st)
+                 /\ length ws = pos + length args)
+        -> vcs (VerifCond (toCmd (initArgs args base pos) mn H ns res pre0)).
+    Admitted.
+    (*Proof.
+      Opaque mult.
+      induction args; wrap0.
+
+      pre_implies.
+      case_option; try discriminate.
+      case_option; try discriminate.
+      injection H7; clear H7; intros; subst.
+      pre_evalu.
+      exprC_correct.
+      unfold lvalIn in *.
+      prep_locals.
+      change (Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
+                    Plus (immInR (4 * pos) ns) :: IL.Assign (LvMem Rv) (exprC a ns) :: nil)
+             with ((Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
+                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H7.
+      apply evalInstrs_app_fwd_None in H7.
+      unfold regInL, immInR in *.
+      destruct H7 as [ | [ ? [ ] ] ].
+      clear dependent H.
+      clear H8 H12.
+      evaluate auto_ext.
+      assert (natToW pos < natToW (length ws)).
+      apply lt_goodSize; eauto.
+      apply goodSize_weaken with (length ws); eauto.
+
+      clear dependent H.
+      rewrite Mult.mult_comm in H7.
+      rewrite natToW_times4 in H7.
+      rewrite wmult_comm in H7.
+
+      Lemma exprC_uses : forall e ns stn st1 st2,
+        Mem st1 = Mem st2
+        -> Regs st1 Sp = Regs st2 Sp
+        -> evalRvalue stn st1 (exprC e ns) = evalRvalue stn st2 (exprC e ns).
+      Proof.
+        destruct e; simpl; intuition.
+      Qed.
+
+      erewrite exprC_uses in H8.
+      determine_rvalue.
+      clear H12.
+      move H7 after H16.
+      evaluate auto_ext.
+      Transparent evalInstrs.
+      simpl in H7.
+      match type of H7 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H7; intros; subst; auto.
+      discriminate.
+      simpl in H7.
+      match type of H7 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H7; intros; subst; auto.
+      discriminate.
+      Opaque evalInstrs.
+
+      simpl in *; intuition idtac.
+      case_option; try discriminate.
+      case_option; try discriminate.
+      injection H7; clear H7; intros; subst.
+
+      Lemma exprD_exprD : forall fE V vs e e',
+        exprD vs e = Some e'
+        -> vars_ok fE V vs
+        -> exists w : W, Logic.exprD e' fE = Dyn w.
+      Proof.
+        destruct e; simpl; intuition.
+        injection H2; clear H2; intros; subst.
+        simpl; eauto.
+        hnf in H3; eauto.
+      Qed.
+
+      generalize H8; intro HexprD.
+      eapply exprD_exprD in HexprD; eauto.
+      destruct HexprD.
+      eapply IHargs; eauto.
+      instantiate (1 := Array.upd ws pos x).
+      rewrite upd_length; omega.
+      post.
+      pre_implies.
+      unfold lvalIn in *.
+      prep_locals.
+      change (Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
+                    Plus (immInR (4 * pos) ns) :: IL.Assign (LvMem Rv) (exprC a ns) :: nil)
+             with ((Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
+                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H15.
+      apply evalInstrs_app_fwd in H15.
+      destruct H15; intuition idtac.
+      unfold regInL, immInR in *.
+      clear dependent H.
+      rewrite Mult.mult_comm in H15.
+      rewrite natToW_times4 in H15.
+      rewrite wmult_comm in H15.
+      eapply exprC_correct in H8.
+      2: eauto.
+      2: eauto.
+      2: eauto.
+      Focus 2.
+      instantiate (3 := (array ws (sel V base) * F)%Sep).
+      instantiate (1 := x0).
+      instantiate (1 := fst st).
+      instantiate (1 := res).
+      instantiate (1 := specs).
+      generalize H14; clear; intros.
+      step auto_ext.
+      2: eauto.
+      destruct H8; intuition idtac.
+      erewrite exprC_uses in H8.
+      determine_rvalue.
+      clear H11.
+      move H15 after H16.
+      assert (natToW pos < natToW (length ws)).
+      apply lt_goodSize; eauto.
+      apply goodSize_weaken with (length ws); eauto.
+
+      rewrite H7 in H.
+      injection H; intro Hinj.
+      Require Import Eqdep.
+      apply inj_pair2 in Hinj; subst.
+      generalize H16 H15 H8 H9 H14; clear; intros.
+      destruct st.
+      evaluate auto_ext.
+      simpl.
+      step auto_ext.
+      Transparent evalInstrs.
+      simpl in H15.
+      match type of H15 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H15; intros; subst; auto.
+      discriminate.
+      simpl in H15.
+      match type of H15 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H15; intros; subst; auto.
+      discriminate.
+      Opaque evalInstrs.
+    Qed.*)
+
+    Lemma stmtC_vc : forall s (vs : vars) fvs pre post nextDt kC pre0 kD
+      (HnextDt : nextDt <> "result")
+      (Hvs : vs "_" = None),
       ~In "result" fvs
       -> normalWf' fvs pre
       -> normalWf' ("result" :: fvs) post
@@ -508,6 +688,8 @@ Section stmtC.
         -> ~In "result" (NQuants post)
         -> scopey fvs post (NImpure post)
         -> scopey' "result" (NImpure pre)
+        -> nextDt <> "result"
+        -> vs "_" = None
         -> (forall x, In x fvs -> ~In x (NQuants pre))
         -> (forall x, In x fvs -> ~In x (NQuants post))
         -> (forall x e, vs x = Some e
@@ -519,276 +701,404 @@ Section stmtC.
         -> vcs (VerifCond (toCmd (kC vs fvs pre post nextDt) mn H ns res pre0)))
       -> stmtV dts xs s
       -> vcs (VerifCond (toCmd (stmtC vs fvs pre post nextDt s kC) mn H ns res pre0)).
-  Proof.
-    induction s.
-
-    (* Assign *)
-    wrap0.
-    simpl in *; intuition idtac.
-    case_option.
-    wrap0.
-    pre_implies.
-    simpl in *; intuition eauto.
-    pre_evalu.
-    exprC_correct.
-    evalu.
-    rewriteall.
-    case_option.
-    apply H14; intuition idtac.
-    unfold vars_set in H18.
-    destruct (string_dec x0 x); subst.
-    injection H18; clear H18; intros; subst; eauto.
-    eauto using exprC_hygienic.
-    eauto.
-    propxFo.
-    pre_implies.
-    pre_evalu.
-    exprC_correct.
-    evalu.
-    descend.
-    rewrite vars_ok_sel.
-    cancl_clear.
-    step auto_ext.
-    descend; step auto_ext.
-    cancl_clear.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    rewriteall.
-    use_error_message.
-
-    (* Sequence *)
-    wrap0.
-    simpl in *; intuition idtac.
-    eapply IHs1; intuition eauto.
-
-    (* Return *)
-    wrap0.
-    pre_implies.
-    case_option; simpl in *; intuition eauto.
-    pre_evalu.
-    exprC_correct.
-    evalu.
-
-    pre_implies.
-    case_option; simpl in *; intuition eauto.
-    pre_evalu.
-    exprC_correct.
-    evalu.
-    case_eq (sentail fvs pre (nsubst "result" e0 post)); intros.
-    Focus 2.
-    rewrite H25 in *; inversion H11.
-    rewrite H25 in *.
-    descend.
-    step auto_ext.
-    step auto_ext.
-    descend.
-    cancl.
-    specialize (sentail_sound fvs (fo_set x0 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H25); intuition.
-    unfold SubstsH in *; simpl in *.
-    eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
-    eapply Himp_trans; [ | apply H22 ].
-
-    eapply weaken_normalD; eauto.
-    intros.
-    unfold fo_set.
-    destruct (string_dec x4 "result"); subst; tauto.
-    2: eauto.
-    3: simpl; unfold not; intuition (subst; eauto).
-    4: simpl; tauto.
-
-    Focus 2.
-    unfold fo_set at 1; simpl.
-    etransitivity; try (symmetry; apply H20).
-    apply H21.
-    unfold fo_set; intros.
-    destruct (string_dec y "result"); subst; eauto; exfalso; eauto.
-
-    2: simpl; eauto.
-
-    eapply Forall_forall; intros.
-    eapply in_map_iff in H16; destruct H16; intuition subst.
-    eapply Forall_forall in H24; try apply H7.
-
-    eapply wellScoped_psubst.
-    eapply wellScoped_weaken; eauto.
-    simpl; intuition idtac.
-    apply in_app_or in H; intuition eauto using in_or_app.
-    simpl in *; intuition eauto using in_or_app.
-    eauto using in_or_app.
-
-    (* Allocate *)
-    wrap0.
-    simpl in *; intuition idtac.
-
-    Lemma lookupCon'_locateCon' : forall nm cs,
-      List.Forall nconWf cs
-      -> forall n,
-        match lookupCon' nm cs with
-          | Some c => exists tag, locateCon' n nm cs = Some (tag, c)
-            /\ nconWf c
-          | None => locateCon' n nm cs = None
-        end.
     Proof.
-      induction 1; simpl; intuition.
-      destruct (string_eq nm (NName x)); subst; eauto.
-      destruct (lookupCon' nm l); auto.
+      induction s.
+
+      (* Assign *)
+      wrap0.
+      simpl in *; intuition idtac.
+      case_option.
+      wrap0.
+      pre_implies.
+      simpl in *; intuition eauto.
+      pre_evalu.
+      exprC_correct.
+      evalu.
+      rewriteall.
+      case_option.
+      apply H14; intuition idtac.
+      unfold vars_set.
+      destruct (string_dec "_" x); subst; eauto.
+      exfalso; eauto.
+      unfold vars_set in H18.
+      destruct (string_dec x0 x); subst.
+      injection H18; clear H18; intros; subst; eauto.
+      eauto using exprC_hygienic.
+      eauto.
+      propxFo.
+      pre_implies.
+      pre_evalu.
+      exprC_correct.
+      evalu.
+      descend.
+      rewrite vars_ok_sel.
+      cancl_clear.
+      step auto_ext.
+      descend; step auto_ext.
+      cancl_clear.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      rewriteall.
+      use_error_message.
+
+      (* Sequence *)
+      wrap0.
+      simpl in *; intuition idtac.
+      eapply IHs1; intuition eauto.
+
+      (* Return *)
+      wrap0.
+      pre_implies.
+      case_option; simpl in *; intuition eauto.
+      pre_evalu.
+      exprC_correct.
+      evalu.
+
+      pre_implies.
+      case_option; simpl in *; intuition eauto.
+      pre_evalu.
+      exprC_correct.
+      evalu.
+      case_eq (sentail fvs pre (nsubst "result" e0 post)); intros.
+      Focus 2.
+      rewrite H26 in *; inversion H11.
+      rewrite H26 in *.
+      descend.
+      step auto_ext.
+      step auto_ext.
+      descend.
+      cancl.
+      specialize (sentail_sound fvs (fo_set x0 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H26); intuition.
+      unfold SubstsH in *; simpl in *.
+      eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
+      eapply Himp_trans; [ | apply H23 ].
+
+      eapply weaken_normalD; eauto.
+      intros.
+      unfold fo_set.
+      destruct (string_dec x4 "result"); subst; tauto.
+      2: eauto.
+      3: simpl; unfold not; intuition (subst; eauto).
+      4: simpl; tauto.
+
+      Focus 2.
+      unfold fo_set at 1; simpl.
+      etransitivity; try (symmetry; apply H20).
+      apply H21.
+      unfold fo_set; intros.
+      destruct (string_dec y "result"); subst; eauto; exfalso; eauto.
+
+      2: simpl; eauto.
+
+      clear H23.
+      eapply Forall_forall; intros.
+      eapply in_map_iff in H17; destruct H17; intuition subst.
+      eapply Forall_forall in H24; try apply H7.
+      discriminate.
+      eapply Forall_forall in H24; try apply H7.
+
+      eapply wellScoped_psubst.
+      eapply wellScoped_weaken; eauto.
+      
+      simpl; intuition idtac.
+      apply in_app_or in H; intuition eauto using in_or_app.
+      simpl in *; intuition eauto using in_or_app.
+      eauto using in_or_app.
+
+      (* Allocate *)
+      Opaque mult.
+      wrap0.
+      simpl in *; intuition idtac.
+
+      Lemma lookupCon'_locateCon' : forall nm cs,
+        List.Forall nconWf cs
+        -> forall n,
+          match lookupCon' nm cs with
+            | Some c => exists tag, locateCon' n nm cs = Some (tag, c)
+              /\ nconWf c
+            | None => locateCon' n nm cs = None
+          end.
+      Proof.
+        induction 1; simpl; intuition.
+        destruct (string_eq nm (NName x)); subst; eauto.
+        destruct (lookupCon' nm l); auto.
+      Qed.
+
+      Lemma lookupCon_locateCon : forall nm dtName c dts0,
+        ndatatypesWf dts0
+        -> lookupCon nm dts0 = Some (dtName, c)
+        -> exists tag, locateCon nm dts0 = Some (dtName, tag, c)
+          /\ nconWf c.
+      Proof.
+        induction 1; simpl; intuition.
+        specialize (lookupCon'_locateCon' nm (snd x) H2 0).
+        destruct (lookupCon' nm (snd x)); post.
+        injection H4; clear H4; intros; subst.
+        rewrite H6; eauto.
+        rewrite H5; eauto.
+      Qed.
+
+      case_eq (lookupCon conName dts); intros.
+      2: rewrite H17 in *; inversion H11.
+      rewrite H17 in *.
+      destruct p; simpl in *.
+      destruct (lookupCon_locateCon _ _ _ _ Hdts H17) as [ ? [ ] ].
+      rewrite H19.
+      destruct (Peano_dec.eq_nat_dec (length args) (length (NRecursive n) + length (NNonrecursive n))).
+      2: inversion H11.
+      case_eq (exprsD vs args); intros.
+      2: rewrite H21 in *; inversion H11.
+      rewrite H21 in *.
+      case_eq (cancel fvs ("this" :: nil) pre (allocatePre s n l)); intros.
+      2: rewrite H22 in *; inversion H11.
+      rewrite H22 in *.
+      case_eq (NewSub "this"); intros.
+      2: rewrite H23 in *; inversion H11.
+      rewrite H23 in *.
+      destruct (in_dec string_dec nextDt fvs); try solve [ inversion H11 ].
+      Opaque mult.
+      wrap0.
+
+      pre_implies.
+      clear H22 H15 H18.
+      pre_evalu.
+      change (locals ("rp" :: ns) x3 res (Regs st Sp))
+        with (locals_call ("rp" :: ns) x3 res (Regs st Sp) ("rp" :: "base" :: "n" :: nil) (res - 3) (S (S (S (S 4 * length ns))))) in H15.
+      assert (ok_call ("rp" :: ns) ("rp" :: "base" :: "n" :: nil) res (res - 3)
+        (S (S (S (S (4 * length ns))))))
+      by (split; [ simpl; omega
+        | split; [ simpl; omega
+          | split; [ NoDup
+            | simpl; omega ] ] ] ).
+      replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) in H15 by omega.
+      evalu.
+
+      rewrite Hmalloc; wrap0.
+      pre_implies.
+      clear H22 H15 H18.
+      pre_evalu.
+      change (locals ("rp" :: ns) x4 res (Regs x1 Sp))
+        with (locals_call ("rp" :: ns) x4 res (Regs x1 Sp) ("rp" :: "base" :: "n" :: nil) 4 (S (S (S (S (4 * length ns)))))) in H15.
+      assert (ok_call ("rp" :: ns) ("rp" :: "base" :: "n" :: nil) res 4
+        (S (S (S (S (4 * length ns))))))
+      by (split; [ simpl; omega
+        | split; [ simpl; omega
+          | split; [ NoDup
+            | simpl; omega ] ] ] ).
+      replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) in * by omega.
+      evalu.
+      descend.
+      cancl_clear; step auto_ext.
+      destruct H20.
+      apply le_goodSize; auto; congruence.
+      descend; step auto_ext.
+      step auto_ext.
+      unfold localsInvariant.
+      descend; step auto_ext.
+      match goal with
+        | [ |- interp _ (_ ---> ?Q)%PropX ] => remember Q
+      end.
+      descend; step auto_ext.
+
+      Lemma sepFormula_Himp : forall P Q,
+        P ===> Q
+        -> forall specs x, interp specs (![P] x ---> ![Q] x)%PropX.
+      Proof.
+        rewrite sepFormula_eq.
+        intros.
+        apply H2.
+      Qed.
+
+      eapply Imply_trans.
+      eapply sepFormula_Himp.
+      apply Himp_star_frame; [ | apply Himp_refl ].
+      apply Himp_star_frame; [ apply Himp_refl | ].
+      apply Himp_star_frame; [ | apply Himp_refl ].
+      apply Himp_star_frame; [ apply Himp_refl | ].
+
+      Lemma allocated_array : forall base len offset,
+        allocated base offset len ===> Ex ws, array ws (base ^+ natToW offset) * [| length ws = len |].
+      Proof.
+        clear; induction len; simpl; intros.
+
+        apply Himp_ex_c; exists nil; sepLemma.
+
+        eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply IHlen ] | ].
+        sepLemmaLhsOnly.
+        apply Himp_ex_c; exists (x0 :: x); sepLemma.
+        unfold array.
+        unfold ptsto32m at 2; fold ptsto32m.
+        simpl.
+        destruct x, offset.
+        sepLemma.
+        sepLemma.
+        etransitivity; [ apply himp_star_comm | ].
+        apply himp_star_frame.
+        sepLemma.
+        etransitivity; [ | apply ptsto32m_shift_base ].
+        instantiate (1 := 4).
+        replace (base ^+ natToW 4) with (base ^+ natToW 0 ^+ $4) by words.
+        change (4 - 4) with 0.
+        reflexivity.
+        auto.
+        etransitivity; [ apply himp_star_comm | ].
+        apply himp_star_frame.
+        sepLemma.
+        etransitivity; [ | apply ptsto32m_shift_base ].
+        instantiate (1 := 4).
+        change (4 - 4) with 0.
+        replace (base ^+ natToW (S offset) ^+ $4) with (base ^+ natToW (S (S (S (S (S offset)))))).
+        reflexivity.
+        rewrite <- wplus_assoc.
+        rewrite <- natToW_plus.
+        do 2 f_equal.
+        omega.
+        auto.
+      Qed.
+
+      apply allocated_array.
+      eapply Imply_trans; [ apply sepFormula_Himp | ].
+      instantiate (1 := (Ex ws, star
+        (star (locals ("rp" :: "base" :: "n" :: nil) x8 4 (Regs st Sp))
+           (star
+              (star
+                 ([|Regs x7 Rv = 0 -> False|] *
+                  [|freeable (Regs x7 Rv)
+                      (wordToNat (natToW (S (Datatypes.length args))))|])
+                 (
+                  array ws (Regs x7 Rv ^+ natToW 0) *
+                  [|Datatypes.length ws = wordToNat (natToW (S (Datatypes.length args)))|]))
+              (mallocHeap 0)))
+        (SEP.ST.star (normalD pre x2)
+           (SEP.ST.star (fun (stn0 : ST.settings) (sm : smem) => x3 (stn0, sm))
+              (SEP.ST.star
+                 (excessStack (Regs x1 Sp) ("rp" :: ns) res
+                    ("rp" :: "base" :: "n" :: nil) 4)
+                 (locals ("rp" :: ns) x4 0 (Regs x1 Sp))))))%Sep).
+      clear; sepLemma.
+
+      Lemma exout : forall A (P : A -> _) Q st specs,
+        (forall x, interp specs (![P x] st ---> Q)%PropX)
+        -> interp specs (![ex P] st ---> Q)%PropX.
+      Proof.
+        rewrite sepFormula_eq; unfold sepFormula_def; intros.
+        apply existsL; auto.
+      Qed.
+
+      apply exout; intro ws.
+      subst p; descend.
+      ho.
+      rereg.
+      rewrite vars_ok_sel.
+      cancl_clear.
+      rewrite wordToNat_natToWord_idempotent in *
+        by (change (goodSize (S (length args))); destruct H20; congruence).
+      replace (Regs x7 Rv ^+ natToW 0) with (Regs x7 Rv) by words.
+      descend; step auto_ext.
+      replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) by omega.
+
+      Lemma wplus_wminus : forall u v : W,
+        u ^+ v ^- v = u.
+      Proof.
+        intros; words.
+      Qed.
+
+      Lemma wminus_wplus : forall u v : W,
+        u ^- v ^+ v = u.
+      Proof.
+        intros; words.
+      Qed.
+
+      rewrite wminus_wplus.
+      rewrite H32.
+      rewrite H14.
+      rewrite wplus_wminus.
+      step auto_ext.
+      step auto_ext.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      descend; step auto_ext.
+      rewrite H33, H32, H14.
+      apply wplus_wminus.
+      rewrite H32, H14.
+      rewrite wplus_wminus.
+      apply Imply_refl.
+
+      post.
+      rewrite vars_ok_sel in *.
+      clear H15 H18 H22 Hmalloc H11.
+      evalu.
+
+      post.
+      rewrite vars_ok_sel in *.
+      clear H15 H18 H22 Hmalloc H11.
+      change (IL.Assign (regInL Rv ns) (lvalIn (variableSlot "_") ns)
+                        :: IL.Assign (LvMem (Reg Rv)) (immInR (natToW x0) ns) :: nil)
+      with ((IL.Assign (regInL Rv ns) (lvalIn (variableSlot "_") ns) :: nil)
+                      ++ (IL.Assign (LvMem (Reg Rv)) (immInR (natToW x0) ns) :: nil)) in H25.
+      apply evalInstrs_app_fwd_None in H25.
+      destruct H25 as [ | [ ? [ ] ] ].
+      evalu.
+      generalize dependent H15.
+      evalu.
+      replace (Regs x1 Rv) with (Regs x1 Rv ^+ $4 ^* $0) in H24 by words.
+      assert (natToW 0 < natToW (length x3)).
+      apply lt_goodSize; auto; eauto 10.
+      generalize H25 H15 H24 H32; clear; intros.
+      evaluate auto_ext.
+
+      eapply initArgs_vc.
+      2: eauto.
+      eauto.
+      eauto.
+      eauto.
+      eapply ForallF_weaken; [ | eassumption ].
+      intros.
+      eapply exprV_weaken; eauto.
+      post.
+      rewrite vars_ok_sel in *.
+      clear H15 H18 H22 H23 H11.
+      clear dependent H.
+      clear Hres Hmalloc.
+      change (IL.Assign (regInL Rv ns) (lvalIn (variableSlot "_") ns)
+                        :: IL.Assign (LvMem (Reg Rv)) (immInR (natToW x0) ns) :: nil)
+      with ((IL.Assign (regInL Rv ns) (lvalIn (variableSlot "_") ns) :: nil)
+                      ++ (IL.Assign (LvMem (Reg Rv)) (immInR (natToW x0) ns) :: nil)) in H26.
+      apply evalInstrs_app_fwd in H26.
+      destruct H26 as [ ? [ ] ].
+      generalize dependent H11.
+      evalu.
+      replace (Regs x2 Rv) with (Regs x2 Rv ^+ $4 ^* $0) in H24 by words.
+      assert (natToW 0 < natToW (length x4)).
+      apply lt_goodSize; auto; eauto 10.
+      destruct st; unfold fst, snd in *.
+      generalize dependent Hvs.
+      evaluate auto_ext.
+
+      Lemma vars_ok_unused : forall fE V vs x v,
+        vars_ok fE V vs
+        -> vs x = None
+        -> vars_ok fE (upd V x v) vs.
+      Proof.
+        unfold vars_ok, upd, sel; intros.
+        case_eq (string_eq x0 x); intros.
+        apply string_eq_correct in H5; congruence.
+        eauto.
+      Qed.
+
+      intros; assert (vars_ok x3 (upd x6 "_" (Regs x2 Rv)) vs) by eauto using vars_ok_unused.
+      clear Hvs.
+      exists x3; exists (upd x6 "_" (Regs x2 Rv)); exists (Array.upd x4 (natToW O) (natToW x0)).
+      descend.
+      step auto_ext; eauto.
+
+      admit.
+      admit.
     Qed.
-
-    Lemma lookupCon_locateCon : forall nm dtName c dts0,
-      ndatatypesWf dts0
-      -> lookupCon nm dts0 = Some (dtName, c)
-      -> exists tag, locateCon nm dts0 = Some (dtName, tag, c)
-        /\ nconWf c.
-    Proof.
-      induction 1; simpl; intuition.
-      specialize (lookupCon'_locateCon' nm (snd x) H 0).
-      destruct (lookupCon' nm (snd x)); post.
-      injection H1; clear H1; intros; subst.
-      rewrite H3; eauto.
-      rewrite H2; eauto.
-    Qed.
-
-    case_eq (lookupCon conName dts); intros.
-    2: rewrite H17 in *; inversion H11.
-    rewrite H17 in *.
-    destruct p; simpl in *.
-    destruct (lookupCon_locateCon _ _ _ _ Hdts H17) as [ ? [ ] ].
-    rewrite H19.
-    destruct (Peano_dec.eq_nat_dec (length args) (length (NRecursive n) + length (NNonrecursive n))).
-    2: inversion H11.
-    case_eq (exprsD vs args); intros.
-    2: rewrite H21 in *; inversion H11.
-    rewrite H21 in *.
-    case_eq (cancel fvs ("this" :: nil) pre (allocatePre s n l)); intros.
-    2: rewrite H22 in *; inversion H11.
-    rewrite H22 in *.
-    case_eq (NewSub "this"); intros.
-    2: rewrite H23 in *; inversion H11.
-    rewrite H23 in *.
-    destruct (in_dec string_dec nextDt fvs); try solve [ inversion H11 ].
-    Opaque mult.
-    wrap0.
-
-    pre_implies.
-    clear H22 H15 H18.
-    pre_evalu.
-    change (locals ("rp" :: ns) x3 res (Regs st Sp))
-      with (locals_call ("rp" :: ns) x3 res (Regs st Sp) ("rp" :: "base" :: "n" :: nil) (res - 3) (S (S (S (S 4 * length ns))))) in H15.
-    assert (ok_call ("rp" :: ns) ("rp" :: "base" :: "n" :: nil) res (res - 3)
-      (S (S (S (S (4 * length ns))))))
-    by (split; [ simpl; omega
-      | split; [ simpl; omega
-        | split; [ NoDup
-          | simpl; omega ] ] ] ).
-    replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) in H15 by omega.
-    evalu.
-
-    rewrite Hmalloc; wrap0.
-    pre_implies.
-    clear H22 H15 H18.
-    pre_evalu.
-    change (locals ("rp" :: ns) x4 res (Regs x1 Sp))
-      with (locals_call ("rp" :: ns) x4 res (Regs x1 Sp) ("rp" :: "base" :: "n" :: nil) 4 (S (S (S (S (4 * length ns)))))) in H15.
-    assert (ok_call ("rp" :: ns) ("rp" :: "base" :: "n" :: nil) res 4
-      (S (S (S (S (4 * length ns))))))
-    by (split; [ simpl; omega
-      | split; [ simpl; omega
-        | split; [ NoDup
-          | simpl; omega ] ] ] ).
-    replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) in * by omega.
-    evalu.
-    descend.
-    cancl_clear; step auto_ext.
-    destruct H20.
-    apply le_goodSize; auto; congruence.
-    descend; step auto_ext.
-    step auto_ext.
-    unfold localsInvariant.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    rewrite vars_ok_sel.
-    cancl_clear.
-    change (length ns + (length ns + (length ns + (length ns + 0))))
-      with (4 * length ns).
-    rewrite wordToNat_natToWord_idempotent in *
-      by (change (goodSize (S (length args))); destruct H20; congruence).
-    descend; step auto_ext.
-    replace (4 * S (length ns)) with (S (S (S (S (4 * length ns))))) by omega.
-
-    Lemma wplus_wminus : forall u v : W,
-      u ^+ v ^- v = u.
-    Proof.
-      intros; words.
-    Qed.
-
-    Lemma wminus_wplus : forall u v : W,
-      u ^- v ^+ v = u.
-    Proof.
-      intros; words.
-    Qed.
-
-    rewrite wminus_wplus.
-    rewrite H31.
-    rewrite H14.
-    rewrite wplus_wminus.
-    step auto_ext.
-    step auto_ext.
-    change (length ns + (length ns + (length ns + (length ns + 0))))
-      with (4 * length ns) in *.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    descend; step auto_ext.
-    rewrite H32, H31, H14.
-    apply wplus_wminus.
-    rewrite H31, H14.
-    rewrite wplus_wminus.
-    apply Imply_refl.
-
-    post.
-    change (length ns + (length ns + (length ns + (length ns + 0))))
-      with (4 * length ns) in *.
-    assert (In x ("rp" :: ns)) by (simpl; eauto).
-    assert (x <> "rp") by (intro; subst; eauto).
-    prep_locals.
-    rewrite four_plus_variablePosition in * by eauto.
-    rewrite vars_ok_sel in H26.
-    generalize dependent ("rp" :: ns); intros.
-    clear H15 H18 H22 Hmalloc H11.
-    evalu.
-
-    post.
-    change (length ns + (length ns + (length ns + (length ns + 0))))
-      with (4 * length ns) in *.
-    assert (In x ("rp" :: ns)) by (simpl; eauto).
-    assert (x <> "rp") by (intro; subst; eauto).
-    unfold lvalIn in *.
-    prep_locals.
-    rewrite four_plus_variablePosition in * by eauto.
-    rewrite vars_ok_sel in H26.
-    generalize dependent ("rp" :: ns); intros.
-    clear H15 H18 H22 Hmalloc H11.
-    (*replace (Regs x1 Rv) with (sel (upd x4 x (Regs x1 Rv)) x) in H26
-      by (apply sel_upd_eq; auto).*)
-    unfold immInR, regInL in *.
-    change (IL.Assign Rv (LvMem (Sp + variablePosition l0 x)%loc)
-      :: IL.Assign (LvMem Rv) x0 :: nil)
-      with ((IL.Assign Rv (LvMem (Sp + variablePosition l0 x)%loc) :: nil)
-        ++ (IL.Assign (LvMem Rv) x0 :: nil)) in H25.
-    apply evalInstrs_app_fwd_None in H25.
-    destruct H25.
-    evalu.
-    destruct H11 as [ ? [ ] ].
-    generalize dependent H15.
-    evalu.
-    rewrite sel_upd_eq in H23 by auto.
-    evalu.
-
-    admit.
-    admit.
-  Qed.
+  End chunk_params.
 End stmtC.
 
 
@@ -878,15 +1188,19 @@ Proof.
       :: ndatatypesWf dts'
       :: (res >= 7)%nat
       :: "malloc"!"malloc" ~~ im ~~> Malloc.mallocS
+      :: In "_" ns
+      :: (~In "_" xs)
+      :: (vs "_" = None)
       :: nil)); [
         abstract (wrap0; match goal with
                            | [ H : interp _ _ |- _ ] => eapply stmtC_post in H; eauto; repeat (post; eauto 6)
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply stmtC_vc; [ | | | | | | eapply normalize_wf; try apply H; eauto 2
-                                 | eapply normalize_wf; eauto
-                                 | .. ];
-                               unfold pre', post'; eauto 6; cbv beta; tauto ]
+                               solve [ eapply stmtC_vc; [  | | | | | | | | | |
+                                                           eapply normalize_wf; try apply H; eauto 2
+                                                           | eapply normalize_wf; eauto
+                                                           | .. ];
+                               unfold pre', post'; eauto 6; cbv beta; discriminate || tauto ]
                            end) ].
 Defined.
