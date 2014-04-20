@@ -516,15 +516,14 @@ Section stmtC.
                                   * [| vars_ok fE V vs |] * F ] st)
                  /\ length ws = pos + length args)
         -> vcs (VerifCond (toCmd (initArgs args base pos) mn H ns res pre0)).
-    Admitted.
-    (*Proof.
+    Proof.
       Opaque mult.
       induction args; wrap0.
 
       pre_implies.
       case_option; try discriminate.
       case_option; try discriminate.
-      injection H7; clear H7; intros; subst.
+      injection H5; clear H5; intros; subst.
       pre_evalu.
       exprC_correct.
       unfold lvalIn in *.
@@ -532,21 +531,21 @@ Section stmtC.
       change (Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
                     Plus (immInR (4 * pos) ns) :: IL.Assign (LvMem Rv) (exprC a ns) :: nil)
              with ((Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
-                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H7.
-      apply evalInstrs_app_fwd_None in H7.
+                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H5.
+      apply evalInstrs_app_fwd_None in H5.
       unfold regInL, immInR in *.
-      destruct H7 as [ | [ ? [ ] ] ].
+      destruct H5 as [ | [ ? [ ] ] ].
       clear dependent H.
-      clear H8 H12.
+      clear H11 H6.
       evaluate auto_ext.
-      assert (natToW pos < natToW (length ws)).
+      assert (natToW pos < natToW (length x1)).
       apply lt_goodSize; eauto.
-      apply goodSize_weaken with (length ws); eauto.
+      apply goodSize_weaken with (length x1); eauto.
 
       clear dependent H.
-      rewrite Mult.mult_comm in H7.
-      rewrite natToW_times4 in H7.
-      rewrite wmult_comm in H7.
+      rewrite Mult.mult_comm in H5.
+      rewrite natToW_times4 in H5.
+      rewrite wmult_comm in H5.
 
       Lemma exprC_uses : forall e ns stn st1 st2,
         Mem st1 = Mem st2
@@ -556,30 +555,30 @@ Section stmtC.
         destruct e; simpl; intuition.
       Qed.
 
-      erewrite exprC_uses in H8.
+      erewrite exprC_uses in H6.
       determine_rvalue.
-      clear H12.
-      move H7 after H16.
+      clear H11.
+      move H5 after H16.
       evaluate auto_ext.
       Transparent evalInstrs.
-      simpl in H7.
-      match type of H7 with
+      simpl in H5.
+      match type of H5 with
         | match match ?E with _ => _ end with _ => _ end = _ => destruct E
       end.
-      injection H7; intros; subst; auto.
+      injection H5; intros; subst; auto.
       discriminate.
-      simpl in H7.
-      match type of H7 with
+      simpl in H5.
+      match type of H5 with
         | match match ?E with _ => _ end with _ => _ end = _ => destruct E
       end.
-      injection H7; intros; subst; auto.
+      injection H5; intros; subst; auto.
       discriminate.
       Opaque evalInstrs.
 
       simpl in *; intuition idtac.
       case_option; try discriminate.
       case_option; try discriminate.
-      injection H7; clear H7; intros; subst.
+      injection H5; clear H5; intros; subst.
 
       Lemma exprD_exprD : forall fE V vs e e',
         exprD vs e = Some e'
@@ -592,58 +591,57 @@ Section stmtC.
         hnf in H3; eauto.
       Qed.
 
-      generalize H8; intro HexprD.
-      eapply exprD_exprD in HexprD; eauto.
-      destruct HexprD.
       eapply IHargs; eauto.
-      instantiate (1 := Array.upd ws pos x).
-      rewrite upd_length; omega.
       post.
       pre_implies.
+      pre_evalu.
       unfold lvalIn in *.
       prep_locals.
+      generalize H6; intro HexprD.
+      eapply exprD_exprD in HexprD; eauto.
+      destruct HexprD.
       change (Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
                     Plus (immInR (4 * pos) ns) :: IL.Assign (LvMem Rv) (exprC a ns) :: nil)
              with ((Binop (regInL Rv ns) (LvMem (Sp + variablePosition ("rp" :: ns) base)%loc)
-                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H15.
-      apply evalInstrs_app_fwd in H15.
-      destruct H15; intuition idtac.
+                         Plus (immInR (4 * pos) ns) :: nil) ++ (IL.Assign (LvMem Rv) (exprC a ns) :: nil)) in H12.
+      apply evalInstrs_app_fwd in H12.
+      destruct H12; intuition idtac.
       unfold regInL, immInR in *.
       clear dependent H.
       rewrite Mult.mult_comm in H15.
       rewrite natToW_times4 in H15.
       rewrite wmult_comm in H15.
-      eapply exprC_correct in H8.
+      eapply exprC_correct in H6.
       2: eauto.
       2: eauto.
       2: eauto.
       Focus 2.
-      instantiate (3 := (array ws (sel V base) * F)%Sep).
-      instantiate (1 := x0).
-      instantiate (1 := fst st).
+      instantiate (3 := (array x2 (sel x1 base) * x3)%Sep).
+      instantiate (1 := x).
+      instantiate (1 := s).
       instantiate (1 := res).
       instantiate (1 := specs).
-      generalize H14; clear; intros.
+      generalize H9; clear; intros.
       step auto_ext.
       2: eauto.
-      destruct H8; intuition idtac.
-      erewrite exprC_uses in H8.
+      destruct H6; intuition idtac.
+      erewrite exprC_uses in H6.
       determine_rvalue.
-      clear H11.
+      clear H5.
       move H15 after H16.
-      assert (natToW pos < natToW (length ws)).
+      assert (natToW pos < natToW (length x2)).
       apply lt_goodSize; eauto.
-      apply goodSize_weaken with (length ws); eauto.
+      apply goodSize_weaken with (length x2); eauto.
 
-      rewrite H7 in H.
+      rewrite H14 in H.
       injection H; intro Hinj.
       Require Import Eqdep.
       apply inj_pair2 in Hinj; subst.
-      generalize H16 H15 H8 H9 H14; clear; intros.
-      destruct st.
+      generalize H16 H15 H5 H7 H9 H11; clear; intros.
       evaluate auto_ext.
-      simpl.
-      step auto_ext.
+      descend.
+      step auto_ext; eauto.
+      rewrite upd_length; omega.
       Transparent evalInstrs.
       simpl in H15.
       match type of H15 with
@@ -658,7 +656,7 @@ Section stmtC.
       injection H15; intros; subst; auto.
       discriminate.
       Opaque evalInstrs.
-    Qed.*)
+    Qed.
 
     Lemma stmtC_vc : forall s (vs : vars) fvs pre post nextDt kC pre0 kD
       (HnextDt : nextDt <> "result")
