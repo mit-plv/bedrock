@@ -1019,11 +1019,17 @@ Qed.
 
 (** Let's define well-formedness of normalized predicates. *)
 
+(** Which logical variable names are allowed in predicates? *)
+Definition good_fo_var (x : fo_var) :=
+  match x with
+    | String "_" _ => False
+    | _ => True
+  end.
+
 Record normalWf (fvs : list fo_var) (n : normal) := {
   WellScoped : List.Forall (wellScoped (NQuants n ++ fvs)) (NImpure n);
-  Extensional : List.Forall predExt (NImpure n);
   NoClash : List.Forall (fun p => exists bvs, boundVars p = Some bvs
-    /\ forall x, In x bvs -> ~In x (NQuants n ++ fvs)) (NImpure n);
+    /\ forall x, In x bvs -> good_fo_var x /\ ~In x (NQuants n ++ fvs)) (NImpure n);
   GoodPure : match NPure n with
                | None => True
                | Some P => 
@@ -1031,7 +1037,8 @@ Record normalWf (fvs : list fo_var) (n : normal) := {
                    -> fE x = fE' x) -> P fE = P fE'
              end;
   NoDupQuant : NoDup (NQuants n);
-  NoReuseQuant : forall x, In x fvs -> ~In x (NQuants n)
+  NoReuseQuant : forall x, In x fvs -> ~In x (NQuants n);
+  GoodQuantNames : List.Forall good_fo_var (NQuants n)
 }.
 
 (** Some tactics to do case analysis based on [match]es in hyps *)
@@ -1088,16 +1095,13 @@ Theorem normalize_wf : forall fvs bvs p,
   wellScoped fvs p
   -> boundVars p = Some bvs
   -> (forall x, In x bvs -> ~In x fvs)
-  -> predExt p
+  -> (forall x, In x bvs -> good_fo_var x)
   -> normalWf fvs (normalize p).
 Proof.
   split.
 
   (* WellScoped *)
   auto using normalize_wellScoped_NImpure'.
-
-  (* Extensional *)
-  auto using normalize_predExt.
 
   (* NoClash *)
   generalize dependent fvs.
@@ -1108,33 +1112,36 @@ Proof.
 
   eapply Forall_impl; [ | eapply IHp1 ].
   simpl; intuition.
-  destruct H9 as [it]; exists it; intuition.
-  eapply H11; eauto.
-  eapply in_or_app.
-  eapply in_app_or in H12; intuition.
-  apply in_app_or in H13; intuition.
-  right; apply in_or_app; left; apply H12.
-  right; apply in_or_app; right; apply H13.
+  destruct H0 as [it]; exists it.
+  destruct H0.
+  specialize (fun x H => proj1 (H7 x H)); intro H7_1.
+  specialize (fun x H => proj2 (H7 x H)); intro H7_2.
+  clear H7.
+  intuition.
+  generalize H7_2; instantiate (1 := NQuants (normalize p2) ++ fvs); intro Hbye; clear Hbye.
+  eapply in_app_or in H8; intuition eauto 10 using in_or_app.
+  eapply in_app_or in H9; intuition eauto 10 using in_or_app.
   tauto.
   eauto.
+  eauto using in_or_app.
   eapply wellScoped_weaken; eauto.
   eauto using in_or_app.
   intros.
   eapply in_app_or in H7; intuition eauto using in_or_app.
-  eapply normalize_boundVars in H5; eauto.
+  eapply normalize_boundVars in H8; eauto.
   eauto using notsInList_true.
 
   eapply Forall_impl; [ | eapply IHp2 ].
   simpl; intuition.
-  destruct H9 as [it]; exists it; intuition.
-  eapply H11; eauto.
-  eapply in_or_app.
-  eapply in_app_or in H12; intuition.
-  eapply in_app_or in H13; intuition.
-  right; apply in_or_app; left; apply H12.
-  right; eapply in_or_app; eauto.
+  destruct H0 as [it]; exists it; intuition.
+  eapply H8; eauto.
+  specialize (fun x H => proj2 (H8 x H)); intro H8_1.
+  generalize H8_1; instantiate (1 := NQuants (normalize p1) ++ fvs); intro Hbye; clear Hbye.
+  eapply in_app_or in H9; intuition eauto 10 using in_or_app.
+  eapply in_app_or in H10; intuition eauto 10 using in_or_app.
   tauto.
   eauto.
+  eauto using in_or_app.
   eapply wellScoped_weaken; eauto.
   eauto using in_or_app.
   intros.
@@ -1142,24 +1149,27 @@ Proof.
   eapply normalize_boundVars in H; eauto.
   eauto using notsInList_true.
 
-  eapply Forall_impl; [ | eapply H ].
+  eapply Forall_impl; [ | eapply IHp ].
   simpl; intuition.
   destruct H0 as [it]; exists it; intuition.
-  eapply H7; eauto.
+  eapply H6; eauto.
+  subst; simpl.
+  specialize (fun x H => proj2 (H6 x H)); intro Hin.
+  generalize Hin; instantiate (1 := x :: fvs); intro Hbye; clear Hbye.  
+  eapply H6; eauto.
   eapply in_or_app.
-  instantiate (1 := x :: fvs).
-  subst; simpl; eauto.
-  eapply in_app_or in H9; intuition.
-  eauto using in_or_app.
-  eapply H7.
-  eauto.
+  right; simpl; tauto.
+  eapply in_app_or in H8; intuition.
+  eapply H6; eauto using in_or_app.
+  eapply H6; eauto using in_or_app.
   apply in_or_app; simpl; tauto.
   eauto.
   auto.
   simpl; intuition subst; eauto.
-
+  simpl; intuition subst; eauto.
   constructor; [ | constructor ].
   simpl; eauto.
+  descend; eauto.
 
   (* GoodPure *)
   generalize dependent fvs.
@@ -1167,11 +1177,11 @@ Proof.
   induction p; simpl; intuition; caser; intuition.
 
   f_equal.
-  eapply H2; intuition eauto using in_or_app.
-  eapply H11; intuition eauto using in_or_app.
-  eapply H11; intuition eauto using in_or_app.
-  eapply H2; intuition eauto using in_or_app.
-  eapply H; intuition (simpl in *; eauto using in_or_app).
+  eapply IHp1; intuition eauto using in_or_app.
+  eapply IHp2; intuition eauto using in_or_app.
+  eapply IHp2; intuition eauto using in_or_app.
+  eapply IHp1; intuition eauto using in_or_app.
+  eapply IHp; intuition (simpl in *; eauto using in_or_app).
   intuition (subst; eauto).
   intuition (subst; eauto).
 
@@ -1186,6 +1196,10 @@ Proof.
 
   (* NoReuseQuant *)
   unfold not in *; eauto using normalize_boundVars.
+
+  (* GoodQuantNames *)
+  apply Forall_forall; intros.
+  eapply normalize_boundVars in H3; eauto.
 Qed.
 
 
@@ -1226,6 +1240,23 @@ Section predExt_sound.
     apply exprExt_sound; auto.
   Qed.
 End predExt_sound.
+
+Lemma wellScoped_exprExt : forall e fvs,
+  (forall fE fE', (forall x, In x fvs -> fE x = fE' x)
+    -> exprD e fE = exprD e fE')
+  -> exprExt e.
+Proof.
+  induction e; simpl; intuition.
+Qed.
+
+Lemma wellScoped_predExt : forall p fvs,
+  wellScoped fvs p
+  -> predExt p.
+Proof.
+  induction p; simpl; intuition eauto.
+  apply Forall_forall; intros.
+  eauto using wellScoped_exprExt.
+Qed.
 
 
 (** * Substitution for variables within normalized predicates *)
@@ -1409,8 +1440,11 @@ Section subst.
     rewrite H4 by auto.
     erewrite H2; eauto.
     unfold not in *; eauto.
+    intros; eapply H8; eauto.
     unfold not in *; eauto.
-    eapply Forall_forall; [ eapply Extensional; eauto | auto ].
+    intros; eapply H8; eauto.
+    eapply wellScoped_predExt.
+    eapply Forall_forall; [ eapply WellScoped; eauto | auto ].
 
     generalize (GoodPure H); intro.
     destruct (NPure n); try apply Himp_refl.
@@ -1460,8 +1494,11 @@ Section subst.
     rewrite H4 by auto.
     erewrite H2; eauto.
     unfold not in *; eauto.
+    intros; eapply H8; eauto.
     unfold not in *; eauto.
-    eapply Forall_forall; [ eapply Extensional; eauto | auto ].
+    intros; eapply H8; eauto.
+    eapply wellScoped_predExt.
+    eapply Forall_forall; [ eapply WellScoped; eauto | auto ].
 
     generalize (GoodPure H); intro.
     destruct (NPure n); try apply Himp_refl.
@@ -1742,6 +1779,9 @@ Proof.
   eapply nsubst_irrel_fwd'; try apply H; eauto.
   intros; unfold fo_set.
   destruct (string_dec y x); tauto.
+  eapply Forall_weaken; try apply NoClash0.
+  post.
+  firstorder.
 Qed.
 
 Lemma nsubst_irrel_bwd'' : forall qs fvs G (hE : ho_env G) S x e pr fE fE',
@@ -1949,6 +1989,7 @@ Proof.
   eapply nsubst_irrel_bwd'; try apply H; eauto.
   intros; unfold fo_set.
   destruct (string_dec y x); tauto.
+  eapply Forall_weaken; try apply NoClash0; post; firstorder.
 Qed.
 
 
@@ -1994,6 +2035,7 @@ Proof.
 
   apply Himp_ex; intro.
   eapply IHNoDupQuant0.
+  inversion GoodQuantNames0; auto.
   eapply Forall_impl; [ | apply WellScoped0 ].
   intros; eapply wellScoped_weaken; eauto.
   instantiate (1 := x :: xs).
@@ -2007,8 +2049,8 @@ Proof.
   do 2 esplit; eauto.
   intros.
   apply H3 in H1; intuition idtac.
-  apply in_app_or in H4; intuition (subst; simpl in *; eauto using in_or_app).
-  intuition subst; eauto using in_or_app.
+  apply in_app_or in H5; intuition (subst; simpl in *; eauto using in_or_app).
+  intuition.
   destruct (NPure n); intuition idtac.
   apply GoodPure0; intuition (subst; simpl in *; eauto using in_or_app).
   simpl; intuition (subst; eauto using in_or_app).
@@ -2017,23 +2059,6 @@ Proof.
   destruct (string_dec x0 x0); tauto.
   unfold fo_set.
   destruct (string_dec x0 x); eauto.
-Qed.
-
-Lemma wellScoped_exprExt : forall e fvs,
-  (forall fE fE', (forall x, In x fvs -> fE x = fE' x)
-    -> exprD e fE = exprD e fE')
-  -> exprExt e.
-Proof.
-  induction e; simpl; intuition.
-Qed.
-
-Lemma wellScoped_predExt : forall p fvs,
-  wellScoped fvs p
-  -> predExt p.
-Proof.
-  induction p; simpl; intuition eauto.
-  apply Forall_forall; intros.
-  eauto using wellScoped_exprExt.
 Qed.
 
 Theorem esubst_correct' : forall x e e' fE,

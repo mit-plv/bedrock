@@ -801,8 +801,10 @@ Section stmtC.
       Opaque evalInstrs.
     Qed.
 
+    Definition dtFormat (s : string) := (exists s', s = "_D" ++ s')%string.
+
     Lemma stmtC_vc : forall s (vs : vars) fvs pre post nextDt kC pre0 kD
-      (HnextDt : nextDt <> "result")
+      (HnextDt : dtFormat nextDt)
       (Hvs : vs "_" = None),
       ~In "result" fvs
       -> normalWf' fvs pre
@@ -829,7 +831,7 @@ Section stmtC.
         -> ~In "result" (NQuants post)
         -> scopey fvs post (NImpure post)
         -> scopey' "result" (NImpure pre)
-        -> nextDt <> "result"
+        -> dtFormat nextDt
         -> vs "_" = None
         -> (forall x, In x fvs -> ~In x (NQuants pre))
         -> (forall x, In x fvs -> ~In x (NQuants post))
@@ -1288,6 +1290,145 @@ Section stmtC.
       assert (In x ("rp" :: ns)) by (simpl; intuition eauto). 
       evaluate auto_ext.
 
+      Lemma dtFormat_prime : forall s, dtFormat s
+        -> dtFormat (s ++ "'")%string.
+      Proof.
+        unfold dtFormat; post.
+        exists (x ++ "'")%string.
+        subst; auto.
+      Qed.
+
+      Hint Immediate dtFormat_prime.
+
+      Lemma set_dummy : forall vs x e,
+        vs "_" = None
+        -> In x xs
+        -> vars_set vs x e "_" = None.
+      Proof.
+        unfold vars_set; intros.
+        destruct (string_dec "_" x); congruence.
+      Qed.
+
+      Hint Immediate set_dummy.
+
+      apply H14; clear H14; simpl; intuition eauto.
+      subst; destruct HnextDt; discriminate.
+
+      Lemma normalWf_weaken : forall fvs1 fvs2 n,
+        normalWf fvs1 n
+        -> (forall x, In x fvs1 -> In x fvs2)
+        -> (forall x, In x fvs2 -> In x fvs1 \/ ~good_fo_var x)
+        -> normalWf fvs2 n.
+      Proof.
+        destruct 1; split; eauto.
+
+        eapply Forall_weaken; try apply WellScoped; intros.
+        eapply wellScoped_weaken; eauto.
+        intros.
+        apply in_app_or in H5; intuition.
+
+        eapply Forall_weaken; try apply NoClash; intros.
+        post.
+        descend; eauto.
+        intuition idtac.
+        apply H6; auto.
+        specialize (fun x H => proj2 (H6 x H)).
+        apply in_app_or in H7; intuition eauto using in_or_app.
+        apply H3 in H9; intuition eauto using in_or_app.
+        apply H7.
+        apply H6; auto.
+
+        destruct (NPure n); intuition.
+        apply GoodPure; intuition.
+        intros.
+        apply H3 in H4; intuition eauto.
+        eapply Forall_forall in GoodQuantNames; eauto.
+      Qed.
+
+      Lemma dtFormat_not_good : forall x, dtFormat x
+        -> good_fo_var x
+        -> False.
+      Proof.
+        destruct 1; subst; tauto.
+      Qed.
+
+      Hint Immediate dtFormat_not_good.
+
+      Focus 2.
+      eapply normalWf_weaken; eauto.
+      simpl; intuition eauto.
+      simpl; intuition (subst; eauto).
+      Focus 4.
+      subst.
+      eapply Forall_forall in H24; [ | eapply GoodQuantNames; eauto ].
+      eauto.
+      Focus 4.
+      subst.
+      eapply Forall_forall in H24; [ | eapply GoodQuantNames; eauto ].
+      eauto.
+
+      Lemma scopey_weaken : forall fvs1 fvs2 post ns,
+        scopey fvs1 post ns
+        -> (forall x, In x fvs1 -> In x fvs2)
+        -> scopey fvs2 post ns.
+      Proof.
+        intros; eapply Forall_weaken; [ | eauto ].
+        intros.
+        eapply wellScoped_weaken; eauto.
+        intros.
+        apply in_app_or in H5; intuition eauto using in_or_app.
+        simpl in H6; intuition (subst; eauto using in_or_app).
+        apply in_or_app; simpl; tauto.
+        apply in_or_app; simpl; eauto.
+      Qed.
+
+      Focus 2.
+      eapply scopey_weaken; eauto.
+      simpl; tauto.
+
+      Focus 3.
+      unfold vars_set in H14.
+      destruct (string_dec x1 x); subst; eauto.
+      injection H14; clear H14; intros; subst; simpl.
+      eauto.
+
+      Lemma normalWf_new_impure : forall fvs n p,
+        normalWf fvs n
+        -> List.Forall (wellScoped (NQuants n ++ fvs)) p
+        -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
+                         /\ forall x, In x bvs -> good_fo_var x /\ ~In x (NQuants n ++ fvs)) p
+        -> normalWf fvs {| NQuants := NQuants n;
+                           NPure := NPure n;
+                           NImpure := p |}.
+      Proof.
+        destruct 1; split; simpl; intuition.
+      Qed.
+
+      eapply normalWf_new_impure; eauto.
+      eapply normalWf_weaken; eauto.
+      simpl; intuition eauto.
+      simpl; intuition (subst; eauto).
+      constructor.
+      simpl; intuition subst; simpl.
+      (* Need to know: [NewSub "this"] doesn't use any naughty variables. *)
+      admit.
+      apply H14.
+      apply in_or_app; simpl; tauto.
+      (* Need to know: [NewLhs] doesn't use any naughty variables. *)
+      admit.
+      constructor.
+      simpl; intuition subst; simpl.
+      exists nil; simpl; tauto.
+      (* Need to know: [NewLhs] doesn't bind any new variables (e.g., with quantifiers). *)
+      admit.
+
+      hnf.
+      constructor.
+      simpl; eauto.
+      (* Again need to know: [NewLhs] doesn't bind any new variables (e.g., with quantifiers). *)
+      admit.
+
+      (* Finally, prove that we computed a good postcondition. *)
       admit.
     Qed.
   End chunk_params.
@@ -1300,6 +1441,7 @@ Lemma scopey_normalize : forall fvs post post' bvs',
   wellScoped ("result" :: fvs) post
   -> boundVars post = Some bvs'
   -> (forall x, In x bvs' -> ~In x ("result" :: fvs))
+  -> (forall x, In x bvs' -> good_fo_var x)
   -> post' = normalize post
   -> scopey fvs post' (NImpure post').
 Proof.
@@ -1332,6 +1474,13 @@ Qed.
 
 Local Hint Immediate normalize_NImpure_keeps.
 
+Lemma dtFormat_D : dtFormat "_D".
+Proof.
+  exists ""; auto.
+Qed.
+
+Local Hint Resolve dtFormat_D.
+
 (** Main statement compiler/combinator/macro *)
 Definition Stmt
   (dts : list datatype)
@@ -1353,7 +1502,7 @@ Proof.
   pose (dts' := map normalizeDatatype dts).
   pose (pre' := normalize pre).
   pose (post' := normalize post).
-  apply (WrapC (stmtC dts' vs fvs pre' post' "D" s (fun _ _ _ _ _ => Fail))
+  apply (WrapC (stmtC dts' vs fvs pre' post' "_D" s (fun _ _ _ _ _ => Fail))
     (precond vs pre' post')
     (fun _ _ _ _ _ => [| False |])%PropX
     (* Unsatisfiable postcondition, since we won't allow running off the end of
@@ -1372,11 +1521,13 @@ Proof.
       :: (boundVars pre = Some bvs)
       :: (boundVars post = Some bvs')
       :: (forall x, In x bvs -> ~In x fvs)
+      :: (forall x, In x bvs -> good_fo_var x)
       :: (forall x, In x bvs' -> ~In x ("result" :: fvs))
+      :: (forall x, In x bvs' -> good_fo_var x)
       :: (~In "result" fvs)
       :: (~In "result" bvs)
       :: (~In "result" bvs')
-      :: stmtD dts' xs vs fvs pre' post' "D" s (fun _ _ _ _ _ => False)
+      :: stmtD dts' xs vs fvs pre' post' "_D" s (fun _ _ _ _ _ => False)
       :: ndatatypesWf dts'
       :: (res >= 7)%nat
       :: "malloc"!"malloc" ~~ im ~~> Malloc.mallocS
@@ -1393,6 +1544,6 @@ Proof.
                                                            eapply normalize_wf; try apply H; eauto 2
                                                            | eapply normalize_wf; eauto
                                                            | .. ];
-                               unfold pre', post'; eauto 6; cbv beta; discriminate || tauto ]
+                               unfold pre', post'; eauto 6; cbv beta; tauto ]
                            end) ].
 Defined.
