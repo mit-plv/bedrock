@@ -1290,6 +1290,8 @@ Section stmtC.
       assert (In x ("rp" :: ns)) by (simpl; intuition eauto). 
       evaluate auto_ext.
 
+      (* Final VC here. *)
+
       Lemma dtFormat_prime : forall s, dtFormat s
         -> dtFormat (s ++ "'")%string.
       Proof.
@@ -1410,8 +1412,205 @@ Section stmtC.
       simpl; intuition (subst; eauto).
       constructor.
       simpl; intuition subst; simpl.
-      (* Need to know: [NewSub "this"] doesn't use any naughty variables. *)
-      admit.
+
+      Lemma findMatching_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> forall x, In x NewLhs -> In x lhs.
+      Proof.
+        clear; induction lhs; simpl; intuition.
+        
+        case_eq (unify_pred fvs' s a rhs); intros.
+        rewrite H1 in *.
+        destruct p.
+        injection H; clear H; intros; subst; tauto.
+        rewrite H1 in *.
+        case_eq (findMatching fvs' s lhs rhs); intros.
+        rewrite H2 in *.
+        injection H; clear H; intros; subst; eauto.
+        simpl in H0; intuition eauto.
+        rewrite H2 in *; discriminate.
+      Qed.
+
+      Lemma findMatchings_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatchings fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> forall x, In x NewLhs -> In x lhs.
+      Proof.
+        clear; induction rhs; simpl; intuition.
+
+        case_eq (findMatching fvs' s lhs a); intros.
+        2: rewrite H1 in *; discriminate.
+        rewrite H1 in *.
+        case_eq (findMatchings fvs' NewSub0 NewLhs0 rhs); intros.
+        2: rewrite H2 in *; discriminate.
+        rewrite H2 in *.
+        injection H; clear H; intros; subst.
+        eauto using findMatching_NewLhs.
+      Qed.
+
+      Lemma unify_expr_NewSub_wellFormed : forall fvs' fvs e1 e2 s s' fs,
+        unify_expr fvs' s e1 e2 = Some (s', fs)
+        -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                            -> Logic.exprD e1 fE1 = Logic.exprD e1 fE2)
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, s' x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; destruct e1, e2; simpl; intuition.
+        destruct (in_dec string_dec x0 fvs'); try discriminate.
+        case_eq (s x0); intros.
+        rewrite H4 in *.
+        destruct e0; try discriminate.
+        destruct (string_dec x2 x); subst; try discriminate.
+        injection H; clear H; intros; subst.
+        eauto.
+        rewrite H4 in *.
+        injection H; clear H; intros; subst.
+        unfold fos_set in H2.
+        destruct (string_dec x1 x0); subst; eauto.
+        injection H2; clear H2; intros; subst; simpl.
+        eauto.
+
+        destruct (in_dec string_dec x fvs'); try discriminate.
+        case_eq (s x); intros.
+        rewrite H4 in *.
+        destruct e0; try discriminate.
+        injection H; clear H; intros; subst.
+        eauto.
+        rewrite H4 in *.
+        injection H; clear H; intros; subst.
+        unfold fos_set in H2.
+        destruct (string_dec x0 x); subst; eauto.
+        injection H2; clear H2; intros; subst; simpl.
+        eauto.
+
+        injection H; clear H; intros; subst; eauto.
+      Qed.
+
+      Lemma unify_args_NewSub_wellFormed : forall fvs fvs' es1 es2 s s' fs,
+        unify_args fvs' s es1 es2 = Some (s', fs)
+        -> (forall e, In e es1
+                      -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                         -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, s' x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; induction es1; destruct es2; simpl; intuition.
+        injection H; clear H; intros; subst; eauto.
+        case_eq (unify_expr fvs' s a e); intros.
+        rewrite H4 in *.
+        destruct p.
+        case_eq (unify_args fvs' f es1 es2); intros.
+        rewrite H5 in *.
+        destruct p.
+        injection H; clear H; intros; subst.
+        eauto 7 using unify_expr_NewSub_wellFormed.
+        rewrite H5 in *; discriminate.        
+        rewrite H4 in *; discriminate.
+      Qed.
+
+      Lemma unify_pred_NewSub_wellFormed : forall fvs fvs' p1 p2 s s' fs,
+        unify_pred fvs' s p1 p2 = Some (s', fs)
+        -> wellScoped fvs p1
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, s' x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; induction p1; destruct p2; simpl; intuition.
+        destruct (string_dec X X0); subst; try discriminate.
+        eauto using unify_args_NewSub_wellFormed.
+      Qed.
+
+      Lemma findMatching_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> List.Forall (wellScoped fvs) lhs
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, NewSub x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; induction lhs; simpl; intuition.
+        
+        inversion_clear H0.
+        case_eq (unify_pred fvs' s a rhs); intros.
+        rewrite H0 in *.
+        destruct p.
+        injection H; clear H; intros; subst.
+        eauto using unify_pred_NewSub_wellFormed.
+        rewrite H0 in *.
+        case_eq (findMatching fvs' s lhs rhs); intros.
+        rewrite H6 in *.
+        injection H; clear H; intros; subst; eauto.
+        rewrite H6 in *; discriminate.
+      Qed.
+
+      Lemma findMatchings_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatchings fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> List.Forall (wellScoped fvs) lhs
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, NewSub x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; induction rhs; simpl; intuition.
+
+        injection H; clear H; intros; subst; eauto.
+
+        case_eq (findMatching fvs' s lhs a); intros.
+        2: rewrite H4 in *; discriminate.
+        rewrite H4 in *.
+        case_eq (findMatchings fvs' NewSub0 NewLhs0 rhs); intros.
+        2: rewrite H5 in *; discriminate.
+        rewrite H5 in *.
+        injection H; clear H; intros; subst.
+        eapply IHrhs; eauto.
+        eapply Forall_forall; intros.
+        eapply findMatching_NewLhs in H; [ | eauto ].
+        eapply Forall_forall in H0; eauto.
+        eauto using findMatching_NewSub_wellFormed.
+      Qed.
+
+      Lemma cancel_NewSub_wellFormed : forall fvs evs lhs rhs NewSub NewLhs ProveThis,
+        cancel fvs evs lhs rhs = Success NewSub NewLhs ProveThis
+        -> normalWf fvs lhs
+        -> forall x e, NewSub x = Some e
+          -> forall fE1 fE2, (forall y, In y (NQuants lhs ++ fvs) -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        unfold cancel; intros.
+        case_eq (findMatchings (evs ++ NQuants rhs)
+                               (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
+                               (NImpure lhs) (NImpure rhs)); intros.
+        2: rewrite H6 in *; discriminate.
+        rewrite H6 in *.
+        injection H2; clear H2; intros; subst.
+        eapply findMatchings_NewSub_wellFormed.
+        eauto.
+        destruct H3; eauto.
+        2: eauto.
+        simpl; intros.
+        destruct (in_dec string_dec x0 fvs); try discriminate.
+        injection H2; clear H2; intros; subst; simpl.
+        eauto using in_or_app.
+        eauto.
+      Qed.
+
+      eapply cancel_NewSub_wellFormed in H22; eauto.
+      intros.
+      apply in_app_or in H24; intuition.
       apply H14.
       apply in_or_app; simpl; tauto.
       (* Need to know: [NewLhs] doesn't use any naughty variables. *)
