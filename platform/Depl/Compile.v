@@ -1613,19 +1613,55 @@ Section stmtC.
       apply in_app_or in H24; intuition.
       apply H14.
       apply in_or_app; simpl; tauto.
-      (* Need to know: [NewLhs] doesn't use any naughty variables. *)
-      admit.
+
+      Lemma cancel_NewLhs : forall fvs evs lhs rhs NewSub NewLhs ProveThis,
+        cancel fvs evs lhs rhs = Success NewSub NewLhs ProveThis
+        -> forall x, In x NewLhs -> In x (NImpure lhs).
+      Proof.
+        unfold cancel; intros.
+        case_eq (findMatchings (evs ++ NQuants rhs)
+                               (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
+                               (NImpure lhs) (NImpure rhs)); intros.
+        2: rewrite H4 in *; discriminate.
+        rewrite H4 in *.
+        injection H2; clear H2; intros; subst.
+        eauto using findMatchings_NewLhs.
+      Qed.
+
+      apply Forall_forall; intros.
+      eapply cancel_NewLhs in H22.
+      destruct H3.
+      eapply Forall_forall in WellScoped; [ | eauto ].
+      2: eauto.
+      eapply wellScoped_weaken; eauto.
+      intros.
+      apply in_app_or in H3; intuition.
       constructor.
       simpl; intuition subst; simpl.
       exists nil; simpl; tauto.
-      (* Need to know: [NewLhs] doesn't bind any new variables (e.g., with quantifiers). *)
-      admit.
-
+      apply Forall_forall; intros.
+      eapply cancel_NewLhs in H22.
+      destruct H3.
+      eapply Forall_forall in NoClash; [ | eauto ].
+      2: eauto.
+      destruct NoClash as [ ? [ ] ].
+      descend; eauto.
+      split.
+      apply H24; auto.
+      intro.
+      apply in_app_or in H26; simpl in H26; intuition (subst; eauto).
+      eapply H24; eauto using in_or_app.
+      2: eapply H24; eauto using in_or_app.
+      apply H24 in H25.
+      destruct H25.
+      eauto.
       hnf.
       constructor.
       simpl; eauto.
-      (* Again need to know: [NewLhs] doesn't bind any new variables (e.g., with quantifiers). *)
-      admit.
+      apply Forall_forall; intro.
+      intros.
+      eapply Forall_forall in H8; eauto.
+      eapply cancel_NewLhs in H22; eauto.
 
       (* Finally, prove that we computed a good postcondition. *)
       admit.
