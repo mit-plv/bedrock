@@ -658,6 +658,149 @@ Section stmtC.
       Opaque evalInstrs.
     Qed.
 
+    Fixpoint initArgs' (args : list expr) (pos : nat) : list instr :=
+      match args with
+        | nil => nil
+        | arg :: args =>
+          IL.Binop Rv (variableSlot "_" ns) Plus (4 * pos)%nat
+          :: IL.Assign (LvMem Rv) (exprC arg ns)
+          :: initArgs' args (S pos)
+      end%SP.
+
+    Lemma initArgs_post1 : forall stn specs args pos pre st,
+      interp specs (Structured.Postcondition (toCmd (initArgs args "_" pos) mn H ns res pre) (stn, st))
+      -> exists st', interp specs (pre (stn, st'))
+        /\ evalInstrs stn st' (initArgs' args pos) = Some st.
+    Proof.
+      Opaque mult.
+      induction args; wrap0; eauto.
+      apply IHargs in H2; clear IHargs; do 2 post.
+      do 2 eexists; eauto.
+      Set Printing Coercions.
+      change (Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+                    (RvImm (natToW (4 * pos)))
+                    :: IL.Assign (LvMem (Reg Rv)) (exprC a ns) :: initArgs' args (S pos))
+      with ((Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+                  (RvImm (natToW (4 * pos)))
+                  :: IL.Assign (LvMem (Reg Rv)) (exprC a ns) :: nil) ++ initArgs' args (S pos)).
+      eauto using evalInstrs_app.
+    Qed.      
+
+    Fixpoint multiUpd (ws : list W) (pos : nat) (ws' : list W) : list W :=
+      match ws' with
+        | nil => ws
+        | w :: ws' => multiUpd (Array.updN ws pos w) (S pos) ws'
+      end.
+
+    Lemma initArgs_post : forall vs fvs,
+      ~In "result" fvs
+      -> (forall x e, vs x = Some e
+        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD e fE1 = Logic.exprD e fE2)
+      -> forall fE V specs F stn args pos ws args' st st',
+        exprsD vs args = Some args'
+        -> length ws = pos + length args
+        -> ForallF (exprV ns) args
+        -> vars_ok fE V vs
+        -> interp specs (![ locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V "_") * F ] (stn, st))
+        -> evalInstrs stn st (initArgs' args pos) = Some st'
+        -> exists ws', map (fun e => Logic.exprD e fE) args' = map (@Dyn W) ws'
+          /\ interp specs (![ locals ("rp" :: ns) V res (Regs st Sp) * array (multiUpd ws pos ws') (sel V "_")
+                              * F ] (stn, st'))
+          /\ Regs st' Sp = Regs st Sp.
+    Proof.
+      clear Hmalloc; clear dependent H; induction args; wrap0; simpl in *.
+
+      injection H3; clear H3; intros; subst; simpl.
+      exists nil; simpl; intuition.
+      Transparent evalInstrs.
+      simpl in *.
+      congruence.
+      simpl in *.
+      congruence.
+      Opaque evalInstrs.
+
+      do 2 (case_option; try discriminate).
+      injection H3; clear H3; intros; subst.
+      simpl in *.
+      change (Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+            (RvImm (natToW (4 * pos)))
+          :: IL.Assign (LvMem (Reg Rv)) (exprC a ns)
+             :: initArgs' args (S pos))
+             with ((Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+            (RvImm (natToW (4 * pos)))
+          :: IL.Assign (LvMem (Reg Rv)) (exprC a ns) :: nil)
+             ++ initArgs' args (S pos)) in H8.
+      apply evalInstrs_app_fwd in H8.
+      post.
+      eapply exprC_correct in H5; eauto.
+      Focus 2.
+      instantiate (1 := st).
+      instantiate (1 := stn).
+      instantiate (1 := (array ws (sel V "_") * F)%Sep).
+      instantiate (2 := specs).
+      generalize H7; repeat match goal with
+                              | [ x : _ |- _ ] => clear x
+                            end; intros.
+      step auto_ext.
+      post.
+      rewrite Mult.mult_comm in H8.
+      rewrite natToW_times4 in H8.
+      rewrite wmult_comm in H8.
+      assert (natToW pos < natToW (length ws)).
+      apply lt_goodSize; eauto.
+      apply goodSize_weaken with (length ws); eauto.
+      change (Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+            (RvImm (natToW 4 ^* natToW pos))
+          :: IL.Assign (LvMem (Reg Rv)) (exprC a ns) :: nil)
+             with ((Binop (LvReg Rv) (RvLval (variableSlot "_" ns)) Plus
+            (RvImm (natToW 4 ^* natToW pos)) :: nil)
+          ++ (IL.Assign (LvMem (Reg Rv)) (exprC a ns) :: nil)) in H8.
+      apply evalInstrs_app_fwd in H8; post.
+      erewrite exprC_uses in H5.
+      determine_rvalue.
+      generalize dependent H12.
+      generalize dependent H10.
+      clear H11.
+      prep_locals.
+      move H15 after H16.
+      generalize dependent H6.
+      evaluate auto_ext.
+      intros.
+      eapply IHargs in H12; eauto.
+      destruct H12 as [ ? [ ] ].
+      exists (x0 :: x2); simpl; intuition.
+      generalize H19 H6; repeat match goal with
+                                  | [ x : _ |- _ ] => clear x
+                                end; intros.
+      step auto_ext.
+      rewrite updN_length; omega.
+      unfold Array.upd in H10.
+      rewrite wordToNat_natToWord_idempotent in H10.
+      generalize H10 H6; repeat match goal with
+                                  | [ x : _ |- _ ] => clear x
+                                end; intros.
+      step auto_ext.
+      change (goodSize pos).
+      apply goodSize_weaken with (length (updN ws (wordToNat (natToW pos)) x0)); eauto.
+      rewrite updN_length; eauto.
+
+      Transparent evalInstrs.
+      simpl in H15.
+      match type of H15 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H15; intros; subst; auto.
+      discriminate.
+      simpl in H15.
+      match type of H15 with
+        | match match ?E with _ => _ end with _ => _ end = _ => destruct E
+      end.
+      injection H15; intros; subst; auto.
+      discriminate.
+      Opaque evalInstrs.
+    Qed.
+
     Lemma stmtC_vc : forall s (vs : vars) fvs pre post nextDt kC pre0 kD
       (HnextDt : nextDt <> "result")
       (Hvs : vs "_" = None),
@@ -1093,7 +1236,58 @@ Section stmtC.
       descend.
       step auto_ext; eauto.
 
-      admit.
+      apply initArgs_post1 in H24; do 2 post.
+      clear H23 H15.
+      rewrite vars_ok_sel in *.      
+      pre_evalu.
+      clear H11.
+      unfold lvalIn, immInR, regInL in *.
+      prep_locals.
+      repeat rewrite four_plus_variablePosition in H25 by eauto.
+
+      change (IL.Assign (LvReg Rv)
+             (RvLval
+                (LvMem (Sp + natToW (variablePosition ("rp" :: ns) "_"))%loc))
+           :: IL.Assign (LvMem (Reg Rv)) (RvImm (natToW x0)) :: nil)
+             with ((IL.Assign (LvReg Rv)
+             (RvLval
+                (LvMem (Sp + natToW (variablePosition ("rp" :: ns) "_"))%loc)) :: nil)
+           ++ (IL.Assign (LvMem (Reg Rv)) (RvImm (natToW x0)) :: nil)) in H28.
+      apply evalInstrs_app_fwd in H28.
+      destruct H28; intuition idtac.
+
+      generalize dependent H18.
+      generalize dependent Hvs.
+      generalize dependent H27.
+      generalize dependent H28.
+      move H29 after H26.
+      clear dependent H.
+      evaluate auto_ext.
+      replace (Regs x3 Rv) with (Regs x3 Rv ^+ $4 ^* $0) in H15 by words.
+      assert (natToW 0 < natToW (length x5)).
+      apply lt_goodSize; auto; eauto 10.
+      intro; evaluate auto_ext.
+      intros Heval ? ?; eapply initArgs_post in Heval.
+      Focus 8.
+      instantiate (2 := upd x7 "_" (Regs x3 Rv)).
+      descend.
+      rewrite H18.
+      generalize H33; repeat match goal with
+                               | [ x : _ |- _ ] => clear x
+                             end; intros.
+      instantiate (3 := specs).
+      step auto_ext.
+      3: eauto.
+      2: eauto.
+      2: eauto.
+      2: rewrite upd_length; eauto.
+      2: eapply ForallF_weaken; [ | eassumption ]; intros; eapply exprV_weaken; eauto.
+      2: eauto using vars_ok_unused.
+      destruct Heval as [ ? [ ? [ ] ] ].
+      clear H34 H35 H33 Hvs.
+      assert (In x ("rp" :: ns)) by (simpl; intuition eauto). 
+      evaluate auto_ext.
+
       admit.
     Qed.
   End chunk_params.
