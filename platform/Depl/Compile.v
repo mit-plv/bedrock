@@ -1664,7 +1664,102 @@ Section stmtC.
       eapply cancel_NewLhs in H22; eauto.
 
       (* Finally, prove that we computed a good postcondition. *)
-      admit.
+      post.
+      apply initArgs_post1 in H24; do 2 post.
+      generalize dependent H23.
+      generalize dependent H15.
+      rewrite vars_ok_sel in *.
+      pre_evalu.
+      generalize dependent H14.
+      generalize dependent H23.
+      generalize dependent H11.
+      unfold lvalIn, immInR, regInL in *.
+      prep_locals.
+      repeat rewrite four_plus_variablePosition in H25 by eauto.
+
+      change (IL.Assign (LvReg Rv)
+             (RvLval
+                (LvMem (Sp + natToW (variablePosition ("rp" :: ns) "_"))%loc))
+           :: IL.Assign (LvMem (Reg Rv)) (RvImm (natToW x0)) :: nil)
+             with ((IL.Assign (LvReg Rv)
+             (RvLval
+                (LvMem (Sp + natToW (variablePosition ("rp" :: ns) "_"))%loc)) :: nil)
+           ++ (IL.Assign (LvMem (Reg Rv)) (RvImm (natToW x0)) :: nil)) in H27.
+      apply evalInstrs_app_fwd in H27.
+      destruct H27 as [ ? [ ] ].
+
+      generalize dependent H24.
+      generalize dependent Hvs.
+      generalize dependent H18.
+      clear dependent H.
+      evaluate auto_ext.
+      replace (Regs x4 Rv) with (Regs x4 Rv ^+ $4 ^* $0) in H18 by words.
+      assert (natToW 0 < natToW (length x6)).
+      apply lt_goodSize; auto; eauto 10.
+      intros Ha Hb Hc; generalize dependent Ha; generalize dependent Hb.
+      assert (In x ("rp" :: ns)) by (simpl; intuition eauto).
+      generalize dependent H26.
+      evaluate auto_ext.
+      intros Heval ? ? ? ? ?; eapply initArgs_post in Heval.
+      Focus 8.
+      instantiate (2 := upd x8 "_" (Regs x4 Rv)).
+      descend.
+      rewrite H24.
+      generalize H33; repeat match goal with
+                               | [ x : _ |- _ ] => clear x
+                             end; intros.
+      instantiate (3 := specs).
+      step auto_ext.
+      3: eauto.
+      2: eauto.
+      2: eauto.
+      2: rewrite upd_length; eauto.
+      2: eapply ForallF_weaken; [ | eassumption ]; intros; eapply exprV_weaken; eauto.
+      2: eauto using vars_ok_unused.
+      destruct Heval as [ ? [ ? [ ] ] ].
+      clear H34 H33 H23 H28 Hc.
+      generalize dependent Ha; generalize dependent Hb;
+      generalize dependent H35; generalize dependent H36; generalize dependent H37.
+      autorewrite with sepFormula in H38.
+      assert (In x ("rp" :: ns)) by (simpl; intuition eauto). 
+      evaluate auto_ext.
+      intros; descend.
+      rewrite vars_ok_sel.
+      intros; assert (vars_ok (fo_set x5 nextDt (Dyn (Regs x4 Rv)))
+                      (upd (upd x8 "_" (Regs x4 Rv)) x (Regs x4 Rv))
+                      (vars_set vs x (Logic.Var nextDt))).
+
+      Lemma vars_ok_set : forall fE V vs x y w,
+        vars_ok fE V vs
+        -> (forall z e, vs z = Some e
+            -> forall fE1 fE2, (forall z, z <> y -> fE1 z = fE2 z)
+              -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> vars_ok (fo_set fE y (Dyn w)) (upd V x w) (vars_set vs x (Logic.Var y)).
+      Proof.
+        unfold vars_ok, vars_set, fo_set, upd, sel; intros.
+        destruct (string_dec x0 x); subst.
+        injection H4; clear H4; intros; subst; simpl.
+        destruct (string_dec y y); intuition.
+        case_eq (string_eq x x); intuition.
+        rewrite string_eq_true in H4; discriminate.
+        case_eq (string_eq x0 x); intros.
+        apply string_eq_correct in H5; congruence.
+        specialize (H2 _ _ H4); rewrite <- H2.
+        eapply H3; eauto.
+        intros.
+        destruct (string_dec z y); intuition.
+      Qed.
+
+      apply vars_ok_set.
+      eauto using vars_ok_unused.
+      intros.
+      eapply H12; eauto.
+      intros; apply H40.
+      intro; subst; eauto.
+      clear H36 H37 H23 Hb Ha.
+      step auto_ext; eauto.
+      (* And now, time to use [allocatePre_sound] with [cancel_sound]. *)
+      (* BTW, [stmtD] is dropping the proof obligation of [cancel] on the floor! *)
     Qed.
   End chunk_params.
 End stmtC.
