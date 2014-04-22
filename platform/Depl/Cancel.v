@@ -509,7 +509,9 @@ Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : r
     | Failure1 msg => Failure msg
     | Success1 s lhs' fs => Success s lhs' (
       (forall x, In x (NQuants rhs) -> hide_sub s x <> None)
-      /\ (forall x, In x evs -> hide_sub s x <> None)
+      /\ (forall x, In x evs -> exists e, hide_sub s x = Some e
+        /\ forall fE1 fE2, (forall y, ~In y (NQuants lhs) -> fE1 y = fE2 y)
+          -> exprD e fE1 = exprD e fE2)
       /\ (forall fE, List.Forall (fun f => f fE (hide_sub s)) fs)
       /\ match NPure rhs with
            | None => True
@@ -548,7 +550,7 @@ Theorem cancel_sound : forall fvs evs fE G (hE : ho_env G) S lhs rhs s lhs' P
   (Hfe : forall x, In x fvs -> ~In x evs),
   cancel fvs evs lhs rhs = Success s lhs' P
   -> P
-  -> List.Forall (wellScoped (NQuants rhs ++ fvs)) (NImpure rhs)
+  -> List.Forall (wellScoped (NQuants rhs ++ fvs ++ evs)) (NImpure rhs)
   -> (forall x, In x fvs -> ~In x (NQuants lhs))
   -> (SubstsH S (normalD lhs hE fE)
     ===> SubstsH S (normalD rhs hE (fun x => if in_dec string_dec x evs
@@ -758,20 +760,22 @@ Proof.
   eapply choose_existentials.
   eauto.
   eapply Forall_forall; eauto.
-  instantiate (1 := fvs).
+  instantiate (1 := fvs ++ evs).
+  apply Forall_app.
   apply Forall_forall; intros.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
   unfold hide_sub in *; congruence.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
+  apply Forall_forall; eauto; firstorder congruence.
   intros.
 
   Lemma unify_expr_adds : forall fvs xs s lhs rhs s' Ps,
     unify_expr fvs s lhs rhs = Some (s', Ps)
     -> (forall fE fE', (forall x, In x xs -> fE x = fE' x)
       -> exprD rhs fE = exprD rhs fE')
-      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     destruct lhs, rhs; simpl; intuition idtac; try discriminate.
 
@@ -826,7 +830,7 @@ Proof.
     unify_args fvs s lhs rhs = Some (s', Ps)
     -> (forall fE fE', (forall x, In x xs -> fE x = fE' x)
       -> forall e, In e rhs -> exprD e fE = exprD e fE')
-      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; destruct rhs; simpl; intuition idtac; try discriminate.
 
@@ -850,17 +854,17 @@ Proof.
   Lemma unify_pred_adds : forall fvs xs rhs s,
     wellScoped xs rhs
     -> forall lhs s' Ps, unify_pred fvs s lhs rhs = Some (s', Ps)
-      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     destruct lhs, rhs; simpl in *; intuition idtac; try discriminate.
     destruct (string_dec X X0); subst; try discriminate.
     edestruct unify_args_adds; eauto.
-  Qed.    
+  Qed.
 
   Lemma findMatching_adds : forall fvs xs rhs s,
     wellScoped xs rhs
     -> forall lhs s' lhs' Ps, findMatching fvs s lhs rhs = Success1 s' lhs' Ps
-      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; simpl; intuition idtac.
 
@@ -884,7 +888,7 @@ Proof.
   Lemma findMatchings_adds : forall fvs xs rhs,
     List.Forall (wellScoped xs) rhs
     -> forall lhs s s' lhs' Ps, findMatchings fvs s lhs rhs = Success1 s' lhs' Ps
-      -> forall x, s' x <> None -> s x <> None \/ (In x xs /\ In x fvs).
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     induction 1; simpl; intuition idtac.
 
@@ -906,8 +910,7 @@ Proof.
   edestruct findMatchings_adds.
   2: eauto.
   eauto.
-  instantiate (1 := x0).
-  unfold hide_sub in *; congruence.
+  eauto.
   simpl in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
   eapply findMatchings_monotone in H3.
@@ -916,16 +919,22 @@ Proof.
   destruct (in_dec string_dec x0 fvs); tauto.
   unfold hide_sub in *; rewrite H9 in H3; injection H3; clear H3; intros; subst.
   simpl.
+  rewrite H9.
   left; symmetry; rewrite H5 by eauto.
   destruct (in_dec string_dec x0 evs); auto; exfalso; eauto.
+  discriminate.
   intuition idtac.
   apply in_app_or in H12; intuition idtac.
-  apply in_app_or in H11; intuition idtac.
-  exfalso; eauto.
+  clear H11.
+  specialize (H0 _ H10); post.
+  rewrite H9 in H6; injection H6; clear H6; intros; subst.
+  destruct (in_dec string_dec x0 evs); try tauto.
+  unfold hide_sub in H9; rewrite H9.
+  left; symmetry; eauto.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.
-  apply in_app_or in H10; apply in_or_app; tauto.
+  apply in_app_or in H10; intuition.
 
   Lemma choose_existentials' : forall G (hE : ho_env G) S s ps' ps (P : _ -> Prop),
     sub_preds s ps = Some ps'
@@ -980,32 +989,29 @@ Proof.
   eapply choose_existentials'.
   eauto.
   eapply Forall_forall; eauto.
-  instantiate (1 := fvs).
+  instantiate (1 := fvs ++ evs).
   apply Forall_forall; intros.
+  apply in_app_or in H9; intuition idtac.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
   unfold hide_sub in *; congruence.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
+  firstorder congruence.
   intros.
-  edestruct findMatchings_adds; eauto.
-  instantiate (1 := x0).
-  unfold hide_sub in *; congruence.
-  (*2: tauto.*)
-  simpl in *.
-  destruct (in_dec string_dec x0 fvs); try tauto.
-  eapply findMatchings_monotone in H3.
-  2: instantiate (2 := x0); destruct (in_dec string_dec x0 fvs); tauto.
-  destruct (in_dec string_dec x0 evs); try solve [ exfalso; eauto ].
-  unfold hide_sub in H9.
-  rewrite H9 in H3; clear H9; injection H3; intros; subst.
-  simpl.
-  left; symmetry; eauto.
+  destruct (in_dec string_dec x0 evs).
+  unfold hide_sub in H9; rewrite H9.
+  apply H0 in i; destruct i; intuition idtac.
+  unfold hide_sub in H6; rewrite H9 in H6; injection H6; clear H6; intros; subst.
+  firstorder eauto.
+  eapply findMatchings_adds in H3.
+  2: eauto.
+  2: eauto.
   intuition idtac.
-  apply in_app_or in H13; intuition idtac.
-  destruct (in_dec string_dec x0 evs); try tauto.
-  apply in_app_or in H6; intuition idtac.
-  exfalso; eauto.
+  destruct (in_dec string_dec x0 fvs); try congruence.
+  injection H6; clear H6; intros; subst; simpl.
+  left; symmetry; eauto.
+  apply in_app_or in H12; intuition idtac.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.

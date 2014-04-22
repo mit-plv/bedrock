@@ -245,6 +245,7 @@ Section stmtD.
                           if in_dec string_dec nextDt fvs
                             then object_name_already_in_scope x nextDt
                             else
+                              P /\
                               (* Use [nextDt] as the name of the new DT pointer. *)
                               k (vars_set vs x (Logic.Var nextDt))
                               (nextDt :: fvs)
