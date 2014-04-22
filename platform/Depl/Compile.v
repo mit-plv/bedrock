@@ -90,26 +90,6 @@ Fixpoint locateCon (s : string) (dts : list ndatatype) : option (string * nat * 
       end
   end.
 
-(** Version of [Logic.predD] specialized to predicates with no free higher-order variables *)
-Definition predD (p : pred) (fE : fo_env) : HProp :=
-  predD p (fun _ _ => Emp)%Sep fE.
-Definition normalD (p : normal) (fE : fo_env) : HProp :=
-  normalD p (fun _ _ => Emp)%Sep fE.
-
-(** Generic precondition of a statement, translated to base Bedrock from Depl-speak *)
-Definition precond (vs : vars) (pre post : normal) :=
-  (* First, quantify over a context assigning values to specification variables. *)
-  Al fE,
-    (* Naturally, we rely on the malloc() data structures being around. *)
-    PRE[V] mallocHeap 0
-      (* We also need the Depl precondition, of course. *)
-      * normalD pre fE
-      (* Finally, the symbolic variable valuation should be accurate. *)
-      * [| vars_ok fE V vs |]
-    POST[R] mallocHeap 0
-      (* The postcondition holds, in an [fo_env] that lets it mention the return value. *)
-      * normalD post (fo_set fE "result" (Dyn R)).
-
 (** Evaluate the arguments to a constructor, saving results in a record in memory. *)
 Fixpoint initArgs (args : list expr) (base : fo_var) (pos : nat) : chunk :=
   match args with
@@ -132,21 +112,96 @@ Section ForallF.
   Qed.
 End ForallF.
 
+Record conWf (c : con) : Prop := {
+  EnoughArgs : (length (Recursive c) + length (Nonrecursive c) >= 1)%nat;
+  NotTooManyArgs : goodSize (S (length (Recursive c) + length (Nonrecursive c)));
+  WellScopedCondition : wellScoped ("this" :: Recursive c ++ Nonrecursive c) (Condition c);
+  ConditionBound : _;
+  BoundCondition : boundVars (Condition c) = Some ConditionBound;
+  BoundFree : forall x, In x ConditionBound -> ~ In x ("this" :: Recursive c ++ Nonrecursive c);
+  BoundGood : forall x, In x ConditionBound -> good_fo_var x
+}.
+
+Definition datatypeWf (d : datatype) :=
+  List.Forall conWf (snd d).
+
+Definition datatypesWf := List.Forall datatypeWf.
+
 Record nconWf (nc : ncon) := {
-  EnoughArgs : (length (NRecursive nc) + length (NNonrecursive nc) >= 1)%nat;
-  NotTooManyArgs : goodSize (S (length (NRecursive nc) + length (NNonrecursive nc)))
+  NEnoughArgs : (length (NRecursive nc) + length (NNonrecursive nc) >= 1)%nat;
+  NNotTooManyArgs : goodSize (S (length (NRecursive nc) + length (NNonrecursive nc)));
+  NWellFormedCondition : normalWf ("this" :: NRecursive nc ++ NNonrecursive nc) (NCondition nc)
 }.
 
 Definition ndatatypeWf (nd : ndatatype) :=
   List.Forall nconWf (snd nd).
 
+Lemma normalizeCon_wf : forall c, conWf c
+  -> nconWf (normalizeCon c).
+Proof.
+  destruct 1; split; simpl; eauto.
+  eapply normalize_wf; eauto.
+Qed.
+
+Theorem normalizeDatatype_wf : forall d, datatypeWf d
+  -> ndatatypeWf (normalizeDatatype d).
+Proof.
+  unfold datatypeWf, ndatatypeWf; simpl.
+  intros.
+  apply Forall_forall; intros.
+  apply in_map_iff in H0; destruct H0; intuition subst.
+  eapply Forall_forall in H; eauto using normalizeCon_wf.
+Qed.
+
 Definition ndatatypesWf := List.Forall ndatatypeWf.
 
 Local Notation "l ~~ im ~~> s" := (LabelMap.find l%SP im = Some (Programming.Precondition s None)) (at level 0).
 
+Fixpoint lookupDatatype (dts : list datatype) (X : string) : option (list con) :=
+  match dts with
+    | nil => None
+    | (X', cs) :: dts => if string_eq X' X then Some cs else lookupDatatype dts X
+  end.
+
 Section stmtC.
-  Variable dts : list ndatatype.
-  Variable Hdts : ndatatypesWf dts.
+  Variable dts : list datatype.
+
+  (** Dummy higher-order variable environment *)
+  Definition hE0 : ho_env nil := fun _ _ => Emp%Sep.
+
+  (** A higher-order variable environment, specialized to these datatypes *)
+  Definition hE : ho_env nil := fun X args =>
+    match lookupDatatype dts X, args with
+      | Some cs, model :: wd :: nil =>
+        Ex sk, Ex w, [| wd = Dyn w |] * datatypeD hE0 (X, cs) sk model w
+      | _, _ => Emp
+    end%Sep.
+
+  Variable ndts : list ndatatype.
+  Definition ndts_good := ndts = map normalizeDatatype dts.
+  Hypothesis Hndts : ndts_good.
+
+  (** Version of [Logic.predD] specialized to predicates with no free higher-order variables *)
+  Definition predD (p : pred) (fE : fo_env) : HProp :=
+    predD p hE fE.
+  Definition normalD (p : normal) (fE : fo_env) : HProp :=
+    normalD p hE fE.
+
+  (** Generic precondition of a statement, translated to base Bedrock from Depl-speak *)
+  Definition precond (vs : vars) (pre post : normal) :=
+    (* First, quantify over a context assigning values to specification variables. *)
+    Al fE,
+      (* Naturally, we rely on the malloc() data structures being around. *)
+      PRE[V] mallocHeap 0
+        (* We also need the Depl precondition, of course. *)
+        * normalD pre fE
+        (* Finally, the symbolic variable valuation should be accurate. *)
+        * [| vars_ok fE V vs |]
+      POST[R] mallocHeap 0
+        (* The postcondition holds, in an [fo_env] that lets it mention the return value. *)
+        * normalD post (fo_set fE "result" (Dyn R)).
+
+  Variable Hdts : datatypesWf dts.
 
   Fixpoint stmtC (vs : vars) (fvs : list fo_var)
     (pre post : normal) (nextDt : string) (s : stmt)
@@ -162,7 +217,7 @@ Section stmtC.
           stmtC vs' fvs' pre' post' nextDt' s2 k)
       | Ret e => Return (exprC e)
       | Allocate x conName args =>
-        match locateCon conName dts with
+        match locateCon conName ndts with
           | None => Fail
           | Some (dtName, tag, c) =>
             match exprsD vs args with
@@ -361,7 +416,7 @@ Section stmtC.
 
   Lemma stmtV_weaken : forall xs xs',
     (forall x, In x xs -> In x xs')
-    -> forall s, stmtV dts xs s -> stmtV dts xs' s.
+    -> forall s, stmtV ndts xs s -> stmtV ndts xs' s.
   Proof.
     induction s; simpl; intuition eauto using ForallF_weaken.
   Qed.
@@ -416,7 +471,7 @@ Section stmtC.
     assert (Heasy : forall x, In x fvs -> ~In x nil) by (simpl; tauto).
     rewrite app_nil_end in H1 at 1.
     rewrite <- app_assoc in H1.
-    specialize (cancel_sound fvs nil fE nil (fun _ _ => Emp%Sep) S _ _ _ _ _ Heasy H3 H0 H1).
+    specialize (cancel_sound fvs nil fE nil hE S _ _ _ _ _ Heasy H3 H0 H1).
     unfold Logic.normalD at 3; simpl.
     intros.
     unfold normalD.
@@ -824,7 +879,7 @@ Section stmtC.
       -> scopey' "result" (NImpure pre)
       -> (forall x, In x fvs -> ~In x (NQuants pre))
       -> (forall x, In x fvs -> ~In x (NQuants post))
-      -> stmtD dts xs vs fvs pre post nextDt s kD
+      -> stmtD ndts xs vs fvs pre post nextDt s kD
       -> (forall x e, vs x = Some e
         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -851,7 +906,7 @@ Section stmtC.
           interp specs (pre0 st)
           -> interp specs (precond vs pre post true (fun x => x) ns res st))
         -> vcs (VerifCond (toCmd (kC vs fvs pre post nextDt) mn H ns res pre0)))
-      -> stmtV dts xs s
+      -> stmtV ndts xs s
       -> vcs (VerifCond (toCmd (stmtC vs fvs pre post nextDt s kC) mn H ns res pre0)).
     Proof.
       induction s.
@@ -994,11 +1049,28 @@ Section stmtC.
         rewrite H5; eauto.
       Qed.
 
-      case_eq (lookupCon conName dts); intros.
+      case_eq (lookupCon conName ndts); intros.
       2: rewrite H17 in *; inversion H11.
       rewrite H17 in *.
       destruct p; simpl in *.
-      destruct (lookupCon_locateCon _ _ _ _ Hdts H17) as [ ? [ ] ].
+
+      Theorem normalizeDatatypes_wf : forall dts, datatypesWf dts
+        -> ndatatypesWf (map normalizeDatatype dts).
+      Proof.
+        clear; intros.
+        apply Forall_forall; intros.
+        apply in_map_iff in H0.
+        destruct H0 as [ ? [ ] ]; clear H0; subst.
+        apply normalizeDatatype_wf.
+        eapply Forall_forall in H; eauto.
+      Qed.
+
+      Theorem Hdts' : ndatatypesWf ndts.
+      Proof.
+        rewrite Hndts; apply normalizeDatatypes_wf; auto.
+      Qed.
+
+      destruct (lookupCon_locateCon _ _ _ _ Hdts' H17) as [ ? [ ] ].
       rewrite H19.
       destruct (Peano_dec.eq_nat_dec (length args) (length (NRecursive n) + length (NNonrecursive n))).
       2: inversion H11.
@@ -1784,60 +1856,33 @@ Section stmtC.
       Focus 2.
       unfold allocatePre.
 
-      Lemma wellScoped_esubst_lax : forall x e e' fvs,
-        (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-           -> Logic.exprD e' fE1 = Logic.exprD e' fE2)
-        -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-             -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-           -> Logic.exprD (esubst x e e') fE1 = Logic.exprD (esubst x e e') fE2.
-      Proof.
-        clear; destruct e'; simpl; intuition.
-        destruct (string_dec x0 x); subst; simpl; auto.
-        apply H; intros.
-        unfold fo_set.
-        destruct (string_dec y x); subst; auto.
-      Qed.
-
-      Lemma wellScoped_psubst_lax : forall x e p fvs,
-        wellScoped fvs p
-        -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-             -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> wellScoped fvs (psubst x e p).
-      Proof.
-        clear; induction p; simpl; intuition.
-        apply H; intros.
-        unfold fo_set.
-        destruct (string_dec x0 x); subst; auto.
-        apply in_map_iff in H2; destruct H2; intuition subst.
-        eauto using wellScoped_esubst_lax.
-      Qed.
-
       Theorem nsubst_wf : forall fvs y e,
         (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
                          -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> forall n, List.Forall (wellScoped fvs) (NImpure n)
+        -> forall n, List.Forall (wellScoped (y :: fvs)) (NImpure n)
           -> List.Forall (wellScoped fvs) (NImpure (nsubst y e n)).
       Proof.
         clear; simpl; intros.
         apply Forall_forall; intros.
         eapply in_map_iff in H1; destruct H1; clear H1; intuition subst.
         eapply Forall_forall in H3; eauto.
-        eauto using wellScoped_psubst_lax.
+        eauto using wellScoped_psubst.
       Qed.
 
-      Theorem nsubsts_wf : forall fvs args,
+      Theorem nsubsts_wf : forall fvs args1 args2,
         List.Forall (fun e => forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
-                                              -> Logic.exprD e fE1 = Logic.exprD e fE2) args
-        -> forall xs n n' args', nsubsts xs args n = (n', args')
-          -> List.Forall (wellScoped fvs) (NImpure n)
+                                              -> Logic.exprD e fE1 = Logic.exprD e fE2) args1
+        -> forall xs n n' args', nsubsts xs (args1 ++ args2) n = (n', args')
+          -> length xs = length args1
+          -> List.Forall (wellScoped (xs ++ fvs)) (NImpure n)
           -> List.Forall (wellScoped fvs) (NImpure n').
       Proof.
         induction 1; destruct xs0; simpl; intros;
           try match goal with
                 | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst; auto
               end.
-        eauto using nsubst_wf.
+        destruct args2; discriminate.
+        eauto 10 using nsubst_wf, in_or_app.
       Qed.
 
       case_eq (nsubsts (NNonrecursive n) l (NCondition n)); intros; simpl.
@@ -1926,7 +1971,7 @@ Section stmtC.
       
       apply lookupCon_In in H17.
       destruct H17; intuition idtac.
-      eapply Forall_forall in H40; [ | apply Hdts ].
+      eapply Forall_forall in H40; [ | apply Hdts' ].
       eapply Forall_forall in H40; [ | eassumption ].
 
       Theorem nsubsts_NQuants : forall xs args n n' args',
@@ -1939,6 +1984,75 @@ Section stmtC.
       Qed.
 
       erewrite nsubsts_NQuants by eassumption.
+      destruct H40.
+      destruct NWellFormedCondition0.
+
+      Lemma exprsD_length : forall vs args es,
+        exprsD vs args = Some es
+        -> length es = length args.
+      Proof.
+        clear; induction args; simpl; intuition.
+        injection H; clear H; intros; subst; auto.
+        case_eq (exprD vs a); intros; rewrite H0 in *; try discriminate.
+        case_eq (exprsD vs args); intros; rewrite H1 in *; try discriminate.
+        injection H; clear H; intros; subst.
+        simpl; eauto.
+      Qed.
+
+      Lemma firstn_skipn : forall A (ls : list A) n,
+        ls = firstn n ls ++ skipn n ls.
+      Proof.
+        clear; induction ls; destruct n; simpl; intuition.
+      Qed.
+
+      rewrite (firstn_skipn _ l (length (NNonrecursive n))) in H35.
+      eapply nsubsts_wf; [ | eassumption | .. ].
+
+      Lemma Forall_firstn : forall A (P : A -> Prop) ls,
+        List.Forall P ls
+        -> forall n, List.Forall P (firstn n ls).
+      Proof.
+        induction 1; destruct n; simpl; eauto.
+      Qed.
+
+      apply Forall_firstn.
+      apply Forall_forall; intros.
+      intros; eapply exprsD_wf; [ | eassumption | .. ]; eauto 10 using in_or_app.
+
+      Lemma length_firstn : forall A (ls : list A) n,
+        (n <= length ls)%nat
+        -> length (firstn n ls) = n.
+      Proof.
+        induction ls; destruct n; simpl; intuition.
+      Qed.
+
+      rewrite length_firstn; auto.
+      apply exprsD_length in H21; omega.
+      eapply Forall_weaken; [ | apply WellScoped ].
+      intros; eapply wellScoped_weaken; eauto.
+      intros.
+      apply in_app_or in H40; intuition eauto 10 using in_or_app.
+      simpl in H43; intuition (subst; eauto using in_or_app).
+      do 3 (apply in_or_app; right); simpl; tauto.
+      apply in_app_or in H40; intuition eauto 10 using in_or_app.
+      unfold normalD.
+
+      Lemma SubstsH_banish : forall P,
+        SubstsH (SNil _ _) P ===> P.
+      Proof.
+        unfold SubstsH; simpl; unfold Himp, himp; intros; apply Imply_refl.
+      Qed.
+
+      Lemma SubstsH_summon : forall P,
+        P ===> SubstsH (SNil _ _) P.
+      Proof.
+        unfold SubstsH; simpl; unfold Himp, himp; intros; apply Imply_refl.
+      Qed.
+
+      eapply Himp_trans in H22; [ | apply SubstsH_summon ].
+      etransitivity; [ apply himp_star_frame; [ apply H22 | reflexivity ] | clear H22 ].
+      Opaque in_dec.
+
       (* Not done yet here. *)
     Qed.
   End chunk_params.
