@@ -1846,7 +1846,16 @@ Section stmtC.
       eapply H12; eauto.
       intros; apply H45.
       intro; subst; eauto.
-      clear H40 H35 H41 H43 Hvs.
+
+      Definition map_agree fE ls1 ls2 := map (fun e => Logic.exprD e fE) ls1
+                                         = map (@Dyn W) ls2.
+
+      change (map_agree x5 l x11) in H40.
+
+      Definition thisIs (s : fo_sub) e := s "this" = Some e.
+
+      change (thisIs NewSub e0) in H41.
+      clear H35 H43 Hvs.
       step auto_ext; eauto.
       eapply cancel_sound with (P := ProveThis) in H22; descend; eauto.
       Focus 2.
@@ -1971,8 +1980,8 @@ Section stmtC.
       
       apply lookupCon_In in H17.
       destruct H17; intuition idtac.
-      eapply Forall_forall in H40; [ | apply Hdts' ].
-      eapply Forall_forall in H40; [ | eassumption ].
+      eapply Forall_forall in H43; [ | apply Hdts' ].
+      eapply Forall_forall in H43; [ | eassumption ].
 
       Theorem nsubsts_NQuants : forall xs args n n' args',
         nsubsts xs args n = (n', args')
@@ -1984,7 +1993,7 @@ Section stmtC.
       Qed.
 
       erewrite nsubsts_NQuants by eassumption.
-      destruct H40.
+      destruct H20.
       destruct NWellFormedCondition0.
 
       Lemma exprsD_length : forall vs args es,
@@ -2031,10 +2040,10 @@ Section stmtC.
       eapply Forall_weaken; [ | apply WellScoped ].
       intros; eapply wellScoped_weaken; eauto.
       intros.
-      apply in_app_or in H40; intuition eauto 10 using in_or_app.
-      simpl in H43; intuition (subst; eauto using in_or_app).
+      apply in_app_or in H20; intuition eauto 10 using in_or_app.
+      simpl in H46; intuition (subst; eauto using in_or_app).
       do 3 (apply in_or_app; right); simpl; tauto.
-      apply in_app_or in H40; intuition eauto 10 using in_or_app.
+      apply in_app_or in H20; intuition eauto 10 using in_or_app.
       unfold normalD.
 
       Lemma SubstsH_banish : forall P,
@@ -2051,7 +2060,170 @@ Section stmtC.
 
       eapply Himp_trans in H22; [ | apply SubstsH_summon ].
       etransitivity; [ apply himp_star_frame; [ apply H22 | reflexivity ] | clear H22 ].
-      Opaque in_dec.
+      rewrite (firstn_skipn _ l (length (NNonrecursive n))).
+
+      Lemma locateCon'_monotone : forall conName n cs x0 k,
+        locateCon' k conName cs = Some (x0, n)
+        -> (x0 >= k)%nat.
+      Proof.
+        clear; induction cs; simpl; intuition.
+        destruct (string_eq conName (NName a)).
+        injection H; clear H; omega.
+        apply IHcs in H; omega.
+      Qed.
+
+      Lemma locateCon'_correct : forall conName n cs x0 k,
+        locateCon' k conName cs = Some (x0, n)
+        -> nth_error cs (x0 - k) = Some n.
+      Proof.
+        clear; induction cs; simpl; intuition.
+        case_eq (string_eq conName (NName a)); intros; rewrite H0 in *.
+        injection H; clear H; intros; subst.
+        rewrite Minus.minus_diag; auto.
+        assert (conName <> NName a).
+        intro; subst.
+        rewrite string_eq_true in H0; discriminate.
+        specialize (locateCon'_monotone _ _ _ _ _ H); intro.
+        apply IHcs in H; clear IHcs.
+        case_eq (x0 - k); intros.
+        omega.
+        replace (x0 - S k) with n0 in H by omega; auto.
+      Qed.
+
+      Lemma locateCon_correct : forall conName ds s x0 n,
+        locateCon conName ds = Some (s, x0, n)
+        -> exists cs, In (s, cs) ds /\ nth_error cs x0 = Some n.
+      Proof.
+        clear; induction ds; simpl; intuition.
+        case_eq (locateCon' 0 conName (snd a)); intros; rewrite H0 in *.
+        destruct p.
+        injection H; clear H; intros; subst.
+        apply locateCon'_correct in H0.
+        rewrite <- Minus.minus_n_O in *.
+        destruct a; eauto.
+        apply IHds in H.
+        destruct H; intuition eauto.
+      Qed.
+
+      apply locateCon_correct in H19; destruct H19 as [ ? [ ] ].
+      rewrite Hndts in H19.
+      apply in_map_iff in H19.
+      destruct H19 as [ ? [ ] ]; subst.
+      unfold normalizeDatatype in H19.
+      injection H19; clear H19; intros; subst.
+
+      Lemma nth_error_map : forall A B (f : A -> B) x ls n,
+        nth_error (map f ls) n = Some x
+        -> exists y, x = f y /\ nth_error ls n = Some y.
+      Proof.
+        clear; induction ls; destruct n; simpl; intuition; try discriminate.
+        injection H; clear H; intros; subst.
+        eauto.
+      Qed.
+
+      destruct (nth_error_map _ _ _ _ _ _ H22) as [ ? [ ] ]; subst.
+
+      Lemma exprD_word : forall fE V vs,
+        vars_ok fE V vs
+        -> forall e e', exprD vs e = Some e'
+        -> exists w : W, Logic.exprD e' fE = Dyn w.
+      Proof.
+        clear; destruct e; simpl; intuition.
+        injection H0; clear H0; intros; subst.
+        simpl; eauto.
+        apply H in H0; eauto.
+      Qed.
+
+      Lemma exprsD_words : forall fE V vs,
+        vars_ok fE V vs
+        -> forall es es', exprsD vs es = Some es'
+        -> exists ws, length ws = length es
+          /\ forall n e, nth_error es' n = Some e
+            -> exists w : W, nth_error ws n = Some w
+              /\ Logic.exprD e fE = Dyn w.
+      Proof.
+        clear; induction es; simpl; intuition.
+        injection H0; clear H0; intros; subst.
+        exists nil; intuition.
+        destruct n; discriminate.
+        case_option; try discriminate.
+        case_option; try discriminate.
+        injection H0; clear H0; intros; subst.
+        destruct (IHes _ eq_refl); clear IHes; intuition idtac.
+        eapply exprD_word in H1; eauto.
+        destruct H1.
+        exists (x0 :: x); intuition.
+        simpl; eauto.
+        destruct n; simpl in *; eauto.
+        injection H5; clear H5; intros; subst; eauto.
+      Qed.
+
+      destruct (exprsD_words _ _ _ H50 _ _ H21) as [ ? [ ] ].
+
+      transitivity ((ptsto32m _ (Regs x4 Rv) O (natToW x0 :: firstn (length (Nonrecursive x12)) x14
+                                                       ++ skipn (length (Nonrecursive x12)) x14)
+         * normalD (allocatePre (fst x13) (normalizeCon x12)
+           (firstn (length (Nonrecursive x12)) l ++ skipn (length (Nonrecursive x12)) l))
+           (fun x13 => if in_dec string_dec x13 ("this" :: nil)
+                       then match NewSub x13 with
+                            | Some e1 => Logic.exprD e1 x5
+                            | None => x5 x13
+                            end
+                       else x5 x13))
+         * (SubstsH (SNil W (ST.settings * state))
+                    (Logic.normalD
+                       {| NQuants := NQuants pre; NPure := None; NImpure := NewLhs |}
+                       hE x5))%Sep
+         * (fun (stn : ST.settings) (sm : smem) => x7 (stn, sm)))%Sep.
+      unfold normalD; simpl NNonrecursive.
+      match goal with
+        | [ |- himp _ (star (SubstsH _ ?P * _)%Sep _)
+                    (_ * ?Q * _ * _)%Sep ] => change Q with P; generalize P; intros
+      end.
+      rewrite <- firstn_skipn.
+
+      Lemma updN_updN : forall w1 w2 ws i1 i2,
+        i1 <> i2
+        -> updN (updN ws i1 w1) i2 w2 = updN (updN ws i2 w2) i1 w1.
+      Proof.
+        clear; induction ws; simpl; intuition.
+        destruct i1, i2; simpl; intuition.
+        f_equal; apply IHws; congruence.
+      Qed.
+
+      Lemma multiUpd_upd : forall i w ws' ws j,
+        goodSize i
+        -> (i < j)%nat
+        -> multiUpd (Array.upd ws (natToW i) w) j ws'
+        = Array.upd (multiUpd ws j ws') (natToW i) w.
+      Proof.
+        clear; induction ws'; simpl; intuition.
+        unfold Array.upd in *.
+        rewrite updN_updN; auto.
+        rewrite wordToNat_natToWord_idempotent; auto; omega.
+      Qed.
+
+      rewrite multiUpd_upd by (omega || reflexivity).
+      destruct x6; simpl in H47; try discriminate.
+      unfold Array.upd.
+      change (wordToNat (natToW O)) with O.
+
+      Lemma multiUpd_hd : forall w ws' ws i,
+        i <> 0
+        -> multiUpd (w :: ws) i ws' = w :: multiUpd ws (i - 1)%nat ws'.
+      Proof.
+        clear; induction ws'; simpl; intuition.
+        destruct i; simpl; intuition.
+        rewrite IHws' by congruence.
+        replace (i - 0) with i by omega.
+        auto.
+      Qed.
+      
+      rewrite multiUpd_hd by congruence.
+      simpl updN.
+      unfold array.
+      replace (multiUpd x6 0 x11) with x14.
+      clear; sepLemma.
 
       (* Not done yet here. *)
     Qed.
