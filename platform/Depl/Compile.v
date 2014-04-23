@@ -2269,6 +2269,11 @@ Section stmtC.
       etransitivity; [ apply himp_star_frame; [ | reflexivity ] | ].
       unfold normalD.
 
+      assert (conWf x12).
+      eapply Forall_forall in Hdts; try apply H35.
+      apply nth_error_In in H43.
+      eapply Forall_forall in H43; eauto.
+      destruct H19.
       specialize (allocatePre_sound _ _ _ H43 hE); intro Hap.
       unfold Himp in Hap; eapply Hap; clear Hap; eauto.
 
@@ -2353,6 +2358,69 @@ Section stmtC.
 
       apply datatypeD_irrel.
       eapply Forall_forall in H35; try apply Hdts; auto.
+
+      simpl in *; intuition eauto using in_or_app.
+      simpl in *; intuition eauto using in_or_app.
+      instantiate (1 := fvs).
+      (* Need to know: [Recursive], [Nonrecursive], [ConditionBound] don't overlap with [fvs]. *)
+      admit.
+      admit.
+      admit.
+      admit. (* Also that [Recursive] and [Nonrecursive] don't overlap *)
+      (* Need to know: No "this" in [Recursive], [Nonrecursive], [ConditionBound]. *)
+      admit.
+      admit.
+      admit.
+      (* Need to know: [NoDup Recursive]. *)
+      admit.
+      apply exprsD_len in H21; apply length_firstn; simpl in *; omega.
+      rewrite CancelIL.skipn_length.
+      apply exprsD_len in H21; simpl in *; omega.
+      (* Need to know: [~In "this" fvs]. *)
+      assert (~In "this" fvs) by admit.
+
+      Lemma map_agree_firstn : forall fE es ws n,
+        map_agree fE es ws
+        -> map_agree fE (firstn n es) (firstn n ws).
+      Proof.
+        unfold map_agree; clear; induction es; destruct ws, n; simpl; intuition.
+        rewrite <- IHes; congruence.
+      Qed.
+
+      apply map_agree_firstn.
+      
+      Lemma map_agree_weaken : forall fE1 fE2 es,
+        List.Forall (fun e => Logic.exprD e fE1 = Logic.exprD e fE2) es
+        -> forall ws, map_agree fE1 es ws
+          -> map_agree fE2 es ws.
+        clear; unfold map_agree; induction es; inversion_clear 1; destruct ws; simpl; intuition.
+        rewrite <- H2; congruence.
+      Qed.
+
+      eapply map_agree_weaken; [ | eassumption ].
+      apply Forall_forall; intros.
+      eapply exprsD_wf; eauto; intros.
+      destruct (in_dec string_dec y ("this" :: nil)); auto.
+      simpl in *; intuition (subst; tauto).
+
+      Lemma map_agree_skipn : forall fE es ws n,
+        map_agree fE es ws
+        -> map_agree fE (skipn n es) (skipn n ws).
+      Proof.
+        unfold map_agree; clear; induction es; destruct ws, n; simpl; intuition.
+      Qed.
+
+      apply map_agree_skipn.
+      assert (~In "this" fvs) by admit.
+      eapply map_agree_weaken; [ | eassumption ].
+      apply Forall_forall; intros.
+      eapply exprsD_wf; eauto; intros.
+      destruct (in_dec string_dec y ("this" :: nil)); auto.
+      simpl in *; intuition (subst; tauto).
+
+      intros.
+      rewrite <- firstn_skipn.
+      apply Forall_forall; eauto using exprsD_wf.
 
       (* Not done yet here. *)
     Qed.
