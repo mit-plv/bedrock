@@ -112,6 +112,16 @@ Section ForallF.
   Qed.
 End ForallF.
 
+(* We need to enforce some well-founded ordering on datatype definitions.
+ * The easiest way is to rule out references from one datatype to another! *)
+Fixpoint noHo (p : pred) : bool :=
+  match p with
+    | Pure _ => true
+    | Star p1 p2 => noHo p1 && noHo p2
+    | Exists _ p1 => noHo p1
+    | Named _ _ => false
+  end%bool.
+
 Record conWf (c : con) : Prop := {
   EnoughArgs : (length (Recursive c) + length (Nonrecursive c) >= 1)%nat;
   NotTooManyArgs : goodSize (S (length (Recursive c) + length (Nonrecursive c)));
@@ -119,7 +129,8 @@ Record conWf (c : con) : Prop := {
   ConditionBound : _;
   BoundCondition : boundVars (Condition c) = Some ConditionBound;
   BoundFree : forall x, In x ConditionBound -> ~ In x ("this" :: Recursive c ++ Nonrecursive c);
-  BoundGood : forall x, In x ConditionBound -> good_fo_var x
+  BoundGood : forall x, In x ConditionBound -> good_fo_var x;
+  ConditionNoHo : noHo (Condition c) = true
 }.
 
 Definition datatypeWf (d : datatype) :=
@@ -130,17 +141,25 @@ Definition datatypesWf := List.Forall datatypeWf.
 Record nconWf (nc : ncon) := {
   NEnoughArgs : (length (NRecursive nc) + length (NNonrecursive nc) >= 1)%nat;
   NNotTooManyArgs : goodSize (S (length (NRecursive nc) + length (NNonrecursive nc)));
-  NWellFormedCondition : normalWf ("this" :: NRecursive nc ++ NNonrecursive nc) (NCondition nc)
+  NWellFormedCondition : normalWf ("this" :: NRecursive nc ++ NNonrecursive nc) (NCondition nc);
+  NConditionNoHo : List.Forall (fun p => noHo p = true) (NImpure (NCondition nc))
 }.
 
 Definition ndatatypeWf (nd : ndatatype) :=
   List.Forall nconWf (snd nd).
 
+Lemma noHo_wf : forall p,
+  noHo p = true
+  -> List.Forall (fun p => noHo p = true) (NImpure (normalize p)).
+Proof.
+  induction p; simpl; intuition.
+  apply Bool.andb_true_iff in H; intuition auto using Forall_app.
+Qed.
+
 Lemma normalizeCon_wf : forall c, conWf c
   -> nconWf (normalizeCon c).
 Proof.
-  destruct 1; split; simpl; eauto.
-  eapply normalize_wf; eauto.
+  destruct 1; split; simpl; eauto using noHo_wf, normalize_wf.
 Qed.
 
 Theorem normalizeDatatype_wf : forall d, datatypeWf d
@@ -2158,10 +2177,8 @@ Section stmtC.
         injection H5; clear H5; intros; subst; eauto.
       Qed.
 
-      destruct (exprsD_words _ _ _ H50 _ _ H21) as [ ? [ ] ].
-
-      transitivity ((ptsto32m _ (Regs x4 Rv) O (natToW x0 :: firstn (length (Nonrecursive x12)) x14
-                                                       ++ skipn (length (Nonrecursive x12)) x14)
+      transitivity ((ptsto32m _ (Regs x4 Rv) O (natToW x0 :: firstn (length (Nonrecursive x12)) x11
+                                                       ++ skipn (length (Nonrecursive x12)) x11)
          * normalD (allocatePre (fst x13) (normalizeCon x12)
            (firstn (length (Nonrecursive x12)) l ++ skipn (length (Nonrecursive x12)) l))
            (fun x13 => if in_dec string_dec x13 ("this" :: nil)
@@ -2170,15 +2187,15 @@ Section stmtC.
                             | None => x5 x13
                             end
                        else x5 x13))
-         * (SubstsH (SNil W (ST.settings * state))
+         * ((SubstsH (SNil W (ST.settings * state))
                     (Logic.normalD
                        {| NQuants := NQuants pre; NPure := None; NImpure := NewLhs |}
                        hE x5))%Sep
-         * (fun (stn : ST.settings) (sm : smem) => x7 (stn, sm)))%Sep.
+         * (fun (stn : ST.settings) (sm : smem) => x7 (stn, sm))))%Sep.
       unfold normalD; simpl NNonrecursive.
       match goal with
         | [ |- himp _ (star (SubstsH _ ?P * _)%Sep _)
-                    (_ * ?Q * _ * _)%Sep ] => change Q with P; generalize P; intros
+                    (_ * ?Q * _)%Sep ] => change Q with P; generalize P; intros
       end.
       rewrite <- firstn_skipn.
 
@@ -2222,8 +2239,120 @@ Section stmtC.
       rewrite multiUpd_hd by congruence.
       simpl updN.
       unfold array.
-      replace (multiUpd x6 0 x11) with x14.
+
+      Theorem multiUpd_all : forall ws ws',
+        length ws = length ws'
+        -> multiUpd ws 0 ws' = ws'.
+      Proof.
+        clear; induction ws; destruct ws'; simpl; intuition.
+        rewrite multiUpd_hd by congruence.
+        f_equal; eauto.
+      Qed.
+
+      rewrite multiUpd_all.
       clear; sepLemma.
+      apply map_len in H40.
+
+      Lemma exprsD_len : forall vs args es,
+        exprsD vs args = Some es
+        -> length es = length args.
+      Proof.
+        clear; induction args; simpl; intuition.
+        injection H; clear H; intros; subst; auto.
+        destruct (exprD vs a); try discriminate.
+        destruct (exprsD vs args); try discriminate.
+        injection H; clear H; intros; subst; auto.
+        simpl; eauto.
+      Qed.
+
+      apply exprsD_len in H21; congruence.
+      etransitivity; [ apply himp_star_frame; [ | reflexivity ] | ].
+      unfold normalD.
+
+      specialize (allocatePre_sound _ _ _ H43 hE); intro Hap.
+      unfold Himp in Hap; eapply Hap; clear Hap; eauto.
+
+      (* Add this! *)
+      assert (NoDup (map (@fst _ _) dts)) by admit.
+
+      Lemma lookupDatatype_In : forall dt ds, NoDup (map (@fst _ _) ds)
+        -> In dt ds
+        -> lookupDatatype ds (fst dt) = Some (snd dt).
+      Proof.
+        induction ds; inversion_clear 1; simpl; intuition subst.
+        destruct dt; simpl.
+        rewrite string_eq_true; auto.
+        destruct a.
+        case_eq (string_eq s (fst dt)); intros; auto.
+        apply string_eq_correct in H2; subst; simpl in *.
+        exfalso; apply H3.
+        apply in_map_iff; eauto.
+      Qed.
+
+      unfold hE; intros.
+      rewrite lookupDatatype_In by auto.
+      apply Himp_ex; intro sk.
+      apply Himp'_ex; intro w.
+      apply Himp_star_pure_c; intro.
+      injection H45; clear H45; intros; subst.
+      apply inj_pair2 in H45; subst.
+      destruct x13; simpl.
+
+      Fixpoint skeleton_ind (P : skeleton -> Prop)
+        (HSkeleton : forall sks, List.Forall P sks -> P (Skeleton sks))
+        (sk : skeleton) : P sk :=
+        match sk with
+          | Skeleton sks => HSkeleton sks
+                                      ((fix skeleton_ind' (sks : list skeleton) :=
+                                          match sks return List.Forall P sks with
+                                          | nil => Forall_nil _
+                                          | _ :: _ => Forall_cons _ (skeleton_ind _ HSkeleton _)
+                                                                  (skeleton_ind' _)
+                                          end) sks)
+        end.
+
+      Lemma noHo_irrel : forall hE1 hE2 p fE,
+        noHo p = true
+        -> Logic.predD p hE1 fE ===> Logic.predD p hE2 fE.
+      Proof.
+        clear; induction p; simpl; intuition.
+        apply Himp_refl.
+        apply Bool.andb_true_iff in H; intuition idtac.
+        auto using Himp_star_frame.
+        eauto using Himp_ex.
+      Qed.
+
+      Lemma datatypeD_irrel : forall X cs hE1 hE2,
+        datatypeWf (X, cs)
+        -> forall sk m w, datatypeD hE1 (X, cs) sk m w
+          ===> datatypeD hE2 (X, cs) sk m w.
+      Proof.
+        clear; induction sk using skeleton_ind; simpl; intros.
+        do 2 (apply Himp_ex; intro).
+        apply Himp_star_pure_c; intro Hnth.
+        apply Himp_star_pure_cc; auto.
+        apply nth_error_In in Hnth.
+        eapply Forall_forall in Hnth; [ | apply H ].
+        destruct Hnth.
+        do 2 (apply Himp_ex; intro).
+        apply Himp_star_frame.
+        repeat (apply Himp_star_frame; [ apply Himp_refl | ]).
+        auto using noHo_irrel.
+
+        Lemma children_irrel : forall f1 f2 sks vs,
+          List.Forall (fun sk => forall m w, f1 sk m w ===> f2 sk m w) sks
+          -> children f1 sks vs ===> children f2 sks vs.
+        Proof.
+          clear; induction sks; destruct vs; simpl; intuition; simpl; try apply Himp_refl.
+          inversion_clear H.
+          eauto using Himp_star_frame.
+        Qed.
+
+        auto using children_irrel.
+      Qed.
+
+      apply datatypeD_irrel.
+      eapply Forall_forall in H35; try apply Hdts; auto.
 
       (* Not done yet here. *)
     Qed.
