@@ -510,7 +510,7 @@ Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : r
     | Success1 s lhs' fs => Success s lhs' (
       (forall x, In x (NQuants rhs) -> hide_sub s x <> None)
       /\ (forall x, In x evs -> exists e, hide_sub s x = Some e
-        /\ forall fE1 fE2, (forall y, ~In y (NQuants lhs) -> fE1 y = fE2 y)
+        /\ forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> exprD e fE1 = exprD e fE2)
       /\ (forall fE, List.Forall (fun f => f fE (hide_sub s)) fs)
       /\ match NPure rhs with
@@ -560,7 +560,7 @@ Theorem cancel_sound : forall fvs evs fE G (hE : ho_env G) S lhs rhs s lhs' P
            end
       else fE x))
     * SubstsH S (normalD {| NQuants := NQuants lhs;
-      NPure := None;
+      NPure := NPure lhs;
       NImpure := lhs' |} hE fE)).
 Proof.
   unfold cancel; intros.
@@ -607,24 +607,32 @@ Proof.
   eapply Himp_trans; [ | apply Himp_star_comm ].
   apply Himp_star_Emp'.
   eapply Himp_trans; [ apply star_out_fwd | ].
-  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
-  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H9 ] | ].
   eapply Himp_trans; [ | apply SubstsH_star_bwd ].
-  eapply Himp_trans; [ apply Himp_star_assoc' | ].
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply multistar_weaken | apply Himp_refl ] ].
+  instantiate (1 := (match NPure lhs with
+                       | Some P => [|P fE'|]
+                       | None => Emp
+                     end * Emp)%Sep).
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply star_out_bwd | apply Himp_refl ] ].
+  Focus 2.
+  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply SubstsH_emp_fwd ] | ].
+  eapply Himp_trans; [ apply Himp_star_comm | ].
+  apply Himp_star_Emp.
+  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_star_bwd | apply Himp_refl ] ].
+  eapply Himp_trans; [ | apply Himp_star_assoc' ].
+  match goal with
+    | [ |- ?G ] => assert (match NPure lhs with
+                             | Some P => P fE'
+                             | None => True
+                           end -> G); [ intro Hpure | ]
+  end.
+  apply Himp_star_frame; try apply Himp_refl.
+  eapply Himp_trans; [ apply H9 | clear H9 ].
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply Himp_star_frame; try apply Himp_refl.
-  clear H9.
-
   unfold normalD.
-  eapply Himp_trans; [ apply Himp_star_frame; [ | apply Himp_refl ] | ].
-  instantiate (1 := [| match NPure lhs with
-                         | Some P => P fE'
-                         | None => True
-                       end |]%Sep).
-  destruct (NPure lhs).
-  apply SubstsH_inj_fwd.
-  apply SubstsH_emp_fwd.
-  apply Himp_star_pure_c; intro.
 
   Lemma sub_expr_agrees : forall fE fE' s,
     (forall x v, s x = Some v -> fE x = exprD v fE')
@@ -917,24 +925,23 @@ Proof.
   Focus 2.
   instantiate (2 := x0).
   destruct (in_dec string_dec x0 fvs); tauto.
-  unfold hide_sub in *; rewrite H9 in H3; injection H3; clear H3; intros; subst.
+  unfold hide_sub in *; rewrite H7 in H3; injection H3; clear H3; intros; subst.
   simpl.
-  rewrite H9.
+  rewrite H7.
   left; symmetry; rewrite H5 by eauto.
   destruct (in_dec string_dec x0 evs); auto; exfalso; eauto.
   discriminate.
   intuition idtac.
-  apply in_app_or in H12; intuition idtac.
-  clear H11.
-  specialize (H0 _ H10); post.
-  rewrite H9 in H6; injection H6; clear H6; intros; subst.
+  apply in_app_or in H11; intuition idtac.
+  specialize (H0 _ H9); post.
+  rewrite H7 in H6; injection H6; clear H6; intros; subst.
   destruct (in_dec string_dec x0 evs); try tauto.
-  unfold hide_sub in H9; rewrite H9.
+  unfold hide_sub in H7; rewrite H7.
   left; symmetry; eauto.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.
-  apply in_app_or in H10; intuition.
+  apply in_app_or in H9; intuition.
 
   Lemma choose_existentials' : forall G (hE : ho_env G) S s ps' ps (P : _ -> Prop),
     sub_preds s ps = Some ps'
@@ -991,7 +998,7 @@ Proof.
   eapply Forall_forall; eauto.
   instantiate (1 := fvs ++ evs).
   apply Forall_forall; intros.
-  apply in_app_or in H9; intuition idtac.
+  apply in_app_or in H7; intuition idtac.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
@@ -1000,9 +1007,9 @@ Proof.
   firstorder congruence.
   intros.
   destruct (in_dec string_dec x0 evs).
-  unfold hide_sub in H9; rewrite H9.
+  unfold hide_sub in H7; rewrite H7.
   apply H0 in i; destruct i; intuition idtac.
-  unfold hide_sub in H6; rewrite H9 in H6; injection H6; clear H6; intros; subst.
+  unfold hide_sub in H6; rewrite H7 in H6; injection H6; clear H6; intros; subst.
   firstorder eauto.
   eapply findMatchings_adds in H3.
   2: eauto.
@@ -1011,13 +1018,31 @@ Proof.
   destruct (in_dec string_dec x0 fvs); try congruence.
   injection H6; clear H6; intros; subst; simpl.
   left; symmetry; eauto.
-  apply in_app_or in H12; intuition idtac.
+  apply in_app_or in H11; intuition idtac.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
   intros.
-  apply in_app_or in H10; apply in_or_app; tauto.
+  apply in_app_or in H9; apply in_or_app; tauto.
   destruct (NPure lhs); intuition idtac.
   destruct (NPure lhs); intuition idtac.
-  erewrite H9; eauto.
-  erewrite H9; eauto.
+  erewrite H7; eauto.
+  erewrite H7; eauto.
+  destruct (NPure lhs).
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply SubstsH_inj_fwd | apply Himp_refl ] | ].
+
+  Lemma Himp_star_pure_c' : forall (P : Prop) Q R,
+    (P -> [| P |] * Q ===> R)
+    -> ([| P |] * Q ===> R).
+  Proof.
+    intros; apply Himp_star_pure_c.
+    intros.
+    intuition.
+    eapply Himp_trans; try apply H1.
+    sepLemma.
+  Qed.
+
+  apply Himp_star_pure_c'; intros.
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply SubstsH_inj_bwd | apply Himp_refl ] | ].
+  eauto.
+  auto.
 Qed.

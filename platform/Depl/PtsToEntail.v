@@ -226,6 +226,16 @@ Proof.
   eapply Himp_trans; [ apply H7 | ].
   simpl; intuition.
   unfold normalD at 2; simpl.
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply addQuants_monotone ] | ].
+  instantiate (1 := fun _ => Emp%Sep).
+  simpl.
+  intros; destruct (NPure (normalize (ppredX lhs))); try apply Himp_refl.
+  eapply Himp_trans; [ apply SubstsH_inj_fwd | ].
+  eapply Himp_trans; [ | apply SubstsH_emp_bwd ].
+  change ([| P0 fE' |] ===> Emp)%Sep.
+  clear.
+  generalize (P0 fE').
+  sepLemma.
   eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply addQuants_Emp_fwd ] | ].
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply Himp_star_Emp.

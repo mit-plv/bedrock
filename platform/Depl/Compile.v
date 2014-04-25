@@ -472,6 +472,16 @@ Section stmtC.
     apply Himp'_ex; auto.
   Qed.
 
+  Lemma addQuants_inj : forall P G (S : subs _ _ G) qs fE,
+    SubstsH S (addQuants qs (fun fE0 : fo_env => [|P fE0|]) fE) ===> Emp.
+  Proof.
+    induction qs; simpl; intros; Himp.
+
+    sepLemma.
+
+    apply Himp'_ex; auto.
+  Qed.
+
   Theorem sentail_sound : forall fvs fE S lhs rhs P,
     sentail fvs lhs rhs = ProveThis P
     -> P
@@ -495,6 +505,13 @@ Section stmtC.
     intros.
     unfold normalD.
     eapply Himp_trans; try apply H; clear H; auto.
+    destruct (NPure lhs).
+
+    eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | ] | ].
+    apply addQuants_inj.
+    eapply Himp_trans; [ apply Himp_star_comm | ].
+    apply Himp_star_Emp.
+
     eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | ] | ].
     apply addQuants_Emp.
     eapply Himp_trans; [ apply Himp_star_comm | ].
@@ -1696,32 +1713,28 @@ Section stmtC.
         cancel fvs evs lhs rhs = Success NewSub NewLhs ProveThis
         -> normalWf fvs lhs
         -> forall x e, NewSub x = Some e
-          -> forall fE1 fE2, (forall y, In y (NQuants lhs ++ fvs) -> fE1 y = fE2 y)
+          -> In x evs
+          -> ProveThis
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
                              -> Logic.exprD e fE1 = Logic.exprD e fE2.
       Proof.
         unfold cancel; intros.
         case_eq (findMatchings (evs ++ NQuants rhs)
                                (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
                                (NImpure lhs) (NImpure rhs)); intros.
-        2: rewrite H6 in *; discriminate.
-        rewrite H6 in *.
-        injection H2; clear H2; intros; subst.
-        eapply findMatchings_NewSub_wellFormed.
-        eauto.
-        destruct H3; eauto.
-        2: eauto.
-        simpl; intros.
-        destruct (in_dec string_dec x0 fvs); try discriminate.
-        injection H2; clear H2; intros; subst; simpl.
-        eauto using in_or_app.
+        2: rewrite H8 in *; discriminate.
+        rewrite H8 in *.
+        injection H2; clear H2; intros; subst; intuition idtac.
+        apply H6 in H5; destruct H5; intuition idtac.
+        unfold hide_sub in H9; rewrite H4 in H9; injection H9; clear H9; intros; subst.
         eauto.
       Qed.
 
-      eapply cancel_NewSub_wellFormed in H22; eauto.
-      intros.
-      apply in_app_or in H14; intuition.
-      apply H11.
+      eapply cancel_NewSub_wellFormed with (ProveThis := ProveThis) in H22; eauto.
+      simpl; tauto.
+      intros; apply H11.
       apply in_or_app; simpl; tauto.
+      apply H11; apply in_or_app; simpl; tauto.
 
       Lemma cancel_NewLhs : forall fvs evs lhs rhs NewSub NewLhs ProveThis,
         cancel fvs evs lhs rhs = Success NewSub NewLhs ProveThis
@@ -1876,6 +1889,17 @@ Section stmtC.
       change (thisIs NewSub e0) in H41.
       clear H35 H43 Hvs.
       step auto_ext; eauto.
+
+      Definition thisGood fvs e :=
+        forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD e fE1 = Logic.exprD e fE2.
+
+      assert (Hthis : thisGood fvs e0).
+      hnf; intros.
+      eapply cancel_NewSub_wellFormed; eauto.
+      simpl; tauto.
+      assert (Hincl : incl NewLhs (NImpure pre)).
+      hnf; intros; eapply cancel_NewLhs; eauto.
       eapply cancel_sound with (P := ProveThis) in H22; descend; eauto.
       Focus 2.
       intuition subst.
@@ -2189,7 +2213,7 @@ Section stmtC.
                        else x5 x13))
          * ((SubstsH (SNil W (ST.settings * state))
                     (Logic.normalD
-                       {| NQuants := NQuants pre; NPure := None; NImpure := NewLhs |}
+                       {| NQuants := NQuants pre; NPure := NPure pre; NImpure := NewLhs |}
                        hE x5))%Sep
          * (fun (stn : ST.settings) (sm : smem) => x7 (stn, sm))))%Sep.
       unfold normalD; simpl NNonrecursive.
@@ -2421,8 +2445,129 @@ Section stmtC.
       intros.
       rewrite <- firstn_skipn.
       apply Forall_forall; eauto using exprsD_wf.
+      unfold Logic.normalD; simpl.
+      instantiate (1 := x7).
+      eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl |
+                                                      apply SubstsH_banish ] ].
+      eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl |
+                                                      apply addQuants_monotone; intros; apply star_out_bwd ] ].
 
-      (* Not done yet here. *)
+      Lemma addQuants_gulpo : forall f g qs fE,
+        (forall fE1 fE2, (forall x, ~In x qs -> fE1 x = fE2 x)
+          -> f fE1 ===> f fE2)
+        -> f fE * addQuants qs g fE
+        ===> addQuants qs (fun fE' => f fE' * g fE') fE.
+      Proof.
+        clear; induction qs; simpl; intuition.
+
+        apply Himp_refl.
+
+        eapply Himp_trans; [ apply Himp_star_comm | ].
+        eapply Himp_trans; [ apply Himp_ex_star | ].
+        apply Himp'_ex; intro.
+        eapply Himp_trans; [ apply Himp_star_comm | ].
+        eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].
+        2: eapply Himp_trans; [ apply IHqs | ].
+        unfold fo_set; intuition.
+        destruct (string_dec x0 a); congruence.
+        eauto.
+        eauto using Himp_ex_c, Himp_refl.
+      Qed.
+
+      eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl | apply SubstsH_summon ] ].
+      eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_refl | apply addQuants_gulpo ] ].
+      simpl.
+      eapply Himp_trans; [ apply Himp_star_assoc' | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      eapply Himp_trans; [ apply Himp_star_comm | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ | apply Himp_star_assoc ].
+      repeat (apply Himp_star_frame; try apply Himp_refl).
+      apply Himp'_ex; intro sk.
+      rewrite H41.
+      unfold fo_set at 2.
+      destruct (string_dec nextDt nextDt); try tauto.
+      unfold hE.
+      assert (NoDup (map fst dts)) by admit.
+      rewrite lookupDatatype_In by auto.
+      apply Himp_ex_c; exists sk.
+      apply Himp_ex_c; eexists.
+      apply Himp_star_pure_cc.
+      reflexivity.
+      destruct x13; unfold fst, snd in *.
+      erewrite Hthis.
+      apply datatypeD_irrel.
+      eapply Forall_forall in Hdts; try apply H35; eauto.
+      intros; unfold fo_set.
+      destruct (string_dec y nextDt); auto; subst.
+      exfalso; eauto.
+      eapply Himp_trans; [ apply SubstsH_banish | ].
+
+      Lemma addQuants_fE : forall f qs fE1 fE2,
+        (forall fE1' fE2', (forall y, fE1 y = fE2 y -> fE1' y = fE2' y)
+          -> f fE1' ===> f fE2')
+        -> addQuants qs f fE1 ===> addQuants qs f fE2.
+      Proof.
+        clear; induction qs; simpl; intuition.
+        apply Himp_ex; intro.
+        apply IHqs; intros.
+        apply H.
+        intros.
+        apply H0.
+        unfold fo_set.
+        destruct (string_dec y a); auto.
+      Qed.
+
+      apply addQuants_fE; intros.
+      eapply Himp_trans; [ apply SubstsH_summon | ].
+      eapply Himp_trans; [ | apply SubstsH_banish ].
+      apply multistar_weaken''.
+      apply Forall_forall; intros.
+      eapply Himp_trans; [ apply SubstsH_star_fwd | ].
+      eapply Himp_trans; [ | apply SubstsH_star_bwd ].
+      apply Himp_star_frame; auto.
+      eapply weaken_predD.
+      apply Hincl in H45.
+      destruct H3.
+      eapply Forall_forall in WellScoped; eauto.
+      intros.
+      apply H19; unfold fo_set; destruct (string_dec x15 nextDt); subst; auto.
+      exfalso; apply in_app_or in H51; intuition idtac.
+      destruct H3.
+      eapply Forall_forall in GoodQuantNames; eauto.
+      destruct H3.
+      destruct (NPure pre); try apply Himp_refl.
+      erewrite GoodPure; try apply Himp_refl.
+      intuition idtac.
+      apply H19; unfold fo_set; destruct (string_dec x14 nextDt); subst; auto.
+      exfalso; eauto.
+      apply H19; unfold fo_set; destruct (string_dec x14 nextDt); subst; auto.
+      exfalso; eapply Forall_forall in GoodQuantNames; eauto.
+
+      intros.
+      erewrite Hthis.
+      erewrite H19.
+      apply Himp_refl.
+      destruct H3; intro; eapply Forall_forall in GoodQuantNames; eauto.
+      eauto.
+
+      (* Home stretch! *)
+      rewrite sel_upd_ne by (intro; subst; eauto); step auto_ext.
+
+      generalize HnextDt n0 H4 H31 H42 H36 H25 H; clear; intros.
+      step auto_ext.
+      descend; step auto_ext.
+      rewrite H0, H36, H25.
+      reflexivity.
+
+      descend; step auto_ext.
+      eapply weaken_normalD; eauto; intros.
+      unfold fo_set.
+      destruct (string_dec x0 "result"); subst; auto.
+      destruct (string_dec x0 nextDt); subst; auto.
+      simpl in H1; intuition subst.
+      tauto.
     Qed.
   End chunk_params.
 End stmtC.
