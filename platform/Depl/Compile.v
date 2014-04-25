@@ -197,6 +197,9 @@ Section stmtC.
     end%Sep.
 
   Variable ndts : list ndatatype.
+
+  Definition nodup := NoDup (map (@fst _ _) dts).
+  Hypothesis Hnodup : nodup.
   Definition ndts_good := ndts = map normalizeDatatype dts.
   Hypothesis Hndts : ndts_good.
 
@@ -2251,7 +2254,7 @@ Section stmtC.
       Qed.
 
       rewrite multiUpd_upd by (omega || reflexivity).
-      destruct x6; simpl in H47; try discriminate.
+      destruct x6; simpl in H48; try discriminate.
       unfold Array.upd.
       change (wordToNat (natToW O)) with O.
 
@@ -2314,9 +2317,6 @@ Section stmtC.
       specialize (allocatePre_sound _ _ _ H43 hE); intro Hap.
       unfold Himp in Hap; eapply Hap; clear Hap; eauto.
 
-      (* Add this! *)
-      assert (NoDup (map (@fst _ _) dts)) by admit.
-
       Lemma lookupDatatype_In : forall dt ds, NoDup (map (@fst _ _) ds)
         -> In dt ds
         -> lookupDatatype ds (fst dt) = Some (snd dt).
@@ -2336,8 +2336,8 @@ Section stmtC.
       apply Himp_ex; intro sk.
       apply Himp'_ex; intro w.
       apply Himp_star_pure_c; intro.
-      injection H45; clear H45; intros; subst.
-      apply inj_pair2 in H45; subst.
+      injection H19; clear H19; intros; subst.
+      apply inj_pair2 in H19; subst.
       destruct x13; simpl.
 
       Fixpoint skeleton_ind (P : skeleton -> Prop)
@@ -2502,7 +2502,6 @@ Section stmtC.
       unfold fo_set at 2.
       destruct (string_dec nextDt nextDt); try tauto.
       unfold hE.
-      assert (NoDup (map fst dts)) by admit.
       rewrite lookupDatatype_In by auto.
       apply Himp_ex_c; exists sk.
       apply Himp_ex_c; eexists.
@@ -2546,7 +2545,7 @@ Section stmtC.
       eapply Forall_forall in WellScoped; eauto.
       intros.
       apply H19; unfold fo_set; destruct (string_dec x15 nextDt); subst; auto.
-      exfalso; apply in_app_or in H51; intuition idtac.
+      exfalso; apply in_app_or in H47; intuition idtac.
       destruct H3.
       eapply Forall_forall in GoodQuantNames; eauto.
       destruct H3.
@@ -2682,6 +2681,7 @@ Proof.
       :: (~In "result" bvs')
       :: (~In "this" fvs)
       :: stmtD dts' xs vs fvs pre' post' "_D" s (fun _ _ _ _ _ => False)
+      :: NoDup (map fst dts)
       :: datatypesWf dts
       :: (res >= 7)%nat
       :: "malloc"!"malloc" ~~ im ~~> Malloc.mallocS
@@ -2694,10 +2694,10 @@ Proof.
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply stmtC_vc; [ | | | | | | | | | | |
+                               solve [ eapply stmtC_vc; [ | | | | | | | | | | | |
                                                            eapply normalize_wf; try apply H; eauto 2
                                                            | eapply normalize_wf; eauto
                                                            | .. ];
-                               unfold pre', post'; eauto 6; cbv beta; reflexivity || tauto ]
+                               unfold pre', post'; eauto 6; cbv beta; hnf; reflexivity || tauto ]
                            end) ].
 Defined.
