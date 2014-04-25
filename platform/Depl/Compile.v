@@ -130,7 +130,10 @@ Record conWf (c : con) : Prop := {
   BoundCondition : boundVars (Condition c) = Some ConditionBound;
   BoundFree : forall x, In x ConditionBound -> ~ In x ("this" :: Recursive c ++ Nonrecursive c);
   BoundGood : forall x, In x ConditionBound -> good_fo_var x;
-  ConditionNoHo : noHo (Condition c) = true
+  ConditionNoHo : noHo (Condition c) = true;
+  RecursiveNonrecursive : forall x, In x (Recursive c) -> ~In x (Nonrecursive c);
+  NoThis : ~In "this" (Recursive c ++ Nonrecursive c ++ ConditionBound);
+  RecursiveNoDup : NoDup (Recursive c)
 }.
 
 Definition datatypeWf (d : datatype) :=
@@ -2315,7 +2318,10 @@ Section stmtC.
       eapply Forall_forall in H43; eauto.
       destruct H19.
       specialize (allocatePre_sound _ _ _ H43 hE); intro Hap.
-      unfold Himp in Hap; eapply Hap; clear Hap; eauto.
+      unfold Himp in Hap; eapply Hap; clear Hap.
+      6: instantiate (1 := fvs).
+      2: eauto.
+      2: eauto.
 
       Lemma lookupDatatype_In : forall dt ds, NoDup (map (@fst _ _) ds)
         -> In dt ds
@@ -2398,18 +2404,15 @@ Section stmtC.
 
       simpl in *; intuition eauto using in_or_app.
       simpl in *; intuition eauto using in_or_app.
-      instantiate (1 := fvs).
       (* Need to know: [Recursive], [Nonrecursive], [ConditionBound] don't overlap with [fvs]. *)
       admit.
       admit.
+      auto.
       admit.
-      admit. (* Also that [Recursive] and [Nonrecursive] don't overlap *)
-      (* Need to know: No "this" in [Recursive], [Nonrecursive], [ConditionBound]. *)
-      admit.
-      admit.
-      admit.
-      (* Need to know: [NoDup Recursive]. *)
-      admit.
+      intuition eauto 7 using in_or_app.
+      intuition eauto 7 using in_or_app.
+      intuition eauto 7 using in_or_app.
+      auto.
       apply exprsD_len in H21; apply length_firstn; simpl in *; omega.
       rewrite CancelIL.skipn_length.
       apply exprsD_len in H21; simpl in *; omega.
