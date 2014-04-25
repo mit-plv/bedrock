@@ -120,7 +120,7 @@ Definition funcOut (f : func) : function := {|
 Notation "{{ x 'with' .. 'with' y }}" := (cons x%func .. (cons y%func nil) ..) (only parsing) : funcs_scope.
 Delimit Scope funcs_scope with funcs.
 
-Notation "'dmodule' name fs" := (compileModule {| MName := name;
+Notation "'dmodule' name fs" := (compileModule nil {| MName := name;
   Functions := map funcOut fs%funcs |})
   (no associativity, at level 95, name at level 0, only parsing).
 
@@ -194,10 +194,14 @@ Ltac depl_wf :=
       intros fE fE' Heq;
         repeat rewrite Heq by (simpl; congruence); reflexivity
     | [ |- In ?x ?ls ] => isConst x; isConst ls; simpl; tauto
+    | [ |- forall x : Logic.fo_var, In x _ -> exists e : Logic.expr, _ ] =>
+      simpl; intuition (subst; simpl; eauto)
   end.
 
-Ltac depl := apply CompileModule.compileModule_ok; [
-  constructor
+Ltac depl := apply CompileModule.compileModule_ok; [ constructor
+  | hnf; NoDup
+  | reflexivity
+  | constructor
   | reflexivity
   | depl_cbv;
     match goal with
@@ -205,4 +209,5 @@ Ltac depl := apply CompileModule.compileModule_ok; [
     end;
     repeat match goal with
              | [ |- _ /\ _ ] => split
-           end; try depl_wf ].
+           end; try depl_wf
+  | simpl; discriminate ].
