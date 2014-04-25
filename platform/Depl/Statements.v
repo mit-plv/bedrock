@@ -143,6 +143,7 @@ Inductive wrong_number_of_constructor_arguments (s : string) := .
 Inductive entailment_failed_at_allocation (P : Prop) := .
 Inductive couldn't_determine_model (x : pr_var) := .
 Inductive object_name_already_in_scope (x nextDt : pr_var) := .
+Inductive datatype_constructor_variable_already_in_scope (x conName : pr_var) := .
 
 (** Add a pure conjunct to a normalized predicate. *)
 Definition addPure (n : normal) (P : fo_env -> Prop) : normal := {|
@@ -226,37 +227,41 @@ Section stmtD.
           | Some (dtName, c) =>
             (* Check that the right number of arguments is passed. *)
             if eq_nat_dec (length args) (length (NRecursive c) + length (NNonrecursive c)) then
-              (* Evaluate the constructor argument expressions. *)
-              match exprsD vs args with
-                | None => bad_constructor_argument conName
-                | Some args' =>
-                  (* Find a memory chunk to be absorbed inside this
-                   * new DT object. *)
-                  match cancel fvs ("this" :: nil)
-                    pre (allocatePre dtName c args') with
-                    | Failure P => entailment_failed_at_allocation P
-                    | Success s lhs P =>
-                      (* Look up the functional mode we've found. *)
-                      match s "this" with
-                        | None => couldn't_determine_model x
-                        | Some model =>
-                          (* Check if our chosen name for the new pointer
-                           * is already used. *)
-                          if in_dec string_dec nextDt fvs
-                            then object_name_already_in_scope x nextDt
-                            else
-                              P /\
-                              (* Use [nextDt] as the name of the new DT pointer. *)
-                              k (vars_set vs x (Logic.Var nextDt))
-                              (nextDt :: fvs)
-                              {| NQuants := NQuants pre;
-                                NPure := NPure pre;
-                                NImpure := Named dtName (model :: Logic.Var nextDt
-                                  :: nil) :: lhs |}
-                              post (nextDt ++ "'")%string
-                      end
-                  end
-              end
+              (* Check for name clash between spec vars of current state & constructor defn. *)
+              if notsInList fvs ("this" :: NRecursive c ++ NNonrecursive c
+                                        ++ NQuants (NCondition c)) then
+                (* Evaluate the constructor argument expressions. *)
+                match exprsD vs args with
+                  | None => bad_constructor_argument conName
+                  | Some args' =>
+                    (* Find a memory chunk to be absorbed inside this
+                     * new DT object. *)
+                    match cancel fvs ("this" :: nil)
+                      pre (allocatePre dtName c args') with
+                      | Failure P => entailment_failed_at_allocation P
+                      | Success s lhs P =>
+                        (* Look up the functional mode we've found. *)
+                        match s "this" with
+                          | None => couldn't_determine_model x
+                          | Some model =>
+                            (* Check if our chosen name for the new pointer
+                             * is already used. *)
+                            if in_dec string_dec nextDt fvs
+                              then object_name_already_in_scope x nextDt
+                              else
+                                P /\
+                                (* Use [nextDt] as the name of the new DT pointer. *)
+                                k (vars_set vs x (Logic.Var nextDt))
+                                (nextDt :: fvs)
+                                {| NQuants := NQuants pre;
+                                  NPure := NPure pre;
+                                  NImpure := Named dtName (model :: Logic.Var nextDt
+                                    :: nil) :: lhs |}
+                                post (nextDt ++ "'")%string
+                        end
+                    end
+                end
+              else datatype_constructor_variable_already_in_scope x conName
             else wrong_number_of_constructor_arguments conName
         end
     end.

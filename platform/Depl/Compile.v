@@ -1116,6 +1116,11 @@ Section stmtC.
       rewrite H19.
       destruct (Peano_dec.eq_nat_dec (length args) (length (NRecursive n) + length (NNonrecursive n))).
       2: inversion H11.
+      case_eq (notsInList fvs ("this" :: NRecursive n ++ NNonrecursive n ++ NQuants (NCondition n)));
+        intros.
+      2: rewrite H21 in *; inversion H11.
+      rename H21 into Hnoclash.
+      rewrite Hnoclash in *.
       case_eq (exprsD vs args); intros.
       2: rewrite H21 in *; inversion H11.
       rewrite H21 in *.
@@ -2257,7 +2262,7 @@ Section stmtC.
       Qed.
 
       rewrite multiUpd_upd by (omega || reflexivity).
-      destruct x6; simpl in H48; try discriminate.
+      destruct x6; simpl in H49; try discriminate.
       unfold Array.upd.
       change (wordToNat (natToW O)) with O.
 
@@ -2404,11 +2409,50 @@ Section stmtC.
 
       simpl in *; intuition eauto using in_or_app.
       simpl in *; intuition eauto using in_or_app.
-      (* Need to know: [Recursive], [Nonrecursive], [ConditionBound] don't overlap with [fvs]. *)
-      admit.
-      admit.
+
+      Lemma use_notsInList_true : forall ls2 ls1 ls1',
+        notsInList ls2 ls1 = true
+        -> incl ls1' ls1
+        -> forall x, In x ls1' -> ~In x ls2.                          
+      Proof.
+        clear; intuition idtac.
+        eapply notsInList_true in H; eauto.
+      Qed.
+
+      Lemma In_cons : forall A (x y : A) ls,
+        In x ls
+        -> In x (y :: ls).
+      Proof.
+        simpl; tauto.
+      Qed.
+
+      Hint Resolve In_cons.
+
+      simpl in Hnoclash.
+      eapply use_notsInList_true; hnf; eauto 7 using in_or_app.
+      simpl in Hnoclash.
+      eapply use_notsInList_true; hnf; eauto 7 using in_or_app.
       auto.
-      admit.
+
+      Lemma NQuants_normalize : forall p bvs,
+        boundVars p = Some bvs
+        -> NQuants (normalize p) = bvs.
+      Proof.
+        clear; induction p; simpl; intuition.
+        repeat (case_option; try discriminate).
+        destruct (notsInList l l0); try discriminate.
+        injection H; clear H; intros; subst.
+        f_equal; eauto.
+        case_option; try discriminate.
+        destruct (notInList x l); try discriminate.
+        injection H; clear H; intros; subst.
+        f_equal; eauto.
+      Qed.
+
+      simpl in Hnoclash.
+      erewrite NQuants_normalize in Hnoclash by eauto.
+      intuition idtac.
+      eapply notsInList_true; eauto 7 using in_or_app.
       intuition eauto 7 using in_or_app.
       intuition eauto 7 using in_or_app.
       intuition eauto 7 using in_or_app.
@@ -2416,8 +2460,8 @@ Section stmtC.
       apply exprsD_len in H21; apply length_firstn; simpl in *; omega.
       rewrite CancelIL.skipn_length.
       apply exprsD_len in H21; simpl in *; omega.
-      (* Need to know: [~In "this" fvs]. *)
-      assert (~In "this" fvs) by admit.
+      assert (~In "this" fvs).
+      intro; eapply notsInList_true; (simpl; eauto 7 using in_or_app).
 
       Lemma map_agree_firstn : forall fE es ws n,
         map_agree fE es ws
@@ -2451,7 +2495,8 @@ Section stmtC.
       Qed.
 
       apply map_agree_skipn.
-      assert (~In "this" fvs) by admit.
+      assert (~In "this" fvs).
+      intro; eapply notsInList_true; (simpl; eauto 7 using in_or_app).
       eapply map_agree_weaken; [ | eassumption ].
       apply Forall_forall; intros.
       eapply exprsD_wf; eauto; intros.
