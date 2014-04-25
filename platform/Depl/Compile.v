@@ -1900,11 +1900,13 @@ Section stmtC.
       simpl; tauto.
       assert (Hincl : incl NewLhs (NImpure pre)).
       hnf; intros; eapply cancel_NewLhs; eauto.
+
       eapply cancel_sound with (P := ProveThis) in H22; descend; eauto.
       Focus 2.
       intuition subst.
       destruct H2.
       tauto.
+
       Focus 2.
       unfold allocatePre.
 
@@ -2087,6 +2089,7 @@ Section stmtC.
       simpl in H46; intuition (subst; eauto using in_or_app).
       do 3 (apply in_or_app; right); simpl; tauto.
       apply in_app_or in H20; intuition eauto 10 using in_or_app.
+
       unfold normalD.
 
       Lemma SubstsH_banish : forall P,
@@ -2102,8 +2105,11 @@ Section stmtC.
       Qed.
 
       eapply Himp_trans in H22; [ | apply SubstsH_summon ].
+
       etransitivity; [ apply himp_star_frame; [ apply H22 | reflexivity ] | clear H22 ].
       rewrite (firstn_skipn _ l (length (NNonrecursive n))).
+
+      (* Good to here *)
 
       Lemma locateCon'_monotone : forall conName n cs x0 k,
         locateCon' k conName cs = Some (x0, n)
@@ -2274,7 +2280,14 @@ Section stmtC.
       Qed.
 
       rewrite multiUpd_all.
-      clear; sepLemma.
+      clear.
+      etransitivity; [ apply himp_star_frame; [ apply himp_star_frame; [ apply SubstsH_banish | apply Himp_refl ] | apply Himp_refl ] | ].
+      match goal with
+        | [ |- himp _ (star (star _ ?P) _) (_ * (?Q * _))%Sep ] =>
+          change Q with P; generalize P
+      end.
+      sepLemma.
+
       apply map_len in H40.
 
       Lemma exprsD_len : forall vs args es,
@@ -2642,8 +2655,8 @@ Proof.
   pose (dts' := map normalizeDatatype dts).
   pose (pre' := normalize pre).
   pose (post' := normalize post).
-  apply (WrapC (stmtC dts' vs fvs pre' post' "_D" s (fun _ _ _ _ _ => Fail))
-    (precond vs pre' post')
+  apply (WrapC (stmtC dts dts' vs fvs pre' post' "_D" s (fun _ _ _ _ _ => Fail))
+    (precond dts vs pre' post')
     (fun _ _ _ _ _ => [| False |])%PropX
     (* Unsatisfiable postcondition, since we won't allow running off the end of
      * a function body without returning *)
@@ -2669,7 +2682,7 @@ Proof.
       :: (~In "result" bvs')
       :: (~In "this" fvs)
       :: stmtD dts' xs vs fvs pre' post' "_D" s (fun _ _ _ _ _ => False)
-      :: ndatatypesWf dts'
+      :: datatypesWf dts
       :: (res >= 7)%nat
       :: "malloc"!"malloc" ~~ im ~~> Malloc.mallocS
       :: In "_" ns
@@ -2681,10 +2694,10 @@ Proof.
                          end; post)
         | abstract (wrap0; match goal with
                              | [ H : wellScoped _ _ |- _ ] =>
-                               solve [ eapply stmtC_vc; [  | | | | | | | | | |
+                               solve [ eapply stmtC_vc; [ | | | | | | | | | | |
                                                            eapply normalize_wf; try apply H; eauto 2
                                                            | eapply normalize_wf; eauto
                                                            | .. ];
-                               unfold pre', post'; eauto 6; cbv beta; tauto ]
+                               unfold pre', post'; eauto 6; cbv beta; reflexivity || tauto ]
                            end) ].
 Defined.
