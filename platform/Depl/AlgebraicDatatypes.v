@@ -391,8 +391,6 @@ Section allocatePre_sound.
         repeat match goal with
                  | [ H : _ |- _ ] => rewrite H
                end; auto.
-      destruct (string_dec x0 x); simpl; intuition idtac.
-      destruct e; simpl; intuition idtac.
     Qed.
 
     rewrite boundVars_psubst in *; intuition idtac.
@@ -411,8 +409,7 @@ Section allocatePre_sound.
 
     Theorem normalize_psubst : forall x a p,
       normalize (psubst x a p) = nsubst x a (normalize p).
-    Admitted.
-    (*Proof.
+    Proof.
       induction p; simpl; intuition idtac;
         repeat match goal with
                  | [ H : _ |- _ ] => rewrite H
@@ -420,13 +417,10 @@ Section allocatePre_sound.
 
       unfold nsubst; simpl.
       f_equal.
-      destruct (string_dec x0 x); intuition idtac.
-      destruct a; intuition idtac.
-      simpl.
       2: symmetry; apply map_app.
       destruct (NPure (normalize p1)); auto.
       destruct (NPure (normalize p2)); auto.
-    Qed.*)
+    Qed.
 
     rewrite normalize_psubst in *.
     eapply Himp_trans; [ apply H20 | ]; clear H20.
@@ -455,17 +449,8 @@ Section allocatePre_sound.
 
       apply Himp_refl.
 
-      destruct (string_dec x0 x); subst; simpl.
-      destruct a; simpl.
-      rewrite esubst_correct'; simpl.
-      unfold fo_set at 2.
-      destruct (string_dec x x); intuition (try apply Himp_refl).
-      rewrite esubst_correct'; simpl.
-      unfold fo_set at 2.
-      destruct (string_dec x x); intuition (try apply Himp_refl).
-      unfold fo_set at 1.
-      rewrite esubst_correct'; simpl.
-      destruct (string_dec x0 x); intuition (try apply Himp_refl).
+      repeat rewrite esubst_correct'; simpl.
+      apply Himp_refl.
 
       caser.
       apply Himp_star_frame; eauto.

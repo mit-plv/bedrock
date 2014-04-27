@@ -40,7 +40,7 @@ Definition ho_env (G : list Type) := ho_var -> list dyn -> hpropB G.
 (** Separation logic assertions *)
 Inductive pred :=
 | Pure (P : fo_env -> Prop)
-| Equal (x : fo_var) (e : expr)
+| Equal (e1 e2 : expr)
 | Star (p1 p2 : pred)
 | Exists (x : fo_var) (p1 : pred)
 | Named (X : ho_var) (es : list expr).
@@ -49,7 +49,7 @@ Inductive pred :=
 Fixpoint predD (p : pred) G (hE : ho_env G) (fE : fo_env) : hpropB G :=
   match p with
     | Pure P => injB _ (P fE)
-    | Equal x e => injB _ (fE x = exprD e fE)
+    | Equal e1 e2 => injB _ (exprD e1 fE = exprD e2 fE)
     | Star p1 p2 => starB (predD p1 hE fE) (predD p2 hE fE)
     | Exists x p1 => exB (fun y => predD p1 hE (fo_set fE x y))
     | Named X es => hE X (map (fun e => exprD e fE) es)
@@ -158,7 +158,8 @@ Qed.
 Fixpoint wellScoped (xs : list fo_var) (p : pred) : Prop :=
   match p with
     | Pure f => forall fE fE', (forall x, In x xs -> fE x = fE' x) -> f fE = f fE'
-    | Equal x e => In x xs /\ forall fE fE', (forall x, In x xs -> fE x = fE' x) -> exprD e fE = exprD e fE'
+    | Equal e1 e2 => (forall fE fE', (forall x, In x xs -> fE x = fE' x) -> exprD e1 fE = exprD e1 fE')
+                     /\ (forall fE fE', (forall x, In x xs -> fE x = fE' x) -> exprD e2 fE = exprD e2 fE')
     | Star p1 p2 => wellScoped xs p1 /\ wellScoped xs p2
     | Exists x p1 => wellScoped (x :: xs) p1
     | Named _ es => forall fE fE', (forall x, In x xs -> fE x = fE' x)
@@ -421,7 +422,7 @@ Proof.
     erewrite H by eassumption.
     apply Himp_refl.
 
-    rewrite H0 by auto.
+    erewrite H1 by auto.
     erewrite H2 by eauto.
     apply Himp_refl.
 
@@ -678,7 +679,7 @@ Proof.
     induction p; simpl; intuition idtac.
 
     subst; simpl.
-    rewrite H1 by auto.
+    erewrite H2 by auto.
     erewrite H3; try reflexivity.
     eauto.
 
@@ -1032,7 +1033,7 @@ Fixpoint predExt (p : pred) :=
     | Pure P => forall fE1 fE2,
       (forall x, fE1 x = fE2 x)
       -> P fE1 = P fE2
-    | Equal _ e => exprExt e
+    | Equal e1 e2 => exprExt e1 /\ exprExt e2
     | Star p1 p2 => predExt p1 /\ predExt p2
     | Exists _ p1 => predExt p1
     | Named _ es => List.Forall exprExt es
@@ -1104,6 +1105,7 @@ Lemma normalize_predExt : forall p,
   -> List.Forall predExt (NImpure (normalize p)).
 Proof.
   induction p; simpl; intuition auto using Forall_app.
+  constructor; auto; simpl; tauto.
 Qed.
 
 Local Hint Constructors NoDup.
@@ -1255,9 +1257,10 @@ Section predExt_sound.
 
     erewrite H; try apply Himp_refl; auto.
 
-    rewrite H0.
     erewrite exprExt_sound by eauto.
+    replace (exprD e2 fE1) with (exprD e2 fE2).
     apply Himp_refl.
+    apply exprExt_sound; auto.
 
     apply Himp_star_frame; auto.
 
@@ -1309,13 +1312,7 @@ Section subst.
   Fixpoint psubst (p : pred) : pred :=
     match p with
       | Pure f => Pure (fun fE => f (fo_set fE x (exprD e fE)))
-      | Equal y e' =>
-        if string_dec y x then
-          match e with
-            | Var ex => Equal ex (esubst e')
-            | _ => Pure (fun fE => exprD e fE = exprD (esubst e') fE)
-          end
-        else Equal y (esubst e')
+      | Equal e1 e2 => Equal (esubst e1) (esubst e2)
       | Star p1 p2 => Star (psubst p1) (psubst p2)
       | Exists x p1 => Exists x (psubst p1)
       | Named X es => Named X (map esubst es)
@@ -1369,17 +1366,8 @@ Section subst.
     intro; unfold fo_set.
     destruct (string_dec x0 x); congruence.
 
-    destruct (string_dec x0 x); subst; simpl in *.
-    specialize esubst_correct.
-    destruct e; simpl in *; intros.
-    rewrite H0.
-    rewrite H5 by auto.
-    Himp; apply Himp_refl.
-    rewrite H0.
-    rewrite H5 by auto.
-    Himp; apply Himp_refl.
-    rewrite esubst_correct by auto.
-    Himp; apply Himp_refl.
+    repeat rewrite esubst_correct by auto.
+    apply Himp_refl.
 
     caser; apply Himp_star_frame; eauto 10.
 
@@ -1417,17 +1405,8 @@ Section subst.
     intro; unfold fo_set.
     destruct (string_dec x0 x); congruence.
 
-    destruct (string_dec x0 x); subst; simpl in *.
-    specialize esubst_correct.
-    destruct e; simpl in *; intros.
-    rewrite H0.
-    rewrite H5 by auto.
-    Himp; apply Himp_refl.
-    rewrite H0.
-    rewrite H5 by auto.
-    Himp; apply Himp_refl.
-    rewrite esubst_correct by auto.
-    Himp; apply Himp_refl.
+    repeat rewrite esubst_correct by eauto.
+    apply Himp_refl.
 
     caser; apply Himp_star_frame; eauto 10.
 
@@ -1684,52 +1663,24 @@ Lemma wellScoped_psubst : forall x e p fvs,
     -> exprD e fE1 = exprD e fE2)
   -> wellScoped fvs (psubst x e p).
 Proof.
-  induction p; simpl.
+  induction p; simpl; intuition.
 
-  intuition.
   apply H; intuition (subst; eauto).
   unfold fo_set.
   destruct (string_dec x0 x0); intuition.
   unfold fo_set.
   destruct (string_dec x0 x); eauto.
 
-  destruct 1.
-  assert (x = x0 \/ (x <> x0 /\ In x0 fvs)).
-  destruct (string_dec x x0); tauto.
-  clear H; rename H1 into H.
-  intuition.
-
-  subst.
-  destruct (string_dec x0 x0); intuition idtac.
-  destruct e; simpl in *.
-  assert (In x fvs).
-  destruct (in_dec string_dec x fvs); auto.
-  specialize (H1 (fun _ => dyn1) (fun y => if string_dec y x then dyn2 else dyn1)); simpl in *.
-  destruct (string_dec x x); intuition.
-  exfalso; apply dyn_disc; apply H1; intros.
-  destruct (string_dec y x); auto; subst; tauto.
-  intuition idtac.
-  repeat rewrite esubst_correct'; simpl.
-  apply H0; intuition subst.
-  unfold fo_set; destruct (string_dec x1 x1); intuition eauto.
-  unfold fo_set; destruct (string_dec x1 x0); subst; eauto.
-  intros.
-  erewrite H1 by eauto.
-  repeat rewrite esubst_correct'; simpl.
-  erewrite H0; try reflexivity.
-  intuition subst.
-  unfold fo_set; destruct (string_dec x x); intuition eauto.
-  unfold fo_set; destruct (string_dec x x0); subst; eauto.
-
-  destruct (string_dec x0 x); intuition (try congruence); simpl; intuition.
   repeat rewrite esubst_correct'.
-  apply H0; intuition (subst; eauto).
-  unfold fo_set; destruct (string_dec x1 x1); intuition eauto.
-  unfold fo_set; destruct (string_dec x1 x); subst; eauto.
+  apply H1; intuition (subst; eauto).
+  unfold fo_set; destruct (string_dec x0 x0); intuition eauto.
+  unfold fo_set; destruct (string_dec x0 x); subst; eauto.
 
-  intuition.
+  repeat rewrite esubst_correct'.
+  apply H2; intuition (subst; eauto).
+  unfold fo_set; destruct (string_dec x0 x0); intuition eauto.
+  unfold fo_set; destruct (string_dec x0 x); subst; eauto.
 
-  intuition.
   apply IHp.
   eapply wellScoped_weaken; eauto.
   simpl; tauto.
