@@ -135,6 +135,11 @@ Definition sub_pred (s : fo_sub) (p : pred) : option pred :=
         | None => None
         | Some es => Some (Named X es)
       end
+    | Equal e1 e2 =>
+      match sub_expr s e1, sub_expr s e2 with
+        | Some e1, Some e2 => Some (Equal e1 e2)
+        | _, _ => None
+      end
     | _ => None
   end.
 
@@ -147,6 +152,16 @@ Lemma sub_pred_monotone : forall G (hE : ho_env G) s s' p xs,
       /\ forall fE, predD p' hE fE = predD p'' hE fE.
 Proof.
   destruct p; t.
+
+  edestruct sub_expr_monotone; try apply H4; eauto; intuition idtac.
+  rewrite H6.
+  edestruct sub_expr_monotone; try apply H5; eauto; intuition idtac.
+  rewrite H8.
+  do 2 esplit; eauto.
+  simpl; intros.
+  rewrite H7, H9.
+  auto.
+
   edestruct sub_exprs_monotone; eauto.
   generalize dependent l; induction es; simpl in *; intuition.
   f_equal; simpl in *; eauto.
@@ -352,27 +367,49 @@ Inductive result1 :=
   (ProveThese : list (fo_env -> fo_sub -> Prop))
 | Failure1 (Message : Prop).
 
-Inductive noMatchFor (rhs : pred) := .
+Inductive no_match_for (rhs : pred) := .
+Inductive variable_in_equality_not_existential (x : fo_var) (e : expr) := .
+Inductive variable_in_equality_already_determined (x : fo_var) (e : expr) := .
+Inductive equality_with_undetermined_expression (x : fo_var) (e : expr) := .
 
 (** Find a LHS match for a single RHS predicate. *)
-Fixpoint findMatching (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
+Fixpoint findMatching' (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
   match lhs with
-    | nil => Failure1 (noMatchFor rhs)
+    | nil => Failure1 (no_match_for rhs)
     | p :: lhs =>
       match unify_pred fvs s p rhs with
         | Some (s, fs) => Success1 s lhs fs
         | None =>
-          match findMatching fvs s lhs rhs with
+          match findMatching' fvs s lhs rhs with
             | Success1 s lhs fs => Success1 s (p :: lhs) fs
             | x => x
           end
       end
   end.
 
+Definition findMatching (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
+  match rhs with
+    | Equal (Var x) e =>
+      if in_dec string_dec x fvs
+      then match s x with
+             | Some _ => Failure1 (variable_in_equality_already_determined x e)
+             | None =>
+               match sub_expr s e with
+                 | None => Failure1 (equality_with_undetermined_expression x e)
+                 | Some e' => Success1 (fos_set s x e') lhs
+                                       ((fun _ _ => forall fE1 fE2,
+                                                      (forall y, s y <> None -> fE1 y = fE2 y)
+                                                      -> exprD e fE1 = exprD e fE2) :: nil)
+               end
+           end
+      else Failure1 (variable_in_equality_not_existential x e)
+    | _ => findMatching' fvs s lhs rhs
+  end.
+
 Local Hint Resolve unify_pred_monotone.
 
-Theorem findMatching_monotone : forall fvs rhs lhs s s' lhs' fs,
-  findMatching fvs s lhs rhs = Success1 s' lhs' fs
+Theorem findMatching'_monotone : forall fvs rhs lhs s s' lhs' fs,
+  findMatching' fvs s lhs rhs = Success1 s' lhs' fs
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction lhs; t.
@@ -380,14 +417,30 @@ Proof.
   injection H; clear H; intros; subst; eauto.
 
   specialize (IHlhs s).
-  destruct (findMatching fvs s lhs rhs); try discriminate.
+  destruct (findMatching' fvs s lhs rhs); try discriminate.
   injection H; clear H; intros; subst; eauto.
+Qed.
+
+Local Hint Resolve findMatching'_monotone.
+
+Theorem findMatching_monotone : forall fvs rhs lhs s s' lhs' fs,
+  findMatching fvs s lhs rhs = Success1 s' lhs' fs
+  -> forall x e, s x = Some e -> s' x = Some e.
+Proof.
+  unfold findMatching; destruct rhs; eauto.
+  destruct e1; eauto.
+  intros until fs.
+  destruct (in_dec string_dec x fvs); try solve [ inversion 1 ].
+  case_eq (s x); try solve [ inversion 2 ]; intro.
+  case_eq (sub_expr s e2); try solve [ inversion 2 ]; do 2 intro.
+  injection 1; clear H1; intros; subst.
+  unfold fos_set; destruct (string_dec x0 x); congruence.
 Qed.
 
 Local Hint Resolve findMatching_monotone.
 
-Theorem findMatching_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
-  findMatching fvs s lhs rhs = Success1 s' lhs' fs
+Lemma findMatching'_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
+  findMatching' fvs s lhs rhs = Success1 s' lhs' fs
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_pred s'' rhs = Some rhs'
@@ -406,8 +459,8 @@ Proof.
   apply SubstsH_star_fwd.
 
   match goal with
-    | [ _ : context[findMatching ?fvs ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
-      let Heq := fresh in specialize (IH s); case_eq (findMatching fvs s lhs rhs);
+    | [ _ : context[findMatching' ?fvs ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
+      let Heq := fresh in specialize (IH s); case_eq (findMatching' fvs s lhs rhs);
         [ intros ? ? ? Heq; rewrite Heq in *; specialize (IH _ _ _ eq_refl)
           | intros ? Heq; rewrite Heq in *; try discriminate ]
   end.
@@ -425,6 +478,44 @@ Proof.
   eapply Himp_trans; [ | apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] ].
   eapply Himp_trans; [ | apply Himp_star_assoc' ].
   apply Himp_star_frame; auto; apply Himp_refl.
+Qed.
+
+Theorem findMatching_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
+  findMatching fvs s lhs rhs = Success1 s' lhs' fs
+  -> List.Forall (fun f => f fE s'') fs
+  -> (forall x v, s' x = Some v -> s'' x = Some v)
+  -> exists rhs', sub_pred s'' rhs = Some rhs'
+    /\ (SubstsH S (fold_left (fun hp p => starB (predD p hE fE) hp) lhs (empB _))
+    ===> SubstsH S (predD rhs' hE fE)
+    * SubstsH S (fold_left (fun hp p => starB (predD p hE fE) hp) lhs' (empB _))).
+Proof.
+  unfold findMatching; destruct rhs; eauto using findMatching'_sound.
+  destruct e1; eauto using findMatching'_sound.
+  intros until fs.
+  destruct (in_dec string_dec x fvs); try solve [ inversion 1 ].
+  case_eq (s x); try solve [ inversion 2 ]; intro.
+  case_eq (sub_expr s e2); try solve [ inversion 2 ]; intros.
+  injection H1; clear H1; intros; subst.
+  inversion_clear H2.
+  clear H4.
+  simpl.
+  generalize (H3 x).
+  unfold fos_set at 1.
+  destruct (string_dec x x); intuition idtac.
+  erewrite H2 by eauto.
+  edestruct sub_expr_monotone; try apply H0.
+  Focus 3.
+  intuition idtac.
+  rewrite H5.
+  do 2 eexists; eauto.
+  simpl.
+  eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_inj_bwd | apply Himp_refl ] ].
+  apply Himp_star_pure_cc; try apply Himp_refl; auto.
+  eauto.
+  intros.
+  apply H3.
+  unfold fos_set.
+  destruct (string_dec x0 x); congruence.
 Qed.
 
 (** Find LHS matches for all RHS predicates. *)
@@ -689,6 +780,21 @@ Proof.
   Proof.
     induction p; simpl; intuition.
 
+    case_eq (sub_expr s e1); intros; rewrite H1 in *; try discriminate.
+    case_eq (sub_expr s e2); intros; rewrite H5 in *; try discriminate.
+    injection H2; clear H2; intros; subst; simpl.
+    eapply sub_expr_agrees in H1.
+    rewrite H1.
+    eapply sub_expr_agrees in H5.
+    rewrite H5.
+    apply Himp_refl.
+    eauto.
+    intros; apply H4; intros.
+    eapply Forall_forall in H0; eauto.
+    eauto.
+    intros; apply H3; intros.
+    eapply Forall_forall in H0; eauto.
+
     case_eq (sub_exprs s es); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
@@ -869,9 +975,9 @@ Proof.
     edestruct unify_args_adds; eauto.
   Qed.
 
-  Lemma findMatching_adds : forall fvs xs rhs s,
+  Lemma findMatching'_adds : forall fvs xs rhs s,
     wellScoped xs rhs
-    -> forall lhs s' lhs' Ps, findMatching fvs s lhs rhs = Success1 s' lhs' Ps
+    -> forall lhs s' lhs' Ps, findMatching' fvs s lhs rhs = Success1 s' lhs' Ps
       -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; simpl; intuition idtac.
@@ -885,12 +991,38 @@ Proof.
     edestruct unify_pred_adds; eauto.
 
     rewrite H2 in *.
-    case_eq (findMatching fvs s lhs rhs); intros.
+    case_eq (findMatching' fvs s lhs rhs); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
     rewrite H3 in *.
     injection H0; clear H0; intros; subst.
     eauto.
+  Qed.
+
+  Lemma findMatching_adds : forall fvs xs rhs s,
+    wellScoped xs rhs
+    -> forall lhs s' lhs' Ps, findMatching fvs s lhs rhs = Success1 s' lhs' Ps
+      -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
+  Proof.
+    unfold findMatching.
+    destruct rhs; eauto using findMatching'_adds.
+    destruct e1; eauto using findMatching'_adds.
+    intro.
+    destruct (in_dec string_dec x fvs); try solve [ inversion 3 ].
+    case_eq (s x); try solve [ inversion 4 ]; intro.
+    case_eq (sub_expr s e2); try solve [ inversion 4 ]; intros.
+    injection H2; clear H2; intros; subst; simpl in *; intuition idtac.
+    unfold fos_set in H3.
+    destruct (string_dec x0 x); subst; auto.
+    injection H3; clear H3; intros; subst.
+    right; intuition.
+    destruct (in_dec string_dec x xs); auto.
+    specialize (H2 (fun _ => dyn1) (fun y => if string_dec y x then dyn2 else dyn1)).
+    simpl in H2.
+    destruct (string_dec x x); intuition idtac.
+    exfalso; apply dyn_disc; apply H2.
+    intros.
+    destruct (string_dec x0 x); subst; tauto.
   Qed.
 
   Lemma findMatchings_adds : forall fvs xs rhs,

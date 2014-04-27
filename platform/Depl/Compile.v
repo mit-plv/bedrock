@@ -1551,8 +1551,8 @@ Section stmtC.
       constructor.
       simpl; intuition subst; simpl.
 
-      Lemma findMatching_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
-        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+      Lemma findMatching'_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching' fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
         -> forall x, In x NewLhs -> In x lhs.
       Proof.
         clear; induction lhs; simpl; intuition.
@@ -1562,11 +1562,24 @@ Section stmtC.
         destruct p.
         injection H; clear H; intros; subst; tauto.
         rewrite H1 in *.
-        case_eq (findMatching fvs' s lhs rhs); intros.
+        case_eq (findMatching' fvs' s lhs rhs); intros.
         rewrite H2 in *.
         injection H; clear H; intros; subst; eauto.
         simpl in H0; intuition eauto.
         rewrite H2 in *; discriminate.
+      Qed.
+
+      Lemma findMatching_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> forall x, In x NewLhs -> In x lhs.
+      Proof.
+        clear; unfold findMatching; destruct rhs; eauto using findMatching'_NewLhs.
+        destruct e1; eauto using findMatching'_NewLhs.
+        destruct (in_dec string_dec x fvs'); try solve [ inversion 2 ].
+        intros until s.
+        case_eq (s x); try solve [ inversion 2 ]; intro.
+        case_eq (sub_expr s e2); try solve [ inversion 2 ]; intros.
+        injection H1; clear H1; intros; subst; auto.
       Qed.
 
       Lemma findMatchings_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
@@ -1668,8 +1681,8 @@ Section stmtC.
         eauto using unify_args_NewSub_wellFormed.
       Qed.
 
-      Lemma findMatching_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
-        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+      Lemma findMatching'_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching' fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
         -> List.Forall (wellScoped fvs) lhs
         -> (forall x e, s x = Some e
                         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
@@ -1687,15 +1700,59 @@ Section stmtC.
         injection H; clear H; intros; subst.
         eauto using unify_pred_NewSub_wellFormed.
         rewrite H0 in *.
-        case_eq (findMatching fvs' s lhs rhs); intros.
+        case_eq (findMatching' fvs' s lhs rhs); intros.
         rewrite H6 in *.
         injection H; clear H; intros; subst; eauto.
         rewrite H6 in *; discriminate.
       Qed.
 
+      Lemma findMatching_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+        -> List.Forall (wellScoped fvs) lhs
+        -> wellScoped fvs rhs
+        -> (forall x e, s x = Some e
+                        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                           -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall x e, NewSub x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                             -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; unfold findMatching; destruct rhs; eauto using findMatching'_NewSub_wellFormed.
+        destruct e1; eauto using findMatching'_NewSub_wellFormed.
+        destruct (in_dec string_dec x fvs'); try solve [ inversion 1 ].
+        intros until s.
+        case_eq (s x); try solve [ inversion 2 ]; intro.
+        case_eq (sub_expr s e2); try solve [ inversion 2 ]; intros.
+        injection H1; clear H1; intros; subst; auto.
+        simpl in *; intuition idtac.
+        unfold fos_set in H5.
+        destruct (string_dec x0 x); subst; eauto.
+        injection H5; clear H5; intros; subst.
+
+        Lemma sub_expr_pres : forall s e e' fvs,
+          sub_expr s e = Some e'
+          -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e fE1 = Logic.exprD e fE2)
+          -> (forall x e, s x = Some e
+            -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+              -> Logic.exprD e fE1 = Logic.exprD e fE2)
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e' fE1 = Logic.exprD e' fE2.
+        Proof.
+          clear; intros.
+          destruct e; simpl in *; eauto.
+          injection H; clear H; intros; subst; simpl.
+          apply H0; intros.
+          case_eq (s y); intros; eauto.
+        Qed.          
+        
+        eauto using sub_expr_pres.
+      Qed.
+
       Lemma findMatchings_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
         findMatchings fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
         -> List.Forall (wellScoped fvs) lhs
+        -> List.Forall (wellScoped fvs) rhs
         -> (forall x e, s x = Some e
                         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
                                            -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -1708,22 +1765,25 @@ Section stmtC.
         injection H; clear H; intros; subst; eauto.
 
         case_eq (findMatching fvs' s lhs a); intros.
-        2: rewrite H4 in *; discriminate.
-        rewrite H4 in *.
-        case_eq (findMatchings fvs' NewSub0 NewLhs0 rhs); intros.
         2: rewrite H5 in *; discriminate.
         rewrite H5 in *.
+        case_eq (findMatchings fvs' NewSub0 NewLhs0 rhs); intros.
+        2: rewrite H6 in *; discriminate.
+        rewrite H6 in *.
         injection H; clear H; intros; subst.
         eapply IHrhs; eauto.
         eapply Forall_forall; intros.
         eapply findMatching_NewLhs in H; [ | eauto ].
         eapply Forall_forall in H0; eauto.
+        inversion H1; eauto.
+        inversion_clear H1.
         eauto using findMatching_NewSub_wellFormed.
       Qed.
 
       Lemma cancel_NewSub_wellFormed : forall fvs evs lhs rhs NewSub NewLhs ProveThis,
         cancel fvs evs lhs rhs = Success NewSub NewLhs ProveThis
         -> normalWf fvs lhs
+        -> normalWf (evs ++ fvs) rhs
         -> forall x e, NewSub x = Some e
           -> In x evs
           -> ProveThis
@@ -1734,15 +1794,16 @@ Section stmtC.
         case_eq (findMatchings (evs ++ NQuants rhs)
                                (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
                                (NImpure lhs) (NImpure rhs)); intros.
-        2: rewrite H8 in *; discriminate.
-        rewrite H8 in *.
+        2: rewrite H9 in *; discriminate.
+        rewrite H9 in *.
         injection H2; clear H2; intros; subst; intuition idtac.
-        apply H6 in H5; destruct H5; intuition idtac.
-        unfold hide_sub in H9; rewrite H4 in H9; injection H9; clear H9; intros; subst.
+        apply H4 in H6; destruct H6; intuition idtac.
+        unfold hide_sub in H7; rewrite H7 in H5; injection H5; clear H5; intros; subst.
         eauto.
       Qed.
 
       eapply cancel_NewSub_wellFormed with (ProveThis := ProveThis) in H22; eauto.
+      admit. (* [normalWf allocatePre] *)
       simpl; tauto.
       intros; apply H11.
       apply in_or_app; simpl; tauto.
@@ -1909,6 +1970,7 @@ Section stmtC.
       assert (Hthis : thisGood fvs e0).
       hnf; intros.
       eapply cancel_NewSub_wellFormed; eauto.
+      admit. (* [normalWf allocatePre] *)
       simpl; tauto.
       assert (Hincl : incl NewLhs (NImpure pre)).
       hnf; intros; eapply cancel_NewLhs; eauto.
@@ -2120,8 +2182,6 @@ Section stmtC.
 
       etransitivity; [ apply himp_star_frame; [ apply H22 | reflexivity ] | clear H22 ].
       rewrite (firstn_skipn _ l (length (NNonrecursive n))).
-
-      (* Good to here *)
 
       Lemma locateCon'_monotone : forall conName n cs x0 k,
         locateCon' k conName cs = Some (x0, n)
