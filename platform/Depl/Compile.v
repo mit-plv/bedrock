@@ -134,7 +134,8 @@ Record conWf (c : con) : Prop := {
   ConditionNoHo : noHo (Condition c) = true;
   RecursiveNonrecursive : forall x, In x (Recursive c) -> ~In x (Nonrecursive c);
   NoThis : ~In "this" (Recursive c ++ Nonrecursive c ++ ConditionBound);
-  RecursiveNoDup : NoDup (Recursive c)
+  RecursiveNoDup : NoDup (Recursive c);
+  RecursiveGood : List.Forall good_fo_var (Recursive c)
 }.
 
 Definition datatypeWf (d : datatype) :=
@@ -146,7 +147,10 @@ Record nconWf (nc : ncon) := {
   NEnoughArgs : (length (NRecursive nc) + length (NNonrecursive nc) >= 1)%nat;
   NNotTooManyArgs : goodSize (S (length (NRecursive nc) + length (NNonrecursive nc)));
   NWellFormedCondition : normalWf ("this" :: NRecursive nc ++ NNonrecursive nc) (NCondition nc);
-  NConditionNoHo : List.Forall (fun p => noHo p = true) (NImpure (NCondition nc))
+  NConditionNoHo : List.Forall (fun p => noHo p = true) (NImpure (NCondition nc));
+  NRecursiveNoDup : NoDup (NRecursive nc);
+  NNoThis : ~In "this" (NRecursive nc);
+  NRecursiveGood : List.Forall good_fo_var (NRecursive nc)
 }.
 
 Definition ndatatypeWf (nd : ndatatype) :=
@@ -164,6 +168,7 @@ Lemma normalizeCon_wf : forall c, conWf c
   -> nconWf (normalizeCon c).
 Proof.
   destruct 1; split; simpl; eauto using noHo_wf, normalize_wf.
+  intuition eauto using in_or_app.
 Qed.
 
 Theorem normalizeDatatype_wf : forall d, datatypeWf d
@@ -1950,8 +1955,6 @@ Section stmtC.
         apply in_app_or in H5; intuition eauto using in_or_app.
 
         apply NoDup_app; auto.
-        admit.
-        (* Need [NNoDupRecursive]. *)
         simpl in *.
 
         Theorem nsubsts_NQuants : forall xs args n n' args',
@@ -1970,8 +1973,6 @@ Section stmtC.
 
         intuition (subst; eauto using in_or_app).
         apply in_app_or in H5; intuition eauto using in_or_app.
-        
-        admit. (* Need [~In "this" NRecursive]. *)
         eapply NoReuseQuant.
         simpl; eauto.
         auto.
@@ -1980,8 +1981,7 @@ Section stmtC.
         apply in_app_or in H5; simpl; intuition eauto using in_or_app.
 
         apply Forall_app; auto.
-        admit. (* Need [good_var NRecursive] *)
-      Qed.        
+      Qed.
 
       Lemma firstn_skipn : forall A (ls : list A) n,
         ls = firstn n ls ++ skipn n ls.

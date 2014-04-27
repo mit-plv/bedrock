@@ -160,7 +160,7 @@ Ltac depl_cbv2 := cbv beta iota zeta delta [CompileModule.makeVcs CompileModule.
   Logic.normalize Statements.stmtD CompileModule.Precondition app
   CompileModule.Locals Statements.sentail Statements.exprV Statements.exprD
   Cancel.cancel Cancel.findMatchings Logic.NQuants Logic.NImpure Logic.NPure
-  Logic.nsubst CompileModule.SpecVars Cancel.findMatching Logic.predExt Var' Var''
+  Logic.nsubst CompileModule.SpecVars Cancel.findMatching Cancel.findMatching' Logic.predExt Var' Var''
   CompileModule.vars0 Logic.exprD Statements.vars_set Logic.fo_set
   in_dec list_rec list_rect
   string_dec string_rec string_rect
