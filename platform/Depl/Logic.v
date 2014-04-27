@@ -1058,8 +1058,7 @@ Definition good_fo_var (x : fo_var) :=
 
 Record normalWf (fvs : list fo_var) (n : normal) := {
   WellScoped : List.Forall (wellScoped (NQuants n ++ fvs)) (NImpure n);
-  NoClash : List.Forall (fun p => exists bvs, boundVars p = Some bvs
-    /\ forall x, In x bvs -> good_fo_var x /\ ~In x (NQuants n ++ fvs)) (NImpure n);
+  NoClash : List.Forall (fun p => boundVars p = Some nil) (NImpure n);
   GoodPure : match NPure n with
                | None => True
                | Some P => 
@@ -1139,70 +1138,9 @@ Proof.
   generalize dependent bvs.
   induction p; simpl; intuition; caser.
 
-  repeat constructor; simpl; eauto.
-
-  apply Forall_app.
-
-  eapply Forall_impl; [ | eapply IHp1 ].
-  simpl; intuition.
-  destruct H0 as [it]; exists it.
-  destruct H0.
-  specialize (fun x H => proj1 (H7 x H)); intro H7_1.
-  specialize (fun x H => proj2 (H7 x H)); intro H7_2.
-  clear H7.
-  intuition.
-  generalize H7_2; instantiate (1 := NQuants (normalize p2) ++ fvs); intro Hbye; clear Hbye.
-  eapply in_app_or in H8; intuition eauto 10 using in_or_app.
-  eapply in_app_or in H9; intuition eauto 10 using in_or_app.
-  tauto.
-  eauto.
-  eauto using in_or_app.
-  eapply wellScoped_weaken; eauto.
-  eauto using in_or_app.
-  intros.
-  eapply in_app_or in H7; intuition eauto using in_or_app.
-  eapply normalize_boundVars in H8; eauto.
-  eauto using notsInList_true.
-
-  eapply Forall_impl; [ | eapply IHp2 ].
-  simpl; intuition.
-  destruct H0 as [it]; exists it; intuition.
-  eapply H8; eauto.
-  specialize (fun x H => proj2 (H8 x H)); intro H8_1.
-  generalize H8_1; instantiate (1 := NQuants (normalize p1) ++ fvs); intro Hbye; clear Hbye.
-  eapply in_app_or in H9; intuition eauto 10 using in_or_app.
-  eapply in_app_or in H10; intuition eauto 10 using in_or_app.
-  tauto.
-  eauto.
-  eauto using in_or_app.
-  eapply wellScoped_weaken; eauto.
-  eauto using in_or_app.
-  intros.
-  eapply in_app_or in H7; intuition eauto using in_or_app.
-  eapply normalize_boundVars in H; eauto.
-  eauto using notsInList_true.
-
-  eapply Forall_impl; [ | eapply IHp ].
-  simpl; intuition.
-  destruct H0 as [it]; exists it; intuition.
-  eapply H6; eauto.
-  subst; simpl.
-  specialize (fun x H => proj2 (H6 x H)); intro Hin.
-  generalize Hin; instantiate (1 := x :: fvs); intro Hbye; clear Hbye.  
-  eapply H6; eauto.
-  eapply in_or_app.
-  right; simpl; tauto.
-  eapply in_app_or in H8; intuition.
-  eapply H6; eauto using in_or_app.
-  eapply H6; eauto using in_or_app.
-  apply in_or_app; simpl; tauto.
-  eauto.
-  auto.
-  simpl; intuition subst; eauto.
-  simpl; intuition subst; eauto.
-  constructor; [ | constructor ].
-  simpl; eauto.
-  descend; eauto.
+  apply Forall_app; eauto 10 using in_or_app.
+  eapply IHp; eauto.
+  simpl; intuition (subst; eauto using In_notInList).
 
   (* GoodPure *)
   generalize dependent fvs.
@@ -1477,16 +1415,11 @@ Section subst.
     eapply addQuants_monotone; intros.
     apply multistar_weaken_map_fwd.
     eapply Forall_impl2; [ apply WellScoped; eauto |
-      | apply NoClash; eauto ].
+      | eapply NoClash; eauto ].
     simpl; intros.
-    destruct H6 as [ ? [ ] ].
     eapply psubst_fwd; eauto.
     rewrite H4 by auto.
     erewrite H2; eauto.
-    unfold not in *; eauto.
-    intros; eapply H8; eauto.
-    unfold not in *; eauto.
-    intros; eapply H8; eauto.
     eapply wellScoped_predExt.
     eapply Forall_forall; [ eapply WellScoped; eauto | auto ].
 
@@ -1531,16 +1464,11 @@ Section subst.
     eapply addQuants_monotone; intros.
     apply multistar_weaken_map_bwd.
     eapply Forall_impl2; [ apply WellScoped; eauto |
-      | apply NoClash; eauto ].
+      | eapply NoClash; eauto ].
     simpl; intros.
-    destruct H6 as [ ? [ ] ].
     eapply psubst_bwd; eauto.
     rewrite H4 by auto.
     erewrite H2; eauto.
-    unfold not in *; eauto.
-    intros; eapply H8; eauto.
-    unfold not in *; eauto.
-    intros; eapply H8; eauto.
     eapply wellScoped_predExt.
     eapply Forall_forall; [ eapply WellScoped; eauto | auto ].
 
@@ -1611,14 +1539,6 @@ Proof.
   apply in_or_app; simpl; tauto.
   apply in_app_or in H3; intuition eauto using in_or_app.
   apply in_or_app; simpl; tauto.
-  eapply Forall_impl; [ | apply NoClash0 ].
-  simpl; intros.
-  destruct H1; intuition.
-  do 2 esplit; eauto.
-  intros.
-  apply H3 in H1; intuition idtac.
-  apply in_app_or in H5; intuition (subst; simpl in *; eauto using in_or_app).
-  intuition.
   destruct (NPure n); intuition idtac.
   apply GoodPure0; intuition (subst; simpl in *; eauto using in_or_app).
   simpl; intuition (subst; eauto using in_or_app).

@@ -1457,7 +1457,7 @@ Section stmtC.
       Lemma normalWf_weaken : forall fvs1 fvs2 n,
         normalWf fvs1 n
         -> (forall x, In x fvs1 -> In x fvs2)
-        -> (forall x, In x fvs2 -> In x fvs1 \/ ~good_fo_var x)
+        -> (forall x, In x fvs2 -> ~In x fvs1 -> ~In x (NQuants n))
         -> normalWf fvs2 n.
       Proof.
         destruct 1; split; eauto.
@@ -1467,22 +1467,11 @@ Section stmtC.
         intros.
         apply in_app_or in H5; intuition.
 
-        eapply Forall_weaken; try apply NoClash; intros.
-        post.
-        descend; eauto.
-        intuition idtac.
-        apply H6; auto.
-        specialize (fun x H => proj2 (H6 x H)).
-        apply in_app_or in H7; intuition eauto using in_or_app.
-        apply H3 in H9; intuition eauto using in_or_app.
-        apply H7.
-        apply H6; auto.
-
         destruct (NPure n); intuition.
         apply GoodPure; intuition.
         intros.
-        apply H3 in H4; intuition eauto.
-        eapply Forall_forall in GoodQuantNames; eauto.
+
+        destruct (in_dec string_dec x fvs1); auto.
       Qed.
 
       Lemma dtFormat_not_good : forall x, dtFormat x
@@ -1498,6 +1487,9 @@ Section stmtC.
       eapply normalWf_weaken; eauto.
       simpl; intuition eauto.
       simpl; intuition (subst; eauto).
+      destruct H4.
+      eapply Forall_forall in GoodQuantNames; try apply H26.
+      eauto.
       Focus 4.
       subst.
       eapply Forall_forall in H14; [ | eapply GoodQuantNames; eauto ].
@@ -1535,8 +1527,7 @@ Section stmtC.
       Lemma normalWf_new_impure : forall fvs n p,
         normalWf fvs n
         -> List.Forall (wellScoped (NQuants n ++ fvs)) p
-        -> List.Forall (fun p => exists bvs, boundVars p = Some bvs
-                         /\ forall x, In x bvs -> good_fo_var x /\ ~In x (NQuants n ++ fvs)) p
+        -> List.Forall (fun p => boundVars p = Some nil) p
         -> normalWf fvs {| NQuants := NQuants n;
                            NPure := NPure n;
                            NImpure := p |}.
@@ -1548,6 +1539,9 @@ Section stmtC.
       eapply normalWf_weaken; eauto.
       simpl; intuition eauto.
       simpl; intuition (subst; eauto).
+      destruct H3.
+      eapply Forall_forall in GoodQuantNames; try apply H26; eauto.
+
       constructor.
       simpl; intuition subst; simpl.
 
@@ -1803,7 +1797,261 @@ Section stmtC.
       Qed.
 
       eapply cancel_NewSub_wellFormed with (ProveThis := ProveThis) in H22; eauto.
-      admit. (* [normalWf allocatePre] *)
+
+      Lemma nsubst_wf : forall fvs x e n,
+        normalWf (x :: fvs) n
+        -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> normalWf fvs (nsubst x e n).
+      Proof.
+        clear; unfold nsubst; destruct 1; split; simpl in *; auto.
+
+        apply Forall_forall; intros.
+        apply in_map_iff in H1.
+        destruct H1 as [ ? [ ] ]; intuition subst.
+        apply wellScoped_psubst.
+        eapply Forall_forall in WellScoped0; try apply H3.
+        eapply wellScoped_weaken; eauto.
+        intros.
+        apply in_app_or in H; simpl in *; intuition eauto using in_or_app.
+        eauto 10 using in_or_app.
+
+        apply Forall_forall; intros.
+        apply in_map_iff in H1.
+        destruct H1 as [ ? [ ] ]; intuition subst.
+        eapply Forall_forall in NoClash0; try apply H3.
+        destruct NoClash0 as [ ? [ ] ].
+        rewrite boundVars_psubst.
+        do 2 eexists; eauto.
+        intros.
+
+        destruct (NPure n); auto.
+        intros.
+        apply GoodPure; intuition subst.
+        unfold fo_set; destruct (string_dec x0 x0); intuition.
+        unfold fo_set; destruct (string_dec x0 x); intuition.
+        unfold fo_set; destruct (string_dec x0 x); intuition.
+      Qed.
+
+      Lemma nsubsts_wf : forall fvs xs es n n' args',
+        normalWf (xs ++ fvs) n
+        -> (forall e, In e es
+          -> (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e fE1 = Logic.exprD e fE2))
+        -> nsubsts xs es n = (n', args')
+        -> (length xs <= length es)%nat
+        -> normalWf fvs n'.
+      Proof.
+        clear; induction xs; destruct es; simpl; intros; try congruence.
+
+        omega.
+
+        eapply IHl.
+        apply nsubst_wf; eauto using in_or_app.
+        3: eauto.
+        intros.
+        apply H0.
+        auto.
+        eauto using in_or_app.
+        eauto using in_or_app.
+        auto.
+      Qed.
+
+      Theorem nsubsts_args : forall xs args n n' args',
+        nsubsts xs args n = (n', args')
+        -> forall e, In e args' -> In e args.
+      Proof.
+        clear; induction xs; destruct args; simpl; intuition.
+        injection H; clear H; intros; subst; simpl in *; tauto.
+        injection H; clear H; intros; subst; simpl in *; tauto.
+        eauto.
+      Qed.
+
+      Lemma normalWf_allocatePre : forall fvs dtName c nrs rs,
+        length nrs = length (NNonrecursive c)
+        -> nconWf c
+        -> List.Forall (fun e => forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+                                                 -> Logic.exprD e fE1 = Logic.exprD e fE2) (nrs ++ rs)
+        -> (forall x, In x fvs -> ~In x (NQuants (NCondition c)))
+        -> notsInList fvs
+                      ("this"
+                         :: NRecursive c ++ NNonrecursive c ++ NQuants (NCondition c)) =
+           true
+        -> normalWf ("this" :: fvs) (allocatePre dtName c (nrs ++ rs)).
+      Proof.
+        clear; unfold allocatePre; intros.
+        case_eq (nsubsts (NNonrecursive c) (nrs ++ rs) (NCondition c)); intros.
+        destruct H0; clear H0.
+        generalize H4; intro Hwf.
+        eapply nsubsts_wf in Hwf.
+        4: rewrite app_length; unfold fo_var in *; omega.
+        Focus 2.
+        instantiate (1 := "this" :: NRecursive c ++ fvs).
+        eapply normalWf_weaken; eauto.
+        simpl; intuition (subst; eauto using in_or_app).
+        apply in_or_app; simpl; tauto.
+        apply in_app_or in H5; intuition eauto using in_or_app.
+        apply in_or_app; simpl; eauto using in_or_app.
+        intros.
+        eapply in_app_or in H0; simpl in *; intuition (subst; eauto using in_or_app).
+        eapply in_app_or in H0; simpl in *; intuition (subst; eauto using in_or_app).
+
+        Focus 2.
+        intros.
+        eapply Forall_forall in H1; try apply H0.
+        apply H1.
+        intros.
+        apply H5.
+        simpl; eauto using in_or_app.
+
+        destruct Hwf.
+        split; simpl.
+
+        apply Forall_app.
+
+        Lemma wellScoped_recursives : forall fvs dtName es,
+          List.Forall (fun e => forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+                                                -> Logic.exprD e fE1 = Logic.exprD e fE2) es
+          -> forall xs, incl xs fvs
+            -> List.Forall (wellScoped fvs) (recursives dtName xs es).
+        Proof.
+          clear; intros until es; intro Ho; induction Ho; destruct xs; simpl; auto.
+          unfold incl in *; simpl in *; intros.
+          constructor; simpl; eauto.
+          intuition (subst; simpl; eauto).
+        Qed.
+
+        apply wellScoped_recursives.
+        apply Forall_forall; intros.
+        eapply nsubsts_args in H0; eauto.
+        eapply Forall_forall in H1; try apply H0.
+        apply H1; intros.
+        apply H5.
+        apply in_or_app; simpl; eauto.
+        hnf; eauto using in_or_app.
+        eapply Forall_weaken; [ | apply WellScoped ]; intros.
+        eapply wellScoped_weaken; eauto; intros.
+        apply in_app_or in H5; simpl in *; intuition (subst; eauto using in_or_app).
+        apply in_or_app; simpl; tauto.
+        apply in_app_or in H5; simpl in *; intuition (subst; eauto using in_or_app).
+        apply in_or_app; simpl; tauto.
+
+        Lemma noBound_recursives : forall dtName xs es,
+          List.Forall (fun p => boundVars p = Some nil) (recursives dtName xs es).
+        Proof.
+          clear; induction xs; destruct es; simpl; intuition.
+        Qed.
+
+        apply Forall_app; auto using noBound_recursives.
+
+        simpl in *.
+        destruct (NPure n); intuition idtac.
+        apply GoodPure; intuition (subst; eauto using in_or_app).
+        apply in_app_or in H5; intuition eauto using in_or_app.
+
+        apply NoDup_app; auto.
+        admit.
+        (* Need [NNoDupRecursive]. *)
+        simpl in *.
+
+        Theorem nsubsts_NQuants : forall xs args n n' args',
+          nsubsts xs args n = (n', args')
+          -> NQuants n' = NQuants n.
+        Proof.
+          clear; induction xs; destruct args; simpl; intuition.
+          apply IHl in H.
+          assumption.
+        Qed.
+
+        intuition eauto using in_app_or.
+        erewrite <- nsubsts_NQuants in NoReuseQuant0 by eauto.
+        simpl in *.
+        eauto using in_or_app.
+
+        intuition (subst; eauto using in_or_app).
+        apply in_app_or in H5; intuition eauto using in_or_app.
+        
+        admit. (* Need [~In "this" NRecursive]. *)
+        eapply NoReuseQuant.
+        simpl; eauto.
+        auto.
+        eapply notsInList_true in H3; eauto.
+        erewrite <- nsubsts_NQuants by eauto.
+        apply in_app_or in H5; simpl; intuition eauto using in_or_app.
+
+        apply Forall_app; auto.
+        admit. (* Need [good_var NRecursive] *)
+      Qed.        
+
+      Lemma firstn_skipn : forall A (ls : list A) n,
+        ls = firstn n ls ++ skipn n ls.
+      Proof.
+        clear; induction ls; destruct n; simpl; intuition.
+      Qed.
+
+      rewrite (firstn_skipn _ l (length (NNonrecursive n))).
+      apply normalWf_allocatePre; eauto.
+
+      Lemma length_firstn : forall A (ls : list A) n,
+        (n <= length ls)%nat
+        -> length (firstn n ls) = n.
+      Proof.
+        induction ls; destruct n; simpl; intuition.
+      Qed.
+
+      Lemma exprsD_length : forall vs args es,
+        exprsD vs args = Some es
+        -> length es = length args.
+      Proof.
+        clear; induction args; simpl; intuition.
+        injection H; clear H; intros; subst; auto.
+        case_eq (exprD vs a); intros; rewrite H0 in *; try discriminate.
+        case_eq (exprsD vs args); intros; rewrite H1 in *; try discriminate.
+        injection H; clear H; intros; subst.
+        simpl; eauto.
+      Qed.
+
+      apply exprsD_length in H21.
+      apply length_firstn; omega.
+
+      Lemma exprD_wf : forall fvs vs,
+        (forall x e, vs x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall arg arg', exprD vs arg = Some arg'
+        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+          -> Logic.exprD arg' fE1 = Logic.exprD arg' fE2.
+      Proof.
+        clear; destruct arg; simpl; intuition.
+        injection H0; clear H0; intros; subst; auto.
+        eauto.
+      Qed.
+
+      Lemma exprsD_wf : forall fvs vs,
+        (forall x e, vs x = Some e
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall args args', exprsD vs args = Some args'
+        -> forall e, In e args'
+          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
+            -> Logic.exprD e fE1 = Logic.exprD e fE2.
+      Proof.
+        clear; induction args; simpl; intuition.
+        injection H0; clear H0; intros; subst.
+        simpl in *; tauto.
+        do 2 (case_option; try discriminate).
+        injection H0; clear H0; intros; subst.
+        simpl in *; intuition (subst; eauto).
+        eauto using exprD_wf.
+      Qed.
+
+      rewrite <- firstn_skipn.
+      apply Forall_forall; intros.
+      eapply exprsD_wf; eauto.
+      intuition idtac.
+      eapply notsInList_true; eauto.
+      simpl; eauto 10 using in_or_app.
+
       simpl; tauto.
       intros; apply H11.
       apply in_or_app; simpl; tauto.
@@ -1832,24 +2080,13 @@ Section stmtC.
       intros.
       apply in_app_or in H3; intuition.
       constructor.
-      simpl; intuition subst; simpl.
-      exists nil; simpl; tauto.
+      reflexivity.
       apply Forall_forall; intros.
       eapply cancel_NewLhs in H22.
       destruct H3.
       eapply Forall_forall in NoClash; [ | eauto ].
       2: eauto.
-      destruct NoClash as [ ? [ ] ].
-      descend; eauto.
-      split.
-      apply H14; auto.
-      intro.
-      apply in_app_or in H27; simpl in H27; intuition (subst; eauto).
-      eapply H14; eauto using in_or_app.
-      2: eapply H14; eauto using in_or_app.
-      apply H14 in H26.
-      destruct H26.
-      eauto.
+      auto.
       hnf.
       constructor.
       simpl; eauto.
@@ -1970,7 +2207,18 @@ Section stmtC.
       assert (Hthis : thisGood fvs e0).
       hnf; intros.
       eapply cancel_NewSub_wellFormed; eauto.
-      admit. (* [normalWf allocatePre] *)
+
+      rewrite (firstn_skipn _ l (length (NNonrecursive n))).
+      apply normalWf_allocatePre; eauto.
+      apply exprsD_length in H21.
+      apply length_firstn; omega.
+      rewrite <- firstn_skipn.
+      apply Forall_forall; intros.
+      eapply exprsD_wf; eauto.
+      intuition idtac.
+      eapply notsInList_true; eauto.
+      simpl; eauto 10 using in_or_app.
+
       simpl; tauto.
       assert (Hincl : incl NewLhs (NImpure pre)).
       hnf; intros; eapply cancel_NewLhs; eauto.
@@ -1984,49 +2232,10 @@ Section stmtC.
       Focus 2.
       unfold allocatePre.
 
-      Theorem nsubst_wf : forall fvs y e,
-        (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
-                         -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> forall n, List.Forall (wellScoped (y :: fvs)) (NImpure n)
-          -> List.Forall (wellScoped fvs) (NImpure (nsubst y e n)).
-      Proof.
-        clear; simpl; intros.
-        apply Forall_forall; intros.
-        eapply in_map_iff in H1; destruct H1; clear H1; intuition subst.
-        eapply Forall_forall in H3; eauto.
-        eauto using wellScoped_psubst.
-      Qed.
-
-      Theorem nsubsts_wf : forall fvs args1 args2,
-        List.Forall (fun e => forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
-                                              -> Logic.exprD e fE1 = Logic.exprD e fE2) args1
-        -> forall xs n n' args', nsubsts xs (args1 ++ args2) n = (n', args')
-          -> length xs = length args1
-          -> List.Forall (wellScoped (xs ++ fvs)) (NImpure n)
-          -> List.Forall (wellScoped fvs) (NImpure n').
-      Proof.
-        induction 1; destruct xs0; simpl; intros;
-          try match goal with
-                | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst; auto
-              end.
-        destruct args2; discriminate.
-        eauto 10 using nsubst_wf, in_or_app.
-      Qed.
-
       case_eq (nsubsts (NNonrecursive n) l (NCondition n)); intros; simpl.
       apply Forall_app.
 
-      Theorem nsubsts_args : forall xs args n n' args',
-        nsubsts xs args n = (n', args')
-        -> forall e, In e args' -> In e args.
-      Proof.
-        clear; induction xs; destruct args; simpl; intuition.
-        injection H; clear H; intros; subst; simpl in *; tauto.
-        injection H; clear H; intros; subst; simpl in *; tauto.
-        eauto.
-      Qed.
-
-      Theorem wellScoped_recursives : forall qs s rs fvs es,
+      Theorem wellScoped_recursives' : forall qs s rs fvs es,
         (forall e, In e es
                    -> forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
                                       -> Logic.exprD e fE1 = Logic.exprD e fE2)
@@ -2042,38 +2251,7 @@ Section stmtC.
         apply IHrs; simpl; eauto.
       Qed.
 
-      Lemma exprD_wf : forall fvs vs,
-        (forall x e, vs x = Some e
-          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-            -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> forall arg arg', exprD vs arg = Some arg'
-        -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-          -> Logic.exprD arg' fE1 = Logic.exprD arg' fE2.
-      Proof.
-        clear; destruct arg; simpl; intuition.
-        injection H0; clear H0; intros; subst; auto.
-        eauto.
-      Qed.
-
-      Lemma exprsD_wf : forall fvs vs,
-        (forall x e, vs x = Some e
-          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-            -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> forall args args', exprsD vs args = Some args'
-        -> forall e, In e args'
-          -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
-            -> Logic.exprD e fE1 = Logic.exprD e fE2.
-      Proof.
-        clear; induction args; simpl; intuition.
-        injection H0; clear H0; intros; subst.
-        simpl in *; tauto.
-        do 2 (case_option; try discriminate).
-        injection H0; clear H0; intros; subst.
-        simpl in *; intuition (subst; eauto).
-        eauto using exprD_wf.
-      Qed.
-
-      apply wellScoped_recursives; intros.
+      apply wellScoped_recursives'; intros.
       eapply exprsD_wf; eauto.
       eapply nsubsts_args; eauto.
       eauto using in_or_app.
@@ -2102,39 +2280,42 @@ Section stmtC.
       eapply Forall_forall in H43; [ | apply Hdts' ].
       eapply Forall_forall in H43; [ | eassumption ].
 
-      Theorem nsubsts_NQuants : forall xs args n n' args',
-        nsubsts xs args n = (n', args')
-        -> NQuants n' = NQuants n.
-      Proof.
-        clear; induction xs; destruct args; simpl; intuition.
-        apply IHl in H.
-        assumption.
-      Qed.
-
       erewrite nsubsts_NQuants by eassumption.
       destruct H20.
       destruct NWellFormedCondition0.
 
-      Lemma exprsD_length : forall vs args es,
-        exprsD vs args = Some es
-        -> length es = length args.
-      Proof.
-        clear; induction args; simpl; intuition.
-        injection H; clear H; intros; subst; auto.
-        case_eq (exprD vs a); intros; rewrite H0 in *; try discriminate.
-        case_eq (exprsD vs args); intros; rewrite H1 in *; try discriminate.
-        injection H; clear H; intros; subst.
-        simpl; eauto.
-      Qed.
-
-      Lemma firstn_skipn : forall A (ls : list A) n,
-        ls = firstn n ls ++ skipn n ls.
-      Proof.
-        clear; induction ls; destruct n; simpl; intuition.
-      Qed.
-
       rewrite (firstn_skipn _ l (length (NNonrecursive n))) in H35.
-      eapply nsubsts_wf; [ | eassumption | .. ].
+
+      Theorem nsubst_wf' : forall fvs y e,
+        (forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+                         -> Logic.exprD e fE1 = Logic.exprD e fE2)
+        -> forall n, List.Forall (wellScoped (y :: fvs)) (NImpure n)
+          -> List.Forall (wellScoped fvs) (NImpure (nsubst y e n)).
+      Proof.
+        clear; simpl; intros.
+        apply Forall_forall; intros.
+        eapply in_map_iff in H1; destruct H1; clear H1; intuition subst.
+        eapply Forall_forall in H3; eauto.
+        eauto using wellScoped_psubst.
+      Qed.
+
+      Theorem nsubsts_wf' : forall fvs args1 args2,
+        List.Forall (fun e => forall fE1 fE2, (forall x, In x fvs -> fE1 x = fE2 x)
+                                              -> Logic.exprD e fE1 = Logic.exprD e fE2) args1
+        -> forall xs n n' args', nsubsts xs (args1 ++ args2) n = (n', args')
+          -> length xs = length args1
+          -> List.Forall (wellScoped (xs ++ fvs)) (NImpure n)
+          -> List.Forall (wellScoped fvs) (NImpure n').
+      Proof.
+        induction 1; destruct xs0; simpl; intros;
+          try match goal with
+                | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst; auto
+              end.
+        destruct args2; discriminate.
+        eauto 10 using nsubst_wf', in_or_app.
+      Qed.
+
+      eapply nsubsts_wf'; [ | eassumption | .. ].
 
       Lemma Forall_firstn : forall A (P : A -> Prop) ls,
         List.Forall P ls
@@ -2146,13 +2327,6 @@ Section stmtC.
       apply Forall_firstn.
       apply Forall_forall; intros.
       intros; eapply exprsD_wf; [ | eassumption | .. ]; eauto 10 using in_or_app.
-
-      Lemma length_firstn : forall A (ls : list A) n,
-        (n <= length ls)%nat
-        -> length (firstn n ls) = n.
-      Proof.
-        induction ls; destruct n; simpl; intuition.
-      Qed.
 
       rewrite length_firstn; auto.
       apply exprsD_length in H21; omega.
