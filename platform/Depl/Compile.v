@@ -117,6 +117,7 @@ End ForallF.
 Fixpoint noHo (p : pred) : bool :=
   match p with
     | Pure _ => true
+    | Equal _ _ => true
     | Star p1 p2 => noHo p1 && noHo p2
     | Exists _ p1 => noHo p1
     | Named _ _ => false
@@ -2368,8 +2369,7 @@ Section stmtC.
         noHo p = true
         -> Logic.predD p hE1 fE ===> Logic.predD p hE2 fE.
       Proof.
-        clear; induction p; simpl; intuition.
-        apply Himp_refl.
+        clear; induction p; simpl; intuition; try apply Himp_refl.
         apply Bool.andb_true_iff in H; intuition idtac.
         auto using Himp_star_frame.
         eauto using Himp_ex.
