@@ -367,20 +367,20 @@ Inductive result1 :=
   (ProveThese : list (fo_env -> fo_sub -> Prop))
 | Failure1 (Message : Prop).
 
-Inductive no_match_for (rhs : pred) := .
+Inductive no_match_for (lhs : list pred) (rhs : pred) := .
 Inductive variable_in_equality_not_existential (x : fo_var) (e : expr) := .
 Inductive variable_in_equality_already_determined (x : fo_var) (e : expr) := .
 Inductive equality_with_undetermined_expression (x : fo_var) (e : expr) := .
 
 (** Find a LHS match for a single RHS predicate. *)
-Fixpoint findMatching' (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
+Fixpoint findMatching' (allLhs : list pred) (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs : pred) : result1 :=
   match lhs with
-    | nil => Failure1 (no_match_for rhs)
+    | nil => Failure1 (no_match_for allLhs rhs)
     | p :: lhs =>
       match unify_pred fvs s p rhs with
         | Some (s, fs) => Success1 s lhs fs
         | None =>
-          match findMatching' fvs s lhs rhs with
+          match findMatching' allLhs fvs s lhs rhs with
             | Success1 s lhs fs => Success1 s (p :: lhs) fs
             | x => x
           end
@@ -398,18 +398,18 @@ Definition findMatching (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs 
                  | None => Failure1 (equality_with_undetermined_expression x e)
                  | Some e' => Success1 (fos_set s x e') lhs
                                        ((fun _ _ => forall fE1 fE2,
-                                                      (forall y, s y <> None -> fE1 y = fE2 y)
+                                                      (forall y, hide_sub s y <> None -> fE1 y = fE2 y)
                                                       -> exprD e fE1 = exprD e fE2) :: nil)
                end
            end
       else Failure1 (variable_in_equality_not_existential x e)
-    | _ => findMatching' fvs s lhs rhs
+    | _ => findMatching' lhs fvs s lhs rhs
   end.
 
 Local Hint Resolve unify_pred_monotone.
 
-Theorem findMatching'_monotone : forall fvs rhs lhs s s' lhs' fs,
-  findMatching' fvs s lhs rhs = Success1 s' lhs' fs
+Theorem findMatching'_monotone : forall allLhs fvs rhs lhs s s' lhs' fs,
+  findMatching' allLhs fvs s lhs rhs = Success1 s' lhs' fs
   -> forall x e, s x = Some e -> s' x = Some e.
 Proof.
   induction lhs; t.
@@ -417,7 +417,7 @@ Proof.
   injection H; clear H; intros; subst; eauto.
 
   specialize (IHlhs s).
-  destruct (findMatching' fvs s lhs rhs); try discriminate.
+  destruct (findMatching' allLhs fvs s lhs rhs); try discriminate.
   injection H; clear H; intros; subst; eauto.
 Qed.
 
@@ -439,8 +439,8 @@ Qed.
 
 Local Hint Resolve findMatching_monotone.
 
-Lemma findMatching'_sound : forall fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
-  findMatching' fvs s lhs rhs = Success1 s' lhs' fs
+Lemma findMatching'_sound : forall allLhs fvs G (hE : ho_env G) S fE rhs s'' lhs s s' lhs' fs,
+  findMatching' allLhs fvs s lhs rhs = Success1 s' lhs' fs
   -> List.Forall (fun f => f fE s'') fs
   -> (forall x v, s' x = Some v -> s'' x = Some v)
   -> exists rhs', sub_pred s'' rhs = Some rhs'
@@ -459,8 +459,8 @@ Proof.
   apply SubstsH_star_fwd.
 
   match goal with
-    | [ _ : context[findMatching' ?fvs ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
-      let Heq := fresh in specialize (IH s); case_eq (findMatching' fvs s lhs rhs);
+    | [ _ : context[findMatching' _ ?fvs ?s ?lhs ?rhs], IH : forall s : fo_sub, _ |- _ ] =>
+      let Heq := fresh in specialize (IH s); case_eq (findMatching' allLhs fvs s lhs rhs);
         [ intros ? ? ? Heq; rewrite Heq in *; specialize (IH _ _ _ eq_refl)
           | intros ? Heq; rewrite Heq in *; try discriminate ]
   end.
@@ -975,9 +975,9 @@ Proof.
     edestruct unify_args_adds; eauto.
   Qed.
 
-  Lemma findMatching'_adds : forall fvs xs rhs s,
+  Lemma findMatching'_adds : forall allLhs fvs xs rhs s,
     wellScoped xs rhs
-    -> forall lhs s' lhs' Ps, findMatching' fvs s lhs rhs = Success1 s' lhs' Ps
+    -> forall lhs s' lhs' Ps, findMatching' allLhs fvs s lhs rhs = Success1 s' lhs' Ps
       -> forall x xe, s' x = Some xe -> s x = Some xe \/ (In x xs /\ In x fvs).
   Proof.
     induction lhs; simpl; intuition idtac.
@@ -991,7 +991,7 @@ Proof.
     edestruct unify_pred_adds; eauto.
 
     rewrite H2 in *.
-    case_eq (findMatching' fvs s lhs rhs); intros.
+    case_eq (findMatching' allLhs fvs s lhs rhs); intros.
     Focus 2.
     rewrite H3 in *; discriminate.
     rewrite H3 in *.

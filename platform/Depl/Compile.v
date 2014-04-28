@@ -1550,8 +1550,8 @@ Section stmtC.
       constructor.
       simpl; intuition subst; simpl.
 
-      Lemma findMatching'_NewLhs : forall fvs' rhs lhs s NewSub NewLhs ProveThese,
-        findMatching' fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+      Lemma findMatching'_NewLhs : forall fullLhs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching' fullLhs fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
         -> forall x, In x NewLhs -> In x lhs.
       Proof.
         clear; induction lhs; simpl; intuition.
@@ -1561,7 +1561,7 @@ Section stmtC.
         destruct p.
         injection H; clear H; intros; subst; tauto.
         rewrite H1 in *.
-        case_eq (findMatching' fvs' s lhs rhs); intros.
+        case_eq (findMatching' fullLhs fvs' s lhs rhs); intros.
         rewrite H2 in *.
         injection H; clear H; intros; subst; eauto.
         simpl in H0; intuition eauto.
@@ -1680,8 +1680,8 @@ Section stmtC.
         eauto using unify_args_NewSub_wellFormed.
       Qed.
 
-      Lemma findMatching'_NewSub_wellFormed : forall fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
-        findMatching' fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
+      Lemma findMatching'_NewSub_wellFormed : forall fullLhs fvs fvs' rhs lhs s NewSub NewLhs ProveThese,
+        findMatching' fullLhs fvs' s lhs rhs = Success1 NewSub NewLhs ProveThese
         -> List.Forall (wellScoped fvs) lhs
         -> (forall x e, s x = Some e
                         -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
@@ -1699,7 +1699,7 @@ Section stmtC.
         injection H; clear H; intros; subst.
         eauto using unify_pred_NewSub_wellFormed.
         rewrite H0 in *.
-        case_eq (findMatching' fvs' s lhs rhs); intros.
+        case_eq (findMatching' fullLhs fvs' s lhs rhs); intros.
         rewrite H6 in *.
         injection H; clear H; intros; subst; eauto.
         rewrite H6 in *; discriminate.
