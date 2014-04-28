@@ -238,7 +238,7 @@ Ltac depl' := apply CompileModule.compileModule_ok; [ constructor
   |
   | simpl; discriminate ].
 
-Ltac dsimpl := simpl; cbv delta [Logic.fo_set Cancel.fos_set Cancel.hide_sub]; simpl.
+Ltac dsimpl := simpl; cbv delta [Logic.fo_set Cancel.fos_set]; simpl.
 
 Ltac depl := depl'; dsimpl;
              match goal with

@@ -203,10 +203,6 @@ Qed.
 
 (** * Unification *)
 
-(* Here's a sneaky marker predicate that we'll use to avoid excessive reduction
- * in terms that have free variables blocking reduction. *)
-Definition hide_sub (s : fo_sub) := s.
-
 Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
   : option (fo_sub * list (fo_env -> fo_sub -> Prop)) :=
   match lhs, rhs with
@@ -222,7 +218,7 @@ Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
                | _ => None
              end
     | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
-      match hide_sub s' x with
+      match s' x with
         | Some e => exprD e fE
         | None => Dyn tt
       end)) :: nil)
@@ -402,7 +398,7 @@ Definition findMatching (fvs : list fo_var) (s : fo_sub) (lhs : list pred) (rhs 
                  | None => Failure1 (equality_with_undetermined_expression x e)
                  | Some e' => Success1 (fos_set s x e') lhs
                                        ((fun _ _ => forall fE1 fE2,
-                                                      (forall y, hide_sub s y <> None -> fE1 y = fE2 y)
+                                                      (forall y, s y <> None -> fE1 y = fE2 y)
                                                       -> exprD e fE1 = exprD e fE2) :: nil)
                end
            end
@@ -612,15 +608,15 @@ Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : r
     (NImpure lhs) (NImpure rhs) with
     | Failure1 msg => Failure msg
     | Success1 s lhs' fs => Success s lhs' (
-      (forall x, In x (NQuants rhs) -> hide_sub s x <> None)
-      /\ (forall x, In x evs -> exists e, hide_sub s x = Some e
+      (forall x, In x (NQuants rhs) -> s x <> None)
+      /\ (forall x, In x evs -> exists e, s x = Some e
         /\ forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y)
           -> exprD e fE1 = exprD e fE2)
-      /\ (forall fE, List.Forall (fun f => f fE (hide_sub s)) fs)
+      /\ (forall fE, List.Forall (fun f => f fE s) fs)
       /\ match NPure rhs with
            | None => True
            | Some P =>
-             (forall fE1 fE2, (forall x, hide_sub s x <> None -> fE1 x = fE2 x)
+             (forall fE1 fE2, (forall x, s x <> None -> fE1 x = fE2 x)
                -> P fE1 = P fE2)
              /\ (forall fE,
                let fE' := (fun x => match s x with
@@ -893,7 +889,7 @@ Proof.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
-  unfold hide_sub in *; congruence.
+  congruence.
   destruct (sin_dec x0 fvs); eauto; tauto.
   apply Forall_forall; eauto; firstorder congruence.
   intros.
@@ -1077,7 +1073,7 @@ Proof.
   Focus 2.
   instantiate (2 := x0).
   destruct (sin_dec x0 fvs); tauto.
-  unfold hide_sub in *; rewrite H7 in H3; injection H3; clear H3; intros; subst.
+  rewrite H7 in H3; injection H3; clear H3; intros; subst.
   simpl.
   rewrite H7.
   left; symmetry; rewrite H5 by eauto.
@@ -1088,7 +1084,7 @@ Proof.
   specialize (H0 _ H9); post.
   rewrite H7 in H6; injection H6; clear H6; intros; subst.
   destruct (in_dec string_dec x0 evs); try tauto.
-  unfold hide_sub in H7; rewrite H7.
+  rewrite H7.
   left; symmetry; eauto.
   eapply Forall_weaken; try eassumption.
   intros; eapply wellScoped_weaken; eauto.
@@ -1154,15 +1150,15 @@ Proof.
   eapply findMatchings_monotone in H3.
   generalize dependent H3.
   instantiate (2 := x0).
-  unfold hide_sub in *; congruence.
+  congruence.
   rewrite sin_dec_eq in *.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
   firstorder congruence.
   intros.
   destruct (in_dec string_dec x0 evs).
-  unfold hide_sub in H7; rewrite H7.
+  rewrite H7.
   apply H0 in i; destruct i; intuition idtac.
-  unfold hide_sub in H6; rewrite H7 in H6; injection H6; clear H6; intros; subst.
+  rewrite H7 in H6; injection H6; clear H6; intros; subst.
   firstorder eauto.
   eapply findMatchings_adds in H3.
   2: eauto.

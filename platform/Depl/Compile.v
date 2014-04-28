@@ -1803,7 +1803,7 @@ Section stmtC.
         rewrite H9 in *.
         injection H2; clear H2; intros; subst; intuition idtac.
         apply H4 in H6; destruct H6; intuition idtac.
-        unfold hide_sub in H7; rewrite H7 in H5; injection H5; clear H5; intros; subst.
+        rewrite H7 in H5; injection H5; clear H5; intros; subst.
         eauto.
       Qed.
 

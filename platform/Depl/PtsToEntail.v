@@ -248,7 +248,7 @@ Ltac entail' := entail'';
             | [ H : forall x : fo_var, _ |- _ ] => rewrite H by entail''
           end; entail'').
 
-Ltac entail := eapply entail_correct; [ reflexivity | .. ]; cbv beta; unfold hide_sub in *; entail'.
+Ltac entail := eapply entail_correct; [ reflexivity | .. ]; cbv beta; entail'.
 
 
 (** * Test cases *)
