@@ -204,7 +204,7 @@ Ltac depl_wf :=
     | [ |- forall fE fE' : Logic.fo_var -> Logic.dyn, (forall x, _ -> fE x = fE' x) -> _ = _ ] =>
       simpl; intros fE fE' Heq;
         repeat rewrite Heq by tauto; reflexivity
-    | [ |- forall x : Logic.fo_var, _ -> _ <> None ] => simpl In; intuition subst; congruence
+    | [ |- forall x : Logic.fo_var, _ -> _ <> None ] => simpl In; intuition (subst; simpl in *); congruence
     | [ |- forall fE : Logic.fo_env, List.Forall _ _ ] => intro;
       repeat match goal with
                | [ |- List.Forall _ _ ] => constructor
@@ -246,4 +246,4 @@ Ltac depl := depl'; dsimpl;
              end;
              repeat match goal with
                       | [ |- _ /\ _ ] => split
-                    end; repeat depl_wf.
+                    end; repeat depl_wf; try tauto.
