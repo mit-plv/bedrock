@@ -40,5 +40,4 @@ Definition unit := dmodule "m" {{
 Theorem unitOk : moduleOk unit.
 Proof.
   depl; auto.
-  admit. (* Cancelation not matching free variables properly. :-( *)
 Qed.

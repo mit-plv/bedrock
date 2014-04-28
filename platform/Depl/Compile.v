@@ -1623,6 +1623,12 @@ Section stmtC.
         injection H2; clear H2; intros; subst; simpl.
         eauto.
 
+        case_eq (s x0); intros; rewrite H4 in *; try discriminate.
+        destruct e0; try discriminate.
+        destruct (string_dec x2 x); try discriminate.
+        injection H; clear H; intros; subst.
+        eauto.
+
         destruct (in_dec string_dec x fvs'); try discriminate.
         case_eq (s x); intros.
         rewrite H4 in *.

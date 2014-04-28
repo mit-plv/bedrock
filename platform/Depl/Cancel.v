@@ -217,7 +217,10 @@ Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
                | Some (Var x') => if string_dec x' x then Some (s, nil) else None
                | _ => None
              end
-        else None
+        else match s y with
+               | Some (Var x') => if string_dec x' x then Some (s, nil) else None
+               | _ => None
+             end
     | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
       match hide_sub s' x with
         | Some e => exprD e fE
@@ -243,6 +246,7 @@ Theorem unify_expr_sound : forall fvs fE s s'' lhs rhs s' fs,
 Proof.
   destruct lhs, rhs; t.
   repeat esplit.
+  simpl.
   apply H1; t.
   t.
   repeat esplit.
@@ -914,6 +918,12 @@ Proof.
     subst; tauto.
     intuition idtac.
     destruct (dyn_disc H2).
+
+    destruct (s x0); try discriminate.
+    destruct e; try discriminate.
+    destruct (string_dec x2 x); try discriminate.
+    injection H; clear H; intros; subst.
+    eauto.
 
     destruct (in_dec string_dec x fvs).
     destruct (s x); try discriminate.
