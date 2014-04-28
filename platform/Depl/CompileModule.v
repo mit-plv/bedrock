@@ -4,7 +4,7 @@ Require Import Bool.
 
 Require Import AutoSep Wrap Malloc.
 
-Require Import Depl.Logic Depl.AlgebraicDatatypes Depl.Statements Depl.Compile.
+Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes Depl.Statements Depl.Compile.
 
 
 (** * Functions *)
@@ -57,7 +57,7 @@ Section dts.
 
   (** Initial symbolic variable assignment *)
   Definition vars0 (xs : list pr_var) : vars := 
-    fun x => if in_dec string_dec x xs then Some (Logic.Var (x ++ "0")%string) else None.
+    fun x => if sin_dec x xs then Some (Logic.Var (x ++ "0")%string) else None.
 
   (** Generating one Bedrock function *)
   Definition compileFunction (f : function) : Programming.function :=
@@ -455,6 +455,9 @@ Section dts.
       Proof.
         unfold vars_ok, vars0; induction xs; simpl; intuition.
 
+        rewrite sin_dec_eq in *; discriminate.
+
+        rewrite sin_dec_eq in *; simpl in *.
         destruct (string_dec a x); subst.
         injection H; clear H; intros; subst; simpl.
         unfold fo_set.
@@ -489,7 +492,7 @@ Section dts.
       rewrite Hndts in *; auto.
 
       unfold vars0 in *.
-      destruct (in_dec string_dec x (Formals a)); auto; try congruence.
+      destruct (sin_dec x (Formals a)); auto; try congruence.
       injection H; clear H; intros; subst; simpl.
       apply H20.
       apply in_or_app; left.
@@ -588,10 +591,10 @@ Section dts.
       destruct H11.
 
       unfold vars0.
-      destruct (in_dec string_dec "_" (Formals a)); auto.
+      destruct (sin_dec "_" (Formals a)); auto.
       apply good_vars_sound in H12.
       eapply Forall_forall in H12; eauto.
-      destruct H12.    
+      destruct H12.
     Qed.
   End dts'.
 

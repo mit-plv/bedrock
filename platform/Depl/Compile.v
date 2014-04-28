@@ -306,7 +306,7 @@ Section stmtC.
            end.
 
   (* Case-split on an [option] being [match]ed in conclusion. *)
-  Ltac case_option :=
+  Ltac case_option := try rewrite sin_dec_eq in *;
     match goal with
       | [ |- context[match ?E with None => _ | _ => _ end] ] =>
         match E with
@@ -1797,7 +1797,7 @@ Section stmtC.
       Proof.
         unfold cancel; intros.
         case_eq (findMatchings (evs ++ NQuants rhs)
-                               (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
+                               (fun x => if sin_dec x fvs then Some (Logic.Var x) else None)
                                (NImpure lhs) (NImpure rhs)); intros.
         2: rewrite H9 in *; discriminate.
         rewrite H9 in *.
@@ -2069,7 +2069,7 @@ Section stmtC.
       Proof.
         unfold cancel; intros.
         case_eq (findMatchings (evs ++ NQuants rhs)
-                               (fun x => if in_dec string_dec x fvs then Some (Logic.Var x) else None)
+                               (fun x => if sin_dec x fvs then Some (Logic.Var x) else None)
                                (NImpure lhs) (NImpure rhs)); intros.
         2: rewrite H4 in *; discriminate.
         rewrite H4 in *.

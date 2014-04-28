@@ -596,10 +596,19 @@ Proof.
   apply Himp_star_frame; auto; apply Himp_refl.
 Qed.
 
+(** An [in_dec] wrapper that reduces less eagerly, to avoid blow-up in VCs *)
+Fixpoint sin_dec (s : string) (ss : list string) {struct s} :=
+  in_dec string_dec s ss.
+
+Lemma sin_dec_eq : forall s ss, sin_dec s ss = in_dec string_dec s ss.
+Proof.
+  destruct s; auto.
+Qed.
+
 (** Overall cancellation *)
 Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : result :=
   match findMatchings (evs ++ NQuants rhs)
-    (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
+    (fun x => if sin_dec x fvs then Some (Var x) else None)
     (NImpure lhs) (NImpure rhs) with
     | Failure1 msg => Failure msg
     | Success1 s lhs' fs => Success s lhs' (
@@ -661,7 +670,7 @@ Proof.
   unfold cancel; intros.
   
   case_eq (findMatchings (evs ++ NQuants rhs)
-    (fun x => if in_dec string_dec x fvs then Some (Var x) else None)
+    (fun x => if sin_dec x fvs then Some (Var x) else None)
     (NImpure lhs) (NImpure rhs)); intros.
   Focus 2.
   rewrite H3 in *; discriminate.
@@ -885,7 +894,7 @@ Proof.
   generalize dependent H3.
   instantiate (2 := x0).
   unfold hide_sub in *; congruence.
-  destruct (in_dec string_dec x0 fvs); eauto; tauto.
+  destruct (sin_dec x0 fvs); eauto; tauto.
   apply Forall_forall; eauto; firstorder congruence.
   intros.
 
@@ -1062,11 +1071,12 @@ Proof.
   eauto.
   eauto.
   simpl in *.
+  rewrite sin_dec_eq in *.
   destruct (in_dec string_dec x0 fvs); try tauto.
   eapply findMatchings_monotone in H3.
   Focus 2.
   instantiate (2 := x0).
-  destruct (in_dec string_dec x0 fvs); tauto.
+  destruct (sin_dec x0 fvs); tauto.
   unfold hide_sub in *; rewrite H7 in H3; injection H3; clear H3; intros; subst.
   simpl.
   rewrite H7.
@@ -1145,6 +1155,7 @@ Proof.
   generalize dependent H3.
   instantiate (2 := x0).
   unfold hide_sub in *; congruence.
+  rewrite sin_dec_eq in *.
   destruct (in_dec string_dec x0 fvs); eauto; tauto.
   firstorder congruence.
   intros.
@@ -1157,6 +1168,7 @@ Proof.
   2: eauto.
   2: eauto.
   intuition idtac.
+  rewrite sin_dec_eq in *.
   destruct (in_dec string_dec x0 fvs); try congruence.
   injection H6; clear H6; intros; subst; simpl.
   left; symmetry; eauto.
