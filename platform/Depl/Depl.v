@@ -210,7 +210,7 @@ Ltac depl_cbv1 := cbv beta iota zeta
          AlgebraicDatatypes.recursives Cancel.findMatching Logic.psubst
          Logic.esubst Var' Cancel.sub_expr Cancel.findMatching'
          Cancel.unify_pred Cancel.unify_expr Cancel.fos_set Cancel.unify_args Var''
-         Statements.vars_set].
+         Statements.vars_set CompileModule.vars0].
 
 (** Now we [destruct] string comparisons. *)
 Ltac streq :=
@@ -291,6 +291,11 @@ Ltac depl_wf :=
       simpl; intuition (subst; simpl; eauto)
     | [ |- forall fE fE' : Logic.fo_var -> Logic.dyn, _ -> forall e : Logic.expr, In _ _ -> _ ] =>
       simpl; intuition (subst; auto)
+    | [ |- forall fE1 fE2 : Logic.fo_var -> Logic.dyn,
+             (forall x : Logic.fo_var, _ <> None -> fE1 x = fE2 x)
+             -> _ = _ ] =>
+      intros ? ? H; unfold Logic.fo_set; simpl;
+      repeat rewrite H by (simpl; congruence); reflexivity
   end;
   try match goal with
         | [ |- Logic.exprD _ _ = Logic.exprD _ _ ] =>
@@ -310,5 +315,5 @@ Ltac depl := apply CompileModule.compileModule_ok; [ constructor
     end;
     repeat match goal with
              | [ |- _ /\ _ ] => split
-           end; repeat depl_wf
+           end; repeat depl_wf; unfold Logic.fo_set; simpl
   | simpl; discriminate ].
