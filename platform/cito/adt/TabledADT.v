@@ -1,7 +1,5 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-
 Require Import String.
 
 Inductive ADTScheme :=
@@ -40,6 +38,8 @@ Module Type ADTTable.
   Parameter adt_table : ADT_Table.
 
 End ADTTable.
+
+Require Import ADT.
 
 Module TabledADT (Import T : ADTTable) <: ADT.
 
