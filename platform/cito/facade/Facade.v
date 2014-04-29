@@ -113,8 +113,6 @@ Section ADTSection.
 
   Definition sel st x := @StringMap.find Value x st.
 
-  Definition no_adt_leftover st dom := forall x a, sel st x = Some (ADT a) -> List.In x dom.
-
   Fixpoint make_state keys values :=
     match keys, values with
       | k :: keys', v :: values' => add k v (make_state keys' values')
@@ -178,7 +176,6 @@ Section ADTSection.
           mapM (sel st) args = Some input ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
-          no_adt_leftover callee_st' (RetVar spec :: ArgVars spec) ->
           let output := map (sel callee_st') (ArgVars spec) in
           sel callee_st' (RetVar spec) = Some ret ->
           let st := add_remove_many args output st in
