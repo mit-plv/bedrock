@@ -18,7 +18,7 @@ Record ADTEntry :=
 Require Import StringMap.
 Import StringMap.
 
-Definition ADT_Table := t ADTEntry.
+Definition PrimitiveTable := t ADTEntry.
 
 Definition Empty_adt : ADTEntry :=
   {|
@@ -38,12 +38,12 @@ Definition product_adt (a b : ADTEntry) : ADTEntry.
 
 Section TableSection.
 
-  Variable adt_table : ADT_Table.
+  Variable primitive_table : PrimitiveTable.
 
   Fixpoint interp_adt (ty : ADTScheme) : ADTEntry :=
     match ty with
       | Primitive name => 
-        match find name adt_table with
+        match find name primitive_table with
           | Some adt => adt
           | None => Empty_adt
         end
@@ -60,7 +60,7 @@ End TableSection.
 
 Module Type ADTTable.
 
-  Parameter adt_table : ADT_Table.
+  Parameter primitive_table : PrimitiveTable.
 
 End ADTTable.
 
@@ -68,7 +68,7 @@ Require Import ADT.
 
 Module TabledADT (Import T : ADTTable) <: ADT.
 
-  Definition ADTValue := ADTValue adt_table.
+  Definition ADTValue := ADTValue primitive_table.
 
 End TabledADT.
 
@@ -80,9 +80,9 @@ Module Make (Import T : ADTTable).
 
   Module TabledADTRepInv <: RepInv A.
 
-    Definition rep_inv p a := RepInv (interp_adt adt_table (Ty a)) p (Value a).
+    Definition rep_inv p a := RepInv (interp_adt primitive_table (Ty a)) p (Value a).
     
-    Definition rep_inv_ptr p a := RepInvGood (interp_adt adt_table (Ty a)) p (Value a).
+    Definition rep_inv_ptr p a := RepInvGood (interp_adt primitive_table (Ty a)) p (Value a).
 
     Definition RepInv := W -> ADTValue -> HProp.
 
