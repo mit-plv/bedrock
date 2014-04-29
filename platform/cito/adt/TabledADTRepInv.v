@@ -8,8 +8,31 @@ Section TableSection.
 
   Require Import AutoSep.
 
-  Definition RepInv (ADTValue : Type) := W -> ADTValue -> HProp.
+  Definition RepInv ty := W -> interp_adt adt_table ty -> HProp.
 
+  Definition RepInv_by_name s := RepInv (Primitive s).
+
+  Require Import ilist.
+
+  Require Import StringMapFacts.
+
+  Definition RepInv_Table := ilist RepInv_by_name (keys adt_table).
+
+  Variable repinv_table : RepInv_Table.
+
+  Fixpoint interp_to_repinv (ty : ADTScheme) : RepInv ty :=
+    match ty with
+      | 
+  
+  Fixpoint interp_adt (ty : ADTScheme) : Type :=
+    match ty with
+      | Primitive name => 
+        match find name adt_table with
+          | Some type => type
+          | None => Empty_set
+        end
+      | Product a b => (interp_adt a * interp_adt b)%type
+    end.
 
 
 Require Import RepInv.
