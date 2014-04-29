@@ -15,20 +15,20 @@ Section TableSection.
 
   Variable adt_table : ADT_Table.
 
-  Fixpoint interp (ty : ADTScheme) : Type :=
+  Fixpoint interp_adt (ty : ADTScheme) : Type :=
     match ty with
       | Primitive name => 
         match find name adt_table with
           | Some type => type
           | None => Empty_set
         end
-      | Product a b => (interp a * interp b)%type
+      | Product a b => (interp_adt a * interp_adt b)%type
     end.
 
   Record ADTValue :=
     {
       Ty : ADTScheme;
-      Value : interp Ty
+      Value : interp_adt Ty
     }.
 
 End TableSection.

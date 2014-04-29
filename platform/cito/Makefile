@@ -72,7 +72,7 @@ MODULES := \
 	examples/UseCell examples/UseCellDriver \
 	examples/FactorialRecur examples/FactorialRecurDriver \
 	examples/CountUnique examples/CountUniqueDriver \
-	adt/TabledADT \
+	adt/TabledADT adt/Common adt/ilist \
 	facade/Facade \
 
 VS      := $(MODULES:%=%.v)
