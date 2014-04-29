@@ -6,29 +6,54 @@ Inductive ADTScheme :=
 | Primitive : string -> ADTScheme
 | Product : ADTScheme -> ADTScheme -> ADTScheme.
 
+Require Import AutoSep.
+
+Record ADTEntry :=
+  {
+    Model : Type;
+    RepInv : W -> Model -> HProp;
+    RepInvGood : forall p a, RepInv p a ===> p =?> 1 * any
+  }.
+
 Require Import StringMap.
 Import StringMap.
 
-Definition ADT_Table := t Type.
+Definition ADT_Table := t ADTEntry.
+
+Definition Empty_adt : ADTEntry :=
+  {|
+    Model := Empty_set;
+    RepInv := fun _ a => match a with end;
+    RepInvGood := fun _ a => match a with end
+  |}.
+
+Definition product_adt (a b : ADTEntry) : ADTEntry.
+  refine (
+      {|
+        Model := (Model a * Model b)%type;
+        RepInv := _;
+        RepInvGood := _
+      |}).
+  Admitted.
 
 Section TableSection.
 
   Variable adt_table : ADT_Table.
 
-  Fixpoint interp_adt (ty : ADTScheme) : Type :=
+  Fixpoint interp_adt (ty : ADTScheme) : ADTEntry :=
     match ty with
       | Primitive name => 
         match find name adt_table with
-          | Some type => type
-          | None => Empty_set
+          | Some adt => adt
+          | None => Empty_adt
         end
-      | Product a b => (interp_adt a * interp_adt b)%type
+      | Product a b => product_adt (interp_adt a) (interp_adt b)
     end.
 
   Record ADTValue :=
     {
       Ty : ADTScheme;
-      Value : interp_adt Ty
+      Value : Model (interp_adt Ty)
     }.
 
 End TableSection.
@@ -46,3 +71,21 @@ Module TabledADT (Import T : ADTTable) <: ADT.
   Definition ADTValue := ADTValue adt_table.
 
 End TabledADT.
+
+Module Make (Import T : ADTTable).
+  
+  Module Import A := TabledADT T.
+
+  Require Import RepInv.
+
+  Module TabledADTRepInv <: RepInv A.
+
+    Definition rep_inv p a := RepInv (interp_adt adt_table (Ty a)) p (Value a).
+    
+    Definition rep_inv_ptr p a := RepInvGood (interp_adt adt_table (Ty a)) p (Value a).
+
+    Definition RepInv := W -> ADTValue -> HProp.
+
+  End TabledADTRepInv.
+
+End Make.
