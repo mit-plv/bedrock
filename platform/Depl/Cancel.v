@@ -5,6 +5,10 @@ Require Import AutoSep.
 Require Import Depl.Logic.
 
 
+Module Make(Import M : LOGIC).
+  Module Import Logic := Logic.Make(M).
+  Export Logic.
+
 (** Syntactic substitutions for first-order variables *)
 Definition fo_sub := fo_var -> option expr.
 Definition fos_empty : fo_sub := fun _ => None.
@@ -72,7 +76,7 @@ Definition sub_expr (s : fo_sub) (e : expr) : option expr :=
   match e with
     | Var x => s x
     | Lift f => Some (Lift (fun fE => f (fun x => match s x with
-                                                    | None => Dyn tt
+                                                    | None => Word 0
                                                     | Some e => exprD e fE
                                                   end)))
   end.
@@ -220,7 +224,7 @@ Definition unify_expr (fvs : list fo_var) (s : fo_sub) (lhs rhs : expr)
     | Lift f, Lift g => Some (s, (fun fE s' => f fE = g (fun x =>
       match s' x with
         | Some e => exprD e fE
-        | None => Dyn tt
+        | None => Word 0
       end)) :: nil)
     | Lift f, Var y =>
       if in_dec string_dec y fvs
@@ -620,7 +624,7 @@ Definition cancel (fvs : list fo_var) (evs : list fo_var) (lhs rhs : normal) : r
                -> P fE1 = P fE2)
              /\ (forall fE,
                let fE' := (fun x => match s x with
-                                      | None => Dyn tt
+                                      | None => Word 0
                                       | Some e => exprD e fE
                                     end) in
                match NPure lhs with
@@ -638,7 +642,7 @@ Definition sub_normal (s : fo_sub) (n : normal) : option normal :=
       NPure := match NPure n with
                  | None => None
                  | Some f => Some (fun fE => f (fun x => match s x with
-                                                           | None => Dyn tt
+                                                           | None => Word 0
                                                            | Some e => exprD e fE
                                                          end))
                end;
@@ -1101,7 +1105,7 @@ Proof.
           -> P fE1 = P fE2)
         -> P (fun x => match s x with
                          | Some e => exprD e fE'
-                         | None => Dyn tt
+                         | None => Word 0
                        end)
         -> SubstsH S (fold_left (fun hp p => predD p hE fE' * hp) ps' Emp)
         ===> SubstsH S (addQuants qs
@@ -1196,3 +1200,5 @@ Proof.
   eauto.
   auto.
 Qed.
+
+End Make.

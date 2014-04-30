@@ -5,6 +5,10 @@ Require Import AutoSep Wrap Malloc.
 Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes Depl.Statements.
 
 
+Module Make(Import M : LOGIC).
+  Module Import Statements := Statements.Make(M).
+  Export Statements.
+
 (** * Lowering DEPL expressions to Bedrock SPS expressions *)
 
 Definition exprC (e : expr) : rvalue' :=
@@ -24,7 +28,7 @@ Theorem exprC_correct : forall specs P stn st xs V vs fE e e' res fvs,
     -> forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y) -> Logic.exprD e0 fE1 = Logic.exprD e0 fE2)
   -> exists w,
     evalRvalue stn st (exprC e xs) = Some w
-    /\ Logic.exprD e' fE = Dyn w
+    /\ Logic.exprD e' fE = Word w
     /\ (forall fE1 fE2, (forall y, In y fvs -> fE1 y = fE2 y) -> Logic.exprD e' fE1 = Logic.exprD e' fE2).
 Proof.
   destruct e; simpl; intuition.
@@ -201,7 +205,7 @@ Section stmtC.
   Definition hE : ho_env nil := fun X args =>
     match lookupDatatype dts X, args with
       | Some cs, model :: wd :: nil =>
-        Ex sk, Ex w, [| wd = Dyn w |] * datatypeD hE0 (X, cs) sk model w
+        Ex sk, Ex w, [| wd = Word w |] * datatypeD hE0 (X, cs) sk model w
       | _, _ => Emp
     end%Sep.
 
@@ -230,7 +234,7 @@ Section stmtC.
         * [| vars_ok fE V vs |]
       POST[R] mallocHeap 0
         (* The postcondition holds, in an [fo_env] that lets it mention the return value. *)
-        * normalD post (fo_set fE "result" (Dyn R)).
+        * normalD post (fo_set fE "result" (Word R)).
 
   Variable Hdts : datatypesWf dts.
 
@@ -271,7 +275,7 @@ Section stmtC.
                           PRE[V, R] array ws R * [| length ws = S (length args) |]
                             * [| R <> 0 |] * [| freeable R (S (length args)) |]
                             * mallocHeap 0 * normalD pre fE * [| vars_ok fE V vs |]
-                          POST[R'] mallocHeap 0 * normalD post (fo_set fE "result" (Dyn R'))];;
+                          POST[R'] mallocHeap 0 * normalD post (fo_set fE "result" (Word R'))];;
                         "_" *<- tag;;
                         initArgs args "_" 1;;
                         x <- "_";;
@@ -426,7 +430,7 @@ Section stmtC.
 
   Lemma vars_ok_upd : forall fE V vs x w e,
     vars_ok fE V vs
-    -> Logic.exprD e fE = Dyn w
+    -> Logic.exprD e fE = Word w
     -> vars_ok fE (upd V x w) (vars_set vs x e).
   Proof.
     unfold vars_ok, sel, upd, vars_set; intros.
@@ -688,7 +692,7 @@ Section stmtC.
       Lemma exprD_exprD : forall fE V vs e e',
         exprD vs e = Some e'
         -> vars_ok fE V vs
-        -> exists w : W, Logic.exprD e' fE = Dyn w.
+        -> exists w : W, Logic.exprD e' fE = Word w.
       Proof.
         destruct e; simpl; intuition.
         injection H2; clear H2; intros; subst.
@@ -740,8 +744,7 @@ Section stmtC.
 
       rewrite H14 in H.
       injection H; intro Hinj.
-      Require Import Eqdep.
-      apply inj_pair2 in Hinj; subst.
+      subst.
       generalize H16 H15 H5 H7 H9 H11; clear; intros.
       evaluate auto_ext.
       descend.
@@ -816,7 +819,7 @@ Section stmtC.
         -> vars_ok fE V vs
         -> interp specs (![ locals ("rp" :: ns) V res (Regs st Sp) * array ws (sel V "_") * F ] (stn, st))
         -> evalInstrs stn st (initArgs' args pos) = Some st'
-        -> exists ws', map (fun e => Logic.exprD e fE) args' = map (@Dyn W) ws'
+        -> exists ws', map (fun e => Logic.exprD e fE) args' = map Word ws'
           /\ interp specs (![ locals ("rp" :: ns) V res (Regs st Sp) * array (multiUpd ws pos ws') (sel V "_")
                               * F ] (stn, st'))
           /\ Regs st' Sp = Regs st Sp.
@@ -1025,7 +1028,7 @@ Section stmtC.
       step auto_ext.
       descend.
       cancl.
-      specialize (sentail_sound fvs (fo_set x0 "result" (Dyn (Regs st Rv))) (@SNil _ _) _ _ _ H26); intuition.
+      specialize (sentail_sound fvs (fo_set x0 "result" (Word (Regs st Rv))) (@SNil _ _) _ _ _ H26); intuition.
       unfold SubstsH in *; simpl in *.
       eapply Himp_trans; [ | eapply nsubst_bwd; eauto ].
       eapply Himp_trans; [ | apply H23 ].
@@ -1467,13 +1470,13 @@ Section stmtC.
       Proof.
         destruct 1; split; eauto.
 
-        eapply Forall_weaken; try apply WellScoped; intros.
+        eapply Forall_weaken; try apply WellScoped0; intros.
         eapply wellScoped_weaken; eauto.
         intros.
         apply in_app_or in H5; intuition.
 
         destruct (NPure n); intuition.
-        apply GoodPure; intuition.
+        apply GoodPure0; intuition.
         intros.
 
         destruct (in_dec string_dec x fvs1); auto.
@@ -1493,7 +1496,7 @@ Section stmtC.
       simpl; intuition eauto.
       simpl; intuition (subst; eauto).
       destruct H4.
-      eapply Forall_forall in GoodQuantNames; try apply H26.
+      eapply Forall_forall in GoodQuantNames0; try apply H26.
       eauto.
       Focus 4.
       subst.
@@ -1545,7 +1548,7 @@ Section stmtC.
       simpl; intuition eauto.
       simpl; intuition (subst; eauto).
       destruct H3.
-      eapply Forall_forall in GoodQuantNames; try apply H26; eauto.
+      eapply Forall_forall in GoodQuantNames0; try apply H26; eauto.
 
       constructor.
       simpl; intuition subst; simpl.
@@ -1807,7 +1810,7 @@ Section stmtC.
         eauto.
       Qed.
 
-      eapply cancel_NewSub_wellFormed with (ProveThis := ProveThis) in H22; eauto.
+      eapply cancel_NewSub_wellFormed with (ProveThis := ProveThis0) in H22; eauto.
 
       Lemma nsubst_wf : forall fvs x e n,
         normalWf (x :: fvs) n
@@ -1838,7 +1841,7 @@ Section stmtC.
 
         destruct (NPure n); auto.
         intros.
-        apply GoodPure; intuition subst.
+        apply GoodPure0; intuition subst.
         unfold fo_set; destruct (string_dec x0 x0); intuition.
         unfold fo_set; destruct (string_dec x0 x); intuition.
         unfold fo_set; destruct (string_dec x0 x); intuition.
@@ -1940,7 +1943,7 @@ Section stmtC.
         apply H5.
         apply in_or_app; simpl; eauto.
         hnf; eauto using in_or_app.
-        eapply Forall_weaken; [ | apply WellScoped ]; intros.
+        eapply Forall_weaken; [ | apply WellScoped0 ]; intros.
         eapply wellScoped_weaken; eauto; intros.
         apply in_app_or in H5; simpl in *; intuition (subst; eauto using in_or_app).
         apply in_or_app; simpl; tauto.
@@ -1957,7 +1960,7 @@ Section stmtC.
 
         simpl in *.
         destruct (NPure n); intuition idtac.
-        apply GoodPure; intuition (subst; eauto using in_or_app).
+        apply GoodPure0; intuition (subst; eauto using in_or_app).
         apply in_app_or in H5; intuition eauto using in_or_app.
 
         apply NoDup_app; auto.
@@ -1973,13 +1976,13 @@ Section stmtC.
         Qed.
 
         intuition eauto using in_app_or.
-        erewrite <- nsubsts_NQuants in NoReuseQuant0 by eauto.
+        erewrite <- nsubsts_NQuants in NoReuseQuant1 by eauto.
         simpl in *.
         eauto using in_or_app.
 
         intuition (subst; eauto using in_or_app).
         apply in_app_or in H5; intuition eauto using in_or_app.
-        eapply NoReuseQuant.
+        eapply NoReuseQuant0.
         simpl; eauto.
         auto.
         eapply notsInList_true in H3; eauto.
@@ -2080,7 +2083,7 @@ Section stmtC.
       apply Forall_forall; intros.
       eapply cancel_NewLhs in H22.
       destruct H3.
-      eapply Forall_forall in WellScoped; [ | eauto ].
+      eapply Forall_forall in WellScoped0; [ | eauto ].
       2: eauto.
       eapply wellScoped_weaken; eauto.
       intros.
@@ -2090,7 +2093,7 @@ Section stmtC.
       apply Forall_forall; intros.
       eapply cancel_NewLhs in H22.
       destruct H3.
-      eapply Forall_forall in NoClash; [ | eauto ].
+      eapply Forall_forall in NoClash0; [ | eauto ].
       2: eauto.
       auto.
       hnf.
@@ -2163,7 +2166,7 @@ Section stmtC.
       evaluate auto_ext.
       intros; descend.
       rewrite vars_ok_sel.
-      intros; assert (vars_ok (fo_set x5 nextDt (Dyn (Regs x4 Rv)))
+      intros; assert (vars_ok (fo_set x5 nextDt (Word (Regs x4 Rv)))
                       (upd (upd x8 "_" (Regs x4 Rv)) x (Regs x4 Rv))
                       (vars_set vs x (Logic.Var nextDt))).
 
@@ -2172,7 +2175,7 @@ Section stmtC.
         -> (forall z e, vs z = Some e
             -> forall fE1 fE2, (forall z, z <> y -> fE1 z = fE2 z)
               -> Logic.exprD e fE1 = Logic.exprD e fE2)
-        -> vars_ok (fo_set fE y (Dyn w)) (upd V x w) (vars_set vs x (Logic.Var y)).
+        -> vars_ok (fo_set fE y (Word w)) (upd V x w) (vars_set vs x (Logic.Var y)).
       Proof.
         unfold vars_ok, vars_set, fo_set, upd, sel; intros.
         destruct (string_dec x0 x); subst.
@@ -2196,7 +2199,7 @@ Section stmtC.
       intro; subst; eauto.
 
       Definition map_agree fE ls1 ls2 := map (fun e => Logic.exprD e fE) ls1
-                                         = map (@Dyn W) ls2.
+                                         = map Word ls2.
 
       change (map_agree x5 l x11) in H40.
 
@@ -2229,7 +2232,7 @@ Section stmtC.
       assert (Hincl : incl NewLhs (NImpure pre)).
       hnf; intros; eapply cancel_NewLhs; eauto.
 
-      eapply cancel_sound with (P := ProveThis) in H22; descend; eauto.
+      eapply cancel_sound with (P := ProveThis0) in H22; descend; eauto.
       Focus 2.
       intuition subst.
       destruct H2.
@@ -2336,7 +2339,7 @@ Section stmtC.
 
       rewrite length_firstn; auto.
       apply exprsD_length in H21; omega.
-      eapply Forall_weaken; [ | apply WellScoped ].
+      eapply Forall_weaken; [ | apply WellScoped0 ].
       intros; eapply wellScoped_weaken; eauto.
       intros.
       apply in_app_or in H20; intuition eauto 10 using in_or_app.
@@ -2427,7 +2430,7 @@ Section stmtC.
       Lemma exprD_word : forall fE V vs,
         vars_ok fE V vs
         -> forall e e', exprD vs e = Some e'
-        -> exists w : W, Logic.exprD e' fE = Dyn w.
+        -> exists w : W, Logic.exprD e' fE = Word w.
       Proof.
         clear; destruct e; simpl; intuition.
         injection H0; clear H0; intros; subst.
@@ -2441,7 +2444,7 @@ Section stmtC.
         -> exists ws, length ws = length es
           /\ forall n e, nth_error es' n = Some e
             -> exists w : W, nth_error ws n = Some w
-              /\ Logic.exprD e fE = Dyn w.
+              /\ Logic.exprD e fE = Word w.
       Proof.
         clear; induction es; simpl; intuition.
         injection H0; clear H0; intros; subst.
@@ -2589,7 +2592,6 @@ Section stmtC.
       apply Himp'_ex; intro w.
       apply Himp_star_pure_c; intro.
       injection H19; clear H19; intros; subst.
-      apply inj_pair2 in H19; subst.
       destruct x13; simpl.
 
       Fixpoint skeleton_ind (P : skeleton -> Prop)
@@ -2830,26 +2832,26 @@ Section stmtC.
       eapply weaken_predD.
       apply Hincl in H45.
       destruct H3.
-      eapply Forall_forall in WellScoped; eauto.
+      eapply Forall_forall in WellScoped0; eauto.
       intros.
       apply H19; unfold fo_set; destruct (string_dec x15 nextDt); subst; auto.
       exfalso; apply in_app_or in H47; intuition idtac.
       destruct H3.
-      eapply Forall_forall in GoodQuantNames; eauto.
+      eapply Forall_forall in GoodQuantNames0; eauto.
       destruct H3.
       destruct (NPure pre); try apply Himp_refl.
-      erewrite GoodPure; try apply Himp_refl.
+      erewrite GoodPure0; try apply Himp_refl.
       intuition idtac.
       apply H19; unfold fo_set; destruct (string_dec x14 nextDt); subst; auto.
       exfalso; eauto.
       apply H19; unfold fo_set; destruct (string_dec x14 nextDt); subst; auto.
-      exfalso; eapply Forall_forall in GoodQuantNames; eauto.
+      exfalso; eapply Forall_forall in GoodQuantNames0; eauto.
 
       intros.
       erewrite Hthis.
       erewrite H19.
       apply Himp_refl.
-      destruct H3; intro; eapply Forall_forall in GoodQuantNames; eauto.
+      destruct H3; intro; eapply Forall_forall in GoodQuantNames0; eauto.
       eauto.
 
       (* Home stretch! *)
@@ -2989,3 +2991,5 @@ Proof.
                                unfold pre', post'; eauto 6; cbv beta; hnf; reflexivity || tauto ]
                            end) ].
 Defined.
+
+End Make.

@@ -5,6 +5,12 @@ Require Import AutoSep.
 Require Import Depl.Logic Depl.Cancel.
 
 
+Module L.
+  Definition dom := Empty_set.
+End L.
+
+Module Import Cancel := Cancel.Make(L).
+
 Notation "|^ fE , e |" := (Lift (fun fE => e)) (fE at level 0) : expr_scope.
 Delimit Scope expr_scope with expr.
 Bind Scope expr_scope with expr.
@@ -27,10 +33,10 @@ Notation "'Emp'" := (PPure (fun _ => True)) : ppred_scope.
 
 Fixpoint ppredD (p : ppred) (fE : fo_env) : HProp :=
   match p with
-    | PtsTo a v => Ex a', Ex v', [| exprD a fE = Dyn a' /\ exprD v fE = Dyn v' |] * a' =*> v'
+    | PtsTo a v => Ex a', Ex v', [| exprD a fE = Word a' /\ exprD v fE = Word v' |] * a' =*> v'
     | PPure P => [| P fE |]
     | PStar p1 p2 => ppredD p1 fE * ppredD p2 fE
-    | PExists x p1 => Ex y : W, ppredD p1 (fo_set fE x (Dyn y))
+    | PExists x p1 => Ex y : W, ppredD p1 (fo_set fE x (Word y))
   end%Sep.
 
 Definition pimpl (p1 p2 : ppred) :=
@@ -41,14 +47,14 @@ Fixpoint ppredX (p : ppred) : pred :=
     | PtsTo a v => Named "ptsTo" (a :: v :: nil)
     | PPure P => Pure P
     | PStar p1 p2 => Star (ppredX p1) (ppredX p2)
-    | PExists x p1 => Exists x (Star (Pure (fun fE => Ty (fE x) = W)) (ppredX p1))
+    | PExists x p1 => Exists x (ppredX p1)
   end.
 
 Definition G : list Type := (W * W * settings * smem : Type)%type :: nil.
 
 Definition hE : ho_env G :=
   fun _ es => match es return hpropB G with
-                | a :: v :: nil => Ex a' : W, Ex v' : W, [| a = Dyn a' /\ v = Dyn v' |]
+                | a :: v :: nil => Ex a' : W, Ex v' : W, [| a = Word a' /\ v = Word v' |]
                   * (fun stn sm => Var0 (a', v', stn, sm))
                 | _ => Emp
               end%Sep.
@@ -79,11 +85,8 @@ Proof.
 
   eapply Himp_trans; [ | apply SubstsH_ex_bwd ]; simpl.
   apply Himp'_ex; intro w.
-  apply Himp_ex_c; exists (Dyn w).
-  eapply Himp_trans; [ | apply SubstsH_star_bwd ].
-  eapply Himp_trans; [ | apply Himp_star_frame; [ apply SubstsH_inj_bwd | apply Himp_refl ]  ].
-  apply Himp_star_pure_cc; auto.
-  autorewrite with core; reflexivity.
+  apply Himp_ex_c; exists (Word w).
+  apply IHp.
 Qed.
 
 Theorem ppredX_backward : forall p fE, SubstsH S (predD (ppredX p) hE fE) ===> ppredD p fE.
@@ -107,12 +110,9 @@ Proof.
 
   eapply Himp_trans; [ apply SubstsH_ex_fwd | ]; simpl.
   apply Himp'_ex; intro d.
-  eapply Himp_trans; [ apply SubstsH_star_fwd | ].
-  eapply Himp_trans; [ apply Himp_star_frame; [ apply SubstsH_inj_fwd | apply Himp_refl ] | ].
-  apply Himp_star_pure_c; intros.
-  autorewrite with core in *.
-  destruct d; simpl in *; subst.
+  destruct d.
   apply Himp_ex_c; eauto.
+  destruct v.
 Qed.
 
 Fixpoint pwellScoped (xs : list fo_var) (p : ppred) : Prop :=
@@ -127,7 +127,6 @@ Fixpoint pwellScoped (xs : list fo_var) (p : ppred) : Prop :=
 Theorem pwellScoped_forward : forall p xs, pwellScoped xs p -> wellScoped xs (ppredX p).
 Proof.
   induction p; simpl; firstorder.
-  rewrite H0; auto.
 Qed.
 
 Local Hint Immediate pwellScoped_forward.
@@ -155,7 +154,6 @@ Proof.
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
            end; auto.
-  destruct (boundVars (ppredX p)); auto.
 Qed.
 
 Hint Rewrite pboundVars_boundVars.
@@ -253,7 +251,7 @@ Ltac entail := eapply entail_correct; [ reflexivity | .. ]; cbv beta; entail'.
 
 (** * Test cases *)
 
-Definition null := |^_, Dyn (natToW 0)|%expr.
+Definition null := |^_, Word (natToW 0)|%expr.
 
 Definition Var' : string -> expr := Var.
 Coercion Var' : string >-> expr.
@@ -306,20 +304,20 @@ Proof.
 Qed.
 
 Example test10 : pimpl (EX "x", null =*> "x" * |^E, E "x" <> E "x"|)
-  (EX "x", null =*> "x" * |^E, E "x" = Dyn (natToW 0)|).
+  (EX "x", null =*> "x" * |^E, E "x" = Word (natToW 0)|).
 Proof.
   entail.
 Qed.
  
 Example test11 : pimpl (EX "x", EX "y", "x" =*> "y"
-  * |^E, exists y : W, E "y" = Dyn y /\ E "x" = Dyn (y ^+ $1)|)
+  * |^E, exists y : W, E "y" = Word y /\ E "x" = Word (y ^+ $1)|)
 (EX "x", EX "y", "x" =*> "y"
-  * |^E, exists x : W, E "x" = Dyn x /\ E "y" = Dyn (x ^- $1)|).
+  * |^E, exists x : W, E "x" = Word x /\ E "y" = Word (x ^- $1)|).
 Proof.
   entail.
   firstorder.
   repeat esplit; eauto.
-  rewrite H1.
+  rewrite H.
   f_equal.
   words.
 Qed.

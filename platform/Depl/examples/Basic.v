@@ -1,7 +1,13 @@
-(** * Basic examples that define datatypes *)
+(** * Basic examples that define datatypes with dummy models *)
 
 Require Import Depl.
 
+
+Module D.
+  Definition dom := unit.
+End D.
+
+Module Import Depl := Depl.Make(D).
 
 (** * The simplest example that defines (but does not use!) a datatype *)
 

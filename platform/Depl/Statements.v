@@ -7,6 +7,10 @@ Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes.
 Set Implicit Arguments.
 
 
+Module Make(Import M : LOGIC).
+  Module Import AlgebraicDatatypes := AlgebraicDatatypes.Make(M).
+  Export AlgebraicDatatypes.
+
 (** * Syntax *)
 
 (** Type synonym for program variables *)
@@ -98,12 +102,12 @@ Definition vars_set (vs : vars) (x : pr_var) (e : Logic.expr) : vars :=
 
 (** When does a [vars] agree with a [vals] (from the main Bedrock library)? *)
 Definition vars_ok (fE : fo_env) (V : vals) (vs : vars) :=
-  forall x e, vs x = Some e -> exprD e fE = Dyn (sel V x).
+  forall x e, vs x = Some e -> exprD e fE = Word (sel V x).
 
 (** Translating program expressions to logical expressions *)
 Definition exprD (vs : vars) (e : expr) : option Logic.expr :=
   match e with
-    | Const w => Some (Lift (fun _ => Dyn w))
+    | Const w => Some (Lift (fun _ => Word w))
     | Var x => vs x
   end.
 
@@ -266,3 +270,5 @@ Section stmtD.
         end
     end.
 End stmtD.
+
+End Make.

@@ -7,6 +7,10 @@ Require Import AutoSep Wrap Malloc.
 Require Import Depl.Logic Depl.Cancel Depl.AlgebraicDatatypes Depl.Statements Depl.Compile.
 
 
+Module Make(Import M : LOGIC).
+  Module Import Compile := Compile.Make(M).
+  Export Compile.
+
 (** * Functions *)
 
 (** Type of one function in a Depl module *)
@@ -33,7 +37,7 @@ Record function := {
 Fixpoint formals (V : vals) (xs : list pr_var) (fE : fo_env) : fo_env :=
   match xs with
     | nil => fE
-    | x :: xs => fo_set (formals V xs fE) (x ++ "0")%string (Dyn (sel V x))
+    | x :: xs => fo_set (formals V xs fE) (x ++ "0")%string (Word (sel V x))
   end.
 
 Section dts.
@@ -43,7 +47,7 @@ Section dts.
   Definition precond (frmls lcls : list pr_var) (pre post : pred) (inBody : bool) : assert :=
     (Al fE,
       PRE[V] mallocHeap 0 * predD dts pre (formals V frmls fE)
-      POST[R] mallocHeap 0 * predD dts post (fo_set (formals V frmls fE) "result" (Dyn R)))
+      POST[R] mallocHeap 0 * predD dts post (fo_set (formals V frmls fE) "result" (Word R)))
     inBody (fun w => w) (if inBody then frmls ++ lcls else frmls) (if inBody then 7 else 7 + length lcls).
 
   (** A default function, for when things go horribly wrong *)
@@ -439,7 +443,7 @@ Section dts.
 
       Lemma formals_grab : forall V x xs fE,
         In x xs
-        -> formals V xs fE (x ++ "0")%string = Dyn (sel V x).
+        -> formals V xs fE (x ++ "0")%string = Word (sel V x).
       Proof.
         induction xs; simpl; intuition (subst; eauto).
         unfold fo_set.
@@ -708,3 +712,5 @@ Section dts.
     Qed.
   End compileModule.
 End dts.
+
+End Make.

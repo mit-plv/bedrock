@@ -1,15 +1,20 @@
 (** * Logical expression notations *)
 
-Require Import Depl.Logic.
+Require Import Depl.Logic Depl.CompileModule.
+
+Module Make(Import M : LOGIC).
+  Module Import CompileModule := CompileModule.Make(M).
+  Export CompileModule.
 
 Notation "!" := Dyn.
+Notation "$ n" := (Word n).
 
-Definition Var' : string -> expr := Var.
-Coercion Var' : string >-> expr.
+Definition Var' : string -> Logic.expr := Logic.Var.
+Coercion Var' : string >-> Logic.expr.
 
 Notation "|^ fE , e |" := (Lift (fun fE => e)) (fE at level 0) : expr_scope.
 Delimit Scope expr_scope with expr.
-Bind Scope expr_scope with expr.
+Bind Scope expr_scope with Logic.expr.
 
 
 (** * Predicate notations *)
@@ -23,13 +28,13 @@ Infix "*" := Star : pred_scope.
 Notation "'EX' x , p" := (Exists x p%pred) (at level 89) : pred_scope.
 Notation "'Emp'" := (Pure (fun _ => True)) : pred_scope.
 Notation "e1 = e2" := (Equal e1%expr e2%expr) : pred_scope.
-Notation "# X ( e1 , .. , eN )" := (Named X (@cons expr e1%expr (.. (@cons expr eN%expr nil) ..)))
+Notation "# X ( e1 , .. , eN )" := (Named X (@cons Logic.expr e1%expr (.. (@cons Logic.expr eN%expr nil) ..)))
   (X at level 0) : pred_scope.
 
 
 (** * Program function spec notations *)
 
-Require Import Depl.Statements.
+Import Statements.
 
 Record fspec := {
   SpecVars_ : list fo_var;
@@ -83,7 +88,7 @@ Bind Scope stmt_scope with stmt.
 
 (** * Program function notations *)
 
-Require Import Depl.AlgebraicDatatypes.
+Import AlgebraicDatatypes.
 
 Record func := {
   Name_ : string;
@@ -159,16 +164,14 @@ Fixpoint separate (ds : list defn) : list datatype * list func :=
         (dts, fu :: fs)
   end.
 
-Require Import Depl.CompileModule.
-
 Definition funcOut (f : func) : function := {|
-  Name := Name_ f;
-  SpecVars := SpecVars_ (Spec_ f);
-  Formals := Formals_ (Spec_ f);
-  Locals := Locals_ f;
-  Precondition := Precondition_ (Spec_ f);
-  Postcondition := Postcondition_ (Spec_ f);
-  Body := Body_ f
+  CompileModule.Name := Name_ f;
+  CompileModule.SpecVars := SpecVars_ (Spec_ f);
+  CompileModule.Formals := Formals_ (Spec_ f);
+  CompileModule.Locals := Locals_ f;
+  CompileModule.Precondition := Precondition_ (Spec_ f);
+  CompileModule.Postcondition := Postcondition_ (Spec_ f);
+  CompileModule.Body := Body_ f
 |}.
 
 Notation "{{ x 'with' .. 'with' y }}" := (cons x%func .. (cons y%func nil) ..) (only parsing) : funcs_scope.
@@ -247,3 +250,5 @@ Ltac depl := depl'; dsimpl;
              repeat match goal with
                       | [ |- _ /\ _ ] => split
                     end; repeat depl_wf; try tauto.
+
+End Make.

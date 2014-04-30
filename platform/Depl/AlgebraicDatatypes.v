@@ -2,8 +2,12 @@
 
 Require Import AutoSep.
 
-Require Import Depl.Logic.
+Require Import Depl.Logic Depl.Cancel.
 
+
+Module Make(Import M : LOGIC).
+  Module Import Cancel := Cancel.Make(M).
+  Export Cancel.
 
 (** * Syntax of algebraic datatype definitions *)
 
@@ -48,7 +52,7 @@ Section Semantics.
   Definition models : list (dyn * W) -> list dyn := map (@fst _ _).
 
   (** Nonrecursive fields are all [W], but we'll want to convert them to [dyn]. *)
-  Definition dynify : list W -> list dyn := map (@Dyn _).
+  Definition dynify : list W -> list dyn := map Word.
 
   (** Helpers for building first-order variable environments *)
   Fixpoint make_fo (names : list string) (values : list dyn) (base : fo_env) : fo_env :=
@@ -163,10 +167,10 @@ Section allocatePre_sound.
 
   Variable hE : ho_env nil.
 
-  Hypothesis HhE_fwd : forall m p, hE (fst dt) (m :: Dyn p :: nil)
+  Hypothesis HhE_fwd : forall m p, hE (fst dt) (m :: Word p :: nil)
     ===> (Ex sk, datatypeD hE dt sk m p).
   Hypothesis HhE_bwd : forall m p, (Ex sk, datatypeD hE dt sk m p)
-    ===> hE (fst dt) (m :: Dyn p :: nil).
+    ===> hE (fst dt) (m :: Word p :: nil).
   (* The higher-order variable environment is interpreting this datatype's name in the proper way. *)
 
   Lemma allocatePre_sound' : forall argFvs fvs bvs,
@@ -182,7 +186,7 @@ Section allocatePre_sound.
     -> (forall x, In x argFvs -> In x fvs)
     -> (forall x, In x (Nonrecursive c) -> ~In x (Recursive c))
     -> forall args fE ws, length args = length (Nonrecursive c) + length (Recursive c)
-    -> map (fun e => exprD e fE) args = map (@Dyn W) ws
+    -> map (fun e => exprD e fE) args = map Word ws
     -> (forall fE1 fE2, (forall x, In x argFvs -> fE1 x = fE2 x)
       -> List.Forall (fun e => exprD e fE1 = exprD e fE2) args)
     -> normalD (allocatePre (fst dt) (normalizeCon c) args) hE fE
@@ -590,8 +594,8 @@ Section allocatePre_sound.
     -> NoDup (Recursive c)
     -> forall (ns : list expr) rs fE nws rws, length ns = length (Nonrecursive c)
     -> length rs = length (Recursive c)
-    -> map (fun e => exprD e fE) ns = map (@Dyn W) nws
-    -> map (fun e => exprD e fE) rs = map (@Dyn W) rws
+    -> map (fun e => exprD e fE) ns = map Word nws
+    -> map (fun e => exprD e fE) rs = map Word rws
     -> (forall fE1 fE2,
       (forall x, In x argFvs -> fE1 x = fE2 x)
       -> List.Forall (fun e : expr => exprD e fE1 = exprD e fE2) (ns ++ rs))
@@ -720,3 +724,5 @@ Section allocatePre_sound.
   Qed.
 
 End allocatePre_sound.
+
+End Make.

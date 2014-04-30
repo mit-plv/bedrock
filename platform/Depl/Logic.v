@@ -3,11 +3,16 @@ Require Import AutoSep.
 Set Implicit Arguments.
 
 
+Module Type LOGIC.
+  Parameter dom : Type.
+End LOGIC.
+
+Module Make(Import M : LOGIC).
+
 (** Dynamically typed packages *)
-Record dyn := Dyn {
-  Ty : Type;
-  Va : Ty
-}.
+Inductive dyn :=
+| Word (w : W)
+| Dyn (v : dom).
 
 (** Type synonym for variables *)
 Definition fo_var := string.
@@ -27,7 +32,7 @@ Definition exprD (e : expr) : fo_env -> dyn :=
     | Lift f => f
   end.
 
-Definition fo_empty : fo_env := fun _ => Dyn tt.
+Definition fo_empty : fo_env := fun _ => Word 0.
 
 (** Setting a value in a valuation *)
 Definition fo_set (E : fo_env) (x : fo_var) (v : dyn) : fo_env := 
@@ -1561,20 +1566,12 @@ Proof.
   destruct (string_dec x0 x); tauto.
 Qed.
 
-Definition dyn1 := Dyn tt.
-Definition dyn2 := Dyn false.
+Definition dyn1 := Word 0.
+Definition dyn2 := Word 1.
 
 Theorem dyn_disc : dyn1 <> dyn2.
 Proof.
-  intro.
-  apply (f_equal Ty) in H.
-  simpl in H.
-  assert (exists x : unit, forall y, x = y).
-  exists tt; destruct y; auto.
-  rewrite H in H0.
-  destruct H0.
-  specialize (H0 (negb x)).
-  destruct x; discriminate.
+  discriminate.
 Qed.
 
 Lemma wellScoped_psubst : forall x e p fvs,
@@ -1620,3 +1617,5 @@ Proof.
   unfold fo_set.
   destruct (string_dec x1 x); subst; eauto.
 Qed.      
+
+End Make.
