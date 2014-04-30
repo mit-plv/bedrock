@@ -86,7 +86,7 @@ Definition const := dmodule "m" {{
   dfunction "f" [
     ARGS()
     PRE Emp
-    POST |^fE, fE "result" = $0|
+    POST |^fE, fE "result" = 0|
   ]
     Return 0
   end
@@ -177,8 +177,8 @@ Qed.
 Definition starPure2 := dmodule "m" {{
   dfunction "f" [
     ARGS("x", "y", "z")
-    PRE (|^fE, fE "x0" = $0| * |^fE, fE "y0" = $1|) * |^fE, fE "z0" = $2|
-    POST |^fE, fE "z0" = $2| * (|^fE, fE "y0" = $1| * |^fE, fE "x0" = $0|)
+    PRE (|^fE, fE "x0" = 0| * |^fE, fE "y0" = 1|) * |^fE, fE "z0" = 2|
+    POST |^fE, fE "z0" = 2| * (|^fE, fE "y0" = 1| * |^fE, fE "x0" = 0|)
   ]
     Return 0
   end

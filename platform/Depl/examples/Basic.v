@@ -9,10 +9,13 @@ End D.
 
 Module Import Depl := Depl.Make(D).
 
+Definition Dyn' : unit -> dyn := Dyn.
+Coercion Dyn' : unit >-> dyn.
+
 (** * The simplest example that defines (but does not use!) a datatype *)
 
 Definition unused := dmodule "m" {{
-  dtype "unit" = {{ #"tt"("dummy";) "this" = |^_, !tt| }}
+  dtype "unit" = {{ #"tt"("dummy";) "this" = tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -31,11 +34,11 @@ Qed.
 (** * Now, let's actually construct a value! *)
 
 Definition unit := dmodule "m" {{
-  dtype "unit" = {{ #"tt"("dummy";) "this" = |^_, !tt| }}
+  dtype "unit" = {{ #"tt"("dummy";) "this" = tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
-    POST #"unit"(|^_, !tt|, "result")
+    POST #"unit"(tt, "result")
   ]
     Locals "ret" in
     "ret" <-- #"tt"(0);;
@@ -52,12 +55,12 @@ Qed.
 (** * Lists with a degenerate specification *)
 
 Definition list := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = |^_, !tt|
-                    with #"cons"("hd";"tl") "this" = |^_, !tt| }}
+  dtype "list" = {{ #"nil"("dummy";) "this" = tt
+                    with #"cons"("hd";"tl") "this" = tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
-    POST #"list"(|^_, !tt|, "result")
+    POST #"list"(tt, "result")
   ]
     Locals "ret" in
     "ret" <-- #"nil"(0);;
@@ -76,12 +79,12 @@ Qed.
 (** * Binary trees with a degenerate specification *)
 
 Definition tree := dmodule "m" {{
-  dtype "tree" = {{ #"leaf"("dummy";) "this" = |^_, !tt|
-                    with #"node"("data";"left","right") "this" = |^_, !tt| }}
+  dtype "tree" = {{ #"leaf"("dummy";) "this" = tt
+                    with #"node"("data";"left","right") "this" = tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
-    POST #"tree"(|^_, !tt|, "result")
+    POST #"tree"(tt, "result")
   ]
     Locals "left", "right", "ret" in
     "left" <-- #"leaf"(0);;

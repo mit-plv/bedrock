@@ -9,12 +9,36 @@ Module Make(Import M : LOGIC).
 Notation "!" := Dyn.
 Notation "$ n" := (Word n).
 
+Coercion Word : W >-> dyn.
+
 Definition Var' : string -> Logic.expr := Logic.Var.
 Coercion Var' : string >-> Logic.expr.
 
 Notation "|^ fE , e |" := (Lift (fun fE => e)) (fE at level 0) : expr_scope.
 Delimit Scope expr_scope with expr.
 Bind Scope expr_scope with Logic.expr.
+
+Definition wordbin' (f : W -> W -> W) (x y : dyn) : dyn :=
+  match x, y with
+    | Word x, Word y => Word (f x y)
+    | _, _ => Word 0
+  end.
+
+Definition wordbin (f : W -> W -> W) (x y : Logic.expr) : Logic.expr :=
+  Lift (fun fE => wordbin' f (Logic.exprD x fE) (Logic.exprD y fE)).
+
+Definition eplus := wordbin (@wplus 32).
+Definition eminus := wordbin (@wminus 32).
+Definition emult := wordbin (@wmult 32).
+
+Infix "^+" := eplus : expr_scope.
+Infix "^-" := eminus : expr_scope.
+Infix "^*" := emult : expr_scope.
+
+Definition liftdyn (d : dyn) : Logic.expr :=
+  Lift (fun _ => d).
+
+Coercion liftdyn : dyn >-> Logic.expr.
 
 
 (** * Predicate notations *)
