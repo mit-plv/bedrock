@@ -40,6 +40,24 @@ Definition liftdyn (d : dyn) : Logic.expr :=
 
 Coercion liftdyn : dyn >-> Logic.expr.
 
+Definition dynbin' (f : dom -> dom -> dom) (x y : dyn) : dyn :=
+  match x, y with
+    | Dyn x, Dyn y => Dyn (f x y)
+    | _, _ => Word 0
+  end.
+
+Definition dynbin (f : dom -> dom -> dom) (x y : Logic.expr) : Logic.expr :=
+  Lift (fun fE => dynbin' f (Logic.exprD x fE) (Logic.exprD y fE)).
+
+Definition worddynbin' (f : W -> dom -> dom) (x y : dyn) : dyn :=
+  match x, y with
+    | Word x, Dyn y => Dyn (f x y)
+    | _, _ => Word 0
+  end.
+
+Definition worddynbin (f : W -> dom -> dom) (x y : Logic.expr) : Logic.expr :=
+  Lift (fun fE => worddynbin' f (Logic.exprD x fE) (Logic.exprD y fE)).
+
 
 (** * Predicate notations *)
 
@@ -249,6 +267,9 @@ Ltac depl_wf :=
              -> _ = _ ] =>
       intros ? ? H; unfold Logic.fo_set; simpl;
       repeat rewrite H by (simpl; congruence); reflexivity
+    | [ |- exists e : Logic.expr, Some _ = Some e /\ _ ] =>
+      do 2 esplit; [ reflexivity
+                   | simpl; intros ? ? H; repeat rewrite H by tauto; reflexivity ]
   end;
   try match goal with
         | [ |- Logic.exprD _ _ = Logic.exprD _ _ ] =>
