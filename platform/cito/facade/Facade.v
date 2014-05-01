@@ -11,13 +11,14 @@ Section ADTSection.
 
   Require Import Memory IL.
   Require Import SyntaxExpr.
+  Require Import GLabel.
 
   Inductive Stmt :=
   | Skip
   | Seq : Stmt -> Stmt -> Stmt
   | If : Expr -> Stmt -> Stmt -> Stmt
   | While : Expr -> Stmt -> Stmt
-  | Call : option string -> string -> list string -> Stmt
+  | Call : option string -> glabel -> list string -> Stmt
   | Assign : string -> Expr -> Stmt.
 
   (* Semantics *)
@@ -121,7 +122,7 @@ Section ADTSection.
 
   Section EnvSection.
 
-    Variable env : string -> option FuncSpec.
+    Variable env : glabel -> option FuncSpec.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall st, RunsTo Skip st st
@@ -186,3 +187,34 @@ Section ADTSection.
   End EnvSection.
           
 End ADTSection.
+
+Require Syntax.
+
+Require Import String.
+Open Scope string.
+
+Definition tmpvar_f := "__f".
+
+Coercion Var : string >-> Expr.
+
+Fixpoint compile (s : Stmt) : Syntax.Stmt :=
+  match s with
+    | Skip => Syntax.Skip
+    | Seq a b => Syntax.Seq (compile a) (compile b)
+    | If e t f => Syntax.If e (compile t) (compile f)
+    | While e c => Syntax.While e (compile c)
+    | Assign x e => Syntax.Assign x e
+    | Call x f args => 
+      Syntax.Seq 
+        (Syntax.Label tmpvar_f f) 
+        (Syntax.Call x tmpvar_f (List.map Var args))
+  end.
+
+Require Import ADT.
+
+Module Make (Import A : ADT).
+
+  Require Import Semantics.
+
+End Make.
+
