@@ -58,6 +58,15 @@ Definition worddynbin' (f : W -> dom -> dom) (x y : dyn) : dyn :=
 Definition worddynbin (f : W -> dom -> dom) (x y : Logic.expr) : Logic.expr :=
   Lift (fun fE => worddynbin' f (Logic.exprD x fE) (Logic.exprD y fE)).
 
+Definition dynwordbin' (f : dom -> W -> dom) (x y : dyn) : dyn :=
+  match x, y with
+    | Dyn x, Word y => Dyn (f x y)
+    | _, _ => Word 0
+  end.
+
+Definition dynwordbin (f : dom -> W -> dom) (x y : Logic.expr) : Logic.expr :=
+  Lift (fun fE => dynwordbin' f (Logic.exprD x fE) (Logic.exprD y fE)).
+
 
 (** * Predicate notations *)
 
@@ -69,9 +78,28 @@ Bind Scope pred_scope with pred.
 Infix "*" := Star : pred_scope.
 Notation "'EX' x , p" := (Exists x p%pred) (at level 89) : pred_scope.
 Notation "'Emp'" := (Pure (fun _ => True)) : pred_scope.
-Notation "e1 = e2" := (Equal e1%expr e2%expr) : pred_scope.
+Notation "e1 == e2" := (Equal e1%expr e2%expr) : pred_scope.
+Notation "e1 = e2" := (Pure (fun fE => Logic.exprD e1%expr fE = Logic.exprD e2%expr fE)) : pred_scope.
 Notation "# X ( e1 , .. , eN )" := (Named X (@cons Logic.expr e1%expr (.. (@cons Logic.expr eN%expr nil) ..)))
   (X at level 0) : pred_scope.
+
+Definition dynprop' (f : dom -> dom -> Prop) (x y : dyn) : Prop :=
+  match x, y with
+    | Dyn x, Dyn y => f x y
+    | _, _ => True
+  end.
+
+Definition dynprop (f : dom -> dom -> Prop) (x y : Logic.expr) : pred :=
+  Pure (fun fE => dynprop' f (Logic.exprD x fE) (Logic.exprD y fE)).
+
+Definition worddynprop' (f : W -> dom -> Prop) (x y : dyn) : Prop :=
+  match x, y with
+    | Word x, Dyn y => f x y
+    | _, _ => True
+  end.
+
+Definition worddynprop (f : W -> dom -> Prop) (x y : Logic.expr) : pred :=
+  Pure (fun fE => worddynprop' f (Logic.exprD x fE) (Logic.exprD y fE)).
 
 
 (** * Program function spec notations *)
@@ -89,7 +117,7 @@ Notation "'PRE' pre 'POST' post" := {| SpecVars_ := nil;
   Formals_ := nil;
   Precondition_ := pre%pred;
   Postcondition_ := post%pred
-|} (at level 88) : spec_scope.
+|} (at level 88, pre at next level) : spec_scope.
 
 Notation "'ARGS' () s" := s (at level 89) : spec_scope.
 

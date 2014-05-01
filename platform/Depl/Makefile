@@ -2,7 +2,7 @@ ROOT    := ../..
 MODULES := Logic Cancel PtsToEntail \
 	AlgebraicDatatypes Statements Compile CompileModule \
 	Depl \
-	examples/Baby examples/Basic
+	examples/Baby examples/Basic examples/LinkedList examples/TreeSet
 
 VS      := $(MODULES:%=%.v)
 

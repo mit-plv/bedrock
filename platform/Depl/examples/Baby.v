@@ -67,8 +67,8 @@ Definition assum := dmodule "m" {{
   dfunction "f" [
     ARGS()
     AL "x", AL "y",
-    PRE |^fE, fE "x" = fE "y"|
-    POST |^fE, fE "y" = fE "x"|
+    PRE "x" = "y"
+    POST "y" = "x"
   ]
     Return 0
   end
@@ -86,7 +86,7 @@ Definition const := dmodule "m" {{
   dfunction "f" [
     ARGS()
     PRE Emp
-    POST |^fE, fE "result" = 0|
+    POST "result" = 0
   ]
     Return 0
   end
@@ -104,7 +104,7 @@ Definition ident := dmodule "m" {{
   dfunction "f" [
     ARGS("x")
     PRE Emp
-    POST |^fE, fE "result" = fE "x0"|
+    POST "result" = "x0"
   ]
     Return "x"
   end
@@ -122,7 +122,7 @@ Definition identTmp := dmodule "m" {{
   dfunction "f" [
     ARGS("x")
     PRE Emp
-    POST |^fE, fE "result" = fE "x0"|
+    POST "result" = "x0"
   ]
     Locals "y" in
     "y" <- "x";;
@@ -142,7 +142,7 @@ Definition identTmp' := dmodule "m" {{
   dfunction "f" [
     ARGS("x")
     PRE Emp
-    POST |^fE, fE "result" = fE "x0"|
+    POST "result" = "x0"
   ]
     Locals "y", "z" in
     "y" <- "x";;
@@ -162,8 +162,8 @@ Qed.
 Definition starPure1 := dmodule "m" {{
   dfunction "f" [
     ARGS("x", "y", "z")
-    PRE |^fE, fE "x0" = fE "y0"| * |^fE, fE "y0" = fE "z0"|
-    POST |^fE, fE "result" = fE "z0"| * |^fE, fE "z0" = fE "x0"|
+    PRE ("x0" = "y0") * ("y0" = "z0")
+    POST ("result" = "z0") * ("z0" = "x0")
   ]
     Return "y"
   end
@@ -177,8 +177,8 @@ Qed.
 Definition starPure2 := dmodule "m" {{
   dfunction "f" [
     ARGS("x", "y", "z")
-    PRE (|^fE, fE "x0" = 0| * |^fE, fE "y0" = 1|) * |^fE, fE "z0" = 2|
-    POST |^fE, fE "z0" = 2| * (|^fE, fE "y0" = 1| * |^fE, fE "x0" = 0|)
+    PRE (("x0" = 0) * ("y0" = 1)) * ("z0" = 2)
+    POST ("z0" = 2) * (("y0" = 1) * ("x0" = 0))
   ]
     Return 0
   end
@@ -196,8 +196,8 @@ Definition assumRet := dmodule "m" {{
   dfunction "f" [
     ARGS("x")
     AL "y",
-    PRE |^fE, fE "x0" = fE "y"|
-    POST |^fE, fE "result" = fE "y"|
+    PRE "x0" = "y"
+    POST "result" = "y"
   ]
     Return "x"
   end

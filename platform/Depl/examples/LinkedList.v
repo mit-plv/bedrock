@@ -1,4 +1,4 @@
-(** * Basic examples that define datatypes with dummy models *)
+(** * Singly linked lists *)
 
 Require Import Depl.
 
@@ -16,8 +16,8 @@ Infix "!::" := dcons (right associativity, at level 60).
 (** * Constructing a list *)
 
 Definition empty := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = !nil
-                    with #"cons"("hd";"tl") "this" = "hd" !:: "tl" }}
+  dtype "list" = {{ #"nil"("dummy";) "this" == !nil
+                    with #"cons"("hd";"tl") "this" == "hd" !:: "tl" }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -38,8 +38,8 @@ Qed.
 (** * Constructing a one-element list *)
 
 Definition one := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = !nil
-                    with #"cons"("hd";"tl") "this" = "hd" !:: "tl" }}
+  dtype "list" = {{ #"nil"("dummy";) "this" == !nil
+                    with #"cons"("hd";"tl") "this" == "hd" !:: "tl" }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -61,8 +61,8 @@ Qed.
 (** * Constructing a two-element list *)
 
 Definition two := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = !nil
-                    with #"cons"("hd";"tl") "this" = "hd" !:: "tl" }}
+  dtype "list" = {{ #"nil"("dummy";) "this" == !nil
+                    with #"cons"("hd";"tl") "this" == "hd" !:: "tl" }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -85,8 +85,8 @@ Qed.
 (** * Constructing a two-element list with variable data *)
 
 Definition twof := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = !nil
-                    with #"cons"("hd";"tl") "this" = "hd" !:: "tl" }}
+  dtype "list" = {{ #"nil"("dummy";) "this" == !nil
+                    with #"cons"("hd";"tl") "this" == "hd" !:: "tl" }}
   with dfunction "f" [
     ARGS("a", "b")
     PRE Emp

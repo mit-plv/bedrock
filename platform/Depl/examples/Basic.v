@@ -15,7 +15,7 @@ Coercion Dyn' : unit >-> dyn.
 (** * The simplest example that defines (but does not use!) a datatype *)
 
 Definition unused := dmodule "m" {{
-  dtype "unit" = {{ #"tt"("dummy";) "this" = tt }}
+  dtype "unit" = {{ #"tt"("dummy";) "this" == tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -34,7 +34,7 @@ Qed.
 (** * Now, let's actually construct a value! *)
 
 Definition unit := dmodule "m" {{
-  dtype "unit" = {{ #"tt"("dummy";) "this" = tt }}
+  dtype "unit" = {{ #"tt"("dummy";) "this" == tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -55,8 +55,8 @@ Qed.
 (** * Lists with a degenerate specification *)
 
 Definition list := dmodule "m" {{
-  dtype "list" = {{ #"nil"("dummy";) "this" = tt
-                    with #"cons"("hd";"tl") "this" = tt }}
+  dtype "list" = {{ #"nil"("dummy";) "this" == tt
+                    with #"cons"("hd";"tl") "this" == tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
@@ -79,8 +79,8 @@ Qed.
 (** * Binary trees with a degenerate specification *)
 
 Definition tree := dmodule "m" {{
-  dtype "tree" = {{ #"leaf"("dummy";) "this" = tt
-                    with #"node"("data";"left","right") "this" = tt }}
+  dtype "tree" = {{ #"leaf"("dummy";) "this" == tt
+                    with #"node"("data";"left","right") "this" == tt }}
   with dfunction "f" [
     ARGS()
     PRE Emp
