@@ -7,7 +7,6 @@ COQC = coqc -R ../../src Bedrock -I ..
 factorial.s: FactorialX86.v
 	echo ".global bedrock_heap" >$@
 	echo ".comm bedrock_heap,4096,32" >>$@
-	echo ".global fact_fact" >>$@
 	echo >>$@
 	$(COQC) $< \
 		| sed 's/^.*= "//' \
