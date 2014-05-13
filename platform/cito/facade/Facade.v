@@ -160,6 +160,7 @@ Section ADTSection.
           RunsTo (Assign x e) st st'
     | RunsToCallAx :
         forall x f args st st' spec input_output ret,
+          NoDup args ->
           env f = Some (Axiomatic spec) ->
           let input := map (@fst _ _) input_output in
           let output := map (@snd _ _) input_output in
@@ -172,6 +173,7 @@ Section ADTSection.
           RunsTo (Call x f args) st st'
     | RunsToCallOp :
         forall x f args st st' spec input callee_st' ret,
+          NoDup args ->
           env f = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
