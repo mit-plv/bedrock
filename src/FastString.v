@@ -27,3 +27,24 @@ Definition concat (strs : list string) : string :=
 
 Definition append x y := concat (x :: y :: nil).
 Infix "++" := append : string_scope.
+
+
+(* Intercalate.  This implementation is direct from the Haskell base
+package. *)
+
+Module Import ForIntercalate.
+  Fixpoint prependToAll (sep : string) (xs : list string) :=
+        match xs with
+          | nil => nil
+          | x :: xs => sep :: x :: prependToAll sep xs
+        end.
+End ForIntercalate.
+
+Definition intersperse (sep : string) (xs : list string) : list string :=
+  match xs with
+    | nil => nil
+    | x :: xs => x :: prependToAll sep xs
+  end.
+
+Definition intercalate (sep : string) (xs : list string) : string :=
+  concat (intersperse sep xs).
