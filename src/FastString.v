@@ -7,7 +7,7 @@ functions in String.  It's intended to be used in unverified applications
 Require Import Ascii List.
 Require Export String.
 
-Section Local.
+Module Import ForReverse.
 
   Fixpoint foldString {A} (f : A -> ascii -> A) (str : string) (zero : A) : A :=
     match str with
@@ -18,7 +18,7 @@ Section Local.
   Definition prependReversed : string -> string -> string :=
     foldString (fun char str => String str char).
 
-End Local.
+End ForReverse.
 
 Definition reverse str := prependReversed str "".
 
