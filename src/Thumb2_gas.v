@@ -298,7 +298,7 @@ Definition cmpAndBranch (left : Thumb.register)
                         (ifFalse : label)
                       : list Thumb.instruction
                       :=
-  let cond on := match op with
+  let cond op := match op with
                    | IL.Eq => Thumb.EQ
                    | IL.Ne => Thumb.NE
                    | IL.Lt | IL.Le => Thumb.MI
