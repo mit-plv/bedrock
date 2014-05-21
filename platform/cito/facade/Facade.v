@@ -29,7 +29,7 @@ Section ADTSection.
   | SCA : W -> Value
   | ADT : ADTValue -> Value.
 
-  Definition State := t Value.
+  Definition State := StringMap.t Value.
 
   Fixpoint eval_binop (op : binop + test) a b :=
     match op with
@@ -120,9 +120,11 @@ Section ADTSection.
       | _, _ => @empty Value
     end.
 
+  Definition Env := glabel -> option FuncSpec.
+ 
   Section EnvSection.
 
-    Variable env : glabel -> option FuncSpec.
+    Variable env : Env.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall st, RunsTo Skip st st
@@ -216,7 +218,89 @@ Require Import ADT.
 
 Module Make (Import A : ADT).
 
-  Require Import Semantics.
+  Require Semantics.
+  Module Cito := Semantics.Make A.
+
+  Definition RunsTo := @RunsTo ADTValue.
+  Definition State := @State ADTValue.
+  Definition Env := @Env ADTValue.
+  Definition AxiomaticSpec := @AxiomaticSpec ADTValue.
+  Definition Value := @Value ADTValue.
+
+  Import StringMap.
+
+  Definition related_state (s_st : State) (t_st : Cito.State) := 
+    (forall x v, 
+       find x s_st = Some v ->
+       match v with
+         | SCA w => Locals.sel (fst t_st) x = w
+         | ADT a => exists p, Locals.sel (fst t_st) x = p /\ Cito.heap_sel (snd t_st) p = Some a
+       end) /\
+    (forall p a,
+       Cito.heap_sel (snd t_st) p = Some a ->
+       exists x,
+         Locals.sel (fst t_st)  x = p /\
+         find x s_st = Some (ADT a)).
+                
+  Definition CitoEnv := ((glabel -> option W) * (W -> option Cito.Callee))%type.
+
+  Coercion Semantics.Fun : Semantics.InternalFuncSpec >-> FuncCore.FuncCore.
+
+  Definition related_op_spec (s_spec : OperationalSpec) (t_spec : Semantics.InternalFuncSpec) := 
+    ArgVars s_spec = FuncCore.ArgVars t_spec /\
+    RetVar s_spec = FuncCore.RetVar t_spec /\
+    compile (Body s_spec) = FuncCore.Body t_spec.
+
+  Definition CitoIn_FacadeIn (argin : Cito.ArgIn) : Value :=
+    match argin with
+      | inl w => SCA _ w
+      | inr a => ADT a
+    end.
+
+  Definition FacadeIn_CitoIn (v : Value) : Cito.ArgIn :=
+    match v with
+      | SCA w => inl w
+      | ADT a => inr a
+    end.
+  
+  Definition CitoInOut_FacadeInOut (in_out : Cito.ArgIn * Cito.ArgOut) : Value * option Value :=
+    match fst in_out, snd in_out with
+      | inl w, _ => (SCA _ w, Some (SCA _ w))
+      | inr a, Some a' => (ADT a, Some (ADT a'))
+      | inr a, None => (ADT a, None)
+    end.
+
+  Definition related_ax_spec (s_spec : AxiomaticSpec) (t_spec : Cito.ForeignFuncSpec) := 
+    (forall t_ins,
+       Semantics.PreCond t_spec t_ins -> PreCond s_spec (List.map CitoIn_FacadeIn t_ins)) /\
+    (forall t_inouts t_ret,
+       Semantics.PostCond t_spec t_inouts t_ret -> PostCond s_spec (List.map CitoInOut_FacadeInOut t_inouts) (CitoIn_FacadeIn t_ret)) /\
+    (forall s_ins,
+       PreCond s_spec s_ins -> Semantics.PreCond t_spec (List.map FacadeIn_CitoIn s_ins)) /\
+    (forall s_inouts s_ret,
+       PostCond s_spec s_inouts s_ret -> exists t_inouts, List.map CitoInOut_FacadeInOut t_inouts = s_inouts /\ Semantics.PostCond t_spec t_inouts (FacadeIn_CitoIn s_ret)).
+
+  Definition related_spec s_spec t_spec :=
+    match s_spec, t_spec with 
+      | Operational s, Semantics.Internal t => related_op_spec s t
+      | Axiomatic s, Semantics.Foreign t => related_ax_spec s t
+      | _, _ => False
+    end.
+
+  Definition related_env (s_env : Env) (t_env : CitoEnv) :=
+    forall lbl,
+      match s_env lbl with
+        | Some s_spec => 
+          exists w t_spec,
+            fst t_env lbl = Some w /\
+            snd t_env w = Some t_spec /\
+            related_spec s_spec t_spec
+        | _ => True
+      end.
+
+  Theorem compile_runsto : forall s t, t = compile s -> forall t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s_env s_st, related_env s_env t_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st'.
+    admit.
+  Qed.
 
 End Make.
 
