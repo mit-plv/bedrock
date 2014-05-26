@@ -73,15 +73,15 @@ Section ADTSection.
 
   Require Import List.
 
-  Fixpoint add_remove_many keys (input : list Value) (ouput : list (option Value)) st :=
-    match keys, inputs, outputs with 
-      | k :: keys', i :: inputs', o :: outputs' => 
+  Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
+    match keys, input, output with 
+      | k :: keys', i :: input', o :: output' => 
         let st' :=
             match i with
-              | ADT _ => add_remove k v st
+              | ADT _ => add_remove k o st
               | _ => st
             end in
-        add_remove_many keys' inputs' outputs' st'
+        add_remove_many keys' input' output' st'
       | _, _, _ => st
     end.
 
@@ -205,6 +205,64 @@ Section ADTSection.
           st' == st ->
           RunsTo (Call x f args) st st'.
 
+    CoInductive Safe : Stmt -> State -> Prop :=
+    | SafeSkip : forall st, Safe Skip st
+    | SafeSeq : 
+        forall a b st,
+          Safe a st /\
+          (forall st',
+             RunsTo a st st' -> Safe b st') ->
+          Safe (Seq a b) st
+    | SafeIfTrue : 
+        forall cond t f st, 
+          is_true st cond ->
+          Safe t st ->
+          Safe (If cond t f) st
+    | SafeIfFalse : 
+        forall cond t f st, 
+          is_false st cond ->
+          Safe f st ->
+          Safe (If cond t f) st
+    | SafeWhileTrue : 
+        forall cond body st, 
+          let loop := While cond body in
+          is_true st cond ->
+          Safe body st ->
+          (forall st',
+             RunsTo body st st' -> Safe loop st') ->
+          Safe loop st
+    | SafeWhileFalse : 
+        forall cond body st, 
+          let loop := While cond body in
+          is_false st cond ->
+          Safe loop st
+    | SafeAssign :
+        forall x e st w,
+          eval st e = Some (SCA w) ->
+          Safe (Assign x e) st
+    | SafeLabel :
+        forall x lbl st w,
+          Label2Word env lbl = Some w ->
+          Safe (Label x lbl) st
+    | SafeCallAx :
+        forall x f args st spec input f_w,
+          NoDup args ->
+          eval st f = Some (SCA f_w) ->
+          Word2Spec env f_w = Some (Axiomatic spec) ->
+          mapM (sel st) args = Some input ->
+          PreCond spec input ->
+          Safe (Call x f args) st
+    | SafeCallOp :
+        forall x f args st spec input f_w,
+          NoDup args ->
+          eval st f = Some (SCA f_w) ->
+          Word2Spec env f_w = Some (Operational spec) ->
+          length args = length (ArgVars spec) ->
+          mapM (sel st) args = Some input ->
+          let callee_st := make_state (ArgVars spec) input in
+          Safe (Body spec) callee_st ->
+          Safe (Call x f args) st.
+
   End EnvSection.
           
 End ADTSection.
@@ -265,54 +323,6 @@ Module Make (Import A : ADT).
       | inr a => ADT a
     end.
 
-  Definition compile_ax (spec : AxiomaticFuncSpec) : Cito.Callee :=
-    Semantics.Foreign 
-      {|
-        Semantics.PreCond := fun args => PreCond (List.map CitoIn_FacadeIn args) ;
-        Semantics.PostCond := fun pairs ret => PostCond (
-
-  Definition compile_spec (spec : FuncSpec) : Cito.Callee :
-    match spec with
-      | Axiomatic s => compile_ax s
-      | Operational s => compile_op s
-    end.
-
-  Definition compile_env (env : Env) : CitoEnv :=
-    (Label2Word env, 
-     fun w => option_map compile_spec (Word2Spec env w)).
-
-    
-  Definition related_op_spec s_env (s_spec : OperationalSpec) : Cito.ForeignFuncSpec :=
-    {|
-      PreCond := 
-        fun args =>
-          length args = length (ArgVars s_spec) /\
-          let st := zip (ArgVars s_spec) args in
-          Safe s_env (Body s_spec) st ;
-      PostCond :=
-        fun pairs ret =>
-          length pairs = length (AgrVars specs) /\
-          let st := zip (ArgVars s_spec) (List.map fst args) in
-          let st' := zip (ArgVars s_spec) (List.map snd args) in
-          RunsTo s_env (Body s_spec) st st' /\
-          find (RetVar s_spec) st'
-
-
-    ArgVars s_spec = FuncCore.ArgVars t_spec /\
-    RetVar s_spec = FuncCore.RetVar t_spec /\
-    compile (Body s_spec) = FuncCore.Body t_spec.
-
-  Definition related_op_spec (s_spec : OperationalSpec) (t_spec : Semantics.InternalFuncSpec) := 
-    ArgVars s_spec = FuncCore.ArgVars t_spec /\
-    RetVar s_spec = FuncCore.RetVar t_spec /\
-    compile (Body s_spec) = FuncCore.Body t_spec.
-
-  Definition FacadeIn_CitoIn (v : Value) : Cito.ArgIn :=
-    match v with
-      | SCA w => inl w
-      | ADT a => inr a
-    end.
-  
   Definition CitoInOut_FacadeInOut (in_out : Cito.ArgIn * Cito.ArgOut) : Value * option Value :=
     match fst in_out, snd in_out with
       | inl w, _ => (SCA _ w, Some (SCA _ w))
@@ -320,38 +330,73 @@ Module Make (Import A : ADT).
       | inr a, None => (ADT a, None)
     end.
 
-  Definition related_ax_spec (s_spec : AxiomaticSpec) (t_spec : Cito.ForeignFuncSpec) := 
-    (forall t_ins,
-       Semantics.PreCond t_spec t_ins -> PreCond s_spec (List.map CitoIn_FacadeIn t_ins)) /\
-    (forall t_inouts t_ret,
-       Semantics.PostCond t_spec t_inouts t_ret -> PostCond s_spec (List.map CitoInOut_FacadeInOut t_inouts) (CitoIn_FacadeIn t_ret)) /\
-    (forall s_ins,
-       PreCond s_spec s_ins -> Semantics.PreCond t_spec (List.map FacadeIn_CitoIn s_ins)) /\
-    (forall s_inouts s_ret,
-       PostCond s_spec s_inouts s_ret -> exists t_inouts, List.map CitoInOut_FacadeInOut t_inouts = s_inouts /\ Semantics.PostCond t_spec t_inouts (FacadeIn_CitoIn s_ret)).
+  Definition compile_ax (spec : AxiomaticSpec) : Cito.Callee :=
+    Semantics.Foreign 
+      {|
+        Semantics.PreCond args := PreCond spec (List.map CitoIn_FacadeIn args) ;
+        Semantics.PostCond pairs ret := PostCond spec (List.map CitoInOut_FacadeInOut pairs) (CitoIn_FacadeIn ret)
+      |}.
 
-  Definition related_spec s_spec t_spec :=
-    match s_spec, t_spec with 
-      | Operational s, Semantics.Internal t => related_op_spec s t
-      | Axiomatic s, Semantics.Foreign t => related_ax_spec s t
-      | _, _ => False
+  Definition compile_op (specs : Env) (spec : OperationalSpec) : Cito.Callee :=
+    Semantics.Foreign
+      {|
+        Semantics.PreCond args := 
+          let st := make_state (ArgVars spec) (List.map CitoIn_FacadeIn args) in
+          Safe specs (Body spec) st ;
+        Semantics.PostCond pairs ret := 
+          List.length pairs = List.length (ArgVars spec) /\
+          let input := List.map (fun x => CitoIn_FacadeIn (fst x)) pairs in
+          let output := List.map (fun x => snd (CitoInOut_FacadeInOut x)) pairs in
+          let st := make_state (ArgVars spec) input in
+          let st' := add_remove_many (ArgVars spec) input output st in
+          let st' := add (RetVar spec) (CitoIn_FacadeIn ret) st' in
+          RunsTo specs (Body spec) st st'
+      |}.
+
+  Definition FuncSpec := @FuncSpec ADTValue.
+
+  Definition compile_spec specs (spec : FuncSpec) : Cito.Callee :=
+    match spec with
+      | Axiomatic s => compile_ax s
+      | Operational s => compile_op specs s
     end.
 
-  Definition related_env (s_env : Env) (t_env : CitoEnv) :=
-    forall lbl,
-      match s_env lbl with
-        | Some s_spec => 
-          exists w t_spec,
-            fst t_env lbl = Some w /\
-            snd t_env w = Some t_spec /\
-            related_spec s_spec t_spec
-        | _ => True
-      end.
-
-  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, related_env s_env t_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
+  Definition compile_env (env : Env) : CitoEnv :=
+    (Label2Word env, 
+     fun w => option_map (compile_spec env) (Word2Spec env w)).
+    
+  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
     admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    admit.
+    Require Import GeneralTactics3.
+    unfold_all.
+    injection H2; intros; subst.
+    simpl in *.
+    destruct (Word2Spec s_env (SemanticsExpr.eval (fst v) e)); simpl in *.
+    injection H; intros; subst.
+    destruct f; simpl in *.
+    destruct a; simpl in *.
+    unfold compile_ax in *; simpl in *; discriminate.
+    unfold compile_op in *; simpl in *; discriminate.
+    discriminate.
+
+    unfold_all.
+    injection H6; intros; subst.
+    simpl in *.
+    destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
+    destruct s.
+    rewrite e0 in *; simpl in *.
+    injection H; intros; subst; clear H.
+    destruct x; simpl in *.
+    destruct a; simpl in *.
+    unfold compile_ax in *; simpl in *.
+    injection H7; intros; subst; simpl in *; clear H7.
     admit.
 
 
