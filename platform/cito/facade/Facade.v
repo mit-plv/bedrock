@@ -10,56 +10,77 @@ Section ADTSection.
   (* Syntax *)
 
   Require Import Memory IL.
-  Require Import SyntaxExpr.
+
+  Inductive Ty := 
+  | TSCA
+  | TADT.
+
+  Inductive Binop :=
+  | Plus
+  | Minus
+  | Times
+  | Eq
+  | Ne
+  | Lt
+  | Le.
+
+  Record Var :=
+    {
+      vartype : Ty;
+      varname : string
+    }.
+
+  Inductive Expr : Ty -> Type :=
+  | ExprVarSCA : string -> Expr TSCA
+  | ExprVarADT : string -> Expr TADT
+  | ExprConst : W -> Expr TSCA
+  | ExprBinop : Binop -> Expr TSCA -> Expr TSCA -> Expr TSCA.
+
   Require Import GLabel.
 
   Inductive Stmt :=
   | Skip
   | Seq : Stmt -> Stmt -> Stmt
-  | If : Expr -> Stmt -> Stmt -> Stmt
-  | While : Expr -> Stmt -> Stmt
-  | Call : option string -> Expr -> list string -> Stmt
+  | If : Expr TSCA-> Stmt -> Stmt -> Stmt
+  | While : Expr TSCA -> Stmt -> Stmt
+  | Call : Var -> Expr TSCA -> list Var -> Stmt
   | Label : string -> glabel -> Stmt
-  | Assign : string -> Expr -> Stmt.
+  | Assign : string -> Expr TSCA -> Stmt.
 
   (* Semantics *)
 
   Variable ADTValue : Type.
 
-  Inductive Value :=
-  | SCA : W -> Value
-  | ADT : ADTValue -> Value.
+  Record State := 
+    {
+      sca_map : string -> W;
+      adt_map : StringMap.t ADTValue
+    }.
 
-  Definition State := StringMap.t Value.
+  Require Import Word.
 
-  Definition eval_binop (op : binop + test) a b :=
+  Definition eval_binop op a b :=
     match op with
-      | inl op' => evalBinop op' a b
-      | inr op' => if evalTest op' a b then $1 else $0
+      | Plus => wplus a b
+      | Minus => wminus a b
+      | Times => wmult a b
+      | Eq => if weqb a b then $1 else $0
+      | Ne => if wneb a b then $1 else $0
+      | Lt => if wltb a b then $1 else $0
+      | Le => if wleb a b then $1 else $0
     end.
 
-  Definition eval_binop_m (op : binop + test) oa ob :=
-    match oa, ob with
-      | Some (SCA a), Some (SCA b) => Some (SCA (eval_binop op a b))
-      | _, _ => None
-    end.
-
-  Fixpoint eval (st : State) (e : Expr) : option Value :=
+  Fixpoint eval (st : string -> W) (e : Expr TSCA) : W :=
     match e with
-      | Var x => find x st
-      | Const w => Some (SCA w)
-      | Binop op a b => eval_binop_m (inl op) (eval st a) (eval st b)
-      | TestE op a b => eval_binop_m (inr op) (eval st a) (eval st b)
+      | ExprVarSCA x => st x
+      | ExprConst w => w
+      | ExprBinop op a b => eval_binop op (eval st a) (eval st b)
     end.
 
-  Definition eval_bool st e : option bool := 
-    match eval st e with
-      | Some (SCA w) => Some (wneb w $0)
-      | _ => None
-    end.
-
-  Definition is_true st e := eval_bool st e = Some true.
-  Definition is_false st e := eval_bool st e = Some false.
+  Definition eval_st st e := eval (sca_map st) e.
+  Definition eval_bool st e : bool := wneb (eval st e) $0.
+  Definition is_true st e := eval_bool (sca_map st) e = true.
+  Definition is_false st e := eval_bool (sca_map st) e = false.
 
   Require Import StringMapFacts.
   Import FMapNotations.
@@ -72,18 +93,6 @@ Section ADTSection.
     end.
 
   Require Import List.
-
-  Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
-    match keys, input, output with 
-      | k :: keys', i :: input', o :: output' => 
-        let st' :=
-            match i with
-              | ADT _ => add_remove k o st
-              | _ => st
-            end in
-        add_remove_many keys' input' output' st'
-      | _, _, _ => st
-    end.
 
   Definition addM elt k (v : elt) st :=
     match k with
@@ -100,11 +109,35 @@ Section ADTSection.
         end
       | nil => Some nil
     end.
-        
+
+  Section interp_types.
+
+    Variable interp : Ty -> Type.
+
+    Inductive interp_types : list Ty -> Type :=
+    | Nil : interp_types nil
+    | Cons : forall ty, interp ty -> forall tys, interp_types tys -> interp_types (ty :: tys).
+
+  End interp_types.
+
+  Definition interp_type ty : Type :=
+    match ty with
+      | TSCA => W
+      | TADT => ADTValue
+    end.
+  
+  Definition interp_output ty : Type :=
+    match ty with
+      | TSCA => unit
+      | TADT => ADTValue
+    end.
+
   Record AxiomaticSpec :=
     {
-      PreCond : list Value -> Prop;
-      PostCond : list (Value * option Value) -> Value -> Prop
+      arg_types : list Ty;
+      ret_type : Ty;
+      pre_cond : interp_types interp_type arg_types -> Prop;
+      post_cond : interp_types interp_type arg_types -> interp_types interp_output arg_types -> interp_type ret_type -> Prop
     }.
 
   Record OperationalSpec := 
@@ -119,20 +152,50 @@ Section ADTSection.
     | Axiomatic : AxiomaticSpec -> FuncSpec
     | Operational : OperationalSpec -> FuncSpec.
 
-  Definition sel st x := @StringMap.find Value x st.
-
-  Fixpoint make_state keys values :=
-    match keys, values with
-      | k :: keys', v :: values' => add k v (make_state keys' values')
-      | _, _ => @empty Value
-    end.
-
   Record Env := 
     {
       Label2Word : glabel -> option W ;
       Word2Spec : W ->option FuncSpec
     }.
  
+  Definition sel (st : State) (x : Var) := 
+    match vartype x with
+      | TSCA => 
+  @StringMap.find ADTValue x st.
+
+(*
+  Inductive Value :=
+  | SCA : W -> Value
+  | ADT : ADTValue -> Value.
+
+  Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
+    match keys, input, output with 
+      | k :: keys', i :: input', o :: output' => 
+        let st' :=
+            match i with
+              | ADT _ => add_remove k o st
+              | _ => st
+            end in
+        add_remove_many keys' input' output' st'
+      | _, _, _ => st
+    end.
+
+  Fixpoint make_state keys values :=
+    match keys, values with
+      | k :: keys', v :: values' => add k v (make_state keys' values')
+      | _, _ => @empty Value
+    end.
+*)
+
+  Definition st_equiv (a b : State) :=
+    (forall x, sca_map a x = sca_map b x) /\
+    adt_map a == adt_map b.
+
+  Infix "==" := st_equiv.
+
+  Require Import Locals.
+  Definition add_sca x w (st : State) : State := {| sca_map := Locals.upd (sca_map st) x w; adt_map := adt_map st |}.
+
   Section EnvSection.
 
     Variable env : Env.
@@ -152,7 +215,7 @@ Section ADTSection.
     | RunsToIfFalse : 
         forall cond t f st st', 
           is_false st cond ->
-           RunsTo f st st' ->
+          RunsTo f st st' ->
           RunsTo (If cond t f) st st'
     | RunsToWhileTrue : 
         forall cond body st st' st'', 
@@ -167,31 +230,36 @@ Section ADTSection.
           is_false st cond ->
           RunsTo loop st st
     | RunsToAssign :
-        forall x e st st' w,
-          eval st e = Some (SCA w) ->
-          st' == add x (SCA w) st ->
+        forall x e st st',
+          let w := eval_st st e in
+          st' == add_sca x w st ->
           RunsTo (Assign x e) st st'
     | RunsToLabel :
         forall x lbl st st' w,
           Label2Word env lbl = Some w ->
-          st' == add x (SCA w) st ->
+          st' == add_sca x w st ->
           RunsTo (Label x lbl) st st'
     | RunsToCallAx :
-        forall x f args st st' spec input output ret f_w,
-          NoDup args ->
-          eval st f = Some (SCA f_w) ->
+        forall x f args st st' spec,
+          NoDupADT args ->
+          let f_w := eval_st st f in
           Word2Spec env f_w = Some (Axiomatic spec) ->
-          mapM (sel st) args = Some input ->
-          PreCond spec input ->
-          length input = length output ->
-          PostCond spec (combine input output) ret ->
+          let argtypes := List.map vartype args in
+          let rettype := vartype x in
+          argtypes = arg_types spec ->
+          rettype = ret_type spec ->
+          forall input,
+          match_st st args input ->
+          pre_cond spec input ->
+          forall output ret,
+          post_cond spec input output ret ->
           let st := add_remove_many args input output st in
           let st := addM x ret st in
           st' == st ->
           RunsTo (Call x f args) st st'
     | RunsToCallOp :
         forall x f args st st' spec input callee_st' ret f_w,
-          NoDup args ->
+          NoDupADT args ->
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
