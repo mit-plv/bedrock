@@ -32,13 +32,13 @@ Section ADTSection.
 
   Definition State := StringMap.t Value.
 
-  Fixpoint eval_binop (op : binop + test) a b :=
+  Definition eval_binop (op : binop + test) a b :=
     match op with
       | inl op' => evalBinop op' a b
       | inr op' => if evalTest op' a b then $1 else $0
     end.
 
-  Fixpoint eval_binop_m (op : binop + test) oa ob :=
+  Definition eval_binop_m (op : binop + test) oa ob :=
     match oa, ob with
       | Some (SCA a), Some (SCA b) => Some (SCA (eval_binop op a b))
       | _, _ => None
@@ -52,7 +52,7 @@ Section ADTSection.
       | TestE op a b => eval_binop_m (inr op) (eval st a) (eval st b)
     end.
 
-  Fixpoint eval_bool st e : option bool := 
+  Definition eval_bool st e : option bool := 
     match eval st e with
       | Some (SCA w) => Some (wneb w $0)
       | _ => None
@@ -65,7 +65,7 @@ Section ADTSection.
   Import FMapNotations.
   Open Scope fmap.
   
-  Fixpoint add_remove elt k (v : option elt) st :=
+  Definition add_remove elt k (v : option elt) st :=
     match v with
       | Some v' => add k v' st
       | None => remove k st
@@ -85,7 +85,7 @@ Section ADTSection.
       | _, _, _ => st
     end.
 
-  Fixpoint addM elt k (v : elt) st :=
+  Definition addM elt k (v : elt) st :=
     match k with
       | Some k' => add k' v st
       | None => st
@@ -200,9 +200,9 @@ Section ADTSection.
           RunsTo (Body spec) callee_st callee_st' ->
           let output := map (sel callee_st') (ArgVars spec) in
           sel callee_st' (RetVar spec) = Some ret ->
-          let st := add_remove_many args input output st in
-          let st := addM x ret st in
-          st' == st ->
+          let st'' := add_remove_many args input output st in
+          let st'' := addM x ret st'' in
+          st' == st'' ->
           RunsTo (Call x f args) st st'.
 
     CoInductive Safe : Stmt -> State -> Prop :=
@@ -368,12 +368,35 @@ Module Make (Import A : ADT).
   Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
+    eexists; split.
+    eapply RunsToSkip.
+    eauto.
+
+    admit.
+
+    injection H1; intros; subst; clear H1.
+    edestruct IHRunsTo.
+    eauto.
+    eauto.
+    eauto.
+    Require Import GeneralTactics.
+    openhyp.
+    eexists.
+    split.
+    eapply RunsToIfTrue.
+    unfold is_true.
+    unfold eval_bool.
+
+
+    admit.
+
+    eauto.
+    eauto.
+
     admit.
     admit.
     admit.
-    admit.
-    admit.
-    admit.
+
     Require Import GeneralTactics3.
     unfold_all.
     injection H2; intros; subst.
@@ -387,7 +410,7 @@ Module Make (Import A : ADT).
     discriminate.
 
     unfold_all.
-    injection H6; intros; subst.
+    injection H6; intros; subst; clear H6.
     simpl in *.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
     destruct s.
@@ -396,9 +419,16 @@ Module Make (Import A : ADT).
     destruct x; simpl in *.
     destruct a; simpl in *.
     unfold compile_ax in *; simpl in *.
-    injection H7; intros; subst; simpl in *; clear H7.
+    injection H6; intros; subst; simpl in *; clear H6.
     admit.
 
+    destruct o0; simpl in *.
+    injection H6; intros; subst; simpl in *; clear H6.
+    openhyp.
+    eexists.
+    split.
+    eapply RunsToCallOp.
+    admit.
 
   Qed.
 
