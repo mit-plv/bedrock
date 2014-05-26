@@ -18,7 +18,8 @@ Section ADTSection.
   | Seq : Stmt -> Stmt -> Stmt
   | If : Expr -> Stmt -> Stmt -> Stmt
   | While : Expr -> Stmt -> Stmt
-  | Call : option string -> glabel -> list string -> Stmt
+  | Call : option string -> Expr -> list string -> Stmt
+  | Label : string -> glabel -> Stmt
   | Assign : string -> Expr -> Stmt.
 
   (* Semantics *)
@@ -72,10 +73,16 @@ Section ADTSection.
 
   Require Import List.
 
-  Fixpoint add_remove_many elt keys (values : list (option elt)) st :=
-    match keys, values with 
-      | k :: keys', v :: values' => add_remove_many keys' values' (add_remove k v st)
-      | _, _ => st
+  Fixpoint add_remove_many keys (input : list Value) (ouput : list (option Value)) st :=
+    match keys, inputs, outputs with 
+      | k :: keys', i :: inputs', o :: outputs' => 
+        let st' :=
+            match i with
+              | ADT _ => add_remove k v st
+              | _ => st
+            end in
+        add_remove_many keys' inputs' outputs' st'
+      | _, _, _ => st
     end.
 
   Fixpoint addM elt k (v : elt) st :=
@@ -105,7 +112,7 @@ Section ADTSection.
       ArgVars : list string;
       RetVar : string;
       Body : Stmt;
-      NoDupArgVars : NoDup ArgVars
+      NoDupArgVars : NoDup (RetVar :: ArgVars)
     }.
 
   Inductive FuncSpec :=
@@ -120,7 +127,11 @@ Section ADTSection.
       | _, _ => @empty Value
     end.
 
-  Definition Env := glabel -> option FuncSpec.
+  Record Env := 
+    {
+      Label2Word : glabel -> option W ;
+      Word2Spec : W ->option FuncSpec
+    }.
  
   Section EnvSection.
 
@@ -160,30 +171,36 @@ Section ADTSection.
           eval st e = Some (SCA w) ->
           st' == add x (SCA w) st ->
           RunsTo (Assign x e) st st'
+    | RunsToLabel :
+        forall x lbl st st' w,
+          Label2Word env lbl = Some w ->
+          st' == add x (SCA w) st ->
+          RunsTo (Label x lbl) st st'
     | RunsToCallAx :
-        forall x f args st st' spec input_output ret,
+        forall x f args st st' spec input output ret f_w,
           NoDup args ->
-          env f = Some (Axiomatic spec) ->
-          let input := map (@fst _ _) input_output in
-          let output := map (@snd _ _) input_output in
+          eval st f = Some (SCA f_w) ->
+          Word2Spec env f_w = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
           PreCond spec input ->
-          PostCond spec input_output ret ->
-          let st := add_remove_many args output st in
+          length input = length output ->
+          PostCond spec (combine input output) ret ->
+          let st := add_remove_many args input output st in
           let st := addM x ret st in
           st' == st ->
           RunsTo (Call x f args) st st'
     | RunsToCallOp :
-        forall x f args st st' spec input callee_st' ret,
+        forall x f args st st' spec input callee_st' ret f_w,
           NoDup args ->
-          env f = Some (Operational spec) ->
+          eval st f = Some (SCA f_w) ->
+          Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           let output := map (sel callee_st') (ArgVars spec) in
           sel callee_st' (RetVar spec) = Some ret ->
-          let st := add_remove_many args output st in
+          let st := add_remove_many args input output st in
           let st := addM x ret st in
           st' == st ->
           RunsTo (Call x f args) st st'.
@@ -197,8 +214,6 @@ Require Syntax.
 Require Import String.
 Open Scope string.
 
-Definition tmpvar_f := "__f".
-
 Coercion Var : string >-> Expr.
 
 Fixpoint compile (s : Stmt) : Syntax.Stmt :=
@@ -208,10 +223,8 @@ Fixpoint compile (s : Stmt) : Syntax.Stmt :=
     | If e t f => Syntax.If e (compile t) (compile f)
     | While e c => Syntax.While e (compile c)
     | Assign x e => Syntax.Assign x e
-    | Call x f args => 
-      Syntax.Seq 
-        (Syntax.Label tmpvar_f f) 
-        (Syntax.Call x tmpvar_f (List.map Var args))
+    | Label x lbl => Syntax.Label x lbl
+    | Call x f args => Syntax.Call x f (List.map Var args)
   end.
 
 Require Import ADT.
@@ -246,16 +259,53 @@ Module Make (Import A : ADT).
 
   Coercion Semantics.Fun : Semantics.InternalFuncSpec >-> FuncCore.FuncCore.
 
-  Definition related_op_spec (s_spec : OperationalSpec) (t_spec : Semantics.InternalFuncSpec) := 
-    ArgVars s_spec = FuncCore.ArgVars t_spec /\
-    RetVar s_spec = FuncCore.RetVar t_spec /\
-    compile (Body s_spec) = FuncCore.Body t_spec.
-
   Definition CitoIn_FacadeIn (argin : Cito.ArgIn) : Value :=
     match argin with
       | inl w => SCA _ w
       | inr a => ADT a
     end.
+
+  Definition compile_ax (spec : AxiomaticFuncSpec) : Cito.Callee :=
+    Semantics.Foreign 
+      {|
+        Semantics.PreCond := fun args => PreCond (List.map CitoIn_FacadeIn args) ;
+        Semantics.PostCond := fun pairs ret => PostCond (
+
+  Definition compile_spec (spec : FuncSpec) : Cito.Callee :
+    match spec with
+      | Axiomatic s => compile_ax s
+      | Operational s => compile_op s
+    end.
+
+  Definition compile_env (env : Env) : CitoEnv :=
+    (Label2Word env, 
+     fun w => option_map compile_spec (Word2Spec env w)).
+
+    
+  Definition related_op_spec s_env (s_spec : OperationalSpec) : Cito.ForeignFuncSpec :=
+    {|
+      PreCond := 
+        fun args =>
+          length args = length (ArgVars s_spec) /\
+          let st := zip (ArgVars s_spec) args in
+          Safe s_env (Body s_spec) st ;
+      PostCond :=
+        fun pairs ret =>
+          length pairs = length (AgrVars specs) /\
+          let st := zip (ArgVars s_spec) (List.map fst args) in
+          let st' := zip (ArgVars s_spec) (List.map snd args) in
+          RunsTo s_env (Body s_spec) st st' /\
+          find (RetVar s_spec) st'
+
+
+    ArgVars s_spec = FuncCore.ArgVars t_spec /\
+    RetVar s_spec = FuncCore.RetVar t_spec /\
+    compile (Body s_spec) = FuncCore.Body t_spec.
+
+  Definition related_op_spec (s_spec : OperationalSpec) (t_spec : Semantics.InternalFuncSpec) := 
+    ArgVars s_spec = FuncCore.ArgVars t_spec /\
+    RetVar s_spec = FuncCore.RetVar t_spec /\
+    compile (Body s_spec) = FuncCore.Body t_spec.
 
   Definition FacadeIn_CitoIn (v : Value) : Cito.ArgIn :=
     match v with
@@ -298,8 +348,13 @@ Module Make (Import A : ADT).
         | _ => True
       end.
 
-  Theorem compile_runsto : forall s t, t = compile s -> forall t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s_env s_st, related_env s_env t_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st'.
+  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, related_env s_env t_env -> related_state s_st t_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
+  Proof.
+    induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
     admit.
+    admit.
+
+
   Qed.
 
 End Make.
