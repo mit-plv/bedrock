@@ -116,7 +116,7 @@ Section ADTSection.
 
     Inductive interp_types : list Ty -> Type :=
     | Nil : interp_types nil
-    | Cons : forall ty, interp ty -> forall tys, interp_types tys -> interp_types (ty :: tys).
+    | Cons : forall {type}, interp type -> forall types, interp_types types -> interp_types (type :: types).
 
   End interp_types.
 
@@ -129,7 +129,7 @@ Section ADTSection.
   Definition interp_output ty : Type :=
     match ty with
       | TSCA => unit
-      | TADT => ADTValue
+      | TADT => option ADTValue
     end.
 
   Record AxiomaticSpec :=
@@ -157,29 +157,83 @@ Section ADTSection.
       Label2Word : glabel -> option W ;
       Word2Spec : W ->option FuncSpec
     }.
- 
-  Definition sel (st : State) (x : Var) := 
-    match vartype x with
-      | TSCA => 
-  @StringMap.find ADTValue x st.
+  
+  Definition type_dec (type : Ty) : {type = TSCA} + {type = TADT}.
+    destruct type; eauto.
+  Defined.
 
-(*
-  Inductive Value :=
-  | SCA : W -> Value
-  | ADT : ADTValue -> Value.
+  Definition cast_sca type (v : interp_type type) (h : type = TSCA) : W.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
 
-  Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
-    match keys, input, output with 
-      | k :: keys', i :: input', o :: output' => 
-        let st' :=
-            match i with
-              | ADT _ => add_remove k o st
-              | _ => st
-            end in
-        add_remove_many keys' input' output' st'
-      | _, _, _ => st
+  Definition cast_adt type (v : interp_type type) (h : type = TADT) : ADTValue.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition find_adt x st := StringMap.find x (adt_map st).
+
+  Definition match_type st x {type} (v : interp_type type) :=
+    match type_dec type with
+      | left h => sca_map st x = cast_sca v h
+      | right h => find_adt x st = Some (cast_adt v h)
     end.
 
+  Fixpoint match_st st keys types (values : interp_types interp_type types) :=
+    match keys, values with
+      | k :: keys', Cons _ v _ values' => 
+        match_type st k v /\
+        match_st st keys' values'
+      | nil, Nil => True
+      | _, _ => False
+    end.
+
+  Definition cast_option_adt type (v : interp_output type) (h : type = TADT) : option ADTValue.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition add_remove_typed k {type} (o : interp_output type) st :=
+    match type_dec type with
+      | right h => add_remove k (cast_option_adt o h) st
+      | _ => st
+    end.
+
+  Fixpoint add_remove_many keys types (output : interp_types interp_output types) st :=
+    match keys, output with 
+      | k :: keys', Cons _ o _ output' => 
+        add_remove_many keys' output' (add_remove_typed k o st)
+      | _, _ => st
+    end.
+
+  Definition upd_st keys types (output : interp_types interp_output types) (st : State) : State :=
+    {| sca_map := sca_map st ; adt_map := add_remove_many keys output (adt_map st) |}.
+
+  Require Import Locals.
+
+  Definition add_sca x w (st : State) : State := {| sca_map := Locals.upd (sca_map st) x w; adt_map := adt_map st |}.
+
+  Definition add_adt x v (st : State) : State := {| sca_map := sca_map st; adt_map := add x v (adt_map st) |}.
+
+  Definition add_st k {type} (v : interp_type type) st :=
+    match type_dec type with
+      | left h => add_sca k (cast_sca v h) st
+      | right h => add_adt k (cast_adt v h) st
+    end.
+
+  Definition add_var x (v : interp_type (vartype x)) st := add_st (varname x) v st.
+
+  Require Import Basics.
+
+  Infix "*" := compose : program_scope.
+  Delimit Scope program_scope with program.
+
+  Definition is_adt type := match type with TADT => true | TSCA => false end.
+
+  Definition NoDupADT := (@List.NoDup _ * (List.map varname) * (List.filter (is_adt * vartype)))%program.
+
+(*
   Fixpoint make_state keys values :=
     match keys, values with
       | k :: keys', v :: values' => add k v (make_state keys' values')
@@ -187,14 +241,69 @@ Section ADTSection.
     end.
 *)
 
+  Definition cast_back_unit type (v : unit) (h : type = TSCA) : interp_output type.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition cast_back_option_adt type (v : option ADTValue) (h : type = TADT) : interp_output type.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition get_one_output st k type : interp_output type :=
+    match type_dec type with
+      | left h => cast_back_unit tt h
+      | right h => cast_back_option_adt (find_adt k st) h
+    end.
+
+  Definition empty_output type : interp_output type :=
+    match type_dec type with
+      | left h => cast_back_unit tt h
+      | right h => cast_back_option_adt None h
+    end.
+
+  Fixpoint empty_outputs types : interp_types interp_output types :=
+    match types with
+      | type :: types' => Cons (empty_output type) (empty_outputs types')
+      | nil => @Nil _
+    end.
+
+  Fixpoint get_output st keys types : interp_types interp_output types :=
+    match types with
+      | type :: types' =>
+        match keys with
+          | k :: keys' => Cons (get_one_output st k type) (get_output st keys' types')
+          | nil => empty_outputs (type :: types')
+        end
+      | nil => @Nil _
+    end.
+
+  Definition cast_back_sca type (v : W) (h : type = TSCA) : interp_type type.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition cast_back_adt type (v : ADTValue) (h : type = TADT) : interp_type type.
+    rewrite h in *; simpl in *.
+    exact v.
+  Defined.
+
+  Definition find_var type name st : option (interp_type type) :=
+    match type_dec type with
+      | left h => Some (cast_back_sca (sca_map st name) h)
+      | right h => 
+        match find_adt name st with
+          | Some a => Some (cast_back_adt a h)
+          | None => None
+        end
+    end.
+
   Definition st_equiv (a b : State) :=
     (forall x, sca_map a x = sca_map b x) /\
     adt_map a == adt_map b.
 
   Infix "==" := st_equiv.
-
-  Require Import Locals.
-  Definition add_sca x w (st : State) : State := {| sca_map := Locals.upd (sca_map st) x w; adt_map := adt_map st |}.
 
   Section EnvSection.
 
@@ -240,38 +349,44 @@ Section ADTSection.
           st' == add_sca x w st ->
           RunsTo (Label x lbl) st st'
     | RunsToCallAx :
-        forall x f args st st' spec,
+        forall x f args st spec,
           NoDupADT args ->
           let f_w := eval_st st f in
           Word2Spec env f_w = Some (Axiomatic spec) ->
-          let argtypes := List.map vartype args in
-          let rettype := vartype x in
-          argtypes = arg_types spec ->
-          rettype = ret_type spec ->
+          List.map vartype args = arg_types spec ->
+          vartype x = ret_type spec ->
           forall input,
-          match_st st args input ->
-          pre_cond spec input ->
-          forall output ret,
-          post_cond spec input output ret ->
-          let st := add_remove_many args input output st in
-          let st := addM x ret st in
-          st' == st ->
-          RunsTo (Call x f args) st st'
+            let names := List.map varname args in
+            match_st st names input ->
+            pre_cond spec input ->
+            forall output ret,
+              post_cond spec input output ret ->
+              let st' := upd_st names output st in
+              let st' := add_st (varname x) ret st' in
+              forall st'',
+                st'' == st' ->
+                RunsTo (Call x f args) st st''
     | RunsToCallOp :
-        forall x f args st st' spec input callee_st' ret f_w,
+        forall x f args st spec,
           NoDupADT args ->
-          eval st f = Some (SCA f_w) ->
+          let f_w := eval_st st f in
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
-          mapM (sel st) args = Some input ->
-          let callee_st := make_state (ArgVars spec) input in
-          RunsTo (Body spec) callee_st callee_st' ->
-          let output := map (sel callee_st') (ArgVars spec) in
-          sel callee_st' (RetVar spec) = Some ret ->
-          let st'' := add_remove_many args input output st in
-          let st'' := addM x ret st'' in
-          st' == st'' ->
-          RunsTo (Call x f args) st st'.
+          let argtypes := List.map vartype args in
+          forall input,
+            let names := List.map varname args in
+            @match_st st names argtypes input ->
+            forall callee_st callee_st',
+              match_st callee_st (ArgVars spec) input ->
+              RunsTo (Body spec) callee_st callee_st' ->
+              let output := get_output callee_st' (ArgVars spec) argtypes in
+              forall ret,
+                find_var (vartype x) (RetVar spec) callee_st' = Some ret ->
+                let st' := upd_st names output st in
+                let st' := add_st (varname x) ret st' in
+                forall st'',
+                  st'' == st' ->
+                  RunsTo (Call x f args) st st''.
 
     CoInductive Safe : Stmt -> State -> Prop :=
     | SafeSkip : forall st, Safe Skip st
