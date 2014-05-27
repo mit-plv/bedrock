@@ -439,7 +439,18 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     eauto.
-    Unfocus.
+    Definition get_ret (st : Cito.State) x : Value :=
+      let w := fst st x in
+      match Cito.heap_sel (snd st) w with
+        | Some a => ADT a
+        | None => SCA _ w
+      end.
+
+    instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
+    admit.
+    reflexivity.
+    admit.
+
 
 
     unfold_all.
