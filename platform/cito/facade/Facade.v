@@ -38,12 +38,18 @@ Section ADTSection.
 
   Require Import GLabel.
 
+  Record Arg :=
+    {
+      arg_type : Ty;
+      arg_expr : Expr arg_type
+    }.
+  
   Inductive Stmt :=
   | Skip
   | Seq : Stmt -> Stmt -> Stmt
   | If : Expr TSCA-> Stmt -> Stmt -> Stmt
   | While : Expr TSCA -> Stmt -> Stmt
-  | Call : Var -> Expr TSCA -> list Var -> Stmt
+  | Call : Var -> Expr TSCA -> list Arg -> Stmt
   | Label : string -> glabel -> Stmt
   | Assign : string -> Expr TSCA -> Stmt.
 
@@ -180,35 +186,10 @@ Section ADTSection.
       | right h => find_adt x st = Some (cast_adt v h)
     end.
 
-  Fixpoint match_st st keys types (values : interp_types interp_type types) :=
-    match keys, values with
-      | k :: keys', Cons _ v _ values' => 
-        match_type st k v /\
-        match_st st keys' values'
-      | nil, Nil => True
-      | _, _ => False
-    end.
-
   Definition cast_option_adt type (v : interp_output type) (h : type = TADT) : option ADTValue.
     rewrite h in *; simpl in *.
     exact v.
   Defined.
-
-  Definition add_remove_typed k {type} (o : interp_output type) st :=
-    match type_dec type with
-      | right h => add_remove k (cast_option_adt o h) st
-      | _ => st
-    end.
-
-  Fixpoint add_remove_many keys types (output : interp_types interp_output types) st :=
-    match keys, output with 
-      | k :: keys', Cons _ o _ output' => 
-        add_remove_many keys' output' (add_remove_typed k o st)
-      | _, _ => st
-    end.
-
-  Definition upd_st keys types (output : interp_types interp_output types) (st : State) : State :=
-    {| sca_map := sca_map st ; adt_map := add_remove_many keys output (adt_map st) |}.
 
   Require Import Locals.
 
@@ -231,7 +212,26 @@ Section ADTSection.
 
   Definition is_adt type := match type with TADT => true | TSCA => false end.
 
-  Definition NoDupADT := (@List.NoDup _ * (List.map varname) * (List.filter (is_adt * vartype)))%program.
+  Definition cast_expr type1 type2 (e : Expr type1) (h : type1 = type2) : Expr type2.
+    subst; assumption.
+  Qed.
+
+  Fixpoint get_adt_args (args : list Arg) : list (Expr TADT) :=
+    match args with
+      | arg :: args' =>
+        match type_dec (arg_type arg) with
+          | right h => cast_expr (arg_expr arg) h :: get_adt_args args'
+          | _ => get_adt_args args'
+        end
+      | nil => nil
+    end.
+
+  Definition arg_name (e : Expr TADT) : string.
+    inversion e.
+    assumption.
+  Defined.
+
+  Definition NoDupADT := (@List.NoDup _ * (List.map arg_name) * get_adt_args)%program.
 
 (*
   Fixpoint make_state keys values :=
@@ -284,7 +284,7 @@ Section ADTSection.
     exact v.
   Defined.
 
-  Definition cast_back_adt type (v : ADTValue) (h : type = TADT) : interp_type type.
+  Definition cast_back_adt type (h : type = TADT) (v : ADTValue) : interp_type type.
     rewrite h in *; simpl in *.
     exact v.
   Defined.
@@ -292,11 +292,7 @@ Section ADTSection.
   Definition find_var type name st : option (interp_type type) :=
     match type_dec type with
       | left h => Some (cast_back_sca (sca_map st name) h)
-      | right h => 
-        match find_adt name st with
-          | Some a => Some (cast_back_adt a h)
-          | None => None
-        end
+      | right h => option_map (cast_back_adt h) (find_adt name st)
     end.
 
   Definition st_equiv (a b : State) :=
@@ -304,6 +300,60 @@ Section ADTSection.
     adt_map a == adt_map b.
 
   Infix "==" := st_equiv.
+
+  Definition get_input st arg : option (interp_type (arg_type arg)) :=
+    match type_dec (arg_type arg) with
+      | left h => Some (cast_back_sca (eval_st st (cast_expr (arg_expr arg) h)) h)
+      | right h => option_map (cast_back_adt h) (find_adt (arg_name (cast_expr (arg_expr arg) h)) st)
+    end.
+
+  Fixpoint get_inputs st args : option (interp_types interp_type (List.map arg_type args)) :=
+    match args with
+      | arg :: args' =>
+        match get_input st arg, get_inputs st args' with
+          | Some x, Some xs => 
+            Some (Cons x xs)
+          | _, _ => None
+        end
+      | nil => Some (@Nil _)
+    end.
+
+  Fixpoint match_st st keys types (values : interp_types interp_type types) :=
+    match keys, values with
+      | k :: keys', Cons _ v _ values' => 
+        match_type st k v /\
+        match_st st keys' values'
+      | nil, Nil => True
+      | _, _ => False
+    end.
+
+  Definition add_remove_arg arg (v : interp_output (arg_type arg)) st :=
+    match type_dec (arg_type arg) with
+      | right h => add_remove (arg_name (cast_expr (arg_expr arg) h)) (cast_option_adt v h) st
+      | _ => st
+    end.
+
+  Definition head {type types} (ls : interp_types interp_output (type :: types)) : interp_output type.
+    inversion ls; subst.
+    assumption.
+  Defined.
+
+  Definition tail {type types} (ls : interp_types interp_output (type :: types)) : interp_types interp_output types.
+    inversion ls; subst.
+    assumption.
+  Defined.
+
+(*here*)
+
+  Fixpoint add_remove_many args (output : interp_types interp_output (List.map arg_type args)) st :=
+    match args with 
+      | arg :: args' =>
+        add_remove_many args' (tail output) (add_remove_arg arg (head output) st)
+      | nil => st
+    end.
+
+  Definition upd_st keys types (output : interp_types interp_output types) (st : State) : State :=
+    {| sca_map := sca_map st ; adt_map := add_remove_many keys output (adt_map st) |}.
 
   Section EnvSection.
 
@@ -353,15 +403,14 @@ Section ADTSection.
           NoDupADT args ->
           let f_w := eval_st st f in
           Word2Spec env f_w = Some (Axiomatic spec) ->
-          List.map vartype args = arg_types spec ->
+          List.map arg_type args = arg_types spec ->
           vartype x = ret_type spec ->
           forall input,
-            let names := List.map varname args in
-            match_st st names input ->
+            get_inputs st args = Some input ->
             pre_cond spec input ->
             forall output ret,
               post_cond spec input output ret ->
-              let st' := upd_st names output st in
+              let st' := upd_st args output st in
               let st' := add_st (varname x) ret st' in
               forall st'',
                 st'' == st' ->
