@@ -42,8 +42,12 @@ Module Thumb.
   Inductive register := R0 | R1 | R2 | R3 | R4 | R5 | R6 | PC.
 
   Inductive litOrLabel :=
-  | Literal : W -> litOrLabel
+  | Lit : W -> litOrLabel
   | Label : string -> litOrLabel.
+
+  Inductive registerOrLiteral :=
+  | Register : register -> registerOrLiteral
+  | Literal : W -> registerOrLiteral.
 
   (** Thumb-2 supports a whole host of condition flags, but these three are
   sufficient to implement Bedrock’s conditional jumps. *)
@@ -66,9 +70,9 @@ Module Thumb.
   | LdrB : register -> register -> instruction
   | Str : register -> register -> instruction
   | StrB : register -> register -> instruction
-  | Add : register -> register -> register -> instruction
-  | Sub : register -> register -> register -> instruction
-  | Mul : register -> register -> register -> instruction
+  | Add : register -> register -> registerOrLiteral -> instruction
+  | Sub : register -> register -> registerOrLiteral -> instruction
+  | Mul : register -> register -> registerOrLiteral -> instruction
   | Branch : string -> instruction
   | Cmp : register -> register -> instruction
   | CondBranch : condition -> string -> instruction.
@@ -101,8 +105,14 @@ Module Thumb.
 
     Definition litOrLabel x :=
       match x with
-        | Literal lit => "0b" ++ wordS lit
+        | Lit lit => "0b" ++ wordS lit
         | Label s => s
+      end.
+
+    Definition registerOrLiteral x :=
+      match x with
+        | Register r => register r
+        | Literal lit => "#0b" ++ wordS lit
       end.
 
     Definition condition (cond : condition) : string :=
@@ -123,9 +133,9 @@ Module Thumb.
         | LdrB rd rn => mnemonic "ldrb" [register rd; "[" ++ register rn ++ "]"]
         | Str rd rn => mnemonic "str" [register rd; "[" ++ register rn ++ "]"]
         | StrB rd rn => mnemonic "strb" [register rd; "[" ++ register rn ++ "]"]
-        | Add rd rn rm => mnemonic "add" $ map register [rd; rn; rm]
-        | Sub rd rn rm => mnemonic "sub" $ map register [rd; rn; rm]
-        | Mul rd rm rs => mnemonic "mul" $ map register [rd; rm; rs]
+        | Add rd rn rm => mnemonic "add" [register rd; register rn; registerOrLiteral rm]
+        | Sub rd rn rm => mnemonic "sub" [register rd; register rn; registerOrLiteral rm]
+        | Mul rd rm rs => mnemonic "mul" [register rd; register rm; registerOrLiteral rs]
         | Branch label => mnemonic "b" [label]
         | Cmp rn rm => mnemonic "cmp" $ map register [rn; rm]
         | CondBranch cond label => mnemonic ("b" ++ condition cond) [label]
@@ -137,6 +147,8 @@ End Thumb.
 
 
 (** * Converting [IL.instr] to [Thumb.instruction] *)
+
+Require Import Compare_dec.
 
 Require IL.
 Require Import LabelMap.
@@ -187,87 +199,10 @@ Definition labelS (lab : label) : string :=
 Local Close Scope string.
 
 
-(** ** Memory operations
-
-Here’s where things start to get complicated.  Thumb’s chief limitation is
-memory addressing – it supports a 32-bit address bus, but instructions may only
-be 16 bits wide.  Thus, many memory-related [IL.instr]s (e.g., memory-to-memory
-assignments) become multiple Thumb instructions. *)
-
-Local Open Scope list.
-
-(** [memS] applies [mnemonic] to the register [reg] and the memory location
-described by [loc] to execute a load or a store.  It uses [tmp1] and [tmp2] as
-scratchpad registers; each must be different from [reg] (and the other).  _This
-precondition is currently unchecked_.
-
-Handling memory operations with offsets is slightly painful.  Thumb’s memory
-operations do support offsets baked into the instructions, but they have a hard
-width limit.  For simplicity, we assume the offsets are too large and just put
-them in registers.  *)
-
-Definition memS (tmp : Thumb.register * Thumb.register)
-                (mnemonic : Thumb.register
-                            -> Thumb.register
-                            -> Thumb.instruction)
-                (reg : Thumb.register)
-                (loc : IL.loc)
-                : list Thumb.instruction
-                :=
-  let (tmp1, tmp2) := tmp in
-  let heap := Thumb.Label "bedrock_heap" in
-  match loc with
-    | IL.Reg r => [ Thumb.LdrEq tmp1 heap;
-                    Thumb.Add tmp1 tmp1 $ regS r;
-                    mnemonic reg tmp1]
-    | IL.Imm w => [ Thumb.LdrEq tmp1 heap;
-                    Thumb.LdrEq tmp2 $ Thumb.Literal w;
-                    Thumb.Add tmp1 tmp1 tmp2;
-                    mnemonic reg tmp1 ]
-    | IL.Indir r w => [ Thumb.LdrEq tmp1 heap;
-                        Thumb.LdrEq tmp2 $ Thumb.Literal w;
-                        Thumb.Add tmp1 tmp1 tmp2;
-                        Thumb.Add tmp1 tmp1 $ regS r;
-                        mnemonic reg tmp1 ]
-  end.
-
-(** Fetches [rvalue] from memory and stores it in [reg]. *)
-
-Definition fetch (tmp : Thumb.register * Thumb.register)
-                 (reg : Thumb.register)
-                 (rvalue : IL.rvalue)
-                 : list Thumb.instruction
-                 :=
-  let mem := memS tmp in
-  match rvalue with
-    | IL.RvLval lv => match lv with
-                        | IL.LvReg r => [Thumb.Mov reg (regS r)]
-                        | IL.LvMem loc => mem Thumb.Ldr reg loc
-                        | IL.LvMem8 loc => mem Thumb.LdrB reg loc
-                      end
-    | IL.RvImm w => [Thumb.LdrEq reg $ Thumb.Literal w]
-    | IL.RvLabel lab =>
-      [Thumb.LdrEq reg $ Thumb.Label $ labelS lab]
-  end.
-
-(** Stores the value of [reg] in memory at [lvalue]. *)
-
-Definition writeback (tmp : Thumb.register * Thumb.register)
-                     (lvalue : IL.lvalue)
-                     (reg : Thumb.register)
-                     : list Thumb.instruction
-                     :=
-  let mem := memS tmp in
-  match lvalue with
-    | IL.LvReg r => [Thumb.Mov (regS r) reg]
-    | IL.LvMem loc => mem Thumb.Str reg loc
-    | IL.LvMem8 loc => mem Thumb.StrB reg loc
-  end.
-
-
 (** ** Arithmetic
 
-Compared with memory operations, arithmetic is trivial. *)
+Assuming all arithmetic operations are register-register makes them quite easy
+as well. *)
 
 Definition binop (op : IL.binop)
                  (dest : Thumb.register)
@@ -281,15 +216,55 @@ Definition binop (op : IL.binop)
                     | IL.Times => Thumb.Mul
                   end
   in
-  mnemonic dest left right.
+  mnemonic dest left $ Thumb.Register right.
 
+(** *** Optimization: Eliminate unnecessary register addition
+
+Later on, we’re going to be doing a lot of offset computation.  While we can do
+this with a <<ldr =>> followed by a register-register <<add>>, we can often
+exploit the 8-bit constant field available in a register-constant <<add>>.  To
+make this optimization, we first need to be able to determine if a word can be
+truncated to 8 bits without incident. *)
+
+Definition wordIsZero {size} : word size -> bool := weqb (wzero _).
+
+Theorem wordIsZero_def: forall size (w : word size),
+                          wordIsZero w = true <-> wzero _ = w.
+Proof.
+  intros.  apply weqb_true_iff.
+Qed.
+
+Definition canFitIn {upper : nat}
+                    (lower : nat)
+                    (w : word (lower + upper))
+                    : bool
+                    := weqb (split2 _ upper w) (wzero _).
+
+Example canFitIn_ex1: canFitIn 5 (WO~0~0~0~1~0~0~0~0) = true.
+  reflexivity.  Qed.
+Example canFitIn_ex2: canFitIn 5 (WO~0~1~0~0~1~0) = true.
+  reflexivity.  Qed.
+Example canFitIn_ex3: canFitIn 3 (WO~0~0~1~0~0~1~0) = false.
+  reflexivity.  Qed.
+
+(** Now we can implement the actual optimization. *)
+
+Definition addLiteral (tmp : Thumb.register)
+                      (dst : Thumb.register)
+                      (src : Thumb.register)
+                      (lit : W)
+                      : list Thumb.instruction
+                      :=
+  if canFitIn 8 lit
+  then [Thumb.Add dst src $ Thumb.Literal lit]
+  else [ Thumb.LdrEq tmp $ Thumb.Lit lit;
+         Thumb.Add dst src $ Thumb.Register tmp ].
 
 (** ** Branches
 
-Branches are also fairly easy – a <<cmp>> instruction followed by a couple
-of <<b>>s.  Thumb doesn’t have a single-instruction compare to determine if
-$x < y$#x ≤  y#, so instead, we use the equivalent check
-$\lnot(y < x)$#¬(y < x)#. *)
+Branches are a <<cmp>> instruction followed by a couple of <<b>>s.  Thumb
+doesn’t have a single-instruction compare to determine if $x < y$#x ≤  y#, so
+instead, we use the equivalent check $\lnot(y < x)$#¬(y < x)#. *)
 
 Definition cmpAndBranch (left : Thumb.register)
                         (op : IL.test)
@@ -319,6 +294,77 @@ Definition cmpAndBranch (left : Thumb.register)
           Thumb.Branch $ labelS ifTrue ]
     end
    ).
+
+(** ** Memory operations
+
+Here’s where things start to get complicated.  Thumb’s chief limitation is
+memory addressing – it supports a 32-bit address bus, but instructions may only
+be 16 bits wide.  Thus, many memory-related [IL.instr]s (e.g., memory-to-memory
+assignments) become multiple Thumb instructions. *)
+
+(** [memS] applies [mnemonic] to the register [reg] and the memory location
+described by [loc] to execute a load or a store.  It uses [tmp1] and [tmp2] as
+scratchpad registers; each must be different from [reg] (and the other).  _This
+precondition is currently unchecked_.
+
+Handling memory operations with offsets is easy thanks to the register-addition
+offset implemented earlier. *)
+
+Definition memS (tmp : Thumb.register * Thumb.register)
+                (mnemonic : Thumb.register
+                            -> Thumb.register
+                            -> Thumb.instruction)
+                (reg : Thumb.register)
+                (loc : IL.loc)
+                : list Thumb.instruction
+                :=
+  let (tmp1, tmp2) := tmp in
+  let heap := Thumb.Label "bedrock_heap" in
+  match loc with
+    | IL.Reg r => [ Thumb.LdrEq tmp1 heap;
+                    Thumb.Add tmp1 tmp1 $ Thumb.Register $ regS r;
+                    mnemonic reg tmp1]
+    | IL.Imm w => Thumb.LdrEq tmp1 heap
+                    :: addLiteral tmp2 tmp1 tmp1 w
+                    ++ [mnemonic reg tmp1]
+    | IL.Indir r w => Thumb.LdrEq tmp1 heap
+                        :: addLiteral tmp2 tmp1 tmp1 w
+                        ++ [ Thumb.Add tmp1 tmp1 $ Thumb.Register $ regS r;
+                             mnemonic reg tmp1 ]
+  end.
+
+(** Fetches [rvalue] from memory and stores it in [reg]. *)
+
+Definition fetch (tmp : Thumb.register * Thumb.register)
+                 (reg : Thumb.register)
+                 (rvalue : IL.rvalue)
+                 : list Thumb.instruction
+                 :=
+  let mem := memS tmp in
+  match rvalue with
+    | IL.RvLval lv => match lv with
+                        | IL.LvReg r => [Thumb.Mov reg (regS r)]
+                        | IL.LvMem loc => mem Thumb.Ldr reg loc
+                        | IL.LvMem8 loc => mem Thumb.LdrB reg loc
+                      end
+    | IL.RvImm w => [Thumb.LdrEq reg $ Thumb.Lit w]
+    | IL.RvLabel lab =>
+      [Thumb.LdrEq reg $ Thumb.Label $ labelS lab]
+  end.
+
+(** Stores the value of [reg] in memory at [lvalue]. *)
+
+Definition writeback (tmp : Thumb.register * Thumb.register)
+                     (lvalue : IL.lvalue)
+                     (reg : Thumb.register)
+                     : list Thumb.instruction
+                     :=
+  let mem := memS tmp in
+  match lvalue with
+    | IL.LvReg r => [Thumb.Mov (regS r) reg]
+    | IL.LvMem loc => mem Thumb.Str reg loc
+    | IL.LvMem8 loc => mem Thumb.StrB reg loc
+  end.
 
 
 (** ** Instructions and blocks *)
@@ -362,8 +408,6 @@ Definition jmpS (j : IL.jmp) : list Thumb.instruction :=
 Definition blockS (b : IL.block) : list Thumb.instruction :=
   let (instructions, jump) := b in
   fold_right (fun instr text => instrS instr ++ text) (jmpS jump) instructions.
-
-Local Close Scope list.
 
 
 (** ** Final serialization *)
