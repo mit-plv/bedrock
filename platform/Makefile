@@ -90,6 +90,17 @@ tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/d
 tests/Rtos.exe: tests/Rtos.gen.o tests/sys.o tests/driver.o tests/rtos.o tests/rtos_app.o
 	cc $^ -o $@
 
+tests/Rtos.gen.s: tests/Rtos.gen.ml tests/Rtos.txt
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024*1024*200+50+`cat tests/Rtos.txt`),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main,scheduler_init,scheduler_spawn,scheduler_exit,scheduler_listen,scheduler_close,scheduler_read,scheduler_write,scheduler_accept,scheduler_connected" >>$@
+	echo >>$@
+	ocaml -w -x $< >>$@
+
 master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 	mkdir -p /tmp/master
 	-rm /tmp/master/*

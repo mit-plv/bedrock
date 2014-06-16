@@ -18,7 +18,10 @@ Module T := Thread0.Make(M').
 Section boot.
   Hypothesis heapSizeLowerBound : (3 <= heapSize)%nat.
 
-  Definition size := heapSize + 50 + 1.
+  Definition size := heapSize + 50 + 2.
+  (* The reserved heap slots are:
+   * 1) scheduler
+   * 2) saved Bedrock stack pointer for current thread *)
 
   Hypothesis mem_size : goodSize (size * 4)%nat.
 
@@ -29,17 +32,17 @@ Section boot.
   Definition appmainS := SPEC reserving 49
     PREonly[_] mallocHeap 0.
 
-  Definition bootS := bootS heapSize 1.
+  Definition bootS := bootS heapSize 2.
 
   Definition boot := bimport [[ "malloc"!"init" @ [Malloc.initS], "app"!"main" @ [appmainS] ]]
     bmodule "main" {{
       bfunctionNoRet "main"() [bootS]
         Sp <- (heapSize * 4)%nat;;
 
-        Assert [PREmain[_] globalSched =?> 1 * 0 =?> heapSize];;
+        Assert [PREmain[_] globalSched =?> 2 * 0 =?> heapSize];;
 
         Call "malloc"!"init"(0, heapSize)
-        [PREmain[_] globalSched =?> 1 * mallocHeap 0];;
+        [PREmain[_] globalSched =?> 2 * mallocHeap 0];;
 
         Goto "app"!"main"
       end
