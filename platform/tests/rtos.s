@@ -49,3 +49,18 @@ bedrock_exit:
         movl bedrock_stack_size, %eax
         movl %eax, 4+bedrock_heap(%ebx)
         jmp scheduler_exit
+
+afterContextSwitch:
+        subl $4, %ebx
+        movl %ebx, globalSp
+        movl bedrock_heap(%ebx), %esp
+        ret
+        
+        .globl scheduler_yield
+        .globl bedrock_yield
+bedrock_yield:
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_yield
