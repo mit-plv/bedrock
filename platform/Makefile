@@ -17,7 +17,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            NumOps ArrayOps StringOps RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete \
            XmlLex XmlSearch XmlOutput XmlLang Http HttpQ XmlProg Xml \
 	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
-           tests/Ros tests/MiniMasterDriver tests/RosMasterDriver
+           tests/Ros tests/MiniMasterDriver tests/RosMasterDriver \
+           tests/RtosDriver
 
 VS      := $(MODULES:%=%.v)
 
@@ -84,6 +85,9 @@ tests/pages.gen.s:
 	ocaml str.cma tests/makepages.ml $(PAGES) >$@
 
 tests/WebServer.exe: tests/WebServer.gen.o tests/pages.gen.o tests/sys.o tests/driver.o
+	cc $^ -o $@
+
+tests/Rtos.exe: tests/Rtos.gen.o tests/sys.o tests/driver.o tests/rtos.o tests/rtos_app.o
 	cc $^ -o $@
 
 master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
