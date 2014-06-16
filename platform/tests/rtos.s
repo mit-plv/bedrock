@@ -1,4 +1,4 @@
-.globl rtos_stack_size
+.globl bedrock_stack_size
 # Assume the C application has defined here the stack size (in words) for each new thread.
 
 .globl bedrock_heap
@@ -33,11 +33,19 @@ return:
         ret
         
         .globl scheduler_spawn
-        .globl spawn
-spawn:
+        .globl bedrock_spawn
+bedrock_spawn:
         movl globalSp, %ebx
         movl %edi, 4+bedrock_heap(%ebx)
-        movl rtos_stack_size, %eax
+        movl bedrock_stack_size, %eax
         movl %eax, 8+bedrock_heap(%ebx)
         movl $return, %esi
         jmp scheduler_spawn
+
+        .globl scheduler_exit
+        .globl bedrock_exit
+bedrock_exit:
+        movl globalSp, %ebx
+        movl bedrock_stack_size, %eax
+        movl %eax, 4+bedrock_heap(%ebx)
+        jmp scheduler_exit

@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include "rtos.h"
 
-int rtos_stack_size = 2;
+int bedrock_stack_size = 100;
 
 THREAD_HANDLER(f) {
   puts("Hello, world!");
-  while(1);
+  bedrock_exit();
 } END_THREAD_HANDLER
 
 void rtos_main() {
-  spawn(f);
+  bedrock_spawn(f);
 }
