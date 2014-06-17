@@ -124,6 +124,7 @@ master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 rtos64: tests/sys.c tests/driver.s tests/Rtos.gen.s tests/rtos.s tests/bedrock.h tests/rtos_app.c
 	mkdir -p /tmp/brtos64
 	-rm /tmp/brtos64/*
+	cp README.rtos /tmp/brtos64/README
 	cp tests/sys.c /tmp/brtos64/
 	cp tests/driver.s /tmp/brtos64/
 	cp tests/Rtos.gen.s /tmp/brtos64/bedrock.s
@@ -136,6 +137,7 @@ rtos64: tests/sys.c tests/driver.s tests/Rtos.gen.s tests/rtos.s tests/bedrock.h
 rtos32: tests/sys.c tests/driver32.s tests/Rtos32.gen.s tests/rtos32.s tests/bedrock.h tests/rtos_app.c
 	mkdir -p /tmp/brtos32
 	-rm /tmp/brtos32/*
+	cp README.rtos /tmp/brtos32/README
 	cp tests/sys.c /tmp/brtos32/
 	cp tests/driver32.s /tmp/brtos32/driver.s
 	cp tests/Rtos32.gen.s /tmp/brtos32/bedrock.s
