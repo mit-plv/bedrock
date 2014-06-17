@@ -158,3 +158,27 @@ bedrock_write:
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_write
+
+        .globl scheduler_connect
+        .globl bedrock_connect
+bedrock_connect:
+        PUSHA
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        subl $bedrock_heap, %edi
+        movl %edi, 8+bedrock_heap(%ebx)
+        movl %esi, 12+bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_connect
+
+        .globl scheduler_connected
+        .globl bedrock_connected
+bedrock_connected:
+        PUSHA
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        movl %edi, 8+bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_connected

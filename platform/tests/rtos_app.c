@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "bedrock.h"
 
-int bedrock_stack_size = 100 * 1024;
+int bedrock_stack_size = 10 * 1024;
 
 BEDROCK_THREAD(shouter) {
   puts("Hello, world!");
@@ -24,11 +24,13 @@ BEDROCK_THREAD(accepter) {
   fd_t remote = bedrock_accept(listener);
   puts("Got one!");
   bedrock_write(remote, "How's it going?\n", 16);
-  unsigned size = bedrock_read(remote, buf, sizeof buf);
+  unsigned size = bedrock_read(remote, buf, sizeof buf - 1);
   if (size == 0) {
     puts("Uh oh!");
     bedrock_exit();
   }
+  buf[size] = 0;
+  printf("Server received: %s", buf);
   bedrock_write(remote, buf, size);
   bedrock_close(remote);
   bedrock_close(listener);
@@ -36,7 +38,27 @@ BEDROCK_THREAD(accepter) {
 }
 BEDROCK_WRAP(accepter)
 
+BEDROCK_THREAD(connecter) {
+  char buf[1024];
+
+  puts("Connecting....");
+  fd_t server = bedrock_connect("localhost:80", 14);
+  bedrock_connected(server);
+  bedrock_write(server, "GET / HTTP/1.0\r\n\r\n", 18);
+  unsigned size = bedrock_read(server, buf, sizeof buf - 1);
+  if (size == 0) {
+    puts("Uh oh!");
+    bedrock_exit();
+  }
+  buf[size] = 0;
+  printf("Client received: %s", buf);
+  bedrock_close(server);
+  bedrock_exit();
+}
+BEDROCK_WRAP(connecter)
+
 void rtos_main() {
   bedrock_spawn(shouter);
   bedrock_spawn(accepter);
+  bedrock_spawn(connecter);
 }
