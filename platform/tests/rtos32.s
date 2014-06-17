@@ -8,33 +8,17 @@
 .equ globalSp, globalSched + 4
 
 .macro PUSHA
-   push %rbx
-   push %rbp
-   push %rdi
-   push %rsi
-   push %r8
-   push %r9
-   push %r10
-   push %r11
-   push %r12
-   push %r13
-   push %r14
-   push %r15
+   push %ebx
+   push %ebp
+   push %edi
+   push %esi
 .endm
 
 .macro POPA
-   pop %r15
-   pop %r14
-   pop %r13
-   pop %r12
-   pop %r11
-   pop %r10
-   pop %r9
-   pop %r8
-   pop %rsi
-   pop %rdi
-   pop %rbp
-   pop %rbx
+   pop %esi
+   pop %edi
+   pop %ebp
+   pop %ebx
 .endm
         
 # This is where the RTOS system jumps when it's ready to turn over control to the application.
@@ -63,7 +47,8 @@ return:
         .globl bedrock_spawn
 bedrock_spawn:
         movl globalSp, %ebx
-        movl %edi, 4+bedrock_heap(%ebx)
+        movl 4(%esp), %eax
+        movl %eax, 4+bedrock_heap(%ebx)
         movl bedrock_stack_size, %eax
         movl %eax, 8+bedrock_heap(%ebx)
         movl $return, %esi
@@ -101,7 +86,8 @@ bedrock_listen:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_listen
@@ -112,7 +98,8 @@ bedrock_accept:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_accept
@@ -123,7 +110,8 @@ bedrock_close:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_close
@@ -134,10 +122,13 @@ bedrock_read:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
-        subl $bedrock_heap, %esi
-        movl %esi, 12+bedrock_heap(%ebx)
-        movl %edx, 16+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
+        movl 24(%esp), %eax
+        subl $bedrock_heap, %eax
+        movl %eax, 12+bedrock_heap(%ebx)
+        movl 28(%esp), %eax
+        movl %eax, 16+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_read
@@ -148,10 +139,13 @@ bedrock_write:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
-        subl $bedrock_heap, %esi
-        movl %esi, 12+bedrock_heap(%ebx)
-        movl %edx, 16+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
+        movl 24(%esp), %eax
+        subl $bedrock_heap, %eax
+        movl %eax, 12+bedrock_heap(%ebx)
+        movl 28(%esp), %eax
+        movl %eax, 16+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_write
@@ -162,9 +156,11 @@ bedrock_connect:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        subl $bedrock_heap, %edi
-        movl %edi, 8+bedrock_heap(%ebx)
-        movl %esi, 12+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        subl $bedrock_heap, %eax
+        movl %eax, 8+bedrock_heap(%ebx)
+        movl 24(%esp), %eax
+        movl %eax, 12+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_connect
@@ -175,7 +171,8 @@ bedrock_connected:
         PUSHA
         movl globalSp, %ebx
         movl %esp, bedrock_heap(%ebx)
-        movl %edi, 8+bedrock_heap(%ebx)
+        movl 20(%esp), %eax
+        movl %eax, 8+bedrock_heap(%ebx)
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_connected
