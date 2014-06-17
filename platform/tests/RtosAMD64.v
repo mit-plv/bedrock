@@ -1,7 +1,7 @@
 Require Import Bedrock RtosDriver AMD64_gas.
 
 Module M.
-  Definition heapSize := 1024 * 10.
+  Definition heapSize := (1024 * 1024)%N.
 End M.
 
 Module E := Make(M).
