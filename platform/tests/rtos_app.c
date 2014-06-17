@@ -17,9 +17,7 @@ BEDROCK_THREAD(accepter) {
   char buf[1024];
 
   puts("Listening....");
-  bedrock_yield();
   fd_t listener = bedrock_listen(6666);
-  bedrock_yield();
   puts("Started listening.");
   fd_t remote = bedrock_accept(listener);
   puts("Got one!");
