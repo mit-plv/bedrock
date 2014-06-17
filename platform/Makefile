@@ -97,7 +97,7 @@ tests/Rtos.gen.s: tests/Rtos.gen.ml tests/Rtos.txt
 	echo "	.fill 4*(1024*1024*200+50+`cat tests/Rtos.txt`),1,0" >>$@
 	echo >>$@
 	echo "	.text" >>$@
-	echo "	.global main_main,scheduler_init,scheduler_spawn,scheduler_exit,scheduler_yield,scheduler_listen,scheduler_close,scheduler_read,scheduler_write,scheduler_accept,scheduler_connected" >>$@
+	echo "	.global main_main,scheduler_init,scheduler_spawn,scheduler_exit,scheduler_yield,scheduler_listen,scheduler_close,scheduler_read,scheduler_write,scheduler_accept,scheduler_connected,threadq" >>$@
 	echo >>$@
 	ocaml -w -x $< >>$@
 

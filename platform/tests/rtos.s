@@ -119,3 +119,42 @@ bedrock_accept:
         addl $4, %ebx
         movl $afterContextSwitch, %esi
         jmp scheduler_accept
+
+        .globl scheduler_close
+        .globl bedrock_close
+bedrock_close:
+        PUSHA
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        movl %edi, 8+bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_close
+        
+        .globl scheduler_read
+        .globl bedrock_read
+bedrock_read:
+        PUSHA
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        movl %edi, 8+bedrock_heap(%ebx)
+        subl $bedrock_heap, %esi
+        movl %esi, 12+bedrock_heap(%ebx)
+        movl %edx, 16+bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_read
+
+        .globl scheduler_write
+        .globl bedrock_write
+bedrock_write:
+        PUSHA
+        movl globalSp, %ebx
+        movl %esp, bedrock_heap(%ebx)
+        movl %edi, 8+bedrock_heap(%ebx)
+        subl $bedrock_heap, %esi
+        movl %esi, 12+bedrock_heap(%ebx)
+        movl %edx, 16+bedrock_heap(%ebx)
+        addl $4, %ebx
+        movl $afterContextSwitch, %esi
+        jmp scheduler_write
