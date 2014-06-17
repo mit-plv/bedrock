@@ -43,7 +43,6 @@ BEDROCK_THREAD(connecter) {
 
   puts("Connecting....");
   fd_t server = bedrock_connect("localhost:80", 14);
-  bedrock_connected(server);
   bedrock_write(server, "GET / HTTP/1.0\r\n\r\n", 18);
   unsigned size = bedrock_read(server, buf, sizeof buf - 1);
   if (size == 0) {
