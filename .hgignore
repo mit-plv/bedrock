@@ -38,7 +38,6 @@ timing/
 .dir-locals.el
 
 *.exe
-examples/x86/factorial.s
 examples/comparison/*data.*
 examples/comparison/bedrock_server.s
 examples/comparison/bedrock_server.ml
