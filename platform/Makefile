@@ -18,7 +18,8 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            XmlLex XmlSearch XmlOutput XmlLang Http HttpQ XmlProg Xml \
 	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/MiniMasterDriver tests/RosMasterDriver \
-           tests/RtosDriver
+           tests/RtosDriver \
+           tests/Increment
 
 VS      := $(MODULES:%=%.v)
 
