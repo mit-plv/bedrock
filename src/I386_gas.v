@@ -1,6 +1,6 @@
-Require Import List Ascii.
+Require Import List String Ascii.
 
-Require Import LabelMap Word IL XCAP FastString.
+Require Import LabelMap Word IL XCAP.
 
 Set Implicit Arguments.
 
@@ -168,23 +168,9 @@ Definition blockS (b : block) : string :=
   let (is, j) := b in
     fold_right (fun i s => instrS i ++ s) (jmpS j) is.
 
-Definition moduleS (m : module) : string :=
-  let labeledBlockS (lab : label) (bl : assert * block) :=
-      let (_, b) := bl in
-      (match lab with
-         | (_, Labels.Global functionName) => ".globl " ++ labelS lab ++ nl
-         | _ => ""
-       end)
-        ++ labelS lab ++ ":" ++ nl ++ blockS b
-  in
-  (* A 'LabelMap.t' is a proof-carrying data structure--it includes a proof
-  that the tree underlying the map satisfies the invariants of an AVL tree.
-  Since this part of the compiler is unverified, this proof is fairly useless,
-  and it takes an extremely long time to compute.  Fortunately, it's not needed
-  to produce a string of assembly code. *)
-  LabelMap.fold (fun lab bl programText => labeledBlockS lab bl ++ programText)
-                m.(Blocks)
-                "".
+Definition moduleS (m : module) : LabelMap.t string :=
+  LabelMap.mapi (fun lab (bl : assert * block) => let (_, b) := bl in
+    labelS lab ++ ":" ++ nl ++ blockS b) m.(Blocks).
 
 Global Transparent natToWord.
 Require Export Coq.extraction.ExtrOcamlString.

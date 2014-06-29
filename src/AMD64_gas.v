@@ -185,20 +185,9 @@ Definition blockS (b : block) : string :=
   let (is, j) := b in
     fold_right (fun i s => instrS i ++ s) (jmpS j) is.
 
-Definition moduleS (m : module) : string :=
-  let labeledBlockS (lab : label) (bl : assert * block) :=
-      let (_, b) := bl in
-      (match lab with
-         | (_, Labels.Global functionName) => ".globl " ++ labelS lab ++ nl
-         | _ => ""
-       end)
-        ++ labelS lab ++ ":" ++ nl ++ blockS b
-  in
-  (* See note in 'I386_gas.moduleS' regarding why this function returns a
-  string. *)
-  LabelMap.fold (fun lab bl programText => labeledBlockS lab bl ++ programText)
-                m.(Blocks)
-                "".
+Definition moduleS (m : module) : LabelMap.t string :=
+  LabelMap.mapi (fun lab (bl : assert * block) => let (_, b) := bl in
+    labelS lab ++ ":" ++ nl ++ blockS b) m.(Blocks).
 
 Global Transparent natToWord.
 Require Export Coq.extraction.ExtrOcamlString.
