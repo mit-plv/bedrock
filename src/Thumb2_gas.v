@@ -7,7 +7,16 @@ Thumb-2 code from the Bedrock IL.  Unlike those generators, however,
 [Thumb2_gas] generates code in two steps.  In the first, it converts the
 Bedrock IL (an abstract CISC ISA) to an embedded subset of ARM assembly (a RISC
 ISA); in the second, it serializes the embedded ARM assembly to a [string]
-suitable for GAS consumption. *)
+suitable for GAS consumption.
+
+Note that the generated assembly uses the new ‘unified’ syntax for ARM/Thumb
+assembly.  To assemble files generated with this generator, you’ll thus need to
+place
+<<
+    .syntax unified
+    .text
+>>
+at the top of the file. *)
 
 Require Import List.  Import ListNotations.
 
@@ -35,15 +44,22 @@ Module Thumb.
   Local Open Scope string.
   Set Implicit Arguments.
 
-  (** Thumb-2 supports the first eight general-purpose registers (R0–R7), the
-  condition flag register, and the program counter.  We don’t need all of the
-  registers, however. *)
+  (** Thumb-2 has full support for the first eight general-purpose registers
+  (R0–R7), the condition flag register, and the program counter.  It also has
+  limited support for R8-R15.  Of course, we don't need all of these registers
+  to compile Bedrock. *)
 
   Inductive register := R0 | R1 | R2 | R3 | R4 | R5 | R6 | PC.
 
   Inductive litOrLabel :=
   | Lit : W -> litOrLabel
   | Label : string -> litOrLabel.
+
+  Definition register_eq : forall x y: register, {x = y} + {x <> y}.
+    decide equality.
+  Defined.
+
+  Definition register_eqb x y := if register_eq x y then true else false.
 
   Inductive registerOrLiteral :=
   | Register : register -> registerOrLiteral
@@ -52,20 +68,19 @@ Module Thumb.
   (** Thumb-2 supports a whole host of condition flags, but these three are
   sufficient to implement Bedrock’s conditional jumps. *)
 
-  Inductive condition := EQ | NE | MI.
+  Inductive condition := EQ | NE | MI | PL.
 
-  (** We need very few Thumb mnemonics to actually compile Bedrock code:
-  <<mov>> and <<ldr =>>, four load and store instrucitons, three arithmetic
-  operations, and three branching opcodes.  Note that <<ldr =>> (e.g., <<ldr
-  r1, =12345>>) is not an actual Thumb mnemonic but rather a GAS-provided
-  pseudo-opcode that cleverly skirts Thumb’s limitations on immediates in
-  <<mov>> instructions.  See
-  <<https://sourceware.org/binutils/docs/as/ARM-Opcodes.html#index-g_t_0040code_007bLDR-reg_002c_003d_003clabel_003e_007d-pseudo-op_002c-ARM-700>> for
-  a more complete rundown. *)
+  (** We need fairly few Thumb mnemonics to actually compile Bedrock code.
+  Note that <<ldr =>> (e.g., <<ldr r1, =12345>>) is not an actual Thumb
+  mnemonic but rather a GAS-provided pseudo-opcode that cleverly skirts Thumb’s
+  limitations on immediates in <<mov>> instructions.  See
+  <<https://sourceware.org/binutils/docs/as/ARM-Opcodes.html#index-g_t_0040code_007bLDR-reg_002c_003d_003clabel_003e_007d-pseudo-op_002c-ARM-700>>
+  for a more complete rundown. *)
 
   Inductive instruction :=
   | Mov : register -> register -> instruction
   | LdrEq : register -> litOrLabel -> instruction
+  | CondLdrEq : condition -> register -> litOrLabel -> instruction
   | Ldr : register -> register -> instruction
   | LdrB : register -> register -> instruction
   | Str : register -> register -> instruction
@@ -73,9 +88,8 @@ Module Thumb.
   | Add : register -> register -> registerOrLiteral -> instruction
   | Sub : register -> register -> registerOrLiteral -> instruction
   | Mul : register -> register -> registerOrLiteral -> instruction
-  | Branch : string -> instruction
   | Cmp : register -> register -> instruction
-  | CondBranch : condition -> string -> instruction.
+  | Ite : condition -> instruction.
 
 
   (** ** Serializing to [string] *)
@@ -120,6 +134,7 @@ Module Thumb.
         | EQ => "eq"
         | NE => "ne"
         | MI => "mi"
+        | PL => "pl"
       end.
 
     Definition mnemonic (name : string) (operands : list string) : string :=
@@ -129,6 +144,7 @@ Module Thumb.
       match instr with
         | Mov rd rn => mnemonic "mov" $ map register [rd; rn]
         | LdrEq rd x => mnemonic "ldr" [register rd; "=" ++ litOrLabel x]
+        | CondLdrEq cond rd x => mnemonic ("ldr" ++ condition cond) [register rd; "=" ++ litOrLabel x]
         | Ldr rd rn => mnemonic "ldr" [register rd; "[" ++ register rn ++ "]"]
         | LdrB rd rn => mnemonic "ldrb" [register rd; "[" ++ register rn ++ "]"]
         | Str rd rn => mnemonic "str" [register rd; "[" ++ register rn ++ "]"]
@@ -136,9 +152,8 @@ Module Thumb.
         | Add rd rn rm => mnemonic "add" [register rd; register rn; registerOrLiteral rm]
         | Sub rd rn rm => mnemonic "sub" [register rd; register rn; registerOrLiteral rm]
         | Mul rd rm rs => mnemonic "mul" [register rd; register rm; registerOrLiteral rs]
-        | Branch label => mnemonic "b" [label]
         | Cmp rn rm => mnemonic "cmp" $ map register [rn; rm]
-        | CondBranch cond label => mnemonic ("b" ++ condition cond) [label]
+        | Ite cond => mnemonic "ite" [condition cond]
       end.
 
   End Show.
@@ -180,7 +195,7 @@ Definition binS {sz} (w : word sz) : string :=
   "0b" ++ wordS w.
 
 (** The Bedrock IL requires only three registers.  We map them to the first
-three ARM registers, leaving R3–R7 available for scratchpad use. *)
+three ARM registers, leaving R3–R6 available for scratchpad use. *)
 
 Definition regS (r : IL.reg) : Thumb.register :=
   match r with
@@ -221,10 +236,10 @@ Definition binop (op : IL.binop)
 (** *** Optimization: Eliminate unnecessary register addition
 
 Later on, we’re going to be doing a lot of offset computation.  While we can do
-this with a <<ldr =>> followed by a register-register <<add>>, we can often
-exploit the 8-bit constant field available in a register-constant <<add>>.  To
-make this optimization, we first need to be able to determine if a word can be
-truncated to 8 bits without incident. *)
+this with a <<ldr =>> followed by a register-register <<add>>, we can sometimes
+exploit the constant field available in a register-constant <<add>>.  To make
+this optimization, we first need to be able to determine if a word can be
+truncated without incident. *)
 
 Definition wordIsZero {size} : word size -> bool := weqb (wzero _).
 
@@ -255,45 +270,48 @@ Definition addLiteral (tmp : Thumb.register)
                       (lit : W)
                       : list Thumb.instruction
                       :=
-  if canFitIn 8 lit
+  if orb (canFitIn 3 lit)
+         (andb (canFitIn 8 lit)
+               (Thumb.register_eqb dst src))
   then [Thumb.Add dst src $ Thumb.Literal lit]
   else [ Thumb.LdrEq tmp $ Thumb.Lit lit;
          Thumb.Add dst src $ Thumb.Register tmp ].
 
 (** ** Branches
 
-Branches are a <<cmp>> instruction followed by a couple of <<b>>s.  Thumb
-doesn’t have a single-instruction compare to determine if $x < y$#x ≤  y#, so
-instead, we use the equivalent check $\lnot(y < x)$#¬(y < x)#. *)
+We don’t use Thumb’s branches – they’re limited in how far you can branch.
+(For conditional branches, the limit is 258 bytes; for unconditional branches,
+it’s 2 kiB.)  Instead, we do a conditional <<ldr =>> instruction to load the
+destination address into a temporary register, and then we simply replace the
+program counter. *)
 
-Definition cmpAndBranch (left : Thumb.register)
+Definition cmpAndBranch (tmp : Thumb.register)
+                        (left : Thumb.register)
                         (op : IL.test)
                         (right : Thumb.register)
                         (ifTrue : label)
                         (ifFalse : label)
                       : list Thumb.instruction
                       :=
-  let cond op := match op with
-                   | IL.Eq => Thumb.EQ
-                   | IL.Ne => Thumb.NE
-                   | IL.Lt | IL.Le => Thumb.MI
-                 end
+  let (condTrue, condFalse) := match op with
+                                 | IL.Eq => (Thumb.EQ, Thumb.NE)
+                                 | IL.Ne => (Thumb.NE, Thumb.EQ)
+                                 | IL.Lt | IL.Le => (Thumb.MI, Thumb.PL)
+                               end
   in
-  (
-    match op with
-      | IL.Eq | IL.Ne | IL.Lt => Thumb.Cmp left right
-      | IL.Le => Thumb.Cmp right left
-    end
-  ) :: (
-    match op with
-      | IL.Eq | IL.Ne | IL.Lt =>
-        [ Thumb.CondBranch (cond op) $ labelS ifTrue;
-          Thumb.Branch $ labelS ifFalse ]
-      | IL.Le =>
-        [ Thumb.CondBranch (cond op) $ labelS ifFalse;
-          Thumb.Branch $ labelS ifTrue ]
-    end
-   ).
+  (match op with
+     | IL.Eq | IL.Ne | IL.Lt =>
+       [ Thumb.Cmp left right;
+         Thumb.Ite condTrue;
+         Thumb.CondLdrEq condTrue  tmp (Thumb.Label $ labelS ifTrue);
+         Thumb.CondLdrEq condFalse tmp (Thumb.Label $ labelS ifFalse) ]
+     | IL.Le =>
+       [ Thumb.Cmp right left;
+         Thumb.Ite condTrue;
+         Thumb.CondLdrEq condTrue  tmp (Thumb.Label $ labelS ifFalse);
+         Thumb.CondLdrEq condFalse tmp (Thumb.Label $ labelS ifTrue) ]
+    end)
+    ++ [Thumb.Mov Thumb.PC tmp].
 
 (** ** Memory operations
 
@@ -348,8 +366,7 @@ Definition fetch (tmp : Thumb.register * Thumb.register)
                         | IL.LvMem8 loc => mem Thumb.LdrB reg loc
                       end
     | IL.RvImm w => [Thumb.LdrEq reg $ Thumb.Lit w]
-    | IL.RvLabel lab =>
-      [Thumb.LdrEq reg $ Thumb.Label $ labelS lab]
+    | IL.RvLabel lab => [Thumb.LdrEq reg $ Thumb.Label $ labelS lab]
   end.
 
 (** Stores the value of [reg] in memory at [lvalue]. *)
@@ -395,14 +412,15 @@ Definition jmpS (j : IL.jmp) : list Thumb.instruction :=
   match j with
     | IL.Uncond target =>
       match target with
-        | IL.RvLabel lab => [Thumb.Branch $ labelS lab]
+        | IL.RvLabel lab => [ Thumb.LdrEq Thumb.R5 (Thumb.Label $ labelS lab);
+                              Thumb.Mov Thumb.PC Thumb.R5 ]
         | rvalue => fetch tmp Thumb.R3 rvalue
                       ++ [ Thumb.Mov Thumb.PC Thumb.R3 ]
       end
     | IL.Cond one op two ifTrue ifFalse =>
       fetch tmp Thumb.R3 one
         ++ fetch tmp Thumb.R4 two
-        ++ cmpAndBranch Thumb.R3 op Thumb.R4 ifTrue ifFalse
+        ++ cmpAndBranch Thumb.R5 Thumb.R3 op Thumb.R4 ifTrue ifFalse
   end.
 
 Definition blockS (b : IL.block) : list Thumb.instruction :=
@@ -415,28 +433,30 @@ Definition blockS (b : IL.block) : list Thumb.instruction :=
 Local Open Scope string.
 
 (** [moduleS] presents the public interface for the assembler.  It extracts the
-[LabelMap.t] from an [XCAP.module] and folds over it to produce a string.
+[LabelMap.t] from an [XCAP.module] and folds over it to produce a [LabelMap.t]
+mapping labels to strings of assembly. *)
 
-Formerly, [moduleS] produced a [LabelMap.t] mapping labels to strings of
-assembly.  However, a [LabelMap.t] is a proof-carrying data structure – it
-includes a proof that the tree underlying the map satisfies the invariants of
-an AVL tree.  Since this part of the compiler is unverified, this proof is
-fairly useless, and it takes an extremely long time to compute.  By having
-[moduleS] produce a [string], the compiler thus gains a substantial performance
-boost. *)
-
-Definition moduleS (m : XCAP.module) : string :=
+Definition moduleS (m : XCAP.module) : LabelMap.t string :=
   let labeledBlockS (lab : label) (bl : XCAP.assert * IL.block) :=
       let (_, b) := bl in
-      (
-        match lab with
-          | (_, Labels.Global functionName) =>
-            ".globl " ++ labelS lab ++ Thumb.Show.newline
-          | _ => ""
-       end
-      ) ++ labelS lab ++ ":" ++ Thumb.Show.newline
-        ++ (concat $ map Thumb.Show.instruction $ blockS b)
+      (* If this function is to e exported, declare it global. *)
+      (match lab with
+         | (_, Labels.Global functionName) =>
+           ".globl " ++ labelS lab ++ Thumb.Show.newline
+         | _ => ""
+       end)
+        ++ (* Write the function label. *)
+           labelS lab ++ ":" ++ Thumb.Show.newline
+        ++ (* Print the function. *)
+           (concat $ map Thumb.Show.instruction $ blockS b)
+        ++ (* Since every block ends with a branch, we can put literal pools
+           anywhere.  Mark this as a good place to put a literal pool. *)
+           Thumb.Show.tab ++ ".ltorg" ++ Thumb.Show.newline
   in
-  LabelMap.fold (fun lab bl programText => labeledBlockS lab bl ++ programText)
-                m.(XCAP.Blocks)
-                "".
+  LabelMap.mapi labeledBlockS m.(XCAP.Blocks).
+
+Global Transparent natToWord.
+Require Export Coq.extraction.ExtrOcamlString.
+Extract Inductive list => "list" [ "[]" "(::)" ].
+Extract Inductive bool => "bool" [ "true" "false" ].
+Extract Inductive sumbool => "bool" [ "true" "false" ].
