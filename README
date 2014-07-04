@@ -15,4 +15,7 @@ If you're running 64-bit x86 Linux, then the build process should wrap up by gen
 which is the native-code executable for the main case-study application from the paper.  You can interact with a running server using some of the standard ROS tools, like 'rosparam'.  More ROS info at:
   http://www.ros.org/
 
+The source code for that application appears in
+  platform/tests/RosMasterDriver.v
+
 This source snapshot requires Coq version 8.4pl2.
