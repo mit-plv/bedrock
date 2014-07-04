@@ -481,12 +481,10 @@ Module M.
   ).
 
   Theorem Wf : wf ts pr buf_size outbuf_size.
-  Admitted.
-    (*wf.
-  Qed.*)
-  (* This proof script requires particularly much memory, so uncomment if you're willing to use about 16 GB of RAM. *)
+    wf.
+  Qed.
 
-  Definition port : W := 12345%N.
+  Definition port : W := 11311%N.
   Definition numWorkers : W := 10.
 End M.
 

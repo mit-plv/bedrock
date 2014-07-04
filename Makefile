@@ -6,7 +6,8 @@ all:
 	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
 	$(MAKE) -C src/reification
 	$(MAKE) -C src
-	$(MAKE) -C examples
+	$(MAKE) -C platform
+	$(MAKE) -C platform tests/RosMaster.exe
 
 cito:
 	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
