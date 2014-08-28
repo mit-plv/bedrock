@@ -371,14 +371,43 @@ Module Make (Import A : ADT).
     (Label2Word env, 
      fun w => option_map compile_spec (Word2Spec env w)).
     
+  Require Import GeneralTactics.
+  Require Import GeneralTactics3.
+
+  Ltac inject h := injection h; intros; subst; clear h.
+
+  Definition get_ret (st : Cito.State) x : Value :=
+    let w := fst st x in
+    match Cito.heap_sel (snd st) w with
+      | Some a => ADT a
+      | None => SCA _ w
+    end.
+
   Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> related_state s_st t_st -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
+
+    (* skip *)
     eexists; split.
     eapply RunsToSkip.
     eauto.
 
-    admit.
+    (* seq *)
+    subst.
+    inject H1.
+    edestruct IHRunsTo1; clear IHRunsTo1; eauto.
+    Lemma safe_seq_1 : forall (env : Env) a b st, Safe env (Seq a b) st -> Safe env a st.
+    Proof.
+      admit.
+    Qed.
+    eapply safe_seq_1; eauto.
+    openhyp.
+    edestruct IHRunsTo2; clear IHRunsTo2; eauto.
+    Lemma safe_seq_1 : forall (env : Env) a b st, Safe env (Seq a b) st -> Safe env a st.
+    Proof.
+      admit.
+    Qed.
+
 
     injection H1; intros; subst; clear H1.
     edestruct IHRunsTo.
@@ -386,7 +415,6 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     admit.
-    Require Import GeneralTactics.
     openhyp.
     eexists.
     split.
@@ -402,7 +430,6 @@ Module Make (Import A : ADT).
     admit.
     admit.
 
-    Require Import GeneralTactics3.
     unfold_all.
     injection H2; intros; subst; clear H2.
     simpl in *.
@@ -422,7 +449,6 @@ Module Make (Import A : ADT).
     unfold_all.
     replace f_w with (SemanticsExpr.eval (fst v) e) in * by admit.
     rewrite e0 in *.
-    Ltac inject h := injection h; intros; subst; clear h.
     inject H8.
 
     edestruct IHRunsTo.
@@ -439,19 +465,14 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     eauto.
-    Definition get_ret (st : Cito.State) x : Value :=
-      let w := fst st x in
-      match Cito.heap_sel (snd st) w with
-        | Some a => ADT a
-        | None => SCA _ w
-      end.
-
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
     reflexivity.
     admit.
+    admit.
+    eauto.
 
-
+    rewrite e0 in *; simpl in *; discriminate.
 
     unfold_all.
     injection H6; intros; subst; clear H6.
@@ -464,14 +485,17 @@ Module Make (Import A : ADT).
     destruct a; simpl in *.
     unfold compile_ax in *; simpl in *.
     injection H6; intros; subst; simpl in *; clear H6.
+    (* eexists. *)
+    (* split. *)
+    (* eapply RunsToCallOp. *)
     admit.
 
-    destruct o0; simpl in *.
-    injection H6; intros; subst; simpl in *; clear H6.
-    openhyp.
-    eexists.
-    split.
-    eapply RunsToCallOp.
+    discriminate.
+    
+    rewrite e0 in *; simpl in *; discriminate.
+
+    admit.
+
     admit.
 
   Qed.
