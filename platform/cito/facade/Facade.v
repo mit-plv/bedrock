@@ -444,27 +444,65 @@ Module Make (Import A : ADT).
     Qed.
     eapply safe_if_true; eauto.
     Definition is_bool (st : State) e := eval_bool st e <> None.
+    Definition value_dec (v : Value) : {w | v = SCA _ w} + {a | v = ADT a}.
+      destruct v.
+      left; exists w; eauto.
+      right; exists a; eauto.
+    Defined.
+    Definition option_value_dec (v : option Value) : {w | v = Some (SCA _ w)} + {a | v = Some (ADT a)} + {v = None}.
+      destruct (option_dec v).
+      destruct s; subst.
+      destruct (value_dec  x).
+      destruct s; subst.
+      left; left; eexists; eauto.
+      destruct s; subst.
+      left; right; eexists; eauto.
+      subst.
+      right; eauto.
+    Qed.
     Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
     Proof.
       intros.
       unfold eval_bool in *.
-      destruct (option_dec (eval s_st e)) in *.
+      destruct (option_value_dec (eval s_st e)).
+      destruct s.
       destruct s.
       rewrite e0 in *.
-      Definition value_dec (v : Value) : {w | v = SCA _ w} + {a | v = ADT a}.
-        destruct v.
-        left; exists w; eauto.
-        right; exists a; eauto.
-      Defined.
-      destruct (value_dec x) in *.
-      destruct s.
-      rewrite e1 in *.
-      subst.
       inject H.
       Lemma eval_ceval : forall s_st t_st e w, eval s_st e = Some (SCA _ w) -> related_state s_st t_st -> ceval (fst t_st) e = w.
+      Proof.
+        induction e; simpl; intuition.
+        unfold related_state in *.
+        openhyp.
+        eapply H0 in H.
+        eauto.
+
+        unfold eval_binop_m in *.
+        destruct (option_value_dec (eval s_st e1)).
+        destruct s.
+        destruct s.
+        rewrite e in *.
+        destruct (option_value_dec (eval s_st e2)).
+        destruct s.
+        destruct s.
+        rewrite e0 in *.
+        inject H.
+        erewrite IHe1; [ | eauto .. ].
+        erewrite IHe2; [ | eauto .. ].
+        eauto.
+        destruct s.
+        rewrite e0 in *; discriminate.
+        rewrite e0 in *; discriminate.
+        destruct s.
+        rewrite e in *; discriminate.
+        rewrite e in *; discriminate.
         admit.
       Qed.
-      (*here*)
+      eapply eval_ceval in e0; [ | eauto].
+      rewrite e0 in *; eauto.
+      destruct s.
+      rewrite e0 in *; discriminate.
+      rewrite e0 in *; discriminate.
     Qed.
     Notation boolcase := Sumbool.sumbool_of_bool.
     Lemma wneb_is_true : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = true -> related_state s_st t_st -> is_bool s_st e -> is_true s_st e.
