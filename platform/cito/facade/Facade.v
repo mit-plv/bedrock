@@ -263,6 +263,7 @@ Section ADTSection.
           mapM (sel st) args = Some input ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
+          (forall callee_st', RunsTo (Body spec) callee_st callee_st' -> sel callee_st' (RetVar spec) <> None) ->
           Safe (Call x f args) st.
 
   End EnvSection.
@@ -376,12 +377,156 @@ Module Make (Import A : ADT).
 
   Ltac inject h := injection h; intros; subst; clear h.
 
-  Definition get_ret (st : Cito.State) x : Value :=
-    let w := fst st x in
-    match Cito.heap_sel (snd st) w with
-      | Some a => ADT a
-      | None => SCA _ w
-    end.
+  Notation ceval := SemanticsExpr.eval.
+  Notation cRunsTo := Semantics.RunsTo.
+  Lemma is_true_is_false : forall (st : State) e, is_true st e -> is_false st e -> False.
+  Proof.
+    intros.
+    unfold is_true, is_false in *.
+    rewrite H in *; discriminate.
+  Qed.
+  Lemma safe_if_true : forall (env : Env) e t f st, Safe env (If e t f) st -> is_true st e -> Safe env t st.
+  Proof.
+    intros.
+    inversion H; subst.
+    eauto.
+    exfalso; eapply is_true_is_false; eauto.
+  Qed.
+  Definition is_bool (st : State) e := eval_bool st e <> None.
+  Definition value_dec (v : Value) : {w | v = SCA _ w} + {a | v = ADT a}.
+    destruct v.
+    left; exists w; eauto.
+    right; exists a; eauto.
+  Defined.
+  Definition option_value_dec (v : option Value) : {w | v = Some (SCA _ w)} + {a | v = Some (ADT a)} + {v = None}.
+    destruct (option_dec v).
+    destruct s; subst.
+    destruct (value_dec  x).
+    destruct s; subst.
+    left; left; eexists; eauto.
+    destruct s; subst.
+    left; right; eexists; eauto.
+    subst.
+    right; eauto.
+  Qed.
+  Lemma eval_ceval : forall s_st t_st e w, eval s_st e = Some (SCA _ w) -> related_state s_st t_st -> ceval (fst t_st) e = w.
+  Proof.
+    induction e; simpl; intuition.
+    unfold related_state in *.
+    openhyp.
+    eapply H0 in H.
+    eauto.
+
+    unfold eval_binop_m in *.
+    destruct (option_value_dec (eval s_st e1)).
+    destruct s.
+    destruct s.
+    rewrite e in *.
+    destruct (option_value_dec (eval s_st e2)).
+    destruct s.
+    destruct s.
+    rewrite e0 in *.
+    inject H.
+    erewrite IHe1; [ | eauto .. ].
+    erewrite IHe2; [ | eauto .. ].
+    eauto.
+    destruct s.
+    rewrite e0 in *; discriminate.
+    rewrite e0 in *; discriminate.
+    destruct s.
+    rewrite e in *; discriminate.
+    rewrite e in *; discriminate.
+    
+    unfold eval_binop_m in *.
+    destruct (option_value_dec (eval s_st e1)).
+    destruct s.
+    destruct s.
+    rewrite e in *.
+    destruct (option_value_dec (eval s_st e2)).
+    destruct s.
+    destruct s.
+    rewrite e0 in *.
+    inject H.
+    erewrite IHe1; [ | eauto .. ].
+    erewrite IHe2; [ | eauto .. ].
+    eauto.
+    destruct s.
+    rewrite e0 in *; discriminate.
+    rewrite e0 in *; discriminate.
+    destruct s.
+    rewrite e in *; discriminate.
+    rewrite e in *; discriminate.
+  Qed.
+  Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
+  Proof.
+    intros.
+    unfold eval_bool in *.
+    destruct (option_value_dec (eval s_st e)).
+    destruct s.
+    destruct s.
+    rewrite e0 in *.
+    inject H.
+    eapply eval_ceval in e0; [ | eauto].
+    rewrite e0 in *; eauto.
+    destruct s.
+    rewrite e0 in *; discriminate.
+    rewrite e0 in *; discriminate.
+  Qed.
+  Notation boolcase := Sumbool.sumbool_of_bool.
+  Lemma wneb_is_true : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = true -> related_state s_st t_st -> is_bool s_st e -> is_true s_st e.
+  Proof.
+    intros.
+    unfold is_true.
+    unfold is_bool in *.
+    eapply ex_up in H1.
+    openhyp.
+    destruct (boolcase x); subst.
+    eauto.
+    eapply eval_bool_wneb in H1; eauto.
+    set (ceval _ _) in *.
+    rewrite H in *; discriminate.
+  Qed.
+  Lemma is_true_is_bool : forall st e, is_true st e -> is_bool st e.
+  Proof.
+    intros.
+    unfold is_true, is_bool in *.
+    rewrite H in *.
+    discriminate.
+  Qed.
+  Lemma is_false_is_bool : forall st e, is_false st e -> is_bool st e.
+  Proof.
+    intros.
+    unfold is_false, is_bool in *.
+    rewrite H in *.
+    discriminate.
+  Qed.
+  Lemma safe_if_is_bool : forall (env : Env) e t f st, Safe env (If e t f) st -> is_bool st e.
+  Proof.
+    intros.
+    inversion H; subst.
+    eapply is_true_is_bool; eauto.
+    eapply is_false_is_bool; eauto.
+  Qed.
+  Lemma safe_if_false : forall (env : Env) e t f st, Safe env (If e t f) st -> is_false st e -> Safe env f st.
+  Proof.
+    intros.
+    inversion H; subst.
+    exfalso; eapply is_true_is_false; eauto.
+    eauto.
+  Qed.
+  Lemma wneb_is_false : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = false -> related_state s_st t_st -> is_bool s_st e -> is_false s_st e.
+  Proof.
+    intros.
+    unfold is_false.
+    unfold is_bool in *.
+    eapply ex_up in H1.
+    openhyp.
+    destruct (boolcase x); subst.
+    eapply eval_bool_wneb in H1; eauto.
+    set (ceval _ _) in *.
+    rewrite H in *; discriminate.
+    eauto.
+  Qed.
 
   Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> related_state s_st t_st -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
   Proof.
@@ -426,120 +571,8 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     eauto.
-    Notation ceval := SemanticsExpr.eval.
-    Notation cRunsTo := Semantics.RunsTo.
-    Lemma is_true_is_false : forall (st : State) e, is_true st e -> is_false st e -> False.
-    Proof.
-      intros.
-      unfold is_true, is_false in *.
-      rewrite H in *; discriminate.
-    Qed.
-    Lemma safe_if_true : forall (env : Env) e t f st, Safe env (If e t f) st -> is_true st e -> Safe env t st.
-    Proof.
-      intros.
-      inversion H; subst.
-      eauto.
-      exfalso.
-      eapply is_true_is_false; eauto.
-    Qed.
     eapply safe_if_true; eauto.
-    Definition is_bool (st : State) e := eval_bool st e <> None.
-    Definition value_dec (v : Value) : {w | v = SCA _ w} + {a | v = ADT a}.
-      destruct v.
-      left; exists w; eauto.
-      right; exists a; eauto.
-    Defined.
-    Definition option_value_dec (v : option Value) : {w | v = Some (SCA _ w)} + {a | v = Some (ADT a)} + {v = None}.
-      destruct (option_dec v).
-      destruct s; subst.
-      destruct (value_dec  x).
-      destruct s; subst.
-      left; left; eexists; eauto.
-      destruct s; subst.
-      left; right; eexists; eauto.
-      subst.
-      right; eauto.
-    Qed.
-    Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
-    Proof.
-      intros.
-      unfold eval_bool in *.
-      destruct (option_value_dec (eval s_st e)).
-      destruct s.
-      destruct s.
-      rewrite e0 in *.
-      inject H.
-      Lemma eval_ceval : forall s_st t_st e w, eval s_st e = Some (SCA _ w) -> related_state s_st t_st -> ceval (fst t_st) e = w.
-      Proof.
-        induction e; simpl; intuition.
-        unfold related_state in *.
-        openhyp.
-        eapply H0 in H.
-        eauto.
-
-        unfold eval_binop_m in *.
-        destruct (option_value_dec (eval s_st e1)).
-        destruct s.
-        destruct s.
-        rewrite e in *.
-        destruct (option_value_dec (eval s_st e2)).
-        destruct s.
-        destruct s.
-        rewrite e0 in *.
-        inject H.
-        erewrite IHe1; [ | eauto .. ].
-        erewrite IHe2; [ | eauto .. ].
-        eauto.
-        destruct s.
-        rewrite e0 in *; discriminate.
-        rewrite e0 in *; discriminate.
-        destruct s.
-        rewrite e in *; discriminate.
-        rewrite e in *; discriminate.
-        admit.
-      Qed.
-      eapply eval_ceval in e0; [ | eauto].
-      rewrite e0 in *; eauto.
-      destruct s.
-      rewrite e0 in *; discriminate.
-      rewrite e0 in *; discriminate.
-    Qed.
-    Notation boolcase := Sumbool.sumbool_of_bool.
-    Lemma wneb_is_true : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = true -> related_state s_st t_st -> is_bool s_st e -> is_true s_st e.
-    Proof.
-      intros.
-      unfold is_true.
-      unfold is_bool in *.
-      eapply ex_up in H1.
-      openhyp.
-      destruct (boolcase x); subst.
-      eauto.
-      eapply eval_bool_wneb in H1; eauto.
-      set (ceval _ _) in *.
-      rewrite H in *; discriminate.
-    Qed.
     eapply wneb_is_true; eauto.
-    Lemma is_true_is_bool : forall st e, is_true st e -> is_bool st e.
-    Proof.
-      intros.
-      unfold is_true, is_bool in *.
-      rewrite H in *.
-      discriminate.
-    Qed.
-    Lemma is_false_is_bool : forall st e, is_false st e -> is_bool st e.
-    Proof.
-      intros.
-      unfold is_false, is_bool in *.
-      rewrite H in *.
-      discriminate.
-    Qed.
-    Lemma safe_if_is_bool : forall (env : Env) e t f st, Safe env (If e t f) st -> is_bool st e.
-    Proof.
-      intros.
-      inversion H; subst.
-      eapply is_true_is_bool; eauto.
-      eapply is_false_is_bool; eauto.
-    Qed.
     eapply safe_if_is_bool; eauto.
     openhyp.
     eexists.
@@ -547,34 +580,52 @@ Module Make (Import A : ADT).
     eapply RunsToIfTrue.
     eapply wneb_is_true; eauto.
     eapply safe_if_is_bool; eauto.
-
     eauto.
     eauto.
 
-    (*here*)
+    (* if-false *)
+    injection H1; intros; subst; clear H1.
+    edestruct IHRunsTo.
+    eauto.
+    eauto.
+    eauto.
+    eapply safe_if_false; eauto.
+    eapply wneb_is_false; eauto.
+    eapply safe_if_is_bool; eauto.
+    openhyp.
+    eexists.
+    split.
+    eapply RunsToIfFalse.
+    eapply wneb_is_false; eauto.
+    eapply safe_if_is_bool; eauto.
+    eauto.
+    eauto.
 
+
+    (* while-true *)
     admit.
-    admit.
+    (* while-false *)
     admit.
 
+    (* call-operational *)
     unfold_all.
-    injection H2; intros; subst; clear H2.
+    inject H2.
     simpl in *.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
     destruct s.
     rewrite e0 in *; simpl in *.
-    injection H; intros; subst; clear H.
+    inject H.
     destruct x; simpl in *.
     destruct a; simpl in *; unfold compile_ax in *; simpl in *; discriminate.
     unfold compile_op in *; simpl in *.
-    injection H2; intros; subst; simpl in *; clear H2.
+    inject H2; simpl in *.
     inversion H5; subst.
-    replace f_w with (SemanticsExpr.eval (fst v) e) in * by admit.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by (eapply eval_ceval; eauto).
     rewrite e0 in *.
     discriminate.
     
     unfold_all.
-    replace f_w with (SemanticsExpr.eval (fst v) e) in * by admit.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
     rewrite e0 in *.
     inject H8.
 
@@ -585,6 +636,9 @@ Module Make (Import A : ADT).
     openhyp.
     eexists.
     split.
+    eapply ex_up in H13.
+    2 : eauto.
+    openhyp.
     eapply RunsToCallOp.
     eauto.
     eauto.
@@ -592,15 +646,24 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     eauto.
+    (* here *)
+    eauto.
+    reflexivity.
+    Definition get_ret (st : Cito.State) x : Value :=
+      let w := fst st x in
+      match Cito.heap_sel (snd st) w with
+        | Some a => ADT a
+        | None => SCA _ w
+      end.
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
-    reflexivity.
     admit.
     admit.
     eauto.
 
     rewrite e0 in *; simpl in *; discriminate.
 
+    (* call-axiomatic *)
     unfold_all.
     injection H6; intros; subst; clear H6.
     simpl in *.
@@ -614,15 +677,17 @@ Module Make (Import A : ADT).
     injection H6; intros; subst; simpl in *; clear H6.
     (* eexists. *)
     (* split. *)
-    (* eapply RunsToCallOp. *)
+    (* eapply RunsToCallAx. *)
     admit.
 
     discriminate.
     
     rewrite e0 in *; simpl in *; discriminate.
 
+    (* label *)
     admit.
 
+    (* assign *)
     admit.
 
   Qed.
