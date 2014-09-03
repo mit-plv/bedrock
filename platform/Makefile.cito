@@ -15,7 +15,6 @@ VS      := $(MODULES:%=%.v)
 
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
-	$(MAKE) -C cito
 
 COQARGS := -R $(ROOT)/src Bedrock
 COQC    := coqc $(COQARGS)
@@ -26,4 +25,3 @@ Makefile.coq: Makefile $(VS)
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
-	$(MAKE) -C cito clean

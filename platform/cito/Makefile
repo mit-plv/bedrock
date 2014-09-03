@@ -1,6 +1,6 @@
 BEDROCK := ../..
 
-MODULES := \
+MODULES_LIGHT := \
 	ListFacts1 ListFacts2 ListFacts3 \
 	SetoidListFacts \
 	FSetFacts1 \
@@ -20,20 +20,12 @@ MODULES := \
 	RepInv Inv \
 	DepthExpr Max Depth \
 	WellFormed \
-	CompileStmtSpec CompileExpr CompileExprs SaveRet CompileStmtImpl \
 	SynReqFactsUtil SynReqFacts SemanticsFacts ListFactsNew WordFacts InvFacts \
 	CompileStmtTactics \
 	SepHints SepHintsUtil SepHints2 SepHints3 SepHints4 \
 	LayoutHints LayoutHintsUtil LayoutHints2 LayoutHints3 \
-	VerifCondOkTactics \
-	VerifCondOkCall \
 	SemanticsFacts3 SynReqFacts2 \
-	PostOk \
-	VerifCondOkNonCall \
 	SynReqFacts3 \
-	VerifCondOkNonCall2 \
-	VerifCondOk \
-	CompileStmt \
 	SyntaxFunc SyntaxModule \
 	CompileFuncSpec \
 	SepHints5 \
@@ -62,6 +54,17 @@ MODULES := \
 	Notations3 Notations4 \
 	WordFacts2 WordFacts3 WordFacts4 WordFacts5 \
 	SemanticsFacts4 ChangeSpec \
+	facade/Facade \
+
+MODULES := $(MODULES_LIGHT) \
+	VerifCondOkTactics \
+	VerifCondOkCall \
+	PostOk \
+	VerifCondOkNonCall \
+	VerifCondOkNonCall2 \
+	VerifCondOk \
+	CompileStmt \
+	CompileStmtSpec CompileExpr CompileExprs SaveRet CompileStmtImpl \
 	optimizers/Identity optimizers/ConstFolding optimizers/ElimDead \
 	examples/Cell examples/SimpleCell \
 	examples/Seq examples/ArraySeq \
@@ -73,7 +76,6 @@ MODULES := \
 	examples/FactorialRecur examples/FactorialRecurDriver \
 	examples/CountUnique examples/CountUniqueDriver \
 	adt/TabledADT adt/Common adt/ilist \
-	facade/Facade \
 
 VS      := $(MODULES:%=%.v)
 
