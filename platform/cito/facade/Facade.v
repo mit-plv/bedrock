@@ -444,6 +444,29 @@ Module Make (Import A : ADT).
     Qed.
     eapply safe_if_true; eauto.
     Definition is_bool (st : State) e := eval_bool st e <> None.
+    Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
+    Proof.
+      intros.
+      unfold eval_bool in *.
+      destruct (option_dec (eval s_st e)) in *.
+      destruct s.
+      rewrite e0 in *.
+      Definition value_dec (v : Value) : {w | v = SCA _ w} + {a | v = ADT a}.
+        destruct v.
+        left; exists w; eauto.
+        right; exists a; eauto.
+      Defined.
+      destruct (value_dec x) in *.
+      destruct s.
+      rewrite e1 in *.
+      subst.
+      inject H.
+      Lemma eval_ceval : forall s_st t_st e w, eval s_st e = Some (SCA _ w) -> related_state s_st t_st -> ceval (fst t_st) e = w.
+        admit.
+      Qed.
+      (*here*)
+    Qed.
+    Notation boolcase := Sumbool.sumbool_of_bool.
     Lemma wneb_is_true : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = true -> related_state s_st t_st -> is_bool s_st e -> is_true s_st e.
     Proof.
       intros.
@@ -451,21 +474,33 @@ Module Make (Import A : ADT).
       unfold is_bool in *.
       eapply ex_up in H1.
       openhyp.
-      Notation boolcase := Sumbool.sumbool_of_bool.
       destruct (boolcase x); subst.
       eauto.
-      Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
-      Proof.
-        admit.
-      Qed.
       eapply eval_bool_wneb in H1; eauto.
       set (ceval _ _) in *.
       rewrite H in *; discriminate.
     Qed.
     eapply wneb_is_true; eauto.
+    Lemma is_true_is_bool : forall st e, is_true st e -> is_bool st e.
+    Proof.
+      intros.
+      unfold is_true, is_bool in *.
+      rewrite H in *.
+      discriminate.
+    Qed.
+    Lemma is_false_is_bool : forall st e, is_false st e -> is_bool st e.
+    Proof.
+      intros.
+      unfold is_false, is_bool in *.
+      rewrite H in *.
+      discriminate.
+    Qed.
     Lemma safe_if_is_bool : forall (env : Env) e t f st, Safe env (If e t f) st -> is_bool st e.
     Proof.
-      admit.
+      intros.
+      inversion H; subst.
+      eapply is_true_is_bool; eauto.
+      eapply is_false_is_bool; eauto.
     Qed.
     eapply safe_if_is_bool; eauto.
     openhyp.
