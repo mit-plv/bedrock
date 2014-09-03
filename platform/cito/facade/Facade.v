@@ -647,8 +647,6 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     (* here *)
-    eauto.
-    reflexivity.
     Definition get_ret (st : Cito.State) x : Value :=
       let w := fst st x in
       match Cito.heap_sel (snd st) w with
@@ -657,6 +655,7 @@ Module Make (Import A : ADT).
       end.
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
+    reflexivity.
     admit.
     admit.
     eauto.
