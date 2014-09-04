@@ -1,4 +1,5 @@
 ROOT    := ..
+
 MODULES := Conditional AutoSepExt PreAutoSep \
 	   Wrap \
            Util \
@@ -19,23 +20,39 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/MiniMasterDriver tests/RosMasterDriver
 
-VS      := $(MODULES:%=%.v)
+CITO := $(shell find cito -name \*.v)
 
-.PHONY: coq clean master
+FACADE := \
+	cito/facade/Facade \
+
+.PHONY: default platform cito facade build clean master
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
-coq: Makefile.coq
-	$(MAKE) -f Makefile.coq
+default: platform
 
-COQARGS := -R $(ROOT)/src Bedrock -I tests
+platform: T=$(MODULES)
+platform: build
+
+cito: T=$(CITO)
+cito: build
+
+facade: T=$(FACADE)
+facade: build
+
+COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito
+
 COQC    := coqc $(COQARGS)
 
-Makefile.coq: Makefile $(VS)
-	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+build:  
+	coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
+	echo '-include $(addsuffix .d,$(shell find . -name \*.v))' >> Makefile.coq
+	$(MAKE) -f Makefile.coq
 
-clean:: Makefile.coq
-	$(MAKE) -f Makefile.coq clean
+clean: 
 	rm -f Makefile.coq .depend
+	./rmr .v.d
+	./rmr .vo
+	./rmr .glob
 
 tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
 	cat tests/ignoreFail.ml >$@
@@ -94,3 +111,30 @@ master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 	cp tests/RosMaster32.gen.s /tmp/master/RosMaster.s
 	cp Makefile.ros /tmp/master/Makefile
 	cd /tmp ; tar zcf master.tgz master
+
+LIB := tests
+CITO_EXAMPLES_DIR := cito/examples
+
+$(CITO_EXAMPLES_DIR)/%.gen.ml: $(CITO_EXAMPLES_DIR)/%AMD64.v $(CITO_EXAMPLES_DIR)/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
+	cat $(LIB)/ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		| sed 's/let rec nuke/type set = unit\n\nlet rec nuke/' \
+		>>$@
+	cat $(LIB)/printCode.ml >>$@
+
+$(CITO_EXAMPLES_DIR)/%.gen.s: $(CITO_EXAMPLES_DIR)/%.gen.ml
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024+50),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
+	echo >>$@
+	ocaml -w -x $< >>$@
+
+$(CITO_EXAMPLES_DIR)/%.exe: %.gen.o $(LIB)/sys.o $(LIB)/driver.o
+	cc $^ -o $@
