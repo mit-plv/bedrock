@@ -1,6 +1,6 @@
 MODULE:=Bedrock
 
-.PHONY: default examples platform cito facade src clean dist native ltac version
+.PHONY: default examples platform cito facade src clean native ltac version dist time
 
 default: examples
 
