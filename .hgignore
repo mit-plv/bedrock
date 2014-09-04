@@ -46,3 +46,4 @@ examples/comparison/bedrock_server.ml
 *.gen.s
 *.gen.ml
 platform/tests/echotest
+ttt.txt
