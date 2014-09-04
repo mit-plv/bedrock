@@ -25,6 +25,8 @@ CITO := $(shell find cito -name \*.v)
 FACADE := \
 	cito/facade/Facade \
 
+FACADE_ALL := $(shell find cito/facade -name \*.v)
+
 .PHONY: default platform cito facade build clean master
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
@@ -38,6 +40,9 @@ cito: build
 
 facade: T=$(FACADE)
 facade: build
+
+facade_all: T=$(FACADE_ALL)
+facade_all: build
 
 COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito
 
