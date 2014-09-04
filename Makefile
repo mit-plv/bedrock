@@ -1,36 +1,25 @@
 MODULE:=Bedrock
 
-.PHONY: all clean dist native ltac version cito facade cito_light facade_light cito_require
+.PHONY: default examples platform cito facade src clean dist native ltac version
 
-all:
-	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
-	$(MAKE) -C src/reification
-	$(MAKE) -C src
+default: examples
+
+# BEWARE: This will probably take a long time (and may require up to 11GB of memory)!
+examples: src
 	$(MAKE) -C examples
 
-facade: cito
+platform cito facade: src
+	$(MAKE) -C platform $@
 
-facade_light: cito_light
-
-cito: cito_require
-	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
-	$(MAKE) -C platform/cito
-
-cito_light: cito_require
-	$(MAKE) -C platform/cito light
-
-cito_require:
+src:
 	$(MAKE) -C src/reification
 	$(MAKE) -C src
-	$(MAKE) -C platform -f Makefile.cito
 
 clean:
 	$(MAKE) -C src/reification clean
 	$(MAKE) -C src clean
 	$(MAKE) -C examples clean
 	$(MAKE) -C platform clean
-	$(MAKE) -C platform clean -f Makefile.cito
-	$(MAKE) -C platform/cito clean
 
 native:
 	$(MAKE) -C src native
