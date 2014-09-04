@@ -1,8 +1,8 @@
 BEDROCK := ../..
 
-ALL := $(basename $(shell find . -name \*.v))
+ALL := $(shell find . -name \*.v)
 
-EXAMPLES := $(basename $(shell find examples -name \*.v))
+EXAMPLES := $(shell find examples -name \*.v)
 
 FACADE := \
 	facade/Facade \
@@ -22,7 +22,7 @@ facade: T=$(FACADE)
 facade: build
 
 build:  
-	coq_makefile $(COQARGS) $(T:=.v) -o Makefile.coq
+	coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
 	echo '-include $(addsuffix .d,$(shell find . -name \*.v))' >> Makefile.coq
 	COQC='coqc' $(MAKE) -f Makefile.coq
 
