@@ -367,16 +367,16 @@ Module Make (Import A : ADT).
     rewrite e0 in *.
     inject H8.
 
-    edestruct IHRunsTo.
+    edestruct IHRunsTo; [ .. | clear IHRunsTo].
     eauto.
     eauto.
-    Focus 3.
+    2 : eauto.
+    Focus 2.
+    openhyp.
+    eapply ex_up in H13; [ | eauto].
     openhyp.
     eexists.
     split.
-    eapply ex_up in H13.
-    2 : eauto.
-    openhyp.
     eapply RunsToCallOp.
     eauto.
     eauto.
@@ -384,7 +384,14 @@ Module Make (Import A : ADT).
     eauto.
     eauto.
     eauto.
-    (* here *)
+    eauto.
+    reflexivity.
+    Unfocus.
+    unfold related_state; simpl.
+    split.
+    intros.
+    (*here*)
+
     Definition get_ret (st : Cito.State) x : Value :=
       let w := fst st x in
       match Cito.heap_sel (snd st) w with
@@ -393,10 +400,6 @@ Module Make (Import A : ADT).
       end.
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
-    reflexivity.
-    admit.
-    admit.
-    eauto.
 
     rewrite e0 in *; simpl in *; discriminate.
 
