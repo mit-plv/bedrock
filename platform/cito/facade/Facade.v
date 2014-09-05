@@ -132,7 +132,14 @@ Section ADTSection.
       Label2Word : glabel -> option W ;
       Word2Spec : W ->option FuncSpec
     }.
- 
+
+  Definition no_adt_leak input argvars retvar st :=
+    forall var a, 
+      sel st var = Some (ADT a) -> 
+      var = retvar \/ 
+      exists i ai, nth_error argvars i = Some var /\ 
+                   nth_error input i = Some (ADT ai).
+
   Section EnvSection.
 
     Variable env : Env.
@@ -199,8 +206,9 @@ Section ADTSection.
           mapM (sel st) args = Some input ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
-          let output := map (sel callee_st') (ArgVars spec) in
           sel callee_st' (RetVar spec) = Some ret ->
+          no_adt_leak input (ArgVars spec) (RetVar spec) callee_st' ->
+          let output := map (sel callee_st') (ArgVars spec) in
           let st' := add_remove_many args input output st in
           let st' := addM x ret st' in
           forall st'',
@@ -263,7 +271,10 @@ Section ADTSection.
           mapM (sel st) args = Some input ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
-          (forall callee_st', RunsTo (Body spec) callee_st callee_st' -> sel callee_st' (RetVar spec) <> None) ->
+          (forall callee_st', 
+             RunsTo (Body spec) callee_st callee_st' -> 
+             sel callee_st' (RetVar spec) <> None /\ 
+             no_adt_leak input (ArgVars spec) (RetVar spec) callee_st') ->
           Safe (Call x f args) st.
 
   End EnvSection.

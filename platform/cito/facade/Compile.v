@@ -147,7 +147,7 @@ Module Make (Import A : ADT).
     subst.
     right; eauto.
   Qed.
-  Lemma eval_ceval : forall s_st t_st e w, eval s_st e = Some (SCA _ w) -> related_state s_st t_st -> ceval (fst t_st) e = w.
+  Lemma eval_ceval : forall s_st vs h e w, eval s_st e = Some (SCA _ w) -> related_state s_st (vs, h) -> ceval vs e = w.
   Proof.
     induction e; simpl; intuition.
     unfold related_state in *.
@@ -195,7 +195,7 @@ Module Make (Import A : ADT).
     rewrite e in *; discriminate.
     rewrite e in *; discriminate.
   Qed.
-  Lemma eval_bool_wneb : forall (s_st : State) t_st e b, eval_bool s_st e = Some b -> related_state s_st t_st -> wneb (ceval (fst t_st) e) $0 = b.
+  Lemma eval_bool_wneb : forall (s_st : State) vs h e b, eval_bool s_st e = Some b -> related_state s_st (vs, h) -> wneb (ceval vs e) $0 = b.
   Proof.
     intros.
     unfold eval_bool in *.
@@ -211,7 +211,7 @@ Module Make (Import A : ADT).
     rewrite e0 in *; discriminate.
   Qed.
   Notation boolcase := Sumbool.sumbool_of_bool.
-  Lemma wneb_is_true : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = true -> related_state s_st t_st -> is_bool s_st e -> is_true s_st e.
+  Lemma wneb_is_true : forall s_st vs h e, wneb (ceval vs e) $0 = true -> related_state s_st (vs, h) -> is_bool s_st e -> is_true s_st e.
   Proof.
     intros.
     unfold is_true.
@@ -252,7 +252,7 @@ Module Make (Import A : ADT).
     exfalso; eapply is_true_is_false; eauto.
     eauto.
   Qed.
-  Lemma wneb_is_false : forall s_st t_st e, wneb (ceval (fst t_st) e) $0 = false -> related_state s_st t_st -> is_bool s_st e -> is_false s_st e.
+  Lemma wneb_is_false : forall s_st vs h e, wneb (ceval vs e) $0 = false -> related_state s_st (vs, h) -> is_bool s_st e -> is_false s_st e.
   Proof.
     intros.
     unfold is_false.
@@ -266,9 +266,111 @@ Module Make (Import A : ADT).
     eauto.
   Qed.
 
-  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> related_state s_st t_st -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ related_state s_st' t_st'.
+  Require Import WordMapFacts.
+  Require Import WordMap.
+  Infix "===" := WordMapFacts.M.Equal (at level 60).
+  Definition disj_union elt (a a1 a2 : WordMap.t elt) := a === update a1 a2 /\ Disjoint a1 a2.
+
+  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> forall h1 h2, disj_union (snd t_st) h1 h2 -> related_state s_st (fst t_st, h1) -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ exists h1', disj_union (snd t_st') h1' h2 /\ related_state s_st' (fst t_st', h1').
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
+
+    Focus 7.
+    (* call-operational *)
+    unfold_all.
+    inject H2.
+    simpl in *.
+    destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
+    destruct s.
+    rewrite e0 in *; simpl in *.
+    inject H.
+    destruct x; simpl in *.
+    destruct a; simpl in *; unfold compile_ax in *; simpl in *; discriminate.
+    unfold compile_op in *; simpl in *.
+    inject H2; simpl in *.
+    inversion H6; subst.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+    rewrite e0 in *.
+    discriminate.
+    
+    unfold_all.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+    rewrite e0 in *.
+    inject H9.
+
+    edestruct IHRunsTo; [ .. | clear IHRunsTo].
+    eauto.
+    eauto.
+    3 : eauto.
+    Focus 3.
+    openhyp.
+    Ltac copy h := generalize h; intro.
+    copy H; eapply H14 in H.
+    openhyp.
+    eapply ex_up in H.
+    openhyp.
+    eexists.
+    split.
+    eapply RunsToCallOp.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    reflexivity.
+    Unfocus.
+    (*here*)
+    Definition reachable_heap v argvars := 
+    unfold related_state; simpl.
+    split.
+    intros.
+    Require Import List.
+    Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
+      admit.
+    Qed.
+    eapply make_state_Some in H.
+    openhyp.
+    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+      admit.
+    Qed.
+    eapply mapM_Some in H2; [ | eauto].
+    openhyp.
+    unfold related_state in H4.
+    openhyp.
+    eapply H4 in H3.
+    rewrite map_map in H0; simpl in *.
+    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
+      admit.
+    Qed.
+    eapply map_eq in H0; [ | eauto ..].
+    rewrite H0 in *.
+    eauto.
+
+    intros.
+    unfold related_state in H4.
+    openhyp.
+    eapply H3 in H.
+    openhyp.
+    (*here*)
+
+    Definition get_ret (st : Cito.State) x : Value :=
+      let w := fst st x in
+      match Cito.heap_sel (snd st) w with
+        | Some a => ADT a
+        | None => SCA _ w
+      end.
+    instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
+    admit.
+
+
+    admit.
+    admit.
+
+    rewrite e0 in *; simpl in *; discriminate.
+
 
     (* skip *)
     eexists; split.
@@ -344,95 +446,6 @@ Module Make (Import A : ADT).
     admit.
     (* while-false *)
     admit.
-
-    (* call-operational *)
-    unfold_all.
-    inject H2.
-    simpl in *.
-    destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
-    destruct s.
-    rewrite e0 in *; simpl in *.
-    inject H.
-    destruct x; simpl in *.
-    destruct a; simpl in *; unfold compile_ax in *; simpl in *; discriminate.
-    unfold compile_op in *; simpl in *.
-    inject H2; simpl in *.
-    inversion H5; subst.
-    replace f_w with (SemanticsExpr.eval (fst v) e) in * by (eapply eval_ceval; eauto).
-    rewrite e0 in *.
-    discriminate.
-    
-    unfold_all.
-    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
-    rewrite e0 in *.
-    inject H8.
-
-    edestruct IHRunsTo; [ .. | clear IHRunsTo].
-    eauto.
-    eauto.
-    2 : eauto.
-    Focus 2.
-    openhyp.
-    eapply ex_up in H13; [ | eauto].
-    openhyp.
-    eexists.
-    split.
-    eapply RunsToCallOp.
-    eauto.
-    eauto.
-    eauto.
-    eauto.
-    eauto.
-    eauto.
-    eauto.
-    reflexivity.
-    Unfocus.
-    unfold related_state; simpl.
-    split.
-    intros.
-    Require Import List.
-    Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
-      admit.
-    Qed.
-    eapply make_state_Some in H.
-    openhyp.
-    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
-      admit.
-    Qed.
-    eapply mapM_Some in H2; [ | eauto].
-    openhyp.
-    unfold related_state in H4.
-    openhyp.
-    eapply H4 in H3.
-    rewrite map_map in H0; simpl in *.
-    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
-      admit.
-    Qed.
-    eapply map_eq in H0; [ | eauto ..].
-    rewrite H0 in *.
-    eauto.
-
-    intros.
-    unfold related_state in H4.
-    openhyp.
-    eapply H3 in H.
-    openhyp.
-    (*here*)
-
-    Definition get_ret (st : Cito.State) x : Value :=
-      let w := fst st x in
-      match Cito.heap_sel (snd st) w with
-        | Some a => ADT a
-        | None => SCA _ w
-      end.
-    instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
-    admit.
-
-
-    admit.
-    admit.
-
-    rewrite e0 in *; simpl in *; discriminate.
 
     (* call-axiomatic *)
     unfold_all.
