@@ -387,11 +387,36 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
-    admit.
-    admit.
-(*    unfold related_state; simpl.
+    unfold related_state; simpl.
     split.
     intros.
+    Require Import List.
+    Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
+      admit.
+    Qed.
+    eapply make_state_Some in H.
+    openhyp.
+    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+      admit.
+    Qed.
+    eapply mapM_Some in H2; [ | eauto].
+    openhyp.
+    unfold related_state in H4.
+    openhyp.
+    eapply H4 in H3.
+    rewrite map_map in H0; simpl in *.
+    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
+      admit.
+    Qed.
+    eapply map_eq in H0; [ | eauto ..].
+    rewrite H0 in *.
+    eauto.
+
+    intros.
+    unfold related_state in H4.
+    openhyp.
+    eapply H3 in H.
+    openhyp.
     (*here*)
 
     Definition get_ret (st : Cito.State) x : Value :=
@@ -402,7 +427,11 @@ Module Make (Import A : ADT).
       end.
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
-*)
+
+
+    admit.
+    admit.
+
     rewrite e0 in *; simpl in *; discriminate.
 
     (* call-axiomatic *)
