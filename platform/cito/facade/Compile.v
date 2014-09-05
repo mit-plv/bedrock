@@ -387,7 +387,9 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
-    unfold related_state; simpl.
+    admit.
+    admit.
+(*    unfold related_state; simpl.
     split.
     intros.
     (*here*)
@@ -400,7 +402,7 @@ Module Make (Import A : ADT).
       end.
     instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
     admit.
-
+*)
     rewrite e0 in *; simpl in *; discriminate.
 
     (* call-axiomatic *)
