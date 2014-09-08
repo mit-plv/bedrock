@@ -271,7 +271,9 @@ Module Make (Import A : ADT).
   Infix "===" := WordMapFacts.M.Equal (at level 60).
   Definition disj_union elt (a a1 a2 : WordMap.t elt) := a === update a1 a2 /\ Disjoint a1 a2.
 
-  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> forall h1 h2, disj_union (snd t_st) h1 h2 -> related_state s_st (fst t_st, h1) -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ exists h1', disj_union (snd t_st') h1' h2 /\ related_state s_st' (fst t_st', h1').
+  (*here*)
+
+  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> forall h1, Submap h1 (snd t_st) -> let h2 := diff (snd t_st) h1 in related_state s_st (fst t_st, h1) -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ exists h1', disj_union (snd t_st') h1' h2 /\ related_state s_st' (fst t_st', h1').
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
 
@@ -322,12 +324,24 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
-    (*here*)
-    Definition reachable_heap v argvars := 
+    Require Import List.
+    Fixpoint reachable_heap vs argvars (input : list Value) := 
+      match argvars, input with
+        | k :: ks, i :: is =>
+          let h := reachable_heap vs ks is in
+          match i with
+            | SCA _ => h 
+            | ADT a => WordMap.add (Locals.sel vs k) a h
+          end
+        | _, _ => WordMap.empty _
+      end.
+
+    instantiate (1 := reachable_heap (fst v) (ArgVars spec) input).
+    set (reachable_heap _ _ _).
+    instantiate (2 := t0).
     unfold related_state; simpl.
     split.
     intros.
-    Require Import List.
     Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
       admit.
     Qed.
