@@ -41,13 +41,15 @@ Module Make (Import A : ADT).
 
   Import StringMap.
 
+  Definition represent p h v :=
+    match v with
+      | SCA w => p = w
+      | ADT a => Cito.heap_sel h p = Some a
+    end.
+
   Definition related_state (s_st : State) (t_st : Cito.State) := 
     (forall x v, 
-       find x s_st = Some v ->
-       match v with
-         | SCA w => Locals.sel (fst t_st) x = w
-         | ADT a => exists p, Locals.sel (fst t_st) x = p /\ Cito.heap_sel (snd t_st) p = Some a
-       end) /\
+       find x s_st = Some v -> represent (Locals.sel (fst t_st) x) (snd t_st) v) /\
     (forall p a,
        Cito.heap_sel (snd t_st) p = Some a ->
        exists x,
@@ -273,7 +275,10 @@ Module Make (Import A : ADT).
 
   (*here*)
 
-  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> forall h1, Submap h1 (snd t_st) -> let h2 := diff (snd t_st) h1 in related_state s_st (fst t_st, h1) -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ exists h1', disj_union (snd t_st') h1' h2 /\ related_state s_st' (fst t_st', h1').
+  Definition Submap elt m1 m2 := forall k v, @WordMap.find elt k m1 = Some v -> WordMap.find k m2 = Some v.
+  Infix "<=" := Submap.
+  Infix "-" := diff.
+  Theorem compile_runsto : forall t t_env t_st t_st', Cito.RunsTo t_env t t_st t_st' -> forall s, t = compile s -> forall s_env s_st, t_env = compile_env s_env -> forall h1, h1 <= snd t_st -> related_state s_st (fst t_st, h1) -> Safe s_env s s_st -> exists s_st', RunsTo s_env s s_st s_st' /\ let h2 := snd t_st - h1 in h2 <= snd t_st' /\ related_state s_st' (fst t_st', snd t_st' - h2).
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
 
@@ -281,7 +286,7 @@ Module Make (Import A : ADT).
     (* call-operational *)
     unfold_all.
     inject H2.
-    simpl in *.
+    Require Import List.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
     destruct s.
     rewrite e0 in *; simpl in *.
@@ -324,7 +329,6 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
-    Require Import List.
     Fixpoint reachable_heap vs argvars (input : list Value) := 
       match argvars, input with
         | k :: ks, i :: is =>
@@ -336,9 +340,50 @@ Module Make (Import A : ADT).
         | _, _ => WordMap.empty _
       end.
 
-    instantiate (1 := reachable_heap (fst v) (ArgVars spec) input).
-    set (reachable_heap _ _ _).
-    instantiate (2 := t0).
+    instantiate (1 := reachable_heap (fst v) l input).
+    Lemma reachable_submap_related : forall st args input vs h, mapM (sel st) args = Some input -> related_state st (vs, h) -> reachable_heap vs args input <= h /\ related_state (make_state args input) (vs, reachable_heap vs args input).
+      admit.
+    Qed.
+    eapply reachable_submap_related in H5; eauto.
+    Lemma submap_trans : forall elt (a b c : WordMap.t elt), a <= b -> b <= c -> a <= c.
+      admit.
+    Qed.
+    openhyp.
+    eapply submap_trans; eauto.
+    eapply reachable_submap_related in H5; eauto.
+    openhyp.
+    Lemma change_var_names : forall vs1 vs2 h vars1 vars2 input, related_state (make_state vars1 input) (vs1, h) -> (map (Locals.sel vs2) vars2 = map (fun x => vs1 x) vars1) -> related_state (make_state vars2 input) (vs2, h).
+      admit.
+    Qed.
+    eapply change_var_names; eauto.
+    rewrite map_map in H0; simpl in *.
+    eauto.
+    Ltac split' name :=
+      match goal with
+        | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
+      end.
+
+    split' Hsm.
+    eapply submap_trans; eauto.
+    Lemma submap_diff : forall elt (a b c : WordMap.t elt), c <= b -> b <= a -> a - b <= a - c.
+      admit.
+    Qed.
+    eapply submap_diff; eauto.
+    eapply reachable_submap_related in H5; eauto.
+    openhyp.
+    eauto.
+
+    destruct o; simpl in *.
+    Lemma add_related : forall st vs h p k v, related_state st (vs, h) -> represent p h v -> related_state (add k v st) (Locals.upd vs k p, h).
+      admit.
+    Qed.
+    eapply add_related.
+    (*here*)
+
+
+    Lemma add_remove_many_related : forall, related_state st1 (vs1, h1) -> related_state st2 (vs2, h2) -> no_adt_leak input args2 retvar st2 -> related_state (add_remove_many args1 input (map (sel st2) args2) st1) (vs1, h' - (h
+
+
     unfold related_state; simpl.
     split.
     intros.
