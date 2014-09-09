@@ -344,20 +344,17 @@ Module Make (Import A : ADT).
     Lemma reachable_submap_related : forall st args input vs h, mapM (sel st) args = Some input -> related_state st (vs, h) -> reachable_heap vs args input <= h /\ related_state (make_state args input) (vs, reachable_heap vs args input).
       admit.
     Qed.
-    eapply reachable_submap_related in H5; eauto.
+    eapply reachable_submap_related in H5; openhyp; eauto.
     Lemma submap_trans : forall elt (a b c : WordMap.t elt), a <= b -> b <= c -> a <= c.
       admit.
     Qed.
-    openhyp.
     eapply submap_trans; eauto.
-    eapply reachable_submap_related in H5; eauto.
-    openhyp.
+    eapply reachable_submap_related in H5; openhyp; eauto.
     Lemma change_var_names : forall vs1 vs2 h vars1 vars2 input, related_state (make_state vars1 input) (vs1, h) -> (map (Locals.sel vs2) vars2 = map (fun x => vs1 x) vars1) -> related_state (make_state vars2 input) (vs2, h).
       admit.
     Qed.
     eapply change_var_names; eauto.
-    rewrite map_map in H0; simpl in *.
-    eauto.
+    rewrite map_map in H0; simpl in *; eauto.
     Ltac split' name :=
       match goal with
         | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
@@ -369,65 +366,80 @@ Module Make (Import A : ADT).
       admit.
     Qed.
     eapply submap_diff; eauto.
-    eapply reachable_submap_related in H5; eauto.
-    openhyp.
-    eauto.
+    eapply reachable_submap_related in H5; openhyp; eauto.
 
     destruct o; simpl in *.
     Lemma add_related : forall st vs h p k v, related_state st (vs, h) -> represent p h v -> related_state (add k v st) (Locals.upd vs k p, h).
       admit.
     Qed.
     eapply add_related.
-    (*here*)
-
-
-    Lemma add_remove_many_related : forall, related_state st1 (vs1, h1) -> related_state st2 (vs2, h2) -> no_adt_leak input args2 retvar st2 -> related_state (add_remove_many args1 input (map (sel st2) args2) st1) (vs1, h' - (h
-
-
-    unfold related_state; simpl.
-    split.
-    intros.
-    Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
+    Focus 2.
+    Lemma submap_represent : forall p h1 h2 v, represent p h1 v -> h1 <= h2 -> represent p h2 v.
       admit.
     Qed.
-    eapply make_state_Some in H.
-    openhyp.
-    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
-      admit.
-    Qed.
-    eapply mapM_Some in H2; [ | eauto].
-    openhyp.
-    unfold related_state in H4.
-    openhyp.
-    eapply H4 in H3.
-    rewrite map_map in H0; simpl in *.
-    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
-      admit.
-    Qed.
-    eapply map_eq in H0; [ | eauto ..].
-    rewrite H0 in *.
+    eapply submap_represent.
+    unfold related_state in H3; openhyp.
+    eapply H3 in H; simpl in *.
     eauto.
+    eapply submap_diff; eauto.
+    eapply submap_diff; eauto.
+    eapply reachable_submap_related in H5; openhyp; eauto.
 
-    intros.
-    unfold related_state in H4.
-    openhyp.
-    eapply H3 in H.
-    openhyp.
-    (*here*)
+    Lemma add_remove_many_related : forall s_st v h1 x vs_callee' heap' l input spec, related_state s_st (fst v, h1) -> related_state x
+         (vs_callee', heap' - (snd v - reachable_heap (fst v) l input)) -> no_adt_leak input (ArgVars spec) (RetVar spec) x -> mapM (sel s_st) l = Some input -> snd v - reachable_heap (fst v) l input <= heap' -> snd v - h1 <= heap' -> related_state (add_remove_many l input (map (sel x) (ArgVars spec)) s_st)
+     (fst v, heap' - (snd v - h1)).
+    Proof.
+      intros.
+      unfold related_state; simpl.
+      split.
+      intros.
+      
 
-    Definition get_ret (st : Cito.State) x : Value :=
-      let w := fst st x in
-      match Cito.heap_sel (snd st) w with
-        | Some a => ADT a
-        | None => SCA _ w
-      end.
-    instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
-    admit.
+(*
+      Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
+        admit.
+      Qed.
+      eapply make_state_Some in H.
+      openhyp.
+      Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+        admit.
+      Qed.
+      eapply mapM_Some in H2; [ | eauto].
+      openhyp.
+      unfold related_state in H4.
+      openhyp.
+      eapply H4 in H3.
+      rewrite map_map in H0; simpl in *.
+      Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
+        admit.
+      Qed.
+      eapply map_eq in H0; [ | eauto ..].
+      rewrite H0 in *.
+      eauto.
+
+      intros.
+      unfold related_state in H4.
+      openhyp.
+      eapply H3 in H.
+      openhyp.
+      (*here*)
+
+      Definition get_ret (st : Cito.State) x : Value :=
+        let w := fst st x in
+        match Cito.heap_sel (snd st) w with
+          | Some a => ADT a
+          | None => SCA _ w
+        end.
+      instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
+      admit.
 
 
-    admit.
-    admit.
-
+      admit.
+      admit.
+*)
+    Qed.
+    eapply add_remove_many_related; eauto.
+    eapply add_remove_many_related; eauto.
     rewrite e0 in *; simpl in *; discriminate.
 
 
