@@ -65,21 +65,16 @@ Section ADTSection.
   Import FMapNotations.
   Open Scope fmap.
   
-  Definition add_remove elt k (v : option elt) st :=
-    match v with
-      | Some v' => add k v' st
-      | None => remove k st
-    end.
-
   Require Import List.
 
   Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
     match keys, input, output with 
       | k :: keys', i :: input', o :: output' => 
         let st' :=
-            match i with
-              | ADT _ => add_remove k o st
-              | _ => st
+            match i, o with
+              | ADT _, Some (ADT a) => add k (ADT a) st
+              | ADT _, None => StringMap.remove k st
+              | _, _ => st
             end in
         add_remove_many keys' input' output' st'
       | _, _, _ => st
@@ -169,7 +164,10 @@ Section ADTSection.
           RunsTo loop st st
     | RunsToAssign :
         forall x e st st' w,
+          (* rhs can't be an ADT object, to prevent alias *)
           eval st e = Some (SCA w) ->
+          (* lhs can't be already referring to an ADT object, to prevent memory leak *)
+          (~ exists a, sel st x = Some (ADT a)) -> 
           st' == add x (SCA w) st ->
           RunsTo (Assign x e) st st'
     | RunsToLabel :
@@ -183,6 +181,7 @@ Section ADTSection.
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           PreCond spec input ->
           length input = length output ->
           PostCond spec (combine input output) ret ->
@@ -198,6 +197,7 @@ Section ADTSection.
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
@@ -243,6 +243,7 @@ Section ADTSection.
     | SafeAssign :
         forall x e st w,
           eval st e = Some (SCA w) ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           Safe (Assign x e) st
     | SafeLabel :
         forall x lbl st w,
@@ -254,6 +255,7 @@ Section ADTSection.
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           PreCond spec input ->
           Safe (Call x f args) st
     | SafeCallOp :
@@ -263,6 +265,7 @@ Section ADTSection.
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (forall callee_st', 
