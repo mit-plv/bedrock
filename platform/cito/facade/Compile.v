@@ -47,9 +47,11 @@ Module Make (Import A : ADT).
       | ADT a => o = Some a
     end.
 
+  Require Import WordMap.
+
   Definition related_state (s_st : State) (t_st : Cito.State) := 
     (forall x v, 
-       find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (Cito.heap_sel (snd t_st) p) v) /\
+       find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (WordMap.find p (snd t_st)) v) /\
     (forall p a,
        Cito.heap_sel (snd t_st) p = Some a ->
        exists! x,
@@ -389,26 +391,81 @@ Module Make (Import A : ADT).
     set (h2 := h - h1) in *.
     unfold related_state; simpl.
     split.
-    intros.
+    intros k v Hf.
     Import StringMap.
+    Import StringMapFacts.
+
+    eapply find_mapsto_iff in Hf.
+    eapply add_mapsto_iff in Hf; openhyp.
+    subst.
+    rewrite Locals.sel_upd_eq by eauto.
+    unfold related_state in H5; simpl in H5; openhyp.
+    eapply H5 in H.
+    set (h23 := h - reachable_heap vs l input) in *.
+    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
+    Lemma submap_represent : forall p h1 h2 v, represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
+      admit.
+    Qed.
+    eapply submap_represent.
+    eauto.
+    eapply submap_diff; eauto.
+    eapply submap_diff; eauto.
+
+    rewrite Locals.sel_upd_ne by eauto.
+    Definition not_reachable key (k : key) ks ins := ~ List.In k ks \/ exists i w, nth_error ks i = Some k /\ nth_error ins i = Some (Sca w).
+
+    Lemma find_Some_add_remove_many : 
+      forall k ks ins outs h v, 
+        find k (add_remove_many ks ins outs h) = Some v -> 
+        NoDup ks -> 
+        length ks = length ins -> 
+        length ks = length outs -> 
+        (not_reachable k ks ins /\ find k h = Some v) \/ 
+        exists i a, 
+          nth_error ks i = Some k /\ 
+          nth_error ins i = Some (ADT a) /\ 
+          nth_error outs i = Some (Some v).
+      admit.
+    Qed.
+    eapply find_mapsto_iff in H18.
+    eapply find_Some_add_remove_many in H18.
+    openhyp.
+    copy H15; unfold related_state in H15; simpl in H15; openhyp.
+    eapply H15 in H19.
+    Lemma not_in_find_submap : forall elt h1 h2 k, h2 <= h1 -> ~@WordMap.In elt k h2 -> WordMap.find k h1 = WordMap.find k (h1 - h2).
+      admit.
+    Qed.
+    erewrite not_in_find_submap in H19.
+    Focus 3.
+    Lemma not_reachable_elim : forall k ks st vs h input, not_reachable k ks input -> related_state st (vs, h) -> mapM (sel st) ks = Some input -> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input).
+      admit.
+    Qed.
+    eapply not_reachable_elim; eauto.
+    2 : eauto.
+    eapply submap_represent.
+    eauto.
+    Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 === (h3 - h1) - (h3 - h2).
+      admit.
+    Qed.
+    Require Import Setoid.
+    Global Add Parametric Morphism elt : (@Submap elt)
+        with signature WordMapFacts.M.Equal ==> WordMapFacts.M.Equal ==> iff as Submap_m.
+      admit.
+    Qed.
+    erewrite submap_diff_diff; eauto.
+    Lemma submap_restrict : forall elt (h1 h2 h : WordMap.t elt), h1 <= h2 -> h1 - h <= h2 - h.
+      admit.
+    Qed.
+    eapply submap_restrict.
+    eauto.
+
+    
+    
     (*here*)
 
-    Lemma find_Some_add_remove_many : forall k ks ins outs h v, find k (add_remove_many ks ins outs h) = Some v -> NoDup ks -> length ks = length ins -> length ks = length outs -> (~ List.In k ks /\ find k h = Some v) \/ exists i, nth_error ks i = Some k /\ ((exists w, nth_error ins i = Some (Sca w)) \/ exists a, nth_error ins i = Some (ADT a) /\ nth_error outs i = Some (Some v)).
-      admit.
-    Qed.
-    eapply find_Some_add_remove_many in H5.
-    openhyp.
-    unfold related_state in H; simpl in H.
-    eapply H in H6.
-    Lemma eq_represent : forall p o1 o2 v, represent p o1 v -> o1 = o2 -> represent p o2 v.
-      intuition.
-    Qed.
-    eapply eq_represent.
-    eauto.
-    Lemma not_arg_not_reachable : forall k ks st vs h input, ~ List.In k ks -> related_state st (vs, h) -> mapM (sel st) ks = Some input -> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input).
-      admit.
-    Qed.
-    
+
+
+
     admit.
     admit.
 
