@@ -459,8 +459,10 @@ Module Make (Import A : ADT).
     eapply submap_restrict.
     eauto.
 
-    
-    
+    destruct v.
+    unfold represent; simpl.
+
+    (* need 'no-arg-assigned' in RunsTo *)
     (*here*)
 
 
