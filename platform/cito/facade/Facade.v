@@ -129,6 +129,25 @@ Section ADTSection.
       exists i ai, nth_error argvars i = Some var /\ 
                    nth_error input i = Some (ADT ai).
 
+  Require Import StringSet.
+  Import StringSet.
+
+  Fixpoint assigned s :=
+    match s with
+      | Skip => empty
+      | Seq a b => union (assigned a) (assigned b)
+      | If _ t f => union (assigned t) (assigned f)
+      | While _ c => assigned c
+      | Assign x e => singleton x
+      | Label x l => singleton x
+      | Call x f es => singleton x
+    end.
+  
+  Definition disjoint a b := is_empty (inter a b) = true.
+  Require Import StringSetFacts.
+
+  Import StringMap.
+
   Section EnvSection.
 
     Variable env : Env.
@@ -173,6 +192,7 @@ Section ADTSection.
     | RunsToLabel :
         forall x lbl st st' w,
           Label2Word env lbl = Some w ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           st' == add x (SCA w) st ->
           RunsTo (Label x lbl) st st'
     | RunsToCallAx :
@@ -198,11 +218,12 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
+          disjoint (assigned (Body spec)) (of_list (ArgVars spec)) ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
           no_adt_leak input (ArgVars spec) (RetVar spec) callee_st' ->
-          let output := map (sel callee_st') (ArgVars spec) in
+          let output := List.map (sel callee_st') (ArgVars spec) in
           let st' := add_remove_many args input output st in
           let st' := add x ret st' in
           forall st'',
@@ -248,6 +269,7 @@ Section ADTSection.
     | SafeLabel :
         forall x lbl st w,
           Label2Word env lbl = Some w ->
+          (~ exists a, sel st x = Some (ADT a)) -> 
           Safe (Label x lbl) st
     | SafeCallAx :
         forall x f args st spec input f_w,
@@ -266,6 +288,7 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
+          disjoint (assigned (Body spec)) (of_list (ArgVars spec)) ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (forall callee_st', 
