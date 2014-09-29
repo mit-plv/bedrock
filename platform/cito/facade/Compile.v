@@ -330,13 +330,15 @@ Module Make (Import A : ADT).
     Focus 3.
     openhyp.
     Ltac copy h := generalize h; intro.
-    copy H; eapply H14 in H.
+    copy H; eapply H16 in H.
     openhyp.
     eapply ex_up in H.
     openhyp.
     eexists.
     split.
     eapply RunsToCallOp.
+    eauto.
+    eauto.
     eauto.
     eauto.
     eauto.
@@ -427,15 +429,15 @@ Module Make (Import A : ADT).
           nth_error outs i = Some (Some v).
       admit.
     Qed.
-    eapply find_mapsto_iff in H18.
-    eapply find_Some_add_remove_many in H18.
+    eapply find_mapsto_iff in H20.
+    eapply find_Some_add_remove_many in H20.
     openhyp.
-    copy H15; unfold related_state in H15; simpl in H15; openhyp.
-    eapply H15 in H19.
+    copy H17; unfold related_state in H17; simpl in H17; openhyp.
+    eapply H17 in H21.
     Lemma not_in_find_submap : forall elt h1 h2 k, h2 <= h1 -> ~@WordMap.In elt k h2 -> WordMap.find k h1 = WordMap.find k (h1 - h2).
       admit.
     Qed.
-    erewrite not_in_find_submap in H19.
+    erewrite not_in_find_submap in H21.
     Focus 3.
     Lemma not_reachable_elim : forall k ks st vs h input, not_reachable k ks input -> related_state st (vs, h) -> mapM (sel st) ks = Some input -> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input).
       admit.
