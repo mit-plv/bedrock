@@ -18,7 +18,7 @@ Section ADTSection.
   | Seq : Stmt -> Stmt -> Stmt
   | If : Expr -> Stmt -> Stmt -> Stmt
   | While : Expr -> Stmt -> Stmt
-  | Call : option string -> Expr -> list string -> Stmt
+  | Call : string -> Expr -> list string -> Stmt
   | Label : string -> glabel -> Stmt
   | Assign : string -> Expr -> Stmt.
 
@@ -83,12 +83,6 @@ Section ADTSection.
             end in
         add_remove_many keys' input' output' st'
       | _, _, _ => st
-    end.
-
-  Definition addM elt k (v : elt) st :=
-    match k with
-      | Some k' => add k' v st
-      | None => st
     end.
 
   Fixpoint mapM A B (f : A -> option B) ls :=
@@ -193,7 +187,7 @@ Section ADTSection.
           length input = length output ->
           PostCond spec (combine input output) ret ->
           let st' := add_remove_many args input output st in
-          let st' := addM x ret st' in
+          let st' := add x ret st' in
           forall st'',
             st'' == st' ->
             RunsTo (Call x f args) st st''
@@ -210,7 +204,7 @@ Section ADTSection.
           no_adt_leak input (ArgVars spec) (RetVar spec) callee_st' ->
           let output := map (sel callee_st') (ArgVars spec) in
           let st' := add_remove_many args input output st in
-          let st' := addM x ret st' in
+          let st' := add x ret st' in
           forall st'',
             st'' == st' ->
             RunsTo (Call x f args) st st''.

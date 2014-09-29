@@ -23,7 +23,7 @@ Fixpoint compile (s : Stmt) : Syntax.Stmt :=
     | While e c => Syntax.While e (compile c)
     | Assign x e => Syntax.Assign x e
     | Label x lbl => Syntax.Label x lbl
-    | Call x f args => Syntax.Call x f (List.map Var args)
+    | Call x f args => Syntax.Call (Some x) f (List.map Var args)
   end.
 
 Require Import ADT.
@@ -38,21 +38,21 @@ Module Make (Import A : ADT).
   Definition Env := @Env ADTValue.
   Definition AxiomaticSpec := @AxiomaticSpec ADTValue.
   Definition Value := @Value ADTValue.
+  Definition Sca := @SCA ADTValue.
+  Definition Adt := @ADT ADTValue.
 
-  Import StringMap.
-
-  Definition represent p h v :=
+  Definition represent p (o : option ADTValue) v :=
     match v with
       | SCA w => p = w
-      | ADT a => Cito.heap_sel h p = Some a
+      | ADT a => o = Some a
     end.
 
   Definition related_state (s_st : State) (t_st : Cito.State) := 
     (forall x v, 
-       find x s_st = Some v -> represent (Locals.sel (fst t_st) x) (snd t_st) v) /\
+       find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (Cito.heap_sel (snd t_st) p) v) /\
     (forall p a,
        Cito.heap_sel (snd t_st) p = Some a ->
-       exists x,
+       exists! x,
          Locals.sel (fst t_st)  x = p /\
          find x s_st = Some (ADT a)).
                 
@@ -303,7 +303,7 @@ Module Make (Import A : ADT).
     inject H2.
     Require Import List.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
-    destruct s.
+    destruct s0.
     rewrite e0 in *; simpl in *.
     inject H.
     destruct x; simpl in *.
@@ -384,54 +384,33 @@ Module Make (Import A : ADT).
     eapply submap_diff; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
 
-    destruct o; simpl in *.
-    Lemma add_related : forall st vs h p k v, related_state st (vs, h) -> represent p h v -> related_state (add k v st) (Locals.upd vs k p, h).
+    copy H4; eapply reachable_submap_related in H4; openhyp; eauto.
+    destruct v as [vs h]; simpl in *.
+    set (h2 := h - h1) in *.
+    unfold related_state; simpl.
+    split.
+    intros.
+    Import StringMap.
+    (*here*)
+
+    Lemma find_Some_add_remove_many : forall k ks ins outs h v, find k (add_remove_many ks ins outs h) = Some v -> NoDup ks -> length ks = length ins -> length ks = length outs -> (~ List.In k ks /\ find k h = Some v) \/ exists i, nth_error ks i = Some k /\ ((exists w, nth_error ins i = Some (Sca w)) \/ exists a, nth_error ins i = Some (ADT a) /\ nth_error outs i = Some (Some v)).
       admit.
     Qed.
-    eapply add_related.
-    Focus 2.
-    Lemma submap_represent : forall p h1 h2 v, represent p h1 v -> h1 <= h2 -> represent p h2 v.
-      admit.
+    eapply find_Some_add_remove_many in H5.
+    openhyp.
+    unfold related_state in H; simpl in H.
+    eapply H in H6.
+    Lemma eq_represent : forall p o1 o2 v, represent p o1 v -> o1 = o2 -> represent p o2 v.
+      intuition.
     Qed.
-    eapply submap_represent.
-    unfold related_state in H5; openhyp.
-    eapply H5 in H; simpl in *.
+    eapply eq_represent.
     eauto.
-    eapply submap_diff; eauto.
-    eapply submap_diff; eauto.
-    eapply reachable_submap_related in H4; openhyp; eauto.
-
-    Lemma add_remove_many_related : 
-      forall s_st v h1 x vs_callee' heap' l input spec, 
-        related_state s_st (fst v, h1) -> 
-        related_state x (vs_callee', heap' - (snd v - reachable_heap (fst v) l input)) ->
-        no_adt_leak input (ArgVars spec) (RetVar spec) x -> 
-        mapM (sel s_st) l = Some input -> 
-        h1 <= snd v ->
-        snd v - reachable_heap (fst v) l input <= heap' -> 
-        snd v - h1 <= heap' -> 
-        related_state (add_remove_many l input (map (sel x) (ArgVars spec)) s_st) (fst v, heap' - (snd v - h1)).
-    Proof.
-      intros.
-      set (h2 := snd v - h1) in *.
-      unfold related_state; simpl.
-      split.
-      intros.
-      Import StringMap.
-      Definition SCA := @SCA ADTValue.
-      Definition ADT := @ADT ADTValue.
-
-      Lemma find_Some_add_remove_many : forall k ks ins outs h v, find k (add_remove_many ks ins outs h) = Some v -> NoDup ks -> length ks = length ins -> length ks = length outs -> (~ List.In k ks /\ find k h = Some v) \/ exists i, nth_error ks i = Some k /\ ((exists w, nth_error ins i = Some (SCA w)) \/ exists a, nth_error ins i = Some (ADT a) /\ nth_error outs i = Some (Some v)).
-        admit.
-      Qed.
-      eapply find_Some_add_remove_many in H6.
-      openhyp.
-      unfold related_state in H; simpl in H.
-      eapply H in H7.
-      (* need to change the 'exists' in related_state to 'exists!' *)
-      (* here *)
+    Lemma not_arg_not_reachable : forall k ks st vs h input, ~ List.In k ks -> related_state st (vs, h) -> mapM (sel st) ks = Some input -> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input).
       admit.
-      admit.
+    Qed.
+    
+    admit.
+    admit.
 
 (*
       Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
@@ -475,9 +454,7 @@ Module Make (Import A : ADT).
       admit.
       admit.
 *)
-    Qed.
-    eapply add_remove_many_related; eauto.
-    eapply add_remove_many_related; eauto.
+
     rewrite e0 in *; simpl in *; discriminate.
 
 
