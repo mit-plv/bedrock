@@ -72,7 +72,7 @@ Section ADTSection.
       | k :: keys', i :: input', o :: output' => 
         let st' :=
             match i, o with
-              | ADT _, Some (ADT a) => add k (ADT a) st
+              | ADT _, Some v => add k v st
               | ADT _, None => StringMap.remove k st
               | _, _ => st
             end in
