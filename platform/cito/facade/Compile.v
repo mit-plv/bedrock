@@ -273,11 +273,11 @@ Module Make (Import A : ADT).
   Require Import WordMapFacts.
   Require Import WordMap.
   Infix "===" := WordMapFacts.M.Equal (at level 60).
-  Definition disj_union elt (a a1 a2 : WordMap.t elt) := a === update a1 a2 /\ Disjoint a1 a2.
-
   Definition Submap elt m1 m2 := forall k v, @WordMap.find elt k m1 = Some v -> WordMap.find k m2 = Some v.
   Infix "<=" := Submap.
   Infix "-" := diff.
+
+  Require Import StringSet.
 
   Theorem compile_runsto : 
     forall t t_env t_st t_st', 
@@ -295,6 +295,7 @@ Module Make (Import A : ADT).
                 RunsTo s_env s s_st s_st' /\ 
                 let h2 := snd t_st - h1 in 
                 h2 <= snd t_st' /\ 
+                (forall x, ~ StringSet.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
                 related_state s_st' (fst t_st', snd t_st' - h2).
   Proof.
     induction 1; simpl; intros; destruct s; simpl in *; intros; try discriminate.
@@ -325,6 +326,7 @@ Module Make (Import A : ADT).
     edestruct IHRunsTo; [ .. | clear IHRunsTo].
     eauto.
     2 : eauto.
+    3 : eauto.
     3 : eauto.
     3 : eauto.
     Focus 3.
@@ -388,6 +390,16 @@ Module Make (Import A : ADT).
     eapply submap_diff; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
 
+    split.
+    intros.
+    Require Import GeneralTactics2.
+    Lemma singleton_iff_not : forall e e', ~ StringSet.In e' (StringSet.singleton e) <-> e <> e'.
+      split; intros; not_not; eapply StringSetFacts.singleton_iff; eauto.
+    Qed.
+    eapply singleton_iff_not in H18.
+    rewrite Locals.sel_upd_ne by eauto.
+    eauto.
+
     copy H4; eapply reachable_submap_related in H4; openhyp; eauto.
     destruct v as [vs h]; simpl in *.
     set (h2 := h - h1) in *.
@@ -401,8 +413,8 @@ Module Make (Import A : ADT).
     eapply add_mapsto_iff in Hf; openhyp.
     subst.
     rewrite Locals.sel_upd_eq by eauto.
-    unfold related_state in H5; simpl in H5; openhyp.
-    eapply H5 in H.
+    unfold related_state in H9; simpl in H9; openhyp.
+    eapply H9 in H.
     set (h23 := h - reachable_heap vs l input) in *.
     set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
     Lemma submap_represent : forall p h1 h2 v, represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
@@ -429,15 +441,15 @@ Module Make (Import A : ADT).
           nth_error outs i = Some (Some v).
       admit.
     Qed.
-    eapply find_mapsto_iff in H20.
-    eapply find_Some_add_remove_many in H20.
+    eapply find_mapsto_iff in H21.
+    eapply find_Some_add_remove_many in H21.
     openhyp.
-    copy H17; unfold related_state in H17; simpl in H17; openhyp.
-    eapply H17 in H21.
+    copy H18; unfold related_state in H18; simpl in H18; openhyp.
+    eapply H18 in H22.
     Lemma not_in_find_submap : forall elt h1 h2 k, h2 <= h1 -> ~@WordMap.In elt k h2 -> WordMap.find k h1 = WordMap.find k (h1 - h2).
       admit.
     Qed.
-    erewrite not_in_find_submap in H21.
+    erewrite not_in_find_submap in H22.
     Focus 3.
     Lemma not_reachable_elim : forall k ks st vs h input, not_reachable k ks input -> related_state st (vs, h) -> mapM (sel st) ks = Some input -> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input).
       admit.
@@ -461,16 +473,51 @@ Module Make (Import A : ADT).
     eapply submap_restrict.
     eauto.
 
-    destruct v.
-    unfold represent; simpl.
+    rewrite map_map in H0; simpl in *.
+    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1, List.map f1 ls1 = List.map f2 ls2 -> nth_error ls1 i = Some a1 -> exists a2, nth_error ls2 i = Some a2 /\ f1 a1 = f2 a2.
+      admit.
+    Qed.
+    symmetry in H0.
+    eapply map_eq in H0; [ | eauto ..].
+    openhyp.
+    unfold Locals.sel in *.
+    rewrite H24.
+    rewrite H5.
+    Focus 2.
+    Lemma disjoint_in_not : forall s1 s2 x, disjoint s1 s2 -> StringSet.In x s2 -> ~ StringSet.In x s1.
+      admit.
+    Qed.
+    eapply disjoint_in_not; eauto.
+    eapply StringSetFacts.of_list_1.
+    eapply SetoidListFacts.In_InA.
+    eapply Locals.nth_error_In; eauto.
+    rename x1 into i.
+    rename l into args.
+    erewrite map_nth_error in H23 by eauto.
+    inject H23.
+    copy H9; unfold related_state in H9; simpl in H9; eapply H9 in H25.
+    unfold Locals.sel in *.
+    set (h23 := h - reachable_heap vs args input) in *.
+    set (p := vs_callee' x3) in *.
+    eapply submap_represent.
+    eauto.
+    eapply submap_diff; eauto.
+    eapply submap_diff; eauto.
 
-    (* need 'no-arg-assigned' in RunsTo *)
+    eauto.
+
+    Lemma mapM_length : forall A B (f : A -> option B) ls1 ls2, mapM f ls1 = Some ls2 -> length ls1 = length ls2.
+      admit.
+    Qed.
+    eapply mapM_length; eauto.
+    rewrite map_length.
+    Require Import ListFactsNew.
+    rewrite map_map in H0.
+    eapply map_eq_length_eq in H0.
+    eauto.
+
     (*here*)
 
-
-
-
-    admit.
     admit.
 
 (*
@@ -518,6 +565,27 @@ Module Make (Import A : ADT).
 
     rewrite e0 in *; simpl in *; discriminate.
 
+    Focus 7.
+    (* call-axiomatic *)
+    unfold_all.
+    injection H6; intros; subst; clear H6.
+    simpl in *.
+    destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
+    destruct s0.
+    rewrite e0 in *; simpl in *.
+    injection H; intros; subst; clear H.
+    destruct x; simpl in *.
+    destruct a; simpl in *.
+    unfold compile_ax in *; simpl in *.
+    injection H6; intros; subst; simpl in *; clear H6.
+    (* eexists. *)
+    (* split. *)
+    (* eapply RunsToCallAx. *)
+    admit.
+
+    discriminate.
+    
+    rewrite e0 in *; simpl in *; discriminate.
 
     (* skip *)
     eexists; split.
@@ -593,27 +661,6 @@ Module Make (Import A : ADT).
     admit.
     (* while-false *)
     admit.
-
-    (* call-axiomatic *)
-    unfold_all.
-    injection H6; intros; subst; clear H6.
-    simpl in *.
-    destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
-    destruct s.
-    rewrite e0 in *; simpl in *.
-    injection H; intros; subst; clear H.
-    destruct x; simpl in *.
-    destruct a; simpl in *.
-    unfold compile_ax in *; simpl in *.
-    injection H6; intros; subst; simpl in *; clear H6.
-    (* eexists. *)
-    (* split. *)
-    (* eapply RunsToCallAx. *)
-    admit.
-
-    discriminate.
-    
-    rewrite e0 in *; simpl in *; discriminate.
 
     (* label *)
     admit.
