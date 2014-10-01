@@ -53,7 +53,7 @@ Module Make (Import A : ADT).
     (forall x v, 
        find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (WordMap.find p (snd t_st)) v) /\
     (forall p a,
-       Cito.heap_sel (snd t_st) p = Some a ->
+       WordMap.find p (snd t_st) = Some a ->
        exists! x,
          Locals.sel (fst t_st)  x = p /\
          find x s_st = Some (ADT a)).
@@ -270,14 +270,16 @@ Module Make (Import A : ADT).
     eauto.
   Qed.
 
-  Require Import WordMapFacts.
-  Require Import WordMap.
-  Infix "===" := WordMapFacts.M.Equal (at level 60).
-  Definition Submap elt m1 m2 := forall k v, @WordMap.find elt k m1 = Some v -> WordMap.find k m2 = Some v.
-  Infix "<=" := Submap.
-  Infix "-" := diff.
-
   Require Import StringSet.
+
+  Require Import WordMapFacts.
+  Import FMapNotations.
+  Open Scope fmap.
+  Require Import WordMap.
+  Import WordMap.
+
+  Definition Submap {elt} m1 m2 := forall k v, @find elt k m1 = Some v -> find k m2 = Some v.
+  Infix "<=" := Submap.
 
   Theorem compile_runsto : 
     forall t t_env t_st t_st', 
@@ -304,7 +306,6 @@ Module Make (Import A : ADT).
     (* call-operational *)
     unfold_all.
     inject H2.
-    Require Import List.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
     destruct s0.
     rewrite e0 in *; simpl in *.
@@ -351,6 +352,7 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
+    Require Import List.
     Fixpoint reachable_heap vs argvars (input : list Value) := 
       match argvars, input with
         | k :: ks, i :: is =>
@@ -405,12 +407,12 @@ Module Make (Import A : ADT).
     set (h2 := h - h1) in *.
     unfold related_state; simpl.
     split.
-    intros k v Hf.
-    Import StringMap.
-    Import StringMapFacts.
 
-    eapply find_mapsto_iff in Hf.
-    eapply add_mapsto_iff in Hf; openhyp.
+    (* related_state (1) *)
+    intros k v Hf.
+
+    eapply StringMapFacts.find_mapsto_iff in Hf.
+    eapply StringMapFacts.add_mapsto_iff in Hf; openhyp.
     subst.
     rewrite Locals.sel_upd_eq by eauto.
     unfold related_state in H9; simpl in H9; openhyp.
@@ -430,18 +432,18 @@ Module Make (Import A : ADT).
 
     Lemma find_Some_add_remove_many : 
       forall k ks ins outs h v, 
-        find k (add_remove_many ks ins outs h) = Some v -> 
         NoDup ks -> 
         length ks = length ins -> 
         length ks = length outs -> 
-        (not_reachable k ks ins /\ find k h = Some v) \/ 
-        exists i a, 
-          nth_error ks i = Some k /\ 
-          nth_error ins i = Some (ADT a) /\ 
-          nth_error outs i = Some (Some v).
+        (StringMap.find k (add_remove_many ks ins outs h) = Some v <-> 
+         ((not_reachable k ks ins /\ StringMap.find k h = Some v) \/ 
+          exists i a, 
+            nth_error ks i = Some k /\ 
+            nth_error ins i = Some (ADT a) /\ 
+            nth_error outs i = Some (Some v))).
       admit.
     Qed.
-    eapply find_mapsto_iff in H21.
+    eapply StringMapFacts.find_mapsto_iff in H21.
     eapply find_Some_add_remove_many in H21.
     openhyp.
     copy H18; unfold related_state in H18; simpl in H18; openhyp.
@@ -458,12 +460,12 @@ Module Make (Import A : ADT).
     2 : eauto.
     eapply submap_represent.
     eauto.
-    Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 === (h3 - h1) - (h3 - h2).
+    Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
       admit.
     Qed.
     Require Import Setoid.
     Global Add Parametric Morphism elt : (@Submap elt)
-        with signature WordMapFacts.M.Equal ==> WordMapFacts.M.Equal ==> iff as Submap_m.
+        with signature Equal ==> Equal ==> iff as Submap_m.
       admit.
     Qed.
     erewrite submap_diff_diff; eauto.
@@ -516,8 +518,35 @@ Module Make (Import A : ADT).
     eapply map_eq_length_eq in H0.
     eauto.
 
-    (*here*)
+    (* related_state (2) *)
+    intros.
+    rename s into lhs.
+    rename l into args.
+    rename h into h123.
+    rename h1 into h23.
+    rename h2 into h1.
+    set (h3 := reachable_heap vs args input) in *.
+    set (h12 := h123 - h3) in *.
+    set (h2 := h12 - h1) in *.
+    set (h3' := heap' - h12) in *.
+    set (h23' := heap' - h1) in *.
+    Notation direct_sum h1 h2 h12 := (h1 <= h12 /\ h2 <= h12 /\ Disjoint h1 h2).
+    Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
+    assert (direct_sum h1 h2 h12) by admit.
+    assert (direct_sum h2 h3 h23) by admit.
+    assert (direct_sum h1 h23 h123) by admit.
+    assert (direct_sum h12 h3 h123) by admit.
+    assert (direct_sum h2 h3' h23') by admit.
 
+    Import WordMap.
+
+    Lemma find_Some_direct_sum : forall elt h1 h2 h12, direct_sum h1 h2 h12 -> forall k (v : elt), find k h12 = Some v <-> find k h1 = Some v \/ find k h2 = Some v.
+      admit.
+    Qed.
+
+    eapply find_Some_direct_sum in H20; eauto; openhyp.
+
+    (*here*)
     admit.
 
 (*
@@ -547,7 +576,6 @@ Module Make (Import A : ADT).
       openhyp.
       eapply H3 in H.
       openhyp.
-      (*here*)
 
       Definition get_ret (st : Cito.State) x : Value :=
         let w := fst st x in
