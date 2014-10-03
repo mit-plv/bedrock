@@ -901,24 +901,56 @@ Module Make (Import A : ADT).
     injection H6; intros; subst; clear H6.
     simpl in *.
     destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
+    2 : rewrite e0 in *; simpl in *; discriminate.
     destruct s0.
     rewrite e0 in *; simpl in *.
-    injection H; intros; subst; clear H.
+    inject H.
     destruct x; simpl in *.
+    2 : discriminate.
     destruct a; simpl in *.
     unfold compile_ax in *; simpl in *.
     injection H6; intros; subst; simpl in *; clear H6.
-    (*here*)
 
-
-    (* eexists. *)
-    (* split. *)
-    (* eapply RunsToCallAx. *)
-    admit.
-
+    inversion H10; subst.
+    Focus 2.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+    rewrite e0 in *.
     discriminate.
     
-    rewrite e0 in *; simpl in *; discriminate.
+    unfold_all.
+    replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+    rewrite e0 in *.
+    inject H13.
+    rewrite map_map in H0; simpl in *.
+
+    rename l into args.
+    destruct v as [vs h123]; simpl in *.
+    rename h1 into h23.
+
+    set (cinput := List.map (Semantics.ADTIn (ADTValue:=ADTValue)) triples) in *.
+    set (coutput := List.map (Semantics.ADTOut (ADTValue:=ADTValue)) triples) in *.
+    set (cwords := List.map (Semantics.Word (ADTValue:=ADTValue)) triples) in *.
+    set (cinput_coutput := List.map (fun x => (Semantics.ADTIn x, Semantics.ADTOut x)) triples) in *.
+    set (words_cinput := List.map (fun x => (Semantics.Word x, Semantics.ADTIn x)) triples) in *.
+    assert (input = List.map CitoIn_FacadeIn cinput) by admit.
+    rewrite H in *.
+
+    eexists.
+    split.
+    eapply RunsToCallAx.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    simpl.
+    eauto.
+    rewrite map_length.
+
+    (*here*)
+    admit.
+
+    
 
     (* skip *)
     eexists; split.
