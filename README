@@ -3,7 +3,7 @@ Mostly automated verification of higher-order programs with higher-order separat
 http://plv.csail.mit.edu/bedrock/
 
 
-This source snapshot goes with a POPL'15 submission.
+This source snapshot goes with a POPL'15 paper, "From Network Interface to Multithreaded Web Applications: A Case Study in Modular Program Verification".
 
 To build, just run:
   make
