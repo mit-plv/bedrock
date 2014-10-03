@@ -612,16 +612,17 @@ Module Make (Import A : ADT).
 
     eapply find_Some_direct_sum in H21; eauto; openhyp.
 
+    (* p is in h2 *)
     copy H19; unfold related in H19; simpl in H19; openhyp.
     specialize (H38 _ _ (H23 _ _ H21)).
     destruct H38.
     destruct H38.
     openhyp.
-    rename x1 into x2.
-    destruct (string_dec x2 lhs).
+    rename x1 into x3.
+    destruct (string_dec x3 lhs).
     subst.
     contradict H12; eexists; eauto.
-    exists x2.
+    exists x3.
     split.
     split.
     rewrite Locals.sel_upd_ne by eauto; eauto.
@@ -693,51 +694,206 @@ Module Make (Import A : ADT).
 
     
     (* p is in h3' *)
+    copy H14; unfold related in H14; simpl in H14; openhyp.
+    copy H21; eapply H38 in H21.
+    do 2 destruct H21.
+    openhyp.
+    rename x1 into x3.
+    copy H41; eapply H18 in H41.
+    openhyp.
 
-    (*here*)
-    admit.
+    (* x3 is RetVar *)
+    subst.
+    unfold sel in *; rewrite H42 in H.
+    inject H.
+    exists lhs.
+    split.
+    (* exists *)
+    split.
+    rewrite Locals.sel_upd_eq by eauto.
+    eauto.
+    rewrite StringMapFacts.add_eq_o by eauto.
+    eauto.
 
-(*
-      Lemma make_state_Some : forall k (v : Value) ks vs, StringMap.find k (make_state ks vs) = Some v -> exists i, nth_error ks i = Some k /\ nth_error vs i = Some v.
-        admit.
-      Qed.
-      eapply make_state_Some in H.
-      openhyp.
-      Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
-        admit.
-      Qed.
-      eapply mapM_Some in H2; [ | eauto].
-      openhyp.
-      unfold related in H4.
-      openhyp.
-      eapply H4 in H3.
-      rewrite map_map in H0; simpl in *.
-      Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1 a2, map f1 ls1 = map f2 ls2 -> nth_error ls1 i = Some a1 -> nth_error ls2 i = Some a2 -> f1 a1 = f2 a2.
-        admit.
-      Qed.
-      eapply map_eq in H0; [ | eauto ..].
-      rewrite H0 in *.
-      eauto.
+    (* unique *)
+    intros.
+    openhyp.
+    destruct (string_dec x' lhs).
+    eauto.
+    set (p := Locals.sel vs_callee' (RetVar spec)) in *.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply find_Some_add_remove_many in H21.
+    openhyp.
+    Ltac unfold_related H := copy H; unfold related in H; simpl in H; openhyp.
+    unfold_related H19.
+    eapply H19 in H41.
+    unfold represent in H41.
+    eapply find_Some_direct_sum in H41; eauto; openhyp.
+    rewrite H in *.
+    eapply find_Some_in in H41.
+    eapply find_Some_in in H39.
+    contradict H39.
+    eapply (Disjoint_in_not H28); eauto.
+    eapply not_reachable_iff in H21; eauto.
+    contradict H21.
+    eapply find_Some_in; eauto.
+    rewrite map_map in H0; simpl in *.
+    symmetry in H0.
+    eapply map_eq in H0; [ | eauto ..].
+    openhyp.
+    unfold Locals.sel in *.
+    erewrite map_nth_error in H43 by eauto.
+    inject H43.
+    assert (RetVar spec = x2).
+    eapply H40.
+    split.
+    rewrite <- H.
+    rewrite H44.
+    symmetry; eapply H5.
+    eapply disjoint_in_not; eauto.
+    eapply StringSetFacts.of_list_1.
+    eapply SetoidListFacts.In_InA.
+    eapply Locals.nth_error_In; eauto.
+    eauto.
+    rewrite <- H43 in *.
+    eapply Locals.nth_error_In in H0; eauto.
+    contradict H0.
+    eapply NoDup_not_in.
+    destruct spec; eauto.
+    eauto.
+    eapply mapM_length; eauto.
+    rewrite map_length.
+    rewrite map_map in H0.
+    eapply map_eq_length_eq in H0; eauto.
 
-      intros.
-      unfold related in H4.
-      openhyp.
-      eapply H3 in H.
-      openhyp.
-
-      Definition get_ret (st : Cito.State) x : Value :=
-        let w := fst st x in
-        match Cito.heap_sel (snd st) w with
-          | Some a => ADT a
-          | None => SCA _ w
-        end.
-      instantiate (1 := get_ret (vs_callee', heap') (RetVar spec)).
+    (* x3 is an arg referring to an ADT object *)
+    rewrite map_map in H0; simpl in *.
+    Ltac copy_as h h' := generalize h; intro h'.
+    copy_as H0 H00; eapply map_eq in H0; [ | eauto ..].
+    openhyp.
+    rename x1 into i.
+    rename x4 into arg.
+    destruct (string_dec arg lhs).
+    subst.
+    contradict H12.
+    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
       admit.
+    Qed.
+    eapply mapM_Some in H11; [ | eauto].
+    openhyp.
+    unfold StringMap.key in *.
+    rewrite H0 in H11.
+    inject H11.
+    eexists; eauto.
+   
+    exists arg.
+    split.
+    (* exists *)
+    rewrite Locals.sel_upd_ne by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    unfold Locals.sel in *.
+    split.
+    subst.
+    rewrite <- H44.
+    eapply H5.
+    eapply disjoint_in_not; eauto.
+    eapply StringSetFacts.of_list_1.
+    eapply SetoidListFacts.In_InA.
+    eapply Locals.nth_error_In; eauto.
 
+    eapply find_Some_add_remove_many.
+    eauto.
+    eapply mapM_length; eauto.
+    rewrite map_length.
+    eapply map_eq_length_eq in H00; eauto.
+    right.
+    exists i.
+    eexists.
+    split.
+    eauto.
+    split.
+    eauto.
+    erewrite map_nth_error by eauto.
+    f_equal.
+    eauto.
 
+    (* unique *)
+    intros.
+    openhyp.
+    destruct (string_dec x' lhs).
+    subst.
+    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
+    set (p := Locals.sel vs_callee' x3) in *.
+    rewrite Locals.sel_upd_eq in * by eauto.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    inject H46.
+    assert (x3 = RetVar spec).
+    eapply H40.
+    split.
+    eauto.
+    eauto.
+    rewrite H21 in *.
+    eapply Locals.nth_error_In in H41; eauto.
+    contradict H41.
+    eapply NoDup_not_in.
+    destruct spec; eauto.
+
+    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply find_Some_add_remove_many in H46.
+    openhyp.
+    unfold_related H19.
+    eapply H19 in H47.
+    unfold represent in H47.
+    eapply find_Some_direct_sum in H47; eauto; openhyp.
+    rewrite H45 in *.
+    eapply find_Some_in in H47.
+    eapply find_Some_in in H39.
+    contradict H39.
+    eapply (Disjoint_in_not H28); eauto.
+    eapply not_reachable_iff in H46; eauto.
+    contradict H46.
+    eapply find_Some_in; eauto.
+    rename x1 into i'.
+    symmetry in H00.
+    eapply map_eq in H00; [ | eauto ..].
+    openhyp.
+    unfold Locals.sel in *.
+    erewrite map_nth_error in H48 by eauto.
+    inject H48.
+    assert (x3 = x1).
+    eapply H40.
+    split.
+    rewrite <- H45.
+    rewrite H50.
+    symmetry; eapply H5.
+    eapply disjoint_in_not; eauto.
+    eapply StringSetFacts.of_list_1.
+    eapply SetoidListFacts.In_InA.
+    eapply Locals.nth_error_In; eauto.
+    eauto.
+    rewrite <- H21 in *.
+    Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
       admit.
-      admit.
-*)
+    Qed.
+    assert (i = i').
+    eapply (NoDup_nth_error H41); eauto.
+    Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
+      intros; destruct spec; simpl.
+      inversion NoDupArgVars; eauto.
+    Qed.
+    eapply NoDup_ArgVars; eauto.
+    rewrite <- H48 in *.
+    unfold StringMap.key in *.
+    rewrite H0 in H46.
+    inject H46.
+    eauto.
+    eauto.
+    eapply mapM_length; eauto.
+    rewrite map_length.
+    eapply map_eq_length_eq in H00; eauto.
 
     Focus 7.
     (* call-axiomatic *)
@@ -752,6 +908,9 @@ Module Make (Import A : ADT).
     destruct a; simpl in *.
     unfold compile_ax in *; simpl in *.
     injection H6; intros; subst; simpl in *; clear H6.
+    (*here*)
+
+
     (* eexists. *)
     (* split. *)
     (* eapply RunsToCallAx. *)
