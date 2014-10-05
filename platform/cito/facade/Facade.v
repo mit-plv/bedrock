@@ -93,7 +93,7 @@ Section ADTSection.
   Record AxiomaticSpec :=
     {
       PreCond : list Value -> Prop;
-      PostCond : list (Value * option Value) -> Value -> Prop
+      PostCond : list (Value * option ADTValue) -> Value -> Prop
     }.
 
   Record OperationalSpec := 
@@ -147,6 +147,8 @@ Section ADTSection.
   Require Import StringSetFacts.
 
   Import StringMap.
+
+  Definition wrap_output := List.map (option_map ADT).
 
   Section EnvSection.
 
@@ -205,7 +207,7 @@ Section ADTSection.
           PreCond spec input ->
           length input = length output ->
           PostCond spec (combine input output) ret ->
-          let st' := add_remove_many args input output st in
+          let st' := add_remove_many args input (wrap_output output) st in
           let st' := add x ret st' in
           forall st'',
             st'' == st' ->

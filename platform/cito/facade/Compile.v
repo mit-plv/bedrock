@@ -68,12 +68,7 @@ Module Make (Import A : ADT).
       | inr a => ADT a
     end.
 
-  Definition CitoInOut_FacadeInOut (in_out : Cito.ArgIn * Cito.ArgOut) : Value * option Value :=
-    match fst in_out, snd in_out with
-      | inl w, _ => (SCA _ w, Some (SCA _ w))
-      | inr a, Some a' => (ADT a, Some (ADT a'))
-      | inr a, None => (ADT a, None)
-    end.
+  Definition CitoInOut_FacadeInOut (in_out : Cito.ArgIn * Cito.ArgOut) : Value * option ADTValue := (CitoIn_FacadeIn (fst in_out), snd in_out).
 
   Definition compile_ax (spec : AxiomaticSpec) : Cito.Callee :=
     Semantics.Foreign 
@@ -458,7 +453,7 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne by eauto.
     nintro; eapply H19; clear H19.
-    Definition not_reachable key (k : key) ks ins := ~ List.In k ks \/ exists i w, nth_error ks i = Some k /\ nth_error ins i = Some (Sca w).
+    Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
 
     Lemma find_Some_add_remove_many : 
       forall k ks ins outs h v, 
@@ -929,7 +924,7 @@ Module Make (Import A : ADT).
 
     set (cinput := List.map (Semantics.ADTIn (ADTValue:=ADTValue)) triples) in *.
     set (coutput := List.map (Semantics.ADTOut (ADTValue:=ADTValue)) triples) in *.
-    set (cwords := List.map (Semantics.Word (ADTValue:=ADTValue)) triples) in *.
+    set (words := List.map (Semantics.Word (ADTValue:=ADTValue)) triples) in *.
     set (cinput_coutput := List.map (fun x => (Semantics.ADTIn x, Semantics.ADTOut x)) triples) in *.
     set (words_cinput := List.map (fun x => (Semantics.Word x, Semantics.ADTIn x)) triples) in *.
     assert (input = List.map CitoIn_FacadeIn cinput) by admit.
@@ -945,7 +940,60 @@ Module Make (Import A : ADT).
     eauto.
     simpl.
     eauto.
-    rewrite map_length.
+    instantiate (1 := coutput).
+    unfold_all.
+    repeat rewrite map_length; eauto.
+    simpl.
+    assert (combine (List.map CitoIn_FacadeIn cinput) coutput = List.map CitoInOut_FacadeInOut cinput_coutput) by admit.
+    unfold Semantics.ArgOut in *.
+    unfold Value in *.
+    rewrite H6.
+    eauto.
+    reflexivity.
+
+    Import Semantics.
+    Fixpoint make_triples pairs (outs : list (ArgOut ADTValue)) :=
+      match pairs, outs with
+        | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
+        | _, _ => nil
+      end.
+    assert (triples = make_triples words_cinput coutput) by admit.
+
+    Definition no_alias (words_cinput : list (W * ArgIn ADTValue)) := ~ exists i j ti tj (ai aj : ADTValue), i <> j /\ nth_error words_cinput i = Some ti /\ nth_error words_cinput j = Some tj /\ fst ti = fst tj /\ snd ti = inr ai /\ snd tj = inr aj.
+    assert (no_alias words_cinput) by admit.
+
+    split.
+    rewrite H5.
+    set (h1 := h123 - h23) in *.
+    destruct ret; simpl in *.
+    unfold Submap.
+    intros p a Hf.
+    eapply find_mapsto_iff in Hf.
+    eapply diff_mapsto_iff in Hf.
+    openhyp.
+    (*here*)
+    Definition not_reachable_p p words_cinput := forall t, List.In t triples -> Word t = p -> exists w, @ADTIn ADTValue t = inl w.
+
+    Lemma find_Some_fold_store_out : 
+      forall p a triples h, 
+        no_alias triples -> 
+        (find p (List.fold_left (@store_out ADTValue) triples h) = Some a <-> 
+         ((not_reachable_p p triples /\ find p h = Some a) \/ 
+          exists t input, 
+            List.In t triples /\
+            Word t = p /\ 
+            ADTIn t = inr input /\ 
+            ADTOut t = Some a)).
+      admit.
+    Qed.
+
+    eapply find_Some_fold_store_out.
+    eauto.
+    left.
+    eapply find_mapsto_iff in H9.
+    split.
+
+
 
     (*here*)
     admit.
