@@ -481,8 +481,10 @@ Module M.
   ).
 
   Theorem Wf : wf ts pr buf_size outbuf_size.
+    (* Proof commented out by default, because of its large RAM requirement.
     wf.
-  Qed.
+  Qed.*)
+  Admitted.
 
   Definition port : W := 11311%N.
   Definition numWorkers : W := 10.
