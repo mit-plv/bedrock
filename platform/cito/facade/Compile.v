@@ -957,42 +957,197 @@ Module Make (Import A : ADT).
         | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
         | _, _ => nil
       end.
-    assert (triples = make_triples words_cinput coutput) by admit.
-
-    Definition no_alias (words_cinput : list (W * ArgIn ADTValue)) := ~ exists i j ti tj (ai aj : ADTValue), i <> j /\ nth_error words_cinput i = Some ti /\ nth_error words_cinput j = Some tj /\ fst ti = fst tj /\ snd ti = inr ai /\ snd tj = inr aj.
+    Definition no_alias (words_cinput : list (W * ArgIn ADTValue)) := ~ exists i j ei ej (ai aj : ADTValue), i <> j /\ nth_error words_cinput i = Some ei /\ nth_error words_cinput j = Some ej /\ fst ei = fst ej /\ snd ei = inr ai /\ snd ej = inr aj.
     assert (no_alias words_cinput) by admit.
-
-    split.
-    rewrite H5.
+    assert (words_cinput = combine words cinput) by admit.
     set (h1 := h123 - h23) in *.
-    destruct ret; simpl in *.
+    rename s into lhs.
+    rename e into e_f.
+
+    assert (h1 <= fold_left (store_out (ADTValue:=ADTValue)) triples h123).
     unfold Submap.
     intros p a Hf.
     eapply find_mapsto_iff in Hf.
     eapply diff_mapsto_iff in Hf.
     openhyp.
-    (*here*)
-    Definition not_reachable_p p words_cinput := forall t, List.In t triples -> Word t = p -> exists w, @ADTIn ADTValue t = inl w.
+    Definition not_reachable_p p (words_cinput : list (W * ArgIn ADTValue)) := forall e, List.In e words_cinput -> fst e = p -> exists w, snd e = inl w.
 
+    Lemma split_triples : forall triples words_cinput coutput, words_cinput = List.map (fun x => (Word x, ADTIn x)) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples words_cinput coutput.
+      admit.
+    Qed.
+    rewrite (@split_triples triples words_cinput coutput) by eauto.
     Lemma find_Some_fold_store_out : 
-      forall p a triples h, 
-        no_alias triples -> 
-        (find p (List.fold_left (@store_out ADTValue) triples h) = Some a <-> 
-         ((not_reachable_p p triples /\ find p h = Some a) \/ 
-          exists t input, 
-            List.In t triples /\
-            Word t = p /\ 
-            ADTIn t = inr input /\ 
-            ADTOut t = Some a)).
+      forall p a words_cinput coutput h, 
+        no_alias words_cinput -> 
+        length words_cinput = length coutput ->
+        (find p (List.fold_left (@store_out ADTValue) (make_triples words_cinput coutput) h) = Some a <-> 
+         ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
+          exists i input, 
+            nth_error words_cinput i = Some (p, inr input) /\
+            nth_error coutput i = Some (Some a))).
       admit.
     Qed.
 
     eapply find_Some_fold_store_out.
     eauto.
+    unfold_all; repeat rewrite map_length; eauto.
     left.
-    eapply find_mapsto_iff in H9.
+    eapply find_mapsto_iff in H13.
     split.
+    Lemma not_in_not_reachable_p : 
+      forall st vs h args words cinput p, 
+        related st (vs, h) -> 
+        List.map (fun x => vs x) args = words -> 
+        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        ~ In p h ->
+        not_reachable_p p (combine words cinput).
+      admit.
+    Qed.
+    rewrite H9.
+    eapply not_in_not_reachable_p; eauto.
+    solve [eauto].
 
+    split.
+    (* h1 <= heap' *)
+    rewrite H5.
+    destruct ret; simpl in *.
+    eauto.
+    unfold separated in H4; simpl in *.
+    openhyp.
+    discriminate.
+    Lemma add_new_submap : forall elt k (v : elt) m, ~ In k m -> m <= add k v m.
+      admit.
+    Qed.
+    eapply submap_trans.
+    eauto.
+    solve [eapply add_new_submap; eauto].
+
+    split.
+    (* no illegal local variable overwrite *)
+    intros.
+    eapply singleton_iff_not in H15.
+    rewrite Locals.sel_upd_ne by eauto.
+    solve [eauto].
+
+    split.
+    (* newly allocated objects won't sabotage frame heap *)
+    intros.
+    destruct (string_dec x lhs).
+    (* x = lhs *)
+    rewrite e in *.
+    rewrite Locals.sel_upd_eq by eauto.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    destruct ret; simpl in *.
+    discriminate.
+    inject H18.
+    unfold separated in H4; simpl in *.
+    openhyp.
+    discriminate.
+    solve [eapply submap_not_in; eauto].
+    (* x <> lhs *)
+    rewrite Locals.sel_upd_ne by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    contradict H15.
+    eapply In_add_remove_many; eauto.
+    eapply StringMapFacts.MapsTo_In.
+    solve [eapply StringMapFacts.find_mapsto_iff; eauto].
+
+    (* related *)
+    unfold related; simpl.
+    split.
+    (* related (1) *)
+    intros x v Hf.
+    destruct (string_dec x lhs).
+    (* x = lhs *)
+    rewrite e in *.
+    rewrite Locals.sel_upd_eq by eauto.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    inject Hf.
+    destruct ret; simpl in *.
+    eauto.
+    eapply find_mapsto_iff.
+    eapply diff_mapsto_iff.
+    split.
+    rewrite H5.
+    eapply add_mapsto_iff.
+    left; eauto.
+    unfold separated in H4; simpl in *.
+    openhyp.
+    discriminate.
+    solve [eapply submap_not_in; eauto].
+    (* x <> lhs *)
+    rewrite Locals.sel_upd_ne by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply find_Some_add_remove_many in Hf.
+    openhyp.
+    (* not_reachable *)
+    unfold_related H8.
+    eapply H8 in H18.
+    set (p := Locals.sel vs x) in *.
+    destruct v; simpl in *.
+    eauto.
+    eapply find_mapsto_iff.
+    eapply diff_mapsto_iff.
+    split.
+    rewrite H5.
+    eapply find_mapsto_iff.
+    assert (not_reachable_p p words_cinput).
+
+    rewrite H9.
+    Lemma not_reachable_p_iff : 
+      forall st vs h args words cinput x, 
+        related st (vs, h) -> 
+        NoDup args ->
+        List.map (fun x => vs x) args = words -> 
+        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        let p := Locals.sel vs x in
+        (not_reachable_p p (combine words cinput) <-> not_reachable x args (List.map CitoIn_FacadeIn cinput)).
+      admit.
+    Qed.
+    eapply not_reachable_p_iff; eauto.
+    (* ret is None *)
+    destruct ret; simpl in *.
+    rewrite (@split_triples triples words_cinput coutput) by eauto.
+    eapply find_Some_fold_store_out.
+    eauto.
+    unfold_all; repeat rewrite map_length; eauto.
+    left.
+    split.
+    eauto.
+    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
+      unfold Submap; eauto.
+    Qed.
+    solve [eapply submap_find; eauto].
+
+    (* ret is Some *)
+    unfold separated in H4; simpl in *.
+    openhyp.
+    discriminate.
+    Require Import Word.
+    destruct (weq p addr).
+    rewrite e in *.
+    contradict H4.
+    eapply MapsTo_In.
+    eapply find_mapsto_iff.
+    rewrite (@split_triples triples words_cinput coutput) by eauto.
+    Lemma not_reachable_p_store_out : forall p words_cinput coutput h, not_reachable_p p words_cinput -> find p (fold_left (@store_out _) (make_triples words_cinput coutput) h) = find p h.
+      admit.
+    Qed.
+    rewrite not_reachable_p_store_out by eauto.
+    solve [eapply submap_find; eauto].
+    rewrite add_neq_o by eauto.
+    rewrite (@split_triples triples words_cinput coutput) by eauto.
+    rewrite not_reachable_p_store_out by eauto.
+    solve [eapply submap_find; eauto].
+    
+    eapply Disjoint_in_not.
+    Lemma Disjoint_diff : forall elt m1 m2, @Disjoint elt m1 (m2 - m1).
+      admit.
+    Qed.
+    eapply Disjoint_diff; eauto.
+    eapply find_Some_in; eauto.
+
+    (* reachable *)
 
 
     (*here*)
