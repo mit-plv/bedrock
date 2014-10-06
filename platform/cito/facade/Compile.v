@@ -1107,17 +1107,42 @@ Module Make (Import A : ADT).
     (* x <> lhs *)
     rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
+    destruct v; simpl in *.
+
+    (* v is scalar *)
     eapply find_Some_add_remove_many in Hf.
     openhyp.
+    unfold_related H8.
+    eapply H8 in H21; simpl in *.
+    eauto.
+    Lemma wrap_output_not_sca : forall coutput i w, nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
+      admit.
+    Qed.
+    contradict H22.
+    eapply wrap_output_not_sca; eauto.
+    solve [eauto].
+    solve [unfold_all; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+
+    (* v is ADT object *)
+    eapply diff_find_Some_iff.
+    split.
+    Focus 2.
+    eapply find_Some_add_remove_many in Hf.
+    openhyp.
+    unfold_related H8.
+    eapply H8 in H21; simpl in *.
+    eapply Disjoint_in_not; solve [eapply Disjoint_sym; eauto | eapply find_Some_in; eauto].
+    (*here*)
+
+    rewrite H5.
+    eapply find_Some_add_remove_many in Hf.
+    openhyp.
+
     (* not_reachable *)
     unfold_related H8.
     eapply H8 in H21.
     set (p := Locals.sel vs x) in *.
-    destruct v; simpl in *.
-    eauto.
-    eapply diff_find_Some_iff.
-    split.
-    rewrite H5.
     assert (not_reachable_p p words_cinput).
 
     rewrite H9.
@@ -1171,13 +1196,8 @@ Module Make (Import A : ADT).
 
     (* reachable *)
     rename x0 into i.
+    rename a into a'.
     rename x1 into a.
-    destruct v; simpl in *.
-    Lemma wrap_output_not_sca : forall coutput i w, nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
-      admit.
-    Qed.
-    contradict H22.
-    eapply wrap_output_not_sca; eauto.
     Lemma nth_error_map : forall A B (f : A -> B) ls i b, nth_error (List.map f ls) i = Some b -> exists a, nth_error ls i = Some a /\ f a = b.
       admit.
     Qed.
@@ -1190,7 +1210,6 @@ Module Make (Import A : ADT).
     destruct x1; simpl in *.
     2 : discriminate.
     inject H22.
-    rename a0 into a'.
     destruct x0; simpl in *.
     discriminate.
     inject H20.
