@@ -1089,6 +1089,10 @@ Module Make (Import A : ADT).
       f_equal; auto.
     Qed.
 
+    Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
+      admit.
+    Qed.
+
     Lemma fold_fwd : 
       forall k (v : ADTValue) ls h,
         WordMap.MapsTo k v (fold_left store_out ls h) -> 
@@ -1143,9 +1147,11 @@ Module Make (Import A : ADT).
       eapply Locals.nth_error_In in Ht.
       solve [eapply Hnr in Ht; intuition].
       solve [eauto].
-      
-      (*here*)
-      admit.
+
+      right.
+      eapply in_nth_error in Hin.
+      destruct Hin as [i Ht].
+      repeat eexists; eauto.
     Qed.
 
     Lemma fold_store_out_intro p a triples words_cinput coutput h :
@@ -1157,6 +1163,7 @@ Module Make (Import A : ADT).
        exists i input, nth_error triples i = Some {| Word := p; ADTIn := inr input; ADTOut := Some a |}) ->
       find p (List.fold_left store_out triples h) = Some a.
     Proof.
+      (*here*)
       admit.
     Qed.
 
