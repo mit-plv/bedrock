@@ -1243,7 +1243,7 @@ module Bedrock = struct
 	(*   debug_type_gl gl x (string_of_int !i); incr i *)
 	(* ) l in  *)
 	let l = List.map carg l  in
-	ltac_apply k l gl
+	Proofview.V82.of_tactic (ltac_apply k l) gl
       )
 
     let sym_eval_sep gl types funcs preds pures rp sp rv  st sf k =
@@ -1287,7 +1287,7 @@ module Bedrock = struct
 	  debug_type_gl gl x (string_of_int !i); incr i
 	) l in
 	let l = List.map carg l  in
-	ltac_apply k l gl
+	Proofview.V82.of_tactic (ltac_apply k l) gl
       )
 
     (* hump cs l r *)
@@ -1318,7 +1318,7 @@ module Bedrock = struct
 	  debug_type_gl gl x (string_of_int !i); incr i
 	) l in
 	let l = List.map carg l  in
-	ltac_apply k l gl)
+	Proofview.V82.of_tactic (ltac_apply k l) gl)
 
 end
 
@@ -1336,7 +1336,7 @@ let reify_application gl term k =
       let types = Extlib.List.of_list t types in
       begin
 	try
-	  ltac_apply k [carg f; carg types; carg args] gl
+	  Proofview.V82.of_tactic (ltac_apply k [carg f; carg types; carg args]) gl
 	with
 	    _ -> Errors.anomaly (Pp.str "ltac apply failed")
       end
@@ -1346,7 +1346,7 @@ let reify_application gl term k =
 TACTIC EXTEND start_timer
     | ["refl_app_cps" constr(term)  tactic(k)  ] ->
       [
-	fun gl ->reify_application gl term k
+	Proofview.V82.tactic (fun gl ->reify_application gl term k)
       ]
 	END;;
 
@@ -1354,7 +1354,8 @@ TACTIC EXTEND start_timer
 TACTIC EXTEND plugin_
     | ["reify_expr" constr(e)  ] ->
       [
-	fun gl ->
+	Proofview.V82.tactic
+	  begin fun gl ->
 	  let renv = Bedrock.Renv.empty in
 	  let env = Tacmach.pf_env gl in
 	  let evar = Tacmach.project gl in
@@ -1367,6 +1368,7 @@ TACTIC EXTEND plugin_
 
 	    Tacticals.tclIDTAC gl
 	  )
+	  end
       ]
 	END;;
 
@@ -1376,6 +1378,7 @@ TACTIC EXTEND plugin_
 TACTIC EXTEND plugin_2
     | ["reify_sexpr" constr(e)  ] ->
       [
+	Proofview.V82.tactic begin
 	fun gl ->
 	  let renv = Bedrock.Renv.empty in
 	  let env = Tacmach.pf_env gl in
@@ -1386,34 +1389,35 @@ TACTIC EXTEND plugin_2
 	  Bedrock.Renv.pose gl renv (fun types funcs preds uvars gl ->
 	    Tacticals.tclIDTAC gl
 	  )
+	  end
       ]
 END;;
 
 TACTIC EXTEND plugin_3
-    | ["build_path_plugin" constr(l) constr(st)] -> [fun gl ->
-      Bedrock.SymIL.reify gl l st						    ]
+    | ["build_path_plugin" constr(l) constr(st)] -> [Proofview.V82.tactic (fun gl ->
+      Bedrock.SymIL.reify gl l st)						    ]
 END;;
 
 TACTIC EXTEND plugin_4
   | ["sym_eval_nosep" constr(types) constr(funcs) constr(preds) constr(pures) constr(rp) constr(sp) constr(rv) constr(st) tactic(k)] ->
-    [fun gl ->
-      Bedrock.sym_eval_nosep gl types funcs preds pures rp sp rv st k
+    [Proofview.V82.tactic (fun gl ->
+      Bedrock.sym_eval_nosep gl types funcs preds pures rp sp rv st k)
     ]
 END;;
 
 TACTIC EXTEND plugin_5
   | ["sym_eval_sep" constr(types) constr(funcs) constr(preds) constr(pures) constr(rp) constr(sp) constr(rv) constr(st) constr(sf) tactic(k)] ->
-    [fun gl ->
+    [Proofview.V82.tactic (fun gl ->
       (* ltac_apply k [carg f; carg types; carg args] *)
-      Bedrock.sym_eval_sep gl types funcs preds pures rp sp rv st sf k
+      Bedrock.sym_eval_sep gl types funcs preds pures rp sp rv st sf k)
     ]
 END;;
 
 
 TACTIC EXTEND plugin_6
   | ["sep_canceler_plugin" constr(types) constr(funcs) constr(preds) constr(pures) constr(l) constr(r) tactic(k)] ->
-    [fun gl ->
+    [Proofview.V82.tactic (fun gl ->
       (* ltac_apply k [carg f; carg types; carg args] *)
-      Bedrock.sep_canceler gl types funcs preds pures l r k
+      Bedrock.sep_canceler gl types funcs preds pures l r k)
     ]
 END;;

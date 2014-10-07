@@ -30,7 +30,7 @@ let cps_mk_letin
   fun goal ->
     let name = (Names.id_of_string name) in
     let name =  Tactics.fresh_id [] name goal in
-    let letin = (Tactics.letin_tac None  (Name name) c None nowhere) in
+    let letin = Proofview.V82.of_tactic (Tactics.letin_tac None  (Name name) c None nowhere) in
       Tacticals.tclTHEN letin (k (mkVar name)) goal
 
 (** {2 General functions}  *)
