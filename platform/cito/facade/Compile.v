@@ -540,27 +540,26 @@ Module Make (Import A : ADT).
     eauto.
 
     rewrite map_map in H0; simpl in *.
-    Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i a, List.map f ls1 = ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = b.
+    Lemma map_nth_error_1 : forall A B (f : A -> B) ls1 ls2 i a, List.map f ls1 = ls2 -> nth_error ls1 i = Some a -> nth_error ls2 i = Some (f a).
       intros.
-      eexists.
       rewrite <- H.
       erewrite map_nth_error; eauto.
     Qed.
-    Lemma nth_error_map : forall A B (f : A -> B) ls i b, nth_error (List.map f ls) i = Some b -> exists a, nth_error ls i = Some a /\ f a = b.
+    Lemma nth_error_map_elim : forall A B (f : A -> B) ls i b, nth_error (List.map f ls) i = Some b -> exists a, nth_error ls i = Some a /\ f a = b.
       intros.
       rewrite ListFacts.map_nth_error_full in H.
       destruct (option_dec (nth_error ls i)).
       destruct s; rewrite e in *; inject H; eexists; eauto.
       rewrite e in *; discriminate.
     Qed.
-    Lemma map_eq : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1, List.map f1 ls1 = List.map f2 ls2 -> nth_error ls1 i = Some a1 -> exists a2, nth_error ls2 i = Some a2 /\ f1 a1 = f2 a2.
+    Lemma map_eq_nth_error_1 : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1, List.map f1 ls1 = List.map f2 ls2 -> nth_error ls1 i = Some a1 -> exists a2, nth_error ls2 i = Some a2 /\ f1 a1 = f2 a2.
       intros.
-      eapply map_nth_error_2 in H; eauto; openhyp; subst.
-      eapply nth_error_map in H; openhyp.
+      eapply map_nth_error_1 in H; eauto.
+      eapply nth_error_map_elim in H; openhyp.
       eexists; eauto.
     Qed.
     symmetry in H0.
-    eapply map_eq in H0; [ | eauto ..].
+    eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
     rewrite H25.
@@ -755,7 +754,7 @@ Module Make (Import A : ADT).
     (* reachable *)
     rewrite map_map in H0; simpl in *.
     symmetry in H0.
-    eapply map_eq in H0; [ | eauto ..].
+    eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
     erewrite map_nth_error in H43 by eauto.
@@ -785,17 +784,17 @@ Module Make (Import A : ADT).
     (* x3 is an arg referring to an ADT object (i.e. p is the address of an output ADT object, not the returned ADT object) *)
     rewrite map_map in H0; simpl in *.
     Ltac copy_as h h' := generalize h; intro h'.
-    copy_as H0 H00; eapply map_eq in H0; [ | eauto ..].
+    copy_as H0 H00; eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     rename x1 into i.
     rename x4 into arg.
     destruct (string_dec arg lhs).
     subst.
     contradict H12.
-    Lemma mapM_Some : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+    Lemma mapM_nth_error_2 : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
       admit.
     Qed.
-    eapply mapM_Some in H11; [ | eauto].
+    eapply mapM_nth_error_2 in H11; [ | eauto].
     openhyp.
     unfold StringMap.key in *.
     rewrite H0 in H11.
@@ -875,7 +874,7 @@ Module Make (Import A : ADT).
     (* reachable *)
     rename x1 into i'.
     symmetry in H00.
-    eapply map_eq in H00; [ | eauto ..].
+    eapply map_eq_nth_error_1 in H00; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
     erewrite map_nth_error in H48 by eauto.
@@ -1031,7 +1030,7 @@ Module Make (Import A : ADT).
     Qed.
     eapply diff_find_Some_iff in Hf.
     openhyp.
-    Definition not_reachable_p p (words_cinput : list (W * ArgIn ADTValue)) := forall e, List.In e words_cinput -> fst e = p -> exists w, snd e = inl w.
+    Definition not_reachable_p p (words_cinput : list (W * ArgIn ADTValue)) := forall i v, nth_error words_cinput i = Some (p, v) -> exists w, v = inl w.
 
     Lemma split_triples : forall triples words_cinput coutput, words_cinput = List.map (fun x => (Word x, ADTIn x)) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples words_cinput coutput.
       admit.
@@ -1118,6 +1117,8 @@ Module Make (Import A : ADT).
         | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
       end.
 
+    Ltac subst' H := rewrite H in *; clear H.
+
     Lemma split_triples' : forall triples words cinput coutput, words = List.map (@Word _) triples -> cinput = List.map (@ADTIn _) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples (combine words cinput) coutput.
       admit.
     Qed.
@@ -1131,15 +1132,85 @@ Module Make (Import A : ADT).
       admit.
     Qed.
 
-    Lemma not_reachable_p_iff st vs h args words cinput x :
+    Lemma mapM_nth_error_1 : forall A B (f : A -> option B) ls1 ls2 i a, mapM f ls1 = Some ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = Some b.
+      admit.
+    Qed.
+
+    Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
+      admit.
+    Qed.
+
+    Lemma not_reachable_p_not_reachable st vs args words cinput x :
+        List.map (fun x => vs x) args = words -> 
+        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        not_reachable_p (vs x) (combine words cinput) -> 
+        not_reachable x args (List.map CitoIn_FacadeIn cinput).
+    Proof.
+      intros Hm Hmm.
+      intros Hnr; unfold not_reachable_p, not_reachable in *.
+      intros i Hi.
+      eapply map_nth_error_1 in Hm; eauto.
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      openhyp; rename x0 into v.
+      eapply nth_error_map_elim in H.
+      openhyp; subst; rename x0 into cv.
+      set (p := vs x) in *.
+      edestruct Hnr.
+      eapply nth_error_combine; eauto.
+      subst; rename x0 into w.
+      exists w.
+      erewrite map_nth_error; eauto; eauto.
+    Qed.
+
+    Lemma related_no_alias : forall st vs h x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> Locals.sel vs x1 = Locals.sel vs x2 -> x1 = x2.
+    Proof.
+      intros.
+      unfold_related H.
+      copy H0; eapply H in H0; simpl in *.
+      copy H1; eapply H in H1; simpl in *.
+      rewrite H2 in *.
+      rewrite H0 in H1; inject H1.
+      eapply H4 in H0; openhyp'.
+      assert (x = x1) by (eapply H1; eauto).
+      assert (x = x2) by (eapply H1; eauto).
+      eauto.
+    Qed.
+
+    Lemma not_reachable_not_reachable_p st vs h args words cinput x a :
         related st (vs, h) -> 
         NoDup args ->
         List.map (fun x => vs x) args = words -> 
         mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
-        let p := Locals.sel vs x in
-        (not_reachable_p p (combine words cinput) <-> not_reachable x args (List.map CitoIn_FacadeIn cinput)).
+        StringMap.find x st = Some (ADT a) ->
+        not_reachable x args (List.map CitoIn_FacadeIn cinput) ->
+        not_reachable_p (vs x) (combine words cinput).
     Proof.
-      admit.
+      intros Hr Hnd Hm Hmm Hf.
+      intros Hnr; unfold not_reachable_p, not_reachable in *.
+      intros i v Hi.
+      eapply nth_error_combine_elim in Hi.
+      openhyp.
+      eapply map_nth_error_2 in Hm; eauto.
+      openhyp; subst.
+      rename x0 into x'.
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      openhyp; subst.
+      rename x0 into v'.
+      eapply nth_error_map_elim in H3.
+      openhyp; subst.
+      unfold Cito.ArgIn in *.
+      unif x0.
+      destruct v; simpl in *.
+      eexists; eauto.
+      assert (x = x').
+      eapply related_no_alias; eauto.
+      subst.
+      eapply Hnr in H1.
+      openhyp; subst.
+      eapply nth_error_map_elim in H1.
+      openhyp; subst.
+      unif x0.
+      simpl in *; discriminate.
     Qed.
 
     Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
@@ -1181,7 +1252,7 @@ Module Make (Import A : ADT).
 
       (* not_reachable *)
       unfold_related Hr.
-      eapply H1 in H0; simpl in *.
+      copy_as H0 H00; eapply H1 in H0; simpl in *.
       eapply diff_find_Some_iff.
       split.
 
@@ -1190,7 +1261,7 @@ Module Make (Import A : ADT).
       solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
       left.
       split.
-      subst; eapply not_reachable_p_iff; eauto.
+      subst; eapply not_reachable_not_reachable_p; eauto.
       solve [subst; eauto].
 
       subst; eapply Disjoint_in_not.
@@ -1201,21 +1272,21 @@ Module Make (Import A : ADT).
       rename x0 into i.
       rename a into a'.
       rename x1 into a.
-      eapply mapM_Some in Hmm; eauto; openhyp.
+      eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
       unif x0.
-      eapply nth_error_map in H0; openhyp.
+      eapply nth_error_map_elim in H0; openhyp.
       destruct x0; simpl in *.
       discriminate.
       inject H2.
-      eapply nth_error_map in H0; openhyp.
+      eapply nth_error_map_elim in H0; openhyp.
       destruct x0; simpl in *; subst.
-      unfold wrap_output in H1; eapply nth_error_map in H1; openhyp.
+      unfold wrap_output in H1; eapply nth_error_map_elim in H1; openhyp.
       destruct x0; simpl in *.
       2 : discriminate.
       inject H2.
-      eapply nth_error_map in H1; openhyp.
+      eapply nth_error_map_elim in H1; openhyp.
       unif x0; simpl in *; subst.
-      eapply map_eq in Hm; [ | eauto ..]; openhyp.
+      eapply map_eq_nth_error_1 in Hm; [ | eauto ..]; openhyp.
       unif x0; simpl in *; subst.
 
       unfold_related Hr.
@@ -1263,7 +1334,7 @@ Module Make (Import A : ADT).
       solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
       left.
       split.
-      subst; eapply not_reachable_p_iff; eauto.
+      subst; eapply not_reachable_p_not_reachable; eauto.
       solve [eauto].
 
       (* p is the address of an output ADT object (but not the returned ADT object) *)
@@ -1271,17 +1342,17 @@ Module Make (Import A : ADT).
       rename x0 into a0.
       eapply nth_error_combine_elim in H; openhyp.
       subst.
-      eapply nth_error_map in H; openhyp.
+      eapply nth_error_map_elim in H; openhyp.
       destruct x; simpl in *; subst.
-      eapply nth_error_map in H2; openhyp.
+      eapply nth_error_map_elim in H2; openhyp.
       unif x; simpl in *; subst.
-      eapply nth_error_map in H1; openhyp.
+      eapply nth_error_map_elim in H1; openhyp.
       unif x; simpl in *; subst.
-      eapply mapM_Some in Hmm.
+      eapply mapM_nth_error_2 in Hmm.
       2 : solve [repeat eapply map_nth_error; eauto].
       simpl in *.
       openhyp.
-      copy_as Hm Hm'; eapply map_eq in Hm'; [ | eauto ..]; openhyp.
+      copy_as Hm Hm'; eapply map_eq_nth_error_1 in Hm'; [ | eauto ..]; openhyp.
       unif x0; simpl in *; subst.
       exists x.
       split.
@@ -1323,8 +1394,6 @@ Module Make (Import A : ADT).
       intros.
       eapply add_remove_many_fold_store_out_iff; eauto.
     Qed.
-
-    Ltac subst' H := rewrite H in *; clear H.
 
     (* related *)
     unfold related; simpl.
@@ -1408,20 +1477,6 @@ Module Make (Import A : ADT).
     rewrite find_ret_doesn't_matter by eauto.
     solve [eapply add_remove_many_fold_store_out in Hf; eauto].
 
-    Lemma related_no_alias : forall st vs h x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> Locals.sel vs x1 = Locals.sel vs x2 -> x1 = x2.
-    Proof.
-      intros.
-      unfold_related H.
-      copy H0; eapply H in H0; simpl in *.
-      copy H1; eapply H in H1; simpl in *.
-      rewrite H2 in *.
-      rewrite H0 in H1; inject H1.
-      eapply H4 in H0; openhyp'.
-      assert (x = x1) by (eapply H1; eauto).
-      assert (x = x2) by (eapply H1; eauto).
-      eauto.
-    Qed.
-
     (* related (2) *)
     intros.
     rewrite H5 in H18.
@@ -1477,7 +1532,7 @@ Module Make (Import A : ADT).
       2 : eapply mapM_length; eauto.
       openhyp.
       eexists; eauto.
-      eapply mapM_Some in Hmm; eauto; openhyp.
+      eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
       unif x1.
       eexists; eauto.
     Qed.
