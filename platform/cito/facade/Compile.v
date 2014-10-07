@@ -1118,14 +1118,27 @@ Module Make (Import A : ADT).
         | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
       end.
 
-    Lemma not_reachable_p_iff : 
-      forall st vs h args words cinput x, 
+    Lemma split_triples' : forall triples words cinput coutput, words = List.map (@Word _) triples -> cinput = List.map (@ADTIn _) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples (combine words cinput) coutput.
+      admit.
+    Qed.
+    Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
+      admit.
+    Qed.
+    Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
+      admit.
+    Qed.
+    Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
+      admit.
+    Qed.
+
+    Lemma not_reachable_p_iff st vs h args words cinput x :
         related st (vs, h) -> 
         NoDup args ->
         List.map (fun x => vs x) args = words -> 
         mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
         let p := Locals.sel vs x in
         (not_reachable_p p (combine words cinput) <-> not_reachable x args (List.map CitoIn_FacadeIn cinput)).
+    Proof.
       admit.
     Qed.
 
@@ -1153,10 +1166,6 @@ Module Make (Import A : ADT).
          find p (h' - h1) = Some a).
     Proof.
       intros st vs h2 args triples words cinput coutput input h h' p a Hr Hnd Hw Hci Hco Hi Hm Hmm Hsm2 h1 He Hsm1'.
-      Lemma split_triples' : forall triples words cinput coutput, words = List.map (@Word _) triples -> cinput = List.map (@ADTIn _) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples (combine words cinput) coutput.
-        admit.
-      Qed.
-
       assert (Hna : no_alias (combine words cinput)) by (eapply NoDup_no_alias; eauto).
       assert (Hsm1 : h1 <= h) by eapply diff_submap.
       assert (Hd : Disjoint h1 h2) by eapply Disjoint_diff.
@@ -1177,9 +1186,6 @@ Module Make (Import A : ADT).
       split.
 
       eapply find_Some_fold_store_out.
-      Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
-        admit.
-      Qed.
       solve [eauto].
       solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
       left.
@@ -1225,9 +1231,6 @@ Module Make (Import A : ADT).
       unfold Locals.sel in *.
       split.
 
-      Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
-        admit.
-      Qed.
       solve [erewrite nth_error_combine; eauto; erewrite map_nth_error by eauto; simpl; eauto].
       solve [erewrite map_nth_error by eauto; simpl; eauto].
 
@@ -1266,9 +1269,6 @@ Module Make (Import A : ADT).
       (* p is the address of an output ADT object (but not the returned ADT object) *)
       rename x into i.
       rename x0 into a0.
-      Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
-        admit.
-      Qed.
       eapply nth_error_combine_elim in H; openhyp.
       subst.
       eapply nth_error_map in H; openhyp.
@@ -1324,6 +1324,8 @@ Module Make (Import A : ADT).
       eapply add_remove_many_fold_store_out_iff; eauto.
     Qed.
 
+    Ltac subst' H := rewrite H in *; clear H.
+
     (* related *)
     unfold related; simpl.
     split.
@@ -1331,18 +1333,16 @@ Module Make (Import A : ADT).
     intros x v Hf.
     destruct (string_dec x lhs).
     (* x = lhs *)
-    rewrite e in *.
-    rewrite Locals.sel_upd_eq by eauto.
+    subst' e.
+    rewrite H5.
+    rewrite Locals.sel_upd_eq in * by eauto; simpl.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     inject Hf.
     destruct ret; simpl in *.
     eauto.
     eapply diff_find_Some_iff.
     split.
-    rewrite H5.
-    eapply find_mapsto_iff.
-    eapply add_mapsto_iff.
-    left; eauto.
+    solve [rewrite add_eq_o in * by eauto; eauto].
     unfold separated in H4; simpl in *.
     openhyp.
     discriminate.
@@ -1359,8 +1359,14 @@ Module Make (Import A : ADT).
     unfold_related H8.
     eapply H8 in H21; simpl in *.
     eauto.
-    Lemma wrap_output_not_sca : forall coutput i w, nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
-      admit.
+    Lemma wrap_output_not_sca coutput i w : nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
+    Proof.
+      unfold wrap_output.
+      rewrite ListFacts.map_nth_error_full.
+      destruct (option_dec (nth_error coutput i)) as [s | e]; simpl in *.
+      destruct s as [a e]; rewrite e in *; simpl in *.
+      destruct a; simpl in *; discriminate.
+      rewrite e in *; discriminate.
     Qed.
     contradict H22.
     eapply wrap_output_not_sca; eauto.
@@ -1373,11 +1379,14 @@ Module Make (Import A : ADT).
 
     Definition ret_doesn't_matter (p addr : W) (ret : Ret ADTValue) := p <> addr \/ exists w, ret = inl w.
     Definition p_addr_ret_dec (p addr : W) (ret : Ret ADTValue) : { a : ADTValue | ret = inr a /\ p = addr} + {ret_doesn't_matter p addr ret}.
-      admit.
+      destruct ret.
+      right; right; eexists; eauto.
+      destruct (Word.weq p addr).
+      left; eexists; eauto.
+      right; left; eauto.
     Defined.
     destruct (p_addr_ret_dec (Locals.sel vs x) addr ret).
-    destruct s.
-    openhyp.
+    destruct s; openhyp.
     subst; simpl in *.
     unfold separated in H4; simpl in *.
     openhyp.
@@ -1386,12 +1395,18 @@ Module Make (Import A : ADT).
     Hint Extern 0 (_ == _) => reflexivity.
     eapply add_remove_many_fold_store_out in Hf; eauto.
     eapply diff_find_Some_iff in Hf; openhyp.
-    eapply find_Some_in; eauto.
+    solve [eapply find_Some_in; eauto].
 
-    Lemma find_ret_doesn't_matter : forall p addr ret triples h h1, ret_doesn't_matter p addr ret -> find p (heap_upd_option (fold_left (@store_out _) triples h) (fst (decide_ret addr ret)) (snd (decide_ret addr ret)) - h1) = find p (fold_left (@store_out _) triples h - h1).
-      admit.
+    Lemma find_ret_doesn't_matter p addr ret triples h h1 : ret_doesn't_matter p addr ret -> find p (heap_upd_option (fold_left (@store_out _) triples h) (fst (decide_ret addr ret)) (snd (decide_ret addr ret)) - h1) = find p (fold_left (@store_out _) triples h - h1).
+    Proof.
+      intros Hdm; destruct Hdm.
+      2 : solve [openhyp; subst; simpl; eauto].
+      destruct ret; simpl in *.
+      solve [openhyp; subst; simpl; eauto].
+      solve [eapply option_univalence; intros v; split; intros Hf; eapply diff_find_Some_iff in Hf; eapply diff_find_Some_iff; rewrite add_neq_o in *; eauto].
     Qed.
     rewrite find_ret_doesn't_matter by eauto.
+    solve [eapply add_remove_many_fold_store_out in Hf; eauto].
 
     Lemma related_no_alias : forall st vs h x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> Locals.sel vs x1 = Locals.sel vs x2 -> x1 = x2.
     Proof.
@@ -1406,8 +1421,6 @@ Module Make (Import A : ADT).
       assert (x = x2) by (eapply H1; eauto).
       eauto.
     Qed.
-
-    eapply add_remove_many_fold_store_out in Hf; eauto.
 
     (* related (2) *)
     intros.
@@ -1443,6 +1456,7 @@ Module Make (Import A : ADT).
     eapply diff_find_Some_iff in H19; openhyp.
     solve [eapply find_Some_in; eauto].
 
+    (* p is not the address of the return ADT object *)
     rewrite find_ret_doesn't_matter in H18 by eauto.
     eapply add_remove_many_fold_store_out_iff in H18; eauto.
     2 : solve [rewrite H; eauto].
@@ -1451,43 +1465,53 @@ Module Make (Import A : ADT).
     destruct (string_dec x lhs).
     subst.
     contradict H16.
-    Lemma find_ADT_add_remove_many : 
-      forall k ks (ins : list Value) outs h a, 
+    Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
         NoDup ks -> 
-        mapM (sel h) ks = Some ins ->
-        StringMap.find k (add_remove_many ks ins outs h) = Some (ADT a)-> 
-        exists a', StringMap.find k h = Some (ADT a').
-      admit.
+        mapM (sel st) ks = Some ins ->
+        length ks = length outs ->
+        StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
+        exists a', StringMap.find k st = Some (ADT a').
+    Proof.
+      intros Hnd Hmm Hl Hf.
+      eapply find_Some_add_remove_many in Hf; eauto.
+      2 : eapply mapM_length; eauto.
+      openhyp.
+      eexists; eauto.
+      eapply mapM_Some in Hmm; eauto; openhyp.
+      unif x1.
+      eexists; eauto.
     Qed.
-    solve [eapply find_ADT_add_remove_many; eauto].
+    eapply find_ADT_add_remove_many; eauto.
+    solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
 
     exists x.
     split.
     (* exists *)
     rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o by eauto.
-    split.
-    eauto.
     eauto.
 
     (* unique *)
     intros.
     openhyp.
     destruct (string_dec x' lhs).
-    Ltac subst' H := rewrite H in *; clear H.
     subst' e.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     rewrite Locals.sel_upd_eq in * by eauto.
     destruct ret; simpl in *.
     discriminate.
-    solve [inject H23; unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition].
+    inject H23.
+    solve [unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition].
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne in * by eauto.
     eapply find_ADT_add_remove_many in H21; eauto; openhyp.
     eapply find_ADT_add_remove_many in H23; eauto; openhyp.
     solve [eapply related_no_alias; eauto].
+    solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
 
     (* skip *)
+    (* here *)
     eexists; split.
     eapply RunsToSkip.
     eauto.
