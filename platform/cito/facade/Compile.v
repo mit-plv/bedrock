@@ -911,22 +911,18 @@ Module Make (Import A : ADT).
     rewrite map_length.
     eapply map_eq_length_eq in H00; eauto.
 
+    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
+      unfold Submap; eauto.
+    Qed.
+
     Ltac subst' H := rewrite H in *; clear H.
 
-    Import Semantics.
-
-    Fixpoint make_triples pairs (outs : list (ArgOut ADTValue)) :=
-      match pairs, outs with
-        | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
-        | _, _ => nil
+    (* unify and get rid of b *)
+    Ltac unif b :=
+      match goal with
+        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
       end.
 
-    Lemma split_triples : forall triples words_cinput coutput, words_cinput = List.map (fun x => (Word x, ADTIn x)) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples words_cinput coutput.
-      admit.
-    Qed.
-    Lemma split_triples' : forall triples words cinput coutput, words = List.map (@Word _) triples -> cinput = List.map (@ADTIn _) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples (combine words cinput) coutput.
-      admit.
-    Qed.
     Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
       admit.
     Qed.
@@ -942,12 +938,7 @@ Module Make (Import A : ADT).
     Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
       admit.
     Qed.
-    Lemma nth_error_make_triples_intro words_cinput coutput i p a a' : nth_error words_cinput i = Some (p, a) -> nth_error coutput i = Some a' -> nth_error (make_triples words_cinput coutput) i = Some {| Word := p; ADTIn := a; ADTOut := a'|}.
-      admit.
-    Qed.
-    Lemma nth_error_make_triples_elim wis os i p a a' : nth_error (make_triples wis os) i = Some {| Word := p; ADTIn := a; ADTOut := a' |} -> nth_error wis i = Some (p, a) /\ nth_error os i = Some a'.
-      admit.
-    Qed.
+
     Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
       admit.
     Qed.
@@ -958,6 +949,26 @@ Module Make (Import A : ADT).
       admit.
     Qed.
     Lemma combine_map A B C (f1 : A -> B) (f2 : A -> C) ls : combine (List.map f1 ls) (List.map f2 ls) = List.map (fun x => (f1 x, f2 x)) ls.
+      admit.
+    Qed.
+
+    Import Semantics.
+
+    Fixpoint make_triples pairs (outs : list (ArgOut ADTValue)) :=
+      match pairs, outs with
+        | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
+        | _, _ => nil
+      end.
+    Lemma split_triples : forall triples words_cinput coutput, words_cinput = List.map (fun x => (Word x, ADTIn x)) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples words_cinput coutput.
+      admit.
+    Qed.
+    Lemma split_triples' : forall triples words cinput coutput, words = List.map (@Word _) triples -> cinput = List.map (@ADTIn _) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples (combine words cinput) coutput.
+      admit.
+    Qed.
+    Lemma nth_error_make_triples_intro words_cinput coutput i p a a' : nth_error words_cinput i = Some (p, a) -> nth_error coutput i = Some a' -> nth_error (make_triples words_cinput coutput) i = Some {| Word := p; ADTIn := a; ADTOut := a'|}.
+      admit.
+    Qed.
+    Lemma nth_error_make_triples_elim wis os i p a a' : nth_error (make_triples wis os) i = Some {| Word := p; ADTIn := a; ADTOut := a' |} -> nth_error wis i = Some (p, a) /\ nth_error os i = Some a'.
       admit.
     Qed.
 
@@ -1020,12 +1031,14 @@ Module Make (Import A : ADT).
         related st (vs, h2) ->
         List.map (fun x => vs x) args = words ->
         mapM (sel st) args = Some input ->
-        input = List.map CitoIn_FacadeIn cinput.
+        let input' := List.map CitoIn_FacadeIn cinput in
+        same_types input input' ->
+        input = input'.
     Proof.
-      induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate].
+      simpl; induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate].
       intros until 5; intros Hmm; intros; eapply mapM_length in Hmm; simpl in *; discriminate.
       rename a into x.
-      intros h h2 st vs Hfa Hl Hsm Hr Hm Hmm.
+      intros h h2 st vs Hfa Hl Hsm Hr Hm Hmm Hte.
       simpl in *.
       destruct (option_dec (sel st x)) as [[y Hy] | Hn].
       2 : rewrite Hn in *; discriminate.
@@ -1037,6 +1050,7 @@ Module Make (Import A : ADT).
       inject Hm.
       inject Hl.
       inversion Hfa; subst.
+      inversion Hte; subst.
       f_equal.
       2 : solve [eapply IHargs; eauto].
       eapply Hr in Hy; simpl in *.
@@ -1045,21 +1059,31 @@ Module Make (Import A : ADT).
       subst.
       destruct v as [w' | a']; simpl in *.
       subst; eauto.
-      
-      (*here*)
-      admit.
-      admit.
-
+      intuition.
+      destruct v as [w' | a']; simpl in *.
+      intuition.
+      eapply submap_find in Hy; eauto.
+      unfold Locals.sel in *.
+      unif a'.
+      eauto.
     Qed.
-    admit.
 
-
+    unfold_all.
+    eapply good_input_mapM; eauto.
+    rewrite combine_map; destruct H1; eauto.
+    repeat rewrite map_length; eauto.
+    eapply H14; eauto.
+    repeat rewrite map_length; eauto.
+    eapply mapM_length in H15; eauto.
+    eapply map_eq_length_eq in H0; eauto; rewrite <- H0.
+    eauto.
 
     rewrite H in *.
 
     eexists.
     split.
     eapply RunsToCallAx.
+    eauto.
     eauto.
     eauto.
     eauto.
@@ -1096,12 +1120,6 @@ Module Make (Import A : ADT).
     assert (words_cinput = combine words cinput) by (unfold_all; rewrite combine_map; eauto).
 
     assert (no_alias words_cinput).
-
-    (* unify and get rid of b *)
-    Ltac unif b :=
-      match goal with
-        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
-      end.
 
     Lemma related_no_alias : forall st vs h x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> Locals.sel vs x1 = Locals.sel vs x2 -> x1 = x2.
     Proof.
@@ -1445,7 +1463,7 @@ Module Make (Import A : ADT).
     split.
     (* no illegal local variable overwrite *)
     intros.
-    eapply singleton_iff_not in H18.
+    eapply singleton_iff_not in H19.
     rewrite Locals.sel_upd_ne by eauto.
     solve [eauto].
 
@@ -1459,7 +1477,7 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_eq_o in * by eauto.
     destruct ret; simpl in *.
     discriminate.
-    inject H19.
+    inject H20.
     unfold separated in H4; simpl in *.
     openhyp.
     discriminate.
@@ -1467,7 +1485,7 @@ Module Make (Import A : ADT).
     (* x <> lhs *)
     rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
-    contradict H18.
+    contradict H19.
     eapply In_add_remove_many; eauto.
     eapply StringMapFacts.MapsTo_In.
     solve [eapply StringMapFacts.find_mapsto_iff; eauto].
@@ -1529,10 +1547,6 @@ Module Make (Import A : ADT).
       openhyp; subst.
       unif x0.
       simpl in *; discriminate.
-    Qed.
-
-    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
-      unfold Submap; eauto.
     Qed.
 
     Lemma add_remove_many_fold_store_out_iff : 
@@ -1744,7 +1758,7 @@ Module Make (Import A : ADT).
     eapply find_Some_add_remove_many in Hf.
     openhyp.
     unfold_related H8.
-    eapply H8 in H21; simpl in *.
+    eapply H8 in H22; simpl in *.
     eauto.
     Lemma wrap_output_not_sca coutput i w : nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
     Proof.
@@ -1755,7 +1769,7 @@ Module Make (Import A : ADT).
       destruct a; simpl in *; discriminate.
       rewrite e in *; discriminate.
     Qed.
-    contradict H22.
+    contradict H23.
     eapply wrap_output_not_sca; eauto.
     solve [eauto].
     solve [unfold_all; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
@@ -1797,14 +1811,14 @@ Module Make (Import A : ADT).
 
     (* related (2) *)
     intros.
-    rewrite H5 in H18.
+    rewrite H5 in H19.
 
     destruct (p_addr_ret_dec p addr ret).
 
     (* p is the address of the return ADT object *)
     destruct s; openhyp.
     subst; simpl in *.
-    eapply diff_find_Some_iff in H18; openhyp.
+    eapply diff_find_Some_iff in H19; openhyp.
     rewrite add_eq_o in * by eauto.
     inject H.
     exists lhs.
@@ -1825,19 +1839,19 @@ Module Make (Import A : ADT).
     discriminate.
     contradict H4.
     subst.
-    eapply add_remove_many_fold_store_out in H19; eauto.
-    eapply diff_find_Some_iff in H19; openhyp.
+    eapply add_remove_many_fold_store_out in H20; eauto.
+    eapply diff_find_Some_iff in H20; openhyp.
     solve [eapply find_Some_in; eauto].
 
     (* p is not the address of the return ADT object *)
-    rewrite find_ret_doesn't_matter in H18 by eauto.
-    eapply add_remove_many_fold_store_out_iff in H18; eauto.
+    rewrite find_ret_doesn't_matter in H19 by eauto.
+    eapply add_remove_many_fold_store_out_iff in H19; eauto.
     2 : solve [rewrite H; eauto].
-    rewrite H in H18.
+    rewrite H in H19.
     openhyp.
     destruct (string_dec x lhs).
     subst.
-    contradict H16.
+    contradict H17.
     Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
         NoDup ks -> 
         mapM (sel st) ks = Some ins ->
@@ -1873,12 +1887,12 @@ Module Make (Import A : ADT).
     rewrite Locals.sel_upd_eq in * by eauto.
     destruct ret; simpl in *.
     discriminate.
-    inject H23.
+    inject H24.
     solve [unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition].
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne in * by eauto.
-    eapply find_ADT_add_remove_many in H21; eauto; openhyp.
-    eapply find_ADT_add_remove_many in H23; eauto; openhyp.
+    eapply find_ADT_add_remove_many in H22; eauto; openhyp.
+    eapply find_ADT_add_remove_many in H24; eauto; openhyp.
     solve [eapply related_no_alias; eauto].
     solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
     solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
