@@ -76,6 +76,8 @@ Module Make (Import A : ADT).
       Semantics.PostCond pairs ret := PostCond spec (List.map CitoInOut_FacadeInOut pairs) (CitoIn_FacadeIn ret)
     |}.
 
+  Require Import ListFacts1 ListFacts2 ListFacts3 ListFactsNew.
+
   Definition compile_op (spec : OperationalSpec) :=
     {|
       Semantics.Fun :=
@@ -84,7 +86,7 @@ Module Make (Import A : ADT).
           FuncCore.RetVar := RetVar spec;
           FuncCore.Body := compile (Body spec)
         |};
-      Semantics.NoDupArgVars := NoDupArgVars spec
+      Semantics.NoDupArgVars := NoDup_bool_string_eq_sound _ (args_no_dup spec)
     |}.
 
   Definition FuncSpec := @FuncSpec ADTValue.
@@ -299,7 +301,7 @@ Module Make (Import A : ADT).
                 (* the frame heap will be intacked in the final state *)
                 h2 <= snd t_st' /\ 
                 (* variables not appearing as LHS won't change value in Cito state *)
-                (forall x, ~ StringSet.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
+                (forall x, ~ List.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
                 (* newly allocated ADT objects during this program's execution won't collide with the frame heap *)
                 (forall x a, ~ StringMap.In x s_st -> StringMap.find x s_st' = Some (ADT a) -> ~ WordMap.In (Locals.sel (fst t_st') x) h2) /\
                 (* main result: final source-level and target level states are related *)
@@ -400,9 +402,11 @@ Module Make (Import A : ADT).
     split.
     intros.
     Require Import GeneralTactics2.
-    Lemma singleton_iff_not : forall e e', ~ StringSet.In e' (StringSet.singleton e) <-> e <> e'.
-      split; intros; not_not; eapply StringSetFacts.singleton_iff; eauto.
+    Import ListNotations.
+    Lemma singleton_iff_not : forall (e e' : string), ~ List.In e' [e] <-> e <> e'.
+      unfold List.In; split; intros; not_not; intuition.
     Qed.
+    
     eapply singleton_iff_not in H18.
     rewrite Locals.sel_upd_ne by eauto.
     eauto.
@@ -430,16 +434,27 @@ Module Make (Import A : ADT).
       admit.
     Qed.
     eapply make_state_not_in.
-    Require Import ListFacts1 ListFacts2 ListFacts3 ListFactsNew.
     Import WordMapFacts.
     Lemma NoDup_not_in : forall A (x : A) xs, NoDup (x :: xs) -> ~ List.In x xs.
       inversion 1; subst; eauto.
     Qed.
     Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
-      intros; destruct spec; simpl; eauto.
+      intros; destruct spec; simpl; eapply NoDup_bool_string_eq_sound; eauto.
+    Qed.
+    Lemma is_in_iff a ls : is_in a ls = true <-> List.In a ls.
+    Proof.
+      unfold is_in; split; intros H; destruct (in_dec string_dec a ls); eauto; discriminate.
+    Qed.
+    Lemma iff_not_iff b P : (b = true <-> P) -> (b = false <-> ~ P).
+    Proof.
+      split; intros; destruct b; intuition.
+    Qed.
+    Lemma not_is_in_iff a ls : is_in a ls = false <-> ~ List.In a ls.
+    Proof.
+      eapply iff_not_iff; eapply is_in_iff.
     Qed.
     Lemma not_incl_spec : forall spec, ~ List.In (RetVar spec) (ArgVars spec).
-      intros; destruct spec; simpl; eauto.
+      intros; destruct spec; simpl; eapply not_is_in_iff; eauto.
     Qed.
 
     eapply not_incl_spec.
@@ -562,19 +577,11 @@ Module Make (Import A : ADT).
     rewrite H24.
     rewrite H5.
     Focus 2.
-    Lemma disjoint_in_not : forall s1 s2 x, disjoint s1 s2 -> StringSet.In x s2 -> ~ StringSet.In x s1.
+    Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
       admit.
     Qed.
 
-    Lemma disjoint_spec spec : disjoint (assigned (Body spec)) (StringSetFacts.of_list (ArgVars spec)).
-    Proof.
-      destruct spec; eauto.
-    Qed.
-
-    eapply disjoint_in_not; eauto.
-    eapply disjoint_spec.
-    eapply StringSetFacts.of_list_1.
-    eapply SetoidListFacts.In_InA.
+    eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     rename x1 into i.
     rename l into args.
@@ -836,10 +843,7 @@ Module Make (Import A : ADT).
     rewrite <- H.
     rewrite H31.
     symmetry; eapply H5.
-    eapply disjoint_in_not; eauto.
-    eapply disjoint_spec.
-    eapply StringSetFacts.of_list_1.
-    eapply SetoidListFacts.In_InA.
+    eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     solve [eauto].
     subst.
@@ -881,10 +885,7 @@ Module Make (Import A : ADT).
     subst.
     rewrite <- H31.
     eapply H5.
-    eapply disjoint_in_not; eauto.
-    eapply disjoint_spec.
-    eapply StringSetFacts.of_list_1.
-    eapply SetoidListFacts.In_InA.
+    eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
 
     eapply find_Some_add_remove_many.
@@ -954,10 +955,7 @@ Module Make (Import A : ADT).
     rewrite <- H32.
     rewrite H37.
     symmetry; eapply H5.
-    eapply disjoint_in_not; eauto.
-    eapply disjoint_spec.
-    eapply StringSetFacts.of_list_1.
-    eapply SetoidListFacts.In_InA.
+    eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     eauto.
     subst.

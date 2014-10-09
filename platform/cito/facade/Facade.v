@@ -110,33 +110,37 @@ Section ADTSection.
       PreCondTypeConform : type_conforming PreCond
     }.
 
-  Require Import StringSet.
-  Import StringSet.
+  Require Import ListFacts3.
 
+  Definition is_no_dup := NoDup_bool string_bool.
+  Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
+
+  Import ListNotations.
+  
   Fixpoint assigned s :=
     match s with
-      | Skip => empty
-      | Seq a b => union (assigned a) (assigned b)
-      | If _ t f => union (assigned t) (assigned f)
+      | Skip => []
+      | Seq a b => assigned a ++ assigned b
+      | If _ t f => assigned t ++ assigned f
       | While _ c => assigned c
-      | Assign x e => singleton x
-      | Label x l => singleton x
-      | Call x f es => singleton x
+      | Assign x e => [x]
+      | Label x l => [x]
+      | Call x f es => [x]
     end.
   
-  Definition disjoint a b := is_empty (inter a b) = true.
-  Require Import StringSetFacts.
-
-  Import StringMap.
-
+  Require Import StringSet.
+  Require StringSetFacts.
+  
+  Definition is_disjoint ls1 ls2 := StringSet.is_empty (StringSet.inter (StringSetFacts.of_list ls1) (StringSetFacts.of_list ls2)).
+  
   Record OperationalSpec := 
     {
       ArgVars : list string;
       RetVar : string;
       Body : Stmt;
-      NoDupArgVars : NoDup ArgVars;
-      RetNotArg : ~ List.In RetVar ArgVars;
-      NoAssignToArg : disjoint (assigned Body) (of_list ArgVars)
+      args_no_dup : is_no_dup ArgVars = true;
+      ret_not_in_args : is_in RetVar ArgVars = false;
+      no_assign_to_args : is_disjoint (assigned Body) ArgVars = true
     }.
 
   Inductive FuncSpec :=
