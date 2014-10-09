@@ -637,26 +637,6 @@ Module Make (Import A : ADT).
     eapply map_eq_length_eq in H0.
     solve [eauto].
 
-    (* related (2) *)
-    intros.
-    rename s into lhs.
-    rename l into args.
-    rename h into h123.
-    rename h1 into h23.
-    rename h2 into h1.
-    set (h3 := reachable_heap vs args input) in *.
-    set (h12 := h123 - h3) in *.
-    set (h2 := h12 - h1) in *.
-    set (h3' := heap' - h12) in *.
-    set (h23' := heap' - h1) in *.
-    Definition direct_sum elt (h1 h2 h12 : t elt) := (h1 + h2 == h12 /\ Disjoint h1 h2).
-    Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
-    assert (direct_sum h1 h2 h12) by admit.
-    assert (direct_sum h2 h3 h23) by admit.
-    assert (direct_sum h1 h23 h123) by admit.
-    assert (direct_sum h12 h3 h123) by admit.
-    assert (direct_sum h2 h3' h23') by admit.
-
     Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
     Proof.
       unfold Disjoint.
@@ -687,6 +667,10 @@ Module Make (Import A : ADT).
       eapply diff_find_Some_iff in Hf; openhyp; eauto.
     Qed.
 
+    Definition direct_sum elt (h1 h2 h12 : t elt) := (h1 + h2 == h12 /\ Disjoint h1 h2).
+
+    Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
+
     Lemma diff_direct_sum elt (h2 h12 : t elt) : h2 <= h12 -> direct_sum (h12 - h2) h2 h12.
       admit.
     Qed.
@@ -713,17 +697,82 @@ Module Make (Import A : ADT).
       unfold Submap; eauto.
     Qed.
 
-    eapply find_Some_direct_sum in H20; eauto; openhyp.
-
-    (* p is in h2 *)
     Lemma direct_sum_submap elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> h1 <= h12 /\ h2 <= h12.
       admit.
     Qed.
 
     Arguments direct_sum_submap [_] _ _ _ _.
 
+    Lemma direct_sum_sym elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> direct_sum h2 h1 h12.
+      admit.
+    Qed.
+
+    Lemma diff_disjoint_swap elt (h h1 h2 : t elt) : Disjoint h1 h2 -> h - h1 - h2 == h - h2 - h1.
+      admit.
+    Qed.
+    Global Add Parametric Morphism elt : (@direct_sum elt)
+        with signature Equal ==> Equal ==> Equal ==> iff as direct_sum_m.
+      admit.
+    Qed.
+    Lemma submap_disjoint_1 elt (h1 h2 h1' : t elt) : Disjoint h1 h2 -> h1' <= h1 -> Disjoint h1' h2.
+      admit.
+    Qed.
+    Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+    Lemma diff_submap_cancel elt (h1 h12 : t elt) : h1 <= h12 -> h12 - (h12 - h1) == h1.
+      admit.
+    Qed.
+
+    Lemma direct_sum_submap_submap elt (h1 h12 h123 h2 : t elt) : h1 <= h12 -> h12 <= h123 -> h2 == h12 - h1 -> direct_sum h2 (h123 - h12) (h123 - h1).
+      admit.
+    Qed.
+    Hint Extern 0 (_ == _) => reflexivity.
+
     Ltac copy_as h h' := generalize h; intro h'.
 
+    (* related (2) *)
+    intros.
+    rename s into lhs.
+    rename l into args.
+    rename h into h123.
+    rename h1 into h23.
+    rename h2 into h1.
+    set (h3 := reachable_heap vs args input) in *.
+    set (h12 := h123 - h3) in *.
+    set (h2 := h12 - h1) in *.
+    set (h3' := heap' - h12) in *.
+    set (h23' := heap' - h1) in *.
+    assert (direct_sum h1 h2 h12) by (eapply direct_sum_sym; eapply diff_direct_sum; eauto; eapply submap_diff; eauto).
+
+    assert (direct_sum h1 h23 h123) by (eapply diff_direct_sum; eauto).
+    assert (direct_sum h12 h3 h123).
+    eapply diff_direct_sum; eauto.
+    eapply submap_trans.
+    eauto.
+    solve [eapply (direct_sum_submap h1 h23); eauto].
+
+    assert (Hd13 : Disjoint h1 h3).
+    eapply (submap_disjoint_1 h12 h3).
+    eapply direct_sum_disjoint; eauto.
+    solve [eapply (direct_sum_submap h1 h2); eauto].
+
+    assert (direct_sum h2 h3 h23).
+    unfold_all.
+    rewrite diff_disjoint_swap by (eapply Disjoint_sym; eauto).
+    rewrite diff_submap_cancel by (eapply (direct_sum_submap _ h23); eauto).
+    solve [eapply diff_direct_sum; eauto].
+
+    assert (direct_sum h2 h3' h23').
+    unfold_all.
+    rewrite diff_disjoint_swap by (eapply Disjoint_sym; eauto).
+    rewrite diff_submap_cancel by (eapply (direct_sum_submap _ h23); eauto).
+    eapply direct_sum_submap_submap.
+    solve [eapply submap_diff; eauto].
+    solve [eauto].
+    solve [erewrite submap_diff_diff; eauto].
+
+    eapply find_Some_direct_sum in H20; eauto; openhyp.
+
+    (* p is in h2 *)
     unfold_related H18.
     copy_as H20 Hf; eapply submap_find in H20.
     2 : eapply (direct_sum_submap h2 h3); eauto.
@@ -1842,7 +1891,6 @@ Module Make (Import A : ADT).
     openhyp.
     discriminate.
     contradict H.
-    Hint Extern 0 (_ == _) => reflexivity.
     eapply add_remove_many_fold_store_out in Hf; eauto.
     eapply diff_find_Some_iff in Hf; openhyp.
     solve [eapply find_Some_in; eauto].
