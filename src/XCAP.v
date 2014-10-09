@@ -422,10 +422,10 @@ Section moduleOk.
       rewrite H3 in H5; injection H5; clear H5; intros; subst.
       unfold step in H; simpl in H.
       rewrite H6 in H.
-      specialize (BlocksOk ok H1); clear ok; intro ok.
-      red in ok.
-      specialize (@ok stn _ specsOk _ H2).
-      destruct ok; clear ok; intuition.
+      specialize (BlocksOk ok H1); intro ok'.
+      red in ok'.
+      specialize (@ok' stn _ specsOk _ H2).
+      destruct ok'; clear ok; intuition.
       rewrite H in H5; injection H5; clear H5; intros; subst.
       destruct H7; intuition.
       destruct (specsOk' _ H5) as [? [? [ ] ] ].
@@ -1060,8 +1060,8 @@ Section link.
   Qed.
 
   Theorem linkOk : moduleOk link.
-    destruct m1Ok; clear m1Ok.
-    destruct m2Ok; clear m2Ok.
+    destruct m1Ok.
+    destruct m2Ok.
 
     constructor; auto.
 

@@ -265,14 +265,14 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
 
     Local Hint Resolve G_trans G_respect equ_Equiv.
     Local Hint Extern 1 (Morphisms.Proper _ _) =>
-      clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
+        repeat (red; intros; subst); repeat rewrite FACTS.add_o;
         repeat match goal with
                  | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
                    destruct (FM.E.eq_dec X Y)
                  | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
                end; auto; exfalso; auto.
     Local Hint Extern 1 (PROPS.transpose_neqkey _ _) =>
-      clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
+        repeat (red; intros; subst); repeat rewrite FACTS.add_o;
         repeat match goal with
                  | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
                    destruct (FM.E.eq_dec X Y)
