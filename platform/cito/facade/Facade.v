@@ -106,15 +106,37 @@ Section ADTSection.
   Record AxiomaticSpec :=
     {
       PreCond : list Value -> Prop;
-      PostCond : list (Value * option ADTValue) -> Value -> Prop
+      PostCond : list (Value * option ADTValue) -> Value -> Prop;
+      PreCondTypeConform : type_conforming PreCond
     }.
+
+  Require Import StringSet.
+  Import StringSet.
+
+  Fixpoint assigned s :=
+    match s with
+      | Skip => empty
+      | Seq a b => union (assigned a) (assigned b)
+      | If _ t f => union (assigned t) (assigned f)
+      | While _ c => assigned c
+      | Assign x e => singleton x
+      | Label x l => singleton x
+      | Call x f es => singleton x
+    end.
+  
+  Definition disjoint a b := is_empty (inter a b) = true.
+  Require Import StringSetFacts.
+
+  Import StringMap.
 
   Record OperationalSpec := 
     {
       ArgVars : list string;
       RetVar : string;
       Body : Stmt;
-      NoDupArgVars : NoDup (RetVar :: ArgVars)
+      NoDupArgVars : NoDup ArgVars;
+      RetNotArg : ~ List.In RetVar ArgVars;
+      NoAssignToArg : disjoint (assigned Body) (of_list ArgVars)
     }.
 
   Inductive FuncSpec :=
@@ -141,25 +163,6 @@ Section ADTSection.
       var = retvar \/ 
       exists i ai, nth_error argvars i = Some var /\ 
                    nth_error input i = Some (ADT ai).
-
-  Require Import StringSet.
-  Import StringSet.
-
-  Fixpoint assigned s :=
-    match s with
-      | Skip => empty
-      | Seq a b => union (assigned a) (assigned b)
-      | If _ t f => union (assigned t) (assigned f)
-      | While _ c => assigned c
-      | Assign x e => singleton x
-      | Label x l => singleton x
-      | Call x f es => singleton x
-    end.
-  
-  Definition disjoint a b := is_empty (inter a b) = true.
-  Require Import StringSetFacts.
-
-  Import StringMap.
 
   Definition wrap_output := List.map (option_map ADT).
 
@@ -215,7 +218,6 @@ Section ADTSection.
           NoDup args ->
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
-          type_conforming (PreCond spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
           PreCond spec input ->
@@ -234,7 +236,6 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
-          disjoint (assigned (Body spec)) (of_list (ArgVars spec)) ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
@@ -292,7 +293,6 @@ Section ADTSection.
           NoDup args ->
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
-          type_conforming (PreCond spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
           PreCond spec input ->
@@ -305,7 +305,6 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           (~ exists a, sel st x = Some (ADT a)) -> 
-          disjoint (assigned (Body spec)) (of_list (ArgVars spec)) ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (forall callee_st', 
