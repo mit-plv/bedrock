@@ -449,12 +449,20 @@ Module Make (Import A : ADT).
     Proof.
       split; intros; destruct b; intuition.
     Qed.
+    Lemma iff_negb_iff b P : (b = true <-> P) -> (negb b = true <-> ~ P).
+    Proof.
+      split; intros; destruct b; intuition.
+    Qed.
     Lemma not_is_in_iff a ls : is_in a ls = false <-> ~ List.In a ls.
     Proof.
       eapply iff_not_iff; eapply is_in_iff.
     Qed.
+    Lemma negb_is_in_iff a ls : negb (is_in a ls) = true <-> ~ List.In a ls.
+    Proof.
+      eapply iff_negb_iff; eapply is_in_iff.
+    Qed.
     Lemma not_incl_spec : forall spec, ~ List.In (RetVar spec) (ArgVars spec).
-      intros; destruct spec; simpl; eapply not_is_in_iff; eauto.
+      intros; destruct spec; simpl; eapply negb_is_in_iff; eauto.
     Qed.
 
     eapply not_incl_spec.
