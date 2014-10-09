@@ -1,3 +1,5 @@
+(* Facade : a heap-free, aliasing-free and memory-leak-free imperative language *)
+
 Set Implicit Arguments.
 
 Require Import String.
@@ -116,7 +118,8 @@ Section ADTSection.
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
 
   Import ListNotations.
-  
+
+  (* List of variables that are assigned to, i.e. appear as LHS *)
   Fixpoint assigned s :=
     match s with
       | Skip => []
@@ -132,7 +135,10 @@ Section ADTSection.
   Require StringSetFacts.
   
   Definition is_disjoint ls1 ls2 := StringSet.is_empty (StringSet.inter (StringSetFacts.of_list ls1) (StringSetFacts.of_list ls2)).
-  
+
+  (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
+     The return variable must not be an argument, to prevent aliasing. 
+     Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
   Record OperationalSpec := 
     {
       ArgVars : list string;
@@ -219,7 +225,7 @@ Section ADTSection.
           RunsTo loop st st
     | RunsToAssign :
         forall x e st st' w,
-          (* rhs can't be an ADT object, to prevent alias *)
+          (* rhs can't be an ADT object, to prevent aliasing *)
           eval st e = Some (SCA w) ->
           (* lhs can't be already referring to an ADT object, to prevent memory leak *)
           not_mapsto_adt x st = true ->
@@ -248,6 +254,7 @@ Section ADTSection.
             RunsTo (Call x f args) st st''
     | RunsToCallOp :
         forall x f args st spec input callee_st' ret f_w,
+          (* the same actual parameter cannot be supplied twice, to prevent aliasing in the callee *)
           NoDup args ->
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Operational spec) ->
@@ -257,6 +264,7 @@ Section ADTSection.
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
+          (* prevent memory leak *)
           no_adt_leak input (ArgVars spec) (RetVar spec) callee_st' ->
           let output := List.map (sel callee_st') (ArgVars spec) in
           let st' := add_remove_many args input output st in
@@ -325,6 +333,7 @@ Section ADTSection.
           not_mapsto_adt x st = true ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
+          (* all paths of callee must be memory-leak free and produce a return value *)
           (forall callee_st', 
              RunsTo (Body spec) callee_st callee_st' -> 
              sel callee_st' (RetVar spec) <> None /\ 
