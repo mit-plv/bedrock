@@ -784,6 +784,10 @@ Module Make (Import A : ADT).
       admit.
     Qed.
 
+    Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
+      admit.
+    Qed.
+
     Lemma related_no_alias : forall vs h st x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> vs x1 = vs x2 -> x1 = x2.
     Proof.
       intros.
@@ -877,14 +881,11 @@ Module Make (Import A : ADT).
     openhyp'.
     rename x1 into x3.
     destruct (string_dec x3 lhs).
-    subst.
-    Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
-      admit.
-    Qed.
-    solve [contradict H12; eapply not_mapsto_adt_not_true_iff; eexists; eauto].
+    subst; solve [contradict H12; eapply not_mapsto_adt_not_true_iff; eexists; eauto].
     (* x3 <> lhs *)
     exists x3.
     split.
+    (* exists *)
     rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o by eauto.
     split.
@@ -901,21 +902,23 @@ Module Make (Import A : ADT).
     eapply (direct_sum_in_not h2 h3); eauto.
     solve [subst; eapply find_Some_in; eauto].
 
+    (* unique *)
     intros.
     openhyp.
     destruct (string_dec x' lhs).
+    (* x' = lhs *)
     subst.
     rewrite StringMapFacts.add_eq_o in *.
     rewrite Locals.sel_upd_eq in * by eauto.
     inject H31.
+    symmetry in H30; subst' H30.
+    (* (vs_callee' RetVar) is a newly allocated ADT object, so it shouldn't be in h2 *)
     eapply H9 in H.
     contradict H.
-    subst' H30.
     eapply submap_in; eauto.
-    eapply (direct_sum_submap h1 h2); eauto.
+    solve [eapply (direct_sum_submap h1 h2); eauto].
     solve [eapply find_Some_in; eauto].
-    eapply make_state_not_in.
-    eapply not_incl_spec.
+    solve [eapply make_state_not_in; eapply not_incl_spec].
     solve [eauto].
 
     (* x' <> lhs *)
@@ -935,8 +938,7 @@ Module Make (Import A : ADT).
     Qed.
     erewrite <- not_reachable_add_remove_many; eauto.
     solve [eapply mapM_length; eauto].
-    rewrite map_length.
-    solve [eapply map_eq_length_eq in H0; eauto].
+    solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
     eapply not_reachable_iff; eauto.
     eapply (direct_sum_in_not h2 h3); eauto.
     subst; subst' H30; solve [eapply find_Some_in; eauto].
@@ -967,25 +969,26 @@ Module Make (Import A : ADT).
     openhyp.
     destruct (string_dec x' lhs).
     eauto.
+    (* x' <> lhs *)
     rewrite Locals.sel_upd_ne in * by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
-    set (p := Locals.sel vs_callee' (RetVar spec)) in *.
+    unfold Locals.sel in *.
+    symmetry in H; subst' H.
     eapply find_Some_add_remove_many in H20.
     openhyp.
     (* not_reachable *)
     unfold_related H18.
-    eapply H18 in H29; simpl in *.
-    eapply find_Some_direct_sum in H29; eauto; openhyp.
-    rewrite H in *.
-    eapply find_Some_in in H29.
+    eapply H18 in H20; simpl in *.
+    eapply find_Some_direct_sum in H20; eauto; openhyp.
+    eapply find_Some_in in H20.
     eapply find_Some_in in Hf.
     contradict Hf.
     eapply (direct_sum_in_not h2 h3'); eauto.
-    eapply not_reachable_iff in H20; eauto.
-    contradict H20.
+    eapply not_reachable_iff in H; eauto.
+    contradict H.
     solve [eapply find_Some_in; eauto].
     (* reachable *)
-    eapply nth_error_map_elim in H30.
+    eapply nth_error_map_elim in H29.
     openhyp.
     eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
@@ -995,20 +998,18 @@ Module Make (Import A : ADT).
     assert (RetVar spec = x1).
     eapply H28.
     split.
-    rewrite <- H.
-    rewrite <- H32.
+    rewrite <- H31.
     symmetry; eapply H5.
     eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     solve [eauto].
     subst.
-    eapply Locals.nth_error_In in H30; eauto.
-    contradict H30.
+    eapply Locals.nth_error_In in H29; eauto.
+    contradict H29.
     solve [eapply not_incl_spec].
     solve [eauto].
-    eapply mapM_length; eauto.
-    rewrite map_length.
-    solve [eapply map_eq_length_eq in H0; eauto].
+    solve [eapply mapM_length; eauto].
+    solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
 
     (* x3 is an arg referring to an ADT object (i.e. p is the address of an output ADT object, not the returned ADT object) *)
     rename x into i.
@@ -1016,6 +1017,7 @@ Module Make (Import A : ADT).
     openhyp.
     rename x into arg.
     destruct (string_dec arg lhs).
+    (* arg = lhs *)
     subst.
     contradict H12.
     eapply not_mapsto_adt_not_true_iff.
@@ -1023,7 +1025,8 @@ Module Make (Import A : ADT).
     openhyp.
     unif x.
     solve [eexists; eauto].
-   
+
+    (* arg <> lhs *)
     exists arg.
     split.
     (* exists *)
@@ -1054,6 +1057,7 @@ Module Make (Import A : ADT).
     intros.
     openhyp.
     destruct (string_dec x' lhs).
+    (* x' = lhs *)
     subst.
     rewrite Locals.sel_upd_eq in * by eauto.
     rewrite StringMapFacts.add_eq_o in * by eauto.
