@@ -608,7 +608,7 @@ Module Make (Import A : ADT).
     set (h2 := h12 - h1) in *.
     set (h3' := heap' - h12) in *.
     set (h23' := heap' - h1) in *.
-    Notation direct_sum h1 h2 h12 := (h1 <= h12 /\ h2 <= h12 /\ Disjoint h1 h2).
+    Definition direct_sum elt (h1 h2 h12 : t elt) := (h1 + h2 == h12 /\ Disjoint h1 h2).
     Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
     assert (direct_sum h1 h2 h12) by admit.
     assert (direct_sum h2 h3 h23) by admit.
@@ -620,12 +620,28 @@ Module Make (Import A : ADT).
       admit.
     Qed.
 
+    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
+      unfold Submap; eauto.
+    Qed.
+
     eapply find_Some_direct_sum in H21; eauto; openhyp.
 
     (* p is in h2 *)
     Ltac unfold_related H := copy H; unfold related in H; simpl in H; openhyp.
+
+    Lemma direct_sum_submap elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> h1 <= h12 /\ h2 <= h12.
+      admit.
+    Qed.
+
+    Arguments direct_sum_submap [_] _ _ _ _.
+
+    Ltac copy_as h h' := generalize h; intro h'.
+
     unfold_related H19.
-    specialize (H38 _ _ (H23 _ _ H21)).
+    copy_as H21 Hf; eapply submap_find in H21.
+    2 : eapply (direct_sum_submap h2 h3); eauto.
+    eapply H28 in H21.
+
     Ltac openhyp' := 
       repeat match goal with
                | H : _ /\ _ |- _  => destruct H
@@ -634,6 +650,7 @@ Module Make (Import A : ADT).
                | H : exists ! x, _ |- _ => destruct H
                | H : unique _ _ |- _ => destruct H
              end.
+
     openhyp'.
     rename x1 into x3.
     destruct (string_dec x3 lhs).
@@ -654,11 +671,55 @@ Module Make (Import A : ADT).
     left.
     split.
     eapply not_reachable_iff; eauto.
+    Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
+    Proof.
+      unfold Disjoint.
+      intros k.
+      nintro.
+      openhyp.
+      eapply diff_in_iff in H.
+      openhyp; intuition.
+    Qed.
+
+    Lemma diff_find_Some_iff : forall elt k (v : elt) m m', find k (m - m') = Some v <-> find k m = Some v /\ ~ In k m'.
+      split; intros.
+      eapply find_mapsto_iff in H.
+      eapply diff_mapsto_iff in H; openhyp.
+      eapply find_mapsto_iff in H.
+      eauto.
+      openhyp.
+      eapply find_mapsto_iff.
+      eapply diff_mapsto_iff.
+      eapply find_mapsto_iff in H.
+      eauto.
+    Qed.
+
+    Lemma diff_submap elt (m1 m2 : t elt) : m1 - m2 <= m1.
+    Proof.
+      unfold Submap.
+      intros k v Hf.
+      eapply diff_find_Some_iff in Hf; openhyp; eauto.
+    Qed.
+
+    Lemma diff_direct_sum elt (h2 h12 : t elt) : h2 <= h12 -> direct_sum (h12 - h2) h2 h12.
+      admit.
+    Qed.
+
     Lemma Disjoint_in_not : forall elt h1 h2 x, @Disjoint elt h1 h2 -> In x h1 -> ~ In x h2.
       admit.
     Qed.
-    eapply (Disjoint_in_not H34).
-    rewrite H38.
+    Lemma direct_sum_disjoint elt h1 h2 h12 : direct_sum h1 h2 h12 -> @Disjoint elt h1 h2.
+    Proof.
+      intros H; destruct H; eauto.
+    Qed.
+    Lemma direct_sum_in_not elt h1 h2 h12 x : @direct_sum elt h1 h2 h12 -> In x h1 -> ~ In x h2.
+    Proof.
+      intros; eapply Disjoint_in_not; eauto.
+      eapply direct_sum_disjoint; eauto.
+    Qed.
+    Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+    eapply (direct_sum_in_not h2 h3); eauto.
+    subst.
     Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
       intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
     Qed.
@@ -671,11 +732,21 @@ Module Make (Import A : ADT).
     subst.
     rewrite StringMapFacts.add_eq_o in *.
     rewrite Locals.sel_upd_eq in * by eauto.
-    inject H42.
+    inject H32.
     eapply H9 in H.
     contradict H.
-    rewrite H41.
+
+    Ltac subst' H := rewrite H in *; clear H.
+
+    (* unify and get rid of b *)
+    Ltac unif b :=
+      match goal with
+        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
+      end.
+
+    subst' H31.
     eapply submap_in; eauto.
+    eapply (direct_sum_submap h1 h2); eauto.
     eapply find_Some_in; eauto.
     eapply make_state_not_in.
     eapply NoDup_not_in.
@@ -684,7 +755,7 @@ Module Make (Import A : ADT).
 
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne in * by eauto.
-    eapply H39.
+    eapply H29.
     split.
     eauto.
     Lemma not_reachable_add_remove_many : 
@@ -702,23 +773,21 @@ Module Make (Import A : ADT).
     rewrite map_map in H0.
     solve [eapply map_eq_length_eq in H0; eauto].
     eapply not_reachable_iff; eauto.
-    eapply (Disjoint_in_not H34).
-    rewrite H41.
+    eapply (direct_sum_in_not h2 h3); eauto.
+    subst' H31.
     solve [eapply find_Some_in; eauto].
-
     
     (* p is in h3' *)
     unfold_related H14.
-    copy H21; eapply H38 in H21.
-    do 2 destruct H21.
-    openhyp.
+    copy_as H21 Hf; eapply H28 in H21.
+    openhyp'.
     rename x1 into x3.
-    copy H41; eapply H18 in H41.
+    copy_as H30 Hf3; eapply H18 in H30.
     openhyp.
 
     (* x3 is RetVar (i.e. p is the address of the returned ADT object) *)
     subst.
-    unfold sel in *; rewrite H42 in H.
+    unfold sel in *; rewrite Hf3 in H.
     inject H.
     exists lhs.
     split.
@@ -741,13 +810,13 @@ Module Make (Import A : ADT).
     openhyp.
     (* not_reachable *)
     unfold_related H19.
-    eapply H19 in H41; simpl in *.
-    eapply find_Some_direct_sum in H41; eauto; openhyp.
+    eapply H19 in H30; simpl in *.
+    eapply find_Some_direct_sum in H30; eauto; openhyp.
     rewrite H in *.
-    eapply find_Some_in in H41.
-    eapply find_Some_in in H39.
-    contradict H39.
-    eapply (Disjoint_in_not H28); eauto.
+    eapply find_Some_in in H30.
+    eapply find_Some_in in Hf.
+    contradict Hf.
+    eapply (direct_sum_in_not h2 h3'); eauto.
     eapply not_reachable_iff in H21; eauto.
     contradict H21.
     solve [eapply find_Some_in; eauto].
@@ -757,24 +826,32 @@ Module Make (Import A : ADT).
     eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
-    erewrite map_nth_error in H43 by eauto.
-    inject H43.
+    erewrite map_nth_error in H31 by eauto.
+    inject H31.
     assert (RetVar spec = x2).
-    eapply H40.
+    eapply H29.
     split.
     rewrite <- H.
-    rewrite H44.
+    rewrite H32.
     symmetry; eapply H5.
     eapply disjoint_in_not; eauto.
     eapply StringSetFacts.of_list_1.
     eapply SetoidListFacts.In_InA.
     eapply Locals.nth_error_In; eauto.
     solve [eauto].
-    rewrite <- H43 in *.
+    subst.
     eapply Locals.nth_error_In in H0; eauto.
     contradict H0.
     eapply NoDup_not_in.
-    destruct spec; eauto.
+    Lemma NoDup_RetVar_ArgVars : forall spec, NoDup (RetVar spec :: ArgVars spec).
+      intros; destruct spec; simpl; eauto.
+    Qed.
+    Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
+      intros; destruct spec; simpl.
+      inversion NoDupArgVars; eauto.
+    Qed.
+    
+    eapply NoDup_RetVar_ArgVars.
     eauto.
     eapply mapM_length; eauto.
     rewrite map_length.
@@ -783,7 +860,6 @@ Module Make (Import A : ADT).
 
     (* x3 is an arg referring to an ADT object (i.e. p is the address of an output ADT object, not the returned ADT object) *)
     rewrite map_map in H0; simpl in *.
-    Ltac copy_as h h' := generalize h; intro h'.
     copy_as H0 H00; eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     rename x1 into i.
@@ -809,7 +885,7 @@ Module Make (Import A : ADT).
     unfold Locals.sel in *.
     split.
     subst.
-    rewrite <- H44.
+    rewrite <- H32.
     eapply H5.
     eapply disjoint_in_not; eauto.
     eapply StringSetFacts.of_list_1.
@@ -841,35 +917,35 @@ Module Make (Import A : ADT).
     set (p := Locals.sel vs_callee' x3) in *.
     rewrite Locals.sel_upd_eq in * by eauto.
     rewrite StringMapFacts.add_eq_o in * by eauto.
-    inject H46.
+    inject H34.
     assert (x3 = RetVar spec).
-    eapply H40.
+    eapply H29.
     split.
     eauto.
     eauto.
-    rewrite H21 in *.
-    eapply Locals.nth_error_In in H41; eauto.
-    contradict H41.
+    unfold_all; subst.
+    eapply Locals.nth_error_In in H30; eauto.
+    contradict H30.
     eapply NoDup_not_in.
-    destruct spec; eauto.
+    eapply NoDup_RetVar_ArgVars.
 
     set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
     rewrite Locals.sel_upd_ne in * by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
-    eapply find_Some_add_remove_many in H46.
+    eapply find_Some_add_remove_many in H34.
     openhyp.
     (* not_reachable *)
     unfold_related H19.
-    eapply H19 in H47.
-    unfold represent in H47.
-    eapply find_Some_direct_sum in H47; eauto; openhyp.
-    rewrite H45 in *.
-    eapply find_Some_in in H47.
-    eapply find_Some_in in H39.
-    contradict H39.
-    eapply (Disjoint_in_not H28); eauto.
-    eapply not_reachable_iff in H46; eauto.
-    contradict H46.
+    eapply H19 in H35.
+    unfold represent in H35.
+    eapply find_Some_direct_sum in H35; eauto; openhyp.
+    subst.
+    eapply find_Some_in in H35.
+    eapply find_Some_in in Hf.
+    contradict Hf.
+    subst' H33; solve [eapply (direct_sum_in_not h2 h3'); eauto].
+    eapply not_reachable_iff in H34; eauto.
+    contradict H34.
     solve [eapply find_Some_in; eauto].
     (* reachable *)
     rename x1 into i'.
@@ -877,51 +953,34 @@ Module Make (Import A : ADT).
     eapply map_eq_nth_error_1 in H00; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
-    erewrite map_nth_error in H48 by eauto.
-    inject H48.
+    erewrite map_nth_error in H36 by eauto.
+    inject H36.
     assert (x3 = x1).
-    eapply H40.
+    eapply H29.
     split.
-    rewrite <- H45.
-    rewrite H50.
+    rewrite <- H33.
+    rewrite H38.
     symmetry; eapply H5.
     eapply disjoint_in_not; eauto.
     eapply StringSetFacts.of_list_1.
     eapply SetoidListFacts.In_InA.
     eapply Locals.nth_error_In; eauto.
     eauto.
-    rewrite <- H21 in *.
+    subst.
     Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
       admit.
     Qed.
     assert (i = i').
-    eapply (NoDup_nth_error H41); eauto.
-    Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
-      intros; destruct spec; simpl.
-      inversion NoDupArgVars; eauto.
-    Qed.
-    eapply NoDup_ArgVars; eauto.
-    rewrite <- H48 in *.
+    eapply (NoDup_nth_error H30); eauto.
+    solve [eapply NoDup_ArgVars; eauto].
+    subst.
     unfold StringMap.key in *.
-    rewrite H0 in H46.
-    inject H46.
+    unif x'.
     eauto.
     eauto.
     eapply mapM_length; eauto.
     rewrite map_length.
     eapply map_eq_length_eq in H00; eauto.
-
-    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
-      unfold Submap; eauto.
-    Qed.
-
-    Ltac subst' H := rewrite H in *; clear H.
-
-    (* unify and get rid of b *)
-    Ltac unif b :=
-      match goal with
-        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
-      end.
 
     Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
       admit.
@@ -1102,19 +1161,6 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
 
-    Lemma diff_find_Some_iff : forall elt k (v : elt) m m', find k (m - m') = Some v <-> find k m = Some v /\ ~ In k m'.
-      split; intros.
-      eapply find_mapsto_iff in H.
-      eapply diff_mapsto_iff in H; openhyp.
-      eapply find_mapsto_iff in H.
-      eauto.
-      openhyp.
-      eapply find_mapsto_iff.
-      eapply diff_mapsto_iff.
-      eapply find_mapsto_iff in H.
-      eauto.
-    Qed.
-
     Definition no_alias (words_cinput : list (W * ArgIn ADTValue)) := forall i j p (ai aj : ADTValue), nth_error words_cinput i = Some (p, inr ai) -> nth_error words_cinput j = Some (p, inr aj) -> i = j.
 
     assert (words_cinput = combine words cinput) by (unfold_all; rewrite combine_map; eauto).
@@ -1176,30 +1222,8 @@ Module Make (Import A : ADT).
     rewrite H.
     eauto.
 
-    Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
-    Proof.
-      unfold Disjoint.
-      intros k.
-      nintro.
-      openhyp.
-      eapply diff_in_iff in H.
-      openhyp; intuition.
-    Qed.
-
-    Lemma diff_submap elt (m1 m2 : t elt) : m1 - m2 <= m1.
-    Proof.
-      unfold Submap.
-      intros k v Hf.
-      eapply diff_find_Some_iff in Hf; openhyp; eauto.
-    Qed.
-
     set (h1 := h123 - h23) in *.
-    assert (direct_sum h1 h23 h123).
-    split.
-    eapply diff_submap.
-    split.
-    eauto.
-    eapply Disjoint_diff.
+    assert (direct_sum h1 h23 h123) by (eapply diff_direct_sum; eauto).
 
     rename s into lhs.
     rename e into e_f.
@@ -1572,6 +1596,8 @@ Module Make (Import A : ADT).
       assert (Hna : no_alias (combine words cinput)) by (eapply NoDup_no_alias; eauto).
       assert (Hsm1 : h1 <= h) by eapply diff_submap.
       assert (Hd : Disjoint h1 h2) by eapply Disjoint_diff.
+      assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
+      
       rewrite He.
       erewrite (@split_triples' triples) by eauto.
       split; intro Hf.
@@ -1758,7 +1784,7 @@ Module Make (Import A : ADT).
     eapply find_Some_add_remove_many in Hf.
     openhyp.
     unfold_related H8.
-    eapply H8 in H22; simpl in *.
+    eapply H8 in H20; simpl in *.
     eauto.
     Lemma wrap_output_not_sca coutput i w : nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
     Proof.
@@ -1769,7 +1795,7 @@ Module Make (Import A : ADT).
       destruct a; simpl in *; discriminate.
       rewrite e in *; discriminate.
     Qed.
-    contradict H23.
+    contradict H21.
     eapply wrap_output_not_sca; eauto.
     solve [eauto].
     solve [unfold_all; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
@@ -1887,12 +1913,12 @@ Module Make (Import A : ADT).
     rewrite Locals.sel_upd_eq in * by eauto.
     destruct ret; simpl in *.
     discriminate.
-    inject H24.
+    inject H22.
     solve [unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition].
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne in * by eauto.
+    eapply find_ADT_add_remove_many in H20; eauto; openhyp.
     eapply find_ADT_add_remove_many in H22; eauto; openhyp.
-    eapply find_ADT_add_remove_many in H24; eauto; openhyp.
     solve [eapply related_no_alias; eauto].
     solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
     solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
