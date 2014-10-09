@@ -291,6 +291,219 @@ Module Make (Import A : ADT).
   Definition Submap {elt} m1 m2 := forall {k v}, @find elt k m1 = Some v -> find k m2 = Some v.
   Infix "<=" := Submap.
 
+  Require Import GeneralTactics2.
+
+  Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
+  Proof.
+    unfold Disjoint.
+    intros k.
+    nintro.
+    openhyp.
+    eapply diff_in_iff in H.
+    openhyp; intuition.
+  Qed.
+
+  Lemma diff_find_Some_iff : forall elt k (v : elt) m m', find k (m - m') = Some v <-> find k m = Some v /\ ~ In k m'.
+    split; intros.
+    eapply find_mapsto_iff in H.
+    eapply diff_mapsto_iff in H; openhyp.
+    eapply find_mapsto_iff in H.
+    eauto.
+    openhyp.
+    eapply find_mapsto_iff.
+    eapply diff_mapsto_iff.
+    eapply find_mapsto_iff in H.
+    eauto.
+  Qed.
+
+  Lemma diff_submap elt (m1 m2 : t elt) : m1 - m2 <= m1.
+  Proof.
+    unfold Submap.
+    intros k v Hf.
+    eapply diff_find_Some_iff in Hf; openhyp; eauto.
+  Qed.
+
+  Definition direct_sum elt (h1 h2 h12 : t elt) := (h1 + h2 == h12 /\ Disjoint h1 h2).
+
+  Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
+
+  Lemma diff_direct_sum elt (h2 h12 : t elt) : h2 <= h12 -> direct_sum (h12 - h2) h2 h12.
+    admit.
+  Qed.
+
+  Lemma Disjoint_in_not : forall elt h1 h2 x, @Disjoint elt h1 h2 -> In x h1 -> ~ In x h2.
+    admit.
+  Qed.
+  Lemma direct_sum_disjoint elt h1 h2 h12 : direct_sum h1 h2 h12 -> @Disjoint elt h1 h2.
+  Proof.
+    intros H; destruct H; eauto.
+  Qed.
+  Lemma direct_sum_in_not elt h1 h2 h12 x : @direct_sum elt h1 h2 h12 -> In x h1 -> ~ In x h2.
+  Proof.
+    intros; eapply Disjoint_in_not; eauto.
+    eapply direct_sum_disjoint; eauto.
+  Qed.
+  Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+
+  Lemma find_Some_direct_sum : forall elt h1 h2 h12, direct_sum h1 h2 h12 -> forall k (v : elt), find k h12 = Some v <-> find k h1 = Some v \/ find k h2 = Some v.
+    admit.
+  Qed.
+
+  Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
+    unfold Submap; eauto.
+  Qed.
+
+  Lemma direct_sum_submap elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> h1 <= h12 /\ h2 <= h12.
+    admit.
+  Qed.
+
+  Arguments direct_sum_submap [_] _ _ _ _.
+
+  Lemma direct_sum_sym elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> direct_sum h2 h1 h12.
+    admit.
+  Qed.
+
+  Lemma diff_disjoint_swap elt (h h1 h2 : t elt) : Disjoint h1 h2 -> h - h1 - h2 == h - h2 - h1.
+    admit.
+  Qed.
+
+  Require Import Setoid.
+
+  Global Add Parametric Morphism elt : (@direct_sum elt)
+      with signature Equal ==> Equal ==> Equal ==> iff as direct_sum_m.
+  admit.
+  Qed.
+  Lemma submap_disjoint_1 elt (h1 h2 h1' : t elt) : Disjoint h1 h2 -> h1' <= h1 -> Disjoint h1' h2.
+    admit.
+  Qed.
+  Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+  Lemma diff_submap_cancel elt (h1 h12 : t elt) : h1 <= h12 -> h12 - (h12 - h1) == h1.
+    admit.
+  Qed.
+
+  Lemma direct_sum_submap_submap elt (h1 h12 h123 h2 : t elt) : h1 <= h12 -> h12 <= h123 -> h2 == h12 - h1 -> direct_sum h2 (h123 - h12) (h123 - h1).
+    admit.
+  Qed.
+  Hint Extern 0 (_ == _) => reflexivity.
+
+  Ltac copy_as h h' := generalize h; intro h'.
+
+  Ltac openhyp' := 
+    repeat match goal with
+             | H : _ /\ _ |- _  => destruct H
+             | H : _ \/ _ |- _ => destruct H
+             | H : exists x, _ |- _ => destruct H
+             | H : exists ! x, _ |- _ => destruct H
+             | H : unique _ _ |- _ => destruct H
+           end.
+
+  Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
+    intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+  Qed.
+  Ltac subst' H := rewrite H in *; clear H.
+
+  (* unify and get rid of b *)
+  Ltac unif b :=
+    match goal with
+      | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
+    end.
+
+  Lemma mapM_nth_error_2 : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+    admit.
+  Qed.
+  Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
+    admit.
+  Qed.
+  Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
+    admit.
+  Qed.
+  Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
+    admit.
+  Qed.
+  Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
+    admit.
+  Qed.
+  Lemma mapM_nth_error_1 : forall A B (f : A -> option B) ls1 ls2 i a, mapM f ls1 = Some ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = Some b.
+    admit.
+  Qed.
+  Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
+    admit.
+  Qed.
+
+  Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
+    admit.
+  Qed.
+  Lemma nth_error_nil A i : nth_error (@nil A) i = None.
+    admit.
+  Qed.
+  Lemma incl_nth_error A ls1 ls2 i (a : A) : List.incl ls1 ls2 -> nth_error ls1 i = Some a -> exists i', nth_error ls2 i' = Some a.
+    admit.
+  Qed.
+  Lemma combine_map A B C (f1 : A -> B) (f2 : A -> C) ls : combine (List.map f1 ls) (List.map f2 ls) = List.map (fun x => (f1 x, f2 x)) ls.
+    admit.
+  Qed.
+
+  Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
+    admit.
+  Qed.
+
+  Ltac copy h := generalize h; intro.
+
+  Ltac unfold_related H := copy H; unfold related in H; simpl in H; openhyp.
+
+  Lemma related_no_alias : forall vs h st x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> vs x1 = vs x2 -> x1 = x2.
+  Proof.
+    intros.
+    unfold_related H.
+    copy H0; eapply H in H0; simpl in *.
+    copy H1; eapply H in H1; simpl in *.
+    unfold Locals.sel in *.
+    rewrite H2 in *.
+    rewrite H0 in H1; inject H1.
+    eapply H4 in H0; openhyp'.
+    assert (x = x1) by (eapply H1; eauto).
+    assert (x = x2) by (eapply H1; eauto).
+    eauto.
+  Qed.
+  Arguments related_no_alias [_ _] _ _ _ _ _ _ _ _ _.
+
+  Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
+
+  Lemma find_Some_add_remove_many : 
+    forall k ks ins outs h v, 
+      NoDup ks -> 
+      length ks = length ins -> 
+      length ks = length outs -> 
+      (StringMap.find k (add_remove_many ks ins outs h) = Some v <-> 
+       ((not_reachable k ks ins /\ StringMap.find k h = Some v) \/ 
+        exists i a, 
+          nth_error ks i = Some k /\ 
+          nth_error ins i = Some (ADT a) /\ 
+          nth_error outs i = Some (Some v))).
+    admit.
+  Qed.
+
+  Lemma mapM_length : forall A B (f : A -> option B) ls1 ls2, mapM f ls1 = Some ls2 -> length ls1 = length ls2.
+    admit.
+  Qed.
+
+  Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
+    NoDup ks -> 
+    mapM (sel st) ks = Some ins ->
+    length ks = length outs ->
+    StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
+    exists a', StringMap.find k st = Some (ADT a').
+  Proof.
+    intros Hnd Hmm Hl Hf.
+    eapply find_Some_add_remove_many in Hf; eauto.
+    2 : eapply mapM_length; eauto.
+    openhyp.
+    eexists; eauto.
+    eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
+    unif x1.
+    eexists; eauto.
+  Qed.
+
 (*
 
   s_st ------- s_env, s --------> exists s_st'
@@ -363,7 +576,6 @@ Module Make (Import A : ADT).
     3 : eauto.
     Focus 3.
     openhyp.
-    Ltac copy h := generalize h; intro.
     copy H; eapply H15 in H.
     openhyp.
     eapply ex_up in H.
@@ -423,7 +635,6 @@ Module Make (Import A : ADT).
 
     split.
     intros.
-    Require Import GeneralTactics2.
     Lemma singleton_iff_not : forall (e e' : string), ~ List.In e' [e] <-> e <> e'.
       unfold List.In; split; intros; not_not; intuition.
     Qed.
@@ -492,21 +703,6 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne by eauto.
     nintro; eapply H18; clear H18.
-    Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
-
-    Lemma find_Some_add_remove_many : 
-      forall k ks ins outs h v, 
-        NoDup ks -> 
-        length ks = length ins -> 
-        length ks = length outs -> 
-        (StringMap.find k (add_remove_many ks ins outs h) = Some v <-> 
-         ((not_reachable k ks ins /\ StringMap.find k h = Some v) \/ 
-          exists i a, 
-            nth_error ks i = Some k /\ 
-            nth_error ins i = Some (ADT a) /\ 
-            nth_error outs i = Some (Some v))).
-      admit.
-    Qed.
     Lemma In_add_remove_many : 
       forall k ks (ins : list Value) outs h, 
         NoDup ks -> 
@@ -526,26 +722,31 @@ Module Make (Import A : ADT).
     unfold related; simpl.
     split.
 
-    Ltac unfold_related H := copy H; unfold related in H; simpl in H; openhyp.
-
     (* related (1) *)
-    intros k v Hf.
+    rename x into st_callee'.
+    intros x v Hf.
 
-    eapply StringMapFacts.find_mapsto_iff in Hf.
-    eapply StringMapFacts.add_mapsto_iff in Hf; openhyp.
+    rename l into args.
+    rename s into lhs.
+    rename h into h123.
+    rename h1 into h12.
+    set (h3 := reachable_heap vs args input) in *.
+    set (h23 := h123 - h3) in *.
+
+    destruct (string_dec x lhs).
+    (* x = lhs *)
     subst.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
     rewrite Locals.sel_upd_eq by eauto.
     unfold_related H13.
+    (*here*)
     eapply H13 in H.
-    set (h23 := h - reachable_heap vs l input) in *.
     set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
     Lemma submap_represent : forall p h1 h2 v, represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
       admit.
     Qed.
-    eapply submap_represent.
-    eauto.
-    eapply submap_diff; eauto.
-    eapply submap_diff; eauto.
+    eapply submap_represent; eauto.
+    solve [eapply submap_diff; eauto; eapply submap_diff; eauto].
 
     rewrite Locals.sel_upd_ne by eauto.
     eapply StringMapFacts.find_mapsto_iff in H21.
@@ -568,7 +769,6 @@ Module Make (Import A : ADT).
     Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
       admit.
     Qed.
-    Require Import Setoid.
     Global Add Parametric Morphism elt : (@Submap elt)
         with signature Equal ==> Equal ==> iff as Submap_m.
       admit.
@@ -627,199 +827,11 @@ Module Make (Import A : ADT).
 
     eauto.
 
-    Lemma mapM_length : forall A B (f : A -> option B) ls1 ls2, mapM f ls1 = Some ls2 -> length ls1 = length ls2.
-      admit.
-    Qed.
-
     eapply mapM_length; eauto.
     rewrite map_length.
     rewrite map_map in H0.
     eapply map_eq_length_eq in H0.
     solve [eauto].
-
-    Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
-    Proof.
-      unfold Disjoint.
-      intros k.
-      nintro.
-      openhyp.
-      eapply diff_in_iff in H.
-      openhyp; intuition.
-    Qed.
-
-    Lemma diff_find_Some_iff : forall elt k (v : elt) m m', find k (m - m') = Some v <-> find k m = Some v /\ ~ In k m'.
-      split; intros.
-      eapply find_mapsto_iff in H.
-      eapply diff_mapsto_iff in H; openhyp.
-      eapply find_mapsto_iff in H.
-      eauto.
-      openhyp.
-      eapply find_mapsto_iff.
-      eapply diff_mapsto_iff.
-      eapply find_mapsto_iff in H.
-      eauto.
-    Qed.
-
-    Lemma diff_submap elt (m1 m2 : t elt) : m1 - m2 <= m1.
-    Proof.
-      unfold Submap.
-      intros k v Hf.
-      eapply diff_find_Some_iff in Hf; openhyp; eauto.
-    Qed.
-
-    Definition direct_sum elt (h1 h2 h12 : t elt) := (h1 + h2 == h12 /\ Disjoint h1 h2).
-
-    Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100).
-
-    Lemma diff_direct_sum elt (h2 h12 : t elt) : h2 <= h12 -> direct_sum (h12 - h2) h2 h12.
-      admit.
-    Qed.
-
-    Lemma Disjoint_in_not : forall elt h1 h2 x, @Disjoint elt h1 h2 -> In x h1 -> ~ In x h2.
-      admit.
-    Qed.
-    Lemma direct_sum_disjoint elt h1 h2 h12 : direct_sum h1 h2 h12 -> @Disjoint elt h1 h2.
-    Proof.
-      intros H; destruct H; eauto.
-    Qed.
-    Lemma direct_sum_in_not elt h1 h2 h12 x : @direct_sum elt h1 h2 h12 -> In x h1 -> ~ In x h2.
-    Proof.
-      intros; eapply Disjoint_in_not; eauto.
-      eapply direct_sum_disjoint; eauto.
-    Qed.
-    Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
-
-    Lemma find_Some_direct_sum : forall elt h1 h2 h12, direct_sum h1 h2 h12 -> forall k (v : elt), find k h12 = Some v <-> find k h1 = Some v \/ find k h2 = Some v.
-      admit.
-    Qed.
-
-    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
-      unfold Submap; eauto.
-    Qed.
-
-    Lemma direct_sum_submap elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> h1 <= h12 /\ h2 <= h12.
-      admit.
-    Qed.
-
-    Arguments direct_sum_submap [_] _ _ _ _.
-
-    Lemma direct_sum_sym elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> direct_sum h2 h1 h12.
-      admit.
-    Qed.
-
-    Lemma diff_disjoint_swap elt (h h1 h2 : t elt) : Disjoint h1 h2 -> h - h1 - h2 == h - h2 - h1.
-      admit.
-    Qed.
-    Global Add Parametric Morphism elt : (@direct_sum elt)
-        with signature Equal ==> Equal ==> Equal ==> iff as direct_sum_m.
-      admit.
-    Qed.
-    Lemma submap_disjoint_1 elt (h1 h2 h1' : t elt) : Disjoint h1 h2 -> h1' <= h1 -> Disjoint h1' h2.
-      admit.
-    Qed.
-    Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
-    Lemma diff_submap_cancel elt (h1 h12 : t elt) : h1 <= h12 -> h12 - (h12 - h1) == h1.
-      admit.
-    Qed.
-
-    Lemma direct_sum_submap_submap elt (h1 h12 h123 h2 : t elt) : h1 <= h12 -> h12 <= h123 -> h2 == h12 - h1 -> direct_sum h2 (h123 - h12) (h123 - h1).
-      admit.
-    Qed.
-    Hint Extern 0 (_ == _) => reflexivity.
-
-    Ltac copy_as h h' := generalize h; intro h'.
-
-    Ltac openhyp' := 
-      repeat match goal with
-               | H : _ /\ _ |- _  => destruct H
-               | H : _ \/ _ |- _ => destruct H
-               | H : exists x, _ |- _ => destruct H
-               | H : exists ! x, _ |- _ => destruct H
-               | H : unique _ _ |- _ => destruct H
-             end.
-
-    Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
-      intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-    Qed.
-    Ltac subst' H := rewrite H in *; clear H.
-
-    (* unify and get rid of b *)
-    Ltac unif b :=
-      match goal with
-        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
-      end.
-
-    Lemma mapM_nth_error_2 : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
-      admit.
-    Qed.
-    Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
-      admit.
-    Qed.
-    Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
-      admit.
-    Qed.
-    Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
-      admit.
-    Qed.
-    Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
-      admit.
-    Qed.
-    Lemma mapM_nth_error_1 : forall A B (f : A -> option B) ls1 ls2 i a, mapM f ls1 = Some ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = Some b.
-      admit.
-    Qed.
-    Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
-      admit.
-    Qed.
-
-    Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
-      admit.
-    Qed.
-    Lemma nth_error_nil A i : nth_error (@nil A) i = None.
-      admit.
-    Qed.
-    Lemma incl_nth_error A ls1 ls2 i (a : A) : List.incl ls1 ls2 -> nth_error ls1 i = Some a -> exists i', nth_error ls2 i' = Some a.
-      admit.
-    Qed.
-    Lemma combine_map A B C (f1 : A -> B) (f2 : A -> C) ls : combine (List.map f1 ls) (List.map f2 ls) = List.map (fun x => (f1 x, f2 x)) ls.
-      admit.
-    Qed.
-
-    Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
-      admit.
-    Qed.
-
-    Lemma related_no_alias : forall vs h st x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> vs x1 = vs x2 -> x1 = x2.
-    Proof.
-      intros.
-      unfold_related H.
-      copy H0; eapply H in H0; simpl in *.
-      copy H1; eapply H in H1; simpl in *.
-      unfold Locals.sel in *.
-      rewrite H2 in *.
-      rewrite H0 in H1; inject H1.
-      eapply H4 in H0; openhyp'.
-      assert (x = x1) by (eapply H1; eauto).
-      assert (x = x2) by (eapply H1; eauto).
-      eauto.
-    Qed.
-    Arguments related_no_alias [_ _] _ _ _ _ _ _ _ _ _.
-
-    Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
-        NoDup ks -> 
-        mapM (sel st) ks = Some ins ->
-        length ks = length outs ->
-        StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
-        exists a', StringMap.find k st = Some (ADT a').
-    Proof.
-      intros Hnd Hmm Hl Hf.
-      eapply find_Some_add_remove_many in Hf; eauto.
-      2 : eapply mapM_length; eauto.
-      openhyp.
-      eexists; eauto.
-      eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
-      unif x1.
-      eexists; eauto.
-    Qed.
 
     (* related (2) *)
     rewrite map_map in H0; simpl in *.
