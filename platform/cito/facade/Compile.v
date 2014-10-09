@@ -729,10 +729,105 @@ Module Make (Import A : ADT).
 
     Ltac copy_as h h' := generalize h; intro h'.
 
+    Ltac openhyp' := 
+      repeat match goal with
+               | H : _ /\ _ |- _  => destruct H
+               | H : _ \/ _ |- _ => destruct H
+               | H : exists x, _ |- _ => destruct H
+               | H : exists ! x, _ |- _ => destruct H
+               | H : unique _ _ |- _ => destruct H
+             end.
+
+    Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
+      intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+    Qed.
+    Ltac subst' H := rewrite H in *; clear H.
+
+    (* unify and get rid of b *)
+    Ltac unif b :=
+      match goal with
+        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
+      end.
+
+    Lemma mapM_nth_error_2 : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
+      admit.
+    Qed.
+    Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
+      admit.
+    Qed.
+    Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
+      admit.
+    Qed.
+    Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
+      admit.
+    Qed.
+    Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
+      admit.
+    Qed.
+    Lemma mapM_nth_error_1 : forall A B (f : A -> option B) ls1 ls2 i a, mapM f ls1 = Some ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = Some b.
+      admit.
+    Qed.
+    Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
+      admit.
+    Qed.
+
+    Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
+      admit.
+    Qed.
+    Lemma nth_error_nil A i : nth_error (@nil A) i = None.
+      admit.
+    Qed.
+    Lemma incl_nth_error A ls1 ls2 i (a : A) : List.incl ls1 ls2 -> nth_error ls1 i = Some a -> exists i', nth_error ls2 i' = Some a.
+      admit.
+    Qed.
+    Lemma combine_map A B C (f1 : A -> B) (f2 : A -> C) ls : combine (List.map f1 ls) (List.map f2 ls) = List.map (fun x => (f1 x, f2 x)) ls.
+      admit.
+    Qed.
+
+    Lemma related_no_alias : forall vs h st x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> vs x1 = vs x2 -> x1 = x2.
+    Proof.
+      intros.
+      unfold_related H.
+      copy H0; eapply H in H0; simpl in *.
+      copy H1; eapply H in H1; simpl in *.
+      unfold Locals.sel in *.
+      rewrite H2 in *.
+      rewrite H0 in H1; inject H1.
+      eapply H4 in H0; openhyp'.
+      assert (x = x1) by (eapply H1; eauto).
+      assert (x = x2) by (eapply H1; eauto).
+      eauto.
+    Qed.
+    Arguments related_no_alias [_ _] _ _ _ _ _ _ _ _ _.
+
+    Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
+        NoDup ks -> 
+        mapM (sel st) ks = Some ins ->
+        length ks = length outs ->
+        StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
+        exists a', StringMap.find k st = Some (ADT a').
+    Proof.
+      intros Hnd Hmm Hl Hf.
+      eapply find_Some_add_remove_many in Hf; eauto.
+      2 : eapply mapM_length; eauto.
+      openhyp.
+      eexists; eauto.
+      eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
+      unif x1.
+      eexists; eauto.
+    Qed.
+
     (* related (2) *)
+    rewrite map_map in H0; simpl in *.
     intros.
     rename s into lhs.
     rename l into args.
+    (* set up the heap partitioning :
+       h3 : the heap portion passed to the callee, i.e. reachable by arguments referring to ADT objects;
+       h2 : the heap portion accessible by the caller, modulo h3;
+       h1 : the heap portion not accessible by the caller.
+       h1, h2 and h3 are mutually disjoint and cover the whole heap h123.
+     *)
     rename h into h123.
     rename h1 into h23.
     rename h2 into h1.
@@ -770,6 +865,7 @@ Module Make (Import A : ADT).
     solve [eauto].
     solve [erewrite submap_diff_diff; eauto].
 
+    (* case analysis on which partition p falls into *)
     eapply find_Some_direct_sum in H20; eauto; openhyp.
 
     (* p is in h2 *)
@@ -778,15 +874,6 @@ Module Make (Import A : ADT).
     2 : eapply (direct_sum_submap h2 h3); eauto.
     eapply H27 in H20.
 
-    Ltac openhyp' := 
-      repeat match goal with
-               | H : _ /\ _ |- _  => destruct H
-               | H : _ \/ _ |- _ => destruct H
-               | H : exists x, _ |- _ => destruct H
-               | H : exists ! x, _ |- _ => destruct H
-               | H : unique _ _ |- _ => destruct H
-             end.
-
     openhyp'.
     rename x1 into x3.
     destruct (string_dec x3 lhs).
@@ -794,29 +881,25 @@ Module Make (Import A : ADT).
     Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
       admit.
     Qed.
-    contradict H12; eapply not_mapsto_adt_not_true_iff; eexists; eauto.
+    solve [contradict H12; eapply not_mapsto_adt_not_true_iff; eexists; eauto].
+    (* x3 <> lhs *)
     exists x3.
     split.
-    split.
-    rewrite Locals.sel_upd_ne by eauto; eauto.
+    rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o by eauto.
+    split.
+    eauto.
     eapply find_Some_add_remove_many.
-    eauto.
-    eapply mapM_length; eauto.
+    solve [eauto].
+    solve [eapply mapM_length; eauto].
     rewrite map_length.
-    rewrite map_map in H0.
-    eapply map_eq_length_eq in H0.
-    eauto.
+    solve [eapply map_eq_length_eq in H0; eauto].
     left.
     split.
+    2 : solve [eauto].
     eapply not_reachable_iff; eauto.
     eapply (direct_sum_in_not h2 h3); eauto.
-    subst.
-    Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
-      intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-    Qed.
-    eapply find_Some_in; eauto.
-    solve [eauto].
+    solve [subst; eapply find_Some_in; eauto].
 
     intros.
     openhyp.
@@ -827,23 +910,15 @@ Module Make (Import A : ADT).
     inject H31.
     eapply H9 in H.
     contradict H.
-
-    Ltac subst' H := rewrite H in *; clear H.
-
-    (* unify and get rid of b *)
-    Ltac unif b :=
-      match goal with
-        | H1 : ?L = Some _, H2 : ?L = Some b |- _ => rewrite H1 in H2; symmetry in H2; inject H2
-      end.
-
     subst' H30.
     eapply submap_in; eauto.
     eapply (direct_sum_submap h1 h2); eauto.
-    eapply find_Some_in; eauto.
+    solve [eapply find_Some_in; eauto].
     eapply make_state_not_in.
     eapply not_incl_spec.
     solve [eauto].
 
+    (* x' <> lhs *)
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne in * by eauto.
     eapply H28.
@@ -861,7 +936,6 @@ Module Make (Import A : ADT).
     erewrite <- not_reachable_add_remove_many; eauto.
     solve [eapply mapM_length; eauto].
     rewrite map_length.
-    rewrite map_map in H0.
     solve [eapply map_eq_length_eq in H0; eauto].
     eapply not_reachable_iff; eauto.
     eapply (direct_sum_in_not h2 h3); eauto.
@@ -872,19 +946,19 @@ Module Make (Import A : ADT).
     copy_as H20 Hf; eapply H27 in H20.
     openhyp'.
     rename x1 into x3.
+    rename x into st_callee'.
+    (* Since there is no memory leak, ADT-holding x3 can only be RetVar or an ADT-holding argument *)
     copy_as H29 Hf3; eapply H17 in H29.
     openhyp.
 
     (* x3 is RetVar (i.e. p is the address of the returned ADT object) *)
     subst.
-    unfold sel in *; rewrite Hf3 in H.
-    inject H.
+    unfold sel in *.
+    unif x0.
     exists lhs.
     split.
     (* exists *)
-    split.
     rewrite Locals.sel_upd_eq by eauto.
-    eauto.
     rewrite StringMapFacts.add_eq_o by eauto.
     eauto.
 
@@ -893,9 +967,9 @@ Module Make (Import A : ADT).
     openhyp.
     destruct (string_dec x' lhs).
     eauto.
-    set (p := Locals.sel vs_callee' (RetVar spec)) in *.
     rewrite Locals.sel_upd_ne in * by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
+    set (p := Locals.sel vs_callee' (RetVar spec)) in *.
     eapply find_Some_add_remove_many in H20.
     openhyp.
     (* not_reachable *)
@@ -911,50 +985,44 @@ Module Make (Import A : ADT).
     contradict H20.
     solve [eapply find_Some_in; eauto].
     (* reachable *)
-    rewrite map_map in H0; simpl in *.
-    symmetry in H0.
+    eapply nth_error_map_elim in H30.
+    openhyp.
     eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
+    unfold StringMap.key in *.
+    unif x2.
     unfold Locals.sel in *.
-    erewrite map_nth_error in H30 by eauto.
-    inject H30.
-    assert (RetVar spec = x2).
+    assert (RetVar spec = x1).
     eapply H28.
     split.
     rewrite <- H.
-    rewrite H31.
+    rewrite <- H32.
     symmetry; eapply H5.
     eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     solve [eauto].
     subst.
-    eapply Locals.nth_error_In in H0; eauto.
-    contradict H0.
-    eapply not_incl_spec.
-    eauto.
+    eapply Locals.nth_error_In in H30; eauto.
+    contradict H30.
+    solve [eapply not_incl_spec].
+    solve [eauto].
     eapply mapM_length; eauto.
     rewrite map_length.
-    rewrite map_map in H0.
     solve [eapply map_eq_length_eq in H0; eauto].
 
     (* x3 is an arg referring to an ADT object (i.e. p is the address of an output ADT object, not the returned ADT object) *)
-    rewrite map_map in H0; simpl in *.
+    rename x into i.
     copy_as H0 H00; eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
-    rename x1 into i.
-    rename x4 into arg.
+    rename x into arg.
     destruct (string_dec arg lhs).
     subst.
     contradict H12.
-    Lemma mapM_nth_error_2 : forall A B (f : A -> option B) ls1 ls2 i a2, mapM f ls1 = Some ls2 -> nth_error ls2 i = Some a2 -> exists a1, nth_error ls1 i = Some a1 /\ f a1 = Some a2.
-      admit.
-    Qed.
-    eapply mapM_nth_error_2 in H11; [ | eauto].
+    eapply not_mapsto_adt_not_true_iff.
+    eapply mapM_nth_error_1 in H11; eauto.
     openhyp.
-    unfold StringMap.key in *.
-    rewrite H0 in H11.
-    inject H11.
-    solve [eapply not_mapsto_adt_not_true_iff; eexists; eauto].
+    unif x.
+    solve [eexists; eauto].
    
     exists arg.
     split.
@@ -970,119 +1038,56 @@ Module Make (Import A : ADT).
     eapply Locals.nth_error_In; eauto.
 
     eapply find_Some_add_remove_many.
-    eauto.
-    eapply mapM_length; eauto.
-    rewrite map_length.
-    eapply map_eq_length_eq in H00; eauto.
+    solve [eauto].
+    solve [eapply mapM_length; eauto].
+    solve [rewrite map_length; eapply map_eq_length_eq in H00; eauto].
     right.
-    exists i.
-    eexists.
+    exists i, x1.
     split.
     eauto.
     split.
     eauto.
     erewrite map_nth_error by eauto.
-    f_equal.
-    solve [eauto].
+    f_equal; solve [eauto].
 
     (* unique *)
     intros.
     openhyp.
     destruct (string_dec x' lhs).
     subst.
-    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
-    set (p := Locals.sel vs_callee' x3) in *.
     rewrite Locals.sel_upd_eq in * by eauto.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     inject H33.
+    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
+    set (p := Locals.sel vs_callee' x3) in *.
     assert (x3 = RetVar spec).
     eapply H28.
-    split.
-    eauto.
-    eauto.
+    solve [eauto].
     unfold_all; subst.
     eapply Locals.nth_error_In in H29; eauto.
     contradict H29.
-    eapply not_incl_spec.
-
-    set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
+    solve [eapply not_incl_spec].
+    (* x' <> lhs *)
     rewrite Locals.sel_upd_ne in * by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
-    eapply find_Some_add_remove_many in H33.
-    openhyp.
-    (* not_reachable *)
-    unfold_related H18.
-    eapply H18 in H34; simpl in *.
-    eapply find_Some_direct_sum in H34; eauto; openhyp.
-    subst.
-    eapply find_Some_in in H34.
-    eapply find_Some_in in Hf.
-    contradict Hf.
-    subst' H32; solve [eapply (direct_sum_in_not h2 h3'); eauto].
-    eapply not_reachable_iff in H33; eauto.
-    contradict H33.
-    solve [eapply find_Some_in; eauto].
-    (* reachable *)
-    rename x1 into i'.
-    symmetry in H00.
-    eapply map_eq_nth_error_1 in H00; [ | eauto ..].
-    openhyp.
-    unfold Locals.sel in *.
-    erewrite map_nth_error in H35 by eauto.
-    inject H35.
-    assert (x3 = x1).
-    eapply H28.
-    split.
-    rewrite <- H32.
-    rewrite H37.
-    symmetry; eapply H5.
+    unfold Locals.sel in *; subst.
+    assert (vs arg = vs x').
+    rewrite H32.
+    rewrite <- H31.
+    eapply H5.
     eapply in_args_not_assigned; eauto.
-    eapply Locals.nth_error_In; eauto.
-    eauto.
-    subst.
-    Lemma NoDup_nth_error : forall {A ls i i'} (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> NoDup ls -> i = i'.
-      admit.
-    Qed.
-    assert (i = i').
-    eapply (NoDup_nth_error H29); eauto.
-    solve [eapply NoDup_ArgVars; eauto].
-    subst.
-    unfold StringMap.key in *.
-    unif x'.
-    eauto.
-    eauto.
-    eapply mapM_length; eauto.
-    rewrite map_length.
-    eapply map_eq_length_eq in H00; eauto.
+    solve [eapply Locals.nth_error_In; eauto].
+    copy_as H11 Hmm; eapply mapM_nth_error_1 in Hmm; eauto.
+    openhyp.
+    unif x.
+    eapply find_ADT_add_remove_many in H33; eauto.
+    openhyp.
+    eapply (related_no_alias s_st); eauto.
+    solve [rewrite map_length; eapply map_eq_length_eq in H00; eauto].
 
-    Lemma combine_length_eq : forall A B (ls1 : list A) (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
-      admit.
-    Qed.
-    Lemma nth_error_combine : forall A B ls1 ls2 (a : A) (b : B) i, nth_error ls1 i = Some a -> nth_error ls2 i = Some b -> nth_error (combine ls1 ls2) i = Some (a, b).
-      admit.
-    Qed.
-    Lemma nth_error_combine_elim : forall A B ls1 ls2 (a : A) (b : B) i, nth_error (combine ls1 ls2) i = Some (a, b) -> nth_error ls1 i = Some a /\ nth_error ls2 i = Some b.
-      admit.
-    Qed.
-    Lemma mapM_nth_error_1 : forall A B (f : A -> option B) ls1 ls2 i a, mapM f ls1 = Some ls2 -> nth_error ls1 i = Some a -> exists b, nth_error ls2 i = Some b /\ f a = Some b.
-      admit.
-    Qed.
-    Lemma map_nth_error_2 : forall A B (f : A -> B) ls1 ls2 i b, List.map f ls1 = ls2 -> nth_error ls2 i = Some b -> exists a, nth_error ls1 i = Some a /\ f a = b.
-      admit.
-    Qed.
 
-    Lemma in_nth_error A ls (a : A) : List.In a ls -> exists i, nth_error ls i = Some a.
-      admit.
-    Qed.
-    Lemma nth_error_nil A i : nth_error (@nil A) i = None.
-      admit.
-    Qed.
-    Lemma incl_nth_error A ls1 ls2 i (a : A) : List.incl ls1 ls2 -> nth_error ls1 i = Some a -> exists i', nth_error ls2 i' = Some a.
-      admit.
-    Qed.
-    Lemma combine_map A B C (f1 : A -> B) (f2 : A -> C) ls : combine (List.map f1 ls) (List.map f2 ls) = List.map (fun x => (f1 x, f2 x)) ls.
-      admit.
-    Qed.
+    Focus 7.
+    (* call-axiomatic *)
 
     Import Semantics.
 
@@ -1117,8 +1122,6 @@ Module Make (Import A : ADT).
       f_equal; auto.
     Qed.
 
-    Focus 7.
-    (* call-axiomatic *)
     unfold_all.
     injection H6; intros; subst; clear H6.
     simpl in *.
@@ -1238,20 +1241,6 @@ Module Make (Import A : ADT).
     assert (words_cinput = combine words cinput) by (unfold_all; rewrite combine_map; eauto).
 
     assert (no_alias words_cinput).
-
-    Lemma related_no_alias : forall st vs h x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> Locals.sel vs x1 = Locals.sel vs x2 -> x1 = x2.
-    Proof.
-      intros.
-      unfold_related H.
-      copy H0; eapply H in H0; simpl in *.
-      copy H1; eapply H in H1; simpl in *.
-      rewrite H2 in *.
-      rewrite H0 in H1; inject H1.
-      eapply H4 in H0; openhyp'.
-      assert (x = x1) by (eapply H1; eauto).
-      assert (x = x2) by (eapply H1; eauto).
-      eauto.
-    Qed.
 
     Lemma NoDup_no_alias st vs h args words cinput input words_cinput :
       related st (vs, h) ->
@@ -1950,22 +1939,6 @@ Module Make (Import A : ADT).
     subst.
     contradict H16.
     eapply not_mapsto_adt_not_true_iff.
-    Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
-        NoDup ks -> 
-        mapM (sel st) ks = Some ins ->
-        length ks = length outs ->
-        StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
-        exists a', StringMap.find k st = Some (ADT a').
-    Proof.
-      intros Hnd Hmm Hl Hf.
-      eapply find_Some_add_remove_many in Hf; eauto.
-      2 : eapply mapM_length; eauto.
-      openhyp.
-      eexists; eauto.
-      eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
-      unif x1.
-      eexists; eauto.
-    Qed.
     eapply find_ADT_add_remove_many; eauto.
     solve [unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
 
