@@ -257,6 +257,29 @@ Module Make (Import A : ADT).
     eauto.
   Qed.
 
+  (* test boolean deciders *)
+  Open Scope string_scope.
+  Require Import List.
+  Import ListNotations.
+  Eval compute in (is_no_dup ["aa"; "ab"; "cc"]).
+  Goal is_no_dup ["aa"; "ab"; "cc"] = true. Proof. exact eq_refl. Qed.
+  Eval compute in (is_no_dup ["aa"; "aa"; "cc"]).
+  Goal is_no_dup ["aa"; "aa"; "cc"] = false. Proof. exact eq_refl. Qed.
+  Eval compute in (is_in "bb" ["aa"; "bb"; "cc"]).
+  Goal is_in "bb" ["aa"; "bb"; "cc"] = true. Proof. exact eq_refl. Qed.
+  Eval compute in (is_in "dd" ["aa"; "bb"; "cc"]).
+  Goal is_in "dd" ["aa"; "bb"; "cc"] = false. Proof. exact eq_refl. Qed.
+  Eval compute in (is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"]).
+  Goal is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"] = true. Proof. exact eq_refl. Qed.
+  Eval compute in (is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"; "cc"]).
+  Goal is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"; "cc"] = false. Proof. exact eq_refl. Qed.
+  Eval compute in (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))).
+  Goal assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b"))) = ["x"; "y"]. Proof. exact eq_refl. Qed.
+  Eval compute in (is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"]).
+  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"] = true. Proof. exact eq_refl. Qed.
+  Eval compute in (is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"; "x"]).
+  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"; "x"] = false. Proof. exact eq_refl. Qed.
+  
   Require Import StringSet.
 
   Require Import WordMapFacts.
@@ -359,7 +382,6 @@ Module Make (Import A : ADT).
     eauto.
     reflexivity.
     Unfocus.
-    Require Import List.
     Fixpoint reachable_heap vs argvars (input : list Value) := 
       match argvars, input with
         | k :: ks, i :: is =>
@@ -381,7 +403,7 @@ Module Make (Import A : ADT).
     Qed.
     eapply submap_trans; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
-    Lemma change_var_names : forall vs1 vs2 h vars1 vars2 input, related (make_state vars1 input) (vs1, h) -> (map (Locals.sel vs2) vars2 = map (fun x => vs1 x) vars1) -> related (make_state vars2 input) (vs2, h).
+    Lemma change_var_names : forall vs1 vs2 h vars1 vars2 input, related (make_state vars1 input) (vs1, h) -> (List.map (Locals.sel vs2) vars2 = List.map (fun x => vs1 x) vars1) -> related (make_state vars2 input) (vs2, h).
       admit.
     Qed.
     eapply change_var_names; eauto.
@@ -402,7 +424,6 @@ Module Make (Import A : ADT).
     split.
     intros.
     Require Import GeneralTactics2.
-    Import ListNotations.
     Lemma singleton_iff_not : forall (e e' : string), ~ List.In e' [e] <-> e <> e'.
       unfold List.In; split; intros; not_not; intuition.
     Qed.
@@ -721,7 +742,10 @@ Module Make (Import A : ADT).
     rename x1 into x3.
     destruct (string_dec x3 lhs).
     subst.
-    contradict H12; eexists; eauto.
+    Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
+      admit.
+    Qed.
+    contradict H12; eapply not_mapsto_adt_not_true_iff; eexists; eauto.
     exists x3.
     split.
     split.
@@ -881,7 +905,7 @@ Module Make (Import A : ADT).
     unfold StringMap.key in *.
     rewrite H0 in H11.
     inject H11.
-    solve [eexists; eauto].
+    solve [eapply not_mapsto_adt_not_true_iff; eexists; eauto].
    
     exists arg.
     split.
@@ -1877,6 +1901,7 @@ Module Make (Import A : ADT).
     destruct (string_dec x lhs).
     subst.
     contradict H16.
+    eapply not_mapsto_adt_not_true_iff.
     Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
         NoDup ks -> 
         mapM (sel st) ks = Some ins ->
