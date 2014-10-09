@@ -170,6 +170,20 @@ Section ADTSection.
 
   Definition wrap_output := List.map (option_map ADT).
 
+  Definition is_some_p A (p : A -> bool) o := 
+    match o with
+      | Some a => p a
+      | None => false
+    end.
+
+  Definition is_adt v :=
+    match v with
+      | ADT _ => true
+      | _ => false
+    end.
+
+  Definition not_mapsto_adt x st := negb (is_some_p is_adt (StringMap.find x st)).
+
   Section EnvSection.
 
     Variable env : Env.
@@ -208,13 +222,13 @@ Section ADTSection.
           (* rhs can't be an ADT object, to prevent alias *)
           eval st e = Some (SCA w) ->
           (* lhs can't be already referring to an ADT object, to prevent memory leak *)
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           st' == add x (SCA w) st ->
           RunsTo (Assign x e) st st'
     | RunsToLabel :
         forall x lbl st st' w,
           Label2Word env lbl = Some w ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           st' == add x (SCA w) st ->
           RunsTo (Label x lbl) st st'
     | RunsToCallAx :
@@ -223,7 +237,7 @@ Section ADTSection.
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           PreCond spec input ->
           length input = length output ->
           PostCond spec (combine input output) ret ->
@@ -239,7 +253,7 @@ Section ADTSection.
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           let callee_st := make_state (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
@@ -285,12 +299,12 @@ Section ADTSection.
     | SafeAssign :
         forall x e st w,
           eval st e = Some (SCA w) ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           Safe (Assign x e) st
     | SafeLabel :
         forall x lbl st w,
           Label2Word env lbl = Some w ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           Safe (Label x lbl) st
     | SafeCallAx :
         forall x f args st spec input f_w,
@@ -298,7 +312,7 @@ Section ADTSection.
           eval st f = Some (SCA f_w) ->
           Word2Spec env f_w = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           PreCond spec input ->
           Safe (Call x f args) st
     | SafeCallOp :
@@ -308,7 +322,7 @@ Section ADTSection.
           Word2Spec env f_w = Some (Operational spec) ->
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
-          (~ exists a, sel st x = Some (ADT a)) -> 
+          not_mapsto_adt x st = true ->
           let callee_st := make_state (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (forall callee_st', 
