@@ -293,7 +293,7 @@ Module Make (Import A : ADT).
 
   Require Import GeneralTactics2.
 
-  Lemma Disjoint_diff elt m1 m2 : @Disjoint elt (m1 - m2) m2.
+  Lemma diff_disjoint elt m1 m2 : @Disjoint elt (m1 - m2) m2.
   Proof.
     unfold Disjoint.
     intros k.
@@ -738,6 +738,7 @@ Module Make (Import A : ADT).
     subst.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     rewrite Locals.sel_upd_eq by eauto.
+    inject Hf.
     unfold_related H13.
     (*here*)
     eapply H13 in H.
@@ -749,21 +750,21 @@ Module Make (Import A : ADT).
     solve [eapply submap_diff; eauto; eapply submap_diff; eauto].
 
     rewrite Locals.sel_upd_ne by eauto.
-    eapply StringMapFacts.find_mapsto_iff in H21.
-    eapply find_Some_add_remove_many in H21.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply find_Some_add_remove_many in Hf.
     openhyp.
     unfold_related H18.
-    eapply H18 in H22.
+    eapply H18 in H21.
     Lemma not_in_find_submap : forall elt h1 h2 k, h2 <= h1 -> ~@WordMap.In elt k h2 -> WordMap.find k h1 = WordMap.find k (h1 - h2).
       admit.
     Qed.
-    erewrite not_in_find_submap in H22.
+    erewrite not_in_find_submap in H21.
     Focus 3.
     Lemma not_reachable_iff : forall k ks st vs h input, related st (vs, h) -> mapM (sel st) ks = Some input -> (not_reachable k ks input <-> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input)).
       admit.
     Qed.
     eapply not_reachable_iff; eauto.
-    2 : eauto.
+    2 : solve [eauto].
     eapply submap_represent.
     eauto.
     Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
@@ -778,7 +779,7 @@ Module Make (Import A : ADT).
       admit.
     Qed.
     eapply submap_restrict.
-    eauto.
+    solve [eauto].
 
     rewrite map_map in H0; simpl in *.
     Lemma map_nth_error_1 : forall A B (f : A -> B) ls1 ls2 i a, List.map f ls1 = ls2 -> nth_error ls1 i = Some a -> nth_error ls2 i = Some (f a).
@@ -803,7 +804,7 @@ Module Make (Import A : ADT).
     eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
-    rewrite H24.
+    rewrite H23.
     rewrite H5.
     Focus 2.
     Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
@@ -813,20 +814,17 @@ Module Make (Import A : ADT).
     eapply in_args_not_assigned; eauto.
     eapply Locals.nth_error_In; eauto.
     rename x1 into i.
-    rename l into args.
-    erewrite map_nth_error in H23 by eauto.
-    inject H23.
+    erewrite map_nth_error in H22 by eauto.
+    inject H22.
     unfold_related H13.
     unfold Locals.sel in *.
-    set (h23 := h - reachable_heap vs args input) in *.
     set (p := vs_callee' x3) in *.
     eapply submap_represent.
     eauto.
     eapply submap_diff; eauto.
-    eapply submap_diff; eauto.
+    solve [eapply submap_diff; eauto].
 
-    eauto.
-
+    solve [eauto].
     eapply mapM_length; eauto.
     rewrite map_length.
     rewrite map_map in H0.
@@ -1672,7 +1670,7 @@ Module Make (Import A : ADT).
       intros st vs h2 args triples words cinput coutput input h h' p a Hr Hnd Hw Hci Hco Hi Hm Hmm Hsm2 h1 He Hsm1'.
       assert (Hna : no_alias (combine words cinput)) by (eapply NoDup_no_alias; eauto).
       assert (Hsm1 : h1 <= h) by eapply diff_submap.
-      assert (Hd : Disjoint h1 h2) by eapply Disjoint_diff.
+      assert (Hd : Disjoint h1 h2) by eapply diff_disjoint.
       assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
       
       rewrite He.
