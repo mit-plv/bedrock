@@ -446,10 +446,32 @@ Module Make (Import A : ADT).
   Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
     admit.
   Qed.
+  Lemma is_disjoint_sound ls1 ls2 : is_disjoint ls1 ls2 = true -> ListFacts1.Disjoint ls1 ls2.
+    admit.
+  Qed.
 
   Ltac copy h := generalize h; intro.
 
   Ltac unfold_related H := copy H; unfold related in H; simpl in H; openhyp.
+
+  Lemma map_nth_error_1 : forall A B (f : A -> B) ls1 ls2 i a, List.map f ls1 = ls2 -> nth_error ls1 i = Some a -> nth_error ls2 i = Some (f a).
+    intros.
+    rewrite <- H.
+    erewrite map_nth_error; eauto.
+  Qed.
+  Lemma nth_error_map_elim : forall A B (f : A -> B) ls i b, nth_error (List.map f ls) i = Some b -> exists a, nth_error ls i = Some a /\ f a = b.
+    intros.
+    rewrite ListFacts.map_nth_error_full in H.
+    destruct (option_dec (nth_error ls i)).
+    destruct s; rewrite e in *; inject H; eexists; eauto.
+    rewrite e in *; discriminate.
+  Qed.
+  Lemma map_eq_nth_error_1 : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1, List.map f1 ls1 = List.map f2 ls2 -> nth_error ls1 i = Some a1 -> exists a2, nth_error ls2 i = Some a2 /\ f1 a1 = f2 a2.
+    intros.
+    eapply map_nth_error_1 in H; eauto.
+    eapply nth_error_map_elim in H; openhyp.
+    eexists; eauto.
+  Qed.
 
   Lemma related_no_alias : forall vs h st x1 a1 x2 a2, related st (vs, h) -> StringMap.find x1 st = Some (ADT a1) -> StringMap.find x2 st = Some (ADT a2) -> vs x1 = vs x2 -> x1 = x2.
   Proof.
@@ -723,6 +745,7 @@ Module Make (Import A : ADT).
     split.
 
     (* related (1) *)
+    rewrite map_map in H0; simpl in *.
     rename x into st_callee'.
     intros x v Hf.
 
@@ -740,96 +763,137 @@ Module Make (Import A : ADT).
     rewrite Locals.sel_upd_eq by eauto.
     inject Hf.
     unfold_related H13.
-    (*here*)
-    eapply H13 in H.
     set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
-    Lemma submap_represent : forall p h1 h2 v, represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
-      admit.
+    eapply H13 in H.
+    Lemma submap_represent p h1 h2 v : represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
+    Proof.
+      intros Hpr Hsm.
+      destruct v as [w | a]; simpl in *.
+      eauto.
+      eapply submap_find; eauto.
     Qed.
     eapply submap_represent; eauto.
     solve [eapply submap_diff; eauto; eapply submap_diff; eauto].
 
+    (* x <> lhs *)
     rewrite Locals.sel_upd_ne by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
     eapply find_Some_add_remove_many in Hf.
     openhyp.
+    (* not reachable *)
     unfold_related H18.
     eapply H18 in H21.
-    Lemma not_in_find_submap : forall elt h1 h2 k, h2 <= h1 -> ~@WordMap.In elt k h2 -> WordMap.find k h1 = WordMap.find k (h1 - h2).
+    erewrite <- diff_o in H21.
+    Focus 2.
+    Lemma not_reachable_iff k ks st vs h input : related st (vs, h) -> mapM (sel st) ks = Some input -> (not_reachable k ks input <-> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input)).
+    Proof.
+      intros Hr Hmm.
+      unfold not_reachable.
+      split.
+      intros Hnr.
+      nintro.
+      Lemma in_reachable_heap_iff vs ks ins p : length ks = length ins -> (In p (reachable_heap vs ks ins) <-> exists i k a, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
+        admit.
+      Qed.
+      eapply in_reachable_heap_iff in H.
+      destruct H as [i [k' [a [Hk' [Hi Hp]]]]].
+
+      (*here*)
       admit.
-    Qed.
-    erewrite not_in_find_submap in H21.
-    Focus 3.
-    Lemma not_reachable_iff : forall k ks st vs h input, related st (vs, h) -> mapM (sel st) ks = Some input -> (not_reachable k ks input <-> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input)).
+      admit.
       admit.
     Qed.
     eapply not_reachable_iff; eauto.
-    2 : solve [eauto].
     eapply submap_represent.
     eauto.
-    Lemma submap_diff_diff : forall elt (h1 h2 h3 : WordMap.t elt), h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
-      admit.
+    Lemma submap_restrict elt (h1 h2 h : t elt) : h1 <= h2 -> h1 - h <= h2 - h.
+    Proof.
+      unfold Submap; intros Hsml k v Hf.
+      eapply diff_find_Some_iff in Hf; openhyp; rewrite diff_o; eauto.
+    Qed.
+    Lemma submap_diff_diff elt (h1 h2 h3 : t elt) : h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
+    Proof.
+      intros H12 H23.
+      unfold Equal.
+      intros k.
+      eapply option_univalence.
+      intros v; split; intros Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff.
+      split.
+      eapply diff_find_Some_iff.
+      split.
+      eapply submap_find; eauto.
+      eauto.
+      not_not.
+      eapply diff_in_iff in H.
+      destruct H as [Hi3 Hni2].
+      eapply find_Some_in in Hf; contradiction.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni1].
+      eapply diff_find_Some_iff.
+      split.
+      destruct (option_dec (find k h2)) as [[v' Hs] | Hn].
+      copy Hs; eapply H23 in Hs; unif v'; eauto.
+      eapply not_find_in_iff in Hn.
+      contradict Hni.
+      eapply diff_in_iff.
+      split.
+      eapply find_Some_in; eauto.
+      eauto.
+      eauto.
     Qed.
     Global Add Parametric Morphism elt : (@Submap elt)
         with signature Equal ==> Equal ==> iff as Submap_m.
-      admit.
+    Proof.
+      intros x y Hxy x' y' Hx'y'.
+      unfold Submap.
+      split; intros H.
+      intros k v Hf.
+      rewrite <- Hx'y' in *.
+      rewrite <- Hxy in *.
+      eauto.
+      intros k v Hf.
+      rewrite Hx'y' in *.
+      rewrite Hxy in *.
+      eauto.
     Qed.
     erewrite submap_diff_diff; eauto.
-    Lemma submap_restrict : forall elt (h1 h2 h : WordMap.t elt), h1 <= h2 -> h1 - h <= h2 - h.
-      admit.
-    Qed.
     eapply submap_restrict.
     solve [eauto].
 
-    rewrite map_map in H0; simpl in *.
-    Lemma map_nth_error_1 : forall A B (f : A -> B) ls1 ls2 i a, List.map f ls1 = ls2 -> nth_error ls1 i = Some a -> nth_error ls2 i = Some (f a).
-      intros.
-      rewrite <- H.
-      erewrite map_nth_error; eauto.
-    Qed.
-    Lemma nth_error_map_elim : forall A B (f : A -> B) ls i b, nth_error (List.map f ls) i = Some b -> exists a, nth_error ls i = Some a /\ f a = b.
-      intros.
-      rewrite ListFacts.map_nth_error_full in H.
-      destruct (option_dec (nth_error ls i)).
-      destruct s; rewrite e in *; inject H; eexists; eauto.
-      rewrite e in *; discriminate.
-    Qed.
-    Lemma map_eq_nth_error_1 : forall A1 A2 B (f1 : A1 -> B) (f2 : A2 -> B) ls1 ls2 i a1, List.map f1 ls1 = List.map f2 ls2 -> nth_error ls1 i = Some a1 -> exists a2, nth_error ls2 i = Some a2 /\ f1 a1 = f2 a2.
-      intros.
-      eapply map_nth_error_1 in H; eauto.
-      eapply nth_error_map_elim in H; openhyp.
-      eexists; eauto.
-    Qed.
-    symmetry in H0.
-    eapply map_eq_nth_error_1 in H0; [ | eauto ..].
+    (* not reachable *)
+    symmetry in H0; eapply map_eq_nth_error_1 in H0; [ | eauto ..].
     openhyp.
     unfold Locals.sel in *.
     rewrite H23.
-    rewrite H5.
-    Focus 2.
+    assert (Hvse : vs_callee x3 = vs_callee' x3).
+    eapply H5.
     Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
-      admit.
+    Proof.
+      destruct spec; simpl in *; nintro; eapply is_disjoint_sound; eauto.
     Qed.
 
     eapply in_args_not_assigned; eauto.
-    eapply Locals.nth_error_In; eauto.
+    solve [eapply Locals.nth_error_In; eauto].
+    subst' Hvse.
     rename x1 into i.
     erewrite map_nth_error in H22 by eauto.
     inject H22.
     unfold_related H13.
+    eapply H13 in H24.
     unfold Locals.sel in *.
     set (p := vs_callee' x3) in *.
-    eapply submap_represent.
-    eauto.
+    eapply submap_represent; eauto.
     eapply submap_diff; eauto.
     solve [eapply submap_diff; eauto].
 
     solve [eauto].
-    eapply mapM_length; eauto.
-    rewrite map_length.
-    rewrite map_map in H0.
-    eapply map_eq_length_eq in H0.
-    solve [eauto].
+    solve [eapply mapM_length; eauto].
+    solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
 
     (* related (2) *)
     rewrite map_map in H0; simpl in *.
@@ -937,14 +1001,24 @@ Module Make (Import A : ADT).
     eapply H28.
     split.
     eauto.
-    Lemma not_reachable_add_remove_many : 
-      forall k ks ins outs h, 
-        NoDup ks -> 
-        length ks = length ins -> 
-        length ks = length outs -> 
-        not_reachable k ks ins -> 
-        StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
-      admit.
+    Lemma not_reachable_add_remove_many k ks ins outs h :
+      NoDup ks -> 
+      length ks = length ins -> 
+      length ks = length outs -> 
+      not_reachable k ks ins -> 
+      StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
+    Proof.
+      intros Hnd Hlki Hlko Hnr.
+      eapply option_univalence.
+      intros v; split; intros Hf.
+      eapply find_Some_add_remove_many in Hf; eauto.
+      destruct Hf as [[Hnr' Hf] | [i [a [Hk [Hi Ho]]]]].
+      eauto.
+      unfold not_reachable in *.
+      eapply Hnr in Hk.
+      destruct Hk as [w Hw].
+      rewrite Hi in Hw; discriminate.
+      eapply find_Some_add_remove_many; eauto.
     Qed.
     erewrite <- not_reachable_add_remove_many; eauto.
     solve [eapply mapM_length; eauto].
