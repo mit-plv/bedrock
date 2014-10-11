@@ -637,21 +637,66 @@ Module Make (Import A : ADT).
     Qed.
     eapply submap_trans; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
-    Lemma change_var_names : forall vs1 vs2 h vars1 vars2 input, related (make_state vars1 input) (vs1, h) -> (List.map (Locals.sel vs2) vars2 = List.map (fun x => vs1 x) vars1) -> related (make_state vars2 input) (vs2, h).
-      admit.
-    Qed.
-    eapply change_var_names; eauto.
-    rewrite map_map in H0; simpl in *; eauto.
     Ltac split' name :=
       match goal with
         | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
       end.
 
-    split' Hsm.
-    eapply submap_trans; eauto.
-    Lemma submap_diff : forall elt (a b c : WordMap.t elt), c <= b -> b <= a -> a - b <= a - c.
+    Lemma find_Some_in' : forall elt k m (v : elt), StringMap.find k m = Some v -> StringMap.In k m.
+      intros; eapply StringMapFacts.MapsTo_In; eapply StringMapFacts.find_mapsto_iff; eauto.
+    Qed.
+    Lemma in_find_Some elt k m : In k m -> exists v : elt, find k m = Some v.
+      intros H.
+      eapply In_MapsTo in H.
+      destruct H as [v H].
+      eapply find_mapsto_iff in H.
+      eauto.
+    Qed.
+    Lemma in_find_Some' elt k m : StringMap.In k m -> exists v : elt, StringMap.find k m = Some v.
+      intros H.
+      eapply StringMapFacts.In_MapsTo in H.
+      destruct H as [v H].
+      eapply StringMapFacts.find_mapsto_iff in H.
+      eauto.
+    Qed.
+    Lemma submap_in elt h1 h2 : h1 <= h2 -> forall k, @In elt k h1 -> In k h2.
+    Proof.
+      intros Hsm k Hi.
+      eapply in_find_Some in Hi.
+      destruct Hi as [v Hf].
+      eapply find_Some_in; eauto.
+    Qed.
+    Lemma submap_not_in : forall elt h1 h2, h1 <= h2 -> forall k, ~ @In elt k h2 -> ~ In k h1.
+      intros; not_not; eapply submap_in; eauto.
+    Qed.
+    Lemma submap_diff elt (a b c : t elt) : c <= b -> b <= a -> a - b <= a - c.
+    Proof.
+      intros Hcb Hba.
+      unfold Submap.
+      intros k v Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff.
+      split.
+      solve [eauto].
+      solve [eapply submap_not_in; eauto].
+    Qed.
+    Lemma change_var_names vs1 vs2 h vars1 vars2 input : related (make_state vars1 input) (vs1, h) -> (List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1) -> related (make_state vars2 input) (vs2, h).
+    Proof.
+      intros Hr Hm.
+      unfold related in *.
+      destruct Hr as [Hr1 Hr2]; simpl in *.
+      split.
+      intros x v Hf.
+
+      (*here*)
+      admit.
       admit.
     Qed.
+    eapply change_var_names; eauto.
+    rewrite map_map in H0; simpl in *; eauto.
+    split' Hsm.
+    eapply submap_trans; eauto.
     eapply submap_diff; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
 
@@ -674,18 +719,27 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_eq_o in * by eauto.
     inject H19.
     rewrite Locals.sel_upd_eq by eauto.
-    Lemma submap_in : forall elt h1 h2, h1 <= h2 -> forall k, @In elt k h1 -> In k h2.
-      admit.
-    Qed.
-    Lemma submap_not_in : forall elt h1 h2, h1 <= h2 -> forall k, ~ @In elt k h2 -> ~ In k h1.
-      intros; not_not; eapply submap_in; eauto.
-    Qed.
     eapply submap_not_in.
     2 : eapply H9.
     eapply submap_diff; eauto.
     eapply reachable_submap_related in H4; openhyp; eauto.
-    Lemma make_state_not_in : forall k ks (vs : list Value), ~ List.In k ks -> ~ StringMap.In k (make_state ks vs).
-      admit.
+    Lemma make_state_in ks : forall (vs : list Value) k, StringMap.In k (make_state ks vs) -> List.In k ks.
+    Proof.
+      induction ks; destruct vs; simpl; intros k' Hi.
+      eapply StringMapFacts.empty_in_iff in Hi; contradiction.
+      eapply StringMapFacts.empty_in_iff in Hi; contradiction.
+      eapply StringMapFacts.empty_in_iff in Hi; contradiction.
+      rename a into k.
+      eapply StringMapFacts.add_in_iff in Hi.
+      destruct Hi as [He | Hi].
+      subst; eauto.
+      right; eauto.
+    Qed.
+    Lemma make_state_not_in k ks (vs : list Value) : ~ List.In k ks -> ~ StringMap.In k (make_state ks vs).
+    Proof.
+      intros; not_not.
+      rename H0 into H.
+      eapply make_state_in; eauto.
     Qed.
     eapply make_state_not_in.
     Import WordMapFacts.
@@ -725,18 +779,27 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_neq_o in * by eauto.
     rewrite Locals.sel_upd_ne by eauto.
     nintro; eapply H18; clear H18.
-    Lemma In_add_remove_many : 
-      forall k ks (ins : list Value) outs h, 
-        NoDup ks -> 
-        mapM (sel h) ks = Some ins ->
-        StringMap.In k (add_remove_many ks ins outs h) -> 
-        StringMap.In k h.
-      admit.
+    Lemma In_add_remove_many k ks (ins : list Value) outs h :      
+      StringMap.In k (add_remove_many ks ins outs h) -> 
+      NoDup ks -> 
+      mapM (sel h) ks = Some ins ->
+      length ks = length outs ->
+      StringMap.In k h.
+    Proof.
+      intros Hi Hnd Hmm Hl.
+      eapply in_find_Some' in Hi.
+      destruct Hi as [v Hf].
+      eapply find_Some_add_remove_many in Hf; eauto.
+      2 : solve [eapply mapM_length; eauto].
+      destruct Hf as [[Hnr Hf] | [i [a [Hk [Hi Ho]]]]].
+      eapply find_Some_in'; eauto.
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      destruct Hmm as [v' [Hi' Hf]].
+      eapply find_Some_in'; eauto.
     Qed.
     eapply In_add_remove_many; eauto.
-    eapply StringMapFacts.MapsTo_In.
-    eapply StringMapFacts.find_mapsto_iff.
-    eauto.
+    eapply find_Some_in'; eauto.
+    solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
     
     copy H4; eapply reachable_submap_related in H4; openhyp; eauto.
     destruct v as [vs h]; simpl in *.
@@ -781,31 +844,74 @@ Module Make (Import A : ADT).
     eapply find_Some_add_remove_many in Hf.
     openhyp.
     (* not reachable *)
-    unfold_related H18.
-    eapply H18 in H21.
-    erewrite <- diff_o in H21.
-    Focus 2.
-    Lemma not_reachable_iff k ks st vs h input : related st (vs, h) -> mapM (sel st) ks = Some input -> (not_reachable k ks input <-> ~ WordMap.In (Locals.sel vs k) (reachable_heap vs ks input)).
+    Lemma in_reachable_heap_iff vs ks : forall ins p, length ks = length ins -> (In p (reachable_heap vs ks ins) <-> exists i k a, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
     Proof.
-      intros Hr Hmm.
+      induction ks; destruct ins; simpl; intros p Hl; (split; [intros Hi | intros Hex]); try discriminate.
+      eapply empty_in_iff in Hi; contradiction.
+      destruct Hex as [i [k [a [Hk [Hi Hp]]]]]; rewrite nth_error_nil in *; discriminate.
+      rename a into k.
+      inject Hl.
+      destruct v as [w | a].
+      eapply IHks in Hi; eauto; destruct Hi as [i [k' [a' [Hk [Hi Hp]]]]]; subst; exists (S i), k', a'; solve [eauto].
+      unfold Locals.sel in *.
+      eapply add_in_iff in Hi.
+      destruct Hi as [? | Hi].
+      solve [subst; exists 0, k, a; eauto].
+      eapply IHks in Hi; eauto; destruct Hi as [i [k' [a' [Hk [Hi Hp]]]]]; subst; exists (S i), k', a'; solve [eauto].
+
+      rename a into k.
+      inject Hl.
+      destruct Hex as [i [k' [a' [Hk [Hi Hp]]]]].
+      subst.
+      destruct i as [| i]; simpl in *.
+      inject Hk.
+      inject Hi.
+      solve [eapply add_in_iff; eauto].
+      destruct v as [w | a].
+      eapply IHks; eauto; solve [exists i, k', a'; eauto].
+      eapply add_in_iff.
+      right.
+      eapply IHks; eauto; solve [exists i, k', a'; eauto].
+    Qed.
+    Lemma not_reachable_iff ks st vs h input k a : related st (vs, h) -> mapM (sel st) ks = Some input -> StringMap.find k st = Some (ADT a) -> (not_reachable k ks input <-> ~ WordMap.In (vs k) (reachable_heap vs ks input)).
+    Proof.
+      intros Hr Hmm Hf.
       unfold not_reachable.
       split.
       intros Hnr.
       nintro.
-      Lemma in_reachable_heap_iff vs ks ins p : length ks = length ins -> (In p (reachable_heap vs ks ins) <-> exists i k a, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
-        admit.
-      Qed.
       eapply in_reachable_heap_iff in H.
-      destruct H as [i [k' [a [Hk' [Hi Hp]]]]].
+      2 : solve [eapply mapM_length; eauto].
+      destruct H as [i [k' [a' [Hk' [Hi Hp]]]]].
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      destruct Hmm as [v [Hi' Hf']].
+      unfold Value in *.
+      unif v.
+      assert (k = k').
+      eapply related_no_alias; eauto.
+      subst.
+      eapply Hnr in Hk'.
+      destruct Hk' as [w Hi'].
+      rewrite Hi in Hi'; discriminate.
 
-      (*here*)
-      admit.
-      admit.
-      admit.
+      intros Hni i Hk.
+      contradict Hni.
+      eapply in_reachable_heap_iff.
+      solve [eapply mapM_length; eauto].
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      destruct Hmm as [v [Hi' Hf']].
+      unfold sel in *.
+      unif v.
+      exists i, k, a; eauto.
     Qed.
-    eapply not_reachable_iff; eauto.
-    eapply submap_represent.
+    unfold_related H18.
+    copy_as H21 Hf; eapply H18 in H21.
+    destruct v as [w | a]; simpl in *.
     eauto.
+    erewrite <- diff_o in H21.
+    Focus 2.
+    eapply not_reachable_iff; eauto.
+    eapply submap_find; eauto.
     Lemma submap_restrict elt (h1 h2 h : t elt) : h1 <= h2 -> h1 - h <= h2 - h.
     Proof.
       unfold Submap; intros Hsml k v Hf.
@@ -1023,9 +1129,15 @@ Module Make (Import A : ADT).
     erewrite <- not_reachable_add_remove_many; eauto.
     solve [eapply mapM_length; eauto].
     solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
+    eapply find_ADT_add_remove_many in H31; eauto.
+    openhyp.
     eapply not_reachable_iff; eauto.
     eapply (direct_sum_in_not h2 h3); eauto.
-    subst; subst' H30; solve [eapply find_Some_in; eauto].
+    subst.
+    unfold Locals.sel in *.
+    subst' H30.
+    solve [eapply find_Some_in; eauto].
+    solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
     
     (* p is in h3' *)
     unfold_related H13.
@@ -1062,7 +1174,7 @@ Module Make (Import A : ADT).
     openhyp.
     (* not_reachable *)
     unfold_related H18.
-    eapply H18 in H20; simpl in *.
+    copy_as H20 Hf'; eapply H18 in H20; simpl in *.
     eapply find_Some_direct_sum in H20; eauto; openhyp.
     eapply find_Some_in in H20.
     eapply find_Some_in in Hf.
@@ -1660,8 +1772,9 @@ Module Make (Import A : ADT).
     rewrite StringMapFacts.add_neq_o in * by eauto.
     contradict H18.
     eapply In_add_remove_many; eauto.
-    eapply StringMapFacts.MapsTo_In.
-    solve [eapply StringMapFacts.find_mapsto_iff; eauto].
+    solve [eapply find_Some_in'; eauto].
+    unfold_all.
+    solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
 
     Lemma not_reachable_p_not_reachable st vs args words cinput x :
         List.map (fun x => vs x) args = words -> 
