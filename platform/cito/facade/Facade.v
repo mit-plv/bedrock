@@ -155,10 +155,10 @@ Section ADTSection.
 
   Definition sel st x := @StringMap.find Value x st.
 
-  Fixpoint make_state keys values :=
+  Fixpoint make_map {elt} keys values :=
     match keys, values with
-      | k :: keys', v :: values' => add k v (make_state keys' values')
-      | _, _ => @empty Value
+      | k :: keys', v :: values' => add k v (make_map keys' values')
+      | _, _ => @empty elt
     end.
 
   Record Env := 
@@ -261,7 +261,7 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           not_mapsto_adt x st = true ->
-          let callee_st := make_state (ArgVars spec) input in
+          let callee_st := make_map (ArgVars spec) input in
           RunsTo (Body spec) callee_st callee_st' ->
           sel callee_st' (RetVar spec) = Some ret ->
           (* prevent memory leak *)
@@ -331,7 +331,7 @@ Section ADTSection.
           length args = length (ArgVars spec) ->
           mapM (sel st) args = Some input ->
           not_mapsto_adt x st = true ->
-          let callee_st := make_state (ArgVars spec) input in
+          let callee_st := make_map (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (* all paths of callee must be memory-leak free and produce a return value *)
           (forall callee_st', 
