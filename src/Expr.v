@@ -510,9 +510,6 @@ Section env.
               (eapply WellTyped_env_nth_error_Some in H; [ | eassumption ]) ||
               (eapply WellTyped_env_nth_error_None in H; [ | eassumption ])
             | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
-            | [ H : match ?X with
-                      | Some _ => _ | None => _
-                    end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : context [ match ?X with
                                 | left _ => _ | right _ => _
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
@@ -531,9 +528,6 @@ Section env.
               (eapply WellTyped_env_nth_error_Some in H; [ | eassumption ]) ||
               (eapply WellTyped_env_nth_error_None in H; [ | eassumption ])
             | [ |- context[ equiv_dec ?A ?A ] ] => rewrite (EquivDec_refl_left A)
-            | [ H : match ?X with
-                      | Some _ => _ | None => _
-                    end <> None |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
             | [ H : context [ match ?X with
                                 | left _ => _ | right _ => _
                               end ] |- _ ] => destruct X; [ | solve [ exfalso; auto ] ]
