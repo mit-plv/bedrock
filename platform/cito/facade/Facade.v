@@ -188,7 +188,8 @@ Section ADTSection.
       | _ => false
     end.
 
-  Definition not_mapsto_adt x st := negb (is_some_p is_adt (StringMap.find x st)).
+  Definition is_mapsto_adt x st := is_some_p is_adt (StringMap.find x st).
+  Definition not_mapsto_adt x st := negb (is_mapsto_adt x st).
 
   Section EnvSection.
 
