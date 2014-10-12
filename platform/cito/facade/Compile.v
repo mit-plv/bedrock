@@ -656,7 +656,7 @@ Module Make (Import A : ADT).
       rewrite StringMapFacts.add_neq_o in * by eauto.
       eapply IHks; eauto.
     Qed.      
-    Lemma make_map_in ks : forall (vs : list Value) k, StringMap.In k (make_map ks vs) -> List.In k ks.
+    Lemma make_map_in elt ks : forall (vs : list elt) k, StringMap.In k (make_map ks vs) -> List.In k ks.
     Proof.
       induction ks; destruct vs; simpl; intros k' Hi.
       eapply StringMapFacts.empty_in_iff in Hi; contradiction.
@@ -668,69 +668,212 @@ Module Make (Import A : ADT).
       subst; eauto.
       right; eauto.
     Qed.
-    Lemma make_map_not_in k ks (vs : list Value) : ~ List.In k ks -> ~ StringMap.In k (make_map ks vs).
+    Lemma make_map_not_in elt k ks (vs : list elt) : ~ List.In k ks -> ~ StringMap.In k (make_map ks vs).
     Proof.
       intros; not_not.
       rename H0 into H.
       eapply make_map_in; eauto.
     Qed.
 
-    Fixpoint reachable_heap vs argvars (input : list Value) := 
-      match argvars, input with
-        | k :: ks, i :: is =>
-          let h := reachable_heap vs ks is in
-          match i with
-            | SCA _ => h 
-            | ADT a => WordMap.add (Locals.sel vs k) a h
+    Fixpoint make_mapM {elt} keys values :=
+      match keys, values with
+        | k :: keys', v :: values' => 
+          match v with
+            | Some a => add k a (make_mapM keys' values')
+            | None => make_mapM keys' values'
           end
-        | _, _ => WordMap.empty _
+        | _, _ => @empty elt
       end.
+
+    Definition no_dupM elt ks vs := forall i j (k : key) (ai aj : elt), nth_error ks i = Some k -> nth_error vs i = Some (Some ai) -> nth_error ks j = Some k -> nth_error vs j = Some (Some aj) -> i = j.
+
+    Lemma no_dupM_cons_elim elt ks vs k (v : option elt) : no_dupM (k :: ks) (v :: vs) -> no_dupM ks vs.
+    Proof.
+      unfold no_dupM.
+      intros Hnd i j k' ai aj Hik Hiv Hjk Hjv.
+      assert (S i = S j).
+      eapply Hnd; eauto; simpl; eauto.
+      inject H; eauto.
+    Qed.
+
+    Lemma find_Some_make_mapM_iff elt ks : forall vs k (a : elt), length ks = length vs -> no_dupM ks vs -> (find k (make_mapM ks vs) = Some a <-> exists i, nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
+    Proof.
+      induction ks; try (rename a into k'); destruct vs as [ | v' vs]; simpl; intros k a Hl Hnd; (split; [intros Hi | intros Hex]); try discriminate.
+      destruct Hex as [i [Hk Hv]]; rewrite nth_error_nil in *; discriminate.
+
+      inject Hl.
+      destruct v' as [a' | ].
+      destruct (Word.weq k k') as [Heq | Hne].
+      subst.
+      rewrite add_eq_o in * by eauto.
+      inject Hi.
+      solve [exists 0; eauto].
+      rewrite add_neq_o in * by eauto.
+      eapply IHks in Hi; eauto.
+      solve [destruct Hi as [i [Hk Hv]]; exists (S i); eauto].
+      solve [eapply no_dupM_cons_elim; eauto].
+      eapply IHks in Hi; eauto.
+      solve [destruct Hi as [i [Hk Hv]]; exists (S i); eauto].
+      solve [eapply no_dupM_cons_elim; eauto].
+
+      inject Hl.
+      destruct Hex as [i [Hk Hv]].
+      destruct i as [ | i]; simpl in *.
+      inject Hk.
+      inject Hv.
+      rewrite add_eq_o in * by eauto.
+      solve [eauto].
+      destruct v' as [a' |].
+      destruct (Word.weq k k') as [Heq | Hne].
+      subst.
+      assert (0 = S i).
+      eapply Hnd; eauto; simpl; eauto.
+      discriminate.
+      rewrite add_neq_o in * by eauto.
+      eapply IHks; eauto.
+      solve [eapply no_dupM_cons_elim; eauto].
+      eapply IHks; eauto.
+      solve [eapply no_dupM_cons_elim; eauto].
+    Qed.
+
+    Lemma in_make_mapM_iff elt ks : forall vs k, length ks = length vs -> (In k (make_mapM ks vs) <-> exists i (a : elt), nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
+    Proof.
+      induction ks; try (rename a into k'); destruct vs as [|v' vs]; simpl; intros k Hl; (split; [intros Hi | intros Hex]); try discriminate.
+      eapply empty_in_iff in Hi; contradiction.
+      destruct Hex as [i [a [Hk Hv]]]; rewrite nth_error_nil in *; discriminate.
+
+      inject Hl.
+      destruct v' as [a' | ].
+      eapply add_in_iff in Hi.
+      destruct Hi as [Heq | Hi].
+      subst.
+      solve [exists 0, a'; eauto].
+      solve [eapply IHks in Hi; eauto; destruct Hi as [i [a [Hk Hv]]]; exists (S i), a; eauto].
+      solve [eapply IHks in Hi; eauto; destruct Hi as [i [a [Hk Hv]]]; exists (S i), a; eauto].
+
+      inject Hl.
+      destruct Hex as [i [a [Hk Hv]]].
+      destruct i as [ | i]; simpl in *.
+      inject Hk.
+      inject Hv.
+      eapply add_in_iff; eauto.
+      destruct v' as [a' |].
+      eapply add_in_iff.
+      right.
+      eapply IHks; eauto.
+      eapply IHks; eauto.
+    Qed.
+
+    Definition only_adt := List.map (fun x : Value => match x with | ADT a => Some a | _ => None end).
+
+    Definition reachable_heap (vs : Locals.vals) argvars (input : list Value) := make_mapM (List.map (fun x => vs x) argvars) (only_adt input).
 
     Lemma in_reachable_heap_iff vs ks : forall ins p, length ks = length ins -> (In p (reachable_heap vs ks ins) <-> exists i k a, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
     Proof.
-      induction ks; destruct ins; simpl; intros p Hl; (split; [intros Hi | intros Hex]); try discriminate.
-      eapply empty_in_iff in Hi; contradiction.
-      destruct Hex as [i [k [a [Hk [Hi Hp]]]]]; rewrite nth_error_nil in *; discriminate.
-      rename a into k.
-      inject Hl.
-      destruct v as [w | a].
-      eapply IHks in Hi; eauto; destruct Hi as [i [k' [a' [Hk [Hi Hp]]]]]; subst; exists (S i), k', a'; solve [eauto].
-      unfold Locals.sel in *.
-      eapply add_in_iff in Hi.
-      destruct Hi as [? | Hi].
-      solve [subst; exists 0, k, a; eauto].
-      eapply IHks in Hi; eauto; destruct Hi as [i [k' [a' [Hk [Hi Hp]]]]]; subst; exists (S i), k', a'; solve [eauto].
-
-      rename a into k.
-      inject Hl.
-      destruct Hex as [i [k' [a' [Hk [Hi Hp]]]]].
+      unfold reachable_heap, only_adt; intros ins p Hl.
+      split.
+      intros Hi.
+      eapply in_make_mapM_iff in Hi.
+      destruct Hi as [i [a [Hk Hv]]].
+      eapply nth_error_map_elim in Hk.
+      destruct Hk as [k [Hk Hvs]].
       subst.
-      destruct i as [| i]; simpl in *.
-      inject Hk.
-      inject Hi.
-      solve [eapply add_in_iff; eauto].
-      destruct v as [w | a].
-      eapply IHks; eauto; solve [exists i, k', a'; eauto].
-      eapply add_in_iff.
-      right.
-      eapply IHks; eauto; solve [exists i, k', a'; eauto].
-    Qed.
-    Lemma reachable_submap_related : forall st args input vs h, mapM (sel st) args = Some input -> related st (vs, h) -> reachable_heap vs args input <= h /\ related (make_map args input) (vs, reachable_heap vs args input).
-      admit.
+      eapply nth_error_map_elim in Hv.
+      destruct Hv as [v [Hv Ha]].
+      destruct v as [w | a'].
+      discriminate.
+      inject Ha.
+      solve [exists i, k, a; eauto].
+      solve [repeat rewrite map_length; eauto].
+
+      intros Hex.
+      destruct Hex as [i [k [a [Hk [Hv Hvs]]]]].
+      subst.
+      eapply in_make_mapM_iff.
+      solve [repeat rewrite map_length; eauto].
+      exists i, a.
+      split.
+      solve [erewrite map_nth_error; eauto].
+      solve [erewrite map_nth_error; eauto; simpl; eauto].
     Qed.
 
-    instantiate (1 := reachable_heap (fst v) l input).
-    eapply reachable_submap_related in H4; openhyp; eauto.
-    Lemma submap_trans elt (a b c : t elt) : a <= b -> b <= c -> a <= c.
+    Definition no_aliasM (vs : Locals.vals) ks ins := no_dupM (List.map (fun x => vs x) ks) (only_adt ins).
+
+    Lemma find_Some_reachable_heap_iff vs ks : forall ins p a, length ks = length ins -> no_aliasM vs ks ins -> (find p (reachable_heap vs ks ins) = Some a <-> exists i k, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
     Proof.
-      intros Hab Hbc; unfold Submap; intros k v Hf; eapply Hbc; eauto.
+      unfold reachable_heap, only_adt; intros ins p a Hl Hna.
+      split.
+      intros Hi.
+      eapply find_Some_make_mapM_iff in Hi; eauto.
+      destruct Hi as [i [Hk Hv]].
+      eapply nth_error_map_elim in Hk.
+      destruct Hk as [k [Hk Hvs]].
+      subst.
+      eapply nth_error_map_elim in Hv.
+      destruct Hv as [v [Hv Ha]].
+      destruct v as [w | a'].
+      discriminate.
+      inject Ha.
+      solve [exists i, k; eauto].
+      solve [repeat rewrite map_length; eauto].
+
+      intros Hex.
+      destruct Hex as [i [k [Hk [Hv Hvs]]]].
+      subst.
+      eapply find_Some_make_mapM_iff; eauto.
+      solve [repeat rewrite map_length; eauto].
+      exists i.
+      split.
+      solve [erewrite map_nth_error; eauto].
+      solve [erewrite map_nth_error; eauto; simpl; eauto].
     Qed.
-    eapply submap_trans; eauto.
-    eapply reachable_submap_related in H4; openhyp; eauto.
+
+    Lemma related_no_aliasM st args input vs h :
+      mapM (sel st) args = Some input -> 
+      related st (vs, h) -> 
+      NoDup args ->
+      no_aliasM vs args input.
+    Proof.
+      intros Hmm Hr Hnd.
+      unfold no_aliasM, no_dupM, only_adt.
+      intros i j p ai aj Hki Hvi Hkj Hvj.
+      eapply nth_error_map_elim in Hki.
+      destruct Hki as [ki [Hki Hvs]].
+      subst.
+      eapply nth_error_map_elim in Hvi.
+      destruct Hvi as [vi [Hvi Hai]].
+      destruct vi as [wi | ai'].
+      discriminate.
+      inject Hai.
+      copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+      destruct Hmm' as [v' [? Hfki]].
+      unfold Value in *.
+      unif v'.
+      eapply nth_error_map_elim in Hkj.
+      destruct Hkj as [kj [Hkj Hvs]].
+      eapply nth_error_map_elim in Hvj.
+      destruct Hvj as [vj [Hvj Haj]].
+      destruct vj as [wj | aj'].
+      discriminate.
+      inject Haj.
+      copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+      destruct Hmm' as [v' [? Hfkj]].
+      unif v'.
+      assert (ki = kj).
+      eapply related_no_alias; eauto.
+      subst.
+      eapply NoDup_nth_error; eauto.
+    Qed.
+
     Ltac split' name :=
       match goal with
         | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
       end.
+
+    Lemma submap_trans elt (a b c : t elt) : a <= b -> b <= c -> a <= c.
+    Proof.
+      intros Hab Hbc; unfold Submap; intros k v Hf; eapply Hbc; eauto.
+    Qed.
 
     Lemma find_Some_in' : forall elt k m (v : elt), StringMap.find k m = Some v -> StringMap.In k m.
       intros; eapply StringMapFacts.MapsTo_In; eapply StringMapFacts.find_mapsto_iff; eauto.
@@ -829,6 +972,75 @@ Module Make (Import A : ADT).
       eauto.
       rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
     Qed.
+
+    Lemma reachable_submap_related st args input vs h : 
+      mapM (sel st) args = Some input -> 
+      related st (vs, h) -> 
+      NoDup args ->
+      reachable_heap vs args input <= h /\ 
+      related (make_map args input) (vs, reachable_heap vs args input).
+    Proof.
+      intros Hmm Hr Hdn.
+      split.
+      unfold Submap.
+      intros p a Hf.
+      eapply find_Some_reachable_heap_iff in Hf.
+      destruct Hf as [i [k [Hk [Hin Hvs]]]].
+      subst.
+      eapply mapM_nth_error_1 in Hmm; eauto.
+      destruct Hmm as [v [Hin' Hfk]].
+      unfold Value in *.
+      unif v.
+      eapply Hr in Hfk; simpl in *.
+      solve [eauto].
+      solve [eapply mapM_length; eauto].
+      solve [eapply related_no_aliasM; eauto].
+        
+      split; simpl.
+      intros k v Hfk.
+      eapply find_Some_make_map_iff in Hfk; eauto.
+      destruct Hfk as [i [Hk Hin]].
+      copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+      destruct Hmm' as [v' [? Hfk]].
+      unif v'.
+      eapply Hr in Hfk; simpl in *.
+      destruct v as [w | a]; simpl in *.
+      eauto.
+      eapply find_Some_reachable_heap_iff; eauto.
+      solve [eapply mapM_length; eauto].
+      solve [eapply related_no_aliasM; eauto].
+      solve [eapply mapM_length; eauto].
+
+      intros p a Hfp.
+      eapply find_Some_reachable_heap_iff in Hfp; eauto.
+      destruct Hfp as [i [k [Hk [Hin Hvs]]]].
+      subst.
+      copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+      destruct Hmm' as [v' [? Hfk]].
+      unfold Value in *.
+      unif v'.
+      exists k.
+      split.
+      split.
+      eauto.
+      eapply find_Some_make_map_iff; eauto.
+      solve [eapply mapM_length; eauto].
+      intros k' [Hvs Hfk'].
+      eapply find_Some_make_map_iff in Hfk'; eauto.
+      destruct Hfk' as [i' [Hk' Hin']].
+      copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+      destruct Hmm' as [v' [? Hfk']].
+      unif v'.
+      solve [eapply related_no_alias; eauto].
+      solve [eapply mapM_length; eauto].
+      solve [eapply mapM_length; eauto].
+      solve [eapply related_no_aliasM; eauto].
+    Qed.
+
+    instantiate (1 := reachable_heap (fst v) l input).
+    eapply reachable_submap_related in H4; openhyp; eauto.
+    eapply submap_trans; eauto.
+    eapply reachable_submap_related in H4; openhyp; eauto.
     Lemma is_no_dup_sound ls : is_no_dup ls = true -> NoDup ls.
       intros; eapply NoDup_bool_string_eq_sound; eauto.
     Qed.
