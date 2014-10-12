@@ -796,7 +796,7 @@ Module Make (Import A : ADT).
                 (* variables not appearing as LHS won't change value in Cito state *)
                 (forall x, ~ List.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
                 (* newly allocated ADT objects during this program's execution won't collide with the frame heap *)
-                (forall x, is_mapsto_adt x s_st = false -> is_mapsto_adt x s_st' = true -> ~ In (Locals.sel (fst t_st') x) h2) /\
+                (forall x, is_mapsto_adt x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel (fst t_st) x <> Locals.sel (fst t_st') x -> is_mapsto_adt x s_st' = true -> ~ In (Locals.sel (fst t_st') x) h2) /\
                 (* main result: final source-level and target level states are related *)
                 related s_st' (fst t_st', snd t_st' - h2).
   Proof.
@@ -1285,6 +1285,7 @@ Module Make (Import A : ADT).
       intros; destruct spec; simpl; eapply negb_is_in_iff; eauto.
     Qed.
 
+    left.
     eapply is_mapsto_adt_false_iff.
     eapply not_in_no_adt.
     eapply make_map_not_in.
@@ -1295,11 +1296,13 @@ Module Make (Import A : ADT).
     eapply is_mapsto_adt_iff in H19.
     destruct H19 as [a H19].
     rewrite StringMapFacts.add_neq_o in * by eauto.
-    rewrite Locals.sel_upd_ne by eauto.
+    rewrite Locals.sel_upd_ne  in * by eauto.
+    destruct H18 as [H18 | H18].
     eapply is_mapsto_adt_false_iff in H18.
     nintro; eapply H18; clear H18.
     eapply find_ADT_add_remove_many; eauto.
     solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
+    solve [intuition].
     
     copy H4; eapply reachable_submap_related in H4; openhyp; eauto.
     destruct v as [vs h]; simpl in *.
@@ -1566,6 +1569,7 @@ Module Make (Import A : ADT).
     (* (vs_callee' RetVar) is a newly allocated ADT object, so it shouldn't be in h2 *)
     assert (Hni : ~ In (vs_callee' (RetVar spec)) h12).
     eapply H9.
+    left.
     eapply is_mapsto_adt_false_iff.
     eapply not_in_no_adt.
     solve [eapply make_map_not_in; eapply not_incl_spec].
@@ -2236,24 +2240,26 @@ Module Make (Import A : ADT).
     rewrite e in *.
     eapply is_mapsto_adt_iff in H19.
     destruct H19 as [a H19].
-    rewrite Locals.sel_upd_eq by eauto.
+    rewrite Locals.sel_upd_eq in * by eauto.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     destruct ret; simpl in *.
     discriminate.
     inject H19.
     unfold separated in H4; simpl in *.
-    openhyp.
+    destruct H4 as [H4 | H4].
     discriminate.
     solve [eapply submap_not_in; eauto].
     (* x <> lhs *)
     eapply is_mapsto_adt_iff in H19.
     destruct H19 as [a H19].
-    rewrite Locals.sel_upd_ne by eauto.
+    rewrite Locals.sel_upd_ne in * by eauto.
     rewrite StringMapFacts.add_neq_o in * by eauto.
+    destruct H18 as [H18 | H18].
     eapply is_mapsto_adt_false_iff in H18.
     contradict H18.
     eapply find_ADT_add_remove_many; eauto.
     solve [subst; unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [intuition].
 
     Lemma not_reachable_p_not_reachable st vs args words cinput x :
         List.map (fun x => vs x) args = words -> 
@@ -2696,7 +2702,8 @@ Module Make (Import A : ADT).
     destruct v' as [vs' h']; simpl in *.
     destruct v'' as [vs'' h'']; simpl in *.
     set (h1 := h - h2) in *.
-    edestruct IHRunsTo2; clear IHRunsTo2; try match goal with | |- related _ _ => eauto end; eauto.
+    Ltac pick_related := try match goal with | |- related _ _ => eauto end.
+    edestruct IHRunsTo2; clear IHRunsTo2; pick_related; eauto.
     solve [eapply diff_submap; eauto].
     Lemma safe_seq_2 : forall (env : Env ADTValue) a b st, Safe env (Seq a b) st -> forall st', RunsTo env a st st' -> Safe env b st'.
     Proof.
@@ -2724,14 +2731,55 @@ Module Make (Import A : ADT).
     intros.
     rename x into s_st'.
     rename x0 into s_st''.
-    destruct (boolcase (is_mapsto_adt x1 s_st')).
-    Focus 2.
-    eapply H12 in H15; eauto.
+    unfold Locals.sel in *.
+    destruct (boolcase (is_mapsto_adt x1 s_st')) as [Hmt' | Hmtf'].
+    destruct (Word.weq (vs' x1) (vs'' x1)) as [Heq | Hne].
+    rewrite <- Heq in *.
+    solve [eapply H7; eauto].
+    eapply H12 in H15.
     solve [rewrite diff_submap_cancel in H15 by eauto; eauto].
-    
+    solve [right; eauto].
+    eapply H12 in H15.
+    solve [rewrite diff_submap_cancel in H15 by eauto; eauto].
+    solve [left; eauto].
 
-    (*here*)
-    eauto.
+    Infix "===" := (@StringMapFacts.M.Equal _) (at level 70).
+    Hint Extern 0 (_ === _) => reflexivity.
+    Lemma related_Equal_1 st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> related st (vs, h) -> related st' (vs', h').
+    Proof.
+      unfold related; intros Hst Hvs Hh; intros [Hr1 Hr2]; simpl in *.
+      split.
+      intros k v Hfk.
+      rewrite <- Hst in Hfk.
+      rewrite <- Hh.
+      rewrite <- Hvs.
+      eauto.
+      intros p a Hfp.
+      rewrite <- Hh in Hfp.
+      eapply Hr2 in Hfp.
+      destruct Hfp as [k [Hex Hu]].
+      exists k.
+      split.
+      rewrite <- Hst.
+      rewrite <- Hvs.
+      eauto.
+      intros k'.
+      rewrite <- Hst.
+      rewrite <- Hvs.
+      eauto.
+    Qed.
+
+    Lemma related_Equal st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> (related st (vs, h) <-> related st' (vs', h')).
+    Proof.
+      intros Hst Hvs Hh; split; intros Hr.
+      eapply related_Equal_1; eauto.
+      eapply related_Equal_1; pick_related; eauto.
+      symmetry; eauto.
+      symmetry; eauto.
+    Qed.
+
+    eapply related_Equal; pick_related; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
 
     Focus 4.
     (* while-true *)
