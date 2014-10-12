@@ -2724,9 +2724,13 @@ Module Make (Import A : ADT).
     intros.
     rename x into s_st'.
     rename x0 into s_st''.
-    (*here*)
+    destruct (boolcase (is_mapsto_adt x1 s_st')).
+    Focus 2.
     eapply H12 in H15; eauto.
-    rewrite diff_submap_cancel in H15 by eauto.
+    solve [rewrite diff_submap_cancel in H15 by eauto; eauto].
+    
+
+    (*here*)
     eauto.
 
     Focus 4.
