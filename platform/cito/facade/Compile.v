@@ -2658,8 +2658,10 @@ Module Make (Import A : ADT).
 
     Focus 3.
     (* if-true *)
-    inject H1.
-    edestruct IHRunsTo.
+    rename H1 into Hcomp.
+    inject Hcomp.
+    rename IHRunsTo into IHa.
+    edestruct IHa as [s_st' [Hart [Hasm [Havs [Hanew Har]]]]]; clear IHa; eauto.
     eauto.
     eauto.
     eauto.
@@ -2678,16 +2680,38 @@ Module Make (Import A : ADT).
     eauto.
     split.
     intros s Hni.
-    eapply H6.
-    not_not.
-    eapply in_or_app; eauto.
-    eauto.
+    eapply Havs.
+    solve [not_not; eapply in_or_app; eauto].
+    solve [eauto].
 
-    Focus 2.
-    (* seq *)
-    subst.
-    inject H1.
-    edestruct IHRunsTo1; clear IHRunsTo1; eauto.
+    Focus 3.
+    (* if-false *)
+    rename H1 into Hcomp.
+    inject Hcomp.
+    rename IHRunsTo into IHa.
+    edestruct IHa as [s_st' [Hart [Hasm [Havs [Hanew Har]]]]]; clear IHa; eauto.
+    eauto.
+    eauto.
+    eauto.
+    eauto.
+    eapply safe_if_false; eauto.
+    eapply wneb_is_false; eauto.
+    eapply safe_if_is_bool; eauto.
+    openhyp.
+    eexists.
+    split.
+    eapply RunsToIfFalse.
+    eapply wneb_is_false; eauto.
+    eapply safe_if_is_bool; eauto.
+    eauto.
+    split.
+    eauto.
+    split.
+    intros s Hni.
+    eapply Havs.
+    solve [not_not; eapply in_or_app; eauto].
+    solve [eauto].
+
     Lemma safe_seq_1 : forall (env : Env ADTValue) a b st, Safe env (Seq a b) st -> Safe env a st.
     Proof.
       intros.
@@ -2695,16 +2719,9 @@ Module Make (Import A : ADT).
       openhyp.
       eauto.
     Qed.
-    eapply safe_seq_1; eauto.
-    openhyp.
-    rename h1 into h2.
-    destruct v as [vs h]; simpl in *.
-    destruct v' as [vs' h']; simpl in *.
-    destruct v'' as [vs'' h'']; simpl in *.
-    set (h1 := h - h2) in *.
+
     Ltac pick_related := try match goal with | |- related _ _ => eauto end.
-    edestruct IHRunsTo2; clear IHRunsTo2; pick_related; eauto.
-    solve [eapply diff_submap; eauto].
+
     Lemma safe_seq_2 : forall (env : Env ADTValue) a b st, Safe env (Seq a b) st -> forall st', RunsTo env a st st' -> Safe env b st'.
     Proof.
       intros.
@@ -2712,36 +2729,6 @@ Module Make (Import A : ADT).
       openhyp.
       eauto.
     Qed.
-    eapply safe_seq_2; eauto.
-    openhyp.
-    eexists.
-    split.
-    eapply RunsToSeq; eauto.
-    split.
-    rewrite diff_submap_cancel in H10 by eauto.
-    eauto.
-    split.
-    intros s Hni.
-    etransitivity.
-    eapply H6.
-    not_not; eapply in_or_app; eauto.
-    eapply H11.
-    not_not; eapply in_or_app; eauto.
-    split.
-    intros.
-    rename x into s_st'.
-    rename x0 into s_st''.
-    unfold Locals.sel in *.
-    destruct (boolcase (is_mapsto_adt x1 s_st')) as [Hmt' | Hmtf'].
-    destruct (Word.weq (vs' x1) (vs'' x1)) as [Heq | Hne].
-    rewrite <- Heq in *.
-    solve [eapply H7; eauto].
-    eapply H12 in H15.
-    solve [rewrite diff_submap_cancel in H15 by eauto; eauto].
-    solve [right; eauto].
-    eapply H12 in H15.
-    solve [rewrite diff_submap_cancel in H15 by eauto; eauto].
-    solve [left; eauto].
 
     Infix "===" := (@StringMapFacts.M.Equal _) (at level 70).
     Hint Extern 0 (_ === _) => reflexivity.
@@ -2778,18 +2765,81 @@ Module Make (Import A : ADT).
       symmetry; eauto.
     Qed.
 
-    eapply related_Equal; pick_related; eauto.
-    solve [rewrite diff_submap_cancel; eauto].
+    Definition new_adt_no_pollute s_st vs s_st' vs' h := forall x, @is_mapsto_adt ADTValue x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel vs x <> Locals.sel vs' x -> @is_mapsto_adt ADTValue x s_st' = true -> ~ @In ADTValue (Locals.sel vs' x) h.
+    Lemma new_adt_no_pollute_seq st vs st' vs' st'' vs'' h h' h'' : new_adt_no_pollute st vs st' vs' h -> new_adt_no_pollute st' vs' st'' vs'' h' -> h == h'' -> h' == h'' -> new_adt_no_pollute st vs st'' vs'' h''.
+    Proof.
+      unfold new_adt_no_pollute; intros Hanew Hbnew Hheq Hheq' x Hmt Hmt''.
+      unfold Locals.sel in *.
+      destruct (boolcase (is_mapsto_adt x st')) as [Hmt' | Hmtf'].
+      destruct (Word.weq (vs' x) (vs'' x)) as [Heq | Hne].
+      rewrite <- Heq in *.
+      rewrite <- Hheq.
+      solve [eapply Hanew; eauto].
+      eapply Hbnew in Hmt''.
+      rewrite <- Hheq'.
+      solve [eauto].
+      solve [right; eauto].
+      eapply Hbnew in Hmt''.
+      rewrite <- Hheq'.
+      solve [eauto].
+      solve [left; eauto].
+    Qed.
 
-    Focus 4.
-    (* while-true *)
+    Focus 2.
+    (* seq *)
     subst.
-    rename h1 into h2.
+    rename H1 into Hcomp.
+    inject Hcomp.
+    rename s1 into a.
+    rename s2 into b.
     destruct v as [vs h]; simpl in *.
     destruct v' as [vs' h']; simpl in *.
     destruct v'' as [vs'' h'']; simpl in *.
-    rename H into Hcondt.
+    rename h1 into h2.
+    rename IHRunsTo1 into IHa.
+    rename IHRunsTo2 into IHb.
+    rename H into Hartt.
+    rename H0 into Hbrtt.
+    rename H2 into Hsm.
+    rename H5 into Hsf.
+    rename H3 into Hr.
+    edestruct IHa as [s_st' [Hart [Hasm [Havs [Hanew Har]]]]]; clear IHa; eauto.
+    eapply safe_seq_1; eauto.
+    edestruct IHb as [s_st'' [Hbrt [Hbsm [Hbvs [Hbnew Hbr]]]]]; clear IHb; pick_related; eauto.
+    solve [eapply diff_submap; eauto].
+    eapply safe_seq_2; eauto.
+    set (h1 := h - h2) in *.
+    rewrite diff_submap_cancel in Hbsm by eauto.
+    exists s_st''.
+    split.
+    eapply RunsToSeq; eauto.
+    split.
+    eauto.
+    split.
+    intros s Hni.
+    etransitivity.
+    eapply Havs.
+    not_not; eapply in_or_app; eauto.
+    eapply Hbvs.
+    not_not; eapply in_or_app; eauto.
+    split.
+    eapply new_adt_no_pollute_seq; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
+    eapply related_Equal; pick_related; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
+
+    Focus 2.
+    (* while-true *)
+    subst.
     rename H2 into Hcomp.
+    inject Hcomp.
+    destruct v as [vs h]; simpl in *.
+    destruct v' as [vs' h']; simpl in *.
+    destruct v'' as [vs'' h'']; simpl in *.
+    rename h1 into h2.
+    rename e into cond.
+    rename s into body.
+    rename H into Hcondt.
     rename H3 into Hsm.
     rename H4 into Hr.
     rename H6 into Hsf.
@@ -2797,28 +2847,32 @@ Module Make (Import A : ADT).
     rename H1 into Hlrtt.
     rename IHRunsTo1 into IHb.
     rename IHRunsTo2 into IHl.
-    inject Hcomp.
-    rename e into cond.
-    rename s into body.
+    inversion Hsf as [ | | | | ? ? ? loop' Hcond Hsfb Hrtsf | | | | | ]; unfold_all; subst.
     edestruct IHb as [s_st' [Hbrt [Hbsm [Hbvs [Hbnew Hbr]]]]]; clear IHb; eauto.
-    admit.
-    edestruct IHl as [s_st'' [Hlrt [Hlsm [Hlvs [Hlnew Hlr]]]]]; clear IHl.
-    instantiate (1 := While cond body).
+    edestruct IHl as [s_st'' [Hlrt [Hlsm [Hlvs [Hlnew Hlr]]]]]; clear IHl; pick_related; eauto; simpl; eauto.
+    solve [eapply diff_submap; eauto].
+    rewrite diff_submap_cancel in Hlsm by eauto.
+    exists s_st''.
+    split.
+    eapply RunsToWhileTrue; eauto.
+    split.
     eauto.
+    split.
+    intros s Hni.
+    etransitivity.
+    eapply Hbvs.
     eauto.
+    eapply Hlvs.
+    simpl in *; eauto.
+    split.
+    eapply new_adt_no_pollute_seq; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
+    eapply related_Equal; pick_related; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
 
-
-    inversion Hsf as [ | | | | cond body st loop' Hcond Hsfb Hrtsf | | | | | ]; unfold_all; subst.
-    eauto.
-    eauto.
-    eauto.
-    eauto.
-
-
-    (*here*)
-    admit.
-
-
+    exfalso; eapply is_true_is_false; eauto.
+    eapply wneb_is_true; eauto.
+    eapply is_false_is_bool; eauto.
 
     (* skip *)
     eexists; split.
