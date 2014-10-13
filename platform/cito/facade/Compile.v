@@ -2875,38 +2875,181 @@ Module Make (Import A : ADT).
     eapply is_false_is_bool; eauto.
 
     (* skip *)
-    eexists; split.
-    eapply RunsToSkip.
-    eauto.
-
-    (* if-false *)
-    injection H1; intros; subst; clear H1.
-    edestruct IHRunsTo.
-    eauto.
-    eauto.
-    eauto.
-    eapply safe_if_false; eauto.
-    eapply wneb_is_false; eauto.
-    eapply safe_if_is_bool; eauto.
-    openhyp.
-    eexists.
+    exists s_st.
     split.
-    eapply RunsToIfFalse.
-    eapply wneb_is_false; eauto.
-    eapply safe_if_is_bool; eauto.
+    eapply RunsToSkip.
+    split.
+    solve [eapply diff_submap; eauto].
+    split.
     eauto.
-    eauto.
+    split.
+    solve [intros; openhyp; intuition].
+    eapply related_Equal; pick_related; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
 
+    Lemma safe_while_is_bool (env : Env ADTValue) e s st : Safe env (While e s) st -> is_bool st e.
+    Proof.
+      intros H.
+      inversion H; unfold_all; subst.
+      eapply is_true_is_bool; eauto.
+      eapply is_false_is_bool; eauto.
+    Qed.
 
     (* while-false *)
-    admit.
+    subst.
+    rename H0 into Hcomp.
+    inject Hcomp.
+    exists s_st.
+    split.
+    eapply RunsToWhileFalse.
+    eapply wneb_is_false; eauto.
+    solve [eapply safe_while_is_bool; eauto].
+    split.
+    solve [eapply diff_submap; eauto].
+    split.
+    eauto.
+    split.
+    solve [intros; openhyp; intuition].
+    eapply related_Equal; pick_related; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
+
+    Lemma is_mapsto_adt_eq_sca x w st : is_mapsto_adt x (StringMap.add x (SCA ADTValue w) st) = false.
+    Proof.
+      unfold is_mapsto_adt.
+      rewrite StringMapFacts.add_eq_o in * by eauto.
+      eauto.
+    Qed.
+
+    Lemma is_mapsto_adt_neq x (v : Value ADTValue) st x' : x' <> x -> is_mapsto_adt x' (StringMap.add x v st) = is_mapsto_adt x' st.
+    Proof.
+      unfold is_mapsto_adt; intros.
+      rewrite StringMapFacts.add_neq_o in * by eauto.
+      eauto.
+    Qed.
+
+    Lemma not_mapsto_adt_find x st v : not_mapsto_adt x st = true -> StringMap.find x st = Some v -> exists w, v = SCA ADTValue w.
+    Proof.
+      intros Hnmt Hfx.
+      unfold not_mapsto_adt in *.
+      unfold is_mapsto_adt in *.
+      rewrite Hfx in Hnmt; simpl in *.
+      destruct v as [w | a]; simpl in *.
+      eauto.
+      discriminate.
+    Qed.
+
+    Lemma related_add_sca st vs h lhs w h' : related st (vs, h) -> not_mapsto_adt lhs st = true -> h' == h -> related (StringMap.add lhs (SCA _ w) st) (Locals.upd vs lhs w, h').
+    Proof.
+      intros Hr Hnmt Hheq.
+      unfold related; simpl in *.
+      split.
+      intros x v Hfx.
+      destruct (string_dec x lhs) as [Heq | Hne].
+      subst.
+      rewrite StringMapFacts.add_eq_o in * by eauto.
+      inject Hfx; simpl in *.
+      rewrite Locals.sel_upd_eq in * by eauto.
+      eauto.
+      rewrite StringMapFacts.add_neq_o in * by eauto.
+      rewrite Locals.sel_upd_ne in * by eauto.
+      eapply Hr in Hfx; simpl in *.
+      solve [rewrite Hheq; eauto].
+      
+      intros p a Hfp.
+      rewrite Hheq in Hfp.
+      eapply Hr in Hfp.
+      simpl in *.
+      destruct Hfp as [x [[Hvs Hfx] Hu]].
+      subst.
+      destruct (string_dec x lhs) as [Heq | Hne].
+      subst.
+      eapply not_mapsto_adt_find in Hfx; eauto.
+      openhyp; discriminate.
+      exists x.
+      split.
+      rewrite Locals.sel_upd_ne in * by eauto.
+      rewrite StringMapFacts.add_neq_o in * by eauto.
+      eauto.
+      intros x' [Hvs Hfx'].
+      destruct (string_dec x' lhs) as [Heq' | Hne'].
+      subst.
+      rewrite StringMapFacts.add_eq_o in * by eauto.
+      discriminate.
+      rewrite Locals.sel_upd_ne in * by eauto.
+      rewrite StringMapFacts.add_neq_o in * by eauto.
+      eauto.
+    Qed.
+
+    Lemma new_adt_no_pollute_add_sca st vs lhs w1 w2 h : new_adt_no_pollute st vs (StringMap.add lhs (SCA _ w1) st) (Locals.upd vs lhs w2) h.
+    Proof.
+      unfold new_adt_no_pollute.
+      intros x Hmt Hmt'.
+      destruct (string_dec x lhs) as [Heq | Hne].
+      subst.
+      rewrite Locals.sel_upd_eq in * by eauto.
+      rewrite is_mapsto_adt_eq_sca in *.
+      discriminate.
+      rewrite Locals.sel_upd_ne in * by eauto.
+      rewrite is_mapsto_adt_neq in * by eauto.
+      solve [intros; openhyp; intuition].
+    Qed.
 
     (* label *)
-    admit.
+    subst.
+    rename H0 into Hcomp.
+    inject Hcomp.
+    rename s into lhs.
+    rename g into lbl.
+    destruct v as [vs h]; simpl in *.
+    rename h1 into h2.
+    rename H1 into Hsm.
+    rename H4 into Hsf.
+    rename H2 into Hr.
+    rename H into Hlbl.
+    inversion Hsf as [ | | | | | | | ? ? ? w' Hlbl' Hnmt | | ]; unfold_all; subst.
+    unif w'.
+    eexists.
+    split.
+    eapply RunsToLabel; eauto.
+    split.
+    solve [eapply diff_submap; eauto].
+    split.
+    intros x Hni.
+    eapply singleton_iff_not in Hni.
+    solve [rewrite Locals.sel_upd_ne; eauto].
+    split.
+    solve [eapply new_adt_no_pollute_add_sca].
+    eapply related_add_sca; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
 
     (* assign *)
-    admit.
-
+    subst.
+    unfold_all.
+    rename H into Hcomp.
+    inject Hcomp.
+    rename s into lhs.
+    rename e0 into e.
+    destruct v as [vs h]; simpl in *.
+    rename h1 into h2.
+    rename H0 into Hsm.
+    rename H3 into Hsf.
+    rename H1 into Hr.
+    inversion Hsf as [ | | | | | | ? ? ? w He Hnmt | | | ]; unfold_all; subst.
+    eexists.
+    split.
+    eapply RunsToAssign; eauto.
+    split.
+    solve [eapply diff_submap; eauto].
+    split.
+    intros x Hni.
+    eapply singleton_iff_not in Hni.
+    solve [rewrite Locals.sel_upd_ne; eauto].
+    split.
+    solve [eapply new_adt_no_pollute_add_sca].
+    eapply eval_ceval in He; eauto.
+    rewrite He in *.
+    eapply related_add_sca; eauto.
+    solve [rewrite diff_submap_cancel; eauto].
   Qed.
 
 End Make.
