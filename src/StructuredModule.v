@@ -1,3 +1,4 @@
+Require Import Omega.
 (* Structured programming (module construction) *)
 
 Require Import Bool NArith String List.

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Setoid.
 
 (** This file defines some inductives, type-classes and tactics to

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Bags Malloc ThreadQueue Misc.
 Import W_Bag.
 

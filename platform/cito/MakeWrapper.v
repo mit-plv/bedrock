@@ -1,3 +1,4 @@
+Require Import Omega.
 Set Implicit Arguments.
 
 Require Import Notations3.

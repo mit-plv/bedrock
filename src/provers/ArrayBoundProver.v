@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import List Arith Bool.
 Require Import Expr Env.
 Require Import EquivDec EqdepClass.

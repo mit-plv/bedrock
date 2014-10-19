@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Arith AutoSep Malloc SinglyLinkedList.
 Import SinglyLinkedList.SinglyLinkedList.
 

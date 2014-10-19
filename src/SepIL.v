@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Arith NArith Eqdep_dec List.
 Require Import Nomega Word Memory PropX PropXTac IL DepList Heaps SepTheoryXIL.
 

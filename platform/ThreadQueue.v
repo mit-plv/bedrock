@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Arith AutoSep Bags Malloc Queue Misc.
 Import W_W_Bag.
 

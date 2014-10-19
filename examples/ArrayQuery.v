@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import PreAutoSep Wrap Conditional.
 
 Import DefineStructured.

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import List DepList.
 Require Import EqdepClass.
 Require Import Word.

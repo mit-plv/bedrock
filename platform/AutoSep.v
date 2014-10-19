@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import PreAutoSep Util Sys.
 Export PreAutoSep Util Sys.
 

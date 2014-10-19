@@ -1,3 +1,4 @@
+Require Import Omega.
 (** Definition of a simple intermediate language *)
 
 Require Import Arith Div2 List NArith.

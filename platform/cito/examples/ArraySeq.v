@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep.
 
 Require Import Malloc Seq.

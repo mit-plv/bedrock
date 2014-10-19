@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep.
 
 (** * A trivial example to make sure the array proof automation isn't completely borked *)

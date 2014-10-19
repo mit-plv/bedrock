@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import SyntaxExpr WritingPrograms Wf Compiler.
 Export WritingPrograms CompileStatement Compiler.
 Require Import Malloc MyMalloc MyFree Bootstrap.

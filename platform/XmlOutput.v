@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Wrap StringOps SinglyLinkedList Malloc ArrayOps Bags.
 Require Import RelDb RelDbCondition RelDbSelect.
 

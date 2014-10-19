@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Bedrock PreAutoSep Sys.
 Import XCAP.
 

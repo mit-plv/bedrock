@@ -157,4 +157,3 @@ Section Lemmas.
   Qed.
 
 End Lemmas.
-

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Malloc Scheduler ThreadQueue.
 Export AutoSep Malloc Bags.W_Bag.
 

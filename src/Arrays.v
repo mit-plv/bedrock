@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Nomega NArith Word PropX PropXTac Memory SepIL IL.
 
 Require Import sep.Array Allocated.

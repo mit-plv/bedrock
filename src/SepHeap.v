@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import List.
 Require Import SepTheoryX PropX.
 Require Import PropXTac.

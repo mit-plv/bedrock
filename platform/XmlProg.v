@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
 Require Import RelDb XmlOutput Bags Io Http HttpQ Thread.
 

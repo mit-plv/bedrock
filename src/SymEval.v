@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import List DepList Word Memory.
 Require Import Heaps SepTheoryX.
 Require Import Expr SepHeap.

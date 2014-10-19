@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import DepList AutoSep Malloc.
 
 Set Implicit Arguments.

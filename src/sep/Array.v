@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Bool.
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.

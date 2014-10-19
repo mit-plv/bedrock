@@ -1,3 +1,4 @@
+Require Import Omega.
 (* Laying out labels, and generally coming up with final "machine code" programs *)
 
 Require Import NArith.

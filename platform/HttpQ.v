@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers StringOps Ascii Io.
 Require Import Http SinglyLinkedList Bags ArrayOps.
 

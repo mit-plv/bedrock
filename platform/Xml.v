@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import XmlLang.
 Export XmlOutput XmlLang.
 

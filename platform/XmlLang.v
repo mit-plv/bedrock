@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags NumOps Buffers.
 Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps HttpQ.
 Require Import RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete.

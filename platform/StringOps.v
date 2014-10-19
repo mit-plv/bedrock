@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Ascii Wrap Arrays8.
 
 Set Implicit Arguments.

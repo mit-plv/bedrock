@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Malloc Bags ThreadQueue ThreadQueues SinglyLinkedList MoreArrays.
 Import W_Bag.
 Export AutoSep Malloc W_Bag.

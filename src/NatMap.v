@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import OrderedType FMapAVL.
 Require Import List.
 Require Import Setoid RelationClasses.

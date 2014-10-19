@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Expr.
 Require Import NatMap.
 Require Import EquivDec.

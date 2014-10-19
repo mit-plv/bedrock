@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Arith Bedrock Locals List PreAutoSep.
 
 Lemma wordToNat_wminus : forall sz (w u : word sz),

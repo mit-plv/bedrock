@@ -1,3 +1,4 @@
+Require Import Omega.
 (** This file implements symbolic evaluation for the
  ** language defined in IL.v
  **)

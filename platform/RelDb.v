@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
 Require Import SinglyLinkedList ListSegment.
 

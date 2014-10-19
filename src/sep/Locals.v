@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Ascii Bool String List.
 Require Import Word Memory Expr SepExpr SymEval SepIL Env Prover SymEval IL SymIL.
 Require Import sep.Array.
